@@ -44,18 +44,44 @@ export default function Dashboard() {
   const [arrivals, setArrivals] = useState([])
   const [departures, setDepartures] = useState([])
   const [gaps, setGaps] = useState([])
+  const [error, setError] = useState(false)
   const today = new Date().toISOString().split('T')[0]
 
   useEffect(() => {
-    getDashboard().then((r) => setStats(r.data))
-    getBookings({ from_date: today, to_date: today }).then((r) => {
-      setArrivals(r.data.filter((b) => b.check_in === today))
-      setDepartures(r.data.filter((b) => b.check_out === today))
-    })
-    getGapAlerts({ max_gap_days: 3 }).then((r) => setGaps(r.data.alerts.slice(0, 5)))
+    getDashboard()
+      .then((r) => setStats(r.data))
+      .catch(() => setError(true))
+    getBookings({ from_date: today, to_date: today })
+      .then((r) => {
+        setArrivals(r.data.filter((b) => b.check_in === today))
+        setDepartures(r.data.filter((b) => b.check_out === today))
+      })
+      .catch(() => {})
+    getGapAlerts({ max_gap_days: 3 })
+      .then((r) => setGaps(r.data.alerts.slice(0, 5)))
+      .catch(() => {})
   }, [])
 
-  if (!stats) return <div className="p-6 text-gray-400">Φόρτωση...</div>
+  if (error) return (
+    <div className="p-6 text-center">
+      <p className="text-red-500 font-medium mb-2">Δεν ήταν δυνατή η σύνδεση με τον server.</p>
+      <p className="text-gray-400 text-sm mb-4">Το backend μπορεί να ξυπνάει (cold start). Δοκιμάστε ξανά σε 30 δευτερόλεπτα.</p>
+      <button onClick={() => { setError(false); setStats(null); getDashboard().then((r) => setStats(r.data)).catch(() => setError(true)) }}
+        className="btn-primary">Ανανέωση</button>
+    </div>
+  )
+
+  if (!stats) return (
+    <div className="p-6 text-center">
+      <div className="animate-pulse space-y-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          {[1,2,3,4].map(i => <div key={i} className="h-24 bg-gray-200 rounded-xl"/>)}
+        </div>
+        <div className="h-48 bg-gray-200 rounded-xl"/>
+      </div>
+      <p className="text-gray-400 text-sm mt-4">Φόρτωση... (πρώτη εκκίνηση μπορεί να αργήσει ~30 δευτερόλεπτα)</p>
+    </div>
+  )
 
   return (
     <div className="p-4 md:p-6 space-y-6">
