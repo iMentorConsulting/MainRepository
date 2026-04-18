@@ -94,8 +94,19 @@ export default function ResultsPanel({ calc, incomeData }) {
       {/* Forecast box */}
       {forecast && (
         <div className={`border-2 rounded-xl p-5 ${fgColor}`}>
-          <h3 className="font-black text-lg mb-3">{forecast.title}</h3>
-          <div className="text-sm whitespace-pre-line leading-relaxed">{forecast.body}</div>
+          <h3 className="font-black text-lg mb-4">{forecast.title}</h3>
+          <div className="space-y-3">
+            {(forecast.sections || []).map((s, i) => (
+              <div key={i} className={`rounded-lg px-4 py-3 text-sm leading-relaxed ${
+                s.type === 'success'
+                  ? 'bg-green-50 border border-green-300 text-green-900'
+                  : 'bg-blue-50 border border-blue-200 text-blue-900'
+              }`}>
+                <div className="font-bold mb-1">{s.icon} {s.label}</div>
+                <div className="whitespace-pre-line">{s.body}</div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>

@@ -198,8 +198,8 @@ export function calculateAll(debts, assets, incomeData) {
   // ============================================================
   const hasLargeBankDebt = rows.some((r) => r.type === 'Τράπεζα' && r.amount > 99999)
 
-  function nextStep(cur, type) {
-    const max = maxMonthsByType(type, 0)
+  function nextStep(cur, type, amount) {
+    const max = maxMonthsByType(type, amount)
     return cur < max ? cur + 1 : cur
   }
 
@@ -226,7 +226,7 @@ export function calculateAll(debts, assets, incomeData) {
     let bestGain = 0
     let newM = 0
     planA.forEach((p, i) => {
-      const ns = nextStep(p.months, p.type)
+      const ns = nextStep(p.months, p.type, p.amount)
       if (ns <= p.max && ns !== p.months) {
         const gain = PMT(RATE, p.months, p.amount) - PMT(RATE, ns, p.amount)
         if (gain > bestGain) {
@@ -396,79 +396,117 @@ export function calculateAll(debts, assets, incomeData) {
 }
 
 // ============================================================
-// Scenario narrative text
+// Scenario narrative text — structured multi-section format
 // ============================================================
 export function buildForecastText(calc, incomeData) {
   if (!calc || calc.sumDebt === 0) return null
-  const { scenario, sumDebt, sumWr, totalRemaining, totalMonthlyPay, dispMonthly, finalPlan } = calc
-
-  const fmtN = fmt
+  const { scenario, sumDebt, sumWr, sumWrPct, totalRemaining, totalMonthlyPay, dispMonthly, finalPlan, sumAssetsAfterExp } = calc
 
   const banksDebt = (calc.rows || []).filter((r) => r.type === 'Τράπεζα').reduce((a, r) => a + r.amount, 0)
   const taxDebt = (calc.rows || []).filter((r) => r.type === 'Εφορία').reduce((a, r) => a + r.amount, 0)
   const fundsDebt = (calc.rows || []).filter((r) => r.type === 'Ασφαλιστικά Ταμεία').reduce((a, r) => a + r.amount, 0)
   const hasBanks = banksDebt > 0
+  const hasAssets = sumAssetsAfterExp > 0
 
-  // Duration phrase
   const monthsList = (finalPlan || []).map((p) => p.months || 0).filter((m) => m > 0)
   const minM = monthsList.length ? Math.min(...monthsList) : 0
   const maxM = monthsList.length ? Math.max(...monthsList) : 0
-  const durationPhrase =
-    minM === maxM
-      ? `${maxM} μήνες (~${(maxM / 12).toFixed(1)} έτη)`
-      : `από ${minM} έως ${maxM} μήνες (~${(minM / 12).toFixed(1)}–${(maxM / 12).toFixed(1)} έτη)`
+  const durationPhrase = minM === maxM
+    ? `${maxM} μήνες (~${(maxM / 12).toFixed(1)} έτη)`
+    : `από ${minM} έως ${maxM} μήνες (~${(minM / 12).toFixed(1)}–${(maxM / 12).toFixed(1)} έτη)`
 
-  const banksNote = hasBanks
-    ? `\n\nℹ️ Παρατήρηση (Τράπεζες): Το αποτέλεσμα προσομοιώνει την πρόταση του αλγορίθμου του Εξωδικαστικού. Οι Τράπεζες δύνανται να αποδεχθούν ή να υποβάλουν αντιπρόταση.`
-    : ''
+  const ratio = dispMonthly > 0 ? Math.round(totalMonthlyPay / dispMonthly * 100) : 0
 
-  const debtBreakdown = `Σύνολο: ${fmtN(sumDebt)} (Τράπεζες: ${fmtN(banksDebt)}, ΕΦΚΑ: ${fmtN(fundsDebt)}, ΑΑΔΕ: ${fmtN(taxDebt)})`
+  // Common sections
+  const debtSection = {
+    type: 'info', icon: '🔢', label: 'Σύνολο Οφειλών',
+    body: `Οι συνολικές οφειλές του οφειλέτη ανέρχονται σε ${fmt(sumDebt)}, κατανεμημένες ως εξής:\n• Προς τράπεζες: ${fmt(banksDebt)}\n• Προς ασφαλιστικά ταμεία: ${fmt(fundsDebt)}\n• Προς ΑΑΔΕ / εφορία: ${fmt(taxDebt)}`,
+  }
+  const incomeSection = {
+    type: 'info', icon: '💶', label: 'Εισοδηματικά Στοιχεία',
+    body: `Με βάση τα δηλωθέντα στοιχεία, το διαθέσιμο εισόδημα μετά τις εύλογες δαπάνες εκτιμάται σε ${fmt(dispMonthly)} / μήνα.`,
+  }
+  const assetSection = hasAssets ? {
+    type: 'info', icon: '🏠', label: 'Περιουσιακή Εικόνα',
+    body: `Η συνολική εκτιμώμενη αξία περιουσιακών στοιχείων ανέρχεται σε ${fmt(sumAssetsAfterExp)}. ${
+      calc.isFullCoveredByAssets
+        ? 'Η περιουσία καλύπτει πλήρως τις οφειλές.'
+        : 'Η περιουσία παρέχει μερική κάλυψη των οφειλών, ωστόσο παραμένει "αδιάσωστο" μέρος της συνολικής οφειλής.'
+    }`,
+  } : null
+  const noteSection = {
+    type: 'info', icon: 'ℹ️', label: 'Παρατήρηση',
+    body: 'Η παρούσα εκτίμηση είναι θεωρητική προσομοίωση. Η τελική αξιολόγηση μπορεί να διαφοροποιηθεί ανάλογα με την πραγματική αξία/βάρη της περιουσίας και την αποδοχή των πιστωτών.',
+  }
+  const nextStepSection = {
+    type: 'info', icon: '🔵', label: 'Επόμενο Βήμα',
+    body: 'Η ομάδα της i-Mentor Consulting προχωρά σε έλεγχο τεκμηρίωσης περιουσίας και οριστικοποίηση της βέλτιστης πρότασης ρύθμισης.',
+  }
+  const banksSection = hasBanks ? {
+    type: 'info', icon: 'ℹ️', label: 'Παρατήρηση (Τράπεζες)',
+    body: 'Το αποτέλεσμα του εργαλείου προσομοιώνει την πρόταση του αλγορίθμου της πλατφόρμας του Εξωδικαστικού Μηχανισμού. Η προσομοιωμένη πρόταση αποστέλλεται από το Δημόσιο (ΕΦΚΑ & ΑΑΔΕ) και αποστέλλεται προς τις Τράπεζες. Οι Τράπεζες έχουν δικαίωμα είτε να αποδεχθούν την αυτοματοποιημένη πρόταση του συστήματος είτε να υποβάλουν επίσης «Αντιπρόταση Πιστωτών». Όταν υποβάλλεται Αντιπρόταση, συνήθως είναι δυσμενέστερη και αυστηρότερη από την πρόταση του συστήματος.',
+  } : null
+
+  function sections(resultSection) {
+    return [debtSection, incomeSection, assetSection, resultSection, noteSection, nextStepSection, banksSection].filter(Boolean)
+  }
 
   if (scenario === 0) {
-    // Legal entity
     return {
-      type: 'info',
-      title: '🔮 Πρόβλεψη ρύθμισης – Νομικό Πρόσωπο',
-      body: `${debtBreakdown}\n\nΔιαθέσιμο μηνιαίο ποσό: ${fmtN(dispMonthly)}\nΕκτιμώμενη διαγραφή: ${sumWr > 0 ? fmtN(sumWr) : 'Δεν απαιτείται'}\nΕναπομένουσα οφειλή: ${fmtN(totalRemaining)}\nΔιάρκεια ρύθμισης: ${durationPhrase}\nΣυνολική μηνιαία δόση: ${fmtN(totalMonthlyPay)}${banksNote}`,
-    }
-  }
-
-  if (scenario === 4) {
-    return {
-      type: 'info',
-      title: '🏠 Χαμηλό Εισόδημα – Πλήρης Κάλυψη από Περιουσία',
-      body: `${debtBreakdown}\n\nΗ περιουσία καλύπτει πλήρως τις οφειλές. Δεν απαιτείται θεωρητικά διαγραφή.${banksNote}`,
-    }
-  }
-
-  if (scenario === 5) {
-    return {
-      type: 'warning',
-      title: '🏠 Χαμηλό Εισόδημα – Μερική Κάλυψη από Περιουσία',
-      body: `${debtBreakdown}\n\nΕκτιμώμενη διαγραφή: ${fmtN(sumWr)} (${calc.sumWrPct}%)\nΕναπομένουσα οφειλή: ${fmtN(totalRemaining)}${banksNote}`,
+      title: '🔮 Πρόβλεψη Ρύθμισης – Νομικό Πρόσωπο',
+      sections: sections({
+        type: 'success', icon: '✅', label: 'Εκτίμηση Αποτελέσματος',
+        body: `Διαθέσιμο μηνιαίο ποσό για εξυπηρέτηση: ${fmt(dispMonthly)}\nΕκτιμώμενη διαγραφή: ${sumWr > 0 ? `${fmt(sumWr)} (${sumWrPct}%)` : 'Δεν απαιτείται'}\nΕναπομένουσα οφειλή: ${fmt(totalRemaining)}\nΔιάρκεια ρύθμισης: ${durationPhrase}\nΣυνολική μηνιαία δόση: ${fmt(totalMonthlyPay)} (${ratio}% εισοδήματος)`,
+      }),
     }
   }
 
   if (scenario === 1) {
     return {
-      type: 'success',
-      title: '✅ Οικονομικά Ισχυρό Προφίλ – Χωρίς Ανάγκη Διαγραφής',
-      body: `${debtBreakdown}\n\nΔιαθέσιμο μηνιαίο εισόδημα: ${fmtN(dispMonthly)}\nΔιάρκεια ρύθμισης: ${durationPhrase}\nΣυνολική μηνιαία δόση: ${fmtN(totalMonthlyPay)}${banksNote}`,
+      title: '✅ Πρόβλεψη Ρύθμισης – Οικονομικά Ισχυρό Προφίλ',
+      sections: sections({
+        type: 'success', icon: '✅', label: 'Εκτίμηση Αποτελέσματος',
+        body: `• Επαρκές εισόδημα — δεν απαιτείται διαγραφή.\n• Διαθέσιμο μηνιαίο εισόδημα: ${fmt(dispMonthly)}\n• Διάρκεια ρύθμισης: ${durationPhrase}\n• Συνολική μηνιαία δόση: ${fmt(totalMonthlyPay)} (${ratio}% εισοδήματος)`,
+      }),
     }
   }
 
   if (scenario === 2) {
     return {
-      type: 'warning',
-      title: '💰 Δυνητικό "Κούρεμα" Οφειλών',
-      body: `${debtBreakdown}\n\nΕκτιμώμενη διαγραφή: ${fmtN(sumWr)} (${calc.sumWrPct}%)\nΕναπομένουσα οφειλή: ${fmtN(totalRemaining)}\nΔιάρκεια ρύθμισης: ${durationPhrase}\nΣυνολική μηνιαία δόση: ${fmtN(totalMonthlyPay)}${banksNote}`,
+      title: '🔮 Πρόβλεψη Ρύθμισης – Δυνητικό "Κούρεμα" Οφειλών',
+      sections: sections({
+        type: 'success', icon: '✅', label: 'Εκτίμηση Αποτελέσματος',
+        body: `• Προκύπτει περιθώριο μερικής διαγραφής.\n• Θεωρητικά εκτιμώμενη διαγραφή: ${fmt(sumWr)} (${sumWrPct}%)\n• Εναπομένουσα οφειλή μετά τη διαγραφή: ${fmt(totalRemaining)}\n• Συνολική μηνιαία δόση: ${fmt(totalMonthlyPay)} (${ratio}% εισοδήματος)\n• Διάρκεια ρύθμισης: ${durationPhrase}`,
+      }),
     }
   }
 
-  // scenario 3
+  if (scenario === 3) {
+    return {
+      title: '⚖️ Πρόβλεψη Ρύθμισης – Ισχυρό Δικαίωμα Διαγραφής',
+      sections: sections({
+        type: 'success', icon: '✅', label: 'Εκτίμηση Αποτελέσματος',
+        body: `• Τεκμηριωμένη οικονομική αδυναμία — μέγιστη διαγραφή.\n• Θεωρητικά εκτιμώμενη διαγραφή: ${fmt(sumWr)} (${sumWrPct}%)\n• Εναπομένουσα οφειλή μετά τη διαγραφή: ${fmt(totalRemaining)}\n• Συνολική μηνιαία δόση: ${fmt(totalMonthlyPay)} (${ratio}% εισοδήματος)\n• Διάρκεια ρύθμισης: ${durationPhrase}`,
+      }),
+    }
+  }
+
+  if (scenario === 4) {
+    return {
+      title: '🏠 Πρόβλεψη Ρύθμισης – Χαμηλό Εισόδημα με Πλήρη Κάλυψη από Περιουσία',
+      sections: sections({
+        type: 'success', icon: '✅', label: 'Εκτίμηση Αποτελέσματος',
+        body: `• Η περιουσία καλύπτει πλήρως τις οφειλές — δεν απαιτείται θεωρητικά διαγραφή.\n• Εναπομένουσα οφειλή: ${fmt(totalRemaining)}\n• Συνολική μηνιαία δόση: ${fmt(totalMonthlyPay)}`,
+      }),
+    }
+  }
+
+  // scenario 5
   return {
-    type: 'danger',
-    title: '⚖️ Ισχυρό Δικαίωμα Διαγραφής – Τεκμηριωμένη Οικονομική Αδυναμία',
-    body: `${debtBreakdown}\n\nΔιαθέσιμο μηνιαίο εισόδημα: ${fmtN(dispMonthly)}\nΕκτιμώμενη διαγραφή: ${fmtN(sumWr)} (${calc.sumWrPct}%)\nΕναπομένουσα οφειλή: ${fmtN(totalRemaining)}\nΔιάρκεια ρύθμισης: ${durationPhrase}\nΣυνολική μηνιαία δόση: ${fmtN(totalMonthlyPay)}${banksNote}`,
+    title: '🏠 Πρόβλεψη Ρύθμισης – Χαμηλό Εισόδημα με Μερική Κάλυψη από Περιουσία',
+    sections: sections({
+      type: 'success', icon: '✅', label: 'Εκτίμηση Αποτελέσματος',
+      body: `• Προκύπτει θεωρητικά αδιάσωστο ποσό, άρα υπάρχει περιθώριο μερικής διαγραφής.\n• Θεωρητικά εκτιμώμενη διαγραφή: ${fmt(sumWr)} (${sumWrPct}%)\n• Εναπομένουσα οφειλή μετά τη διαγραφή: ${fmt(totalRemaining)}\n• Συνολική μηνιαία δόση: ${fmt(totalMonthlyPay)}`,
+    }),
   }
 }

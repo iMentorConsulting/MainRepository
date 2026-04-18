@@ -67,9 +67,40 @@ function renderHorizontalBars(title, items, note) {
 // ============================================================
 // Build the restructuring plan HTML
 // ============================================================
-export function buildPlanHtml(data) {
+export function buildPlanHtml(data, customRows) {
   const today = new Date().toLocaleDateString('el-GR')
-  const { clientName, clientPhone, clientEmail, debtorType, annualIncome, totalExpenses, householdValue, householdLabel, enfia, medical, rent, studentRent, extraLiving, alimony, dispAnnual, dispMonthly, creditors, totalDebt, totalWriteOff, totalRemaining, totalMonthlyPay, realEstateAssets, totalRealEstateValue } = data
+  const { clientName, clientPhone, clientEmail, debtorType, annualIncome, totalExpenses, householdValue, householdLabel, enfia, medical, rent, studentRent, extraLiving, alimony, dispAnnual, dispMonthly, realEstateAssets, totalRealEstateValue } = data
+
+  // If customRows provided (from PlanParamsModal), use those; otherwise fall back to data.creditors
+  const RATE_LOCAL = 0.03 / 12
+  const allCreditors = customRows
+    ? customRows.map((r) => {
+        const reqWrAmt = Math.round(r.amount * (r.reqPct || 0) / 100)
+        const reqRemaining = Math.max(0, r.amount - reqWrAmt)
+        const reqMonthlyPay = reqRemaining > 0 && r.reqMonths > 0
+          ? Math.floor(PMT(RATE_LOCAL, r.reqMonths, reqRemaining))
+          : 0
+        return {
+          creditor: r.name,
+          type: r.type,
+          amount: r.amount,
+          writeoff: reqWrAmt,
+          remaining: reqRemaining,
+          months: r.reqMonths,
+          monthlyPay: reqMonthlyPay,
+          excluded: r.excluded || false,
+        }
+      })
+    : data.creditors.map((c) => ({ ...c, excluded: false }))
+
+  const includedCreditors = allCreditors.filter((c) => !c.excluded)
+  const excludedCreditors = allCreditors.filter((c) => c.excluded)
+  const creditors = includedCreditors
+
+  const totalDebt = allCreditors.reduce((a, c) => a + c.amount, 0)
+  const totalWriteOff = includedCreditors.reduce((a, c) => a + (c.writeoff || 0), 0)
+  const totalRemaining = includedCreditors.reduce((a, c) => a + (c.remaining || 0), 0)
+  const totalMonthlyPay = includedCreditors.reduce((a, c) => a + (c.monthlyPay || 0), 0)
 
   const totalRatio = dispMonthly > 0 ? Math.round((totalMonthlyPay / dispMonthly) * 100) : 0
   const RATE = 0.03 / 12
@@ -187,9 +218,25 @@ export function buildPlanHtml(data) {
 
   ${creditorSections}
 
+  ${excludedCreditors.length > 0 ? `
+  <h3 style="color:#b91c1c;margin-top:24px;">⚠️ Πιστωτές που ζητείται να ΑΠΟΣΥΡΘΟΥΝ από τη Ρύθμιση</h3>
+  <div style="background:#fef2f2;border:2px solid #fca5a5;border-radius:10px;padding:16px;margin-top:12px;">
+    <p style="font-weight:700;color:#991b1b;margin:0 0 10px;">Για τους παρακάτω πιστωτές αιτούμαστε ΑΠΟΣΥΡΣΗ και ΜΗ ΣΥΜΜΕΤΟΧΗ στον Εξωδικαστικό Μηχανισμό Ρύθμισης:</p>
+    <table style="width:100%;border-collapse:collapse;">
+      <thead><tr>${th('Πιστωτής')}${th('Ποσό')}${th('Σημείωση')}</tr></thead>
+      <tbody>
+        ${excludedCreditors.map((c) => `<tr><td style="padding:10px;border:1px solid #fca5a5;font-weight:700;color:#991b1b;">${escHtml(c.creditor)}</td><td style="padding:10px;border:1px solid #fca5a5;font-family:monospace;">${fmt(c.amount)}</td><td style="padding:10px;border:1px solid #fca5a5;color:#7f1d1d;font-style:italic;">Αιτείται ΑΠΟΣΥΡΣΗ — δεν συμμετέχει στην πρόταση ρύθμισης μέσω Εξωδικαστικού</td></tr>`).join('')}
+      </tbody>
+    </table>
+    <p style="margin:12px 0 0;font-size:13px;color:#991b1b;">Η συγκεκριμένη/-ες τράπεζα/-ες ή πιστωτής/-ές δημιουργεί/-ούν επιπρόσθετη επιβάρυνση <b>${fmt(excludedCreditors.reduce((a,c)=>a+c.amount,0))}</b> η οποία δεν εντάσσεται στο παρόν σχέδιο ρύθμισης. Αιτούμαστε να μην συμμετάσχουν στη διαδικασία και να αποσυρθούν από τον εξωδικαστικό μηχανισμό.</p>
+  </div>` : ''}
+
   <h3 style="color:#004aad;margin-top:24px;">7. Συμπεράσματα</h3>
-  <p>Η παρούσα πρόταση αποσκοπεί στη διαμόρφωση βιώσιμης ρύθμισης. Συνολική μηνιαία δόση: <b>${fmt(totalMonthlyPay)}</b>${dispMonthly > 0 ? ` • Επιβάρυνση: <b>${totalRatio}%</b>` : ''} επί του διαθέσιμου εισοδήματος.</p>
+  <p>Η προτεινόμενη ρύθμιση αποτελεί αναγκαία προϋπόθεση για τη ρεαλιστική εξυπηρέτηση των οφειλών προς τους πιστωτές. Βάσει της ανάλυσης, το ποσό που μπορεί να διατεθεί για εξυπηρέτηση χρέους ανέρχεται έως <b>${fmt(dispMonthly)}</b> μηνιαίως, η συνολική αρχική οφειλή ανέρχεται σε <b>${fmt(totalDebt)}</b>, η συνολική προτεινόμενη απομείωση σε <b>${fmt(totalWriteOff)}</b>, το υπόλοιπο προς ρύθμιση σε <b>${fmt(totalRemaining)}</b> και η συνολική εκτιμώμενη μηνιαία επιβάρυνση σε <b>${fmt(totalMonthlyPay)}</b>.${totalRealEstateValue > 0 ? ` Η συνολική καταγεγραμμένη αξία ακίνητης περιουσίας ανέρχεται σε <b>${fmt(totalRealEstateValue)}</b> και η πρόταση δύναται να περιλαμβάνει το τμήμα των απαιτήσεων που υπερβαίνει την αξία κάλυψης/ρευστοποίησης της περιουσίας αυτής.` : ''} Η αποδοχή του παρόντος σχεδίου από τους πιστωτές ενισχύει την πιθανότητα ομαλής και συστηματικής αποπληρωμής των απαιτήσεών τους.</p>
   <div style="background:#eef5ff;border-left:4px solid #0070e8;padding:12px 14px;border-radius:8px;margin-top:12px;">
+    Συνολική μηνιαία δόση προς όλους τους πιστωτές: <b>${fmt(totalMonthlyPay)}</b>${dispMonthly > 0 ? ` • Εκτιμώμενη επιβάρυνση: <b>${totalRatio}%</b>` : ''}.
+  </div>
+  <div style="background:#fff8e1;border-left:4px solid #f59e0b;padding:12px 14px;border-radius:8px;margin-top:10px;font-size:13px;">
     ⚠️ Η ανάλυση αποτελεί θεωρητική προσομοίωση και δεν συνιστά δεσμευτική πρόταση.
   </div>
 </div>`

@@ -5,6 +5,7 @@ import { ArrowLeftIcon, DocumentTextIcon, EnvelopeIcon, CloudArrowUpIcon } from 
 import DebtTable, { emptyDebt } from '../components/DebtTable'
 import IncomePanel from '../components/IncomePanel'
 import ResultsPanel from '../components/ResultsPanel'
+import PlanParamsModal from '../components/PlanParamsModal'
 import * as api from '../api'
 import { calculateAll, creditorDisplayName, fmt } from '../utils/calculations'
 import { buildPlanHtml, wrapPlanDocument, buildEmailHtml, wrapEmailDocument } from '../utils/reportGenerators'
@@ -127,6 +128,7 @@ export default function CaseForm({ currentEmployee }) {
   const [status, setStatus] = useState('draft')
   const [calc, setCalc] = useState(null)
   const [saving, setSaving] = useState(false)
+  const [showPlanModal, setShowPlanModal] = useState(false)
 
   // Load existing case
   useEffect(() => {
@@ -196,8 +198,13 @@ export default function CaseForm({ currentEmployee }) {
 
   const openPlan = () => {
     if (!calc || calc.sumDebt === 0) return toast.error('Δεν υπάρχουν δεδομένα')
+    setShowPlanModal(true)
+  }
+
+  const handleGeneratePlan = (customRows) => {
+    setShowPlanModal(false)
     const data = collectPlanData(debts, assets, income, calc, client)
-    const html = buildPlanHtml(data)
+    const html = buildPlanHtml(data, customRows)
     const w = window.open('', '_blank', 'width=1200,height=900,scrollbars=yes')
     if (w) { w.document.open(); w.document.write(wrapPlanDocument(html)); w.document.close() }
   }
@@ -213,6 +220,13 @@ export default function CaseForm({ currentEmployee }) {
 
   return (
     <div className="p-4 md:p-6 max-w-6xl mx-auto">
+      {showPlanModal && calc && (
+        <PlanParamsModal
+          calc={calc}
+          onGenerate={handleGeneratePlan}
+          onClose={() => setShowPlanModal(false)}
+        />
+      )}
       {/* Header */}
       <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
         <div className="flex items-center gap-3">
