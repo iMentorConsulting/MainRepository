@@ -163,7 +163,7 @@ export default function Cleaning() {
 
       {/* Summary pills */}
       {s && (
-        <div className="flex flex-wrap gap-2 justify-center print:justify-start">
+        <div className="print-card flex flex-wrap gap-2 justify-center print:justify-start">
           {s.turnover > 0 && <span className="bg-red-100 text-red-700 text-sm font-semibold px-3 py-1 rounded-full">🔄 Αλλαγή πελάτη: {s.turnover}</span>}
           {s.departures > 0 && <span className="bg-orange-100 text-orange-700 text-sm font-semibold px-3 py-1 rounded-full">🚪 Αναχωρήσεις: {s.departures}</span>}
           {s.arrivals > 0 && <span className="bg-green-100 text-green-700 text-sm font-semibold px-3 py-1 rounded-full">✅ Αφίξεις: {s.arrivals}</span>}
@@ -190,7 +190,7 @@ export default function Cleaning() {
             const style = TASK_STYLE[t.task_type] || TASK_STYLE.midstay
             const isOccupied = t.task_type === 'occupied'
             return (
-              <div key={t.unit_id} className={`rounded-xl border-2 p-4 md:p-5 ${style.bg} ${isOccupied ? 'opacity-60' : ''}`}>
+              <div key={t.unit_id} className={`print-card rounded-xl border-2 p-4 md:p-5 ${style.bg} ${isOccupied ? 'opacity-60' : ''}`}>
                 <div className="flex items-start gap-3">
                   <span className="text-3xl flex-shrink-0">{style.icon}</span>
                   <div className="flex-1">
