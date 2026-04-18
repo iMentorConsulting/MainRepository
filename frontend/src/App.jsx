@@ -10,6 +10,7 @@ import Units from './pages/Units'
 import Customers from './pages/Customers'
 import Reports from './pages/Reports'
 import SmartAdvisor from './pages/SmartAdvisor'
+import Cleaning from './pages/Cleaning'
 
 export default function App() {
   const [auth, setAuth] = useState(() => {
@@ -42,6 +43,7 @@ export default function App() {
           <Route path="customers" element={<Customers />} />
           <Route path="reports" element={<Reports />} />
           <Route path="smart-advisor" element={<SmartAdvisor />} />
+          <Route path="cleaning" element={<Cleaning />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>

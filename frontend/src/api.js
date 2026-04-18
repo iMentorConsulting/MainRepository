@@ -62,10 +62,14 @@ export const getDashboard = () => api.get('/reports/dashboard')
 export const getOccupancy = (params) => api.get('/reports/occupancy', { params })
 export const getByChannel = (params) => api.get('/reports/by-channel', { params })
 export const getFinancial = (params) => api.get('/reports/financial', { params })
+export const getPriceAnalytics = (params) => api.get('/reports/price-analytics', { params })
 
 // AI Advisor
 export const recommendUnit = (data) => api.post('/ai/recommend-unit', data)
 export const getGapAlerts = (params) => api.get('/ai/gap-alerts', { params })
 export const getBookingAlerts = () => api.get('/ai/booking-alerts')
+
+// Cleaning
+export const getDailyTasks = (params) => api.get('/cleaning/daily', { params })
 
 export default api

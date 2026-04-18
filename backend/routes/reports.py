@@ -218,3 +218,63 @@ def financial_report(
         data.append(g)
 
     return {"from_date": from_date.isoformat(), "to_date": to_date.isoformat(), "group_by": group_by, "data": data}
+
+
+@router.get("/price-analytics")
+def price_analytics(
+    from_date: date = Query(...),
+    to_date: date = Query(...),
+    group_by: str = Query("month"),
+    db: Session = Depends(get_db),
+    tenant: str = Depends(get_tenant),
+):
+    bookings = db.query(Booking).filter(
+        Booking.tenant == tenant,
+        Booking.status == "confirmed",
+        Booking.check_in >= from_date,
+        Booking.check_in < to_date,
+    ).all()
+
+    CHANNEL_LABELS = {
+        'booking': 'Booking.com', 'airbnb': 'Airbnb', 'direct': 'Απευθείας',
+        'oga': 'ΟΓΑ', 'social_tourism': 'Κοιν.Τουρισμός', 'other': 'Άλλο',
+    }
+
+    groups: dict = {}
+    for b in bookings:
+        nights = (b.check_out - b.check_in).days
+        if nights <= 0:
+            continue
+        if group_by == "month":
+            key = b.check_in.strftime("%Y-%m")
+            label = b.check_in.strftime("%m/%Y")
+        elif group_by == "week":
+            key = b.check_in.strftime("%Y-W%W")
+            label = f"Εβδ.{b.check_in.strftime('%W')}/{b.check_in.year}"
+        else:
+            key = b.channel
+            label = CHANNEL_LABELS.get(b.channel, b.channel)
+
+        if key not in groups:
+            groups[key] = {"key": key, "label": label, "bookings_count": 0, "total_nights": 0, "total_revenue": 0.0}
+        groups[key]["bookings_count"] += 1
+        groups[key]["total_nights"] += nights
+        groups[key]["total_revenue"] += b.total_price
+
+    data = []
+    for g in sorted(groups.values(), key=lambda x: x["key"]):
+        g["avg_price_per_night"] = round(g["total_revenue"] / g["total_nights"], 2) if g["total_nights"] > 0 else 0
+        g["total_revenue"] = round(g["total_revenue"], 2)
+        data.append(g)
+
+    total_nights = sum((b.check_out - b.check_in).days for b in bookings if (b.check_out - b.check_in).days > 0)
+    total_rev = sum(b.total_price for b in bookings)
+    overall = round(total_rev / total_nights, 2) if total_nights > 0 else 0
+
+    return {
+        "from_date": from_date.isoformat(),
+        "to_date": to_date.isoformat(),
+        "group_by": group_by,
+        "data": data,
+        "overall_avg_price_per_night": overall,
+    }

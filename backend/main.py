@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 from database import Base, engine
 from routes import units, bookings, customers, reports, ai_advisor
-from routes import auth
+from routes import auth, cleaning
 
 load_dotenv()
 
@@ -52,6 +52,7 @@ app.include_router(bookings.router)
 app.include_router(customers.router)
 app.include_router(reports.router)
 app.include_router(ai_advisor.router)
+app.include_router(cleaning.router)
 
 
 @app.get("/")
