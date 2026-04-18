@@ -29,8 +29,18 @@ export const getOccupancy = (params) => api.get('/reports/occupancy', { params }
 export const getByChannel = (params) => api.get('/reports/by-channel', { params })
 export const getFinancial = (params) => api.get('/reports/financial', { params })
 
+// Bookings Excel
+export const exportBookings = (params) => api.get('/bookings/export/excel', { params, responseType: 'blob' })
+export const downloadTemplate = () => api.get('/bookings/template/excel', { responseType: 'blob' })
+export const importBookings = (file) => {
+  const fd = new FormData()
+  fd.append('file', file)
+  return api.post('/bookings/import/excel', fd, { headers: { 'Content-Type': 'multipart/form-data' } })
+}
+
 // AI Advisor
 export const recommendUnit = (data) => api.post('/ai/recommend-unit', data)
 export const getGapAlerts = (params) => api.get('/ai/gap-alerts', { params })
+export const getBookingAlerts = () => api.get('/ai/booking-alerts')
 
 export default api

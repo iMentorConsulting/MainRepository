@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { getUnits, getBookings } from '../api'
-import { format, addMonths, subMonths, getDaysInMonth, startOfMonth, eachDayOfInterval, addDays } from 'date-fns'
+import { format, addMonths, subMonths, getDaysInMonth, startOfMonth, addDays } from 'date-fns'
 import { el } from 'date-fns/locale'
 import { ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/24/outline'
 
@@ -8,13 +9,19 @@ const CHANNEL_BG = {
   booking: 'bg-blue-600',
   airbnb: 'bg-red-500',
   direct: 'bg-emerald-500',
+  oga: 'bg-purple-500',
+  social_tourism: 'bg-teal-500',
   other: 'bg-gray-400',
 }
-const CHANNEL_LABELS = { booking: 'Booking', airbnb: 'Airbnb', direct: 'Απευθείας', other: 'Άλλο' }
+const CHANNEL_LABELS = {
+  booking: 'Booking', airbnb: 'Airbnb', direct: 'Απευθείας',
+  oga: 'ΟΓΑ', social_tourism: 'Κοιν.Τουρ.', other: 'Άλλο',
+}
 
 const STATUS_OPACITY = { confirmed: '', pending: 'opacity-60', cancelled: 'opacity-30 line-through' }
 
 export default function Calendar() {
+  const navigate = useNavigate()
   const [units, setUnits] = useState([])
   const [bookings, setBookings] = useState([])
   const [month, setMonth] = useState(new Date())
@@ -38,7 +45,6 @@ export default function Calendar() {
     )
   }, [month])
 
-  // Build a map: unitId -> list of bookings in this month
   const bookingsByUnit = {}
   units.forEach((u) => { bookingsByUnit[u.id] = [] })
   bookings.forEach((b) => {
@@ -81,6 +87,7 @@ export default function Calendar() {
             {v}
           </span>
         ))}
+        <span className="flex items-center gap-1 text-gray-400">✓ = Τιμολογήθηκε</span>
       </div>
 
       {/* Grid */}
@@ -112,9 +119,8 @@ export default function Calendar() {
           {/* Unit rows */}
           {units.map((u) => (
             <div key={u.id} className="flex border-b border-gray-100 hover:bg-gray-50/50">
-              <div className="w-40 flex-shrink-0 px-3 py-2 border-r border-gray-200">
+              <div className="w-40 flex-shrink-0 px-3 py-2 border-r border-gray-200 flex items-center">
                 <p className="text-xs font-semibold text-gray-700 truncate">{u.name}</p>
-                <p className="text-xs text-gray-400">{u.type}</p>
               </div>
               <div className="flex relative">
                 {days.map((d) => {
@@ -149,17 +155,20 @@ export default function Calendar() {
 
                   const left = startDay * 36
                   const width = span * 36 - 2
+                  const nights = Math.round((bOut - bIn) / 86400000)
 
                   return (
                     <div
                       key={b.id}
-                      title={`${b.customer.first_name} ${b.customer.last_name}\n${b.check_in} – ${b.check_out}\n${CHANNEL_LABELS[b.channel]}`}
-                      className={`absolute top-1.5 rounded text-white text-xs flex items-center px-1 overflow-hidden cursor-pointer ${CHANNEL_BG[b.channel]} ${STATUS_OPACITY[b.status]}`}
+                      title={`${b.customer.first_name} ${b.customer.last_name}\n${b.check_in} – ${b.check_out} (${nights} νύχτες)\nΆτομα: ${b.guests}\nΣύνολο: €${b.total_price}`}
+                      onClick={() => navigate(`/bookings?edit=${b.id}`)}
+                      className={`absolute top-1.5 rounded text-white text-xs flex items-center px-1 overflow-hidden cursor-pointer hover:brightness-110 transition-all ${CHANNEL_BG[b.channel] || 'bg-gray-400'} ${STATUS_OPACITY[b.status]}`}
                       style={{ left: `${left}px`, width: `${width}px`, height: '36px' }}
                     >
-                      <span className="truncate text-xs font-medium leading-tight">
+                      <span className="truncate text-xs font-medium leading-tight flex-1">
                         {b.customer.last_name}
                       </span>
+                      {b.is_billed && <span className="ml-0.5 flex-shrink-0 font-bold">✓</span>}
                     </div>
                   )
                 })}

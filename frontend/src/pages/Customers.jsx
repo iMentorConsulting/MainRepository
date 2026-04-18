@@ -3,22 +3,40 @@ import { getCustomers, createCustomer, updateCustomer, deleteCustomer } from '..
 import toast from 'react-hot-toast'
 import { PlusIcon, PencilSquareIcon, TrashIcon, XMarkIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline'
 
-const empty = { first_name: '', last_name: '', email: '', phone: '', nationality: '', id_number: '', notes: '' }
+const empty = { fullName: '', email: '', phone: '', nationality: '', id_number: '', notes: '' }
+
+function toApiFields(form) {
+  const parts = form.fullName.trim().split(' ')
+  return {
+    first_name: parts[0] || '',
+    last_name: parts.slice(1).join(' '),
+    email: form.email,
+    phone: form.phone,
+    nationality: form.nationality,
+    id_number: form.id_number,
+    notes: form.notes,
+  }
+}
 
 function CustomerModal({ customer, onClose, onSaved }) {
-  const [form, setForm] = useState(customer || empty)
+  const [form, setForm] = useState(
+    customer
+      ? { ...customer, fullName: `${customer.first_name} ${customer.last_name}`.trim() }
+      : { ...empty }
+  )
   const [saving, setSaving] = useState(false)
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }))
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+    if (!form.fullName.trim()) return
     setSaving(true)
     try {
       if (customer?.id) {
-        await updateCustomer(customer.id, form)
+        await updateCustomer(customer.id, toApiFields(form))
         toast.success('Ο πελάτης ενημερώθηκε')
       } else {
-        await createCustomer(form)
+        await createCustomer(toApiFields(form))
         toast.success('Ο πελάτης δημιουργήθηκε')
       }
       onSaved()
@@ -37,15 +55,9 @@ function CustomerModal({ customer, onClose, onSaved }) {
           <button onClick={onClose}><XMarkIcon className="h-5 w-5 text-gray-500" /></button>
         </div>
         <form onSubmit={handleSubmit} className="p-5 space-y-4">
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="label">Όνομα *</label>
-              <input className="input" required value={form.first_name} onChange={(e) => set('first_name', e.target.value)} />
-            </div>
-            <div>
-              <label className="label">Επώνυμο *</label>
-              <input className="input" required value={form.last_name} onChange={(e) => set('last_name', e.target.value)} />
-            </div>
+          <div>
+            <label className="label">Ονοματεπώνυμο *</label>
+            <input className="input" required value={form.fullName} onChange={(e) => set('fullName', e.target.value)} placeholder="π.χ. Νίκος Παπαδόπουλος" />
           </div>
           <div>
             <label className="label">Email</label>
@@ -114,7 +126,6 @@ export default function Customers() {
         </button>
       </div>
 
-      {/* Search */}
       <div className="relative">
         <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
         <input
@@ -125,7 +136,6 @@ export default function Customers() {
         />
       </div>
 
-      {/* Table */}
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">

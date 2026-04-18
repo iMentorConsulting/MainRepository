@@ -49,6 +49,7 @@ class Booking(Base):
     commission = Column(Float, default=0.0)
     commission_percent = Column(Float, default=0.0)
     status = Column(String(20), nullable=False, default="confirmed")
+    is_billed = Column(Boolean, default=False)
     notes = Column(Text)
     created_at = Column(DateTime, default=datetime.utcnow)
 

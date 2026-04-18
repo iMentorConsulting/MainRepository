@@ -82,6 +82,7 @@ class BookingBase(BaseModel):
     commission: float = 0.0
     commission_percent: float = 0.0
     status: str = "confirmed"
+    is_billed: bool = False
     notes: Optional[str] = None
 
 
@@ -100,6 +101,7 @@ class BookingUpdate(BaseModel):
     commission: Optional[float] = None
     commission_percent: Optional[float] = None
     status: Optional[str] = None
+    is_billed: Optional[bool] = None
     notes: Optional[str] = None
 
 

@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
-import { getGapAlerts, recommendUnit, getUnits } from '../api'
+import { useNavigate } from 'react-router-dom'
+import { getGapAlerts, recommendUnit, getUnits, getBookingAlerts } from '../api'
 import {
   SparklesIcon, ExclamationTriangleIcon, CheckCircleIcon,
-  XCircleIcon, ArrowPathIcon,
+  XCircleIcon, ArrowPathIcon, ClockIcon, CreditCardIcon,
 } from '@heroicons/react/24/outline'
 
 const UNIT_TYPES = [
@@ -14,12 +15,18 @@ const UNIT_TYPES = [
   { value: 'house', label: 'Σπίτι' },
 ]
 
+const CHANNEL_LABELS = {
+  booking: 'Booking.com', airbnb: 'Airbnb', direct: 'Απευθείας',
+  oga: 'ΟΓΑ', social_tourism: 'Κοιν.Τουρισμός', other: 'Άλλο',
+}
+
 function GapBadge({ days }) {
   const color = days === 1 ? 'bg-red-100 text-red-700' : days === 2 ? 'bg-orange-100 text-orange-700' : 'bg-amber-100 text-amber-700'
   return <span className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm flex-shrink-0 ${color}`}>{days}</span>
 }
 
 export default function SmartAdvisor() {
+  const navigate = useNavigate()
   const [gaps, setGaps] = useState(null)
   const [gapsLoading, setGapsLoading] = useState(false)
   const [maxGap, setMaxGap] = useState(3)
@@ -27,11 +34,14 @@ export default function SmartAdvisor() {
   const [reqForm, setReqForm] = useState({ check_in: '', check_out: '', guests: 1, unit_type: '' })
   const [recResult, setRecResult] = useState(null)
   const [recLoading, setRecLoading] = useState(false)
-  const [units, setUnits] = useState([])
+
+  const [alerts, setAlerts] = useState(null)
+  const [alertsLoading, setAlertsLoading] = useState(false)
 
   useEffect(() => {
-    getUnits({ active_only: true }).then((r) => setUnits(r.data))
+    getUnits({ active_only: true })
     loadGaps()
+    loadAlerts()
   }, [])
 
   const loadGaps = async (mg = maxGap) => {
@@ -41,6 +51,16 @@ export default function SmartAdvisor() {
       setGaps(r.data)
     } finally {
       setGapsLoading(false)
+    }
+  }
+
+  const loadAlerts = async () => {
+    setAlertsLoading(true)
+    try {
+      const r = await getBookingAlerts()
+      setAlerts(r.data)
+    } finally {
+      setAlertsLoading(false)
     }
   }
 
@@ -73,11 +93,93 @@ export default function SmartAdvisor() {
     ? Math.max(0, Math.round((new Date(reqForm.check_out) - new Date(reqForm.check_in)) / 86400000))
     : 0
 
+  const totalAlerts = (alerts?.past_pending?.length || 0) + (alerts?.unbilled_platform?.length || 0)
+
   return (
     <div className="p-4 md:p-6 space-y-6">
       <div className="flex items-center gap-2">
         <SparklesIcon className="h-6 w-6 text-purple-600" />
         <h2 className="text-xl font-bold text-gray-800">AI Σύμβουλος</h2>
+      </div>
+
+      {/* ── BOOKING ALERTS ─────────────────────────────────── */}
+      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
+          <div className="flex items-center gap-2">
+            <ExclamationTriangleIcon className="h-5 w-5 text-red-500" />
+            <h3 className="font-semibold text-gray-800">Έλεγχοι Κρατήσεων</h3>
+            {alerts && totalAlerts > 0 && (
+              <span className="bg-red-100 text-red-700 text-xs font-bold px-2 py-0.5 rounded-full">{totalAlerts}</span>
+            )}
+          </div>
+          <button onClick={loadAlerts} className="p-1.5 rounded hover:bg-gray-100">
+            <ArrowPathIcon className={`h-4 w-4 text-gray-400 ${alertsLoading ? 'animate-spin' : ''}`} />
+          </button>
+        </div>
+
+        <div className="divide-y divide-gray-50">
+          {/* Past pending */}
+          <div className="px-5 py-3 bg-amber-50/50">
+            <div className="flex items-center gap-2 mb-2">
+              <ClockIcon className="h-4 w-4 text-amber-600" />
+              <p className="text-sm font-semibold text-amber-800">
+                Παλιές Εκκρεμείς Κρατήσεις
+                {alerts && <span className="ml-2 font-normal text-amber-600">({alerts.past_pending.length})</span>}
+              </p>
+            </div>
+            {alertsLoading && <p className="text-xs text-gray-400 py-2">Φόρτωση...</p>}
+            {!alertsLoading && alerts?.past_pending?.length === 0 && (
+              <p className="text-xs text-green-600 flex items-center gap-1"><CheckCircleIcon className="h-4 w-4" /> Καμία εκκρεμής παλιά κράτηση</p>
+            )}
+            {!alertsLoading && alerts?.past_pending?.map((b) => (
+              <div key={b.id} className="flex items-center justify-between py-1.5 text-sm">
+                <div>
+                  <span className="font-medium text-gray-800">#{b.id} {b.customer_name}</span>
+                  <span className="text-gray-500 ml-2">{b.unit_name}</span>
+                  <span className="text-xs text-gray-400 ml-2">{new Date(b.check_in + 'T00:00:00').toLocaleDateString('el-GR')} – {new Date(b.check_out + 'T00:00:00').toLocaleDateString('el-GR')}</span>
+                </div>
+                <button
+                  onClick={() => navigate(`/bookings?edit=${b.id}`)}
+                  className="text-xs text-blue-600 hover:underline ml-3 flex-shrink-0"
+                >
+                  Επεξεργασία →
+                </button>
+              </div>
+            ))}
+          </div>
+
+          {/* Unbilled platform */}
+          <div className="px-5 py-3 bg-orange-50/50">
+            <div className="flex items-center gap-2 mb-2">
+              <CreditCardIcon className="h-4 w-4 text-orange-600" />
+              <p className="text-sm font-semibold text-orange-800">
+                Αχρέωτες Κρατήσεις (Booking/Airbnb)
+                {alerts && <span className="ml-2 font-normal text-orange-600">({alerts.unbilled_platform.length})</span>}
+              </p>
+            </div>
+            {alertsLoading && <p className="text-xs text-gray-400 py-2">Φόρτωση...</p>}
+            {!alertsLoading && alerts?.unbilled_platform?.length === 0 && (
+              <p className="text-xs text-green-600 flex items-center gap-1"><CheckCircleIcon className="h-4 w-4" /> Όλες τιμολογήθηκαν</p>
+            )}
+            {!alertsLoading && alerts?.unbilled_platform?.map((b) => (
+              <div key={b.id} className="flex items-center justify-between py-1.5 text-sm">
+                <div>
+                  <span className="font-medium text-gray-800">#{b.id} {b.customer_name}</span>
+                  <span className="text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded ml-2">{CHANNEL_LABELS[b.channel] || b.channel}</span>
+                  <span className="text-gray-500 ml-2">{b.unit_name}</span>
+                  <span className="text-xs text-gray-400 ml-2">{new Date(b.check_in + 'T00:00:00').toLocaleDateString('el-GR')} – {new Date(b.check_out + 'T00:00:00').toLocaleDateString('el-GR')}</span>
+                  <span className="text-xs font-medium text-gray-600 ml-2">€{b.total_price}</span>
+                </div>
+                <button
+                  onClick={() => navigate(`/bookings?edit=${b.id}`)}
+                  className="text-xs text-blue-600 hover:underline ml-3 flex-shrink-0"
+                >
+                  Τιμολόγηση →
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
 
       {/* ── RECOMMENDATION TOOL ─────────────────────────────── */}
@@ -122,11 +224,7 @@ export default function SmartAdvisor() {
             <p className="text-sm text-gray-500">Διάρκεια: <strong>{nights} νύχτες</strong></p>
           )}
 
-          <button
-            type="submit"
-            disabled={recLoading}
-            className="btn-primary flex items-center gap-2"
-          >
+          <button type="submit" disabled={recLoading} className="btn-primary flex items-center gap-2">
             {recLoading ? (
               <><ArrowPathIcon className="h-4 w-4 animate-spin" /> Ανάλυση AI...</>
             ) : (
@@ -135,7 +233,6 @@ export default function SmartAdvisor() {
           </button>
         </form>
 
-        {/* Result */}
         {recResult && (
           <div className="px-5 pb-5">
             {recResult.error ? (
@@ -150,26 +247,19 @@ export default function SmartAdvisor() {
               </div>
             ) : (
               <div className="bg-purple-50 border border-purple-200 rounded-xl p-5 space-y-4">
-                {/* Main recommendation */}
                 <div className="flex items-start gap-3">
                   <CheckCircleIcon className="h-6 w-6 text-purple-600 flex-shrink-0 mt-0.5" />
                   <div>
-                    <p className="font-bold text-purple-900 text-lg">
-                      {recResult.recommendation?.recommended_unit_name}
-                    </p>
+                    <p className="font-bold text-purple-900 text-lg">{recResult.recommendation?.recommended_unit_name}</p>
                     <div className="flex items-center gap-3 mt-1">
                       <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-medium">
                         Σκορ: {recResult.recommendation?.score}/100
                       </span>
-                      <span className="text-xs text-purple-600">
-                        {recResult.available_units_count} διαθέσιμες μονάδες
-                      </span>
+                      <span className="text-xs text-purple-600">{recResult.available_units_count} διαθέσιμες μονάδες</span>
                     </div>
                     <p className="text-sm text-purple-800 mt-2">{recResult.recommendation?.reasoning}</p>
                   </div>
                 </div>
-
-                {/* Metrics */}
                 <div className="grid grid-cols-2 gap-3">
                   <div className="bg-white rounded-lg p-3 border border-purple-100">
                     <p className="text-xs text-gray-500">Κενά που δημιουργούνται</p>
@@ -184,8 +274,6 @@ export default function SmartAdvisor() {
                     </p>
                   </div>
                 </div>
-
-                {/* Warnings */}
                 {recResult.recommendation?.warnings?.length > 0 && (
                   <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
                     <p className="text-xs font-semibold text-amber-800 mb-1">Προειδοποιήσεις:</p>
@@ -194,8 +282,6 @@ export default function SmartAdvisor() {
                     ))}
                   </div>
                 )}
-
-                {/* Alternatives */}
                 {recResult.recommendation?.alternatives?.length > 0 && (
                   <div>
                     <p className="text-xs font-semibold text-gray-600 mb-2">Εναλλακτικές μονάδες:</p>
@@ -229,11 +315,7 @@ export default function SmartAdvisor() {
           </div>
           <div className="flex items-center gap-2">
             <label className="text-xs text-gray-500">Μέχρι</label>
-            <select
-              className="input text-xs py-1 w-16"
-              value={maxGap}
-              onChange={(e) => handleMaxGapChange(+e.target.value)}
-            >
+            <select className="input text-xs py-1 w-16" value={maxGap} onChange={(e) => handleMaxGapChange(+e.target.value)}>
               {[1, 2, 3, 4, 5].map((n) => <option key={n} value={n}>{n}</option>)}
             </select>
             <label className="text-xs text-gray-500">μέρες</label>
@@ -245,14 +327,12 @@ export default function SmartAdvisor() {
 
         <div className="p-2">
           {gapsLoading && <p className="text-center py-8 text-gray-400 text-sm">Φόρτωση...</p>}
-
           {!gapsLoading && gaps?.alerts?.length === 0 && (
             <div className="flex items-center gap-3 px-4 py-8 justify-center text-gray-400">
               <CheckCircleIcon className="h-6 w-6 text-green-400" />
               <p className="text-sm">Δεν υπάρχουν μικρά κενά! Εξαιρετική οργάνωση κρατήσεων.</p>
             </div>
           )}
-
           {!gapsLoading && gaps?.alerts?.map((g, i) => (
             <div key={i} className="flex items-start gap-3 px-4 py-3 hover:bg-amber-50/50 rounded-lg transition-colors">
               <GapBadge days={g.gap_days} />

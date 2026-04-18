@@ -233,3 +233,43 @@ def gap_alerts(
         "to_date": td.isoformat(),
         "alerts": alerts,
     }
+
+
+@router.get("/booking-alerts")
+def booking_alerts(db: Session = Depends(get_db)):
+    today = date.today()
+
+    past_pending = (
+        db.query(Booking)
+        .filter(Booking.status == "pending", Booking.check_out < today)
+        .order_by(Booking.check_out)
+        .all()
+    )
+
+    unbilled_platform = (
+        db.query(Booking)
+        .filter(
+            Booking.channel.in_(["booking", "airbnb"]),
+            Booking.is_billed == False,
+            Booking.status.in_(["confirmed", "pending"]),
+        )
+        .order_by(Booking.check_in)
+        .all()
+    )
+
+    def fmt(b):
+        return {
+            "id": b.id,
+            "unit_name": b.unit.name if b.unit else "",
+            "customer_name": f"{b.customer.first_name} {b.customer.last_name}".strip() if b.customer else "",
+            "check_in": b.check_in.isoformat(),
+            "check_out": b.check_out.isoformat(),
+            "channel": b.channel,
+            "status": b.status,
+            "total_price": b.total_price,
+        }
+
+    return {
+        "past_pending": [fmt(b) for b in past_pending],
+        "unbilled_platform": [fmt(b) for b in unbilled_platform],
+    }

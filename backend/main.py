@@ -10,6 +10,15 @@ load_dotenv()
 # Create all tables
 Base.metadata.create_all(bind=engine)
 
+# Safe migration: add is_billed column if not exists
+from sqlalchemy import text as _text
+with engine.connect() as _conn:
+    try:
+        _conn.execute(_text("ALTER TABLE bookings ADD COLUMN is_billed BOOLEAN DEFAULT 0"))
+        _conn.commit()
+    except Exception:
+        pass
+
 app = FastAPI(
     title="Σύστημα Διαχείρισης Κρατήσεων",
     description="API διαχείρισης κρατήσεων τουριστικών καταλυμάτων",
