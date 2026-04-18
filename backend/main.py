@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 from database import Base, engine
 from routes import units, bookings, customers, reports, ai_advisor
-from routes import auth, cleaning
+from routes import auth, cleaning, ical
 
 load_dotenv()
 
@@ -31,6 +31,16 @@ with engine.connect() as _conn:
         _conn.commit()
     except Exception:
         pass
+    try:
+        _conn.execute(_text("ALTER TABLE units ADD COLUMN ical_url VARCHAR(500)"))
+        _conn.commit()
+    except Exception:
+        pass
+    try:
+        _conn.execute(_text("ALTER TABLE bookings ADD COLUMN ical_uid VARCHAR(200)"))
+        _conn.commit()
+    except Exception:
+        pass
 
 app = FastAPI(
     title="Σύστημα Διαχείρισης Κρατήσεων",
@@ -53,6 +63,7 @@ app.include_router(customers.router)
 app.include_router(reports.router)
 app.include_router(ai_advisor.router)
 app.include_router(cleaning.router)
+app.include_router(ical.router)
 
 
 @app.get("/")

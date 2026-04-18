@@ -71,5 +71,11 @@ export const getBookingAlerts = () => api.get('/ai/booking-alerts')
 
 // Cleaning
 export const getDailyTasks = (params) => api.get('/cleaning/daily', { params })
+export const getCleaningSettings = () => api.get('/cleaning/settings')
+export const saveCleaningSettings = (data) => api.put('/cleaning/settings', data)
+
+// iCal sync
+export const syncIcalAll = () => api.post('/ical/sync')
+export const syncIcalUnit = (unitId) => api.post(`/ical/sync/${unitId}`)
 
 export default api
