@@ -1,0 +1,80 @@
+from pydantic import BaseModel
+from typing import Optional, Any
+from datetime import datetime
+
+
+class CaseCreate(BaseModel):
+    client_name: str
+    client_phone: str = ""
+    client_email: str = ""
+    employee: str
+    status: str = "draft"
+    debtor_type: str = "Φυσικό Πρόσωπο"
+    debts: list = []
+    assets: list = []
+    income_data: dict = {}
+    estimates: dict = {}
+    notes: str = ""
+
+
+class CaseUpdate(BaseModel):
+    client_name: Optional[str] = None
+    client_phone: Optional[str] = None
+    client_email: Optional[str] = None
+    employee: Optional[str] = None
+    status: Optional[str] = None
+    debtor_type: Optional[str] = None
+    debts: Optional[list] = None
+    assets: Optional[list] = None
+    income_data: Optional[dict] = None
+    estimates: Optional[dict] = None
+    actual_results: Optional[dict] = None
+    notes: Optional[str] = None
+
+
+class ActualResultsUpdate(BaseModel):
+    actual_results: dict
+
+
+class CaseResponse(BaseModel):
+    id: int
+    client_name: str
+    client_phone: str
+    client_email: str
+    employee: str
+    status: str
+    debtor_type: str
+    debts: list
+    assets: list
+    income_data: dict
+    estimates: dict
+    actual_results: Optional[dict]
+    notes: str
+    share_token: str
+    created_at: datetime
+    updated_at: datetime
+    submitted_at: Optional[datetime]
+    completed_at: Optional[datetime]
+
+    class Config:
+        from_attributes = True
+
+
+class CaseListItem(BaseModel):
+    id: int
+    client_name: str
+    client_phone: str
+    client_email: str
+    employee: str
+    status: str
+    debtor_type: str
+    estimates: dict
+    actual_results: Optional[dict]
+    share_token: str
+    created_at: datetime
+    updated_at: datetime
+    submitted_at: Optional[datetime]
+    completed_at: Optional[datetime]
+
+    class Config:
+        from_attributes = True

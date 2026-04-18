@@ -1,0 +1,131 @@
+import { PlusIcon, TrashIcon } from '@heroicons/react/24/outline'
+
+const HOUSEHOLD_OPTIONS = [
+  { value: 6448, label: 'Ένας ενήλικας' },
+  { value: 10866, label: 'Δύο ενήλικες' },
+  { value: 9096, label: 'Ένας ενήλικας με 1 τέκνο' },
+  { value: 13514, label: 'Δύο ενήλικες με 1 τέκνο' },
+  { value: 16162, label: 'Δύο ενήλικες με 2 τέκνα' },
+  { value: 18659, label: 'Δύο ενήλικες με 2 τέκνα + εξαρτώμενο ενήλικο' },
+  { value: 18810, label: 'Δύο ενήλικες με 3 τέκνα' },
+  { value: 21307, label: 'Δύο ενήλικες με 3 τέκνα + εξαρτώμενο ενήλικο' },
+  { value: 21458, label: 'Δύο ενήλικες με 4 τέκνα' },
+]
+
+function MoneyField({ label, id, value, onChange, placeholder = '' }) {
+  const display = value > 0 ? value.toLocaleString('el-GR') : ''
+  return (
+    <div>
+      <label className="label">{label}</label>
+      <input
+        type="text"
+        inputMode="numeric"
+        className="input"
+        placeholder={placeholder || 'π.χ. 1.000'}
+        value={display}
+        onChange={(e) => {
+          const raw = e.target.value.replace(/[^\d]/g, '')
+          onChange(raw ? parseInt(raw) : 0)
+        }}
+      />
+    </div>
+  )
+}
+
+export default function IncomePanel({ income, onChange, assets, onAssetsChange }) {
+  const isLegal = income.debtorType === 'Νομικό Πρόσωπο'
+
+  const set = (field, val) => onChange({ ...income, [field]: val })
+
+  const addAsset = () => onAssetsChange([...assets, { id: crypto.randomUUID(), type: 'Ακίνητο', description: '', value: 0 }])
+  const removeAsset = (id) => onAssetsChange(assets.filter((a) => a.id !== id))
+  const updateAsset = (id, field, val) => onAssetsChange(assets.map((a) => a.id === id ? { ...a, [field]: val } : a))
+
+  return (
+    <div className="grid md:grid-cols-2 gap-6">
+      {/* Left: Income params */}
+      <div className="space-y-4">
+        <div>
+          <label className="label">🔹 Τύπος Οφειλέτη</label>
+          <select className="input" value={income.debtorType} onChange={(e) => set('debtorType', e.target.value)}>
+            <option>Φυσικό Πρόσωπο</option>
+            <option>Νομικό Πρόσωπο</option>
+          </select>
+        </div>
+
+        {isLegal ? (
+          <div className="bg-blue-50 border-l-4 border-blue-600 rounded-lg p-4 space-y-3">
+            <p className="text-xs font-bold text-blue-700 mb-2">Στοιχεία Νομικού Προσώπου</p>
+            <MoneyField label="Κύκλος Εργασιών (€)" value={income.turnover} onChange={(v) => set('turnover', v)} placeholder="π.χ. 500.000" />
+            <MoneyField label="EBITDA (€)" value={income.ebitda} onChange={(v) => set('ebitda', v)} />
+            <MoneyField label="Φόρος (€)" value={income.tax} onChange={(v) => set('tax', v)} />
+            <MoneyField label="Ταμειακά Διαθέσιμα (€)" value={income.cash} onChange={(v) => set('cash', v)} />
+            <MoneyField label="Ρευστοποιήσιμα Στοιχεία (€)" value={income.liquid} onChange={(v) => set('liquid', v)} />
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <MoneyField label="1️⃣ Ετήσιο Καθαρό Εισόδημα (€)" value={income.annualIncome} onChange={(v) => set('annualIncome', v)} placeholder="π.χ. 25.000" />
+
+            <div>
+              <label className="label">2️⃣ Τύπος Νοικοκυριού (ΕΛΣΤΑΤ)</label>
+              <select className="input" value={income.householdValue} onChange={(e) => set('householdValue', Number(e.target.value))}>
+                <option value={0}>-- Επιλογή --</option>
+                {HOUSEHOLD_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+            </div>
+
+            <MoneyField label="3️⃣ Ετήσιος ΕΝΦΙΑ (€)" value={income.enfiaCost} onChange={(v) => set('enfiaCost', v)} />
+            <MoneyField label="4️⃣ Ετήσιες Ιατρικές Δαπάνες (€)" value={income.medicalCost} onChange={(v) => set('medicalCost', v)} />
+            <MoneyField label="5️⃣ Ετήσιο Ενοίκιο (€)" value={income.rentCost} onChange={(v) => set('rentCost', v)} />
+            <MoneyField label="6️⃣ Ετήσιο Ενοίκιο Φοιτητών (€)" value={income.studentRentCost} onChange={(v) => set('studentRentCost', v)} />
+            <MoneyField label="7️⃣ Ετήσια Διατροφή & Διαβίωση (€)" value={income.extraLivingCost} onChange={(v) => set('extraLivingCost', v)} />
+            <MoneyField label="8️⃣ Ετήσια Διατροφή λόγω Διαζυγίου (€)" value={income.alimonyCost} onChange={(v) => set('alimonyCost', v)} />
+          </div>
+        )}
+      </div>
+
+      {/* Right: Other assets */}
+      <div>
+        <p className="label mb-3">🏠 Λοιπή Περιουσία & Καταθέσεις (όχι προσημειωμένη)</p>
+        <div className="space-y-2">
+          {assets.map((a) => (
+            <div key={a.id} className="flex gap-2 items-center">
+              <select
+                className="input w-36 shrink-0"
+                value={a.type}
+                onChange={(e) => updateAsset(a.id, 'type', e.target.value)}
+              >
+                <option>Ακίνητο</option>
+                <option>Καταθέσεις</option>
+              </select>
+              <input
+                type="text"
+                className="input"
+                placeholder="Περιγραφή"
+                value={a.description}
+                onChange={(e) => updateAsset(a.id, 'description', e.target.value)}
+              />
+              <input
+                type="text"
+                inputMode="numeric"
+                className="input w-32 shrink-0 text-center"
+                placeholder="Αξία €"
+                value={a.value > 0 ? a.value.toLocaleString('el-GR') : ''}
+                onChange={(e) => {
+                  const raw = e.target.value.replace(/[^\d]/g, '')
+                  updateAsset(a.id, 'value', raw ? parseInt(raw) : 0)
+                }}
+              />
+              <button onClick={() => removeAsset(a.id)} className="p-1.5 rounded-lg hover:bg-red-100 text-red-500 shrink-0">
+                <TrashIcon className="w-4 h-4" />
+              </button>
+            </div>
+          ))}
+          <button onClick={addAsset} className="btn-secondary gap-2 text-sm mt-2">
+            <PlusIcon className="w-4 h-4" /> Προσθήκη Στοιχείου
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
