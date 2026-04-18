@@ -78,13 +78,13 @@ export default function PlanParamsModal({ calc, onGenerate, onClose }) {
                     <td className="td">
                       <div className="flex flex-col items-center gap-0.5">
                         <input
-                          type="number" min={0} max={maxPct}
+                          type="number" min={0} max={100}
                           disabled={r.excluded}
                           value={r.reqPct}
-                          onChange={(e) => update(i, 'reqPct', Math.min(maxPct, Math.max(0, parseInt(e.target.value) || 0)))}
+                          onChange={(e) => update(i, 'reqPct', Math.min(100, Math.max(0, parseInt(e.target.value) || 0)))}
                           className="input w-20 text-center py-1 text-sm"
                         />
-                        <span className="text-xs text-gray-400">Μέγιστο: {maxPct}%</span>
+                        <span className="text-xs text-gray-400">Εκτίμηση: {maxPct}%</span>
                         {reqWrAmt > 0 && <span className="text-xs text-orange-600 font-mono">{fmt(reqWrAmt)}</span>}
                       </div>
                     </td>

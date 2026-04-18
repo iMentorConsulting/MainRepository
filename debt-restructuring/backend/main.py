@@ -38,6 +38,11 @@ def run_migrations():
             conn.commit()
         except Exception:
             pass
+        try:
+            conn.execute(text("ALTER TABLE cases ADD COLUMN client_vat VARCHAR"))
+            conn.commit()
+        except Exception:
+            pass
 
 run_migrations()
 

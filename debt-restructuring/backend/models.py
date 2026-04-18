@@ -34,6 +34,9 @@ class Case(Base):
     # Actual results filled after the restructuring completes
     actual_results = Column(JSON, nullable=True)
 
+    # Client VAT number (9 digits) — used as portal access code
+    client_vat = Column(String, nullable=True, default=None)
+
     # Internal notes
     notes = Column(Text, default="")
 

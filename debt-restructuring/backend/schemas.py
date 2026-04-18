@@ -7,6 +7,7 @@ class CaseCreate(BaseModel):
     client_name: str
     client_phone: str = ""
     client_email: str = ""
+    client_vat: Optional[str] = None
     employee: str
     status: str = "draft"
     debtor_type: str = "Φυσικό Πρόσωπο"
@@ -21,6 +22,7 @@ class CaseUpdate(BaseModel):
     client_name: Optional[str] = None
     client_phone: Optional[str] = None
     client_email: Optional[str] = None
+    client_vat: Optional[str] = None
     employee: Optional[str] = None
     status: Optional[str] = None
     debtor_type: Optional[str] = None
@@ -41,6 +43,7 @@ class CaseResponse(BaseModel):
     client_name: str
     client_phone: str
     client_email: str
+    client_vat: Optional[str] = None
     employee: str
     status: str
     debtor_type: str

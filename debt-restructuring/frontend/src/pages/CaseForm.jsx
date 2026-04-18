@@ -7,7 +7,7 @@ import IncomePanel from '../components/IncomePanel'
 import ResultsPanel from '../components/ResultsPanel'
 import PlanParamsModal from '../components/PlanParamsModal'
 import * as api from '../api'
-import { calculateAll, creditorDisplayName, fmt } from '../utils/calculations'
+import { calculateAll, creditorDisplayName, fmt, buildForecastText } from '../utils/calculations'
 import { buildPlanHtml, wrapPlanDocument, buildEmailHtml, wrapEmailDocument } from '../utils/reportGenerators'
 
 const EMPLOYEES = ['STELLA', 'VALLIA', 'SOFIA', 'HARIS']
@@ -122,7 +122,7 @@ export default function CaseForm({ currentEmployee }) {
   const [debts, setDebts] = useState([emptyDebt()])
   const [assets, setAssets] = useState([])
   const [income, setIncome] = useState(defaultIncome())
-  const [client, setClient] = useState({ name: '', phone: '', email: '' })
+  const [client, setClient] = useState({ name: '', phone: '', email: '', vat: '' })
   const [employee, setEmployee] = useState(currentEmployee || '')
   const [notes, setNotes] = useState('')
   const [status, setStatus] = useState('draft')
@@ -138,7 +138,7 @@ export default function CaseForm({ currentEmployee }) {
       setDebts(c.debts?.length ? c.debts : [emptyDebt()])
       setAssets(c.assets || [])
       setIncome(c.income_data || defaultIncome())
-      setClient({ name: c.client_name, phone: c.client_phone, email: c.client_email })
+      setClient({ name: c.client_name, phone: c.client_phone, email: c.client_email, vat: c.client_vat || '' })
       setEmployee(c.employee)
       setNotes(c.notes || '')
       setStatus(c.status)
@@ -164,24 +164,36 @@ export default function CaseForm({ currentEmployee }) {
         client_name: client.name,
         client_phone: client.phone,
         client_email: client.email,
+        client_vat: client.vat || null,
         employee,
         status,
         debtor_type: income.debtorType,
         debts,
         assets,
         income_data: income,
-        estimates: calc ? {
-          sumDebt: calc.sumDebt,
-          sumWr: calc.sumWr,
-          sumWrPct: calc.sumWrPct,
-          totalRemaining: calc.totalRemaining,
-          totalMonthlyPay: calc.totalMonthlyPay,
-          dispMonthly: calc.dispMonthly,
-          dispAnnual: calc.dispAnnual,
-          ratio: calc.ratio,
-          scenario: calc.scenario,
-          finalPlan: calc.finalPlan,
-        } : {},
+        estimates: calc ? (() => {
+          const forecast = buildForecastText(calc, income)
+          return {
+            sumDebt: calc.sumDebt,
+            sumWr: calc.sumWr,
+            sumWrPct: calc.sumWrPct,
+            totalRemaining: calc.totalRemaining,
+            totalMonthlyPay: calc.totalMonthlyPay,
+            dispMonthly: calc.dispMonthly,
+            dispAnnual: calc.dispAnnual,
+            ratio: calc.ratio,
+            scenario: calc.scenario,
+            finalPlan: calc.finalPlan,
+            sumAssetsAfterExp: calc.sumAssetsAfterExp,
+            isFullCoveredByAssets: calc.isFullCoveredByAssets,
+            isPartialCoveredByAssets: calc.isPartialCoveredByAssets,
+            annualIncome: calc.annualIncome,
+            totalExpenses: calc.totalExpenses,
+            rows: calc.rows,
+            forecastTitle: forecast?.title || null,
+            forecastSections: forecast?.sections || null,
+          }
+        })() : {},
         notes,
       }
       if (isEditing) {
@@ -212,8 +224,9 @@ export default function CaseForm({ currentEmployee }) {
   const openEmail = () => {
     if (!calc || calc.sumDebt === 0) return toast.error('Δεν υπάρχουν δεδομένα')
     const data = collectPlanData(debts, assets, income, calc, client)
+    const forecast = buildForecastText(calc, income)
     const subject = `⚖️ Θεωρητική Προσομοίωση Εξωδικαστικού | ${client.name || ''}`
-    const html = buildEmailHtml(data)
+    const html = buildEmailHtml({ ...data, forecastTitle: forecast?.title, forecastSections: forecast?.sections })
     const w = window.open('', '_blank', 'width=900,height=900,scrollbars=yes')
     if (w) { w.document.open(); w.document.write(wrapEmailDocument(html, subject)); w.document.close() }
   }
@@ -278,6 +291,10 @@ export default function CaseForm({ currentEmployee }) {
           <div>
             <label className="label">Email</label>
             <input className="input" placeholder="Email" value={client.email} onChange={(e) => setClient({ ...client, email: e.target.value })} />
+          </div>
+          <div>
+            <label className="label">ΑΦΜ Πελάτη <span className="text-gray-400 font-normal">(κλειδί πρόσβασης portal)</span></label>
+            <input className="input font-mono" placeholder="9 ψηφία" maxLength={9} value={client.vat} onChange={(e) => setClient({ ...client, vat: e.target.value.replace(/\D/g, '') })} />
           </div>
           <div>
             <label className="label">Υπάλληλος</label>

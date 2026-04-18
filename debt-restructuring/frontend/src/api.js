@@ -20,6 +20,6 @@ export const getEmployeeStats = (employee) => api.get(`/statistics/employee/${em
 export const getComparison = () => api.get('/statistics/comparison')
 
 // Public (no auth)
-export const getPublicCase = (token) => api.get(`/public/case/${token}`)
+export const getPublicCase = (token, vat) => api.get(`/public/case/${token}`, vat ? { params: { vat } } : {})
 
 export default api

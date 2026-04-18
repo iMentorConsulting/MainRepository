@@ -236,9 +236,6 @@ export function buildPlanHtml(data, customRows) {
   <div style="background:#eef5ff;border-left:4px solid #0070e8;padding:12px 14px;border-radius:8px;margin-top:12px;">
     Συνολική μηνιαία δόση προς όλους τους πιστωτές: <b>${fmt(totalMonthlyPay)}</b>${dispMonthly > 0 ? ` • Εκτιμώμενη επιβάρυνση: <b>${totalRatio}%</b>` : ''}.
   </div>
-  <div style="background:#fff8e1;border-left:4px solid #f59e0b;padding:12px 14px;border-radius:8px;margin-top:10px;font-size:13px;">
-    ⚠️ Η ανάλυση αποτελεί θεωρητική προσομοίωση και δεν συνιστά δεσμευτική πρόταση.
-  </div>
 </div>`
 }
 
@@ -282,7 +279,7 @@ document.getElementById('copyBtn').addEventListener('click', async () => {
 // Build email HTML
 // ============================================================
 export function buildEmailHtml(data) {
-  const { clientName, debtorType, totalDebt, totalWriteOff, totalRemaining, totalMonthlyPay, dispMonthly, creditors, bankDebt, taxDebt, insDebt } = data
+  const { clientName, debtorType, totalDebt, totalWriteOff, totalRemaining, totalMonthlyPay, dispMonthly, creditors, bankDebt, taxDebt, insDebt, forecastTitle, forecastSections } = data
 
   const rows = creditors.map((c) => {
     const pct = c.amount > 0 ? Math.round((c.writeoff / c.amount) * 100) : 0
@@ -296,12 +293,15 @@ export function buildEmailHtml(data) {
     </tr>`
   }).join('')
 
-  const hasBanks = (bankDebt || 0) > 0
-  const banksNote = hasBanks
-    ? `<div style="margin:12px 0;padding:10px 12px;background:#eaf1ff;border-left:5px solid #004aad;border-radius:6px;color:#00387e;font-size:14px;line-height:1.6;">
-        <b>ℹ️ Παρατήρηση (Τράπεζες)</b><br>
-        Το αποτέλεσμα προσομοιώνει την πρόταση του αλγορίθμου του Εξωδικαστικού Μηχανισμού. Οι Τράπεζες έχουν δικαίωμα να αποδεχθούν την πρόταση ή να υποβάλουν αντιπρόταση.
-      </div>`
+  const forecastHtml = forecastSections && forecastSections.length > 0
+    ? `<p style="margin-top:20px;font-size:16px;"><b>🔮 ${escHtml(forecastTitle || 'Πρόβλεψη Ρύθμισης')}</b></p>
+       <div style="margin-top:10px;">
+         ${forecastSections.map((s) => `
+           <div style="margin-bottom:8px;padding:12px 14px;background:${s.type === 'success' ? '#f0fdf4' : '#eff6ff'};border-left:4px solid ${s.type === 'success' ? '#16a34a' : '#3b82f6'};border-radius:6px;font-size:14px;line-height:1.6;">
+             <div style="font-weight:700;margin-bottom:4px;">${escHtml(s.icon)} ${escHtml(s.label)}</div>
+             <div style="white-space:pre-line;">${escHtml(s.body)}</div>
+           </div>`).join('')}
+       </div>`
     : ''
 
   return `<div id="emailContent" style="font-family:Calibri,Arial,sans-serif;color:#1a1a1a;line-height:1.6;font-size:15px;">
@@ -334,8 +334,8 @@ export function buildEmailHtml(data) {
     <li><b>Εναπομένουσες οφειλές:</b> ${fmt(totalRemaining)}</li>
     <li><b>Συνολικές μηνιαίες δόσεις:</b> ${fmt(totalMonthlyPay)}</li>
   </ul>
+  ${forecastHtml}
   ${banksNote}
-  <p style="margin-top:12px;color:#334;font-size:14px;">⚠️ <b>Διευκρίνιση:</b> Θεωρητική προσομοίωση — δεν συνιστά δεσμευτική πρόταση ρύθμισης.</p>
   <hr style="border:none;border-top:1px solid #d9e2ef;margin:16px 0;">
   <p><b>💼 Οικονομική Προσφορά για Ανάληψη Αίτησης</b></p>
   <ol>
