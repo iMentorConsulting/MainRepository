@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 from database import get_db
 from models import Booking, Unit
+from auth_utils import get_tenant
 from typing import Optional
 from datetime import date
 
@@ -10,42 +11,45 @@ router = APIRouter(prefix="/reports", tags=["reports"])
 
 
 @router.get("/dashboard")
-def dashboard_stats(db: Session = Depends(get_db)):
+def dashboard_stats(db: Session = Depends(get_db), tenant: str = Depends(get_tenant)):
     today = date.today()
 
     arrivals_today = db.query(Booking).filter(
+        Booking.tenant == tenant,
         Booking.check_in == today,
         Booking.status.in_(["confirmed", "pending"]),
     ).count()
 
     departures_today = db.query(Booking).filter(
+        Booking.tenant == tenant,
         Booking.check_out == today,
         Booking.status == "confirmed",
     ).count()
 
     currently_occupied = db.query(Booking).filter(
+        Booking.tenant == tenant,
         Booking.check_in <= today,
         Booking.check_out > today,
         Booking.status == "confirmed",
     ).count()
 
-    total_units = db.query(Unit).filter(Unit.is_active == True).count()
-
+    total_units = db.query(Unit).filter(Unit.tenant == tenant, Unit.is_active == True).count()
     occupancy_rate = round(currently_occupied / total_units * 100, 1) if total_units else 0
 
     month_start = today.replace(day=1)
     monthly_revenue = (
         db.query(func.sum(Booking.total_price))
         .filter(
+            Booking.tenant == tenant,
             Booking.check_in >= month_start,
             Booking.check_in <= today,
             Booking.status == "confirmed",
         )
-        .scalar()
-        or 0.0
+        .scalar() or 0.0
     )
 
     upcoming = db.query(Booking).filter(
+        Booking.tenant == tenant,
         Booking.check_in > today,
         Booking.status.in_(["confirmed", "pending"]),
     ).count()
@@ -68,12 +72,13 @@ def occupancy_report(
     to_date: date = Query(...),
     unit_id: Optional[int] = None,
     db: Session = Depends(get_db),
+    tenant: str = Depends(get_tenant),
 ):
     total_days = (to_date - from_date).days
     if total_days <= 0:
         return {"error": "Μη έγκυρο εύρος ημερομηνιών"}
 
-    units_q = db.query(Unit).filter(Unit.is_active == True)
+    units_q = db.query(Unit).filter(Unit.tenant == tenant, Unit.is_active == True)
     if unit_id:
         units_q = units_q.filter(Unit.id == unit_id)
     units = units_q.order_by(Unit.name).all()
@@ -82,6 +87,7 @@ def occupancy_report(
     for u in units:
         bkgs = db.query(Booking).filter(
             Booking.unit_id == u.id,
+            Booking.tenant == tenant,
             Booking.status == "confirmed",
             Booking.check_out > from_date,
             Booking.check_in < to_date,
@@ -129,8 +135,10 @@ def by_channel(
     from_date: date = Query(...),
     to_date: date = Query(...),
     db: Session = Depends(get_db),
+    tenant: str = Depends(get_tenant),
 ):
     bookings = db.query(Booking).filter(
+        Booking.tenant == tenant,
         Booking.status == "confirmed",
         Booking.check_in >= from_date,
         Booking.check_in < to_date,
@@ -140,14 +148,7 @@ def by_channel(
     for b in bookings:
         ch = b.channel
         if ch not in channels:
-            channels[ch] = {
-                "channel": ch,
-                "bookings_count": 0,
-                "total_nights": 0,
-                "total_revenue": 0.0,
-                "total_commission": 0.0,
-                "net_revenue": 0.0,
-            }
+            channels[ch] = {"channel": ch, "bookings_count": 0, "total_nights": 0, "total_revenue": 0.0, "total_commission": 0.0, "net_revenue": 0.0}
         nights = (b.check_out - b.check_in).days
         channels[ch]["bookings_count"] += 1
         channels[ch]["total_nights"] += nights
@@ -178,8 +179,10 @@ def financial_report(
     to_date: date = Query(...),
     group_by: str = Query("month"),
     db: Session = Depends(get_db),
+    tenant: str = Depends(get_tenant),
 ):
     bookings = db.query(Booking).filter(
+        Booking.tenant == tenant,
         Booking.status == "confirmed",
         Booking.check_in >= from_date,
         Booking.check_in < to_date,
@@ -198,15 +201,7 @@ def financial_report(
             label = b.channel
 
         if key not in groups:
-            groups[key] = {
-                "key": key,
-                "label": label,
-                "bookings_count": 0,
-                "nights": 0,
-                "total_revenue": 0.0,
-                "total_commission": 0.0,
-                "net_revenue": 0.0,
-            }
+            groups[key] = {"key": key, "label": label, "bookings_count": 0, "nights": 0, "total_revenue": 0.0, "total_commission": 0.0, "net_revenue": 0.0}
         nights = (b.check_out - b.check_in).days
         groups[key]["bookings_count"] += 1
         groups[key]["nights"] += nights

@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from database import get_db
 from models import Booking, Unit
 from schemas import BookingRequest
+from auth_utils import get_tenant
 from typing import Optional
 from datetime import date
 import anthropic
@@ -22,9 +23,9 @@ def _get_client():
     return anthropic.Anthropic(api_key=api_key)
 
 
-def _units_with_bookings(db: Session, unit_type: Optional[str] = None):
+def _units_with_bookings(db: Session, tenant: str, unit_type: Optional[str] = None):
     today = date.today()
-    q = db.query(Unit).filter(Unit.is_active == True)
+    q = db.query(Unit).filter(Unit.is_active == True, Unit.tenant == tenant)
     if unit_type:
         q = q.filter(Unit.type == unit_type)
     units = q.all()
@@ -35,6 +36,7 @@ def _units_with_bookings(db: Session, unit_type: Optional[str] = None):
             db.query(Booking)
             .filter(
                 Booking.unit_id == u.id,
+                Booking.tenant == tenant,
                 Booking.status.in_(["confirmed", "pending"]),
                 Booking.check_out >= today,
             )
@@ -61,14 +63,15 @@ def _units_with_bookings(db: Session, unit_type: Optional[str] = None):
     return result
 
 
-def _available_unit_ids(db: Session, check_in: date, check_out: date, unit_type: Optional[str]):
-    q = db.query(Unit).filter(Unit.is_active == True)
+def _available_unit_ids(db: Session, check_in: date, check_out: date, tenant: str, unit_type: Optional[str]):
+    q = db.query(Unit).filter(Unit.is_active == True, Unit.tenant == tenant)
     if unit_type:
         q = q.filter(Unit.type == unit_type)
     available = []
     for u in q.all():
         overlap = db.query(Booking).filter(
             Booking.unit_id == u.id,
+            Booking.tenant == tenant,
             Booking.status.in_(["confirmed", "pending"]),
             Booking.check_in < check_out,
             Booking.check_out > check_in,
@@ -79,8 +82,8 @@ def _available_unit_ids(db: Session, check_in: date, check_out: date, unit_type:
 
 
 @router.post("/recommend-unit")
-async def recommend_unit(request: BookingRequest, db: Session = Depends(get_db)):
-    avail_ids = _available_unit_ids(db, request.check_in, request.check_out, request.unit_type)
+async def recommend_unit(request: BookingRequest, db: Session = Depends(get_db), tenant: str = Depends(get_tenant)):
+    avail_ids = _available_unit_ids(db, request.check_in, request.check_out, tenant, request.unit_type)
 
     if not avail_ids:
         return {
@@ -89,7 +92,7 @@ async def recommend_unit(request: BookingRequest, db: Session = Depends(get_db))
             "recommendation": None,
         }
 
-    all_data = _units_with_bookings(db, request.unit_type)
+    all_data = _units_with_bookings(db, tenant, request.unit_type)
     avail_data = [u for u in all_data if u["unit_id"] in avail_ids]
 
     prompt = f"""Είσαι ειδικός διαχείρισης τουριστικών καταλυμάτων. Βρες τη βέλτιστη μονάδα για νέα κράτηση.
@@ -177,12 +180,13 @@ def gap_alerts(
     from_date: Optional[date] = None,
     to_date: Optional[date] = None,
     db: Session = Depends(get_db),
+    tenant: str = Depends(get_tenant),
 ):
     today = date.today()
     fd = from_date or today
     td = to_date or date(today.year + 1, 12, 31)
 
-    units = db.query(Unit).filter(Unit.is_active == True).all()
+    units = db.query(Unit).filter(Unit.is_active == True, Unit.tenant == tenant).all()
     alerts = []
 
     for u in units:
@@ -190,6 +194,7 @@ def gap_alerts(
             db.query(Booking)
             .filter(
                 Booking.unit_id == u.id,
+                Booking.tenant == tenant,
                 Booking.status.in_(["confirmed", "pending"]),
                 Booking.check_out >= fd,
                 Booking.check_in <= td,
@@ -236,12 +241,12 @@ def gap_alerts(
 
 
 @router.get("/booking-alerts")
-def booking_alerts(db: Session = Depends(get_db)):
+def booking_alerts(db: Session = Depends(get_db), tenant: str = Depends(get_tenant)):
     today = date.today()
 
     past_pending = (
         db.query(Booking)
-        .filter(Booking.status == "pending", Booking.check_out < today)
+        .filter(Booking.tenant == tenant, Booking.status == "pending", Booking.check_out < today)
         .order_by(Booking.check_out)
         .all()
     )
@@ -249,6 +254,7 @@ def booking_alerts(db: Session = Depends(get_db)):
     unbilled_platform = (
         db.query(Booking)
         .filter(
+            Booking.tenant == tenant,
             Booking.channel.in_(["booking", "airbnb"]),
             Booking.is_billed == False,
             Booking.status.in_(["confirmed", "pending"]),

@@ -5,6 +5,7 @@ from sqlalchemy import and_
 from database import get_db
 from models import Booking, Unit, Customer
 from schemas import BookingCreate, BookingUpdate, BookingResponse
+from auth_utils import get_tenant
 from typing import List, Optional
 from datetime import date
 from io import BytesIO
@@ -27,9 +28,10 @@ STATUS_LABELS = {
 }
 
 
-def _check_overlap(db, unit_id, check_in, check_out, exclude_id=None):
+def _check_overlap(db, unit_id, check_in, check_out, tenant, exclude_id=None):
     q = db.query(Booking).filter(
         Booking.unit_id == unit_id,
+        Booking.tenant == tenant,
         Booking.status.in_(["confirmed", "pending"]),
         and_(Booking.check_in < check_out, Booking.check_out > check_in),
     )
@@ -38,11 +40,11 @@ def _check_overlap(db, unit_id, check_in, check_out, exclude_id=None):
     return q.first()
 
 
-def _load(db, booking_id):
+def _load(db, booking_id, tenant):
     return (
         db.query(Booking)
         .options(joinedload(Booking.unit), joinedload(Booking.customer))
-        .filter(Booking.id == booking_id)
+        .filter(Booking.id == booking_id, Booking.tenant == tenant)
         .first()
     )
 
@@ -50,6 +52,7 @@ def _load(db, booking_id):
 @router.get("/export/excel")
 def export_excel(
     db: Session = Depends(get_db),
+    tenant: str = Depends(get_tenant),
     from_date: Optional[date] = None,
     to_date: Optional[date] = None,
     unit_id: Optional[int] = None,
@@ -57,7 +60,7 @@ def export_excel(
     import openpyxl
     from openpyxl.styles import Font, PatternFill, Alignment
 
-    q = db.query(Booking).options(joinedload(Booking.unit), joinedload(Booking.customer))
+    q = db.query(Booking).options(joinedload(Booking.unit), joinedload(Booking.customer)).filter(Booking.tenant == tenant)
     if from_date:
         q = q.filter(Booking.check_out >= from_date)
     if to_date:
@@ -87,13 +90,11 @@ def export_excel(
         ws.append([
             b.id, b.unit.name, name,
             CHANNEL_LABELS.get(b.channel, b.channel),
-            b.check_in.strftime("%d/%m/%Y"),
-            b.check_out.strftime("%d/%m/%Y"),
+            b.check_in.strftime("%d/%m/%Y"), b.check_out.strftime("%d/%m/%Y"),
             nights, b.guests, b.total_price, b.commission,
             round(b.total_price - b.commission, 2),
             STATUS_LABELS.get(b.status, b.status),
-            "Ναι" if b.is_billed else "Όχι",
-            b.notes or "",
+            "Ναι" if b.is_billed else "Όχι", b.notes or "",
         ])
 
     for col in ws.columns:
@@ -103,61 +104,45 @@ def export_excel(
     output = BytesIO()
     wb.save(output)
     output.seek(0)
-
-    return StreamingResponse(
-        output,
-        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": "attachment; filename=kratiseis.xlsx"},
-    )
+    return StreamingResponse(output, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                             headers={"Content-Disposition": "attachment; filename=kratiseis.xlsx"})
 
 
 @router.get("/template/excel")
 def download_template():
     import openpyxl
-    from openpyxl.styles import Font, PatternFill, Alignment
+    from openpyxl.styles import Font, PatternFill
 
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = "Template"
-
     headers = ["Μονάδα", "Πελάτης", "Κανάλι", "Άφιξη (ΗΗ/ΜΜ/ΕΕΕΕ)",
                "Αναχώρηση (ΗΗ/ΜΜ/ΕΕΕΕ)", "Άτομα", "Σύνολο (€)",
                "Προμήθεια (€)", "Τιμολογήθηκε (Ναι/Όχι)", "Σημειώσεις"]
     ws.append(headers)
-
     blue = PatternFill("solid", fgColor="3B82F6")
     for cell in ws[1]:
         cell.font = Font(bold=True, color="FFFFFF")
         cell.fill = blue
-
-    # Example row
-    ws.append(["Διαμέρισμα 1", "Νίκος Παπαδόπουλος", "booking",
-               "01/07/2026", "08/07/2026", 2, 700, 105, "Όχι", ""])
-
+    ws.append(["Διαμέρισμα 1", "Νίκος Παπαδόπουλος", "booking", "01/07/2026", "08/07/2026", 2, 700, 105, "Όχι", ""])
     for col in ws.columns:
         max_len = max((len(str(cell.value or "")) for cell in col), default=10)
         ws.column_dimensions[col[0].column_letter].width = min(max_len + 2, 35)
-
     output = BytesIO()
     wb.save(output)
     output.seek(0)
-
-    return StreamingResponse(
-        output,
-        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": "attachment; filename=template_kratiseis.xlsx"},
-    )
+    return StreamingResponse(output, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                             headers={"Content-Disposition": "attachment; filename=template_kratiseis.xlsx"})
 
 
 @router.post("/import/excel")
-async def import_excel(file: UploadFile = File(...), db: Session = Depends(get_db)):
+async def import_excel(file: UploadFile = File(...), db: Session = Depends(get_db), tenant: str = Depends(get_tenant)):
     import openpyxl
     from datetime import datetime as dt
 
     content = await file.read()
     wb = openpyxl.load_workbook(BytesIO(content))
     ws = wb.active
-
     created = 0
     errors = []
 
@@ -168,7 +153,7 @@ async def import_excel(file: UploadFile = File(...), db: Session = Depends(get_d
             (unit_name, customer_name, channel, check_in_str, check_out_str,
              guests, total_price, commission, is_billed_str, notes) = (list(row) + [None] * 10)[:10]
 
-            unit = db.query(Unit).filter(Unit.name.ilike(str(unit_name).strip())).first()
+            unit = db.query(Unit).filter(Unit.name.ilike(str(unit_name).strip()), Unit.tenant == tenant).first()
             if not unit:
                 errors.append(f"Γραμμή {row_idx}: Μονάδα '{unit_name}' δεν βρέθηκε")
                 continue
@@ -176,10 +161,10 @@ async def import_excel(file: UploadFile = File(...), db: Session = Depends(get_d
             parts = str(customer_name or "Άγνωστος").strip().split(" ", 1)
             fname, lname = parts[0], (parts[1] if len(parts) > 1 else "")
             customer = db.query(Customer).filter(
-                Customer.first_name.ilike(fname), Customer.last_name.ilike(lname)
+                Customer.first_name.ilike(fname), Customer.last_name.ilike(lname), Customer.tenant == tenant
             ).first()
             if not customer:
-                customer = Customer(first_name=fname, last_name=lname)
+                customer = Customer(first_name=fname, last_name=lname, tenant=tenant)
                 db.add(customer)
                 db.flush()
 
@@ -198,7 +183,7 @@ async def import_excel(file: UploadFile = File(...), db: Session = Depends(get_d
                 check_in=check_in, check_out=check_out,
                 guests=int(guests or 1), total_price=float(total_price or 0),
                 commission=float(commission or 0), status="confirmed",
-                is_billed=billed, notes=str(notes or ""),
+                is_billed=billed, notes=str(notes or ""), tenant=tenant,
             )
             db.add(booking)
             created += 1
@@ -212,6 +197,7 @@ async def import_excel(file: UploadFile = File(...), db: Session = Depends(get_d
 @router.get("/", response_model=List[BookingResponse])
 def get_bookings(
     db: Session = Depends(get_db),
+    tenant: str = Depends(get_tenant),
     unit_id: Optional[int] = None,
     channel: Optional[str] = None,
     status: Optional[str] = None,
@@ -223,7 +209,7 @@ def get_bookings(
     skip: int = 0,
     limit: int = 500,
 ):
-    q = db.query(Booking).options(joinedload(Booking.unit), joinedload(Booking.customer))
+    q = db.query(Booking).options(joinedload(Booking.unit), joinedload(Booking.customer)).filter(Booking.tenant == tenant)
     if unit_id:
         q = q.filter(Booking.unit_id == unit_id)
     if channel:
@@ -241,36 +227,35 @@ def get_bookings(
         "check_in": Booking.check_in, "check_out": Booking.check_out,
         "total_price": Booking.total_price, "created_at": Booking.created_at,
     }.get(sort_by, Booking.check_in)
-
     q = q.order_by(sort_col.asc() if sort_dir == "asc" else sort_col.desc())
     return q.offset(skip).limit(limit).all()
 
 
 @router.post("/", response_model=BookingResponse, status_code=201)
-def create_booking(booking: BookingCreate, db: Session = Depends(get_db)):
+def create_booking(booking: BookingCreate, db: Session = Depends(get_db), tenant: str = Depends(get_tenant)):
     if booking.check_out <= booking.check_in:
         raise HTTPException(status_code=400, detail="Η αναχώρηση πρέπει να είναι μετά την άφιξη")
-    overlap = _check_overlap(db, booking.unit_id, booking.check_in, booking.check_out)
+    overlap = _check_overlap(db, booking.unit_id, booking.check_in, booking.check_out, tenant)
     if overlap:
         raise HTTPException(status_code=409, detail=f"Σύγκρουση με κράτηση #{overlap.id} ({overlap.check_in} – {overlap.check_out})")
-    obj = Booking(**booking.model_dump())
+    obj = Booking(**booking.model_dump(), tenant=tenant)
     db.add(obj)
     db.commit()
     db.refresh(obj)
-    return _load(db, obj.id)
+    return _load(db, obj.id, tenant)
 
 
 @router.get("/{booking_id}", response_model=BookingResponse)
-def get_booking(booking_id: int, db: Session = Depends(get_db)):
-    obj = _load(db, booking_id)
+def get_booking(booking_id: int, db: Session = Depends(get_db), tenant: str = Depends(get_tenant)):
+    obj = _load(db, booking_id, tenant)
     if not obj:
         raise HTTPException(status_code=404, detail="Κράτηση δεν βρέθηκε")
     return obj
 
 
 @router.put("/{booking_id}", response_model=BookingResponse)
-def update_booking(booking_id: int, data: BookingUpdate, db: Session = Depends(get_db)):
-    obj = db.query(Booking).filter(Booking.id == booking_id).first()
+def update_booking(booking_id: int, data: BookingUpdate, db: Session = Depends(get_db), tenant: str = Depends(get_tenant)):
+    obj = db.query(Booking).filter(Booking.id == booking_id, Booking.tenant == tenant).first()
     if not obj:
         raise HTTPException(status_code=404, detail="Κράτηση δεν βρέθηκε")
     upd = data.model_dump(exclude_none=True)
@@ -280,18 +265,18 @@ def update_booking(booking_id: int, data: BookingUpdate, db: Session = Depends(g
     if "check_in" in upd or "check_out" in upd or "unit_id" in upd:
         if new_out <= new_in:
             raise HTTPException(status_code=400, detail="Η αναχώρηση πρέπει να είναι μετά την άφιξη")
-        overlap = _check_overlap(db, new_unit, new_in, new_out, exclude_id=booking_id)
+        overlap = _check_overlap(db, new_unit, new_in, new_out, tenant, exclude_id=booking_id)
         if overlap:
             raise HTTPException(status_code=409, detail=f"Σύγκρουση με κράτηση #{overlap.id}")
     for k, v in upd.items():
         setattr(obj, k, v)
     db.commit()
-    return _load(db, booking_id)
+    return _load(db, booking_id, tenant)
 
 
 @router.delete("/{booking_id}")
-def delete_booking(booking_id: int, db: Session = Depends(get_db)):
-    obj = db.query(Booking).filter(Booking.id == booking_id).first()
+def delete_booking(booking_id: int, db: Session = Depends(get_db), tenant: str = Depends(get_tenant)):
+    obj = db.query(Booking).filter(Booking.id == booking_id, Booking.tenant == tenant).first()
     if not obj:
         raise HTTPException(status_code=404, detail="Κράτηση δεν βρέθηκε")
     db.delete(obj)
