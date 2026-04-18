@@ -16,6 +16,8 @@ class CaseCreate(BaseModel):
     income_data: dict = {}
     estimates: dict = {}
     notes: str = ""
+    portal_active: bool = True
+    contact_stage: str = "Νέα Ανάλυση"
 
 
 class CaseUpdate(BaseModel):
@@ -32,6 +34,13 @@ class CaseUpdate(BaseModel):
     estimates: Optional[dict] = None
     actual_results: Optional[dict] = None
     notes: Optional[str] = None
+    portal_active: Optional[bool] = None
+    contact_stage: Optional[str] = None
+
+
+class ContactUpdate(BaseModel):
+    contact_stage: Optional[str] = None
+    increment_reminder: bool = False
 
 
 class ActualResultsUpdate(BaseModel):
@@ -54,6 +63,10 @@ class CaseResponse(BaseModel):
     actual_results: Optional[dict]
     notes: str
     share_token: str
+    portal_active: bool = True
+    contact_stage: str = "Νέα Ανάλυση"
+    last_contacted_at: Optional[datetime] = None
+    reminder_count: int = 0
     created_at: datetime
     updated_at: datetime
     submitted_at: Optional[datetime]
@@ -74,6 +87,10 @@ class CaseListItem(BaseModel):
     estimates: dict
     actual_results: Optional[dict]
     share_token: str
+    portal_active: bool = True
+    contact_stage: str = "Νέα Ανάλυση"
+    last_contacted_at: Optional[datetime] = None
+    reminder_count: int = 0
     created_at: datetime
     updated_at: datetime
     submitted_at: Optional[datetime]

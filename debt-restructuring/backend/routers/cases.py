@@ -5,7 +5,7 @@ from datetime import datetime
 
 from database import get_db
 from models import Case
-from schemas import CaseCreate, CaseUpdate, CaseResponse, CaseListItem, ActualResultsUpdate
+from schemas import CaseCreate, CaseUpdate, CaseResponse, CaseListItem, ActualResultsUpdate, ContactUpdate
 
 router = APIRouter(prefix="/cases", tags=["cases"])
 
@@ -84,6 +84,22 @@ def save_actual_results(id: int, data: ActualResultsUpdate, db: Session = Depend
     if case.status not in ("completed", "cancelled"):
         case.status = "completed"
         case.completed_at = datetime.utcnow()
+    db.commit()
+    db.refresh(case)
+    return case
+
+
+@router.patch("/{id}/contact", response_model=CaseResponse)
+def update_contact(id: int, data: ContactUpdate, db: Session = Depends(get_db)):
+    case = db.query(Case).filter(Case.id == id).first()
+    if not case:
+        raise HTTPException(status_code=404, detail="Η υπόθεση δεν βρέθηκε")
+    if data.contact_stage:
+        case.contact_stage = data.contact_stage
+    if data.increment_reminder:
+        case.reminder_count = (case.reminder_count or 0) + 1
+    case.last_contacted_at = datetime.utcnow()
+    case.updated_at = datetime.utcnow()
     db.commit()
     db.refresh(case)
     return case

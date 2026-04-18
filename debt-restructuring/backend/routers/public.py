@@ -12,6 +12,10 @@ def get_public_case(token: str, vat: str = Query(default=None), db: Session = De
     if not case:
         raise HTTPException(status_code=404, detail="not_found")
 
+    # Portal active check
+    if case.portal_active is False:
+        raise HTTPException(status_code=403, detail="portal_disabled")
+
     # VAT gate
     if case.client_vat:
         if not vat:

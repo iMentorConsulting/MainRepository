@@ -43,6 +43,26 @@ def run_migrations():
             conn.commit()
         except Exception:
             pass
+        try:
+            conn.execute(text("ALTER TABLE cases ADD COLUMN portal_active INTEGER DEFAULT 1"))
+            conn.commit()
+        except Exception:
+            pass
+        try:
+            conn.execute(text("ALTER TABLE cases ADD COLUMN contact_stage VARCHAR DEFAULT 'Νέα Ανάλυση'"))
+            conn.commit()
+        except Exception:
+            pass
+        try:
+            conn.execute(text("ALTER TABLE cases ADD COLUMN last_contacted_at DATETIME"))
+            conn.commit()
+        except Exception:
+            pass
+        try:
+            conn.execute(text("ALTER TABLE cases ADD COLUMN reminder_count INTEGER DEFAULT 0"))
+            conn.commit()
+        except Exception:
+            pass
 
 run_migrations()
 

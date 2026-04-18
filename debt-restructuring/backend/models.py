@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, DateTime, JSON
+from sqlalchemy import Column, Integer, String, Text, DateTime, JSON, Boolean
 from database import Base
 from datetime import datetime
 import secrets
@@ -42,6 +42,14 @@ class Case(Base):
 
     # Token for read-only client shareable link
     share_token = Column(String, unique=True, index=True, default=lambda: secrets.token_urlsafe(24))
+
+    # Portal access control
+    portal_active = Column(Boolean, default=True)
+
+    # Sales follow-up pipeline
+    contact_stage = Column(String, default="Νέα Ανάλυση")
+    last_contacted_at = Column(DateTime, nullable=True)
+    reminder_count = Column(Integer, default=0)
 
     # Timestamps
     created_at = Column(DateTime, default=datetime.utcnow)

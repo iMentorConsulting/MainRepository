@@ -81,6 +81,7 @@ export default function ClientPreview() {
       .catch((err) => {
         const detail = err.response?.data?.detail
         if (detail === 'vat_required') setVatRequired(true)
+        else if (detail === 'portal_disabled') setError('Ο σύνδεσμος αυτός έχει απενεργοποιηθεί προσωρινά. Επικοινωνήστε με το γραφείο μας.')
         else setError('Η υπόθεση δεν βρέθηκε ή ο σύνδεσμος δεν είναι έγκυρος.')
       })
       .finally(() => setLoading(false))
