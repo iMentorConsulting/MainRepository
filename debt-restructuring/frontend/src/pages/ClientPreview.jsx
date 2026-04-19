@@ -130,11 +130,10 @@ export default function ClientPreview() {
   const ratio = est.ratio || 0
   const statusIdx = STATUS_ORDER.indexOf(data.status)
 
-  // Chart data
-  const rows = est.rows || []
-  const banksDebt = rows.filter(r => r.type === 'bank').reduce((s, r) => s + (r.amount || 0), 0)
-  const taxDebt = rows.filter(r => r.type === 'tax').reduce((s, r) => s + (r.amount || 0), 0)
-  const fundsDebt = rows.filter(r => r.type === 'fund').reduce((s, r) => s + (r.amount || 0), 0)
+  // Chart data — use finalPlan (always stored) for correct type breakdown
+  const banksDebt = finalPlan.filter(p => p.type === 'Τράπεζα').reduce((s, p) => s + (p.amount || 0), 0)
+  const taxDebt = finalPlan.filter(p => p.type === 'Εφορία').reduce((s, p) => s + (p.amount || 0), 0)
+  const fundsDebt = finalPlan.filter(p => p.type === 'Ασφαλιστικά Ταμεία').reduce((s, p) => s + (p.amount || 0), 0)
   const totalDebt = est.sumDebt || 1
   const banksPct = Math.round(banksDebt / totalDebt * 100)
   const taxPct = Math.round(taxDebt / totalDebt * 100)
@@ -147,7 +146,7 @@ export default function ClientPreview() {
 
       {/* TOP BAR */}
       <div className="flex justify-between items-center px-5 py-3 bg-white/5 backdrop-blur-sm border-b border-white/10">
-        <div className="font-black text-white text-base">⚖️ i-Mentor Consulting</div>
+        <img src="https://i-mentor.gr/wp-content/uploads/2025/11/transparent-logo.png" alt="i-Mentor Consulting" className="h-8 object-contain" />
         <div className="text-blue-300 text-xs hidden sm:flex gap-4">
           <span>📞 2810 363007</span>
           <span>📧 info@i-mentor.gr</span>
@@ -205,9 +204,14 @@ export default function ClientPreview() {
       {/* CONTENT CARDS */}
       <div className="max-w-3xl mx-auto px-4 pb-12 space-y-5">
 
-        {/* Disclaimer */}
-        <div className="bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3 text-xs text-amber-800 leading-relaxed">
-          ⚠️ <b>Θεωρητική Προσομοίωση:</b> Η παρούσα εκτίμηση αποτελεί θεωρητική προσομοίωση του αλγορίθμου του Εξωδικαστικού Μηχανισμού, βάσει των στοιχείων που δηλώθηκαν. Η i-Mentor Consulting δεν δύναται να εγγυηθεί το τελικό αποτέλεσμα, καθώς αυτό εξαρτάται από παράγοντες πέραν του ελέγχου της (αποδοχή πιστωτών, αξιολόγηση περιουσίας, κ.ά.).
+        {/* ΕΚΤΙΜΗΣΗ prominent banner */}
+        <div className="bg-amber-400 rounded-2xl px-6 py-5 text-center">
+          <div className="text-2xl font-black text-amber-900 tracking-widest uppercase mb-1">⚠️ ΕΚΤΙΜΗΣΗ — ΟΧΙ ΑΠΟΤΕΛΕΣΜΑ</div>
+          <div className="text-amber-800 text-sm font-semibold">
+            Το παρόν έγγραφο αποτελεί <b>θεωρητική εκτίμηση</b> βάσει των στοιχείων που δηλώθηκαν και του αλγορίθμου του Εξωδικαστικού Μηχανισμού.
+            Δεν αποτελεί δεσμευτική πρόταση ούτε εγγύηση αποτελέσματος.
+            Η i-Mentor Consulting δεν φέρει ευθύνη για αποκλίσεις από το τελικό αποτέλεσμα.
+          </div>
         </div>
 
         {/* Income summary */}
@@ -271,79 +275,72 @@ export default function ClientPreview() {
         {/* Charts */}
         {est.sumDebt > 0 && (
           <div className="bg-white rounded-2xl shadow-lg p-5">
-            <h2 className="text-base font-black text-blue-800 border-b-2 border-blue-100 pb-2 mb-5">📈 Γραφήματα Ανάλυσης</h2>
+            <h2 className="text-base font-black text-blue-800 border-b-2 border-blue-100 pb-2 mb-5">Γραφική Απεικόνιση Εκτίμησης</h2>
 
-            {/* Debt breakdown stacked bar */}
+            {/* Before / After — big clear comparison */}
             <div className="mb-6">
-              <div className="text-sm font-bold text-gray-600 mb-2">Κατανομή Οφειλών</div>
-              <div className="flex rounded-xl overflow-hidden h-10 mb-2">
-                {banksPct > 0 && (
-                  <div style={{ width: `${banksPct}%` }} className="bg-blue-500 flex items-center justify-center text-white text-xs font-bold transition-all" title={`Τράπεζες ${banksPct}%`}>
-                    {banksPct >= 10 ? `${banksPct}%` : ''}
-                  </div>
-                )}
-                {taxPct > 0 && (
-                  <div style={{ width: `${taxPct}%` }} className="bg-orange-400 flex items-center justify-center text-white text-xs font-bold transition-all" title={`ΑΑΔΕ ${taxPct}%`}>
-                    {taxPct >= 10 ? `${taxPct}%` : ''}
-                  </div>
-                )}
-                {fundsPct > 0 && (
-                  <div style={{ width: `${fundsPct}%` }} className="bg-purple-400 flex items-center justify-center text-white text-xs font-bold transition-all" title={`Ασφαλιστικά ${fundsPct}%`}>
-                    {fundsPct >= 10 ? `${fundsPct}%` : ''}
-                  </div>
-                )}
-              </div>
-              <div className="flex gap-4 text-xs text-gray-600 flex-wrap">
-                {banksPct > 0 && <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-blue-500 inline-block" /> Τράπεζες {banksPct}%</span>}
-                {taxPct > 0 && <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-orange-400 inline-block" /> ΑΑΔΕ {taxPct}%</span>}
-                {fundsPct > 0 && <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-purple-400 inline-block" /> Ασφαλιστικά {fundsPct}%</span>}
+              <div className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Εκτίμηση: Πριν & Μετά τη Ρύθμιση</div>
+              <div className="grid grid-cols-3 gap-3 items-center">
+                <div className="bg-red-50 border-2 border-red-200 rounded-2xl p-4 text-center">
+                  <div className="text-xs font-semibold text-red-400 uppercase mb-1">Αρχική Οφειλή</div>
+                  <div className="text-2xl font-black text-red-600">{fmt(totalDebt)}</div>
+                </div>
+                <div className="flex flex-col items-center gap-1">
+                  <div className="text-2xl">→</div>
+                  {writeoffAmt > 0 && (
+                    <div className="bg-orange-100 rounded-xl px-3 py-1 text-center">
+                      <div className="text-xs text-orange-500 font-semibold">Εκτ. Διαγραφή</div>
+                      <div className="text-sm font-black text-orange-600">−{fmt(writeoffAmt)}</div>
+                    </div>
+                  )}
+                </div>
+                <div className="bg-green-50 border-2 border-green-300 rounded-2xl p-4 text-center">
+                  <div className="text-xs font-semibold text-green-500 uppercase mb-1">Εκτ. Εναπομένουσα</div>
+                  <div className="text-2xl font-black text-green-700">{fmt(remainingAmt)}</div>
+                </div>
               </div>
             </div>
 
-            {/* Before / After comparison */}
-            {writeoffAmt > 0 && (
-              <div>
-                <div className="text-sm font-bold text-gray-600 mb-3">Πριν & Μετά τη Ρύθμιση</div>
-                <div className="flex items-end gap-6 justify-center">
+            {/* Debt breakdown by category */}
+            {(banksDebt > 0 || taxDebt > 0 || fundsDebt > 0) && (
+              <div className="mb-5">
+                <div className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Κατανομή Οφειλών ανά Κατηγορία</div>
+                <div className="space-y-2">
                   {[
-                    { label: 'Αρχική Οφειλή', value: totalDebt, color: 'bg-red-400', textColor: 'text-red-600' },
-                    { label: 'Εκτ. Διαγραφή', value: writeoffAmt, color: 'bg-orange-400', textColor: 'text-orange-600' },
-                    { label: 'Εναπομένουσα', value: remainingAmt, color: 'bg-green-500', textColor: 'text-green-700' },
-                  ].map((bar) => {
-                    const h = Math.round((bar.value / totalDebt) * 140)
-                    return (
-                      <div key={bar.label} className="flex flex-col items-center gap-1 flex-1">
-                        <div className={`text-xs font-black ${bar.textColor}`}>{Math.round(bar.value / 1000)}χιλ.€</div>
-                        <div
-                          className={`w-full rounded-t-lg ${bar.color} transition-all`}
-                          style={{ height: `${Math.max(h, 8)}px` }}
-                        />
-                        <div className="text-xs text-gray-500 text-center leading-tight mt-1">{bar.label}</div>
+                    { label: 'Τράπεζες', amount: banksDebt, pct: banksPct, color: 'bg-blue-500' },
+                    { label: 'ΑΑΔΕ', amount: taxDebt, pct: taxPct, color: 'bg-orange-400' },
+                    { label: 'Ασφαλιστικά Ταμεία', amount: fundsDebt, pct: fundsPct, color: 'bg-purple-500' },
+                  ].filter(r => r.amount > 0).map((r) => (
+                    <div key={r.label} className="flex items-center gap-3">
+                      <div className="w-28 text-xs font-semibold text-gray-600 shrink-0">{r.label}</div>
+                      <div className="flex-1 bg-gray-100 rounded-full h-4 overflow-hidden">
+                        <div className={`h-full ${r.color} rounded-full`} style={{ width: `${r.pct}%` }} />
                       </div>
-                    )
-                  })}
+                      <div className="text-xs font-bold text-gray-700 w-16 text-right">{fmt(r.amount)}</div>
+                      <div className="text-xs text-gray-400 w-8">{r.pct}%</div>
+                    </div>
+                  ))}
                 </div>
               </div>
             )}
 
-            {/* Monthly payment vs income ratio */}
+            {/* Monthly payment ratio */}
             {est.dispMonthly > 0 && est.totalMonthlyPay > 0 && (
-              <div className="mt-6">
-                <div className="text-sm font-bold text-gray-600 mb-2">Μηνιαία Δόση vs Διαθέσιμο Εισόδημα</div>
-                <div className="bg-gray-100 rounded-xl h-6 overflow-hidden relative">
-                  <div
-                    className={`h-full rounded-xl transition-all ${ratio > 80 ? 'bg-red-400' : ratio > 50 ? 'bg-orange-400' : 'bg-green-500'}`}
-                    style={{ width: `${Math.min(ratio, 100)}%` }}
-                  />
-                  <div className="absolute inset-0 flex items-center justify-center text-xs font-bold text-gray-700">
-                    {ratio}% του μηνιαίου διαθέσιμου
+              <div>
+                <div className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Εκτ. Μηνιαία Δόση ως % Διαθέσιμου Εισοδήματος</div>
+                <div className="flex items-center gap-3">
+                  <div className="flex-1 bg-gray-100 rounded-full h-5 overflow-hidden">
+                    <div
+                      className={`h-full rounded-full ${ratio > 80 ? 'bg-red-400' : ratio > 50 ? 'bg-orange-400' : 'bg-green-500'}`}
+                      style={{ width: `${Math.min(ratio, 100)}%` }}
+                    />
                   </div>
+                  <div className={`text-sm font-black w-12 ${ratio > 80 ? 'text-red-500' : ratio > 50 ? 'text-orange-500' : 'text-green-600'}`}>{ratio}%</div>
                 </div>
-                <div className="flex justify-between text-xs text-gray-400 mt-1">
-                  <span>0%</span>
-                  <span className="text-green-600 font-semibold">Άνετο &lt;40%</span>
-                  <span className="text-orange-500 font-semibold">Οριακό 40-60%</span>
-                  <span className="text-red-500 font-semibold">Επικίνδυνο &gt;60%</span>
+                <div className="flex gap-4 text-xs text-gray-400 mt-1">
+                  <span className="text-green-600">Άνετο &lt;40%</span>
+                  <span className="text-orange-500">Οριακό 40–60%</span>
+                  <span className="text-red-500">Επικίνδυνο &gt;60%</span>
                 </div>
               </div>
             )}
@@ -353,7 +350,7 @@ export default function ClientPreview() {
         {/* Forecast */}
         {forecastSections.length > 0 && (
           <div className="bg-white rounded-2xl shadow-lg p-5">
-            <h2 className="text-base font-black text-blue-800 border-b-2 border-blue-100 pb-2 mb-4">🔮 {forecastTitle}</h2>
+            <h2 className="text-base font-black text-blue-800 border-b-2 border-blue-100 pb-2 mb-4">{forecastTitle}</h2>
             <div className="space-y-3">
               {forecastSections.map((s, i) => <ForecastSection key={i} s={s} />)}
             </div>
@@ -446,9 +443,11 @@ export default function ClientPreview() {
       </div>
 
       {/* Footer */}
-      <div className="text-center py-6 text-blue-400 text-xs px-4 border-t border-white/10">
-        <p>© i-Mentor Consulting — Εμπιστευτικό έγγραφο, αποκλειστικά για τον αποδέκτη</p>
-        <p className="mt-1 text-blue-500">Ανάλυση: {data.employee} • {data.created_at ? format(new Date(data.created_at), 'dd/MM/yyyy') : ''}</p>
+      <div className="text-center py-8 px-4 border-t border-white/10">
+        <img src="https://i-mentor.gr/wp-content/uploads/2025/11/transparent-logo.png" alt="i-Mentor Consulting" className="h-10 object-contain mx-auto mb-3 opacity-80" />
+        <p className="text-blue-400 text-xs">© i-Mentor Consulting — Εμπιστευτικό έγγραφο, αποκλειστικά για τον αποδέκτη</p>
+        <p className="mt-1 text-blue-500 text-xs">Ανάλυση: {data.employee} • {data.created_at ? format(new Date(data.created_at), 'dd/MM/yyyy') : ''}</p>
+        <p className="mt-2 text-amber-400 text-xs font-bold">ΕΚΤΙΜΗΣΗ — ΟΧΙ ΑΠΟΤΕΛΕΣΜΑ</p>
       </div>
     </div>
   )

@@ -449,7 +449,7 @@ export function buildForecastText(calc, incomeData) {
 
   if (scenario === 0) {
     return {
-      title: '🔮 Πρόβλεψη Ρύθμισης – Νομικό Πρόσωπο',
+      title: 'Πρόβλεψη Ρύθμισης – Νομικό Πρόσωπο',
       sections: sections({
         type: 'success', icon: '✅', label: 'Εκτίμηση Αποτελέσματος',
         body: `Διαθέσιμο μηνιαίο ποσό για εξυπηρέτηση: ${fmt(dispMonthly)}\nΕκτιμώμενη διαγραφή: ${sumWr > 0 ? `${fmt(sumWr)} (${sumWrPct}%)` : 'Δεν απαιτείται'}\nΕναπομένουσα οφειλή: ${fmt(totalRemaining)}\nΔιάρκεια ρύθμισης: ${durationPhrase}\nΣυνολική μηνιαία δόση: ${fmt(totalMonthlyPay)} (${ratio}% εισοδήματος)`,
@@ -459,7 +459,7 @@ export function buildForecastText(calc, incomeData) {
 
   if (scenario === 1) {
     return {
-      title: '✅ Πρόβλεψη Ρύθμισης – Οικονομικά Ισχυρό Προφίλ',
+      title: 'Πρόβλεψη Ρύθμισης – Οικονομικά Ισχυρό Προφίλ',
       sections: sections({
         type: 'success', icon: '✅', label: 'Εκτίμηση Αποτελέσματος',
         body: `• Επαρκές εισόδημα — δεν απαιτείται διαγραφή.\n• Διαθέσιμο μηνιαίο εισόδημα: ${fmt(dispMonthly)}\n• Διάρκεια ρύθμισης: ${durationPhrase}\n• Συνολική μηνιαία δόση: ${fmt(totalMonthlyPay)} (${ratio}% εισοδήματος)`,
@@ -469,7 +469,7 @@ export function buildForecastText(calc, incomeData) {
 
   if (scenario === 2) {
     return {
-      title: '🔮 Πρόβλεψη Ρύθμισης – Δυνητικό "Κούρεμα" Οφειλών',
+      title: 'Πρόβλεψη Ρύθμισης – Δυνητικό "Κούρεμα" Οφειλών',
       sections: sections({
         type: 'success', icon: '✅', label: 'Εκτίμηση Αποτελέσματος',
         body: `• Προκύπτει περιθώριο μερικής διαγραφής.\n• Θεωρητικά εκτιμώμενη διαγραφή: ${fmt(sumWr)} (${sumWrPct}%)\n• Εναπομένουσα οφειλή μετά τη διαγραφή: ${fmt(totalRemaining)}\n• Συνολική μηνιαία δόση: ${fmt(totalMonthlyPay)} (${ratio}% εισοδήματος)\n• Διάρκεια ρύθμισης: ${durationPhrase}`,
@@ -479,7 +479,7 @@ export function buildForecastText(calc, incomeData) {
 
   if (scenario === 3) {
     return {
-      title: '⚖️ Πρόβλεψη Ρύθμισης – Ισχυρό Δικαίωμα Διαγραφής',
+      title: 'Πρόβλεψη Ρύθμισης – Ισχυρό Δικαίωμα Διαγραφής',
       sections: sections({
         type: 'success', icon: '✅', label: 'Εκτίμηση Αποτελέσματος',
         body: `• Τεκμηριωμένη οικονομική αδυναμία — μέγιστη διαγραφή.\n• Θεωρητικά εκτιμώμενη διαγραφή: ${fmt(sumWr)} (${sumWrPct}%)\n• Εναπομένουσα οφειλή μετά τη διαγραφή: ${fmt(totalRemaining)}\n• Συνολική μηνιαία δόση: ${fmt(totalMonthlyPay)} (${ratio}% εισοδήματος)\n• Διάρκεια ρύθμισης: ${durationPhrase}`,
@@ -489,7 +489,7 @@ export function buildForecastText(calc, incomeData) {
 
   if (scenario === 4) {
     return {
-      title: '🏠 Πρόβλεψη Ρύθμισης – Χαμηλό Εισόδημα με Πλήρη Κάλυψη από Περιουσία',
+      title: 'Πρόβλεψη Ρύθμισης – Χαμηλό Εισόδημα με Πλήρη Κάλυψη από Περιουσία',
       sections: sections({
         type: 'success', icon: '✅', label: 'Εκτίμηση Αποτελέσματος',
         body: `• Η περιουσία καλύπτει πλήρως τις οφειλές — δεν απαιτείται θεωρητικά διαγραφή.\n• Εναπομένουσα οφειλή: ${fmt(totalRemaining)}\n• Συνολική μηνιαία δόση: ${fmt(totalMonthlyPay)}`,
@@ -499,7 +499,7 @@ export function buildForecastText(calc, incomeData) {
 
   // scenario 5
   return {
-    title: '🏠 Πρόβλεψη Ρύθμισης – Χαμηλό Εισόδημα με Μερική Κάλυψη από Περιουσία',
+    title: 'Πρόβλεψη Ρύθμισης – Χαμηλό Εισόδημα με Μερική Κάλυψη από Περιουσία',
     sections: sections({
       type: 'success', icon: '✅', label: 'Εκτίμηση Αποτελέσματος',
       body: `• Προκύπτει θεωρητικά αδιάσωστο ποσό, άρα υπάρχει περιθώριο μερικής διαγραφής.\n• Θεωρητικά εκτιμώμενη διαγραφή: ${fmt(sumWr)} (${sumWrPct}%)\n• Εναπομένουσα οφειλή μετά τη διαγραφή: ${fmt(totalRemaining)}\n• Συνολική μηνιαία δόση: ${fmt(totalMonthlyPay)}`,
