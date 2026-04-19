@@ -130,6 +130,18 @@ export default function ClientPreview() {
   const ratio = est.ratio || 0
   const statusIdx = STATUS_ORDER.indexOf(data.status)
 
+  // Chart data
+  const rows = est.rows || []
+  const banksDebt = rows.filter(r => r.type === 'bank').reduce((s, r) => s + (r.amount || 0), 0)
+  const taxDebt = rows.filter(r => r.type === 'tax').reduce((s, r) => s + (r.amount || 0), 0)
+  const fundsDebt = rows.filter(r => r.type === 'fund').reduce((s, r) => s + (r.amount || 0), 0)
+  const totalDebt = est.sumDebt || 1
+  const banksPct = Math.round(banksDebt / totalDebt * 100)
+  const taxPct = Math.round(taxDebt / totalDebt * 100)
+  const fundsPct = 100 - banksPct - taxPct
+  const writeoffAmt = est.sumWr || 0
+  const remainingAmt = est.totalRemaining || 0
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-950 via-blue-900 to-blue-800">
 
@@ -195,7 +207,7 @@ export default function ClientPreview() {
 
         {/* Disclaimer */}
         <div className="bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3 text-xs text-amber-800 leading-relaxed">
-          ⚠️ <b>Θεωρητική Προσομοίωση:</b> Τα παρακάτω αποτελέσματα αποτελούν εκτίμηση βάσει των στοιχείων που παρείχατε και δεν συνιστούν δεσμευτική πρόταση ή εγγύηση αποτελέσματος.
+          ⚠️ <b>Θεωρητική Προσομοίωση:</b> Η παρούσα εκτίμηση αποτελεί θεωρητική προσομοίωση του αλγορίθμου του Εξωδικαστικού Μηχανισμού, βάσει των στοιχείων που δηλώθηκαν. Η i-Mentor Consulting δεν δύναται να εγγυηθεί το τελικό αποτέλεσμα, καθώς αυτό εξαρτάται από παράγοντες πέραν του ελέγχου της (αποδοχή πιστωτών, αξιολόγηση περιουσίας, κ.ά.).
         </div>
 
         {/* Income summary */}
@@ -253,6 +265,88 @@ export default function ClientPreview() {
                 </div>
               ))}
             </div>
+          </div>
+        )}
+
+        {/* Charts */}
+        {est.sumDebt > 0 && (
+          <div className="bg-white rounded-2xl shadow-lg p-5">
+            <h2 className="text-base font-black text-blue-800 border-b-2 border-blue-100 pb-2 mb-5">📈 Γραφήματα Ανάλυσης</h2>
+
+            {/* Debt breakdown stacked bar */}
+            <div className="mb-6">
+              <div className="text-sm font-bold text-gray-600 mb-2">Κατανομή Οφειλών</div>
+              <div className="flex rounded-xl overflow-hidden h-10 mb-2">
+                {banksPct > 0 && (
+                  <div style={{ width: `${banksPct}%` }} className="bg-blue-500 flex items-center justify-center text-white text-xs font-bold transition-all" title={`Τράπεζες ${banksPct}%`}>
+                    {banksPct >= 10 ? `${banksPct}%` : ''}
+                  </div>
+                )}
+                {taxPct > 0 && (
+                  <div style={{ width: `${taxPct}%` }} className="bg-orange-400 flex items-center justify-center text-white text-xs font-bold transition-all" title={`ΑΑΔΕ ${taxPct}%`}>
+                    {taxPct >= 10 ? `${taxPct}%` : ''}
+                  </div>
+                )}
+                {fundsPct > 0 && (
+                  <div style={{ width: `${fundsPct}%` }} className="bg-purple-400 flex items-center justify-center text-white text-xs font-bold transition-all" title={`Ασφαλιστικά ${fundsPct}%`}>
+                    {fundsPct >= 10 ? `${fundsPct}%` : ''}
+                  </div>
+                )}
+              </div>
+              <div className="flex gap-4 text-xs text-gray-600 flex-wrap">
+                {banksPct > 0 && <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-blue-500 inline-block" /> Τράπεζες {banksPct}%</span>}
+                {taxPct > 0 && <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-orange-400 inline-block" /> ΑΑΔΕ {taxPct}%</span>}
+                {fundsPct > 0 && <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-purple-400 inline-block" /> Ασφαλιστικά {fundsPct}%</span>}
+              </div>
+            </div>
+
+            {/* Before / After comparison */}
+            {writeoffAmt > 0 && (
+              <div>
+                <div className="text-sm font-bold text-gray-600 mb-3">Πριν & Μετά τη Ρύθμιση</div>
+                <div className="flex items-end gap-6 justify-center">
+                  {[
+                    { label: 'Αρχική Οφειλή', value: totalDebt, color: 'bg-red-400', textColor: 'text-red-600' },
+                    { label: 'Εκτ. Διαγραφή', value: writeoffAmt, color: 'bg-orange-400', textColor: 'text-orange-600' },
+                    { label: 'Εναπομένουσα', value: remainingAmt, color: 'bg-green-500', textColor: 'text-green-700' },
+                  ].map((bar) => {
+                    const h = Math.round((bar.value / totalDebt) * 140)
+                    return (
+                      <div key={bar.label} className="flex flex-col items-center gap-1 flex-1">
+                        <div className={`text-xs font-black ${bar.textColor}`}>{Math.round(bar.value / 1000)}χιλ.€</div>
+                        <div
+                          className={`w-full rounded-t-lg ${bar.color} transition-all`}
+                          style={{ height: `${Math.max(h, 8)}px` }}
+                        />
+                        <div className="text-xs text-gray-500 text-center leading-tight mt-1">{bar.label}</div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Monthly payment vs income ratio */}
+            {est.dispMonthly > 0 && est.totalMonthlyPay > 0 && (
+              <div className="mt-6">
+                <div className="text-sm font-bold text-gray-600 mb-2">Μηνιαία Δόση vs Διαθέσιμο Εισόδημα</div>
+                <div className="bg-gray-100 rounded-xl h-6 overflow-hidden relative">
+                  <div
+                    className={`h-full rounded-xl transition-all ${ratio > 80 ? 'bg-red-400' : ratio > 50 ? 'bg-orange-400' : 'bg-green-500'}`}
+                    style={{ width: `${Math.min(ratio, 100)}%` }}
+                  />
+                  <div className="absolute inset-0 flex items-center justify-center text-xs font-bold text-gray-700">
+                    {ratio}% του μηνιαίου διαθέσιμου
+                  </div>
+                </div>
+                <div className="flex justify-between text-xs text-gray-400 mt-1">
+                  <span>0%</span>
+                  <span className="text-green-600 font-semibold">Άνετο &lt;40%</span>
+                  <span className="text-orange-500 font-semibold">Οριακό 40-60%</span>
+                  <span className="text-red-500 font-semibold">Επικίνδυνο &gt;60%</span>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
