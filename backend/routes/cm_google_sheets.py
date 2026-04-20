@@ -12,22 +12,25 @@ router = APIRouter(prefix="/api/cm/sheets", tags=["cm-sheets"])
 SPREADSHEET_ID = os.getenv("GOOGLE_SHEET_ID", "138at2ByB0TEzZpdwdGhtfLC2FShbA5l1IeLtTo5r4x4")
 SHEET_TAB = os.getenv("GOOGLE_SHEET_TAB", "ΕΣΟΔΑ")
 
-# Column mapping (0-indexed) — adjust if sheet columns differ
+# Column mapping (0-indexed)
+# A  B  C     D    E       F                G   H          I    J           K         L                      M                              N                              O                       P                Q               R                    S                    T      U                    V      W    X                  Y                        Z
+# 0  1  2     3    4       5                6   7          8    9           10        11                     12                             13                             14                      15               16              17                   18                   19     20                   21     22   23                 24                       25
+# ΕΠΩΝΥΜΙΑ  ΚΑΤΑΣΤΑΣΗ  EMAIL  SMS  ΚΙΝΗΤΟ  ΠΟΛΗ  ΤΚ  ΔΙΕΥΘΥΝΣΗ  ΑΦΜ  ΑΝΤΙΚΕΙΜΕΝΟ  ΛΟΓΙΣΤΗΣ  ΠΟΣΟ_ΑΙΤΗΣΗ  ΠΟΣΟ_ΥΛΟΠΟΙΗΣΗ  ΕΓΚΡΙΣΗ  ΠΡΟΘΕΣΜΙΑ  ΕΠΕΝΔΥΣΗ  ΟΦΕΙΛΕΣ  ΠΡΟΕΛΕΥΣΗ  ΠΩΛΗΤΗΣ  BONUS  ΥΠΕΥΘΥΝΟΣ  ΠΟΣΟ  ΦΠΑ  ΕΙΔΟΣ_ΥΠΗΡΕΣΙΑΣ  ΚΑΤΗΓΟΡΙΑ  ΠΩΛΗΣΗ
 COL_MAP = {
-    "client_name": 0,       # ΕΠΩΝΥΜΙΑ ΠΕΛΑΤΗ ΧΟΝΔΡΙΚΗΣ
-    "status": 1,            # ΚΑΤΑΣΤΑΣΗ ΕΡΓΑΣΙΑΣ
-    "email": 2,             # EMAIL
-    "phone": 3,             # ΚΙΝΗΤΟ
-    "afm": 4,               # ΑΦΜ
-    "accountant": 5,        # ΛΟΓΙΣΤΗΣ
-    "agreed_fee_application": 6,      # ΠΟΣΟ ΓΙΑ ΑΙΤΗΣΗ
-    "agreed_fee_implementation": 7,   # ΣΥΜΦΩΝΗΘΕΝ ΠΟΣΟ ΓΙΑ ΥΛΟΠΟΙΗΣΗ
-    "approval_date": 8,     # Ημερομηνία Έγκρισης / Απόρριψης
-    "project_deadline": 9,  # Προθεσμία Ολοκλήρωσης
-    "approved_budget": 10,  # ΥΨΟΣ ΕΠΕΝΔΥΣΗΣ
-    "service_type": 11,     # ΕΙΔΟΣ ΥΠΗΡΕΣΙΑΣ
-    "total_paid": 12,       # ΠΟΣΟ
-    "sale_date": 13,        # ΗΜ.ΝΙΑ ΠΩΛΗΣΗΣ
+    "client_name": 0,                # ΕΠΩΝΥΜΙΑ ΠΕΛΑΤΗ ΧΟΝΔΡΙΚΗΣ
+    "status": 1,                     # ΚΑΤΑΣΤΑΣΗ ΕΡΓΑΣΙΑΣ
+    "email": 2,                      # EMAIL
+    "phone": 4,                      # ΚΙΝΗΤΟ
+    "afm": 8,                        # ΑΦΜ
+    "accountant": 10,                # ΛΟΓΙΣΤΗΣ
+    "agreed_fee_application": 11,    # ΠΟΣΟ ΓΙΑ ΑΙΤΗΣΗ
+    "agreed_fee_implementation": 12, # ΣΥΜΦΩΝΗΘΕΝ ΠΟΣΟ ΓΙΑ ΥΛΟΠΟΙΗΣΗ
+    "approval_date": 13,             # Ημερομηνία Έγκρισης / Απόρριψης
+    "project_deadline": 14,          # Προθεσμία Ολοκλήρωσης
+    "approved_budget": 15,           # ΥΨΟΣ ΕΠΕΝΔΥΣΗΣ
+    "service_type": 23,              # ΕΙΔΟΣ ΥΠΗΡΕΣΙΑΣ
+    "total_paid": 21,                # ΠΟΣΟ
+    "sale_date": 25,                 # ΗΜ.ΝΙΑ ΠΩΛΗΣΗΣ
 }
 
 
@@ -81,7 +84,7 @@ def _read_sheet_rows() -> list[list]:
     result = (
         service.spreadsheets()
         .values()
-        .get(spreadsheetId=SPREADSHEET_ID, range=f"{SHEET_TAB}!A:N")
+        .get(spreadsheetId=SPREADSHEET_ID, range=f"{SHEET_TAB}!A:Z")
         .execute()
     )
     return result.get("values", [])
@@ -96,7 +99,7 @@ def _rows_to_records(rows: list[list]) -> list[dict]:
         if i == 0:
             continue  # skip header
         # Pad row to expected length
-        while len(row) < 14:
+        while len(row) < 26:
             row.append("")
 
         status = str(row[COL_MAP["status"]]).strip()
@@ -236,7 +239,7 @@ def sync_paid_amounts(
     for i, row in enumerate(rows_all):
         if i == 0:
             continue
-        while len(row) < 14:
+        while len(row) < 26:
             row.append("")
         afm = str(row[COL_MAP["afm"]]).strip()
         svc = str(row[COL_MAP["service_type"]]).strip()
