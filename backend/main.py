@@ -1,7 +1,6 @@
 import os
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from dotenv import load_dotenv
 from database import Base, engine
@@ -55,15 +54,15 @@ def health():
 
 # ── Serve built React frontend (SPA) ──────────────────────────────────────────
 _static_dir = os.path.join(os.path.dirname(__file__), "static")
+_index_html = os.path.join(_static_dir, "index.html")
 
-if os.path.exists(_static_dir):
-    app.mount("/assets", StaticFiles(directory=os.path.join(_static_dir, "assets")), name="assets")
-
+if os.path.isfile(_index_html):
     @app.get("/{full_path:path}")
     async def serve_spa(full_path: str):
-        """Catch-all: serve index.html for all non-API routes (React Router)."""
-        index = os.path.join(_static_dir, "index.html")
-        return FileResponse(index)
+        candidate = os.path.join(_static_dir, full_path)
+        if full_path and os.path.isfile(candidate):
+            return FileResponse(candidate)
+        return FileResponse(_index_html)
 else:
     @app.get("/")
     def root():
