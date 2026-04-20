@@ -104,15 +104,20 @@ def _read_sheet_rows() -> list[list]:
     return result.get("values", [])
 
 
+def _merge_key(afm: str, client_name: str, service_type: str) -> str:
+    """Dedup key: prefer AFM, fall back to client_name when AFM is missing."""
+    identifier = afm if afm else client_name.upper().strip()
+    return f"{identifier}|{service_type}"
+
+
 def _rows_to_records(rows: list[list]) -> list[dict]:
-    """Convert raw sheet rows to normalized dicts, skip header row."""
-    records = []
+    """Convert raw sheet rows to normalized dicts, skip header. Merge duplicate rows."""
+    merged: dict[str, dict] = {}
     if not rows:
-        return records
+        return []
     for i, row in enumerate(rows):
         if i == 0:
-            continue  # skip header
-        # Pad row to expected length
+            continue
         while len(row) < 26:
             row.append("")
 
@@ -123,11 +128,11 @@ def _rows_to_records(rows: list[list]) -> list[dict]:
         afm = str(row[COL_MAP["afm"]]).strip()
         service_type = str(row[COL_MAP["service_type"]]).strip()
         client_name = str(row[COL_MAP["client_name"]]).strip()
-
         if not client_name:
             continue
 
-        records.append({
+        key = _merge_key(afm, client_name, service_type)
+        rec = {
             "client_name": client_name,
             "status": status,
             "email": str(row[COL_MAP["email"]]).strip() or None,
@@ -142,8 +147,20 @@ def _rows_to_records(rows: list[list]) -> list[dict]:
             "service_type": service_type or None,
             "total_paid": _parse_float(row[COL_MAP["total_paid"]]),
             "sale_date": _parse_date(row[COL_MAP["sale_date"]]),
-        })
-    return records
+        }
+        if key in merged:
+            # Sum fee amounts; keep first non-None values for other fields
+            existing = merged[key]
+            existing["agreed_fee_application"] += rec["agreed_fee_application"]
+            existing["agreed_fee_implementation"] += rec["agreed_fee_implementation"]
+            existing["total_paid"] += rec["total_paid"]
+            for field in ("email", "phone", "afm", "accountant", "approval_date",
+                          "project_deadline", "approved_budget", "sale_date"):
+                if not existing.get(field) and rec.get(field):
+                    existing[field] = rec[field]
+        else:
+            merged[key] = rec
+    return list(merged.values())
 
 
 def _build_paid_map(records: list[dict]) -> dict:
@@ -169,7 +186,7 @@ def preview_sheet(
     new_records = []
     already_imported = 0
     for r in records:
-        ref = f"{r['afm'] or ''}|{r['service_type'] or ''}"
+        ref = _merge_key(r['afm'] or '', r['client_name'], r['service_type'] or '')
         if ref in existing_refs:
             already_imported += 1
         else:
@@ -201,7 +218,7 @@ def import_from_sheet(
     skipped = 0
 
     for r in records:
-        ref = f"{r['afm'] or ''}|{r['service_type'] or ''}"
+        ref = _merge_key(r['afm'] or '', r['client_name'], r['service_type'] or '')
         if ref in existing_refs:
             skipped += 1
             continue
