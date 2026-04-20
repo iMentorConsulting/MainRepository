@@ -16,9 +16,17 @@ const PREVIEW_COLUMNS = [
   { key: 'afm', label: 'ΑΦΜ' },
   { key: 'status', label: 'Κατάσταση' },
   { key: 'service_type', label: 'Τύπος Υπηρεσίας' },
-  { key: 'agreed_fee_application', label: 'Αμοιβή Αίτησης' },
-  { key: 'agreed_fee_implementation', label: 'Αμοιβή Υλοποίησης' },
+  { key: 'agreed_fee_application', label: 'Αμοιβή Αίτησης', currency: true },
+  { key: 'agreed_fee_implementation', label: 'Αμοιβή Υλοποίησης', currency: true },
 ]
+
+const fmtEur = (val) => {
+  if (val == null || val === '') return '—'
+  return new Intl.NumberFormat('el-GR', {
+    style: 'currency', currency: 'EUR',
+    minimumFractionDigits: 0, maximumFractionDigits: 0,
+  }).format(val)
+}
 
 function StatCard({ label, value, color = 'gray' }) {
   const colors = {
@@ -251,9 +259,11 @@ export default function Import() {
                         <tr key={i} className="hover:bg-gray-50">
                           {PREVIEW_COLUMNS.map(col => (
                             <td key={col.key} className="px-3 py-2 text-gray-700 whitespace-nowrap max-w-[200px] truncate">
-                              {row[col.key] != null && row[col.key] !== ''
-                                ? String(row[col.key])
-                                : <span className="text-gray-300">—</span>
+                              {col.currency
+                                ? fmtEur(row[col.key])
+                                : row[col.key] != null && row[col.key] !== ''
+                                  ? String(row[col.key])
+                                  : <span className="text-gray-300">—</span>
                               }
                             </td>
                           ))}

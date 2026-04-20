@@ -72,8 +72,22 @@ def _parse_date(val: str):
 def _parse_float(val) -> float:
     if val is None or str(val).strip() == "":
         return 0.0
+    s = str(val).strip().replace(" ", "").replace("€", "").replace("+", "")
+    # European format: dot=thousands separator, comma=decimal separator
+    # e.g. "1.800" → 1800, "4.750" → 4750, "1.800,50" → 1800.5
+    import re
+    if re.match(r'^\d{1,3}(\.\d{3})+(,\d+)?$', s):
+        s = s.replace(".", "").replace(",", ".")
+    elif "," in s and "." in s:
+        s = s.replace(".", "").replace(",", ".")
+    elif "," in s:
+        parts = s.split(",")
+        if len(parts) == 2 and len(parts[1]) == 3:
+            s = s.replace(",", "")
+        else:
+            s = s.replace(",", ".")
     try:
-        return float(str(val).replace(",", ".").replace(" ", "").replace("€", ""))
+        return float(s)
     except (ValueError, TypeError):
         return 0.0
 
