@@ -1,81 +1,95 @@
 import axios from 'axios'
 
-const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || '/api',
-  headers: { 'Content-Type': 'application/json' },
-})
+const BASE = import.meta.env.VITE_API_URL || ''
 
-// Attach auth token to every request
+const api = axios.create({ baseURL: BASE })
+
 api.interceptors.request.use((config) => {
-  try {
-    const auth = JSON.parse(localStorage.getItem('auth') || 'null')
-    if (auth?.token) config.headers.Authorization = `Bearer ${auth.token}`
-  } catch {}
+  const auth = getAuth()
+  if (auth?.token) {
+    config.headers.Authorization = `Bearer ${auth.token}`
+  }
   return config
 })
 
-// Auto-logout on 401
 api.interceptors.response.use(
   (r) => r,
   (err) => {
     if (err.response?.status === 401) {
-      localStorage.removeItem('auth')
-      window.location.reload()
+      localStorage.removeItem('cm_auth')
+      window.location.href = '/'
     }
     return Promise.reject(err)
   }
 )
 
-// Auth
-export const getTenants = () => api.get('/auth/tenants')
-export const login = (data) => api.post('/auth/login', data)
-
-// Units
-export const getUnits = (params) => api.get('/units/', { params })
-export const createUnit = (data) => api.post('/units/', data)
-export const updateUnit = (id, data) => api.put(`/units/${id}`, data)
-export const deleteUnit = (id) => api.delete(`/units/${id}`)
-
-// Customers
-export const getCustomers = (params) => api.get('/customers/', { params })
-export const createCustomer = (data) => api.post('/customers/', data)
-export const updateCustomer = (id, data) => api.put(`/customers/${id}`, data)
-export const deleteCustomer = (id) => api.delete(`/customers/${id}`)
-
-// Bookings
-export const getBookings = (params) => api.get('/bookings/', { params })
-export const createBooking = (data) => api.post('/bookings/', data)
-export const updateBooking = (id, data) => api.put(`/bookings/${id}`, data)
-export const deleteBooking = (id) => api.delete(`/bookings/${id}`)
-
-// Bookings Excel
-export const exportBookings = (params) => api.get('/bookings/export/excel', { params, responseType: 'blob' })
-export const downloadTemplate = () => api.get('/bookings/template/excel', { responseType: 'blob' })
-export const importBookings = (file) => {
-  const fd = new FormData()
-  fd.append('file', file)
-  return api.post('/bookings/import/excel', fd, { headers: { 'Content-Type': 'multipart/form-data' } })
+export const getAuth = () => {
+  try { return JSON.parse(localStorage.getItem('cm_auth') || 'null') } catch { return null }
 }
+export const setAuth = (data) => localStorage.setItem('cm_auth', JSON.stringify(data))
+export const clearAuth = () => localStorage.removeItem('cm_auth')
 
-// Reports
-export const getDashboard = () => api.get('/reports/dashboard')
-export const getOccupancy = (params) => api.get('/reports/occupancy', { params })
-export const getByChannel = (params) => api.get('/reports/by-channel', { params })
-export const getFinancial = (params) => api.get('/reports/financial', { params })
-export const getPriceAnalytics = (params) => api.get('/reports/price-analytics', { params })
+// Auth
+export const login = (username, password) =>
+  api.post('/api/cm/auth/login', { username, password }).then(r => r.data)
+export const getMe = () => api.get('/api/cm/auth/me').then(r => r.data)
+export const changePassword = (current_password, new_password) =>
+  api.post('/api/cm/auth/change-password', { current_password, new_password }).then(r => r.data)
 
-// AI Advisor
-export const recommendUnit = (data) => api.post('/ai/recommend-unit', data)
-export const getGapAlerts = (params) => api.get('/ai/gap-alerts', { params })
-export const getBookingAlerts = () => api.get('/ai/booking-alerts')
+// Users
+export const getUsers = () => api.get('/api/cm/users/').then(r => r.data)
+export const createUser = (data) => api.post('/api/cm/users/', data).then(r => r.data)
+export const updateUser = (id, data) => api.put(`/api/cm/users/${id}`, data).then(r => r.data)
+export const deleteUser = (id) => api.delete(`/api/cm/users/${id}`).then(r => r.data)
 
-// Cleaning
-export const getDailyTasks = (params) => api.get('/cleaning/daily', { params })
-export const getCleaningSettings = () => api.get('/cleaning/settings')
-export const saveCleaningSettings = (data) => api.put('/cleaning/settings', data)
+// Cases
+export const getCases = (params) => api.get('/api/cm/cases/', { params }).then(r => r.data)
+export const getCase = (id) => api.get(`/api/cm/cases/${id}`).then(r => r.data)
+export const createCase = (data) => api.post('/api/cm/cases/', data).then(r => r.data)
+export const updateCase = (id, data) => api.put(`/api/cm/cases/${id}`, data).then(r => r.data)
+export const deleteCase = (id) => api.delete(`/api/cm/cases/${id}`).then(r => r.data)
 
-// iCal sync
-export const syncIcalAll = () => api.post('/ical/sync')
-export const syncIcalUnit = (unitId) => api.post(`/ical/sync/${unitId}`)
+// Tasks
+export const getTasks = (caseId) => api.get(`/api/cm/cases/${caseId}/tasks`).then(r => r.data)
+export const createTask = (caseId, data) => api.post(`/api/cm/cases/${caseId}/tasks`, data).then(r => r.data)
+export const updateTask = (caseId, taskId, data) => api.put(`/api/cm/cases/${caseId}/tasks/${taskId}`, data).then(r => r.data)
+export const deleteTask = (caseId, taskId) => api.delete(`/api/cm/cases/${caseId}/tasks/${taskId}`).then(r => r.data)
+
+// Payments
+export const getPayments = (caseId) => api.get(`/api/cm/cases/${caseId}/payments`).then(r => r.data)
+export const createPayment = (caseId, data) => api.post(`/api/cm/cases/${caseId}/payments`, data).then(r => r.data)
+export const deletePayment = (caseId, payId) => api.delete(`/api/cm/cases/${caseId}/payments/${payId}`).then(r => r.data)
+
+// Messages
+export const getMessages = (caseId) => api.get(`/api/cm/cases/${caseId}/messages`).then(r => r.data)
+export const createMessage = (caseId, data) => api.post(`/api/cm/cases/${caseId}/messages`, data).then(r => r.data)
+export const deleteMessage = (caseId, msgId) => api.delete(`/api/cm/cases/${caseId}/messages/${msgId}`).then(r => r.data)
+
+// Documents
+export const getDocuments = (caseId) => api.get(`/api/cm/cases/${caseId}/documents`).then(r => r.data)
+export const createDocument = (caseId, data) => api.post(`/api/cm/cases/${caseId}/documents`, data).then(r => r.data)
+export const updateDocument = (caseId, docId, data) => api.put(`/api/cm/cases/${caseId}/documents/${docId}`, data).then(r => r.data)
+export const deleteDocument = (caseId, docId) => api.delete(`/api/cm/cases/${caseId}/documents/${docId}`).then(r => r.data)
+
+// Budget Categories
+export const getBudgetCategories = (caseId) => api.get(`/api/cm/cases/${caseId}/budget-categories`).then(r => r.data)
+export const createBudgetCategory = (caseId, data) => api.post(`/api/cm/cases/${caseId}/budget-categories`, data).then(r => r.data)
+export const updateBudgetCategory = (caseId, catId, data) => api.put(`/api/cm/cases/${caseId}/budget-categories/${catId}`, data).then(r => r.data)
+export const deleteBudgetCategory = (caseId, catId) => api.delete(`/api/cm/cases/${caseId}/budget-categories/${catId}`).then(r => r.data)
+
+// Dashboard
+export const getDashboardStats = () => api.get('/api/cm/dashboard/stats').then(r => r.data)
+
+// Google Sheets
+export const previewSheet = () => api.get('/api/cm/sheets/preview').then(r => r.data)
+export const importFromSheet = () => api.post('/api/cm/sheets/import').then(r => r.data)
+export const syncPaidFromSheet = () => api.post('/api/cm/sheets/sync-paid').then(r => r.data)
+
+// Notifications
+export const sendNotification = (caseId, data) => api.post(`/api/cm/notifications/send/${caseId}`, data).then(r => r.data)
+export const sendBulkNotification = (data) => api.post('/api/cm/notifications/send-bulk', data).then(r => r.data)
+export const getNotificationLogs = (caseId) =>
+  api.get('/api/cm/notifications/logs', { params: caseId ? { case_id: caseId } : {} }).then(r => r.data)
+export const getNotificationTemplates = () => api.get('/api/cm/notifications/templates').then(r => r.data)
 
 export default api

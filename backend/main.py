@@ -3,49 +3,31 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 from database import Base, engine
-from routes import units, bookings, customers, reports, ai_advisor
-from routes import auth, cleaning, ical
+from models_cases import CMUser, CMCase, CMTask, CMPayment, CMMessage, CMDocument, CMNotificationLog, CMBudgetCategory
+
+# Case management routes
+from routes.cm_auth import router as cm_auth_router
+from routes.cm_users import router as cm_users_router
+from routes.cases import router as cases_router
+from routes.cm_dashboard import router as cm_dashboard_router
+from routes.cm_google_sheets import router as cm_sheets_router
+from routes.cm_notifications import router as cm_notifications_router
 
 load_dotenv()
 
-# Create all tables
+# Create all DB tables
 Base.metadata.create_all(bind=engine)
 
-# Safe migrations
-from sqlalchemy import text as _text
-with engine.connect() as _conn:
-    try:
-        _conn.execute(_text("ALTER TABLE bookings ADD COLUMN is_billed BOOLEAN DEFAULT 0"))
-        _conn.commit()
-    except Exception:
-        pass
-    for _table in ['units', 'customers', 'bookings']:
-        try:
-            _conn.execute(_text(f"ALTER TABLE {_table} ADD COLUMN tenant VARCHAR(50) DEFAULT 'evaivoni'"))
-            _conn.commit()
-        except Exception:
-            pass
-    try:
-        for _table in ['units', 'customers', 'bookings']:
-            _conn.execute(_text(f"UPDATE {_table} SET tenant='evaivoni' WHERE tenant IS NULL OR tenant=''"))
-        _conn.commit()
-    except Exception:
-        pass
-    try:
-        _conn.execute(_text("ALTER TABLE units ADD COLUMN ical_url VARCHAR(500)"))
-        _conn.commit()
-    except Exception:
-        pass
-    try:
-        _conn.execute(_text("ALTER TABLE bookings ADD COLUMN ical_uid VARCHAR(200)"))
-        _conn.commit()
-    except Exception:
-        pass
+# Seed default admin user
+from database import SessionLocal
+from auth_cases import seed_admin
+with SessionLocal() as _db:
+    seed_admin(_db)
 
 app = FastAPI(
-    title="Σύστημα Διαχείρισης Κρατήσεων",
-    description="API διαχείρισης κρατήσεων τουριστικών καταλυμάτων",
-    version="2.0.0",
+    title="iMentor Consulting - Case Management",
+    description="Σύστημα Διαχείρισης Υποθέσεων iMentor Consulting",
+    version="1.0.0",
 )
 
 app.add_middleware(
@@ -56,19 +38,17 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(auth.router)
-app.include_router(units.router)
-app.include_router(bookings.router)
-app.include_router(customers.router)
-app.include_router(reports.router)
-app.include_router(ai_advisor.router)
-app.include_router(cleaning.router)
-app.include_router(ical.router)
+app.include_router(cm_auth_router)
+app.include_router(cm_users_router)
+app.include_router(cases_router)
+app.include_router(cm_dashboard_router)
+app.include_router(cm_sheets_router)
+app.include_router(cm_notifications_router)
 
 
 @app.get("/")
 def root():
-    return {"message": "Σύστημα Διαχείρισης Κρατήσεων API v2.0"}
+    return {"message": "iMentor Consulting - Case Management API v1.0"}
 
 
 @app.get("/health")

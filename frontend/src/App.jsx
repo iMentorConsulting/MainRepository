@@ -1,32 +1,35 @@
 import { useState } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
+import { getAuth, setAuth as saveAuth, clearAuth } from './api'
 import Layout from './components/Layout'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
-import Calendar from './pages/Calendar'
-import Bookings from './pages/Bookings'
-import Units from './pages/Units'
-import Customers from './pages/Customers'
-import Reports from './pages/Reports'
-import SmartAdvisor from './pages/SmartAdvisor'
-import Cleaning from './pages/Cleaning'
+import Cases from './pages/Cases'
+import CaseDetail from './pages/CaseDetail'
+import Kanban from './pages/Kanban'
+import Notifications from './pages/Notifications'
+import Users from './pages/Users'
+import Import from './pages/Import'
 
 export default function App() {
-  const [auth, setAuth] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('auth') || 'null') } catch { return null }
-  })
+  const [auth, setAuthState] = useState(() => getAuth())
+
+  const handleLogin = (data) => {
+    saveAuth(data)
+    setAuthState(data)
+  }
 
   const handleLogout = () => {
-    localStorage.removeItem('auth')
-    setAuth(null)
+    clearAuth()
+    setAuthState(null)
   }
 
   if (!auth) {
     return (
       <>
         <Toaster position="top-right" toastOptions={{ duration: 3500 }} />
-        <Login onLogin={setAuth} />
+        <Login onLogin={handleLogin} />
       </>
     )
   }
@@ -37,13 +40,12 @@ export default function App() {
       <Routes>
         <Route path="/" element={<Layout auth={auth} onLogout={handleLogout} />}>
           <Route index element={<Dashboard />} />
-          <Route path="calendar" element={<Calendar />} />
-          <Route path="bookings" element={<Bookings />} />
-          <Route path="units" element={<Units />} />
-          <Route path="customers" element={<Customers />} />
-          <Route path="reports" element={<Reports />} />
-          <Route path="smart-advisor" element={<SmartAdvisor />} />
-          <Route path="cleaning" element={<Cleaning />} />
+          <Route path="cases" element={<Cases />} />
+          <Route path="cases/:id" element={<CaseDetail />} />
+          <Route path="kanban" element={<Kanban />} />
+          <Route path="notifications" element={<Notifications />} />
+          <Route path="users" element={<Users />} />
+          <Route path="import" element={<Import />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>
