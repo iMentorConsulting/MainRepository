@@ -1,6 +1,8 @@
 import os
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from dotenv import load_dotenv
 from database import Base, engine
 from models_cases import CMUser, CMCase, CMTask, CMPayment, CMMessage, CMDocument, CMNotificationLog, CMBudgetCategory
@@ -46,11 +48,23 @@ app.include_router(cm_sheets_router)
 app.include_router(cm_notifications_router)
 
 
-@app.get("/")
-def root():
-    return {"message": "iMentor Consulting - Case Management API v1.0"}
-
-
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+
+# ── Serve built React frontend (SPA) ──────────────────────────────────────────
+_static_dir = os.path.join(os.path.dirname(__file__), "static")
+
+if os.path.exists(_static_dir):
+    app.mount("/assets", StaticFiles(directory=os.path.join(_static_dir, "assets")), name="assets")
+
+    @app.get("/{full_path:path}")
+    async def serve_spa(full_path: str):
+        """Catch-all: serve index.html for all non-API routes (React Router)."""
+        index = os.path.join(_static_dir, "index.html")
+        return FileResponse(index)
+else:
+    @app.get("/")
+    def root():
+        return {"message": "iMentor Consulting - Case Management API v1.0 (frontend not built yet)"}
