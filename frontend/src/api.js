@@ -86,6 +86,9 @@ export const importFromSheet = () => api.post('/api/cm/sheets/import').then(r =>
 export const syncPaidFromSheet = () => api.post('/api/cm/sheets/sync-paid').then(r => r.data)
 export const syncAgentsFromSheet = () =>
   api.post('/api/cm/sheets/sync-agents').then(r => r.data)
+export const getServiceTypes = () => api.get('/api/cm/sheets/service-types').then(r => r.data)
+export const assignPrograms = (assignments) =>
+  api.post('/api/cm/sheets/assign-programs', { assignments }).then(r => r.data)
 
 // Notifications
 export const sendNotification = (caseId, data) => api.post(`/api/cm/notifications/send/${caseId}`, data).then(r => r.data)

@@ -8,9 +8,10 @@ import {
   InformationCircleIcon,
   DocumentArrowDownIcon,
   UserIcon,
+  TagIcon,
 } from '@heroicons/react/24/outline'
 import toast from 'react-hot-toast'
-import { previewSheet, importFromSheet, syncPaidFromSheet, syncAgentsFromSheet } from '../api'
+import { previewSheet, importFromSheet, syncPaidFromSheet, syncAgentsFromSheet, getServiceTypes, assignPrograms } from '../api'
 
 const PREVIEW_COLUMNS = [
   { key: 'client_name', label: 'Πελάτης' },
@@ -92,6 +93,14 @@ export default function Import() {
   const [agentsResult, setAgentsResult] = useState(null)
   const [agentsError, setAgentsError] = useState(null)
 
+  // Program assignment state
+  const [loadingServiceTypes, setLoadingServiceTypes] = useState(false)
+  const [serviceTypes, setServiceTypes] = useState(null)
+  const [programAssignments, setProgramAssignments] = useState({})
+  const [loadingAssign, setLoadingAssign] = useState(false)
+  const [assignResult, setAssignResult] = useState(null)
+  const [assignError, setAssignError] = useState(null)
+
   const handlePreview = async () => {
     setLoadingPreview(true)
     setPreviewData(null)
@@ -151,6 +160,53 @@ export default function Import() {
       toast.error(msg)
     } finally {
       setLoadingAgents(false)
+    }
+  }
+
+  const handleLoadServiceTypes = async () => {
+    setLoadingServiceTypes(true)
+    setAssignResult(null)
+    setAssignError(null)
+    try {
+      const data = await getServiceTypes()
+      setServiceTypes(data)
+      // Pre-populate assignments from current program_category
+      const initial = {}
+      data.forEach(row => {
+        initial[row.service_type ?? ''] = row.program_category
+      })
+      setProgramAssignments(initial)
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Σφάλμα φόρτωσης')
+    } finally {
+      setLoadingServiceTypes(false)
+    }
+  }
+
+  const handleAssignPrograms = async () => {
+    setLoadingAssign(true)
+    setAssignResult(null)
+    setAssignError(null)
+    try {
+      const assignments = Object.entries(programAssignments).map(([service_type, program_category]) => ({
+        service_type: service_type === '' ? null : service_type,
+        program_category,
+      }))
+      const data = await assignPrograms(assignments)
+      setAssignResult(data.message)
+      toast.success(data.message)
+      // Refresh list to show updated program_category
+      const fresh = await getServiceTypes()
+      setServiceTypes(fresh)
+      const updated = {}
+      fresh.forEach(row => { updated[row.service_type ?? ''] = row.program_category })
+      setProgramAssignments(updated)
+    } catch (err) {
+      const msg = err.response?.data?.detail || 'Σφάλμα ανάθεσης'
+      setAssignError(msg)
+      toast.error(msg)
+    } finally {
+      setLoadingAssign(false)
     }
   }
 
@@ -403,6 +459,121 @@ export default function Import() {
             : <><ArrowPathIcon className="w-4 h-4" /><span>Συγχρονισμός Agents</span></>
           }
         </button>
+      </div>
+
+      {/* Divider */}
+      <div className="relative">
+        <div className="absolute inset-0 flex items-center">
+          <div className="w-full border-t border-gray-200" />
+        </div>
+        <div className="relative flex justify-center">
+          <span className="bg-gray-50 px-4 text-sm font-semibold text-gray-500 uppercase tracking-wider">
+            Ανάθεση Pipeline ανά Τύπο Υπηρεσίας
+          </span>
+        </div>
+      </div>
+
+      {/* Program Assignment Section */}
+      <div className="bg-white rounded-xl border p-5 space-y-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <div className="p-2 bg-purple-50 rounded-lg flex-shrink-0">
+              <TagIcon className="w-5 h-5 text-purple-500" />
+            </div>
+            <div>
+              <h2 className="text-base font-semibold text-gray-800 mb-1">
+                Ανάθεση Pipeline ανά Τύπο Υπηρεσίας
+              </h2>
+              <p className="text-sm text-gray-500">
+                Φορτώστε όλους τους τύπους υπηρεσιών και αναθέστε κάθε έναν στο σωστό pipeline
+                (ΕΣΠΑ / ΔΥΠΑ / Μικροπιστώσεις). Ενημερώνει όλες τις σχετικές υποθέσεις.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={handleLoadServiceTypes}
+            disabled={loadingServiceTypes}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-300 bg-white text-gray-700 text-sm font-medium hover:bg-gray-50 disabled:opacity-50 transition-colors flex-shrink-0"
+          >
+            {loadingServiceTypes ? <Spinner /> : <ArrowPathIcon className="w-4 h-4" />}
+            {loadingServiceTypes ? 'Φόρτωση...' : 'Φόρτωση Τύπων'}
+          </button>
+        </div>
+
+        <ResultBanner result={assignResult} type="success" />
+        <ResultBanner result={assignError} type="error" />
+
+        {serviceTypes && serviceTypes.length > 0 && (
+          <div className="space-y-3">
+            <div className="overflow-x-auto rounded-lg border">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 border-b">
+                  <tr>
+                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">Τύπος Υπηρεσίας</th>
+                    <th className="text-center px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wider w-24">Υποθέσεις</th>
+                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wider w-52">Pipeline</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {serviceTypes.map((row, i) => {
+                    const key = row.service_type ?? ''
+                    const current = programAssignments[key] ?? row.program_category
+                    const changed = current !== row.program_category
+                    const PROGRAM_COLORS = {
+                      'ΕΣΠΑ': 'bg-blue-100 text-blue-800',
+                      'ΔΥΠΑ': 'bg-green-100 text-green-800',
+                      'ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ': 'bg-purple-100 text-purple-800',
+                    }
+                    return (
+                      <tr key={i} className={changed ? 'bg-amber-50' : 'hover:bg-gray-50'}>
+                        <td className="px-4 py-2.5 font-medium text-gray-800">
+                          {row.service_type || <span className="text-gray-400 italic">(χωρίς τύπο)</span>}
+                          {changed && <span className="ml-2 text-xs text-amber-600 font-semibold">● αλλαγή</span>}
+                        </td>
+                        <td className="px-4 py-2.5 text-center">
+                          <span className="text-xs font-bold text-gray-600 bg-gray-100 px-2 py-0.5 rounded-full">
+                            {row.total}
+                          </span>
+                        </td>
+                        <td className="px-4 py-2.5">
+                          <select
+                            value={current}
+                            onChange={e => setProgramAssignments(prev => ({ ...prev, [key]: e.target.value }))}
+                            className={`text-xs font-semibold px-2 py-1 rounded-lg border-0 ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-blue-500 outline-none ${PROGRAM_COLORS[current] || 'bg-gray-100 text-gray-700'}`}
+                          >
+                            <option value="ΕΣΠΑ">ΕΣΠΑ</option>
+                            <option value="ΔΥΠΑ">ΔΥΠΑ / ΟΑΕΔ</option>
+                            <option value="ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ">Μικροπιστώσεις</option>
+                          </select>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="flex items-center justify-between">
+              <p className="text-xs text-gray-400">
+                {Object.entries(programAssignments).filter(([k, v]) => {
+                  const orig = serviceTypes.find(r => (r.service_type ?? '') === k)?.program_category
+                  return orig && v !== orig
+                }).length} αλλαγές εκκρεμούν
+              </p>
+              <button
+                onClick={handleAssignPrograms}
+                disabled={loadingAssign}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-purple-600 text-white text-sm font-medium hover:bg-purple-700 disabled:opacity-50 transition-colors"
+              >
+                {loadingAssign ? <><Spinner /><span>Αποθήκευση...</span></> : <><TagIcon className="w-4 h-4" /><span>Αποθήκευση Αναθέσεων</span></>}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {serviceTypes && serviceTypes.length === 0 && (
+          <div className="text-center py-6 text-sm text-gray-400">Δεν βρέθηκαν τύποι υπηρεσιών.</div>
+        )}
       </div>
     </div>
   )

@@ -2,10 +2,13 @@ import os
 import json
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+from sqlalchemy import func
+from pydantic import BaseModel
+from typing import List, Optional
 from datetime import datetime, date
 from database import get_db
 from models_cases import CMCase
-from pipelines import OLD_STATUS_MAP, STATUS_CATEGORY_MAP
+from pipelines import OLD_STATUS_MAP, STATUS_CATEGORY_MAP, get_status_category
 from auth_cases import get_current_user, require_admin, CMUser
 
 router = APIRouter(prefix="/api/cm/sheets", tags=["cm-sheets"])
@@ -372,3 +375,70 @@ def sync_agents(
 
     db.commit()
     return {"updated": updated, "message": f"Ενημερώθηκε ο υπεύθυνος σε {updated} υποθέσεις."}
+
+
+@router.get("/service-types")
+def list_service_types(
+    current_user: CMUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Return distinct service_types with case counts and current program_category."""
+    rows = (
+        db.query(CMCase.service_type, CMCase.program_category, func.count(CMCase.id).label("cnt"))
+        .group_by(CMCase.service_type, CMCase.program_category)
+        .order_by(CMCase.service_type)
+        .all()
+    )
+    # Aggregate per service_type → pick dominant program_category
+    agg: dict = {}
+    for service_type, program_category, cnt in rows:
+        key = service_type or ""
+        if key not in agg:
+            agg[key] = {"service_type": service_type, "total": 0, "by_program": {}}
+        agg[key]["total"] += cnt
+        prog = program_category or "ΕΣΠΑ"
+        agg[key]["by_program"][prog] = agg[key]["by_program"].get(prog, 0) + cnt
+
+    result = []
+    for key in sorted(agg):
+        data = agg[key]
+        dominant = max(data["by_program"], key=lambda k: data["by_program"][k])
+        result.append({
+            "service_type": data["service_type"],
+            "total": data["total"],
+            "program_category": dominant,
+        })
+    return result
+
+
+class ProgramAssignment(BaseModel):
+    service_type: Optional[str] = None
+    program_category: str
+
+
+class AssignProgramsRequest(BaseModel):
+    assignments: List[ProgramAssignment]
+
+
+@router.post("/assign-programs")
+def assign_programs(
+    req: AssignProgramsRequest,
+    current_user: CMUser = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Bulk-assign program_category to cases matching each service_type."""
+    total_updated = 0
+    for a in req.assignments:
+        q = db.query(CMCase)
+        if a.service_type is None:
+            q = q.filter(CMCase.service_type == None)
+        else:
+            q = q.filter(CMCase.service_type == a.service_type)
+        for c in q.all():
+            if c.program_category != a.program_category:
+                c.program_category = a.program_category
+                # Re-compute status_category in case status meaning differs by program
+                c.status_category = get_status_category(c.status)
+                total_updated += 1
+    db.commit()
+    return {"updated": total_updated, "message": f"Ενημερώθηκαν {total_updated} υποθέσεις."}
