@@ -136,7 +136,8 @@ def _match_agent_id(responsible: str, users: list) -> int | None:
 
 def _rows_to_records(rows: list[list]) -> list[dict]:
     """Convert raw sheet rows to normalized dicts, skip header. Merge duplicate rows."""
-    valid_import_statuses = set(OLD_STATUS_MAP.keys())
+    # Accept both old-format statuses (via OLD_STATUS_MAP) and any current pipeline status
+    valid_import_statuses = set(OLD_STATUS_MAP.keys()) | set(STATUS_CATEGORY_MAP.keys())
     merged: dict[str, dict] = {}
     if not rows:
         return []
@@ -149,7 +150,7 @@ def _rows_to_records(rows: list[list]) -> list[dict]:
         status = str(row[COL_MAP["status"]]).strip()
         if status not in valid_import_statuses:
             continue
-        status = OLD_STATUS_MAP.get(status, status)
+        status = OLD_STATUS_MAP.get(status, status)  # map old→new; new statuses pass through
 
         afm = str(row[COL_MAP["afm"]]).strip()
         service_type = str(row[COL_MAP["service_type"]]).strip()
@@ -158,15 +159,19 @@ def _rows_to_records(rows: list[list]) -> list[dict]:
             continue
 
         key = _merge_key(afm, client_name, service_type)
+        fee_app = _parse_float(row[COL_MAP["agreed_fee_application"]])
+        fee_impl = _parse_float(row[COL_MAP["agreed_fee_implementation"]])
         rec = {
             "client_name": client_name,
-            "status": status,  # already mapped via OLD_STATUS_MAP above
+            "status": status,
             "email": str(row[COL_MAP["email"]]).strip() or None,
             "phone": str(row[COL_MAP["phone"]]).strip() or None,
             "afm": afm or None,
             "accountant": str(row[COL_MAP["accountant"]]).strip() or None,
-            "agreed_fee_application": _parse_float(row[COL_MAP["agreed_fee_application"]]),
-            "agreed_fee_implementation": _parse_float(row[COL_MAP["agreed_fee_implementation"]]),
+            "agreed_fee_application": fee_app,
+            "agreed_fee_implementation": fee_impl,
+            "_fee_app_set": {fee_app} if fee_app > 0 else set(),
+            "_fee_impl_set": {fee_impl} if fee_impl > 0 else set(),
             "approval_date": _parse_date(row[COL_MAP["approval_date"]]),
             "project_deadline": _parse_date(row[COL_MAP["project_deadline"]]),
             "approved_budget": _parse_float(row[COL_MAP["approved_budget"]]),
@@ -176,18 +181,28 @@ def _rows_to_records(rows: list[list]) -> list[dict]:
             "responsible": str(row[COL_MAP["responsible"]]).strip(),
         }
         if key in merged:
-            # Sum fee amounts; keep first non-None values for other fields
             existing = merged[key]
-            existing["agreed_fee_application"] = max(existing["agreed_fee_application"], rec["agreed_fee_application"])
-            existing["agreed_fee_implementation"] = max(existing["agreed_fee_implementation"], rec["agreed_fee_implementation"])
             existing["total_paid"] += rec["total_paid"]
+            # Sum unique non-zero fee values: handles both repeated-fee rows AND
+            # rows with genuinely different fee amounts for the same contract
+            if fee_app > 0:
+                existing["_fee_app_set"].add(fee_app)
+            if fee_impl > 0:
+                existing["_fee_impl_set"].add(fee_impl)
             for field in ("email", "phone", "afm", "accountant", "approval_date",
                           "project_deadline", "approved_budget", "sale_date"):
                 if not existing.get(field) and rec.get(field):
                     existing[field] = rec[field]
         else:
             merged[key] = rec
-    return list(merged.values())
+
+    # Compute final fee totals from accumulated unique-value sets
+    result = []
+    for rec in merged.values():
+        rec["agreed_fee_application"] = sum(rec.pop("_fee_app_set", set()))
+        rec["agreed_fee_implementation"] = sum(rec.pop("_fee_impl_set", set()))
+        result.append(rec)
+    return result
 
 
 def _build_paid_map(records: list[dict]) -> dict:
