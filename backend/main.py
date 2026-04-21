@@ -19,8 +19,29 @@ load_dotenv()
 # Create all DB tables
 Base.metadata.create_all(bind=engine)
 
-# Seed default admin user
+# Startup migration: add new columns and backfill status data
+from sqlalchemy import text as _text
+from pipelines import OLD_STATUS_MAP as _OSM, STATUS_CATEGORY_MAP as _SCM
 from database import SessionLocal
+try:
+    with engine.connect() as _conn:
+        _conn.execute(_text("ALTER TABLE cm_cases ADD COLUMN IF NOT EXISTS status_category VARCHAR(50)"))
+        _conn.execute(_text("ALTER TABLE cm_cases ADD COLUMN IF NOT EXISTS program_category VARCHAR(50)"))
+        _conn.commit()
+except Exception:
+    pass
+
+with SessionLocal() as _db:
+    from models_cases import CMCase as _CMCase
+    for _c in _db.query(_CMCase).all():
+        if _c.status in _OSM:
+            _c.status = _OSM[_c.status]
+        if not _c.program_category:
+            _c.program_category = 'ΕΣΠΑ'
+        _c.status_category = _SCM.get(_c.status, 'INTERNAL PROCESS')
+    _db.commit()
+
+# Seed default admin user
 from auth_cases import seed_admin
 with SessionLocal() as _db:
     seed_admin(_db)

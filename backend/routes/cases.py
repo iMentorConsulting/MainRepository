@@ -7,17 +7,9 @@ from datetime import datetime, date
 from database import get_db
 from models_cases import CMCase, CMUser, CMTask, CMPayment, CMMessage, CMDocument, CMBudgetCategory
 from auth_cases import get_current_user
+from pipelines import TERMINAL_CATEGORIES, get_status_category
 
 router = APIRouter(prefix="/api/cm/cases", tags=["cm-cases"])
-
-ACTIVE_STATUSES = [
-    "ΥΠΟΒΟΛΗ ΑΙΤΗΣΗΣ",
-    "ΕΓΚΡΙΣΗ - ΠΡΙΝ ΤΟ 1ο ΑΙΤΗΜΑ",
-    "ΣΕ 1ο ΑΙΤΗΜΑ ΕΛΕΓΧΟΥ",
-    "ΣΕ 2ο ΑΙΤΗΜΑ ΕΛΕΓΧΟΥ",
-    "ΕΝΣΤΑΣΗ",
-    "ΣΕ ΤΕΛΙΚΟ ΑΙΤΗΜΑ ΕΛΕΓΧΟΥ",
-]
 
 
 class CaseCreate(BaseModel):
@@ -28,7 +20,8 @@ class CaseCreate(BaseModel):
     accountant: Optional[str] = None
     sale_date: Optional[date] = None
     service_type: Optional[str] = None
-    status: Optional[str] = "ΥΠΟΒΟΛΗ ΑΙΤΗΣΗΣ"
+    status: Optional[str] = "ΕΝΑΡΞΗ / ΑΠΟΔΟΣΗ ΑΦΜ"
+    program_category: Optional[str] = "ΕΣΠΑ"
     approved_budget: Optional[float] = 0
     subsidy_percent: Optional[float] = 0
     project_deadline: Optional[date] = None
@@ -49,6 +42,7 @@ class CaseUpdate(BaseModel):
     sale_date: Optional[date] = None
     service_type: Optional[str] = None
     status: Optional[str] = None
+    program_category: Optional[str] = None
     approved_budget: Optional[float] = None
     subsidy_percent: Optional[float] = None
     project_deadline: Optional[date] = None
@@ -82,6 +76,8 @@ def case_to_dict(c: CMCase, include_related: bool = False) -> dict:
         "sale_date": c.sale_date.isoformat() if c.sale_date else None,
         "service_type": c.service_type,
         "status": c.status,
+        "status_category": c.status_category,
+        "program_category": c.program_category,
         "approved_budget": c.approved_budget or 0,
         "subsidy_percent": c.subsidy_percent or 0,
         "project_deadline": c.project_deadline.isoformat() if c.project_deadline else None,
@@ -190,10 +186,13 @@ def bc_to_dict(b: CMBudgetCategory) -> dict:
 @router.get("/")
 def list_cases(
     status: Optional[str] = Query(None),
+    status_category: Optional[str] = Query(None),
+    program_category: Optional[str] = Query(None),
     agent_id: Optional[int] = Query(None),
     service_type: Optional[str] = Query(None),
     search: Optional[str] = Query(None),
     deadline_alert: Optional[bool] = Query(None),
+    include_terminal: Optional[bool] = Query(False),
     current_user: CMUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -201,8 +200,18 @@ def list_cases(
 
     if status:
         q = q.filter(CMCase.status == status)
-    else:
-        q = q.filter(CMCase.status.in_(ACTIVE_STATUSES))
+    elif status_category:
+        q = q.filter(CMCase.status_category == status_category)
+    elif not include_terminal:
+        q = q.filter(
+            or_(
+                CMCase.status_category == None,
+                ~CMCase.status_category.in_(list(TERMINAL_CATEGORIES)),
+            )
+        )
+
+    if program_category:
+        q = q.filter(CMCase.program_category == program_category)
 
     if agent_id:
         q = q.filter(CMCase.assigned_agent_id == agent_id)
@@ -273,6 +282,7 @@ def create_case(
     current_user: CMUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    _status = req.status or "ΕΝΑΡΞΗ / ΑΠΟΔΟΣΗ ΑΦΜ"
     case = CMCase(
         client_name=req.client_name,
         phone=req.phone,
@@ -281,7 +291,9 @@ def create_case(
         accountant=req.accountant,
         sale_date=req.sale_date,
         service_type=req.service_type,
-        status=req.status or "ΥΠΟΒΟΛΗ ΑΙΤΗΣΗΣ",
+        status=_status,
+        program_category=req.program_category or 'ΕΣΠΑ',
+        status_category=get_status_category(_status),
         approved_budget=req.approved_budget or 0,
         subsidy_percent=req.subsidy_percent or 0,
         project_deadline=req.project_deadline,
@@ -309,8 +321,11 @@ def update_case(
     if not c:
         raise HTTPException(status_code=404, detail="Υπόθεση δεν βρέθηκε")
 
-    for field, val in req.dict(exclude_none=True).items():
+    data = req.dict(exclude_none=True)
+    for field, val in data.items():
         setattr(c, field, val)
+    if 'status' in data:
+        c.status_category = get_status_category(data['status'])
     c.updated_at = datetime.utcnow()
     db.commit()
     db.refresh(c)

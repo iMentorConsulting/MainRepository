@@ -46,7 +46,9 @@ class CMCase(Base):
 
     # Program Info
     service_type = Column(String(200))   # ΕΙΔΟΣ ΥΠΗΡΕΣΙΑΣ
-    status = Column(String(100), default="ΥΠΟΒΟΛΗ ΑΙΤΗΣΗΣ")  # ΚΑΤΑΣΤΑΣΗ ΕΡΓΑΣΙΑΣ
+    status = Column(String(100), default="ΕΝΑΡΞΗ / ΑΠΟΔΟΣΗ ΑΦΜ")  # ΚΑΤΑΣΤΑΣΗ ΕΡΓΑΣΙΑΣ
+    status_category = Column(String(50))    # INTERNAL PROCESS, PENDING CLIENT, SUBMITTED, etc.
+    program_category = Column(String(50), default='ΕΣΠΑ')   # ΕΣΠΑ, ΔΥΠΑ, ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ
 
     # Investment/Grant Info
     approved_budget = Column(Float, default=0)   # ΥΨΟΣ ΕΠΕΝΔΥΣΗΣ

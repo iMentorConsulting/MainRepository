@@ -4,7 +4,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from datetime import datetime, date
 from database import get_db
-from models_cases import CMCase, ACTIVE_STATUSES
+from models_cases import CMCase
+from pipelines import OLD_STATUS_MAP, STATUS_CATEGORY_MAP
 from auth_cases import get_current_user, require_admin, CMUser
 
 router = APIRouter(prefix="/api/cm/sheets", tags=["cm-sheets"])
@@ -132,6 +133,7 @@ def _match_agent_id(responsible: str, users: list) -> int | None:
 
 def _rows_to_records(rows: list[list]) -> list[dict]:
     """Convert raw sheet rows to normalized dicts, skip header. Merge duplicate rows."""
+    valid_import_statuses = set(OLD_STATUS_MAP.keys())
     merged: dict[str, dict] = {}
     if not rows:
         return []
@@ -142,8 +144,9 @@ def _rows_to_records(rows: list[list]) -> list[dict]:
             row.append("")
 
         status = str(row[COL_MAP["status"]]).strip()
-        if status not in ACTIVE_STATUSES:
+        if status not in valid_import_statuses:
             continue
+        status = OLD_STATUS_MAP.get(status, status)
 
         afm = str(row[COL_MAP["afm"]]).strip()
         service_type = str(row[COL_MAP["service_type"]]).strip()
@@ -154,7 +157,7 @@ def _rows_to_records(rows: list[list]) -> list[dict]:
         key = _merge_key(afm, client_name, service_type)
         rec = {
             "client_name": client_name,
-            "status": status,
+            "status": status,  # already mapped via OLD_STATUS_MAP above
             "email": str(row[COL_MAP["email"]]).strip() or None,
             "phone": str(row[COL_MAP["phone"]]).strip() or None,
             "afm": afm or None,
@@ -258,6 +261,8 @@ def import_from_sheet(
             sale_date=r["sale_date"],
             service_type=r["service_type"],
             status=r["status"],
+            program_category='ΕΣΠΑ',
+            status_category=STATUS_CATEGORY_MAP.get(r["status"], 'INTERNAL PROCESS'),
             approved_budget=r["approved_budget"],
             project_deadline=r["project_deadline"],
             approval_date=r["approval_date"],

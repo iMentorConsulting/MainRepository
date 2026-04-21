@@ -1,26 +1,15 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { getCases, getUsers, deleteCase, createCase } from '../api'
+import { PIPELINES, CATEGORY_COLORS, STATUS_CATEGORIES } from '../pipelines'
 import { MagnifyingGlassIcon, PlusIcon, TrashIcon, FolderOpenIcon } from '@heroicons/react/24/outline'
 import toast from 'react-hot-toast'
 
-const STATUSES = [
-  'ΥΠΟΒΟΛΗ ΑΙΤΗΣΗΣ',
-  'ΕΓΚΡΙΣΗ - ΠΡΙΝ ΤΟ 1ο ΑΙΤΗΜΑ',
-  'ΣΕ 1ο ΑΙΤΗΜΑ ΕΛΕΓΧΟΥ',
-  'ΣΕ 2ο ΑΙΤΗΜΑ ΕΛΕΓΧΟΥ',
-  'ΕΝΣΤΑΣΗ',
-  'ΣΕ ΤΕΛΙΚΟ ΑΙΤΗΜΑ ΕΛΕΓΧΟΥ',
+const PROGRAM_OPTIONS = [
+  { value: 'ΕΣΠΑ', label: 'ΕΣΠΑ' },
+  { value: 'ΔΥΠΑ', label: 'ΔΥΠΑ / ΟΑΕΔ' },
+  { value: 'ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ', label: 'Μικροπιστώσεις' },
 ]
-
-const STATUS_COLORS = {
-  'ΥΠΟΒΟΛΗ ΑΙΤΗΣΗΣ': 'bg-blue-100 text-blue-800',
-  'ΕΓΚΡΙΣΗ - ΠΡΙΝ ΤΟ 1ο ΑΙΤΗΜΑ': 'bg-green-100 text-green-800',
-  'ΣΕ 1ο ΑΙΤΗΜΑ ΕΛΕΓΧΟΥ': 'bg-yellow-100 text-yellow-800',
-  'ΣΕ 2ο ΑΙΤΗΜΑ ΕΛΕΓΧΟΥ': 'bg-orange-100 text-orange-800',
-  'ΕΝΣΤΑΣΗ': 'bg-red-100 text-red-800',
-  'ΣΕ ΤΕΛΙΚΟ ΑΙΤΗΜΑ ΕΛΕΓΧΟΥ': 'bg-purple-100 text-purple-800',
-}
 
 const fmt = (n) =>
   new Intl.NumberFormat('el-GR', { style: 'currency', currency: 'EUR', minimumFractionDigits: 0 }).format(n || 0)
@@ -28,12 +17,27 @@ const fmt = (n) =>
 function NewCaseModal({ agents, onClose, onSaved }) {
   const [form, setForm] = useState({
     client_name: '', phone: '', email: '', afm: '', accountant: '',
-    sale_date: '', service_type: '', status: 'ΥΠΟΒΟΛΗ ΑΙΤΗΣΗΣ',
+    sale_date: '', service_type: '',
+    program_category: 'ΕΣΠΑ',
+    status: 'ΕΝΑΡΞΗ / ΑΠΟΔΟΣΗ ΑΦΜ',
     approved_budget: '', subsidy_percent: '', project_deadline: '', approval_date: '',
     agreed_fee_application: '', agreed_fee_implementation: '',
     assigned_agent_id: '', notes: '',
   })
   const [saving, setSaving] = useState(false)
+
+  const programStatuses = useMemo(() => {
+    const p = PIPELINES[form.program_category]
+    if (!p) return []
+    return [...p.phases.flatMap(ph => ph.statuses), ...p.extra_statuses]
+  }, [form.program_category])
+
+  const handleProgramChange = (e) => {
+    const prog = e.target.value
+    const p = PIPELINES[prog]
+    const firstStatus = p?.phases?.[0]?.statuses?.[0] || ''
+    setForm(prev => ({ ...prev, program_category: prog, status: firstStatus }))
+  }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -74,11 +78,19 @@ function NewCaseModal({ agents, onClose, onSaved }) {
             <div><label className="label">Email</label><input className="input" type="email" {...f('email')} /></div>
             <div><label className="label">ΑΦΜ</label><input className="input" {...f('afm')} /></div>
             <div><label className="label">Λογιστής</label><input className="input" {...f('accountant')} /></div>
-            <div><label className="label">Είδος Υπηρεσίας / Πρόγραμμα</label><input className="input" {...f('service_type')} /></div>
+            <div>
+              <label className="label">Πρόγραμμα (Pipeline)</label>
+              <select className="input" value={form.program_category} onChange={handleProgramChange}>
+                {PROGRAM_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+            </div>
             <div>
               <label className="label">Κατάσταση</label>
-              <select className="input" {...f('status')}>{STATUSES.map(s => <option key={s}>{s}</option>)}</select>
+              <select className="input" {...f('status')}>
+                {programStatuses.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
             </div>
+            <div><label className="label">Είδος Υπηρεσίας / Πρόγραμμα</label><input className="input" {...f('service_type')} /></div>
             <div><label className="label">Ημ/νία Πώλησης</label><input className="input" type="date" {...f('sale_date')} /></div>
             <div><label className="label">Ημ/νία Έγκρισης</label><input className="input" type="date" {...f('approval_date')} /></div>
             <div><label className="label">Ύψος Επένδυσης (€)</label><input className="input" type="number" step="0.01" {...f('approved_budget')} /></div>
@@ -110,7 +122,13 @@ export default function Cases() {
   const [agents, setAgents] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
-  const [filters, setFilters] = useState({ status: '', agent_id: '', service_type: '', deadline_alert: false })
+  const [filters, setFilters] = useState({
+    program_category: '',
+    status_category: '',
+    agent_id: '',
+    service_type: '',
+    deadline_alert: false,
+  })
   const [showNew, setShowNew] = useState(false)
   const navigate = useNavigate()
 
@@ -119,7 +137,8 @@ export default function Cases() {
     try {
       const params = {}
       if (search) params.search = search
-      if (filters.status) params.status = filters.status
+      if (filters.program_category) params.program_category = filters.program_category
+      if (filters.status_category) params.status_category = filters.status_category
       if (filters.agent_id) params.agent_id = filters.agent_id
       if (filters.service_type) params.service_type = filters.service_type
       if (filters.deadline_alert) params.deadline_alert = true
@@ -138,12 +157,14 @@ export default function Cases() {
     catch { toast.error('Σφάλμα διαγραφής') }
   }
 
+  const serviceTypes = [...new Set(cases.map(c => c.service_type).filter(Boolean))].sort()
+
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Υποθέσεις</h1>
-          <p className="text-sm text-gray-500">{cases.length} ενεργές υποθέσεις</p>
+          <p className="text-sm text-gray-500">{cases.length} υποθέσεις</p>
         </div>
         <button onClick={() => setShowNew(true)} className="btn-primary gap-2 flex items-center">
           <PlusIcon className="w-4 h-4" /> Νέα Υπόθεση
@@ -156,15 +177,17 @@ export default function Cases() {
           <MagnifyingGlassIcon className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input className="input pl-9" placeholder="Αναζήτηση..." value={search} onChange={e => setSearch(e.target.value)} />
         </div>
-        <select className="input w-auto" value={filters.status} onChange={e => setFilters(f => ({ ...f, status: e.target.value }))}>
+        <select className="input w-auto" value={filters.program_category} onChange={e => setFilters(f => ({ ...f, program_category: e.target.value }))}>
+          <option value="">Όλα τα Pipelines</option>
+          {PROGRAM_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </select>
+        <select className="input w-auto" value={filters.status_category} onChange={e => setFilters(f => ({ ...f, status_category: e.target.value }))}>
           <option value="">Όλες οι Καταστάσεις</option>
-          {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+          {STATUS_CATEGORIES.map(cat => <option key={cat} value={cat}>{cat}</option>)}
         </select>
         <select className="input w-auto" value={filters.service_type} onChange={e => setFilters(f => ({ ...f, service_type: e.target.value }))}>
           <option value="">Όλα τα Προγράμματα</option>
-          {[...new Set(cases.map(c => c.service_type).filter(Boolean))].sort().map(s => (
-            <option key={s} value={s}>{s}</option>
-          ))}
+          {serviceTypes.map(s => <option key={s} value={s}>{s}</option>)}
         </select>
         <select className="input w-auto" value={filters.agent_id} onChange={e => setFilters(f => ({ ...f, agent_id: e.target.value }))}>
           <option value="">Όλοι οι Agents</option>
@@ -201,6 +224,7 @@ export default function Cases() {
               <tbody className="divide-y divide-gray-100">
                 {cases.map(c => {
                   const urgent = c.days_to_deadline !== null && c.days_to_deadline <= 15 && c.days_to_deadline >= 0
+                  const statusColor = CATEGORY_COLORS[c.status_category] || 'bg-gray-100 text-gray-600'
                   return (
                     <tr key={c.id} onClick={() => navigate(`/cases/${c.id}`)} className="hover:bg-gray-50 cursor-pointer">
                       <td className="px-4 py-3">
@@ -208,12 +232,14 @@ export default function Cases() {
                         <div className="text-xs text-gray-400">{c.afm || '—'}</div>
                       </td>
                       <td className="px-4 py-3 text-gray-600 max-w-40">
-                        <div className="truncate">{c.service_type || '—'}</div>
+                        <div className="text-xs text-gray-400 mb-0.5">{c.program_category || '—'}</div>
+                        <div className="truncate text-xs">{c.service_type || '—'}</div>
                       </td>
-                      <td className="px-4 py-3">
-                        <span className={`text-xs px-2 py-1 rounded-full font-medium ${STATUS_COLORS[c.status] || 'bg-gray-100 text-gray-600'}`}>
-                          {c.status}
+                      <td className="px-4 py-3 max-w-48">
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusColor}`}>
+                          {c.status_category || '—'}
                         </span>
+                        <div className="text-xs text-gray-400 mt-0.5 truncate" title={c.status}>{c.status}</div>
                       </td>
                       <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{c.assigned_agent_name || <span className="text-gray-300">—</span>}</td>
                       <td className="px-4 py-3 text-right whitespace-nowrap">
