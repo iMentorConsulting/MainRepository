@@ -312,6 +312,10 @@ export function buildEmailHtml(data) {
        </div>`
     : ''
 
+  const banksNote = bankDebt > 0
+    ? `<div style="margin-top:12px;padding:12px 14px;background:#eff6ff;border-left:4px solid #3b82f6;border-radius:6px;font-size:14px;line-height:1.6;"><b>Παρατήρηση (Τράπεζες):</b><br>Το αποτέλεσμα προσομοιώνει την πρόταση του αλγορίθμου του Εξωδικαστικού Μηχανισμού. Η πρόταση υιοθετείται από το Δημόσιο (ΕΦΚΑ &amp; ΑΑΔΕ) και αποστέλλεται στις Τράπεζες. Οι Τράπεζες δύνανται να αποδεχθούν την πρόταση ή να υποβάλουν επίσημα Αντιπρόταση — η οποία συνήθως είναι δυσμενέστερη.</div>`
+    : ''
+
   return `<div id="emailContent" style="font-family:Calibri,Arial,sans-serif;color:#1a1a1a;line-height:1.6;font-size:15px;">
   <p>Αγαπητέ/ή ${escHtml(clientName)},</p>
   <p>Η ομάδα της <b>i-Mentor Consulting</b> ολοκλήρωσε την ανάλυση και παρουσιάζει τα αποτελέσματα της <b>Θεωρητικής Προσομοίωσης Εξωδικαστικού Μηχανισμού</b>.</p>
