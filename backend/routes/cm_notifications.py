@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional, List
 from database import get_db
-from models_cases import CMCase, CMNotificationLog, CMUser
+from models_cases import CMCase, CMNotificationLog, CMUser, CMStatusSLA
 from auth_cases import get_current_user
 
 router = APIRouter(prefix="/api/cm/notifications", tags=["cm-notifications"])
@@ -207,6 +207,68 @@ def send_bulk_notifications(
         "sent": sent,
         "failed": len(all_results) - sent,
         "details": all_results,
+    }
+
+
+class SLANotifyRequest(BaseModel):
+    status: str
+    notification_type: str = "email"
+
+@router.post("/send-sla")
+def send_sla_notifications(
+    req: SLANotifyRequest,
+    current_user: CMUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Send configured SLA notification message to all overdue cases for a given status."""
+    sla = db.query(CMStatusSLA).filter(CMStatusSLA.status == req.status).first()
+    if not sla:
+        raise HTTPException(status_code=404, detail="SLA entry not found")
+    if not sla.notification_message:
+        raise HTTPException(status_code=400, detail="Δεν έχει ρυθμιστεί μήνυμα για αυτή την κατάσταση")
+
+    from datetime import datetime as _dt
+    from pipelines import TERMINAL_CATEGORIES
+    now = _dt.utcnow()
+    cases = db.query(CMCase).filter(
+        ~CMCase.status_category.in_(list(TERMINAL_CATEGORIES)),
+        CMCase.status == req.status,
+        CMCase.status_changed_at != None,
+    ).all()
+
+    overdue = [(c, (now - c.status_changed_at).days - sla.sla_days)
+               for c in cases if (now - c.status_changed_at).days > sla.sla_days]
+
+    results = []
+    for c, overdue_days in overdue:
+        msg = (sla.notification_message
+               .replace("{client_name}", c.client_name or "")
+               .replace("{service_type}", c.service_type or "")
+               .replace("{status}", c.status or "")
+               .replace("{days_overdue}", str(overdue_days))
+               .replace("{sla_days}", str(sla.sla_days)))
+        subject = f"Απαιτείται ενέργεια από εσάς - {c.client_name}"
+
+        if req.notification_type in ("email", "both") and c.email:
+            ok, err = _send_email(c.email, subject, msg)
+            s = "sent" if ok else "failed"
+            _log_notification(db, c.id, "email", c.client_name, c.email, subject, msg, s, current_user.full_name)
+            results.append({"case_id": c.id, "client": c.client_name, "type": "email", "status": s, "error": err if not ok else None})
+
+        if req.notification_type in ("viber", "both") and c.phone:
+            ok, err = _send_viber(c.phone, msg)
+            s = "sent" if ok else "failed"
+            _log_notification(db, c.id, "viber", c.client_name, c.phone, subject, msg, s, current_user.full_name)
+            results.append({"case_id": c.id, "client": c.client_name, "type": "viber", "status": s, "error": err if not ok else None})
+
+    db.commit()
+    sent = sum(1 for r in results if r["status"] == "sent")
+    return {
+        "total_overdue": len(overdue),
+        "notifications_attempted": len(results),
+        "sent": sent,
+        "failed": len(results) - sent,
+        "details": results,
     }
 
 

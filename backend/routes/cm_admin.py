@@ -13,6 +13,7 @@ router = APIRouter(prefix="/api/cm/admin", tags=["cm-admin"])
 class SLAEntry(BaseModel):
     status: str
     sla_days: int
+    notification_message: Optional[str] = None
 
 
 class SLABulkUpdate(BaseModel):
@@ -25,7 +26,7 @@ def get_sla_config(
     db: Session = Depends(get_db),
 ):
     rows = db.query(CMStatusSLA).order_by(CMStatusSLA.status).all()
-    return [{"id": r.id, "status": r.status, "sla_days": r.sla_days, "updated_at": r.updated_at.isoformat() if r.updated_at else None} for r in rows]
+    return [{"id": r.id, "status": r.status, "sla_days": r.sla_days, "notification_message": r.notification_message, "updated_at": r.updated_at.isoformat() if r.updated_at else None} for r in rows]
 
 
 @router.put("/sla")
@@ -42,8 +43,9 @@ def update_sla_config(
                 row.sla_days = entry.sla_days
                 row.updated_at = datetime.utcnow()
                 updated += 1
+            row.notification_message = entry.notification_message
         else:
-            db.add(CMStatusSLA(status=entry.status, sla_days=entry.sla_days))
+            db.add(CMStatusSLA(status=entry.status, sla_days=entry.sla_days, notification_message=entry.notification_message))
             updated += 1
     db.commit()
     return {"updated": updated, "message": f"Ενημερώθηκαν {updated} εγγραφές SLA."}

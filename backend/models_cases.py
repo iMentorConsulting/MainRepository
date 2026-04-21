@@ -215,4 +215,5 @@ class CMStatusSLA(Base):
     id = Column(Integer, primary_key=True, index=True)
     status = Column(String(100), unique=True, nullable=False)
     sla_days = Column(Integer, default=14)
+    notification_message = Column(Text, nullable=True)
     updated_at = Column(DateTime, default=datetime.utcnow)

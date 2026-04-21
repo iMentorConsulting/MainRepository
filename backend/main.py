@@ -29,6 +29,7 @@ try:
         _conn.execute(_text("ALTER TABLE cm_cases ADD COLUMN IF NOT EXISTS status_category VARCHAR(50)"))
         _conn.execute(_text("ALTER TABLE cm_cases ADD COLUMN IF NOT EXISTS program_category VARCHAR(50)"))
         _conn.execute(_text("ALTER TABLE cm_cases ADD COLUMN IF NOT EXISTS status_changed_at TIMESTAMP"))
+        _conn.execute(_text("ALTER TABLE cm_status_sla ADD COLUMN IF NOT EXISTS notification_message TEXT"))
         _conn.commit()
 except Exception:
     pass

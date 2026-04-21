@@ -68,11 +68,12 @@ def dashboard_stats(
         by_service_type.append({"service_type": svc or "—", "program_category": prog or "—", "count": int(cnt or 0), "total_agreed": ag, "total_paid": pd, "total_balance": round(ag - pd, 2)})
 
     # ── SLA Overdue ───────────────────────────────────────────────────────
-    sla_map = {r.status: r.sla_days for r in db.query(CMStatusSLA).all()}
+    sla_map = {r.status: {"sla_days": r.sla_days, "notification_message": r.notification_message} for r in db.query(CMStatusSLA).all()}
     sla_overdue = []
     if sla_map:
         for c in active_q().filter(CMCase.status_changed_at != None).all():
-            sla_days = sla_map.get(c.status)
+            sla_entry = sla_map.get(c.status)
+            sla_days = sla_entry["sla_days"] if sla_entry else None
             if not sla_days:
                 continue
             age = (now - c.status_changed_at).days
@@ -85,6 +86,7 @@ def dashboard_stats(
                     "sla_days": sla_days,
                     "age_days": age,
                     "overdue_days": age - sla_days,
+                    "notification_message": sla_entry.get("notification_message") if sla_entry else None,
                 })
         sla_overdue.sort(key=lambda x: x["overdue_days"], reverse=True)
         sla_overdue = sla_overdue[:30]

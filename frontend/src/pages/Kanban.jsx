@@ -245,6 +245,7 @@ export default function Kanban() {
   const [agents, setAgents] = useState([])
   const [filterAgent, setFilterAgent] = useState('')
   const [filterService, setFilterService] = useState('')
+  const [filterSLA, setFilterSLA] = useState(0)
 
   const pipeline = PIPELINES[activeProgram]
 
@@ -266,7 +267,8 @@ export default function Kanban() {
 
   const filtered = cases.filter(c =>
     (!filterAgent || String(c.assigned_agent_id) === filterAgent) &&
-    (!filterService || c.service_type === filterService)
+    (!filterService || c.service_type === filterService) &&
+    (!filterSLA || (c.sla_overdue_days != null && c.sla_overdue_days >= filterSLA))
   )
 
   // Build lookup: status → [cases]
@@ -326,8 +328,19 @@ export default function Kanban() {
           <option value="">Όλοι οι Agents</option>
           {agents.map(a => <option key={a.id} value={String(a.id)}>{a.full_name}</option>)}
         </select>
-        {(filterAgent || filterService) && (
-          <button onClick={() => { setFilterAgent(''); setFilterService('') }} className="text-sm text-gray-500 hover:text-gray-800 underline">
+        <div className="flex items-center gap-1.5">
+          <span className="text-sm text-gray-500 whitespace-nowrap">SLA &gt;</span>
+          <input
+            type="number"
+            min="0"
+            className="input w-20 text-sm"
+            placeholder="ημ."
+            value={filterSLA || ''}
+            onChange={e => setFilterSLA(parseInt(e.target.value) || 0)}
+          />
+        </div>
+        {(filterAgent || filterService || filterSLA > 0) && (
+          <button onClick={() => { setFilterAgent(''); setFilterService(''); setFilterSLA(0) }} className="text-sm text-gray-500 hover:text-gray-800 underline">
             Καθαρισμός
           </button>
         )}

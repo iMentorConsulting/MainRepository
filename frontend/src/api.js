@@ -107,4 +107,6 @@ export const createTemplate = (data) => api.post('/api/cm/notifications/template
 export const updateTemplate = (id, data) => api.put(`/api/cm/notifications/templates/${id}`, data).then(r => r.data)
 export const deleteTemplate = (id) => api.delete(`/api/cm/notifications/templates/${id}`).then(r => r.data)
 
+export const sendSLANotifications = (data) => api.post('/api/cm/notifications/send-sla', data).then(r => r.data)
+
 export default api

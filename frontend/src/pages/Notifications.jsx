@@ -276,8 +276,12 @@ export default function Notifications() {
     if (!subject.trim() || !message.trim()) { toast.error('Συμπληρώστε θέμα και μήνυμα'); return }
     setSending(true)
     try {
-      await sendNotification(selectedCase.id, { subject, message, notification_type: notifType })
-      toast.success('Η ειδοποίηση στάλθηκε')
+      const res = await sendNotification(selectedCase.id, { subject, message, notification_type: notifType })
+      const failed = (res.results || []).filter(r => r.status === 'failed')
+      const sent = (res.results || []).filter(r => r.status === 'sent')
+      if (sent.length > 0) toast.success(`Εστάλη (${sent.length})`)
+      if (failed.length > 0) toast.error(`Αποτυχία: ${failed.map(r => r.error).filter(Boolean).join('; ') || 'Έλεγξε τις ρυθμίσεις SMTP/Viber'}`)
+      if (res.results?.length === 0) toast.error('Δεν βρέθηκε email ή τηλέφωνο')
       setSubject('')
       setMessage('')
       setSelectedCase(null)
@@ -302,7 +306,8 @@ export default function Notifications() {
         message,
         notification_type: notifType,
       })
-      toast.success(`Στάλθηκε σε ${result.sent ?? selectedCaseIds.size} υποθέσεις`)
+      if ((result.sent ?? 0) > 0) toast.success(`Εστάλη σε ${result.sent} υποθέσεις`)
+      if ((result.failed ?? 0) > 0) toast.error(`Αποτυχία σε ${result.failed} υποθέσεις. Έλεγξε ρυθμίσεις SMTP/Viber.`)
       setSubject('')
       setMessage('')
       setSelectedCaseIds(new Set())
