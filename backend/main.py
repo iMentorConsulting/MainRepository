@@ -28,6 +28,7 @@ try:
     with engine.connect() as _conn:
         _conn.execute(_text("ALTER TABLE cm_cases ADD COLUMN IF NOT EXISTS status_category VARCHAR(50)"))
         _conn.execute(_text("ALTER TABLE cm_cases ADD COLUMN IF NOT EXISTS program_category VARCHAR(50)"))
+        _conn.execute(_text("ALTER TABLE cm_cases ADD COLUMN IF NOT EXISTS status_changed_at TIMESTAMP"))
         _conn.commit()
 except Exception:
     pass
@@ -41,14 +42,6 @@ with SessionLocal() as _db:
             _c.program_category = 'ΕΣΠΑ'
         _c.status_category = _SCM.get(_c.status, 'INTERNAL PROCESS')
     _db.commit()
-
-# Add status_changed_at column
-try:
-    with engine.connect() as _conn:
-        _conn.execute(_text("ALTER TABLE cm_cases ADD COLUMN IF NOT EXISTS status_changed_at TIMESTAMP"))
-        _conn.commit()
-except Exception:
-    pass
 
 # Import new models so create_all creates their tables
 from models_cases import CMNotificationTemplate, CMStatusSLA
