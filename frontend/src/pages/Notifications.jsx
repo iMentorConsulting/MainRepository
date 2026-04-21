@@ -232,7 +232,7 @@ export default function Notifications() {
     setSelectedTemplate(tpl)
     const ref = mode === 'single' && selectedCase ? selectedCase : null
     setSubject(applyTemplateVars(tpl.subject || '', ref))
-    setMessage(applyTemplateVars(tpl.body || tpl.message || '', ref))
+    setMessage(applyTemplateVars(tpl.content || '', ref))
   }
 
   // When a case is selected in single mode, re-apply template vars
@@ -242,7 +242,7 @@ export default function Notifications() {
     setShowCaseDropdown(false)
     if (selectedTemplate) {
       setSubject(applyTemplateVars(selectedTemplate.subject || '', c))
-      setMessage(applyTemplateVars(selectedTemplate.body || selectedTemplate.message || '', c))
+      setMessage(applyTemplateVars(selectedTemplate.content || '', c))
     }
   }
 
@@ -276,7 +276,7 @@ export default function Notifications() {
     if (!subject.trim() || !message.trim()) { toast.error('Συμπληρώστε θέμα και μήνυμα'); return }
     setSending(true)
     try {
-      await sendNotification(selectedCase.id, { subject, message, type: notifType })
+      await sendNotification(selectedCase.id, { subject, message, notification_type: notifType })
       toast.success('Η ειδοποίηση στάλθηκε')
       setSubject('')
       setMessage('')
@@ -300,7 +300,7 @@ export default function Notifications() {
         case_ids: Array.from(selectedCaseIds),
         subject,
         message,
-        type: notifType,
+        notification_type: notifType,
       })
       toast.success(`Στάλθηκε σε ${result.sent ?? selectedCaseIds.size} υποθέσεις`)
       setSubject('')
@@ -371,10 +371,8 @@ export default function Notifications() {
                     : 'border-gray-200 hover:border-blue-300 hover:bg-gray-50 text-gray-700'
                 }`}
               >
-                <div className="font-medium">{tpl.name}</div>
-                {tpl.description && (
-                  <div className="text-xs text-gray-400 mt-0.5 max-w-40 truncate">{tpl.description}</div>
-                )}
+                <div className="font-medium">{tpl.label}</div>
+                <div className="text-xs text-gray-400 mt-0.5">{tpl.notification_type}</div>
               </button>
             ))}
           </div>
@@ -627,12 +625,12 @@ export default function Notifications() {
                         : '—'}
                     </td>
                     <td className="px-4 py-3">
-                      <TypeBadge type={log.type} />
+                      <TypeBadge type={log.notification_type} />
                     </td>
                     <td className="px-4 py-3">
-                      <div className="font-medium text-gray-800">{log.client_name || log.recipient || '—'}</div>
-                      {log.recipient_email && (
-                        <div className="text-xs text-gray-400">{log.recipient_email}</div>
+                      <div className="font-medium text-gray-800">{log.recipient_name || '—'}</div>
+                      {log.recipient_contact && (
+                        <div className="text-xs text-gray-400">{log.recipient_contact}</div>
                       )}
                     </td>
                     <td className="px-4 py-3 text-gray-600 max-w-xs">

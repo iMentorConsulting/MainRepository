@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { Link } from 'react-router-dom'
 import { getCases, updateCase, getUsers } from '../api'
 import { PIPELINES } from '../pipelines'
@@ -31,6 +32,22 @@ const fmt = (n) =>
 function MoveDropdown({ caseItem, currentStatus, onMoved, pipeline }) {
   const [open, setOpen] = useState(false)
   const [moving, setMoving] = useState(false)
+  const [dropStyle, setDropStyle] = useState({})
+  const btnRef = useRef(null)
+
+  const handleToggle = (e) => {
+    e.preventDefault(); e.stopPropagation()
+    if (!open && btnRef.current) {
+      const rect = btnRef.current.getBoundingClientRect()
+      const spaceBelow = window.innerHeight - rect.bottom
+      const openUp = spaceBelow < 330
+      setDropStyle(openUp
+        ? { position: 'fixed', bottom: window.innerHeight - rect.top + 4, left: rect.left, zIndex: 9999 }
+        : { position: 'fixed', top: rect.bottom + 4, left: rect.left, zIndex: 9999 }
+      )
+    }
+    setOpen(o => !o)
+  }
 
   const handleMove = async (e, newStatus) => {
     e.preventDefault(); e.stopPropagation()
@@ -46,20 +63,21 @@ function MoveDropdown({ caseItem, currentStatus, onMoved, pipeline }) {
   }
 
   return (
-    <div className="relative" onClick={e => e.preventDefault()}>
+    <div onClick={e => e.preventDefault()}>
       <button
+        ref={btnRef}
         disabled={moving}
-        onClick={e => { e.preventDefault(); e.stopPropagation(); setOpen(o => !o) }}
+        onClick={handleToggle}
         className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-700 px-1.5 py-0.5 rounded hover:bg-gray-100 transition-colors disabled:opacity-40"
       >
         <ArrowsRightLeftIcon className="w-3 h-3" />
         {moving ? '...' : 'Μετακίνηση'}
         <ChevronDownIcon className="w-2.5 h-2.5" />
       </button>
-      {open && (
+      {open && createPortal(
         <>
-          <div className="fixed inset-0 z-10" onClick={e => { e.preventDefault(); e.stopPropagation(); setOpen(false) }} />
-          <div className="absolute left-0 top-full mt-1 z-20 bg-white border border-gray-200 rounded-lg shadow-xl py-1 min-w-64 max-h-80 overflow-y-auto">
+          <div className="fixed inset-0" style={{ zIndex: 9998 }} onClick={e => { e.preventDefault(); e.stopPropagation(); setOpen(false) }} />
+          <div className="bg-white border border-gray-200 rounded-lg shadow-xl py-1 min-w-64 max-h-80 overflow-y-auto" style={dropStyle}>
             {pipeline.phases.map(phase => (
               <div key={phase.id}>
                 <div className="px-3 py-1 text-xs font-bold text-gray-400 uppercase tracking-wider bg-gray-50 border-b border-gray-100">
@@ -87,7 +105,8 @@ function MoveDropdown({ caseItem, currentStatus, onMoved, pipeline }) {
               ))}
             </div>
           </div>
-        </>
+        </>,
+        document.body
       )}
     </div>
   )
