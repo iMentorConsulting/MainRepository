@@ -227,12 +227,8 @@ export default function CaseForm({ currentEmployee }) {
     const forecast = buildForecastText(calc, income)
     const subject = `Θεωρητική Προσομοίωση Εξωδικαστικού | ${client.name || ''}`
     const html = buildEmailHtml({ ...data, forecastTitle: forecast?.title, forecastSections: forecast?.sections })
-    const blob = new Blob([wrapEmailDocument(html, subject)], { type: 'text/html' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url; a.target = '_blank'; a.rel = 'noopener'
-    document.body.appendChild(a); a.click(); document.body.removeChild(a)
-    setTimeout(() => URL.revokeObjectURL(url), 500)
+    const w = window.open('', '_blank', 'width=1200,height=900,scrollbars=yes')
+    if (w) { w.document.open(); w.document.write(wrapEmailDocument(html, subject)); w.document.close() }
   }
 
   return (
