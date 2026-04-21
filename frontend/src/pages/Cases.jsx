@@ -110,7 +110,7 @@ export default function Cases() {
   const [agents, setAgents] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
-  const [filters, setFilters] = useState({ status: '', agent_id: '', deadline_alert: false })
+  const [filters, setFilters] = useState({ status: '', agent_id: '', service_type: '', deadline_alert: false })
   const [showNew, setShowNew] = useState(false)
   const navigate = useNavigate()
 
@@ -121,6 +121,7 @@ export default function Cases() {
       if (search) params.search = search
       if (filters.status) params.status = filters.status
       if (filters.agent_id) params.agent_id = filters.agent_id
+      if (filters.service_type) params.service_type = filters.service_type
       if (filters.deadline_alert) params.deadline_alert = true
       setCases(await getCases(params))
     } catch { toast.error('Σφάλμα φόρτωσης') }
@@ -158,6 +159,12 @@ export default function Cases() {
         <select className="input w-auto" value={filters.status} onChange={e => setFilters(f => ({ ...f, status: e.target.value }))}>
           <option value="">Όλες οι Καταστάσεις</option>
           {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+        </select>
+        <select className="input w-auto" value={filters.service_type} onChange={e => setFilters(f => ({ ...f, service_type: e.target.value }))}>
+          <option value="">Όλα τα Προγράμματα</option>
+          {[...new Set(cases.map(c => c.service_type).filter(Boolean))].sort().map(s => (
+            <option key={s} value={s}>{s}</option>
+          ))}
         </select>
         <select className="input w-auto" value={filters.agent_id} onChange={e => setFilters(f => ({ ...f, agent_id: e.target.value }))}>
           <option value="">Όλοι οι Agents</option>

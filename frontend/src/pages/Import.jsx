@@ -7,9 +7,10 @@ import {
   ExclamationTriangleIcon,
   InformationCircleIcon,
   DocumentArrowDownIcon,
+  UserIcon,
 } from '@heroicons/react/24/outline'
 import toast from 'react-hot-toast'
-import { previewSheet, importFromSheet, syncPaidFromSheet } from '../api'
+import { previewSheet, importFromSheet, syncPaidFromSheet, syncAgentsFromSheet } from '../api'
 
 const PREVIEW_COLUMNS = [
   { key: 'client_name', label: 'Πελάτης' },
@@ -87,6 +88,10 @@ export default function Import() {
   const [syncResult, setSyncResult] = useState(null)
   const [syncError, setSyncError] = useState(null)
 
+  const [loadingAgents, setLoadingAgents] = useState(false)
+  const [agentsResult, setAgentsResult] = useState(null)
+  const [agentsError, setAgentsError] = useState(null)
+
   const handlePreview = async () => {
     setLoadingPreview(true)
     setPreviewData(null)
@@ -129,6 +134,23 @@ export default function Import() {
       toast.error(msg)
     } finally {
       setLoadingImport(false)
+    }
+  }
+
+  const handleSyncAgents = async () => {
+    setLoadingAgents(true)
+    setAgentsResult(null)
+    setAgentsError(null)
+    try {
+      const data = await syncAgentsFromSheet()
+      setAgentsResult(data.message)
+      toast.success(data.message)
+    } catch (err) {
+      const msg = err.response?.data?.detail || 'Σφάλμα συγχρονισμού agents'
+      setAgentsError(msg)
+      toast.error(msg)
+    } finally {
+      setLoadingAgents(false)
     }
   }
 
@@ -338,6 +360,47 @@ export default function Import() {
           {loadingSync
             ? <><Spinner /><span>Συγχρονισμός...</span></>
             : <><ArrowPathIcon className="w-4 h-4" /><span>Συγχρονισμός</span></>
+          }
+        </button>
+      </div>
+
+      {/* Divider */}
+      <div className="relative">
+        <div className="absolute inset-0 flex items-center">
+          <div className="w-full border-t border-gray-200" />
+        </div>
+        <div className="relative flex justify-center">
+          <span className="bg-gray-50 px-4 text-sm font-semibold text-gray-500 uppercase tracking-wider">
+            Συγχρονισμός Υπεύθυνου Φακέλου
+          </span>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-xl border p-5 space-y-4">
+        <div className="flex items-start gap-3">
+          <div className="p-2 bg-blue-50 rounded-lg flex-shrink-0">
+            <UserIcon className="w-5 h-5 text-blue-500" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <h2 className="text-base font-semibold text-gray-800 mb-1">
+              Συγχρονισμός Υπεύθυνου Agent
+            </h2>
+            <p className="text-sm text-gray-500">
+              Διαβάζει το πεδίο <span className="font-semibold text-gray-700">Υπεύθυνος Φακέλου</span> από το Sheet
+              και αναθέτει τον αντίστοιχο agent σε κάθε υπόθεση.
+            </p>
+          </div>
+        </div>
+        <ResultBanner result={agentsResult} type="success" />
+        <ResultBanner result={agentsError} type="error" />
+        <button
+          onClick={handleSyncAgents}
+          disabled={loadingAgents}
+          className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        >
+          {loadingAgents
+            ? <><Spinner color="blue" /><span>Συγχρονισμός...</span></>
+            : <><ArrowPathIcon className="w-4 h-4" /><span>Συγχρονισμός Agents</span></>
           }
         </button>
       </div>

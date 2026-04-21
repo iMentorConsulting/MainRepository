@@ -31,6 +31,7 @@ COL_MAP = {
     "service_type": 23,              # ΕΙΔΟΣ ΥΠΗΡΕΣΙΑΣ
     "total_paid": 21,                # ΠΟΣΟ
     "sale_date": 25,                 # ΗΜ.ΝΙΑ ΠΩΛΗΣΗΣ
+    "responsible": 20,               # Υπεύθυνος Φακέλου
 }
 
 
@@ -110,6 +111,25 @@ def _merge_key(afm: str, client_name: str, service_type: str) -> str:
     return f"{identifier}|{service_type}"
 
 
+import unicodedata
+
+def _strip_accents(s: str) -> str:
+    return ''.join(
+        c for c in unicodedata.normalize('NFD', s)
+        if unicodedata.category(c) != 'Mn'
+    ).upper()
+
+def _match_agent_id(responsible: str, users: list) -> int | None:
+    if not responsible or not responsible.strip():
+        return None
+    needle = _strip_accents(responsible.strip())
+    for user in users:
+        haystack = _strip_accents(user.full_name or '')
+        if needle in haystack or any(needle == w for w in haystack.split()):
+            return user.id
+    return None
+
+
 def _rows_to_records(rows: list[list]) -> list[dict]:
     """Convert raw sheet rows to normalized dicts, skip header. Merge duplicate rows."""
     merged: dict[str, dict] = {}
@@ -147,6 +167,7 @@ def _rows_to_records(rows: list[list]) -> list[dict]:
             "service_type": service_type or None,
             "total_paid": _parse_float(row[COL_MAP["total_paid"]]),
             "sale_date": _parse_date(row[COL_MAP["sale_date"]]),
+            "responsible": str(row[COL_MAP["responsible"]]).strip(),
         }
         if key in merged:
             # Sum fee amounts; keep first non-None values for other fields
@@ -209,6 +230,9 @@ def import_from_sheet(
     rows = _read_sheet_rows()
     records = _rows_to_records(rows)
 
+    from models_cases import CMUser
+    users = db.query(CMUser).filter(CMUser.is_active == True).all()
+
     existing_refs = {c.sheet_import_ref for c in db.query(CMCase).all() if c.sheet_import_ref}
 
     # Build paid map (sum ΠΟΣΟ per AFM+service)
@@ -241,6 +265,7 @@ def import_from_sheet(
             agreed_fee_implementation=r["agreed_fee_implementation"],
             total_paid=paid,
             sheet_import_ref=ref,
+            assigned_agent_id=_match_agent_id(r.get("responsible", ""), users),
         )
         db.add(case)
         imported += 1
@@ -298,3 +323,47 @@ def sync_paid_amounts(
         "updated": updated,
         "message": f"Ενημερώθηκαν {updated} υποθέσεις με νέο ΠΟΣΟ από το Sheet.",
     }
+
+
+@router.post("/sync-agents")
+def sync_agents(
+    current_user: CMUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Sync assigned_agent_id from Υπεύθυνος Φακέλου column for all existing cases."""
+    from models_cases import CMUser as UserModel
+    rows = _read_sheet_rows()
+    users = db.query(UserModel).filter(UserModel.is_active == True).all()
+
+    # Build map: merge_key -> responsible name (take first non-empty value per key)
+    responsible_map: dict[str, str] = {}
+    for i, row in enumerate(rows):
+        if i == 0:
+            continue
+        while len(row) < 26:
+            row.append("")
+        afm = str(row[COL_MAP["afm"]]).strip()
+        client_name = str(row[COL_MAP["client_name"]]).strip()
+        service_type = str(row[COL_MAP["service_type"]]).strip()
+        responsible = str(row[COL_MAP["responsible"]]).strip()
+        if not client_name:
+            continue
+        key = _merge_key(afm, client_name, service_type)
+        if key not in responsible_map and responsible:
+            responsible_map[key] = responsible
+
+    updated = 0
+    cases = db.query(CMCase).all()
+    for c in cases:
+        if not c.sheet_import_ref:
+            continue
+        responsible = responsible_map.get(c.sheet_import_ref)
+        if not responsible:
+            continue
+        agent_id = _match_agent_id(responsible, users)
+        if agent_id and c.assigned_agent_id != agent_id:
+            c.assigned_agent_id = agent_id
+            updated += 1
+
+    db.commit()
+    return {"updated": updated, "message": f"Ενημερώθηκε ο υπεύθυνος σε {updated} υποθέσεις."}

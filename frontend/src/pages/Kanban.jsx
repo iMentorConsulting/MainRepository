@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
-import { getCases, updateCase } from '../api'
+import { getCases, updateCase, getUsers } from '../api'
 import {
   UserIcon,
   BriefcaseIcon,
@@ -199,6 +199,9 @@ function KanbanColumn({ status, cases, onMoved }) {
 export default function Kanban() {
   const [cases, setCases] = useState([])
   const [loading, setLoading] = useState(true)
+  const [agents, setAgents] = useState([])
+  const [filterService, setFilterService] = useState('')
+  const [filterAgent, setFilterAgent] = useState('')
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -213,6 +216,7 @@ export default function Kanban() {
   }, [])
 
   useEffect(() => { load() }, [load])
+  useEffect(() => { getUsers().then(setAgents).catch(() => {}) }, [])
 
   // Optimistic update: move card to new status column without refetching
   const handleMoved = useCallback((caseId, newStatus) => {
@@ -220,12 +224,6 @@ export default function Kanban() {
       prev.map(c => c.id === caseId ? { ...c, status: newStatus } : c)
     )
   }, [])
-
-  // Group cases by status
-  const grouped = STATUSES.reduce((acc, s) => {
-    acc[s] = cases.filter(c => c.status === s)
-    return acc
-  }, {})
 
   if (loading) {
     return (
@@ -235,6 +233,17 @@ export default function Kanban() {
     )
   }
 
+  const serviceTypes = [...new Set(cases.map(c => c.service_type).filter(Boolean))].sort()
+
+  const filtered = cases.filter(c =>
+    (!filterService || c.service_type === filterService) &&
+    (!filterAgent || String(c.assigned_agent_id) === filterAgent)
+  )
+  const grouped = STATUSES.reduce((acc, s) => {
+    acc[s] = filtered.filter(c => c.status === s)
+    return acc
+  }, {})
+
   return (
     <div className="flex flex-col h-full">
       {/* Page header */}
@@ -242,7 +251,7 @@ export default function Kanban() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Pipeline Υποθέσεων</h1>
           <p className="text-sm text-gray-500 mt-0.5">
-            {cases.length} ενεργές υποθέσεις σε {STATUSES.length} στάδια
+            {filtered.length} ενεργές υποθέσεις σε {STATUSES.length} στάδια
           </p>
         </div>
         <button
@@ -251,6 +260,23 @@ export default function Kanban() {
         >
           Ανανέωση
         </button>
+      </div>
+
+      {/* Filter bar */}
+      <div className="flex flex-wrap gap-3 mb-4 flex-shrink-0">
+        <select className="input w-auto text-sm" value={filterService} onChange={e => setFilterService(e.target.value)}>
+          <option value="">Όλα τα Προγράμματα</option>
+          {serviceTypes.map(s => <option key={s} value={s}>{s}</option>)}
+        </select>
+        <select className="input w-auto text-sm" value={filterAgent} onChange={e => setFilterAgent(e.target.value)}>
+          <option value="">Όλοι οι Agents</option>
+          {agents.map(a => <option key={a.id} value={String(a.id)}>{a.full_name}</option>)}
+        </select>
+        {(filterService || filterAgent) && (
+          <button onClick={() => { setFilterService(''); setFilterAgent('') }} className="text-sm text-gray-500 hover:text-gray-800 underline">
+            Καθαρισμός
+          </button>
+        )}
       </div>
 
       {/* Summary strip */}

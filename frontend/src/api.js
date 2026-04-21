@@ -84,6 +84,8 @@ export const getDashboardStats = () => api.get('/api/cm/dashboard/stats').then(r
 export const previewSheet = () => api.get('/api/cm/sheets/preview').then(r => r.data)
 export const importFromSheet = () => api.post('/api/cm/sheets/import').then(r => r.data)
 export const syncPaidFromSheet = () => api.post('/api/cm/sheets/sync-paid').then(r => r.data)
+export const syncAgentsFromSheet = () =>
+  api.post('/api/cm/sheets/sync-agents').then(r => r.data)
 
 // Notifications
 export const sendNotification = (caseId, data) => api.post(`/api/cm/notifications/send/${caseId}`, data).then(r => r.data)
