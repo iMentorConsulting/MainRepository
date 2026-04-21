@@ -228,7 +228,11 @@ export default function CaseForm({ currentEmployee }) {
     const subject = `Θεωρητική Προσομοίωση Εξωδικαστικού | ${client.name || ''}`
     const html = buildEmailHtml({ ...data, forecastTitle: forecast?.title, forecastSections: forecast?.sections })
     const blob = new Blob([wrapEmailDocument(html, subject)], { type: 'text/html' })
-    window.open(URL.createObjectURL(blob), '_blank')
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url; a.target = '_blank'; a.rel = 'noopener'
+    document.body.appendChild(a); a.click(); document.body.removeChild(a)
+    setTimeout(() => URL.revokeObjectURL(url), 500)
   }
 
   return (

@@ -185,7 +185,11 @@ export default function CaseDetail({ currentEmployee }) {
     })
     const subject = `Αποτελέσματα Ρύθμισης — ${caseData.client_name}`
     const blob = new Blob([wrapEmailDocument(html, subject)], { type: 'text/html' })
-    window.open(URL.createObjectURL(blob), '_blank')
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url; a.target = '_blank'; a.rel = 'noopener'
+    document.body.appendChild(a); a.click(); document.body.removeChild(a)
+    setTimeout(() => URL.revokeObjectURL(url), 500)
   }
 
   const copyShareLink = () => {

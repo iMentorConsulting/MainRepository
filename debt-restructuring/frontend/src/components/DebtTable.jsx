@@ -10,8 +10,6 @@ export function emptyDebt() {
     id: crypto.randomUUID(),
     amount: 0,
     interestPct: 0,
-    surchargesPct: 0,
-    finesPct: 0,
     type: 'Τράπεζα',
     creditorName: '',
     status: 'Ληξιπρόθεσμη',
@@ -33,31 +31,13 @@ function NumInput({ value, onChange, placeholder = '0', className = '' }) {
   )
 }
 
-function PctInput({ label, value, onChange, max = 100 }) {
-  return (
-    <div className="flex items-center gap-1">
-      <span className="text-xs text-gray-500 w-20 shrink-0">{label}</span>
-      <input type="number" min="0" max={max} value={value}
-        onChange={(e) => onChange(Math.min(max, Math.max(0, +e.target.value)))}
-        className="input text-center text-sm w-16" />
-      <span className="text-xs text-gray-400">%</span>
-    </div>
-  )
-}
-
 function DebtRow({ debt, onChange, onDelete, coverage }) {
   const isBank = debt.type === 'Τράπεζα'
-  const isTax = !isBank
-
-  const surchargesPct = debt.surchargesPct || 0
-  const finesPct = debt.finesPct || 0
   const interestPct = debt.interestPct || 0
-
-  const basicPct = isTax ? Math.max(0, 100 - surchargesPct - finesPct) : (100 - interestPct)
-  const basicAmt = debt.amount * basicPct / 100
-  const surchargeAmt = debt.amount * surchargesPct / 100
-  const finesAmt = debt.amount * finesPct / 100
+  const prinAmt = debt.amount * (100 - interestPct) / 100
   const intAmt = debt.amount * interestPct / 100
+  const capitalLabel = isBank ? 'Κεφ.' : 'Βασική'
+  const interestLabel = isBank ? 'Τόκ.' : 'Τόκοι & Προσαυξ.'
 
   return (
     <tr className="border-b border-gray-100 hover:bg-blue-50/40">
@@ -68,29 +48,15 @@ function DebtRow({ debt, onChange, onDelete, coverage }) {
 
       {/* Capital / Interest split */}
       <td className="td px-2 py-2 min-w-[200px]">
-        {isBank ? (
-          <div className="flex flex-col gap-1">
-            <input type="range" min="0" max="100" value={interestPct}
-              onChange={(e) => onChange({ ...debt, interestPct: +e.target.value })}
-              className="w-full accent-blue-600" />
-            <div className="flex justify-between text-xs text-gray-500">
-              <span>Κεφ. {100 - interestPct}% <b>{fmt(basicAmt)}</b></span>
-              <span>Τόκ. {interestPct}% <b>{fmt(intAmt)}</b></span>
-            </div>
+        <div className="flex flex-col gap-1">
+          <input type="range" min="0" max="100" value={interestPct}
+            onChange={(e) => onChange({ ...debt, interestPct: +e.target.value })}
+            className="w-full accent-blue-600" />
+          <div className="flex justify-between text-xs text-gray-500">
+            <span>{capitalLabel} {100 - interestPct}% <b>{fmt(prinAmt)}</b></span>
+            <span>{interestLabel} {interestPct}% <b>{fmt(intAmt)}</b></span>
           </div>
-        ) : (
-          <div className="flex flex-col gap-1.5">
-            <PctInput label="Προσαυξήσεις" value={surchargesPct}
-              onChange={(v) => onChange({ ...debt, surchargesPct: v })} max={100 - finesPct} />
-            <PctInput label="Πρόστιμα" value={finesPct}
-              onChange={(v) => onChange({ ...debt, finesPct: v })} max={100 - surchargesPct} />
-            <div className="text-xs text-gray-400 pl-1">
-              Βασική: {basicPct}% <b>{fmt(basicAmt)}</b>
-              {surchargesPct > 0 && <span> · Προσ: {fmt(surchargeAmt)}</span>}
-              {finesPct > 0 && <span> · Πρόστ: {fmt(finesAmt)}</span>}
-            </div>
-          </div>
-        )}
+        </div>
       </td>
 
       {/* Type */}
@@ -167,7 +133,7 @@ export default function DebtTable({ debts, onChange, calculations }) {
           <thead>
             <tr className="border-b-2 border-blue-100">
               <th className="th">Ποσό Οφειλής</th>
-              <th className="th">Κεφάλαιο / Τόκοι — Προσαυξ. / Πρόστ.</th>
+              <th className="th">Κεφάλαιο / Τόκοι</th>
               <th className="th">Είδος</th>
               <th className="th">Όνομα Τράπεζας</th>
               <th className="th">Κατάσταση</th>
@@ -189,7 +155,7 @@ export default function DebtTable({ debts, onChange, calculations }) {
       </div>
       <div className="mt-3">
         <div className="text-xs text-gray-400 mb-2 px-1">
-          Τράπεζες: διαγραφή έως 80% κεφαλαίου + 100% τόκων · ΑΑΔΕ/ΕΦΚΑ: 75% βασικής + 85% προσαυξήσεων + 95% προστίμων
+          Τράπεζες: διαγραφή έως 80% κεφαλαίου + 100% τόκων · ΑΑΔΕ/ΕΦΚΑ: 75% βασικής + 85% τόκων & προσαυξήσεων
         </div>
         <div className="text-center">
           <button onClick={addDebt} className="btn-primary gap-2 text-sm">
