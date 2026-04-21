@@ -5,10 +5,11 @@ import { format, formatDistanceToNow } from 'date-fns'
 import { el } from 'date-fns/locale'
 import {
   ArrowLeftIcon, PencilIcon, LinkIcon, CheckCircleIcon,
-  PhoneIcon, EyeIcon, EyeSlashIcon, ChevronDownIcon,
+  PhoneIcon, EyeIcon, EyeSlashIcon, ChevronDownIcon, EnvelopeIcon,
 } from '@heroicons/react/24/outline'
 import * as api from '../api'
 import { fmt, creditorDisplayName } from '../utils/calculations'
+import { buildResultsEmailHtml, wrapEmailDocument } from '../utils/reportGenerators'
 
 const STATUS_LABELS = {
   draft: { label: 'Πρόχειρο', cls: 'bg-gray-100 text-gray-700' },
@@ -42,23 +43,34 @@ function buildViberMessage(type, name, url) {
   }
 }
 
-function MoneyInput({ label, value, onChange }) {
+function MoneyCell({ value, onChange }) {
   return (
-    <div>
-      <label className="label">{label}</label>
-      <input
-        type="text"
-        inputMode="numeric"
-        className="input"
-        placeholder="0"
-        value={value > 0 ? value.toLocaleString('el-GR') : ''}
-        onChange={(e) => {
-          const raw = e.target.value.replace(/[^\d]/g, '')
-          onChange(raw ? parseInt(raw) : 0)
-        }}
-      />
-    </div>
+    <input
+      type="text"
+      inputMode="numeric"
+      className="input text-center text-sm"
+      placeholder="0"
+      value={value > 0 ? value.toLocaleString('el-GR') : ''}
+      onChange={(e) => {
+        const raw = e.target.value.replace(/[^\d]/g, '')
+        onChange(raw ? parseInt(raw) : 0)
+      }}
+    />
   )
+}
+
+function buildEmptyCreditors(finalPlan) {
+  return (finalPlan || []).map((p) => ({
+    creditor: creditorDisplayName(p.type, p.creditorName),
+    type: p.type,
+    originalAmount: p.amount || 0,
+    actualWriteoff: 0,
+    actualRemaining: 0,
+    actualMonthlyPay: 0,
+    actualMonths: 0,
+    rfCode: '',
+    notes: '',
+  }))
 }
 
 export default function CaseDetail({ currentEmployee }) {
@@ -66,10 +78,7 @@ export default function CaseDetail({ currentEmployee }) {
   const navigate = useNavigate()
   const [caseData, setCaseData] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [actuals, setActuals] = useState({
-    actualWriteOff: 0, actualRemaining: 0,
-    actualMonthlyPay: 0, actualDurationMonths: 0, actualNotes: '',
-  })
+  const [actuals, setActuals] = useState({ creditors: [], generalNotes: '' })
   const [savingActuals, setSavingActuals] = useState(false)
   const [statusUpdating, setStatusUpdating] = useState(false)
   const [viberMenuOpen, setViberMenuOpen] = useState(false)
@@ -88,8 +97,11 @@ export default function CaseDetail({ currentEmployee }) {
     try {
       const res = await api.getCase(id)
       setCaseData(res.data)
-      if (res.data.actual_results) {
-        setActuals({ actualWriteOff: 0, actualRemaining: 0, actualMonthlyPay: 0, actualDurationMonths: 0, actualNotes: '', ...res.data.actual_results })
+      const fp = res.data.estimates?.finalPlan || []
+      if (res.data.actual_results?.creditors?.length) {
+        setActuals({ creditors: [], generalNotes: '', ...res.data.actual_results })
+      } else {
+        setActuals({ creditors: buildEmptyCreditors(fp), generalNotes: '' })
       }
     } catch { toast.error('Σφάλμα φόρτωσης') }
     finally { setLoading(false) }
@@ -160,6 +172,20 @@ export default function CaseDetail({ currentEmployee }) {
     } catch {}
 
     toast.success('✅ Μήνυμα αντιγράφηκε! Κάντε Paste στο Viber.')
+  }
+
+  const openResultsEmail = () => {
+    if (!caseData) return
+    const html = buildResultsEmailHtml({
+      clientName: caseData.client_name,
+      clientPhone: caseData.client_phone,
+      clientEmail: caseData.client_email,
+      employee: caseData.employee,
+      actualResults: actuals,
+    })
+    const subject = `Αποτελέσματα Ρύθμισης — ${caseData.client_name}`
+    const blob = new Blob([wrapEmailDocument(html, subject)], { type: 'text/html' })
+    window.open(URL.createObjectURL(blob), '_blank')
   }
 
   const copyShareLink = () => {
@@ -362,30 +388,136 @@ export default function CaseDetail({ currentEmployee }) {
       {/* Actual results entry */}
       <h2 className="section-title">✅ Πραγματικά Αποτελέσματα Ρύθμισης</h2>
       <div className="card mb-5">
-        {act && (
+        {act?.creditors?.length > 0 && (
           <div className="bg-green-50 border border-green-200 rounded-xl p-3 mb-4 flex items-center gap-2 text-sm text-green-800">
             <CheckCircleIcon className="w-5 h-5 shrink-0" />
             Τα πραγματικά αποτελέσματα έχουν καταχωρηθεί.
           </div>
         )}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-          <MoneyInput label="Πραγματική Διαγραφή (€)" value={actuals.actualWriteOff} onChange={(v) => setActuals({ ...actuals, actualWriteOff: v })} />
-          <MoneyInput label="Πραγματική Εναπομένουσα (€)" value={actuals.actualRemaining} onChange={(v) => setActuals({ ...actuals, actualRemaining: v })} />
-          <MoneyInput label="Πραγματική Μηνιαία Δόση (€)" value={actuals.actualMonthlyPay} onChange={(v) => setActuals({ ...actuals, actualMonthlyPay: v })} />
-          <MoneyInput label="Πραγματική Διάρκεια (μήνες)" value={actuals.actualDurationMonths} onChange={(v) => setActuals({ ...actuals, actualDurationMonths: v })} />
-          <div className="md:col-span-4">
-            <label className="label">Σημειώσεις αποτελέσματος</label>
-            <input className="input" placeholder="π.χ. Τράπεζα δέχτηκε μερική πρόταση…" value={actuals.actualNotes} onChange={(e) => setActuals({ ...actuals, actualNotes: e.target.value })} />
+
+        {actuals.creditors.length > 0 ? (
+          <div className="overflow-x-auto mb-4">
+            <table className="w-full min-w-[900px]">
+              <thead>
+                <tr className="border-b-2 border-blue-100 text-xs">
+                  <th className="th text-left">Πιστωτής</th>
+                  <th className="th">Αρχική Οφειλή</th>
+                  <th className="th">Πραγματική Διαγραφή</th>
+                  <th className="th">Εναπομένουσα</th>
+                  <th className="th">Μηνιαία Δόση</th>
+                  <th className="th">Δόσεις (μήνες)</th>
+                  <th className="th">RF Κωδικός</th>
+                  <th className="th">Σημειώσεις</th>
+                </tr>
+              </thead>
+              <tbody>
+                {actuals.creditors.map((c, i) => (
+                  <tr key={i} className="border-b border-gray-100">
+                    <td className="td text-left font-semibold text-sm">{c.creditor}</td>
+                    <td className="td font-mono text-sm text-gray-500">{fmt(c.originalAmount)}</td>
+                    <td className="td min-w-[120px]">
+                      <MoneyCell value={c.actualWriteoff} onChange={(v) => {
+                        const updated = [...actuals.creditors]
+                        updated[i] = { ...updated[i], actualWriteoff: v }
+                        setActuals({ ...actuals, creditors: updated })
+                      }} />
+                    </td>
+                    <td className="td min-w-[120px]">
+                      <MoneyCell value={c.actualRemaining} onChange={(v) => {
+                        const updated = [...actuals.creditors]
+                        updated[i] = { ...updated[i], actualRemaining: v }
+                        setActuals({ ...actuals, creditors: updated })
+                      }} />
+                    </td>
+                    <td className="td min-w-[110px]">
+                      <MoneyCell value={c.actualMonthlyPay} onChange={(v) => {
+                        const updated = [...actuals.creditors]
+                        updated[i] = { ...updated[i], actualMonthlyPay: v }
+                        setActuals({ ...actuals, creditors: updated })
+                      }} />
+                    </td>
+                    <td className="td min-w-[90px]">
+                      <input
+                        type="number" min="0" max="600"
+                        className="input text-center text-sm"
+                        placeholder="0"
+                        value={c.actualMonths || ''}
+                        onChange={(e) => {
+                          const updated = [...actuals.creditors]
+                          updated[i] = { ...updated[i], actualMonths: +e.target.value }
+                          setActuals({ ...actuals, creditors: updated })
+                        }}
+                      />
+                    </td>
+                    <td className="td min-w-[120px]">
+                      <input
+                        type="text"
+                        className="input text-sm"
+                        placeholder="RF123..."
+                        value={c.rfCode || ''}
+                        onChange={(e) => {
+                          const updated = [...actuals.creditors]
+                          updated[i] = { ...updated[i], rfCode: e.target.value }
+                          setActuals({ ...actuals, creditors: updated })
+                        }}
+                      />
+                    </td>
+                    <td className="td min-w-[160px]">
+                      <input
+                        type="text"
+                        className="input text-sm"
+                        placeholder="Σημείωση..."
+                        value={c.notes || ''}
+                        onChange={(e) => {
+                          const updated = [...actuals.creditors]
+                          updated[i] = { ...updated[i], notes: e.target.value }
+                          setActuals({ ...actuals, creditors: updated })
+                        }}
+                      />
+                    </td>
+                  </tr>
+                ))}
+                {/* Totals row */}
+                <tr className="bg-blue-50 font-bold text-sm border-t-2 border-blue-200">
+                  <td className="td text-left">ΣΥΝΟΛΟ</td>
+                  <td className="td font-mono">{fmt(actuals.creditors.reduce((s, c) => s + (c.originalAmount || 0), 0))}</td>
+                  <td className="td font-mono text-orange-600">{fmt(actuals.creditors.reduce((s, c) => s + (c.actualWriteoff || 0), 0))}</td>
+                  <td className="td font-mono">{fmt(actuals.creditors.reduce((s, c) => s + (c.actualRemaining || 0), 0))}</td>
+                  <td className="td font-mono text-blue-800">{fmt(actuals.creditors.reduce((s, c) => s + (c.actualMonthlyPay || 0), 0))}</td>
+                  <td className="td" colSpan={3}></td>
+                </tr>
+              </tbody>
+            </table>
           </div>
+        ) : (
+          <div className="text-sm text-gray-400 italic mb-4">Δεν υπάρχουν πιστωτές — αποθηκεύστε πρώτα τα εκτιμώμενα αποτελέσματα.</div>
+        )}
+
+        <div className="mb-4">
+          <label className="label">Γενικές Σημειώσεις Αποτελέσματος</label>
+          <textarea
+            className="input h-20 resize-none"
+            placeholder="π.χ. Τράπεζα υπέβαλε αντιπρόταση, τελικά συμφωνήθηκε…"
+            value={actuals.generalNotes || ''}
+            onChange={(e) => setActuals({ ...actuals, generalNotes: e.target.value })}
+          />
         </div>
-        <button onClick={handleSaveActuals} disabled={savingActuals} className="btn-primary gap-2">
-          <CheckCircleIcon className="w-4 h-4" />
-          {savingActuals ? 'Αποθήκευση…' : 'Αποθήκευση Αποτελεσμάτων'}
-        </button>
+
+        <div className="flex gap-2 flex-wrap">
+          <button onClick={handleSaveActuals} disabled={savingActuals} className="btn-primary gap-2">
+            <CheckCircleIcon className="w-4 h-4" />
+            {savingActuals ? 'Αποθήκευση…' : 'Αποθήκευση Αποτελεσμάτων'}
+          </button>
+          {act?.creditors?.length > 0 && (
+            <button onClick={openResultsEmail} className="btn-secondary gap-2 text-sm">
+              <EnvelopeIcon className="w-4 h-4" /> Email Αποτελεσμάτων
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Comparison */}
-      {act && est.sumDebt > 0 && (
+      {act?.creditors?.length > 0 && est.sumDebt > 0 && (
         <>
           <h2 className="section-title">📈 Σύγκριση Εκτίμησης vs Πραγματικού</h2>
           <div className="card mb-5">
@@ -399,34 +531,39 @@ export default function CaseDetail({ currentEmployee }) {
                 </tr>
               </thead>
               <tbody>
-                {[
-                  { label: 'Διαγραφή', est: est.sumWr, act: act.actualWriteOff },
-                  { label: 'Εναπομένουσα Οφειλή', est: est.totalRemaining, act: act.actualRemaining },
-                  { label: 'Μηνιαία Δόση', est: est.totalMonthlyPay, act: act.actualMonthlyPay },
-                ].map((row) => {
-                  const diff = (row.act || 0) - (row.est || 0)
-                  const pct = row.est > 0 ? Math.round(Math.abs(diff) / row.est * 100) : 0
-                  const positive = diff >= 0
-                  return (
-                    <tr key={row.label} className="border-b border-gray-100">
-                      <td className="td text-left font-semibold">{row.label}</td>
-                      <td className="td font-mono text-gray-600">{row.est ? fmt(row.est) : '—'}</td>
-                      <td className="td font-mono font-bold">{row.act ? fmt(row.act) : '—'}</td>
-                      <td className="td">
-                        {row.est > 0 && row.act > 0 && (
-                          <span className={`text-sm font-bold px-2 py-0.5 rounded-full ${positive ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                            {positive ? '▲' : '▼'} {pct}%
-                          </span>
-                        )}
-                      </td>
-                    </tr>
-                  )
-                })}
+                {(() => {
+                  const actWriteoff = act.creditors.reduce((s, c) => s + (c.actualWriteoff || 0), 0)
+                  const actRemaining = act.creditors.reduce((s, c) => s + (c.actualRemaining || 0), 0)
+                  const actMonthly = act.creditors.reduce((s, c) => s + (c.actualMonthlyPay || 0), 0)
+                  return [
+                    { label: 'Διαγραφή', estVal: est.sumWr, actVal: actWriteoff },
+                    { label: 'Εναπομένουσα Οφειλή', estVal: est.totalRemaining, actVal: actRemaining },
+                    { label: 'Μηνιαία Δόση', estVal: est.totalMonthlyPay, actVal: actMonthly },
+                  ].map((row) => {
+                    const diff = (row.actVal || 0) - (row.estVal || 0)
+                    const pct = row.estVal > 0 ? Math.round(Math.abs(diff) / row.estVal * 100) : 0
+                    const positive = diff >= 0
+                    return (
+                      <tr key={row.label} className="border-b border-gray-100">
+                        <td className="td text-left font-semibold">{row.label}</td>
+                        <td className="td font-mono text-gray-600">{row.estVal ? fmt(row.estVal) : '—'}</td>
+                        <td className="td font-mono font-bold">{row.actVal ? fmt(row.actVal) : '—'}</td>
+                        <td className="td">
+                          {row.estVal > 0 && row.actVal > 0 && (
+                            <span className={`text-sm font-bold px-2 py-0.5 rounded-full ${positive ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                              {positive ? '▲' : '▼'} {pct}%
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    )
+                  })
+                })()}
               </tbody>
             </table>
-            {act.actualNotes && (
+            {act.generalNotes && (
               <div className="mt-3 bg-gray-50 rounded-lg px-4 py-2 text-sm text-gray-600 italic">
-                💬 {act.actualNotes}
+                💬 {act.generalNotes}
               </div>
             )}
           </div>

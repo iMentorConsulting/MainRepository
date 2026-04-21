@@ -125,9 +125,17 @@ export function buildPlanHtml(data, customRows) {
         alimony ? `<tr><td>Διατροφή λόγω διαζυγίου</td><td>${fmt(alimony)}</td><td>Ετήσιο</td></tr>` : '',
       ].filter(Boolean).join('')
 
+  const GS = 'padding:10px;border:1px solid #d2def8;'
   const summaryRows = creditors.map((c) => {
     const pct = c.amount > 0 ? Math.round((c.writeoff / c.amount) * 100) : 0
-    return `<tr><td>${escHtml(c.creditor)}</td><td>${fmt(c.amount)}</td><td>${c.writeoff > 0 ? `${fmt(c.writeoff)} (${pct}%)` : '—'}</td><td>${fmt(c.remaining)}</td><td>${c.months || 0}</td><td>${c.monthlyPay > 0 ? fmt(c.monthlyPay) : '—'}</td></tr>`
+    return `<tr>
+      <td style="${GS}font-weight:600;">${escHtml(c.creditor)}</td>
+      <td style="${GS}text-align:right;">${fmt(c.amount)}</td>
+      <td style="${GS}text-align:right;">${c.writeoff > 0 ? `${fmt(c.writeoff)} (${pct}%)` : '—'}</td>
+      <td style="${GS}text-align:right;">${fmt(c.remaining)}</td>
+      <td style="${GS}text-align:center;">${c.months || 0}</td>
+      <td style="${GS}text-align:right;font-weight:700;">${c.monthlyPay > 0 ? fmt(c.monthlyPay) : '—'}</td>
+    </tr>`
   }).join('')
 
   const propRows = realEstateAssets.length
@@ -374,4 +382,18 @@ document.getElementById('copyBtn').addEventListener('click', async () => {
   }
 });
 <\/script></body></html>`
+}
+
+export function buildResultsEmailHtml(data) {
+  const { clientName, clientPhone, clientEmail, employee, actualResults } = data
+  const today = new Date().toLocaleDateString('el-GR')
+  const creditors = actualResults?.creditors || []
+  const generalNotes = actualResults?.generalNotes || ''
+  const thR = (s) => `<th style="background:#004aad;color:#fff;padding:10px;border:1px solid #003080;font-size:13px;text-align:left;">${s}</th>`
+  const tdR = (s, align = 'left') => `<td style="padding:10px;border:1px solid #d2def8;text-align:${align};">${s}</td>`
+  const creditorRows = creditors.map((c) => `<tr>${tdR(escHtml(c.creditor))}${tdR(c.actualWriteoff > 0 ? fmt(c.actualWriteoff) : '—', 'right')}${tdR(c.actualRemaining > 0 ? fmt(c.actualRemaining) : '—', 'right')}${tdR(c.actualMonthlyPay > 0 ? fmt(c.actualMonthlyPay) : '—', 'right')}${tdR(c.actualMonths ? String(c.actualMonths) : '—', 'center')}${tdR(escHtml(c.rfCode || '—'))}${tdR(escHtml(c.notes || '—'))}</tr>`).join('')
+  const totalWriteoff = creditors.reduce((s, c) => s + (c.actualWriteoff || 0), 0)
+  const totalRemaining = creditors.reduce((s, c) => s + (c.actualRemaining || 0), 0)
+  const totalMonthly = creditors.reduce((s, c) => s + (c.actualMonthlyPay || 0), 0)
+  return `<div style="font-family:'Segoe UI',Arial,sans-serif;color:#1a1a1a;max-width:800px;margin:0 auto;"><div style="display:flex;justify-content:space-between;background:#eaf1ff;border:1px solid #d7e3ff;color:#0b3a82;border-radius:10px;padding:10px 14px;margin-bottom:18px;font-size:14px;"><b>i-Mentor Consulting</b><span>www.i-mentor.gr • info@i-mentor.gr • 2810 363007</span></div><h2 style="color:#004aad;">ΑΠΟΤΕΛΕΣΜΑΤΑ ΡΥΘΜΙΣΗΣ ΟΦΕΙΛΩΝ</h2><p style="color:#5e6c84;font-size:14px;">${today} — Αναφορά για: <b>${escHtml(clientName)}</b></p><div style="background:#f0fdf4;border:2px solid #86efac;border-radius:10px;padding:14px;margin-bottom:18px;"><b style="color:#166534;">Η ρύθμιση οφειλών ολοκληρώθηκε.</b><p style="color:#166534;margin:4px 0 0;font-size:14px;">Παρακάτω θα βρείτε τα αναλυτικά αποτελέσματα ανά πιστωτή όπως εγκρίθηκαν.</p></div>${creditors.length > 0 ? `<h3 style="color:#004aad;">Αποτελέσματα ανά Πιστωτή</h3><table style="width:100%;border-collapse:collapse;font-size:14px;margin-top:10px;"><thead><tr>${thR('Πιστωτής')}${thR('Διαγραφή')}${thR('Εναπομένουσα')}${thR('Μηνιαία Δόση')}${thR('Δόσεις')}${thR('RF Κωδικός')}${thR('Σημειώσεις')}</tr></thead><tbody>${creditorRows}<tr style="background:#eef5ff;font-weight:700;"><td style="padding:10px;border:1px solid #d2def8;">ΣΥΝΟΛΟ</td>${tdR(totalWriteoff > 0 ? fmt(totalWriteoff) : '—', 'right')}${tdR(totalRemaining > 0 ? fmt(totalRemaining) : '—', 'right')}${tdR(totalMonthly > 0 ? fmt(totalMonthly) : '—', 'right')}<td style="padding:10px;border:1px solid #d2def8;text-align:center;" colspan="3">—</td></tr></tbody></table>` : ''}${generalNotes ? `<div style="background:#f7faff;border-left:4px solid #004aad;padding:12px 14px;border-radius:8px;margin-top:18px;"><b>Σημειώσεις:</b><br>${escHtml(generalNotes)}</div>` : ''}<div style="border-top:1px solid #e2e8f4;margin-top:24px;padding-top:12px;text-align:center;font-size:12px;color:#8898a9;">i-Mentor Consulting • www.i-mentor.gr • info@i-mentor.gr • 2810 363007</div></div>`
 }

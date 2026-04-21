@@ -225,10 +225,10 @@ export default function CaseForm({ currentEmployee }) {
     if (!calc || calc.sumDebt === 0) return toast.error('Δεν υπάρχουν δεδομένα')
     const data = collectPlanData(debts, assets, income, calc, client)
     const forecast = buildForecastText(calc, income)
-    const subject = `⚖️ Θεωρητική Προσομοίωση Εξωδικαστικού | ${client.name || ''}`
+    const subject = `Θεωρητική Προσομοίωση Εξωδικαστικού | ${client.name || ''}`
     const html = buildEmailHtml({ ...data, forecastTitle: forecast?.title, forecastSections: forecast?.sections })
-    const w = window.open('', '_blank', 'width=900,height=900,scrollbars=yes')
-    if (w) { w.document.open(); w.document.write(wrapEmailDocument(html, subject)); w.document.close() }
+    const blob = new Blob([wrapEmailDocument(html, subject)], { type: 'text/html' })
+    window.open(URL.createObjectURL(blob), '_blank')
   }
 
   return (

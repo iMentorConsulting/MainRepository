@@ -47,17 +47,23 @@ export function calculateAll(debts, assets, incomeData) {
   const rows = debts
     .filter((d) => (d.amount || 0) > 0)
     .map((d, i) => {
+      const type = d.type || 'Τράπεζα'
+      const isTaxRow = type === 'Εφορία' || type === 'Ασφαλιστικά Ταμεία'
       const intPct = Math.min(100, Math.max(0, d.interestPct || 0))
+      const surchargesPct = isTaxRow ? Math.min(100, Math.max(0, d.surchargesPct || 0)) : 0
+      const finesPct = isTaxRow ? Math.min(100, Math.max(0, d.finesPct || 0)) : 0
       const amount = d.amount || 0
       return {
         idx: i,
         id: d.id,
-        type: d.type || 'Τράπεζα',
+        type,
         creditorName: d.creditorName || '',
         mort: d.mortgaged || false,
         prop: d.propertyValue || 0,
         amount,
         intPct,
+        surchargesPct,
+        finesPct,
         prinAmt: amount * (100 - intPct) / 100,
         intAmt: amount * intPct / 100,
         status: d.status || 'Ληξιπρόθεσμη',
@@ -133,16 +139,26 @@ export function calculateAll(debts, assets, incomeData) {
 
   // ============================================================
   // Write-off caps per creditor type
-  // Banks: 80% principal + 95% interest
-  // Tax/Insurance: 75% principal + 85% interest
+  // Banks: 80% principal + 100% interest
+  // Tax/Insurance: 75% basic + 85% surcharges + 95% fines
   // ============================================================
   const analysisRows = rows.map((r) => {
     const cov = covMap.get(r.idx) || 0
     const uncov = Math.max(0, r.amount - cov)
     const isTax = r.type === 'Εφορία' || r.type === 'Ασφαλιστικά Ταμεία'
-    const capPrin = isTax ? 0.75 : 0.80
-    const capInt = isTax ? 0.85 : 0.95
-    const legalMax = r.prinAmt * capPrin + r.intAmt * capInt
+    let legalMax
+    if (isTax) {
+      if (r.surchargesPct === 0 && r.finesPct === 0) {
+        legalMax = r.prinAmt * 0.75 + r.intAmt * 0.85
+      } else {
+        const basicAmt = r.amount * Math.max(0, 100 - r.surchargesPct - r.finesPct) / 100
+        const surchargeAmt = r.amount * r.surchargesPct / 100
+        const finesAmt = r.amount * r.finesPct / 100
+        legalMax = basicAmt * 0.75 + surchargeAmt * 0.85 + finesAmt * 0.95
+      }
+    } else {
+      legalMax = r.prinAmt * 0.80 + r.intAmt * 1.00
+    }
     const calc = Math.min(uncov, legalMax)
     return {
       ...r,
