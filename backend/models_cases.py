@@ -49,6 +49,7 @@ class CMCase(Base):
     status = Column(String(100), default="ΕΝΑΡΞΗ / ΑΠΟΔΟΣΗ ΑΦΜ")  # ΚΑΤΑΣΤΑΣΗ ΕΡΓΑΣΙΑΣ
     status_category = Column(String(50))    # INTERNAL PROCESS, PENDING CLIENT, SUBMITTED, etc.
     program_category = Column(String(50), default='ΕΣΠΑ')   # ΕΣΠΑ, ΔΥΠΑ, ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ
+    status_changed_at = Column(DateTime)
 
     # Investment/Grant Info
     approved_budget = Column(Float, default=0)   # ΥΨΟΣ ΕΠΕΝΔΥΣΗΣ
@@ -194,3 +195,24 @@ class CMBudgetCategory(Base):
     notes = Column(Text)
 
     case = relationship("CMCase", back_populates="budget_categories")
+
+
+class CMNotificationTemplate(Base):
+    __tablename__ = "cm_notification_templates"
+    id = Column(Integer, primary_key=True, index=True)
+    key = Column(String(100), unique=True, nullable=False)
+    label = Column(String(200), nullable=False)
+    subject = Column(String(300))
+    content = Column(Text, nullable=False)
+    notification_type = Column(String(20), default='both')  # email, viber, both
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow)
+
+
+class CMStatusSLA(Base):
+    __tablename__ = "cm_status_sla"
+    id = Column(Integer, primary_key=True, index=True)
+    status = Column(String(100), unique=True, nullable=False)
+    sla_days = Column(Integer, default=14)
+    updated_at = Column(DateTime, default=datetime.utcnow)

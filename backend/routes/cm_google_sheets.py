@@ -178,8 +178,8 @@ def _rows_to_records(rows: list[list]) -> list[dict]:
         if key in merged:
             # Sum fee amounts; keep first non-None values for other fields
             existing = merged[key]
-            existing["agreed_fee_application"] += rec["agreed_fee_application"]
-            existing["agreed_fee_implementation"] += rec["agreed_fee_implementation"]
+            existing["agreed_fee_application"] = max(existing["agreed_fee_application"], rec["agreed_fee_application"])
+            existing["agreed_fee_implementation"] = max(existing["agreed_fee_implementation"], rec["agreed_fee_implementation"])
             existing["total_paid"] += rec["total_paid"]
             for field in ("email", "phone", "afm", "accountant", "approval_date",
                           "project_deadline", "approved_budget", "sale_date"):
@@ -274,6 +274,7 @@ def import_from_sheet(
             total_paid=paid,
             sheet_import_ref=ref,
             assigned_agent_id=_match_agent_id(r.get("responsible", ""), users),
+            status_changed_at=datetime.utcnow(),
         )
         db.add(case)
         imported += 1
@@ -306,9 +307,10 @@ def sync_paid_amounts(
         while len(row) < 26:
             row.append("")
         afm = str(row[COL_MAP["afm"]]).strip()
+        client_name = str(row[COL_MAP["client_name"]]).strip()
         svc = str(row[COL_MAP["service_type"]]).strip()
         paid = _parse_float(row[COL_MAP["total_paid"]])
-        key = (afm, svc)
+        key = _merge_key(afm, client_name, svc)
         all_paid_map[key] = all_paid_map.get(key, 0.0) + paid
 
     updated = 0
@@ -316,11 +318,7 @@ def sync_paid_amounts(
     for c in cases:
         if not c.sheet_import_ref:
             continue
-        parts = c.sheet_import_ref.split("|", 1)
-        if len(parts) != 2:
-            continue
-        afm, svc = parts[0], parts[1]
-        new_paid = all_paid_map.get((afm, svc), 0.0)
+        new_paid = all_paid_map.get(c.sheet_import_ref, 0.0)
         if abs((c.total_paid or 0) - new_paid) > 0.01:
             c.total_paid = new_paid
             c.updated_at = datetime.utcnow()

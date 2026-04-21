@@ -1,181 +1,125 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from sqlalchemy import func
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from database import get_db
-from models_cases import CMCase, CMTask, CMNotificationLog, CMUser
-from auth_cases import get_current_user
+from models_cases import CMCase, CMTask, CMUser, CMStatusSLA
+from auth_cases import require_admin, CMUser as CMUserModel
+from pipelines import TERMINAL_CATEGORIES
 
 router = APIRouter(prefix="/api/cm/dashboard", tags=["cm-dashboard"])
 
-ACTIVE_STATUSES = [
-    "ΥΠΟΒΟΛΗ ΑΙΤΗΣΗΣ",
-    "ΕΓΚΡΙΣΗ - ΠΡΙΝ ΤΟ 1ο ΑΙΤΗΜΑ",
-    "ΣΕ 1ο ΑΙΤΗΜΑ ΕΛΕΓΧΟΥ",
-    "ΣΕ 2ο ΑΙΤΗΜΑ ΕΛΕΓΧΟΥ",
-    "ΕΝΣΤΑΣΗ",
-    "ΣΕ ΤΕΛΙΚΟ ΑΙΤΗΜΑ ΕΛΕΓΧΟΥ",
-]
+fmt_eur = lambda v: round(float(v or 0), 2)
 
 
 @router.get("/stats")
 def dashboard_stats(
-    current_user: CMUser = Depends(get_current_user),
+    current_user: CMUserModel = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
     today = date.today()
+    now = datetime.utcnow()
     in_30 = today + timedelta(days=30)
     in_15 = today + timedelta(days=15)
+    terminal = list(TERMINAL_CATEGORIES)
 
-    # Total active cases
-    total_cases = db.query(CMCase).filter(CMCase.status.in_(ACTIVE_STATUSES)).count()
+    def active_q():
+        return db.query(CMCase).filter(~CMCase.status_category.in_(terminal))
 
-    # Cases by status
-    status_counts = {}
-    for s in ACTIVE_STATUSES:
-        cnt = db.query(CMCase).filter(CMCase.status == s).count()
-        status_counts[s] = cnt
+    # ── Summary ──────────────────────────────────────────────────────────
+    total_active = active_q().count()
 
-    # Financial totals (active cases only)
-    financial = db.query(
+    fin = db.query(
         func.sum(CMCase.agreed_fee_application + CMCase.agreed_fee_implementation),
         func.sum(CMCase.total_paid),
-    ).filter(CMCase.status.in_(ACTIVE_STATUSES)).first()
+    ).filter(~CMCase.status_category.in_(terminal)).first()
+    total_agreed = fmt_eur(fin[0])
+    total_paid = fmt_eur(fin[1])
+    total_balance = round(total_agreed - total_paid, 2)
 
-    total_agreed = float(financial[0] or 0)
-    total_paid = float(financial[1] or 0)
-    total_balance = total_agreed - total_paid
+    deadline_30 = active_q().filter(CMCase.project_deadline != None, CMCase.project_deadline <= in_30, CMCase.project_deadline >= today).count()
+    deadline_15 = active_q().filter(CMCase.project_deadline != None, CMCase.project_deadline <= in_15, CMCase.project_deadline >= today).count()
+    open_tasks = db.query(CMTask).join(CMCase).filter(~CMCase.status_category.in_(terminal), CMTask.status != "done").count()
+    overdue_tasks = db.query(CMTask).join(CMCase).filter(~CMCase.status_category.in_(terminal), CMTask.status != "done", CMTask.due_date != None, CMTask.due_date < today).count()
 
-    # Deadlines in 30 days
-    deadline_30 = db.query(CMCase).filter(
-        CMCase.status.in_(ACTIVE_STATUSES),
-        CMCase.project_deadline != None,
-        CMCase.project_deadline <= in_30,
-        CMCase.project_deadline >= today,
-    ).count()
+    # ── By Program ────────────────────────────────────────────────────────
+    by_program = []
+    for prog in ["ΕΣΠΑ", "ΔΥΠΑ", "ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ"]:
+        rows = db.query(
+            func.count(CMCase.id),
+            func.sum(CMCase.agreed_fee_application + CMCase.agreed_fee_implementation),
+            func.sum(CMCase.total_paid),
+        ).filter(~CMCase.status_category.in_(terminal), CMCase.program_category == prog).first()
+        cnt, ag, pd = int(rows[0] or 0), fmt_eur(rows[1]), fmt_eur(rows[2])
+        by_program.append({"program_category": prog, "count": cnt, "total_agreed": ag, "total_paid": pd, "total_balance": round(ag - pd, 2)})
 
-    # Deadlines in 15 days (urgent)
-    deadline_15 = db.query(CMCase).filter(
-        CMCase.status.in_(ACTIVE_STATUSES),
-        CMCase.project_deadline != None,
-        CMCase.project_deadline <= in_15,
-        CMCase.project_deadline >= today,
-    ).count()
+    # ── By Service Type ───────────────────────────────────────────────────
+    svc_rows = db.query(
+        CMCase.service_type,
+        CMCase.program_category,
+        func.count(CMCase.id),
+        func.sum(CMCase.agreed_fee_application + CMCase.agreed_fee_implementation),
+        func.sum(CMCase.total_paid),
+    ).filter(~CMCase.status_category.in_(terminal)).group_by(CMCase.service_type, CMCase.program_category).order_by(CMCase.program_category, CMCase.service_type).all()
 
-    # Open tasks
-    open_tasks = db.query(CMTask).join(CMCase).filter(
-        CMCase.status.in_(ACTIVE_STATUSES),
-        CMTask.status != "done",
-    ).count()
+    by_service_type = []
+    for svc, prog, cnt, ag, pd in svc_rows:
+        ag, pd = fmt_eur(ag), fmt_eur(pd)
+        by_service_type.append({"service_type": svc or "—", "program_category": prog or "—", "count": int(cnt or 0), "total_agreed": ag, "total_paid": pd, "total_balance": round(ag - pd, 2)})
 
-    # Overdue tasks
-    overdue_tasks = db.query(CMTask).join(CMCase).filter(
-        CMCase.status.in_(ACTIVE_STATUSES),
-        CMTask.status != "done",
-        CMTask.due_date != None,
-        CMTask.due_date < today,
-    ).count()
+    # ── SLA Overdue ───────────────────────────────────────────────────────
+    sla_map = {r.status: r.sla_days for r in db.query(CMStatusSLA).all()}
+    sla_overdue = []
+    if sla_map:
+        for c in active_q().filter(CMCase.status_changed_at != None).all():
+            sla_days = sla_map.get(c.status)
+            if not sla_days:
+                continue
+            age = (now - c.status_changed_at).days
+            if age > sla_days:
+                sla_overdue.append({
+                    "id": c.id,
+                    "client_name": c.client_name,
+                    "status": c.status,
+                    "program_category": c.program_category,
+                    "sla_days": sla_days,
+                    "age_days": age,
+                    "overdue_days": age - sla_days,
+                })
+        sla_overdue.sort(key=lambda x: x["overdue_days"], reverse=True)
+        sla_overdue = sla_overdue[:30]
 
-    # Cases with balance > 0 (have outstanding payments)
-    cases_with_balance = db.query(CMCase).filter(
-        CMCase.status.in_(ACTIVE_STATUSES),
-        (CMCase.agreed_fee_application + CMCase.agreed_fee_implementation) > CMCase.total_paid,
-    ).count()
-
-    # Cases by agent
+    # ── Agents workload ───────────────────────────────────────────────────
     agents_data = []
-    agents = db.query(CMUser).filter(CMUser.is_active == True).all()
-    for agent in agents:
-        cnt = db.query(CMCase).filter(
-            CMCase.assigned_agent_id == agent.id,
-            CMCase.status.in_(ACTIVE_STATUSES),
-        ).count()
-        if cnt > 0:
-            agents_data.append({"agent_name": agent.full_name, "case_count": cnt})
+    for agent in db.query(CMUser).filter(CMUser.is_active == True).all():
+        cnt = active_q().filter(CMCase.assigned_agent_id == agent.id).count()
+        bal_row = db.query(func.sum(CMCase.agreed_fee_application + CMCase.agreed_fee_implementation - CMCase.total_paid)).filter(~CMCase.status_category.in_(terminal), CMCase.assigned_agent_id == agent.id).scalar()
+        agents_data.append({"agent_name": agent.full_name, "case_count": cnt, "total_balance": fmt_eur(bal_row)})
+    agents_data.sort(key=lambda x: x["case_count"], reverse=True)
 
-    # Recent activity: last 10 cases updated
-    recent_cases = db.query(CMCase).filter(
-        CMCase.status.in_(ACTIVE_STATUSES)
-    ).order_by(CMCase.updated_at.desc()).limit(5).all()
+    # ── Urgent & Recent ───────────────────────────────────────────────────
+    urgent_cases = []
+    for c in active_q().filter(CMCase.project_deadline != None, CMCase.project_deadline <= in_15, CMCase.project_deadline >= today).order_by(CMCase.project_deadline).limit(10).all():
+        urgent_cases.append({"id": c.id, "client_name": c.client_name, "status": c.status, "service_type": c.service_type, "project_deadline": c.project_deadline.isoformat(), "days_to_deadline": (c.project_deadline - today).days})
 
-    recent_list = []
-    for c in recent_cases:
+    recent_cases = []
+    for c in active_q().order_by(CMCase.updated_at.desc()).limit(8).all():
         agent_name = c.assigned_agent.full_name if c.assigned_agent else None
-        recent_list.append({
-            "id": c.id,
-            "client_name": c.client_name,
-            "status": c.status,
-            "service_type": c.service_type,
-            "assigned_agent_name": agent_name,
-            "updated_at": c.updated_at.isoformat() if c.updated_at else None,
-        })
+        recent_cases.append({"id": c.id, "client_name": c.client_name, "status": c.status, "program_category": c.program_category, "service_type": c.service_type, "assigned_agent_name": agent_name, "updated_at": c.updated_at.isoformat() if c.updated_at else None})
 
-    # Urgent cases: deadline in 15 days OR high risk score
-    urgent_cases = db.query(CMCase).filter(
-        CMCase.status.in_(ACTIVE_STATUSES),
-        CMCase.project_deadline != None,
-        CMCase.project_deadline <= in_15,
-        CMCase.project_deadline >= today,
-    ).order_by(CMCase.project_deadline).limit(10).all()
-
-    urgent_list = []
-    for c in urgent_cases:
-        days = (c.project_deadline - today).days if c.project_deadline else None
-        urgent_list.append({
-            "id": c.id,
-            "client_name": c.client_name,
-            "status": c.status,
-            "service_type": c.service_type,
-            "project_deadline": c.project_deadline.isoformat() if c.project_deadline else None,
-            "days_to_deadline": days,
-        })
-
-    # Cases with balance
-    balance_cases = (
-        db.query(CMCase)
-        .filter(
-            CMCase.status.in_(ACTIVE_STATUSES),
-            (CMCase.agreed_fee_application + CMCase.agreed_fee_implementation) > CMCase.total_paid,
-            CMCase.agreed_fee_application + CMCase.agreed_fee_implementation > 0,
-        )
-        .order_by(
-            ((CMCase.agreed_fee_application + CMCase.agreed_fee_implementation) - CMCase.total_paid).desc()
-        )
-        .limit(10)
-        .all()
-    )
-    balance_list = []
-    for c in balance_cases:
-        total_a = (c.agreed_fee_application or 0) + (c.agreed_fee_implementation or 0)
-        bal = total_a - (c.total_paid or 0)
-        balance_list.append({
-            "id": c.id,
-            "client_name": c.client_name,
-            "service_type": c.service_type,
-            "total_agreed": total_a,
-            "total_paid": c.total_paid or 0,
-            "balance": bal,
-        })
+    # ── Top balances ──────────────────────────────────────────────────────
+    balance_cases = []
+    for c in active_q().filter((CMCase.agreed_fee_application + CMCase.agreed_fee_implementation) > CMCase.total_paid).order_by(((CMCase.agreed_fee_application + CMCase.agreed_fee_implementation) - CMCase.total_paid).desc()).limit(10).all():
+        ta = (c.agreed_fee_application or 0) + (c.agreed_fee_implementation or 0)
+        balance_cases.append({"id": c.id, "client_name": c.client_name, "service_type": c.service_type, "total_agreed": ta, "total_paid": c.total_paid or 0, "balance": ta - (c.total_paid or 0)})
 
     return {
-        "total_cases": total_cases,
-        "status_counts": status_counts,
-        "financial": {
-            "total_agreed": total_agreed,
-            "total_paid": total_paid,
-            "total_balance": total_balance,
-        },
-        "deadlines": {
-            "in_30_days": deadline_30,
-            "in_15_days": deadline_15,
-        },
-        "tasks": {
-            "open": open_tasks,
-            "overdue": overdue_tasks,
-        },
-        "cases_with_balance": cases_with_balance,
-        "agents_workload": sorted(agents_data, key=lambda x: x["case_count"], reverse=True),
-        "recent_cases": recent_list,
-        "urgent_cases": urgent_list,
-        "balance_cases": balance_list,
+        "summary": {"total_active": total_active, "total_agreed": total_agreed, "total_paid": total_paid, "total_balance": total_balance, "deadlines_30": deadline_30, "deadlines_15": deadline_15, "open_tasks": open_tasks, "overdue_tasks": overdue_tasks},
+        "by_program": by_program,
+        "by_service_type": by_service_type,
+        "sla_overdue": sla_overdue,
+        "agents_workload": agents_data,
+        "urgent_cases": urgent_cases,
+        "recent_cases": recent_cases,
+        "balance_cases": balance_cases,
     }

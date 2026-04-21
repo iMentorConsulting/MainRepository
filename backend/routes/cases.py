@@ -5,7 +5,7 @@ from pydantic import BaseModel
 from typing import Optional, List
 from datetime import datetime, date
 from database import get_db
-from models_cases import CMCase, CMUser, CMTask, CMPayment, CMMessage, CMDocument, CMBudgetCategory
+from models_cases import CMCase, CMUser, CMTask, CMPayment, CMMessage, CMDocument, CMBudgetCategory, CMStatusSLA
 from auth_cases import get_current_user
 from pipelines import TERMINAL_CATEGORIES, get_status_category
 
@@ -56,7 +56,7 @@ class CaseUpdate(BaseModel):
     notes: Optional[str] = None
 
 
-def case_to_dict(c: CMCase, include_related: bool = False) -> dict:
+def case_to_dict(c: CMCase, include_related: bool = False, sla_map: dict = None) -> dict:
     agent_name = c.assigned_agent.full_name if c.assigned_agent else None
     total_agreed = (c.agreed_fee_application or 0) + (c.agreed_fee_implementation or 0)
     balance = total_agreed - (c.total_paid or 0)
@@ -65,6 +65,15 @@ def case_to_dict(c: CMCase, include_related: bool = False) -> dict:
     days_to_deadline = None
     if c.project_deadline:
         days_to_deadline = (c.project_deadline - date.today()).days
+
+    # SLA overdue tracking
+    status_age_days = None
+    sla_days_for_status = (sla_map or {}).get(c.status)
+    sla_overdue_days = None
+    if c.status_changed_at:
+        status_age_days = (datetime.utcnow() - c.status_changed_at).days
+        if sla_days_for_status and status_age_days > sla_days_for_status:
+            sla_overdue_days = status_age_days - sla_days_for_status
 
     data = {
         "id": c.id,
@@ -94,6 +103,10 @@ def case_to_dict(c: CMCase, include_related: bool = False) -> dict:
         "notes": c.notes,
         "sheet_import_ref": c.sheet_import_ref,
         "days_to_deadline": days_to_deadline,
+        "status_changed_at": c.status_changed_at.isoformat() if c.status_changed_at else None,
+        "status_age_days": status_age_days,
+        "sla_days": sla_days_for_status,
+        "sla_overdue_days": sla_overdue_days,
         "created_at": c.created_at.isoformat() if c.created_at else None,
         "updated_at": c.updated_at.isoformat() if c.updated_at else None,
         "open_tasks": 0,
@@ -241,9 +254,10 @@ def list_cases(
         )
 
     cases = q.order_by(CMCase.updated_at.desc()).all()
+    sla_map = {r.status: r.sla_days for r in db.query(CMStatusSLA).all()}
     result = []
     for c in cases:
-        d = case_to_dict(c)
+        d = case_to_dict(c, sla_map=sla_map)
         open_tasks = db.query(CMTask).filter(
             CMTask.case_id == c.id, CMTask.status != "done"
         ).count()
@@ -273,7 +287,8 @@ def get_case(
     )
     if not c:
         raise HTTPException(status_code=404, detail="Υπόθεση δεν βρέθηκε")
-    return case_to_dict(c, include_related=True)
+    sla_map = {r.status: r.sla_days for r in db.query(CMStatusSLA).all()}
+    return case_to_dict(c, include_related=True, sla_map=sla_map)
 
 
 @router.post("/")
@@ -303,6 +318,7 @@ def create_case(
         total_paid=req.total_paid or 0,
         assigned_agent_id=req.assigned_agent_id,
         notes=req.notes,
+        status_changed_at=datetime.utcnow(),
     )
     db.add(case)
     db.commit()
@@ -326,6 +342,7 @@ def update_case(
         setattr(c, field, val)
     if 'status' in data:
         c.status_category = get_status_category(data['status'])
+        c.status_changed_at = datetime.utcnow()
     c.updated_at = datetime.utcnow()
     db.commit()
     db.refresh(c)

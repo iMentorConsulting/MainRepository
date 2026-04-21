@@ -97,4 +97,14 @@ export const getNotificationLogs = (caseId) =>
   api.get('/api/cm/notifications/logs', { params: caseId ? { case_id: caseId } : {} }).then(r => r.data)
 export const getNotificationTemplates = () => api.get('/api/cm/notifications/templates').then(r => r.data)
 
+// Admin SLA
+export const getSLAConfig = () => api.get('/api/cm/admin/sla').then(r => r.data)
+export const updateSLAConfig = (entries) => api.put('/api/cm/admin/sla', { entries }).then(r => r.data)
+export const deleteSLAEntry = (status) => api.delete(`/api/cm/admin/sla/${encodeURIComponent(status)}`).then(r => r.data)
+
+// Notification template CRUD
+export const createTemplate = (data) => api.post('/api/cm/notifications/templates', data).then(r => r.data)
+export const updateTemplate = (id, data) => api.put(`/api/cm/notifications/templates/${id}`, data).then(r => r.data)
+export const deleteTemplate = (id) => api.delete(`/api/cm/notifications/templates/${id}`).then(r => r.data)
+
 export default api

@@ -13,6 +13,7 @@ from routes.cases import router as cases_router
 from routes.cm_dashboard import router as cm_dashboard_router
 from routes.cm_google_sheets import router as cm_sheets_router
 from routes.cm_notifications import router as cm_notifications_router
+from routes.cm_admin import router as cm_admin_router
 
 load_dotenv()
 
@@ -41,6 +42,48 @@ with SessionLocal() as _db:
         _c.status_category = _SCM.get(_c.status, 'INTERNAL PROCESS')
     _db.commit()
 
+# Add status_changed_at column
+try:
+    with engine.connect() as _conn:
+        _conn.execute(_text("ALTER TABLE cm_cases ADD COLUMN IF NOT EXISTS status_changed_at TIMESTAMP"))
+        _conn.commit()
+except Exception:
+    pass
+
+# Import new models so create_all creates their tables
+from models_cases import CMNotificationTemplate, CMStatusSLA
+
+# Seed notification templates (only if table is empty)
+_DEFAULT_TEMPLATES = [
+    {"key": "deadline_reminder", "label": "Υπενθύμιση Προθεσμίας",
+     "subject": "Υπενθύμιση Προθεσμίας Έργου - {client_name}",
+     "content": "Αγαπητέ/ή {client_name},\n\nΣας υπενθυμίζουμε ότι η προθεσμία ολοκλήρωσης του έργου σας πλησιάζει ({deadline}).\n\nΠαρακαλούμε επικοινωνήστε μαζί μας για τα επόμενα βήματα.\n\nΜε εκτίμηση,\niMentor Consulting",
+     "notification_type": "both"},
+    {"key": "payment_reminder", "label": "Υπενθύμιση Πληρωμής",
+     "subject": "Υπενθύμιση Εκκρεμούς Οφειλής - {client_name}",
+     "content": "Αγαπητέ/ή {client_name},\n\nΣας υπενθυμίζουμε ότι υπάρχει εκκρεμής οφειλή για την υπηρεσία {service_type}.\n\nΠαρακαλούμε επικοινωνήστε μαζί μας για τη διευθέτηση.\n\nΜε εκτίμηση,\niMentor Consulting",
+     "notification_type": "both"},
+    {"key": "documents_needed", "label": "Αίτημα Εγγράφων",
+     "subject": "Απαιτούμενα Έγγραφα - {client_name}",
+     "content": "Αγαπητέ/ή {client_name},\n\nΓια την υπόθεσή σας ({service_type}) απαιτείται η προσκόμιση εγγράφων.\n\nΠαρακαλούμε επικοινωνήστε μαζί μας το συντομότερο δυνατό.\n\nΜε εκτίμηση,\niMentor Consulting",
+     "notification_type": "both"},
+    {"key": "status_update", "label": "Ενημέρωση Κατάστασης",
+     "subject": "Ενημέρωση για την Υπόθεσή σας - {client_name}",
+     "content": "Αγαπητέ/ή {client_name},\n\nΘέλουμε να σας ενημερώσουμε για την πρόοδο της υπόθεσής σας.\n\nΤρέχουσα κατάσταση: {status}\n\nΓια οποιαδήποτε ερώτηση, επικοινωνήστε μαζί μας.\n\nΜε εκτίμηση,\niMentor Consulting",
+     "notification_type": "both"},
+    {"key": "google_review", "label": "Αίτημα Google Review",
+     "subject": "Η γνώμη σας μετράει! - iMentor Consulting",
+     "content": "Αγαπητέ/ή {client_name},\n\nΕυχαριστούμε για την εμπιστοσύνη σας στην iMentor Consulting!\n\nΘα μας βοηθούσε πολύ αν αφήνατε μια κριτική στο Google:\nhttps://g.page/r/YOUR_GOOGLE_REVIEW_LINK\n\nΜε εκτίμηση,\niMentor Consulting",
+     "notification_type": "email"},
+]
+# Re-create tables for new models
+Base.metadata.create_all(bind=engine)
+with SessionLocal() as _db:
+    if _db.query(CMNotificationTemplate).count() == 0:
+        for _t in _DEFAULT_TEMPLATES:
+            _db.add(CMNotificationTemplate(**_t))
+        _db.commit()
+
 # Seed default admin user
 from auth_cases import seed_admin
 with SessionLocal() as _db:
@@ -66,6 +109,7 @@ app.include_router(cases_router)
 app.include_router(cm_dashboard_router)
 app.include_router(cm_sheets_router)
 app.include_router(cm_notifications_router)
+app.include_router(cm_admin_router)
 
 
 @app.get("/health")

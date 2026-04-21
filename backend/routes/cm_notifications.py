@@ -237,37 +237,91 @@ def list_notification_logs(
     ]
 
 
-# ── Notification Templates ─────────────────────────────────────────────
+# ── Notification Templates (DB-backed) ────────────────────────────────
 
-TEMPLATES = {
-    "deadline_reminder": {
-        "label": "Υπενθύμιση Προθεσμίας",
-        "subject": "Υπενθύμιση Προθεσμίας Έργου - {client_name}",
-        "message": "Αγαπητέ/ή {client_name},\n\nΣας υπενθυμίζουμε ότι η προθεσμία ολοκλήρωσης του έργου σας πλησιάζει ({deadline}).\n\nΠαρακαλούμε επικοινωνήστε μαζί μας για τα επόμενα βήματα.\n\nΜε εκτίμηση,\niMentor Consulting",
-    },
-    "payment_reminder": {
-        "label": "Υπενθύμιση Πληρωμής",
-        "subject": "Υπενθύμιση Εκκρεμούς Οφειλής - {client_name}",
-        "message": "Αγαπητέ/ή {client_name},\n\nΣας υπενθυμίζουμε ότι υπάρχει εκκρεμής οφειλή {balance}€ για την υπηρεσία {service_type}.\n\nΠαρακαλούμε επικοινωνήστε μαζί μας για τη διευθέτηση.\n\nΜε εκτίμηση,\niMentor Consulting",
-    },
-    "documents_needed": {
-        "label": "Αίτημα Εγγράφων",
-        "subject": "Απαιτούμενα Έγγραφα - {client_name}",
-        "message": "Αγαπητέ/ή {client_name},\n\nΓια την υπόθεσή σας ({service_type}) απαιτείται η προσκόμιση εγγράφων.\n\nΠαρακαλούμε επικοινωνήστε μαζί μας το συντομότερο δυνατό.\n\nΜε εκτίμηση,\niMentor Consulting",
-    },
-    "status_update": {
-        "label": "Ενημέρωση Κατάστασης",
-        "subject": "Ενημέρωση για την Υπόθεσή σας - {client_name}",
-        "message": "Αγαπητέ/ή {client_name},\n\nΘέλουμε να σας ενημερώσουμε για την πρόοδο της υπόθεσής σας.\n\nΤρέχουσα κατάσταση: {status}\n\nΓια οποιαδήποτε ερώτηση, επικοινωνήστε μαζί μας.\n\nΜε εκτίμηση,\niMentor Consulting",
-    },
-    "google_review": {
-        "label": "Αίτημα Google Review",
-        "subject": "Η γνώμη σας μετράει! - iMentor Consulting",
-        "message": "Αγαπητέ/ή {client_name},\n\nΕυχαριστούμε για την εμπιστοσύνη σας στην iMentor Consulting!\n\nΘα μας βοηθούσε πολύ αν αφήνατε μια κριτική στο Google:\nhttps://g.page/r/YOUR_GOOGLE_REVIEW_LINK\n\nΜε εκτίμηση,\niMentor Consulting",
-    },
-}
+from models_cases import CMNotificationTemplate
+
+
+class TemplateCreate(BaseModel):
+    key: str
+    label: str
+    subject: Optional[str] = None
+    content: str
+    notification_type: Optional[str] = "both"
+
+
+class TemplateUpdate(BaseModel):
+    label: Optional[str] = None
+    subject: Optional[str] = None
+    content: Optional[str] = None
+    notification_type: Optional[str] = None
+    is_active: Optional[bool] = None
+
+
+def _tmpl_to_dict(t: CMNotificationTemplate) -> dict:
+    return {
+        "id": t.id,
+        "key": t.key,
+        "label": t.label,
+        "subject": t.subject,
+        "content": t.content,
+        "notification_type": t.notification_type,
+        "is_active": t.is_active,
+        "updated_at": t.updated_at.isoformat() if t.updated_at else None,
+    }
 
 
 @router.get("/templates")
-def list_templates(current_user: CMUser = Depends(get_current_user)):
-    return [{"key": k, **v} for k, v in TEMPLATES.items()]
+def list_templates(
+    current_user: CMUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    return [_tmpl_to_dict(t) for t in db.query(CMNotificationTemplate).filter(CMNotificationTemplate.is_active == True).order_by(CMNotificationTemplate.label).all()]
+
+
+@router.post("/templates")
+def create_template(
+    req: TemplateCreate,
+    current_user: CMUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    if db.query(CMNotificationTemplate).filter(CMNotificationTemplate.key == req.key).first():
+        raise HTTPException(status_code=400, detail="Το key υπάρχει ήδη")
+    t = CMNotificationTemplate(key=req.key, label=req.label, subject=req.subject, content=req.content, notification_type=req.notification_type or "both")
+    db.add(t)
+    db.commit()
+    db.refresh(t)
+    return _tmpl_to_dict(t)
+
+
+@router.put("/templates/{tmpl_id}")
+def update_template(
+    tmpl_id: int,
+    req: TemplateUpdate,
+    current_user: CMUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    from datetime import datetime as _dt
+    t = db.query(CMNotificationTemplate).filter(CMNotificationTemplate.id == tmpl_id).first()
+    if not t:
+        raise HTTPException(status_code=404, detail="Πρότυπο δεν βρέθηκε")
+    for field, val in req.dict(exclude_none=True).items():
+        setattr(t, field, val)
+    t.updated_at = _dt.utcnow()
+    db.commit()
+    db.refresh(t)
+    return _tmpl_to_dict(t)
+
+
+@router.delete("/templates/{tmpl_id}")
+def delete_template(
+    tmpl_id: int,
+    current_user: CMUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    t = db.query(CMNotificationTemplate).filter(CMNotificationTemplate.id == tmpl_id).first()
+    if not t:
+        raise HTTPException(status_code=404, detail="Πρότυπο δεν βρέθηκε")
+    db.delete(t)
+    db.commit()
+    return {"message": "Διαγράφηκε"}

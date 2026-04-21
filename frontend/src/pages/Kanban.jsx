@@ -225,6 +225,7 @@ export default function Kanban() {
   const [loading, setLoading] = useState(true)
   const [agents, setAgents] = useState([])
   const [filterAgent, setFilterAgent] = useState('')
+  const [filterService, setFilterService] = useState('')
 
   const pipeline = PIPELINES[activeProgram]
 
@@ -244,7 +245,10 @@ export default function Kanban() {
     setCases(prev => prev.map(c => c.id === caseId ? { ...c, status: newStatus } : c))
   }, [])
 
-  const filtered = cases.filter(c => !filterAgent || String(c.assigned_agent_id) === filterAgent)
+  const filtered = cases.filter(c =>
+    (!filterAgent || String(c.assigned_agent_id) === filterAgent) &&
+    (!filterService || c.service_type === filterService)
+  )
 
   // Build lookup: status → [cases]
   const allPhaseStatusSet = new Set(pipeline.phases.flatMap(p => p.statuses))
@@ -289,12 +293,22 @@ export default function Kanban() {
 
       {/* Agent filter */}
       <div className="flex gap-3 mb-3 flex-shrink-0 items-center">
+        <select
+          className="input w-auto text-sm"
+          value={filterService}
+          onChange={e => setFilterService(e.target.value)}
+        >
+          <option value="">Όλα τα Προγράμματα</option>
+          {[...new Set(cases.map(c => c.service_type).filter(Boolean))].sort().map(s => (
+            <option key={s} value={s}>{s}</option>
+          ))}
+        </select>
         <select className="input w-auto text-sm" value={filterAgent} onChange={e => setFilterAgent(e.target.value)}>
           <option value="">Όλοι οι Agents</option>
           {agents.map(a => <option key={a.id} value={String(a.id)}>{a.full_name}</option>)}
         </select>
-        {filterAgent && (
-          <button onClick={() => setFilterAgent('')} className="text-sm text-gray-500 hover:text-gray-800 underline">
+        {(filterAgent || filterService) && (
+          <button onClick={() => { setFilterAgent(''); setFilterService('') }} className="text-sm text-gray-500 hover:text-gray-800 underline">
             Καθαρισμός
           </button>
         )}

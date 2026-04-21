@@ -10,6 +10,9 @@ import {
   XCircleIcon,
   ClockIcon,
   FunnelIcon,
+  PencilIcon,
+  TrashIcon,
+  PlusIcon,
 } from '@heroicons/react/24/outline'
 import toast from 'react-hot-toast'
 import {
@@ -19,6 +22,9 @@ import {
   sendBulkNotification,
   getNotificationLogs,
   getNotificationTemplates,
+  createTemplate,
+  updateTemplate,
+  deleteTemplate,
 } from '../api'
 
 const STATUSES = [
@@ -44,8 +50,113 @@ function applyTemplateVars(text, caseData) {
     )
 }
 
+function TemplatesPanel({ templates, setTemplates }) {
+  const [editId, setEditId] = useState(null)
+  const [editForm, setEditForm] = useState({})
+  const [showCreate, setShowCreate] = useState(false)
+  const [createForm, setCreateForm] = useState({ key: '', label: '', notification_type: 'both', subject: '', content: '' })
+  const [saving, setSaving] = useState(false)
+
+  const startEdit = (t) => { setEditId(t.id); setEditForm({ label: t.label, subject: t.subject || '', content: t.content, notification_type: t.notification_type }) }
+  const cancelEdit = () => { setEditId(null); setEditForm({}) }
+
+  const handleSave = async (id) => {
+    setSaving(true)
+    try {
+      const updated = await updateTemplate(id, editForm)
+      setTemplates(prev => prev.map(t => t.id === id ? updated : t))
+      toast.success('Αποθηκεύτηκε')
+      cancelEdit()
+    } catch { toast.error('Σφάλμα αποθήκευσης') }
+    finally { setSaving(false) }
+  }
+
+  const handleDelete = async (id) => {
+    if (!confirm('Διαγραφή προτύπου;')) return
+    try {
+      await deleteTemplate(id)
+      setTemplates(prev => prev.filter(t => t.id !== id))
+      toast.success('Διαγράφηκε')
+    } catch { toast.error('Σφάλμα διαγραφής') }
+  }
+
+  const handleCreate = async (e) => {
+    e.preventDefault()
+    setSaving(true)
+    try {
+      const t = await createTemplate(createForm)
+      setTemplates(prev => [...prev, t])
+      setShowCreate(false)
+      setCreateForm({ key: '', label: '', notification_type: 'both', subject: '', content: '' })
+      toast.success('Δημιουργήθηκε')
+    } catch (err) { toast.error(err.response?.data?.detail || 'Σφάλμα') }
+    finally { setSaving(false) }
+  }
+
+  const TYPE_COLORS = { email: 'bg-blue-100 text-blue-800', viber: 'bg-purple-100 text-purple-800', both: 'bg-gray-100 text-gray-700' }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-between items-center">
+        <p className="text-sm text-gray-500">{templates.length} πρότυπα μηνυμάτων</p>
+        <button onClick={() => setShowCreate(true)} className="flex items-center gap-1 btn-primary text-sm px-3 py-1.5">
+          <PlusIcon className="w-4 h-4" /> Νέο Πρότυπο
+        </button>
+      </div>
+
+      {showCreate && (
+        <form onSubmit={handleCreate} className="bg-gray-50 rounded-xl border p-4 space-y-3">
+          <h3 className="font-semibold text-sm text-gray-800">Νέο Πρότυπο</h3>
+          <div className="grid grid-cols-2 gap-3">
+            <div><label className="label">Key (μοναδικό ID)</label><input className="input" required value={createForm.key} onChange={e => setCreateForm(p => ({...p, key: e.target.value}))} placeholder="p.x. payment_reminder_2" /></div>
+            <div><label className="label">Όνομα</label><input className="input" required value={createForm.label} onChange={e => setCreateForm(p => ({...p, label: e.target.value}))} placeholder="Υπενθύμιση Πληρωμής" /></div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div><label className="label">Τύπος</label><select className="input" value={createForm.notification_type} onChange={e => setCreateForm(p => ({...p, notification_type: e.target.value}))}><option value="both">Email & Viber</option><option value="email">Email</option><option value="viber">Viber</option></select></div>
+            <div><label className="label">Θέμα (email)</label><input className="input" value={createForm.subject} onChange={e => setCreateForm(p => ({...p, subject: e.target.value}))} /></div>
+          </div>
+          <div><label className="label">Περιεχόμενο</label><textarea className="input" rows={4} required value={createForm.content} onChange={e => setCreateForm(p => ({...p, content: e.target.value}))} /></div>
+          <p className="text-xs text-gray-400">Μεταβλητές: {'{client_name}'} {'{status}'} {'{service_type}'} {'{balance}'} {'{deadline}'}</p>
+          <div className="flex gap-2"><button type="button" onClick={() => setShowCreate(false)} className="btn-secondary text-sm">Άκυρο</button><button type="submit" disabled={saving} className="btn-primary text-sm">{saving ? 'Αποθήκευση...' : 'Δημιουργία'}</button></div>
+        </form>
+      )}
+
+      <div className="space-y-3">
+        {templates.map(t => (
+          <div key={t.id} className="bg-white rounded-xl border p-4">
+            {editId === t.id ? (
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div><label className="label">Όνομα</label><input className="input" value={editForm.label} onChange={e => setEditForm(p => ({...p, label: e.target.value}))} /></div>
+                  <div><label className="label">Τύπος</label><select className="input" value={editForm.notification_type} onChange={e => setEditForm(p => ({...p, notification_type: e.target.value}))}><option value="both">Email & Viber</option><option value="email">Email</option><option value="viber">Viber</option></select></div>
+                </div>
+                <div><label className="label">Θέμα (email)</label><input className="input" value={editForm.subject} onChange={e => setEditForm(p => ({...p, subject: e.target.value}))} /></div>
+                <div><label className="label">Περιεχόμενο</label><textarea className="input" rows={5} value={editForm.content} onChange={e => setEditForm(p => ({...p, content: e.target.value}))} /></div>
+                <div className="flex gap-2"><button onClick={cancelEdit} className="btn-secondary text-sm">Άκυρο</button><button onClick={() => handleSave(t.id)} disabled={saving} className="btn-primary text-sm">{saving ? '...' : 'Αποθήκευση'}</button></div>
+              </div>
+            ) : (
+              <div>
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="font-semibold text-gray-900 text-sm">{t.label}</span>
+                  <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${TYPE_COLORS[t.notification_type] || 'bg-gray-100 text-gray-700'}`}>{t.notification_type}</span>
+                  <div className="ml-auto flex gap-2">
+                    <button onClick={() => startEdit(t)} className="text-gray-400 hover:text-blue-600 transition-colors"><PencilIcon className="w-4 h-4" /></button>
+                    <button onClick={() => handleDelete(t.id)} className="text-gray-400 hover:text-red-600 transition-colors"><TrashIcon className="w-4 h-4" /></button>
+                  </div>
+                </div>
+                {t.subject && <p className="text-xs text-gray-500 mb-1"><span className="font-medium">Θέμα:</span> {t.subject}</p>}
+                <p className="text-xs text-gray-600 bg-gray-50 rounded p-2 whitespace-pre-wrap line-clamp-3">{t.content}</p>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export default function Notifications() {
-  const [mode, setMode] = useState('single') // 'single' | 'bulk'
+  const [mode, setMode] = useState('single') // 'single' | 'bulk' | 'templates'
 
   // Templates
   const [templates, setTemplates] = useState([])
@@ -302,9 +413,17 @@ export default function Notifications() {
           >
             Μαζική
           </button>
+          <button
+            onClick={() => setMode('templates')}
+            className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${mode === 'templates' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-800'}`}
+          >
+            <DocumentTextIcon className="w-4 h-4" /> Πρότυπα
+          </button>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {mode === 'templates' && <TemplatesPanel templates={templates} setTemplates={setTemplates} />}
+
+        {mode !== 'templates' && <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Left: Case selection */}
           <div>
             {mode === 'single' ? (
@@ -468,7 +587,7 @@ export default function Notifications() {
               }
             </button>
           </div>
-        </div>
+        </div>}
       </div>
 
       {/* Notification Log */}
