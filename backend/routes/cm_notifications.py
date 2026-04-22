@@ -29,10 +29,18 @@ class SingleNotificationRequest(BaseModel):
     recipient_override: Optional[str] = None  # override email or phone
 
 
+def _infobip_auth(api_key: str) -> str:
+    """Return correct Authorization header value, stripping double 'App ' if user pasted full header."""
+    key = api_key.strip()
+    if key.startswith("App "):
+        key = key[4:]
+    return f"App {key}"
+
+
 def _send_email(to_email: str, subject: str, body: str) -> tuple[bool, str]:
     api_key = os.getenv("VIBER_TOKEN", "")
     base_url = os.getenv("INFOBIP_BASE_URL", "")
-    from_email = os.getenv("SMTP_FROM") or os.getenv("SMTP_USER", "")
+    from_email = os.getenv("SMTP_FROM") or os.getenv("SMTP_USER", "") or "info@i-mentor.gr"
 
     if api_key and base_url:
         html_body = f"""<html><body style="font-family:Arial,sans-serif;padding:20px;color:#333;">
@@ -49,7 +57,7 @@ def _send_email(to_email: str, subject: str, body: str) -> tuple[bool, str]:
         try:
             resp = requests.post(
                 f"https://{base_url}/email/3/send",
-                headers={"Authorization": f"App {api_key}"},
+                headers={"Authorization": _infobip_auth(api_key)},
                 files={
                     "from": (None, from_email),
                     "to": (None, to_email),
@@ -60,18 +68,17 @@ def _send_email(to_email: str, subject: str, body: str) -> tuple[bool, str]:
             )
             data = resp.json() if resp.content else {}
             if resp.status_code in (200, 201):
-                # Check delivery status from response
                 messages = data.get("messages", [])
                 if messages:
-                    status = messages[0].get("status", {})
-                    group = status.get("groupName", "")
-                    # REJECTED or UNDELIVERABLE means sender domain not verified
+                    status_info = messages[0].get("status", {})
+                    group = status_info.get("groupName", "")
                     if group in ("REJECTED", "UNDELIVERABLE"):
-                        return False, f"Infobip απέρριψε το email ({status.get('description', group)}) — βεβαιωθείτε ότι το domain i-mentor.gr έχει επαληθευτεί στο Infobip Email → Senders"
+                        desc = status_info.get("description", group)
+                        return False, f"Email απορρίφθηκε από Infobip: {desc} — ελέγξτε ότι το domain i-mentor.gr έχει επαληθευτεί στο Infobip → Email → Senders"
                 return True, "OK"
             err_text = (data.get("requestError", {}).get("serviceException", {}).get("text")
                         or data.get("requestError", {}).get("policyException", {}).get("text")
-                        or f"Infobip HTTP {resp.status_code}")
+                        or f"Infobip HTTP {resp.status_code}: {resp.text[:300]}")
             return False, err_text
         except Exception as e:
             return False, str(e)
@@ -115,19 +122,22 @@ def _send_email(to_email: str, subject: str, body: str) -> tuple[bool, str]:
 def _send_viber(phone: str, message: str) -> tuple[bool, str]:
     api_key = os.getenv("VIBER_TOKEN", "")
     base_url = os.getenv("INFOBIP_BASE_URL", "api.infobip.com")
-    sender = os.getenv("INFOBIP_SENDER", "iMentor")
+    sender = os.getenv("INFOBIP_SENDER", "IMENTOR")
 
     if not api_key:
         return False, "VIBER_TOKEN (Infobip API key) δεν έχει ρυθμιστεί"
 
-    # Normalize phone: Infobip expects international format without +
-    phone = phone.strip().replace(" ", "").replace("-", "")
+    # Normalize phone: Infobip expects digits only, international format without +
+    phone = phone.strip().replace(" ", "").replace("-", "").replace("(", "").replace(")", "")
     if phone.startswith("0"):
         phone = "30" + phone[1:]
     elif phone.startswith("+"):
         phone = phone[1:]
     elif not phone.startswith("30"):
         phone = "30" + phone
+
+    auth = _infobip_auth(api_key)
+    headers = {"Authorization": auth, "Content-Type": "application/json", "Accept": "application/json"}
 
     try:
         payload = {
@@ -141,24 +151,18 @@ def _send_viber(phone: str, message: str) -> tuple[bool, str]:
         resp = requests.post(
             f"https://{base_url}/viber/2/message",
             json=payload,
-            headers={
-                "Authorization": f"App {api_key}",
-                "Content-Type": "application/json",
-                "Accept": "application/json",
-            },
+            headers=headers,
             timeout=10,
         )
         if resp.status_code in (200, 201):
             return True, "OK"
-        if resp.status_code == 404:
-            return False, "Viber Business Messages δεν είναι ενεργοποιημένο στο Infobip — μεταβείτε στο Infobip → Channels & Numbers → Viber για ενεργοποίηση"
         try:
             err = resp.json()
             msg = (err.get("requestError", {}).get("serviceException", {}).get("text")
                    or err.get("requestError", {}).get("policyException", {}).get("text")
-                   or f"HTTP {resp.status_code}")
+                   or f"HTTP {resp.status_code}: {resp.text[:200]}")
         except Exception:
-            msg = f"HTTP {resp.status_code}"
+            msg = f"HTTP {resp.status_code}: {resp.text[:200]}"
         return False, msg
     except Exception as e:
         return False, str(e)
