@@ -109,4 +109,18 @@ export const deleteTemplate = (id) => api.delete(`/api/cm/notifications/template
 
 export const sendSLANotifications = (data) => api.post('/api/cm/notifications/send-sla', data).then(r => r.data)
 
+// Pending Item Templates (admin)
+export const getPendingItemTemplates = (programCategory) =>
+  api.get('/api/cm/admin/pending-templates', { params: programCategory ? { program_category: programCategory } : {} }).then(r => r.data)
+export const createPendingItemTemplate = (data) => api.post('/api/cm/admin/pending-templates', data).then(r => r.data)
+export const updatePendingItemTemplate = (id, data) => api.put(`/api/cm/admin/pending-templates/${id}`, data).then(r => r.data)
+export const deletePendingItemTemplate = (id) => api.delete(`/api/cm/admin/pending-templates/${id}`).then(r => r.data)
+
+// Per-case pending items
+export const getCasePendingItems = (caseId) => api.get(`/api/cm/cases/${caseId}/pending-items`).then(r => r.data)
+export const createCasePendingItem = (caseId, data) => api.post(`/api/cm/cases/${caseId}/pending-items`, data).then(r => r.data)
+export const updateCasePendingItem = (caseId, itemId, data) => api.put(`/api/cm/cases/${caseId}/pending-items/${itemId}`, data).then(r => r.data)
+export const deleteCasePendingItem = (caseId, itemId) => api.delete(`/api/cm/cases/${caseId}/pending-items/${itemId}`).then(r => r.data)
+export const notifyCasePendingItems = (caseId, data) => api.post(`/api/cm/cases/${caseId}/pending-items/notify`, data).then(r => r.data)
+
 export default api

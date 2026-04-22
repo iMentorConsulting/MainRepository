@@ -85,6 +85,7 @@ class CMCase(Base):
     documents = relationship("CMDocument", back_populates="case", cascade="all, delete-orphan")
     notification_logs = relationship("CMNotificationLog", back_populates="case", cascade="all, delete-orphan")
     budget_categories = relationship("CMBudgetCategory", back_populates="case", cascade="all, delete-orphan")
+    pending_items = relationship("CMCasePendingItem", back_populates="case", cascade="all, delete-orphan", order_by="CMCasePendingItem.sort_order")
 
 
 class CMTask(Base):
@@ -217,3 +218,24 @@ class CMStatusSLA(Base):
     sla_days = Column(Integer, default=14)
     notification_message = Column(Text, nullable=True)
     updated_at = Column(DateTime, default=datetime.utcnow)
+
+
+class CMPendingItemTemplate(Base):
+    __tablename__ = "cm_pending_item_templates"
+    id = Column(Integer, primary_key=True, index=True)
+    program_category = Column(String(100), nullable=False)  # ΕΣΠΑ, ΔΥΠΑ, ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ
+    item_text = Column(String(300), nullable=False)
+    sort_order = Column(Integer, default=0)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class CMCasePendingItem(Base):
+    __tablename__ = "cm_case_pending_items"
+    id = Column(Integer, primary_key=True, index=True)
+    case_id = Column(Integer, ForeignKey("cm_cases.id"), nullable=False)
+    item_text = Column(String(300), nullable=False)
+    comment = Column(Text)
+    sort_order = Column(Integer, default=0)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow)
+    case = relationship("CMCase", back_populates="pending_items")

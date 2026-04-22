@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from dotenv import load_dotenv
 from database import Base, engine
-from models_cases import CMUser, CMCase, CMTask, CMPayment, CMMessage, CMDocument, CMNotificationLog, CMBudgetCategory
+from models_cases import CMUser, CMCase, CMTask, CMPayment, CMMessage, CMDocument, CMNotificationLog, CMBudgetCategory, CMPendingItemTemplate, CMCasePendingItem
 
 # Case management routes
 from routes.cm_auth import router as cm_auth_router
@@ -14,6 +14,7 @@ from routes.cm_dashboard import router as cm_dashboard_router
 from routes.cm_google_sheets import router as cm_sheets_router
 from routes.cm_notifications import router as cm_notifications_router
 from routes.cm_admin import router as cm_admin_router
+from routes.cm_pending_items import router as cm_pending_items_router
 
 load_dotenv()
 
@@ -104,6 +105,7 @@ app.include_router(cm_dashboard_router)
 app.include_router(cm_sheets_router)
 app.include_router(cm_notifications_router)
 app.include_router(cm_admin_router)
+app.include_router(cm_pending_items_router)
 
 
 @app.get("/health")
