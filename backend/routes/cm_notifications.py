@@ -121,13 +121,14 @@ def _send_email(to_email: str, subject: str, body: str) -> tuple[bool, str]:
 
 def _send_viber(phone: str, message: str) -> tuple[bool, str]:
     api_key = os.getenv("VIBER_TOKEN", "")
-    base_url = os.getenv("INFOBIP_BASE_URL", "api.infobip.com")
+    # Strip https:// if user pasted the full URL instead of just the hostname
+    base_url = os.getenv("INFOBIP_BASE_URL", "api.infobip.com").replace("https://", "").replace("http://", "").rstrip("/")
     sender = os.getenv("INFOBIP_SENDER", "IMENTOR")
 
     if not api_key:
         return False, "VIBER_TOKEN (Infobip API key) δεν έχει ρυθμιστεί"
 
-    # Normalize phone: Infobip expects digits only, international format without +
+    # Normalize phone: digits only, international format without +
     phone = phone.strip().replace(" ", "").replace("-", "").replace("(", "").replace(")", "")
     if phone.startswith("0"):
         phone = "30" + phone[1:]
@@ -139,31 +140,26 @@ def _send_viber(phone: str, message: str) -> tuple[bool, str]:
     auth = _infobip_auth(api_key)
     headers = {"Authorization": auth, "Content-Type": "application/json", "Accept": "application/json"}
 
+    # Infobip Viber Business Messages v2 — uses "from" not "sender"
+    payload = {
+        "messages": [{
+            "from": sender,
+            "destinations": [{"to": phone}],
+            "viber": {
+                "text": message,
+                "validityPeriod": 600,
+                "validityPeriodTimeUnit": "SECONDS",
+            },
+        }]
+    }
+
     try:
-        payload = {
-            "messages": [{
-                "channel": "VIBER",
-                "sender": sender,
-                "destinations": [{"to": phone}],
-                "viber": {"text": message},
-            }]
-        }
-        resp = requests.post(
-            f"https://{base_url}/viber/2/message",
-            json=payload,
-            headers=headers,
-            timeout=10,
-        )
+        url = f"https://{base_url}/viber/2/message"
+        resp = requests.post(url, json=payload, headers=headers, timeout=10)
         if resp.status_code in (200, 201):
             return True, "OK"
-        try:
-            err = resp.json()
-            msg = (err.get("requestError", {}).get("serviceException", {}).get("text")
-                   or err.get("requestError", {}).get("policyException", {}).get("text")
-                   or f"HTTP {resp.status_code}: {resp.text[:200]}")
-        except Exception:
-            msg = f"HTTP {resp.status_code}: {resp.text[:200]}"
-        return False, msg
+        # Return full raw response so we can debug exactly what Infobip says
+        return False, f"HTTP {resp.status_code} @ {url} — {resp.text[:500]}"
     except Exception as e:
         return False, str(e)
 
