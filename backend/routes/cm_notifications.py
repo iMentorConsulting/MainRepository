@@ -72,17 +72,16 @@ def _send_email(to_email: str, subject: str, body: str) -> tuple[bool, str]:
         except Exception:
             ipv4 = smtp_host
 
-        # Try port 465 (SSL) first, fall back to 587 (STARTTLS)
         last_err = None
         for port, use_ssl in [(465, True), (587, False)]:
             try:
                 if use_ssl:
-                    with smtplib.SMTP_SSL(ipv4, port, timeout=15) as server:
+                    with smtplib.SMTP_SSL(ipv4, port, timeout=8) as server:
                         server.ehlo()
                         server.login(smtp_user, smtp_pass)
                         server.sendmail(from_email, to_email, msg.as_string())
                 else:
-                    with smtplib.SMTP(ipv4, port, timeout=15) as server:
+                    with smtplib.SMTP(ipv4, port, timeout=8) as server:
                         server.ehlo()
                         server.starttls()
                         server.ehlo()
@@ -90,8 +89,8 @@ def _send_email(to_email: str, subject: str, body: str) -> tuple[bool, str]:
                         server.sendmail(from_email, to_email, msg.as_string())
                 return True, "OK"
             except Exception as e:
-                last_err = f"port {port}: {e}"
-        return False, f"Gmail SMTP απέτυχε και στις δύο θύρες — {last_err}"
+                last_err = f":{port} {e}"
+        return False, f"Gmail SMTP απέτυχε — {last_err}. Το Railway μπλοκάρει SMTP. Επαληθεύστε το domain i-mentor.gr στο Infobip → Email → Senders για αποστολή μέσω HTTPS."
     except Exception as e:
         return False, str(e)
 
