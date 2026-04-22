@@ -4,13 +4,13 @@ import { Link } from 'react-router-dom'
 import { getCases, updateCase, getUsers } from '../api'
 import { PIPELINES } from '../pipelines'
 import {
-  UserIcon,
   ClockIcon,
   CurrencyEuroIcon,
   ClipboardDocumentListIcon,
   ChevronDownIcon,
   ChevronRightIcon,
   ArrowsRightLeftIcon,
+  ExclamationCircleIcon,
 } from '@heroicons/react/24/outline'
 import toast from 'react-hot-toast'
 
@@ -141,10 +141,11 @@ function CaseCard({ caseItem, onMoved, pipeline }) {
           )}
         </div>
       </div>
-      {caseItem.assigned_agent_name && (
-        <div className="flex items-center gap-1 text-xs text-gray-400 mb-1.5">
-          <UserIcon className="w-2.5 h-2.5 flex-shrink-0" />
-          <span className="truncate">{caseItem.assigned_agent_name}</span>
+      {caseItem.pending_count > 0 && (
+        <div className="flex items-center gap-1 mb-1.5">
+          <span className="flex items-center gap-0.5 text-xs font-medium text-orange-600 bg-orange-50 border border-orange-200 px-1 py-0 rounded">
+            <ExclamationCircleIcon className="w-2.5 h-2.5" />{caseItem.pending_count}
+          </span>
         </div>
       )}
       <MoveDropdown caseItem={caseItem} currentStatus={caseItem.status} onMoved={onMoved} pipeline={pipeline} />
