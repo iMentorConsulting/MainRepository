@@ -30,11 +30,10 @@ class SingleNotificationRequest(BaseModel):
 
 
 def _send_email(to_email: str, subject: str, body: str) -> tuple[bool, str]:
-    api_key = os.getenv("VIBER_TOKEN", "")  # Same Infobip API key
+    api_key = os.getenv("VIBER_TOKEN", "")
     base_url = os.getenv("INFOBIP_BASE_URL", "")
     from_email = os.getenv("SMTP_FROM") or os.getenv("SMTP_USER", "")
 
-    # Use Infobip Email API if configured (avoids SMTP port blocking on Railway)
     if api_key and base_url:
         html_body = f"""<html><body style="font-family:Arial,sans-serif;padding:20px;color:#333;">
 <div style="max-width:600px;margin:0 auto;">
@@ -52,23 +51,28 @@ def _send_email(to_email: str, subject: str, body: str) -> tuple[bool, str]:
                 f"https://{base_url}/email/3/send",
                 headers={"Authorization": f"App {api_key}"},
                 files={
-                    "from": (None, f"iMentor Consulting <{from_email}>"),
+                    "from": (None, from_email),
                     "to": (None, to_email),
                     "subject": (None, subject),
                     "html": (None, html_body),
                 },
                 timeout=15,
             )
+            data = resp.json() if resp.content else {}
             if resp.status_code in (200, 201):
+                # Check delivery status from response
+                messages = data.get("messages", [])
+                if messages:
+                    status = messages[0].get("status", {})
+                    group = status.get("groupName", "")
+                    # REJECTED or UNDELIVERABLE means sender domain not verified
+                    if group in ("REJECTED", "UNDELIVERABLE"):
+                        return False, f"Infobip απέρριψε το email ({status.get('description', group)}) — βεβαιωθείτε ότι το domain i-mentor.gr έχει επαληθευτεί στο Infobip Email → Senders"
                 return True, "OK"
-            try:
-                err = resp.json()
-                msg = (err.get("requestError", {}).get("serviceException", {}).get("text")
-                       or err.get("requestError", {}).get("policyException", {}).get("text")
-                       or f"Infobip HTTP {resp.status_code}: {resp.text[:200]}")
-            except Exception:
-                msg = f"Infobip HTTP {resp.status_code}"
-            return False, msg
+            err_text = (data.get("requestError", {}).get("serviceException", {}).get("text")
+                        or data.get("requestError", {}).get("policyException", {}).get("text")
+                        or f"Infobip HTTP {resp.status_code}")
+            return False, err_text
         except Exception as e:
             return False, str(e)
 
@@ -79,7 +83,7 @@ def _send_email(to_email: str, subject: str, body: str) -> tuple[bool, str]:
     smtp_pass = os.getenv("SMTP_PASS", "")
 
     if not smtp_host or not smtp_user:
-        return False, "Email δεν έχει ρυθμιστεί (INFOBIP_BASE_URL ή SMTP_HOST)"
+        return False, "Email δεν έχει ρυθμιστεί"
 
     try:
         msg = MIMEMultipart("alternative")
@@ -146,6 +150,8 @@ def _send_viber(phone: str, message: str) -> tuple[bool, str]:
         )
         if resp.status_code in (200, 201):
             return True, "OK"
+        if resp.status_code == 404:
+            return False, "Viber Business Messages δεν είναι ενεργοποιημένο στο Infobip — μεταβείτε στο Infobip → Channels & Numbers → Viber για ενεργοποίηση"
         try:
             err = resp.json()
             msg = (err.get("requestError", {}).get("serviceException", {}).get("text")
