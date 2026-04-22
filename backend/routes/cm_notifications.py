@@ -30,23 +30,63 @@ class SingleNotificationRequest(BaseModel):
 
 
 def _send_email(to_email: str, subject: str, body: str) -> tuple[bool, str]:
+    api_key = os.getenv("VIBER_TOKEN", "")  # Same Infobip API key
+    base_url = os.getenv("INFOBIP_BASE_URL", "")
+    from_email = os.getenv("SMTP_FROM") or os.getenv("SMTP_USER", "")
+
+    # Use Infobip Email API if configured (avoids SMTP port blocking on Railway)
+    if api_key and base_url:
+        html_body = f"""<html><body style="font-family:Arial,sans-serif;padding:20px;color:#333;">
+<div style="max-width:600px;margin:0 auto;">
+  <div style="background:#1e3a5f;padding:15px;border-radius:8px 8px 0 0;">
+    <h2 style="color:white;margin:0;">iMentor Consulting</h2>
+  </div>
+  <div style="background:#f9f9f9;padding:25px;border:1px solid #ddd;border-top:none;border-radius:0 0 8px 8px;">
+    <p style="white-space:pre-wrap;">{body}</p>
+    <hr style="margin:20px 0;border:none;border-top:1px solid #eee;"/>
+    <p style="font-size:12px;color:#999;">iMentor Consulting | Αυτόματο μήνυμα.</p>
+  </div>
+</div></body></html>"""
+        try:
+            resp = requests.post(
+                f"https://{base_url}/email/3/send",
+                headers={"Authorization": f"App {api_key}"},
+                files={
+                    "from": (None, f"iMentor Consulting <{from_email}>"),
+                    "to": (None, to_email),
+                    "subject": (None, subject),
+                    "html": (None, html_body),
+                },
+                timeout=15,
+            )
+            if resp.status_code in (200, 201):
+                return True, "OK"
+            try:
+                err = resp.json()
+                msg = (err.get("requestError", {}).get("serviceException", {}).get("text")
+                       or err.get("requestError", {}).get("policyException", {}).get("text")
+                       or f"Infobip HTTP {resp.status_code}: {resp.text[:200]}")
+            except Exception:
+                msg = f"Infobip HTTP {resp.status_code}"
+            return False, msg
+        except Exception as e:
+            return False, str(e)
+
+    # Fallback: SMTP
     smtp_host = os.getenv("SMTP_HOST", "")
     smtp_port = int(os.getenv("SMTP_PORT", "587"))
     smtp_user = os.getenv("SMTP_USER", "")
     smtp_pass = os.getenv("SMTP_PASS", "")
-    from_email = os.getenv("SMTP_FROM", smtp_user)
 
     if not smtp_host or not smtp_user:
-        return False, "SMTP δεν έχει ρυθμιστεί (SMTP_HOST, SMTP_USER, SMTP_PASS)"
+        return False, "Email δεν έχει ρυθμιστεί (INFOBIP_BASE_URL ή SMTP_HOST)"
 
     try:
         msg = MIMEMultipart("alternative")
         msg["Subject"] = subject
-        msg["From"] = f"iMentor Consulting <{from_email}>"
+        msg["From"] = f"iMentor Consulting <{from_email or smtp_user}>"
         msg["To"] = to_email
-
-        html_body = f"""
-        <html><body style="font-family:Arial,sans-serif;padding:20px;color:#333;">
+        html_body = f"""<html><body style="font-family:Arial,sans-serif;padding:20px;color:#333;">
         <div style="max-width:600px;margin:0 auto;">
           <div style="background:#1e3a5f;padding:15px;border-radius:8px 8px 0 0;">
             <h2 style="color:white;margin:0;">iMentor Consulting</h2>
@@ -54,21 +94,15 @@ def _send_email(to_email: str, subject: str, body: str) -> tuple[bool, str]:
           <div style="background:#f9f9f9;padding:25px;border:1px solid #ddd;border-top:none;border-radius:0 0 8px 8px;">
             <p style="white-space:pre-wrap;">{body}</p>
             <hr style="margin:20px 0;border:none;border-top:1px solid #eee;"/>
-            <p style="font-size:12px;color:#999;">
-              iMentor Consulting | Αυτό το μήνυμα στάλθηκε αυτόματα από το σύστημα διαχείρισης υποθέσεων.
-            </p>
+            <p style="font-size:12px;color:#999;">iMentor Consulting | Αυτόματο μήνυμα.</p>
           </div>
-        </div>
-        </body></html>
-        """
+        </div></body></html>"""
         msg.attach(MIMEText(html_body, "html", "utf-8"))
-
         with smtplib.SMTP(smtp_host, smtp_port, timeout=10) as server:
             server.ehlo()
             server.starttls()
             server.login(smtp_user, smtp_pass)
-            server.sendmail(from_email, to_email, msg.as_string())
-
+            server.sendmail(smtp_user, to_email, msg.as_string())
         return True, "OK"
     except Exception as e:
         return False, str(e)
