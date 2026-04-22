@@ -75,36 +75,51 @@ def _send_email(to_email: str, subject: str, body: str) -> tuple[bool, str]:
 
 
 def _send_viber(phone: str, message: str) -> tuple[bool, str]:
-    viber_token = os.getenv("VIBER_TOKEN", "")
-    if not viber_token:
-        return False, "VIBER_TOKEN δεν έχει ρυθμιστεί"
+    api_key = os.getenv("VIBER_TOKEN", "")
+    base_url = os.getenv("INFOBIP_BASE_URL", "api.infobip.com")
+    sender = os.getenv("INFOBIP_SENDER", "iMentor")
 
-    # Normalize phone number
+    if not api_key:
+        return False, "VIBER_TOKEN (Infobip API key) δεν έχει ρυθμιστεί"
+
+    # Normalize phone: Infobip expects international format without +
     phone = phone.strip().replace(" ", "").replace("-", "")
     if phone.startswith("0"):
-        phone = "+30" + phone[1:]
-    elif not phone.startswith("+"):
-        phone = "+30" + phone
+        phone = "30" + phone[1:]
+    elif phone.startswith("+"):
+        phone = phone[1:]
+    elif not phone.startswith("30"):
+        phone = "30" + phone
 
     try:
         payload = {
-            "receiver": phone,
-            "min_api_version": 1,
-            "sender": {"name": "iMentor Consulting", "avatar": ""},
-            "tracking_data": "case_notification",
-            "type": "text",
-            "text": message,
+            "messages": [{
+                "channel": "VIBER",
+                "sender": sender,
+                "destinations": [{"to": phone}],
+                "viber": {"text": message},
+            }]
         }
         resp = requests.post(
-            "https://chatapi.viber.com/pa/send_message",
+            f"https://{base_url}/viber/2/message",
             json=payload,
-            headers={"X-Viber-Auth-Token": viber_token},
+            headers={
+                "Authorization": f"App {api_key}",
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+            },
             timeout=10,
         )
-        data = resp.json()
-        if data.get("status") == 0:
+        if resp.status_code in (200, 201):
             return True, "OK"
-        return False, data.get("status_message", "Viber error")
+        try:
+            err = resp.json()
+            msg = (err.get("requestError", {}).get("serviceException", {}).get("text")
+                   or err.get("requestError", {}).get("policyException", {}).get("text")
+                   or f"HTTP {resp.status_code}")
+        except Exception:
+            msg = f"HTTP {resp.status_code}"
+        return False, msg
     except Exception as e:
         return False, str(e)
 
