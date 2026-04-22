@@ -140,31 +140,23 @@ def _send_viber(phone: str, message: str) -> tuple[bool, str]:
     auth = _infobip_auth(api_key)
     headers = {"Authorization": auth, "Content-Type": "application/json", "Accept": "application/json"}
 
-    # Infobip Viber Business Messages v2 — uses "from" not "sender"
+    # Infobip Viber v1 text endpoint (confirmed working)
     payload = {
         "messages": [{
             "from": sender,
-            "destinations": [{"to": phone}],
-            "viber": {
-                "text": message,
-                "validityPeriod": 600,
-                "validityPeriodTimeUnit": "SECONDS",
-            },
+            "to": phone,
+            "content": {"text": message},
         }]
     }
 
-    for path in ["/viber/2/message", "/viber/2/messages", "/viber/1/message"]:
-        try:
-            url = f"https://{base_url}{path}"
-            resp = requests.post(url, json=payload, headers=headers, timeout=10)
-            if resp.status_code in (200, 201):
-                return True, f"OK ({path})"
-            if resp.status_code != 404:
-                return False, f"HTTP {resp.status_code} @ {path} — {resp.text[:500]}"
-            # 404 → try next path
-        except Exception as e:
-            return False, str(e)
-    return False, f"Κανένα Infobip Viber endpoint δεν βρέθηκε (δοκιμάστηκαν: /viber/2/message, /viber/2/messages, /viber/1/message). Μοιραστείτε τον κώδικα αποστολής από την άλλη εφαρμογή."
+    try:
+        url = f"https://{base_url}/viber/1/message/text"
+        resp = requests.post(url, json=payload, headers=headers, timeout=10)
+        if resp.status_code in (200, 201):
+            return True, "OK"
+        return False, f"HTTP {resp.status_code} — {resp.text[:500]}"
+    except Exception as e:
+        return False, str(e)
 
 
 def _log_notification(
