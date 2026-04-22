@@ -65,9 +65,18 @@ def _send_email(to_email: str, subject: str, body: str) -> tuple[bool, str]:
         msg["From"] = f"iMentor Consulting <{from_email}>"
         msg["To"] = to_email
         msg.attach(MIMEText(html_body, "html", "utf-8"))
-        with smtplib.SMTP(smtp_host, smtp_port, timeout=15) as server:
-            server.ehlo()
+
+        # Force IPv4 — Railway containers have no IPv6 route, causing ENETUNREACH
+        import socket as _socket
+        try:
+            ipv4 = _socket.getaddrinfo(smtp_host, smtp_port, _socket.AF_INET, _socket.SOCK_STREAM)[0][4][0]
+        except Exception:
+            ipv4 = smtp_host
+
+        with smtplib.SMTP(ipv4, smtp_port, timeout=15) as server:
+            server.ehlo(smtp_host)
             server.starttls()
+            server.ehlo(smtp_host)
             server.login(smtp_user, smtp_pass)
             server.sendmail(from_email, to_email, msg.as_string())
         return True, "OK"
