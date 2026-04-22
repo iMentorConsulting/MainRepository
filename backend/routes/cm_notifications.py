@@ -153,15 +153,18 @@ def _send_viber(phone: str, message: str) -> tuple[bool, str]:
         }]
     }
 
-    try:
-        url = f"https://{base_url}/viber/2/message"
-        resp = requests.post(url, json=payload, headers=headers, timeout=10)
-        if resp.status_code in (200, 201):
-            return True, "OK"
-        # Return full raw response so we can debug exactly what Infobip says
-        return False, f"HTTP {resp.status_code} @ {url} — {resp.text[:500]}"
-    except Exception as e:
-        return False, str(e)
+    for path in ["/viber/2/message", "/viber/2/messages", "/viber/1/message"]:
+        try:
+            url = f"https://{base_url}{path}"
+            resp = requests.post(url, json=payload, headers=headers, timeout=10)
+            if resp.status_code in (200, 201):
+                return True, f"OK ({path})"
+            if resp.status_code != 404:
+                return False, f"HTTP {resp.status_code} @ {path} — {resp.text[:500]}"
+            # 404 → try next path
+        except Exception as e:
+            return False, str(e)
+    return False, f"Κανένα Infobip Viber endpoint δεν βρέθηκε (δοκιμάστηκαν: /viber/2/message, /viber/2/messages, /viber/1/message). Μοιραστείτε τον κώδικα αποστολής από την άλλη εφαρμογή."
 
 
 def _log_notification(
