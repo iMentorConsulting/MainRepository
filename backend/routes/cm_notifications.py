@@ -66,20 +66,32 @@ def _send_email(to_email: str, subject: str, body: str) -> tuple[bool, str]:
         msg["To"] = to_email
         msg.attach(MIMEText(html_body, "html", "utf-8"))
 
-        # Force IPv4 — Railway containers have no IPv6 route, causing ENETUNREACH
         import socket as _socket
         try:
-            ipv4 = _socket.getaddrinfo(smtp_host, smtp_port, _socket.AF_INET, _socket.SOCK_STREAM)[0][4][0]
+            ipv4 = _socket.getaddrinfo(smtp_host, None, _socket.AF_INET)[0][4][0]
         except Exception:
             ipv4 = smtp_host
 
-        with smtplib.SMTP(ipv4, smtp_port, timeout=15) as server:
-            server.ehlo(smtp_host)
-            server.starttls()
-            server.ehlo(smtp_host)
-            server.login(smtp_user, smtp_pass)
-            server.sendmail(from_email, to_email, msg.as_string())
-        return True, "OK"
+        # Try port 465 (SSL) first, fall back to 587 (STARTTLS)
+        last_err = None
+        for port, use_ssl in [(465, True), (587, False)]:
+            try:
+                if use_ssl:
+                    with smtplib.SMTP_SSL(ipv4, port, timeout=15) as server:
+                        server.ehlo()
+                        server.login(smtp_user, smtp_pass)
+                        server.sendmail(from_email, to_email, msg.as_string())
+                else:
+                    with smtplib.SMTP(ipv4, port, timeout=15) as server:
+                        server.ehlo()
+                        server.starttls()
+                        server.ehlo()
+                        server.login(smtp_user, smtp_pass)
+                        server.sendmail(from_email, to_email, msg.as_string())
+                return True, "OK"
+            except Exception as e:
+                last_err = f"port {port}: {e}"
+        return False, f"Gmail SMTP απέτυχε και στις δύο θύρες — {last_err}"
     except Exception as e:
         return False, str(e)
 
