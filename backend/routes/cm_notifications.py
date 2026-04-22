@@ -1,6 +1,6 @@
 import os
-import smtplib
 import json
+import base64
 import requests
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
@@ -38,14 +38,11 @@ def _infobip_auth(api_key: str) -> str:
 
 
 def _send_email(to_email: str, subject: str, body: str) -> tuple[bool, str]:
-    smtp_host = os.getenv("SMTP_HOST", "")
-    smtp_port = int(os.getenv("SMTP_PORT", "587"))
-    smtp_user = os.getenv("SMTP_USER", "")
-    smtp_pass = os.getenv("SMTP_PASS", "")
-    from_email = os.getenv("SMTP_FROM") or smtp_user
+    sa_json = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON", "")
+    sender = os.getenv("SMTP_USER", "info@i-mentor.gr")
 
-    if not smtp_host or not smtp_user or not smtp_pass:
-        return False, "SMTP δεν έχει ρυθμιστεί (SMTP_HOST, SMTP_USER, SMTP_PASS)"
+    if not sa_json:
+        return False, "GOOGLE_SERVICE_ACCOUNT_JSON δεν έχει ρυθμιστεί"
 
     html_body = f"""<html><body style="font-family:Arial,sans-serif;padding:20px;color:#333;">
 <div style="max-width:600px;margin:0 auto;">
@@ -60,37 +57,26 @@ def _send_email(to_email: str, subject: str, body: str) -> tuple[bool, str]:
 </div></body></html>"""
 
     try:
+        from google.oauth2.service_account import Credentials
+        from googleapiclient.discovery import build
+
+        creds_data = json.loads(sa_json)
+        credentials = Credentials.from_service_account_info(
+            creds_data,
+            scopes=["https://www.googleapis.com/auth/gmail.send"],
+        ).with_subject(sender)
+
+        service = build("gmail", "v1", credentials=credentials, cache_discovery=False)
+
         msg = MIMEMultipart("alternative")
         msg["Subject"] = subject
-        msg["From"] = f"iMentor Consulting <{from_email}>"
+        msg["From"] = f"iMentor Consulting <{sender}>"
         msg["To"] = to_email
         msg.attach(MIMEText(html_body, "html", "utf-8"))
 
-        import socket as _socket
-        try:
-            ipv4 = _socket.getaddrinfo(smtp_host, None, _socket.AF_INET)[0][4][0]
-        except Exception:
-            ipv4 = smtp_host
-
-        last_err = None
-        for port, use_ssl in [(465, True), (587, False)]:
-            try:
-                if use_ssl:
-                    with smtplib.SMTP_SSL(ipv4, port, timeout=8) as server:
-                        server.ehlo()
-                        server.login(smtp_user, smtp_pass)
-                        server.sendmail(from_email, to_email, msg.as_string())
-                else:
-                    with smtplib.SMTP(ipv4, port, timeout=8) as server:
-                        server.ehlo()
-                        server.starttls()
-                        server.ehlo()
-                        server.login(smtp_user, smtp_pass)
-                        server.sendmail(from_email, to_email, msg.as_string())
-                return True, "OK"
-            except Exception as e:
-                last_err = f":{port} {e}"
-        return False, f"Gmail SMTP απέτυχε — {last_err}. Το Railway μπλοκάρει SMTP. Επαληθεύστε το domain i-mentor.gr στο Infobip → Email → Senders για αποστολή μέσω HTTPS."
+        raw = base64.urlsafe_b64encode(msg.as_bytes()).decode("utf-8")
+        service.users().messages().send(userId="me", body={"raw": raw}).execute()
+        return True, "OK"
     except Exception as e:
         return False, str(e)
 
