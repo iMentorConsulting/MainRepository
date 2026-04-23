@@ -2,13 +2,16 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter, useParams } from 'next/navigation'
+import dynamic from 'next/dynamic'
 import { getSocket, disconnectSocket } from '@/lib/socket'
 import { getRoom } from '@/lib/api'
-import YouTubePlayer from '@/components/YouTubePlayer'
 import Chat from '@/components/Chat'
 import MemberList from '@/components/MemberList'
 import Queue from '@/components/Queue'
-import ScreenShare from '@/components/ScreenShare'
+
+// Browser-only components — no SSR
+const YouTubePlayer = dynamic(() => import('@/components/YouTubePlayer'), { ssr: false })
+const ScreenShare = dynamic(() => import('@/components/ScreenShare'), { ssr: false })
 
 export interface Member { userId: string; username: string; socketId: string }
 export interface QueueItem {
