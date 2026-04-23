@@ -12,13 +12,26 @@ dotenv.config()
 const app = express()
 const httpServer = createServer(app)
 
-const allowedOrigin = process.env.FRONTEND_URL || 'http://localhost:3000'
+const allowedOrigins = [
+  process.env.FRONTEND_URL,
+  'http://localhost:3000',
+].filter(Boolean) as string[]
+
+function corsOrigin(origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) {
+  // Allow requests with no origin (mobile apps, curl, etc.)
+  if (!origin) return callback(null, true)
+  const allowed =
+    allowedOrigins.some(o => o === origin) ||
+    /\.vercel\.app$/.test(origin) ||
+    /\.up\.railway\.app$/.test(origin)
+  callback(allowed ? null : new Error('Not allowed by CORS'), allowed)
+}
 
 const io = new Server(httpServer, {
-  cors: { origin: allowedOrigin, credentials: true }
+  cors: { origin: corsOrigin, credentials: true }
 })
 
-app.use(cors({ origin: allowedOrigin, credentials: true }))
+app.use(cors({ origin: corsOrigin, credentials: true }))
 app.use(express.json())
 
 app.use('/api/auth', authRoutes)
