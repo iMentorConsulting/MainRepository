@@ -10,6 +10,20 @@ function generateCode(): string {
   return crypto.randomBytes(3).toString('hex').toUpperCase()
 }
 
+// Public room info (no auth) — for join screen
+router.get('/public/:id', async (req, res: Response) => {
+  try {
+    const room = await prisma.room.findUnique({
+      where: { id: req.params.id },
+      select: { name: true, code: true }
+    })
+    if (!room) { res.status(404).json({ error: 'Not found' }); return }
+    res.json(room)
+  } catch {
+    res.status(500).json({ error: 'Server error' })
+  }
+})
+
 // List public rooms
 router.get('/', requireAuth, async (req: AuthRequest, res: Response) => {
   try {
