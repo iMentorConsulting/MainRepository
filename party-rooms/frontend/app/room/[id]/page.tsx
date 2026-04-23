@@ -170,43 +170,47 @@ export default function RoomPage() {
   }
 
   return (
-    <div className="h-screen flex flex-col overflow-hidden">
-      {/* Header */}
-      <header className="glass border-b border-purple-800/50 px-4 py-2.5 flex items-center gap-3 shrink-0">
-        <button onClick={leaveRoom} className="text-purple-400 hover:text-white transition-colors text-sm">
-          ← Πίσω
+    <div className="h-[100dvh] flex flex-col overflow-hidden">
+      {/* Header — compact on mobile */}
+      <header className="glass border-b border-purple-800/50 px-3 py-2 md:px-4 md:py-2.5 flex items-center gap-2 shrink-0">
+        <button onClick={leaveRoom} className="text-purple-400 hover:text-white transition-colors text-sm shrink-0">
+          ←
         </button>
-        <div className="flex items-center gap-2 flex-1 min-w-0">
-          <span className="text-lg">🎉</span>
-          <h1 className="font-bold text-white truncate">{roomName}</h1>
+        <div className="flex items-center gap-1.5 flex-1 min-w-0">
+          <span className="text-base hidden sm:inline">🎉</span>
+          <h1 className="font-bold text-white text-sm md:text-base truncate">{roomName}</h1>
           {roomCode && (
             <button
               onClick={copyCode}
-              className="text-xs bg-purple-800/50 hover:bg-purple-700/50 text-purple-300 px-2 py-0.5 rounded-full transition-colors shrink-0"
+              className="text-xs bg-purple-800/50 hover:bg-purple-700/50 text-purple-300 px-1.5 py-0.5 rounded-full transition-colors shrink-0"
             >
               #{roomCode} {copied ? '✓' : '⎘'}
             </button>
           )}
         </div>
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-1.5 shrink-0">
           {controller && (
-            <span className="text-xs text-purple-400 hidden sm:block">
+            <span className="text-xs text-purple-400 hidden md:block">
               🎮 {controller.username}
             </span>
           )}
+          {isController && (
+            <span className="text-xs text-brand-400 font-medium md:hidden">🎮</span>
+          )}
           {isController && members.length > 1 && (
-            <button onClick={handlePassControl} className="btn-primary text-xs py-1 px-3">
+            <button onClick={handlePassControl} className="btn-primary text-xs py-1 px-2.5">
               Πάσο →
             </button>
           )}
         </div>
       </header>
 
-      {/* Main content */}
-      <div className="flex flex-1 overflow-hidden">
-        {/* Left: Video area */}
-        <div className="flex-1 flex flex-col overflow-hidden">
-          <div className="flex-1 bg-black relative">
+      {/* Main content — column on mobile, row on desktop */}
+      <div className="flex flex-col md:flex-row flex-1 overflow-hidden min-h-0">
+
+        {/* Video column — 16:9 fixed height on mobile, fills space on desktop */}
+        <div className="h-[56vw] md:h-auto md:flex-1 shrink-0 flex flex-col overflow-hidden">
+          <div className="flex-1 bg-black relative min-h-0">
             {isScreenSharing && screenSharerId ? (
               <ScreenShare
                 roomId={roomId}
@@ -226,9 +230,9 @@ export default function RoomPage() {
             )}
           </div>
 
-          {/* Screen share controls */}
+          {/* Screen share button — desktop only (mobile: shown in sidebar) */}
           {isController && !isScreenSharing && (
-            <div className="bg-[#0f0a1a] border-t border-purple-900/50 px-4 py-2 flex items-center gap-3">
+            <div className="hidden md:flex bg-[#0f0a1a] border-t border-purple-900/50 px-4 py-2 items-center gap-3 shrink-0">
               <span className="text-purple-400 text-xs">Είσαι ο controller</span>
               <button
                 onClick={() => {
@@ -244,15 +248,33 @@ export default function RoomPage() {
           )}
         </div>
 
-        {/* Right: Sidebar */}
-        <div className="w-72 lg:w-80 flex flex-col glass border-l border-purple-800/50 shrink-0">
+        {/* Sidebar — bottom on mobile (flex-1), right panel on desktop */}
+        <div className="flex-1 min-h-0 md:flex-none md:w-72 lg:w-80 flex flex-col glass border-t md:border-t-0 md:border-l border-purple-800/50 overflow-hidden">
+
+          {/* Mobile: screen share button when controller */}
+          {isController && !isScreenSharing && (
+            <div className="md:hidden bg-[#0f0a1a] border-b border-purple-900/50 px-3 py-1.5 flex items-center gap-2 shrink-0">
+              <span className="text-purple-400 text-xs flex-1">Είσαι ο controller</span>
+              <button
+                onClick={() => {
+                  getSocket().emit('screen:start', { roomId })
+                  setIsScreenSharing(true)
+                  setScreenSharerId(meRef.current?.userId || null)
+                }}
+                className="text-xs btn-ghost border border-purple-700 py-0.5 px-2"
+              >
+                📺 Οθόνη
+              </button>
+            </div>
+          )}
+
           {/* Tabs */}
           <div className="flex border-b border-purple-800/50 shrink-0">
             {(['chat', 'queue', 'members'] as const).map(t => (
               <button
                 key={t}
                 onClick={() => setTab(t)}
-                className={`flex-1 py-2.5 text-xs font-medium transition-colors ${
+                className={`flex-1 py-2 md:py-2.5 text-xs font-medium transition-colors ${
                   tab === t
                     ? 'text-brand-400 border-b-2 border-brand-500'
                     : 'text-purple-400 hover:text-purple-200'
@@ -267,7 +289,7 @@ export default function RoomPage() {
           </div>
 
           {/* Tab content */}
-          <div className="flex-1 overflow-hidden">
+          <div className="flex-1 overflow-hidden min-h-0">
             {tab === 'chat' && (
               <Chat
                 messages={messages}

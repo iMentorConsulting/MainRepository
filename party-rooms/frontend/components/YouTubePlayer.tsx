@@ -124,11 +124,11 @@ export default function YouTubePlayer({ video, isController, onVideoEvent, onAdd
             }}
           />
         ) : (
-          <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-6">
-            <div className="text-5xl mb-4">🎵</div>
-            <p className="text-purple-300 text-lg font-medium">Δεν παίζει τίποτα</p>
-            <p className="text-purple-500 text-sm mt-1">
-              {isController ? 'Πρόσθεσε ένα YouTube video παρακάτω' : 'Περίμενε τον controller να ξεκινήσει'}
+          <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-4">
+            <div className="text-3xl md:text-5xl mb-2 md:mb-4">🎵</div>
+            <p className="text-purple-300 text-sm md:text-lg font-medium">Δεν παίζει τίποτα</p>
+            <p className="text-purple-500 text-xs md:text-sm mt-1">
+              {isController ? 'Πρόσθεσε YouTube video στην Queue' : 'Περίμενε τον controller'}
             </p>
           </div>
         )}
@@ -139,9 +139,9 @@ export default function YouTubePlayer({ video, isController, onVideoEvent, onAdd
         )}
       </div>
 
-      {/* Controller input */}
+      {/* Controller input — hidden on mobile (shown in sidebar Queue tab instead) */}
       {isController && (
-        <div className="bg-[#0f0a1a] border-t border-purple-900/50 p-3">
+        <div className="hidden md:block bg-[#0f0a1a] border-t border-purple-900/50 p-3">
           <form onSubmit={handleAddVideo} className="flex gap-2">
             <input
               className="input text-sm py-1.5 flex-1"

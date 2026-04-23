@@ -75,29 +75,29 @@ export default function RoomsPage() {
   }
 
   return (
-    <main className="min-h-screen p-4">
+    <main className="min-h-[100dvh] p-3 md:p-4">
       {/* Header */}
-      <header className="max-w-5xl mx-auto flex items-center justify-between mb-8 pt-2">
+      <header className="max-w-5xl mx-auto flex items-center justify-between mb-5 md:mb-8 pt-1">
         <div className="flex items-center gap-2">
-          <span className="text-2xl">🎉</span>
-          <span className="font-bold text-white text-lg">Party Rooms</span>
+          <span className="text-xl md:text-2xl">🎉</span>
+          <span className="font-bold text-white text-base md:text-lg">Party Rooms</span>
         </div>
-        <div className="flex items-center gap-3">
-          <span className="text-purple-300 text-sm">👤 {username}</span>
-          <button onClick={logout} className="btn-ghost text-sm py-1.5">Έξοδος</button>
+        <div className="flex items-center gap-2">
+          <span className="text-purple-300 text-xs md:text-sm">👤 {username}</span>
+          <button onClick={logout} className="btn-ghost text-xs md:text-sm py-1 px-2 md:py-1.5 md:px-4">Έξοδος</button>
         </div>
       </header>
 
       <div className="max-w-5xl mx-auto">
         {/* Action buttons */}
-        <div className="flex gap-3 mb-6">
-          <button onClick={() => { setShowCreate(true); setShowJoin(false); setError('') }} className="btn-primary">
+        <div className="flex gap-2 md:gap-3 mb-4 md:mb-6">
+          <button onClick={() => { setShowCreate(true); setShowJoin(false); setError('') }} className="btn-primary text-sm md:text-base py-2 px-3 md:px-4">
             + Νέο Room
           </button>
-          <button onClick={() => { setShowJoin(true); setShowCreate(false); setError('') }} className="btn-ghost border border-purple-700">
-            Είσοδος με κωδικό
+          <button onClick={() => { setShowJoin(true); setShowCreate(false); setError('') }} className="btn-ghost border border-purple-700 text-sm md:text-base py-2 px-3 md:px-4">
+            Κωδικός
           </button>
-          <button onClick={loadRooms} className="btn-ghost ml-auto text-sm">↻ Ανανέωση</button>
+          <button onClick={loadRooms} className="btn-ghost ml-auto text-sm py-2">↻</button>
         </div>
 
         {/* Create Room */}
