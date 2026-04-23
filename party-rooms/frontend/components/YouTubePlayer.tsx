@@ -30,6 +30,14 @@ export default function YouTubePlayer({ video, isController, onVideoEvent, onAdd
   const lastSeekRef = useRef(0)
   const prevVideoIdRef = useRef<string | null>(null)
 
+  // Always-fresh refs so onReady/callbacks never have stale closures
+  const videoRef = useRef(video)
+  const videoReceivedAtRef = useRef(Date.now())
+  useEffect(() => {
+    videoRef.current = video
+    videoReceivedAtRef.current = Date.now()
+  }, [video])
+
   const [urlInput, setUrlInput] = useState('')
   const [addMode, setAddMode] = useState<'play' | 'queue'>('play')
   const [urlError, setUrlError] = useState('')
@@ -59,11 +67,20 @@ export default function YouTubePlayer({ video, isController, onVideoEvent, onAdd
     setTimeout(() => { isSyncingRef.current = false }, 300)
   }, [video])
 
+  // onReady: uses refs to always have fresh state + accounts for elapsed time
   const onReady = useCallback((e: YouTubeEvent) => {
     playerRef.current = e.target
-    if (video.currentTime > 0) e.target.seekTo(video.currentTime, true)
-    if (!video.isPlaying) e.target.pauseVideo()
-  }, [video.currentTime, video.isPlaying])
+    const v = videoRef.current
+    // Add elapsed time since we received the state (player init takes ~1-2s)
+    const elapsed = v.isPlaying ? (Date.now() - videoReceivedAtRef.current) / 1000 : 0
+    const seekTo = v.currentTime + elapsed
+    if (seekTo > 0) e.target.seekTo(seekTo, true)
+    if (v.isPlaying) {
+      e.target.playVideo()
+    } else {
+      e.target.pauseVideo()
+    }
+  }, [])
 
   const onStateChange = useCallback((e: YouTubeEvent) => {
     const state = e.data
