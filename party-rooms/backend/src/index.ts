@@ -5,6 +5,7 @@ import cors from 'cors'
 import dotenv from 'dotenv'
 import authRoutes from './routes/auth'
 import roomRoutes from './routes/rooms'
+import youtubeRoutes from './routes/youtube'
 import { setupSocket } from './socket'
 
 dotenv.config()
@@ -36,6 +37,7 @@ app.use(express.json())
 
 app.use('/api/auth', authRoutes)
 app.use('/api/rooms', roomRoutes)
+app.use('/api/youtube', youtubeRoutes)
 app.get('/health', (_, res) => res.json({ status: 'ok' }))
 
 setupSocket(io)

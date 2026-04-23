@@ -304,6 +304,7 @@ export default function RoomPage() {
                 myUserId={meRef.current?.userId || ''}
                 onRemove={handleRemoveFromQueue}
                 onAddToQueue={handleAddToQueue}
+                onVideoChange={handleVideoChange}
               />
             )}
             {tab === 'members' && (

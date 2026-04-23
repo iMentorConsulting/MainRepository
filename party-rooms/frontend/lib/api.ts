@@ -40,3 +40,9 @@ export async function createRoom(name: string, isPublic: boolean) {
   })
   return res.json()
 }
+
+export async function searchYouTube(q: string): Promise<{ videoId: string; title: string; thumbnail?: string; channel: string }[]> {
+  const res = await fetch(`${API}/api/youtube/search?q=${encodeURIComponent(q)}`, { headers: headers() })
+  if (!res.ok) return []
+  return res.json()
+}
