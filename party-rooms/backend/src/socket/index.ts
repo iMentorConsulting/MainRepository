@@ -31,10 +31,10 @@ interface RoomState {
   members: Member[]
   video: VideoState
   queue: QueueItem[]
-  controllerIndex: number
+  controllerUserId: string | null
   isScreenSharing: boolean
   screenSharerId: string | null
-  lastEndedAt: number  // deduplication for video:ended
+  lastEndedAt: number
 }
 
 const rooms = new Map<string, RoomState>()
@@ -45,7 +45,7 @@ function getOrCreateRoom(roomId: string): RoomState {
       members: [],
       video: { videoId: null, isPlaying: false, currentTime: 0, syncedAt: Date.now() },
       queue: [],
-      controllerIndex: 0,
+      controllerUserId: null,
       isScreenSharing: false,
       screenSharerId: null,
       lastEndedAt: 0
@@ -56,7 +56,11 @@ function getOrCreateRoom(roomId: string): RoomState {
 
 function getCurrentController(state: RoomState): Member | null {
   if (state.members.length === 0) return null
-  return state.members[state.controllerIndex % state.members.length] || null
+  if (state.controllerUserId) {
+    const found = state.members.find(m => m.userId === state.controllerUserId)
+    if (found) return found
+  }
+  return state.members[0]
 }
 
 function getLiveTime(video: VideoState): number {
@@ -92,14 +96,15 @@ export function setupSocket(io: Server) {
         alreadyIn.socketId = socket.id
       }
 
-      // Track membership in DB
+      // First member becomes controller if none set
+      if (!state.controllerUserId) state.controllerUserId = userId
+
       await prisma.roomMember.upsert({
         where: { roomId_userId: { roomId, userId } },
         create: { roomId, userId },
         update: {}
       })
 
-      // Send current state to the joining user
       socket.emit('room:state', {
         members: state.members,
         video: { ...state.video, currentTime: getLiveTime(state.video) },
@@ -109,11 +114,9 @@ export function setupSocket(io: Server) {
         screenSharerId: state.screenSharerId
       })
 
-      // Notify others
       socket.to(roomId).emit('room:member-joined', { userId, username })
       io.to(roomId).emit('room:members', state.members)
 
-      // Load recent messages from DB
       const messages = await prisma.message.findMany({
         where: { roomId },
         include: { user: { select: { username: true } } },
@@ -138,8 +141,7 @@ export function setupSocket(io: Server) {
     socket.on('video:play', ({ roomId, currentTime }: { roomId: string; currentTime: number }) => {
       const state = rooms.get(roomId)
       if (!state) return
-      const controller = getCurrentController(state)
-      if (controller?.userId !== userId) return
+      if (getCurrentController(state)?.userId !== userId) return
 
       state.video.isPlaying = true
       state.video.currentTime = currentTime
@@ -150,8 +152,7 @@ export function setupSocket(io: Server) {
     socket.on('video:pause', ({ roomId, currentTime }: { roomId: string; currentTime: number }) => {
       const state = rooms.get(roomId)
       if (!state) return
-      const controller = getCurrentController(state)
-      if (controller?.userId !== userId) return
+      if (getCurrentController(state)?.userId !== userId) return
 
       state.video.isPlaying = false
       state.video.currentTime = currentTime
@@ -162,8 +163,7 @@ export function setupSocket(io: Server) {
     socket.on('video:seek', ({ roomId, currentTime }: { roomId: string; currentTime: number }) => {
       const state = rooms.get(roomId)
       if (!state) return
-      const controller = getCurrentController(state)
-      if (controller?.userId !== userId) return
+      if (getCurrentController(state)?.userId !== userId) return
 
       state.video.currentTime = currentTime
       state.video.syncedAt = Date.now()
@@ -175,32 +175,34 @@ export function setupSocket(io: Server) {
     }) => {
       const state = rooms.get(roomId)
       if (!state) return
-      const controller = getCurrentController(state)
-      if (controller?.userId !== userId) return
+      if (getCurrentController(state)?.userId !== userId) return
 
       state.video = { videoId, isPlaying: false, currentTime: 0, syncedAt: Date.now() }
+      // Person who changed the video becomes controller
+      state.controllerUserId = userId
       io.to(roomId).emit('video:change', { videoId, title, thumbnail })
+      io.to(roomId).emit('control:changed', { controller: getCurrentController(state) })
     })
 
     socket.on('video:ended', ({ roomId }: { roomId: string }) => {
       const state = rooms.get(roomId)
       if (!state) return
 
-      // Deduplicate: ignore if already advanced within 3 seconds
       const now = Date.now()
       if (now - state.lastEndedAt < 3000) return
       state.lastEndedAt = now
 
-      // Auto-play next in queue
       if (state.queue.length > 0) {
         const next = state.queue.shift()!
         state.queue.forEach((item, i) => { item.position = i })
         state.video = { videoId: next.videoId, isPlaying: true, currentTime: 0, syncedAt: Date.now() }
+        // Person who queued the next video becomes controller
+        state.controllerUserId = next.addedBy
         io.to(roomId).emit('video:change', { videoId: next.videoId, title: next.title, thumbnail: next.thumbnail })
         io.to(roomId).emit('queue:updated', state.queue)
+        io.to(roomId).emit('control:changed', { controller: getCurrentController(state) })
         prisma.queueItem.delete({ where: { id: next.id } }).catch(() => {})
       } else {
-        // Queue empty — clear current video
         state.video = { videoId: null, isPlaying: false, currentTime: 0, syncedAt: Date.now() }
         io.to(roomId).emit('video:change', { videoId: null, title: '', thumbnail: undefined })
       }
@@ -223,12 +225,14 @@ export function setupSocket(io: Server) {
       }
       state.queue.push(queueItem)
 
-      // If nothing is playing, start immediately
       if (!state.video.videoId) {
         state.queue.shift()
         state.video = { videoId, isPlaying: true, currentTime: 0, syncedAt: Date.now() }
+        // Person who added becomes controller
+        state.controllerUserId = userId
         io.to(roomId).emit('video:change', { videoId, title, thumbnail })
         io.to(roomId).emit('queue:updated', state.queue)
+        io.to(roomId).emit('control:changed', { controller: getCurrentController(state) })
         prisma.queueItem.delete({ where: { id: item.id } }).catch(() => {})
       } else {
         io.to(roomId).emit('queue:updated', state.queue)
@@ -245,16 +249,17 @@ export function setupSocket(io: Server) {
       prisma.queueItem.delete({ where: { id: itemId } }).catch(() => {})
     })
 
-    // ── CONTROL ROTATION ───────────────────────────────────────────────────
+    // ── CONTROL PASS ───────────────────────────────────────────────────────
     socket.on('control:pass', ({ roomId }: { roomId: string }) => {
       const state = rooms.get(roomId)
       if (!state) return
-      const controller = getCurrentController(state)
-      if (controller?.userId !== userId) return
+      if (getCurrentController(state)?.userId !== userId) return
+      if (state.members.length < 2) return
 
-      state.controllerIndex = (state.controllerIndex + 1) % state.members.length
-      const next = getCurrentController(state)
-      io.to(roomId).emit('control:changed', { controller: next })
+      const currentIdx = state.members.findIndex(m => m.userId === userId)
+      const nextIdx = (currentIdx + 1) % state.members.length
+      state.controllerUserId = state.members[nextIdx].userId
+      io.to(roomId).emit('control:changed', { controller: getCurrentController(state) })
     })
 
     // ── CHAT ───────────────────────────────────────────────────────────────
@@ -325,8 +330,9 @@ function handleLeave(socket: Socket, io: Server, roomId: string, userId: string)
     return
   }
 
-  if (wasController && state.controllerIndex >= state.members.length) {
-    state.controllerIndex = 0
+  // Transfer controller to first remaining member
+  if (wasController) {
+    state.controllerUserId = state.members[0].userId
   }
 
   if (state.screenSharerId === userId) {
@@ -335,10 +341,9 @@ function handleLeave(socket: Socket, io: Server, roomId: string, userId: string)
     io.to(roomId).emit('screen:stopped')
   }
 
-  const newController = getCurrentController(state)
   io.to(roomId).emit('room:member-left', { userId })
   io.to(roomId).emit('room:members', state.members)
   if (wasController) {
-    io.to(roomId).emit('control:changed', { controller: newController })
+    io.to(roomId).emit('control:changed', { controller: getCurrentController(state) })
   }
 }

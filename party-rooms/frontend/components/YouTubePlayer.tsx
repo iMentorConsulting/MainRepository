@@ -36,11 +36,13 @@ export default function YouTubePlayer({ video, isController, onVideoEvent, onAdd
   useEffect(() => {
     videoRef.current = video
     videoReceivedAtRef.current = Date.now()
+    setNeedsTap(false)
   }, [video])
 
   const [urlInput, setUrlInput] = useState('')
   const [addMode, setAddMode] = useState<'play' | 'queue'>('play')
   const [urlError, setUrlError] = useState('')
+  const [needsTap, setNeedsTap] = useState(false)
 
   // Sync play/pause/seek — skip when videoId changed (key prop handles remount)
   useEffect(() => {
@@ -71,12 +73,19 @@ export default function YouTubePlayer({ video, isController, onVideoEvent, onAdd
   const onReady = useCallback((e: YouTubeEvent) => {
     playerRef.current = e.target
     const v = videoRef.current
-    // Add elapsed time since we received the state (player init takes ~1-2s)
     const elapsed = v.isPlaying ? (Date.now() - videoReceivedAtRef.current) / 1000 : 0
     const seekTo = v.currentTime + elapsed
     if (seekTo > 0) e.target.seekTo(seekTo, true)
     if (v.isPlaying) {
-      e.target.playVideo()
+      // iOS Safari blocks programmatic play without user gesture — show tap overlay
+      try {
+        const p = e.target.playVideo()
+        if (p && typeof p.catch === 'function') {
+          p.catch(() => setNeedsTap(true))
+        }
+      } catch {
+        setNeedsTap(true)
+      }
     } else {
       e.target.pauseVideo()
     }
@@ -158,9 +167,24 @@ export default function YouTubePlayer({ video, isController, onVideoEvent, onAdd
           </div>
         )}
 
-        {/* Viewer overlay to prevent interaction */}
+        {/* Viewer overlay: tap-to-sync on iOS, block on others */}
         {!isController && video.videoId && (
-          <div className="absolute inset-0 z-10 cursor-not-allowed" />
+          needsTap ? (
+            <div
+              className="absolute inset-0 z-10 flex items-center justify-center bg-black/60 cursor-pointer"
+              onClick={() => {
+                playerRef.current?.playVideo()
+                setNeedsTap(false)
+              }}
+            >
+              <div className="text-center">
+                <div className="text-5xl mb-2">▶</div>
+                <p className="text-white text-sm font-medium">Πάτα για σύγχρονο</p>
+              </div>
+            </div>
+          ) : (
+            <div className="absolute inset-0 z-10 cursor-not-allowed" />
+          )
         )}
       </div>
 
