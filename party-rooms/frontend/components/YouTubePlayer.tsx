@@ -33,16 +33,28 @@ export default function YouTubePlayer({ video, isController, onVideoEvent, onAdd
   // Always-fresh refs so onReady/callbacks never have stale closures
   const videoRef = useRef(video)
   const videoReceivedAtRef = useRef(Date.now())
-  useEffect(() => {
-    videoRef.current = video
-    videoReceivedAtRef.current = Date.now()
-    setNeedsTap(false)
-  }, [video])
 
   const [urlInput, setUrlInput] = useState('')
   const [addMode, setAddMode] = useState<'play' | 'queue'>('play')
   const [urlError, setUrlError] = useState('')
-  const [needsTap, setNeedsTap] = useState(false)
+
+  // iOS detection (client-side only)
+  const [isIOS, setIsIOS] = useState(false)
+  // Whether iOS viewer has already tapped to start the current video
+  const [hasTapped, setHasTapped] = useState(false)
+
+  useEffect(() => {
+    const ios =
+      /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+    setIsIOS(ios)
+  }, [])
+
+  useEffect(() => {
+    videoRef.current = video
+    videoReceivedAtRef.current = Date.now()
+    setHasTapped(false) // reset tap state for each new video
+  }, [video])
 
   // Sync play/pause/seek — skip when videoId changed (key prop handles remount)
   useEffect(() => {
@@ -77,15 +89,7 @@ export default function YouTubePlayer({ video, isController, onVideoEvent, onAdd
     const seekTo = v.currentTime + elapsed
     if (seekTo > 0) e.target.seekTo(seekTo, true)
     if (v.isPlaying) {
-      // iOS Safari blocks programmatic play without user gesture — show tap overlay
-      try {
-        const p = e.target.playVideo()
-        if (p && typeof p.catch === 'function') {
-          p.catch(() => setNeedsTap(true))
-        }
-      } catch {
-        setNeedsTap(true)
-      }
+      e.target.playVideo() // silently fails on iOS without gesture — tap overlay handles it
     } else {
       e.target.pauseVideo()
     }
@@ -132,6 +136,9 @@ export default function YouTubePlayer({ video, isController, onVideoEvent, onAdd
     setUrlInput('')
   }
 
+  // Show tap overlay on iOS when video is playing and viewer hasn't tapped yet
+  const showTapOverlay = !isController && !!video.videoId && isIOS && video.isPlaying && !hasTapped
+
   return (
     <div className="w-full h-full flex flex-col bg-black">
       {/* Player */}
@@ -150,6 +157,7 @@ export default function YouTubePlayer({ video, isController, onVideoEvent, onAdd
               height: '100%',
               playerVars: {
                 autoplay: 1,
+                playsinline: 1,       // required for iOS inline playback
                 controls: isController ? 1 : 0,
                 disablekb: isController ? 0 : 1,
                 modestbranding: 1,
@@ -167,24 +175,31 @@ export default function YouTubePlayer({ video, isController, onVideoEvent, onAdd
           </div>
         )}
 
-        {/* Viewer overlay: tap-to-sync on iOS, block on others */}
-        {!isController && video.videoId && (
-          needsTap ? (
-            <div
-              className="absolute inset-0 z-10 flex items-center justify-center bg-black/60 cursor-pointer"
-              onClick={() => {
-                playerRef.current?.playVideo()
-                setNeedsTap(false)
-              }}
-            >
-              <div className="text-center">
-                <div className="text-5xl mb-2">▶</div>
-                <p className="text-white text-sm font-medium">Πάτα για σύγχρονο</p>
-              </div>
+        {/* iOS: tap overlay to satisfy user-gesture requirement */}
+        {showTapOverlay && (
+          <div
+            className="absolute inset-0 z-10 flex items-center justify-center bg-black/70 cursor-pointer"
+            onClick={() => {
+              const player = playerRef.current
+              if (player) {
+                const v = videoRef.current
+                const elapsed = (Date.now() - videoReceivedAtRef.current) / 1000
+                player.seekTo(v.currentTime + elapsed, true)
+                player.playVideo()
+              }
+              setHasTapped(true)
+            }}
+          >
+            <div className="text-center select-none">
+              <div className="text-6xl mb-3">▶</div>
+              <p className="text-white text-base font-semibold">Πάτα για σύγχρονο</p>
             </div>
-          ) : (
-            <div className="absolute inset-0 z-10 cursor-not-allowed" />
-          )
+          </div>
+        )}
+
+        {/* Non-iOS viewer: block all interaction */}
+        {!isController && video.videoId && !showTapOverlay && (
+          <div className="absolute inset-0 z-10 cursor-not-allowed" />
         )}
       </div>
 
