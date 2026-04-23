@@ -28,13 +28,18 @@ export default function YouTubePlayer({ video, isController, onVideoEvent, onAdd
   const playerRef = useRef<YTPlayer | null>(null)
   const isSyncingRef = useRef(false)
   const lastSeekRef = useRef(0)
+  const prevVideoIdRef = useRef<string | null>(null)
 
   const [urlInput, setUrlInput] = useState('')
   const [addMode, setAddMode] = useState<'play' | 'queue'>('play')
   const [urlError, setUrlError] = useState('')
 
-  // Sync playback state from remote events
+  // Sync play/pause/seek — skip when videoId changed (key prop handles remount)
   useEffect(() => {
+    if (video.videoId !== prevVideoIdRef.current) {
+      prevVideoIdRef.current = video.videoId
+      return
+    }
     const player = playerRef.current
     if (!player) return
 
@@ -61,17 +66,19 @@ export default function YouTubePlayer({ video, isController, onVideoEvent, onAdd
   }, [video.currentTime, video.isPlaying])
 
   const onStateChange = useCallback((e: YouTubeEvent) => {
-    if (isSyncingRef.current || !isController) return
-    const player = e.target
     const state = e.data
 
-    if (state === 1) { // playing
-      onVideoEvent('play', player.getCurrentTime())
-    } else if (state === 2) { // paused
-      onVideoEvent('pause', player.getCurrentTime())
-    } else if (state === 0) { // ended
+    // Everyone fires ended so queue advances even if controller disconnects
+    if (state === 0) {
       onVideoEvent('ended', 0)
+      return
     }
+
+    // Only controller fires play/pause
+    if (isSyncingRef.current || !isController) return
+    const player = e.target
+    if (state === 1) onVideoEvent('play', player.getCurrentTime())
+    else if (state === 2) onVideoEvent('pause', player.getCurrentTime())
   }, [isController, onVideoEvent])
 
   const onSeek = useCallback(() => {
@@ -105,6 +112,7 @@ export default function YouTubePlayer({ video, isController, onVideoEvent, onAdd
       <div className="flex-1 relative">
         {video.videoId ? (
           <YouTube
+            key={video.videoId}
             videoId={video.videoId}
             onReady={onReady}
             onStateChange={onStateChange}

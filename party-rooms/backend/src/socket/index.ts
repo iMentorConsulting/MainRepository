@@ -34,6 +34,7 @@ interface RoomState {
   controllerIndex: number
   isScreenSharing: boolean
   screenSharerId: string | null
+  lastEndedAt: number  // deduplication for video:ended
 }
 
 const rooms = new Map<string, RoomState>()
@@ -46,7 +47,8 @@ function getOrCreateRoom(roomId: string): RoomState {
       queue: [],
       controllerIndex: 0,
       isScreenSharing: false,
-      screenSharerId: null
+      screenSharerId: null,
+      lastEndedAt: 0
     })
   }
   return rooms.get(roomId)!
@@ -183,8 +185,11 @@ export function setupSocket(io: Server) {
     socket.on('video:ended', ({ roomId }: { roomId: string }) => {
       const state = rooms.get(roomId)
       if (!state) return
-      const controller = getCurrentController(state)
-      if (controller?.userId !== userId) return
+
+      // Deduplicate: ignore if already advanced within 3 seconds
+      const now = Date.now()
+      if (now - state.lastEndedAt < 3000) return
+      state.lastEndedAt = now
 
       // Auto-play next in queue
       if (state.queue.length > 0) {
@@ -193,12 +198,11 @@ export function setupSocket(io: Server) {
         state.video = { videoId: next.videoId, isPlaying: true, currentTime: 0, syncedAt: Date.now() }
         io.to(roomId).emit('video:change', { videoId: next.videoId, title: next.title, thumbnail: next.thumbnail })
         io.to(roomId).emit('queue:updated', state.queue)
-
-        // Remove from DB
         prisma.queueItem.delete({ where: { id: next.id } }).catch(() => {})
       } else {
-        state.video.isPlaying = false
-        io.to(roomId).emit('video:pause', { currentTime: 0 })
+        // Queue empty — clear current video
+        state.video = { videoId: null, isPlaying: false, currentTime: 0, syncedAt: Date.now() }
+        io.to(roomId).emit('video:change', { videoId: null, title: '', thumbnail: undefined })
       }
     })
 
