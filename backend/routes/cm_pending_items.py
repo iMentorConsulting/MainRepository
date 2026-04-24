@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional, List
-from datetime import datetime as _dt
+from datetime import datetime as _dt, date as _date
 from database import get_db
 from models_cases import CMCase, CMPendingItemTemplate, CMCasePendingItem
 from auth_cases import get_current_user
@@ -110,6 +110,57 @@ def delete_template(
     db.delete(t)
     db.commit()
     return {"message": "Διαγράφηκε"}
+
+
+# ── Global view: all cases with pending items OR upcoming deadlines ────────────
+
+@router.get("/api/cm/pending-items/all")
+def list_all_pending_overview(
+    program_category: Optional[str] = None,
+    assigned_agent_id: Optional[int] = None,
+    search: Optional[str] = None,
+    current_user: CMUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    today = _date.today()
+    deadline_horizon = today.replace(year=today.year + 1)  # next 12 months
+
+    q = db.query(CMCase)
+    if program_category:
+        q = q.filter(CMCase.program_category == program_category)
+    if assigned_agent_id:
+        q = q.filter(CMCase.assigned_agent_id == assigned_agent_id)
+    if search:
+        q = q.filter(CMCase.client_name.ilike(f"%{search}%"))
+
+    cases = q.all()
+
+    result = []
+    for c in cases:
+        items = c.pending_items  # already ordered by sort_order via relationship
+        days_to_deadline = (c.project_deadline - today).days if c.project_deadline else None
+        has_pending = len(items) > 0
+        has_deadline = c.project_deadline is not None and c.project_deadline <= deadline_horizon
+
+        if not has_pending and not has_deadline:
+            continue
+
+        result.append({
+            "id": c.id,
+            "client_name": c.client_name,
+            "program_category": c.program_category,
+            "service_type": c.service_type,
+            "status": c.status,
+            "status_category": c.status_category,
+            "assigned_agent_name": c.assigned_agent.full_name if c.assigned_agent else None,
+            "assigned_agent_id": c.assigned_agent_id,
+            "project_deadline": c.project_deadline.isoformat() if c.project_deadline else None,
+            "days_to_deadline": days_to_deadline,
+            "pending_count": len(items),
+            "pending_items": [_item_to_dict(i) for i in items],
+        })
+
+    return result
 
 
 # ── Per-case pending items ─────────────────────────────────────────────────────

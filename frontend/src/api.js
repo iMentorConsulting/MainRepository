@@ -122,5 +122,6 @@ export const createCasePendingItem = (caseId, data) => api.post(`/api/cm/cases/$
 export const updateCasePendingItem = (caseId, itemId, data) => api.put(`/api/cm/cases/${caseId}/pending-items/${itemId}`, data).then(r => r.data)
 export const deleteCasePendingItem = (caseId, itemId) => api.delete(`/api/cm/cases/${caseId}/pending-items/${itemId}`).then(r => r.data)
 export const notifyCasePendingItems = (caseId, data) => api.post(`/api/cm/cases/${caseId}/pending-items/notify`, data).then(r => r.data)
+export const getAllPendingOverview = (params = {}) => api.get('/api/cm/pending-items/all', { params }).then(r => r.data)
 
 export default api

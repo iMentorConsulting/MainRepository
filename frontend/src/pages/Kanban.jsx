@@ -11,8 +11,11 @@ import {
   ChevronRightIcon,
   ArrowsRightLeftIcon,
   ExclamationCircleIcon,
+  Cog6ToothIcon,
 } from '@heroicons/react/24/outline'
 import toast from 'react-hot-toast'
+import PendingTemplatesPanel from '../components/PendingTemplatesPanel'
+import SLAConfigPanel from '../components/SLAConfigPanel'
 
 const PROGRAM_TABS = ['ΕΣΠΑ', 'ΔΥΠΑ', 'ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ']
 const PROGRAM_LABELS = { ΕΣΠΑ: 'ΕΣΠΑ', ΔΥΠΑ: 'ΔΥΠΑ / ΟΑΕΔ', ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ: 'Μικροπιστώσεις' }
@@ -247,6 +250,8 @@ export default function Kanban() {
   const [filterAgent, setFilterAgent] = useState('')
   const [filterService, setFilterService] = useState('')
   const [filterSLA, setFilterSLA] = useState(0)
+  const [showPendingTemplates, setShowPendingTemplates] = useState(false)
+  const [showSLA, setShowSLA] = useState(false)
 
   const pipeline = PIPELINES[activeProgram]
 
@@ -293,9 +298,17 @@ export default function Kanban() {
             {filtered.length} ενεργές · {PROGRAM_LABELS[activeProgram]}
           </p>
         </div>
-        <button onClick={load} className="text-sm text-gray-500 hover:text-gray-800 bg-white border border-gray-200 hover:border-gray-300 px-3 py-1.5 rounded-lg transition-colors">
-          Ανανέωση
-        </button>
+        <div className="flex gap-2">
+          <button onClick={() => setShowPendingTemplates(true)} className="flex items-center gap-2 text-sm bg-white border border-gray-200 hover:border-orange-300 px-3 py-1.5 rounded-lg transition-colors">
+            <ClipboardDocumentListIcon className="w-4 h-4 text-orange-500" /> Κατάλογος Εκκρεμοτήτων
+          </button>
+          <button onClick={() => setShowSLA(true)} className="flex items-center gap-2 text-sm bg-white border border-gray-200 hover:border-gray-300 px-3 py-1.5 rounded-lg transition-colors">
+            <Cog6ToothIcon className="w-4 h-4 text-gray-500" /> Ρυθμίσεις SLA
+          </button>
+          <button onClick={load} className="text-sm text-gray-500 hover:text-gray-800 bg-white border border-gray-200 hover:border-gray-300 px-3 py-1.5 rounded-lg transition-colors">
+            Ανανέωση
+          </button>
+        </div>
       </div>
 
       {/* Program tabs */}
@@ -372,6 +385,9 @@ export default function Kanban() {
           />
         </div>
       )}
+
+      {showPendingTemplates && <PendingTemplatesPanel onClose={() => setShowPendingTemplates(false)} />}
+      {showSLA && <SLAConfigPanel onClose={() => setShowSLA(false)} />}
     </div>
   )
 }

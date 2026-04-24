@@ -1,12 +1,11 @@
 import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { getDashboardStats, getSLAConfig, updateSLAConfig, sendSLANotifications, getPendingItemTemplates, createPendingItemTemplate, updatePendingItemTemplate, deletePendingItemTemplate } from '../api'
+import { getDashboardStats, sendSLANotifications } from '../api'
 import { getAuth } from '../api'
-import { PIPELINES, CATEGORY_COLORS } from '../pipelines'
+import { CATEGORY_COLORS } from '../pipelines'
 import {
   FolderOpenIcon, CurrencyEuroIcon, ClockIcon, ExclamationTriangleIcon,
-  ClipboardDocumentListIcon, UserGroupIcon, Cog6ToothIcon, ChevronDownIcon, ChevronRightIcon,
-  BellIcon, PencilIcon, PlusIcon, TrashIcon, XMarkIcon,
+  UserGroupIcon, ChevronDownIcon, ChevronRightIcon, BellIcon,
 } from '@heroicons/react/24/outline'
 import toast from 'react-hot-toast'
 
@@ -32,6 +31,7 @@ const PROG_COLORS = {
   ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ: 'bg-purple-100 text-purple-800',
 }
 
+// SLAConfigPanel and PendingTemplatesPanel moved to src/components/
 function SLAConfigPanel({ onClose }) {
   const [tab, setTab] = useState('days') // 'days' | 'messages'
   const [config, setConfig] = useState([])
@@ -410,8 +410,6 @@ function SLAActionCenter({ slaOverdue, onRefresh }) {
 export default function Dashboard() {
   const [stats, setStats] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [showSLA, setShowSLA] = useState(false)
-  const [showPendingTemplates, setShowPendingTemplates] = useState(false)
   const [expandedProgram, setExpandedProgram] = useState(null)
   const navigate = useNavigate()
 
@@ -449,14 +447,6 @@ export default function Dashboard() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
           <p className="text-sm text-gray-500">Επισκόπηση · Μόνο Admin</p>
-        </div>
-        <div className="flex gap-2">
-          <button onClick={() => setShowPendingTemplates(true)} className="flex items-center gap-2 text-sm bg-white border border-gray-200 hover:border-orange-300 px-3 py-1.5 rounded-lg transition-colors">
-            <ClipboardDocumentListIcon className="w-4 h-4 text-orange-500" /> Κατάλογος Εκκρεμοτήτων
-          </button>
-          <button onClick={() => setShowSLA(true)} className="flex items-center gap-2 text-sm bg-white border border-gray-200 hover:border-gray-300 px-3 py-1.5 rounded-lg transition-colors">
-            <Cog6ToothIcon className="w-4 h-4 text-gray-500" /> Ρυθμίσεις SLA
-          </button>
         </div>
       </div>
 
@@ -618,8 +608,6 @@ export default function Dashboard() {
         <SLAActionCenter slaOverdue={stats.sla_overdue} />
       </div>
 
-      {showSLA && <SLAConfigPanel onClose={() => setShowSLA(false)} />}
-      {showPendingTemplates && <PendingTemplatesPanel onClose={() => setShowPendingTemplates(false)} />}
     </div>
   )
 }
