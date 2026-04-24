@@ -12,6 +12,7 @@ import {
   ArrowsRightLeftIcon,
   ExclamationCircleIcon,
   Cog6ToothIcon,
+  MagnifyingGlassIcon,
 } from '@heroicons/react/24/outline'
 import toast from 'react-hot-toast'
 import PendingTemplatesPanel from '../components/PendingTemplatesPanel'
@@ -250,6 +251,7 @@ export default function Kanban() {
   const [filterAgent, setFilterAgent] = useState('')
   const [filterService, setFilterService] = useState('')
   const [filterSLA, setFilterSLA] = useState(0)
+  const [filterSearch, setFilterSearch] = useState('')
   const [showPendingTemplates, setShowPendingTemplates] = useState(false)
   const [showSLA, setShowSLA] = useState(false)
 
@@ -274,7 +276,8 @@ export default function Kanban() {
   const filtered = cases.filter(c =>
     (!filterAgent || String(c.assigned_agent_id) === filterAgent) &&
     (!filterService || c.service_type === filterService) &&
-    (!filterSLA || (c.sla_overdue_days != null && c.sla_overdue_days >= filterSLA))
+    (!filterSLA || (c.sla_overdue_days != null && c.sla_overdue_days >= filterSLA)) &&
+    (!filterSearch || c.client_name?.toLowerCase().includes(filterSearch.toLowerCase()))
   )
 
   // Build lookup: status → [cases]
@@ -326,13 +329,18 @@ export default function Kanban() {
         ))}
       </div>
 
-      {/* Agent filter */}
-      <div className="flex gap-3 mb-3 flex-shrink-0 items-center">
-        <select
-          className="input w-auto text-sm"
-          value={filterService}
-          onChange={e => setFilterService(e.target.value)}
-        >
+      {/* Filters */}
+      <div className="flex gap-3 mb-3 flex-shrink-0 items-center flex-wrap">
+        <div className="relative">
+          <MagnifyingGlassIcon className="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+          <input
+            className="pl-8 pr-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white w-48"
+            placeholder="Αναζήτηση πελάτη..."
+            value={filterSearch}
+            onChange={e => setFilterSearch(e.target.value)}
+          />
+        </div>
+        <select className="input w-auto text-sm" value={filterService} onChange={e => setFilterService(e.target.value)}>
           <option value="">Όλα τα Προγράμματα</option>
           {[...new Set(cases.map(c => c.service_type).filter(Boolean))].sort().map(s => (
             <option key={s} value={s}>{s}</option>
@@ -344,17 +352,12 @@ export default function Kanban() {
         </select>
         <div className="flex items-center gap-1.5">
           <span className="text-sm text-gray-500 whitespace-nowrap">SLA &gt;</span>
-          <input
-            type="number"
-            min="0"
-            className="input w-20 text-sm"
-            placeholder="ημ."
-            value={filterSLA || ''}
-            onChange={e => setFilterSLA(parseInt(e.target.value) || 0)}
-          />
+          <input type="number" min="0" className="input w-20 text-sm" placeholder="ημ."
+            value={filterSLA || ''} onChange={e => setFilterSLA(parseInt(e.target.value) || 0)} />
         </div>
-        {(filterAgent || filterService || filterSLA > 0) && (
-          <button onClick={() => { setFilterAgent(''); setFilterService(''); setFilterSLA(0) }} className="text-sm text-gray-500 hover:text-gray-800 underline">
+        {(filterAgent || filterService || filterSLA > 0 || filterSearch) && (
+          <button onClick={() => { setFilterAgent(''); setFilterService(''); setFilterSLA(0); setFilterSearch('') }}
+            className="text-sm text-gray-500 hover:text-gray-800 underline">
             Καθαρισμός
           </button>
         )}

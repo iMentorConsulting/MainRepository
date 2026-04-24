@@ -67,9 +67,7 @@ const TABS = [
   'Επισκόπηση',
   'Εκκρεμότητες',
   'Tasks',
-  'Πληρωμές',
   'Μηνύματα',
-  'Έγγραφα',
   'Προϋπολογισμός',
 ]
 
@@ -837,9 +835,7 @@ export default function CaseDetail() {
           <TasksTab caseId={id} users={users} />
         )}
 
-        {activeTab === 'Πληρωμές' && <PaymentsTab caseId={id} caseData={caseData} onRefresh={load} />}
         {activeTab === 'Μηνύματα' && <MessagesTab caseId={id} caseData={caseData} onRefresh={load} />}
-        {activeTab === 'Έγγραφα' && <DocumentsTab caseId={id} caseData={caseData} onRefresh={load} />}
         {activeTab === 'Προϋπολογισμός' && <BudgetTab caseId={id} caseData={caseData} onRefresh={load} />}
       </div>
     </div>
