@@ -7,7 +7,7 @@ from datetime import datetime, date
 from database import get_db
 from models_cases import CMCase, CMUser, CMTask, CMPayment, CMMessage, CMDocument, CMBudgetCategory, CMStatusSLA
 from auth_cases import get_current_user
-from pipelines import TERMINAL_CATEGORIES, get_status_category
+from pipelines import TERMINAL_STATUSES
 
 router = APIRouter(prefix="/api/cm/cases", tags=["cm-cases"])
 
@@ -85,7 +85,6 @@ def case_to_dict(c: CMCase, include_related: bool = False, sla_map: dict = None)
         "sale_date": c.sale_date.isoformat() if c.sale_date else None,
         "service_type": c.service_type,
         "status": c.status,
-        "status_category": c.status_category,
         "program_category": c.program_category,
         "approved_budget": c.approved_budget or 0,
         "subsidy_percent": c.subsidy_percent or 0,
@@ -200,7 +199,6 @@ def bc_to_dict(b: CMBudgetCategory) -> dict:
 @router.get("/")
 def list_cases(
     status: Optional[str] = Query(None),
-    status_category: Optional[str] = Query(None),
     program_category: Optional[str] = Query(None),
     agent_id: Optional[int] = Query(None),
     service_type: Optional[str] = Query(None),
@@ -214,15 +212,8 @@ def list_cases(
 
     if status:
         q = q.filter(CMCase.status == status)
-    elif status_category:
-        q = q.filter(CMCase.status_category == status_category)
     elif not include_terminal:
-        q = q.filter(
-            or_(
-                CMCase.status_category == None,
-                ~CMCase.status_category.in_(list(TERMINAL_CATEGORIES)),
-            )
-        )
+        q = q.filter(~CMCase.status.in_(list(TERMINAL_STATUSES)))
 
     if program_category:
         q = q.filter(CMCase.program_category == program_category)
@@ -309,7 +300,6 @@ def create_case(
         service_type=req.service_type,
         status=_status,
         program_category=req.program_category or 'ΕΣΠΑ',
-        status_category=get_status_category(_status),
         approved_budget=req.approved_budget or 0,
         subsidy_percent=req.subsidy_percent or 0,
         project_deadline=req.project_deadline,
@@ -342,7 +332,6 @@ def update_case(
     for field, val in data.items():
         setattr(c, field, val)
     if 'status' in data:
-        c.status_category = get_status_category(data['status'])
         c.status_changed_at = datetime.utcnow()
     c.updated_at = datetime.utcnow()
     db.commit()

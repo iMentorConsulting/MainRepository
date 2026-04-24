@@ -23,11 +23,10 @@ Base.metadata.create_all(bind=engine)
 
 # Startup migration: add new columns and backfill status data
 from sqlalchemy import text as _text
-from pipelines import OLD_STATUS_MAP as _OSM, STATUS_CATEGORY_MAP as _SCM
+from pipelines import OLD_STATUS_MAP as _OSM
 from database import SessionLocal
 try:
     with engine.connect() as _conn:
-        _conn.execute(_text("ALTER TABLE cm_cases ADD COLUMN IF NOT EXISTS status_category VARCHAR(50)"))
         _conn.execute(_text("ALTER TABLE cm_cases ADD COLUMN IF NOT EXISTS program_category VARCHAR(50)"))
         _conn.execute(_text("ALTER TABLE cm_cases ADD COLUMN IF NOT EXISTS status_changed_at TIMESTAMP"))
         _conn.execute(_text("ALTER TABLE cm_status_sla ADD COLUMN IF NOT EXISTS notification_message TEXT"))
@@ -42,7 +41,6 @@ with SessionLocal() as _db:
             _c.status = _OSM[_c.status]
         if not _c.program_category:
             _c.program_category = 'ΕΣΠΑ'
-        _c.status_category = _SCM.get(_c.status, 'INTERNAL PROCESS')
     _db.commit()
 
 # Import new models so create_all creates their tables

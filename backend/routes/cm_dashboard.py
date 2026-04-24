@@ -5,7 +5,7 @@ from datetime import date, datetime, timedelta
 from database import get_db
 from models_cases import CMCase, CMTask, CMUser, CMStatusSLA
 from auth_cases import require_admin, CMUser as CMUserModel
-from pipelines import TERMINAL_CATEGORIES
+from pipelines import TERMINAL_STATUSES
 
 router = APIRouter(prefix="/api/cm/dashboard", tags=["cm-dashboard"])
 
@@ -21,10 +21,10 @@ def dashboard_stats(
     now = datetime.utcnow()
     in_30 = today + timedelta(days=30)
     in_15 = today + timedelta(days=15)
-    terminal = list(TERMINAL_CATEGORIES)
+    terminal = list(TERMINAL_STATUSES)
 
     def active_q():
-        return db.query(CMCase).filter(~CMCase.status_category.in_(terminal))
+        return db.query(CMCase).filter(~CMCase.status.in_(terminal))
 
     # ── Summary ──────────────────────────────────────────────────────────
     total_active = active_q().count()
@@ -32,15 +32,15 @@ def dashboard_stats(
     fin = db.query(
         func.sum(CMCase.agreed_fee_application + CMCase.agreed_fee_implementation),
         func.sum(CMCase.total_paid),
-    ).filter(~CMCase.status_category.in_(terminal)).first()
+    ).filter(~CMCase.status.in_(terminal)).first()
     total_agreed = fmt_eur(fin[0])
     total_paid = fmt_eur(fin[1])
     total_balance = round(total_agreed - total_paid, 2)
 
     deadline_30 = active_q().filter(CMCase.project_deadline != None, CMCase.project_deadline <= in_30, CMCase.project_deadline >= today).count()
     deadline_15 = active_q().filter(CMCase.project_deadline != None, CMCase.project_deadline <= in_15, CMCase.project_deadline >= today).count()
-    open_tasks = db.query(CMTask).join(CMCase).filter(~CMCase.status_category.in_(terminal), CMTask.status != "done").count()
-    overdue_tasks = db.query(CMTask).join(CMCase).filter(~CMCase.status_category.in_(terminal), CMTask.status != "done", CMTask.due_date != None, CMTask.due_date < today).count()
+    open_tasks = db.query(CMTask).join(CMCase).filter(~CMCase.status.in_(terminal), CMTask.status != "done").count()
+    overdue_tasks = db.query(CMTask).join(CMCase).filter(~CMCase.status.in_(terminal), CMTask.status != "done", CMTask.due_date != None, CMTask.due_date < today).count()
 
     # ── By Program ────────────────────────────────────────────────────────
     by_program = []
@@ -49,7 +49,7 @@ def dashboard_stats(
             func.count(CMCase.id),
             func.sum(CMCase.agreed_fee_application + CMCase.agreed_fee_implementation),
             func.sum(CMCase.total_paid),
-        ).filter(~CMCase.status_category.in_(terminal), CMCase.program_category == prog).first()
+        ).filter(~CMCase.status.in_(terminal), CMCase.program_category == prog).first()
         cnt, ag, pd = int(rows[0] or 0), fmt_eur(rows[1]), fmt_eur(rows[2])
         by_program.append({"program_category": prog, "count": cnt, "total_agreed": ag, "total_paid": pd, "total_balance": round(ag - pd, 2)})
 
@@ -60,7 +60,7 @@ def dashboard_stats(
         func.count(CMCase.id),
         func.sum(CMCase.agreed_fee_application + CMCase.agreed_fee_implementation),
         func.sum(CMCase.total_paid),
-    ).filter(~CMCase.status_category.in_(terminal)).group_by(CMCase.service_type, CMCase.program_category).order_by(CMCase.program_category, CMCase.service_type).all()
+    ).filter(~CMCase.status.in_(terminal)).group_by(CMCase.service_type, CMCase.program_category).order_by(CMCase.program_category, CMCase.service_type).all()
 
     by_service_type = []
     for svc, prog, cnt, ag, pd in svc_rows:
@@ -95,7 +95,7 @@ def dashboard_stats(
     agents_data = []
     for agent in db.query(CMUser).filter(CMUser.is_active == True).all():
         cnt = active_q().filter(CMCase.assigned_agent_id == agent.id).count()
-        bal_row = db.query(func.sum(CMCase.agreed_fee_application + CMCase.agreed_fee_implementation - CMCase.total_paid)).filter(~CMCase.status_category.in_(terminal), CMCase.assigned_agent_id == agent.id).scalar()
+        bal_row = db.query(func.sum(CMCase.agreed_fee_application + CMCase.agreed_fee_implementation - CMCase.total_paid)).filter(~CMCase.status.in_(terminal), CMCase.assigned_agent_id == agent.id).scalar()
         agents_data.append({"agent_name": agent.full_name, "case_count": cnt, "total_balance": fmt_eur(bal_row)})
     agents_data.sort(key=lambda x: x["case_count"], reverse=True)
 

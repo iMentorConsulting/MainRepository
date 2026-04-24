@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { getDashboardStats, sendSLANotifications } from '../api'
 import { getAuth } from '../api'
-import { CATEGORY_COLORS } from '../pipelines'
 import {
   FolderOpenIcon, CurrencyEuroIcon, ClockIcon, ExclamationTriangleIcon,
   UserGroupIcon, ChevronDownIcon, ChevronRightIcon, BellIcon,

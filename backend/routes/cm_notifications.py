@@ -240,10 +240,10 @@ def send_sla_notifications(
         raise HTTPException(status_code=400, detail="Δεν έχει ρυθμιστεί μήνυμα για αυτή την κατάσταση")
 
     from datetime import datetime as _dt
-    from pipelines import TERMINAL_CATEGORIES
+    from pipelines import TERMINAL_STATUSES
     now = _dt.utcnow()
     cases = db.query(CMCase).filter(
-        ~CMCase.status_category.in_(list(TERMINAL_CATEGORIES)),
+        ~CMCase.status.in_(list(TERMINAL_STATUSES)),
         CMCase.status == req.status,
         CMCase.status_changed_at != None,
     ).all()

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { getCases, getUsers, deleteCase, createCase } from '../api'
-import { PIPELINES, CATEGORY_COLORS, STATUS_CATEGORIES } from '../pipelines'
+import { PIPELINES } from '../pipelines'
 import { MagnifyingGlassIcon, PlusIcon, TrashIcon, FolderOpenIcon } from '@heroicons/react/24/outline'
 import toast from 'react-hot-toast'
 
@@ -124,7 +124,6 @@ export default function Cases() {
   const [search, setSearch] = useState('')
   const [filters, setFilters] = useState({
     program_category: '',
-    status_category: '',
     agent_id: '',
     service_type: '',
     deadline_alert: false,
@@ -138,7 +137,6 @@ export default function Cases() {
       const params = {}
       if (search) params.search = search
       if (filters.program_category) params.program_category = filters.program_category
-      if (filters.status_category) params.status_category = filters.status_category
       if (filters.agent_id) params.agent_id = filters.agent_id
       if (filters.service_type) params.service_type = filters.service_type
       if (filters.deadline_alert) params.deadline_alert = true
@@ -181,10 +179,6 @@ export default function Cases() {
           <option value="">Όλα τα Pipelines</option>
           {PROGRAM_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
-        <select className="input w-auto" value={filters.status_category} onChange={e => setFilters(f => ({ ...f, status_category: e.target.value }))}>
-          <option value="">Όλες οι Καταστάσεις</option>
-          {STATUS_CATEGORIES.map(cat => <option key={cat} value={cat}>{cat}</option>)}
-        </select>
         <select className="input w-auto" value={filters.service_type} onChange={e => setFilters(f => ({ ...f, service_type: e.target.value }))}>
           <option value="">Όλα τα Προγράμματα</option>
           {serviceTypes.map(s => <option key={s} value={s}>{s}</option>)}
@@ -224,7 +218,6 @@ export default function Cases() {
               <tbody className="divide-y divide-gray-100">
                 {cases.map(c => {
                   const urgent = c.days_to_deadline !== null && c.days_to_deadline <= 15 && c.days_to_deadline >= 0
-                  const statusColor = CATEGORY_COLORS[c.status_category] || 'bg-gray-100 text-gray-600'
                   return (
                     <tr key={c.id} onClick={() => navigate(`/cases/${c.id}`)} className="hover:bg-gray-50 cursor-pointer">
                       <td className="px-4 py-3">
@@ -236,10 +229,7 @@ export default function Cases() {
                         <div className="truncate text-xs">{c.service_type || '—'}</div>
                       </td>
                       <td className="px-4 py-3 max-w-48">
-                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusColor}`}>
-                          {c.status_category || '—'}
-                        </span>
-                        <div className="text-xs text-gray-400 mt-0.5 truncate" title={c.status}>{c.status}</div>
+                        <div className="text-xs text-gray-700 truncate font-medium" title={c.status}>{c.status || '—'}</div>
                       </td>
                       <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{c.assigned_agent_name || <span className="text-gray-300">—</span>}</td>
                       <td className="px-4 py-3 text-right whitespace-nowrap">

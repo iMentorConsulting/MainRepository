@@ -133,8 +133,8 @@ export const PIPELINES = {
     label: 'Μικροπιστώσεις',
     phases: [
       {
-        id: 'ONBOARDING',
-        label: 'Onboarding',
+        id: 'ΠΡΟΕΤΟΙΜΑΣΙΑ',
+        label: 'Προετοιμασία',
         color: 'blue',
         statuses: [
           'ΠΛΗΡΩΜΗ 150€',
@@ -179,7 +179,7 @@ export const PIPELINES = {
   },
 }
 
-export const STATUS_CATEGORY_MAP = {
+const _STATUS_CATEGORY_MAP_REMOVED = {
   'ΥΠΟΒΟΛΗ ΑΙΤΗΣΗΣ': 'SUBMITTED',
   'ΕΝΑΡΞΗ / ΑΠΟΔΟΣΗ ΑΦΜ': 'INTERNAL PROCESS',
   'ΣΥΓΚΕΝΤΡΩΣΗ ΤΙΜΟΛΟΓΙΩΝ': 'INTERNAL PROCESS',
@@ -258,30 +258,5 @@ export const STATUS_CATEGORY_MAP = {
   'ΕΚΚΡΕΜΟΤΗΤΑ ΑΠΟ ΟΠΣΚΕ': 'UNDER REVIEW',
 }
 
-export const TERMINAL_CATEGORIES = new Set(['COMPLETED', 'CANCELLED'])
+export const TERMINAL_STATUSES = new Set(['ΟΛΟΚΛΗΡΩΜΕΝΗ ΥΠΟΘΕΣΗ', 'ΠΑΡΑΙΤΗΣΗ', 'ΑΠΟΡΡΙΨΗ', 'ΑΚΥΡΩΣΗ'])
 
-export const CATEGORY_COLORS = {
-  'NEW': 'bg-blue-100 text-blue-800',
-  'PENDING CLIENT': 'bg-amber-100 text-amber-800',
-  'INTERNAL PROCESS': 'bg-indigo-100 text-indigo-800',
-  'SUBMITTED': 'bg-cyan-100 text-cyan-800',
-  'UNDER REVIEW': 'bg-yellow-100 text-yellow-800',
-  'APPROVED': 'bg-green-100 text-green-800',
-  'PAID / DISBURSED': 'bg-emerald-100 text-emerald-800',
-  'ON HOLD': 'bg-orange-100 text-orange-800',
-  'CANCELLED': 'bg-red-100 text-red-800',
-  'COMPLETED': 'bg-purple-100 text-purple-800',
-}
-
-export const STATUS_CATEGORIES = [
-  'NEW',
-  'PENDING CLIENT',
-  'INTERNAL PROCESS',
-  'SUBMITTED',
-  'UNDER REVIEW',
-  'APPROVED',
-  'PAID / DISBURSED',
-  'ON HOLD',
-  'CANCELLED',
-  'COMPLETED',
-]

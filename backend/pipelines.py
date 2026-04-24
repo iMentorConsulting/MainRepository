@@ -139,8 +139,8 @@ PIPELINES = {
         "label": "Μικροπιστώσεις",
         "phases": [
             {
-                "id": "ONBOARDING",
-                "label": "Onboarding",
+                "id": "ΠΡΟΕΤΟΙΜΑΣΙΑ",
+                "label": "Προετοιμασία",
                 "color": "blue",
                 "statuses": [
                     "ΠΛΗΡΩΜΗ 150€",
@@ -195,91 +195,13 @@ PIPELINES = {
     },
 }
 
-STATUS_CATEGORY_MAP = {
-    # ΕΣΠΑ
-    "ΥΠΟΒΟΛΗ ΑΙΤΗΣΗΣ": "SUBMITTED",
-    "ΕΝΑΡΞΗ / ΑΠΟΔΟΣΗ ΑΦΜ": "INTERNAL PROCESS",
-    "ΣΥΓΚΕΝΤΡΩΣΗ ΤΙΜΟΛΟΓΙΩΝ": "INTERNAL PROCESS",
-    "ΕΛΕΓΧΟΣ ΤΙΜΟΛΟΓΙΩΝ": "INTERNAL PROCESS",
-    "ΛΙΣΤΑ ΕΚΚΡΕΜΟΤΗΤΩΝ ΠΡΟΣ ΠΕΛΑΤΗ": "PENDING CLIENT",
-    "ΠΡΟΣΚΟΜΙΣΗ ΕΚΚΡΕΜΟΤΗΤΩΝ": "PENDING CLIENT",
-    "ΥΠΟΒΟΛΗ Α' ΑΙΤΗΜΑΤΟΣ": "SUBMITTED",
-    "ΕΚΚΡΕΜΟΤΗΤΕΣ ΑΠΟ ΑΝΑΠΤΥΞΙΑΚΗ": "UNDER REVIEW",
-    "ΚΑΛΥΨΗ ΕΚΚΡΕΜΟΤΗΤΩΝ ΑΝΑΠΤΥΞΙΑΚΗΣ": "INTERNAL PROCESS",
-    "ΕΓΚΡΙΣΗ Α' ΑΙΤΗΜΑΤΟΣ": "APPROVED",
-    "ΕΚΤΑΜΙΕΥΣΗ Α' ΑΙΤΗΜΑΤΟΣ": "PAID / DISBURSED",
-    "ΣΥΓΚΕΝΤΡΩΣΗ ΤΙΜΟΛΟΓΙΩΝ Β' ΑΙΤΗΜΑΤΟΣ": "INTERNAL PROCESS",
-    "ΕΛΕΓΧΟΣ ΤΙΜΟΛΟΓΙΩΝ Β' ΑΙΤΗΜΑΤΟΣ": "INTERNAL PROCESS",
-    "ΛΙΣΤΑ ΕΚΚΡΕΜΟΤΗΤΩΝ Β' ΑΙΤΗΜΑΤΟΣ": "PENDING CLIENT",
-    "ΥΠΟΒΟΛΗ Β' ΑΙΤΗΜΑΤΟΣ": "SUBMITTED",
-    "ΕΚΚΡΕΜΟΤΗΤΕΣ ΑΠΟ ΑΝΑΠΤΥΞΙΑΚΗ Β' ΑΙΤΗΜΑΤΟΣ": "UNDER REVIEW",
-    "ΚΑΛΥΨΗ ΕΚΚΡΕΜΟΤΗΤΩΝ ΑΝΑΠΤΥΞΙΑΚΗΣ Β' ΑΙΤΗΜΑΤΟΣ": "INTERNAL PROCESS",
-    "ΕΓΚΡΙΣΗ Β' ΑΙΤΗΜΑΤΟΣ": "APPROVED",
-    "ΕΚΤΑΜΙΕΥΣΗ Β' ΑΙΤΗΜΑΤΟΣ": "PAID / DISBURSED",
-    "ΣΥΓΚΕΝΤΡΩΣΗ ΤΙΜΟΛΟΓΙΩΝ ΤΕΛΙΚΟΥ ΑΙΤΗΜΑΤΟΣ": "INTERNAL PROCESS",
-    "ΕΛΕΓΧΟΣ ΤΙΜΟΛΟΓΙΩΝ ΤΕΛΙΚΟΥ ΑΙΤΗΜΑΤΟΣ": "INTERNAL PROCESS",
-    "ΛΙΣΤΑ ΕΚΚΡΕΜΟΤΗΤΩΝ ΤΕΛΙΚΟΥ ΑΙΤΗΜΑΤΟΣ": "PENDING CLIENT",
-    "ΥΠΟΒΟΛΗ ΤΕΛΙΚΟΥ ΑΙΤΗΜΑΤΟΣ": "SUBMITTED",
-    "ΕΚΚΡΕΜΟΤΗΤΕΣ ΑΠΟ ΑΝΑΠΤΥΞΙΑΚΗ ΤΕΛΙΚΟΥ ΑΙΤΗΜΑΤΟΣ": "UNDER REVIEW",
-    "ΚΑΛΥΨΗ ΕΚΚΡΕΜΟΤΗΤΩΝ ΑΝΑΠΤΥΞΙΑΚΗΣ ΤΕΛΙΚΟΥ ΑΙΤΗΜΑΤΟΣ": "INTERNAL PROCESS",
-    "ΕΓΚΡΙΣΗ ΤΕΛΙΚΟΥ ΑΙΤΗΜΑΤΟΣ": "APPROVED",
-    "ΤΕΛΙΚΗ ΕΚΤΑΜΙΕΥΣΗ": "PAID / DISBURSED",
-    "ΤΡΟΠΟΠΟΙΗΣΗ": "INTERNAL PROCESS",
-    "ΕΝΣΤΑΣΗ": "ON HOLD",
-    "ΠΑΡΑΙΤΗΣΗ": "CANCELLED",
-    # ΔΥΠΑ
-    "ΕΓΚΡΙΣΗ": "APPROVED",
-    "ΕΝΑΡΞΗ ΕΠΙΧΕΙΡΗΣΗΣ": "INTERNAL PROCESS",
-    "ΑΠΟΔΟΣΗ ΑΦΜ": "INTERNAL PROCESS",
-    "ΤΡΟΠΟΠΟΙΗΣΗ ΕΔΡΑΣ": "INTERNAL PROCESS",
-    "ΑΝΑΜΟΝΗ ΔΙΚΑΙΟΛΟΓΗΤΙΚΩΝ Α' ΑΙΤΗΜΑΤΟΣ": "PENDING CLIENT",
-    "ΕΠΙΤΟΠΙΟΣ ΕΛΕΓΧΟΣ Α' ΑΙΤΗΜΑΤΟΣ": "UNDER REVIEW",
-    "ΑΣΦΑΛΙΣΤΙΚΗ & ΦΟΡΟΛΟΓΙΚΗ ΕΝΗΜΕΡΟΤΗΤΑ Α' ΑΙΤΗΜΑΤΟΣ": "INTERNAL PROCESS",
-    "ΕΓΚΡΙΣΗ ΑΙΤΗΜΑΤΟΣ ΑΠΟ ΟΠΣΚΕ": "APPROVED",
-    "ΑΠΟΔΟΧΗ Α' ΑΙΤΗΜΑΤΟΣ": "APPROVED",
-    "1η ΕΚΤΑΜΙΕΥΣΗ": "PAID / DISBURSED",
-    "ΑΝΑΜΟΝΗ ΔΙΚΑΙΟΛΟΓΗΤΙΚΩΝ Β' ΑΙΤΗΜΑΤΟΣ": "PENDING CLIENT",
-    "ΕΠΙΤΟΠΙΟΣ ΕΛΕΓΧΟΣ Β' ΑΙΤΗΜΑΤΟΣ": "UNDER REVIEW",
-    "ΑΣΦΑΛΙΣΤΙΚΗ & ΦΟΡΟΛΟΓΙΚΗ ΕΝΗΜΕΡΟΤΗΤΑ Β' ΑΙΤΗΜΑΤΟΣ": "INTERNAL PROCESS",
-    "ΕΓΚΡΙΣΗ Β' ΑΙΤΗΜΑΤΟΣ ΑΠΟ ΟΠΣΚΕ": "APPROVED",
-    "ΑΠΟΔΟΧΗ Β' ΑΙΤΗΜΑΤΟΣ": "APPROVED",
-    "2η ΕΚΤΑΜΙΕΥΣΗ": "PAID / DISBURSED",
-    "ΑΝΑΜΟΝΗ ΔΙΚΑΙΟΛΟΓΗΤΙΚΩΝ Γ' ΑΙΤΗΜΑΤΟΣ": "PENDING CLIENT",
-    "ΥΠΟΒΟΛΗ Γ' ΑΙΤΗΜΑΤΟΣ": "SUBMITTED",
-    "ΕΠΙΤΟΠΙΟΣ ΕΛΕΓΧΟΣ Γ' ΑΙΤΗΜΑΤΟΣ": "UNDER REVIEW",
-    "ΑΣΦΑΛΙΣΤΙΚΗ & ΦΟΡΟΛΟΓΙΚΗ ΕΝΗΜΕΡΟΤΗΤΑ Γ' ΑΙΤΗΜΑΤΟΣ": "INTERNAL PROCESS",
-    "ΕΓΚΡΙΣΗ Γ' ΑΙΤΗΜΑΤΟΣ ΑΠΟ ΟΠΣΚΕ": "APPROVED",
-    "ΑΠΟΔΟΧΗ Γ' ΑΙΤΗΜΑΤΟΣ": "APPROVED",
-    "3η / ΤΕΛΙΚΗ ΕΚΤΑΜΙΕΥΣΗ": "PAID / DISBURSED",
-    # ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ
-    "ΠΛΗΡΩΜΗ 150€": "INTERNAL PROCESS",
-    "ΑΠΟΣΤΟΛΗ ΕΡΩΤΗΜΑΤΟΛΟΓΙΟΥ": "INTERNAL PROCESS",
-    "ΑΝΑΜΟΝΗ ΑΠΑΝΤΗΣΗΣ ΕΡΩΤΗΜΑΤΟΛΟΓΙΟΥ": "PENDING CLIENT",
-    "ΣΥΝΤΑΞΗ BUSINESS PLAN": "INTERNAL PROCESS",
-    "ΑΝΑΜΟΝΗ ΥΠΟΓΡΑΦΗΣ BUSINESS PLAN": "PENDING CLIENT",
-    "ΥΠΟΓΡΑΦΗ BUSINESS PLAN ΟΛΟΚΛΗΡΩΘΗΚΕ": "INTERNAL PROCESS",
-    "ΥΠΟΒΟΛΗ BUSINESS PLAN ΣΤΗΝ HDB": "SUBMITTED",
-    "ΑΝΑΜΟΝΗ ΑΠΟΔΟΧΩΝ ΑΠΟ ΤΑΜΕΙΑ": "UNDER REVIEW",
-    "ΑΠΟΔΟΧΗ ΑΠΟ ΤΑΜΕΙΑ": "APPROVED",
-    "ΠΛΗΡΩΜΗ 310€": "INTERNAL PROCESS",
-    "OPSKE / ESG": "INTERNAL PROCESS",
-    "ΕΠΙΚΟΙΝΩΝΙΑ ΜΕ ΤΑΜΕΙΟ": "INTERNAL PROCESS",
-    "ΣΥΛΛΟΓΗ ΔΙΚΑΙΟΛΟΓΗΤΙΚΩΝ & ΥΠΕΥΘΥΝΩΝ ΔΗΛΩΣΕΩΝ": "INTERNAL PROCESS",
-    "ΑΝΑΜΟΝΗ ΔΙΚΑΙΟΛΟΓΗΤΙΚΩΝ ΑΠΟ ΠΕΛΑΤΗ": "PENDING CLIENT",
-    "ΥΠΟΒΟΛΗ ΔΙΚΑΙΟΛΟΓΗΤΙΚΩΝ ΣΤΑ ΤΑΜΕΙΑ": "SUBMITTED",
-    "ΥΠΟ ΑΞΙΟΛΟΓΗΣΗ": "UNDER REVIEW",
-    "ΕΚΤΑΜΙΕΥΣΗ": "PAID / DISBURSED",
-    # Common
-    "ΟΛΟΚΛΗΡΩΜΕΝΗ ΥΠΟΘΕΣΗ": "COMPLETED",
-    "ΣΕ ΑΝΑΜΟΝΗ ΠΕΛΑΤΗ": "PENDING CLIENT",
-    "ΠΑΓΩΜΕΝΗ ΥΠΟΘΕΣΗ": "ON HOLD",
-    "ΑΠΟΡΡΙΨΗ": "CANCELLED",
-    "ΑΚΥΡΩΣΗ": "CANCELLED",
-    "ΕΚΚΡΕΜΟΤΗΤΑ ΑΠΟ ΟΠΣΚΕ": "UNDER REVIEW",
-}
 
-ALL_STATUSES: set = set(STATUS_CATEGORY_MAP.keys())
-TERMINAL_CATEGORIES = {"COMPLETED", "CANCELLED"}
+TERMINAL_STATUSES = {
+    "ΟΛΟΚΛΗΡΩΜΕΝΗ ΥΠΟΘΕΣΗ",
+    "ΠΑΡΑΙΤΗΣΗ",
+    "ΑΠΟΡΡΙΨΗ",
+    "ΑΚΥΡΩΣΗ",
+}
 
 OLD_STATUS_MAP = {
     "ΕΓΚΡΙΣΗ - ΠΡΙΝ ΤΟ 1ο ΑΙΤΗΜΑ": "ΣΥΓΚΕΝΤΡΩΣΗ ΤΙΜΟΛΟΓΙΩΝ",
@@ -288,10 +210,6 @@ OLD_STATUS_MAP = {
     "ΕΝΣΤΑΣΗ": "ΕΝΣΤΑΣΗ",
     "ΣΕ ΤΕΛΙΚΟ ΑΙΤΗΜΑ ΕΛΕΓΧΟΥ": "ΥΠΟΒΟΛΗ ΤΕΛΙΚΟΥ ΑΙΤΗΜΑΤΟΣ",
 }
-
-
-def get_status_category(status: str) -> str:
-    return STATUS_CATEGORY_MAP.get(status, "INTERNAL PROCESS")
 
 
 def get_all_statuses_for_program(program_category: str) -> list:

@@ -151,7 +151,6 @@ def list_all_pending_overview(
             "program_category": c.program_category,
             "service_type": c.service_type,
             "status": c.status,
-            "status_category": c.status_category,
             "assigned_agent_name": c.assigned_agent.full_name if c.assigned_agent else None,
             "assigned_agent_id": c.assigned_agent_id,
             "project_deadline": c.project_deadline.isoformat() if c.project_deadline else None,

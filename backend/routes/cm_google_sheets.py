@@ -8,7 +8,7 @@ from typing import List, Optional
 from datetime import datetime, date
 from database import get_db
 from models_cases import CMCase
-from pipelines import OLD_STATUS_MAP, STATUS_CATEGORY_MAP, get_status_category
+from pipelines import OLD_STATUS_MAP
 from auth_cases import get_current_user, require_admin, CMUser
 
 router = APIRouter(prefix="/api/cm/sheets", tags=["cm-sheets"])
@@ -137,7 +137,8 @@ def _match_agent_id(responsible: str, users: list) -> int | None:
 def _rows_to_records(rows: list[list]) -> list[dict]:
     """Convert raw sheet rows to normalized dicts, skip header. Merge duplicate rows."""
     # Accept both old-format statuses (via OLD_STATUS_MAP) and any current pipeline status
-    valid_import_statuses = set(OLD_STATUS_MAP.keys()) | set(STATUS_CATEGORY_MAP.keys())
+    from pipelines import get_all_statuses_for_program
+    valid_import_statuses = set(OLD_STATUS_MAP.keys()) | set(get_all_statuses_for_program('ΕΣΠΑ')) | set(get_all_statuses_for_program('ΔΥΠΑ')) | set(get_all_statuses_for_program('ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ'))
     merged: dict[str, dict] = {}
     if not rows:
         return []
@@ -280,7 +281,6 @@ def import_from_sheet(
             service_type=r["service_type"],
             status=r["status"],
             program_category='ΕΣΠΑ',
-            status_category=STATUS_CATEGORY_MAP.get(r["status"], 'INTERNAL PROCESS'),
             approved_budget=r["approved_budget"],
             project_deadline=r["project_deadline"],
             approval_date=r["approval_date"],
@@ -450,8 +450,6 @@ def assign_programs(
         for c in q.all():
             if c.program_category != a.program_category:
                 c.program_category = a.program_category
-                # Re-compute status_category in case status meaning differs by program
-                c.status_category = get_status_category(c.status)
                 total_updated += 1
     db.commit()
     return {"updated": total_updated, "message": f"Ενημερώθηκαν {total_updated} υποθέσεις."}
