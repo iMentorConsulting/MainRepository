@@ -6,6 +6,8 @@ from models import Case
 
 router = APIRouter(prefix="/public", tags=["public"])
 
+EXCLUDED_IPS = {"5.59.243.16", "2001:4860:7:1511::fe"}
+
 
 @router.get("/case/{token}")
 def get_public_case(token: str, request: Request, vat: str = Query(default=None), db: Session = Depends(get_db)):
@@ -22,15 +24,16 @@ def get_public_case(token: str, request: Request, vat: str = Query(default=None)
         if vat.strip() != (case.client_vat or "").strip():
             raise HTTPException(status_code=403, detail="vat_invalid")
 
-    # Log portal visit
+    # Log portal visit (skip staff IPs)
     try:
-        now = datetime.utcnow().isoformat()
         ip = request.client.host if request.client else "unknown"
-        visits = list(case.portal_visits or [])
-        visits.append({"at": now, "ip": ip})
-        case.portal_visits = visits
-        case.portal_visit_count = len(visits)
-        db.commit()
+        if ip not in EXCLUDED_IPS:
+            now = datetime.utcnow().isoformat()
+            visits = list(case.portal_visits or [])
+            visits.append({"at": now, "ip": ip})
+            case.portal_visits = visits
+            case.portal_visit_count = len(visits)
+            db.commit()
     except Exception:
         db.rollback()
 

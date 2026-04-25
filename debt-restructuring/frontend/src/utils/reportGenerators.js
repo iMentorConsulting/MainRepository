@@ -316,73 +316,110 @@ export function buildEmailHtml(data) {
     ? `<div style="margin-top:12px;padding:12px 14px;background:#eff6ff;border-left:4px solid #3b82f6;border-radius:6px;font-size:14px;line-height:1.6;"><b>Παρατήρηση (Τράπεζες):</b><br>Το αποτέλεσμα προσομοιώνει την πρόταση του αλγορίθμου του Εξωδικαστικού Μηχανισμού. Η πρόταση υιοθετείται από το Δημόσιο (ΕΦΚΑ &amp; ΑΑΔΕ) και αποστέλλεται στις Τράπεζες. Οι Τράπεζες δύνανται να αποδεχθούν την πρόταση ή να υποβάλουν επίσημα Αντιπρόταση — η οποία συνήθως είναι δυσμενέστερη.</div>`
     : ''
 
+  // Icon badge helper — works across Gmail/Outlook/Apple Mail
+  const badge = (symbol, color, bg) =>
+    `<span style="display:inline-block;background:${bg};border:1px solid ${color}33;border-radius:6px;padding:1px 8px;color:${color};font-size:13px;font-weight:700;vertical-align:middle;margin-right:6px;">${symbol}</span>`
+
+  // VAT offer helper
+  const fmtOffer = (net) => {
+    if (!net) return '<span style="color:#6b7280;">..... €</span> <span style="font-size:12px;color:#9ca3af;">+ ΦΠΑ 24%</span>'
+    const n = Number(net)
+    const gross = Math.round(n * 1.24)
+    return `<b>${n.toLocaleString('el-GR')}€</b> <span style="font-size:12px;color:#6b7280;">+ ΦΠΑ 24% = ${gross.toLocaleString('el-GR')}€</span>`
+  }
+
+  const hasOffer = commercialOffer && (commercialOffer.application_fee || commercialOffer.success_fee)
+
   return `<div id="emailContent" style="font-family:Calibri,Arial,sans-serif;color:#1a1a1a;line-height:1.6;font-size:15px;">
   <p>Αγαπητέ/ή ${escHtml(clientName)},</p>
   <p>Η ομάδα της <b>i-Mentor Consulting</b> ολοκλήρωσε την ανάλυση και παρουσιάζει τα αποτελέσματα της <b>Θεωρητικής Προσομοίωσης Εξωδικαστικού Μηχανισμού</b>.</p>
-  <hr style="border:none;border-top:1px solid #d9e2ef;margin:16px 0;">
-  <p><b>📊 Σύνολο Οφειλών: ${fmt(totalDebt)}</b></p>
-  <ul>
-    <li><b>Προς τράπεζες:</b> ${fmt(bankDebt || 0)}</li>
-    <li><b>Προς ασφαλιστικά ταμεία:</b> ${fmt(insDebt || 0)}</li>
-    <li><b>Προς ΑΑΔΕ / εφορία:</b> ${fmt(taxDebt || 0)}</li>
-  </ul>
-  <p><b>💶 Διαθέσιμο μηνιαίο εισόδημα: ${fmt(dispMonthly)}</b></p>
-  <p style="margin-top:14px;font-size:16px;"><b>💳 Εκτιμώμενο Θεωρητικό Αποτέλεσμα Ρύθμισης</b></p>
-  <table style="border-collapse:collapse;width:100%;font-size:14px;margin-top:10px;">
-    <thead style="background:#004aad;color:#fff;text-align:center;">
-      <tr>
-        <th style="padding:8px;border:1px solid #d9e2ef;">Πιστωτής</th>
-        <th style="padding:8px;border:1px solid #d9e2ef;">Αρχική Οφειλή</th>
-        <th style="padding:8px;border:1px solid #d9e2ef;">Εκτιμώμενη Διαγραφή</th>
-        <th style="padding:8px;border:1px solid #d9e2ef;">Εναπομένουσα</th>
-        <th style="padding:8px;border:1px solid #d9e2ef;">Διάρκεια</th>
-        <th style="padding:8px;border:1px solid #d9e2ef;">Μηνιαία Δόση</th>
+  <hr style="border:none;border-top:2px solid #e0e7ff;margin:18px 0;">
+
+  <p style="margin:0 0 6px;">${badge('⚖', '#4338ca', '#eef2ff')}<b style="font-size:16px;color:#1e3a5f;">Σύνολο Οφειλών: ${fmt(totalDebt)}</b></p>
+  <table style="border-collapse:collapse;width:100%;font-size:14px;margin:8px 0 16px;">
+    ${bankDebt > 0 ? `<tr><td style="padding:4px 12px;color:#374151;">Τράπεζες</td><td style="padding:4px 12px;font-weight:700;text-align:right;">${fmt(bankDebt)}</td></tr>` : ''}
+    ${insDebt > 0 ? `<tr><td style="padding:4px 12px;color:#374151;">Ασφαλιστικά Ταμεία</td><td style="padding:4px 12px;font-weight:700;text-align:right;">${fmt(insDebt)}</td></tr>` : ''}
+    ${taxDebt > 0 ? `<tr><td style="padding:4px 12px;color:#374151;">ΑΑΔΕ / Εφορία</td><td style="padding:4px 12px;font-weight:700;text-align:right;">${fmt(taxDebt)}</td></tr>` : ''}
+    ${dispMonthly > 0 ? `<tr style="border-top:1px solid #e0e7ff;"><td style="padding:6px 12px;color:#374151;">Μηνιαίο Διαθέσιμο Εισόδημα</td><td style="padding:6px 12px;font-weight:700;color:#1d4ed8;text-align:right;">${fmt(dispMonthly)}</td></tr>` : ''}
+  </table>
+
+  <p style="margin:0 0 8px;">${badge('◎', '#059669', '#ecfdf5')}<b style="font-size:16px;color:#1e3a5f;">Εκτιμώμενο Θεωρητικό Αποτέλεσμα Ρύθμισης</b></p>
+  <table style="border-collapse:collapse;width:100%;font-size:13px;margin-bottom:10px;">
+    <thead>
+      <tr style="background:#1e3a8a;color:#fff;text-align:center;">
+        <th style="padding:8px 10px;border:1px solid #1e3a8a;">Πιστωτής</th>
+        <th style="padding:8px 10px;border:1px solid #1e3a8a;">Αρχική Οφειλή</th>
+        <th style="padding:8px 10px;border:1px solid #1e3a8a;">Εκτ. Διαγραφή</th>
+        <th style="padding:8px 10px;border:1px solid #1e3a8a;">Εναπομένουσα</th>
+        <th style="padding:8px 10px;border:1px solid #1e3a8a;">Μήνες</th>
+        <th style="padding:8px 10px;border:1px solid #1e3a8a;">Μηνιαία Δόση</th>
       </tr>
     </thead>
     <tbody>${rows}</tbody>
+    <tfoot>
+      <tr style="background:#eef2ff;font-weight:700;">
+        <td style="padding:8px 10px;border:1px solid #c7d2fe;">ΣΥΝΟΛΟ</td>
+        <td style="padding:8px 10px;border:1px solid #c7d2fe;text-align:center;">${fmt(totalDebt)}</td>
+        <td style="padding:8px 10px;border:1px solid #c7d2fe;text-align:center;color:#c2410c;">${fmt(totalWriteOff)}</td>
+        <td style="padding:8px 10px;border:1px solid #c7d2fe;text-align:center;">${fmt(totalRemaining)}</td>
+        <td style="padding:8px 10px;border:1px solid #c7d2fe;text-align:center;">—</td>
+        <td style="padding:8px 10px;border:1px solid #c7d2fe;text-align:center;color:#1d4ed8;">${fmt(totalMonthlyPay)}</td>
+      </tr>
+    </tfoot>
   </table>
-  <ul style="margin-top:12px;">
-    <li><b>Συνολική θεωρητική διαγραφή:</b> ${fmt(totalWriteOff)}</li>
-    <li><b>Εναπομένουσες οφειλές:</b> ${fmt(totalRemaining)}</li>
-    <li><b>Συνολικές μηνιαίες δόσεις:</b> ${fmt(totalMonthlyPay)}</li>
-  </ul>
+  <div style="background:#fffbeb;border-left:4px solid #f59e0b;border-radius:0 6px 6px 0;padding:10px 14px;font-size:13px;color:#78350f;margin-bottom:16px;">
+    <b>ΣΗΜΑΝΤΙΚΗ ΕΠΙΣΗΜΑΝΣΗ:</b> Τα παραπάνω αποτελέσματα αποτελούν <b>θεωρητική εκτίμηση</b> βάσει των στοιχείων που δηλώθηκαν και του αλγορίθμου του Εξωδικαστικού Μηχανισμού. Δεν αποτελούν δέσμευση ούτε εγγύηση αποτελέσματος.
+  </div>
   ${forecastHtml}
   ${banksNote}
-  <hr style="border:none;border-top:1px solid #d9e2ef;margin:16px 0;">
-  <div style="background:#f0f7ff;border:2px solid #3b82f6;border-radius:10px;padding:16px;margin:16px 0;">
-    <p style="font-weight:800;color:#1d4ed8;margin:0 0 6px;">🏆 Γιατί η i-Mentor; — Δεν σταματάμε στην υποβολή</p>
-    <p style="font-size:13px;color:#374151;margin:0 0 10px;">Ενώ οι περισσότεροι σύμβουλοι σταματούν στην καταχώρηση της αίτησης, εμείς ανεβάζουμε επιπρόσθετα ένα <b>τεκμηριωμένο σχέδιο αναδιάρθρωσης</b> προσαρμοσμένο στους πιστωτές.</p>
-    <table style="width:100%;border-collapse:collapse;">
-      <tr>
-        <td style="width:50%;padding:8px;background:#dbeafe;border-radius:8px;vertical-align:top;font-size:13px;">
-          <b style="color:#1d4ed8;">📄 Τεκμηριωμένο Σχέδιο Αναδιάρθρωσης</b><br>
-          Ειδικά τα funds και οι τράπεζες δίνουν αντιπρότασεις. Τεκμηριώνουμε τη δική μας πρόταση για μεγαλύτερη πιθανότητα αποδοχής.
-        </td>
-        <td style="width:4px;"></td>
-        <td style="width:50%;padding:8px;background:#fef3c7;border-radius:8px;vertical-align:top;font-size:13px;">
-          <b style="color:#92400e;">💼 Business Plan για τη Δυσμενή Κατάσταση</b><br>
-          Περίληψη, οικονομική & περιουσιακή εικόνα, stress test βασικό & dark σενάριο, συνοπτική πρόταση ανά πιστωτή.
-        </td>
-      </tr>
-    </table>
-    <p style="margin:10px 0 0;font-size:12px;background:#dcfce7;border-radius:6px;padding:8px;color:#166534;"><b>✅ Αυτό που μας ξεχωρίζει:</b> Η τεκμηρίωση προς τους πιστωτές είναι εξτρά βήμα που κάνουμε μόνο εμείς — με μετρήσιμο αντίκτυπο σε υποθέσεις με funds & τράπεζες.</p>
+  <hr style="border:none;border-top:2px solid #e0e7ff;margin:18px 0;">
+
+  <div style="border:2px solid #3b82f6;border-radius:10px;padding:0;overflow:hidden;margin:16px 0;">
+    <div style="background:#1e3a8a;padding:12px 16px;">
+      <span style="color:#fff;font-weight:800;font-size:15px;">Γιατί η i-Mentor; — Δεν σταματάμε στην υποβολή</span>
+    </div>
+    <div style="padding:14px 16px;background:#f8faff;">
+      <p style="font-size:13px;color:#374151;margin:0 0 12px;">Ενώ οι περισσότεροι σύμβουλοι σταματούν στην καταχώρηση της αίτησης, εμείς ανεβάζουμε επιπρόσθετα ένα <b>τεκμηριωμένο σχέδιο αναδιάρθρωσης</b> προσαρμοσμένο στους πιστωτές.</p>
+      <table style="width:100%;border-collapse:separate;border-spacing:6px;">
+        <tr>
+          <td style="width:50%;padding:10px 12px;background:#dbeafe;border-radius:8px;vertical-align:top;font-size:13px;border-left:3px solid #3b82f6;">
+            <b style="color:#1d4ed8;display:block;margin-bottom:4px;">Τεκμηριωμένο Σχέδιο Αναδιάρθρωσης</b>
+            Ειδικά τα funds και οι τράπεζες δίνουν αντιπρότασεις. Τεκμηριώνουμε τη δική μας πρόταση για μεγαλύτερη πιθανότητα αποδοχής ή ευνοϊκότερης αντιπρότασης.
+          </td>
+          <td style="width:50%;padding:10px 12px;background:#fef3c7;border-radius:8px;vertical-align:top;font-size:13px;border-left:3px solid #f59e0b;">
+            <b style="color:#92400e;display:block;margin-bottom:4px;">Business Plan για τη Δυσμενή Κατάσταση</b>
+            Περίληψη, οικονομική &amp; περιουσιακή εικόνα, stress test βασικό &amp; dark σενάριο, συνοπτική πρόταση ανά πιστωτή.
+          </td>
+        </tr>
+      </table>
+      <div style="margin-top:8px;background:#dcfce7;border-left:3px solid #16a34a;border-radius:0 6px 6px 0;padding:8px 12px;font-size:12px;color:#166534;">
+        <b>Αυτό που μας ξεχωρίζει:</b> Η τεκμηρίωση προς τους πιστωτές είναι εξτρά βήμα που κάνουμε μόνο εμείς — με μετρήσιμο αντίκτυπο σε υποθέσεις με funds &amp; τράπεζες.
+      </div>
+      <div style="margin-top:6px;background:#dbeafe;border-left:3px solid #3b82f6;border-radius:0 6px 6px 0;padding:8px 12px;font-size:12px;color:#1e40af;">
+        <b>Στόχος μας:</b> Παρά την εκτίμησή μας, η πρόταση που καταθέτουμε στους πιστωτές στοχεύει να είναι <b>καλύτερη</b> από το θεωρητικό αποτέλεσμα — διεκδικώντας ευνοϊκότερες διαγραφές και χαμηλότερες δόσεις για εσάς.
+      </div>
+    </div>
   </div>
-  <hr style="border:none;border-top:1px solid #d9e2ef;margin:16px 0;">
-  <p><b>💼 Οικονομική Προσφορά για Ανάληψη Αίτησης</b></p>
-  ${commercialOffer && (commercialOffer.application_fee || commercialOffer.success_fee) ? `
-  <ol>
-    ${commercialOffer.application_fee ? `<li><b>Προετοιμασία, υποβολή &amp; παρακολούθηση αίτησης:</b> ${Number(commercialOffer.application_fee).toLocaleString('el-GR')} € (+ ΦΠΑ)</li>` : ''}
-    ${commercialOffer.success_fee ? `<li><b>Success fee (μόνο αν αποδεχθεί η πρόταση):</b> ${Number(commercialOffer.success_fee).toLocaleString('el-GR')} € (+ ΦΠΑ)</li>` : ''}
-  </ol>
-  <p><b>🏦 Τραπεζικοί Λογαριασμοί</b><br>
-  Τράπεζα Πειραιώς: GR45 0171 4330 0064 3316 4381 388<br>
-  Eurobank: GR58 0260 1680 0000 6020 1330 648<br>
-  Alpha Bank: GR24 0140 7750 7750 0233 0002 138<br>
-  <b>Δικαιούχος:</b> I MENTOR IKE</p>` : `
-  <ol>
-    <li><b>Προετοιμασία, υποβολή &amp; παρακολούθηση αίτησης:</b> ..... € (+ ΦΠΑ)</li>
-    <li><b>Success fee (μόνο αν αποδεχθεί η πρόταση):</b> ..... € (+ ΦΠΑ)</li>
-  </ol>`}
+
+  <hr style="border:none;border-top:2px solid #e0e7ff;margin:18px 0;">
+  <p style="margin:0 0 10px;">${badge('◈', '#1d4ed8', '#eff6ff')}<b style="font-size:15px;color:#1e3a5f;">Οικονομική Προσφορά για Ανάληψη Αίτησης</b></p>
+  <table style="border-collapse:collapse;width:100%;font-size:14px;margin-bottom:12px;">
+    <tr style="border-bottom:1px solid #e0e7ff;">
+      <td style="padding:10px 12px;color:#374151;width:60%;">Προετοιμασία, υποβολή &amp; παρακολούθηση αίτησης</td>
+      <td style="padding:10px 12px;text-align:right;">${fmtOffer(hasOffer ? commercialOffer.application_fee : null)}</td>
+    </tr>
+    <tr>
+      <td style="padding:10px 12px;color:#374151;">Success fee <span style="font-size:12px;color:#6b7280;">(μόνο αν αποδεχθεί η πρόταση)</span></td>
+      <td style="padding:10px 12px;text-align:right;">${fmtOffer(hasOffer ? commercialOffer.success_fee : null)}</td>
+    </tr>
+  </table>
+  ${hasOffer ? `<div style="background:#f8faff;border:1px solid #c7d2fe;border-radius:8px;padding:12px 14px;font-size:13px;">
+    <b style="color:#1e3a5f;display:block;margin-bottom:6px;">Τραπεζικοί Λογαριασμοί Πληρωμής</b>
+    <span style="color:#374151;">Πειραιώς:&nbsp;&nbsp;&nbsp;</span> <code>GR45 0171 4330 0064 3316 4381 388</code><br>
+    <span style="color:#374151;">Eurobank:&nbsp;&nbsp;&nbsp;</span> <code>GR58 0260 1680 0000 6020 1330 648</code><br>
+    <span style="color:#374151;">Alpha Bank:</span> <code>GR24 0140 7750 7750 0233 0002 138</code><br>
+    <b>Δικαιούχος: I MENTOR IKE</b>
+  </div>` : ''}
   <p style="margin-top:16px;">Με εκτίμηση,<br><b>Η ομάδα της i-Mentor Consulting</b><br>📞 2810 363007 • 📧 info@i-mentor.gr • 🌐 www.i-mentor.gr</p>
 </div>`
 }

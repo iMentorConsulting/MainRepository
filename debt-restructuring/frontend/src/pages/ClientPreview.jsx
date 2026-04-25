@@ -488,6 +488,10 @@ export default function ClientPreview() {
             <span className="font-bold text-green-800">✅ Αυτό που μας ξεχωρίζει:</span>
             <span className="text-gray-700"> Η τεκμηρίωση προς τους πιστωτές είναι εξτρά βήμα που κάνουμε μόνο εμείς — με μετρήσιμο αντίκτυπο σε υποθέσεις με funds & τράπεζες.</span>
           </div>
+          <div className="mt-3 bg-blue-50 border border-blue-200 rounded-xl p-3 text-sm">
+            <span className="font-bold text-blue-800">📈 Στόχος μας:</span>
+            <span className="text-gray-700"> Παρά την εκτίμησή μας, η πρόταση που καταθέτουμε στους πιστωτές στοχεύει να είναι <b>καλύτερη</b> από το θεωρητικό αποτέλεσμα — διεκδικώντας ευνοϊκότερες διαγραφές και χαμηλότερες δόσεις για εσάς.</span>
+          </div>
         </div>
 
         {/* Οικονομική Προσφορά & IBANs */}
