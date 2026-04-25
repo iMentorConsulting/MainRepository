@@ -9,7 +9,7 @@ import {
 } from '@heroicons/react/24/outline'
 import * as api from '../api'
 import { fmt, creditorDisplayName } from '../utils/calculations'
-import { buildResultsEmailHtml, wrapEmailDocument } from '../utils/reportGenerators'
+import { buildEmailHtml, wrapEmailDocument, buildResultsEmailHtml } from '../utils/reportGenerators'
 
 const STATUS_LABELS = {
   draft: { label: 'Πρόχειρο', cls: 'bg-gray-100 text-gray-700' },
@@ -28,16 +28,27 @@ const CONTACT_STAGES = [
   { key: 'Δεν Ενδιαφέρεται', icon: '❌', cls: 'bg-red-100 text-red-700' },
 ]
 
-function buildViberMessage(type, name, url) {
+const IBANS_TEXT = `\n\n🏦 *Τραπεζικοί Λογαριασμοί:*\nΠειραιώς: GR45 0171 4330 0064 3316 4381 388\nEurobank: GR58 0260 1680 0000 6020 1330 648\nAlpha Bank: GR24 0140 7750 7750 0233 0002 138\nΔικαιούχος: *I MENTOR IKE*`
+
+function buildOfferBlock(offer) {
+  if (!offer || (!offer.application_fee && !offer.success_fee)) return ''
+  const lines = [`\n\n💼 *Οικονομική Προσφορά:*`]
+  if (offer.application_fee) lines.push(`• Αίτηση & Διαδικασία: *${Number(offer.application_fee).toLocaleString('el-GR')}€* + ΦΠΑ`)
+  if (offer.success_fee) lines.push(`• Success Fee (αποδοχή): *${Number(offer.success_fee).toLocaleString('el-GR')}€* + ΦΠΑ`)
+  return lines.join('\n')
+}
+
+function buildViberMessage(type, name, url, offer = null, includeOffer = false) {
+  const offerSection = includeOffer ? buildOfferBlock(offer) + IBANS_TEXT : ''
   switch (type) {
     case 'initial':
-      return `Αγαπητέ/ή ${name},\n\nΗ ανάλυση των στοιχείων σας στον Εξωδικαστικό Μηχανισμό Ρύθμισης Οφειλών ολοκληρώθηκε.\n\nΜπορείτε να δείτε την πλήρη ανάλυσή μας στον παρακάτω σύνδεσμο, χρησιμοποιώντας τον ΑΦΜ σας ως κωδικό πρόσβασης:\n\n${url}\n\nΓια οποιαδήποτε ερώτηση είμαστε στη διάθεσή σας.\n\ni-Mentor Consulting\nΤ: 2810 363007`
+      return `Αγαπητέ/ή *${name}*,\n\nΗ ανάλυση των στοιχείων σας στον *Εξωδικαστικό Μηχανισμό Ρύθμισης Οφειλών* ολοκληρώθηκε.\n\nΜπορείτε να δείτε την πλήρη ανάλυσή μας στον παρακάτω σύνδεσμο, χρησιμοποιώντας τον *ΑΦΜ* σας ως κωδικό πρόσβασης:\n\n${url}${offerSection}\n\nΓια οποιαδήποτε ερώτηση είμαστε στη διάθεσή σας.\n\n*i-Mentor Consulting*\nΤ: *2810 363007*`
     case 'reminder1':
-      return `Αγαπητέ/ή ${name},\n\nΣας υπενθυμίζουμε ότι η ανάλυση ρύθμισης οφειλών σας είναι διαθέσιμη.\n\nΠαρακαλούμε επισκεφθείτε τον σύνδεσμο χρησιμοποιώντας τον ΑΦΜ σας:\n\n${url}\n\nΕίμαστε στη διάθεσή σας.\n\ni-Mentor Consulting\nΤ: 2810 363007`
+      return `Αγαπητέ/ή *${name}*,\n\nΣας υπενθυμίζουμε ότι η ανάλυση ρύθμισης οφειλών σας είναι διαθέσιμη.\n\nΠαρακαλούμε επισκεφθείτε τον σύνδεσμο χρησιμοποιώντας τον *ΑΦΜ* σας:\n\n${url}${offerSection}\n\nΕίμαστε στη διάθεσή σας.\n\n*i-Mentor Consulting*\nΤ: *2810 363007*`
     case 'reminder2':
-      return `Αγαπητέ/ή ${name},\n\nΔεύτερη υπενθύμιση σχετικά με την ανάλυση ρύθμισης οφειλών σας. Ο Εξωδικαστικός Μηχανισμός έχει αυστηρά χρονικά πλαίσια.\n\nΠαρακαλούμε επισκεφθείτε τον σύνδεσμο ή επικοινωνήστε μαζί μας άμεσα:\n\n${url}\n\ni-Mentor Consulting\nΤ: 2810 363007`
+      return `Αγαπητέ/ή *${name}*,\n\n*Δεύτερη υπενθύμιση* σχετικά με την ανάλυση ρύθμισης οφειλών σας. Ο Εξωδικαστικός Μηχανισμός έχει αυστηρά χρονικά πλαίσια.\n\nΠαρακαλούμε επισκεφθείτε τον σύνδεσμο ή επικοινωνήστε μαζί μας *άμεσα*:\n\n${url}${offerSection}\n\n*i-Mentor Consulting*\nΤ: *2810 363007*`
     case 'final':
-      return `Αγαπητέ/ή ${name},\n\nΤελευταία υπενθύμιση. Η προθεσμία για τον Εξωδικαστικό Μηχανισμό πλησιάζει και η ανάλυσή σας παραμένει αναπάντητη.\n\nΠαρακαλούμε επικοινωνήστε μαζί μας ΑΜΕΣΑ ή επισκεφθείτε τον σύνδεσμο:\n\n${url}\n\ni-Mentor Consulting\nΤ: 2810 363007`
+      return `Αγαπητέ/ή *${name}*,\n\n*Τελευταία υπενθύμιση.* Η προθεσμία για τον Εξωδικαστικό Μηχανισμό πλησιάζει και η ανάλυσή σας παραμένει αναπάντητη.\n\nΠαρακαλούμε επικοινωνήστε μαζί μας *ΑΜΕΣΑ* ή επισκεφθείτε τον σύνδεσμο:\n\n${url}${offerSection}\n\n*i-Mentor Consulting*\nΤ: *2810 363007*`
     default:
       return ''
   }
@@ -73,6 +84,136 @@ function buildEmptyCreditors(finalPlan) {
   }))
 }
 
+function ViberPreviewModal({ msgType, msgLabel, caseName, url, offer, onSend, onClose, sending }) {
+  const [includeOffer, setIncludeOffer] = useState(false)
+  const [message, setMessage] = useState(() => buildViberMessage(msgType, caseName, url, offer, false))
+
+  const toggleOffer = (checked) => {
+    setIncludeOffer(checked)
+    setMessage(buildViberMessage(msgType, caseName, url, offer, checked))
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+          <div className="font-black text-purple-700 text-base">📤 {msgLabel}</div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl font-bold">×</button>
+        </div>
+        <div className="p-5">
+          <label className="label mb-1">Προεπισκόπηση μηνύματος <span className="text-gray-400 font-normal">(επεξεργάσιμο)</span></label>
+          <textarea
+            className="w-full border-2 border-gray-200 rounded-xl p-3 text-sm font-mono leading-relaxed focus:outline-none focus:border-purple-400 resize-none"
+            rows={12}
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+          />
+          <label className="flex items-center gap-2 mt-3 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              className="w-4 h-4 accent-purple-600"
+              checked={includeOffer}
+              onChange={(e) => toggleOffer(e.target.checked)}
+            />
+            <span className="text-sm font-semibold text-gray-700">Συμπερίληψη Οικονομικής Προσφοράς & IBAN</span>
+          </label>
+        </div>
+        <div className="flex gap-2 justify-end px-5 pb-5">
+          <button onClick={onClose} className="btn-secondary text-sm">Ακύρωση</button>
+          <button
+            onClick={() => onSend(message, msgType)}
+            disabled={sending}
+            className="flex items-center gap-2 text-sm font-semibold px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white disabled:opacity-50"
+          >
+            {sending ? 'Αποστολή…' : '📤 Αποστολή Viber'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function EmailOptionsModal({ caseData, onClose }) {
+  const [includeOffer, setIncludeOffer] = useState(false)
+  const offer = caseData.commercial_offer || {}
+  const est = caseData.estimates || {}
+
+  const openEmail = () => {
+    // Build minimal data from stored estimates
+    const finalPlan = est.finalPlan || []
+    const creditors = finalPlan.map((p) => ({
+      creditor: creditorDisplayName(p.type, p.creditorName),
+      type: p.type,
+      amount: p.amount || 0,
+      writeoff: p.writeoff || 0,
+      remaining: p.newAmt || 0,
+      months: p.months || 0,
+      monthlyPay: p.payShown || 0,
+    }))
+    const bankDebt = finalPlan.filter(p => p.type === 'Τράπεζα').reduce((s, p) => s + (p.amount || 0), 0)
+    const taxDebt = finalPlan.filter(p => p.type === 'Εφορία').reduce((s, p) => s + (p.amount || 0), 0)
+    const insDebt = finalPlan.filter(p => p.type === 'Ασφαλιστικά Ταμεία').reduce((s, p) => s + (p.amount || 0), 0)
+    const data = {
+      clientName: caseData.client_name,
+      clientPhone: caseData.client_phone,
+      clientEmail: caseData.client_email,
+      debtorType: caseData.debtor_type,
+      totalDebt: est.sumDebt || 0,
+      totalWriteOff: est.sumWr || 0,
+      totalRemaining: est.totalRemaining || 0,
+      totalMonthlyPay: est.totalMonthlyPay || 0,
+      dispMonthly: est.dispMonthly || 0,
+      creditors,
+      bankDebt,
+      taxDebt,
+      insDebt,
+      forecastTitle: est.forecastTitle,
+      forecastSections: est.forecastSections,
+      commercialOffer: includeOffer ? offer : null,
+    }
+    const subject = `Θεωρητική Προσομοίωση Εξωδικαστικού | ${caseData.client_name}`
+    const html = buildEmailHtml(data)
+    const w = window.open('', '_blank', 'width=1200,height=900,scrollbars=yes')
+    if (w) { w.document.open(); w.document.write(wrapEmailDocument(html, subject)); w.document.close() }
+    onClose()
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+          <div className="font-black text-blue-700 text-base">📧 Email Ανάλυσης</div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl font-bold">×</button>
+        </div>
+        <div className="p-5">
+          <p className="text-sm text-gray-600 mb-4">Το email θα ανοίξει σε νέο παράθυρο έτοιμο για αντιγραφή στο Gmail / Outlook.</p>
+          <label className="flex items-center gap-2 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              className="w-4 h-4 accent-blue-600"
+              checked={includeOffer}
+              onChange={(e) => setIncludeOffer(e.target.checked)}
+            />
+            <span className="text-sm font-semibold text-gray-700">Συμπερίληψη Οικονομικής Προσφοράς & IBAN</span>
+          </label>
+          {includeOffer && (offer.application_fee || offer.success_fee) && (
+            <div className="mt-2 bg-blue-50 rounded-xl px-3 py-2 text-xs text-blue-700">
+              {offer.application_fee ? `• Αίτηση: ${Number(offer.application_fee).toLocaleString('el-GR')}€ + ΦΠΑ` : ''}
+              {offer.success_fee ? `\n• Success Fee: ${Number(offer.success_fee).toLocaleString('el-GR')}€ + ΦΠΑ` : ''}
+            </div>
+          )}
+        </div>
+        <div className="flex gap-2 justify-end px-5 pb-5">
+          <button onClick={onClose} className="btn-secondary text-sm">Ακύρωση</button>
+          <button onClick={openEmail} className="btn-primary text-sm gap-2">
+            📧 Δημιουργία Email
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function CaseDetail({ currentEmployee }) {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -82,6 +223,9 @@ export default function CaseDetail({ currentEmployee }) {
   const [savingActuals, setSavingActuals] = useState(false)
   const [statusUpdating, setStatusUpdating] = useState(false)
   const [viberMenuOpen, setViberMenuOpen] = useState(false)
+  const [viberModal, setViberModal] = useState(null) // { msgType, msgLabel }
+  const [viberSending, setViberSending] = useState(false)
+  const [emailModalOpen, setEmailModalOpen] = useState(false)
   const [stageUpdating, setStageUpdating] = useState(false)
   const [portalUpdating, setPortalUpdating] = useState(false)
   const viberRef = useRef(null)
@@ -151,27 +295,29 @@ export default function CaseDetail({ currentEmployee }) {
     finally { setStageUpdating(false) }
   }
 
-  const sendViber = async (type) => {
-    if (!caseData) return
+  const openViberModal = (type, label) => {
     setViberMenuOpen(false)
-    const url = `${window.location.origin}/preview/${caseData.share_token}`
-    const msg = buildViberMessage(type, caseData.client_name, url)
-    try { await navigator.clipboard.writeText(msg) } catch {}
+    setViberModal({ msgType: type, msgLabel: label })
+  }
 
-    const phone = (caseData.client_phone || '').replace(/\s+/g, '').replace(/^0/, '+30').replace(/^\+?30/, '+30')
-    if (phone) window.open(`viber://chat?number=${phone}`, '_blank')
-
-    const isInitial = type === 'initial'
-    const newStage = isInitial ? 'Εστάλη Σύνδεσμος' : caseData.contact_stage
+  const handleViberSend = async (message, msgType) => {
+    if (!caseData) return
+    setViberSending(true)
     try {
-      const res = await api.updateContact(id, {
-        contact_stage: isInitial && caseData.contact_stage === 'Νέα Ανάλυση' ? newStage : undefined,
-        increment_reminder: !isInitial,
+      const res = await api.sendViber(id, {
+        message,
+        msg_type: msgType,
+        is_initial: msgType === 'initial',
+        is_reminder: msgType !== 'initial',
       })
       setCaseData(res.data)
-    } catch {}
-
-    toast.success('✅ Μήνυμα αντιγράφηκε! Κάντε Paste στο Viber.')
+      setViberModal(null)
+      toast.success('✅ Μήνυμα εστάλη μέσω Viber!')
+    } catch {
+      toast.error('Σφάλμα αποστολής Viber')
+    } finally {
+      setViberSending(false)
+    }
   }
 
   const openResultsEmail = () => {
@@ -218,6 +364,11 @@ export default function CaseDetail({ currentEmployee }) {
               <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${st.cls}`}>{st.label}</span>
               <span className="text-xs bg-blue-100 text-blue-700 font-bold px-2 py-0.5 rounded-full">{caseData.employee}</span>
               <span className="text-xs text-gray-500">{caseData.created_at ? format(new Date(caseData.created_at), 'dd/MM/yyyy', { locale: el }) : '—'}</span>
+              {(caseData.portal_visit_count > 0) && (
+                <span className="text-xs bg-indigo-100 text-indigo-700 font-bold px-2 py-0.5 rounded-full" title="Επισκέψεις στο portal">
+                  👁 {caseData.portal_visit_count} επίσκεψη{caseData.portal_visit_count !== 1 ? 'εις' : ''}
+                </span>
+              )}
             </div>
           </div>
         </div>
@@ -266,7 +417,7 @@ export default function CaseDetail({ currentEmployee }) {
                 ].map(({ type, label, sub }) => (
                   <button
                     key={type}
-                    onClick={() => sendViber(type)}
+                    onClick={() => openViberModal(type, label)}
                     className="w-full text-left px-4 py-2.5 hover:bg-purple-50 transition-colors border-b border-gray-50 last:border-0"
                   >
                     <div className="text-sm font-semibold text-gray-800">{label}</div>
@@ -277,11 +428,38 @@ export default function CaseDetail({ currentEmployee }) {
             )}
           </div>
 
+          <button
+            onClick={() => setEmailModalOpen(true)}
+            className="flex items-center gap-1.5 text-sm font-semibold px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white transition-colors"
+          >
+            <EnvelopeIcon className="w-4 h-4" />
+            Email
+          </button>
+
           <button onClick={() => navigate(`/cases/${id}/edit`)} className="btn-secondary gap-2 text-sm">
             <PencilIcon className="w-4 h-4" /> Επεξεργασία
           </button>
         </div>
       </div>
+
+      {/* Viber preview modal */}
+      {viberModal && caseData && (
+        <ViberPreviewModal
+          msgType={viberModal.msgType}
+          msgLabel={viberModal.msgLabel}
+          caseName={caseData.client_name}
+          url={`${window.location.origin}/preview/${caseData.share_token}`}
+          offer={caseData.commercial_offer || {}}
+          onSend={handleViberSend}
+          onClose={() => setViberModal(null)}
+          sending={viberSending}
+        />
+      )}
+
+      {/* Email options modal */}
+      {emailModalOpen && caseData && (
+        <EmailOptionsModal caseData={caseData} onClose={() => setEmailModalOpen(false)} />
+      )}
 
       {/* Status changer */}
       <div className="card mb-5 flex items-center gap-3 flex-wrap">
@@ -339,6 +517,31 @@ export default function CaseDetail({ currentEmployee }) {
         <div><div className="label">Email</div><div>{caseData.client_email || '—'}</div></div>
         <div><div className="label">Σημειώσεις</div><div className="text-gray-500 italic">{caseData.notes || '—'}</div></div>
       </div>
+
+      {/* Commercial Offer */}
+      {(caseData.commercial_offer?.application_fee > 0 || caseData.commercial_offer?.success_fee > 0) && (
+        <div className="card mb-5 bg-blue-50 border border-blue-200">
+          <div className="text-sm font-black text-blue-800 mb-3">💼 Οικονομική Προσφορά</div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+            {caseData.commercial_offer?.application_fee > 0 && (
+              <div>
+                <div className="label">Αίτηση & Διαδικασία</div>
+                <div className="font-bold text-blue-800 text-base">
+                  {Number(caseData.commercial_offer.application_fee).toLocaleString('el-GR')}€ <span className="text-xs font-normal text-gray-500">+ ΦΠΑ</span>
+                </div>
+              </div>
+            )}
+            {caseData.commercial_offer?.success_fee > 0 && (
+              <div>
+                <div className="label">Success Fee (σε αποδοχή αποτελέσματος)</div>
+                <div className="font-bold text-blue-800 text-base">
+                  {Number(caseData.commercial_offer.success_fee).toLocaleString('el-GR')}€ <span className="text-xs font-normal text-gray-500">+ ΦΠΑ</span>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Estimated results */}
       <h2 className="section-title">📊 Εκτιμώμενα Αποτελέσματα</h2>

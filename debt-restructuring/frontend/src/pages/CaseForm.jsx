@@ -126,6 +126,7 @@ export default function CaseForm({ currentEmployee }) {
   const [employee, setEmployee] = useState(currentEmployee || '')
   const [notes, setNotes] = useState('')
   const [status, setStatus] = useState('draft')
+  const [commercialOffer, setCommercialOffer] = useState({ application_fee: 0, success_fee: 0 })
   const [calc, setCalc] = useState(null)
   const [saving, setSaving] = useState(false)
   const [showPlanModal, setShowPlanModal] = useState(false)
@@ -142,6 +143,7 @@ export default function CaseForm({ currentEmployee }) {
       setEmployee(c.employee)
       setNotes(c.notes || '')
       setStatus(c.status)
+      if (c.commercial_offer) setCommercialOffer(c.commercial_offer)
     }).catch(() => toast.error('Σφάλμα φόρτωσης υπόθεσης'))
   }, [id])
 
@@ -195,6 +197,7 @@ export default function CaseForm({ currentEmployee }) {
           }
         })() : {},
         notes,
+        commercial_offer: commercialOffer,
       }
       if (isEditing) {
         await api.updateCase(id, payload)
@@ -312,6 +315,41 @@ export default function CaseForm({ currentEmployee }) {
           <div className="md:col-span-3">
             <label className="label">Σημειώσεις</label>
             <input className="input" placeholder="Εσωτερικές σημειώσεις…" value={notes} onChange={(e) => setNotes(e.target.value)} />
+          </div>
+        </div>
+      </div>
+
+      {/* Commercial Offer */}
+      <h2 className="section-title">💼 Οικονομική Προσφορά</h2>
+      <div className="card mb-5">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="label">Ποσό Αίτησης & Διαδικασίας <span className="text-gray-400 font-normal">(χωρίς ΦΠΑ)</span></label>
+            <div className="flex items-center gap-2">
+              <input
+                className="input"
+                type="number"
+                min="0"
+                placeholder="0"
+                value={commercialOffer.application_fee || ''}
+                onChange={(e) => setCommercialOffer({ ...commercialOffer, application_fee: +e.target.value })}
+              />
+              <span className="text-sm text-gray-500 whitespace-nowrap">€ + ΦΠΑ</span>
+            </div>
+          </div>
+          <div>
+            <label className="label">Success Fee <span className="text-gray-400 font-normal">(σε αποδοχή αποτελέσματος, χωρίς ΦΠΑ)</span></label>
+            <div className="flex items-center gap-2">
+              <input
+                className="input"
+                type="number"
+                min="0"
+                placeholder="0"
+                value={commercialOffer.success_fee || ''}
+                onChange={(e) => setCommercialOffer({ ...commercialOffer, success_fee: +e.target.value })}
+              />
+              <span className="text-sm text-gray-500 whitespace-nowrap">€ + ΦΠΑ</span>
+            </div>
           </div>
         </div>
       </div>

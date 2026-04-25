@@ -287,7 +287,7 @@ document.getElementById('copyBtn').addEventListener('click', async () => {
 // Build email HTML
 // ============================================================
 export function buildEmailHtml(data) {
-  const { clientName, debtorType, totalDebt, totalWriteOff, totalRemaining, totalMonthlyPay, dispMonthly, creditors, bankDebt, taxDebt, insDebt, forecastTitle, forecastSections } = data
+  const { clientName, debtorType, totalDebt, totalWriteOff, totalRemaining, totalMonthlyPay, dispMonthly, creditors, bankDebt, taxDebt, insDebt, forecastTitle, forecastSections, commercialOffer } = data
 
   const rows = creditors.map((c) => {
     const pct = c.amount > 0 ? Math.round((c.writeoff / c.amount) * 100) : 0
@@ -349,16 +349,40 @@ export function buildEmailHtml(data) {
   ${forecastHtml}
   ${banksNote}
   <hr style="border:none;border-top:1px solid #d9e2ef;margin:16px 0;">
+  <div style="background:#f0f7ff;border:2px solid #3b82f6;border-radius:10px;padding:16px;margin:16px 0;">
+    <p style="font-weight:800;color:#1d4ed8;margin:0 0 6px;">🏆 Γιατί η i-Mentor; — Δεν σταματάμε στην υποβολή</p>
+    <p style="font-size:13px;color:#374151;margin:0 0 10px;">Ενώ οι περισσότεροι σύμβουλοι σταματούν στην καταχώρηση της αίτησης, εμείς ανεβάζουμε επιπρόσθετα ένα <b>τεκμηριωμένο σχέδιο αναδιάρθρωσης</b> προσαρμοσμένο στους πιστωτές.</p>
+    <table style="width:100%;border-collapse:collapse;">
+      <tr>
+        <td style="width:50%;padding:8px;background:#dbeafe;border-radius:8px;vertical-align:top;font-size:13px;">
+          <b style="color:#1d4ed8;">📄 Τεκμηριωμένο Σχέδιο Αναδιάρθρωσης</b><br>
+          Ειδικά τα funds και οι τράπεζες δίνουν αντιπρότασεις. Τεκμηριώνουμε τη δική μας πρόταση για μεγαλύτερη πιθανότητα αποδοχής.
+        </td>
+        <td style="width:4px;"></td>
+        <td style="width:50%;padding:8px;background:#fef3c7;border-radius:8px;vertical-align:top;font-size:13px;">
+          <b style="color:#92400e;">💼 Business Plan για τη Δυσμενή Κατάσταση</b><br>
+          Περίληψη, οικονομική & περιουσιακή εικόνα, stress test βασικό & dark σενάριο, συνοπτική πρόταση ανά πιστωτή.
+        </td>
+      </tr>
+    </table>
+    <p style="margin:10px 0 0;font-size:12px;background:#dcfce7;border-radius:6px;padding:8px;color:#166534;"><b>✅ Αυτό που μας ξεχωρίζει:</b> Η τεκμηρίωση προς τους πιστωτές είναι εξτρά βήμα που κάνουμε μόνο εμείς — με μετρήσιμο αντίκτυπο σε υποθέσεις με funds & τράπεζες.</p>
+  </div>
+  <hr style="border:none;border-top:1px solid #d9e2ef;margin:16px 0;">
   <p><b>💼 Οικονομική Προσφορά για Ανάληψη Αίτησης</b></p>
+  ${commercialOffer && (commercialOffer.application_fee || commercialOffer.success_fee) ? `
   <ol>
-    <li><b>Προετοιμασία, υποβολή &amp; παρακολούθηση αίτησης:</b> ..... € (+ ΦΠΑ)</li>
-    <li><b>Success fee (μόνο αν υπογραφεί σύμβαση):</b> ..... € (+ ΦΠΑ)</li>
+    ${commercialOffer.application_fee ? `<li><b>Προετοιμασία, υποβολή &amp; παρακολούθηση αίτησης:</b> ${Number(commercialOffer.application_fee).toLocaleString('el-GR')} € (+ ΦΠΑ)</li>` : ''}
+    ${commercialOffer.success_fee ? `<li><b>Success fee (μόνο αν αποδεχθεί η πρόταση):</b> ${Number(commercialOffer.success_fee).toLocaleString('el-GR')} € (+ ΦΠΑ)</li>` : ''}
   </ol>
   <p><b>🏦 Τραπεζικοί Λογαριασμοί</b><br>
   Τράπεζα Πειραιώς: GR45 0171 4330 0064 3316 4381 388<br>
   Eurobank: GR58 0260 1680 0000 6020 1330 648<br>
   Alpha Bank: GR24 0140 7750 7750 0233 0002 138<br>
-  <b>Δικαιούχος:</b> I MENTOR IKE</p>
+  <b>Δικαιούχος:</b> I MENTOR IKE</p>` : `
+  <ol>
+    <li><b>Προετοιμασία, υποβολή &amp; παρακολούθηση αίτησης:</b> ..... € (+ ΦΠΑ)</li>
+    <li><b>Success fee (μόνο αν αποδεχθεί η πρόταση):</b> ..... € (+ ΦΠΑ)</li>
+  </ol>`}
   <p style="margin-top:16px;">Με εκτίμηση,<br><b>Η ομάδα της i-Mentor Consulting</b><br>📞 2810 363007 • 📧 info@i-mentor.gr • 🌐 www.i-mentor.gr</p>
 </div>`
 }

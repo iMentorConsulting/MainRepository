@@ -51,6 +51,13 @@ class Case(Base):
     last_contacted_at = Column(DateTime, nullable=True)
     reminder_count = Column(Integer, default=0)
 
+    # Commercial offer { application_fee: 0, success_fee: 0 }
+    commercial_offer = Column(JSON, default=dict)
+
+    # Portal visit tracking
+    portal_visit_count = Column(Integer, default=0)
+    portal_visits = Column(JSON, default=list)  # [{at: "iso", ip: "..."}]
+
     # Timestamps
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow)

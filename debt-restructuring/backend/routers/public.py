@@ -1,5 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
+from datetime import datetime
 from database import get_db
 from models import Case
 
@@ -7,21 +8,31 @@ router = APIRouter(prefix="/public", tags=["public"])
 
 
 @router.get("/case/{token}")
-def get_public_case(token: str, vat: str = Query(default=None), db: Session = Depends(get_db)):
+def get_public_case(token: str, request: Request, vat: str = Query(default=None), db: Session = Depends(get_db)):
     case = db.query(Case).filter(Case.share_token == token).first()
     if not case:
         raise HTTPException(status_code=404, detail="not_found")
 
-    # Portal active check
     if case.portal_active is False:
         raise HTTPException(status_code=403, detail="portal_disabled")
 
-    # VAT gate
     if case.client_vat:
         if not vat:
             raise HTTPException(status_code=403, detail="vat_required")
         if vat.strip() != (case.client_vat or "").strip():
             raise HTTPException(status_code=403, detail="vat_invalid")
+
+    # Log portal visit
+    try:
+        now = datetime.utcnow().isoformat()
+        ip = request.client.host if request.client else "unknown"
+        visits = list(case.portal_visits or [])
+        visits.append({"at": now, "ip": ip})
+        case.portal_visits = visits
+        case.portal_visit_count = len(visits)
+        db.commit()
+    except Exception:
+        db.rollback()
 
     return {
         "id": case.id,
@@ -33,11 +44,13 @@ def get_public_case(token: str, vat: str = Query(default=None), db: Session = De
         "employee": case.employee,
         "debts": case.debts,
         "assets": case.assets,
-        "income_data": case.income_data,
+        "income_data": case.income_data or {},
         "estimates": case.estimates,
         "actual_results": case.actual_results,
         "notes": case.notes or "",
         "has_vat": bool(case.client_vat),
+        "commercial_offer": case.commercial_offer or {},
+        "portal_visit_count": case.portal_visit_count or 0,
         "created_at": case.created_at.isoformat() if case.created_at else None,
         "completed_at": case.completed_at.isoformat() if case.completed_at else None,
     }

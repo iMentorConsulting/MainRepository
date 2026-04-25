@@ -165,6 +165,7 @@ export default function Dashboard({ currentEmployee }) {
                   <div>
                     <span className="font-semibold text-gray-800">{c.client_name}</span>
                     {c.client_phone && <span className="text-xs text-gray-400 ml-2">{c.client_phone}</span>}
+                    {c.notes && <span className="text-xs text-gray-500 ml-2 italic">— {c.notes}</span>}
                   </div>
                   <div className="flex items-center gap-2">
                     <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${stage.cls}`}>
@@ -256,6 +257,7 @@ export default function Dashboard({ currentEmployee }) {
                       {c.client_phone && <div className="text-xs text-gray-500">{c.client_phone}</div>}
                       {hasActuals && <div className="text-xs text-green-600 font-semibold mt-0.5">✓ Αποτέλεσμα</div>}
                       {attention && <div className="text-xs text-amber-600 font-semibold mt-0.5">⚡ Follow-up</div>}
+                      {c.portal_visit_count > 0 && <div className="text-xs text-indigo-600 font-semibold mt-0.5">👁 {c.portal_visit_count} επίσκεψη{c.portal_visit_count !== 1 ? 'εις' : ''}</div>}
                     </td>
                     <td className="td">
                       <span className="bg-blue-100 text-blue-800 text-xs font-bold px-2 py-0.5 rounded-full">{c.employee}</span>

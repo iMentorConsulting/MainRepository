@@ -14,6 +14,7 @@ export const deleteCase = (id) => api.delete(`/cases/${id}`)
 export const saveActualResults = (id, data) => api.patch(`/cases/${id}/actual`, data)
 export const duplicateCase = (id) => api.post(`/cases/${id}/duplicate`)
 export const updateContact = (id, data) => api.patch(`/cases/${id}/contact`, data)
+export const sendViber = (id, data) => api.post(`/cases/${id}/send-viber`, data)
 
 // Statistics
 export const getOverview = () => api.get('/statistics/overview')

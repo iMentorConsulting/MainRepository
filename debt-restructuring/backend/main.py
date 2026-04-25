@@ -63,6 +63,21 @@ def run_migrations():
             conn.commit()
         except Exception:
             pass
+        try:
+            conn.execute(text("ALTER TABLE cases ADD COLUMN commercial_offer TEXT DEFAULT '{}'"))
+            conn.commit()
+        except Exception:
+            pass
+        try:
+            conn.execute(text("ALTER TABLE cases ADD COLUMN portal_visit_count INTEGER DEFAULT 0"))
+            conn.commit()
+        except Exception:
+            pass
+        try:
+            conn.execute(text("ALTER TABLE cases ADD COLUMN portal_visits TEXT DEFAULT '[]'"))
+            conn.commit()
+        except Exception:
+            pass
 
 run_migrations()
 

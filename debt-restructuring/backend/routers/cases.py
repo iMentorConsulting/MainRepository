@@ -2,6 +2,9 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import datetime
+from pydantic import BaseModel
+import os
+import requests as http_requests
 
 from database import get_db
 from models import Case
@@ -10,6 +13,13 @@ from schemas import CaseCreate, CaseUpdate, CaseResponse, CaseListItem, ActualRe
 router = APIRouter(prefix="/cases", tags=["cases"])
 
 EMPLOYEES = ["STELLA", "VALLIA", "SOFIA", "HARIS"]
+
+
+class ViberSendRequest(BaseModel):
+    message: str
+    msg_type: str = "initial"  # initial / reminder1 / reminder2 / final
+    is_initial: bool = False
+    is_reminder: bool = False
 
 
 @router.get("/", response_model=List[CaseListItem])
@@ -113,6 +123,42 @@ def delete_case(id: int, db: Session = Depends(get_db)):
     db.delete(case)
     db.commit()
     return {"ok": True}
+
+
+@router.post("/{id}/send-viber", response_model=CaseResponse)
+def send_viber_message(id: int, data: ViberSendRequest, db: Session = Depends(get_db)):
+    case = db.query(Case).filter(Case.id == id).first()
+    if not case:
+        raise HTTPException(status_code=404, detail="Η υπόθεση δεν βρέθηκε")
+
+    phone = (case.client_phone or "").strip().replace(" ", "").replace("-", "")
+    if phone and not phone.startswith("+"):
+        if phone.startswith("00"):
+            phone = "+" + phone[2:]
+        elif phone.startswith("0"):
+            phone = "+30" + phone[1:]
+        else:
+            phone = "+30" + phone
+
+    bridge_url = os.getenv("BRIDGE_URL", "http://localhost:3100")
+    try:
+        http_requests.post(
+            f"{bridge_url}/send",
+            json={"phone": phone, "message": data.message, "caseId": id, "clientName": case.client_name},
+            timeout=10,
+        )
+    except Exception:
+        pass  # bridge unavailable — still update contact tracking
+
+    case.last_contacted_at = datetime.utcnow()
+    if data.is_reminder:
+        case.reminder_count = (case.reminder_count or 0) + 1
+    if data.is_initial and (case.contact_stage or "Νέα Ανάλυση") == "Νέα Ανάλυση":
+        case.contact_stage = "Εστάλη Σύνδεσμος"
+    case.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(case)
+    return case
 
 
 @router.post("/{id}/duplicate", response_model=CaseResponse, status_code=201)

@@ -214,18 +214,65 @@ export default function ClientPreview() {
           </div>
         </div>
 
-        {/* Income summary */}
-        {(est.annualIncome > 0 || est.dispMonthly > 0) && (
-          <div className="bg-white rounded-2xl shadow-lg p-5">
-            <h2 className="text-base font-black text-blue-800 border-b-2 border-blue-100 pb-2 mb-3">💶 Εισοδηματική Εικόνα</h2>
-            <div className="grid grid-cols-2 gap-3 text-sm">
-              {est.annualIncome > 0 && <div><span className="text-gray-500">Ετήσιο εισόδημα:</span> <b>{fmt(est.annualIncome)}</b></div>}
-              {est.totalExpenses > 0 && <div><span className="text-gray-500">Σύνολο δαπανών:</span> <b>{fmt(est.totalExpenses)}</b></div>}
-              {est.dispAnnual > 0 && <div><span className="text-gray-500">Ετήσιο διαθέσιμο (×80%):</span> <b>{fmt(est.dispAnnual)}</b></div>}
-              {est.dispMonthly > 0 && <div><span className="text-gray-500">Μηνιαίο διαθέσιμο:</span> <b className="text-blue-700">{fmt(est.dispMonthly)}</b></div>}
+        {/* Income summary — enriched */}
+        {(est.annualIncome > 0 || est.dispMonthly > 0 || data.income_data) && (() => {
+          const inc = data.income_data || {}
+          const isLegal = data.debtor_type?.includes('Νομικό')
+          const HOUSEHOLD_OPTS = [[6448,'Ένας ενήλικας'],[10866,'Δύο ενήλικες'],[9096,'Ένας ενήλικας με 1 τέκνο'],[13514,'Δύο ενήλικες με 1 τέκνο'],[16162,'Δύο ενήλικες με 2 τέκνα'],[18659,'Δύο ενήλικες με 2 τέκνα + εξαρτ.'],[18810,'Δύο ενήλικες με 3 τέκνα'],[21307,'Δύο ενήλικες με 3 τέκνα + εξαρτ.'],[21458,'Δύο ενήλικες με 4 τέκνα']]
+          const hhLabel = HOUSEHOLD_OPTS.find(o => o[0] === inc.householdValue)?.[1]
+          const assets = data.assets || []
+          return (
+            <div className="bg-white rounded-2xl shadow-lg p-5">
+              <h2 className="text-base font-black text-blue-800 border-b-2 border-blue-100 pb-2 mb-3">💶 Εισοδηματική & Περιουσιακή Εικόνα</h2>
+              {isLegal ? (
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  {inc.turnover > 0 && <div><span className="text-gray-500">Κύκλος εργασιών:</span> <b>{fmt(inc.turnover)}</b></div>}
+                  {inc.ebitda > 0 && <div><span className="text-gray-500">EBITDA:</span> <b>{fmt(inc.ebitda)}</b></div>}
+                  {est.dispMonthly > 0 && <div><span className="text-gray-500">Μηνιαίο διαθέσιμο:</span> <b className="text-blue-700">{fmt(est.dispMonthly)}</b></div>}
+                </div>
+              ) : (
+                <>
+                  <div className="mb-3">
+                    <div className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Εισοδήματα</div>
+                    <div className="grid grid-cols-2 gap-2 text-sm">
+                      {inc.annualIncome > 0 && <div><span className="text-gray-500">Ετήσιο εισόδημα:</span> <b>{fmt(inc.annualIncome)}</b></div>}
+                      {est.dispAnnual > 0 && <div><span className="text-gray-500">Διαθέσιμο (×80%):</span> <b className="text-blue-700">{fmt(est.dispAnnual)}</b></div>}
+                      {est.dispMonthly > 0 && <div className="col-span-2"><span className="text-gray-500">Μηνιαίο διαθέσιμο:</span> <b className="text-blue-700 text-base">{fmt(est.dispMonthly)}</b></div>}
+                    </div>
+                  </div>
+                  {(inc.householdValue > 0 || inc.enfiaCost > 0 || inc.medicalCost > 0 || inc.rentCost > 0 || inc.studentRentCost > 0 || inc.extraLivingCost > 0 || inc.alimonyCost > 0) && (
+                    <div className="mb-3">
+                      <div className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Νοικοκυριό & Δαπάνες</div>
+                      <div className="grid grid-cols-2 gap-2 text-sm">
+                        {inc.householdValue > 0 && <div><span className="text-gray-500">Εύλογες δαπάνες{hhLabel ? ` (${hhLabel})` : ''}:</span> <b>{fmt(inc.householdValue)}</b></div>}
+                        {inc.enfiaCost > 0 && <div><span className="text-gray-500">ΕΝΦΙΑ:</span> <b>{fmt(inc.enfiaCost)}</b></div>}
+                        {inc.medicalCost > 0 && <div><span className="text-gray-500">Ιατρικές δαπάνες:</span> <b>{fmt(inc.medicalCost)}</b></div>}
+                        {inc.rentCost > 0 && <div><span className="text-gray-500">Ενοίκιο:</span> <b>{fmt(inc.rentCost)}</b></div>}
+                        {inc.studentRentCost > 0 && <div><span className="text-gray-500">Ενοίκιο φοιτητών:</span> <b>{fmt(inc.studentRentCost)}</b></div>}
+                        {inc.extraLivingCost > 0 && <div><span className="text-gray-500">Πρόσθετη διατροφή:</span> <b>{fmt(inc.extraLivingCost)}</b></div>}
+                        {inc.alimonyCost > 0 && <div><span className="text-gray-500">Διατροφή (διαζύγιο):</span> <b>{fmt(inc.alimonyCost)}</b></div>}
+                        {est.totalExpenses > 0 && <div className="col-span-2 font-semibold"><span className="text-gray-500">Σύνολο δαπανών:</span> <b>{fmt(est.totalExpenses)}</b></div>}
+                      </div>
+                    </div>
+                  )}
+                  {assets.length > 0 && (
+                    <div>
+                      <div className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Ακίνητα & Περιουσία</div>
+                      <div className="space-y-1 text-sm">
+                        {assets.map((a, i) => (
+                          <div key={i} className="flex justify-between">
+                            <span className="text-gray-600">{a.description || a.type || `Ακίνητο ${i+1}`}</span>
+                            <b>{fmt(a.value)}</b>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
             </div>
-          </div>
-        )}
+          )
+        })()}
 
         {/* Creditor table */}
         {finalPlan.length > 0 && (
@@ -421,6 +468,63 @@ export default function ClientPreview() {
             )}
           </div>
         )}
+
+        {/* Service differentiation — "Δεν σταματάμε στην υποβολή" */}
+        <div className="bg-white rounded-2xl shadow-lg p-5">
+          <h2 className="text-base font-black text-blue-800 border-b-2 border-blue-100 pb-2 mb-4">🏆 Γιατί η i-Mentor;</h2>
+          <p className="text-sm font-bold text-blue-900 mb-2">Δεν σταματάμε στην υποβολή — ανεβάζουμε τεκμηριωμένο σχέδιο προς τους πιστωτές</p>
+          <p className="text-sm text-gray-600 mb-4">Ενώ οι περισσότεροι σύμβουλοι σταματούν στην καταχώρηση της αίτησης, εμείς ανεβάζουμε επιπρόσθετα ένα <b>τεκμηριωμένο σχέδιο αναδιάρθρωσης</b> προσαρμοσμένο στους πιστωτές — τόσο για ιδιώτες όσο και για νομικά πρόσωπα.</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+              <div className="text-sm font-bold text-blue-800 mb-1">📄 Τεκμηριωμένο Σχέδιο Αναδιάρθρωσης</div>
+              <div className="text-xs text-gray-600">Ειδικά τα funds και οι τράπεζες δίνουν αντιπρότασεις. Τεκμηριώνουμε τη δική μας πρόταση για μεγαλύτερη πιθανότητα αποδοχής ή ευνοϊκότερης αντιπρότασης.</div>
+            </div>
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+              <div className="text-sm font-bold text-amber-800 mb-1">💼 Business Plan για τη Δυσμενή Κατάσταση</div>
+              <div className="text-xs text-gray-600">Περίληψη, οικονομική & περιουσιακή εικόνα, stress test βασικό & dark σενάριο, συνοπτική πρόταση ανά πιστωτή.</div>
+            </div>
+          </div>
+          <div className="bg-green-50 border border-green-200 rounded-xl p-3 text-sm">
+            <span className="font-bold text-green-800">✅ Αυτό που μας ξεχωρίζει:</span>
+            <span className="text-gray-700"> Η τεκμηρίωση προς τους πιστωτές είναι εξτρά βήμα που κάνουμε μόνο εμείς — με μετρήσιμο αντίκτυπο σε υποθέσεις με funds & τράπεζες.</span>
+          </div>
+        </div>
+
+        {/* Οικονομική Προσφορά & IBANs */}
+        {(() => {
+          const offer = data.commercial_offer || {}
+          if (!offer.application_fee && !offer.success_fee) return null
+          return (
+            <div className="bg-white rounded-2xl shadow-lg p-5">
+              <h2 className="text-base font-black text-blue-800 border-b-2 border-blue-100 pb-2 mb-4">💼 Οικονομική Προσφορά</h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-5">
+                {offer.application_fee > 0 && (
+                  <div className="bg-blue-50 rounded-xl p-4 text-center">
+                    <div className="text-xs font-semibold text-blue-600 uppercase mb-1">Αίτηση & Διαδικασία</div>
+                    <div className="text-2xl font-black text-blue-800">{Number(offer.application_fee).toLocaleString('el-GR')}€</div>
+                    <div className="text-xs text-gray-500 mt-1">+ ΦΠΑ</div>
+                  </div>
+                )}
+                {offer.success_fee > 0 && (
+                  <div className="bg-green-50 rounded-xl p-4 text-center">
+                    <div className="text-xs font-semibold text-green-600 uppercase mb-1">Success Fee (σε αποδοχή)</div>
+                    <div className="text-2xl font-black text-green-800">{Number(offer.success_fee).toLocaleString('el-GR')}€</div>
+                    <div className="text-xs text-gray-500 mt-1">+ ΦΠΑ</div>
+                  </div>
+                )}
+              </div>
+              <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
+                <div className="text-sm font-bold text-gray-700 mb-2">🏦 Τραπεζικοί Λογαριασμοί Πληρωμής</div>
+                <div className="space-y-1 text-sm font-mono">
+                  <div><span className="text-gray-500">Πειραιώς:</span> GR45 0171 4330 0064 3316 4381 388</div>
+                  <div><span className="text-gray-500">Eurobank:</span> GR58 0260 1680 0000 6020 1330 648</div>
+                  <div><span className="text-gray-500">Alpha Bank:</span> GR24 0140 7750 7750 0233 0002 138</div>
+                  <div className="mt-1"><span className="text-gray-500">Δικαιούχος:</span> <b>I MENTOR IKE</b></div>
+                </div>
+              </div>
+            </div>
+          )
+        })()}
 
         {/* CTA */}
         <div className="bg-white rounded-2xl shadow-lg p-6">

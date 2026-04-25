@@ -18,6 +18,7 @@ class CaseCreate(BaseModel):
     notes: str = ""
     portal_active: bool = True
     contact_stage: str = "Νέα Ανάλυση"
+    commercial_offer: Optional[dict] = None
 
 
 class CaseUpdate(BaseModel):
@@ -36,6 +37,7 @@ class CaseUpdate(BaseModel):
     notes: Optional[str] = None
     portal_active: Optional[bool] = None
     contact_stage: Optional[str] = None
+    commercial_offer: Optional[dict] = None
 
 
 class ContactUpdate(BaseModel):
@@ -67,6 +69,9 @@ class CaseResponse(BaseModel):
     contact_stage: str = "Νέα Ανάλυση"
     last_contacted_at: Optional[datetime] = None
     reminder_count: int = 0
+    commercial_offer: Optional[dict] = None
+    portal_visit_count: int = 0
+    portal_visits: Optional[list] = None
     created_at: datetime
     updated_at: datetime
     submitted_at: Optional[datetime]
@@ -81,6 +86,7 @@ class CaseListItem(BaseModel):
     client_name: str
     client_phone: str
     client_email: str
+    notes: str = ""
     employee: str
     status: str
     debtor_type: str
@@ -91,6 +97,7 @@ class CaseListItem(BaseModel):
     contact_stage: str = "Νέα Ανάλυση"
     last_contacted_at: Optional[datetime] = None
     reminder_count: int = 0
+    portal_visit_count: int = 0
     created_at: datetime
     updated_at: datetime
     submitted_at: Optional[datetime]
