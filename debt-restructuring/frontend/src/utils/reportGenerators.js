@@ -287,7 +287,7 @@ document.getElementById('copyBtn').addEventListener('click', async () => {
 // Build email HTML
 // ============================================================
 export function buildEmailHtml(data) {
-  const { clientName, debtorType, totalDebt, totalWriteOff, totalRemaining, totalMonthlyPay, dispMonthly, creditors, bankDebt, taxDebt, insDebt, forecastTitle, forecastSections, commercialOffer } = data
+  const { clientName, debtorType, totalDebt, totalWriteOff, totalRemaining, totalMonthlyPay, dispMonthly, creditors, bankDebt, taxDebt, insDebt, forecastTitle, forecastSections, commercialOffer, showTable = true, showDisclaimer = true } = data
 
   const rows = creditors.map((c) => {
     const pct = c.amount > 0 ? Math.round((c.writeoff / c.amount) * 100) : 0
@@ -343,7 +343,7 @@ export function buildEmailHtml(data) {
     ${dispMonthly > 0 ? `<tr style="border-top:1px solid #e0e7ff;"><td style="padding:6px 12px;color:#374151;">Μηνιαίο Διαθέσιμο Εισόδημα</td><td style="padding:6px 12px;font-weight:700;color:#1d4ed8;text-align:right;">${fmt(dispMonthly)}</td></tr>` : ''}
   </table>
 
-  <p style="margin:0 0 8px;">${badge('◎', '#059669', '#ecfdf5')}<b style="font-size:16px;color:#1e3a5f;">Εκτιμώμενο Θεωρητικό Αποτέλεσμα Ρύθμισης</b></p>
+  ${showTable ? `<p style="margin:0 0 8px;">${badge('◎', '#059669', '#ecfdf5')}<b style="font-size:16px;color:#1e3a5f;">Εκτιμώμενο Θεωρητικό Αποτέλεσμα Ρύθμισης</b></p>
   <table style="border-collapse:collapse;width:100%;font-size:13px;margin-bottom:10px;">
     <thead>
       <tr style="background:#1e3a8a;color:#fff;text-align:center;">
@@ -366,10 +366,10 @@ export function buildEmailHtml(data) {
         <td style="padding:8px 10px;border:1px solid #c7d2fe;text-align:center;color:#1d4ed8;">${fmt(totalMonthlyPay)}</td>
       </tr>
     </tfoot>
-  </table>
-  <div style="background:#fffbeb;border-left:4px solid #f59e0b;border-radius:0 6px 6px 0;padding:10px 14px;font-size:13px;color:#78350f;margin-bottom:16px;">
+  </table>` : ''}
+  ${showDisclaimer ? `<div style="background:#fffbeb;border-left:4px solid #f59e0b;border-radius:0 6px 6px 0;padding:10px 14px;font-size:13px;color:#78350f;margin-bottom:16px;">
     <b>ΣΗΜΑΝΤΙΚΗ ΕΠΙΣΗΜΑΝΣΗ:</b> Τα παραπάνω αποτελέσματα αποτελούν <b>θεωρητική εκτίμηση</b> βάσει των στοιχείων που δηλώθηκαν και του αλγορίθμου του Εξωδικαστικού Μηχανισμού. Δεν αποτελούν δέσμευση ούτε εγγύηση αποτελέσματος.
-  </div>
+  </div>` : ''}
   ${forecastHtml}
   ${banksNote}
   <hr style="border:none;border-top:2px solid #e0e7ff;margin:18px 0;">

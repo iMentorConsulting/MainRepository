@@ -133,13 +133,81 @@ function ViberPreviewModal({ msgType, msgLabel, caseName, url, offer, onSend, on
   )
 }
 
+function buildEmailTextPreview(caseData, { includeTable, includeDisclaimer, includeOffer }) {
+  const est = caseData.estimates || {}
+  const offer = caseData.commercial_offer || {}
+  const finalPlan = est.finalPlan || []
+  const lines = []
+  lines.push(`Αγαπητέ/ή ${caseData.client_name},`)
+  lines.push('')
+  lines.push('Η ομάδα της i-Mentor Consulting ολοκλήρωσε την ανάλυση και παρουσιάζει τα αποτελέσματα της Θεωρητικής Προσομοίωσης Εξωδικαστικού Μηχανισμού.')
+  lines.push('')
+  if (includeTable && finalPlan.length > 0) {
+    lines.push('─── ΕΚΤΙΜΩΜΕΝΟ ΑΠΟΤΕΛΕΣΜΑ ΡΥΘΜΙΣΗΣ ───')
+    finalPlan.forEach((p) => {
+      const name = creditorDisplayName(p.type, p.creditorName)
+      const wr = p.writeoff || 0
+      const pct = p.amount > 0 ? Math.round((wr / p.amount) * 100) : 0
+      lines.push(`${name}`)
+      lines.push(`  Οφειλή: ${(p.amount||0).toLocaleString('el-GR')} | Διαγραφή: ${wr.toLocaleString('el-GR')}${pct ? ` (${pct}%)` : ''} | Υπόλοιπο: ${(p.newAmt||0).toLocaleString('el-GR')} | Δόση: ${(p.payShown||0).toLocaleString('el-GR')}/μήνα`)
+    })
+    lines.push('')
+    lines.push(`Σύνολα: Οφειλή ${(est.sumDebt||0).toLocaleString('el-GR')} | Διαγραφή ${(est.sumWr||0).toLocaleString('el-GR')} | Δόση ${(est.totalMonthlyPay||0).toLocaleString('el-GR')}/μήνα`)
+    lines.push('')
+  }
+  if (includeDisclaimer) {
+    lines.push('⚠️ ΣΗΜΑΝΤΙΚΗ ΕΠΙΣΗΜΑΝΣΗ:')
+    lines.push('Τα παραπάνω αποτελέσματα αποτελούν θεωρητική εκτίμηση βάσει των στοιχείων που δηλώθηκαν και του αλγορίθμου του Εξωδικαστικού Μηχανισμού. Δεν αποτελούν δέσμευση ούτε εγγύηση αποτελέσματος.')
+    lines.push('')
+  }
+  lines.push('─── ΓΙΑΤΙ Η i-MENTOR ───')
+  lines.push('Ενώ οι περισσότεροι σύμβουλοι σταματούν στην καταχώρηση της αίτησης, εμείς ανεβάζουμε επιπρόσθετα ένα τεκμηριωμένο σχέδιο αναδιάρθρωσης προσαρμοσμένο στους πιστωτές.')
+  lines.push('Στόχος μας: Η πρόταση που καταθέτουμε στους πιστωτές στοχεύει να είναι καλύτερη από το θεωρητικό αποτέλεσμα — διεκδικώντας ευνοϊκότερες διαγραφές και χαμηλότερες δόσεις για εσάς.')
+  lines.push('')
+  if (includeOffer && (offer.application_fee || offer.success_fee)) {
+    lines.push('─── ΟΙΚΟΝΟΜΙΚΗ ΠΡΟΣΦΟΡΑ ───')
+    if (offer.application_fee) {
+      const g = Math.round(Number(offer.application_fee) * 1.24)
+      lines.push(`• Αίτηση & Διαδικασία: ${Number(offer.application_fee).toLocaleString('el-GR')}€ + ΦΠΑ 24% = ${g.toLocaleString('el-GR')}€`)
+    }
+    if (offer.success_fee) {
+      const g = Math.round(Number(offer.success_fee) * 1.24)
+      lines.push(`• Success Fee (αποδοχή): ${Number(offer.success_fee).toLocaleString('el-GR')}€ + ΦΠΑ 24% = ${g.toLocaleString('el-GR')}€`)
+    }
+    lines.push('')
+    lines.push('Τραπεζικοί Λογαριασμοί:')
+    lines.push('  Πειραιώς:   GR45 0171 4330 0064 3316 4381 388')
+    lines.push('  Eurobank:   GR58 0260 1680 0000 6020 1330 648')
+    lines.push('  Alpha Bank: GR24 0140 7750 7750 0233 0002 138')
+    lines.push('  Δικαιούχος: I MENTOR IKE')
+    lines.push('')
+  }
+  lines.push('Με εκτίμηση,')
+  lines.push('Η ομάδα της i-Mentor Consulting')
+  lines.push('Τ: 2810 363007 | info@i-mentor.gr | www.i-mentor.gr')
+  return lines.join('\n')
+}
+
 function EmailOptionsModal({ caseData, onClose }) {
+  const [includeTable, setIncludeTable] = useState(true)
+  const [includeDisclaimer, setIncludeDisclaimer] = useState(true)
   const [includeOffer, setIncludeOffer] = useState(false)
   const offer = caseData.commercial_offer || {}
   const est = caseData.estimates || {}
 
-  const openEmail = () => {
-    // Build minimal data from stored estimates
+  const [previewText, setPreviewText] = useState(() =>
+    buildEmailTextPreview(caseData, { includeTable: true, includeDisclaimer: true, includeOffer: false })
+  )
+
+  const rebuildPreview = (tbl, dis, off) => {
+    setPreviewText(buildEmailTextPreview(caseData, { includeTable: tbl, includeDisclaimer: dis, includeOffer: off }))
+  }
+
+  const toggleTable = (v) => { setIncludeTable(v); rebuildPreview(v, includeDisclaimer, includeOffer) }
+  const toggleDisclaimer = (v) => { setIncludeDisclaimer(v); rebuildPreview(includeTable, v, includeOffer) }
+  const toggleOffer = (v) => { setIncludeOffer(v); rebuildPreview(includeTable, includeDisclaimer, v) }
+
+  const openHtmlEmail = () => {
     const finalPlan = est.finalPlan || []
     const creditors = finalPlan.map((p) => ({
       creditor: creditorDisplayName(p.type, p.creditorName),
@@ -170,43 +238,53 @@ function EmailOptionsModal({ caseData, onClose }) {
       forecastTitle: est.forecastTitle,
       forecastSections: est.forecastSections,
       commercialOffer: includeOffer ? offer : null,
+      showTable: includeTable,
+      showDisclaimer: includeDisclaimer,
     }
     const subject = `Θεωρητική Προσομοίωση Εξωδικαστικού | ${caseData.client_name}`
     const html = buildEmailHtml(data)
     const w = window.open('', '_blank', 'width=1200,height=900,scrollbars=yes')
     if (w) { w.document.open(); w.document.write(wrapEmailDocument(html, subject)); w.document.close() }
-    onClose()
   }
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl">
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
           <div className="font-black text-blue-700 text-base">📧 Email Ανάλυσης</div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl font-bold">×</button>
         </div>
         <div className="p-5">
-          <p className="text-sm text-gray-600 mb-4">Το email θα ανοίξει σε νέο παράθυρο έτοιμο για αντιγραφή στο Gmail / Outlook.</p>
-          <label className="flex items-center gap-2 cursor-pointer select-none">
-            <input
-              type="checkbox"
-              className="w-4 h-4 accent-blue-600"
-              checked={includeOffer}
-              onChange={(e) => setIncludeOffer(e.target.checked)}
-            />
-            <span className="text-sm font-semibold text-gray-700">Συμπερίληψη Οικονομικής Προσφοράς & IBAN</span>
-          </label>
-          {includeOffer && (offer.application_fee || offer.success_fee) && (
-            <div className="mt-2 bg-blue-50 rounded-xl px-3 py-2 text-xs text-blue-700">
-              {offer.application_fee ? `• Αίτηση: ${Number(offer.application_fee).toLocaleString('el-GR')}€ + ΦΠΑ` : ''}
-              {offer.success_fee ? `\n• Success Fee: ${Number(offer.success_fee).toLocaleString('el-GR')}€ + ΦΠΑ` : ''}
-            </div>
-          )}
+          <label className="label mb-1">Προεπισκόπηση email <span className="text-gray-400 font-normal">(επεξεργάσιμο)</span></label>
+          <textarea
+            className="w-full border-2 border-gray-200 rounded-xl p-3 text-sm font-mono leading-relaxed focus:outline-none focus:border-blue-400 resize-none"
+            rows={14}
+            value={previewText}
+            onChange={(e) => setPreviewText(e.target.value)}
+          />
+          <div className="flex flex-wrap gap-5 mt-3">
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+              <input type="checkbox" className="w-4 h-4 accent-blue-600" checked={includeTable} onChange={(e) => toggleTable(e.target.checked)} />
+              <span className="text-sm font-semibold text-gray-700">Πίνακας Αποτελεσμάτων</span>
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+              <input type="checkbox" className="w-4 h-4 accent-amber-500" checked={includeDisclaimer} onChange={(e) => toggleDisclaimer(e.target.checked)} />
+              <span className="text-sm font-semibold text-gray-700">Επισήμανση μη δέσμευσης</span>
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+              <input type="checkbox" className="w-4 h-4 accent-green-600" checked={includeOffer} onChange={(e) => toggleOffer(e.target.checked)} />
+              <span className="text-sm font-semibold text-gray-700">Οικονομική Προσφορά & IBAN</span>
+            </label>
+          </div>
+          <p className="text-xs text-gray-400 mt-2">Το HTML email ανοίγει σε νέο παράθυρο έτοιμο για αντιγραφή στο Gmail / Outlook.</p>
         </div>
         <div className="flex gap-2 justify-end px-5 pb-5">
           <button onClick={onClose} className="btn-secondary text-sm">Ακύρωση</button>
-          <button onClick={openEmail} className="btn-primary text-sm gap-2">
-            📧 Δημιουργία Email
+          <button
+            onClick={openHtmlEmail}
+            className="flex items-center gap-2 text-sm font-semibold px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white"
+          >
+            📧 Άνοιγμα HTML Email
           </button>
         </div>
       </div>
