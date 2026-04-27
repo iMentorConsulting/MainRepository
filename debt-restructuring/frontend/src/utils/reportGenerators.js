@@ -287,7 +287,7 @@ document.getElementById('copyBtn').addEventListener('click', async () => {
 // Build email HTML
 // ============================================================
 export function buildEmailHtml(data) {
-  const { clientName, debtorType, totalDebt, totalWriteOff, totalRemaining, totalMonthlyPay, dispMonthly, creditors, bankDebt, taxDebt, insDebt, forecastTitle, forecastSections, commercialOffer, showTable = true, showDisclaimer = true } = data
+  const { clientName, debtorType, totalDebt, totalWriteOff, totalRemaining, totalMonthlyPay, dispMonthly, creditors, bankDebt, taxDebt, insDebt, forecastTitle, forecastSections, commercialOffer, showTable = true, showDisclaimer = true, portalUrl = null, hasVat = false } = data
 
   const rows = creditors.map((c) => {
     const pct = c.amount > 0 ? Math.round((c.writeoff / c.amount) * 100) : 0
@@ -401,6 +401,13 @@ export function buildEmailHtml(data) {
     </div>
   </div>
 
+  ${portalUrl ? `<div style="background:#f0fdf4;border:1px solid #86efac;border-radius:10px;padding:14px 16px;margin:16px 0;">
+    <b style="color:#166534;display:block;margin-bottom:6px;">🔗 Πρόσβαση στη Διαδικτυακή Πύλη</b>
+    <p style="margin:0 0 8px;font-size:14px;color:#374151;">Μπορείτε να δείτε ολόκληρη την ανάλυση στη διαδικτυακή πύλη μας:</p>
+    <a href="${escHtml(portalUrl)}" style="display:inline-block;background:#16a34a;color:#fff;padding:7px 16px;border-radius:6px;font-weight:700;text-decoration:none;font-size:14px;">Προβολή Ανάλυσης →</a>
+    <p style="margin:8px 0 0;font-size:13px;color:#374151;">Κωδικός πρόσβασης: <b>${hasVat ? 'ο ΑΦΜ σας' : 'δεν απαιτείται κωδικός'}</b></p>
+  </div>` : ''}
+
   <hr style="border:none;border-top:2px solid #e0e7ff;margin:18px 0;">
   <p style="margin:0 0 10px;">${badge('◈', '#1d4ed8', '#eff6ff')}<b style="font-size:15px;color:#1e3a5f;">Οικονομική Προσφορά για Ανάληψη Αίτησης</b></p>
   <table style="border-collapse:collapse;width:100%;font-size:14px;margin-bottom:12px;">
@@ -422,6 +429,25 @@ export function buildEmailHtml(data) {
   </div>` : ''}
   <p style="margin-top:16px;">Με εκτίμηση,<br><b>Η ομάδα της i-Mentor Consulting</b><br>📞 2810 363007 • 📧 info@i-mentor.gr • 🌐 www.i-mentor.gr</p>
 </div>`
+}
+
+export function buildSimpleEmailHtml(text) {
+  const lines = text.split('\n')
+  const html = lines.map((line) => {
+    if (/^─+\s+.+\s+─+$/.test(line.trim())) {
+      const title = line.trim().replace(/^─+\s*/, '').replace(/\s*─+$/, '')
+      return `<div style="font-weight:800;color:#1e3a8a;background:#eef2ff;padding:5px 12px;border-radius:5px;margin:14px 0 3px;font-size:13px;">${escHtml(title)}</div>`
+    }
+    if (line.startsWith('⚠️')) {
+      return `<div style="background:#fffbeb;border-left:4px solid #f59e0b;padding:8px 12px;border-radius:0 6px 6px 0;font-size:13px;color:#78350f;margin:6px 0;">${escHtml(line)}</div>`
+    }
+    if (line.trim() === '') return `<div style="height:8px;"></div>`
+    if (/^\s+GR\d/.test(line)) return `<div style="font-family:monospace;font-size:13px;margin-left:14px;color:#1e3a5f;">${escHtml(line)}</div>`
+    if (line.startsWith('  ')) return `<div style="margin-left:14px;font-size:13px;color:#374151;">${escHtml(line)}</div>`
+    if (line.startsWith('• ')) return `<div style="font-size:14px;padding-left:14px;">&#8226; ${escHtml(line.slice(2))}</div>`
+    return `<div style="font-size:14px;color:#111827;">${escHtml(line)}</div>`
+  }).join('')
+  return `<div id="emailContent" style="font-family:Calibri,Arial,sans-serif;color:#1a1a1a;line-height:1.7;max-width:720px;">${html}</div>`
 }
 
 export function wrapEmailDocument(innerHtml, subject) {

@@ -9,7 +9,7 @@ import {
 } from '@heroicons/react/24/outline'
 import * as api from '../api'
 import { fmt, creditorDisplayName } from '../utils/calculations'
-import { buildEmailHtml, wrapEmailDocument, buildResultsEmailHtml } from '../utils/reportGenerators'
+import { buildEmailHtml, wrapEmailDocument, buildResultsEmailHtml, buildSimpleEmailHtml } from '../utils/reportGenerators'
 
 const STATUS_LABELS = {
   draft: { label: 'Πρόχειρο', cls: 'bg-gray-100 text-gray-700' },
@@ -207,6 +207,8 @@ function EmailOptionsModal({ caseData, onClose }) {
   const toggleDisclaimer = (v) => { setIncludeDisclaimer(v); rebuildPreview(includeTable, v, includeOffer) }
   const toggleOffer = (v) => { setIncludeOffer(v); rebuildPreview(includeTable, includeDisclaimer, v) }
 
+  const portalUrl = caseData.share_token ? `${window.location.origin}/preview/${caseData.share_token}` : null
+
   const openHtmlEmail = () => {
     const finalPlan = est.finalPlan || []
     const creditors = finalPlan.map((p) => ({
@@ -240,10 +242,19 @@ function EmailOptionsModal({ caseData, onClose }) {
       commercialOffer: includeOffer ? offer : null,
       showTable: includeTable,
       showDisclaimer: includeDisclaimer,
+      portalUrl,
+      hasVat: Boolean(caseData.has_vat ?? caseData.client_vat),
     }
     const subject = `Θεωρητική Προσομοίωση Εξωδικαστικού | ${caseData.client_name}`
     const html = buildEmailHtml(data)
     const w = window.open('', '_blank', 'width=1200,height=900,scrollbars=yes')
+    if (w) { w.document.open(); w.document.write(wrapEmailDocument(html, subject)); w.document.close() }
+  }
+
+  const openSimpleHtml = () => {
+    const subject = `Θεωρητική Προσομοίωση Εξωδικαστικού | ${caseData.client_name}`
+    const html = buildSimpleEmailHtml(previewText)
+    const w = window.open('', '_blank', 'width=900,height=800,scrollbars=yes')
     if (w) { w.document.open(); w.document.write(wrapEmailDocument(html, subject)); w.document.close() }
   }
 
@@ -281,10 +292,16 @@ function EmailOptionsModal({ caseData, onClose }) {
         <div className="flex gap-2 justify-end px-5 pb-5">
           <button onClick={onClose} className="btn-secondary text-sm">Ακύρωση</button>
           <button
+            onClick={openSimpleHtml}
+            className="flex items-center gap-2 text-sm font-semibold px-4 py-2 rounded-xl bg-gray-600 hover:bg-gray-700 text-white"
+          >
+            📄 Απλό HTML
+          </button>
+          <button
             onClick={openHtmlEmail}
             className="flex items-center gap-2 text-sm font-semibold px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white"
           >
-            📧 Άνοιγμα HTML Email
+            📧 Πλήρες HTML
           </button>
         </div>
       </div>
