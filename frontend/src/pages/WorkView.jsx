@@ -18,13 +18,13 @@ const PROG_COLOR = {
   ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ: 'bg-purple-100 text-purple-700',
 }
 
-function followUpColor(dateStr) {
-  if (!dateStr) return 'text-gray-400'
-  const days = Math.ceil((new Date(dateStr) - new Date()) / 86400000)
-  if (days < 0) return 'text-red-600 font-semibold'
-  if (days <= 3) return 'text-orange-500 font-semibold'
-  if (days <= 7) return 'text-yellow-600'
-  return 'text-gray-600'
+function followUpCellClass(dateStr) {
+  if (!dateStr) return ''
+  const today = new Date(); today.setHours(0, 0, 0, 0)
+  const d = new Date(dateStr); d.setHours(0, 0, 0, 0)
+  if (d < today) return 'bg-red-50'
+  if (d.getTime() === today.getTime()) return 'bg-blue-50'
+  return 'bg-green-50'
 }
 
 function getStatusGroups(prog) {
@@ -33,36 +33,6 @@ function getStatusGroups(prog) {
   const groups = pipeline.phases.map(ph => ({ group: ph.label, statuses: ph.statuses }))
   if (pipeline.extra_statuses?.length) groups.push({ group: 'Λοιπά', statuses: pipeline.extra_statuses })
   return groups
-}
-
-// ── Editable program badge ─────────────────────────────────────────────────────
-function ProgramSelect({ caseId, value, onChange }) {
-  const [saving, setSaving] = useState(false)
-
-  const handle = async (e) => {
-    const v = e.target.value
-    setSaving(true)
-    try {
-      await updateCase(caseId, { program_category: v })
-      onChange(v)
-    } catch { toast.error('Σφάλμα') }
-    finally { setSaving(false) }
-  }
-
-  return (
-    <select
-      value={value || ''}
-      onChange={handle}
-      disabled={saving}
-      title="Αλλαγή προγράμματος"
-      className={`mt-1 text-xs font-semibold px-1.5 py-0.5 rounded border cursor-pointer focus:outline-none focus:ring-1 focus:ring-blue-400
-        ${PROG_COLOR[value] || 'bg-gray-100 text-gray-600 border-gray-200'}
-        ${saving ? 'opacity-50' : ''}`}
-    >
-      <option value="">—</option>
-      {PROGRAMS.map(p => <option key={p} value={p}>{p}</option>)}
-    </select>
-  )
 }
 
 // ── Status inline select ───────────────────────────────────────────────────────
@@ -167,7 +137,7 @@ function FollowUpCell({ caseId, value, onUpdate }) {
       value={value || ''}
       onChange={handle}
       disabled={saving}
-      className={`text-xs border rounded px-1.5 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400 w-full ${followUpColor(value)} ${saving ? 'opacity-50' : ''}`}
+      className={`text-xs border rounded px-1.5 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400 w-full ${saving ? 'opacity-50' : ''}`}
     />
   )
 }
@@ -387,8 +357,8 @@ export default function WorkView() {
             <tr className="bg-gray-800 text-white text-xs uppercase tracking-wide">
               <th className="px-3 py-2.5 text-left w-44">Πελάτης</th>
               <th className="px-3 py-2.5 text-left w-44">Κατάσταση / Μετακίνηση</th>
-              <th className="px-3 py-2.5 text-left w-56">Σημειώσεις</th>
-              <th className="px-3 py-2.5 text-left">Εκκρεμότητες</th>
+              <th className="px-3 py-2.5 text-left w-64">Σημειώσεις</th>
+              <th className="px-3 py-2.5 text-left w-64">Εκκρεμότητες</th>
               <th className="px-3 py-2.5 text-center w-32">Υπενθύμιση</th>
               <th className="px-3 py-2.5 text-center w-28">Αποστολή</th>
             </tr>
@@ -412,11 +382,9 @@ export default function WorkView() {
                     <ArrowTopRightOnSquareIcon className="w-3.5 h-3.5 opacity-0 group-hover:opacity-60 shrink-0" />
                   </Link>
                   <div className="text-xs text-gray-400 mt-0.5 truncate max-w-[10rem]">{c.service_type || '—'}</div>
-                  <ProgramSelect
-                    caseId={c.id}
-                    value={c.program_category}
-                    onChange={v => updateField(c.id, { program_category: v })}
-                  />
+                  <span className={`inline-block mt-1 text-xs font-semibold px-1.5 py-0.5 rounded ${PROG_COLOR[c.program_category] || 'bg-gray-100 text-gray-600'}`}>
+                    {c.program_category || '—'}
+                  </span>
                 </td>
                 <td className="px-3 py-2.5">
                   <StatusCell
@@ -440,7 +408,7 @@ export default function WorkView() {
                     onDelete={deletePending}
                   />
                 </td>
-                <td className="px-3 py-2.5">
+                <td className={`px-3 py-2.5 ${followUpCellClass(c.follow_up_date)}`}>
                   <FollowUpCell
                     caseId={c.id}
                     value={c.follow_up_date}

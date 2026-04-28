@@ -35,14 +35,36 @@ try:
 except Exception:
     pass
 
+from pipelines import get_all_statuses_for_program as _get_statuses
+
+_UNIQUE_MIKRO = set(_get_statuses('ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ')) - set(_get_statuses('ΔΥΠΑ')) - set(_get_statuses('ΕΣΠΑ'))
+_UNIQUE_DYPA = set(_get_statuses('ΔΥΠΑ')) - set(_get_statuses('ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ')) - set(_get_statuses('ΕΣΠΑ'))
+
+def _detect_prog(status, service_type):
+    st = (service_type or '').upper()
+    if 'ΜΙΚΡΟ' in st:
+        return 'ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ'
+    if 'ΔΥΠΑ' in st or 'ΟΑΕΔ' in st:
+        return 'ΔΥΠΑ'
+    if status in _UNIQUE_MIKRO:
+        return 'ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ'
+    if status in _UNIQUE_DYPA:
+        return 'ΔΥΠΑ'
+    return 'ΕΣΠΑ'
+
 with SessionLocal() as _db:
     from models_cases import CMCase as _CMCase
+    _fixed = 0
     for _c in _db.query(_CMCase).all():
         if _c.status in _OSM:
             _c.status = _OSM[_c.status]
-        if not _c.program_category:
-            _c.program_category = 'ΕΣΠΑ'
-    _db.commit()
+        _correct = _detect_prog(_c.status, _c.service_type)
+        if _c.program_category != _correct:
+            _c.program_category = _correct
+            _fixed += 1
+    if _fixed:
+        _db.commit()
+        print(f"[migration] Fixed program_category for {_fixed} cases")
 
 # Import new models so create_all creates their tables
 from models_cases import CMNotificationTemplate, CMStatusSLA
