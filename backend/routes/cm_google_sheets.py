@@ -8,10 +8,24 @@ from typing import List, Optional
 from datetime import datetime, date
 from database import get_db
 from models_cases import CMCase
-from pipelines import OLD_STATUS_MAP
+from pipelines import OLD_STATUS_MAP, get_all_statuses_for_program
 from auth_cases import get_current_user, require_admin, CMUser
 
 router = APIRouter(prefix="/api/cm/sheets", tags=["cm-sheets"])
+
+
+def _detect_program(status: str, service_type: str) -> str:
+    """Detect the program category from service_type keywords or status membership."""
+    st = (service_type or '').upper()
+    if 'ΜΙΚΡΟ' in st:
+        return 'ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ'
+    if 'ΔΥΠΑ' in st or 'ΟΑΕΔ' in st or 'DYPA' in st:
+        return 'ΔΥΠΑ'
+    if status:
+        for prog in ('ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ', 'ΔΥΠΑ', 'ΕΣΠΑ'):
+            if status in get_all_statuses_for_program(prog):
+                return prog
+    return 'ΕΣΠΑ'
 
 SPREADSHEET_ID = os.getenv("GOOGLE_SHEET_ID", "138at2ByB0TEzZpdwdGhtfLC2FShbA5l1IeLtTo5r4x4")
 SHEET_TAB = os.getenv("GOOGLE_SHEET_TAB", "ΕΣΟΔΑ")
@@ -280,7 +294,7 @@ def import_from_sheet(
             sale_date=r["sale_date"],
             service_type=r["service_type"],
             status=r["status"],
-            program_category='ΕΣΠΑ',
+            program_category=_detect_program(r["status"], r["service_type"]),
             approved_budget=r["approved_budget"],
             project_deadline=r["project_deadline"],
             approval_date=r["approval_date"],

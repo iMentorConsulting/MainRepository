@@ -21,7 +21,7 @@ class CaseCreate(BaseModel):
     sale_date: Optional[date] = None
     service_type: Optional[str] = None
     status: Optional[str] = "ΕΝΑΡΞΗ / ΑΠΟΔΟΣΗ ΑΦΜ"
-    program_category: Optional[str] = "ΕΣΠΑ"
+    program_category: Optional[str] = None
     approved_budget: Optional[float] = 0
     subsidy_percent: Optional[float] = 0
     project_deadline: Optional[date] = None
@@ -315,7 +315,7 @@ def create_case(
         sale_date=req.sale_date,
         service_type=req.service_type,
         status=_status,
-        program_category=req.program_category or 'ΕΣΠΑ',
+        program_category=req.program_category,
         approved_budget=req.approved_budget or 0,
         subsidy_percent=req.subsidy_percent or 0,
         project_deadline=req.project_deadline,
