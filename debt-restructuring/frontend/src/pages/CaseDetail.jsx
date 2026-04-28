@@ -143,16 +143,27 @@ function buildEmailTextPreview(caseData, { includeTable, includeDisclaimer, incl
   lines.push('Η ομάδα της i-Mentor Consulting ολοκλήρωσε την ανάλυση και παρουσιάζει τα αποτελέσματα της Θεωρητικής Προσομοίωσης Εξωδικαστικού Μηχανισμού.')
   lines.push('')
   if (includeTable && finalPlan.length > 0) {
+    const hasStepUp = finalPlan.some((p) => p.c1 != null && p.c2 != null && p.c1 !== p.c2)
     lines.push('─── ΕΚΤΙΜΩΜΕΝΟ ΑΠΟΤΕΛΕΣΜΑ ΡΥΘΜΙΣΗΣ ───')
     finalPlan.forEach((p) => {
       const name = creditorDisplayName(p.type, p.creditorName)
       const wr = p.writeoff || 0
       const pct = p.amount > 0 ? Math.round((wr / p.amount) * 100) : 0
       lines.push(`${name}`)
-      lines.push(`  Οφειλή: ${(p.amount||0).toLocaleString('el-GR')} | Διαγραφή: ${wr.toLocaleString('el-GR')}${pct ? ` (${pct}%)` : ''} | Υπόλοιπο: ${(p.newAmt||0).toLocaleString('el-GR')} | Δόση: ${(p.payShown||0).toLocaleString('el-GR')}/μήνα`)
+      if (hasStepUp && p.c1 != null && p.c2 != null && p.c1 !== p.c2) {
+        lines.push(`  Οφειλή: ${(p.amount||0).toLocaleString('el-GR')} | Διαγραφή: ${wr.toLocaleString('el-GR')}${pct ? ` (${pct}%)` : ''} | Υπόλοιπο: ${(p.newAmt||0).toLocaleString('el-GR')}`)
+        lines.push(`  Δόση Έτη 1-3: ${(p.c1||0).toLocaleString('el-GR')}€/μήνα | Δόση Έτη 4+: ${(p.c2||0).toLocaleString('el-GR')}€/μήνα`)
+      } else {
+        lines.push(`  Οφειλή: ${(p.amount||0).toLocaleString('el-GR')} | Διαγραφή: ${wr.toLocaleString('el-GR')}${pct ? ` (${pct}%)` : ''} | Υπόλοιπο: ${(p.newAmt||0).toLocaleString('el-GR')} | Δόση: ${(p.payShown||0).toLocaleString('el-GR')}/μήνα`)
+      }
     })
     lines.push('')
-    lines.push(`Σύνολα: Οφειλή ${(est.sumDebt||0).toLocaleString('el-GR')} | Διαγραφή ${(est.sumWr||0).toLocaleString('el-GR')} | Δόση ${(est.totalMonthlyPay||0).toLocaleString('el-GR')}/μήνα`)
+    const totalC1 = finalPlan.reduce((s, p) => s + (p.c1 ?? p.payShown ?? 0), 0)
+    if (hasStepUp) {
+      lines.push(`Σύνολα: Οφειλή ${(est.sumDebt||0).toLocaleString('el-GR')} | Διαγραφή ${(est.sumWr||0).toLocaleString('el-GR')} | Δόση Έτη 1-3: ${totalC1.toLocaleString('el-GR')}€ | Δόση Έτη 4+: ${(est.totalMonthlyPay||0).toLocaleString('el-GR')}€/μήνα`)
+    } else {
+      lines.push(`Σύνολα: Οφειλή ${(est.sumDebt||0).toLocaleString('el-GR')} | Διαγραφή ${(est.sumWr||0).toLocaleString('el-GR')} | Δόση ${(est.totalMonthlyPay||0).toLocaleString('el-GR')}/μήνα`)
+    }
     lines.push('')
   }
   if (includeDisclaimer) {

@@ -16,6 +16,10 @@ export default function ResultsPanel({ calc, incomeData }) {
   const isLegal = incomeData?.debtorType === 'Νομικό Πρόσωπο'
   const fgColor = SCENARIO_COLORS[calc.scenario] || SCENARIO_COLORS[1]
 
+  // Determine if ANY debt has a step-up (c1 ≠ c2) to decide whether to show two columns
+  const hasStepUp = (calc.finalPlan || []).some((p) => p.c1 != null && p.c2 != null && p.c1 !== p.c2)
+  const totalC1 = (calc.finalPlan || []).reduce((s, p) => s + (p.c1 ?? p.payShown ?? 0), 0)
+
   return (
     <div className="space-y-6">
       {/* Income summary */}
@@ -48,26 +52,52 @@ export default function ResultsPanel({ calc, incomeData }) {
                 <th className="th">Εκτ. Διαγραφή</th>
                 <th className="th">Εναπομένουσα</th>
                 <th className="th">Διάρκεια</th>
-                <th className="th">Μηνιαία Δόση</th>
+                {hasStepUp ? (
+                  <>
+                    <th className="th">Δόση Έτη 1–3</th>
+                    <th className="th">Δόση Έτη 4+</th>
+                  </>
+                ) : (
+                  <th className="th">Μηνιαία Δόση</th>
+                )}
                 <th className="th">% Εισοδήματος</th>
               </tr>
             </thead>
             <tbody>
-              {calc.finalPlan.map((p, i) => (
-                <tr key={i} className="border-b border-gray-100">
-                  <td className="td text-left font-semibold">{creditorDisplayName(p.type, p.creditorName)}</td>
-                  <td className="td font-mono">{fmt(p.amount)}</td>
-                  <td className="td font-mono text-orange-600">{p.writeoff > 0 ? `${fmt(p.writeoff)} (${p.writeoffPct}%)` : '—'}</td>
-                  <td className="td font-mono text-blue-700">{fmt(p.newAmt)}</td>
-                  <td className="td">{p.months} μήνες</td>
-                  <td className="td font-mono font-bold text-blue-800">{fmt(p.payShown)}</td>
-                  <td className="td">
-                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${p.incomePct > 80 ? 'bg-red-100 text-red-700' : p.incomePct > 50 ? 'bg-yellow-100 text-yellow-700' : 'bg-green-100 text-green-700'}`}>
-                      {p.incomePct}%
-                    </span>
-                  </td>
-                </tr>
-              ))}
+              {calc.finalPlan.map((p, i) => {
+                const c1 = p.c1 ?? p.payShown
+                const c2 = p.c2 ?? p.payShown
+                const stepUp = c1 !== c2
+                return (
+                  <tr key={i} className="border-b border-gray-100">
+                    <td className="td text-left font-semibold">{creditorDisplayName(p.type, p.creditorName)}</td>
+                    <td className="td font-mono">{fmt(p.amount)}</td>
+                    <td className="td font-mono text-orange-600">{p.writeoff > 0 ? `${fmt(p.writeoff)} (${p.writeoffPct}%)` : '—'}</td>
+                    <td className="td font-mono text-blue-700">{fmt(p.newAmt)}</td>
+                    <td className="td">{p.months} μήνες</td>
+                    {hasStepUp ? (
+                      <>
+                        <td className="td font-mono text-blue-600">{fmt(c1)}</td>
+                        <td className="td font-mono font-bold text-blue-900">
+                          {stepUp ? (
+                            <span className="flex items-center gap-1">
+                              {fmt(c2)}
+                              <span className="text-xs text-amber-600 font-normal">↑</span>
+                            </span>
+                          ) : fmt(c2)}
+                        </td>
+                      </>
+                    ) : (
+                      <td className="td font-mono font-bold text-blue-800">{fmt(p.payShown)}</td>
+                    )}
+                    <td className="td">
+                      <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${p.incomePct > 80 ? 'bg-red-100 text-red-700' : p.incomePct > 50 ? 'bg-yellow-100 text-yellow-700' : 'bg-green-100 text-green-700'}`}>
+                        {p.incomePct}%
+                      </span>
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>
@@ -83,12 +113,34 @@ export default function ResultsPanel({ calc, incomeData }) {
             <div className="kpi-label">Εναπομένουσες Οφειλές</div>
             <div className="kpi-value">{fmt(calc.totalRemaining)}</div>
           </div>
-          <div className="kpi-card">
-            <div className="kpi-label">Συνολικές Μηνιαίες Δόσεις</div>
-            <div className="kpi-value text-green-700">{fmt(calc.totalMonthlyPay)}</div>
-            {calc.ratio > 0 && <div className="text-xs text-gray-500 mt-0.5">({calc.ratio}% διαθέσιμου εισοδήματος)</div>}
-          </div>
+          {hasStepUp ? (
+            <>
+              <div className="kpi-card">
+                <div className="kpi-label">Σύνολο Δόσεων Έτη 1–3</div>
+                <div className="kpi-value text-blue-600">{fmt(totalC1)}</div>
+                <div className="text-xs text-gray-500 mt-0.5">(προνομιακό επιτόκιο)</div>
+              </div>
+              <div className="kpi-card">
+                <div className="kpi-label">Σύνολο Δόσεων Έτη 4+</div>
+                <div className="kpi-value text-blue-900">{fmt(calc.totalMonthlyPay)}</div>
+                {calc.ratio > 0 && <div className="text-xs text-gray-500 mt-0.5">({calc.ratio}% εισοδήματος)</div>}
+              </div>
+            </>
+          ) : (
+            <div className="kpi-card">
+              <div className="kpi-label">Συνολικές Μηνιαίες Δόσεις</div>
+              <div className="kpi-value text-green-700">{fmt(calc.totalMonthlyPay)}</div>
+              {calc.ratio > 0 && <div className="text-xs text-gray-500 mt-0.5">({calc.ratio}% διαθέσιμου εισοδήματος)</div>}
+            </div>
+          )}
         </div>
+
+        {/* Step-up notice */}
+        {hasStepUp && (
+          <div className="mt-3 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+            ↑ Οι δόσεις «Έτη 4+» υπολογίζονται με επιτόκιο Euribor + spread μετά τη λήξη της τριετούς προνομιακής περιόδου.
+          </div>
+        )}
       </div>
 
       {/* Forecast box */}
