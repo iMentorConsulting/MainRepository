@@ -1,65 +1,52 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import {
-  getCases, getUsers, updateCase, getMessages, createMessage,
-  getCasePendingItems, createCasePendingItem, deleteCasePendingItem,
+  getCases, getUsers, updateCase, getAllPendingOverview,
+  createCasePendingItem, deleteCasePendingItem, notifyCasePendingItems,
 } from '../api'
 import { PIPELINES } from '../pipelines'
 import {
-  MagnifyingGlassIcon, ChevronDownIcon, ChevronRightIcon,
-  PaperAirplaneIcon, PlusIcon, TrashIcon, ArrowTopRightOnSquareIcon,
-  CalendarDaysIcon, ExclamationCircleIcon,
+  MagnifyingGlassIcon, PlusIcon, TrashIcon, ArrowTopRightOnSquareIcon,
+  CalendarDaysIcon, PaperAirplaneIcon,
 } from '@heroicons/react/24/outline'
 import toast from 'react-hot-toast'
 
-// ── helpers ──────────────────────────────────────────────────────────────────
-
 const PROGRAMS = ['ΕΣΠΑ', 'ΔΥΠΑ', 'ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ']
-const PROG_LABEL = { ΕΣΠΑ: 'ΕΣΠΑ', ΔΥΠΑ: 'ΔΥΠΑ', ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ: 'ΜΙΚΡΟ' }
 const PROG_COLOR = {
   ΕΣΠΑ: 'bg-blue-100 text-blue-700',
   ΔΥΠΑ: 'bg-green-100 text-green-700',
   ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ: 'bg-purple-100 text-purple-700',
 }
 
-const fmtDate = (s) => s ? new Date(s).toLocaleDateString('el-GR', { day: '2-digit', month: '2-digit', year: '2-digit' }) : ''
-const fmtTime = (s) => s ? new Date(s).toLocaleString('el-GR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : ''
-
 function followUpColor(dateStr) {
   if (!dateStr) return 'text-gray-400'
   const days = Math.ceil((new Date(dateStr) - new Date()) / 86400000)
   if (days < 0) return 'text-red-600 font-semibold'
-  if (days <= 3) return 'text-orange-600 font-semibold'
+  if (days <= 3) return 'text-orange-500 font-semibold'
   if (days <= 7) return 'text-yellow-600'
   return 'text-gray-600'
 }
 
-// ── All statuses for a program ────────────────────────────────────────────────
-function getStatuses(prog) {
+function getStatusGroups(prog) {
   const pipeline = PIPELINES[prog]
   if (!pipeline) return []
-  const all = []
-  for (const phase of pipeline.phases) {
-    all.push({ group: phase.label, statuses: phase.statuses })
-  }
-  if (pipeline.extra_statuses?.length) {
-    all.push({ group: 'Λοιπά', statuses: pipeline.extra_statuses })
-  }
-  return all
+  const groups = pipeline.phases.map(ph => ({ group: ph.label, statuses: ph.statuses }))
+  if (pipeline.extra_statuses?.length) groups.push({ group: 'Λοιπά', statuses: pipeline.extra_statuses })
+  return groups
 }
 
-// ── Inline Status Select ──────────────────────────────────────────────────────
-function StatusSelect({ caseId, program, value, onChange }) {
-  const groups = getStatuses(program)
+// ── Status inline select ───────────────────────────────────────────────────────
+function StatusCell({ caseId, program, value, onChange }) {
+  const groups = getStatusGroups(program)
   const [saving, setSaving] = useState(false)
 
   const handle = async (e) => {
-    const newStatus = e.target.value
+    const v = e.target.value
     setSaving(true)
     try {
-      await updateCase(caseId, { status: newStatus })
-      onChange(newStatus)
-    } catch { toast.error('Σφάλμα αποθήκευσης') }
+      await updateCase(caseId, { status: v })
+      onChange(v)
+    } catch { toast.error('Σφάλμα') }
     finally { setSaving(false) }
   }
 
@@ -68,8 +55,7 @@ function StatusSelect({ caseId, program, value, onChange }) {
       value={value || ''}
       onChange={handle}
       disabled={saving}
-      className={`text-xs border rounded px-1.5 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-blue-400 max-w-full ${saving ? 'opacity-50' : ''}`}
-      onClick={e => e.stopPropagation()}
+      className={`text-xs border rounded px-1.5 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-blue-400 w-full ${saving ? 'opacity-50' : ''}`}
     >
       <option value="">—</option>
       {groups.map(g => (
@@ -81,187 +67,130 @@ function StatusSelect({ caseId, program, value, onChange }) {
   )
 }
 
-// ── Inline date field ─────────────────────────────────────────────────────────
-function DateField({ caseId, field, value, onChange, label }) {
+// ── Follow-up date cell ────────────────────────────────────────────────────────
+function FollowUpCell({ caseId, value, onUpdate }) {
   const [saving, setSaving] = useState(false)
 
   const handle = async (e) => {
     const val = e.target.value || null
     setSaving(true)
     try {
-      await updateCase(caseId, { [field]: val })
-      onChange(val)
+      await updateCase(caseId, { follow_up_date: val })
+      onUpdate(val)
     } catch { toast.error('Σφάλμα') }
     finally { setSaving(false) }
   }
 
   return (
-    <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
-      <span className="text-xs text-gray-400">{label}</span>
-      <input
-        type="date"
-        value={value || ''}
-        onChange={handle}
-        disabled={saving}
-        className="text-xs border rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-400"
-      />
-    </div>
+    <input
+      type="date"
+      value={value || ''}
+      onChange={handle}
+      disabled={saving}
+      className={`text-xs border rounded px-1.5 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400 w-full ${followUpColor(value)} ${saving ? 'opacity-50' : ''}`}
+    />
   )
 }
 
-// ── Expanded row panel ────────────────────────────────────────────────────────
-function ExpandedPanel({ caseItem, onCaseChange }) {
-  const [messages, setMessages] = useState(null)
-  const [pendingItems, setPendingItems] = useState(null)
-  const [note, setNote] = useState('')
-  const [sending, setSending] = useState(false)
-  const [newPending, setNewPending] = useState('')
-  const [addingPending, setAddingPending] = useState(false)
-  const noteRef = useRef(null)
+// ── Pending items cell (each item on its own line) ─────────────────────────────
+function PendingCell({ caseId, items, onAdd, onDelete }) {
+  const [newText, setNewText] = useState('')
+  const [adding, setAdding] = useState(false)
 
-  useEffect(() => {
-    getMessages(caseItem.id).then(setMessages).catch(() => setMessages([]))
-    getCasePendingItems(caseItem.id).then(setPendingItems).catch(() => setPendingItems([]))
-  }, [caseItem.id])
-
-  const sendNote = async (e) => {
-    e.preventDefault()
-    if (!note.trim()) return
-    setSending(true)
-    try {
-      const m = await createMessage(caseItem.id, { content: note.trim(), is_internal: true })
-      setMessages(prev => [...(prev || []), m])
-      setNote('')
-      noteRef.current?.focus()
-    } catch { toast.error('Σφάλμα αποστολής') }
-    finally { setSending(false) }
+  const handleAdd = async () => {
+    const text = newText.trim()
+    if (!text) return
+    setAdding(true)
+    const ok = await onAdd(caseId, text)
+    if (ok) setNewText('')
+    setAdding(false)
   }
-
-  const addPending = async () => {
-    if (!newPending.trim()) return
-    setAddingPending(true)
-    try {
-      const item = await createCasePendingItem(caseItem.id, { item_text: newPending.trim() })
-      setPendingItems(prev => [...(prev || []), item])
-      setNewPending('')
-      onCaseChange({ pending_count: (caseItem.pending_count || 0) + 1 })
-    } catch { toast.error('Σφάλμα') }
-    finally { setAddingPending(false) }
-  }
-
-  const removePending = async (itemId) => {
-    try {
-      await deleteCasePendingItem(caseItem.id, itemId)
-      setPendingItems(prev => prev.filter(i => i.id !== itemId))
-      onCaseChange({ pending_count: Math.max(0, (caseItem.pending_count || 0) - 1) })
-    } catch { toast.error('Σφάλμα') }
-  }
-
-  const sortedMessages = [...(messages || [])].sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
 
   return (
-    <div className="grid grid-cols-3 gap-4 p-4 bg-gray-50 border-t border-gray-200" onClick={e => e.stopPropagation()}>
-
-      {/* Col 1: Quick fields */}
-      <div className="space-y-3">
-        <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">Στοιχεία</p>
-        <div className="space-y-2">
-          <div>
-            <p className="text-xs text-gray-400 mb-0.5">Κατάσταση</p>
-            <StatusSelect
-              caseId={caseItem.id}
-              program={caseItem.program_category}
-              value={caseItem.status}
-              onChange={v => onCaseChange({ status: v })}
-            />
+    <div className="space-y-0.5">
+      {items.length === 0
+        ? <p className="text-xs text-gray-300 italic">—</p>
+        : items.map((item, idx) => (
+          <div key={item.id} className="flex items-start gap-1 group text-xs leading-snug">
+            <span className="text-orange-400 font-bold shrink-0 w-4">{idx + 1}.</span>
+            <span className="flex-1 text-gray-800 break-words">{item.item_text}</span>
+            <button
+              onClick={() => onDelete(caseId, item.id)}
+              className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-400 shrink-0 mt-0.5"
+            >
+              <TrashIcon className="w-3 h-3" />
+            </button>
           </div>
-          <DateField caseId={caseItem.id} field="follow_up_date" value={caseItem.follow_up_date}
-            onChange={v => onCaseChange({ follow_up_date: v })} label="Follow-up:" />
-          <DateField caseId={caseItem.id} field="project_deadline" value={caseItem.project_deadline}
-            onChange={v => onCaseChange({ project_deadline: v })} label="Προθεσμία:" />
-        </div>
-        <Link
-          to={`/cases/${caseItem.id}`}
-          className="flex items-center gap-1 text-xs text-blue-600 hover:underline mt-2"
-          onClick={e => e.stopPropagation()}
+        ))
+      }
+      <div className="flex gap-1 pt-1">
+        <input
+          className="flex-1 min-w-0 text-xs border border-gray-200 rounded px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-orange-300 placeholder-gray-300"
+          placeholder="+ Νέα εκκρεμότητα..."
+          value={newText}
+          onChange={e => setNewText(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && handleAdd()}
+        />
+        <button
+          onClick={handleAdd}
+          disabled={adding || !newText.trim()}
+          className="shrink-0 text-orange-400 hover:text-orange-600 disabled:opacity-30"
         >
-          <ArrowTopRightOnSquareIcon className="w-3.5 h-3.5" />
-          Άνοιγμα πλήρους υπόθεσης
-        </Link>
-      </div>
-
-      {/* Col 2: Notes */}
-      <div className="flex flex-col min-h-0">
-        <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Σημειώσεις</p>
-        <div className="flex-1 overflow-y-auto max-h-48 space-y-1.5 mb-2 pr-1">
-          {messages === null ? (
-            <p className="text-xs text-gray-400">Φόρτωση...</p>
-          ) : sortedMessages.length === 0 ? (
-            <p className="text-xs text-gray-400 italic">Δεν υπάρχουν σημειώσεις</p>
-          ) : sortedMessages.map(m => (
-            <div key={m.id} className="text-xs bg-white border border-gray-200 rounded px-2 py-1.5">
-              <div className="flex justify-between items-center mb-0.5">
-                <span className="font-semibold text-gray-600">{m.author_name || '—'}</span>
-                <span className="text-gray-400">{fmtTime(m.created_at)}</span>
-              </div>
-              <p className="text-gray-800 whitespace-pre-wrap leading-snug">{m.content}</p>
-            </div>
-          ))}
-        </div>
-        <form onSubmit={sendNote} className="flex gap-1.5">
-          <input
-            ref={noteRef}
-            className="flex-1 text-xs border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-400"
-            placeholder="Γράψε σημείωση... (Enter = αποστολή)"
-            value={note}
-            onChange={e => setNote(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendNote(e) } }}
-          />
-          <button type="submit" disabled={sending || !note.trim()}
-            className="p-1.5 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-40">
-            <PaperAirplaneIcon className="w-3.5 h-3.5" />
-          </button>
-        </form>
-      </div>
-
-      {/* Col 3: Εκκρεμότητες */}
-      <div className="flex flex-col min-h-0">
-        <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Εκκρεμότητες</p>
-        <div className="flex-1 overflow-y-auto max-h-44 space-y-1 mb-2">
-          {pendingItems === null ? (
-            <p className="text-xs text-gray-400">Φόρτωση...</p>
-          ) : pendingItems.length === 0 ? (
-            <p className="text-xs text-gray-400 italic">Καμία εκκρεμότητα</p>
-          ) : pendingItems.map((item, idx) => (
-            <div key={item.id} className="flex items-start gap-1.5 group text-xs bg-white border border-orange-100 rounded px-2 py-1.5">
-              <span className="text-orange-400 font-bold flex-shrink-0 mt-0.5">{idx + 1}.</span>
-              <span className="flex-1 text-gray-800">{item.item_text}</span>
-              <button onClick={() => removePending(item.id)}
-                className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-400 flex-shrink-0">
-                <TrashIcon className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          ))}
-        </div>
-        <div className="flex gap-1.5">
-          <input
-            className="flex-1 text-xs border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-orange-400"
-            placeholder="Νέα εκκρεμότητα..."
-            value={newPending}
-            onChange={e => setNewPending(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && addPending()}
-          />
-          <button onClick={addPending} disabled={addingPending || !newPending.trim()}
-            className="p-1.5 bg-orange-500 text-white rounded hover:bg-orange-600 disabled:opacity-40">
-            <PlusIcon className="w-3.5 h-3.5" />
-          </button>
-        </div>
+          <PlusIcon className="w-3.5 h-3.5" />
+        </button>
       </div>
     </div>
   )
 }
 
-// ── Main component ────────────────────────────────────────────────────────────
+// ── Send all pending items to client ──────────────────────────────────────────
+function SendButton({ caseId, hasItems }) {
+  const [open, setOpen] = useState(false)
+  const [sending, setSending] = useState(false)
+  const menuRef = useRef(null)
+
+  useEffect(() => {
+    if (!open) return
+    const close = (e) => { if (!menuRef.current?.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', close)
+    return () => document.removeEventListener('mousedown', close)
+  }, [open])
+
+  if (!hasItems) return <span className="text-gray-200 text-xs">—</span>
+
+  const send = async (type) => {
+    setOpen(false)
+    setSending(true)
+    try {
+      await notifyCasePendingItems(caseId, { notification_type: type })
+      toast.success('Εστάλη επιτυχώς')
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Σφάλμα αποστολής')
+    } finally { setSending(false) }
+  }
+
+  return (
+    <div className="relative" ref={menuRef}>
+      <button
+        onClick={() => setOpen(p => !p)}
+        disabled={sending}
+        className="flex items-center gap-1 text-xs bg-blue-50 text-blue-600 hover:bg-blue-100 border border-blue-200 rounded px-2 py-1 disabled:opacity-50"
+      >
+        <PaperAirplaneIcon className="w-3.5 h-3.5" />
+        {sending ? '...' : 'Αποστολή'}
+      </button>
+      {open && (
+        <div className="absolute right-0 bottom-full mb-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 py-1 w-32">
+          <button onClick={() => send('email')} className="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50">Email</button>
+          <button onClick={() => send('viber')} className="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50">Viber</button>
+          <button onClick={() => send('both')} className="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 font-semibold">Και τα δύο</button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Main component ─────────────────────────────────────────────────────────────
 export default function WorkView() {
   const [cases, setCases] = useState([])
   const [loading, setLoading] = useState(true)
@@ -270,16 +199,34 @@ export default function WorkView() {
   const [filterProgram, setFilterProgram] = useState('')
   const [filterAgent, setFilterAgent] = useState('')
   const [filterFollowUp, setFilterFollowUp] = useState(false)
-  const [expandedId, setExpandedId] = useState(null)
 
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const params = {}
-      if (filterProgram) params.program_category = filterProgram
-      if (filterAgent) params.agent_id = filterAgent
-      if (search) params.search = search
-      setCases(await getCases(params))
+      const caseParams = {}
+      if (filterProgram) caseParams.program_category = filterProgram
+      if (filterAgent) caseParams.agent_id = filterAgent
+      if (search) caseParams.search = search
+
+      const overviewParams = {}
+      if (filterProgram) overviewParams.program_category = filterProgram
+      if (filterAgent) overviewParams.assigned_agent_id = filterAgent
+      if (search) overviewParams.search = search
+
+      const [casesData, pendingData] = await Promise.all([
+        getCases(caseParams),
+        getAllPendingOverview(overviewParams).catch(() => []),
+      ])
+
+      const pendingMap = {}
+      for (const p of pendingData) {
+        pendingMap[p.id] = p.pending_items || []
+      }
+
+      setCases(casesData.map(c => ({
+        ...c,
+        pending_items: pendingMap[c.id] || [],
+      })))
     } catch { toast.error('Σφάλμα φόρτωσης') }
     finally { setLoading(false) }
   }, [filterProgram, filterAgent, search])
@@ -292,11 +239,27 @@ export default function WorkView() {
     ? cases.filter(c => c.follow_up_date && c.follow_up_date <= today)
     : cases
 
-  const updateCaseField = (caseId, fields) => {
+  const updateField = (caseId, fields) =>
     setCases(prev => prev.map(c => c.id === caseId ? { ...c, ...fields } : c))
+
+  const addPending = async (caseId, text) => {
+    try {
+      const item = await createCasePendingItem(caseId, { item_text: text })
+      setCases(prev => prev.map(c =>
+        c.id === caseId ? { ...c, pending_items: [...(c.pending_items || []), item] } : c
+      ))
+      return true
+    } catch { toast.error('Σφάλμα'); return false }
   }
 
-  const toggleExpand = (id) => setExpandedId(prev => prev === id ? null : id)
+  const deletePending = async (caseId, itemId) => {
+    try {
+      await deleteCasePendingItem(caseId, itemId)
+      setCases(prev => prev.map(c =>
+        c.id === caseId ? { ...c, pending_items: c.pending_items.filter(i => i.id !== itemId) } : c
+      ))
+    } catch { toast.error('Σφάλμα') }
+  }
 
   return (
     <div className="flex flex-col h-full">
@@ -316,7 +279,7 @@ export default function WorkView() {
         <div className="relative">
           <MagnifyingGlassIcon className="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
           <input
-            className="pl-8 pr-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white w-48"
+            className="pl-8 pr-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white w-52"
             placeholder="Αναζήτηση πελάτη..."
             value={search}
             onChange={e => setSearch(e.target.value)}
@@ -333,7 +296,7 @@ export default function WorkView() {
         <label className="flex items-center gap-1.5 text-sm text-gray-600 cursor-pointer select-none">
           <input type="checkbox" checked={filterFollowUp} onChange={e => setFilterFollowUp(e.target.checked)} className="rounded" />
           <CalendarDaysIcon className="w-4 h-4 text-orange-500" />
-          Follow-up σήμερα ή παλαιότερα
+          Follow-up σήμερα/παρελθόν
         </label>
       </div>
 
@@ -342,82 +305,64 @@ export default function WorkView() {
         <table className="w-full text-sm border-collapse">
           <thead className="sticky top-0 z-10">
             <tr className="bg-gray-800 text-white text-xs uppercase tracking-wide">
-              <th className="px-3 py-2.5 text-left w-24">Πρόγραμμα</th>
-              <th className="px-3 py-2.5 text-left">Πελάτης</th>
-              <th className="px-3 py-2.5 text-left w-64">Κατάσταση</th>
-              <th className="px-3 py-2.5 text-left">Τελευταία Σημείωση</th>
-              <th className="px-3 py-2.5 text-center w-20">Εκκρεμ.</th>
-              <th className="px-3 py-2.5 text-center w-28">Follow-up</th>
-              <th className="px-3 py-2.5 text-center w-6"></th>
+              <th className="px-3 py-2.5 text-left w-48">Πελάτης</th>
+              <th className="px-3 py-2.5 text-left w-44">Κατάσταση / Μετακίνηση</th>
+              <th className="px-3 py-2.5 text-left">Εκκρεμότητες</th>
+              <th className="px-3 py-2.5 text-center w-32">Υπενθύμιση</th>
+              <th className="px-3 py-2.5 text-center w-28">Αποστολή</th>
+              <th className="px-3 py-2.5 w-8"></th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={7} className="text-center py-16 text-gray-400">
+              <tr><td colSpan={6} className="text-center py-16 text-gray-400">
                 <div className="animate-spin w-6 h-6 border-4 border-blue-500 border-t-transparent rounded-full mx-auto mb-2" />
                 Φόρτωση...
               </td></tr>
             ) : displayed.length === 0 ? (
-              <tr><td colSpan={7} className="text-center py-16 text-gray-400">Δεν βρέθηκαν υποθέσεις</td></tr>
-            ) : displayed.map(c => {
-              const isExpanded = expandedId === c.id
-              const lastMsg = c.last_note_preview
-              const fuColor = followUpColor(c.follow_up_date)
-
-              return (
-                <>
-                  <tr
-                    key={c.id}
-                    onClick={() => toggleExpand(c.id)}
-                    className={`border-b border-gray-100 cursor-pointer transition-colors ${isExpanded ? 'bg-blue-50' : 'hover:bg-gray-50'}`}
-                  >
-                    <td className="px-3 py-2">
-                      <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${PROG_COLOR[c.program_category] || 'bg-gray-100 text-gray-600'}`}>
-                        {PROG_LABEL[c.program_category] || c.program_category || '—'}
-                      </span>
-                    </td>
-                    <td className="px-3 py-2">
-                      <div className="font-semibold text-gray-900 text-sm">{c.client_name}</div>
-                      <div className="text-xs text-gray-400 truncate max-w-xs">{c.service_type || '—'}</div>
-                    </td>
-                    <td className="px-3 py-2">
-                      <StatusSelect
-                        caseId={c.id}
-                        program={c.program_category}
-                        value={c.status}
-                        onChange={v => updateCaseField(c.id, { status: v })}
-                      />
-                    </td>
-                    <td className="px-3 py-2 max-w-xs">
-                      <p className="text-xs text-gray-500 truncate">{lastMsg || <span className="text-gray-300 italic">—</span>}</p>
-                    </td>
-                    <td className="px-3 py-2 text-center">
-                      {c.pending_count > 0
-                        ? <span className="inline-flex items-center gap-0.5 text-xs font-semibold text-orange-600 bg-orange-50 border border-orange-200 px-1.5 py-0.5 rounded-full">
-                            <ExclamationCircleIcon className="w-3 h-3" />{c.pending_count}
-                          </span>
-                        : <span className="text-gray-300 text-xs">—</span>}
-                    </td>
-                    <td className={`px-3 py-2 text-center text-xs ${fuColor}`}>
-                      {c.follow_up_date ? fmtDate(c.follow_up_date) : <span className="text-gray-300">—</span>}
-                    </td>
-                    <td className="px-2 py-2 text-center text-gray-400">
-                      {isExpanded ? <ChevronDownIcon className="w-4 h-4" /> : <ChevronRightIcon className="w-4 h-4" />}
-                    </td>
-                  </tr>
-                  {isExpanded && (
-                    <tr key={`exp-${c.id}`} className="bg-gray-50">
-                      <td colSpan={7} className="p-0">
-                        <ExpandedPanel
-                          caseItem={c}
-                          onCaseChange={fields => updateCaseField(c.id, fields)}
-                        />
-                      </td>
-                    </tr>
-                  )}
-                </>
-              )
-            })}
+              <tr><td colSpan={6} className="text-center py-16 text-gray-400">Δεν βρέθηκαν υποθέσεις</td></tr>
+            ) : displayed.map(c => (
+              <tr key={c.id} className="border-b border-gray-100 hover:bg-gray-50/50 align-top">
+                <td className="px-3 py-2.5">
+                  <div className="font-semibold text-gray-900 text-sm leading-snug">{c.client_name}</div>
+                  <div className="text-xs text-gray-400 mt-0.5 truncate max-w-[11rem]">{c.service_type || '—'}</div>
+                  <span className={`inline-block mt-1 text-xs font-medium px-1.5 py-0.5 rounded ${PROG_COLOR[c.program_category] || 'bg-gray-100 text-gray-600'}`}>
+                    {c.program_category || '—'}
+                  </span>
+                </td>
+                <td className="px-3 py-2.5">
+                  <StatusCell
+                    caseId={c.id}
+                    program={c.program_category}
+                    value={c.status}
+                    onChange={v => updateField(c.id, { status: v })}
+                  />
+                </td>
+                <td className="px-3 py-2.5">
+                  <PendingCell
+                    caseId={c.id}
+                    items={c.pending_items || []}
+                    onAdd={addPending}
+                    onDelete={deletePending}
+                  />
+                </td>
+                <td className="px-3 py-2.5">
+                  <FollowUpCell
+                    caseId={c.id}
+                    value={c.follow_up_date}
+                    onUpdate={v => updateField(c.id, { follow_up_date: v })}
+                  />
+                </td>
+                <td className="px-3 py-2.5 text-center">
+                  <SendButton caseId={c.id} hasItems={(c.pending_items || []).length > 0} />
+                </td>
+                <td className="px-2 py-2.5 text-center">
+                  <Link to={`/cases/${c.id}`} className="text-gray-300 hover:text-blue-500">
+                    <ArrowTopRightOnSquareIcon className="w-4 h-4" />
+                  </Link>
+                </td>
+              </tr>
+            ))}
           </tbody>
         </table>
       </div>
