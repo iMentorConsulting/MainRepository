@@ -98,7 +98,6 @@ export function maxMonthsByType(type, amount) {
 // Main calculation
 // ============================================================
 export function calculateAll(debts, assets, incomeData, params = PARAMS_B) {
-  const AUCTION_EXPENSES = 5000
   const isLE = incomeData.debtorType === 'Νομικό Πρόσωπο'
   const youngestAge = isLE ? 0 : (incomeData.debtorAge || 0)
 
@@ -135,64 +134,69 @@ export function calculateAll(debts, assets, incomeData, params = PARAMS_B) {
   const propsTotal = propsRaw + countableSavings
 
   const sumMortRaw = rows.reduce((a, r) => a + (r.mort ? r.prop : 0), 0)
-  const sumMortAfterExp = Math.max(0, sumMortRaw - AUCTION_EXPENSES)
-  const sumAssetsAfterExp = sumMortAfterExp + propsTotal
-  const mortScale = sumMortRaw ? sumMortAfterExp / sumMortRaw : 0
+  // Net liquidation: real estate × 0.97; liquid savings at full value
+  const sumMortNet = rows.reduce((a, r) => a + (r.mort ? r.prop * params.collateralFactor : 0), 0)
+  const freeLiq = propsRaw * params.collateralFactor + countableSavings
+  const sumAssetsAfterExp = sumMortNet + freeLiq
 
-  // --- coverage 65/25/10 ---
+  // --- coverage: ΚΠολΔ 977 (correct split per mortgaged + free assets) ---
+  // Mortgaged property: 65% to secured creditor, 10% to public (Δημόσιο/ΦΚΑ), 25% to unsecured pro-rata
+  //   Unsecured pool includes residual (uncovered) portion of the same mortgage creditor
+  // Free assets: 2/3 to public, 1/3 to unsecured pro-rata (same unsecured pool with all residuals)
   const covMap = new Map()
   if (sumAssetsAfterExp >= sumDebt) {
     rows.forEach((r) => covMap.set(r.idx, r.amount))
   } else {
-    const mortRows = rows.filter((r) => r.mort && r.prop > 0)
-    const effProp = new Map()
-    mortRows.forEach((r) => effProp.set(r.idx, r.prop * mortScale))
-    let poolTax = 0, poolUnsec = 0
-    const own65 = new Map()
-    mortRows.forEach((r) => {
-      const p = effProp.get(r.idx) || 0
-      own65.set(r.idx, p * 0.65)
-      poolTax += p * 0.25
-      poolUnsec += p * 0.10
+    const recovery = new Map()
+    rows.forEach((r) => recovery.set(r.idx, 0))
+    const pubRows = rows.filter((r) => isPublicDebt(r.type))
+    const pubClaimTotal = pubRows.reduce((a, r) => a + r.amount, 0)
+    const unsecBankRows = rows.filter((r) => !r.mort && !isPublicDebt(r.type))
+
+    // Step 1: each mortgaged property (ΚΠολΔ 977)
+    const mortResiduals = new Map()
+    rows.filter((r) => r.mort && r.prop > 0).forEach((r) => {
+      const liq = r.prop * params.collateralFactor
+      const secured65 = Math.min(0.65 * liq, r.amount)
+      recovery.set(r.idx, (recovery.get(r.idx) || 0) + secured65)
+      mortResiduals.set(r.idx, Math.max(0, r.amount - secured65))
+      // 10% to general priority; surplus from capped 65% also flows here
+      const surplus65 = Math.max(0, 0.65 * liq - r.amount)
+      const genPool = 0.10 * liq + surplus65
+      if (pubClaimTotal > 0) {
+        pubRows.forEach((p) => recovery.set(p.idx, (recovery.get(p.idx) || 0) + genPool * p.amount / pubClaimTotal))
+      }
+      // 25% to unsecured pro-rata — includes residual of this mortgage creditor
+      const unsecPool = 0.25 * liq
+      const unsecClaims = [
+        ...unsecBankRows.map((u) => ({ idx: u.idx, amount: u.amount })),
+        ...(mortResiduals.get(r.idx) > 0 ? [{ idx: r.idx, amount: mortResiduals.get(r.idx) }] : []),
+      ]
+      const unsecClaimTotal = unsecClaims.reduce((a, u) => a + u.amount, 0)
+      if (unsecClaimTotal > 0) {
+        unsecClaims.forEach((u) => recovery.set(u.idx, (recovery.get(u.idx) || 0) + unsecPool * u.amount / unsecClaimTotal))
+      }
     })
-    const taxRows = rows.filter((r) => isPublicDebt(r.type))
-    const unsecRows = rows.filter((r) => !r.mort && !isPublicDebt(r.type))
-    const taxTotal = taxRows.reduce((a, r) => a + r.amount, 0)
-    const unsecTotal = unsecRows.reduce((a, r) => a + r.amount, 0)
-    const allTotal = rows.reduce((a, r) => a + r.amount, 0)
-    const poolAlloTax = new Map(), poolAlloUnsc = new Map()
-    if (taxTotal > 0) taxRows.forEach((r) => poolAlloTax.set(r.idx, poolTax * r.amount / taxTotal))
-    else rows.forEach((r) => poolAlloTax.set(r.idx, allTotal ? poolTax * r.amount / allTotal : 0))
-    if (unsecTotal > 0) unsecRows.forEach((r) => poolAlloUnsc.set(r.idx, poolUnsec * r.amount / unsecTotal))
-    else rows.forEach((r) => poolAlloUnsc.set(r.idx, allTotal ? poolUnsec * r.amount / allTotal : 0))
-    // ΚΠολΔ 975: public creditors (ΑΑΔΕ/ΕΦΚΑ) have general privilege → first claim on non-mortgaged assets
-    let propsRem = propsTotal
-    const propsAlloMap = new Map()
-    const pubCredRows = rows.filter((r) => isPublicDebt(r.type))
-    const pubCredTotal = pubCredRows.reduce((a, r) => a + r.amount, 0)
-    if (pubCredTotal > 0 && propsRem > 0) {
-      const alloc = Math.min(propsRem, pubCredTotal)
-      pubCredRows.forEach((r) => propsAlloMap.set(r.idx, alloc * r.amount / pubCredTotal))
-      propsRem -= alloc
-    }
-    const genUnsecRows = rows.filter((r) => !r.mort && !isPublicDebt(r.type))
-    const genUnsecTotal = genUnsecRows.reduce((a, r) => a + r.amount, 0)
-    if (genUnsecTotal > 0 && propsRem > 0) {
-      const alloc = Math.min(propsRem, genUnsecTotal)
-      genUnsecRows.forEach((r) => propsAlloMap.set(r.idx, (propsAlloMap.get(r.idx) || 0) + alloc * r.amount / genUnsecTotal))
-      propsRem -= alloc
-    }
-    if (propsRem > 0) {
-      const mortBankRows = rows.filter((r) => r.mort && !isPublicDebt(r.type))
-      const mortBankTotal = mortBankRows.reduce((a, r) => a + r.amount, 0)
-      if (mortBankTotal > 0) {
-        mortBankRows.forEach((r) => propsAlloMap.set(r.idx, (propsAlloMap.get(r.idx) || 0) + propsRem * r.amount / mortBankTotal))
+
+    // Step 2: free assets — 2/3 public, 1/3 unsecured (all residuals included)
+    if (freeLiq > 0) {
+      const freeGenPool = (2 / 3) * freeLiq
+      if (pubClaimTotal > 0) {
+        pubRows.forEach((r) => recovery.set(r.idx, (recovery.get(r.idx) || 0) + freeGenPool * r.amount / pubClaimTotal))
+      }
+      const freeUnsecPool = (1 / 3) * freeLiq
+      const freeUnsecClaims = [
+        ...unsecBankRows.map((u) => ({ idx: u.idx, amount: u.amount })),
+        ...Array.from(mortResiduals.entries()).filter(([, v]) => v > 0).map(([i, v]) => ({ idx: i, amount: v })),
+      ]
+      const freeUnsecTotal = freeUnsecClaims.reduce((a, u) => a + u.amount, 0)
+      if (freeUnsecTotal > 0) {
+        freeUnsecClaims.forEach((u) => recovery.set(u.idx, (recovery.get(u.idx) || 0) + freeUnsecPool * u.amount / freeUnsecTotal))
       }
     }
-    rows.forEach((r) => {
-      const c = (own65.get(r.idx) || 0) + (poolAlloTax.get(r.idx) || 0) + (poolAlloUnsc.get(r.idx) || 0) + (propsAlloMap.get(r.idx) || 0)
-      covMap.set(r.idx, Math.min(c, r.amount))
-    })
+
+    // Step 3: cap at debt amount
+    rows.forEach((r) => covMap.set(r.idx, Math.min(recovery.get(r.idx) || 0, r.amount)))
   }
 
   // --- write-off caps ---
