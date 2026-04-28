@@ -116,6 +116,7 @@ export default function PendingPage() {
   const [search, setSearch] = useState('')
   const [progTab, setProgTab] = useState('Όλα')
   const [filterAgent, setFilterAgent] = useState('')
+  const [filterServiceType, setFilterServiceType] = useState('')
   const [sortBy, setSortBy] = useState('pending_desc')
   const [showOnlyPending, setShowOnlyPending] = useState(false)
   const [showOnlyDeadline, setShowOnlyDeadline] = useState(false)
@@ -134,11 +135,17 @@ export default function PendingPage() {
   }
 
   useEffect(() => { load() }, [progTab, filterAgent])
+  useEffect(() => { setFilterServiceType('') }, [progTab])
   useEffect(() => { getUsers().then(setAgents).catch(() => {}) }, [])
+
+  const serviceTypeOptions = useMemo(() =>
+    [...new Set(data.map(i => i.service_type).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'el'))
+  , [data])
 
   const filtered = useMemo(() => {
     let items = data
     if (search) items = items.filter(i => i.client_name?.toLowerCase().includes(search.toLowerCase()))
+    if (filterServiceType) items = items.filter(i => i.service_type === filterServiceType)
     if (showOnlyPending) items = items.filter(i => i.pending_count > 0)
     if (showOnlyDeadline) items = items.filter(i => i.project_deadline)
 
@@ -204,6 +211,11 @@ export default function PendingPage() {
             onChange={e => setSearch(e.target.value)}
           />
         </div>
+
+        <select className="input w-auto text-sm" value={filterServiceType} onChange={e => setFilterServiceType(e.target.value)}>
+          <option value="">Όλες οι Υπηρεσίες</option>
+          {serviceTypeOptions.map(s => <option key={s} value={s}>{s}</option>)}
+        </select>
 
         <select className="input w-auto text-sm" value={filterAgent} onChange={e => setFilterAgent(e.target.value)}>
           <option value="">Όλοι οι Agents</option>

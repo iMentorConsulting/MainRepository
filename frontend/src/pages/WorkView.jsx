@@ -248,6 +248,7 @@ export default function WorkView() {
   const [search, setSearch] = useState('')
   const [filterProgram, setFilterProgram] = useState('')
   const [filterAgent, setFilterAgent] = useState('')
+  const [filterServiceType, setFilterServiceType] = useState('')
   const [filterFollowUp, setFilterFollowUp] = useState(false)
 
   const load = useCallback(async () => {
@@ -282,12 +283,17 @@ export default function WorkView() {
   }, [filterProgram, filterAgent, search])
 
   useEffect(() => { load() }, [load])
+  useEffect(() => { setFilterServiceType('') }, [filterProgram])
   useEffect(() => { getUsers().then(setAgents).catch(() => {}) }, [])
 
+  const serviceTypeOptions = [...new Set(cases.map(c => c.service_type).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'el'))
+
   const today = new Date().toISOString().slice(0, 10)
-  const displayed = filterFollowUp
-    ? cases.filter(c => c.follow_up_date && c.follow_up_date <= today)
-    : cases
+  const displayed = cases.filter(c => {
+    if (filterFollowUp && !(c.follow_up_date && c.follow_up_date <= today)) return false
+    if (filterServiceType && c.service_type !== filterServiceType) return false
+    return true
+  })
 
   const updateField = (caseId, fields) =>
     setCases(prev => prev.map(c => c.id === caseId ? { ...c, ...fields } : c))
@@ -338,6 +344,10 @@ export default function WorkView() {
         <select className="input w-auto text-sm" value={filterProgram} onChange={e => setFilterProgram(e.target.value)}>
           <option value="">Όλα τα Προγράμματα</option>
           {PROGRAMS.map(p => <option key={p} value={p}>{p}</option>)}
+        </select>
+        <select className="input w-auto text-sm" value={filterServiceType} onChange={e => setFilterServiceType(e.target.value)}>
+          <option value="">Όλες οι Υπηρεσίες</option>
+          {serviceTypeOptions.map(s => <option key={s} value={s}>{s}</option>)}
         </select>
         <select className="input w-auto text-sm" value={filterAgent} onChange={e => setFilterAgent(e.target.value)}>
           <option value="">Όλοι οι Agents</option>
