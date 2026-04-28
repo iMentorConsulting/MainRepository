@@ -1,14 +1,14 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
-import { ArrowLeftIcon, DocumentTextIcon, EnvelopeIcon, CloudArrowUpIcon } from '@heroicons/react/24/outline'
+import { ArrowLeftIcon, DocumentTextIcon, CloudArrowUpIcon } from '@heroicons/react/24/outline'
 import DebtTable, { emptyDebt } from '../components/DebtTable'
 import IncomePanel from '../components/IncomePanel'
 import ResultsPanel from '../components/ResultsPanel'
 import PlanParamsModal from '../components/PlanParamsModal'
 import * as api from '../api'
 import { calculateAll, creditorDisplayName, fmt, buildForecastText } from '../utils/calculations'
-import { buildPlanHtml, wrapPlanDocument, buildEmailHtml, wrapEmailDocument } from '../utils/reportGenerators'
+import { buildPlanHtml, wrapPlanDocument } from '../utils/reportGenerators'
 
 const EMPLOYEES = ['STELLA', 'VALLIA', 'SOFIA', 'HARIS']
 
@@ -224,15 +224,6 @@ export default function CaseForm({ currentEmployee }) {
     if (w) { w.document.open(); w.document.write(wrapPlanDocument(html)); w.document.close() }
   }
 
-  const openEmail = () => {
-    if (!calc || calc.sumDebt === 0) return toast.error('Δεν υπάρχουν δεδομένα')
-    const data = collectPlanData(debts, assets, income, calc, client)
-    const forecast = buildForecastText(calc, income)
-    const subject = `Θεωρητική Προσομοίωση Εξωδικαστικού | ${client.name || ''}`
-    const html = buildEmailHtml({ ...data, forecastTitle: forecast?.title, forecastSections: forecast?.sections })
-    const w = window.open('', '_blank', 'width=1200,height=900,scrollbars=yes')
-    if (w) { w.document.open(); w.document.write(wrapEmailDocument(html, subject)); w.document.close() }
-  }
 
   return (
     <div className="p-4 md:p-6 max-w-6xl mx-auto">
@@ -259,9 +250,6 @@ export default function CaseForm({ currentEmployee }) {
         <div className="flex items-center gap-2 flex-wrap">
           {calc && calc.sumDebt > 0 && (
             <>
-              <button onClick={openEmail} className="btn-secondary gap-2 text-sm">
-                <EnvelopeIcon className="w-4 h-4" /> Email
-              </button>
               <button onClick={openPlan} className="btn-secondary gap-2 text-sm">
                 <DocumentTextIcon className="w-4 h-4" /> Σχέδιο Αναδιάρθρωσης
               </button>
@@ -380,9 +368,6 @@ export default function CaseForm({ currentEmployee }) {
       <div className="flex justify-end gap-3 mt-4 flex-wrap">
         {calc && calc.sumDebt > 0 && (
           <>
-            <button onClick={openEmail} className="btn-secondary gap-2">
-              <EnvelopeIcon className="w-4 h-4" /> Δημιουργία Email
-            </button>
             <button onClick={openPlan} className="btn-secondary gap-2">
               <DocumentTextIcon className="w-4 h-4" /> Σχέδιο Αναδιάρθρωσης
             </button>
