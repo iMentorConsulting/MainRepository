@@ -1,10 +1,11 @@
 // ============================================================
-// Core financial calculations — ported from HTML spec v22.0
-// All formulas preserved exactly as in the original.
+// Core financial calculations — Sprint 1 (ΚΥΑ 13243/2024)
 // ============================================================
+import { PARAMS_B } from './calculationParams'
 
 export function PMT(rate, nper, pv) {
   if (!pv || pv <= 0 || !nper || nper <= 0) return 0
+  if (rate === 0) return pv / nper
   return (pv * rate) / (1 - Math.pow(1 + rate, -nper))
 }
 
@@ -28,67 +29,125 @@ export function creditorDisplayName(type, creditorName = '') {
   return name || type || 'ΠΙΣΤΩΤΗΣ'
 }
 
+// ---- internal helpers ----
+
+function isPublicDebt(type) {
+  return type === 'Εφορία' || type === 'Ασφαλιστικά Ταμεία'
+}
+
+function getPromoRate(type, isSecured, params) {
+  if (isPublicDebt(type)) return params.publicRate
+  return isSecured ? params.promoRateSecured : params.promoRateUnsecured
+}
+
+function getPostPromoRate(type, isSecured, params) {
+  if (isPublicDebt(type)) return params.publicRate
+  const spread = isSecured ? params.securedSpreadAfterPromo : params.unsecuredSpreadAfterPromo
+  return params.euribor3m + spread
+}
+
+function getMaxMonths(type, isLegalEntity, isSecured, params) {
+  if (isPublicDebt(type)) return params.maxMonths.publicMax
+  if (isLegalEntity) return isSecured ? params.maxMonths.leSecured : params.maxMonths.leUnsecured
+  return isSecured ? params.maxMonths.fpSecured : params.maxMonths.fpUnsecured
+}
+
+function effectiveMaxMonths(theoretical, isLegalEntity, youngestAge, params) {
+  if (isLegalEntity || !youngestAge || youngestAge <= 0) return theoretical
+  const ageLimit = Math.max(12, (params.ageCap - youngestAge) * 12)
+  return Math.min(theoretical, ageLimit)
+}
+
+// remaining balance after nPayments at monthlyRate
+function loanBalance(pv, monthlyRate, payment, nPayments) {
+  if (monthlyRate === 0) return pv - payment * nPayments
+  const f = Math.pow(1 + monthlyRate, nPayments)
+  return pv * f - payment * (f - 1) / monthlyRate
+}
+
+// Step-up PMT: promo payment c1, post-promo payment c2
+export function stepUpPMT(amount, totalMonths, r1Annual, r2Annual, promoMonths) {
+  if (!amount || amount <= 0 || !totalMonths || totalMonths <= 0) return { c1: 0, c2: 0 }
+  const r1 = r1Annual / 12
+  const r2 = r2Annual / 12
+  if (totalMonths <= promoMonths || r1 === r2) {
+    const c = PMT(r1, totalMonths, amount)
+    return { c1: c, c2: c }
+  }
+  const c1 = PMT(r1, totalMonths, amount)
+  const bal = Math.max(0, loanBalance(amount, r1, c1, promoMonths))
+  const c2 = PMT(r2, totalMonths - promoMonths, bal)
+  return { c1, c2 }
+}
+
+// c2 value for a single debt (used in greedy loop)
+function debtC2(amount, months, type, isSecured, params) {
+  if (!amount || amount <= 0 || !months || months <= 0) return 0
+  const r1 = getPromoRate(type, isSecured, params)
+  const r2 = getPostPromoRate(type, isSecured, params)
+  return stepUpPMT(amount, months, r1, r2, params.promoMonths).c2
+}
+
+// backward-compatible export (still used by DebtTable display)
 export function maxMonthsByType(type, amount) {
   if (String(type).includes('Τράπεζ')) return amount > 99999 ? 420 : 300
   return 240
 }
 
 // ============================================================
-// Main calculation — equivalent to recalc() + autoCombined()
-// Input: debts[], assets[], incomeData{}
-// Returns: full calculation result object
+// Main calculation
 // ============================================================
-export function calculateAll(debts, assets, incomeData) {
+export function calculateAll(debts, assets, incomeData, params = PARAMS_B) {
   const AUCTION_EXPENSES = 5000
-  const RATE = 0.03 / 12
-  const LIMIT = 100 // % of income
+  const isLE = incomeData.debtorType === 'Νομικό Πρόσωπο'
+  const youngestAge = isLE ? 0 : (incomeData.debtorAge || 0)
 
-  // Build rows from valid debts
+  // --- rows ---
   const rows = debts
     .filter((d) => (d.amount || 0) > 0)
     .map((d, i) => {
       const intPct = Math.min(100, Math.max(0, d.interestPct || 0))
       const amount = d.amount || 0
+      const isSecured = !!(d.mortgaged)
+      const type = d.type || 'Τράπεζα'
       return {
-        idx: i,
-        id: d.id,
-        type: d.type || 'Τράπεζα',
-        creditorName: d.creditorName || '',
-        mort: d.mortgaged || false,
-        prop: d.propertyValue || 0,
-        amount,
-        intPct,
-        prinAmt: amount * (100 - intPct) / 100,
+        idx: i, id: d.id, type, creditorName: d.creditorName || '',
+        mort: isSecured, prop: d.propertyValue || 0, amount,
+        intPct, prinAmt: amount * (100 - intPct) / 100,
         intAmt: amount * intPct / 100,
-        status: d.status || 'Ληξιπρόθεσμη',
+        status: d.status || 'Ληξιπρόθεσμη', isSecured,
       }
     })
 
   const sumDebt = rows.reduce((a, r) => a + r.amount, 0)
 
-  // Other assets total
-  const propsTotal = (assets || []).reduce((a, p) => a + (p.value || 0), 0)
+  // --- assets: other props + countable FP savings ---
+  const propsRaw = (assets || []).reduce((a, p) => a + (p.value || 0), 0)
+  let countableSavings = 0
+  if (!isLE) {
+    const size = Math.max(1, incomeData.householdSize || 1)
+    const exempt = Math.min(
+      params.fpExemptSavingsBase + params.fpExemptSavingsPerMember * (size - 1),
+      params.fpExemptSavingsMax
+    )
+    countableSavings = Math.max(0, (incomeData.savings || 0) - exempt)
+  }
+  const propsTotal = propsRaw + countableSavings
 
-  // Mortgaged property total (after auction expenses)
   const sumMortRaw = rows.reduce((a, r) => a + (r.mort ? r.prop : 0), 0)
   const sumMortAfterExp = Math.max(0, sumMortRaw - AUCTION_EXPENSES)
   const sumAssetsAfterExp = sumMortAfterExp + propsTotal
   const mortScale = sumMortRaw ? sumMortAfterExp / sumMortRaw : 0
 
-  // ============================================================
-  // Coverage calculation — 65 / 25 / 10 rule
-  // ============================================================
+  // --- coverage 65/25/10 ---
   const covMap = new Map()
-
   if (sumAssetsAfterExp >= sumDebt) {
     rows.forEach((r) => covMap.set(r.idx, r.amount))
   } else {
     const mortRows = rows.filter((r) => r.mort && r.prop > 0)
     const effProp = new Map()
     mortRows.forEach((r) => effProp.set(r.idx, r.prop * mortScale))
-
-    let poolTax = 0
-    let poolUnsec = 0
+    let poolTax = 0, poolUnsec = 0
     const own65 = new Map()
     mortRows.forEach((r) => {
       const p = effProp.get(r.idx) || 0
@@ -96,240 +155,158 @@ export function calculateAll(debts, assets, incomeData) {
       poolTax += p * 0.25
       poolUnsec += p * 0.10
     })
-
-    const taxRows = rows.filter((r) => r.type === 'Εφορία' || r.type === 'Ασφαλιστικά Ταμεία')
-    const unsecRows = rows.filter((r) => !r.mort && !(r.type === 'Εφορία' || r.type === 'Ασφαλιστικά Ταμεία'))
+    const taxRows = rows.filter((r) => isPublicDebt(r.type))
+    const unsecRows = rows.filter((r) => !r.mort && !isPublicDebt(r.type))
     const taxTotal = taxRows.reduce((a, r) => a + r.amount, 0)
     const unsecTotal = unsecRows.reduce((a, r) => a + r.amount, 0)
     const allTotal = rows.reduce((a, r) => a + r.amount, 0)
-
-    const poolAlloTax = new Map()
-    const poolAlloUnsc = new Map()
-
-    if (taxTotal > 0) {
-      taxRows.forEach((r) => poolAlloTax.set(r.idx, poolTax * (r.amount / taxTotal)))
-    } else {
-      rows.forEach((r) => poolAlloTax.set(r.idx, allTotal ? poolTax * (r.amount / allTotal) : 0))
-    }
-
-    if (unsecTotal > 0) {
-      unsecRows.forEach((r) => poolAlloUnsc.set(r.idx, poolUnsec * (r.amount / unsecTotal)))
-    } else {
-      rows.forEach((r) => poolAlloUnsc.set(r.idx, allTotal ? poolUnsec * (r.amount / allTotal) : 0))
-    }
-
+    const poolAlloTax = new Map(), poolAlloUnsc = new Map()
+    if (taxTotal > 0) taxRows.forEach((r) => poolAlloTax.set(r.idx, poolTax * r.amount / taxTotal))
+    else rows.forEach((r) => poolAlloTax.set(r.idx, allTotal ? poolTax * r.amount / allTotal : 0))
+    if (unsecTotal > 0) unsecRows.forEach((r) => poolAlloUnsc.set(r.idx, poolUnsec * r.amount / unsecTotal))
+    else rows.forEach((r) => poolAlloUnsc.set(r.idx, allTotal ? poolUnsec * r.amount / allTotal : 0))
     const perOther = rows.length ? propsTotal / rows.length : 0
-
     rows.forEach((r) => {
-      let c = 0
-      c += own65.get(r.idx) || 0
-      c += poolAlloTax.get(r.idx) || 0
-      c += poolAlloUnsc.get(r.idx) || 0
-      c += perOther
-      c = Math.min(c, r.amount)
-      covMap.set(r.idx, c)
+      let c = (own65.get(r.idx) || 0) + (poolAlloTax.get(r.idx) || 0) + (poolAlloUnsc.get(r.idx) || 0) + perOther
+      covMap.set(r.idx, Math.min(c, r.amount))
     })
   }
 
-  // ============================================================
-  // Write-off caps per creditor type
-  // Banks: 80% principal + 100% interest
-  // Tax/Insurance: 75% principal + 85% interest & surcharges
-  // ============================================================
+  // --- write-off caps ---
   const analysisRows = rows.map((r) => {
     const cov = covMap.get(r.idx) || 0
     const uncov = Math.max(0, r.amount - cov)
-    const isTax = r.type === 'Εφορία' || r.type === 'Ασφαλιστικά Ταμεία'
-    const capPrin = isTax ? 0.75 : 0.80
-    const capInt = isTax ? 0.85 : 1.00
-    const legalMax = r.prinAmt * capPrin + r.intAmt * capInt
+    const isPub = isPublicDebt(r.type)
+    const capPrin = isPub ? (1 - params.recovery.publicPrincipalMin) : (1 - params.recovery.bankPrincipalMin)
+    const capInt = isPub ? params.recovery.publicInterestWriteoffMax : params.recovery.bankInterestWriteoffMax
+    let legalMax = r.prinAmt * capPrin + r.intAmt * capInt
+    // partially-secured rule
+    if (r.mort && r.prop > 0) {
+      const netColl = r.prop * params.collateralFactor
+      if (netColl > r.amount * params.partiallySecuredThreshold) {
+        legalMax = Math.max(legalMax, Math.max(0, r.amount - netColl))
+      }
+    }
     const calc = Math.min(uncov, legalMax)
     return {
-      ...r,
-      cov,
-      covPct: r.amount ? Math.round(cov * 100 / r.amount) : 0,
-      uncov,
-      legalMax,
-      calc,
-      calcPct: r.amount ? Math.round(calc * 100 / r.amount) : 0,
+      ...r, cov, covPct: r.amount ? Math.round(cov * 100 / r.amount) : 0,
+      uncov, legalMax, calc, calcPct: r.amount ? Math.round(calc * 100 / r.amount) : 0,
       remaining: Math.max(0, r.amount - calc),
     }
   })
-
   const sumMaxWriteoff = analysisRows.reduce((a, r) => a + r.calc, 0)
 
-  // ============================================================
-  // Available income
-  // ============================================================
-  let dispAnnual = 0
-  let dispMonthly = 0
-  let totalExpenses = 0
-  let annualIncome = 0
-
-  if (incomeData.debtorType === 'Νομικό Πρόσωπο') {
+  // --- income ---
+  let dispAnnual = 0, totalExpenses = 0, annualIncome = 0
+  if (isLE) {
     const turnover = incomeData.turnover || 0
-    const ebitda = incomeData.ebitda || 0
-    const tax = incomeData.tax || 0
-    const cash = incomeData.cash || 0
-    const liquid = incomeData.liquid || 0
-    const minEbitda = turnover * 0.10
-    const adjEbitda = Math.max(ebitda, minEbitda)
-    dispAnnual = adjEbitda - tax + cash + liquid
-    dispMonthly = dispAnnual / 12
+    const netProfits = incomeData.netProfits != null ? incomeData.netProfits : (incomeData.ebitda || 0)
+    const leEnfia = incomeData.leEnfia || 0
+    const deposits = incomeData.deposits || 0
+    const isSmall = turnover > 0 && turnover < params.leTurnoverThreshold
+    const base = Math.max(0, netProfits - leEnfia)
+    const floored = isSmall ? Math.max(base, turnover * params.leIncomeFloorPct) : base
+    dispAnnual = floored + deposits * params.leDepositRate
   } else {
     annualIncome = incomeData.annualIncome || 0
-    const householdVal = incomeData.householdValue || 0
-    const enfia = incomeData.enfiaCost || 0
-    const medical = incomeData.medicalCost || 0
-    const rent = incomeData.rentCost || 0
-    const studentRent = incomeData.studentRentCost || 0
-    const extraLiving = incomeData.extraLivingCost || 0
-    const alimony = incomeData.alimonyCost || 0
-    totalExpenses = householdVal + enfia + medical + rent + studentRent + extraLiving + alimony
-    const netAfterExpenses = Math.max(0, annualIncome - totalExpenses)
-    dispAnnual = netAfterExpenses * 0.8
-    dispMonthly = dispAnnual / 12
+    totalExpenses = (incomeData.householdValue || 0) + (incomeData.enfiaCost || 0) +
+      (incomeData.medicalCost || 0) + (incomeData.rentCost || 0) +
+      (incomeData.studentRentCost || 0) + (incomeData.extraLivingCost || 0) +
+      (incomeData.alimonyCost || 0)
+    dispAnnual = Math.max(0, annualIncome - totalExpenses) * 0.8
   }
-
+  const dispMonthly = dispAnnual / 12
   const monthlyIncome = Math.max(0, dispMonthly)
 
-  // ============================================================
-  // Plan A: no write-offs, extend duration greedily
-  // ============================================================
-  const hasLargeBankDebt = rows.some((r) => r.type === 'Τράπεζα' && r.amount > 99999)
-
-  function nextStep(cur, type, amount) {
-    const max = maxMonthsByType(type, amount)
-    return cur < max ? cur + 1 : cur
-  }
-
-  function totalForPlan(plan) {
-    return plan.reduce((s, p) => s + PMT(RATE, p.months, p.amount), 0)
-  }
-
-  const planBase = analysisRows.map((r) => ({
-    idx: r.idx,
-    type: r.type,
-    amount: r.amount,
-    months: 12,
-    max: maxMonthsByType(r.type, r.amount),
-    legalMax: r.legalMax,
-    calc: r.calc,
-  }))
-
-  const planA = JSON.parse(JSON.stringify(planBase))
-  let totalA = totalForPlan(planA)
-  let ratioA = monthlyIncome > 0 ? (totalA / monthlyIncome) * 100 : Infinity
-
-  while (ratioA > LIMIT) {
-    let bestIdx = -1
-    let bestGain = 0
-    let newM = 0
-    planA.forEach((p, i) => {
-      const ns = nextStep(p.months, p.type, p.amount)
-      if (ns <= p.max && ns !== p.months) {
-        const gain = PMT(RATE, p.months, p.amount) - PMT(RATE, ns, p.amount)
-        if (gain > bestGain) {
-          bestGain = gain
-          bestIdx = i
-          newM = ns
-        }
-      }
-    })
-    if (bestIdx === -1) break
-    planA[bestIdx].months = newM
-    totalA = totalForPlan(planA)
-    ratioA = monthlyIncome > 0 ? (totalA / monthlyIncome) * 100 : Infinity
-  }
-
-  // ============================================================
-  // Find optimal write-off scale if Plan A still too high
-  // ============================================================
-  let best = null
-
-  if (ratioA <= LIMIT) {
-    best = {
-      plan: planA.map((p) => ({ ...p, writeoff: 0, newAmt: p.amount })),
-      tot: totalA,
-      ratio: ratioA,
+  // --- plan base: compute max months per debt ---
+  const planBase = analysisRows.map((r) => {
+    const theoretical = getMaxMonths(r.type, isLE, r.isSecured, params)
+    const maxM = effectiveMaxMonths(theoretical, isLE, youngestAge, params)
+    return {
+      idx: r.idx, type: r.type, isSecured: r.isSecured,
+      amount: r.amount, months: Math.min(12, maxM), maxMonths: maxM,
+      legalMax: r.legalMax, calc: r.calc, writeoff: 0, newAmt: r.amount,
     }
-  } else {
-    const totalCapWriteoff = analysisRows.reduce((s, r) => s + (r.calc || 0), 0)
+  })
 
+  // --- Plan A: greedy month extension (minimise total c2) ---
+  const planA = planBase.map((p) => ({ ...p }))
+  const totalC2 = (plan) => plan.reduce((s, p) => s + debtC2(p.newAmt, p.months, p.type, p.isSecured, params), 0)
+  let sumC2 = totalC2(planA)
+
+  while (monthlyIncome > 0 && sumC2 > monthlyIncome) {
+    let bestI = -1, bestGain = 0, bestM = 0
+    planA.forEach((p, i) => {
+      const nextM = p.months + 1
+      if (nextM > p.maxMonths) return
+      const gain = debtC2(p.newAmt, p.months, p.type, p.isSecured, params)
+                 - debtC2(p.newAmt, nextM,   p.type, p.isSecured, params)
+      if (gain > bestGain) { bestGain = gain; bestI = i; bestM = nextM }
+    })
+    if (bestI === -1) break
+    planA[bestI].months = bestM
+    sumC2 = totalC2(planA)
+  }
+
+  // --- write-off binary search if still infeasible ---
+  let best = null
+  if (monthlyIncome <= 0 || sumC2 <= monthlyIncome) {
+    best = { plan: planA }
+  } else {
+    const capTotal = analysisRows.reduce((s, r) => s + (r.calc || 0), 0)
     for (let step = 0; step <= 100; step++) {
-      const scale = totalCapWriteoff > 0 ? step / 100 : 0
+      const scale = capTotal > 0 ? step / 100 : 0
       const plan = planA.map((p) => {
-        const refRow = analysisRows.find((r) => r.idx === p.idx)
-        const maxWr = refRow ? refRow.calc : p.legalMax || 0
+        const ref = analysisRows.find((r) => r.idx === p.idx)
+        const maxWr = ref ? ref.calc : 0
         const wr = Math.min(maxWr * scale, maxWr, p.amount)
         const newAmt = Math.max(0, p.amount - wr)
         return { ...p, writeoff: wr, newAmt }
       })
-      const tot = plan.reduce((s, x) => s + PMT(RATE, x.months, x.newAmt), 0)
-      const r = monthlyIncome > 0 ? (tot / monthlyIncome) * 100 : Infinity
-      if (r <= LIMIT) {
-        best = { plan, tot, ratio: r }
-        break
-      }
+      if (monthlyIncome <= 0 || totalC2(plan) <= monthlyIncome) { best = { plan }; break }
     }
-
-    // Fallback: maximum write-off
     if (!best) {
       const plan = planA.map((p) => {
-        const refRow = analysisRows.find((r) => r.idx === p.idx)
-        const wrMax = refRow ? refRow.calc : p.legalMax || 0
-        const wr = Math.min(wrMax, p.amount)
-        const newAmt = Math.max(0, p.amount - wr)
-        return { ...p, writeoff: wr, newAmt }
+        const ref = analysisRows.find((r) => r.idx === p.idx)
+        const wr = Math.min(ref ? ref.calc : 0, p.amount)
+        return { ...p, writeoff: wr, newAmt: Math.max(0, p.amount - wr) }
       })
-      const tot = plan.reduce((s, x) => s + PMT(RATE, x.months, x.newAmt), 0)
-      best = { plan, tot, ratio: monthlyIncome > 0 ? (tot / monthlyIncome) * 100 : Infinity }
+      best = { plan }
     }
   }
+  if (!best?.plan?.length) best = { plan: planA }
 
-  if (!best?.plan?.length) {
-    best = { plan: planA.map((p) => ({ ...p, writeoff: 0, newAmt: p.amount })), tot: totalA, ratio: ratioA }
-  }
-
-  // ============================================================
-  // Post-process final plan — enforce rules
-  // ============================================================
+  // --- post-process: enforce rules, compute c1/c2 ---
   const finalPlan = best.plan.map((p) => {
-    const refRow = analysisRows.find((r) => r.idx === p.idx)
-    if (!refRow) return { ...p, writeoff: 0, newAmt: p.amount, payShown: 0 }
+    const ref = analysisRows.find((r) => r.idx === p.idx)
+    if (!ref) return { ...p, writeoff: 0, newAmt: p.amount, payShown: 0, c1: 0, c2: 0 }
 
-    const maxWr = refRow.calc || 0
-    let safeWriteoff = Math.min(p.writeoff || 0, maxWr, p.amount)
-    // Ενήμερη (current) debts get no write-off
-    if (refRow.status === 'Ενήμερη') safeWriteoff = 0
+    let safeWr = Math.min(p.writeoff || 0, ref.calc || 0, p.amount)
+    if (ref.status === 'Ενήμερη') safeWr = 0
+    const newAmt = Math.max(0, p.amount - safeWr)
+    let months = Math.min(p.months || p.maxMonths, p.maxMonths)
 
-    const newAmt = Math.max(0, p.amount - safeWriteoff)
-    const maxM = maxMonthsByType(p.type, p.amount)
-    let months = Math.min(p.months || maxM, maxM)
-    let pay = PMT(RATE, months, newAmt)
+    const r1 = getPromoRate(p.type, p.isSecured, params)
+    const r2 = getPostPromoRate(p.type, p.isSecured, params)
+    let { c1, c2 } = stepUpPMT(newAmt, months, r1, r2, params.promoMonths)
 
-    const isTaxType = /Εφορία|Ασφαλισ/.test(p.type)
-    const minInstallment = isTaxType ? 50 : 0
-
-    // Reduce duration to meet minimum installment
-    if (newAmt > 0 && minInstallment > 0 && pay < minInstallment) {
-      while (months > 1 && pay < minInstallment) {
+    // enforce min installment for public debts
+    if (isPublicDebt(p.type) && newAmt > 0 && c2 < params.minInstallment.publicTotal) {
+      while (months > 1 && c2 < params.minInstallment.publicTotal) {
         months--
-        pay = PMT(RATE, months, newAmt)
+        const s = stepUpPMT(newAmt, months, r1, r2, params.promoMonths)
+        c1 = s.c1; c2 = s.c2
       }
     }
 
-    const payShown = Math.max(0, Math.floor(pay))
-
+    const payShown = Math.max(0, Math.floor(c2))
     return {
-      idx: p.idx,
-      type: p.type,
-      creditorName: refRow.creditorName,
-      amount: p.amount,
-      writeoff: safeWriteoff,
-      writeoffPct: p.amount ? Math.round(safeWriteoff * 100 / p.amount) : 0,
-      newAmt,
-      months,
+      idx: p.idx, type: p.type, creditorName: ref.creditorName, isSecured: p.isSecured,
+      amount: p.amount, writeoff: safeWr,
+      writeoffPct: p.amount ? Math.round(safeWr * 100 / p.amount) : 0,
+      newAmt, months,
+      c1: Math.max(0, Math.floor(c1)),
+      c2: Math.max(0, Math.floor(c2)),
       payShown,
       incomePct: monthlyIncome > 0 ? Math.round(payShown / monthlyIncome * 100) : 0,
     }
@@ -340,17 +317,13 @@ export function calculateAll(debts, assets, incomeData) {
   const totalMonthlyPay = finalPlan.reduce((s, p) => s + (p.payShown || 0), 0)
   const ratio = monthlyIncome > 0 ? Math.round(totalMonthlyPay / monthlyIncome * 100) : 0
 
-  // ============================================================
-  // Scenario determination
-  // ============================================================
-  const hasAssets = sumAssetsAfterExp > 0
   const isFullCoveredByAssets = sumDebt > 0 && sumAssetsAfterExp >= sumDebt
-  const isPartialCoveredByAssets = sumDebt > 0 && hasAssets && sumAssetsAfterExp < sumDebt
+  const isPartialCoveredByAssets = sumDebt > 0 && sumAssetsAfterExp > 0 && sumAssetsAfterExp < sumDebt
   const lowIncome = monthlyIncome <= 0 || ratio > 100
   const totalCap = analysisRows.reduce((s, r) => s + (r.calc || 0), 0)
 
   let scenario = 1
-  if (incomeData.debtorType === 'Νομικό Πρόσωπο') scenario = 0
+  if (isLE) scenario = 0
   else if (lowIncome && isFullCoveredByAssets) scenario = 4
   else if (lowIncome && isPartialCoveredByAssets && totalCap > 0) scenario = 5
   else if (sumWr === 0 && ratio <= 100 && monthlyIncome > 0) scenario = 1
@@ -358,45 +331,20 @@ export function calculateAll(debts, assets, incomeData) {
   else scenario = 3
 
   return {
-    // Inputs summary
-    rows,
-    sumDebt,
-    sumAssetsAfterExp,
-    propsTotal,
-    sumMortRaw,
-    hasLargeBankDebt,
-
-    // Coverage
-    covMap: Object.fromEntries(covMap),
-    analysisRows,
-    sumMaxWriteoff,
+    rows, sumDebt, sumAssetsAfterExp, propsTotal, sumMortRaw,
+    hasLargeBankDebt: rows.some((r) => r.type === 'Τράπεζα' && r.amount > 99999),
+    covMap: Object.fromEntries(covMap), analysisRows, sumMaxWriteoff,
     sumMaxWriteoffPct: sumDebt ? Math.round(sumMaxWriteoff * 100 / sumDebt) : 0,
-
-    // Income
-    annualIncome,
-    totalExpenses,
-    dispAnnual: Math.max(0, dispAnnual),
-    dispMonthly: Math.max(0, dispMonthly),
-    monthlyIncome,
-
-    // Final plan
-    finalPlan,
-    sumWr,
-    sumWrPct: sumDebt ? Math.round(sumWr * 100 / sumDebt) : 0,
-    totalRemaining,
-    totalMonthlyPay,
-    ratio,
-
-    // Scenario
-    scenario,
-    lowIncome,
-    isFullCoveredByAssets,
-    isPartialCoveredByAssets,
+    annualIncome, totalExpenses,
+    dispAnnual: Math.max(0, dispAnnual), dispMonthly: Math.max(0, dispMonthly), monthlyIncome,
+    finalPlan, sumWr, sumWrPct: sumDebt ? Math.round(sumWr * 100 / sumDebt) : 0,
+    totalRemaining, totalMonthlyPay, ratio,
+    scenario, lowIncome, isFullCoveredByAssets, isPartialCoveredByAssets,
   }
 }
 
 // ============================================================
-// Scenario narrative text — structured multi-section format
+// Scenario narrative text
 // ============================================================
 export function buildForecastText(calc, incomeData) {
   if (!calc || calc.sumDebt === 0) return null
@@ -417,7 +365,6 @@ export function buildForecastText(calc, incomeData) {
 
   const ratio = dispMonthly > 0 ? Math.round(totalMonthlyPay / dispMonthly * 100) : 0
 
-  // Common sections
   const debtSection = {
     type: 'info', icon: '🔢', label: 'Σύνολο Οφειλών',
     body: `Οι συνολικές οφειλές του οφειλέτη ανέρχονται σε ${fmt(sumDebt)}, κατανεμημένες ως εξής:\n• Προς τράπεζες: ${fmt(banksDebt)}\n• Προς ασφαλιστικά ταμεία: ${fmt(fundsDebt)}\n• Προς ΑΑΔΕ / εφορία: ${fmt(taxDebt)}`,
@@ -456,7 +403,6 @@ export function buildForecastText(calc, incomeData) {
       }),
     }
   }
-
   if (scenario === 1) {
     return {
       title: 'Πρόβλεψη Ρύθμισης – Οικονομικά Ισχυρό Προφίλ',
@@ -466,7 +412,6 @@ export function buildForecastText(calc, incomeData) {
       }),
     }
   }
-
   if (scenario === 2) {
     return {
       title: 'Πρόβλεψη Ρύθμισης – Δυνητικό "Κούρεμα" Οφειλών',
@@ -476,7 +421,6 @@ export function buildForecastText(calc, incomeData) {
       }),
     }
   }
-
   if (scenario === 3) {
     return {
       title: 'Πρόβλεψη Ρύθμισης – Ισχυρό Δικαίωμα Διαγραφής',
@@ -486,7 +430,6 @@ export function buildForecastText(calc, incomeData) {
       }),
     }
   }
-
   if (scenario === 4) {
     return {
       title: 'Πρόβλεψη Ρύθμισης – Χαμηλό Εισόδημα με Πλήρη Κάλυψη από Περιουσία',
@@ -496,8 +439,6 @@ export function buildForecastText(calc, incomeData) {
       }),
     }
   }
-
-  // scenario 5
   return {
     title: 'Πρόβλεψη Ρύθμισης – Χαμηλό Εισόδημα με Μερική Κάλυψη από Περιουσία',
     sections: sections({

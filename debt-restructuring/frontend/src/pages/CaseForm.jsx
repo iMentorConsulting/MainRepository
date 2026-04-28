@@ -23,19 +23,25 @@ const STATUS_OPTIONS = [
 function defaultIncome() {
   return {
     debtorType: 'Φυσικό Πρόσωπο',
+    // FP fields
     annualIncome: 0,
+    debtorAge: 0,
     householdValue: 0,
+    householdSize: 1,
     enfiaCost: 0,
     medicalCost: 0,
     rentCost: 0,
     studentRentCost: 0,
     extraLivingCost: 0,
     alimonyCost: 0,
+    savings: 0,
+    // LE fields
     turnover: 0,
+    netProfits: null,
+    leEnfia: 0,
+    deposits: 0,
+    // legacy fields kept for backward compat
     ebitda: 0,
-    tax: 0,
-    cash: 0,
-    liquid: 0,
   }
 }
 

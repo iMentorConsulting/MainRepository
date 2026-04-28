@@ -57,21 +57,42 @@ export default function IncomePanel({ income, onChange, assets, onAssetsChange }
           <div className="bg-blue-50 border-l-4 border-blue-600 rounded-lg p-4 space-y-3">
             <p className="text-xs font-bold text-blue-700 mb-2">Στοιχεία Νομικού Προσώπου</p>
             <MoneyField label="Κύκλος Εργασιών (€)" value={income.turnover} onChange={(v) => set('turnover', v)} placeholder="π.χ. 500.000" />
-            <MoneyField label="EBITDA (€)" value={income.ebitda} onChange={(v) => set('ebitda', v)} />
-            <MoneyField label="Φόρος (€)" value={income.tax} onChange={(v) => set('tax', v)} />
-            <MoneyField label="Ταμειακά Διαθέσιμα (€)" value={income.cash} onChange={(v) => set('cash', v)} />
-            <MoneyField label="Ρευστοποιήσιμα Στοιχεία (€)" value={income.liquid} onChange={(v) => set('liquid', v)} />
+            <MoneyField label="Καθαρά Κέρδη / Ζημίες (€)" value={income.netProfits != null ? income.netProfits : (income.ebitda || 0)} onChange={(v) => set('netProfits', v)} placeholder="π.χ. 30.000" />
+            <MoneyField label="ΕΝΦΙΑ Επιχείρησης (€/έτος)" value={income.leEnfia} onChange={(v) => set('leEnfia', v)} />
+            <MoneyField label="Καταθέσεις Εταιρείας (€)" value={income.deposits} onChange={(v) => set('deposits', v)} />
           </div>
         ) : (
           <div className="space-y-3">
-            <MoneyField label="1️⃣ Ετήσιο Καθαρό Εισόδημα (€)" value={income.annualIncome} onChange={(v) => set('annualIncome', v)} placeholder="π.χ. 25.000" />
+            <div className="grid grid-cols-2 gap-3">
+              <MoneyField label="1️⃣ Ετήσιο Καθαρό Εισόδημα (€)" value={income.annualIncome} onChange={(v) => set('annualIncome', v)} placeholder="π.χ. 25.000" />
+              <div>
+                <label className="label">Ηλικία νεότερου οφειλέτη</label>
+                <input
+                  type="number" min="18" max="84" className="input"
+                  placeholder="π.χ. 55"
+                  value={income.debtorAge || ''}
+                  onChange={(e) => set('debtorAge', e.target.value ? parseInt(e.target.value) : 0)}
+                />
+              </div>
+            </div>
 
-            <div>
-              <label className="label">2️⃣ Τύπος Νοικοκυριού (ΕΛΣΤΑΤ)</label>
-              <select className="input" value={income.householdValue} onChange={(e) => set('householdValue', Number(e.target.value))}>
-                <option value={0}>-- Επιλογή --</option>
-                {HOUSEHOLD_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-              </select>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="label">2️⃣ Τύπος Νοικοκυριού (ΕΛΣΤΑΤ)</label>
+                <select className="input" value={income.householdValue} onChange={(e) => set('householdValue', Number(e.target.value))}>
+                  <option value={0}>-- Επιλογή --</option>
+                  {HOUSEHOLD_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="label">Αριθμός μελών νοικοκυριού</label>
+                <input
+                  type="number" min="1" max="10" className="input"
+                  placeholder="π.χ. 3"
+                  value={income.householdSize || ''}
+                  onChange={(e) => set('householdSize', e.target.value ? parseInt(e.target.value) : 1)}
+                />
+              </div>
             </div>
 
             <MoneyField label="3️⃣ Ετήσιος ΕΝΦΙΑ (€)" value={income.enfiaCost} onChange={(v) => set('enfiaCost', v)} />
@@ -80,6 +101,7 @@ export default function IncomePanel({ income, onChange, assets, onAssetsChange }
             <MoneyField label="6️⃣ Ετήσιο Ενοίκιο Φοιτητών (€)" value={income.studentRentCost} onChange={(v) => set('studentRentCost', v)} />
             <MoneyField label="7️⃣ Ετήσια Διατροφή & Διαβίωση (€)" value={income.extraLivingCost} onChange={(v) => set('extraLivingCost', v)} />
             <MoneyField label="8️⃣ Ετήσια Διατροφή λόγω Διαζυγίου (€)" value={income.alimonyCost} onChange={(v) => set('alimonyCost', v)} />
+            <MoneyField label="9️⃣ Καταθέσεις / Αποταμιεύσεις (€)" value={income.savings} onChange={(v) => set('savings', v)} placeholder="π.χ. 5.000" />
           </div>
         )}
       </div>
