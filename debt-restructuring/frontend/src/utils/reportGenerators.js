@@ -3,7 +3,8 @@
 // Ported from the original HTML spec v22.0
 // ============================================================
 
-import { fmt, PMT, creditorDisplayName, maxMonthsByType } from './calculations'
+import { fmt, stepUpPMT } from './calculations'
+import { PARAMS_B } from './calculationParams'
 
 function escHtml(v) {
   return String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;')
@@ -72,14 +73,19 @@ export function buildPlanHtml(data, customRows) {
   const { clientName, clientPhone, clientEmail, debtorType, annualIncome, totalExpenses, householdValue, householdLabel, enfia, medical, rent, studentRent, extraLiving, alimony, dispAnnual, dispMonthly, realEstateAssets, totalRealEstateValue } = data
 
   // If customRows provided (from PlanParamsModal), use those; otherwise fall back to data.creditors
-  const RATE_LOCAL = 0.03 / 12
   const allCreditors = customRows
     ? customRows.map((r) => {
         const reqWrAmt = Math.round(r.amount * (r.reqPct || 0) / 100)
         const reqRemaining = Math.max(0, r.amount - reqWrAmt)
-        const reqMonthlyPay = reqRemaining > 0 && r.reqMonths > 0
-          ? Math.floor(PMT(RATE_LOCAL, r.reqMonths, reqRemaining))
-          : 0
+        const isPubDebt = r.type === 'Εφορία' || r.type === 'Ασφαλιστικά Ταμεία'
+        const isSecDebt = r.isSecured || r.mort || false
+        const rr1 = isPubDebt ? PARAMS_B.publicRate : (isSecDebt ? PARAMS_B.promoRateSecured : PARAMS_B.promoRateUnsecured)
+        const rr2 = isPubDebt ? PARAMS_B.publicRate : PARAMS_B.euribor3m + (isSecDebt ? PARAMS_B.securedSpreadAfterPromo : PARAMS_B.unsecuredSpreadAfterPromo)
+        const { c1: reqC1, c2: reqC2 } = reqRemaining > 0 && r.reqMonths > 0
+          ? stepUpPMT(reqRemaining, r.reqMonths, rr1, rr2, PARAMS_B.promoMonths)
+          : { c1: 0, c2: 0 }
+        const monthlyPay = Math.max(0, Math.floor(reqC2))
+        const c1 = Math.max(0, Math.floor(reqC1))
         return {
           creditor: r.name,
           type: r.type,
@@ -87,7 +93,9 @@ export function buildPlanHtml(data, customRows) {
           writeoff: reqWrAmt,
           remaining: reqRemaining,
           months: r.reqMonths,
-          monthlyPay: reqMonthlyPay,
+          monthlyPay,
+          c1,
+          c2: monthlyPay,
           excluded: r.excluded || false,
         }
       })
@@ -102,8 +110,10 @@ export function buildPlanHtml(data, customRows) {
   const totalRemaining = includedCreditors.reduce((a, c) => a + (c.remaining || 0), 0)
   const totalMonthlyPay = includedCreditors.reduce((a, c) => a + (c.monthlyPay || 0), 0)
 
+  const hasStepUp = includedCreditors.some((c) => c.c1 != null && c.c2 != null && c.c1 !== c.c2)
+  const totalC1 = hasStepUp ? includedCreditors.reduce((a, c) => a + (c.c1 || c.monthlyPay || 0), 0) : 0
+
   const totalRatio = dispMonthly > 0 ? Math.round((totalMonthlyPay / dispMonthly) * 100) : 0
-  const RATE = 0.03 / 12
 
   const baseMonthly = dispMonthly
   const stressedMonthly = Math.max(0, baseMonthly * 0.9)
@@ -128,13 +138,16 @@ export function buildPlanHtml(data, customRows) {
   const GS = 'padding:10px;border:1px solid #d2def8;'
   const summaryRows = creditors.map((c) => {
     const pct = c.amount > 0 ? Math.round((c.writeoff / c.amount) * 100) : 0
+    const payCell = hasStepUp
+      ? `<td style="${GS}text-align:right;">${c.c1 > 0 ? fmt(c.c1) : '—'}</td><td style="${GS}text-align:right;font-weight:700;">${c.c2 > 0 ? fmt(c.c2) : (c.monthlyPay > 0 ? fmt(c.monthlyPay) : '—')}</td>`
+      : `<td style="${GS}text-align:right;font-weight:700;">${c.monthlyPay > 0 ? fmt(c.monthlyPay) : '—'}</td>`
     return `<tr>
       <td style="${GS}font-weight:600;">${escHtml(c.creditor)}</td>
       <td style="${GS}text-align:right;">${fmt(c.amount)}</td>
       <td style="${GS}text-align:right;">${c.writeoff > 0 ? `${fmt(c.writeoff)} (${pct}%)` : '—'}</td>
       <td style="${GS}text-align:right;">${fmt(c.remaining)}</td>
       <td style="${GS}text-align:center;">${c.months || 0}</td>
-      <td style="${GS}text-align:right;font-weight:700;">${c.monthlyPay > 0 ? fmt(c.monthlyPay) : '—'}</td>
+      ${payCell}
     </tr>`
   }).join('')
 
@@ -144,7 +157,11 @@ export function buildPlanHtml(data, customRows) {
 
   const creditorSections = creditors.map((c, idx) => {
     const pct = c.amount > 0 ? Math.round((c.writeoff / c.amount) * 100) : 0
-    return `<div style="margin-top:20px"><h3 style="color:#004aad">6.${idx + 1}. ${escHtml(c.creditor)}</h3><p>Για την απαίτηση <b>${escHtml(c.creditor)}</b> (${fmt(c.amount)}), προτείνεται απομείωση <b>${fmt(c.writeoff)}${c.writeoff > 0 ? ` (${pct}%)` : ''}</b> και ρύθμιση υπολοίπου <b>${fmt(c.remaining)}</b> σε <b>${c.months}</b> μηνιαίες δόσεις. Μηνιαία δόση: <b>${c.monthlyPay > 0 ? fmt(c.monthlyPay) : '—'}</b>.</p></div>`
+    const showStepUp = c.c1 != null && c.c2 != null && c.c1 !== c.c2
+    const payText = showStepUp
+      ? `Δόση Έτη 1–3: <b>${fmt(c.c1)}</b> · Δόση Έτη 4+: <b>${fmt(c.c2)}</b>`
+      : `Μηνιαία δόση: <b>${c.monthlyPay > 0 ? fmt(c.monthlyPay) : '—'}</b>`
+    return `<div style="margin-top:20px"><h3 style="color:#004aad">6.${idx + 1}. ${escHtml(c.creditor)}</h3><p>Για την απαίτηση <b>${escHtml(c.creditor)}</b> (${fmt(c.amount)}), προτείνεται απομείωση <b>${fmt(c.writeoff)}${c.writeoff > 0 ? ` (${pct}%)` : ''}</b> και ρύθμιση υπολοίπου <b>${fmt(c.remaining)}</b> σε <b>${c.months}</b> μηνιαίες δόσεις. ${payText}.</p></div>`
   }).join('')
 
   // Visual charts
@@ -216,11 +233,12 @@ export function buildPlanHtml(data, customRows) {
   </table>
 
   <h3 style="color:#004aad;margin-top:24px;">6. Συνοπτική πρόταση ανά πιστωτή</h3>
+  ${hasStepUp ? `<div style="background:#fffbeb;border-left:4px solid #f59e0b;padding:8px 12px;border-radius:6px;font-size:13px;color:#78350f;margin-bottom:10px;">Δόσεις βάσει step-up επιτοκίου ΚΥΑ 13243/2024 — Έτη 1–3: προωθητικό επιτόκιο · Έτη 4+: Euribor + spread</div>` : ''}
   <table style="width:100%;border-collapse:collapse;margin-top:12px;">
-    <thead><tr>${th('Πιστωτής')}${th('Αρχική')}${th('Διαγραφή')}${th('Υπόλοιπο')}${th('Δόσεις')}${th('Μηνιαία')}</tr></thead>
+    <thead><tr>${th('Πιστωτής')}${th('Αρχική')}${th('Διαγραφή')}${th('Υπόλοιπο')}${th('Δόσεις')}${hasStepUp ? th('Δόση Έτη 1–3') + th('Δόση Έτη 4+') : th('Μηνιαία')}</tr></thead>
     <tbody>
       ${summaryRows}
-      <tr style="background:#eef5ff;font-weight:700;"><td style="padding:10px;border:1px solid #d2def8;"><b>ΣΥΝΟΛΟ</b></td><td style="padding:10px;border:1px solid #d2def8;">${fmt(totalDebt)}</td><td style="padding:10px;border:1px solid #d2def8;">${fmt(totalWriteOff)}</td><td style="padding:10px;border:1px solid #d2def8;">${fmt(totalRemaining)}</td><td style="padding:10px;border:1px solid #d2def8;">—</td><td style="padding:10px;border:1px solid #d2def8;">${fmt(totalMonthlyPay)}</td></tr>
+      <tr style="background:#eef5ff;font-weight:700;"><td style="padding:10px;border:1px solid #d2def8;"><b>ΣΥΝΟΛΟ</b></td><td style="padding:10px;border:1px solid #d2def8;">${fmt(totalDebt)}</td><td style="padding:10px;border:1px solid #d2def8;">${fmt(totalWriteOff)}</td><td style="padding:10px;border:1px solid #d2def8;">${fmt(totalRemaining)}</td><td style="padding:10px;border:1px solid #d2def8;">—</td>${hasStepUp ? `<td style="padding:10px;border:1px solid #d2def8;">${fmt(totalC1)}</td><td style="padding:10px;border:1px solid #d2def8;font-weight:800;">${fmt(totalMonthlyPay)}</td>` : `<td style="padding:10px;border:1px solid #d2def8;">${fmt(totalMonthlyPay)}</td>`}</tr>
     </tbody>
   </table>
 
