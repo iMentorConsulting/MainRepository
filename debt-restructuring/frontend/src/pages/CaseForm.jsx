@@ -42,6 +42,8 @@ function defaultIncome() {
     deposits: 0,
     // legacy fields kept for backward compat
     ebitda: 0,
+    // Vulnerable debtor — Άρθρο 66 ν. 5072/2023
+    isVulnerable: false,
   }
 }
 
@@ -113,6 +115,7 @@ function collectPlanData(debts, assets, income, calc, client) {
     alimony: income.alimonyCost || 0,
     dispAnnual: calc.dispAnnual || 0,
     dispMonthly: calc.dispMonthly || 0,
+    isVulnerable: !!(income.isVulnerable) && income.debtorType !== 'Νομικό Πρόσωπο',
     creditors,
     totalDebt: calc.sumDebt || 0,
     totalWriteOff: calc.sumWr || 0,

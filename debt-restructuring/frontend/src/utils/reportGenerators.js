@@ -119,8 +119,11 @@ export function buildPlanHtml(data, customRows) {
   const totalRemaining = includedCreditors.reduce((a, c) => a + (c.remaining || 0), 0)
   const totalMonthlyPay = includedCreditors.reduce((a, c) => a + (c.monthlyPay || 0), 0)
 
-  // Conservative fields (from data when customRows not used; null when customRows override)
-  const hasConservative = !customRows && data.totalWriteOffC != null
+  // Vulnerable debtors: suppress conservative range (presumed acceptance — no negotiation)
+  const isVulnerable = !!(data.isVulnerable) && !debtorType.includes('Νομικό')
+
+  // Conservative fields (from data when customRows not used; null when customRows override or vulnerable)
+  const hasConservative = !customRows && !isVulnerable && data.totalWriteOffC != null
   const totalWriteOffC = hasConservative ? (data.totalWriteOffC ?? totalWriteOff) : null
   const totalRemainingC = hasConservative ? (data.totalRemainingC ?? totalRemaining) : null
   const totalMonthlyPayC = hasConservative ? (data.totalMonthlyPayC ?? totalMonthlyPay) : null
@@ -213,6 +216,8 @@ export function buildPlanHtml(data, customRows) {
     <div style="background:#f7faff;border:1px solid #d9e6ff;border-radius:10px;padding:10px 12px;"><b>Ημερομηνία</b><br>${today}</div>
     <div style="background:#f7faff;border:1px solid #d9e6ff;border-radius:10px;padding:10px 12px;"><b>Επικοινωνία</b><br>${escHtml(clientPhone)}${clientEmail ? '<br>' + escHtml(clientEmail) : ''}</div>
   </div>
+
+  ${isVulnerable ? `<div style="background:#f0fdfa;border:2px solid #2dd4bf;border-radius:10px;padding:14px 16px;margin-bottom:18px;"><div style="font-size:17px;font-weight:900;color:#0f766e;margin-bottom:8px;">🛡️ ΕΥΑΛΩΤΟΣ ΟΦΕΙΛΕΤΗΣ</div><p style="margin:0 0 8px;color:#115e59;font-size:14px;">Με βάση τη βεβαίωση ευάλωτου οφειλέτη (περ. β΄ άρθρου 217 ν. 4738/2020), ισχύουν οι ευνοϊκές διατάξεις του <b>άρθρου 66 ν. 5072/2023</b>:</p><ul style="margin:0;padding-left:20px;color:#134e4a;font-size:13px;line-height:1.8;"><li><b>Τεκμαιρόμενη συναίνεση</b> όλων των πιστωτών (τράπεζες, Δημόσιο, ΦΚΑ)</li><li><b>Μηδενική προκαταβολή 10%</b> — εξαίρεση βάσει Άρθρου 116 ν. 5072/2023 &amp; παρ. κγ ΚΥΑ 13243/2024</li><li><b>Υποχρεωτική αποδοχή</b> πρότασης εφόσον πληρούνται οι προϋποθέσεις ΚΥΑ</li></ul></div>` : ''}
 
   <h3 style="color:#004aad;">1. Περίληψη</h3>
   ${hasConservative ? `<div style="background:#fffbeb;border-left:4px solid #f59e0b;padding:8px 12px;border-radius:6px;font-size:13px;color:#78350f;margin-bottom:10px;">Τα ποσά εμφανίζονται ως εύρος: <b>Συντηρητικό – Θεωρητικό Μέγιστο</b> βάσει ΚΥΑ 13243/2024.</div>` : ''}

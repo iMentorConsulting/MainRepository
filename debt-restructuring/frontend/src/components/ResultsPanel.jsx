@@ -34,14 +34,33 @@ export default function ResultsPanel({ calc, incomeData }) {
   const isLegal = incomeData?.debtorType === 'Νομικό Πρόσωπο'
   const fgColor = SCENARIO_COLORS[calc.scenario] || SCENARIO_COLORS[1]
 
+  const isVulnerable = !isLegal && !!(incomeData?.isVulnerable)
+
   const hasStepUp = (calc.finalPlan || []).some((p) => p.c1 != null && p.c2 != null && p.c1 !== p.c2)
   const totalC1 = (calc.finalPlan || []).reduce((s, p) => s + (p.c1 ?? p.payShown ?? 0), 0)
   const totalC1C = (calc.finalPlan || []).reduce((s, p) => s + (p.c1C ?? p.payShownC ?? 0), 0)
 
-  const hasConservative = (calc.finalPlan || []).some((p) => p.writeoffC != null)
+  // Vulnerable debtors: suppress conservative range — show single Proposal B values only
+  const hasConservative = !isVulnerable && (calc.finalPlan || []).some((p) => p.writeoffC != null)
 
   return (
     <div className="space-y-6">
+      {/* Vulnerable debtor banner */}
+      {isVulnerable && (
+        <div className="bg-teal-50 border-2 border-teal-400 rounded-xl p-4 text-sm">
+          <p className="font-black text-teal-800 text-base mb-2">🛡️ ΕΥΑΛΩΤΟΣ ΟΦΕΙΛΕΤΗΣ</p>
+          <p className="text-teal-700 mb-3">
+            Με βάση τη βεβαίωση ευάλωτου που διαθέτει ο οφειλέτης, ισχύουν οι ευνοϊκές διατάξεις του{' '}
+            <b>άρθρου 66 ν. 5072/2023</b>:
+          </p>
+          <ul className="space-y-1 text-teal-800 text-xs">
+            <li>✓ <b>Τεκμαιρόμενη συναίνεση</b> όλων των πιστωτών (τράπεζες, Δημόσιο, ΦΚΑ)</li>
+            <li>✓ <b>Μηδενική προκαταβολή 10%</b> — εξαίρεση βάσει Άρθρου 116 ν. 5072/2023 &amp; παρ. κγ ΚΥΑ 13243/2024</li>
+            <li>✓ <b>Υποχρεωτική αποδοχή</b> πρότασης εφόσον πληρούνται οι προϋποθέσεις ΚΥΑ — δεν απαιτείται διαπραγμάτευση</li>
+          </ul>
+        </div>
+      )}
+
       {/* Conservative scenario info banner */}
       {hasConservative && (
         <div className="bg-amber-50 border border-amber-300 rounded-xl p-4 text-sm">

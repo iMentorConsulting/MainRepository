@@ -53,6 +53,21 @@ export default function IncomePanel({ income, onChange, assets, onAssetsChange }
           </select>
         </div>
 
+        {!isLegal && (
+          <label className={`flex items-start gap-3 cursor-pointer rounded-lg border px-3 py-2.5 text-sm transition-colors ${income.isVulnerable ? 'border-teal-400 bg-teal-50 text-teal-900' : 'border-gray-200 bg-gray-50 text-gray-700 hover:border-teal-300'}`}>
+            <input
+              type="checkbox"
+              className="mt-0.5 w-4 h-4 accent-teal-600 shrink-0"
+              checked={!!income.isVulnerable}
+              onChange={(e) => set('isVulnerable', e.target.checked)}
+            />
+            <span>
+              <span className="font-semibold">🛡️ Ευάλωτος Οφειλέτης</span>
+              <span className="block text-xs mt-0.5 opacity-80">Διαθέτει βεβαίωση ευάλωτου οφειλέτη (περ. β΄ άρθρου 217 ν. 4738/2020) — Άρθρο 66 ν. 5072/2023</span>
+            </span>
+          </label>
+        )}
+
         {isLegal ? (
           <div className="bg-blue-50 border-l-4 border-blue-600 rounded-lg p-4 space-y-3">
             <p className="text-xs font-bold text-blue-700 mb-2">Στοιχεία Νομικού Προσώπου</p>
