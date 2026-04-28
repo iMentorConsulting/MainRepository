@@ -1,7 +1,7 @@
 // ============================================================
 // Core financial calculations — Sprint 1 (ΚΥΑ 13243/2024)
 // ============================================================
-import { PARAMS_B } from './calculationParams'
+import { PARAMS_B, CONSERVATIVE_FACTORS } from './calculationParams'
 
 export function PMT(rate, nper, pv) {
   if (!pv || pv <= 0 || !nper || nper <= 0) return 0
@@ -331,6 +331,15 @@ export function calculateAll(debts, assets, incomeData, params = PARAMS_B) {
     }
 
     const payShown = Math.max(0, Math.floor(c2))
+
+    // Conservative scenario: apply empirical factor to write-off, recompute payments
+    const factorC = isPublicDebt(p.type)
+      ? CONSERVATIVE_FACTORS.PUBLIC
+      : p.isSecured ? CONSERVATIVE_FACTORS.PRIVATE_SECURED : CONSERVATIVE_FACTORS.PRIVATE_UNSECURED
+    const writeoffC = Math.min(Math.round(safeWr * factorC), p.amount)
+    const newAmtC = Math.max(0, p.amount - writeoffC)
+    const { c1: c1c, c2: c2c } = stepUpPMT(newAmtC, months, r1, r2, params.promoMonths)
+
     return {
       idx: p.idx, type: p.type, creditorName: ref.creditorName, isSecured: p.isSecured,
       amount: p.amount, writeoff: safeWr,
@@ -340,13 +349,25 @@ export function calculateAll(debts, assets, incomeData, params = PARAMS_B) {
       c2: Math.max(0, Math.floor(c2)),
       payShown,
       incomePct: monthlyIncome > 0 ? Math.round(payShown / monthlyIncome * 100) : 0,
+      // Conservative scenario fields
+      factorC, writeoffC,
+      writeoffPctC: p.amount ? Math.round(writeoffC * 100 / p.amount) : 0,
+      newAmtC, c1C: Math.max(0, Math.floor(c1c)), c2C: Math.max(0, Math.floor(c2c)),
+      payShownC: Math.max(0, Math.floor(c2c)),
     }
   })
 
   const sumWr = finalPlan.reduce((s, p) => s + (p.writeoff || 0), 0)
   const totalRemaining = finalPlan.reduce((s, p) => s + (p.newAmt || 0), 0)
   const totalMonthlyPay = finalPlan.reduce((s, p) => s + (p.payShown || 0), 0)
+  const totalC1 = finalPlan.reduce((s, p) => s + p.c1, 0)
   const ratio = monthlyIncome > 0 ? Math.round(totalMonthlyPay / monthlyIncome * 100) : 0
+  // Conservative scenario aggregates
+  const sumWrC = finalPlan.reduce((s, p) => s + p.writeoffC, 0)
+  const totalRemainingC = finalPlan.reduce((s, p) => s + p.newAmtC, 0)
+  const totalMonthlyPayC = finalPlan.reduce((s, p) => s + p.payShownC, 0)
+  const totalC1C = finalPlan.reduce((s, p) => s + p.c1C, 0)
+  const ratioC = monthlyIncome > 0 ? Math.round(totalMonthlyPayC / monthlyIncome * 100) : 0
 
   const isFullCoveredByAssets = sumDebt > 0 && sumAssetsAfterExp >= sumDebt
   const isPartialCoveredByAssets = sumDebt > 0 && sumAssetsAfterExp > 0 && sumAssetsAfterExp < sumDebt
@@ -369,7 +390,9 @@ export function calculateAll(debts, assets, incomeData, params = PARAMS_B) {
     annualIncome, totalExpenses,
     dispAnnual: Math.max(0, dispAnnual), dispMonthly: Math.max(0, dispMonthly), monthlyIncome,
     finalPlan, sumWr, sumWrPct: sumDebt ? Math.round(sumWr * 100 / sumDebt) : 0,
-    totalRemaining, totalMonthlyPay, ratio,
+    totalRemaining, totalMonthlyPay, totalC1, ratio,
+    sumWrC, sumWrPctC: sumDebt ? Math.round(sumWrC * 100 / sumDebt) : 0,
+    totalRemainingC, totalMonthlyPayC, totalC1C, ratioC,
     scenario, lowIncome, isFullCoveredByAssets, isPartialCoveredByAssets,
   }
 }
