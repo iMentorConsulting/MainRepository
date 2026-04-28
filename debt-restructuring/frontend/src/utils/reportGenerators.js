@@ -289,15 +289,22 @@ document.getElementById('copyBtn').addEventListener('click', async () => {
 export function buildEmailHtml(data) {
   const { clientName, debtorType, totalDebt, totalWriteOff, totalRemaining, totalMonthlyPay, dispMonthly, creditors, bankDebt, taxDebt, insDebt, forecastTitle, forecastSections, commercialOffer, showTable = true, showDisclaimer = true, portalUrl = null, hasVat = false } = data
 
+  const hasStepUp = (creditors || []).some((c) => c.c1 != null && c.c2 != null && c.c1 !== c.c2)
+  const totalC1 = (creditors || []).reduce((s, c) => s + (c.c1 || c.monthlyPay || 0), 0)
+  const TD = 'padding:8px;border:1px solid #d9e2ef;text-align:center;'
+
   const rows = creditors.map((c) => {
     const pct = c.amount > 0 ? Math.round((c.writeoff / c.amount) * 100) : 0
+    const payCell = hasStepUp
+      ? `<td style="${TD}">${c.c1 > 0 ? fmt(c.c1) : '—'}</td><td style="${TD}font-weight:700;color:#1d4ed8;">${c.c2 > 0 ? fmt(c.c2) : '—'}</td>`
+      : `<td style="${TD}">${c.monthlyPay > 0 ? fmt(c.monthlyPay) : '—'}</td>`
     return `<tr>
-      <td style="padding:8px;border:1px solid #d9e2ef;text-align:center;">${escHtml(c.creditor)}</td>
-      <td style="padding:8px;border:1px solid #d9e2ef;text-align:center;">${fmt(c.amount)}</td>
-      <td style="padding:8px;border:1px solid #d9e2ef;text-align:center;">${c.writeoff > 0 ? `${fmt(c.writeoff)} (${pct}%)` : '—'}</td>
-      <td style="padding:8px;border:1px solid #d9e2ef;text-align:center;">${fmt(c.remaining)}</td>
-      <td style="padding:8px;border:1px solid #d9e2ef;text-align:center;">${c.months || 0}</td>
-      <td style="padding:8px;border:1px solid #d9e2ef;text-align:center;">${c.monthlyPay > 0 ? fmt(c.monthlyPay) : '—'}</td>
+      <td style="${TD}">${escHtml(c.creditor)}</td>
+      <td style="${TD}">${fmt(c.amount)}</td>
+      <td style="${TD}">${c.writeoff > 0 ? `${fmt(c.writeoff)} (${pct}%)` : '—'}</td>
+      <td style="${TD}">${fmt(c.remaining)}</td>
+      <td style="${TD}">${c.months || 0}</td>
+      ${payCell}
     </tr>`
   }).join('')
 
@@ -352,7 +359,9 @@ export function buildEmailHtml(data) {
         <th style="padding:8px 10px;border:1px solid #1e3a8a;">Εκτ. Διαγραφή</th>
         <th style="padding:8px 10px;border:1px solid #1e3a8a;">Εναπομένουσα</th>
         <th style="padding:8px 10px;border:1px solid #1e3a8a;">Μήνες</th>
-        <th style="padding:8px 10px;border:1px solid #1e3a8a;">Μηνιαία Δόση</th>
+        ${hasStepUp
+          ? `<th style="padding:8px 10px;border:1px solid #1e3a8a;">Δόση Έτη 1–3</th><th style="padding:8px 10px;border:1px solid #1e3a8a;">Δόση Έτη 4+</th>`
+          : `<th style="padding:8px 10px;border:1px solid #1e3a8a;">Μηνιαία Δόση</th>`}
       </tr>
     </thead>
     <tbody>${rows}</tbody>
@@ -363,7 +372,9 @@ export function buildEmailHtml(data) {
         <td style="padding:8px 10px;border:1px solid #c7d2fe;text-align:center;color:#c2410c;">${fmt(totalWriteOff)}</td>
         <td style="padding:8px 10px;border:1px solid #c7d2fe;text-align:center;">${fmt(totalRemaining)}</td>
         <td style="padding:8px 10px;border:1px solid #c7d2fe;text-align:center;">—</td>
-        <td style="padding:8px 10px;border:1px solid #c7d2fe;text-align:center;color:#1d4ed8;">${fmt(totalMonthlyPay)}</td>
+        ${hasStepUp
+          ? `<td style="padding:8px 10px;border:1px solid #c7d2fe;text-align:center;color:#2563eb;">${fmt(totalC1)}</td><td style="padding:8px 10px;border:1px solid #c7d2fe;text-align:center;color:#1d4ed8;font-weight:800;">${fmt(totalMonthlyPay)}</td>`
+          : `<td style="padding:8px 10px;border:1px solid #c7d2fe;text-align:center;color:#1d4ed8;">${fmt(totalMonthlyPay)}</td>`}
       </tr>
     </tfoot>
   </table>` : ''}

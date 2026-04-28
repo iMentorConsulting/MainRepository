@@ -230,6 +230,8 @@ function EmailOptionsModal({ caseData, onClose }) {
       remaining: p.newAmt || 0,
       months: p.months || 0,
       monthlyPay: p.payShown || 0,
+      c1: p.c1 ?? p.payShown ?? 0,
+      c2: p.c2 ?? p.payShown ?? 0,
     }))
     const bankDebt = finalPlan.filter(p => p.type === 'Τράπεζα').reduce((s, p) => s + (p.amount || 0), 0)
     const taxDebt = finalPlan.filter(p => p.type === 'Εφορία').reduce((s, p) => s + (p.amount || 0), 0)

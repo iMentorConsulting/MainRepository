@@ -275,49 +275,91 @@ export default function ClientPreview() {
         })()}
 
         {/* Creditor table */}
-        {finalPlan.length > 0 && (
-          <div className="bg-white rounded-2xl shadow-lg p-5">
-            <h2 className="text-base font-black text-blue-800 border-b-2 border-blue-100 pb-2 mb-3">📊 Αναλυτική Εκτίμηση ανά Πιστωτή</h2>
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[500px] text-sm">
-                <thead>
-                  <tr className="border-b-2 border-blue-100">
-                    <th className="th text-left">Πιστωτής</th>
-                    <th className="th">Αρχική</th>
-                    <th className="th">Εκτ. Διαγραφή</th>
-                    <th className="th">Εναπομένουσα</th>
-                    <th className="th">Δόσεις</th>
-                    <th className="th">Μηνιαία</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {finalPlan.map((p, i) => (
-                    <tr key={i} className="border-b border-gray-100">
-                      <td className="td text-left font-semibold">{creditorDisplayName(p.type, p.creditorName)}</td>
-                      <td className="td font-mono">{fmt(p.amount)}</td>
-                      <td className="td font-mono text-orange-600">{p.writeoff > 0 ? `${fmt(p.writeoff)} (${p.writeoffPct}%)` : '—'}</td>
-                      <td className="td font-mono">{fmt(p.newAmt)}</td>
-                      <td className="td">{p.months}</td>
-                      <td className="td font-mono font-bold text-blue-800">{fmt(p.payShown)}</td>
+        {finalPlan.length > 0 && (() => {
+          const hasStepUp = finalPlan.some((p) => p.c1 != null && p.c2 != null && p.c1 !== p.c2)
+          const totalC1 = finalPlan.reduce((s, p) => s + (p.c1 ?? p.payShown ?? 0), 0)
+          return (
+            <div className="bg-white rounded-2xl shadow-lg p-5">
+              <h2 className="text-base font-black text-blue-800 border-b-2 border-blue-100 pb-2 mb-3">📊 Αναλυτική Εκτίμηση ανά Πιστωτή</h2>
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[500px] text-sm">
+                  <thead>
+                    <tr className="border-b-2 border-blue-100">
+                      <th className="th text-left">Πιστωτής</th>
+                      <th className="th">Αρχική</th>
+                      <th className="th">Εκτ. Διαγραφή</th>
+                      <th className="th">Εναπομένουσα</th>
+                      <th className="th">Δόσεις</th>
+                      {hasStepUp ? (
+                        <>
+                          <th className="th">Δόση Έτη 1–3</th>
+                          <th className="th">Δόση Έτη 4+</th>
+                        </>
+                      ) : (
+                        <th className="th">Μηνιαία</th>
+                      )}
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <div className="grid grid-cols-3 gap-3 mt-4">
-              {[
-                { label: 'Συνολική Εκτ. Διαγραφή', value: est.sumWr, color: 'text-orange-600' },
-                { label: 'Εναπομένουσες Οφειλές', value: est.totalRemaining, color: 'text-blue-700' },
-                { label: 'Συνολικές Μηνιαίες Δόσεις', value: est.totalMonthlyPay, color: 'text-green-700' },
-              ].map((k) => (
-                <div key={k.label} className="bg-blue-50 rounded-xl p-3 text-center">
-                  <div className="text-xs text-blue-600 font-semibold mb-1">{k.label}</div>
-                  <div className={`text-lg font-black ${k.color}`}>{k.value ? fmt(k.value) : '—'}</div>
+                  </thead>
+                  <tbody>
+                    {finalPlan.map((p, i) => {
+                      const c1 = p.c1 ?? p.payShown
+                      const c2 = p.c2 ?? p.payShown
+                      return (
+                        <tr key={i} className="border-b border-gray-100">
+                          <td className="td text-left font-semibold">{creditorDisplayName(p.type, p.creditorName)}</td>
+                          <td className="td font-mono">{fmt(p.amount)}</td>
+                          <td className="td font-mono text-orange-600">{p.writeoff > 0 ? `${fmt(p.writeoff)} (${p.writeoffPct}%)` : '—'}</td>
+                          <td className="td font-mono">{fmt(p.newAmt)}</td>
+                          <td className="td">{p.months}</td>
+                          {hasStepUp ? (
+                            <>
+                              <td className="td font-mono text-blue-600">{fmt(c1)}</td>
+                              <td className="td font-mono font-bold text-blue-900">{fmt(c2)}{c1 !== c2 && <span className="text-xs text-amber-600 ml-1">↑</span>}</td>
+                            </>
+                          ) : (
+                            <td className="td font-mono font-bold text-blue-800">{fmt(p.payShown)}</td>
+                          )}
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              {hasStepUp && (
+                <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mt-3">
+                  ↑ Η δόση «Έτη 4+» ισχύει μετά τη λήξη της τριετούς προνομιακής περιόδου (Euribor + spread).
+                </p>
+              )}
+              <div className={`grid gap-3 mt-4 ${hasStepUp ? 'grid-cols-2 md:grid-cols-4' : 'grid-cols-3'}`}>
+                <div className="bg-blue-50 rounded-xl p-3 text-center">
+                  <div className="text-xs text-blue-600 font-semibold mb-1">Συνολική Εκτ. Διαγραφή</div>
+                  <div className="text-lg font-black text-orange-600">{est.sumWr ? fmt(est.sumWr) : '—'}</div>
                 </div>
-              ))}
+                <div className="bg-blue-50 rounded-xl p-3 text-center">
+                  <div className="text-xs text-blue-600 font-semibold mb-1">Εναπομένουσες Οφειλές</div>
+                  <div className="text-lg font-black text-blue-700">{est.totalRemaining ? fmt(est.totalRemaining) : '—'}</div>
+                </div>
+                {hasStepUp ? (
+                  <>
+                    <div className="bg-blue-50 rounded-xl p-3 text-center">
+                      <div className="text-xs text-blue-600 font-semibold mb-1">Δόσεις Έτη 1–3</div>
+                      <div className="text-lg font-black text-blue-600">{fmt(totalC1)}</div>
+                    </div>
+                    <div className="bg-blue-50 rounded-xl p-3 text-center">
+                      <div className="text-xs text-blue-600 font-semibold mb-1">Δόσεις Έτη 4+</div>
+                      <div className="text-lg font-black text-green-700">{est.totalMonthlyPay ? fmt(est.totalMonthlyPay) : '—'}</div>
+                    </div>
+                  </>
+                ) : (
+                  <div className="bg-blue-50 rounded-xl p-3 text-center">
+                    <div className="text-xs text-blue-600 font-semibold mb-1">Συνολικές Μηνιαίες Δόσεις</div>
+                    <div className="text-lg font-black text-green-700">{est.totalMonthlyPay ? fmt(est.totalMonthlyPay) : '—'}</div>
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
-        )}
+          )
+        })()}
 
         {/* Charts */}
         {est.sumDebt > 0 && (
