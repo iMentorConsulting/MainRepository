@@ -52,10 +52,16 @@ export const PARAMS_B = {
   partiallySecuredThreshold: 0.20, // if net_collateral / debt > 20%
   collateralFactor: 0.97,          // net collateral = property_value × 0.97
 
-  // FP exempt deposits (not counted as available asset)
+  // FP rent cap (ΚΥΑ Παράρτημα παρ. δ) — monthly €, applied before ×12
+  rentCapBase: 350,       // base monthly cap for single-member household
+  rentCapPerMember: 50,   // +€50 per additional member
+  rentCapMax: 550,        // absolute monthly ceiling
+
+  // FP exempt savings (not counted as available asset for coverage)
   fpExemptSavingsBase: 2000,
   fpExemptSavingsPerMember: 1000,
   fpExemptSavingsMax: 5000,
+  fpSavingsIncomeRate: 0.95, // 95% of excess savings added to annual disposable
 
   // LE income calculation
   leTurnoverThreshold: 2500000, // "small LE" if turnover < 2.5M

@@ -101,13 +101,17 @@ function DebtRow({ debt, onChange, onDelete, coverage }) {
         )}
       </td>
 
-      {/* Coverage chip */}
+      {/* Coverage chip — based purely on collateral net value vs debt (display only) */}
       <td className="td px-2 py-2 min-w-[90px]">
-        {coverage != null && debt.amount > 0 && (
-          <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${coverage >= debt.amount ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
-            {coverage >= debt.amount ? '✅ 100%' : `${Math.round(coverage * 100 / debt.amount)}%`}
-          </span>
-        )}
+        {debt.mortgaged && debt.propertyValue > 0 && debt.amount > 0 && (() => {
+          const net = Math.floor(debt.propertyValue * 0.97)
+          const pct = net >= debt.amount ? 100 : Math.round(net * 100 / debt.amount)
+          return (
+            <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${pct >= 100 ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
+              {pct >= 100 ? '✅ 100%' : `${pct}%`}
+            </span>
+          )
+        })()}
       </td>
 
       {/* Delete */}

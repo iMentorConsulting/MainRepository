@@ -123,11 +123,11 @@ export function calculateAll(debts, assets, incomeData, params = PARAMS_B) {
 
   // --- assets: other props + countable FP savings ---
   const propsRaw = (assets || []).reduce((a, p) => a + (p.value || 0), 0)
+  const fpSize = isLE ? 1 : Math.max(1, incomeData.householdSize || 1)
   let countableSavings = 0
   if (!isLE) {
-    const size = Math.max(1, incomeData.householdSize || 1)
     const exempt = Math.min(
-      params.fpExemptSavingsBase + params.fpExemptSavingsPerMember * (size - 1),
+      params.fpExemptSavingsBase + params.fpExemptSavingsPerMember * (fpSize - 1),
       params.fpExemptSavingsMax
     )
     countableSavings = Math.max(0, (incomeData.savings || 0) - exempt)
@@ -165,9 +165,32 @@ export function calculateAll(debts, assets, incomeData, params = PARAMS_B) {
     else rows.forEach((r) => poolAlloTax.set(r.idx, allTotal ? poolTax * r.amount / allTotal : 0))
     if (unsecTotal > 0) unsecRows.forEach((r) => poolAlloUnsc.set(r.idx, poolUnsec * r.amount / unsecTotal))
     else rows.forEach((r) => poolAlloUnsc.set(r.idx, allTotal ? poolUnsec * r.amount / allTotal : 0))
-    const perOther = rows.length ? propsTotal / rows.length : 0
+    // ΚΠολΔ 975: public creditors (ΑΑΔΕ/ΕΦΚΑ) have general privilege → first claim on non-mortgaged assets
+    let propsRem = propsTotal
+    const propsAlloMap = new Map()
+    const pubCredRows = rows.filter((r) => isPublicDebt(r.type))
+    const pubCredTotal = pubCredRows.reduce((a, r) => a + r.amount, 0)
+    if (pubCredTotal > 0 && propsRem > 0) {
+      const alloc = Math.min(propsRem, pubCredTotal)
+      pubCredRows.forEach((r) => propsAlloMap.set(r.idx, alloc * r.amount / pubCredTotal))
+      propsRem -= alloc
+    }
+    const genUnsecRows = rows.filter((r) => !r.mort && !isPublicDebt(r.type))
+    const genUnsecTotal = genUnsecRows.reduce((a, r) => a + r.amount, 0)
+    if (genUnsecTotal > 0 && propsRem > 0) {
+      const alloc = Math.min(propsRem, genUnsecTotal)
+      genUnsecRows.forEach((r) => propsAlloMap.set(r.idx, (propsAlloMap.get(r.idx) || 0) + alloc * r.amount / genUnsecTotal))
+      propsRem -= alloc
+    }
+    if (propsRem > 0) {
+      const mortBankRows = rows.filter((r) => r.mort && !isPublicDebt(r.type))
+      const mortBankTotal = mortBankRows.reduce((a, r) => a + r.amount, 0)
+      if (mortBankTotal > 0) {
+        mortBankRows.forEach((r) => propsAlloMap.set(r.idx, (propsAlloMap.get(r.idx) || 0) + propsRem * r.amount / mortBankTotal))
+      }
+    }
     rows.forEach((r) => {
-      let c = (own65.get(r.idx) || 0) + (poolAlloTax.get(r.idx) || 0) + (poolAlloUnsc.get(r.idx) || 0) + perOther
+      const c = (own65.get(r.idx) || 0) + (poolAlloTax.get(r.idx) || 0) + (poolAlloUnsc.get(r.idx) || 0) + (propsAlloMap.get(r.idx) || 0)
       covMap.set(r.idx, Math.min(c, r.amount))
     })
   }
@@ -208,12 +231,16 @@ export function calculateAll(debts, assets, incomeData, params = PARAMS_B) {
     const floored = isSmall ? Math.max(base, turnover * params.leIncomeFloorPct) : base
     dispAnnual = floored + deposits * params.leDepositRate
   } else {
+    // Rent cap: ΚΥΑ Παράρτημα παρ. δ — monthly €(350 + 50×(size−1)), max €550
+    const rentCapMonthly = Math.min(params.rentCapBase + params.rentCapPerMember * (fpSize - 1), params.rentCapMax)
+    const effectiveRent = Math.min(incomeData.rentCost || 0, rentCapMonthly * 12)
     annualIncome = incomeData.annualIncome || 0
     totalExpenses = (incomeData.householdValue || 0) + (incomeData.enfiaCost || 0) +
-      (incomeData.medicalCost || 0) + (incomeData.rentCost || 0) +
-      (incomeData.studentRentCost || 0) + (incomeData.extraLivingCost || 0) +
+      (incomeData.medicalCost || 0) + effectiveRent +
+      (incomeData.studentRentCost || 0) +
       (incomeData.alimonyCost || 0)
-    dispAnnual = Math.max(0, annualIncome - totalExpenses) * 0.8
+    // 95% of excess savings (above exempt threshold) added to annual disposable — ΚΥΑ 77129/2025
+    dispAnnual = Math.max(0, annualIncome - totalExpenses) * 0.8 + countableSavings * params.fpSavingsIncomeRate
   }
   const dispMonthly = dispAnnual / 12
   const monthlyIncome = Math.max(0, dispMonthly)

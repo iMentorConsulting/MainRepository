@@ -98,10 +98,9 @@ export default function IncomePanel({ income, onChange, assets, onAssetsChange }
             <MoneyField label="3️⃣ Ετήσιος ΕΝΦΙΑ (€)" value={income.enfiaCost} onChange={(v) => set('enfiaCost', v)} />
             <MoneyField label="4️⃣ Ετήσιες Ιατρικές Δαπάνες (€)" value={income.medicalCost} onChange={(v) => set('medicalCost', v)} />
             <MoneyField label="5️⃣ Ετήσιο Ενοίκιο (€)" value={income.rentCost} onChange={(v) => set('rentCost', v)} />
-            <MoneyField label="6️⃣ Ετήσιο Ενοίκιο Φοιτητών (€)" value={income.studentRentCost} onChange={(v) => set('studentRentCost', v)} />
-            <MoneyField label="7️⃣ Ετήσια Διατροφή & Διαβίωση (€)" value={income.extraLivingCost} onChange={(v) => set('extraLivingCost', v)} />
-            <MoneyField label="8️⃣ Ετήσια Διατροφή λόγω Διαζυγίου (€)" value={income.alimonyCost} onChange={(v) => set('alimonyCost', v)} />
-            <MoneyField label="9️⃣ Καταθέσεις / Αποταμιεύσεις (€)" value={income.savings} onChange={(v) => set('savings', v)} placeholder="π.χ. 5.000" />
+            <MoneyField label="6️⃣ Ετήσιο Ενοίκιο Εξαρτ. Μέλους (€)" value={income.studentRentCost} onChange={(v) => set('studentRentCost', v)} />
+            <MoneyField label="7️⃣ Ετήσια Διατροφή λόγω Διαζυγίου (€)" value={income.alimonyCost} onChange={(v) => set('alimonyCost', v)} />
+            <MoneyField label="8️⃣ Καταθέσεις / Αποταμιεύσεις (€)" value={income.savings} onChange={(v) => set('savings', v)} placeholder="π.χ. 5.000" />
           </div>
         )}
       </div>
