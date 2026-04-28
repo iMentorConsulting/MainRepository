@@ -50,7 +50,7 @@ function collectPlanData(debts, assets, income, calc, client) {
   ;(calc.finalPlan || []).forEach((p) => {
     const name = creditorDisplayName(p.type, p.creditorName)
     if (!grouped[name]) {
-      grouped[name] = { creditor: name, type: p.type, amount: 0, writeoff: 0, remaining: 0, months: 0, monthlyPay: 0 }
+      grouped[name] = { creditor: name, type: p.type, amount: 0, writeoff: 0, remaining: 0, months: 0, monthlyPay: 0, c1: 0, c2: 0 }
     }
     const g = grouped[name]
     g.amount += p.amount
@@ -58,6 +58,8 @@ function collectPlanData(debts, assets, income, calc, client) {
     g.remaining += p.newAmt || 0
     g.months = Math.max(g.months, p.months || 0)
     g.monthlyPay += p.payShown || 0
+    g.c1 += p.c1 ?? p.payShown ?? 0
+    g.c2 += p.c2 ?? p.payShown ?? 0
   })
 
   const creditors = Object.values(grouped)

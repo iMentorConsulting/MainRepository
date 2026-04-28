@@ -1,8 +1,7 @@
 import { useState } from 'react'
 import { XMarkIcon } from '@heroicons/react/24/outline'
-import { fmt, creditorDisplayName, maxMonthsByType, PMT } from '../utils/calculations'
-
-const RATE = 0.03 / 12
+import { fmt, creditorDisplayName, maxMonthsByType, stepUpPMT } from '../utils/calculations'
+import { PARAMS_B } from '../utils/calculationParams'
 
 export default function PlanParamsModal({ calc, onGenerate, onClose }) {
   const { finalPlan } = calc
@@ -25,7 +24,14 @@ export default function PlanParamsModal({ calc, onGenerate, onClose }) {
     onGenerate(rows)
   }
 
-  const RATE_LOCAL = RATE
+  function rowStepUp(r, reqRemaining) {
+    if (!reqRemaining || !r.reqMonths) return { c1: 0, c2: 0 }
+    const isPub = r.type === 'Εφορία' || r.type === 'Ασφαλιστικά Ταμεία'
+    const sec = r.isSecured || r.mort || false
+    const r1 = isPub ? PARAMS_B.publicRate : (sec ? PARAMS_B.promoRateSecured : PARAMS_B.promoRateUnsecured)
+    const r2 = isPub ? PARAMS_B.publicRate : PARAMS_B.euribor3m + (sec ? PARAMS_B.securedSpreadAfterPromo : PARAMS_B.unsecuredSpreadAfterPromo)
+    return stepUpPMT(reqRemaining, r.reqMonths, r1, r2, PARAMS_B.promoMonths)
+  }
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
@@ -61,9 +67,10 @@ export default function PlanParamsModal({ calc, onGenerate, onClose }) {
                 const maxM = maxMonthsByType(r.type, r.amount)
                 const reqWrAmt = Math.round(r.amount * r.reqPct / 100)
                 const reqRemaining = Math.max(0, r.amount - reqWrAmt)
-                const reqMonthlyPay = reqRemaining > 0 && r.reqMonths > 0
-                  ? Math.floor(PMT(RATE_LOCAL, r.reqMonths, reqRemaining))
-                  : 0
+                const { c1: reqC1, c2: reqC2 } = rowStepUp(r, reqRemaining)
+                const reqMonthlyPay = Math.max(0, Math.floor(reqC2))
+                const reqMonthlyPayC1 = Math.max(0, Math.floor(reqC1))
+                const showStepUp = reqMonthlyPayC1 > 0 && reqMonthlyPayC1 !== reqMonthlyPay
 
                 return (
                   <tr key={i} className={`border-b border-gray-100 ${r.excluded ? 'opacity-40' : ''}`}>
@@ -72,8 +79,17 @@ export default function PlanParamsModal({ calc, onGenerate, onClose }) {
                     <td className="td font-mono text-orange-600">
                       {(r.writeoff || 0) > 0 ? `${fmt(r.writeoff)} (${r.writeoffPct}%)` : '—'}
                     </td>
-                    <td className="td font-mono">
-                      {r.months} δόσεις • {fmt(r.payShown)}
+                    <td className="td font-mono text-sm">
+                      {r.months} δόσεις
+                      {(r.c1 != null && r.c2 != null && r.c1 !== r.c2) ? (
+                        <div className="text-xs mt-0.5">
+                          <span className="text-blue-500">1-3: {fmt(r.c1)}</span>
+                          {' · '}
+                          <span className="text-blue-800 font-bold">4+: {fmt(r.c2)}</span>
+                        </div>
+                      ) : (
+                        <div>{fmt(r.payShown)}</div>
+                      )}
                     </td>
                     <td className="td">
                       <div className="flex flex-col items-center gap-0.5">
@@ -98,7 +114,8 @@ export default function PlanParamsModal({ calc, onGenerate, onClose }) {
                           className="input w-20 text-center py-1 text-sm"
                         />
                         <span className="text-xs text-gray-400">Μέγιστο: {maxM} μήνες</span>
-                        {reqMonthlyPay > 0 && <span className="text-xs text-blue-700 font-mono font-bold">{fmt(reqMonthlyPay)}</span>}
+                        {showStepUp && <span className="text-xs text-blue-500 font-mono">1-3: {fmt(reqMonthlyPayC1)}</span>}
+                        {reqMonthlyPay > 0 && <span className="text-xs text-blue-700 font-mono font-bold">{showStepUp ? `4+: ${fmt(reqMonthlyPay)}` : fmt(reqMonthlyPay)}</span>}
                       </div>
                     </td>
                     <td className="td text-center">

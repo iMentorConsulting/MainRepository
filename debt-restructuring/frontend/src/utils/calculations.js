@@ -365,6 +365,16 @@ export function buildForecastText(calc, incomeData) {
 
   const ratio = dispMonthly > 0 ? Math.round(totalMonthlyPay / dispMonthly * 100) : 0
 
+  // Step-up payment display
+  const hasStepUp = (finalPlan || []).some((p) => p.c1 != null && p.c2 != null && p.c1 !== p.c2)
+  const totalC1 = hasStepUp ? (finalPlan || []).reduce((s, p) => s + (p.c1 ?? p.payShown ?? 0), 0) : 0
+  const payLine = hasStepUp
+    ? `Δόση Έτη 1–3: ${fmt(totalC1)} | Δόση Έτη 4+: ${fmt(totalMonthlyPay)} (${ratio}% εισοδήματος)`
+    : `Συνολική μηνιαία δόση: ${fmt(totalMonthlyPay)} (${ratio}% εισοδήματος)`
+  const payLineShort = hasStepUp
+    ? `Δόση Έτη 1–3: ${fmt(totalC1)} | Δόση Έτη 4+: ${fmt(totalMonthlyPay)}`
+    : `Συνολική μηνιαία δόση: ${fmt(totalMonthlyPay)}`
+
   const debtSection = {
     type: 'info', icon: '🔢', label: 'Σύνολο Οφειλών',
     body: `Οι συνολικές οφειλές του οφειλέτη ανέρχονται σε ${fmt(sumDebt)}, κατανεμημένες ως εξής:\n• Προς τράπεζες: ${fmt(banksDebt)}\n• Προς ασφαλιστικά ταμεία: ${fmt(fundsDebt)}\n• Προς ΑΑΔΕ / εφορία: ${fmt(taxDebt)}`,
@@ -399,7 +409,7 @@ export function buildForecastText(calc, incomeData) {
       title: 'Πρόβλεψη Ρύθμισης – Νομικό Πρόσωπο',
       sections: sections({
         type: 'success', icon: '✅', label: 'Εκτίμηση Αποτελέσματος',
-        body: `Διαθέσιμο μηνιαίο ποσό για εξυπηρέτηση: ${fmt(dispMonthly)}\nΕκτιμώμενη διαγραφή: ${sumWr > 0 ? `${fmt(sumWr)} (${sumWrPct}%)` : 'Δεν απαιτείται'}\nΕναπομένουσα οφειλή: ${fmt(totalRemaining)}\nΔιάρκεια ρύθμισης: ${durationPhrase}\nΣυνολική μηνιαία δόση: ${fmt(totalMonthlyPay)} (${ratio}% εισοδήματος)`,
+        body: `Διαθέσιμο μηνιαίο ποσό για εξυπηρέτηση: ${fmt(dispMonthly)}\nΕκτιμώμενη διαγραφή: ${sumWr > 0 ? `${fmt(sumWr)} (${sumWrPct}%)` : 'Δεν απαιτείται'}\nΕναπομένουσα οφειλή: ${fmt(totalRemaining)}\nΔιάρκεια ρύθμισης: ${durationPhrase}\n${payLine}`,
       }),
     }
   }
@@ -408,7 +418,7 @@ export function buildForecastText(calc, incomeData) {
       title: 'Πρόβλεψη Ρύθμισης – Οικονομικά Ισχυρό Προφίλ',
       sections: sections({
         type: 'success', icon: '✅', label: 'Εκτίμηση Αποτελέσματος',
-        body: `• Επαρκές εισόδημα — δεν απαιτείται διαγραφή.\n• Διαθέσιμο μηνιαίο εισόδημα: ${fmt(dispMonthly)}\n• Διάρκεια ρύθμισης: ${durationPhrase}\n• Συνολική μηνιαία δόση: ${fmt(totalMonthlyPay)} (${ratio}% εισοδήματος)`,
+        body: `• Επαρκές εισόδημα — δεν απαιτείται διαγραφή.\n• Διαθέσιμο μηνιαίο εισόδημα: ${fmt(dispMonthly)}\n• Διάρκεια ρύθμισης: ${durationPhrase}\n• ${payLine}`,
       }),
     }
   }
@@ -417,7 +427,7 @@ export function buildForecastText(calc, incomeData) {
       title: 'Πρόβλεψη Ρύθμισης – Δυνητικό "Κούρεμα" Οφειλών',
       sections: sections({
         type: 'success', icon: '✅', label: 'Εκτίμηση Αποτελέσματος',
-        body: `• Προκύπτει περιθώριο μερικής διαγραφής.\n• Θεωρητικά εκτιμώμενη διαγραφή: ${fmt(sumWr)} (${sumWrPct}%)\n• Εναπομένουσα οφειλή μετά τη διαγραφή: ${fmt(totalRemaining)}\n• Συνολική μηνιαία δόση: ${fmt(totalMonthlyPay)} (${ratio}% εισοδήματος)\n• Διάρκεια ρύθμισης: ${durationPhrase}`,
+        body: `• Προκύπτει περιθώριο μερικής διαγραφής.\n• Θεωρητικά εκτιμώμενη διαγραφή: ${fmt(sumWr)} (${sumWrPct}%)\n• Εναπομένουσα οφειλή μετά τη διαγραφή: ${fmt(totalRemaining)}\n• ${payLine}\n• Διάρκεια ρύθμισης: ${durationPhrase}`,
       }),
     }
   }
@@ -426,7 +436,7 @@ export function buildForecastText(calc, incomeData) {
       title: 'Πρόβλεψη Ρύθμισης – Ισχυρό Δικαίωμα Διαγραφής',
       sections: sections({
         type: 'success', icon: '✅', label: 'Εκτίμηση Αποτελέσματος',
-        body: `• Τεκμηριωμένη οικονομική αδυναμία — μέγιστη διαγραφή.\n• Θεωρητικά εκτιμώμενη διαγραφή: ${fmt(sumWr)} (${sumWrPct}%)\n• Εναπομένουσα οφειλή μετά τη διαγραφή: ${fmt(totalRemaining)}\n• Συνολική μηνιαία δόση: ${fmt(totalMonthlyPay)} (${ratio}% εισοδήματος)\n• Διάρκεια ρύθμισης: ${durationPhrase}`,
+        body: `• Τεκμηριωμένη οικονομική αδυναμία — μέγιστη διαγραφή.\n• Θεωρητικά εκτιμώμενη διαγραφή: ${fmt(sumWr)} (${sumWrPct}%)\n• Εναπομένουσα οφειλή μετά τη διαγραφή: ${fmt(totalRemaining)}\n• ${payLine}\n• Διάρκεια ρύθμισης: ${durationPhrase}`,
       }),
     }
   }
@@ -435,7 +445,7 @@ export function buildForecastText(calc, incomeData) {
       title: 'Πρόβλεψη Ρύθμισης – Χαμηλό Εισόδημα με Πλήρη Κάλυψη από Περιουσία',
       sections: sections({
         type: 'success', icon: '✅', label: 'Εκτίμηση Αποτελέσματος',
-        body: `• Η περιουσία καλύπτει πλήρως τις οφειλές — δεν απαιτείται θεωρητικά διαγραφή.\n• Εναπομένουσα οφειλή: ${fmt(totalRemaining)}\n• Συνολική μηνιαία δόση: ${fmt(totalMonthlyPay)}`,
+        body: `• Η περιουσία καλύπτει πλήρως τις οφειλές — δεν απαιτείται θεωρητικά διαγραφή.\n• Εναπομένουσα οφειλή: ${fmt(totalRemaining)}\n• ${payLineShort}`,
       }),
     }
   }
@@ -443,7 +453,7 @@ export function buildForecastText(calc, incomeData) {
     title: 'Πρόβλεψη Ρύθμισης – Χαμηλό Εισόδημα με Μερική Κάλυψη από Περιουσία',
     sections: sections({
       type: 'success', icon: '✅', label: 'Εκτίμηση Αποτελέσματος',
-      body: `• Προκύπτει θεωρητικά αδιάσωστο ποσό, άρα υπάρχει περιθώριο μερικής διαγραφής.\n• Θεωρητικά εκτιμώμενη διαγραφή: ${fmt(sumWr)} (${sumWrPct}%)\n• Εναπομένουσα οφειλή μετά τη διαγραφή: ${fmt(totalRemaining)}\n• Συνολική μηνιαία δόση: ${fmt(totalMonthlyPay)}`,
+      body: `• Προκύπτει θεωρητικά αδιάσωστο ποσό, άρα υπάρχει περιθώριο μερικής διαγραφής.\n• Θεωρητικά εκτιμώμενη διαγραφή: ${fmt(sumWr)} (${sumWrPct}%)\n• Εναπομένουσα οφειλή μετά τη διαγραφή: ${fmt(totalRemaining)}\n• ${payLineShort}`,
     }),
   }
 }
