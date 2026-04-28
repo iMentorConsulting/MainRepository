@@ -68,6 +68,15 @@ function renderHorizontalBars(title, items, note) {
 // ============================================================
 // Build the restructuring plan HTML
 // ============================================================
+// Range helper: show "lo – hi" if conservative differs from base
+function planRng(conservative, base, formatter = fmt) {
+  if (conservative == null) return formatter(base)
+  const lo = Math.min(conservative, base)
+  const hi = Math.max(conservative, base)
+  if (lo === hi) return formatter(lo)
+  return `${formatter(lo)} – ${formatter(hi)}`
+}
+
 export function buildPlanHtml(data, customRows) {
   const today = new Date().toLocaleDateString('el-GR')
   const { clientName, clientPhone, clientEmail, debtorType, annualIncome, totalExpenses, householdValue, householdLabel, enfia, medical, rent, studentRent, extraLiving, alimony, dispAnnual, dispMonthly, realEstateAssets, totalRealEstateValue } = data
@@ -110,8 +119,15 @@ export function buildPlanHtml(data, customRows) {
   const totalRemaining = includedCreditors.reduce((a, c) => a + (c.remaining || 0), 0)
   const totalMonthlyPay = includedCreditors.reduce((a, c) => a + (c.monthlyPay || 0), 0)
 
+  // Conservative fields (from data when customRows not used; null when customRows override)
+  const hasConservative = !customRows && data.totalWriteOffC != null
+  const totalWriteOffC = hasConservative ? (data.totalWriteOffC ?? totalWriteOff) : null
+  const totalRemainingC = hasConservative ? (data.totalRemainingC ?? totalRemaining) : null
+  const totalMonthlyPayC = hasConservative ? (data.totalMonthlyPayC ?? totalMonthlyPay) : null
+
   const hasStepUp = includedCreditors.some((c) => c.c1 != null && c.c2 != null && c.c1 !== c.c2)
-  const totalC1 = hasStepUp ? includedCreditors.reduce((a, c) => a + (c.c1 || c.monthlyPay || 0), 0) : 0
+  const totalC1 = hasStepUp ? (data.totalC1 || includedCreditors.reduce((a, c) => a + (c.c1 || c.monthlyPay || 0), 0)) : 0
+  const totalC1C = hasStepUp && hasConservative ? (data.totalC1C ?? totalC1) : null
 
   const totalRatio = dispMonthly > 0 ? Math.round((totalMonthlyPay / dispMonthly) * 100) : 0
 
@@ -138,14 +154,19 @@ export function buildPlanHtml(data, customRows) {
   const GS = 'padding:10px;border:1px solid #d2def8;'
   const summaryRows = creditors.map((c) => {
     const pct = c.amount > 0 ? Math.round((c.writeoff / c.amount) * 100) : 0
+    const pctC = hasConservative && c.amount > 0 ? Math.round((c.writeoffC / c.amount) * 100) : null
+    const wrText = c.writeoff > 0
+      ? (hasConservative ? `${planRng(c.writeoffC, c.writeoff)} (${pctC != null && pctC !== pct ? `${Math.min(pctC,pct)}%–${Math.max(pctC,pct)}%` : `${pct}%`})` : `${fmt(c.writeoff)} (${pct}%)`)
+      : '—'
+    const remText = hasConservative ? planRng(c.remainingC, c.remaining) : fmt(c.remaining)
     const payCell = hasStepUp
-      ? `<td style="${GS}text-align:right;">${c.c1 > 0 ? fmt(c.c1) : '—'}</td><td style="${GS}text-align:right;font-weight:700;">${c.c2 > 0 ? fmt(c.c2) : (c.monthlyPay > 0 ? fmt(c.monthlyPay) : '—')}</td>`
-      : `<td style="${GS}text-align:right;font-weight:700;">${c.monthlyPay > 0 ? fmt(c.monthlyPay) : '—'}</td>`
+      ? `<td style="${GS}text-align:right;">${hasConservative ? planRng(c.c1C, c.c1 || c.monthlyPay) : (c.c1 > 0 ? fmt(c.c1) : '—')}</td><td style="${GS}text-align:right;font-weight:700;">${hasConservative ? planRng(c.c2C, c.c2 || c.monthlyPay) : (c.c2 > 0 ? fmt(c.c2) : (c.monthlyPay > 0 ? fmt(c.monthlyPay) : '—'))}</td>`
+      : `<td style="${GS}text-align:right;font-weight:700;">${hasConservative ? planRng(c.c2C, c.monthlyPay) : (c.monthlyPay > 0 ? fmt(c.monthlyPay) : '—')}</td>`
     return `<tr>
       <td style="${GS}font-weight:600;">${escHtml(c.creditor)}</td>
       <td style="${GS}text-align:right;">${fmt(c.amount)}</td>
-      <td style="${GS}text-align:right;">${c.writeoff > 0 ? `${fmt(c.writeoff)} (${pct}%)` : '—'}</td>
-      <td style="${GS}text-align:right;">${fmt(c.remaining)}</td>
+      <td style="${GS}text-align:right;">${wrText}</td>
+      <td style="${GS}text-align:right;">${remText}</td>
       <td style="${GS}text-align:center;">${c.months || 0}</td>
       ${payCell}
     </tr>`
@@ -194,8 +215,9 @@ export function buildPlanHtml(data, customRows) {
   </div>
 
   <h3 style="color:#004aad;">1. Περίληψη</h3>
+  ${hasConservative ? `<div style="background:#fffbeb;border-left:4px solid #f59e0b;padding:8px 12px;border-radius:6px;font-size:13px;color:#78350f;margin-bottom:10px;">Τα ποσά εμφανίζονται ως εύρος: <b>Συντηρητικό – Θεωρητικό Μέγιστο</b> βάσει ΚΥΑ 13243/2024.</div>` : ''}
   <div style="background:#f7fbff;border-left:4px solid #004aad;padding:12px 14px;border-radius:8px;margin-bottom:18px;">
-    Συνολική οφειλή: <b>${fmt(totalDebt)}</b> | Διαγραφή: <b>${fmt(totalWriteOff)}</b> | Υπόλοιπο: <b>${fmt(totalRemaining)}</b> | Μηνιαία δόση: <b>${fmt(totalMonthlyPay)}</b>
+    Συνολική οφειλή: <b>${fmt(totalDebt)}</b> | Διαγραφή: <b>${planRng(totalWriteOffC, totalWriteOff)}</b> | Υπόλοιπο: <b>${planRng(totalRemainingC, totalRemaining)}</b> | Μηνιαία δόση: <b>${hasStepUp ? planRng(totalC1C, totalC1) + ' (Έτη 1–3) / ' + planRng(totalMonthlyPayC, totalMonthlyPay) + ' (Έτη 4+)' : planRng(totalMonthlyPayC, totalMonthlyPay)}</b>
   </div>
 
   <h3 style="color:#004aad;">2. Οικονομική εικόνα</h3>
@@ -238,7 +260,7 @@ export function buildPlanHtml(data, customRows) {
     <thead><tr>${th('Πιστωτής')}${th('Αρχική')}${th('Διαγραφή')}${th('Υπόλοιπο')}${th('Δόσεις')}${hasStepUp ? th('Δόση Έτη 1–3') + th('Δόση Έτη 4+') : th('Μηνιαία')}</tr></thead>
     <tbody>
       ${summaryRows}
-      <tr style="background:#eef5ff;font-weight:700;"><td style="padding:10px;border:1px solid #d2def8;"><b>ΣΥΝΟΛΟ</b></td><td style="padding:10px;border:1px solid #d2def8;">${fmt(totalDebt)}</td><td style="padding:10px;border:1px solid #d2def8;">${fmt(totalWriteOff)}</td><td style="padding:10px;border:1px solid #d2def8;">${fmt(totalRemaining)}</td><td style="padding:10px;border:1px solid #d2def8;">—</td>${hasStepUp ? `<td style="padding:10px;border:1px solid #d2def8;">${fmt(totalC1)}</td><td style="padding:10px;border:1px solid #d2def8;font-weight:800;">${fmt(totalMonthlyPay)}</td>` : `<td style="padding:10px;border:1px solid #d2def8;">${fmt(totalMonthlyPay)}</td>`}</tr>
+      <tr style="background:#eef5ff;font-weight:700;"><td style="padding:10px;border:1px solid #d2def8;"><b>ΣΥΝΟΛΟ</b></td><td style="padding:10px;border:1px solid #d2def8;">${fmt(totalDebt)}</td><td style="padding:10px;border:1px solid #d2def8;">${planRng(totalWriteOffC, totalWriteOff)}</td><td style="padding:10px;border:1px solid #d2def8;">${planRng(totalRemainingC, totalRemaining)}</td><td style="padding:10px;border:1px solid #d2def8;">—</td>${hasStepUp ? `<td style="padding:10px;border:1px solid #d2def8;">${planRng(totalC1C, totalC1)}</td><td style="padding:10px;border:1px solid #d2def8;font-weight:800;">${planRng(totalMonthlyPayC, totalMonthlyPay)}</td>` : `<td style="padding:10px;border:1px solid #d2def8;">${planRng(totalMonthlyPayC, totalMonthlyPay)}</td>`}</tr>
     </tbody>
   </table>
 
@@ -258,10 +280,11 @@ export function buildPlanHtml(data, customRows) {
   </div>` : ''}
 
   <h3 style="color:#004aad;margin-top:24px;">7. Συμπεράσματα</h3>
-  <p>Η προτεινόμενη ρύθμιση αποτελεί αναγκαία προϋπόθεση για τη ρεαλιστική εξυπηρέτηση των οφειλών προς τους πιστωτές. Βάσει της ανάλυσης, το ποσό που μπορεί να διατεθεί για εξυπηρέτηση χρέους ανέρχεται έως <b>${fmt(dispMonthly)}</b> μηνιαίως, η συνολική αρχική οφειλή ανέρχεται σε <b>${fmt(totalDebt)}</b>, η συνολική προτεινόμενη απομείωση σε <b>${fmt(totalWriteOff)}</b>, το υπόλοιπο προς ρύθμιση σε <b>${fmt(totalRemaining)}</b> και η συνολική εκτιμώμενη μηνιαία επιβάρυνση σε <b>${fmt(totalMonthlyPay)}</b>.${totalRealEstateValue > 0 ? ` Η συνολική καταγεγραμμένη αξία ακίνητης περιουσίας ανέρχεται σε <b>${fmt(totalRealEstateValue)}</b> και η πρόταση δύναται να περιλαμβάνει το τμήμα των απαιτήσεων που υπερβαίνει την αξία κάλυψης/ρευστοποίησης της περιουσίας αυτής.` : ''} Η αποδοχή του παρόντος σχεδίου από τους πιστωτές ενισχύει την πιθανότητα ομαλής και συστηματικής αποπληρωμής των απαιτήσεών τους.</p>
+  <p>Η προτεινόμενη ρύθμιση αποτελεί αναγκαία προϋπόθεση για τη ρεαλιστική εξυπηρέτηση των οφειλών προς τους πιστωτές. Βάσει της ανάλυσης, το ποσό που μπορεί να διατεθεί για εξυπηρέτηση χρέους ανέρχεται έως <b>${fmt(dispMonthly)}</b> μηνιαίως, η συνολική αρχική οφειλή ανέρχεται σε <b>${fmt(totalDebt)}</b>, η συνολική προτεινόμενη απομείωση σε <b>${planRng(totalWriteOffC, totalWriteOff)}</b>, το υπόλοιπο προς ρύθμιση σε <b>${planRng(totalRemainingC, totalRemaining)}</b> και η συνολική εκτιμώμενη μηνιαία επιβάρυνση σε <b>${planRng(totalMonthlyPayC, totalMonthlyPay)}</b>.${totalRealEstateValue > 0 ? ` Η συνολική καταγεγραμμένη αξία ακίνητης περιουσίας ανέρχεται σε <b>${fmt(totalRealEstateValue)}</b> και η πρόταση δύναται να περιλαμβάνει το τμήμα των απαιτήσεων που υπερβαίνει την αξία κάλυψης/ρευστοποίησης της περιουσίας αυτής.` : ''} Η αποδοχή του παρόντος σχεδίου από τους πιστωτές ενισχύει την πιθανότητα ομαλής και συστηματικής αποπληρωμής των απαιτήσεών τους.</p>
   <div style="background:#eef5ff;border-left:4px solid #0070e8;padding:12px 14px;border-radius:8px;margin-top:12px;">
-    Συνολική μηνιαία δόση προς όλους τους πιστωτές: <b>${fmt(totalMonthlyPay)}</b>${dispMonthly > 0 ? ` • Εκτιμώμενη επιβάρυνση: <b>${totalRatio}%</b>` : ''}.
+    Συνολική μηνιαία δόση προς όλους τους πιστωτές: <b>${planRng(totalMonthlyPayC, totalMonthlyPay)}</b>${dispMonthly > 0 ? ` • Εκτιμώμενη επιβάρυνση: <b>${totalRatio}%</b>` : ''}.
   </div>
+  ${hasConservative ? `<div style="background:#fffbeb;border:1px solid #f59e0b;border-radius:8px;padding:12px 14px;margin-top:16px;font-size:12px;color:#78350f;"><b>Σημείωση εύρους σεναρίων:</b> Τα ποσά εμφανίζονται ως εύρος «Συντηρητικό – Θεωρητικό». Το συντηρητικό σενάριο εφαρμόζει εμπειρικούς συντελεστές μείωσης των διαγραφών (εξασφαλισμένα τραπεζικά ×0,65, ανεξασφάλιστα τραπεζικά ×0,75, δημόσιο ×1,00) για να προσομοιωθεί η τυπική παρέμβαση του Συντονιστή Πιστωτή βάσει ΚΥΑ 77697/2021 §3.4. Τα ποσά αποτελούν εκτίμηση και δεν αποτελούν νομική συμβουλή ή εγγύηση αποτελέσματος.</div>` : ''}
 </div>`
 }
 

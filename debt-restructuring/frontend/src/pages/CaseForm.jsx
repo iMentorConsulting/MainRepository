@@ -50,7 +50,7 @@ function collectPlanData(debts, assets, income, calc, client) {
   ;(calc.finalPlan || []).forEach((p) => {
     const name = creditorDisplayName(p.type, p.creditorName)
     if (!grouped[name]) {
-      grouped[name] = { creditor: name, type: p.type, amount: 0, writeoff: 0, remaining: 0, months: 0, monthlyPay: 0, c1: 0, c2: 0 }
+      grouped[name] = { creditor: name, type: p.type, amount: 0, writeoff: 0, remaining: 0, months: 0, monthlyPay: 0, c1: 0, c2: 0, writeoffC: 0, remainingC: 0, c1C: 0, c2C: 0 }
     }
     const g = grouped[name]
     g.amount += p.amount
@@ -60,6 +60,10 @@ function collectPlanData(debts, assets, income, calc, client) {
     g.monthlyPay += p.payShown || 0
     g.c1 += p.c1 ?? p.payShown ?? 0
     g.c2 += p.c2 ?? p.payShown ?? 0
+    g.writeoffC += p.writeoffC ?? p.writeoff ?? 0
+    g.remainingC += p.newAmtC ?? p.newAmt ?? 0
+    g.c1C += p.c1C ?? p.c1 ?? p.payShown ?? 0
+    g.c2C += p.c2C ?? p.c2 ?? p.payShown ?? 0
   })
 
   const creditors = Object.values(grouped)
@@ -114,6 +118,11 @@ function collectPlanData(debts, assets, income, calc, client) {
     totalWriteOff: calc.sumWr || 0,
     totalRemaining: calc.totalRemaining || 0,
     totalMonthlyPay: calc.totalMonthlyPay || 0,
+    totalWriteOffC: calc.sumWrC,
+    totalRemainingC: calc.totalRemainingC,
+    totalMonthlyPayC: calc.totalMonthlyPayC,
+    totalC1: calc.totalC1,
+    totalC1C: calc.totalC1C,
     realEstateAssets,
     totalRealEstateValue,
     bankDebt,

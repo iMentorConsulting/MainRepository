@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { fmt, creditorDisplayName, buildForecastText } from '../utils/calculations'
 
 const SCENARIO_COLORS = {
@@ -9,19 +10,60 @@ const SCENARIO_COLORS = {
   5: 'border-indigo-300 bg-indigo-50 text-indigo-900',
 }
 
+// Show "conservativeValue – baseValue" ensuring lower value is first
+function rng(conservative, base, formatter = fmt) {
+  const lo = Math.min(conservative, base)
+  const hi = Math.max(conservative, base)
+  if (lo === hi) return formatter(lo)
+  return `${formatter(lo)} – ${formatter(hi)}`
+}
+
+function rngPct(conservativePct, basePct) {
+  const lo = Math.min(conservativePct, basePct)
+  const hi = Math.max(conservativePct, basePct)
+  if (lo === hi) return `${lo}%`
+  return `${lo}% – ${hi}%`
+}
+
 export default function ResultsPanel({ calc, incomeData }) {
+  const [disclaimerOpen, setDisclaimerOpen] = useState(false)
+
   if (!calc || calc.sumDebt === 0) return null
 
   const forecast = buildForecastText(calc, incomeData)
   const isLegal = incomeData?.debtorType === 'Νομικό Πρόσωπο'
   const fgColor = SCENARIO_COLORS[calc.scenario] || SCENARIO_COLORS[1]
 
-  // Determine if ANY debt has a step-up (c1 ≠ c2) to decide whether to show two columns
   const hasStepUp = (calc.finalPlan || []).some((p) => p.c1 != null && p.c2 != null && p.c1 !== p.c2)
   const totalC1 = (calc.finalPlan || []).reduce((s, p) => s + (p.c1 ?? p.payShown ?? 0), 0)
+  const totalC1C = (calc.finalPlan || []).reduce((s, p) => s + (p.c1C ?? p.payShownC ?? 0), 0)
+
+  const hasConservative = (calc.finalPlan || []).some((p) => p.writeoffC != null)
 
   return (
     <div className="space-y-6">
+      {/* Conservative scenario info banner */}
+      {hasConservative && (
+        <div className="bg-amber-50 border border-amber-300 rounded-xl p-4 text-sm">
+          <p className="font-bold text-amber-800 mb-1">📊 Εύρος Σεναρίων (Θεωρητικό – Συντηρητικό)</p>
+          <p className="text-amber-700">
+            Τα αποτελέσματα εμφανίζονται ως <b>εύρος</b>: από το <b>συντηρητικό σενάριο</b> (εκτιμώμενη παρέμβαση Συντονιστή Πιστωτή) έως το <b>θεωρητικό μέγιστο</b> βάσει ΚΥΑ 13243/2024.
+          </p>
+          <button
+            onClick={() => setDisclaimerOpen((v) => !v)}
+            className="mt-2 text-xs text-amber-600 underline hover:text-amber-800 focus:outline-none"
+          >
+            {disclaimerOpen ? '▲ Απόκρυψη αναλυτικής σημείωσης' : '▼ Αναλυτική νομική σημείωση'}
+          </button>
+          {disclaimerOpen && (
+            <div className="mt-3 text-xs text-amber-900 bg-amber-100 border border-amber-200 rounded-lg p-3 space-y-2 leading-relaxed">
+              <p><b>Συντηρητικό σενάριο</b>: Εμπειρικοί συντελεστές βάσει ολοκληρωμένων υποθέσεων (ΚΥΑ 77697/2021 §3.4). Ο Συντονιστής Πιστωτής τυπικά μειώνει τις διαγραφές πριν τη ψηφοφορία. Ισχύουν: εξασφαλισμένα τραπεζικά 65% × θεωρητική διαγραφή, ανεξασφάλιστα τραπεζικά 75% × θεωρητική διαγραφή, δημόσιο 100% (νομικά δεσμευτικό, ο Συντονιστής δεν μπορεί να τροποποιήσει).</p>
+              <p><b>Σημαντική επισήμανση</b>: Τα εύρη αποτελούν εκτίμηση — δεν αποτελούν νομική συμβουλή και δεν εγγυώνται το αποτέλεσμα οποιασδήποτε διαδικασίας εξωδικαστικής ρύθμισης.</p>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Income summary */}
       <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-sm space-y-1">
         <p className="font-bold text-blue-800 mb-2">💶 Περίληψη Διαθέσιμου Εισοδήματος</p>
@@ -49,16 +91,16 @@ export default function ResultsPanel({ calc, incomeData }) {
               <tr className="border-b-2 border-blue-100">
                 <th className="th text-left">Πιστωτής</th>
                 <th className="th">Αρχική Οφειλή</th>
-                <th className="th">Εκτ. Διαγραφή</th>
-                <th className="th">Εναπομένουσα</th>
+                <th className="th">{hasConservative ? 'Εκτ. Διαγραφή (εύρος)' : 'Εκτ. Διαγραφή'}</th>
+                <th className="th">{hasConservative ? 'Εναπομένουσα (εύρος)' : 'Εναπομένουσα'}</th>
                 <th className="th">Διάρκεια</th>
                 {hasStepUp ? (
                   <>
-                    <th className="th">Δόση Έτη 1–3</th>
-                    <th className="th">Δόση Έτη 4+</th>
+                    <th className="th">{hasConservative ? 'Δόση Έτη 1–3 (εύρος)' : 'Δόση Έτη 1–3'}</th>
+                    <th className="th">{hasConservative ? 'Δόση Έτη 4+ (εύρος)' : 'Δόση Έτη 4+'}</th>
                   </>
                 ) : (
-                  <th className="th">Μηνιαία Δόση</th>
+                  <th className="th">{hasConservative ? 'Μηνιαία Δόση (εύρος)' : 'Μηνιαία Δόση'}</th>
                 )}
                 <th className="th">% Εισοδήματος</th>
               </tr>
@@ -72,23 +114,35 @@ export default function ResultsPanel({ calc, incomeData }) {
                   <tr key={i} className="border-b border-gray-100">
                     <td className="td text-left font-semibold">{creditorDisplayName(p.type, p.creditorName)}</td>
                     <td className="td font-mono">{fmt(p.amount)}</td>
-                    <td className="td font-mono text-orange-600">{p.writeoff > 0 ? `${fmt(p.writeoff)} (${p.writeoffPct}%)` : '—'}</td>
-                    <td className="td font-mono text-blue-700">{fmt(p.newAmt)}</td>
+                    <td className="td font-mono text-orange-600">
+                      {p.writeoff > 0
+                        ? hasConservative
+                          ? `${rng(p.writeoffC, p.writeoff)} (${rngPct(p.writeoffPctC, p.writeoffPct)})`
+                          : `${fmt(p.writeoff)} (${p.writeoffPct}%)`
+                        : '—'}
+                    </td>
+                    <td className="td font-mono text-blue-700">
+                      {hasConservative ? rng(p.newAmtC, p.newAmt) : fmt(p.newAmt)}
+                    </td>
                     <td className="td">{p.months} μήνες</td>
                     {hasStepUp ? (
                       <>
-                        <td className="td font-mono text-blue-600">{fmt(c1)}</td>
+                        <td className="td font-mono text-blue-600">
+                          {hasConservative ? rng(p.c1C, c1) : fmt(c1)}
+                        </td>
                         <td className="td font-mono font-bold text-blue-900">
                           {stepUp ? (
                             <span className="flex items-center gap-1">
-                              {fmt(c2)}
+                              {hasConservative ? rng(p.c2C, c2) : fmt(c2)}
                               <span className="text-xs text-amber-600 font-normal">↑</span>
                             </span>
-                          ) : fmt(c2)}
+                          ) : (hasConservative ? rng(p.c2C, c2) : fmt(c2))}
                         </td>
                       </>
                     ) : (
-                      <td className="td font-mono font-bold text-blue-800">{fmt(p.payShown)}</td>
+                      <td className="td font-mono font-bold text-blue-800">
+                        {hasConservative ? rng(p.payShownC, p.payShown) : fmt(p.payShown)}
+                      </td>
                     )}
                     <td className="td">
                       <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${p.incomePct > 80 ? 'bg-red-100 text-red-700' : p.incomePct > 50 ? 'bg-yellow-100 text-yellow-700' : 'bg-green-100 text-green-700'}`}>
@@ -106,31 +160,53 @@ export default function ResultsPanel({ calc, incomeData }) {
         <div className="flex flex-wrap gap-3 mt-4">
           <div className="kpi-card">
             <div className="kpi-label">Συνολική Εκτ. Διαγραφή</div>
-            <div className="kpi-value text-orange-600">{fmt(calc.sumWr)}</div>
-            {calc.sumWrPct > 0 && <div className="text-xs text-orange-500 mt-0.5">({calc.sumWrPct}% του συνόλου)</div>}
+            <div className="kpi-value text-orange-600">
+              {hasConservative ? rng(calc.sumWrC, calc.sumWr) : fmt(calc.sumWr)}
+            </div>
+            {calc.sumWrPct > 0 && (
+              <div className="text-xs text-orange-500 mt-0.5">
+                ({hasConservative ? rngPct(calc.sumWrPctC, calc.sumWrPct) : `${calc.sumWrPct}%`} του συνόλου)
+              </div>
+            )}
           </div>
           <div className="kpi-card">
             <div className="kpi-label">Εναπομένουσες Οφειλές</div>
-            <div className="kpi-value">{fmt(calc.totalRemaining)}</div>
+            <div className="kpi-value">
+              {hasConservative ? rng(calc.totalRemainingC, calc.totalRemaining) : fmt(calc.totalRemaining)}
+            </div>
           </div>
           {hasStepUp ? (
             <>
               <div className="kpi-card">
                 <div className="kpi-label">Σύνολο Δόσεων Έτη 1–3</div>
-                <div className="kpi-value text-blue-600">{fmt(totalC1)}</div>
+                <div className="kpi-value text-blue-600">
+                  {hasConservative ? rng(totalC1C, totalC1) : fmt(totalC1)}
+                </div>
                 <div className="text-xs text-gray-500 mt-0.5">(προνομιακό επιτόκιο)</div>
               </div>
               <div className="kpi-card">
                 <div className="kpi-label">Σύνολο Δόσεων Έτη 4+</div>
-                <div className="kpi-value text-blue-900">{fmt(calc.totalMonthlyPay)}</div>
-                {calc.ratio > 0 && <div className="text-xs text-gray-500 mt-0.5">({calc.ratio}% εισοδήματος)</div>}
+                <div className="kpi-value text-blue-900">
+                  {hasConservative ? rng(calc.totalMonthlyPayC, calc.totalMonthlyPay) : fmt(calc.totalMonthlyPay)}
+                </div>
+                {calc.ratio > 0 && (
+                  <div className="text-xs text-gray-500 mt-0.5">
+                    ({hasConservative ? rngPct(calc.ratioC, calc.ratio) : `${calc.ratio}%`} εισοδήματος)
+                  </div>
+                )}
               </div>
             </>
           ) : (
             <div className="kpi-card">
               <div className="kpi-label">Συνολικές Μηνιαίες Δόσεις</div>
-              <div className="kpi-value text-green-700">{fmt(calc.totalMonthlyPay)}</div>
-              {calc.ratio > 0 && <div className="text-xs text-gray-500 mt-0.5">({calc.ratio}% διαθέσιμου εισοδήματος)</div>}
+              <div className="kpi-value text-green-700">
+                {hasConservative ? rng(calc.totalMonthlyPayC, calc.totalMonthlyPay) : fmt(calc.totalMonthlyPay)}
+              </div>
+              {calc.ratio > 0 && (
+                <div className="text-xs text-gray-500 mt-0.5">
+                  ({hasConservative ? rngPct(calc.ratioC, calc.ratio) : `${calc.ratio}%`} διαθέσιμου εισοδήματος)
+                </div>
+              )}
             </div>
           )}
         </div>
