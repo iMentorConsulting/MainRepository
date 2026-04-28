@@ -174,7 +174,7 @@ export function calculateAll(debts, assets, incomeData) {
     const liquid = incomeData.liquid || 0
     const minEbitda = turnover * 0.10
     const adjEbitda = Math.max(ebitda, minEbitda)
-    dispAnnual = adjEbitda - tax + cash + liquid - turnover * 0.09
+    dispAnnual = adjEbitda - tax + cash + liquid
     dispMonthly = dispAnnual / 12
   } else {
     annualIncome = incomeData.annualIncome || 0
