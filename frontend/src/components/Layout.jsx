@@ -13,12 +13,14 @@ import {
   BuildingOffice2Icon,
   KeyIcon,
   ExclamationCircleIcon,
+  TableCellsIcon,
 } from '@heroicons/react/24/outline'
 import { changePassword } from '../api'
 import toast from 'react-hot-toast'
 
 const nav = [
   { to: '/', label: 'Dashboard', Icon: HomeIcon, exact: true },
+  { to: '/workview', label: 'Γρήγορη Εργασία', Icon: TableCellsIcon },
   { to: '/pending', label: 'Εκκρεμότητες', Icon: ExclamationCircleIcon },
   { to: '/cases', label: 'Υποθέσεις', Icon: FolderOpenIcon },
   { to: '/kanban', label: 'Pipeline', Icon: ViewColumnsIcon },

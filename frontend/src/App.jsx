@@ -9,6 +9,7 @@ import Cases from './pages/Cases'
 import CaseDetail from './pages/CaseDetail'
 import Kanban from './pages/Kanban'
 import PendingPage from './pages/PendingPage'
+import WorkView from './pages/WorkView'
 import Notifications from './pages/Notifications'
 import Users from './pages/Users'
 import Import from './pages/Import'
@@ -45,6 +46,7 @@ export default function App() {
           <Route path="cases/:id" element={<CaseDetail />} />
           <Route path="kanban" element={<Kanban />} />
           <Route path="pending" element={<PendingPage />} />
+          <Route path="workview" element={<WorkView />} />
           <Route path="notifications" element={<Notifications />} />
           <Route path="users" element={<Users />} />
           <Route path="import" element={<Import />} />

@@ -26,6 +26,7 @@ class CaseCreate(BaseModel):
     subsidy_percent: Optional[float] = 0
     project_deadline: Optional[date] = None
     approval_date: Optional[date] = None
+    follow_up_date: Optional[date] = None
     agreed_fee_application: Optional[float] = 0
     agreed_fee_implementation: Optional[float] = 0
     total_paid: Optional[float] = 0
@@ -47,6 +48,7 @@ class CaseUpdate(BaseModel):
     subsidy_percent: Optional[float] = None
     project_deadline: Optional[date] = None
     approval_date: Optional[date] = None
+    follow_up_date: Optional[date] = None
     agreed_fee_application: Optional[float] = None
     agreed_fee_implementation: Optional[float] = None
     total_paid: Optional[float] = None
@@ -54,6 +56,14 @@ class CaseUpdate(BaseModel):
     portal_active: Optional[bool] = None
     risk_score: Optional[int] = None
     notes: Optional[str] = None
+
+
+def _last_note(c: CMCase) -> str | None:
+    if not c.messages:
+        return None
+    latest = max(c.messages, key=lambda m: m.created_at or datetime.min)
+    text = (latest.content or '').replace('\n', ' ')
+    return text[:120] + ('…' if len(text) > 120 else '')
 
 
 def case_to_dict(c: CMCase, include_related: bool = False, sla_map: dict = None) -> dict:
@@ -90,6 +100,7 @@ def case_to_dict(c: CMCase, include_related: bool = False, sla_map: dict = None)
         "subsidy_percent": c.subsidy_percent or 0,
         "project_deadline": c.project_deadline.isoformat() if c.project_deadline else None,
         "approval_date": c.approval_date.isoformat() if c.approval_date else None,
+        "follow_up_date": c.follow_up_date.isoformat() if c.follow_up_date else None,
         "agreed_fee_application": c.agreed_fee_application or 0,
         "agreed_fee_implementation": c.agreed_fee_implementation or 0,
         "total_agreed": total_agreed,
@@ -110,6 +121,7 @@ def case_to_dict(c: CMCase, include_related: bool = False, sla_map: dict = None)
         "updated_at": c.updated_at.isoformat() if c.updated_at else None,
         "open_tasks": 0,
         "pending_count": len(c.pending_items) if c.pending_items is not None else 0,
+        "last_note_preview": _last_note(c),
     }
 
     if include_related:
@@ -208,7 +220,11 @@ def list_cases(
     current_user: CMUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    q = db.query(CMCase).options(joinedload(CMCase.assigned_agent))
+    q = db.query(CMCase).options(
+        joinedload(CMCase.assigned_agent),
+        joinedload(CMCase.messages).joinedload(CMMessage.user),
+        joinedload(CMCase.pending_items),
+    )
 
     if status:
         q = q.filter(CMCase.status == status)
@@ -304,6 +320,7 @@ def create_case(
         subsidy_percent=req.subsidy_percent or 0,
         project_deadline=req.project_deadline,
         approval_date=req.approval_date,
+        follow_up_date=req.follow_up_date,
         agreed_fee_application=req.agreed_fee_application or 0,
         agreed_fee_implementation=req.agreed_fee_implementation or 0,
         total_paid=req.total_paid or 0,
