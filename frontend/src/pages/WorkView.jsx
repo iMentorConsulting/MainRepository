@@ -81,7 +81,7 @@ function StatusCell({ caseId, program, value, onChange }) {
 }
 
 // ── Notes cell — expandable, shows all messages with compact dates ─────────────
-function NotesCell({ caseId, lastNotePreview }) {
+function NotesCell({ caseId, lastNotePreview, lastNoteAt }) {
   const [expanded, setExpanded] = useState(false)
   const [messages, setMessages] = useState(null) // null = not yet loaded
   const [note, setNote] = useState('')
@@ -111,12 +111,19 @@ function NotesCell({ caseId, lastNotePreview }) {
 
   return (
     <div className="space-y-1.5">
-      {/* Collapsed: last note preview + expand button */}
+      {/* Collapsed: last note date + preview + expand button */}
       {!expanded && (
         <button onClick={expand} className="w-full text-left flex items-start gap-1 group">
-          <p className="flex-1 text-xs text-gray-600 leading-snug line-clamp-2">
-            {lastNotePreview || <span className="text-gray-300 italic">—</span>}
-          </p>
+          <div className="flex-1 min-w-0">
+            {lastNoteAt && (
+              <span className="font-mono text-[10px] bg-gray-100 text-gray-400 rounded px-1 py-px mr-1 shrink-0">
+                {fmtNoteDate(lastNoteAt)}
+              </span>
+            )}
+            <span className="text-xs text-gray-600 leading-snug line-clamp-2">
+              {lastNotePreview || <span className="text-gray-300 italic">—</span>}
+            </span>
+          </div>
           <ChevronDownIcon className="w-3.5 h-3.5 text-gray-300 group-hover:text-blue-400 shrink-0 mt-0.5" />
         </button>
       )}
@@ -465,6 +472,7 @@ export default function WorkView() {
                   <NotesCell
                     caseId={c.id}
                     lastNotePreview={c.last_note_preview}
+                    lastNoteAt={c.last_note_at}
                   />
                 </td>
                 <td className="px-3 py-2.5">

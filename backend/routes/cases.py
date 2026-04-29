@@ -58,12 +58,14 @@ class CaseUpdate(BaseModel):
     notes: Optional[str] = None
 
 
-def _last_note(c: CMCase) -> str | None:
+def _last_note(c: CMCase) -> tuple[str | None, str | None]:
     if not c.messages:
-        return None
+        return None, None
     latest = max(c.messages, key=lambda m: m.created_at or datetime.min)
     text = (latest.content or '').replace('\n', ' ')
-    return text[:120] + ('…' if len(text) > 120 else '')
+    preview = text[:120] + ('…' if len(text) > 120 else '')
+    at = latest.created_at.isoformat() if latest.created_at else None
+    return preview, at
 
 
 def case_to_dict(c: CMCase, include_related: bool = False, sla_map: dict = None) -> dict:
@@ -121,7 +123,8 @@ def case_to_dict(c: CMCase, include_related: bool = False, sla_map: dict = None)
         "updated_at": c.updated_at.isoformat() if c.updated_at else None,
         "open_tasks": 0,
         "pending_count": len(c.pending_items) if c.pending_items is not None else 0,
-        "last_note_preview": _last_note(c),
+        "last_note_preview": (_ln := _last_note(c))[0],
+        "last_note_at": _ln[1],
     }
 
     if include_related:
