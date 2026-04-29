@@ -1,4 +1,5 @@
-import { TrashIcon, PlusIcon } from '@heroicons/react/24/outline'
+import { useState } from 'react'
+import { TrashIcon, PlusIcon, ClipboardDocumentListIcon } from '@heroicons/react/24/outline'
 import { fmt, creditorDisplayName } from '../utils/calculations'
 
 const DEBT_TYPES = ['Τράπεζα', 'Εφορία', 'Ασφαλιστικά Ταμεία']
@@ -300,7 +301,113 @@ function DebtRow({ debt, onChange, onDelete }) {
   )
 }
 
+// ── Paste-import helpers ──────────────────────────────────────────────────────
+
+function parseGreekNum(s) {
+  if (!s || !String(s).trim()) return 0
+  // Greek locale: dot = thousands sep, comma = decimal  →  strip dots, swap comma
+  const n = parseFloat(String(s).trim().replace(/\./g, '').replace(',', '.'))
+  return isNaN(n) ? 0 : Math.round(n) // round to integer (cents negligible for planning)
+}
+
+function parsePasteImport(text) {
+  if (!text || !text.trim()) return []
+  const rows = text.trim().split('\n').map(l => l.replace(/\r$/, '').split('\t'))
+
+  // Skip header row when first cell looks like a column label rather than a creditor name
+  const firstCell = (rows[0][0] || '').trim()
+  const startIdx = /πιστ|cred/i.test(firstCell) ? 1 : 0
+
+  // Accumulators for public creditors
+  const aade = { cats: { nonErasableBasic: 0, nonErasableSurcharges: 0, otherBasic: 0, otherSurcharges: 0, fines: 0 } }
+  const efka = { cats: { nonErasableBasic: 0, nonErasableSurcharges: 0 } }
+  let hasAADE = false, hasEFKA = false
+  // Banks: creditorName → { basic, surcharges }
+  const banks = {}
+
+  for (let i = startIdx; i < rows.length; i++) {
+    const cols = rows[i]
+    const creditor = (cols[0] || '').trim()
+    const category = (cols[1] || '').toUpperCase()
+    if (!creditor || /^συνολ/i.test(creditor)) continue
+
+    const basic      = parseGreekNum(cols[2])
+    const surcharges = parseGreekNum(cols[3])
+    const fines      = parseGreekNum(cols[4])
+    const isMH       = /ΜΗ/.test(category)
+
+    if (/ΑΑΔΕ|αρμόδι|εφορ/i.test(creditor)) {
+      hasAADE = true
+      if (isMH) {
+        aade.cats.nonErasableBasic      += basic
+        aade.cats.nonErasableSurcharges += surcharges
+      } else {
+        aade.cats.otherBasic      += basic
+        aade.cats.otherSurcharges += surcharges
+        aade.cats.fines           += fines
+      }
+    } else if (/ΕΦΚΑ|ΙΚΑ|ΚΕΑΟ/i.test(creditor)) {
+      hasEFKA = true
+      // All ΕΦΚΑ basic is non-erasable (0%); surcharges 85%
+      efka.cats.nonErasableBasic      += basic
+      efka.cats.nonErasableSurcharges += surcharges
+    } else {
+      if (!banks[creditor]) banks[creditor] = { basic: 0, surcharges: 0 }
+      banks[creditor].basic      += basic
+      banks[creditor].surcharges += surcharges
+    }
+  }
+
+  const result = []
+
+  if (hasAADE) {
+    const cats = aade.cats
+    result.push({ id: crypto.randomUUID(), type: 'Εφορία', creditorName: '', amount: pubCatTotal(cats), interestPct: 0, status: 'Ληξιπρόθεσμη', mortgaged: false, propertyValue: 0, pubCategories: cats })
+  }
+  if (hasEFKA) {
+    const cats = efka.cats
+    result.push({ id: crypto.randomUUID(), type: 'Ασφαλιστικά Ταμεία', creditorName: '', amount: pubCatTotal(cats), interestPct: 0, status: 'Ληξιπρόθεσμη', mortgaged: false, propertyValue: 0, pubCategories: cats })
+  }
+  for (const [name, d] of Object.entries(banks)) {
+    const total = d.basic + d.surcharges
+    const interestPct = total > 0 ? Math.round(d.surcharges / total * 100) : 0
+    result.push({ id: crypto.randomUUID(), type: 'Τράπεζα', creditorName: name, amount: total, interestPct, status: 'Ληξιπρόθεσμη', mortgaged: false, propertyValue: 0, pubCategories: null })
+  }
+
+  return result
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 export default function DebtTable({ debts, onChange }) {
+  const [showPaste, setShowPaste]   = useState(false)
+  const [pasteText, setPasteText]   = useState('')
+  const [preview, setPreview]       = useState([])
+  const [parseError, setParseError] = useState('')
+
+  const handlePasteChange = (text) => {
+    setPasteText(text)
+    setParseError('')
+    if (!text.trim()) { setPreview([]); return }
+    try {
+      const rows = parsePasteImport(text)
+      setPreview(rows)
+      if (!rows.length) setParseError('Δεν αναγνωρίστηκαν γραμμές. Ελέγξτε τη μορφή (Tab-separated).')
+    } catch (e) {
+      setPreview([])
+      setParseError('Σφάλμα ανάλυσης: ' + e.message)
+    }
+  }
+
+  const handleImport = () => {
+    if (!preview.length) return
+    onChange(preview)
+    setShowPaste(false)
+    setPasteText('')
+    setPreview([])
+    setParseError('')
+  }
+
   const updateDebt = (id, updated) => onChange(debts.map((d) => d.id === id ? updated : d))
   const deleteDebt = (id) => onChange(debts.filter((d) => d.id !== id))
   const addDebt = () => onChange([...debts, emptyDebt()])
@@ -331,18 +438,103 @@ export default function DebtTable({ debts, onChange }) {
           </tbody>
         </table>
       </div>
-      <div className="mt-3">
-        <div className="text-xs text-gray-400 mb-2 px-1">
+      <div className="mt-3 space-y-3">
+        <div className="text-xs text-gray-400 px-1">
           Τράπεζες: 80% κεφ. + 100% τόκων &nbsp;·&nbsp;
           ΑΑΔΕ ΜΗ ΔΙΑΓΡ.: βασική 0% + προσαυξ. 85% &nbsp;·&nbsp;
           ΑΑΔΕ ΔΙΑΓΡ.: βασική 75% + προσαυξ. 85% + πρόστιμα 95% &nbsp;·&nbsp;
           ΕΦΚΑ: βασική 0% + προσαυξ. 85%
         </div>
-        <div className="text-center">
+
+        <div className="flex justify-center gap-3">
           <button onClick={addDebt} className="btn-primary gap-2 text-sm">
             <PlusIcon className="w-4 h-4" /> Προσθήκη Οφειλής
           </button>
+          <button
+            onClick={() => { setShowPaste((v) => !v); setPasteText(''); setPreview([]); setParseError('') }}
+            className="btn-secondary gap-2 text-sm"
+          >
+            <ClipboardDocumentListIcon className="w-4 h-4" />
+            {showPaste ? 'Ακύρωση' : 'Εισαγωγή από πίνακα'}
+          </button>
         </div>
+
+        {showPaste && (
+          <div className="border border-blue-300 rounded-xl bg-blue-50/60 p-4 space-y-3">
+            <div>
+              <p className="text-sm font-bold text-blue-800 mb-1">📋 Εισαγωγή από Excel / πίνακα</p>
+              <p className="text-xs text-gray-500">
+                Αντιγράψτε από Excel και επικολλήστε παρακάτω. Αναμενόμενες στήλες (με ή χωρίς γραμμή επικεφαλίδας):
+                <span className="font-mono ml-1 text-gray-700">Πιστωτής · ΚΑΤΗΓΟΡΙΑ · Βασική · Προσαυξ./Τόκοι · Πρόστιμο · ...</span>
+              </p>
+            </div>
+
+            <textarea
+              className="w-full h-36 input text-xs font-mono leading-relaxed"
+              placeholder={'Επικολλήστε εδώ (Ctrl+V)...\n\nΠαράδειγμα:\nΑΑΔΕ\tΔΙΑΓΡΑΦΟΜΕΝΟ\t12276,29\t4779,92\t250,00\nΑΑΔΕ\tΜΗ ΔΙΑΓΡΑΦΟΜΕΝΟ\t20931,25\t8347,47\t0\nΕΦΚΑ\tΜΗ ΔΙΑΓΡΑΦΟΜΕΝΟ\t9698,41\t3115,55\t0\nIntrum\tΔΙΑΓΡΑΦΟΜΕΝΟ\t125186,13\t0\t0'}
+              value={pasteText}
+              onChange={(e) => handlePasteChange(e.target.value)}
+            />
+
+            {parseError && (
+              <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded px-3 py-1.5">{parseError}</p>
+            )}
+
+            {preview.length > 0 && (
+              <div className="text-xs bg-white border border-blue-200 rounded-lg overflow-hidden">
+                <div className="bg-blue-100 px-3 py-1.5 font-bold text-blue-800">
+                  Προεπισκόπηση — {preview.length} οφειλές
+                </div>
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-blue-100 text-gray-500">
+                      <th className="text-left px-3 py-1">Πιστωτής</th>
+                      <th className="text-right px-3 py-1">Ποσό</th>
+                      <th className="text-left px-3 py-1">Λεπτομέρειες</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {preview.map((d, i) => {
+                      const isPub = d.type !== 'Τράπεζα'
+                      const cats = d.pubCategories
+                      const detail = isPub
+                        ? [
+                            cats?.nonErasableBasic > 0 ? `ΜΗ ΔΙΑΓΡ. Βασική ${fmt(cats.nonErasableBasic)}` : null,
+                            cats?.nonErasableSurcharges > 0 ? `Προσαυξ. ΜΗ ${fmt(cats.nonErasableSurcharges)}` : null,
+                            cats?.otherBasic > 0 ? `ΔΙΑΓΡ. Βασική ${fmt(cats.otherBasic)}` : null,
+                            cats?.otherSurcharges > 0 ? `Προσαυξ. ${fmt(cats.otherSurcharges)}` : null,
+                            cats?.fines > 0 ? `Πρόστιμα ${fmt(cats.fines)}` : null,
+                          ].filter(Boolean).join(' · ')
+                        : `κεφ. ${fmt(d.amount * (100 - d.interestPct) / 100)} / τόκ. ${fmt(d.amount * d.interestPct / 100)}`
+                      return (
+                        <tr key={i} className="border-b border-gray-50 last:border-0">
+                          <td className="px-3 py-1 font-semibold">
+                            {creditorDisplayName(d.type, d.creditorName)}
+                          </td>
+                          <td className="px-3 py-1 text-right font-mono text-blue-700">{fmt(d.amount)}</td>
+                          <td className="px-3 py-1 text-gray-500">{detail}</td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {preview.length > 0 && (
+              <div className="flex items-center gap-3">
+                <button onClick={handleImport} className="btn-primary gap-2 text-sm">
+                  <PlusIcon className="w-4 h-4" />
+                  Εισαγωγή {preview.length} οφειλών
+                  {debts.some(d => d.amount > 0) && <span className="font-normal opacity-80">(αντικαθιστά υπάρχουσες)</span>}
+                </button>
+                <p className="text-xs text-gray-400">
+                  Τα δεδομένα θα αντικαταστήσουν τον τρέχοντα πίνακα.
+                </p>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   )
