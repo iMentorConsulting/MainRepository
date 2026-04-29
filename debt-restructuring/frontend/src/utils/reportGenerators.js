@@ -68,13 +68,18 @@ function renderHorizontalBars(title, items, note) {
 // ============================================================
 // Build the restructuring plan HTML
 // ============================================================
-// Range helper: show "lo – hi" if conservative differs from base
+// Range helper: show "lo – hi" only when difference is meaningful
 function planRng(conservative, base, formatter = fmt) {
   if (conservative == null) return formatter(base)
   const lo = Math.min(conservative, base)
   const hi = Math.max(conservative, base)
-  if (lo === hi) return formatter(lo)
-  return `${formatter(lo)} – ${formatter(hi)}`
+  const diff = hi - lo
+  if (diff === 0) return formatter(hi)
+  const loStr = formatter(lo)
+  const hiStr = formatter(hi)
+  if (loStr === hiStr) return hiStr
+  if (diff < 10 || diff / hi < 0.05) return formatter(base)
+  return `${loStr} – ${hiStr}`
 }
 
 export function buildPlanHtml(data, customRows) {

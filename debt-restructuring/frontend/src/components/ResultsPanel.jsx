@@ -14,14 +14,19 @@ const SCENARIO_COLORS = {
 function rng(conservative, base, formatter = fmt) {
   const lo = Math.min(conservative, base)
   const hi = Math.max(conservative, base)
-  if (lo === hi) return formatter(lo)
-  return `${formatter(lo)} – ${formatter(hi)}`
+  const diff = hi - lo
+  if (diff === 0) return formatter(hi)
+  const loStr = formatter(lo)
+  const hiStr = formatter(hi)
+  if (loStr === hiStr) return hiStr             // rounding artifact — same display
+  if (diff < 10 || diff / hi < 0.05) return formatter(base) // trivial diff — skip range
+  return `${loStr} – ${hiStr}`
 }
 
 function rngPct(conservativePct, basePct) {
   const lo = Math.min(conservativePct, basePct)
   const hi = Math.max(conservativePct, basePct)
-  if (lo === hi) return `${lo}%`
+  if (hi - lo <= 1) return `${basePct}%`       // ≤1 pp — not meaningful
   return `${lo}% – ${hi}%`
 }
 
