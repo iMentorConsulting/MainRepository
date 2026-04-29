@@ -63,12 +63,13 @@ export const PARAMS_B = {
   fpExemptSavingsMax: 5000,
   fpSavingsIncomeRate: 0.95, // 95% of excess savings added to annual disposable
 
-  // Per-category write-off rates for public debts (replaces generic capPrin/capInt when categories are filled)
+  // Per-category write-off rates for public debts (used when pubCategories present)
   pubCategoryRates: {
-    nonErasable: 0.00,  // Βασική παρακρατούμενων/επιρριπτόμενων (ΦΠΑ, ΦΜΥ) & βασική εισφορών ΕΦΚΑ
-    otherBasic:  0.75,  // Λοιπές βασικές φορολογικές (εισόδημα, ΕΝΦΙΑ, ΓΕΜΗ) — ΑΑΔΕ only
-    surcharges:  0.85,  // Προσαυξήσεις / τόκοι εκπρόθεσμης καταβολής (ΑΑΔΕ + ΕΦΚΑ)
-    fines:       0.95,  // Πρόστιμα φορολογικής διοίκησης — ΑΑΔΕ only
+    nonErasableBasic: 0.00,       // Βασική παρακρατούμενων/επιρριπτ. (ΦΠΑ, ΦΜΥ) & βασική εισφορών ΕΦΚΑ
+    nonErasableSurcharges: 0.85,  // Προσαυξ./τόκοι ΜΗ ΔΙΑΓΡ. βασικής — ακολουθεί γενικό κανόνα 85%
+    otherBasic: 0.75,             // Λοιπές φορολογικές βασικές (εισόδημα, ΕΝΦΙΑ, ΓΕΜΗ) — ΑΑΔΕ only
+    otherSurcharges: 0.85,        // Προσαυξ./τόκοι ΔΙΑΓΡ. βασικής — ΑΑΔΕ only
+    fines: 0.95,                  // Πρόστιμα φορολογικής διοίκησης — ΑΑΔΕ only
   },
 
   // LE income calculation

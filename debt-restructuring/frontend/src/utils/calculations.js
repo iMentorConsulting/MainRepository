@@ -209,12 +209,14 @@ export function calculateAll(debts, assets, incomeData, params = PARAMS_B) {
     let legalMax
     if (isPub && r.pubCategories) {
       // Per-category write-off rates (ΚΥΑ 13243/2024)
+      // nonErasableBasic → 0%; its surcharges still follow 85% rule
       const cats = r.pubCategories
       const cr = params.pubCategoryRates
-      legalMax = (cats.otherBasic  || 0) * cr.otherBasic
-               + (cats.surcharges  || 0) * cr.surcharges
-               + (cats.fines       || 0) * cr.fines
-      // cats.nonErasable contributes 0% — not added
+      legalMax = (cats.nonErasableSurcharges ?? 0) * cr.nonErasableSurcharges
+               + (cats.otherBasic              ?? 0) * cr.otherBasic
+               + (cats.otherSurcharges         ?? 0) * cr.otherSurcharges
+               + (cats.fines                   ?? 0) * cr.fines
+               + (cats.surcharges              ?? 0) * cr.otherSurcharges // legacy key compat
     } else {
       const capPrin = isPub ? (1 - params.recovery.publicPrincipalMin) : (1 - params.recovery.bankPrincipalMin)
       const capInt  = isPub ? params.recovery.publicInterestWriteoffMax : params.recovery.bankInterestWriteoffMax

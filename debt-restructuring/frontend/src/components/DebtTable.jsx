@@ -4,29 +4,41 @@ import { fmt, creditorDisplayName } from '../utils/calculations'
 const DEBT_TYPES = ['Τράπεζα', 'Εφορία', 'Ασφαλιστικά Ταμεία']
 const DEBT_STATUSES = ['Ενήμερη', 'Ληξιπρόθεσμη']
 
-// Category definitions per public creditor type
-const PUB_CATS = {
-  'Εφορία': [
-    { key: 'nonErasable', label: 'ΜΗ ΔΙΑΓΡ. Βασική',    hint: 'ΦΠΑ, ΦΜΥ',              badgeClass: 'bg-red-100 text-red-700' },
-    { key: 'otherBasic',  label: 'ΔΙΑΓΡ. 75% Βασική',   hint: 'εισόδημα, ΕΝΦΙΑ, ΓΕΜΗ', badgeClass: 'bg-amber-100 text-amber-700' },
-    { key: 'surcharges',  label: 'ΔΙΑΓΡ. 85% Προσαυξ.', hint: '',                       badgeClass: 'bg-orange-100 text-orange-700' },
-    { key: 'fines',       label: 'ΔΙΑΓΡ. 95% Πρόστιμα', hint: '',                       badgeClass: 'bg-green-100 text-green-800' },
-  ],
-  'Ασφαλιστικά Ταμεία': [
-    { key: 'nonErasable', label: 'ΜΗ ΔΙΑΓΡ. Βασική',    hint: 'εισφορές',               badgeClass: 'bg-red-100 text-red-700' },
-    { key: 'surcharges',  label: 'ΔΙΑΓΡ. 85% Προσαυξ.', hint: '',                       badgeClass: 'bg-orange-100 text-orange-700' },
-  ],
+function emptyPubCategories(type) {
+  if (type === 'Εφορία') {
+    return { nonErasableBasic: 0, nonErasableSurcharges: 0, otherBasic: 0, otherSurcharges: 0, fines: 0 }
+  }
+  if (type === 'Ασφαλιστικά Ταμεία') {
+    return { nonErasableBasic: 0, nonErasableSurcharges: 0 }
+  }
+  return null
 }
 
-function emptyPubCategories(type) {
-  if (type === 'Εφορία')            return { nonErasable: 0, otherBasic: 0, surcharges: 0, fines: 0 }
-  if (type === 'Ασφαλιστικά Ταμεία') return { nonErasable: 0, surcharges: 0 }
-  return null
+// Migrate old pubCategories structure (pre-categorization) to new shape
+function normalizeCats(cats, type) {
+  if (!cats) return emptyPubCategories(type)
+  if (cats.nonErasable !== undefined && cats.nonErasableBasic === undefined) {
+    return {
+      nonErasableBasic: cats.nonErasable || 0,
+      nonErasableSurcharges: 0,
+      ...(type === 'Εφορία' ? {
+        otherBasic: cats.otherBasic || 0,
+        otherSurcharges: cats.surcharges || 0,
+        fines: cats.fines || 0,
+      } : {}),
+    }
+  }
+  return cats
 }
 
 function pubCatTotal(cats) {
   if (!cats) return 0
-  return Object.values(cats).reduce((a, v) => a + (v || 0), 0)
+  return (cats.nonErasableBasic ?? 0)
+       + (cats.nonErasableSurcharges ?? 0)
+       + (cats.otherBasic ?? 0)
+       + (cats.otherSurcharges ?? 0)
+       + (cats.fines ?? 0)
+       + (cats.surcharges ?? 0) // legacy compat
 }
 
 export function emptyDebt() {
@@ -43,13 +55,12 @@ export function emptyDebt() {
   }
 }
 
-// Controlled numeric input — display always reflects current value
 function CatInput({ value, onChange, className = '' }) {
   return (
     <input
       type="text"
       inputMode="numeric"
-      className={`input text-center text-xs ${className}`}
+      className={`input text-right text-xs px-2 py-1 ${className}`}
       placeholder="0"
       value={value > 0 ? value.toLocaleString('el-GR') : ''}
       onChange={(e) => {
@@ -61,36 +72,111 @@ function CatInput({ value, onChange, className = '' }) {
 }
 
 function NumInput({ value, onChange, placeholder = '0', className = '' }) {
-  const handleChange = (e) => {
-    const raw = e.target.value.replace(/[^\d]/g, '')
-    onChange(raw ? parseInt(raw) : 0)
-  }
   return (
     <input type="text" inputMode="numeric" className={`input text-center ${className}`}
       placeholder={placeholder}
       value={value > 0 ? value.toLocaleString('el-GR') : ''}
-      onChange={handleChange} />
+      onChange={(e) => {
+        const raw = e.target.value.replace(/[^\d]/g, '')
+        onChange(raw ? parseInt(raw) : 0)
+      }} />
   )
 }
 
 function PublicBreakdown({ debt, onChange }) {
-  const cats = PUB_CATS[debt.type] || []
-  const pc = debt.pubCategories || emptyPubCategories(debt.type) || {}
+  const isAADE = debt.type === 'Εφορία'
+  const cats = normalizeCats(debt.pubCategories, debt.type)
 
   const update = (key, val) => {
-    const newCats = { ...pc, [key]: val }
+    const newCats = { ...cats, [key]: val }
     onChange({ ...debt, pubCategories: newCats, amount: pubCatTotal(newCats) })
   }
 
+  const neb = cats.nonErasableBasic || 0
+  const nes = cats.nonErasableSurcharges || 0
+  const nesMin = Math.round(nes * 0.15)   // 15% of surcharges must be paid
+  const nesWr  = nes - nesMin              // 85% written off
+  const blockMinPay = neb + nesMin
+
   return (
-    <div className="space-y-1">
-      {cats.map(({ key, label, hint, badgeClass }) => (
-        <div key={key} className="flex items-center gap-1.5">
-          <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded whitespace-nowrap ${badgeClass}`}>{label}</span>
-          <CatInput value={pc[key] || 0} onChange={(v) => update(key, v)} className="w-24" />
-          {hint && <span className="text-[10px] text-gray-400 whitespace-nowrap">{hint}</span>}
+    <div className="space-y-1.5 text-xs">
+
+      {/* ΜΗ ΔΙΑΓΡΑΦΟΜΕΝΟ */}
+      <div className="rounded-md border border-red-200 bg-red-50/50 px-2.5 py-2">
+        <p className="text-[10px] font-extrabold text-red-700 tracking-wider mb-2">
+          ΜΗ ΔΙΑΓΡΑΦΟΜΕΝΟ {isAADE ? '(ΦΠΑ, ΦΜΥ)' : '(εισφορές)'}
+        </p>
+
+        {/* Header row */}
+        <div className="grid grid-cols-[5rem_6.5rem_3.5rem] gap-x-2 text-[10px] text-gray-400 mb-1">
+          <span></span><span className="text-right">Ποσό €</span><span className="text-center">Διαγρ.</span>
         </div>
-      ))}
+
+        <div className="space-y-1">
+          <div className="grid grid-cols-[5rem_6.5rem_3.5rem] gap-x-2 items-center">
+            <span className="text-gray-600">Βασική</span>
+            <CatInput value={neb} onChange={(v) => update('nonErasableBasic', v)} />
+            <span className="text-center text-red-500 font-bold text-[10px]">0%</span>
+          </div>
+          <div className="grid grid-cols-[5rem_6.5rem_3.5rem] gap-x-2 items-center">
+            <span className="text-gray-600">Προσαυξ.</span>
+            <CatInput value={nes} onChange={(v) => update('nonErasableSurcharges', v)} />
+            <span className="text-center text-orange-600 font-bold text-[10px]">85%</span>
+          </div>
+        </div>
+
+        {(neb > 0 || nes > 0) && (
+          <div className="mt-2 pt-1.5 border-t border-red-200 space-y-0.5">
+            {nes > 0 && (
+              <div className="flex justify-between text-[10px] text-gray-500">
+                <span>Προσαυξ. ΜΗ ΔΙΑΓΡ. (15%)</span>
+                <span className="font-semibold text-gray-700">{fmt(nesMin)}</span>
+              </div>
+            )}
+            {nes > 0 && (
+              <div className="flex justify-between text-[10px] text-orange-600">
+                <span>Προσαυξ. διαγραφή (85%)</span>
+                <span className="font-semibold">{fmt(nesWr)}</span>
+              </div>
+            )}
+            <div className="flex justify-between text-[10px] font-bold text-red-700">
+              <span>Σύνολο προς πληρωμή</span>
+              <span>{fmt(blockMinPay)}</span>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ΔΙΑΓΡΑΦΟΜΕΝΟ — ΑΑΔΕ only */}
+      {isAADE && (
+        <div className="rounded-md border border-emerald-200 bg-emerald-50/50 px-2.5 py-2">
+          <p className="text-[10px] font-extrabold text-emerald-700 tracking-wider mb-2">
+            ΔΙΑΓΡΑΦΟΜΕΝΟ (εισόδημα, ΕΝΦΙΑ, ΓΕΜΗ)
+          </p>
+
+          <div className="grid grid-cols-[5rem_6.5rem_3.5rem] gap-x-2 text-[10px] text-gray-400 mb-1">
+            <span></span><span className="text-right">Ποσό €</span><span className="text-center">Διαγρ.</span>
+          </div>
+
+          <div className="space-y-1">
+            <div className="grid grid-cols-[5rem_6.5rem_3.5rem] gap-x-2 items-center">
+              <span className="text-gray-600">Βασική</span>
+              <CatInput value={cats.otherBasic || 0} onChange={(v) => update('otherBasic', v)} />
+              <span className="text-center text-amber-600 font-bold text-[10px]">75%</span>
+            </div>
+            <div className="grid grid-cols-[5rem_6.5rem_3.5rem] gap-x-2 items-center">
+              <span className="text-gray-600">Προσαυξ.</span>
+              <CatInput value={cats.otherSurcharges || 0} onChange={(v) => update('otherSurcharges', v)} />
+              <span className="text-center text-orange-600 font-bold text-[10px]">85%</span>
+            </div>
+            <div className="grid grid-cols-[5rem_6.5rem_3.5rem] gap-x-2 items-center">
+              <span className="text-gray-600">Πρόστιμα</span>
+              <CatInput value={cats.fines || 0} onChange={(v) => update('fines', v)} />
+              <span className="text-center text-emerald-700 font-bold text-[10px]">95%</span>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -116,21 +202,21 @@ function DebtRow({ debt, onChange, onDelete }) {
   }
 
   return (
-    <tr className="border-b border-gray-100 hover:bg-blue-50/40">
+    <tr className="border-b border-gray-100 align-top hover:bg-blue-50/30">
       {/* Amount */}
-      <td className="td px-2 py-2 min-w-[130px]">
+      <td className="td px-2 py-2 min-w-[120px]">
         {hasPubCats ? (
-          <div className="text-center py-1">
+          <div className="text-center pt-1">
             <div className="text-sm font-bold text-gray-800">{fmt(debt.amount)}</div>
-            <div className="text-[10px] text-gray-400">αυτόματο άθροισμα</div>
+            <div className="text-[10px] text-gray-400 mt-0.5">άθροισμα</div>
           </div>
         ) : (
           <NumInput value={debt.amount} onChange={(v) => onChange({ ...debt, amount: v })} placeholder="π.χ. 50000" />
         )}
       </td>
 
-      {/* Capital / Interest split OR Public category breakdown */}
-      <td className="td px-2 py-2 min-w-[260px]">
+      {/* Breakdown / slider */}
+      <td className="td px-2 py-2 min-w-[280px]">
         {hasPubCats ? (
           <PublicBreakdown key={debt.type} debt={debt} onChange={onChange} />
         ) : (
@@ -154,7 +240,7 @@ function DebtRow({ debt, onChange, onDelete }) {
       </td>
 
       {/* Creditor name */}
-      <td className="td px-2 py-2 min-w-[130px]">
+      <td className="td px-2 py-2 min-w-[120px]">
         {isBank ? (
           <input type="text" className="input text-center text-sm" placeholder="π.χ. Alpha Bank"
             value={debt.creditorName} onChange={(e) => onChange({ ...debt, creditorName: e.target.value })} />
@@ -164,14 +250,14 @@ function DebtRow({ debt, onChange, onDelete }) {
       </td>
 
       {/* Status */}
-      <td className="td px-2 py-2 min-w-[120px]">
+      <td className="td px-2 py-2 min-w-[110px]">
         <select className="input text-center text-sm" value={debt.status}
           onChange={(e) => onChange({ ...debt, status: e.target.value })}>
           {DEBT_STATUSES.map((s) => <option key={s}>{s}</option>)}
         </select>
       </td>
 
-      {/* Mortgaged — hidden for public debts */}
+      {/* Mortgaged — banks only */}
       <td className="td px-2 py-2">
         {isBank ? (
           <input type="checkbox" checked={debt.mortgaged}
@@ -182,8 +268,8 @@ function DebtRow({ debt, onChange, onDelete }) {
         )}
       </td>
 
-      {/* Property value */}
-      <td className="td px-2 py-2 min-w-[130px]">
+      {/* Property value — banks only */}
+      <td className="td px-2 py-2 min-w-[120px]">
         {isBank && debt.mortgaged ? (
           <NumInput value={debt.propertyValue} onChange={(v) => onChange({ ...debt, propertyValue: v })} placeholder="Αξία €" />
         ) : isBank && debt.amount > 0 ? (
@@ -191,8 +277,8 @@ function DebtRow({ debt, onChange, onDelete }) {
         ) : null}
       </td>
 
-      {/* Coverage chip — banks only */}
-      <td className="td px-2 py-2 min-w-[90px]">
+      {/* Coverage — banks only */}
+      <td className="td px-2 py-2 min-w-[80px]">
         {isBank && debt.mortgaged && debt.propertyValue > 0 && debt.amount > 0 && (() => {
           const net = Math.floor(debt.propertyValue * 0.97)
           const pct = net >= debt.amount ? 100 : Math.round(net * 100 / debt.amount)
@@ -214,7 +300,7 @@ function DebtRow({ debt, onChange, onDelete }) {
   )
 }
 
-export default function DebtTable({ debts, onChange, calculations }) {
+export default function DebtTable({ debts, onChange }) {
   const updateDebt = (id, updated) => onChange(debts.map((d) => d.id === id ? updated : d))
   const deleteDebt = (id) => onChange(debts.filter((d) => d.id !== id))
   const addDebt = () => onChange([...debts, emptyDebt()])
@@ -225,13 +311,13 @@ export default function DebtTable({ debts, onChange, calculations }) {
         <table className="w-full min-w-[960px]">
           <thead>
             <tr className="border-b-2 border-blue-100">
-              <th className="th">Ποσό Οφειλής</th>
-              <th className="th">Κατηγορίες / Κεφάλαιο-Τόκοι</th>
+              <th className="th">Ποσό</th>
+              <th className="th">Κατηγορίες / Κεφάλαιο–Τόκοι</th>
               <th className="th">Είδος</th>
-              <th className="th">Όνομα Τράπεζας</th>
+              <th className="th">Τράπεζα</th>
               <th className="th">Κατάσταση</th>
               <th className="th">Ενυπόθηκο</th>
-              <th className="th">Αξία Ακινήτου</th>
+              <th className="th">Αξία Ακιν.</th>
               <th className="th">Κάλυψη</th>
               <th className="th"></th>
             </tr>
@@ -248,8 +334,9 @@ export default function DebtTable({ debts, onChange, calculations }) {
       <div className="mt-3">
         <div className="text-xs text-gray-400 mb-2 px-1">
           Τράπεζες: 80% κεφ. + 100% τόκων &nbsp;·&nbsp;
-          ΑΑΔΕ: ΦΠΑ/ΦΜΥ 0% · λοιπές βασικές 75% · προσαυξ. 85% · πρόστιμα 95% &nbsp;·&nbsp;
-          ΕΦΚΑ: εισφορές 0% · προσαυξ. 85%
+          ΑΑΔΕ ΜΗ ΔΙΑΓΡ.: βασική 0% + προσαυξ. 85% &nbsp;·&nbsp;
+          ΑΑΔΕ ΔΙΑΓΡ.: βασική 75% + προσαυξ. 85% + πρόστιμα 95% &nbsp;·&nbsp;
+          ΕΦΚΑ: βασική 0% + προσαυξ. 85%
         </div>
         <div className="text-center">
           <button onClick={addDebt} className="btn-primary gap-2 text-sm">
