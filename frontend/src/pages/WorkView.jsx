@@ -84,7 +84,7 @@ function NotesCell({ caseId }) {
 
   useEffect(() => {
     getMessages(caseId)
-      .then(msgs => setMessages([...msgs].sort((a, b) => new Date(b.created_at) - new Date(a.created_at))))
+      .then(msgs => setMessages([...msgs].sort((a, b) => new Date(a.created_at) - new Date(b.created_at))))
       .catch(() => setMessages([]))
   }, [caseId])
 
@@ -94,7 +94,7 @@ function NotesCell({ caseId }) {
     setSending(true)
     try {
       const m = await createMessage(caseId, { content: text, is_internal: true })
-      setMessages(prev => [m, ...(prev || [])])
+      setMessages(prev => [...(prev || []), m])
       setNote('')
     } catch { toast.error('Σφάλμα σημείωσης') }
     finally { setSending(false) }
