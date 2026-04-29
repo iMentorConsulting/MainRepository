@@ -10,7 +10,7 @@ function emptyPubCategories(type) {
     return { nonErasableBasic: 0, nonErasableSurcharges: 0, otherBasic: 0, otherSurcharges: 0, fines: 0 }
   }
   if (type === 'Ασφαλιστικά Ταμεία') {
-    return { nonErasableBasic: 0, nonErasableSurcharges: 0 }
+    return { nonErasableBasic: 0, nonErasableSurcharges: 0, otherBasic: 0, otherSurcharges: 0 }
   }
   return null
 }
@@ -27,7 +27,12 @@ function normalizeCats(cats, type) {
         otherSurcharges: cats.surcharges || 0,
         fines: cats.fines || 0,
       } : {}),
+      ...(type === 'Ασφαλιστικά Ταμεία' ? { otherBasic: 0, otherSurcharges: 0 } : {}),
     }
+  }
+  // Migrate ΕΦΚΑ saved before otherBasic/otherSurcharges were added
+  if (type === 'Ασφαλιστικά Ταμεία' && cats.otherBasic === undefined) {
+    return { ...cats, otherBasic: 0, otherSurcharges: 0 }
   }
   return cats
 }
@@ -148,36 +153,36 @@ function PublicBreakdown({ debt, onChange }) {
         )}
       </div>
 
-      {/* ΔΙΑΓΡΑΦΟΜΕΝΟ — ΑΑΔΕ only */}
-      {isAADE && (
-        <div className="rounded-md border border-emerald-200 bg-emerald-50/50 px-2.5 py-2">
-          <p className="text-[10px] font-extrabold text-emerald-700 tracking-wider mb-2">
-            ΔΙΑΓΡΑΦΟΜΕΝΟ (εισόδημα, ΕΝΦΙΑ, ΓΕΜΗ)
-          </p>
+      {/* ΔΙΑΓΡΑΦΟΜΕΝΟ — ΑΑΔΕ + ΕΦΚΑ */}
+      <div className="rounded-md border border-emerald-200 bg-emerald-50/50 px-2.5 py-2">
+        <p className="text-[10px] font-extrabold text-emerald-700 tracking-wider mb-2">
+          {isAADE ? 'ΔΙΑΓΡΑΦΟΜΕΝΟ (εισόδημα, ΕΝΦΙΑ, ΓΕΜΗ)' : 'ΔΙΑΓΡΑΦΟΜΕΝΟ (εργοδοτικές εισφορές)'}
+        </p>
 
-          <div className="grid grid-cols-[5rem_6.5rem_3.5rem] gap-x-2 text-[10px] text-gray-400 mb-1">
-            <span></span><span className="text-right">Ποσό €</span><span className="text-center">Διαγρ.</span>
+        <div className="grid grid-cols-[5rem_6.5rem_3.5rem] gap-x-2 text-[10px] text-gray-400 mb-1">
+          <span></span><span className="text-right">Ποσό €</span><span className="text-center">Διαγρ.</span>
+        </div>
+
+        <div className="space-y-1">
+          <div className="grid grid-cols-[5rem_6.5rem_3.5rem] gap-x-2 items-center">
+            <span className="text-gray-600">Βασική</span>
+            <CatInput value={cats.otherBasic || 0} onChange={(v) => update('otherBasic', v)} />
+            <span className="text-center text-amber-600 font-bold text-[10px]">75%</span>
           </div>
-
-          <div className="space-y-1">
-            <div className="grid grid-cols-[5rem_6.5rem_3.5rem] gap-x-2 items-center">
-              <span className="text-gray-600">Βασική</span>
-              <CatInput value={cats.otherBasic || 0} onChange={(v) => update('otherBasic', v)} />
-              <span className="text-center text-amber-600 font-bold text-[10px]">75%</span>
-            </div>
-            <div className="grid grid-cols-[5rem_6.5rem_3.5rem] gap-x-2 items-center">
-              <span className="text-gray-600">Προσαυξ.</span>
-              <CatInput value={cats.otherSurcharges || 0} onChange={(v) => update('otherSurcharges', v)} />
-              <span className="text-center text-orange-600 font-bold text-[10px]">85%</span>
-            </div>
+          <div className="grid grid-cols-[5rem_6.5rem_3.5rem] gap-x-2 items-center">
+            <span className="text-gray-600">Προσαυξ.</span>
+            <CatInput value={cats.otherSurcharges || 0} onChange={(v) => update('otherSurcharges', v)} />
+            <span className="text-center text-orange-600 font-bold text-[10px]">85%</span>
+          </div>
+          {isAADE && (
             <div className="grid grid-cols-[5rem_6.5rem_3.5rem] gap-x-2 items-center">
               <span className="text-gray-600">Πρόστιμα</span>
               <CatInput value={cats.fines || 0} onChange={(v) => update('fines', v)} />
               <span className="text-center text-emerald-700 font-bold text-[10px]">95%</span>
             </div>
-          </div>
+          )}
         </div>
-      )}
+      </div>
     </div>
   )
 }
@@ -316,7 +321,7 @@ function parsePasteImport(text) {
 
   // Accumulators for public creditors
   const aade = { cats: { nonErasableBasic: 0, nonErasableSurcharges: 0, otherBasic: 0, otherSurcharges: 0, fines: 0 } }
-  const efka = { cats: { nonErasableBasic: 0, nonErasableSurcharges: 0 } }
+  const efka = { cats: { nonErasableBasic: 0, nonErasableSurcharges: 0, otherBasic: 0, otherSurcharges: 0 } }
   let hasAADE = false, hasEFKA = false
   // Banks: creditorName → { basic, surcharges }
   const banks = {}
@@ -344,9 +349,13 @@ function parsePasteImport(text) {
       }
     } else if (/ΕΦΚΑ|ΙΚΑ|ΚΕΑΟ/i.test(creditor)) {
       hasEFKA = true
-      // All ΕΦΚΑ basic is non-erasable (0%); surcharges 85%
-      efka.cats.nonErasableBasic      += basic
-      efka.cats.nonErasableSurcharges += surcharges
+      if (isMH) {
+        efka.cats.nonErasableBasic      += basic
+        efka.cats.nonErasableSurcharges += surcharges
+      } else {
+        efka.cats.otherBasic      += basic
+        efka.cats.otherSurcharges += surcharges
+      }
     } else {
       if (!banks[creditor]) banks[creditor] = { basic: 0, surcharges: 0 }
       banks[creditor].basic      += basic
@@ -463,7 +472,8 @@ export default function DebtTable({ debts, onChange }) {
           Τράπεζες: 80% κεφ. + 100% τόκων &nbsp;·&nbsp;
           ΑΑΔΕ ΜΗ ΔΙΑΓΡ.: βασική 0% + προσαυξ. 85% &nbsp;·&nbsp;
           ΑΑΔΕ ΔΙΑΓΡ.: βασική 75% + προσαυξ. 85% + πρόστιμα 95% &nbsp;·&nbsp;
-          ΕΦΚΑ: βασική 0% + προσαυξ. 85%
+          ΕΦΚΑ ΜΗ ΔΙΑΓΡ. (παρακρατ.): βασική 0% + προσαυξ. 85% &nbsp;·&nbsp;
+          ΕΦΚΑ ΔΙΑΓΡ. (εργοδοτ.): βασική 75% + προσαυξ. 85%
         </div>
 
         <div className="flex justify-center gap-3">

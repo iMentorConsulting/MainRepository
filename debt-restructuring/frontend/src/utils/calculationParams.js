@@ -65,10 +65,10 @@ export const PARAMS_B = {
 
   // Per-category write-off rates for public debts (used when pubCategories present)
   pubCategoryRates: {
-    nonErasableBasic: 0.00,       // Βασική παρακρατούμενων/επιρριπτ. (ΦΠΑ, ΦΜΥ) & βασική εισφορών ΕΦΚΑ
+    nonErasableBasic: 0.00,       // Βασική παρακρατούμενων/επιρριπτ. (ΦΠΑ, ΦΜΥ) & παρακρατ. εισφορών ΕΦΚΑ
     nonErasableSurcharges: 0.85,  // Προσαυξ./τόκοι ΜΗ ΔΙΑΓΡ. βασικής — ακολουθεί γενικό κανόνα 85%
-    otherBasic: 0.75,             // Λοιπές φορολογικές βασικές (εισόδημα, ΕΝΦΙΑ, ΓΕΜΗ) — ΑΑΔΕ only
-    otherSurcharges: 0.85,        // Προσαυξ./τόκοι ΔΙΑΓΡ. βασικής — ΑΑΔΕ only
+    otherBasic: 0.75,             // Λοιπές βασικές ΑΑΔΕ (εισόδημα, ΕΝΦΙΑ, ΓΕΜΗ) + εργοδοτ. εισφορές ΕΦΚΑ
+    otherSurcharges: 0.85,        // Προσαυξ./τόκοι ΔΙΑΓΡ. βασικής — ΑΑΔΕ + ΕΦΚΑ
     fines: 0.95,                  // Πρόστιμα φορολογικής διοίκησης — ΑΑΔΕ only
   },
 
