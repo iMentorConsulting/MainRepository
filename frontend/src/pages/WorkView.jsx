@@ -1,13 +1,14 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import {
-  getCases, getUsers, updateCase, getAllPendingOverview, createMessage,
+  getCases, getUsers, updateCase, getAllPendingOverview, createMessage, getMessages,
   createCasePendingItem, deleteCasePendingItem, notifyCasePendingItems,
 } from '../api'
 import { PIPELINES } from '../pipelines'
 import {
   MagnifyingGlassIcon, PlusIcon, TrashIcon,
   CalendarDaysIcon, PaperAirplaneIcon, ArrowTopRightOnSquareIcon,
+  ChevronDownIcon, ChevronUpIcon,
 } from '@heroicons/react/24/outline'
 import toast from 'react-hot-toast'
 
@@ -25,6 +26,18 @@ function followUpCellClass(dateStr) {
   if (d < today) return 'bg-red-50'
   if (d.getTime() === today.getTime()) return 'bg-blue-50'
   return 'bg-green-50'
+}
+
+function fmtNoteDate(s) {
+  if (!s) return ''
+  const d = new Date(s)
+  const now = new Date()
+  const isToday = d.toDateString() === now.toDateString()
+  const isThisYear = d.getFullYear() === now.getFullYear()
+  const time = d.toLocaleTimeString('el-GR', { hour: '2-digit', minute: '2-digit' })
+  if (isToday) return time
+  if (isThisYear) return d.toLocaleDateString('el-GR', { day: '2-digit', month: '2-digit' }) + ' ' + time
+  return d.toLocaleDateString('el-GR', { day: '2-digit', month: '2-digit', year: '2-digit' })
 }
 
 function getStatusGroups(prog) {
@@ -67,35 +80,79 @@ function StatusCell({ caseId, program, value, onChange }) {
   )
 }
 
-// ── Notes cell (same messages as CaseDetail → Σημειώσεις tab) ─────────────────
+// ── Notes cell — expandable, shows all messages with compact dates ─────────────
 function NotesCell({ caseId, lastNotePreview }) {
+  const [expanded, setExpanded] = useState(false)
+  const [messages, setMessages] = useState(null) // null = not yet loaded
   const [note, setNote] = useState('')
   const [sending, setSending] = useState(false)
-  const [localLatest, setLocalLatest] = useState(null)
+
+  const expand = async () => {
+    if (messages === null) {
+      try {
+        const msgs = await getMessages(caseId)
+        setMessages([...msgs].sort((a, b) => new Date(b.created_at) - new Date(a.created_at)))
+      } catch { setMessages([]) }
+    }
+    setExpanded(true)
+  }
 
   const submit = async () => {
     const text = note.trim()
     if (!text) return
     setSending(true)
     try {
-      await createMessage(caseId, { content: text, is_internal: true })
-      setLocalLatest(text)
+      const m = await createMessage(caseId, { content: text, is_internal: true })
+      setMessages(prev => prev ? [m, ...prev] : [m])
       setNote('')
     } catch { toast.error('Σφάλμα σημείωσης') }
     finally { setSending(false) }
   }
 
-  const preview = localLatest || lastNotePreview
-
   return (
-    <div className="space-y-1.5 min-w-[180px]">
-      {preview ? (
-        <p className="text-xs text-gray-600 leading-snug bg-gray-50 border border-gray-100 rounded px-2 py-1.5 line-clamp-3">
-          {preview}
-        </p>
-      ) : (
-        <p className="text-xs text-gray-300 italic">—</p>
+    <div className="space-y-1.5">
+      {/* Collapsed: last note preview + expand button */}
+      {!expanded && (
+        <button onClick={expand} className="w-full text-left flex items-start gap-1 group">
+          <p className="flex-1 text-xs text-gray-600 leading-snug line-clamp-2">
+            {lastNotePreview || <span className="text-gray-300 italic">—</span>}
+          </p>
+          <ChevronDownIcon className="w-3.5 h-3.5 text-gray-300 group-hover:text-blue-400 shrink-0 mt-0.5" />
+        </button>
       )}
+
+      {/* Expanded: all messages newest-first */}
+      {expanded && (
+        <div>
+          <div className="max-h-56 overflow-y-auto space-y-1 mb-1 pr-0.5">
+            {messages === null ? (
+              <p className="text-xs text-gray-400 py-2 text-center">Φόρτωση...</p>
+            ) : messages.length === 0 ? (
+              <p className="text-xs text-gray-300 italic py-2">Δεν υπάρχουν σημειώσεις</p>
+            ) : messages.map(m => (
+              <div key={m.id} className="text-xs rounded border border-gray-100 bg-gray-50 px-2 py-1.5">
+                <div className="flex items-center gap-1.5 mb-0.5">
+                  <span className="font-mono text-[10px] bg-gray-200 text-gray-500 rounded px-1 py-px shrink-0">
+                    {fmtNoteDate(m.created_at)}
+                  </span>
+                  {m.author_name && (
+                    <span className="text-[10px] text-gray-400 truncate">{m.author_name}</span>
+                  )}
+                </div>
+                <p className="text-gray-800 leading-snug whitespace-pre-wrap">{m.content}</p>
+              </div>
+            ))}
+          </div>
+          <button
+            onClick={() => setExpanded(false)}
+            className="flex items-center gap-0.5 text-[10px] text-gray-400 hover:text-gray-600 mb-0.5"
+          >
+            <ChevronUpIcon className="w-3 h-3" /> Σύμπτυξη
+          </button>
+        </div>
+      )}
+
+      {/* Add note – always visible */}
       <div className="flex gap-1 items-end">
         <textarea
           rows={2}
@@ -367,7 +424,7 @@ export default function WorkView() {
             <tr className="bg-gray-800 text-white text-xs uppercase tracking-wide">
               <th className="px-3 py-2.5 text-left w-44">Πελάτης</th>
               <th className="px-3 py-2.5 text-left w-44">Κατάσταση / Μετακίνηση</th>
-              <th className="px-3 py-2.5 text-left w-64">Σημειώσεις</th>
+              <th className="px-3 py-2.5 text-left min-w-[18rem]">Σημειώσεις</th>
               <th className="px-3 py-2.5 text-left w-64">Εκκρεμότητες</th>
               <th className="px-3 py-2.5 text-center w-32">Υπενθύμιση</th>
               <th className="px-3 py-2.5 text-center w-28">Αποστολή</th>
