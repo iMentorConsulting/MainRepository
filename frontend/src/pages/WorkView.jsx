@@ -284,6 +284,7 @@ export default function WorkView() {
   const [filterProgram, setFilterProgram] = useState('')
   const [filterAgent, setFilterAgent] = useState('')
   const [filterServiceType, setFilterServiceType] = useState('')
+  const [filterStatus, setFilterStatus] = useState('')
   const [filterFollowUp, setFilterFollowUp] = useState(false)
 
   const load = useCallback(async () => {
@@ -318,15 +319,20 @@ export default function WorkView() {
   }, [filterProgram, filterAgent, search])
 
   useEffect(() => { load() }, [load])
-  useEffect(() => { setFilterServiceType('') }, [filterProgram])
+  useEffect(() => { setFilterServiceType(''); setFilterStatus('') }, [filterProgram])
   useEffect(() => { getUsers().then(setAgents).catch(() => {}) }, [])
 
   const serviceTypeOptions = [...new Set(cases.map(c => c.service_type).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'el'))
+
+  const statusGroups = filterProgram
+    ? getStatusGroups(filterProgram)
+    : PROGRAMS.flatMap(p => getStatusGroups(p).map(g => ({ ...g, group: `${p} · ${g.group}` })))
 
   const today = new Date().toISOString().slice(0, 10)
   const displayed = cases.filter(c => {
     if (filterFollowUp && !(c.follow_up_date && c.follow_up_date <= today)) return false
     if (filterServiceType && c.service_type !== filterServiceType) return false
+    if (filterStatus && c.status !== filterStatus) return false
     return true
   })
 
@@ -365,6 +371,24 @@ export default function WorkView() {
         </button>
       </div>
 
+      {/* Program tabs */}
+      <div className="flex gap-1 bg-gray-100 p-1 rounded-lg w-fit mb-3 flex-shrink-0">
+        {['Όλα', ...PROGRAMS].map(tab => {
+          const val = tab === 'Όλα' ? '' : tab
+          return (
+            <button
+              key={tab}
+              onClick={() => setFilterProgram(val)}
+              className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${
+                filterProgram === val ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-800'
+              }`}
+            >
+              {tab === 'ΔΥΠΑ' ? 'ΔΥΠΑ / ΟΑΕΔ' : tab}
+            </button>
+          )
+        })}
+      </div>
+
       {/* Filters */}
       <div className="flex flex-wrap gap-2 mb-3 flex-shrink-0 items-center">
         <div className="relative">
@@ -376,13 +400,17 @@ export default function WorkView() {
             onChange={e => setSearch(e.target.value)}
           />
         </div>
-        <select className="input w-auto text-sm" value={filterProgram} onChange={e => setFilterProgram(e.target.value)}>
-          <option value="">Όλα τα Προγράμματα</option>
-          {PROGRAMS.map(p => <option key={p} value={p}>{p}</option>)}
-        </select>
         <select className="input w-auto text-sm" value={filterServiceType} onChange={e => setFilterServiceType(e.target.value)}>
           <option value="">Όλες οι Υπηρεσίες</option>
           {serviceTypeOptions.map(s => <option key={s} value={s}>{s}</option>)}
+        </select>
+        <select className="input w-auto text-sm" value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
+          <option value="">Όλες οι Καταστάσεις</option>
+          {statusGroups.map(g => (
+            <optgroup key={g.group} label={g.group}>
+              {g.statuses.map(s => <option key={s} value={s}>{s}</option>)}
+            </optgroup>
+          ))}
         </select>
         <select className="input w-auto text-sm" value={filterAgent} onChange={e => setFilterAgent(e.target.value)}>
           <option value="">Όλοι οι Agents</option>
