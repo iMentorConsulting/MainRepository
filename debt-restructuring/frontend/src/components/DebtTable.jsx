@@ -315,29 +315,51 @@ function parsePasteImport(text) {
   if (!text || !text.trim()) return []
   const rows = text.trim().split('\n').map(l => l.replace(/\r$/, '').split('\t'))
 
-  // Skip header row when first cell looks like a column label rather than a creditor name
+  // Detect header row
   const firstCell = (rows[0][0] || '').trim()
-  const startIdx = /πιστ|cred/i.test(firstCell) ? 1 : 0
+  const isHeader = /^(είδος|πιστ|cred|type)/i.test(firstCell)
+  const startIdx = isHeader ? 1 : 0
 
-  // Accumulators for public creditors
+  // Auto-detect format:
+  // NEW (6-col): Είδος | Πιστωτής | ΚΑΤΗΓΟΡΙΑ | Βασική | Προσαυξ. | Πρόστιμο
+  // OLD (5-col): Πιστωτής | ΚΑΤΗΓΟΡΙΑ | Βασική | Προσαυξ. | Πρόστιμο
+  const firstDataCell = ((rows[startIdx] || [])[0] || '').trim()
+  const hasTypeCol = /^είδος/i.test(firstCell) ||
+    /^(τράπεζα|εφορ|εφκα|ε\.φ\.κ|ασφαλ)/i.test(firstDataCell)
+
+  // Column offsets
+  const CI = hasTypeCol ? 1 : 0  // creditor name
+  const KI = hasTypeCol ? 2 : 1  // category
+  const BI = hasTypeCol ? 3 : 2  // basic amount
+  const SI = hasTypeCol ? 4 : 3  // surcharge
+  const FI = hasTypeCol ? 5 : 4  // fine
+
   const aade = { cats: { nonErasableBasic: 0, nonErasableSurcharges: 0, otherBasic: 0, otherSurcharges: 0, fines: 0 } }
   const efka = { cats: { nonErasableBasic: 0, nonErasableSurcharges: 0, otherBasic: 0, otherSurcharges: 0 } }
   let hasAADE = false, hasEFKA = false
-  // Banks: creditorName → { basic, surcharges }
   const banks = {}
 
   for (let i = startIdx; i < rows.length; i++) {
     const cols = rows[i]
-    const creditor = (cols[0] || '').trim()
-    const category = (cols[1] || '').toUpperCase()
+    const typeCell = hasTypeCol ? (cols[0] || '').trim() : ''
+    const creditor = (cols[CI] || '').trim()
+    const category = (cols[KI] || '').toUpperCase()
     if (!creditor || /^συνολ/i.test(creditor)) continue
 
-    const basic      = parseGreekNum(cols[2])
-    const surcharges = parseGreekNum(cols[3])
-    const fines      = parseGreekNum(cols[4])
+    const basic      = parseGreekNum(cols[BI])
+    const surcharges = parseGreekNum(cols[SI])
+    const fines      = parseGreekNum(cols[FI])
     const isMH       = /ΜΗ/.test(category)
 
-    if (/ΑΑΔΕ|αρμόδι|εφορ/i.test(creditor)) {
+    // Determine type: use Είδος column when present, else match creditor name
+    const isAADE = hasTypeCol
+      ? /^(εφορ|ααδε)/i.test(typeCell) || /ΑΑΔΕ|αρμόδι|εφορ|εσοδ/i.test(creditor)
+      : /ΑΑΔΕ|αρμόδι|εφορ|εσοδ/i.test(creditor)
+    const isEFKA = hasTypeCol
+      ? /^(εφκα|ε\.φ\.κ|ασφαλ|ενιαι)/i.test(typeCell) || /ΕΦΚΑ|ΙΚΑ|ΚΕΑΟ/i.test(creditor)
+      : /ΕΦΚΑ|ΙΚΑ|ΚΕΑΟ/i.test(creditor)
+
+    if (isAADE) {
       hasAADE = true
       if (isMH) {
         aade.cats.nonErasableBasic      += basic
@@ -347,7 +369,7 @@ function parsePasteImport(text) {
         aade.cats.otherSurcharges += surcharges
         aade.cats.fines           += fines
       }
-    } else if (/ΕΦΚΑ|ΙΚΑ|ΚΕΑΟ/i.test(creditor)) {
+    } else if (isEFKA) {
       hasEFKA = true
       if (isMH) {
         efka.cats.nonErasableBasic      += basic
@@ -501,7 +523,7 @@ export default function DebtTable({ debts, onChange }) {
 
             <textarea
               className="w-full h-36 input text-xs font-mono leading-relaxed"
-              placeholder={'Επικολλήστε εδώ (Ctrl+V)...\n\nΠαράδειγμα:\nΑΑΔΕ\tΔΙΑΓΡΑΦΟΜΕΝΟ\t12276,29\t4779,92\t250,00\nΑΑΔΕ\tΜΗ ΔΙΑΓΡΑΦΟΜΕΝΟ\t20931,25\t8347,47\t0\nΕΦΚΑ\tΜΗ ΔΙΑΓΡΑΦΟΜΕΝΟ\t9698,41\t3115,55\t0\nIntrum\tΔΙΑΓΡΑΦΟΜΕΝΟ\t125186,13\t0\t0'}
+              placeholder={'Επικολλήστε εδώ (Ctrl+V)...\n\nΥποστηριζόμενες μορφές:\n\n6 στήλες (με Είδος):\nΕίδος\tΠιστωτής\tΚΑΤΗΓΟΡΙΑ\tΒασική\tΠροσαυξ.\tΠρόστιμο\nΤράπεζα\tEthniki\tΔΙΑΓΡΑΦΟΜΕΝΟ\t31.507,03 €\t161.658,07 €\t- €\nΕφορία\tΕφορία\tΔΙΑΓΡΑΦΟΜΕΝΟ\t19.451,17 €\t12.515,76 €\t100,00 €\nΕφορία\tΕφορία\tΜΗ ΔΙΑΓΡΑΦΟΜΕΝΟ\t10.757,71 €\t9.019,73 €\t- €\nΕΦΚΑ\tΕΦΚΑ\tΔΙΑΓΡΑΦΟΜΕΝΟ\t3,38 €\t7.801,09 €\t- €\nΕΦΚΑ\tΕΦΚΑ\tΜΗ ΔΙΑΓΡΑΦΟΜΕΝΟ\t33.954,65 €\t18.356,00 €\t- €\n\n5 στήλες (χωρίς Είδος):\nΑΑΔΕ\tΔΙΑΓΡΑΦΟΜΕΝΟ\t12276,29\t4779,92\t250,00\nΑΑΔΕ\tΜΗ ΔΙΑΓΡΑΦΟΜΕΝΟ\t20931,25\t8347,47\t0\nΕΦΚΑ\tΜΗ ΔΙΑΓΡΑΦΟΜΕΝΟ\t9698,41\t3115,55\t0\nIntrum\tΔΙΑΓΡΑΦΟΜΕΝΟ\t125186,13\t0\t0'}
               value={pasteText}
               onChange={(e) => handlePasteChange(e.target.value)}
             />
