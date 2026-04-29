@@ -296,7 +296,15 @@ export function calculateAll(debts, assets, incomeData, params = PARAMS_B) {
 
   // --- write-off binary search if still infeasible ---
   let best = null
-  if (monthlyIncome <= 0 || sumC2 <= monthlyIncome) {
+  if (monthlyIncome <= 0) {
+    // Zero/negative income: max months + max legal write-offs
+    const plan = planA.map((p) => {
+      const ref = analysisRows.find((r) => r.idx === p.idx)
+      const wr = Math.min(ref ? ref.calc : 0, p.amount)
+      return { ...p, writeoff: wr, newAmt: Math.max(0, p.amount - wr), months: p.maxMonths }
+    })
+    best = { plan }
+  } else if (sumC2 <= monthlyIncome) {
     best = { plan: planA }
   } else {
     const capTotal = analysisRows.reduce((s, r) => s + (r.calc || 0), 0)
