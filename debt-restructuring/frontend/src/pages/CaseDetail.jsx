@@ -232,10 +232,16 @@ function EmailOptionsModal({ caseData, onClose }) {
       monthlyPay: p.payShown || 0,
       c1: p.c1 ?? p.payShown ?? 0,
       c2: p.c2 ?? p.payShown ?? 0,
+      writeoffC: p.writeoffC ?? p.writeoff ?? 0,
+      remainingC: p.newAmtC ?? p.newAmt ?? 0,
+      c1C: p.c1C ?? p.c1 ?? p.payShown ?? 0,
+      c2C: p.c2C ?? p.c2 ?? p.payShown ?? 0,
     }))
     const bankDebt = finalPlan.filter(p => p.type === 'Τράπεζα').reduce((s, p) => s + (p.amount || 0), 0)
     const taxDebt = finalPlan.filter(p => p.type === 'Εφορία').reduce((s, p) => s + (p.amount || 0), 0)
     const insDebt = finalPlan.filter(p => p.type === 'Ασφαλιστικά Ταμεία').reduce((s, p) => s + (p.amount || 0), 0)
+    const isVulnerable = !!(caseData.income_data?.isVulnerable) && !caseData.debtor_type?.includes('Νομικό')
+    const sumWrC = est.sumWrC ?? finalPlan.reduce((s, p) => s + (p.writeoffC || 0), 0)
     const data = {
       clientName: caseData.client_name,
       clientPhone: caseData.client_phone,
@@ -257,6 +263,12 @@ function EmailOptionsModal({ caseData, onClose }) {
       showDisclaimer: includeDisclaimer,
       portalUrl,
       hasVat: Boolean(caseData.has_vat ?? caseData.client_vat),
+      isVulnerable,
+      totalWriteOffC: isVulnerable ? null : sumWrC,
+      totalRemainingC: isVulnerable ? null : (est.totalRemainingC ?? finalPlan.reduce((s, p) => s + (p.newAmtC || 0), 0)),
+      totalMonthlyPayC: isVulnerable ? null : (est.totalMonthlyPayC ?? finalPlan.reduce((s, p) => s + (p.payShownC || 0), 0)),
+      totalC1C: isVulnerable ? null : (est.totalC1C ?? finalPlan.reduce((s, p) => s + (p.c1C || 0), 0)),
+      nonErasableTotal: est.nonErasableTotal || (caseData.debts || []).reduce((s, d) => s + (d.pubCategories?.nonErasableBasic || 0), 0),
     }
     const subject = `Θεωρητική Προσομοίωση Εξωδικαστικού | ${caseData.client_name}`
     const html = buildEmailHtml(data)

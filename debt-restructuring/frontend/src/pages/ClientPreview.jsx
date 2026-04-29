@@ -146,7 +146,13 @@ export default function ClientPreview() {
   const statusIdx = STATUS_ORDER.indexOf(data.status)
 
   const isVulnerable = !!(data.income_data?.isVulnerable) && !data.debtor_type?.includes('Νομικό')
-  const hasConservative = !isVulnerable && est.sumWrC != null
+  // Fallback: compute conservative aggregates from finalPlan entries if not in est (old cases)
+  const sumWrC = est.sumWrC ?? finalPlan.reduce((s, p) => s + (p.writeoffC || 0), 0)
+  const totalRemainingC = est.totalRemainingC ?? finalPlan.reduce((s, p) => s + (p.newAmtC || 0), 0)
+  const totalMonthlyPayC = est.totalMonthlyPayC ?? finalPlan.reduce((s, p) => s + (p.payShownC || 0), 0)
+  const totalC1C = est.totalC1C ?? finalPlan.reduce((s, p) => s + (p.c1C || 0), 0)
+  const hasConservative = !isVulnerable && sumWrC != null && finalPlan.some(p => p.writeoffC != null)
+  const nonErasableTotal = est.nonErasableTotal || (data.debts || []).reduce((s, d) => s + (d.pubCategories?.nonErasableBasic || 0), 0)
 
   // Chart data — use finalPlan (always stored) for correct type breakdown
   const banksDebt = finalPlan.filter(p => p.type === 'Τράπεζα').reduce((s, p) => s + (p.amount || 0), 0)
@@ -212,9 +218,9 @@ export default function ClientPreview() {
         {est.sumDebt > 0 && (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 max-w-3xl mx-auto">
             <KpiBlock label="Συνολική Οφειλή" value={fmt(est.sumDebt)} accent="text-white" />
-            <KpiBlock label="Εκτ. Διαγραφή" value={hasConservative ? rng(est.sumWrC, est.sumWr) : fmt(est.sumWr)} sub={writeoffPct > 0 ? `${writeoffPct}% του συνόλου` : null} accent="text-orange-300" />
-            <KpiBlock label="Εναπομένουσα" value={hasConservative ? rng(est.totalRemainingC, est.totalRemaining) : fmt(est.totalRemaining)} accent="text-blue-200" />
-            <KpiBlock label="Μηνιαία Δόση" value={hasConservative ? rng(est.totalMonthlyPayC, est.totalMonthlyPay) : fmt(est.totalMonthlyPay)} sub={ratio > 0 ? `${ratio}% εισοδήματος` : null} accent="text-green-300" />
+            <KpiBlock label="Εκτ. Διαγραφή" value={hasConservative ? rng(sumWrC, est.sumWr) : fmt(est.sumWr)} sub={writeoffPct > 0 ? `${writeoffPct}% του συνόλου` : null} accent="text-orange-300" />
+            <KpiBlock label="Εναπομένουσα" value={hasConservative ? rng(totalRemainingC, est.totalRemaining) : fmt(est.totalRemaining)} accent="text-blue-200" />
+            <KpiBlock label="Μηνιαία Δόση" value={hasConservative ? rng(totalMonthlyPayC, est.totalMonthlyPay) : fmt(est.totalMonthlyPay)} sub={ratio > 0 ? `${ratio}% εισοδήματος` : null} accent="text-green-300" />
           </div>
         )}
       </div>
@@ -363,33 +369,48 @@ export default function ClientPreview() {
               <div className={`grid gap-3 mt-4 ${hasStepUp ? 'grid-cols-2 md:grid-cols-4' : 'grid-cols-3'}`}>
                 <div className="bg-blue-50 rounded-xl p-3 text-center">
                   <div className="text-xs text-blue-600 font-semibold mb-1">Συνολική Εκτ. Διαγραφή</div>
-                  <div className="text-lg font-black text-orange-600">{est.sumWr ? (hasConservative ? rng(est.sumWrC, est.sumWr) : fmt(est.sumWr)) : '—'}</div>
+                  <div className="text-lg font-black text-orange-600">{est.sumWr ? (hasConservative ? rng(sumWrC, est.sumWr) : fmt(est.sumWr)) : '—'}</div>
                 </div>
                 <div className="bg-blue-50 rounded-xl p-3 text-center">
                   <div className="text-xs text-blue-600 font-semibold mb-1">Εναπομένουσες Οφειλές</div>
-                  <div className="text-lg font-black text-blue-700">{est.totalRemaining ? (hasConservative ? rng(est.totalRemainingC, est.totalRemaining) : fmt(est.totalRemaining)) : '—'}</div>
+                  <div className="text-lg font-black text-blue-700">{est.totalRemaining ? (hasConservative ? rng(totalRemainingC, est.totalRemaining) : fmt(est.totalRemaining)) : '—'}</div>
                 </div>
                 {hasStepUp ? (
                   <>
                     <div className="bg-blue-50 rounded-xl p-3 text-center">
                       <div className="text-xs text-blue-600 font-semibold mb-1">Δόσεις Έτη 1–3</div>
-                      <div className="text-lg font-black text-blue-600">{hasConservative ? rng(est.totalC1C, totalC1) : fmt(totalC1)}</div>
+                      <div className="text-lg font-black text-blue-600">{hasConservative ? rng(totalC1C, totalC1) : fmt(totalC1)}</div>
                     </div>
                     <div className="bg-blue-50 rounded-xl p-3 text-center">
                       <div className="text-xs text-blue-600 font-semibold mb-1">Δόσεις Έτη 4+</div>
-                      <div className="text-lg font-black text-green-700">{est.totalMonthlyPay ? (hasConservative ? rng(est.totalMonthlyPayC, est.totalMonthlyPay) : fmt(est.totalMonthlyPay)) : '—'}</div>
+                      <div className="text-lg font-black text-green-700">{est.totalMonthlyPay ? (hasConservative ? rng(totalMonthlyPayC, est.totalMonthlyPay) : fmt(est.totalMonthlyPay)) : '—'}</div>
                     </div>
                   </>
                 ) : (
                   <div className="bg-blue-50 rounded-xl p-3 text-center">
                     <div className="text-xs text-blue-600 font-semibold mb-1">Συνολικές Μηνιαίες Δόσεις</div>
-                    <div className="text-lg font-black text-green-700">{est.totalMonthlyPay ? (hasConservative ? rng(est.totalMonthlyPayC, est.totalMonthlyPay) : fmt(est.totalMonthlyPay)) : '—'}</div>
+                    <div className="text-lg font-black text-green-700">{est.totalMonthlyPay ? (hasConservative ? rng(totalMonthlyPayC, est.totalMonthlyPay) : fmt(est.totalMonthlyPay)) : '—'}</div>
                   </div>
                 )}
               </div>
             </div>
           )
         })()}
+
+        {/* Non-erasable amounts notice */}
+        {nonErasableTotal > 0 && (
+          <div className="bg-red-50 border-2 border-red-200 rounded-2xl p-5">
+            <div className="text-base font-black text-red-700 mb-2">⚠️ Μη Διαγράψιμα Ποσά — {fmt(nonErasableTotal)}</div>
+            <p className="text-sm text-red-800">Βάσει ΚΥΑ 13243/2024, οι παρακάτω κατηγορίες οφειλών <b>δεν επιτρέπεται να διαγραφούν</b> μέσω Εξωδικαστικού Μηχανισμού και καταβάλλονται στο ακέραιο:</p>
+            <ul className="list-disc list-inside text-sm text-red-700 mt-2 space-y-1">
+              <li>Παρακρατούμενοι / επιρριπτόμενοι φόροι (ΦΠΑ, ΦΜΥ κτλ.)</li>
+              <li>Παρακρατούμενες εισφορές ΕΦΚΑ</li>
+            </ul>
+            <div className="mt-3 bg-red-100 rounded-xl px-4 py-2 text-sm font-bold text-red-800">
+              Σύνολο μη διαγράψιμων: {fmt(nonErasableTotal)} — <span className="font-normal">δεν συμπεριλαμβάνεται στις εκτιμώμενες διαγραφές</span>
+            </div>
+          </div>
+        )}
 
         {/* Charts */}
         {est.sumDebt > 0 && (
