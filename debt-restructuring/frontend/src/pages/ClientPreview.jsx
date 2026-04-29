@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useParams } from 'react-router-dom'
+import { useParams, useSearchParams } from 'react-router-dom'
 import { format } from 'date-fns'
 import { el } from 'date-fns/locale'
 import * as api from '../api'
@@ -83,6 +83,8 @@ function VatGate({ onSubmit, error, loading }) {
 
 export default function ClientPreview() {
   const { token } = useParams()
+  const [searchParams] = useSearchParams()
+  const notrack = searchParams.get('notrack') === '1'
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -91,7 +93,7 @@ export default function ClientPreview() {
   const [vatLoading, setVatLoading] = useState(false)
 
   useEffect(() => {
-    api.getPublicCase(token)
+    api.getPublicCase(token, null, notrack)
       .then((r) => setData(r.data))
       .catch((err) => {
         const detail = err.response?.data?.detail
@@ -105,7 +107,7 @@ export default function ClientPreview() {
   const handleVat = (vat) => {
     setVatError(null)
     setVatLoading(true)
-    api.getPublicCase(token, vat)
+    api.getPublicCase(token, vat, notrack)
       .then((r) => { setData(r.data); setVatRequired(false) })
       .catch((err) => {
         const detail = err.response?.data?.detail

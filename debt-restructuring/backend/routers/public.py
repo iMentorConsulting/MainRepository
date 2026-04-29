@@ -10,7 +10,7 @@ EXCLUDED_IPS = {"5.59.243.16", "2001:4860:7:1511::fe"}
 
 
 @router.get("/case/{token}")
-def get_public_case(token: str, request: Request, vat: str = Query(default=None), db: Session = Depends(get_db)):
+def get_public_case(token: str, request: Request, vat: str = Query(default=None), notrack: bool = Query(default=False), db: Session = Depends(get_db)):
     case = db.query(Case).filter(Case.share_token == token).first()
     if not case:
         raise HTTPException(status_code=404, detail="not_found")
@@ -24,10 +24,10 @@ def get_public_case(token: str, request: Request, vat: str = Query(default=None)
         if vat.strip() != (case.client_vat or "").strip():
             raise HTTPException(status_code=403, detail="vat_invalid")
 
-    # Log portal visit (skip staff IPs)
+    # Log portal visit (skip staff IPs and notrack requests)
     try:
         ip = request.client.host if request.client else "unknown"
-        if ip not in EXCLUDED_IPS:
+        if not notrack and ip not in EXCLUDED_IPS:
             now = datetime.utcnow().isoformat()
             visits = list(case.portal_visits or [])
             visits.append({"at": now, "ip": ip})

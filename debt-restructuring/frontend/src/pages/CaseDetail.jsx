@@ -509,6 +509,19 @@ export default function CaseDetail({ currentEmployee }) {
             Portal {portalActive ? 'ON' : 'OFF'}
           </button>
 
+          {/* Staff preview — notrack */}
+          {caseData.share_token && (
+            <a
+              href={`${window.location.origin}/preview/${caseData.share_token}?notrack=1`}
+              target="_blank"
+              rel="noreferrer"
+              className="btn-secondary gap-2 text-sm"
+              title="Προβολή portal (δεν μετράει ως επίσκεψη)"
+            >
+              <EyeIcon className="w-4 h-4" /> Προβολή
+            </a>
+          )}
+
           {/* Copy link */}
           <button onClick={copyShareLink} className="btn-secondary gap-2 text-sm">
             <LinkIcon className="w-4 h-4" /> Σύνδεσμος
