@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import {
   getCases, getUsers, updateCase, getAllPendingOverview, createMessage, getMessages, deleteMessage,
-  createCasePendingItem, deleteCasePendingItem, notifyCasePendingItems,
+  createCasePendingItem, deleteCasePendingItem, notifyCasePendingItems, getNotificationLogs,
 } from '../api'
 import { PIPELINES } from '../pipelines'
 import {
@@ -228,11 +228,18 @@ function PendingCell({ caseId, items, onAdd, onDelete }) {
   )
 }
 
-// ── Send all pending items to client ──────────────────────────────────────────
+// ── Send button + past notification dates ─────────────────────────────────────
 function SendButton({ caseId, hasItems }) {
   const [open, setOpen] = useState(false)
   const [sending, setSending] = useState(false)
+  const [logs, setLogs] = useState(null)
   const menuRef = useRef(null)
+
+  useEffect(() => {
+    getNotificationLogs(caseId)
+      .then(data => setLogs([...data].sort((a, b) => new Date(a.created_at) - new Date(b.created_at))))
+      .catch(() => setLogs([]))
+  }, [caseId])
 
   useEffect(() => {
     if (!open) return
@@ -241,34 +248,50 @@ function SendButton({ caseId, hasItems }) {
     return () => document.removeEventListener('mousedown', close)
   }, [open])
 
-  if (!hasItems) return <span className="text-gray-200 text-xs">—</span>
-
   const send = async (type) => {
     setOpen(false)
     setSending(true)
     try {
       await notifyCasePendingItems(caseId, { notification_type: type })
       toast.success('Εστάλη επιτυχώς')
+      const newLogs = await getNotificationLogs(caseId)
+      setLogs([...newLogs].sort((a, b) => new Date(a.created_at) - new Date(b.created_at)))
     } catch (err) {
       toast.error(err.response?.data?.detail || 'Σφάλμα αποστολής')
     } finally { setSending(false) }
   }
 
   return (
-    <div className="relative" ref={menuRef}>
-      <button
-        onClick={() => setOpen(p => !p)}
-        disabled={sending}
-        className="flex items-center gap-1 text-xs bg-blue-50 text-blue-600 hover:bg-blue-100 border border-blue-200 rounded px-2 py-1 disabled:opacity-50"
-      >
-        <PaperAirplaneIcon className="w-3.5 h-3.5" />
-        {sending ? '...' : 'Αποστολή'}
-      </button>
-      {open && (
-        <div className="absolute right-0 bottom-full mb-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 py-1 w-32">
-          <button onClick={() => send('email')} className="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50">Email</button>
-          <button onClick={() => send('viber')} className="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50">Viber</button>
-          <button onClick={() => send('both')} className="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 font-semibold">Και τα δύο</button>
+    <div className="space-y-1">
+      {/* Past send dates */}
+      {logs && logs.length > 0 && (
+        <div className="flex flex-wrap gap-0.5">
+          {logs.map(log => (
+            <span key={log.id} className="font-mono text-[9px] bg-gray-100 text-gray-400 rounded px-1 py-px">
+              {fmtNoteDate(log.created_at)}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {/* Send button */}
+      {hasItems && (
+        <div className="relative" ref={menuRef}>
+          <button
+            onClick={() => setOpen(p => !p)}
+            disabled={sending}
+            className="flex items-center gap-1 text-xs bg-blue-50 text-blue-600 hover:bg-blue-100 border border-blue-200 rounded px-2 py-1 disabled:opacity-50"
+          >
+            <PaperAirplaneIcon className="w-3.5 h-3.5" />
+            {sending ? '...' : 'Αποστολή'}
+          </button>
+          {open && (
+            <div className="absolute right-0 bottom-full mb-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 py-1 w-32">
+              <button onClick={() => send('email')} className="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50">Email</button>
+              <button onClick={() => send('viber')} className="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50">Viber</button>
+              <button onClick={() => send('both')} className="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 font-semibold">Και τα δύο</button>
+            </div>
+          )}
         </div>
       )}
     </div>
