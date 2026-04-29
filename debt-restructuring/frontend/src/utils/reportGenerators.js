@@ -222,7 +222,7 @@ export function buildPlanHtml(data, customRows) {
     <div style="background:#f7faff;border:1px solid #d9e6ff;border-radius:10px;padding:10px 12px;"><b>Επικοινωνία</b><br>${escHtml(clientPhone)}${clientEmail ? '<br>' + escHtml(clientEmail) : ''}</div>
   </div>
 
-  ${isVulnerable ? `<div style="background:#f0fdfa;border:2px solid #2dd4bf;border-radius:10px;padding:14px 16px;margin-bottom:18px;"><div style="font-size:17px;font-weight:900;color:#0f766e;margin-bottom:8px;">🛡️ ΕΥΑΛΩΤΟΣ ΟΦΕΙΛΕΤΗΣ</div><p style="margin:0 0 8px;color:#115e59;font-size:14px;">Με βάση τη βεβαίωση ευάλωτου οφειλέτη (περ. β΄ άρθρου 217 ν. 4738/2020), ισχύουν οι ευνοϊκές διατάξεις του <b>άρθρου 66 ν. 5072/2023</b>:</p><ul style="margin:0;padding-left:20px;color:#134e4a;font-size:13px;line-height:1.8;"><li><b>Τεκμαιρόμενη συναίνεση</b> όλων των πιστωτών (τράπεζες, Δημόσιο, ΦΚΑ)</li><li><b>Μηδενική προκαταβολή 10%</b> — εξαίρεση βάσει Άρθρου 116 ν. 5072/2023 &amp; παρ. κγ ΚΥΑ 13243/2024</li><li><b>Υποχρεωτική αποδοχή</b> πρότασης εφόσον πληρούνται οι προϋποθέσεις ΚΥΑ</li></ul></div>` : ''}
+  ${isVulnerable ? `<div style="background:#f0fdfa;border:2px solid #2dd4bf;border-radius:10px;padding:14px 16px;margin-bottom:18px;"><div style="font-size:17px;font-weight:900;color:#0f766e;margin-bottom:8px;">🛡️ ΕΥΑΛΩΤΟΣ ΟΦΕΙΛΕΤΗΣ</div><p style="margin:0 0 8px;color:#115e59;font-size:14px;">Με βάση τη βεβαίωση ευάλωτου οφειλέτη (περ. β΄ άρθρου 217 ν. 4738/2020), ισχύουν οι ευνοϊκές διατάξεις του <b>άρθρου 66 ν. 5072/2023</b>:</p><ul style="margin:0;padding-left:20px;color:#134e4a;font-size:13px;line-height:1.8;"><li><b>Τεκμαιρόμενη συναίνεση</b> όλων των πιστωτών (τράπεζες, Δημόσιο, ΦΚΑ)</li><li><b>Υποχρεωτική αποδοχή</b> πρότασης εφόσον πληρούνται οι προϋποθέσεις ΚΥΑ</li></ul></div>` : ''}
 
   <h3 style="color:#004aad;">1. Περίληψη</h3>
   ${hasConservative ? `<div style="background:#fffbeb;border-left:4px solid #f59e0b;padding:8px 12px;border-radius:6px;font-size:13px;color:#78350f;margin-bottom:10px;">Τα ποσά εμφανίζονται ως εύρος: <b>Συντηρητικό – Θεωρητικό Μέγιστο</b> βάσει ΚΥΑ 13243/2024.</div>` : ''}
@@ -338,22 +338,28 @@ document.getElementById('copyBtn').addEventListener('click', async () => {
 // Build email HTML
 // ============================================================
 export function buildEmailHtml(data) {
-  const { clientName, debtorType, totalDebt, totalWriteOff, totalRemaining, totalMonthlyPay, dispMonthly, creditors, bankDebt, taxDebt, insDebt, forecastTitle, forecastSections, commercialOffer, showTable = true, showDisclaimer = true, portalUrl = null, hasVat = false, nonErasableTotal = 0 } = data
+  const { clientName, debtorType, totalDebt, totalWriteOff, totalRemaining, totalMonthlyPay, dispMonthly, creditors, bankDebt, taxDebt, insDebt, forecastTitle, forecastSections, commercialOffer, showTable = true, showDisclaimer = true, portalUrl = null, hasVat = false, nonErasableTotal = 0, isVulnerable = false, totalWriteOffC, totalRemainingC, totalMonthlyPayC, totalC1C } = data
 
   const hasStepUp = (creditors || []).some((c) => c.c1 != null && c.c2 != null && c.c1 !== c.c2)
   const totalC1 = (creditors || []).reduce((s, c) => s + (c.c1 || c.monthlyPay || 0), 0)
+  const hasConservative = !isVulnerable && totalWriteOffC != null
   const TD = 'padding:8px;border:1px solid #d9e2ef;text-align:center;'
 
   const rows = creditors.map((c) => {
     const pct = c.amount > 0 ? Math.round((c.writeoff / c.amount) * 100) : 0
+    const pctC = hasConservative && c.amount > 0 ? Math.round(((c.writeoffC ?? c.writeoff) / c.amount) * 100) : null
+    const wrText = c.writeoff > 0
+      ? (hasConservative ? `${planRng(c.writeoffC, c.writeoff)} (${pctC != null && pctC !== pct ? `${Math.min(pctC, pct)}%–${Math.max(pctC, pct)}%` : `${pct}%`})` : `${fmt(c.writeoff)} (${pct}%)`)
+      : '—'
+    const remText = hasConservative ? planRng(c.remainingC, c.remaining) : fmt(c.remaining)
     const payCell = hasStepUp
-      ? `<td style="${TD}">${c.c1 > 0 ? fmt(c.c1) : '—'}</td><td style="${TD}font-weight:700;color:#1d4ed8;">${c.c2 > 0 ? fmt(c.c2) : '—'}</td>`
-      : `<td style="${TD}">${c.monthlyPay > 0 ? fmt(c.monthlyPay) : '—'}</td>`
+      ? `<td style="${TD}">${hasConservative ? planRng(c.c1C, c.c1 || c.monthlyPay) : (c.c1 > 0 ? fmt(c.c1) : '—')}</td><td style="${TD}font-weight:700;color:#1d4ed8;">${hasConservative ? planRng(c.c2C, c.c2 || c.monthlyPay) : (c.c2 > 0 ? fmt(c.c2) : '—')}</td>`
+      : `<td style="${TD}">${hasConservative ? planRng(c.c2C, c.monthlyPay) : (c.monthlyPay > 0 ? fmt(c.monthlyPay) : '—')}</td>`
     return `<tr>
       <td style="${TD}">${escHtml(c.creditor)}</td>
       <td style="${TD}">${fmt(c.amount)}</td>
-      <td style="${TD}">${c.writeoff > 0 ? `${fmt(c.writeoff)} (${pct}%)` : '—'}</td>
-      <td style="${TD}">${fmt(c.remaining)}</td>
+      <td style="${TD}">${wrText}</td>
+      <td style="${TD}">${remText}</td>
       <td style="${TD}">${c.months || 0}</td>
       ${payCell}
     </tr>`
@@ -368,10 +374,6 @@ export function buildEmailHtml(data) {
              <div style="white-space:pre-line;">${escHtml(s.body)}</div>
            </div>`).join('')}
        </div>`
-    : ''
-
-  const banksNote = bankDebt > 0
-    ? `<div style="margin-top:12px;padding:12px 14px;background:#eff6ff;border-left:4px solid #3b82f6;border-radius:6px;font-size:14px;line-height:1.6;"><b>Παρατήρηση (Τράπεζες):</b><br>Το αποτέλεσμα προσομοιώνει την πρόταση του αλγορίθμου του Εξωδικαστικού Μηχανισμού. Η πρόταση υιοθετείται από το Δημόσιο (ΕΦΚΑ &amp; ΑΑΔΕ) και αποστέλλεται στις Τράπεζες. Οι Τράπεζες δύνανται να αποδεχθούν την πρόταση ή να υποβάλουν επίσημα Αντιπρόταση — η οποία συνήθως είναι δυσμενέστερη.</div>`
     : ''
 
   // Icon badge helper — works across Gmail/Outlook/Apple Mail
@@ -401,7 +403,7 @@ export function buildEmailHtml(data) {
     ${dispMonthly > 0 ? `<tr style="border-top:1px solid #e0e7ff;"><td style="padding:6px 12px;color:#374151;">Μηνιαίο Διαθέσιμο Εισόδημα</td><td style="padding:6px 12px;font-weight:700;color:#1d4ed8;text-align:right;">${fmt(dispMonthly)}</td></tr>` : ''}
   </table>
 
-  ${showTable ? `<p style="margin:0 0 8px;">${badge('◎', '#059669', '#ecfdf5')}<b style="font-size:16px;color:#1e3a5f;">Εκτιμώμενο Θεωρητικό Αποτέλεσμα Ρύθμισης</b></p>
+  ${showTable ? `${hasConservative ? `<div style="background:#fffbeb;border-left:4px solid #f59e0b;padding:8px 12px;border-radius:6px;font-size:13px;color:#78350f;margin-bottom:8px;">Τα ποσά εμφανίζονται ως εύρος: <b>Συντηρητικό – Θεωρητικό Μέγιστο</b> βάσει ΚΥΑ 13243/2024.</div>` : ''}<p style="margin:0 0 8px;">${badge('◎', '#059669', '#ecfdf5')}<b style="font-size:16px;color:#1e3a5f;">Εκτιμώμενο Θεωρητικό Αποτέλεσμα Ρύθμισης</b></p>
   <table style="border-collapse:collapse;width:100%;font-size:13px;margin-bottom:10px;">
     <thead>
       <tr style="background:#1e3a8a;color:#fff;text-align:center;">
@@ -420,12 +422,12 @@ export function buildEmailHtml(data) {
       <tr style="background:#eef2ff;font-weight:700;">
         <td style="padding:8px 10px;border:1px solid #c7d2fe;">ΣΥΝΟΛΟ</td>
         <td style="padding:8px 10px;border:1px solid #c7d2fe;text-align:center;">${fmt(totalDebt)}</td>
-        <td style="padding:8px 10px;border:1px solid #c7d2fe;text-align:center;color:#c2410c;">${fmt(totalWriteOff)}</td>
-        <td style="padding:8px 10px;border:1px solid #c7d2fe;text-align:center;">${fmt(totalRemaining)}</td>
+        <td style="padding:8px 10px;border:1px solid #c7d2fe;text-align:center;color:#c2410c;">${planRng(hasConservative ? totalWriteOffC : null, totalWriteOff)}</td>
+        <td style="padding:8px 10px;border:1px solid #c7d2fe;text-align:center;">${planRng(hasConservative ? totalRemainingC : null, totalRemaining)}</td>
         <td style="padding:8px 10px;border:1px solid #c7d2fe;text-align:center;">—</td>
         ${hasStepUp
-          ? `<td style="padding:8px 10px;border:1px solid #c7d2fe;text-align:center;color:#2563eb;">${fmt(totalC1)}</td><td style="padding:8px 10px;border:1px solid #c7d2fe;text-align:center;color:#1d4ed8;font-weight:800;">${fmt(totalMonthlyPay)}</td>`
-          : `<td style="padding:8px 10px;border:1px solid #c7d2fe;text-align:center;color:#1d4ed8;">${fmt(totalMonthlyPay)}</td>`}
+          ? `<td style="padding:8px 10px;border:1px solid #c7d2fe;text-align:center;color:#2563eb;">${planRng(hasConservative ? totalC1C : null, totalC1)}</td><td style="padding:8px 10px;border:1px solid #c7d2fe;text-align:center;color:#1d4ed8;font-weight:800;">${planRng(hasConservative ? totalMonthlyPayC : null, totalMonthlyPay)}</td>`
+          : `<td style="padding:8px 10px;border:1px solid #c7d2fe;text-align:center;color:#1d4ed8;">${planRng(hasConservative ? totalMonthlyPayC : null, totalMonthlyPay)}</td>`}
       </tr>
     </tfoot>
   </table>` : ''}
@@ -435,8 +437,8 @@ export function buildEmailHtml(data) {
   ${nonErasableTotal > 0 ? `<div style="margin-bottom:16px;padding:10px 14px;background:#fef2f2;border-left:4px solid #ef4444;border-radius:0 6px 6px 0;font-size:13px;color:#991b1b;">
     <b>⚠️ Μη Διαγράψιμα Ποσά — ${fmt(nonErasableTotal)}:</b> Βασικές οφειλές παρακρατούμενων/επιρριπτόμενων φόρων (ΦΠΑ, ΦΜΥ) και εισφορών ΕΦΚΑ δεν επιτρέπεται να διαγραφούν βάσει ΚΥΑ 13243/2024. Καταβάλλονται στο ακέραιο (${fmt(nonErasableTotal)}) και δεν συνυπολογίζονται στις εκτιμώμενες διαγραφές.
   </div>` : ''}
+  ${isVulnerable ? `<div style="background:#f0fdfa;border:2px solid #2dd4bf;border-radius:10px;padding:14px 16px;margin-bottom:16px;"><div style="font-size:17px;font-weight:900;color:#0f766e;margin-bottom:8px;">🛡️ ΕΥΑΛΩΤΟΣ ΟΦΕΙΛΕΤΗΣ</div><p style="margin:0 0 8px;color:#115e59;font-size:14px;">Με βάση τη βεβαίωση ευάλωτου οφειλέτη (περ. β΄ άρθρου 217 ν. 4738/2020), ισχύουν οι ευνοϊκές διατάξεις του <b>άρθρου 66 ν. 5072/2023</b>:</p><ul style="margin:0;padding-left:20px;color:#134e4a;font-size:13px;line-height:1.8;"><li><b>Τεκμαιρόμενη συναίνεση</b> όλων των πιστωτών (τράπεζες, Δημόσιο, ΦΚΑ)</li><li><b>Υποχρεωτική αποδοχή</b> πρότασης εφόσον πληρούνται οι προϋποθέσεις ΚΥΑ</li></ul></div>` : ''}
   ${forecastHtml}
-  ${banksNote}
   <hr style="border:none;border-top:2px solid #e0e7ff;margin:18px 0;">
 
   <div style="border:2px solid #3b82f6;border-radius:10px;padding:0;overflow:hidden;margin:16px 0;">
@@ -547,9 +549,10 @@ export function buildResultsEmailHtml(data) {
   const generalNotes = actualResults?.generalNotes || ''
   const thR = (s) => `<th style="background:#004aad;color:#fff;padding:10px;border:1px solid #003080;font-size:13px;text-align:left;">${s}</th>`
   const tdR = (s, align = 'left') => `<td style="padding:10px;border:1px solid #d2def8;text-align:${align};">${s}</td>`
-  const creditorRows = creditors.map((c) => `<tr>${tdR(escHtml(c.creditor))}${tdR(c.actualWriteoff > 0 ? fmt(c.actualWriteoff) : '—', 'right')}${tdR(c.actualRemaining > 0 ? fmt(c.actualRemaining) : '—', 'right')}${tdR(c.actualMonthlyPay > 0 ? fmt(c.actualMonthlyPay) : '—', 'right')}${tdR(c.actualMonths ? String(c.actualMonths) : '—', 'center')}${tdR(escHtml(c.rfCode || '—'))}${tdR(escHtml(c.notes || '—'))}</tr>`).join('')
+  const fmtDec2 = (n) => Number(n || 0).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '€'
+  const creditorRows = creditors.map((c) => `<tr>${tdR(escHtml(c.creditor))}${tdR(c.actualWriteoff > 0 ? fmt(c.actualWriteoff) : '—', 'right')}${tdR(c.actualRemaining > 0 ? fmt(c.actualRemaining) : '—', 'right')}${tdR(c.actualMonthlyPay > 0 ? fmtDec2(c.actualMonthlyPay) : '—', 'right')}${tdR(c.actualMonths ? String(c.actualMonths) : '—', 'center')}${tdR(escHtml(c.rfCode || '—'))}${tdR(escHtml(c.notes || '—'))}</tr>`).join('')
   const totalWriteoff = creditors.reduce((s, c) => s + (c.actualWriteoff || 0), 0)
   const totalRemaining = creditors.reduce((s, c) => s + (c.actualRemaining || 0), 0)
   const totalMonthly = creditors.reduce((s, c) => s + (c.actualMonthlyPay || 0), 0)
-  return `<div style="font-family:'Segoe UI',Arial,sans-serif;color:#1a1a1a;max-width:800px;margin:0 auto;"><div style="display:flex;justify-content:space-between;background:#eaf1ff;border:1px solid #d7e3ff;color:#0b3a82;border-radius:10px;padding:10px 14px;margin-bottom:18px;font-size:14px;"><b>i-Mentor Consulting</b><span>www.i-mentor.gr • info@i-mentor.gr • 2810 363007</span></div><h2 style="color:#004aad;">ΑΠΟΤΕΛΕΣΜΑΤΑ ΡΥΘΜΙΣΗΣ ΟΦΕΙΛΩΝ</h2><p style="color:#5e6c84;font-size:14px;">${today} — Αναφορά για: <b>${escHtml(clientName)}</b></p><div style="background:#f0fdf4;border:2px solid #86efac;border-radius:10px;padding:14px;margin-bottom:18px;"><b style="color:#166534;">Η ρύθμιση οφειλών ολοκληρώθηκε.</b><p style="color:#166534;margin:4px 0 0;font-size:14px;">Παρακάτω θα βρείτε τα αναλυτικά αποτελέσματα ανά πιστωτή όπως εγκρίθηκαν.</p></div>${creditors.length > 0 ? `<h3 style="color:#004aad;">Αποτελέσματα ανά Πιστωτή</h3><table style="width:100%;border-collapse:collapse;font-size:14px;margin-top:10px;"><thead><tr>${thR('Πιστωτής')}${thR('Διαγραφή')}${thR('Εναπομένουσα')}${thR('Μηνιαία Δόση')}${thR('Δόσεις')}${thR('RF Κωδικός')}${thR('Σημειώσεις')}</tr></thead><tbody>${creditorRows}<tr style="background:#eef5ff;font-weight:700;"><td style="padding:10px;border:1px solid #d2def8;">ΣΥΝΟΛΟ</td>${tdR(totalWriteoff > 0 ? fmt(totalWriteoff) : '—', 'right')}${tdR(totalRemaining > 0 ? fmt(totalRemaining) : '—', 'right')}${tdR(totalMonthly > 0 ? fmt(totalMonthly) : '—', 'right')}<td style="padding:10px;border:1px solid #d2def8;text-align:center;" colspan="3">—</td></tr></tbody></table>` : ''}${generalNotes ? `<div style="background:#f7faff;border-left:4px solid #004aad;padding:12px 14px;border-radius:8px;margin-top:18px;"><b>Σημειώσεις:</b><br>${escHtml(generalNotes)}</div>` : ''}<div style="border-top:1px solid #e2e8f4;margin-top:24px;padding-top:12px;text-align:center;font-size:12px;color:#8898a9;">i-Mentor Consulting • www.i-mentor.gr • info@i-mentor.gr • 2810 363007</div></div>`
+  return `<div style="font-family:'Segoe UI',Arial,sans-serif;color:#1a1a1a;max-width:800px;margin:0 auto;"><div style="display:flex;justify-content:space-between;background:#eaf1ff;border:1px solid #d7e3ff;color:#0b3a82;border-radius:10px;padding:10px 14px;margin-bottom:18px;font-size:14px;"><b>i-Mentor Consulting</b><span>www.i-mentor.gr • info@i-mentor.gr • 2810 363007</span></div><h2 style="color:#004aad;">ΑΠΟΤΕΛΕΣΜΑΤΑ ΡΥΘΜΙΣΗΣ ΟΦΕΙΛΩΝ</h2><p style="color:#5e6c84;font-size:14px;">${today} — Αναφορά για: <b>${escHtml(clientName)}</b></p><div style="background:#f0fdf4;border:2px solid #86efac;border-radius:10px;padding:14px;margin-bottom:18px;"><b style="color:#166534;">Η ρύθμιση οφειλών ολοκληρώθηκε.</b><p style="color:#166534;margin:4px 0 0;font-size:14px;">Παρακάτω θα βρείτε τα αναλυτικά αποτελέσματα ανά πιστωτή όπως εγκρίθηκαν.</p></div>${creditors.length > 0 ? `<h3 style="color:#004aad;">Αποτελέσματα ανά Πιστωτή</h3><table style="width:100%;border-collapse:collapse;font-size:14px;margin-top:10px;"><thead><tr>${thR('Πιστωτής')}${thR('Διαγραφή')}${thR('Εναπομένουσα')}${thR('Μηνιαία Δόση')}${thR('Δόσεις')}${thR('RF Κωδικός')}${thR('Σημειώσεις')}</tr></thead><tbody>${creditorRows}<tr style="background:#eef5ff;font-weight:700;"><td style="padding:10px;border:1px solid #d2def8;">ΣΥΝΟΛΟ</td>${tdR(totalWriteoff > 0 ? fmt(totalWriteoff) : '—', 'right')}${tdR(totalRemaining > 0 ? fmt(totalRemaining) : '—', 'right')}${tdR(totalMonthly > 0 ? fmtDec2(totalMonthly) : '—', 'right')}<td style="padding:10px;border:1px solid #d2def8;text-align:center;" colspan="3">—</td></tr></tbody></table>` : ''}${generalNotes ? `<div style="background:#f7faff;border-left:4px solid #004aad;padding:12px 14px;border-radius:8px;margin-top:18px;"><b>Σημειώσεις:</b><br>${escHtml(generalNotes)}</div>` : ''}<div style="border-top:1px solid #e2e8f4;margin-top:24px;padding-top:12px;text-align:center;font-size:12px;color:#8898a9;">i-Mentor Consulting • www.i-mentor.gr • info@i-mentor.gr • 2810 363007</div></div>`
 }

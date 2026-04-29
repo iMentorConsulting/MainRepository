@@ -16,6 +16,21 @@ const STATUS_COLORS = {
 }
 const STATUS_ORDER = ['draft', 'submitted', 'in_review', 'completed']
 
+function rng(conservative, base) {
+  if (conservative == null) return fmt(base)
+  const lo = Math.min(conservative, base)
+  const hi = Math.max(conservative, base)
+  const diff = hi - lo
+  if (diff === 0) return fmt(hi)
+  const loStr = fmt(lo)
+  const hiStr = fmt(hi)
+  if (loStr === hiStr) return hiStr
+  if (diff < 10 || diff / hi < 0.05) return fmt(base)
+  return `${loStr} – ${hiStr}`
+}
+
+const fmtDec2 = (n) => Number(n || 0).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '€'
+
 function KpiBlock({ label, value, sub, accent }) {
   return (
     <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-5 text-center border border-white/20">
@@ -130,6 +145,9 @@ export default function ClientPreview() {
   const ratio = est.ratio || 0
   const statusIdx = STATUS_ORDER.indexOf(data.status)
 
+  const isVulnerable = !!(data.income_data?.isVulnerable) && !data.debtor_type?.includes('Νομικό')
+  const hasConservative = !isVulnerable && est.sumWrC != null
+
   // Chart data — use finalPlan (always stored) for correct type breakdown
   const banksDebt = finalPlan.filter(p => p.type === 'Τράπεζα').reduce((s, p) => s + (p.amount || 0), 0)
   const taxDebt = finalPlan.filter(p => p.type === 'Εφορία').reduce((s, p) => s + (p.amount || 0), 0)
@@ -194,9 +212,9 @@ export default function ClientPreview() {
         {est.sumDebt > 0 && (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 max-w-3xl mx-auto">
             <KpiBlock label="Συνολική Οφειλή" value={fmt(est.sumDebt)} accent="text-white" />
-            <KpiBlock label="Εκτ. Διαγραφή" value={fmt(est.sumWr)} sub={writeoffPct > 0 ? `${writeoffPct}% του συνόλου` : null} accent="text-orange-300" />
-            <KpiBlock label="Εναπομένουσα" value={fmt(est.totalRemaining)} accent="text-blue-200" />
-            <KpiBlock label="Μηνιαία Δόση" value={fmt(est.totalMonthlyPay)} sub={ratio > 0 ? `${ratio}% εισοδήματος` : null} accent="text-green-300" />
+            <KpiBlock label="Εκτ. Διαγραφή" value={hasConservative ? rng(est.sumWrC, est.sumWr) : fmt(est.sumWr)} sub={writeoffPct > 0 ? `${writeoffPct}% του συνόλου` : null} accent="text-orange-300" />
+            <KpiBlock label="Εναπομένουσα" value={hasConservative ? rng(est.totalRemainingC, est.totalRemaining) : fmt(est.totalRemaining)} accent="text-blue-200" />
+            <KpiBlock label="Μηνιαία Δόση" value={hasConservative ? rng(est.totalMonthlyPayC, est.totalMonthlyPay) : fmt(est.totalMonthlyPay)} sub={ratio > 0 ? `${ratio}% εισοδήματος` : null} accent="text-green-300" />
           </div>
         )}
       </div>
@@ -213,6 +231,18 @@ export default function ClientPreview() {
             Η i-Mentor Consulting δεν φέρει ευθύνη για αποκλίσεις από το τελικό αποτέλεσμα.
           </div>
         </div>
+
+        {/* Ευάλωτος banner */}
+        {isVulnerable && (
+          <div className="bg-teal-50 border-2 border-teal-400 rounded-2xl p-5">
+            <div className="text-lg font-black text-teal-800 mb-2">🛡️ ΕΥΑΛΩΤΟΣ ΟΦΕΙΛΕΤΗΣ</div>
+            <p className="text-teal-700 text-sm mb-2">Με βάση τη βεβαίωση ευάλωτου οφειλέτη (περ. β΄ άρθρου 217 ν. 4738/2020), ισχύουν οι ευνοϊκές διατάξεις του <b>άρθρου 66 ν. 5072/2023</b>:</p>
+            <ul className="list-disc list-inside text-teal-800 text-sm space-y-1">
+              <li><b>Τεκμαιρόμενη συναίνεση</b> όλων των πιστωτών (τράπεζες, Δημόσιο, ΦΚΑ)</li>
+              <li><b>Υποχρεωτική αποδοχή</b> πρότασης εφόσον πληρούνται οι προϋποθέσεις ΚΥΑ</li>
+            </ul>
+          </div>
+        )}
 
         {/* Income summary — enriched */}
         {(est.annualIncome > 0 || est.dispMonthly > 0 || data.income_data) && (() => {
@@ -308,16 +338,16 @@ export default function ClientPreview() {
                         <tr key={i} className="border-b border-gray-100">
                           <td className="td text-left font-semibold">{creditorDisplayName(p.type, p.creditorName)}</td>
                           <td className="td font-mono">{fmt(p.amount)}</td>
-                          <td className="td font-mono text-orange-600">{p.writeoff > 0 ? `${fmt(p.writeoff)} (${p.writeoffPct}%)` : '—'}</td>
-                          <td className="td font-mono">{fmt(p.newAmt)}</td>
+                          <td className="td font-mono text-orange-600">{p.writeoff > 0 ? `${hasConservative ? rng(p.writeoffC, p.writeoff) : fmt(p.writeoff)} (${p.writeoffPct}%)` : '—'}</td>
+                          <td className="td font-mono">{hasConservative ? rng(p.newAmtC, p.newAmt) : fmt(p.newAmt)}</td>
                           <td className="td">{p.months}</td>
                           {hasStepUp ? (
                             <>
-                              <td className="td font-mono text-blue-600">{fmt(c1)}</td>
-                              <td className="td font-mono font-bold text-blue-900">{fmt(c2)}{c1 !== c2 && <span className="text-xs text-amber-600 ml-1">↑</span>}</td>
+                              <td className="td font-mono text-blue-600">{hasConservative ? rng(p.c1C, c1) : fmt(c1)}</td>
+                              <td className="td font-mono font-bold text-blue-900">{hasConservative ? rng(p.c2C, c2) : fmt(c2)}{c1 !== c2 && <span className="text-xs text-amber-600 ml-1">↑</span>}</td>
                             </>
                           ) : (
-                            <td className="td font-mono font-bold text-blue-800">{fmt(p.payShown)}</td>
+                            <td className="td font-mono font-bold text-blue-800">{hasConservative ? rng(p.payShownC, p.payShown) : fmt(p.payShown)}</td>
                           )}
                         </tr>
                       )
@@ -333,27 +363,27 @@ export default function ClientPreview() {
               <div className={`grid gap-3 mt-4 ${hasStepUp ? 'grid-cols-2 md:grid-cols-4' : 'grid-cols-3'}`}>
                 <div className="bg-blue-50 rounded-xl p-3 text-center">
                   <div className="text-xs text-blue-600 font-semibold mb-1">Συνολική Εκτ. Διαγραφή</div>
-                  <div className="text-lg font-black text-orange-600">{est.sumWr ? fmt(est.sumWr) : '—'}</div>
+                  <div className="text-lg font-black text-orange-600">{est.sumWr ? (hasConservative ? rng(est.sumWrC, est.sumWr) : fmt(est.sumWr)) : '—'}</div>
                 </div>
                 <div className="bg-blue-50 rounded-xl p-3 text-center">
                   <div className="text-xs text-blue-600 font-semibold mb-1">Εναπομένουσες Οφειλές</div>
-                  <div className="text-lg font-black text-blue-700">{est.totalRemaining ? fmt(est.totalRemaining) : '—'}</div>
+                  <div className="text-lg font-black text-blue-700">{est.totalRemaining ? (hasConservative ? rng(est.totalRemainingC, est.totalRemaining) : fmt(est.totalRemaining)) : '—'}</div>
                 </div>
                 {hasStepUp ? (
                   <>
                     <div className="bg-blue-50 rounded-xl p-3 text-center">
                       <div className="text-xs text-blue-600 font-semibold mb-1">Δόσεις Έτη 1–3</div>
-                      <div className="text-lg font-black text-blue-600">{fmt(totalC1)}</div>
+                      <div className="text-lg font-black text-blue-600">{hasConservative ? rng(est.totalC1C, totalC1) : fmt(totalC1)}</div>
                     </div>
                     <div className="bg-blue-50 rounded-xl p-3 text-center">
                       <div className="text-xs text-blue-600 font-semibold mb-1">Δόσεις Έτη 4+</div>
-                      <div className="text-lg font-black text-green-700">{est.totalMonthlyPay ? fmt(est.totalMonthlyPay) : '—'}</div>
+                      <div className="text-lg font-black text-green-700">{est.totalMonthlyPay ? (hasConservative ? rng(est.totalMonthlyPayC, est.totalMonthlyPay) : fmt(est.totalMonthlyPay)) : '—'}</div>
                     </div>
                   </>
                 ) : (
                   <div className="bg-blue-50 rounded-xl p-3 text-center">
                     <div className="text-xs text-blue-600 font-semibold mb-1">Συνολικές Μηνιαίες Δόσεις</div>
-                    <div className="text-lg font-black text-green-700">{est.totalMonthlyPay ? fmt(est.totalMonthlyPay) : '—'}</div>
+                    <div className="text-lg font-black text-green-700">{est.totalMonthlyPay ? (hasConservative ? rng(est.totalMonthlyPayC, est.totalMonthlyPay) : fmt(est.totalMonthlyPay)) : '—'}</div>
                   </div>
                 )}
               </div>
@@ -455,13 +485,13 @@ export default function ClientPreview() {
                 {[
                   { label: 'Πραγματική Διαγραφή', value: act.actualWriteOff, color: 'text-orange-600' },
                   { label: 'Εναπομένουσα Οφειλή', value: act.actualRemaining, color: 'text-blue-700' },
-                  { label: 'Μηνιαία Δόση', value: act.actualMonthlyPay, color: 'text-green-700' },
+                  { label: 'Μηνιαία Δόση', value: act.actualMonthlyPay, color: 'text-green-700', isDec: true },
                   { label: 'Διάρκεια', value: act.actualDurationMonths, isMonths: true },
                 ].map((item) => (
                   <div key={item.label} className="text-center">
                     <div className="text-xs font-semibold text-green-700 mb-1">{item.label}</div>
                     <div className={`text-xl font-black ${item.color || 'text-blue-800'}`}>
-                      {item.isMonths ? `${item.value || '—'} μήνες` : (item.value ? fmt(item.value) : '—')}
+                      {item.isMonths ? `${item.value || '—'} μήνες` : (item.value ? (item.isDec ? fmtDec2(item.value) : fmt(item.value)) : '—')}
                     </div>
                   </div>
                 ))}
@@ -485,7 +515,7 @@ export default function ClientPreview() {
                     {[
                       { label: 'Διαγραφή', e: est.sumWr, a: act.actualWriteOff },
                       { label: 'Εναπομένουσα', e: est.totalRemaining, a: act.actualRemaining },
-                      { label: 'Μηνιαία Δόση', e: est.totalMonthlyPay, a: act.actualMonthlyPay },
+                      { label: 'Μηνιαία Δόση', e: est.totalMonthlyPay, a: act.actualMonthlyPay, isDec: true },
                     ].map((row) => {
                       const diff = (row.a || 0) - (row.e || 0)
                       const pct = row.e > 0 ? Math.round(Math.abs(diff) / row.e * 100) : 0
@@ -493,7 +523,7 @@ export default function ClientPreview() {
                         <tr key={row.label} className="border-b border-gray-100">
                           <td className="td text-left font-semibold">{row.label}</td>
                           <td className="td font-mono text-gray-500">{row.e ? fmt(row.e) : '—'}</td>
-                          <td className="td font-mono font-bold">{row.a ? fmt(row.a) : '—'}</td>
+                          <td className="td font-mono font-bold">{row.a ? (row.isDec ? fmtDec2(row.a) : fmt(row.a)) : '—'}</td>
                           <td className="td">
                             {row.e > 0 && row.a > 0 && (
                               <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${diff >= 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
