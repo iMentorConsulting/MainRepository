@@ -1,14 +1,13 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import {
-  getCases, getUsers, updateCase, getAllPendingOverview, createMessage, getMessages,
+  getCases, getUsers, updateCase, getAllPendingOverview, createMessage, getMessages, deleteMessage,
   createCasePendingItem, deleteCasePendingItem, notifyCasePendingItems,
 } from '../api'
 import { PIPELINES } from '../pipelines'
 import {
   MagnifyingGlassIcon, PlusIcon, TrashIcon,
   CalendarDaysIcon, PaperAirplaneIcon, ArrowTopRightOnSquareIcon,
-  ChevronDownIcon, ChevronUpIcon,
 } from '@heroicons/react/24/outline'
 import toast from 'react-hot-toast'
 
@@ -77,22 +76,17 @@ function StatusCell({ caseId, program, value, onChange }) {
   )
 }
 
-// ── Notes cell — expandable, shows all messages with compact dates ─────────────
-function NotesCell({ caseId, lastNotePreview, lastNoteAt }) {
-  const [expanded, setExpanded] = useState(false)
-  const [messages, setMessages] = useState(null) // null = not yet loaded
+// ── Notes cell — all messages always visible, with date + delete ──────────────
+function NotesCell({ caseId }) {
+  const [messages, setMessages] = useState(null)
   const [note, setNote] = useState('')
   const [sending, setSending] = useState(false)
 
-  const expand = async () => {
-    if (messages === null) {
-      try {
-        const msgs = await getMessages(caseId)
-        setMessages([...msgs].sort((a, b) => new Date(b.created_at) - new Date(a.created_at)))
-      } catch { setMessages([]) }
-    }
-    setExpanded(true)
-  }
+  useEffect(() => {
+    getMessages(caseId)
+      .then(msgs => setMessages([...msgs].sort((a, b) => new Date(b.created_at) - new Date(a.created_at))))
+      .catch(() => setMessages([]))
+  }, [caseId])
 
   const submit = async () => {
     const text = note.trim()
@@ -100,64 +94,44 @@ function NotesCell({ caseId, lastNotePreview, lastNoteAt }) {
     setSending(true)
     try {
       const m = await createMessage(caseId, { content: text, is_internal: true })
-      setMessages(prev => prev ? [m, ...prev] : [m])
+      setMessages(prev => [m, ...(prev || [])])
       setNote('')
     } catch { toast.error('Σφάλμα σημείωσης') }
     finally { setSending(false) }
   }
 
-  return (
-    <div className="space-y-1.5">
-      {/* Collapsed: last note date + preview + expand button */}
-      {!expanded && (
-        <button onClick={expand} className="w-full text-left flex items-start gap-1 group">
-          <div className="flex-1 min-w-0">
-            {lastNoteAt && (
-              <span className="font-mono text-[9px] bg-gray-100 text-gray-400 rounded px-1 py-px mr-1 shrink-0">
-                {fmtNoteDate(lastNoteAt)}
-              </span>
-            )}
-            <span className="text-xs text-gray-600 leading-snug line-clamp-2">
-              {lastNotePreview || <span className="text-gray-300 italic">—</span>}
-            </span>
-          </div>
-          <ChevronDownIcon className="w-3.5 h-3.5 text-gray-300 group-hover:text-blue-400 shrink-0 mt-0.5" />
-        </button>
-      )}
+  const del = async (msgId) => {
+    try {
+      await deleteMessage(caseId, msgId)
+      setMessages(prev => prev.filter(m => m.id !== msgId))
+    } catch { toast.error('Σφάλμα διαγραφής') }
+  }
 
-      {/* Expanded: all messages newest-first */}
-      {expanded && (
-        <div>
-          <div className="max-h-56 overflow-y-auto space-y-1 mb-1 pr-0.5">
-            {messages === null ? (
-              <p className="text-xs text-gray-400 py-2 text-center">Φόρτωση...</p>
-            ) : messages.length === 0 ? (
-              <p className="text-xs text-gray-300 italic py-2">Δεν υπάρχουν σημειώσεις</p>
-            ) : messages.map(m => (
-              <div key={m.id} className="text-xs rounded border border-gray-100 bg-gray-50 px-2 py-1.5">
-                <div className="flex items-center gap-1.5 mb-0.5">
-                  <span className="font-mono text-[9px] bg-gray-200 text-gray-500 rounded px-1 py-px shrink-0">
-                    {fmtNoteDate(m.created_at)}
-                  </span>
-                  {m.author_name && (
-                    <span className="text-[10px] text-gray-400 truncate">{m.author_name}</span>
-                  )}
-                </div>
-                <p className="text-gray-800 leading-snug whitespace-pre-wrap">{m.content}</p>
-              </div>
-            ))}
+  return (
+    <div className="space-y-1">
+      {messages === null ? (
+        <p className="text-xs text-gray-300">Φόρτωση...</p>
+      ) : messages.length === 0 ? (
+        <p className="text-xs text-gray-300 italic">—</p>
+      ) : messages.map(m => (
+        <div key={m.id} className="flex items-start gap-1 group text-xs bg-gray-50 border border-gray-100 rounded px-2 py-1.5">
+          <div className="flex-1 min-w-0">
+            <span className="font-mono text-[9px] bg-gray-200 text-gray-400 rounded px-1 py-px mr-1 shrink-0">
+              {fmtNoteDate(m.created_at)}
+            </span>
+            <span className="text-gray-800 leading-snug whitespace-pre-wrap">{m.content}</span>
           </div>
           <button
-            onClick={() => setExpanded(false)}
-            className="flex items-center gap-0.5 text-[10px] text-gray-400 hover:text-gray-600 mb-0.5"
+            onClick={() => del(m.id)}
+            className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-400 shrink-0 mt-0.5"
           >
-            <ChevronUpIcon className="w-3 h-3" /> Σύμπτυξη
+            <TrashIcon className="w-3 h-3" />
           </button>
         </div>
-      )}
+      ))}
 
-      {/* Add note – always visible */}
-      <div className="flex gap-1 items-end">
+      {/* Add note */}
+      <div className="flex gap-1 items-end pt-0.5">
         <textarea
           rows={2}
           className="flex-1 min-w-0 text-xs border border-gray-200 rounded px-1.5 py-1 focus:outline-none focus:ring-1 focus:ring-blue-300 resize-none placeholder-gray-300"
@@ -466,11 +440,7 @@ export default function WorkView() {
                   />
                 </td>
                 <td className="px-3 py-2.5">
-                  <NotesCell
-                    caseId={c.id}
-                    lastNotePreview={c.last_note_preview}
-                    lastNoteAt={c.last_note_at}
-                  />
+                  <NotesCell caseId={c.id} />
                 </td>
                 <td className="px-3 py-2.5">
                   <PendingCell
