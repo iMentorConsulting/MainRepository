@@ -97,6 +97,7 @@ function collectPlanData(debts, assets, income, calc, client) {
   const bankDebt = rows.filter((r) => r.type === 'Τράπεζα').reduce((a, r) => a + r.amount, 0)
   const taxDebt = rows.filter((r) => r.type === 'Εφορία').reduce((a, r) => a + r.amount, 0)
   const insDebt = rows.filter((r) => r.type === 'Ασφαλιστικά Ταμεία').reduce((a, r) => a + r.amount, 0)
+  const nonErasableTotal = debts.reduce((s, d) => s + (d.pubCategories?.nonErasableBasic || 0), 0)
 
   return {
     clientName: client.name || '—',
@@ -131,6 +132,7 @@ function collectPlanData(debts, assets, income, calc, client) {
     bankDebt,
     taxDebt,
     insDebt,
+    nonErasableTotal,
   }
 }
 

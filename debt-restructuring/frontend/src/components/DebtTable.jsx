@@ -258,29 +258,25 @@ function DebtRow({ debt, onChange, onDelete }) {
         </select>
       </td>
 
-      {/* Mortgaged — banks only */}
+      {/* Mortgaged — all debt types */}
       <td className="td px-2 py-2">
-        {isBank ? (
-          <input type="checkbox" checked={debt.mortgaged}
-            onChange={(e) => onChange({ ...debt, mortgaged: e.target.checked, propertyValue: e.target.checked ? debt.propertyValue : 0 })}
-            className="w-4 h-4 accent-blue-600" />
-        ) : (
-          <span className="text-xs text-gray-300">—</span>
-        )}
+        <input type="checkbox" checked={debt.mortgaged}
+          onChange={(e) => onChange({ ...debt, mortgaged: e.target.checked, propertyValue: e.target.checked ? debt.propertyValue : 0 })}
+          className="w-4 h-4 accent-blue-600" />
       </td>
 
-      {/* Property value — banks only */}
+      {/* Property value */}
       <td className="td px-2 py-2 min-w-[120px]">
-        {isBank && debt.mortgaged ? (
+        {debt.mortgaged ? (
           <NumInput value={debt.propertyValue} onChange={(v) => onChange({ ...debt, propertyValue: v })} placeholder="Αξία €" />
         ) : isBank && debt.amount > 0 ? (
           <span className="text-xs text-red-500 font-semibold">⚠️ Ανασφάλιστη</span>
         ) : null}
       </td>
 
-      {/* Coverage — banks only */}
+      {/* Coverage */}
       <td className="td px-2 py-2 min-w-[80px]">
-        {isBank && debt.mortgaged && debt.propertyValue > 0 && debt.amount > 0 && (() => {
+        {debt.mortgaged && debt.propertyValue > 0 && debt.amount > 0 && (() => {
           const net = Math.floor(debt.propertyValue * 0.97)
           const pct = net >= debt.amount ? 100 : Math.round(net * 100 / debt.amount)
           return (
@@ -435,6 +431,30 @@ export default function DebtTable({ debts, onChange }) {
                 onChange={(updated) => updateDebt(d.id, updated)}
                 onDelete={() => deleteDebt(d.id)} />
             ))}
+            {debts.length > 0 && (() => {
+              const totalAmount = debts.reduce((s, d) => s + (d.amount || 0), 0)
+              const bankTotal   = debts.filter(d => d.type === 'Τράπεζα').reduce((s, d) => s + d.amount, 0)
+              const aadeTotal   = debts.filter(d => d.type === 'Εφορία').reduce((s, d) => s + d.amount, 0)
+              const efkaTotal   = debts.filter(d => d.type === 'Ασφαλιστικά Ταμεία').reduce((s, d) => s + d.amount, 0)
+              const neTotal     = debts.reduce((s, d) => s + (d.pubCategories?.nonErasableBasic || 0), 0)
+              return (
+                <tr className="border-t-2 border-blue-200 bg-blue-50/70">
+                  <td className="px-2 py-2 text-center">
+                    <div className="text-sm font-extrabold text-blue-900">{fmt(totalAmount)}</div>
+                    <div className="text-[10px] text-blue-600 font-semibold">ΣΥΝΟΛΟ</div>
+                  </td>
+                  <td className="px-2 py-2" colSpan={7}>
+                    <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-gray-600">
+                      {bankTotal > 0 && <span>Τράπεζες: <b className="text-gray-800">{fmt(bankTotal)}</b></span>}
+                      {aadeTotal > 0 && <span>ΑΑΔΕ: <b className="text-gray-800">{fmt(aadeTotal)}</b></span>}
+                      {efkaTotal > 0 && <span>ΕΦΚΑ: <b className="text-gray-800">{fmt(efkaTotal)}</b></span>}
+                      {neTotal > 0 && <span className="text-red-600">εκ ων ΜΗ ΔΙΑΓΡ. βασική: <b>{fmt(neTotal)}</b></span>}
+                    </div>
+                  </td>
+                  <td className="px-2 py-2" />
+                </tr>
+              )
+            })()}
           </tbody>
         </table>
       </div>

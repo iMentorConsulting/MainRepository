@@ -333,7 +333,7 @@ document.getElementById('copyBtn').addEventListener('click', async () => {
 // Build email HTML
 // ============================================================
 export function buildEmailHtml(data) {
-  const { clientName, debtorType, totalDebt, totalWriteOff, totalRemaining, totalMonthlyPay, dispMonthly, creditors, bankDebt, taxDebt, insDebt, forecastTitle, forecastSections, commercialOffer, showTable = true, showDisclaimer = true, portalUrl = null, hasVat = false } = data
+  const { clientName, debtorType, totalDebt, totalWriteOff, totalRemaining, totalMonthlyPay, dispMonthly, creditors, bankDebt, taxDebt, insDebt, forecastTitle, forecastSections, commercialOffer, showTable = true, showDisclaimer = true, portalUrl = null, hasVat = false, nonErasableTotal = 0 } = data
 
   const hasStepUp = (creditors || []).some((c) => c.c1 != null && c.c2 != null && c.c1 !== c.c2)
   const totalC1 = (creditors || []).reduce((s, c) => s + (c.c1 || c.monthlyPay || 0), 0)
@@ -426,6 +426,9 @@ export function buildEmailHtml(data) {
   </table>` : ''}
   ${showDisclaimer ? `<div style="background:#fffbeb;border-left:4px solid #f59e0b;border-radius:0 6px 6px 0;padding:10px 14px;font-size:13px;color:#78350f;margin-bottom:16px;">
     <b>ΣΗΜΑΝΤΙΚΗ ΕΠΙΣΗΜΑΝΣΗ:</b> Τα παραπάνω αποτελέσματα αποτελούν <b>θεωρητική εκτίμηση</b> βάσει των στοιχείων που δηλώθηκαν και του αλγορίθμου του Εξωδικαστικού Μηχανισμού. Δεν αποτελούν δέσμευση ούτε εγγύηση αποτελέσματος.
+  </div>` : ''}
+  ${nonErasableTotal > 0 ? `<div style="margin-bottom:16px;padding:10px 14px;background:#fef2f2;border-left:4px solid #ef4444;border-radius:0 6px 6px 0;font-size:13px;color:#991b1b;">
+    <b>⚠️ Μη Διαγράψιμα Ποσά — ${fmt(nonErasableTotal)}:</b> Βασικές οφειλές παρακρατούμενων/επιρριπτόμενων φόρων (ΦΠΑ, ΦΜΥ) και εισφορών ΕΦΚΑ δεν επιτρέπεται να διαγραφούν βάσει ΚΥΑ 13243/2024. Καταβάλλονται στο ακέραιο (${fmt(nonErasableTotal)}) και δεν συνυπολογίζονται στις εκτιμώμενες διαγραφές.
   </div>` : ''}
   ${forecastHtml}
   ${banksNote}
