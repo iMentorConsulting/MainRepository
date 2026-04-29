@@ -32,11 +32,8 @@ function fmtNoteDate(s) {
   if (!s) return ''
   const d = new Date(s)
   const now = new Date()
-  const isToday = d.toDateString() === now.toDateString()
   const isThisYear = d.getFullYear() === now.getFullYear()
-  const time = d.toLocaleTimeString('el-GR', { hour: '2-digit', minute: '2-digit' })
-  if (isToday) return time
-  if (isThisYear) return d.toLocaleDateString('el-GR', { day: '2-digit', month: '2-digit' }) + ' ' + time
+  if (isThisYear) return d.toLocaleDateString('el-GR', { day: '2-digit', month: '2-digit' })
   return d.toLocaleDateString('el-GR', { day: '2-digit', month: '2-digit', year: '2-digit' })
 }
 
@@ -116,7 +113,7 @@ function NotesCell({ caseId, lastNotePreview, lastNoteAt }) {
         <button onClick={expand} className="w-full text-left flex items-start gap-1 group">
           <div className="flex-1 min-w-0">
             {lastNoteAt && (
-              <span className="font-mono text-[10px] bg-gray-100 text-gray-400 rounded px-1 py-px mr-1 shrink-0">
+              <span className="font-mono text-[9px] bg-gray-100 text-gray-400 rounded px-1 py-px mr-1 shrink-0">
                 {fmtNoteDate(lastNoteAt)}
               </span>
             )}
@@ -139,7 +136,7 @@ function NotesCell({ caseId, lastNotePreview, lastNoteAt }) {
             ) : messages.map(m => (
               <div key={m.id} className="text-xs rounded border border-gray-100 bg-gray-50 px-2 py-1.5">
                 <div className="flex items-center gap-1.5 mb-0.5">
-                  <span className="font-mono text-[10px] bg-gray-200 text-gray-500 rounded px-1 py-px shrink-0">
+                  <span className="font-mono text-[9px] bg-gray-200 text-gray-500 rounded px-1 py-px shrink-0">
                     {fmtNoteDate(m.created_at)}
                   </span>
                   {m.author_name && (
