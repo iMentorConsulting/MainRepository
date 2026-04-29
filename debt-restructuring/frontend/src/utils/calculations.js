@@ -109,12 +109,14 @@ export function calculateAll(debts, assets, incomeData, params = PARAMS_B) {
       const amount = d.amount || 0
       const isSecured = !!(d.mortgaged)
       const type = d.type || 'Τράπεζα'
+      const isPub = type === 'Εφορία' || type === 'Ασφαλιστικά Ταμεία'
       return {
         idx: i, id: d.id, type, creditorName: d.creditorName || '',
         mort: isSecured, prop: d.propertyValue || 0, amount,
         intPct, prinAmt: amount * (100 - intPct) / 100,
         intAmt: amount * intPct / 100,
         status: d.status || 'Ληξιπρόθεσμη', isSecured,
+        pubCategories: (isPub && d.pubCategories) ? d.pubCategories : null,
       }
     })
 
@@ -204,9 +206,20 @@ export function calculateAll(debts, assets, incomeData, params = PARAMS_B) {
     const cov = covMap.get(r.idx) || 0
     const uncov = Math.max(0, r.amount - cov)
     const isPub = isPublicDebt(r.type)
-    const capPrin = isPub ? (1 - params.recovery.publicPrincipalMin) : (1 - params.recovery.bankPrincipalMin)
-    const capInt = isPub ? params.recovery.publicInterestWriteoffMax : params.recovery.bankInterestWriteoffMax
-    let legalMax = r.prinAmt * capPrin + r.intAmt * capInt
+    let legalMax
+    if (isPub && r.pubCategories) {
+      // Per-category write-off rates (ΚΥΑ 13243/2024)
+      const cats = r.pubCategories
+      const cr = params.pubCategoryRates
+      legalMax = (cats.otherBasic  || 0) * cr.otherBasic
+               + (cats.surcharges  || 0) * cr.surcharges
+               + (cats.fines       || 0) * cr.fines
+      // cats.nonErasable contributes 0% — not added
+    } else {
+      const capPrin = isPub ? (1 - params.recovery.publicPrincipalMin) : (1 - params.recovery.bankPrincipalMin)
+      const capInt  = isPub ? params.recovery.publicInterestWriteoffMax : params.recovery.bankInterestWriteoffMax
+      legalMax = r.prinAmt * capPrin + r.intAmt * capInt
+    }
     // partially-secured rule
     if (r.mort && r.prop > 0) {
       const netColl = r.prop * params.collateralFactor
