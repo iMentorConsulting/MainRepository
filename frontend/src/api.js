@@ -125,4 +125,10 @@ export const notifyCasePendingItems = (caseId, data) => api.post(`/api/cm/cases/
 export const getAllPendingOverview = (params = {}) => api.get('/api/cm/pending-items/all', { params }).then(r => r.data)
 export const patchCaseField = (id, data) => api.put(`/api/cm/cases/${id}`, data).then(r => r.data)
 
+// Client Portal
+export const getPortalCase = (token) =>
+  axios.get(`${BASE}/api/cm/portal/public/${token}`).then(r => r.data)
+export const togglePortal = (caseId) => api.post(`/api/cm/portal/${caseId}/toggle`).then(r => r.data)
+export const regeneratePortalToken = (caseId) => api.post(`/api/cm/portal/${caseId}/regenerate-token`).then(r => r.data)
+
 export default api

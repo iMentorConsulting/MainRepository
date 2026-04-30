@@ -41,6 +41,8 @@ import {
   createBudgetCategory,
   updateBudgetCategory,
   deleteBudgetCategory,
+  togglePortal,
+  regeneratePortalToken,
 } from '../api'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -69,6 +71,7 @@ const TABS = [
   'Tasks',
   'Μηνύματα',
   'Προϋπολογισμός',
+  'Portal',
 ]
 
 const PRIORITY_COLORS = {
@@ -681,6 +684,115 @@ function TasksTab({ caseId, users }) {
   )
 }
 
+// ─── Portal Tab ───────────────────────────────────────────────────────────────
+
+function PortalTab({ caseData, onRefresh }) {
+  const [loading, setLoading] = useState(false)
+  const [regenLoading, setRegenLoading] = useState(false)
+  const portalUrl = caseData?.share_token
+    ? `${window.location.origin}/portal/${caseData.share_token}`
+    : null
+
+  const handleToggle = async () => {
+    setLoading(true)
+    try {
+      await togglePortal(caseData.id)
+      toast.success(caseData.portal_active ? 'Portal απενεργοποιήθηκε' : 'Portal ενεργοποιήθηκε')
+      onRefresh()
+    } catch {
+      toast.error('Σφάλμα αλλαγής portal')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleRegenerate = async () => {
+    if (!confirm('Ο νέος σύνδεσμος θα αχρηστεύσει τον παλιό. Συνέχεια;')) return
+    setRegenLoading(true)
+    try {
+      await regeneratePortalToken(caseData.id)
+      toast.success('Νέος σύνδεσμος δημιουργήθηκε')
+      onRefresh()
+    } catch {
+      toast.error('Σφάλμα ανανέωσης συνδέσμου')
+    } finally {
+      setRegenLoading(false)
+    }
+  }
+
+  const copyLink = () => {
+    if (portalUrl) {
+      navigator.clipboard.writeText(portalUrl)
+      toast.success('Σύνδεσμος αντιγράφηκε!')
+    }
+  }
+
+  return (
+    <div className="max-w-xl space-y-5">
+      <div className="bg-white rounded-xl border p-5 space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="font-semibold text-gray-900">Πύλη Πελάτη</h3>
+            <p className="text-sm text-gray-500 mt-0.5">
+              Δώστε στον πελάτη πρόσβαση στην κατάσταση της υπόθεσής του.
+            </p>
+          </div>
+          <button
+            onClick={handleToggle}
+            disabled={loading}
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none
+              ${caseData?.portal_active ? 'bg-blue-600' : 'bg-gray-300'}`}
+          >
+            <span
+              className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform
+                ${caseData?.portal_active ? 'translate-x-6' : 'translate-x-1'}`}
+            />
+          </button>
+        </div>
+
+        <div className={`text-xs font-medium px-3 py-1.5 rounded-full w-fit
+          ${caseData?.portal_active
+            ? 'bg-green-100 text-green-700 border border-green-200'
+            : 'bg-gray-100 text-gray-500 border border-gray-200'}`}>
+          {caseData?.portal_active ? 'Ενεργό' : 'Ανενεργό'}
+        </div>
+
+        {caseData?.portal_visit_count > 0 && (
+          <p className="text-xs text-gray-500">
+            Επισκέψεις: <span className="font-semibold text-gray-700">{caseData.portal_visit_count}</span>
+          </p>
+        )}
+      </div>
+
+      {portalUrl && (
+        <div className="bg-white rounded-xl border p-5 space-y-3">
+          <h4 className="text-sm font-semibold text-gray-700">Σύνδεσμος Portal</h4>
+          <div className="flex items-center gap-2">
+            <input
+              readOnly
+              value={portalUrl}
+              className="flex-1 text-xs bg-gray-50 border rounded-lg px-3 py-2 text-gray-600 font-mono truncate"
+            />
+            <button
+              onClick={copyLink}
+              className="flex-shrink-0 px-3 py-2 text-xs bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              Αντιγραφή
+            </button>
+          </div>
+          <button
+            onClick={handleRegenerate}
+            disabled={regenLoading}
+            className="text-xs text-red-600 hover:text-red-800 underline"
+          >
+            {regenLoading ? 'Ανανέωση...' : 'Δημιουργία νέου συνδέσμου (ακυρώνει τον παλιό)'}
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function CaseDetail() {
@@ -837,6 +949,7 @@ export default function CaseDetail() {
 
         {activeTab === 'Μηνύματα' && <MessagesTab caseId={id} caseData={caseData} onRefresh={load} />}
         {activeTab === 'Προϋπολογισμός' && <BudgetTab caseId={id} caseData={caseData} onRefresh={load} />}
+        {activeTab === 'Portal' && <PortalTab caseData={caseData} onRefresh={load} />}
       </div>
     </div>
   )

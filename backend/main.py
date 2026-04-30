@@ -1,4 +1,5 @@
 import os
+import uuid
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
@@ -15,6 +16,7 @@ from routes.cm_google_sheets import router as cm_sheets_router
 from routes.cm_notifications import router as cm_notifications_router
 from routes.cm_admin import router as cm_admin_router
 from routes.cm_pending_items import router as cm_pending_items_router
+from routes.cm_portal import router as cm_portal_router
 
 load_dotenv()
 
@@ -31,6 +33,8 @@ try:
         _conn.execute(_text("ALTER TABLE cm_cases ADD COLUMN IF NOT EXISTS status_changed_at TIMESTAMP"))
         _conn.execute(_text("ALTER TABLE cm_cases ADD COLUMN IF NOT EXISTS follow_up_date DATE"))
         _conn.execute(_text("ALTER TABLE cm_status_sla ADD COLUMN IF NOT EXISTS notification_message TEXT"))
+        _conn.execute(_text("ALTER TABLE cm_cases ADD COLUMN IF NOT EXISTS share_token VARCHAR(36)"))
+        _conn.execute(_text("ALTER TABLE cm_cases ADD COLUMN IF NOT EXISTS portal_visit_count INTEGER DEFAULT 0"))
         _conn.commit()
 except Exception:
     pass
@@ -62,9 +66,12 @@ with SessionLocal() as _db:
         if _c.program_category != _correct:
             _c.program_category = _correct
             _fixed += 1
+        if not _c.share_token:
+            _c.share_token = str(uuid.uuid4())
+            _fixed += 1
     if _fixed:
         _db.commit()
-        print(f"[migration] Fixed program_category for {_fixed} cases")
+        print(f"[migration] Fixed program_category / backfilled share_token for {_fixed} cases")
 
 # Import new models so create_all creates their tables
 from models_cases import CMNotificationTemplate, CMStatusSLA
@@ -127,6 +134,7 @@ app.include_router(cm_sheets_router)
 app.include_router(cm_notifications_router)
 app.include_router(cm_admin_router)
 app.include_router(cm_pending_items_router)
+app.include_router(cm_portal_router)
 
 
 @app.get("/health")

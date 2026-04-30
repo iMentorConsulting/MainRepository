@@ -111,6 +111,8 @@ def case_to_dict(c: CMCase, include_related: bool = False, sla_map: dict = None)
         "assigned_agent_id": c.assigned_agent_id,
         "assigned_agent_name": agent_name,
         "portal_active": c.portal_active,
+        "share_token": c.share_token,
+        "portal_visit_count": c.portal_visit_count or 0,
         "risk_score": c.risk_score or 0,
         "notes": c.notes,
         "sheet_import_ref": c.sheet_import_ref,

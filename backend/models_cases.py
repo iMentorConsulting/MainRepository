@@ -70,6 +70,8 @@ class CMCase(Base):
 
     # Client Portal
     portal_active = Column(Boolean, default=False)
+    share_token = Column(String(36), unique=True, index=True)
+    portal_visit_count = Column(Integer, default=0)
 
     # Metadata
     sheet_import_ref = Column(String(200))  # AFM|service_type key used for sync
