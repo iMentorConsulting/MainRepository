@@ -2,7 +2,7 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session, joinedload
 from database import get_db
-from models_cases import CMCase, CMCasePendingItem, CMMessage
+from models_cases import CMCase, CMCasePendingItem, CMMessage, CMBudgetCategory
 from pipelines import PIPELINES
 from auth_cases import get_current_user
 
@@ -17,13 +17,41 @@ def _get_current_phase_id(status: str, program_category: str) -> str | None:
     return None
 
 
+def _get_next_status(status: str, program_category: str) -> str | None:
+    """Return the next status in the pipeline sequence, or None if last/not found."""
+    pipeline = PIPELINES.get(program_category, {})
+    all_statuses = []
+    for phase in pipeline.get("phases", []):
+        all_statuses.extend(phase["statuses"])
+    try:
+        idx = all_statuses.index(status)
+        if idx + 1 < len(all_statuses):
+            return all_statuses[idx + 1]
+    except ValueError:
+        pass
+    return None
+
+
+def _get_full_status_list(program_category: str) -> list[dict]:
+    """Return all statuses in order with phase info."""
+    pipeline = PIPELINES.get(program_category, {})
+    result = []
+    for phase in pipeline.get("phases", []):
+        for s in phase["statuses"]:
+            result.append({"status": s, "phase_id": phase["id"], "phase_label": phase["label"], "color": phase["color"]})
+    return result
+
+
 def _build_portal_data(case: CMCase) -> dict:
-    pipeline = PIPELINES.get(case.program_category or "ΕΣΠΑ", {})
+    prog = case.program_category or "ΕΣΠΑ"
+    pipeline = PIPELINES.get(prog, {})
     phases = [
         {"id": p["id"], "label": p["label"], "color": p["color"]}
         for p in pipeline.get("phases", [])
     ]
-    current_phase_id = _get_current_phase_id(case.status or "", case.program_category or "ΕΣΠΑ")
+    current_phase_id = _get_current_phase_id(case.status or "", prog)
+    next_status = _get_next_status(case.status or "", prog)
+    full_status_list = _get_full_status_list(prog)
 
     pending_items = [
         {"id": pi.id, "item_text": pi.item_text, "comment": pi.comment}
@@ -44,10 +72,30 @@ def _build_portal_data(case: CMCase) -> dict:
         for m in external_messages
     ]
 
+    # Budget breakdown (ΕΣΠΑ only but return for all)
+    budget_categories = [
+        {
+            "category_name": b.category_name,
+            "approved_amount": b.approved_amount or 0,
+            "percent_of_budget": b.percent_of_budget or 0,
+            "certified_request1": b.certified_request1 or 0,
+            "certified_request2": b.certified_request2 or 0,
+            "certified_final": b.certified_final or 0,
+        }
+        for b in (case.budget_categories or [])
+    ]
+
+    # Financial agreement
+    agreed_application = case.agreed_fee_application or 0
+    agreed_implementation = case.agreed_fee_implementation or 0
+    total_agreed = agreed_application + agreed_implementation
+    total_paid = case.total_paid or 0
+    balance = total_agreed - total_paid
+
     return {
         "client_name": case.client_name,
         "service_type": case.service_type,
-        "program_category": case.program_category,
+        "program_category": prog,
         "status": case.status,
         "project_deadline": case.project_deadline.isoformat() if case.project_deadline else None,
         "approved_budget": case.approved_budget,
@@ -58,18 +106,28 @@ def _build_portal_data(case: CMCase) -> dict:
         "messages": messages_out,
         "pipeline_phases": phases,
         "current_phase_id": current_phase_id,
+        "next_status": next_status,
+        "full_status_list": full_status_list,
+        "budget_categories": budget_categories,
+        "agreed_fee_application": agreed_application,
+        "agreed_fee_implementation": agreed_implementation,
+        "total_agreed": total_agreed,
+        "total_paid": total_paid,
+        "balance": balance,
         "portal_visit_count": case.portal_visit_count or 0,
     }
 
 
 @router.get("/public/{token}")
 def get_portal(token: str, db: Session = Depends(get_db)):
+    """Return portal data without incrementing visit count."""
     case = (
         db.query(CMCase)
         .options(
             joinedload(CMCase.assigned_agent),
             joinedload(CMCase.pending_items),
             joinedload(CMCase.messages).joinedload(CMMessage.user),
+            joinedload(CMCase.budget_categories),
         )
         .filter(CMCase.share_token == token)
         .first()
@@ -77,10 +135,23 @@ def get_portal(token: str, db: Session = Depends(get_db)):
     if not case or not case.portal_active:
         raise HTTPException(status_code=404, detail="Portal not found or inactive")
 
+    return _build_portal_data(case)
+
+
+@router.post("/public/{token}/visit")
+def record_visit(token: str, body: dict, db: Session = Depends(get_db)):
+    """Verify client AFM and increment visit counter."""
+    afm = (body.get("afm") or "").strip()
+    case = db.query(CMCase).filter(CMCase.share_token == token).first()
+    if not case or not case.portal_active:
+        raise HTTPException(status_code=404, detail="Portal not found or inactive")
+
+    if not afm or (case.afm or "").strip() != afm:
+        raise HTTPException(status_code=403, detail="Λάθος ΑΦΜ")
+
     case.portal_visit_count = (case.portal_visit_count or 0) + 1
     db.commit()
-
-    return _build_portal_data(case)
+    return {"ok": True}
 
 
 @router.post("/{case_id}/toggle")

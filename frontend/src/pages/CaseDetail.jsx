@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useLocation } from 'react-router-dom'
+import { PIPELINES } from '../pipelines'
 import PaymentsTab from '../components/PaymentsTab'
 import MessagesTab from '../components/MessagesTab'
 import DocumentsTab from '../components/DocumentsTab'
@@ -47,22 +48,16 @@ import {
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const STATUSES = [
-  'ΥΠΟΒΟΛΗ ΑΙΤΗΣΗΣ',
-  'ΕΓΚΡΙΣΗ - ΠΡΙΝ ΤΟ 1ο ΑΙΤΗΜΑ',
-  'ΣΕ 1ο ΑΙΤΗΜΑ ΕΛΕΓΧΟΥ',
-  'ΣΕ 2ο ΑΙΤΗΜΑ ΕΛΕΓΧΟΥ',
-  'ΕΝΣΤΑΣΗ',
-  'ΣΕ ΤΕΛΙΚΟ ΑΙΤΗΜΑ ΕΛΕΓΧΟΥ',
-]
-
-const STATUS_COLORS = {
-  'ΥΠΟΒΟΛΗ ΑΙΤΗΣΗΣ': 'bg-blue-100 text-blue-800',
-  'ΕΓΚΡΙΣΗ - ΠΡΙΝ ΤΟ 1ο ΑΙΤΗΜΑ': 'bg-green-100 text-green-800',
-  'ΣΕ 1ο ΑΙΤΗΜΑ ΕΛΕΓΧΟΥ': 'bg-yellow-100 text-yellow-800',
-  'ΣΕ 2ο ΑΙΤΗΜΑ ΕΛΕΓΧΟΥ': 'bg-orange-100 text-orange-800',
-  'ΕΝΣΤΑΣΗ': 'bg-red-100 text-red-800',
-  'ΣΕ ΤΕΛΙΚΟ ΑΙΤΗΜΑ ΕΛΕΓΧΟΥ': 'bg-purple-100 text-purple-800',
+function getStatusGroupsForProgram(program) {
+  const pipeline = PIPELINES[program] || PIPELINES['ΕΣΠΑ']
+  return pipeline.phases.map(p => ({
+    label: p.label,
+    statuses: p.statuses,
+  })).concat(
+    pipeline.extra_statuses?.length
+      ? [{ label: 'Άλλες', statuses: pipeline.extra_statuses }]
+      : []
+  )
 }
 
 const TABS = [
@@ -154,6 +149,7 @@ function OverviewTab({ caseData, users, onSaved }) {
     agreed_fee_application: '',
     agreed_fee_implementation: '',
     assigned_agent_id: '',
+    drive_folder_url: '',
     notes: '',
   })
   const [saving, setSaving] = useState(false)
@@ -177,6 +173,7 @@ function OverviewTab({ caseData, users, onSaved }) {
       agreed_fee_application: caseData.agreed_fee_application ?? '',
       agreed_fee_implementation: caseData.agreed_fee_implementation ?? '',
       assigned_agent_id: caseData.assigned_agent_id ?? '',
+      drive_folder_url: caseData.drive_folder_url || '',
       notes: caseData.notes || '',
     })
   }, [caseData])
@@ -259,10 +256,12 @@ function OverviewTab({ caseData, users, onSaved }) {
           <div className="sm:col-span-2">
             <FormField label="Κατάσταση">
               <select className="input" value={form.status} onChange={set('status')}>
-                {STATUSES.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
+                {getStatusGroupsForProgram(caseData?.program_category || 'ΕΣΠΑ').map(group => (
+                  <optgroup key={group.label} label={group.label}>
+                    {group.statuses.map(s => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                  </optgroup>
                 ))}
               </select>
             </FormField>
@@ -340,6 +339,20 @@ function OverviewTab({ caseData, users, onSaved }) {
                   </option>
                 ))}
               </select>
+            </FormField>
+          </div>
+
+          <div className="sm:col-span-2">
+            <FormField label="Σύνδεσμος Φακέλου Drive">
+              <div className="flex gap-2 items-center">
+                <input className="input flex-1" value={form.drive_folder_url} onChange={set('drive_folder_url')} placeholder="https://drive.google.com/..." />
+                {form.drive_folder_url && (
+                  <a href={form.drive_folder_url} target="_blank" rel="noopener noreferrer"
+                    className="shrink-0 text-blue-600 hover:text-blue-800 text-xs underline">
+                    Άνοιγμα ↗
+                  </a>
+                )}
+              </div>
             </FormField>
           </div>
 
@@ -692,6 +705,7 @@ function PortalTab({ caseData, onRefresh }) {
   const portalUrl = caseData?.share_token
     ? `${window.location.origin}/portal/${caseData.share_token}`
     : null
+  const previewUrl = portalUrl ? `${portalUrl}?preview=1` : null
 
   const handleToggle = async () => {
     setLoading(true)
@@ -720,11 +734,9 @@ function PortalTab({ caseData, onRefresh }) {
     }
   }
 
-  const copyLink = () => {
-    if (portalUrl) {
-      navigator.clipboard.writeText(portalUrl)
-      toast.success('Σύνδεσμος αντιγράφηκε!')
-    }
+  const copyLink = (url) => {
+    navigator.clipboard.writeText(url)
+    toast.success('Σύνδεσμος αντιγράφηκε!')
   }
 
   return (
@@ -734,7 +746,7 @@ function PortalTab({ caseData, onRefresh }) {
           <div>
             <h3 className="font-semibold text-gray-900">Πύλη Πελάτη</h3>
             <p className="text-sm text-gray-500 mt-0.5">
-              Δώστε στον πελάτη πρόσβαση στην κατάσταση της υπόθεσής του.
+              Ο πελάτης εισέρχεται με το ΑΦΜ του. Επισκέψεις μετράνε μόνο μετά από επαλήθευση ΑΦΜ.
             </p>
           </div>
           <button
@@ -750,35 +762,54 @@ function PortalTab({ caseData, onRefresh }) {
           </button>
         </div>
 
-        <div className={`text-xs font-medium px-3 py-1.5 rounded-full w-fit
-          ${caseData?.portal_active
-            ? 'bg-green-100 text-green-700 border border-green-200'
-            : 'bg-gray-100 text-gray-500 border border-gray-200'}`}>
-          {caseData?.portal_active ? 'Ενεργό' : 'Ανενεργό'}
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className={`text-xs font-medium px-3 py-1.5 rounded-full w-fit
+            ${caseData?.portal_active
+              ? 'bg-green-100 text-green-700 border border-green-200'
+              : 'bg-gray-100 text-gray-500 border border-gray-200'}`}>
+            {caseData?.portal_active ? 'Ενεργό' : 'Ανενεργό'}
+          </div>
+          <span className="text-xs text-gray-500">
+            Επισκέψεις πελάτη: <span className="font-semibold text-gray-700">{caseData?.portal_visit_count || 0}</span>
+          </span>
         </div>
-
-        {caseData?.portal_visit_count > 0 && (
-          <p className="text-xs text-gray-500">
-            Επισκέψεις: <span className="font-semibold text-gray-700">{caseData.portal_visit_count}</span>
-          </p>
-        )}
       </div>
 
       {portalUrl && (
-        <div className="bg-white rounded-xl border p-5 space-y-3">
-          <h4 className="text-sm font-semibold text-gray-700">Σύνδεσμος Portal</h4>
-          <div className="flex items-center gap-2">
-            <input
-              readOnly
-              value={portalUrl}
-              className="flex-1 text-xs bg-gray-50 border rounded-lg px-3 py-2 text-gray-600 font-mono truncate"
-            />
-            <button
-              onClick={copyLink}
-              className="flex-shrink-0 px-3 py-2 text-xs bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              Αντιγραφή
-            </button>
+        <div className="bg-white rounded-xl border p-5 space-y-4">
+          {/* Client link */}
+          <div>
+            <div className="flex items-center gap-2 mb-1.5">
+              <h4 className="text-sm font-semibold text-gray-700">Σύνδεσμος Πελάτη</h4>
+              <span className="text-xs bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded-full">Απαιτεί ΑΦΜ</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <input readOnly value={portalUrl}
+                className="flex-1 text-xs bg-gray-50 border rounded-lg px-3 py-2 text-gray-600 font-mono truncate" />
+              <button onClick={() => copyLink(portalUrl)}
+                className="flex-shrink-0 px-3 py-2 text-xs bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                Αντιγραφή
+              </button>
+            </div>
+          </div>
+          {/* Admin preview */}
+          <div>
+            <div className="flex items-center gap-2 mb-1.5">
+              <h4 className="text-sm font-semibold text-gray-700">Προεπισκόπηση (εσωτερικό)</h4>
+              <span className="text-xs bg-orange-50 text-orange-700 border border-orange-200 px-2 py-0.5 rounded-full">Χωρίς ΑΦΜ · Δεν μετράει</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <input readOnly value={previewUrl}
+                className="flex-1 text-xs bg-gray-50 border rounded-lg px-3 py-2 text-gray-500 font-mono truncate" />
+              <button onClick={() => copyLink(previewUrl)}
+                className="flex-shrink-0 px-3 py-2 text-xs bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors">
+                Αντιγραφή
+              </button>
+              <a href={previewUrl} target="_blank" rel="noopener noreferrer"
+                className="flex-shrink-0 px-3 py-2 text-xs bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 transition-colors">
+                ↗
+              </a>
+            </div>
           </div>
           <button
             onClick={handleRegenerate}

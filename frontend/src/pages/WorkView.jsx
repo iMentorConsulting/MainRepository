@@ -77,17 +77,20 @@ function StatusCell({ caseId, program, value, onChange }) {
   )
 }
 
-// ── Notes cell — all messages always visible, with date + delete ──────────────
-function NotesCell({ caseId }) {
+// ── Notes cell — shows preview, lazy-loads all messages on first click ─────────
+function NotesCell({ caseId, lastNotePreview, lastNoteAt }) {
   const [messages, setMessages] = useState(null)
+  const [expanded, setExpanded] = useState(false)
   const [note, setNote] = useState('')
   const [sending, setSending] = useState(false)
 
-  useEffect(() => {
+  const expand = () => {
+    if (expanded) return
+    setExpanded(true)
     getMessages(caseId)
       .then(msgs => setMessages([...msgs].sort((a, b) => new Date(a.created_at) - new Date(b.created_at))))
       .catch(() => setMessages([]))
-  }, [caseId])
+  }
 
   const submit = async () => {
     const text = note.trim()
@@ -110,45 +113,67 @@ function NotesCell({ caseId }) {
 
   return (
     <div className="space-y-1">
-      {messages === null ? (
-        <p className="text-xs text-gray-300">Φόρτωση...</p>
-      ) : messages.length === 0 ? (
-        <p className="text-xs text-gray-300 italic">—</p>
-      ) : messages.map(m => (
-        <div key={m.id} className="flex items-start gap-1 group text-xs bg-gray-50 border border-gray-100 rounded px-2 py-1.5">
-          <div className="flex-1 min-w-0">
-            <span className="font-mono text-[9px] bg-gray-200 text-gray-400 rounded px-1 py-px mr-1 shrink-0">
-              {fmtNoteDate(m.created_at)}
-            </span>
-            <span className="text-gray-800 leading-snug whitespace-pre-wrap">{m.content}</span>
-          </div>
-          <button
-            onClick={() => del(m.id)}
-            className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-400 shrink-0 mt-0.5"
-          >
-            <TrashIcon className="w-3 h-3" />
+      {!expanded ? (
+        /* Collapsed — show last note preview, click to expand */
+        <div onClick={expand} className="cursor-pointer group">
+          {lastNotePreview ? (
+            <div className="flex items-start gap-1 text-xs bg-gray-50 border border-gray-100 rounded px-2 py-1.5 hover:border-blue-200 transition-colors">
+              <div className="flex-1 min-w-0">
+                {lastNoteAt && (
+                  <span className="font-mono text-[9px] bg-gray-200 text-gray-400 rounded px-1 py-px mr-1 shrink-0">
+                    {fmtNoteDate(lastNoteAt)}
+                  </span>
+                )}
+                <span className="text-gray-600 leading-snug">{lastNotePreview}</span>
+              </div>
+              <span className="text-[9px] text-blue-400 group-hover:text-blue-600 shrink-0 ml-1 mt-0.5">▼</span>
+            </div>
+          ) : (
+            <p className="text-xs text-gray-300 italic hover:text-blue-400 cursor-pointer">+ Σημείωση</p>
+          )}
+        </div>
+      ) : (
+        /* Expanded — show all messages */
+        <>
+          {messages === null ? (
+            <p className="text-xs text-gray-300">Φόρτωση...</p>
+          ) : messages.length === 0 ? (
+            <p className="text-xs text-gray-300 italic">—</p>
+          ) : messages.map(m => (
+            <div key={m.id} className="flex items-start gap-1 group text-xs bg-gray-50 border border-gray-100 rounded px-2 py-1.5">
+              <div className="flex-1 min-w-0">
+                <span className="font-mono text-[9px] bg-gray-200 text-gray-400 rounded px-1 py-px mr-1 shrink-0">
+                  {fmtNoteDate(m.created_at)}
+                </span>
+                <span className="text-gray-800 leading-snug whitespace-pre-wrap">{m.content}</span>
+              </div>
+              <button onClick={() => del(m.id)}
+                className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-400 shrink-0 mt-0.5">
+                <TrashIcon className="w-3 h-3" />
+              </button>
+            </div>
+          ))}
+        </>
+      )}
+
+      {/* Add note — always visible if expanded or on click to expand+focus */}
+      {expanded && (
+        <div className="flex gap-1 items-end pt-0.5">
+          <textarea
+            rows={2}
+            autoFocus
+            className="flex-1 min-w-0 text-xs border border-gray-200 rounded px-1.5 py-1 focus:outline-none focus:ring-1 focus:ring-blue-300 resize-none placeholder-gray-300"
+            placeholder="Σημείωση... (Enter)"
+            value={note}
+            onChange={e => setNote(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit() } }}
+          />
+          <button onClick={submit} disabled={sending || !note.trim()}
+            className="shrink-0 text-blue-400 hover:text-blue-600 disabled:opacity-30 mb-0.5">
+            <PaperAirplaneIcon className="w-3.5 h-3.5" />
           </button>
         </div>
-      ))}
-
-      {/* Add note */}
-      <div className="flex gap-1 items-end pt-0.5">
-        <textarea
-          rows={2}
-          className="flex-1 min-w-0 text-xs border border-gray-200 rounded px-1.5 py-1 focus:outline-none focus:ring-1 focus:ring-blue-300 resize-none placeholder-gray-300"
-          placeholder="Σημείωση... (Enter)"
-          value={note}
-          onChange={e => setNote(e.target.value)}
-          onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit() } }}
-        />
-        <button
-          onClick={submit}
-          disabled={sending || !note.trim()}
-          className="shrink-0 text-blue-400 hover:text-blue-600 disabled:opacity-30 mb-0.5"
-        >
-          <PaperAirplaneIcon className="w-3.5 h-3.5" />
-        </button>
-      </div>
+      )}
     </div>
   )
 }
@@ -278,11 +303,12 @@ function SendButton({ caseId, hasItems }) {
   const [logs, setLogs] = useState(null)
   const menuRef = useRef(null)
 
-  useEffect(() => {
+  const loadLogs = () => {
+    if (logs !== null) return
     getNotificationLogs(caseId)
       .then(data => setLogs([...data].sort((a, b) => new Date(a.created_at) - new Date(b.created_at))))
       .catch(() => setLogs([]))
-  }, [caseId])
+  }
 
   useEffect(() => {
     if (!open) return
@@ -305,7 +331,7 @@ function SendButton({ caseId, hasItems }) {
   }
 
   return (
-    <div className="space-y-1">
+    <div className="space-y-1" onMouseEnter={loadLogs}>
       {/* Past send dates */}
       {logs && logs.length > 0 && (
         <div className="flex flex-wrap gap-0.5">
@@ -321,7 +347,7 @@ function SendButton({ caseId, hasItems }) {
       {hasItems && (
         <div className="relative" ref={menuRef}>
           <button
-            onClick={() => setOpen(p => !p)}
+            onClick={() => { loadLogs(); setOpen(p => !p) }}
             disabled={sending}
             className="flex items-center gap-1 text-xs bg-blue-50 text-blue-600 hover:bg-blue-100 border border-blue-200 rounded px-2 py-1 disabled:opacity-50"
           >
@@ -534,7 +560,7 @@ export default function WorkView() {
                   />
                 </td>
                 <td className="px-3 py-2.5">
-                  <NotesCell caseId={c.id} />
+                  <NotesCell caseId={c.id} lastNotePreview={c.last_note_preview} lastNoteAt={c.last_note_at} />
                 </td>
                 <td className="px-3 py-2.5">
                   <PendingCell

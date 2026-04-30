@@ -68,6 +68,9 @@ class CMCase(Base):
     # Assignment
     assigned_agent_id = Column(Integer, ForeignKey("cm_users.id"), nullable=True)
 
+    # Drive
+    drive_folder_url = Column(String(500))
+
     # Client Portal
     portal_active = Column(Boolean, default=False)
     share_token = Column(String(36), unique=True, index=True)

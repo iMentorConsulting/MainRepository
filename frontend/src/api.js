@@ -128,6 +128,8 @@ export const patchCaseField = (id, data) => api.put(`/api/cm/cases/${id}`, data)
 // Client Portal
 export const getPortalCase = (token) =>
   axios.get(`${BASE}/api/cm/portal/public/${token}`).then(r => r.data)
+export const recordPortalVisit = (token, afm) =>
+  axios.post(`${BASE}/api/cm/portal/public/${token}/visit`, { afm }).then(r => r.data)
 export const togglePortal = (caseId) => api.post(`/api/cm/portal/${caseId}/toggle`).then(r => r.data)
 export const regeneratePortalToken = (caseId) => api.post(`/api/cm/portal/${caseId}/regenerate-token`).then(r => r.data)
 

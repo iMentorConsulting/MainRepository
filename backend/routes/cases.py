@@ -54,6 +54,7 @@ class CaseUpdate(BaseModel):
     total_paid: Optional[float] = None
     assigned_agent_id: Optional[int] = None
     portal_active: Optional[bool] = None
+    drive_folder_url: Optional[str] = None
     risk_score: Optional[int] = None
     notes: Optional[str] = None
 
@@ -111,6 +112,7 @@ def case_to_dict(c: CMCase, include_related: bool = False, sla_map: dict = None)
         "assigned_agent_id": c.assigned_agent_id,
         "assigned_agent_name": agent_name,
         "portal_active": c.portal_active,
+        "drive_folder_url": c.drive_folder_url,
         "share_token": c.share_token,
         "portal_visit_count": c.portal_visit_count or 0,
         "risk_score": c.risk_score or 0,
