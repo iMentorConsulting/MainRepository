@@ -9,7 +9,7 @@ import {
 } from '@heroicons/react/24/outline'
 import * as api from '../api'
 import { fmt, creditorDisplayName } from '../utils/calculations'
-import { buildEmailHtml, wrapEmailDocument, buildResultsEmailHtml, buildSimpleEmailHtml } from '../utils/reportGenerators'
+import { buildEmailHtml, wrapEmailDocument, buildResultsEmailHtml } from '../utils/reportGenerators'
 
 const STATUS_LABELS = {
   draft: { label: 'Πρόχειρο', cls: 'bg-gray-100 text-gray-700' },
@@ -54,6 +54,8 @@ function buildViberMessage(type, name, url, offer = null, includeOffer = false) 
   }
 }
 
+const fmtDec2 = (n) => Number(n || 0).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '€'
+
 function MoneyCell({ value, onChange }) {
   return (
     <input
@@ -66,6 +68,20 @@ function MoneyCell({ value, onChange }) {
         const raw = e.target.value.replace(/[^\d]/g, '')
         onChange(raw ? parseInt(raw) : 0)
       }}
+    />
+  )
+}
+
+function MoneyCellDec({ value, onChange }) {
+  return (
+    <input
+      type="number"
+      step="0.01"
+      min="0"
+      className="input text-center text-sm"
+      placeholder="0.00"
+      value={value || ''}
+      onChange={(e) => onChange(e.target.value ? parseFloat(e.target.value) : 0)}
     />
   )
 }
@@ -269,6 +285,10 @@ function EmailOptionsModal({ caseData, onClose }) {
       totalMonthlyPayC: isVulnerable ? null : (est.totalMonthlyPayC ?? finalPlan.reduce((s, p) => s + (p.payShownC || 0), 0)),
       totalC1C: isVulnerable ? null : (est.totalC1C ?? finalPlan.reduce((s, p) => s + (p.c1C || 0), 0)),
       nonErasableTotal: est.nonErasableTotal || (caseData.debts || []).reduce((s, d) => s + (d.pubCategories?.nonErasableBasic || 0), 0),
+      incomeData: caseData.income_data || {},
+      assets: caseData.assets || [],
+      dispAnnual: est.dispAnnual || 0,
+      totalExpenses: est.totalExpenses || 0,
     }
     const subject = `Θεωρητική Προσομοίωση Εξωδικαστικού | ${caseData.client_name}`
     const html = buildEmailHtml(data)
@@ -276,12 +296,6 @@ function EmailOptionsModal({ caseData, onClose }) {
     if (w) { w.document.open(); w.document.write(wrapEmailDocument(html, subject)); w.document.close() }
   }
 
-  const openSimpleHtml = () => {
-    const subject = `Θεωρητική Προσομοίωση Εξωδικαστικού | ${caseData.client_name}`
-    const html = buildSimpleEmailHtml(previewText)
-    const w = window.open('', '_blank', 'width=900,height=800,scrollbars=yes')
-    if (w) { w.document.open(); w.document.write(wrapEmailDocument(html, subject)); w.document.close() }
-  }
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
@@ -316,12 +330,6 @@ function EmailOptionsModal({ caseData, onClose }) {
         </div>
         <div className="flex gap-2 justify-end px-5 pb-5">
           <button onClick={onClose} className="btn-secondary text-sm">Ακύρωση</button>
-          <button
-            onClick={openSimpleHtml}
-            className="flex items-center gap-2 text-sm font-semibold px-4 py-2 rounded-xl bg-gray-600 hover:bg-gray-700 text-white"
-          >
-            📄 Απλό HTML
-          </button>
           <button
             onClick={openHtmlEmail}
             className="flex items-center gap-2 text-sm font-semibold px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white"
@@ -766,7 +774,7 @@ export default function CaseDetail({ currentEmployee }) {
                       }} />
                     </td>
                     <td className="td min-w-[110px]">
-                      <MoneyCell value={c.actualMonthlyPay} onChange={(v) => {
+                      <MoneyCellDec value={c.actualMonthlyPay} onChange={(v) => {
                         const updated = [...actuals.creditors]
                         updated[i] = { ...updated[i], actualMonthlyPay: v }
                         setActuals({ ...actuals, creditors: updated })
@@ -819,7 +827,7 @@ export default function CaseDetail({ currentEmployee }) {
                   <td className="td font-mono">{fmt(actuals.creditors.reduce((s, c) => s + (c.originalAmount || 0), 0))}</td>
                   <td className="td font-mono text-orange-600">{fmt(actuals.creditors.reduce((s, c) => s + (c.actualWriteoff || 0), 0))}</td>
                   <td className="td font-mono">{fmt(actuals.creditors.reduce((s, c) => s + (c.actualRemaining || 0), 0))}</td>
-                  <td className="td font-mono text-blue-800">{fmt(actuals.creditors.reduce((s, c) => s + (c.actualMonthlyPay || 0), 0))}</td>
+                  <td className="td font-mono text-blue-800">{fmtDec2(actuals.creditors.reduce((s, c) => s + (c.actualMonthlyPay || 0), 0))}</td>
                   <td className="td" colSpan={3}></td>
                 </tr>
               </tbody>
@@ -874,7 +882,7 @@ export default function CaseDetail({ currentEmployee }) {
                   return [
                     { label: 'Διαγραφή', estVal: est.sumWr, actVal: actWriteoff },
                     { label: 'Εναπομένουσα Οφειλή', estVal: est.totalRemaining, actVal: actRemaining },
-                    { label: 'Μηνιαία Δόση', estVal: est.totalMonthlyPay, actVal: actMonthly },
+                    { label: 'Μηνιαία Δόση', estVal: est.totalMonthlyPay, actVal: actMonthly, isDec: true },
                   ].map((row) => {
                     const diff = (row.actVal || 0) - (row.estVal || 0)
                     const pct = row.estVal > 0 ? Math.round(Math.abs(diff) / row.estVal * 100) : 0
@@ -883,7 +891,7 @@ export default function CaseDetail({ currentEmployee }) {
                       <tr key={row.label} className="border-b border-gray-100">
                         <td className="td text-left font-semibold">{row.label}</td>
                         <td className="td font-mono text-gray-600">{row.estVal ? fmt(row.estVal) : '—'}</td>
-                        <td className="td font-mono font-bold">{row.actVal ? fmt(row.actVal) : '—'}</td>
+                        <td className="td font-mono font-bold">{row.actVal ? (row.isDec ? fmtDec2(row.actVal) : fmt(row.actVal)) : '—'}</td>
                         <td className="td">
                           {row.estVal > 0 && row.actVal > 0 && (
                             <span className={`text-sm font-bold px-2 py-0.5 rounded-full ${positive ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>

@@ -338,7 +338,7 @@ document.getElementById('copyBtn').addEventListener('click', async () => {
 // Build email HTML
 // ============================================================
 export function buildEmailHtml(data) {
-  const { clientName, debtorType, totalDebt, totalWriteOff, totalRemaining, totalMonthlyPay, dispMonthly, creditors, bankDebt, taxDebt, insDebt, forecastTitle, forecastSections, commercialOffer, showTable = true, showDisclaimer = true, portalUrl = null, hasVat = false, nonErasableTotal = 0, isVulnerable = false, totalWriteOffC, totalRemainingC, totalMonthlyPayC, totalC1C } = data
+  const { clientName, debtorType, totalDebt, totalWriteOff, totalRemaining, totalMonthlyPay, dispMonthly, creditors, bankDebt, taxDebt, insDebt, forecastTitle, forecastSections, commercialOffer, showTable = true, showDisclaimer = true, portalUrl = null, hasVat = false, nonErasableTotal = 0, isVulnerable = false, totalWriteOffC, totalRemainingC, totalMonthlyPayC, totalC1C, incomeData = {}, assets = [], dispAnnual = 0, totalExpenses = 0 } = data
 
   const hasStepUp = (creditors || []).some((c) => c.c1 != null && c.c2 != null && c.c1 !== c.c2)
   const totalC1 = (creditors || []).reduce((s, c) => s + (c.c1 || c.monthlyPay || 0), 0)
@@ -390,6 +390,51 @@ export function buildEmailHtml(data) {
 
   const hasOffer = commercialOffer && (commercialOffer.application_fee || commercialOffer.success_fee)
 
+  const HOUSEHOLD_OPTS = [[6448,'Ένας ενήλικας'],[10866,'Δύο ενήλικες'],[9096,'Ένας ενήλικας με 1 τέκνο'],[13514,'Δύο ενήλικες με 1 τέκνο'],[16162,'Δύο ενήλικες με 2 τέκνα'],[18659,'Δύο ενήλικες με 2 τέκνα + εξαρτ.'],[18810,'Δύο ενήλικες με 3 τέκνα'],[21307,'Δύο ενήλικες με 3 τέκνα + εξαρτ.'],[21458,'Δύο ενήλικες με 4 τέκνα']]
+  const hhLabel = HOUSEHOLD_OPTS.find(o => o[0] === incomeData.householdValue)?.[1] || ''
+  const isLegal = debtorType?.includes('Νομικό')
+
+  const GI = 'padding:4px 0;font-size:13px;'
+  const incomeSectionHtml = (dispMonthly > 0 || incomeData.annualIncome > 0 || incomeData.turnover > 0) ? `
+  <p style="margin:14px 0 6px;">${badge('💶', '#1d4ed8', '#eff6ff')}<b style="font-size:15px;color:#1e3a5f;">Εισοδηματική &amp; Περιουσιακή Εικόνα</b></p>
+  <div style="background:#f8faff;border:1px solid #dde7fb;border-radius:10px;padding:14px 16px;margin-bottom:14px;font-size:14px;">
+    ${isLegal ? `
+    <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;">Οικονομικά Στοιχεία</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 16px;">
+      ${incomeData.turnover > 0 ? `<div style="${GI}"><span style="color:#64748b;">Κύκλος εργασιών:</span> <b>${fmt(incomeData.turnover)}</b></div>` : ''}
+      ${incomeData.ebitda > 0 ? `<div style="${GI}"><span style="color:#64748b;">EBITDA:</span> <b>${fmt(incomeData.ebitda)}</b></div>` : ''}
+      ${dispMonthly > 0 ? `<div style="${GI}"><span style="color:#64748b;">Μηνιαίο διαθέσιμο:</span> <b style="color:#1d4ed8;">${fmt(dispMonthly)}</b></div>` : ''}
+    </div>` : `
+    <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;">Εισοδήματα</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 16px;margin-bottom:10px;">
+      ${incomeData.annualIncome > 0 ? `<div style="${GI}"><span style="color:#64748b;">Ετήσιο εισόδημα:</span> <b>${fmt(incomeData.annualIncome)}</b></div>` : ''}
+      ${dispAnnual > 0 ? `<div style="${GI}"><span style="color:#64748b;">Διαθέσιμο (×80%):</span> <b style="color:#1d4ed8;">${fmt(dispAnnual)}</b></div>` : ''}
+      ${dispMonthly > 0 ? `<div style="${GI};grid-column:1/-1;"><span style="color:#64748b;">Μηνιαίο διαθέσιμο:</span> <b style="color:#1d4ed8;font-size:15px;">${fmt(dispMonthly)}</b></div>` : ''}
+    </div>
+    ${(incomeData.householdValue > 0 || incomeData.enfiaCost > 0 || incomeData.medicalCost > 0 || incomeData.rentCost > 0 || incomeData.studentRentCost > 0 || incomeData.extraLivingCost > 0 || incomeData.alimonyCost > 0) ? `
+    <div style="border-top:1px solid #e2eaf8;padding-top:10px;">
+      <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;">Νοικοκυριό &amp; Δαπάνες</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 16px;">
+        ${incomeData.householdValue > 0 ? `<div style="${GI}"><span style="color:#64748b;">Εύλογες δαπάνες${hhLabel ? ` (${escHtml(hhLabel)})` : ''}:</span> <b>${fmt(incomeData.householdValue)}</b></div>` : ''}
+        ${incomeData.enfiaCost > 0 ? `<div style="${GI}"><span style="color:#64748b;">ΕΝΦΙΑ:</span> <b>${fmt(incomeData.enfiaCost)}</b></div>` : ''}
+        ${incomeData.medicalCost > 0 ? `<div style="${GI}"><span style="color:#64748b;">Ιατρικές δαπάνες:</span> <b>${fmt(incomeData.medicalCost)}</b></div>` : ''}
+        ${incomeData.rentCost > 0 ? `<div style="${GI}"><span style="color:#64748b;">Ενοίκιο:</span> <b>${fmt(incomeData.rentCost)}</b></div>` : ''}
+        ${incomeData.studentRentCost > 0 ? `<div style="${GI}"><span style="color:#64748b;">Ενοίκιο φοιτητών:</span> <b>${fmt(incomeData.studentRentCost)}</b></div>` : ''}
+        ${incomeData.extraLivingCost > 0 ? `<div style="${GI}"><span style="color:#64748b;">Πρόσθετη διατροφή:</span> <b>${fmt(incomeData.extraLivingCost)}</b></div>` : ''}
+        ${incomeData.alimonyCost > 0 ? `<div style="${GI}"><span style="color:#64748b;">Διατροφή (διαζύγιο):</span> <b>${fmt(incomeData.alimonyCost)}</b></div>` : ''}
+        ${totalExpenses > 0 ? `<div style="${GI};grid-column:1/-1;font-weight:700;"><span style="color:#64748b;">Σύνολο δαπανών:</span> <b>${fmt(totalExpenses)}</b></div>` : ''}
+      </div>
+    </div>` : ''}
+    `}
+    ${assets && assets.length > 0 ? `
+    <div style="border-top:1px solid #e2eaf8;padding-top:10px;margin-top:10px;">
+      <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;">Ακίνητα &amp; Περιουσία</div>
+      <table style="width:100%;border-collapse:collapse;">
+        ${assets.map((a) => `<tr><td style="${GI}color:#374151;">${escHtml(a.description || a.type || '')}</td><td style="${GI}text-align:right;font-weight:700;">${fmt(a.value)}</td></tr>`).join('')}
+      </table>
+    </div>` : ''}
+  </div>` : ''
+
   return `<div id="emailContent" style="font-family:Calibri,Arial,sans-serif;color:#1a1a1a;line-height:1.6;font-size:15px;">
   <p>Αγαπητέ/ή ${escHtml(clientName)},</p>
   <p>Η ομάδα της <b>i-Mentor Consulting</b> ολοκλήρωσε την ανάλυση και παρουσιάζει τα αποτελέσματα της <b>Θεωρητικής Προσομοίωσης Εξωδικαστικού Μηχανισμού</b>.</p>
@@ -402,6 +447,8 @@ export function buildEmailHtml(data) {
     ${taxDebt > 0 ? `<tr><td style="padding:4px 12px;color:#374151;">ΑΑΔΕ / Εφορία</td><td style="padding:4px 12px;font-weight:700;text-align:right;">${fmt(taxDebt)}</td></tr>` : ''}
     ${dispMonthly > 0 ? `<tr style="border-top:1px solid #e0e7ff;"><td style="padding:6px 12px;color:#374151;">Μηνιαίο Διαθέσιμο Εισόδημα</td><td style="padding:6px 12px;font-weight:700;color:#1d4ed8;text-align:right;">${fmt(dispMonthly)}</td></tr>` : ''}
   </table>
+
+  ${incomeSectionHtml}
 
   ${showTable ? `${hasConservative ? `<div style="background:#fffbeb;border-left:4px solid #f59e0b;padding:8px 12px;border-radius:6px;font-size:13px;color:#78350f;margin-bottom:8px;">Τα ποσά εμφανίζονται ως εύρος: <b>Συντηρητικό – Θεωρητικό Μέγιστο</b> βάσει ΚΥΑ 13243/2024.</div>` : ''}<p style="margin:0 0 8px;">${badge('◎', '#059669', '#ecfdf5')}<b style="font-size:16px;color:#1e3a5f;">Εκτιμώμενο Θεωρητικό Αποτέλεσμα Ρύθμισης</b></p>
   <table style="border-collapse:collapse;width:100%;font-size:13px;margin-bottom:10px;">
