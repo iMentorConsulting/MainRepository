@@ -326,6 +326,152 @@ function MikroSection({ data }) {
   )
 }
 
+// ── ΔΥΠΑ / ΟΑΕΔ Section ──────────────────────────────────────────────────────
+
+function DypaSection({ data }) {
+  const { full_status_list, status, service_type, approval_date } = data
+  const currentIdx = full_status_list.findIndex(s => s.status === status)
+
+  const is3059 = /30[-–]?59|οαεδ|ανέργ/i.test(service_type || '')
+  const amounts = is3059 ? { a: 4600, b: 6200, g: 6200 } : { a: 4700, b: 6400, g: 6400 }
+  const programLabel = is3059 ? 'ΟΑΕΔ 30–59' : 'ΔΥΠΑ 18–29'
+  const total = amounts.a + amounts.b + amounts.g
+
+  // Find phase start indices and receipt indices
+  const phaseAFirst = full_status_list.findIndex(s => s.phase_id === 'Α_ΑΙΤΗΜΑ')
+  const phaseBFirst = full_status_list.findIndex(s => s.phase_id === 'Β_ΑΙΤΗΜΑ')
+  const phaseGFirst = full_status_list.findIndex(s => s.phase_id === 'Γ_ΑΙΤΗΜΑ')
+  const idx1 = full_status_list.findIndex(s => s.status === '1η ΕΚΤΑΜΙΕΥΣΗ')
+  const idx2 = full_status_list.findIndex(s => s.status === '2η ΕΚΤΑΜΙΕΥΣΗ')
+  const idx3 = full_status_list.findIndex(s => s.status === '3η / ΤΕΛΙΚΗ ΕΚΤΑΜΙΕΥΣΗ')
+
+  const instState = (phaseFirst, receiptIdx) => {
+    if (receiptIdx >= 0 && currentIdx >= receiptIdx) return 'received'
+    if (phaseFirst >= 0 && currentIdx >= phaseFirst) return 'submitted'
+    return 'pending'
+  }
+
+  // Expected dates from approval_date
+  const addMonths = (base, n) => {
+    if (!base) return null
+    const d = new Date(base)
+    d.setMonth(d.getMonth() + n)
+    return d.toISOString()
+  }
+  const base = approval_date || null
+  const timeline = base ? {
+    aReceive: addMonths(base, 3),
+    bSubmit:  addMonths(base, 6),
+    bReceive: addMonths(base, 8),
+    gSubmit:  addMonths(base, 12),
+    gReceive: addMonths(base, 14),
+  } : null
+
+  const installments = [
+    {
+      key: 'a', label: "Α' Δόση", amount: amounts.a,
+      state: instState(phaseAFirst, idx1),
+      desc: 'Υποβολή αιτήματος + ~3 μήνες',
+      dateHint: timeline ? `~${fmtDate(timeline.aReceive)}` : null,
+    },
+    {
+      key: 'b', label: "Β' Δόση", amount: amounts.b,
+      state: instState(phaseBFirst, idx2),
+      desc: '6 μήνες λειτουργίας + ~2 μήνες',
+      dateHint: timeline ? `Υποβολή ~${fmtDate(timeline.bSubmit)} · Λήψη ~${fmtDate(timeline.bReceive)}` : null,
+    },
+    {
+      key: 'g', label: "Γ' Δόση", amount: amounts.g,
+      state: instState(phaseGFirst, idx3),
+      desc: '12 μήνες λειτουργίας + ~2 μήνες',
+      dateHint: timeline ? `Υποβολή ~${fmtDate(timeline.gSubmit)} · Λήψη ~${fmtDate(timeline.gReceive)}` : null,
+    },
+  ]
+
+  const received = installments.filter(i => i.state === 'received').reduce((s, i) => s + i.amount, 0)
+  const pct = total > 0 ? Math.round((received / total) * 100) : 0
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm space-y-4">
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div className="flex items-center gap-2">
+          <CurrencyEuroIcon className="w-5 h-5 text-green-500" />
+          <h3 className="text-sm font-semibold text-gray-700">Χρηματοδότηση — {programLabel}</h3>
+        </div>
+        <span className="text-xs text-gray-500 bg-gray-100 px-2.5 py-1 rounded-full font-medium">
+          Σύνολο {fmtEuro(total)}
+        </span>
+      </div>
+
+      {/* Progress bar */}
+      <div>
+        <div className="flex justify-between text-xs text-gray-500 mb-1">
+          <span>Εισπράχθηκαν: <span className="font-semibold text-green-600">{fmtEuro(received)}</span></span>
+          <span>{pct}%</span>
+        </div>
+        <div className="w-full bg-gray-100 rounded-full h-2.5">
+          <div className="bg-green-500 h-2.5 rounded-full transition-all" style={{ width: `${pct}%` }} />
+        </div>
+      </div>
+
+      {/* Installment cards */}
+      <div className="space-y-2">
+        {installments.map(inst => (
+          <div key={inst.key} className={`flex items-center gap-3 p-3 rounded-xl border ${
+            inst.state === 'received' ? 'bg-green-50 border-green-200' :
+            inst.state === 'submitted' ? 'bg-blue-50 border-blue-200' :
+            'bg-gray-50 border-gray-200'
+          }`}>
+            <div className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 ${
+              inst.state === 'received' ? 'bg-green-500 text-white' :
+              inst.state === 'submitted' ? 'bg-blue-500 text-white' :
+              'bg-gray-200 text-gray-500'
+            }`}>
+              {inst.state === 'received' ? <CheckCircleIcon className="w-5 h-5" /> :
+               inst.state === 'submitted' ? <ClockIcon className="w-5 h-5" /> :
+               <span className="text-xs font-bold">{inst.key.toUpperCase()}</span>}
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className={`text-sm font-semibold ${
+                inst.state === 'received' ? 'text-green-700' :
+                inst.state === 'submitted' ? 'text-blue-700' : 'text-gray-500'
+              }`}>{inst.label}</div>
+              <div className="text-xs text-gray-400 leading-tight">{inst.desc}</div>
+              {inst.dateHint && <div className="text-xs text-gray-400 mt-0.5">{inst.dateHint}</div>}
+            </div>
+            <div className="text-right flex-shrink-0">
+              <div className={`text-base font-bold ${
+                inst.state === 'received' ? 'text-green-700' :
+                inst.state === 'submitted' ? 'text-blue-700' : 'text-gray-400'
+              }`}>{fmtEuro(inst.amount)}</div>
+              <div className={`text-xs font-medium ${
+                inst.state === 'received' ? 'text-green-600' :
+                inst.state === 'submitted' ? 'text-blue-600' : 'text-gray-400'
+              }`}>
+                {inst.state === 'received' ? 'Εισπράχθηκε ✓' :
+                 inst.state === 'submitted' ? 'Αίτημα σε εξέλιξη' : 'Αναμένει'}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* iMentor fees */}
+      <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3">
+        <div className="text-xs font-semibold text-blue-700 mb-2">Αμοιβές iMentor</div>
+        <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-blue-600">
+          <span>Υποβολή αίτησης</span><span className="font-semibold text-right">300 €</span>
+          <span>Α' αίτημα εκταμίευσης</span><span className="font-semibold text-right">300 €</span>
+          <span>Β' αίτημα εκταμίευσης</span><span className="font-semibold text-right">300 €</span>
+          <span>Γ' αίτημα εκταμίευσης</span><span className="font-semibold text-right">300 €</span>
+          <span className="font-bold text-blue-800 border-t border-blue-200 pt-1.5">Σύνολο αμοιβής</span>
+          <span className="font-bold text-blue-800 text-right border-t border-blue-200 pt-1.5">1.200 €</span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Financial Section ─────────────────────────────────────────────────────────
 
 function FinancialSection({ data }) {
@@ -488,7 +634,7 @@ export default function ClientPortal() {
             value={budget}
             color="blue"
           />
-          {data.program_category !== 'ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ' && (
+          {data.program_category === 'ΕΣΠΑ' && (
             <KpiCard icon={CurrencyEuroIcon} label="Επιχορήγηση" value={subsidy} color="green" />
           )}
           <KpiCard icon={CalendarDaysIcon} label="Ημερ. Έγκρισης" value={fmtDate(data.approval_date)} color="purple" />
@@ -512,6 +658,11 @@ export default function ClientPortal() {
         {/* ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ section */}
         {data.program_category === 'ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ' && (
           <MikroSection data={data} />
+        )}
+
+        {/* ΔΥΠΑ / ΟΑΕΔ section */}
+        {data.program_category === 'ΔΥΠΑ' && (
+          <DypaSection data={data} />
         )}
 
         {/* Pending Items */}

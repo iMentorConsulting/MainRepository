@@ -593,20 +593,6 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* SLA Action Center */}
-      <div className="bg-white rounded-xl border overflow-hidden">
-        <div className="px-5 py-3 border-b bg-gray-50 flex items-center justify-between">
-          <h2 className="font-semibold text-gray-800 text-sm flex items-center gap-2">
-            <BellIcon className="w-4 h-4 text-blue-500" />
-            Κέντρο SLA Δράσης — Αποστολή Ειδοποιήσεων
-          </h2>
-          <button onClick={() => setShowSLA(true)} className="text-xs text-gray-400 hover:text-gray-600 flex items-center gap-1">
-            <Cog6ToothIcon className="w-3.5 h-3.5" /> Ρύθμιση μηνυμάτων
-          </button>
-        </div>
-        <SLAActionCenter slaOverdue={stats.sla_overdue} />
-      </div>
-
     </div>
   )
 }
