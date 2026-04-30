@@ -58,11 +58,11 @@ function AfmGate({ clientName, onVerify }) {
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
       <header className="bg-[#1e3a5f] text-white px-4 py-4 flex items-center">
-        <img src="/logo-blue.png" alt="iMentor" className="h-10 w-auto object-contain" />
+        <img src="/iMENTOR_Logo_without_moto.png" alt="iMentor" className="h-10 w-auto object-contain" />
       </header>
       <div className="flex-1 flex items-center justify-center p-6">
         <div className="bg-white rounded-2xl border border-gray-100 shadow-lg p-8 w-full max-w-sm text-center">
-          <img src="/logo-light.jpeg" alt="iMentor" className="h-16 w-auto object-contain mx-auto mb-5" />
+          <img src="/iMENTOR_Logo_without_moto.png" alt="iMentor" className="h-16 w-auto object-contain mx-auto mb-5" />
           <h2 className="text-xl font-bold text-gray-900 mb-1">Επαλήθευση</h2>
           <p className="text-sm text-gray-500 mb-6">
             Εισάγετε το ΑΦΜ σας για πρόσβαση στα στοιχεία της υπόθεσης.
@@ -583,7 +583,7 @@ export default function ClientPortal() {
       {/* Header */}
       <header className="bg-[#1e3a5f] text-white">
         <div className="max-w-3xl mx-auto px-4 py-4 flex items-center">
-          <img src="/logo-blue.png" alt="iMentor" className="h-11 w-auto object-contain" />
+          <img src="/iMENTOR_Logo_without_moto.png" alt="iMentor" className="h-11 w-auto object-contain" />
         </div>
       </header>
 
@@ -711,7 +711,7 @@ export default function ClientPortal() {
 
         {/* Contact Footer */}
         <div className="bg-[#1e3a5f] text-white rounded-xl p-5">
-          <img src="/logo-blue.png" alt="iMentor" className="h-10 w-auto object-contain mb-4" />
+          <img src="/iMENTOR_Logo_without_moto.png" alt="iMentor" className="h-10 w-auto object-contain mb-4" />
           <div className="flex flex-wrap gap-4 text-sm">
             <a href="tel:+302101234567" className="flex items-center gap-2 text-blue-200 hover:text-white transition-colors">
               <PhoneIcon className="w-4 h-4" /> +30 210 123 4567
