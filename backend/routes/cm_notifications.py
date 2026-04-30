@@ -81,16 +81,10 @@ def _send_email(to_email: str, subject: str, body: str) -> tuple[bool, str]:
         return False, str(e)
 
 
-def _send_viber(phone: str, message: str) -> tuple[bool, str]:
-    api_key = os.getenv("VIBER_TOKEN", "")
-    # Strip https:// if user pasted the full URL instead of just the hostname
-    base_url = os.getenv("INFOBIP_BASE_URL", "api.infobip.com").replace("https://", "").replace("http://", "").rstrip("/")
-    sender = os.getenv("INFOBIP_SENDER", "IMENTOR")
+def _send_viber(phone: str, message: str, client_name: str = "", agent_name: str = "", service_type: str = "") -> tuple[bool, str]:
+    bridge_url = os.getenv("VIBER_BRIDGE_URL", "https://viber-bridge.i-mentor.gr")
 
-    if not api_key:
-        return False, "VIBER_TOKEN (Infobip API key) δεν έχει ρυθμιστεί"
-
-    # Normalize phone: digits only, international format without +
+    # Normalize phone to international format without +
     phone = phone.strip().replace(" ", "").replace("-", "").replace("(", "").replace(")", "")
     if phone.startswith("0"):
         phone = "30" + phone[1:]
@@ -99,24 +93,21 @@ def _send_viber(phone: str, message: str) -> tuple[bool, str]:
     elif not phone.startswith("30"):
         phone = "30" + phone
 
-    auth = _infobip_auth(api_key)
-    headers = {"Authorization": auth, "Content-Type": "application/json", "Accept": "application/json"}
-
-    # Infobip Viber v1 text endpoint (confirmed working)
     payload = {
-        "messages": [{
-            "from": sender,
-            "to": phone,
-            "content": {"text": message},
-        }]
+        "to": phone,
+        "text": message,
+        "name": client_name or phone,
     }
+    if agent_name:
+        payload["agent"] = agent_name
+    if service_type:
+        payload["service_tag"] = service_type
 
     try:
-        url = f"https://{base_url}/viber/1/message/text"
-        resp = requests.post(url, json=payload, headers=headers, timeout=10)
+        resp = requests.post(f"{bridge_url}/send", json=payload, timeout=10)
         if resp.status_code in (200, 201):
             return True, "OK"
-        return False, f"HTTP {resp.status_code} — {resp.text[:500]}"
+        return False, f"Bridge HTTP {resp.status_code} — {resp.text[:500]}"
     except Exception as e:
         return False, str(e)
 
@@ -172,7 +163,7 @@ def send_notification_to_case(
     if req.notification_type in ("viber", "both"):
         phone = req.recipient_override or c.phone
         if phone:
-            ok, err = _send_viber(phone, req.message)
+            ok, err = _send_viber(phone, req.message, c.client_name, current_user.full_name, c.service_type or "")
             status = "sent" if ok else "failed"
             _log_notification(db, c.id, "viber", c.client_name, phone, subject, req.message, status, current_user.full_name)
             results.append({"type": "viber", "to": phone, "status": status, "error": err if not ok else None})
@@ -207,7 +198,7 @@ def send_bulk_notifications(
 
         if req.notification_type in ("viber", "both"):
             if c.phone:
-                ok, err = _send_viber(c.phone, req.message)
+                ok, err = _send_viber(c.phone, req.message, c.client_name, current_user.full_name, c.service_type or "")
                 status = "sent" if ok else "failed"
                 _log_notification(db, c.id, "viber", c.client_name, c.phone, subject, req.message, status, current_user.full_name)
                 all_results.append({"case_id": c.id, "client": c.client_name, "type": "viber", "status": status})
@@ -268,7 +259,7 @@ def send_sla_notifications(
             results.append({"case_id": c.id, "client": c.client_name, "type": "email", "status": s, "error": err if not ok else None})
 
         if req.notification_type in ("viber", "both") and c.phone:
-            ok, err = _send_viber(c.phone, msg)
+            ok, err = _send_viber(c.phone, msg, c.client_name, current_user.full_name, c.service_type or "")
             s = "sent" if ok else "failed"
             _log_notification(db, c.id, "viber", c.client_name, c.phone, subject, msg, s, current_user.full_name)
             results.append({"case_id": c.id, "client": c.client_name, "type": "viber", "status": s, "error": err if not ok else None})

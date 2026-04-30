@@ -266,7 +266,7 @@ def notify_pending_items(
         results.append({"type": "email", "status": "skipped", "error": "Δεν υπάρχει email"})
 
     if req.notification_type in ("viber", "both") and c.phone:
-        ok, err = _send_viber(c.phone, message)
+        ok, err = _send_viber(c.phone, message, c.client_name, current_user.full_name, c.service_type or "")
         status = "sent" if ok else "failed"
         _log_notification(db, c.id, "viber", c.client_name, c.phone, subject, message, status, current_user.full_name)
         results.append({"type": "viber", "to": c.phone, "status": status, "error": err if not ok else None})
