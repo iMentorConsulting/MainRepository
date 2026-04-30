@@ -904,11 +904,7 @@ export default function CaseDetail() {
               {caseData.client_name}
             </h1>
             <div className="flex flex-wrap items-center gap-2 mt-2">
-              <span
-                className={`text-xs px-2.5 py-1 rounded-full font-medium ${
-                  STATUS_COLORS[caseData.status] || 'bg-gray-100 text-gray-600'
-                }`}
-              >
+              <span className="text-xs px-2.5 py-1 rounded-full font-medium bg-blue-100 text-blue-800">
                 {caseData.status}
               </span>
               {caseData.service_type && (
