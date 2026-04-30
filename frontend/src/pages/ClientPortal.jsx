@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
 import { getPortalCase, recordPortalVisit } from '../api'
 import {
@@ -28,11 +28,11 @@ function fmtEuro(n) {
 }
 
 const PHASE_COLORS = {
-  green:  { dot: 'bg-green-500',  line: 'bg-green-400', text: 'text-green-700',  badge: 'bg-green-100 text-green-700 border-green-200' },
-  blue:   { dot: 'bg-blue-500',   line: 'bg-blue-400',  text: 'text-blue-700',   badge: 'bg-blue-100 text-blue-700 border-blue-200' },
-  yellow: { dot: 'bg-yellow-500', line: 'bg-yellow-400',text: 'text-yellow-700', badge: 'bg-yellow-100 text-yellow-700 border-yellow-200' },
-  purple: { dot: 'bg-purple-500', line: 'bg-purple-400',text: 'text-purple-700', badge: 'bg-purple-100 text-purple-700 border-purple-200' },
-  orange: { dot: 'bg-orange-500', line: 'bg-orange-400',text: 'text-orange-700', badge: 'bg-orange-100 text-orange-700 border-orange-200' },
+  green:  { dot: 'bg-green-500',  border: 'border-green-400', text: 'text-green-700',  badge: 'bg-green-100 text-green-700 border-green-200',  rowBg: 'bg-green-50 border border-green-200' },
+  blue:   { dot: 'bg-blue-500',   border: 'border-blue-400',  text: 'text-blue-700',   badge: 'bg-blue-100 text-blue-700 border-blue-200',   rowBg: 'bg-blue-50 border border-blue-200' },
+  yellow: { dot: 'bg-yellow-500', border: 'border-yellow-400',text: 'text-yellow-700', badge: 'bg-yellow-100 text-yellow-700 border-yellow-200', rowBg: 'bg-yellow-50 border border-yellow-200' },
+  purple: { dot: 'bg-purple-500', border: 'border-purple-400',text: 'text-purple-700', badge: 'bg-purple-100 text-purple-700 border-purple-200', rowBg: 'bg-purple-50 border border-purple-200' },
+  orange: { dot: 'bg-orange-500', border: 'border-orange-400',text: 'text-orange-700', badge: 'bg-orange-100 text-orange-700 border-orange-200', rowBg: 'bg-orange-50 border border-orange-200' },
 }
 
 // ── AFM Gate ────────────────────────────────────────────────────────────────
@@ -121,22 +121,25 @@ function KpiCard({ icon: Icon, label, value, color = 'blue' }) {
   )
 }
 
-// ── Horizontal Status Timeline ────────────────────────────────────────────────
+// ── Vertical Status Timeline ──────────────────────────────────────────────────
 
 function StatusTimeline({ fullStatusList, currentStatus, nextStatus }) {
-  const scrollRef = useRef(null)
   const currentIdx = fullStatusList.findIndex(s => s.status === currentStatus)
 
-  useEffect(() => {
-    if (scrollRef.current) {
-      const active = scrollRef.current.querySelector('[data-active="true"]')
-      if (active) active.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' })
+  // Group flat list into phase buckets preserving order
+  const phaseGroups = []
+  fullStatusList.forEach((item, idx) => {
+    const last = phaseGroups[phaseGroups.length - 1]
+    if (!last || last.phase_id !== item.phase_id) {
+      phaseGroups.push({ phase_id: item.phase_id, phase_label: item.phase_label, color: item.color, items: [{ ...item, idx }] })
+    } else {
+      last.items.push({ ...item, idx })
     }
-  }, [currentIdx])
+  })
 
   return (
     <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-5">
         <h3 className="text-sm font-semibold text-gray-700">Πορεία Υπόθεσης</h3>
         {nextStatus && (
           <div className="text-xs bg-blue-50 text-blue-700 border border-blue-200 px-3 py-1 rounded-full">
@@ -144,40 +147,50 @@ function StatusTimeline({ fullStatusList, currentStatus, nextStatus }) {
           </div>
         )}
       </div>
-      <div ref={scrollRef} className="overflow-x-auto pb-2">
-        <div className="flex items-start min-w-max gap-0">
-          {fullStatusList.map((item, idx) => {
-            const isDone = idx < currentIdx
-            const isActive = idx === currentIdx
-            const colors = PHASE_COLORS[item.color] || PHASE_COLORS.blue
+      <div className="space-y-5">
+        {phaseGroups.map((phase) => {
+          const colors = PHASE_COLORS[phase.color] || PHASE_COLORS.blue
+          const allDone = phase.items.every(item => item.idx < currentIdx)
+          const hasActive = phase.items.some(item => item.idx === currentIdx)
 
-            return (
-              <div key={idx} className="flex flex-col items-center relative" style={{ minWidth: 90 }}>
-                {idx < fullStatusList.length - 1 && (
-                  <div className={`absolute top-3 left-1/2 w-full h-0.5 z-0 ${isDone || isActive ? colors.line : 'bg-gray-200'}`} />
-                )}
-                <div data-active={isActive ? 'true' : undefined}
-                  className={`relative z-10 w-6 h-6 rounded-full flex items-center justify-center text-white text-[10px] font-bold border-2
-                    ${isDone ? `${colors.dot} border-transparent` :
-                      isActive ? `${colors.dot} border-white ring-2 ring-offset-1 ring-current shadow-md` :
-                      'bg-gray-200 border-transparent text-gray-400'}`}
-                  style={isActive ? { boxShadow: '0 0 0 3px rgba(59,130,246,0.3)' } : {}}
-                >
-                  {isDone ? <CheckCircleIcon className="w-4 h-4" /> : idx + 1}
-                </div>
-                <div className={`text-center mt-1.5 px-1 leading-tight text-[10px] max-w-[80px] break-words
-                  ${isActive ? `font-bold ${colors.text}` : isDone ? 'text-gray-400' : 'text-gray-300'}`}>
-                  {item.status}
-                </div>
-                {isActive && (
-                  <div className={`mt-1 text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${colors.badge}`}>
-                    ΤΩΡΑ
-                  </div>
-                )}
+          return (
+            <div key={phase.phase_id} className={`border-l-2 pl-4 ${allDone || hasActive ? colors.border : 'border-gray-200'}`}>
+              <div className="flex items-center gap-2 mb-2">
+                <span className={`inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full border ${colors.badge}`}>
+                  {allDone && <CheckCircleIcon className="w-3.5 h-3.5" />}
+                  {phase.phase_label}
+                </span>
+                {allDone && <span className="text-xs text-gray-400">Ολοκληρωμένη</span>}
               </div>
-            )
-          })}
-        </div>
+              <div className="space-y-1">
+                {phase.items.map((item) => {
+                  const isDone = item.idx < currentIdx
+                  const isActive = item.idx === currentIdx
+                  return (
+                    <div key={item.idx} className={`flex items-center gap-2.5 py-1.5 px-2.5 rounded-lg ${isActive ? colors.rowBg : ''}`}>
+                      <div className={`flex-shrink-0 w-4 h-4 rounded-full flex items-center justify-center ${
+                        isDone || isActive ? `${colors.dot} text-white` : 'bg-gray-200'
+                      }`}>
+                        {isDone ? <CheckCircleIcon className="w-3 h-3" /> :
+                         isActive ? <div className="w-1.5 h-1.5 bg-white rounded-full" /> : null}
+                      </div>
+                      <span className={`flex-1 leading-tight text-sm ${
+                        isDone ? 'text-gray-400' : isActive ? `font-bold ${colors.text}` : 'text-gray-400'
+                      }`}>
+                        {item.status}
+                      </span>
+                      {isActive && (
+                        <span className={`flex-shrink-0 text-xs font-bold px-2 py-0.5 rounded-full border ${colors.badge}`}>
+                          ΤΩΡΑ
+                        </span>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )
+        })}
       </div>
     </div>
   )
@@ -248,6 +261,116 @@ function BudgetBreakdown({ categories, approvedBudget }) {
             </tr>
           </tbody>
         </table>
+      </div>
+    </div>
+  )
+}
+
+// ── Μικροπιστώσεις Section ────────────────────────────────────────────────────
+
+function MikroSection({ data }) {
+  const { full_status_list, status, approved_budget } = data
+  const currentIdx = full_status_list.findIndex(s => s.status === status)
+
+  const payment150Idx = full_status_list.findIndex(s => s.status === 'ΠΛΗΡΩΜΗ 150€')
+  const payment310Idx = full_status_list.findIndex(s => s.status === 'ΠΛΗΡΩΜΗ 310€')
+
+  const milestoneState = (payIdx) =>
+    payIdx < 0 ? 'pending' :
+    currentIdx > payIdx ? 'paid' :
+    currentIdx === payIdx ? 'due' : 'pending'
+
+  const milestones = [
+    { key: 'm1', label: 'Αμοιβή Φάσης 1', amount: '150 €', state: milestoneState(payment150Idx), note: 'Προετοιμασία' },
+    { key: 'm2', label: 'Αμοιβή Φάσης 2', amount: '310 €', state: milestoneState(payment310Idx), note: 'Υποβολή HDB' },
+  ]
+
+  // Build phase progress data from full_status_list
+  const phases = []
+  full_status_list.forEach((item, idx) => {
+    const last = phases[phases.length - 1]
+    if (!last || last.phase_id !== item.phase_id) {
+      phases.push({ phase_id: item.phase_id, label: item.phase_label, color: item.color, firstIdx: idx, lastIdx: idx })
+    } else {
+      last.lastIdx = idx
+    }
+  })
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm space-y-4">
+      <div className="flex items-center gap-2">
+        <CurrencyEuroIcon className="w-5 h-5 text-purple-500" />
+        <h3 className="text-sm font-semibold text-gray-700">Ταμείο Μικροπιστώσεων</h3>
+      </div>
+
+      {(approved_budget || 0) > 0 && (
+        <div className="bg-purple-50 border border-purple-200 rounded-xl p-4 flex items-center justify-between">
+          <span className="text-sm text-purple-700 font-medium">Ποσό Δανείου</span>
+          <span className="text-xl font-bold text-purple-800">{fmtEuro(approved_budget)}</span>
+        </div>
+      )}
+
+      <div>
+        <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Πληρωμές iMentor</h4>
+        <div className="space-y-2">
+          {milestones.map(m => (
+            <div key={m.key} className={`flex items-center gap-3 p-3 rounded-xl border ${
+              m.state === 'paid' ? 'bg-green-50 border-green-200' :
+              m.state === 'due'  ? 'bg-orange-50 border-orange-300' :
+              'bg-gray-50 border-gray-200'
+            }`}>
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
+                m.state === 'paid' ? 'bg-green-500 text-white' :
+                m.state === 'due'  ? 'bg-orange-500 text-white' :
+                'bg-gray-200 text-gray-400'
+              }`}>
+                {m.state === 'paid' ? <CheckCircleIcon className="w-5 h-5" /> : <ClockIcon className="w-5 h-5" />}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className={`text-sm font-medium ${
+                  m.state === 'paid' ? 'text-green-700' :
+                  m.state === 'due'  ? 'text-orange-700' : 'text-gray-500'
+                }`}>{m.label}</div>
+                <div className={`text-xs ${
+                  m.state === 'paid' ? 'text-green-600' :
+                  m.state === 'due'  ? 'text-orange-600' : 'text-gray-400'
+                }`}>
+                  {m.state === 'paid' ? 'Εξοφλήθηκε ✓' : m.state === 'due' ? 'Απαιτείται τώρα' : `Αναμένει — ${m.note}`}
+                </div>
+              </div>
+              <span className={`text-base font-bold flex-shrink-0 ${
+                m.state === 'paid' ? 'text-green-700' :
+                m.state === 'due'  ? 'text-orange-700' : 'text-gray-400'
+              }`}>{m.amount}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Φάσεις</h4>
+        <div className="grid grid-cols-2 gap-2">
+          {phases.map((phase) => {
+            const colors = PHASE_COLORS[phase.color] || PHASE_COLORS.blue
+            const isDone   = currentIdx > phase.lastIdx
+            const isActive = currentIdx >= phase.firstIdx && currentIdx <= phase.lastIdx
+            return (
+              <div key={phase.phase_id} className={`p-3 rounded-xl border text-center ${
+                isDone ? colors.badge : isActive ? colors.rowBg : 'bg-gray-50 border-gray-200'
+              }`}>
+                <div className={`text-lg font-bold mb-0.5 ${isDone || isActive ? colors.text : 'text-gray-300'}`}>
+                  {isDone ? '✓' : isActive ? '→' : '○'}
+                </div>
+                <div className={`text-xs font-semibold ${isDone || isActive ? colors.text : 'text-gray-400'}`}>
+                  {phase.label}
+                </div>
+                <div className={`text-xs mt-0.5 ${isDone ? 'text-green-600' : isActive ? colors.text : 'text-gray-300'}`}>
+                  {isDone ? 'Ολοκληρώθηκε' : isActive ? 'Ενεργή' : 'Αναμένει'}
+                </div>
+              </div>
+            )
+          })}
+        </div>
       </div>
     </div>
   )
@@ -409,13 +532,20 @@ export default function ClientPortal() {
 
         {/* KPIs */}
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <KpiCard icon={CurrencyEuroIcon} label="Εγκεκρ. Προϋπολογισμός" value={budget} color="blue" />
-          <KpiCard icon={CurrencyEuroIcon} label="Επιχορήγηση" value={subsidy} color="green" />
+          <KpiCard
+            icon={CurrencyEuroIcon}
+            label={data.program_category === 'ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ' ? 'Ποσό Δανείου' : 'Εγκεκρ. Προϋπολογισμός'}
+            value={budget}
+            color="blue"
+          />
+          {data.program_category !== 'ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ' && (
+            <KpiCard icon={CurrencyEuroIcon} label="Επιχορήγηση" value={subsidy} color="green" />
+          )}
           <KpiCard icon={CalendarDaysIcon} label="Ημερ. Έγκρισης" value={fmtDate(data.approval_date)} color="purple" />
           <KpiCard icon={CalendarDaysIcon} label="Προθεσμία" value={fmtDate(data.project_deadline)} color="orange" />
         </div>
 
-        {/* Horizontal Status Timeline */}
+        {/* Vertical Status Timeline */}
         {data.full_status_list?.length > 0 && (
           <StatusTimeline
             fullStatusList={data.full_status_list}
@@ -427,6 +557,11 @@ export default function ClientPortal() {
         {/* ΕΣΠΑ Budget breakdown */}
         {data.program_category === 'ΕΣΠΑ' && data.budget_categories?.length > 0 && (
           <BudgetBreakdown categories={data.budget_categories} approvedBudget={data.approved_budget} />
+        )}
+
+        {/* ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ section */}
+        {data.program_category === 'ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ' && (
+          <MikroSection data={data} />
         )}
 
         {/* Pending Items */}
