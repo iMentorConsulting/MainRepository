@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import {
   getCases, getUsers, updateCase, getAllPendingOverview, createMessage, getMessages, deleteMessage,
   createCasePendingItem, deleteCasePendingItem, notifyCasePendingItems, getNotificationLogs,
+  getPendingItemTemplates,
 } from '../api'
 import { PIPELINES } from '../pipelines'
 import {
@@ -178,15 +179,40 @@ function FollowUpCell({ caseId, value, onUpdate }) {
 }
 
 // ── Pending items cell (each item on its own line) ─────────────────────────────
-function PendingCell({ caseId, items, onAdd, onDelete }) {
+function PendingCell({ caseId, programCategory, items, onAdd, onDelete }) {
   const [newText, setNewText] = useState('')
   const [adding, setAdding] = useState(false)
+  const [templates, setTemplates] = useState([])
+  const [showSuggestions, setShowSuggestions] = useState(false)
+  const wrapperRef = useRef(null)
 
-  const handleAdd = async () => {
-    const text = newText.trim()
-    if (!text) return
+  useEffect(() => {
+    getPendingItemTemplates(programCategory).then(setTemplates).catch(() => {})
+  }, [programCategory])
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target)) {
+        setShowSuggestions(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  const suggestions = newText.trim().length > 0
+    ? templates.filter(t =>
+        t.item_text.toLowerCase().includes(newText.toLowerCase()) &&
+        !items.some(i => i.item_text === t.item_text)
+      )
+    : []
+
+  const handleAdd = async (text) => {
+    const t = (text || newText).trim()
+    if (!t) return
     setAdding(true)
-    const ok = await onAdd(caseId, text)
+    setShowSuggestions(false)
+    const ok = await onAdd(caseId, t)
     if (ok) setNewText('')
     setAdding(false)
   }
@@ -208,21 +234,38 @@ function PendingCell({ caseId, items, onAdd, onDelete }) {
           </div>
         ))
       }
-      <div className="flex gap-1 pt-1">
+      <div ref={wrapperRef} className="relative flex gap-1 pt-1">
         <input
           className="flex-1 min-w-0 text-xs border border-gray-200 rounded px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-orange-300 placeholder-gray-300"
           placeholder="+ Νέα εκκρεμότητα..."
           value={newText}
-          onChange={e => setNewText(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && handleAdd()}
+          onChange={e => { setNewText(e.target.value); setShowSuggestions(true) }}
+          onFocus={() => newText.trim() && setShowSuggestions(true)}
+          onKeyDown={e => {
+            if (e.key === 'Enter') { e.preventDefault(); handleAdd() }
+            if (e.key === 'Escape') setShowSuggestions(false)
+          }}
         />
         <button
-          onClick={handleAdd}
+          onClick={() => handleAdd()}
           disabled={adding || !newText.trim()}
           className="shrink-0 text-orange-400 hover:text-orange-600 disabled:opacity-30"
         >
           <PlusIcon className="w-3.5 h-3.5" />
         </button>
+        {showSuggestions && suggestions.length > 0 && (
+          <div className="absolute left-0 right-6 top-full mt-0.5 bg-white border border-orange-200 rounded-lg shadow-lg z-50 max-h-48 overflow-y-auto">
+            {suggestions.map(t => (
+              <button
+                key={t.id}
+                onMouseDown={e => { e.preventDefault(); handleAdd(t.item_text) }}
+                className="w-full text-left px-2.5 py-1.5 text-xs text-gray-700 hover:bg-orange-50 hover:text-orange-800 border-b border-gray-100 last:border-0"
+              >
+                {t.item_text}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   )
@@ -496,6 +539,7 @@ export default function WorkView() {
                 <td className="px-3 py-2.5">
                   <PendingCell
                     caseId={c.id}
+                    programCategory={c.program_category}
                     items={c.pending_items || []}
                     onAdd={addPending}
                     onDelete={deletePending}
