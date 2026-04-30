@@ -57,18 +57,12 @@ function AfmGate({ clientName, onVerify }) {
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
-      <header className="bg-[#1e3a5f] text-white px-4 py-5 flex items-center gap-3">
-        <BuildingOffice2Icon className="w-8 h-8 text-blue-300 flex-shrink-0" />
-        <div>
-          <div className="font-bold">iMentor Consulting</div>
-          <div className="text-blue-300 text-xs">Πύλη Πελάτη</div>
-        </div>
+      <header className="bg-[#1e3a5f] text-white px-4 py-4 flex items-center">
+        <img src="/logo-blue.png" alt="iMentor" className="h-10 w-auto object-contain" />
       </header>
       <div className="flex-1 flex items-center justify-center p-6">
         <div className="bg-white rounded-2xl border border-gray-100 shadow-lg p-8 w-full max-w-sm text-center">
-          <div className="w-14 h-14 bg-[#1e3a5f] rounded-full flex items-center justify-center mx-auto mb-4">
-            <LockClosedIcon className="w-7 h-7 text-white" />
-          </div>
+          <img src="/logo-light.jpeg" alt="iMentor" className="h-16 w-auto object-contain mx-auto mb-5" />
           <h2 className="text-xl font-bold text-gray-900 mb-1">Επαλήθευση</h2>
           <p className="text-sm text-gray-500 mb-6">
             Εισάγετε το ΑΦΜ σας για πρόσβαση στα στοιχεία της υπόθεσης.
@@ -588,12 +582,8 @@ export default function ClientPortal() {
 
       {/* Header */}
       <header className="bg-[#1e3a5f] text-white">
-        <div className="max-w-3xl mx-auto px-4 py-5 flex items-center gap-3">
-          <BuildingOffice2Icon className="w-9 h-9 text-blue-300 flex-shrink-0" />
-          <div>
-            <div className="font-bold text-lg leading-tight">iMentor Consulting</div>
-            <div className="text-blue-300 text-xs">Πύλη Πελάτη</div>
-          </div>
+        <div className="max-w-3xl mx-auto px-4 py-4 flex items-center">
+          <img src="/logo-blue.png" alt="iMentor" className="h-11 w-auto object-contain" />
         </div>
       </header>
 
@@ -721,7 +711,7 @@ export default function ClientPortal() {
 
         {/* Contact Footer */}
         <div className="bg-[#1e3a5f] text-white rounded-xl p-5">
-          <h3 className="text-sm font-semibold mb-3">Επικοινωνία</h3>
+          <img src="/logo-blue.png" alt="iMentor" className="h-10 w-auto object-contain mb-4" />
           <div className="flex flex-wrap gap-4 text-sm">
             <a href="tel:+302101234567" className="flex items-center gap-2 text-blue-200 hover:text-white transition-colors">
               <PhoneIcon className="w-4 h-4" /> +30 210 123 4567
@@ -731,7 +721,7 @@ export default function ClientPortal() {
             </a>
           </div>
           <div className="mt-4 pt-4 border-t border-white/10 text-xs text-blue-300 text-center">
-            iMentor Consulting © {new Date().getFullYear()} · Σύστημα Πελάτη
+            © {new Date().getFullYear()} iMentor Consulting · Σύστημα Πελάτη
           </div>
         </div>
       </div>

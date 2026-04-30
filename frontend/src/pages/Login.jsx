@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { login } from '../api'
-import { BuildingOffice2Icon } from '@heroicons/react/24/outline'
 import toast from 'react-hot-toast'
 
 export default function Login({ onLogin }) {
@@ -24,10 +23,7 @@ export default function Login({ onLogin }) {
     <div className="min-h-screen bg-gradient-to-br from-[#1e3a5f] to-[#2d5986] flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-white/10 rounded-2xl mb-4">
-            <BuildingOffice2Icon className="w-9 h-9 text-white" />
-          </div>
-          <h1 className="text-2xl font-bold text-white">iMentor Consulting</h1>
+          <img src="/logo-blue.png" alt="iMentor Consulting" className="h-20 w-auto object-contain mx-auto mb-3" />
           <p className="text-blue-200 mt-1">Σύστημα Διαχείρισης Υποθέσεων</p>
         </div>
 

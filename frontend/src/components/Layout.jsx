@@ -10,7 +10,6 @@ import {
   ArrowRightOnRectangleIcon,
   Bars3Icon,
   XMarkIcon,
-  BuildingOffice2Icon,
   KeyIcon,
   ExclamationCircleIcon,
   TableCellsIcon,
@@ -119,12 +118,8 @@ export default function Layout({ auth, onLogout }) {
           ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 lg:static lg:flex`}
       >
         {/* Logo */}
-        <div className="flex items-center gap-3 px-6 py-5 border-b border-white/10">
-          <BuildingOffice2Icon className="w-8 h-8 text-blue-300" />
-          <div>
-            <div className="font-bold text-sm leading-tight">iMentor Consulting</div>
-            <div className="text-xs text-blue-300">Case Management</div>
-          </div>
+        <div className="flex items-center gap-3 px-4 py-4 border-b border-white/10">
+          <img src="/logo-blue.png" alt="iMentor" className="h-10 w-auto object-contain" />
           <button
             className="ml-auto lg:hidden text-white/60 hover:text-white"
             onClick={() => setSidebarOpen(false)}
