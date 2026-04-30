@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
 import { getAuth, setAuth as saveAuth, clearAuth } from './api'
 import Layout from './components/Layout'
+import ErrorBoundary from './components/ErrorBoundary'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import Cases from './pages/Cases'
@@ -33,22 +34,22 @@ export default function App() {
       <Toaster position="top-right" toastOptions={{ duration: 3500 }} />
       <Routes>
         {/* Public portal route — no auth required */}
-        <Route path="/portal/:token" element={<ClientPortal />} />
+        <Route path="/portal/:token" element={<ErrorBoundary><ClientPortal /></ErrorBoundary>} />
 
         {/* Auth-protected app */}
         {!auth ? (
           <Route path="*" element={<Login onLogin={handleLogin} />} />
         ) : (
           <Route path="/" element={<Layout auth={auth} onLogout={handleLogout} />}>
-            <Route index element={<Dashboard />} />
-            <Route path="cases" element={<Cases />} />
-            <Route path="cases/:id" element={<CaseDetail />} />
-            <Route path="kanban" element={<Kanban />} />
-            <Route path="pending" element={<PendingPage />} />
-            <Route path="workview" element={<WorkView />} />
-            <Route path="notifications" element={<Notifications />} />
-            <Route path="users" element={<Users />} />
-            <Route path="import" element={<Import />} />
+            <Route index element={<ErrorBoundary><Dashboard /></ErrorBoundary>} />
+            <Route path="cases" element={<ErrorBoundary><Cases /></ErrorBoundary>} />
+            <Route path="cases/:id" element={<ErrorBoundary><CaseDetail /></ErrorBoundary>} />
+            <Route path="kanban" element={<ErrorBoundary><Kanban /></ErrorBoundary>} />
+            <Route path="pending" element={<ErrorBoundary><PendingPage /></ErrorBoundary>} />
+            <Route path="workview" element={<ErrorBoundary><WorkView /></ErrorBoundary>} />
+            <Route path="notifications" element={<ErrorBoundary><Notifications /></ErrorBoundary>} />
+            <Route path="users" element={<ErrorBoundary><Users /></ErrorBoundary>} />
+            <Route path="import" element={<ErrorBoundary><Import /></ErrorBoundary>} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         )}
