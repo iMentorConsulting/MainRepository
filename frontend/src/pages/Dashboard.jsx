@@ -4,7 +4,7 @@ import { getDashboardStats, sendSLANotifications } from '../api'
 import { getAuth } from '../api'
 import {
   FolderOpenIcon, CurrencyEuroIcon, ClockIcon, ExclamationTriangleIcon,
-  UserGroupIcon, ChevronDownIcon, ChevronRightIcon, BellIcon,
+  UserGroupIcon, ChevronDownIcon, ChevronRightIcon, BellIcon, Cog6ToothIcon,
 } from '@heroicons/react/24/outline'
 import toast from 'react-hot-toast'
 
