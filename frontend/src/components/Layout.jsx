@@ -14,6 +14,7 @@ import {
   KeyIcon,
   ExclamationCircleIcon,
   TableCellsIcon,
+  GlobeAltIcon,
 } from '@heroicons/react/24/outline'
 import { changePassword } from '../api'
 import toast from 'react-hot-toast'
@@ -25,6 +26,7 @@ const nav = [
   { to: '/kanban', label: 'Pipeline', Icon: ViewColumnsIcon },
   { to: '/notifications', label: 'Αποστολή', Icon: BellIcon },
   { to: '/import', label: 'Εισαγωγή Sheet', Icon: ArrowDownTrayIcon },
+  { to: '/portal-broadcast', label: 'Πύλη Πελάτη — Αποστολή', Icon: GlobeAltIcon },
   { to: '/users', label: 'Χρήστες', Icon: UsersIcon },
 ]
 

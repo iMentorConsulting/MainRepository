@@ -15,6 +15,7 @@ import Notifications from './pages/Notifications'
 import Users from './pages/Users'
 import Import from './pages/Import'
 import ClientPortal from './pages/ClientPortal'
+import PortalBroadcastPage from './pages/PortalBroadcastPage'
 
 export default function App() {
   const [auth, setAuthState] = useState(() => getAuth())
@@ -50,6 +51,7 @@ export default function App() {
             <Route path="notifications" element={<ErrorBoundary><Notifications /></ErrorBoundary>} />
             <Route path="users" element={<ErrorBoundary><Users /></ErrorBoundary>} />
             <Route path="import" element={<ErrorBoundary><Import /></ErrorBoundary>} />
+            <Route path="portal-broadcast" element={<ErrorBoundary><PortalBroadcastPage /></ErrorBoundary>} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         )}

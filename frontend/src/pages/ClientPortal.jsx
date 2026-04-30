@@ -272,19 +272,6 @@ function MikroSection({ data }) {
   const { full_status_list, status, approved_budget } = data
   const currentIdx = full_status_list.findIndex(s => s.status === status)
 
-  const payment150Idx = full_status_list.findIndex(s => s.status === 'ΠΛΗΡΩΜΗ 150€')
-  const payment310Idx = full_status_list.findIndex(s => s.status === 'ΠΛΗΡΩΜΗ 310€')
-
-  const milestoneState = (payIdx) =>
-    payIdx < 0 ? 'pending' :
-    currentIdx > payIdx ? 'paid' :
-    currentIdx === payIdx ? 'due' : 'pending'
-
-  const milestones = [
-    { key: 'm1', label: 'Αμοιβή Φάσης 1', amount: '150 €', state: milestoneState(payment150Idx), note: 'Προετοιμασία' },
-    { key: 'm2', label: 'Αμοιβή Φάσης 2', amount: '310 €', state: milestoneState(payment310Idx), note: 'Υποβολή HDB' },
-  ]
-
   // Build phase progress data from full_status_list
   const phases = []
   full_status_list.forEach((item, idx) => {
@@ -309,43 +296,6 @@ function MikroSection({ data }) {
           <span className="text-xl font-bold text-purple-800">{fmtEuro(approved_budget)}</span>
         </div>
       )}
-
-      <div>
-        <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Πληρωμές iMentor</h4>
-        <div className="space-y-2">
-          {milestones.map(m => (
-            <div key={m.key} className={`flex items-center gap-3 p-3 rounded-xl border ${
-              m.state === 'paid' ? 'bg-green-50 border-green-200' :
-              m.state === 'due'  ? 'bg-orange-50 border-orange-300' :
-              'bg-gray-50 border-gray-200'
-            }`}>
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
-                m.state === 'paid' ? 'bg-green-500 text-white' :
-                m.state === 'due'  ? 'bg-orange-500 text-white' :
-                'bg-gray-200 text-gray-400'
-              }`}>
-                {m.state === 'paid' ? <CheckCircleIcon className="w-5 h-5" /> : <ClockIcon className="w-5 h-5" />}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className={`text-sm font-medium ${
-                  m.state === 'paid' ? 'text-green-700' :
-                  m.state === 'due'  ? 'text-orange-700' : 'text-gray-500'
-                }`}>{m.label}</div>
-                <div className={`text-xs ${
-                  m.state === 'paid' ? 'text-green-600' :
-                  m.state === 'due'  ? 'text-orange-600' : 'text-gray-400'
-                }`}>
-                  {m.state === 'paid' ? 'Εξοφλήθηκε ✓' : m.state === 'due' ? 'Απαιτείται τώρα' : `Αναμένει — ${m.note}`}
-                </div>
-              </div>
-              <span className={`text-base font-bold flex-shrink-0 ${
-                m.state === 'paid' ? 'text-green-700' :
-                m.state === 'due'  ? 'text-orange-700' : 'text-gray-400'
-              }`}>{m.amount}</span>
-            </div>
-          ))}
-        </div>
-      </div>
 
       <div>
         <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Φάσεις</h4>

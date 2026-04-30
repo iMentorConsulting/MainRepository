@@ -1,4 +1,6 @@
 import uuid
+import os
+import requests as http_requests
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session, joinedload
 from database import get_db
@@ -179,3 +181,81 @@ def regenerate_token(case_id: int, db: Session = Depends(get_db), current_user=D
     db.commit()
     db.refresh(case)
     return {"share_token": case.share_token}
+
+
+def _normalize_phone(phone: str) -> str:
+    p = phone.strip().replace(" ", "").replace("-", "").replace("(", "").replace(")", "")
+    if p.startswith("0"):
+        return "30" + p[1:]
+    if p.startswith("+"):
+        return p[1:]
+    if not p.startswith("30"):
+        return "30" + p
+    return p
+
+
+@router.post("/bulk-activate-notify")
+def bulk_activate_notify(body: dict, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    """Activate portals and send Viber notifications for selected cases."""
+    case_ids = body.get("case_ids", [])
+    portal_base_url = (body.get("portal_base_url") or "").rstrip("/")
+    message_template = body.get("message_template", "")
+    activate = body.get("activate", True)
+    notify = body.get("notify", True)
+
+    bridge_url = os.getenv("VIBER_BRIDGE_URL", "https://viber-bridge.i-mentor.gr")
+    results = []
+
+    for case_id in case_ids:
+        case = db.query(CMCase).filter(CMCase.id == case_id).first()
+        if not case:
+            results.append({"case_id": case_id, "ok": False, "error": "not found"})
+            continue
+
+        if activate:
+            if not case.share_token:
+                case.share_token = str(uuid.uuid4())
+            case.portal_active = True
+            db.commit()
+            db.refresh(case)
+
+        portal_url = f"{portal_base_url}/portal/{case.share_token}" if case.share_token else ""
+        msg = (message_template
+               .replace("{client_name}", case.client_name or "")
+               .replace("{portal_url}", portal_url))
+
+        notified = False
+        error = ""
+        if notify:
+            phone = (case.phone or "").strip()
+            if phone:
+                try:
+                    resp = http_requests.post(f"{bridge_url}/send", json={
+                        "to": _normalize_phone(phone),
+                        "text": msg,
+                        "name": case.client_name or phone,
+                        "agent": current_user.full_name,
+                        "service_tag": case.service_type or "",
+                    }, timeout=10)
+                    notified = resp.status_code == 200
+                    if not notified:
+                        error = resp.text[:200]
+                except Exception as e:
+                    error = str(e)[:200]
+            else:
+                error = "no phone"
+
+        results.append({
+            "case_id": case_id,
+            "client_name": case.client_name,
+            "phone": case.phone,
+            "portal_url": portal_url,
+            "notified": notified,
+            "error": error,
+        })
+
+    return {
+        "results": results,
+        "activated": sum(1 for r in results if "error" not in r or not r["error"] or r.get("portal_url")),
+        "notified": sum(1 for r in results if r.get("notified")),
+    }
