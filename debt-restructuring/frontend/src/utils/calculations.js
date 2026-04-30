@@ -240,15 +240,66 @@ export function calculateAll(debts, assets, incomeData, params = PARAMS_B) {
 
   // --- income ---
   let dispAnnual = 0, totalExpenses = 0, annualIncome = 0
+  let flagMaxDoses = false, leMoDispMonthly = 0, leFloorMonthly = 0
   if (isLE) {
-    const turnover = incomeData.turnover || 0
-    const netProfits = incomeData.netProfits != null ? incomeData.netProfits : (incomeData.ebitda || 0)
-    const leEnfia = incomeData.leEnfia || 0
-    const deposits = incomeData.deposits || 0
-    const isSmall = turnover > 0 && turnover < params.leTurnoverThreshold
-    const base = Math.max(0, netProfits - leEnfia)
-    const floored = isSmall ? Math.max(base, turnover * params.leIncomeFloorPct) : base
-    dispAnnual = floored + deposits * params.leDepositRate
+    const ke_t1 = incomeData.ke_t1 || 0
+    const ke_t2 = incomeData.ke_t2 || 0
+    const ke_t3 = incomeData.ke_t3 || 0
+    const use3Year = ke_t1 > 0 || ke_t2 > 0 || ke_t3 > 0
+
+    if (use3Year) {
+      const kerdh_t1 = incomeData.kerdh_t1 ?? 0
+      const kerdh_t2 = incomeData.kerdh_t2 ?? 0
+      const kerdh_t3 = incomeData.kerdh_t3 ?? 0
+      const leEnfia = incomeData.leEnfia || 0
+      const deposits = incomeData.deposits || 0
+
+      // Classification: ΜΙΚΡΗ if all 3 KE < 2.5M AND bank debt < 5M (ΚΥΑ 7712925/2025)
+      const bankDebt = rows.filter((r) => r.type === 'Τράπεζα').reduce((s, r) => s + r.amount, 0)
+      const isMikri = ke_t1 < params.leTurnoverThreshold
+                   && ke_t2 < params.leTurnoverThreshold
+                   && ke_t3 < params.leTurnoverThreshold
+                   && bankDebt < 5_000_000
+
+      // Per-year disposable = MAX(0, Κέρδη_x − ΕΝΦΙΑ); no interest added (ΚΥΑ 7712925/2025)
+      const diathArr = [
+        Math.max(0, kerdh_t1 - leEnfia),
+        Math.max(0, kerdh_t2 - leEnfia),
+        Math.max(0, kerdh_t3 - leEnfia),
+      ].sort((a, b) => b - a)
+
+      // Average of top 2 years (exclude lowest)
+      const mo_diath = (diathArr[0] + diathArr[1]) / 2
+
+      // 10% floor check for small category
+      let finalDiath = mo_diath
+      if (isMikri && ke_t1 > 0) {
+        const floor10 = ke_t1 * params.leIncomeFloorPct
+        leMoDispMonthly = mo_diath / 12
+        leFloorMonthly = floor10 / 12
+        if (mo_diath < floor10) {
+          finalDiath = floor10
+          flagMaxDoses = true
+        }
+      }
+
+      // Free deposits after 5% KE_T1 minimum working capital reserve
+      const freeDeposits = Math.max(0, deposits - ke_t1 * 0.05)
+      // 95% of free deposits spread over 20-year typical duration
+      const annualDeposit = (freeDeposits * params.leDepositRate) / 20
+
+      dispAnnual = finalDiath + annualDeposit
+    } else {
+      // Legacy single-year logic (backward compat for cases saved before 3-year fields)
+      const turnover = incomeData.turnover || 0
+      const netProfits = incomeData.netProfits != null ? incomeData.netProfits : (incomeData.ebitda || 0)
+      const leEnfia = incomeData.leEnfia || 0
+      const deposits = incomeData.deposits || 0
+      const isSmall = turnover > 0 && turnover < params.leTurnoverThreshold
+      const base = Math.max(0, netProfits - leEnfia)
+      const floored = isSmall ? Math.max(base, turnover * params.leIncomeFloorPct) : base
+      dispAnnual = floored + deposits * params.leDepositRate
+    }
   } else {
     // Rent cap: ΚΥΑ Παράρτημα παρ. δ — monthly €(350 + 50×(size−1)), max €550
     const rentCapMonthly = Math.min(params.rentCapBase + params.rentCapPerMember * (fpSize - 1), params.rentCapMax)
@@ -268,9 +319,11 @@ export function calculateAll(debts, assets, incomeData, params = PARAMS_B) {
   const planBase = analysisRows.map((r) => {
     const theoretical = getMaxMonths(r.type, isLE, r.isSecured, params)
     const maxM = effectiveMaxMonths(theoretical, isLE, youngestAge, params)
+    // flagMaxDoses: force public debts to max duration (ΚΥΑ 7712925/2025)
+    const initMonths = (flagMaxDoses && isPublicDebt(r.type)) ? maxM : Math.min(12, maxM)
     return {
       idx: r.idx, type: r.type, isSecured: r.isSecured,
-      amount: r.amount, months: Math.min(12, maxM), maxMonths: maxM,
+      amount: r.amount, months: initMonths, maxMonths: maxM,
       legalMax: r.legalMax, calc: r.calc, writeoff: 0, newAmt: r.amount,
     }
   })
@@ -417,6 +470,7 @@ export function calculateAll(debts, assets, incomeData, params = PARAMS_B) {
     sumWrC, sumWrPctC: sumDebt ? Math.round(sumWrC * 100 / sumDebt) : 0,
     totalRemainingC, totalMonthlyPayC, totalC1C, ratioC,
     scenario, lowIncome, isFullCoveredByAssets, isPartialCoveredByAssets,
+    flagMaxDoses, leMoDispMonthly, leFloorMonthly,
   }
 }
 

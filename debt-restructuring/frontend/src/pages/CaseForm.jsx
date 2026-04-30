@@ -35,12 +35,15 @@ function defaultIncome() {
     extraLivingCost: 0,
     alimonyCost: 0,
     savings: 0,
-    // LE fields
-    turnover: 0,
-    netProfits: null,
+    // LE fields — 3-year data (ΚΥΑ 7712925/2025)
+    ke_t1: 0, ke_t2: 0, ke_t3: 0,
+    kerdh_t1: null, kerdh_t2: null, kerdh_t3: null,
     leEnfia: 0,
     deposits: 0,
-    // legacy fields kept for backward compat
+    investments: 0,
+    // legacy fields kept for backward compat with old cases
+    turnover: 0,
+    netProfits: null,
     ebitda: 0,
     // Vulnerable debtor — Άρθρο 66 ν. 5072/2023
     isVulnerable: false,
@@ -381,6 +384,24 @@ export default function CaseForm({ currentEmployee }) {
       <div className="card mb-5">
         <IncomePanel income={income} onChange={setIncome} assets={assets} onAssetsChange={setAssets} />
       </div>
+
+      {/* flag_MAX_DOSES warning banner (ΚΥΑ 7712925/2025) */}
+      {calc?.flagMaxDoses && (
+        <div className="mb-5 rounded-xl border border-amber-300 bg-amber-50 p-4 flex gap-3">
+          <span className="text-xl shrink-0">⚠️</span>
+          <div>
+            <p className="font-bold text-amber-800 mb-1">ΕΝΕΡΓΟΠΟΙΗΣΗ ΚΑΝΟΝΑ 10% — ΚΥΑ 7712925/2025</p>
+            <p className="text-sm text-amber-700 mb-1">
+              Το υπολογισθέν διαθέσιμο εισόδημα ({fmt(calc.leMoDispMonthly)}/μήνα) είναι κατώτερο του 10% του Κύκλου Εργασιών Τ-1 ({fmt(calc.leFloorMonthly)}/μήνα).
+            </p>
+            <ul className="text-sm text-amber-700 space-y-0.5">
+              <li>→ Διαθέσιμο αναπροσαρμόζεται σε: <b>{fmt(calc.dispMonthly)}/μήνα</b></li>
+              <li>→ Εφαρμόζεται <b>μέγιστος</b> αριθμός δόσεων: <b>240</b></li>
+              <li>→ Η δόση υπολογίζεται τοκοχρεωλυτικά για 240 μήνες</li>
+            </ul>
+          </div>
+        </div>
+      )}
 
       {/* Results */}
       {calc && calc.sumDebt > 0 && (

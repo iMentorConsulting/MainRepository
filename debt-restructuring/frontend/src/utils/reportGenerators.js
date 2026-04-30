@@ -395,15 +395,28 @@ export function buildEmailHtml(data) {
   const isLegal = debtorType?.includes('Νομικό')
 
   const GI = 'padding:4px 0;font-size:13px;'
-  const incomeSectionHtml = (dispMonthly > 0 || incomeData.annualIncome > 0 || incomeData.turnover > 0) ? `
+  const le3Year = incomeData.ke_t1 > 0 || incomeData.ke_t2 > 0 || incomeData.ke_t3 > 0
+  const leAnyTurnover = le3Year || incomeData.turnover > 0
+  const incomeSectionHtml = (dispMonthly > 0 || incomeData.annualIncome > 0 || leAnyTurnover) ? `
   <p style="margin:14px 0 6px;">${badge('💶', '#1d4ed8', '#eff6ff')}<b style="font-size:15px;color:#1e3a5f;">Εισοδηματική &amp; Περιουσιακή Εικόνα</b></p>
   <div style="background:#f8faff;border:1px solid #dde7fb;border-radius:10px;padding:14px 16px;margin-bottom:14px;font-size:14px;">
     ${isLegal ? `
     <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;">Οικονομικά Στοιχεία</div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 16px;">
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px 12px;margin-bottom:8px;">
+      ${le3Year ? `
+      <div style="${GI}"><span style="color:#64748b;display:block;font-size:11px;">ΚΕ Τ-1 (Ε3/500):</span> <b>${fmt(incomeData.ke_t1)}</b></div>
+      <div style="${GI}"><span style="color:#64748b;display:block;font-size:11px;">ΚΕ Τ-2:</span> <b>${fmt(incomeData.ke_t2 || 0)}</b></div>
+      <div style="${GI}"><span style="color:#64748b;display:block;font-size:11px;">ΚΕ Τ-3:</span> <b>${fmt(incomeData.ke_t3 || 0)}</b></div>
+      ${incomeData.kerdh_t1 != null ? `<div style="${GI}"><span style="color:#64748b;display:block;font-size:11px;">Κέρδη/Ζημιές Τ-1:</span> <b>${fmt(incomeData.kerdh_t1)}</b></div>` : ''}
+      ${incomeData.kerdh_t2 != null ? `<div style="${GI}"><span style="color:#64748b;display:block;font-size:11px;">Κέρδη/Ζημιές Τ-2:</span> <b>${fmt(incomeData.kerdh_t2)}</b></div>` : ''}
+      ${incomeData.kerdh_t3 != null ? `<div style="${GI}"><span style="color:#64748b;display:block;font-size:11px;">Κέρδη/Ζημιές Τ-3:</span> <b>${fmt(incomeData.kerdh_t3)}</b></div>` : ''}
+      ` : `
       ${incomeData.turnover > 0 ? `<div style="${GI}"><span style="color:#64748b;">Κύκλος εργασιών:</span> <b>${fmt(incomeData.turnover)}</b></div>` : ''}
       ${incomeData.ebitda > 0 ? `<div style="${GI}"><span style="color:#64748b;">EBITDA:</span> <b>${fmt(incomeData.ebitda)}</b></div>` : ''}
-      ${dispMonthly > 0 ? `<div style="${GI}"><span style="color:#64748b;">Μηνιαίο διαθέσιμο:</span> <b style="color:#1d4ed8;">${fmt(dispMonthly)}</b></div>` : ''}
+      `}
+    </div>
+    <div style="${GI}">
+      ${dispMonthly > 0 ? `<span style="color:#64748b;">Μηνιαίο διαθέσιμο:</span> <b style="color:#1d4ed8;">${fmt(dispMonthly)}</b>` : ''}
     </div>` : `
     <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;">Εισοδήματα</div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 16px;margin-bottom:10px;">
