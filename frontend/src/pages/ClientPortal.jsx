@@ -718,7 +718,7 @@ export default function ClientPortal() {
 
       {/* Header */}
       <header className="bg-[#1e3a5f] text-white">
-        <div className="max-w-3xl mx-auto px-4 py-4 flex items-center">
+        <div className="max-w-3xl mx-auto px-4 py-4 flex items-center justify-center">
           <img src="/logo-white.png" alt="iMentor" className="h-24 w-auto object-contain" />
         </div>
       </header>
@@ -850,7 +850,7 @@ export default function ClientPortal() {
 
         {/* Contact Footer */}
         <div className="bg-[#1e3a5f] text-white rounded-xl p-5">
-          <img src="/logo-white.png" alt="iMentor" className="h-24 w-auto object-contain mb-4" />
+          <img src="/logo-white.png" alt="iMentor" className="h-24 w-auto object-contain mb-4 mx-auto block" />
           <div className="flex flex-col gap-2 text-sm">
             <a href="tel:+302810363007" className="flex items-center gap-2 text-blue-200 hover:text-white transition-colors">
               <PhoneIcon className="w-4 h-4" /> 2810 363007
