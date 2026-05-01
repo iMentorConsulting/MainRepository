@@ -133,5 +133,9 @@ export const recordPortalVisit = (token, afm) =>
 export const togglePortal = (caseId) => api.post(`/api/cm/portal/${caseId}/toggle`).then(r => r.data)
 export const regeneratePortalToken = (caseId) => api.post(`/api/cm/portal/${caseId}/regenerate-token`).then(r => r.data)
 export const bulkActivateNotify = (data) => api.post('/api/cm/portal/bulk-activate-notify', data).then(r => r.data)
+export const submitPortalNps = (token, score) =>
+  axios.post(`${BASE}/api/cm/portal/public/${token}/nps`, { score }).then(r => r.data)
+export const recordPortalReviewClick = (token) =>
+  axios.post(`${BASE}/api/cm/portal/public/${token}/review-click`).then(r => r.data)
 
 export default api

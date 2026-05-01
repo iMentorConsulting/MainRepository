@@ -140,6 +140,33 @@ def get_portal(token: str, db: Session = Depends(get_db)):
     return _build_portal_data(case)
 
 
+@router.post("/public/{token}/nps")
+def record_nps(token: str, body: dict, db: Session = Depends(get_db)):
+    """Record NPS score from client (no auth required)."""
+    from datetime import datetime
+    score = body.get("score")
+    if score is None or not (0 <= int(score) <= 10):
+        raise HTTPException(status_code=400, detail="Invalid score")
+    case = db.query(CMCase).filter(CMCase.share_token == token).first()
+    if not case or not case.portal_active:
+        raise HTTPException(status_code=404, detail="Portal not found")
+    case.portal_nps_score = int(score)
+    case.portal_nps_at = datetime.utcnow()
+    db.commit()
+    return {"ok": True}
+
+
+@router.post("/public/{token}/review-click")
+def record_review_click(token: str, db: Session = Depends(get_db)):
+    """Record that client clicked the Google review link."""
+    case = db.query(CMCase).filter(CMCase.share_token == token).first()
+    if not case or not case.portal_active:
+        raise HTTPException(status_code=404, detail="Portal not found")
+    case.portal_review_clicked = True
+    db.commit()
+    return {"ok": True}
+
+
 @router.post("/public/{token}/visit")
 def record_visit(token: str, body: dict, db: Session = Depends(get_db)):
     """Verify client AFM and increment visit counter."""

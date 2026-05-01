@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
-import { getPortalCase, recordPortalVisit } from '../api'
+import { getPortalCase, recordPortalVisit, submitPortalNps, recordPortalReviewClick } from '../api'
 import {
   BuildingOffice2Icon,
   CheckCircleIcon,
@@ -13,6 +13,9 @@ import {
   EnvelopeIcon,
   LockClosedIcon,
   ChartBarIcon,
+  StarIcon,
+  ClipboardDocumentIcon,
+  GlobeAltIcon,
 } from '@heroicons/react/24/outline'
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -466,6 +469,113 @@ function DypaSection({ data }) {
   )
 }
 
+// ── NPS Widget ───────────────────────────────────────────────────────────────
+
+const GOOGLE_REVIEW_URL = 'https://g.page/r/CcQfrN7jonGaEBM/review'
+const REVIEW_TEMPLATE = 'Συνεργάστηκα με την i-Mentor για ένταξη σε χρηματοδοτικό πρόγραμμα και ήταν μια εξαιρετική εμπειρία. Επαγγελματισμός, άμεση ανταπόκριση και αποτελέσματα!'
+
+function NpsWidget({ token, serviceType }) {
+  const [score, setScore] = useState(null)
+  const [submitted, setSubmitted] = useState(false)
+  const [copied, setCopied] = useState(false)
+
+  const handleScore = async (n) => {
+    setScore(n)
+    try { await submitPortalNps(token, n) } catch {}
+    setSubmitted(true)
+  }
+
+  const handleReviewClick = async () => {
+    try { await recordPortalReviewClick(token) } catch {}
+    window.open(GOOGLE_REVIEW_URL, '_blank', 'noopener')
+  }
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(REVIEW_TEMPLATE).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2500)
+    })
+  }
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
+      <div className="flex items-center gap-2 mb-4">
+        <StarIcon className="w-5 h-5 text-yellow-400" />
+        <h3 className="text-sm font-semibold text-gray-700">Η γνώμη σας μετράει</h3>
+      </div>
+
+      {!submitted ? (
+        <>
+          <p className="text-sm text-gray-600 mb-4">
+            Πόσο πιθανό είναι να μας προτείνετε σε γνωστό σας; <span className="text-gray-400">(0 = καθόλου, 10 = σίγουρα)</span>
+          </p>
+          <div className="flex flex-wrap gap-2 justify-center">
+            {[0,1,2,3,4,5,6,7,8,9,10].map(n => (
+              <button
+                key={n}
+                onClick={() => handleScore(n)}
+                className={`w-10 h-10 rounded-lg font-bold text-sm transition-colors border-2 ${
+                  n <= 6 ? 'border-red-200 bg-red-50 text-red-600 hover:bg-red-100' :
+                  n <= 8 ? 'border-yellow-200 bg-yellow-50 text-yellow-700 hover:bg-yellow-100' :
+                           'border-green-200 bg-green-50 text-green-700 hover:bg-green-100'
+                }`}
+              >{n}</button>
+            ))}
+          </div>
+          <div className="flex justify-between text-xs text-gray-400 mt-2 px-1">
+            <span>Καθόλου πιθανό</span>
+            <span>Σίγουρα</span>
+          </div>
+        </>
+      ) : score >= 9 ? (
+        <div className="space-y-4">
+          <div className="text-center">
+            <div className="text-2xl mb-1">🎉</div>
+            <p className="text-sm font-semibold text-gray-800">Σας ευχαριστούμε πολύ!</p>
+            <p className="text-xs text-gray-500 mt-1">Θα χαρούμε αν μοιραστείτε την εμπειρία σας στο Google.</p>
+          </div>
+
+          {/* Pre-filled text */}
+          <div className="bg-gray-50 border border-gray-200 rounded-xl p-3">
+            <div className="text-xs text-gray-400 mb-1.5 font-medium">Προτεινόμενο κείμενο (προαιρετικό)</div>
+            <p className="text-xs text-gray-600 italic leading-relaxed">{REVIEW_TEMPLATE}</p>
+            <button
+              onClick={handleCopy}
+              className={`mt-2 flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors ${
+                copied ? 'bg-green-100 text-green-700' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-100'
+              }`}
+            >
+              <ClipboardDocumentIcon className="w-3.5 h-3.5" />
+              {copied ? 'Αντιγράφηκε ✓' : 'Αντιγραφή κειμένου'}
+            </button>
+          </div>
+
+          <button
+            onClick={handleReviewClick}
+            className="w-full flex items-center justify-center gap-2 bg-[#1e3a5f] text-white py-3 rounded-xl font-semibold hover:bg-[#16305a] transition-colors"
+          >
+            <GlobeAltIcon className="w-5 h-5" />
+            Γράψτε κριτική στο Google
+          </button>
+
+          <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 text-xs text-blue-700">
+            <span className="font-semibold">🎁 Early access:</span> Όσοι μοιράζονται το feedback τους λαμβάνουν πρώτοι ενημερώσεις για νέα χρηματοδοτικά προγράμματα.
+          </div>
+        </div>
+      ) : (
+        <div className="text-center space-y-3">
+          <div className="text-2xl">🙏</div>
+          <p className="text-sm font-semibold text-gray-800">Ευχαριστούμε για το feedback!</p>
+          <p className="text-xs text-gray-500">Ο σύμβουλός σας θα επικοινωνήσει μαζί σας για να κατανοήσουμε πώς μπορούμε να βελτιωθούμε.</p>
+          <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 text-xs text-blue-700">
+            <span className="font-semibold">🎁 Early access:</span> Το feedback σας μάς βοηθά να σας ενημερώνουμε πρώτους για νέα χρηματοδοτικά προγράμματα.
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Financial Section ─────────────────────────────────────────────────────────
 
 function FinancialSection({ data }) {
@@ -709,15 +819,21 @@ export default function ClientPortal() {
           </div>
         )}
 
+        {/* NPS Widget */}
+        <NpsWidget token={token} serviceType={data.service_type} />
+
         {/* Contact Footer */}
         <div className="bg-[#1e3a5f] text-white rounded-xl p-5">
           <img src="/iMENTOR_Logo_without_moto.png" alt="iMentor" className="h-10 w-auto object-contain mb-4" />
-          <div className="flex flex-wrap gap-4 text-sm">
-            <a href="tel:+302101234567" className="flex items-center gap-2 text-blue-200 hover:text-white transition-colors">
-              <PhoneIcon className="w-4 h-4" /> +30 210 123 4567
+          <div className="flex flex-col gap-2 text-sm">
+            <a href="tel:+302810363007" className="flex items-center gap-2 text-blue-200 hover:text-white transition-colors">
+              <PhoneIcon className="w-4 h-4" /> 2810 363007
             </a>
             <a href="mailto:info@i-mentor.gr" className="flex items-center gap-2 text-blue-200 hover:text-white transition-colors">
               <EnvelopeIcon className="w-4 h-4" /> info@i-mentor.gr
+            </a>
+            <a href="https://www.i-mentor.gr" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-blue-200 hover:text-white transition-colors">
+              <GlobeAltIcon className="w-4 h-4" /> www.i-mentor.gr
             </a>
           </div>
           <div className="mt-4 pt-4 border-t border-white/10 text-xs text-blue-300 text-center">
