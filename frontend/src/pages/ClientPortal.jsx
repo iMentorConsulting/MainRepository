@@ -472,12 +472,25 @@ function DypaSection({ data }) {
 // ── NPS Widget ───────────────────────────────────────────────────────────────
 
 const GOOGLE_REVIEW_URL = 'https://g.page/r/CcQfrN7jonGaEBM/review'
-const REVIEW_TEMPLATE = 'Συνεργάστηκα με την i-Mentor για ένταξη σε χρηματοδοτικό πρόγραμμα και ήταν μια εξαιρετική εμπειρία. Επαγγελματισμός, άμεση ανταπόκριση και αποτελέσματα!'
+
+const REVIEW_TEMPLATES = (svc) => [
+  `Συνεργάστηκα με την i-Mentor για το πρόγραμμα "${svc}" και ήταν μια εξαιρετική εμπειρία. Επαγγελματισμός, άμεση ανταπόκριση και αποτελέσματα που μίλησαν από μόνα τους. Τους συνιστώ ανεπιφύλακτα!`,
+  `Με την υποστήριξη της i-Mentor εντάχθηκα επιτυχώς στο "${svc}". Η ομάδα με καθοδήγησε σε κάθε βήμα, ήταν πάντα διαθέσιμη και παρέδωσε αποτέλεσμα. Πολύ ευχαριστημένος/η από τη συνεργασία!`,
+  `Η i-Mentor αποδείχθηκε ο ιδανικός συνεργάτης για το "${svc}". Γνώστες του αντικειμένου, οργανωμένοι, με κρατούσαν ενήμερο σε κάθε εξέλιξη. Θα τους επέλεγα ξανά χωρίς δεύτερη σκέψη.`,
+  `Εξαιρετική δουλειά από την i-Mentor για το πρόγραμμα "${svc}". Ανέλαβαν τα πάντα με επαγγελματισμό, απλοποίησαν μια πολύπλοκη διαδικασία και πέτυχαν το στόχο. Ευχαριστώ πολύ!`,
+  `Πολύ ικανοποιημένος/η από την i-Mentor για το "${svc}". Αξιόπιστοι, ειλικρινείς και αποτελεσματικοί — ακριβώς αυτό που χρειαζόμουν. Σίγουρα θα τους προτείνω σε φίλους και συνεργάτες.`,
+  `Με την i-Mentor η ένταξη στο "${svc}" έγινε εύκολα και χωρίς άγχος. Γνώριζαν κάθε λεπτομέρεια, απαντούσαν άμεσα σε κάθε απορία και ολοκλήρωσαν τη διαδικασία με άψογο τρόπο.`,
+]
 
 function NpsWidget({ token, serviceType }) {
   const [score, setScore] = useState(null)
   const [submitted, setSubmitted] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [templateIdx, setTemplateIdx] = useState(() => Math.floor(Math.random() * REVIEW_TEMPLATES('').length))
+
+  const svc = serviceType || 'χρηματοδοτικό πρόγραμμα'
+  const templates = REVIEW_TEMPLATES(svc)
+  const currentTemplate = templates[templateIdx]
 
   const handleScore = async (n) => {
     setScore(n)
@@ -491,11 +504,13 @@ function NpsWidget({ token, serviceType }) {
   }
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(REVIEW_TEMPLATE).then(() => {
+    navigator.clipboard.writeText(currentTemplate).then(() => {
       setCopied(true)
       setTimeout(() => setCopied(false), 2500)
     })
   }
+
+  const nextTemplate = () => setTemplateIdx(i => (i + 1) % templates.length)
 
   return (
     <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
@@ -535,19 +550,30 @@ function NpsWidget({ token, serviceType }) {
             <p className="text-xs text-gray-500 mt-1">Θα χαρούμε αν μοιραστείτε την εμπειρία σας στο Google.</p>
           </div>
 
-          {/* Pre-filled text */}
+          {/* Pre-filled text with shuffle */}
           <div className="bg-gray-50 border border-gray-200 rounded-xl p-3">
-            <div className="text-xs text-gray-400 mb-1.5 font-medium">Προτεινόμενο κείμενο (προαιρετικό)</div>
-            <p className="text-xs text-gray-600 italic leading-relaxed">{REVIEW_TEMPLATE}</p>
-            <button
-              onClick={handleCopy}
-              className={`mt-2 flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors ${
-                copied ? 'bg-green-100 text-green-700' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-100'
-              }`}
-            >
-              <ClipboardDocumentIcon className="w-3.5 h-3.5" />
-              {copied ? 'Αντιγράφηκε ✓' : 'Αντιγραφή κειμένου'}
-            </button>
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-xs text-gray-400 font-medium">Προτεινόμενο κείμενο (προαιρετικό)</span>
+              <button
+                onClick={nextTemplate}
+                className="text-xs text-blue-500 hover:text-blue-700 font-medium"
+              >
+                Άλλο κείμενο →
+              </button>
+            </div>
+            <p className="text-xs text-gray-600 italic leading-relaxed">{currentTemplate}</p>
+            <div className="flex items-center gap-2 mt-2">
+              <button
+                onClick={handleCopy}
+                className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors ${
+                  copied ? 'bg-green-100 text-green-700' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-100'
+                }`}
+              >
+                <ClipboardDocumentIcon className="w-3.5 h-3.5" />
+                {copied ? 'Αντιγράφηκε ✓' : 'Αντιγραφή'}
+              </button>
+              <span className="text-xs text-gray-300">{templateIdx + 1} / {templates.length}</span>
+            </div>
           </div>
 
           <button
