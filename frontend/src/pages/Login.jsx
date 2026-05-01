@@ -23,7 +23,7 @@ export default function Login({ onLogin }) {
     <div className="min-h-screen bg-gradient-to-br from-[#1e3a5f] to-[#2d5986] flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <img src="/logo-white.png" alt="iMentor Consulting" className="h-32 w-auto object-contain mx-auto mb-3" />
+          <img src="/logo-white.png" alt="iMentor Consulting" className="h-44 w-auto object-contain mx-auto mb-3" />
           <p className="text-blue-200 mt-1">Σύστημα Διαχείρισης Υποθέσεων</p>
         </div>
 
