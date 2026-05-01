@@ -119,7 +119,7 @@ export default function Layout({ auth, onLogout }) {
       >
         {/* Logo */}
         <div className="flex items-center gap-3 px-4 py-4 border-b border-white/10">
-          <img src="/logo-white.png" alt="iMentor" className="h-10 w-auto object-contain" />
+          <img src="/logo-white.png" alt="iMentor" className="h-16 w-auto object-contain" />
           <button
             className="ml-auto lg:hidden text-white/60 hover:text-white"
             onClick={() => setSidebarOpen(false)}
