@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { PIPELINES } from '../pipelines'
+import { getPipelines } from '../api'
 import PaymentsTab from '../components/PaymentsTab'
 import MessagesTab from '../components/MessagesTab'
 import DocumentsTab from '../components/DocumentsTab'
@@ -48,8 +49,11 @@ import {
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-function getStatusGroupsForProgram(program) {
-  const pipeline = PIPELINES[program] || PIPELINES['ΕΣΠΑ']
+let _cachedPipelines = null
+
+function getStatusGroupsForProgram(program, livePipelines) {
+  const source = livePipelines || _cachedPipelines || PIPELINES
+  const pipeline = source[program] || source['ΕΣΠΑ'] || PIPELINES[program] || PIPELINES['ΕΣΠΑ']
   return pipeline.phases.map(p => ({
     label: p.label,
     statuses: p.statuses,
@@ -228,7 +232,7 @@ function DypaMilestoneTimeline({ startDate }) {
 
 // ─── Overview Tab ─────────────────────────────────────────────────────────────
 
-function OverviewTab({ caseData, users, onSaved }) {
+function OverviewTab({ caseData, users, onSaved, livePipelines }) {
   const [form, setForm] = useState({
     client_name: '',
     phone: '',
@@ -354,7 +358,7 @@ function OverviewTab({ caseData, users, onSaved }) {
           <div className="sm:col-span-2">
             <FormField label="Κατάσταση">
               <select className="input" value={form.status} onChange={set('status')}>
-                {getStatusGroupsForProgram(caseData?.program_category || 'ΕΣΠΑ').map(group => (
+                {getStatusGroupsForProgram(caseData?.program_category || 'ΕΣΠΑ', livePipelines).map(group => (
                   <optgroup key={group.label} label={group.label}>
                     {group.statuses.map(s => (
                       <option key={s} value={s}>{s}</option>
@@ -952,6 +956,7 @@ export default function CaseDetail() {
 
   const [caseData, setCaseData] = useState(null)
   const [users, setUsers] = useState([])
+  const [livePipelines, setLivePipelines] = useState(_cachedPipelines)
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('Επισκόπηση')
 
@@ -967,6 +972,15 @@ export default function CaseDetail() {
       setLoading(false)
     }
   }, [id])
+
+  useEffect(() => {
+    if (!_cachedPipelines) {
+      getPipelines().then(data => {
+        _cachedPipelines = data
+        setLivePipelines(data)
+      }).catch(() => {})
+    }
+  }, [])
 
   useEffect(() => {
     load()
@@ -1083,6 +1097,7 @@ export default function CaseDetail() {
             caseData={caseData}
             users={users}
             onSaved={handleCaseSaved}
+            livePipelines={livePipelines}
           />
         )}
 

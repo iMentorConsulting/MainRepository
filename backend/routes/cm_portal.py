@@ -5,23 +5,30 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session, joinedload
 from database import get_db
 from models_cases import CMCase, CMCasePendingItem, CMMessage, CMBudgetCategory
-from pipelines import PIPELINES
 from auth_cases import get_current_user
 
 router = APIRouter(prefix="/api/cm/portal", tags=["portal"])
 
 
-def _get_current_phase_id(status: str, program_category: str) -> str | None:
-    pipeline = PIPELINES.get(program_category, {})
+def _get_pipeline(program_category: str, db: Session) -> dict:
+    try:
+        from routes.cm_pipeline import get_pipeline_config
+        return get_pipeline_config(program_category, db)
+    except Exception:
+        from pipelines import PIPELINES
+        return PIPELINES.get(program_category, {})
+
+
+def _get_current_phase_id(status: str, program_category: str, db: Session) -> str | None:
+    pipeline = _get_pipeline(program_category, db)
     for phase in pipeline.get("phases", []):
         if status in phase["statuses"]:
             return phase["id"]
     return None
 
 
-def _get_next_status(status: str, program_category: str) -> str | None:
-    """Return the next status in the pipeline sequence, or None if last/not found."""
-    pipeline = PIPELINES.get(program_category, {})
+def _get_next_status(status: str, program_category: str, db: Session) -> str | None:
+    pipeline = _get_pipeline(program_category, db)
     all_statuses = []
     for phase in pipeline.get("phases", []):
         all_statuses.extend(phase["statuses"])
@@ -34,9 +41,8 @@ def _get_next_status(status: str, program_category: str) -> str | None:
     return None
 
 
-def _get_full_status_list(program_category: str) -> list[dict]:
-    """Return all statuses in order with phase info."""
-    pipeline = PIPELINES.get(program_category, {})
+def _get_full_status_list(program_category: str, db: Session) -> list[dict]:
+    pipeline = _get_pipeline(program_category, db)
     result = []
     for phase in pipeline.get("phases", []):
         for s in phase["statuses"]:
@@ -44,16 +50,16 @@ def _get_full_status_list(program_category: str) -> list[dict]:
     return result
 
 
-def _build_portal_data(case: CMCase) -> dict:
+def _build_portal_data(case: CMCase, db: Session) -> dict:
     prog = case.program_category or "ΕΣΠΑ"
-    pipeline = PIPELINES.get(prog, {})
+    pipeline = _get_pipeline(prog, db)
     phases = [
         {"id": p["id"], "label": p["label"], "color": p["color"]}
         for p in pipeline.get("phases", [])
     ]
-    current_phase_id = _get_current_phase_id(case.status or "", prog)
-    next_status = _get_next_status(case.status or "", prog)
-    full_status_list = _get_full_status_list(prog)
+    current_phase_id = _get_current_phase_id(case.status or "", prog, db)
+    next_status = _get_next_status(case.status or "", prog, db)
+    full_status_list = _get_full_status_list(prog, db)
 
     pending_items = [
         {"id": pi.id, "item_text": pi.item_text, "comment": pi.comment}
@@ -138,7 +144,7 @@ def get_portal(token: str, db: Session = Depends(get_db)):
     if not case or not case.portal_active:
         raise HTTPException(status_code=404, detail="Portal not found or inactive")
 
-    return _build_portal_data(case)
+    return _build_portal_data(case, db)
 
 
 @router.post("/public/{token}/nps")
@@ -265,7 +271,8 @@ def bulk_activate_notify(body: dict, db: Session = Depends(get_db), current_user
         portal_url = f"{portal_base_url}/portal/{case.share_token}" if case.share_token else ""
         msg = (message_template
                .replace("{client_name}", case.client_name or "")
-               .replace("{portal_url}", portal_url))
+               .replace("{portal_url}", portal_url)
+               .replace("{service_type}", case.service_type or ""))
 
         notified = False
         error = ""

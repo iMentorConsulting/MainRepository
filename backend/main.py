@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from dotenv import load_dotenv
 from database import Base, engine
-from models_cases import CMUser, CMCase, CMTask, CMPayment, CMMessage, CMDocument, CMNotificationLog, CMBudgetCategory, CMPendingItemTemplate, CMCasePendingItem
+from models_cases import CMUser, CMCase, CMTask, CMPayment, CMMessage, CMDocument, CMNotificationLog, CMBudgetCategory, CMPendingItemTemplate, CMCasePendingItem, CMPipelineConfig
 
 # Case management routes
 from routes.cm_auth import router as cm_auth_router
@@ -17,6 +17,7 @@ from routes.cm_notifications import router as cm_notifications_router
 from routes.cm_admin import router as cm_admin_router
 from routes.cm_pending_items import router as cm_pending_items_router
 from routes.cm_portal import router as cm_portal_router
+from routes.cm_pipeline import router as cm_pipeline_router
 
 load_dotenv()
 
@@ -40,6 +41,15 @@ try:
         _conn.execute(_text("ALTER TABLE cm_cases ADD COLUMN IF NOT EXISTS portal_nps_at TIMESTAMP"))
         _conn.execute(_text("ALTER TABLE cm_cases ADD COLUMN IF NOT EXISTS portal_review_clicked BOOLEAN DEFAULT FALSE"))
         _conn.execute(_text("ALTER TABLE cm_cases ADD COLUMN IF NOT EXISTS dypa_start_date DATE"))
+        _conn.execute(_text("""
+            CREATE TABLE IF NOT EXISTS cm_pipeline_configs (
+                id SERIAL PRIMARY KEY,
+                program_category VARCHAR(50) UNIQUE NOT NULL,
+                phases_json TEXT NOT NULL,
+                extra_statuses_json TEXT DEFAULT '[]',
+                updated_at TIMESTAMP
+            )
+        """))
         _conn.commit()
 except Exception:
     pass
@@ -140,6 +150,7 @@ app.include_router(cm_notifications_router)
 app.include_router(cm_admin_router)
 app.include_router(cm_pending_items_router)
 app.include_router(cm_portal_router)
+app.include_router(cm_pipeline_router)
 
 
 @app.get("/health")

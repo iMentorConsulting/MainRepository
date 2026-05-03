@@ -230,6 +230,15 @@ class CMStatusSLA(Base):
     updated_at = Column(DateTime, default=datetime.utcnow)
 
 
+class CMPipelineConfig(Base):
+    __tablename__ = "cm_pipeline_configs"
+    id = Column(Integer, primary_key=True, index=True)
+    program_category = Column(String(50), unique=True, nullable=False)
+    phases_json = Column(Text, nullable=False)
+    extra_statuses_json = Column(Text, default="[]")
+    updated_at = Column(DateTime, default=datetime.utcnow)
+
+
 class CMPendingItemTemplate(Base):
     __tablename__ = "cm_pending_item_templates"
     id = Column(Integer, primary_key=True, index=True)
