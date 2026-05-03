@@ -323,16 +323,151 @@ function MikroSection({ data }) {
   )
 }
 
+// ── ΔΥΠΑ Milestone Timeline ───────────────────────────────────────────────────
+
+function DypaMilestoneTimeline({ startDate }) {
+  if (!startDate) {
+    return (
+      <div className="bg-yellow-50 border border-yellow-200 rounded-xl px-4 py-3 text-xs text-yellow-700">
+        <span className="font-semibold">Α Ορόσημο δεν έχει οριστεί.</span> Ο σύμβουλός σας θα ενημερώσει την ημερομηνία έναρξης.
+      </div>
+    )
+  }
+
+  const addMonths = (base, n) => {
+    const d = new Date(base)
+    d.setMonth(d.getMonth() + n)
+    return d
+  }
+
+  const milestoneA = new Date(startDate)
+  const milestoneB = addMonths(startDate, 6)
+  const milestoneC = addMonths(startDate, 12)
+  const today = new Date()
+
+  // Position of today as % between A and C (clamped 0–100)
+  const totalMs = milestoneC - milestoneA
+  const elapsedMs = today - milestoneA
+  const todayPct = Math.min(100, Math.max(0, (elapsedMs / totalMs) * 100))
+
+  // Which segment is today in?
+  const phase = today < milestoneA ? 'before'
+    : today < milestoneB ? 'AB'
+    : today < milestoneC ? 'BC'
+    : 'after'
+
+  const phaseLabel = {
+    before: 'Πριν την έναρξη',
+    AB: 'Α–Β Φάση (0–6 μήνες)',
+    BC: 'Β–Γ Φάση (6–12 μήνες)',
+    after: 'Μετά το Γ Ορόσημο',
+  }[phase]
+
+  const milestones = [
+    { key: 'A', label: 'Α Ορόσημο', sublabel: 'Έναρξη', date: milestoneA, pct: 0, color: 'bg-blue-500', textColor: 'text-blue-700' },
+    { key: 'B', label: 'Β Ορόσημο', sublabel: '+6 μήνες', date: milestoneB, pct: 50, color: 'bg-yellow-500', textColor: 'text-yellow-700' },
+    { key: 'C', label: 'Γ Ορόσημο', sublabel: '+12 μήνες', date: milestoneC, pct: 100, color: 'bg-green-500', textColor: 'text-green-700' },
+  ]
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm space-y-4">
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div className="flex items-center gap-2">
+          <CalendarDaysIcon className="w-5 h-5 text-blue-500" />
+          <h3 className="text-sm font-semibold text-gray-700">Χρονοδιάγραμμα Ορόσημων</h3>
+        </div>
+        <span className={`text-xs font-medium px-2.5 py-1 rounded-full border ${
+          phase === 'after' ? 'bg-green-50 text-green-700 border-green-200' :
+          phase === 'BC' ? 'bg-yellow-50 text-yellow-700 border-yellow-200' :
+          'bg-blue-50 text-blue-700 border-blue-200'
+        }`}>
+          {phaseLabel}
+        </span>
+      </div>
+
+      {/* Timeline bar */}
+      <div className="relative pt-2 pb-8">
+        {/* Background track */}
+        <div className="relative h-3 bg-gray-100 rounded-full overflow-visible">
+          {/* Filled progress */}
+          <div
+            className="absolute left-0 top-0 h-3 rounded-full bg-gradient-to-r from-blue-400 via-yellow-400 to-green-400"
+            style={{ width: `${Math.min(100, todayPct)}%` }}
+          />
+
+          {/* Milestone dots */}
+          {milestones.map(m => (
+            <div
+              key={m.key}
+              className={`absolute top-1/2 -translate-y-1/2 w-5 h-5 rounded-full border-2 border-white shadow-md z-10 ${m.color}`}
+              style={{ left: `calc(${m.pct}% - 10px)` }}
+            />
+          ))}
+
+          {/* Today marker */}
+          {phase !== 'before' && phase !== 'after' && (
+            <div
+              className="absolute top-1/2 -translate-y-1/2 z-20"
+              style={{ left: `calc(${todayPct}% - 8px)` }}
+            >
+              <div className="w-4 h-4 bg-white border-2 border-[#1e3a5f] rounded-full shadow-lg flex items-center justify-center">
+                <div className="w-2 h-2 bg-[#1e3a5f] rounded-full" />
+              </div>
+            </div>
+          )}
+          {phase === 'after' && (
+            <div className="absolute right-0 top-1/2 -translate-y-1/2 z-20 -mr-1">
+              <div className="w-4 h-4 bg-green-500 border-2 border-white rounded-full shadow-lg" />
+            </div>
+          )}
+        </div>
+
+        {/* Labels below the track */}
+        {milestones.map(m => (
+          <div
+            key={m.key}
+            className="absolute top-7 flex flex-col items-center"
+            style={{ left: `calc(${m.pct}%)`, transform: m.pct === 0 ? 'translateX(0)' : m.pct === 100 ? 'translateX(-100%)' : 'translateX(-50%)' }}
+          >
+            <span className={`text-xs font-bold ${m.textColor}`}>{m.label}</span>
+            <span className="text-xs text-gray-400">{m.sublabel}</span>
+            <span className="text-xs text-gray-500 font-medium">{fmtDate(m.date.toISOString())}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* Today callout */}
+      <div className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 flex items-center justify-between">
+        <span className="text-xs text-gray-500">Σήμερα</span>
+        <span className="text-xs font-semibold text-[#1e3a5f]">{fmtDate(today.toISOString())}</span>
+        <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+          phase === 'after' ? 'bg-green-100 text-green-700' :
+          phase === 'BC' ? 'bg-yellow-100 text-yellow-700' :
+          'bg-blue-100 text-blue-700'
+        }`}>
+          {phase === 'before' ? `Έναρξη σε ${Math.ceil((milestoneA - today) / 86400000)} ημέρες` :
+           phase === 'after' ? `${Math.floor((today - milestoneC) / 86400000)} ημέρες μετά Γ` :
+           phase === 'AB' ? `${Math.floor(elapsedMs / 86400000)} ημέρες από Α` :
+           `${Math.floor((today - milestoneB) / 86400000)} ημέρες από Β`}
+        </span>
+      </div>
+    </div>
+  )
+}
+
 // ── ΔΥΠΑ / ΟΑΕΔ Section ──────────────────────────────────────────────────────
 
 function DypaSection({ data }) {
-  const { full_status_list, status, service_type, approval_date } = data
+  const { full_status_list, status, service_type, dypa_start_date, approval_date } = data
   const currentIdx = full_status_list.findIndex(s => s.status === status)
 
   const is3059 = /30[-–]?59|οαεδ|ανέργ/i.test(service_type || '')
   const amounts = is3059 ? { a: 4600, b: 6200, g: 6200 } : { a: 4700, b: 6400, g: 6400 }
   const programLabel = is3059 ? 'ΟΑΕΔ 30–59' : 'ΔΥΠΑ 18–29'
   const total = amounts.a + amounts.b + amounts.g
+
+  // Use dypa_start_date as canonical Α ορόσημο; fall back to approval_date
+  const milestoneADate = dypa_start_date || approval_date || null
 
   // Find phase start indices and receipt indices
   const phaseAFirst = full_status_list.findIndex(s => s.phase_id === 'Α_ΑΙΤΗΜΑ')
@@ -348,40 +483,31 @@ function DypaSection({ data }) {
     return 'pending'
   }
 
-  // Expected dates from approval_date
   const addMonths = (base, n) => {
     if (!base) return null
     const d = new Date(base)
     d.setMonth(d.getMonth() + n)
     return d.toISOString()
   }
-  const base = approval_date || null
-  const timeline = base ? {
-    aReceive: addMonths(base, 3),
-    bSubmit:  addMonths(base, 6),
-    bReceive: addMonths(base, 8),
-    gSubmit:  addMonths(base, 12),
-    gReceive: addMonths(base, 14),
-  } : null
 
   const installments = [
     {
       key: 'a', label: "Α' Δόση", amount: amounts.a,
       state: instState(phaseAFirst, idx1),
-      desc: 'Υποβολή αιτήματος + ~3 μήνες',
-      dateHint: timeline ? `~${fmtDate(timeline.aReceive)}` : null,
+      desc: 'Υποβολή Α αιτήματος',
+      dateHint: milestoneADate ? `Υποβολή ~${fmtDate(addMonths(milestoneADate, 3))}` : null,
     },
     {
       key: 'b', label: "Β' Δόση", amount: amounts.b,
       state: instState(phaseBFirst, idx2),
-      desc: '6 μήνες λειτουργίας + ~2 μήνες',
-      dateHint: timeline ? `Υποβολή ~${fmtDate(timeline.bSubmit)} · Λήψη ~${fmtDate(timeline.bReceive)}` : null,
+      desc: '6 μήνες λειτουργίας',
+      dateHint: milestoneADate ? `Β Ορόσημο ~${fmtDate(addMonths(milestoneADate, 6))}` : null,
     },
     {
       key: 'g', label: "Γ' Δόση", amount: amounts.g,
       state: instState(phaseGFirst, idx3),
-      desc: '12 μήνες λειτουργίας + ~2 μήνες',
-      dateHint: timeline ? `Υποβολή ~${fmtDate(timeline.gSubmit)} · Λήψη ~${fmtDate(timeline.gReceive)}` : null,
+      desc: '12 μήνες λειτουργίας',
+      dateHint: milestoneADate ? `Γ Ορόσημο ~${fmtDate(addMonths(milestoneADate, 12))}` : null,
     },
   ]
 
@@ -389,83 +515,88 @@ function DypaSection({ data }) {
   const pct = total > 0 ? Math.round((received / total) * 100) : 0
 
   return (
-    <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm space-y-4">
-      <div className="flex items-center justify-between flex-wrap gap-2">
-        <div className="flex items-center gap-2">
-          <CurrencyEuroIcon className="w-5 h-5 text-green-500" />
-          <h3 className="text-sm font-semibold text-gray-700">Χρηματοδότηση — {programLabel}</h3>
-        </div>
-        <span className="text-xs text-gray-500 bg-gray-100 px-2.5 py-1 rounded-full font-medium">
-          Σύνολο {fmtEuro(total)}
-        </span>
-      </div>
+    <>
+      {/* Milestone timeline */}
+      <DypaMilestoneTimeline startDate={milestoneADate} />
 
-      {/* Progress bar */}
-      <div>
-        <div className="flex justify-between text-xs text-gray-500 mb-1">
-          <span>Εισπράχθηκαν: <span className="font-semibold text-green-600">{fmtEuro(received)}</span></span>
-          <span>{pct}%</span>
+      <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm space-y-4">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div className="flex items-center gap-2">
+            <CurrencyEuroIcon className="w-5 h-5 text-green-500" />
+            <h3 className="text-sm font-semibold text-gray-700">Χρηματοδότηση — {programLabel}</h3>
+          </div>
+          <span className="text-xs text-gray-500 bg-gray-100 px-2.5 py-1 rounded-full font-medium">
+            Σύνολο {fmtEuro(total)}
+          </span>
         </div>
-        <div className="w-full bg-gray-100 rounded-full h-2.5">
-          <div className="bg-green-500 h-2.5 rounded-full transition-all" style={{ width: `${pct}%` }} />
-        </div>
-      </div>
 
-      {/* Installment cards */}
-      <div className="space-y-2">
-        {installments.map(inst => (
-          <div key={inst.key} className={`flex items-center gap-3 p-3 rounded-xl border ${
-            inst.state === 'received' ? 'bg-green-50 border-green-200' :
-            inst.state === 'submitted' ? 'bg-blue-50 border-blue-200' :
-            'bg-gray-50 border-gray-200'
-          }`}>
-            <div className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 ${
-              inst.state === 'received' ? 'bg-green-500 text-white' :
-              inst.state === 'submitted' ? 'bg-blue-500 text-white' :
-              'bg-gray-200 text-gray-500'
+        {/* Progress bar */}
+        <div>
+          <div className="flex justify-between text-xs text-gray-500 mb-1">
+            <span>Εισπράχθηκαν: <span className="font-semibold text-green-600">{fmtEuro(received)}</span></span>
+            <span>{pct}%</span>
+          </div>
+          <div className="w-full bg-gray-100 rounded-full h-2.5">
+            <div className="bg-green-500 h-2.5 rounded-full transition-all" style={{ width: `${pct}%` }} />
+          </div>
+        </div>
+
+        {/* Installment cards */}
+        <div className="space-y-2">
+          {installments.map(inst => (
+            <div key={inst.key} className={`flex items-center gap-3 p-3 rounded-xl border ${
+              inst.state === 'received' ? 'bg-green-50 border-green-200' :
+              inst.state === 'submitted' ? 'bg-blue-50 border-blue-200' :
+              'bg-gray-50 border-gray-200'
             }`}>
-              {inst.state === 'received' ? <CheckCircleIcon className="w-5 h-5" /> :
-               inst.state === 'submitted' ? <ClockIcon className="w-5 h-5" /> :
-               <span className="text-xs font-bold">{inst.key.toUpperCase()}</span>}
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className={`text-sm font-semibold ${
-                inst.state === 'received' ? 'text-green-700' :
-                inst.state === 'submitted' ? 'text-blue-700' : 'text-gray-500'
-              }`}>{inst.label}</div>
-              <div className="text-xs text-gray-400 leading-tight">{inst.desc}</div>
-              {inst.dateHint && <div className="text-xs text-gray-400 mt-0.5">{inst.dateHint}</div>}
-            </div>
-            <div className="text-right flex-shrink-0">
-              <div className={`text-base font-bold ${
-                inst.state === 'received' ? 'text-green-700' :
-                inst.state === 'submitted' ? 'text-blue-700' : 'text-gray-400'
-              }`}>{fmtEuro(inst.amount)}</div>
-              <div className={`text-xs font-medium ${
-                inst.state === 'received' ? 'text-green-600' :
-                inst.state === 'submitted' ? 'text-blue-600' : 'text-gray-400'
+              <div className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 ${
+                inst.state === 'received' ? 'bg-green-500 text-white' :
+                inst.state === 'submitted' ? 'bg-blue-500 text-white' :
+                'bg-gray-200 text-gray-500'
               }`}>
-                {inst.state === 'received' ? 'Εισπράχθηκε ✓' :
-                 inst.state === 'submitted' ? 'Αίτημα σε εξέλιξη' : 'Αναμένει'}
+                {inst.state === 'received' ? <CheckCircleIcon className="w-5 h-5" /> :
+                 inst.state === 'submitted' ? <ClockIcon className="w-5 h-5" /> :
+                 <span className="text-xs font-bold">{inst.key.toUpperCase()}</span>}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className={`text-sm font-semibold ${
+                  inst.state === 'received' ? 'text-green-700' :
+                  inst.state === 'submitted' ? 'text-blue-700' : 'text-gray-500'
+                }`}>{inst.label}</div>
+                <div className="text-xs text-gray-400 leading-tight">{inst.desc}</div>
+                {inst.dateHint && <div className="text-xs text-gray-400 mt-0.5">{inst.dateHint}</div>}
+              </div>
+              <div className="text-right flex-shrink-0">
+                <div className={`text-base font-bold ${
+                  inst.state === 'received' ? 'text-green-700' :
+                  inst.state === 'submitted' ? 'text-blue-700' : 'text-gray-400'
+                }`}>{fmtEuro(inst.amount)}</div>
+                <div className={`text-xs font-medium ${
+                  inst.state === 'received' ? 'text-green-600' :
+                  inst.state === 'submitted' ? 'text-blue-600' : 'text-gray-400'
+                }`}>
+                  {inst.state === 'received' ? 'Εισπράχθηκε ✓' :
+                   inst.state === 'submitted' ? 'Αίτημα σε εξέλιξη' : 'Αναμένει'}
+                </div>
               </div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
 
-      {/* iMentor fees */}
-      <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3">
-        <div className="text-xs font-semibold text-blue-700 mb-2">Αμοιβές iMentor</div>
-        <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-blue-600">
-          <span>Υποβολή αίτησης</span><span className="font-semibold text-right">300 €</span>
-          <span>Α' αίτημα εκταμίευσης</span><span className="font-semibold text-right">300 €</span>
-          <span>Β' αίτημα εκταμίευσης</span><span className="font-semibold text-right">300 €</span>
-          <span>Γ' αίτημα εκταμίευσης</span><span className="font-semibold text-right">300 €</span>
-          <span className="font-bold text-blue-800 border-t border-blue-200 pt-1.5">Σύνολο αμοιβής</span>
-          <span className="font-bold text-blue-800 text-right border-t border-blue-200 pt-1.5">1.200 €</span>
+        {/* iMentor fees */}
+        <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3">
+          <div className="text-xs font-semibold text-blue-700 mb-2">Αμοιβές iMentor</div>
+          <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-blue-600">
+            <span>Υποβολή αίτησης</span><span className="font-semibold text-right">300 €</span>
+            <span>Α' αίτημα εκταμίευσης</span><span className="font-semibold text-right">300 €</span>
+            <span>Β' αίτημα εκταμίευσης</span><span className="font-semibold text-right">300 €</span>
+            <span>Γ' αίτημα εκταμίευσης</span><span className="font-semibold text-right">300 €</span>
+            <span className="font-bold text-blue-800 border-t border-blue-200 pt-1.5">Σύνολο αμοιβής</span>
+            <span className="font-bold text-blue-800 text-right border-t border-blue-200 pt-1.5">1.200 €</span>
+          </div>
         </div>
       </div>
-    </div>
+    </>
   )
 }
 

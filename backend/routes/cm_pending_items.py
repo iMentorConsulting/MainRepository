@@ -246,6 +246,19 @@ def notify_pending_items(
         f"• {i.item_text}" + (f"\n  → {i.comment}" if i.comment else "")
         for i in items
     )
+
+    portal_note = ""
+    if c.portal_active and c.share_token:
+        import os as _os
+        base = _os.getenv("PORTAL_BASE_URL", "https://app.i-mentor.gr")
+        portal_url = f"{base}/portal/{c.share_token}"
+        portal_note = (
+            f"\n\n---\n"
+            f"📱 Παρακολουθήστε την πορεία της υπόθεσής σας διαδικτυακά:\n"
+            f"{portal_url}\n"
+            f"Είσοδος με το ΑΦΜ σας. Εκεί μπορείτε να βλέπετε την κατάσταση, τις εκκρεμότητες και τα έγγραφά σας."
+        )
+
     message = (
         f"Αγαπητέ/ή {c.client_name or ''},\n\n"
         f"Για την προχώρηση της υπόθεσής σας ({c.service_type or ''}) "
@@ -253,6 +266,7 @@ def notify_pending_items(
         f"{item_lines}\n\n"
         f"Παρακαλούμε αποστείλετε τα παραπάνω το συντομότερο δυνατό.\n\n"
         f"Με εκτίμηση,\niMentor Consulting"
+        f"{portal_note}"
     )
     subject = f"Απαιτούμενα στοιχεία για την υπόθεσή σας - {c.client_name or ''}"
 

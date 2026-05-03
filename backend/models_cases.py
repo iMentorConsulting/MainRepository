@@ -57,6 +57,7 @@ class CMCase(Base):
     project_deadline = Column(Date)              # Προθεσμία Ολοκλήρωσης
     approval_date = Column(Date)                 # Ημερομηνία Έγκρισης
     follow_up_date = Column(Date)                # Επόμενο Follow-up
+    dypa_start_date = Column(Date)               # ΔΥΠΑ Α Ορόσημο (έγκριση ή έναρξη επιχείρησης)
 
     # Fees agreed
     agreed_fee_application = Column(Float, default=0)       # ΠΟΣΟ ΓΙΑ ΑΙΤΗΣΗ

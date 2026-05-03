@@ -27,6 +27,7 @@ class CaseCreate(BaseModel):
     project_deadline: Optional[date] = None
     approval_date: Optional[date] = None
     follow_up_date: Optional[date] = None
+    dypa_start_date: Optional[date] = None
     agreed_fee_application: Optional[float] = 0
     agreed_fee_implementation: Optional[float] = 0
     total_paid: Optional[float] = 0
@@ -49,6 +50,7 @@ class CaseUpdate(BaseModel):
     project_deadline: Optional[date] = None
     approval_date: Optional[date] = None
     follow_up_date: Optional[date] = None
+    dypa_start_date: Optional[date] = None
     agreed_fee_application: Optional[float] = None
     agreed_fee_implementation: Optional[float] = None
     total_paid: Optional[float] = None
@@ -104,6 +106,7 @@ def case_to_dict(c: CMCase, include_related: bool = False, sla_map: dict = None)
         "project_deadline": c.project_deadline.isoformat() if c.project_deadline else None,
         "approval_date": c.approval_date.isoformat() if c.approval_date else None,
         "follow_up_date": c.follow_up_date.isoformat() if c.follow_up_date else None,
+        "dypa_start_date": c.dypa_start_date.isoformat() if c.dypa_start_date else None,
         "agreed_fee_application": c.agreed_fee_application or 0,
         "agreed_fee_implementation": c.agreed_fee_implementation or 0,
         "total_agreed": total_agreed,

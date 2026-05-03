@@ -130,6 +130,102 @@ function ComingSoon({ tab }) {
   )
 }
 
+// ─── ΔΥΠΑ Milestone Timeline (internal) ──────────────────────────────────────
+
+function DypaMilestoneTimeline({ startDate }) {
+  if (!startDate) {
+    return (
+      <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 text-xs text-yellow-700">
+        <span className="font-semibold">Α Ορόσημο δεν έχει οριστεί.</span> Ορίστε την ημερομηνία Α Ορόσημο στο πεδίο παραπάνω.
+      </div>
+    )
+  }
+
+  const addMonths = (base, n) => {
+    const d = new Date(base)
+    d.setMonth(d.getMonth() + n)
+    return d
+  }
+
+  const milestoneA = new Date(startDate)
+  const milestoneB = addMonths(startDate, 6)
+  const milestoneC = addMonths(startDate, 12)
+  const today = new Date()
+
+  const totalMs = milestoneC - milestoneA
+  const elapsedMs = today - milestoneA
+  const todayPct = Math.min(100, Math.max(0, (elapsedMs / totalMs) * 100))
+
+  const phase = today < milestoneA ? 'before'
+    : today < milestoneB ? 'AB'
+    : today < milestoneC ? 'BC'
+    : 'after'
+
+  const milestones = [
+    { key: 'A', label: 'Α', sublabel: 'Έναρξη', date: milestoneA, pct: 0, dot: 'bg-blue-500', text: 'text-blue-700' },
+    { key: 'B', label: 'Β', sublabel: '+6μ', date: milestoneB, pct: 50, dot: 'bg-yellow-500', text: 'text-yellow-700' },
+    { key: 'C', label: 'Γ', sublabel: '+12μ', date: milestoneC, pct: 100, dot: 'bg-green-500', text: 'text-green-700' },
+  ]
+
+  const fmtD = (d) => d.toLocaleDateString('el-GR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+
+  return (
+    <div className="bg-white rounded-xl border p-5 space-y-3">
+      <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">Χρονοδιάγραμμα Ορόσημων ΔΥΠΑ</h3>
+
+      {/* Timeline bar */}
+      <div className="relative pt-1 pb-10">
+        <div className="relative h-3 bg-gray-100 rounded-full">
+          <div
+            className="absolute left-0 top-0 h-3 rounded-full bg-gradient-to-r from-blue-400 via-yellow-400 to-green-400"
+            style={{ width: `${todayPct}%` }}
+          />
+          {milestones.map(m => (
+            <div
+              key={m.key}
+              className={`absolute top-1/2 -translate-y-1/2 w-5 h-5 rounded-full border-2 border-white shadow z-10 ${m.dot}`}
+              style={{ left: `calc(${m.pct}% - 10px)` }}
+            />
+          ))}
+          {phase !== 'before' && phase !== 'after' && (
+            <div className="absolute top-1/2 -translate-y-1/2 z-20" style={{ left: `calc(${todayPct}% - 8px)` }}>
+              <div className="w-4 h-4 bg-white border-2 border-[#1e3a5f] rounded-full shadow-lg flex items-center justify-center">
+                <div className="w-2 h-2 bg-[#1e3a5f] rounded-full" />
+              </div>
+            </div>
+          )}
+        </div>
+        {milestones.map(m => (
+          <div
+            key={m.key}
+            className="absolute top-6 flex flex-col items-center"
+            style={{ left: `${m.pct}%`, transform: m.pct === 0 ? 'none' : m.pct === 100 ? 'translateX(-100%)' : 'translateX(-50%)' }}
+          >
+            <span className={`text-xs font-bold ${m.text}`}>{m.label} Ορόσημο</span>
+            <span className="text-xs text-gray-400">{m.sublabel}</span>
+            <span className="text-xs text-gray-600 font-medium">{fmtD(m.date)}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* Today row */}
+      <div className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 flex items-center justify-between text-xs">
+        <span className="text-gray-500">Σήμερα: <span className="font-semibold text-gray-800">{fmtD(today)}</span></span>
+        <span className={`font-medium px-2 py-0.5 rounded-full ${
+          phase === 'after' ? 'bg-green-100 text-green-700' :
+          phase === 'BC' ? 'bg-yellow-100 text-yellow-700' :
+          phase === 'before' ? 'bg-gray-100 text-gray-500' : 'bg-blue-100 text-blue-700'
+        }`}>
+          {phase === 'before' ? `Έναρξη σε ${Math.ceil((milestoneA - today) / 86400000)} ημέρες` :
+           phase === 'AB' ? `Φάση Α–Β · ${Math.floor(elapsedMs / 86400000)} ημέρες από Α` :
+           phase === 'BC' ? `Φάση Β–Γ · ${Math.floor((today - milestoneB) / 86400000)} ημέρες από Β` :
+           `Γ Ορόσημο πέρασε · ${Math.floor((today - milestoneC) / 86400000)} ημέρες`}
+        </span>
+      </div>
+    </div>
+  )
+}
+
 // ─── Overview Tab ─────────────────────────────────────────────────────────────
 
 function OverviewTab({ caseData, users, onSaved }) {
@@ -151,6 +247,7 @@ function OverviewTab({ caseData, users, onSaved }) {
     assigned_agent_id: '',
     drive_folder_url: '',
     notes: '',
+    dypa_start_date: '',
   })
   const [saving, setSaving] = useState(false)
 
@@ -170,6 +267,7 @@ function OverviewTab({ caseData, users, onSaved }) {
       subsidy_percent: caseData.subsidy_percent ?? '',
       project_deadline: caseData.project_deadline || '',
       approval_date: caseData.approval_date || '',
+      dypa_start_date: caseData.dypa_start_date || '',
       agreed_fee_application: caseData.agreed_fee_application ?? '',
       agreed_fee_implementation: caseData.agreed_fee_implementation ?? '',
       assigned_agent_id: caseData.assigned_agent_id ?? '',
@@ -191,7 +289,7 @@ function OverviewTab({ caseData, users, onSaved }) {
         'agreed_fee_implementation',
       ])
         payload[k] = payload[k] !== '' ? parseFloat(payload[k]) : 0
-      for (const k of ['sale_date', 'project_deadline', 'approval_date'])
+      for (const k of ['sale_date', 'project_deadline', 'approval_date', 'dypa_start_date'])
         if (!payload[k]) payload[k] = null
       payload.assigned_agent_id = payload.assigned_agent_id
         ? parseInt(payload.assigned_agent_id)
@@ -304,6 +402,17 @@ function OverviewTab({ caseData, users, onSaved }) {
               onChange={set('approval_date')}
             />
           </FormField>
+
+          {caseData?.program_category === 'ΔΥΠΑ' && (
+            <FormField label="Α Ορόσημο ΔΥΠΑ (Έγκριση / Έναρξη Επιχ.)">
+              <input
+                className="input"
+                type="date"
+                value={form.dypa_start_date}
+                onChange={set('dypa_start_date')}
+              />
+            </FormField>
+          )}
 
           <FormField label="Ποσό Αίτησης (€)">
             <input
@@ -422,6 +531,11 @@ function OverviewTab({ caseData, users, onSaved }) {
           </div>
         </div>
 
+        {/* ΔΥΠΑ milestone timeline */}
+        {caseData?.program_category === 'ΔΥΠΑ' && (
+          <DypaMilestoneTimeline startDate={form.dypa_start_date || caseData?.dypa_start_date} />
+        )}
+
         {/* Quick info card */}
         <div className="bg-white rounded-xl border p-6 space-y-3">
           <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">
@@ -446,6 +560,12 @@ function OverviewTab({ caseData, users, onSaved }) {
               <span className="text-gray-500">Ημ. Έγκρισης</span>
               <span className="font-medium">{fmtDate(form.approval_date)}</span>
             </div>
+            {caseData?.program_category === 'ΔΥΠΑ' && (
+              <div className="flex justify-between border-t pt-2">
+                <span className="text-gray-500">Α Ορόσημο</span>
+                <span className="font-medium text-blue-700">{fmtDate(form.dypa_start_date)}</span>
+              </div>
+            )}
           </div>
         </div>
       </div>

@@ -103,6 +103,7 @@ def _build_portal_data(case: CMCase) -> dict:
         "approved_budget": case.approved_budget,
         "subsidy_percent": case.subsidy_percent,
         "approval_date": case.approval_date.isoformat() if case.approval_date else None,
+        "dypa_start_date": case.dypa_start_date.isoformat() if case.dypa_start_date else None,
         "assigned_agent_name": case.assigned_agent.full_name if case.assigned_agent else None,
         "pending_items": pending_items,
         "messages": messages_out,
@@ -219,6 +220,21 @@ def _normalize_phone(phone: str) -> str:
     if not p.startswith("30"):
         return "30" + p
     return p
+
+
+@router.post("/activate-all")
+def activate_all_portals(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    """Activate portals for ALL cases that don't have one yet, without any notifications."""
+    cases = db.query(CMCase).all()
+    activated = 0
+    for case in cases:
+        if not case.share_token:
+            case.share_token = str(uuid.uuid4())
+        if not case.portal_active:
+            case.portal_active = True
+            activated += 1
+    db.commit()
+    return {"total": len(cases), "activated": activated}
 
 
 @router.post("/bulk-activate-notify")

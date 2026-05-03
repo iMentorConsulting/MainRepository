@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from 'react'
-import { getCases, bulkActivateNotify } from '../api'
+import { getCases, bulkActivateNotify, activateAllPortals } from '../api'
 import {
   GlobeAltIcon,
   CheckCircleIcon,
@@ -116,6 +116,25 @@ export default function PortalBroadcastPage() {
     }
   }
 
+  const [activatingAll, setActivatingAll] = useState(false)
+
+  const handleActivateAll = async () => {
+    if (!confirm('Ενεργοποίηση πύλης για ΟΛΟΥΣ τους πελάτες χωρίς ειδοποίηση; Δεν αποστέλλεται κανένα μήνυμα.')) return
+    setActivatingAll(true)
+    try {
+      const res = await activateAllPortals()
+      toast.success(`Ενεργοποιήθηκαν ${res.activated} από ${res.total} υποθέσεις`)
+      getCases().then(data => {
+        const list = Array.isArray(data) ? data : (data.cases || data.items || [])
+        setCases(list.filter(c => c.status !== 'ΟΛΟΚΛΗΡΩΜΕΝΗ ΥΠΟΘΕΣΗ' && c.status !== 'ΑΚΥΡΩΣΗ' && c.status !== 'ΠΑΡΑΙΤΗΣΗ' && c.status !== 'ΑΠΟΡΡΙΨΗ'))
+      })
+    } catch {
+      toast.error('Σφάλμα ενεργοποίησης')
+    } finally {
+      setActivatingAll(false)
+    }
+  }
+
   const selectedCount = selected.size
   const noPhoneCount = [...selected].filter(id => {
     const c = cases.find(x => x.id === id)
@@ -143,14 +162,25 @@ export default function PortalBroadcastPage() {
             Επιλέξτε πελάτες, ενεργοποιήστε την πύλη τους και στείλτε ειδοποίηση Viber με τον σύνδεσμο.
           </p>
         </div>
-        <button
-          onClick={handleSend}
-          disabled={sending || selectedCount === 0}
-          className="flex items-center gap-2 bg-[#1e3a5f] text-white px-5 py-2.5 rounded-xl font-semibold hover:bg-[#16305a] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          <BellAlertIcon className="w-5 h-5" />
-          {sending ? 'Αποστολή...' : `Ενεργοποίηση & Αποστολή${selectedCount > 0 ? ` (${selectedCount})` : ''}`}
-        </button>
+        <div className="flex items-center gap-3 flex-wrap">
+          <button
+            onClick={handleActivateAll}
+            disabled={activatingAll}
+            className="flex items-center gap-2 bg-gray-100 text-gray-700 border border-gray-300 px-4 py-2.5 rounded-xl font-semibold hover:bg-gray-200 transition-colors disabled:opacity-50 text-sm"
+            title="Ενεργοποίηση όλων χωρίς αποστολή μηνύματος"
+          >
+            <GlobeAltIcon className="w-4 h-4" />
+            {activatingAll ? 'Ενεργοποίηση...' : 'Ενεργοποίηση Όλων (χωρίς μήνυμα)'}
+          </button>
+          <button
+            onClick={handleSend}
+            disabled={sending || selectedCount === 0}
+            className="flex items-center gap-2 bg-[#1e3a5f] text-white px-5 py-2.5 rounded-xl font-semibold hover:bg-[#16305a] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <BellAlertIcon className="w-5 h-5" />
+            {sending ? 'Αποστολή...' : `Ενεργοποίηση & Αποστολή${selectedCount > 0 ? ` (${selectedCount})` : ''}`}
+          </button>
+        </div>
       </div>
 
       {/* Warning if some selected have no phone */}

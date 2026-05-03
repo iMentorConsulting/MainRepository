@@ -83,12 +83,25 @@ function NotifyPanel({ items, caseData, caseId, onClose }) {
     const lines = items.map(
       (i) => `• ${i.item_text}` + (i.comment ? `\n  → ${i.comment}` : '')
     ).join('\n')
+
+    let portalNote = ''
+    if (caseData?.portal_active && caseData?.share_token) {
+      const portalUrl = `${window.location.origin}/portal/${caseData.share_token}`
+      portalNote = (
+        `\n\n---\n` +
+        `📱 Παρακολουθήστε την πορεία της υπόθεσής σας διαδικτυακά:\n` +
+        `${portalUrl}\n` +
+        `Είσοδος με το ΑΦΜ σας. Εκεί μπορείτε να βλέπετε την κατάσταση, τις εκκρεμότητες και τα έγγραφά σας.`
+      )
+    }
+
     return (
       `Αγαπητέ/ή ${caseData?.client_name || ''},\n\n` +
       `Για την προχώρηση της υπόθεσής σας (${caseData?.service_type || ''}) χρειαζόμαστε τα παρακάτω:\n\n` +
       `${lines}\n\n` +
       `Παρακαλούμε αποστείλετε τα παραπάνω το συντομότερο δυνατό.\n\n` +
-      `Με εκτίμηση,\niMentor Consulting`
+      `Με εκτίμηση,\niMentor Consulting` +
+      portalNote
     )
   }
 
@@ -161,7 +174,7 @@ function NotifyPanel({ items, caseData, caseId, onClose }) {
       </div>
 
       {/* Contact info */}
-      <div className="flex gap-4 text-xs text-gray-500">
+      <div className="flex gap-4 text-xs text-gray-500 flex-wrap">
         {caseData?.email && <span>📧 {caseData.email}</span>}
         {caseData?.phone && <span>📱 {caseData.phone}</span>}
         {!caseData?.email && !caseData?.phone && (
@@ -171,6 +184,18 @@ function NotifyPanel({ items, caseData, caseId, onClose }) {
           </span>
         )}
       </div>
+
+      {/* Portal link badge */}
+      {caseData?.portal_active && caseData?.share_token ? (
+        <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-lg px-3 py-2 text-xs text-green-700">
+          <span className="font-semibold">🔗 Portal link συμπεριλαμβάνεται</span>
+          <span className="text-green-500">— ο πελάτης θα δει σύνδεσμο και οδηγίες εισόδου</span>
+        </div>
+      ) : (
+        <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-xs text-gray-500">
+          <span>Portal ανενεργό — δεν συμπεριλαμβάνεται σύνδεσμος</span>
+        </div>
+      )}
 
       {/* Actions */}
       <div className="flex gap-2">
