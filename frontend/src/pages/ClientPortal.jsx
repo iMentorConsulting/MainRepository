@@ -436,19 +436,23 @@ function DypaMilestoneTimeline({ startDate }) {
         ))}
       </div>
 
-      {/* Today callout */}
-      <div className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 flex items-center justify-between">
-        <span className="text-xs text-gray-500">Σήμερα</span>
-        <span className="text-xs font-semibold text-[#1e3a5f]">{fmtDate(today.toISOString())}</span>
-        <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-          phase === 'after' ? 'bg-green-100 text-green-700' :
-          phase === 'BC' ? 'bg-yellow-100 text-yellow-700' :
-          'bg-blue-100 text-blue-700'
+      {/* Today info — separate from the track */}
+      <div className="flex items-center gap-3 pt-1">
+        <div className="flex items-center gap-1.5 text-xs text-gray-500">
+          <div className="w-3 h-3 rounded-full border-2 border-[#1e3a5f] bg-white flex-shrink-0" />
+          <span>Σήμερα <span className="font-semibold text-gray-800">{fmtDate(today.toISOString())}</span></span>
+        </div>
+        <div className="flex-1 border-t border-dashed border-gray-200" />
+        <span className={`text-xs font-semibold px-3 py-1 rounded-full ${
+          phase === 'before' ? 'bg-blue-50 text-blue-700 border border-blue-200' :
+          phase === 'AB'     ? 'bg-yellow-50 text-yellow-700 border border-yellow-200' :
+          phase === 'BC'     ? 'bg-orange-50 text-orange-700 border border-orange-200' :
+                               'bg-green-50 text-green-700 border border-green-200'
         }`}>
-          {phase === 'before' ? `Έναρξη σε ${Math.ceil((milestoneA - today) / 86400000)} ημέρες` :
-           phase === 'after' ? `${Math.floor((today - milestoneC) / 86400000)} ημέρες μετά Γ` :
-           phase === 'AB' ? `${Math.floor(elapsedMs / 86400000)} ημέρες από Α` :
-           `${Math.floor((today - milestoneB) / 86400000)} ημέρες από Β`}
+          {phase === 'before' ? `Β Ορόσημο σε ${Math.ceil((milestoneB - today) / 86400000)} ημέρες` :
+           phase === 'AB'     ? `Β Ορόσημο σε ${Math.ceil((milestoneB - today) / 86400000)} ημέρες` :
+           phase === 'BC'     ? `Γ Ορόσημο σε ${Math.ceil((milestoneC - today) / 86400000)} ημέρες` :
+                                `Γ Ορόσημο ολοκληρώθηκε ✓`}
         </span>
       </div>
     </div>

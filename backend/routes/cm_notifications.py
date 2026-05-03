@@ -44,10 +44,17 @@ def _send_email(to_email: str, subject: str, body: str) -> tuple[bool, str]:
     if not sa_json:
         return False, "GOOGLE_SERVICE_ACCOUNT_JSON δεν έχει ρυθμιστεί"
 
+    _app_base = os.getenv("PORTAL_BASE_URL", "").rstrip("/")
+    _logo_url = f"{_app_base}/logo-white.png" if _app_base else ""
+    _header_content = (
+        f'<img src="{_logo_url}" alt="iMentor Consulting" style="height:60px;width:auto;display:block;" />'
+        if _logo_url else
+        '<h2 style="color:white;margin:0;font-family:Arial,sans-serif;">iMentor Consulting</h2>'
+    )
     html_body = f"""<html><body style="font-family:Arial,sans-serif;padding:20px;color:#333;">
 <div style="max-width:600px;margin:0 auto;">
-  <div style="background:#1e3a5f;padding:15px;border-radius:8px 8px 0 0;">
-    <h2 style="color:white;margin:0;">iMentor Consulting</h2>
+  <div style="background:#1e3a5f;padding:20px 25px;border-radius:8px 8px 0 0;text-align:center;">
+    {_header_content}
   </div>
   <div style="background:#f9f9f9;padding:25px;border:1px solid #ddd;border-top:none;border-radius:0 0 8px 8px;">
     <p style="white-space:pre-wrap;">{body}</p>
