@@ -185,7 +185,9 @@ def record_visit(token: str, body: dict, db: Session = Depends(get_db)):
     if not afm or (case.afm or "").strip() != afm:
         raise HTTPException(status_code=403, detail="Λάθος ΑΦΜ")
 
+    from datetime import datetime
     case.portal_visit_count = (case.portal_visit_count or 0) + 1
+    case.portal_last_visit_at = datetime.utcnow()
     db.commit()
     return {"ok": True}
 

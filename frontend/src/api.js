@@ -79,6 +79,7 @@ export const deleteBudgetCategory = (caseId, catId) => api.delete(`/api/cm/cases
 
 // Dashboard
 export const getDashboardStats = () => api.get('/api/cm/dashboard/stats').then(r => r.data)
+export const getPortalActivity = () => api.get('/api/cm/dashboard/portal-activity').then(r => r.data)
 
 // Google Sheets
 export const previewSheet = () => api.get('/api/cm/sheets/preview').then(r => r.data)
@@ -89,6 +90,8 @@ export const syncAgentsFromSheet = () =>
 export const getServiceTypes = () => api.get('/api/cm/sheets/service-types').then(r => r.data)
 export const assignPrograms = (assignments) =>
   api.post('/api/cm/sheets/assign-programs', { assignments }).then(r => r.data)
+export const syncInvestmentFromSheet = () => api.post('/api/cm/sheets/sync-investment').then(r => r.data)
+export const syncSaleDatesFromSheet = () => api.post('/api/cm/sheets/sync-sale-dates').then(r => r.data)
 
 // Notifications
 export const sendNotification = (caseId, data) => api.post(`/api/cm/notifications/send/${caseId}`, data).then(r => r.data)

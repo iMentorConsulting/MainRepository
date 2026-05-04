@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 from pydantic import BaseModel
 from typing import List, Optional
-from datetime import datetime, date
+from datetime import datetime, date as date
 from database import get_db
 from models_cases import CMCase
 from pipelines import OLD_STATUS_MAP, get_all_statuses_for_program
@@ -269,7 +269,13 @@ def import_from_sheet(
     from models_cases import CMUser
     users = db.query(CMUser).filter(CMUser.is_active == True).all()
 
-    existing_refs = {c.sheet_import_ref for c in db.query(CMCase).all() if c.sheet_import_ref}
+    existing_cases = db.query(CMCase).all()
+    existing_refs = {c.sheet_import_ref for c in existing_cases if c.sheet_import_ref}
+    # Secondary dedup index: (client_name_upper, service_type_upper) → True
+    existing_by_name_svc = {
+        (_strip_accents(c.client_name or ''), _strip_accents(c.service_type or '')): True
+        for c in existing_cases
+    }
 
     # Build paid map (sum ΠΟΣΟ per AFM+service)
     paid_map = _build_paid_map(records)
@@ -280,6 +286,11 @@ def import_from_sheet(
     for r in records:
         ref = _merge_key(r['afm'] or '', r['client_name'], r['service_type'] or '')
         if ref in existing_refs:
+            skipped += 1
+            continue
+        # Also check by name+service to prevent duplicates when AFM differs/missing
+        name_svc_key = (_strip_accents(r['client_name']), _strip_accents(r['service_type'] or ''))
+        if name_svc_key in existing_by_name_svc:
             skipped += 1
             continue
 
@@ -445,6 +456,82 @@ class ProgramAssignment(BaseModel):
 
 class AssignProgramsRequest(BaseModel):
     assignments: List[ProgramAssignment]
+
+
+@router.post("/sync-investment")
+def sync_investment(
+    current_user: CMUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """One-off: update approved_budget (ΥΨΟΣ ΕΠΕΝΔΥΣΗΣ) for all existing cases from sheet."""
+    rows = _read_sheet_rows()
+    # Build map: merge_key -> approved_budget (take first non-zero per key)
+    budget_map: dict[str, float] = {}
+    for i, row in enumerate(rows):
+        if i == 0:
+            continue
+        while len(row) < 26:
+            row.append("")
+        afm = str(row[COL_MAP["afm"]]).strip()
+        client_name = str(row[COL_MAP["client_name"]]).strip()
+        svc = str(row[COL_MAP["service_type"]]).strip()
+        budget = _parse_float(row[COL_MAP["approved_budget"]])
+        if not client_name:
+            continue
+        key = _merge_key(afm, client_name, svc)
+        if key not in budget_map and budget > 0:
+            budget_map[key] = budget
+
+    updated = 0
+    for c in db.query(CMCase).all():
+        if not c.sheet_import_ref:
+            continue
+        budget = budget_map.get(c.sheet_import_ref, 0.0)
+        if budget > 0 and abs((c.approved_budget or 0) - budget) > 0.01:
+            c.approved_budget = budget
+            c.updated_at = datetime.utcnow()
+            updated += 1
+
+    db.commit()
+    return {"updated": updated, "message": f"Ενημερώθηκε το Ύψος Επένδυσης σε {updated} υποθέσεις."}
+
+
+@router.post("/sync-sale-dates")
+def sync_sale_dates(
+    current_user: CMUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """One-off: update sale_date (ΗΜ.ΝΙΑ ΠΩΛΗΣΗΣ) for all existing cases — picks earliest date per case."""
+    rows = _read_sheet_rows()
+    # Build map: merge_key -> earliest sale_date
+    sale_date_map: dict[str, date] = {}
+    for i, row in enumerate(rows):
+        if i == 0:
+            continue
+        while len(row) < 26:
+            row.append("")
+        afm = str(row[COL_MAP["afm"]]).strip()
+        client_name = str(row[COL_MAP["client_name"]]).strip()
+        svc = str(row[COL_MAP["service_type"]]).strip()
+        sd = _parse_date(row[COL_MAP["sale_date"]])
+        if not client_name or not sd:
+            continue
+        key = _merge_key(afm, client_name, svc)
+        if key not in sale_date_map or sd < sale_date_map[key]:
+            sale_date_map[key] = sd
+
+    updated = 0
+    for c in db.query(CMCase).all():
+        if not c.sheet_import_ref:
+            continue
+        sd = sale_date_map.get(c.sheet_import_ref)
+        if sd and c.sale_date != sd:
+            c.sale_date = sd
+            c.updated_at = datetime.utcnow()
+            updated += 1
+
+    db.commit()
+    return {"updated": updated, "message": f"Ενημερώθηκε η Ημ. Πώλησης σε {updated} υποθέσεις."}
 
 
 @router.post("/assign-programs")

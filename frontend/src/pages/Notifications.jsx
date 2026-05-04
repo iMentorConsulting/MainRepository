@@ -173,6 +173,7 @@ export default function Notifications() {
   const [showCaseDropdown, setShowCaseDropdown] = useState(false)
 
   // Bulk mode
+  const [bulkProgramFilter, setBulkProgramFilter] = useState('')
   const [bulkStatusFilter, setBulkStatusFilter] = useState('')
   const [selectedCaseIds, setSelectedCaseIds] = useState(new Set())
 
@@ -251,9 +252,11 @@ export default function Notifications() {
     c.afm?.includes(caseSearch)
   ).slice(0, 10)
 
-  const bulkFilteredCases = bulkStatusFilter
-    ? cases.filter(c => c.status === bulkStatusFilter)
-    : cases
+  const bulkFilteredCases = cases.filter(c => {
+    if (bulkProgramFilter && c.program_category !== bulkProgramFilter) return false
+    if (bulkStatusFilter && c.status !== bulkStatusFilter) return false
+    return true
+  })
 
   const toggleBulkCase = (id) => {
     setSelectedCaseIds(prev => {
@@ -476,7 +479,15 @@ export default function Notifications() {
               <div>
                 <div className="flex items-center gap-2 mb-2">
                   <FunnelIcon className="w-4 h-4 text-gray-400" />
-                  <label className="label mb-0">Φίλτρο κατάστασης</label>
+                  <label className="label mb-0">Φίλτρα</label>
+                </div>
+                <div className="flex gap-1 mb-2">
+                  {['', 'ΕΣΠΑ', 'ΔΥΠΑ', 'ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ'].map(p => (
+                    <button key={p} onClick={() => { setBulkProgramFilter(p); setSelectedCaseIds(new Set()) }}
+                      className={`px-3 py-1 text-xs font-medium rounded-lg border transition-all ${bulkProgramFilter === p ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-200 hover:border-blue-300'}`}>
+                      {p || 'Όλα'}
+                    </button>
+                  ))}
                 </div>
                 <select
                   className="input mb-3"

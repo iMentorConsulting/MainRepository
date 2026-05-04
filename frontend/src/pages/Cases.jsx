@@ -5,6 +5,8 @@ import { PIPELINES } from '../pipelines'
 import { MagnifyingGlassIcon, PlusIcon, TrashIcon, FolderOpenIcon } from '@heroicons/react/24/outline'
 import toast from 'react-hot-toast'
 
+const FINAL_STATUSES = new Set(['ΟΛΟΚΛΗΡΩΜΕΝΗ ΥΠΟΘΕΣΗ', 'ΠΑΡΑΙΤΗΣΗ', 'ΠΑΓΩΜΕΝΗ ΥΠΟΘΕΣΗ', 'ΑΚΥΡΩΣΗ', 'ΑΠΟΡΡΙΨΗ'])
+
 const PROGRAM_OPTIONS = [
   { value: 'ΕΣΠΑ', label: 'ΕΣΠΑ' },
   { value: 'ΔΥΠΑ', label: 'ΔΥΠΑ / ΟΑΕΔ' },
@@ -118,7 +120,13 @@ function NewCaseModal({ agents, onClose, onSaved }) {
 }
 
 export default function Cases() {
-  const [cases, setCases] = useState([])
+  const [allCases, setAllCases] = useState([])
+  const cases = allCases.filter(c => {
+    if (filters.hide_completed && FINAL_STATUSES.has(c.status)) return false
+    if (filters.has_pending && !(c.pending_count > 0)) return false
+    if (filters.sla_overdue && !(c.sla_overdue_days > 0)) return false
+    return true
+  })
   const [agents, setAgents] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -127,6 +135,9 @@ export default function Cases() {
     agent_id: '',
     service_type: '',
     deadline_alert: false,
+    hide_completed: true,
+    has_pending: false,
+    sla_overdue: false,
   })
   const [showNew, setShowNew] = useState(false)
   const navigate = useNavigate()
@@ -140,7 +151,7 @@ export default function Cases() {
       if (filters.agent_id) params.agent_id = filters.agent_id
       if (filters.service_type) params.service_type = filters.service_type
       if (filters.deadline_alert) params.deadline_alert = true
-      setCases(await getCases(params))
+      setAllCases(await getCases(params))
     } catch { toast.error('Σφάλμα φόρτωσης') }
     finally { setLoading(false) }
   }, [search, filters])
@@ -163,6 +174,7 @@ export default function Cases() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Υποθέσεις</h1>
           <p className="text-sm text-gray-500">{cases.length} υποθέσεις</p>
+
         </div>
         <button onClick={() => setShowNew(true)} className="btn-primary gap-2 flex items-center">
           <PlusIcon className="w-4 h-4" /> Νέα Υπόθεση
@@ -191,6 +203,18 @@ export default function Cases() {
           <input type="checkbox" checked={filters.deadline_alert} onChange={e => setFilters(f => ({ ...f, deadline_alert: e.target.checked }))} className="rounded" />
           Προθεσμίες 30 ημ.
         </label>
+        <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none">
+          <input type="checkbox" checked={filters.hide_completed} onChange={e => setFilters(f => ({ ...f, hide_completed: e.target.checked }))} className="rounded" />
+          Απόκρυψη ολοκληρωμένων
+        </label>
+        <label className="flex items-center gap-2 text-sm text-orange-600 cursor-pointer select-none">
+          <input type="checkbox" checked={filters.has_pending} onChange={e => setFilters(f => ({ ...f, has_pending: e.target.checked }))} className="rounded" />
+          Έχουν εκκρεμότητες
+        </label>
+        <label className="flex items-center gap-2 text-sm text-red-600 cursor-pointer select-none">
+          <input type="checkbox" checked={filters.sla_overdue} onChange={e => setFilters(f => ({ ...f, sla_overdue: e.target.checked }))} className="rounded" />
+          SLA Overdue
+        </label>
       </div>
 
       {loading ? (
@@ -208,8 +232,8 @@ export default function Cases() {
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b">
                 <tr>
-                  {['Επωνυμία', 'Πρόγραμμα', 'Κατάσταση', 'Agent', 'Υπόλοιπο', 'Προθεσμία', 'Tasks', ''].map(h => (
-                    <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                  {['Επωνυμία', 'Πρόγραμμα', 'Κατάσταση', 'Εκκρεμότητες', 'Προθεσμία', 'εργασίες', ''].map(h => (
+                    <th key={h} className="text-left px-3 py-3 text-xs font-semibold text-gray-500 tracking-wider whitespace-nowrap">
                       {h}
                     </th>
                   ))}
@@ -220,25 +244,24 @@ export default function Cases() {
                   const urgent = c.days_to_deadline !== null && c.days_to_deadline <= 15 && c.days_to_deadline >= 0
                   return (
                     <tr key={c.id} onClick={() => navigate(`/cases/${c.id}`)} className="hover:bg-gray-50 cursor-pointer">
-                      <td className="px-4 py-3">
-                        <div className="font-medium text-gray-900">{c.client_name}</div>
+                      <td className="px-3 py-3 max-w-[160px]">
+                        <div className="font-medium text-gray-900 truncate">{c.client_name}</div>
                         <div className="text-xs text-gray-400">{c.afm || '—'}</div>
                       </td>
-                      <td className="px-4 py-3 text-gray-600 max-w-40">
+                      <td className="px-3 py-3 max-w-[130px]">
                         <div className="text-xs text-gray-400 mb-0.5">{c.program_category || '—'}</div>
-                        <div className="truncate text-xs">{c.service_type || '—'}</div>
+                        <div className="truncate text-xs text-gray-600">{c.service_type || '—'}</div>
                       </td>
-                      <td className="px-4 py-3 max-w-48">
+                      <td className="px-3 py-3 max-w-[160px]">
                         <div className="text-xs text-gray-700 truncate font-medium" title={c.status}>{c.status || '—'}</div>
                       </td>
-                      <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{c.assigned_agent_name || <span className="text-gray-300">—</span>}</td>
-                      <td className="px-4 py-3 text-right whitespace-nowrap">
-                        {c.balance > 0.01
-                          ? <span className="font-semibold text-orange-600">{fmt(c.balance)}</span>
-                          : <span className="text-green-600 text-xs font-medium">Εξοφλήθηκε</span>
+                      <td className="px-3 py-3 text-center">
+                        {c.pending_count > 0
+                          ? <span className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full font-medium">{c.pending_count}</span>
+                          : <span className="text-gray-300 text-xs">—</span>
                         }
                       </td>
-                      <td className="px-4 py-3 text-center whitespace-nowrap">
+                      <td className="px-3 py-3 text-center whitespace-nowrap">
                         {c.project_deadline
                           ? <span className={`text-xs font-medium ${urgent ? 'text-red-600 font-bold' : 'text-gray-600'}`}>
                               {urgent ? `${c.days_to_deadline} ημ.` : new Date(c.project_deadline).toLocaleDateString('el-GR')}
@@ -246,13 +269,13 @@ export default function Cases() {
                           : <span className="text-gray-300">—</span>
                         }
                       </td>
-                      <td className="px-4 py-3 text-center">
+                      <td className="px-3 py-3 text-center">
                         {c.open_tasks > 0
                           ? <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium">{c.open_tasks}</span>
                           : <span className="text-gray-300 text-xs">—</span>
                         }
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-3 py-3">
                         <button onClick={e => handleDelete(e, c.id)} className="text-gray-300 hover:text-red-500 transition-colors">
                           <TrashIcon className="w-4 h-4" />
                         </button>

@@ -50,6 +50,9 @@ try:
                 updated_at TIMESTAMP
             )
         """))
+        _conn.execute(_text("ALTER TABLE cm_cases ADD COLUMN IF NOT EXISTS portal_last_visit_at TIMESTAMP"))
+        # One-time reset: clear visit counts for cases not yet visited since new tracking
+        _conn.execute(_text("UPDATE cm_cases SET portal_visit_count = 0 WHERE portal_last_visit_at IS NULL"))
         _conn.commit()
 except Exception:
     pass
@@ -121,6 +124,31 @@ with SessionLocal() as _db:
         for _t in _DEFAULT_TEMPLATES:
             _db.add(CMNotificationTemplate(**_t))
         _db.commit()
+
+# Remove old default templates; add pending items template
+_OLD_TEMPLATE_KEYS = {"deadline_reminder", "payment_reminder", "documents_needed", "status_update", "google_review"}
+_PENDING_ITEMS_TEMPLATE = {
+    "key": "pending_items_reminder",
+    "label": "Υπενθύμιση Εκκρεμοτήτων",
+    "subject": "Απαιτούμενα στοιχεία για την υπόθεσή σας - {client_name}",
+    "content": (
+        "Αγαπητέ/ή {client_name},\n\n"
+        "Για την προχώρηση της υπόθεσής σας ({service_type}) "
+        "χρειαζόμαστε τα παρακάτω:\n\n"
+        "• \n• \n• \n\n"
+        "Παρακαλούμε αποστείλετε τα παραπάνω το συντομότερο δυνατό.\n\n"
+        "Με εκτίμηση,\niMentor Consulting"
+    ),
+    "notification_type": "both",
+}
+with SessionLocal() as _db:
+    for _key in _OLD_TEMPLATE_KEYS:
+        _t = _db.query(CMNotificationTemplate).filter(CMNotificationTemplate.key == _key).first()
+        if _t:
+            _db.delete(_t)
+    if not _db.query(CMNotificationTemplate).filter(CMNotificationTemplate.key == "pending_items_reminder").first():
+        _db.add(CMNotificationTemplate(**_PENDING_ITEMS_TEMPLATE))
+    _db.commit()
 
 # Seed default admin user
 from auth_cases import seed_admin

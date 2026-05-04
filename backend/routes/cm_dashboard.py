@@ -1,9 +1,9 @@
 from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
 from datetime import date, datetime, timedelta
 from database import get_db
-from models_cases import CMCase, CMTask, CMUser, CMStatusSLA
+from models_cases import CMCase, CMTask, CMUser, CMStatusSLA, CMNotificationLog
 from auth_cases import require_admin, CMUser as CMUserModel
 from pipelines import TERMINAL_STATUSES
 
@@ -125,3 +125,36 @@ def dashboard_stats(
         "recent_cases": recent_cases,
         "balance_cases": balance_cases,
     }
+
+
+@router.get("/portal-activity")
+def portal_activity(
+    current_user: CMUserModel = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Return portal activity per case: visits, last visit, message counts."""
+    cases = (
+        db.query(CMCase)
+        .options(joinedload(CMCase.notification_logs))
+        .filter(CMCase.portal_active == True)
+        .order_by(CMCase.portal_last_visit_at.desc().nullslast())
+        .all()
+    )
+
+    result = []
+    for c in cases:
+        logs = [l for l in (c.notification_logs or []) if l.case_id == c.id]
+        last_msg_at = max((l.created_at for l in logs if l.created_at), default=None)
+        result.append({
+            "id": c.id,
+            "client_name": c.client_name,
+            "service_type": c.service_type,
+            "program_category": c.program_category,
+            "status": c.status,
+            "portal_visit_count": c.portal_visit_count or 0,
+            "portal_last_visit_at": c.portal_last_visit_at.isoformat() if c.portal_last_visit_at else None,
+            "total_msgs_sent": len(logs),
+            "last_msg_at": last_msg_at.isoformat() if last_msg_at else None,
+        })
+
+    return result

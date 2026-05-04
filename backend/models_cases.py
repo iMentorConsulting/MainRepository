@@ -76,6 +76,7 @@ class CMCase(Base):
     portal_active = Column(Boolean, default=False)
     share_token = Column(String(36), unique=True, index=True)
     portal_visit_count = Column(Integer, default=0)
+    portal_last_visit_at = Column(DateTime, nullable=True)
     portal_nps_score = Column(Integer, nullable=True)
     portal_nps_at = Column(DateTime, nullable=True)
     portal_review_clicked = Column(Boolean, default=False)

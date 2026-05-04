@@ -13,6 +13,7 @@ import {
 import toast from 'react-hot-toast'
 
 const PROGRAMS = ['ΕΣΠΑ', 'ΔΥΠΑ', 'ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ']
+const FINAL_STATUSES = new Set(['ΟΛΟΚΛΗΡΩΜΕΝΗ ΥΠΟΘΕΣΗ', 'ΠΑΡΑΙΤΗΣΗ', 'ΠΑΓΩΜΕΝΗ ΥΠΟΘΕΣΗ', 'ΑΚΥΡΩΣΗ', 'ΑΠΟΡΡΙΨΗ'])
 const PROG_COLOR = {
   ΕΣΠΑ: 'bg-blue-100 text-blue-700',
   ΔΥΠΑ: 'bg-green-100 text-green-700',
@@ -378,6 +379,7 @@ export default function WorkView() {
   const [filterServiceType, setFilterServiceType] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
   const [filterFollowUp, setFilterFollowUp] = useState(false)
+  const [hideCompleted, setHideCompleted] = useState(true)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -422,6 +424,7 @@ export default function WorkView() {
 
   const today = new Date().toISOString().slice(0, 10)
   const displayed = cases.filter(c => {
+    if (hideCompleted && FINAL_STATUSES.has(c.status)) return false
     if (filterFollowUp && !(c.follow_up_date && c.follow_up_date <= today)) return false
     if (filterServiceType && c.service_type !== filterServiceType) return false
     if (filterStatus && c.status !== filterStatus) return false
@@ -512,6 +515,10 @@ export default function WorkView() {
           <input type="checkbox" checked={filterFollowUp} onChange={e => setFilterFollowUp(e.target.checked)} className="rounded" />
           <CalendarDaysIcon className="w-4 h-4 text-orange-500" />
           Follow-up σήμερα/παρελθόν
+        </label>
+        <label className="flex items-center gap-1.5 text-sm text-gray-600 cursor-pointer select-none">
+          <input type="checkbox" checked={hideCompleted} onChange={e => setHideCompleted(e.target.checked)} className="rounded" />
+          Απόκρυψη ολοκληρωμένων
         </label>
       </div>
 
