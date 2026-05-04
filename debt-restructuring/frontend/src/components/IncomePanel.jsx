@@ -47,6 +47,41 @@ function SignedMoneyField({ label, value, onChange, placeholder = '' }) {
   )
 }
 
+function CommonFPExpenses({ income, set }) {
+  return (
+    <>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="label">Τύπος Νοικοκυριού (ΕΛΣΤΑΤ)</label>
+          <select className="input" value={income.householdValue} onChange={(e) => set('householdValue', Number(e.target.value))}>
+            <option value={0}>-- Επιλογή --</option>
+            {HOUSEHOLD_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="label">Αριθμός μελών νοικοκυριού</label>
+          <input type="number" min="1" max="10" className="input" placeholder="π.χ. 3"
+            value={income.householdSize || ''}
+            onChange={(e) => set('householdSize', e.target.value ? parseInt(e.target.value) : 1)} />
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="label">Ηλικία νεότερου οφειλέτη</label>
+          <input type="number" min="18" max="84" className="input" placeholder="π.χ. 55"
+            value={income.debtorAge || ''}
+            onChange={(e) => set('debtorAge', e.target.value ? parseInt(e.target.value) : 0)} />
+        </div>
+        <MoneyField label="Ετήσιος ΕΝΦΙΑ (€)" value={income.enfiaCost} onChange={(v) => set('enfiaCost', v)} />
+      </div>
+      <MoneyField label="Ετήσιες Ιατρικές Δαπάνες (€)" value={income.medicalCost} onChange={(v) => set('medicalCost', v)} />
+      <MoneyField label="Ετήσιο Ενοίκιο (€)" value={income.rentCost} onChange={(v) => set('rentCost', v)} />
+      <MoneyField label="Ετήσιο Ενοίκιο Εξαρτ. Μέλους (€)" value={income.studentRentCost} onChange={(v) => set('studentRentCost', v)} />
+      <MoneyField label="Ετήσια Διατροφή λόγω Διαζυγίου (€)" value={income.alimonyCost} onChange={(v) => set('alimonyCost', v)} />
+    </>
+  )
+}
+
 export default function IncomePanel({ income, onChange, assets, onAssetsChange }) {
   const isLegal = income.debtorType === 'Νομικό Πρόσωπο'
 
@@ -113,44 +148,78 @@ export default function IncomePanel({ income, onChange, assets, onAssetsChange }
           </div>
         ) : (
           <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-3">
-              <MoneyField label="1️⃣ Ετήσιο Καθαρό Εισόδημα (€)" value={income.annualIncome} onChange={(v) => set('annualIncome', v)} placeholder="π.χ. 25.000" />
-              <div>
-                <label className="label">Ηλικία νεότερου οφειλέτη</label>
-                <input
-                  type="number" min="18" max="84" className="input"
-                  placeholder="π.χ. 55"
-                  value={income.debtorAge || ''}
-                  onChange={(e) => set('debtorAge', e.target.value ? parseInt(e.target.value) : 0)}
-                />
-              </div>
+            {/* FP sub-type toggle */}
+            <div className="flex rounded-lg overflow-hidden border border-gray-200 text-sm font-semibold">
+              <button type="button"
+                className={`flex-1 py-2 transition-colors ${income.fpSubType !== 'epitideumatiAs' ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+                onClick={() => set('fpSubType', 'misthwtos')}
+              >
+                👔 Μισθωτός / Συνταξ. / Άνεργος
+              </button>
+              <button type="button"
+                className={`flex-1 py-2 transition-colors ${income.fpSubType === 'epitideumatiAs' ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+                onClick={() => set('fpSubType', 'epitideumatiAs')}
+              >
+                🏪 Επιτηδευματίας / Ελ. Επαγγ.
+              </button>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="label">2️⃣ Τύπος Νοικοκυριού (ΕΛΣΤΑΤ)</label>
-                <select className="input" value={income.householdValue} onChange={(e) => set('householdValue', Number(e.target.value))}>
-                  <option value={0}>-- Επιλογή --</option>
-                  {HOUSEHOLD_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="label">Αριθμός μελών νοικοκυριού</label>
-                <input
-                  type="number" min="1" max="10" className="input"
-                  placeholder="π.χ. 3"
-                  value={income.householdSize || ''}
-                  onChange={(e) => set('householdSize', e.target.value ? parseInt(e.target.value) : 1)}
-                />
-              </div>
-            </div>
+            {income.fpSubType === 'epitideumatiAs' ? (
+              <div className="space-y-3">
+                <div className="bg-indigo-50 border-l-4 border-indigo-500 rounded-lg p-3 space-y-3">
+                  <p className="text-xs font-bold text-indigo-700">Εισόδημα Επιχείρησης — Ε3</p>
+                  <div>
+                    <p className="text-xs font-semibold text-indigo-600 mb-1.5">Κύκλος Εργασιών (€)</p>
+                    <div className="grid grid-cols-3 gap-2">
+                      <MoneyField label="Έτος Τ" value={income.ep_ke_T} onChange={(v) => set('ep_ke_T', v)} placeholder="π.χ. 200.000" />
+                      <MoneyField label="Έτος Τ-1" value={income.ep_ke_T1} onChange={(v) => set('ep_ke_T1', v)} />
+                      <MoneyField label="Έτος Τ-2" value={income.ep_ke_T2} onChange={(v) => set('ep_ke_T2', v)} />
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold text-indigo-600 mb-1.5">EBITDA — Κέρδη προ φόρων/τόκων/αποσβέσεων (€)</p>
+                    <div className="grid grid-cols-3 gap-2">
+                      <SignedMoneyField label="Έτος Τ" value={income.ep_ebitda_T} onChange={(v) => set('ep_ebitda_T', v)} placeholder="π.χ. 30.000" />
+                      <SignedMoneyField label="Έτος Τ-1" value={income.ep_ebitda_T1} onChange={(v) => set('ep_ebitda_T1', v)} />
+                      <SignedMoneyField label="Έτος Τ-2" value={income.ep_ebitda_T2} onChange={(v) => set('ep_ebitda_T2', v)} />
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold text-indigo-600 mb-1.5">Φόρος Εισοδήματος (€)</p>
+                    <div className="grid grid-cols-3 gap-2">
+                      <MoneyField label="Έτος Τ" value={income.ep_tax_T || 0} onChange={(v) => set('ep_tax_T', v)} placeholder="π.χ. 5.000" />
+                      <MoneyField label="Έτος Τ-1" value={income.ep_tax_T1 || 0} onChange={(v) => set('ep_tax_T1', v)} />
+                      <MoneyField label="Έτος Τ-2" value={income.ep_tax_T2 || 0} onChange={(v) => set('ep_tax_T2', v)} />
+                    </div>
+                  </div>
+                </div>
 
-            <MoneyField label="3️⃣ Ετήσιος ΕΝΦΙΑ (€)" value={income.enfiaCost} onChange={(v) => set('enfiaCost', v)} />
-            <MoneyField label="4️⃣ Ετήσιες Ιατρικές Δαπάνες (€)" value={income.medicalCost} onChange={(v) => set('medicalCost', v)} />
-            <MoneyField label="5️⃣ Ετήσιο Ενοίκιο (€)" value={income.rentCost} onChange={(v) => set('rentCost', v)} />
-            <MoneyField label="6️⃣ Ετήσιο Ενοίκιο Εξαρτ. Μέλους (€)" value={income.studentRentCost} onChange={(v) => set('studentRentCost', v)} />
-            <MoneyField label="7️⃣ Ετήσια Διατροφή λόγω Διαζυγίου (€)" value={income.alimonyCost} onChange={(v) => set('alimonyCost', v)} />
-            <MoneyField label="8️⃣ Καταθέσεις / Αποταμιεύσεις (€)" value={income.savings} onChange={(v) => set('savings', v)} placeholder="π.χ. 5.000" />
+                <div className="bg-sky-50 border-l-4 border-sky-400 rounded-lg p-3">
+                  <p className="text-xs font-bold text-sky-700 mb-1.5">Λοιπό Εισόδημα Ε1 (εκτός επιχείρησης, €)</p>
+                  <div className="grid grid-cols-3 gap-2">
+                    <MoneyField label="Έτος Τ" value={income.ep_e1_T} onChange={(v) => set('ep_e1_T', v)} />
+                    <MoneyField label="Έτος Τ-1" value={income.ep_e1_T1} onChange={(v) => set('ep_e1_T1', v)} />
+                    <MoneyField label="Έτος Τ-2" value={income.ep_e1_T2} onChange={(v) => set('ep_e1_T2', v)} />
+                  </div>
+                </div>
+
+                <CommonFPExpenses income={income} set={set} />
+                <MoneyField label="Καταθέσεις Επιχείρησης (€)" value={income.ep_deposits} onChange={(v) => set('ep_deposits', v)} placeholder="π.χ. 10.000" />
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div>
+                  <p className="text-xs font-semibold text-gray-500 mb-1.5">Καθαρό Εισόδημα Εκκαθαριστικού (€)</p>
+                  <div className="grid grid-cols-3 gap-2">
+                    <MoneyField label="Έτος Τ" value={income.fp_income_T} onChange={(v) => set('fp_income_T', v)} placeholder="π.χ. 25.000" />
+                    <MoneyField label="Έτος Τ-1" value={income.fp_income_T1} onChange={(v) => set('fp_income_T1', v)} />
+                    <MoneyField label="Έτος Τ-2" value={income.fp_income_T2} onChange={(v) => set('fp_income_T2', v)} />
+                  </div>
+                </div>
+                <CommonFPExpenses income={income} set={set} />
+                <MoneyField label="Καταθέσεις / Αποταμιεύσεις (€)" value={income.savings} onChange={(v) => set('savings', v)} placeholder="π.χ. 5.000" />
+              </div>
+            )}
           </div>
         )}
       </div>

@@ -23,8 +23,8 @@ const STATUS_OPTIONS = [
 function defaultIncome() {
   return {
     debtorType: 'Φυσικό Πρόσωπο',
-    // FP fields
-    annualIncome: 0,
+    fpSubType: 'misthwtos', // 'misthwtos' | 'epitideumatiAs'
+    // FP shared fields
     debtorAge: 0,
     householdValue: 0,
     householdSize: 1,
@@ -35,6 +35,16 @@ function defaultIncome() {
     extraLivingCost: 0,
     alimonyCost: 0,
     savings: 0,
+    // Μισθωτός: 3-year income (Ε1 εκκαθαριστικό)
+    fp_income_T: 0, fp_income_T1: 0, fp_income_T2: 0,
+    // Επιτηδευματίας: 3-year EBITDA, KE, E1 outside business, tax, deposits
+    ep_ebitda_T: null, ep_ebitda_T1: null, ep_ebitda_T2: null,
+    ep_ke_T: 0, ep_ke_T1: 0, ep_ke_T2: 0,
+    ep_e1_T: 0, ep_e1_T1: 0, ep_e1_T2: 0,
+    ep_tax_T: null, ep_tax_T1: null, ep_tax_T2: null,
+    ep_deposits: 0,
+    // legacy single-year field (backward compat)
+    annualIncome: 0,
     // LE fields — 3-year data (ΚΥΑ 7712925/2025)
     ke_t1: 0, ke_t2: 0, ke_t3: 0,
     kerdh_t1: null, kerdh_t2: null, kerdh_t3: null,
@@ -388,11 +398,15 @@ export default function CaseForm({ currentEmployee }) {
       {/* flag_MAX_DOSES warning banner (ΚΥΑ 7712925/2025) */}
       {calc?.flagMaxDoses && (
         <div className="mb-5 rounded-xl border border-amber-300 bg-amber-50 p-4 flex gap-3">
-          <span className="text-xl shrink-0">⚠️</span>
+          <span className="text-xl shrink-0">⚡</span>
           <div>
-            <p className="font-bold text-amber-800 mb-1">ΕΝΕΡΓΟΠΟΙΗΣΗ ΚΑΝΟΝΑ 10% — ΚΥΑ 7712925/2025</p>
+            <p className="font-bold text-amber-800 mb-1">
+              {calc.isFPEpit
+                ? 'ΕΝΕΡΓΟΠΟΙΗΣΗ ΚΑΝΟΝΑ ΕΎΛΟΓΟΥ ΠΟΣΟΣΤΟΥ — ΦΕΚ Β\' 2896/2021 §7.1/4, ΚΥΑ 7712925/2025'
+                : 'ΕΝΕΡΓΟΠΟΙΗΣΗ ΚΑΝΟΝΑ 10% — ΚΥΑ 7712925/2025'}
+            </p>
             <p className="text-sm text-amber-700 mb-1">
-              Το υπολογισθέν διαθέσιμο εισόδημα ({fmt(calc.leMoDispMonthly)}/μήνα) είναι κατώτερο του 10% του Κύκλου Εργασιών Τ-1 ({fmt(calc.leFloorMonthly)}/μήνα).
+              Το υπολογισθέν διαθέσιμο ({fmt(calc.leMoDispMonthly)}/μήνα) είναι κατώτερο {calc.isFPEpit ? 'του εύλογου ποσοστού × ΚΕ' : 'του 10% του ΚΕ Τ-1'} ({fmt(calc.leFloorMonthly)}/μήνα).
             </p>
             <ul className="text-sm text-amber-700 space-y-0.5">
               <li>→ Διαθέσιμο αναπροσαρμόζεται σε: <b>{fmt(calc.dispMonthly)}/μήνα</b></li>
