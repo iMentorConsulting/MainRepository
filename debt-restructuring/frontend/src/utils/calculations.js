@@ -301,16 +301,58 @@ export function calculateAll(debts, assets, incomeData, params = PARAMS_B) {
       dispAnnual = floored + deposits * params.leDepositRate
     }
   } else {
-    // Rent cap: ΚΥΑ Παράρτημα παρ. δ — monthly €(350 + 50×(size−1)), max €550
+    // ---- Physical Person ----
     const rentCapMonthly = Math.min(params.rentCapBase + params.rentCapPerMember * (fpSize - 1), params.rentCapMax)
     const effectiveRent = Math.min(incomeData.rentCost || 0, rentCapMonthly * 12)
-    annualIncome = incomeData.annualIncome || 0
     totalExpenses = (incomeData.householdValue || 0) + (incomeData.enfiaCost || 0) +
       (incomeData.medicalCost || 0) + effectiveRent +
       (incomeData.studentRentCost || 0) +
       (incomeData.alimonyCost || 0)
-    // 95% of excess savings (above exempt threshold) added to annual disposable — ΚΥΑ 77129/2025
-    dispAnnual = Math.max(0, annualIncome - totalExpenses) * 0.8 + countableSavings * params.fpSavingsIncomeRate
+    const householdExempt = Math.min(
+      params.fpExemptSavingsBase + params.fpExemptSavingsPerMember * (fpSize - 1),
+      params.fpExemptSavingsMax
+    )
+    const fpSubType = incomeData.fpSubType
+
+    if (fpSubType === 'Μισθωτός') {
+      // 3-year income: average of top 2, then 80% — ΦΕΚ Β' 2499/2021 §8
+      const t1 = incomeData.fp_income_t1 || 0
+      const t2 = incomeData.fp_income_t2 || 0
+      const t3 = incomeData.fp_income_t3 || 0
+      if (t1 > 0 || t2 > 0 || t3 > 0) {
+        const sorted = [t1, t2, t3].sort((a, b) => b - a)
+        annualIncome = (sorted[0] + sorted[1]) / 2
+      } else {
+        annualIncome = incomeData.annualIncome || 0
+      }
+      dispAnnual = Math.max(0, annualIncome - totalExpenses) * 0.8 + countableSavings / 20
+    } else if (fpSubType === 'Επιτηδευματίας') {
+      // Per-year: MAX(0, EBITDA−Tax) + E1_outside; 80%; top-2 avg; εύλογο ποσοστό floor — ΦΕΚ Β' 2499/2021 §9
+      const fp_ke_t1 = incomeData.fp_ke_t1 || 0
+      const incYr = (ebitda, tax, e1) => Math.max(0, (ebitda || 0) - (tax || 0)) + (e1 || 0)
+      const y1 = incYr(incomeData.fp_ebitda_t1, incomeData.fp_tax_t1, incomeData.fp_e1outside_t1)
+      const y2 = incYr(incomeData.fp_ebitda_t2, incomeData.fp_tax_t2, incomeData.fp_e1outside_t2)
+      const y3 = incYr(incomeData.fp_ebitda_t3, incomeData.fp_tax_t3, incomeData.fp_e1outside_t3)
+      annualIncome = (y1 + y2 + y3) / 3
+      const dispArr = [y1, y2, y3].map((y) => Math.max(0, y - totalExpenses) * 0.8).sort((a, b) => b - a)
+      const mo_diath = (dispArr[0] + dispArr[1]) / 2
+      const floorPct = (incomeData.fp_eulogo_pct != null ? incomeData.fp_eulogo_pct : 10) / 100
+      const floor = fp_ke_t1 * floorPct
+      const businessReserve = Math.max(householdExempt, fp_ke_t1 * 0.05)
+      const freeSavings = Math.max(0, (incomeData.savings || 0) - businessReserve)
+      if (fp_ke_t1 > 0 && mo_diath < floor) {
+        leMoDispMonthly = mo_diath / 12
+        leFloorMonthly = floor / 12
+        dispAnnual = floor + freeSavings / 20
+        flagMaxDoses = true
+      } else {
+        dispAnnual = mo_diath + freeSavings / 20
+      }
+    } else {
+      // Legacy: single annualIncome (FP cases created before fpSubType field) — backward compat
+      annualIncome = incomeData.annualIncome || 0
+      dispAnnual = Math.max(0, annualIncome - totalExpenses) * 0.8 + countableSavings * params.fpSavingsIncomeRate
+    }
   }
   const dispMonthly = dispAnnual / 12
   const monthlyIncome = Math.max(0, dispMonthly)
@@ -318,9 +360,12 @@ export function calculateAll(debts, assets, incomeData, params = PARAMS_B) {
   // --- plan base: compute max months per debt ---
   const planBase = analysisRows.map((r) => {
     const theoretical = getMaxMonths(r.type, isLE, r.isSecured, params)
-    const maxM = effectiveMaxMonths(theoretical, isLE, youngestAge, params)
-    // flagMaxDoses: force public debts to max duration (ΚΥΑ 7712925/2025)
-    const initMonths = (flagMaxDoses && isPublicDebt(r.type)) ? maxM : Math.min(12, maxM)
+    let maxM = effectiveMaxMonths(theoretical, isLE, youngestAge, params)
+    // FP Επιτηδευματίας with flagMaxDoses: all creditors capped at 240 (ΦΕΚ Β' 2896/2021 §7.1/4)
+    if (flagMaxDoses && !isLE) maxM = Math.min(maxM, params.maxMonths.publicMax)
+    // force-start at maxM: all debts for FP Επιτηδευματίας, or public debts for LE (ΚΥΑ 7712925/2025)
+    const isForcedMax = flagMaxDoses && (!isLE || isPublicDebt(r.type))
+    const initMonths = isForcedMax ? maxM : Math.min(12, maxM)
     return {
       idx: r.idx, type: r.type, isSecured: r.isSecured,
       amount: r.amount, months: initMonths, maxMonths: maxM,

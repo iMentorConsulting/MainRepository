@@ -84,7 +84,7 @@ function planRng(conservative, base, formatter = fmt) {
 
 export function buildPlanHtml(data, customRows) {
   const today = new Date().toLocaleDateString('el-GR')
-  const { clientName, clientPhone, clientEmail, debtorType, annualIncome, totalExpenses, householdValue, householdLabel, enfia, medical, rent, studentRent, extraLiving, alimony, dispAnnual, dispMonthly, realEstateAssets, totalRealEstateValue } = data
+  const { clientName, clientPhone, clientEmail, debtorType, annualIncome, totalExpenses, householdValue, householdLabel, enfia, medical, rent, studentRent, extraLiving, alimony, dispAnnual, dispMonthly, realEstateAssets, totalRealEstateValue, incomeData = {} } = data
 
   // If customRows provided (from PlanParamsModal), use those; otherwise fall back to data.creditors
   const allCreditors = customRows
@@ -146,18 +146,44 @@ export function buildPlanHtml(data, customRows) {
   const baseRatio = baseMonthly > 0 ? Math.round((totalMonthlyPay / baseMonthly) * 100) : 0
   const stressRatio = stressedMonthly > 0 ? Math.round((totalMonthlyPay / stressedMonthly) * 100) : 0
 
-  const incomeRows = debtorType.includes('Νομικό')
+  const fpSubType = incomeData.fpSubType
+  const isLE = debtorType?.includes('Νομικό')
+  const isFpSE = !isLE && fpSubType === 'Επιτηδευματίας'
+  const isFpEmp = !isLE && fpSubType === 'Μισθωτός'
+
+  const incomeRows = isLE
     ? ''
-    : [
-        annualIncome ? `<tr><td>Ετήσιο εισόδημα</td><td>${fmt(annualIncome)}</td><td>Δηλωθέν</td></tr>` : '',
-        householdValue ? `<tr><td>Εύλογες δαπάνες (${householdLabel})</td><td>${fmt(householdValue)}</td><td>ΕΛΣΤΑΤ</td></tr>` : '',
-        enfia ? `<tr><td>ΕΝΦΙΑ</td><td>${fmt(enfia)}</td><td>Ετήσιο</td></tr>` : '',
-        medical ? `<tr><td>Ιατρικές δαπάνες</td><td>${fmt(medical)}</td><td>Μόνιμες</td></tr>` : '',
-        rent ? `<tr><td>Ενοίκιο</td><td>${fmt(rent)}</td><td>Ετήσιο</td></tr>` : '',
-        studentRent ? `<tr><td>Ενοίκιο φοιτητών</td><td>${fmt(studentRent)}</td><td>Ετήσιο</td></tr>` : '',
-        extraLiving ? `<tr><td>Πρόσθετη διατροφή/διαβίωση</td><td>${fmt(extraLiving)}</td><td>Ετήσιο</td></tr>` : '',
-        alimony ? `<tr><td>Διατροφή λόγω διαζυγίου</td><td>${fmt(alimony)}</td><td>Ετήσιο</td></tr>` : '',
-      ].filter(Boolean).join('')
+    : isFpSE
+      ? [
+          incomeData.fp_ebitda_t1 != null ? `<tr><td>EBITDA Τ</td><td>${fmt(incomeData.fp_ebitda_t1)}</td><td>Ε3</td></tr>` : '',
+          incomeData.fp_ebitda_t2 != null ? `<tr><td>EBITDA Τ-1</td><td>${fmt(incomeData.fp_ebitda_t2)}</td><td>Ε3</td></tr>` : '',
+          incomeData.fp_ebitda_t3 != null ? `<tr><td>EBITDA Τ-2</td><td>${fmt(incomeData.fp_ebitda_t3)}</td><td>Ε3</td></tr>` : '',
+          incomeData.fp_tax_t1 ? `<tr><td>Φόρος Τ</td><td>${fmt(incomeData.fp_tax_t1)}</td><td>Εκκαθαριστικό</td></tr>` : '',
+          incomeData.fp_tax_t2 ? `<tr><td>Φόρος Τ-1</td><td>${fmt(incomeData.fp_tax_t2)}</td><td>Εκκαθαριστικό</td></tr>` : '',
+          incomeData.fp_tax_t3 ? `<tr><td>Φόρος Τ-2</td><td>${fmt(incomeData.fp_tax_t3)}</td><td>Εκκαθαριστικό</td></tr>` : '',
+          incomeData.fp_e1outside_t1 ? `<tr><td>Εισόδημα Ε1 εκτός επιχ. Τ</td><td>${fmt(incomeData.fp_e1outside_t1)}</td><td>Ε1</td></tr>` : '',
+          incomeData.fp_e1outside_t2 ? `<tr><td>Εισόδημα Ε1 εκτός επιχ. Τ-1</td><td>${fmt(incomeData.fp_e1outside_t2)}</td><td>Ε1</td></tr>` : '',
+          incomeData.fp_ke_t1 ? `<tr><td>Κύκλος Εργασιών Τ (ΚΕ)</td><td>${fmt(incomeData.fp_ke_t1)}</td><td>Ε3/500</td></tr>` : '',
+          annualIncome ? `<tr><td>Μ.Ο. Εισοδήματος (εκτιμ.)</td><td>${fmt(annualIncome)}</td><td>Υπολογισθέν</td></tr>` : '',
+          householdValue ? `<tr><td>Εύλογες δαπάνες (${householdLabel})</td><td>${fmt(householdValue)}</td><td>ΕΛΣΤΑΤ</td></tr>` : '',
+          enfia ? `<tr><td>ΕΝΦΙΑ</td><td>${fmt(enfia)}</td><td>Ετήσιο</td></tr>` : '',
+          medical ? `<tr><td>Ιατρικές δαπάνες</td><td>${fmt(medical)}</td><td>Μόνιμες</td></tr>` : '',
+          rent ? `<tr><td>Ενοίκιο</td><td>${fmt(rent)}</td><td>Ετήσιο</td></tr>` : '',
+          alimony ? `<tr><td>Διατροφή λόγω διαζυγίου</td><td>${fmt(alimony)}</td><td>Ετήσιο</td></tr>` : '',
+        ].filter(Boolean).join('')
+      : [
+          isFpEmp && incomeData.fp_income_t1 ? `<tr><td>Καθαρό εισόδημα Τ</td><td>${fmt(incomeData.fp_income_t1)}</td><td>Εκκαθαριστικό</td></tr>` : '',
+          isFpEmp && incomeData.fp_income_t2 ? `<tr><td>Καθαρό εισόδημα Τ-1</td><td>${fmt(incomeData.fp_income_t2)}</td><td>Εκκαθαριστικό</td></tr>` : '',
+          isFpEmp && incomeData.fp_income_t3 ? `<tr><td>Καθαρό εισόδημα Τ-2</td><td>${fmt(incomeData.fp_income_t3)}</td><td>Εκκαθαριστικό</td></tr>` : '',
+          annualIncome ? `<tr><td>${isFpEmp ? 'Μ.Ο. 2 καλύτερων ετών' : 'Ετήσιο εισόδημα'}</td><td>${fmt(annualIncome)}</td><td>${isFpEmp ? 'Υπολογισθέν' : 'Δηλωθέν'}</td></tr>` : '',
+          householdValue ? `<tr><td>Εύλογες δαπάνες (${householdLabel})</td><td>${fmt(householdValue)}</td><td>ΕΛΣΤΑΤ</td></tr>` : '',
+          enfia ? `<tr><td>ΕΝΦΙΑ</td><td>${fmt(enfia)}</td><td>Ετήσιο</td></tr>` : '',
+          medical ? `<tr><td>Ιατρικές δαπάνες</td><td>${fmt(medical)}</td><td>Μόνιμες</td></tr>` : '',
+          rent ? `<tr><td>Ενοίκιο</td><td>${fmt(rent)}</td><td>Ετήσιο</td></tr>` : '',
+          studentRent ? `<tr><td>Ενοίκιο φοιτητών</td><td>${fmt(studentRent)}</td><td>Ετήσιο</td></tr>` : '',
+          extraLiving ? `<tr><td>Πρόσθετη διατροφή/διαβίωση</td><td>${fmt(extraLiving)}</td><td>Ετήσιο</td></tr>` : '',
+          alimony ? `<tr><td>Διατροφή λόγω διαζυγίου</td><td>${fmt(alimony)}</td><td>Ετήσιο</td></tr>` : '',
+        ].filter(Boolean).join('')
 
   const GS = 'padding:10px;border:1px solid #d2def8;'
   const summaryRows = creditors.map((c) => {
@@ -397,7 +423,31 @@ export function buildEmailHtml(data) {
   const GI = 'padding:4px 0;font-size:13px;'
   const le3Year = incomeData.ke_t1 > 0 || incomeData.ke_t2 > 0 || incomeData.ke_t3 > 0
   const leAnyTurnover = le3Year || incomeData.turnover > 0
-  const incomeSectionHtml = (dispMonthly > 0 || incomeData.annualIncome > 0 || leAnyTurnover) ? `
+  const emailFpSubType = incomeData.fpSubType
+  const emailFpSE = !isLegal && emailFpSubType === 'Επιτηδευματίας'
+  const emailFpEmp = !isLegal && (emailFpSubType === 'Μισθωτός' || (!emailFpSubType && !isLegal))
+  const fpHasIncome = emailFpEmp
+    ? (incomeData.fp_income_t1 > 0 || incomeData.fp_income_t2 > 0 || incomeData.fp_income_t3 > 0 || incomeData.annualIncome > 0)
+    : emailFpSE
+      ? (incomeData.fp_ebitda_t1 != null || incomeData.fp_ke_t1 > 0)
+      : false
+
+  const fpExpensesHtml = (incomeData.householdValue > 0 || incomeData.enfiaCost > 0 || incomeData.medicalCost > 0 || incomeData.rentCost > 0 || incomeData.studentRentCost > 0 || incomeData.extraLivingCost > 0 || incomeData.alimonyCost > 0) ? `
+    <div style="border-top:1px solid #e2eaf8;padding-top:10px;">
+      <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;">Νοικοκυριό &amp; Δαπάνες</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 16px;">
+        ${incomeData.householdValue > 0 ? `<div style="${GI}"><span style="color:#64748b;">Εύλογες δαπάνες${hhLabel ? ` (${escHtml(hhLabel)})` : ''}:</span> <b>${fmt(incomeData.householdValue)}</b></div>` : ''}
+        ${incomeData.enfiaCost > 0 ? `<div style="${GI}"><span style="color:#64748b;">ΕΝΦΙΑ:</span> <b>${fmt(incomeData.enfiaCost)}</b></div>` : ''}
+        ${incomeData.medicalCost > 0 ? `<div style="${GI}"><span style="color:#64748b;">Ιατρικές δαπάνες:</span> <b>${fmt(incomeData.medicalCost)}</b></div>` : ''}
+        ${incomeData.rentCost > 0 ? `<div style="${GI}"><span style="color:#64748b;">Ενοίκιο:</span> <b>${fmt(incomeData.rentCost)}</b></div>` : ''}
+        ${incomeData.studentRentCost > 0 ? `<div style="${GI}"><span style="color:#64748b;">Ενοίκιο φοιτητών:</span> <b>${fmt(incomeData.studentRentCost)}</b></div>` : ''}
+        ${incomeData.extraLivingCost > 0 ? `<div style="${GI}"><span style="color:#64748b;">Πρόσθετη διατροφή:</span> <b>${fmt(incomeData.extraLivingCost)}</b></div>` : ''}
+        ${incomeData.alimonyCost > 0 ? `<div style="${GI}"><span style="color:#64748b;">Διατροφή (διαζύγιο):</span> <b>${fmt(incomeData.alimonyCost)}</b></div>` : ''}
+        ${totalExpenses > 0 ? `<div style="${GI};grid-column:1/-1;font-weight:700;"><span style="color:#64748b;">Σύνολο δαπανών:</span> <b>${fmt(totalExpenses)}</b></div>` : ''}
+      </div>
+    </div>` : ''
+
+  const incomeSectionHtml = (dispMonthly > 0 || fpHasIncome || leAnyTurnover) ? `
   <p style="margin:14px 0 6px;">${badge('💶', '#1d4ed8', '#eff6ff')}<b style="font-size:15px;color:#1e3a5f;">Εισοδηματική &amp; Περιουσιακή Εικόνα</b></p>
   <div style="background:#f8faff;border:1px solid #dde7fb;border-radius:10px;padding:14px 16px;margin-bottom:14px;font-size:14px;">
     ${isLegal ? `
@@ -417,28 +467,34 @@ export function buildEmailHtml(data) {
     </div>
     <div style="${GI}">
       ${dispMonthly > 0 ? `<span style="color:#64748b;">Μηνιαίο διαθέσιμο:</span> <b style="color:#1d4ed8;">${fmt(dispMonthly)}</b>` : ''}
-    </div>` : `
-    <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;">Εισοδήματα</div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 16px;margin-bottom:10px;">
-      ${incomeData.annualIncome > 0 ? `<div style="${GI}"><span style="color:#64748b;">Ετήσιο εισόδημα:</span> <b>${fmt(incomeData.annualIncome)}</b></div>` : ''}
-      ${dispAnnual > 0 ? `<div style="${GI}"><span style="color:#64748b;">Διαθέσιμο (×80%):</span> <b style="color:#1d4ed8;">${fmt(dispAnnual)}</b></div>` : ''}
-      ${dispMonthly > 0 ? `<div style="${GI};grid-column:1/-1;"><span style="color:#64748b;">Μηνιαίο διαθέσιμο:</span> <b style="color:#1d4ed8;font-size:15px;">${fmt(dispMonthly)}</b></div>` : ''}
+    </div>` : emailFpSE ? `
+    <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;">Επιτηδευματίας — Στοιχεία Επιχείρησης</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px 12px;margin-bottom:8px;">
+      ${incomeData.fp_ebitda_t1 != null ? `<div style="${GI}"><span style="color:#64748b;display:block;font-size:11px;">EBITDA Τ:</span> <b>${fmt(incomeData.fp_ebitda_t1)}</b></div>` : ''}
+      ${incomeData.fp_ebitda_t2 != null ? `<div style="${GI}"><span style="color:#64748b;display:block;font-size:11px;">EBITDA Τ-1:</span> <b>${fmt(incomeData.fp_ebitda_t2)}</b></div>` : ''}
+      ${incomeData.fp_ebitda_t3 != null ? `<div style="${GI}"><span style="color:#64748b;display:block;font-size:11px;">EBITDA Τ-2:</span> <b>${fmt(incomeData.fp_ebitda_t3)}</b></div>` : ''}
+      ${incomeData.fp_tax_t1 > 0 ? `<div style="${GI}"><span style="color:#64748b;display:block;font-size:11px;">Φόρος Τ:</span> <b>${fmt(incomeData.fp_tax_t1)}</b></div>` : ''}
+      ${incomeData.fp_tax_t2 > 0 ? `<div style="${GI}"><span style="color:#64748b;display:block;font-size:11px;">Φόρος Τ-1:</span> <b>${fmt(incomeData.fp_tax_t2)}</b></div>` : ''}
+      ${incomeData.fp_e1outside_t1 > 0 ? `<div style="${GI}"><span style="color:#64748b;display:block;font-size:11px;">Ε1 εκτός Τ:</span> <b>${fmt(incomeData.fp_e1outside_t1)}</b></div>` : ''}
+      ${incomeData.fp_ke_t1 > 0 ? `<div style="${GI}"><span style="color:#64748b;display:block;font-size:11px;">ΚΕ Τ:</span> <b>${fmt(incomeData.fp_ke_t1)}</b></div>` : ''}
     </div>
-    ${(incomeData.householdValue > 0 || incomeData.enfiaCost > 0 || incomeData.medicalCost > 0 || incomeData.rentCost > 0 || incomeData.studentRentCost > 0 || incomeData.extraLivingCost > 0 || incomeData.alimonyCost > 0) ? `
-    <div style="border-top:1px solid #e2eaf8;padding-top:10px;">
-      <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;">Νοικοκυριό &amp; Δαπάνες</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 16px;">
-        ${incomeData.householdValue > 0 ? `<div style="${GI}"><span style="color:#64748b;">Εύλογες δαπάνες${hhLabel ? ` (${escHtml(hhLabel)})` : ''}:</span> <b>${fmt(incomeData.householdValue)}</b></div>` : ''}
-        ${incomeData.enfiaCost > 0 ? `<div style="${GI}"><span style="color:#64748b;">ΕΝΦΙΑ:</span> <b>${fmt(incomeData.enfiaCost)}</b></div>` : ''}
-        ${incomeData.medicalCost > 0 ? `<div style="${GI}"><span style="color:#64748b;">Ιατρικές δαπάνες:</span> <b>${fmt(incomeData.medicalCost)}</b></div>` : ''}
-        ${incomeData.rentCost > 0 ? `<div style="${GI}"><span style="color:#64748b;">Ενοίκιο:</span> <b>${fmt(incomeData.rentCost)}</b></div>` : ''}
-        ${incomeData.studentRentCost > 0 ? `<div style="${GI}"><span style="color:#64748b;">Ενοίκιο φοιτητών:</span> <b>${fmt(incomeData.studentRentCost)}</b></div>` : ''}
-        ${incomeData.extraLivingCost > 0 ? `<div style="${GI}"><span style="color:#64748b;">Πρόσθετη διατροφή:</span> <b>${fmt(incomeData.extraLivingCost)}</b></div>` : ''}
-        ${incomeData.alimonyCost > 0 ? `<div style="${GI}"><span style="color:#64748b;">Διατροφή (διαζύγιο):</span> <b>${fmt(incomeData.alimonyCost)}</b></div>` : ''}
-        ${totalExpenses > 0 ? `<div style="${GI};grid-column:1/-1;font-weight:700;"><span style="color:#64748b;">Σύνολο δαπανών:</span> <b>${fmt(totalExpenses)}</b></div>` : ''}
-      </div>
-    </div>` : ''}
-    `}
+    <div style="${GI};margin-bottom:8px;">
+      ${dispAnnual > 0 ? `<span style="color:#64748b;">Διαθέσιμο (×80%, Μ.Ο.):</span> <b style="color:#1d4ed8;">${fmt(dispAnnual)}</b>` : ''}
+      ${dispMonthly > 0 ? ` &nbsp;·&nbsp; <span style="color:#64748b;">Μηνιαίο:</span> <b style="color:#1d4ed8;font-size:15px;">${fmt(dispMonthly)}</b>` : ''}
+    </div>
+    ${fpExpensesHtml}` : `
+    <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;">Εισοδήματα — Μισθωτός / Συνταξιούχος</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px 12px;margin-bottom:8px;">
+      ${incomeData.fp_income_t1 > 0 ? `<div style="${GI}"><span style="color:#64748b;display:block;font-size:11px;">Εισόδημα Τ:</span> <b>${fmt(incomeData.fp_income_t1)}</b></div>` : ''}
+      ${incomeData.fp_income_t2 > 0 ? `<div style="${GI}"><span style="color:#64748b;display:block;font-size:11px;">Εισόδημα Τ-1:</span> <b>${fmt(incomeData.fp_income_t2)}</b></div>` : ''}
+      ${incomeData.fp_income_t3 > 0 ? `<div style="${GI}"><span style="color:#64748b;display:block;font-size:11px;">Εισόδημα Τ-2:</span> <b>${fmt(incomeData.fp_income_t3)}</b></div>` : ''}
+      ${!incomeData.fp_income_t1 && incomeData.annualIncome > 0 ? `<div style="${GI}"><span style="color:#64748b;">Ετήσιο εισόδημα:</span> <b>${fmt(incomeData.annualIncome)}</b></div>` : ''}
+    </div>
+    <div style="${GI};margin-bottom:8px;">
+      ${dispAnnual > 0 ? `<span style="color:#64748b;">Διαθέσιμο (×80%):</span> <b style="color:#1d4ed8;">${fmt(dispAnnual)}</b>` : ''}
+      ${dispMonthly > 0 ? ` &nbsp;·&nbsp; <span style="color:#64748b;">Μηνιαίο:</span> <b style="color:#1d4ed8;font-size:15px;">${fmt(dispMonthly)}</b>` : ''}
+    </div>
+    ${fpExpensesHtml}`}
     ${assets && assets.length > 0 ? `
     <div style="border-top:1px solid #e2eaf8;padding-top:10px;margin-top:10px;">
       <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;">Ακίνητα &amp; Περιουσία</div>

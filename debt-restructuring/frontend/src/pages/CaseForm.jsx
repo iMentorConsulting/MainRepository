@@ -23,7 +23,17 @@ const STATUS_OPTIONS = [
 function defaultIncome() {
   return {
     debtorType: 'Φυσικό Πρόσωπο',
-    // FP fields
+    // FP sub-type — 'Μισθωτός' | 'Επιτηδευματίας'
+    fpSubType: 'Μισθωτός',
+    // FP Μισθωτός: 3-year net income (ΦΕΚ Β' 2499/2021 §8)
+    fp_income_t1: 0, fp_income_t2: 0, fp_income_t3: 0,
+    // FP Επιτηδευματίας: EBITDA, tax, E1-outside, KE (ΦΕΚ Β' 2499/2021 §9)
+    fp_ebitda_t1: null, fp_ebitda_t2: null, fp_ebitda_t3: null,
+    fp_tax_t1: 0, fp_tax_t2: 0, fp_tax_t3: 0,
+    fp_e1outside_t1: 0, fp_e1outside_t2: 0, fp_e1outside_t3: 0,
+    fp_ke_t1: 0, fp_ke_t2: 0, fp_ke_t3: 0,
+    fp_eulogo_pct: 10,
+    // FP common fields
     annualIncome: 0,
     debtorAge: 0,
     householdValue: 0,
@@ -107,8 +117,9 @@ function collectPlanData(debts, assets, income, calc, client) {
     clientPhone: client.phone || '—',
     clientEmail: client.email || '—',
     debtorType: income.debtorType,
-    annualIncome: income.annualIncome || 0,
+    annualIncome: calc.annualIncome || income.annualIncome || 0,
     totalExpenses: calc.totalExpenses || 0,
+    incomeData: income,
     householdValue: income.householdValue || 0,
     householdLabel,
     enfia: income.enfiaCost || 0,
@@ -385,23 +396,28 @@ export default function CaseForm({ currentEmployee }) {
         <IncomePanel income={income} onChange={setIncome} assets={assets} onAssetsChange={setAssets} />
       </div>
 
-      {/* flag_MAX_DOSES warning banner (ΚΥΑ 7712925/2025) */}
-      {calc?.flagMaxDoses && (
-        <div className="mb-5 rounded-xl border border-amber-300 bg-amber-50 p-4 flex gap-3">
-          <span className="text-xl shrink-0">⚠️</span>
-          <div>
-            <p className="font-bold text-amber-800 mb-1">ΕΝΕΡΓΟΠΟΙΗΣΗ ΚΑΝΟΝΑ 10% — ΚΥΑ 7712925/2025</p>
-            <p className="text-sm text-amber-700 mb-1">
-              Το υπολογισθέν διαθέσιμο εισόδημα ({fmt(calc.leMoDispMonthly)}/μήνα) είναι κατώτερο του 10% του Κύκλου Εργασιών Τ-1 ({fmt(calc.leFloorMonthly)}/μήνα).
-            </p>
-            <ul className="text-sm text-amber-700 space-y-0.5">
-              <li>→ Διαθέσιμο αναπροσαρμόζεται σε: <b>{fmt(calc.dispMonthly)}/μήνα</b></li>
-              <li>→ Εφαρμόζεται <b>μέγιστος</b> αριθμός δόσεων: <b>240</b></li>
-              <li>→ Η δόση υπολογίζεται τοκοχρεωλυτικά για 240 μήνες</li>
-            </ul>
+      {/* flag_MAX_DOSES warning banner — ΦΕΚ Β' 2896/2021 §7.1/4 + ΚΥΑ 7712925/2025 */}
+      {calc?.flagMaxDoses && (() => {
+        const isFpSE = income.debtorType !== 'Νομικό Πρόσωπο' && income.fpSubType === 'Επιτηδευματίας'
+        const lawRef = isFpSE ? 'ΦΕΚ Β\' 2896/2021 §7.1/4' : 'ΚΥΑ 7712925/2025'
+        const pct = isFpSE ? `${income.fp_eulogo_pct ?? 10}%` : '10%'
+        return (
+          <div className="mb-5 rounded-xl border border-amber-300 bg-amber-50 p-4 flex gap-3">
+            <span className="text-xl shrink-0">⚡</span>
+            <div>
+              <p className="font-bold text-amber-800 mb-0.5">ΕΝΕΡΓΟΠΟΙΗΣΗ ΚΑΝΟΝΑ ΕΎΛΟΓΟΥ ΠΟΣΟΣΤΟΎ — {lawRef}</p>
+              <p className="text-sm text-amber-700 mb-1">
+                Το υπολογισθέν διαθέσιμο ({fmt(calc.leMoDispMonthly)}/μήνα) &lt; {pct} × ΚΕ ({fmt(calc.leFloorMonthly)}/μήνα).
+              </p>
+              <ul className="text-sm text-amber-700 space-y-0.5">
+                <li>→ Διαθέσιμο αναπροσαρμόζεται σε: <b>{fmt(calc.dispMonthly)}/μήνα</b></li>
+                <li>→ Εφαρμόζεται <b>μέγιστος</b> αριθμός δόσεων: <b>240</b> για όλους τους πιστωτές</li>
+                <li>→ Η δόση υπολογίζεται τοκοχρεωλυτικά για 240 μήνες</li>
+              </ul>
+            </div>
           </div>
-        </div>
-      )}
+        )
+      })()}
 
       {/* Results */}
       {calc && calc.sumDebt > 0 && (
