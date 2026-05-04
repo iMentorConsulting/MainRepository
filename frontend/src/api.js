@@ -92,6 +92,7 @@ export const assignPrograms = (assignments) =>
   api.post('/api/cm/sheets/assign-programs', { assignments }).then(r => r.data)
 export const syncInvestmentFromSheet = () => api.post('/api/cm/sheets/sync-investment').then(r => r.data)
 export const syncSaleDatesFromSheet = () => api.post('/api/cm/sheets/sync-sale-dates').then(r => r.data)
+export const getAutoRefreshStatus = () => api.get('/api/cm/sheets/auto-refresh-status').then(r => r.data)
 
 // Notifications
 export const sendNotification = (caseId, data) => api.post(`/api/cm/notifications/send/${caseId}`, data).then(r => r.data)

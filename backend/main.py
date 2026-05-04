@@ -155,6 +155,46 @@ from auth_cases import seed_admin
 with SessionLocal() as _db:
     seed_admin(_db)
 
+# ── Scheduled sheet auto-refresh (08:00 and 14:00 Athens time) ────────────────
+import pytz as _pytz
+from apscheduler.schedulers.background import BackgroundScheduler as _BGScheduler
+
+_athens_tz = _pytz.timezone("Europe/Athens")
+
+
+def _run_scheduled_refresh():
+    from routes.cm_google_sheets import _do_import, _do_sync_paid, _last_auto_refresh
+    import routes.cm_google_sheets as _sheets_mod
+    db = SessionLocal()
+    try:
+        import_res = _do_import(db)
+        sync_res = _do_sync_paid(db)
+        _sheets_mod._last_auto_refresh.update({
+            "last_run_at": datetime.utcnow().isoformat() + "Z",
+            "imported": import_res["imported"],
+            "updated_paid": sync_res["updated"],
+            "error": None,
+        })
+        print(f"[scheduler] Auto-refresh OK — imported={import_res['imported']}, updated_paid={sync_res['updated']}")
+    except Exception as e:
+        _sheets_mod._last_auto_refresh.update({
+            "last_run_at": datetime.utcnow().isoformat() + "Z",
+            "imported": None,
+            "updated_paid": None,
+            "error": str(e),
+        })
+        print(f"[scheduler] Auto-refresh ERROR: {e}")
+    finally:
+        db.close()
+
+
+from datetime import datetime
+
+_scheduler = _BGScheduler(timezone=_athens_tz)
+_scheduler.add_job(_run_scheduled_refresh, "cron", hour=8, minute=0, id="refresh_08")
+_scheduler.add_job(_run_scheduled_refresh, "cron", hour=14, minute=0, id="refresh_14")
+_scheduler.start()
+
 app = FastAPI(
     title="iMentor Consulting - Case Management",
     description="Σύστημα Διαχείρισης Υποθέσεων iMentor Consulting",
@@ -179,6 +219,11 @@ app.include_router(cm_admin_router)
 app.include_router(cm_pending_items_router)
 app.include_router(cm_portal_router)
 app.include_router(cm_pipeline_router)
+
+
+@app.on_event("shutdown")
+def _shutdown_scheduler():
+    _scheduler.shutdown(wait=False)
 
 
 @app.get("/health")

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   TableCellsIcon,
   CloudArrowDownIcon,
@@ -9,9 +9,10 @@ import {
   DocumentArrowDownIcon,
   UserIcon,
   TagIcon,
+  ClockIcon,
 } from '@heroicons/react/24/outline'
 import toast from 'react-hot-toast'
-import { previewSheet, importFromSheet, syncPaidFromSheet, syncAgentsFromSheet, getServiceTypes, assignPrograms, syncInvestmentFromSheet, syncSaleDatesFromSheet } from '../api'
+import { previewSheet, importFromSheet, syncPaidFromSheet, syncAgentsFromSheet, getServiceTypes, assignPrograms, syncInvestmentFromSheet, syncSaleDatesFromSheet, getAutoRefreshStatus } from '../api'
 
 const PREVIEW_COLUMNS = [
   { key: 'client_name', label: 'Πελάτης' },
@@ -74,6 +75,12 @@ function Spinner({ color = 'blue' }) {
 }
 
 export default function Import() {
+  const [autoRefreshStatus, setAutoRefreshStatus] = useState(null)
+
+  useEffect(() => {
+    getAutoRefreshStatus().then(setAutoRefreshStatus).catch(() => {})
+  }, [])
+
   // Preview state
   const [loadingPreview, setLoadingPreview] = useState(false)
   const [previewData, setPreviewData] = useState(null)
@@ -276,6 +283,36 @@ export default function Import() {
         </div>
       </div>
 
+      {/* Auto-refresh status */}
+      {autoRefreshStatus && (
+        <div className={`flex items-center gap-3 rounded-xl border px-4 py-3 text-sm ${
+          autoRefreshStatus.error
+            ? 'bg-red-50 border-red-200 text-red-700'
+            : autoRefreshStatus.last_run_at
+              ? 'bg-green-50 border-green-200 text-green-800'
+              : 'bg-gray-50 border-gray-200 text-gray-600'
+        }`}>
+          <ClockIcon className="w-5 h-5 flex-shrink-0" />
+          <div className="flex-1">
+            <span className="font-semibold">Αυτόματο Refresh Sheet:</span>{' '}
+            {autoRefreshStatus.last_run_at
+              ? <>
+                  Τελευταία εκτέλεση:{' '}
+                  <span className="font-medium">
+                    {new Date(autoRefreshStatus.last_run_at).toLocaleString('el-GR', { dateStyle: 'short', timeStyle: 'short' })}
+                  </span>
+                  {autoRefreshStatus.error
+                    ? <> — <span className="text-red-600">Σφάλμα: {autoRefreshStatus.error}</span></>
+                    : <> — εισήχθησαν <span className="font-medium">{autoRefreshStatus.imported}</span> νέες,
+                        ενημερώθηκαν <span className="font-medium">{autoRefreshStatus.updated_paid}</span> ποσά</>
+                  }
+                </>
+              : 'Δεν έχει εκτελεστεί ακόμα (τρέχει κάθε μέρα 08:00 & 14:00 ώρα Ελλάδας)'
+            }
+          </div>
+        </div>
+      )}
+
       {/* Info banner */}
       <div className="flex items-start gap-3 bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 text-sm text-blue-700">
         <InformationCircleIcon className="w-5 h-5 flex-shrink-0 mt-0.5" />
@@ -284,6 +321,7 @@ export default function Import() {
           Πρώτα εκτελέστε <span className="font-medium">Προεπισκόπηση</span> για να δείτε ποιες
           υποθέσεις θα εισαχθούν. Στη συνέχεια πατήστε <span className="font-medium">Εισαγωγή</span>{' '}
           για να ολοκληρωθεί η διαδικασία. Οι ήδη εισηγμένες υποθέσεις (με βάση το ΑΦΜ) παραλείπονται.
+          Το σύστημα εκτελεί <span className="font-medium">αυτόματο refresh κάθε μέρα στις 08:00 & 14:00</span>.
         </div>
       </div>
 

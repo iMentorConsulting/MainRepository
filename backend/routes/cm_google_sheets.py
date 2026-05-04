@@ -13,6 +13,15 @@ from auth_cases import get_current_user, require_admin, CMUser
 
 router = APIRouter(prefix="/api/cm/sheets", tags=["cm-sheets"])
 
+# Tracks the last scheduled auto-refresh result — updated by the scheduler
+_last_auto_refresh: dict = {
+    "last_run_at": None,
+    "imported": None,
+    "updated_paid": None,
+    "error": None,
+    "next_runs": [],
+}
+
 
 def _detect_program(status: str, service_type: str) -> str:
     """Detect the program category from service_type keywords or status membership."""
@@ -229,6 +238,101 @@ def _build_paid_map(records: list[dict]) -> dict:
     return paid_map
 
 
+def _do_import(db: Session) -> dict:
+    """Import new cases from sheet without requiring auth. Used by scheduler and route."""
+    rows = _read_sheet_rows()
+    records = _rows_to_records(rows)
+
+    from models_cases import CMUser as CMUserModel
+    users = db.query(CMUserModel).filter(CMUserModel.is_active == True).all()
+
+    existing_cases = db.query(CMCase).all()
+    existing_refs = {c.sheet_import_ref for c in existing_cases if c.sheet_import_ref}
+    existing_by_name_svc = {
+        (_strip_accents(c.client_name or ''), _strip_accents(c.service_type or '')): True
+        for c in existing_cases
+    }
+    paid_map = _build_paid_map(records)
+
+    imported = 0
+    skipped = 0
+
+    for r in records:
+        ref = _merge_key(r['afm'] or '', r['client_name'], r['service_type'] or '')
+        if ref in existing_refs:
+            skipped += 1
+            continue
+        name_svc_key = (_strip_accents(r['client_name']), _strip_accents(r['service_type'] or ''))
+        if name_svc_key in existing_by_name_svc:
+            skipped += 1
+            continue
+
+        paid = paid_map.get((r["afm"] or "", r["service_type"] or ""), 0.0)
+        case = CMCase(
+            client_name=r["client_name"],
+            phone=r["phone"],
+            email=r["email"],
+            afm=r["afm"],
+            accountant=r["accountant"],
+            sale_date=r["sale_date"],
+            service_type=r["service_type"],
+            status=r["status"],
+            program_category=_detect_program(r["status"], r["service_type"]),
+            approved_budget=r["approved_budget"],
+            project_deadline=r["project_deadline"],
+            approval_date=r["approval_date"],
+            agreed_fee_application=r["agreed_fee_application"],
+            agreed_fee_implementation=r["agreed_fee_implementation"],
+            total_paid=paid,
+            sheet_import_ref=ref,
+            assigned_agent_id=_match_agent_id(r.get("responsible", ""), users),
+            status_changed_at=datetime.utcnow(),
+        )
+        db.add(case)
+        imported += 1
+        existing_refs.add(ref)
+
+    db.commit()
+    return {"imported": imported, "skipped_existing": skipped}
+
+
+def _do_sync_paid(db: Session) -> dict:
+    """Sync total_paid from sheet without requiring auth. Used by scheduler and route."""
+    rows = _read_sheet_rows()
+    all_paid_map: dict = {}
+    for i, row in enumerate(rows):
+        if i == 0:
+            continue
+        while len(row) < 26:
+            row.append("")
+        afm = str(row[COL_MAP["afm"]]).strip()
+        client_name = str(row[COL_MAP["client_name"]]).strip()
+        svc = str(row[COL_MAP["service_type"]]).strip()
+        paid = _parse_float(row[COL_MAP["total_paid"]])
+        key = _merge_key(afm, client_name, svc)
+        all_paid_map[key] = all_paid_map.get(key, 0.0) + paid
+
+    updated = 0
+    cases = db.query(CMCase).all()
+    for c in cases:
+        if not c.sheet_import_ref:
+            continue
+        new_paid = all_paid_map.get(c.sheet_import_ref, 0.0)
+        if abs((c.total_paid or 0) - new_paid) > 0.01:
+            c.total_paid = new_paid
+            c.updated_at = datetime.utcnow()
+            updated += 1
+
+    db.commit()
+    return {"updated": updated}
+
+
+@router.get("/auto-refresh-status")
+def auto_refresh_status(current_user: CMUser = Depends(get_current_user)):
+    """Return the last scheduled auto-refresh result."""
+    return _last_auto_refresh
+
+
 @router.get("/preview")
 def preview_sheet(
     current_user: CMUser = Depends(get_current_user),
@@ -263,69 +367,8 @@ def import_from_sheet(
     db: Session = Depends(get_db),
 ):
     """Import new cases from sheet. Existing cases are NOT updated (except ΠΟΣΟ via /sync)."""
-    rows = _read_sheet_rows()
-    records = _rows_to_records(rows)
-
-    from models_cases import CMUser
-    users = db.query(CMUser).filter(CMUser.is_active == True).all()
-
-    existing_cases = db.query(CMCase).all()
-    existing_refs = {c.sheet_import_ref for c in existing_cases if c.sheet_import_ref}
-    # Secondary dedup index: (client_name_upper, service_type_upper) → True
-    existing_by_name_svc = {
-        (_strip_accents(c.client_name or ''), _strip_accents(c.service_type or '')): True
-        for c in existing_cases
-    }
-
-    # Build paid map (sum ΠΟΣΟ per AFM+service)
-    paid_map = _build_paid_map(records)
-
-    imported = 0
-    skipped = 0
-
-    for r in records:
-        ref = _merge_key(r['afm'] or '', r['client_name'], r['service_type'] or '')
-        if ref in existing_refs:
-            skipped += 1
-            continue
-        # Also check by name+service to prevent duplicates when AFM differs/missing
-        name_svc_key = (_strip_accents(r['client_name']), _strip_accents(r['service_type'] or ''))
-        if name_svc_key in existing_by_name_svc:
-            skipped += 1
-            continue
-
-        paid = paid_map.get((r["afm"] or "", r["service_type"] or ""), 0.0)
-
-        case = CMCase(
-            client_name=r["client_name"],
-            phone=r["phone"],
-            email=r["email"],
-            afm=r["afm"],
-            accountant=r["accountant"],
-            sale_date=r["sale_date"],
-            service_type=r["service_type"],
-            status=r["status"],
-            program_category=_detect_program(r["status"], r["service_type"]),
-            approved_budget=r["approved_budget"],
-            project_deadline=r["project_deadline"],
-            approval_date=r["approval_date"],
-            agreed_fee_application=r["agreed_fee_application"],
-            agreed_fee_implementation=r["agreed_fee_implementation"],
-            total_paid=paid,
-            sheet_import_ref=ref,
-            assigned_agent_id=_match_agent_id(r.get("responsible", ""), users),
-            status_changed_at=datetime.utcnow(),
-        )
-        db.add(case)
-        imported += 1
-        existing_refs.add(ref)  # prevent duplicates in same batch
-
-    db.commit()
-    return {
-        "imported": imported,
-        "skipped_existing": skipped,
-        "message": f"Εισήχθησαν {imported} νέες υποθέσεις. {skipped} υπήρχαν ήδη.",
-    }
+    r = _do_import(db)
+    return {**r, "message": f"Εισήχθησαν {r['imported']} νέες υποθέσεις. {r['skipped_existing']} υπήρχαν ήδη."}
 
 
 @router.post("/sync-paid")
@@ -334,41 +377,8 @@ def sync_paid_amounts(
     db: Session = Depends(get_db),
 ):
     """Sync ONLY the total_paid field from sheet (sum of ΠΟΣΟ per AFM+service_type)."""
-    rows = _read_sheet_rows()
-    records = _rows_to_records(rows)
-
-    # Build paid map from ALL rows (not just active statuses for summing)
-    rows_all = _read_sheet_rows()
-    # Re-parse without status filter for ΠΟΣΟ sum
-    all_paid_map: dict = {}
-    for i, row in enumerate(rows_all):
-        if i == 0:
-            continue
-        while len(row) < 26:
-            row.append("")
-        afm = str(row[COL_MAP["afm"]]).strip()
-        client_name = str(row[COL_MAP["client_name"]]).strip()
-        svc = str(row[COL_MAP["service_type"]]).strip()
-        paid = _parse_float(row[COL_MAP["total_paid"]])
-        key = _merge_key(afm, client_name, svc)
-        all_paid_map[key] = all_paid_map.get(key, 0.0) + paid
-
-    updated = 0
-    cases = db.query(CMCase).all()
-    for c in cases:
-        if not c.sheet_import_ref:
-            continue
-        new_paid = all_paid_map.get(c.sheet_import_ref, 0.0)
-        if abs((c.total_paid or 0) - new_paid) > 0.01:
-            c.total_paid = new_paid
-            c.updated_at = datetime.utcnow()
-            updated += 1
-
-    db.commit()
-    return {
-        "updated": updated,
-        "message": f"Ενημερώθηκαν {updated} υποθέσεις με νέο ΠΟΣΟ από το Sheet.",
-    }
+    r = _do_sync_paid(db)
+    return {**r, "message": f"Ενημερώθηκαν {r['updated']} υποθέσεις με νέο ΠΟΣΟ από το Sheet."}
 
 
 @router.post("/sync-agents")
