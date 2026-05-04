@@ -133,6 +133,8 @@ def case_to_dict(c: CMCase, include_related: bool = False, sla_map: dict = None)
         "updated_at": c.updated_at.isoformat() if c.updated_at else None,
         "open_tasks": 0,
         "pending_count": len(c.pending_items) if c.pending_items is not None else 0,
+        "pending_items_text": [pi.item_text for pi in (c.pending_items or [])],
+        "open_task_titles": [],
         "last_note_preview": (_ln := _last_note(c))[0],
         "last_note_at": _ln[1],
     }
@@ -279,10 +281,11 @@ def list_cases(
     result = []
     for c in cases:
         d = case_to_dict(c, sla_map=sla_map)
-        open_tasks = db.query(CMTask).filter(
+        open_task_rows = db.query(CMTask).filter(
             CMTask.case_id == c.id, CMTask.status != "done"
-        ).count()
-        d["open_tasks"] = open_tasks
+        ).all()
+        d["open_tasks"] = len(open_task_rows)
+        d["open_task_titles"] = [t.title for t in open_task_rows]
         result.append(d)
     return result
 

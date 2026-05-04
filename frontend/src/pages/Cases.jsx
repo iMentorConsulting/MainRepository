@@ -260,9 +260,16 @@ export default function Cases() {
                       <td className="px-3 py-3 max-w-[160px]">
                         <div className="text-xs text-gray-700 truncate font-medium" title={c.status}>{c.status || '—'}</div>
                       </td>
-                      <td className="px-3 py-3 text-center">
-                        {c.pending_count > 0
-                          ? <span className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full font-medium">{c.pending_count}</span>
+                      <td className="px-3 py-3 max-w-[200px]">
+                        {(c.pending_items_text || []).length > 0
+                          ? <ul className="space-y-0.5">
+                              {c.pending_items_text.map((text, i) => (
+                                <li key={i} className="flex items-start gap-1 text-xs text-orange-700 leading-snug">
+                                  <span className="text-orange-400 font-bold shrink-0 mt-px">•</span>
+                                  <span>{text}</span>
+                                </li>
+                              ))}
+                            </ul>
                           : <span className="text-gray-300 text-xs">—</span>
                         }
                       </td>
@@ -274,9 +281,16 @@ export default function Cases() {
                           : <span className="text-gray-300">—</span>
                         }
                       </td>
-                      <td className="px-3 py-3 text-center">
-                        {c.open_tasks > 0
-                          ? <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium">{c.open_tasks}</span>
+                      <td className="px-3 py-3 max-w-[180px]">
+                        {(c.open_task_titles || []).length > 0
+                          ? <ul className="space-y-0.5">
+                              {c.open_task_titles.map((title, i) => (
+                                <li key={i} className="flex items-start gap-1 text-xs text-blue-700 leading-snug">
+                                  <span className="text-blue-400 font-bold shrink-0 mt-px">•</span>
+                                  <span>{title}</span>
+                                </li>
+                              ))}
+                            </ul>
                           : <span className="text-gray-300 text-xs">—</span>
                         }
                       </td>
