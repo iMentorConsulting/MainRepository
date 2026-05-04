@@ -247,12 +247,15 @@ def activate_all_portals(db: Session = Depends(get_db), current_user=Depends(get
 
 @router.post("/bulk-activate-notify")
 def bulk_activate_notify(body: dict, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
-    """Activate portals and send Viber notifications for selected cases."""
+    """Activate portals and send Viber/email notifications for selected cases."""
+    from routes.cm_notifications import _send_email, _log_notification
+
     case_ids = body.get("case_ids", [])
     portal_base_url = (body.get("portal_base_url") or "").rstrip("/")
     message_template = body.get("message_template", "")
     activate = body.get("activate", True)
     notify = body.get("notify", True)
+    notification_type = body.get("notification_type", "viber")  # viber | email | both
 
     bridge_url = os.getenv("VIBER_BRIDGE_URL", "https://viber-bridge.i-mentor.gr")
     results = []
@@ -277,37 +280,61 @@ def bulk_activate_notify(body: dict, db: Session = Depends(get_db), current_user
                .replace("{service_type}", case.service_type or ""))
 
         notified = False
-        error = ""
+        error_parts = []
+
         if notify:
-            phone = (case.phone or "").strip()
-            if phone:
-                try:
-                    resp = http_requests.post(f"{bridge_url}/send", json={
-                        "to": _normalize_phone(phone),
-                        "text": msg,
-                        "name": case.client_name or phone,
-                        "agent": current_user.full_name,
-                        "service_tag": case.service_type or "",
-                    }, timeout=10)
-                    notified = resp.status_code == 200
-                    if not notified:
-                        error = resp.text[:200]
-                except Exception as e:
-                    error = str(e)[:200]
-            else:
-                error = "no phone"
+            send_viber = notification_type in ("viber", "both")
+            send_email = notification_type in ("email", "both")
+
+            if send_viber:
+                phone = (case.phone or "").strip()
+                if phone:
+                    try:
+                        resp = http_requests.post(f"{bridge_url}/send", json={
+                            "to": _normalize_phone(phone),
+                            "text": msg,
+                            "name": case.client_name or phone,
+                            "agent": current_user.full_name,
+                            "service_tag": case.service_type or "",
+                        }, timeout=10)
+                        if resp.status_code == 200:
+                            notified = True
+                            _log_notification(db, case.id, "viber", case.client_name, phone,
+                                              "Ενεργοποίηση Πύλης Πελάτη", msg, "sent", current_user.full_name)
+                        else:
+                            error_parts.append(f"Viber: {resp.text[:100]}")
+                    except Exception as e:
+                        error_parts.append(f"Viber: {str(e)[:100]}")
+                else:
+                    error_parts.append("no phone")
+
+            if send_email:
+                email_addr = (case.email or "").strip()
+                if email_addr:
+                    subject = f"Ενεργοποίηση Πύλης Πελάτη - {case.client_name or ''}"
+                    ok, err = _send_email(email_addr, subject, msg)
+                    if ok:
+                        notified = True
+                        _log_notification(db, case.id, "email", case.client_name, email_addr,
+                                          subject, msg, "sent", current_user.full_name)
+                    else:
+                        error_parts.append(f"Email: {err or 'failed'}")
+                else:
+                    error_parts.append("no email")
 
         results.append({
             "case_id": case_id,
             "client_name": case.client_name,
             "phone": case.phone,
+            "email": case.email,
             "portal_url": portal_url,
             "notified": notified,
-            "error": error,
+            "error": "; ".join(error_parts),
         })
 
+    db.commit()
     return {
         "results": results,
-        "activated": sum(1 for r in results if "error" not in r or not r["error"] or r.get("portal_url")),
+        "activated": sum(1 for r in results if r.get("portal_url")),
         "notified": sum(1 for r in results if r.get("notified")),
     }

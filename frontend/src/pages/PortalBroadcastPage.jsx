@@ -45,6 +45,7 @@ export default function PortalBroadcastPage() {
   const [selected, setSelected] = useState(new Set())
   const [template, setTemplate] = useState(DEFAULT_TEMPLATE)
   const [showTemplate, setShowTemplate] = useState(false)
+  const [notifType, setNotifType] = useState('viber') // viber | email | both
   const [sending, setSending] = useState(false)
   const [results, setResults] = useState(null)
 
@@ -106,6 +107,7 @@ export default function PortalBroadcastPage() {
         message_template: template,
         activate: true,
         notify: true,
+        notification_type: notifType,
       })
       setResults(res.results)
       toast.success(`Ενεργοποιήθηκαν: ${res.activated} · Ειδοποιήθηκαν: ${res.notified}`)
@@ -142,10 +144,8 @@ export default function PortalBroadcastPage() {
   }
 
   const selectedCount = selected.size
-  const noPhoneCount = [...selected].filter(id => {
-    const c = cases.find(x => x.id === id)
-    return !c?.phone
-  }).length
+  const noPhoneCount = [...selected].filter(id => !cases.find(x => x.id === id)?.phone).length
+  const noEmailCount = [...selected].filter(id => !cases.find(x => x.id === id)?.email).length
 
   if (loading) {
     return (
@@ -189,11 +189,39 @@ export default function PortalBroadcastPage() {
         </div>
       </div>
 
-      {/* Warning if some selected have no phone */}
-      {noPhoneCount > 0 && selectedCount > 0 && (
+      {/* Notification type selector */}
+      <div className="bg-white rounded-xl border border-gray-100 shadow-sm px-5 py-3.5 flex items-center gap-4 flex-wrap">
+        <span className="text-sm font-semibold text-gray-700">Αποστολή μέσω:</span>
+        {[
+          { value: 'viber', label: 'Viber' },
+          { value: 'email', label: 'Email' },
+          { value: 'both', label: 'Viber & Email' },
+        ].map(({ value, label }) => (
+          <button
+            key={value}
+            onClick={() => setNotifType(value)}
+            className={`px-4 py-1.5 rounded-lg border text-sm font-medium transition-all ${
+              notifType === value
+                ? 'bg-[#1e3a5f] text-white border-[#1e3a5f]'
+                : 'bg-white text-gray-600 border-gray-200 hover:border-[#1e3a5f]'
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {/* Warnings */}
+      {(notifType === 'viber' || notifType === 'both') && noPhoneCount > 0 && selectedCount > 0 && (
         <div className="flex items-center gap-2 bg-yellow-50 border border-yellow-200 rounded-xl px-4 py-3 text-sm text-yellow-800">
           <ExclamationTriangleIcon className="w-5 h-5 text-yellow-500 flex-shrink-0" />
-          {noPhoneCount} από τους επιλεγμένους δεν έχουν αριθμό τηλεφώνου — η πύλη θα ενεργοποιηθεί αλλά δεν θα σταλεί Viber.
+          {noPhoneCount} από τους επιλεγμένους δεν έχουν αριθμό τηλεφώνου — δεν θα σταλεί Viber σε αυτούς.
+        </div>
+      )}
+      {(notifType === 'email' || notifType === 'both') && noEmailCount > 0 && selectedCount > 0 && (
+        <div className="flex items-center gap-2 bg-yellow-50 border border-yellow-200 rounded-xl px-4 py-3 text-sm text-yellow-800">
+          <ExclamationTriangleIcon className="w-5 h-5 text-yellow-500 flex-shrink-0" />
+          {noEmailCount} από τους επιλεγμένους δεν έχουν email — δεν θα σταλεί email σε αυτούς.
         </div>
       )}
 
@@ -203,7 +231,7 @@ export default function PortalBroadcastPage() {
           onClick={() => setShowTemplate(p => !p)}
           className="w-full flex items-center justify-between px-5 py-3.5 text-sm font-semibold text-gray-700"
         >
-          <span>Μήνυμα Viber (προεπισκόπηση & επεξεργασία)</span>
+          <span>Μήνυμα {notifType === 'viber' ? 'Viber' : notifType === 'email' ? 'Email' : 'Viber / Email'} (προεπισκόπηση & επεξεργασία)</span>
           {showTemplate ? <ChevronUpIcon className="w-4 h-4" /> : <ChevronDownIcon className="w-4 h-4" />}
         </button>
         {showTemplate && (

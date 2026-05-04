@@ -411,7 +411,24 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true)
   const [expandedProgram, setExpandedProgram] = useState(null)
   const [portalActivity, setPortalActivity] = useState([])
+  const [portalSortCol, setPortalSortCol] = useState('portal_last_visit_at')
+  const [portalSortDir, setPortalSortDir] = useState('desc')
   const navigate = useNavigate()
+
+  const togglePortalSort = (col) => {
+    if (portalSortCol === col) setPortalSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setPortalSortCol(col); setPortalSortDir('desc') }
+  }
+
+  const sortedPortalActivity = [...portalActivity].sort((a, b) => {
+    const va = a[portalSortCol]
+    const vb = b[portalSortCol]
+    if (va == null && vb == null) return 0
+    if (va == null) return 1
+    if (vb == null) return -1
+    const cmp = va < vb ? -1 : va > vb ? 1 : 0
+    return portalSortDir === 'asc' ? cmp : -cmp
+  })
 
   const auth = getAuth()
   useEffect(() => {
@@ -575,13 +592,28 @@ export default function Dashboard() {
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b">
                 <tr>
-                  {['Πελάτης', 'Πρόγραμμα', 'Κατάσταση', 'Τελευταίο Άνοιγμα', 'Σύνολο Ανοιγμάτων', 'Τελευταίο Μήνυμα', 'Σύνολο Μηνυμάτων'].map(h => (
-                    <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 whitespace-nowrap">{h}</th>
+                  {[
+                    { label: 'Πελάτης', key: 'client_name' },
+                    { label: 'Πρόγραμμα', key: 'program_category' },
+                    { label: 'Κατάσταση', key: 'status' },
+                    { label: 'Τελευταίο Άνοιγμα', key: 'portal_last_visit_at' },
+                    { label: 'Σύνολο Ανοιγμάτων', key: 'portal_visit_count' },
+                    { label: 'Τελευταίο Μήνυμα', key: 'last_msg_at' },
+                    { label: 'Σύνολο Μηνυμάτων', key: 'total_msgs_sent' },
+                  ].map(({ label, key }) => (
+                    <th key={key} className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 whitespace-nowrap">
+                      <button onClick={() => togglePortalSort(key)} className="flex items-center gap-1 hover:text-gray-800 transition-colors">
+                        {label}
+                        <span className="text-[10px]">
+                          {portalSortCol === key ? (portalSortDir === 'asc' ? '↑' : '↓') : '↕'}
+                        </span>
+                      </button>
+                    </th>
                   ))}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {portalActivity.map(p => (
+                {sortedPortalActivity.map(p => (
                   <tr key={p.id} className="hover:bg-gray-50">
                     <td className="px-4 py-2.5">
                       <Link to={`/cases/${p.id}`} className="font-medium text-gray-900 hover:text-blue-600 truncate block max-w-[160px]">{p.client_name}</Link>

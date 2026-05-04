@@ -17,14 +17,18 @@ const fmt = (n) =>
   new Intl.NumberFormat('el-GR', { style: 'currency', currency: 'EUR', minimumFractionDigits: 0 }).format(n || 0)
 
 function NewCaseModal({ agents, onClose, onSaved }) {
-  const [form, setForm] = useState({
-    client_name: '', phone: '', email: '', afm: '', accountant: '',
-    sale_date: '', service_type: '',
-    program_category: 'ΕΣΠΑ',
-    status: 'ΕΝΑΡΞΗ / ΑΠΟΔΟΣΗ ΑΦΜ',
-    approved_budget: '', subsidy_percent: '', project_deadline: '', approval_date: '',
-    agreed_fee_application: '', agreed_fee_implementation: '',
-    assigned_agent_id: '', notes: '',
+  const [form, setForm] = useState(() => {
+    const defaultProg = 'ΕΣΠΑ'
+    const firstStatus = PIPELINES[defaultProg]?.phases?.[0]?.statuses?.[0] || ''
+    return {
+      client_name: '', phone: '', email: '', afm: '', accountant: '',
+      sale_date: '', service_type: '',
+      program_category: defaultProg,
+      status: firstStatus,
+      approved_budget: '', subsidy_percent: '', project_deadline: '', approval_date: '',
+      agreed_fee_application: '', agreed_fee_implementation: '',
+      assigned_agent_id: '', notes: '',
+    }
   })
   const [saving, setSaving] = useState(false)
 
@@ -121,12 +125,6 @@ function NewCaseModal({ agents, onClose, onSaved }) {
 
 export default function Cases() {
   const [allCases, setAllCases] = useState([])
-  const cases = allCases.filter(c => {
-    if (filters.hide_completed && FINAL_STATUSES.has(c.status)) return false
-    if (filters.has_pending && !(c.pending_count > 0)) return false
-    if (filters.sla_overdue && !(c.sla_overdue_days > 0)) return false
-    return true
-  })
   const [agents, setAgents] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -141,6 +139,13 @@ export default function Cases() {
   })
   const [showNew, setShowNew] = useState(false)
   const navigate = useNavigate()
+
+  const cases = allCases.filter(c => {
+    if (filters.hide_completed && FINAL_STATUSES.has(c.status)) return false
+    if (filters.has_pending && !(c.pending_count > 0)) return false
+    if (filters.sla_overdue && !(c.sla_overdue_days > 0)) return false
+    return true
+  })
 
   const load = useCallback(async () => {
     setLoading(true)
