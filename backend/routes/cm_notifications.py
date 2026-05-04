@@ -88,6 +88,44 @@ def _send_email(to_email: str, subject: str, body: str) -> tuple[bool, str]:
         return False, str(e)
 
 
+def _chatwoot_resolve_viber(phone_normalized: str) -> None:
+    """After bridge logs the outbound Viber message to Chatwoot, resolve the open conversation."""
+    base = os.getenv("CHATWOOT_URL", "https://chat.i-mentor.gr").rstrip("/")
+    token = os.getenv("CHATWOOT_API_TOKEN", "")
+    account_id = os.getenv("CHATWOOT_ACCOUNT_ID", "1")
+    inbox_id = int(os.getenv("CHATWOOT_VIBER_INBOX_ID", "1"))
+
+    if not token:
+        return
+
+    headers = {"api_access_token": token}
+    api = f"{base}/api/v1/accounts/{account_id}"
+
+    try:
+        # Search by identifier (no +) first, then with +
+        contact_id = None
+        for q in [phone_normalized, f"+{phone_normalized}"]:
+            r = requests.get(f"{api}/contacts/search", params={"q": q, "include_contacts": "true"}, headers=headers, timeout=8)
+            if r.ok:
+                contacts = r.json().get("payload", {}).get("contacts", [])
+                if contacts:
+                    contact_id = contacts[0]["id"]
+                    break
+
+        if not contact_id:
+            return
+
+        r = requests.get(f"{api}/contacts/{contact_id}/conversations", headers=headers, timeout=8)
+        if not r.ok:
+            return
+
+        for conv in r.json().get("payload", []):
+            if conv.get("inbox_id") == inbox_id and conv.get("status") in ("open", "pending"):
+                requests.patch(f"{api}/conversations/{conv['id']}", json={"status": "resolved"}, headers=headers, timeout=8)
+    except Exception:
+        pass
+
+
 def _send_viber(phone: str, message: str, client_name: str = "", agent_name: str = "", service_type: str = "") -> tuple[bool, str]:
     bridge_url = os.getenv("VIBER_BRIDGE_URL", "https://viber-bridge.i-mentor.gr")
 
@@ -113,6 +151,7 @@ def _send_viber(phone: str, message: str, client_name: str = "", agent_name: str
     try:
         resp = requests.post(f"{bridge_url}/send", json=payload, timeout=10)
         if resp.status_code in (200, 201):
+            _chatwoot_resolve_viber(phone)
             return True, "OK"
         return False, f"Bridge HTTP {resp.status_code} — {resp.text[:500]}"
     except Exception as e:
