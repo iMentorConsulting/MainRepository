@@ -301,10 +301,10 @@ export function calculateAll(debts, assets, incomeData, params = PARAMS_B) {
       dispAnnual = floored + deposits * params.leDepositRate
     }
   } else {
-    const fpSubType = incomeData.fpSubType || 'misthwtos'
-    isFPEpit = fpSubType === 'epitideumatiAs'
+    const fpSubType = incomeData.fpSubType
+    isFPEpit = fpSubType === 'Επιτηδευματίας'
 
-    // Expenses shared by both FP sub-types (from latest-year data)
+    // Expenses shared by both FP sub-types
     const rentCapMonthly = Math.min(params.rentCapBase + params.rentCapPerMember * (fpSize - 1), params.rentCapMax)
     const effectiveRent = Math.min(incomeData.rentCost || 0, rentCapMonthly * 12)
     totalExpenses = (incomeData.householdValue || 0) + (incomeData.enfiaCost || 0) +
@@ -312,82 +312,49 @@ export function calculateAll(debts, assets, incomeData, params = PARAMS_B) {
       (incomeData.studentRentCost || 0) +
       (incomeData.alimonyCost || 0)
 
-    if (isFPEpit) {
-      // ΕΠΙΤΗΔΕΥΜΑΤΙΑΣ (ΦΕΚ Β' 2499/2021 παρ. 9, ΚΥΑ 7712925/2025)
-      const ep_ke_T = incomeData.ep_ke_T || 0
-      const use3Year = ep_ke_T > 0 || (incomeData.ep_ebitda_T ?? 0) !== 0
+    const householdExempt = Math.min(
+      params.fpExemptSavingsBase + params.fpExemptSavingsPerMember * (fpSize - 1),
+      params.fpExemptSavingsMax
+    )
 
-      if (use3Year) {
-        const ep_ebitda_T  = incomeData.ep_ebitda_T  ?? 0
-        const ep_ebitda_T1 = incomeData.ep_ebitda_T1 ?? 0
-        const ep_ebitda_T2 = incomeData.ep_ebitda_T2 ?? 0
-        const ep_tax_T  = incomeData.ep_tax_T  || 0
-        const ep_tax_T1 = incomeData.ep_tax_T1 || 0
-        const ep_tax_T2 = incomeData.ep_tax_T2 || 0
-        const ep_e1_T  = incomeData.ep_e1_T  || 0
-        const ep_e1_T1 = incomeData.ep_e1_T1 || 0
-        const ep_e1_T2 = incomeData.ep_e1_T2 || 0
-        const ep_deposits = incomeData.ep_deposits || 0
-
-        // Business income per year = MAX(0, EBITDA − Φόρος)
-        const biz_T  = Math.max(0, ep_ebitda_T  - ep_tax_T)
-        const biz_T1 = Math.max(0, ep_ebitda_T1 - ep_tax_T1)
-        const biz_T2 = Math.max(0, ep_ebitda_T2 - ep_tax_T2)
-
-        // Total = business + E1 outside business, subtract expenses, apply 80% per year
-        const disp_T  = Math.max(0, biz_T  + ep_e1_T  - totalExpenses) * 0.8
-        const disp_T1 = Math.max(0, biz_T1 + ep_e1_T1 - totalExpenses) * 0.8
-        const disp_T2 = Math.max(0, biz_T2 + ep_e1_T2 - totalExpenses) * 0.8
-
-        // Average of top 2 years (exclude lowest)
-        const diathArr = [disp_T, disp_T1, disp_T2].sort((a, b) => b - a)
-        const mo_diath = (diathArr[0] + diathArr[1]) / 2
-
-        // "Reasonable percentage" floor check — same 10% threshold as ΝΠ
-        let finalDiath = mo_diath
-        if (ep_ke_T > 0) {
-          const floor10 = ep_ke_T * params.leIncomeFloorPct
-          leMoDispMonthly = mo_diath / 12
-          leFloorMonthly = floor10 / 12
-          if (mo_diath < floor10) {
-            finalDiath = floor10
-            flagMaxDoses = true
-          }
-        }
-
-        // Deposits: reserve MAX(FP exempt savings, 5% KE_T), spread 95% of free over 20 years
-        const exemptSav = Math.min(
-          params.fpExemptSavingsBase + params.fpExemptSavingsPerMember * (fpSize - 1),
-          params.fpExemptSavingsMax
-        )
-        const minReserve = Math.max(exemptSav, ep_ke_T * 0.05)
-        const freeDepositsEp = Math.max(0, ep_deposits - minReserve)
-
-        annualIncome = biz_T + ep_e1_T
-        dispAnnual = finalDiath + (freeDepositsEp * params.leDepositRate) / 20
+    if (fpSubType === 'Μισθωτός') {
+      // 3-year income: average of top 2, then 80% — ΦΕΚ Β' 2499/2021 §8
+      const t1 = incomeData.fp_income_t1 || 0
+      const t2 = incomeData.fp_income_t2 || 0
+      const t3 = incomeData.fp_income_t3 || 0
+      if (t1 > 0 || t2 > 0 || t3 > 0) {
+        const sorted = [t1, t2, t3].sort((a, b) => b - a)
+        annualIncome = (sorted[0] + sorted[1]) / 2
       } else {
-        // Legacy fallback (old cases with single annualIncome)
         annualIncome = incomeData.annualIncome || 0
-        dispAnnual = Math.max(0, annualIncome - totalExpenses) * 0.8 + countableSavings * params.fpSavingsIncomeRate
+      }
+      dispAnnual = Math.max(0, annualIncome - totalExpenses) * 0.8 + countableSavings / 20
+    } else if (fpSubType === 'Επιτηδευματίας') {
+      // Per-year: MAX(0, EBITDA−Tax) + E1_outside; 80%; top-2 avg; εύλογο ποσοστό floor — ΦΕΚ Β' 2499/2021 §9
+      const fp_ke_t1 = incomeData.fp_ke_t1 || 0
+      const incYr = (ebitda, tax, e1) => Math.max(0, (ebitda || 0) - (tax || 0)) + (e1 || 0)
+      const y1 = incYr(incomeData.fp_ebitda_t1, incomeData.fp_tax_t1, incomeData.fp_e1outside_t1)
+      const y2 = incYr(incomeData.fp_ebitda_t2, incomeData.fp_tax_t2, incomeData.fp_e1outside_t2)
+      const y3 = incYr(incomeData.fp_ebitda_t3, incomeData.fp_tax_t3, incomeData.fp_e1outside_t3)
+      annualIncome = (y1 + y2 + y3) / 3
+      const dispArr = [y1, y2, y3].map((y) => Math.max(0, y - totalExpenses) * 0.8).sort((a, b) => b - a)
+      const mo_diath = (dispArr[0] + dispArr[1]) / 2
+      const floorPct = (incomeData.fp_eulogo_pct != null ? incomeData.fp_eulogo_pct : 10) / 100
+      const floor = fp_ke_t1 * floorPct
+      const businessReserve = Math.max(householdExempt, fp_ke_t1 * 0.05)
+      const freeSavings = Math.max(0, (incomeData.savings || 0) - businessReserve)
+      if (fp_ke_t1 > 0 && mo_diath < floor) {
+        leMoDispMonthly = mo_diath / 12
+        leFloorMonthly = floor / 12
+        dispAnnual = floor + freeSavings / 20
+        flagMaxDoses = true
+      } else {
+        dispAnnual = mo_diath + freeSavings / 20
       }
     } else {
-      // ΜΙΣΘΩΤΟΣ / ΣΥΝΤΑΞΙΟΥΧΟΣ / ΑΝΕΡΓΟΣ (ΦΕΚ Β' 2499/2021 παρ. 8)
-      const fp_income_T  = incomeData.fp_income_T  || 0
-      const fp_income_T1 = incomeData.fp_income_T1 || 0
-      const fp_income_T2 = incomeData.fp_income_T2 || 0
-      const use3Year = fp_income_T > 0 || fp_income_T1 > 0 || fp_income_T2 > 0
-
-      if (use3Year) {
-        // Average of top 2 years (exclude lowest)
-        const sorted = [fp_income_T, fp_income_T1, fp_income_T2].sort((a, b) => b - a)
-        const mo_income = (sorted[0] + sorted[1]) / 2
-        annualIncome = mo_income
-        dispAnnual = Math.max(0, mo_income - totalExpenses) * 0.8 + countableSavings * params.fpSavingsIncomeRate
-      } else {
-        // Legacy single-year
-        annualIncome = incomeData.annualIncome || 0
-        dispAnnual = Math.max(0, annualIncome - totalExpenses) * 0.8 + countableSavings * params.fpSavingsIncomeRate
-      }
+      // Legacy: single annualIncome (FP cases created before fpSubType field) — backward compat
+      annualIncome = incomeData.annualIncome || 0
+      dispAnnual = Math.max(0, annualIncome - totalExpenses) * 0.8 + countableSavings * params.fpSavingsIncomeRate
     }
   }
   const dispMonthly = dispAnnual / 12
@@ -396,10 +363,12 @@ export function calculateAll(debts, assets, incomeData, params = PARAMS_B) {
   // --- plan base: compute max months per debt ---
   const planBase = analysisRows.map((r) => {
     const theoretical = getMaxMonths(r.type, isLE, r.isSecured, params)
-    const maxM = effectiveMaxMonths(theoretical, isLE, youngestAge, params)
-    // flagMaxDoses: LE → public debts only; FP Επιτηδευματίας → all debts (max 240)
-    const forced = flagMaxDoses && (isFPEpit ? true : (isLE && isPublicDebt(r.type)))
-    const initMonths = forced ? Math.min(maxM, 240) : Math.min(12, maxM)
+    let maxM = effectiveMaxMonths(theoretical, isLE, youngestAge, params)
+    // FP Επιτηδευματίας with flagMaxDoses: all creditors capped at 240 (ΦΕΚ Β' 2896/2021 §7.1/4)
+    if (flagMaxDoses && !isLE) maxM = Math.min(maxM, params.maxMonths.publicMax)
+    // force-start at maxM: all debts for FP Επιτηδευματίας, or public debts for LE (ΚΥΑ 7712925/2025)
+    const isForcedMax = flagMaxDoses && (!isLE || isPublicDebt(r.type))
+    const initMonths = isForcedMax ? maxM : Math.min(12, maxM)
     return {
       idx: r.idx, type: r.type, isSecured: r.isSecured,
       amount: r.amount, months: initMonths, maxMonths: maxM,

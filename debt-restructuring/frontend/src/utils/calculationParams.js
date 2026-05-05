@@ -76,6 +76,9 @@ export const PARAMS_B = {
   leTurnoverThreshold: 2500000, // "small LE" if turnover < 2.5M
   leIncomeFloorPct: 0.10,       // floor = 10% of turnover for small LE
   leDepositRate: 0.95,          // 95% of deposits counted as income
+
+  // FP Επιτηδευματίας (sole trader / self-employed) — ΦΕΚ Β' 2499/2021 §9 + ΦΕΚ Β' 2896/2021 §7.1/4
+  fpSelfEmployedFloorPct: 0.10, // default "εύλογο ποσοστό" — overridable per case via fp_eulogo_pct field
 }
 
 // Conservative scenario factors — empirical, not statutory.
