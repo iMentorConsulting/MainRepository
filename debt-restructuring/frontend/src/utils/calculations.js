@@ -324,8 +324,9 @@ export function calculateAll(debts, assets, incomeData, params = PARAMS_B) {
     )
 
     if (fpSubType === 'Μισθωτός') {
-      // 3-phase income caps — ΦΕΚ Β' 2499/2021 §8, ΚΥΑ 67360 άρθρο 8Α §5
-      const t1 = incomeData.fp_income_t1 || 0  // year T (last)
+      // Flat income cap — ΚΥΑ 67360 άρθρο 8Α §5 step-up does NOT apply to Μισθωτός
+      // (art.8A §5 is specific to Επιτηδευματίας; Μισθωτός uses a flat base = income year T)
+      const t1 = incomeData.fp_income_t1 || 0
       const t2 = incomeData.fp_income_t2 || 0
       const t3 = incomeData.fp_income_t3 || 0
       annualIncome = t1
@@ -342,19 +343,15 @@ export function calculateAll(debts, assets, incomeData, params = PARAMS_B) {
         (incomeData.enfiaCost || 0) + (incomeData.studentRentCost || 0) + (incomeData.alimonyCost || 0)
 
       const savingsAdd = countableSavings / 20
-      const dispFromY1 = Math.max(0, t1 - totalExpenses) * 0.8 + savingsAdd
 
       if (t1 > 0 || t2 > 0 || t3 > 0) {
-        const sorted = [t1, t2, t3].sort((a, b) => b - a)
-        const avg2 = (sorted[0] + sorted[1]) / 2
-        const dispFromAvg = Math.max(0, avg2 - totalExpenses) * 0.8 + savingsAdd
-        dispYear1 = dispFromY1
-        dispYear24 = Math.max(dispFromY1, dispFromAvg * 0.65)
-        dispYear5  = Math.max(dispFromY1, dispFromAvg)
+        const disp = Math.max(0, t1 - totalExpenses) * 0.8 + savingsAdd
+        dispYear1 = dispYear24 = dispYear5 = disp
       } else {
         // Legacy fallback (no 3-year data)
         annualIncome = incomeData.annualIncome || 0
-        dispYear1 = dispYear24 = dispYear5 = dispFromY1
+        const disp = Math.max(0, annualIncome - totalExpenses) * 0.8 + savingsAdd
+        dispYear1 = dispYear24 = dispYear5 = disp
       }
       dispAnnual = dispYear1
 
