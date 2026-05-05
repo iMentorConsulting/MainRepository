@@ -25,6 +25,7 @@ function defaultIncome() {
     debtorType: 'Φυσικό Πρόσωπο',
     // FP sub-type — 'Μισθωτός' | 'Επιτηδευματίας'
     fpSubType: 'Μισθωτός',
+    spouseIncome: 0,
     // FP Μισθωτός: 3-year net income (ΦΕΚ Β' 2499/2021 §8)
     fp_income_t1: 0, fp_income_t2: 0, fp_income_t3: 0,
     // FP Επιτηδευματίας: EBITDA, tax, E1-outside, KE (ΦΕΚ Β' 2499/2021 §9)
@@ -403,6 +404,59 @@ export default function CaseForm({ currentEmployee }) {
       <div className="card mb-5">
         <IncomePanel income={income} onChange={setIncome} assets={assets} onAssetsChange={setAssets} />
       </div>
+
+      {/* Income analysis block — FP only, shows ratio + 3-phase caps */}
+      {calc && income.debtorType !== 'Νομικό Πρόσωπο' && calc.monthlyDisp1 !== undefined && (
+        <div className="mb-5 rounded-xl border border-indigo-200 bg-indigo-50 p-4">
+          <p className="font-bold text-indigo-800 mb-3 text-sm">📊 ΑΝΑΛΥΣΗ ΕΙΣΟΔΗΜΑΤΟΣ — ΚΥΑ 67360 άρθρο 8Α §5</p>
+          <div className="text-sm text-indigo-900 space-y-1 font-mono">
+            <div className="flex justify-between">
+              <span>Εισόδημα οφειλέτη (έτος Τ):</span>
+              <span className="font-semibold">{fmt(calc.annualIncome)}/έτος</span>
+            </div>
+            {(income.spouseIncome || 0) > 0 && (
+              <>
+                <div className="flex justify-between">
+                  <span>Εισόδημα συζύγου:</span>
+                  <span className="font-semibold">{fmt(income.spouseIncome)}/έτος</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Οικογενειακό εισόδημα:</span>
+                  <span className="font-semibold">{fmt(calc.fpFamilyIncome)}/έτος</span>
+                </div>
+                <div className="flex justify-between text-indigo-600">
+                  <span>Αναλογία οφειλέτη:</span>
+                  <span>{((calc.fpRatio || 1) * 100).toFixed(1)}%</span>
+                </div>
+              </>
+            )}
+            <div className="border-t border-indigo-200 pt-1 mt-1">
+              <div className="flex justify-between text-gray-600">
+                <span>Σύνολο δαπανών (επιμερ. ΕΔΔ + λοιπά):</span>
+                <span>{fmt(calc.totalExpenses)}/έτος</span>
+              </div>
+            </div>
+            <div className="border-t border-indigo-200 pt-1 mt-1 space-y-0.5">
+              <div className="flex justify-between font-semibold text-green-800">
+                <span>Μηνιαίο διαθέσιμο — Έτος 1:</span>
+                <span>{fmt(calc.monthlyDisp1)}/μήνα</span>
+              </div>
+              {calc.monthlyDisp24 > calc.monthlyDisp1 + 1 && (
+                <div className="flex justify-between text-green-700">
+                  <span>Μηνιαίο διαθέσιμο — Έτη 2–4 (avg×65%):</span>
+                  <span>{fmt(calc.monthlyDisp24)}/μήνα</span>
+                </div>
+              )}
+              {calc.monthlyDisp5 > calc.monthlyDisp1 + 1 && (
+                <div className="flex justify-between text-green-600">
+                  <span>Μηνιαίο διαθέσιμο — Έτη 5+ (avg×100%):</span>
+                  <span>{fmt(calc.monthlyDisp5)}/μήνα</span>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* flag_MAX_DOSES warning banner — ΦΕΚ Β' 2896/2021 §7.1/4 + ΚΥΑ 7712925/2025 */}
       {calc?.flagMaxDoses && (() => {

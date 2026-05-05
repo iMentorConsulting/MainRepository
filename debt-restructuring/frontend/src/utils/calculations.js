@@ -80,12 +80,19 @@ export function stepUpPMT(amount, totalMonths, r1Annual, r2Annual, promoMonths) 
   return { c1, c2 }
 }
 
-// c2 value for a single debt (used in greedy loop)
+// c1/c2 values for a single debt (used in greedy loop)
 function debtC2(amount, months, type, isSecured, params) {
   if (!amount || amount <= 0 || !months || months <= 0) return 0
   const r1 = getPromoRate(type, isSecured, params)
   const r2 = getPostPromoRate(type, isSecured, params)
   return stepUpPMT(amount, months, r1, r2, params.promoMonths).c2
+}
+
+function debtC1(amount, months, type, isSecured, params) {
+  if (!amount || amount <= 0 || !months || months <= 0) return 0
+  const r1 = getPromoRate(type, isSecured, params)
+  const r2 = getPostPromoRate(type, isSecured, params)
+  return stepUpPMT(amount, months, r1, r2, params.promoMonths).c1
 }
 
 // backward-compatible export (still used by DebtTable display)
@@ -240,7 +247,9 @@ export function calculateAll(debts, assets, incomeData, params = PARAMS_B) {
 
   // --- income ---
   let dispAnnual = 0, totalExpenses = 0, annualIncome = 0
+  let dispYear1 = 0, dispYear24 = 0, dispYear5 = 0
   let flagMaxDoses = false, isFPEpit = false, leMoDispMonthly = 0, leFloorMonthly = 0
+  let fpRatio = 1, fpFamilyIncome = 0, fpSpouseIncome = 0
   if (isLE) {
     const ke_t1 = incomeData.ke_t1 || 0
     const ke_t2 = incomeData.ke_t2 || 0
@@ -300,17 +309,14 @@ export function calculateAll(debts, assets, incomeData, params = PARAMS_B) {
       const floored = isSmall ? Math.max(base, turnover * params.leIncomeFloorPct) : base
       dispAnnual = floored + deposits * params.leDepositRate
     }
+    dispYear1 = dispYear24 = dispYear5 = dispAnnual
   } else {
     const fpSubType = incomeData.fpSubType
     isFPEpit = fpSubType === 'Επιτηδευματίας'
 
-    // Expenses shared by both FP sub-types
+    // Rent cap (ΚΥΑ Παράρτημα παρ. δ) — applied before ratio allocation
     const rentCapMonthly = Math.min(params.rentCapBase + params.rentCapPerMember * (fpSize - 1), params.rentCapMax)
     const effectiveRent = Math.min(incomeData.rentCost || 0, rentCapMonthly * 12)
-    totalExpenses = (incomeData.householdValue || 0) + (incomeData.enfiaCost || 0) +
-      (incomeData.medicalCost || 0) + effectiveRent +
-      (incomeData.studentRentCost || 0) +
-      (incomeData.alimonyCost || 0)
 
     const householdExempt = Math.min(
       params.fpExemptSavingsBase + params.fpExemptSavingsPerMember * (fpSize - 1),
@@ -318,47 +324,102 @@ export function calculateAll(debts, assets, incomeData, params = PARAMS_B) {
     )
 
     if (fpSubType === 'Μισθωτός') {
-      // 3-year income: average of top 2, then 80% — ΦΕΚ Β' 2499/2021 §8
-      const t1 = incomeData.fp_income_t1 || 0
+      // 3-phase income caps — ΦΕΚ Β' 2499/2021 §8, ΚΥΑ 67360 άρθρο 8Α §5
+      const t1 = incomeData.fp_income_t1 || 0  // year T (last)
       const t2 = incomeData.fp_income_t2 || 0
       const t3 = incomeData.fp_income_t3 || 0
+      annualIncome = t1
+
+      // Ratio allocation of shared expenses (ΚΥΑ 67360 άρθρο 1(κ))
+      const spIncome = incomeData.spouseIncome || 0
+      fpSpouseIncome = spIncome
+      fpFamilyIncome = t1 + spIncome
+      fpRatio = fpFamilyIncome > 0 ? t1 / fpFamilyIncome : 1
+
+      const edd = incomeData.householdValue || 0
+      // ΕΝΦΙΑ, alimony, student rent: personal obligations — full amount
+      totalExpenses = edd * fpRatio + effectiveRent * fpRatio + (incomeData.medicalCost || 0) * fpRatio +
+        (incomeData.enfiaCost || 0) + (incomeData.studentRentCost || 0) + (incomeData.alimonyCost || 0)
+
+      const savingsAdd = countableSavings / 20
+      const dispFromY1 = Math.max(0, t1 - totalExpenses) * 0.8 + savingsAdd
+
       if (t1 > 0 || t2 > 0 || t3 > 0) {
         const sorted = [t1, t2, t3].sort((a, b) => b - a)
-        annualIncome = (sorted[0] + sorted[1]) / 2
+        const avg2 = (sorted[0] + sorted[1]) / 2
+        const dispFromAvg = Math.max(0, avg2 - totalExpenses) * 0.8 + savingsAdd
+        dispYear1 = dispFromY1
+        dispYear24 = Math.max(dispFromY1, dispFromAvg * 0.65)
+        dispYear5  = Math.max(dispFromY1, dispFromAvg)
       } else {
+        // Legacy fallback (no 3-year data)
         annualIncome = incomeData.annualIncome || 0
+        dispYear1 = dispYear24 = dispYear5 = dispFromY1
       }
-      dispAnnual = Math.max(0, annualIncome - totalExpenses) * 0.8 + countableSavings / 20
+      dispAnnual = dispYear1
+
     } else if (fpSubType === 'Επιτηδευματίας') {
-      // Per-year: MAX(0, EBITDA−Tax) + E1_outside; 80%; top-2 avg; εύλογο ποσοστό floor — ΦΕΚ Β' 2499/2021 §9
+      // 3-phase income caps — ΦΕΚ Β' 2499/2021 §9, ΚΥΑ 67360 άρθρο 8Α §5
       const fp_ke_t1 = incomeData.fp_ke_t1 || 0
       const incYr = (ebitda, tax, e1) => Math.max(0, (ebitda || 0) - (tax || 0)) + (e1 || 0)
       const y1 = incYr(incomeData.fp_ebitda_t1, incomeData.fp_tax_t1, incomeData.fp_e1outside_t1)
       const y2 = incYr(incomeData.fp_ebitda_t2, incomeData.fp_tax_t2, incomeData.fp_e1outside_t2)
       const y3 = incYr(incomeData.fp_ebitda_t3, incomeData.fp_tax_t3, incomeData.fp_e1outside_t3)
-      annualIncome = (y1 + y2 + y3) / 3
-      const dispArr = [y1, y2, y3].map((y) => Math.max(0, y - totalExpenses) * 0.8).sort((a, b) => b - a)
-      const mo_diath = (dispArr[0] + dispArr[1]) / 2
-      const floorPct = (incomeData.fp_eulogo_pct != null ? incomeData.fp_eulogo_pct : 10) / 100
-      const floor = fp_ke_t1 * floorPct
+      annualIncome = y1
+
+      // Ratio allocation
+      const spIncome = incomeData.spouseIncome || 0
+      fpSpouseIncome = spIncome
+      fpFamilyIncome = y1 + spIncome
+      fpRatio = fpFamilyIncome > 0 ? y1 / fpFamilyIncome : 1
+
+      const edd = incomeData.householdValue || 0
+      totalExpenses = edd * fpRatio + effectiveRent * fpRatio + (incomeData.medicalCost || 0) * fpRatio +
+        (incomeData.enfiaCost || 0) + (incomeData.alimonyCost || 0)
+
       const businessReserve = Math.max(householdExempt, fp_ke_t1 * 0.05)
       const freeSavings = Math.max(0, (incomeData.savings || 0) - businessReserve)
-      if (fp_ke_t1 > 0 && mo_diath < floor) {
-        leMoDispMonthly = mo_diath / 12
+      const savingsAdd = freeSavings / 20
+
+      const dispFromY1 = Math.max(0, y1 - totalExpenses) * 0.8 + savingsAdd
+      const sorted3 = [y1, y2, y3].sort((a, b) => b - a)
+      const avg2 = (sorted3[0] + sorted3[1]) / 2
+      const dispFromAvg = Math.max(0, avg2 - totalExpenses) * 0.8 + savingsAdd
+
+      // 10% turnover floor check on year1 (ΦΕΚ Β' 2896/2021 §7.1/4)
+      const floorPct = (incomeData.fp_eulogo_pct != null ? incomeData.fp_eulogo_pct : 10) / 100
+      const floor = fp_ke_t1 * floorPct
+      let disp1 = dispFromY1
+      if (fp_ke_t1 > 0 && dispFromY1 < floor) {
+        leMoDispMonthly = dispFromY1 / 12
         leFloorMonthly = floor / 12
-        dispAnnual = floor + freeSavings / 20
+        disp1 = floor + savingsAdd
         flagMaxDoses = true
-      } else {
-        dispAnnual = mo_diath + freeSavings / 20
       }
+
+      dispYear1 = disp1
+      dispYear24 = Math.max(disp1, dispFromAvg * 0.65)
+      dispYear5  = Math.max(disp1, dispFromAvg)
+      dispAnnual = dispYear1
+
     } else {
       // Legacy: single annualIncome (FP cases created before fpSubType field) — backward compat
+      const rentCapMonthly2 = Math.min(params.rentCapBase + params.rentCapPerMember * (fpSize - 1), params.rentCapMax)
+      const effectiveRent2 = Math.min(incomeData.rentCost || 0, rentCapMonthly2 * 12)
+      totalExpenses = (incomeData.householdValue || 0) + (incomeData.enfiaCost || 0) +
+        (incomeData.medicalCost || 0) + effectiveRent2 +
+        (incomeData.studentRentCost || 0) + (incomeData.alimonyCost || 0)
       annualIncome = incomeData.annualIncome || 0
       dispAnnual = Math.max(0, annualIncome - totalExpenses) * 0.8 + countableSavings * params.fpSavingsIncomeRate
+      dispYear1 = dispYear24 = dispYear5 = dispAnnual
     }
   }
   const dispMonthly = dispAnnual / 12
   const monthlyIncome = Math.max(0, dispMonthly)
+  // 3-phase monthly caps (ΚΥΑ 67360 άρθρο 8Α §5) — for LE all phases are equal
+  const monthlyDisp1  = Math.max(0, dispYear1  / 12)
+  const monthlyDisp24 = Math.max(0, dispYear24 / 12)
+  const monthlyDisp5  = Math.max(0, dispYear5  / 12)
 
   // --- plan base: compute max months per debt ---
   const planBase = analysisRows.map((r) => {
@@ -376,36 +437,49 @@ export function calculateAll(debts, assets, incomeData, params = PARAMS_B) {
     }
   })
 
-  // --- Plan A: greedy month extension (minimise total c2) ---
+  // --- Plan A: greedy month extension — dual constraint (c1 ≤ cap1 year-1, c2 ≤ cap24 years-2-4) ---
+  // ΚΥΑ 67360 άρθρο 8Α §5: promo payment (c1) must fit year-1 income; post-promo (c2) fits years-2-4
   const planA = planBase.map((p) => ({ ...p }))
-  const totalC2 = (plan) => plan.reduce((s, p) => s + debtC2(p.newAmt, p.months, p.type, p.isSecured, params), 0)
-  let sumC2 = totalC2(planA)
+  const sumFn = (plan, fn) => plan.reduce((s, p) => s + fn(p.newAmt, p.months, p.type, p.isSecured, params), 0)
+  let sc1 = sumFn(planA, debtC1)
+  let sc2 = sumFn(planA, debtC2)
 
-  while (monthlyIncome > 0 && sumC2 > monthlyIncome) {
-    let bestI = -1, bestGain = 0, bestM = 0
+  while (true) {
+    const c1ok = monthlyDisp1 <= 0 || sc1 <= monthlyDisp1
+    const c2ok = monthlyDisp24 <= 0 || sc2 <= monthlyDisp24
+    if (c1ok && c2ok) break
+    // Extend the debt that most reduces the more-violated constraint
+    const useC1 = !c1ok && (c2ok || (sc1 - monthlyDisp1) >= (sc2 - monthlyDisp24))
+    const fn = useC1 ? debtC1 : debtC2
+    let bestI = -1, bestGain = 0
     planA.forEach((p, i) => {
       const nextM = p.months + 1
       if (nextM > p.maxMonths) return
-      const gain = debtC2(p.newAmt, p.months, p.type, p.isSecured, params)
-                 - debtC2(p.newAmt, nextM,   p.type, p.isSecured, params)
-      if (gain > bestGain) { bestGain = gain; bestI = i; bestM = nextM }
+      const gain = fn(p.newAmt, p.months, p.type, p.isSecured, params)
+                 - fn(p.newAmt, nextM,   p.type, p.isSecured, params)
+      if (gain > bestGain) { bestGain = gain; bestI = i }
     })
     if (bestI === -1) break
-    planA[bestI].months = bestM
-    sumC2 = totalC2(planA)
+    planA[bestI].months++
+    sc1 = sumFn(planA, debtC1)
+    sc2 = sumFn(planA, debtC2)
   }
 
   // --- write-off binary search if still infeasible ---
+  const isFeasible = (p) => {
+    const s1 = sumFn(p, debtC1), s2 = sumFn(p, debtC2)
+    return (monthlyDisp1 <= 0 || s1 <= monthlyDisp1) && (monthlyDisp24 <= 0 || s2 <= monthlyDisp24)
+  }
   let best = null
-  if (monthlyIncome <= 0) {
-    // Zero/negative income: max months + max legal write-offs
+  if (monthlyDisp1 <= 0 && monthlyDisp24 <= 0) {
+    // Zero income across all phases: max months + max legal write-offs
     const plan = planA.map((p) => {
       const ref = analysisRows.find((r) => r.idx === p.idx)
       const wr = Math.min(ref ? ref.calc : 0, p.amount)
       return { ...p, writeoff: wr, newAmt: Math.max(0, p.amount - wr), months: p.maxMonths }
     })
     best = { plan }
-  } else if (sumC2 <= monthlyIncome) {
+  } else if (isFeasible(planA)) {
     best = { plan: planA }
   } else {
     const capTotal = analysisRows.reduce((s, r) => s + (r.calc || 0), 0)
@@ -418,7 +492,7 @@ export function calculateAll(debts, assets, incomeData, params = PARAMS_B) {
         const newAmt = Math.max(0, p.amount - wr)
         return { ...p, writeoff: wr, newAmt }
       })
-      if (monthlyIncome <= 0 || totalC2(plan) <= monthlyIncome) { best = { plan }; break }
+      if (isFeasible(plan)) { best = { plan }; break }
     }
     if (!best) {
       const plan = planA.map((p) => {
@@ -485,7 +559,9 @@ export function calculateAll(debts, assets, incomeData, params = PARAMS_B) {
   const totalRemaining = finalPlan.reduce((s, p) => s + (p.newAmt || 0), 0)
   const totalMonthlyPay = finalPlan.reduce((s, p) => s + (p.payShown || 0), 0)
   const totalC1 = finalPlan.reduce((s, p) => s + p.c1, 0)
-  const ratio = monthlyIncome > 0 ? Math.round(totalMonthlyPay / monthlyIncome * 100) : 0
+  // ratio vs year1 (display); ratio5 vs years5+ (scenario logic — uses long-term income)
+  const ratio  = monthlyIncome  > 0 ? Math.round(totalMonthlyPay / monthlyIncome  * 100) : 0
+  const ratio5 = monthlyDisp5   > 0 ? Math.round(totalMonthlyPay / monthlyDisp5   * 100) : 0
   // Conservative scenario aggregates
   const sumWrC = finalPlan.reduce((s, p) => s + p.writeoffC, 0)
   const totalRemainingC = finalPlan.reduce((s, p) => s + p.newAmtC, 0)
@@ -495,15 +571,16 @@ export function calculateAll(debts, assets, incomeData, params = PARAMS_B) {
 
   const isFullCoveredByAssets = sumDebt > 0 && sumAssetsAfterExp >= sumDebt
   const isPartialCoveredByAssets = sumDebt > 0 && sumAssetsAfterExp > 0 && sumAssetsAfterExp < sumDebt
-  const lowIncome = monthlyIncome <= 0 || ratio > 100
+  // lowIncome uses years5+ — plan is feasible if the long-term income covers the installment
+  const lowIncome = monthlyDisp5 <= 0 || ratio5 > 100
   const totalCap = analysisRows.reduce((s, r) => s + (r.calc || 0), 0)
 
   let scenario = 1
   if (isLE) scenario = 0
   else if (lowIncome && isFullCoveredByAssets) scenario = 4
   else if (lowIncome && isPartialCoveredByAssets && totalCap > 0) scenario = 5
-  else if (sumWr === 0 && ratio <= 100 && monthlyIncome > 0) scenario = 1
-  else if (sumWr > 0 && ratio <= 100 && monthlyIncome > 0) scenario = 2
+  else if (sumWr === 0 && ratio5 <= 100 && monthlyDisp5 > 0) scenario = 1
+  else if (sumWr > 0 && ratio5 <= 100 && monthlyDisp5 > 0) scenario = 2
   else scenario = 3
 
   return {
@@ -513,8 +590,11 @@ export function calculateAll(debts, assets, incomeData, params = PARAMS_B) {
     sumMaxWriteoffPct: sumDebt ? Math.round(sumMaxWriteoff * 100 / sumDebt) : 0,
     annualIncome, totalExpenses,
     dispAnnual: Math.max(0, dispAnnual), dispMonthly: Math.max(0, dispMonthly), monthlyIncome,
+    dispYear1: Math.max(0, dispYear1), dispYear24: Math.max(0, dispYear24), dispYear5: Math.max(0, dispYear5),
+    monthlyDisp1, monthlyDisp24, monthlyDisp5,
+    fpRatio, fpFamilyIncome, fpSpouseIncome,
     finalPlan, sumWr, sumWrPct: sumDebt ? Math.round(sumWr * 100 / sumDebt) : 0,
-    totalRemaining, totalMonthlyPay, totalC1, ratio,
+    totalRemaining, totalMonthlyPay, totalC1, ratio, ratio5,
     sumWrC, sumWrPctC: sumDebt ? Math.round(sumWrC * 100 / sumDebt) : 0,
     totalRemainingC, totalMonthlyPayC, totalC1C, ratioC,
     scenario, lowIncome, isFullCoveredByAssets, isPartialCoveredByAssets,

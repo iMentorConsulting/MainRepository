@@ -51,6 +51,12 @@ function SignedMoneyField({ label, value, onChange, placeholder = '' }) {
 function FpCommonFields({ income, set, fpSubType }) {
   return (
     <div className="space-y-3">
+      <MoneyField
+        label="Εισόδημα Συζύγου / Συντρόφου (€/έτος)"
+        value={income.spouseIncome}
+        onChange={(v) => set('spouseIncome', v)}
+        placeholder="0 αν δεν υπάρχει"
+      />
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="label">Τύπος Νοικοκυριού (ΕΛΣΤΑΤ)</label>
