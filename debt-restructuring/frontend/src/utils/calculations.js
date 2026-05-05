@@ -250,6 +250,7 @@ export function calculateAll(debts, assets, incomeData, params = PARAMS_B) {
   let dispYear1 = 0, dispYear24 = 0, dispYear5 = 0
   let flagMaxDoses = false, isFPEpit = false, leMoDispMonthly = 0, leFloorMonthly = 0
   let fpRatio = 1, fpFamilyIncome = 0, fpSpouseIncome = 0
+  let fpDispFromAvg = 0, fpAvg2Income = 0
   if (isLE) {
     const ke_t1 = incomeData.ke_t1 || 0
     const ke_t2 = incomeData.ke_t2 || 0
@@ -398,6 +399,8 @@ export function calculateAll(debts, assets, incomeData, params = PARAMS_B) {
       dispYear24 = Math.max(disp1, dispFromAvg * 0.65)
       dispYear5  = Math.max(disp1, dispFromAvg)
       dispAnnual = dispYear1
+      fpDispFromAvg = dispFromAvg
+      fpAvg2Income = avg2
 
     } else {
       // Legacy: single annualIncome (FP cases created before fpSubType field) — backward compat
@@ -596,6 +599,7 @@ export function calculateAll(debts, assets, incomeData, params = PARAMS_B) {
     totalRemainingC, totalMonthlyPayC, totalC1C, ratioC,
     scenario, lowIncome, isFullCoveredByAssets, isPartialCoveredByAssets,
     flagMaxDoses, isFPEpit, leMoDispMonthly, leFloorMonthly,
+    fpDispFromAvg, fpAvg2Income,
   }
 }
 

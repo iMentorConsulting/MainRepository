@@ -426,20 +426,63 @@ export default function CaseForm({ currentEmployee }) {
             </div>
             <div className="border-t border-indigo-200 pt-1 mt-1 space-y-0.5">
               <div className="flex justify-between font-semibold text-green-800">
-                <span>Μηνιαίο διαθέσιμο — Έτος 1:</span>
+                <span>Μηνιαίο διαθέσιμο — Έτος 1 (T×80%):</span>
                 <span>{fmt(calc.monthlyDisp1)}/μήνα</span>
               </div>
-              {calc.monthlyDisp24 > calc.monthlyDisp1 + 1 && (
-                <div className="flex justify-between text-green-700">
-                  <span>Μηνιαίο διαθέσιμο — Έτη 2–4 (avg×65%):</span>
-                  <span>{fmt(calc.monthlyDisp24)}/μήνα</span>
-                </div>
-              )}
-              {calc.monthlyDisp5 > calc.monthlyDisp1 + 1 && (
-                <div className="flex justify-between text-green-600">
-                  <span>Μηνιαίο διαθέσιμο — Έτη 5+ (avg×100%):</span>
-                  <span>{fmt(calc.monthlyDisp5)}/μήνα</span>
-                </div>
+              {income.fpSubType === 'Επιτηδευματίας' ? (
+                <>
+                  <div className="flex justify-between text-green-700">
+                    <span>
+                      Μηνιαίο διαθέσιμο — Έτη 2–4 (avg×65%):
+                      {calc.monthlyDisp24 <= calc.monthlyDisp1 + 1 && (
+                        <span className="ml-1 text-xs text-amber-600">→ ισχύει Έτος 1 (Year T &gt; avg2)</span>
+                      )}
+                    </span>
+                    <span>
+                      {calc.monthlyDisp24 <= calc.monthlyDisp1 + 1
+                        ? <span className="text-amber-700">{fmt(calc.fpDispFromAvg * 0.65 / 12)} <span className="text-xs font-normal">(raw)</span> → {fmt(calc.monthlyDisp24)}</span>
+                        : fmt(calc.monthlyDisp24)
+                      }
+                      /μήνα
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-green-600">
+                    <span>
+                      Μηνιαίο διαθέσιμο — Έτη 5+ (avg×100%):
+                      {calc.monthlyDisp5 <= calc.monthlyDisp1 + 1 && (
+                        <span className="ml-1 text-xs text-amber-600">→ ισχύει Έτος 1</span>
+                      )}
+                    </span>
+                    <span>
+                      {calc.monthlyDisp5 <= calc.monthlyDisp1 + 1
+                        ? <span className="text-amber-700">{fmt(calc.fpDispFromAvg / 12)} <span className="text-xs font-normal">(raw)</span> → {fmt(calc.monthlyDisp5)}</span>
+                        : fmt(calc.monthlyDisp5)
+                      }
+                      /μήνα
+                    </span>
+                  </div>
+                  {calc.fpAvg2Income > 0 && (
+                    <div className="flex justify-between text-xs text-indigo-500 pt-0.5">
+                      <span>Μέσος όρος 2 υψηλότερων ετών (avg2):</span>
+                      <span>{fmt(calc.fpAvg2Income)}/έτος</span>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <>
+                  {calc.monthlyDisp24 > calc.monthlyDisp1 + 1 && (
+                    <div className="flex justify-between text-green-700">
+                      <span>Μηνιαίο διαθέσιμο — Έτη 2–4 (avg×65%):</span>
+                      <span>{fmt(calc.monthlyDisp24)}/μήνα</span>
+                    </div>
+                  )}
+                  {calc.monthlyDisp5 > calc.monthlyDisp1 + 1 && (
+                    <div className="flex justify-between text-green-600">
+                      <span>Μηνιαίο διαθέσιμο — Έτη 5+ (avg×100%):</span>
+                      <span>{fmt(calc.monthlyDisp5)}/μήνα</span>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </div>
