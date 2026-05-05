@@ -360,11 +360,11 @@ export function calculateAll(debts, assets, incomeData, params = PARAMS_B) {
 
     } else if (fpSubType === 'Επιτηδευματίας') {
       // 3-phase income caps — ΦΕΚ Β' 2499/2021 §9, ΚΥΑ 67360 άρθρο 8Α §5
+      // Direct platform income from ΕΓΔΙΧ: "Ετήσιο Ατομικό Εισόδημα Οφειλέτη"
       const fp_ke_t1 = incomeData.fp_ke_t1 || 0
-      const incYr = (ebitda, tax, e1) => Math.max(0, (ebitda || 0) - (tax || 0)) + (e1 || 0)
-      const y1 = incYr(incomeData.fp_ebitda_t1, incomeData.fp_tax_t1, incomeData.fp_e1outside_t1)
-      const y2 = incYr(incomeData.fp_ebitda_t2, incomeData.fp_tax_t2, incomeData.fp_e1outside_t2)
-      const y3 = incYr(incomeData.fp_ebitda_t3, incomeData.fp_tax_t3, incomeData.fp_e1outside_t3)
+      const y1 = incomeData.fp_income_t1 || 0
+      const y2 = incomeData.fp_income_t2 || 0
+      const y3 = incomeData.fp_income_t3 || 0
       annualIncome = y1
 
       // Ratio allocation

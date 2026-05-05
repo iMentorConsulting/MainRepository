@@ -197,37 +197,22 @@ export default function IncomePanel({ income, onChange, assets, onAssetsChange }
           <div className="bg-amber-50 border-l-4 border-amber-500 rounded-lg p-4 space-y-4">
             <p className="text-xs font-bold text-amber-700 mb-1">Ατομική Επιχείρηση / Ελεύθερος Επαγγελματίας</p>
 
-            <div>
-              <p className="text-xs font-semibold text-amber-700 mb-1.5">EBITDA Επιχείρησης — Ε3 (κέρδη προ φόρων/τόκων/αποσβέσεων)</p>
-              <div className="grid grid-cols-3 gap-2">
-                <SignedMoneyField label="EBITDA Τ" value={income.fp_ebitda_t1} onChange={(v) => set('fp_ebitda_t1', v)} placeholder="π.χ. 35.000" />
-                <SignedMoneyField label="EBITDA Τ-1" value={income.fp_ebitda_t2} onChange={(v) => set('fp_ebitda_t2', v)} placeholder="π.χ. 30.000" />
-                <SignedMoneyField label="EBITDA Τ-2" value={income.fp_ebitda_t3} onChange={(v) => set('fp_ebitda_t3', v)} placeholder="π.χ. 28.000" />
-              </div>
+            <div className="rounded-md bg-amber-100 border border-amber-300 px-3 py-2 text-xs text-amber-800">
+              ⚠️ <span className="font-semibold">Πού βρίσκεις τα νούμερα:</span> Όλες οι τιμές λαμβάνονται αποκλειστικά από την πλατφόρμα του Εξωδικαστικού (ΕΓΔΙΧ) — «Ετήσιο Ατομικό Εισόδημα Οφειλέτη» ανά φορολογικό έτος.
             </div>
 
             <div>
-              <p className="text-xs font-semibold text-amber-700 mb-1.5">Φόρος — εκκαθαριστικό (€)</p>
+              <p className="text-xs font-semibold text-amber-700 mb-1.5">Ετήσιο Ατομικό Εισόδημα Οφειλέτη — από πλατφόρμα ΕΓΔΙΧ (€)</p>
               <div className="grid grid-cols-3 gap-2">
-                <MoneyField label="Φόρος Τ" value={income.fp_tax_t1} onChange={(v) => set('fp_tax_t1', v)} placeholder="π.χ. 5.000" />
-                <MoneyField label="Φόρος Τ-1" value={income.fp_tax_t2} onChange={(v) => set('fp_tax_t2', v)} placeholder="π.χ. 4.500" />
-                <MoneyField label="Φόρος Τ-2" value={income.fp_tax_t3} onChange={(v) => set('fp_tax_t3', v)} placeholder="π.χ. 4.000" />
+                <MoneyField label="Έτος Τ" value={income.fp_income_t1} onChange={(v) => set('fp_income_t1', v)} placeholder="π.χ. 20.000" />
+                <MoneyField label="Έτος Τ-1" value={income.fp_income_t2} onChange={(v) => set('fp_income_t2', v)} placeholder="π.χ. 18.000" />
+                <MoneyField label="Έτος Τ-2" value={income.fp_income_t3} onChange={(v) => set('fp_income_t3', v)} placeholder="π.χ. 16.000" />
               </div>
+              <p className="text-xs text-amber-600 mt-1">Χρησιμοποιείται ο μέσος όρος των 2 υψηλότερων ετών</p>
             </div>
 
-            <div>
-              <p className="text-xs font-semibold text-amber-700 mb-1.5">Εισόδημα Ε1 εκτός Επιχείρησης (€) — αν υπάρχει</p>
-              <div className="grid grid-cols-3 gap-2">
-                <MoneyField label="Ε1 εκτός Τ" value={income.fp_e1outside_t1} onChange={(v) => set('fp_e1outside_t1', v)} placeholder="π.χ. 3.000" />
-                <MoneyField label="Ε1 εκτός Τ-1" value={income.fp_e1outside_t2} onChange={(v) => set('fp_e1outside_t2', v)} placeholder="π.χ. 2.500" />
-                <MoneyField label="Ε1 εκτός Τ-2" value={income.fp_e1outside_t3} onChange={(v) => set('fp_e1outside_t3', v)} placeholder="π.χ. 2.000" />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-3 gap-2">
-              <MoneyField label="Κύκλος Εργ. Τ — ΚΕ (€)" value={income.fp_ke_t1} onChange={(v) => set('fp_ke_t1', v)} placeholder="π.χ. 200.000" />
-              <MoneyField label="ΚΕ Τ-1 (€)" value={income.fp_ke_t2} onChange={(v) => set('fp_ke_t2', v)} placeholder="π.χ. 190.000" />
-              <MoneyField label="ΚΕ Τ-2 (€)" value={income.fp_ke_t3} onChange={(v) => set('fp_ke_t3', v)} placeholder="π.χ. 180.000" />
+            <div className="grid grid-cols-1 gap-2">
+              <MoneyField label="Κύκλος Εργασιών Τ — ΚΕ (€)" value={income.fp_ke_t1} onChange={(v) => set('fp_ke_t1', v)} placeholder="π.χ. 200.000" />
             </div>
 
             <div className="grid grid-cols-2 gap-2">

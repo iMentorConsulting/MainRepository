@@ -26,13 +26,10 @@ function defaultIncome() {
     // FP sub-type — 'Μισθωτός' | 'Επιτηδευματίας'
     fpSubType: 'Μισθωτός',
     spouseIncome: 0,
-    // FP Μισθωτός: 3-year net income (ΦΕΚ Β' 2499/2021 §8)
+    // FP income — 3-year net income: Μισθωτός (Ε1 εκκαθαριστικό) / Επιτηδευματίας (ΕΓΔΙΧ ατομικό εισόδημα)
     fp_income_t1: 0, fp_income_t2: 0, fp_income_t3: 0,
-    // FP Επιτηδευματίας: EBITDA, tax, E1-outside, KE (ΦΕΚ Β' 2499/2021 §9)
-    fp_ebitda_t1: null, fp_ebitda_t2: null, fp_ebitda_t3: null,
-    fp_tax_t1: 0, fp_tax_t2: 0, fp_tax_t3: 0,
-    fp_e1outside_t1: 0, fp_e1outside_t2: 0, fp_e1outside_t3: 0,
-    fp_ke_t1: 0, fp_ke_t2: 0, fp_ke_t3: 0,
+    // FP Επιτηδευματίας: KE last year only (for 10% floor check)
+    fp_ke_t1: 0,
     fp_eulogo_pct: 10,
     debtorAge: 0,
     householdValue: 0,
@@ -44,14 +41,6 @@ function defaultIncome() {
     extraLivingCost: 0,
     alimonyCost: 0,
     savings: 0,
-    // Μισθωτός: 3-year income (Ε1 εκκαθαριστικό)
-    fp_income_T: 0, fp_income_T1: 0, fp_income_T2: 0,
-    // Επιτηδευματίας: 3-year EBITDA, KE, E1 outside business, tax, deposits
-    ep_ebitda_T: null, ep_ebitda_T1: null, ep_ebitda_T2: null,
-    ep_ke_T: 0, ep_ke_T1: 0, ep_ke_T2: 0,
-    ep_e1_T: 0, ep_e1_T1: 0, ep_e1_T2: 0,
-    ep_tax_T: null, ep_tax_T1: null, ep_tax_T2: null,
-    ep_deposits: 0,
     // legacy single-year field (backward compat)
     annualIncome: 0,
     // LE fields — 3-year data (ΚΥΑ 7712925/2025)
