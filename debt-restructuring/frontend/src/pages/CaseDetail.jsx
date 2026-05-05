@@ -524,9 +524,9 @@ export default function CaseDetail({ currentEmployee }) {
               target="_blank"
               rel="noreferrer"
               className="btn-secondary gap-2 text-sm"
-              title="Προβολή portal (δεν μετράει ως επίσκεψη)"
+              title="Προβολή portal ως σύμβουλος (δεν μετράει ως επίσκεψη πελάτη)"
             >
-              <EyeIcon className="w-4 h-4" /> Προβολή
+              <EyeIcon className="w-4 h-4" /> Portal από Σύμβουλο
             </a>
           )}
 
