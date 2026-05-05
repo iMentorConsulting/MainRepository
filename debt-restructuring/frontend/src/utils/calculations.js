@@ -386,8 +386,8 @@ export function calculateAll(debts, assets, incomeData, params = PARAMS_B) {
       const avg2 = (sorted3[0] + sorted3[1]) / 2
       const dispFromAvg = Math.max(0, avg2 - totalExpenses) * 0.8 + savingsAdd
 
-      // 10% turnover floor check on year1 (ΦΕΚ Β' 2896/2021 §7.1/4)
-      const floorPct = (incomeData.fp_eulogo_pct != null ? incomeData.fp_eulogo_pct : 10) / 100
+      // Turnover floor check on year1 (ΦΕΚ Β' 2896/2021 §7.1/4) — floor hardcoded to 0% per business policy
+      const floorPct = 0
       const floor = fp_ke_t1 * floorPct
       let disp1 = dispFromY1
       if (fp_ke_t1 > 0 && dispFromY1 < floor) {

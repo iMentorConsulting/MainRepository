@@ -81,6 +81,116 @@ function VatGate({ onSubmit, error, loading }) {
   )
 }
 
+const GOOGLE_REVIEW_URL = 'https://www.google.com/maps/place//data=!4m3!3m2!1s0x149a585fae8f32d3:0x9a71a2e3deac1fc4!12e1?source=g.page.m.ia._&laa=nmx-review-solicitation-ia2'
+
+const NPS_SCORE_COLORS = ['#ef4444','#ef4444','#f97316','#f97316','#f97316','#eab308','#eab308','#84cc16','#84cc16','#22c55e','#16a34a']
+
+const REVIEW_TEMPLATES = [
+  (type) => `Συνεργάστηκα με την i-Mentor για τον Εξωδικαστικό Μηχανισμό${type ? ` (${type})` : ''}. Σε κάθε βήμα ήξερα τι γίνεται — οργάνωση, ενημέρωση και αποτελεσματικότητα. Ιδιαίτερα εντυπωσιάστηκα από το τεκμηριωμένο σχέδιο που ανεβάζουν στους πιστωτές.`,
+  (type) => `Πολύ καλή συνεργασία με την i-Mentor για τη ρύθμιση οφειλών μου${type ? ` (${type})` : ''}. Με ενημέρωναν συνεχώς, απαντούσαν άμεσα στις ερωτήσεις μου και έκαναν ό,τι μπορούσαν για το καλύτερο αποτέλεσμα.`,
+  (type) => `Άρτια προετοιμασία και γνώση της διαδικασίας στον Εξωδικαστικό${type ? ` — ${type}` : ''}. Η ομάδα i-Mentor χειρίστηκε την υπόθεσή μου με επαγγελματισμό και εμπιστευτικότητα από την αρχή ως το τέλος.`,
+  (type) => `Για όσους αντιμετωπίζουν πρόβλημα οφειλών, η i-Mentor είναι η σωστή επιλογή. Εξωδικαστικός${type ? ` (${type})` : ''}: γρήγορη ανάλυση, σωστή στρατηγική και συνεχής επικοινωνία.`,
+  (type) => `Δουλέψαμε μαζί για τον Εξωδικαστικό Μηχανισμό${type ? ` (${type})` : ''}. Μου εξήγησαν τα πάντα με απλά λόγια, τήρησαν τα χρονοδιαγράμματα και έδειξαν πραγματικό ενδιαφέρον για την υπόθεσή μου.`,
+  (type) => `Επέλεξα την i-Mentor για τον Εξωδικαστικό${type ? ` — ${type}` : ''} και δεν το μετάνιωσα. Πέρα από την αίτηση, ανέβασαν και τεκμηριωμένη πρόταση στους πιστωτές — κάτι που δεν κάνει κάθε σύμβουλος.`,
+]
+
+function NpsWidget({ clientName, debtorType }) {
+  const [score, setScore] = useState(null)
+  const [submitted, setSubmitted] = useState(false)
+  const [tplIdx, setTplIdx] = useState(0)
+  const [copied, setCopied] = useState(false)
+
+  const serviceLabel = debtorType?.includes('Νομικό') ? 'Νομικό Πρόσωπο' : 'Φυσικό Πρόσωπο'
+  const reviewText = REVIEW_TEMPLATES[tplIdx](serviceLabel)
+
+  const handleScore = (n) => {
+    setScore(n)
+    if (n >= 9) setSubmitted(true)
+  }
+
+  const handleShuffle = () => setTplIdx((tplIdx + 1) % REVIEW_TEMPLATES.length)
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(reviewText).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2500)
+    })
+  }
+
+  if (submitted && score >= 9) {
+    return (
+      <div className="bg-white rounded-2xl shadow-lg p-6 text-center">
+        <div className="text-4xl mb-3">🎉</div>
+        <h3 className="font-black text-gray-800 text-lg mb-1">Σας ευχαριστούμε πολύ!</h3>
+        <p className="text-gray-500 text-sm mb-4">Θα χαρούμε αν μοιραστείτε την εμπειρία σας στο Google.</p>
+        <div className="bg-gray-50 rounded-xl border border-gray-200 p-4 mb-4 text-left">
+          <div className="flex justify-between items-center mb-2">
+            <span className="text-xs font-semibold text-gray-500">Προτεινόμενο κείμενο (προαιρετικό)</span>
+            <button onClick={handleShuffle} className="text-xs text-blue-500 hover:text-blue-700 font-semibold">Άλλο κείμενο →</button>
+          </div>
+          <p className="text-sm text-gray-700 leading-relaxed mb-3">{reviewText}</p>
+          <div className="flex items-center justify-between">
+            <button
+              onClick={handleCopy}
+              className="flex items-center gap-1.5 text-xs bg-white border border-gray-300 hover:border-blue-400 text-gray-700 px-3 py-1.5 rounded-lg transition-all"
+            >
+              {copied ? '✓ Αντιγράφηκε!' : '⎘ Αντιγραφή'} <span className="text-gray-400">{tplIdx + 1}/{REVIEW_TEMPLATES.length}</span>
+            </button>
+          </div>
+        </div>
+        <a
+          href={GOOGLE_REVIEW_URL}
+          target="_blank"
+          rel="noreferrer"
+          className="flex items-center justify-center gap-2 bg-blue-900 hover:bg-blue-800 text-white font-black py-3 px-6 rounded-xl text-sm transition-all w-full mb-3"
+        >
+          🌐 Γράψτε κριτική στο Google
+        </a>
+        <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-2 text-xs text-amber-800">
+          🎁 <b>Early access:</b> Όσοι μοιράζονται τη γνώμη τους λαμβάνουν πρώτοι ενημερώσεις για νέες ρυθμίσεις οφειλών, αλλαγές στον Εξωδικαστικό και χρηματοδοτικά προγράμματα.
+        </div>
+      </div>
+    )
+  }
+
+  if (submitted && score < 9) {
+    return (
+      <div className="bg-white rounded-2xl shadow-lg p-6 text-center">
+        <div className="text-3xl mb-2">🙏</div>
+        <p className="font-bold text-gray-800 mb-1">Σας ευχαριστούμε για την αξιολόγησή σας!</p>
+        <p className="text-sm text-gray-500">Η γνώμη σας μας βοηθά να βελτιωνόμαστε συνεχώς.</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="bg-white rounded-2xl shadow-lg p-6">
+      <h3 className="font-black text-gray-800 text-base mb-1">☆ Η γνώμη σας μετράει</h3>
+      <p className="text-sm text-blue-800 mb-4">Πόσο πιθανό είναι να μας προτείνετε σε γνωστό σας; <span className="text-gray-400 font-normal">(0 = καθόλου, 10 = σίγουρα)</span></p>
+      <div className="flex flex-wrap gap-2 justify-center mb-2">
+        {Array.from({ length: 11 }, (_, n) => (
+          <button
+            key={n}
+            onClick={() => handleScore(n)}
+            className="w-10 h-10 rounded-xl font-black text-sm border-2 transition-all"
+            style={{
+              borderColor: score === n ? NPS_SCORE_COLORS[n] : '#e5e7eb',
+              background: score === n ? NPS_SCORE_COLORS[n] : '#f9fafb',
+              color: score === n ? '#fff' : NPS_SCORE_COLORS[n],
+            }}
+          >
+            {n}
+          </button>
+        ))}
+      </div>
+      <div className="flex justify-between text-xs text-gray-400 mt-1">
+        <span>Καθόλου πιθανό</span>
+        <span>Σίγουρα</span>
+      </div>
+    </div>
+  )
+}
+
 export default function ClientPreview() {
   const { token } = useParams()
   const [searchParams] = useSearchParams()
@@ -500,69 +610,117 @@ export default function ClientPreview() {
         )}
 
         {/* Actual results */}
-        {hasActuals && (
-          <div className="bg-white rounded-2xl shadow-lg p-5">
-            <h2 className="text-base font-black text-green-700 border-b-2 border-green-100 pb-2 mb-4">✅ Πραγματικά Αποτελέσματα Ρύθμισης</h2>
-            <div className="bg-green-50 border border-green-200 rounded-xl p-4 mb-4">
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                {[
-                  { label: 'Πραγματική Διαγραφή', value: act.actualWriteOff, color: 'text-orange-600' },
-                  { label: 'Εναπομένουσα Οφειλή', value: act.actualRemaining, color: 'text-blue-700' },
-                  { label: 'Μηνιαία Δόση', value: act.actualMonthlyPay, color: 'text-green-700', isDec: true },
-                  { label: 'Διάρκεια', value: act.actualDurationMonths, isMonths: true },
-                ].map((item) => (
-                  <div key={item.label} className="text-center">
-                    <div className="text-xs font-semibold text-green-700 mb-1">{item.label}</div>
-                    <div className={`text-xl font-black ${item.color || 'text-blue-800'}`}>
-                      {item.isMonths ? `${item.value || '—'} μήνες` : (item.value ? (item.isDec ? fmtDec2(item.value) : fmt(item.value)) : '—')}
-                    </div>
+        {hasActuals && (() => {
+          const actCreditors = act.creditors || []
+          const actWriteoff = actCreditors.reduce((s, c) => s + (c.actualWriteoff || 0), 0)
+          const actRemaining = actCreditors.reduce((s, c) => s + (c.actualRemaining || 0), 0)
+          const actMonthly = actCreditors.reduce((s, c) => s + (c.actualMonthlyPay || 0), 0)
+          return (
+            <div className="bg-white rounded-2xl shadow-lg p-5">
+              <h2 className="text-base font-black text-green-700 border-b-2 border-green-100 pb-2 mb-4">✅ Πραγματικά Αποτελέσματα Ρύθμισης</h2>
+              {actCreditors.length > 0 && (
+                <div className="bg-green-50 border border-green-200 rounded-xl p-4 mb-4">
+                  <div className="grid grid-cols-3 gap-3 text-center">
+                    <div><div className="text-xs font-semibold text-green-700 mb-1">Πραγματική Διαγραφή</div><div className="text-xl font-black text-orange-600">{actWriteoff > 0 ? fmt(actWriteoff) : '—'}</div></div>
+                    <div><div className="text-xs font-semibold text-green-700 mb-1">Εναπομένουσα Οφειλή</div><div className="text-xl font-black text-blue-700">{actRemaining > 0 ? fmt(actRemaining) : '—'}</div></div>
+                    <div><div className="text-xs font-semibold text-green-700 mb-1">Μηνιαία Δόση</div><div className="text-xl font-black text-green-700">{actMonthly > 0 ? fmtDec2(actMonthly) : '—'}</div></div>
                   </div>
-                ))}
-              </div>
-              {act.actualNotes && (
-                <div className="mt-3 text-sm text-green-800 italic border-t border-green-200 pt-2">💬 {act.actualNotes}</div>
+                  {act.generalNotes && <div className="mt-3 text-sm text-green-800 italic border-t border-green-200 pt-2">💬 {act.generalNotes}</div>}
+                </div>
+              )}
+              {actCreditors.length > 0 && (
+                <div className="overflow-x-auto mb-4">
+                  <table className="w-full min-w-[480px] text-sm">
+                    <thead>
+                      <tr className="border-b-2 border-green-100 text-xs">
+                        <th className="th text-left">Πιστωτής / Μέρος</th>
+                        <th className="th">Διαγραφή</th>
+                        <th className="th">Εναπομένουσα</th>
+                        <th className="th">Μηνιαία Δόση</th>
+                        <th className="th">Δόσεις</th>
+                        <th className="th">RF</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {actCreditors.flatMap((c, i) => {
+                        const hasSub = (c.subRows || []).length > 0
+                        const rows = []
+                        rows.push(
+                          <tr key={`a-${i}`} className={`border-b border-gray-100 ${hasSub ? 'bg-gray-50 font-semibold' : ''}`}>
+                            <td className="td text-left font-semibold">{c.creditor}{hasSub && <span className="ml-1 text-xs font-normal text-gray-400">(×{c.subRows.length})</span>}</td>
+                            <td className="td text-center font-mono text-orange-600">{c.actualWriteoff > 0 ? fmt(c.actualWriteoff) : '—'}</td>
+                            <td className="td text-center font-mono">{c.actualRemaining > 0 ? fmt(c.actualRemaining) : '—'}</td>
+                            <td className="td text-center font-mono font-bold text-blue-800">{c.actualMonthlyPay > 0 ? fmtDec2(c.actualMonthlyPay) : '—'}</td>
+                            <td className="td text-center">{!hasSub && c.actualMonths ? c.actualMonths : (hasSub ? '' : '—')}</td>
+                            <td className="td text-center text-xs text-gray-600">{!hasSub ? (c.rfCode || '—') : ''}</td>
+                          </tr>
+                        )
+                        ;(c.subRows || []).forEach((s, j) => {
+                          rows.push(
+                            <tr key={`a-${i}-s-${j}`} className="border-b border-blue-50 bg-blue-50/30">
+                              <td className="td text-left pl-5 text-xs text-blue-700">↳ {s.label || `Μέρος ${j+1}`}</td>
+                              <td className="td text-center font-mono text-orange-600 text-xs">{s.actualWriteoff > 0 ? fmt(s.actualWriteoff) : '—'}</td>
+                              <td className="td text-center font-mono text-xs">{s.actualRemaining > 0 ? fmt(s.actualRemaining) : '—'}</td>
+                              <td className="td text-center font-mono font-bold text-blue-800 text-xs">{s.actualMonthlyPay > 0 ? fmtDec2(s.actualMonthlyPay) : '—'}</td>
+                              <td className="td text-center text-xs">{s.actualMonths || '—'}</td>
+                              <td className="td text-center text-xs text-gray-600">{s.rfCode || '—'}</td>
+                            </tr>
+                          )
+                        })
+                        return rows
+                      })}
+                      <tr className="bg-green-50 font-bold text-sm border-t-2 border-green-200">
+                        <td className="td text-left">ΣΥΝΟΛΟ</td>
+                        <td className="td text-center font-mono text-orange-600">{actWriteoff > 0 ? fmt(actWriteoff) : '—'}</td>
+                        <td className="td text-center font-mono">{actRemaining > 0 ? fmt(actRemaining) : '—'}</td>
+                        <td className="td text-center font-mono text-blue-800">{actMonthly > 0 ? fmtDec2(actMonthly) : '—'}</td>
+                        <td className="td" colSpan={2}></td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              {est.sumDebt > 0 && actWriteoff + actRemaining + actMonthly > 0 && (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b-2 border-blue-100">
+                        <th className="th text-left">Δείκτης</th>
+                        <th className="th">Εκτίμηση</th>
+                        <th className="th">Πραγματικό</th>
+                        <th className="th">Αποτέλεσμα</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {[
+                        { label: 'Διαγραφή', e: est.sumWr, a: actWriteoff },
+                        { label: 'Εναπομένουσα', e: est.totalRemaining, a: actRemaining },
+                        { label: 'Μηνιαία Δόση', e: est.totalMonthlyPay, a: actMonthly, isDec: true },
+                      ].map((row) => {
+                        const diff = (row.a || 0) - (row.e || 0)
+                        const pct = row.e > 0 ? Math.round(Math.abs(diff) / row.e * 100) : 0
+                        return (
+                          <tr key={row.label} className="border-b border-gray-100">
+                            <td className="td text-left font-semibold">{row.label}</td>
+                            <td className="td font-mono text-gray-500">{row.e ? fmt(row.e) : '—'}</td>
+                            <td className="td font-mono font-bold">{row.a ? (row.isDec ? fmtDec2(row.a) : fmt(row.a)) : '—'}</td>
+                            <td className="td">
+                              {row.e > 0 && row.a > 0 && (
+                                <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${diff >= 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                                  {diff >= 0 ? '▲' : '▼'} {pct}%
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
               )}
             </div>
-            {est.sumDebt > 0 && (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b-2 border-blue-100">
-                      <th className="th text-left">Δείκτης</th>
-                      <th className="th">Εκτίμηση</th>
-                      <th className="th">Πραγματικό</th>
-                      <th className="th">Αποτέλεσμα</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {[
-                      { label: 'Διαγραφή', e: est.sumWr, a: act.actualWriteOff },
-                      { label: 'Εναπομένουσα', e: est.totalRemaining, a: act.actualRemaining },
-                      { label: 'Μηνιαία Δόση', e: est.totalMonthlyPay, a: act.actualMonthlyPay, isDec: true },
-                    ].map((row) => {
-                      const diff = (row.a || 0) - (row.e || 0)
-                      const pct = row.e > 0 ? Math.round(Math.abs(diff) / row.e * 100) : 0
-                      return (
-                        <tr key={row.label} className="border-b border-gray-100">
-                          <td className="td text-left font-semibold">{row.label}</td>
-                          <td className="td font-mono text-gray-500">{row.e ? fmt(row.e) : '—'}</td>
-                          <td className="td font-mono font-bold">{row.a ? (row.isDec ? fmtDec2(row.a) : fmt(row.a)) : '—'}</td>
-                          <td className="td">
-                            {row.e > 0 && row.a > 0 && (
-                              <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${diff >= 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                                {diff >= 0 ? '▲' : '▼'} {pct}%
-                              </span>
-                            )}
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        )}
+          )
+        })()}
 
         {/* Service differentiation — "Δεν σταματάμε στην υποβολή" */}
         <div className="bg-white rounded-2xl shadow-lg p-5">
@@ -625,8 +783,8 @@ export default function ClientPreview() {
           )
         })()}
 
-        {/* CTA */}
-        <div className="bg-white rounded-2xl shadow-lg p-6">
+        {/* CTA — hidden when actual results are present */}
+        {!hasActuals && <div className="bg-white rounded-2xl shadow-lg p-6">
           <h2 className="text-base font-black text-blue-800 mb-3">🟦 Επόμενα Βήματα</h2>
           <p className="text-sm text-gray-600 leading-relaxed mb-4">
             Η ομάδα της <b>i-Mentor Consulting</b> είναι στη διάθεσή σας για οποιαδήποτε διευκρίνιση ή για την προετοιμασία της επίσημης αίτησης στον Εξωδικαστικό Μηχανισμό Ρύθμισης Οφειλών. Κάθε υπόθεση αντιμετωπίζεται με πλήρη εμπιστευτικότητα και επαγγελματισμό.
@@ -642,7 +800,11 @@ export default function ClientPreview() {
               🌐 www.i-mentor.gr
             </a>
           </div>
-        </div>
+        </div>}
+
+        {/* NPS widget */}
+        <NpsWidget clientName={data.client_name} debtorType={data.debtor_type} />
+
       </div>
 
       {/* Footer */}

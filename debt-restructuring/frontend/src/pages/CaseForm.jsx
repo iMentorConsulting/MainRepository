@@ -28,9 +28,8 @@ function defaultIncome() {
     spouseIncome: 0,
     // FP income — 3-year net income: Μισθωτός (Ε1 εκκαθαριστικό) / Επιτηδευματίας (ΕΓΔΙΧ ατομικό εισόδημα)
     fp_income_t1: 0, fp_income_t2: 0, fp_income_t3: 0,
-    // FP Επιτηδευματίας: KE last year only (for 10% floor check)
-    fp_ke_t1: 0,
-    fp_eulogo_pct: 10,
+    // FP Επιτηδευματίας: KE 3-year (T used for floor check) — from ΕΓΔΙΧ
+    fp_ke_t1: 0, fp_ke_t2: 0, fp_ke_t3: 0,
     debtorAge: 0,
     householdValue: 0,
     householdSize: 1,

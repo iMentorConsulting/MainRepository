@@ -52,7 +52,7 @@ function FpCommonFields({ income, set, fpSubType }) {
   return (
     <div className="space-y-3">
       <MoneyField
-        label="Εισόδημα Συζύγου / Συντρόφου (€/έτος)"
+        label="Εισόδημα Συζύγου / Συντρόφου (€/έτος) — από ΕΓΔΙΧ"
         value={income.spouseIncome}
         onChange={(v) => set('spouseIncome', v)}
         placeholder="0 αν δεν υπάρχει"
@@ -211,26 +211,17 @@ export default function IncomePanel({ income, onChange, assets, onAssetsChange }
               <p className="text-xs text-amber-600 mt-1">Χρησιμοποιείται ο μέσος όρος των 2 υψηλότερων ετών</p>
             </div>
 
-            <div className="grid grid-cols-1 gap-2">
-              <MoneyField label="Κύκλος Εργασιών Τ — ΚΕ (€)" value={income.fp_ke_t1} onChange={(v) => set('fp_ke_t1', v)} placeholder="π.χ. 200.000" />
+            <div>
+              <p className="text-xs font-semibold text-amber-700 mb-1.5">Κύκλος Εργασιών — από πλατφόρμα ΕΓΔΙΧ (€)</p>
+              <div className="grid grid-cols-3 gap-2">
+                <MoneyField label="ΚΕ Τ" value={income.fp_ke_t1} onChange={(v) => set('fp_ke_t1', v)} placeholder="π.χ. 200.000" />
+                <MoneyField label="ΚΕ Τ-1" value={income.fp_ke_t2} onChange={(v) => set('fp_ke_t2', v)} placeholder="π.χ. 180.000" />
+                <MoneyField label="ΚΕ Τ-2" value={income.fp_ke_t3} onChange={(v) => set('fp_ke_t3', v)} placeholder="π.χ. 160.000" />
+              </div>
+              <p className="text-xs text-amber-600 mt-1">ΚΕ Τ χρησιμοποιείται για τον έλεγχο ορίου ρύθμισης</p>
             </div>
 
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="label">Εύλογο Ποσοστό ΚΕ (%)</label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="number" min="1" max="100" step="1" className="input"
-                    placeholder="10"
-                    value={income.fp_eulogo_pct ?? 10}
-                    onChange={(e) => set('fp_eulogo_pct', e.target.value !== '' ? parseFloat(e.target.value) : 10)}
-                  />
-                  <span className="text-xs text-gray-500 whitespace-nowrap">% ΚΕ Τ</span>
-                </div>
-                <p className="text-xs text-amber-600 mt-0.5">βάσει ΚΑΔ — default 10%</p>
-              </div>
-              <MoneyField label="Καταθέσεις (€)" value={income.savings} onChange={(v) => set('savings', v)} placeholder="π.χ. 5.000" />
-            </div>
+            <MoneyField label="Καταθέσεις (€)" value={income.savings} onChange={(v) => set('savings', v)} placeholder="π.χ. 5.000" />
 
             <FpCommonFields income={income} set={set} fpSubType={fpSubType} />
           </div>
