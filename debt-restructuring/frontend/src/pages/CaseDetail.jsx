@@ -97,7 +97,23 @@ function buildEmptyCreditors(finalPlan) {
     actualMonths: 0,
     rfCode: '',
     notes: '',
+    subRows: [],
   }))
+}
+
+function emptySubRow(n) {
+  return { label: `Μέρος ${n}`, actualWriteoff: 0, actualRemaining: 0, actualMonthlyPay: 0, actualMonths: 0, rfCode: '', notes: '' }
+}
+
+function recomputeParentFromSubRows(cred) {
+  const sr = cred.subRows || []
+  if (sr.length === 0) return cred
+  return {
+    ...cred,
+    actualWriteoff: sr.reduce((s, r) => s + (r.actualWriteoff || 0), 0),
+    actualRemaining: sr.reduce((s, r) => s + (r.actualRemaining || 0), 0),
+    actualMonthlyPay: sr.reduce((s, r) => s + (r.actualMonthlyPay || 0), 0),
+  }
 }
 
 function ViberPreviewModal({ msgType, msgLabel, caseName, url, offer, onSend, onClose, sending }) {
@@ -752,75 +768,152 @@ export default function CaseDetail({ currentEmployee }) {
                   <th className="th">Δόσεις (μήνες)</th>
                   <th className="th">RF Κωδικός</th>
                   <th className="th">Σημειώσεις</th>
+                  <th className="th"></th>
                 </tr>
               </thead>
               <tbody>
-                {actuals.creditors.map((c, i) => (
-                  <tr key={i} className="border-b border-gray-100">
-                    <td className="td text-left font-semibold text-sm">{c.creditor}</td>
-                    <td className="td font-mono text-sm text-gray-500">{fmt(c.originalAmount)}</td>
-                    <td className="td min-w-[120px]">
-                      <MoneyCell value={c.actualWriteoff} onChange={(v) => {
-                        const updated = [...actuals.creditors]
-                        updated[i] = { ...updated[i], actualWriteoff: v }
-                        setActuals({ ...actuals, creditors: updated })
-                      }} />
-                    </td>
-                    <td className="td min-w-[120px]">
-                      <MoneyCell value={c.actualRemaining} onChange={(v) => {
-                        const updated = [...actuals.creditors]
-                        updated[i] = { ...updated[i], actualRemaining: v }
-                        setActuals({ ...actuals, creditors: updated })
-                      }} />
-                    </td>
-                    <td className="td min-w-[110px]">
-                      <MoneyCellDec value={c.actualMonthlyPay} onChange={(v) => {
-                        const updated = [...actuals.creditors]
-                        updated[i] = { ...updated[i], actualMonthlyPay: v }
-                        setActuals({ ...actuals, creditors: updated })
-                      }} />
-                    </td>
-                    <td className="td min-w-[90px]">
-                      <input
-                        type="number" min="0" max="600"
-                        className="input text-center text-sm"
-                        placeholder="0"
-                        value={c.actualMonths || ''}
-                        onChange={(e) => {
-                          const updated = [...actuals.creditors]
-                          updated[i] = { ...updated[i], actualMonths: +e.target.value }
-                          setActuals({ ...actuals, creditors: updated })
-                        }}
-                      />
-                    </td>
-                    <td className="td min-w-[120px]">
-                      <input
-                        type="text"
-                        className="input text-sm"
-                        placeholder="RF123..."
-                        value={c.rfCode || ''}
-                        onChange={(e) => {
-                          const updated = [...actuals.creditors]
-                          updated[i] = { ...updated[i], rfCode: e.target.value }
-                          setActuals({ ...actuals, creditors: updated })
-                        }}
-                      />
-                    </td>
-                    <td className="td min-w-[160px]">
-                      <input
-                        type="text"
-                        className="input text-sm"
-                        placeholder="Σημείωση..."
-                        value={c.notes || ''}
-                        onChange={(e) => {
-                          const updated = [...actuals.creditors]
-                          updated[i] = { ...updated[i], notes: e.target.value }
-                          setActuals({ ...actuals, creditors: updated })
-                        }}
-                      />
-                    </td>
-                  </tr>
-                ))}
+                {actuals.creditors.flatMap((c, i) => {
+                  const hasSub = (c.subRows || []).length > 0
+                  const setCreditor = (patch) => {
+                    const updated = [...actuals.creditors]
+                    updated[i] = { ...updated[i], ...patch }
+                    setActuals({ ...actuals, creditors: updated })
+                  }
+                  const addSubRow = () => {
+                    const sr = c.subRows || []
+                    if (sr.length >= 3) return
+                    let newSr
+                    if (sr.length === 0) {
+                      // migrate existing parent data into first sub-row
+                      newSr = [
+                        { label: 'Μέρος 1', actualWriteoff: c.actualWriteoff, actualRemaining: c.actualRemaining, actualMonthlyPay: c.actualMonthlyPay, actualMonths: c.actualMonths, rfCode: c.rfCode, notes: c.notes },
+                        emptySubRow(2),
+                      ]
+                    } else {
+                      newSr = [...sr, emptySubRow(sr.length + 1)]
+                    }
+                    const updated = [...actuals.creditors]
+                    updated[i] = recomputeParentFromSubRows({ ...c, subRows: newSr })
+                    setActuals({ ...actuals, creditors: updated })
+                  }
+                  const removeSubRow = (j) => {
+                    const newSr = (c.subRows || []).filter((_, k) => k !== j)
+                    const updated = [...actuals.creditors]
+                    updated[i] = recomputeParentFromSubRows({ ...c, subRows: newSr })
+                    setActuals({ ...actuals, creditors: updated })
+                  }
+                  const updateSubRow = (j, patch) => {
+                    const newSr = (c.subRows || []).map((s, k) => k === j ? { ...s, ...patch } : s)
+                    const updated = [...actuals.creditors]
+                    updated[i] = recomputeParentFromSubRows({ ...c, subRows: newSr })
+                    setActuals({ ...actuals, creditors: updated })
+                  }
+                  const mergeSubRows = () => {
+                    const updated = [...actuals.creditors]
+                    updated[i] = { ...c, subRows: [] }
+                    setActuals({ ...actuals, creditors: updated })
+                  }
+
+                  const rows = []
+
+                  // ── Parent row ──
+                  rows.push(
+                    <tr key={`c-${i}`} className={`border-b border-gray-100 ${hasSub ? 'bg-gray-50' : ''}`}>
+                      <td className="td text-left font-semibold text-sm">
+                        {c.creditor}
+                        {hasSub && <span className="ml-1.5 text-xs font-normal text-gray-400">(×{c.subRows.length})</span>}
+                      </td>
+                      <td className="td font-mono text-sm text-gray-500">{fmt(c.originalAmount)}</td>
+                      {hasSub ? (
+                        <>
+                          <td className="td text-center text-sm font-mono text-orange-600">{fmt(c.actualWriteoff)}</td>
+                          <td className="td text-center text-sm font-mono">{fmt(c.actualRemaining)}</td>
+                          <td className="td text-center text-sm font-mono text-blue-800">{fmtDec2(c.actualMonthlyPay)}</td>
+                          <td className="td text-center text-xs text-gray-400" colSpan={3}>βλ. μέρη ↓</td>
+                        </>
+                      ) : (
+                        <>
+                          <td className="td min-w-[120px]"><MoneyCell value={c.actualWriteoff} onChange={(v) => setCreditor({ actualWriteoff: v })} /></td>
+                          <td className="td min-w-[120px]"><MoneyCell value={c.actualRemaining} onChange={(v) => setCreditor({ actualRemaining: v })} /></td>
+                          <td className="td min-w-[110px]"><MoneyCellDec value={c.actualMonthlyPay} onChange={(v) => setCreditor({ actualMonthlyPay: v })} /></td>
+                          <td className="td min-w-[90px]">
+                            <input type="number" min="0" max="600" className="input text-center text-sm" placeholder="0"
+                              value={c.actualMonths || ''}
+                              onChange={(e) => setCreditor({ actualMonths: +e.target.value })} />
+                          </td>
+                          <td className="td min-w-[120px]">
+                            <input type="text" className="input text-sm" placeholder="RF123..."
+                              value={c.rfCode || ''}
+                              onChange={(e) => setCreditor({ rfCode: e.target.value })} />
+                          </td>
+                          <td className="td min-w-[160px]">
+                            <input type="text" className="input text-sm" placeholder="Σημείωση..."
+                              value={c.notes || ''}
+                              onChange={(e) => setCreditor({ notes: e.target.value })} />
+                          </td>
+                        </>
+                      )}
+                      <td className="td text-center">
+                        {hasSub ? (
+                          <button onClick={mergeSubRows} title="Ενοποίηση" className="text-xs text-gray-400 hover:text-gray-600 px-1.5 py-0.5 rounded border border-gray-300 hover:border-gray-400">⊞</button>
+                        ) : (
+                          <button onClick={addSubRow} title="Διαίρεση σε μέρη" className="text-xs text-blue-500 hover:text-blue-700 px-1.5 py-0.5 rounded border border-blue-300 hover:border-blue-500">+</button>
+                        )}
+                      </td>
+                    </tr>
+                  )
+
+                  // ── Sub-rows ──
+                  ;(c.subRows || []).forEach((s, j) => {
+                    rows.push(
+                      <tr key={`c-${i}-s-${j}`} className="border-b border-blue-50 bg-blue-50/40">
+                        <td className="td pl-6 min-w-[130px]">
+                          <div className="flex items-center gap-1 text-xs text-blue-700">
+                            <span className="text-gray-300 mr-0.5">↳</span>
+                            <input type="text" className="input text-xs py-0.5 px-1.5 w-20 font-semibold text-blue-800 bg-white border-blue-200"
+                              value={s.label || ''}
+                              onChange={(e) => updateSubRow(j, { label: e.target.value })} />
+                          </div>
+                        </td>
+                        <td className="td text-center text-xs text-gray-300">—</td>
+                        <td className="td min-w-[120px]"><MoneyCell value={s.actualWriteoff} onChange={(v) => updateSubRow(j, { actualWriteoff: v })} /></td>
+                        <td className="td min-w-[120px]"><MoneyCell value={s.actualRemaining} onChange={(v) => updateSubRow(j, { actualRemaining: v })} /></td>
+                        <td className="td min-w-[110px]"><MoneyCellDec value={s.actualMonthlyPay} onChange={(v) => updateSubRow(j, { actualMonthlyPay: v })} /></td>
+                        <td className="td min-w-[90px]">
+                          <input type="number" min="0" max="600" className="input text-center text-sm" placeholder="0"
+                            value={s.actualMonths || ''}
+                            onChange={(e) => updateSubRow(j, { actualMonths: +e.target.value })} />
+                        </td>
+                        <td className="td min-w-[120px]">
+                          <input type="text" className="input text-sm" placeholder="RF123..."
+                            value={s.rfCode || ''}
+                            onChange={(e) => updateSubRow(j, { rfCode: e.target.value })} />
+                        </td>
+                        <td className="td min-w-[160px]">
+                          <input type="text" className="input text-sm" placeholder="Σημείωση..."
+                            value={s.notes || ''}
+                            onChange={(e) => updateSubRow(j, { notes: e.target.value })} />
+                        </td>
+                        <td className="td text-center">
+                          <button onClick={() => removeSubRow(j)} title="Διαγραφή μέρους" className="text-red-400 hover:text-red-600 font-bold text-sm leading-none">✕</button>
+                        </td>
+                      </tr>
+                    )
+                  })
+
+                  // ── Add sub-row button ──
+                  if (hasSub && c.subRows.length < 3) {
+                    rows.push(
+                      <tr key={`c-${i}-add`} className="border-b border-blue-50">
+                        <td colSpan={9} className="td py-1 pl-8">
+                          <button onClick={addSubRow} className="text-xs text-blue-500 hover:text-blue-700 font-semibold">+ Προσθήκη μέρους</button>
+                        </td>
+                      </tr>
+                    )
+                  }
+
+                  return rows
+                })}
                 {/* Totals row */}
                 <tr className="bg-blue-50 font-bold text-sm border-t-2 border-blue-200">
                   <td className="td text-left">ΣΥΝΟΛΟ</td>
@@ -828,7 +921,7 @@ export default function CaseDetail({ currentEmployee }) {
                   <td className="td font-mono text-orange-600">{fmt(actuals.creditors.reduce((s, c) => s + (c.actualWriteoff || 0), 0))}</td>
                   <td className="td font-mono">{fmt(actuals.creditors.reduce((s, c) => s + (c.actualRemaining || 0), 0))}</td>
                   <td className="td font-mono text-blue-800">{fmtDec2(actuals.creditors.reduce((s, c) => s + (c.actualMonthlyPay || 0), 0))}</td>
-                  <td className="td" colSpan={3}></td>
+                  <td className="td" colSpan={4}></td>
                 </tr>
               </tbody>
             </table>
