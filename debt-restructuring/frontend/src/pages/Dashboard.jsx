@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
 import { format, differenceInDays } from 'date-fns'
 import { el } from 'date-fns/locale'
-import { MagnifyingGlassIcon, PlusIcon, DocumentDuplicateIcon, TrashIcon, EyeIcon, PencilIcon, LinkIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline'
+import { MagnifyingGlassIcon, PlusIcon, DocumentDuplicateIcon, TrashIcon, EyeIcon, PencilIcon, LinkIcon, ExclamationTriangleIcon, RocketLaunchIcon } from '@heroicons/react/24/outline'
 import * as api from '../api'
 import { fmt } from '../utils/calculations'
 
@@ -51,7 +51,6 @@ export default function Dashboard({ currentEmployee }) {
   const [search, setSearch] = useState('')
   const [filterEmployee, setFilterEmployee] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
-  const [showFunnel, setShowFunnel] = useState(false)
 
   const load = async () => {
     setLoading(true)
@@ -100,12 +99,6 @@ export default function Dashboard({ currentEmployee }) {
 
   const attentionCases = cases.filter(needsAttention)
 
-  // Sales funnel counts
-  const funnelCounts = Object.keys(CONTACT_STAGE_CONFIG).reduce((acc, k) => {
-    acc[k] = cases.filter((c) => (c.contact_stage || 'Νέα Ανάλυση') === k).length
-    return acc
-  }, {})
-
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto">
       {/* Header */}
@@ -115,71 +108,32 @@ export default function Dashboard({ currentEmployee }) {
           <p className="text-gray-500 text-sm mt-0.5">{cases.length} υποθέσεις συνολικά</p>
         </div>
         <div className="flex gap-2">
-          <button
-            className="btn-secondary gap-2 text-sm"
-            onClick={() => setShowFunnel((v) => !v)}
+          <Link
+            to="/pipeline"
+            className="btn-secondary gap-2 text-sm flex items-center"
           >
-            📊 {showFunnel ? 'Κρύψε' : 'Pipeline'}
-          </button>
+            <RocketLaunchIcon className="w-4 h-4" /> Pipeline
+          </Link>
           <button className="btn-primary gap-2" onClick={() => navigate('/cases/new')}>
             <PlusIcon className="w-4 h-4" /> Νέα Υπόθεση
           </button>
         </div>
       </div>
 
-      {/* Sales Funnel */}
-      {showFunnel && (
-        <div className="card mb-6">
-          <h2 className="font-bold text-gray-700 mb-3">🏷️ Pipeline Πωλήσεων</h2>
-          <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
-            {Object.entries(CONTACT_STAGE_CONFIG).map(([stage, { cls, icon }]) => (
-              <div key={stage} className={`rounded-xl p-3 text-center ${cls}`}>
-                <div className="text-xl mb-1">{icon}</div>
-                <div className="text-2xl font-black">{funnelCounts[stage] || 0}</div>
-                <div className="text-xs font-semibold mt-1 leading-tight">{stage}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Needs attention */}
+      {/* Follow-up alert — compact, links to Pipeline */}
       {attentionCases.length > 0 && (
-        <div className="bg-amber-50 border-2 border-amber-300 rounded-2xl p-4 mb-6">
-          <div className="flex items-center gap-2 mb-3">
-            <ExclamationTriangleIcon className="w-5 h-5 text-amber-600" />
-            <span className="font-bold text-amber-800">{attentionCases.length} υποθέσεις χρειάζονται follow-up</span>
-          </div>
-          <div className="flex flex-col gap-2">
-            {attentionCases.map((c) => {
-              const stage = CONTACT_STAGE_CONFIG[c.contact_stage] || CONTACT_STAGE_CONFIG['Νέα Ανάλυση']
-              const daysSince = c.last_contacted_at
-                ? differenceInDays(new Date(), new Date(c.last_contacted_at))
-                : null
-              return (
-                <div
-                  key={c.id}
-                  onClick={() => navigate(`/cases/${c.id}`)}
-                  className="flex items-center justify-between bg-white rounded-xl px-4 py-2.5 cursor-pointer hover:shadow-md transition-shadow"
-                >
-                  <div>
-                    <span className="font-semibold text-gray-800">{c.client_name}</span>
-                    {c.client_phone && <span className="text-xs text-gray-400 ml-2">{c.client_phone}</span>}
-                    {c.notes && <span className="text-xs text-gray-500 ml-2 italic">— {c.notes}</span>}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${stage.cls}`}>
-                      {stage.icon} {c.contact_stage || 'Νέα Ανάλυση'}
-                    </span>
-                    <span className="text-xs text-amber-600 font-semibold">
-                      {daysSince === null ? 'Δεν έχει σταλεί' : `${daysSince}ημ. χωρίς επαφή`}
-                    </span>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        </div>
+        <Link
+          to="/pipeline"
+          className="flex items-center gap-3 bg-amber-50 border border-amber-300 rounded-2xl px-4 py-3 mb-6 hover:bg-amber-100 transition-colors group"
+        >
+          <ExclamationTriangleIcon className="w-5 h-5 text-amber-500 shrink-0" />
+          <span className="font-semibold text-amber-800 text-sm">
+            {attentionCases.length} υποθέσεις χρειάζονται follow-up
+          </span>
+          <span className="ml-auto text-xs text-amber-600 group-hover:underline flex items-center gap-1">
+            Άνοιγμα Pipeline <RocketLaunchIcon className="w-3.5 h-3.5" />
+          </span>
+        </Link>
       )}
 
       {/* Quick stats */}
