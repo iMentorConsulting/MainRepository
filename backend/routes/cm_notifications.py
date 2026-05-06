@@ -1,7 +1,11 @@
 import os
 import json
 import base64
+import logging
+import threading
 import requests
+
+logger = logging.getLogger(__name__)
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from fastapi import APIRouter, Depends, HTTPException
@@ -117,16 +121,20 @@ def _chatwoot_log_outbound_viber(phone_normalized: str, message: str = "", conta
                     break
 
         if not contact_id:
-            # Create a minimal contact so we can open a conversation
             phone_e164 = f"+{phone_normalized}" if not phone_normalized.startswith("+") else phone_normalized
             r = requests.post(f"{api}/contacts", json={
                 "name": contact_name or phone_normalized,
                 "phone_number": phone_e164,
             }, headers=headers, timeout=8)
             if r.ok:
-                contact_id = r.json().get("id")
+                body = r.json()
+                # Chatwoot returns the contact directly or nested under "id"
+                contact_id = body.get("id") or (body.get("contact", {}) or {}).get("id")
+            else:
+                logger.warning("Chatwoot create contact failed %s: %s", r.status_code, r.text[:300])
 
         if not contact_id:
+            logger.warning("Chatwoot: could not find or create contact for %s", phone_normalized)
             return
 
         # 2. Find existing conversation in this inbox (any status)
@@ -134,10 +142,11 @@ def _chatwoot_log_outbound_viber(phone_normalized: str, message: str = "", conta
         r = requests.get(f"{api}/contacts/{contact_id}/conversations",
                          headers=headers, timeout=8)
         if r.ok:
-            for conv in r.json().get("payload", []):
-                if conv.get("inbox_id") == inbox_id:
+            payload = r.json().get("payload", [])
+            for conv in payload:
+                # inbox_id may be int or str from the API
+                if str(conv.get("inbox_id")) == str(inbox_id):
                     conv_id = conv["id"]
-                    # Re-open if resolved so the note is visible
                     if conv.get("status") == "resolved":
                         requests.patch(f"{api}/conversations/{conv_id}",
                                        json={"status": "open"},
@@ -152,27 +161,32 @@ def _chatwoot_log_outbound_viber(phone_normalized: str, message: str = "", conta
                 "status": "open",
             }, headers=headers, timeout=8)
             if r.ok:
-                conv_id = r.json().get("id")
+                body = r.json()
+                conv_id = body.get("id")
+            else:
+                logger.warning("Chatwoot create conversation failed %s: %s", r.status_code, r.text[:300])
 
         if not conv_id:
+            logger.warning("Chatwoot: could not find or create conversation for contact %s", contact_id)
             return
 
-        # 4. Log the sent message as a private outbound note (private=true keeps it
-        #    as an internal agent note so Chatwoot won't try to re-send via Viber)
+        # 4. Log the sent message as a private outbound note
         if message:
-            requests.post(f"{api}/conversations/{conv_id}/messages", json={
+            r = requests.post(f"{api}/conversations/{conv_id}/messages", json={
                 "content": message,
                 "message_type": "outgoing",
                 "private": True,
             }, headers=headers, timeout=10)
+            if not r.ok:
+                logger.warning("Chatwoot post message failed %s: %s", r.status_code, r.text[:300])
 
         # 5. Resolve the conversation
         requests.patch(f"{api}/conversations/{conv_id}",
                        json={"status": "resolved"},
                        headers=headers, timeout=8)
 
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.exception("Chatwoot outbound Viber log failed for %s: %s", phone_normalized, exc)
 
 
 def _send_viber(phone: str, message: str, client_name: str = "", agent_name: str = "", service_type: str = "") -> tuple[bool, str]:
@@ -200,7 +214,12 @@ def _send_viber(phone: str, message: str, client_name: str = "", agent_name: str
     try:
         resp = requests.post(f"{bridge_url}/send", json=payload, timeout=10)
         if resp.status_code in (200, 201):
-            _chatwoot_log_outbound_viber(phone, message, client_name)
+            # Run Chatwoot logging in background so bulk sends don't time out
+            threading.Thread(
+                target=_chatwoot_log_outbound_viber,
+                args=(phone, message, client_name),
+                daemon=True,
+            ).start()
             return True, "OK"
         return False, f"Bridge HTTP {resp.status_code} — {resp.text[:500]}"
     except Exception as e:
