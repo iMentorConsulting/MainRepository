@@ -5,7 +5,7 @@ from pydantic import BaseModel
 from typing import Optional, List
 from datetime import datetime, date
 from database import get_db
-from models_cases import CMCase, CMUser, CMTask, CMPayment, CMMessage, CMDocument, CMBudgetCategory, CMStatusSLA, CMNotificationLog
+from models_cases import CMCase, CMUser, CMTask, CMPayment, CMMessage, CMDocument, CMBudgetCategory, CMStatusSLA, CMNotificationLog, CMCasePendingItem
 from sqlalchemy import func as sa_func
 from auth_cases import get_current_user
 from pipelines import TERMINAL_STATUSES
@@ -72,7 +72,8 @@ def _last_note(c: CMCase) -> tuple[str | None, str | None]:
     return preview, at
 
 
-def case_to_dict(c: CMCase, include_related: bool = False, sla_map: dict = None) -> dict:
+def case_to_dict(c: CMCase, include_related: bool = False, sla_map: dict = None,
+                 _pending_texts: list = None, _last_note_data: tuple = None) -> dict:
     agent_name = c.assigned_agent.full_name if c.assigned_agent else None
     total_agreed = (c.agreed_fee_application or 0) + (c.agreed_fee_implementation or 0)
     balance = total_agreed - (c.total_paid or 0)
@@ -133,11 +134,11 @@ def case_to_dict(c: CMCase, include_related: bool = False, sla_map: dict = None)
         "created_at": c.created_at.isoformat() if c.created_at else None,
         "updated_at": c.updated_at.isoformat() if c.updated_at else None,
         "open_tasks": 0,
-        "pending_count": len(c.pending_items) if c.pending_items is not None else 0,
-        "pending_items_text": [pi.item_text for pi in (c.pending_items or [])],
+        "pending_count": len(_pending_texts) if _pending_texts is not None else (len(c.pending_items) if c.pending_items is not None else 0),
+        "pending_items_text": _pending_texts if _pending_texts is not None else [pi.item_text for pi in (c.pending_items or [])],
         "open_task_titles": [],
-        "last_note_preview": (_ln := _last_note(c))[0],
-        "last_note_at": _ln[1],
+        "last_note_preview": _last_note_data[0] if _last_note_data is not None else _last_note(c)[0],
+        "last_note_at": _last_note_data[1] if _last_note_data is not None else _last_note(c)[1],
         "portal_last_visit_at": c.portal_last_visit_at.isoformat() if c.portal_last_visit_at else None,
         "total_msgs_sent": 0,
         "last_msg_at": None,
@@ -239,11 +240,10 @@ def list_cases(
     current_user: CMUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    q = db.query(CMCase).options(
-        joinedload(CMCase.assigned_agent),
-        selectinload(CMCase.messages).joinedload(CMMessage.user),
-        selectinload(CMCase.pending_items),
-    )
+    # Only load the many-to-one assigned_agent via join — no collection loading
+    # here so the main query returns exactly one SQL row per case with no
+    # risk of attribute mixing from cartesian products.
+    q = db.query(CMCase).options(joinedload(CMCase.assigned_agent))
 
     if status:
         q = q.filter(CMCase.status == status)
@@ -283,8 +283,44 @@ def list_cases(
     cases = q.order_by(CMCase.updated_at.desc()).all()
     sla_map = {r.status: r.sla_days for r in db.query(CMStatusSLA).all()}
 
-    # Batch notification stats (count + last date) per case in one query
+    if not cases:
+        return []
+
     case_ids = [c.id for c in cases]
+
+    # --- Batch: pending item texts ---
+    pending_rows = (
+        db.query(CMCasePendingItem)
+        .filter(CMCasePendingItem.case_id.in_(case_ids))
+        .order_by(CMCasePendingItem.sort_order)
+        .all()
+    )
+    pending_by_case: dict = {}
+    for pi in pending_rows:
+        pending_by_case.setdefault(pi.case_id, []).append(pi.item_text)
+
+    # --- Batch: latest message per case (for last_note preview) ---
+    latest_msg_sq = (
+        db.query(
+            CMMessage.case_id,
+            sa_func.max(CMMessage.created_at).label("max_at"),
+        )
+        .filter(CMMessage.case_id.in_(case_ids))
+        .group_by(CMMessage.case_id)
+        .subquery()
+    )
+    latest_msgs = (
+        db.query(CMMessage)
+        .join(
+            latest_msg_sq,
+            (CMMessage.case_id == latest_msg_sq.c.case_id)
+            & (CMMessage.created_at == latest_msg_sq.c.max_at),
+        )
+        .all()
+    )
+    last_msg_by_case: dict = {m.case_id: m for m in latest_msgs}
+
+    # --- Batch: notification stats ---
     notif_stats = (
         db.query(
             CMNotificationLog.case_id,
@@ -294,29 +330,44 @@ def list_cases(
         .filter(CMNotificationLog.case_id.in_(case_ids))
         .group_by(CMNotificationLog.case_id)
         .all()
-    ) if case_ids else []
+    )
     notif_map = {r.case_id: {"total": r.total, "last_at": r.last_at} for r in notif_stats}
 
-    # Batch open tasks per case
-    open_tasks_rows = (
+    # --- Batch: open tasks ---
+    open_task_rows = (
         db.query(CMTask)
         .filter(CMTask.case_id.in_(case_ids), CMTask.status != "done")
         .all()
-    ) if case_ids else []
+    )
     tasks_by_case: dict = {}
-    for t in open_tasks_rows:
+    for t in open_task_rows:
         tasks_by_case.setdefault(t.case_id, []).append(t)
 
     result = []
     for c in cases:
-        d = case_to_dict(c, sla_map=sla_map)
+        pending_texts = pending_by_case.get(c.id, [])
+
+        lm = last_msg_by_case.get(c.id)
+        if lm:
+            text = (lm.content or "").replace("\n", " ")
+            preview = text[:120] + ("…" if len(text) > 120 else "")
+            last_note_data = (preview, lm.created_at.isoformat() if lm.created_at else None)
+        else:
+            last_note_data = (None, None)
+
+        d = case_to_dict(c, sla_map=sla_map,
+                         _pending_texts=pending_texts,
+                         _last_note_data=last_note_data)
+
         ts = tasks_by_case.get(c.id, [])
         d["open_tasks"] = len(ts)
         d["open_task_titles"] = [t.title for t in ts]
+
         ns = notif_map.get(c.id)
         if ns:
             d["total_msgs_sent"] = ns["total"]
             d["last_msg_at"] = ns["last_at"].isoformat() if ns["last_at"] else None
+
         result.append(d)
     return result
 
