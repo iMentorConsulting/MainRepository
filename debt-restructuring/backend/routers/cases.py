@@ -80,11 +80,10 @@ def _chatwoot_send(client_name: str, phone: str, message: str) -> tuple[bool, st
     # 3. Create new conversation
     conv_id = None
     try:
-        r = http_requests.post(
-            f"{base}/contacts/{contact_id}/conversations",
-            json={"inbox_id": int(cw_inbox)},
-            headers=headers, timeout=8,
-        )
+        conv_url = f"{base}/conversations"
+        conv_body = {"inbox_id": int(cw_inbox), "contact_id": contact_id}
+        print(f"[Chatwoot] create_conv POST {conv_url} body={conv_body}")
+        r = http_requests.post(conv_url, json=conv_body, headers=headers, timeout=8)
         print(f"[Chatwoot] create_conv status={r.status_code} body={r.text[:300]}")
         if r.status_code in (200, 201):
             conv_id = r.json().get("id")
