@@ -268,6 +268,15 @@ def _do_import(db: Session) -> dict:
             continue
 
         paid = paid_map.get((r["afm"] or "", r["service_type"] or ""), 0.0)
+        detected_program = _detect_program(r["status"], r["service_type"])
+        # Validate that the sheet status belongs to the detected program.
+        # If not (e.g. ΕΣΠΑ status on a ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ case), fall back to the
+        # first status of the correct pipeline so the case is not imported with
+        # a status that makes no sense for its program category.
+        from pipelines import PIPELINES as _PIPELINES
+        valid_for_program = set(get_all_statuses_for_program(detected_program))
+        if r["status"] not in valid_for_program:
+            r["status"] = _PIPELINES[detected_program]["phases"][0]["statuses"][0]
         case = CMCase(
             client_name=r["client_name"],
             phone=r["phone"],
@@ -277,7 +286,7 @@ def _do_import(db: Session) -> dict:
             sale_date=r["sale_date"],
             service_type=r["service_type"],
             status=r["status"],
-            program_category=_detect_program(r["status"], r["service_type"]),
+            program_category=detected_program,
             approved_budget=r["approved_budget"],
             project_deadline=r["project_deadline"],
             approval_date=r["approval_date"],

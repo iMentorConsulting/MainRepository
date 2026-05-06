@@ -8,7 +8,7 @@ from database import get_db
 from models_cases import CMCase, CMUser, CMTask, CMPayment, CMMessage, CMDocument, CMBudgetCategory, CMStatusSLA, CMNotificationLog, CMCasePendingItem
 from sqlalchemy import func as sa_func
 from auth_cases import get_current_user
-from pipelines import TERMINAL_STATUSES
+from pipelines import TERMINAL_STATUSES, get_all_statuses_for_program
 
 router = APIRouter(prefix="/api/cm/cases", tags=["cm-cases"])
 
@@ -140,6 +140,7 @@ def case_to_dict(c: CMCase, include_related: bool = False, sla_map: dict = None,
         "open_task_titles": [],
         "last_note_preview": _last_note_data[0] if _last_note_data is not None else _last_note(c)[0],
         "last_note_at": _last_note_data[1] if _last_note_data is not None else _last_note(c)[1],
+        "status_mismatch": bool(c.status and c.program_category and c.status not in get_all_statuses_for_program(c.program_category)),
         "portal_last_visit_at": c.portal_last_visit_at.isoformat() if c.portal_last_visit_at else None,
         "total_msgs_sent": 0,
         "last_msg_at": None,

@@ -136,6 +136,7 @@ export default function Cases() {
     hide_completed: true,
     has_pending: false,
     sla_overdue: false,
+    status_mismatch: false,
   })
   const [showNew, setShowNew] = useState(false)
   const navigate = useNavigate()
@@ -144,6 +145,7 @@ export default function Cases() {
     if (filters.hide_completed && FINAL_STATUSES.has(c.status)) return false
     if (filters.has_pending && !(c.pending_count > 0)) return false
     if (filters.sla_overdue && !(c.sla_overdue_days > 0)) return false
+    if (filters.status_mismatch && !c.status_mismatch) return false
     return true
   })
 
@@ -220,6 +222,10 @@ export default function Cases() {
           <input type="checkbox" checked={filters.sla_overdue} onChange={e => setFilters(f => ({ ...f, sla_overdue: e.target.checked }))} className="rounded" />
           SLA Overdue
         </label>
+        <label className="flex items-center gap-2 text-sm text-rose-700 cursor-pointer select-none font-medium">
+          <input type="checkbox" checked={filters.status_mismatch} onChange={e => setFilters(f => ({ ...f, status_mismatch: e.target.checked }))} className="rounded" />
+          ⚠ Λάθος Κατάσταση
+        </label>
       </div>
 
       {loading ? (
@@ -258,7 +264,12 @@ export default function Cases() {
                         <div className="truncate text-xs text-gray-600">{c.service_type || '—'}</div>
                       </td>
                       <td className="px-3 py-3 max-w-[160px]">
-                        <div className="text-xs text-gray-700 truncate font-medium" title={c.status}>{c.status || '—'}</div>
+                        <div className="flex items-center gap-1">
+                          <div className="text-xs text-gray-700 truncate font-medium" title={c.status}>{c.status || '—'}</div>
+                          {c.status_mismatch && (
+                            <span title="Η κατάσταση δεν ανήκει στο πρόγραμμα αυτής της υπόθεσης" className="text-rose-500 text-xs shrink-0">⚠</span>
+                          )}
+                        </div>
                       </td>
                       <td className="px-3 py-3 max-w-[200px]">
                         {(c.pending_items_text || []).length > 0
