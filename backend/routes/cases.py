@@ -73,8 +73,9 @@ def _last_note(c: CMCase) -> tuple[str | None, str | None]:
 
 
 def case_to_dict(c: CMCase, include_related: bool = False, sla_map: dict = None,
-                 _pending_texts: list = None, _last_note_data: tuple = None) -> dict:
-    agent_name = c.assigned_agent.full_name if c.assigned_agent else None
+                 _pending_texts: list = None, _last_note_data: tuple = None,
+                 _agent_name: str = None) -> dict:
+    agent_name = _agent_name if _agent_name is not None else (c.assigned_agent.full_name if c.assigned_agent else None)
     total_agreed = (c.agreed_fee_application or 0) + (c.agreed_fee_implementation or 0)
     balance = total_agreed - (c.total_paid or 0)
 
@@ -240,10 +241,10 @@ def list_cases(
     current_user: CMUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    # Only load the many-to-one assigned_agent via join — no collection loading
-    # here so the main query returns exactly one SQL row per case with no
-    # risk of attribute mixing from cartesian products.
-    q = db.query(CMCase).options(joinedload(CMCase.assigned_agent))
+    # Pure scalar query — no JOINs, no ORM relationship loading at all.
+    # Every row returned is exactly one cm_cases row with no risk of
+    # duplication or attribute mixing from any join.
+    q = db.query(CMCase)
 
     if status:
         q = q.filter(CMCase.status == status)
@@ -287,6 +288,11 @@ def list_cases(
         return []
 
     case_ids = [c.id for c in cases]
+
+    # --- Batch: agent names (avoids any JOIN on the main case query) ---
+    agent_ids = list({c.assigned_agent_id for c in cases if c.assigned_agent_id})
+    agents = db.query(CMUser).filter(CMUser.id.in_(agent_ids)).all() if agent_ids else []
+    agent_map: dict = {a.id: a.full_name for a in agents}
 
     # --- Batch: pending item texts ---
     pending_rows = (
@@ -357,7 +363,8 @@ def list_cases(
 
         d = case_to_dict(c, sla_map=sla_map,
                          _pending_texts=pending_texts,
-                         _last_note_data=last_note_data)
+                         _last_note_data=last_note_data,
+                         _agent_name=agent_map.get(c.assigned_agent_id))
 
         ts = tasks_by_case.get(c.id, [])
         d["open_tasks"] = len(ts)
