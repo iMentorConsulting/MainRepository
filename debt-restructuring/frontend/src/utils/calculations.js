@@ -169,14 +169,14 @@ export function calculateAll(debts, assets, incomeData, params = PARAMS_B) {
       const secured65 = Math.min(0.65 * liq, r.amount)
       recovery.set(r.idx, (recovery.get(r.idx) || 0) + secured65)
       mortResiduals.set(r.idx, Math.max(0, r.amount - secured65))
-      // 10% to general priority; surplus from capped 65% also flows here
+      // 25% to general privilege (γενικά προνόμια — ΚΥΑ 67360 άρθρο 8Γ §2α.αα); surplus from capped 65% also flows here
       const surplus65 = Math.max(0, 0.65 * liq - r.amount)
-      const genPool = 0.10 * liq + surplus65
+      const genPool = 0.25 * liq + surplus65
       if (pubClaimTotal > 0) {
         pubRows.forEach((p) => recovery.set(p.idx, (recovery.get(p.idx) || 0) + genPool * p.amount / pubClaimTotal))
       }
-      // 25% to unsecured pro-rata — includes residual of this mortgage creditor
-      const unsecPool = 0.25 * liq
+      // 10% to unsecured pro-rata — includes residual of this mortgage creditor
+      const unsecPool = 0.10 * liq
       const unsecClaims = [
         ...unsecBankRows.map((u) => ({ idx: u.idx, amount: u.amount })),
         ...(mortResiduals.get(r.idx) > 0 ? [{ idx: r.idx, amount: mortResiduals.get(r.idx) }] : []),
@@ -187,13 +187,13 @@ export function calculateAll(debts, assets, incomeData, params = PARAMS_B) {
       }
     })
 
-    // Step 2: free assets — 2/3 public, 1/3 unsecured (all residuals included)
+    // Step 2: free assets — 70% general privilege, 30% unsecured (ΚΥΑ 67360 άρθρο 8Γ §2β)
     if (freeLiq > 0) {
-      const freeGenPool = (2 / 3) * freeLiq
+      const freeGenPool = 0.70 * freeLiq
       if (pubClaimTotal > 0) {
         pubRows.forEach((r) => recovery.set(r.idx, (recovery.get(r.idx) || 0) + freeGenPool * r.amount / pubClaimTotal))
       }
-      const freeUnsecPool = (1 / 3) * freeLiq
+      const freeUnsecPool = 0.30 * freeLiq
       const freeUnsecClaims = [
         ...unsecBankRows.map((u) => ({ idx: u.idx, amount: u.amount })),
         ...Array.from(mortResiduals.entries()).filter(([, v]) => v > 0).map(([i, v]) => ({ idx: i, amount: v })),
@@ -293,9 +293,9 @@ export function calculateAll(debts, assets, incomeData, params = PARAMS_B) {
         }
       }
 
-      // Free deposits after 5% KE_T1 minimum working capital reserve
-      const freeDeposits = Math.max(0, deposits - ke_t1 * 0.05)
-      // 95% of free deposits spread over 20-year typical duration
+      // ΚΥΑ 7712925/2025: no statutory working capital % — deposits counted at 95% over 20 years
+      const freeDeposits = deposits
+      // 95% of deposits spread over 20-year typical duration
       const annualDeposit = (freeDeposits * params.leDepositRate) / 20
 
       dispAnnual = finalDiath + annualDeposit
@@ -375,14 +375,20 @@ export function calculateAll(debts, assets, incomeData, params = PARAMS_B) {
       totalExpenses = edd * fpRatio + effectiveRent * fpRatio + (incomeData.medicalCost || 0) * fpRatio +
         (incomeData.enfiaCost || 0) + (incomeData.alimonyCost || 0)
 
-      const businessReserve = Math.max(householdExempt, fp_ke_t1 * 0.05)
-      const freeSavings = Math.max(0, (incomeData.savings || 0) - businessReserve)
+      // ΚΥΑ 67360 §9.viii: no KE% reserve for FP — only household exempt (personal accounts)
+      // Business account surplus (above 12m average) not tracked separately → use householdExempt only
+      const freeSavings = Math.max(0, (incomeData.savings || 0) - householdExempt)
       const savingsAdd = freeSavings / 20
 
-      const dispFromY1 = Math.max(0, y1 - totalExpenses) * 0.8 + savingsAdd
-      const sorted3 = [y1, y2, y3].sort((a, b) => b - a)
-      const avg2 = (sorted3[0] + sorted3[1]) / 2
-      const dispFromAvg = Math.max(0, avg2 - totalExpenses) * 0.8 + savingsAdd
+      // Stage 1: KPA from year T
+      const kpa1 = Math.max(0, y1 - totalExpenses) * 0.8
+      const dispFromY1 = kpa1 + savingsAdd
+
+      // Stage 2/3: average of top-2 KPA values (ΚΥΑ 67360 άρθρο 8Α §5.ii.α — sort KPAs not raw incomes)
+      const kpa2 = Math.max(0, y2 - totalExpenses) * 0.8
+      const kpa3 = Math.max(0, y3 - totalExpenses) * 0.8
+      const sortedKpa = [kpa1, kpa2, kpa3].sort((a, b) => b - a)
+      const avg2kpa = (sortedKpa[0] + sortedKpa[1]) / 2
 
       // Turnover floor check on year1 (ΦΕΚ Β' 2896/2021 §7.1/4) — floor hardcoded to 0% per business policy
       const floorPct = 0
@@ -396,11 +402,11 @@ export function calculateAll(debts, assets, incomeData, params = PARAMS_B) {
       }
 
       dispYear1 = disp1
-      dispYear24 = Math.max(disp1, dispFromAvg * 0.65)
-      dispYear5  = Math.max(disp1, dispFromAvg)
+      dispYear24 = Math.max(disp1, avg2kpa * 0.65 + savingsAdd)
+      dispYear5  = Math.max(disp1, avg2kpa + savingsAdd)
       dispAnnual = dispYear1
-      fpDispFromAvg = dispFromAvg
-      fpAvg2Income = avg2
+      fpDispFromAvg = avg2kpa  // KPA average — raw base for Stage 2/3 display (before max & savingsAdd)
+      fpAvg2Income = avg2kpa   // same — shown in info panel
 
     } else {
       // Legacy: single annualIncome (FP cases created before fpSubType field) — backward compat

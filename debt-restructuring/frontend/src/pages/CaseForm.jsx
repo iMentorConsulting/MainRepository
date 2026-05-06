@@ -463,7 +463,7 @@ export default function CaseForm({ currentEmployee }) {
                   </div>
                   {calc.fpAvg2Income > 0 && (
                     <div className="flex justify-between text-xs text-indigo-500 pt-0.5">
-                      <span>Μέσος όρος 2 υψηλότερων ετών (avg2):</span>
+                      <span>avg2_kpa — ΚΠΑ μέσος 2 υψηλ. ετών:</span>
                       <span>{fmt(calc.fpAvg2Income)}/έτος</span>
                     </div>
                   )}
