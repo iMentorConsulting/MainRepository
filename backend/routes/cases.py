@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, joinedload, selectinload
 from sqlalchemy import or_
 from pydantic import BaseModel
 from typing import Optional, List
@@ -237,8 +237,8 @@ def list_cases(
 ):
     q = db.query(CMCase).options(
         joinedload(CMCase.assigned_agent),
-        joinedload(CMCase.messages).joinedload(CMMessage.user),
-        joinedload(CMCase.pending_items),
+        selectinload(CMCase.messages).joinedload(CMMessage.user),
+        selectinload(CMCase.pending_items),
     )
 
     if status:
