@@ -8,9 +8,94 @@ import {
   FunnelIcon,
   ChevronRightIcon,
   BoltIcon,
+  ChatBubbleLeftEllipsisIcon,
 } from '@heroicons/react/24/outline'
 import * as api from '../api'
 import { fmt } from '../utils/calculations'
+
+// ── Viber message templates (no offer block — not in list payload) ──────────
+const VIBER_MSGS = [
+  { type: 'initial',   label: '1η Αποστολή' },
+  { type: 'reminder1', label: 'Υπενθύμιση 1' },
+  { type: 'reminder2', label: 'Υπενθύμιση 2' },
+  { type: 'final',     label: 'Τελευταία' },
+]
+
+function buildViberMessage(type, name, url) {
+  switch (type) {
+    case 'initial':
+      return `Αγαπητέ/ή *${name}*,\n\nΗ ανάλυση των στοιχείων σας στον *Εξωδικαστικό Μηχανισμό Ρύθμισης Οφειλών* ολοκληρώθηκε.\n\nΜπορείτε να δείτε την πλήρη ανάλυσή μας στον παρακάτω σύνδεσμο, χρησιμοποιώντας τον *ΑΦΜ* σας ως κωδικό πρόσβασης:\n\n${url}\n\nΓια οποιαδήποτε ερώτηση είμαστε στη διάθεσή σας.\n\n*i-Mentor Consulting*\nΤ: *2810 363007*`
+    case 'reminder1':
+      return `Αγαπητέ/ή *${name}*,\n\nΣας υπενθυμίζουμε ότι η ανάλυση ρύθμισης οφειλών σας είναι διαθέσιμη.\n\nΠαρακαλούμε επισκεφθείτε τον σύνδεσμο χρησιμοποιώντας τον *ΑΦΜ* σας:\n\n${url}\n\nΕίμαστε στη διάθεσή σας.\n\n*i-Mentor Consulting*\nΤ: *2810 363007*`
+    case 'reminder2':
+      return `Αγαπητέ/ή *${name}*,\n\n*Δεύτερη υπενθύμιση* σχετικά με την ανάλυση ρύθμισης οφειλών σας. Ο Εξωδικαστικός Μηχανισμός έχει αυστηρά χρονικά πλαίσια.\n\nΠαρακαλούμε επισκεφθείτε τον σύνδεσμο ή επικοινωνήστε μαζί μας *άμεσα*:\n\n${url}\n\n*i-Mentor Consulting*\nΤ: *2810 363007*`
+    case 'final':
+      return `Αγαπητέ/ή *${name}*,\n\n*Τελευταία υπενθύμιση.* Η προθεσμία για τον Εξωδικαστικό Μηχανισμό πλησιάζει και η ανάλυσή σας παραμένει αναπάντητη.\n\nΠαρακαλούμε επικοινωνήστε μαζί μας *ΑΜΕΣΑ* ή επισκεφθείτε τον σύνδεσμο:\n\n${url}\n\n*i-Mentor Consulting*\nΤ: *2810 363007*`
+    default: return ''
+  }
+}
+
+function ViberInlineModal({ caseItem, onSend, onClose, sending }) {
+  const url = `${window.location.origin}/preview/${caseItem.share_token}`
+  const [selectedType, setSelectedType] = useState('initial')
+  const [message, setMessage] = useState(() => buildViberMessage('initial', caseItem.client_name, url))
+
+  const selectType = (type) => {
+    setSelectedType(type)
+    setMessage(buildViberMessage(type, caseItem.client_name, url))
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+          <div>
+            <div className="font-black text-purple-700 text-base">📤 Viber — {caseItem.client_name}</div>
+            {caseItem.client_phone && <div className="text-xs text-gray-400 mt-0.5">{caseItem.client_phone}</div>}
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-2xl font-bold leading-none">×</button>
+        </div>
+        <div className="p-5">
+          {/* Message type selector */}
+          <div className="flex gap-2 mb-4">
+            {VIBER_MSGS.map(m => (
+              <button
+                key={m.type}
+                onClick={() => selectType(m.type)}
+                className={`flex-1 text-xs font-semibold py-1.5 rounded-lg border transition-colors ${
+                  selectedType === m.type
+                    ? 'bg-purple-600 text-white border-purple-600'
+                    : 'bg-white text-gray-600 border-gray-200 hover:border-purple-300'
+                }`}
+              >
+                {m.label}
+              </button>
+            ))}
+          </div>
+          <label className="text-xs font-semibold text-gray-500 mb-1 block">
+            Προεπισκόπηση <span className="font-normal text-gray-400">(επεξεργάσιμο)</span>
+          </label>
+          <textarea
+            className="w-full border-2 border-gray-200 rounded-xl p-3 text-sm font-mono leading-relaxed focus:outline-none focus:border-purple-400 resize-none"
+            rows={10}
+            value={message}
+            onChange={e => setMessage(e.target.value)}
+          />
+        </div>
+        <div className="flex gap-2 justify-end px-5 pb-5">
+          <button onClick={onClose} className="btn-secondary text-sm">Ακύρωση</button>
+          <button
+            onClick={() => onSend(caseItem.id, message, selectedType)}
+            disabled={sending}
+            className="flex items-center gap-2 text-sm font-semibold px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white disabled:opacity-50"
+          >
+            {sending ? 'Αποστολή…' : '📤 Αποστολή Viber'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 const EMPLOYEES = ['STELLA', 'VALLIA', 'SOFIA', 'HARIS']
 
@@ -72,6 +157,8 @@ export default function SalesPipeline() {
   const [loading, setLoading] = useState(true)
   const [filterEmployee, setFilterEmployee] = useState('')
   const [updatingId, setUpdatingId] = useState(null)
+  const [viberModal, setViberModal] = useState(null) // caseItem object
+  const [viberSending, setViberSending] = useState(false)
 
   const load = async () => {
     setLoading(true)
@@ -88,6 +175,26 @@ export default function SalesPipeline() {
   }
 
   useEffect(() => { load() }, [filterEmployee])
+
+  const handleViberSend = async (caseId, message, msgType) => {
+    setViberSending(true)
+    try {
+      const res = await api.sendViber(caseId, {
+        message,
+        msg_type: msgType,
+        is_initial: msgType === 'initial',
+        is_reminder: msgType !== 'initial',
+      })
+      setCases(prev => prev.map(c => c.id === caseId ? { ...c, ...res.data } : c))
+      setViberModal(null)
+      toast.success('✅ Μήνυμα εστάλη μέσω Viber!')
+    } catch (err) {
+      const detail = err?.response?.data?.detail || 'Σφάλμα αποστολής Viber'
+      toast.error(detail, { duration: 6000 })
+    } finally {
+      setViberSending(false)
+    }
+  }
 
   const handleStageChange = async (caseId, newStage) => {
     setUpdatingId(caseId)
@@ -284,6 +391,13 @@ export default function SalesPipeline() {
                           >
                             <EyeIcon className="w-4 h-4" />
                           </button>
+                          <button
+                            onClick={() => setViberModal(c)}
+                            className="p-1.5 rounded-lg hover:bg-purple-100 text-purple-600 transition-colors"
+                            title="Αποστολή Viber"
+                          >
+                            <ChatBubbleLeftEllipsisIcon className="w-4 h-4" />
+                          </button>
                           {nextStage && (
                             <button
                               onClick={() => handleStageChange(c.id, nextStage.key)}
@@ -357,6 +471,15 @@ export default function SalesPipeline() {
                             👁 {c.portal_visit_count} επίσκεψη{c.portal_visit_count !== 1 ? 'εις' : ''}
                           </div>
                         )}
+                        <div className="flex justify-end mt-2">
+                          <button
+                            onClick={e => { e.stopPropagation(); setViberModal(c) }}
+                            className="p-1 rounded-lg hover:bg-purple-100 text-purple-500 transition-colors"
+                            title="Αποστολή Viber"
+                          >
+                            <ChatBubbleLeftEllipsisIcon className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </div>
                     )
                   })}
@@ -366,6 +489,16 @@ export default function SalesPipeline() {
           </div>
         )}
       </div>
+
+      {/* ── Viber modal ─────────────────────────────────────────────────── */}
+      {viberModal && (
+        <ViberInlineModal
+          caseItem={viberModal}
+          onSend={handleViberSend}
+          onClose={() => setViberModal(null)}
+          sending={viberSending}
+        />
+      )}
     </div>
   )
 }
