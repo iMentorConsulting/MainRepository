@@ -49,9 +49,12 @@ def _chatwoot_send(client_name: str, phone: str, message: str) -> tuple[bool, st
         )
         print(f"[Chatwoot] search status={r.status_code} body={r.text[:300]}")
         if r.status_code == 200:
-            contacts = r.json().get("payload", {}).get("contacts", [])
+            # payload is a list of contacts directly (not a dict with "contacts" key)
+            payload = r.json().get("payload", [])
+            contacts = payload if isinstance(payload, list) else payload.get("contacts", [])
             if contacts:
                 contact_id = contacts[0]["id"]
+                print(f"[Chatwoot] found existing contact id={contact_id}")
     except Exception as e:
         print(f"[Chatwoot] search exception: {e}")
 
