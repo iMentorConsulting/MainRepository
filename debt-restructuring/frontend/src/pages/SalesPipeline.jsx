@@ -13,7 +13,7 @@ import {
 import * as api from '../api'
 import { fmt } from '../utils/calculations'
 
-// ── Viber message templates (no offer block — not in list payload) ──────────
+// ── Viber helpers ────────────────────────────────────────────────────────────
 const VIBER_MSGS = [
   { type: 'initial',   label: '1η Αποστολή' },
   { type: 'reminder1', label: 'Υπενθύμιση 1' },
@@ -21,29 +21,43 @@ const VIBER_MSGS = [
   { type: 'final',     label: 'Τελευταία' },
 ]
 
-function buildViberMessage(type, name, url) {
+const IBANS_TEXT = `\n\n🏦 *Τραπεζικοί Λογαριασμοί:*\nΠειραιώς: GR45 0171 4330 0064 3316 4381 388\nEurobank: GR58 0260 1680 0000 6020 1330 648\nAlpha Bank: GR24 0140 7750 7750 0233 0002 138\nΔικαιούχος: *I MENTOR IKE*`
+
+function buildOfferBlock(offer) {
+  if (!offer || (!offer.application_fee && !offer.success_fee)) return ''
+  const lines = ['\n\n💼 *Οικονομική Προσφορά:*']
+  if (offer.application_fee) lines.push(`• Αίτηση & Διαδικασία: *${Number(offer.application_fee).toLocaleString('el-GR')}€* + ΦΠΑ`)
+  if (offer.success_fee)     lines.push(`• Success Fee (αποδοχή): *${Number(offer.success_fee).toLocaleString('el-GR')}€* + ΦΠΑ`)
+  return lines.join('\n')
+}
+
+function buildViberMessage(type, name, url, offer = null, includeOffer = false) {
+  const offerSection = includeOffer ? buildOfferBlock(offer) + IBANS_TEXT : ''
   switch (type) {
     case 'initial':
-      return `Αγαπητέ/ή *${name}*,\n\nΗ ανάλυση των στοιχείων σας στον *Εξωδικαστικό Μηχανισμό Ρύθμισης Οφειλών* ολοκληρώθηκε.\n\nΜπορείτε να δείτε την πλήρη ανάλυσή μας στον παρακάτω σύνδεσμο, χρησιμοποιώντας τον *ΑΦΜ* σας ως κωδικό πρόσβασης:\n\n${url}\n\nΓια οποιαδήποτε ερώτηση είμαστε στη διάθεσή σας.\n\n*i-Mentor Consulting*\nΤ: *2810 363007*`
+      return `Αγαπητέ/ή *${name}*,\n\nΗ ανάλυση των στοιχείων σας στον *Εξωδικαστικό Μηχανισμό Ρύθμισης Οφειλών* ολοκληρώθηκε.\n\nΜπορείτε να δείτε την πλήρη ανάλυσή μας στον παρακάτω σύνδεσμο, χρησιμοποιώντας τον *ΑΦΜ* σας ως κωδικό πρόσβασης:\n\n${url}${offerSection}\n\nΓια οποιαδήποτε ερώτηση είμαστε στη διάθεσή σας.\n\n*i-Mentor Consulting*\nΤ: *2810 363007*`
     case 'reminder1':
-      return `Αγαπητέ/ή *${name}*,\n\nΣας υπενθυμίζουμε ότι η ανάλυση ρύθμισης οφειλών σας είναι διαθέσιμη.\n\nΠαρακαλούμε επισκεφθείτε τον σύνδεσμο χρησιμοποιώντας τον *ΑΦΜ* σας:\n\n${url}\n\nΕίμαστε στη διάθεσή σας.\n\n*i-Mentor Consulting*\nΤ: *2810 363007*`
+      return `Αγαπητέ/ή *${name}*,\n\nΣας υπενθυμίζουμε ότι η ανάλυση ρύθμισης οφειλών σας είναι διαθέσιμη.\n\nΠαρακαλούμε επισκεφθείτε τον σύνδεσμο χρησιμοποιώντας τον *ΑΦΜ* σας:\n\n${url}${offerSection}\n\nΕίμαστε στη διάθεσή σας.\n\n*i-Mentor Consulting*\nΤ: *2810 363007*`
     case 'reminder2':
-      return `Αγαπητέ/ή *${name}*,\n\n*Δεύτερη υπενθύμιση* σχετικά με την ανάλυση ρύθμισης οφειλών σας. Ο Εξωδικαστικός Μηχανισμός έχει αυστηρά χρονικά πλαίσια.\n\nΠαρακαλούμε επισκεφθείτε τον σύνδεσμο ή επικοινωνήστε μαζί μας *άμεσα*:\n\n${url}\n\n*i-Mentor Consulting*\nΤ: *2810 363007*`
+      return `Αγαπητέ/ή *${name}*,\n\n*Δεύτερη υπενθύμιση* σχετικά με την ανάλυση ρύθμισης οφειλών σας. Ο Εξωδικαστικός Μηχανισμός έχει αυστηρά χρονικά πλαίσια.\n\nΠαρακαλούμε επισκεφθείτε τον σύνδεσμο ή επικοινωνήστε μαζί μας *άμεσα*:\n\n${url}${offerSection}\n\n*i-Mentor Consulting*\nΤ: *2810 363007*`
     case 'final':
-      return `Αγαπητέ/ή *${name}*,\n\n*Τελευταία υπενθύμιση.* Η προθεσμία για τον Εξωδικαστικό Μηχανισμό πλησιάζει και η ανάλυσή σας παραμένει αναπάντητη.\n\nΠαρακαλούμε επικοινωνήστε μαζί μας *ΑΜΕΣΑ* ή επισκεφθείτε τον σύνδεσμο:\n\n${url}\n\n*i-Mentor Consulting*\nΤ: *2810 363007*`
+      return `Αγαπητέ/ή *${name}*,\n\n*Τελευταία υπενθύμιση.* Η προθεσμία για τον Εξωδικαστικό Μηχανισμό πλησιάζει και η ανάλυσή σας παραμένει αναπάντητη.\n\nΠαρακαλούμε επικοινωνήστε μαζί μας *ΑΜΕΣΑ* ή επισκεφθείτε τον σύνδεσμο:\n\n${url}${offerSection}\n\n*i-Mentor Consulting*\nΤ: *2810 363007*`
     default: return ''
   }
 }
 
 function ViberInlineModal({ caseItem, onSend, onClose, sending }) {
   const url = `${window.location.origin}/preview/${caseItem.share_token}`
+  const hasOffer = !!(caseItem.commercial_offer?.application_fee || caseItem.commercial_offer?.success_fee)
   const [selectedType, setSelectedType] = useState('initial')
-  const [message, setMessage] = useState(() => buildViberMessage('initial', caseItem.client_name, url))
+  const [includeOffer, setIncludeOffer] = useState(false)
+  const [message, setMessage] = useState(() => buildViberMessage('initial', caseItem.client_name, url, null, false))
 
-  const selectType = (type) => {
-    setSelectedType(type)
-    setMessage(buildViberMessage(type, caseItem.client_name, url))
-  }
+  const rebuild = (type, withOffer) =>
+    setMessage(buildViberMessage(type, caseItem.client_name, url, caseItem.commercial_offer, withOffer))
+
+  const selectType = (type) => { setSelectedType(type); rebuild(type, includeOffer) }
+  const toggleOffer = (checked) => { setIncludeOffer(checked); rebuild(selectedType, checked) }
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={onClose}>
@@ -56,7 +70,7 @@ function ViberInlineModal({ caseItem, onSend, onClose, sending }) {
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-2xl font-bold leading-none">×</button>
         </div>
         <div className="p-5">
-          {/* Message type selector */}
+          {/* Message type tabs */}
           <div className="flex gap-2 mb-4">
             {VIBER_MSGS.map(m => (
               <button
@@ -81,6 +95,20 @@ function ViberInlineModal({ caseItem, onSend, onClose, sending }) {
             value={message}
             onChange={e => setMessage(e.target.value)}
           />
+          {/* Offer toggle — shown always; greyed out if no offer data */}
+          <label className={`flex items-center gap-2 mt-3 cursor-pointer select-none ${!hasOffer ? 'opacity-40' : ''}`}>
+            <input
+              type="checkbox"
+              className="w-4 h-4 accent-purple-600"
+              checked={includeOffer}
+              disabled={!hasOffer}
+              onChange={e => toggleOffer(e.target.checked)}
+            />
+            <span className="text-sm font-semibold text-gray-700">
+              Συμπερίληψη Οικονομικής Προσφοράς & IBAN
+            </span>
+            {!hasOffer && <span className="text-xs text-gray-400">(δεν έχει συμπληρωθεί)</span>}
+          </label>
         </div>
         <div className="flex gap-2 justify-end px-5 pb-5">
           <button onClick={onClose} className="btn-secondary text-sm">Ακύρωση</button>
@@ -213,12 +241,13 @@ export default function SalesPipeline() {
   const kpis = useMemo(() => {
     const active    = cases.filter(c => !TERMINAL.has(c.contact_stage || 'Νέα Ανάλυση'))
     const followUp  = cases.filter(needsAttention)
+    const stale     = cases.filter(c => !TERMINAL.has(c.contact_stage || 'Νέα Ανάλυση') && (daysSince(c) ?? 0) >= 7)
     const hot       = cases.filter(c => ['Θετική Ανταπόκριση', 'Σε Διαπραγμάτευση'].includes(c.contact_stage))
     const closed    = cases.filter(c => c.contact_stage === 'Έκλεισε')
     const nonNew    = cases.filter(c => (c.contact_stage || 'Νέα Ανάλυση') !== 'Νέα Ανάλυση')
     const convRate  = nonNew.length > 0 ? Math.round((closed.length / nonNew.length) * 100) : 0
     const totalDebt = active.reduce((s, c) => s + (c.estimates?.sumDebt || 0), 0)
-    return { active: active.length, followUp: followUp.length, hot: hot.length, closed: closed.length, convRate, totalDebt }
+    return { active: active.length, followUp: followUp.length, stale: stale.length, hot: hot.length, closed: closed.length, convRate, totalDebt }
   }, [cases])
 
   // ── Funnel distribution ───────────────────────────────────────────────────
@@ -274,7 +303,7 @@ export default function SalesPipeline() {
       </div>
 
       {/* ── KPI Bar ─────────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-6 gap-3 mb-6">
         <div className="card text-center">
           <div className="text-3xl font-black text-blue-800">{kpis.active}</div>
           <div className="text-xs text-gray-500 mt-1 font-medium">Ενεργές υποθέσεις</div>
@@ -283,7 +312,13 @@ export default function SalesPipeline() {
           <div className={`text-3xl font-black ${kpis.followUp > 0 ? 'text-amber-600' : 'text-gray-400'}`}>
             {kpis.followUp}
           </div>
-          <div className="text-xs text-gray-500 mt-1 font-medium">⚡ Χρειάζονται follow-up</div>
+          <div className="text-xs text-gray-500 mt-1 font-medium">⚡ Follow-up needed</div>
+        </div>
+        <div className={`card text-center ${kpis.stale > 0 ? 'ring-2 ring-red-300 bg-red-50' : ''}`}>
+          <div className={`text-3xl font-black ${kpis.stale > 0 ? 'text-red-600' : 'text-gray-400'}`}>
+            {kpis.stale}
+          </div>
+          <div className="text-xs text-gray-500 mt-1 font-medium">🔴 Άνω των 7 ημερών</div>
         </div>
         <div className="card text-center">
           <div className="text-3xl font-black text-green-700">{kpis.hot}</div>

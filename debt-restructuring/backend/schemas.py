@@ -98,6 +98,7 @@ class CaseListItem(BaseModel):
     last_contacted_at: Optional[datetime] = None
     reminder_count: int = 0
     portal_visit_count: int = 0
+    commercial_offer: Optional[dict] = None
     created_at: datetime
     updated_at: datetime
     submitted_at: Optional[datetime]
