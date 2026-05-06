@@ -22,19 +22,22 @@ class ViberSendRequest(BaseModel):
     is_reminder: bool = False
 
 
-def _chatwoot_send(client_name: str, phone: str, message: str) -> bool:
+def _chatwoot_send(client_name: str, phone: str, message: str) -> tuple[bool, str]:
     """Create/find contact in Chatwoot, open conversation, post outgoing message.
-    Returns True on success, False if Chatwoot not configured or call fails."""
+    Returns (True, "") on success, (False, reason) on failure."""
     cw_url = os.getenv("CHATWOOT_URL", "").rstrip("/")
     cw_token = os.getenv("CHATWOOT_API_TOKEN", "")
     cw_account = os.getenv("CHATWOOT_ACCOUNT_ID", "")
     cw_inbox = os.getenv("CHATWOOT_INBOX_ID", "")
 
     if not all([cw_url, cw_token, cw_account, cw_inbox]):
-        return False
+        missing = [k for k, v in {"CHATWOOT_URL": cw_url, "CHATWOOT_API_TOKEN": cw_token,
+                                   "CHATWOOT_ACCOUNT_ID": cw_account, "CHATWOOT_INBOX_ID": cw_inbox}.items() if not v]
+        return False, f"Λείπουν env vars: {', '.join(missing)}"
 
     headers = {"api_access_token": cw_token, "Content-Type": "application/json"}
     base = f"{cw_url}/api/v1/accounts/{cw_account}"
+    print(f"[Chatwoot] base={base} inbox={cw_inbox} phone={phone}")
 
     # 1. Search for existing contact by phone
     contact_id = None
@@ -44,12 +47,13 @@ def _chatwoot_send(client_name: str, phone: str, message: str) -> bool:
             params={"q": phone, "include_contacts": "true"},
             headers=headers, timeout=8,
         )
+        print(f"[Chatwoot] search status={r.status_code} body={r.text[:300]}")
         if r.status_code == 200:
             contacts = r.json().get("payload", {}).get("contacts", [])
             if contacts:
                 contact_id = contacts[0]["id"]
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"[Chatwoot] search exception: {e}")
 
     # 2. Create contact if not found
     if not contact_id:
@@ -59,15 +63,18 @@ def _chatwoot_send(client_name: str, phone: str, message: str) -> bool:
                 json={"name": client_name, "phone_number": phone},
                 headers=headers, timeout=8,
             )
+            print(f"[Chatwoot] create_contact status={r.status_code} body={r.text[:300]}")
             if r.status_code in (200, 201):
                 contact_id = r.json().get("id")
-        except Exception:
-            return False
+            else:
+                return False, f"create_contact HTTP {r.status_code}: {r.text[:200]}"
+        except Exception as e:
+            return False, f"create_contact exception: {e}"
 
     if not contact_id:
-        return False
+        return False, "Αδυναμία δημιουργίας/εύρεσης contact"
 
-    # 3. Create new conversation (one per send — keeps history clean)
+    # 3. Create new conversation
     conv_id = None
     try:
         r = http_requests.post(
@@ -75,13 +82,16 @@ def _chatwoot_send(client_name: str, phone: str, message: str) -> bool:
             json={"inbox_id": int(cw_inbox)},
             headers=headers, timeout=8,
         )
+        print(f"[Chatwoot] create_conv status={r.status_code} body={r.text[:300]}")
         if r.status_code in (200, 201):
             conv_id = r.json().get("id")
-    except Exception:
-        return False
+        else:
+            return False, f"create_conv HTTP {r.status_code}: {r.text[:200]}"
+    except Exception as e:
+        return False, f"create_conv exception: {e}"
 
     if not conv_id:
-        return False
+        return False, "Αδυναμία δημιουργίας conversation"
 
     # 4. Post outgoing message
     try:
@@ -90,9 +100,12 @@ def _chatwoot_send(client_name: str, phone: str, message: str) -> bool:
             json={"content": message, "message_type": "outgoing", "private": False},
             headers=headers, timeout=8,
         )
-        return r.status_code in (200, 201)
-    except Exception:
-        return False
+        print(f"[Chatwoot] send_msg status={r.status_code} body={r.text[:300]}")
+        if r.status_code in (200, 201):
+            return True, ""
+        return False, f"send_msg HTTP {r.status_code}: {r.text[:200]}"
+    except Exception as e:
+        return False, f"send_msg exception: {e}"
 
 
 @router.get("/", response_model=List[CaseListItem])
@@ -214,7 +227,7 @@ def send_viber_message(id: int, data: ViberSendRequest, db: Session = Depends(ge
             phone = "+30" + phone
 
     # Try Chatwoot first (creates contact + conversation + delivers via Viber inbox)
-    chatwoot_ok = _chatwoot_send(case.client_name, phone, data.message)
+    chatwoot_ok, chatwoot_err = _chatwoot_send(case.client_name, phone, data.message)
 
     # Legacy bridge fallback — only if Chatwoot not configured
     if not chatwoot_ok:
@@ -222,7 +235,7 @@ def send_viber_message(id: int, data: ViberSendRequest, db: Session = Depends(ge
         if not bridge_url:
             raise HTTPException(
                 status_code=503,
-                detail="Δεν έχει ρυθμιστεί υπηρεσία αποστολής (CHATWOOT_URL ή BRIDGE_URL)"
+                detail=f"Chatwoot: {chatwoot_err}" if chatwoot_err else "Δεν έχει ρυθμιστεί υπηρεσία αποστολής"
             )
         try:
             resp = http_requests.post(
