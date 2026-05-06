@@ -140,7 +140,7 @@ PIPELINES = {
         "phases": [
             {
                 "id": "ΠΡΟΕΤΟΙΜΑΣΙΑ",
-                "label": "Προετοιμασία",
+                "label": "Προετοιμασία Φακέλου",
                 "color": "blue",
                 "statuses": [
                     "ΠΛΗΡΩΜΗ 150€",
@@ -153,7 +153,7 @@ PIPELINES = {
             },
             {
                 "id": "ΥΠΟΒΟΛΗ_HDB",
-                "label": "Υποβολή HDB",
+                "label": "Υποβολή HDB / Αποδοχή από Ταμεία",
                 "color": "yellow",
                 "statuses": [
                     "ΥΠΟΒΟΛΗ BUSINESS PLAN ΣΤΗΝ HDB",
@@ -164,7 +164,7 @@ PIPELINES = {
             },
             {
                 "id": "ΔΙΚΑΙΟΛΟΓΗΤΙΚΑ",
-                "label": "Δικαιολογητικά",
+                "label": "Δικαιολογητικά για Ταμεία",
                 "color": "orange",
                 "statuses": [
                     "OPSKE / ESG",
@@ -176,7 +176,7 @@ PIPELINES = {
             },
             {
                 "id": "ΑΞΙΟΛΟΓΗΣΗ",
-                "label": "Αξιολόγηση / Έγκριση",
+                "label": "Τελική Αξιολόγηση / Εκταμίευση",
                 "color": "purple",
                 "statuses": [
                     "ΥΠΟ ΑΞΙΟΛΟΓΗΣΗ",
