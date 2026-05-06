@@ -5,7 +5,8 @@ from pydantic import BaseModel
 from typing import Optional, List
 from datetime import datetime, date
 from database import get_db
-from models_cases import CMCase, CMUser, CMTask, CMPayment, CMMessage, CMDocument, CMBudgetCategory, CMStatusSLA
+from models_cases import CMCase, CMUser, CMTask, CMPayment, CMMessage, CMDocument, CMBudgetCategory, CMStatusSLA, CMNotificationLog
+from sqlalchemy import func as sa_func
 from auth_cases import get_current_user
 from pipelines import TERMINAL_STATUSES
 
@@ -137,6 +138,9 @@ def case_to_dict(c: CMCase, include_related: bool = False, sla_map: dict = None)
         "open_task_titles": [],
         "last_note_preview": (_ln := _last_note(c))[0],
         "last_note_at": _ln[1],
+        "portal_last_visit_at": c.portal_last_visit_at.isoformat() if c.portal_last_visit_at else None,
+        "total_msgs_sent": 0,
+        "last_msg_at": None,
     }
 
     if include_related:
@@ -278,14 +282,41 @@ def list_cases(
 
     cases = q.order_by(CMCase.updated_at.desc()).all()
     sla_map = {r.status: r.sla_days for r in db.query(CMStatusSLA).all()}
+
+    # Batch notification stats (count + last date) per case in one query
+    case_ids = [c.id for c in cases]
+    notif_stats = (
+        db.query(
+            CMNotificationLog.case_id,
+            sa_func.count(CMNotificationLog.id).label("total"),
+            sa_func.max(CMNotificationLog.created_at).label("last_at"),
+        )
+        .filter(CMNotificationLog.case_id.in_(case_ids))
+        .group_by(CMNotificationLog.case_id)
+        .all()
+    ) if case_ids else []
+    notif_map = {r.case_id: {"total": r.total, "last_at": r.last_at} for r in notif_stats}
+
+    # Batch open tasks per case
+    open_tasks_rows = (
+        db.query(CMTask)
+        .filter(CMTask.case_id.in_(case_ids), CMTask.status != "done")
+        .all()
+    ) if case_ids else []
+    tasks_by_case: dict = {}
+    for t in open_tasks_rows:
+        tasks_by_case.setdefault(t.case_id, []).append(t)
+
     result = []
     for c in cases:
         d = case_to_dict(c, sla_map=sla_map)
-        open_task_rows = db.query(CMTask).filter(
-            CMTask.case_id == c.id, CMTask.status != "done"
-        ).all()
-        d["open_tasks"] = len(open_task_rows)
-        d["open_task_titles"] = [t.title for t in open_task_rows]
+        ts = tasks_by_case.get(c.id, [])
+        d["open_tasks"] = len(ts)
+        d["open_task_titles"] = [t.title for t in ts]
+        ns = notif_map.get(c.id)
+        if ns:
+            d["total_msgs_sent"] = ns["total"]
+            d["last_msg_at"] = ns["last_at"].isoformat() if ns["last_at"] else None
         result.append(d)
     return result
 

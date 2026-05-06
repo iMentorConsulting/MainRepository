@@ -36,12 +36,18 @@ const PORTAL_OPTIONS = [
   { value: 'inactive', label: 'Ανενεργό / Χωρίς πύλη' },
 ]
 
+const fmtDt = (iso) =>
+  iso ? new Date(iso).toLocaleString('el-GR', { dateStyle: 'short', timeStyle: 'short' }) : null
+
 export default function PortalBroadcastPage() {
   const [cases, setCases] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [filterProgram, setFilterProgram] = useState('')
   const [filterPortal, setFilterPortal] = useState('')
+  const [filterStatus, setFilterStatus] = useState('')
+  const [sortCol, setSortCol] = useState('client_name')
+  const [sortDir, setSortDir] = useState('asc')
   const [selected, setSelected] = useState(new Set())
   const [template, setTemplate] = useState(DEFAULT_TEMPLATE)
   const [showTemplate, setShowTemplate] = useState(false)
@@ -58,15 +64,37 @@ export default function PortalBroadcastPage() {
       .finally(() => setLoading(false))
   }, [])
 
+  const allStatuses = useMemo(() => {
+    const s = new Set(cases.map(c => c.status).filter(Boolean))
+    return [...s].sort()
+  }, [cases])
+
   const filtered = useMemo(() => {
-    return cases.filter(c => {
+    const arr = cases.filter(c => {
       if (search && !c.client_name?.toLowerCase().includes(search.toLowerCase())) return false
       if (filterProgram && c.program_category !== filterProgram) return false
       if (filterPortal === 'active' && !c.portal_active) return false
       if (filterPortal === 'inactive' && c.portal_active) return false
+      if (filterStatus && c.status !== filterStatus) return false
       return true
     })
-  }, [cases, search, filterProgram, filterPortal])
+    return [...arr].sort((a, b) => {
+      const va = a[sortCol]
+      const vb = b[sortCol]
+      if (va == null && vb == null) return 0
+      if (va == null) return sortDir === 'asc' ? 1 : -1
+      if (vb == null) return sortDir === 'asc' ? -1 : 1
+      const cmp = typeof va === 'string' ? va.localeCompare(vb, 'el') : va < vb ? -1 : va > vb ? 1 : 0
+      return sortDir === 'asc' ? cmp : -cmp
+    })
+  }, [cases, search, filterProgram, filterPortal, filterStatus, sortCol, sortDir])
+
+  const toggleSort = (col) => {
+    if (sortCol === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setSortCol(col); setSortDir('asc') }
+  }
+
+  const sortIcon = (col) => sortCol === col ? (sortDir === 'asc' ? '↑' : '↓') : '↕'
 
   const allSelected = filtered.length > 0 && filtered.every(c => selected.has(c.id))
   const someSelected = filtered.some(c => selected.has(c.id))
@@ -280,6 +308,14 @@ export default function PortalBroadcastPage() {
         >
           {PORTAL_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
+        <select
+          value={filterStatus}
+          onChange={e => setFilterStatus(e.target.value)}
+          className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-[#1e3a5f] focus:border-transparent max-w-[220px]"
+        >
+          <option value="">Όλες οι Καταστάσεις</option>
+          {allStatuses.map(s => <option key={s} value={s}>{s}</option>)}
+        </select>
         <div className="text-sm text-gray-500 self-center ml-auto">
           {filtered.length} εγγραφές · {selectedCount} επιλεγμένοι
         </div>
@@ -300,18 +336,29 @@ export default function PortalBroadcastPage() {
                     className="w-4 h-4 rounded border-gray-300 text-[#1e3a5f] focus:ring-[#1e3a5f]"
                   />
                 </th>
-                <th className="px-4 py-3 text-left font-semibold text-gray-600">Πελάτης</th>
-                <th className="px-4 py-3 text-left font-semibold text-gray-600">Πρόγραμμα</th>
-                <th className="px-4 py-3 text-left font-semibold text-gray-600">Κατάσταση</th>
-                <th className="px-4 py-3 text-left font-semibold text-gray-600">
-                  <PhoneIcon className="w-4 h-4 inline mr-1" />Τηλέφωνο
-                </th>
-                <th className="px-4 py-3 text-center font-semibold text-gray-600">Πύλη</th>
+                {[
+                  { label: 'Πελάτης', key: 'client_name' },
+                  { label: 'Πρόγραμμα', key: 'program_category' },
+                  { label: 'Κατάσταση', key: 'status' },
+                  { label: 'Τηλέφωνο', key: 'phone' },
+                  { label: 'Πύλη', key: 'portal_active' },
+                  { label: 'Τελευταίο Άνοιγμα', key: 'portal_last_visit_at' },
+                  { label: 'Σύνολο Ανοιγμάτων', key: 'portal_visit_count' },
+                  { label: 'Τελευταίο Μήνυμα', key: 'last_msg_at' },
+                  { label: 'Σύνολο Μηνυμάτων', key: 'total_msgs_sent' },
+                ].map(({ label, key }) => (
+                  <th key={key} className="px-4 py-3 text-left font-semibold text-gray-600 whitespace-nowrap text-xs">
+                    <button onClick={() => toggleSort(key)} className="flex items-center gap-1 hover:text-gray-900 transition-colors">
+                      {label}
+                      <span className="text-[10px] text-gray-400">{sortIcon(key)}</span>
+                    </button>
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
               {filtered.length === 0 && (
-                <tr><td colSpan={6} className="text-center py-12 text-gray-400">Δεν βρέθηκαν εγγραφές</td></tr>
+                <tr><td colSpan={10} className="text-center py-12 text-gray-400">Δεν βρέθηκαν εγγραφές</td></tr>
               )}
               {filtered.map(c => (
                 <tr
@@ -328,7 +375,7 @@ export default function PortalBroadcastPage() {
                     />
                   </td>
                   <td className="px-4 py-3">
-                    <div className="font-medium text-gray-800">{c.client_name}</div>
+                    <div className="font-medium text-gray-800 text-sm">{c.client_name}</div>
                     {c.service_type && <div className="text-xs text-gray-400 mt-0.5">{c.service_type}</div>}
                   </td>
                   <td className="px-4 py-3">
@@ -345,11 +392,27 @@ export default function PortalBroadcastPage() {
                       : <span className="text-red-400 text-xs">— χωρίς τηλ.</span>
                     }
                   </td>
-                  <td className="px-4 py-3 text-center">
+                  <td className="px-4 py-3">
                     {c.portal_active
                       ? <span className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-50 border border-green-200 px-2 py-0.5 rounded-full"><CheckCircleIcon className="w-3.5 h-3.5" />Ενεργό</span>
                       : <span className="inline-flex items-center gap-1 text-xs text-gray-500 bg-gray-50 border border-gray-200 px-2 py-0.5 rounded-full">Ανενεργό</span>
                     }
+                  </td>
+                  <td className="px-4 py-3 text-xs text-gray-600 whitespace-nowrap">
+                    {fmtDt(c.portal_last_visit_at) || <span className="text-gray-300">—</span>}
+                  </td>
+                  <td className="px-4 py-3 text-center">
+                    {c.portal_visit_count > 0
+                      ? <span className="text-xs font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full">{c.portal_visit_count}</span>
+                      : <span className="text-gray-300 text-xs">0</span>}
+                  </td>
+                  <td className="px-4 py-3 text-xs text-gray-600 whitespace-nowrap">
+                    {fmtDt(c.last_msg_at) || <span className="text-gray-300">—</span>}
+                  </td>
+                  <td className="px-4 py-3 text-center">
+                    {c.total_msgs_sent > 0
+                      ? <span className="text-xs font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded-full">{c.total_msgs_sent}</span>
+                      : <span className="text-gray-300 text-xs">0</span>}
                   </td>
                 </tr>
               ))}
