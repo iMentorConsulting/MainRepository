@@ -88,8 +88,10 @@ def _send_email(to_email: str, subject: str, body: str) -> tuple[bool, str]:
         return False, str(e)
 
 
-def _chatwoot_resolve_viber(phone_normalized: str) -> None:
-    """After bridge logs the outbound Viber message to Chatwoot, resolve the open conversation."""
+def _chatwoot_log_outbound_viber(phone_normalized: str, message: str = "", contact_name: str = "") -> None:
+    """Find-or-create a Chatwoot contact+conversation for the Viber inbox,
+    post the sent message as an outbound note so agents can see it, then
+    resolve the conversation.  Never raises — all errors are silently ignored."""
     base = os.getenv("CHATWOOT_URL", "https://chat.i-mentor.gr").rstrip("/")
     token = os.getenv("CHATWOOT_API_TOKEN", "")
     account_id = os.getenv("CHATWOOT_ACCOUNT_ID", "1")
@@ -98,30 +100,77 @@ def _chatwoot_resolve_viber(phone_normalized: str) -> None:
     if not token:
         return
 
-    headers = {"api_access_token": token}
+    headers = {"api_access_token": token, "Content-Type": "application/json"}
     api = f"{base}/api/v1/accounts/{account_id}"
 
     try:
-        # Search by identifier (no +) first, then with +
+        # 1. Find or create contact
         contact_id = None
         for q in [phone_normalized, f"+{phone_normalized}"]:
-            r = requests.get(f"{api}/contacts/search", params={"q": q, "include_contacts": "true"}, headers=headers, timeout=8)
+            r = requests.get(f"{api}/contacts/search",
+                             params={"q": q, "include_contacts": "true"},
+                             headers=headers, timeout=8)
             if r.ok:
-                contacts = r.json().get("payload", {}).get("contacts", [])
-                if contacts:
-                    contact_id = contacts[0]["id"]
+                hits = r.json().get("payload", {}).get("contacts", [])
+                if hits:
+                    contact_id = hits[0]["id"]
                     break
+
+        if not contact_id:
+            # Create a minimal contact so we can open a conversation
+            phone_e164 = f"+{phone_normalized}" if not phone_normalized.startswith("+") else phone_normalized
+            r = requests.post(f"{api}/contacts", json={
+                "name": contact_name or phone_normalized,
+                "phone_number": phone_e164,
+            }, headers=headers, timeout=8)
+            if r.ok:
+                contact_id = r.json().get("id")
 
         if not contact_id:
             return
 
-        r = requests.get(f"{api}/contacts/{contact_id}/conversations", headers=headers, timeout=8)
-        if not r.ok:
+        # 2. Find existing conversation in this inbox (any status)
+        conv_id = None
+        r = requests.get(f"{api}/contacts/{contact_id}/conversations",
+                         headers=headers, timeout=8)
+        if r.ok:
+            for conv in r.json().get("payload", []):
+                if conv.get("inbox_id") == inbox_id:
+                    conv_id = conv["id"]
+                    # Re-open if resolved so the note is visible
+                    if conv.get("status") == "resolved":
+                        requests.patch(f"{api}/conversations/{conv_id}",
+                                       json={"status": "open"},
+                                       headers=headers, timeout=8)
+                    break
+
+        # 3. Create conversation if none exists
+        if not conv_id:
+            r = requests.post(f"{api}/conversations", json={
+                "inbox_id": inbox_id,
+                "contact_id": contact_id,
+                "status": "open",
+            }, headers=headers, timeout=8)
+            if r.ok:
+                conv_id = r.json().get("id")
+
+        if not conv_id:
             return
 
-        for conv in r.json().get("payload", []):
-            if conv.get("inbox_id") == inbox_id and conv.get("status") in ("open", "pending"):
-                requests.patch(f"{api}/conversations/{conv['id']}", json={"status": "resolved"}, headers=headers, timeout=8)
+        # 4. Log the sent message as a private outbound note (private=true keeps it
+        #    as an internal agent note so Chatwoot won't try to re-send via Viber)
+        if message:
+            requests.post(f"{api}/conversations/{conv_id}/messages", json={
+                "content": message,
+                "message_type": "outgoing",
+                "private": True,
+            }, headers=headers, timeout=10)
+
+        # 5. Resolve the conversation
+        requests.patch(f"{api}/conversations/{conv_id}",
+                       json={"status": "resolved"},
+                       headers=headers, timeout=8)
+
     except Exception:
         pass
 
@@ -151,7 +200,7 @@ def _send_viber(phone: str, message: str, client_name: str = "", agent_name: str
     try:
         resp = requests.post(f"{bridge_url}/send", json=payload, timeout=10)
         if resp.status_code in (200, 201):
-            _chatwoot_resolve_viber(phone)
+            _chatwoot_log_outbound_viber(phone, message, client_name)
             return True, "OK"
         return False, f"Bridge HTTP {resp.status_code} — {resp.text[:500]}"
     except Exception as e:
