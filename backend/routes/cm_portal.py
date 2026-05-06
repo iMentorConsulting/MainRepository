@@ -248,7 +248,7 @@ def activate_all_portals(db: Session = Depends(get_db), current_user=Depends(get
 @router.post("/bulk-activate-notify")
 def bulk_activate_notify(body: dict, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     """Activate portals and send Viber/email notifications for selected cases."""
-    from routes.cm_notifications import _send_email, _log_notification
+    from routes.cm_notifications import _send_email, _send_viber, _log_notification
 
     case_ids = body.get("case_ids", [])
     portal_base_url = (body.get("portal_base_url") or "").rstrip("/")
@@ -257,7 +257,6 @@ def bulk_activate_notify(body: dict, db: Session = Depends(get_db), current_user
     notify = body.get("notify", True)
     notification_type = body.get("notification_type", "viber")  # viber | email | both
 
-    bridge_url = os.getenv("VIBER_BRIDGE_URL", "https://viber-bridge.i-mentor.gr")
     results = []
 
     for case_id in case_ids:
@@ -289,22 +288,13 @@ def bulk_activate_notify(body: dict, db: Session = Depends(get_db), current_user
             if send_viber:
                 phone = (case.phone or "").strip()
                 if phone:
-                    try:
-                        resp = http_requests.post(f"{bridge_url}/send", json={
-                            "to": _normalize_phone(phone),
-                            "text": msg,
-                            "name": case.client_name or phone,
-                            "agent": current_user.full_name,
-                            "service_tag": case.service_type or "",
-                        }, timeout=10)
-                        if resp.status_code == 200:
-                            notified = True
-                            _log_notification(db, case.id, "viber", case.client_name, phone,
-                                              "Ενεργοποίηση Πύλης Πελάτη", msg, "sent", current_user.full_name)
-                        else:
-                            error_parts.append(f"Viber: {resp.text[:100]}")
-                    except Exception as e:
-                        error_parts.append(f"Viber: {str(e)[:100]}")
+                    ok, err = _send_viber(phone, msg, case.client_name or "", current_user.full_name, case.service_type or "")
+                    if ok:
+                        notified = True
+                        _log_notification(db, case.id, "viber", case.client_name, phone,
+                                          "Ενεργοποίηση Πύλης Πελάτη", msg, "sent", current_user.full_name)
+                    else:
+                        error_parts.append(f"Viber: {err[:100]}")
                 else:
                     error_parts.append("no phone")
 
