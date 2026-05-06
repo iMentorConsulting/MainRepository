@@ -22,6 +22,79 @@ class ViberSendRequest(BaseModel):
     is_reminder: bool = False
 
 
+def _chatwoot_send(client_name: str, phone: str, message: str) -> bool:
+    """Create/find contact in Chatwoot, open conversation, post outgoing message.
+    Returns True on success, False if Chatwoot not configured or call fails."""
+    cw_url = os.getenv("CHATWOOT_URL", "").rstrip("/")
+    cw_token = os.getenv("CHATWOOT_API_TOKEN", "")
+    cw_account = os.getenv("CHATWOOT_ACCOUNT_ID", "")
+    cw_inbox = os.getenv("CHATWOOT_INBOX_ID", "")
+
+    if not all([cw_url, cw_token, cw_account, cw_inbox]):
+        return False
+
+    headers = {"api_access_token": cw_token, "Content-Type": "application/json"}
+    base = f"{cw_url}/api/v1/accounts/{cw_account}"
+
+    # 1. Search for existing contact by phone
+    contact_id = None
+    try:
+        r = http_requests.get(
+            f"{base}/contacts/search",
+            params={"q": phone, "include_contacts": "true"},
+            headers=headers, timeout=8,
+        )
+        if r.status_code == 200:
+            contacts = r.json().get("payload", {}).get("contacts", [])
+            if contacts:
+                contact_id = contacts[0]["id"]
+    except Exception:
+        pass
+
+    # 2. Create contact if not found
+    if not contact_id:
+        try:
+            r = http_requests.post(
+                f"{base}/contacts",
+                json={"name": client_name, "phone_number": phone},
+                headers=headers, timeout=8,
+            )
+            if r.status_code in (200, 201):
+                contact_id = r.json().get("id")
+        except Exception:
+            return False
+
+    if not contact_id:
+        return False
+
+    # 3. Create new conversation (one per send — keeps history clean)
+    conv_id = None
+    try:
+        r = http_requests.post(
+            f"{base}/contacts/{contact_id}/conversations",
+            json={"inbox_id": int(cw_inbox)},
+            headers=headers, timeout=8,
+        )
+        if r.status_code in (200, 201):
+            conv_id = r.json().get("id")
+    except Exception:
+        return False
+
+    if not conv_id:
+        return False
+
+    # 4. Post outgoing message
+    try:
+        r = http_requests.post(
+            f"{base}/conversations/{conv_id}/messages",
+            json={"content": message, "message_type": "outgoing", "private": False},
+            headers=headers, timeout=8,
+        )
+        return r.status_code in (200, 201)
+    except Exception:
+        return False
+
+
 @router.get("/", response_model=List[CaseListItem])
 def list_cases(
     employee: Optional[str] = None,
@@ -140,15 +213,29 @@ def send_viber_message(id: int, data: ViberSendRequest, db: Session = Depends(ge
         else:
             phone = "+30" + phone
 
-    bridge_url = os.getenv("BRIDGE_URL", "http://localhost:3100")
-    try:
-        http_requests.post(
-            f"{bridge_url}/send",
-            json={"phone": phone, "message": data.message, "caseId": id, "clientName": case.client_name},
-            timeout=10,
-        )
-    except Exception:
-        pass  # bridge unavailable — still update contact tracking
+    # Try Chatwoot first (creates contact + conversation + delivers via Viber inbox)
+    chatwoot_ok = _chatwoot_send(case.client_name, phone, data.message)
+
+    # Legacy bridge fallback — only if Chatwoot not configured
+    if not chatwoot_ok:
+        bridge_url = os.getenv("BRIDGE_URL", "").strip()
+        if not bridge_url:
+            raise HTTPException(
+                status_code=503,
+                detail="Δεν έχει ρυθμιστεί υπηρεσία αποστολής (CHATWOOT_URL ή BRIDGE_URL)"
+            )
+        try:
+            resp = http_requests.post(
+                f"{bridge_url}/send",
+                json={"phone": phone, "message": data.message, "caseId": id, "clientName": case.client_name},
+                timeout=10,
+            )
+            if resp.status_code >= 400:
+                raise HTTPException(status_code=502, detail=f"Αποτυχία bridge (HTTP {resp.status_code})")
+        except HTTPException:
+            raise
+        except Exception as exc:
+            raise HTTPException(status_code=503, detail=f"Αδυναμία σύνδεσης bridge: {exc}")
 
     case.last_contacted_at = datetime.utcnow()
     if data.is_reminder:
