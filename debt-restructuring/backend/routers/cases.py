@@ -25,10 +25,10 @@ class ViberSendRequest(BaseModel):
 def _chatwoot_send(client_name: str, phone: str, message: str) -> tuple[bool, str]:
     """Create/find contact in Chatwoot, open conversation, post outgoing message.
     Returns (True, "") on success, (False, reason) on failure."""
-    cw_url = os.getenv("CHATWOOT_URL", "").rstrip("/")
-    cw_token = os.getenv("CHATWOOT_API_TOKEN", "")
-    cw_account = os.getenv("CHATWOOT_ACCOUNT_ID", "")
-    cw_inbox = os.getenv("CHATWOOT_INBOX_ID", "")
+    cw_url = os.getenv("CHATWOOT_URL", "").strip().rstrip("/")
+    cw_token = os.getenv("CHATWOOT_API_TOKEN", "").strip()
+    cw_account = os.getenv("CHATWOOT_ACCOUNT_ID", "").strip()
+    cw_inbox = os.getenv("CHATWOOT_INBOX_ID", "").strip()
 
     if not all([cw_url, cw_token, cw_account, cw_inbox]):
         missing = [k for k, v in {"CHATWOOT_URL": cw_url, "CHATWOOT_API_TOKEN": cw_token,

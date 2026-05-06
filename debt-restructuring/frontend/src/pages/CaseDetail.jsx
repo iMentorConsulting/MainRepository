@@ -457,8 +457,9 @@ export default function CaseDetail({ currentEmployee }) {
       setCaseData(res.data)
       setViberModal(null)
       toast.success('✅ Μήνυμα εστάλη μέσω Viber!')
-    } catch {
-      toast.error('Σφάλμα αποστολής Viber')
+    } catch (err) {
+      const detail = err?.response?.data?.detail || 'Σφάλμα αποστολής Viber'
+      toast.error(detail, { duration: 6000 })
     } finally {
       setViberSending(false)
     }
