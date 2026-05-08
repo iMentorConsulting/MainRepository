@@ -308,7 +308,12 @@ def _do_import(db: Session) -> dict:
 def _do_sync_paid(db: Session) -> dict:
     """Sync total_paid from sheet without requiring auth. Used by scheduler and route."""
     rows = _read_sheet_rows()
-    all_paid_map: dict = {}
+
+    # Three maps for robust matching: by sheet_import_ref key, by (afm, svc), by (name, svc)
+    ref_map: dict = {}
+    afm_svc_map: dict = {}
+    name_svc_map: dict = {}
+
     for i, row in enumerate(rows):
         if i == 0:
             continue
@@ -318,15 +323,36 @@ def _do_sync_paid(db: Session) -> dict:
         client_name = str(row[COL_MAP["client_name"]]).strip()
         svc = str(row[COL_MAP["service_type"]]).strip()
         paid = _parse_float(row[COL_MAP["total_paid"]])
+
         key = _merge_key(afm, client_name, svc)
-        all_paid_map[key] = all_paid_map.get(key, 0.0) + paid
+        ref_map[key] = ref_map.get(key, 0.0) + paid
+
+        if afm:
+            afm_svc_map[(afm, svc)] = afm_svc_map.get((afm, svc), 0.0) + paid
+        if client_name:
+            name_svc_map[(client_name.upper(), svc)] = name_svc_map.get((client_name.upper(), svc), 0.0) + paid
 
     updated = 0
     cases = db.query(CMCase).all()
     for c in cases:
-        if not c.sheet_import_ref:
+        new_paid = None
+
+        # 1. Match by sheet_import_ref (cases imported from sheet)
+        if c.sheet_import_ref and c.sheet_import_ref in ref_map:
+            new_paid = ref_map[c.sheet_import_ref]
+
+        # 2. Fallback: match by AFM + service_type
+        if new_paid is None and c.afm:
+            new_paid = afm_svc_map.get((c.afm, c.service_type or ""))
+
+        # 3. Fallback: match by client name + service_type
+        if new_paid is None and c.client_name:
+            new_paid = name_svc_map.get((c.client_name.upper().strip(), c.service_type or ""))
+
+        # No match in sheet at all — do not reset, skip
+        if new_paid is None:
             continue
-        new_paid = all_paid_map.get(c.sheet_import_ref, 0.0)
+
         if abs((c.total_paid or 0) - new_paid) > 0.01:
             c.total_paid = new_paid
             c.updated_at = datetime.utcnow()

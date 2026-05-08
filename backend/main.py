@@ -18,6 +18,7 @@ from routes.cm_admin import router as cm_admin_router
 from routes.cm_pending_items import router as cm_pending_items_router
 from routes.cm_portal import router as cm_portal_router
 from routes.cm_pipeline import router as cm_pipeline_router
+from routes.cm_worklists import router as cm_worklists_router
 
 load_dotenv()
 
@@ -219,6 +220,7 @@ app.include_router(cm_admin_router)
 app.include_router(cm_pending_items_router)
 app.include_router(cm_portal_router)
 app.include_router(cm_pipeline_router)
+app.include_router(cm_worklists_router)
 
 
 @app.on_event("shutdown")

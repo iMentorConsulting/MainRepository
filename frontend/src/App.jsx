@@ -17,6 +17,7 @@ import Import from './pages/Import'
 import ClientPortal from './pages/ClientPortal'
 import PortalBroadcastPage from './pages/PortalBroadcastPage'
 import PipelineAdmin from './pages/PipelineAdmin'
+import WorkListsPage from './pages/WorkListsPage'
 
 export default function App() {
   const [auth, setAuthState] = useState(() => getAuth())
@@ -54,6 +55,7 @@ export default function App() {
             <Route path="import" element={<ErrorBoundary><Import /></ErrorBoundary>} />
             <Route path="portal-broadcast" element={<ErrorBoundary><PortalBroadcastPage /></ErrorBoundary>} />
             <Route path="pipeline-admin" element={<ErrorBoundary><PipelineAdmin /></ErrorBoundary>} />
+            <Route path="worklists" element={<ErrorBoundary><WorkListsPage /></ErrorBoundary>} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         )}

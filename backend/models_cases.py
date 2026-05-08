@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, Boolean, Date, DateTime, Text, ForeignKey
+from sqlalchemy import Column, Integer, String, Float, Boolean, Date, DateTime, Text, ForeignKey, JSON
 from sqlalchemy.orm import relationship
 from database import Base
 from datetime import datetime
@@ -259,3 +259,20 @@ class CMCasePendingItem(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow)
     case = relationship("CMCase", back_populates="pending_items")
+
+
+class CMWorkList(Base):
+    __tablename__ = "cm_work_lists"
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(200), nullable=False)
+    description = Column(Text, nullable=True)
+    # Criteria: empty list = match all
+    programs = Column(JSON, default=list)
+    service_types = Column(JSON, default=list)
+    statuses = Column(JSON, default=list)
+    min_days_in_status = Column(Integer, nullable=True)
+    max_days_in_status = Column(Integer, nullable=True)
+    sort_order = Column(Integer, default=0)
+    created_by_id = Column(Integer, ForeignKey("cm_users.id"), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow)

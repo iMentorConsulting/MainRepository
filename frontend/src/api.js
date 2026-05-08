@@ -147,4 +147,12 @@ export const submitPortalNps = (token, score) =>
 export const recordPortalReviewClick = (token) =>
   axios.post(`${BASE}/api/cm/portal/public/${token}/review-click`).then(r => r.data)
 
+// Work Lists
+export const getWorkLists = () => api.get('/api/cm/worklists').then(r => r.data)
+export const createWorkList = (data) => api.post('/api/cm/worklists', data).then(r => r.data)
+export const updateWorkList = (id, data) => api.put(`/api/cm/worklists/${id}`, data).then(r => r.data)
+export const deleteWorkList = (id) => api.delete(`/api/cm/worklists/${id}`).then(r => r.data)
+export const getWorkListCases = (id) => api.get(`/api/cm/worklists/${id}/cases`).then(r => r.data)
+export const getAllTasks = (status) => api.get('/api/cm/worklists/all-tasks/list', { params: status ? { status } : {} }).then(r => r.data)
+
 export default api
