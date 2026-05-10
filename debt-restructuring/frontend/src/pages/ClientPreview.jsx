@@ -4,6 +4,20 @@ import { format } from 'date-fns'
 import { el } from 'date-fns/locale'
 import * as api from '../api'
 import { fmt, creditorDisplayName } from '../utils/calculations'
+import {
+  PhoneIcon,
+  EnvelopeIcon,
+  GlobeAltIcon,
+  CheckCircleIcon,
+  ChartBarIcon,
+  TrophyIcon,
+  DocumentTextIcon,
+  BriefcaseIcon,
+  BuildingLibraryIcon,
+  ArrowRightCircleIcon,
+  UserGroupIcon,
+  ArrowTrendingUpIcon,
+} from '@heroicons/react/24/outline'
 
 function Tooltip({ children, tip }) {
   const [open, setOpen] = useState(false)
@@ -344,12 +358,12 @@ export default function ClientPreview() {
     <div className="min-h-screen bg-gradient-to-br from-blue-950 via-blue-900 to-blue-800">
 
       {/* TOP BAR */}
-      <div className="flex justify-between items-center px-5 py-3 bg-white/5 backdrop-blur-sm border-b border-white/10">
-        <img src="/logo.png" alt="i-Mentor Consulting" className="h-14 object-contain" onError={e => { e.target.onerror=null; e.target.src='https://i-mentor.gr/wp-content/uploads/2025/11/transparent-logo.png' }} />
-        <div className="text-blue-300 text-xs hidden sm:flex gap-4">
-          <span>📞 2810 363007</span>
-          <span>📧 info@i-mentor.gr</span>
-          <span>🌐 www.i-mentor.gr</span>
+      <div className="flex flex-col items-center px-5 py-5 bg-white/5 backdrop-blur-sm border-b border-white/10">
+        <img src="/logo.png" alt="i-Mentor Consulting" className="h-20 object-contain" onError={e => { e.target.onerror=null; e.target.src='https://i-mentor.gr/wp-content/uploads/2025/11/transparent-logo.png' }} />
+        <div className="text-blue-300 text-xs flex gap-5 mt-3">
+          <span>2810 363007</span>
+          <span>info@i-mentor.gr</span>
+          <span>www.i-mentor.gr</span>
         </div>
       </div>
 
@@ -426,13 +440,13 @@ export default function ClientPreview() {
                   disabled={interestedLoading}
                   className="w-full bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-400 hover:to-emerald-500 text-white font-black text-xl py-5 px-8 rounded-2xl shadow-2xl shadow-green-900/40 transition-all transform hover:scale-[1.02] active:scale-[0.98] disabled:opacity-60 tracking-wide"
                 >
-                  {interestedLoading ? '⏳ Αποστολή…' : '✅ Θέλω να Προχωρήσω'}
+                  {interestedLoading ? 'Αποστολή…' : <span className="flex items-center justify-center gap-2"><CheckCircleIcon className="w-6 h-6" />Θέλω να Προχωρήσω</span>}
                 </button>
                 <p className="text-blue-300 text-xs text-center mt-2">Ένας σύμβουλός μας θα επικοινωνήσει μαζί σας άμεσα</p>
               </>
             ) : (
               <div className="bg-green-500/20 border border-green-400/40 rounded-2xl p-5 text-center">
-                <div className="text-3xl mb-2">🎉</div>
+                <CheckCircleIcon className="w-10 h-10 text-green-300 mx-auto mb-2" />
                 <div className="text-green-300 font-black text-lg">Λάβαμε το αίτημά σας!</div>
                 <div className="text-green-200 text-sm mt-1">Ένας σύμβουλός μας θα επικοινωνήσει μαζί σας σύντομα.</div>
               </div>
@@ -532,7 +546,7 @@ export default function ClientPreview() {
           const totalC1 = finalPlan.reduce((s, p) => s + (p.c1 ?? p.payShown ?? 0), 0)
           return (
             <div className="bg-white rounded-2xl shadow-lg p-5">
-              <h2 className="text-base font-black text-blue-800 border-b-2 border-blue-100 pb-2 mb-3">📊 Αναλυτική Εκτίμηση ανά Πιστωτή</h2>
+              <h2 className="text-base font-black text-blue-800 border-b-2 border-blue-100 pb-2 mb-3 flex items-center gap-2"><ChartBarIcon className="w-5 h-5 text-blue-600" />Αναλυτική Εκτίμηση ανά Πιστωτή</h2>
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[500px] text-sm">
                   <thead>
@@ -721,7 +735,7 @@ export default function ClientPreview() {
           const actMonthly = actCreditors.reduce((s, c) => s + (c.actualMonthlyPay || 0), 0)
           return (
             <div className="bg-white rounded-2xl shadow-lg p-5">
-              <h2 className="text-base font-black text-green-700 border-b-2 border-green-100 pb-2 mb-4">✅ Πραγματικά Αποτελέσματα Ρύθμισης</h2>
+              <h2 className="text-base font-black text-green-700 border-b-2 border-green-100 pb-2 mb-4 flex items-center gap-2"><CheckCircleIcon className="w-5 h-5 text-green-600" />Πραγματικά Αποτελέσματα Ρύθμισης</h2>
               {actCreditors.length > 0 && (
                 <div className="bg-green-50 border border-green-200 rounded-xl p-4 mb-4">
                   <div className="grid grid-cols-3 gap-3 text-center">
@@ -828,25 +842,25 @@ export default function ClientPreview() {
 
         {/* Service differentiation — "Δεν σταματάμε στην υποβολή" */}
         <div className="bg-white rounded-2xl shadow-lg p-5">
-          <h2 className="text-base font-black text-blue-800 border-b-2 border-blue-100 pb-2 mb-4">🏆 Γιατί η i-Mentor;</h2>
+          <h2 className="text-base font-black text-blue-800 border-b-2 border-blue-100 pb-2 mb-4 flex items-center gap-2"><TrophyIcon className="w-5 h-5 text-blue-600" />Γιατί η i-Mentor;</h2>
           <p className="text-sm font-bold text-blue-900 mb-2">Δεν σταματάμε στην υποβολή — ανεβάζουμε τεκμηριωμένο σχέδιο προς τους πιστωτές</p>
           <p className="text-sm text-gray-600 mb-4">Ενώ οι περισσότεροι σύμβουλοι σταματούν στην καταχώρηση της αίτησης, εμείς ανεβάζουμε επιπρόσθετα ένα <b>τεκμηριωμένο σχέδιο αναδιάρθρωσης</b> προσαρμοσμένο στους πιστωτές — τόσο για ιδιώτες όσο και για νομικά πρόσωπα.</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
             <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
-              <div className="text-sm font-bold text-blue-800 mb-1">📄 Τεκμηριωμένο Σχέδιο Αναδιάρθρωσης</div>
+              <div className="text-sm font-bold text-blue-800 mb-1 flex items-center gap-1.5"><DocumentTextIcon className="w-4 h-4" />Τεκμηριωμένο Σχέδιο Αναδιάρθρωσης</div>
               <div className="text-xs text-gray-600">Ειδικά τα funds και οι τράπεζες δίνουν αντιπρότασεις. Τεκμηριώνουμε τη δική μας πρόταση για μεγαλύτερη πιθανότητα αποδοχής ή ευνοϊκότερης αντιπρότασης.</div>
             </div>
             <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
-              <div className="text-sm font-bold text-amber-800 mb-1">💼 Business Plan για τη Δυσμενή Κατάσταση</div>
+              <div className="text-sm font-bold text-amber-800 mb-1 flex items-center gap-1.5"><BriefcaseIcon className="w-4 h-4" />Business Plan για τη Δυσμενή Κατάσταση</div>
               <div className="text-xs text-gray-600">Περίληψη, οικονομική & περιουσιακή εικόνα, stress test βασικό & dark σενάριο, συνοπτική πρόταση ανά πιστωτή.</div>
             </div>
           </div>
           <div className="bg-green-50 border border-green-200 rounded-xl p-3 text-sm">
-            <span className="font-bold text-green-800">✅ Αυτό που μας ξεχωρίζει:</span>
+            <span className="font-bold text-green-800 inline-flex items-center gap-1"><CheckCircleIcon className="w-4 h-4 inline" />Αυτό που μας ξεχωρίζει:</span>
             <span className="text-gray-700"> Η τεκμηρίωση προς τους πιστωτές είναι εξτρά βήμα που κάνουμε μόνο εμείς — με μετρήσιμο αντίκτυπο σε υποθέσεις με funds & τράπεζες.</span>
           </div>
           <div className="mt-3 bg-blue-50 border border-blue-200 rounded-xl p-3 text-sm">
-            <span className="font-bold text-blue-800">📈 Στόχος μας:</span>
+            <span className="font-bold text-blue-800 inline-flex items-center gap-1"><ArrowTrendingUpIcon className="w-4 h-4 inline" />Στόχος μας:</span>
             <span className="text-gray-700"> Παρά την εκτίμησή μας, η πρόταση που καταθέτουμε στους πιστωτές στοχεύει να είναι <b>καλύτερη</b> από το θεωρητικό αποτέλεσμα — διεκδικώντας ευνοϊκότερες διαγραφές και χαμηλότερες δόσεις για εσάς.</span>
           </div>
         </div>
@@ -857,7 +871,7 @@ export default function ClientPreview() {
           if (!offer.application_fee && !offer.success_fee) return null
           return (
             <div className="bg-white rounded-2xl shadow-lg p-5">
-              <h2 className="text-base font-black text-blue-800 border-b-2 border-blue-100 pb-2 mb-4">💼 Οικονομική Προσφορά</h2>
+              <h2 className="text-base font-black text-blue-800 border-b-2 border-blue-100 pb-2 mb-4 flex items-center gap-2"><BriefcaseIcon className="w-5 h-5 text-blue-600" />Οικονομική Προσφορά</h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-5">
                 {offer.application_fee > 0 && (
                   <div className="bg-blue-50 rounded-xl p-4 text-center">
@@ -875,11 +889,11 @@ export default function ClientPreview() {
                 )}
               </div>
               <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
-                <div className="text-sm font-bold text-gray-700 mb-2">🏦 Τραπεζικοί Λογαριασμοί Πληρωμής</div>
+                <div className="text-sm font-bold text-gray-700 mb-2 flex items-center gap-1.5"><BuildingLibraryIcon className="w-4 h-4 text-gray-600" />Τραπεζικοί Λογαριασμοί Πληρωμής</div>
                 <div className="space-y-1 text-sm font-mono">
-                  <div><span className="text-gray-500">Πειραιώς:</span> GR45 0171 4330 0064 3316 4381 388</div>
-                  <div><span className="text-gray-500">Eurobank:</span> GR58 0260 1680 0000 6020 1330 648</div>
-                  <div><span className="text-gray-500">Alpha Bank:</span> GR24 0140 7750 7750 0233 0002 138</div>
+                  <div><span className="text-gray-500">Πειραιώς:</span> GR4501714330006433164381388</div>
+                  <div><span className="text-gray-500">Eurobank:</span> GR5802601680000060201330648</div>
+                  <div><span className="text-gray-500">Alpha Bank:</span> GR2401407750775002330002138</div>
                   <div className="mt-1"><span className="text-gray-500">Δικαιούχος:</span> <b>I MENTOR IKE</b></div>
                 </div>
               </div>
@@ -889,26 +903,26 @@ export default function ClientPreview() {
 
         {/* CTA — hidden when actual results are present */}
         {!hasActuals && <div className="bg-white rounded-2xl shadow-lg p-6">
-          <h2 className="text-base font-black text-blue-800 mb-3">🟦 Επόμενα Βήματα</h2>
+          <h2 className="text-base font-black text-blue-800 mb-3 flex items-center gap-2"><ArrowRightCircleIcon className="w-5 h-5 text-blue-600" />Επόμενα Βήματα</h2>
           <p className="text-sm text-gray-600 leading-relaxed mb-4">
             Η ομάδα της <b>i-Mentor Consulting</b> είναι στη διάθεσή σας για οποιαδήποτε διευκρίνιση ή για την προετοιμασία της επίσημης αίτησης στον Εξωδικαστικό Μηχανισμό Ρύθμισης Οφειλών. Κάθε υπόθεση αντιμετωπίζεται με πλήρη εμπιστευτικότητα και επαγγελματισμό.
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <a href="tel:2810363007" className="flex items-center justify-center gap-2 bg-blue-800 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-xl text-sm transition-all">
-              📞 2810 363007
+              <PhoneIcon className="w-4 h-4" />2810 363007
             </a>
             <a href="mailto:info@i-mentor.gr" className="flex items-center justify-center gap-2 bg-blue-100 hover:bg-blue-200 text-blue-800 font-bold py-3 px-4 rounded-xl text-sm transition-all">
-              📧 info@i-mentor.gr
+              <EnvelopeIcon className="w-4 h-4" />info@i-mentor.gr
             </a>
             <a href="https://www.i-mentor.gr" target="_blank" rel="noreferrer" className="flex items-center justify-center gap-2 bg-blue-100 hover:bg-blue-200 text-blue-800 font-bold py-3 px-4 rounded-xl text-sm transition-all">
-              🌐 www.i-mentor.gr
+              <GlobeAltIcon className="w-4 h-4" />www.i-mentor.gr
             </a>
           </div>
         </div>}
 
         {/* Referral card */}
         <div className="bg-white rounded-2xl shadow-lg p-5 text-center">
-          <div className="text-3xl mb-2">👥</div>
+          <UserGroupIcon className="w-8 h-8 text-blue-600 mx-auto mb-2" />
           <h3 className="font-black text-gray-800 text-base mb-1">Γνωρίζετε κάποιον που έχει πρόβλημα χρεών;</h3>
           <p className="text-sm text-gray-500 mb-4">
             Μοιραστείτε αυτό το εργαλείο. Η αρχική ανάλυση είναι <b>δωρεάν</b> και <b>χωρίς δέσμευση</b>.

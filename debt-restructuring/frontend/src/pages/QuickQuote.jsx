@@ -1,6 +1,15 @@
 import { useState, useMemo } from 'react'
 import { fmt } from '../utils/calculations'
 
+function annuityPMT(principal, annualRate, months) {
+  if (principal <= 0 || months <= 0) return 0
+  if (annualRate <= 0) return principal / months
+  const r = annualRate / 12
+  return principal * r / (1 - Math.pow(1 + r, -months))
+}
+
+const RATE = 0.03
+
 const HOUSEHOLD_OPTS = [
   { value: 6448,  label: 'Ένας ενήλικας' },
   { value: 10866, label: 'Δύο ενήλικες' },
@@ -38,9 +47,8 @@ export default function QuickQuote() {
   const [commercialValue, setCommercialValue] = useState(0) // Εμπορική αξία ακινήτου
 
   // Income — fp/ep
-  const [netIncome, setNetIncome] = useState(0)    // fp: ετήσιο εισόδημα; ep: καθαρό εισόδημα
+  const [netIncome, setNetIncome] = useState(0)    // fp: ετήσιο εισόδημα; ep/np: καθαρά κέρδη
   const [turnover, setTurnover] = useState(0)      // ep + np: κύκλος εργασιών
-  const [ebitda, setEbitda] = useState(0)          // np: EBITDA / καθαρά κέρδη
 
   const [householdIdx, setHouseholdIdx] = useState(0)
 
@@ -61,16 +69,20 @@ export default function QuickQuote() {
       if (!netIncome && !turnover) return null
       const household = HOUSEHOLD_OPTS[householdIdx].value
       const dispA = Math.max(0, netIncome - household) * 0.8
-      const dispB = turnover * 0.10  // 10% τζίρου = εύλογο κέρδος επιτηδευματία
+      const dispB = turnover * 0.10
       dispAnnual = Math.max(dispA, dispB)
       incomeNote = dispB > dispA ? '10% τζίρου (κανόνας ΕΠ)' : 'ΕΛΣΤΑΤ × 80%'
     } else { // np
-      if (!ebitda && !turnover) return null
-      const dispA = Math.max(0, ebitda)  // no household, no 80% buffer
+      if (!netIncome && !turnover) return null
+      const dispA = Math.max(0, netIncome)
       const dispB = turnover * 0.10
       dispAnnual = Math.max(dispA, dispB)
-      incomeNote = dispB > dispA ? '10% τζίρου (κανόνας ΝΠ)' : 'EBITDA'
+      incomeNote = dispB > dispA ? '10% τζίρου (κανόνας ΝΠ)' : 'Καθαρά Κέρδη'
     }
+
+    // Profit margin rule for ep/np: if profit < 10% of turnover → force 240 public installments
+    const profitMargin = (debtorType !== 'fp' && turnover > 0) ? netIncome / turnover : 1
+    const forcedPublic240 = (debtorType === 'ep' || debtorType === 'np') && profitMargin < 0.10
 
     const monthlyDisp = dispAnnual / 12
     if (monthlyDisp <= 0) return { noCapacity: true, disposable: 0, monthlyDisp: 0, totalDebt }
@@ -124,14 +136,19 @@ export default function QuickQuote() {
 
     const bankMonths = (bankRemaining > 0 && bankMonthly > 0)
       ? Math.min(bankDuration, Math.ceil(bankRemaining / bankMonthly)) : 0
-    const publicMonths = (publicRemaining > 0 && publicMonthly > 0)
+    const rawPublicMonths = (publicRemaining > 0 && publicMonthly > 0)
       ? Math.min(publicDuration, Math.ceil(publicRemaining / publicMonthly)) : 0
+    const publicMonths = forcedPublic240 && publicRemaining > 0 ? 240 : rawPublicMonths
 
     const months = Math.max(bankMonths, publicMonths) || Math.min(bankDuration, Math.ceil(remaining / monthlyDisp))
 
+    // ── Annuity installments at 3% annual ────────────────────────────────────
+    const bankPMT   = annuityPMT(bankRemaining, RATE, bankMonths)
+    const publicPMT = annuityPMT(publicRemaining, RATE, publicMonths)
+    const totalPMT  = bankPMT + publicPMT
+
     // ── Feasibility ───────────────────────────────────────────────────────────
-    const monthlyRequired = months > 0 ? remaining / months : Infinity
-    const feasible = monthlyRequired <= monthlyDisp * 1.05 // 5% tolerance
+    const feasible = totalPMT <= monthlyDisp * 1.05 // 5% tolerance
 
     return {
       disposable: dispAnnual, monthlyDisp, incomeNote,
@@ -139,13 +156,14 @@ export default function QuickQuote() {
       totalWr, bankWr, publicWr, wrPct,
       remaining, bankRemaining, publicRemaining,
       months, bankMonths, publicMonths, bankDuration,
-      monthlyPay: monthlyDisp,
+      bankPMT, publicPMT, totalPMT,
+      forcedPublic240,
       nwoFloor, maxTotalWr,
       nwoActive: commercialValue > 0 && totalWrPre > maxTotalWr,
       feasible,
       incomeCoversAll: totalWr === 0 && remaining <= monthlyDisp * Math.max(bankDuration, publicDuration),
     }
-  }, [bankDebt, publicDebt, commercialValue, netIncome, turnover, ebitda, householdIdx, debtorType])
+  }, [bankDebt, publicDebt, commercialValue, netIncome, turnover, householdIdx, debtorType])
 
   const totalDebt = bankDebt + publicDebt
 
@@ -200,12 +218,12 @@ export default function QuickQuote() {
                 numInput(netIncome, setNetIncome, 'Ετήσιο Εισόδημα (€)', '€')
               )}
               {debtorType === 'ep' && (<>
-                {numInput(netIncome, setNetIncome, 'Καθαρό Ετήσιο Εισόδημα — εκκαθαριστικό (€)', '€')}
+                {numInput(netIncome, setNetIncome, 'Κέρδη Ατομικής Επιχείρησης Τεκμαρτά & Λοιπά Έσοδα (€)', '€')}
                 {numInput(turnover, setTurnover, 'Κύκλος Εργασιών Ε3 (€)', '€')}
               </>)}
               {debtorType === 'np' && (<>
+                {numInput(netIncome, setNetIncome, 'Καθαρά Κέρδη — έντυπο Ν (€)', '€')}
                 {numInput(turnover, setTurnover, 'Κύκλος Εργασιών — κωδ.500 Ε3 (€)', '€')}
-                {numInput(ebitda, setEbitda, 'EBITDA / Καθαρά Κέρδη — έντυπο Ν (€)', '€')}
               </>)}
             </div>
             {debtorType !== 'np' && (
@@ -258,6 +276,11 @@ export default function QuickQuote() {
                   🏠 Διαγραφή περιορίστηκε από αξία ακινήτου (αρχή μη χειροτέρευσης)
                 </div>
               ) : null}
+              {calc.forcedPublic240 && (
+                <div className="bg-orange-50 border border-orange-300 rounded-xl px-4 py-2.5 text-xs text-orange-800 font-semibold">
+                  ⚠️ Περιθώριο κέρδους &lt;10% — Δημόσιο: 240 δόσεις υποχρεωτικά
+                </div>
+              )}
 
               <div className="bg-blue-800 rounded-2xl p-5 text-white text-center">
                 <div className="text-blue-200 text-xs font-semibold uppercase tracking-wider mb-1">ΓΡΗΓΟΡΗ ΕΚΤΙΜΗΣΗ</div>
@@ -272,15 +295,23 @@ export default function QuickQuote() {
                     <div className="text-xs text-blue-200 mb-1">Εναπομένουσα</div>
                     <div className="text-xl font-black text-green-300">{fmt(calc.remaining)}</div>
                   </div>
-                  <div className="bg-white/10 rounded-xl p-3">
-                    <div className="text-xs text-blue-200 mb-1">Μηνιαία Δόση</div>
-                    <div className="text-xl font-black text-green-200">{fmt(calc.monthlyPay)}</div>
-                    <div className="text-xs text-blue-300 mt-0.5">= ΜΔΑΧΟ</div>
+                  <div className="bg-white/10 rounded-xl p-3 col-span-2">
+                    <div className="text-xs text-blue-200 mb-1">Μηνιαία Δόση (3% επιτ.)</div>
+                    <div className="text-xl font-black text-green-200">{fmt(calc.totalPMT)}</div>
+                    <div className="flex gap-3 mt-1.5 text-xs text-blue-300">
+                      {calc.bankPMT > 0 && <span>Τράπεζες: {fmt(calc.bankPMT)} × {calc.bankMonths}μ.</span>}
+                      {calc.publicPMT > 0 && <span>Δημόσιο: {fmt(calc.publicPMT)} × {calc.publicMonths}μ.{calc.forcedPublic240 ? ' (⚠️240)' : ''}</span>}
+                    </div>
                   </div>
                   <div className="bg-white/10 rounded-xl p-3">
                     <div className="text-xs text-blue-200 mb-1">Διάρκεια</div>
                     <div className="text-xl font-black text-white">{calc.months} μήνες</div>
                     {calc.months >= calc.bankDuration && <div className="text-xs text-amber-300 mt-0.5">μέγιστη τραπεζών</div>}
+                  </div>
+                  <div className="bg-white/10 rounded-xl p-3">
+                    <div className="text-xs text-blue-200 mb-1">ΜΔΑΧΟ (ικανότητα)</div>
+                    <div className="text-xl font-black text-blue-200">{fmt(calc.monthlyDisp)}</div>
+                    <div className="text-xs text-blue-400 mt-0.5">{calc.incomeNote}</div>
                   </div>
                 </div>
               </div>
