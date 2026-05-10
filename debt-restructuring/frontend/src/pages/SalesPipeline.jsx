@@ -51,6 +51,7 @@ function ViberInlineModal({ caseItem, onSend, onClose, sending }) {
   const hasOffer = !!(caseItem.commercial_offer?.application_fee || caseItem.commercial_offer?.success_fee)
   const [selectedType, setSelectedType] = useState('initial')
   const [includeOffer, setIncludeOffer] = useState(false)
+  const [sendEmail, setSendEmail] = useState(!!caseItem.client_email)
   const [message, setMessage] = useState(() => buildViberMessage('initial', caseItem.client_name, url, null, false))
 
   const rebuild = (type, withOffer) =>
@@ -95,6 +96,22 @@ function ViberInlineModal({ caseItem, onSend, onClose, sending }) {
             value={message}
             onChange={e => setMessage(e.target.value)}
           />
+          {/* Email toggle */}
+          <label className={`flex items-center gap-2 mt-3 cursor-pointer select-none ${!caseItem.client_email ? 'opacity-40' : ''}`}>
+            <input
+              type="checkbox"
+              className="w-4 h-4 accent-blue-600"
+              checked={sendEmail}
+              disabled={!caseItem.client_email}
+              onChange={e => setSendEmail(e.target.checked)}
+            />
+            <span className="text-sm font-semibold text-gray-700">
+              Επίσης αποστολή email
+            </span>
+            {caseItem.client_email
+              ? <span className="text-xs text-gray-400">{caseItem.client_email}</span>
+              : <span className="text-xs text-gray-400">(δεν έχει email)</span>}
+          </label>
           {/* Offer toggle — shown always; greyed out if no offer data */}
           <label className={`flex items-center gap-2 mt-3 cursor-pointer select-none ${!hasOffer ? 'opacity-40' : ''}`}>
             <input
@@ -113,11 +130,11 @@ function ViberInlineModal({ caseItem, onSend, onClose, sending }) {
         <div className="flex gap-2 justify-end px-5 pb-5">
           <button onClick={onClose} className="btn-secondary text-sm">Ακύρωση</button>
           <button
-            onClick={() => onSend(caseItem.id, message, selectedType)}
+            onClick={() => onSend(caseItem.id, message, selectedType, sendEmail && !!caseItem.client_email, caseItem.client_email, caseItem.client_name)}
             disabled={sending}
             className="flex items-center gap-2 text-sm font-semibold px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white disabled:opacity-50"
           >
-            {sending ? 'Αποστολή…' : '📤 Αποστολή Viber'}
+            {sending ? 'Αποστολή…' : sendEmail && caseItem.client_email ? '📤 Viber + Email' : '📤 Αποστολή Viber'}
           </button>
         </div>
       </div>
@@ -204,7 +221,7 @@ export default function SalesPipeline() {
 
   useEffect(() => { load() }, [filterEmployee])
 
-  const handleViberSend = async (caseId, message, msgType) => {
+  const handleViberSend = async (caseId, message, msgType, doEmail, clientEmail, clientName) => {
     setViberSending(true)
     try {
       const res = await api.sendViber(caseId, {
@@ -215,7 +232,12 @@ export default function SalesPipeline() {
       })
       setCases(prev => prev.map(c => c.id === caseId ? { ...c, ...res.data } : c))
       setViberModal(null)
-      toast.success('✅ Μήνυμα εστάλη μέσω Viber!')
+      toast.success(doEmail && clientEmail ? '✅ Viber εστάλη! Άνοιγμα email…' : '✅ Μήνυμα εστάλη μέσω Viber!')
+      if (doEmail && clientEmail) {
+        const subject = encodeURIComponent(`Ανάλυση Εξωδικαστικού — ${clientName}`)
+        const body = encodeURIComponent(message.replace(/\*/g, ''))
+        window.open(`mailto:${clientEmail}?subject=${subject}&body=${body}`)
+      }
     } catch (err) {
       const detail = err?.response?.data?.detail || 'Σφάλμα αποστολής Viber'
       toast.error(detail, { duration: 6000 })

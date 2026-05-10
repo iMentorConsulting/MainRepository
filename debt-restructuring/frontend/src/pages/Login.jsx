@@ -17,7 +17,9 @@ export default function Login({ onLogin }) {
     <div className="min-h-screen bg-gradient-to-br from-blue-900 to-blue-600 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-sm">
         <div className="text-center mb-8">
-          <div className="text-4xl mb-3">⚖️</div>
+          <img src="/logo.png" alt="i-Mentor" className="h-20 w-auto object-contain mx-auto mb-4"
+            onError={e => { e.target.style.display='none'; e.target.nextSibling.style.display='block' }} />
+          <div className="hidden text-4xl mb-3">⚖️</div>
           <h1 className="text-2xl font-black text-blue-800">i-Mentor Consulting</h1>
           <p className="text-gray-500 text-sm mt-1">Διαχείριση Υποθέσεων Οφειλών</p>
         </div>

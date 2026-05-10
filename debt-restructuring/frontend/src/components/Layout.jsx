@@ -22,7 +22,7 @@ export default function Layout({ auth, onLogout }) {
       {/* Sidebar */}
       <aside className="hidden md:flex flex-col w-56 bg-gradient-to-b from-blue-900 to-blue-800 text-white shrink-0">
         <div className="px-5 py-6 border-b border-blue-700">
-          <img src="/logo.png" alt="i-Mentor" className="h-8 w-auto object-contain" onError={e => { e.target.style.display='none'; e.target.nextSibling.style.display='block' }} />
+          <img src="/logo.png" alt="i-Mentor" className="h-14 w-auto object-contain" onError={e => { e.target.style.display='none'; e.target.nextSibling.style.display='block' }} />
           <div className="text-xl font-black hidden">⚖️ i-Mentor</div>
           <div className="text-blue-300 text-xs mt-1">Οφειλές &amp; Ρυθμίσεις</div>
         </div>
@@ -64,7 +64,7 @@ export default function Layout({ auth, onLogout }) {
 
       {/* Mobile top bar */}
       <div className="md:hidden fixed top-0 inset-x-0 z-30 bg-blue-900 text-white flex items-center justify-between px-4 h-14">
-        <img src="/logo.png" alt="i-Mentor" className="h-7 w-auto object-contain" onError={e => { e.target.style.display='none'; e.target.insertAdjacentHTML('afterend','<span class="font-black text-lg">⚖️ i-Mentor</span>') }} />
+        <img src="/logo.png" alt="i-Mentor" className="h-10 w-auto object-contain" onError={e => { e.target.style.display='none'; e.target.insertAdjacentHTML('afterend','<span class="font-black text-lg">⚖️ i-Mentor</span>') }} />
         <span className="text-sm text-blue-300">{auth.employee}</span>
       </div>
 
