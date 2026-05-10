@@ -216,7 +216,7 @@ function WorkListModal({ wl, allServices, allStatuses, onSave, onClose }) {
 
 export default function WorkListsPage() {
   const navigate = useNavigate()
-  const [tab, setTab] = useState('tasks') // tasks | worklists
+  const [tab, setTab] = useState('worklists') // worklists | tasks
   const [workLists, setWorkLists] = useState([])
   const [selectedWL, setSelectedWL] = useState(null)
   const [wlCases, setWlCases] = useState([])
@@ -225,6 +225,7 @@ export default function WorkListsPage() {
   const [tasksLoading, setTasksLoading] = useState(false)
   const [taskFilter, setTaskFilter] = useState('')
   const [taskSearch, setTaskSearch] = useState('')
+  const [taskAgentFilter, setTaskAgentFilter] = useState('')
   const [allServices, setAllServices] = useState([])
   const [allStatuses, setAllStatuses] = useState([])
   const [modal, setModal] = useState(null) // null | 'create' | {wl}
@@ -287,16 +288,22 @@ export default function WorkListsPage() {
     } catch { toast.error('Σφάλμα') }
   }
 
+  const taskAgents = useMemo(() => {
+    const seen = new Set()
+    return allTasks.filter(t => t.assigned_name && !seen.has(t.assigned_name) && seen.add(t.assigned_name)).map(t => t.assigned_name)
+  }, [allTasks])
+
   const filteredTasks = useMemo(() => {
     return allTasks.filter(t => {
       if (taskFilter && t.status !== taskFilter) return false
+      if (taskAgentFilter && t.assigned_name !== taskAgentFilter) return false
       if (taskSearch) {
         const q = taskSearch.toLowerCase()
         return t.title?.toLowerCase().includes(q) || t.case_name?.toLowerCase().includes(q)
       }
       return true
     })
-  }, [allTasks, taskFilter, taskSearch])
+  }, [allTasks, taskFilter, taskAgentFilter, taskSearch])
 
   const filteredWLs = workLists.filter(w =>
     !searchWL || w.name.toLowerCase().includes(searchWL.toLowerCase())
@@ -334,8 +341,8 @@ export default function WorkListsPage() {
       {/* Tab switcher */}
       <div className="flex gap-2 border-b border-gray-100">
         {[
-          { key: 'tasks', label: 'Όλα τα Tasks', Icon: ListBulletIcon },
           { key: 'worklists', label: 'Λίστες Εργασιών', Icon: Squares2X2Icon },
+          { key: 'tasks', label: 'Όλα τα Tasks', Icon: ListBulletIcon },
         ].map(({ key, label, Icon }) => (
           <button
             key={key}
@@ -391,6 +398,16 @@ export default function WorkListsPage() {
                 </button>
               ))}
             </div>
+            {taskAgents.length > 0 && (
+              <select
+                value={taskAgentFilter}
+                onChange={e => setTaskAgentFilter(e.target.value)}
+                className="text-xs border border-gray-200 rounded-lg px-3 py-1.5 text-gray-700 focus:ring-1 focus:ring-[#1e3a5f]"
+              >
+                <option value="">Όλοι οι Σύμβουλοι</option>
+                {taskAgents.map(a => <option key={a} value={a}>{a}</option>)}
+              </select>
+            )}
             <span className="text-sm text-gray-400 ml-auto">{filteredTasks.length} tasks</span>
           </div>
 
@@ -403,14 +420,14 @@ export default function WorkListsPage() {
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 border-b border-gray-100">
                   <tr>
-                    {['Task', 'Υπόθεση', 'Κατάσταση Task', 'Προτεραιότητα', 'Ανατέθηκε', 'Προθεσμία'].map(h => (
+                    {['Task', 'Υπόθεση', 'Υπηρεσία', 'Κατάσταση Task', 'Προτεραιότητα', 'Ανατέθηκε', 'Προθεσμία'].map(h => (
                       <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500">{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
                   {filteredTasks.length === 0 && (
-                    <tr><td colSpan={6} className="text-center py-10 text-gray-400">Δεν βρέθηκαν tasks</td></tr>
+                    <tr><td colSpan={7} className="text-center py-10 text-gray-400">Δεν βρέθηκαν tasks</td></tr>
                   )}
                   {filteredTasks.map(t => (
                     <tr key={t.id} className="hover:bg-gray-50 transition-colors">
@@ -425,8 +442,8 @@ export default function WorkListsPage() {
                         >
                           {t.case_name}
                         </button>
-                        {t.case_service && <div className="text-xs text-gray-400">{t.case_service}</div>}
                       </td>
+                      <td className="px-4 py-3 text-xs text-gray-500">{t.case_service || '—'}</td>
                       <td className="px-4 py-3">
                         <span className={`inline-block text-xs font-medium px-2 py-0.5 rounded-full border ${TASK_STATUS_COLORS[t.status] || ''}`}>
                           {TASK_STATUS_LABELS[t.status] || t.status}

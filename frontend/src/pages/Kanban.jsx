@@ -122,9 +122,15 @@ function QuickNotifyButton({ caseItem }) {
   const [msg, setMsg] = useState('')
   const [sending, setSending] = useState(false)
   const ref = useRef(null)
+  const portalRef = useRef(null)
 
   useEffect(() => {
-    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    const handler = (e) => {
+      if (ref.current && !ref.current.contains(e.target) &&
+          portalRef.current && !portalRef.current.contains(e.target)) {
+        setOpen(false)
+      }
+    }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
   }, [])
@@ -152,6 +158,7 @@ function QuickNotifyButton({ caseItem }) {
       </button>
       {open && createPortal(
         <div
+          ref={portalRef}
           className="fixed z-[9999] bg-white rounded-xl shadow-2xl border border-gray-200 w-60 p-3 space-y-2"
           style={{ top: ref.current?.getBoundingClientRect().bottom + 4, left: ref.current?.getBoundingClientRect().left }}
           onClick={e => e.stopPropagation()}
