@@ -52,6 +52,7 @@ function BarChart({ items, maxVal, colorClass = 'bg-blue-500' }) {
 
 function MilestoneRow({ item }) {
   const navigate = useNavigate()
+  const first = item.events[0]
   const typeColors = {
     deadline: 'bg-red-100 text-red-700',
     dypa_milestone: 'bg-blue-100 text-blue-700',
@@ -81,26 +82,17 @@ export default function Analytics() {
   const [overview, setOverview] = useState(null)
   const [milestones, setMilestones] = useState([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
 
   useEffect(() => {
     Promise.all([getAnalyticsOverview(), getAnalyticsMilestones(90)])
       .then(([ov, ms]) => { setOverview(ov); setMilestones(ms) })
-      .catch(err => setError(err?.response?.data?.detail || 'Σφάλμα φόρτωσης'))
+      .catch(() => {})
       .finally(() => setLoading(false))
   }, [])
 
   if (loading) return (
     <div className="flex items-center justify-center h-64">
       <div className="animate-spin w-8 h-8 border-4 border-[#1e3a5f] border-t-transparent rounded-full" />
-    </div>
-  )
-
-  if (error) return (
-    <div className="flex flex-col items-center justify-center h-64 text-center">
-      <ExclamationTriangleIcon className="w-10 h-10 text-red-400 mb-3" />
-      <p className="text-gray-600 font-medium">Σφάλμα φόρτωσης δεδομένων</p>
-      <p className="text-xs text-gray-400 mt-1">{error}</p>
     </div>
   )
 

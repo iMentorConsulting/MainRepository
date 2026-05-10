@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo, useRef } from 'react'
 import { getCases, bulkActivateNotify, activateAllPortals } from '../api'
 import {
   GlobeAltIcon,
@@ -7,7 +7,6 @@ import {
   MagnifyingGlassIcon,
   BellAlertIcon,
   ExclamationTriangleIcon,
-  PhoneIcon,
   ChevronDownIcon,
   ChevronUpIcon,
 } from '@heroicons/react/24/outline'
@@ -29,22 +28,112 @@ const DEFAULT_TEMPLATE = `Αγαπητέ/ή {client_name},
 
 Η ομάδα iMentor`
 
-const PROGRAM_OPTIONS = ['', 'ΕΣΠΑ', 'ΔΥΠΑ', 'ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ']
 const PORTAL_OPTIONS = [
   { value: '', label: 'Όλοι' },
   { value: 'active', label: 'Ήδη ενεργό' },
   { value: 'inactive', label: 'Ανενεργό / Χωρίς πύλη' },
 ]
 
+const fmtDt = (iso) =>
+  iso ? new Date(iso).toLocaleString('el-GR', { dateStyle: 'short', timeStyle: 'short' }) : null
+
+function MultiSelectDropdown({ label, options, selected, onChange, maxW = 'min-w-48' }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef(null)
+
+  useEffect(() => {
+    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  const activeCount = selected.size
+  const buttonLabel = activeCount === 0
+    ? label
+    : activeCount === 1
+    ? [...selected][0]
+    : `${activeCount} επιλεγμένα`
+
+  const toggleOption = (val) => {
+    const next = new Set(selected)
+    next.has(val) ? next.delete(val) : next.add(val)
+    onChange(next)
+  }
+
+  const allChecked = options.length > 0 && selected.size === options.length
+  const someChecked = selected.size > 0 && selected.size < options.length
+
+  const toggleAll = () => onChange(allChecked ? new Set() : new Set(options))
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen(p => !p)}
+        className={`flex items-center gap-1.5 border rounded-lg px-3 py-2 text-sm whitespace-nowrap transition-colors ${
+          activeCount > 0
+            ? 'border-[#1e3a5f] bg-blue-50 text-[#1e3a5f] font-medium'
+            : 'border-gray-200 text-gray-600 hover:border-gray-300'
+        }`}
+      >
+        <span className="max-w-[160px] truncate">{buttonLabel}</span>
+        {activeCount > 0 && (
+          <span
+            className="ml-0.5 text-xs bg-[#1e3a5f] text-white rounded-full w-4 h-4 flex items-center justify-center leading-none"
+            onClick={e => { e.stopPropagation(); onChange(new Set()) }}
+            title="Καθαρισμός"
+          >×</span>
+        )}
+        <ChevronDownIcon className={`w-3.5 h-3.5 transition-transform flex-shrink-0 ${open ? 'rotate-180' : ''}`} />
+      </button>
+
+      {open && (
+        <div className={`absolute z-50 top-full mt-1 left-0 bg-white border border-gray-200 rounded-xl shadow-lg ${maxW} max-h-72 overflow-y-auto`}>
+          {options.length > 3 && (
+            <label className="flex items-center gap-2 px-3 py-2 border-b border-gray-100 text-sm text-gray-600 cursor-pointer hover:bg-gray-50 font-medium">
+              <input
+                type="checkbox"
+                checked={allChecked}
+                ref={el => { if (el) el.indeterminate = someChecked }}
+                onChange={toggleAll}
+                className="w-4 h-4 rounded border-gray-300 text-[#1e3a5f] focus:ring-[#1e3a5f]"
+              />
+              Όλα
+            </label>
+          )}
+          {options.map(opt => (
+            <label key={opt} className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={selected.has(opt)}
+                onChange={() => toggleOption(opt)}
+                className="w-4 h-4 rounded border-gray-300 text-[#1e3a5f] focus:ring-[#1e3a5f]"
+              />
+              <span className="truncate">{opt}</span>
+            </label>
+          ))}
+          {options.length === 0 && (
+            <div className="px-3 py-3 text-xs text-gray-400 text-center">Δεν υπάρχουν επιλογές</div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function PortalBroadcastPage() {
   const [cases, setCases] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
-  const [filterProgram, setFilterProgram] = useState('')
+  const [filterProgram, setFilterProgram] = useState(new Set())
+  const [filterService, setFilterService] = useState(new Set())
   const [filterPortal, setFilterPortal] = useState('')
+  const [filterStatus, setFilterStatus] = useState(new Set())
+  const [sortCol, setSortCol] = useState('client_name')
+  const [sortDir, setSortDir] = useState('asc')
   const [selected, setSelected] = useState(new Set())
   const [template, setTemplate] = useState(DEFAULT_TEMPLATE)
   const [showTemplate, setShowTemplate] = useState(false)
+  const [notifType, setNotifType] = useState('viber')
   const [sending, setSending] = useState(false)
   const [results, setResults] = useState(null)
 
@@ -52,37 +141,66 @@ export default function PortalBroadcastPage() {
     getCases()
       .then(data => {
         const list = Array.isArray(data) ? data : (data.cases || data.items || [])
-        setCases(list.filter(c => c.status !== 'ΟΛΟΚΛΗΡΩΜΕΝΗ ΥΠΟΘΕΣΗ' && c.status !== 'ΑΚΥΡΩΣΗ' && c.status !== 'ΠΑΡΑΙΤΗΣΗ' && c.status !== 'ΑΠΟΡΡΙΨΗ'))
+        setCases(list.filter(c =>
+          c.status !== 'ΟΛΟΚΛΗΡΩΜΕΝΗ ΥΠΟΘΕΣΗ' &&
+          c.status !== 'ΑΚΥΡΩΣΗ' &&
+          c.status !== 'ΠΑΡΑΙΤΗΣΗ' &&
+          c.status !== 'ΑΠΟΡΡΙΨΗ'
+        ))
       })
       .finally(() => setLoading(false))
   }, [])
 
+  const allPrograms = useMemo(() => {
+    const s = new Set(cases.map(c => c.program_category).filter(Boolean))
+    return [...s].sort()
+  }, [cases])
+
+  const allServices = useMemo(() => {
+    const s = new Set(cases.map(c => c.service_type).filter(Boolean))
+    return [...s].sort((a, b) => a.localeCompare(b, 'el'))
+  }, [cases])
+
+  const allStatuses = useMemo(() => {
+    const s = new Set(cases.map(c => c.status).filter(Boolean))
+    return [...s].sort((a, b) => a.localeCompare(b, 'el'))
+  }, [cases])
+
   const filtered = useMemo(() => {
-    return cases.filter(c => {
+    const arr = cases.filter(c => {
       if (search && !c.client_name?.toLowerCase().includes(search.toLowerCase())) return false
-      if (filterProgram && c.program_category !== filterProgram) return false
+      if (filterProgram.size > 0 && !filterProgram.has(c.program_category)) return false
+      if (filterService.size > 0 && !filterService.has(c.service_type)) return false
       if (filterPortal === 'active' && !c.portal_active) return false
       if (filterPortal === 'inactive' && c.portal_active) return false
+      if (filterStatus.size > 0 && !filterStatus.has(c.status)) return false
       return true
     })
-  }, [cases, search, filterProgram, filterPortal])
+    return [...arr].sort((a, b) => {
+      const va = a[sortCol]
+      const vb = b[sortCol]
+      if (va == null && vb == null) return 0
+      if (va == null) return sortDir === 'asc' ? 1 : -1
+      if (vb == null) return sortDir === 'asc' ? -1 : 1
+      const cmp = typeof va === 'string' ? va.localeCompare(vb, 'el') : va < vb ? -1 : va > vb ? 1 : 0
+      return sortDir === 'asc' ? cmp : -cmp
+    })
+  }, [cases, search, filterProgram, filterService, filterPortal, filterStatus, sortCol, sortDir])
+
+  const toggleSort = (col) => {
+    if (sortCol === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setSortCol(col); setSortDir('asc') }
+  }
+  const sortIcon = (col) => sortCol === col ? (sortDir === 'asc' ? '↑' : '↓') : '↕'
 
   const allSelected = filtered.length > 0 && filtered.every(c => selected.has(c.id))
   const someSelected = filtered.some(c => selected.has(c.id))
 
   const toggleAll = () => {
     if (allSelected) {
-      setSelected(prev => {
-        const next = new Set(prev)
-        filtered.forEach(c => next.delete(c.id))
-        return next
-      })
+      setSelected(prev => { const next = new Set(prev); filtered.forEach(c => next.delete(c.id)); return next })
     } else {
-      setSelected(prev => {
-        const next = new Set(prev)
-        filtered.forEach(c => next.add(c.id))
-        return next
-      })
+      setSelected(prev => { const next = new Set(prev); filtered.forEach(c => next.add(c.id)); return next })
     }
   }
 
@@ -94,28 +212,34 @@ export default function PortalBroadcastPage() {
     })
   }
 
+  const reloadCases = () => getCases().then(data => {
+    const list = Array.isArray(data) ? data : (data.cases || data.items || [])
+    setCases(list.filter(c =>
+      c.status !== 'ΟΛΟΚΛΗΡΩΜΕΝΗ ΥΠΟΘΕΣΗ' &&
+      c.status !== 'ΑΚΥΡΩΣΗ' &&
+      c.status !== 'ΠΑΡΑΙΤΗΣΗ' &&
+      c.status !== 'ΑΠΟΡΡΙΨΗ'
+    ))
+  })
+
   const handleSend = async () => {
     if (selected.size === 0) { toast.error('Δεν έχετε επιλέξει κανέναν πελάτη'); return }
     setSending(true)
     setResults(null)
     try {
-      const portalBase = window.location.origin
       const res = await bulkActivateNotify({
         case_ids: [...selected],
-        portal_base_url: portalBase,
+        portal_base_url: window.location.origin,
         message_template: template,
         activate: true,
         notify: true,
+        notification_type: notifType,
       })
       setResults(res.results)
       toast.success(`Ενεργοποιήθηκαν: ${res.activated} · Ειδοποιήθηκαν: ${res.notified}`)
-      // Refresh case list to reflect new portal_active states
-      getCases().then(data => {
-        const list = Array.isArray(data) ? data : (data.cases || data.items || [])
-        setCases(list.filter(c => c.status !== 'ΟΛΟΚΛΗΡΩΜΕΝΗ ΥΠΟΘΕΣΗ' && c.status !== 'ΑΚΥΡΩΣΗ' && c.status !== 'ΠΑΡΑΙΤΗΣΗ' && c.status !== 'ΑΠΟΡΡΙΨΗ'))
-      })
+      reloadCases()
       setSelected(new Set())
-    } catch (err) {
+    } catch {
       toast.error('Σφάλμα κατά την αποστολή')
     } finally {
       setSending(false)
@@ -123,17 +247,13 @@ export default function PortalBroadcastPage() {
   }
 
   const [activatingAll, setActivatingAll] = useState(false)
-
   const handleActivateAll = async () => {
     if (!confirm('Ενεργοποίηση πύλης για ΟΛΟΥΣ τους πελάτες χωρίς ειδοποίηση; Δεν αποστέλλεται κανένα μήνυμα.')) return
     setActivatingAll(true)
     try {
       const res = await activateAllPortals()
       toast.success(`Ενεργοποιήθηκαν ${res.activated} από ${res.total} υποθέσεις`)
-      getCases().then(data => {
-        const list = Array.isArray(data) ? data : (data.cases || data.items || [])
-        setCases(list.filter(c => c.status !== 'ΟΛΟΚΛΗΡΩΜΕΝΗ ΥΠΟΘΕΣΗ' && c.status !== 'ΑΚΥΡΩΣΗ' && c.status !== 'ΠΑΡΑΙΤΗΣΗ' && c.status !== 'ΑΠΟΡΡΙΨΗ'))
-      })
+      reloadCases()
     } catch {
       toast.error('Σφάλμα ενεργοποίησης')
     } finally {
@@ -142,10 +262,9 @@ export default function PortalBroadcastPage() {
   }
 
   const selectedCount = selected.size
-  const noPhoneCount = [...selected].filter(id => {
-    const c = cases.find(x => x.id === id)
-    return !c?.phone
-  }).length
+  const noPhoneCount = [...selected].filter(id => !cases.find(x => x.id === id)?.phone).length
+  const noEmailCount = [...selected].filter(id => !cases.find(x => x.id === id)?.email).length
+  const activeFilters = filterProgram.size + filterService.size + filterStatus.size + (filterPortal ? 1 : 0)
 
   if (loading) {
     return (
@@ -173,7 +292,6 @@ export default function PortalBroadcastPage() {
             onClick={handleActivateAll}
             disabled={activatingAll}
             className="flex items-center gap-2 bg-gray-100 text-gray-700 border border-gray-300 px-4 py-2.5 rounded-xl font-semibold hover:bg-gray-200 transition-colors disabled:opacity-50 text-sm"
-            title="Ενεργοποίηση όλων χωρίς αποστολή μηνύματος"
           >
             <GlobeAltIcon className="w-4 h-4" />
             {activatingAll ? 'Ενεργοποίηση...' : 'Ενεργοποίηση Όλων (χωρίς μήνυμα)'}
@@ -189,36 +307,63 @@ export default function PortalBroadcastPage() {
         </div>
       </div>
 
-      {/* Warning if some selected have no phone */}
-      {noPhoneCount > 0 && selectedCount > 0 && (
+      {/* Notification type selector */}
+      <div className="bg-white rounded-xl border border-gray-100 shadow-sm px-5 py-3.5 flex items-center gap-4 flex-wrap">
+        <span className="text-sm font-semibold text-gray-700">Αποστολή μέσω:</span>
+        {[
+          { value: 'viber', label: 'Viber' },
+          { value: 'email', label: 'Email' },
+          { value: 'both', label: 'Viber & Email' },
+        ].map(({ value, label }) => (
+          <button
+            key={value}
+            onClick={() => setNotifType(value)}
+            className={`px-4 py-1.5 rounded-lg border text-sm font-medium transition-all ${
+              notifType === value
+                ? 'bg-[#1e3a5f] text-white border-[#1e3a5f]'
+                : 'bg-white text-gray-600 border-gray-200 hover:border-[#1e3a5f]'
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {/* Warnings */}
+      {(notifType === 'viber' || notifType === 'both') && noPhoneCount > 0 && selectedCount > 0 && (
         <div className="flex items-center gap-2 bg-yellow-50 border border-yellow-200 rounded-xl px-4 py-3 text-sm text-yellow-800">
           <ExclamationTriangleIcon className="w-5 h-5 text-yellow-500 flex-shrink-0" />
-          {noPhoneCount} από τους επιλεγμένους δεν έχουν αριθμό τηλεφώνου — η πύλη θα ενεργοποιηθεί αλλά δεν θα σταλεί Viber.
+          {noPhoneCount} από τους επιλεγμένους δεν έχουν αριθμό τηλεφώνου — δεν θα σταλεί Viber σε αυτούς.
+        </div>
+      )}
+      {(notifType === 'email' || notifType === 'both') && noEmailCount > 0 && selectedCount > 0 && (
+        <div className="flex items-center gap-2 bg-yellow-50 border border-yellow-200 rounded-xl px-4 py-3 text-sm text-yellow-800">
+          <ExclamationTriangleIcon className="w-5 h-5 text-yellow-500 flex-shrink-0" />
+          {noEmailCount} από τους επιλεγμένους δεν έχουν email — δεν θα σταλεί email σε αυτούς.
         </div>
       )}
 
-      {/* Message template toggle */}
+      {/* Message template */}
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm">
         <button
           onClick={() => setShowTemplate(p => !p)}
           className="w-full flex items-center justify-between px-5 py-3.5 text-sm font-semibold text-gray-700"
         >
-          <span>Μήνυμα Viber (προεπισκόπηση & επεξεργασία)</span>
+          <span>Μήνυμα {notifType === 'viber' ? 'Viber' : notifType === 'email' ? 'Email' : 'Viber / Email'} (προεπισκόπηση & επεξεργασία)</span>
           {showTemplate ? <ChevronUpIcon className="w-4 h-4" /> : <ChevronDownIcon className="w-4 h-4" />}
         </button>
         {showTemplate && (
           <div className="px-5 pb-5 border-t border-gray-50 pt-3">
-            <p className="text-xs text-gray-400 mb-2">Χρησιμοποιήστε <code className="bg-gray-100 px-1 rounded">{'{client_name}'}</code> και <code className="bg-gray-100 px-1 rounded">{'{portal_url}'}</code> ως μεταβλητές.</p>
+            <p className="text-xs text-gray-400 mb-2">
+              Χρησιμοποιήστε <code className="bg-gray-100 px-1 rounded">{'{client_name}'}</code> και <code className="bg-gray-100 px-1 rounded">{'{portal_url}'}</code> ως μεταβλητές.
+            </p>
             <textarea
               rows={10}
               value={template}
               onChange={e => setTemplate(e.target.value)}
               className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-mono focus:ring-2 focus:ring-[#1e3a5f] focus:border-transparent resize-y"
             />
-            <button
-              onClick={() => setTemplate(DEFAULT_TEMPLATE)}
-              className="mt-2 text-xs text-blue-600 hover:underline"
-            >
+            <button onClick={() => setTemplate(DEFAULT_TEMPLATE)} className="mt-2 text-xs text-blue-600 hover:underline">
               Επαναφορά στο προεπιλεγμένο
             </button>
           </div>
@@ -226,34 +371,76 @@ export default function PortalBroadcastPage() {
       </div>
 
       {/* Filters */}
-      <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 flex flex-wrap gap-3">
-        <div className="relative flex-1 min-w-48">
-          <MagnifyingGlassIcon className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-          <input
-            type="text"
-            placeholder="Αναζήτηση πελάτη..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#1e3a5f] focus:border-transparent"
+      <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+        <div className="flex flex-wrap gap-3 items-center">
+          {/* Search */}
+          <div className="relative flex-1 min-w-48">
+            <MagnifyingGlassIcon className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Αναζήτηση πελάτη..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#1e3a5f] focus:border-transparent"
+            />
+          </div>
+
+          {/* Program multi-select */}
+          <MultiSelectDropdown
+            label="Όλα τα Προγράμματα"
+            options={allPrograms}
+            selected={filterProgram}
+            onChange={setFilterProgram}
+            maxW="min-w-52"
           />
-        </div>
-        <select
-          value={filterProgram}
-          onChange={e => setFilterProgram(e.target.value)}
-          className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-[#1e3a5f] focus:border-transparent"
-        >
-          <option value="">Όλα τα Προγράμματα</option>
-          {PROGRAM_OPTIONS.filter(Boolean).map(p => <option key={p} value={p}>{p}</option>)}
-        </select>
-        <select
-          value={filterPortal}
-          onChange={e => setFilterPortal(e.target.value)}
-          className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-[#1e3a5f] focus:border-transparent"
-        >
-          {PORTAL_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-        </select>
-        <div className="text-sm text-gray-500 self-center ml-auto">
-          {filtered.length} εγγραφές · {selectedCount} επιλεγμένοι
+
+          {/* Service multi-select */}
+          <MultiSelectDropdown
+            label="Όλες οι Υπηρεσίες"
+            options={allServices}
+            selected={filterService}
+            onChange={setFilterService}
+            maxW="min-w-64 max-w-xs"
+          />
+
+          {/* Portal status (simple select — binary) */}
+          <select
+            value={filterPortal}
+            onChange={e => setFilterPortal(e.target.value)}
+            className={`border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-[#1e3a5f] focus:border-transparent transition-colors ${
+              filterPortal ? 'border-[#1e3a5f] bg-blue-50 text-[#1e3a5f] font-medium' : 'border-gray-200 text-gray-600'
+            }`}
+          >
+            {PORTAL_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+
+          {/* Status multi-select */}
+          <MultiSelectDropdown
+            label="Όλες οι Καταστάσεις"
+            options={allStatuses}
+            selected={filterStatus}
+            onChange={setFilterStatus}
+            maxW="min-w-56 max-w-xs"
+          />
+
+          {/* Clear all filters */}
+          {activeFilters > 0 && (
+            <button
+              onClick={() => {
+                setFilterProgram(new Set())
+                setFilterService(new Set())
+                setFilterPortal('')
+                setFilterStatus(new Set())
+              }}
+              className="text-xs text-gray-500 hover:text-red-500 transition-colors underline"
+            >
+              Καθαρισμός φίλτρων ({activeFilters})
+            </button>
+          )}
+
+          <div className="text-sm text-gray-500 ml-auto">
+            {filtered.length} εγγραφές · {selectedCount} επιλεγμένοι
+          </div>
         </div>
       </div>
 
@@ -272,18 +459,29 @@ export default function PortalBroadcastPage() {
                     className="w-4 h-4 rounded border-gray-300 text-[#1e3a5f] focus:ring-[#1e3a5f]"
                   />
                 </th>
-                <th className="px-4 py-3 text-left font-semibold text-gray-600">Πελάτης</th>
-                <th className="px-4 py-3 text-left font-semibold text-gray-600">Πρόγραμμα</th>
-                <th className="px-4 py-3 text-left font-semibold text-gray-600">Κατάσταση</th>
-                <th className="px-4 py-3 text-left font-semibold text-gray-600">
-                  <PhoneIcon className="w-4 h-4 inline mr-1" />Τηλέφωνο
-                </th>
-                <th className="px-4 py-3 text-center font-semibold text-gray-600">Πύλη</th>
+                {[
+                  { label: 'Πελάτης', key: 'client_name' },
+                  { label: 'Πρόγραμμα', key: 'program_category' },
+                  { label: 'Κατάσταση', key: 'status' },
+                  { label: 'Τηλέφωνο', key: 'phone' },
+                  { label: 'Πύλη', key: 'portal_active' },
+                  { label: 'Τελευταίο Άνοιγμα', key: 'portal_last_visit_at' },
+                  { label: 'Σύνολο Ανοιγμάτων', key: 'portal_visit_count' },
+                  { label: 'Τελευταίο Μήνυμα', key: 'last_msg_at' },
+                  { label: 'Σύνολο Μηνυμάτων', key: 'total_msgs_sent' },
+                ].map(({ label, key }) => (
+                  <th key={key} className="px-4 py-3 text-left font-semibold text-gray-600 whitespace-nowrap text-xs">
+                    <button onClick={() => toggleSort(key)} className="flex items-center gap-1 hover:text-gray-900 transition-colors">
+                      {label}
+                      <span className="text-[10px] text-gray-400">{sortIcon(key)}</span>
+                    </button>
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
               {filtered.length === 0 && (
-                <tr><td colSpan={6} className="text-center py-12 text-gray-400">Δεν βρέθηκαν εγγραφές</td></tr>
+                <tr><td colSpan={10} className="text-center py-12 text-gray-400">Δεν βρέθηκαν εγγραφές</td></tr>
               )}
               {filtered.map(c => (
                 <tr
@@ -300,7 +498,7 @@ export default function PortalBroadcastPage() {
                     />
                   </td>
                   <td className="px-4 py-3">
-                    <div className="font-medium text-gray-800">{c.client_name}</div>
+                    <div className="font-medium text-gray-800 text-sm">{c.client_name}</div>
                     {c.service_type && <div className="text-xs text-gray-400 mt-0.5">{c.service_type}</div>}
                   </td>
                   <td className="px-4 py-3">
@@ -317,11 +515,27 @@ export default function PortalBroadcastPage() {
                       : <span className="text-red-400 text-xs">— χωρίς τηλ.</span>
                     }
                   </td>
-                  <td className="px-4 py-3 text-center">
+                  <td className="px-4 py-3">
                     {c.portal_active
                       ? <span className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-50 border border-green-200 px-2 py-0.5 rounded-full"><CheckCircleIcon className="w-3.5 h-3.5" />Ενεργό</span>
                       : <span className="inline-flex items-center gap-1 text-xs text-gray-500 bg-gray-50 border border-gray-200 px-2 py-0.5 rounded-full">Ανενεργό</span>
                     }
+                  </td>
+                  <td className="px-4 py-3 text-xs text-gray-600 whitespace-nowrap">
+                    {fmtDt(c.portal_last_visit_at) || <span className="text-gray-300">—</span>}
+                  </td>
+                  <td className="px-4 py-3 text-center">
+                    {c.portal_visit_count > 0
+                      ? <span className="text-xs font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full">{c.portal_visit_count}</span>
+                      : <span className="text-gray-300 text-xs">0</span>}
+                  </td>
+                  <td className="px-4 py-3 text-xs text-gray-600 whitespace-nowrap">
+                    {fmtDt(c.last_msg_at) || <span className="text-gray-300">—</span>}
+                  </td>
+                  <td className="px-4 py-3 text-center">
+                    {c.total_msgs_sent > 0
+                      ? <span className="text-xs font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded-full">{c.total_msgs_sent}</span>
+                      : <span className="text-gray-300 text-xs">0</span>}
                   </td>
                 </tr>
               ))}
@@ -349,9 +563,7 @@ export default function PortalBroadcastPage() {
           </div>
           <div className="space-y-1.5 max-h-72 overflow-y-auto">
             {results.map(r => (
-              <div key={r.case_id} className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm ${
-                r.notified ? 'bg-green-50' : 'bg-red-50'
-              }`}>
+              <div key={r.case_id} className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm ${r.notified ? 'bg-green-50' : 'bg-red-50'}`}>
                 {r.notified
                   ? <CheckCircleIcon className="w-4 h-4 text-green-500 flex-shrink-0" />
                   : <XCircleIcon className="w-4 h-4 text-red-400 flex-shrink-0" />

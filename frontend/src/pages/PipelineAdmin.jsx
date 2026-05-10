@@ -90,7 +90,22 @@ function PhaseCard({ phase, phaseIdx, onUpdate, onDelete, onMoveUp, onMoveDown, 
                   <ArrowDownIcon className="w-3 h-3" />
                 </button>
               </div>
-              <span className="flex-1 text-sm text-gray-700 font-medium">{s}</span>
+              <input
+                className="flex-1 text-sm text-gray-700 font-medium bg-transparent border border-transparent rounded px-1 py-0.5 focus:outline-none focus:border-gray-300 focus:bg-gray-50 uppercase"
+                value={s}
+                onChange={e => {
+                  const arr = [...phase.statuses]
+                  arr[idx] = e.target.value.toUpperCase()
+                  onUpdate({ ...phase, statuses: arr })
+                }}
+                onBlur={e => {
+                  const val = e.target.value.trim().toUpperCase()
+                  if (!val) { removeStatus(idx); return }
+                  const arr = [...phase.statuses]
+                  arr[idx] = val
+                  onUpdate({ ...phase, statuses: arr })
+                }}
+              />
               <button onClick={() => removeStatus(idx)}
                 className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-600 transition-opacity">
                 <TrashIcon className="w-4 h-4" />
@@ -123,10 +138,10 @@ function ProgramEditor({ programKey, config, label, onSaved }) {
   const [phases, setPhases] = useState([])
   const [extraStatuses, setExtraStatuses] = useState([])
   const [statusDescriptions, setStatusDescriptions] = useState({})
-  const [showDescriptions, setShowDescriptions] = useState(false)
   const [newExtra, setNewExtra] = useState('')
   const [saving, setSaving] = useState(false)
   const [dirty, setDirty] = useState(false)
+  const [showDescriptions, setShowDescriptions] = useState(false)
 
   useEffect(() => {
     setPhases(config.phases ? JSON.parse(JSON.stringify(config.phases)) : [])
@@ -240,29 +255,33 @@ function ProgramEditor({ programKey, config, label, onSaved }) {
         </div>
       </div>
 
-      {/* Status descriptions for portal */}
+      {/* Status descriptions */}
       <div className="bg-white rounded-xl border p-4 space-y-3">
         <button
-          onClick={() => setShowDescriptions(p => !p)}
-          className="w-full flex items-center justify-between text-sm font-semibold text-gray-600"
+          onClick={() => setShowDescriptions(v => !v)}
+          className="flex items-center justify-between w-full text-sm font-semibold text-gray-500 uppercase tracking-wider"
         >
-          <span>Επεξηγήσεις Κατάστασης για Portal Πελάτη</span>
-          <span className="text-xs text-gray-400">{showDescriptions ? '▲ Απόκρυψη' : '▼ Εμφάνιση'}</span>
+          <span>Επεξηγήσεις Καταστάσεων (εμφανίζονται στην Πύλη Πελάτη)</span>
+          <span className="text-xs text-blue-500">{showDescriptions ? 'Απόκρυψη ▲' : 'Εμφάνιση ▼'}</span>
         </button>
         {showDescriptions && (
-          <div className="space-y-2">
-            <p className="text-xs text-gray-400">Προαιρετική σύντομη επεξήγηση που εμφανίζεται στον πελάτη όταν η υπόθεσή του βρίσκεται σε αυτή την κατάσταση.</p>
+          <div className="space-y-2 pt-1">
             {allStatuses.map(s => (
               <div key={s} className="flex items-start gap-2">
-                <span className="text-xs font-mono text-gray-500 pt-2 min-w-[200px] shrink-0 truncate" title={s}>{s}</span>
+                <span className="text-xs font-mono text-gray-500 pt-2 min-w-[220px] shrink-0 truncate">{s}</span>
                 <input
                   className="flex-1 border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
                   placeholder="Σύντομη επεξήγηση για τον πελάτη..."
                   value={statusDescriptions[s] || ''}
-                  onChange={e => { setStatusDescriptions(d => ({ ...d, [s]: e.target.value })); mark() }}
+                  onChange={e => {
+                    const val = e.target.value
+                    setStatusDescriptions(prev => val ? { ...prev, [s]: val } : Object.fromEntries(Object.entries(prev).filter(([k]) => k !== s)))
+                    mark()
+                  }}
                 />
               </div>
             ))}
+            {allStatuses.length === 0 && <p className="text-xs text-gray-400">Δεν υπάρχουν statuses ακόμα.</p>}
           </div>
         )}
       </div>

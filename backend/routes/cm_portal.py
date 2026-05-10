@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session, joinedload
 from database import get_db
-from models_cases import CMCase, CMCasePendingItem, CMMessage, CMDocument, CMBudgetCategory
+from models_cases import CMCase, CMCasePendingItem, CMMessage, CMBudgetCategory, CMDocument, CMCaseStatusHistory
 from auth_cases import get_current_user
 
 UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "..", "portal_uploads")
@@ -66,67 +66,67 @@ def _build_portal_data(case: CMCase, db: Session) -> dict:
     next_status = _get_next_status(case.status or "", prog, db)
     full_status_list = _get_full_status_list(prog, db)
 
-    # Progress percent: position in full status list
-    all_statuses = [s["status"] for s in full_status_list]
-    try:
-        idx = all_statuses.index(case.status or "")
-        progress_percent = round((idx / max(len(all_statuses) - 1, 1)) * 100)
-    except ValueError:
-        progress_percent = 0
+    # Progress percent: position of current status in full list
+    progress_percent = 0
+    if full_status_list:
+        idx = next((i for i, s in enumerate(full_status_list) if s["status"] == case.status), None)
+        if idx is not None:
+            progress_percent = round((idx + 1) / len(full_status_list) * 100)
 
     # Status descriptions from pipeline config
     try:
-        from routes.cm_pipeline import get_pipeline_config
-        cfg = get_pipeline_config(prog, db)
-        status_descriptions = cfg.get("status_descriptions", {})
+        import json as _json
+        from models_cases import CMPipelineConfig as _PCfg
+        row = db.query(_PCfg).filter(_PCfg.program_category == prog).first()
+        status_descriptions = _json.loads(row.status_descriptions_json or "{}") if row else {}
     except Exception:
         status_descriptions = {}
 
-    # Status history (chronological)
-    history_items = sorted(case.status_history or [], key=lambda h: h.changed_at)
-    status_history = [
-        {
-            "from_status": h.from_status,
-            "to_status": h.to_status,
-            "changed_at": h.changed_at.isoformat() if h.changed_at else None,
-            "changed_by": h.changed_by,
-        }
-        for h in history_items
-    ]
 
     pending_items = [
         {"id": pi.id, "item_text": pi.item_text, "comment": pi.comment}
         for pi in (case.pending_items or [])
     ]
 
-    external_messages = sorted(
+    all_external = sorted(
         [m for m in (case.messages or []) if not m.is_internal],
         key=lambda m: m.created_at,
-    )[-20:]
+    )
     messages_out = [
         {
             "id": m.id,
             "content": m.content,
             "created_at": m.created_at.isoformat() if m.created_at else None,
-            "author": m.user.full_name if m.user else "iMentor",
-            "sent_by_client": getattr(m, "sent_by_client", False) or False,
+            "author": m.user.full_name if m.user else (m.author_name or "iMentor"),
+            "sent_by_client": bool(m.sent_by_client),
         }
-        for m in external_messages
+        for m in all_external[-20:]
     ]
+
+    # Status history
+    history_out = [
+        {
+            "from_status": h.from_status,
+            "to_status": h.to_status,
+            "changed_at": h.changed_at.isoformat() if h.changed_at else None,
+        }
+        for h in (case.status_history or [])
+    ]
+
 
     # Client-uploaded documents
     client_docs = [
         {
             "id": d.id,
             "name": d.name,
-            "created_at": d.created_at.isoformat() if d.created_at else None,
             "file_url": d.file_url,
+            "status": d.status,
+            "created_at": d.created_at.isoformat() if d.created_at else None,
         }
-        for d in (case.documents or [])
-        if getattr(d, "uploaded_by_client", False)
+        for d in (case.documents or []) if d.uploaded_by_client
     ]
 
-    # Budget breakdown (ΕΣΠΑ only but return for all)
+    # Budget breakdown
     budget_categories = [
         {
             "category_name": b.category_name,
@@ -139,7 +139,6 @@ def _build_portal_data(case: CMCase, db: Session) -> dict:
         for b in (case.budget_categories or [])
     ]
 
-    # Financial agreement
     agreed_application = case.agreed_fee_application or 0
     agreed_implementation = case.agreed_fee_implementation or 0
     total_agreed = agreed_application + agreed_implementation
@@ -159,6 +158,10 @@ def _build_portal_data(case: CMCase, db: Session) -> dict:
         "assigned_agent_name": case.assigned_agent.full_name if case.assigned_agent else None,
         "pending_items": pending_items,
         "messages": messages_out,
+        "status_history": history_out,
+        "status_descriptions": status_descriptions,
+        "progress_percent": progress_percent,
+        "client_documents": client_docs,
         "pipeline_phases": phases,
         "current_phase_id": current_phase_id,
         "next_status": next_status,
@@ -227,6 +230,105 @@ def record_review_click(token: str, db: Session = Depends(get_db)):
     return {"ok": True}
 
 
+@router.post("/public/{token}/message")
+def client_send_message(token: str, body: dict, db: Session = Depends(get_db)):
+    """Client submits a message/question from the portal."""
+    case = db.query(CMCase).filter(CMCase.share_token == token).first()
+    if not case or not case.portal_active:
+        raise HTTPException(status_code=404, detail="Portal not found or inactive")
+    content = (body.get("content") or "").strip()
+    if not content:
+        raise HTTPException(status_code=400, detail="Κενό μήνυμα")
+
+    from datetime import datetime
+    msg = CMMessage(
+        case_id=case.id,
+        content=content,
+        is_internal=False,
+        sent_by_client=True,
+        author_name=case.client_name or "Πελάτης",
+    )
+    db.add(msg)
+    db.commit()
+
+    # Notify assigned agent by email if available
+    if case.assigned_agent and case.assigned_agent.email:
+        try:
+            from routes.cm_notifications import _send_email
+            _send_email(
+                case.assigned_agent.email,
+                f"Νέο μήνυμα από πελάτη — {case.client_name}",
+                f"Ο πελάτης {case.client_name} έστειλε μήνυμα:\n\n{content}\n\nΥπόθεση: {case.service_type or ''}",
+            )
+        except Exception:
+            pass
+
+    return {"ok": True}
+
+
+@router.post("/public/{token}/upload")
+async def client_upload_file(
+    token: str,
+    file: UploadFile = File(...),
+    description: str = Form(""),
+    db: Session = Depends(get_db),
+):
+    """Client uploads a document from the portal."""
+    case = db.query(CMCase).filter(CMCase.share_token == token).first()
+    if not case or not case.portal_active:
+        raise HTTPException(status_code=404, detail="Portal not found or inactive")
+
+    # Save file to disk
+    case_dir = os.path.join(UPLOAD_DIR, str(case.id))
+    os.makedirs(case_dir, exist_ok=True)
+    safe_name = f"{uuid.uuid4().hex}_{file.filename}"
+    dest = os.path.join(case_dir, safe_name)
+    with open(dest, "wb") as f:
+        shutil.copyfileobj(file.file, f)
+
+    file_url = f"/api/cm/portal/public/{token}/uploads/{safe_name}"
+
+    doc = CMDocument(
+        case_id=case.id,
+        name=file.filename or safe_name,
+        document_type=description or "Αρχείο πελάτη",
+        status="pending",
+        uploaded_by=case.client_name or "Πελάτης",
+        uploaded_by_client=True,
+        file_url=file_url,
+    )
+    db.add(doc)
+    db.commit()
+    db.refresh(doc)
+
+    # Notify agent
+    if case.assigned_agent and case.assigned_agent.email:
+        try:
+            from routes.cm_notifications import _send_email
+            _send_email(
+                case.assigned_agent.email,
+                f"Νέο αρχείο από πελάτη — {case.client_name}",
+                f"Ο πελάτης {case.client_name} ανέβασε αρχείο: {file.filename}\n{description}",
+            )
+        except Exception:
+            pass
+
+    return {"ok": True, "id": doc.id, "name": doc.name, "file_url": file_url}
+
+
+@router.get("/public/{token}/uploads/{filename}")
+async def serve_client_upload(token: str, filename: str, db: Session = Depends(get_db)):
+    """Serve a file uploaded by the client."""
+    from fastapi.responses import FileResponse as _FR
+    case = db.query(CMCase).filter(CMCase.share_token == token).first()
+    if not case or not case.portal_active:
+        raise HTTPException(status_code=404, detail="Not found")
+    path = os.path.join(UPLOAD_DIR, str(case.id), filename)
+    if not os.path.isfile(path):
+        raise HTTPException(status_code=404, detail="File not found")
+    return _FR(path)
+
+
 @router.post("/public/{token}/visit")
 def record_visit(token: str, body: dict, db: Session = Depends(get_db)):
     """Verify client AFM and increment visit counter."""
@@ -238,7 +340,9 @@ def record_visit(token: str, body: dict, db: Session = Depends(get_db)):
     if not afm or (case.afm or "").strip() != afm:
         raise HTTPException(status_code=403, detail="Λάθος ΑΦΜ")
 
+    from datetime import datetime
     case.portal_visit_count = (case.portal_visit_count or 0) + 1
+    case.portal_last_visit_at = datetime.utcnow()
     db.commit()
     return {"ok": True}
 
@@ -298,14 +402,16 @@ def activate_all_portals(db: Session = Depends(get_db), current_user=Depends(get
 
 @router.post("/bulk-activate-notify")
 def bulk_activate_notify(body: dict, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
-    """Activate portals and send Viber notifications for selected cases."""
+    """Activate portals and send Viber/email notifications for selected cases."""
+    from routes.cm_notifications import _send_email, _send_viber, _log_notification
+
     case_ids = body.get("case_ids", [])
     portal_base_url = (body.get("portal_base_url") or "").rstrip("/")
     message_template = body.get("message_template", "")
     activate = body.get("activate", True)
     notify = body.get("notify", True)
+    notification_type = body.get("notification_type", "viber")  # viber | email | both
 
-    bridge_url = os.getenv("VIBER_BRIDGE_URL", "https://viber-bridge.i-mentor.gr")
     results = []
 
     for case_id in case_ids:
@@ -328,38 +434,53 @@ def bulk_activate_notify(body: dict, db: Session = Depends(get_db), current_user
                .replace("{service_type}", case.service_type or ""))
 
         notified = False
-        error = ""
+        error_parts = []
+
         if notify:
-            phone = (case.phone or "").strip()
-            if phone:
-                try:
-                    resp = http_requests.post(f"{bridge_url}/send", json={
-                        "to": _normalize_phone(phone),
-                        "text": msg,
-                        "name": case.client_name or phone,
-                        "agent": current_user.full_name,
-                        "service_tag": case.service_type or "",
-                    }, timeout=10)
-                    notified = resp.status_code == 200
-                    if not notified:
-                        error = resp.text[:200]
-                except Exception as e:
-                    error = str(e)[:200]
-            else:
-                error = "no phone"
+            send_viber = notification_type in ("viber", "both")
+            send_email = notification_type in ("email", "both")
+
+            if send_viber:
+                phone = (case.phone or "").strip()
+                if phone:
+                    ok, err = _send_viber(phone, msg, case.client_name or "", current_user.full_name, case.service_type or "")
+                    if ok:
+                        notified = True
+                        _log_notification(db, case.id, "viber", case.client_name, phone,
+                                          "Ενεργοποίηση Πύλης Πελάτη", msg, "sent", current_user.full_name)
+                    else:
+                        error_parts.append(f"Viber: {err[:100]}")
+                else:
+                    error_parts.append("no phone")
+
+            if send_email:
+                email_addr = (case.email or "").strip()
+                if email_addr:
+                    subject = f"Ενεργοποίηση Πύλης Πελάτη - {case.client_name or ''}"
+                    ok, err = _send_email(email_addr, subject, msg)
+                    if ok:
+                        notified = True
+                        _log_notification(db, case.id, "email", case.client_name, email_addr,
+                                          subject, msg, "sent", current_user.full_name)
+                    else:
+                        error_parts.append(f"Email: {err or 'failed'}")
+                else:
+                    error_parts.append("no email")
 
         results.append({
             "case_id": case_id,
             "client_name": case.client_name,
             "phone": case.phone,
+            "email": case.email,
             "portal_url": portal_url,
             "notified": notified,
-            "error": error,
+            "error": "; ".join(error_parts),
         })
 
+    db.commit()
     return {
         "results": results,
-        "activated": sum(1 for r in results if "error" not in r or not r["error"] or r.get("portal_url")),
+        "activated": sum(1 for r in results if r.get("portal_url")),
         "notified": sum(1 for r in results if r.get("notified")),
     }
 

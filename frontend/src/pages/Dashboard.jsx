@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { getDashboardStats, sendSLANotifications } from '../api'
+import { getDashboardStats, sendSLANotifications, getPortalActivity } from '../api'
 import { getAuth } from '../api'
 import {
   FolderOpenIcon, CurrencyEuroIcon, ClockIcon, ExclamationTriangleIcon,
@@ -410,7 +410,25 @@ export default function Dashboard() {
   const [stats, setStats] = useState(null)
   const [loading, setLoading] = useState(true)
   const [expandedProgram, setExpandedProgram] = useState(null)
+  const [portalActivity, setPortalActivity] = useState([])
+  const [portalSortCol, setPortalSortCol] = useState('portal_last_visit_at')
+  const [portalSortDir, setPortalSortDir] = useState('desc')
   const navigate = useNavigate()
+
+  const togglePortalSort = (col) => {
+    if (portalSortCol === col) setPortalSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setPortalSortCol(col); setPortalSortDir('desc') }
+  }
+
+  const sortedPortalActivity = [...portalActivity].sort((a, b) => {
+    const va = a[portalSortCol]
+    const vb = b[portalSortCol]
+    if (va == null && vb == null) return 0
+    if (va == null) return 1
+    if (vb == null) return -1
+    const cmp = va < vb ? -1 : va > vb ? 1 : 0
+    return portalSortDir === 'asc' ? cmp : -cmp
+  })
 
   const auth = getAuth()
   useEffect(() => {
@@ -427,6 +445,7 @@ export default function Dashboard() {
         else toast.error('Σφάλμα φόρτωσης dashboard')
       })
       .finally(() => setLoading(false))
+    getPortalActivity().then(setPortalActivity).catch(() => {})
   }, [])
 
   if (loading) return (
@@ -556,6 +575,78 @@ export default function Dashboard() {
             ))}
           </div>
         </div>
+      </div>
+
+      {/* Portal Activity */}
+      <div className="bg-white rounded-xl border overflow-hidden">
+        <div className="px-5 py-3 border-b bg-gray-50 flex items-center justify-between">
+          <h2 className="font-semibold text-gray-800 text-sm flex items-center gap-2">
+            🌐 Ανοίγματα Πύλης Πελάτη
+            {portalActivity.length > 0 && <span className="bg-blue-100 text-blue-700 text-xs font-bold px-1.5 py-0.5 rounded-full">{portalActivity.length}</span>}
+          </h2>
+        </div>
+        {portalActivity.length === 0 ? (
+          <div className="text-center py-8 text-sm text-gray-400">Δεν υπάρχουν ενεργές πύλες πελατών</div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 border-b">
+                <tr>
+                  {[
+                    { label: 'Πελάτης', key: 'client_name' },
+                    { label: 'Πρόγραμμα', key: 'program_category' },
+                    { label: 'Κατάσταση', key: 'status' },
+                    { label: 'Τελευταίο Άνοιγμα', key: 'portal_last_visit_at' },
+                    { label: 'Σύνολο Ανοιγμάτων', key: 'portal_visit_count' },
+                    { label: 'Τελευταίο Μήνυμα', key: 'last_msg_at' },
+                    { label: 'Σύνολο Μηνυμάτων', key: 'total_msgs_sent' },
+                  ].map(({ label, key }) => (
+                    <th key={key} className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 whitespace-nowrap">
+                      <button onClick={() => togglePortalSort(key)} className="flex items-center gap-1 hover:text-gray-800 transition-colors">
+                        {label}
+                        <span className="text-[10px]">
+                          {portalSortCol === key ? (portalSortDir === 'asc' ? '↑' : '↓') : '↕'}
+                        </span>
+                      </button>
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {sortedPortalActivity.map(p => (
+                  <tr key={p.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-2.5">
+                      <Link to={`/cases/${p.id}`} className="font-medium text-gray-900 hover:text-blue-600 truncate block max-w-[160px]">{p.client_name}</Link>
+                      <div className="text-xs text-gray-400 truncate max-w-[160px]">{p.service_type || '—'}</div>
+                    </td>
+                    <td className="px-4 py-2.5">
+                      <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${PROG_COLORS[p.program_category] || 'bg-gray-100 text-gray-700'}`}>{p.program_category}</span>
+                    </td>
+                    <td className="px-4 py-2.5 text-xs text-gray-600 max-w-[140px]">
+                      <div className="truncate">{p.status || '—'}</div>
+                    </td>
+                    <td className="px-4 py-2.5 text-xs text-gray-600 whitespace-nowrap">
+                      {p.portal_last_visit_at ? new Date(p.portal_last_visit_at).toLocaleString('el-GR', { dateStyle: 'short', timeStyle: 'short' }) : <span className="text-gray-300">—</span>}
+                    </td>
+                    <td className="px-4 py-2.5 text-center">
+                      {p.portal_visit_count > 0
+                        ? <span className="text-xs font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full">{p.portal_visit_count}</span>
+                        : <span className="text-gray-300 text-xs">0</span>}
+                    </td>
+                    <td className="px-4 py-2.5 text-xs text-gray-600 whitespace-nowrap">
+                      {p.last_msg_at ? new Date(p.last_msg_at).toLocaleString('el-GR', { dateStyle: 'short', timeStyle: 'short' }) : <span className="text-gray-300">—</span>}
+                    </td>
+                    <td className="px-4 py-2.5 text-center">
+                      {p.total_msgs_sent > 0
+                        ? <span className="text-xs font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded-full">{p.total_msgs_sent}</span>
+                        : <span className="text-gray-300 text-xs">0</span>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       {/* Urgent deadlines + Recent */}

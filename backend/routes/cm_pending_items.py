@@ -38,6 +38,7 @@ class PendingItemUpdate(BaseModel):
 
 class NotifyRequest(BaseModel):
     notification_type: str = "both"  # email, viber, both
+    portal_base_url: str = ""
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -250,7 +251,7 @@ def notify_pending_items(
     portal_note = ""
     if c.portal_active and c.share_token:
         import os as _os
-        base = _os.getenv("PORTAL_BASE_URL", "https://app.i-mentor.gr")
+        base = (req.portal_base_url or _os.getenv("PORTAL_BASE_URL", "")).rstrip("/")
         portal_url = f"{base}/portal/{c.share_token}"
         portal_note = (
             f"\n\n---\n"

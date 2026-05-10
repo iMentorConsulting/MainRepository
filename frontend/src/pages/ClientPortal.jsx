@@ -16,10 +16,6 @@ import {
   StarIcon,
   ClipboardDocumentIcon,
   GlobeAltIcon,
-  PaperAirplaneIcon,
-  ArrowUpTrayIcon,
-  DocumentIcon,
-  QuestionMarkCircleIcon,
 } from '@heroicons/react/24/outline'
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -131,15 +127,12 @@ function StatusTooltip({ description }) {
     <div className="relative flex-shrink-0">
       <button
         onClick={e => { e.stopPropagation(); setShow(s => !s) }}
-        className="w-5 h-5 rounded-full bg-gray-100 text-gray-400 hover:bg-blue-100 hover:text-blue-600 flex items-center justify-center text-xs font-bold transition-colors"
-        title="Πληροφορίες"
-      >
-        ?
-      </button>
+        className="w-4 h-4 rounded-full bg-[#1e3a5f]/15 text-[#1e3a5f] flex items-center justify-center text-[9px] font-bold hover:bg-[#1e3a5f]/25"
+      >?</button>
       {show && (
-        <div className="absolute right-0 top-6 z-20 w-56 bg-[#1e3a5f] text-white text-xs rounded-xl shadow-xl px-3 py-2.5 leading-relaxed">
+        <div className="absolute left-full top-0 ml-2 z-50 w-56 bg-[#1e3a5f] text-white text-xs rounded-lg px-3 py-2 shadow-xl">
           {description}
-          <div className="absolute -top-1.5 right-1.5 w-3 h-3 bg-[#1e3a5f] rotate-45" />
+          <button onClick={() => setShow(false)} className="absolute top-1 right-1.5 text-white/60 hover:text-white text-xs">✕</button>
         </div>
       )}
     </div>
@@ -149,6 +142,7 @@ function StatusTooltip({ description }) {
 function StatusTimeline({ fullStatusList, currentStatus, nextStatus, statusDescriptions = {} }) {
   const currentIdx = fullStatusList.findIndex(s => s.status === currentStatus)
 
+  // Group flat list into phase buckets preserving order
   const phaseGroups = []
   fullStatusList.forEach((item, idx) => {
     const last = phaseGroups[phaseGroups.length - 1]
@@ -188,7 +182,6 @@ function StatusTimeline({ fullStatusList, currentStatus, nextStatus, statusDescr
                 {phase.items.map((item) => {
                   const isDone = item.idx < currentIdx
                   const isActive = item.idx === currentIdx
-                  const desc = statusDescriptions[item.status]
                   return (
                     <div key={item.idx} className={`flex items-center gap-2.5 py-1.5 px-2.5 rounded-lg ${isActive ? colors.rowBg : ''}`}>
                       <div className={`flex-shrink-0 w-4 h-4 rounded-full flex items-center justify-center ${
@@ -202,12 +195,12 @@ function StatusTimeline({ fullStatusList, currentStatus, nextStatus, statusDescr
                       }`}>
                         {item.status}
                       </span>
+                      <StatusTooltip description={statusDescriptions[item.status]} />
                       {isActive && (
                         <span className={`flex-shrink-0 text-xs font-bold px-2 py-0.5 rounded-full border ${colors.badge}`}>
                           ΤΩΡΑ
                         </span>
                       )}
-                      <StatusTooltip description={desc} />
                     </div>
                   )
                 })}
@@ -463,19 +456,23 @@ function DypaMilestoneTimeline({ startDate }) {
         ))}
       </div>
 
-      {/* Today callout */}
-      <div className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 flex items-center justify-between">
-        <span className="text-xs text-gray-500">Σήμερα</span>
-        <span className="text-xs font-semibold text-[#1e3a5f]">{fmtDate(today.toISOString())}</span>
-        <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-          phase === 'after' ? 'bg-green-100 text-green-700' :
-          phase === 'BC' ? 'bg-yellow-100 text-yellow-700' :
-          'bg-blue-100 text-blue-700'
+      {/* Today info — separate from the track */}
+      <div className="flex items-center gap-3 pt-1">
+        <div className="flex items-center gap-1.5 text-xs text-gray-500">
+          <div className="w-3 h-3 rounded-full border-2 border-[#1e3a5f] bg-white flex-shrink-0" />
+          <span>Σήμερα <span className="font-semibold text-gray-800">{fmtDate(today.toISOString())}</span></span>
+        </div>
+        <div className="flex-1 border-t border-dashed border-gray-200" />
+        <span className={`text-xs font-semibold px-3 py-1 rounded-full ${
+          phase === 'before' ? 'bg-blue-50 text-blue-700 border border-blue-200' :
+          phase === 'AB'     ? 'bg-yellow-50 text-yellow-700 border border-yellow-200' :
+          phase === 'BC'     ? 'bg-orange-50 text-orange-700 border border-orange-200' :
+                               'bg-green-50 text-green-700 border border-green-200'
         }`}>
-          {phase === 'before' ? `Έναρξη σε ${Math.ceil((milestoneA - today) / 86400000)} ημέρες` :
-           phase === 'after' ? `${Math.floor((today - milestoneC) / 86400000)} ημέρες μετά Γ` :
-           phase === 'AB' ? `${Math.floor(elapsedMs / 86400000)} ημέρες από Α` :
-           `${Math.floor((today - milestoneB) / 86400000)} ημέρες από Β`}
+          {phase === 'before' ? `Β Ορόσημο σε ${Math.ceil((milestoneB - today) / 86400000)} ημέρες` :
+           phase === 'AB'     ? `Β Ορόσημο σε ${Math.ceil((milestoneB - today) / 86400000)} ημέρες` :
+           phase === 'BC'     ? `Γ Ορόσημο σε ${Math.ceil((milestoneC - today) / 86400000)} ημέρες` :
+                                `Γ Ορόσημο ολοκληρώθηκε ✓`}
         </span>
       </div>
     </div>
@@ -624,155 +621,6 @@ function DypaSection({ data }) {
         </div>
       </div>
     </>
-  )
-}
-
-// ── Status History Timeline ───────────────────────────────────────────────────
-
-function StatusHistoryTimeline({ history }) {
-  if (!history?.length) return null
-  return (
-    <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
-      <h3 className="text-sm font-semibold text-gray-700 mb-4 flex items-center gap-2">
-        <ClockIcon className="w-5 h-5 text-gray-400" />
-        Ιστορικό Κατάστασης
-      </h3>
-      <div className="relative">
-        <div className="absolute left-3 top-0 bottom-0 w-0.5 bg-gray-200" />
-        <div className="space-y-4">
-          {history.map((h, i) => (
-            <div key={i} className="flex gap-3 items-start relative">
-              <div className={`w-6 h-6 rounded-full flex-shrink-0 flex items-center justify-center z-10 ${
-                i === history.length - 1 ? 'bg-[#1e3a5f] text-white' : 'bg-gray-100 border-2 border-gray-300'
-              }`}>
-                {i === history.length - 1
-                  ? <div className="w-2 h-2 bg-white rounded-full" />
-                  : <CheckCircleIcon className="w-3 h-3 text-gray-400" />
-                }
-              </div>
-              <div className="flex-1 pb-1">
-                <p className={`text-sm font-medium ${i === history.length - 1 ? 'text-[#1e3a5f]' : 'text-gray-700'}`}>
-                  {h.to_status}
-                </p>
-                <p className="text-xs text-gray-400">
-                  {h.changed_at ? new Date(h.changed_at).toLocaleDateString('el-GR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—'}
-                </p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// ── Client Message Form ───────────────────────────────────────────────────────
-
-function ClientMessageForm({ token }) {
-  const [text, setText] = useState('')
-  const [sending, setSending] = useState(false)
-  const [sent, setSent] = useState(false)
-
-  const handleSend = async () => {
-    if (!text.trim()) return
-    setSending(true)
-    try {
-      await submitPortalMessage(token, text.trim())
-      setSent(true)
-      setText('')
-      setTimeout(() => setSent(false), 4000)
-    } catch {}
-    finally { setSending(false) }
-  }
-
-  return (
-    <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
-      <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
-        <ChatBubbleLeftEllipsisIcon className="w-5 h-5 text-[#1e3a5f]" />
-        Στείλτε μήνυμα στο γραφείο
-      </h3>
-      {sent ? (
-        <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-3 text-sm text-green-700 font-medium text-center">
-          ✓ Το μήνυμά σας εστάλη! Ο σύμβουλός σας θα επικοινωνήσει μαζί σας.
-        </div>
-      ) : (
-        <div className="space-y-3">
-          <textarea
-            rows={3}
-            value={text}
-            onChange={e => setText(e.target.value)}
-            placeholder="Γράψτε το μήνυμά σας..."
-            className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]"
-          />
-          <button
-            onClick={handleSend}
-            disabled={!text.trim() || sending}
-            className="flex items-center gap-2 bg-[#1e3a5f] text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-[#16305a] transition-colors disabled:opacity-50"
-          >
-            <PaperAirplaneIcon className="w-4 h-4" />
-            {sending ? 'Αποστολή...' : 'Αποστολή'}
-          </button>
-        </div>
-      )}
-    </div>
-  )
-}
-
-// ── Client Upload Section ─────────────────────────────────────────────────────
-
-function ClientUploadSection({ token, clientDocuments }) {
-  const [uploading, setUploading] = useState(false)
-  const [uploaded, setUploaded] = useState(false)
-  const fileRef = useRef(null)
-
-  const handleUpload = async (e) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    setUploading(true)
-    try {
-      await uploadPortalFile(token, file)
-      setUploaded(true)
-      setTimeout(() => setUploaded(false), 4000)
-    } catch {}
-    finally { setUploading(false); if (fileRef.current) fileRef.current.value = '' }
-  }
-
-  return (
-    <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
-      <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
-        <ArrowUpTrayIcon className="w-5 h-5 text-[#1e3a5f]" />
-        Αποστολή Εγγράφων
-      </h3>
-      {clientDocuments?.length > 0 && (
-        <div className="space-y-2 mb-4">
-          {clientDocuments.map((d, i) => (
-            <div key={i} className="flex items-center gap-2 text-sm text-gray-700 bg-gray-50 rounded-lg px-3 py-2">
-              <DocumentIcon className="w-4 h-4 text-gray-400 flex-shrink-0" />
-              <span className="flex-1 truncate">{d.name}</span>
-              <span className="text-xs text-gray-400 flex-shrink-0">{d.created_at ? new Date(d.created_at).toLocaleDateString('el-GR') : ''}</span>
-            </div>
-          ))}
-        </div>
-      )}
-      {uploaded ? (
-        <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-3 text-sm text-green-700 font-medium text-center">
-          ✓ Το αρχείο ανέβηκε επιτυχώς!
-        </div>
-      ) : (
-        <div>
-          <input ref={fileRef} type="file" className="hidden" onChange={handleUpload} />
-          <button
-            onClick={() => fileRef.current?.click()}
-            disabled={uploading}
-            className="flex items-center gap-2 border-2 border-dashed border-gray-300 text-gray-600 w-full justify-center py-3 rounded-xl text-sm hover:border-[#1e3a5f] hover:text-[#1e3a5f] transition-colors disabled:opacity-50"
-          >
-            <ArrowUpTrayIcon className="w-4 h-4" />
-            {uploading ? 'Ανέβασμα...' : 'Επιλογή αρχείου για αποστολή'}
-          </button>
-          <p className="text-xs text-gray-400 text-center mt-2">PDF, Word, Excel, εικόνες κ.λπ.</p>
-        </div>
-      )}
-    </div>
   )
 }
 
@@ -962,6 +810,121 @@ function FinancialSection({ data }) {
   )
 }
 
+// ── Client Message Form ───────────────────────────────────────────────────────
+
+function ClientMessageForm({ token, onSent }) {
+  const [content, setContent] = useState('')
+  const [sending, setSending] = useState(false)
+  const [sent, setSent] = useState(false)
+
+  const handleSend = async () => {
+    if (!content.trim()) return
+    setSending(true)
+    try {
+      await submitPortalMessage(token, content.trim())
+      setSent(true)
+      setContent('')
+      setTimeout(() => setSent(false), 3000)
+      onSent()
+    } catch {
+    } finally {
+      setSending(false)
+    }
+  }
+
+  return (
+    <div className="space-y-2">
+      <textarea
+        className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f] resize-none"
+        rows={3}
+        placeholder="Γράψτε το μήνυμά σας προς το γραφείο..."
+        value={content}
+        onChange={e => setContent(e.target.value)}
+        disabled={sending}
+      />
+      <div className="flex items-center gap-3 justify-end">
+        {sent && <span className="text-xs text-green-600 font-medium">✓ Εστάλη!</span>}
+        <button
+          onClick={handleSend}
+          disabled={sending || !content.trim()}
+          className="px-4 py-2 bg-[#1e3a5f] text-white rounded-lg text-sm font-semibold hover:bg-[#16305a] disabled:opacity-40 transition-colors"
+        >
+          {sending ? 'Αποστολή...' : 'Αποστολή Μηνύματος'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ── Client File Upload ────────────────────────────────────────────────────────
+
+function ClientUploadSection({ token, clientDocs, onUploaded }) {
+  const [uploading, setUploading] = useState(false)
+  const [desc, setDesc] = useState('')
+  const [done, setDone] = useState(false)
+  const fileRef = useRef(null)
+
+  const handleUpload = async (file) => {
+    if (!file) return
+    setUploading(true)
+    try {
+      await uploadPortalFile(token, file, desc)
+      setDone(true)
+      setDesc('')
+      fileRef.current.value = ''
+      setTimeout(() => setDone(false), 3000)
+      onUploaded()
+    } catch {
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm space-y-3">
+      <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+        <ClipboardDocumentIcon className="w-5 h-5 text-gray-400" />
+        Αποστολή Εγγράφων
+      </h3>
+      {clientDocs.length > 0 && (
+        <div className="space-y-1.5">
+          {clientDocs.map(doc => (
+            <div key={doc.id} className="flex items-center gap-2 text-sm text-gray-700 bg-gray-50 rounded-lg px-3 py-2">
+              <ClipboardDocumentIcon className="w-4 h-4 text-gray-400 shrink-0" />
+              <span className="flex-1 truncate">{doc.name}</span>
+              <span className="text-xs text-gray-400">{fmtDate(doc.created_at)}</span>
+              <span className={`text-xs px-2 py-0.5 rounded-full ${
+                doc.status === 'approved' ? 'bg-green-100 text-green-700' :
+                doc.status === 'reviewed' ? 'bg-blue-100 text-blue-700' :
+                'bg-gray-100 text-gray-500'}`}>
+                {doc.status === 'approved' ? '✓ Εγκρίθηκε' : doc.status === 'reviewed' ? 'Ελέγχθηκε' : 'Σε αναμονή'}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+      <input
+        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]"
+        placeholder="Περιγραφή εγγράφου (προαιρετικό)..."
+        value={desc}
+        onChange={e => setDesc(e.target.value)}
+      />
+      <div className="flex items-center gap-3">
+        <input type="file" ref={fileRef} className="hidden" onChange={e => handleUpload(e.target.files[0])} />
+        <button
+          onClick={() => fileRef.current?.click()}
+          disabled={uploading}
+          className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 disabled:opacity-50 transition-colors border border-gray-200"
+        >
+          {uploading ? 'Αποστολή...' : '+ Επιλογή Αρχείου'}
+        </button>
+        {done && <span className="text-xs text-green-600 font-medium">✓ Ανέβηκε επιτυχώς!</span>}
+      </div>
+      <p className="text-xs text-gray-400">Αποδεκτές μορφές: PDF, JPG, PNG, DOCX έως 20MB</p>
+    </div>
+  )
+}
+
 // ── Main Portal Page ─────────────────────────────────────────────────────────
 
 export default function ClientPortal() {
@@ -1054,11 +1017,18 @@ export default function ClientPortal() {
               <span className="text-xs text-gray-400">→ <span className="text-gray-600">{data.next_status}</span></span>
             )}
           </div>
-          {data.progress_percent !== undefined && (
+          {data.status_descriptions?.[data.status] && (
+            <div className="mt-2 flex items-start gap-2 bg-[#1e3a5f]/5 border border-[#1e3a5f]/10 rounded-lg px-3 py-2 text-xs text-[#1e3a5f]">
+              <span className="flex-shrink-0 w-4 h-4 rounded-full bg-[#1e3a5f]/10 flex items-center justify-center font-bold text-[10px] mt-0.5">?</span>
+              <span>{data.status_descriptions[data.status]}</span>
+            </div>
+          )}
+          {/* Progress bar */}
+          {data.progress_percent > 0 && (
             <div className="mt-3">
               <div className="flex justify-between text-xs text-gray-400 mb-1">
-                <span>Πρόοδος</span>
-                <span>{data.progress_percent}%</span>
+                <span>Πρόοδος υπόθεσης</span>
+                <span className="font-semibold text-gray-600">{data.progress_percent}%</span>
               </div>
               <div className="w-full bg-gray-100 rounded-full h-2">
                 <div
@@ -1066,12 +1036,6 @@ export default function ClientPortal() {
                   style={{ width: `${data.progress_percent}%` }}
                 />
               </div>
-            </div>
-          )}
-          {data.status_descriptions?.[data.status] && (
-            <div className="mt-3 flex items-start gap-2 bg-[#1e3a5f]/5 border border-[#1e3a5f]/10 rounded-lg px-3 py-2 text-xs text-[#1e3a5f]">
-              <QuestionMarkCircleIcon className="w-4 h-4 flex-shrink-0 mt-0.5 opacity-70" />
-              <span>{data.status_descriptions[data.status]}</span>
             </div>
           )}
           {data.assigned_agent_name && (
@@ -1090,8 +1054,12 @@ export default function ClientPortal() {
           {data.program_category === 'ΕΣΠΑ' && (
             <KpiCard icon={CurrencyEuroIcon} label="Επιχορήγηση" value={subsidy} color="green" />
           )}
-          <KpiCard icon={CalendarDaysIcon} label="Ημερ. Έγκρισης" value={fmtDate(data.approval_date)} color="purple" />
-          <KpiCard icon={CalendarDaysIcon} label="Προθεσμία" value={fmtDate(data.project_deadline)} color="orange" />
+          {data.program_category !== 'ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ' && (
+            <KpiCard icon={CalendarDaysIcon} label="Ημερ. Έγκρισης" value={fmtDate(data.approval_date)} color="purple" />
+          )}
+          {data.program_category !== 'ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ' && (
+            <KpiCard icon={CalendarDaysIcon} label="Προθεσμία" value={fmtDate(data.project_deadline)} color="orange" />
+          )}
         </div>
 
         {/* Vertical Status Timeline */}
@@ -1149,49 +1117,61 @@ export default function ClientPortal() {
 
         {/* Status History */}
         {data.status_history?.length > 0 && (
-          <StatusHistoryTimeline history={data.status_history} />
-        )}
-
-        {/* Messages */}
-        {data.messages?.length > 0 && (
           <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
             <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
-              <ChatBubbleLeftEllipsisIcon className="w-5 h-5 text-gray-400" />
-              Επικοινωνία
+              <ClockIcon className="w-5 h-5 text-gray-400" />
+              Ιστορικό Κατάστασης
             </h3>
-            <div className="space-y-3">
-              {data.messages.map(msg => {
-                const isClient = msg.sent_by_client
-                return (
-                  <div key={msg.id} className={`flex gap-3 items-start ${isClient ? 'flex-row-reverse' : ''}`}>
-                    <div className={`w-7 h-7 rounded-full flex-shrink-0 flex items-center justify-center text-white text-xs font-bold ${
-                      isClient ? 'bg-green-500' : 'bg-[#1e3a5f]'
-                    }`}>
-                      {(isClient ? (data.client_name || 'Π') : (msg.author || 'i'))[0].toUpperCase()}
-                    </div>
-                    <div className={`flex-1 rounded-lg px-3 py-2 ${isClient ? 'bg-green-50 border border-green-100' : 'bg-gray-50'}`}>
-                      <div className={`flex items-center gap-2 mb-1 ${isClient ? 'flex-row-reverse' : ''}`}>
-                        <span className="text-xs font-semibold text-gray-700">
-                          {isClient ? 'Εσείς' : (msg.author || 'iMentor')}
-                        </span>
-                        <span className="text-xs text-gray-400">{fmtDate(msg.created_at)}</span>
-                      </div>
-                      <p className={`text-sm whitespace-pre-line ${isClient ? 'text-green-800 text-right' : 'text-gray-800'}`}>
-                        {msg.content}
-                      </p>
+            <div className="relative">
+              <div className="absolute left-3 top-0 bottom-0 w-px bg-gray-100" />
+              <div className="space-y-3 pl-8">
+                {data.status_history.map((h, i) => (
+                  <div key={i} className="relative">
+                    <div className="absolute -left-5 top-1.5 w-2.5 h-2.5 rounded-full bg-blue-500 border-2 border-white" />
+                    <div className="text-xs text-gray-400">{fmtDate(h.changed_at)}</div>
+                    <div className="text-sm text-gray-800">
+                      {h.from_status && <span className="text-gray-400 line-through mr-1">{h.from_status}</span>}
+                      <span className="font-medium text-[#1e3a5f]">→ {h.to_status}</span>
                     </div>
                   </div>
-                )
-              })}
+                ))}
+              </div>
             </div>
           </div>
         )}
 
-        {/* Client Message Form */}
-        <ClientMessageForm token={token} />
+        {/* Messages */}
+        <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
+          <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+            <ChatBubbleLeftEllipsisIcon className="w-5 h-5 text-gray-400" />
+            Επικοινωνία με το Γραφείο
+          </h3>
+          {data.messages?.length > 0 ? (
+            <div className="space-y-3 mb-4">
+              {data.messages.map(msg => (
+                <div key={msg.id} className={`flex gap-3 items-start ${msg.sent_by_client ? 'flex-row-reverse' : ''}`}>
+                  <div className={`w-7 h-7 rounded-full flex-shrink-0 flex items-center justify-center text-white text-xs font-bold
+                    ${msg.sent_by_client ? 'bg-green-500' : 'bg-[#1e3a5f]'}`}>
+                    {msg.sent_by_client ? 'Ε' : (msg.author || 'i')[0].toUpperCase()}
+                  </div>
+                  <div className={`flex-1 rounded-xl px-3 py-2 ${msg.sent_by_client ? 'bg-green-50 border border-green-100' : 'bg-gray-50'}`}>
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-xs font-semibold text-gray-700">{msg.sent_by_client ? 'Εσείς' : (msg.author || 'iMentor')}</span>
+                      <span className="text-xs text-gray-400">{fmtDate(msg.created_at)}</span>
+                    </div>
+                    <p className="text-sm text-gray-800 whitespace-pre-line">{msg.content}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-xs text-gray-400 mb-4">Δεν υπάρχουν μηνύματα ακόμα.</p>
+          )}
+          <ClientMessageForm token={token} onSent={() => getPortalCase(token).then(setData)} />
+        </div>
 
-        {/* Client Upload */}
-        <ClientUploadSection token={token} clientDocuments={data.client_documents} />
+        {/* Client File Upload */}
+        <ClientUploadSection token={token} clientDocs={data.client_documents || []} onUploaded={() => getPortalCase(token).then(setData)} />
 
         {/* NPS Widget */}
         <NpsWidget token={token} serviceType={data.service_type} />

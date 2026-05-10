@@ -25,6 +25,8 @@ import {
   createTemplate,
   updateTemplate,
   deleteTemplate,
+  getCasePendingItems,
+  notifyCasePendingItems,
 } from '../api'
 
 const STATUSES = [
@@ -173,6 +175,7 @@ export default function Notifications() {
   const [showCaseDropdown, setShowCaseDropdown] = useState(false)
 
   // Bulk mode
+  const [bulkProgramFilter, setBulkProgramFilter] = useState('')
   const [bulkStatusFilter, setBulkStatusFilter] = useState('')
   const [selectedCaseIds, setSelectedCaseIds] = useState(new Set())
 
@@ -181,6 +184,11 @@ export default function Notifications() {
   const [message, setMessage] = useState('')
   const [notifType, setNotifType] = useState('email') // 'email' | 'viber' | 'both'
   const [sending, setSending] = useState(false)
+
+  // Pending items for selected case
+  const [pendingItems, setPendingItems] = useState([])
+  const [sendingPending, setSendingPending] = useState(false)
+  const [pendingMenuOpen, setPendingMenuOpen] = useState(false)
 
   // Logs
   const [logs, setLogs] = useState([])
@@ -240,9 +248,36 @@ export default function Notifications() {
     setSelectedCase(c)
     setCaseSearch(c.client_name)
     setShowCaseDropdown(false)
+    setPendingItems([])
+    getPendingItemsForCase(c.id)
     if (selectedTemplate) {
       setSubject(applyTemplateVars(selectedTemplate.subject || '', c))
       setMessage(applyTemplateVars(selectedTemplate.content || '', c))
+    }
+  }
+
+  const getPendingItemsForCase = async (caseId) => {
+    try {
+      const items = await getCasePendingItems(caseId)
+      setPendingItems(Array.isArray(items) ? items : [])
+    } catch { setPendingItems([]) }
+  }
+
+  const handleSendPendingItems = async (type) => {
+    if (!selectedCase) return
+    setPendingMenuOpen(false)
+    setSendingPending(true)
+    try {
+      await notifyCasePendingItems(selectedCase.id, {
+        notification_type: type,
+        portal_base_url: window.location.origin,
+      })
+      toast.success('Εστάλη επιτυχώς')
+      await loadLogs()
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Σφάλμα αποστολής')
+    } finally {
+      setSendingPending(false)
     }
   }
 
@@ -251,9 +286,11 @@ export default function Notifications() {
     c.afm?.includes(caseSearch)
   ).slice(0, 10)
 
-  const bulkFilteredCases = bulkStatusFilter
-    ? cases.filter(c => c.status === bulkStatusFilter)
-    : cases
+  const bulkFilteredCases = cases.filter(c => {
+    if (bulkProgramFilter && c.program_category !== bulkProgramFilter) return false
+    if (bulkStatusFilter && c.status !== bulkStatusFilter) return false
+    return true
+  })
 
   const toggleBulkCase = (id) => {
     setSelectedCaseIds(prev => {
@@ -461,22 +498,65 @@ export default function Notifications() {
                   )}
                 </div>
                 {selectedCase && (
-                  <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm">
-                    <div className="font-semibold text-blue-800">{selectedCase.client_name}</div>
-                    <div className="text-blue-600 text-xs mt-0.5">
-                      {selectedCase.service_type} · {selectedCase.status}
+                  <>
+                    <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm">
+                      <div className="font-semibold text-blue-800">{selectedCase.client_name}</div>
+                      <div className="text-blue-600 text-xs mt-0.5">
+                        {selectedCase.service_type} · {selectedCase.status}
+                      </div>
+                      {selectedCase.email && (
+                        <div className="text-blue-500 text-xs">{selectedCase.email}</div>
+                      )}
                     </div>
-                    {selectedCase.email && (
-                      <div className="text-blue-500 text-xs">{selectedCase.email}</div>
+                    {pendingItems.length > 0 && (
+                      <div className="mt-3 p-3 bg-orange-50 border border-orange-200 rounded-lg text-sm">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="font-semibold text-orange-800 text-xs">
+                            Εκκρεμότητες ({pendingItems.length})
+                          </span>
+                          <div className="relative">
+                            <button
+                              onClick={() => setPendingMenuOpen(p => !p)}
+                              disabled={sendingPending}
+                              className="flex items-center gap-1 text-xs bg-orange-500 text-white hover:bg-orange-600 rounded px-2 py-1 disabled:opacity-50"
+                            >
+                              <PaperAirplaneIcon className="w-3.5 h-3.5" />
+                              {sendingPending ? '...' : 'Αποστολή'}
+                            </button>
+                            {pendingMenuOpen && (
+                              <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 py-1 w-32">
+                                <button onClick={() => handleSendPendingItems('email')} className="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50">Email</button>
+                                <button onClick={() => handleSendPendingItems('viber')} className="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50">Viber</button>
+                                <button onClick={() => handleSendPendingItems('both')} className="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 font-semibold">Και τα δύο</button>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        <ul className="space-y-0.5">
+                          {pendingItems.map((item, i) => (
+                            <li key={item.id} className="text-xs text-orange-700">
+                              <span className="font-bold mr-1">{i + 1}.</span>{item.item_text}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
                     )}
-                  </div>
+                  </>
                 )}
               </div>
             ) : (
               <div>
                 <div className="flex items-center gap-2 mb-2">
                   <FunnelIcon className="w-4 h-4 text-gray-400" />
-                  <label className="label mb-0">Φίλτρο κατάστασης</label>
+                  <label className="label mb-0">Φίλτρα</label>
+                </div>
+                <div className="flex gap-1 mb-2">
+                  {['', 'ΕΣΠΑ', 'ΔΥΠΑ', 'ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ'].map(p => (
+                    <button key={p} onClick={() => { setBulkProgramFilter(p); setSelectedCaseIds(new Set()) }}
+                      className={`px-3 py-1 text-xs font-medium rounded-lg border transition-all ${bulkProgramFilter === p ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-200 hover:border-blue-300'}`}>
+                      {p || 'Όλα'}
+                    </button>
+                  ))}
                 </div>
                 <select
                   className="input mb-3"

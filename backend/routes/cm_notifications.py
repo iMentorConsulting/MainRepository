@@ -1,7 +1,11 @@
 import os
 import json
 import base64
+import logging
+import threading
 import requests
+
+logger = logging.getLogger(__name__)
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from fastapi import APIRouter, Depends, HTTPException
@@ -44,10 +48,17 @@ def _send_email(to_email: str, subject: str, body: str) -> tuple[bool, str]:
     if not sa_json:
         return False, "GOOGLE_SERVICE_ACCOUNT_JSON δεν έχει ρυθμιστεί"
 
+    _app_base = os.getenv("PORTAL_BASE_URL", "").rstrip("/")
+    _logo_url = f"{_app_base}/logo-white.png" if _app_base else ""
+    _header_content = (
+        f'<img src="{_logo_url}" alt="iMentor Consulting" style="height:60px;width:auto;display:block;" />'
+        if _logo_url else
+        '<h2 style="color:white;margin:0;font-family:Arial,sans-serif;">iMentor Consulting</h2>'
+    )
     html_body = f"""<html><body style="font-family:Arial,sans-serif;padding:20px;color:#333;">
 <div style="max-width:600px;margin:0 auto;">
-  <div style="background:#1e3a5f;padding:15px;border-radius:8px 8px 0 0;">
-    <h2 style="color:white;margin:0;">iMentor Consulting</h2>
+  <div style="background:#1e3a5f;padding:20px 25px;border-radius:8px 8px 0 0;text-align:center;">
+    {_header_content}
   </div>
   <div style="background:#f9f9f9;padding:25px;border:1px solid #ddd;border-top:none;border-radius:0 0 8px 8px;">
     <p style="white-space:pre-wrap;">{body}</p>
@@ -81,6 +92,103 @@ def _send_email(to_email: str, subject: str, body: str) -> tuple[bool, str]:
         return False, str(e)
 
 
+def _chatwoot_log_outbound_viber(phone_normalized: str, message: str = "", contact_name: str = "") -> None:
+    """Find-or-create a Chatwoot contact+conversation for the Viber inbox,
+    post the sent message as an outbound note so agents can see it, then
+    resolve the conversation.  Never raises — all errors are silently ignored."""
+    base = os.getenv("CHATWOOT_URL", "https://chat.i-mentor.gr").rstrip("/")
+    token = os.getenv("CHATWOOT_API_TOKEN", "")
+    account_id = os.getenv("CHATWOOT_ACCOUNT_ID", "1")
+    inbox_id = int(os.getenv("CHATWOOT_VIBER_INBOX_ID", "1"))
+
+    if not token:
+        return
+
+    headers = {"api_access_token": token, "Content-Type": "application/json"}
+    api = f"{base}/api/v1/accounts/{account_id}"
+
+    try:
+        # 1. Find or create contact
+        contact_id = None
+        for q in [phone_normalized, f"+{phone_normalized}"]:
+            r = requests.get(f"{api}/contacts/search",
+                             params={"q": q, "include_contacts": "true"},
+                             headers=headers, timeout=8)
+            if r.ok:
+                hits = r.json().get("payload", {}).get("contacts", [])
+                if hits:
+                    contact_id = hits[0]["id"]
+                    break
+
+        if not contact_id:
+            phone_e164 = f"+{phone_normalized}" if not phone_normalized.startswith("+") else phone_normalized
+            r = requests.post(f"{api}/contacts", json={
+                "name": contact_name or phone_normalized,
+                "phone_number": phone_e164,
+            }, headers=headers, timeout=8)
+            if r.ok:
+                body = r.json()
+                # Chatwoot returns the contact directly or nested under "id"
+                contact_id = body.get("id") or (body.get("contact", {}) or {}).get("id")
+            else:
+                logger.warning("Chatwoot create contact failed %s: %s", r.status_code, r.text[:300])
+
+        if not contact_id:
+            logger.warning("Chatwoot: could not find or create contact for %s", phone_normalized)
+            return
+
+        # 2. Find existing conversation in this inbox (any status)
+        conv_id = None
+        r = requests.get(f"{api}/contacts/{contact_id}/conversations",
+                         headers=headers, timeout=8)
+        if r.ok:
+            payload = r.json().get("payload", [])
+            for conv in payload:
+                # inbox_id may be int or str from the API
+                if str(conv.get("inbox_id")) == str(inbox_id):
+                    conv_id = conv["id"]
+                    if conv.get("status") == "resolved":
+                        requests.patch(f"{api}/conversations/{conv_id}",
+                                       json={"status": "open"},
+                                       headers=headers, timeout=8)
+                    break
+
+        # 3. Create conversation if none exists
+        if not conv_id:
+            r = requests.post(f"{api}/conversations", json={
+                "inbox_id": inbox_id,
+                "contact_id": contact_id,
+                "status": "open",
+            }, headers=headers, timeout=8)
+            if r.ok:
+                body = r.json()
+                conv_id = body.get("id")
+            else:
+                logger.warning("Chatwoot create conversation failed %s: %s", r.status_code, r.text[:300])
+
+        if not conv_id:
+            logger.warning("Chatwoot: could not find or create conversation for contact %s", contact_id)
+            return
+
+        # 4. Log the sent message as a private outbound note
+        if message:
+            r = requests.post(f"{api}/conversations/{conv_id}/messages", json={
+                "content": message,
+                "message_type": "outgoing",
+                "private": True,
+            }, headers=headers, timeout=10)
+            if not r.ok:
+                logger.warning("Chatwoot post message failed %s: %s", r.status_code, r.text[:300])
+
+        # 5. Resolve the conversation
+        requests.patch(f"{api}/conversations/{conv_id}",
+                       json={"status": "resolved"},
+                       headers=headers, timeout=8)
+
+    except Exception as exc:
+        logger.exception("Chatwoot outbound Viber log failed for %s: %s", phone_normalized, exc)
+
+
 def _send_viber(phone: str, message: str, client_name: str = "", agent_name: str = "", service_type: str = "") -> tuple[bool, str]:
     bridge_url = os.getenv("VIBER_BRIDGE_URL", "https://viber-bridge.i-mentor.gr")
 
@@ -106,6 +214,12 @@ def _send_viber(phone: str, message: str, client_name: str = "", agent_name: str
     try:
         resp = requests.post(f"{bridge_url}/send", json=payload, timeout=10)
         if resp.status_code in (200, 201):
+            # Run Chatwoot logging in background so bulk sends don't time out
+            threading.Thread(
+                target=_chatwoot_log_outbound_viber,
+                args=(phone, message, client_name),
+                daemon=True,
+            ).start()
             return True, "OK"
         return False, f"Bridge HTTP {resp.status_code} — {resp.text[:500]}"
     except Exception as e:

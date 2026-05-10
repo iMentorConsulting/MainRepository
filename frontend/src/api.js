@@ -79,6 +79,7 @@ export const deleteBudgetCategory = (caseId, catId) => api.delete(`/api/cm/cases
 
 // Dashboard
 export const getDashboardStats = () => api.get('/api/cm/dashboard/stats').then(r => r.data)
+export const getPortalActivity = () => api.get('/api/cm/dashboard/portal-activity').then(r => r.data)
 
 // Google Sheets
 export const previewSheet = () => api.get('/api/cm/sheets/preview').then(r => r.data)
@@ -89,6 +90,9 @@ export const syncAgentsFromSheet = () =>
 export const getServiceTypes = () => api.get('/api/cm/sheets/service-types').then(r => r.data)
 export const assignPrograms = (assignments) =>
   api.post('/api/cm/sheets/assign-programs', { assignments }).then(r => r.data)
+export const syncInvestmentFromSheet = () => api.post('/api/cm/sheets/sync-investment').then(r => r.data)
+export const syncSaleDatesFromSheet = () => api.post('/api/cm/sheets/sync-sale-dates').then(r => r.data)
+export const getAutoRefreshStatus = () => api.get('/api/cm/sheets/auto-refresh-status').then(r => r.data)
 
 // Notifications
 export const sendNotification = (caseId, data) => api.post(`/api/cm/notifications/send/${caseId}`, data).then(r => r.data)
@@ -153,6 +157,30 @@ export const uploadPortalFile = (token, file) => {
 // Analytics
 export const getAnalyticsOverview = () => api.get('/api/cm/analytics/overview').then(r => r.data)
 export const getAnalyticsMilestones = (days = 90) => api.get(`/api/cm/analytics/milestones?days=${days}`).then(r => r.data)
+export const getAnalyticsCalendar = () => api.get('/api/cm/analytics/calendar').then(r => r.data)
+
+// Work Lists
+export const getWorkLists = () => api.get('/api/cm/worklists').then(r => r.data)
+export const createWorkList = (data) => api.post('/api/cm/worklists', data).then(r => r.data)
+export const updateWorkList = (id, data) => api.put(`/api/cm/worklists/${id}`, data).then(r => r.data)
+export const deleteWorkList = (id) => api.delete(`/api/cm/worklists/${id}`).then(r => r.data)
+export const getWorkListCases = (id) => api.get(`/api/cm/worklists/${id}/cases`).then(r => r.data)
+export const getAllTasks = (status) => api.get('/api/cm/worklists/all-tasks/list', { params: status ? { status } : {} }).then(r => r.data)
+
+// Portal client actions (no auth required)
+export const submitPortalMessage = (token, content) =>
+  axios.post(`${BASE}/api/cm/portal/public/${token}/message`, { content }).then(r => r.data)
+export const uploadPortalFile = (token, file, description = '') => {
+  const fd = new FormData()
+  fd.append('file', file)
+  fd.append('description', description)
+  return axios.post(`${BASE}/api/cm/portal/public/${token}/upload`, fd).then(r => r.data)
+}
+
+// Analytics
+export const getAnalyticsOverview = () => api.get('/api/cm/analytics/overview').then(r => r.data)
+export const getAnalyticsMilestones = (daysAhead = 90) =>
+  api.get('/api/cm/analytics/milestones', { params: { days_ahead: daysAhead } }).then(r => r.data)
 export const getAnalyticsCalendar = () => api.get('/api/cm/analytics/calendar').then(r => r.data)
 
 export default api

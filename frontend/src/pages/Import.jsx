@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   TableCellsIcon,
   CloudArrowDownIcon,
@@ -9,9 +9,10 @@ import {
   DocumentArrowDownIcon,
   UserIcon,
   TagIcon,
+  ClockIcon,
 } from '@heroicons/react/24/outline'
 import toast from 'react-hot-toast'
-import { previewSheet, importFromSheet, syncPaidFromSheet, syncAgentsFromSheet, getServiceTypes, assignPrograms } from '../api'
+import { previewSheet, importFromSheet, syncPaidFromSheet, syncAgentsFromSheet, getServiceTypes, assignPrograms, syncInvestmentFromSheet, syncSaleDatesFromSheet, getAutoRefreshStatus } from '../api'
 
 const PREVIEW_COLUMNS = [
   { key: 'client_name', label: 'Πελάτης' },
@@ -74,6 +75,12 @@ function Spinner({ color = 'blue' }) {
 }
 
 export default function Import() {
+  const [autoRefreshStatus, setAutoRefreshStatus] = useState(null)
+
+  useEffect(() => {
+    getAutoRefreshStatus().then(setAutoRefreshStatus).catch(() => {})
+  }, [])
+
   // Preview state
   const [loadingPreview, setLoadingPreview] = useState(false)
   const [previewData, setPreviewData] = useState(null)
@@ -210,6 +217,39 @@ export default function Import() {
     }
   }
 
+  const [loadingInvestment, setLoadingInvestment] = useState(false)
+  const [investmentResult, setInvestmentResult] = useState(null)
+  const [loadingSaleDates, setLoadingSaleDates] = useState(false)
+  const [saleDatesResult, setSaleDatesResult] = useState(null)
+
+  const handleSyncInvestment = async () => {
+    setLoadingInvestment(true)
+    setInvestmentResult(null)
+    try {
+      const data = await syncInvestmentFromSheet()
+      setInvestmentResult(data.message)
+      toast.success(data.message)
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Σφάλμα')
+    } finally {
+      setLoadingInvestment(false)
+    }
+  }
+
+  const handleSyncSaleDates = async () => {
+    setLoadingSaleDates(true)
+    setSaleDatesResult(null)
+    try {
+      const data = await syncSaleDatesFromSheet()
+      setSaleDatesResult(data.message)
+      toast.success(data.message)
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Σφάλμα')
+    } finally {
+      setLoadingSaleDates(false)
+    }
+  }
+
   const handleSync = async () => {
     setLoadingSync(true)
     setSyncResult(null)
@@ -243,6 +283,36 @@ export default function Import() {
         </div>
       </div>
 
+      {/* Auto-refresh status */}
+      {autoRefreshStatus && (
+        <div className={`flex items-center gap-3 rounded-xl border px-4 py-3 text-sm ${
+          autoRefreshStatus.error
+            ? 'bg-red-50 border-red-200 text-red-700'
+            : autoRefreshStatus.last_run_at
+              ? 'bg-green-50 border-green-200 text-green-800'
+              : 'bg-gray-50 border-gray-200 text-gray-600'
+        }`}>
+          <ClockIcon className="w-5 h-5 flex-shrink-0" />
+          <div className="flex-1">
+            <span className="font-semibold">Αυτόματο Refresh Sheet:</span>{' '}
+            {autoRefreshStatus.last_run_at
+              ? <>
+                  Τελευταία εκτέλεση:{' '}
+                  <span className="font-medium">
+                    {new Date(autoRefreshStatus.last_run_at).toLocaleString('el-GR', { dateStyle: 'short', timeStyle: 'short' })}
+                  </span>
+                  {autoRefreshStatus.error
+                    ? <> — <span className="text-red-600">Σφάλμα: {autoRefreshStatus.error}</span></>
+                    : <> — εισήχθησαν <span className="font-medium">{autoRefreshStatus.imported}</span> νέες,
+                        ενημερώθηκαν <span className="font-medium">{autoRefreshStatus.updated_paid}</span> ποσά</>
+                  }
+                </>
+              : 'Δεν έχει εκτελεστεί ακόμα (τρέχει κάθε μέρα 08:00 & 14:00 ώρα Ελλάδας)'
+            }
+          </div>
+        </div>
+      )}
+
       {/* Info banner */}
       <div className="flex items-start gap-3 bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 text-sm text-blue-700">
         <InformationCircleIcon className="w-5 h-5 flex-shrink-0 mt-0.5" />
@@ -251,6 +321,7 @@ export default function Import() {
           Πρώτα εκτελέστε <span className="font-medium">Προεπισκόπηση</span> για να δείτε ποιες
           υποθέσεις θα εισαχθούν. Στη συνέχεια πατήστε <span className="font-medium">Εισαγωγή</span>{' '}
           για να ολοκληρωθεί η διαδικασία. Οι ήδη εισηγμένες υποθέσεις (με βάση το ΑΦΜ) παραλείπονται.
+          Το σύστημα εκτελεί <span className="font-medium">αυτόματο refresh κάθε μέρα στις 08:00 & 14:00</span>.
         </div>
       </div>
 
@@ -574,6 +645,39 @@ export default function Import() {
         {serviceTypes && serviceTypes.length === 0 && (
           <div className="text-center py-6 text-sm text-gray-400">Δεν βρέθηκαν τύποι υπηρεσιών.</div>
         )}
+      </div>
+
+      {/* Divider */}
+      <div className="relative">
+        <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-200" /></div>
+        <div className="relative flex justify-center">
+          <span className="bg-gray-50 px-4 text-sm font-semibold text-gray-500 uppercase tracking-wider">Εφάπαξ Συγχρονισμοί</span>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-xl border p-5 space-y-4">
+        <h2 className="text-base font-semibold text-gray-800">Ενημέρωση πεδίων από Google Sheet</h2>
+        <p className="text-sm text-gray-500">Εφάπαξ ενημέρωση υφιστάμενων υποθέσεων. Δεν δημιουργεί νέες εγγραφές.</p>
+        <div className="flex flex-wrap gap-3">
+          <div className="flex-1 min-w-[220px] border rounded-lg p-4 space-y-2">
+            <div className="text-sm font-semibold text-gray-800">Ύψος Επένδυσης (€)</div>
+            <p className="text-xs text-gray-500">Ενημερώνει το πεδίο <strong>Ύψος Επένδυσης</strong> από τη στήλη «ΥΨΟΣ ΕΠΕΝΔΥΣΗΣ» του Sheet.</p>
+            {investmentResult && <p className="text-xs text-green-700 bg-green-50 rounded px-2 py-1">{investmentResult}</p>}
+            <button onClick={handleSyncInvestment} disabled={loadingInvestment}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white text-xs font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors">
+              {loadingInvestment ? <><Spinner /><span>Συγχρ...</span></> : <><ArrowPathIcon className="w-3.5 h-3.5" /><span>Εκτέλεση</span></>}
+            </button>
+          </div>
+          <div className="flex-1 min-w-[220px] border rounded-lg p-4 space-y-2">
+            <div className="text-sm font-semibold text-gray-800">Ημ/νία Πώλησης</div>
+            <p className="text-xs text-gray-500">Ενημερώνει το πεδίο <strong>Ημ. Πώλησης</strong> από τη στήλη «ΗΜ.ΝΙΑ ΠΩΛΗΣΗΣ» (παλαιότερη ημερομηνία ανά υπόθεση).</p>
+            {saleDatesResult && <p className="text-xs text-green-700 bg-green-50 rounded px-2 py-1">{saleDatesResult}</p>}
+            <button onClick={handleSyncSaleDates} disabled={loadingSaleDates}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white text-xs font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors">
+              {loadingSaleDates ? <><Spinner /><span>Συγχρ...</span></> : <><ArrowPathIcon className="w-3.5 h-3.5" /><span>Εκτέλεση</span></>}
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   )

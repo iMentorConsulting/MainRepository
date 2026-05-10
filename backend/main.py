@@ -18,6 +18,7 @@ from routes.cm_admin import router as cm_admin_router
 from routes.cm_pending_items import router as cm_pending_items_router
 from routes.cm_portal import router as cm_portal_router
 from routes.cm_pipeline import router as cm_pipeline_router
+from routes.cm_worklists import router as cm_worklists_router
 from routes.cm_analytics import router as cm_analytics_router
 
 load_dotenv()
@@ -51,6 +52,7 @@ try:
                 updated_at TIMESTAMP
             )
         """))
+        _conn.execute(_text("ALTER TABLE cm_cases ADD COLUMN IF NOT EXISTS portal_last_visit_at TIMESTAMP"))
         _conn.execute(_text("ALTER TABLE cm_pipeline_configs ADD COLUMN IF NOT EXISTS status_descriptions_json TEXT DEFAULT '{}'"))
         _conn.execute(_text("ALTER TABLE cm_messages ADD COLUMN IF NOT EXISTS sent_by_client BOOLEAN DEFAULT FALSE"))
         _conn.execute(_text("ALTER TABLE cm_documents ADD COLUMN IF NOT EXISTS uploaded_by_client BOOLEAN DEFAULT FALSE"))
@@ -64,6 +66,8 @@ try:
                 changed_by VARCHAR(100)
             )
         """))
+        # One-time reset: clear visit counts for cases not yet visited since new tracking
+        _conn.execute(_text("UPDATE cm_cases SET portal_visit_count = 0 WHERE portal_last_visit_at IS NULL"))
         _conn.commit()
 except Exception:
     pass
@@ -153,10 +157,116 @@ with SessionLocal() as _db:
             _db.add(CMNotificationTemplate(**_t))
         _db.commit()
 
+# Remove old default templates; add pending items template
+_OLD_TEMPLATE_KEYS = {"deadline_reminder", "payment_reminder", "documents_needed", "status_update", "google_review"}
+_PENDING_ITEMS_TEMPLATE = {
+    "key": "pending_items_reminder",
+    "label": "Υπενθύμιση Εκκρεμοτήτων",
+    "subject": "Απαιτούμενα στοιχεία για την υπόθεσή σας - {client_name}",
+    "content": (
+        "Αγαπητέ/ή {client_name},\n\n"
+        "Για την προχώρηση της υπόθεσής σας ({service_type}) "
+        "χρειαζόμαστε τα παρακάτω:\n\n"
+        "• \n• \n• \n\n"
+        "Παρακαλούμε αποστείλετε τα παραπάνω το συντομότερο δυνατό.\n\n"
+        "Με εκτίμηση,\niMentor Consulting"
+    ),
+    "notification_type": "both",
+}
+with SessionLocal() as _db:
+    for _key in _OLD_TEMPLATE_KEYS:
+        _t = _db.query(CMNotificationTemplate).filter(CMNotificationTemplate.key == _key).first()
+        if _t:
+            _db.delete(_t)
+    if not _db.query(CMNotificationTemplate).filter(CMNotificationTemplate.key == "pending_items_reminder").first():
+        _db.add(CMNotificationTemplate(**_PENDING_ITEMS_TEMPLATE))
+    _db.commit()
+
 # Seed default admin user
 from auth_cases import seed_admin
 with SessionLocal() as _db:
     seed_admin(_db)
+
+# ── Scheduled sheet auto-refresh (08:00 and 14:00 Athens time) ────────────────
+import pytz as _pytz
+from apscheduler.schedulers.background import BackgroundScheduler as _BGScheduler
+
+_athens_tz = _pytz.timezone("Europe/Athens")
+
+
+def _run_scheduled_refresh():
+    from routes.cm_google_sheets import _do_import, _do_sync_paid, _last_auto_refresh
+    import routes.cm_google_sheets as _sheets_mod
+    db = SessionLocal()
+    try:
+        import_res = _do_import(db)
+        sync_res = _do_sync_paid(db)
+        _sheets_mod._last_auto_refresh.update({
+            "last_run_at": datetime.utcnow().isoformat() + "Z",
+            "imported": import_res["imported"],
+            "updated_paid": sync_res["updated"],
+            "error": None,
+        })
+        print(f"[scheduler] Auto-refresh OK — imported={import_res['imported']}, updated_paid={sync_res['updated']}")
+    except Exception as e:
+        _sheets_mod._last_auto_refresh.update({
+            "last_run_at": datetime.utcnow().isoformat() + "Z",
+            "imported": None,
+            "updated_paid": None,
+            "error": str(e),
+        })
+        print(f"[scheduler] Auto-refresh ERROR: {e}")
+    finally:
+        db.close()
+
+
+from datetime import datetime
+
+def _run_agent_sla_digest():
+    """Send each agent a daily digest of their SLA-overdue cases."""
+    from routes.cm_notifications import _send_email
+    from models_cases import CMCase as _CMCase, CMStatusSLA as _CMSLA, CMUser as _CMUser
+    from datetime import datetime as _dt2
+    db = SessionLocal()
+    try:
+        sla_map = {s.status: s.sla_days for s in db.query(_CMSLA).all()}
+        if not sla_map:
+            return
+        now = _dt2.utcnow()
+        from pipelines import TERMINAL_STATUSES as _TERM
+        active_cases = db.query(_CMCase).filter(~_CMCase.status.in_(list(_TERM))).all()
+        agent_overdue: dict[int, list] = {}
+        for c in active_cases:
+            if not c.status_changed_at or c.status not in sla_map:
+                continue
+            age = (now - c.status_changed_at).days
+            if age > sla_map[c.status] and c.assigned_agent_id:
+                agent_overdue.setdefault(c.assigned_agent_id, []).append((c, age - sla_map[c.status]))
+        for agent_id, items in agent_overdue.items():
+            agent = db.query(_CMUser).filter(_CMUser.id == agent_id).first()
+            if not agent or not agent.email:
+                continue
+            lines = "\n".join(
+                f"• {c.client_name} — {c.status} (+{days} ημ. εκτός SLA)"
+                for c, days in sorted(items, key=lambda x: -x[1])
+            )
+            body = (
+                f"Καλημέρα {agent.full_name},\n\n"
+                f"Οι παρακάτω υποθέσεις σου έχουν υπερβεί το SLA:\n\n{lines}\n\n"
+                f"Παρακαλώ ενημέρωσε ή προχώρα σε επόμενο στάδιο.\n\nΜε εκτίμηση,\niMentor Consulting"
+            )
+            _send_email(agent.email, "Ημερήσια Αναφορά SLA — iMentor Consulting", body)
+    except Exception as e:
+        print(f"[scheduler] SLA digest ERROR: {e}")
+    finally:
+        db.close()
+
+
+_scheduler = _BGScheduler(timezone=_athens_tz)
+_scheduler.add_job(_run_scheduled_refresh, "cron", hour=8, minute=0, id="refresh_08")
+_scheduler.add_job(_run_scheduled_refresh, "cron", hour=14, minute=0, id="refresh_14")
+_scheduler.add_job(_run_agent_sla_digest, "cron", hour=9, minute=0, id="sla_digest_09")
+_scheduler.start()
 
 app = FastAPI(
     title="iMentor Consulting - Case Management",
@@ -182,7 +292,13 @@ app.include_router(cm_admin_router)
 app.include_router(cm_pending_items_router)
 app.include_router(cm_portal_router)
 app.include_router(cm_pipeline_router)
+app.include_router(cm_worklists_router)
 app.include_router(cm_analytics_router)
+
+
+@app.on_event("shutdown")
+def _shutdown_scheduler():
+    _scheduler.shutdown(wait=False)
 
 
 @app.get("/health")

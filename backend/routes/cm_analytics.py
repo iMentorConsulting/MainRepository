@@ -1,29 +1,17 @@
-from datetime import datetime, date, timedelta
 from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session
 from sqlalchemy import func
 from database import get_db
-from models_cases import CMCase, CMUser, CMCaseStatusHistory
+from models_cases import CMCase, CMUser, CMCaseStatusHistory, CMStatusSLA
 from auth_cases import get_current_user
-from pipelines import TERMINAL_STATUSES
+from datetime import datetime, date, timedelta
 
 router = APIRouter(prefix="/api/cm/analytics", tags=["analytics"])
 
 
-def _is_active(c: CMCase) -> bool:
-    return (c.status or "") not in TERMINAL_STATUSES
-
-
-def _is_sla_overdue(c: CMCase) -> bool:
-    if not c.status_changed_at:
-        return False
-    try:
-        from routes.cm_admin import _get_sla_days
-        sla = _get_sla_days(c.status)
-    except Exception:
-        sla = 14
-    age = (datetime.utcnow() - c.status_changed_at).days
-    return age > sla
+def _terminal():
+    from pipelines import TERMINAL_STATUSES
+    return set(TERMINAL_STATUSES)
 
 
 @router.get("/overview")
@@ -31,105 +19,109 @@ def analytics_overview(
     current_user: CMUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    cases = (
-        db.query(CMCase)
-        .options(joinedload(CMCase.assigned_agent), joinedload(CMCase.status_history))
-        .all()
+    terminal = _terminal()
+    all_cases = db.query(CMCase).all()
+    total = len(all_cases)
+    completed = sum(1 for c in all_cases if c.status in terminal)
+    active = total - completed
+
+    sla_map = {s.status: s.sla_days for s in db.query(CMStatusSLA).all()}
+    now = datetime.utcnow()
+    overdue = sum(
+        1 for c in all_cases
+        if c.status not in terminal and c.status_changed_at and c.status in sla_map
+        and (now - c.status_changed_at).days > sla_map[c.status]
     )
 
-    total = len(cases)
-    active = sum(1 for c in cases if _is_active(c))
-    completed = total - active
-    sla_overdue = sum(1 for c in cases if _is_active(c) and _is_sla_overdue(c))
+    # Cases per program
+    prog_counts: dict[str, int] = {}
+    for c in all_cases:
+        p = c.program_category or "ΕΣΠΑ"
+        prog_counts[p] = prog_counts.get(p, 0) + 1
 
-    # Per program
-    from collections import Counter
-    prog_counter = Counter(c.program_category or "ΕΣΠΑ" for c in cases if _is_active(c))
-    per_program = [{"program": k, "count": v} for k, v in prog_counter.most_common()]
+    # Cases per agent
+    agent_counts: dict[str, int] = {}
+    for c in all_cases:
+        if c.status in terminal:
+            continue
+        name = c.assigned_agent.full_name if c.assigned_agent else "Χωρίς ανάθεση"
+        agent_counts[name] = agent_counts.get(name, 0) + 1
 
-    # Per agent (active cases only)
-    agent_counter = Counter(
-        (c.assigned_agent.full_name if c.assigned_agent else "Αναθεμένο")
-        for c in cases if _is_active(c)
-    )
-    per_agent = [{"agent": k, "count": v} for k, v in agent_counter.most_common()]
-
-    # Avg days per status transition (from history)
-    history_all = db.query(CMCaseStatusHistory).all()
-    status_durations: dict[str, list[float]] = {}
-    history_by_case: dict[int, list] = {}
-    for h in history_all:
-        history_by_case.setdefault(h.case_id, []).append(h)
-
-    for case_id, entries in history_by_case.items():
-        entries_sorted = sorted(entries, key=lambda x: x.changed_at)
-        for i in range(len(entries_sorted) - 1):
-            h_from = entries_sorted[i]
-            h_to = entries_sorted[i + 1]
-            days = (h_to.changed_at - h_from.changed_at).total_seconds() / 86400
-            status = h_from.to_status or ""
-            if status and days >= 0:
-                status_durations.setdefault(status, []).append(days)
-
-    avg_days_per_status = sorted(
-        [
-            {"status": s, "avg_days": round(sum(vals) / len(vals), 1)}
-            for s, vals in status_durations.items()
-            if vals
-        ],
-        key=lambda x: -x["avg_days"],
-    )[:15]
+    # Avg days per status (from status history transitions)
+    from sqlalchemy import text as _t
+    rows = db.execute(_t("""
+        SELECT h1.to_status,
+               AVG(EXTRACT(EPOCH FROM (h2.changed_at - h1.changed_at)) / 86400) AS avg_days
+        FROM cm_case_status_history h1
+        JOIN cm_case_status_history h2
+          ON h2.case_id = h1.case_id
+          AND h2.id = (
+              SELECT id FROM cm_case_status_history
+              WHERE case_id = h1.case_id AND id > h1.id
+              ORDER BY id LIMIT 1
+          )
+        GROUP BY h1.to_status
+        ORDER BY avg_days DESC
+        LIMIT 10
+    """)).fetchall()
+    avg_per_status = [{"status": r[0], "avg_days": round(r[1], 1)} for r in rows if r[1] is not None]
 
     return {
         "total": total,
         "active": active,
         "completed": completed,
-        "sla_overdue": sla_overdue,
-        "per_program": per_program,
-        "per_agent": per_agent,
-        "avg_days_per_status": avg_days_per_status,
+        "sla_overdue": overdue,
+        "per_program": [{"program": k, "count": v} for k, v in prog_counts.items()],
+        "per_agent": [{"agent": k, "count": v} for k, v in sorted(agent_counts.items(), key=lambda x: -x[1])],
+        "avg_days_per_status": avg_per_status,
     }
 
 
 @router.get("/milestones")
 def analytics_milestones(
-    days: int = 90,
+    days_ahead: int = 90,
     current_user: CMUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    terminal = _terminal()
     today = date.today()
-    cutoff = today + timedelta(days=days)
+    horizon = today + timedelta(days=days_ahead)
 
-    cases = (
-        db.query(CMCase)
-        .options(joinedload(CMCase.assigned_agent))
-        .filter(CMCase.status.notin_(TERMINAL_STATUSES))
-        .all()
-    )
-
+    cases = db.query(CMCase).filter(~CMCase.status.in_(list(terminal))).all()
     result = []
+
     for c in cases:
         events = []
-        if c.project_deadline and today <= c.project_deadline <= cutoff:
-            delta = (c.project_deadline - today).days
-            events.append({"type": "deadline", "label": "Προθεσμία", "days_away": delta})
-        if c.dypa_start_date and today <= c.dypa_start_date <= cutoff:
-            delta = (c.dypa_start_date - today).days
-            events.append({"type": "dypa_milestone", "label": "ΔΥΠΑ Ορόσημο", "days_away": delta})
-        if c.follow_up_date and today <= c.follow_up_date <= cutoff:
-            delta = (c.follow_up_date - today).days
-            events.append({"type": "followup", "label": "Follow-up", "days_away": delta})
+
+        if c.project_deadline and today <= c.project_deadline <= horizon:
+            days = (c.project_deadline - today).days
+            events.append({"type": "deadline", "label": "Προθεσμία Ολοκλήρωσης",
+                           "date": c.project_deadline.isoformat(), "days_away": days})
+
+        if c.program_category == "ΔΥΠΑ" and c.dypa_start_date:
+            from datetime import timedelta as _td
+            ms_b = c.dypa_start_date + _td(days=180)
+            ms_c = c.dypa_start_date + _td(days=365)
+            for label, d in [("Β Ορόσημο ΔΥΠΑ", ms_b), ("Γ Ορόσημο ΔΥΠΑ", ms_c)]:
+                if today <= d.date() <= horizon:
+                    events.append({"type": "dypa_milestone", "label": label,
+                                   "date": d.date().isoformat(), "days_away": (d.date() - today).days})
+
+        if c.follow_up_date and today <= c.follow_up_date <= horizon:
+            events.append({"type": "followup", "label": "Follow-up",
+                           "date": c.follow_up_date.isoformat(), "days_away": (c.follow_up_date - today).days})
+
         if events:
             result.append({
                 "case_id": c.id,
                 "client_name": c.client_name,
                 "service_type": c.service_type,
+                "program_category": c.program_category,
                 "assigned_agent": c.assigned_agent.full_name if c.assigned_agent else None,
                 "events": sorted(events, key=lambda e: e["days_away"]),
             })
 
-    result.sort(key=lambda r: r["events"][0]["days_away"])
-    return result
+    return sorted(result, key=lambda x: x["events"][0]["days_away"])
 
 
 @router.get("/calendar")
@@ -137,38 +129,44 @@ def analytics_calendar(
     current_user: CMUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    cases = (
-        db.query(CMCase)
-        .options(joinedload(CMCase.assigned_agent))
-        .all()
-    )
-
+    """Return all upcoming deadline/milestone events for calendar view."""
+    terminal = _terminal()
+    today = date.today()
+    horizon = today + timedelta(days=365)
+    cases = db.query(CMCase).all()
     events = []
+
     for c in cases:
-        if c.project_deadline:
+        is_done = c.status in terminal
+
+        if c.project_deadline and c.project_deadline >= today:
             events.append({
                 "date": c.project_deadline.isoformat(),
                 "type": "deadline",
+                "label": "Προθεσμία",
                 "case_id": c.id,
                 "client_name": c.client_name,
-                "done": c.status in TERMINAL_STATUSES,
+                "done": is_done,
             })
-        if c.dypa_start_date:
-            events.append({
-                "date": c.dypa_start_date.isoformat(),
-                "type": "dypa",
-                "case_id": c.id,
-                "client_name": c.client_name,
-                "done": c.status in TERMINAL_STATUSES,
-            })
-        if c.follow_up_date:
+
+        if c.program_category == "ΔΥΠΑ" and c.dypa_start_date and not is_done:
+            from datetime import timedelta as _td
+            for label, d in [
+                ("Β Ορόσημο", (c.dypa_start_date + _td(days=180)).isoformat()),
+                ("Γ Ορόσημο", (c.dypa_start_date + _td(days=365)).isoformat()),
+            ]:
+                if d >= today.isoformat():
+                    events.append({"date": d, "type": "dypa", "label": label,
+                                   "case_id": c.id, "client_name": c.client_name, "done": False})
+
+        if c.follow_up_date and c.follow_up_date >= today and not is_done:
             events.append({
                 "date": c.follow_up_date.isoformat(),
                 "type": "followup",
+                "label": "Follow-up",
                 "case_id": c.id,
                 "client_name": c.client_name,
-                "done": c.status in TERMINAL_STATUSES,
+                "done": False,
             })
 
-    events.sort(key=lambda e: e["date"])
-    return events
+    return sorted(events, key=lambda e: e["date"])

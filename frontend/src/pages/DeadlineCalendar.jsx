@@ -22,7 +22,7 @@ export default function DeadlineCalendar() {
 
   const now = new Date()
   const [year, setYear] = useState(now.getFullYear())
-  const [month, setMonth] = useState(now.getMonth())
+  const [month, setMonth] = useState(now.getMonth()) // 0-based
 
   useEffect(() => {
     getAnalyticsCalendar()
@@ -34,10 +34,12 @@ export default function DeadlineCalendar() {
   const prevMonth = () => { if (month === 0) { setMonth(11); setYear(y => y - 1) } else setMonth(m => m - 1) }
   const nextMonth = () => { if (month === 11) { setMonth(0); setYear(y => y + 1) } else setMonth(m => m + 1) }
 
-  const firstDay = new Date(year, month, 1).getDay()
-  const startOffset = (firstDay + 6) % 7
+  // Build calendar grid
+  const firstDay = new Date(year, month, 1).getDay() // 0=Sun
+  const startOffset = (firstDay + 6) % 7 // Monday-based
   const daysInMonth = new Date(year, month + 1, 0).getDate()
 
+  // Group events by date
   const eventMap = {}
   events.forEach(ev => {
     if (!eventMap[ev.date]) eventMap[ev.date] = []
@@ -63,6 +65,7 @@ export default function DeadlineCalendar() {
         <p className="text-sm text-gray-500">Όλες οι προθεσμίες, ορόσημα και follow-ups</p>
       </div>
 
+      {/* Legend */}
       <div className="flex flex-wrap gap-3">
         {Object.entries(TYPE_CONFIG).map(([type, cfg]) => (
           <span key={type} className="flex items-center gap-1.5 text-xs text-gray-600">
@@ -73,7 +76,9 @@ export default function DeadlineCalendar() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Calendar grid */}
         <div className="lg:col-span-2 bg-white rounded-xl border p-5 space-y-4">
+          {/* Header */}
           <div className="flex items-center justify-between">
             <button onClick={prevMonth} className="p-1.5 rounded-lg hover:bg-gray-100">
               <ChevronLeftIcon className="w-5 h-5 text-gray-600" />
@@ -84,12 +89,14 @@ export default function DeadlineCalendar() {
             </button>
           </div>
 
+          {/* Day headers */}
           <div className="grid grid-cols-7 text-center">
             {DAYS_EL.map(d => (
               <div key={d} className="text-xs font-semibold text-gray-400 py-1">{d}</div>
             ))}
           </div>
 
+          {/* Days */}
           <div className="grid grid-cols-7 gap-1">
             {cells.map((day, idx) => {
               if (!day) return <div key={idx} />
@@ -123,6 +130,7 @@ export default function DeadlineCalendar() {
           </div>
         </div>
 
+        {/* Selected day events */}
         <div className="bg-white rounded-xl border p-5">
           {!selectedDateStr ? (
             <div className="flex flex-col items-center justify-center h-full text-gray-400 py-12">
@@ -161,6 +169,7 @@ export default function DeadlineCalendar() {
         </div>
       </div>
 
+      {/* Upcoming list — next 30 days */}
       <div className="bg-white rounded-xl border overflow-hidden">
         <div className="px-5 py-4 border-b">
           <h2 className="font-semibold text-gray-700">Επόμενες 30 Ημέρες</h2>
@@ -173,8 +182,9 @@ export default function DeadlineCalendar() {
           <div className="divide-y divide-gray-100">
             {events
               .filter(ev => {
+                const d = ev.date
                 const t30 = new Date(Date.now() + 30 * 864e5).toISOString().slice(0, 10)
-                return ev.date >= today && ev.date <= t30
+                return d >= today && d <= t30
               })
               .slice(0, 20)
               .map((ev, i) => {

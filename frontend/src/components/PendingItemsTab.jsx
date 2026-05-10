@@ -109,7 +109,7 @@ function NotifyPanel({ items, caseData, caseId, onClose }) {
   const handleSend = async () => {
     setSending(true)
     try {
-      const res = await notifyCasePendingItems(caseId, { notification_type: notifType })
+      const res = await notifyCasePendingItems(caseId, { notification_type: notifType, portal_base_url: window.location.origin })
       const results = res.results || []
       const sent = results.filter((r) => r.status === 'sent')
       const failed = results.filter((r) => r.status === 'failed')
