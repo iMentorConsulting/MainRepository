@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
-import { getPortalCase, recordPortalVisit, submitPortalNps, recordPortalReviewClick } from '../api'
+import { getPortalCase, recordPortalVisit, submitPortalNps, recordPortalReviewClick, submitPortalMessage, uploadPortalFile } from '../api'
 import {
   BuildingOffice2Icon,
   CheckCircleIcon,
@@ -790,6 +790,121 @@ function FinancialSection({ data }) {
   )
 }
 
+// ── Client Message Form ───────────────────────────────────────────────────────
+
+function ClientMessageForm({ token, onSent }) {
+  const [content, setContent] = useState('')
+  const [sending, setSending] = useState(false)
+  const [sent, setSent] = useState(false)
+
+  const handleSend = async () => {
+    if (!content.trim()) return
+    setSending(true)
+    try {
+      await submitPortalMessage(token, content.trim())
+      setSent(true)
+      setContent('')
+      setTimeout(() => setSent(false), 3000)
+      onSent()
+    } catch {
+    } finally {
+      setSending(false)
+    }
+  }
+
+  return (
+    <div className="space-y-2">
+      <textarea
+        className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f] resize-none"
+        rows={3}
+        placeholder="Γράψτε το μήνυμά σας προς το γραφείο..."
+        value={content}
+        onChange={e => setContent(e.target.value)}
+        disabled={sending}
+      />
+      <div className="flex items-center gap-3 justify-end">
+        {sent && <span className="text-xs text-green-600 font-medium">✓ Εστάλη!</span>}
+        <button
+          onClick={handleSend}
+          disabled={sending || !content.trim()}
+          className="px-4 py-2 bg-[#1e3a5f] text-white rounded-lg text-sm font-semibold hover:bg-[#16305a] disabled:opacity-40 transition-colors"
+        >
+          {sending ? 'Αποστολή...' : 'Αποστολή Μηνύματος'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ── Client File Upload ────────────────────────────────────────────────────────
+
+function ClientUploadSection({ token, clientDocs, onUploaded }) {
+  const [uploading, setUploading] = useState(false)
+  const [desc, setDesc] = useState('')
+  const [done, setDone] = useState(false)
+  const fileRef = useRef(null)
+
+  const handleUpload = async (file) => {
+    if (!file) return
+    setUploading(true)
+    try {
+      await uploadPortalFile(token, file, desc)
+      setDone(true)
+      setDesc('')
+      fileRef.current.value = ''
+      setTimeout(() => setDone(false), 3000)
+      onUploaded()
+    } catch {
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm space-y-3">
+      <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+        <ClipboardDocumentIcon className="w-5 h-5 text-gray-400" />
+        Αποστολή Εγγράφων
+      </h3>
+      {clientDocs.length > 0 && (
+        <div className="space-y-1.5">
+          {clientDocs.map(doc => (
+            <div key={doc.id} className="flex items-center gap-2 text-sm text-gray-700 bg-gray-50 rounded-lg px-3 py-2">
+              <ClipboardDocumentIcon className="w-4 h-4 text-gray-400 shrink-0" />
+              <span className="flex-1 truncate">{doc.name}</span>
+              <span className="text-xs text-gray-400">{fmtDate(doc.created_at)}</span>
+              <span className={`text-xs px-2 py-0.5 rounded-full ${
+                doc.status === 'approved' ? 'bg-green-100 text-green-700' :
+                doc.status === 'reviewed' ? 'bg-blue-100 text-blue-700' :
+                'bg-gray-100 text-gray-500'}`}>
+                {doc.status === 'approved' ? '✓ Εγκρίθηκε' : doc.status === 'reviewed' ? 'Ελέγχθηκε' : 'Σε αναμονή'}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+      <input
+        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]"
+        placeholder="Περιγραφή εγγράφου (προαιρετικό)..."
+        value={desc}
+        onChange={e => setDesc(e.target.value)}
+      />
+      <div className="flex items-center gap-3">
+        <input type="file" ref={fileRef} className="hidden" onChange={e => handleUpload(e.target.files[0])} />
+        <button
+          onClick={() => fileRef.current?.click()}
+          disabled={uploading}
+          className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 disabled:opacity-50 transition-colors border border-gray-200"
+        >
+          {uploading ? 'Αποστολή...' : '+ Επιλογή Αρχείου'}
+        </button>
+        {done && <span className="text-xs text-green-600 font-medium">✓ Ανέβηκε επιτυχώς!</span>}
+      </div>
+      <p className="text-xs text-gray-400">Αποδεκτές μορφές: PDF, JPG, PNG, DOCX έως 20MB</p>
+    </div>
+  )
+}
+
 // ── Main Portal Page ─────────────────────────────────────────────────────────
 
 export default function ClientPortal() {
@@ -882,6 +997,26 @@ export default function ClientPortal() {
               <span className="text-xs text-gray-400">→ <span className="text-gray-600">{data.next_status}</span></span>
             )}
           </div>
+          {data.status_descriptions?.[data.status] && (
+            <p className="mt-2 text-xs text-gray-500 bg-blue-50 rounded-lg px-3 py-2 border border-blue-100">
+              ℹ️ {data.status_descriptions[data.status]}
+            </p>
+          )}
+          {/* Progress bar */}
+          {data.progress_percent > 0 && (
+            <div className="mt-3">
+              <div className="flex justify-between text-xs text-gray-400 mb-1">
+                <span>Πρόοδος υπόθεσης</span>
+                <span className="font-semibold text-gray-600">{data.progress_percent}%</span>
+              </div>
+              <div className="w-full bg-gray-100 rounded-full h-2">
+                <div
+                  className="h-2 rounded-full bg-gradient-to-r from-blue-500 to-green-500 transition-all"
+                  style={{ width: `${data.progress_percent}%` }}
+                />
+              </div>
+            </div>
+          )}
           {data.assigned_agent_name && (
             <p className="mt-2 text-xs text-gray-400">Υπεύθυνος: <span className="font-medium text-gray-600">{data.assigned_agent_name}</span></p>
           )}
@@ -958,22 +1093,48 @@ export default function ClientPortal() {
         {/* Financial agreement */}
         {hasFinancial && <FinancialSection data={data} />}
 
-        {/* Messages */}
-        {data.messages?.length > 0 && (
+        {/* Status History */}
+        {data.status_history?.length > 0 && (
           <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
             <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
-              <ChatBubbleLeftEllipsisIcon className="w-5 h-5 text-gray-400" />
-              Ενημερώσεις από το Γραφείο
+              <ClockIcon className="w-5 h-5 text-gray-400" />
+              Ιστορικό Κατάστασης
             </h3>
-            <div className="space-y-3">
-              {data.messages.map(msg => (
-                <div key={msg.id} className="flex gap-3 items-start">
-                  <div className="w-7 h-7 bg-[#1e3a5f] rounded-full flex-shrink-0 flex items-center justify-center text-white text-xs font-bold">
-                    {(msg.author || 'i')[0].toUpperCase()}
+            <div className="relative">
+              <div className="absolute left-3 top-0 bottom-0 w-px bg-gray-100" />
+              <div className="space-y-3 pl-8">
+                {data.status_history.map((h, i) => (
+                  <div key={i} className="relative">
+                    <div className="absolute -left-5 top-1.5 w-2.5 h-2.5 rounded-full bg-blue-500 border-2 border-white" />
+                    <div className="text-xs text-gray-400">{fmtDate(h.changed_at)}</div>
+                    <div className="text-sm text-gray-800">
+                      {h.from_status && <span className="text-gray-400 line-through mr-1">{h.from_status}</span>}
+                      <span className="font-medium text-[#1e3a5f]">→ {h.to_status}</span>
+                    </div>
                   </div>
-                  <div className="flex-1 bg-gray-50 rounded-lg px-3 py-2">
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Messages */}
+        <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
+          <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+            <ChatBubbleLeftEllipsisIcon className="w-5 h-5 text-gray-400" />
+            Επικοινωνία με το Γραφείο
+          </h3>
+          {data.messages?.length > 0 ? (
+            <div className="space-y-3 mb-4">
+              {data.messages.map(msg => (
+                <div key={msg.id} className={`flex gap-3 items-start ${msg.sent_by_client ? 'flex-row-reverse' : ''}`}>
+                  <div className={`w-7 h-7 rounded-full flex-shrink-0 flex items-center justify-center text-white text-xs font-bold
+                    ${msg.sent_by_client ? 'bg-green-500' : 'bg-[#1e3a5f]'}`}>
+                    {msg.sent_by_client ? 'Ε' : (msg.author || 'i')[0].toUpperCase()}
+                  </div>
+                  <div className={`flex-1 rounded-xl px-3 py-2 ${msg.sent_by_client ? 'bg-green-50 border border-green-100' : 'bg-gray-50'}`}>
                     <div className="flex items-center gap-2 mb-1">
-                      <span className="text-xs font-semibold text-gray-700">{msg.author || 'iMentor'}</span>
+                      <span className="text-xs font-semibold text-gray-700">{msg.sent_by_client ? 'Εσείς' : (msg.author || 'iMentor')}</span>
                       <span className="text-xs text-gray-400">{fmtDate(msg.created_at)}</span>
                     </div>
                     <p className="text-sm text-gray-800 whitespace-pre-line">{msg.content}</p>
@@ -981,8 +1142,14 @@ export default function ClientPortal() {
                 </div>
               ))}
             </div>
-          </div>
-        )}
+          ) : (
+            <p className="text-xs text-gray-400 mb-4">Δεν υπάρχουν μηνύματα ακόμα.</p>
+          )}
+          <ClientMessageForm token={token} onSent={() => getPortalCase(token).then(setData)} />
+        </div>
+
+        {/* Client File Upload */}
+        <ClientUploadSection token={token} clientDocs={data.client_documents || []} onUploaded={() => getPortalCase(token).then(setData)} />
 
         {/* NPS Widget */}
         <NpsWidget token={token} serviceType={data.service_type} />

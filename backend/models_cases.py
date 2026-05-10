@@ -45,25 +45,25 @@ class CMCase(Base):
     sale_date = Column(Date)
 
     # Program Info
-    service_type = Column(String(200))   # ΕΙΔΟΣ ΥΠΗΡΕΣΙΑΣ
-    status = Column(String(100), default="ΕΝΑΡΞΗ / ΑΠΟΔΟΣΗ ΑΦΜ")  # ΚΑΤΑΣΤΑΣΗ ΕΡΓΑΣΙΑΣ
-    status_category = Column(String(50))    # INTERNAL PROCESS, PENDING CLIENT, SUBMITTED, etc.
-    program_category = Column(String(50), default='ΕΣΠΑ')   # ΕΣΠΑ, ΔΥΠΑ, ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ
+    service_type = Column(String(200))
+    status = Column(String(100), default="ΕΝΑΡΞΗ / ΑΠΟΔΟΣΗ ΑΦΜ")
+    status_category = Column(String(50))
+    program_category = Column(String(50), default='ΕΣΠΑ')
     status_changed_at = Column(DateTime)
 
     # Investment/Grant Info
-    approved_budget = Column(Float, default=0)   # ΥΨΟΣ ΕΠΕΝΔΥΣΗΣ
+    approved_budget = Column(Float, default=0)
     subsidy_percent = Column(Float, default=0)
-    project_deadline = Column(Date)              # Προθεσμία Ολοκλήρωσης
-    approval_date = Column(Date)                 # Ημερομηνία Έγκρισης
-    follow_up_date = Column(Date)                # Επόμενο Follow-up
-    dypa_start_date = Column(Date)               # ΔΥΠΑ Α Ορόσημο (έγκριση ή έναρξη επιχείρησης)
+    project_deadline = Column(Date)
+    approval_date = Column(Date)
+    follow_up_date = Column(Date)
+    dypa_start_date = Column(Date)
 
     # Fees agreed
-    agreed_fee_application = Column(Float, default=0)       # ΠΟΣΟ ΓΙΑ ΑΙΤΗΣΗ
-    agreed_fee_implementation = Column(Float, default=0)    # ΣΥΜΦΩΝΗΘΕΝ ΠΟΣΟ ΓΙΑ ΥΛΟΠΟΙΗΣΗ
+    agreed_fee_application = Column(Float, default=0)
+    agreed_fee_implementation = Column(Float, default=0)
 
-    # Amount paid (synced from Sheet: SUM of ΠΟΣΟ by AFM+service_type)
+    # Amount paid
     total_paid = Column(Float, default=0)
 
     # Assignment
@@ -82,7 +82,7 @@ class CMCase(Base):
     portal_review_clicked = Column(Boolean, default=False)
 
     # Metadata
-    sheet_import_ref = Column(String(200))  # AFM|service_type key used for sync
+    sheet_import_ref = Column(String(200))
     risk_score = Column(Integer, default=0)
     notes = Column(Text)
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -97,6 +97,20 @@ class CMCase(Base):
     notification_logs = relationship("CMNotificationLog", back_populates="case", cascade="all, delete-orphan")
     budget_categories = relationship("CMBudgetCategory", back_populates="case", cascade="all, delete-orphan")
     pending_items = relationship("CMCasePendingItem", back_populates="case", cascade="all, delete-orphan", order_by="CMCasePendingItem.sort_order")
+    status_history = relationship("CMCaseStatusHistory", back_populates="case", cascade="all, delete-orphan", order_by="CMCaseStatusHistory.changed_at")
+
+
+class CMCaseStatusHistory(Base):
+    __tablename__ = "cm_case_status_history"
+
+    id = Column(Integer, primary_key=True, index=True)
+    case_id = Column(Integer, ForeignKey("cm_cases.id"), nullable=False)
+    from_status = Column(String(100))
+    to_status = Column(String(100), nullable=False)
+    changed_at = Column(DateTime, default=datetime.utcnow)
+    changed_by = Column(String(100))
+
+    case = relationship("CMCase", back_populates="status_history")
 
 
 class CMTask(Base):
@@ -107,8 +121,8 @@ class CMTask(Base):
 
     title = Column(String(300), nullable=False)
     description = Column(Text)
-    status = Column(String(30), default="pending")   # pending, in_progress, done, waiting_client
-    priority = Column(String(20), default="normal")  # low, normal, high, urgent
+    status = Column(String(30), default="pending")
+    priority = Column(String(20), default="normal")
 
     assigned_to = Column(Integer, ForeignKey("cm_users.id"), nullable=True)
     due_date = Column(Date)
@@ -130,7 +144,7 @@ class CMPayment(Base):
 
     amount = Column(Float, nullable=False)
     payment_date = Column(Date)
-    payment_type = Column(String(50), default="partial")  # application, implementation, partial, other
+    payment_type = Column(String(50), default="partial")
     description = Column(Text)
 
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -146,7 +160,8 @@ class CMMessage(Base):
     user_id = Column(Integer, ForeignKey("cm_users.id"), nullable=True)
 
     content = Column(Text, nullable=False)
-    is_internal = Column(Boolean, default=True)  # True = internal only, False = client-visible
+    is_internal = Column(Boolean, default=True)
+    sent_by_client = Column(Boolean, default=False)
     author_name = Column(String(100))
 
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -163,8 +178,9 @@ class CMDocument(Base):
 
     name = Column(String(300), nullable=False)
     document_type = Column(String(100))
-    status = Column(String(30), default="pending")  # pending, reviewed, approved, rejected
+    status = Column(String(30), default="pending")
     uploaded_by = Column(String(100))
+    uploaded_by_client = Column(Boolean, default=False)
     notes = Column(Text)
     file_url = Column(String(500))
 
@@ -179,12 +195,12 @@ class CMNotificationLog(Base):
     id = Column(Integer, primary_key=True, index=True)
     case_id = Column(Integer, ForeignKey("cm_cases.id"), nullable=True)
 
-    notification_type = Column(String(50))  # email, viber
+    notification_type = Column(String(50))
     recipient_name = Column(String(200))
     recipient_contact = Column(String(200))
     subject = Column(String(300))
     content = Column(Text)
-    status = Column(String(30), default="sent")  # sent, failed, pending
+    status = Column(String(30), default="sent")
     sent_by = Column(String(100))
 
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -216,7 +232,7 @@ class CMNotificationTemplate(Base):
     label = Column(String(200), nullable=False)
     subject = Column(String(300))
     content = Column(Text, nullable=False)
-    notification_type = Column(String(20), default='both')  # email, viber, both
+    notification_type = Column(String(20), default='both')
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow)
@@ -237,13 +253,14 @@ class CMPipelineConfig(Base):
     program_category = Column(String(50), unique=True, nullable=False)
     phases_json = Column(Text, nullable=False)
     extra_statuses_json = Column(Text, default="[]")
+    status_descriptions_json = Column(Text, default="{}")
     updated_at = Column(DateTime, default=datetime.utcnow)
 
 
 class CMPendingItemTemplate(Base):
     __tablename__ = "cm_pending_item_templates"
     id = Column(Integer, primary_key=True, index=True)
-    program_category = Column(String(100), nullable=False)  # ΕΣΠΑ, ΔΥΠΑ, ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ
+    program_category = Column(String(100), nullable=False)
     item_text = Column(String(300), nullable=False)
     sort_order = Column(Integer, default=0)
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -266,7 +283,6 @@ class CMWorkList(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(200), nullable=False)
     description = Column(Text, nullable=True)
-    # Criteria: empty list = match all
     programs = Column(JSON, default=list)
     service_types = Column(JSON, default=list)
     statuses = Column(JSON, default=list)

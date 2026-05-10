@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from dotenv import load_dotenv
 from database import Base, engine
-from models_cases import CMUser, CMCase, CMTask, CMPayment, CMMessage, CMDocument, CMNotificationLog, CMBudgetCategory, CMPendingItemTemplate, CMCasePendingItem, CMPipelineConfig
+from models_cases import CMUser, CMCase, CMTask, CMPayment, CMMessage, CMDocument, CMNotificationLog, CMBudgetCategory, CMPendingItemTemplate, CMCasePendingItem, CMPipelineConfig, CMCaseStatusHistory
 
 # Case management routes
 from routes.cm_auth import router as cm_auth_router
@@ -19,6 +19,7 @@ from routes.cm_pending_items import router as cm_pending_items_router
 from routes.cm_portal import router as cm_portal_router
 from routes.cm_pipeline import router as cm_pipeline_router
 from routes.cm_worklists import router as cm_worklists_router
+from routes.cm_analytics import router as cm_analytics_router
 
 load_dotenv()
 
@@ -52,6 +53,19 @@ try:
             )
         """))
         _conn.execute(_text("ALTER TABLE cm_cases ADD COLUMN IF NOT EXISTS portal_last_visit_at TIMESTAMP"))
+        _conn.execute(_text("ALTER TABLE cm_messages ADD COLUMN IF NOT EXISTS sent_by_client BOOLEAN DEFAULT FALSE"))
+        _conn.execute(_text("ALTER TABLE cm_documents ADD COLUMN IF NOT EXISTS uploaded_by_client BOOLEAN DEFAULT FALSE"))
+        _conn.execute(_text("ALTER TABLE cm_pipeline_configs ADD COLUMN IF NOT EXISTS status_descriptions_json TEXT DEFAULT '{}'"))
+        _conn.execute(_text("""
+            CREATE TABLE IF NOT EXISTS cm_case_status_history (
+                id SERIAL PRIMARY KEY,
+                case_id INTEGER REFERENCES cm_cases(id) ON DELETE CASCADE,
+                from_status VARCHAR(100),
+                to_status VARCHAR(100) NOT NULL,
+                changed_at TIMESTAMP DEFAULT NOW(),
+                changed_by VARCHAR(100)
+            )
+        """))
         # One-time reset: clear visit counts for cases not yet visited since new tracking
         _conn.execute(_text("UPDATE cm_cases SET portal_visit_count = 0 WHERE portal_last_visit_at IS NULL"))
         _conn.commit()
@@ -191,9 +205,50 @@ def _run_scheduled_refresh():
 
 from datetime import datetime
 
+def _run_agent_sla_digest():
+    """Send each agent a daily digest of their SLA-overdue cases."""
+    from routes.cm_notifications import _send_email
+    from models_cases import CMCase as _CMCase, CMStatusSLA as _CMSLA, CMUser as _CMUser
+    from datetime import datetime as _dt2
+    db = SessionLocal()
+    try:
+        sla_map = {s.status: s.sla_days for s in db.query(_CMSLA).all()}
+        if not sla_map:
+            return
+        now = _dt2.utcnow()
+        from pipelines import TERMINAL_STATUSES as _TERM
+        active_cases = db.query(_CMCase).filter(~_CMCase.status.in_(list(_TERM))).all()
+        agent_overdue: dict[int, list] = {}
+        for c in active_cases:
+            if not c.status_changed_at or c.status not in sla_map:
+                continue
+            age = (now - c.status_changed_at).days
+            if age > sla_map[c.status] and c.assigned_agent_id:
+                agent_overdue.setdefault(c.assigned_agent_id, []).append((c, age - sla_map[c.status]))
+        for agent_id, items in agent_overdue.items():
+            agent = db.query(_CMUser).filter(_CMUser.id == agent_id).first()
+            if not agent or not agent.email:
+                continue
+            lines = "\n".join(
+                f"• {c.client_name} — {c.status} (+{days} ημ. εκτός SLA)"
+                for c, days in sorted(items, key=lambda x: -x[1])
+            )
+            body = (
+                f"Καλημέρα {agent.full_name},\n\n"
+                f"Οι παρακάτω υποθέσεις σου έχουν υπερβεί το SLA:\n\n{lines}\n\n"
+                f"Παρακαλώ ενημέρωσε ή προχώρα σε επόμενο στάδιο.\n\nΜε εκτίμηση,\niMentor Consulting"
+            )
+            _send_email(agent.email, "Ημερήσια Αναφορά SLA — iMentor Consulting", body)
+    except Exception as e:
+        print(f"[scheduler] SLA digest ERROR: {e}")
+    finally:
+        db.close()
+
+
 _scheduler = _BGScheduler(timezone=_athens_tz)
 _scheduler.add_job(_run_scheduled_refresh, "cron", hour=8, minute=0, id="refresh_08")
 _scheduler.add_job(_run_scheduled_refresh, "cron", hour=14, minute=0, id="refresh_14")
+_scheduler.add_job(_run_agent_sla_digest, "cron", hour=9, minute=0, id="sla_digest_09")
 _scheduler.start()
 
 app = FastAPI(
@@ -221,6 +276,7 @@ app.include_router(cm_pending_items_router)
 app.include_router(cm_portal_router)
 app.include_router(cm_pipeline_router)
 app.include_router(cm_worklists_router)
+app.include_router(cm_analytics_router)
 
 
 @app.on_event("shutdown")

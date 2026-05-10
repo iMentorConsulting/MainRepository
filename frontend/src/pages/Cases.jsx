@@ -1,11 +1,96 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { getCases, getUsers, deleteCase, createCase } from '../api'
+import { getCases, getUsers, deleteCase, createCase, updateCase, getPipelines, sendNotification } from '../api'
 import { PIPELINES } from '../pipelines'
-import { MagnifyingGlassIcon, PlusIcon, TrashIcon, FolderOpenIcon } from '@heroicons/react/24/outline'
+import { MagnifyingGlassIcon, PlusIcon, TrashIcon, FolderOpenIcon, BoltIcon, ChevronDownIcon } from '@heroicons/react/24/outline'
 import toast from 'react-hot-toast'
 
 const FINAL_STATUSES = new Set(['ΟΛΟΚΛΗΡΩΜΕΝΗ ΥΠΟΘΕΣΗ', 'ΠΑΡΑΙΤΗΣΗ', 'ΠΑΓΩΜΕΝΗ ΥΠΟΘΕΣΗ', 'ΑΚΥΡΩΣΗ', 'ΑΠΟΡΡΙΨΗ'])
+
+function QuickActions({ caseRow, allStatuses, onUpdated }) {
+  const [open, setOpen] = useState(false)
+  const [notifMsg, setNotifMsg] = useState('')
+  const [showNotif, setShowNotif] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const ref = useRef(null)
+
+  useEffect(() => {
+    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) { setOpen(false); setShowNotif(false) } }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  const changeStatus = async (status) => {
+    setSaving(true)
+    try {
+      await updateCase(caseRow.id, { status })
+      toast.success(`Status → ${status}`)
+      setOpen(false)
+      onUpdated()
+    } catch { toast.error('Σφάλμα') }
+    finally { setSaving(false) }
+  }
+
+  const sendQuickNotif = async () => {
+    if (!notifMsg.trim()) return
+    setSaving(true)
+    try {
+      await sendNotification(caseRow.id, { notification_type: 'both', message: notifMsg.trim() })
+      toast.success('Εστάλη')
+      setNotifMsg('')
+      setShowNotif(false)
+      setOpen(false)
+    } catch { toast.error('Σφάλμα αποστολής') }
+    finally { setSaving(false) }
+  }
+
+  return (
+    <div ref={ref} className="relative" onClick={e => e.stopPropagation()}>
+      <button
+        onClick={() => { setOpen(v => !v); setShowNotif(false) }}
+        className="p-1.5 rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+        title="Γρήγορες Ενέργειες"
+      >
+        <BoltIcon className="w-4 h-4" />
+      </button>
+      {open && (
+        <div className="absolute right-0 top-full mt-1 z-50 bg-white border border-gray-200 rounded-xl shadow-xl w-64 p-2">
+          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider px-2 py-1">Αλλαγή Status</p>
+          <div className="max-h-48 overflow-y-auto space-y-0.5">
+            {allStatuses.map(s => (
+              <button key={s} onClick={() => changeStatus(s)} disabled={saving || s === caseRow.status}
+                className={`w-full text-left text-xs px-3 py-1.5 rounded-lg transition-colors ${s === caseRow.status ? 'bg-blue-50 text-blue-700 font-semibold' : 'hover:bg-gray-50 text-gray-700'}`}>
+                {s === caseRow.status && '✓ '}{s}
+              </button>
+            ))}
+          </div>
+          <hr className="my-2" />
+          {!showNotif ? (
+            <button onClick={() => setShowNotif(true)}
+              className="w-full text-left text-xs px-3 py-2 rounded-lg hover:bg-orange-50 text-orange-600 font-medium flex items-center gap-2">
+              <BoltIcon className="w-3.5 h-3.5" /> Γρήγορη Ειδοποίηση
+            </button>
+          ) : (
+            <div className="px-1 space-y-2">
+              <textarea
+                className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-300 resize-none"
+                rows={3} placeholder="Μήνυμα..." value={notifMsg}
+                onChange={e => setNotifMsg(e.target.value)}
+              />
+              <div className="flex gap-1">
+                <button onClick={sendQuickNotif} disabled={saving || !notifMsg.trim()}
+                  className="flex-1 text-xs bg-orange-500 text-white rounded-lg py-1.5 font-semibold hover:bg-orange-600 disabled:opacity-50">
+                  Αποστολή (Email+Viber)
+                </button>
+                <button onClick={() => setShowNotif(false)} className="text-xs text-gray-400 px-2">Ακύρωση</button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
 
 const PROGRAM_OPTIONS = [
   { value: 'ΕΣΠΑ', label: 'ΕΣΠΑ' },
@@ -126,6 +211,7 @@ function NewCaseModal({ agents, onClose, onSaved }) {
 export default function Cases() {
   const [allCases, setAllCases] = useState([])
   const [agents, setAgents] = useState([])
+  const [livePipelines, setLivePipelines] = useState(null)
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [filters, setFilters] = useState({
@@ -140,6 +226,10 @@ export default function Cases() {
   })
   const [showNew, setShowNew] = useState(false)
   const navigate = useNavigate()
+
+  useEffect(() => {
+    getPipelines().then(setLivePipelines).catch(() => {})
+  }, [])
 
   const cases = allCases.filter(c => {
     if (filters.hide_completed && FINAL_STATUSES.has(c.status)) return false
@@ -253,6 +343,11 @@ export default function Cases() {
               <tbody className="divide-y divide-gray-100">
                 {cases.map(c => {
                   const urgent = c.days_to_deadline !== null && c.days_to_deadline <= 15 && c.days_to_deadline >= 0
+                  const prog = livePipelines?.[c.program_category] || PIPELINES[c.program_category] || {}
+                  const caseStatuses = [
+                    ...(prog.phases || []).flatMap(p => p.statuses),
+                    ...(prog.extra_statuses || []),
+                  ]
                   return (
                     <tr key={c.id} onClick={() => navigate(`/cases/${c.id}`)} className="hover:bg-gray-50 cursor-pointer">
                       <td className="px-3 py-3 max-w-[160px]">
@@ -306,9 +401,12 @@ export default function Cases() {
                         }
                       </td>
                       <td className="px-3 py-3">
-                        <button onClick={e => handleDelete(e, c.id)} className="text-gray-300 hover:text-red-500 transition-colors">
-                          <TrashIcon className="w-4 h-4" />
-                        </button>
+                        <div className="flex items-center gap-1">
+                          <QuickActions caseRow={c} allStatuses={caseStatuses} onUpdated={load} />
+                          <button onClick={e => handleDelete(e, c.id)} className="text-gray-300 hover:text-red-500 transition-colors">
+                            <TrashIcon className="w-4 h-4" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   )

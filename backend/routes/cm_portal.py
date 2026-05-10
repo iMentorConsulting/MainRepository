@@ -1,11 +1,14 @@
 import uuid
 import os
+import shutil
 import requests as http_requests
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from sqlalchemy.orm import Session, joinedload
 from database import get_db
-from models_cases import CMCase, CMCasePendingItem, CMMessage, CMBudgetCategory
+from models_cases import CMCase, CMCasePendingItem, CMMessage, CMBudgetCategory, CMDocument, CMCaseStatusHistory
 from auth_cases import get_current_user
+
+UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "..", "portal_uploads")
 
 router = APIRouter(prefix="/api/cm/portal", tags=["portal"])
 
@@ -61,26 +64,65 @@ def _build_portal_data(case: CMCase, db: Session) -> dict:
     next_status = _get_next_status(case.status or "", prog, db)
     full_status_list = _get_full_status_list(prog, db)
 
+    # Progress percent: position of current status in full list
+    progress_percent = 0
+    if full_status_list:
+        idx = next((i for i, s in enumerate(full_status_list) if s["status"] == case.status), None)
+        if idx is not None:
+            progress_percent = round((idx + 1) / len(full_status_list) * 100)
+
+    # Status descriptions from pipeline config
+    try:
+        import json as _json
+        from models_cases import CMPipelineConfig as _PCfg
+        row = db.query(_PCfg).filter(_PCfg.program_category == prog).first()
+        status_descriptions = _json.loads(row.status_descriptions_json or "{}") if row else {}
+    except Exception:
+        status_descriptions = {}
+
     pending_items = [
         {"id": pi.id, "item_text": pi.item_text, "comment": pi.comment}
         for pi in (case.pending_items or [])
     ]
 
-    external_messages = sorted(
+    all_external = sorted(
         [m for m in (case.messages or []) if not m.is_internal],
         key=lambda m: m.created_at,
-    )[-10:]
+    )
     messages_out = [
         {
             "id": m.id,
             "content": m.content,
             "created_at": m.created_at.isoformat() if m.created_at else None,
-            "author": m.user.full_name if m.user else "iMentor",
+            "author": m.user.full_name if m.user else (m.author_name or "iMentor"),
+            "sent_by_client": bool(m.sent_by_client),
         }
-        for m in external_messages
+        for m in all_external[-20:]
     ]
 
-    # Budget breakdown (ΕΣΠΑ only but return for all)
+    # Status history
+    history_out = [
+        {
+            "from_status": h.from_status,
+            "to_status": h.to_status,
+            "changed_at": h.changed_at.isoformat() if h.changed_at else None,
+        }
+        for h in (case.status_history or [])
+    ]
+
+    # Client-uploaded documents
+    client_docs = [
+        {
+            "id": d.id,
+            "name": d.name,
+            "file_url": d.file_url,
+            "status": d.status,
+            "created_at": d.created_at.isoformat() if d.created_at else None,
+        }
+        for d in (case.documents or []) if d.uploaded_by_client
+    ]
+
+    # Budget breakdown
     budget_categories = [
         {
             "category_name": b.category_name,
@@ -93,7 +135,6 @@ def _build_portal_data(case: CMCase, db: Session) -> dict:
         for b in (case.budget_categories or [])
     ]
 
-    # Financial agreement
     agreed_application = case.agreed_fee_application or 0
     agreed_implementation = case.agreed_fee_implementation or 0
     total_agreed = agreed_application + agreed_implementation
@@ -113,6 +154,10 @@ def _build_portal_data(case: CMCase, db: Session) -> dict:
         "assigned_agent_name": case.assigned_agent.full_name if case.assigned_agent else None,
         "pending_items": pending_items,
         "messages": messages_out,
+        "status_history": history_out,
+        "status_descriptions": status_descriptions,
+        "progress_percent": progress_percent,
+        "client_documents": client_docs,
         "pipeline_phases": phases,
         "current_phase_id": current_phase_id,
         "next_status": next_status,
@@ -172,6 +217,105 @@ def record_review_click(token: str, db: Session = Depends(get_db)):
     case.portal_review_clicked = True
     db.commit()
     return {"ok": True}
+
+
+@router.post("/public/{token}/message")
+def client_send_message(token: str, body: dict, db: Session = Depends(get_db)):
+    """Client submits a message/question from the portal."""
+    case = db.query(CMCase).filter(CMCase.share_token == token).first()
+    if not case or not case.portal_active:
+        raise HTTPException(status_code=404, detail="Portal not found or inactive")
+    content = (body.get("content") or "").strip()
+    if not content:
+        raise HTTPException(status_code=400, detail="Κενό μήνυμα")
+
+    from datetime import datetime
+    msg = CMMessage(
+        case_id=case.id,
+        content=content,
+        is_internal=False,
+        sent_by_client=True,
+        author_name=case.client_name or "Πελάτης",
+    )
+    db.add(msg)
+    db.commit()
+
+    # Notify assigned agent by email if available
+    if case.assigned_agent and case.assigned_agent.email:
+        try:
+            from routes.cm_notifications import _send_email
+            _send_email(
+                case.assigned_agent.email,
+                f"Νέο μήνυμα από πελάτη — {case.client_name}",
+                f"Ο πελάτης {case.client_name} έστειλε μήνυμα:\n\n{content}\n\nΥπόθεση: {case.service_type or ''}",
+            )
+        except Exception:
+            pass
+
+    return {"ok": True}
+
+
+@router.post("/public/{token}/upload")
+async def client_upload_file(
+    token: str,
+    file: UploadFile = File(...),
+    description: str = Form(""),
+    db: Session = Depends(get_db),
+):
+    """Client uploads a document from the portal."""
+    case = db.query(CMCase).filter(CMCase.share_token == token).first()
+    if not case or not case.portal_active:
+        raise HTTPException(status_code=404, detail="Portal not found or inactive")
+
+    # Save file to disk
+    case_dir = os.path.join(UPLOAD_DIR, str(case.id))
+    os.makedirs(case_dir, exist_ok=True)
+    safe_name = f"{uuid.uuid4().hex}_{file.filename}"
+    dest = os.path.join(case_dir, safe_name)
+    with open(dest, "wb") as f:
+        shutil.copyfileobj(file.file, f)
+
+    file_url = f"/api/cm/portal/public/{token}/uploads/{safe_name}"
+
+    doc = CMDocument(
+        case_id=case.id,
+        name=file.filename or safe_name,
+        document_type=description or "Αρχείο πελάτη",
+        status="pending",
+        uploaded_by=case.client_name or "Πελάτης",
+        uploaded_by_client=True,
+        file_url=file_url,
+    )
+    db.add(doc)
+    db.commit()
+    db.refresh(doc)
+
+    # Notify agent
+    if case.assigned_agent and case.assigned_agent.email:
+        try:
+            from routes.cm_notifications import _send_email
+            _send_email(
+                case.assigned_agent.email,
+                f"Νέο αρχείο από πελάτη — {case.client_name}",
+                f"Ο πελάτης {case.client_name} ανέβασε αρχείο: {file.filename}\n{description}",
+            )
+        except Exception:
+            pass
+
+    return {"ok": True, "id": doc.id, "name": doc.name, "file_url": file_url}
+
+
+@router.get("/public/{token}/uploads/{filename}")
+async def serve_client_upload(token: str, filename: str, db: Session = Depends(get_db)):
+    """Serve a file uploaded by the client."""
+    from fastapi.responses import FileResponse as _FR
+    case = db.query(CMCase).filter(CMCase.share_token == token).first()
+    if not case or not case.portal_active:
+        raise HTTPException(status_code=404, detail="Not found")
+    path = os.path.join(UPLOAD_DIR, str(case.id), filename)
+    if not os.path.isfile(path):
+        raise HTTPException(status_code=404, detail="File not found")
+    return _FR(path)
 
 
 @router.post("/public/{token}/visit")

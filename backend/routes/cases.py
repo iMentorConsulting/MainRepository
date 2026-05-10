@@ -452,10 +452,17 @@ def update_case(
         raise HTTPException(status_code=404, detail="Υπόθεση δεν βρέθηκε")
 
     data = req.dict(exclude_none=True)
+    if 'status' in data and data['status'] != c.status:
+        from models_cases import CMCaseStatusHistory
+        db.add(CMCaseStatusHistory(
+            case_id=c.id,
+            from_status=c.status,
+            to_status=data['status'],
+            changed_by=current_user.full_name,
+        ))
+        c.status_changed_at = datetime.utcnow()
     for field, val in data.items():
         setattr(c, field, val)
-    if 'status' in data:
-        c.status_changed_at = datetime.utcnow()
     c.updated_at = datetime.utcnow()
     db.commit()
     db.refresh(c)

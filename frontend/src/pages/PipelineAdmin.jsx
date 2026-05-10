@@ -137,13 +137,16 @@ function PhaseCard({ phase, phaseIdx, onUpdate, onDelete, onMoveUp, onMoveDown, 
 function ProgramEditor({ programKey, config, label, onSaved }) {
   const [phases, setPhases] = useState([])
   const [extraStatuses, setExtraStatuses] = useState([])
+  const [statusDescriptions, setStatusDescriptions] = useState({})
   const [newExtra, setNewExtra] = useState('')
   const [saving, setSaving] = useState(false)
   const [dirty, setDirty] = useState(false)
+  const [showDescriptions, setShowDescriptions] = useState(false)
 
   useEffect(() => {
     setPhases(config.phases ? JSON.parse(JSON.stringify(config.phases)) : [])
     setExtraStatuses(config.extra_statuses || [])
+    setStatusDescriptions(config.status_descriptions || {})
     setDirty(false)
   }, [config])
 
@@ -179,10 +182,12 @@ function ProgramEditor({ programKey, config, label, onSaved }) {
 
   const removeExtra = (idx) => { setExtraStatuses(prev => prev.filter((_, i) => i !== idx)); mark() }
 
+  const allStatuses = phases.flatMap(p => p.statuses)
+
   const handleSave = async () => {
     setSaving(true)
     try {
-      await updatePipeline(programKey, { phases, extra_statuses: extraStatuses })
+      await updatePipeline(programKey, { phases, extra_statuses: extraStatuses, status_descriptions: statusDescriptions })
       toast.success('Αποθηκεύτηκε — οι αλλαγές ισχύουν αμέσως')
       setDirty(false)
       onSaved()
@@ -245,6 +250,37 @@ function ProgramEditor({ programKey, config, label, onSaved }) {
             Προσθήκη
           </button>
         </div>
+      </div>
+
+      {/* Status descriptions */}
+      <div className="bg-white rounded-xl border p-4 space-y-3">
+        <button
+          onClick={() => setShowDescriptions(v => !v)}
+          className="flex items-center justify-between w-full text-sm font-semibold text-gray-500 uppercase tracking-wider"
+        >
+          <span>Επεξηγήσεις Καταστάσεων (εμφανίζονται στην Πύλη Πελάτη)</span>
+          <span className="text-xs text-blue-500">{showDescriptions ? 'Απόκρυψη ▲' : 'Εμφάνιση ▼'}</span>
+        </button>
+        {showDescriptions && (
+          <div className="space-y-2 pt-1">
+            {allStatuses.map(s => (
+              <div key={s} className="flex items-start gap-2">
+                <span className="text-xs font-mono text-gray-500 pt-2 min-w-[220px] shrink-0 truncate">{s}</span>
+                <input
+                  className="flex-1 border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+                  placeholder="Σύντομη επεξήγηση για τον πελάτη..."
+                  value={statusDescriptions[s] || ''}
+                  onChange={e => {
+                    const val = e.target.value
+                    setStatusDescriptions(prev => val ? { ...prev, [s]: val } : Object.fromEntries(Object.entries(prev).filter(([k]) => k !== s)))
+                    mark()
+                  }}
+                />
+              </div>
+            ))}
+            {allStatuses.length === 0 && <p className="text-xs text-gray-400">Δεν υπάρχουν statuses ακόμα.</p>}
+          </div>
+        )}
       </div>
 
       {/* Save */}
