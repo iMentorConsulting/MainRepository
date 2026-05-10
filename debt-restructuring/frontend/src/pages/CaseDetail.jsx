@@ -613,6 +613,13 @@ export default function CaseDetail({ currentEmployee }) {
               rel="noreferrer"
               className="btn-secondary gap-2 text-sm"
               title="Προβολή portal ως σύμβουλος (δεν μετράει ως επίσκεψη πελάτη)"
+              onClick={() => {
+                if (caseData.client_vat) {
+                  navigator.clipboard.writeText(caseData.client_vat)
+                    .then(() => toast.success(`ΑΦΜ αντιγράφηκε: ${caseData.client_vat}`))
+                    .catch(() => {})
+                }
+              }}
             >
               <EyeIcon className="w-4 h-4" /> Portal από Σύμβουλο
             </a>

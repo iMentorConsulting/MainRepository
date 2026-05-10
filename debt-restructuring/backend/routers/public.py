@@ -1,6 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 from datetime import datetime
+import os, smtplib
+from email.mime.text import MIMEText
 from database import get_db
 from models import Case
 
@@ -61,6 +63,40 @@ def get_public_case(token: str, request: Request, vat: str = Query(default=None)
 
 STAGE_ORDER = ['Νέα Ανάλυση', 'Εστάλη Σύνδεσμος', 'Θετική Ανταπόκριση', 'Σε Διαπραγμάτευση', 'Έκλεισε', 'Δεν Ενδιαφέρεται']
 
+
+def _send_interested_email(case: Case):
+    """Send notification email when client clicks 'Θέλω να Προχωρήσω'. Silently skips if SMTP not configured."""
+    try:
+        smtp_host = os.getenv("SMTP_HOST", "")
+        if not smtp_host:
+            return
+        smtp_port = int(os.getenv("SMTP_PORT", "587"))
+        smtp_user = os.getenv("SMTP_USER", "")
+        smtp_pass = os.getenv("SMTP_PASS", "")
+        notify_to  = os.getenv("NOTIFY_EMAIL", "info@i-mentor.gr")
+
+        body = (
+            f"Ο/Η πελάτης {case.client_name or '(άγνωστος)'} "
+            f"(ΑΦΜ: {case.client_vat or '-'}) "
+            f"έκανε κλικ στο κουμπί «Θέλω να Προχωρήσω» στο portal.\n\n"
+            f"Υπόθεση ID: {case.id}\n"
+            f"Υπεύθυνος: {case.employee or '-'}\n"
+            f"Ώρα: {datetime.utcnow().strftime('%d/%m/%Y %H:%M')} UTC\n"
+        )
+        msg = MIMEText(body, "plain", "utf-8")
+        msg["Subject"] = f"[i-Mentor] Ενδιαφέρον πελάτη: {case.client_name or case.id}"
+        msg["From"] = smtp_user or notify_to
+        msg["To"] = notify_to
+
+        with smtplib.SMTP(smtp_host, smtp_port, timeout=10) as s:
+            s.starttls()
+            if smtp_user and smtp_pass:
+                s.login(smtp_user, smtp_pass)
+            s.sendmail(msg["From"], [notify_to], msg.as_string())
+    except Exception:
+        pass  # Never break the endpoint if email fails
+
+
 @router.post("/case/{token}/interested")
 def mark_interested(token: str, db: Session = Depends(get_db)):
     """Client clicked 'I want to proceed' in the portal."""
@@ -78,6 +114,7 @@ def mark_interested(token: str, db: Session = Depends(get_db)):
         case.last_contacted_at = datetime.utcnow()
         case.updated_at = datetime.utcnow()
         db.commit()
+        _send_interested_email(case)
     return {"ok": True, "contact_stage": case.contact_stage}
 
 @router.get("/stats")

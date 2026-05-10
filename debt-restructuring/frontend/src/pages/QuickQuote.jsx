@@ -40,42 +40,47 @@ export default function QuickQuote() {
   const calc = useMemo(() => {
     if (!totalDebt || !annualIncome) return null
 
-    const household = HOUSEHOLD_OPTS[householdIdx].value
-    const disposable = Math.max(0, annualIncome - household) * 0.8
-    const monthlyDisp = disposable / 12
+    const household = debtorType !== 'np' ? HOUSEHOLD_OPTS[householdIdx].value : 0
+    // ΚΥΑ 67360: disposable = max(0, income − min_subsistence) × 80%
+    const dispAnnual = Math.max(0, annualIncome - household) * 0.8
+    const monthlyDisp = dispAnnual / 12
 
-    // Rough writeoff estimate based on debt composition
     const bankDebt = totalDebt * (debtComposition.banks / 100)
-    const taxDebt = totalDebt * (debtComposition.tax / 100)
+    const taxDebt  = totalDebt * (debtComposition.tax / 100)
     const fundDebt = totalDebt * (debtComposition.funds / 100)
 
-    // Rough rates (simplified — not legal calculation)
-    let bankWr = bankDebt * 0.55
-    let taxWr = taxDebt * 0.70
-    let fundWr = fundDebt * 0.65
-
-    // Adjust if property
+    // Banks: receives max(income capacity over 240 months, asset coverage), capped at debt
+    const capacity240 = monthlyDisp * 240
+    let bankFromAssets = 0
     if (hasProperty && propertyValue > 0) {
-      const liq = propertyValue * 0.7 * (hasMortgage ? 0.65 : 1.0)
-      const assetCoverage = liq * 0.25
-      bankWr = Math.max(bankWr - assetCoverage * 0.6, bankDebt * 0.25)
+      const liqValue = propertyValue * 0.7  // liquidation haircut
+      // secured creditor share: 65% if mortgaged, 70% if free
+      bankFromAssets = hasMortgage ? liqValue * 0.65 : liqValue * 0.70
     }
+    const bankReceives = bankDebt > 0 ? Math.min(bankDebt, Math.max(capacity240, bankFromAssets)) : 0
+    const bankWr = Math.max(0, bankDebt - bankReceives)
+
+    // ΑΑΔΕ: 25% non-erasable; of the 75% erasable, max 75% can be written off
+    const taxWr = taxDebt * 0.75 * 0.75
+
+    // ΕΦΚΑ: 20% non-erasable; of the 80% erasable, max 75% can be written off
+    const fundWr = fundDebt * 0.80 * 0.75
 
     const totalWr = bankWr + taxWr + fundWr
     const remaining = Math.max(0, totalDebt - totalWr)
     const wrPct = Math.round((totalWr / totalDebt) * 100)
 
-    // Monthly payment estimate (120–240 months typical)
-    const months = Math.min(240, Math.max(60, Math.round(remaining / Math.max(monthlyDisp * 0.7, 1))))
-    const monthlyPay = months > 0 ? remaining / months : 0
+    // Repayment over 240 months (20 years — standard max per law)
+    const months = 240
+    const monthlyPay = remaining / months
 
     return {
-      disposable, monthlyDisp,
+      disposable: dispAnnual, monthlyDisp,
       totalWr, remaining, wrPct,
       months, monthlyPay,
       bankWr, taxWr, fundWr,
     }
-  }, [totalDebt, annualIncome, householdIdx, hasProperty, propertyValue, hasMortgage, debtComposition])
+  }, [totalDebt, annualIncome, householdIdx, hasProperty, propertyValue, hasMortgage, debtComposition, debtorType])
 
   return (
     <div className="p-4 md:p-6 max-w-3xl mx-auto">

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
 import { format } from 'date-fns'
 import { el } from 'date-fns/locale'
@@ -7,17 +7,32 @@ import { fmt, creditorDisplayName } from '../utils/calculations'
 
 function Tooltip({ children, tip }) {
   const [open, setOpen] = useState(false)
+  const [pos, setPos] = useState({ top: 0, left: 0 })
+  const btnRef = useRef(null)
+
+  const handleOpen = () => {
+    if (!open && btnRef.current) {
+      const r = btnRef.current.getBoundingClientRect()
+      setPos({ top: r.top - 8, left: r.left + r.width / 2 })
+    }
+    setOpen(!open)
+  }
+
   return (
-    <span className="relative inline-flex items-center gap-0.5">
+    <span className="inline-flex items-center gap-0.5">
       {children}
       <button
-        onClick={() => setOpen(!open)}
+        ref={btnRef}
+        onClick={handleOpen}
         className="text-blue-400 hover:text-blue-200 text-xs inline-flex items-center justify-center w-4 h-4 rounded-full border border-blue-400/50 hover:border-blue-200 transition-colors shrink-0 font-bold"
       >?</button>
       {open && (
         <>
-          <span className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <span className="absolute z-50 bottom-full left-0 mb-2 w-52 bg-gray-900 text-white text-xs rounded-xl p-3 shadow-2xl leading-relaxed border border-gray-700">
+          <span className="fixed inset-0 z-[9998]" onClick={() => setOpen(false)} />
+          <span
+            className="fixed z-[9999] w-56 bg-gray-900 text-white text-xs rounded-xl p-3 shadow-2xl leading-relaxed border border-gray-700"
+            style={{ bottom: `calc(100vh - ${pos.top}px + 4px)`, left: `${pos.left - 112}px` }}
+          >
             {tip}
             <button onClick={() => setOpen(false)} className="absolute top-1.5 right-2 text-gray-400 hover:text-white font-bold">×</button>
           </span>
