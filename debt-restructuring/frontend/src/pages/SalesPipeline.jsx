@@ -236,7 +236,11 @@ export default function SalesPipeline() {
       if (doEmail && clientEmail) {
         const subject = encodeURIComponent(`Ανάλυση Εξωδικαστικού — ${clientName}`)
         const body = encodeURIComponent(message.replace(/\*/g, ''))
-        window.open(`mailto:${clientEmail}?subject=${subject}&body=${body}`)
+        const a = document.createElement('a')
+        a.href = `mailto:${clientEmail}?subject=${subject}&body=${body}`
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
       }
     } catch (err) {
       const detail = err?.response?.data?.detail || 'Σφάλμα αποστολής Viber'

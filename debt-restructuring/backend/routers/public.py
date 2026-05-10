@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 from datetime import datetime
 import os, smtplib
+import requests as http_requests
 from email.mime.text import MIMEText
 from database import get_db
 from models import Case
@@ -64,12 +65,12 @@ def get_public_case(token: str, request: Request, vat: str = Query(default=None)
 STAGE_ORDER = ['Νέα Ανάλυση', 'Εστάλη Σύνδεσμος', 'Θετική Ανταπόκριση', 'Σε Διαπραγμάτευση', 'Έκλεισε', 'Δεν Ενδιαφέρεται']
 
 
-def _send_interested_email(case: Case):
-    """Send notification email when client clicks 'Θέλω να Προχωρήσω'. Silently skips if SMTP not configured."""
+def _send_interested_email(case: Case) -> bool:
+    """Send notification email via SMTP. Returns True on success."""
     try:
         smtp_host = os.getenv("SMTP_HOST", "")
         if not smtp_host:
-            return
+            return False
         smtp_port = int(os.getenv("SMTP_PORT", "587"))
         smtp_user = os.getenv("SMTP_USER", "")
         smtp_pass = os.getenv("SMTP_PASS", "")
@@ -93,8 +94,70 @@ def _send_interested_email(case: Case):
             if smtp_user and smtp_pass:
                 s.login(smtp_user, smtp_pass)
             s.sendmail(msg["From"], [notify_to], msg.as_string())
+        return True
     except Exception:
-        pass  # Never break the endpoint if email fails
+        return False
+
+
+def _notify_team_via_chatwoot(case: Case):
+    """Send Viber notification to team via Chatwoot when client clicks interested.
+    Uses NOTIFY_PHONE as the recipient (team/consultant Viber number)."""
+    try:
+        notify_phone = os.getenv("NOTIFY_PHONE", "").strip()
+        cw_url = os.getenv("CHATWOOT_URL", "").strip().rstrip("/")
+        cw_token = os.getenv("CHATWOOT_API_TOKEN", "").strip()
+        cw_account = os.getenv("CHATWOOT_ACCOUNT_ID", "").strip()
+        cw_inbox = os.getenv("CHATWOOT_INBOX_ID", "").strip()
+
+        if not all([notify_phone, cw_url, cw_token, cw_account, cw_inbox]):
+            return
+
+        headers = {"api_access_token": cw_token, "Content-Type": "application/json"}
+        base = f"{cw_url}/api/v1/accounts/{cw_account}"
+
+        # Find or create contact with NOTIFY_PHONE
+        contact_id = None
+        r = http_requests.get(f"{base}/contacts/search", params={"q": notify_phone}, headers=headers, timeout=8)
+        if r.status_code == 200:
+            payload = r.json().get("payload", [])
+            contacts = payload if isinstance(payload, list) else payload.get("contacts", [])
+            if contacts:
+                contact_id = contacts[0]["id"]
+
+        if not contact_id:
+            r = http_requests.post(f"{base}/contacts",
+                json={"name": "i-Mentor Team", "phone_number": notify_phone},
+                headers=headers, timeout=8)
+            if r.status_code in (200, 201):
+                contact_id = r.json().get("id")
+
+        if not contact_id:
+            return
+
+        # Create conversation
+        r = http_requests.post(f"{base}/conversations",
+            json={"inbox_id": int(cw_inbox), "contact_id": contact_id},
+            headers=headers, timeout=8)
+        if r.status_code not in (200, 201):
+            return
+        conv_id = r.json().get("id")
+        if not conv_id:
+            return
+
+        # Send notification message
+        msg = (
+            f"🔔 *Νέο ενδιαφέρον πελάτη!*\n\n"
+            f"Ο/Η *{case.client_name or '(άγνωστος)'}* έκανε κλικ στο «Θέλω να Προχωρήσω» στο portal.\n"
+            f"Υπεύθυνος: {case.employee or '-'}\n"
+            f"ΑΦΜ: {case.client_vat or '-'}"
+        )
+        http_requests.post(
+            f"{base}/conversations/{conv_id}/messages",
+            json={"content": msg, "message_type": "outgoing", "private": False},
+            headers=headers, timeout=8,
+        )
+    except Exception:
+        pass
 
 
 @router.post("/case/{token}/interested")
@@ -114,7 +177,10 @@ def mark_interested(token: str, db: Session = Depends(get_db)):
         case.last_contacted_at = datetime.utcnow()
         case.updated_at = datetime.utcnow()
         db.commit()
-        _send_interested_email(case)
+        email_sent = _send_interested_email(case)
+        if not email_sent:
+            # SMTP not configured — fall back to Viber notification via Chatwoot
+            _notify_team_via_chatwoot(case)
     return {"ok": True, "contact_stage": case.contact_stage}
 
 @router.get("/stats")

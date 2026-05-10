@@ -29,84 +29,125 @@ function numInput(val, set, label, prefix = '') {
 
 export default function QuickQuote() {
   const [debtorType, setDebtorType] = useState('fp') // fp | ep | np
-  const [totalDebt, setTotalDebt] = useState(0)
-  const [annualIncome, setAnnualIncome] = useState(0)
+
+  // Debt inputs (direct euro amounts, no sliders)
+  const [bankDebt, setBankDebt] = useState(0)      // Τράπεζες / Funds
+  const [publicDebt, setPublicDebt] = useState(0)  // Δημόσιο (ΑΑΔΕ + ΕΦΚΑ)
+
+  // Asset
+  const [commercialValue, setCommercialValue] = useState(0) // Εμπορική αξία ακινήτου
+
+  // Income — fp/ep
+  const [netIncome, setNetIncome] = useState(0)    // fp: ετήσιο εισόδημα; ep: καθαρό εισόδημα
+  const [turnover, setTurnover] = useState(0)      // ep + np: κύκλος εργασιών
+  const [ebitda, setEbitda] = useState(0)          // np: EBITDA / καθαρά κέρδη
+
   const [householdIdx, setHouseholdIdx] = useState(0)
-  const [hasProperty, setHasProperty] = useState(false)
-  const [propertyValue, setPropertyValue] = useState(0)
-  const [debtComposition, setDebtComposition] = useState({ banks: 60, tax: 25, funds: 15 })
-  // % of ΑΑΔΕ/ΕΦΚΑ balance that is surcharges/penalties (erasable); remainder is basic (non-erasable)
-  const [taxSurchargePct, setTaxSurchargePct] = useState(50)
-  const [fundSurchargePct, setFundSurchargePct] = useState(40)
 
   const calc = useMemo(() => {
-    if (!totalDebt || !annualIncome) return null
+    const totalDebt = bankDebt + publicDebt
+    if (totalDebt <= 0) return null
 
-    const household = debtorType !== 'np' ? HOUSEHOLD_OPTS[householdIdx].value : 0
-    // ΚΥΑ 67360 Art.8A: ΜΔΑΧΟ = max(0, income − subsistence) × 80%
-    const dispAnnual = Math.max(0, annualIncome - household) * 0.8
+    // ── Disposable income by debtor type ─────────────────────────────────────
+    let dispAnnual = 0
+    let incomeNote = ''
+
+    if (debtorType === 'fp') {
+      if (!netIncome) return null
+      const household = HOUSEHOLD_OPTS[householdIdx].value
+      dispAnnual = Math.max(0, netIncome - household) * 0.8
+      incomeNote = 'ΕΛΣΤΑΤ × 80%'
+    } else if (debtorType === 'ep') {
+      if (!netIncome && !turnover) return null
+      const household = HOUSEHOLD_OPTS[householdIdx].value
+      const dispA = Math.max(0, netIncome - household) * 0.8
+      const dispB = turnover * 0.10  // 10% τζίρου = εύλογο κέρδος επιτηδευματία
+      dispAnnual = Math.max(dispA, dispB)
+      incomeNote = dispB > dispA ? '10% τζίρου (κανόνας ΕΠ)' : 'ΕΛΣΤΑΤ × 80%'
+    } else { // np
+      if (!ebitda && !turnover) return null
+      const dispA = Math.max(0, ebitda)  // no household, no 80% buffer
+      const dispB = turnover * 0.10
+      dispAnnual = Math.max(dispA, dispB)
+      incomeNote = dispB > dispA ? '10% τζίρου (κανόνας ΝΠ)' : 'EBITDA'
+    }
+
     const monthlyDisp = dispAnnual / 12
+    if (monthlyDisp <= 0) return { noCapacity: true, disposable: 0, monthlyDisp: 0, totalDebt }
 
-    if (monthlyDisp <= 0) return { noCapacity: true, disposable: 0, monthlyDisp: 0 }
+    // ── Duration caps ─────────────────────────────────────────────────────────
+    // Banks: 360mo for fp/ep, 240mo for np
+    const bankDuration  = debtorType === 'np' ? 240 : 360
+    const publicDuration = 240
 
-    const bankDebt = totalDebt * (debtComposition.banks / 100)
-    const taxDebt  = totalDebt * (debtComposition.tax / 100)
-    const fundDebt = totalDebt * (debtComposition.funds / 100)
+    // ── NWO floor — 100% commercial value (no auction discount) ───────────────
+    // Max total writeoff = max(0, totalDebt − commercialValue)
+    const nwoFloor = commercialValue > 0 ? commercialValue : 0
+    const maxTotalWr = Math.max(0, totalDebt - nwoFloor)
 
-    // NWO floor (Art.8B / Art.977 ΚΠολΔ): banks receive at least liquidation value
-    const liqValue = hasProperty && propertyValue > 0 ? propertyValue * 0.7 : 0
+    // ── Proportional income allocation ────────────────────────────────────────
+    const bankShare   = totalDebt > 0 ? bankDebt / totalDebt : 0
+    const publicShare = totalDebt > 0 ? publicDebt / totalDebt : 0
 
-    const maxCapacity = monthlyDisp * 240 // 20-year max
+    const bankMonthly   = monthlyDisp * bankShare
+    const publicMonthly = monthlyDisp * publicShare
 
-    // Case A: income covers entire debt — no haircuts for anyone
-    if (maxCapacity >= totalDebt) {
-      const months = Math.min(240, Math.ceil(totalDebt / monthlyDisp))
-      return {
-        disposable: dispAnnual, monthlyDisp,
-        taxWr: 0, fundWr: 0, bankWr: 0,
-        totalWr: 0, remaining: totalDebt, wrPct: 0,
-        months, monthlyPay: monthlyDisp,
-        incomeCoversAll: true, feasible: true,
-        assetLiqValue: liqValue,
-      }
+    // ── Max capacity per creditor class ───────────────────────────────────────
+    const bankCap   = bankMonthly * bankDuration
+    const publicCap = publicMonthly * publicDuration
+
+    // ── Pre-floor writeoffs ───────────────────────────────────────────────────
+    let bankWrPre   = Math.max(0, bankDebt - bankCap)
+    // Public: max 50% erasable (basic principal/contributions are non-erasable)
+    const publicWrMax = publicDebt * 0.50
+    let publicWrPre = Math.min(Math.max(0, publicDebt - publicCap), publicWrMax)
+
+    let totalWrPre = bankWrPre + publicWrPre
+
+    // ── Apply NWO floor ───────────────────────────────────────────────────────
+    let bankWr = bankWrPre
+    let publicWr = publicWrPre
+
+    if (totalWrPre > maxTotalWr && totalWrPre > 0) {
+      const ratio = maxTotalWr / totalWrPre
+      bankWr   = bankWrPre   * ratio
+      publicWr = publicWrPre * ratio
     }
 
-    // Case B: income insufficient — apply haircuts by stage (Art.8B ν.4738/2020)
-    // ΑΑΔΕ/ΕΦΚΑ: basic principal = 0% haircut; surcharges/penalties up to 85%
-    const taxWr  = taxDebt  * (taxSurchargePct  / 100) * 0.85
-    const fundWr = fundDebt * (fundSurchargePct / 100) * 0.85
-
-    const stateRemaining = (taxDebt - taxWr) + (fundDebt - fundWr)
-
-    // Banks: receive max(NWO floor, income capacity after state); writeoff capped by NWO
-    let bankWr = 0
-    if (bankDebt > 0) {
-      const bankCapacity = Math.max(0, maxCapacity - stateRemaining)
-      const bankReceives = Math.min(bankDebt, Math.max(liqValue, bankCapacity))
-      bankWr = Math.min(
-        Math.max(0, bankDebt - bankReceives),
-        Math.max(0, bankDebt - liqValue) // NWO hard cap
-      )
-    }
-
-    const totalWr = bankWr + taxWr + fundWr
+    const totalWr  = bankWr + publicWr
     const remaining = Math.max(0, totalDebt - totalWr)
-    const wrPct = totalDebt > 0 ? Math.round((totalWr / totalDebt) * 100) : 0
+    const wrPct    = totalDebt > 0 ? Math.round((totalWr / totalDebt) * 100) : 0
 
-    // Monthly payment = full ΜΔΑΧΟ (income capacity, not remaining/months)
-    const monthlyPay = monthlyDisp
-    const months = Math.min(240, monthlyDisp > 0 ? Math.ceil(remaining / monthlyDisp) : 240)
-    const feasible = maxCapacity >= remaining
+    // ── Duration of the plan ──────────────────────────────────────────────────
+    const bankRemaining   = Math.max(0, bankDebt - bankWr)
+    const publicRemaining = Math.max(0, publicDebt - publicWr)
+
+    const bankMonths = (bankRemaining > 0 && bankMonthly > 0)
+      ? Math.min(bankDuration, Math.ceil(bankRemaining / bankMonthly)) : 0
+    const publicMonths = (publicRemaining > 0 && publicMonthly > 0)
+      ? Math.min(publicDuration, Math.ceil(publicRemaining / publicMonthly)) : 0
+
+    const months = Math.max(bankMonths, publicMonths) || Math.min(bankDuration, Math.ceil(remaining / monthlyDisp))
+
+    // ── Feasibility ───────────────────────────────────────────────────────────
+    const monthlyRequired = months > 0 ? remaining / months : Infinity
+    const feasible = monthlyRequired <= monthlyDisp * 1.05 // 5% tolerance
 
     return {
-      disposable: dispAnnual, monthlyDisp,
-      totalWr, remaining, wrPct,
-      months, monthlyPay,
-      bankWr, taxWr, fundWr,
-      assetLiqValue: liqValue,
-      incomeCoversAll: false, feasible,
+      disposable: dispAnnual, monthlyDisp, incomeNote,
+      totalDebt, bankDebt, publicDebt,
+      totalWr, bankWr, publicWr, wrPct,
+      remaining, bankRemaining, publicRemaining,
+      months, bankMonths, publicMonths, bankDuration,
+      monthlyPay: monthlyDisp,
+      nwoFloor, maxTotalWr,
+      nwoActive: commercialValue > 0 && totalWrPre > maxTotalWr,
+      feasible,
+      incomeCoversAll: totalWr === 0 && remaining <= monthlyDisp * Math.max(bankDuration, publicDuration),
     }
-  }, [totalDebt, annualIncome, householdIdx, hasProperty, propertyValue, debtComposition, debtorType, taxSurchargePct, fundSurchargePct])
+  }, [bankDebt, publicDebt, commercialValue, netIncome, turnover, ebitda, householdIdx, debtorType])
+
+  const totalDebt = bankDebt + publicDebt
 
   return (
     <div className="p-4 md:p-6 max-w-3xl mx-auto">
@@ -118,26 +159,57 @@ export default function QuickQuote() {
       <div className="grid md:grid-cols-2 gap-4">
         {/* LEFT: Inputs */}
         <div className="space-y-4">
+
+          {/* Debtor type */}
           <div className="card">
-            <h2 className="font-bold text-gray-700 mb-3 text-sm">Βασικά Στοιχεία</h2>
-
-            <div className="mb-3">
-              <label className="label">Τύπος οφειλέτη</label>
-              <div className="flex gap-2">
-                {[['fp','Φυσικό Πρόσωπο'],['ep','Επιτηδευματίας'],['np','Νομικό Πρόσωπο']].map(([v,l]) => (
-                  <button key={v} onClick={() => setDebtorType(v)}
-                    className={`flex-1 text-xs font-semibold py-2 rounded-lg border transition-colors ${debtorType === v ? 'bg-blue-600 text-white border-blue-600' : 'border-gray-200 text-gray-600 hover:border-blue-300'}`}>
-                    {l}
-                  </button>
-                ))}
-              </div>
+            <h2 className="font-bold text-gray-700 mb-3 text-sm">Τύπος Οφειλέτη</h2>
+            <div className="flex gap-2">
+              {[['fp','Φυσικό Πρόσωπο'],['ep','Επιτηδευματίας'],['np','Νομικό Πρόσωπο']].map(([v,l]) => (
+                <button key={v} onClick={() => setDebtorType(v)}
+                  className={`flex-1 text-xs font-semibold py-2 rounded-lg border transition-colors ${debtorType === v ? 'bg-blue-600 text-white border-blue-600' : 'border-gray-200 text-gray-600 hover:border-blue-300'}`}>
+                  {l}
+                </button>
+              ))}
             </div>
+          </div>
 
-            {numInput(totalDebt, setTotalDebt, 'Συνολική Οφειλή (€)', '€')}
-            {numInput(annualIncome, setAnnualIncome, debtorType === 'np' ? 'Κύκλος Εργασιών / EBITDA (€)' : 'Ετήσιο Εισόδημα (€)', '€')}
+          {/* Debt breakdown */}
+          <div className="card">
+            <h2 className="font-bold text-gray-700 mb-3 text-sm">Οφειλές</h2>
+            <div className="space-y-3">
+              {numInput(bankDebt, setBankDebt, 'Οφειλές προς Τράπεζες / Funds (€)', '€')}
+              {numInput(publicDebt, setPublicDebt, 'Οφειλές προς Δημόσιο — ΑΑΔΕ + ΕΦΚΑ (€)', '€')}
+            </div>
+            {totalDebt > 0 && (
+              <div className="mt-2 text-xs text-right text-gray-500 font-semibold">
+                Σύνολο: {fmt(totalDebt)}
+                {bankDebt > 0 && publicDebt > 0 && (
+                  <span className="ml-2 text-gray-400">
+                    ({Math.round(bankDebt/totalDebt*100)}% Τράπεζες / {Math.round(publicDebt/totalDebt*100)}% Δημόσιο)
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
 
+          {/* Income */}
+          <div className="card">
+            <h2 className="font-bold text-gray-700 mb-3 text-sm">Εισοδηματικά Στοιχεία</h2>
+            <div className="space-y-3">
+              {debtorType === 'fp' && (
+                numInput(netIncome, setNetIncome, 'Ετήσιο Εισόδημα (€)', '€')
+              )}
+              {debtorType === 'ep' && (<>
+                {numInput(netIncome, setNetIncome, 'Καθαρό Ετήσιο Εισόδημα — εκκαθαριστικό (€)', '€')}
+                {numInput(turnover, setTurnover, 'Κύκλος Εργασιών Ε3 (€)', '€')}
+              </>)}
+              {debtorType === 'np' && (<>
+                {numInput(turnover, setTurnover, 'Κύκλος Εργασιών — κωδ.500 Ε3 (€)', '€')}
+                {numInput(ebitda, setEbitda, 'EBITDA / Καθαρά Κέρδη — έντυπο Ν (€)', '€')}
+              </>)}
+            </div>
             {debtorType !== 'np' && (
-              <div>
+              <div className="mt-3">
                 <label className="label">Σύνθεση νοικοκυριού</label>
                 <select className="input w-full text-sm" value={householdIdx} onChange={e => setHouseholdIdx(Number(e.target.value))}>
                   {HOUSEHOLD_OPTS.map((o, i) => <option key={i} value={i}>{o.label}</option>)}
@@ -146,56 +218,13 @@ export default function QuickQuote() {
             )}
           </div>
 
+          {/* Asset */}
           <div className="card">
-            <h2 className="font-bold text-gray-700 mb-3 text-sm">Σύνθεση Οφειλών (%)</h2>
-            <div className="space-y-2">
-              {[['banks','Τράπεζες/Funds'],['tax','ΑΑΔΕ'],['funds','ΕΦΚΑ']].map(([k,l]) => (
-                <div key={k} className="flex items-center gap-3">
-                  <span className="text-xs text-gray-600 w-28">{l}</span>
-                  <input type="range" min="0" max="100" value={debtComposition[k]}
-                    onChange={e => setDebtComposition(p => ({...p, [k]: Number(e.target.value)}))}
-                    className="flex-1" />
-                  <span className="text-xs font-bold text-gray-700 w-8 text-right">{debtComposition[k]}%</span>
-                </div>
-              ))}
-              <div className={`text-xs text-right font-semibold ${(debtComposition.banks + debtComposition.tax + debtComposition.funds) !== 100 ? 'text-red-500' : 'text-green-600'}`}>
-                Σύνολο: {debtComposition.banks + debtComposition.tax + debtComposition.funds}%
-              </div>
-            </div>
-            {(debtComposition.tax > 0 || debtComposition.funds > 0) && (
-              <div className="mt-4 pt-3 border-t border-gray-100 space-y-2">
-                <div className="text-xs font-bold text-gray-500 mb-1">% Προσαυξήσεων (διαγράψιμο μέρος)</div>
-                {debtComposition.tax > 0 && (
-                  <div className="flex items-center gap-3">
-                    <span className="text-xs text-gray-600 w-28">ΑΑΔΕ προσαυξ.</span>
-                    <input type="range" min="0" max="100" value={taxSurchargePct}
-                      onChange={e => setTaxSurchargePct(Number(e.target.value))} className="flex-1" />
-                    <span className="text-xs font-bold text-orange-600 w-8 text-right">{taxSurchargePct}%</span>
-                  </div>
-                )}
-                {debtComposition.funds > 0 && (
-                  <div className="flex items-center gap-3">
-                    <span className="text-xs text-gray-600 w-28">ΕΦΚΑ προσαυξ.</span>
-                    <input type="range" min="0" max="100" value={fundSurchargePct}
-                      onChange={e => setFundSurchargePct(Number(e.target.value))} className="flex-1" />
-                    <span className="text-xs font-bold text-purple-600 w-8 text-right">{fundSurchargePct}%</span>
-                  </div>
-                )}
-                <div className="text-xs text-gray-400">Βασική οφειλή & εισφορές = μη διαγράψιμες</div>
-              </div>
-            )}
-          </div>
-
-          <div className="card">
-            <h2 className="font-bold text-gray-700 mb-3 text-sm">Περιουσιακά Στοιχεία</h2>
-            <label className="flex items-center gap-2 cursor-pointer mb-3">
-              <input type="checkbox" checked={hasProperty} onChange={e => setHasProperty(e.target.checked)} className="w-4 h-4 accent-blue-600" />
-              <span className="text-sm font-semibold text-gray-700">Υπάρχει ακίνητο;</span>
-            </label>
-            {hasProperty && (
-              <div className="ml-6">
-                {numInput(propertyValue, setPropertyValue, 'Αντικειμενική αξία (€)', '€')}
-                <div className="text-xs text-gray-400 mt-1">Εκτίμηση ρευστοποίησης: ~70% αξίας (αρχή μη χειροτέρευσης)</div>
+            <h2 className="font-bold text-gray-700 mb-3 text-sm">Ακίνητο (αν υπάρχει)</h2>
+            {numInput(commercialValue, setCommercialValue, 'Εμπορική Αξία (€)', '€')}
+            {commercialValue > 0 && (
+              <div className="mt-1.5 text-xs text-blue-700 font-semibold bg-blue-50 rounded-lg px-3 py-1.5">
+                🏠 100% ανακτήσιμη — καμία διαγραφή κάτω από {fmt(commercialValue)}
               </div>
             )}
           </div>
@@ -206,25 +235,30 @@ export default function QuickQuote() {
           {!calc ? (
             <div className="card text-center text-gray-400 py-16">
               <div className="text-4xl mb-3">💡</div>
-              <div className="font-semibold">Συμπλήρωσε οφειλή + εισόδημα για εκτίμηση</div>
+              <div className="font-semibold">Συμπλήρωσε οφειλές + εισόδημα για εκτίμηση</div>
             </div>
           ) : calc.noCapacity ? (
             <div className="card text-center text-red-500 py-12">
               <div className="text-3xl mb-2">⚠️</div>
               <div className="font-bold">Μηδενικό διαθέσιμο εισόδημα</div>
-              <div className="text-sm text-gray-400 mt-1">Το εισόδημα δεν υπερβαίνει το όριο αξιοπρεπούς διαβίωσης.</div>
+              <div className="text-sm text-gray-400 mt-1">Το εισόδημα δεν επαρκεί για ρύθμιση.</div>
             </div>
           ) : (
             <div className="space-y-3">
-              {calc.incomeCoversAll ? (
+              {calc.totalWr === 0 ? (
                 <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-2.5 text-xs text-green-800 font-semibold">
-                  ✅ Το εισόδημα επαρκεί για όλους τους πιστωτές — δεν απαιτείται καμία διαγραφή. Ρύθμιση σε {calc.months} μήνες.
+                  ✅ Το εισόδημα καλύπτει το σύνολο — δεν απαιτείται καμία διαγραφή. Ρύθμιση σε {calc.months} μήνες.
                 </div>
               ) : !calc.feasible ? (
                 <div className="bg-red-50 border border-red-300 rounded-xl px-4 py-2.5 text-xs text-red-800 font-semibold">
-                  ⚠️ Μη βιώσιμη ρύθμιση: το εισόδημα δεν καλύπτει ακόμα και μετά τις μέγιστες διαγραφές. Απαιτείται πλήρης ανάλυση.
+                  ⚠️ Μη βιώσιμη ρύθμιση ακόμα και μετά τις μέγιστες διαγραφές. Απαιτείται πλήρης ανάλυση.
+                </div>
+              ) : calc.nwoActive ? (
+                <div className="bg-amber-50 border border-amber-300 rounded-xl px-4 py-2.5 text-xs text-amber-800 font-semibold">
+                  🏠 Διαγραφή περιορίστηκε από αξία ακινήτου (αρχή μη χειροτέρευσης)
                 </div>
               ) : null}
+
               <div className="bg-blue-800 rounded-2xl p-5 text-white text-center">
                 <div className="text-blue-200 text-xs font-semibold uppercase tracking-wider mb-1">ΓΡΗΓΟΡΗ ΕΚΤΙΜΗΣΗ</div>
                 <div className="text-amber-300 text-xs font-bold mb-3 uppercase">Ενδεικτική — όχι νομικά δεσμευτική</div>
@@ -246,39 +280,57 @@ export default function QuickQuote() {
                   <div className="bg-white/10 rounded-xl p-3">
                     <div className="text-xs text-blue-200 mb-1">Διάρκεια</div>
                     <div className="text-xl font-black text-white">{calc.months} μήνες</div>
-                    {calc.months === 240 && <div className="text-xs text-amber-300 mt-0.5">μέγιστη</div>}
+                    {calc.months >= calc.bankDuration && <div className="text-xs text-amber-300 mt-0.5">μέγιστη τραπεζών</div>}
                   </div>
                 </div>
               </div>
 
+              {/* Writeoff breakdown */}
               <div className="card">
                 <div className="text-xs font-bold text-gray-500 mb-2 uppercase">Ανάλυση Διαγραφής</div>
-                {[
-                  ['Τράπεζες/Funds', calc.bankWr, totalDebt * debtComposition.banks / 100, 'text-blue-700', null],
-                  ['ΑΑΔΕ', calc.taxWr, totalDebt * debtComposition.tax / 100, 'text-orange-600', `${taxSurchargePct}% προσ.`],
-                  ['ΕΦΚΑ', calc.fundWr, totalDebt * debtComposition.funds / 100, 'text-purple-700', `${fundSurchargePct}% προσ.`],
-                ].map(([l, wr, debt, cls, note]) => debt > 0 ? (
-                  <div key={l} className="flex justify-between text-sm py-1 border-b border-gray-50 last:border-0">
-                    <span className="text-gray-600">{l}{note && <span className="text-xs text-gray-400 ml-1">({note})</span>}</span>
-                    <span className={`font-semibold ${cls}`}>{fmt(wr)} <span className="text-xs text-gray-400">({Math.round(wr/debt*100)}%)</span></span>
+                {calc.bankDebt > 0 && (
+                  <div className="flex justify-between text-sm py-1 border-b border-gray-50">
+                    <span className="text-gray-600">Τράπεζες/Funds
+                      <span className="text-xs text-gray-400 ml-1">({calc.bankDuration}μ.)</span>
+                    </span>
+                    <span className="font-semibold text-blue-700">{fmt(calc.bankWr)}
+                      <span className="text-xs text-gray-400 ml-1">({Math.round(calc.bankWr/calc.bankDebt*100)}%)</span>
+                    </span>
                   </div>
-                ) : null)}
+                )}
+                {calc.publicDebt > 0 && (
+                  <div className="flex justify-between text-sm py-1 border-b border-gray-50">
+                    <span className="text-gray-600">Δημόσιο — ΑΑΔΕ+ΕΦΚΑ
+                      <span className="text-xs text-gray-400 ml-1">(240μ., max 50%)</span>
+                    </span>
+                    <span className="font-semibold text-orange-600">{fmt(calc.publicWr)}
+                      <span className="text-xs text-gray-400 ml-1">({Math.round(calc.publicWr/calc.publicDebt*100)}%)</span>
+                    </span>
+                  </div>
+                )}
+                {calc.nwoFloor > 0 && (
+                  <div className="flex justify-between text-xs py-1 text-gray-400">
+                    <span>🏠 NWO floor (εμπορική αξία)</span>
+                    <span className="font-semibold">{fmt(calc.nwoFloor)}</span>
+                  </div>
+                )}
               </div>
 
+              {/* Income snapshot */}
               <div className="card text-sm">
                 <div className="text-xs font-bold text-gray-500 mb-2 uppercase">Εισοδηματική Εικόνα</div>
                 <div className="flex justify-between py-1">
-                  <span className="text-gray-600">Ετήσιο διαθέσιμο</span>
+                  <span className="text-gray-600">Ετήσιο διαθέσιμο <span className="text-gray-400">({calc.incomeNote})</span></span>
                   <span className="font-semibold">{fmt(calc.disposable)}</span>
                 </div>
                 <div className="flex justify-between py-1">
                   <span className="text-gray-600">Μηνιαίο ΜΔΑΧΟ</span>
                   <span className="font-semibold text-blue-700">{fmt(calc.monthlyDisp)}</span>
                 </div>
-                {calc.assetLiqValue > 0 && (
-                  <div className="flex justify-between py-1">
-                    <span className="text-gray-600">Εκτ. ρευστοποίησης ακινήτου</span>
-                    <span className="font-semibold text-gray-700">{fmt(calc.assetLiqValue)}</span>
+                {calc.bankMonths > 0 && calc.publicMonths > 0 && calc.bankMonths !== calc.publicMonths && (
+                  <div className="flex justify-between py-1 text-xs text-gray-400">
+                    <span>Διάρκεια Τραπεζών / Δημοσίου</span>
+                    <span>{calc.bankMonths}μ. / {calc.publicMonths}μ.</span>
                   </div>
                 )}
               </div>
