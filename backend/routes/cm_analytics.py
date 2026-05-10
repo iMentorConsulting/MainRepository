@@ -34,13 +34,13 @@ def analytics_overview(
     )
 
     # Cases per program
-    prog_counts: dict[str, int] = {}
+    prog_counts = {}
     for c in all_cases:
         p = c.program_category or "ΕΣΠΑ"
         prog_counts[p] = prog_counts.get(p, 0) + 1
 
     # Cases per agent
-    agent_counts: dict[str, int] = {}
+    agent_counts = {}
     for c in all_cases:
         if c.status in terminal:
             continue
@@ -102,10 +102,12 @@ def analytics_milestones(
             from datetime import timedelta as _td
             ms_b = c.dypa_start_date + _td(days=180)
             ms_c = c.dypa_start_date + _td(days=365)
+            # dypa_start_date is a date column, so ms_b/ms_c are already date objects
             for label, d in [("Β Ορόσημο ΔΥΠΑ", ms_b), ("Γ Ορόσημο ΔΥΠΑ", ms_c)]:
-                if today <= d.date() <= horizon:
+                d_date = d if isinstance(d, date) else d.date()
+                if today <= d_date <= horizon:
                     events.append({"type": "dypa_milestone", "label": label,
-                                   "date": d.date().isoformat(), "days_away": (d.date() - today).days})
+                                   "date": d_date.isoformat(), "days_away": (d_date - today).days})
 
         if c.follow_up_date and today <= c.follow_up_date <= horizon:
             events.append({"type": "followup", "label": "Follow-up",
