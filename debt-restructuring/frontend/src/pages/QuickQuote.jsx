@@ -49,36 +49,66 @@ export default function QuickQuote() {
     const taxDebt  = totalDebt * (debtComposition.tax / 100)
     const fundDebt = totalDebt * (debtComposition.funds / 100)
 
-    // Banks: receives max(income capacity over 240 months, asset coverage), capped at debt
-    const capacity240 = monthlyDisp * 240
-    let bankFromAssets = 0
+    // Statutory writeoffs — always apply their maximums (ΑΑΔΕ, ΕΦΚΑ)
+    const taxWr  = taxDebt  * 0.75 * 0.75   // 25% non-erasable; max 75% of erasable
+    const fundWr = fundDebt * 0.80 * 0.75   // 20% non-erasable; max 75% of erasable
+
+    const taxRemaining  = taxDebt  - taxWr
+    const fundRemaining = fundDebt - fundWr
+    const nonBankRemaining = taxRemaining + fundRemaining
+
+    // NWO floor: banks receive at least what they'd get in liquidation (αρχή μη χειροτέρευσης)
+    let assetLiqValue = 0
     if (hasProperty && propertyValue > 0) {
-      const liqValue = propertyValue * 0.7  // liquidation haircut
-      // secured creditor share: 65% if mortgaged, 70% if free
-      bankFromAssets = hasMortgage ? liqValue * 0.65 : liqValue * 0.70
+      const liqValue = propertyValue * 0.7   // liquidation haircut
+      assetLiqValue = hasMortgage ? liqValue * 0.65 : liqValue * 0.70
     }
-    const bankReceives = bankDebt > 0 ? Math.min(bankDebt, Math.max(capacity240, bankFromAssets)) : 0
-    const bankWr = Math.max(0, bankDebt - bankReceives)
 
-    // ΑΑΔΕ: 25% non-erasable; of the 75% erasable, max 75% can be written off
-    const taxWr = taxDebt * 0.75 * 0.75
+    // Step 1: Try to schedule without any bank writeoff by extending duration
+    let bankWr = 0
+    let months, monthlyPay
+    const totalWithoutBankWr = bankDebt + nonBankRemaining
 
-    // ΕΦΚΑ: 20% non-erasable; of the 80% erasable, max 75% can be written off
-    const fundWr = fundDebt * 0.80 * 0.75
+    if (monthlyDisp > 0) {
+      const requiredMonths = totalWithoutBankWr / monthlyDisp
+      if (requiredMonths <= 240) {
+        // Income covers full debt within max duration — no writeoff, just stretch
+        months = Math.ceil(requiredMonths)
+        monthlyPay = totalWithoutBankWr / months
+        bankWr = 0
+      } else {
+        // Duration maxed at 240 — now propose bank writeoffs
+        months = 240
+        const totalCapacity = monthlyDisp * 240
+        const bankCapacity = Math.max(0, totalCapacity - nonBankRemaining)
+        // Bank receives the higher of: income-based capacity OR NWO liquidation floor
+        const bankReceives = Math.min(bankDebt, Math.max(assetLiqValue, bankCapacity))
+        bankWr = Math.max(0, bankDebt - bankReceives)
+        monthlyPay = (bankDebt - bankWr + nonBankRemaining) / 240
+      }
+    } else {
+      // No disposable income — max duration, writeoff capped by NWO floor
+      months = 240
+      const bankReceives = Math.min(bankDebt, assetLiqValue)
+      bankWr = Math.max(0, bankDebt - bankReceives)
+      monthlyPay = (bankDebt - bankWr + nonBankRemaining) / 240
+    }
+
+    // Enforce NWO: bank writeoff cannot exceed bankDebt − assetLiqValue (never write off more than property value covers)
+    const maxBankWr = Math.max(0, bankDebt - assetLiqValue)
+    bankWr = Math.min(bankWr, maxBankWr)
 
     const totalWr = bankWr + taxWr + fundWr
     const remaining = Math.max(0, totalDebt - totalWr)
-    const wrPct = Math.round((totalWr / totalDebt) * 100)
-
-    // Repayment over 240 months (20 years — standard max per law)
-    const months = 240
-    const monthlyPay = remaining / months
+    const wrPct = totalDebt > 0 ? Math.round((totalWr / totalDebt) * 100) : 0
+    const extendedDuration = bankWr === 0 && months > 60
 
     return {
       disposable: dispAnnual, monthlyDisp,
       totalWr, remaining, wrPct,
       months, monthlyPay,
       bankWr, taxWr, fundWr,
+      assetLiqValue, extendedDuration,
     }
   }, [totalDebt, annualIncome, householdIdx, hasProperty, propertyValue, hasMortgage, debtComposition, debtorType])
 
@@ -165,6 +195,11 @@ export default function QuickQuote() {
             </div>
           ) : (
             <div className="space-y-3">
+              {calc.extendedDuration && (
+                <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-2.5 text-xs text-blue-800 font-semibold">
+                  ✅ Το εισόδημα επαρκεί — δεν απαιτούνται διαγραφές τραπεζών. Η ρύθμιση γίνεται με επέκταση διάρκειας σε <b>{calc.months} μήνες</b>.
+                </div>
+              )}
               <div className="bg-blue-800 rounded-2xl p-5 text-white text-center">
                 <div className="text-blue-200 text-xs font-semibold uppercase tracking-wider mb-1">ΓΡΗΓΟΡΗ ΕΚΤΙΜΗΣΗ</div>
                 <div className="text-amber-300 text-xs font-bold mb-3 uppercase">Ενδεικτική — όχι νομικά δεσμευτική</div>
@@ -185,6 +220,9 @@ export default function QuickQuote() {
                   <div className="bg-white/10 rounded-xl p-3">
                     <div className="text-xs text-blue-200 mb-1">Διάρκεια</div>
                     <div className="text-xl font-black text-white">{calc.months} μήνες</div>
+                    {calc.months === 240 && calc.bankWr > 0 && (
+                      <div className="text-xs text-amber-300 mt-0.5">μέγιστη</div>
+                    )}
                   </div>
                 </div>
               </div>

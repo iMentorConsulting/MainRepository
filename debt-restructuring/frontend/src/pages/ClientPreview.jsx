@@ -7,15 +7,22 @@ import { fmt, creditorDisplayName } from '../utils/calculations'
 
 function Tooltip({ children, tip }) {
   const [open, setOpen] = useState(false)
-  const [pos, setPos] = useState({ top: 0, left: 0 })
+  const [style, setStyle] = useState({})
   const btnRef = useRef(null)
 
   const handleOpen = () => {
     if (!open && btnRef.current) {
       const r = btnRef.current.getBoundingClientRect()
-      setPos({ top: r.top - 8, left: r.left + r.width / 2 })
+      const tipW = 224  // w-56
+      const tipH = 160  // estimated max height
+      const left = Math.max(8, Math.min(r.left + r.width / 2 - tipW / 2, window.innerWidth - tipW - 8))
+      const showAbove = r.top > tipH + 16
+      setStyle(showAbove
+        ? { bottom: `${window.innerHeight - r.top + 6}px`, left: `${left}px` }
+        : { top: `${r.bottom + 6}px`, left: `${left}px` }
+      )
     }
-    setOpen(!open)
+    setOpen(v => !v)
   }
 
   return (
@@ -29,10 +36,7 @@ function Tooltip({ children, tip }) {
       {open && (
         <>
           <span className="fixed inset-0 z-[9998]" onClick={() => setOpen(false)} />
-          <span
-            className="fixed z-[9999] w-56 bg-gray-900 text-white text-xs rounded-xl p-3 shadow-2xl leading-relaxed border border-gray-700"
-            style={{ bottom: `calc(100vh - ${pos.top}px + 4px)`, left: `${pos.left - 112}px` }}
-          >
+          <span className="fixed z-[9999] w-56 bg-gray-900 text-white text-xs rounded-xl p-3 shadow-2xl leading-relaxed border border-gray-700" style={style}>
             {tip}
             <button onClick={() => setOpen(false)} className="absolute top-1.5 right-2 text-gray-400 hover:text-white font-bold">×</button>
           </span>

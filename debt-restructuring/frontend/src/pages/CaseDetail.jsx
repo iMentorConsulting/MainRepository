@@ -612,12 +612,15 @@ export default function CaseDetail({ currentEmployee }) {
               target="_blank"
               rel="noreferrer"
               className="btn-secondary gap-2 text-sm"
-              title="Προβολή portal ως σύμβουλος (δεν μετράει ως επίσκεψη πελάτη)"
+              title="Προβολή portal ως σύμβουλος — αντιγράφει ΑΦΜ αυτόματα"
               onClick={() => {
-                if (caseData.client_vat) {
-                  navigator.clipboard.writeText(caseData.client_vat)
-                    .then(() => toast.success(`ΑΦΜ αντιγράφηκε: ${caseData.client_vat}`))
-                    .catch(() => {})
+                const vat = caseData.client_vat
+                if (vat) {
+                  navigator.clipboard.writeText(vat)
+                    .then(() => toast.success(`ΑΦΜ αντιγράφηκε: ${vat}`))
+                    .catch(() => toast.info(`ΑΦΜ: ${vat}`))
+                } else {
+                  toast('Δεν έχει οριστεί ΑΦΜ σε αυτή την υπόθεση', { icon: 'ℹ️' })
                 }
               }}
             >
