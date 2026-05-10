@@ -82,17 +82,26 @@ export default function Analytics() {
   const [overview, setOverview] = useState(null)
   const [milestones, setMilestones] = useState([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
 
   useEffect(() => {
     Promise.all([getAnalyticsOverview(), getAnalyticsMilestones(90)])
       .then(([ov, ms]) => { setOverview(ov); setMilestones(ms) })
-      .catch(() => {})
+      .catch(err => setError(err?.response?.data?.detail || err?.message || 'Σφάλμα φόρτωσης'))
       .finally(() => setLoading(false))
   }, [])
 
   if (loading) return (
     <div className="flex items-center justify-center h-64">
       <div className="animate-spin w-8 h-8 border-4 border-[#1e3a5f] border-t-transparent rounded-full" />
+    </div>
+  )
+
+  if (error) return (
+    <div className="flex flex-col items-center justify-center h-64 gap-3">
+      <ExclamationTriangleIcon className="w-10 h-10 text-red-400" />
+      <p className="text-sm text-red-600 font-medium">{error}</p>
+      <button onClick={() => { setError(null); setLoading(true); Promise.all([getAnalyticsOverview(), getAnalyticsMilestones(90)]).then(([ov, ms]) => { setOverview(ov); setMilestones(ms) }).catch(e => setError(e?.message || 'Σφάλμα')).finally(() => setLoading(false)) }} className="text-xs text-blue-600 underline">Επανάληψη</button>
     </div>
   )
 

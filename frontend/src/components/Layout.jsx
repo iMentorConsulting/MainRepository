@@ -32,8 +32,6 @@ const nav = [
   { to: '/worklists', label: 'Εκκρεμείς Εργασίες', Icon: ClipboardDocumentListIcon },
   { to: '/portal-broadcast', label: 'Πύλη Πελάτη — Αποστολή', Icon: GlobeAltIcon },
   { to: '/pipeline-admin', label: 'Διαχ. Pipeline', Icon: AdjustmentsHorizontalIcon },
-  { to: '/analytics', label: 'Αναλυτικά', Icon: ChartBarIcon },
-  { to: '/calendar', label: 'Ημερολόγιο', Icon: CalendarDaysIcon },
   { to: '/users', label: 'Χρήστες', Icon: UsersIcon },
 ]
 

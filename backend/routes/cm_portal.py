@@ -173,10 +173,6 @@ def _build_portal_data(case: CMCase, db: Session) -> dict:
         "total_paid": total_paid,
         "balance": balance,
         "portal_visit_count": case.portal_visit_count or 0,
-        "progress_percent": progress_percent,
-        "status_descriptions": status_descriptions,
-        "status_history": status_history,
-        "client_documents": client_docs,
     }
 
 
