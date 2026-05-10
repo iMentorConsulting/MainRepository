@@ -100,60 +100,96 @@ def _send_interested_email(case: Case) -> bool:
 
 
 def _notify_team_via_chatwoot(case: Case):
-    """Send Viber notification to team via Chatwoot when client clicks interested.
-    Uses NOTIFY_PHONE as the recipient (team/consultant Viber number)."""
+    """Notify team when client clicks interested.
+    Strategy 1: send Viber to NOTIFY_PHONE (team number).
+    Strategy 2 (fallback, no extra config needed): post internal note on client's existing conversation."""
     try:
-        notify_phone = os.getenv("NOTIFY_PHONE", "").strip()
         cw_url = os.getenv("CHATWOOT_URL", "").strip().rstrip("/")
         cw_token = os.getenv("CHATWOOT_API_TOKEN", "").strip()
         cw_account = os.getenv("CHATWOOT_ACCOUNT_ID", "").strip()
         cw_inbox = os.getenv("CHATWOOT_INBOX_ID", "").strip()
 
-        if not all([notify_phone, cw_url, cw_token, cw_account, cw_inbox]):
+        if not all([cw_url, cw_token, cw_account, cw_inbox]):
             return
 
         headers = {"api_access_token": cw_token, "Content-Type": "application/json"}
         base = f"{cw_url}/api/v1/accounts/{cw_account}"
 
-        # Find or create contact with NOTIFY_PHONE
-        contact_id = None
-        r = http_requests.get(f"{base}/contacts/search", params={"q": notify_phone}, headers=headers, timeout=8)
-        if r.status_code == 200:
-            payload = r.json().get("payload", [])
-            contacts = payload if isinstance(payload, list) else payload.get("contacts", [])
-            if contacts:
-                contact_id = contacts[0]["id"]
-
-        if not contact_id:
-            r = http_requests.post(f"{base}/contacts",
-                json={"name": "i-Mentor Team", "phone_number": notify_phone},
-                headers=headers, timeout=8)
-            if r.status_code in (200, 201):
-                contact_id = r.json().get("id")
-
-        if not contact_id:
-            return
-
-        # Create conversation
-        r = http_requests.post(f"{base}/conversations",
-            json={"inbox_id": int(cw_inbox), "contact_id": contact_id},
-            headers=headers, timeout=8)
-        if r.status_code not in (200, 201):
-            return
-        conv_id = r.json().get("id")
-        if not conv_id:
-            return
-
-        # Send notification message
-        msg = (
+        notify_msg = (
             f"🔔 *Νέο ενδιαφέρον πελάτη!*\n\n"
             f"Ο/Η *{case.client_name or '(άγνωστος)'}* έκανε κλικ στο «Θέλω να Προχωρήσω» στο portal.\n"
             f"Υπεύθυνος: {case.employee or '-'}\n"
             f"ΑΦΜ: {case.client_vat or '-'}"
         )
+
+        # ── Strategy 1: Viber to team phone (NOTIFY_PHONE) ───────────────────
+        notify_phone = os.getenv("NOTIFY_PHONE", "").strip()
+        if notify_phone:
+            contact_id = None
+            r = http_requests.get(f"{base}/contacts/search", params={"q": notify_phone}, headers=headers, timeout=8)
+            if r.status_code == 200:
+                payload = r.json().get("payload", [])
+                contacts = payload if isinstance(payload, list) else payload.get("contacts", [])
+                if contacts:
+                    contact_id = contacts[0]["id"]
+            if not contact_id:
+                r = http_requests.post(f"{base}/contacts",
+                    json={"name": "i-Mentor Team", "phone_number": notify_phone},
+                    headers=headers, timeout=8)
+                if r.status_code in (200, 201):
+                    contact_id = r.json().get("id")
+            if contact_id:
+                r = http_requests.post(f"{base}/conversations",
+                    json={"inbox_id": int(cw_inbox), "contact_id": contact_id},
+                    headers=headers, timeout=8)
+                if r.status_code in (200, 201):
+                    conv_id = r.json().get("id")
+                    if conv_id:
+                        http_requests.post(
+                            f"{base}/conversations/{conv_id}/messages",
+                            json={"content": notify_msg, "message_type": "outgoing", "private": False},
+                            headers=headers, timeout=8,
+                        )
+                        return  # success
+
+        # ── Strategy 2: internal note on client's conversation ────────────────
+        # Find client's contact by phone or name
+        client_phone = (case.client_phone or "").strip()
+        contact_id = None
+        if client_phone:
+            r = http_requests.get(f"{base}/contacts/search", params={"q": client_phone}, headers=headers, timeout=8)
+            if r.status_code == 200:
+                payload = r.json().get("payload", [])
+                contacts = payload if isinstance(payload, list) else payload.get("contacts", [])
+                if contacts:
+                    contact_id = contacts[0]["id"]
+        if not contact_id and case.client_name:
+            r = http_requests.get(f"{base}/contacts/search", params={"q": case.client_name}, headers=headers, timeout=8)
+            if r.status_code == 200:
+                payload = r.json().get("payload", [])
+                contacts = payload if isinstance(payload, list) else payload.get("contacts", [])
+                if contacts:
+                    contact_id = contacts[0]["id"]
+
+        if not contact_id:
+            return
+
+        # Find the most recent conversation for this contact
+        r = http_requests.get(f"{base}/contacts/{contact_id}/conversations", headers=headers, timeout=8)
+        if r.status_code != 200:
+            return
+        convs = r.json().get("payload", [])
+        if not convs:
+            return
+        # Sort by id descending, pick most recent
+        conv_id = sorted(convs, key=lambda c: c.get("id", 0), reverse=True)[0].get("id")
+        if not conv_id:
+            return
+
+        # Post internal note — only visible to agents in Chatwoot, not sent to client
         http_requests.post(
             f"{base}/conversations/{conv_id}/messages",
-            json={"content": msg, "message_type": "outgoing", "private": False},
+            json={"content": notify_msg, "message_type": "outgoing", "private": True},
             headers=headers, timeout=8,
         )
     except Exception:

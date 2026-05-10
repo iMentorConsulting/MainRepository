@@ -642,15 +642,15 @@ export function buildForecastText(calc, incomeData) {
     : `Συνολική μηνιαία δόση: ${fmt(totalMonthlyPay)}`
 
   const debtSection = {
-    type: 'info', icon: '🔢', label: 'Σύνολο Οφειλών',
+    type: 'info', icon: 'debt', label: 'Σύνολο Οφειλών',
     body: `Οι συνολικές οφειλές του οφειλέτη ανέρχονται σε ${fmt(sumDebt)}, κατανεμημένες ως εξής:\n• Προς τράπεζες: ${fmt(banksDebt)}\n• Προς ασφαλιστικά ταμεία: ${fmt(fundsDebt)}\n• Προς ΑΑΔΕ / εφορία: ${fmt(taxDebt)}`,
   }
   const incomeSection = {
-    type: 'info', icon: '💶', label: 'Εισοδηματικά Στοιχεία',
+    type: 'info', icon: 'income', label: 'Εισοδηματικά Στοιχεία',
     body: `Με βάση τα δηλωθέντα στοιχεία, το διαθέσιμο εισόδημα μετά τις εύλογες δαπάνες εκτιμάται σε ${fmt(dispMonthly)} / μήνα.`,
   }
   const assetSection = hasAssets ? {
-    type: 'info', icon: '🏠', label: 'Περιουσιακή Εικόνα',
+    type: 'info', icon: 'asset', label: 'Περιουσιακή Εικόνα',
     body: `Η συνολική εκτιμώμενη αξία περιουσιακών στοιχείων ανέρχεται σε ${fmt(sumAssetsAfterExp)}. ${
       calc.isFullCoveredByAssets
         ? 'Η περιουσία καλύπτει πλήρως τις οφειλές.'
@@ -658,11 +658,11 @@ export function buildForecastText(calc, incomeData) {
     }`,
   } : null
   const noteSection = {
-    type: 'info', icon: 'ℹ️', label: 'Παρατήρηση',
+    type: 'info', icon: 'note', label: 'Παρατήρηση',
     body: 'Η παρούσα εκτίμηση είναι θεωρητική προσομοίωση και δεν αποτελεί δέσμευση. Η τελική πρόταση θα παραχθεί από το σύστημα του εξωδικαστικού μηχανισμού ρύθμισης οφειλών.',
   }
   const banksSection = hasBanks ? {
-    type: 'info', icon: 'ℹ️', label: 'Παρατήρηση (Τράπεζες)',
+    type: 'info', icon: 'bank', label: 'Παρατήρηση (Τράπεζες)',
     body: 'Το αποτέλεσμα του εργαλείου προσομοιώνει την πρόταση του αλγορίθμου της πλατφόρμας του Εξωδικαστικού Μηχανισμού. Η προσομοιωμένη πρόταση υιοθετείται από το Δημόσιο (ΕΦΚΑ & ΑΑΔΕ) και αποστέλλεται προς τις Τράπεζες. Οι Τράπεζες έχουν δικαίωμα είτε να αποδεχθούν την αυτοματοποιημένη πρόταση του συστήματος είτε να υποβάλουν επίσημα «Αντιπρόταση Πιστωτών». Όταν υποβάλλεται Αντιπρόταση, συνήθως είναι δυσμενέστερη και αυστηρότερη από την πρόταση του συστήματος.',
   } : null
 
@@ -674,7 +674,7 @@ export function buildForecastText(calc, incomeData) {
     return {
       title: 'Πρόβλεψη Ρύθμισης – Νομικό Πρόσωπο',
       sections: sections({
-        type: 'success', icon: '✅', label: 'Εκτίμηση Αποτελέσματος',
+        type: 'success', icon: 'result', label: 'Εκτίμηση Αποτελέσματος',
         body: `Διαθέσιμο μηνιαίο ποσό για εξυπηρέτηση: ${fmt(dispMonthly)}\nΕκτιμώμενη διαγραφή: ${sumWr > 0 ? `${fmt(sumWr)} (${sumWrPct}%)` : 'Δεν απαιτείται'}\nΕναπομένουσα οφειλή: ${fmt(totalRemaining)}\nΔιάρκεια ρύθμισης: ${durationPhrase}\n${payLine}`,
       }),
     }
@@ -683,7 +683,7 @@ export function buildForecastText(calc, incomeData) {
     return {
       title: 'Πρόβλεψη Ρύθμισης – Οικονομικά Ισχυρό Προφίλ',
       sections: sections({
-        type: 'success', icon: '✅', label: 'Εκτίμηση Αποτελέσματος',
+        type: 'success', icon: 'result', label: 'Εκτίμηση Αποτελέσματος',
         body: `• Επαρκές εισόδημα — δεν απαιτείται διαγραφή.\n• Διαθέσιμο μηνιαίο εισόδημα: ${fmt(dispMonthly)}\n• Διάρκεια ρύθμισης: ${durationPhrase}\n• ${payLine}`,
       }),
     }
@@ -692,7 +692,7 @@ export function buildForecastText(calc, incomeData) {
     return {
       title: 'Πρόβλεψη Ρύθμισης – Δυνητικό "Κούρεμα" Οφειλών',
       sections: sections({
-        type: 'success', icon: '✅', label: 'Εκτίμηση Αποτελέσματος',
+        type: 'success', icon: 'result', label: 'Εκτίμηση Αποτελέσματος',
         body: `• Προκύπτει περιθώριο μερικής διαγραφής.\n• Θεωρητικά εκτιμώμενη διαγραφή: ${fmt(sumWr)} (${sumWrPct}%)\n• Εναπομένουσα οφειλή μετά τη διαγραφή: ${fmt(totalRemaining)}\n• ${payLine}\n• Διάρκεια ρύθμισης: ${durationPhrase}`,
       }),
     }
@@ -701,7 +701,7 @@ export function buildForecastText(calc, incomeData) {
     return {
       title: 'Πρόβλεψη Ρύθμισης – Ισχυρό Δικαίωμα Διαγραφής',
       sections: sections({
-        type: 'success', icon: '✅', label: 'Εκτίμηση Αποτελέσματος',
+        type: 'success', icon: 'result', label: 'Εκτίμηση Αποτελέσματος',
         body: `• Τεκμηριωμένη οικονομική αδυναμία — μέγιστη διαγραφή.\n• Θεωρητικά εκτιμώμενη διαγραφή: ${fmt(sumWr)} (${sumWrPct}%)\n• Εναπομένουσα οφειλή μετά τη διαγραφή: ${fmt(totalRemaining)}\n• ${payLine}\n• Διάρκεια ρύθμισης: ${durationPhrase}`,
       }),
     }
@@ -710,7 +710,7 @@ export function buildForecastText(calc, incomeData) {
     return {
       title: 'Πρόβλεψη Ρύθμισης – Χαμηλό Εισόδημα με Πλήρη Κάλυψη από Περιουσία',
       sections: sections({
-        type: 'success', icon: '✅', label: 'Εκτίμηση Αποτελέσματος',
+        type: 'success', icon: 'result', label: 'Εκτίμηση Αποτελέσματος',
         body: `• Η περιουσία καλύπτει πλήρως τις οφειλές — δεν απαιτείται θεωρητικά διαγραφή.\n• Εναπομένουσα οφειλή: ${fmt(totalRemaining)}\n• ${payLineShort}`,
       }),
     }
@@ -718,7 +718,7 @@ export function buildForecastText(calc, incomeData) {
   return {
     title: 'Πρόβλεψη Ρύθμισης – Χαμηλό Εισόδημα με Μερική Κάλυψη από Περιουσία',
     sections: sections({
-      type: 'success', icon: '✅', label: 'Εκτίμηση Αποτελέσματος',
+      type: 'success', icon: 'result', label: 'Εκτίμηση Αποτελέσματος',
       body: `• Προκύπτει θεωρητικά αδιάσωστο ποσό, άρα υπάρχει περιθώριο μερικής διαγραφής.\n• Θεωρητικά εκτιμώμενη διαγραφή: ${fmt(sumWr)} (${sumWrPct}%)\n• Εναπομένουσα οφειλή μετά τη διαγραφή: ${fmt(totalRemaining)}\n• ${payLineShort}`,
     }),
   }

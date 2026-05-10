@@ -17,7 +17,20 @@ import {
   ArrowRightCircleIcon,
   UserGroupIcon,
   ArrowTrendingUpIcon,
+  BanknotesIcon,
+  CurrencyEuroIcon,
+  HomeModernIcon,
+  InformationCircleIcon,
 } from '@heroicons/react/24/outline'
+
+const FORECAST_ICONS = {
+  debt:   <BanknotesIcon className="w-4 h-4 shrink-0" />,
+  income: <CurrencyEuroIcon className="w-4 h-4 shrink-0" />,
+  asset:  <HomeModernIcon className="w-4 h-4 shrink-0" />,
+  note:   <InformationCircleIcon className="w-4 h-4 shrink-0" />,
+  bank:   <BuildingLibraryIcon className="w-4 h-4 shrink-0" />,
+  result: <CheckCircleIcon className="w-4 h-4 shrink-0" />,
+}
 
 function Tooltip({ children, tip }) {
   const [open, setOpen] = useState(false)
@@ -98,9 +111,10 @@ function KpiBlock({ label, value, sub, accent }) {
 
 function ForecastSection({ s }) {
   const isSuccess = s.type === 'success'
+  const icon = FORECAST_ICONS[s.icon] || <InformationCircleIcon className="w-4 h-4 shrink-0" />
   return (
     <div className={`rounded-xl px-4 py-3 text-sm leading-relaxed ${isSuccess ? 'bg-green-50 border border-green-200 text-green-900' : 'bg-blue-50 border border-blue-200 text-blue-900'}`}>
-      <div className="font-bold mb-1">{s.icon} {s.label}</div>
+      <div className="font-bold mb-1 flex items-center gap-1.5">{icon}{s.label}</div>
       <div className="whitespace-pre-line">{s.body}</div>
     </div>
   )
@@ -359,7 +373,7 @@ export default function ClientPreview() {
 
       {/* TOP BAR */}
       <div className="flex flex-col items-center px-5 py-5 bg-white/5 backdrop-blur-sm border-b border-white/10">
-        <img src="/logo.png" alt="i-Mentor Consulting" className="h-20 object-contain" onError={e => { e.target.onerror=null; e.target.src='https://i-mentor.gr/wp-content/uploads/2025/11/transparent-logo.png' }} />
+        <img src="/logo.png" alt="i-Mentor Consulting" className="h-28 object-contain" onError={e => { e.target.onerror=null; e.target.src='https://i-mentor.gr/wp-content/uploads/2025/11/transparent-logo.png' }} />
         <div className="text-blue-300 text-xs flex gap-5 mt-3">
           <span>2810 363007</span>
           <span>info@i-mentor.gr</span>
