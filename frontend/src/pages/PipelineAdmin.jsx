@@ -122,6 +122,8 @@ function PhaseCard({ phase, phaseIdx, onUpdate, onDelete, onMoveUp, onMoveDown, 
 function ProgramEditor({ programKey, config, label, onSaved }) {
   const [phases, setPhases] = useState([])
   const [extraStatuses, setExtraStatuses] = useState([])
+  const [statusDescriptions, setStatusDescriptions] = useState({})
+  const [showDescriptions, setShowDescriptions] = useState(false)
   const [newExtra, setNewExtra] = useState('')
   const [saving, setSaving] = useState(false)
   const [dirty, setDirty] = useState(false)
@@ -129,6 +131,7 @@ function ProgramEditor({ programKey, config, label, onSaved }) {
   useEffect(() => {
     setPhases(config.phases ? JSON.parse(JSON.stringify(config.phases)) : [])
     setExtraStatuses(config.extra_statuses || [])
+    setStatusDescriptions(config.status_descriptions || {})
     setDirty(false)
   }, [config])
 
@@ -164,10 +167,15 @@ function ProgramEditor({ programKey, config, label, onSaved }) {
 
   const removeExtra = (idx) => { setExtraStatuses(prev => prev.filter((_, i) => i !== idx)); mark() }
 
+  const allStatuses = [
+    ...phases.flatMap(p => p.statuses || []),
+    ...extraStatuses,
+  ]
+
   const handleSave = async () => {
     setSaving(true)
     try {
-      await updatePipeline(programKey, { phases, extra_statuses: extraStatuses })
+      await updatePipeline(programKey, { phases, extra_statuses: extraStatuses, status_descriptions: statusDescriptions })
       toast.success('Αποθηκεύτηκε — οι αλλαγές ισχύουν αμέσως')
       setDirty(false)
       onSaved()
@@ -230,6 +238,33 @@ function ProgramEditor({ programKey, config, label, onSaved }) {
             Προσθήκη
           </button>
         </div>
+      </div>
+
+      {/* Status descriptions for portal */}
+      <div className="bg-white rounded-xl border p-4 space-y-3">
+        <button
+          onClick={() => setShowDescriptions(p => !p)}
+          className="w-full flex items-center justify-between text-sm font-semibold text-gray-600"
+        >
+          <span>Επεξηγήσεις Κατάστασης για Portal Πελάτη</span>
+          <span className="text-xs text-gray-400">{showDescriptions ? '▲ Απόκρυψη' : '▼ Εμφάνιση'}</span>
+        </button>
+        {showDescriptions && (
+          <div className="space-y-2">
+            <p className="text-xs text-gray-400">Προαιρετική σύντομη επεξήγηση που εμφανίζεται στον πελάτη όταν η υπόθεσή του βρίσκεται σε αυτή την κατάσταση.</p>
+            {allStatuses.map(s => (
+              <div key={s} className="flex items-start gap-2">
+                <span className="text-xs font-mono text-gray-500 pt-2 min-w-[200px] shrink-0 truncate" title={s}>{s}</span>
+                <input
+                  className="flex-1 border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+                  placeholder="Σύντομη επεξήγηση για τον πελάτη..."
+                  value={statusDescriptions[s] || ''}
+                  onChange={e => { setStatusDescriptions(d => ({ ...d, [s]: e.target.value })); mark() }}
+                />
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Save */}

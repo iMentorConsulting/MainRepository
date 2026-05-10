@@ -28,6 +28,7 @@ def _row_to_dict(row: CMPipelineConfig) -> dict:
         "program_category": row.program_category,
         "phases": json.loads(row.phases_json),
         "extra_statuses": json.loads(row.extra_statuses_json or "[]"),
+        "status_descriptions": json.loads(row.status_descriptions_json or "{}"),
         "updated_at": row.updated_at.isoformat() if row.updated_at else None,
     }
 
@@ -87,6 +88,7 @@ class PhaseSchema(BaseModel):
 class PipelineUpdate(BaseModel):
     phases: List[PhaseSchema]
     extra_statuses: Optional[List[str]] = []
+    status_descriptions: Optional[dict] = {}
 
 
 @router.put("/{program}")
@@ -104,6 +106,7 @@ def update_pipeline(
 
     row.phases_json = json.dumps([p.dict() for p in req.phases], ensure_ascii=False)
     row.extra_statuses_json = json.dumps(req.extra_statuses or [], ensure_ascii=False)
+    row.status_descriptions_json = json.dumps(req.status_descriptions or {}, ensure_ascii=False)
     row.updated_at = datetime.utcnow()
     db.commit()
     db.refresh(row)

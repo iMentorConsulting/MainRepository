@@ -3,12 +3,12 @@ import { Link } from 'react-router-dom'
 import {
   getCases, getUsers, updateCase, getAllPendingOverview, createMessage, getMessages, deleteMessage,
   createCasePendingItem, deleteCasePendingItem, notifyCasePendingItems, getNotificationLogs,
-  getPendingItemTemplates,
+  getPendingItemTemplates, sendNotification,
 } from '../api'
 import { PIPELINES } from '../pipelines'
 import {
   MagnifyingGlassIcon, PlusIcon, TrashIcon,
-  CalendarDaysIcon, PaperAirplaneIcon, ArrowTopRightOnSquareIcon,
+  CalendarDaysIcon, PaperAirplaneIcon, ArrowTopRightOnSquareIcon, BoltIcon,
 } from '@heroicons/react/24/outline'
 import toast from 'react-hot-toast'
 
@@ -297,6 +297,58 @@ function PendingCell({ caseId, programCategory, items, onAdd, onDelete }) {
 }
 
 // ── Send button + past notification dates ─────────────────────────────────────
+function QuickNotifyButtonWV({ caseId, clientName }) {
+  const [open, setOpen] = useState(false)
+  const [msg, setMsg] = useState('')
+  const [sending, setSending] = useState(false)
+  const ref = useRef(null)
+
+  useEffect(() => {
+    if (!open) return
+    const handler = (e) => { if (!ref.current?.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [open])
+
+  const handleSend = async () => {
+    if (!msg.trim()) return
+    setSending(true)
+    try {
+      await sendNotification(caseId, { notification_type: 'email', message: msg })
+      toast.success('Ειδοποίηση εστάλη')
+      setMsg(''); setOpen(false)
+    } catch { toast.error('Σφάλμα') }
+    finally { setSending(false) }
+  }
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        title="Γρήγορη Ειδοποίηση"
+        className="p-1 rounded hover:bg-blue-50 text-gray-300 hover:text-blue-500 transition-colors"
+      >
+        <BoltIcon className="w-4 h-4" />
+      </button>
+      {open && (
+        <div className="absolute right-0 top-full mt-1 z-50 bg-white rounded-xl shadow-xl border border-gray-200 w-60 p-3 space-y-2">
+          <div className="text-xs font-medium text-gray-700 truncate">{clientName}</div>
+          <textarea rows={3} value={msg} onChange={e => setMsg(e.target.value)} autoFocus
+            placeholder="Κείμενο ειδοποίησης..."
+            className="w-full border rounded-lg px-2 py-1.5 text-xs resize-none focus:ring-1 focus:ring-blue-500" />
+          <div className="flex gap-2">
+            <button onClick={() => setOpen(false)} className="flex-1 text-xs py-1.5 border rounded-lg hover:bg-gray-50">Άκυρο</button>
+            <button onClick={handleSend} disabled={!msg.trim() || sending}
+              className="flex-1 text-xs py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
+              {sending ? '...' : 'Αποστολή'}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function SendButton({ caseId, hasItems }) {
   const [open, setOpen] = useState(false)
   const [sending, setSending] = useState(false)
@@ -579,7 +631,10 @@ export default function WorkView() {
                   />
                 </td>
                 <td className="px-3 py-2.5 text-center">
-                  <SendButton caseId={c.id} hasItems={(c.pending_items || []).length > 0} />
+                  <div className="flex items-center justify-center gap-1">
+                    <SendButton caseId={c.id} hasItems={(c.pending_items || []).length > 0} />
+                    <QuickNotifyButtonWV caseId={c.id} clientName={c.client_name} />
+                  </div>
                 </td>
               </tr>
             ))}

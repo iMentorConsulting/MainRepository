@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { Link } from 'react-router-dom'
-import { getCases, updateCase, getUsers } from '../api'
+import { getCases, updateCase, getUsers, sendNotification } from '../api'
 import { PIPELINES } from '../pipelines'
 import {
   ClockIcon,
@@ -13,6 +13,7 @@ import {
   ExclamationCircleIcon,
   Cog6ToothIcon,
   MagnifyingGlassIcon,
+  BoltIcon,
 } from '@heroicons/react/24/outline'
 import toast from 'react-hot-toast'
 import PendingTemplatesPanel from '../components/PendingTemplatesPanel'
@@ -116,6 +117,63 @@ function MoveDropdown({ caseItem, currentStatus, onMoved, pipeline }) {
   )
 }
 
+function QuickNotifyButton({ caseItem }) {
+  const [open, setOpen] = useState(false)
+  const [msg, setMsg] = useState('')
+  const [sending, setSending] = useState(false)
+  const ref = useRef(null)
+
+  useEffect(() => {
+    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  const handleSend = async (e) => {
+    e.preventDefault(); e.stopPropagation()
+    if (!msg.trim()) return
+    setSending(true)
+    try {
+      await sendNotification(caseItem.id, { notification_type: 'email', message: msg })
+      toast.success('Ειδοποίηση εστάλη')
+      setMsg(''); setOpen(false)
+    } catch { toast.error('Σφάλμα') }
+    finally { setSending(false) }
+  }
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        onClick={e => { e.preventDefault(); e.stopPropagation(); setOpen(o => !o) }}
+        className="p-0.5 rounded hover:bg-blue-50 text-gray-300 hover:text-blue-500 transition-colors"
+        title="Γρήγορη Ειδοποίηση"
+      >
+        <BoltIcon className="w-3.5 h-3.5" />
+      </button>
+      {open && createPortal(
+        <div
+          className="fixed z-[9999] bg-white rounded-xl shadow-2xl border border-gray-200 w-60 p-3 space-y-2"
+          style={{ top: ref.current?.getBoundingClientRect().bottom + 4, left: ref.current?.getBoundingClientRect().left }}
+          onClick={e => e.stopPropagation()}
+        >
+          <div className="text-xs font-medium text-gray-700 truncate">{caseItem.client_name}</div>
+          <textarea rows={3} value={msg} onChange={e => setMsg(e.target.value)} autoFocus
+            placeholder="Κείμενο ειδοποίησης..."
+            className="w-full border rounded-lg px-2 py-1.5 text-xs resize-none focus:ring-1 focus:ring-blue-500" />
+          <div className="flex gap-2">
+            <button onClick={e => { e.stopPropagation(); setOpen(false) }} className="flex-1 text-xs py-1.5 border rounded-lg hover:bg-gray-50">Άκυρο</button>
+            <button onClick={handleSend} disabled={!msg.trim() || sending}
+              className="flex-1 text-xs py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
+              {sending ? '...' : 'Αποστολή'}
+            </button>
+          </div>
+        </div>,
+        document.body
+      )}
+    </div>
+  )
+}
+
 function CaseCard({ caseItem, onMoved, pipeline }) {
   const urgent = caseItem.days_to_deadline !== null && caseItem.days_to_deadline <= 14 && caseItem.days_to_deadline >= 0
   return (
@@ -127,7 +185,7 @@ function CaseCard({ caseItem, onMoved, pipeline }) {
         <div className="font-medium text-gray-900 text-xs leading-tight group-hover:text-blue-700 transition-colors flex-1 min-w-0">
           {caseItem.client_name}
         </div>
-        <div className="flex gap-1 flex-shrink-0">
+        <div className="flex gap-1 flex-shrink-0 items-center">
           {caseItem.balance > 0.01 && (
             <span className="flex items-center gap-0.5 text-xs font-semibold text-orange-600 bg-orange-50 border border-orange-200 px-1 py-0 rounded">
               <CurrencyEuroIcon className="w-2.5 h-2.5" />{fmt(caseItem.balance)}
@@ -143,6 +201,7 @@ function CaseCard({ caseItem, onMoved, pipeline }) {
               <ClipboardDocumentListIcon className="w-2.5 h-2.5" />{caseItem.open_tasks}
             </span>
           )}
+          <QuickNotifyButton caseItem={caseItem} />
         </div>
       </div>
       {caseItem.pending_count > 0 && (

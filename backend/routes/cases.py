@@ -185,6 +185,7 @@ def msg_to_dict(m: CMMessage) -> dict:
         "content": m.content,
         "is_internal": m.is_internal,
         "author_name": m.author_name,
+        "sent_by_client": getattr(m, "sent_by_client", False) or False,
         "created_at": m.created_at.isoformat() if m.created_at else None,
     }
 
@@ -199,6 +200,7 @@ def doc_to_dict(d: CMDocument) -> dict:
         "uploaded_by": d.uploaded_by,
         "notes": d.notes,
         "file_url": d.file_url,
+        "uploaded_by_client": getattr(d, "uploaded_by_client", False) or False,
         "created_at": d.created_at.isoformat() if d.created_at else None,
     }
 
@@ -359,10 +361,17 @@ def update_case(
         raise HTTPException(status_code=404, detail="Υπόθεση δεν βρέθηκε")
 
     data = req.dict(exclude_none=True)
+    if 'status' in data and data['status'] != c.status:
+        from models_cases import CMCaseStatusHistory
+        db.add(CMCaseStatusHistory(
+            case_id=c.id,
+            from_status=c.status,
+            to_status=data['status'],
+            changed_by=current_user.full_name,
+        ))
+        c.status_changed_at = datetime.utcnow()
     for field, val in data.items():
         setattr(c, field, val)
-    if 'status' in data:
-        c.status_changed_at = datetime.utcnow()
     c.updated_at = datetime.utcnow()
     db.commit()
     db.refresh(c)
@@ -570,18 +579,37 @@ def create_message(
     current_user: CMUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    if not db.query(CMCase).filter(CMCase.id == case_id).first():
+    case = db.query(CMCase).filter(CMCase.id == case_id).first()
+    if not case:
         raise HTTPException(status_code=404, detail="Υπόθεση δεν βρέθηκε")
+    is_internal = req.is_internal if req.is_internal is not None else True
     msg = CMMessage(
         case_id=case_id,
         user_id=current_user.id,
         content=req.content,
-        is_internal=req.is_internal if req.is_internal is not None else True,
+        is_internal=is_internal,
         author_name=current_user.full_name,
     )
     db.add(msg)
     db.commit()
     db.refresh(msg)
+
+    # Notify client by email when sending a client-visible message
+    if not is_internal and case.email:
+        try:
+            from routes.cm_notifications import _send_email
+            subject = f"Νέο μήνυμα από iMentor Consulting - {case.client_name}"
+            body = (
+                f"Αγαπητέ/ή {case.client_name},\n\n"
+                f"Λάβαμε νέο μήνυμα από τον σύμβουλό σας:\n\n"
+                f"{req.content}\n\n"
+                f"Μπορείτε να επικοινωνήσετε μαζί μας ή να δείτε την πορεία της υπόθεσής σας μέσω του portal σας.\n\n"
+                f"Με εκτίμηση,\niMentor Consulting"
+            )
+            _send_email(case.email, subject, body)
+        except Exception:
+            pass
+
     return msg_to_dict(msg)
 
 

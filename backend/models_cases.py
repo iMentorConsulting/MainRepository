@@ -96,6 +96,7 @@ class CMCase(Base):
     notification_logs = relationship("CMNotificationLog", back_populates="case", cascade="all, delete-orphan")
     budget_categories = relationship("CMBudgetCategory", back_populates="case", cascade="all, delete-orphan")
     pending_items = relationship("CMCasePendingItem", back_populates="case", cascade="all, delete-orphan", order_by="CMCasePendingItem.sort_order")
+    status_history = relationship("CMCaseStatusHistory", back_populates="case", cascade="all, delete-orphan", order_by="CMCaseStatusHistory.changed_at")
 
 
 class CMTask(Base):
@@ -147,6 +148,7 @@ class CMMessage(Base):
     content = Column(Text, nullable=False)
     is_internal = Column(Boolean, default=True)  # True = internal only, False = client-visible
     author_name = Column(String(100))
+    sent_by_client = Column(Boolean, default=False)
 
     created_at = Column(DateTime, default=datetime.utcnow)
 
@@ -166,6 +168,7 @@ class CMDocument(Base):
     uploaded_by = Column(String(100))
     notes = Column(Text)
     file_url = Column(String(500))
+    uploaded_by_client = Column(Boolean, default=False)
 
     created_at = Column(DateTime, default=datetime.utcnow)
 
@@ -236,6 +239,7 @@ class CMPipelineConfig(Base):
     program_category = Column(String(50), unique=True, nullable=False)
     phases_json = Column(Text, nullable=False)
     extra_statuses_json = Column(Text, default="[]")
+    status_descriptions_json = Column(Text, default="{}")
     updated_at = Column(DateTime, default=datetime.utcnow)
 
 
@@ -258,3 +262,14 @@ class CMCasePendingItem(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow)
     case = relationship("CMCase", back_populates="pending_items")
+
+
+class CMCaseStatusHistory(Base):
+    __tablename__ = "cm_case_status_history"
+    id = Column(Integer, primary_key=True, index=True)
+    case_id = Column(Integer, ForeignKey("cm_cases.id"), nullable=False)
+    from_status = Column(String(100))
+    to_status = Column(String(100), nullable=False)
+    changed_at = Column(DateTime, default=datetime.utcnow)
+    changed_by = Column(String(100))
+    case = relationship("CMCase", back_populates="status_history")

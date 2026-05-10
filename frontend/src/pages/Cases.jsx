@@ -1,8 +1,8 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { getCases, getUsers, deleteCase, createCase } from '../api'
+import { getCases, getUsers, deleteCase, createCase, sendNotification, updateCase, getPipelines } from '../api'
 import { PIPELINES } from '../pipelines'
-import { MagnifyingGlassIcon, PlusIcon, TrashIcon, FolderOpenIcon } from '@heroicons/react/24/outline'
+import { MagnifyingGlassIcon, PlusIcon, TrashIcon, FolderOpenIcon, BoltIcon, ChevronDownIcon } from '@heroicons/react/24/outline'
 import toast from 'react-hot-toast'
 
 const PROGRAM_OPTIONS = [
@@ -13,6 +13,89 @@ const PROGRAM_OPTIONS = [
 
 const fmt = (n) =>
   new Intl.NumberFormat('el-GR', { style: 'currency', currency: 'EUR', minimumFractionDigits: 0 }).format(n || 0)
+
+function QuickActions({ caseRow, allStatuses, onUpdated }) {
+  const [open, setOpen] = useState(false)
+  const [showNotify, setShowNotify] = useState(false)
+  const [notifyMsg, setNotifyMsg] = useState('')
+  const [sending, setSending] = useState(false)
+  const ref = useRef(null)
+
+  useEffect(() => {
+    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  const handleStatusChange = async (status) => {
+    setOpen(false)
+    try {
+      await updateCase(caseRow.id, { status })
+      toast.success('Κατάσταση ενημερώθηκε')
+      onUpdated()
+    } catch { toast.error('Σφάλμα') }
+  }
+
+  const handleNotify = async () => {
+    if (!notifyMsg.trim()) return
+    setSending(true)
+    try {
+      await sendNotification(caseRow.id, { notification_type: 'email', message: notifyMsg })
+      toast.success('Ειδοποίηση εστάλη')
+      setNotifyMsg(''); setShowNotify(false); setOpen(false)
+    } catch { toast.error('Σφάλμα αποστολής') }
+    finally { setSending(false) }
+  }
+
+  return (
+    <div className="relative" ref={ref} onClick={e => e.stopPropagation()}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-blue-600 transition-colors"
+        title="Γρήγορες Ενέργειες"
+      >
+        <BoltIcon className="w-4 h-4" />
+      </button>
+      {open && (
+        <div className="absolute right-0 top-full mt-1 z-50 bg-white rounded-xl shadow-xl border border-gray-200 w-64 py-1">
+          {!showNotify ? (
+            <>
+              <div className="px-3 py-1.5 text-xs font-semibold text-gray-400 uppercase tracking-wider">Αλλαγή Κατάστασης</div>
+              <div className="max-h-48 overflow-y-auto">
+                {allStatuses.filter(s => s !== caseRow.status).map(s => (
+                  <button key={s} onClick={() => handleStatusChange(s)}
+                    className="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-blue-50 hover:text-blue-700 truncate">
+                    {s}
+                  </button>
+                ))}
+              </div>
+              <div className="border-t border-gray-100 mt-1 pt-1">
+                <button onClick={() => setShowNotify(true)}
+                  className="w-full text-left px-3 py-2 text-xs font-medium text-blue-600 hover:bg-blue-50 flex items-center gap-2">
+                  <BoltIcon className="w-3.5 h-3.5" /> Γρήγορη Ειδοποίηση
+                </button>
+              </div>
+            </>
+          ) : (
+            <div className="p-3 space-y-2">
+              <div className="text-xs font-medium text-gray-700">Ειδοποίηση: {caseRow.client_name}</div>
+              <textarea rows={3} value={notifyMsg} onChange={e => setNotifyMsg(e.target.value)}
+                placeholder="Κείμενο ειδοποίησης..." autoFocus
+                className="w-full border rounded-lg px-2 py-1.5 text-xs resize-none focus:ring-1 focus:ring-blue-500" />
+              <div className="flex gap-2">
+                <button onClick={() => setShowNotify(false)} className="flex-1 text-xs py-1.5 border rounded-lg hover:bg-gray-50">Πίσω</button>
+                <button onClick={handleNotify} disabled={!notifyMsg.trim() || sending}
+                  className="flex-1 text-xs py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
+                  {sending ? '...' : 'Αποστολή'}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
 
 function NewCaseModal({ agents, onClose, onSaved }) {
   const [form, setForm] = useState({
@@ -120,6 +203,7 @@ function NewCaseModal({ agents, onClose, onSaved }) {
 export default function Cases() {
   const [cases, setCases] = useState([])
   const [agents, setAgents] = useState([])
+  const [livePipelines, setLivePipelines] = useState({})
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [filters, setFilters] = useState({
@@ -147,6 +231,7 @@ export default function Cases() {
 
   useEffect(() => { load() }, [load])
   useEffect(() => { getUsers().then(setAgents).catch(() => {}) }, [])
+  useEffect(() => { getPipelines().then(setLivePipelines).catch(() => {}) }, [])
 
   const handleDelete = async (e, id) => {
     e.preventDefault(); e.stopPropagation()
@@ -208,7 +293,7 @@ export default function Cases() {
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b">
                 <tr>
-                  {['Επωνυμία', 'Πρόγραμμα', 'Κατάσταση', 'Agent', 'Υπόλοιπο', 'Προθεσμία', 'Tasks', ''].map(h => (
+                  {['Επωνυμία', 'Πρόγραμμα', 'Κατάσταση', 'Agent', 'Υπόλοιπο', 'Προθεσμία', 'Tasks', '', ''].map(h => (
                     <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">
                       {h}
                     </th>
@@ -218,6 +303,11 @@ export default function Cases() {
               <tbody className="divide-y divide-gray-100">
                 {cases.map(c => {
                   const urgent = c.days_to_deadline !== null && c.days_to_deadline <= 15 && c.days_to_deadline >= 0
+                  const prog = c.program_category || 'ΕΣΠΑ'
+                  const lp = livePipelines[prog]
+                  const allStatuses = lp
+                    ? [...lp.phases.flatMap(ph => ph.statuses), ...(lp.extra_statuses || [])]
+                    : (PIPELINES[prog]?.phases?.flatMap(ph => ph.statuses) || [])
                   return (
                     <tr key={c.id} onClick={() => navigate(`/cases/${c.id}`)} className="hover:bg-gray-50 cursor-pointer">
                       <td className="px-4 py-3">
@@ -251,6 +341,9 @@ export default function Cases() {
                           ? <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium">{c.open_tasks}</span>
                           : <span className="text-gray-300 text-xs">—</span>
                         }
+                      </td>
+                      <td className="px-4 py-3">
+                        <QuickActions caseRow={c} allStatuses={allStatuses} onUpdated={load} />
                       </td>
                       <td className="px-4 py-3">
                         <button onClick={e => handleDelete(e, c.id)} className="text-gray-300 hover:text-red-500 transition-colors">
