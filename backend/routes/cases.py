@@ -1,3 +1,4 @@
+import logging
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import or_
@@ -8,6 +9,9 @@ from database import get_db
 from models_cases import CMCase, CMUser, CMTask, CMPayment, CMMessage, CMDocument, CMBudgetCategory, CMStatusSLA
 from auth_cases import get_current_user
 from pipelines import TERMINAL_STATUSES
+from routes.cm_notifications import _send_email
+
+log = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/cm/cases", tags=["cm-cases"])
 
@@ -597,18 +601,19 @@ def create_message(
     # Notify client by email when sending a client-visible message
     if not is_internal and case.email:
         try:
-            from routes.cm_notifications import _send_email
-            subject = f"Νέο μήνυμα από iMentor Consulting - {case.client_name}"
+            subject = f"Νέο μήνυμα για την υπόθεσή σας - {case.client_name}"
             body = (
                 f"Αγαπητέ/ή {case.client_name},\n\n"
-                f"Λάβαμε νέο μήνυμα από τον σύμβουλό σας:\n\n"
+                f"Ο σύμβουλός σας σάς έστειλε νέο μήνυμα:\n\n"
                 f"{req.content}\n\n"
-                f"Μπορείτε να επικοινωνήσετε μαζί μας ή να δείτε την πορεία της υπόθεσής σας μέσω του portal σας.\n\n"
+                f"Μπορείτε να δείτε την πορεία της υπόθεσής σας μέσω του portal σας.\n\n"
                 f"Με εκτίμηση,\niMentor Consulting"
             )
-            _send_email(case.email, subject, body)
-        except Exception:
-            pass
+            ok, err = _send_email(case.email, subject, body)
+            if not ok:
+                log.warning(f"[create_message] Email to {case.email} failed: {err}")
+        except Exception as e:
+            log.warning(f"[create_message] Email exception: {e}")
 
     return msg_to_dict(msg)
 

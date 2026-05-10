@@ -4,7 +4,6 @@ import {
   HomeIcon,
   FolderOpenIcon,
   ViewColumnsIcon,
-  BellIcon,
   UsersIcon,
   ArrowDownTrayIcon,
   ArrowRightOnRectangleIcon,
@@ -15,6 +14,9 @@ import {
   TableCellsIcon,
   GlobeAltIcon,
   AdjustmentsHorizontalIcon,
+  ChartBarIcon,
+  CalendarDaysIcon,
+  ClipboardDocumentListIcon,
 } from '@heroicons/react/24/outline'
 import { changePassword } from '../api'
 import toast from 'react-hot-toast'
@@ -24,7 +26,8 @@ const nav = [
   { to: '/workview', label: 'Γρήγορη Εργασία', Icon: TableCellsIcon },
   { to: '/cases', label: 'Υποθέσεις', Icon: FolderOpenIcon },
   { to: '/kanban', label: 'Pipeline', Icon: ViewColumnsIcon },
-  { to: '/notifications', label: 'Αποστολή', Icon: BellIcon },
+  { to: '/analytics', label: 'Αναλυτικά', Icon: ChartBarIcon },
+  { to: '/calendar', label: 'Ημερολόγιο', Icon: CalendarDaysIcon },
   { to: '/import', label: 'Εισαγωγή Sheet', Icon: ArrowDownTrayIcon },
   { to: '/portal-broadcast', label: 'Πύλη Πελάτη — Αποστολή', Icon: GlobeAltIcon },
   { to: '/pipeline-admin', label: 'Διαχ. Pipeline', Icon: AdjustmentsHorizontalIcon },

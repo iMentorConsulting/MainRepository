@@ -19,7 +19,7 @@ import {
   PaperAirplaneIcon,
   ArrowUpTrayIcon,
   DocumentIcon,
-  InformationCircleIcon,
+  QuestionMarkCircleIcon,
 } from '@heroicons/react/24/outline'
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -124,10 +124,31 @@ function KpiCard({ icon: Icon, label, value, color = 'blue' }) {
 
 // ── Vertical Status Timeline ──────────────────────────────────────────────────
 
-function StatusTimeline({ fullStatusList, currentStatus, nextStatus }) {
+function StatusTooltip({ description }) {
+  const [show, setShow] = useState(false)
+  if (!description) return null
+  return (
+    <div className="relative flex-shrink-0">
+      <button
+        onClick={e => { e.stopPropagation(); setShow(s => !s) }}
+        className="w-5 h-5 rounded-full bg-gray-100 text-gray-400 hover:bg-blue-100 hover:text-blue-600 flex items-center justify-center text-xs font-bold transition-colors"
+        title="Πληροφορίες"
+      >
+        ?
+      </button>
+      {show && (
+        <div className="absolute right-0 top-6 z-20 w-56 bg-[#1e3a5f] text-white text-xs rounded-xl shadow-xl px-3 py-2.5 leading-relaxed">
+          {description}
+          <div className="absolute -top-1.5 right-1.5 w-3 h-3 bg-[#1e3a5f] rotate-45" />
+        </div>
+      )}
+    </div>
+  )
+}
+
+function StatusTimeline({ fullStatusList, currentStatus, nextStatus, statusDescriptions = {} }) {
   const currentIdx = fullStatusList.findIndex(s => s.status === currentStatus)
 
-  // Group flat list into phase buckets preserving order
   const phaseGroups = []
   fullStatusList.forEach((item, idx) => {
     const last = phaseGroups[phaseGroups.length - 1]
@@ -167,6 +188,7 @@ function StatusTimeline({ fullStatusList, currentStatus, nextStatus }) {
                 {phase.items.map((item) => {
                   const isDone = item.idx < currentIdx
                   const isActive = item.idx === currentIdx
+                  const desc = statusDescriptions[item.status]
                   return (
                     <div key={item.idx} className={`flex items-center gap-2.5 py-1.5 px-2.5 rounded-lg ${isActive ? colors.rowBg : ''}`}>
                       <div className={`flex-shrink-0 w-4 h-4 rounded-full flex items-center justify-center ${
@@ -185,6 +207,7 @@ function StatusTimeline({ fullStatusList, currentStatus, nextStatus }) {
                           ΤΩΡΑ
                         </span>
                       )}
+                      <StatusTooltip description={desc} />
                     </div>
                   )
                 })}
@@ -1046,8 +1069,8 @@ export default function ClientPortal() {
             </div>
           )}
           {data.status_descriptions?.[data.status] && (
-            <div className="mt-3 flex items-start gap-2 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2 text-xs text-blue-700">
-              <InformationCircleIcon className="w-4 h-4 flex-shrink-0 mt-0.5" />
+            <div className="mt-3 flex items-start gap-2 bg-[#1e3a5f]/5 border border-[#1e3a5f]/10 rounded-lg px-3 py-2 text-xs text-[#1e3a5f]">
+              <QuestionMarkCircleIcon className="w-4 h-4 flex-shrink-0 mt-0.5 opacity-70" />
               <span>{data.status_descriptions[data.status]}</span>
             </div>
           )}
@@ -1077,6 +1100,7 @@ export default function ClientPortal() {
             fullStatusList={data.full_status_list}
             currentStatus={data.status}
             nextStatus={data.next_status}
+            statusDescriptions={data.status_descriptions || {}}
           />
         )}
 

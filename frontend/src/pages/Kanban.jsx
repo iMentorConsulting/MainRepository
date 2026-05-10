@@ -145,7 +145,7 @@ function QuickNotifyButton({ caseItem }) {
     <div className="relative" ref={ref}>
       <button
         onClick={e => { e.preventDefault(); e.stopPropagation(); setOpen(o => !o) }}
-        className="p-0.5 rounded hover:bg-blue-50 text-gray-300 hover:text-blue-500 transition-colors"
+        className="p-1 rounded-md bg-amber-50 hover:bg-amber-100 text-amber-500 hover:text-amber-600 transition-colors border border-amber-200"
         title="Γρήγορη Ειδοποίηση"
       >
         <BoltIcon className="w-3.5 h-3.5" />

@@ -326,7 +326,7 @@ function QuickNotifyButtonWV({ caseId, clientName }) {
       <button
         onClick={() => setOpen(o => !o)}
         title="Γρήγορη Ειδοποίηση"
-        className="p-1 rounded hover:bg-blue-50 text-gray-300 hover:text-blue-500 transition-colors"
+        className="p-1 rounded-md bg-amber-50 hover:bg-amber-100 text-amber-500 hover:text-amber-600 transition-colors border border-amber-200"
       >
         <BoltIcon className="w-4 h-4" />
       </button>
