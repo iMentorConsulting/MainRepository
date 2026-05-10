@@ -53,6 +53,7 @@ def get_all_pipeline_configs(db: Session) -> dict:
             "label": PIPELINES.get(row.program_category, {}).get("label", row.program_category),
             "phases": d["phases"],
             "extra_statuses": d["extra_statuses"],
+            "status_descriptions": d["status_descriptions"],
         }
     return result
 
