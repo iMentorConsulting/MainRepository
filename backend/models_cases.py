@@ -163,7 +163,6 @@ class CMMessage(Base):
     is_internal = Column(Boolean, default=True)
     sent_by_client = Column(Boolean, default=False)
     author_name = Column(String(100))
-    sent_by_client = Column(Boolean, default=False)
 
     created_at = Column(DateTime, default=datetime.utcnow)
 
@@ -184,7 +183,6 @@ class CMDocument(Base):
     uploaded_by_client = Column(Boolean, default=False)
     notes = Column(Text)
     file_url = Column(String(500))
-    uploaded_by_client = Column(Boolean, default=False)
 
     created_at = Column(DateTime, default=datetime.utcnow)
 
