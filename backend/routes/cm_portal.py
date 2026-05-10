@@ -1,8 +1,10 @@
 import uuid
 import os
 import shutil
+from datetime import datetime
 import requests as http_requests
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session, joinedload
 from database import get_db
 from models_cases import CMCase, CMCasePendingItem, CMMessage, CMBudgetCategory, CMDocument, CMCaseStatusHistory
@@ -80,6 +82,7 @@ def _build_portal_data(case: CMCase, db: Session) -> dict:
     except Exception:
         status_descriptions = {}
 
+
     pending_items = [
         {"id": pi.id, "item_text": pi.item_text, "comment": pi.comment}
         for pi in (case.pending_items or [])
@@ -109,6 +112,7 @@ def _build_portal_data(case: CMCase, db: Session) -> dict:
         }
         for h in (case.status_history or [])
     ]
+
 
     # Client-uploaded documents
     client_docs = [
@@ -169,12 +173,17 @@ def _build_portal_data(case: CMCase, db: Session) -> dict:
         "total_paid": total_paid,
         "balance": balance,
         "portal_visit_count": case.portal_visit_count or 0,
+        "progress_percent": progress_percent,
+        "status_descriptions": status_descriptions,
+        "status_history": status_history,
+        "client_documents": client_docs,
     }
 
 
 @router.get("/public/{token}")
 def get_portal(token: str, db: Session = Depends(get_db)):
     """Return portal data without incrementing visit count."""
+    from models_cases import CMCaseStatusHistory
     case = (
         db.query(CMCase)
         .options(
@@ -182,6 +191,8 @@ def get_portal(token: str, db: Session = Depends(get_db)):
             joinedload(CMCase.pending_items),
             joinedload(CMCase.messages).joinedload(CMMessage.user),
             joinedload(CMCase.budget_categories),
+            joinedload(CMCase.documents),
+            joinedload(CMCase.status_history),
         )
         .filter(CMCase.share_token == token)
         .first()
@@ -472,3 +483,126 @@ def bulk_activate_notify(body: dict, db: Session = Depends(get_db), current_user
         "activated": sum(1 for r in results if r.get("portal_url")),
         "notified": sum(1 for r in results if r.get("notified")),
     }
+
+
+@router.post("/public/{token}/message")
+def client_send_message(token: str, body: dict, db: Session = Depends(get_db)):
+    """Client sends a message from the portal (no auth required)."""
+    content = (body.get("content") or "").strip()
+    if not content:
+        raise HTTPException(status_code=400, detail="Κενό μήνυμα")
+    case = db.query(CMCase).options(joinedload(CMCase.assigned_agent)).filter(CMCase.share_token == token).first()
+    if not case or not case.portal_active:
+        raise HTTPException(status_code=404, detail="Portal not found")
+
+    msg = CMMessage(
+        case_id=case.id,
+        content=content,
+        is_internal=False,
+        author_name=case.client_name or "Πελάτης",
+        sent_by_client=True,
+    )
+    db.add(msg)
+    db.commit()
+
+    # Notify assigned agent by email
+    agent_email = case.assigned_agent.email if case.assigned_agent else None
+    if agent_email:
+        try:
+            from routes.cm_notifications import _send_email
+            subject = f"Νέο μήνυμα από πελάτη: {case.client_name}"
+            body_text = (
+                f"Ο πελάτης {case.client_name} έστειλε μήνυμα μέσω του portal:\n\n"
+                f"{content}\n\n"
+                f"Υπόθεση: {case.service_type or ''} | {case.program_category or ''}"
+            )
+            _send_email(agent_email, subject, body_text)
+        except Exception:
+            pass
+
+    return {"ok": True}
+
+
+@router.post("/public/{token}/upload")
+async def client_upload_file(
+    token: str,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+):
+    """Client uploads a file from the portal (no auth required)."""
+    case = db.query(CMCase).options(joinedload(CMCase.assigned_agent)).filter(CMCase.share_token == token).first()
+    if not case or not case.portal_active:
+        raise HTTPException(status_code=404, detail="Portal not found")
+
+    upload_dir = os.path.join(UPLOAD_DIR, str(case.id))
+    os.makedirs(upload_dir, exist_ok=True)
+
+    # Sanitize filename
+    safe_name = os.path.basename(file.filename or "upload").replace(" ", "_")
+    timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S_")
+    dest = os.path.join(upload_dir, timestamp + safe_name)
+
+    with open(dest, "wb") as f:
+        shutil.copyfileobj(file.file, f)
+
+    file_url = f"/api/cm/portal/uploads/{case.id}/{timestamp + safe_name}"
+    doc = CMDocument(
+        case_id=case.id,
+        name=file.filename or safe_name,
+        document_type="client_upload",
+        status="pending",
+        uploaded_by=case.client_name or "Πελάτης",
+        file_url=file_url,
+        uploaded_by_client=True,
+    )
+    db.add(doc)
+    db.commit()
+
+    # Notify agent
+    agent_email = case.assigned_agent.email if case.assigned_agent else None
+    if agent_email:
+        try:
+            from routes.cm_notifications import _send_email
+            _send_email(
+                agent_email,
+                f"Νέο αρχείο από πελάτη: {case.client_name}",
+                f"Ο πελάτης {case.client_name} ανέβασε αρχείο: {file.filename}\n\nΥπόθεση: {case.service_type or ''}",
+            )
+        except Exception:
+            pass
+
+    return {"ok": True, "filename": file.filename}
+
+
+@router.get("/uploads/{case_id}/{filename}")
+def serve_portal_upload(case_id: int, filename: str, db: Session = Depends(get_db)):
+    """Serve a portal-uploaded file (accessible via portal token or advisor auth)."""
+    safe_name = os.path.basename(filename)
+    path = os.path.join(UPLOAD_DIR, str(case_id), safe_name)
+    if not os.path.isfile(path):
+        raise HTTPException(status_code=404, detail="Αρχείο δεν βρέθηκε")
+    return FileResponse(path)
+
+
+@router.get("/{case_id}/client-uploads")
+def list_client_uploads(
+    case_id: int,
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """List client-uploaded files for a case (advisor access)."""
+    docs = (
+        db.query(CMDocument)
+        .filter(CMDocument.case_id == case_id, CMDocument.uploaded_by_client == True)
+        .order_by(CMDocument.created_at.desc())
+        .all()
+    )
+    return [
+        {
+            "id": d.id,
+            "name": d.name,
+            "file_url": d.file_url,
+            "created_at": d.created_at.isoformat() if d.created_at else None,
+        }
+        for d in docs
+    ]

@@ -182,7 +182,10 @@ function ProgramEditor({ programKey, config, label, onSaved }) {
 
   const removeExtra = (idx) => { setExtraStatuses(prev => prev.filter((_, i) => i !== idx)); mark() }
 
-  const allStatuses = phases.flatMap(p => p.statuses)
+  const allStatuses = [
+    ...phases.flatMap(p => p.statuses || []),
+    ...extraStatuses,
+  ]
 
   const handleSave = async () => {
     setSaving(true)

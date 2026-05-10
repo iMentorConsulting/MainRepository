@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { createDocument, updateDocument, deleteDocument } from '../api'
-import { TrashIcon, PlusIcon, DocumentIcon } from '@heroicons/react/24/outline'
+import { TrashIcon, PlusIcon, DocumentIcon, ArrowDownTrayIcon } from '@heroicons/react/24/outline'
 import toast from 'react-hot-toast'
 
 const DOC_STATUS_COLORS = {
@@ -77,8 +77,15 @@ export default function DocumentsTab({ caseId, caseData, onRefresh }) {
             </thead>
             <tbody className="divide-y divide-gray-100">
               {docs.map(d => (
-                <tr key={d.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 font-medium text-gray-900">{d.name}</td>
+                <tr key={d.id} className={`hover:bg-gray-50 ${d.uploaded_by_client ? 'bg-green-50/50' : ''}`}>
+                  <td className="px-4 py-3 font-medium text-gray-900">
+                    <div className="flex items-center gap-2">
+                      {d.name}
+                      {d.uploaded_by_client && (
+                        <span className="text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded font-medium">Από Πελάτη</span>
+                      )}
+                    </div>
+                  </td>
                   <td className="px-4 py-3 text-gray-500">{d.document_type || '—'}</td>
                   <td className="px-4 py-3">
                     <select
@@ -91,7 +98,12 @@ export default function DocumentsTab({ caseId, caseData, onRefresh }) {
                   </td>
                   <td className="px-4 py-3 text-gray-500">{d.uploaded_by || '—'}</td>
                   <td className="px-4 py-3 text-gray-400 text-xs">{d.notes || '—'}</td>
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-3 flex items-center gap-2">
+                    {d.file_url && (
+                      <a href={d.file_url} target="_blank" rel="noopener noreferrer" className="text-gray-300 hover:text-blue-500">
+                        <ArrowDownTrayIcon className="w-4 h-4" />
+                      </a>
+                    )}
                     <button onClick={() => handleDelete(d.id)} className="text-gray-300 hover:text-red-500"><TrashIcon className="w-4 h-4" /></button>
                   </td>
                 </tr>

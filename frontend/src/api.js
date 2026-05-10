@@ -146,6 +146,18 @@ export const submitPortalNps = (token, score) =>
   axios.post(`${BASE}/api/cm/portal/public/${token}/nps`, { score }).then(r => r.data)
 export const recordPortalReviewClick = (token) =>
   axios.post(`${BASE}/api/cm/portal/public/${token}/review-click`).then(r => r.data)
+export const submitPortalMessage = (token, content) =>
+  axios.post(`${BASE}/api/cm/portal/public/${token}/message`, { content }).then(r => r.data)
+export const uploadPortalFile = (token, file) => {
+  const fd = new FormData()
+  fd.append('file', file)
+  return axios.post(`${BASE}/api/cm/portal/public/${token}/upload`, fd).then(r => r.data)
+}
+
+// Analytics
+export const getAnalyticsOverview = () => api.get('/api/cm/analytics/overview').then(r => r.data)
+export const getAnalyticsMilestones = (days = 90) => api.get(`/api/cm/analytics/milestones?days=${days}`).then(r => r.data)
+export const getAnalyticsCalendar = () => api.get('/api/cm/analytics/calendar').then(r => r.data)
 
 // Work Lists
 export const getWorkLists = () => api.get('/api/cm/worklists').then(r => r.data)

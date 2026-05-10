@@ -120,7 +120,26 @@ function KpiCard({ icon: Icon, label, value, color = 'blue' }) {
 
 // ── Vertical Status Timeline ──────────────────────────────────────────────────
 
-function StatusTimeline({ fullStatusList, currentStatus, nextStatus }) {
+function StatusTooltip({ description }) {
+  const [show, setShow] = useState(false)
+  if (!description) return null
+  return (
+    <div className="relative flex-shrink-0">
+      <button
+        onClick={e => { e.stopPropagation(); setShow(s => !s) }}
+        className="w-4 h-4 rounded-full bg-[#1e3a5f]/15 text-[#1e3a5f] flex items-center justify-center text-[9px] font-bold hover:bg-[#1e3a5f]/25"
+      >?</button>
+      {show && (
+        <div className="absolute left-full top-0 ml-2 z-50 w-56 bg-[#1e3a5f] text-white text-xs rounded-lg px-3 py-2 shadow-xl">
+          {description}
+          <button onClick={() => setShow(false)} className="absolute top-1 right-1.5 text-white/60 hover:text-white text-xs">✕</button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function StatusTimeline({ fullStatusList, currentStatus, nextStatus, statusDescriptions = {} }) {
   const currentIdx = fullStatusList.findIndex(s => s.status === currentStatus)
 
   // Group flat list into phase buckets preserving order
@@ -176,6 +195,7 @@ function StatusTimeline({ fullStatusList, currentStatus, nextStatus }) {
                       }`}>
                         {item.status}
                       </span>
+                      <StatusTooltip description={statusDescriptions[item.status]} />
                       {isActive && (
                         <span className={`flex-shrink-0 text-xs font-bold px-2 py-0.5 rounded-full border ${colors.badge}`}>
                           ΤΩΡΑ
@@ -998,9 +1018,10 @@ export default function ClientPortal() {
             )}
           </div>
           {data.status_descriptions?.[data.status] && (
-            <p className="mt-2 text-xs text-gray-500 bg-blue-50 rounded-lg px-3 py-2 border border-blue-100">
-              ℹ️ {data.status_descriptions[data.status]}
-            </p>
+            <div className="mt-2 flex items-start gap-2 bg-[#1e3a5f]/5 border border-[#1e3a5f]/10 rounded-lg px-3 py-2 text-xs text-[#1e3a5f]">
+              <span className="flex-shrink-0 w-4 h-4 rounded-full bg-[#1e3a5f]/10 flex items-center justify-center font-bold text-[10px] mt-0.5">?</span>
+              <span>{data.status_descriptions[data.status]}</span>
+            </div>
           )}
           {/* Progress bar */}
           {data.progress_percent > 0 && (
@@ -1047,6 +1068,7 @@ export default function ClientPortal() {
             fullStatusList={data.full_status_list}
             currentStatus={data.status}
             nextStatus={data.next_status}
+            statusDescriptions={data.status_descriptions || {}}
           />
         )}
 

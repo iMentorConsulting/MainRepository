@@ -69,6 +69,7 @@ const TABS = [
   'Εκκρεμότητες',
   'Tasks',
   'Μηνύματα',
+  'Έγγραφα',
   'Προϋπολογισμός',
   'Portal',
 ]
@@ -1108,6 +1109,14 @@ export default function CaseDetail() {
                   {caseData.pending_count}
                 </span>
               )}
+              {tab === 'Έγγραφα' && (() => {
+                const clientDocs = (caseData?.documents || []).filter(d => d.uploaded_by_client)
+                return clientDocs.length > 0 ? (
+                  <span className="flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-green-500 px-1 text-[10px] font-bold text-white">
+                    {clientDocs.length}
+                  </span>
+                ) : null
+              })()}
             </button>
           ))}
         </nav>
@@ -1133,6 +1142,7 @@ export default function CaseDetail() {
         )}
 
         {activeTab === 'Μηνύματα' && <MessagesTab caseId={id} caseData={caseData} onRefresh={load} />}
+        {activeTab === 'Έγγραφα' && <DocumentsTab caseId={id} caseData={caseData} onRefresh={load} />}
         {activeTab === 'Προϋπολογισμός' && <BudgetTab caseId={id} caseData={caseData} onRefresh={load} />}
         {activeTab === 'Portal' && <PortalTab caseData={caseData} onRefresh={load} />}
       </div>

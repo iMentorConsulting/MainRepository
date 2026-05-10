@@ -53,9 +53,9 @@ try:
             )
         """))
         _conn.execute(_text("ALTER TABLE cm_cases ADD COLUMN IF NOT EXISTS portal_last_visit_at TIMESTAMP"))
+        _conn.execute(_text("ALTER TABLE cm_pipeline_configs ADD COLUMN IF NOT EXISTS status_descriptions_json TEXT DEFAULT '{}'"))
         _conn.execute(_text("ALTER TABLE cm_messages ADD COLUMN IF NOT EXISTS sent_by_client BOOLEAN DEFAULT FALSE"))
         _conn.execute(_text("ALTER TABLE cm_documents ADD COLUMN IF NOT EXISTS uploaded_by_client BOOLEAN DEFAULT FALSE"))
-        _conn.execute(_text("ALTER TABLE cm_pipeline_configs ADD COLUMN IF NOT EXISTS status_descriptions_json TEXT DEFAULT '{}'"))
         _conn.execute(_text("""
             CREATE TABLE IF NOT EXISTS cm_case_status_history (
                 id SERIAL PRIMARY KEY,
@@ -71,6 +71,23 @@ try:
         _conn.commit()
 except Exception:
     pass
+
+# Backfill status history: seed one entry per case that has no history yet
+try:
+    with engine.connect() as _conn:
+        _result = _conn.execute(_text("""
+            INSERT INTO cm_case_status_history (case_id, from_status, to_status, changed_at, changed_by)
+            SELECT c.id, NULL, c.status, COALESCE(c.status_changed_at, c.created_at, NOW()), 'System (backfill)'
+            FROM cm_cases c
+            WHERE NOT EXISTS (
+                SELECT 1 FROM cm_case_status_history h WHERE h.case_id = c.id
+            )
+            AND c.status IS NOT NULL
+        """))
+        _conn.commit()
+        print(f"[migration] Backfilled status history for cases")
+except Exception as _e:
+    print(f"[migration] Status history backfill skipped: {_e}")
 
 from pipelines import get_all_statuses_for_program as _get_statuses
 
