@@ -353,13 +353,7 @@ export default function ClientPreview() {
         </div>
       </div>
 
-      {publicStats && publicStats.total_cases > 0 && (
-        <div className="text-center py-2 bg-white/5 border-b border-white/10 text-blue-300 text-xs">
-          Έχουμε αναλύσει <span className="text-white font-bold">{publicStats.total_cases}</span> υποθέσεις •{' '}
-          εκτιμώμενη διαγραφή{' '}
-          <span className="text-orange-300 font-bold">{fmt(publicStats.total_estimated_writeoff)}</span>
-        </div>
-      )}
+      {/* counter bar hidden */}
 
       {/* HERO */}
       <div className="px-4 pt-10 pb-8 text-center">

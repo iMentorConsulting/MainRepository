@@ -21,7 +21,7 @@ const VIBER_MSGS = [
   { type: 'final',     label: 'Τελευταία' },
 ]
 
-const IBANS_TEXT = `\n\n🏦 *Τραπεζικοί Λογαριασμοί:*\nΠειραιώς: GR45 0171 4330 0064 3316 4381 388\nEurobank: GR58 0260 1680 0000 6020 1330 648\nAlpha Bank: GR24 0140 7750 7750 0233 0002 138\nΔικαιούχος: *I MENTOR IKE*`
+const IBANS_TEXT = `\n\n🏦 *Τραπεζικοί Λογαριασμοί:*\nΠειραιώς: GR4501714330006433164381388\nEurobank: GR5802601680000060201330648\nAlpha Bank: GR2401407750775002330002138\nΔικαιούχος: *I MENTOR IKE*`
 
 function buildOfferBlock(offer) {
   if (!offer || (!offer.application_fee && !offer.success_fee)) return ''
