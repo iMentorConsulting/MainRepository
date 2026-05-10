@@ -463,12 +463,30 @@ function OverviewTab({ caseData, users, onSaved, livePipelines }) {
           <div className="sm:col-span-2">
             <FormField label="Σύνδεσμος Φακέλου Drive">
               <div className="flex gap-2 items-center">
-                <input className="input flex-1" value={form.drive_folder_url} onChange={set('drive_folder_url')} placeholder="https://drive.google.com/..." />
+                <input className="input flex-1" value={form.drive_folder_url} onChange={set('drive_folder_url')} placeholder="https://drive.google.com/... ή G:\Το Drive μου\..." />
                 {form.drive_folder_url && (
-                  <a href={form.drive_folder_url} target="_blank" rel="noopener noreferrer"
-                    className="shrink-0 text-blue-600 hover:text-blue-800 text-xs underline">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const raw = form.drive_folder_url.trim()
+                      // Web URL — open directly
+                      if (/^https?:\/\//i.test(raw)) { window.open(raw, '_blank'); return }
+                      // Windows local path — convert to file:// URL
+                      const normalized = raw.replace(/\\/g, '/')
+                      const fileUrl = /^[a-zA-Z]:\//.test(normalized)
+                        ? 'file:///' + normalized.split('/').map(encodeURIComponent).join('/')
+                        : raw
+                      const w = window.open(fileUrl, '_blank')
+                      if (!w) {
+                        navigator.clipboard.writeText(raw).then(() =>
+                          toast.success('Το path αντιγράφηκε — επικολλήστε το στον Explorer')
+                        )
+                      }
+                    }}
+                    className="shrink-0 text-blue-600 hover:text-blue-800 text-xs underline"
+                  >
                     Άνοιγμα ↗
-                  </a>
+                  </button>
                 )}
               </div>
             </FormField>

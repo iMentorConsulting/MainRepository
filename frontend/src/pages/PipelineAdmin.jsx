@@ -90,7 +90,22 @@ function PhaseCard({ phase, phaseIdx, onUpdate, onDelete, onMoveUp, onMoveDown, 
                   <ArrowDownIcon className="w-3 h-3" />
                 </button>
               </div>
-              <span className="flex-1 text-sm text-gray-700 font-medium">{s}</span>
+              <input
+                className="flex-1 text-sm text-gray-700 font-medium bg-transparent border border-transparent rounded px-1 py-0.5 focus:outline-none focus:border-gray-300 focus:bg-gray-50 uppercase"
+                value={s}
+                onChange={e => {
+                  const arr = [...phase.statuses]
+                  arr[idx] = e.target.value.toUpperCase()
+                  onUpdate({ ...phase, statuses: arr })
+                }}
+                onBlur={e => {
+                  const val = e.target.value.trim().toUpperCase()
+                  if (!val) { removeStatus(idx); return }
+                  const arr = [...phase.statuses]
+                  arr[idx] = val
+                  onUpdate({ ...phase, statuses: arr })
+                }}
+              />
               <button onClick={() => removeStatus(idx)}
                 className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-600 transition-opacity">
                 <TrashIcon className="w-4 h-4" />
