@@ -5,11 +5,13 @@ import {
   ChartBarIcon,
   ArrowRightOnRectangleIcon,
   RocketLaunchIcon,
+  BoltIcon,
 } from '@heroicons/react/24/outline'
 
 const nav = [
   { to: '/', label: 'Υποθέσεις', Icon: HomeIcon, exact: true },
   { to: '/cases/new', label: 'Νέα Υπόθεση', Icon: PlusCircleIcon },
+  { to: '/quick-quote', label: 'Γρήγορη Ανάλυση', Icon: BoltIcon },
   { to: '/pipeline', label: 'Sales Pipeline', Icon: RocketLaunchIcon },
   { to: '/statistics', label: 'Στατιστικά', Icon: ChartBarIcon },
 ]

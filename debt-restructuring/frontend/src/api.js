@@ -28,5 +28,7 @@ export const getPublicCase = (token, vat, notrack = false) => {
   if (notrack) params.notrack = '1'
   return api.get(`/public/case/${token}`, Object.keys(params).length ? { params } : {})
 }
+export const markPortalInterested = (token) => api.post(`/public/case/${token}/interested`)
+export const getPublicStats = () => api.get('/public/stats')
 
 export default api

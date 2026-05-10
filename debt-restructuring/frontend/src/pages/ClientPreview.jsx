@@ -5,6 +5,28 @@ import { el } from 'date-fns/locale'
 import * as api from '../api'
 import { fmt, creditorDisplayName } from '../utils/calculations'
 
+function Tooltip({ children, tip }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <span className="relative inline-flex items-center gap-0.5">
+      {children}
+      <button
+        onClick={() => setOpen(!open)}
+        className="text-blue-400 hover:text-blue-200 text-xs inline-flex items-center justify-center w-4 h-4 rounded-full border border-blue-400/50 hover:border-blue-200 transition-colors shrink-0 font-bold"
+      >?</button>
+      {open && (
+        <>
+          <span className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <span className="absolute z-50 bottom-full left-0 mb-2 w-52 bg-gray-900 text-white text-xs rounded-xl p-3 shadow-2xl leading-relaxed border border-gray-700">
+            {tip}
+            <button onClick={() => setOpen(false)} className="absolute top-1.5 right-2 text-gray-400 hover:text-white font-bold">×</button>
+          </span>
+        </>
+      )}
+    </span>
+  )
+}
+
 const STATUS_LABELS = {
   draft: 'Σε Επεξεργασία', submitted: 'Υποβλήθηκε',
   in_review: 'Υπό Αξιολόγηση', completed: 'Ολοκληρώθηκε', cancelled: 'Ακυρώθηκε',
@@ -201,6 +223,13 @@ export default function ClientPreview() {
   const [vatRequired, setVatRequired] = useState(false)
   const [vatError, setVatError] = useState(null)
   const [vatLoading, setVatLoading] = useState(false)
+  const [interested, setInterested] = useState(() => localStorage.getItem(`interested-${token}`) === '1')
+  const [interestedLoading, setInterestedLoading] = useState(false)
+  const [publicStats, setPublicStats] = useState(null)
+
+  useEffect(() => {
+    api.getPublicStats().then(r => setPublicStats(r.data)).catch(() => {})
+  }, [])
 
   useEffect(() => {
     api.getPublicCase(token, null, notrack)
@@ -213,6 +242,21 @@ export default function ClientPreview() {
       })
       .finally(() => setLoading(false))
   }, [token])
+
+  const handleInterested = async () => {
+    setInterestedLoading(true)
+    try {
+      await api.markPortalInterested(token)
+      localStorage.setItem(`interested-${token}`, '1')
+      setInterested(true)
+    } catch {
+      // ignore — still mark locally
+      localStorage.setItem(`interested-${token}`, '1')
+      setInterested(true)
+    } finally {
+      setInterestedLoading(false)
+    }
+  }
 
   const handleVat = (vat) => {
     setVatError(null)
@@ -290,6 +334,14 @@ export default function ClientPreview() {
         </div>
       </div>
 
+      {publicStats && publicStats.total_cases > 0 && (
+        <div className="text-center py-2 bg-white/5 border-b border-white/10 text-blue-300 text-xs">
+          Έχουμε αναλύσει <span className="text-white font-bold">{publicStats.total_cases}</span> υποθέσεις •{' '}
+          εκτιμώμενη διαγραφή{' '}
+          <span className="text-orange-300 font-bold">{fmt(publicStats.total_estimated_writeoff)}</span>
+        </div>
+      )}
+
       {/* HERO */}
       <div className="px-4 pt-10 pb-8 text-center">
         <div className="inline-block bg-white/10 text-blue-200 text-xs font-bold px-3 py-1 rounded-full mb-4 uppercase tracking-widest">
@@ -333,6 +385,45 @@ export default function ClientPreview() {
             <KpiBlock label="Εκτ. Διαγραφή" value={hasConservative ? rng(sumWrC, est.sumWr) : fmt(est.sumWr)} sub={writeoffPct > 0 ? `${writeoffPct}% του συνόλου` : null} accent="text-orange-300" />
             <KpiBlock label="Εναπομένουσα" value={hasConservative ? rng(totalRemainingC, est.totalRemaining) : fmt(est.totalRemaining)} accent="text-blue-200" />
             <KpiBlock label="Μηνιαία Δόση" value={hasConservative ? rng(totalMonthlyPayC, est.totalMonthlyPay) : fmt(est.totalMonthlyPay)} sub={ratio > 0 ? `${ratio}% εισοδήματος` : null} accent="text-green-300" />
+          </div>
+        )}
+
+        {est.sumDebt > 0 && est.totalRemaining > 0 && (
+          <div className="max-w-2xl mx-auto mt-6 bg-white/10 backdrop-blur-sm border border-white/20 rounded-2xl px-6 py-5 text-center">
+            <div className="text-blue-200 text-xs font-semibold uppercase tracking-widest mb-2">Με απλά λόγια</div>
+            <p className="text-white text-lg md:text-xl font-bold leading-relaxed">
+              Από τα <span className="text-orange-300 font-black">{fmt(est.sumDebt)}</span> που χρωστάτε,<br />
+              εκτιμάται να πληρώσετε μόνο{' '}
+              <span className="text-green-300 font-black">{fmt(est.totalRemaining)}</span>
+              {est.totalMonthlyPay > 0 && (
+                <span className="block text-blue-200 text-base font-normal mt-1">
+                  σε δόσεις <span className="text-green-300 font-semibold">{fmt(est.totalMonthlyPay)}</span>/μήνα
+                </span>
+              )}
+            </p>
+          </div>
+        )}
+
+        {!hasActuals && (
+          <div className="max-w-md mx-auto mt-5 px-4 pb-2">
+            {!interested ? (
+              <>
+                <button
+                  onClick={handleInterested}
+                  disabled={interestedLoading}
+                  className="w-full bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-400 hover:to-emerald-500 text-white font-black text-xl py-5 px-8 rounded-2xl shadow-2xl shadow-green-900/40 transition-all transform hover:scale-[1.02] active:scale-[0.98] disabled:opacity-60 tracking-wide"
+                >
+                  {interestedLoading ? '⏳ Αποστολή…' : '✅ Θέλω να Προχωρήσω'}
+                </button>
+                <p className="text-blue-300 text-xs text-center mt-2">Ένας σύμβουλός μας θα επικοινωνήσει μαζί σας άμεσα</p>
+              </>
+            ) : (
+              <div className="bg-green-500/20 border border-green-400/40 rounded-2xl p-5 text-center">
+                <div className="text-3xl mb-2">🎉</div>
+                <div className="text-green-300 font-black text-lg">Λάβαμε το αίτημά σας!</div>
+                <div className="text-green-200 text-sm mt-1">Ένας σύμβουλός μας θα επικοινωνήσει μαζί σας σύντομα.</div>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -435,16 +526,16 @@ export default function ClientPreview() {
                     <tr className="border-b-2 border-blue-100">
                       <th className="th text-left">Πιστωτής</th>
                       <th className="th">Αρχική</th>
-                      <th className="th">Εκτ. Διαγραφή</th>
-                      <th className="th">Εναπομένουσα</th>
-                      <th className="th">Δόσεις</th>
+                      <th className="th"><Tooltip tip="Το ποσό που δεν θα χρειαστεί να πληρώσετε — διαγράφεται βάσει του νόμου">Εκτ. Διαγραφή</Tooltip></th>
+                      <th className="th"><Tooltip tip="Το ποσό που εναπομένει μετά τη διαγραφή και θα ρυθμιστεί σε μηνιαίες δόσεις">Εναπομένουσα</Tooltip></th>
+                      <th className="th"><Tooltip tip="Ο αριθμός μηνιαίων δόσεων για τον συγκεκριμένο πιστωτή">Δόσεις</Tooltip></th>
                       {hasStepUp ? (
                         <>
                           <th className="th">Δόση Έτη 1–3</th>
                           <th className="th">Δόση Έτη 4+</th>
                         </>
                       ) : (
-                        <th className="th">Μηνιαία</th>
+                        <th className="th"><Tooltip tip="Το ποσό που θα πληρώνετε κάθε μήνα στον συγκεκριμένο πιστωτή">Μηνιαία</Tooltip></th>
                       )}
                     </tr>
                   </thead>
@@ -802,13 +893,50 @@ export default function ClientPreview() {
           </div>
         </div>}
 
+        {/* Referral card */}
+        <div className="bg-white rounded-2xl shadow-lg p-5 text-center">
+          <div className="text-3xl mb-2">👥</div>
+          <h3 className="font-black text-gray-800 text-base mb-1">Γνωρίζετε κάποιον που έχει πρόβλημα χρεών;</h3>
+          <p className="text-sm text-gray-500 mb-4">
+            Μοιραστείτε αυτό το εργαλείο. Η αρχική ανάλυση είναι <b>δωρεάν</b> και <b>χωρίς δέσμευση</b>.
+          </p>
+          <div className="flex gap-3 justify-center">
+            <a
+              href={`viber://forward?text=${encodeURIComponent('Βρήκα ένα εργαλείο που κάνει δωρεάν ανάλυση Εξωδικαστικού ρύθμισης οφειλών. Αξίζει να το δεις! i-Mentor Consulting ☎ 2810 363007 🌐 www.i-mentor.gr')}`}
+              className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white font-bold py-2.5 px-5 rounded-xl text-sm transition-all"
+            >
+              💬 Viber
+            </a>
+            <a
+              href={`https://wa.me/?text=${encodeURIComponent('Βρήκα ένα εργαλείο που κάνει δωρεάν ανάλυση Εξωδικαστικού ρύθμισης οφειλών. Αξίζει να το δεις! i-Mentor Consulting ☎ 2810 363007 🌐 www.i-mentor.gr')}`}
+              target="_blank" rel="noreferrer"
+              className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white font-bold py-2.5 px-5 rounded-xl text-sm transition-all"
+            >
+              💬 WhatsApp
+            </a>
+          </div>
+        </div>
+
         {/* NPS widget */}
         <NpsWidget clientName={data.client_name} debtorType={data.debtor_type} />
 
       </div>
 
+      {/* Mobile sticky CTA */}
+      {!interested && !hasActuals && (
+        <div className="md:hidden fixed bottom-0 inset-x-0 z-30 p-3 bg-gradient-to-t from-blue-950 to-blue-950/0 pt-8">
+          <button
+            onClick={handleInterested}
+            disabled={interestedLoading}
+            className="w-full bg-green-500 hover:bg-green-600 text-white font-black py-4 rounded-2xl text-base shadow-xl transition-all disabled:opacity-60"
+          >
+            {interestedLoading ? '⏳…' : '✅ Θέλω να Προχωρήσω'}
+          </button>
+        </div>
+      )}
+
       {/* Footer */}
-      <div className="text-center py-8 px-4 border-t border-white/10">
+      <div className="text-center py-8 px-4 border-t border-white/10 mb-16 md:mb-0">
         <img src="https://i-mentor.gr/wp-content/uploads/2025/11/transparent-logo.png" alt="i-Mentor Consulting" className="h-10 object-contain mx-auto mb-3 opacity-80" />
         <p className="text-blue-400 text-xs">© i-Mentor Consulting — Εμπιστευτικό έγγραφο, αποκλειστικά για τον αποδέκτη</p>
         <p className="mt-1 text-blue-500 text-xs">Ανάλυση: {data.employee} • {data.created_at ? format(new Date(data.created_at), 'dd/MM/yyyy') : ''}</p>

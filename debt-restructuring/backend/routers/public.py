@@ -57,3 +57,40 @@ def get_public_case(token: str, request: Request, vat: str = Query(default=None)
         "created_at": case.created_at.isoformat() if case.created_at else None,
         "completed_at": case.completed_at.isoformat() if case.completed_at else None,
     }
+
+
+STAGE_ORDER = ['Νέα Ανάλυση', 'Εστάλη Σύνδεσμος', 'Θετική Ανταπόκριση', 'Σε Διαπραγμάτευση', 'Έκλεισε', 'Δεν Ενδιαφέρεται']
+
+@router.post("/case/{token}/interested")
+def mark_interested(token: str, db: Session = Depends(get_db)):
+    """Client clicked 'I want to proceed' in the portal."""
+    case = db.query(Case).filter(Case.share_token == token).first()
+    if not case:
+        raise HTTPException(status_code=404, detail="not_found")
+    current = case.contact_stage or 'Νέα Ανάλυση'
+    try:
+        current_idx = STAGE_ORDER.index(current)
+    except ValueError:
+        current_idx = 0
+    interested_idx = STAGE_ORDER.index('Θετική Ανταπόκριση')
+    if current_idx < interested_idx:
+        case.contact_stage = 'Θετική Ανταπόκριση'
+        case.last_contacted_at = datetime.utcnow()
+        case.updated_at = datetime.utcnow()
+        db.commit()
+    return {"ok": True, "contact_stage": case.contact_stage}
+
+@router.get("/stats")
+def get_public_stats(db: Session = Depends(get_db)):
+    """Aggregate stats shown in client portal (no PII)."""
+    cases = db.query(Case).all()
+    total = len(cases)
+    total_debt = sum(float((c.estimates or {}).get("sumDebt") or 0) for c in cases)
+    total_writeoff = sum(float((c.estimates or {}).get("sumWr") or 0) for c in cases)
+    completed = sum(1 for c in cases if c.actual_results)
+    return {
+        "total_cases": total,
+        "total_debt_analyzed": round(total_debt),
+        "total_estimated_writeoff": round(total_writeoff),
+        "completed_cases": completed,
+    }

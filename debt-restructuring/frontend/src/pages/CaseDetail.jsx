@@ -358,6 +358,77 @@ function EmailOptionsModal({ caseData, onClose }) {
   )
 }
 
+const OBJECTIONS = [
+  {
+    q: '"Θα το σκεφτώ" / "Δεν είμαι έτοιμος"',
+    a: 'Καταλαβαίνω απόλυτα. Η ανάλυση που έχετε μπροστά σας ισχύει τώρα — οι συνθήκες αλλάζουν. Τι σας κρατάει πίσω; Μήπως υπάρχει κάτι που δεν καταλαβαίνετε πλήρως και να το εξηγήσω;',
+  },
+  {
+    q: '"Δεν έχω χρόνο για τη διαδικασία"',
+    a: 'Αναλαμβάνουμε εμείς τα πάντα — αίτηση, έγγραφα, επικοινωνία με πιστωτές. Από εσάς χρειαζόμαστε ~2 ώρες συνολικά για τη συλλογή στοιχείων. Το υπόλοιπο είναι δική μας δουλειά.',
+  },
+  {
+    q: '"Πόσο θα κοστίσει;"',
+    a: 'Η αρχική ανάλυση είναι δωρεάν. Η αμοιβή μας είναι [X€] για την υποβολή + success fee μόνο αν αποδεχτούν οι πιστωτές. Δηλαδή αν δεν κερδίσετε τίποτα, δεν πληρώνετε τίποτα για αποτέλεσμα.',
+  },
+  {
+    q: '"Έχω ακούσει ότι δεν λειτουργεί ο εξωδικαστικός"',
+    a: 'Εξαρτάται ποιον ρώτησε κανείς. Σε τράπεζες και funds που έχουν κίνητρο να διακανονίσουν, τα ποσοστά αποδοχής είναι υψηλά. Αντίθετα το Δημόσιο (ΑΑΔΕ/ΕΦΚΑ) συχνά λαμβάνει αυτόματα τεκμαιρόμενη συναίνεση βάσει νόμου. Κοιτάξτε τα νούμερα στην ανάλυσή σας — αυτά βγαίνουν από τον αλγόριθμο του νόμου.',
+  },
+  {
+    q: '"Ήδη πληρώνω ρύθμιση στην εφορία"',
+    a: 'Η υπάρχουσα ρύθμιση δεν εμποδίζει τον εξωδικαστικό — μπορεί να ενσωματωθεί ή να αντικατασταθεί από ευνοϊκότερη ρύθμιση με μεγαλύτερη διάρκεια και χαμηλότερη δόση.',
+  },
+  {
+    q: '"Φοβάμαι να ανοίξω τα χαρτιά μου"',
+    a: 'Ακριβώς γι\' αυτό υπάρχουμε εμείς. Ό,τι συζητάμε είναι απόλυτα εμπιστευτικό. Η κατάθεση αίτησης δεν σημαίνει κατάσχεση — αντίθετα, η μη αντιμετώπιση οδηγεί σε κατάσχεση.',
+  },
+  {
+    q: '"Τι γίνεται αν δεν αποδεχτούν;"',
+    a: 'Το χειρότερο σενάριο είναι η απόρριψη — επιστρέφετε στην ίδια κατάσταση που είστε σήμερα, χωρίς επιβάρυνση. Στο καλύτερο, ρυθμίζετε [X]€ σε δόσεις [Y]€/μήνα. Το downside risk είναι μηδενικό.',
+  },
+  {
+    q: '"Έχω ακούσει για άλλον σύμβουλο φθηνότερα"',
+    a: 'Κατανοητό. Η διαφορά μας: ανεβάζουμε τεκμηριωμένο σχέδιο αναδιάρθρωσης στους πιστωτές — κάτι που κάνουν ελάχιστοι. Σε υποθέσεις με funds και τράπεζες αυτό έχει μετρήσιμη διαφορά στο τελικό αποτέλεσμα.',
+  },
+]
+
+function ObjectionTemplates() {
+  const [open, setOpen] = useState(false)
+  const [expanded, setExpanded] = useState(null)
+  return (
+    <div className="card mb-5">
+      <button
+        onClick={() => setOpen(v => !v)}
+        className="flex items-center justify-between w-full text-left"
+      >
+        <span className="text-sm font-bold text-gray-700">💬 Σενάρια Αντίρρησης Πελάτη</span>
+        <span className="text-gray-400 text-lg leading-none">{open ? '▲' : '▼'}</span>
+      </button>
+      {open && (
+        <div className="mt-3 space-y-2">
+          {OBJECTIONS.map((o, i) => (
+            <div key={i} className="border border-gray-100 rounded-xl overflow-hidden">
+              <button
+                onClick={() => setExpanded(expanded === i ? null : i)}
+                className="w-full text-left px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 flex items-center justify-between gap-2"
+              >
+                <span>❓ {o.q}</span>
+                <span className="text-gray-400 shrink-0">{expanded === i ? '▲' : '▼'}</span>
+              </button>
+              {expanded === i && (
+                <div className="px-4 pb-3 pt-1 text-sm text-gray-700 bg-blue-50 border-t border-blue-100 leading-relaxed">
+                  💡 {o.a}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function CaseDetail({ currentEmployee }) {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -667,6 +738,9 @@ export default function CaseDetail({ currentEmployee }) {
           ))}
         </div>
       </div>
+
+      {/* Objection handling templates */}
+      <ObjectionTemplates />
 
       {/* Client info */}
       <div className="card mb-5 grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">

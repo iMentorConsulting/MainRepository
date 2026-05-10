@@ -250,6 +250,12 @@ export default function SalesPipeline() {
     return { active: active.length, followUp: followUp.length, stale: stale.length, hot: hot.length, closed: closed.length, convRate, totalDebt }
   }, [cases])
 
+  // ── Cases with portal visits (client has opened the link) ────────────────
+  const portalActive = useMemo(() =>
+    cases
+      .filter(c => c.portal_visit_count > 0 && !TERMINAL.has(c.contact_stage || 'Νέα Ανάλυση'))
+      .sort((a, b) => (b.portal_visit_count || 0) - (a.portal_visit_count || 0)), [cases])
+
   // ── Funnel distribution ───────────────────────────────────────────────────
   const total = cases.length || 1
   const stageCounts = useMemo(() =>
@@ -450,6 +456,40 @@ export default function SalesPipeline() {
                 })}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* ── Portal visit notification ───────────────────────────────────── */}
+      {portalActive.length > 0 && (
+        <div className="card mb-6 bg-indigo-50 border border-indigo-200">
+          <div className="flex items-center gap-2 mb-3">
+            <span className="text-indigo-600 text-lg">👁</span>
+            <h2 className="font-bold text-indigo-800 text-sm">Πελάτες που άνοιξαν το portal</h2>
+            <span className="bg-indigo-100 text-indigo-700 text-xs font-bold px-2 py-0.5 rounded-full">{portalActive.length}</span>
+            <span className="text-xs text-indigo-400 ml-auto">ιδανική στιγμή για κλήση</span>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            {portalActive.map(c => {
+              const stage = STAGE_MAP[c.contact_stage || 'Νέα Ανάλυση'] || STAGE_CONFIG[0]
+              return (
+                <div
+                  key={c.id}
+                  className="flex items-center justify-between bg-white rounded-xl px-4 py-2.5 cursor-pointer hover:shadow-sm transition-shadow"
+                  onClick={() => navigate(`/cases/${c.id}`)}
+                >
+                  <div>
+                    <span className="font-semibold text-gray-800 text-sm">{c.client_name}</span>
+                    {c.client_phone && <span className="text-xs text-gray-400 ml-2">{c.client_phone}</span>}
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${stage.cls}`}>{stage.icon} {c.contact_stage || 'Νέα Ανάλυση'}</span>
+                    <span className="text-xs font-semibold text-indigo-600">👁 {c.portal_visit_count} φορές</span>
+                    <span className={`text-xs font-bold px-1.5 py-0.5 rounded-full ${EMPLOYEE_COLORS[c.employee] || 'bg-gray-100 text-gray-600'}`}>{c.employee}</span>
+                  </div>
+                </div>
+              )
+            })}
           </div>
         </div>
       )}
