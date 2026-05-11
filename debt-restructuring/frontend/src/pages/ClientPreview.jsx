@@ -429,21 +429,35 @@ export default function ClientPreview() {
           </div>
         )}
 
-        {est.sumDebt > 0 && est.totalRemaining > 0 && (
-          <div className="max-w-2xl mx-auto mt-6 bg-white/10 backdrop-blur-sm border border-white/20 rounded-2xl px-6 py-5 text-center">
-            <div className="text-blue-200 text-xs font-semibold uppercase tracking-widest mb-2">Με απλά λόγια</div>
-            <p className="text-white text-lg md:text-xl font-bold leading-relaxed">
-              Από τα <span className="text-orange-300 font-black">{fmt(est.sumDebt)}</span> που χρωστάτε,<br />
-              εκτιμάται να πληρώσετε μόνο{' '}
-              <span className="text-green-300 font-black">{fmt(est.totalRemaining)}</span>
-              {est.totalMonthlyPay > 0 && (
-                <span className="block text-blue-200 text-base font-normal mt-1">
-                  σε δόσεις <span className="text-green-300 font-semibold">{fmt(est.totalMonthlyPay)}</span>/μήνα
-                </span>
-              )}
-            </p>
-          </div>
-        )}
+        {est.sumDebt > 0 && est.totalRemaining > 0 && (() => {
+          const wrPct = est.sumDebt > 0 ? (est.sumWr || 0) / est.sumDebt : 0
+          const bigWriteoff = wrPct >= 0.20  // ≥20% writeoff → use "μόνο"
+          return (
+            <div className="max-w-2xl mx-auto mt-6 bg-white/10 backdrop-blur-sm border border-white/20 rounded-2xl px-6 py-5 text-center">
+              <div className="text-blue-200 text-xs font-semibold uppercase tracking-widest mb-2">Με απλά λόγια</div>
+              <p className="text-white text-lg md:text-xl font-bold leading-relaxed">
+                {bigWriteoff ? (
+                  <>
+                    Από τα <span className="text-orange-300 font-black">{fmt(est.sumDebt)}</span> που χρωστάτε,<br />
+                    εκτιμάται να πληρώσετε μόνο{' '}
+                    <span className="text-green-300 font-black">{fmt(est.totalRemaining)}</span>
+                  </>
+                ) : (
+                  <>
+                    Από τα <span className="text-orange-300 font-black">{fmt(est.sumDebt)}</span> που χρωστάτε,<br />
+                    εκτιμάται ρύθμιση{' '}
+                    <span className="text-green-300 font-black">{fmt(est.totalRemaining)}</span>
+                  </>
+                )}
+                {est.totalMonthlyPay > 0 && (
+                  <span className="block text-blue-200 text-base font-normal mt-1">
+                    σε δόσεις <span className="text-green-300 font-semibold">{fmt(est.totalMonthlyPay)}</span>/μήνα
+                  </span>
+                )}
+              </p>
+            </div>
+          )
+        })()}
 
         {!hasActuals && (
           <div className="max-w-md mx-auto mt-5 px-4 pb-2">

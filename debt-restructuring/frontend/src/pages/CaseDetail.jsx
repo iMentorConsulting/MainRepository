@@ -866,7 +866,7 @@ export default function CaseDetail({ currentEmployee }) {
                   }
                   const addSubRow = () => {
                     const sr = c.subRows || []
-                    if (sr.length >= 3) return
+                    if (sr.length >= 10) return
                     let newSr
                     if (sr.length === 0) {
                       // migrate existing parent data into first sub-row
@@ -987,7 +987,7 @@ export default function CaseDetail({ currentEmployee }) {
                   })
 
                   // ── Add sub-row button ──
-                  if (hasSub && c.subRows.length < 3) {
+                  if (hasSub && c.subRows.length < 10) {
                     rows.push(
                       <tr key={`c-${i}-add`} className="border-b border-blue-50">
                         <td colSpan={9} className="td py-1 pl-8">
