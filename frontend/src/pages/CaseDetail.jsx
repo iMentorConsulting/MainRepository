@@ -89,18 +89,26 @@ const PRIORITY_LABELS = {
 }
 
 const TASK_STATUS_COLORS = {
-  done: 'bg-green-100 text-green-700',
-  in_progress: 'bg-yellow-100 text-yellow-700',
-  pending: 'bg-gray-100 text-gray-600',
-  waiting_client: 'bg-orange-100 text-orange-700',
+  pending:             'bg-gray-100 text-gray-600',
+  in_progress:         'bg-yellow-100 text-yellow-700',
+  waiting_client:      'bg-orange-100 text-orange-700',
+  waiting_third_party: 'bg-purple-100 text-purple-700',
+  blocked:             'bg-red-100 text-red-700',
+  review:              'bg-blue-100 text-blue-700',
+  cancelled:           'bg-gray-200 text-gray-500',
+  done:                'bg-green-100 text-green-700',
 }
 
-const TASK_STATUS_LABELS = {
-  done: 'Ολοκληρώθηκε',
-  in_progress: 'Σε εξέλιξη',
-  pending: 'Εκκρεμεί',
-  waiting_client: 'Αναμονή πελάτη',
-}
+const TASK_STATUSES = [
+  { value: 'pending',             label: 'Εκκρεμεί' },
+  { value: 'in_progress',         label: 'Σε εξέλιξη' },
+  { value: 'waiting_client',      label: 'Αναμονή πελάτη' },
+  { value: 'waiting_third_party', label: 'Αναμονή τρίτου' },
+  { value: 'blocked',             label: 'Μπλοκαρισμένο' },
+  { value: 'review',              label: 'Προς έλεγχο' },
+  { value: 'cancelled',           label: 'Ακυρώθηκε' },
+  { value: 'done',                label: 'Ολοκληρώθηκε' },
+]
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -603,11 +611,91 @@ function OverviewTab({ caseData, users, onSaved, livePipelines }) {
 
 // ─── Tasks Tab ────────────────────────────────────────────────────────────────
 
-const EMPTY_TASK = {
-  title: '',
-  priority: 'normal',
-  assigned_to: '',
-  due_date: '',
+const EMPTY_TASK = { title: '', priority: 'normal', assigned_to: '', due_date: '', notes: '' }
+
+function TaskEditModal({ task, users, onSave, onClose }) {
+  const [form, setForm] = useState({
+    title: task.title || '',
+    priority: task.priority || 'normal',
+    status: task.status || 'pending',
+    assigned_to: task.assigned_to || '',
+    due_date: task.due_date || '',
+    notes: task.notes || '',
+  })
+  const [saving, setSaving] = useState(false)
+  const setF = (k) => (e) => setForm(p => ({ ...p, [k]: e.target.value }))
+
+  const handleSave = async () => {
+    if (!form.title.trim()) { toast.error('Ο τίτλος είναι υποχρεωτικός'); return }
+    setSaving(true)
+    try {
+      await onSave({
+        title: form.title.trim(),
+        priority: form.priority,
+        status: form.status,
+        assigned_to: form.assigned_to ? parseInt(form.assigned_to) : null,
+        due_date: form.due_date || null,
+        notes: form.notes || null,
+      })
+      onClose()
+    } catch { toast.error('Σφάλμα αποθήκευσης') }
+    finally { setSaving(false) }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg">
+        <div className="px-6 py-4 border-b flex items-center justify-between">
+          <h2 className="font-bold text-gray-900">Επεξεργασία Task</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">✕</button>
+        </div>
+        <div className="p-6 space-y-4">
+          <div>
+            <label className="label">Τίτλος *</label>
+            <input className="input" value={form.title} onChange={setF('title')} />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="label">Κατάσταση</label>
+              <select className="input" value={form.status} onChange={setF('status')}>
+                {TASK_STATUSES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="label">Προτεραιότητα</label>
+              <select className="input" value={form.priority} onChange={setF('priority')}>
+                <option value="urgent">Επείγον</option>
+                <option value="high">Υψηλή</option>
+                <option value="normal">Κανονική</option>
+                <option value="low">Χαμηλή</option>
+              </select>
+            </div>
+            <div>
+              <label className="label">Ανατέθηκε σε</label>
+              <select className="input" value={form.assigned_to} onChange={setF('assigned_to')}>
+                <option value="">— Κανείς —</option>
+                {users.map(u => <option key={u.id} value={u.id}>{u.full_name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="label">Προθεσμία</label>
+              <input className="input" type="date" value={form.due_date} onChange={setF('due_date')} />
+            </div>
+          </div>
+          <div>
+            <label className="label">Σημειώσεις</label>
+            <textarea className="input min-h-[80px] resize-y" value={form.notes} onChange={setF('notes')} placeholder="Σημειώσεις, οδηγίες, πλαίσιο..." />
+          </div>
+        </div>
+        <div className="px-6 pb-5 flex gap-3 justify-end">
+          <button onClick={onClose} className="btn-secondary">Άκυρο</button>
+          <button onClick={handleSave} disabled={saving} className="btn-primary">
+            {saving ? 'Αποθήκευση...' : 'Αποθήκευση'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 function TasksTab({ caseId, users }) {
@@ -615,13 +703,12 @@ function TasksTab({ caseId, users }) {
   const [loading, setLoading] = useState(true)
   const [newTask, setNewTask] = useState(EMPTY_TASK)
   const [adding, setAdding] = useState(false)
+  const [editingTask, setEditingTask] = useState(null)
+  const [showNewNotes, setShowNewNotes] = useState(false)
 
   const loadTasks = useCallback(async () => {
     setLoading(true)
     try {
-      // getCase already returns tasks embedded; we fetch the case to stay DRY,
-      // but here we call getTasks via getCase result passed down would be fine.
-      // The parent already passed caseId so we can do a targeted fetch.
       const { getTasks } = await import('../api')
       const data = await getTasks(caseId)
       setTasks(data)
@@ -632,30 +719,25 @@ function TasksTab({ caseId, users }) {
     }
   }, [caseId])
 
-  useEffect(() => {
-    loadTasks()
-  }, [loadTasks])
+  useEffect(() => { loadTasks() }, [loadTasks])
 
-  const setField = (key) => (e) =>
-    setNewTask((p) => ({ ...p, [key]: e.target.value }))
+  const setField = (key) => (e) => setNewTask((p) => ({ ...p, [key]: e.target.value }))
 
   const handleAdd = async () => {
-    if (!newTask.title.trim()) {
-      toast.error('Ο τίτλος είναι υποχρεωτικός')
-      return
-    }
+    if (!newTask.title.trim()) { toast.error('Ο τίτλος είναι υποχρεωτικός'); return }
     setAdding(true)
     try {
-      const payload = {
+      await createTask(caseId, {
         title: newTask.title.trim(),
         priority: newTask.priority,
         due_date: newTask.due_date || null,
         assigned_to: newTask.assigned_to ? parseInt(newTask.assigned_to) : null,
+        notes: newTask.notes || null,
         status: 'pending',
-      }
-      await createTask(caseId, payload)
+      })
       toast.success('Προστέθηκε task')
       setNewTask(EMPTY_TASK)
+      setShowNewNotes(false)
       loadTasks()
     } catch (err) {
       toast.error(err.response?.data?.detail || 'Σφάλμα προσθήκης')
@@ -667,12 +749,15 @@ function TasksTab({ caseId, users }) {
   const handleStatusChange = async (taskId, status) => {
     try {
       await updateTask(caseId, taskId, { status })
-      setTasks((prev) =>
-        prev.map((t) => (t.id === taskId ? { ...t, status } : t))
-      )
-    } catch {
-      toast.error('Σφάλμα ενημέρωσης')
-    }
+      setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, status } : t)))
+    } catch { toast.error('Σφάλμα ενημέρωσης') }
+  }
+
+  const handleEdit = async (taskId, payload) => {
+    await updateTask(caseId, taskId, payload)
+    setTasks(prev => prev.map(t => t.id === taskId ? { ...t, ...payload } : t))
+    toast.success('Αποθηκεύτηκε')
+    loadTasks()
   }
 
   const handleDelete = async (taskId) => {
@@ -681,9 +766,7 @@ function TasksTab({ caseId, users }) {
       await deleteTask(caseId, taskId)
       toast.success('Διαγράφηκε')
       setTasks((prev) => prev.filter((t) => t.id !== taskId))
-    } catch {
-      toast.error('Σφάλμα διαγραφής')
-    }
+    } catch { toast.error('Σφάλμα διαγραφής') }
   }
 
   const getUserName = (id) => {
@@ -694,72 +777,54 @@ function TasksTab({ caseId, users }) {
 
   return (
     <div className="space-y-4">
-      {/* Add task inline form */}
-      <div className="bg-white rounded-xl border p-4">
-        <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">
-          Νέο Task
-        </h3>
+      {editingTask && (
+        <TaskEditModal
+          task={editingTask}
+          users={users}
+          onSave={(payload) => handleEdit(editingTask.id, payload)}
+          onClose={() => setEditingTask(null)}
+        />
+      )}
+
+      {/* Add task form */}
+      <div className="bg-white rounded-xl border p-4 space-y-3">
+        <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">Νέο Task</h3>
         <div className="flex flex-wrap gap-3 items-end">
           <div className="flex-1 min-w-48">
             <label className="label">Τίτλος</label>
-            <input
-              className="input"
-              placeholder="Τίτλος task..."
-              value={newTask.title}
-              onChange={setField('title')}
-              onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
-            />
+            <input className="input" placeholder="Τίτλος task..." value={newTask.title} onChange={setField('title')} onKeyDown={(e) => e.key === 'Enter' && handleAdd()} />
           </div>
-
           <div className="w-36">
             <label className="label">Προτεραιότητα</label>
-            <select
-              className="input"
-              value={newTask.priority}
-              onChange={setField('priority')}
-            >
+            <select className="input" value={newTask.priority} onChange={setField('priority')}>
               <option value="urgent">Επείγον</option>
               <option value="high">Υψηλή</option>
               <option value="normal">Κανονική</option>
               <option value="low">Χαμηλή</option>
             </select>
           </div>
-
           <div className="w-44">
             <label className="label">Ανατέθηκε σε</label>
-            <select
-              className="input"
-              value={newTask.assigned_to}
-              onChange={setField('assigned_to')}
-            >
+            <select className="input" value={newTask.assigned_to} onChange={setField('assigned_to')}>
               <option value="">— Κανείς —</option>
-              {users.map((u) => (
-                <option key={u.id} value={u.id}>
-                  {u.full_name}
-                </option>
-              ))}
+              {users.map((u) => <option key={u.id} value={u.id}>{u.full_name}</option>)}
             </select>
           </div>
-
           <div className="w-40">
-            <label className="label">Λήξη</label>
-            <input
-              className="input"
-              type="date"
-              value={newTask.due_date}
-              onChange={setField('due_date')}
-            />
+            <label className="label">Προθεσμία</label>
+            <input className="input" type="date" value={newTask.due_date} onChange={setField('due_date')} />
           </div>
-
-          <button
-            onClick={handleAdd}
-            disabled={adding}
-            className="btn-primary flex items-center gap-2 self-end"
-          >
+          <button type="button" onClick={() => setShowNewNotes(v => !v)} className="self-end text-xs text-blue-500 hover:underline pb-2">
+            {showNewNotes ? '− Σημειώσεις' : '+ Σημειώσεις'}
+          </button>
+          <button onClick={handleAdd} disabled={adding} className="btn-primary flex items-center gap-2 self-end">
             <PlusIcon className="w-4 h-4" />
             {adding ? 'Προσθήκη...' : 'Προσθήκη'}
           </button>
         </div>
+        {showNewNotes && (
+          <textarea className="input w-full min-h-[60px] resize-y" placeholder="Σημειώσεις..." value={newTask.notes} onChange={setField('notes')} />
+        )}
       </div>
 
       {/* Task list */}
@@ -776,66 +841,46 @@ function TasksTab({ caseId, users }) {
         ) : (
           <div className="divide-y divide-gray-100">
             {tasks.map((task) => (
-              <div
-                key={task.id}
-                className="flex flex-wrap items-center gap-3 px-5 py-4 hover:bg-gray-50 transition-colors"
-              >
-                {/* Priority badge */}
-                <span
-                  className={`text-xs font-semibold px-2 py-0.5 rounded-full whitespace-nowrap ${
-                    PRIORITY_COLORS[task.priority] || PRIORITY_COLORS.normal
-                  }`}
-                >
-                  {PRIORITY_LABELS[task.priority] || task.priority}
-                </span>
-
-                {/* Title */}
-                <span
-                  className={`flex-1 min-w-40 text-sm font-medium ${
-                    task.status === 'done'
-                      ? 'line-through text-gray-400'
-                      : 'text-gray-800'
-                  }`}
-                >
-                  {task.title}
-                </span>
-
-                {/* Assigned */}
-                <span className="flex items-center gap-1 text-xs text-gray-400 whitespace-nowrap">
-                  <UserIcon className="w-3.5 h-3.5" />
-                  {getUserName(task.assigned_to)}
-                </span>
-
-                {/* Due date */}
-                {task.due_date ? (
-                  <span className="text-xs text-gray-400 whitespace-nowrap">
-                    {fmtDate(task.due_date)}
+              <div key={task.id} className="px-5 py-3 hover:bg-gray-50 transition-colors group">
+                <div className="flex flex-wrap items-center gap-3">
+                  {/* Priority */}
+                  <span className={`text-xs font-semibold px-2 py-0.5 rounded-full whitespace-nowrap ${PRIORITY_COLORS[task.priority] || PRIORITY_COLORS.normal}`}>
+                    {PRIORITY_LABELS[task.priority] || task.priority}
                   </span>
-                ) : (
-                  <span className="text-xs text-gray-300 whitespace-nowrap">—</span>
+                  {/* Title */}
+                  <span className={`flex-1 min-w-40 text-sm font-medium ${task.status === 'done' || task.status === 'cancelled' ? 'line-through text-gray-400' : 'text-gray-800'}`}>
+                    {task.title}
+                  </span>
+                  {/* Assigned */}
+                  <span className="flex items-center gap-1 text-xs text-gray-400 whitespace-nowrap">
+                    <UserIcon className="w-3.5 h-3.5" />
+                    {getUserName(task.assigned_to)}
+                  </span>
+                  {/* Due date */}
+                  <span className="text-xs text-gray-400 whitespace-nowrap">
+                    {task.due_date ? fmtDate(task.due_date) : '—'}
+                  </span>
+                  {/* Status */}
+                  <select
+                    className={`text-xs font-semibold px-2 py-1 rounded-full border-0 cursor-pointer focus:ring-1 focus:ring-offset-1 ${TASK_STATUS_COLORS[task.status] || TASK_STATUS_COLORS.pending}`}
+                    value={task.status}
+                    onChange={(e) => handleStatusChange(task.id, e.target.value)}
+                  >
+                    {TASK_STATUSES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+                  </select>
+                  {/* Edit */}
+                  <button onClick={() => setEditingTask(task)} className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-blue-500 transition-all" title="Επεξεργασία">
+                    <PencilIcon className="w-4 h-4" />
+                  </button>
+                  {/* Delete */}
+                  <button onClick={() => handleDelete(task.id)} className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-500 transition-all">
+                    <TrashIcon className="w-4 h-4" />
+                  </button>
+                </div>
+                {/* Notes */}
+                {task.notes && (
+                  <p className="mt-1.5 ml-[calc(theme(spacing.6))] text-xs text-gray-500 italic border-l-2 border-gray-200 pl-2">{task.notes}</p>
                 )}
-
-                {/* Status selector */}
-                <select
-                  className={`text-xs font-semibold px-2 py-1 rounded-full border-0 cursor-pointer focus:ring-1 focus:ring-offset-1 ${
-                    TASK_STATUS_COLORS[task.status] || TASK_STATUS_COLORS.pending
-                  }`}
-                  value={task.status}
-                  onChange={(e) => handleStatusChange(task.id, e.target.value)}
-                >
-                  <option value="pending">Εκκρεμεί</option>
-                  <option value="in_progress">Σε εξέλιξη</option>
-                  <option value="waiting_client">Αναμονή πελάτη</option>
-                  <option value="done">Ολοκληρώθηκε</option>
-                </select>
-
-                {/* Delete */}
-                <button
-                  onClick={() => handleDelete(task.id)}
-                  className="text-gray-300 hover:text-red-500 transition-colors"
-                >
-                  <TrashIcon className="w-4 h-4" />
-                </button>
               </div>
             ))}
           </div>
