@@ -130,18 +130,7 @@ function ViberInlineModal({ caseItem, onSend, onClose, sending }) {
         <div className="flex gap-2 justify-end px-5 pb-5">
           <button onClick={onClose} className="btn-secondary text-sm">Ακύρωση</button>
           <button
-            onClick={() => {
-              if (sendEmail && caseItem.client_email) {
-                const subject = encodeURIComponent(`Ανάλυση Εξωδικαστικού — ${caseItem.client_name}`)
-                const body = encodeURIComponent(message.replace(/\*/g, ''))
-                const a = document.createElement('a')
-                a.href = `mailto:${caseItem.client_email}?subject=${subject}&body=${body}`
-                document.body.appendChild(a)
-                a.click()
-                document.body.removeChild(a)
-              }
-              onSend(caseItem.id, message, selectedType, sendEmail && !!caseItem.client_email)
-            }}
+            onClick={() => onSend(caseItem.id, message, selectedType, sendEmail && !!caseItem.client_email, caseItem.client_email, caseItem.client_name)}
             disabled={sending}
             className="flex items-center gap-2 text-sm font-semibold px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white disabled:opacity-50"
           >
@@ -232,7 +221,7 @@ export default function SalesPipeline() {
 
   useEffect(() => { load() }, [filterEmployee])
 
-  const handleViberSend = async (caseId, message, msgType, doEmail) => {
+  const handleViberSend = async (caseId, message, msgType, doEmail, clientEmail, clientName) => {
     setViberSending(true)
     try {
       const res = await api.sendViber(caseId, {
@@ -242,8 +231,25 @@ export default function SalesPipeline() {
         is_reminder: msgType !== 'initial',
       })
       setCases(prev => prev.map(c => c.id === caseId ? { ...c, ...res.data } : c))
+
+      if (doEmail && clientEmail) {
+        try {
+          await api.sendEmail(caseId, {
+            to: clientEmail,
+            subject: `Ανάλυση Εξωδικαστικού — ${clientName}`,
+            body: message.replace(/\*/g, ''),
+          })
+          toast.success('✅ Viber + Email εστάλησαν!')
+        } catch (emailErr) {
+          const detail = emailErr?.response?.data?.detail || 'Σφάλμα αποστολής email'
+          toast.success('✅ Viber εστάλη!')
+          toast.error(`Email: ${detail}`, { duration: 8000 })
+        }
+      } else {
+        toast.success('✅ Μήνυμα εστάλη μέσω Viber!')
+      }
+
       setViberModal(null)
-      toast.success(doEmail ? '✅ Viber εστάλη! Το email άνοιξε.' : '✅ Μήνυμα εστάλη μέσω Viber!')
     } catch (err) {
       const detail = err?.response?.data?.detail || 'Σφάλμα αποστολής Viber'
       toast.error(detail, { duration: 6000 })

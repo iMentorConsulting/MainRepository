@@ -1,9 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 from datetime import datetime
-import os, smtplib
+import os, smtplib, json, base64
 import requests as http_requests
 from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 from database import get_db
 from models import Case
 
@@ -66,15 +67,23 @@ STAGE_ORDER = ['Νέα Ανάλυση', 'Εστάλη Σύνδεσμος', 'Θε
 
 
 def _send_interested_email(case: Case) -> bool:
-    """Send notification email via SMTP. Returns True on success."""
+    """Send notification email via Gmail API (Service Account). Returns True on success."""
     try:
-        smtp_host = os.getenv("SMTP_HOST", "")
-        if not smtp_host:
+        sa_json = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON", "").strip()
+        sender = os.getenv("SMTP_USER", "").strip()
+        notify_to = os.getenv("NOTIFY_EMAIL", "info@i-mentor.gr")
+
+        if not sa_json or not sender:
             return False
-        smtp_port = int(os.getenv("SMTP_PORT", "587"))
-        smtp_user = os.getenv("SMTP_USER", "")
-        smtp_pass = os.getenv("SMTP_PASS", "")
-        notify_to  = os.getenv("NOTIFY_EMAIL", "info@i-mentor.gr")
+
+        from google.oauth2.service_account import Credentials
+        from googleapiclient.discovery import build
+
+        creds = Credentials.from_service_account_info(
+            json.loads(sa_json),
+            scopes=["https://www.googleapis.com/auth/gmail.send"],
+        ).with_subject(sender)
+        svc = build("gmail", "v1", credentials=creds, cache_discovery=False)
 
         body = (
             f"Ο/Η πελάτης {case.client_name or '(άγνωστος)'} "
@@ -84,16 +93,14 @@ def _send_interested_email(case: Case) -> bool:
             f"Υπεύθυνος: {case.employee or '-'}\n"
             f"Ώρα: {datetime.utcnow().strftime('%d/%m/%Y %H:%M')} UTC\n"
         )
-        msg = MIMEText(body, "plain", "utf-8")
+        msg = MIMEMultipart("alternative")
         msg["Subject"] = f"[i-Mentor] Ενδιαφέρον πελάτη: {case.client_name or case.id}"
-        msg["From"] = smtp_user or notify_to
+        msg["From"] = sender
         msg["To"] = notify_to
+        msg.attach(MIMEText(body, "plain", "utf-8"))
 
-        with smtplib.SMTP(smtp_host, smtp_port, timeout=10) as s:
-            s.starttls()
-            if smtp_user and smtp_pass:
-                s.login(smtp_user, smtp_pass)
-            s.sendmail(msg["From"], [notify_to], msg.as_string())
+        raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
+        svc.users().messages().send(userId="me", body={"raw": raw}).execute()
         return True
     except Exception:
         return False

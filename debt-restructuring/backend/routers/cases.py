@@ -3,8 +3,10 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import datetime
 from pydantic import BaseModel
-import os
+import os, json, base64
 import requests as http_requests
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
 from database import get_db
 from models import Case
@@ -20,6 +22,43 @@ class ViberSendRequest(BaseModel):
     msg_type: str = "initial"  # initial / reminder1 / reminder2 / final
     is_initial: bool = False
     is_reminder: bool = False
+
+
+class EmailSendRequest(BaseModel):
+    to: str
+    subject: str
+    body: str
+
+
+def _send_gmail(to: str, subject: str, body: str) -> tuple[bool, str]:
+    """Send email via Gmail API using Google Service Account (Domain-Wide Delegation).
+    Returns (True, "") on success, (False, reason) on failure."""
+    sa_json = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON", "").strip()
+    sender = os.getenv("SMTP_USER", "").strip()
+    if not sa_json or not sender:
+        return False, "GOOGLE_SERVICE_ACCOUNT_JSON ή SMTP_USER δεν έχουν οριστεί"
+    try:
+        from google.oauth2.service_account import Credentials
+        from googleapiclient.discovery import build
+
+        creds = Credentials.from_service_account_info(
+            json.loads(sa_json),
+            scopes=["https://www.googleapis.com/auth/gmail.send"],
+        ).with_subject(sender)
+
+        svc = build("gmail", "v1", credentials=creds, cache_discovery=False)
+
+        msg = MIMEMultipart("alternative")
+        msg["Subject"] = subject
+        msg["From"] = sender
+        msg["To"] = to
+        msg.attach(MIMEText(body, "plain", "utf-8"))
+
+        raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
+        svc.users().messages().send(userId="me", body={"raw": raw}).execute()
+        return True, ""
+    except Exception as e:
+        return False, str(e)
 
 
 def _chatwoot_send(client_name: str, phone: str, message: str) -> tuple[bool, str]:
@@ -261,6 +300,18 @@ def send_viber_message(id: int, data: ViberSendRequest, db: Session = Depends(ge
     db.commit()
     db.refresh(case)
     return case
+
+
+@router.post("/{id}/send-email")
+def send_email_message(id: int, data: EmailSendRequest, db: Session = Depends(get_db)):
+    """Send email via Gmail API (Service Account). Used from Pipeline Viber+Email modal."""
+    case = db.query(Case).filter(Case.id == id).first()
+    if not case:
+        raise HTTPException(status_code=404, detail="Η υπόθεση δεν βρέθηκε")
+    ok, err = _send_gmail(data.to, data.subject, data.body)
+    if not ok:
+        raise HTTPException(status_code=503, detail=f"Αποτυχία αποστολής email: {err}")
+    return {"ok": True}
 
 
 @router.post("/{id}/duplicate", response_model=CaseResponse, status_code=201)
