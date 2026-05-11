@@ -3,6 +3,7 @@ import {
   PlusIcon, TrashIcon, PaperAirplaneIcon,
   ClipboardDocumentListIcon, CheckCircleIcon,
   BellAlertIcon, XMarkIcon, ExclamationCircleIcon,
+  PencilIcon,
 } from '@heroicons/react/24/outline'
 import toast from 'react-hot-toast'
 import {
@@ -12,26 +13,43 @@ import {
 
 // ── Pending item row ───────────────────────────────────────────────────────────
 
-function PendingItemRow({ item, index, onCommentSaved, onDelete }) {
+function PendingItemRow({ item, index, onCommentSaved, onTextSaved, onDelete }) {
   const [comment, setComment] = useState(item.comment || '')
+  const [editingText, setEditingText] = useState(false)
+  const [text, setText] = useState(item.item_text || '')
   const [saving, setSaving] = useState(false)
   const timerRef = useRef(null)
+  const textInputRef = useRef(null)
 
-  useEffect(() => {
-    setComment(item.comment || '')
-  }, [item.comment])
+  useEffect(() => { setComment(item.comment || '') }, [item.comment])
+  useEffect(() => { setText(item.item_text || '') }, [item.item_text])
 
   const handleCommentChange = (val) => {
     setComment(val)
     clearTimeout(timerRef.current)
     timerRef.current = setTimeout(async () => {
       setSaving(true)
-      try {
-        await onCommentSaved(item.id, val)
-      } finally {
-        setSaving(false)
-      }
+      try { await onCommentSaved(item.id, val) }
+      finally { setSaving(false) }
     }, 700)
+  }
+
+  const startEditText = () => {
+    setEditingText(true)
+    setTimeout(() => textInputRef.current?.focus(), 50)
+  }
+
+  const saveText = async () => {
+    const trimmed = text.trim()
+    if (!trimmed) { setText(item.item_text); setEditingText(false); return }
+    if (trimmed === item.item_text) { setEditingText(false); return }
+    setSaving(true)
+    try {
+      await onTextSaved(item.id, trimmed)
+    } finally {
+      setSaving(false)
+      setEditingText(false)
+    }
   }
 
   return (
@@ -44,7 +62,27 @@ function PendingItemRow({ item, index, onCommentSaved, onDelete }) {
 
         {/* Content */}
         <div className="flex-1 min-w-0 space-y-2">
-          <p className="text-sm font-semibold text-gray-800 leading-snug">{item.item_text}</p>
+          {editingText ? (
+            <input
+              ref={textInputRef}
+              className="w-full text-sm font-semibold text-gray-800 rounded-lg border border-orange-300 bg-orange-50 px-2 py-1 focus:outline-none focus:ring-2 focus:ring-orange-300"
+              value={text}
+              onChange={e => setText(e.target.value)}
+              onBlur={saveText}
+              onKeyDown={e => { if (e.key === 'Enter') saveText(); if (e.key === 'Escape') { setText(item.item_text); setEditingText(false) } }}
+            />
+          ) : (
+            <div className="flex items-center gap-1.5 group/text">
+              <p className="text-sm font-semibold text-gray-800 leading-snug">{item.item_text}</p>
+              <button
+                onClick={startEditText}
+                className="opacity-0 group-hover/text:opacity-100 text-gray-300 hover:text-orange-500 transition-opacity flex-shrink-0"
+                title="Επεξεργασία"
+              >
+                <PencilIcon className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
           <div className="relative">
             <input
               className="w-full rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-300 focus:border-orange-300 transition pr-7"
@@ -275,6 +313,15 @@ export default function PendingItemsTab({ caseId, caseData }) {
     }
   }
 
+  const handleTextSaved = async (itemId, item_text) => {
+    try {
+      await updateCasePendingItem(caseId, itemId, { item_text })
+      setItems((prev) => prev.map((i) => (i.id === itemId ? { ...i, item_text } : i)))
+    } catch {
+      toast.error('Σφάλμα αποθήκευσης')
+    }
+  }
+
   const handleDelete = async (itemId) => {
     try {
       await deleteCasePendingItem(caseId, itemId)
@@ -390,6 +437,7 @@ export default function PendingItemsTab({ caseId, caseData }) {
                   item={item}
                   index={idx}
                   onCommentSaved={handleCommentSaved}
+                  onTextSaved={handleTextSaved}
                   onDelete={handleDelete}
                 />
               ))}
