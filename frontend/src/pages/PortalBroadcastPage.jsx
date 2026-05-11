@@ -30,9 +30,12 @@ const DEFAULT_TEMPLATE = `Αγαπητέ/ή {client_name},
 
 const PORTAL_OPTIONS = [
   { value: '', label: 'Όλοι' },
-  { value: 'active', label: 'Ήδη ενεργό' },
-  { value: 'inactive', label: 'Ανενεργό / Χωρίς πύλη' },
+  { value: 'no_link', label: 'Χωρίς σύνδεσμο' },
+  { value: 'never_opened', label: 'Έλαβε — δεν άνοιξε ποτέ' },
+  { value: 'stale', label: 'Δεν άνοιξε >30 ημέρες' },
 ]
+
+const daysSince = (iso) => iso ? (Date.now() - new Date(iso).getTime()) / 86400000 : Infinity
 
 const fmtDt = (iso) =>
   iso ? new Date(iso).toLocaleString('el-GR', { dateStyle: 'short', timeStyle: 'short' }) : null
@@ -171,8 +174,9 @@ export default function PortalBroadcastPage() {
       if (search && !c.client_name?.toLowerCase().includes(search.toLowerCase())) return false
       if (filterProgram.size > 0 && !filterProgram.has(c.program_category)) return false
       if (filterService.size > 0 && !filterService.has(c.service_type)) return false
-      if (filterPortal === 'active' && !c.portal_active) return false
-      if (filterPortal === 'inactive' && c.portal_active) return false
+      if (filterPortal === 'no_link' && c.portal_active) return false
+      if (filterPortal === 'never_opened' && (!c.portal_active || c.portal_visit_count > 0)) return false
+      if (filterPortal === 'stale' && (daysSince(c.portal_last_visit_at) <= 30)) return false
       if (filterStatus.size > 0 && !filterStatus.has(c.status)) return false
       return true
     })
@@ -463,7 +467,6 @@ export default function PortalBroadcastPage() {
                   { label: 'Πελάτης', key: 'client_name' },
                   { label: 'Πρόγραμμα', key: 'program_category' },
                   { label: 'Κατάσταση', key: 'status' },
-                  { label: 'Τηλέφωνο', key: 'phone' },
                   { label: 'Πύλη', key: 'portal_active' },
                   { label: 'Τελευταίο Άνοιγμα', key: 'portal_last_visit_at' },
                   { label: 'Σύνολο Ανοιγμάτων', key: 'portal_visit_count' },
@@ -481,7 +484,7 @@ export default function PortalBroadcastPage() {
             </thead>
             <tbody className="divide-y divide-gray-50">
               {filtered.length === 0 && (
-                <tr><td colSpan={10} className="text-center py-12 text-gray-400">Δεν βρέθηκαν εγγραφές</td></tr>
+                <tr><td colSpan={9} className="text-center py-12 text-gray-400">Δεν βρέθηκαν εγγραφές</td></tr>
               )}
               {filtered.map(c => (
                 <tr
@@ -509,12 +512,6 @@ export default function PortalBroadcastPage() {
                     }`}>{c.program_category || '—'}</span>
                   </td>
                   <td className="px-4 py-3 text-gray-600 text-xs max-w-[160px] truncate">{c.status || '—'}</td>
-                  <td className="px-4 py-3">
-                    {c.phone
-                      ? <span className="text-gray-700 font-mono text-xs">{c.phone}</span>
-                      : <span className="text-red-400 text-xs">— χωρίς τηλ.</span>
-                    }
-                  </td>
                   <td className="px-4 py-3">
                     {c.portal_active
                       ? <span className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-50 border border-green-200 px-2 py-0.5 rounded-full"><CheckCircleIcon className="w-3.5 h-3.5" />Ενεργό</span>

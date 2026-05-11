@@ -3,6 +3,16 @@ import { createBudgetCategory, updateBudgetCategory, deleteBudgetCategory } from
 import { TrashIcon, PlusIcon, ChartBarIcon } from '@heroicons/react/24/outline'
 import toast from 'react-hot-toast'
 
+const PRESET_CATEGORIES = [
+  'Κτηριακά',
+  'Εξοπλισμοί',
+  'Μισθολογικά',
+  'Διαφήμιση',
+  'Συμβουλευτικές Υπηρεσίες',
+  'Green Δαπάνες',
+  'Έμμεσες Δαπάνες',
+]
+
 const fmt = (n) =>
   new Intl.NumberFormat('el-GR', { style: 'currency', currency: 'EUR', minimumFractionDigits: 0 }).format(n || 0)
 
@@ -34,8 +44,10 @@ function EditableCell({ value, onSave }) {
 
 export default function BudgetTab({ caseId, caseData, onRefresh }) {
   const cats = caseData?.budget_categories || []
-  const [form, setForm] = useState({ category_name: '', approved_amount: '', percent_of_budget: '' })
+  const [form, setForm] = useState({ category_name: '', approved_amount: '' })
   const [saving, setSaving] = useState(false)
+
+  const existingNames = new Set(cats.map(c => c.category_name))
 
   const handleAdd = async (e) => {
     e.preventDefault()
@@ -45,10 +57,19 @@ export default function BudgetTab({ caseId, caseData, onRefresh }) {
       await createBudgetCategory(caseId, {
         category_name: form.category_name,
         approved_amount: parseFloat(form.approved_amount) || 0,
-        percent_of_budget: parseFloat(form.percent_of_budget) || 0,
+        percent_of_budget: 0,
       })
       toast.success('Κατηγορία προστέθηκε')
-      setForm({ category_name: '', approved_amount: '', percent_of_budget: '' })
+      setForm({ category_name: '', approved_amount: '' })
+      onRefresh()
+    } catch { toast.error('Σφάλμα προσθήκης') } finally { setSaving(false) }
+  }
+
+  const handleQuickAdd = async (name) => {
+    setSaving(true)
+    try {
+      await createBudgetCategory(caseId, { category_name: name, approved_amount: 0, percent_of_budget: 0 })
+      toast.success(`"${name}" προστέθηκε`)
       onRefresh()
     } catch { toast.error('Σφάλμα προσθήκης') } finally { setSaving(false) }
   }
@@ -74,18 +95,47 @@ export default function BudgetTab({ caseId, caseData, onRefresh }) {
     remaining: acc.remaining + (c.remaining || 0),
   }), { approved: 0, r1: 0, r2: 0, rf: 0, certified: 0, remaining: 0 })
 
+  const pct = (amount) => totals.approved > 0
+    ? `${((amount / totals.approved) * 100).toFixed(1)}%`
+    : '—'
+
   return (
     <div className="space-y-5">
       {/* Add form */}
-      <form onSubmit={handleAdd} className="bg-white rounded-xl border p-4">
-        <h3 className="font-semibold text-gray-800 mb-3 flex items-center gap-2"><PlusIcon className="w-4 h-4" />Νέα Κατηγορία</h3>
-        <div className="flex gap-3 flex-wrap">
-          <div className="flex-1 min-w-32"><label className="label">Κατηγορία *</label><input className="input" required value={form.category_name} onChange={e => setForm(p => ({ ...p, category_name: e.target.value }))} /></div>
-          <div><label className="label">Εγκεκριμένο (€)</label><input className="input w-36" type="number" step="0.01" value={form.approved_amount} onChange={e => setForm(p => ({ ...p, approved_amount: e.target.value }))} /></div>
-          <div><label className="label">% Προϋπολογισμού</label><input className="input w-28" type="number" step="0.1" value={form.percent_of_budget} onChange={e => setForm(p => ({ ...p, percent_of_budget: e.target.value }))} /></div>
-          <div className="flex items-end"><button type="submit" disabled={saving} className="btn-primary">{saving ? '...' : 'Προσθήκη'}</button></div>
+      <div className="bg-white rounded-xl border p-4 space-y-3">
+        <h3 className="font-semibold text-gray-800 flex items-center gap-2"><PlusIcon className="w-4 h-4" />Νέα Κατηγορία</h3>
+
+        {/* Quick-add preset buttons */}
+        <div className="flex flex-wrap gap-2">
+          {PRESET_CATEGORIES.filter(n => !existingNames.has(n)).map(name => (
+            <button
+              key={name}
+              type="button"
+              disabled={saving}
+              onClick={() => handleQuickAdd(name)}
+              className="px-3 py-1.5 text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200 rounded-full hover:bg-blue-100 transition-colors disabled:opacity-50"
+            >
+              + {name}
+            </button>
+          ))}
+          {PRESET_CATEGORIES.every(n => existingNames.has(n)) && (
+            <span className="text-xs text-gray-400 italic">Όλες οι προεπιλεγμένες κατηγορίες έχουν προστεθεί</span>
+          )}
         </div>
-      </form>
+
+        {/* Custom add */}
+        <form onSubmit={handleAdd} className="flex gap-3 flex-wrap items-end border-t pt-3">
+          <div className="flex-1 min-w-32">
+            <label className="label">Νέα κατηγορία (ελεύθερο κείμενο)</label>
+            <input className="input" value={form.category_name} onChange={e => setForm(p => ({ ...p, category_name: e.target.value }))} placeholder="π.χ. Λογισμικό" />
+          </div>
+          <div>
+            <label className="label">Εγκεκριμένο (€)</label>
+            <input className="input w-36" type="number" step="0.01" value={form.approved_amount} onChange={e => setForm(p => ({ ...p, approved_amount: e.target.value }))} />
+          </div>
+          <button type="submit" disabled={saving || !form.category_name.trim()} className="btn-primary">{saving ? '...' : 'Προσθήκη'}</button>
+        </form>
+      </div>
 
       {/* Hint */}
       <p className="text-xs text-gray-400">Κάντε κλικ σε ένα ποσό για να το επεξεργαστείτε ✏️</p>
@@ -111,7 +161,7 @@ export default function BudgetTab({ caseId, caseData, onRefresh }) {
                 {cats.map(c => (
                   <tr key={c.id} className="hover:bg-gray-50">
                     <td className="px-3 py-2 font-medium text-gray-900">{c.category_name}</td>
-                    <td className="px-3 py-2 text-gray-500">{c.percent_of_budget || 0}%</td>
+                    <td className="px-3 py-2 text-gray-500 font-mono">{pct(c.approved_amount)}</td>
                     <td className="px-3 py-2"><EditableCell value={c.approved_amount} onSave={v => handleUpdate(c.id, 'approved_amount', v)} /></td>
                     <td className="px-3 py-2"><EditableCell value={c.certified_request1} onSave={v => handleUpdate(c.id, 'certified_request1', v)} /></td>
                     <td className="px-3 py-2"><EditableCell value={c.certified_request2} onSave={v => handleUpdate(c.id, 'certified_request2', v)} /></td>
