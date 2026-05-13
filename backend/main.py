@@ -74,6 +74,18 @@ try:
 except Exception:
     pass
 
+# Backfill portal_notified_at for cases activated before this column existed
+try:
+    with engine.connect() as _conn:
+        _conn.execute(_text("""
+            UPDATE cm_cases
+            SET portal_notified_at = COALESCE(portal_last_visit_at, updated_at, created_at, NOW())
+            WHERE portal_active = TRUE AND portal_notified_at IS NULL
+        """))
+        _conn.commit()
+except Exception:
+    pass
+
 # Backfill status history: seed one entry per case that has no history yet
 try:
     with engine.connect() as _conn:
