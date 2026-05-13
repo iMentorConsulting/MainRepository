@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session, joinedload
 from database import get_db
-from models_cases import CMCase, CMCasePendingItem, CMMessage, CMBudgetCategory, CMDocument, CMCaseStatusHistory
+from models_cases import CMCase, CMCasePendingItem, CMMessage, CMBudgetCategory, CMDocument, CMCaseStatusHistory, CMPortalFile
 from auth_cases import get_current_user
 
 UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "..", "portal_uploads")
@@ -147,6 +147,7 @@ def _build_portal_data(case: CMCase, db: Session) -> dict:
     balance = total_agreed - total_paid
 
     return {
+        "case_id": case.id,
         "client_name": case.client_name,
         "service_type": case.service_type,
         "program_category": prog,
@@ -184,6 +185,17 @@ def _build_portal_data(case: CMCase, db: Session) -> dict:
             }
             for m in sorted(case.modifications or [], key=lambda x: x.modification_date or _date.min)
         ],
+        "portal_files": [
+            {
+                "id": f.id,
+                "original_filename": f.original_filename,
+                "mime_type": f.mime_type,
+                "file_size": f.file_size,
+                "client_description": f.client_description,
+                "uploaded_at": f.uploaded_at.isoformat() if f.uploaded_at else None,
+            }
+            for f in sorted(case.portal_files or [], key=lambda x: x.uploaded_at or datetime.min)
+        ],
     }
 
 
@@ -201,6 +213,7 @@ def get_portal(token: str, db: Session = Depends(get_db)):
             joinedload(CMCase.documents),
             joinedload(CMCase.status_history),
             joinedload(CMCase.modifications),
+            joinedload(CMCase.portal_files),
         )
         .filter(CMCase.share_token == token)
         .first()
@@ -335,6 +348,23 @@ async def serve_client_upload(token: str, filename: str, db: Session = Depends(g
     if not os.path.isfile(path):
         raise HTTPException(status_code=404, detail="File not found")
     return _FR(path)
+
+
+@router.get("/public/{token}/files/{file_id}/download")
+def download_portal_file_public(token: str, file_id: int, db: Session = Depends(get_db)):
+    """Public download of a portal file via share token."""
+    from fastapi.responses import Response as _Resp
+    case = db.query(CMCase).filter(CMCase.share_token == token).first()
+    if not case or not case.portal_active:
+        raise HTTPException(status_code=404, detail="Not found")
+    pf = db.query(CMPortalFile).filter(CMPortalFile.id == file_id, CMPortalFile.case_id == case.id).first()
+    if not pf:
+        raise HTTPException(status_code=404, detail="Αρχείο δεν βρέθηκε")
+    return _Resp(
+        content=pf.file_data,
+        media_type=pf.mime_type,
+        headers={"Content-Disposition": f'attachment; filename="{pf.original_filename}"'},
+    )
 
 
 @router.post("/public/{token}/visit")
