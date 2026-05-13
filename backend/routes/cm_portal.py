@@ -1,7 +1,7 @@
 import uuid
 import os
 import shutil
-from datetime import datetime
+from datetime import datetime, date as _date
 import requests as http_requests
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from fastapi.responses import FileResponse
@@ -174,6 +174,16 @@ def _build_portal_data(case: CMCase, db: Session) -> dict:
         "total_paid": total_paid,
         "balance": balance,
         "portal_visit_count": case.portal_visit_count or 0,
+        "modifications": [
+            {
+                "id": m.id,
+                "modification_date": m.modification_date.isoformat() if m.modification_date else None,
+                "title": m.title,
+                "justification": m.justification,
+                "approval_date": m.approval_date.isoformat() if m.approval_date else None,
+            }
+            for m in sorted(case.modifications or [], key=lambda x: x.modification_date or _date.min)
+        ],
     }
 
 
@@ -190,6 +200,7 @@ def get_portal(token: str, db: Session = Depends(get_db)):
             joinedload(CMCase.budget_categories),
             joinedload(CMCase.documents),
             joinedload(CMCase.status_history),
+            joinedload(CMCase.modifications),
         )
         .filter(CMCase.share_token == token)
         .first()

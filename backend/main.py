@@ -20,6 +20,7 @@ from routes.cm_portal import router as cm_portal_router
 from routes.cm_pipeline import router as cm_pipeline_router
 from routes.cm_worklists import router as cm_worklists_router
 from routes.cm_analytics import router as cm_analytics_router
+from routes.cm_modifications import router as cm_modifications_router
 
 load_dotenv()
 
@@ -289,7 +290,7 @@ with SessionLocal() as _db:
         print(f"[migration] Fixed program_category / backfilled share_token for {_fixed} cases")
 
 # Import new models so create_all creates their tables
-from models_cases import CMNotificationTemplate, CMStatusSLA
+from models_cases import CMNotificationTemplate, CMStatusSLA, CMCaseModification
 
 # Seed notification templates (only if table is empty)
 _DEFAULT_TEMPLATES = [
@@ -459,6 +460,7 @@ app.include_router(cm_portal_router)
 app.include_router(cm_pipeline_router)
 app.include_router(cm_worklists_router)
 app.include_router(cm_analytics_router)
+app.include_router(cm_modifications_router)
 
 
 @app.on_event("shutdown")

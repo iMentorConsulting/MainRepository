@@ -97,6 +97,7 @@ class CMCase(Base):
     notification_logs = relationship("CMNotificationLog", back_populates="case", cascade="all, delete-orphan")
     budget_categories = relationship("CMBudgetCategory", back_populates="case", cascade="all, delete-orphan")
     pending_items = relationship("CMCasePendingItem", back_populates="case", cascade="all, delete-orphan", order_by="CMCasePendingItem.sort_order")
+    modifications = relationship("CMCaseModification", back_populates="case", cascade="all, delete-orphan", order_by="CMCaseModification.modification_date")
     status_history = relationship("CMCaseStatusHistory", back_populates="case", cascade="all, delete-orphan", order_by="CMCaseStatusHistory.changed_at")
 
 
@@ -292,3 +293,16 @@ class CMWorkList(Base):
     created_by_id = Column(Integer, ForeignKey("cm_users.id"), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow)
+
+
+class CMCaseModification(Base):
+    __tablename__ = "cm_case_modifications"
+    id = Column(Integer, primary_key=True, index=True)
+    case_id = Column(Integer, ForeignKey("cm_cases.id"), nullable=False)
+    modification_date = Column(Date, nullable=False)
+    title = Column(String(300), nullable=False)
+    justification = Column(Text, nullable=True)
+    approval_date = Column(Date, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow)
+    case = relationship("CMCase", back_populates="modifications")

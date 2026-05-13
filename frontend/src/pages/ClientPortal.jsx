@@ -299,25 +299,25 @@ function BudgetBreakdown({ categories, subsidyPercent }) {
         </table>
       </div>
 
-      {/* Summary below table */}
-      <div className="mt-4 pt-4 border-t border-gray-100 space-y-2">
-        <div className="flex flex-wrap gap-x-6 gap-y-1 text-xs text-gray-600">
-          <span>
-            Έχουν πιστοποιηθεί δαπάνες{' '}
-            <span className="font-semibold text-green-700">{fmtEuro(totalCertified)}</span>
-            {subsidyRate > 0 && (
-              <> με επιχορήγηση <span className="font-semibold text-green-700">{fmtEuro(totalCertified * subsidyRate)}</span></>
-            )}
-          </span>
+      {/* Summary cards */}
+      <div className="mt-4 pt-4 border-t border-gray-100 grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="bg-green-50 border border-green-200 rounded-xl p-4">
+          <p className="text-xs text-green-700 font-medium mb-1">Πιστοποιηθέν σύνολο δαπανών</p>
+          <p className="text-lg font-bold text-green-800">{fmtEuro(totalCertified)}</p>
+          {subsidyRate > 0 && (
+            <p className="text-xs text-green-700 mt-1">
+              Επιχορήγηση ({subsidyPercent}%): <span className="font-semibold">{fmtEuro(totalCertified * subsidyRate)}</span>
+            </p>
+          )}
         </div>
-        <div className="flex flex-wrap gap-x-6 gap-y-1 text-xs text-gray-600">
-          <span>
-            Απομένει προς πιστοποίηση{' '}
-            <span className="font-semibold text-orange-600">{fmtEuro(totalRemaining)}</span>
-            {subsidyRate > 0 && (
-              <> με επιχορήγηση <span className="font-semibold text-orange-600">{fmtEuro(totalRemaining * subsidyRate)}</span></>
-            )}
-          </span>
+        <div className="bg-orange-50 border border-orange-200 rounded-xl p-4">
+          <p className="text-xs text-orange-700 font-medium mb-1">Απομένει προς πιστοποίηση</p>
+          <p className="text-lg font-bold text-orange-800">{fmtEuro(totalRemaining)}</p>
+          {subsidyRate > 0 && (
+            <p className="text-xs text-orange-700 mt-1">
+              Επιχορήγηση ({subsidyPercent}%): <span className="font-semibold">{fmtEuro(totalRemaining * subsidyRate)}</span>
+            </p>
+          )}
         </div>
       </div>
     </div>
@@ -1146,6 +1146,36 @@ export default function ClientPortal() {
                     {item.comment && (
                       <p className="text-xs text-gray-500 italic mt-0.5">→ {item.comment}</p>
                     )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Modifications */}
+        {data.modifications?.length > 0 && (
+          <div className="bg-white rounded-xl border border-blue-100 p-5 shadow-sm">
+            <h3 className="text-sm font-semibold text-blue-700 mb-4 flex items-center gap-2">
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125" />
+              </svg>
+              Τροποποιήσεις Έργου
+            </h3>
+            <div className="space-y-3">
+              {data.modifications.map((m, i) => (
+                <div key={i} className="flex flex-col sm:flex-row sm:items-start gap-2 p-3 bg-blue-50 rounded-lg border border-blue-100">
+                  <div className="flex-shrink-0 text-xs font-medium text-blue-600 whitespace-nowrap pt-0.5">
+                    {m.modification_date ? new Date(m.modification_date + 'T12:00:00').toLocaleDateString('el-GR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—'}
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-semibold text-gray-800">{m.title}</p>
+                    {m.justification && <p className="text-xs text-gray-500 mt-0.5">{m.justification}</p>}
+                  </div>
+                  <div className="flex-shrink-0 text-xs whitespace-nowrap">
+                    {m.approval_date
+                      ? <span className="text-green-700 font-medium">Εγκρίθηκε {new Date(m.approval_date + 'T12:00:00').toLocaleDateString('el-GR', { day: '2-digit', month: '2-digit', year: 'numeric' })}</span>
+                      : <span className="text-orange-500">Εκκρεμεί έγκριση</span>}
                   </div>
                 </div>
               ))}

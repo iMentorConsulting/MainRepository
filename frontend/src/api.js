@@ -129,6 +129,12 @@ export const notifyCasePendingItems = (caseId, data) => api.post(`/api/cm/cases/
 export const getAllPendingOverview = (params = {}) => api.get('/api/cm/pending-items/all', { params }).then(r => r.data)
 export const patchCaseField = (id, data) => api.put(`/api/cm/cases/${id}`, data).then(r => r.data)
 
+// Modifications
+export const getCaseModifications = (caseId) => api.get(`/api/cm/cases/${caseId}/modifications`).then(r => r.data)
+export const createCaseModification = (caseId, data) => api.post(`/api/cm/cases/${caseId}/modifications`, data).then(r => r.data)
+export const updateCaseModification = (caseId, modId, data) => api.put(`/api/cm/cases/${caseId}/modifications/${modId}`, data).then(r => r.data)
+export const deleteCaseModification = (caseId, modId) => api.delete(`/api/cm/cases/${caseId}/modifications/${modId}`).then(r => r.data)
+
 // Client Portal
 export const getPortalCase = (token) =>
   axios.get(`${BASE}/api/cm/portal/public/${token}`).then(r => r.data)
