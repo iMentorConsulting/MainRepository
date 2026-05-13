@@ -215,9 +215,12 @@ function StatusTimeline({ fullStatusList, currentStatus, nextStatus, statusDescr
 
 // ── ΕΣΠΑ Budget Breakdown ─────────────────────────────────────────────────────
 
-function BudgetBreakdown({ categories, approvedBudget }) {
+function BudgetBreakdown({ categories, subsidyPercent }) {
   if (!categories?.length) return null
   const total = categories.reduce((s, c) => s + (c.approved_amount || 0), 0)
+  const totalCertified = categories.reduce((s, c) => s + (c.total_certified || 0), 0)
+  const totalRemaining = categories.reduce((s, c) => s + (c.remaining || 0), 0)
+  const subsidyRate = (subsidyPercent || 0) / 100
 
   return (
     <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
@@ -256,28 +259,59 @@ function BudgetBreakdown({ categories, approvedBudget }) {
               <th className="text-right py-1.5 px-2 font-medium">%</th>
               <th className="text-right py-1.5 px-2 font-medium">1ο Αίτ.</th>
               <th className="text-right py-1.5 px-2 font-medium">2ο Αίτ.</th>
-              <th className="text-right py-1.5 pl-2 font-medium">Τελικό</th>
+              <th className="text-right py-1.5 px-2 font-medium">Τελικό</th>
+              <th className="text-right py-1.5 px-2 font-medium text-green-600">Πιστοποιηθέν</th>
+              <th className="text-right py-1.5 pl-2 font-medium text-orange-500">Απομένει</th>
             </tr>
           </thead>
           <tbody>
-            {categories.map((cat, idx) => (
-              <tr key={idx} className="border-b border-gray-50 hover:bg-gray-50">
-                <td className="py-1.5 pr-3 text-gray-700 font-medium">{cat.category_name}</td>
-                <td className="text-right px-2 text-gray-700">{fmtEuro(cat.approved_amount)}</td>
-                <td className="text-right px-2 text-gray-400">{cat.percent_of_budget ? `${cat.percent_of_budget}%` : '—'}</td>
-                <td className="text-right px-2 text-gray-500">{cat.certified_request1 ? fmtEuro(cat.certified_request1) : '—'}</td>
-                <td className="text-right px-2 text-gray-500">{cat.certified_request2 ? fmtEuro(cat.certified_request2) : '—'}</td>
-                <td className="text-right pl-2 text-gray-500">{cat.certified_final ? fmtEuro(cat.certified_final) : '—'}</td>
-              </tr>
-            ))}
-            <tr className="font-bold text-gray-800 border-t border-gray-200">
+            {categories.map((cat, idx) => {
+              const pct = total > 0 ? ((cat.approved_amount / total) * 100).toFixed(1) : '0.0'
+              return (
+                <tr key={idx} className="border-b border-gray-50 hover:bg-gray-50">
+                  <td className="py-1.5 pr-3 text-gray-700 font-medium">{cat.category_name}</td>
+                  <td className="text-right px-2 text-gray-700">{fmtEuro(cat.approved_amount)}</td>
+                  <td className="text-right px-2 text-gray-400">{pct}%</td>
+                  <td className="text-right px-2 text-gray-500">{cat.certified_request1 ? fmtEuro(cat.certified_request1) : '—'}</td>
+                  <td className="text-right px-2 text-gray-500">{cat.certified_request2 ? fmtEuro(cat.certified_request2) : '—'}</td>
+                  <td className="text-right px-2 text-gray-500">{cat.certified_final ? fmtEuro(cat.certified_final) : '—'}</td>
+                  <td className="text-right px-2 font-semibold text-green-600">{fmtEuro(cat.total_certified)}</td>
+                  <td className="text-right pl-2 font-semibold text-orange-500">{fmtEuro(cat.remaining)}</td>
+                </tr>
+              )
+            })}
+            <tr className="font-bold text-gray-800 border-t-2 border-gray-200">
               <td className="py-1.5 pr-3">Σύνολο</td>
               <td className="text-right px-2">{fmtEuro(total)}</td>
               <td className="text-right px-2 text-gray-400">100%</td>
               <td colSpan={3} />
+              <td className="text-right px-2 text-green-600">{fmtEuro(totalCertified)}</td>
+              <td className="text-right pl-2 text-orange-500">{fmtEuro(totalRemaining)}</td>
             </tr>
           </tbody>
         </table>
+      </div>
+
+      {/* Summary below table */}
+      <div className="mt-4 pt-4 border-t border-gray-100 space-y-2">
+        <div className="flex flex-wrap gap-x-6 gap-y-1 text-xs text-gray-600">
+          <span>
+            Έχουν πιστοποιηθεί δαπάνες{' '}
+            <span className="font-semibold text-green-700">{fmtEuro(totalCertified)}</span>
+            {subsidyRate > 0 && (
+              <> με επιχορήγηση <span className="font-semibold text-green-700">{fmtEuro(totalCertified * subsidyRate)}</span></>
+            )}
+          </span>
+        </div>
+        <div className="flex flex-wrap gap-x-6 gap-y-1 text-xs text-gray-600">
+          <span>
+            Απομένει προς πιστοποίηση{' '}
+            <span className="font-semibold text-orange-600">{fmtEuro(totalRemaining)}</span>
+            {subsidyRate > 0 && (
+              <> με επιχορήγηση <span className="font-semibold text-orange-600">{fmtEuro(totalRemaining * subsidyRate)}</span></>
+            )}
+          </span>
+        </div>
       </div>
     </div>
   )
@@ -1074,7 +1108,7 @@ export default function ClientPortal() {
 
         {/* ΕΣΠΑ Budget breakdown */}
         {data.program_category === 'ΕΣΠΑ' && data.budget_categories?.length > 0 && (
-          <BudgetBreakdown categories={data.budget_categories} approvedBudget={data.approved_budget} />
+          <BudgetBreakdown categories={data.budget_categories} subsidyPercent={data.subsidy_percent} />
         )}
 
         {/* ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ section */}

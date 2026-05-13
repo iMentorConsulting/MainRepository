@@ -44,6 +44,7 @@ function EditableCell({ value, onSave }) {
 
 export default function BudgetTab({ caseId, caseData, onRefresh }) {
   const cats = caseData?.budget_categories || []
+  const subsidyRate = (caseData?.subsidy_percent || 0) / 100
   const [form, setForm] = useState({ category_name: '', approved_amount: '' })
   const [saving, setSaving] = useState(false)
 
@@ -188,6 +189,30 @@ export default function BudgetTab({ caseId, caseData, onRefresh }) {
           </div>
         )}
       </div>
+
+      {/* Summary */}
+      {cats.length > 0 && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="bg-green-50 border border-green-200 rounded-xl p-4">
+            <p className="text-xs text-green-700 font-medium mb-1">Πιστοποιηθέν σύνολο δαπανών</p>
+            <p className="text-xl font-bold text-green-800">{fmt(totals.certified)}</p>
+            {subsidyRate > 0 && (
+              <p className="text-sm text-green-700 mt-1">
+                Επιχορήγηση ({caseData.subsidy_percent}%): <span className="font-semibold">{fmt(totals.certified * subsidyRate)}</span>
+              </p>
+            )}
+          </div>
+          <div className="bg-orange-50 border border-orange-200 rounded-xl p-4">
+            <p className="text-xs text-orange-700 font-medium mb-1">Απομένει προς πιστοποίηση</p>
+            <p className="text-xl font-bold text-orange-800">{fmt(totals.remaining)}</p>
+            {subsidyRate > 0 && (
+              <p className="text-sm text-orange-700 mt-1">
+                Επιχορήγηση ({caseData.subsidy_percent}%): <span className="font-semibold">{fmt(totals.remaining * subsidyRate)}</span>
+              </p>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
