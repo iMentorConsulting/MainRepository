@@ -6,11 +6,11 @@ import toast from 'react-hot-toast'
 const fmtDate = (s) => {
   if (!s) return ''
   const d = new Date(s)
-  return d.toLocaleDateString('el-GR', { day: '2-digit', month: 'short', year: 'numeric' })
+  return d.toLocaleDateString('el-GR', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Europe/Athens' })
 }
 const fmtTime = (s) => {
   if (!s) return ''
-  return new Date(s).toLocaleTimeString('el-GR', { hour: '2-digit', minute: '2-digit' })
+  return new Date(s).toLocaleTimeString('el-GR', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Athens' })
 }
 
 function groupByDate(messages) {

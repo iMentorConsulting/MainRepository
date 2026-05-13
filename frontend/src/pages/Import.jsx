@@ -299,7 +299,7 @@ export default function Import() {
               ? <>
                   Τελευταία εκτέλεση:{' '}
                   <span className="font-medium">
-                    {new Date(autoRefreshStatus.last_run_at).toLocaleString('el-GR', { dateStyle: 'short', timeStyle: 'short' })}
+                    {new Date(autoRefreshStatus.last_run_at).toLocaleString('el-GR', { dateStyle: 'short', timeStyle: 'short', timeZone: 'Europe/Athens' })}
                   </span>
                   {autoRefreshStatus.error
                     ? <> — <span className="text-red-600">Σφάλμα: {autoRefreshStatus.error}</span></>

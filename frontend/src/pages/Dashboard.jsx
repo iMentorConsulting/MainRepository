@@ -626,7 +626,7 @@ export default function Dashboard() {
                       <div className="truncate">{p.status || '—'}</div>
                     </td>
                     <td className="px-4 py-2.5 text-xs text-gray-600 whitespace-nowrap">
-                      {p.portal_last_visit_at ? new Date(p.portal_last_visit_at).toLocaleString('el-GR', { dateStyle: 'short', timeStyle: 'short' }) : <span className="text-gray-300">—</span>}
+                      {p.portal_last_visit_at ? new Date(p.portal_last_visit_at).toLocaleString('el-GR', { dateStyle: 'short', timeStyle: 'short', timeZone: 'Europe/Athens' }) : <span className="text-gray-300">—</span>}
                     </td>
                     <td className="px-4 py-2.5 text-center">
                       {p.portal_visit_count > 0
@@ -634,7 +634,7 @@ export default function Dashboard() {
                         : <span className="text-gray-300 text-xs">0</span>}
                     </td>
                     <td className="px-4 py-2.5 text-xs text-gray-600 whitespace-nowrap">
-                      {p.last_msg_at ? new Date(p.last_msg_at).toLocaleString('el-GR', { dateStyle: 'short', timeStyle: 'short' }) : <span className="text-gray-300">—</span>}
+                      {p.last_msg_at ? new Date(p.last_msg_at).toLocaleString('el-GR', { dateStyle: 'short', timeStyle: 'short', timeZone: 'Europe/Athens' }) : <span className="text-gray-300">—</span>}
                     </td>
                     <td className="px-4 py-2.5 text-center">
                       {p.total_msgs_sent > 0
