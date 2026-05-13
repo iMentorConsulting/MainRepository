@@ -146,10 +146,67 @@ function StatusTooltip({ description }) {
   )
 }
 
-function StatusTimeline({ fullStatusList, currentStatus, nextStatus, statusDescriptions = {} }) {
-  const currentIdx = fullStatusList.findIndex(s => s.status === currentStatus)
+const EXCEPTION_STYLES = {
+  'ΕΝΣΤΑΣΗ':      { bg: 'bg-amber-50',  border: 'border-amber-300',  icon: '⚖️', text: 'text-amber-800',  badge: 'bg-amber-100 text-amber-800 border-amber-300',  dot: 'bg-amber-500'  },
+  'ΤΡΟΠΟΠΟΙΗΣΗ':  { bg: 'bg-blue-50',   border: 'border-blue-300',   icon: '🔄', text: 'text-blue-800',   badge: 'bg-blue-100 text-blue-800 border-blue-300',   dot: 'bg-blue-500'   },
+  'ΠΑΓΩΜΕΝΗ ΥΠΟΘΕΣΗ': { bg: 'bg-gray-50', border: 'border-gray-300', icon: '❄️', text: 'text-gray-700',  badge: 'bg-gray-100 text-gray-700 border-gray-300',   dot: 'bg-gray-400'   },
+}
+const DEFAULT_EXCEPTION_STYLE = { bg: 'bg-purple-50', border: 'border-purple-300', icon: '⏸', text: 'text-purple-800', badge: 'bg-purple-100 text-purple-800 border-purple-300', dot: 'bg-purple-500' }
 
-  // Group flat list into phase buckets preserving order
+function ExceptionBanner({ status, description }) {
+  const style = EXCEPTION_STYLES[status] || DEFAULT_EXCEPTION_STYLE
+  return (
+    <div className={`relative overflow-hidden rounded-2xl border-2 ${style.border} ${style.bg} p-5 shadow-sm`}>
+      {/* Decorative background circles */}
+      <div className="absolute -top-6 -right-6 w-24 h-24 rounded-full opacity-10 bg-current" />
+      <div className="absolute -bottom-4 -left-4 w-16 h-16 rounded-full opacity-10 bg-current" />
+
+      <div className="relative flex items-start gap-4">
+        {/* Pulsing icon */}
+        <div className="flex-shrink-0 relative">
+          <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-2xl shadow-sm border ${style.border} bg-white`}>
+            {style.icon}
+          </div>
+          <span className={`absolute -top-1 -right-1 w-3 h-3 rounded-full ${style.dot} ring-2 ring-white animate-pulse`} />
+        </div>
+
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-1">
+            <span className={`text-xs font-bold uppercase tracking-widest ${style.text} opacity-70`}>Ενεργή Διαδικασία</span>
+          </div>
+          <h3 className={`text-lg font-bold ${style.text} mb-1`}>{status}</h3>
+          {description ? (
+            <p className={`text-sm ${style.text} opacity-80 leading-relaxed`}>{description}</p>
+          ) : (
+            <p className={`text-sm ${style.text} opacity-70 leading-relaxed`}>
+              Η υπόθεση βρίσκεται προσωρινά σε αυτή τη φάση. Η κανονική πορεία θα συνεχιστεί μόλις ολοκληρωθεί η διαδικασία.
+            </p>
+          )}
+        </div>
+      </div>
+
+      {/* Bottom strip */}
+      <div className={`mt-4 pt-3 border-t ${style.border} border-opacity-40 flex items-center gap-2`}>
+        <div className={`w-1.5 h-1.5 rounded-full ${style.dot} animate-pulse`} />
+        <span className={`text-xs font-medium ${style.text} opacity-60`}>Η πορεία της υπόθεσης παρακάτω δείχνει το στάδιο που βρίσκεστε</span>
+      </div>
+    </div>
+  )
+}
+
+function StatusTimeline({ fullStatusList, currentStatus, nextStatus, statusDescriptions = {}, statusHistory = [] }) {
+  // Detect if current status is an exception (not in the normal pipeline)
+  const pipelineStatuses = new Set(fullStatusList.map(s => s.status))
+  const isException = currentStatus && !pipelineStatuses.has(currentStatus)
+
+  // Find last known pipeline status from history when in exception mode
+  const frozenStatus = isException
+    ? [...statusHistory].reverse().find(h => pipelineStatuses.has(h.to_status))?.to_status || null
+    : currentStatus
+
+  const currentIdx = fullStatusList.findIndex(s => s.status === frozenStatus)
+
+  // Group flat list into phase buckets
   const phaseGroups = []
   fullStatusList.forEach((item, idx) => {
     const last = phaseGroups[phaseGroups.length - 1]
@@ -161,60 +218,85 @@ function StatusTimeline({ fullStatusList, currentStatus, nextStatus, statusDescr
   })
 
   return (
-    <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
-      <div className="flex items-center justify-between mb-5">
-        <h3 className="text-sm font-semibold text-gray-700">Πορεία Υπόθεσης</h3>
-        {nextStatus && (
-          <div className="text-xs bg-blue-50 text-blue-700 border border-blue-200 px-3 py-1 rounded-full">
-            Επόμενο: <span className="font-semibold">{nextStatus}</span>
-          </div>
-        )}
-      </div>
-      <div className="space-y-5">
-        {phaseGroups.map((phase) => {
-          const colors = PHASE_COLORS[phase.color] || PHASE_COLORS.blue
-          const allDone = phase.items.every(item => item.idx < currentIdx)
-          const hasActive = phase.items.some(item => item.idx === currentIdx)
+    <div className="space-y-3">
+      {/* Exception banner */}
+      {isException && (
+        <ExceptionBanner
+          status={currentStatus}
+          description={statusDescriptions[currentStatus]}
+        />
+      )}
 
-          return (
-            <div key={phase.phase_id} className={`border-l-2 pl-4 ${allDone || hasActive ? colors.border : 'border-gray-200'}`}>
-              <div className="flex items-center gap-2 mb-2">
-                <span className={`inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full border ${colors.badge}`}>
-                  {allDone && <CheckCircleIcon className="w-3.5 h-3.5" />}
-                  {phase.phase_label}
-                </span>
-                {allDone && <span className="text-xs text-gray-400">Ολοκληρωμένη</span>}
-              </div>
-              <div className="space-y-1">
-                {phase.items.map((item) => {
-                  const isDone = item.idx < currentIdx
-                  const isActive = item.idx === currentIdx
-                  return (
-                    <div key={item.idx} className={`flex items-center gap-2.5 py-1.5 px-2.5 rounded-lg ${isActive ? colors.rowBg : ''}`}>
-                      <div className={`flex-shrink-0 w-4 h-4 rounded-full flex items-center justify-center ${
-                        isDone || isActive ? `${colors.dot} text-white` : 'bg-gray-200'
-                      }`}>
-                        {isDone ? <CheckCircleIcon className="w-3 h-3" /> :
-                         isActive ? <div className="w-1.5 h-1.5 bg-white rounded-full" /> : null}
-                      </div>
-                      <span className={`flex-1 leading-tight text-sm ${
-                        isDone ? 'text-gray-400' : isActive ? `font-bold ${colors.text}` : 'text-gray-400'
-                      }`}>
-                        {item.status}
-                      </span>
-                      <StatusTooltip description={statusDescriptions[item.status]} />
-                      {isActive && (
-                        <span className={`flex-shrink-0 text-xs font-bold px-2 py-0.5 rounded-full border ${colors.badge}`}>
-                          ΤΩΡΑ
-                        </span>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
+      {/* Timeline card */}
+      <div className={`bg-white rounded-xl border p-5 shadow-sm transition-all ${isException ? 'border-gray-200 opacity-80' : 'border-gray-100'}`}>
+        <div className="flex items-center justify-between mb-5">
+          <div className="flex items-center gap-2">
+            <h3 className="text-sm font-semibold text-gray-700">Πορεία Υπόθεσης</h3>
+            {isException && (
+              <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full border border-gray-200 flex items-center gap-1">
+                <span>⏸</span> Παύση
+              </span>
+            )}
+          </div>
+          {!isException && nextStatus && (
+            <div className="text-xs bg-blue-50 text-blue-700 border border-blue-200 px-3 py-1 rounded-full">
+              Επόμενο: <span className="font-semibold">{nextStatus}</span>
             </div>
-          )
-        })}
+          )}
+        </div>
+        <div className="space-y-5">
+          {phaseGroups.map((phase) => {
+            const colors = PHASE_COLORS[phase.color] || PHASE_COLORS.blue
+            const allDone = phase.items.every(item => item.idx < currentIdx)
+            const hasActive = phase.items.some(item => item.idx === currentIdx)
+
+            return (
+              <div key={phase.phase_id} className={`border-l-2 pl-4 ${allDone || hasActive ? colors.border : 'border-gray-200'}`}>
+                <div className="flex items-center gap-2 mb-2">
+                  <span className={`inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full border ${colors.badge}`}>
+                    {allDone && <CheckCircleIcon className="w-3.5 h-3.5" />}
+                    {phase.phase_label}
+                  </span>
+                  {allDone && <span className="text-xs text-gray-400">Ολοκληρωμένη</span>}
+                </div>
+                <div className="space-y-1">
+                  {phase.items.map((item) => {
+                    const isDone = item.idx < currentIdx
+                    const isActive = item.idx === currentIdx
+                    return (
+                      <div key={item.idx} className={`flex items-center gap-2.5 py-1.5 px-2.5 rounded-lg ${isActive ? (isException ? 'bg-gray-50 border border-gray-200' : colors.rowBg) : ''}`}>
+                        <div className={`flex-shrink-0 w-4 h-4 rounded-full flex items-center justify-center ${
+                          isDone || isActive ? (isException && isActive ? 'bg-gray-400 text-white' : `${colors.dot} text-white`) : 'bg-gray-200'
+                        }`}>
+                          {isDone ? <CheckCircleIcon className="w-3 h-3" /> :
+                           isActive ? <div className="w-1.5 h-1.5 bg-white rounded-full" /> : null}
+                        </div>
+                        <span className={`flex-1 leading-tight text-sm ${
+                          isDone ? 'text-gray-400' :
+                          isActive ? (isException ? 'font-semibold text-gray-500' : `font-bold ${colors.text}`) :
+                          'text-gray-400'
+                        }`}>
+                          {item.status}
+                        </span>
+                        <StatusTooltip description={statusDescriptions[item.status]} />
+                        {isActive && !isException && (
+                          <span className={`flex-shrink-0 text-xs font-bold px-2 py-0.5 rounded-full border ${colors.badge}`}>
+                            ΤΩΡΑ
+                          </span>
+                        )}
+                        {isActive && isException && (
+                          <span className="flex-shrink-0 text-xs font-medium px-2 py-0.5 rounded-full border bg-gray-100 text-gray-500 border-gray-200">
+                            ⏸ Σε αναμονή
+                          </span>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )
+          })}
+        </div>
       </div>
     </div>
   )
@@ -1110,6 +1192,7 @@ export default function ClientPortal() {
             currentStatus={data.status}
             nextStatus={data.next_status}
             statusDescriptions={data.status_descriptions || {}}
+            statusHistory={data.status_history || []}
           />
         )}
 
