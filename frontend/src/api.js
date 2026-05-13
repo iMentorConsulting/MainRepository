@@ -173,4 +173,15 @@ export const deleteWorkList = (id) => api.delete(`/api/cm/worklists/${id}`).then
 export const getWorkListCases = (id) => api.get(`/api/cm/worklists/${id}/cases`).then(r => r.data)
 export const getAllTasks = (status) => api.get('/api/cm/worklists/all-tasks/list', { params: status ? { status } : {} }).then(r => r.data)
 
+// Portal Files (admin)
+export const getPortalFiles = (caseId) => api.get(`/api/cm/cases/${caseId}/portal-files`).then(r => r.data)
+export const uploadPortalAdminFile = (caseId, formData) =>
+  api.post(`/api/cm/cases/${caseId}/portal-files`, formData, { headers: { 'Content-Type': 'multipart/form-data' } }).then(r => r.data)
+export const replacePortalFile = (caseId, fileId, formData) =>
+  api.post(`/api/cm/cases/${caseId}/portal-files/${fileId}/replace`, formData, { headers: { 'Content-Type': 'multipart/form-data' } }).then(r => r.data)
+export const updatePortalFileMeta = (caseId, fileId, formData) =>
+  api.put(`/api/cm/cases/${caseId}/portal-files/${fileId}`, formData, { headers: { 'Content-Type': 'multipart/form-data' } }).then(r => r.data)
+export const deletePortalFile = (caseId, fileId) => api.delete(`/api/cm/cases/${caseId}/portal-files/${fileId}`).then(r => r.data)
+export const getPortalFileDownloadUrl = (caseId, fileId) => `/api/cm/cases/${caseId}/portal-files/${fileId}/download`
+
 export default api

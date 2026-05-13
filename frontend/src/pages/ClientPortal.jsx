@@ -16,6 +16,8 @@ import {
   StarIcon,
   ClipboardDocumentIcon,
   GlobeAltIcon,
+  DocumentArrowDownIcon,
+  FolderOpenIcon,
 } from '@heroicons/react/24/outline'
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -1290,6 +1292,49 @@ export default function ClientPortal() {
                   </div>
                 ))}
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Portal Files */}
+        {data.portal_files?.length > 0 && (
+          <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
+            <h3 className="text-sm font-semibold text-gray-700 mb-4 flex items-center gap-2">
+              <FolderOpenIcon className="w-5 h-5 text-blue-400" />
+              Έγγραφα
+            </h3>
+            <div className="space-y-2">
+              {data.portal_files.map(file => {
+                const ext = file.mime_type === 'application/pdf' ? 'PDF'
+                  : file.mime_type === 'application/msword' ? 'DOC' : 'DOCX'
+                const badgeColor = ext === 'PDF'
+                  ? 'bg-red-100 text-red-700 border-red-200'
+                  : 'bg-blue-100 text-blue-700 border-blue-200'
+                const sizeFmt = file.file_size < 1024 * 1024
+                  ? `${(file.file_size / 1024).toFixed(1)} KB`
+                  : `${(file.file_size / (1024 * 1024)).toFixed(1)} MB`
+                const uploadedDate = file.uploaded_at
+                  ? new Date(file.uploaded_at).toLocaleDateString('el-GR', { timeZone: TZ, day: '2-digit', month: '2-digit', year: 'numeric' })
+                  : '—'
+                return (
+                  <a key={file.id}
+                    href={`/api/cm/portal/public/${token}/files/${file.id}/download`}
+                    download={file.original_filename}
+                    className="flex items-center gap-3 p-3 rounded-xl border border-gray-100 hover:border-blue-200 hover:bg-blue-50 transition-all group">
+                    <div className="w-10 h-10 rounded-lg bg-gray-50 border border-gray-200 flex items-center justify-center shrink-0 group-hover:bg-blue-100 group-hover:border-blue-200 transition-colors">
+                      <DocumentArrowDownIcon className="w-5 h-5 text-gray-400 group-hover:text-blue-500" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className={`text-xs font-bold px-1.5 py-0.5 rounded border ${badgeColor}`}>{ext}</span>
+                        <span className="text-sm font-medium text-gray-800 truncate">{file.client_description}</span>
+                      </div>
+                      <p className="text-xs text-gray-400 mt-0.5">{sizeFmt} · {uploadedDate}</p>
+                    </div>
+                    <DocumentArrowDownIcon className="w-4 h-4 text-gray-300 group-hover:text-blue-400 shrink-0" />
+                  </a>
+                )
+              })}
             </div>
           </div>
         )}

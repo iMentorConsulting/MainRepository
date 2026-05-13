@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, Boolean, Date, DateTime, Text, ForeignKey, JSON
+from sqlalchemy import Column, Integer, String, Float, Boolean, Date, DateTime, Text, ForeignKey, JSON, LargeBinary
 from sqlalchemy.orm import relationship
 from database import Base
 from datetime import datetime
@@ -99,6 +99,7 @@ class CMCase(Base):
     budget_categories = relationship("CMBudgetCategory", back_populates="case", cascade="all, delete-orphan")
     pending_items = relationship("CMCasePendingItem", back_populates="case", cascade="all, delete-orphan", order_by="CMCasePendingItem.sort_order")
     modifications = relationship("CMCaseModification", back_populates="case", cascade="all, delete-orphan", order_by="CMCaseModification.modification_date")
+    portal_files = relationship("CMPortalFile", back_populates="case", cascade="all, delete-orphan", order_by="CMPortalFile.uploaded_at")
     status_history = relationship("CMCaseStatusHistory", back_populates="case", cascade="all, delete-orphan", order_by="CMCaseStatusHistory.changed_at")
 
 
@@ -307,3 +308,25 @@ class CMCaseModification(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow)
     case = relationship("CMCase", back_populates="modifications")
+
+
+class CMPortalFile(Base):
+    __tablename__ = "cm_portal_files"
+
+    id = Column(Integer, primary_key=True, index=True)
+    case_id = Column(Integer, ForeignKey("cm_cases.id"), nullable=False)
+
+    original_filename = Column(String(300), nullable=False)
+    mime_type = Column(String(100), nullable=False)
+    file_size = Column(Integer, nullable=False)
+    file_data = Column(LargeBinary, nullable=False)
+
+    client_description = Column(String(500), nullable=False)
+    internal_notes = Column(Text, nullable=True)
+
+    # versioning: points to the file this replaces
+    replaces_id = Column(Integer, ForeignKey("cm_portal_files.id"), nullable=True)
+
+    uploaded_at = Column(DateTime, default=datetime.utcnow)
+
+    case = relationship("CMCase", back_populates="portal_files")
