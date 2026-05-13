@@ -74,13 +74,34 @@ try:
 except Exception:
     pass
 
-# Backfill portal_notified_at for cases activated before this column existed
+# Backfill portal_notified_at from notification_logs (authoritative source)
+# Step 1: reset any guessed values — only keep what notification_logs can confirm
+# Step 2: set from the earliest portal notification log entry per case
 try:
     with engine.connect() as _conn:
         _conn.execute(_text("""
             UPDATE cm_cases
-            SET portal_notified_at = COALESCE(portal_last_visit_at, updated_at, created_at, NOW())
-            WHERE portal_active = TRUE AND portal_notified_at IS NULL
+            SET portal_notified_at = NULL
+            WHERE portal_notified_at IS NOT NULL
+              AND NOT EXISTS (
+                SELECT 1 FROM cm_notification_logs nl
+                WHERE nl.case_id = cm_cases.id
+                  AND nl.subject ILIKE 'Ενεργοποίηση Πύλης%'
+                  AND nl.status = 'sent'
+              )
+        """))
+        _conn.execute(_text("""
+            UPDATE cm_cases
+            SET portal_notified_at = sub.first_sent
+            FROM (
+                SELECT case_id, MIN(created_at) AS first_sent
+                FROM cm_notification_logs
+                WHERE subject ILIKE 'Ενεργοποίηση Πύλης%'
+                  AND status = 'sent'
+                GROUP BY case_id
+            ) sub
+            WHERE cm_cases.id = sub.case_id
+              AND cm_cases.portal_notified_at IS NULL
         """))
         _conn.commit()
 except Exception:
