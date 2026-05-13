@@ -80,6 +80,7 @@ class CMCase(Base):
     portal_nps_score = Column(Integer, nullable=True)
     portal_nps_at = Column(DateTime, nullable=True)
     portal_review_clicked = Column(Boolean, default=False)
+    portal_notified_at = Column(DateTime, nullable=True)
 
     # Metadata
     sheet_import_ref = Column(String(200))
