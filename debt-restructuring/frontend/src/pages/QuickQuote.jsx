@@ -59,14 +59,17 @@ export default function QuickQuote() {
     // ── Disposable income by debtor type ─────────────────────────────────────
     let dispAnnual = 0
     let incomeNote = ''
+    let hasIncome = false
 
     if (debtorType === 'fp') {
       if (!netIncome) return null
+      hasIncome = true
       const household = HOUSEHOLD_OPTS[householdIdx].value
       dispAnnual = Math.max(0, netIncome - household) * 0.8
       incomeNote = 'ΕΛΣΤΑΤ × 80%'
     } else if (debtorType === 'ep') {
       if (!netIncome && !turnover) return null
+      hasIncome = true
       const household = HOUSEHOLD_OPTS[householdIdx].value
       const dispA = Math.max(0, netIncome - household) * 0.8
       const dispB = turnover * 0.10
@@ -74,6 +77,7 @@ export default function QuickQuote() {
       incomeNote = dispB > dispA ? '10% τζίρου (κανόνας ΕΠ)' : 'ΕΛΣΤΑΤ × 80%'
     } else { // np
       if (!netIncome && !turnover) return null
+      hasIncome = true
       const dispA = Math.max(0, netIncome)
       const dispB = turnover * 0.10
       dispAnnual = Math.max(dispA, dispB)
@@ -85,15 +89,13 @@ export default function QuickQuote() {
     const forcedPublic240 = (debtorType === 'ep' || debtorType === 'np') && profitMargin < 0.10
 
     const monthlyDisp = dispAnnual / 12
-    if (monthlyDisp <= 0) return { noCapacity: true, disposable: 0, monthlyDisp: 0, totalDebt }
+    const zeroIncome = monthlyDisp <= 0
 
     // ── Duration caps ─────────────────────────────────────────────────────────
-    // Banks: 360mo for fp/ep, 240mo for np
     const bankDuration  = debtorType === 'np' ? 240 : 360
     const publicDuration = 240
 
     // ── NWO floor — 100% commercial value (no auction discount) ───────────────
-    // Max total writeoff = max(0, totalDebt − commercialValue)
     const nwoFloor = commercialValue > 0 ? commercialValue : 0
     const maxTotalWr = Math.max(0, totalDebt - nwoFloor)
 
@@ -105,12 +107,12 @@ export default function QuickQuote() {
     const publicMonthly = monthlyDisp * publicShare
 
     // ── Max capacity per creditor class ───────────────────────────────────────
+    // When income=0 capacity=0 → max writeoffs apply (best possible scenario)
     const bankCap   = bankMonthly * bankDuration
     const publicCap = publicMonthly * publicDuration
 
     // ── Pre-floor writeoffs ───────────────────────────────────────────────────
     let bankWrPre   = Math.max(0, bankDebt - bankCap)
-    // Public: max 50% erasable (basic principal/contributions are non-erasable)
     const publicWrMax = publicDebt * 0.50
     let publicWrPre = Math.min(Math.max(0, publicDebt - publicCap), publicWrMax)
 
@@ -134,13 +136,16 @@ export default function QuickQuote() {
     const bankRemaining   = Math.max(0, bankDebt - bankWr)
     const publicRemaining = Math.max(0, publicDebt - publicWr)
 
-    const bankMonths = (bankRemaining > 0 && bankMonthly > 0)
-      ? Math.min(bankDuration, Math.ceil(bankRemaining / bankMonthly)) : 0
-    const rawPublicMonths = (publicRemaining > 0 && publicMonthly > 0)
-      ? Math.min(publicDuration, Math.ceil(publicRemaining / publicMonthly)) : 0
+    // When income=0 use max duration to show minimum possible installment
+    const bankMonths = bankRemaining > 0
+      ? (bankMonthly > 0 ? Math.min(bankDuration, Math.ceil(bankRemaining / bankMonthly)) : bankDuration)
+      : 0
+    const rawPublicMonths = publicRemaining > 0
+      ? (publicMonthly > 0 ? Math.min(publicDuration, Math.ceil(publicRemaining / publicMonthly)) : publicDuration)
+      : 0
     const publicMonths = forcedPublic240 && publicRemaining > 0 ? 240 : rawPublicMonths
 
-    const months = Math.max(bankMonths, publicMonths) || Math.min(bankDuration, Math.ceil(remaining / monthlyDisp))
+    const months = Math.max(bankMonths, publicMonths) || bankDuration
 
     // ── Annuity installments at 3% annual ────────────────────────────────────
     const bankPMT   = annuityPMT(bankRemaining, RATE, bankMonths)
@@ -148,10 +153,10 @@ export default function QuickQuote() {
     const totalPMT  = bankPMT + publicPMT
 
     // ── Feasibility ───────────────────────────────────────────────────────────
-    const feasible = totalPMT <= monthlyDisp * 1.05 // 5% tolerance
+    const feasible = !zeroIncome && totalPMT <= monthlyDisp * 1.05
 
     return {
-      disposable: dispAnnual, monthlyDisp, incomeNote,
+      disposable: dispAnnual, monthlyDisp, incomeNote, zeroIncome,
       totalDebt, bankDebt, publicDebt,
       totalWr, bankWr, publicWr, wrPct,
       remaining, bankRemaining, publicRemaining,
@@ -161,7 +166,6 @@ export default function QuickQuote() {
       nwoFloor, maxTotalWr,
       nwoActive: commercialValue > 0 && totalWrPre > maxTotalWr,
       feasible,
-      incomeCoversAll: totalWr === 0 && remaining <= monthlyDisp * Math.max(bankDuration, publicDuration),
     }
   }, [bankDebt, publicDebt, commercialValue, netIncome, turnover, householdIdx, debtorType])
 
@@ -255,21 +259,19 @@ export default function QuickQuote() {
               <div className="text-4xl mb-3">💡</div>
               <div className="font-semibold">Συμπλήρωσε οφειλές + εισόδημα για εκτίμηση</div>
             </div>
-          ) : calc.noCapacity ? (
-            <div className="card text-center text-red-500 py-12">
-              <div className="text-3xl mb-2">⚠️</div>
-              <div className="font-bold">Μηδενικό διαθέσιμο εισόδημα</div>
-              <div className="text-sm text-gray-400 mt-1">Το εισόδημα δεν επαρκεί για ρύθμιση.</div>
-            </div>
           ) : (
             <div className="space-y-3">
-              {calc.totalWr === 0 ? (
+              {calc.zeroIncome ? (
+                <div className="bg-amber-50 border border-amber-300 rounded-xl px-4 py-2.5 text-xs text-amber-800 font-semibold">
+                  ⚠️ Μηδενικό διαθέσιμο εισόδημα — εμφανίζεται βέλτιστο αποτέλεσμα με μέγιστες διαγραφές & μέγιστη διάρκεια
+                </div>
+              ) : calc.totalWr === 0 ? (
                 <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-2.5 text-xs text-green-800 font-semibold">
                   ✅ Το εισόδημα καλύπτει το σύνολο — δεν απαιτείται καμία διαγραφή. Ρύθμιση σε {calc.months} μήνες.
                 </div>
               ) : !calc.feasible ? (
                 <div className="bg-red-50 border border-red-300 rounded-xl px-4 py-2.5 text-xs text-red-800 font-semibold">
-                  ⚠️ Μη βιώσιμη ρύθμιση ακόμα και μετά τις μέγιστες διαγραφές. Απαιτείται πλήρης ανάλυση.
+                  ⚠️ Το εισόδημα δεν καλύπτει ακόμα και μετά τις μέγιστες διαγραφές — απαιτείται πλήρης ανάλυση.
                 </div>
               ) : calc.nwoActive ? (
                 <div className="bg-amber-50 border border-amber-300 rounded-xl px-4 py-2.5 text-xs text-amber-800 font-semibold">
