@@ -16,6 +16,7 @@ import Users from './pages/Users'
 import Import from './pages/Import'
 import ClientPortal from './pages/ClientPortal'
 import PortalBroadcastPage from './pages/PortalBroadcastPage'
+import PortalDocumentsPage from './pages/PortalDocumentsPage'
 import PipelineAdmin from './pages/PipelineAdmin'
 import WorkListsPage from './pages/WorkListsPage'
 import Analytics from './pages/Analytics'
@@ -56,6 +57,7 @@ export default function App() {
             <Route path="users" element={<ErrorBoundary><Users /></ErrorBoundary>} />
             <Route path="import" element={<ErrorBoundary><Import /></ErrorBoundary>} />
             <Route path="portal-broadcast" element={<ErrorBoundary><PortalBroadcastPage /></ErrorBoundary>} />
+            <Route path="portal-documents" element={<ErrorBoundary><PortalDocumentsPage /></ErrorBoundary>} />
             <Route path="pipeline-admin" element={<ErrorBoundary><PipelineAdmin /></ErrorBoundary>} />
             <Route path="worklists" element={<ErrorBoundary><WorkListsPage /></ErrorBoundary>} />
             <Route path="analytics" element={<ErrorBoundary><Analytics /></ErrorBoundary>} />

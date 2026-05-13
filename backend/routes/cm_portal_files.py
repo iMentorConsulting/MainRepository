@@ -1,67 +1,75 @@
-import base64
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
 from database import get_db
 from models_cases import CMPortalFile, CMCase
+from auth_cases import get_current_user
 from datetime import datetime
 from typing import Optional
 
-router = APIRouter(prefix="/api/cm/cases", tags=["portal-files"])
+router = APIRouter(prefix="/api/cm/portal-documents", tags=["portal-files"])
 
 ALLOWED_MIME_TYPES = {
-    "application/pdf": ".pdf",
-    "application/msword": ".doc",
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": ".docx",
+    "application/pdf",
+    "application/msword",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 }
 MAX_FILE_SIZE = 15 * 1024 * 1024  # 15 MB
-MAX_FILES_PER_CASE = 10
 
 
-def _file_meta(f: CMPortalFile) -> dict:
-    ext = ALLOWED_MIME_TYPES.get(f.mime_type, "")
-    file_type = ext.lstrip(".").upper() if ext else "ΑΓΝΩΣΤΟ"
+def _file_type(mime: str) -> str:
+    if mime == "application/pdf":
+        return "PDF"
+    return "Word"
+
+
+def _meta(f: CMPortalFile) -> dict:
     return {
         "id": f.id,
-        "case_id": f.case_id,
+        "service_type": f.service_type,
         "original_filename": f.original_filename,
         "mime_type": f.mime_type,
-        "file_type": file_type,
-        "file_size": f.file_size,
+        "file_type": _file_type(f.mime_type),
         "client_description": f.client_description,
+        "client_instructions": f.client_instructions,
         "internal_notes": f.internal_notes,
-        "replaces_id": f.replaces_id,
         "uploaded_at": f.uploaded_at.isoformat() if f.uploaded_at else None,
     }
 
 
-@router.get("/{case_id}/portal-files")
-def list_portal_files(case_id: int, db: Session = Depends(get_db)):
-    files = (
-        db.query(CMPortalFile)
-        .filter(CMPortalFile.case_id == case_id)
-        .order_by(CMPortalFile.uploaded_at.desc())
-        .all()
-    )
-    return [_file_meta(f) for f in files]
+@router.get("")
+def list_documents(
+    service_type: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    q = db.query(CMPortalFile)
+    if service_type:
+        q = q.filter(CMPortalFile.service_type == service_type)
+    files = q.order_by(CMPortalFile.service_type, CMPortalFile.uploaded_at).all()
+    return [_meta(f) for f in files]
 
 
-@router.post("/{case_id}/portal-files")
-async def upload_portal_file(
-    case_id: int,
+@router.get("/service-types")
+def list_service_types(
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """Return all distinct service_types that have at least one case."""
+    rows = db.query(CMCase.service_type).filter(CMCase.service_type.isnot(None)).distinct().order_by(CMCase.service_type).all()
+    return [r[0] for r in rows if r[0]]
+
+
+@router.post("")
+async def upload_document(
     file: UploadFile = File(...),
+    service_type: str = Form(...),
     client_description: str = Form(...),
+    client_instructions: Optional[str] = Form(None),
     internal_notes: Optional[str] = Form(None),
     db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
 ):
-    case = db.query(CMCase).filter(CMCase.id == case_id).first()
-    if not case:
-        raise HTTPException(status_code=404, detail="Case not found")
-
-    count = db.query(CMPortalFile).filter(CMPortalFile.case_id == case_id).count()
-    if count >= MAX_FILES_PER_CASE:
-        raise HTTPException(status_code=400, detail=f"Μέγιστο όριο {MAX_FILES_PER_CASE} εγγράφων ανά υπόθεση")
-
     if file.content_type not in ALLOWED_MIME_TYPES:
         raise HTTPException(status_code=400, detail="Επιτρεπτές μορφές: PDF, DOC, DOCX")
 
@@ -70,33 +78,33 @@ async def upload_portal_file(
         raise HTTPException(status_code=400, detail="Μέγιστο μέγεθος αρχείου: 15MB")
 
     pf = CMPortalFile(
-        case_id=case_id,
+        service_type=service_type,
         original_filename=file.filename,
         mime_type=file.content_type,
         file_size=len(data),
         file_data=data,
         client_description=client_description,
+        client_instructions=client_instructions,
         internal_notes=internal_notes,
         uploaded_at=datetime.utcnow(),
     )
     db.add(pf)
     db.commit()
     db.refresh(pf)
-    return _file_meta(pf)
+    return _meta(pf)
 
 
-@router.post("/{case_id}/portal-files/{file_id}/replace")
-async def replace_portal_file(
-    case_id: int,
+@router.post("/{file_id}/replace")
+async def replace_document(
     file_id: int,
     file: UploadFile = File(...),
     client_description: Optional[str] = Form(None),
+    client_instructions: Optional[str] = Form(None),
     internal_notes: Optional[str] = Form(None),
     db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
 ):
-    old = db.query(CMPortalFile).filter(
-        CMPortalFile.id == file_id, CMPortalFile.case_id == case_id
-    ).first()
+    old = db.query(CMPortalFile).filter(CMPortalFile.id == file_id).first()
     if not old:
         raise HTTPException(status_code=404, detail="Αρχείο δεν βρέθηκε")
 
@@ -107,52 +115,52 @@ async def replace_portal_file(
     if len(data) > MAX_FILE_SIZE:
         raise HTTPException(status_code=400, detail="Μέγιστο μέγεθος αρχείου: 15MB")
 
-    pf = CMPortalFile(
-        case_id=case_id,
-        original_filename=file.filename,
-        mime_type=file.content_type,
-        file_size=len(data),
-        file_data=data,
-        client_description=client_description or old.client_description,
-        internal_notes=internal_notes if internal_notes is not None else old.internal_notes,
-        replaces_id=file_id,
-        uploaded_at=datetime.utcnow(),
-    )
-    db.add(pf)
-    # delete the old file to keep count stable
-    db.delete(old)
+    old.original_filename = file.filename
+    old.mime_type = file.content_type
+    old.file_size = len(data)
+    old.file_data = data
+    if client_description is not None:
+        old.client_description = client_description
+    if client_instructions is not None:
+        old.client_instructions = client_instructions
+    if internal_notes is not None:
+        old.internal_notes = internal_notes
+    old.uploaded_at = datetime.utcnow()
     db.commit()
-    db.refresh(pf)
-    return _file_meta(pf)
+    db.refresh(old)
+    return _meta(old)
 
 
-@router.put("/{case_id}/portal-files/{file_id}")
-def update_portal_file(
-    case_id: int,
+@router.put("/{file_id}")
+def update_document_meta(
     file_id: int,
     client_description: Optional[str] = Form(None),
+    client_instructions: Optional[str] = Form(None),
     internal_notes: Optional[str] = Form(None),
     db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
 ):
-    pf = db.query(CMPortalFile).filter(
-        CMPortalFile.id == file_id, CMPortalFile.case_id == case_id
-    ).first()
+    pf = db.query(CMPortalFile).filter(CMPortalFile.id == file_id).first()
     if not pf:
         raise HTTPException(status_code=404, detail="Αρχείο δεν βρέθηκε")
     if client_description is not None:
         pf.client_description = client_description
+    if client_instructions is not None:
+        pf.client_instructions = client_instructions
     if internal_notes is not None:
         pf.internal_notes = internal_notes
     db.commit()
     db.refresh(pf)
-    return _file_meta(pf)
+    return _meta(pf)
 
 
-@router.delete("/{case_id}/portal-files/{file_id}")
-def delete_portal_file(case_id: int, file_id: int, db: Session = Depends(get_db)):
-    pf = db.query(CMPortalFile).filter(
-        CMPortalFile.id == file_id, CMPortalFile.case_id == case_id
-    ).first()
+@router.delete("/{file_id}")
+def delete_document(
+    file_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    pf = db.query(CMPortalFile).filter(CMPortalFile.id == file_id).first()
     if not pf:
         raise HTTPException(status_code=404, detail="Αρχείο δεν βρέθηκε")
     db.delete(pf)
@@ -160,11 +168,13 @@ def delete_portal_file(case_id: int, file_id: int, db: Session = Depends(get_db)
     return {"ok": True}
 
 
-@router.get("/{case_id}/portal-files/{file_id}/download")
-def download_portal_file(case_id: int, file_id: int, db: Session = Depends(get_db)):
-    pf = db.query(CMPortalFile).filter(
-        CMPortalFile.id == file_id, CMPortalFile.case_id == case_id
-    ).first()
+@router.get("/{file_id}/download")
+def download_document_admin(
+    file_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    pf = db.query(CMPortalFile).filter(CMPortalFile.id == file_id).first()
     if not pf:
         raise HTTPException(status_code=404, detail="Αρχείο δεν βρέθηκε")
     return Response(

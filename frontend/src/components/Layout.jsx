@@ -17,6 +17,7 @@ import {
   ClipboardDocumentListIcon,
   ChartBarIcon,
   CalendarDaysIcon,
+  DocumentArrowUpIcon,
 } from '@heroicons/react/24/outline'
 import { changePassword } from '../api'
 import toast from 'react-hot-toast'
@@ -31,6 +32,7 @@ const nav = [
   { to: '/import', label: 'Εισαγωγή Sheet', Icon: ArrowDownTrayIcon },
   { to: '/worklists', label: 'Εκκρεμείς Εργασίες', Icon: ClipboardDocumentListIcon },
   { to: '/portal-broadcast', label: 'Πύλη Πελάτη — Αποστολή', Icon: GlobeAltIcon },
+  { to: '/portal-documents', label: 'Πύλη Πελάτη — Έγγραφα', Icon: DocumentArrowUpIcon },
   { to: '/pipeline-admin', label: 'Διαχ. Pipeline', Icon: AdjustmentsHorizontalIcon },
   { to: '/users', label: 'Χρήστες', Icon: UsersIcon },
 ]
