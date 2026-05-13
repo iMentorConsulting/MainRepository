@@ -706,7 +706,7 @@ export default function Notifications() {
                   <tr key={log.id ?? i} className="hover:bg-gray-50">
                     <td className="px-4 py-3 text-gray-500 whitespace-nowrap">
                       {log.created_at
-                        ? new Date(log.created_at).toLocaleString('el-GR', { dateStyle: 'short', timeStyle: 'short' })
+                        ? new Date(log.created_at).toLocaleString('el-GR', { dateStyle: 'short', timeStyle: 'short', timeZone: 'Europe/Athens' })
                         : '—'}
                     </td>
                     <td className="px-4 py-3">

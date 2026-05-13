@@ -20,9 +20,16 @@ import {
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
+const TZ = 'Europe/Athens'
+
 function fmtDate(s) {
   if (!s) return '—'
-  return new Date(s).toLocaleDateString('el-GR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+  return new Date(s).toLocaleDateString('el-GR', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: TZ })
+}
+
+function fmtDateTime(s) {
+  if (!s) return '—'
+  return new Date(s).toLocaleString('el-GR', { dateStyle: 'short', timeStyle: 'short', timeZone: TZ })
 }
 
 function fmtEuro(n) {
@@ -1162,7 +1169,7 @@ export default function ClientPortal() {
                 {data.status_history.map((h, i) => (
                   <div key={i} className="relative">
                     <div className="absolute -left-5 top-1.5 w-2.5 h-2.5 rounded-full bg-blue-500 border-2 border-white" />
-                    <div className="text-xs text-gray-400">{fmtDate(h.changed_at)}</div>
+                    <div className="text-xs text-gray-400">{fmtDateTime(h.changed_at)}</div>
                     <div className="text-sm text-gray-800">
                       {h.from_status && <span className="text-gray-400 line-through mr-1">{h.from_status}</span>}
                       <span className="font-medium text-[#1e3a5f]">→ {h.to_status}</span>
@@ -1191,7 +1198,7 @@ export default function ClientPortal() {
                   <div className={`flex-1 rounded-xl px-3 py-2 ${msg.sent_by_client ? 'bg-green-50 border border-green-100' : 'bg-gray-50'}`}>
                     <div className="flex items-center gap-2 mb-1">
                       <span className="text-xs font-semibold text-gray-700">{msg.sent_by_client ? 'Εσείς' : (msg.author || 'iMentor')}</span>
-                      <span className="text-xs text-gray-400">{fmtDate(msg.created_at)}</span>
+                      <span className="text-xs text-gray-400">{fmtDateTime(msg.created_at)}</span>
                     </div>
                     <p className="text-sm text-gray-800 whitespace-pre-line">{msg.content}</p>
                   </div>

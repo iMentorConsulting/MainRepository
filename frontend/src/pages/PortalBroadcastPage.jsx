@@ -38,7 +38,7 @@ const PORTAL_OPTIONS = [
 const daysSince = (iso) => iso ? (Date.now() - new Date(iso).getTime()) / 86400000 : Infinity
 
 const fmtDt = (iso) =>
-  iso ? new Date(iso).toLocaleString('el-GR', { dateStyle: 'short', timeStyle: 'short' }) : null
+  iso ? new Date(iso).toLocaleString('el-GR', { dateStyle: 'short', timeStyle: 'short', timeZone: 'Europe/Athens' }) : null
 
 function MultiSelectDropdown({ label, options, selected, onChange, maxW = 'min-w-48' }) {
   const [open, setOpen] = useState(false)
