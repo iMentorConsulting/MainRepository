@@ -6,7 +6,7 @@ from pydantic import BaseModel
 from typing import Optional, List
 from datetime import datetime, date
 from database import get_db
-from models_cases import CMCase, CMUser, CMTask, CMPayment, CMMessage, CMDocument, CMBudgetCategory, CMStatusSLA, CMNotificationLog, CMCasePendingItem
+from models_cases import CMCase, CMUser, CMTask, CMPayment, CMMessage, CMDocument, CMBudgetCategory, CMStatusSLA, CMNotificationLog, CMCasePendingItem, CMCaseModification
 from sqlalchemy import func as sa_func
 from auth_cases import get_current_user
 from pipelines import TERMINAL_STATUSES, get_all_statuses_for_program
@@ -157,6 +157,16 @@ def case_to_dict(c: CMCase, include_related: bool = False, sla_map: dict = None,
         data["messages"] = [msg_to_dict(m) for m in (c.messages or [])]
         data["documents"] = [doc_to_dict(d) for d in (c.documents or [])]
         data["budget_categories"] = [bc_to_dict(b) for b in (c.budget_categories or [])]
+        data["modifications"] = [
+            {
+                "id": m.id,
+                "modification_date": m.modification_date.isoformat() if m.modification_date else None,
+                "title": m.title,
+                "justification": m.justification,
+                "approval_date": m.approval_date.isoformat() if m.approval_date else None,
+            }
+            for m in sorted(c.modifications or [], key=lambda x: x.modification_date or __import__('datetime').date.min)
+        ]
         data["open_tasks"] = sum(1 for t in tasks if t.status != "done")
     return data
 
@@ -401,6 +411,7 @@ def get_case(
             joinedload(CMCase.messages).joinedload(CMMessage.user),
             joinedload(CMCase.documents),
             joinedload(CMCase.budget_categories),
+            joinedload(CMCase.modifications),
         )
         .filter(CMCase.id == case_id)
         .first()

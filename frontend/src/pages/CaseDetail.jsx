@@ -7,6 +7,7 @@ import MessagesTab from '../components/MessagesTab'
 import DocumentsTab from '../components/DocumentsTab'
 import BudgetTab from '../components/BudgetTab'
 import PendingItemsTab from '../components/PendingItemsTab'
+import ModificationsTab from '../components/ModificationsTab'
 import {
   ArrowLeftIcon,
   ExclamationTriangleIcon,
@@ -69,6 +70,7 @@ const TABS = [
   'Επισκόπηση',
   'Εκκρεμότητες',
   'Tasks',
+  'Τροποποιήσεις',
   'Μηνύματα',
   'Έγγραφα',
   'Προϋπολογισμός',
@@ -1187,6 +1189,7 @@ export default function CaseDetail() {
           <TasksTab caseId={id} users={users} />
         )}
 
+        {activeTab === 'Τροποποιήσεις' && <ModificationsTab caseId={id} caseData={caseData} onRefresh={load} />}
         {activeTab === 'Μηνύματα' && <MessagesTab caseId={id} caseData={caseData} onRefresh={load} />}
         {activeTab === 'Έγγραφα' && <DocumentsTab caseId={id} caseData={caseData} onRefresh={load} />}
         {activeTab === 'Προϋπολογισμός' && <BudgetTab caseId={id} caseData={caseData} onRefresh={load} />}
