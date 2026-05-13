@@ -127,17 +127,18 @@ def _build_portal_data(case: CMCase, db: Session) -> dict:
     ]
 
     # Budget breakdown
-    budget_categories = [
-        {
+    budget_categories = []
+    for b in (case.budget_categories or []):
+        total_certified = (b.certified_request1 or 0) + (b.certified_request2 or 0) + (b.certified_final or 0)
+        budget_categories.append({
             "category_name": b.category_name,
             "approved_amount": b.approved_amount or 0,
-            "percent_of_budget": b.percent_of_budget or 0,
             "certified_request1": b.certified_request1 or 0,
             "certified_request2": b.certified_request2 or 0,
             "certified_final": b.certified_final or 0,
-        }
-        for b in (case.budget_categories or [])
-    ]
+            "total_certified": total_certified,
+            "remaining": (b.approved_amount or 0) - total_certified,
+        })
 
     agreed_application = case.agreed_fee_application or 0
     agreed_implementation = case.agreed_fee_implementation or 0
