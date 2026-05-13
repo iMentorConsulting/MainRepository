@@ -21,7 +21,7 @@ from routes.cm_pipeline import router as cm_pipeline_router
 from routes.cm_worklists import router as cm_worklists_router
 from routes.cm_analytics import router as cm_analytics_router
 from routes.cm_modifications import router as cm_modifications_router
-from routes.cm_portal_files import router as cm_portal_files_router
+from routes.cm_portal_files import router as cm_portal_files_router  # portal docs per service type
 
 load_dotenv()
 
@@ -71,6 +71,22 @@ try:
         """))
         # One-time reset: clear visit counts for cases not yet visited since new tracking
         _conn.execute(_text("UPDATE cm_cases SET portal_visit_count = 0 WHERE portal_last_visit_at IS NULL"))
+        # Recreate cm_portal_files with new service_type-based schema (drop old case_id version if exists)
+        _conn.execute(_text("DROP TABLE IF EXISTS cm_portal_files"))
+        _conn.execute(_text("""
+            CREATE TABLE IF NOT EXISTS cm_portal_files (
+                id SERIAL PRIMARY KEY,
+                service_type VARCHAR(200) NOT NULL,
+                original_filename VARCHAR(300) NOT NULL,
+                mime_type VARCHAR(100) NOT NULL,
+                file_size INTEGER NOT NULL,
+                file_data BYTEA NOT NULL,
+                client_description VARCHAR(500) NOT NULL,
+                client_instructions TEXT,
+                internal_notes TEXT,
+                uploaded_at TIMESTAMP DEFAULT NOW()
+            )
+        """))
         _conn.commit()
 except Exception:
     pass
