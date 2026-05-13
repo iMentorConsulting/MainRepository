@@ -30,11 +30,11 @@ const DEFAULT_TEMPLATE = `Αγαπητέ/ή {client_name},
 
 const PORTAL_OPTIONS = [
   { value: '',            label: 'Όλοι' },
-  { value: 'no_link',     label: 'Χωρίς ενεργό σύνδεσμο' },
-  { value: 'with_link',   label: 'Με ενεργό σύνδεσμο' },
-  { value: 'never_opened',label: 'Δεν άνοιξε ποτέ (έχει σύνδεσμο)' },
-  { value: 'inactive_30', label: 'Ανενεργός >30 ημέρες ή ποτέ' },
-  { value: 'inactive_7',  label: 'Ανενεργός >7 ημέρες ή ποτέ' },
+  { value: 'not_sent',    label: 'Δεν έχει λάβει μήνυμα portal' },
+  { value: 'sent',        label: 'Έλαβε μήνυμα portal (σύνολο)' },
+  { value: 'never_opened',label: 'Έλαβε — δεν άνοιξε ποτέ' },
+  { value: 'inactive_30', label: 'Έλαβε — ανενεργός >30 ημέρες ή ποτέ' },
+  { value: 'inactive_7',  label: 'Έλαβε — ανενεργός >7 ημέρες ή ποτέ' },
   { value: 'active_7',    label: 'Ενεργός τελευταία 7 ημέρες' },
   { value: 'active_30',   label: 'Ενεργός τελευταία 30 ημέρες' },
 ]
@@ -178,14 +178,15 @@ export default function PortalBroadcastPage() {
       if (search && !c.client_name?.toLowerCase().includes(search.toLowerCase())) return false
       if (filterProgram.size > 0 && !filterProgram.has(c.program_category)) return false
       if (filterService.size > 0 && !filterService.has(c.service_type)) return false
+      const sent = !!c.portal_notified_at
       const ds = daysSince(c.portal_last_visit_at)
-      if (filterPortal === 'no_link'      && c.portal_active) return false
-      if (filterPortal === 'with_link'    && !c.portal_active) return false
-      if (filterPortal === 'never_opened' && (!c.portal_active || (c.portal_visit_count || 0) > 0)) return false
-      if (filterPortal === 'inactive_30'  && (!c.portal_active || ds <= 30)) return false
-      if (filterPortal === 'inactive_7'   && (!c.portal_active || ds <= 7)) return false
-      if (filterPortal === 'active_7'     && (!c.portal_active || ds > 7)) return false
-      if (filterPortal === 'active_30'    && (!c.portal_active || ds > 30)) return false
+      if (filterPortal === 'not_sent'     && sent) return false
+      if (filterPortal === 'sent'         && !sent) return false
+      if (filterPortal === 'never_opened' && (!sent || (c.portal_visit_count || 0) > 0)) return false
+      if (filterPortal === 'inactive_30'  && (!sent || ds <= 30)) return false
+      if (filterPortal === 'inactive_7'   && (!sent || ds <= 7)) return false
+      if (filterPortal === 'active_7'     && (!sent || ds > 7)) return false
+      if (filterPortal === 'active_30'    && (!sent || ds > 30)) return false
       if (filterStatus.size > 0 && !filterStatus.has(c.status)) return false
       return true
     })

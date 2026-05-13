@@ -454,6 +454,7 @@ def bulk_activate_notify(body: dict, db: Session = Depends(get_db), current_user
                     ok, err = _send_viber(phone, msg, case.client_name or "", current_user.full_name, case.service_type or "")
                     if ok:
                         notified = True
+                        case.portal_notified_at = datetime.utcnow()
                         _log_notification(db, case.id, "viber", case.client_name, phone,
                                           "Ενεργοποίηση Πύλης Πελάτη", msg, "sent", current_user.full_name)
                     else:
@@ -468,6 +469,7 @@ def bulk_activate_notify(body: dict, db: Session = Depends(get_db), current_user
                     ok, err = _send_email(email_addr, subject, msg)
                     if ok:
                         notified = True
+                        case.portal_notified_at = datetime.utcnow()
                         _log_notification(db, case.id, "email", case.client_name, email_addr,
                                           subject, msg, "sent", current_user.full_name)
                     else:
