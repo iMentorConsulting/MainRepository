@@ -28,6 +28,16 @@ class OfferPatch(BaseModel):
     commercial_offer: dict
 
 
+class PricingApprovalNotify(BaseModel):
+    employee: str
+    proposed_app: float
+    proposed_suc: float
+    system_app: float
+    system_suc: float
+    score: float = 0
+    breakdown: list = []
+
+
 class EmailSendRequest(BaseModel):
     to: str
     subject: str
@@ -256,6 +266,52 @@ def update_offer(id: int, data: OfferPatch, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(case)
     return case
+
+
+@router.post("/{id}/notify-pricing-approval")
+def notify_pricing_approval(id: int, data: PricingApprovalNotify, db: Session = Depends(get_db)):
+    case = db.query(Case).filter(Case.id == id).first()
+    if not case:
+        raise HTTPException(status_code=404, detail="Η υπόθεση δεν βρέθηκε")
+
+    diff_app = data.proposed_app - data.system_app
+    diff_suc = data.proposed_suc - data.system_suc
+    breakdown_lines = "\n".join(
+        f"  • {it.get('label','')}: {'+' if it.get('value',0) >= 0 else ''}{it.get('value',0)}"
+        for it in (data.breakdown or [])
+    )
+
+    body = f"""Αίτηση έγκρισης τιμολόγησης
+
+Υπόθεση:  {case.client_name}
+ΑΦΜ:      {case.client_vat or '—'}
+Τηλ:      {case.client_phone or '—'}
+Σύμβουλος: {data.employee}
+
+── Τιμολόγηση ───────────────────────────────
+Πρόταση σύμβουλου:
+  Ποσό Αίτησης:  {data.proposed_app:,.0f} €
+  Success Fee:   {data.proposed_suc:,.0f} €
+
+Πρόταση συστήματος:
+  Ποσό Αίτησης:  {data.system_app:,.0f} €
+  Success Fee:   {data.system_suc:,.0f} €
+
+Διαφορά:  {diff_app:+,.0f} € / {diff_suc:+,.0f} €
+
+── Ανάλυση Score ({data.score}) ──────────────
+{breakdown_lines}
+
+── Οφειλές ──────────────────────────────────
+{chr(10).join(f"  • {d.get('creditorName') or d.get('type','')}: {d.get('amount',0):,.0f} €" for d in (case.debts or []) if d.get('amount',0) > 0)}
+
+Μπορείτε να εγκρίνετε ή να απορρίψετε την αίτηση από το Admin Dashboard.
+"""
+
+    ok, err = _send_gmail("haris.apostolakis@gmail.com",
+                          f"[iMentor] Αίτηση Έγκρισης Τιμολόγησης — {case.client_name}",
+                          body)
+    return {"sent": ok, "error": err or ""}
 
 
 @router.delete("/{id}")

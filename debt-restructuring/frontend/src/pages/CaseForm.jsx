@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
 import { ArrowLeftIcon, DocumentTextIcon, CloudArrowUpIcon, SparklesIcon, CheckCircleIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline'
 import { computeOffer, loadPricingConfig, scoreBreakdown } from '../utils/pricing'
+import { patchOffer, notifyPricingApproval } from '../api'
 import DebtTable, { emptyDebt } from '../components/DebtTable'
 import IncomePanel from '../components/IncomePanel'
 import ResultsPanel from '../components/ResultsPanel'
@@ -352,6 +353,7 @@ export default function CaseForm({ currentEmployee }) {
       <OfferSection
         debts={debts} assets={assets} income={income} setIncome={setIncome}
         commercialOffer={commercialOffer} setCommercialOffer={setCommercialOffer}
+        caseId={isEditing ? id : null} employee={employee}
       />
 
       {/* Debts */}
@@ -515,7 +517,7 @@ export default function CaseForm({ currentEmployee }) {
 
 // ── OfferSection ──────────────────────────────────────────────────────────────
 
-function OfferSection({ debts, assets, income, setIncome, commercialOffer, setCommercialOffer }) {
+function OfferSection({ debts, assets, income, setIncome, commercialOffer, setCommercialOffer, caseId, employee }) {
   const cfg = useMemo(() => loadPricingConfig(), [])
 
   const suggested = useMemo(
@@ -548,19 +550,38 @@ function OfferSection({ debts, assets, income, setIncome, commercialOffer, setCo
     })
   }
 
-  const requestApproval = () => {
-    setCommercialOffer({
+  const requestApproval = async () => {
+    const updated = {
       ...commercialOffer,
       system_app: suggested.application_fee,
       system_suc: suggested.success_fee,
       approval_status: 'pending',
-    })
-    toast('Αποστολή αίτησης έγκρισης στον HARIS…', { icon: '📩' })
+    }
+    setCommercialOffer(updated)
+
+    if (caseId) {
+      try {
+        await patchOffer(caseId, updated)
+        await notifyPricingApproval(caseId, {
+          employee: employee || '',
+          proposed_app: appFee,
+          proposed_suc: sucFee,
+          system_app: suggested.application_fee,
+          system_suc: suggested.success_fee,
+          score: suggested._score,
+          breakdown: breakdown.map(it => ({ label: it.label, value: it.value })),
+        })
+        toast.success('Αίτηση έγκρισης εστάλη στον HARIS')
+      } catch {
+        toast.error('Σφάλμα αποστολής — αποθηκεύστε και δοκιμάστε ξανά')
+      }
+    } else {
+      toast('Αποθηκεύστε την υπόθεση για να σταλεί η αίτηση έγκρισης στον HARIS', { icon: '📩' })
+    }
   }
 
   const handleFeeChange = (field, val) => {
     const updated = { ...commercialOffer, [field]: +val }
-    // Clear auto status when user manually edits
     if (updated.approval_status === 'auto') updated.approval_status = undefined
     setCommercialOffer(updated)
   }

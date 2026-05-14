@@ -90,6 +90,9 @@ class CaseListItem(BaseModel):
     employee: str
     status: str
     debtor_type: str
+    debts: list = []
+    assets: list = []
+    income_data: dict = {}
     estimates: dict
     actual_results: Optional[dict]
     share_token: str

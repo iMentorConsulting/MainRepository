@@ -689,37 +689,63 @@ function PendingApprovalsPanel({ cases, onCasesUpdate }) {
           const sf = Number(c.commercial_offer?.success_fee || 0)
           const sysAf = Number(c.commercial_offer?.system_app || 0)
           const sysSf = Number(c.commercial_offer?.system_suc || 0)
+          const bdItems = scoreBreakdown(c.debts, c.assets, c.income_data)
+          const bdScore = bdItems.reduce((s, it) => s + (it.value || 0), 0)
+          const totalDebt = (c.debts || []).reduce((s, d) => s + (Number(d.amount) || 0), 0)
+          const bankCount = (c.debts || []).filter(d => d.type === 'Τράπεζα').length
           return (
-            <div key={c.id} className="bg-white border border-amber-200 rounded-xl p-3 flex flex-wrap items-center gap-4">
-              <div>
-                <div className="font-bold text-gray-800">{c.client_name}</div>
-                <div className="text-xs text-gray-500">{c.employee}</div>
-              </div>
-              <div className="flex gap-4 text-sm">
+            <div key={c.id} className="bg-white border border-amber-200 rounded-xl p-3 space-y-2">
+              <div className="flex flex-wrap items-center gap-4">
                 <div>
-                  <div className="text-xs text-gray-400">Προτεινόμενο</div>
-                  <div className="font-black text-amber-700">{af.toLocaleString('el-GR')}€ + {sf.toLocaleString('el-GR')}€</div>
+                  <div className="font-bold text-gray-800">{c.client_name}</div>
+                  <div className="text-xs text-gray-500">{c.employee}</div>
                 </div>
-                {sysAf > 0 && (
+                <div className="flex gap-4 text-sm">
                   <div>
-                    <div className="text-xs text-gray-400">Σύστημα</div>
-                    <div className="font-black text-blue-600">{sysAf.toLocaleString('el-GR')}€ + {sysSf.toLocaleString('el-GR')}€</div>
+                    <div className="text-xs text-gray-400">Προτεινόμενο</div>
+                    <div className="font-black text-amber-700">{af.toLocaleString('el-GR')}€ + {sf.toLocaleString('el-GR')}€</div>
                   </div>
-                )}
+                  {sysAf > 0 && (
+                    <div>
+                      <div className="text-xs text-gray-400">Σύστημα</div>
+                      <div className="font-black text-blue-600">{sysAf.toLocaleString('el-GR')}€ + {sysSf.toLocaleString('el-GR')}€</div>
+                    </div>
+                  )}
+                </div>
+                <div className="ml-auto flex gap-2">
+                  <button
+                    onClick={() => approve(c, true)}
+                    className="bg-green-600 hover:bg-green-700 text-white text-xs font-bold px-4 py-1.5 rounded-lg transition-colors"
+                  >
+                    Έγκριση
+                  </button>
+                  <button
+                    onClick={() => approve(c, false)}
+                    className="bg-gray-200 hover:bg-gray-300 text-gray-700 text-xs font-bold px-4 py-1.5 rounded-lg transition-colors"
+                  >
+                    Επαναφορά Συστήματος
+                  </button>
+                </div>
               </div>
-              <div className="ml-auto flex gap-2">
-                <button
-                  onClick={() => approve(c, true)}
-                  className="bg-green-600 hover:bg-green-700 text-white text-xs font-bold px-4 py-1.5 rounded-lg transition-colors"
-                >
-                  Έγκριση
-                </button>
-                <button
-                  onClick={() => approve(c, false)}
-                  className="bg-gray-200 hover:bg-gray-300 text-gray-700 text-xs font-bold px-4 py-1.5 rounded-lg transition-colors"
-                >
-                  Επαναφορά Συστήματος
-                </button>
+              {/* Scoring factors */}
+              <div className="flex flex-wrap gap-1.5 pt-1 border-t border-amber-100">
+                <span className="bg-gray-100 text-gray-700 text-xs px-2 py-0.5 rounded-full">
+                  Οφειλές: <strong>{(totalDebt/1000).toFixed(0)}k€</strong>
+                </span>
+                <span className="bg-gray-100 text-gray-700 text-xs px-2 py-0.5 rounded-full">
+                  Τράπεζες: <strong>{bankCount}</strong>
+                </span>
+                {bdItems.map((item, i) => (
+                  <span
+                    key={i}
+                    className={`text-xs px-2 py-0.5 rounded-full ${item.value > 0 ? 'bg-blue-100 text-blue-700' : item.value < 0 ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-500'}`}
+                  >
+                    {item.label}: <strong>{item.value > 0 ? '+' : ''}{item.value}</strong>
+                  </span>
+                ))}
+                <span className="bg-indigo-100 text-indigo-800 text-xs px-2 py-0.5 rounded-full font-black">
+                  Score: {bdScore.toFixed(1)}
+                </span>
               </div>
             </div>
           )
