@@ -2,10 +2,58 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { getCases, getUsers, deleteCase, createCase, updateCase, getPipelines, sendNotification } from '../api'
 import { PIPELINES } from '../pipelines'
-import { MagnifyingGlassIcon, PlusIcon, TrashIcon, FolderOpenIcon, BoltIcon, ChevronDownIcon } from '@heroicons/react/24/outline'
+import { MagnifyingGlassIcon, PlusIcon, TrashIcon, FolderOpenIcon, BoltIcon, ChevronDownIcon, ChevronUpIcon } from '@heroicons/react/24/outline'
 import toast from 'react-hot-toast'
 
 const FINAL_STATUSES = new Set(['ΟΛΟΚΛΗΡΩΜΕΝΗ ΥΠΟΘΕΣΗ', 'ΠΑΡΑΙΤΗΣΗ', 'ΠΑΓΩΜΕΝΗ ΥΠΟΘΕΣΗ', 'ΑΚΥΡΩΣΗ', 'ΑΠΟΡΡΙΨΗ'])
+
+// ─── Multi-select dropdown ────────────────────────────────────────────────────
+function MultiSelect({ label, options, value, onChange, minWidth = 160 }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef(null)
+  const allSelected = value.length === 0
+
+  useEffect(() => {
+    function handler(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  function toggle(opt) {
+    onChange(value.includes(opt) ? value.filter(v => v !== opt) : [...value, opt])
+  }
+
+  const display = allSelected ? 'Όλα' : value.length === 1 ? value[0] : `${value.length} επιλεγμένα`
+
+  return (
+    <div ref={ref} className="relative">
+      <button type="button" onClick={() => setOpen(o => !o)}
+        className="flex items-center gap-1.5 px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm hover:border-blue-400 focus:outline-none"
+        style={{ minWidth }}>
+        <span className="text-gray-500 text-xs shrink-0">{label}:</span>
+        <span className={`font-medium truncate flex-1 text-left ${allSelected ? 'text-gray-400' : 'text-gray-800'}`}>{display}</span>
+        {open ? <ChevronUpIcon className="w-3 h-3 text-gray-400 shrink-0" /> : <ChevronDownIcon className="w-3 h-3 text-gray-400 shrink-0" />}
+      </button>
+      {open && (
+        <div className="absolute top-full left-0 mt-1 z-50 bg-white border border-gray-200 rounded-xl shadow-lg min-w-[200px] max-h-64 overflow-y-auto">
+          <button onClick={() => onChange([])}
+            className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-50 border-b border-gray-100 ${allSelected ? 'font-semibold text-blue-600' : 'text-gray-500'}`}>
+            Όλα
+          </button>
+          {options.map(opt => (
+            <button key={opt.value ?? opt} onClick={() => toggle(opt.value ?? opt)}
+              className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex items-center gap-2 ${value.includes(opt.value ?? opt) ? 'text-blue-700 font-medium' : 'text-gray-700'}`}>
+              <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${value.includes(opt.value ?? opt) ? 'bg-blue-600 border-blue-600 text-white' : 'border-gray-300'}`}>
+                {value.includes(opt.value ?? opt) && <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
+              </span>
+              {opt.label ?? opt}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
 
 function QuickActions({ caseRow, allStatuses, onUpdated }) {
   const [open, setOpen] = useState(false)
@@ -215,9 +263,10 @@ export default function Cases() {
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [filters, setFilters] = useState({
-    program_category: '',
-    agent_id: '',
-    service_type: '',
+    programs: [],
+    services: [],
+    agentIds: [],
+    statuses: [],
     deadline_alert: false,
     hide_completed: true,
     has_pending: false,
@@ -236,6 +285,10 @@ export default function Cases() {
     if (filters.has_pending && !(c.pending_count > 0)) return false
     if (filters.sla_overdue && !(c.sla_overdue_days > 0)) return false
     if (filters.status_mismatch && !c.status_mismatch) return false
+    if (filters.programs.length && !filters.programs.includes(c.program_category)) return false
+    if (filters.services.length && !filters.services.includes(c.service_type)) return false
+    if (filters.agentIds.length && !filters.agentIds.includes(String(c.assigned_agent_id))) return false
+    if (filters.statuses.length && !filters.statuses.includes(c.status)) return false
     return true
   })
 
@@ -244,14 +297,11 @@ export default function Cases() {
     try {
       const params = {}
       if (search) params.search = search
-      if (filters.program_category) params.program_category = filters.program_category
-      if (filters.agent_id) params.agent_id = filters.agent_id
-      if (filters.service_type) params.service_type = filters.service_type
       if (filters.deadline_alert) params.deadline_alert = true
       setAllCases(await getCases(params))
     } catch { toast.error('Σφάλμα φόρτωσης') }
     finally { setLoading(false) }
-  }, [search, filters])
+  }, [search, filters.deadline_alert])
 
   useEffect(() => { load() }, [load])
   useEffect(() => { getUsers().then(setAgents).catch(() => {}) }, [])
@@ -263,7 +313,8 @@ export default function Cases() {
     catch { toast.error('Σφάλμα διαγραφής') }
   }
 
-  const serviceTypes = [...new Set(cases.map(c => c.service_type).filter(Boolean))].sort()
+  const serviceTypes = [...new Set(allCases.map(c => c.service_type).filter(Boolean))].sort()
+  const availableStatuses = [...new Set(allCases.map(c => c.status).filter(Boolean))].sort()
 
   return (
     <div className="space-y-5">
@@ -284,18 +335,34 @@ export default function Cases() {
           <MagnifyingGlassIcon className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input className="input pl-9" placeholder="Αναζήτηση..." value={search} onChange={e => setSearch(e.target.value)} />
         </div>
-        <select className="input w-auto" value={filters.program_category} onChange={e => setFilters(f => ({ ...f, program_category: e.target.value }))}>
-          <option value="">Όλα τα Pipelines</option>
-          {PROGRAM_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-        </select>
-        <select className="input w-auto" value={filters.service_type} onChange={e => setFilters(f => ({ ...f, service_type: e.target.value }))}>
-          <option value="">Όλα τα Προγράμματα</option>
-          {serviceTypes.map(s => <option key={s} value={s}>{s}</option>)}
-        </select>
-        <select className="input w-auto" value={filters.agent_id} onChange={e => setFilters(f => ({ ...f, agent_id: e.target.value }))}>
-          <option value="">Όλοι οι Agents</option>
-          {agents.map(a => <option key={a.id} value={a.id}>{a.full_name}</option>)}
-        </select>
+        <MultiSelect
+          label="Pipeline"
+          options={PROGRAM_OPTIONS}
+          value={filters.programs}
+          onChange={v => setFilters(f => ({ ...f, programs: v }))}
+          minWidth={160}
+        />
+        <MultiSelect
+          label="Υπηρεσία"
+          options={serviceTypes}
+          value={filters.services}
+          onChange={v => setFilters(f => ({ ...f, services: v }))}
+          minWidth={180}
+        />
+        <MultiSelect
+          label="Agent"
+          options={agents.map(a => ({ value: String(a.id), label: a.full_name }))}
+          value={filters.agentIds}
+          onChange={v => setFilters(f => ({ ...f, agentIds: v }))}
+          minWidth={160}
+        />
+        <MultiSelect
+          label="Status"
+          options={availableStatuses}
+          value={filters.statuses}
+          onChange={v => setFilters(f => ({ ...f, statuses: v }))}
+          minWidth={180}
+        />
         <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none">
           <input type="checkbox" checked={filters.deadline_alert} onChange={e => setFilters(f => ({ ...f, deadline_alert: e.target.checked }))} className="rounded" />
           Προθεσμίες 30 ημ.
