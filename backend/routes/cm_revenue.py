@@ -1,20 +1,41 @@
 """Revenue forecasting and actual payment history."""
 from datetime import datetime, date, timedelta
 from calendar import monthrange
-from typing import List, Optional
+from typing import List, Optional, Set
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 from database import get_db
 from models_cases import CMCase, CMPaymentLog
 from auth_cases import get_current_user
+from pipelines import PIPELINES
 
 router = APIRouter(prefix="/api/cm/revenue", tags=["revenue"])
 
 # Months from now to assume as deadline when none is set
 FALLBACK_MONTHS = {"ΕΣΠΑ": 18, "ΔΥΠΑ": 18, "ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ": 2}
 DEFAULT_FALLBACK = 18
-FORECAST_HORIZON_MONTHS = 24  # show 24 months into the future
-HISTORY_MONTHS = 12           # show 12 months of history
+FORECAST_HORIZON_MONTHS = 24
+HISTORY_MONTHS = 12
+
+# Statuses to exclude from forecast (cancelled / frozen / disputed)
+EXCLUDED_STATUS_KEYWORDS = {
+    "ΑΚΥΡΩΣ", "ΠΑΡΑΙΤΗΣΗ", "ΑΠΟΡΡΙΨΗ", "ΑΠΟΡΡΙΠΤ",
+    "ΠΑΓΩΜΕΝΗ", "ΕΝΣΤΑΣΗ", "ΤΡΟΠΟΠΟΙΗΣΗ",
+    "ΑΠΟΣΥΡΘΗΚΕ", "ΔΕΝ ΕΓΚΡΙΘΗΚΕ",
+}
+
+def _is_excluded_status(status: str) -> bool:
+    s = (status or "").upper()
+    return any(kw in s for kw in EXCLUDED_STATUS_KEYWORDS)
+
+
+def _first_statuses_per_pipeline() -> dict[str, str]:
+    """Return {program_category: first_status} for each configured pipeline."""
+    return {
+        prog: p["phases"][0]["statuses"][0]
+        for prog, p in PIPELINES.items()
+        if p.get("phases") and p["phases"][0].get("statuses")
+    }
 
 
 def _month_key(dt: date) -> str:
@@ -72,12 +93,24 @@ def get_revenue_forecast(
         q = q.filter(CMCase.status.in_(statuses))
     cases = q.all()
 
+    first_statuses = _first_statuses_per_pipeline()
+
     # ── Build forecast: projected monthly receipts per case ───────────────────
-    # months map: key = "YYYY-MM", value = cumulative expected amount
     forecast_map: dict[str, float] = {}
-    case_forecasts = []  # per-case details
+    case_forecasts = []
+    excluded_count = 0
 
     for c in cases:
+        # Skip cancelled/frozen/disputed statuses
+        if _is_excluded_status(c.status or ""):
+            excluded_count += 1
+            continue
+        # Skip cases still on the very first status of their pipeline (no approval yet)
+        prog = c.program_category or "ΕΣΠΑ"
+        if c.status == first_statuses.get(prog):
+            excluded_count += 1
+            continue
+
         agreed = (c.agreed_fee_application or 0) + (c.agreed_fee_implementation or 0)
         paid = c.total_paid or 0
         balance = agreed - paid
@@ -165,6 +198,7 @@ def get_revenue_forecast(
     return {
         "summary": {
             "total_cases": len(case_forecasts),
+            "excluded_cases": excluded_count,
             "total_agreed": round(total_agreed, 2),
             "total_paid": round(total_paid_all, 2),
             "total_balance": round(total_balance, 2),
