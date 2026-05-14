@@ -805,6 +805,26 @@ def update_document(
     return doc_to_dict(d)
 
 
+@router.get("/{case_id}/documents/{doc_id}/download")
+def download_document(
+    case_id: int,
+    doc_id: int,
+    current_user: CMUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    from fastapi.responses import Response as _Resp
+    d = db.query(CMDocument).filter(CMDocument.id == doc_id, CMDocument.case_id == case_id).first()
+    if not d:
+        raise HTTPException(status_code=404, detail="Έγγραφο δεν βρέθηκε")
+    if not d.file_data:
+        raise HTTPException(status_code=404, detail="Δεν υπάρχουν δεδομένα αρχείου (ανέβηκε πριν τη νέα έκδοση)")
+    return _Resp(
+        content=d.file_data,
+        media_type=d.mime_type or "application/octet-stream",
+        headers={"Content-Disposition": f'attachment; filename="{d.name}"'},
+    )
+
+
 @router.delete("/{case_id}/documents/{doc_id}")
 def delete_document(
     case_id: int,

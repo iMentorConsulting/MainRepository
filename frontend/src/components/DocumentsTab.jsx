@@ -1,7 +1,21 @@
 import { useState } from 'react'
-import { createDocument, updateDocument, deleteDocument } from '../api'
+import api, { createDocument, updateDocument, deleteDocument } from '../api'
 import { TrashIcon, PlusIcon, DocumentIcon, ArrowDownTrayIcon } from '@heroicons/react/24/outline'
 import toast from 'react-hot-toast'
+
+async function downloadDocument(caseId, docId, filename) {
+  try {
+    const res = await api.get(`/api/cm/cases/${caseId}/documents/${docId}/download`, { responseType: 'blob' })
+    const url = URL.createObjectURL(res.data)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = filename || 'document'
+    a.click()
+    URL.revokeObjectURL(url)
+  } catch {
+    toast.error('Δεν βρέθηκε το αρχείο')
+  }
+}
 
 const DOC_STATUS_COLORS = {
   pending: 'bg-gray-100 text-gray-600',
@@ -99,10 +113,10 @@ export default function DocumentsTab({ caseId, caseData, onRefresh }) {
                   <td className="px-4 py-3 text-gray-500">{d.uploaded_by || '—'}</td>
                   <td className="px-4 py-3 text-gray-400 text-xs">{d.notes || '—'}</td>
                   <td className="px-4 py-3 flex items-center gap-2">
-                    {d.file_url && (
-                      <a href={d.file_url} target="_blank" rel="noopener noreferrer" className="text-gray-300 hover:text-blue-500">
+                    {(d.file_url || d.uploaded_by_client) && (
+                      <button onClick={() => downloadDocument(caseId, d.id, d.name)} className="text-gray-300 hover:text-blue-500">
                         <ArrowDownTrayIcon className="w-4 h-4" />
-                      </a>
+                      </button>
                     )}
                     <button onClick={() => handleDelete(d.id)} className="text-gray-300 hover:text-red-500"><TrashIcon className="w-4 h-4" /></button>
                   </td>

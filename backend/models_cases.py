@@ -185,6 +185,8 @@ class CMDocument(Base):
     uploaded_by_client = Column(Boolean, default=False)
     notes = Column(Text)
     file_url = Column(String(500))
+    file_data = Column(LargeBinary, nullable=True)
+    mime_type = Column(String(100), nullable=True)
 
     created_at = Column(DateTime, default=datetime.utcnow)
 

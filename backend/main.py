@@ -59,6 +59,8 @@ try:
         _conn.execute(_text("ALTER TABLE cm_pipeline_configs ADD COLUMN IF NOT EXISTS status_descriptions_json TEXT DEFAULT '{}'"))
         _conn.execute(_text("ALTER TABLE cm_messages ADD COLUMN IF NOT EXISTS sent_by_client BOOLEAN DEFAULT FALSE"))
         _conn.execute(_text("ALTER TABLE cm_documents ADD COLUMN IF NOT EXISTS uploaded_by_client BOOLEAN DEFAULT FALSE"))
+        _conn.execute(_text("ALTER TABLE cm_documents ADD COLUMN IF NOT EXISTS file_data BYTEA"))
+        _conn.execute(_text("ALTER TABLE cm_documents ADD COLUMN IF NOT EXISTS mime_type VARCHAR(100)"))
         _conn.execute(_text("""
             CREATE TABLE IF NOT EXISTS cm_case_status_history (
                 id SERIAL PRIMARY KEY,
