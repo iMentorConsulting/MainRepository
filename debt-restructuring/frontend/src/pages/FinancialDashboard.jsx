@@ -1020,49 +1020,255 @@ function KpiCard({ icon, label, value, sub, color }) {
 
 const WINBACK_DAYS = 10
 
+function buildWinbackTemplates(c) {
+  const name = c.client_name || ''
+  const wbApp = c.commercial_offer?.winback_app || 0
+  const wbSuc = c.commercial_offer?.winback_suc || 0
+  const origApp = c.commercial_offer?.application_fee || c.commercial_offer?.system_app || 0
+  const origSuc = c.commercial_offer?.success_fee || c.commercial_offer?.system_suc || 0
+  const totalDebt = (c.debts || []).reduce((s, d) => s + (Number(d.amount) || 0), 0)
+  const debtK = totalDebt >= 1000 ? (totalDebt / 1000).toFixed(0) + 'χιλ.' : Math.round(totalDebt) + ''
+  const bankCount = (c.debts || []).filter(d => d.type === 'Τράπεζα').length
+  const fmtApp = Number(wbApp).toLocaleString('el-GR')
+  const fmtSuc = Number(wbSuc).toLocaleString('el-GR')
+  const fmtOrigApp = Number(origApp).toLocaleString('el-GR')
+  const fmtOrigSuc = Number(origSuc).toLocaleString('el-GR')
+
+  return [
+    {
+      id: 'special-price',
+      icon: '💎',
+      label: 'Ειδική Τιμή',
+      text: `💎 Αγαπητέ/ή ${name},
+
+Επανερχόμαστε με μια **ξεχωριστή πρόταση** που σχεδιάσαμε αποκλειστικά για εσάς.
+
+Γνωρίζουμε ότι το κόστος αποτελεί συχνά το κυριότερο εμπόδιο στη λήψη αποφάσεων — γι' αυτό θέλουμε να το κάνουμε όσο πιο προσιτό γίνεται:
+
+▸ Κόστος υποβολής αίτησης: **${fmtApp} €** (αντί ${fmtOrigApp} €)
+▸ Αμοιβή επιτυχίας: **${fmtSuc} €** (αντί ${fmtOrigSuc} €)
+
+Η ρύθμιση των οφειλών σας είναι εφικτή. Ένα βήμα χωρίζει από μια νέα αρχή. 📞
+
+Η ομάδα iMentor`,
+    },
+    {
+      id: 'empathy',
+      icon: '🤝',
+      label: 'Συμπαράσταση',
+      text: `🤝 Αγαπητέ/ή ${name},
+
+Γνωρίζουμε ότι κάθε υπόθεση έχει τη δική της ιστορία — και **δεν κρίνουμε ποτέ**.
+
+${bankCount > 0 ? `Με ${bankCount} τράπεζ${bankCount === 1 ? 'α' : 'ες'} και λοιπούς πιστωτές να πιέζουν, ` : ''}η καθημερινότητα μπορεί να είναι εξαντλητική. Εμείς είμαστε εδώ **για να μπούμε ανάμεσα** — με γνώση, εμπειρία και αποτελέσματα.
+
+Για να κάνουμε αυτό το βήμα όσο πιο εύκολο γίνεται για εσάς:
+
+▸ Κόστος υποβολής: **${fmtApp} €**
+▸ Αμοιβή επιτυχίας: **${fmtSuc} €**
+
+Μια συνομιλία δεν δεσμεύει σε τίποτα. Είμαστε εδώ. 💬
+
+Η ομάδα iMentor`,
+    },
+    {
+      id: 'second-chance',
+      icon: '🔄',
+      label: 'Δεύτερη Ευκαιρία',
+      text: `🔄 Αγαπητέ/ή ${name},
+
+Μερικές φορές χρειαζόμαστε χρόνο για να πάρουμε τις **σωστές αποφάσεις** — και αυτό είναι απολύτως φυσιολογικό.
+
+${totalDebt > 0 ? `Οι οφειλές των ${debtK} € δεν εξαφανίζονται από μόνες τους — αλλά μπορούν να ρυθμιστούν. ` : ''}Η νομοθεσία δίνει σήμερα **πραγματικές ευκαιρίες** αναδιάρθρωσης που αξίζει να εξερευνήσετε.
+
+Σας περιμένουμε, με ακόμα καλύτερες συνθήκες:
+
+▸ Κόστος υποβολής: **${fmtApp} €**
+▸ Αμοιβή επιτυχίας: **${fmtSuc} €**
+
+Ας μιλήσουμε ξανά — χωρίς καμία πίεση. 🙏
+
+Η ομάδα iMentor`,
+    },
+    {
+      id: 'reconsider',
+      icon: '💭',
+      label: 'Ξανασκεφτείτε το',
+      text: `💭 Αγαπητέ/ή ${name},
+
+Θέλαμε απλώς να σας θυμίσουμε ότι **η πρότασή μας παραμένει ανοιχτή**.
+
+Καταλαβαίνουμε ότι μια τέτοια απόφαση δεν λαμβάνεται εύκολα. Όμως κάθε μέρα που περνά, οι τόκοι και τα πρόστιμα συνεχίζουν να μεγαλώνουν. **Η ρύθμιση σταματά αυτόν τον κύκλο.**
+
+Για να διευκολύνουμε την επιλογή σας, σας προσφέρουμε:
+
+▸ Κόστος υποβολής: **${fmtApp} €**
+▸ Αμοιβή επιτυχίας: **${fmtSuc} €**
+
+Ένα μόνο μήνυμα αρκεί για να ξεκινήσουμε. ✉️
+
+Η ομάδα iMentor`,
+    },
+    {
+      id: 'timing',
+      icon: '⏳',
+      label: 'Κατάλληλη Στιγμή',
+      text: `⏳ Αγαπητέ/ή ${name},
+
+Το νομικό πλαίσιο για τη ρύθμιση οφειλών **εξελίσσεται διαρκώς** — και τα παράθυρα ευκαιρίας δεν παραμένουν ανοιχτά για πάντα.
+
+Πιστεύουμε ότι **τώρα είναι η κατάλληλη στιγμή** για να κάνετε αυτό το βήμα. Έχουμε ήδη αναλύσει την υπόθεσή σας και γνωρίζουμε ότι υπάρχει λύση.
+
+Η πρότασή μας, με ειδικές συνθήκες:
+
+▸ Κόστος υποβολής: **${fmtApp} €**
+▸ Αμοιβή επιτυχίας: **${fmtSuc} €**
+
+Είμαστε έτοιμοι να προχωρήσουμε μαζί σας — αμέσως. 🚀
+
+Η ομάδα iMentor`,
+    },
+  ]
+}
+
+function WinbackComposer({ c, onSend, onClose }) {
+  const templates = useMemo(() => buildWinbackTemplates(c), [c])
+  const [selectedTpl, setSelectedTpl] = useState(0)
+  const [body, setBody] = useState(() => templates[0].text)
+  const [channel, setChannel] = useState('viber')
+  const [sending, setSending] = useState(false)
+
+  const selectTemplate = (idx) => {
+    setSelectedTpl(idx)
+    setBody(templates[idx].text)
+  }
+
+  const handleSend = async () => {
+    setSending(true)
+    try {
+      await onSend(c, channel, body)
+    } finally {
+      setSending(false)
+    }
+  }
+
+  const wbApp = c.commercial_offer?.winback_app || 0
+  const wbSuc = c.commercial_offer?.winback_suc || 0
+
+  return (
+    <div className="mt-3 border-t border-green-200 pt-3 space-y-3">
+      {/* Template selector */}
+      <div>
+        <p className="text-xs font-semibold text-gray-500 mb-2">Επιλογή προτύπου:</p>
+        <div className="flex flex-wrap gap-2">
+          {templates.map((t, i) => (
+            <button
+              key={t.id}
+              onClick={() => selectTemplate(i)}
+              className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg border transition-all ${
+                selectedTpl === i
+                  ? 'bg-violet-600 text-white border-violet-600 shadow-sm'
+                  : 'bg-white text-gray-600 border-gray-200 hover:border-violet-300 hover:text-violet-700'
+              }`}
+            >
+              <span>{t.icon}</span> {t.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Editable preview */}
+      <div>
+        <p className="text-xs font-semibold text-gray-500 mb-1">Προεπισκόπηση &amp; επεξεργασία:</p>
+        <textarea
+          value={body}
+          onChange={e => setBody(e.target.value)}
+          rows={14}
+          className="w-full text-sm font-mono bg-gray-50 border border-gray-200 rounded-xl p-3 resize-y focus:outline-none focus:ring-2 focus:ring-violet-300"
+        />
+        <p className="text-xs text-gray-400 mt-1">Το ** γύρω από λέξεις εμφανίζεται ως <strong>bold</strong> στο Viber.</p>
+      </div>
+
+      {/* Channel + Send */}
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="flex rounded-lg border border-gray-200 overflow-hidden text-xs font-bold">
+          {[
+            { id: 'viber', label: '💬 Viber' },
+            { id: 'email', label: '✉️ Email' },
+            { id: 'both',  label: '💬 + ✉️ Και τα δύο' },
+          ].map(ch => (
+            <button
+              key={ch.id}
+              onClick={() => setChannel(ch.id)}
+              className={`px-3 py-2 transition-colors ${
+                channel === ch.id
+                  ? 'bg-violet-600 text-white'
+                  : 'bg-white text-gray-600 hover:bg-violet-50'
+              }`}
+            >
+              {ch.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="ml-auto flex gap-2">
+          <button
+            onClick={onClose}
+            className="text-xs text-gray-500 hover:text-gray-700 px-3 py-2 rounded-lg border border-gray-200 transition-colors"
+          >
+            Ακύρωση
+          </button>
+          <button
+            onClick={handleSend}
+            disabled={sending || !body.trim()}
+            className="bg-violet-600 hover:bg-violet-700 disabled:opacity-50 text-white text-xs font-black px-5 py-2 rounded-lg transition-colors flex items-center gap-2"
+          >
+            {sending ? '⏳ Αποστολή…' : `🚀 Αποστολή (${wbApp.toLocaleString('el-GR')} + ${wbSuc.toLocaleString('el-GR')} €)`}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function WinbackPanel({ cases, onCasesUpdate }) {
   const now = new Date()
 
-  // Cases eligible: 'Δεν Ενδιαφέρεται', 10+ days since stage_changed_at (or updated_at), no winback yet or dismissed
   const candidates = cases.filter(c => {
     if (c.contact_stage !== 'Δεν Ενδιαφέρεται') return false
     const ws = c.commercial_offer?.winback_status
     if (ws === 'approved' || ws === 'sent') return false
     const ref = c.stage_changed_at || c.updated_at
     if (!ref) return false
-    const daysDiff = (now - new Date(ref)) / (1000 * 60 * 60 * 24)
-    return daysDiff >= WINBACK_DAYS
+    return (now - new Date(ref)) / (1000 * 60 * 60 * 24) >= WINBACK_DAYS
   })
 
-  // Cases with approved winback waiting to be sent
   const approved = cases.filter(c =>
     c.contact_stage === 'Δεν Ενδιαφέρεται' &&
     c.commercial_offer?.winback_status === 'approved'
   )
 
-  // Savings already realized (winback sent and case moved forward)
   const totalSaving = cases.reduce((s, c) => s + (c.commercial_offer?.winback_saving || 0), 0)
 
-  const [sending, setSending] = useState({})
+  const [openComposer, setOpenComposer] = useState(null)
 
   const handleApprove = async (c, approve) => {
     try {
       const res = await approveWinback(c.id, approve)
       onCasesUpdate(prev => prev.map(x => x.id === c.id ? { ...x, commercial_offer: res.data.commercial_offer } : x))
+      if (approve) setOpenComposer(c.id)
     } catch (e) {
       alert('Σφάλμα: ' + (e?.response?.data?.detail || e.message))
     }
   }
 
-  const handleSend = async (c, channel) => {
-    setSending(s => ({ ...s, [c.id]: true }))
+  const handleSend = async (c, channel, message) => {
     try {
-      const res = await sendWinback(c.id, channel)
+      const res = await sendWinback(c.id, channel, message, 'Ειδικές Συνθήκες Συνεργασίας — iMentor')
       onCasesUpdate(prev => prev.map(x => x.id === c.id ? { ...x, commercial_offer: res.data.commercial_offer } : x))
+      setOpenComposer(null)
     } catch (e) {
       alert('Σφάλμα: ' + (e?.response?.data?.detail || e.message))
-    } finally {
-      setSending(s => ({ ...s, [c.id]: false }))
     }
   }
 
@@ -1086,7 +1292,7 @@ function WinbackPanel({ cases, onCasesUpdate }) {
       {candidates.length > 0 && (
         <div>
           <p className="text-xs text-violet-600 font-semibold mb-2">
-            Πελάτες {WINBACK_DAYS}+ ημερών σε «Δεν Ενδιαφέρεται» — εγκρίνετε αποστολή με -30%:
+            {WINBACK_DAYS}+ ημέρες σε «Δεν Ενδιαφέρεται» — εγκρίνετε αποστολή με -30%:
           </p>
           <div className="space-y-2">
             {candidates.map(c => {
@@ -1100,7 +1306,7 @@ function WinbackPanel({ cases, onCasesUpdate }) {
                 <div key={c.id} className="bg-white border border-violet-200 rounded-xl p-3 flex flex-wrap items-center gap-3">
                   <div className="flex-1 min-w-0">
                     <div className="font-bold text-gray-800 truncate">{c.client_name}</div>
-                    <div className="text-xs text-gray-500">{c.employee} · {days} ημέρες απούσα</div>
+                    <div className="text-xs text-gray-500">{c.employee} · {days} ημέρες</div>
                   </div>
                   <div className="flex gap-3 text-sm">
                     <div className="text-center">
@@ -1119,7 +1325,7 @@ function WinbackPanel({ cases, onCasesUpdate }) {
                       onClick={() => handleApprove(c, true)}
                       className="bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold px-4 py-1.5 rounded-lg transition-colors"
                     >
-                      Έγκριση Αποστολής
+                      ✓ Έγκριση &amp; Σύνταξη
                     </button>
                     <button
                       onClick={() => handleApprove(c, false)}
@@ -1135,39 +1341,39 @@ function WinbackPanel({ cases, onCasesUpdate }) {
         </div>
       )}
 
-      {/* Approved — ready to send */}
+      {/* Approved — composer */}
       {approved.length > 0 && (
         <div>
-          <p className="text-xs text-green-700 font-semibold mb-2">Εγκεκριμένες — αναμένουν αποστολή:</p>
+          <p className="text-xs text-green-700 font-semibold mb-2">Εγκεκριμένες — έτοιμες για αποστολή:</p>
           <div className="space-y-2">
             {approved.map(c => {
               const wbApp = c.commercial_offer?.winback_app || 0
               const wbSuc = c.commercial_offer?.winback_suc || 0
+              const isOpen = openComposer === c.id
               return (
-                <div key={c.id} className="bg-white border border-green-200 rounded-xl p-3 flex flex-wrap items-center gap-3">
-                  <div className="flex-1 min-w-0">
-                    <div className="font-bold text-gray-800 truncate">{c.client_name}</div>
-                    <div className="text-xs text-gray-500">{c.employee}</div>
-                  </div>
-                  <div className="flex gap-3 text-sm">
-                    <div className="font-black text-green-700">{Number(wbApp).toLocaleString('el-GR')}€ + {Number(wbSuc).toLocaleString('el-GR')}€</div>
-                  </div>
-                  <div className="flex gap-2">
+                <div key={c.id} className="bg-white border border-green-200 rounded-xl p-3">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="font-bold text-gray-800 truncate">{c.client_name}</div>
+                      <div className="text-xs text-gray-500">{c.employee}</div>
+                    </div>
+                    <div className="font-black text-green-700 text-sm">
+                      {Number(wbApp).toLocaleString('el-GR')}€ + {Number(wbSuc).toLocaleString('el-GR')}€
+                    </div>
                     <button
-                      onClick={() => handleSend(c, 'viber')}
-                      disabled={sending[c.id]}
-                      className="bg-green-600 hover:bg-green-700 text-white text-xs font-bold px-4 py-1.5 rounded-lg transition-colors disabled:opacity-50"
+                      onClick={() => setOpenComposer(isOpen ? null : c.id)}
+                      className="bg-green-600 hover:bg-green-700 text-white text-xs font-bold px-4 py-1.5 rounded-lg transition-colors"
                     >
-                      {sending[c.id] ? '…' : 'Αποστολή Viber'}
-                    </button>
-                    <button
-                      onClick={() => handleSend(c, 'email')}
-                      disabled={sending[c.id]}
-                      className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
-                    >
-                      {sending[c.id] ? '…' : 'Email'}
+                      {isOpen ? '▲ Κλείσιμο' : '✏️ Σύνταξη & Αποστολή'}
                     </button>
                   </div>
+                  {isOpen && (
+                    <WinbackComposer
+                      c={c}
+                      onSend={handleSend}
+                      onClose={() => setOpenComposer(null)}
+                    />
+                  )}
                 </div>
               )
             })}

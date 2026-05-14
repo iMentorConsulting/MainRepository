@@ -346,7 +346,9 @@ def notify_pricing_approval(id: int, data: PricingApprovalNotify, db: Session = 
 
 
 class WinbackSendRequest(BaseModel):
-    channel: str = "viber"  # "viber" | "email"
+    channel: str = "viber"  # "viber" | "email" | "both"
+    message: str
+    subject: str = "Ειδικές Συνθήκες Συνεργασίας — iMentor"
 
 
 @router.post("/{id}/send-winback", response_model=CaseResponse)
@@ -358,41 +360,29 @@ def send_winback(id: int, data: WinbackSendRequest, db: Session = Depends(get_db
     if offer.get("winback_status") != "approved":
         raise HTTPException(status_code=400, detail="Η επαναφορά δεν έχει εγκριθεί")
 
-    wb_app = offer.get("winback_app", 0)
-    wb_suc = offer.get("winback_suc", 0)
+    errors = []
 
-    message = (
-        f"Αγαπητέ/ή {case.client_name},\n\n"
-        f"Γνωρίζουμε ότι η διαχείριση χρηματοοικονομικών υποχρεώσεων απαιτεί τόσο τον κατάλληλο χρόνο "
-        f"όσο και την κατάλληλη στιγμή. Επανερχόμαστε, γιατί πιστεύουμε ότι ορισμένες ευκαιρίες αξίζουν "
-        f"μια δεύτερη ματιά.\n\n"
-        f"Η ρύθμιση οφειλών δεν είναι απλώς μια νομική διαδικασία — είναι η αφετηρία για να αφήσετε "
-        f"πίσω σας το βάρος και να κοιτάξετε μπροστά με σαφήνεια. Θέλουμε να είμαστε δίπλα σας "
-        f"σε αυτό το βήμα, με όρους που αντικατοπτρίζουν την πραγματική μας δέσμευση απέναντί σας:\n\n"
-        f"• Κόστος υποβολής αίτησης: {int(wb_app):,} €\n"
-        f"• Αμοιβή επιτυχίας: {int(wb_suc):,} €\n\n"
-        f"Είμαστε στη διάθεσή σας για μια σύντομη συνομιλία, χωρίς καμία υποχρέωση.\n\nΗ ομάδα iMentor"
-    )
-
-    if data.channel == "email":
-        if not (case.client_email or "").strip():
-            raise HTTPException(status_code=400, detail="Δεν υπάρχει email πελάτη")
-        ok, err = _send_gmail(
-            case.client_email,
-            "Ειδικές Συνθήκες Συνεργασίας — iMentor",
-            message,
-        )
-        if not ok:
-            raise HTTPException(status_code=503, detail=f"Αποτυχία αποστολής email: {err}")
-    else:
+    if data.channel in ("viber", "both"):
         phone = (case.client_phone or "").strip().replace(" ", "").replace("-", "")
         if not phone:
-            raise HTTPException(status_code=400, detail="Δεν υπάρχει τηλέφωνο πελάτη")
-        if not phone.startswith("+"):
-            phone = "+30" + (phone[1:] if phone.startswith("0") else phone)
-        ok, err = _chatwoot_send(case.client_name, phone, message)
-        if not ok:
-            raise HTTPException(status_code=503, detail=f"Αποτυχία αποστολής Viber: {err}")
+            errors.append("Δεν υπάρχει τηλέφωνο πελάτη")
+        else:
+            if not phone.startswith("+"):
+                phone = "+30" + (phone[1:] if phone.startswith("0") else phone)
+            ok, err = _chatwoot_send(case.client_name, phone, data.message)
+            if not ok:
+                errors.append(f"Viber: {err}")
+
+    if data.channel in ("email", "both"):
+        if not (case.client_email or "").strip():
+            errors.append("Δεν υπάρχει email πελάτη")
+        else:
+            ok, err = _send_gmail(case.client_email, data.subject, data.message)
+            if not ok:
+                errors.append(f"Email: {err}")
+
+    if errors:
+        raise HTTPException(status_code=503, detail=" | ".join(errors))
 
     offer["winback_status"] = "sent"
     case.commercial_offer = offer

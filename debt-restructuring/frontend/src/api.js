@@ -17,7 +17,7 @@ export const updateContact = (id, data) => api.patch(`/cases/${id}/contact`, dat
 export const patchOffer = (id, commercial_offer) => api.patch(`/cases/${id}/offer`, { commercial_offer })
 export const notifyPricingApproval = (id, data) => api.post(`/cases/${id}/notify-pricing-approval`, data)
 export const approveWinback = (id, approve) => api.post(`/cases/${id}/approve-winback`, { approve })
-export const sendWinback = (id, channel) => api.post(`/cases/${id}/send-winback`, { channel })
+export const sendWinback = (id, channel, message, subject) => api.post(`/cases/${id}/send-winback`, { channel, message, subject })
 export const sendViber = (id, data) => api.post(`/cases/${id}/send-viber`, data)
 export const sendEmail = (id, data) => api.post(`/cases/${id}/send-email`, data)
 
