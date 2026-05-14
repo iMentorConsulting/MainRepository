@@ -582,31 +582,24 @@ async def client_upload_file(
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
 ):
-    """Client uploads a file from the portal (no auth required)."""
+    """Client uploads a file from the portal — stored as binary in DB."""
     case = db.query(CMCase).options(joinedload(CMCase.assigned_agent)).filter(CMCase.share_token == token).first()
     if not case or not case.portal_active:
         raise HTTPException(status_code=404, detail="Portal not found")
 
-    upload_dir = os.path.join(UPLOAD_DIR, str(case.id))
-    os.makedirs(upload_dir, exist_ok=True)
+    data = await file.read()
+    if len(data) > 20 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="Μέγιστο μέγεθος αρχείου: 20MB")
 
-    # Sanitize filename
-    safe_name = os.path.basename(file.filename or "upload").replace(" ", "_")
-    timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S_")
-    dest = os.path.join(upload_dir, timestamp + safe_name)
-
-    with open(dest, "wb") as f:
-        shutil.copyfileobj(file.file, f)
-
-    file_url = f"/api/cm/portal/uploads/{case.id}/{timestamp + safe_name}"
     doc = CMDocument(
         case_id=case.id,
-        name=file.filename or safe_name,
+        name=file.filename or "upload",
         document_type="client_upload",
         status="pending",
         uploaded_by=case.client_name or "Πελάτης",
-        file_url=file_url,
         uploaded_by_client=True,
+        file_data=data,
+        mime_type=file.content_type or "application/octet-stream",
     )
     db.add(doc)
     db.commit()
@@ -629,12 +622,22 @@ async def client_upload_file(
 
 @router.get("/uploads/{case_id}/{filename}")
 def serve_portal_upload(case_id: int, filename: str, db: Session = Depends(get_db)):
-    """Serve a portal-uploaded file (accessible via portal token or advisor auth)."""
-    safe_name = os.path.basename(filename)
-    path = os.path.join(UPLOAD_DIR, str(case_id), safe_name)
-    if not os.path.isfile(path):
-        raise HTTPException(status_code=404, detail="Αρχείο δεν βρέθηκε")
-    return FileResponse(path)
+    """Backward-compat: redirect old filesystem uploads; now falls back to DB lookup by name."""
+    from fastapi.responses import Response as _Resp
+    # Try to find by name in DB (filesystem files are gone after redeploy)
+    doc = (
+        db.query(CMDocument)
+        .filter(CMDocument.case_id == case_id, CMDocument.uploaded_by_client == True)
+        .filter(CMDocument.name.ilike(f"%{os.path.basename(filename).split('_', 2)[-1]}%"))
+        .first()
+    )
+    if doc and doc.file_data:
+        return _Resp(
+            content=doc.file_data,
+            media_type=doc.mime_type or "application/octet-stream",
+            headers={"Content-Disposition": f'attachment; filename="{doc.name}"'},
+        )
+    raise HTTPException(status_code=404, detail="Αρχείο δεν βρέθηκε")
 
 
 @router.get("/{case_id}/client-uploads")
