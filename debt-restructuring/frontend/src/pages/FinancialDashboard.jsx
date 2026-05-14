@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { addDays, subWeeks, startOfWeek, addWeeks, isAfter, format, isSameWeek } from 'date-fns'
+import { addDays, subWeeks, startOfWeek, isAfter, format, isSameWeek } from 'date-fns'
 import { el } from 'date-fns/locale'
 import {
   BanknotesIcon,
@@ -10,8 +10,17 @@ import {
   FunnelIcon,
   AdjustmentsHorizontalIcon,
   UserGroupIcon,
+  CogIcon,
+  SparklesIcon,
 } from '@heroicons/react/24/outline'
 import * as api from '../api'
+import {
+  DEFAULT_PRICING_CONFIG,
+  loadPricingConfig,
+  savePricingConfig,
+  computeOffer,
+  scoreBreakdown,
+} from '../utils/pricing'
 
 const SUCCESS_FEE_DAYS = 75
 const CONSULTANTS = ['STELLA', 'VALLIA', 'SOFIA']
@@ -84,6 +93,13 @@ export default function FinancialDashboard({ currentEmployee }) {
   const [empFilter, setEmpFilter] = useState('ALL')
   const [closurePct, setClosurePct] = useState(40)
   const [acceptancePct, setAcceptancePct] = useState(60)
+  const [pricingConfig, setPricingConfig] = useState(() => loadPricingConfig())
+  const [showPricingAdmin, setShowPricingAdmin] = useState(false)
+
+  const handleSavePricing = (cfg) => {
+    savePricingConfig(cfg)
+    setPricingConfig(cfg)
+  }
 
   useEffect(() => {
     api.listCases({}).then(r => setCases(r.data)).catch(() => {}).finally(() => setLoading(false))
@@ -537,6 +553,25 @@ export default function FinancialDashboard({ currentEmployee }) {
         </div>
       </div>
 
+      {/* ── Pricing Admin ─────────────────────────────────────────────────── */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100">
+        <button
+          onClick={() => setShowPricingAdmin(v => !v)}
+          className="w-full flex items-center gap-2 p-5 text-left hover:bg-gray-50 rounded-2xl transition-colors"
+        >
+          <CogIcon className="w-4 h-4 text-gray-500" />
+          <span className="text-sm font-black text-gray-700">Παράμετροι Αυτόματης Τιμολόγησης</span>
+          <span className="ml-auto text-xs text-gray-400">{showPricingAdmin ? 'Κλείσιμο ▲' : 'Επεξεργασία ▼'}</span>
+        </button>
+        {showPricingAdmin && (
+          <PricingAdminPanel
+            config={pricingConfig}
+            onSave={handleSavePricing}
+            sampleCases={offerCases.slice(0, 5)}
+          />
+        )}
+      </div>
+
       {/* ── Deals Table ─────────────────────────────────────────────────────── */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
         <h2 className="text-sm font-black text-gray-700 mb-4 flex items-center gap-2">
@@ -611,6 +646,180 @@ export default function FinancialDashboard({ currentEmployee }) {
             </tfoot>
           </table>
         </div>
+      </div>
+
+    </div>
+  )
+}
+
+function PricingAdminPanel({ config, onSave, sampleCases }) {
+  const [local, setLocal] = useState({ ...config })
+  const set = (key, val) => setLocal(prev => ({ ...prev, [key]: val }))
+
+  // Bracket editor helper
+  const setBracket = (i, field, val) => {
+    const brackets = local.debtBrackets.map((b, idx) => idx === i ? { ...b, [field]: val } : b)
+    setLocal(prev => ({ ...prev, debtBrackets: brackets }))
+  }
+
+  const fmtEur = v => Number(v).toLocaleString('el-GR', { maximumFractionDigits: 0 }) + '€'
+
+  return (
+    <div className="border-t border-gray-100 p-5 space-y-6">
+
+      {/* Min/Max/ScoreMax */}
+      <div>
+        <div className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">Όρια & Κλίμακα</div>
+        <div className="grid grid-cols-3 gap-4">
+          {[
+            { key: 'minFee', label: 'Ελάχιστο (€)', min: 0, max: 2000, step: 50 },
+            { key: 'maxFee', label: 'Μέγιστο (€)', min: 0, max: 5000, step: 50 },
+            { key: 'scoreMax', label: 'Score→Max', min: 1, max: 20, step: 0.5 },
+          ].map(({ key, label, min, max, step }) => (
+            <div key={key}>
+              <label className="text-xs text-gray-500 font-semibold block mb-1">{label}</label>
+              <input type="number" min={min} max={max} step={step}
+                className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm font-mono"
+                value={local[key]}
+                onChange={e => set(key, Number(e.target.value))} />
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Debt brackets */}
+      <div>
+        <div className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">Βάση Score Ανά Οφειλή</div>
+        <div className="space-y-2">
+          {local.debtBrackets.map((b, i) => (
+            <div key={i} className="flex items-center gap-3">
+              <span className="text-xs text-gray-400 w-4">{i + 1}.</span>
+              <div className="flex items-center gap-1">
+                <span className="text-xs text-gray-500">έως</span>
+                <input type="number" step={10000} min={0}
+                  className="w-28 border border-gray-200 rounded px-2 py-1 text-xs font-mono"
+                  value={b.upTo === 9999999 ? '' : b.upTo}
+                  placeholder="∞"
+                  onChange={e => setBracket(i, 'upTo', e.target.value === '' ? 9999999 : Number(e.target.value))} />
+                <span className="text-xs text-gray-400">€</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <span className="text-xs text-gray-500">score</span>
+                <input type="number" step={0.1} min={0} max={10}
+                  className="w-16 border border-gray-200 rounded px-2 py-1 text-xs font-mono"
+                  value={b.score}
+                  onChange={e => setBracket(i, 'score', Number(e.target.value))} />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Complexity bonuses */}
+      <div>
+        <div className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">Bonus Πολυπλοκότητας</div>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+          {[
+            { key: 'bankBaseBonus',      label: 'Τράπεζες (βάση)' },
+            { key: 'perBankBonus',       label: 'Ανά επιπλέον τράπεζα' },
+            { key: 'maxBankBonus',       label: 'Max bonus τραπεζών' },
+            { key: 'publicOnlyDiscount', label: 'Έκπτωση μόνο δημόσιο' },
+            { key: 'perAssetBonus',      label: 'Ανά ακίνητο' },
+            { key: 'guarantorBonus',     label: 'Εγγυητές' },
+            { key: 'spouseBonus',        label: 'Σύζυγος' },
+            { key: 'highIncomeBonus',    label: 'Υψηλό εισόδημα' },
+            { key: 'highTurnoverBonus',  label: 'Υψηλός τζίρος' },
+          ].map(({ key, label }) => (
+            <div key={key}>
+              <label className="text-xs text-gray-500 font-semibold block mb-1">{label}</label>
+              <input type="number" step={0.05} min={0} max={5}
+                className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm font-mono"
+                value={local[key]}
+                onChange={e => set(key, Number(e.target.value))} />
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Income thresholds */}
+      <div>
+        <div className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">Όρια Εισοδήματος / Τζίρου</div>
+        <div className="grid grid-cols-2 gap-4">
+          {[
+            { key: 'highIncomeThreshold',   label: 'Εισόδημα threshold (€)' },
+            { key: 'highTurnoverThreshold',  label: 'Τζίρος threshold (€)' },
+          ].map(({ key, label }) => (
+            <div key={key}>
+              <label className="text-xs text-gray-500 font-semibold block mb-1">{label}</label>
+              <input type="number" step={5000} min={0}
+                className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm font-mono"
+                value={local[key]}
+                onChange={e => set(key, Number(e.target.value))} />
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Sample preview */}
+      {sampleCases.length > 0 && (
+        <div>
+          <div className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3 flex items-center gap-2">
+            <SparklesIcon className="w-3.5 h-3.5" />Preview — αποτελέσματα με τις νέες παραμέτρους
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs min-w-[500px]">
+              <thead>
+                <tr className="border-b border-gray-100 text-gray-400">
+                  <th className="text-left py-1 px-2">Πελάτης</th>
+                  <th className="py-1 px-2">Score</th>
+                  <th className="py-1 px-2">Αίτηση</th>
+                  <th className="py-1 px-2">Success</th>
+                  <th className="py-1 px-2 text-left">Παράγοντες</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sampleCases.map(c => {
+                  const debts = c.debts || []
+                  const assets = c.assets || []
+                  const income = c.income_data || {}
+                  const result = computeOffer(debts, assets, income, local)
+                  const items = scoreBreakdown(debts, assets, income, local)
+                  return (
+                    <tr key={c.id} className="border-b border-gray-50 hover:bg-gray-50">
+                      <td className="py-1.5 px-2 font-semibold text-gray-700">{c.client_name}</td>
+                      <td className="py-1.5 px-2 text-center font-mono text-blue-700">{result._score?.toFixed(1)}</td>
+                      <td className="py-1.5 px-2 text-center font-mono font-bold text-blue-800">{fmtEur(result.application_fee)}</td>
+                      <td className="py-1.5 px-2 text-center font-mono font-bold text-emerald-700">{fmtEur(result.success_fee)}</td>
+                      <td className="py-1.5 px-2 text-gray-500">
+                        {items.map((it, i) => (
+                          <span key={i} className="mr-2 whitespace-nowrap">
+                            {it.label}: <b className={it.value >= 0 ? 'text-blue-600' : 'text-red-500'}>{it.value > 0 ? '+' : ''}{it.value}</b>
+                          </span>
+                        ))}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Actions */}
+      <div className="flex items-center gap-3 pt-2 border-t border-gray-100">
+        <button
+          onClick={() => { onSave(local); alert('Αποθηκεύτηκε!') }}
+          className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold px-5 py-2 rounded-lg transition-colors"
+        >
+          Αποθήκευση Παραμέτρων
+        </button>
+        <button
+          onClick={() => setLocal({ ...DEFAULT_PRICING_CONFIG })}
+          className="text-sm text-gray-500 hover:text-gray-700 px-3 py-2 rounded-lg border border-gray-200 transition-colors"
+        >
+          Επαναφορά Προεπιλογών
+        </button>
       </div>
 
     </div>

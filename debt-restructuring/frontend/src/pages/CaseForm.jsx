@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
-import { ArrowLeftIcon, DocumentTextIcon, CloudArrowUpIcon } from '@heroicons/react/24/outline'
+import { ArrowLeftIcon, DocumentTextIcon, CloudArrowUpIcon, SparklesIcon } from '@heroicons/react/24/outline'
+import { computeOffer, loadPricingConfig } from '../utils/pricing'
 import DebtTable, { emptyDebt } from '../components/DebtTable'
 import IncomePanel from '../components/IncomePanel'
 import ResultsPanel from '../components/ResultsPanel'
@@ -349,6 +350,34 @@ export default function CaseForm({ currentEmployee }) {
       {/* Commercial Offer */}
       <h2 className="section-title">💼 Οικονομική Προσφορά</h2>
       <div className="card mb-5">
+        {/* Complexity toggles + auto-calculate */}
+        <div className="flex flex-wrap items-center gap-4 mb-4 pb-4 border-b border-gray-100">
+          <label className="flex items-center gap-2 cursor-pointer text-sm text-gray-700">
+            <input type="checkbox" className="w-4 h-4 accent-blue-600"
+              checked={income.hasGuarantor || false}
+              onChange={e => setIncome({ ...income, hasGuarantor: e.target.checked })} />
+            Εγγυητές
+          </label>
+          <label className="flex items-center gap-2 cursor-pointer text-sm text-gray-700">
+            <input type="checkbox" className="w-4 h-4 accent-blue-600"
+              checked={income.withSpouse || false}
+              onChange={e => setIncome({ ...income, withSpouse: e.target.checked })} />
+            Σύζυγος / Συν-οφειλέτης
+          </label>
+          <button
+            type="button"
+            onClick={() => {
+              const cfg = loadPricingConfig()
+              const suggested = computeOffer(debts, assets, income, cfg)
+              setCommercialOffer({ application_fee: suggested.application_fee, success_fee: suggested.success_fee })
+              toast.success(`Προσφορά: ${suggested.application_fee}€ + ${suggested.success_fee}€`)
+            }}
+            className="ml-auto flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors"
+          >
+            <SparklesIcon className="w-4 h-4" />
+            Αυτόματος Υπολογισμός
+          </button>
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="label">Ποσό Αίτησης & Διαδικασίας <span className="text-gray-400 font-normal">(χωρίς ΦΠΑ)</span></label>
