@@ -24,6 +24,10 @@ class ViberSendRequest(BaseModel):
     is_reminder: bool = False
 
 
+class OfferPatch(BaseModel):
+    commercial_offer: dict
+
+
 class EmailSendRequest(BaseModel):
     to: str
     subject: str
@@ -236,6 +240,18 @@ def update_contact(id: int, data: ContactUpdate, db: Session = Depends(get_db)):
     if data.increment_reminder:
         case.reminder_count = (case.reminder_count or 0) + 1
     case.last_contacted_at = datetime.utcnow()
+    case.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(case)
+    return case
+
+
+@router.patch("/{id}/offer", response_model=CaseResponse)
+def update_offer(id: int, data: OfferPatch, db: Session = Depends(get_db)):
+    case = db.query(Case).filter(Case.id == id).first()
+    if not case:
+        raise HTTPException(status_code=404, detail="Η υπόθεση δεν βρέθηκε")
+    case.commercial_offer = data.commercial_offer
     case.updated_at = datetime.utcnow()
     db.commit()
     db.refresh(case)

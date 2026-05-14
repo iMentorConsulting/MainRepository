@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
-import { ArrowLeftIcon, DocumentTextIcon, CloudArrowUpIcon, SparklesIcon } from '@heroicons/react/24/outline'
-import { computeOffer, loadPricingConfig } from '../utils/pricing'
+import { ArrowLeftIcon, DocumentTextIcon, CloudArrowUpIcon, SparklesIcon, CheckCircleIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline'
+import { computeOffer, loadPricingConfig, scoreBreakdown } from '../utils/pricing'
 import DebtTable, { emptyDebt } from '../components/DebtTable'
 import IncomePanel from '../components/IncomePanel'
 import ResultsPanel from '../components/ResultsPanel'
@@ -349,66 +349,10 @@ export default function CaseForm({ currentEmployee }) {
 
       {/* Commercial Offer */}
       <h2 className="section-title">💼 Οικονομική Προσφορά</h2>
-      <div className="card mb-5">
-        {/* Complexity toggles + auto-calculate */}
-        <div className="flex flex-wrap items-center gap-4 mb-4 pb-4 border-b border-gray-100">
-          <label className="flex items-center gap-2 cursor-pointer text-sm text-gray-700">
-            <input type="checkbox" className="w-4 h-4 accent-blue-600"
-              checked={income.hasGuarantor || false}
-              onChange={e => setIncome({ ...income, hasGuarantor: e.target.checked })} />
-            Εγγυητές
-          </label>
-          <label className="flex items-center gap-2 cursor-pointer text-sm text-gray-700">
-            <input type="checkbox" className="w-4 h-4 accent-blue-600"
-              checked={income.withSpouse || false}
-              onChange={e => setIncome({ ...income, withSpouse: e.target.checked })} />
-            Σύζυγος / Συν-οφειλέτης
-          </label>
-          <button
-            type="button"
-            onClick={() => {
-              const cfg = loadPricingConfig()
-              const suggested = computeOffer(debts, assets, income, cfg)
-              setCommercialOffer({ application_fee: suggested.application_fee, success_fee: suggested.success_fee })
-              toast.success(`Προσφορά: ${suggested.application_fee}€ + ${suggested.success_fee}€`)
-            }}
-            className="ml-auto flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors"
-          >
-            <SparklesIcon className="w-4 h-4" />
-            Αυτόματος Υπολογισμός
-          </button>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="label">Ποσό Αίτησης & Διαδικασίας <span className="text-gray-400 font-normal">(χωρίς ΦΠΑ)</span></label>
-            <div className="flex items-center gap-2">
-              <input
-                className="input"
-                type="number"
-                min="0"
-                placeholder="0"
-                value={commercialOffer.application_fee || ''}
-                onChange={(e) => setCommercialOffer({ ...commercialOffer, application_fee: +e.target.value })}
-              />
-              <span className="text-sm text-gray-500 whitespace-nowrap">€ + ΦΠΑ</span>
-            </div>
-          </div>
-          <div>
-            <label className="label">Success Fee <span className="text-gray-400 font-normal">(σε αποδοχή αποτελέσματος, χωρίς ΦΠΑ)</span></label>
-            <div className="flex items-center gap-2">
-              <input
-                className="input"
-                type="number"
-                min="0"
-                placeholder="0"
-                value={commercialOffer.success_fee || ''}
-                onChange={(e) => setCommercialOffer({ ...commercialOffer, success_fee: +e.target.value })}
-              />
-              <span className="text-sm text-gray-500 whitespace-nowrap">€ + ΦΠΑ</span>
-            </div>
-          </div>
-        </div>
-      </div>
+      <OfferSection
+        debts={debts} assets={assets} income={income} setIncome={setIncome}
+        commercialOffer={commercialOffer} setCommercialOffer={setCommercialOffer}
+      />
 
       {/* Debts */}
       <h2 className="section-title">📋 Οφειλές</h2>
@@ -565,6 +509,174 @@ export default function CaseForm({ currentEmployee }) {
           {saving ? 'Αποθήκευση…' : 'Αποθήκευση Υπόθεσης'}
         </button>
       </div>
+    </div>
+  )
+}
+
+// ── OfferSection ──────────────────────────────────────────────────────────────
+
+function OfferSection({ debts, assets, income, setIncome, commercialOffer, setCommercialOffer }) {
+  const cfg = useMemo(() => loadPricingConfig(), [])
+
+  const suggested = useMemo(
+    () => computeOffer(debts, assets, income, cfg),
+    [debts, assets, income, cfg],
+  )
+
+  const breakdown = useMemo(
+    () => scoreBreakdown(debts, assets, income, cfg),
+    [debts, assets, income, cfg],
+  )
+
+  const appFee = Number(commercialOffer.application_fee || 0)
+  const sucFee = Number(commercialOffer.success_fee || 0)
+  const approvalStatus = commercialOffer.approval_status
+
+  const matchesSuggestion = appFee === suggested.application_fee && sucFee === suggested.success_fee
+  const isApproved = approvalStatus === 'approved' || approvalStatus === 'auto'
+  const isPending   = approvalStatus === 'pending'
+  const hasCustomFee = appFee > 0 && !matchesSuggestion
+
+  const applySuggestion = () => {
+    setCommercialOffer({
+      ...commercialOffer,
+      application_fee: suggested.application_fee,
+      success_fee: suggested.success_fee,
+      system_app: suggested.application_fee,
+      system_suc: suggested.success_fee,
+      approval_status: 'auto',
+    })
+  }
+
+  const requestApproval = () => {
+    setCommercialOffer({
+      ...commercialOffer,
+      system_app: suggested.application_fee,
+      system_suc: suggested.success_fee,
+      approval_status: 'pending',
+    })
+    toast('Αποστολή αίτησης έγκρισης στον HARIS…', { icon: '📩' })
+  }
+
+  const handleFeeChange = (field, val) => {
+    const updated = { ...commercialOffer, [field]: +val }
+    // Clear auto status when user manually edits
+    if (updated.approval_status === 'auto') updated.approval_status = undefined
+    setCommercialOffer(updated)
+  }
+
+  return (
+    <div className="card mb-5">
+      {/* System suggestion row */}
+      <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 mb-4">
+        <div className="flex items-center gap-2 mb-2.5">
+          <SparklesIcon className="w-4 h-4 text-blue-600" />
+          <span className="text-xs font-bold text-blue-700 uppercase tracking-wide">Πρόταση Συστήματος</span>
+          <span className="ml-1 text-xs text-blue-400">score {suggested._score}</span>
+        </div>
+        <div className="flex flex-wrap items-center gap-4">
+          <div className="text-center">
+            <div className="text-xs text-blue-500 mb-0.5">Αίτηση</div>
+            <div className="text-xl font-black text-blue-800">{suggested.application_fee.toLocaleString('el-GR')} €</div>
+          </div>
+          <div className="text-center">
+            <div className="text-xs text-blue-500 mb-0.5">Success Fee</div>
+            <div className="text-xl font-black text-blue-800">{suggested.success_fee.toLocaleString('el-GR')} €</div>
+          </div>
+          <div className="flex flex-wrap gap-1.5 flex-1">
+            {breakdown.map((it, i) => (
+              <span key={i} className={`text-xs px-2 py-0.5 rounded-full border font-semibold ${
+                it.auto ? 'bg-blue-100 text-blue-700 border-blue-200' : 'bg-pink-100 text-pink-700 border-pink-200'
+              }`}>
+                {it.label} {it.value > 0 ? `+${it.value}` : it.value}
+              </span>
+            ))}
+          </div>
+          <button
+            type="button"
+            onClick={applySuggestion}
+            className="shrink-0 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition-colors"
+          >
+            Εφαρμογή
+          </button>
+        </div>
+      </div>
+
+      {/* Spouse toggle (only unknown factor) */}
+      <div className="flex items-center gap-2 mb-4">
+        <label className="flex items-center gap-2 cursor-pointer text-sm text-gray-700">
+          <input type="checkbox" className="w-4 h-4 accent-blue-600"
+            checked={income.withSpouse || false}
+            onChange={e => setIncome({ ...income, withSpouse: e.target.checked })} />
+          Σύζυγος / Συν-οφειλέτης
+        </label>
+        <span className="text-xs text-gray-400">(εγγυητές &amp; ακίνητα ανιχνεύονται αυτόματα)</span>
+      </div>
+
+      {/* Fee inputs */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+        <div>
+          <label className="label">Ποσό Αίτησης & Διαδικασίας <span className="text-gray-400 font-normal">(χωρίς ΦΠΑ)</span></label>
+          <div className="flex items-center gap-2">
+            <input
+              className="input"
+              type="number" min="0" placeholder="0"
+              value={commercialOffer.application_fee || ''}
+              onChange={e => handleFeeChange('application_fee', e.target.value)}
+            />
+            <span className="text-sm text-gray-500 whitespace-nowrap">€ + ΦΠΑ</span>
+          </div>
+        </div>
+        <div>
+          <label className="label">Success Fee <span className="text-gray-400 font-normal">(χωρίς ΦΠΑ)</span></label>
+          <div className="flex items-center gap-2">
+            <input
+              className="input"
+              type="number" min="0" placeholder="0"
+              value={commercialOffer.success_fee || ''}
+              onChange={e => handleFeeChange('success_fee', e.target.value)}
+            />
+            <span className="text-sm text-gray-500 whitespace-nowrap">€ + ΦΠΑ</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Status badge */}
+      {appFee > 0 && (
+        matchesSuggestion ? (
+          <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
+            <CheckCircleIcon className="w-4 h-4 shrink-0" />
+            Σύμφωνα με πρόταση συστήματος
+          </div>
+        ) : isPending ? (
+          <div className="flex items-center gap-2 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+            <ExclamationTriangleIcon className="w-4 h-4 shrink-0" />
+            Αναμένεται έγκριση HARIS
+            {commercialOffer.system_app && (
+              <span className="ml-auto text-xs text-amber-500">
+                Σύστημα: {Number(commercialOffer.system_app).toLocaleString('el-GR')}€
+              </span>
+            )}
+          </div>
+        ) : isApproved && !matchesSuggestion ? (
+          <div className="flex items-center gap-2 text-sm text-purple-700 bg-purple-50 border border-purple-200 rounded-lg px-3 py-2">
+            <CheckCircleIcon className="w-4 h-4 shrink-0" />
+            Εγκεκριμένο ποσό από HARIS
+          </div>
+        ) : hasCustomFee ? (
+          <div className="flex items-center gap-2 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+            <ExclamationTriangleIcon className="w-4 h-4 shrink-0" />
+            Διαφέρει από πρόταση συστήματος ({suggested.application_fee.toLocaleString('el-GR')}€)
+            <button
+              type="button"
+              onClick={requestApproval}
+              className="ml-auto text-xs font-bold bg-amber-600 hover:bg-amber-700 text-white px-3 py-1 rounded-lg transition-colors shrink-0"
+            >
+              Αίτηση Έγκρισης HARIS
+            </button>
+          </div>
+        ) : null
+      )}
     </div>
   )
 }

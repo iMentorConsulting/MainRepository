@@ -14,6 +14,7 @@ import {
   SparklesIcon,
 } from '@heroicons/react/24/outline'
 import * as api from '../api'
+import { patchOffer } from '../api'
 import {
   DEFAULT_PRICING_CONFIG,
   loadPricingConfig,
@@ -264,6 +265,9 @@ export default function FinancialDashboard({ currentEmployee }) {
         <h1 className="text-2xl font-black text-blue-900">Οικονομικό Dashboard</h1>
         <p className="text-gray-500 text-sm mt-0.5">Ρευστότητα, σύγκριση συμβούλων &amp; σενάρια εσόδων</p>
       </div>
+
+      {/* ── Pending Approvals ─────────────────────────────────────────────── */}
+      <PendingApprovalsPanel cases={cases} onCasesUpdate={setCases} />
 
       {/* ── Scenario Projector ─────────────────────────────────────────────── */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
@@ -648,6 +652,79 @@ export default function FinancialDashboard({ currentEmployee }) {
         </div>
       </div>
 
+    </div>
+  )
+}
+
+function PendingApprovalsPanel({ cases, onCasesUpdate }) {
+  const pending = cases.filter(c => c.commercial_offer?.approval_status === 'pending')
+  if (pending.length === 0) return null
+
+  const approve = async (c, approved) => {
+    const updated = {
+      ...c.commercial_offer,
+      approval_status: approved ? 'approved' : 'auto',
+      ...(approved ? {} : {
+        application_fee: c.commercial_offer.system_app,
+        success_fee: c.commercial_offer.system_suc,
+      }),
+    }
+    await patchOffer(c.id, updated)
+    onCasesUpdate(prev => prev.map(x => x.id === c.id
+      ? { ...x, commercial_offer: updated }
+      : x
+    ))
+  }
+
+  return (
+    <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5">
+      <h2 className="text-sm font-black text-amber-800 mb-4 flex items-center gap-2">
+        <ExclamationTriangleIcon className="w-4 h-4" />
+        Εκκρεμείς Εγκρίσεις Τιμολόγησης
+        <span className="ml-1 bg-amber-200 text-amber-900 text-xs font-black px-2 py-0.5 rounded-full">{pending.length}</span>
+      </h2>
+      <div className="space-y-3">
+        {pending.map(c => {
+          const af = Number(c.commercial_offer?.application_fee || 0)
+          const sf = Number(c.commercial_offer?.success_fee || 0)
+          const sysAf = Number(c.commercial_offer?.system_app || 0)
+          const sysSf = Number(c.commercial_offer?.system_suc || 0)
+          return (
+            <div key={c.id} className="bg-white border border-amber-200 rounded-xl p-3 flex flex-wrap items-center gap-4">
+              <div>
+                <div className="font-bold text-gray-800">{c.client_name}</div>
+                <div className="text-xs text-gray-500">{c.employee}</div>
+              </div>
+              <div className="flex gap-4 text-sm">
+                <div>
+                  <div className="text-xs text-gray-400">Προτεινόμενο</div>
+                  <div className="font-black text-amber-700">{af.toLocaleString('el-GR')}€ + {sf.toLocaleString('el-GR')}€</div>
+                </div>
+                {sysAf > 0 && (
+                  <div>
+                    <div className="text-xs text-gray-400">Σύστημα</div>
+                    <div className="font-black text-blue-600">{sysAf.toLocaleString('el-GR')}€ + {sysSf.toLocaleString('el-GR')}€</div>
+                  </div>
+                )}
+              </div>
+              <div className="ml-auto flex gap-2">
+                <button
+                  onClick={() => approve(c, true)}
+                  className="bg-green-600 hover:bg-green-700 text-white text-xs font-bold px-4 py-1.5 rounded-lg transition-colors"
+                >
+                  Έγκριση
+                </button>
+                <button
+                  onClick={() => approve(c, false)}
+                  className="bg-gray-200 hover:bg-gray-300 text-gray-700 text-xs font-bold px-4 py-1.5 rounded-lg transition-colors"
+                >
+                  Επαναφορά Συστήματος
+                </button>
+              </div>
+            </div>
+          )
+        })}
+      </div>
     </div>
   )
 }
