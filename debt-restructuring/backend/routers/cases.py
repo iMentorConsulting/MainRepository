@@ -270,10 +270,10 @@ def approve_winback(id: int, data: WinbackApprove, db: Session = Depends(get_db)
     if data.approve:
         orig_app = float(offer.get("application_fee") or offer.get("system_app") or 0)
         orig_suc = float(offer.get("success_fee") or offer.get("system_suc") or 0)
-        wb_app = round(orig_app * 0.7 / 50) * 50
-        wb_suc = round(orig_suc * 0.7 / 50) * 50
-        offer["winback_app"] = max(wb_app, 400)
-        offer["winback_suc"] = max(wb_suc, 400)
+        wb_app = round(orig_app * 0.7 / 10) * 10
+        wb_suc = round(orig_suc * 0.7 / 10) * 10
+        offer["winback_app"] = max(wb_app, 10)
+        offer["winback_suc"] = max(wb_suc, 10)
         offer["winback_status"] = "approved"
         offer["winback_saving"] = round((orig_app - offer["winback_app"]) + (orig_suc - offer["winback_suc"]))
     else:

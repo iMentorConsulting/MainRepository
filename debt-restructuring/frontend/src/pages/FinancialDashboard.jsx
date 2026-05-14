@@ -1092,8 +1092,8 @@ function WinbackPanel({ cases, onCasesUpdate }) {
             {candidates.map(c => {
               const origApp = c.commercial_offer?.application_fee || c.commercial_offer?.system_app || 0
               const origSuc = c.commercial_offer?.success_fee || c.commercial_offer?.system_suc || 0
-              const wbApp = Math.max(Math.round(origApp * 0.7 / 50) * 50, 400)
-              const wbSuc = Math.max(Math.round(origSuc * 0.7 / 50) * 50, 400)
+              const wbApp = Math.round(origApp * 0.7 / 10) * 10
+              const wbSuc = Math.round(origSuc * 0.7 / 10) * 10
               const ref = c.stage_changed_at || c.updated_at
               const days = ref ? Math.floor((now - new Date(ref)) / (1000 * 60 * 60 * 24)) : '?'
               return (
