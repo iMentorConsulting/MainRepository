@@ -145,15 +145,14 @@ function ViberInlineModal({ caseItem, onSend, onClose, sending }) {
 const EMPLOYEES = ['STELLA', 'VALLIA', 'SOFIA', 'HARIS']
 
 const STAGE_CONFIG = [
-  { key: 'Νέα Ανάλυση',           icon: '📋', cls: 'bg-gray-100 text-gray-700',      border: 'border-gray-200',    header: 'bg-gray-50',     dot: 'bg-gray-400' },
-  { key: 'Εστάλη Σύνδεσμος',      icon: '🔗', cls: 'bg-blue-100 text-blue-700',      border: 'border-blue-200',    header: 'bg-blue-50',     dot: 'bg-blue-500' },
-  { key: 'Θετική Ανταπόκριση',     icon: '✅', cls: 'bg-green-100 text-green-700',    border: 'border-green-200',   header: 'bg-green-50',    dot: 'bg-green-500' },
-  { key: 'Σε Διαπραγμάτευση',      icon: '💬', cls: 'bg-yellow-100 text-yellow-700',  border: 'border-yellow-200',  header: 'bg-yellow-50',   dot: 'bg-yellow-500' },
-  { key: 'Έκλεισε',                icon: '🏆', cls: 'bg-emerald-100 text-emerald-800',border: 'border-emerald-200', header: 'bg-emerald-50',  dot: 'bg-emerald-500' },
-  { key: 'Υποβλήθηκε Αίτηση',     icon: '📁', cls: 'bg-teal-100 text-teal-700',      border: 'border-teal-200',    header: 'bg-teal-50',     dot: 'bg-teal-500' },
-  { key: 'Αποδοχή Ρύθμισης',      icon: '✔',  cls: 'bg-green-100 text-green-800',    border: 'border-green-300',   header: 'bg-green-50',    dot: 'bg-green-600' },
-  { key: 'Απόρριψη Ρύθμισης',     icon: '✖',  cls: 'bg-orange-100 text-orange-700',  border: 'border-orange-200',  header: 'bg-orange-50',   dot: 'bg-orange-500' },
-  { key: 'Δεν Ενδιαφέρεται',      icon: '❌', cls: 'bg-red-100 text-red-700',        border: 'border-red-200',     header: 'bg-red-50',      dot: 'bg-red-400' },
+  { key: 'Νέα Ανάλυση',         icon: '📋', cls: 'bg-gray-100 text-gray-700',      border: 'border-gray-200',    header: 'bg-gray-50',    dot: 'bg-gray-400' },
+  { key: 'Εστάλη Σύνδεσμος',    icon: '🔗', cls: 'bg-blue-100 text-blue-700',      border: 'border-blue-200',    header: 'bg-blue-50',    dot: 'bg-blue-500' },
+  { key: 'Θετική Ανταπόκριση',   icon: '✅', cls: 'bg-green-100 text-green-700',    border: 'border-green-200',   header: 'bg-green-50',   dot: 'bg-green-500' },
+  { key: 'Σε Διαπραγμάτευση',    icon: '💬', cls: 'bg-yellow-100 text-yellow-700',  border: 'border-yellow-200',  header: 'bg-yellow-50',  dot: 'bg-yellow-500' },
+  { key: 'Έκλεισε',              icon: '🏆', cls: 'bg-emerald-100 text-emerald-800',border: 'border-emerald-200', header: 'bg-emerald-50', dot: 'bg-emerald-500' },
+  { key: 'Αποδοχή Ρύθμισης',    icon: '✔',  cls: 'bg-green-100 text-green-800',    border: 'border-green-300',   header: 'bg-green-50',   dot: 'bg-green-600' },
+  { key: 'Απόρριψη Ρύθμισης',   icon: '✖',  cls: 'bg-orange-100 text-orange-700',  border: 'border-orange-200',  header: 'bg-orange-50',  dot: 'bg-orange-500' },
+  { key: 'Δεν Ενδιαφέρεται',    icon: '❌', cls: 'bg-red-100 text-red-700',        border: 'border-red-200',     header: 'bg-red-50',     dot: 'bg-red-400' },
 ]
 
 const STAGE_MAP = Object.fromEntries(STAGE_CONFIG.map(s => [s.key, s]))
@@ -322,7 +321,7 @@ export default function SalesPipeline() {
     })), [cases])
 
   return (
-    <div className="p-4 md:p-6 max-w-[1600px] mx-auto">
+    <div className="p-4 md:p-6 max-w-[1900px] mx-auto">
 
       {/* ── Header ─────────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between mb-6">
@@ -542,7 +541,7 @@ export default function SalesPipeline() {
         ) : (
           <div className="flex gap-3 overflow-x-auto pb-4">
             {kanbanColumns.map(col => (
-              <div key={col.key} className="shrink-0 w-60">
+              <div key={col.key} className="shrink-0 w-52">
                 {/* Column header */}
                 <div className={`rounded-t-xl px-3 py-2.5 ${col.header} border ${col.border} border-b-0 flex items-center justify-between`}>
                   <span className="font-bold text-sm">{col.icon} {col.key}</span>

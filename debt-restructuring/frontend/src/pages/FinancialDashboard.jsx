@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { addDays, isAfter, startOfMonth, addMonths, format, isSameMonth } from 'date-fns'
+import { addDays, subWeeks, startOfWeek, addWeeks, isAfter, format, isSameWeek } from 'date-fns'
 import { el } from 'date-fns/locale'
 import {
   BanknotesIcon,
@@ -17,11 +17,9 @@ const SUCCESS_FEE_DAYS = 75
 const CONSULTANTS = ['STELLA', 'VALLIA', 'SOFIA']
 
 // Stages where app fee has been paid
-const APP_FEE_PAID = new Set(['Έκλεισε', 'Υποβλήθηκε Αίτηση', 'Αποδοχή Ρύθμισης', 'Απόρριψη Ρύθμισης'])
-// Terminal stages (no further pipeline movement)
+const APP_FEE_PAID = new Set(['Έκλεισε', 'Αποδοχή Ρύθμισης', 'Απόρριψη Ρύθμισης'])
+// Terminal stages
 const TERMINAL = new Set(['Αποδοχή Ρύθμισης', 'Απόρριψη Ρύθμισης', 'Δεν Ενδιαφέρεται'])
-// All "decided" stages (closed one way or another)
-const CLOSED_STAGES = new Set(['Έκλεισε', 'Υποβλήθηκε Αίτηση', 'Αποδοχή Ρύθμισης', 'Απόρριψη Ρύθμισης'])
 
 const CC = {
   STELLA: { bar: 'bg-pink-500',   light: 'bg-pink-50',   border: 'border-pink-200',   text: 'text-pink-700',   badge: 'bg-pink-100 text-pink-700 border-pink-200' },
@@ -52,7 +50,7 @@ function successFeeStatus(c) {
   const stage = c.contact_stage || 'Νέα Ανάλυση'
   if (stage === 'Αποδοχή Ρύθμισης') return 'collected'
   if (stage === 'Απόρριψη Ρύθμισης' || stage === 'Δεν Ενδιαφέρεται') return 'lost'
-  if (stage === 'Υποβλήθηκε Αίτηση') {
+  if (stage === 'Έκλεισε') {
     if (!c.submitted_at) return 'expected'
     const due = addDays(new Date(c.submitted_at), SUCCESS_FEE_DAYS)
     return isAfter(new Date(), due) ? 'overdue' : 'expected'
@@ -62,9 +60,14 @@ function successFeeStatus(c) {
 
 function successFeeDue(c) {
   const stage = c.contact_stage || 'Νέα Ανάλυση'
-  if (!['Υποβλήθηκε Αίτηση', 'Αποδοχή Ρύθμισης', 'Απόρριψη Ρύθμισης'].includes(stage)) return null
+  if (!['Έκλεισε', 'Αποδοχή Ρύθμισης', 'Απόρριψη Ρύθμισης'].includes(stage)) return null
   if (!c.submitted_at) return null
   return addDays(new Date(c.submitted_at), SUCCESS_FEE_DAYS)
+}
+
+// Best date proxy for when a fee event occurred
+function collectionDate(c) {
+  return c.submitted_at || c.completed_at || c.created_at
 }
 
 const STATUS_LABELS = {
@@ -96,7 +99,10 @@ export default function FinancialDashboard({ currentEmployee }) {
 
   // ── Scenario Projector ────────────────────────────────────────────────────
   const scenario = useMemo(() => {
-    const active = offerCases.filter(c => !TERMINAL.has(c.contact_stage || 'Νέα Ανάλυση') && !CLOSED_STAGES.has(c.contact_stage || 'Νέα Ανάλυση'))
+    const active = offerCases.filter(c => {
+      const stage = c.contact_stage || 'Νέα Ανάλυση'
+      return !TERMINAL.has(stage) && !APP_FEE_PAID.has(stage)
+    })
     const count = active.length
     const totalApp = active.reduce((s, c) => s + Number(c.commercial_offer?.application_fee || 0), 0)
     const totalSuc = active.reduce((s, c) => s + Number(c.commercial_offer?.success_fee || 0), 0)
@@ -105,8 +111,41 @@ export default function FinancialDashboard({ currentEmployee }) {
     const projClosed = count * closurePct / 100
     const projAppRev = projClosed * avgApp
     const projSucRev = projClosed * (acceptancePct / 100) * avgSuc
-    return { count, projClosed: Math.round(projClosed), projAppRev, projSucRev, avgApp, avgSuc }
+    const today = new Date()
+    const appDate = addDays(today, 7)
+    const sucDate = addDays(today, 75)
+    return { count, projClosed: Math.round(projClosed), projAppRev, projSucRev, avgApp, avgSuc, today, appDate, sucDate }
   }, [offerCases, closurePct, acceptancePct])
+
+  // ── Weekly Collections History (past 12 weeks) ────────────────────────────
+  const weeklyHistory = useMemo(() => {
+    const today = new Date()
+    const weeks = Array.from({ length: 12 }, (_, i) =>
+      startOfWeek(subWeeks(today, 11 - i), { weekStartsOn: 1 })
+    )
+    return weeks.map(weekStart => {
+      let appAmt = 0, sucAmt = 0
+      for (const c of filtered) {
+        const af = Number(c.commercial_offer?.application_fee || 0)
+        const sf = Number(c.commercial_offer?.success_fee || 0)
+        const dateStr = collectionDate(c)
+        if (!dateStr) continue
+        const date = new Date(dateStr)
+        const inWeek = isSameWeek(date, weekStart, { weekStartsOn: 1 })
+        if (!inWeek) continue
+        if (af > 0 && appFeeStatus(c) === 'collected') appAmt += af
+        if (sf > 0 && successFeeStatus(c) === 'collected') sucAmt += sf
+      }
+      return {
+        weekStart,
+        label: format(weekStart, 'd MMM', { locale: el }),
+        appAmt, sucAmt,
+        total: appAmt + sucAmt,
+      }
+    })
+  }, [filtered])
+
+  const maxWeekly = Math.max(...weeklyHistory.map(w => w.total), 1)
 
   // ── Consultant Comparison ─────────────────────────────────────────────────
   const consultantStats = useMemo(() => {
@@ -114,18 +153,16 @@ export default function FinancialDashboard({ currentEmployee }) {
       const empCases = cases.filter(c => c.employee === emp)
       const total = empCases.length
       const stageCount = s => empCases.filter(c => (c.contact_stage || 'Νέα Ανάλυση') === s).length
-      const closed = ['Έκλεισε', 'Υποβλήθηκε Αίτηση', 'Αποδοχή Ρύθμισης', 'Απόρριψη Ρύθμισης']
-        .reduce((s, st) => s + stageCount(st), 0)
+      const closed = ['Έκλεισε', 'Αποδοχή Ρύθμισης', 'Απόρριψη Ρύθμισης'].reduce((s, st) => s + stageCount(st), 0)
       const notInterested = stageCount('Δεν Ενδιαφέρεται')
-      const submitted = stageCount('Υποβλήθηκε Αίτηση')
       const accepted = stageCount('Αποδοχή Ρύθμισης')
       const rejected = stageCount('Απόρριψη Ρύθμισης')
       const active = total - closed - notInterested
       const decided = closed + notInterested
-      const submittedTotal = submitted + accepted + rejected
+      const postClose = accepted + rejected
       const closureRate = pct(closed, decided)
-      const acceptanceRate = pct(accepted, submittedTotal)
-      const rejectionRate = pct(rejected, submittedTotal)
+      const acceptanceRate = pct(accepted, postClose)
+      const rejectionRate = pct(rejected, postClose)
 
       const empOffer = offerCases.filter(c => c.employee === emp)
       let collected = 0, expected = 0, pipeline = 0, overdue = 0
@@ -143,8 +180,8 @@ export default function FinancialDashboard({ currentEmployee }) {
         else if (ss === 'pipeline') pipeline += sf
       }
 
-      return { emp, total, active, closed, notInterested, submitted, accepted, rejected,
-        closureRate, acceptanceRate, rejectionRate, decided, submittedTotal,
+      return { emp, total, active, closed, notInterested, accepted, rejected,
+        closureRate, acceptanceRate, rejectionRate, decided, postClose,
         collected, expected, overdue, pipeline }
     })
   }, [cases, offerCases])
@@ -174,32 +211,6 @@ export default function FinancialDashboard({ currentEmployee }) {
     }
   }, [filtered])
 
-  // ── Monthly Liquidity Forecast ────────────────────────────────────────────
-  const monthlyForecast = useMemo(() => {
-    const today = new Date()
-    const months = Array.from({ length: 8 }, (_, i) => addMonths(startOfMonth(today), i))
-    return months.map(monthStart => {
-      let sucAmt = 0, appAmt = 0, overdueAmt = 0
-      for (const c of filtered) {
-        const af = Number(c.commercial_offer?.application_fee || 0)
-        const sf = Number(c.commercial_offer?.success_fee || 0)
-        if (sf > 0) {
-          const ss = successFeeStatus(c)
-          if (ss === 'expected') {
-            const due = successFeeDue(c)
-            if (due && isSameMonth(due, monthStart)) sucAmt += sf
-          } else if (ss === 'overdue' && isSameMonth(monthStart, today)) {
-            overdueAmt += sf
-          }
-        }
-        if (af > 0 && appFeeStatus(c) === 'expected' && isSameMonth(monthStart, today)) appAmt += af
-      }
-      return { monthStart, label: format(monthStart, 'MMM yyyy', { locale: el }), sucAmt, appAmt, overdueAmt, total: sucAmt + appAmt + overdueAmt }
-    })
-  }, [filtered])
-
-  const maxMonthly = Math.max(...monthlyForecast.map(m => m.total), 1)
-
   // ── Deal table ────────────────────────────────────────────────────────────
   const dealRows = useMemo(() => {
     const order = { overdue: 0, expected: 1, collected: 2, pipeline: 3, lost: 4 }
@@ -226,6 +237,9 @@ export default function FinancialDashboard({ currentEmployee }) {
   const maxClosed = Math.max(...consultantStats.map(s => s.closed), 1)
   const maxTotal = Math.max(...consultantStats.map(s => s.total), 1)
 
+  // Timeline positioning helpers (0–100% across 90 days)
+  const timelinePct = days => Math.min((days / 90) * 100, 100)
+
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-6">
 
@@ -242,58 +256,83 @@ export default function FinancialDashboard({ currentEmployee }) {
           Σενάριο Εσόδων
           <span className="ml-1 text-xs font-normal text-gray-400">— {scenario.count} ενεργά pipeline με προσφορά</span>
         </h2>
-        <div className="grid md:grid-cols-2 gap-6">
-          <div className="space-y-5">
-            <div>
-              <div className="flex justify-between text-sm mb-1.5">
-                <span className="font-semibold text-gray-700">% Κλεισίματος</span>
-                <span className="font-black text-blue-700 text-base">{closurePct}%</span>
-              </div>
-              <input type="range" min={0} max={100} value={closurePct}
-                onChange={e => setClosurePct(Number(e.target.value))}
-                className="w-full accent-blue-600" />
-              <div className="text-xs text-gray-400 mt-1">
-                Εκτίμηση: <b>{scenario.projClosed}</b> από {scenario.count} υποθέσεις θα κλείσουν (app fee ~1 εβδομάδα)
-              </div>
+
+        {/* Sliders */}
+        <div className="grid md:grid-cols-2 gap-5 mb-6">
+          <div>
+            <div className="flex justify-between text-sm mb-1.5">
+              <span className="font-semibold text-gray-700">% Κλεισίματος</span>
+              <span className="font-black text-blue-700 text-base">{closurePct}%</span>
             </div>
-            <div>
-              <div className="flex justify-between text-sm mb-1.5">
-                <span className="font-semibold text-gray-700">% Αποδοχής Ρύθμισης</span>
-                <span className="font-black text-emerald-700 text-base">{acceptancePct}%</span>
-              </div>
-              <input type="range" min={0} max={100} value={acceptancePct}
-                onChange={e => setAcceptancePct(Number(e.target.value))}
-                className="w-full accent-emerald-600" />
-              <div className="text-xs text-gray-400 mt-1">
-                Εκτίμηση: <b>{Math.round(scenario.projClosed * acceptancePct / 100)}</b> αποδοχές ρύθμισης (success fee ~75 ημέρες)
-              </div>
+            <input type="range" min={0} max={100} value={closurePct}
+              onChange={e => setClosurePct(Number(e.target.value))}
+              className="w-full accent-blue-600" />
+            <div className="text-xs text-gray-400 mt-1">
+              Εκτίμηση: <b>{scenario.projClosed}</b> υποθέσεις θα κλείσουν → app fee σε ~1 εβδομάδα
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="rounded-xl bg-blue-50 border border-blue-200 p-4 text-center flex flex-col justify-between">
-              <div>
-                <div className="text-xs font-bold text-blue-600 uppercase tracking-wide mb-0.5">Ποσό Αίτησης</div>
-                <div className="text-xs text-blue-400 mb-2">~1 εβδομάδα</div>
-              </div>
-              <div>
-                <div className="text-2xl font-black text-blue-800">{fmtEur(scenario.projAppRev)}</div>
-                <div className="text-xs text-blue-400 mt-1">μέσος: {fmtEur(scenario.avgApp)}/υπόθ.</div>
+          <div>
+            <div className="flex justify-between text-sm mb-1.5">
+              <span className="font-semibold text-gray-700">% Αποδοχής Ρύθμισης</span>
+              <span className="font-black text-emerald-700 text-base">{acceptancePct}%</span>
+            </div>
+            <input type="range" min={0} max={100} value={acceptancePct}
+              onChange={e => setAcceptancePct(Number(e.target.value))}
+              className="w-full accent-emerald-600" />
+            <div className="text-xs text-gray-400 mt-1">
+              Εκτίμηση: <b>{Math.round(scenario.projClosed * acceptancePct / 100)}</b> αποδοχές → success fee σε ~75 ημέρες
+            </div>
+          </div>
+        </div>
+
+        {/* Timeline visualization */}
+        <div className="relative">
+          {/* Axis line */}
+          <div className="relative h-1 bg-gray-200 rounded-full mx-4 mb-0">
+            <div className="absolute inset-0 bg-gradient-to-r from-blue-300 via-blue-200 to-emerald-200 rounded-full" />
+          </div>
+
+          {/* Markers positioned on timeline */}
+          <div className="relative h-28 mx-4">
+            {/* Today marker */}
+            <div className="absolute flex flex-col items-center" style={{ left: '0%', transform: 'translateX(-50%)' }}>
+              <div className="w-3 h-3 rounded-full bg-gray-600 border-2 border-white shadow -mt-1.5" />
+              <div className="mt-1 text-xs font-bold text-gray-500 whitespace-nowrap">Σήμερα</div>
+              <div className="text-xs text-gray-400 whitespace-nowrap">{format(scenario.today, 'd MMM', { locale: el })}</div>
+            </div>
+
+            {/* App fee marker — +7 days = ~7.8% */}
+            <div className="absolute flex flex-col items-center" style={{ left: `${timelinePct(7)}%`, transform: 'translateX(-50%)' }}>
+              <div className="w-3.5 h-3.5 rounded-full bg-blue-500 border-2 border-white shadow -mt-1.5" />
+              <div className="mt-1 px-2 py-1 bg-blue-50 border border-blue-200 rounded-xl text-center shadow-sm">
+                <div className="text-xs font-bold text-blue-600 uppercase tracking-wide whitespace-nowrap">Ποσό Αίτησης</div>
+                <div className="text-sm font-black text-blue-800 whitespace-nowrap">{fmtEur(scenario.projAppRev)}</div>
+                <div className="text-xs text-blue-400 whitespace-nowrap">+7 ημ. · {format(scenario.appDate, 'd MMM', { locale: el })}</div>
               </div>
             </div>
-            <div className="rounded-xl bg-emerald-50 border border-emerald-200 p-4 text-center flex flex-col justify-between">
-              <div>
-                <div className="text-xs font-bold text-emerald-600 uppercase tracking-wide mb-0.5">Success Fee</div>
-                <div className="text-xs text-emerald-400 mb-2">~75 ημέρες</div>
-              </div>
-              <div>
-                <div className="text-2xl font-black text-emerald-800">{fmtEur(scenario.projSucRev)}</div>
-                <div className="text-xs text-emerald-400 mt-1">μέσος: {fmtEur(scenario.avgSuc)}/υπόθ.</div>
+
+            {/* Success fee marker — +75 days = 83.3% */}
+            <div className="absolute flex flex-col items-center" style={{ left: `${timelinePct(75)}%`, transform: 'translateX(-50%)' }}>
+              <div className="w-3.5 h-3.5 rounded-full bg-emerald-500 border-2 border-white shadow -mt-1.5" />
+              <div className="mt-1 px-2 py-1 bg-emerald-50 border border-emerald-200 rounded-xl text-center shadow-sm">
+                <div className="text-xs font-bold text-emerald-600 uppercase tracking-wide whitespace-nowrap">Success Fee</div>
+                <div className="text-sm font-black text-emerald-800 whitespace-nowrap">{fmtEur(scenario.projSucRev)}</div>
+                <div className="text-xs text-emerald-400 whitespace-nowrap">+75 ημ. · {format(scenario.sucDate, 'd MMM', { locale: el })}</div>
               </div>
             </div>
-            <div className="col-span-2 rounded-xl bg-purple-50 border border-purple-200 p-4 text-center">
-              <div className="text-xs font-bold text-purple-600 uppercase tracking-wide mb-1">Σύνολο Αναμενόμενων Εσόδων</div>
-              <div className="text-3xl font-black text-purple-800">{fmtEur(scenario.projAppRev + scenario.projSucRev)}</div>
+
+            {/* End marker — 90 days */}
+            <div className="absolute flex flex-col items-center" style={{ left: '100%', transform: 'translateX(-50%)' }}>
+              <div className="w-2 h-2 rounded-full bg-gray-300 border-2 border-white shadow -mt-1" />
+              <div className="mt-1 text-xs text-gray-300 whitespace-nowrap">+90 ημ.</div>
             </div>
+          </div>
+
+          {/* Total */}
+          <div className="mt-2 rounded-xl bg-purple-50 border border-purple-200 p-3 text-center">
+            <div className="text-xs font-bold text-purple-600 uppercase tracking-wide mb-0.5">Σύνολο Αναμενόμενων Εσόδων</div>
+            <div className="text-3xl font-black text-purple-800">{fmtEur(scenario.projAppRev + scenario.projSucRev)}</div>
+            <div className="text-xs text-purple-400 mt-0.5">εντός 75 ημερών</div>
           </div>
         </div>
       </div>
@@ -304,7 +343,6 @@ export default function FinancialDashboard({ currentEmployee }) {
           <UserGroupIcon className="w-4 h-4 text-blue-600" />Σύγκριση Συμβούλων
         </h2>
 
-        {/* Per-consultant cards */}
         <div className="grid md:grid-cols-3 gap-4 mb-6">
           {consultantStats.map(s => {
             const c = CC[s.emp]
@@ -322,7 +360,7 @@ export default function FinancialDashboard({ currentEmployee }) {
                     <span className="font-bold">{s.active}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-500">Κλειστά (app fee paid)</span>
+                    <span className="text-gray-500">Κλειστά (app fee)</span>
                     <span className="font-bold text-emerald-700">{s.closed}</span>
                   </div>
                   <div className="flex justify-between">
@@ -331,7 +369,6 @@ export default function FinancialDashboard({ currentEmployee }) {
                   </div>
                 </div>
 
-                {/* Closure rate bar */}
                 <div className="mb-3">
                   <div className="flex justify-between text-xs mb-1">
                     <span className="text-gray-500 font-semibold">Ποσοστό Κλεισίματος</span>
@@ -343,14 +380,9 @@ export default function FinancialDashboard({ currentEmployee }) {
                   <div className="text-xs text-gray-400 mt-0.5">{s.closed} κλειστά / {s.decided} αποφασισμένα</div>
                 </div>
 
-                {/* Post-submission breakdown */}
-                {s.submittedTotal > 0 && (
+                {s.postClose > 0 && (
                   <div className="border-t border-black/10 pt-2 mb-3 space-y-1">
-                    <div className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">Μετά Υποβολή ({s.submittedTotal})</div>
-                    <div className="flex justify-between text-xs">
-                      <span className="text-teal-600">Σε εξέλιξη</span>
-                      <span className="font-bold text-teal-700">{s.submitted}</span>
-                    </div>
+                    <div className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">Αποτέλεσμα ({s.postClose})</div>
                     <div className="flex justify-between text-xs">
                       <span className="text-green-600">Αποδοχή Ρύθμισης</span>
                       <span className="font-bold text-green-700">{s.accepted} ({s.acceptanceRate}%)</span>
@@ -362,7 +394,6 @@ export default function FinancialDashboard({ currentEmployee }) {
                   </div>
                 )}
 
-                {/* Financial summary */}
                 <div className="border-t border-black/10 pt-2 space-y-1">
                   <div className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">Οικονομικά</div>
                   <div className="flex justify-between text-xs">
@@ -408,7 +439,7 @@ export default function FinancialDashboard({ currentEmployee }) {
                     return (
                       <div key={s.emp} className="flex items-center gap-3">
                         <div className={`text-xs font-black w-14 shrink-0 ${c.text}`}>{s.emp}</div>
-                        <div className="flex-1 bg-gray-100 rounded-full h-5 relative overflow-hidden">
+                        <div className="flex-1 bg-gray-100 rounded-full h-5 overflow-hidden">
                           <div className={`h-5 rounded-full ${c.bar} transition-all duration-300`} style={{ width: `${w}%` }} />
                         </div>
                         <div className="text-xs font-black text-gray-700 w-12 text-right shrink-0">
@@ -466,28 +497,35 @@ export default function FinancialDashboard({ currentEmployee }) {
           color="border-purple-300 bg-purple-50" />
       </div>
 
-      {/* ── Monthly Forecast ───────────────────────────────────────────────── */}
+      {/* ── Weekly Collections History ──────────────────────────────────────── */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
         <h2 className="text-sm font-black text-gray-700 mb-4 flex items-center gap-2">
-          <ChartBarIcon className="w-4 h-4 text-blue-600" />Πρόβλεψη Ρευστότητας (8 μήνες)
+          <ChartBarIcon className="w-4 h-4 text-blue-600" />Ιστορικό Εισπράξεων (τελευταίες 12 εβδομάδες)
         </h2>
-        <div className="flex items-end gap-2 h-36">
-          {monthlyForecast.map((m, i) => {
-            const totalH = maxMonthly > 0 ? (m.total / maxMonthly) * 100 : 0
-            const isNow = i === 0
+        <div className="flex items-end gap-1.5 h-36">
+          {weeklyHistory.map((w, i) => {
+            const totalH = maxWeekly > 0 ? (w.total / maxWeekly) * 100 : 0
+            const isRecent = i >= 10
             return (
               <div key={i} className="flex-1 flex flex-col items-center gap-1">
-                <div className="text-xs text-gray-500 font-semibold truncate">{m.total > 0 ? fmtEur(m.total) : ''}</div>
+                {w.total > 0 && (
+                  <div className="text-xs text-gray-500 font-semibold truncate w-full text-center">
+                    {fmtEur(w.total)}
+                  </div>
+                )}
                 <div className="w-full flex flex-col justify-end" style={{ height: '80px' }}>
                   <div className="w-full rounded-t-md overflow-hidden flex flex-col-reverse"
-                    style={{ height: `${Math.max(totalH, m.total > 0 ? 8 : 0)}%` }}>
-                    {m.overdueAmt > 0 && <div className="w-full bg-red-400" style={{ height: `${(m.overdueAmt / m.total) * 100}%` }} />}
-                    {m.appAmt > 0 && <div className="w-full bg-blue-400" style={{ height: `${(m.appAmt / m.total) * 100}%` }} />}
-                    {m.sucAmt > 0 && <div className="w-full bg-green-400" style={{ height: `${(m.sucAmt / m.total) * 100}%` }} />}
+                    style={{ height: `${Math.max(totalH, w.total > 0 ? 8 : 0)}%` }}>
+                    {w.sucAmt > 0 && (
+                      <div className="w-full bg-green-400" style={{ height: `${(w.sucAmt / w.total) * 100}%` }} />
+                    )}
+                    {w.appAmt > 0 && (
+                      <div className="w-full bg-blue-400" style={{ height: `${(w.appAmt / w.total) * 100}%` }} />
+                    )}
                   </div>
                 </div>
-                <div className={`text-xs text-center font-semibold truncate w-full ${isNow ? 'text-blue-700' : 'text-gray-400'}`}>
-                  {m.label}
+                <div className={`text-xs text-center font-semibold truncate w-full ${isRecent ? 'text-blue-700' : 'text-gray-400'}`}>
+                  {w.label}
                 </div>
               </div>
             )
@@ -495,8 +533,7 @@ export default function FinancialDashboard({ currentEmployee }) {
         </div>
         <div className="flex gap-4 mt-3 text-xs text-gray-500">
           <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-green-400 inline-block" />Success fee</span>
-          <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-blue-400 inline-block" />Αίτηση</span>
-          <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-red-400 inline-block" />Καθυστέρηση</span>
+          <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-blue-400 inline-block" />Ποσό Αίτησης</span>
         </div>
       </div>
 
