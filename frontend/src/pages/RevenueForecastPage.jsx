@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import api from '../api'
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
-  ComposedChart, Line, ResponsiveContainer,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
+  ResponsiveContainer, Cell, LabelList,
 } from 'recharts'
 import {
   BanknotesIcon, ArrowTrendingUpIcon, ClockIcon,
@@ -13,6 +13,11 @@ import {
 function fmt(n) {
   if (!n) return '0 €'
   return new Intl.NumberFormat('el-GR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(n)
+}
+
+function fmtK(n) {
+  if (!n || n < 50) return ''
+  return `${(n / 1000).toFixed(1)}K`
 }
 
 function fmtMonth(ym) {
@@ -204,7 +209,8 @@ export default function RevenueForecastPage() {
         <>
           {/* Summary cards */}
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-            <SummaryCard label="Υποθέσεις" value={data.summary.total_cases} color="blue" />
+            <SummaryCard label="Υποθέσεις" value={`${data.summary.total_cases}`}
+              sub={data.summary.excluded_cases > 0 ? `+${data.summary.excluded_cases} εξαιρέθηκαν` : null} color="blue" />
             <SummaryCard label="Συμφωνηθέν σύνολο" value={fmt(data.summary.total_agreed)} color="purple" />
             <SummaryCard label="Εισπραχθέντα" value={fmt(data.summary.total_paid)} color="green" />
             <SummaryCard label="Ανείσπρακτο" value={fmt(data.summary.total_balance)} color="orange" />
@@ -212,36 +218,98 @@ export default function RevenueForecastPage() {
               sub={`Πραγματικά 12μ: ${fmt(data.summary.actual_last_12m)}`} color="teal" />
           </div>
 
-          {/* Chart */}
-          <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
-            <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-              <h2 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
-                <BanknotesIcon className="w-4 h-4 text-blue-400" />
-                Πραγματικές & Προβλεπόμενες Εισπράξεις
-              </h2>
-              <div className="flex gap-1">
-                {[6, 12, 18, 24].map(m => (
-                  <button key={m} onClick={() => setForecastHorizon(m)}
-                    className={`px-2.5 py-1 text-xs rounded-lg border font-medium transition-colors ${forecastHorizon === m ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}>
-                    {m}μ
-                  </button>
-                ))}
+          {/* Charts: side by side */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {/* Actual receipts */}
+            <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h2 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                    <span className="w-3 h-3 rounded-sm bg-emerald-500 inline-block" />
+                    Πραγματικές Εισπράξεις
+                  </h2>
+                  <p className="text-xs text-gray-400 mt-0.5">Τελευταίοι 12 μήνες (από Google Sheet)</p>
+                </div>
+                <span className="text-lg font-bold text-emerald-700">{fmt(data.summary.actual_last_12m)}</span>
               </div>
+              <ResponsiveContainer width="100%" height={220}>
+                <BarChart
+                  data={data.actual_series.slice(-12)}
+                  margin={{ top: 20, right: 8, left: 0, bottom: 0 }}
+                  barCategoryGap="30%"
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f5f5f5" vertical={false} />
+                  <XAxis dataKey="month" tickFormatter={fmtMonth} tick={{ fontSize: 10, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
+                  <YAxis hide />
+                  <Tooltip
+                    cursor={{ fill: '#f0fdf4' }}
+                    content={({ active, payload, label }) =>
+                      active && payload?.length ? (
+                        <div className="bg-white border border-gray-200 rounded-lg px-3 py-2 text-xs shadow">
+                          <p className="font-semibold text-gray-600 mb-1">{fmtMonth(label)}</p>
+                          <p className="text-emerald-700 font-bold">{fmt(payload[0]?.value)}</p>
+                        </div>
+                      ) : null}
+                  />
+                  <Bar dataKey="actual" radius={[4, 4, 0, 0]} maxBarSize={50}>
+                    {data.actual_series.slice(-12).map((entry, i) => (
+                      <Cell key={i} fill={entry.actual > 0 ? '#10b981' : '#d1fae5'} />
+                    ))}
+                    <LabelList dataKey="actual" position="top" formatter={fmtK}
+                      style={{ fontSize: 10, fontWeight: 600, fill: '#059669' }} />
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
             </div>
-            <ResponsiveContainer width="100%" height={320}>
-              <ComposedChart data={chartData} margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                <XAxis dataKey="month" tickFormatter={fmtMonth} tick={{ fontSize: 11 }} />
-                <YAxis tickFormatter={v => v >= 1000 ? `${(v / 1000).toFixed(0)}K€` : `${v}€`} tick={{ fontSize: 11 }} />
-                <Tooltip content={<CustomTooltip />} />
-                <Legend formatter={v => v === 'actual' ? 'Πραγματικές' : 'Προβλεπόμενες'} />
-                <Bar dataKey="actual" name="actual" fill="#22c55e" radius={[3, 3, 0, 0]} maxBarSize={40} />
-                <Bar dataKey="expected" name="expected" fill="#93c5fd" radius={[3, 3, 0, 0]} maxBarSize={40} />
-              </ComposedChart>
-            </ResponsiveContainer>
-            <p className="text-xs text-gray-400 mt-2 text-center">
-              Πράσινο = πραγματικές εισπράξεις (από Sheet) · Μπλε = προβλέψεις (γραμμική κατανομή)
-            </p>
+
+            {/* Forecast */}
+            <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+              <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+                <div>
+                  <h2 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                    <span className="w-3 h-3 rounded-sm bg-blue-400 inline-block" />
+                    Προβλεπόμενες Εισπράξεις
+                  </h2>
+                  <p className="text-xs text-gray-400 mt-0.5">Γραμμική κατανομή ανείσπρακτου υπολοίπου</p>
+                </div>
+                <div className="flex gap-1">
+                  {[6, 12, 18, 24].map(m => (
+                    <button key={m} onClick={() => setForecastHorizon(m)}
+                      className={`px-2 py-0.5 text-xs rounded border font-medium transition-colors ${forecastHorizon === m ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-500 border-gray-300 hover:bg-gray-50'}`}>
+                      {m}μ
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <ResponsiveContainer width="100%" height={220}>
+                <BarChart
+                  data={data.forecast_series.slice(0, forecastHorizon)}
+                  margin={{ top: 20, right: 8, left: 0, bottom: 0 }}
+                  barCategoryGap="30%"
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f5f5f5" vertical={false} />
+                  <XAxis dataKey="month" tickFormatter={fmtMonth} tick={{ fontSize: 10, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
+                  <YAxis hide />
+                  <Tooltip
+                    cursor={{ fill: '#eff6ff' }}
+                    content={({ active, payload, label }) =>
+                      active && payload?.length ? (
+                        <div className="bg-white border border-gray-200 rounded-lg px-3 py-2 text-xs shadow">
+                          <p className="font-semibold text-gray-600 mb-1">{fmtMonth(label)}</p>
+                          <p className="text-blue-700 font-bold">{fmt(payload[0]?.value)}</p>
+                        </div>
+                      ) : null}
+                  />
+                  <Bar dataKey="expected" radius={[4, 4, 0, 0]} maxBarSize={50}>
+                    {data.forecast_series.slice(0, forecastHorizon).map((entry, i) => (
+                      <Cell key={i} fill={isCurrentMonth(entry.month) ? '#2563eb' : '#93c5fd'} />
+                    ))}
+                    <LabelList dataKey="expected" position="top" formatter={fmtK}
+                      style={{ fontSize: 10, fontWeight: 600, fill: '#1d4ed8' }} />
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
           </div>
 
           {/* Case breakdown table */}
