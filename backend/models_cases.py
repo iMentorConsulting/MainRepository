@@ -99,6 +99,7 @@ class CMCase(Base):
     budget_categories = relationship("CMBudgetCategory", back_populates="case", cascade="all, delete-orphan")
     pending_items = relationship("CMCasePendingItem", back_populates="case", cascade="all, delete-orphan", order_by="CMCasePendingItem.sort_order")
     modifications = relationship("CMCaseModification", back_populates="case", cascade="all, delete-orphan", order_by="CMCaseModification.modification_date")
+    payment_logs = relationship("CMPaymentLog", back_populates="case", cascade="all, delete-orphan", order_by="CMPaymentLog.log_date")
     status_history = relationship("CMCaseStatusHistory", back_populates="case", cascade="all, delete-orphan", order_by="CMCaseStatusHistory.changed_at")
 
 
@@ -328,3 +329,18 @@ class CMPortalFile(Base):
     internal_notes = Column(Text, nullable=True)
 
     uploaded_at = Column(DateTime, default=datetime.utcnow)
+
+
+class CMPaymentLog(Base):
+    """Tracks every change to total_paid (from Google Sheets sync)."""
+    __tablename__ = "cm_payment_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    case_id = Column(Integer, ForeignKey("cm_cases.id"), nullable=False)
+    log_date = Column(DateTime, default=datetime.utcnow, index=True)
+    previous_total = Column(Float, nullable=False, default=0)
+    new_total = Column(Float, nullable=False)
+    delta = Column(Float, nullable=False)          # new_total - previous_total
+    source = Column(String(50), default="sheet_import")
+
+    case = relationship("CMCase", back_populates="payment_logs")
