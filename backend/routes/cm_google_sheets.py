@@ -7,7 +7,7 @@ from pydantic import BaseModel
 from typing import List, Optional
 from datetime import datetime, date as date
 from database import get_db
-from models_cases import CMCase
+from models_cases import CMCase, CMPaymentLog
 from pipelines import OLD_STATUS_MAP, get_all_statuses_for_program
 from auth_cases import get_current_user, require_admin, CMUser
 
@@ -298,6 +298,16 @@ def _do_import(db: Session) -> dict:
             status_changed_at=datetime.utcnow(),
         )
         db.add(case)
+        db.flush()  # get case.id before commit
+        if paid > 0.01:
+            db.add(CMPaymentLog(
+                case_id=case.id,
+                previous_total=0.0,
+                new_total=paid,
+                delta=paid,
+                source="sheet_import_new",
+                log_date=datetime.utcnow(),
+            ))
         imported += 1
         existing_refs.add(ref)
 
@@ -354,9 +364,19 @@ def _do_sync_paid(db: Session) -> dict:
             continue
 
         if abs((c.total_paid or 0) - new_paid) > 0.01:
+            prev = c.total_paid or 0.0
+            delta = new_paid - prev
             c.total_paid = new_paid
             c.updated_at = datetime.utcnow()
             updated += 1
+            db.add(CMPaymentLog(
+                case_id=c.id,
+                previous_total=prev,
+                new_total=new_paid,
+                delta=delta,
+                source="sheet_import",
+                log_date=datetime.utcnow(),
+            ))
 
     db.commit()
     return {"updated": updated}

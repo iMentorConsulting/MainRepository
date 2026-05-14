@@ -17,6 +17,7 @@ import Import from './pages/Import'
 import ClientPortal from './pages/ClientPortal'
 import PortalBroadcastPage from './pages/PortalBroadcastPage'
 import PortalDocumentsPage from './pages/PortalDocumentsPage'
+import RevenueForecastPage from './pages/RevenueForecastPage'
 import PipelineAdmin from './pages/PipelineAdmin'
 import WorkListsPage from './pages/WorkListsPage'
 import Analytics from './pages/Analytics'
@@ -61,6 +62,7 @@ export default function App() {
             <Route path="pipeline-admin" element={<ErrorBoundary><PipelineAdmin /></ErrorBoundary>} />
             <Route path="worklists" element={<ErrorBoundary><WorkListsPage /></ErrorBoundary>} />
             <Route path="analytics" element={<ErrorBoundary><Analytics /></ErrorBoundary>} />
+            <Route path="revenue" element={<ErrorBoundary><RevenueForecastPage /></ErrorBoundary>} />
             <Route path="calendar" element={<ErrorBoundary><DeadlineCalendar /></ErrorBoundary>} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>

@@ -18,6 +18,7 @@ import {
   ChartBarIcon,
   CalendarDaysIcon,
   DocumentArrowUpIcon,
+  BanknotesIcon,
 } from '@heroicons/react/24/outline'
 import { changePassword } from '../api'
 import toast from 'react-hot-toast'
@@ -28,6 +29,7 @@ const nav = [
   { to: '/cases', label: 'Υποθέσεις', Icon: FolderOpenIcon },
   { to: '/kanban', label: 'Pipeline', Icon: ViewColumnsIcon },
   { to: '/analytics', label: 'Αναλυτικά', Icon: ChartBarIcon },
+  { to: '/revenue', label: 'Προβλέψεις Εισπράξεων', Icon: BanknotesIcon },
   { to: '/calendar', label: 'Ημερολόγιο', Icon: CalendarDaysIcon },
   { to: '/import', label: 'Εισαγωγή Sheet', Icon: ArrowDownTrayIcon },
   { to: '/worklists', label: 'Εκκρεμείς Εργασίες', Icon: ClipboardDocumentListIcon },
