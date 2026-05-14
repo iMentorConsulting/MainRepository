@@ -1,51 +1,72 @@
 import { useState } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
+import { getAuth, setAuth as saveAuth, clearAuth } from './api'
 import Layout from './components/Layout'
+import ErrorBoundary from './components/ErrorBoundary'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
-import Calendar from './pages/Calendar'
-import Bookings from './pages/Bookings'
-import Units from './pages/Units'
-import Customers from './pages/Customers'
-import Reports from './pages/Reports'
-import SmartAdvisor from './pages/SmartAdvisor'
-import Cleaning from './pages/Cleaning'
+import Cases from './pages/Cases'
+import CaseDetail from './pages/CaseDetail'
+import Kanban from './pages/Kanban'
+import PendingPage from './pages/PendingPage'
+import WorkView from './pages/WorkView'
+import Notifications from './pages/Notifications'
+import Users from './pages/Users'
+import Import from './pages/Import'
+import ClientPortal from './pages/ClientPortal'
+import PortalBroadcastPage from './pages/PortalBroadcastPage'
+import PortalDocumentsPage from './pages/PortalDocumentsPage'
+import RevenueForecastPage from './pages/RevenueForecastPage'
+import PipelineAdmin from './pages/PipelineAdmin'
+import WorkListsPage from './pages/WorkListsPage'
+import Analytics from './pages/Analytics'
+import DeadlineCalendar from './pages/DeadlineCalendar'
 
 export default function App() {
-  const [auth, setAuth] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('auth') || 'null') } catch { return null }
-  })
+  const [auth, setAuthState] = useState(() => getAuth())
 
-  const handleLogout = () => {
-    localStorage.removeItem('auth')
-    setAuth(null)
+  const handleLogin = (data) => {
+    saveAuth(data)
+    setAuthState(data)
   }
 
-  if (!auth) {
-    return (
-      <>
-        <Toaster position="top-right" toastOptions={{ duration: 3500 }} />
-        <Login onLogin={setAuth} />
-      </>
-    )
+  const handleLogout = () => {
+    clearAuth()
+    setAuthState(null)
   }
 
   return (
     <BrowserRouter>
       <Toaster position="top-right" toastOptions={{ duration: 3500 }} />
       <Routes>
-        <Route path="/" element={<Layout auth={auth} onLogout={handleLogout} />}>
-          <Route index element={<Dashboard />} />
-          <Route path="calendar" element={<Calendar />} />
-          <Route path="bookings" element={<Bookings />} />
-          <Route path="units" element={<Units />} />
-          <Route path="customers" element={<Customers />} />
-          <Route path="reports" element={<Reports />} />
-          <Route path="smart-advisor" element={<SmartAdvisor />} />
-          <Route path="cleaning" element={<Cleaning />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Route>
+        {/* Public portal route — no auth required */}
+        <Route path="/portal/:token" element={<ErrorBoundary><ClientPortal /></ErrorBoundary>} />
+
+        {/* Auth-protected app */}
+        {!auth ? (
+          <Route path="*" element={<Login onLogin={handleLogin} />} />
+        ) : (
+          <Route path="/" element={<Layout auth={auth} onLogout={handleLogout} />}>
+            <Route index element={<ErrorBoundary><Dashboard /></ErrorBoundary>} />
+            <Route path="cases" element={<ErrorBoundary><Cases /></ErrorBoundary>} />
+            <Route path="cases/:id" element={<ErrorBoundary><CaseDetail /></ErrorBoundary>} />
+            <Route path="kanban" element={<ErrorBoundary><Kanban /></ErrorBoundary>} />
+            <Route path="pending" element={<ErrorBoundary><PendingPage /></ErrorBoundary>} />
+            <Route path="workview" element={<ErrorBoundary><WorkView /></ErrorBoundary>} />
+            <Route path="notifications" element={<ErrorBoundary><Notifications /></ErrorBoundary>} />
+            <Route path="users" element={<ErrorBoundary><Users /></ErrorBoundary>} />
+            <Route path="import" element={<ErrorBoundary><Import /></ErrorBoundary>} />
+            <Route path="portal-broadcast" element={<ErrorBoundary><PortalBroadcastPage /></ErrorBoundary>} />
+            <Route path="portal-documents" element={<ErrorBoundary><PortalDocumentsPage /></ErrorBoundary>} />
+            <Route path="pipeline-admin" element={<ErrorBoundary><PipelineAdmin /></ErrorBoundary>} />
+            <Route path="worklists" element={<ErrorBoundary><WorkListsPage /></ErrorBoundary>} />
+            <Route path="analytics" element={<ErrorBoundary><Analytics /></ErrorBoundary>} />
+            <Route path="revenue" element={<ErrorBoundary><RevenueForecastPage /></ErrorBoundary>} />
+            <Route path="calendar" element={<ErrorBoundary><DeadlineCalendar /></ErrorBoundary>} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Route>
+        )}
       </Routes>
     </BrowserRouter>
   )
