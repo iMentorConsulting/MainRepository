@@ -245,11 +245,40 @@ def update_contact(id: int, data: ContactUpdate, db: Session = Depends(get_db)):
     case = db.query(Case).filter(Case.id == id).first()
     if not case:
         raise HTTPException(status_code=404, detail="Η υπόθεση δεν βρέθηκε")
-    if data.contact_stage:
+    if data.contact_stage and data.contact_stage != case.contact_stage:
         case.contact_stage = data.contact_stage
+        case.stage_changed_at = datetime.utcnow()
     if data.increment_reminder:
         case.reminder_count = (case.reminder_count or 0) + 1
     case.last_contacted_at = datetime.utcnow()
+    case.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(case)
+    return case
+
+
+class WinbackApprove(BaseModel):
+    approve: bool  # True = approve, False = dismiss
+
+
+@router.post("/{id}/approve-winback", response_model=CaseResponse)
+def approve_winback(id: int, data: WinbackApprove, db: Session = Depends(get_db)):
+    case = db.query(Case).filter(Case.id == id).first()
+    if not case:
+        raise HTTPException(status_code=404, detail="Η υπόθεση δεν βρέθηκε")
+    offer = dict(case.commercial_offer or {})
+    if data.approve:
+        orig_app = float(offer.get("application_fee") or offer.get("system_app") or 0)
+        orig_suc = float(offer.get("success_fee") or offer.get("system_suc") or 0)
+        wb_app = round(orig_app * 0.7 / 50) * 50
+        wb_suc = round(orig_suc * 0.7 / 50) * 50
+        offer["winback_app"] = max(wb_app, 400)
+        offer["winback_suc"] = max(wb_suc, 400)
+        offer["winback_status"] = "approved"
+        offer["winback_saving"] = round((orig_app - offer["winback_app"]) + (orig_suc - offer["winback_suc"]))
+    else:
+        offer["winback_status"] = "dismissed"
+    case.commercial_offer = offer
     case.updated_at = datetime.utcnow()
     db.commit()
     db.refresh(case)
@@ -311,7 +340,65 @@ def notify_pricing_approval(id: int, data: PricingApprovalNotify, db: Session = 
     ok, err = _send_gmail("haris.apostolakis@gmail.com",
                           f"[iMentor] Αίτηση Έγκρισης Τιμολόγησης — {case.client_name}",
                           body)
-    return {"sent": ok, "error": err or ""}
+    if not ok:
+        raise HTTPException(status_code=503, detail=f"Αποτυχία αποστολής email: {err}")
+    return {"sent": True}
+
+
+class WinbackSendRequest(BaseModel):
+    channel: str = "viber"  # "viber" | "email"
+
+
+@router.post("/{id}/send-winback", response_model=CaseResponse)
+def send_winback(id: int, data: WinbackSendRequest, db: Session = Depends(get_db)):
+    case = db.query(Case).filter(Case.id == id).first()
+    if not case:
+        raise HTTPException(status_code=404, detail="Η υπόθεση δεν βρέθηκε")
+    offer = dict(case.commercial_offer or {})
+    if offer.get("winback_status") != "approved":
+        raise HTTPException(status_code=400, detail="Η επαναφορά δεν έχει εγκριθεί")
+
+    wb_app = offer.get("winback_app", 0)
+    wb_suc = offer.get("winback_suc", 0)
+
+    message = (
+        f"Αγαπητέ/ή {case.client_name},\n\n"
+        f"Σε συνέχεια της επικοινωνίας μας σχετικά με τη ρύθμιση των οφειλών σας, θέλουμε να εκφράσουμε έμπρακτα "
+        f"το ενδιαφέρον μας να σας βοηθήσουμε να βγείτε από αυτήν τη δύσκολη κατάσταση.\n\n"
+        f"Ως σοβαροί συνεργάτες που θέλουμε να εξυπηρετήσουμε τους πελάτες μας, σας προτείνουμε "
+        f"εξαιρετικές συνθήκες συνεργασίας:\n\n"
+        f"• Κόστος υποβολής αίτησης: {int(wb_app):,} €\n"
+        f"• Αμοιβή επιτυχίας: {int(wb_suc):,} €\n\n"
+        f"Είμαστε στη διάθεσή σας για οποιαδήποτε απορία.\n\nΗ ομάδα iMentor"
+    )
+
+    if data.channel == "email":
+        if not (case.client_email or "").strip():
+            raise HTTPException(status_code=400, detail="Δεν υπάρχει email πελάτη")
+        ok, err = _send_gmail(
+            case.client_email,
+            "Ειδικές Συνθήκες Συνεργασίας — iMentor",
+            message,
+        )
+        if not ok:
+            raise HTTPException(status_code=503, detail=f"Αποτυχία αποστολής email: {err}")
+    else:
+        phone = (case.client_phone or "").strip().replace(" ", "").replace("-", "")
+        if not phone:
+            raise HTTPException(status_code=400, detail="Δεν υπάρχει τηλέφωνο πελάτη")
+        if not phone.startswith("+"):
+            phone = "+30" + (phone[1:] if phone.startswith("0") else phone)
+        ok, err = _chatwoot_send(case.client_name, phone, message)
+        if not ok:
+            raise HTTPException(status_code=503, detail=f"Αποτυχία αποστολής Viber: {err}")
+
+    offer["winback_status"] = "sent"
+    case.commercial_offer = offer
+    case.last_contacted_at = datetime.utcnow()
+    case.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(case)
+    return case
 
 
 @router.delete("/{id}")

@@ -14,7 +14,7 @@ import {
   SparklesIcon,
 } from '@heroicons/react/24/outline'
 import * as api from '../api'
-import { patchOffer } from '../api'
+import { patchOffer, approveWinback, sendWinback } from '../api'
 import {
   DEFAULT_PRICING_CONFIG,
   loadPricingConfig,
@@ -268,6 +268,9 @@ export default function FinancialDashboard({ currentEmployee }) {
 
       {/* ── Pending Approvals ─────────────────────────────────────────────── */}
       <PendingApprovalsPanel cases={cases} onCasesUpdate={setCases} />
+
+      {/* ── Win-back Candidates ───────────────────────────────────────────── */}
+      <WinbackPanel cases={cases} onCasesUpdate={setCases} />
 
       {/* ── Scenario Projector ─────────────────────────────────────────────── */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
@@ -1011,6 +1014,166 @@ function KpiCard({ icon, label, value, sub, color }) {
       <div className="flex items-center gap-2 mb-2">{icon}<span className="text-xs font-bold text-gray-500 uppercase tracking-wide">{label}</span></div>
       <div className="text-2xl font-black text-gray-800">{value}</div>
       {sub && <div className="text-xs text-gray-500 mt-1">{sub}</div>}
+    </div>
+  )
+}
+
+const WINBACK_DAYS = 10
+
+function WinbackPanel({ cases, onCasesUpdate }) {
+  const now = new Date()
+
+  // Cases eligible: 'Δεν Ενδιαφέρεται', 10+ days since stage_changed_at (or updated_at), no winback yet or dismissed
+  const candidates = cases.filter(c => {
+    if (c.contact_stage !== 'Δεν Ενδιαφέρεται') return false
+    const ws = c.commercial_offer?.winback_status
+    if (ws === 'approved' || ws === 'sent') return false
+    const ref = c.stage_changed_at || c.updated_at
+    if (!ref) return false
+    const daysDiff = (now - new Date(ref)) / (1000 * 60 * 60 * 24)
+    return daysDiff >= WINBACK_DAYS
+  })
+
+  // Cases with approved winback waiting to be sent
+  const approved = cases.filter(c =>
+    c.contact_stage === 'Δεν Ενδιαφέρεται' &&
+    c.commercial_offer?.winback_status === 'approved'
+  )
+
+  // Savings already realized (winback sent and case moved forward)
+  const totalSaving = cases.reduce((s, c) => s + (c.commercial_offer?.winback_saving || 0), 0)
+
+  const [sending, setSending] = useState({})
+
+  const handleApprove = async (c, approve) => {
+    try {
+      const res = await approveWinback(c.id, approve)
+      onCasesUpdate(prev => prev.map(x => x.id === c.id ? { ...x, commercial_offer: res.data.commercial_offer } : x))
+    } catch (e) {
+      alert('Σφάλμα: ' + (e?.response?.data?.detail || e.message))
+    }
+  }
+
+  const handleSend = async (c, channel) => {
+    setSending(s => ({ ...s, [c.id]: true }))
+    try {
+      const res = await sendWinback(c.id, channel)
+      onCasesUpdate(prev => prev.map(x => x.id === c.id ? { ...x, commercial_offer: res.data.commercial_offer } : x))
+    } catch (e) {
+      alert('Σφάλμα: ' + (e?.response?.data?.detail || e.message))
+    } finally {
+      setSending(s => ({ ...s, [c.id]: false }))
+    }
+  }
+
+  if (candidates.length === 0 && approved.length === 0) return null
+
+  return (
+    <div className="bg-violet-50 border border-violet-200 rounded-2xl p-5 space-y-4">
+      <div className="flex items-center gap-3">
+        <h2 className="text-sm font-black text-violet-800 flex items-center gap-2">
+          <SparklesIcon className="w-4 h-4" />
+          Επαναφορά Πελατών (Win-back)
+        </h2>
+        {totalSaving > 0 && (
+          <span className="ml-auto bg-green-100 text-green-800 text-xs font-bold px-3 py-1 rounded-full">
+            Εκτιμώμενο saving: {totalSaving.toLocaleString('el-GR')} €
+          </span>
+        )}
+      </div>
+
+      {/* Candidates awaiting approval */}
+      {candidates.length > 0 && (
+        <div>
+          <p className="text-xs text-violet-600 font-semibold mb-2">
+            Πελάτες {WINBACK_DAYS}+ ημερών σε «Δεν Ενδιαφέρεται» — εγκρίνετε αποστολή με -30%:
+          </p>
+          <div className="space-y-2">
+            {candidates.map(c => {
+              const origApp = c.commercial_offer?.application_fee || c.commercial_offer?.system_app || 0
+              const origSuc = c.commercial_offer?.success_fee || c.commercial_offer?.system_suc || 0
+              const wbApp = Math.max(Math.round(origApp * 0.7 / 50) * 50, 400)
+              const wbSuc = Math.max(Math.round(origSuc * 0.7 / 50) * 50, 400)
+              const ref = c.stage_changed_at || c.updated_at
+              const days = ref ? Math.floor((now - new Date(ref)) / (1000 * 60 * 60 * 24)) : '?'
+              return (
+                <div key={c.id} className="bg-white border border-violet-200 rounded-xl p-3 flex flex-wrap items-center gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="font-bold text-gray-800 truncate">{c.client_name}</div>
+                    <div className="text-xs text-gray-500">{c.employee} · {days} ημέρες απούσα</div>
+                  </div>
+                  <div className="flex gap-3 text-sm">
+                    <div className="text-center">
+                      <div className="text-xs text-gray-400 line-through">{Number(origApp).toLocaleString('el-GR')}€</div>
+                      <div className="font-black text-violet-700">{wbApp.toLocaleString('el-GR')}€</div>
+                      <div className="text-xs text-gray-400">Αίτηση</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-xs text-gray-400 line-through">{Number(origSuc).toLocaleString('el-GR')}€</div>
+                      <div className="font-black text-violet-700">{wbSuc.toLocaleString('el-GR')}€</div>
+                      <div className="text-xs text-gray-400">Success</div>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handleApprove(c, true)}
+                      className="bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold px-4 py-1.5 rounded-lg transition-colors"
+                    >
+                      Έγκριση Αποστολής
+                    </button>
+                    <button
+                      onClick={() => handleApprove(c, false)}
+                      className="bg-gray-100 hover:bg-gray-200 text-gray-600 text-xs font-bold px-3 py-1.5 rounded-lg transition-colors"
+                    >
+                      Παράβλεψη
+                    </button>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Approved — ready to send */}
+      {approved.length > 0 && (
+        <div>
+          <p className="text-xs text-green-700 font-semibold mb-2">Εγκεκριμένες — αναμένουν αποστολή:</p>
+          <div className="space-y-2">
+            {approved.map(c => {
+              const wbApp = c.commercial_offer?.winback_app || 0
+              const wbSuc = c.commercial_offer?.winback_suc || 0
+              return (
+                <div key={c.id} className="bg-white border border-green-200 rounded-xl p-3 flex flex-wrap items-center gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="font-bold text-gray-800 truncate">{c.client_name}</div>
+                    <div className="text-xs text-gray-500">{c.employee}</div>
+                  </div>
+                  <div className="flex gap-3 text-sm">
+                    <div className="font-black text-green-700">{Number(wbApp).toLocaleString('el-GR')}€ + {Number(wbSuc).toLocaleString('el-GR')}€</div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handleSend(c, 'viber')}
+                      disabled={sending[c.id]}
+                      className="bg-green-600 hover:bg-green-700 text-white text-xs font-bold px-4 py-1.5 rounded-lg transition-colors disabled:opacity-50"
+                    >
+                      {sending[c.id] ? '…' : 'Αποστολή Viber'}
+                    </button>
+                    <button
+                      onClick={() => handleSend(c, 'email')}
+                      disabled={sending[c.id]}
+                      className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
+                    >
+                      {sending[c.id] ? '…' : 'Email'}
+                    </button>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

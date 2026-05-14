@@ -571,9 +571,10 @@ function OfferSection({ debts, assets, income, setIncome, commercialOffer, setCo
           score: suggested._score,
           breakdown: breakdown.map(it => ({ label: it.label, value: it.value })),
         })
-        toast.success('Αίτηση έγκρισης εστάλη στον HARIS')
-      } catch {
-        toast.error('Σφάλμα αποστολής — αποθηκεύστε και δοκιμάστε ξανά')
+        toast.success('Αίτηση έγκρισης εστάλη στον HARIS ✉️')
+      } catch (e) {
+        const detail = e?.response?.data?.detail || e?.message || ''
+        toast.error(`Σφάλμα αποστολής email: ${detail}`)
       }
     } else {
       toast('Αποθηκεύστε την υπόθεση για να σταλεί η αίτηση έγκρισης στον HARIS', { icon: '📩' })

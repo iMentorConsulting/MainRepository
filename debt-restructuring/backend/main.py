@@ -78,6 +78,11 @@ def run_migrations():
             conn.commit()
         except Exception:
             pass
+        try:
+            conn.execute(text("ALTER TABLE cases ADD COLUMN stage_changed_at DATETIME"))
+            conn.commit()
+        except Exception:
+            pass
 
 run_migrations()
 

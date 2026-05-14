@@ -63,3 +63,4 @@ class Case(Base):
     updated_at = Column(DateTime, default=datetime.utcnow)
     submitted_at = Column(DateTime, nullable=True)
     completed_at = Column(DateTime, nullable=True)
+    stage_changed_at = Column(DateTime, nullable=True)

@@ -76,6 +76,7 @@ class CaseResponse(BaseModel):
     updated_at: datetime
     submitted_at: Optional[datetime]
     completed_at: Optional[datetime]
+    stage_changed_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
@@ -106,6 +107,7 @@ class CaseListItem(BaseModel):
     updated_at: datetime
     submitted_at: Optional[datetime]
     completed_at: Optional[datetime]
+    stage_changed_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
