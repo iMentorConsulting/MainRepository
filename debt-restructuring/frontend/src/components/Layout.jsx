@@ -6,6 +6,7 @@ import {
   ArrowRightOnRectangleIcon,
   RocketLaunchIcon,
   BoltIcon,
+  BanknotesIcon,
 } from '@heroicons/react/24/outline'
 
 const nav = [
@@ -16,7 +17,14 @@ const nav = [
   { to: '/statistics', label: 'Στατιστικά', Icon: ChartBarIcon },
 ]
 
+const adminNav = [
+  { to: '/finances', label: 'Οικονομικά', Icon: BanknotesIcon },
+]
+
 export default function Layout({ auth, onLogout }) {
+  const isHaris = auth.employee === 'HARIS'
+  const allNav = isHaris ? [...nav, ...adminNav] : nav
+
   return (
     <div className="flex min-h-screen">
       {/* Sidebar */}
@@ -33,29 +41,32 @@ export default function Layout({ auth, onLogout }) {
 
         <nav className="flex-1 px-3 py-4 space-y-1">
           {nav.map(({ to, label, Icon, exact }) => (
-            <NavLink
-              key={to}
-              to={to}
-              end={exact}
+            <NavLink key={to} to={to} end={exact}
               className={({ isActive }) =>
                 `flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  isActive ? 'bg-white text-blue-800' : 'text-blue-100 hover:bg-blue-700'
-                }`
-              }
-            >
-              <Icon className="w-5 h-5 shrink-0" />
-              {label}
+                  isActive ? 'bg-white text-blue-800' : 'text-blue-100 hover:bg-blue-700'}`}>
+              <Icon className="w-5 h-5 shrink-0" />{label}
             </NavLink>
           ))}
+          {isHaris && (
+            <>
+              <div className="text-xs text-blue-400 px-2 pt-3 pb-1 uppercase tracking-widest">Admin</div>
+              {adminNav.map(({ to, label, Icon }) => (
+                <NavLink key={to} to={to}
+                  className={({ isActive }) =>
+                    `flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      isActive ? 'bg-amber-400 text-blue-900' : 'text-amber-300 hover:bg-blue-700'}`}>
+                  <Icon className="w-5 h-5 shrink-0" />{label}
+                </NavLink>
+              ))}
+            </>
+          )}
         </nav>
 
         <div className="px-3 py-4 border-t border-blue-700">
-          <button
-            onClick={onLogout}
-            className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-blue-200 hover:bg-blue-700 w-full transition-colors"
-          >
-            <ArrowRightOnRectangleIcon className="w-5 h-5" />
-            Αποσύνδεση
+          <button onClick={onLogout}
+            className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-blue-200 hover:bg-blue-700 w-full transition-colors">
+            <ArrowRightOnRectangleIcon className="w-5 h-5" />Αποσύνδεση
           </button>
           <div className="text-xs text-blue-400 mt-3 px-2">www.i-mentor.gr</div>
         </div>
@@ -74,27 +85,17 @@ export default function Layout({ auth, onLogout }) {
 
       {/* Mobile bottom nav */}
       <nav className="md:hidden fixed bottom-0 inset-x-0 z-30 bg-white border-t border-gray-200 flex">
-        {nav.map(({ to, label, Icon, exact }) => (
-          <NavLink
-            key={to}
-            to={to}
-            end={exact}
+        {allNav.map(({ to, label, Icon, exact }) => (
+          <NavLink key={to} to={to} end={exact}
             className={({ isActive }) =>
               `flex-1 flex flex-col items-center py-2 text-xs font-medium transition-colors ${
-                isActive ? 'text-blue-700' : 'text-gray-500'
-              }`
-            }
-          >
-            <Icon className="w-6 h-6 mb-0.5" />
-            {label}
+                isActive ? 'text-blue-700' : 'text-gray-500'}`}>
+            <Icon className="w-6 h-6 mb-0.5" />{label}
           </NavLink>
         ))}
-        <button
-          onClick={onLogout}
-          className="flex-1 flex flex-col items-center py-2 text-xs font-medium text-gray-500"
-        >
-          <ArrowRightOnRectangleIcon className="w-6 h-6 mb-0.5" />
-          Έξοδος
+        <button onClick={onLogout}
+          className="flex-1 flex flex-col items-center py-2 text-xs font-medium text-gray-500">
+          <ArrowRightOnRectangleIcon className="w-6 h-6 mb-0.5" />Έξοδος
         </button>
       </nav>
     </div>
