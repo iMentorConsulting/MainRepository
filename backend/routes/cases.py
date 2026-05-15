@@ -1,6 +1,6 @@
 import logging
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.orm import Session, joinedload, selectinload
+from sqlalchemy.orm import Session, joinedload, selectinload, defer
 from sqlalchemy import or_
 from pydantic import BaseModel
 from typing import Optional, List
@@ -225,7 +225,7 @@ def doc_to_dict(d: CMDocument) -> dict:
         "notes": d.notes,
         "file_url": d.file_url,
         "uploaded_by_client": getattr(d, "uploaded_by_client", False) or False,
-        "has_file_data": d.file_data is not None,
+        "has_file_data": d.mime_type is not None,
         "created_at": d.created_at.isoformat() if d.created_at else None,
     }
 
@@ -814,10 +814,11 @@ def download_document(
     db: Session = Depends(get_db),
 ):
     from fastapi.responses import Response as _Resp
-    d = db.query(CMDocument).filter(CMDocument.id == doc_id, CMDocument.case_id == case_id).first()
+    from sqlalchemy.orm import undefer
+    d = db.query(CMDocument).options(undefer(CMDocument.file_data)).filter(CMDocument.id == doc_id, CMDocument.case_id == case_id).first()
     if not d:
         raise HTTPException(status_code=404, detail="Έγγραφο δεν βρέθηκε")
-    if not d.file_data:
+    if d.file_data is None:
         raise HTTPException(status_code=404, detail="Δεν υπάρχουν δεδομένα αρχείου (ανέβηκε πριν τη νέα έκδοση)")
     return _Resp(
         content=d.file_data,

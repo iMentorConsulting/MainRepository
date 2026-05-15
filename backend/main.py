@@ -104,6 +104,15 @@ try:
 except Exception:
     pass
 
+# Ensure file_data + mime_type columns exist on cm_documents (isolated so failures above don't block this)
+try:
+    with engine.connect() as _conn:
+        _conn.execute(_text("ALTER TABLE cm_documents ADD COLUMN IF NOT EXISTS file_data BYTEA"))
+        _conn.execute(_text("ALTER TABLE cm_documents ADD COLUMN IF NOT EXISTS mime_type VARCHAR(100)"))
+        _conn.commit()
+except Exception:
+    pass
+
 # Backfill portal_notified_at from notification_logs (authoritative source)
 # Step 1: reset any guessed values — only keep what notification_logs can confirm
 # Step 2: set from the earliest portal notification log entry per case
