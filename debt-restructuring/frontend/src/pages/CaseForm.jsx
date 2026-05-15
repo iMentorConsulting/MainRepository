@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
 import { ArrowLeftIcon, DocumentTextIcon, CloudArrowUpIcon, SparklesIcon, CheckCircleIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline'
-import { computeOffer, loadPricingConfig, scoreBreakdown } from '../utils/pricing'
+import { computeOffer, loadPricingConfig, scoreBreakdown, DEFAULT_PRICING_CONFIG } from '../utils/pricing'
 import { patchOffer, notifyPricingApproval } from '../api'
 import DebtTable, { emptyDebt } from '../components/DebtTable'
 import IncomePanel from '../components/IncomePanel'
@@ -518,7 +518,13 @@ export default function CaseForm({ currentEmployee }) {
 // ── OfferSection ──────────────────────────────────────────────────────────────
 
 function OfferSection({ debts, assets, income, setIncome, commercialOffer, setCommercialOffer, caseId, employee }) {
-  const cfg = useMemo(() => loadPricingConfig(), [])
+  const [cfg, setCfg] = useState(loadPricingConfig())
+  useEffect(() => {
+    api.getPricingConfig().then(res => {
+      if (res.data && Object.keys(res.data).length > 0)
+        setCfg({ ...DEFAULT_PRICING_CONFIG, ...res.data })
+    }).catch(() => {})
+  }, [])
 
   const suggested = useMemo(
     () => computeOffer(debts, assets, income, cfg),

@@ -97,13 +97,22 @@ export default function FinancialDashboard({ currentEmployee }) {
   const [pricingConfig, setPricingConfig] = useState(() => loadPricingConfig())
   const [showPricingAdmin, setShowPricingAdmin] = useState(false)
 
-  const handleSavePricing = (cfg) => {
-    savePricingConfig(cfg)
+  const handleSavePricing = async (cfg) => {
+    try {
+      await api.putPricingConfig(cfg)
+    } catch {
+      // persist locally as fallback if API unreachable
+      savePricingConfig(cfg)
+    }
     setPricingConfig(cfg)
   }
 
   useEffect(() => {
     api.listCases({}).then(r => setCases(r.data)).catch(() => {}).finally(() => setLoading(false))
+    api.getPricingConfig().then(res => {
+      if (res.data && Object.keys(res.data).length > 0)
+        setPricingConfig({ ...DEFAULT_PRICING_CONFIG, ...res.data })
+    }).catch(() => {})
   }, [])
 
   const offerCases = useMemo(() =>
@@ -990,7 +999,7 @@ function PricingAdminPanel({ config, onSave, allCases }) {
       {/* ── Actions ───────────────────────────────────────────────────────── */}
       <div className="flex items-center gap-3 pt-2 border-t border-gray-100">
         <button
-          onClick={() => { onSave(local); setSaved(true); setTimeout(() => setSaved(false), 2000) }}
+          onClick={async () => { await onSave(local); setSaved(true); setTimeout(() => setSaved(false), 2000) }}
           className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold px-5 py-2 rounded-lg transition-colors"
         >
           {saved ? '✓ Αποθηκεύτηκε' : 'Αποθήκευση Παραμέτρων'}

@@ -21,6 +21,10 @@ export const sendWinback = (id, channel, message, subject) => api.post(`/cases/$
 export const sendViber = (id, data) => api.post(`/cases/${id}/send-viber`, data)
 export const sendEmail = (id, data) => api.post(`/cases/${id}/send-email`, data)
 
+// Config
+export const getPricingConfig = () => api.get('/config/pricing')
+export const putPricingConfig = (data) => api.put('/config/pricing', data)
+
 // Statistics
 export const getOverview = () => api.get('/statistics/overview')
 export const getEmployeeStats = (employee) => api.get(`/statistics/employee/${employee}`)

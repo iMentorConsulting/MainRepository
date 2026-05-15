@@ -4,6 +4,12 @@ from datetime import datetime
 import secrets
 
 
+class AppConfig(Base):
+    __tablename__ = "app_config"
+    key = Column(String, primary_key=True)
+    value = Column(Text, default="{}")
+
+
 class Case(Base):
     __tablename__ = "cases"
 

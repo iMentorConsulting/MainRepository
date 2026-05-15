@@ -5,8 +5,8 @@ import os
 from dotenv import load_dotenv
 
 from database import engine, Base
-from models import Case
-from routers import cases, statistics, public
+from models import Case, AppConfig
+from routers import cases, statistics, public, config
 
 load_dotenv()
 
@@ -89,6 +89,7 @@ run_migrations()
 app.include_router(cases.router)
 app.include_router(statistics.router)
 app.include_router(public.router)
+app.include_router(config.router)
 
 
 @app.get("/")
