@@ -299,68 +299,6 @@ def client_send_message(token: str, body: dict, db: Session = Depends(get_db)):
     return {"ok": True}
 
 
-@router.post("/public/{token}/upload")
-async def client_upload_file(
-    token: str,
-    file: UploadFile = File(...),
-    description: str = Form(""),
-    db: Session = Depends(get_db),
-):
-    """Client uploads a document from the portal."""
-    case = db.query(CMCase).filter(CMCase.share_token == token).first()
-    if not case or not case.portal_active:
-        raise HTTPException(status_code=404, detail="Portal not found or inactive")
-
-    # Save file to disk
-    case_dir = os.path.join(UPLOAD_DIR, str(case.id))
-    os.makedirs(case_dir, exist_ok=True)
-    safe_name = f"{uuid.uuid4().hex}_{file.filename}"
-    dest = os.path.join(case_dir, safe_name)
-    with open(dest, "wb") as f:
-        shutil.copyfileobj(file.file, f)
-
-    file_url = f"/api/cm/portal/public/{token}/uploads/{safe_name}"
-
-    doc = CMDocument(
-        case_id=case.id,
-        name=file.filename or safe_name,
-        document_type=description or "Αρχείο πελάτη",
-        status="pending",
-        uploaded_by=case.client_name or "Πελάτης",
-        uploaded_by_client=True,
-        file_url=file_url,
-    )
-    db.add(doc)
-    db.commit()
-    db.refresh(doc)
-
-    # Notify agent
-    if case.assigned_agent and case.assigned_agent.email:
-        try:
-            from routes.cm_notifications import _send_email
-            _send_email(
-                case.assigned_agent.email,
-                f"Νέο αρχείο από πελάτη — {case.client_name}",
-                f"Ο πελάτης {case.client_name} ανέβασε αρχείο: {file.filename}\n{description}",
-            )
-        except Exception:
-            pass
-
-    return {"ok": True, "id": doc.id, "name": doc.name, "file_url": file_url}
-
-
-@router.get("/public/{token}/uploads/{filename}")
-async def serve_client_upload(token: str, filename: str, db: Session = Depends(get_db)):
-    """Serve a file uploaded by the client."""
-    from fastapi.responses import FileResponse as _FR
-    case = db.query(CMCase).filter(CMCase.share_token == token).first()
-    if not case or not case.portal_active:
-        raise HTTPException(status_code=404, detail="Not found")
-    path = os.path.join(UPLOAD_DIR, str(case.id), filename)
-    if not os.path.isfile(path):
-        raise HTTPException(status_code=404, detail="File not found")
-    return _FR(path)
-
 
 @router.get("/public/{token}/files/{file_id}/download")
 def download_portal_file_public(token: str, file_id: int, db: Session = Depends(get_db)):
