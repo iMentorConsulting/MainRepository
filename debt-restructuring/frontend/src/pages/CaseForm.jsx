@@ -353,7 +353,7 @@ export default function CaseForm({ currentEmployee }) {
       <OfferSection
         debts={debts} assets={assets} income={income} setIncome={setIncome}
         commercialOffer={commercialOffer} setCommercialOffer={setCommercialOffer}
-        caseId={isEditing ? id : null} employee={employee}
+        caseId={isEditing ? id : null} employee={employee} calc={calc}
       />
 
       {/* Debts */}
@@ -517,7 +517,7 @@ export default function CaseForm({ currentEmployee }) {
 
 // ── OfferSection ──────────────────────────────────────────────────────────────
 
-function OfferSection({ debts, assets, income, setIncome, commercialOffer, setCommercialOffer, caseId, employee }) {
+function OfferSection({ debts, assets, income, setIncome, commercialOffer, setCommercialOffer, caseId, employee, calc }) {
   const [cfg, setCfg] = useState(loadPricingConfig())
   useEffect(() => {
     api.getPricingConfig().then(res => {
@@ -526,14 +526,20 @@ function OfferSection({ debts, assets, income, setIncome, commercialOffer, setCo
     }).catch(() => {})
   }, [])
 
+  const writeoffPct = useMemo(() => {
+    const sumDebt = calc?.sumDebt || 0
+    const sumWr = calc?.sumWr || 0
+    return sumDebt > 0 ? sumWr / sumDebt : 0
+  }, [calc])
+
   const suggested = useMemo(
-    () => computeOffer(debts, assets, income, cfg),
-    [debts, assets, income, cfg],
+    () => computeOffer(debts, assets, income, cfg, writeoffPct),
+    [debts, assets, income, cfg, writeoffPct],
   )
 
   const breakdown = useMemo(
-    () => scoreBreakdown(debts, assets, income, cfg),
-    [debts, assets, income, cfg],
+    () => scoreBreakdown(debts, assets, income, cfg, writeoffPct),
+    [debts, assets, income, cfg, writeoffPct],
   )
 
   const appFee = Number(commercialOffer.application_fee || 0)

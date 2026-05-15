@@ -723,7 +723,8 @@ function PendingApprovalsPanel({ cases, onCasesUpdate }) {
           const sysAf = Number(c.commercial_offer?.system_app || 0)
           const sysSf = Number(c.commercial_offer?.system_suc || 0)
           const reason = c.commercial_offer?.approval_reason || ''
-          const bdItems = scoreBreakdown(c.debts, c.assets, c.income_data)
+          const estWoPct = (() => { const d = c.estimates?.sumDebt || 0; return d > 0 ? (c.estimates?.sumWr || 0) / d : 0 })()
+          const bdItems = scoreBreakdown(c.debts, c.assets, c.income_data, undefined, estWoPct)
           const bdScore = bdItems.reduce((s, it) => s + (it.value || 0), 0)
           const totalDebt = (c.debts || []).reduce((s, d) => s + (Number(d.amount) || 0), 0)
           const bankCount = (c.debts || []).filter(d => d.type === 'Τράπεζα').length
@@ -861,7 +862,9 @@ function PricingAdminPanel({ config, onSave, allCases }) {
     const debts   = c.debts || []
     const assets  = c.assets || []
     const income  = c.income_data || {}
-    const result  = computeOffer(debts, assets, income, local)
+    const estD = c.estimates?.sumDebt || 0
+    const woPct = estD > 0 ? (c.estimates?.sumWr || 0) / estD : 0
+    const result  = computeOffer(debts, assets, income, local, woPct)
 
     const totalDebt  = debts.reduce((s, d) => s + (d.amount || 0), 0)
     const bankDebts  = debts.filter(d => d.type === 'Τράπεζα' && d.amount > 0)
@@ -872,7 +875,7 @@ function PricingAdminPanel({ config, onSave, allCases }) {
     const withSpouse = income.withSpouse || (income.spouseIncome || 0) > 0
     const hasGuarantor = income.hasGuarantor || false
 
-    return { c, result, totalDebt, bankCount: bankDebts.length, publicOnly, assetCount: realAssets.length, annualInc, turnover, withSpouse, hasGuarantor }
+    return { c, result, woPct, totalDebt, bankCount: bankDebts.length, publicOnly, assetCount: realAssets.length, annualInc, turnover, withSpouse, hasGuarantor }
   }), [previewCases, local])
 
   return (
@@ -933,6 +936,7 @@ function PricingAdminPanel({ config, onSave, allCases }) {
               { key: 'spouseBonus',        label: 'Σύζυγος / συν-οφειλέτης' },
               { key: 'highIncomeBonus',    label: 'Υψηλό εισόδημα' },
               { key: 'highTurnoverBonus',  label: 'Υψηλός τζίρος' },
+              { key: 'writeoffMultiplier', label: 'Πολλαπλασιαστής Διαγραφής (×% διαγραφής)' },
             ].map(({ key, label }) => (
               <div key={key} className="flex items-center gap-3">
                 <label className="text-xs text-gray-600 flex-1">{label}</label>
@@ -1008,6 +1012,7 @@ function PricingAdminPanel({ config, onSave, allCases }) {
                 <th className="py-2 px-2 font-semibold">Σύζυγος</th>
                 <th className="py-2 px-2 font-semibold">Εισόδημα</th>
                 <th className="py-2 px-2 font-semibold">Τζίρος</th>
+                <th className="py-2 px-2 font-semibold text-violet-600">Διαγραφή</th>
                 <th className="py-2 px-2 font-semibold text-blue-600">Score</th>
                 <th className="py-2 px-2 font-semibold text-blue-700">Αίτηση</th>
                 <th className="py-2 px-2 font-semibold text-emerald-700">Success</th>
@@ -1015,9 +1020,9 @@ function PricingAdminPanel({ config, onSave, allCases }) {
             </thead>
             <tbody>
               {rows.length === 0 && (
-                <tr><td colSpan={12} className="text-center py-6 text-gray-300">Δεν βρέθηκαν υποθέσεις</td></tr>
+                <tr><td colSpan={13} className="text-center py-6 text-gray-300">Δεν βρέθηκαν υποθέσεις</td></tr>
               )}
-              {rows.map(({ c, result, totalDebt, bankCount, publicOnly, assetCount, annualInc, turnover, withSpouse, hasGuarantor }) => (
+              {rows.map(({ c, result, woPct, totalDebt, bankCount, publicOnly, assetCount, annualInc, turnover, withSpouse, hasGuarantor }) => (
                 <tr key={c.id} className="border-b border-gray-50 hover:bg-blue-50/30 transition-colors">
                   <td className="py-2 px-3 font-semibold text-gray-800 whitespace-nowrap">{c.client_name}</td>
                   <td className="py-2 px-2 text-center font-mono">
@@ -1045,6 +1050,11 @@ function PricingAdminPanel({ config, onSave, allCases }) {
                   </td>
                   <td className="py-2 px-2 text-center font-mono text-gray-600">
                     {turnover > 0 ? fmtK(turnover) + '€' : '—'}
+                  </td>
+                  <td className="py-2 px-2 text-center">
+                    {woPct > 0
+                      ? <span className={`font-bold ${woPct >= 0.5 ? 'text-violet-700' : 'text-violet-500'}`}>{(woPct * 100).toFixed(0)}%</span>
+                      : <span className="text-gray-300">—</span>}
                   </td>
                   <td className="py-2 px-2 text-center">
                     <span className="font-black text-blue-600 bg-blue-50 px-2 py-0.5 rounded">
