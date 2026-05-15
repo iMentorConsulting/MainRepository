@@ -74,8 +74,18 @@ try:
         """))
         # One-time reset: clear visit counts for cases not yet visited since new tracking
         _conn.execute(_text("UPDATE cm_cases SET portal_visit_count = 0 WHERE portal_last_visit_at IS NULL"))
-        # Recreate cm_portal_files with new service_type-based schema (drop old case_id version if exists)
-        _conn.execute(_text("DROP TABLE IF EXISTS cm_portal_files"))
+        # Migrate cm_portal_files: only drop+recreate if the old case_id column exists (one-time migration)
+        _conn.execute(_text("""
+            DO $$
+            BEGIN
+                IF EXISTS (
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_name='cm_portal_files' AND column_name='case_id'
+                ) THEN
+                    DROP TABLE cm_portal_files;
+                END IF;
+            END $$;
+        """))
         _conn.execute(_text("""
             CREATE TABLE IF NOT EXISTS cm_portal_files (
                 id SERIAL PRIMARY KEY,

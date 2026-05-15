@@ -113,11 +113,13 @@ export default function DocumentsTab({ caseId, caseData, onRefresh }) {
                   <td className="px-4 py-3 text-gray-500">{d.uploaded_by || '—'}</td>
                   <td className="px-4 py-3 text-gray-400 text-xs">{d.notes || '—'}</td>
                   <td className="px-4 py-3 flex items-center gap-2">
-                    {(d.file_url || d.uploaded_by_client) && (
-                      <button onClick={() => downloadDocument(caseId, d.id, d.name)} className="text-gray-300 hover:text-blue-500">
+                    {d.has_file_data ? (
+                      <button onClick={() => downloadDocument(caseId, d.id, d.name)} className="text-gray-300 hover:text-blue-500" title="Λήψη">
                         <ArrowDownTrayIcon className="w-4 h-4" />
                       </button>
-                    )}
+                    ) : d.uploaded_by_client ? (
+                      <span title="Το αρχείο χάθηκε (ανέβηκε πριν τη νέα έκδοση)" className="text-xs text-amber-500">⚠ Χαμένο</span>
+                    ) : null}
                     <button onClick={() => handleDelete(d.id)} className="text-gray-300 hover:text-red-500"><TrashIcon className="w-4 h-4" /></button>
                   </td>
                 </tr>

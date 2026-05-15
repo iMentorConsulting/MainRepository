@@ -225,6 +225,7 @@ def doc_to_dict(d: CMDocument) -> dict:
         "notes": d.notes,
         "file_url": d.file_url,
         "uploaded_by_client": getattr(d, "uploaded_by_client", False) or False,
+        "has_file_data": d.file_data is not None,
         "created_at": d.created_at.isoformat() if d.created_at else None,
     }
 
