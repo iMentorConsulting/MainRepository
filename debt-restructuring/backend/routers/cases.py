@@ -36,6 +36,7 @@ class PricingApprovalNotify(BaseModel):
     system_suc: float
     score: float = 0
     breakdown: list = []
+    reason: str = ""
 
 
 class EmailSendRequest(BaseModel):
@@ -310,13 +311,15 @@ def notify_pricing_approval(id: int, data: PricingApprovalNotify, db: Session = 
         for it in (data.breakdown or [])
     )
 
+    reason_block = f"\n── Αιτιολόγηση Συμβούλου ────────────────────\n{data.reason}\n" if data.reason else ""
+
     body = f"""Αίτηση έγκρισης τιμολόγησης
 
 Υπόθεση:  {case.client_name}
 ΑΦΜ:      {case.client_vat or '—'}
 Τηλ:      {case.client_phone or '—'}
 Σύμβουλος: {data.employee}
-
+{reason_block}
 ── Τιμολόγηση ───────────────────────────────
 Πρόταση σύμβουλου:
   Ποσό Αίτησης:  {data.proposed_app:,.0f} €

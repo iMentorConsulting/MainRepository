@@ -556,12 +556,15 @@ function OfferSection({ debts, assets, income, setIncome, commercialOffer, setCo
     })
   }
 
+  const [approvalReason, setApprovalReason] = useState('')
+
   const requestApproval = async () => {
     const updated = {
       ...commercialOffer,
       system_app: suggested.application_fee,
       system_suc: suggested.success_fee,
       approval_status: 'pending',
+      approval_reason: approvalReason.trim(),
     }
     setCommercialOffer(updated)
 
@@ -576,6 +579,7 @@ function OfferSection({ debts, assets, income, setIncome, commercialOffer, setCo
           system_suc: suggested.success_fee,
           score: suggested._score,
           breakdown: breakdown.map(it => ({ label: it.label, value: it.value })),
+          reason: approvalReason.trim(),
         })
         toast.success('Αίτηση έγκρισης εστάλη στον HARIS ✉️')
       } catch (e) {
@@ -692,16 +696,27 @@ function OfferSection({ debts, assets, income, setIncome, commercialOffer, setCo
             Εγκεκριμένο ποσό από HARIS
           </div>
         ) : hasCustomFee ? (
-          <div className="flex items-center gap-2 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-            <ExclamationTriangleIcon className="w-4 h-4 shrink-0" />
-            Διαφέρει από πρόταση συστήματος ({suggested.application_fee.toLocaleString('el-GR')}€)
-            <button
-              type="button"
-              onClick={requestApproval}
-              className="ml-auto text-xs font-bold bg-amber-600 hover:bg-amber-700 text-white px-3 py-1 rounded-lg transition-colors shrink-0"
-            >
-              Αίτηση Έγκρισης HARIS
-            </button>
+          <div className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-3 space-y-2">
+            <div className="flex items-center gap-2">
+              <ExclamationTriangleIcon className="w-4 h-4 shrink-0" />
+              Διαφέρει από πρόταση συστήματος ({suggested.application_fee.toLocaleString('el-GR')}€)
+            </div>
+            <textarea
+              value={approvalReason}
+              onChange={e => setApprovalReason(e.target.value)}
+              placeholder="Αιτιολόγηση για τον HARIS (π.χ. ο πελάτης δεν μπορεί να πληρώσει περισσότερο)"
+              rows={3}
+              className="w-full text-sm text-gray-700 bg-white border border-amber-300 rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-amber-400 placeholder-amber-300"
+            />
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={requestApproval}
+                className="text-xs font-bold bg-amber-600 hover:bg-amber-700 text-white px-4 py-1.5 rounded-lg transition-colors"
+              >
+                Αποστολή Αίτησης Έγκρισης →
+              </button>
+            </div>
           </div>
         ) : null
       )}

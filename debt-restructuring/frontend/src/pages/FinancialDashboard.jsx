@@ -672,20 +672,41 @@ function PendingApprovalsPanel({ cases, onCasesUpdate }) {
   const pending = cases.filter(c => c.commercial_offer?.approval_status === 'pending')
   if (pending.length === 0) return null
 
-  const approve = async (c, approved) => {
+  // Per-case editable state: { approvedApp, approvedSuc, comment }
+  const [overrides, setOverrides] = useState({})
+  const getOv = (c) => overrides[c.id] || {
+    approvedApp: c.commercial_offer?.application_fee || 0,
+    approvedSuc: c.commercial_offer?.success_fee || 0,
+    comment: '',
+  }
+  const setOv = (id, patch) => setOverrides(prev => ({
+    ...prev,
+    [id]: { ...getOv({ id, commercial_offer: cases.find(x => x.id === id)?.commercial_offer }), ...patch },
+  }))
+
+  const approve = async (c) => {
+    const ov = getOv(c)
     const updated = {
       ...c.commercial_offer,
-      approval_status: approved ? 'approved' : 'auto',
-      ...(approved ? {} : {
-        application_fee: c.commercial_offer.system_app,
-        success_fee: c.commercial_offer.system_suc,
-      }),
+      application_fee: Number(ov.approvedApp),
+      success_fee: Number(ov.approvedSuc),
+      approval_status: 'approved',
+      approval_comment: ov.comment.trim(),
     }
     await patchOffer(c.id, updated)
-    onCasesUpdate(prev => prev.map(x => x.id === c.id
-      ? { ...x, commercial_offer: updated }
-      : x
-    ))
+    onCasesUpdate(prev => prev.map(x => x.id === c.id ? { ...x, commercial_offer: updated } : x))
+  }
+
+  const restoreSystem = async (c) => {
+    const updated = {
+      ...c.commercial_offer,
+      application_fee: c.commercial_offer.system_app,
+      success_fee: c.commercial_offer.system_suc,
+      approval_status: 'auto',
+      approval_comment: '',
+    }
+    await patchOffer(c.id, updated)
+    onCasesUpdate(prev => prev.map(x => x.id === c.id ? { ...x, commercial_offer: updated } : x))
   }
 
   return (
@@ -695,52 +716,85 @@ function PendingApprovalsPanel({ cases, onCasesUpdate }) {
         Εκκρεμείς Εγκρίσεις Τιμολόγησης
         <span className="ml-1 bg-amber-200 text-amber-900 text-xs font-black px-2 py-0.5 rounded-full">{pending.length}</span>
       </h2>
-      <div className="space-y-3">
+      <div className="space-y-4">
         {pending.map(c => {
           const af = Number(c.commercial_offer?.application_fee || 0)
           const sf = Number(c.commercial_offer?.success_fee || 0)
           const sysAf = Number(c.commercial_offer?.system_app || 0)
           const sysSf = Number(c.commercial_offer?.system_suc || 0)
+          const reason = c.commercial_offer?.approval_reason || ''
           const bdItems = scoreBreakdown(c.debts, c.assets, c.income_data)
           const bdScore = bdItems.reduce((s, it) => s + (it.value || 0), 0)
           const totalDebt = (c.debts || []).reduce((s, d) => s + (Number(d.amount) || 0), 0)
           const bankCount = (c.debts || []).filter(d => d.type === 'Τράπεζα').length
+          const ov = getOv(c)
           return (
-            <div key={c.id} className="bg-white border border-amber-200 rounded-xl p-3 space-y-2">
-              <div className="flex flex-wrap items-center gap-4">
-                <div>
-                  <div className="font-bold text-gray-800">{c.client_name}</div>
-                  <div className="text-xs text-gray-500">{c.employee}</div>
-                </div>
-                <div className="flex gap-4 text-sm">
-                  <div>
-                    <div className="text-xs text-gray-400">Προτεινόμενο</div>
-                    <div className="font-black text-amber-700">{af.toLocaleString('el-GR')}€ + {sf.toLocaleString('el-GR')}€</div>
-                  </div>
-                  {sysAf > 0 && (
-                    <div>
-                      <div className="text-xs text-gray-400">Σύστημα</div>
-                      <div className="font-black text-blue-600">{sysAf.toLocaleString('el-GR')}€ + {sysSf.toLocaleString('el-GR')}€</div>
-                    </div>
-                  )}
-                </div>
-                <div className="ml-auto flex gap-2">
-                  <button
-                    onClick={() => approve(c, true)}
-                    className="bg-green-600 hover:bg-green-700 text-white text-xs font-bold px-4 py-1.5 rounded-lg transition-colors"
+            <div key={c.id} className="bg-white border border-amber-200 rounded-xl p-4 space-y-3">
+
+              {/* Header: name (link) + employee */}
+              <div className="flex items-start gap-3">
+                <div className="flex-1">
+                  <a
+                    href={`/cases/${c.id}`}
+                    className="font-black text-blue-700 hover:underline text-base"
                   >
-                    Έγκριση
-                  </button>
-                  <button
-                    onClick={() => approve(c, false)}
-                    className="bg-gray-200 hover:bg-gray-300 text-gray-700 text-xs font-bold px-4 py-1.5 rounded-lg transition-colors"
-                  >
-                    Επαναφορά Συστήματος
-                  </button>
+                    {c.client_name} ↗
+                  </a>
+                  <div className="text-xs text-gray-500 mt-0.5">{c.employee} · {c.client_phone}</div>
                 </div>
               </div>
+
+              {/* Amounts comparison */}
+              <div className="grid grid-cols-3 gap-3 text-sm">
+                <div className="bg-blue-50 rounded-lg p-2 text-center">
+                  <div className="text-xs text-blue-500 font-semibold mb-1">Σύστημα</div>
+                  <div className="font-black text-blue-700">{sysAf.toLocaleString('el-GR')}€</div>
+                  <div className="font-black text-blue-700">{sysSf.toLocaleString('el-GR')}€</div>
+                </div>
+                <div className="bg-amber-50 rounded-lg p-2 text-center">
+                  <div className="text-xs text-amber-600 font-semibold mb-1">Αίτημα</div>
+                  <div className="font-black text-amber-700">{af.toLocaleString('el-GR')}€</div>
+                  <div className="font-black text-amber-700">{sf.toLocaleString('el-GR')}€</div>
+                </div>
+                <div className="bg-green-50 rounded-lg p-2 text-center">
+                  <div className="text-xs text-green-600 font-semibold mb-1">Έγκριση HARIS</div>
+                  <input
+                    type="number"
+                    value={ov.approvedApp}
+                    onChange={e => setOv(c.id, { approvedApp: e.target.value })}
+                    className="w-full text-center font-black text-green-700 bg-transparent border-b border-green-300 focus:outline-none text-sm"
+                  />
+                  <input
+                    type="number"
+                    value={ov.approvedSuc}
+                    onChange={e => setOv(c.id, { approvedSuc: e.target.value })}
+                    className="w-full text-center font-black text-green-700 bg-transparent border-b border-green-300 focus:outline-none text-sm mt-1"
+                  />
+                </div>
+              </div>
+
+              {/* Consultant's justification */}
+              {reason && (
+                <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-sm text-amber-800">
+                  <span className="font-bold text-xs text-amber-500 uppercase tracking-wide block mb-1">Αιτιολόγηση Συμβούλου</span>
+                  {reason}
+                </div>
+              )}
+
+              {/* HARIS reply comment */}
+              <div>
+                <label className="text-xs font-semibold text-gray-500 block mb-1">Απάντηση / Σχόλιο HARIS (προαιρετικό):</label>
+                <textarea
+                  value={ov.comment}
+                  onChange={e => setOv(c.id, { comment: e.target.value })}
+                  placeholder="π.χ. Εγκρίνω 750€ γιατί ο πελάτης είναι παλιός γνωστός…"
+                  rows={2}
+                  className="w-full text-sm bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-green-300"
+                />
+              </div>
+
               {/* Scoring factors */}
-              <div className="flex flex-wrap gap-1.5 pt-1 border-t border-amber-100">
+              <div className="flex flex-wrap gap-1.5">
                 <span className="bg-gray-100 text-gray-700 text-xs px-2 py-0.5 rounded-full">
                   Οφειλές: <strong>{(totalDebt/1000).toFixed(0)}k€</strong>
                 </span>
@@ -748,16 +802,29 @@ function PendingApprovalsPanel({ cases, onCasesUpdate }) {
                   Τράπεζες: <strong>{bankCount}</strong>
                 </span>
                 {bdItems.map((item, i) => (
-                  <span
-                    key={i}
-                    className={`text-xs px-2 py-0.5 rounded-full ${item.value > 0 ? 'bg-blue-100 text-blue-700' : item.value < 0 ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-500'}`}
-                  >
+                  <span key={i} className={`text-xs px-2 py-0.5 rounded-full ${item.value > 0 ? 'bg-blue-100 text-blue-700' : item.value < 0 ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-500'}`}>
                     {item.label}: <strong>{item.value > 0 ? '+' : ''}{item.value}</strong>
                   </span>
                 ))}
                 <span className="bg-indigo-100 text-indigo-800 text-xs px-2 py-0.5 rounded-full font-black">
                   Score: {bdScore.toFixed(1)}
                 </span>
+              </div>
+
+              {/* Action buttons */}
+              <div className="flex gap-2 justify-end pt-1 border-t border-amber-100">
+                <button
+                  onClick={() => restoreSystem(c)}
+                  className="bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-bold px-4 py-1.5 rounded-lg transition-colors"
+                >
+                  Επαναφορά Συστήματος
+                </button>
+                <button
+                  onClick={() => approve(c)}
+                  className="bg-green-600 hover:bg-green-700 text-white text-xs font-bold px-5 py-1.5 rounded-lg transition-colors"
+                >
+                  ✓ Έγκριση {Number(ov.approvedApp).toLocaleString('el-GR')}€ + {Number(ov.approvedSuc).toLocaleString('el-GR')}€
+                </button>
               </div>
             </div>
           )
@@ -766,6 +833,7 @@ function PendingApprovalsPanel({ cases, onCasesUpdate }) {
     </div>
   )
 }
+
 
 function PricingAdminPanel({ config, onSave, allCases }) {
   const [local, setLocal] = useState({ ...config })
