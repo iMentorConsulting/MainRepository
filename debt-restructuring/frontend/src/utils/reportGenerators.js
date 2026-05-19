@@ -134,8 +134,8 @@ export function buildPlanHtml(data, customRows) {
   const totalMonthlyPayC = hasConservative ? (data.totalMonthlyPayC ?? totalMonthlyPay) : null
 
   const hasStepUp = includedCreditors.some((c) => c.c1 != null && c.c2 != null && c.c1 !== c.c2)
-  const totalC1 = hasStepUp ? (data.totalC1 || includedCreditors.reduce((a, c) => a + (c.c1 || c.monthlyPay || 0), 0)) : 0
-  const totalC1C = hasStepUp && hasConservative ? (data.totalC1C ?? totalC1) : null
+  const totalC1 = hasStepUp ? includedCreditors.reduce((a, c) => a + (c.c1 || c.monthlyPay || 0), 0) : 0
+  const totalC1C = hasStepUp && hasConservative ? includedCreditors.reduce((a, c) => a + (c.c1C || c.c1 || c.monthlyPay || 0), 0) : null
 
   const totalRatio = dispMonthly > 0 ? Math.round((totalMonthlyPay / dispMonthly) * 100) : 0
 
