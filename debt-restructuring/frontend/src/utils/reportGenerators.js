@@ -152,18 +152,23 @@ export function buildPlanHtml(data, customRows) {
   const isFpEmp = !isLE && fpSubType === 'Μισθωτός'
 
   const incomeRows = isLE
-    ? ''
+    ? [
+        incomeData.ke_t1 ? `<tr><td>Κύκλος Εργασιών Τ</td><td>${fmt(incomeData.ke_t1)}</td><td>Ε3</td></tr>` : '',
+        incomeData.ke_t2 ? `<tr><td>Κύκλος Εργασιών Τ-1</td><td>${fmt(incomeData.ke_t2)}</td><td>Ε3</td></tr>` : '',
+        incomeData.ke_t3 ? `<tr><td>Κύκλος Εργασιών Τ-2</td><td>${fmt(incomeData.ke_t3)}</td><td>Ε3</td></tr>` : '',
+        incomeData.kerdh_t1 != null ? `<tr><td>Κέρδη προ φόρων Τ</td><td>${fmt(incomeData.kerdh_t1)}</td><td>Ε3</td></tr>` : '',
+        incomeData.kerdh_t2 != null ? `<tr><td>Κέρδη προ φόρων Τ-1</td><td>${fmt(incomeData.kerdh_t2)}</td><td>Ε3</td></tr>` : '',
+        incomeData.kerdh_t3 != null ? `<tr><td>Κέρδη προ φόρων Τ-2</td><td>${fmt(incomeData.kerdh_t3)}</td><td>Ε3</td></tr>` : '',
+        incomeData.leEnfia ? `<tr><td>ΕΝΦΙΑ</td><td>${fmt(incomeData.leEnfia)}</td><td>Ετήσιο</td></tr>` : '',
+      ].filter(Boolean).join('')
     : isFpSE
       ? [
-          incomeData.fp_ebitda_t1 != null ? `<tr><td>EBITDA Τ</td><td>${fmt(incomeData.fp_ebitda_t1)}</td><td>Ε3</td></tr>` : '',
-          incomeData.fp_ebitda_t2 != null ? `<tr><td>EBITDA Τ-1</td><td>${fmt(incomeData.fp_ebitda_t2)}</td><td>Ε3</td></tr>` : '',
-          incomeData.fp_ebitda_t3 != null ? `<tr><td>EBITDA Τ-2</td><td>${fmt(incomeData.fp_ebitda_t3)}</td><td>Ε3</td></tr>` : '',
-          incomeData.fp_tax_t1 ? `<tr><td>Φόρος Τ</td><td>${fmt(incomeData.fp_tax_t1)}</td><td>Εκκαθαριστικό</td></tr>` : '',
-          incomeData.fp_tax_t2 ? `<tr><td>Φόρος Τ-1</td><td>${fmt(incomeData.fp_tax_t2)}</td><td>Εκκαθαριστικό</td></tr>` : '',
-          incomeData.fp_tax_t3 ? `<tr><td>Φόρος Τ-2</td><td>${fmt(incomeData.fp_tax_t3)}</td><td>Εκκαθαριστικό</td></tr>` : '',
-          incomeData.fp_e1outside_t1 ? `<tr><td>Εισόδημα Ε1 εκτός επιχ. Τ</td><td>${fmt(incomeData.fp_e1outside_t1)}</td><td>Ε1</td></tr>` : '',
-          incomeData.fp_e1outside_t2 ? `<tr><td>Εισόδημα Ε1 εκτός επιχ. Τ-1</td><td>${fmt(incomeData.fp_e1outside_t2)}</td><td>Ε1</td></tr>` : '',
+          incomeData.fp_income_t1 ? `<tr><td>Εισόδημα Τ (ΕΓΔΙΧ)</td><td>${fmt(incomeData.fp_income_t1)}</td><td>Εκκαθαριστικό</td></tr>` : '',
+          incomeData.fp_income_t2 ? `<tr><td>Εισόδημα Τ-1 (ΕΓΔΙΧ)</td><td>${fmt(incomeData.fp_income_t2)}</td><td>Εκκαθαριστικό</td></tr>` : '',
+          incomeData.fp_income_t3 ? `<tr><td>Εισόδημα Τ-2 (ΕΓΔΙΧ)</td><td>${fmt(incomeData.fp_income_t3)}</td><td>Εκκαθαριστικό</td></tr>` : '',
           incomeData.fp_ke_t1 ? `<tr><td>Κύκλος Εργασιών Τ (ΚΕ)</td><td>${fmt(incomeData.fp_ke_t1)}</td><td>Ε3/500</td></tr>` : '',
+          incomeData.fp_ke_t2 ? `<tr><td>Κύκλος Εργασιών Τ-1 (ΚΕ)</td><td>${fmt(incomeData.fp_ke_t2)}</td><td>Ε3/500</td></tr>` : '',
+          incomeData.fp_ke_t3 ? `<tr><td>Κύκλος Εργασιών Τ-2 (ΚΕ)</td><td>${fmt(incomeData.fp_ke_t3)}</td><td>Ε3/500</td></tr>` : '',
           annualIncome ? `<tr><td>Μ.Ο. Εισοδήματος (εκτιμ.)</td><td>${fmt(annualIncome)}</td><td>Υπολογισθέν</td></tr>` : '',
           householdValue ? `<tr><td>Εύλογες δαπάνες (${householdLabel})</td><td>${fmt(householdValue)}</td><td>ΕΛΣΤΑΤ</td></tr>` : '',
           enfia ? `<tr><td>ΕΝΦΙΑ</td><td>${fmt(enfia)}</td><td>Ετήσιο</td></tr>` : '',
