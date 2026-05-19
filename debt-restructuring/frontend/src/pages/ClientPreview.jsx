@@ -758,9 +758,11 @@ export default function ClientPreview() {
         {/* Actual results */}
         {hasActuals && (() => {
           const actCreditors = act.creditors || []
-          const actWriteoff = actCreditors.reduce((s, c) => s + (c.actualWriteoff || 0), 0)
-          const actRemaining = actCreditors.reduce((s, c) => s + (c.actualRemaining || 0), 0)
-          const actMonthly = actCreditors.reduce((s, c) => s + (c.actualMonthlyPay || 0), 0)
+          const activeCreditors = actCreditors.filter(c => !c.withdrawn)
+          const withdrawnCreditors = actCreditors.filter(c => c.withdrawn)
+          const actWriteoff = activeCreditors.reduce((s, c) => s + (c.actualWriteoff || 0), 0)
+          const actRemaining = activeCreditors.reduce((s, c) => s + (c.actualRemaining || 0), 0)
+          const actMonthly = activeCreditors.reduce((s, c) => s + (c.actualMonthlyPay || 0), 0)
           return (
             <div className="bg-white rounded-2xl shadow-lg p-5">
               <h2 className="text-base font-black text-green-700 border-b-2 border-green-100 pb-2 mb-4 flex items-center gap-2"><CheckCircleIcon className="w-5 h-5 text-green-600" />Πραγματικά Αποτελέσματα Ρύθμισης</h2>
@@ -790,15 +792,27 @@ export default function ClientPreview() {
                     <tbody>
                       {actCreditors.flatMap((c, i) => {
                         const hasSub = (c.subRows || []).length > 0
+                        const isWithdrawn = !!c.withdrawn
                         const rows = []
                         rows.push(
-                          <tr key={`a-${i}`} className={`border-b border-gray-100 ${hasSub ? 'bg-gray-50 font-semibold' : ''}`}>
-                            <td className="td text-left font-semibold">{c.creditor}{hasSub && <span className="ml-1 text-xs font-normal text-gray-400">(×{c.subRows.length})</span>}</td>
-                            <td className="td text-center font-mono text-orange-600">{c.actualWriteoff > 0 ? fmt(c.actualWriteoff) : '—'}</td>
-                            <td className="td text-center font-mono">{c.actualRemaining > 0 ? fmt(c.actualRemaining) : '—'}</td>
-                            <td className="td text-center font-mono font-bold text-blue-800">{c.actualMonthlyPay > 0 ? fmtDec2(c.actualMonthlyPay) : '—'}</td>
-                            <td className="td text-center">{!hasSub && c.actualMonths ? c.actualMonths : (hasSub ? '' : '—')}</td>
-                            <td className="td text-center text-xs text-gray-600">{!hasSub ? (c.rfCode || '—') : ''}</td>
+                          <tr key={`a-${i}`} className={`border-b border-gray-100 ${isWithdrawn ? 'bg-red-50/50 opacity-70' : hasSub ? 'bg-gray-50 font-semibold' : ''}`}>
+                            <td className="td text-left font-semibold">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                {c.creditor}{hasSub && <span className="ml-1 text-xs font-normal text-gray-400">(×{c.subRows.length})</span>}
+                                {isWithdrawn && <span className="text-xs font-bold bg-red-100 text-red-600 px-2 py-0.5 rounded-full">Απεσύρθη</span>}
+                              </div>
+                            </td>
+                            {isWithdrawn ? (
+                              <td className="td text-center text-xs text-gray-400 italic" colSpan={5}>Δεν συμμετείχε στον εξωδικαστικό μηχανισμό</td>
+                            ) : (
+                              <>
+                                <td className="td text-center font-mono text-orange-600">{c.actualWriteoff > 0 ? fmt(c.actualWriteoff) : '—'}</td>
+                                <td className="td text-center font-mono">{c.actualRemaining > 0 ? fmt(c.actualRemaining) : '—'}</td>
+                                <td className="td text-center font-mono font-bold text-blue-800">{c.actualMonthlyPay > 0 ? fmtDec2(c.actualMonthlyPay) : '—'}</td>
+                                <td className="td text-center">{!hasSub && c.actualMonths ? c.actualMonths : (hasSub ? '' : '—')}</td>
+                                <td className="td text-center text-xs text-gray-600">{!hasSub ? (c.rfCode || '—') : ''}</td>
+                              </>
+                            )}
                           </tr>
                         )
                         ;(c.subRows || []).forEach((s, j) => {
@@ -816,12 +830,22 @@ export default function ClientPreview() {
                         return rows
                       })}
                       <tr className="bg-green-50 font-bold text-sm border-t-2 border-green-200">
-                        <td className="td text-left">ΣΥΝΟΛΟ</td>
+                        <td className="td text-left">
+                          ΣΥΝΟΛΟ
+                          {withdrawnCreditors.length > 0 && <span className="ml-1 text-xs font-normal text-gray-400">(χωρίς αποσύρσεις)</span>}
+                        </td>
                         <td className="td text-center font-mono text-orange-600">{actWriteoff > 0 ? fmt(actWriteoff) : '—'}</td>
                         <td className="td text-center font-mono">{actRemaining > 0 ? fmt(actRemaining) : '—'}</td>
                         <td className="td text-center font-mono text-blue-800">{actMonthly > 0 ? fmtDec2(actMonthly) : '—'}</td>
                         <td className="td" colSpan={2}></td>
                       </tr>
+                      {withdrawnCreditors.length > 0 && (
+                        <tr className="bg-red-50 text-xs border-t border-red-100">
+                          <td className="td text-left text-red-500 font-semibold" colSpan={6}>
+                            ⚠️ Απεσύρθηκαν από τον εξωδικαστικό: {withdrawnCreditors.map(c => c.creditor).join(', ')}
+                          </td>
+                        </tr>
+                      )}
                     </tbody>
                   </table>
                 </div>
@@ -838,10 +862,16 @@ export default function ClientPreview() {
                       </tr>
                     </thead>
                     <tbody>
-                      {[
-                        { label: 'Διαγραφή', e: est.sumWr, a: actWriteoff },
-                        { label: 'Εναπομένουσα', e: est.totalRemaining, a: actRemaining },
-                        { label: 'Μηνιαία Δόση', e: est.totalMonthlyPay, a: actMonthly, isDec: true },
+                      {(() => {
+                        const wdNames = new Set((act.creditors || []).filter(c => c.withdrawn).map(c => c.creditor))
+                        const activePlan = finalPlan.filter(p => !wdNames.has(creditorDisplayName(p.type, p.creditorName)))
+                        const estWr = wdNames.size > 0 ? activePlan.reduce((s, p) => s + (p.writeoff || 0), 0) : est.sumWr
+                        const estRem = wdNames.size > 0 ? activePlan.reduce((s, p) => s + (p.newAmt || 0), 0) : est.totalRemaining
+                        const estMon = wdNames.size > 0 ? activePlan.reduce((s, p) => s + (p.payShown || 0), 0) : est.totalMonthlyPay
+                        return [
+                        { label: 'Διαγραφή', e: estWr, a: actWriteoff },
+                        { label: 'Εναπομένουσα', e: estRem, a: actRemaining },
+                        { label: 'Μηνιαία Δόση', e: estMon, a: actMonthly, isDec: true },
                       ].map((row) => {
                         const diff = (row.a || 0) - (row.e || 0)
                         const pct = row.e > 0 ? Math.round(Math.abs(diff) / row.e * 100) : 0
@@ -859,7 +889,8 @@ export default function ClientPreview() {
                             </td>
                           </tr>
                         )
-                      })}
+                      })
+                      })()}
                     </tbody>
                   </table>
                 </div>

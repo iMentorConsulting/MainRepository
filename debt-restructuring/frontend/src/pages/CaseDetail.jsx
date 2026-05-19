@@ -98,6 +98,7 @@ function buildEmptyCreditors(finalPlan) {
     rfCode: '',
     notes: '',
     subRows: [],
+    withdrawn: false,
   }))
 }
 
@@ -853,6 +854,7 @@ export default function CaseDetail({ currentEmployee }) {
                   <th className="th">Δόσεις (μήνες)</th>
                   <th className="th">RF Κωδικός</th>
                   <th className="th">Σημειώσεις</th>
+                  <th className="th">Απόσυρση</th>
                   <th className="th"></th>
                 </tr>
               </thead>
@@ -902,14 +904,20 @@ export default function CaseDetail({ currentEmployee }) {
                   const rows = []
 
                   // ── Parent row ──
+                  const isWithdrawn = !!c.withdrawn
                   rows.push(
-                    <tr key={`c-${i}`} className={`border-b border-gray-100 ${hasSub ? 'bg-gray-50' : ''}`}>
+                    <tr key={`c-${i}`} className={`border-b border-gray-100 ${isWithdrawn ? 'bg-red-50/60 opacity-70' : hasSub ? 'bg-gray-50' : ''}`}>
                       <td className="td text-left font-semibold text-sm">
-                        {c.creditor}
-                        {hasSub && <span className="ml-1.5 text-xs font-normal text-gray-400">(×{c.subRows.length})</span>}
+                        <div className="flex items-center gap-2">
+                          {c.creditor}
+                          {hasSub && <span className="ml-1.5 text-xs font-normal text-gray-400">(×{c.subRows.length})</span>}
+                          {isWithdrawn && <span className="text-xs font-bold bg-red-100 text-red-600 px-1.5 py-0.5 rounded-full whitespace-nowrap">Απεσύρθη</span>}
+                        </div>
                       </td>
                       <td className="td font-mono text-sm text-gray-500">{fmt(c.originalAmount)}</td>
-                      {hasSub ? (
+                      {isWithdrawn ? (
+                        <td className="td text-center text-xs text-gray-400 italic" colSpan={6}>Δεν συμμετείχε στον εξωδικαστικό</td>
+                      ) : hasSub ? (
                         <>
                           <td className="td text-center text-sm font-mono text-orange-600">{fmt(c.actualWriteoff)}</td>
                           <td className="td text-center text-sm font-mono">{fmt(c.actualRemaining)}</td>
@@ -939,11 +947,20 @@ export default function CaseDetail({ currentEmployee }) {
                         </>
                       )}
                       <td className="td text-center">
-                        {hasSub ? (
+                        <button
+                          onClick={() => setCreditor({ withdrawn: !isWithdrawn, actualWriteoff: 0, actualRemaining: 0, actualMonthlyPay: 0, actualMonths: 0, rfCode: '', notes: '', subRows: [] })}
+                          title={isWithdrawn ? 'Επαναφορά ως ενεργό' : 'Σήμανση ως αποσύρθηκε από εξωδικαστικό'}
+                          className={`text-xs font-bold px-2 py-0.5 rounded border transition-all ${isWithdrawn ? 'bg-red-100 text-red-600 border-red-300 hover:bg-red-200' : 'text-gray-400 border-gray-200 hover:text-red-500 hover:border-red-300 hover:bg-red-50'}`}
+                        >
+                          {isWithdrawn ? '✕ Απεσύρθη' : '✕'}
+                        </button>
+                      </td>
+                      <td className="td text-center">
+                        {!isWithdrawn && (hasSub ? (
                           <button onClick={mergeSubRows} title="Ενοποίηση" className="text-xs text-gray-400 hover:text-gray-600 px-1.5 py-0.5 rounded border border-gray-300 hover:border-gray-400">⊞</button>
                         ) : (
                           <button onClick={addSubRow} title="Διαίρεση σε μέρη" className="text-xs text-blue-500 hover:text-blue-700 px-1.5 py-0.5 rounded border border-blue-300 hover:border-blue-500">+</button>
-                        )}
+                        ))}
                       </td>
                     </tr>
                   )
@@ -999,15 +1016,35 @@ export default function CaseDetail({ currentEmployee }) {
 
                   return rows
                 })}
-                {/* Totals row */}
-                <tr className="bg-blue-50 font-bold text-sm border-t-2 border-blue-200">
-                  <td className="td text-left">ΣΥΝΟΛΟ</td>
-                  <td className="td font-mono">{fmt(actuals.creditors.reduce((s, c) => s + (c.originalAmount || 0), 0))}</td>
-                  <td className="td font-mono text-orange-600">{fmt(actuals.creditors.reduce((s, c) => s + (c.actualWriteoff || 0), 0))}</td>
-                  <td className="td font-mono">{fmt(actuals.creditors.reduce((s, c) => s + (c.actualRemaining || 0), 0))}</td>
-                  <td className="td font-mono text-blue-800">{fmtDec2(actuals.creditors.reduce((s, c) => s + (c.actualMonthlyPay || 0), 0))}</td>
-                  <td className="td" colSpan={4}></td>
-                </tr>
+                {/* Totals row — excluding withdrawn */}
+                {(() => {
+                  const active = actuals.creditors.filter(c => !c.withdrawn)
+                  const withdrawn = actuals.creditors.filter(c => c.withdrawn)
+                  return (
+                    <>
+                      <tr className="bg-blue-50 font-bold text-sm border-t-2 border-blue-200">
+                        <td className="td text-left">
+                          ΣΥΝΟΛΟ
+                          {withdrawn.length > 0 && <span className="ml-1.5 text-xs font-normal text-gray-400">(χωρίς αποσύρσεις)</span>}
+                        </td>
+                        <td className="td font-mono">{fmt(active.reduce((s, c) => s + (c.originalAmount || 0), 0))}</td>
+                        <td className="td font-mono text-orange-600">{fmt(active.reduce((s, c) => s + (c.actualWriteoff || 0), 0))}</td>
+                        <td className="td font-mono">{fmt(active.reduce((s, c) => s + (c.actualRemaining || 0), 0))}</td>
+                        <td className="td font-mono text-blue-800">{fmtDec2(active.reduce((s, c) => s + (c.actualMonthlyPay || 0), 0))}</td>
+                        <td className="td" colSpan={5}></td>
+                      </tr>
+                      {withdrawn.length > 0 && (
+                        <tr className="bg-red-50 text-xs border-t border-red-100">
+                          <td className="td text-left text-red-500 font-semibold" colSpan={2}>
+                            Αποσύρθηκαν ({withdrawn.length}): {withdrawn.map(c => c.creditor).join(', ')}
+                          </td>
+                          <td className="td font-mono text-red-400">{fmt(withdrawn.reduce((s, c) => s + (c.originalAmount || 0), 0))}</td>
+                          <td className="td text-center text-red-300" colSpan={7}>—</td>
+                        </tr>
+                      )}
+                    </>
+                  )
+                })()}
               </tbody>
             </table>
           </div>
@@ -1054,13 +1091,21 @@ export default function CaseDetail({ currentEmployee }) {
               </thead>
               <tbody>
                 {(() => {
-                  const actWriteoff = act.creditors.reduce((s, c) => s + (c.actualWriteoff || 0), 0)
-                  const actRemaining = act.creditors.reduce((s, c) => s + (c.actualRemaining || 0), 0)
-                  const actMonthly = act.creditors.reduce((s, c) => s + (c.actualMonthlyPay || 0), 0)
+                  // Exclude withdrawn creditors from both sides of the comparison
+                  const withdrawnNames = new Set(act.creditors.filter(c => c.withdrawn).map(c => c.creditor))
+                  const activeActuals = act.creditors.filter(c => !c.withdrawn)
+                  const activePlan = (finalPlan || []).filter(p => !withdrawnNames.has(creditorDisplayName(p.type, p.creditorName)))
+                  const actWriteoff = activeActuals.reduce((s, c) => s + (c.actualWriteoff || 0), 0)
+                  const actRemaining = activeActuals.reduce((s, c) => s + (c.actualRemaining || 0), 0)
+                  const actMonthly = activeActuals.reduce((s, c) => s + (c.actualMonthlyPay || 0), 0)
+                  const estWriteoff = activePlan.reduce((s, p) => s + (p.writeoff || 0), 0)
+                  const estRemaining = activePlan.reduce((s, p) => s + (p.newAmt || 0), 0)
+                  const estMonthly = activePlan.reduce((s, p) => s + (p.payShown || 0), 0)
+                  const hasWithdrawn = withdrawnNames.size > 0
                   return [
-                    { label: 'Διαγραφή', estVal: est.sumWr, actVal: actWriteoff },
-                    { label: 'Εναπομένουσα Οφειλή', estVal: est.totalRemaining, actVal: actRemaining },
-                    { label: 'Μηνιαία Δόση', estVal: est.totalMonthlyPay, actVal: actMonthly, isDec: true },
+                    { label: 'Διαγραφή', estVal: hasWithdrawn ? estWriteoff : est.sumWr, actVal: actWriteoff },
+                    { label: 'Εναπομένουσα Οφειλή', estVal: hasWithdrawn ? estRemaining : est.totalRemaining, actVal: actRemaining },
+                    { label: 'Μηνιαία Δόση', estVal: hasWithdrawn ? estMonthly : est.totalMonthlyPay, actVal: actMonthly, isDec: true },
                   ].map((row) => {
                     const diff = (row.actVal || 0) - (row.estVal || 0)
                     const pct = row.estVal > 0 ? Math.round(Math.abs(diff) / row.estVal * 100) : 0
@@ -1083,6 +1128,11 @@ export default function CaseDetail({ currentEmployee }) {
                 })()}
               </tbody>
             </table>
+            {act.creditors.some(c => c.withdrawn) && (
+              <div className="mt-3 bg-red-50 border border-red-200 rounded-lg px-4 py-2 text-xs text-red-600">
+                ⚠️ Η σύγκριση αφορά μόνο τους πιστωτές που συμμετείχαν στον εξωδικαστικό. Εξαιρούνται: {act.creditors.filter(c => c.withdrawn).map(c => c.creditor).join(', ')}.
+              </div>
+            )}
             {act.generalNotes && (
               <div className="mt-3 bg-gray-50 rounded-lg px-4 py-2 text-sm text-gray-600 italic">
                 💬 {act.generalNotes}
