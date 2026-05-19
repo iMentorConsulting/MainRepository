@@ -98,12 +98,13 @@ function buildEmptyCreditors(finalPlan) {
     rfCode: '',
     notes: '',
     subRows: [],
+    stepRows: [],
     withdrawn: false,
   }))
 }
 
 function emptySubRow(n) {
-  return { label: `Μέρος ${n}`, actualWriteoff: 0, actualRemaining: 0, actualMonthlyPay: 0, actualMonths: 0, rfCode: '', notes: '' }
+  return { label: `Μέρος ${n}`, actualWriteoff: 0, actualRemaining: 0, actualMonthlyPay: 0, actualMonths: 0, rfCode: '', notes: '', stepRows: [] }
 }
 
 function recomputeParentFromSubRows(cred) {
@@ -115,6 +116,34 @@ function recomputeParentFromSubRows(cred) {
     actualRemaining: sr.reduce((s, r) => s + (r.actualRemaining || 0), 0),
     actualMonthlyPay: sr.reduce((s, r) => s + (r.actualMonthlyPay || 0), 0),
   }
+}
+
+function recomputeFromStepRows(cred) {
+  const sr = cred.stepRows || []
+  if (sr.length === 0) return cred
+  return {
+    ...cred,
+    actualMonthlyPay: sr[0]?.monthlyPay || 0,
+    actualMonths: sr.reduce((s, r) => s + (r.months || 0), 0),
+  }
+}
+
+function autoStepLabel(stepRows) {
+  const prevMonths = (stepRows || []).reduce((s, r) => s + (r.months || 0), 0)
+  const n = (stepRows || []).length + 1
+  const startYear = Math.floor(prevMonths / 12) + 1
+  return `Βήμα ${n} (από το ${startYear}ο έτος)`
+}
+
+function renderStepLabel(stepRows, idx) {
+  let cum = 0
+  for (let k = 0; k < idx; k++) cum += stepRows[k]?.months || 0
+  const monthsThis = stepRows[idx]?.months || 0
+  const sy = Math.floor(cum / 12) + 1
+  const ey = Math.floor((cum + monthsThis) / 12)
+  if (!monthsThis) return stepRows[idx]?.label || `Βήμα ${idx + 1}`
+  if (sy === ey) return `${sy}ο έτος`
+  return `${sy}ο–${ey}ο έτος`
 }
 
 function ViberPreviewModal({ msgType, msgLabel, caseName, url, offer, onSend, onClose, sending }) {
@@ -861,9 +890,40 @@ export default function CaseDetail({ currentEmployee }) {
               <tbody>
                 {actuals.creditors.flatMap((c, i) => {
                   const hasSub = (c.subRows || []).length > 0
+                  const hasStep = (c.stepRows || []).length > 0
                   const setCreditor = (patch) => {
                     const updated = [...actuals.creditors]
                     updated[i] = { ...updated[i], ...patch }
+                    setActuals({ ...actuals, creditors: updated })
+                  }
+                  const addStepRow = () => {
+                    const sr = c.stepRows || []
+                    const newSr = [...sr, { label: autoStepLabel(sr), monthlyPay: 0, months: 12 }]
+                    const updated = [...actuals.creditors]
+                    updated[i] = recomputeFromStepRows({ ...c, stepRows: newSr })
+                    setActuals({ ...actuals, creditors: updated })
+                  }
+                  const initStepRows = () => {
+                    const first = { label: 'Για το 1ο έτος', monthlyPay: c.actualMonthlyPay || 0, months: c.actualMonths || 12 }
+                    const updated = [...actuals.creditors]
+                    updated[i] = recomputeFromStepRows({ ...c, stepRows: [first] })
+                    setActuals({ ...actuals, creditors: updated })
+                  }
+                  const removeStepRow = (j) => {
+                    const newSr = (c.stepRows || []).filter((_, k) => k !== j)
+                    const updated = [...actuals.creditors]
+                    updated[i] = recomputeFromStepRows({ ...c, stepRows: newSr })
+                    setActuals({ ...actuals, creditors: updated })
+                  }
+                  const updateStepRow = (j, patch) => {
+                    const newSr = (c.stepRows || []).map((s, k) => k === j ? { ...s, ...patch } : s)
+                    const updated = [...actuals.creditors]
+                    updated[i] = recomputeFromStepRows({ ...c, stepRows: newSr })
+                    setActuals({ ...actuals, creditors: updated })
+                  }
+                  const clearStepRows = () => {
+                    const updated = [...actuals.creditors]
+                    updated[i] = { ...c, stepRows: [] }
                     setActuals({ ...actuals, creditors: updated })
                   }
                   const addSubRow = () => {
@@ -906,11 +966,12 @@ export default function CaseDetail({ currentEmployee }) {
                   // ── Parent row ──
                   const isWithdrawn = !!c.withdrawn
                   rows.push(
-                    <tr key={`c-${i}`} className={`border-b border-gray-100 ${isWithdrawn ? 'bg-red-50/60 opacity-70' : hasSub ? 'bg-gray-50' : ''}`}>
+                    <tr key={`c-${i}`} className={`border-b border-gray-100 ${isWithdrawn ? 'bg-red-50/60 opacity-70' : hasSub ? 'bg-gray-50' : hasStep ? 'bg-indigo-50/30' : ''}`}>
                       <td className="td text-left font-semibold text-sm">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           {c.creditor}
-                          {hasSub && <span className="ml-1.5 text-xs font-normal text-gray-400">(×{c.subRows.length})</span>}
+                          {hasSub && <span className="text-xs font-normal text-gray-400">(×{c.subRows.length})</span>}
+                          {hasStep && <span className="text-xs font-bold bg-indigo-100 text-indigo-600 px-1.5 py-0.5 rounded-full">≡ {c.stepRows.length} βήματα</span>}
                           {isWithdrawn && <span className="text-xs font-bold bg-red-100 text-red-600 px-1.5 py-0.5 rounded-full whitespace-nowrap">Απεσύρθη</span>}
                         </div>
                       </td>
@@ -928,12 +989,21 @@ export default function CaseDetail({ currentEmployee }) {
                         <>
                           <td className="td min-w-[120px]"><MoneyCell value={c.actualWriteoff} onChange={(v) => setCreditor({ actualWriteoff: v })} /></td>
                           <td className="td min-w-[120px]"><MoneyCell value={c.actualRemaining} onChange={(v) => setCreditor({ actualRemaining: v })} /></td>
-                          <td className="td min-w-[110px]"><MoneyCellDec value={c.actualMonthlyPay} onChange={(v) => setCreditor({ actualMonthlyPay: v })} /></td>
-                          <td className="td min-w-[90px]">
-                            <input type="number" min="0" max="600" className="input text-center text-sm" placeholder="0"
-                              value={c.actualMonths || ''}
-                              onChange={(e) => setCreditor({ actualMonths: +e.target.value })} />
-                          </td>
+                          {hasStep ? (
+                            <>
+                              <td className="td text-center text-xs text-indigo-600 font-semibold">{fmtDec2(c.stepRows[0]?.monthlyPay || 0)}<span className="block text-gray-400 font-normal">βήμα 1↓</span></td>
+                              <td className="td text-center text-xs text-gray-500">{c.actualMonths || 0} μήν.</td>
+                            </>
+                          ) : (
+                            <>
+                              <td className="td min-w-[110px]"><MoneyCellDec value={c.actualMonthlyPay} onChange={(v) => setCreditor({ actualMonthlyPay: v })} /></td>
+                              <td className="td min-w-[90px]">
+                                <input type="number" min="0" max="600" className="input text-center text-sm" placeholder="0"
+                                  value={c.actualMonths || ''}
+                                  onChange={(e) => setCreditor({ actualMonths: +e.target.value })} />
+                              </td>
+                            </>
+                          )}
                           <td className="td min-w-[120px]">
                             <input type="text" className="input text-sm" placeholder="RF123..."
                               value={c.rfCode || ''}
@@ -948,7 +1018,7 @@ export default function CaseDetail({ currentEmployee }) {
                       )}
                       <td className="td text-center">
                         <button
-                          onClick={() => setCreditor({ withdrawn: !isWithdrawn, actualWriteoff: 0, actualRemaining: 0, actualMonthlyPay: 0, actualMonths: 0, rfCode: '', notes: '', subRows: [] })}
+                          onClick={() => setCreditor({ withdrawn: !isWithdrawn, actualWriteoff: 0, actualRemaining: 0, actualMonthlyPay: 0, actualMonths: 0, rfCode: '', notes: '', subRows: [], stepRows: [] })}
                           title={isWithdrawn ? 'Επαναφορά ως ενεργό' : 'Σήμανση ως αποσύρθηκε από εξωδικαστικό'}
                           className={`text-xs font-bold px-2 py-0.5 rounded border transition-all ${isWithdrawn ? 'bg-red-100 text-red-600 border-red-300 hover:bg-red-200' : 'text-gray-400 border-gray-200 hover:text-red-500 hover:border-red-300 hover:bg-red-50'}`}
                         >
@@ -956,14 +1026,64 @@ export default function CaseDetail({ currentEmployee }) {
                         </button>
                       </td>
                       <td className="td text-center">
-                        {!isWithdrawn && (hasSub ? (
+                        {!isWithdrawn && !hasStep && (hasSub ? (
                           <button onClick={mergeSubRows} title="Ενοποίηση" className="text-xs text-gray-400 hover:text-gray-600 px-1.5 py-0.5 rounded border border-gray-300 hover:border-gray-400">⊞</button>
                         ) : (
-                          <button onClick={addSubRow} title="Διαίρεση σε μέρη" className="text-xs text-blue-500 hover:text-blue-700 px-1.5 py-0.5 rounded border border-blue-300 hover:border-blue-500">+</button>
+                          <div className="flex gap-1 justify-center">
+                            <button onClick={addSubRow} title="Διαίρεση σε μέρη" className="text-xs text-blue-500 hover:text-blue-700 px-1.5 py-0.5 rounded border border-blue-300 hover:border-blue-500">+</button>
+                            <button onClick={initStepRows} title="Προσθήκη step δόσεων" className="text-xs text-indigo-500 hover:text-indigo-700 px-1.5 py-0.5 rounded border border-indigo-300 hover:border-indigo-500">≡</button>
+                          </div>
                         ))}
+                        {!isWithdrawn && hasStep && (
+                          <button onClick={clearStepRows} title="Κατάργηση step δόσεων" className="text-xs text-indigo-400 hover:text-indigo-600 px-1.5 py-0.5 rounded border border-indigo-200 hover:border-indigo-400">⊟</button>
+                        )}
                       </td>
                     </tr>
                   )
+
+                  // ── Step rows ──
+                  if (hasStep) {
+                    ;(c.stepRows || []).forEach((s, j) => {
+                      const autoLabel = renderStepLabel(c.stepRows, j)
+                      rows.push(
+                        <tr key={`c-${i}-step-${j}`} className="border-b border-indigo-100 bg-indigo-50/50">
+                          <td className="td pl-6 min-w-[180px]">
+                            <div className="flex items-center gap-1 text-xs text-indigo-700">
+                              <span className="text-indigo-300 mr-0.5">↳</span>
+                              <input
+                                type="text"
+                                className="input text-xs py-0.5 px-1.5 flex-1 min-w-[120px] font-semibold text-indigo-800 bg-white border-indigo-200"
+                                value={s.label || autoLabel}
+                                placeholder={autoLabel}
+                                onChange={(e) => updateStepRow(j, { label: e.target.value })}
+                              />
+                            </div>
+                          </td>
+                          <td className="td text-center text-xs text-gray-300">—</td>
+                          <td className="td text-center text-xs text-gray-300">—</td>
+                          <td className="td text-center text-xs text-gray-300">—</td>
+                          <td className="td min-w-[110px]"><MoneyCellDec value={s.monthlyPay} onChange={(v) => updateStepRow(j, { monthlyPay: v })} /></td>
+                          <td className="td min-w-[90px]">
+                            <input type="number" min="1" max="600" className="input text-center text-sm" placeholder="μήνες"
+                              value={s.months || ''}
+                              onChange={(e) => updateStepRow(j, { months: +e.target.value })} />
+                          </td>
+                          <td className="td text-center text-xs text-indigo-400">{s.months ? `${Math.round(s.months/12*10)/10} έτη` : '—'}</td>
+                          <td className="td text-center text-xs text-gray-300">—</td>
+                          <td className="td text-center" colSpan={2}>
+                            <button onClick={() => removeStepRow(j)} title="Διαγραφή βήματος" className="text-red-400 hover:text-red-600 font-bold text-sm leading-none">✕</button>
+                          </td>
+                        </tr>
+                      )
+                    })
+                    rows.push(
+                      <tr key={`c-${i}-step-add`} className="border-b border-indigo-50">
+                        <td colSpan={10} className="td py-1 pl-8">
+                          <button onClick={addStepRow} className="text-xs text-indigo-500 hover:text-indigo-700 font-semibold">+ Προσθήκη βήματος</button>
+                        </td>
+                      </tr>
+                    )
+                  }
 
                   // ── Sub-rows ──
                   ;(c.subRows || []).forEach((s, j) => {
@@ -1007,7 +1127,7 @@ export default function CaseDetail({ currentEmployee }) {
                   if (hasSub && c.subRows.length < 10) {
                     rows.push(
                       <tr key={`c-${i}-add`} className="border-b border-blue-50">
-                        <td colSpan={9} className="td py-1 pl-8">
+                        <td colSpan={10} className="td py-1 pl-8">
                           <button onClick={addSubRow} className="text-xs text-blue-500 hover:text-blue-700 font-semibold">+ Προσθήκη μέρους</button>
                         </td>
                       </tr>

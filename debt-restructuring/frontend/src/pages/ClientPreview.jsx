@@ -792,13 +792,15 @@ export default function ClientPreview() {
                     <tbody>
                       {actCreditors.flatMap((c, i) => {
                         const hasSub = (c.subRows || []).length > 0
+                        const hasStep = (c.stepRows || []).length > 0
                         const isWithdrawn = !!c.withdrawn
                         const rows = []
                         rows.push(
-                          <tr key={`a-${i}`} className={`border-b border-gray-100 ${isWithdrawn ? 'bg-red-50/50 opacity-70' : hasSub ? 'bg-gray-50 font-semibold' : ''}`}>
+                          <tr key={`a-${i}`} className={`border-b border-gray-100 ${isWithdrawn ? 'bg-red-50/50 opacity-70' : hasSub ? 'bg-gray-50 font-semibold' : hasStep ? 'bg-indigo-50/30' : ''}`}>
                             <td className="td text-left font-semibold">
                               <div className="flex items-center gap-2 flex-wrap">
                                 {c.creditor}{hasSub && <span className="ml-1 text-xs font-normal text-gray-400">(×{c.subRows.length})</span>}
+                                {hasStep && <span className="text-xs font-bold bg-indigo-100 text-indigo-600 px-1.5 py-0.5 rounded-full">≡ step</span>}
                                 {isWithdrawn && <span className="text-xs font-bold bg-red-100 text-red-600 px-2 py-0.5 rounded-full">Απεσύρθη</span>}
                               </div>
                             </td>
@@ -808,13 +810,30 @@ export default function ClientPreview() {
                               <>
                                 <td className="td text-center font-mono text-orange-600">{c.actualWriteoff > 0 ? fmt(c.actualWriteoff) : '—'}</td>
                                 <td className="td text-center font-mono">{c.actualRemaining > 0 ? fmt(c.actualRemaining) : '—'}</td>
-                                <td className="td text-center font-mono font-bold text-blue-800">{c.actualMonthlyPay > 0 ? fmtDec2(c.actualMonthlyPay) : '—'}</td>
-                                <td className="td text-center">{!hasSub && c.actualMonths ? c.actualMonths : (hasSub ? '' : '—')}</td>
+                                <td className="td text-center font-mono font-bold text-blue-800">
+                                  {hasStep ? <span className="text-indigo-600">βλ. βήματα ↓</span> : (c.actualMonthlyPay > 0 ? fmtDec2(c.actualMonthlyPay) : '—')}
+                                </td>
+                                <td className="td text-center">{!hasSub && !hasStep && c.actualMonths ? c.actualMonths : (hasSub || hasStep ? '' : '—')}</td>
                                 <td className="td text-center text-xs text-gray-600">{!hasSub ? (c.rfCode || '—') : ''}</td>
                               </>
                             )}
                           </tr>
                         )
+                        if (hasStep) {
+                          ;(c.stepRows || []).forEach((s, j) => {
+                            const label = s.label || `Βήμα ${j + 1}`
+                            rows.push(
+                              <tr key={`a-${i}-step-${j}`} className="border-b border-indigo-100 bg-indigo-50/40">
+                                <td className="td text-left pl-6 text-xs text-indigo-700 font-semibold">↳ {label}</td>
+                                <td className="td text-center text-xs text-gray-300">—</td>
+                                <td className="td text-center text-xs text-gray-300">—</td>
+                                <td className="td text-center font-mono font-bold text-indigo-700 text-sm">{s.monthlyPay > 0 ? fmtDec2(s.monthlyPay) : '—'}</td>
+                                <td className="td text-center text-xs text-indigo-500">{s.months ? `${s.months} μήν.` : '—'}</td>
+                                <td className="td text-center text-xs text-gray-300">—</td>
+                              </tr>
+                            )
+                          })
+                        }
                         ;(c.subRows || []).forEach((s, j) => {
                           rows.push(
                             <tr key={`a-${i}-s-${j}`} className="border-b border-blue-50 bg-blue-50/30">
