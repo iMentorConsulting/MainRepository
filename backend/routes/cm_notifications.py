@@ -12,7 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional, List
-from database import get_db
+from database import get_db, fmt_dt
 from models_cases import CMCase, CMNotificationLog, CMUser, CMStatusSLA
 from auth_cases import get_current_user
 
@@ -410,7 +410,7 @@ def list_notification_logs(
             "content": l.content,
             "status": l.status,
             "sent_by": l.sent_by,
-            "created_at": l.created_at.isoformat() if l.created_at else None,
+            "created_at": fmt_dt(l.created_at),
         }
         for l in logs
     ]
@@ -446,7 +446,7 @@ def _tmpl_to_dict(t: CMNotificationTemplate) -> dict:
         "content": t.content,
         "notification_type": t.notification_type,
         "is_active": t.is_active,
-        "updated_at": t.updated_at.isoformat() if t.updated_at else None,
+        "updated_at": fmt_dt(t.updated_at),
     }
 
 

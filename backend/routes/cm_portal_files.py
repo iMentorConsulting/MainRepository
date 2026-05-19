@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
-from database import get_db
+from database import get_db, fmt_dt
 from models_cases import CMPortalFile, CMCase
 from auth_cases import get_current_user
 from datetime import datetime
@@ -33,7 +33,7 @@ def _meta(f: CMPortalFile) -> dict:
         "client_description": f.client_description,
         "client_instructions": f.client_instructions,
         "internal_notes": f.internal_notes,
-        "uploaded_at": f.uploaded_at.isoformat() if f.uploaded_at else None,
+        "uploaded_at": fmt_dt(f.uploaded_at),
     }
 
 

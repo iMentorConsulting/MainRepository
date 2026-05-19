@@ -24,3 +24,13 @@ def get_db():
         yield db
     finally:
         db.close()
+
+
+def fmt_dt(dt) -> str | None:
+    """Format a naive UTC datetime as ISO-8601 with Z suffix so browsers parse it as UTC."""
+    if dt is None:
+        return None
+    s = dt.isoformat()
+    if not s.endswith('Z') and '+' not in s:
+        s += 'Z'
+    return s

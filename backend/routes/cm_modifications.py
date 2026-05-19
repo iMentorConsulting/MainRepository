@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime as _dt, date as _date
-from database import get_db
+from database import get_db, fmt_dt
 from models_cases import CMCase, CMCaseModification
 from auth_cases import get_current_user
 from models_cases import CMUser
@@ -33,7 +33,7 @@ def _to_dict(m: CMCaseModification) -> dict:
         "title": m.title,
         "justification": m.justification,
         "approval_date": m.approval_date.isoformat() if m.approval_date else None,
-        "created_at": m.created_at.isoformat() if m.created_at else None,
+        "created_at": fmt_dt(m.created_at),
     }
 
 

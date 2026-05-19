@@ -5,7 +5,7 @@ from sqlalchemy import or_
 from pydantic import BaseModel
 from typing import Optional, List
 from datetime import datetime, date
-from database import get_db
+from database import get_db, fmt_dt
 from models_cases import CMCase, CMUser, CMTask, CMPayment, CMMessage, CMDocument, CMBudgetCategory, CMStatusSLA, CMNotificationLog, CMCasePendingItem, CMCaseModification
 from sqlalchemy import func as sa_func
 from auth_cases import get_current_user
@@ -72,7 +72,7 @@ def _last_note(c: CMCase) -> tuple[str | None, str | None]:
     latest = max(c.messages, key=lambda m: m.created_at or datetime.min)
     text = (latest.content or '').replace('\n', ' ')
     preview = text[:120] + ('…' if len(text) > 120 else '')
-    at = latest.created_at.isoformat() if latest.created_at else None
+    at = fmt_dt(latest.created_at)
     return preview, at
 
 
@@ -125,20 +125,20 @@ def case_to_dict(c: CMCase, include_related: bool = False, sla_map: dict = None,
         "drive_folder_url": c.drive_folder_url,
         "share_token": c.share_token,
         "portal_visit_count": c.portal_visit_count or 0,
-        "portal_notified_at": c.portal_notified_at.isoformat() if c.portal_notified_at else None,
+        "portal_notified_at": fmt_dt(c.portal_notified_at),
         "portal_nps_score": c.portal_nps_score,
-        "portal_nps_at": c.portal_nps_at.isoformat() if c.portal_nps_at else None,
+        "portal_nps_at": fmt_dt(c.portal_nps_at),
         "portal_review_clicked": c.portal_review_clicked or False,
         "risk_score": c.risk_score or 0,
         "notes": c.notes,
         "sheet_import_ref": c.sheet_import_ref,
         "days_to_deadline": days_to_deadline,
-        "status_changed_at": c.status_changed_at.isoformat() if c.status_changed_at else None,
+        "status_changed_at": fmt_dt(c.status_changed_at),
         "status_age_days": status_age_days,
         "sla_days": sla_days_for_status,
         "sla_overdue_days": sla_overdue_days,
-        "created_at": c.created_at.isoformat() if c.created_at else None,
-        "updated_at": c.updated_at.isoformat() if c.updated_at else None,
+        "created_at": fmt_dt(c.created_at),
+        "updated_at": fmt_dt(c.updated_at),
         "open_tasks": 0,
         "pending_count": len(_pending_texts) if _pending_texts is not None else (len(c.pending_items) if c.pending_items is not None else 0),
         "pending_items_text": _pending_texts if _pending_texts is not None else [pi.item_text for pi in (c.pending_items or [])],
@@ -146,7 +146,7 @@ def case_to_dict(c: CMCase, include_related: bool = False, sla_map: dict = None,
         "last_note_preview": _last_note_data[0] if _last_note_data is not None else _last_note(c)[0],
         "last_note_at": _last_note_data[1] if _last_note_data is not None else _last_note(c)[1],
         "status_mismatch": bool(c.status and c.program_category and c.status not in get_all_statuses_for_program(c.program_category)),
-        "portal_last_visit_at": c.portal_last_visit_at.isoformat() if c.portal_last_visit_at else None,
+        "portal_last_visit_at": fmt_dt(c.portal_last_visit_at),
         "total_msgs_sent": 0,
         "last_msg_at": None,
     }
@@ -184,9 +184,9 @@ def task_to_dict(t: CMTask) -> dict:
         "assigned_to": t.assigned_to,
         "assigned_name": assigned_name,
         "due_date": t.due_date.isoformat() if t.due_date else None,
-        "completed_at": t.completed_at.isoformat() if t.completed_at else None,
+        "completed_at": fmt_dt(t.completed_at),
         "notes": t.notes,
-        "created_at": t.created_at.isoformat() if t.created_at else None,
+        "created_at": fmt_dt(t.created_at),
     }
 
 
@@ -198,7 +198,7 @@ def pay_to_dict(p: CMPayment) -> dict:
         "payment_date": p.payment_date.isoformat() if p.payment_date else None,
         "payment_type": p.payment_type,
         "description": p.description,
-        "created_at": p.created_at.isoformat() if p.created_at else None,
+        "created_at": fmt_dt(p.created_at),
     }
 
 
@@ -210,7 +210,7 @@ def msg_to_dict(m: CMMessage) -> dict:
         "is_internal": m.is_internal,
         "author_name": m.author_name,
         "sent_by_client": getattr(m, "sent_by_client", False) or False,
-        "created_at": m.created_at.isoformat() if m.created_at else None,
+        "created_at": fmt_dt(m.created_at),
     }
 
 
@@ -226,7 +226,7 @@ def doc_to_dict(d: CMDocument) -> dict:
         "file_url": d.file_url,
         "uploaded_by_client": getattr(d, "uploaded_by_client", False) or False,
         "has_file_data": d.mime_type is not None,
-        "created_at": d.created_at.isoformat() if d.created_at else None,
+        "created_at": fmt_dt(d.created_at),
     }
 
 
@@ -376,7 +376,7 @@ def list_cases(
         if lm:
             text = (lm.content or "").replace("\n", " ")
             preview = text[:120] + ("…" if len(text) > 120 else "")
-            last_note_data = (preview, lm.created_at.isoformat() if lm.created_at else None)
+            last_note_data = (preview, fmt_dt(lm.created_at))
         else:
             last_note_data = (None, None)
 

@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import List, Optional
-from database import get_db
+from database import get_db, fmt_dt
 from models_cases import CMPipelineConfig, CMUser
 from auth_cases import get_current_user
 from pipelines import PIPELINES
@@ -29,7 +29,7 @@ def _row_to_dict(row: CMPipelineConfig) -> dict:
         "phases": json.loads(row.phases_json),
         "extra_statuses": json.loads(row.extra_statuses_json or "[]"),
         "status_descriptions": json.loads(row.status_descriptions_json or "{}"),
-        "updated_at": row.updated_at.isoformat() if row.updated_at else None,
+        "updated_at": fmt_dt(row.updated_at),
     }
 
 

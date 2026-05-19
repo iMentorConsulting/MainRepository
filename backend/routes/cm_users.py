@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional
-from database import get_db
+from database import get_db, fmt_dt
 from models_cases import CMUser
 from auth_cases import hash_password, get_current_user, require_admin
 
@@ -36,7 +36,7 @@ def user_to_dict(u: CMUser) -> dict:
         "phone": u.phone,
         "role": u.role,
         "is_active": u.is_active,
-        "created_at": u.created_at.isoformat() if u.created_at else None,
+        "created_at": fmt_dt(u.created_at),
     }
 
 

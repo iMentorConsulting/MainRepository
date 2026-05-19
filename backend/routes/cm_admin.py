@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import List, Optional
 from datetime import datetime
-from database import get_db
+from database import get_db, fmt_dt
 from models_cases import CMStatusSLA
 from auth_cases import require_admin, CMUser
 
@@ -26,7 +26,7 @@ def get_sla_config(
     db: Session = Depends(get_db),
 ):
     rows = db.query(CMStatusSLA).order_by(CMStatusSLA.status).all()
-    return [{"id": r.id, "status": r.status, "sla_days": r.sla_days, "notification_message": r.notification_message, "updated_at": r.updated_at.isoformat() if r.updated_at else None} for r in rows]
+    return [{"id": r.id, "status": r.status, "sla_days": r.sla_days, "notification_message": r.notification_message, "updated_at": fmt_dt(r.updated_at)} for r in rows]
 
 
 @router.put("/sla")

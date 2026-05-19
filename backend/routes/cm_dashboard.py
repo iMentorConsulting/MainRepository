@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
 from datetime import date, datetime, timedelta
-from database import get_db
+from database import get_db, fmt_dt
 from models_cases import CMCase, CMTask, CMUser, CMStatusSLA, CMNotificationLog
 from auth_cases import require_admin, CMUser as CMUserModel
 from pipelines import TERMINAL_STATUSES
@@ -107,7 +107,7 @@ def dashboard_stats(
     recent_cases = []
     for c in active_q().order_by(CMCase.updated_at.desc()).limit(8).all():
         agent_name = c.assigned_agent.full_name if c.assigned_agent else None
-        recent_cases.append({"id": c.id, "client_name": c.client_name, "status": c.status, "program_category": c.program_category, "service_type": c.service_type, "assigned_agent_name": agent_name, "updated_at": c.updated_at.isoformat() if c.updated_at else None})
+        recent_cases.append({"id": c.id, "client_name": c.client_name, "status": c.status, "program_category": c.program_category, "service_type": c.service_type, "assigned_agent_name": agent_name, "updated_at": fmt_dt(c.updated_at)})
 
     # ── Top balances ──────────────────────────────────────────────────────
     balance_cases = []
@@ -152,9 +152,9 @@ def portal_activity(
             "program_category": c.program_category,
             "status": c.status,
             "portal_visit_count": c.portal_visit_count or 0,
-            "portal_last_visit_at": c.portal_last_visit_at.isoformat() if c.portal_last_visit_at else None,
+            "portal_last_visit_at": fmt_dt(c.portal_last_visit_at),
             "total_msgs_sent": len(logs),
-            "last_msg_at": last_msg_at.isoformat() if last_msg_at else None,
+            "last_msg_at": fmt_dt(last_msg_at),
         })
 
     return result

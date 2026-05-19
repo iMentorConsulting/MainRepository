@@ -6,7 +6,7 @@ import requests as http_requests
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session, joinedload
-from database import get_db
+from database import get_db, fmt_dt
 from models_cases import CMCase, CMCasePendingItem, CMMessage, CMBudgetCategory, CMDocument, CMCaseStatusHistory, CMPortalFile, CMCaseModification
 from auth_cases import get_current_user
 
@@ -96,7 +96,7 @@ def _build_portal_data(case: CMCase, db: Session) -> dict:
         {
             "id": m.id,
             "content": m.content,
-            "created_at": m.created_at.isoformat() if m.created_at else None,
+            "created_at": fmt_dt(m.created_at),
             "author": m.user.full_name if m.user else (m.author_name or "iMentor"),
             "sent_by_client": bool(m.sent_by_client),
         }
@@ -108,7 +108,7 @@ def _build_portal_data(case: CMCase, db: Session) -> dict:
         {
             "from_status": h.from_status,
             "to_status": h.to_status,
-            "changed_at": h.changed_at.isoformat() if h.changed_at else None,
+            "changed_at": fmt_dt(h.changed_at),
         }
         for h in (case.status_history or [])
     ]
@@ -121,7 +121,7 @@ def _build_portal_data(case: CMCase, db: Session) -> dict:
             "name": d.name,
             "file_url": d.file_url,
             "status": d.status,
-            "created_at": d.created_at.isoformat() if d.created_at else None,
+            "created_at": fmt_dt(d.created_at),
         }
         for d in (case.documents or []) if d.uploaded_by_client
     ]
@@ -206,7 +206,7 @@ def _get_portal_files_for_case(case: CMCase, db: Session) -> list:
             "file_type": "PDF" if f.mime_type == "application/pdf" else "Word",
             "client_description": f.client_description,
             "client_instructions": f.client_instructions,
-            "uploaded_at": f.uploaded_at.isoformat() if f.uploaded_at else None,
+            "uploaded_at": fmt_dt(f.uploaded_at),
         }
         for f in files
     ]
@@ -596,7 +596,7 @@ def list_client_uploads(
             "id": d.id,
             "name": d.name,
             "file_url": d.file_url,
-            "created_at": d.created_at.isoformat() if d.created_at else None,
+            "created_at": fmt_dt(d.created_at),
         }
         for d in docs
     ]
