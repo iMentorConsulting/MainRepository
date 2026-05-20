@@ -93,7 +93,7 @@ export default function StatusNotificationsPage() {
           <h1 className="text-2xl font-bold text-gray-900">Ειδοποιήσεις Μεταβολής Status</h1>
         </div>
         <p className="text-gray-500 text-sm mt-1">
-          Επιλέξτε για ποιά στάδια επεξεργασίας να αποστέλλεται αυτόματο email στον πελάτη όταν η υπόθεσή του μεταβαίνει σε αυτό το στάδιο.
+          Επιλέξτε για ποιά στάδια να αποστέλλεται αυτόματα <strong>Email + Viber</strong> στον πελάτη όταν η υπόθεσή του μεταβαίνει σε αυτό το στάδιο.
         </p>
         {enabledCount > 0 && (
           <div className="mt-2 inline-flex items-center gap-1.5 px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-sm font-medium">

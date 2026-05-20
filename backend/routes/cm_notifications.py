@@ -413,17 +413,78 @@ def _build_status_change_html(case, from_status: str, to_status: str, descriptio
     return html
 
 
+def _build_viber_status_text(client_name: str, service_type: str,
+                              from_status: str, to_status: str,
+                              prev_status, next_status,
+                              descriptions: dict, portal_url: str) -> str:
+    """Build an emoji-rich Viber text message for a status change."""
+    divider = "━━━━━━━━━━━━━━━━━━━━"
+    arrow   = "          ↓"
+    name_short = client_name.split()[0] if client_name else "Πελάτη"
+    svc = f" ({service_type})" if service_type else ""
+
+    current_desc = descriptions.get(to_status, "")
+    next_desc    = descriptions.get(next_status, "") if next_status else ""
+
+    real_prev = prev_status if prev_status else (from_status if from_status != to_status else None)
+
+    lines = [
+        f"📋 ΕΝΗΜΕΡΩΣΗ ΥΠΟΘΕΣΗΣ",
+        divider,
+        f"",
+        f"Αγαπητέ/ή {name_short},",
+        f"Η υπόθεσή σας{svc} προχώρησε σε νέο στάδιο.",
+        f"",
+        divider,
+    ]
+
+    if real_prev:
+        lines += [
+            f"✅  ΟΛΟΚΛΗΡΩΘΗΚΕ",
+            f"     {real_prev}",
+            arrow,
+        ]
+
+    lines += [
+        f"▶️  ΤΡΕΧΟΝ ΣΤΑΔΙΟ",
+        f"     {to_status}",
+    ]
+    if current_desc:
+        lines += [f"", f"📌 {current_desc}"]
+
+    if next_status:
+        lines += [
+            arrow,
+            f"⏳  ΕΠΟΜΕΝΟ ΒΗΜΑ",
+            f"     {next_status}",
+        ]
+        if next_desc:
+            lines += [f"     {next_desc[:80]}{'...' if len(next_desc) > 80 else ''}"]
+    else:
+        lines += [
+            arrow,
+            f"🏁  ΤΕΛΕΥΤΑΙΟ ΣΤΑΔΙΟ",
+            f"     Η υπόθεση οδεύει προς ολοκλήρωση!",
+        ]
+
+    lines += [divider, f""]
+
+    if portal_url:
+        lines += [f"🔗 Portal: {portal_url}", f""]
+
+    lines += [f"🤖 Αυτοματοποιημένο μήνυμα iMentor Consulting"]
+
+    return "\n".join(lines)
+
+
 def _send_status_change_notification(case, from_status: str, to_status: str, db) -> None:
-    """Send a status change notification email if configured for to_status."""
+    """Send status change notifications (email + Viber) for configured statuses."""
     try:
         from models_cases import CMStatusNotificationConfig
         config = db.query(CMStatusNotificationConfig).filter(
             CMStatusNotificationConfig.status == to_status
         ).first()
         if not config or not config.enabled:
-            return
-
-        if not case.email:
             return
 
         portal_url = ""
@@ -438,43 +499,68 @@ def _send_status_change_notification(case, from_status: str, to_status: str, db)
             case.program_category or "ΕΣΠΑ", to_status, db
         )
 
-        # Temporarily attach neighbors to case object for HTML builder
-        case._prev_status_temp = prev_status if prev_status else from_status
-        case._next_status_temp = next_status
+        content_log = f"[Status change: {from_status} → {to_status}]"
 
-        html = _build_status_change_html(
-            case=case,
-            from_status=from_status,
-            to_status=to_status,
-            descriptions=descriptions,
-            portal_url=portal_url,
-            review_url=review_url,
-        )
+        # ── Email ────────────────────────────────────────────────────────
+        if case.email:
+            case._prev_status_temp = prev_status if prev_status else from_status
+            case._next_status_temp = next_status
+            html = _build_status_change_html(
+                case=case,
+                from_status=from_status,
+                to_status=to_status,
+                descriptions=descriptions,
+                portal_url=portal_url,
+                review_url=review_url,
+            )
+            try:
+                del case._prev_status_temp
+                del case._next_status_temp
+            except Exception:
+                pass
 
-        # Clean up temporary attributes
-        try:
-            del case._prev_status_temp
-            del case._next_status_temp
-        except Exception:
-            pass
+            subject = f"Ενημέρωση Υπόθεσης: {to_status}"
+            ok, err = _send_email(case.email, subject, body="", html_override=html)
+            _log_notification(
+                db=db, case_id=case.id, ntype="email",
+                recipient_name=case.client_name or "",
+                recipient_contact=case.email,
+                subject=subject, content=content_log,
+                status="sent" if ok else "failed", sent_by="system",
+            )
+            if not ok:
+                logger.warning("[status notification] email failed for case %s: %s", case.id, err)
 
-        subject = f"Ενημέρωση Υπόθεσης: {to_status}"
-        ok, err = _send_email(case.email, subject, body="", html_override=html)
-        status_str = "sent" if ok else "failed"
-        _log_notification(
-            db=db,
-            case_id=case.id,
-            ntype="email",
-            recipient_name=case.client_name or "",
-            recipient_contact=case.email,
-            subject=subject,
-            content=f"[Status change: {from_status} → {to_status}]",
-            status=status_str,
-            sent_by="system",
-        )
+        # ── Viber ────────────────────────────────────────────────────────
+        if case.phone:
+            viber_text = _build_viber_status_text(
+                client_name=case.client_name or "",
+                service_type=case.service_type or "",
+                from_status=from_status,
+                to_status=to_status,
+                prev_status=prev_status,
+                next_status=next_status,
+                descriptions=descriptions,
+                portal_url=portal_url,
+            )
+            ok_v, err_v = _send_viber(
+                phone=case.phone,
+                message=viber_text,
+                client_name=case.client_name or "",
+                agent_name="system",
+                service_type=case.service_type or "",
+            )
+            _log_notification(
+                db=db, case_id=case.id, ntype="viber",
+                recipient_name=case.client_name or "",
+                recipient_contact=case.phone,
+                subject=f"Ενημέρωση: {to_status}", content=content_log,
+                status="sent" if ok_v else "failed", sent_by="system",
+            )
+            if not ok_v:
+                logger.warning("[status notification] viber failed for case %s: %s", case.id, err_v)
+
         db.commit()
-        if not ok:
-            logger.warning("[status notification] email failed for case %s: %s", case.id, err)
     except Exception as e:
         logger.exception("[status notification] error for case %s: %s", getattr(case, 'id', '?'), e)
 
