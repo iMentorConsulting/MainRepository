@@ -19,6 +19,7 @@ import {
   CalendarDaysIcon,
   DocumentArrowUpIcon,
   BanknotesIcon,
+  CloudArrowUpIcon,
 } from '@heroicons/react/24/outline'
 import { changePassword } from '../api'
 import toast from 'react-hot-toast'
@@ -37,6 +38,7 @@ const nav = [
   { to: '/portal-documents', label: 'Πύλη Πελάτη — Έγγραφα', Icon: DocumentArrowUpIcon },
   { to: '/pipeline-admin', label: 'Διαχ. Pipeline', Icon: AdjustmentsHorizontalIcon },
   { to: '/users', label: 'Χρήστες', Icon: UsersIcon },
+  { to: '/backup', label: 'Αντίγραφα Ασφαλείας', Icon: CloudArrowUpIcon },
 ]
 
 function ChangePasswordModal({ onClose }) {

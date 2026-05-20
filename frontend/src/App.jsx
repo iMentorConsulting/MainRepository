@@ -22,6 +22,7 @@ import PipelineAdmin from './pages/PipelineAdmin'
 import WorkListsPage from './pages/WorkListsPage'
 import Analytics from './pages/Analytics'
 import DeadlineCalendar from './pages/DeadlineCalendar'
+import BackupPage from './pages/BackupPage'
 
 export default function App() {
   const [auth, setAuthState] = useState(() => getAuth())
@@ -64,6 +65,7 @@ export default function App() {
             <Route path="analytics" element={<ErrorBoundary><Analytics /></ErrorBoundary>} />
             <Route path="revenue" element={<ErrorBoundary><RevenueForecastPage /></ErrorBoundary>} />
             <Route path="calendar" element={<ErrorBoundary><DeadlineCalendar /></ErrorBoundary>} />
+            <Route path="backup" element={<ErrorBoundary><BackupPage /></ErrorBoundary>} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         )}

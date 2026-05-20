@@ -23,6 +23,8 @@ from routes.cm_analytics import router as cm_analytics_router
 from routes.cm_modifications import router as cm_modifications_router
 from routes.cm_portal_files import router as cm_portal_files_router  # portal docs per service type
 from routes.cm_revenue import router as cm_revenue_router
+from routes.cm_backup import router as cm_backup_router
+from models_cases import CMBackupLog
 
 load_dotenv()
 
@@ -98,6 +100,26 @@ try:
                 client_instructions TEXT,
                 internal_notes TEXT,
                 uploaded_at TIMESTAMP DEFAULT NOW()
+            )
+        """))
+        _conn.commit()
+except Exception:
+    pass
+
+# Migration: create backup_logs table
+try:
+    with engine.connect() as _conn:
+        _conn.execute(_text("""
+            CREATE TABLE IF NOT EXISTS cm_backup_logs (
+                id SERIAL PRIMARY KEY,
+                created_at TIMESTAMP DEFAULT NOW(),
+                status VARCHAR(20),
+                trigger VARCHAR(20),
+                destination VARCHAR(20),
+                file_name VARCHAR(300),
+                drive_file_id VARCHAR(200),
+                size_bytes INTEGER,
+                error_message TEXT
             )
         """))
         _conn.commit()
@@ -501,10 +523,26 @@ def _run_agent_sla_digest():
         db.close()
 
 
+def _scheduled_backup():
+    from routes.cm_backup import run_drive_backup
+    import os as _os
+    if not _os.getenv("GOOGLE_DRIVE_CREDENTIALS") or not _os.getenv("GOOGLE_DRIVE_FOLDER_ID"):
+        return
+    _db = SessionLocal()
+    try:
+        run_drive_backup(_db, trigger="auto")
+    except Exception as e:
+        print(f"[Backup] Scheduled backup failed: {e}")
+    finally:
+        _db.close()
+
+
 _scheduler = _BGScheduler(timezone=_athens_tz)
 _scheduler.add_job(_run_scheduled_refresh, "cron", hour=8, minute=0, id="refresh_08")
 _scheduler.add_job(_run_scheduled_refresh, "cron", hour=14, minute=0, id="refresh_14")
 _scheduler.add_job(_run_agent_sla_digest, "cron", hour=9, minute=0, id="sla_digest_09")
+_backup_hour = int(os.getenv("BACKUP_SCHEDULE_HOUR", "2"))
+_scheduler.add_job(_scheduled_backup, "cron", hour=_backup_hour, minute=0, id="drive_backup")
 _scheduler.start()
 
 app = FastAPI(
@@ -536,6 +574,7 @@ app.include_router(cm_analytics_router)
 app.include_router(cm_modifications_router)
 app.include_router(cm_portal_files_router)
 app.include_router(cm_revenue_router)
+app.include_router(cm_backup_router)
 
 
 @app.on_event("shutdown")

@@ -344,3 +344,16 @@ class CMPaymentLog(Base):
     source = Column(String(50), default="sheet_import")
 
     case = relationship("CMCase", back_populates="payment_logs")
+
+
+class CMBackupLog(Base):
+    __tablename__ = "cm_backup_logs"
+    id = Column(Integer, primary_key=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    status = Column(String(20))          # "success" | "failed"
+    trigger = Column(String(20))         # "auto" | "manual"
+    destination = Column(String(20))     # "drive" | "export"
+    file_name = Column(String(300))
+    drive_file_id = Column(String(200))
+    size_bytes = Column(Integer)
+    error_message = Column(Text)
