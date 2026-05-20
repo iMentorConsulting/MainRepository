@@ -63,7 +63,8 @@ export default function StatusNotificationsPage() {
         }
       }
 
-      const configItems = allStatuses.map(status => ({
+      const uniqueStatuses = [...new Set(allStatuses)]
+      const configItems = uniqueStatuses.map(status => ({
         status,
         enabled: !!configs[status],
       }))

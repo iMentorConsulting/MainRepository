@@ -857,18 +857,24 @@ def save_status_configs_bulk(
     current_user: CMUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    existing_rows = {
+        r.status: r for r in db.query(CMStatusNotificationConfig).all()
+    }
+    seen = set()
     for item in req.configs:
-        existing = db.query(CMStatusNotificationConfig).filter(
-            CMStatusNotificationConfig.status == item.status
-        ).first()
-        if existing:
-            existing.enabled = item.enabled
-            existing.updated_at = _dt_cls.utcnow()
+        if item.status in seen:
+            continue
+        seen.add(item.status)
+        if item.status in existing_rows:
+            existing_rows[item.status].enabled = item.enabled
+            existing_rows[item.status].updated_at = _dt_cls.utcnow()
         else:
-            db.add(CMStatusNotificationConfig(
+            new_row = CMStatusNotificationConfig(
                 status=item.status,
                 enabled=item.enabled,
                 updated_at=_dt_cls.utcnow(),
-            ))
+            )
+            db.add(new_row)
+            existing_rows[item.status] = new_row
     db.commit()
-    return {"message": "Αποθηκεύτηκε", "count": len(req.configs)}
+    return {"message": "Αποθηκεύτηκε", "count": len(seen)}
