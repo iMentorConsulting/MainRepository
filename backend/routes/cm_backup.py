@@ -351,7 +351,15 @@ def _upload_to_drive(json_bytes: bytes, filename: str) -> str:
     from googleapiclient.discovery import build
     from googleapiclient.http import MediaIoBaseUpload
 
-    creds_info = json.loads(creds_json)
+    # Railway sometimes double-escapes newlines in the private_key field
+    try:
+        creds_info = json.loads(creds_json)
+    except json.JSONDecodeError:
+        # Try fixing double-escaped newlines
+        creds_info = json.loads(creds_json.replace("\\n", "\n"))
+    # Ensure private_key newlines are actual newlines, not literal \n
+    if "private_key" in creds_info:
+        creds_info["private_key"] = creds_info["private_key"].replace("\\n", "\n")
     creds = service_account.Credentials.from_service_account_info(
         creds_info,
         scopes=["https://www.googleapis.com/auth/drive"],

@@ -204,12 +204,14 @@ export default function BackupPage() {
                           <CheckCircleIcon className="w-3.5 h-3.5" /> Επιτυχία
                         </span>
                       ) : (
-                        <span
-                          className="inline-flex items-center gap-1 px-2 py-0.5 bg-red-100 text-red-700 rounded-full text-xs font-medium cursor-help"
-                          title={log.error_message || ''}
-                        >
-                          <XCircleIcon className="w-3.5 h-3.5" /> Αποτυχία
-                        </span>
+                        <div>
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-red-100 text-red-700 rounded-full text-xs font-medium">
+                            <XCircleIcon className="w-3.5 h-3.5" /> Αποτυχία
+                          </span>
+                          {log.error_message && (
+                            <p className="text-xs text-red-600 mt-1 max-w-xs break-words">{log.error_message}</p>
+                          )}
+                        </div>
                       )}
                     </td>
                     <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{formatBytes(log.size_bytes)}</td>
