@@ -357,3 +357,11 @@ class CMBackupLog(Base):
     size_bytes = Column(Integer)
     error_message = Column(Text)
     json_data = Column(Text)             # actual backup JSON stored in DB
+
+
+class CMStatusNotificationConfig(Base):
+    __tablename__ = "cm_status_notification_configs"
+    id = Column(Integer, primary_key=True)
+    status = Column(String(100), unique=True, nullable=False)
+    enabled = Column(Boolean, default=False)
+    updated_at = Column(DateTime, default=datetime.utcnow)

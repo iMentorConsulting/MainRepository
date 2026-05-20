@@ -471,7 +471,10 @@ def update_case(
         raise HTTPException(status_code=404, detail="Υπόθεση δεν βρέθηκε")
 
     data = req.dict(exclude_none=True)
-    if 'status' in data and data['status'] != c.status:
+    old_status = c.status
+    status_changed = 'status' in data and data['status'] != c.status
+    new_status = data.get('status') if status_changed else None
+    if status_changed:
         from models_cases import CMCaseStatusHistory
         db.add(CMCaseStatusHistory(
             case_id=c.id,
@@ -485,6 +488,12 @@ def update_case(
     c.updated_at = datetime.utcnow()
     db.commit()
     db.refresh(c)
+    if status_changed and new_status:
+        try:
+            from routes.cm_notifications import _send_status_change_notification
+            _send_status_change_notification(c, old_status, new_status, db)
+        except Exception as e:
+            log.warning("[status notification] failed for case %s: %s", case_id, e)
     return case_to_dict(c)
 
 

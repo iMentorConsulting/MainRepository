@@ -41,21 +41,24 @@ def _infobip_auth(api_key: str) -> str:
     return f"App {key}"
 
 
-def _send_email(to_email: str, subject: str, body: str) -> tuple[bool, str]:
+def _send_email(to_email: str, subject: str, body: str, html_override: str = None) -> tuple[bool, str]:
     sa_json = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON", "")
     sender = os.getenv("SMTP_USER", "info@i-mentor.gr")
 
     if not sa_json:
         return False, "GOOGLE_SERVICE_ACCOUNT_JSON δεν έχει ρυθμιστεί"
 
-    _app_base = os.getenv("PORTAL_BASE_URL", "").rstrip("/")
-    _logo_url = f"{_app_base}/logo-white.png" if _app_base else ""
-    _header_content = (
-        f'<img src="{_logo_url}" alt="iMentor Consulting" style="height:60px;width:auto;display:block;" />'
-        if _logo_url else
-        '<h2 style="color:white;margin:0;font-family:Arial,sans-serif;">iMentor Consulting</h2>'
-    )
-    html_body = f"""<html><body style="font-family:Arial,sans-serif;padding:20px;color:#333;">
+    if html_override:
+        html_body = html_override
+    else:
+        _app_base = os.getenv("PORTAL_BASE_URL", "").rstrip("/")
+        _logo_url = f"{_app_base}/logo-white.png" if _app_base else ""
+        _header_content = (
+            f'<img src="{_logo_url}" alt="iMentor Consulting" style="height:60px;width:auto;display:block;" />'
+            if _logo_url else
+            '<h2 style="color:white;margin:0;font-family:Arial,sans-serif;">iMentor Consulting</h2>'
+        )
+        html_body = f"""<html><body style="font-family:Arial,sans-serif;padding:20px;color:#333;">
 <div style="max-width:600px;margin:0 auto;">
   <div style="background:#1e3a5f;padding:20px 25px;border-radius:8px 8px 0 0;text-align:center;">
     {_header_content}
@@ -90,6 +93,319 @@ def _send_email(to_email: str, subject: str, body: str) -> tuple[bool, str]:
         return True, "OK"
     except Exception as e:
         return False, str(e)
+
+
+def _get_status_neighbors(program_category: str, current_status: str, db) -> tuple:
+    """Return (prev_status, next_status, descriptions_dict) for a given status in a program pipeline."""
+    from routes.cm_pipeline import get_pipeline_config
+    config = get_pipeline_config(program_category, db)
+    phases = config.get("phases", [])
+    extra_statuses = config.get("extra_statuses", [])
+    descriptions = config.get("status_descriptions", {})
+
+    # Build flat list of all statuses (from phases only, not extra_statuses)
+    flat_statuses = []
+    for phase in phases:
+        for s in phase.get("statuses", []):
+            flat_statuses.append(s)
+
+    # If current status is in extra_statuses, return no neighbors
+    if current_status in extra_statuses:
+        return None, None, descriptions
+
+    try:
+        idx = flat_statuses.index(current_status)
+    except ValueError:
+        return None, None, descriptions
+
+    prev_status = flat_statuses[idx - 1] if idx > 0 else None
+    next_status = flat_statuses[idx + 1] if idx < len(flat_statuses) - 1 else None
+    return prev_status, next_status, descriptions
+
+
+def _build_status_change_html(case, from_status: str, to_status: str, descriptions: dict,
+                               portal_url: str, review_url: str) -> str:
+    """Build a complete beautiful HTML email for status change notification."""
+    _app_base = os.getenv("PORTAL_BASE_URL", "").rstrip("/")
+    _logo_url = f"{_app_base}/logo-white.png" if _app_base else ""
+    _header_content = (
+        f'<img src="{_logo_url}" alt="iMentor Consulting" style="height:55px;width:auto;display:block;margin:0 auto;" />'
+        if _logo_url else
+        '<h2 style="color:white;margin:0;font-family:Arial,sans-serif;font-size:22px;">iMentor Consulting</h2>'
+    )
+
+    client_name = case.client_name or "Πελάτη"
+    service_type = case.service_type or ""
+    current_desc = descriptions.get(to_status, "")
+
+    # Get neighbors from descriptions
+    prev_status = from_status if from_status and from_status != to_status else None
+    # We pass neighbors via the call, but here we use from_status as "previous"
+    # The actual prev/next are determined in _send_status_change_notification
+    # This function receives them via the call context, so we use a different approach:
+    # We store them as attributes added by _send_status_change_notification via the call
+    next_status = getattr(case, '_next_status_temp', None)
+    real_prev = getattr(case, '_prev_status_temp', from_status)
+
+    prev_desc = descriptions.get(real_prev, "") if real_prev else ""
+    next_desc = descriptions.get(next_status, "") if next_status else ""
+
+    # Build timeline columns
+    timeline_cells = []
+
+    # Previous status column
+    if real_prev:
+        timeline_cells.append(f"""
+        <td style="text-align:center;padding:0 8px;vertical-align:top;width:150px;">
+          <div style="width:44px;height:44px;border-radius:50%;background:#10b981;margin:0 auto 8px auto;
+               display:flex;align-items:center;justify-content:center;font-size:20px;color:white;
+               line-height:44px;text-align:center;">
+            <span style="font-size:20px;">&#10003;</span>
+          </div>
+          <div style="font-size:11px;color:#6b7280;font-weight:600;text-transform:uppercase;
+               letter-spacing:0.5px;line-height:1.3;">{real_prev}</div>
+          {f'<div style="font-size:10px;color:#9ca3af;margin-top:4px;line-height:1.3;">{prev_desc[:60]}{"..." if len(prev_desc) > 60 else ""}</div>' if prev_desc else ''}
+        </td>
+        <td style="text-align:center;vertical-align:middle;padding:0 4px;width:24px;">
+          <span style="color:#d1d5db;font-size:18px;">&#8594;</span>
+        </td>
+        """)
+
+    # Current (active) status column
+    timeline_cells.append(f"""
+    <td style="text-align:center;padding:0 8px;vertical-align:top;width:160px;">
+      <div style="width:54px;height:54px;border-radius:50%;background:#2563eb;margin:0 auto 8px auto;
+           display:flex;align-items:center;justify-content:center;
+           line-height:54px;text-align:center;box-shadow:0 4px 12px rgba(37,99,235,0.4);">
+        <span style="font-size:22px;color:white;">&#9733;</span>
+      </div>
+      <div style="font-size:12px;color:#1e3a5f;font-weight:700;text-transform:uppercase;
+           letter-spacing:0.5px;line-height:1.3;">{to_status}</div>
+      {f'<div style="font-size:10px;color:#3b82f6;margin-top:4px;line-height:1.3;">{current_desc[:60]}{"..." if len(current_desc) > 60 else ""}</div>' if current_desc else ''}
+    </td>
+    """)
+
+    # Next status column
+    if next_status:
+        timeline_cells.append(f"""
+        <td style="text-align:center;vertical-align:middle;padding:0 4px;width:24px;">
+          <span style="color:#d1d5db;font-size:18px;">&#8594;</span>
+        </td>
+        <td style="text-align:center;padding:0 8px;vertical-align:top;width:150px;">
+          <div style="width:44px;height:44px;border-radius:50%;border:2px dashed #d1d5db;background:#f9fafb;
+               margin:0 auto 8px auto;line-height:40px;text-align:center;">
+            <span style="font-size:18px;color:#9ca3af;">&#9675;</span>
+          </div>
+          <div style="font-size:11px;color:#9ca3af;font-weight:600;text-transform:uppercase;
+               letter-spacing:0.5px;line-height:1.3;">{next_status}</div>
+          {f'<div style="font-size:10px;color:#d1d5db;margin-top:4px;line-height:1.3;">{next_desc[:60]}{"..." if len(next_desc) > 60 else ""}</div>' if next_desc else ''}
+        </td>
+        """)
+    else:
+        timeline_cells.append(f"""
+        <td style="text-align:center;vertical-align:middle;padding:0 4px;width:24px;">
+          <span style="color:#d1d5db;font-size:18px;">&#8594;</span>
+        </td>
+        <td style="text-align:center;padding:0 8px;vertical-align:top;width:150px;">
+          <div style="width:44px;height:44px;border-radius:50%;background:#10b981;
+               margin:0 auto 8px auto;line-height:44px;text-align:center;">
+            <span style="font-size:18px;color:white;">&#10003;</span>
+          </div>
+          <div style="font-size:11px;color:#10b981;font-weight:700;text-transform:uppercase;
+               letter-spacing:0.5px;line-height:1.3;">&#79;&#955;&#959;&#954;&#955;&#942;&#961;&#969;&#963;&#951;!</div>
+        </td>
+        """)
+
+    timeline_html = "".join(timeline_cells)
+
+    # Description box
+    desc_box = ""
+    if current_desc:
+        desc_box = f"""
+        <tr>
+          <td style="padding:20px 30px 10px 30px;">
+            <div style="background:#eff6ff;border-left:4px solid #1e40af;padding:16px 20px;border-radius:0 6px 6px 0;">
+              <div style="font-size:13px;font-weight:700;color:#1e40af;margin-bottom:6px;">
+                &#128203; Τι σημαίνει αυτό το στάδιο:
+              </div>
+              <div style="font-size:14px;color:#1e3a5f;line-height:1.6;">{current_desc}</div>
+            </div>
+          </td>
+        </tr>
+        """
+
+    # Action buttons
+    buttons_html = ""
+    portal_btn = ""
+    review_btn = ""
+
+    if portal_url:
+        portal_btn = f"""
+        <a href="{portal_url}" style="display:inline-block;background:#2563eb;color:white;text-decoration:none;
+           padding:14px 28px;border-radius:8px;font-size:14px;font-weight:700;margin:0 8px 8px 0;
+           font-family:Arial,sans-serif;">
+          &#128279; ΔΕΙΤΕ ΤΟ PORTAL ΣΑΣ
+        </a>
+        """
+
+    if review_url:
+        review_btn = f"""
+        <a href="{review_url}" style="display:inline-block;background:#f59e0b;color:white;text-decoration:none;
+           padding:14px 28px;border-radius:8px;font-size:14px;font-weight:700;margin:0 8px 8px 0;
+           font-family:Arial,sans-serif;">
+          &#11088; ΑΞΙΟΛΟΓΗΣΤΕ ΜΑΣ
+        </a>
+        """
+
+    if portal_btn or review_btn:
+        buttons_html = f"""
+        <tr>
+          <td style="padding:10px 30px 20px 30px;text-align:center;">
+            {portal_btn}{review_btn}
+          </td>
+        </tr>
+        """
+
+    service_line = f" ({service_type})" if service_type else ""
+
+    html = f"""<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
+<body style="margin:0;padding:20px;background:#f3f4f6;font-family:Arial,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;margin:0 auto;">
+  <tr>
+    <td>
+      <table width="100%" cellpadding="0" cellspacing="0" style="border-radius:10px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.12);">
+
+        <!-- Header -->
+        <tr>
+          <td style="background:#1e3a5f;padding:24px 30px;text-align:center;">
+            {_header_content}
+            <div style="color:rgba(255,255,255,0.7);font-size:13px;margin-top:8px;letter-spacing:1px;">
+              ΕΝΗΜΕΡΩΣΗ ΥΠΟΘΕΣΗΣ
+            </div>
+          </td>
+        </tr>
+
+        <!-- Greeting -->
+        <tr>
+          <td style="background:#ffffff;padding:28px 30px 16px 30px;">
+            <p style="margin:0 0 10px 0;font-size:16px;color:#1e3a5f;font-weight:700;">
+              Αγαπητέ/ή {client_name},
+            </p>
+            <p style="margin:0;font-size:14px;color:#4b5563;line-height:1.6;">
+              Η υπόθεσή σας{service_line} μπήκε σε νέο στάδιο επεξεργασίας.
+            </p>
+          </td>
+        </tr>
+
+        <!-- Timeline Section -->
+        <tr>
+          <td style="background:#ffffff;padding:16px 30px;">
+            <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:20px;">
+              <div style="text-align:center;font-size:12px;font-weight:700;color:#6b7280;
+                   text-transform:uppercase;letter-spacing:1px;margin-bottom:16px;">
+                ΕΞΕΛΙΞΗ ΥΠΟΘΕΣΗΣ
+              </div>
+              <table width="100%" cellpadding="0" cellspacing="0">
+                <tr style="vertical-align:top;">
+                  {timeline_html}
+                </tr>
+              </table>
+            </div>
+          </td>
+        </tr>
+
+        <!-- Description box -->
+        {desc_box}
+
+        <!-- Action buttons -->
+        {buttons_html}
+
+        <!-- Footer -->
+        <tr>
+          <td style="background:#f8fafc;padding:16px 30px;border-top:1px solid #e5e7eb;text-align:center;">
+            <p style="margin:0;font-size:11px;color:#9ca3af;line-height:1.5;">
+              Αυτό είναι αυτόματο μήνυμα από το σύστημα iMentor Consulting.<br/>
+              Παρακαλώ μην απαντάτε σε αυτό το email.
+            </p>
+          </td>
+        </tr>
+
+      </table>
+    </td>
+  </tr>
+</table>
+</body>
+</html>"""
+
+    return html
+
+
+def _send_status_change_notification(case, from_status: str, to_status: str, db) -> None:
+    """Send a status change notification email if configured for to_status."""
+    try:
+        from models_cases import CMStatusNotificationConfig
+        config = db.query(CMStatusNotificationConfig).filter(
+            CMStatusNotificationConfig.status == to_status
+        ).first()
+        if not config or not config.enabled:
+            return
+
+        if not case.email:
+            return
+
+        portal_url = ""
+        if case.share_token and getattr(case, 'portal_active', False):
+            base_url = os.getenv("PORTAL_BASE_URL", "").rstrip("/")
+            if base_url:
+                portal_url = f"{base_url}/portal/{case.share_token}"
+
+        review_url = os.getenv("REVIEW_URL", "")
+
+        prev_status, next_status, descriptions = _get_status_neighbors(
+            case.program_category or "ΕΣΠΑ", to_status, db
+        )
+
+        # Temporarily attach neighbors to case object for HTML builder
+        case._prev_status_temp = prev_status if prev_status else from_status
+        case._next_status_temp = next_status
+
+        html = _build_status_change_html(
+            case=case,
+            from_status=from_status,
+            to_status=to_status,
+            descriptions=descriptions,
+            portal_url=portal_url,
+            review_url=review_url,
+        )
+
+        # Clean up temporary attributes
+        try:
+            del case._prev_status_temp
+            del case._next_status_temp
+        except Exception:
+            pass
+
+        subject = f"Ενημέρωση Υπόθεσης: {to_status}"
+        ok, err = _send_email(case.email, subject, body="", html_override=html)
+        status_str = "sent" if ok else "failed"
+        _log_notification(
+            db=db,
+            case_id=case.id,
+            ntype="email",
+            recipient_name=case.client_name or "",
+            recipient_contact=case.email,
+            subject=subject,
+            content=f"[Status change: {from_status} → {to_status}]",
+            status=status_str,
+            sent_by="system",
+        )
+        db.commit()
+        if not ok:
+            logger.warning("[status notification] email failed for case %s: %s", case.id, err)
+    except Exception as e:
+        logger.exception("[status notification] error for case %s: %s", getattr(case, 'id', '?'), e)
 
 
 def _chatwoot_log_outbound_viber(phone_normalized: str, message: str = "", contact_name: str = "") -> None:
@@ -504,3 +820,55 @@ def delete_template(
     db.delete(t)
     db.commit()
     return {"message": "Διαγράφηκε"}
+
+
+# ── Status Notification Configs ────────────────────────────────────────
+
+from models_cases import CMStatusNotificationConfig
+from datetime import datetime as _dt_cls
+
+
+class StatusConfigBulkItem(BaseModel):
+    status: str
+    enabled: bool
+
+
+class StatusConfigBulkRequest(BaseModel):
+    configs: List[StatusConfigBulkItem]
+
+
+@router.get("/status-configs")
+def list_status_configs(
+    current_user: CMUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    rows = db.query(CMStatusNotificationConfig).all()
+    return {
+        "configs": [
+            {"status": r.status, "enabled": r.enabled}
+            for r in rows
+        ]
+    }
+
+
+@router.post("/status-configs/bulk")
+def save_status_configs_bulk(
+    req: StatusConfigBulkRequest,
+    current_user: CMUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    for item in req.configs:
+        existing = db.query(CMStatusNotificationConfig).filter(
+            CMStatusNotificationConfig.status == item.status
+        ).first()
+        if existing:
+            existing.enabled = item.enabled
+            existing.updated_at = _dt_cls.utcnow()
+        else:
+            db.add(CMStatusNotificationConfig(
+                status=item.status,
+                enabled=item.enabled,
+                updated_at=_dt_cls.utcnow(),
+            ))
+    db.commit()
+    return {"message": "Αποθηκεύτηκε", "count": len(req.configs)}
