@@ -418,8 +418,8 @@ def _build_viber_status_text(client_name: str, service_type: str,
                               prev_status, next_status,
                               descriptions: dict, portal_url: str) -> str:
     """Build an emoji-rich Viber text message for a status change."""
-    divider = "━━━━━━━━━━━━━━━━━━━━"
-    arrow   = "          ↓"
+    divider = "━━━━━━━━━━━"   # 11 chars — fits one line on all phones
+    arrow   = "        ↓"
     name_short = client_name.split()[0] if client_name else "Πελάτη"
     svc = f" ({service_type})" if service_type else ""
 
@@ -430,44 +430,45 @@ def _build_viber_status_text(client_name: str, service_type: str,
 
     lines = [
         f"📋 ΕΝΗΜΕΡΩΣΗ ΥΠΟΘΕΣΗΣ",
-        divider,
         f"",
         f"Αγαπητέ/ή {name_short},",
         f"Η υπόθεσή σας{svc} προχώρησε σε νέο στάδιο.",
         f"",
-        divider,
     ]
 
+    # Previous (completed) — compact, no divider
     if real_prev:
         lines += [
-            f"✅  ΟΛΟΚΛΗΡΩΘΗΚΕ",
-            f"     {real_prev}",
+            f"✅ Ολοκληρώθηκε:",
+            f"   {real_prev}",
             arrow,
         ]
 
+    # ── CURRENT: sandwiched between dividers = hero ──
     lines += [
-        f"▶️  ΤΡΕΧΟΝ ΣΤΑΔΙΟ",
-        f"     {to_status}",
+        divider,
+        f"🎯 ΤΡΕΧΟΝ ΣΤΑΔΙΟ:",
+        f"   {to_status}",
     ]
     if current_desc:
         lines += [f"", f"📌 {current_desc}"]
+    lines += [divider]
 
+    # Next step — compact, no divider
     if next_status:
         lines += [
             arrow,
-            f"⏳  ΕΠΟΜΕΝΟ ΒΗΜΑ",
-            f"     {next_status}",
+            f"⏳ Επόμενο βήμα:",
+            f"   {next_status}",
         ]
-        if next_desc:
-            lines += [f"     {next_desc[:80]}{'...' if len(next_desc) > 80 else ''}"]
     else:
         lines += [
             arrow,
-            f"🏁  ΤΕΛΕΥΤΑΙΟ ΣΤΑΔΙΟ",
-            f"     Η υπόθεση οδεύει προς ολοκλήρωση!",
+            f"🏁 Τελευταίο στάδιο — η υπόθεση",
+            f"   οδεύει προς ολοκλήρωση!",
         ]
 
-    lines += [divider, f""]
+    lines += [f""]
 
     if portal_url:
         lines += [f"🔗 Portal: {portal_url}", f""]
