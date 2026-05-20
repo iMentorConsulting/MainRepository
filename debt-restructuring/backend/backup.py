@@ -94,7 +94,7 @@ def run_backup() -> dict:
         raise RuntimeError("GOOGLE_DRIVE_BACKUP_FOLDER_ID not set")
 
     payload = build_backup_payload()
-    filename = f"backup_{datetime.utcnow().strftime('%Y-%m-%d_%H-%M')}.json"
+    filename = f"Exodikastikos-backup_{datetime.utcnow().strftime('%Y-%m-%d_%H-%M')}.json"
     content = json.dumps(payload, ensure_ascii=False, indent=2)
 
     svc = _get_drive_service()
