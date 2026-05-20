@@ -20,6 +20,7 @@ import {
   DocumentArrowUpIcon,
   BanknotesIcon,
   CloudArrowUpIcon,
+  BellAlertIcon,
 } from '@heroicons/react/24/outline'
 import { changePassword } from '../api'
 import toast from 'react-hot-toast'
@@ -39,6 +40,7 @@ const nav = [
   { to: '/pipeline-admin', label: 'Διαχ. Pipeline', Icon: AdjustmentsHorizontalIcon },
   { to: '/users', label: 'Χρήστες', Icon: UsersIcon },
   { to: '/backup', label: 'Αντίγραφα Ασφαλείας', Icon: CloudArrowUpIcon },
+  { to: '/status-notifications', label: 'Ειδοποιήσεις Status', Icon: BellAlertIcon },
 ]
 
 function ChangePasswordModal({ onClose }) {

@@ -23,6 +23,7 @@ import WorkListsPage from './pages/WorkListsPage'
 import Analytics from './pages/Analytics'
 import DeadlineCalendar from './pages/DeadlineCalendar'
 import BackupPage from './pages/BackupPage'
+import StatusNotificationsPage from './pages/StatusNotificationsPage'
 
 export default function App() {
   const [auth, setAuthState] = useState(() => getAuth())
@@ -66,6 +67,7 @@ export default function App() {
             <Route path="revenue" element={<ErrorBoundary><RevenueForecastPage /></ErrorBoundary>} />
             <Route path="calendar" element={<ErrorBoundary><DeadlineCalendar /></ErrorBoundary>} />
             <Route path="backup" element={<ErrorBoundary><BackupPage /></ErrorBoundary>} />
+            <Route path="status-notifications" element={<ErrorBoundary><StatusNotificationsPage /></ErrorBoundary>} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         )}

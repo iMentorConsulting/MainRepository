@@ -106,6 +106,21 @@ try:
 except Exception:
     pass
 
+# Migration: create cm_status_notification_configs table
+try:
+    with engine.connect() as _conn:
+        _conn.execute(_text("""
+            CREATE TABLE IF NOT EXISTS cm_status_notification_configs (
+                id SERIAL PRIMARY KEY,
+                status VARCHAR(100) UNIQUE NOT NULL,
+                enabled BOOLEAN DEFAULT FALSE,
+                updated_at TIMESTAMP DEFAULT NOW()
+            )
+        """))
+        _conn.commit()
+except Exception:
+    pass
+
 # Migration: create backup_logs table
 try:
     with engine.connect() as _conn:
