@@ -128,207 +128,278 @@ def _build_status_change_html(case, from_status: str, to_status: str, descriptio
     """Build a complete beautiful HTML email for status change notification."""
     _app_base = os.getenv("PORTAL_BASE_URL", "").rstrip("/")
     _logo_url = f"{_app_base}/logo-white.png" if _app_base else ""
-    _header_content = (
-        f'<img src="{_logo_url}" alt="iMentor Consulting" style="height:55px;width:auto;display:block;margin:0 auto;" />'
+    _header_logo = (
+        f'<img src="{_logo_url}" alt="iMentor Consulting" style="height:52px;width:auto;display:block;margin:0 auto 6px auto;" />'
         if _logo_url else
-        '<h2 style="color:white;margin:0;font-family:Arial,sans-serif;font-size:22px;">iMentor Consulting</h2>'
+        '<div style="color:white;font-family:Arial,sans-serif;font-size:22px;font-weight:700;letter-spacing:1px;">iMentor Consulting</div>'
     )
 
     client_name = case.client_name or "Πελάτη"
     service_type = case.service_type or ""
+    service_line = f" — {service_type}" if service_type else ""
     current_desc = descriptions.get(to_status, "")
 
-    # Get neighbors from descriptions
-    prev_status = from_status if from_status and from_status != to_status else None
-    # We pass neighbors via the call, but here we use from_status as "previous"
-    # The actual prev/next are determined in _send_status_change_notification
-    # This function receives them via the call context, so we use a different approach:
-    # We store them as attributes added by _send_status_change_notification via the call
     next_status = getattr(case, '_next_status_temp', None)
     real_prev = getattr(case, '_prev_status_temp', from_status)
-
-    prev_desc = descriptions.get(real_prev, "") if real_prev else ""
+    if real_prev == to_status:
+        real_prev = None
     next_desc = descriptions.get(next_status, "") if next_status else ""
 
-    # Build timeline columns
-    timeline_cells = []
-
-    # Previous status column
+    # ── Previous step ────────────────────────────────────────────────────
+    prev_block = ""
     if real_prev:
-        timeline_cells.append(f"""
-        <td style="text-align:center;padding:0 8px;vertical-align:top;width:150px;">
-          <div style="width:44px;height:44px;border-radius:50%;background:#10b981;margin:0 auto 8px auto;
-               display:flex;align-items:center;justify-content:center;font-size:20px;color:white;
-               line-height:44px;text-align:center;">
-            <span style="font-size:20px;">&#10003;</span>
-          </div>
-          <div style="font-size:11px;color:#6b7280;font-weight:600;text-transform:uppercase;
-               letter-spacing:0.5px;line-height:1.3;">{real_prev}</div>
-          {f'<div style="font-size:10px;color:#9ca3af;margin-top:4px;line-height:1.3;">{prev_desc[:60]}{"..." if len(prev_desc) > 60 else ""}</div>' if prev_desc else ''}
-        </td>
-        <td style="text-align:center;vertical-align:middle;padding:0 4px;width:24px;">
-          <span style="color:#d1d5db;font-size:18px;">&#8594;</span>
-        </td>
-        """)
-
-    # Current (active) status column
-    timeline_cells.append(f"""
-    <td style="text-align:center;padding:0 8px;vertical-align:top;width:160px;">
-      <div style="width:54px;height:54px;border-radius:50%;background:#2563eb;margin:0 auto 8px auto;
-           display:flex;align-items:center;justify-content:center;
-           line-height:54px;text-align:center;box-shadow:0 4px 12px rgba(37,99,235,0.4);">
-        <span style="font-size:22px;color:white;">&#9733;</span>
-      </div>
-      <div style="font-size:12px;color:#1e3a5f;font-weight:700;text-transform:uppercase;
-           letter-spacing:0.5px;line-height:1.3;">{to_status}</div>
-      {f'<div style="font-size:10px;color:#3b82f6;margin-top:4px;line-height:1.3;">{current_desc[:60]}{"..." if len(current_desc) > 60 else ""}</div>' if current_desc else ''}
-    </td>
-    """)
-
-    # Next status column
-    if next_status:
-        timeline_cells.append(f"""
-        <td style="text-align:center;vertical-align:middle;padding:0 4px;width:24px;">
-          <span style="color:#d1d5db;font-size:18px;">&#8594;</span>
-        </td>
-        <td style="text-align:center;padding:0 8px;vertical-align:top;width:150px;">
-          <div style="width:44px;height:44px;border-radius:50%;border:2px dashed #d1d5db;background:#f9fafb;
-               margin:0 auto 8px auto;line-height:40px;text-align:center;">
-            <span style="font-size:18px;color:#9ca3af;">&#9675;</span>
-          </div>
-          <div style="font-size:11px;color:#9ca3af;font-weight:600;text-transform:uppercase;
-               letter-spacing:0.5px;line-height:1.3;">{next_status}</div>
-          {f'<div style="font-size:10px;color:#d1d5db;margin-top:4px;line-height:1.3;">{next_desc[:60]}{"..." if len(next_desc) > 60 else ""}</div>' if next_desc else ''}
-        </td>
-        """)
-    else:
-        timeline_cells.append(f"""
-        <td style="text-align:center;vertical-align:middle;padding:0 4px;width:24px;">
-          <span style="color:#d1d5db;font-size:18px;">&#8594;</span>
-        </td>
-        <td style="text-align:center;padding:0 8px;vertical-align:top;width:150px;">
-          <div style="width:44px;height:44px;border-radius:50%;background:#10b981;
-               margin:0 auto 8px auto;line-height:44px;text-align:center;">
-            <span style="font-size:18px;color:white;">&#10003;</span>
-          </div>
-          <div style="font-size:11px;color:#10b981;font-weight:700;text-transform:uppercase;
-               letter-spacing:0.5px;line-height:1.3;">&#79;&#955;&#959;&#954;&#955;&#942;&#961;&#969;&#963;&#951;!</div>
-        </td>
-        """)
-
-    timeline_html = "".join(timeline_cells)
-
-    # Description box
-    desc_box = ""
-    if current_desc:
-        desc_box = f"""
+        prev_block = f"""
         <tr>
-          <td style="padding:20px 30px 10px 30px;">
-            <div style="background:#eff6ff;border-left:4px solid #1e40af;padding:16px 20px;border-radius:0 6px 6px 0;">
-              <div style="font-size:13px;font-weight:700;color:#1e40af;margin-bottom:6px;">
-                &#128203; Τι σημαίνει αυτό το στάδιο:
-              </div>
-              <div style="font-size:14px;color:#1e3a5f;line-height:1.6;">{current_desc}</div>
-            </div>
+          <td style="padding:0 24px 4px 24px;">
+            <table width="100%" cellpadding="0" cellspacing="0">
+              <tr>
+                <td style="vertical-align:middle;width:36px;">
+                  <div style="width:32px;height:32px;border-radius:50%;background:#d1fae5;
+                       text-align:center;line-height:32px;font-size:16px;">
+                    &#10003;
+                  </div>
+                </td>
+                <td style="vertical-align:middle;padding-left:12px;">
+                  <div style="font-size:10px;color:#6b7280;font-weight:700;text-transform:uppercase;
+                       letter-spacing:0.8px;">Προηγούμενο Στάδιο</div>
+                  <div style="font-size:13px;color:#6b7280;font-weight:600;margin-top:2px;
+                       text-decoration:line-through;">{real_prev}</div>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:4px 24px;text-align:left;padding-left:38px;">
+            <span style="font-size:22px;color:#d1d5db;">&#8595;</span>
           </td>
         </tr>
         """
 
-    # Action buttons
-    buttons_html = ""
+    # ── Current step (prominent) ─────────────────────────────────────────
+    desc_inside = ""
+    if current_desc:
+        desc_inside = f"""
+            <tr>
+              <td style="padding:12px 20px 0 20px;">
+                <div style="background:rgba(255,255,255,0.15);border-radius:6px;padding:12px 16px;">
+                  <div style="font-size:11px;color:rgba(255,255,255,0.8);font-weight:700;
+                       text-transform:uppercase;letter-spacing:0.6px;margin-bottom:5px;">
+                    Τι σημαίνει αυτό το στάδιο
+                  </div>
+                  <div style="font-size:13px;color:white;line-height:1.6;">{current_desc}</div>
+                </div>
+              </td>
+            </tr>
+        """
+
+    current_block = f"""
+        <tr>
+          <td style="padding:0 24px;">
+            <table width="100%" cellpadding="0" cellspacing="0"
+                   style="background:#1e40af;border-radius:12px;overflow:hidden;">
+              <tr>
+                <td style="padding:18px 20px 14px 20px;">
+                  <table width="100%" cellpadding="0" cellspacing="0">
+                    <tr>
+                      <td style="vertical-align:middle;">
+                        <div style="font-size:11px;color:rgba(255,255,255,0.75);font-weight:700;
+                             text-transform:uppercase;letter-spacing:1px;">
+                          &#9654; Τρέχον Στάδιο
+                        </div>
+                        <div style="font-size:18px;color:#ffffff;font-weight:800;
+                             margin-top:5px;line-height:1.3;letter-spacing:0.3px;">
+                          {to_status}
+                        </div>
+                      </td>
+                      <td style="vertical-align:middle;text-align:right;width:48px;">
+                        <div style="width:42px;height:42px;border-radius:50%;
+                             background:rgba(255,255,255,0.2);
+                             text-align:center;line-height:42px;font-size:22px;">
+                          &#9733;
+                        </div>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+              {desc_inside}
+              <tr><td style="padding-bottom:18px;"></td></tr>
+            </table>
+          </td>
+        </tr>
+    """
+
+    # ── Next step ────────────────────────────────────────────────────────
+    next_block = ""
+    if next_status:
+        next_detail = f'<div style="font-size:11px;color:#9ca3af;margin-top:2px;line-height:1.4;">{next_desc[:80]}{"..." if len(next_desc) > 80 else ""}</div>' if next_desc else ""
+        next_block = f"""
+        <tr>
+          <td style="padding:4px 24px;text-align:left;padding-left:38px;">
+            <span style="font-size:22px;color:#d1d5db;">&#8595;</span>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:4px 24px 0 24px;">
+            <table width="100%" cellpadding="12" cellspacing="0"
+                   style="border:2px dashed #e5e7eb;border-radius:10px;background:#fafafa;">
+              <tr>
+                <td style="vertical-align:middle;width:36px;padding:12px 0 12px 12px;">
+                  <div style="width:32px;height:32px;border-radius:50%;border:2px solid #d1d5db;
+                       background:white;text-align:center;line-height:28px;font-size:16px;color:#9ca3af;">
+                    &#9675;
+                  </div>
+                </td>
+                <td style="vertical-align:middle;padding:12px 12px 12px 12px;">
+                  <div style="font-size:10px;color:#9ca3af;font-weight:700;text-transform:uppercase;
+                       letter-spacing:0.8px;">Επόμενο Βήμα</div>
+                  <div style="font-size:13px;color:#9ca3af;font-weight:600;margin-top:2px;">{next_status}</div>
+                  {next_detail}
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+        """
+    else:
+        next_block = f"""
+        <tr>
+          <td style="padding:4px 24px;text-align:left;padding-left:38px;">
+            <span style="font-size:22px;color:#d1d5db;">&#8595;</span>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:4px 24px 0 24px;">
+            <table width="100%" cellpadding="0" cellspacing="0"
+                   style="background:#d1fae5;border-radius:10px;">
+              <tr>
+                <td style="vertical-align:middle;width:42px;padding:12px 0 12px 14px;">
+                  <div style="width:32px;height:32px;border-radius:50%;background:#10b981;
+                       text-align:center;line-height:32px;font-size:18px;color:white;">
+                    &#10003;
+                  </div>
+                </td>
+                <td style="vertical-align:middle;padding:12px 14px;">
+                  <div style="font-size:10px;color:#065f46;font-weight:700;text-transform:uppercase;
+                       letter-spacing:0.8px;">Επόμενο Βήμα</div>
+                  <div style="font-size:13px;color:#047857;font-weight:700;margin-top:2px;">
+                    Ολοκλήρωση Υπόθεσης
+                  </div>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+        """
+
+    # ── Action buttons ───────────────────────────────────────────────────
     portal_btn = ""
     review_btn = ""
-
     if portal_url:
-        portal_btn = f"""
-        <a href="{portal_url}" style="display:inline-block;background:#2563eb;color:white;text-decoration:none;
-           padding:14px 28px;border-radius:8px;font-size:14px;font-weight:700;margin:0 8px 8px 0;
-           font-family:Arial,sans-serif;">
-          &#128279; ΔΕΙΤΕ ΤΟ PORTAL ΣΑΣ
-        </a>
-        """
-
+        portal_btn = f"""<a href="{portal_url}"
+           style="display:inline-block;background:#2563eb;color:white;text-decoration:none;
+                  padding:14px 26px;border-radius:8px;font-size:14px;font-weight:700;
+                  margin:6px 6px;font-family:Arial,sans-serif;letter-spacing:0.3px;">
+          &#128279;&nbsp; Δείτε το Portal σας
+        </a>"""
     if review_url:
-        review_btn = f"""
-        <a href="{review_url}" style="display:inline-block;background:#f59e0b;color:white;text-decoration:none;
-           padding:14px 28px;border-radius:8px;font-size:14px;font-weight:700;margin:0 8px 8px 0;
-           font-family:Arial,sans-serif;">
-          &#11088; ΑΞΙΟΛΟΓΗΣΤΕ ΜΑΣ
-        </a>
-        """
+        review_btn = f"""<a href="{review_url}"
+           style="display:inline-block;background:#f59e0b;color:white;text-decoration:none;
+                  padding:14px 26px;border-radius:8px;font-size:14px;font-weight:700;
+                  margin:6px 6px;font-family:Arial,sans-serif;letter-spacing:0.3px;">
+          &#11088;&nbsp; Αξιολογήστε μας
+        </a>"""
 
+    buttons_row = ""
     if portal_btn or review_btn:
-        buttons_html = f"""
+        buttons_row = f"""
         <tr>
-          <td style="padding:10px 30px 20px 30px;text-align:center;">
+          <td style="padding:24px 24px 8px 24px;text-align:center;">
             {portal_btn}{review_btn}
           </td>
         </tr>
         """
 
-    service_line = f" ({service_type})" if service_type else ""
-
     html = f"""<!DOCTYPE html>
-<html>
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
-<body style="margin:0;padding:20px;background:#f3f4f6;font-family:Arial,sans-serif;">
-<table width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;margin:0 auto;">
+<html lang="el">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>Ενημέρωση Υπόθεσης</title>
+</head>
+<body style="margin:0;padding:0;background:#f1f5f9;font-family:Arial,Helvetica,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f1f5f9;padding:32px 16px;">
   <tr>
-    <td>
-      <table width="100%" cellpadding="0" cellspacing="0" style="border-radius:10px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.12);">
+    <td align="center">
+      <table width="100%" cellpadding="0" cellspacing="0"
+             style="max-width:560px;background:#ffffff;border-radius:16px;
+                    overflow:hidden;box-shadow:0 8px 30px rgba(0,0,0,0.10);">
 
-        <!-- Header -->
+        <!-- ── Header ── -->
         <tr>
-          <td style="background:#1e3a5f;padding:24px 30px;text-align:center;">
-            {_header_content}
-            <div style="color:rgba(255,255,255,0.7);font-size:13px;margin-top:8px;letter-spacing:1px;">
-              ΕΝΗΜΕΡΩΣΗ ΥΠΟΘΕΣΗΣ
+          <td style="background:linear-gradient(135deg,#1e3a5f 0%,#1e40af 100%);
+               padding:28px 30px 22px 30px;text-align:center;">
+            {_header_logo}
+            <div style="color:rgba(255,255,255,0.55);font-size:11px;
+                 letter-spacing:2.5px;text-transform:uppercase;margin-top:4px;">
+              Αυτόματη Ενημέρωση Υπόθεσης
             </div>
           </td>
         </tr>
 
-        <!-- Greeting -->
+        <!-- ── Greeting ── -->
         <tr>
-          <td style="background:#ffffff;padding:28px 30px 16px 30px;">
-            <p style="margin:0 0 10px 0;font-size:16px;color:#1e3a5f;font-weight:700;">
+          <td style="padding:28px 24px 20px 24px;background:#ffffff;">
+            <div style="font-size:18px;color:#1e3a5f;font-weight:800;margin-bottom:8px;">
               Αγαπητέ/ή {client_name},
-            </p>
-            <p style="margin:0;font-size:14px;color:#4b5563;line-height:1.6;">
-              Η υπόθεσή σας{service_line} μπήκε σε νέο στάδιο επεξεργασίας.
-            </p>
-          </td>
-        </tr>
-
-        <!-- Timeline Section -->
-        <tr>
-          <td style="background:#ffffff;padding:16px 30px;">
-            <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:20px;">
-              <div style="text-align:center;font-size:12px;font-weight:700;color:#6b7280;
-                   text-transform:uppercase;letter-spacing:1px;margin-bottom:16px;">
-                ΕΞΕΛΙΞΗ ΥΠΟΘΕΣΗΣ
-              </div>
-              <table width="100%" cellpadding="0" cellspacing="0">
-                <tr style="vertical-align:top;">
-                  {timeline_html}
-                </tr>
-              </table>
+            </div>
+            <div style="font-size:14px;color:#4b5563;line-height:1.7;">
+              Η υπόθεσή σας<strong>{service_line}</strong> προχώρησε σε νέο στάδιο
+              επεξεργασίας. Δείτε παρακάτω πού βρίσκεστε τώρα και τι έπεται.
             </div>
           </td>
         </tr>
 
-        <!-- Description box -->
-        {desc_box}
-
-        <!-- Action buttons -->
-        {buttons_html}
-
-        <!-- Footer -->
+        <!-- ── Divider ── -->
         <tr>
-          <td style="background:#f8fafc;padding:16px 30px;border-top:1px solid #e5e7eb;text-align:center;">
-            <p style="margin:0;font-size:11px;color:#9ca3af;line-height:1.5;">
-              Αυτό είναι αυτόματο μήνυμα από το σύστημα iMentor Consulting.<br/>
-              Παρακαλώ μην απαντάτε σε αυτό το email.
-            </p>
+          <td style="padding:0 24px;">
+            <div style="height:1px;background:#f0f4f8;"></div>
+          </td>
+        </tr>
+
+        <!-- ── Section title ── -->
+        <tr>
+          <td style="padding:20px 24px 12px 24px;">
+            <div style="font-size:11px;color:#94a3b8;font-weight:700;
+                 text-transform:uppercase;letter-spacing:1.5px;">
+              &#128197;&nbsp; Εξέλιξη Υπόθεσης
+            </div>
+          </td>
+        </tr>
+
+        <!-- ── Previous step ── -->
+        {prev_block}
+
+        <!-- ── Current step (prominent) ── -->
+        {current_block}
+
+        <!-- ── Next step ── -->
+        {next_block}
+
+        <!-- ── Action buttons ── -->
+        {buttons_row}
+
+        <!-- ── Footer ── -->
+        <tr>
+          <td style="padding:24px;background:#f8fafc;border-top:1px solid #e2e8f0;
+               text-align:center;margin-top:8px;">
+            <div style="font-size:12px;color:#94a3b8;line-height:1.7;">
+              &#128274;&nbsp; Αυτό είναι <strong>αυτοματοποιημένο μήνυμα</strong>
+              από το σύστημα iMentor Consulting.<br/>
+              Παρακαλώ μην απαντάτε απευθείας σε αυτό το email.<br/>
+              Για οποιαδήποτε απορία επικοινωνήστε με τον σύμβουλό σας.
+            </div>
           </td>
         </tr>
 
