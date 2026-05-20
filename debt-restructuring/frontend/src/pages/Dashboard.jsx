@@ -48,12 +48,14 @@ export default function Dashboard({ currentEmployee }) {
   const navigate = useNavigate()
   const [cases, setCases] = useState([])
   const [loading, setLoading] = useState(true)
+  const [apiError, setApiError] = useState(null)
   const [search, setSearch] = useState('')
   const [filterEmployee, setFilterEmployee] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
 
   const load = async () => {
     setLoading(true)
+    setApiError(null)
     try {
       const params = {}
       if (filterEmployee) params.employee = filterEmployee
@@ -61,7 +63,14 @@ export default function Dashboard({ currentEmployee }) {
       if (search) params.search = search
       const res = await api.listCases(params)
       setCases(res.data)
-    } catch {
+    } catch (err) {
+      const status = err?.response?.status
+      const baseURL = import.meta.env.VITE_API_URL || '/api'
+      if (!err?.response) {
+        setApiError(`Δεν απαντά το backend (${baseURL}). Ελέγξτε αν τρέχει η υπηρεσία.`)
+      } else {
+        setApiError(`Σφάλμα API: HTTP ${status}`)
+      }
       toast.error('Σφάλμα φόρτωσης')
     } finally {
       setLoading(false)
@@ -101,6 +110,16 @@ export default function Dashboard({ currentEmployee }) {
 
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto">
+      {/* API error banner */}
+      {apiError && (
+        <div className="mb-4 rounded-lg border border-red-300 bg-red-50 px-4 py-3 flex items-start gap-3">
+          <ExclamationTriangleIcon className="w-5 h-5 text-red-500 mt-0.5 shrink-0" />
+          <div>
+            <p className="font-semibold text-red-700 text-sm">Πρόβλημα σύνδεσης με το backend</p>
+            <p className="text-red-600 text-xs mt-0.5">{apiError}</p>
+          </div>
+        </div>
+      )}
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>

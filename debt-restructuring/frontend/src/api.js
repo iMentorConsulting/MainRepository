@@ -30,6 +30,9 @@ export const getOverview = () => api.get('/statistics/overview')
 export const getEmployeeStats = (employee) => api.get(`/statistics/employee/${employee}`)
 export const getComparison = () => api.get('/statistics/comparison')
 
+// Health / diagnostics
+export const getHealth = () => api.get('/health')
+
 // Public (no auth)
 export const getPublicCase = (token, vat, notrack = false) => {
   const params = {}

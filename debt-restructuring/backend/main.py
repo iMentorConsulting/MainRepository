@@ -99,4 +99,21 @@ def root():
 
 @app.get("/health")
 def health():
-    return {"status": "healthy"}
+    from database import get_db
+    from sqlalchemy import text
+    db_ok = False
+    case_count = 0
+    db_url = os.getenv("DATABASE_URL", "sqlite:///./debt_cases.db")
+    try:
+        with engine.connect() as conn:
+            result = conn.execute(text("SELECT COUNT(*) FROM cases"))
+            case_count = result.scalar() or 0
+            db_ok = True
+    except Exception as e:
+        pass
+    return {
+        "status": "healthy" if db_ok else "degraded",
+        "db": "ok" if db_ok else "error",
+        "case_count": case_count,
+        "db_type": "postgres" if db_url.startswith("postgres") else "sqlite",
+    }
