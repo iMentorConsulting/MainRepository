@@ -33,6 +33,10 @@ export const getComparison = () => api.get('/statistics/comparison')
 // Health / diagnostics
 export const getHealth = () => api.get('/health')
 
+// Admin / backup
+export const triggerBackup = () => api.post('/admin/backup-now')
+export const getExportUrl = () => `${import.meta.env.VITE_API_URL || '/api'}/admin/export`
+
 // Public (no auth)
 export const getPublicCase = (token, vat, notrack = false) => {
   const params = {}

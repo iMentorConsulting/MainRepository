@@ -3,7 +3,7 @@ import { useNavigate, Link } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
 import { format, differenceInDays } from 'date-fns'
 import { el } from 'date-fns/locale'
-import { MagnifyingGlassIcon, PlusIcon, DocumentDuplicateIcon, TrashIcon, EyeIcon, PencilIcon, LinkIcon, ExclamationTriangleIcon, RocketLaunchIcon } from '@heroicons/react/24/outline'
+import { MagnifyingGlassIcon, PlusIcon, DocumentDuplicateIcon, TrashIcon, EyeIcon, PencilIcon, LinkIcon, ExclamationTriangleIcon, RocketLaunchIcon, CloudArrowUpIcon, ArrowDownTrayIcon } from '@heroicons/react/24/outline'
 import * as api from '../api'
 import { fmt } from '../utils/calculations'
 
@@ -101,6 +101,24 @@ export default function Dashboard({ currentEmployee }) {
     navigator.clipboard.writeText(url).then(() => toast.success('Σύνδεσμος αντιγράφηκε!')).catch(() => toast.error('Αδύνατη αντιγραφή'))
   }
 
+  const [backingUp, setBackingUp] = useState(false)
+  const handleBackupNow = async () => {
+    setBackingUp(true)
+    try {
+      const res = await api.triggerBackup()
+      toast.success(`Backup στο Drive: ${res.data.filename} (${res.data.case_count} υποθέσεις)`)
+    } catch (err) {
+      const detail = err?.response?.data?.detail || 'Σφάλμα backup'
+      toast.error(detail)
+    } finally {
+      setBackingUp(false)
+    }
+  }
+
+  const handleDownloadExport = () => {
+    window.open(api.getExportUrl(), '_blank')
+  }
+
   const statusSummary = cases.reduce((acc, c) => {
     acc[c.status] = (acc[c.status] || 0) + 1
     return acc
@@ -126,7 +144,23 @@ export default function Dashboard({ currentEmployee }) {
           <h1 className="text-2xl font-black text-blue-800">Υποθέσεις Οφειλών</h1>
           <p className="text-gray-500 text-sm mt-0.5">{cases.length} υποθέσεις συνολικά</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap justify-end">
+          <button
+            onClick={handleDownloadExport}
+            className="btn-secondary gap-2 text-sm flex items-center"
+            title="Κατέβασε JSON με όλες τις υποθέσεις"
+          >
+            <ArrowDownTrayIcon className="w-4 h-4" /> Export JSON
+          </button>
+          <button
+            onClick={handleBackupNow}
+            disabled={backingUp}
+            className="btn-secondary gap-2 text-sm flex items-center"
+            title="Αποθήκευση backup στο Google Drive τώρα"
+          >
+            <CloudArrowUpIcon className="w-4 h-4" />
+            {backingUp ? 'Backup...' : 'Backup Drive'}
+          </button>
           <Link
             to="/pipeline"
             className="btn-secondary gap-2 text-sm flex items-center"
