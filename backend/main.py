@@ -117,11 +117,20 @@ try:
                 trigger VARCHAR(20),
                 destination VARCHAR(20),
                 file_name VARCHAR(300),
-                drive_file_id VARCHAR(200),
                 size_bytes INTEGER,
-                error_message TEXT
+                error_message TEXT,
+                json_data TEXT
             )
         """))
+        _conn.commit()
+except Exception:
+    pass
+
+# Ensure json_data column exists on cm_backup_logs (for DB-stored backups)
+try:
+    with engine.connect() as _conn:
+        _conn.execute(_text("ALTER TABLE cm_backup_logs ADD COLUMN IF NOT EXISTS json_data TEXT"))
+        _conn.execute(_text("ALTER TABLE cm_backup_logs DROP COLUMN IF EXISTS drive_file_id"))
         _conn.commit()
 except Exception:
     pass
@@ -524,13 +533,10 @@ def _run_agent_sla_digest():
 
 
 def _scheduled_backup():
-    from routes.cm_backup import run_drive_backup
-    import os as _os
-    if not _os.getenv("GOOGLE_DRIVE_CREDENTIALS") or not _os.getenv("GOOGLE_DRIVE_FOLDER_ID"):
-        return
+    from routes.cm_backup import run_db_backup
     _db = SessionLocal()
     try:
-        run_drive_backup(_db, trigger="auto")
+        run_db_backup(_db, trigger="auto")
     except Exception as e:
         print(f"[Backup] Scheduled backup failed: {e}")
     finally:

@@ -352,8 +352,8 @@ class CMBackupLog(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     status = Column(String(20))          # "success" | "failed"
     trigger = Column(String(20))         # "auto" | "manual"
-    destination = Column(String(20))     # "drive" | "export"
+    destination = Column(String(20))     # "db" | "export"
     file_name = Column(String(300))
-    drive_file_id = Column(String(200))
     size_bytes = Column(Integer)
     error_message = Column(Text)
+    json_data = Column(Text)             # actual backup JSON stored in DB
