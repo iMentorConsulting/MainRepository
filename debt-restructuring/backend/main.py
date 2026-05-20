@@ -129,6 +129,22 @@ def backup_now():
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.get("/admin/service-account-email")
+def service_account_email():
+    """Return just the client_email from GOOGLE_SERVICE_ACCOUNT_JSON."""
+    sa_json = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON", "").strip()
+    if not sa_json:
+        raise HTTPException(status_code=404, detail="GOOGLE_SERVICE_ACCOUNT_JSON not set")
+    import json as _json
+    try:
+        email = _json.loads(sa_json).get("client_email", "")
+        if not email:
+            raise HTTPException(status_code=404, detail="client_email not found in JSON")
+        return {"client_email": email}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.get("/admin/export")
 def export_data():
     """Download a full JSON export of all cases (no Drive upload)."""
