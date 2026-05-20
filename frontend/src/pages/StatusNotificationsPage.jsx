@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { api } from '../api'
+import api from '../api'
 import toast from 'react-hot-toast'
 import { BellAlertIcon, CheckCircleIcon } from '@heroicons/react/24/outline'
 
