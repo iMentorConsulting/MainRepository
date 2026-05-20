@@ -105,7 +105,7 @@ def _run_backup_safe():
 if os.getenv("GOOGLE_DRIVE_BACKUP_FOLDER_ID"):
     from apscheduler.schedulers.background import BackgroundScheduler
     _scheduler = BackgroundScheduler()
-    _scheduler.add_job(_run_backup_safe, "cron", hour=2, minute=0)  # 02:00 UTC daily
+    _scheduler.add_job(_run_backup_safe, "cron", hour=18, minute=0)  # 18:00 UTC daily
     _scheduler.start()
     print("[Backup] Scheduler started — daily at 02:00 UTC")
 

@@ -12,6 +12,8 @@ import {
   UserGroupIcon,
   CogIcon,
   SparklesIcon,
+  CloudArrowUpIcon,
+  ArrowDownTrayIcon,
 } from '@heroicons/react/24/outline'
 import * as api from '../api'
 import { patchOffer, approveWinback, sendWinback } from '../api'
@@ -96,6 +98,23 @@ export default function FinancialDashboard({ currentEmployee }) {
   const [acceptancePct, setAcceptancePct] = useState(60)
   const [pricingConfig, setPricingConfig] = useState(() => loadPricingConfig())
   const [showPricingAdmin, setShowPricingAdmin] = useState(false)
+  const [backingUp, setBackingUp] = useState(false)
+
+  const handleBackupNow = async () => {
+    setBackingUp(true)
+    try {
+      const { toast } = await import('react-hot-toast')
+      const res = await api.triggerBackup()
+      toast.success(`Backup στο Drive: ${res.data.filename} (${res.data.case_count} υποθέσεις)`)
+    } catch (err) {
+      const { toast } = await import('react-hot-toast')
+      toast.error(err?.response?.data?.detail || 'Σφάλμα backup')
+    } finally {
+      setBackingUp(false)
+    }
+  }
+
+  const handleDownloadExport = () => window.open(api.getExportUrl(), '_blank')
 
   const handleSavePricing = async (cfg) => {
     try {
@@ -270,9 +289,29 @@ export default function FinancialDashboard({ currentEmployee }) {
     <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-6">
 
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-black text-blue-900">Οικονομικό Dashboard</h1>
-        <p className="text-gray-500 text-sm mt-0.5">Ρευστότητα, σύγκριση συμβούλων &amp; σενάρια εσόδων</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-black text-blue-900">Οικονομικό Dashboard</h1>
+          <p className="text-gray-500 text-sm mt-0.5">Ρευστότητα, σύγκριση συμβούλων &amp; σενάρια εσόδων</p>
+        </div>
+        <div className="flex gap-2">
+          <button
+            onClick={handleDownloadExport}
+            className="btn-secondary gap-2 text-sm flex items-center"
+            title="Κατέβασε JSON με όλες τις υποθέσεις"
+          >
+            <ArrowDownTrayIcon className="w-4 h-4" /> Export JSON
+          </button>
+          <button
+            onClick={handleBackupNow}
+            disabled={backingUp}
+            className="btn-secondary gap-2 text-sm flex items-center"
+            title="Αποθήκευση backup στο Google Drive τώρα"
+          >
+            <CloudArrowUpIcon className="w-4 h-4" />
+            {backingUp ? 'Backup...' : 'Backup Drive'}
+          </button>
+        </div>
       </div>
 
       {/* ── Pending Approvals ─────────────────────────────────────────────── */}
