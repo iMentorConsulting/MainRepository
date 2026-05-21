@@ -623,33 +623,40 @@ def assign_programs(
 
 # ── ΑΝΑΚΑΙΝΙΖΩ sheet import ──────────────────────────────────────────────────
 # ── ΑΝΑΚΑΙΝΙΖΩ Sheet (separate spreadsheet) ──────────────────────────────────
-# Columns: DATE|Επωνυμία|Email|Τηλέφωνο|Πόλη|Status|Comments|Τύπος Κατοικίας
-#          |Παλαιότητα|ΤΜ|Χρήση|Εργασίες Ανακαίνισης|Νομιμότητα
-#          |*ΤΙΤΛΟΣ|*Ε9|*ΑΔΕΙΑ|*ΤΑΚΤ.ΑΥΘ.|*ΣΧΕΔΙΑ|Ε1|ΕΚΚΑΘ|Ε2
+# Actual columns (0-indexed, from sheet diagnosis):
+# 0=DATE  1=Επωνυμία  2=Email  3=Τηλέφωνο  4=VIBER(skip)
+# 5=Πόλη  6=Status  7=Comments  8=Τύπος Κατοικίας  9=Παλαιότητα
+# 10=ΤΜ  11=Χρήση  12=Εργασίες Ανακαίνισης  13=Νομιμότητα(skip)
+# 14=Assigned To(skip)  15=Next Call(skip)
+# 16=*ΤΙΤΛΟΣ  17=*Ε9  18=*ΑΔΕΙΑ  19=*ΤΑΚΤ.ΑΥΘ.  20=*ΣΧΕΔΙΑ
+# 21=Ε1  22=ΕΚΚΑΘ  23=Ε2
 ANA_COL = {
     "sale_date": 0,
     "client_name": 1,
     "email": 2,
     "phone": 3,
-    "property_prefecture": 4,   # Πόλη
-    "status": 5,
-    "notes": 6,                  # Comments
-    "property_type": 7,          # Τύπος Κατοικίας
-    "property_age": 8,           # Παλαιότητα Κατοικίας
-    "property_sqm": 9,           # ΤΜ
-    "property_usage": 10,        # Χρήση
-    "renovation_works": 11,      # Εργασίες Ανακαίνισης
-    "legality": 12,              # Νομιμότητα Ακινήτου
-    "doc_title_deed": 13,        # *ΤΙΤΛΟΣ
-    "doc_e9": 14,                # *Ε9
-    "doc_permit": 15,            # *ΑΔΕΙΑ
-    "doc_legalization": 16,      # *ΤΑΚΤ.ΑΥΘ.
-    "doc_plans": 17,             # *ΣΧΕΔΙΑ
-    "doc_e1": 18,                # Ε1
-    "doc_tax_clearance": 19,     # ΕΚΚΑΘ
-    "doc_e2": 20,                # Ε2
+    # col 4: VIBER — skipped
+    "property_prefecture": 5,
+    "status": 6,
+    "notes": 7,
+    "property_type": 8,
+    "property_age": 9,
+    "property_sqm": 10,
+    "property_usage": 11,
+    "renovation_works": 12,
+    # col 13: Νομιμότητα Ακινήτου — skipped per user request
+    # col 14: Assigned To — skipped
+    # col 15: Next Call — skipped
+    "doc_title_deed": 16,
+    "doc_e9": 17,
+    "doc_permit": 18,
+    "doc_legalization": 19,
+    "doc_plans": 20,
+    "doc_e1": 21,
+    "doc_tax_clearance": 22,
+    "doc_e2": 23,
 }
-ANA_NUM_COLS = 21
+ANA_NUM_COLS = 24
 
 ANAKAINIZW_SPREADSHEET_ID = os.getenv("ANAKAINIZW_SHEET_ID", "1BB-39I_7yAt6pOK0Ua-Tx6EZcmPp8DIFm7q0drd4VsM")
 ANAKAINIZW_SHEET_TAB = os.getenv("ANAKAINIZW_SHEET_TAB", "ΑΝΑΚΑΙΝΙΣΕΙΣ")
@@ -711,7 +718,6 @@ def _do_import_anakainizw(db: Session) -> dict:
         property_sqm = _parse_float(sqm_raw) if sqm_raw else None
         property_usage = str(row[ANA_COL["property_usage"]]).strip() or None
         renovation_works = str(row[ANA_COL["renovation_works"]]).strip() or None
-        legality = str(row[ANA_COL["legality"]]).strip() or None
         notes = str(row[ANA_COL["notes"]]).strip() or None
 
         doc_title_deed = _parse_bool_cell(row[ANA_COL["doc_title_deed"]])
@@ -791,7 +797,6 @@ def _do_import_anakainizw(db: Session) -> dict:
             ana_row.property_sqm = property_sqm
         ana_row.property_usage = property_usage
         ana_row.renovation_works = renovation_works
-        ana_row.legality = legality
         ana_row.doc_title_deed = doc_title_deed
         ana_row.doc_e9 = doc_e9
         ana_row.doc_permit = doc_permit
