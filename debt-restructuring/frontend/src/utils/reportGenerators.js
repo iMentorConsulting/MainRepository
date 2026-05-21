@@ -396,13 +396,15 @@ export function buildEmailHtml(data) {
     </tr>`
   }).join('')
 
-  const _iconEmoji = { debt: '💳', income: '💰', asset: '🏠', result: '📊', note: '📝' }
+  const _iconBox = (char) =>
+    `<span style="display:inline-block;background:#e8eef9;border-radius:7px;width:28px;height:28px;line-height:28px;text-align:center;color:#1a3a6b;font-size:15px;font-weight:700;vertical-align:middle;margin-right:8px;">${char}</span>`
+  const _iconMap = { debt: '⚖', income: '≡', asset: '⊞', result: '◈', note: '◆' }
   const forecastHtml = forecastSections && forecastSections.length > 0
-    ? `<p style="margin-top:20px;font-size:16px;"><b>🔮 ${escHtml(forecastTitle || 'Πρόβλεψη Ρύθμισης')}</b></p>
+    ? `<p style="margin-top:20px;font-size:16px;"><b>◈ ${escHtml(forecastTitle || 'Πρόβλεψη Ρύθμισης')}</b></p>
        <div style="margin-top:10px;">
          ${forecastSections.map((s) => `
            <div style="margin-bottom:8px;padding:12px 14px;background:${s.type === 'success' ? '#f0fdf4' : '#eff6ff'};border-left:4px solid ${s.type === 'success' ? '#16a34a' : '#3b82f6'};border-radius:6px;font-size:14px;line-height:1.6;">
-             <div style="font-weight:700;margin-bottom:4px;">${_iconEmoji[s.icon] || ''} ${escHtml(s.label)}</div>
+             <div style="font-weight:700;margin-bottom:4px;">${_iconBox(_iconMap[s.icon] || '◆')}${escHtml(s.label)}</div>
              <div style="white-space:pre-line;">${escHtml(s.body)}</div>
            </div>`).join('')}
        </div>`
