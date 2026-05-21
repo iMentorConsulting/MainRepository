@@ -225,6 +225,7 @@ export default function Import() {
   // ΑΝΑΚΑΙΝΙΖΩ import state
   const [loadingAnaPreview, setLoadingAnaPreview] = useState(false)
   const [anaPreviewData, setAnaPreviewData] = useState(null)
+  const [selectedDupRows, setSelectedDupRows] = useState({}) // { sheet_row: bool }
   const [loadingAnaImport, setLoadingAnaImport] = useState(false)
   const [anaImportResult, setAnaImportResult] = useState(null)
   const [anaImportError, setAnaImportError] = useState(null)
@@ -262,12 +263,17 @@ export default function Import() {
   const handleAnaPreview = async () => {
     setLoadingAnaPreview(true)
     setAnaPreviewData(null)
+    setSelectedDupRows({})
     setAnaImportResult(null)
     setAnaImportError(null)
     try {
       const data = await previewAnakainizwSheet()
       setAnaPreviewData(data)
-      toast.success(`Βρέθηκαν ${data.total_rows} εγγραφές`)
+      if (data.duplicate_groups?.length > 0) {
+        toast(`Βρέθηκαν ${data.duplicate_groups.length} διπλότυπα — επιλέξτε ποιες γραμμές να εισαχθούν`, { icon: '⚠️', duration: 5000 })
+      } else {
+        toast.success(`${data.auto_count} εγγραφές έτοιμες για εισαγωγή`)
+      }
     } catch (err) {
       const msg = err.response?.data?.detail || err.message || 'Σφάλμα κατά την προεπισκόπηση'
       setAnaImportError(msg)
@@ -294,10 +300,14 @@ export default function Import() {
     setLoadingAnaImport(true)
     setAnaImportResult(null)
     setAnaImportError(null)
+    const selectedRows = Object.entries(selectedDupRows)
+      .filter(([, checked]) => checked)
+      .map(([row]) => parseInt(row))
     try {
-      const data = await importAnakainizwSheet()
+      const data = await importAnakainizwSheet(selectedRows)
       setAnaImportResult(data.message)
       setAnaPreviewData(null)
+      setSelectedDupRows({})
       toast.success('Εισαγωγή ΑΝΑΚΑΙΝΙΖΩ ολοκληρώθηκε')
     } catch (err) {
       const msg = err.response?.data?.detail || err.message || 'Σφάλμα κατά την εισαγωγή'
@@ -776,37 +786,52 @@ export default function Import() {
 
         {/* Preview results */}
         {anaPreviewData && (
-          <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-2">
-              <StatCard label="Εγγραφές στο Sheet" value={anaPreviewData.total_rows} color="blue" />
-              <StatCard label="Προεπισκόπηση (πρώτες 30)" value={Math.min(anaPreviewData.total_rows, 30)} color="gray" />
+          <div className="space-y-4">
+            {/* Summary cards */}
+            <div className="grid grid-cols-3 gap-3">
+              <StatCard label="Αυτόματη εισαγωγή" value={anaPreviewData.auto_count} color="green" />
+              <StatCard label="Διπλότυπα (επιλογή)" value={anaPreviewData.duplicate_groups?.length ?? 0} color="yellow" />
+              <StatCard label="Ακυρωμένες (skip)" value={anaPreviewData.cancelled_count} color="gray" />
             </div>
-            {anaPreviewData.preview?.length > 0 && (
-              <div className="overflow-x-auto rounded-lg border">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="bg-gray-50">
-                      {['Πελάτης', 'Email', 'Τηλέφωνο', 'Περιοχή', 'Τ.Μ.', 'Χρήση', 'Κατάσταση'].map(h => (
-                        <th key={h} className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
+
+            {/* Duplicate groups — checkboxes */}
+            {anaPreviewData.duplicate_groups?.length > 0 && (
+              <div className="space-y-3">
+                <p className="text-sm font-semibold text-amber-700">
+                  ⚠️ Διπλότυπα ονόματα — επιλέξτε ποιες εγγραφές να εισαχθούν:
+                </p>
+                {anaPreviewData.duplicate_groups.map(group => (
+                  <div key={group.client_name} className="border border-amber-200 rounded-xl bg-amber-50 overflow-hidden">
+                    <div className="px-4 py-2 bg-amber-100 border-b border-amber-200">
+                      <span className="text-sm font-bold text-amber-900">{group.client_name}</span>
+                    </div>
+                    <div className="divide-y divide-amber-100">
+                      {group.rows.map(row => (
+                        <label key={row.sheet_row} className="flex items-start gap-3 px-4 py-3 cursor-pointer hover:bg-amber-100 transition-colors">
+                          <input
+                            type="checkbox"
+                            className="mt-0.5 w-4 h-4 accent-blue-600 flex-shrink-0"
+                            checked={!!selectedDupRows[row.sheet_row]}
+                            onChange={e => setSelectedDupRows(prev => ({ ...prev, [row.sheet_row]: e.target.checked }))}
+                          />
+                          <div className="flex-1 min-w-0 text-xs text-gray-700 space-y-0.5">
+                            <div className="flex flex-wrap gap-x-4 gap-y-0.5">
+                              {row.property_prefecture && <span>📍 {row.property_prefecture}</span>}
+                              {row.property_sqm && <span>📐 {row.property_sqm} τ.μ.</span>}
+                              {row.property_usage && <span>🏠 {row.property_usage}</span>}
+                              {row.property_age && <span>📅 {row.property_age}</span>}
+                            </div>
+                            <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-gray-500">
+                              {row.phone && <span>📞 {row.phone}</span>}
+                              {row.status && <span className="font-medium text-blue-600">{row.status}</span>}
+                              <span className="text-gray-400">Γραμμή {row.sheet_row}</span>
+                            </div>
+                          </div>
+                        </label>
                       ))}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {anaPreviewData.preview.map((row, i) => (
-                      <tr key={i} className="hover:bg-gray-50">
-                        <td className="px-3 py-2 text-gray-800 font-medium whitespace-nowrap max-w-[160px] truncate">{row.client_name || '—'}</td>
-                        <td className="px-3 py-2 text-gray-600 max-w-[140px] truncate">{row.email || '—'}</td>
-                        <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{row.phone || '—'}</td>
-                        <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{row.property_prefecture || '—'}</td>
-                        <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{row.property_sqm ? `${row.property_sqm} τ.μ.` : '—'}</td>
-                        <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{row.property_usage || '—'}</td>
-                        <td className="px-3 py-2 whitespace-nowrap">
-                          <span className="text-xs font-medium bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full">{row.status || '—'}</span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </div>

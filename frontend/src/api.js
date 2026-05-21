@@ -92,7 +92,7 @@ export const assignPrograms = (assignments) =>
   api.post('/api/cm/sheets/assign-programs', { assignments }).then(r => r.data)
 export const syncInvestmentFromSheet = () => api.post('/api/cm/sheets/sync-investment').then(r => r.data)
 export const previewAnakainizwSheet = () => api.get('/api/cm/sheets/preview-anakainizw').then(r => r.data)
-export const importAnakainizwSheet = () => api.post('/api/cm/sheets/import-anakainizw').then(r => r.data)
+export const importAnakainizwSheet = (selectedRows) => api.post('/api/cm/sheets/import-anakainizw', { selected_rows: selectedRows || [] }).then(r => r.data)
 export const getAnakainizwHeaders = () => api.get('/api/cm/sheets/anakainizw-headers').then(r => r.data)
 export const syncSaleDatesFromSheet = () => api.post('/api/cm/sheets/sync-sale-dates').then(r => r.data)
 export const getAutoRefreshStatus = () => api.get('/api/cm/sheets/auto-refresh-status').then(r => r.data)

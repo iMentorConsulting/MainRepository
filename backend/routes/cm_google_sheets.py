@@ -688,14 +688,66 @@ def _read_anakainizw_rows() -> list[list]:
     return result.get("values", [])
 
 
-def _do_import_anakainizw(db: Session) -> dict:
-    """Import/update cases from the ΑΝΑΚΑΙΝΙΖΩ Google Sheet."""
+CANCEL_STATUSES = {"CANCEL", "CANCELLED", "ΑΚΥΡΩΣΗ", "CANCELED"}
+
+
+def _is_cancel_status(status: str) -> bool:
+    return status.strip().upper() in CANCEL_STATUSES
+
+
+def _parse_anakainizw_data_rows(rows: list) -> list:
+    """Parse raw sheet rows into dicts. Returns list of parsed row dicts (no header)."""
+    parsed = []
+    for i, row in enumerate(rows):
+        if i == 0:
+            continue
+        while len(row) < ANA_NUM_COLS:
+            row.append("")
+        client_name = str(row[ANA_COL["client_name"]]).strip()
+        if not client_name:
+            continue
+        parsed.append({
+            "sheet_row": i + 1,  # 1-based row number
+            "client_name": client_name,
+            "email": str(row[ANA_COL["email"]]).strip() or None,
+            "phone": str(row[ANA_COL["phone"]]).strip() or None,
+            "status_raw": str(row[ANA_COL["status"]]).strip(),
+            "property_prefecture": str(row[ANA_COL["property_prefecture"]]).strip() or None,
+            "property_sqm": str(row[ANA_COL["property_sqm"]]).strip() or None,
+            "property_usage": str(row[ANA_COL["property_usage"]]).strip() or None,
+            "property_type": str(row[ANA_COL["property_type"]]).strip() or None,
+            "property_age": str(row[ANA_COL["property_age"]]).strip() or None,
+            "renovation_works": str(row[ANA_COL["renovation_works"]]).strip() or None,
+            "sale_date": str(row[ANA_COL["sale_date"]]).strip() or None,
+            "_raw": row,  # keep raw for actual import
+        })
+    return parsed
+
+
+def _do_import_anakainizw(db: Session, selected_rows: list[int] | None = None) -> dict:
+    """Import/update cases from the ΑΝΑΚΑΙΝΙΖΩ Google Sheet.
+
+    selected_rows: sheet_row numbers (1-based) chosen by the user for duplicate groups.
+                   Non-duplicate rows are always imported (unless CANCEL).
+    """
     from models_cases import CMCaseAnakainizw as CMCaseAna
     from pipelines import PIPELINES as _PIPELINES
 
-    rows = _read_anakainizw_rows()
-    if not rows:
-        return {"imported": 0, "updated": 0, "skipped": 0}
+    raw_rows = _read_anakainizw_rows()
+    if not raw_rows:
+        return {"imported": 0, "updated": 0, "skipped": 0, "cancelled": 0}
+
+    parsed = _parse_anakainizw_data_rows(raw_rows)
+    if not parsed:
+        return {"imported": 0, "updated": 0, "skipped": 0, "cancelled": 0}
+
+    # Identify duplicate names (excluding cancelled rows)
+    from collections import Counter
+    name_counts = Counter(
+        p["client_name"] for p in parsed if not _is_cancel_status(p["status_raw"])
+    )
+    duplicate_names = {name for name, cnt in name_counts.items() if cnt > 1}
+    selected_set = set(selected_rows or [])
 
     valid_statuses = set(get_all_statuses_for_program("ΑΝΑΚΑΙΝΙΖΩ"))
     first_status = _PIPELINES["ΑΝΑΚΑΙΝΙΖΩ"]["phases"][0]["statuses"][0]
@@ -703,22 +755,26 @@ def _do_import_anakainizw(db: Session) -> dict:
     imported = 0
     updated = 0
     skipped = 0
-    # Track ana_rows by case_id to handle duplicate sheet rows for the same case
+    cancelled = 0
     ana_row_cache: dict = {}
 
-    for i, row in enumerate(rows):
-        if i == 0:
-            continue  # skip header
-        while len(row) < ANA_NUM_COLS:
-            row.append("")
+    for p in parsed:
+        row = p["_raw"]
+        client_name = p["client_name"]
+        sheet_row = p["sheet_row"]
+        status_raw = p["status_raw"]
 
-        client_name = str(row[ANA_COL["client_name"]]).strip()
-        if not client_name:
+        # Skip CANCEL statuses
+        if _is_cancel_status(status_raw):
+            cancelled += 1
             continue
 
-        status_raw = str(row[ANA_COL["status"]]).strip()
-        status = status_raw if status_raw in valid_statuses else first_status
+        # Skip duplicate rows not explicitly selected by user
+        if client_name in duplicate_names and sheet_row not in selected_set:
+            skipped += 1
+            continue
 
+        status = status_raw if status_raw in valid_statuses else first_status
         phone = str(row[ANA_COL["phone"]]).strip() or None
         email = str(row[ANA_COL["email"]]).strip() or None
         sale_date = _parse_date(str(row[ANA_COL["sale_date"]]).strip())
@@ -740,25 +796,19 @@ def _do_import_anakainizw(db: Session) -> dict:
         doc_tax_clearance = _parse_bool_cell(row[ANA_COL["doc_tax_clearance"]])
         doc_e2 = _parse_bool_cell(row[ANA_COL["doc_e2"]])
 
-        # Dedup by client_name + program (no AFM in this sheet)
-        ref = _merge_key("", client_name, ANAKAINIZW_SERVICE_TYPE)
-
-        existing = (
-            db.query(CMCase)
-            .filter(CMCase.sheet_import_ref == ref)
-            .first()
-        )
-        if not existing:
-            existing = (
-                db.query(CMCase)
-                .filter(
-                    CMCase.client_name == client_name,
-                    CMCase.program_category == "ΑΝΑΚΑΙΝΙΖΩ",
-                )
-                .first()
-            )
-
         phone_token = _normalize_phone_token(phone) if phone else None
+        # For duplicates each row is a separate case — use phone+row as unique ref
+        if client_name in duplicate_names:
+            ref = _merge_key("", f"{client_name}__row{sheet_row}", ANAKAINIZW_SERVICE_TYPE)
+        else:
+            ref = _merge_key("", client_name, ANAKAINIZW_SERVICE_TYPE)
+
+        existing = db.query(CMCase).filter(CMCase.sheet_import_ref == ref).first()
+        if not existing and client_name not in duplicate_names:
+            existing = db.query(CMCase).filter(
+                CMCase.client_name == client_name,
+                CMCase.program_category == "ΑΝΑΚΑΙΝΙΖΩ",
+            ).first()
 
         if existing:
             changed = False
@@ -773,7 +823,6 @@ def _do_import_anakainizw(db: Session) -> dict:
             if notes and existing.notes != notes:
                 existing.notes = notes
                 changed = True
-            # Ensure portal token is set (phone-based when no AFM)
             if not existing.share_token and phone_token:
                 existing.share_token = phone_token
                 existing.portal_active = True
@@ -785,14 +834,13 @@ def _do_import_anakainizw(db: Session) -> dict:
                 skipped += 1
 
             case_id = existing.id
-            if case_id in ana_row_cache:
-                ana_row = ana_row_cache[case_id]
-            else:
+            if case_id not in ana_row_cache:
                 ana_row = db.query(CMCaseAna).filter(CMCaseAna.case_id == case_id).first()
                 if not ana_row:
                     ana_row = CMCaseAna(case_id=case_id)
                     db.add(ana_row)
                 ana_row_cache[case_id] = ana_row
+            ana_row = ana_row_cache[case_id]
         else:
             case = CMCase(
                 client_name=client_name,
@@ -805,7 +853,7 @@ def _do_import_anakainizw(db: Session) -> dict:
                 sheet_import_ref=ref,
                 notes=notes,
                 share_token=phone_token,
-                portal_active=True if phone_token else False,
+                portal_active=bool(phone_token),
                 status_changed_at=datetime.utcnow(),
             )
             db.add(case)
@@ -815,7 +863,6 @@ def _do_import_anakainizw(db: Session) -> dict:
             ana_row_cache[case.id] = ana_row
             imported += 1
 
-        # Always sync all anakainizw fields from sheet
         ana_row.property_prefecture = property_prefecture
         ana_row.property_type = property_type
         ana_row.property_age = property_age
@@ -834,17 +881,22 @@ def _do_import_anakainizw(db: Session) -> dict:
         ana_row.updated_at = datetime.utcnow()
 
     db.commit()
-    return {"imported": imported, "updated": updated, "skipped": skipped}
+    return {"imported": imported, "updated": updated, "skipped": skipped, "cancelled": cancelled}
+
+
+class AnaImportRequest(BaseModel):
+    selected_rows: list[int] = []
 
 
 @router.post("/import-anakainizw")
 def import_anakainizw_sheet(
+    req: AnaImportRequest = AnaImportRequest(),
     current_user: CMUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """Import/update cases from the ΑΝΑΚΑΙΝΙΖΩ Google Sheet."""
     try:
-        r = _do_import_anakainizw(db)
+        r = _do_import_anakainizw(db, selected_rows=req.selected_rows)
     except HTTPException:
         raise
     except Exception as exc:
@@ -852,9 +904,10 @@ def import_anakainizw_sheet(
     return {
         **r,
         "message": (
-            f"Εισήχθησαν {r['imported']} νέες υποθέσεις, "
+            f"Εισήχθησαν {r['imported']} νέες, "
             f"ενημερώθηκαν {r['updated']}, "
-            f"παρέμειναν αμετάβλητες {r['skipped']}."
+            f"παραλείφθηκαν {r['skipped']}, "
+            f"ακυρωμένες {r['cancelled']}."
         ),
     }
 
@@ -886,31 +939,53 @@ def preview_anakainizw_sheet(
     current_user: CMUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Preview rows from the ΑΝΑΚΑΙΝΙΖΩ sheet."""
+    """Preview rows: returns auto-import count, cancelled count, and duplicate groups."""
     try:
-        rows = _read_anakainizw_rows()
+        raw_rows = _read_anakainizw_rows()
     except HTTPException:
         raise
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Σφάλμα ανάγνωσης sheet: {exc}")
-    preview = []
-    for i, row in enumerate(rows):
-        if i == 0:
-            continue
-        while len(row) < ANA_NUM_COLS:
-            row.append("")
-        client_name = str(row[ANA_COL["client_name"]]).strip()
-        if not client_name:
-            continue
-        preview.append({
-            "row": i + 1,
-            "client_name": client_name,
-            "email": str(row[ANA_COL["email"]]).strip() or None,
-            "phone": str(row[ANA_COL["phone"]]).strip() or None,
-            "property_prefecture": str(row[ANA_COL["property_prefecture"]]).strip() or None,
-            "property_sqm": str(row[ANA_COL["property_sqm"]]).strip() or None,
-            "property_usage": str(row[ANA_COL["property_usage"]]).strip() or None,
-            "status": str(row[ANA_COL["status"]]).strip() or None,
-            "sale_date": str(row[ANA_COL["sale_date"]]).strip() or None,
-        })
-    return {"total_rows": len(preview), "preview": preview[:30]}
+
+    parsed = _parse_anakainizw_data_rows(raw_rows)
+    from collections import Counter
+    name_counts = Counter(
+        p["client_name"] for p in parsed if not _is_cancel_status(p["status_raw"])
+    )
+    duplicate_names = {name for name, cnt in name_counts.items() if cnt > 1}
+
+    auto_rows = []
+    cancelled_rows = []
+    dup_groups: dict = {}
+
+    for p in parsed:
+        entry = {
+            "sheet_row": p["sheet_row"],
+            "client_name": p["client_name"],
+            "phone": p["phone"],
+            "email": p["email"],
+            "property_prefecture": p["property_prefecture"],
+            "property_sqm": p["property_sqm"],
+            "property_usage": p["property_usage"],
+            "property_age": p["property_age"],
+            "status": p["status_raw"],
+            "sale_date": p["sale_date"],
+        }
+        if _is_cancel_status(p["status_raw"]):
+            cancelled_rows.append(entry)
+        elif p["client_name"] in duplicate_names:
+            dup_groups.setdefault(p["client_name"], []).append(entry)
+        else:
+            auto_rows.append(entry)
+
+    duplicate_groups = [
+        {"client_name": name, "rows": rows}
+        for name, rows in dup_groups.items()
+    ]
+
+    return {
+        "auto_count": len(auto_rows),
+        "cancelled_count": len(cancelled_rows),
+        "duplicate_groups": duplicate_groups,
+        "total_rows": len(parsed),
+    }
