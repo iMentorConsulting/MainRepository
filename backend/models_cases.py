@@ -365,4 +365,58 @@ class CMStatusNotificationConfig(Base):
     id = Column(Integer, primary_key=True)
     status = Column(String(100), unique=True, nullable=False)
     enabled = Column(Boolean, default=False)
+
+
+class CMCaseAnakainizw(Base):
+    """Extra data specific to ΑΝΑΚΑΙΝΙΖΩ program cases."""
+    __tablename__ = "cm_case_anakainizw"
+    id = Column(Integer, primary_key=True)
+    case_id = Column(Integer, ForeignKey("cm_cases.id"), unique=True, nullable=False)
+
+    # Property details
+    property_sqm = Column(Float, nullable=True)
+    property_prefecture = Column(String(200), nullable=True)
+    property_address = Column(String(500), nullable=True)
+    property_type = Column(String(100), nullable=True)       # Τύπος Κατοικίας
+    property_age = Column(String(100), nullable=True)        # Παλαιότητα Κατοικίας
+    property_usage = Column(String(50), nullable=True)       # ΚΕΝΟ/ΜΙΣΘΩΜΕΝΟ/ΙΔΙΟΚΑΤΟΙΚΗΣΗ
+    renovation_works = Column(String(500), nullable=True)    # Εργασίες Ανακαίνισης
+    legality = Column(String(200), nullable=True)            # Νομιμότητα Ακινήτου
+
+    cooperating_engineer = Column(String(200), nullable=True)
+    subsidy_percent = Column(Float, default=70)              # 70 or 90
+
+    energy_works_budget = Column(Float, default=0)           # >=20% of total
+    general_works_budget = Column(Float, default=0)          # remainder
+
+    # Household type & income criteria
+    household_type = Column(String(50), nullable=True)       # άγαμος/ζευγάρι
+    num_children = Column(Integer, default=0)
+
+    # Legacy single booleans (kept for compat)
+    is_single_parent = Column(Boolean, default=False)
+    is_three_children = Column(Boolean, default=False)
+
+    # Subsidy increase flags
+    boost_island = Column(Boolean, default=False)            # Νησί/ορεινά
+    boost_single_parent = Column(Boolean, default=False)     # Μονογονεική
+    boost_three_children = Column(Boolean, default=False)    # Τρίτεκνη
+    boost_large_family = Column(Boolean, default=False)      # Πολύτεκνη
+    boost_youth = Column(Boolean, default=False)             # Νέοι 25-35
+
+    # Document checklist (from Google Sheet)
+    doc_title_deed = Column(Boolean, default=False)          # *ΤΙΤΛΟΣ
+    doc_e9 = Column(Boolean, default=False)                  # *Ε9
+    doc_permit = Column(Boolean, default=False)              # *ΑΔΕΙΑ
+    doc_legalization = Column(Boolean, default=False)        # *ΤΑΚΤ.ΑΥΘ.
+    doc_plans = Column(Boolean, default=False)               # *ΣΧΕΔΙΑ
+    doc_e1 = Column(Boolean, default=False)                  # Ε1
+    doc_tax_clearance = Column(Boolean, default=False)       # ΕΚΚΑΘ
+    doc_e2 = Column(Boolean, default=False)                  # Ε2
+
+    inspection_fee_paid = Column(Boolean, default=False)
+    inspection_fee_paid_at = Column(DateTime, nullable=True)
+
     updated_at = Column(DateTime, default=datetime.utcnow)
+
+    case = relationship("CMCase", backref="anakainizw_data")

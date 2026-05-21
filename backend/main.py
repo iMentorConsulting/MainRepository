@@ -25,6 +25,7 @@ from routes.cm_portal_files import router as cm_portal_files_router  # portal do
 from routes.cm_revenue import router as cm_revenue_router
 from routes.cm_backup import router as cm_backup_router
 from models_cases import CMBackupLog
+from routes.cm_anakainizw import router as cm_anakainizw_router
 
 load_dotenv()
 
@@ -146,6 +147,59 @@ try:
     with engine.connect() as _conn:
         _conn.execute(_text("ALTER TABLE cm_backup_logs ADD COLUMN IF NOT EXISTS json_data TEXT"))
         _conn.execute(_text("ALTER TABLE cm_backup_logs ADD COLUMN IF NOT EXISTS drive_file_id VARCHAR(200)"))
+        _conn.commit()
+except Exception:
+    pass
+
+# Migration: cm_case_anakainizw table
+try:
+    with engine.connect() as _conn:
+        _conn.execute(_text("""
+            CREATE TABLE IF NOT EXISTS cm_case_anakainizw (
+                id SERIAL PRIMARY KEY,
+                case_id INTEGER UNIQUE REFERENCES cm_cases(id) ON DELETE CASCADE,
+                property_sqm FLOAT,
+                property_prefecture VARCHAR(200),
+                property_address VARCHAR(500),
+                cooperating_engineer VARCHAR(200),
+                subsidy_percent FLOAT DEFAULT 70,
+                energy_works_budget FLOAT DEFAULT 0,
+                general_works_budget FLOAT DEFAULT 0,
+                is_single_parent BOOLEAN DEFAULT FALSE,
+                is_three_children BOOLEAN DEFAULT FALSE,
+                inspection_fee_paid BOOLEAN DEFAULT FALSE,
+                inspection_fee_paid_at TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT NOW()
+            )
+        """))
+        # Add new columns (IF NOT EXISTS is idempotent)
+        new_cols = [
+            "ALTER TABLE cm_case_anakainizw ADD COLUMN IF NOT EXISTS property_type VARCHAR(100)",
+            "ALTER TABLE cm_case_anakainizw ADD COLUMN IF NOT EXISTS property_age VARCHAR(100)",
+            "ALTER TABLE cm_case_anakainizw ADD COLUMN IF NOT EXISTS property_usage VARCHAR(50)",
+            "ALTER TABLE cm_case_anakainizw ADD COLUMN IF NOT EXISTS renovation_works VARCHAR(500)",
+            "ALTER TABLE cm_case_anakainizw ADD COLUMN IF NOT EXISTS legality VARCHAR(200)",
+            "ALTER TABLE cm_case_anakainizw ADD COLUMN IF NOT EXISTS household_type VARCHAR(50)",
+            "ALTER TABLE cm_case_anakainizw ADD COLUMN IF NOT EXISTS num_children INTEGER DEFAULT 0",
+            "ALTER TABLE cm_case_anakainizw ADD COLUMN IF NOT EXISTS boost_island BOOLEAN DEFAULT FALSE",
+            "ALTER TABLE cm_case_anakainizw ADD COLUMN IF NOT EXISTS boost_single_parent BOOLEAN DEFAULT FALSE",
+            "ALTER TABLE cm_case_anakainizw ADD COLUMN IF NOT EXISTS boost_three_children BOOLEAN DEFAULT FALSE",
+            "ALTER TABLE cm_case_anakainizw ADD COLUMN IF NOT EXISTS boost_large_family BOOLEAN DEFAULT FALSE",
+            "ALTER TABLE cm_case_anakainizw ADD COLUMN IF NOT EXISTS boost_youth BOOLEAN DEFAULT FALSE",
+            "ALTER TABLE cm_case_anakainizw ADD COLUMN IF NOT EXISTS doc_title_deed BOOLEAN DEFAULT FALSE",
+            "ALTER TABLE cm_case_anakainizw ADD COLUMN IF NOT EXISTS doc_e9 BOOLEAN DEFAULT FALSE",
+            "ALTER TABLE cm_case_anakainizw ADD COLUMN IF NOT EXISTS doc_permit BOOLEAN DEFAULT FALSE",
+            "ALTER TABLE cm_case_anakainizw ADD COLUMN IF NOT EXISTS doc_legalization BOOLEAN DEFAULT FALSE",
+            "ALTER TABLE cm_case_anakainizw ADD COLUMN IF NOT EXISTS doc_plans BOOLEAN DEFAULT FALSE",
+            "ALTER TABLE cm_case_anakainizw ADD COLUMN IF NOT EXISTS doc_e1 BOOLEAN DEFAULT FALSE",
+            "ALTER TABLE cm_case_anakainizw ADD COLUMN IF NOT EXISTS doc_tax_clearance BOOLEAN DEFAULT FALSE",
+            "ALTER TABLE cm_case_anakainizw ADD COLUMN IF NOT EXISTS doc_e2 BOOLEAN DEFAULT FALSE",
+        ]
+        for stmt in new_cols:
+            try:
+                _conn.execute(_text(stmt))
+            except Exception:
+                pass
         _conn.commit()
 except Exception:
     pass
@@ -596,6 +650,7 @@ app.include_router(cm_modifications_router)
 app.include_router(cm_portal_files_router)
 app.include_router(cm_revenue_router)
 app.include_router(cm_backup_router)
+app.include_router(cm_anakainizw_router)
 
 
 @app.on_event("shutdown")

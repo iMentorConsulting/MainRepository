@@ -146,7 +146,7 @@ def _build_portal_data(case: CMCase, db: Session) -> dict:
     total_paid = case.total_paid or 0
     balance = total_agreed - total_paid
 
-    return {
+    response = {
         "case_id": case.id,
         "client_name": case.client_name,
         "service_type": case.service_type,
@@ -187,6 +187,58 @@ def _build_portal_data(case: CMCase, db: Session) -> dict:
         ],
         "portal_files": _get_portal_files_for_case(case, db),
     }
+
+    # ΑΝΑΚΑΙΝΙΖΩ extra data
+    if prog == "ΑΝΑΚΑΙΝΙΖΩ":
+        from models_cases import CMCaseAnakainizw
+        ana = db.query(CMCaseAnakainizw).filter(CMCaseAnakainizw.case_id == case.id).first()
+        if ana:
+            total = (ana.energy_works_budget or 0) + (ana.general_works_budget or 0)
+            energy_pct = round(((ana.energy_works_budget or 0) / total) * 100) if total > 0 else 0
+            ht = (ana.household_type or "").lower()
+            base_income = 25000 if ht == "άγαμος" else 35000
+            income_limit = base_income + (ana.num_children or 0) * 5000
+            response["anakainizw"] = {
+                "property_sqm": ana.property_sqm,
+                "property_prefecture": ana.property_prefecture,
+                "property_address": ana.property_address,
+                "property_type": ana.property_type,
+                "property_age": ana.property_age,
+                "property_usage": ana.property_usage,
+                "renovation_works": ana.renovation_works,
+                "legality": ana.legality,
+                "cooperating_engineer": ana.cooperating_engineer,
+                "subsidy_percent": ana.subsidy_percent,
+                "energy_works_budget": ana.energy_works_budget or 0,
+                "general_works_budget": ana.general_works_budget or 0,
+                "total_works_budget": total,
+                "max_budget": min((ana.property_sqm or 0) * 300, 36000) if ana.property_sqm else 0,
+                "energy_pct": energy_pct,
+                "energy_ok": energy_pct >= 20,
+                "household_type": ana.household_type,
+                "num_children": ana.num_children,
+                "income_limit": income_limit,
+                "is_single_parent": ana.is_single_parent,
+                "is_three_children": ana.is_three_children,
+                "boost_island": ana.boost_island,
+                "boost_single_parent": ana.boost_single_parent,
+                "boost_three_children": ana.boost_three_children,
+                "boost_large_family": ana.boost_large_family,
+                "boost_youth": ana.boost_youth,
+                "doc_title_deed": ana.doc_title_deed,
+                "doc_e9": ana.doc_e9,
+                "doc_permit": ana.doc_permit,
+                "doc_legalization": ana.doc_legalization,
+                "doc_plans": ana.doc_plans,
+                "doc_e1": ana.doc_e1,
+                "doc_tax_clearance": ana.doc_tax_clearance,
+                "doc_e2": ana.doc_e2,
+                "inspection_fee_paid": ana.inspection_fee_paid,
+            }
+        else:
+            response["anakainizw"] = None
+
+    return response
 
 
 def _get_portal_files_for_case(case: CMCase, db: Session) -> list:

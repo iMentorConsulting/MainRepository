@@ -619,3 +619,235 @@ def assign_programs(
                 total_updated += 1
     db.commit()
     return {"updated": total_updated, "message": f"Ενημερώθηκαν {total_updated} υποθέσεις."}
+
+
+# ── ΑΝΑΚΑΙΝΙΖΩ sheet import ──────────────────────────────────────────────────
+# ── ΑΝΑΚΑΙΝΙΖΩ Sheet (separate spreadsheet) ──────────────────────────────────
+# Columns: DATE|Επωνυμία|Email|Τηλέφωνο|Πόλη|Status|Comments|Τύπος Κατοικίας
+#          |Παλαιότητα|ΤΜ|Χρήση|Εργασίες Ανακαίνισης|Νομιμότητα
+#          |*ΤΙΤΛΟΣ|*Ε9|*ΑΔΕΙΑ|*ΤΑΚΤ.ΑΥΘ.|*ΣΧΕΔΙΑ|Ε1|ΕΚΚΑΘ|Ε2
+ANA_COL = {
+    "sale_date": 0,
+    "client_name": 1,
+    "email": 2,
+    "phone": 3,
+    "property_prefecture": 4,   # Πόλη
+    "status": 5,
+    "notes": 6,                  # Comments
+    "property_type": 7,          # Τύπος Κατοικίας
+    "property_age": 8,           # Παλαιότητα Κατοικίας
+    "property_sqm": 9,           # ΤΜ
+    "property_usage": 10,        # Χρήση
+    "renovation_works": 11,      # Εργασίες Ανακαίνισης
+    "legality": 12,              # Νομιμότητα Ακινήτου
+    "doc_title_deed": 13,        # *ΤΙΤΛΟΣ
+    "doc_e9": 14,                # *Ε9
+    "doc_permit": 15,            # *ΑΔΕΙΑ
+    "doc_legalization": 16,      # *ΤΑΚΤ.ΑΥΘ.
+    "doc_plans": 17,             # *ΣΧΕΔΙΑ
+    "doc_e1": 18,                # Ε1
+    "doc_tax_clearance": 19,     # ΕΚΚΑΘ
+    "doc_e2": 20,                # Ε2
+}
+ANA_NUM_COLS = 21
+
+ANAKAINIZW_SPREADSHEET_ID = os.getenv("ANAKAINIZW_SHEET_ID", "1BB-39I_7yAt6pOK0Ua-Tx6EZcmPp8DIFm7q0drd4VsM")
+ANAKAINIZW_SHEET_TAB = os.getenv("ANAKAINIZW_SHEET_TAB", "Sheet1")
+ANAKAINIZW_SERVICE_TYPE = "Ανακαινίζω"
+
+
+def _parse_bool_cell(val: str) -> bool:
+    return str(val).strip().upper() in ("TRUE", "1", "ΝΑΙ", "NAI", "YES")
+
+
+def _read_anakainizw_rows() -> list[list]:
+    """Read all rows from the ΑΝΑΚΑΙΝΙΖΩ spreadsheet."""
+    service = _get_sheets_service()
+    result = (
+        service.spreadsheets()
+        .values()
+        .get(spreadsheetId=ANAKAINIZW_SPREADSHEET_ID, range=f"{ANAKAINIZW_SHEET_TAB}!A:U")
+        .execute()
+    )
+    return result.get("values", [])
+
+
+def _do_import_anakainizw(db: Session) -> dict:
+    """Import/update cases from the ΑΝΑΚΑΙΝΙΖΩ Google Sheet."""
+    from models_cases import CMCaseAnakainizw as CMCaseAna
+    from pipelines import PIPELINES as _PIPELINES
+
+    rows = _read_anakainizw_rows()
+    if not rows:
+        return {"imported": 0, "updated": 0, "skipped": 0}
+
+    valid_statuses = set(get_all_statuses_for_program("ΑΝΑΚΑΙΝΙΖΩ"))
+    first_status = _PIPELINES["ΑΝΑΚΑΙΝΙΖΩ"]["phases"][0]["statuses"][0]
+
+    imported = 0
+    updated = 0
+    skipped = 0
+
+    for i, row in enumerate(rows):
+        if i == 0:
+            continue  # skip header
+        while len(row) < ANA_NUM_COLS:
+            row.append("")
+
+        client_name = str(row[ANA_COL["client_name"]]).strip()
+        if not client_name:
+            continue
+
+        status_raw = str(row[ANA_COL["status"]]).strip()
+        status = status_raw if status_raw in valid_statuses else first_status
+
+        phone = str(row[ANA_COL["phone"]]).strip() or None
+        email = str(row[ANA_COL["email"]]).strip() or None
+        sale_date = _parse_date(str(row[ANA_COL["sale_date"]]).strip())
+        property_prefecture = str(row[ANA_COL["property_prefecture"]]).strip() or None
+        property_type = str(row[ANA_COL["property_type"]]).strip() or None
+        property_age = str(row[ANA_COL["property_age"]]).strip() or None
+        sqm_raw = str(row[ANA_COL["property_sqm"]]).strip()
+        property_sqm = _parse_float(sqm_raw) if sqm_raw else None
+        property_usage = str(row[ANA_COL["property_usage"]]).strip() or None
+        renovation_works = str(row[ANA_COL["renovation_works"]]).strip() or None
+        legality = str(row[ANA_COL["legality"]]).strip() or None
+        notes = str(row[ANA_COL["notes"]]).strip() or None
+
+        doc_title_deed = _parse_bool_cell(row[ANA_COL["doc_title_deed"]])
+        doc_e9 = _parse_bool_cell(row[ANA_COL["doc_e9"]])
+        doc_permit = _parse_bool_cell(row[ANA_COL["doc_permit"]])
+        doc_legalization = _parse_bool_cell(row[ANA_COL["doc_legalization"]])
+        doc_plans = _parse_bool_cell(row[ANA_COL["doc_plans"]])
+        doc_e1 = _parse_bool_cell(row[ANA_COL["doc_e1"]])
+        doc_tax_clearance = _parse_bool_cell(row[ANA_COL["doc_tax_clearance"]])
+        doc_e2 = _parse_bool_cell(row[ANA_COL["doc_e2"]])
+
+        # Dedup by client_name + program (no AFM in this sheet)
+        ref = _merge_key("", client_name, ANAKAINIZW_SERVICE_TYPE)
+
+        existing = (
+            db.query(CMCase)
+            .filter(CMCase.sheet_import_ref == ref)
+            .first()
+        )
+        if not existing:
+            existing = (
+                db.query(CMCase)
+                .filter(
+                    CMCase.client_name == client_name,
+                    CMCase.program_category == "ΑΝΑΚΑΙΝΙΖΩ",
+                )
+                .first()
+            )
+
+        if existing:
+            changed = False
+            if status and existing.status != status:
+                existing.status = status
+                existing.status_changed_at = datetime.utcnow()
+                changed = True
+            for field, val in [("phone", phone), ("email", email), ("sale_date", sale_date)]:
+                if val and getattr(existing, field) != val:
+                    setattr(existing, field, val)
+                    changed = True
+            if notes and existing.notes != notes:
+                existing.notes = notes
+                changed = True
+            if changed:
+                existing.updated_at = datetime.utcnow()
+                updated += 1
+            else:
+                skipped += 1
+
+            ana_row = db.query(CMCaseAna).filter(CMCaseAna.case_id == existing.id).first()
+            if not ana_row:
+                ana_row = CMCaseAna(case_id=existing.id)
+                db.add(ana_row)
+        else:
+            case = CMCase(
+                client_name=client_name,
+                phone=phone,
+                email=email,
+                sale_date=sale_date,
+                service_type=ANAKAINIZW_SERVICE_TYPE,
+                status=status,
+                program_category="ΑΝΑΚΑΙΝΙΖΩ",
+                sheet_import_ref=ref,
+                notes=notes,
+                status_changed_at=datetime.utcnow(),
+            )
+            db.add(case)
+            db.flush()
+            ana_row = CMCaseAna(case_id=case.id)
+            db.add(ana_row)
+            imported += 1
+
+        # Always sync all anakainizw fields from sheet
+        ana_row.property_prefecture = property_prefecture
+        ana_row.property_type = property_type
+        ana_row.property_age = property_age
+        if property_sqm is not None:
+            ana_row.property_sqm = property_sqm
+        ana_row.property_usage = property_usage
+        ana_row.renovation_works = renovation_works
+        ana_row.legality = legality
+        ana_row.doc_title_deed = doc_title_deed
+        ana_row.doc_e9 = doc_e9
+        ana_row.doc_permit = doc_permit
+        ana_row.doc_legalization = doc_legalization
+        ana_row.doc_plans = doc_plans
+        ana_row.doc_e1 = doc_e1
+        ana_row.doc_tax_clearance = doc_tax_clearance
+        ana_row.doc_e2 = doc_e2
+        ana_row.updated_at = datetime.utcnow()
+
+    db.commit()
+    return {"imported": imported, "updated": updated, "skipped": skipped}
+
+
+@router.post("/import-anakainizw")
+def import_anakainizw_sheet(
+    current_user: CMUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Import/update cases from the ΑΝΑΚΑΙΝΙΖΩ Google Sheet."""
+    r = _do_import_anakainizw(db)
+    return {
+        **r,
+        "message": (
+            f"Εισήχθησαν {r['imported']} νέες υποθέσεις, "
+            f"ενημερώθηκαν {r['updated']}, "
+            f"παρέμειναν αμετάβλητες {r['skipped']}."
+        ),
+    }
+
+
+@router.get("/preview-anakainizw")
+def preview_anakainizw_sheet(
+    current_user: CMUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Preview rows from the ΑΝΑΚΑΙΝΙΖΩ sheet."""
+    rows = _read_anakainizw_rows()
+    preview = []
+    for i, row in enumerate(rows):
+        if i == 0:
+            continue
+        while len(row) < ANA_NUM_COLS:
+            row.append("")
+        client_name = str(row[ANA_COL["client_name"]]).strip()
+        if not client_name:
+            continue
+        preview.append({
+            "row": i + 1,
+            "client_name": client_name,
+            "email": str(row[ANA_COL["email"]]).strip() or None,
+            "phone": str(row[ANA_COL["phone"]]).strip() or None,
+            "property_prefecture": str(row[ANA_COL["property_prefecture"]]).strip() or None,
+            "property_sqm": str(row[ANA_COL["property_sqm"]]).strip() or None,
+            "property_usage": str(row[ANA_COL["property_usage"]]).strip() or None,
+            "status": str(row[ANA_COL["status"]]).strip() or None,
+            "sale_date": str(row[ANA_COL["sale_date"]]).strip() or None,
+        })
+    return {"total_rows": len(preview), "preview": preview[:30]}

@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
 import { getPortalCase, recordPortalVisit, submitPortalNps, recordPortalReviewClick, submitPortalMessage, uploadPortalFile } from '../api'
+import AnakainizwPortalSection from './AnakainizwPortalSection'
 import {
   BuildingOffice2Icon,
   CheckCircleIcon,
@@ -1211,6 +1212,11 @@ export default function ClientPortal() {
         {/* ΔΥΠΑ / ΟΑΕΔ section */}
         {data.program_category === 'ΔΥΠΑ' && (
           <DypaSection data={data} />
+        )}
+
+        {/* ΑΝΑΚΑΙΝΙΖΩ section */}
+        {data.program_category === 'ΑΝΑΚΑΙΝΙΖΩ' && (
+          <AnakainizwPortalSection caseData={data} />
         )}
 
         {/* Pending Items */}
