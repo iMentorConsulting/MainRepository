@@ -835,7 +835,12 @@ def import_anakainizw_sheet(
     db: Session = Depends(get_db),
 ):
     """Import/update cases from the ΑΝΑΚΑΙΝΙΖΩ Google Sheet."""
-    r = _do_import_anakainizw(db)
+    try:
+        r = _do_import_anakainizw(db)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Σφάλμα εισαγωγής: {exc}")
     return {
         **r,
         "message": (

@@ -298,11 +298,11 @@ export default function Import() {
       const data = await importAnakainizwSheet()
       setAnaImportResult(data.message)
       setAnaPreviewData(null)
-      toast.success(`Εισαγωγή ΑΝΑΚΑΙΝΙΖΩ ολοκληρώθηκε`)
+      toast.success('Εισαγωγή ΑΝΑΚΑΙΝΙΖΩ ολοκληρώθηκε')
     } catch (err) {
-      const msg = err.response?.data?.detail || 'Σφάλμα κατά την εισαγωγή'
+      const msg = err.response?.data?.detail || err.message || 'Σφάλμα κατά την εισαγωγή'
       setAnaImportError(msg)
-      toast.error(msg)
+      toast.error(msg, { duration: 8000 })
     } finally {
       setLoadingAnaImport(false)
     }
