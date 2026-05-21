@@ -12,7 +12,7 @@ import {
   ClockIcon,
 } from '@heroicons/react/24/outline'
 import toast from 'react-hot-toast'
-import { previewSheet, importFromSheet, syncPaidFromSheet, syncAgentsFromSheet, getServiceTypes, assignPrograms, syncInvestmentFromSheet, syncSaleDatesFromSheet, getAutoRefreshStatus } from '../api'
+import { previewSheet, importFromSheet, syncPaidFromSheet, syncAgentsFromSheet, getServiceTypes, assignPrograms, syncInvestmentFromSheet, syncSaleDatesFromSheet, getAutoRefreshStatus, previewAnakainizwSheet, importAnakainizwSheet } from '../api'
 
 const PREVIEW_COLUMNS = [
   { key: 'client_name', label: 'Πελάτης' },
@@ -222,6 +222,13 @@ export default function Import() {
   const [loadingSaleDates, setLoadingSaleDates] = useState(false)
   const [saleDatesResult, setSaleDatesResult] = useState(null)
 
+  // ΑΝΑΚΑΙΝΙΖΩ import state
+  const [loadingAnaPreview, setLoadingAnaPreview] = useState(false)
+  const [anaPreviewData, setAnaPreviewData] = useState(null)
+  const [loadingAnaImport, setLoadingAnaImport] = useState(false)
+  const [anaImportResult, setAnaImportResult] = useState(null)
+  const [anaImportError, setAnaImportError] = useState(null)
+
   const handleSyncInvestment = async () => {
     setLoadingInvestment(true)
     setInvestmentResult(null)
@@ -247,6 +254,38 @@ export default function Import() {
       toast.error(err.response?.data?.detail || 'Σφάλμα')
     } finally {
       setLoadingSaleDates(false)
+    }
+  }
+
+  const handleAnaPreview = async () => {
+    setLoadingAnaPreview(true)
+    setAnaPreviewData(null)
+    try {
+      const data = await previewAnakainizwSheet()
+      setAnaPreviewData(data)
+      toast.success(`Βρέθηκαν ${data.total_rows} εγγραφές`)
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Σφάλμα κατά την προεπισκόπηση')
+    } finally {
+      setLoadingAnaPreview(false)
+    }
+  }
+
+  const handleAnaImport = async () => {
+    setLoadingAnaImport(true)
+    setAnaImportResult(null)
+    setAnaImportError(null)
+    try {
+      const data = await importAnakainizwSheet()
+      setAnaImportResult(data.message)
+      setAnaPreviewData(null)
+      toast.success(`Εισαγωγή ΑΝΑΚΑΙΝΙΖΩ ολοκληρώθηκε`)
+    } catch (err) {
+      const msg = err.response?.data?.detail || 'Σφάλμα κατά την εισαγωγή'
+      setAnaImportError(msg)
+      toast.error(msg)
+    } finally {
+      setLoadingAnaImport(false)
     }
   }
 
@@ -678,6 +717,107 @@ export default function Import() {
             </button>
           </div>
         </div>
+      </div>
+
+      {/* Divider */}
+      <div className="relative">
+        <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-200" /></div>
+        <div className="relative flex justify-center">
+          <span className="bg-gray-50 px-4 text-sm font-semibold text-gray-500 uppercase tracking-wider">🏠 Εισαγωγή ΑΝΑΚΑΙΝΙΖΩ</span>
+        </div>
+      </div>
+
+      {/* ΑΝΑΚΑΙΝΙΖΩ Import Section */}
+      <div className="bg-white rounded-xl border p-5 space-y-4">
+        <div className="flex items-start gap-3">
+          <div className="p-2 bg-blue-50 rounded-lg flex-shrink-0">
+            <CloudArrowDownIcon className="w-5 h-5 text-blue-500" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <h2 className="text-base font-semibold text-gray-800 mb-1">Εισαγωγή από Google Sheet ΑΝΑΚΑΙΝΙΖΩ</h2>
+            <p className="text-sm text-gray-500">
+              Διαβάζει το sheet <span className="font-semibold text-gray-700">ΑΝΑΚΑΙΝΙΣΕΙΣ</span> και δημιουργεί ή ενημερώνει υποθέσεις ΑΝΑΚΑΙΝΙΖΩ,
+              συμπεριλαμβανομένων εγγράφων ακινήτου, στοιχείων χρήσης και κατάστασης.
+            </p>
+          </div>
+        </div>
+
+        {anaImportResult && (
+          <div className="flex items-start gap-2 text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg px-4 py-3">
+            <CheckCircleIcon className="w-5 h-5 flex-shrink-0 mt-0.5" />
+            <span>{anaImportResult}</span>
+          </div>
+        )}
+        {anaImportError && (
+          <div className="flex items-start gap-2 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-4 py-3">
+            <ExclamationTriangleIcon className="w-5 h-5 flex-shrink-0 mt-0.5" />
+            <span>{anaImportError}</span>
+          </div>
+        )}
+
+        {/* Preview results */}
+        {anaPreviewData && (
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-2">
+              <StatCard label="Εγγραφές στο Sheet" value={anaPreviewData.total_rows} color="blue" />
+              <StatCard label="Προεπισκόπηση (πρώτες 30)" value={Math.min(anaPreviewData.total_rows, 30)} color="gray" />
+            </div>
+            {anaPreviewData.preview?.length > 0 && (
+              <div className="overflow-x-auto rounded-lg border">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-gray-50">
+                      {['Πελάτης', 'Email', 'Τηλέφωνο', 'Περιοχή', 'Τ.Μ.', 'Χρήση', 'Κατάσταση'].map(h => (
+                        <th key={h} className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {anaPreviewData.preview.map((row, i) => (
+                      <tr key={i} className="hover:bg-gray-50">
+                        <td className="px-3 py-2 text-gray-800 font-medium whitespace-nowrap max-w-[160px] truncate">{row.client_name || '—'}</td>
+                        <td className="px-3 py-2 text-gray-600 max-w-[140px] truncate">{row.email || '—'}</td>
+                        <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{row.phone || '—'}</td>
+                        <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{row.property_prefecture || '—'}</td>
+                        <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{row.property_sqm ? `${row.property_sqm} τ.μ.` : '—'}</td>
+                        <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{row.property_usage || '—'}</td>
+                        <td className="px-3 py-2 whitespace-nowrap">
+                          <span className="text-xs font-medium bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full">{row.status || '—'}</span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className="flex flex-wrap gap-3">
+          <button
+            onClick={handleAnaPreview}
+            disabled={loadingAnaPreview}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-gray-100 text-gray-700 text-sm font-medium hover:bg-gray-200 disabled:opacity-50 transition-colors border"
+          >
+            {loadingAnaPreview
+              ? <><Spinner /><span>Φόρτωση...</span></>
+              : <><InformationCircleIcon className="w-4 h-4" /><span>Προεπισκόπηση</span></>
+            }
+          </button>
+          <button
+            onClick={handleAnaImport}
+            disabled={loadingAnaImport}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
+          >
+            {loadingAnaImport
+              ? <><Spinner color="blue" /><span>Εισαγωγή...</span></>
+              : <><CloudArrowDownIcon className="w-4 h-4" /><span>Εισαγωγή ΑΝΑΚΑΙΝΙΖΩ</span></>
+            }
+          </button>
+        </div>
+        <p className="text-xs text-gray-400">
+          Η εισαγωγή είναι ασφαλής — υπάρχουσες υποθέσεις ενημερώνονται, δεν διαγράφονται.
+        </p>
       </div>
     </div>
   )
