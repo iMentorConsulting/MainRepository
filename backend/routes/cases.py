@@ -251,12 +251,15 @@ def bc_to_dict(b: CMBudgetCategory) -> dict:
 @router.get("/")
 def list_cases(
     status: Optional[str] = Query(None),
+    statuses: Optional[str] = Query(None),           # comma-separated
     program_category: Optional[str] = Query(None),
+    program_categories: Optional[str] = Query(None), # comma-separated
     agent_id: Optional[int] = Query(None),
     service_type: Optional[str] = Query(None),
     search: Optional[str] = Query(None),
     deadline_alert: Optional[bool] = Query(None),
     include_terminal: Optional[bool] = Query(False),
+    limit: Optional[int] = Query(300),
     current_user: CMUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -265,13 +268,23 @@ def list_cases(
     # duplication or attribute mixing from any join.
     q = db.query(CMCase)
 
+    # Status filters — single value takes priority, then comma-separated list
     if status:
         q = q.filter(CMCase.status == status)
+    elif statuses:
+        status_list = [s.strip() for s in statuses.split(",") if s.strip()]
+        if status_list:
+            q = q.filter(CMCase.status.in_(status_list))
     elif not include_terminal:
         q = q.filter(~CMCase.status.in_(list(TERMINAL_STATUSES)))
 
+    # Program filters — single value takes priority, then comma-separated list
     if program_category:
         q = q.filter(CMCase.program_category == program_category)
+    elif program_categories:
+        prog_list = [p.strip() for p in program_categories.split(",") if p.strip()]
+        if prog_list:
+            q = q.filter(CMCase.program_category.in_(prog_list))
 
     if agent_id:
         q = q.filter(CMCase.assigned_agent_id == agent_id)
@@ -300,7 +313,8 @@ def list_cases(
             )
         )
 
-    cases = q.order_by(CMCase.updated_at.desc()).all()
+    cap = min(limit, 1000) if limit else 500
+    cases = q.order_by(CMCase.updated_at.desc()).limit(cap).all()
     sla_map = {r.status: r.sla_days for r in db.query(CMStatusSLA).all()}
 
     if not cases:

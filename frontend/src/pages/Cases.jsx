@@ -298,10 +298,11 @@ export default function Cases() {
       const params = {}
       if (search) params.search = search
       if (filters.deadline_alert) params.deadline_alert = true
+      if (filters.programs.length) params.program_categories = filters.programs.join(',')
       setAllCases(await getCases(params))
     } catch { toast.error('Σφάλμα φόρτωσης') }
     finally { setLoading(false) }
-  }, [search, filters.deadline_alert])
+  }, [search, filters.deadline_alert, filters.programs])
 
   useEffect(() => { load() }, [load])
   useEffect(() => { getUsers().then(setAgents).catch(() => {}) }, [])
