@@ -829,7 +829,12 @@ def preview_anakainizw_sheet(
     db: Session = Depends(get_db),
 ):
     """Preview rows from the ΑΝΑΚΑΙΝΙΖΩ sheet."""
-    rows = _read_anakainizw_rows()
+    try:
+        rows = _read_anakainizw_rows()
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Σφάλμα ανάγνωσης sheet: {exc}")
     preview = []
     for i, row in enumerate(rows):
         if i == 0:

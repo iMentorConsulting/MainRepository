@@ -260,12 +260,16 @@ export default function Import() {
   const handleAnaPreview = async () => {
     setLoadingAnaPreview(true)
     setAnaPreviewData(null)
+    setAnaImportResult(null)
+    setAnaImportError(null)
     try {
       const data = await previewAnakainizwSheet()
       setAnaPreviewData(data)
       toast.success(`Βρέθηκαν ${data.total_rows} εγγραφές`)
     } catch (err) {
-      toast.error(err.response?.data?.detail || 'Σφάλμα κατά την προεπισκόπηση')
+      const msg = err.response?.data?.detail || err.message || 'Σφάλμα κατά την προεπισκόπηση'
+      setAnaImportError(msg)
+      toast.error(msg)
     } finally {
       setLoadingAnaPreview(false)
     }
