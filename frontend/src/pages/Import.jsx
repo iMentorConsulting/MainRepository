@@ -12,7 +12,7 @@ import {
   ClockIcon,
 } from '@heroicons/react/24/outline'
 import toast from 'react-hot-toast'
-import { previewSheet, importFromSheet, syncPaidFromSheet, syncAgentsFromSheet, getServiceTypes, assignPrograms, syncInvestmentFromSheet, syncSaleDatesFromSheet, getAutoRefreshStatus, previewAnakainizwSheet, importAnakainizwSheet } from '../api'
+import { previewSheet, importFromSheet, syncPaidFromSheet, syncAgentsFromSheet, getServiceTypes, assignPrograms, syncInvestmentFromSheet, syncSaleDatesFromSheet, getAutoRefreshStatus, previewAnakainizwSheet, importAnakainizwSheet, getAnakainizwHeaders } from '../api'
 
 const PREVIEW_COLUMNS = [
   { key: 'client_name', label: 'Πελάτης' },
@@ -228,6 +228,8 @@ export default function Import() {
   const [loadingAnaImport, setLoadingAnaImport] = useState(false)
   const [anaImportResult, setAnaImportResult] = useState(null)
   const [anaImportError, setAnaImportError] = useState(null)
+  const [loadingAnaHeaders, setLoadingAnaHeaders] = useState(false)
+  const [anaHeadersData, setAnaHeadersData] = useState(null)
 
   const handleSyncInvestment = async () => {
     setLoadingInvestment(true)
@@ -272,6 +274,19 @@ export default function Import() {
       toast.error(msg)
     } finally {
       setLoadingAnaPreview(false)
+    }
+  }
+
+  const handleAnaHeaders = async () => {
+    setLoadingAnaHeaders(true)
+    setAnaHeadersData(null)
+    try {
+      const data = await getAnakainizwHeaders()
+      setAnaHeadersData(data)
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Σφάλμα')
+    } finally {
+      setLoadingAnaHeaders(false)
     }
   }
 
@@ -797,7 +812,52 @@ export default function Import() {
           </div>
         )}
 
+        {/* Column mapping diagnostic */}
+        {anaHeadersData && (
+          <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-4 space-y-2">
+            <div className="text-xs font-bold text-yellow-800 uppercase tracking-wide mb-2">
+              Στήλες Sheet (διάγνωση)
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs border-collapse">
+                <thead>
+                  <tr className="bg-yellow-100">
+                    <th className="px-2 py-1 text-left font-bold text-yellow-900 border border-yellow-200">Col #</th>
+                    <th className="px-2 py-1 text-left font-bold text-yellow-900 border border-yellow-200">Επικεφαλίδα</th>
+                    {anaHeadersData.sample_rows.map((_, i) => (
+                      <th key={i} className="px-2 py-1 text-left font-bold text-yellow-900 border border-yellow-200">Γραμμή {i + 2}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {anaHeadersData.headers.map(({ col, header }) => (
+                    <tr key={col} className="hover:bg-yellow-100">
+                      <td className="px-2 py-1 border border-yellow-200 font-mono font-bold text-yellow-700">{col}</td>
+                      <td className="px-2 py-1 border border-yellow-200 font-semibold text-gray-800">{header || <span className="text-gray-400">(κενό)</span>}</td>
+                      {anaHeadersData.sample_rows.map((row, i) => (
+                        <td key={i} className="px-2 py-1 border border-yellow-200 text-gray-600 max-w-[160px] truncate">
+                          {row[col]?.value || <span className="text-gray-300">—</span>}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
         <div className="flex flex-wrap gap-3">
+          <button
+            onClick={handleAnaHeaders}
+            disabled={loadingAnaHeaders}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-yellow-100 text-yellow-800 text-sm font-medium hover:bg-yellow-200 disabled:opacity-50 transition-colors border border-yellow-300"
+          >
+            {loadingAnaHeaders
+              ? <><Spinner /><span>Φόρτωση...</span></>
+              : <><TableCellsIcon className="w-4 h-4" /><span>Διάγνωση Στηλών</span></>
+            }
+          </button>
           <button
             onClick={handleAnaPreview}
             disabled={loadingAnaPreview}
