@@ -703,6 +703,8 @@ def _do_import_anakainizw(db: Session) -> dict:
     imported = 0
     updated = 0
     skipped = 0
+    # Track ana_rows by case_id to handle duplicate sheet rows for the same case
+    ana_row_cache: dict = {}
 
     for i, row in enumerate(rows):
         if i == 0:
@@ -782,10 +784,15 @@ def _do_import_anakainizw(db: Session) -> dict:
             else:
                 skipped += 1
 
-            ana_row = db.query(CMCaseAna).filter(CMCaseAna.case_id == existing.id).first()
-            if not ana_row:
-                ana_row = CMCaseAna(case_id=existing.id)
-                db.add(ana_row)
+            case_id = existing.id
+            if case_id in ana_row_cache:
+                ana_row = ana_row_cache[case_id]
+            else:
+                ana_row = db.query(CMCaseAna).filter(CMCaseAna.case_id == case_id).first()
+                if not ana_row:
+                    ana_row = CMCaseAna(case_id=case_id)
+                    db.add(ana_row)
+                ana_row_cache[case_id] = ana_row
         else:
             case = CMCase(
                 client_name=client_name,
@@ -805,6 +812,7 @@ def _do_import_anakainizw(db: Session) -> dict:
             db.flush()
             ana_row = CMCaseAna(case_id=case.id)
             db.add(ana_row)
+            ana_row_cache[case.id] = ana_row
             imported += 1
 
         # Always sync all anakainizw fields from sheet
