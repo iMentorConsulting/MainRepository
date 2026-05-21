@@ -823,6 +823,28 @@ def import_anakainizw_sheet(
     }
 
 
+@router.get("/anakainizw-headers")
+def anakainizw_headers(
+    current_user: CMUser = Depends(get_current_user),
+):
+    """Return the raw header row and first 3 data rows to verify column mapping."""
+    try:
+        rows = _read_anakainizw_rows()
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Σφάλμα: {exc}")
+    if not rows:
+        return {"headers": [], "sample_rows": []}
+    headers = [{"col": i, "header": v} for i, v in enumerate(rows[0])]
+    sample = []
+    for row in rows[1:4]:
+        while len(row) < len(rows[0]):
+            row.append("")
+        sample.append([{"col": i, "value": v} for i, v in enumerate(row)])
+    return {"headers": headers, "sample_rows": sample}
+
+
 @router.get("/preview-anakainizw")
 def preview_anakainizw_sheet(
     current_user: CMUser = Depends(get_current_user),
