@@ -19,8 +19,8 @@ import toast from 'react-hot-toast'
 import PendingTemplatesPanel from '../components/PendingTemplatesPanel'
 import SLAConfigPanel from '../components/SLAConfigPanel'
 
-const PROGRAM_TABS = ['ΕΣΠΑ', 'ΔΥΠΑ', 'ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ']
-const PROGRAM_LABELS = { ΕΣΠΑ: 'ΕΣΠΑ', ΔΥΠΑ: 'ΔΥΠΑ / ΟΑΕΔ', ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ: 'Μικροπιστώσεις' }
+const PROGRAM_TABS = ['ΕΣΠΑ', 'ΔΥΠΑ', 'ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ', 'ΑΝΑΚΑΙΝΙΖΩ']
+const PROGRAM_LABELS = { ΕΣΠΑ: 'ΕΣΠΑ', ΔΥΠΑ: 'ΔΥΠΑ / ΟΑΕΔ', ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ: 'Μικροπιστώσεις', ΑΝΑΚΑΙΝΙΖΩ: 'Ανακαινίζω' }
 
 const PHASE_COLORS = {
   green:  { border: 'border-t-green-500',  header: 'bg-green-500',  badge: 'bg-green-100 text-green-800 border-green-200',  sub: 'bg-green-50 text-green-700' },

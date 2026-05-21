@@ -144,7 +144,10 @@ const PROGRAM_OPTIONS = [
   { value: 'ΕΣΠΑ', label: 'ΕΣΠΑ' },
   { value: 'ΔΥΠΑ', label: 'ΔΥΠΑ / ΟΑΕΔ' },
   { value: 'ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ', label: 'Μικροπιστώσεις' },
+  { value: 'ΑΝΑΚΑΙΝΙΖΩ', label: 'Ανακαινίζω' },
 ]
+
+const NON_ANA_PROGRAMS = ['ΕΣΠΑ', 'ΔΥΠΑ', 'ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ']
 
 const fmt = (n) =>
   new Intl.NumberFormat('el-GR', { style: 'currency', currency: 'EUR', minimumFractionDigits: 0 }).format(n || 0)
@@ -272,6 +275,7 @@ export default function Cases() {
     has_pending: false,
     sla_overdue: false,
     status_mismatch: false,
+    exclude_anakainizw: true,
   })
   const [showNew, setShowNew] = useState(false)
   const navigate = useNavigate()
@@ -298,11 +302,15 @@ export default function Cases() {
       const params = {}
       if (search) params.search = search
       if (filters.deadline_alert) params.deadline_alert = true
-      if (filters.programs.length) params.program_categories = filters.programs.join(',')
+      if (filters.programs.length) {
+        params.program_categories = filters.programs.join(',')
+      } else if (filters.exclude_anakainizw) {
+        params.program_categories = NON_ANA_PROGRAMS.join(',')
+      }
       setAllCases(await getCases(params))
     } catch { toast.error('Σφάλμα φόρτωσης') }
     finally { setLoading(false) }
-  }, [search, filters.deadline_alert, filters.programs])
+  }, [search, filters.deadline_alert, filters.programs, filters.exclude_anakainizw])
 
   useEffect(() => { load() }, [load])
   useEffect(() => { getUsers().then(setAgents).catch(() => {}) }, [])
@@ -384,6 +392,16 @@ export default function Cases() {
           <input type="checkbox" checked={filters.status_mismatch} onChange={e => setFilters(f => ({ ...f, status_mismatch: e.target.checked }))} className="rounded" />
           ⚠ Λάθος Κατάσταση
         </label>
+        <button
+          onClick={() => setFilters(f => ({ ...f, exclude_anakainizw: !f.exclude_anakainizw, programs: [] }))}
+          className={`text-xs px-3 py-1.5 rounded-full border font-medium transition-colors whitespace-nowrap ${
+            filters.exclude_anakainizw
+              ? 'bg-orange-100 text-orange-700 border-orange-300 hover:bg-orange-200'
+              : 'bg-white text-gray-500 border-gray-300 hover:bg-gray-50'
+          }`}
+        >
+          {filters.exclude_anakainizw ? '🏠 Χωρίς Ανακαινίζω' : '🏠 Εμφάνιση Ανακαινίζω'}
+        </button>
       </div>
 
       {loading ? (
