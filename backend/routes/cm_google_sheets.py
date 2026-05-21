@@ -1,5 +1,6 @@
 import os
 import json
+import re
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import func
@@ -663,6 +664,14 @@ ANAKAINIZW_SHEET_TAB = os.getenv("ANAKAINIZW_SHEET_TAB", "ΑΝΑΚΑΙΝΙΣΕΙ
 ANAKAINIZW_SERVICE_TYPE = "Ανακαινίζω"
 
 
+def _normalize_phone_token(phone: str) -> str:
+    """Strip non-digits, remove leading Greek country code (30), return bare number."""
+    digits = re.sub(r"\D", "", phone or "")
+    if digits.startswith("30") and len(digits) > 10:
+        digits = digits[2:]
+    return digits
+
+
 def _parse_bool_cell(val: str) -> bool:
     return str(val).strip().upper() in ("TRUE", "1", "ΝΑΙ", "NAI", "YES")
 
@@ -747,6 +756,8 @@ def _do_import_anakainizw(db: Session) -> dict:
                 .first()
             )
 
+        phone_token = _normalize_phone_token(phone) if phone else None
+
         if existing:
             changed = False
             if status and existing.status != status:
@@ -759,6 +770,11 @@ def _do_import_anakainizw(db: Session) -> dict:
                     changed = True
             if notes and existing.notes != notes:
                 existing.notes = notes
+                changed = True
+            # Ensure portal token is set (phone-based when no AFM)
+            if not existing.share_token and phone_token:
+                existing.share_token = phone_token
+                existing.portal_active = True
                 changed = True
             if changed:
                 existing.updated_at = datetime.utcnow()
@@ -781,6 +797,8 @@ def _do_import_anakainizw(db: Session) -> dict:
                 program_category="ΑΝΑΚΑΙΝΙΖΩ",
                 sheet_import_ref=ref,
                 notes=notes,
+                share_token=phone_token,
+                portal_active=True if phone_token else False,
                 status_changed_at=datetime.utcnow(),
             )
             db.add(case)

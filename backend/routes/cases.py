@@ -485,6 +485,21 @@ def update_case(
         c.status_changed_at = datetime.utcnow()
     for field, val in data.items():
         setattr(c, field, val)
+
+    # ΑΝΑΚΑΙΝΙΖΩ: when AFM is added and portal token is still the phone number,
+    # upgrade the share_token to the AFM so the client can log in with their VAT.
+    if (
+        'afm' in data and data['afm']
+        and getattr(c, 'program_category', None) == 'ΑΝΑΚΑΙΝΙΖΩ'
+        and c.share_token
+    ):
+        import re as _re
+        phone_digits = _re.sub(r"\D", "", c.phone or "")
+        if phone_digits.startswith("30") and len(phone_digits) > 10:
+            phone_digits = phone_digits[2:]
+        if c.share_token == phone_digits:
+            c.share_token = data['afm']
+
     c.updated_at = datetime.utcnow()
     db.commit()
     db.refresh(c)
