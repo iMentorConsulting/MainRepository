@@ -812,6 +812,12 @@ def _do_import_anakainizw(db: Session, selected_rows: list[int] | None = None) -
 
         if existing:
             changed = False
+            if existing.program_category != "ΑΝΑΚΑΙΝΙΖΩ":
+                existing.program_category = "ΑΝΑΚΑΙΝΙΖΩ"
+                changed = True
+            if existing.service_type != ANAKAINIZW_SERVICE_TYPE:
+                existing.service_type = ANAKAINIZW_SERVICE_TYPE
+                changed = True
             if status and existing.status != status:
                 existing.status = status
                 existing.status_changed_at = datetime.utcnow()
@@ -989,3 +995,29 @@ def preview_anakainizw_sheet(
         "duplicate_groups": duplicate_groups,
         "total_rows": len(parsed),
     }
+
+
+@router.post("/fix-anakainizw-program")
+def fix_anakainizw_program_category(
+    current_user: CMUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """One-shot fix: set program_category='ΑΝΑΚΑΙΝΙΖΩ' and service_type for all cases
+    that have a cm_case_anakainizw record but wrong program_category."""
+    from models_cases import CMCaseAnakainizw as CMCaseAnaFix
+    subq = db.query(CMCaseAnaFix.case_id).subquery()
+    cases = db.query(CMCase).filter(CMCase.id.in_(subq)).all()
+    fixed = 0
+    for c in cases:
+        changed = False
+        if c.program_category != "ΑΝΑΚΑΙΝΙΖΩ":
+            c.program_category = "ΑΝΑΚΑΙΝΙΖΩ"
+            changed = True
+        if c.service_type != ANAKAINIZW_SERVICE_TYPE:
+            c.service_type = ANAKAINIZW_SERVICE_TYPE
+            changed = True
+        if changed:
+            c.updated_at = datetime.utcnow()
+            fixed += 1
+    db.commit()
+    return {"fixed": fixed, "total_anakainizw": len(cases)}
