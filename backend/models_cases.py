@@ -357,6 +357,7 @@ class CMBackupLog(Base):
     size_bytes = Column(Integer)
     error_message = Column(Text)
     json_data = Column(Text)             # actual backup JSON stored in DB
+    drive_file_id = Column(String(200))  # Google Drive file ID if uploaded
 
 
 class CMStatusNotificationConfig(Base):

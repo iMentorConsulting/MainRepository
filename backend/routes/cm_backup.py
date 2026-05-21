@@ -211,13 +211,51 @@ def _build_export(db: Session) -> dict:
     return data
 
 
+def _upload_to_drive(json_str: str, filename: str, folder_id: str) -> tuple[bool, str, str]:
+    """Upload JSON backup to a shared Google Drive folder.
+    Returns (ok, file_id, error_message).
+    The file is stored in the folder owner's quota, not the service account's.
+    """
+    sa_json_str = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON", "")
+    if not sa_json_str or not folder_id:
+        return False, "", "Drive not configured (missing env vars)"
+    try:
+        import io as _io
+        from google.oauth2.service_account import Credentials as _Creds
+        from googleapiclient.discovery import build as _build
+        from googleapiclient.http import MediaIoBaseUpload as _Media
+
+        creds = _Creds.from_service_account_info(
+            json.loads(sa_json_str),
+            scopes=["https://www.googleapis.com/auth/drive"],
+        )
+        svc = _build("drive", "v3", credentials=creds, cache_discovery=False)
+
+        media = _Media(
+            _io.BytesIO(json_str.encode("utf-8")),
+            mimetype="application/json",
+            resumable=False,
+        )
+        result = svc.files().create(
+            body={"name": filename, "parents": [folder_id]},
+            media_body=media,
+            fields="id",
+            supportsAllDrives=True,
+        ).execute()
+        return True, result.get("id", ""), ""
+    except Exception as exc:
+        return False, "", str(exc)
+
+
 def run_db_backup(db: Session, trigger: str = "auto") -> CMBackupLog:
-    """Build export, store in PostgreSQL, prune old entries, return log."""
+    """Build export, store in PostgreSQL + upload to Google Drive, prune old entries."""
     log = CMBackupLog(trigger=trigger, destination="db")
+    json_str = None
     try:
         export_data = _build_export(db)
         json_str = json.dumps(export_data, ensure_ascii=False, indent=2)
-        filename = f"imentor-backup-{datetime.utcnow().strftime('%Y-%m-%d-%H%M')}.json"
+        now = datetime.utcnow()
+        filename = f"CaseMngt-backup_{now.strftime('%Y-%m-%d_%H-%M')}.json"
 
         log.file_name = filename
         log.size_bytes = len(json_str.encode("utf-8"))
@@ -231,11 +269,25 @@ def run_db_backup(db: Session, trigger: str = "auto") -> CMBackupLog:
     db.commit()
     db.refresh(log)
 
-    # Prune: keep only the last KEEP_BACKUPS stored backups
+    # ── Google Drive upload (best-effort, never fails the backup) ──────
+    if json_str and log.status == "success":
+        folder_id = os.getenv("GOOGLE_DRIVE_FOLDER_ID", "").strip()
+        if folder_id:
+            ok, file_id, err = _upload_to_drive(json_str, log.file_name, folder_id)
+            if ok:
+                log.drive_file_id = file_id
+                log.destination = "db+drive"
+            else:
+                # Append Drive error to error_message but keep status=success
+                log.error_message = f"Drive: {err}"
+            db.commit()
+
+    # ── Prune: keep only the last KEEP_BACKUPS stored backups ──────────
     try:
         stored = (
             db.query(CMBackupLog)
-            .filter(CMBackupLog.destination == "db", CMBackupLog.status == "success")
+            .filter(CMBackupLog.status == "success")
+            .filter(CMBackupLog.json_data.isnot(None))
             .order_by(CMBackupLog.created_at.desc())
             .all()
         )
@@ -262,8 +314,11 @@ def backup_status(
         .limit(30)
         .all()
     )
+    drive_folder_id = os.getenv("GOOGLE_DRIVE_FOLDER_ID", "").strip()
     return {
         "schedule_hour": schedule_hour,
+        "drive_configured": bool(drive_folder_id and os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON", "")),
+        "drive_folder_url": f"https://drive.google.com/drive/folders/{drive_folder_id}" if drive_folder_id else None,
         "logs": [
             {
                 "id": lg.id,
@@ -275,6 +330,7 @@ def backup_status(
                 "size_bytes": lg.size_bytes,
                 "error_message": lg.error_message,
                 "has_data": bool(lg.json_data),
+                "drive_file_id": lg.drive_file_id,
             }
             for lg in logs
         ],

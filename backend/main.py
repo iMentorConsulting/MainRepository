@@ -141,11 +141,11 @@ try:
 except Exception:
     pass
 
-# Ensure json_data column exists on cm_backup_logs (for DB-stored backups)
+# Ensure backup log columns are up to date
 try:
     with engine.connect() as _conn:
         _conn.execute(_text("ALTER TABLE cm_backup_logs ADD COLUMN IF NOT EXISTS json_data TEXT"))
-        _conn.execute(_text("ALTER TABLE cm_backup_logs DROP COLUMN IF EXISTS drive_file_id"))
+        _conn.execute(_text("ALTER TABLE cm_backup_logs ADD COLUMN IF NOT EXISTS drive_file_id VARCHAR(200)"))
         _conn.commit()
 except Exception:
     pass

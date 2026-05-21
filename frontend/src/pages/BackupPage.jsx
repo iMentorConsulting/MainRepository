@@ -35,23 +35,21 @@ export default function BackupPage() {
     try {
       const res = await api.get('/api/cm/backup/status')
       setStatus(res.data)
-    } catch (err) {
+    } catch {
       toast.error('Αδυναμία φόρτωσης κατάστασης backup')
     } finally {
       setLoadingStatus(false)
     }
   }
 
-  useEffect(() => {
-    loadStatus()
-  }, [])
+  useEffect(() => { loadStatus() }, [])
 
   const handleBackupNow = async () => {
     setBackingUp(true)
     try {
       const res = await api.post('/api/cm/backup/now')
       toast.success(res.data.message || 'Το backup ξεκίνησε')
-      setTimeout(() => loadStatus(), 3000)
+      setTimeout(() => loadStatus(), 4000)
     } catch (err) {
       toast.error(err.response?.data?.detail || 'Σφάλμα κατά το backup')
     } finally {
@@ -67,14 +65,14 @@ export default function BackupPage() {
       const a = document.createElement('a')
       const today = new Date().toISOString().slice(0, 10)
       a.href = url
-      a.download = `imentor-backup-${today}.json`
+      a.download = `CaseMngt-backup_${today}.json`
       document.body.appendChild(a)
       a.click()
       document.body.removeChild(a)
       URL.revokeObjectURL(url)
       toast.success('Το αρχείο εξάγεται...')
       await loadStatus()
-    } catch (err) {
+    } catch {
       toast.error('Σφάλμα κατά την εξαγωγή JSON')
     } finally {
       setExporting(false)
@@ -93,7 +91,7 @@ export default function BackupPage() {
       a.click()
       document.body.removeChild(a)
       URL.revokeObjectURL(url)
-    } catch (err) {
+    } catch {
       toast.error('Σφάλμα κατά τη λήψη backup')
     } finally {
       setDownloadingId(null)
@@ -104,6 +102,7 @@ export default function BackupPage() {
   const scheduleHour = status?.schedule_hour ?? 2
   const scheduleLabel = `Κάθε μέρα στις ${String(scheduleHour).padStart(2, '0')}:00`
   const storedCount = status?.logs?.filter(l => l.status === 'success' && l.has_data).length ?? 0
+  const driveOk = status?.drive_configured
 
   return (
     <div className="space-y-6 max-w-5xl">
@@ -114,36 +113,72 @@ export default function BackupPage() {
 
       {/* Summary cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+
+        {/* DB storage */}
         <div className="bg-white rounded-xl border p-4 flex items-center gap-4">
           <CircleStackIcon className="w-8 h-8 text-blue-500 shrink-0" />
           <div>
-            <div className="text-xs text-gray-500 font-medium uppercase tracking-wide">Αποθήκευση</div>
+            <div className="text-xs text-gray-500 font-medium uppercase tracking-wide">Αποθήκευση DB</div>
             <div className="text-sm font-semibold mt-0.5 text-blue-700">
-              {loadingStatus ? '...' : `Βάση Δεδομένων (${storedCount}/30)`}
+              {loadingStatus ? '...' : `${storedCount}/30 αντίγραφα`}
             </div>
           </div>
         </div>
 
+        {/* Google Drive */}
         <div className="bg-white rounded-xl border p-4 flex items-center gap-4">
-          <CloudArrowUpIcon className="w-8 h-8 text-green-400 shrink-0" />
+          {driveOk
+            ? <CheckCircleIcon className="w-8 h-8 text-green-500 shrink-0" />
+            : <XCircleIcon className="w-8 h-8 text-red-400 shrink-0" />
+          }
           <div>
-            <div className="text-xs text-gray-500 font-medium uppercase tracking-wide">Τελευταίο Backup</div>
-            <div className="text-sm font-semibold mt-0.5 text-gray-800">
-              {loadingStatus ? '...' : lastSuccess ? formatDate(lastSuccess.created_at) : 'Δεν υπάρχει'}
-            </div>
+            <div className="text-xs text-gray-500 font-medium uppercase tracking-wide">Google Drive</div>
+            {loadingStatus ? (
+              <div className="text-sm font-semibold mt-0.5 text-gray-400">...</div>
+            ) : driveOk ? (
+              <a
+                href={status.drive_folder_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm font-semibold mt-0.5 text-green-700 hover:underline block"
+              >
+                Άνοιγμα φακέλου ↗
+              </a>
+            ) : (
+              <div className="text-sm font-semibold mt-0.5 text-red-600">Μη ρυθμισμένο</div>
+            )}
           </div>
         </div>
 
+        {/* Schedule */}
         <div className="bg-white rounded-xl border p-4 flex items-center gap-4">
-          <ArrowDownTrayIcon className="w-8 h-8 text-purple-400 shrink-0" />
+          <CloudArrowUpIcon className="w-8 h-8 text-purple-400 shrink-0" />
           <div>
             <div className="text-xs text-gray-500 font-medium uppercase tracking-wide">Επόμενο Αυτόματο</div>
             <div className="text-sm font-semibold mt-0.5 text-gray-800">
               {loadingStatus ? '...' : scheduleLabel}
             </div>
+            <div className="text-xs text-gray-400 mt-0.5">
+              {loadingStatus ? '' : lastSuccess ? `Τελευταίο: ${formatDate(lastSuccess.created_at)}` : 'Δεν υπάρχει ακόμα'}
+            </div>
           </div>
         </div>
       </div>
+
+      {/* Drive not configured warning */}
+      {!loadingStatus && !driveOk && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex gap-3">
+          <XCircleIcon className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+          <div className="text-sm text-amber-800">
+            <p className="font-semibold mb-1">Το Google Drive δεν έχει ρυθμιστεί</p>
+            <p>Ορίστε τις παρακάτω μεταβλητές περιβάλλοντος στο Railway και μοιραστείτε τον φάκελο με το service account:</p>
+            <ul className="mt-2 space-y-1 font-mono text-xs bg-amber-100 rounded p-2">
+              <li><span className="font-bold">GOOGLE_SERVICE_ACCOUNT_JSON</span> — JSON key του service account</li>
+              <li><span className="font-bold">GOOGLE_DRIVE_FOLDER_ID</span> — ID φακέλου Drive (π.χ. 1OTfm8IER...)</li>
+            </ul>
+          </div>
+        </div>
+      )}
 
       {/* Action buttons */}
       <div className="flex flex-wrap gap-3">
@@ -170,7 +205,7 @@ export default function BackupPage() {
       <div className="bg-white rounded-xl border overflow-hidden">
         <div className="px-5 py-4 border-b">
           <h2 className="text-base font-semibold text-gray-900">Ιστορικό Backup</h2>
-          <p className="text-xs text-gray-500 mt-0.5">Τελευταίες 30 εγγραφές — διατηρούνται τα 30 πιο πρόσφατα αντίγραφα</p>
+          <p className="text-xs text-gray-500 mt-0.5">Διατηρούνται τα 30 πιο πρόσφατα αντίγραφα</p>
         </div>
 
         {loadingStatus ? (
@@ -186,6 +221,7 @@ export default function BackupPage() {
                   <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Τύπος</th>
                   <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Κατάσταση</th>
                   <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Μέγεθος</th>
+                  <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Drive</th>
                   <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Λήψη</th>
                 </tr>
               </thead>
@@ -214,6 +250,20 @@ export default function BackupPage() {
                     </td>
                     <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{formatBytes(log.size_bytes)}</td>
                     <td className="px-4 py-3">
+                      {log.drive_file_id ? (
+                        <a
+                          href={`https://drive.google.com/file/d/${log.drive_file_id}/view`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-green-600 hover:text-green-800 text-xs font-medium"
+                        >
+                          ✓ Drive ↗
+                        </a>
+                      ) : (
+                        <span className="text-gray-300 text-xs">—</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
                       {log.has_data ? (
                         <button
                           onClick={() => handleDownload(log)}
@@ -224,7 +274,7 @@ export default function BackupPage() {
                           {downloadingId === log.id ? '...' : 'Λήψη'}
                         </button>
                       ) : (
-                        <span className="text-gray-400 text-xs">—</span>
+                        <span className="text-gray-300 text-xs">—</span>
                       )}
                     </td>
                   </tr>
