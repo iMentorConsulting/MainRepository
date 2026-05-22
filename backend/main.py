@@ -215,7 +215,27 @@ try:
 except Exception:
     pass
 
-# Auto-fix: all cases with service_type='Ανακαινίζω' must be program_category='ΑΝΑΚΑΙΝΙΖΩ'
+# Normalize property_usage values imported before case-normalization fix
+try:
+    with engine.connect() as _conn:
+        _conn.execute(_text("""
+            UPDATE cm_case_anakainizw SET property_usage = 'ΚΕΝΟ'
+            WHERE property_usage ILIKE 'κεν%'
+              AND property_usage <> 'ΚΕΝΟ'
+        """))
+        _conn.execute(_text("""
+            UPDATE cm_case_anakainizw SET property_usage = 'ΜΙΣΘΩΜΕΝΟ'
+            WHERE property_usage ILIKE '%μισθ%'
+              AND property_usage <> 'ΜΙΣΘΩΜΕΝΟ'
+        """))
+        _conn.execute(_text("""
+            UPDATE cm_case_anakainizw SET property_usage = 'ΙΔΙΟΚΑΤΟΙΚΗΣΗ'
+            WHERE property_usage ILIKE '%ιδιοκατ%'
+              AND property_usage <> 'ΙΔΙΟΚΑΤΟΙΚΗΣΗ'
+        """))
+        _conn.commit()
+except Exception:
+    pass
 try:
     with engine.connect() as _conn:
         _conn.execute(_text("""
