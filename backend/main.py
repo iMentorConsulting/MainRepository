@@ -215,6 +215,19 @@ try:
 except Exception:
     pass
 
+# Auto-fix: all cases with service_type='Ανακαινίζω' must be program_category='ΑΝΑΚΑΙΝΙΖΩ'
+try:
+    with engine.connect() as _conn:
+        _conn.execute(_text("""
+            UPDATE cm_cases
+            SET program_category = 'ΑΝΑΚΑΙΝΙΖΩ'
+            WHERE service_type = 'Ανακαινίζω'
+              AND (program_category IS NULL OR program_category <> 'ΑΝΑΚΑΙΝΙΖΩ')
+        """))
+        _conn.commit()
+except Exception:
+    pass
+
 # Backfill portal_notified_at from notification_logs (authoritative source)
 # Step 1: reset any guessed values — only keep what notification_logs can confirm
 # Step 2: set from the earliest portal notification log entry per case

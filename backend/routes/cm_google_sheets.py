@@ -1002,11 +1002,17 @@ def fix_anakainizw_program_category(
     current_user: CMUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """One-shot fix: set program_category='ΑΝΑΚΑΙΝΙΖΩ' and service_type for all cases
-    that have a cm_case_anakainizw record but wrong program_category."""
+    """Fix: set program_category='ΑΝΑΚΑΙΝΙΖΩ' for all cases that either have a
+    cm_case_anakainizw record OR have service_type='Ανακαινίζω'."""
     from models_cases import CMCaseAnakainizw as CMCaseAnaFix
+    from sqlalchemy import or_
     subq = db.query(CMCaseAnaFix.case_id).subquery()
-    cases = db.query(CMCase).filter(CMCase.id.in_(subq)).all()
+    cases = db.query(CMCase).filter(
+        or_(
+            CMCase.id.in_(subq),
+            CMCase.service_type == ANAKAINIZW_SERVICE_TYPE,
+        )
+    ).all()
     fixed = 0
     for c in cases:
         changed = False
