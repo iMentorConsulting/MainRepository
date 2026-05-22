@@ -128,6 +128,10 @@ export default function AnakainizwPortalSection({ caseData }) {
             <div className="text-xs font-bold uppercase tracking-widest text-blue-200 mb-0.5">Πρόγραμμα</div>
             <h2 className="text-2xl font-extrabold leading-tight">Ανακαινίζω</h2>
             <p className="text-sm text-blue-200 mt-1">Επιδότηση ανακαίνισης κατοικίας</p>
+            <a href="https://i-mentor.gr/anakainisi-palaiwn-spitiwn/" target="_blank" rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 mt-2 text-xs text-blue-300 hover:text-white underline underline-offset-2 transition-colors">
+              🔗 Πληροφορίες Προγράμματος
+            </a>
           </div>
           {ana.subsidy_percent && (
             <div className="flex-shrink-0 bg-white/20 backdrop-blur rounded-xl px-4 py-2 text-center border border-white/20">
@@ -398,10 +402,27 @@ export default function AnakainizwPortalSection({ caseData }) {
             </div>
           </>
         ) : (
-          <div className="text-center py-6 text-gray-400 text-sm border border-dashed border-gray-200 rounded-xl">
-            <div className="text-2xl mb-2">📋</div>
-            Ο προϋπολογισμός εργασιών θα καταρτιστεί κατά τη διαδικασία
-          </div>
+          /* empty state: show energy + general category names as placeholders */
+          <>
+            {BUDGET_GROUPS.filter(g => g.key !== 'consultant').map(group => (
+              <div key={group.key} className="mb-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-sm">{group.icon}</span>
+                  <span className={`text-xs font-semibold ${group.is_energy ? 'text-blue-700' : 'text-gray-700'}`}>{group.label}</span>
+                  <span className="ml-auto text-xs text-gray-300 italic">Σε επεξεργασία</span>
+                </div>
+                {group.items.map(item => (
+                  <div key={item.key} className="flex justify-between text-xs text-gray-400 pl-5 py-0.5 border-l border-gray-100 ml-1">
+                    <span>{item.label}</span>
+                    <span className="text-gray-200">— €</span>
+                  </div>
+                ))}
+              </div>
+            ))}
+            <div className="mt-2 bg-blue-50 border border-blue-100 rounded-xl p-3 text-xs text-blue-600 text-center">
+              Ο προϋπολογισμός θα συμπληρωθεί κατά τη διαδικασία κατάρτισης φακέλου
+            </div>
+          </>
         )}
       </div>
 

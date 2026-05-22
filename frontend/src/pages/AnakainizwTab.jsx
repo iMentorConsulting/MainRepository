@@ -310,7 +310,7 @@ function SubsidyCard({ data, onSave }) {
     <Card title="Επιχορήγηση & Σύνοψη Προϋπολογισμού">
       <FieldRow label="% Επιχορήγησης">
         <div className="flex gap-2 flex-wrap">
-          {[70, 75, 80].map(pct => (
+          {[70, 75, 80, 85, 90, 95].map(pct => (
             <button key={pct} onClick={() => { setSubsidyPct(pct); setDirty(true) }}
               className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${
                 subsidyPct === pct ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-200 hover:border-blue-300'
@@ -661,11 +661,13 @@ export default function AnakainizwTab({ caseId }) {
           <SubsidyCard data={data} onSave={save} />
         </div>
       </div>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <BudgetItemsCard data={data} onSave={save} />
         <DocumentChecklist data={data} onSave={save} />
       </div>
       <AdvisorChecksCard data={data} onSave={save} />
+      {/* spacer so the advisor card isn't cut off at bottom */}
+      <div className="h-4" />
     </div>
   )
 }
