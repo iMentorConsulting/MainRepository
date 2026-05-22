@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { getCases, getUsers, deleteCase, createCase, updateCase, getPipelines, sendNotification } from '../api'
 import { PIPELINES } from '../pipelines'
-import { MagnifyingGlassIcon, PlusIcon, TrashIcon, FolderOpenIcon, BoltIcon, ChevronDownIcon, ChevronUpIcon } from '@heroicons/react/24/outline'
+import { MagnifyingGlassIcon, PlusIcon, TrashIcon, FolderOpenIcon, BoltIcon, ChevronDownIcon, ChevronUpIcon, CheckIcon } from '@heroicons/react/24/outline'
 import toast from 'react-hot-toast'
 
 const FINAL_STATUSES = new Set(['ΟΛΟΚΛΗΡΩΜΕΝΗ ΥΠΟΘΕΣΗ', 'ΠΑΡΑΙΤΗΣΗ', 'ΠΑΓΩΜΕΝΗ ΥΠΟΘΕΣΗ', 'ΑΚΥΡΩΣΗ', 'ΑΠΟΡΡΙΨΗ'])
@@ -265,6 +265,8 @@ export default function Cases() {
   const [livePipelines, setLivePipelines] = useState(null)
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
+  const [selectedIds, setSelectedIds] = useState(new Set())
+  const [bulkDeleting, setBulkDeleting] = useState(false)
   const [filters, setFilters] = useState({
     programs: [],
     services: [],
@@ -312,7 +314,7 @@ export default function Cases() {
     finally { setLoading(false) }
   }, [search, filters.deadline_alert, filters.programs, filters.exclude_anakainizw])
 
-  useEffect(() => { load() }, [load])
+  useEffect(() => { load(); setSelectedIds(new Set()) }, [load])
   useEffect(() => { getUsers().then(setAgents).catch(() => {}) }, [])
 
   const handleDelete = async (e, id) => {
@@ -320,6 +322,38 @@ export default function Cases() {
     if (!confirm('Διαγραφή υπόθεσης;')) return
     try { await deleteCase(id); toast.success('Διαγράφηκε'); load() }
     catch { toast.error('Σφάλμα διαγραφής') }
+  }
+
+  const toggleSelect = (e, id) => {
+    e.stopPropagation()
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+  }
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === cases.length && cases.length > 0) {
+      setSelectedIds(new Set())
+    } else {
+      setSelectedIds(new Set(cases.map(c => c.id)))
+    }
+  }
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.size === 0) return
+    if (!confirm(`Οριστική διαγραφή ${selectedIds.size} υποθέσεων; Αυτή η ενέργεια δεν αναιρείται.`)) return
+    setBulkDeleting(true)
+    let ok = 0, fail = 0
+    await Promise.allSettled([...selectedIds].map(id =>
+      deleteCase(id).then(() => ok++).catch(() => fail++)
+    ))
+    setBulkDeleting(false)
+    setSelectedIds(new Set())
+    if (ok > 0) toast.success(`Διαγράφηκαν ${ok} υποθέσεις`)
+    if (fail > 0) toast.error(`${fail} αποτυχίες διαγραφής`)
+    load()
   }
 
   const serviceTypes = [...new Set(allCases.map(c => c.service_type).filter(Boolean))].sort()
@@ -404,6 +438,34 @@ export default function Cases() {
         </button>
       </div>
 
+      {/* ── Bulk action bar ────────────────────────────────────────────── */}
+      {selectedIds.size > 0 && (
+        <div className="sticky top-2 z-30 flex items-center gap-3 bg-gray-900 text-white px-5 py-3 rounded-xl shadow-xl">
+          <div className="flex-1 flex items-center gap-2">
+            <span className="w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center text-xs font-bold shrink-0">
+              {selectedIds.size}
+            </span>
+            <span className="text-sm font-medium">
+              {selectedIds.size === 1 ? 'υπόθεση επιλεγμένη' : 'υποθέσεις επιλεγμένες'}
+            </span>
+          </div>
+          <button
+            onClick={() => setSelectedIds(new Set())}
+            className="text-xs text-gray-400 hover:text-white px-3 py-1.5 rounded-lg hover:bg-white/10 transition-colors"
+          >
+            Αποεπιλογή
+          </button>
+          <button
+            onClick={handleBulkDelete}
+            disabled={bulkDeleting}
+            className="flex items-center gap-2 text-sm font-semibold bg-red-500 hover:bg-red-600 disabled:opacity-50 px-4 py-2 rounded-lg transition-colors"
+          >
+            <TrashIcon className="w-4 h-4" />
+            {bulkDeleting ? 'Διαγραφή...' : `Διαγραφή ${selectedIds.size}`}
+          </button>
+        </div>
+      )}
+
       {loading ? (
         <div className="flex justify-center py-16">
           <div className="animate-spin w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full" />
@@ -419,7 +481,25 @@ export default function Cases() {
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b">
                 <tr>
-                  {['Επωνυμία', 'Πρόγραμμα', 'Κατάσταση', 'Εκκρεμότητες', 'Προθεσμία', 'εργασίες', ''].map(h => (
+                  <th className="px-3 py-3 w-8">
+                    <button
+                      onClick={toggleSelectAll}
+                      className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
+                        selectedIds.size === cases.length && cases.length > 0
+                          ? 'bg-blue-600 border-blue-600 text-white'
+                          : selectedIds.size > 0
+                          ? 'bg-blue-100 border-blue-400 text-blue-600'
+                          : 'border-gray-300 hover:border-blue-400'
+                      }`}
+                    >
+                      {selectedIds.size === cases.length && cases.length > 0
+                        ? <CheckIcon className="w-3 h-3" />
+                        : selectedIds.size > 0
+                        ? <span className="w-2 h-0.5 bg-blue-600 rounded" />
+                        : null}
+                    </button>
+                  </th>
+                  {['Επωνυμία', 'Πρόγραμμα', 'Κατάσταση', 'Εκκρεμότητες', 'Προθεσμία', 'Εργασίες', ''].map(h => (
                     <th key={h} className="text-left px-3 py-3 text-xs font-semibold text-gray-500 tracking-wider whitespace-nowrap">
                       {h}
                     </th>
@@ -434,8 +514,17 @@ export default function Cases() {
                     ...(prog.phases || []).flatMap(p => p.statuses),
                     ...(prog.extra_statuses || []),
                   ]
+                  const isSelected = selectedIds.has(c.id)
                   return (
-                    <tr key={c.id} onClick={() => navigate(`/cases/${c.id}`)} className="hover:bg-gray-50 cursor-pointer">
+                    <tr key={c.id} onClick={() => navigate(`/cases/${c.id}`)}
+                      className={`cursor-pointer transition-colors ${isSelected ? 'bg-blue-50 hover:bg-blue-100' : 'hover:bg-gray-50'}`}>
+                      <td className="px-3 py-3 w-8" onClick={e => toggleSelect(e, c.id)}>
+                        <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors cursor-pointer ${
+                          isSelected ? 'bg-blue-600 border-blue-600 text-white' : 'border-gray-300 hover:border-blue-400'
+                        }`}>
+                          {isSelected && <CheckIcon className="w-3 h-3" />}
+                        </div>
+                      </td>
                       <td className="px-3 py-3 max-w-[160px]">
                         <div className="font-medium text-gray-900 truncate">{c.client_name}</div>
                         <div className="text-xs text-gray-400">{c.afm || '—'}</div>
