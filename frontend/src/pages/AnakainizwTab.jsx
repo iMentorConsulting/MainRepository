@@ -584,7 +584,7 @@ function AdvisorChecksCard({ data, onSave }) {
 
   return (
     <Card title="Έλεγχοι Συμβούλου">
-      <div className="space-y-2">
+      <div className="space-y-2 md:grid md:grid-cols-2 md:gap-2 md:space-y-0">
         {ADVISOR_CHECK_ITEMS.map(({ key, label, icon }) => {
           const check = checks[key] ?? { status: 'pending', comment: '' }
           const si = statusInfo(check.status)
