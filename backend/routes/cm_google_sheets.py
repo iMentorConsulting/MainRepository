@@ -790,6 +790,11 @@ def _do_import_anakainizw(db: Session, selected_rows: list[int] | None = None) -
             cancelled += 1
             continue
 
+        # Skip non-eligible property types (ΜΙΣΘΩΜΕΝΟ, ΙΔΙΟΚΑΤΟΙΚΗΣΗ)
+        if p.get("property_usage") in {"ΜΙΣΘΩΜΕΝΟ", "ΙΔΙΟΚΑΤΟΙΚΗΣΗ"}:
+            skipped += 1
+            continue
+
         # Skip duplicate rows not explicitly selected by user
         if client_name in duplicate_names and sheet_row not in selected_set:
             skipped += 1

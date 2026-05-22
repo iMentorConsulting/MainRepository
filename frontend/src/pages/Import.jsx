@@ -12,7 +12,7 @@ import {
   ClockIcon,
 } from '@heroicons/react/24/outline'
 import toast from 'react-hot-toast'
-import { previewSheet, importFromSheet, syncPaidFromSheet, syncAgentsFromSheet, getServiceTypes, assignPrograms, syncInvestmentFromSheet, syncSaleDatesFromSheet, getAutoRefreshStatus, previewAnakainizwSheet, importAnakainizwSheet, getAnakainizwHeaders, fixAnakainizwProgram, deleteNonKenoAnakainizw } from '../api'
+import { previewSheet, importFromSheet, syncPaidFromSheet, syncAgentsFromSheet, getServiceTypes, assignPrograms, syncInvestmentFromSheet, syncSaleDatesFromSheet, getAutoRefreshStatus, previewAnakainizwSheet, importAnakainizwSheet, getAnakainizwHeaders } from '../api'
 
 const PREVIEW_COLUMNS = [
   { key: 'client_name', label: 'Πελάτης' },
@@ -231,10 +231,6 @@ export default function Import() {
   const [anaImportError, setAnaImportError] = useState(null)
   const [loadingAnaHeaders, setLoadingAnaHeaders] = useState(false)
   const [anaHeadersData, setAnaHeadersData] = useState(null)
-  const [loadingAnaFix, setLoadingAnaFix] = useState(false)
-  const [anaFixResult, setAnaFixResult] = useState(null)
-  const [loadingAnaDelete, setLoadingAnaDelete] = useState(false)
-  const [anaDeleteResult, setAnaDeleteResult] = useState(null)
 
   const handleSyncInvestment = async () => {
     setLoadingInvestment(true)
@@ -319,38 +315,6 @@ export default function Import() {
       toast.error(msg, { duration: 8000 })
     } finally {
       setLoadingAnaImport(false)
-    }
-  }
-
-  const handleAnaDelete = async () => {
-    if (!confirm('Θα διαγραφούν ΟΡΙΣΤΙΚΑ όλες οι υποθέσεις ΑΝΑΚΑΙΝΙΖΩ με χρήση ΜΙΣΘΩΜΕΝΟ ή ΙΔΙΟΚΑΤΟΙΚΗΣΗ. Αυτή η ενέργεια δεν αναιρείται. Συνέχεια;')) return
-    setLoadingAnaDelete(true)
-    setAnaDeleteResult(null)
-    try {
-      const data = await deleteNonKenoAnakainizw()
-      const msg = `Διαγράφηκαν ${data.deleted} υποθέσεις (Μισθωμένο/Ιδιοκατοίκηση)`
-      setAnaDeleteResult(msg)
-      toast.success(msg)
-    } catch (err) {
-      toast.error(err.response?.data?.detail || 'Σφάλμα')
-    } finally {
-      setLoadingAnaDelete(false)
-    }
-  }
-
-  const handleAnaFix = async () => {
-    if (!confirm('Θα ενημερωθεί το pipeline σε ΑΝΑΚΑΙΝΙΖΩ για όλες τις υποθέσεις που έχουν εισαχθεί από το sheet ΑΝΑΚΑΙΝΙΣΕΙΣ. Συνέχεια;')) return
-    setLoadingAnaFix(true)
-    setAnaFixResult(null)
-    try {
-      const data = await fixAnakainizwProgram()
-      const msg = `Διορθώθηκαν ${data.fixed} από ${data.total_anakainizw} υποθέσεις ΑΝΑΚΑΙΝΙΖΩ`
-      setAnaFixResult(msg)
-      toast.success(msg)
-    } catch (err) {
-      toast.error(err.response?.data?.detail || 'Σφάλμα')
-    } finally {
-      setLoadingAnaFix(false)
     }
   }
 
@@ -939,41 +903,9 @@ export default function Import() {
               : <><CloudArrowDownIcon className="w-4 h-4" /><span>Εισαγωγή ΑΝΑΚΑΙΝΙΖΩ</span></>
             }
           </button>
-          <button
-            onClick={handleAnaFix}
-            disabled={loadingAnaFix}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-red-100 text-red-700 text-sm font-medium hover:bg-red-200 disabled:opacity-50 transition-colors border border-red-300"
-          >
-            {loadingAnaFix
-              ? <><Spinner /><span>Διόρθωση...</span></>
-              : <><ExclamationTriangleIcon className="w-4 h-4" /><span>Διόρθωση Pipeline</span></>
-            }
-          </button>
         </div>
-        {anaFixResult && (
-          <div className="mt-2 text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg px-4 py-2">
-            {anaFixResult}
-          </div>
-        )}
-        <div className="flex flex-wrap gap-3 mt-2">
-          <button
-            onClick={handleAnaDelete}
-            disabled={loadingAnaDelete}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-red-600 text-white text-sm font-medium hover:bg-red-700 disabled:opacity-50 transition-colors"
-          >
-            {loadingAnaDelete
-              ? <><Spinner color="red" /><span>Διαγραφή...</span></>
-              : <><ExclamationTriangleIcon className="w-4 h-4" /><span>Διαγραφή Μισθωμένο/Ιδιοκατοίκηση</span></>
-            }
-          </button>
-        </div>
-        {anaDeleteResult && (
-          <div className="mt-2 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-4 py-2">
-            {anaDeleteResult}
-          </div>
-        )}
         <p className="text-xs text-gray-400">
-          Η εισαγωγή είναι ασφαλής — υπάρχουσες υποθέσεις ενημερώνονται, δεν διαγράφονται.
+          Η εισαγωγή είναι ασφαλής — υπάρχουσες υποθέσεις ενημερώνονται, δεν διαγράφονται. Εγγραφές με χρήση ΜΙΣΘΩΜΕΝΟ/ΙΔΙΟΚΑΤΟΙΚΗΣΗ παραλείπονται αυτόματα.
         </p>
       </div>
     </div>
