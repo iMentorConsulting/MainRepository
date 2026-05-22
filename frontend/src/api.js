@@ -97,6 +97,11 @@ export const getAnakainizwHeaders = () => api.get('/api/cm/sheets/anakainizw-hea
 export const syncSaleDatesFromSheet = () => api.post('/api/cm/sheets/sync-sale-dates').then(r => r.data)
 export const getAutoRefreshStatus = () => api.get('/api/cm/sheets/auto-refresh-status').then(r => r.data)
 export const fixAnakainizwProgram = () => api.post('/api/cm/sheets/fix-anakainizw-program').then(r => r.data)
+export const deleteNonKenoAnakainizw = () => api.post('/api/cm/sheets/delete-non-keno-anakainizw').then(r => r.data)
+
+// Anakainizw case data
+export const getAnakainizwData = (caseId) => api.get(`/api/cm/anakainizw/${caseId}`).then(r => r.data)
+export const updateAnakainizwData = (caseId, data) => api.put(`/api/cm/anakainizw/${caseId}`, data).then(r => r.data)
 
 // Notifications
 export const sendNotification = (caseId, data) => api.post(`/api/cm/notifications/send/${caseId}`, data).then(r => r.data)

@@ -1021,3 +1021,31 @@ def fix_anakainizw_program_category(
             fixed += 1
     db.commit()
     return {"fixed": fixed, "total_anakainizw": len(cases)}
+
+
+@router.post("/delete-non-keno-anakainizw")
+def delete_non_keno_anakainizw(
+    current_user: CMUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Delete ΑΝΑΚΑΙΝΙΖΩ cases where property_usage is ΜΙΣΘΩΜΕΝΟ or ΙΔΙΟΚΑΤΟΙΚΗΣΗ.
+    Only cases with a cm_case_anakainizw record are affected."""
+    from models_cases import CMCaseAnakainizw as CMCaseAnaDel
+    NON_KENO = {"ΜΙΣΘΩΜΕΝΟ", "ΙΔΙΟΚΑΤΟΙΚΗΣΗ", "ΜΙΣΘΩΜΈΝΟ", "ΙΔΙΟΚΑΤΟΊΚΗΣΗ",
+                "Μισθωμένο", "Ιδιοκατοίκηση", "μισθωμένο", "ιδιοκατοίκηση"}
+    rows = db.query(CMCaseAnaDel).all()
+    to_delete = []
+    for r in rows:
+        usage = (r.property_usage or "").strip()
+        if usage in NON_KENO or (usage and usage.upper() not in ("ΚΕΝΟ", "KENO", "")):
+            # Only delete if usage is explicitly non-ΚΕΝΟ
+            if usage and usage.upper() != "ΚΕΝΟ":
+                to_delete.append(r.case_id)
+    deleted = 0
+    for case_id in to_delete:
+        case = db.query(CMCase).filter(CMCase.id == case_id).first()
+        if case:
+            db.delete(case)
+            deleted += 1
+    db.commit()
+    return {"deleted": deleted, "case_ids": to_delete}

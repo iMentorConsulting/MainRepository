@@ -414,6 +414,12 @@ class CMCaseAnakainizw(Base):
     doc_tax_clearance = Column(Boolean, default=False)       # ΕΚΚΑΘ
     doc_e2 = Column(Boolean, default=False)                  # Ε2
 
+    # Per-doc extras: JSON {"doc_title_deed": {"not_needed": false, "notes": ""}, ...}
+    doc_extras = Column(Text, nullable=True)
+
+    # ΑΜΕΑ boost
+    boost_disability = Column(Boolean, default=False)
+
     inspection_fee_paid = Column(Boolean, default=False)
     inspection_fee_paid_at = Column(DateTime, nullable=True)
 

@@ -372,14 +372,23 @@ def download_portal_file_public(token: str, file_id: int, db: Session = Depends(
 
 @router.post("/public/{token}/visit")
 def record_visit(token: str, body: dict, db: Session = Depends(get_db)):
-    """Verify client AFM and increment visit counter."""
-    afm = (body.get("afm") or "").strip()
+    """Verify client AFM (or phone for ΑΝΑΚΑΙΝΙΖΩ) and increment visit counter."""
+    import re as _re
+    credential = (body.get("afm") or "").strip()
     case = db.query(CMCase).filter(CMCase.share_token == token).first()
     if not case or not case.portal_active:
         raise HTTPException(status_code=404, detail="Portal not found or inactive")
 
-    if not afm or (case.afm or "").strip() != afm:
-        raise HTTPException(status_code=403, detail="Λάθος ΑΦΜ")
+    # For ΑΝΑΚΑΙΝΙΖΩ cases without AFM: verify against phone (token = normalized phone)
+    if case.program_category == "ΑΝΑΚΑΙΝΙΖΩ" and not (case.afm or "").strip():
+        normalized = _re.sub(r'\D', '', credential)
+        if normalized.startswith('30') and len(normalized) > 10:
+            normalized = normalized[2:]
+        if not normalized or normalized != token:
+            raise HTTPException(status_code=403, detail="Λάθος τηλέφωνο")
+    else:
+        if not credential or (case.afm or "").strip() != credential:
+            raise HTTPException(status_code=403, detail="Λάθος ΑΦΜ")
 
     from datetime import datetime
     case.portal_visit_count = (case.portal_visit_count or 0) + 1

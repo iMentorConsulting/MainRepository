@@ -50,23 +50,28 @@ const PHASE_COLORS = {
 
 // ── AFM Gate ────────────────────────────────────────────────────────────────
 
-function AfmGate({ clientName, onVerify }) {
-  const [afm, setAfm] = useState('')
+function AfmGate({ clientName, onVerify, programCategory }) {
+  const [credential, setCredential] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const isPhone = programCategory === 'ΑΝΑΚΑΙΝΙΖΩ'
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    if (afm.trim().length < 9) { setError('Παρακαλώ εισάγετε έγκυρο ΑΦΜ (9 ψηφία)'); return }
+    const val = credential.trim()
+    if (!isPhone && val.length < 9) { setError('Παρακαλώ εισάγετε έγκυρο ΑΦΜ (9 ψηφία)'); return }
+    if (isPhone && val.replace(/\D/g, '').length < 10) { setError('Παρακαλώ εισάγετε έγκυρο αριθμό κινητού'); return }
     setLoading(true)
     setError('')
     try {
-      await onVerify(afm.trim())
+      await onVerify(val)
     } catch {
-      setError('Λάθος ΑΦΜ. Παρακαλώ ελέγξτε και ξαναπροσπαθήστε.')
+      setError(isPhone ? 'Λάθος αριθμός κινητού. Παρακαλώ ελέγξτε και ξαναπροσπαθήστε.' : 'Λάθος ΑΦΜ. Παρακαλώ ελέγξτε και ξαναπροσπαθήστε.')
       setLoading(false)
     }
   }
+
+  const isReady = isPhone ? credential.replace(/\D/g, '').length >= 10 : credential.length === 9
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
@@ -78,23 +83,25 @@ function AfmGate({ clientName, onVerify }) {
           <img src="/logo-white.png" alt="iMentor" className="h-36 w-auto object-contain mx-auto mb-5" />
           <h2 className="text-xl font-bold text-gray-900 mb-1">Επαλήθευση</h2>
           <p className="text-sm text-gray-500 mb-6">
-            Εισάγετε το ΑΦΜ σας για πρόσβαση στα στοιχεία της υπόθεσης.
+            {isPhone
+              ? 'Εισάγετε τον αριθμό κινητού σας για πρόσβαση στα στοιχεία της αίτησης.'
+              : 'Εισάγετε το ΑΦΜ σας για πρόσβαση στα στοιχεία της υπόθεσης.'}
           </p>
           <form onSubmit={handleSubmit} className="space-y-4">
             <input
               type="text"
               inputMode="numeric"
-              maxLength={9}
-              value={afm}
-              onChange={e => setAfm(e.target.value.replace(/\D/g, ''))}
-              placeholder="ΑΦΜ (9 ψηφία)"
+              maxLength={isPhone ? 15 : 9}
+              value={credential}
+              onChange={e => setCredential(e.target.value.replace(/\D/g, ''))}
+              placeholder={isPhone ? 'Κινητό τηλέφωνο' : 'ΑΦΜ (9 ψηφία)'}
               className="w-full border border-gray-200 rounded-xl px-4 py-3 text-center text-lg font-mono tracking-widest focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]"
               autoFocus
             />
             {error && <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
             <button
               type="submit"
-              disabled={loading || afm.length !== 9}
+              disabled={loading || !isReady}
               className="w-full bg-[#1e3a5f] text-white py-3 rounded-xl font-semibold hover:bg-[#16305a] transition-colors disabled:opacity-50"
             >
               {loading ? 'Επαλήθευση...' : 'Είσοδος'}
@@ -1097,7 +1104,7 @@ export default function ClientPortal() {
   }
 
   if (!verified) {
-    return <AfmGate clientName={data?.client_name} onVerify={handleAfmVerify} />
+    return <AfmGate clientName={data?.client_name} onVerify={handleAfmVerify} programCategory={data?.program_category} />
   }
 
   const subsidy = data.subsidy_percent ? `${data.subsidy_percent}%` : '—'

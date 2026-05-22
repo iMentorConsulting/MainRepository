@@ -8,6 +8,7 @@ import DocumentsTab from '../components/DocumentsTab'
 import BudgetTab from '../components/BudgetTab'
 import PendingItemsTab from '../components/PendingItemsTab'
 import ModificationsTab from '../components/ModificationsTab'
+import AnakainizwTab from './AnakainizwTab'
 import {
   ArrowLeftIcon,
   ExclamationTriangleIcon,
@@ -66,7 +67,7 @@ function getStatusGroupsForProgram(program, livePipelines) {
   )
 }
 
-const TABS = [
+const BASE_TABS = [
   'Επισκόπηση',
   'Εκκρεμότητες',
   'Tasks',
@@ -76,6 +77,10 @@ const TABS = [
   'Προϋπολογισμός',
   'Portal',
 ]
+const getTabs = (programCategory) =>
+  programCategory === 'ΑΝΑΚΑΙΝΙΖΩ'
+    ? ['Επισκόπηση', 'Ανακαινίζω', 'Εκκρεμότητες', 'Tasks', 'Τροποποιήσεις', 'Μηνύματα', 'Έγγραφα', 'Προϋπολογισμός', 'Portal']
+    : BASE_TABS
 
 const PRIORITY_COLORS = {
   urgent: 'bg-red-100 text-red-700',
@@ -1141,7 +1146,7 @@ export default function CaseDetail() {
       {/* Tab bar */}
       <div className="border-b bg-white rounded-t-xl overflow-hidden">
         <nav className="flex -mb-px overflow-x-auto">
-          {TABS.map((tab) => (
+          {getTabs(caseData?.program_category).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -1189,6 +1194,7 @@ export default function CaseDetail() {
           <TasksTab caseId={id} users={users} />
         )}
 
+        {activeTab === 'Ανακαινίζω' && <AnakainizwTab caseId={id} />}
         {activeTab === 'Τροποποιήσεις' && <ModificationsTab caseId={id} caseData={caseData} onRefresh={load} />}
         {activeTab === 'Μηνύματα' && <MessagesTab caseId={id} caseData={caseData} onRefresh={load} />}
         {activeTab === 'Έγγραφα' && <DocumentsTab caseId={id} caseData={caseData} onRefresh={load} />}

@@ -1,8 +1,9 @@
+import json
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, Any
 from database import get_db, fmt_dt
 from models_cases import CMCaseAnakainizw, CMCase
 from auth_cases import get_current_user
@@ -37,6 +38,7 @@ class AnakainizwUpdate(BaseModel):
     boost_three_children: Optional[bool] = None
     boost_large_family: Optional[bool] = None
     boost_youth: Optional[bool] = None
+    boost_disability: Optional[bool] = None
     # Document checklist
     doc_title_deed: Optional[bool] = None
     doc_e9: Optional[bool] = None
@@ -46,6 +48,7 @@ class AnakainizwUpdate(BaseModel):
     doc_e1: Optional[bool] = None
     doc_tax_clearance: Optional[bool] = None
     doc_e2: Optional[bool] = None
+    doc_extras: Optional[Any] = None  # JSON dict {doc_key: {not_needed, notes}}
     # Inspection fee
     inspection_fee_paid: Optional[bool] = None
 
@@ -93,6 +96,7 @@ def _row_to_dict(row: CMCaseAnakainizw) -> dict:
         "boost_three_children": row.boost_three_children,
         "boost_large_family": row.boost_large_family,
         "boost_youth": row.boost_youth,
+        "boost_disability": row.boost_disability,
         # Document checklist
         "doc_title_deed": row.doc_title_deed,
         "doc_e9": row.doc_e9,
@@ -102,6 +106,7 @@ def _row_to_dict(row: CMCaseAnakainizw) -> dict:
         "doc_e1": row.doc_e1,
         "doc_tax_clearance": row.doc_tax_clearance,
         "doc_e2": row.doc_e2,
+        "doc_extras": json.loads(row.doc_extras) if row.doc_extras else {},
         # Inspection fee
         "inspection_fee_paid": row.inspection_fee_paid,
         "inspection_fee_paid_at": fmt_dt(row.inspection_fee_paid_at),
@@ -135,10 +140,15 @@ def upsert_anakainizw_data(
     if not row:
         row = CMCaseAnakainizw(case_id=case_id)
         db.add(row)
-    for field, val in req.dict(exclude_none=True).items():
+    data = req.dict(exclude_none=True)
+    if 'doc_extras' in data:
+        row.doc_extras = json.dumps(data.pop('doc_extras'))
+    for field, val in data.items():
         setattr(row, field, val)
     if req.inspection_fee_paid is True and not row.inspection_fee_paid_at:
         row.inspection_fee_paid_at = datetime.utcnow()
+    elif req.inspection_fee_paid is False:
+        row.inspection_fee_paid_at = None
     row.updated_at = datetime.utcnow()
     db.commit()
     db.refresh(row)
