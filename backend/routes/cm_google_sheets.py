@@ -1038,24 +1038,45 @@ def delete_non_keno_anakainizw(
     current_user: CMUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Delete ΑΝΑΚΑΙΝΙΖΩ cases where property_usage is ΜΙΣΘΩΜΕΝΟ or ΙΔΙΟΚΑΤΟΙΚΗΣΗ.
-    Only cases with a cm_case_anakainizw record are affected."""
+    """Delete ΑΝΑΚΑΙΝΙΖΩ cases where property_usage is not ΚΕΝΟ."""
     from models_cases import CMCaseAnakainizw as CMCaseAnaDel
-    NON_KENO = {"ΜΙΣΘΩΜΕΝΟ", "ΙΔΙΟΚΑΤΟΙΚΗΣΗ", "ΜΙΣΘΩΜΈΝΟ", "ΙΔΙΟΚΑΤΟΊΚΗΣΗ",
-                "Μισθωμένο", "Ιδιοκατοίκηση", "μισθωμένο", "ιδιοκατοίκηση"}
+    from sqlalchemy import text as _t
+
     rows = db.query(CMCaseAnaDel).all()
     to_delete = []
     for r in rows:
         usage = (r.property_usage or "").strip()
-        if usage in NON_KENO or (usage and usage.upper() not in ("ΚΕΝΟ", "KENO", "")):
-            # Only delete if usage is explicitly non-ΚΕΝΟ
-            if usage and usage.upper() != "ΚΕΝΟ":
-                to_delete.append(r.case_id)
-    deleted = 0
-    for case_id in to_delete:
-        case = db.query(CMCase).filter(CMCase.id == case_id).first()
-        if case:
-            db.delete(case)
-            deleted += 1
+        if usage and usage.upper() not in ("ΚΕΝΟ", "KENO"):
+            to_delete.append(r.case_id)
+
+    if not to_delete:
+        return {"deleted": 0, "case_ids": []}
+
+    ids = tuple(to_delete)
+    ids_sql = ",".join(str(i) for i in ids)
+
+    # Delete children first to avoid FK violations, then the cases
+    for tbl in (
+        "cm_case_anakainizw",
+        "cm_case_status_history",
+        "cm_case_pending_items",
+        "cm_notification_logs",
+        "cm_tasks",
+        "cm_payments",
+        "cm_messages",
+        "cm_documents",
+        "cm_budget_categories",
+        "cm_case_modifications",
+    ):
+        try:
+            db.execute(_t(f"DELETE FROM {tbl} WHERE case_id IN ({ids_sql})"))
+        except Exception:
+            db.rollback()
+            try:
+                db.execute(_t(f"DELETE FROM {tbl} WHERE case_id IN ({ids_sql})"))
+            except Exception:
+                pass  # table may not exist or column name differs
+
+    db.execute(_t(f"DELETE FROM cm_cases WHERE id IN ({ids_sql})"))
     db.commit()
-    return {"deleted": deleted, "case_ids": to_delete}
+    return {"deleted": len(to_delete), "case_ids": to_delete}
