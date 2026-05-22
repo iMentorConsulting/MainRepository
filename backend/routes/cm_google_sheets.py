@@ -1044,9 +1044,16 @@ def delete_non_keno_anakainizw(
 
     rows = db.query(CMCaseAnaDel).all()
     to_delete = []
+    DELETE_IF = {"μισθωμενο", "ιδιοκατοικηση"}  # normalized for comparison
     for r in rows:
         usage = (r.property_usage or "").strip()
-        if usage and usage.upper() not in ("ΚΕΝΟ", "KENO"):
+        # Keep: blank, ΚΕΝΟ, 2η Κατοικία — delete only ΜΙΣΘΩΜΕΝΟ / ΙΔΙΟΚΑΤΟΙΚΗΣΗ
+        import unicodedata
+        normalized = ''.join(
+            c for c in unicodedata.normalize('NFD', usage.lower())
+            if unicodedata.category(c) != 'Mn'
+        )
+        if normalized in DELETE_IF:
             to_delete.append(r.case_id)
 
     if not to_delete:
