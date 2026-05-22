@@ -118,6 +118,7 @@ function PropertyCard({ data, onSave }) {
       property_age: data?.property_age ?? '',
       property_usage: data?.property_usage ?? '',
       renovation_works: data?.renovation_works ?? '',
+      legality: data?.legality ?? '',
     })
     setDirty(false)
   }, [data])
@@ -142,6 +143,7 @@ function PropertyCard({ data, onSave }) {
           <option value="ΚΕΝΟ">ΚΕΝΟ</option>
           <option value="ΜΙΣΘΩΜΕΝΟ">ΜΙΣΘΩΜΕΝΟ</option>
           <option value="ΙΔΙΟΚΑΤΟΙΚΗΣΗ">ΙΔΙΟΚΑΤΟΙΚΗΣΗ</option>
+          <option value="2η Κατοικία (εξοχικό)">2η Κατοικία (εξοχικό)</option>
         </select>
       </FieldRow>
       <FieldRow label="Παλαιότητα / Ηλικία">
@@ -157,6 +159,9 @@ function PropertyCard({ data, onSave }) {
         <textarea value={form.renovation_works ?? ''} onChange={e => set('renovation_works', e.target.value)}
           rows={2} placeholder="Περιγραφή εργασιών..."
           className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none" />
+      </FieldRow>
+      <FieldRow label="Νομιμότητα Ακινήτου">
+        <InlineInput value={form.legality} onChange={v => set('legality', v)} placeholder="π.χ. Νόμιμο, Αυθαίρετο τακτοποιημένο..." />
       </FieldRow>
       {dirty && (
         <button onClick={save} disabled={saving}

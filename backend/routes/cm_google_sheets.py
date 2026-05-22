@@ -645,7 +645,7 @@ ANA_COL = {
     "property_sqm": 10,
     "property_usage": 11,
     "renovation_works": 12,
-    # col 13: Νομιμότητα Ακινήτου — skipped per user request
+    "legality": 13,                # Νομιμότητα Ακινήτου
     # col 14: Assigned To — skipped
     # col 15: Next Call — skipped
     "doc_title_deed": 16,
@@ -718,6 +718,7 @@ def _parse_anakainizw_data_rows(rows: list) -> list:
             "property_type": str(row[ANA_COL["property_type"]]).strip() or None,
             "property_age": str(row[ANA_COL["property_age"]]).strip() or None,
             "renovation_works": str(row[ANA_COL["renovation_works"]]).strip() or None,
+            "legality": str(row[ANA_COL["legality"]]).strip() or None if len(row) > ANA_COL["legality"] else None,
             "sale_date": str(row[ANA_COL["sale_date"]]).strip() or None,
             "_raw": row,  # keep raw for actual import
         })
@@ -785,6 +786,7 @@ def _do_import_anakainizw(db: Session, selected_rows: list[int] | None = None) -
         property_sqm = _parse_float(sqm_raw) if sqm_raw else None
         property_usage = str(row[ANA_COL["property_usage"]]).strip() or None
         renovation_works = str(row[ANA_COL["renovation_works"]]).strip() or None
+        legality = str(row[ANA_COL["legality"]]).strip() or None if len(row) > ANA_COL["legality"] else None
         notes = str(row[ANA_COL["notes"]]).strip() or None
 
         doc_title_deed = _parse_bool_cell(row[ANA_COL["doc_title_deed"]])
@@ -876,6 +878,8 @@ def _do_import_anakainizw(db: Session, selected_rows: list[int] | None = None) -
             ana_row.property_sqm = property_sqm
         ana_row.property_usage = property_usage
         ana_row.renovation_works = renovation_works
+        if legality:
+            ana_row.legality = legality
         ana_row.doc_title_deed = doc_title_deed
         ana_row.doc_e9 = doc_e9
         ana_row.doc_permit = doc_permit

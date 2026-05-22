@@ -139,6 +139,18 @@ export default function AnakainizwPortalSection({ caseData }) {
             <div className="text-sm font-semibold text-gray-700">{ana.property_address}</div>
           </div>
         )}
+        {ana.renovation_works && (
+          <div className="mt-3 bg-blue-50 border border-blue-100 rounded-xl p-3">
+            <div className="text-xs text-blue-500 font-medium mb-0.5">Εργασίες Ανακαίνισης</div>
+            <div className="text-sm text-blue-800">{ana.renovation_works}</div>
+          </div>
+        )}
+        {ana.legality && (
+          <div className="mt-3 bg-gray-50 border border-gray-200 rounded-xl p-3">
+            <div className="text-xs text-gray-500 font-medium mb-0.5">Νομιμότητα Ακινήτου</div>
+            <div className="text-sm font-semibold text-gray-700">{ana.legality}</div>
+          </div>
+        )}
         {ana.cooperating_engineer && (
           <div className="mt-3 bg-amber-50 border border-amber-100 rounded-xl p-3 flex items-center gap-3">
             <span className="text-2xl">👷</span>
