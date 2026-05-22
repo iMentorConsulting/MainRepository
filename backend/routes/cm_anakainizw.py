@@ -10,6 +10,11 @@ from auth_cases import get_current_user
 
 router = APIRouter(prefix="/api/cm/anakainizw", tags=["anakainizw"])
 
+ENERGY_KEYS = frozenset({
+    'energy_insulation', 'energy_windows', 'energy_hvac',
+    'energy_solar', 'energy_pv', 'energy_other',
+})
+
 
 class AnakainizwUpdate(BaseModel):
     # Property
@@ -23,12 +28,15 @@ class AnakainizwUpdate(BaseModel):
     legality: Optional[str] = None
     cooperating_engineer: Optional[str] = None
     subsidy_percent: Optional[float] = None
-    # Budget
+    # Budget (manual fallback; overridden when budget_items present)
     energy_works_budget: Optional[float] = None
     general_works_budget: Optional[float] = None
+    # Predefined budget items JSON
+    budget_items: Optional[Any] = None
     # Household
     household_type: Optional[str] = None
     num_children: Optional[int] = None
+    actual_income: Optional[float] = None
     # Legacy flags
     is_single_parent: Optional[bool] = None
     is_three_children: Optional[bool] = None
@@ -48,21 +56,34 @@ class AnakainizwUpdate(BaseModel):
     doc_e1: Optional[bool] = None
     doc_tax_clearance: Optional[bool] = None
     doc_e2: Optional[bool] = None
-    doc_extras: Optional[Any] = None  # JSON dict {doc_key: {not_needed, notes}}
+    doc_extras: Optional[Any] = None
     # Inspection fee
     inspection_fee_paid: Optional[bool] = None
 
 
 def _income_limit(household_type: str, num_children: int) -> int:
     base = 25000 if (household_type or "").lower() == "άγαμος" else 35000
-    return base + (num_children or 0) * 5000
+    return min(base + (num_children or 0) * 5000, 45000)
+
+
+def _compute_budget_totals(row: CMCaseAnakainizw):
+    """Return (energy_total, general_total) from budget_items if present, else from columns."""
+    items = json.loads(row.budget_items) if row.budget_items else {}
+    if items:
+        energy = sum(float(v) for k, v in items.items() if k in ENERGY_KEYS)
+        general = sum(float(v) for k, v in items.items() if k not in ENERGY_KEYS)
+        return energy, general
+    return (row.energy_works_budget or 0), (row.general_works_budget or 0)
 
 
 def _row_to_dict(row: CMCaseAnakainizw) -> dict:
-    total = (row.energy_works_budget or 0) + (row.general_works_budget or 0)
+    energy, general = _compute_budget_totals(row)
+    total = energy + general
     max_budget = min((row.property_sqm or 0) * 300, 36000) if row.property_sqm else 0
-    energy_pct = round(((row.energy_works_budget or 0) / total) * 100) if total > 0 else 0
+    energy_pct = round((energy / total) * 100) if total > 0 else 0
     income_limit = _income_limit(row.household_type or "", row.num_children or 0)
+    actual_income = row.actual_income
+    items = json.loads(row.budget_items) if row.budget_items else {}
     return {
         "case_id": row.case_id,
         # Property
@@ -77,16 +98,19 @@ def _row_to_dict(row: CMCaseAnakainizw) -> dict:
         "cooperating_engineer": row.cooperating_engineer,
         "subsidy_percent": row.subsidy_percent,
         # Budget
-        "energy_works_budget": row.energy_works_budget,
-        "general_works_budget": row.general_works_budget,
+        "energy_works_budget": energy,
+        "general_works_budget": general,
         "total_works_budget": total,
         "max_budget": max_budget,
         "energy_pct": energy_pct,
         "energy_ok": energy_pct >= 20,
+        "budget_items": items,
         # Household
         "household_type": row.household_type,
         "num_children": row.num_children,
         "income_limit": income_limit,
+        "actual_income": actual_income,
+        "income_eligible": (actual_income <= income_limit) if actual_income is not None else None,
         # Legacy flags
         "is_single_parent": row.is_single_parent,
         "is_three_children": row.is_three_children,
@@ -141,10 +165,22 @@ def upsert_anakainizw_data(
         row = CMCaseAnakainizw(case_id=case_id)
         db.add(row)
     data = req.dict(exclude_none=True)
+    # Handle JSON fields
     if 'doc_extras' in data:
         row.doc_extras = json.dumps(data.pop('doc_extras'))
+    if 'budget_items' in data:
+        items = data.pop('budget_items')
+        row.budget_items = json.dumps(items)
+        energy = sum(float(v) for k, v in items.items() if k in ENERGY_KEYS)
+        general = sum(float(v) for k, v in items.items() if k not in ENERGY_KEYS)
+        row.energy_works_budget = energy
+        row.general_works_budget = general
+        # Remove manual totals from data since we computed them
+        data.pop('energy_works_budget', None)
+        data.pop('general_works_budget', None)
     for field, val in data.items():
-        setattr(row, field, val)
+        if hasattr(row, field):
+            setattr(row, field, val)
     if req.inspection_fee_paid is True and not row.inspection_fee_paid_at:
         row.inspection_fee_paid_at = datetime.utcnow()
     elif req.inspection_fee_paid is False:

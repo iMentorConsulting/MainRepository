@@ -190,14 +190,29 @@ def _build_portal_data(case: CMCase, db: Session) -> dict:
 
     # ΑΝΑΚΑΙΝΙΖΩ extra data
     if prog == "ΑΝΑΚΑΙΝΙΖΩ":
+        import json as _json
         from models_cases import CMCaseAnakainizw
+        _ENERGY_KEYS = frozenset({
+            'energy_insulation', 'energy_windows', 'energy_hvac',
+            'energy_solar', 'energy_pv', 'energy_other',
+        })
         ana = db.query(CMCaseAnakainizw).filter(CMCaseAnakainizw.case_id == case.id).first()
         if ana:
-            total = (ana.energy_works_budget or 0) + (ana.general_works_budget or 0)
-            energy_pct = round(((ana.energy_works_budget or 0) / total) * 100) if total > 0 else 0
+            items = _json.loads(ana.budget_items) if getattr(ana, 'budget_items', None) else {}
+            if items:
+                energy_total = sum(float(v) for k, v in items.items() if k in _ENERGY_KEYS)
+                general_total = sum(float(v) for k, v in items.items() if k not in _ENERGY_KEYS)
+            else:
+                energy_total = ana.energy_works_budget or 0
+                general_total = ana.general_works_budget or 0
+            total = energy_total + general_total
+            energy_pct = round((energy_total / total) * 100) if total > 0 else 0
             ht = (ana.household_type or "").lower()
             base_income = 25000 if ht == "άγαμος" else 35000
-            income_limit = base_income + (ana.num_children or 0) * 5000
+            income_limit = min(base_income + (ana.num_children or 0) * 5000, 45000)
+            actual_income = getattr(ana, 'actual_income', None)
+            doc_extras_raw = getattr(ana, 'doc_extras', None)
+            doc_extras = _json.loads(doc_extras_raw) if doc_extras_raw else {}
             response["anakainizw"] = {
                 "property_sqm": ana.property_sqm,
                 "property_prefecture": ana.property_prefecture,
@@ -209,15 +224,18 @@ def _build_portal_data(case: CMCase, db: Session) -> dict:
                 "legality": ana.legality,
                 "cooperating_engineer": ana.cooperating_engineer,
                 "subsidy_percent": ana.subsidy_percent,
-                "energy_works_budget": ana.energy_works_budget or 0,
-                "general_works_budget": ana.general_works_budget or 0,
+                "energy_works_budget": energy_total,
+                "general_works_budget": general_total,
                 "total_works_budget": total,
                 "max_budget": min((ana.property_sqm or 0) * 300, 36000) if ana.property_sqm else 0,
                 "energy_pct": energy_pct,
                 "energy_ok": energy_pct >= 20,
+                "budget_items": items,
                 "household_type": ana.household_type,
                 "num_children": ana.num_children,
                 "income_limit": income_limit,
+                "actual_income": actual_income,
+                "income_eligible": (actual_income <= income_limit) if actual_income is not None else None,
                 "is_single_parent": ana.is_single_parent,
                 "is_three_children": ana.is_three_children,
                 "boost_island": ana.boost_island,
@@ -233,6 +251,7 @@ def _build_portal_data(case: CMCase, db: Session) -> dict:
                 "doc_e1": ana.doc_e1,
                 "doc_tax_clearance": ana.doc_tax_clearance,
                 "doc_e2": ana.doc_e2,
+                "doc_extras": doc_extras,
                 "inspection_fee_paid": ana.inspection_fee_paid,
             }
         else:

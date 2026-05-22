@@ -1264,8 +1264,8 @@ export default function ClientPortal() {
                   <div className="bg-white border border-amber-200 rounded-xl p-4 mb-4 flex items-center justify-between">
                     <div>
                       <div className="text-xs text-amber-600 font-medium mb-0.5">Ποσό πληρωμής</div>
-                      <div className="text-2xl font-black text-amber-900">60,76 €</div>
-                      <div className="text-xs text-amber-500 mt-0.5">49 € + ΦΠΑ 24%</div>
+                      <div className="text-2xl font-black text-amber-900">60 €</div>
+                      <div className="text-xs text-amber-500 mt-0.5">48,38 € + ΦΠΑ 24%</div>
                     </div>
                     <div className="text-right">
                       <div className="text-xs text-gray-500">Δικαιούχος</div>

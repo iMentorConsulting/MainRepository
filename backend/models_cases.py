@@ -420,6 +420,9 @@ class CMCaseAnakainizw(Base):
     # ΑΜΕΑ boost
     boost_disability = Column(Boolean, default=False)
 
+    actual_income = Column(Float, nullable=True)
+    budget_items = Column(Text, nullable=True)     # JSON {category_key: amount}
+
     inspection_fee_paid = Column(Boolean, default=False)
     inspection_fee_paid_at = Column(DateTime, nullable=True)
 

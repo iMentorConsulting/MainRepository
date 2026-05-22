@@ -38,7 +38,6 @@ export default function AnakainizwPortalSection({ caseData }) {
 
   const activeBoosts = BOOST_LABELS.filter(b => ana[b.key])
   const docItems = DOC_ITEMS.map(d => ({ ...d, received: !!ana[d.key] }))
-  const docsReceived = docItems.filter(d => d.received).length
 
   return (
     <div className="space-y-5">
@@ -150,57 +149,161 @@ export default function AnakainizwPortalSection({ caseData }) {
             <span className="text-xl">💶</span>
             <h3 className="text-sm font-bold text-gray-800">Εισοδηματικά Κριτήρια</h3>
           </div>
-          <div className="flex items-center justify-between bg-blue-50 border border-blue-100 rounded-xl p-4">
+          <div className="flex items-center justify-between bg-blue-50 border border-blue-100 rounded-xl p-4 mb-3">
             <div>
               <div className="text-xs text-blue-500 font-medium mb-0.5">
                 Τύπος νοικοκυριού: {ana.household_type || '—'}
                 {(ana.num_children || 0) > 0 && ` με ${ana.num_children} παιδί${ana.num_children > 1 ? 'α' : ''}`}
               </div>
-              <div className="text-xs text-blue-400">Βασικό εισόδημα + {ana.num_children || 0} × 5.000€</div>
+              <div className="text-xs text-blue-400">Βασικό εισόδημα + παιδιά (max 45.000€)</div>
             </div>
             <div className="text-right">
               <div className="text-xs text-blue-500 font-medium mb-0.5">Όριο Εισοδήματος</div>
               <div className="text-xl font-black text-blue-800">{fmtEuro(ana.income_limit)}</div>
             </div>
           </div>
+          {ana.income_eligible === true && (
+            <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-xl px-4 py-3 text-sm font-bold text-green-800">
+              <span className="text-lg">✅</span>
+              ΕΠΙΛΕΞΙΜΟΣ — Εισόδημα {fmtEuro(ana.actual_income)} ≤ Όριο {fmtEuro(ana.income_limit)}
+            </div>
+          )}
+          {ana.income_eligible === false && (
+            <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm font-bold text-red-800">
+              <span className="text-lg">❌</span>
+              ΜΗ ΕΠΙΛΕΞΙΜΟΣ — Εισόδημα {fmtEuro(ana.actual_income)} &gt; Όριο {fmtEuro(ana.income_limit)}
+            </div>
+          )}
         </div>
       )}
 
       {/* ── Document checklist ───────────────────────────────────────────── */}
-      <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
-        <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-          <div className="flex items-center gap-2">
-            <span className="text-xl">📂</span>
-            <div>
-              <h3 className="text-sm font-bold text-gray-800">Έγγραφα Ακινήτου</h3>
-              <p className="text-xs text-gray-400 mt-0.5">Απαιτούμενα για τη συγκέντρωση φακέλου</p>
+      {(() => {
+        const visibleDocs = docItems.filter(d => !ana.doc_extras?.[d.key]?.not_needed)
+        const docsReceived = visibleDocs.filter(d => d.received).length
+        if (visibleDocs.length === 0) return null
+        return (
+          <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
+            <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+              <div className="flex items-center gap-2">
+                <span className="text-xl">📂</span>
+                <div>
+                  <h3 className="text-sm font-bold text-gray-800">Έγγραφα Ακινήτου</h3>
+                  <p className="text-xs text-gray-400 mt-0.5">Απαιτούμενα για τη συγκέντρωση φακέλου</p>
+                </div>
+              </div>
+              <div className="text-xs font-bold px-3 py-1.5 rounded-full bg-blue-100 text-blue-700 border border-blue-200">
+                {docsReceived}/{visibleDocs.length} παραλήφθηκαν
+              </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {visibleDocs.map(({ key, icon, label, received }) => {
+                const notes = ana.doc_extras?.[key]?.notes
+                return (
+                  <div key={key} className={`flex flex-col gap-1 rounded-xl px-4 py-3 border transition-colors ${
+                    received ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-100'
+                  }`}>
+                    <div className="flex items-center gap-3">
+                      <span className="flex-shrink-0 text-xl">{received ? '✅' : icon}</span>
+                      <span className={`text-sm font-medium leading-tight ${received ? 'text-green-700' : 'text-gray-600'}`}>
+                        {label}
+                      </span>
+                      {received && <span className="ml-auto text-xs font-bold text-green-600">✓</span>}
+                    </div>
+                    {notes && (
+                      <div className="ml-8 text-xs text-gray-500 italic">{notes}</div>
+                    )}
+                  </div>
+                )
+              })}
             </div>
           </div>
-          <div className="text-xs font-bold px-3 py-1.5 rounded-full bg-blue-100 text-blue-700 border border-blue-200">
-            {docsReceived}/{docItems.length} παραλήφθηκαν
-          </div>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-          {docItems.map(({ key, icon, label, received }) => (
-            <div
-              key={key}
-              className={`flex items-center gap-3 rounded-xl px-4 py-3 border transition-colors ${
-                received
-                  ? 'bg-green-50 border-green-200'
-                  : 'bg-gray-50 border-gray-100'
-              }`}
-            >
-              <span className="flex-shrink-0 text-xl">{received ? '✅' : icon}</span>
-              <span className={`text-sm font-medium leading-tight ${received ? 'text-green-700' : 'text-gray-600'}`}>
-                {label}
-              </span>
-              {received && (
-                <span className="ml-auto text-xs font-bold text-green-600">✓</span>
+        )
+      })()}
+
+      {/* ── Budget breakdown from predefined items ───────────────────────── */}
+      {ana.budget_items && Object.values(ana.budget_items).some(v => v > 0) && (() => {
+        const GROUPS = [
+          { key: 'energy', label: 'Ενεργειακές Παρεμβάσεις', icon: '⚡', is_energy: true, items: [
+            { key: 'energy_insulation', label: 'Θερμομόνωση / θερμοπρόσοψη' },
+            { key: 'energy_windows', label: 'Αντικατάσταση κουφωμάτων' },
+            { key: 'energy_hvac', label: 'Συστήματα θέρμανσης/ψύξης υψηλής απόδοσης' },
+            { key: 'energy_solar', label: 'Ηλιακοί θερμοσίφωνες' },
+            { key: 'energy_pv', label: 'Φωτοβολταϊκά / εξοικονόμηση ενέργειας' },
+            { key: 'energy_other', label: 'Άλλη δαπάνη (Ενεργειακή)' },
+          ]},
+          { key: 'general', label: 'Γενική Ανακαίνιση & Επισκευές', icon: '🔨', is_energy: false, items: [
+            { key: 'general_kitchen', label: 'Κουζίνα & μπάνιο' },
+            { key: 'general_floors', label: 'Πατώματα & κουφώματα εσωτερικά' },
+            { key: 'general_drywall', label: 'Γυψοσανίδες & βαφές' },
+            { key: 'general_plumbing', label: 'Υδραυλικά & ηλεκτρολογικά' },
+            { key: 'general_upgrades', label: 'Λοιπές εργασίες αναβάθμισης' },
+            { key: 'general_other', label: 'Άλλη δαπάνη (Γενική)' },
+          ]},
+          { key: 'consultant', label: 'Δαπάνες Συμβούλου & Μηχανικού', icon: '📋', is_energy: false, items: [
+            { key: 'consultant_fees', label: 'Δαπάνες Συμβούλου' },
+            { key: 'pea_a', label: 'ΠΕΑ Α' },
+            { key: 'pea_b', label: 'ΠΕΑ Β' },
+          ]},
+        ]
+        const ENERGY_KEYS_SET = new Set(['energy_insulation','energy_windows','energy_hvac','energy_solar','energy_pv','energy_other'])
+        const bi = ana.budget_items
+        const energyTotal = Object.entries(bi).filter(([k]) => ENERGY_KEYS_SET.has(k)).reduce((s,[,v]) => s + (v||0), 0)
+        const generalTotal = Object.entries(bi).filter(([k]) => !ENERGY_KEYS_SET.has(k)).reduce((s,[,v]) => s + (v||0), 0)
+        const grandTotal = energyTotal + generalTotal
+        const energyPct = grandTotal > 0 ? Math.round((energyTotal / grandTotal) * 100) : 0
+        const maxBudget = ana.max_budget || 0
+        const eligible = Math.min(grandTotal, maxBudget > 0 ? maxBudget : grandTotal)
+        const subsidyAmt = eligible * ((ana.subsidy_percent || 70) / 100)
+        return (
+          <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
+            <div className="flex items-center gap-2 mb-4">
+              <span className="text-xl">💰</span>
+              <h3 className="text-sm font-bold text-gray-800">Προϋπολογισμός Εργασιών</h3>
+            </div>
+            {GROUPS.map(group => {
+              const groupLines = group.items.filter(item => (bi[item.key] || 0) > 0)
+              if (groupLines.length === 0) return null
+              const groupTotal = groupLines.reduce((s, item) => s + (bi[item.key] || 0), 0)
+              return (
+                <div key={group.key} className="mb-3">
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <span className="text-sm">{group.icon}</span>
+                    <span className={`text-xs font-semibold ${group.is_energy ? 'text-blue-700' : 'text-gray-700'}`}>{group.label}</span>
+                    <span className="ml-auto text-xs font-bold text-gray-700">{fmtEuro(groupTotal)}</span>
+                  </div>
+                  {groupLines.map(item => (
+                    <div key={item.key} className="flex justify-between text-xs text-gray-600 pl-5 py-0.5">
+                      <span>{item.label}</span>
+                      <span className="font-medium">{fmtEuro(bi[item.key])}</span>
+                    </div>
+                  ))}
+                </div>
+              )
+            })}
+            <div className="mt-3 bg-gray-50 rounded-xl p-3 space-y-1.5 text-xs border border-gray-200">
+              <div className="flex justify-between font-semibold text-gray-800">
+                <span>Σύνολο Προϋπολογισμού</span>
+                <span>{fmtEuro(grandTotal)}</span>
+              </div>
+              {maxBudget > 0 && (
+                <div className="flex justify-between text-gray-500">
+                  <span>Ανώτατο Επιλέξιμο (τ.μ.×300, max 36.000€)</span>
+                  <span className="font-medium">{fmtEuro(maxBudget)}</span>
+                </div>
               )}
+              <div className={`flex justify-between ${energyPct >= 20 ? 'text-green-700' : 'text-red-600'} font-medium`}>
+                <span>Ενεργειακά {energyPct}% {energyPct >= 20 ? '✓' : '⚠ απαιτείται ≥20%'}</span>
+                <span>{fmtEuro(energyTotal)}</span>
+              </div>
+              <div className="flex justify-between text-green-700 font-bold border-t pt-1.5">
+                <span>Εκτιμώμενη Επιδότηση ({ana.subsidy_percent || 70}%)</span>
+                <span>{fmtEuro(subsidyAmt)}</span>
+              </div>
             </div>
-          ))}
-        </div>
-      </div>
+          </div>
+        )
+      })()}
 
     </div>
   )
