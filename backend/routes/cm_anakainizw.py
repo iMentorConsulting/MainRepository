@@ -57,6 +57,7 @@ class AnakainizwUpdate(BaseModel):
     doc_tax_clearance: Optional[bool] = None
     doc_e2: Optional[bool] = None
     doc_extras: Optional[Any] = None
+    advisor_checks: Optional[Any] = None
     # Inspection fee
     inspection_fee_paid: Optional[bool] = None
 
@@ -131,6 +132,7 @@ def _row_to_dict(row: CMCaseAnakainizw) -> dict:
         "doc_tax_clearance": row.doc_tax_clearance,
         "doc_e2": row.doc_e2,
         "doc_extras": json.loads(row.doc_extras) if row.doc_extras else {},
+        "advisor_checks": json.loads(row.advisor_checks) if row.advisor_checks else {},
         # Inspection fee
         "inspection_fee_paid": row.inspection_fee_paid,
         "inspection_fee_paid_at": fmt_dt(row.inspection_fee_paid_at),
@@ -168,6 +170,8 @@ def upsert_anakainizw_data(
     # Handle JSON fields
     if 'doc_extras' in data:
         row.doc_extras = json.dumps(data.pop('doc_extras'))
+    if 'advisor_checks' in data:
+        row.advisor_checks = json.dumps(data.pop('advisor_checks'))
     if 'budget_items' in data:
         items = data.pop('budget_items')
         row.budget_items = json.dumps(items)

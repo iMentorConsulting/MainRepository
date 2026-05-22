@@ -213,6 +213,8 @@ def _build_portal_data(case: CMCase, db: Session) -> dict:
             actual_income = getattr(ana, 'actual_income', None)
             doc_extras_raw = getattr(ana, 'doc_extras', None)
             doc_extras = _json.loads(doc_extras_raw) if doc_extras_raw else {}
+            advisor_checks_raw = getattr(ana, 'advisor_checks', None)
+            advisor_checks = _json.loads(advisor_checks_raw) if advisor_checks_raw else {}
             response["anakainizw"] = {
                 "property_sqm": ana.property_sqm,
                 "property_prefecture": ana.property_prefecture,
@@ -252,6 +254,7 @@ def _build_portal_data(case: CMCase, db: Session) -> dict:
                 "doc_tax_clearance": ana.doc_tax_clearance,
                 "doc_e2": ana.doc_e2,
                 "doc_extras": doc_extras,
+                "advisor_checks": advisor_checks,
                 "inspection_fee_paid": ana.inspection_fee_paid,
             }
         else:

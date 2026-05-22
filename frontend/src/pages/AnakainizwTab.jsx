@@ -533,6 +533,96 @@ function DocumentChecklist({ data, onSave }) {
   )
 }
 
+// ── Advisor Checks Card ───────────────────────────────────────────────────────
+const ADVISOR_CHECK_ITEMS = [
+  { key: 'household_type', label: 'Τύπος Νοικοκυριού', icon: '👥' },
+  { key: 'income', label: 'Εισόδημα', icon: '💶' },
+  { key: 'special_conditions', label: 'Ειδικές Συνθήκες (αύξηση επιχορήγησης)', icon: '⭐' },
+  { key: 'title_deed', label: 'Τίτλος Ιδιοκτησίας', icon: '📄' },
+  { key: 'enfia', label: 'ΕΝΦΙΑ', icon: '🏛️' },
+  { key: 'electricity_bill', label: 'Λογαριασμός Ρεύματος', icon: '⚡' },
+  { key: 'building_permit', label: 'Άδεια Οικοδομής', icon: '🏗️' },
+  { key: 'legalization', label: 'Τακτοποίηση Αυθαιρέτου', icon: '⚖️' },
+  { key: 'vacant_property', label: 'Έλεγχος Κενού Ακινήτου', icon: '🔑' },
+  { key: 'other', label: 'Άλλοι Έλεγχοι', icon: '🔍' },
+]
+
+const STATUS_OPTIONS = [
+  { value: 'pending', label: 'Εκκρεμεί', color: 'text-gray-500', bg: 'bg-gray-50 border-gray-200' },
+  { value: 'positive', label: 'Θετικό', color: 'text-green-700', bg: 'bg-green-50 border-green-200' },
+  { value: 'negative', label: 'Αρνητικό', color: 'text-red-700', bg: 'bg-red-50 border-red-200' },
+  { value: 'in_progress', label: 'Σε Εξέλιξη', color: 'text-blue-700', bg: 'bg-blue-50 border-blue-200' },
+  { value: 'not_required', label: 'Δεν Απαιτείται', color: 'text-gray-400', bg: 'bg-gray-50 border-gray-100' },
+]
+
+function AdvisorChecksCard({ data, onSave }) {
+  const [checks, setChecks] = useState({})
+  const [dirty, setDirty] = useState(false)
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    const c = {}
+    ADVISOR_CHECK_ITEMS.forEach(({ key }) => {
+      c[key] = data?.advisor_checks?.[key] ?? { status: 'pending', comment: '' }
+    })
+    setChecks(c)
+    setDirty(false)
+  }, [data])
+
+  const set = (key, field, val) => {
+    setChecks(prev => ({ ...prev, [key]: { ...prev[key], [field]: val } }))
+    setDirty(true)
+  }
+
+  const save = async () => {
+    setSaving(true)
+    try { await onSave({ advisor_checks: checks }); setDirty(false); toast.success('Αποθηκεύτηκε') }
+    finally { setSaving(false) }
+  }
+
+  const statusInfo = (val) => STATUS_OPTIONS.find(s => s.value === val) || STATUS_OPTIONS[0]
+
+  return (
+    <Card title="Έλεγχοι Συμβούλου">
+      <div className="space-y-2">
+        {ADVISOR_CHECK_ITEMS.map(({ key, label, icon }) => {
+          const check = checks[key] ?? { status: 'pending', comment: '' }
+          const si = statusInfo(check.status)
+          return (
+            <div key={key} className={`rounded-lg border p-3 ${si.bg}`}>
+              <div className="flex items-center gap-2 mb-1.5">
+                <span className="text-base shrink-0">{icon}</span>
+                <span className="flex-1 text-xs font-medium text-gray-700">{label}</span>
+                <select
+                  value={check.status}
+                  onChange={e => set(key, 'status', e.target.value)}
+                  className={`text-xs border rounded-lg px-2 py-1 font-semibold focus:outline-none focus:ring-1 focus:ring-blue-300 ${si.color} bg-white border-gray-200`}
+                >
+                  {STATUS_OPTIONS.map(s => (
+                    <option key={s.value} value={s.value}>{s.label}</option>
+                  ))}
+                </select>
+              </div>
+              <input
+                value={check.comment || ''}
+                onChange={e => set(key, 'comment', e.target.value)}
+                placeholder="Σχόλιο Συμβούλου..."
+                className="w-full border border-gray-200 rounded-lg px-2 py-1 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-blue-300"
+              />
+            </div>
+          )
+        })}
+      </div>
+      {dirty && (
+        <button onClick={save} disabled={saving}
+          className="mt-4 px-4 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 disabled:opacity-50">
+          {saving ? 'Αποθήκευση...' : 'Αποθήκευση'}
+        </button>
+      )}
+    </Card>
+  )
+}
+
 // ── Main Tab Component ────────────────────────────────────────────────────────
 export default function AnakainizwTab({ caseId }) {
   const [data, setData] = useState(null)
@@ -571,8 +661,11 @@ export default function AnakainizwTab({ caseId }) {
           <SubsidyCard data={data} onSave={save} />
         </div>
       </div>
-      <BudgetItemsCard data={data} onSave={save} />
-      <DocumentChecklist data={data} onSave={save} />
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <BudgetItemsCard data={data} onSave={save} />
+        <DocumentChecklist data={data} onSave={save} />
+      </div>
+      <AdvisorChecksCard data={data} onSave={save} />
     </div>
   )
 }

@@ -422,6 +422,7 @@ class CMCaseAnakainizw(Base):
 
     actual_income = Column(Float, nullable=True)
     budget_items = Column(Text, nullable=True)     # JSON {category_key: amount}
+    advisor_checks = Column(Text, nullable=True)   # JSON {check_key: {status, comment}}
 
     inspection_fee_paid = Column(Boolean, default=False)
     inspection_fee_paid_at = Column(DateTime, nullable=True)
