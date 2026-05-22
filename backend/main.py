@@ -221,8 +221,12 @@ try:
         _conn.execute(_text("""
             UPDATE cm_cases
             SET program_category = 'ΑΝΑΚΑΙΝΙΖΩ'
-            WHERE service_type = 'Ανακαινίζω'
-              AND (program_category IS NULL OR program_category <> 'ΑΝΑΚΑΙΝΙΖΩ')
+            WHERE (
+                service_type ILIKE '%ανακαιν%'
+                OR sheet_import_ref ILIKE '%ανακαιν%'
+                OR id IN (SELECT case_id FROM cm_case_anakainizw)
+            )
+            AND (program_category IS NULL OR program_category <> 'ΑΝΑΚΑΙΝΙΖΩ')
         """))
         _conn.commit()
 except Exception:
