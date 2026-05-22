@@ -1176,27 +1176,29 @@ export default function ClientPortal() {
           )}
         </div>
 
-        {/* KPIs */}
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <KpiCard
-            icon={CurrencyEuroIcon}
-            label={data.program_category === 'ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ' ? 'Ποσό Δανείου' : 'Εγκεκρ. Προϋπολογισμός'}
-            value={budget}
-            color="blue"
-          />
-          {data.program_category === 'ΕΣΠΑ' && (
-            <KpiCard icon={CurrencyEuroIcon} label="Επιχορήγηση" value={subsidy} color="green" />
-          )}
-          {data.program_category !== 'ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ' && (
-            <KpiCard icon={CalendarDaysIcon} label="Ημερ. Έγκρισης" value={fmtDate(data.approval_date)} color="purple" />
-          )}
-          {data.program_category !== 'ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ' && (
-            <KpiCard icon={CalendarDaysIcon} label="Προθεσμία" value={fmtDate(data.project_deadline)} color="orange" />
-          )}
-        </div>
+        {/* KPIs — not for ΑΝΑΚΑΙΝΙΖΩ (shown in different position) */}
+        {data.program_category !== 'ΑΝΑΚΑΙΝΙΖΩ' && (
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <KpiCard
+              icon={CurrencyEuroIcon}
+              label={data.program_category === 'ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ' ? 'Ποσό Δανείου' : 'Εγκεκρ. Προϋπολογισμός'}
+              value={budget}
+              color="blue"
+            />
+            {data.program_category === 'ΕΣΠΑ' && (
+              <KpiCard icon={CurrencyEuroIcon} label="Επιχορήγηση" value={subsidy} color="green" />
+            )}
+            {data.program_category !== 'ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ' && (
+              <KpiCard icon={CalendarDaysIcon} label="Ημερ. Έγκρισης" value={fmtDate(data.approval_date)} color="purple" />
+            )}
+            {data.program_category !== 'ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ' && (
+              <KpiCard icon={CalendarDaysIcon} label="Προθεσμία" value={fmtDate(data.project_deadline)} color="orange" />
+            )}
+          </div>
+        )}
 
-        {/* Vertical Status Timeline */}
-        {data.full_status_list?.length > 0 && (
+        {/* Vertical Status Timeline — not for ΑΝΑΚΑΙΝΙΖΩ (shown in different position) */}
+        {data.program_category !== 'ΑΝΑΚΑΙΝΙΖΩ' && data.full_status_list?.length > 0 && (
           <StatusTimeline
             fullStatusList={data.full_status_list}
             currentStatus={data.status}
@@ -1221,9 +1223,120 @@ export default function ClientPortal() {
           <DypaSection data={data} />
         )}
 
-        {/* ΑΝΑΚΑΙΝΙΖΩ section */}
+        {/* ── ΑΝΑΚΑΙΝΙΖΩ: custom card order ─────────────────────────────── */}
         {data.program_category === 'ΑΝΑΚΑΙΝΙΖΩ' && (
-          <AnakainizwPortalSection caseData={data} />
+          <>
+            {/* 2-5: Program header, property, income criteria, documents */}
+            <AnakainizwPortalSection caseData={data} />
+
+            {/* 6: Πορεία Υπόθεσης */}
+            {data.full_status_list?.length > 0 && (
+              <StatusTimeline
+                fullStatusList={data.full_status_list}
+                currentStatus={data.status}
+                nextStatus={data.next_status}
+                statusDescriptions={data.status_descriptions || {}}
+                statusHistory={data.status_history || []}
+              />
+            )}
+
+            {/* 7: KPI cards */}
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+              <KpiCard icon={CurrencyEuroIcon} label="Εγκεκρ. Προϋπολογισμός" value={budget} color="blue" />
+              <KpiCard icon={CalendarDaysIcon} label="Ημερ. Έγκρισης" value={fmtDate(data.approval_date)} color="purple" />
+              <KpiCard icon={CalendarDaysIcon} label="Προθεσμία" value={fmtDate(data.project_deadline)} color="orange" />
+            </div>
+
+            {/* 8: Εκκρεμεί Πληρωμή */}
+            {data.anakainizw?.inspection_fee_paid === false && (
+              <div className="relative overflow-hidden rounded-2xl border-2 border-amber-400 bg-amber-50 p-5 shadow-sm">
+                <div className="absolute -top-6 -right-6 w-24 h-24 rounded-full bg-amber-400/10" />
+                <div className="absolute -bottom-4 -left-4 w-16 h-16 rounded-full bg-amber-400/10" />
+                <div className="relative">
+                  <div className="flex items-start gap-4 mb-4">
+                    <div className="flex-shrink-0 w-12 h-12 rounded-2xl bg-amber-400 text-white flex items-center justify-center text-2xl shadow">🏦</div>
+                    <div className="flex-1">
+                      <div className="text-xs font-bold uppercase tracking-widest text-amber-600 mb-0.5">Εκκρεμεί Πληρωμή</div>
+                      <h3 className="text-base font-extrabold text-amber-900">Έλεγχος Ακινήτου &amp; Εισοδηματικών Κριτηρίων</h3>
+                      <p className="text-sm text-amber-700 mt-1">Απαιτείται εφάπαξ πληρωμή για τον αρχικό έλεγχο επιλεξιμότητας.</p>
+                    </div>
+                  </div>
+                  <div className="bg-white border border-amber-200 rounded-xl p-4 mb-4 flex items-center justify-between">
+                    <div>
+                      <div className="text-xs text-amber-600 font-medium mb-0.5">Ποσό πληρωμής</div>
+                      <div className="text-2xl font-black text-amber-900">60,76 €</div>
+                      <div className="text-xs text-amber-500 mt-0.5">49 € + ΦΠΑ 24%</div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-xs text-gray-500">Δικαιούχος</div>
+                      <div className="text-sm font-bold text-gray-800">I MENTOR IKE</div>
+                    </div>
+                  </div>
+                  <div className="space-y-2 mb-4">
+                    <div className="text-xs font-bold uppercase tracking-wide text-amber-700 mb-2">Τραπεζικοί Λογαριασμοί</div>
+                    {[
+                      { bank: 'Πειραιώς', iban: 'GR4501714330006433164381388' },
+                      { bank: 'Eurobank', iban: 'GR5802601680000060201330648' },
+                      { bank: 'Alpha Bank', iban: 'GR2401407750775002330002138' },
+                    ].map(({ bank, iban }) => (
+                      <div key={bank} className="bg-white border border-amber-100 rounded-xl px-4 py-3 flex items-center justify-between gap-3">
+                        <span className="text-sm font-bold text-gray-700 flex-shrink-0">{bank}</span>
+                        <span className="text-xs font-mono text-gray-600 break-all text-right">{iban}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="bg-amber-100 border border-amber-300 rounded-xl px-4 py-3 text-sm text-amber-800 flex items-start gap-2">
+                    <span className="flex-shrink-0 text-base">📲</span>
+                    <span>Μετά την πληρωμή, <strong>στείλτε την απόδειξη</strong> στον σύμβουλό σας μέσω της φόρμας επικοινωνίας παρακάτω ή με email.</span>
+                  </div>
+                </div>
+              </div>
+            )}
+            {data.anakainizw?.inspection_fee_paid === true && (
+              <div className="bg-green-50 border border-green-200 rounded-2xl p-4 flex items-center gap-4 shadow-sm">
+                <div className="w-12 h-12 rounded-2xl bg-green-500 text-white flex items-center justify-center text-2xl shadow flex-shrink-0">✅</div>
+                <div>
+                  <div className="text-sm font-bold text-green-800">Πληρωμή Ελέγχου — Εξοφλημένο</div>
+                  <div className="text-xs text-green-600 mt-0.5">Ο έλεγχος ακινήτου &amp; εισοδηματικών κριτηρίων έχει καλυφθεί.</div>
+                </div>
+              </div>
+            )}
+
+            {/* 9: Επικοινωνία με το Γραφείο */}
+            <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
+              <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                <ChatBubbleLeftEllipsisIcon className="w-5 h-5 text-gray-400" />
+                Επικοινωνία με το Γραφείο
+              </h3>
+              {data.messages?.length > 0 ? (
+                <div className="space-y-3 mb-4">
+                  {data.messages.map(msg => (
+                    <div key={msg.id} className={`flex gap-3 items-start ${msg.sent_by_client ? 'flex-row-reverse' : ''}`}>
+                      <div className={`w-7 h-7 rounded-full flex-shrink-0 flex items-center justify-center text-white text-xs font-bold ${msg.sent_by_client ? 'bg-green-500' : 'bg-[#1e3a5f]'}`}>
+                        {msg.sent_by_client ? 'Ε' : (msg.author || 'i')[0].toUpperCase()}
+                      </div>
+                      <div className={`flex-1 rounded-xl px-3 py-2 ${msg.sent_by_client ? 'bg-green-50 border border-green-100' : 'bg-gray-50'}`}>
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-xs font-semibold text-gray-700">{msg.sent_by_client ? 'Εσείς' : (msg.author || 'iMentor')}</span>
+                          <span className="text-xs text-gray-400">{fmtDateTime(msg.created_at)}</span>
+                        </div>
+                        <p className="text-sm text-gray-800 whitespace-pre-line">{msg.content}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-gray-400 mb-4">Δεν υπάρχουν μηνύματα ακόμα.</p>
+              )}
+              <ClientMessageForm token={token} onSent={() => getPortalCase(token).then(setData)} />
+            </div>
+
+            {/* 10: Αποστολή Εγγράφων */}
+            <ClientUploadSection token={token} clientDocs={data.client_documents || []} onUploaded={() => getPortalCase(token).then(setData)} />
+
+            {/* 11: Η γνώμη σας μετράει */}
+            <NpsWidget token={token} serviceType={data.service_type} />
+          </>
         )}
 
         {/* Pending Items */}
@@ -1351,41 +1464,46 @@ export default function ClientPortal() {
           </div>
         )}
 
-        {/* Messages */}
-        <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
-          <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
-            <ChatBubbleLeftEllipsisIcon className="w-5 h-5 text-gray-400" />
-            Επικοινωνία με το Γραφείο
-          </h3>
-          {data.messages?.length > 0 ? (
-            <div className="space-y-3 mb-4">
-              {data.messages.map(msg => (
-                <div key={msg.id} className={`flex gap-3 items-start ${msg.sent_by_client ? 'flex-row-reverse' : ''}`}>
-                  <div className={`w-7 h-7 rounded-full flex-shrink-0 flex items-center justify-center text-white text-xs font-bold
-                    ${msg.sent_by_client ? 'bg-green-500' : 'bg-[#1e3a5f]'}`}>
-                    {msg.sent_by_client ? 'Ε' : (msg.author || 'i')[0].toUpperCase()}
-                  </div>
-                  <div className={`flex-1 rounded-xl px-3 py-2 ${msg.sent_by_client ? 'bg-green-50 border border-green-100' : 'bg-gray-50'}`}>
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-xs font-semibold text-gray-700">{msg.sent_by_client ? 'Εσείς' : (msg.author || 'iMentor')}</span>
-                      <span className="text-xs text-gray-400">{fmtDateTime(msg.created_at)}</span>
+        {/* Messages, Upload, NPS — only for non-ΑΝΑΚΑΙΝΙΖΩ (ΑΝΑΚΑΙΝΙΖΩ includes them above) */}
+        {data.program_category !== 'ΑΝΑΚΑΙΝΙΖΩ' && (
+          <>
+            {/* Messages */}
+            <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
+              <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                <ChatBubbleLeftEllipsisIcon className="w-5 h-5 text-gray-400" />
+                Επικοινωνία με το Γραφείο
+              </h3>
+              {data.messages?.length > 0 ? (
+                <div className="space-y-3 mb-4">
+                  {data.messages.map(msg => (
+                    <div key={msg.id} className={`flex gap-3 items-start ${msg.sent_by_client ? 'flex-row-reverse' : ''}`}>
+                      <div className={`w-7 h-7 rounded-full flex-shrink-0 flex items-center justify-center text-white text-xs font-bold
+                        ${msg.sent_by_client ? 'bg-green-500' : 'bg-[#1e3a5f]'}`}>
+                        {msg.sent_by_client ? 'Ε' : (msg.author || 'i')[0].toUpperCase()}
+                      </div>
+                      <div className={`flex-1 rounded-xl px-3 py-2 ${msg.sent_by_client ? 'bg-green-50 border border-green-100' : 'bg-gray-50'}`}>
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-xs font-semibold text-gray-700">{msg.sent_by_client ? 'Εσείς' : (msg.author || 'iMentor')}</span>
+                          <span className="text-xs text-gray-400">{fmtDateTime(msg.created_at)}</span>
+                        </div>
+                        <p className="text-sm text-gray-800 whitespace-pre-line">{msg.content}</p>
+                      </div>
                     </div>
-                    <p className="text-sm text-gray-800 whitespace-pre-line">{msg.content}</p>
-                  </div>
+                  ))}
                 </div>
-              ))}
+              ) : (
+                <p className="text-xs text-gray-400 mb-4">Δεν υπάρχουν μηνύματα ακόμα.</p>
+              )}
+              <ClientMessageForm token={token} onSent={() => getPortalCase(token).then(setData)} />
             </div>
-          ) : (
-            <p className="text-xs text-gray-400 mb-4">Δεν υπάρχουν μηνύματα ακόμα.</p>
-          )}
-          <ClientMessageForm token={token} onSent={() => getPortalCase(token).then(setData)} />
-        </div>
 
-        {/* Client File Upload */}
-        <ClientUploadSection token={token} clientDocs={data.client_documents || []} onUploaded={() => getPortalCase(token).then(setData)} />
+            {/* Client File Upload */}
+            <ClientUploadSection token={token} clientDocs={data.client_documents || []} onUploaded={() => getPortalCase(token).then(setData)} />
 
-        {/* NPS Widget */}
-        <NpsWidget token={token} serviceType={data.service_type} />
+            {/* NPS Widget */}
+            <NpsWidget token={token} serviceType={data.service_type} />
+          </>
+        )}
 
         {/* Contact Footer */}
         <div className="bg-[#1e3a5f] text-white rounded-xl p-5">

@@ -6,12 +6,6 @@ function fmtEuro(n) {
   return n.toLocaleString('el-GR', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) + ' €'
 }
 
-const BANK_ACCOUNTS = [
-  { bank: 'Πειραιώς', iban: 'GR4501714330006433164381388' },
-  { bank: 'Eurobank', iban: 'GR5802601680000060201330648' },
-  { bank: 'Alpha Bank', iban: 'GR2401407750775002330002138' },
-]
-
 // Document checklist items with labels and their field keys
 const DOC_ITEMS = [
   { key: 'doc_title_deed', icon: '📄', label: 'Τίτλος Ιδιοκτησίας' },
@@ -41,12 +35,6 @@ const USAGE_LABELS = {
 export default function AnakainizwPortalSection({ caseData }) {
   const ana = caseData?.anakainizw
   if (!ana) return null
-
-  const totalBudget = (ana.energy_works_budget || 0) + (ana.general_works_budget || 0)
-  const maxBudget = ana.max_budget || 0
-  const energyPct = ana.energy_pct ?? (totalBudget > 0 ? Math.round(((ana.energy_works_budget || 0) / totalBudget) * 100) : 0)
-  const generalPct = totalBudget > 0 ? 100 - energyPct : 0
-  const energyOk = energyPct >= 20
 
   const activeBoosts = BOOST_LABELS.filter(b => ana[b.key])
   const docItems = DOC_ITEMS.map(d => ({ ...d, received: !!ana[d.key] }))
@@ -105,13 +93,6 @@ export default function AnakainizwPortalSection({ caseData }) {
             <div className="bg-green-50 border border-green-100 rounded-xl p-3">
               <div className="text-xs text-green-500 font-medium mb-0.5">Περιοχή</div>
               <div className="text-base font-bold text-green-800 leading-tight">{ana.property_prefecture}</div>
-            </div>
-          )}
-          {maxBudget > 0 && (
-            <div className="bg-purple-50 border border-purple-100 rounded-xl p-3">
-              <div className="text-xs text-purple-500 font-medium mb-0.5">Μέγ. Π/Υ Επιδότησης</div>
-              <div className="text-lg font-bold text-purple-800">{fmtEuro(maxBudget)}</div>
-              <div className="text-xs text-purple-400 mt-0.5">τ.μ. × 300€, max 36.000€</div>
             </div>
           )}
           {ana.property_usage && (
@@ -185,70 +166,6 @@ export default function AnakainizwPortalSection({ caseData }) {
         </div>
       )}
 
-      {/* ── Budget breakdown ─────────────────────────────────────────────── */}
-      {totalBudget > 0 && (
-        <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
-          <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-            <div className="flex items-center gap-2">
-              <span className="text-xl">💰</span>
-              <h3 className="text-sm font-bold text-gray-800">Προϋπολογισμός Εργασιών</h3>
-            </div>
-            <span className="text-xs bg-gray-100 text-gray-600 px-3 py-1 rounded-full font-semibold border border-gray-200">
-              Σύνολο: {fmtEuro(totalBudget)}
-            </span>
-          </div>
-
-          <div className="mb-4">
-            <div className="flex justify-between items-center mb-1.5">
-              <div className="flex items-center gap-1.5 flex-wrap">
-                <span className="text-base">⚡</span>
-                <span className="text-sm font-semibold text-gray-700">Ενεργειακές Παρεμβάσεις</span>
-                <span className={`text-xs font-bold px-2 py-0.5 rounded-full border ${
-                  energyOk ? 'bg-green-100 text-green-700 border-green-200' : 'bg-red-100 text-red-700 border-red-200'
-                }`}>
-                  {energyOk ? `${energyPct}% ✓` : `${energyPct}% — απαιτείται ≥20%`}
-                </span>
-              </div>
-              <span className="text-sm font-bold text-gray-800">{fmtEuro(ana.energy_works_budget)}</span>
-            </div>
-            <div className="w-full bg-gray-100 rounded-full h-3 overflow-hidden">
-              <div
-                className={`h-3 rounded-full transition-all ${energyOk ? 'bg-green-500' : 'bg-red-400'}`}
-                style={{ width: `${Math.min(100, energyPct)}%` }}
-              />
-            </div>
-          </div>
-
-          <div>
-            <div className="flex justify-between items-center mb-1.5">
-              <div className="flex items-center gap-1.5">
-                <span className="text-base">🔨</span>
-                <span className="text-sm font-semibold text-gray-700">Γενικές Εργασίες</span>
-                <span className="text-xs font-medium text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full border border-gray-200">{generalPct}%</span>
-              </div>
-              <span className="text-sm font-bold text-gray-800">{fmtEuro(ana.general_works_budget)}</span>
-            </div>
-            <div className="w-full bg-gray-100 rounded-full h-3 overflow-hidden">
-              <div className="h-3 rounded-full transition-all bg-blue-400" style={{ width: `${Math.min(100, generalPct)}%` }} />
-            </div>
-          </div>
-
-          {maxBudget > 0 && (
-            <div className={`mt-4 rounded-xl p-3 border flex items-start gap-2 ${
-              totalBudget <= maxBudget ? 'bg-green-50 border-green-200' : 'bg-orange-50 border-orange-200'
-            }`}>
-              <span className="text-base flex-shrink-0">{totalBudget <= maxBudget ? '✅' : '⚠️'}</span>
-              <div className={`text-xs ${totalBudget <= maxBudget ? 'text-green-700' : 'text-orange-700'}`}>
-                {totalBudget <= maxBudget
-                  ? <>Ο προϋπολογισμός <strong>{fmtEuro(totalBudget)}</strong> είναι εντός του μέγιστου ορίου {fmtEuro(maxBudget)}.</>
-                  : <>Ο προϋπολογισμός <strong>{fmtEuro(totalBudget)}</strong> υπερβαίνει το μέγιστο όριο {fmtEuro(maxBudget)}. Η επιδότηση υπολογίζεται μέχρι το όριο.</>
-                }
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
       {/* ── Document checklist ───────────────────────────────────────────── */}
       <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
         <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
@@ -285,63 +202,6 @@ export default function AnakainizwPortalSection({ caseData }) {
         </div>
       </div>
 
-      {/* ── Inspection fee payment section ──────────────────────────────── */}
-      {ana.inspection_fee_paid === false && (
-        <div className="relative overflow-hidden rounded-2xl border-2 border-amber-400 bg-amber-50 p-5 shadow-sm">
-          <div className="absolute -top-6 -right-6 w-24 h-24 rounded-full bg-amber-400/10" />
-          <div className="absolute -bottom-4 -left-4 w-16 h-16 rounded-full bg-amber-400/10" />
-
-          <div className="relative">
-            <div className="flex items-start gap-4 mb-4">
-              <div className="flex-shrink-0 w-12 h-12 rounded-2xl bg-amber-400 text-white flex items-center justify-center text-2xl shadow">
-                🏦
-              </div>
-              <div className="flex-1">
-                <div className="text-xs font-bold uppercase tracking-widest text-amber-600 mb-0.5">Εκκρεμεί Πληρωμή</div>
-                <h3 className="text-base font-extrabold text-amber-900">Έλεγχος Ακινήτου & Εισοδηματικών Κριτηρίων</h3>
-                <p className="text-sm text-amber-700 mt-1">Απαιτείται εφάπαξ πληρωμή για τον αρχικό έλεγχο επιλεξιμότητας.</p>
-              </div>
-            </div>
-
-            <div className="bg-white border border-amber-200 rounded-xl p-4 mb-4 flex items-center justify-between">
-              <div>
-                <div className="text-xs text-amber-600 font-medium mb-0.5">Ποσό πληρωμής</div>
-                <div className="text-2xl font-black text-amber-900">60,76 €</div>
-                <div className="text-xs text-amber-500 mt-0.5">49 € + ΦΠΑ 24%</div>
-              </div>
-              <div className="text-right">
-                <div className="text-xs text-gray-500">Δικαιούχος</div>
-                <div className="text-sm font-bold text-gray-800">I MENTOR IKE</div>
-              </div>
-            </div>
-
-            <div className="space-y-2 mb-4">
-              <div className="text-xs font-bold uppercase tracking-wide text-amber-700 mb-2">Τραπεζικοί Λογαριασμοί</div>
-              {BANK_ACCOUNTS.map(({ bank, iban }) => (
-                <div key={bank} className="bg-white border border-amber-100 rounded-xl px-4 py-3 flex items-center justify-between gap-3">
-                  <span className="text-sm font-bold text-gray-700 flex-shrink-0">{bank}</span>
-                  <span className="text-xs font-mono text-gray-600 break-all text-right">{iban}</span>
-                </div>
-              ))}
-            </div>
-
-            <div className="bg-amber-100 border border-amber-300 rounded-xl px-4 py-3 text-sm text-amber-800 flex items-start gap-2">
-              <span className="flex-shrink-0 text-base">📲</span>
-              <span>Μετά την πληρωμή, <strong>στείλτε την απόδειξη</strong> στον σύμβουλό σας μέσω της φόρμας επικοινωνίας παρακάτω ή με email.</span>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {ana.inspection_fee_paid === true && (
-        <div className="bg-green-50 border border-green-200 rounded-2xl p-4 flex items-center gap-4 shadow-sm">
-          <div className="w-12 h-12 rounded-2xl bg-green-500 text-white flex items-center justify-center text-2xl shadow flex-shrink-0">✅</div>
-          <div>
-            <div className="text-sm font-bold text-green-800">Πληρωμή Ελέγχου — Εξοφλημένο</div>
-            <div className="text-xs text-green-600 mt-0.5">Ο έλεγχος ακινήτου &amp; εισοδηματικών κριτηρίων έχει καλυφθεί.</div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

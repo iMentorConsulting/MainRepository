@@ -695,6 +695,26 @@ def _is_cancel_status(status: str) -> bool:
     return status.strip().upper() in CANCEL_STATUSES
 
 
+_USAGE_NORMALIZE = {
+    'κενο': 'ΚΕΝΟ',
+    'μισθωμενο': 'ΜΙΣΘΩΜΕΝΟ',
+    'ιδιοκατοικηση': 'ΙΔΙΟΚΑΤΟΙΚΗΣΗ',
+    '2η κατοικια (εξοχικο)': '2η Κατοικία (εξοχικό)',
+}
+
+
+def _normalize_usage(val: str | None) -> str | None:
+    if not val:
+        return val
+    import unicodedata
+    stripped = val.strip()
+    key = ''.join(
+        c for c in unicodedata.normalize('NFD', stripped.lower())
+        if unicodedata.category(c) != 'Mn'
+    )
+    return _USAGE_NORMALIZE.get(key, stripped) or None
+
+
 def _parse_anakainizw_data_rows(rows: list) -> list:
     """Parse raw sheet rows into dicts. Returns list of parsed row dicts (no header)."""
     parsed = []
@@ -714,7 +734,7 @@ def _parse_anakainizw_data_rows(rows: list) -> list:
             "status_raw": str(row[ANA_COL["status"]]).strip(),
             "property_prefecture": str(row[ANA_COL["property_prefecture"]]).strip() or None,
             "property_sqm": str(row[ANA_COL["property_sqm"]]).strip() or None,
-            "property_usage": str(row[ANA_COL["property_usage"]]).strip() or None,
+            "property_usage": _normalize_usage(str(row[ANA_COL["property_usage"]]).strip()),
             "property_type": str(row[ANA_COL["property_type"]]).strip() or None,
             "property_age": str(row[ANA_COL["property_age"]]).strip() or None,
             "renovation_works": str(row[ANA_COL["renovation_works"]]).strip() or None,
