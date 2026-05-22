@@ -682,7 +682,7 @@ def _read_anakainizw_rows() -> list[list]:
     result = (
         service.spreadsheets()
         .values()
-        .get(spreadsheetId=ANAKAINIZW_SPREADSHEET_ID, range=f"{ANAKAINIZW_SHEET_TAB}!A:U")
+        .get(spreadsheetId=ANAKAINIZW_SPREADSHEET_ID, range=f"{ANAKAINIZW_SHEET_TAB}!A:X")
         .execute()
     )
     return result.get("values", [])
@@ -804,7 +804,7 @@ def _do_import_anakainizw(db: Session, selected_rows: list[int] | None = None) -
         property_age = str(row[ANA_COL["property_age"]]).strip() or None
         sqm_raw = str(row[ANA_COL["property_sqm"]]).strip()
         property_sqm = _parse_float(sqm_raw) if sqm_raw else None
-        property_usage = str(row[ANA_COL["property_usage"]]).strip() or None
+        property_usage = _normalize_usage(str(row[ANA_COL["property_usage"]]).strip())
         renovation_works = str(row[ANA_COL["renovation_works"]]).strip() or None
         legality = str(row[ANA_COL["legality"]]).strip() or None if len(row) > ANA_COL["legality"] else None
         notes = str(row[ANA_COL["notes"]]).strip() or None
