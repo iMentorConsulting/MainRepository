@@ -31,16 +31,16 @@ const nav = [
   { to: '/cases', label: 'Υποθέσεις', Icon: FolderOpenIcon },
   { to: '/kanban', label: 'Pipeline', Icon: ViewColumnsIcon },
   { to: '/analytics', label: 'Αναλυτικά', Icon: ChartBarIcon },
-  { to: '/revenue', label: 'Προβλέψεις Εισπράξεων', Icon: BanknotesIcon },
+  { to: '/revenue', label: 'Προβλέψεις Εισπράξεων', Icon: BanknotesIcon, adminOnly: true },
   { to: '/calendar', label: 'Ημερολόγιο', Icon: CalendarDaysIcon },
-  { to: '/import', label: 'Εισαγωγή Sheet', Icon: ArrowDownTrayIcon },
+  { to: '/import', label: 'Εισαγωγή Sheet', Icon: ArrowDownTrayIcon, adminOnly: true },
   { to: '/worklists', label: 'Εκκρεμείς Εργασίες', Icon: ClipboardDocumentListIcon },
-  { to: '/portal-broadcast', label: 'Πύλη Πελάτη — Αποστολή', Icon: GlobeAltIcon },
-  { to: '/portal-documents', label: 'Πύλη Πελάτη — Έγγραφα', Icon: DocumentArrowUpIcon },
+  { to: '/portal-broadcast', label: 'Πύλη Πελάτη — Αποστολή', Icon: GlobeAltIcon, adminOnly: true },
+  { to: '/portal-documents', label: 'Πύλη Πελάτη — Έγγραφα', Icon: DocumentArrowUpIcon, adminOnly: true },
   { to: '/pipeline-admin', label: 'Διαχ. Pipeline', Icon: AdjustmentsHorizontalIcon },
-  { to: '/users', label: 'Χρήστες', Icon: UsersIcon },
-  { to: '/backup', label: 'Αντίγραφα Ασφαλείας', Icon: CloudArrowUpIcon },
-  { to: '/status-notifications', label: 'Ειδοποιήσεις Status', Icon: BellAlertIcon },
+  { to: '/users', label: 'Χρήστες', Icon: UsersIcon, adminOnly: true },
+  { to: '/backup', label: 'Αντίγραφα Ασφαλείας', Icon: CloudArrowUpIcon, adminOnly: true },
+  { to: '/status-notifications', label: 'Ειδοποιήσεις Status', Icon: BellAlertIcon, adminOnly: true },
 ]
 
 function ChangePasswordModal({ onClose }) {
@@ -124,6 +124,9 @@ export default function Layout({ auth, onLogout }) {
   const [showUserMenu, setShowUserMenu] = useState(false)
   const navigate = useNavigate()
 
+  const isHaris = auth.user?.username === 'haris'
+  const visibleNav = nav.filter(item => !item.adminOnly || isHaris)
+
   return (
     <div className="min-h-screen bg-gray-50 flex">
       {/* Sidebar */}
@@ -144,7 +147,7 @@ export default function Layout({ auth, onLogout }) {
 
         {/* Navigation */}
         <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-          {nav.map(({ to, label, Icon, exact }) => (
+          {visibleNav.map(({ to, label, Icon, exact }) => (
             <NavLink
               key={to}
               to={to}
