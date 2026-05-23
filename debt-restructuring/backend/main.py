@@ -155,6 +155,137 @@ def export_data():
     })
 
 
+@app.post("/admin/upload-docs")
+def upload_docs():
+    """Upload the backup & restore instructions PDF to Google Drive."""
+    folder_id = os.getenv("GOOGLE_DRIVE_BACKUP_FOLDER_ID", "").strip()
+    if not folder_id:
+        raise HTTPException(status_code=503, detail="GOOGLE_DRIVE_BACKUP_FOLDER_ID not configured")
+    try:
+        from backup import _get_drive_service
+        from googleapiclient.http import MediaIoBaseUpload
+        import io as _io
+
+        content = """ΟΔΗΓΙΕΣ BACKUP & RESTORE — ΕΞΩΔΙΚΑΣΤΙΚΟΣ CRM (iMentor)
+═══════════════════════════════════════════════════════════════
+Τελευταία ενημέρωση: 2026-05-23
+Backend: https://innovative-nourishment-production.up.railway.app
+═══════════════════════════════════════════════════════════════
+
+
+1. ΤΙ ΠΕΡΙΕΧΕΙ ΤΟ BACKUP
+────────────────────────
+Κάθε αρχείο backup περιέχει ΟΛΑ τα δεδομένα της εφαρμογής:
+  • Όλες τις υποθέσεις (πελάτης, ΑΦΜ, τηλ, email, υπάλληλος)
+  • Οφειλές, περιουσιακά στοιχεία, εισοδηματικά στοιχεία
+  • Εκτιμήσεις & πραγματικά αποτελέσματα ρύθμισης
+  • Pipeline stage, commercial offer, portal visits
+  • Σημειώσεις, share tokens, χρονοσφραγίδες
+  • Ρυθμίσεις εφαρμογής (app_config / τιμολόγηση)
+
+
+2. ΠΟΥ ΑΠΟΘΗΚΕΥΕΤΑΙ
+────────────────────
+  [A] Railway Volume  →  /data/debt_cases.db  (live, πάντα ενημερωμένο)
+  [B] Google Drive    →  αυτός ο φάκελος (αυτόματα κάθε μέρα 18:00 UTC / 21:00 ώρα Ελλάδας)
+  [C] Κώδικας εφαρμογής  →  GitHub, branch: claude/new-online-app-T89Sn
+
+  Αρχεία backup: Exodikastikos-backup_YYYY-MM-DD_HH-MM.json
+  Διατήρηση:     90 μέρες (τα παλαιότερα διαγράφονται αυτόματα)
+
+
+3. ΧΕΙΡΟΚΙΝΗΤΟ BACKUP (οποιαδήποτε στιγμή)
+────────────────────────────────────────────
+  Από την εφαρμογή:
+    → Οικονομικά Dashboard → κουμπί "Backup Drive"   (αποθηκεύει στο Drive)
+    → Οικονομικά Dashboard → κουμπί "Export JSON"    (κατεβάζει στον υπολογιστή)
+
+
+4. ΑΠΟΚΑΤΑΣΤΑΣΗ ΔΕΔΟΜΕΝΩΝ (RESTORE)
+────────────────────────────────────
+
+  ΣΕΝΑΡΙΟ Α — Η βάση δεδομένων άδειασε (π.χ. μετά από redeploy)
+  ──────────────────────────────────────────────────────────────
+  1. Κατέβασε το τελευταίο backup από αυτόν τον φάκελο
+     (πχ. Exodikastikos-backup_2026-05-23_18-00.json)
+
+  2. Τρέξε την παρακάτω εντολή (σε terminal ή Postman):
+
+     curl -X POST https://innovative-nourishment-production.up.railway.app/admin/restore?wipe_first=true \\
+       -H "Content-Type: application/json" \\
+       -d @Exodikastikos-backup_2026-05-23_18-00.json
+
+  3. Η εφαρμογή επιστρέφει: {"ok": true, "inserted": 102, "updated": 0}
+     Όλες οι υποθέσεις είναι πίσω.
+
+
+  ΣΕΝΑΡΙΟ Β — Κάποιος διέγραψε υποθέσεις κατά λάθος
+  ────────────────────────────────────────────────────
+  Ίδιο με Σενάριο Α αλλά χωρίς το ?wipe_first=true:
+
+     curl -X POST https://innovative-nourishment-production.up.railway.app/admin/restore \\
+       -H "Content-Type: application/json" \\
+       -d @Exodikastikos-backup_2026-05-23_18-00.json
+
+  Αυτό κάνει safe merge — δεν διαγράφει νεότερες υποθέσεις που δεν είναι στο backup.
+
+
+  ΣΕΝΑΡΙΟ Γ — Θέλουμε να γυρίσουμε σε παλαιότερη έκδοση του κώδικα
+  ──────────────────────────────────────────────────────────────────
+  1. Βρες το commit hash που θέλεις στο GitHub
+  2. Τρέξε:
+       git revert <commit-hash>
+       git push origin claude/new-online-app-T89Sn
+  3. Το Railway κάνει redeploy αυτόματα. Τα δεδομένα δεν επηρεάζονται.
+
+
+5. ΣΗΜΑΝΤΙΚΕΣ ΠΛΗΡΟΦΟΡΙΕΣ
+───────────────────────────
+  • Το backup τρέχει 18:00 UTC = 21:00 ώρα Ελλάδας (θερινή ώρα)
+  • Αν γίνει κάτι λίγο πριν τις 21:00, χάνεις max 24 ώρες δεδομένων
+    → Λύση: πάτα "Backup Drive" πριν κάνεις οποιαδήποτε αλλαγή στο Railway
+  • ΜΗΝ αλλάζεις το DATABASE_URL χωρίς πρώτα να κάνεις manual backup
+  • ΜΗΝ διαγράφεις τον φάκελο αυτό στο Drive
+
+
+6. ΕΠΙΚΟΙΝΩΝΙΑ / ΤΕΧΝΙΚΗ ΥΠΟΣΤΗΡΙΞΗ
+──────────────────────────────────────
+  Εφαρμογή:    https://mainrepository-production.up.railway.app
+  Backend:     https://innovative-nourishment-production.up.railway.app
+  GitHub:      iMentorConsulting/MainRepository
+  Branch:      claude/new-online-app-T89Sn
+  Health check: https://innovative-nourishment-production.up.railway.app/health
+
+═══════════════════════════════════════════════════════════════
+"""
+
+        svc = _get_drive_service()
+        media = MediaIoBaseUpload(
+            _io.BytesIO(content.encode("utf-8")),
+            mimetype="text/plain; charset=utf-8",
+            resumable=False,
+        )
+        # Delete existing docs file if present to avoid duplicates
+        existing = svc.files().list(
+            q=f"'{folder_id}' in parents and name='ΟΔΗΓΙΕΣ-BACKUP-RESTORE.txt' and trashed=false",
+            fields="files(id)",
+        ).execute().get("files", [])
+        for f in existing:
+            try:
+                svc.files().delete(fileId=f["id"]).execute()
+            except Exception:
+                pass
+
+        uploaded = svc.files().create(
+            body={"name": "ΟΔΗΓΙΕΣ-BACKUP-RESTORE.txt", "parents": [folder_id]},
+            media_body=media,
+            fields="id,name",
+        ).execute()
+        return {"ok": True, "file": uploaded.get("name"), "id": uploaded.get("id")}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.post("/admin/restore")
 def restore_data(request: dict, wipe_first: bool = False):
     """
