@@ -124,8 +124,8 @@ export default function Layout({ auth, onLogout }) {
   const [showUserMenu, setShowUserMenu] = useState(false)
   const navigate = useNavigate()
 
-  const isHaris = auth.user?.username === 'haris'
-  const visibleNav = nav.filter(item => !item.adminOnly || isHaris)
+  const isAdmin = auth.user?.role === 'admin'
+  const visibleNav = nav.filter(item => !item.adminOnly || isAdmin)
 
   return (
     <div className="min-h-screen bg-gray-50 flex">
