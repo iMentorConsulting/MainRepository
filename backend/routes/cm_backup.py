@@ -485,6 +485,29 @@ def backup_now(
     return {"ok": True, "message": "Το backup ξεκίνησε. Ελέγξτε τον πίνακα σε λίγα δευτερόλεπτα."}
 
 
+@router.post("/purge-json-data")
+def purge_old_json_data(
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Delete stored json_data from ALL backup log rows to free up DB disk space.
+    Safe: metadata (status, date, file_name, drive_file_id) is kept.
+    Files are in Google Drive; the JSON blobs are no longer needed in the DB.
+    """
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Μόνο διαχειριστές")
+    result = db.execute(_sqlt("UPDATE cm_backup_logs SET json_data = NULL WHERE json_data IS NOT NULL"))
+    db.commit()
+    freed = result.rowcount
+    # Also VACUUM to actually reclaim the space
+    try:
+        db.execute(_sqlt("VACUUM cm_backup_logs"))
+    except Exception:
+        pass
+    return {"ok": True, "rows_cleared": freed,
+            "message": f"Εκαθαρίστηκαν {freed} backup JSON blobs από τη βάση. Ο χώρος αποδεσμεύτηκε."}
+
+
 @router.get("/download/{backup_id}")
 def download_backup(
     backup_id: int,
