@@ -571,6 +571,43 @@ with SessionLocal() as _db:
         _db.add(CMNotificationTemplate(**_PENDING_ITEMS_TEMPLATE))
     _db.commit()
 
+# Seed ΑΝΑΚΑΙΝΙΖΩ portal activation template (upsert — updates content if already exists)
+_ANA_PORTAL_TEMPLATE = {
+    "key": "anakainizw_portal_activation",
+    "label": "Ενεργοποίηση Πύλης — Ανακαινίζω",
+    "subject": "Η Πύλη Πελάτη σας είναι έτοιμη — {client_name}",
+    "content": (
+        "Αγαπητέ/ή {client_name},\n\n"
+        "Η iMentor Consulting ενεργοποίησε για εσάς την Πύλη Πελάτη για το πρόγραμμα Ανακαινίζω.\n\n"
+        "🔗 {portal_url}\n\n"
+        "Για είσοδο χρειάζεστε μόνο το κινητό τηλέφωνό σας (το ίδιο που μας έχετε δηλώσει).\n\n"
+        "Τι χρειάζεται να κάνετε άμεσα:\n"
+        "📝 Συμπληρώστε / επιβεβαιώστε τα στοιχεία του ακινήτου και του νοικοκυριού σας\n"
+        "📎 Ανεβάστε τα έγγραφα που σας ζητάμε\n\n"
+        "Επίσης μέσα από την πύλη μπορείτε να:\n"
+        "✅ Παρακολουθείτε σε πραγματικό χρόνο την πορεία της υπόθεσής σας\n"
+        "🔍 Δείτε τα αποτελέσματα του ελέγχου επιλεξιμότητάς σας\n"
+        "💬 Επικοινωνήσετε με τον σύμβουλό σας\n\n"
+        "Για οποιαδήποτε απορία επικοινωνήστε μαζί μας:\n"
+        "📞 2810 363007\n"
+        "🌐 www.i-mentor.gr\n\n"
+        "Η ομάδα iMentor"
+    ),
+    "notification_type": "both",
+}
+with SessionLocal() as _db:
+    _ana_t = _db.query(CMNotificationTemplate).filter(
+        CMNotificationTemplate.key == "anakainizw_portal_activation"
+    ).first()
+    if _ana_t:
+        _ana_t.label = _ANA_PORTAL_TEMPLATE["label"]
+        _ana_t.subject = _ANA_PORTAL_TEMPLATE["subject"]
+        _ana_t.content = _ANA_PORTAL_TEMPLATE["content"]
+        _ana_t.notification_type = _ANA_PORTAL_TEMPLATE["notification_type"]
+    else:
+        _db.add(CMNotificationTemplate(**_ANA_PORTAL_TEMPLATE))
+    _db.commit()
+
 # Seed default admin user
 from auth_cases import seed_admin
 with SessionLocal() as _db:
