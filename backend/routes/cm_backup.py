@@ -330,6 +330,7 @@ def _upload_to_drive(json_str: str, filename: str, folder_id: str) -> tuple[bool
     """Upload JSON backup to a shared Google Drive folder.
     Returns (ok, file_id, error_message).
     The file is stored in the folder owner's quota, not the service account's.
+    Uses resumable upload to handle arbitrarily large backups (files included as base64).
     """
     sa_json_str = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON", "")
     if not sa_json_str or not folder_id:
@@ -349,7 +350,8 @@ def _upload_to_drive(json_str: str, filename: str, folder_id: str) -> tuple[bool
         media = _Media(
             _io.BytesIO(json_str.encode("utf-8")),
             mimetype="application/json",
-            resumable=False,
+            resumable=True,
+            chunksize=4 * 1024 * 1024,  # 4 MB chunks
         )
         result = svc.files().create(
             body={"name": filename, "parents": [folder_id]},
@@ -495,15 +497,30 @@ def export_json(
     current_user=Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Download a fresh JSON export directly to the browser (not stored)."""
+    """Download a fresh JSON export to the browser and also upload to Google Drive."""
     export_data = _build_export(db)
-    json_bytes = json.dumps(export_data, ensure_ascii=False, indent=2).encode("utf-8")
-    today = datetime.utcnow().strftime("%Y-%m-%d")
+    json_str = json.dumps(export_data, ensure_ascii=False, indent=2)
+    json_bytes = json_str.encode("utf-8")
+    today = datetime.utcnow().strftime("%Y-%m-%d_%H-%M")
     filename = f"imentor-backup-{today}.json"
 
+    destination = "export"
+    drive_file_id = None
+    error_message = None
+
+    folder_id = os.getenv("GOOGLE_DRIVE_FOLDER_ID", "").strip()
+    if folder_id:
+        ok, file_id, err = _upload_to_drive(json_str, filename, folder_id)
+        if ok:
+            drive_file_id = file_id
+            destination = "export+drive"
+        else:
+            error_message = f"Drive: {err}"
+
     log = CMBackupLog(
-        trigger="manual", destination="export",
+        trigger="manual", destination=destination,
         file_name=filename, size_bytes=len(json_bytes), status="success",
+        drive_file_id=drive_file_id, error_message=error_message,
     )
     db.add(log)
     db.commit()
