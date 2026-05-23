@@ -593,9 +593,9 @@ def _send_status_change_notification(case, from_status: str, to_status: str, db)
 
 
 def _chatwoot_log_outbound_viber(phone_normalized: str, message: str = "", contact_name: str = "") -> None:
-    """Find-or-create a Chatwoot contact+conversation for the Viber inbox,
-    post the sent message as an outbound note so agents can see it, then
-    resolve the conversation.  Never raises — all errors are silently ignored."""
+    """Find-or-create a Chatwoot contact for the Viber inbox and log the sent
+    message both as a contact note (always visible) and as an outgoing
+    conversation message.  Never raises."""
     base = os.getenv("CHATWOOT_URL", "https://chat.i-mentor.gr").rstrip("/")
     token = os.getenv("CHATWOOT_API_TOKEN", "")
     account_id = os.getenv("CHATWOOT_ACCOUNT_ID", "1")
@@ -628,32 +628,41 @@ def _chatwoot_log_outbound_viber(phone_normalized: str, message: str = "", conta
             }, headers=headers, timeout=15)
             if r.ok:
                 body = r.json()
-                # Chatwoot returns the contact directly or nested under "id"
                 contact_id = body.get("id") or (body.get("contact", {}) or {}).get("id")
             else:
-                logger.warning("Chatwoot create contact failed %s: %s", r.status_code, r.text[:300])
+                logger.error("Chatwoot create contact failed %s: %s", r.status_code, r.text[:300])
 
         if not contact_id:
-            logger.warning("Chatwoot: could not find or create contact for %s", phone_normalized)
+            logger.error("Chatwoot: could not find or create contact for %s", phone_normalized)
             return
 
-        # 2. Find existing conversation in this inbox (any status)
+        # 2. Always post a contact note — visible in the Contacts tab regardless
+        #    of conversation state. This is the reliable fallback.
+        if message:
+            note_text = f"📤 Viber (Infobip):\n{message}"
+            r = requests.post(f"{api}/contacts/{contact_id}/notes",
+                              json={"content": note_text},
+                              headers=headers, timeout=15)
+            if not r.ok:
+                logger.error("Chatwoot contact note failed %s: %s", r.status_code, r.text[:300])
+
+        # 3. Find existing open/pending conversation in this inbox
         conv_id = None
         r = requests.get(f"{api}/contacts/{contact_id}/conversations",
                          headers=headers, timeout=15)
         if r.ok:
             payload = r.json().get("payload", [])
             for conv in payload:
-                # inbox_id may be int or str from the API
                 if str(conv.get("inbox_id")) == str(inbox_id):
                     conv_id = conv["id"]
+                    # Reopen if resolved so our message is visible
                     if conv.get("status") == "resolved":
                         requests.patch(f"{api}/conversations/{conv_id}",
                                        json={"status": "open"},
                                        headers=headers, timeout=15)
                     break
 
-        # 3. Create conversation if none exists
+        # 4. Create conversation if none exists
         if not conv_id:
             r = requests.post(f"{api}/conversations", json={
                 "inbox_id": inbox_id,
@@ -661,29 +670,19 @@ def _chatwoot_log_outbound_viber(phone_normalized: str, message: str = "", conta
                 "status": "open",
             }, headers=headers, timeout=15)
             if r.ok:
-                body = r.json()
-                conv_id = body.get("id")
+                conv_id = r.json().get("id")
             else:
-                logger.warning("Chatwoot create conversation failed %s: %s", r.status_code, r.text[:300])
+                logger.error("Chatwoot create conversation failed %s: %s", r.status_code, r.text[:300])
 
-        if not conv_id:
-            logger.warning("Chatwoot: could not find or create conversation for contact %s", contact_id)
-            return
-
-        # 4. Log the sent message as a private outbound note
-        if message:
+        # 5. Post as a visible outgoing message (not private, not resolved)
+        if conv_id and message:
             r = requests.post(f"{api}/conversations/{conv_id}/messages", json={
                 "content": message,
                 "message_type": "outgoing",
-                "private": True,
+                "private": False,
             }, headers=headers, timeout=15)
             if not r.ok:
-                logger.warning("Chatwoot post message failed %s: %s", r.status_code, r.text[:300])
-
-        # 5. Resolve the conversation
-        requests.patch(f"{api}/conversations/{conv_id}",
-                       json={"status": "resolved"},
-                       headers=headers, timeout=15)
+                logger.error("Chatwoot post message failed %s: %s", r.status_code, r.text[:300])
 
     except Exception as exc:
         logger.exception("Chatwoot outbound Viber log failed for %s: %s", phone_normalized, exc)
