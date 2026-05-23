@@ -344,18 +344,35 @@ def _upload_to_drive(json_str: str, filename: str, folder_id: str) -> tuple[bool
         )
         svc = _build("drive", "v3", credentials=creds, cache_discovery=False)
 
-        media = _Media(
-            _io.BytesIO(json_str.encode("utf-8")),
-            mimetype="application/json",
-            resumable=True,
-            chunksize=4 * 1024 * 1024,  # 4 MB chunks
-        )
-        result = svc.files().create(
-            body={"name": filename, "parents": [folder_id]},
-            media_body=media,
-            fields="id",
-            supportsAllDrives=True,
-        ).execute()
+        content_bytes = json_str.encode("utf-8")
+        if len(content_bytes) <= 5 * 1024 * 1024:
+            media = _Media(
+                _io.BytesIO(content_bytes),
+                mimetype="application/json",
+                resumable=False,
+            )
+            result = svc.files().create(
+                body={"name": filename, "parents": [folder_id]},
+                media_body=media,
+                fields="id",
+                supportsAllDrives=True,
+            ).execute()
+        else:
+            media = _Media(
+                _io.BytesIO(content_bytes),
+                mimetype="application/json",
+                resumable=True,
+                chunksize=4 * 1024 * 1024,
+            )
+            request = svc.files().create(
+                body={"name": filename, "parents": [folder_id]},
+                media_body=media,
+                fields="id",
+                supportsAllDrives=True,
+            )
+            result = None
+            while result is None:
+                _, result = request.next_chunk()
         return True, result.get("id", ""), ""
     except Exception as exc:
         return False, "", str(exc)
