@@ -29,8 +29,34 @@ from routes.cm_anakainizw import router as cm_anakainizw_router
 
 load_dotenv()
 
+# ── Wait for Postgres before running any DB code ──────────────────────────────
+import time as _time
+from sqlalchemy import text as _text_ping
+
+def _wait_for_db(max_attempts: int = 30, delay: float = 2.0) -> bool:
+    """Retry DB connection so the app survives Postgres cold-starts / WAL recovery."""
+    for attempt in range(max_attempts):
+        try:
+            with engine.connect() as _c:
+                _c.execute(_text_ping("SELECT 1"))
+            if attempt > 0:
+                print(f"[startup] DB ready after {attempt} retries.")
+            return True
+        except Exception as exc:
+            remaining = max_attempts - attempt - 1
+            print(f"[startup] DB not ready (attempt {attempt + 1}/{max_attempts}): {exc}"
+                  + (f" — retrying in {delay}s" if remaining else " — giving up, app will start without DB init"))
+            if remaining:
+                _time.sleep(delay)
+    return False
+
+_db_ready = _wait_for_db()
+
 # Create all DB tables
-Base.metadata.create_all(bind=engine)
+try:
+    Base.metadata.create_all(bind=engine)
+except Exception as _e:
+    print(f"[startup] create_all failed (DB may still be recovering): {_e}")
 
 # Startup migration: add new columns and backfill status data
 from sqlalchemy import text as _text
@@ -563,12 +589,18 @@ _DEFAULT_TEMPLATES = [
      "notification_type": "email"},
 ]
 # Re-create tables for new models
-Base.metadata.create_all(bind=engine)
-with SessionLocal() as _db:
-    if _db.query(CMNotificationTemplate).count() == 0:
-        for _t in _DEFAULT_TEMPLATES:
-            _db.add(CMNotificationTemplate(**_t))
-        _db.commit()
+try:
+    Base.metadata.create_all(bind=engine)
+except Exception as _e:
+    print(f"[startup] second create_all failed: {_e}")
+try:
+    with SessionLocal() as _db:
+        if _db.query(CMNotificationTemplate).count() == 0:
+            for _t in _DEFAULT_TEMPLATES:
+                _db.add(CMNotificationTemplate(**_t))
+            _db.commit()
+except Exception as _e:
+    print(f"[startup] template seed failed: {_e}")
 
 # Remove old default templates; add pending items template
 _OLD_TEMPLATE_KEYS = {"deadline_reminder", "payment_reminder", "documents_needed", "status_update", "google_review"}
@@ -586,14 +618,17 @@ _PENDING_ITEMS_TEMPLATE = {
     ),
     "notification_type": "both",
 }
-with SessionLocal() as _db:
-    for _key in _OLD_TEMPLATE_KEYS:
-        _t = _db.query(CMNotificationTemplate).filter(CMNotificationTemplate.key == _key).first()
-        if _t:
-            _db.delete(_t)
-    if not _db.query(CMNotificationTemplate).filter(CMNotificationTemplate.key == "pending_items_reminder").first():
-        _db.add(CMNotificationTemplate(**_PENDING_ITEMS_TEMPLATE))
-    _db.commit()
+try:
+    with SessionLocal() as _db:
+        for _key in _OLD_TEMPLATE_KEYS:
+            _t = _db.query(CMNotificationTemplate).filter(CMNotificationTemplate.key == _key).first()
+            if _t:
+                _db.delete(_t)
+        if not _db.query(CMNotificationTemplate).filter(CMNotificationTemplate.key == "pending_items_reminder").first():
+            _db.add(CMNotificationTemplate(**_PENDING_ITEMS_TEMPLATE))
+        _db.commit()
+except Exception as _e:
+    print(f"[startup] old template cleanup failed: {_e}")
 
 # Seed ΑΝΑΚΑΙΝΙΖΩ portal activation template (upsert — updates content if already exists)
 _ANA_PORTAL_TEMPLATE = {
@@ -619,23 +654,29 @@ _ANA_PORTAL_TEMPLATE = {
     ),
     "notification_type": "both",
 }
-with SessionLocal() as _db:
-    _ana_t = _db.query(CMNotificationTemplate).filter(
-        CMNotificationTemplate.key == "anakainizw_portal_activation"
-    ).first()
-    if _ana_t:
-        _ana_t.label = _ANA_PORTAL_TEMPLATE["label"]
-        _ana_t.subject = _ANA_PORTAL_TEMPLATE["subject"]
-        _ana_t.content = _ANA_PORTAL_TEMPLATE["content"]
-        _ana_t.notification_type = _ANA_PORTAL_TEMPLATE["notification_type"]
-    else:
-        _db.add(CMNotificationTemplate(**_ANA_PORTAL_TEMPLATE))
-    _db.commit()
+try:
+    with SessionLocal() as _db:
+        _ana_t = _db.query(CMNotificationTemplate).filter(
+            CMNotificationTemplate.key == "anakainizw_portal_activation"
+        ).first()
+        if _ana_t:
+            _ana_t.label = _ANA_PORTAL_TEMPLATE["label"]
+            _ana_t.subject = _ANA_PORTAL_TEMPLATE["subject"]
+            _ana_t.content = _ANA_PORTAL_TEMPLATE["content"]
+            _ana_t.notification_type = _ANA_PORTAL_TEMPLATE["notification_type"]
+        else:
+            _db.add(CMNotificationTemplate(**_ANA_PORTAL_TEMPLATE))
+        _db.commit()
+except Exception as _e:
+    print(f"[startup] anakainizw template seed failed: {_e}")
 
 # Seed default admin user
 from auth_cases import seed_admin
-with SessionLocal() as _db:
-    seed_admin(_db)
+try:
+    with SessionLocal() as _db:
+        seed_admin(_db)
+except Exception as _e:
+    print(f"[startup] seed_admin failed: {_e}")
 
 # ── Scheduled sheet auto-refresh (08:00 and 14:00 Athens time) ────────────────
 import pytz as _pytz
