@@ -1033,6 +1033,14 @@ function ClientUploadSection({ token, clientDocs, onUploaded }) {
                 'bg-gray-100 text-gray-500'}`}>
                 {doc.status === 'approved' ? '✓ Εγκρίθηκε' : doc.status === 'reviewed' ? 'Ελέγχθηκε' : 'Σε αναμονή'}
               </span>
+              <a
+                href={`/api/cm/portal/public/${token}/documents/${doc.id}/download`}
+                download={doc.name}
+                className="text-gray-400 hover:text-blue-500 shrink-0"
+                title="Λήψη"
+              >
+                <DocumentArrowDownIcon className="w-4 h-4" />
+              </a>
             </div>
           ))}
         </div>

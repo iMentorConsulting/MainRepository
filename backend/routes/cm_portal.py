@@ -678,17 +678,23 @@ async def client_upload_file(
     if len(data) > 20 * 1024 * 1024:
         raise HTTPException(status_code=400, detail="Μέγιστο μέγεθος αρχείου: 20MB")
 
-    doc = CMDocument(
-        case_id=case.id,
-        name=file.filename or "upload",
-        document_type="client_upload",
-        status="pending",
-        uploaded_by=case.client_name or "Πελάτης",
-        uploaded_by_client=True,
-        file_data=data,
-        mime_type=file.content_type or "application/octet-stream",
-    )
-    db.add(doc)
+    # Use raw SQL so the BYTEA column is always stored (ORM deferred columns
+    # can silently skip binary data in INSERT on some SQLAlchemy versions).
+    from sqlalchemy import text as _sqlt
+    db.execute(_sqlt("""
+        INSERT INTO cm_documents
+            (case_id, name, document_type, status, uploaded_by,
+             uploaded_by_client, file_data, mime_type, created_at)
+        VALUES
+            (:case_id, :name, 'client_upload', 'pending', :uploaded_by,
+             TRUE, :file_data, :mime_type, NOW())
+    """), {
+        "case_id": case.id,
+        "name": file.filename or "upload",
+        "uploaded_by": case.client_name or "Πελάτης",
+        "file_data": data,
+        "mime_type": file.content_type or "application/octet-stream",
+    })
     db.commit()
 
     # Notify office + assigned agent
@@ -704,6 +710,27 @@ async def client_upload_file(
         pass
 
     return {"ok": True, "filename": file.filename}
+
+
+@router.get("/public/{token}/documents/{doc_id}/download")
+def download_client_upload(token: str, doc_id: int, db: Session = Depends(get_db)):
+    """Client downloads one of their own uploaded files via share token."""
+    from fastapi.responses import Response as _Resp
+    from sqlalchemy import text as _sqlt
+    case = db.query(CMCase).filter(CMCase.share_token == token).first()
+    if not case or not case.portal_active:
+        raise HTTPException(status_code=404, detail="Not found")
+    row = db.execute(
+        _sqlt("SELECT name, file_data, mime_type FROM cm_documents WHERE id = :doc_id AND case_id = :case_id AND uploaded_by_client = TRUE"),
+        {"doc_id": doc_id, "case_id": case.id},
+    ).first()
+    if not row or not row.file_data:
+        raise HTTPException(status_code=404, detail="Αρχείο δεν βρέθηκε")
+    return _Resp(
+        content=bytes(row.file_data),
+        media_type=row.mime_type or "application/octet-stream",
+        headers={"Content-Disposition": f'attachment; filename="{row.name}"'},
+    )
 
 
 @router.get("/uploads/{case_id}/{filename}")

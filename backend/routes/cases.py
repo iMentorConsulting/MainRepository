@@ -852,16 +852,20 @@ def download_document(
     db: Session = Depends(get_db),
 ):
     from fastapi.responses import Response as _Resp
-    from sqlalchemy.orm import undefer
-    d = db.query(CMDocument).options(undefer(CMDocument.file_data)).filter(CMDocument.id == doc_id, CMDocument.case_id == case_id).first()
-    if not d:
+    from sqlalchemy import text as _sqlt
+    # Use raw SQL to avoid ORM deferred-column issues and memoryview/bytes mismatch.
+    row = db.execute(
+        _sqlt("SELECT name, file_data, mime_type FROM cm_documents WHERE id = :doc_id AND case_id = :case_id"),
+        {"doc_id": doc_id, "case_id": case_id},
+    ).first()
+    if not row:
         raise HTTPException(status_code=404, detail="Έγγραφο δεν βρέθηκε")
-    if d.file_data is None:
+    if not row.file_data:
         raise HTTPException(status_code=404, detail="Δεν υπάρχουν δεδομένα αρχείου (ανέβηκε πριν τη νέα έκδοση)")
     return _Resp(
-        content=d.file_data,
-        media_type=d.mime_type or "application/octet-stream",
-        headers={"Content-Disposition": f'attachment; filename="{d.name}"'},
+        content=bytes(row.file_data),   # cast memoryview → bytes
+        media_type=row.mime_type or "application/octet-stream",
+        headers={"Content-Disposition": f'attachment; filename="{row.name}"'},
     )
 
 
