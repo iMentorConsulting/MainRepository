@@ -151,8 +151,24 @@ def export_data():
     from backup import build_backup_payload
     payload = build_backup_payload()
     return JSONResponse(content=payload, headers={
-        "Content-Disposition": f"attachment; filename=backup_{payload['exported_at'][:10]}.json"
+        "Content-Disposition": f"attachment; filename=Exodikastikos-backup_{payload['exported_at'][:10]}.json"
     })
+
+
+@app.post("/admin/restore")
+def restore_data(request: dict, wipe_first: bool = False):
+    """
+    Restore cases from a backup JSON payload.
+    POST the full backup JSON as the request body.
+    ?wipe_first=true  → deletes ALL existing data first (full reset)
+    ?wipe_first=false → safe merge, keeps cases not in backup (default)
+    """
+    from backup import restore_from_payload
+    try:
+        result = restore_from_payload(request, wipe_first=wipe_first)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.get("/health")

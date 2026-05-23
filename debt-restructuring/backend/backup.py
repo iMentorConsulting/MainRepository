@@ -6,8 +6,8 @@ Requires env vars:
   GOOGLE_DRIVE_BACKUP_FOLDER_ID — ID of the Drive folder shared with the service account
 
 The service account must have Editor access to the target folder.
-Backups are named:  backup_YYYY-MM-DD_HH-MM.json
-Files older than 30 days in that folder are deleted automatically.
+Backups are named:  Exodikastikos-backup_YYYY-MM-DD_HH-MM.json
+Files older than 90 days in that folder are deleted automatically.
 """
 
 import json
@@ -109,8 +109,8 @@ def run_backup() -> dict:
     file_meta = {"name": filename, "parents": [folder_id]}
     uploaded = svc.files().create(body=file_meta, media_body=media, fields="id,name").execute()
 
-    # Prune files older than 30 days in the same folder
-    cutoff = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
+    # Prune files older than 90 days in the same folder
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=90)).isoformat()
     old_files = svc.files().list(
         q=f"'{folder_id}' in parents and createdTime < '{cutoff}' and trashed = false",
         fields="files(id,name)",
@@ -128,3 +128,81 @@ def run_backup() -> dict:
         "case_count": payload["case_count"],
         "pruned": len(old_files),
     }
+
+
+def restore_from_payload(payload: dict, wipe_first: bool = False) -> dict:
+    """
+    Restore cases and app_config from a backup payload dict.
+
+    wipe_first=False  →  upsert (safe merge — existing newer cases are kept)
+    wipe_first=True   →  delete everything first, then insert (full reset)
+    """
+    from sqlalchemy import text as _text
+    db: Session = SessionLocal()
+    try:
+        if wipe_first:
+            db.query(Case).delete()
+            db.query(AppConfig).delete()
+            db.commit()
+
+        inserted = 0
+        updated = 0
+
+        for c in payload.get("cases", []):
+            def _dt(v):
+                from datetime import datetime as _datetime
+                if not v:
+                    return None
+                try:
+                    return _datetime.fromisoformat(v)
+                except Exception:
+                    return None
+
+            existing = db.query(Case).filter(Case.id == c["id"]).first()
+            fields = dict(
+                client_name=c.get("client_name", ""),
+                client_phone=c.get("client_phone", ""),
+                client_email=c.get("client_email", ""),
+                client_vat=c.get("client_vat"),
+                employee=c.get("employee", ""),
+                status=c.get("status", "draft"),
+                debtor_type=c.get("debtor_type", "Φυσικό Πρόσωπο"),
+                debts=c.get("debts", []),
+                assets=c.get("assets", []),
+                income_data=c.get("income_data", {}),
+                estimates=c.get("estimates", {}),
+                actual_results=c.get("actual_results"),
+                notes=c.get("notes", ""),
+                share_token=c.get("share_token", ""),
+                portal_active=c.get("portal_active", True),
+                contact_stage=c.get("contact_stage", "Νέα Ανάλυση"),
+                last_contacted_at=_dt(c.get("last_contacted_at")),
+                reminder_count=c.get("reminder_count", 0),
+                commercial_offer=c.get("commercial_offer", {}),
+                portal_visit_count=c.get("portal_visit_count", 0),
+                portal_visits=c.get("portal_visits", []),
+                created_at=_dt(c.get("created_at")),
+                updated_at=_dt(c.get("updated_at")),
+                submitted_at=_dt(c.get("submitted_at")),
+                completed_at=_dt(c.get("completed_at")),
+                stage_changed_at=_dt(c.get("stage_changed_at")),
+            )
+            if existing:
+                for k, v in fields.items():
+                    setattr(existing, k, v)
+                updated += 1
+            else:
+                db.add(Case(id=c["id"], **fields))
+                inserted += 1
+
+        for cfg in payload.get("app_config", []):
+            existing = db.query(AppConfig).filter(AppConfig.key == cfg["key"]).first()
+            if existing:
+                existing.value = cfg["value"]
+            else:
+                db.add(AppConfig(key=cfg["key"], value=cfg["value"]))
+
+        db.commit()
+        return {"ok": True, "inserted": inserted, "updated": updated, "wiped_first": wipe_first}
+    finally:
+        db.close()
