@@ -1,5 +1,5 @@
 from sqlalchemy import Column, Integer, String, Float, Boolean, Date, DateTime, Text, ForeignKey, JSON, LargeBinary
-from sqlalchemy.orm import relationship, deferred
+from sqlalchemy.orm import relationship, deferred, backref
 from database import Base
 from datetime import datetime
 
@@ -429,4 +429,4 @@ class CMCaseAnakainizw(Base):
 
     updated_at = Column(DateTime, default=datetime.utcnow)
 
-    case = relationship("CMCase", backref="anakainizw_data")
+    case = relationship("CMCase", backref=backref("anakainizw_data", cascade="all, delete-orphan", uselist=False))
