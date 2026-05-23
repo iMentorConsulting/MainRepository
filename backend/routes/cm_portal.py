@@ -439,6 +439,12 @@ def submit_anakainizw_intake(token: str, body: dict, db: Session = Depends(get_d
         "property_type", "property_age", "property_usage",
         "renovation_works", "legality",
         "household_type", "num_children", "actual_income",
+        "boost_island", "boost_single_parent", "boost_three_children",
+        "boost_large_family", "boost_youth", "boost_disability",
+    }
+    boost_fields = {
+        "boost_island", "boost_single_parent", "boost_three_children",
+        "boost_large_family", "boost_youth", "boost_disability",
     }
     for field, value in body.items():
         if field in allowed_fields:
@@ -457,6 +463,8 @@ def submit_anakainizw_intake(token: str, body: dict, db: Session = Depends(get_d
                     setattr(ana, field, float(value) if value not in (None, "") else None)
                 except (TypeError, ValueError):
                     pass
+            elif field in boost_fields:
+                setattr(ana, field, bool(value))
             else:
                 setattr(ana, field, value)
 

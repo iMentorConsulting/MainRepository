@@ -30,6 +30,15 @@ const HOUSEHOLD_OPTIONS = [
   { value: 'ζευγάρι', label: 'Ζευγάρι / Οικογένεια' },
 ]
 
+const SPECIAL_CONDITIONS = [
+  { key: 'boost_island', icon: '🏝️', label: 'Νησί / Ορεινή Περιοχή', hint: 'Το ακίνητο βρίσκεται σε νησί ή ορεινή περιοχή' },
+  { key: 'boost_single_parent', icon: '👨‍👧', label: 'Μονογονεϊκή Οικογένεια', hint: 'Ένας γονέας με εξαρτώμενα τέκνα' },
+  { key: 'boost_three_children', icon: '👨‍👩‍👧‍👦', label: 'Τρίτεκνη Οικογένεια', hint: 'Οικογένεια με 3 εξαρτώμενα τέκνα' },
+  { key: 'boost_large_family', icon: '👪', label: 'Πολύτεκνη Οικογένεια', hint: 'Οικογένεια με 4+ εξαρτώμενα τέκνα' },
+  { key: 'boost_youth', icon: '🧑', label: 'Νέος/α 25–35 ετών', hint: 'Ο αιτών έχει ηλικία 25 έως 35 ετών' },
+  { key: 'boost_disability', icon: '♿', label: 'ΑμεΑ', hint: 'Πιστοποιημένη αναπηρία' },
+]
+
 const DOC_ITEMS = [
   { key: 'doc_title_deed', icon: '📄', label: 'Τίτλος Ιδιοκτησίας' },
   { key: 'doc_e9', icon: '🏛️', label: 'Ε9 (ΕΝΦΙΑ)' },
@@ -67,6 +76,12 @@ export default function AnakainizwIntakeSection({ caseData, token, onRefresh }) 
     household_type: ana.household_type ?? '',
     num_children: ana.num_children ?? 0,
     actual_income: ana.actual_income ?? '',
+    boost_island: ana.boost_island ?? false,
+    boost_single_parent: ana.boost_single_parent ?? false,
+    boost_three_children: ana.boost_three_children ?? false,
+    boost_large_family: ana.boost_large_family ?? false,
+    boost_youth: ana.boost_youth ?? false,
+    boost_disability: ana.boost_disability ?? false,
   })
 
   const [saving, setSaving] = useState(false)
@@ -306,6 +321,33 @@ export default function AnakainizwIntakeSection({ caseData, token, onRefresh }) 
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 disabled:bg-gray-50 disabled:text-gray-500"
                 />
               </div>
+            </div>
+          </div>
+
+          {/* ── Special Conditions ── */}
+          <div className="border-t pt-4 mt-2">
+            <h4 className="text-sm font-bold text-gray-700 uppercase tracking-wide mb-1 flex items-center gap-2">
+              <span>⭐</span> Ειδικές Συνθήκες (αύξηση επιχορήγησης)
+            </h4>
+            <p className="text-xs text-gray-500 mb-3">Επιλέξτε αν ισχύει κάποια από τις παρακάτω κατηγορίες. Μπορεί να αυξήσουν το ποσοστό επιχορήγησής σας.</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {SPECIAL_CONDITIONS.map(({ key, icon, label, hint }) => (
+                <label key={key} className={`flex items-start gap-3 rounded-xl border px-4 py-3 cursor-pointer transition-all ${
+                  isLocked ? 'cursor-default opacity-70' : 'hover:border-blue-300 hover:bg-blue-50/50'
+                } ${form[key] ? 'bg-blue-50 border-blue-300' : 'bg-gray-50 border-gray-200'}`}>
+                  <input
+                    type="checkbox"
+                    checked={!!form[key]}
+                    disabled={isLocked}
+                    onChange={e => set(key, e.target.checked)}
+                    className="mt-0.5 w-4 h-4 rounded accent-blue-600 flex-shrink-0"
+                  />
+                  <div>
+                    <div className="text-sm font-semibold text-gray-800">{icon} {label}</div>
+                    <div className="text-xs text-gray-500 mt-0.5">{hint}</div>
+                  </div>
+                </label>
+              ))}
             </div>
           </div>
 

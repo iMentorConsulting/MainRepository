@@ -23,6 +23,7 @@ const BOOST_LABELS = [
   { key: 'boost_three_children', label: 'Τρίτεκνη Οικογένεια', icon: '👨‍👩‍👧‍👦' },
   { key: 'boost_large_family', label: 'Πολύτεκνη Οικογένεια', icon: '👪' },
   { key: 'boost_youth', label: 'Νέοι 25-35 ετών', icon: '🧑' },
+  { key: 'boost_disability', label: 'ΑμεΑ', icon: '♿' },
 ]
 
 const USAGE_LABELS = {
