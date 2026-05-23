@@ -1,4 +1,3 @@
-import base64
 import io
 import json
 import os
@@ -124,22 +123,21 @@ def _build_export(db: Session) -> dict:
     try:
         doc_rows = db.execute(_sqlt(
             "SELECT id, case_id, name, document_type, status, uploaded_by, "
-            "uploaded_by_client, notes, mime_type, created_at, file_data "
+            "uploaded_by_client, notes, mime_type, drive_file_id, created_at "
             "FROM cm_documents"
         )).fetchall()
-        data["documents"] = []
-        for r in doc_rows:
-            fd = r.file_data
-            file_b64 = base64.b64encode(bytes(fd)).decode("ascii") if fd else None
-            data["documents"].append({
+        data["documents"] = [
+            {
                 "id": r.id, "case_id": r.case_id, "name": r.name,
                 "document_type": r.document_type, "status": r.status,
                 "uploaded_by": r.uploaded_by,
                 "uploaded_by_client": r.uploaded_by_client,
                 "notes": r.notes, "mime_type": r.mime_type,
+                "drive_file_id": r.drive_file_id,
                 "created_at": fmt_dt(r.created_at),
-                "file_data_b64": file_b64,
-            })
+            }
+            for r in doc_rows
+        ]
     except Exception:
         data["documents"] = []
 
@@ -211,22 +209,21 @@ def _build_export(db: Session) -> dict:
         try:
             pf_rows = db.execute(_sqlt(
                 "SELECT id, service_type, original_filename, mime_type, file_size, "
-                "client_description, client_instructions, internal_notes, uploaded_at, file_data "
+                "client_description, client_instructions, internal_notes, uploaded_at, drive_file_id "
                 "FROM cm_portal_files"
             )).fetchall()
-            data["portal_files"] = []
-            for r in pf_rows:
-                fd = r.file_data
-                file_b64 = base64.b64encode(bytes(fd)).decode("ascii") if fd else None
-                data["portal_files"].append({
+            data["portal_files"] = [
+                {
                     "id": r.id, "service_type": r.service_type,
                     "original_filename": r.original_filename, "mime_type": r.mime_type,
                     "file_size": r.file_size, "client_description": r.client_description,
                     "client_instructions": r.client_instructions,
                     "internal_notes": r.internal_notes,
                     "uploaded_at": fmt_dt(r.uploaded_at),
-                    "file_data_b64": file_b64,
-                })
+                    "drive_file_id": r.drive_file_id,
+                }
+                for r in pf_rows
+            ]
         except Exception:
             data["portal_files"] = []
 
@@ -388,14 +385,24 @@ def run_db_backup(db: Session, trigger: str = "auto") -> CMBackupLog:
 
     # ── Google Drive upload (best-effort, never fails the backup) ──────
     if json_str and log.status == "success":
+        # Use dedicated backup folder if set, otherwise create a Backups/ subfolder
+        # under the documents folder (so only one Drive folder ID is required).
         folder_id = os.getenv("GOOGLE_DRIVE_FOLDER_ID", "").strip()
+        if not folder_id:
+            docs_root = os.getenv("GOOGLE_DRIVE_DOCUMENTS_FOLDER_ID", "").strip()
+            if docs_root:
+                try:
+                    from drive_storage import _build_service, _get_or_create_folder
+                    _svc = _build_service()
+                    folder_id = _get_or_create_folder(_svc, docs_root, "Αντίγραφα Ασφαλείας")
+                except Exception:
+                    folder_id = ""
         if folder_id:
             ok, file_id, err = _upload_to_drive(json_str, log.file_name, folder_id)
             if ok:
                 log.drive_file_id = file_id
                 log.destination = "db+drive"
             else:
-                # Append Drive error to error_message but keep status=success
                 log.error_message = f"Drive: {err}"
             db.commit()
 
@@ -432,10 +439,13 @@ def backup_status(
         .all()
     )
     drive_folder_id = os.getenv("GOOGLE_DRIVE_FOLDER_ID", "").strip()
+    docs_folder_id = os.getenv("GOOGLE_DRIVE_DOCUMENTS_FOLDER_ID", "").strip()
+    has_sa = bool(os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON", ""))
+    effective_folder = drive_folder_id or docs_folder_id
     return {
         "schedule_hour": schedule_hour,
-        "drive_configured": bool(drive_folder_id and os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON", "")),
-        "drive_folder_url": f"https://drive.google.com/drive/folders/{drive_folder_id}" if drive_folder_id else None,
+        "drive_configured": bool(effective_folder and has_sa),
+        "drive_folder_url": f"https://drive.google.com/drive/folders/{effective_folder}" if effective_folder else None,
         "logs": [
             {
                 "id": lg.id,

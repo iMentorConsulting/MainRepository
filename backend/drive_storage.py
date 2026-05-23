@@ -1,8 +1,13 @@
 """Google Drive storage helpers for case documents and portal templates."""
 
 import io
+import logging
 import os
 import re
+
+_log = logging.getLogger(__name__)
+
+_SIMPLE_UPLOAD_MAX = 5 * 1024 * 1024  # 5 MB — use simple upload below this
 
 
 def _build_service():
@@ -28,20 +33,20 @@ def _docs_root() -> str:
     folder_id = os.environ.get("GOOGLE_DRIVE_DOCUMENTS_FOLDER_ID")
     if not folder_id:
         raise RuntimeError("GOOGLE_DRIVE_DOCUMENTS_FOLDER_ID env var not set")
-    return folder_id
+    return folder_id.strip()
 
 
 def _safe_name(name: str) -> str:
     """Strip characters not allowed in Drive file/folder names."""
-    return re.sub(r'[/\\:*?"<>|]', "", name)
+    return re.sub(r'[/\\:*?"<>|]', "", name).strip()
 
 
 def _get_or_create_folder(svc, parent_id: str, name: str) -> str:
     """Return the Drive folder ID for `name` under `parent_id`, creating if missing."""
     safe = _safe_name(name)
-    # Search for existing folder
+    escaped = safe.replace("'", "\\'")
     query = (
-        f"name = '{safe.replace(chr(39), chr(92)+chr(39))}'"
+        f"name = '{escaped}'"
         f" and '{parent_id}' in parents"
         f" and mimeType = 'application/vnd.google-apps.folder'"
         f" and trashed = false"
@@ -56,18 +61,59 @@ def _get_or_create_folder(svc, parent_id: str, name: str) -> str:
     if files:
         return files[0]["id"]
 
-    # Create the folder
-    meta = {
-        "name": safe,
-        "mimeType": "application/vnd.google-apps.folder",
-        "parents": [parent_id],
-    }
     folder = svc.files().create(
-        body=meta,
+        body={
+            "name": safe,
+            "mimeType": "application/vnd.google-apps.folder",
+            "parents": [parent_id],
+        },
         fields="id",
         supportsAllDrives=True,
     ).execute()
     return folder["id"]
+
+
+def _upload_media(svc, meta: dict, content: bytes, mime_type: str) -> str:
+    """Upload file content and return Drive file_id.
+
+    Uses simple (single-request) upload for files ≤ 5 MB,
+    resumable chunked upload for larger files.
+    """
+    from googleapiclient.http import MediaIoBaseUpload
+
+    if len(content) <= _SIMPLE_UPLOAD_MAX:
+        # Single multipart request — no looping needed
+        media = MediaIoBaseUpload(
+            io.BytesIO(content),
+            mimetype=mime_type or "application/octet-stream",
+            resumable=False,
+        )
+        result = svc.files().create(
+            body=meta,
+            media_body=media,
+            fields="id",
+            supportsAllDrives=True,
+        ).execute()
+    else:
+        # Resumable upload — must use next_chunk() loop
+        media = MediaIoBaseUpload(
+            io.BytesIO(content),
+            mimetype=mime_type or "application/octet-stream",
+            chunksize=4 * 1024 * 1024,
+            resumable=True,
+        )
+        request = svc.files().create(
+            body=meta,
+            media_body=media,
+            fields="id",
+            supportsAllDrives=True,
+        )
+        response = None
+        while response is None:
+            _, response = request.next_chunk()
+        result = response
+
+    return result["id"]
 
 
 def upload_case_document(
@@ -82,34 +128,21 @@ def upload_case_document(
 
     Path: {root}/{program_category}/{case_id:04d} - {client_name}/{filename}
     """
-    from googleapiclient.http import MediaIoBaseUpload
-
     svc = _build_service()
     root = _docs_root()
 
-    # Build folder hierarchy
-    cat_folder = _get_or_create_folder(svc, root, _safe_name(program_category))
+    cat_folder = _get_or_create_folder(svc, root, program_category or "Γενικά")
     case_folder_name = f"{case_id:04d} - {_safe_name(client_name)}"
     case_folder = _get_or_create_folder(svc, cat_folder, case_folder_name)
 
-    safe_filename = _safe_name(filename)
-    meta = {
-        "name": safe_filename,
-        "parents": [case_folder],
-    }
-    media = MediaIoBaseUpload(
-        io.BytesIO(content),
-        mimetype=mime_type or "application/octet-stream",
-        chunksize=4 * 1024 * 1024,
-        resumable=True,
+    file_id = _upload_media(
+        svc,
+        meta={"name": _safe_name(filename), "parents": [case_folder]},
+        content=content,
+        mime_type=mime_type,
     )
-    file = svc.files().create(
-        body=meta,
-        media_body=media,
-        fields="id",
-        supportsAllDrives=True,
-    ).execute()
-    return file["id"]
+    _log.info("Uploaded case doc to Drive: case=%s file=%s drive_id=%s", case_id, filename, file_id)
+    return file_id
 
 
 def upload_portal_template(
@@ -122,32 +155,20 @@ def upload_portal_template(
 
     Path: {root}/Πύλη - Templates/{service_type}/{filename}
     """
-    from googleapiclient.http import MediaIoBaseUpload
-
     svc = _build_service()
     root = _docs_root()
 
     templates_folder = _get_or_create_folder(svc, root, "Πύλη - Templates")
     svc_folder = _get_or_create_folder(svc, templates_folder, _safe_name(service_type))
 
-    safe_filename = _safe_name(filename)
-    meta = {
-        "name": safe_filename,
-        "parents": [svc_folder],
-    }
-    media = MediaIoBaseUpload(
-        io.BytesIO(content),
-        mimetype=mime_type or "application/octet-stream",
-        chunksize=4 * 1024 * 1024,
-        resumable=True,
+    file_id = _upload_media(
+        svc,
+        meta={"name": _safe_name(filename), "parents": [svc_folder]},
+        content=content,
+        mime_type=mime_type,
     )
-    file = svc.files().create(
-        body=meta,
-        media_body=media,
-        fields="id",
-        supportsAllDrives=True,
-    ).execute()
-    return file["id"]
+    _log.info("Uploaded portal template to Drive: service=%s file=%s drive_id=%s", service_type, filename, file_id)
+    return file_id
 
 
 def download_file(file_id: str) -> bytes:
@@ -175,5 +196,7 @@ def delete_file(file_id: str) -> None:
             fileId=file_id,
             supportsAllDrives=True,
         ).execute()
-    except Exception:
-        pass
+        _log.info("Deleted Drive file: %s", file_id)
+    except Exception as exc:
+        _log.warning("Drive delete failed for %s: %s", file_id, exc)
+

@@ -1,8 +1,11 @@
+import logging
 import uuid
 import os
 import shutil
 from urllib.parse import quote as _url_quote
 from datetime import datetime, date as _date
+
+_log = logging.getLogger(__name__)
 import requests as http_requests
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from fastapi.responses import FileResponse
@@ -711,7 +714,8 @@ async def client_upload_file(
             case_id=case.id,
             client_name=case.client_name or "Πελάτης",
         )
-    except Exception:
+    except Exception as _exc:
+        _log.warning("Drive upload failed for case %s (%s) — falling back to DB: %s", case.id, file.filename, _exc)
         file_data_db = data
 
     # Use raw SQL so the BYTEA column is always stored (ORM deferred columns
