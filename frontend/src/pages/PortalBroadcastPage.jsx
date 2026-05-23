@@ -28,6 +28,29 @@ const DEFAULT_TEMPLATE = `Αγαπητέ/ή {client_name},
 
 Η ομάδα iMentor`
 
+const ANAKAINIZW_TEMPLATE = `Αγαπητέ/ή {client_name},
+
+Η iMentor Consulting ενεργοποίησε για εσάς την Πύλη Πελάτη για το πρόγραμμα Ανακαινίζω.
+
+🔗 {portal_url}
+
+Για είσοδο χρειάζεστε μόνο το κινητό τηλέφωνό σας (το ίδιο που μας έχετε δηλώσει).
+
+Τι χρειάζεται να κάνετε άμεσα:
+📝 Συμπληρώστε / επιβεβαιώστε τα στοιχεία του ακινήτου και του νοικοκυριού σας
+📎 Ανεβάστε τα έγγραφα που σας ζητάμε
+
+Επίσης μέσα από την πύλη μπορείτε να:
+✅ Παρακολουθείτε σε πραγματικό χρόνο την πορεία της υπόθεσής σας
+🔍 Δείτε τα αποτελέσματα του ελέγχου επιλεξιμότητάς σας
+💬 Επικοινωνήσετε με τον σύμβουλό σας
+
+Για οποιαδήποτε απορία:
+📞 2810 363007
+🌐 www.i-mentor.gr
+
+Η ομάδα iMentor`
+
 const PORTAL_OPTIONS = [
   { value: '',            label: 'Όλοι' },
   { value: 'not_sent',    label: 'Δεν έχει λάβει μήνυμα portal' },
@@ -226,6 +249,15 @@ export default function PortalBroadcastPage() {
     })
   }
 
+  // Auto-switch template when exclusively filtering ΑΝΑΚΑΙΝΙΖΩ
+  useEffect(() => {
+    if (filterProgram.size === 1 && filterProgram.has('ΑΝΑΚΑΙΝΙΖΩ')) {
+      setTemplate(t => t === DEFAULT_TEMPLATE ? ANAKAINIZW_TEMPLATE : t)
+    } else if (filterProgram.size > 0 && !filterProgram.has('ΑΝΑΚΑΙΝΙΖΩ')) {
+      setTemplate(t => t === ANAKAINIZW_TEMPLATE ? DEFAULT_TEMPLATE : t)
+    }
+  }, [filterProgram])
+
   const reloadCases = () => getCases().then(data => {
     const list = Array.isArray(data) ? data : (data.cases || data.items || [])
     setCases(list.filter(c =>
@@ -368,8 +400,31 @@ export default function PortalBroadcastPage() {
         </button>
         {showTemplate && (
           <div className="px-5 pb-5 border-t border-gray-50 pt-3">
+            <div className="flex items-center gap-2 mb-3 flex-wrap">
+              <span className="text-xs text-gray-500 font-medium">Template:</span>
+              <button
+                onClick={() => setTemplate(DEFAULT_TEMPLATE)}
+                className={`px-3 py-1 rounded-lg text-xs font-semibold border transition-all ${
+                  template === DEFAULT_TEMPLATE
+                    ? 'bg-[#1e3a5f] text-white border-[#1e3a5f]'
+                    : 'bg-white text-gray-600 border-gray-200 hover:border-[#1e3a5f]'
+                }`}
+              >
+                Γενικό (ΕΣΠΑ / ΔΥΠΑ)
+              </button>
+              <button
+                onClick={() => setTemplate(ANAKAINIZW_TEMPLATE)}
+                className={`px-3 py-1 rounded-lg text-xs font-semibold border transition-all ${
+                  template === ANAKAINIZW_TEMPLATE
+                    ? 'bg-purple-700 text-white border-purple-700'
+                    : 'bg-white text-gray-600 border-gray-200 hover:border-purple-500'
+                }`}
+              >
+                ΑΝΑΚΑΙΝΙΖΩ
+              </button>
+            </div>
             <p className="text-xs text-gray-400 mb-2">
-              Χρησιμοποιήστε <code className="bg-gray-100 px-1 rounded">{'{client_name}'}</code> και <code className="bg-gray-100 px-1 rounded">{'{portal_url}'}</code> ως μεταβλητές.
+              Μεταβλητές: <code className="bg-gray-100 px-1 rounded">{'{client_name}'}</code> <code className="bg-gray-100 px-1 rounded">{'{portal_url}'}</code> <code className="bg-gray-100 px-1 rounded">{'{service_type}'}</code>
             </p>
             <textarea
               rows={10}
@@ -377,15 +432,12 @@ export default function PortalBroadcastPage() {
               onChange={e => setTemplate(e.target.value)}
               className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-mono focus:ring-2 focus:ring-[#1e3a5f] focus:border-transparent resize-y"
             />
-            <button onClick={() => setTemplate(DEFAULT_TEMPLATE)} className="mt-2 text-xs text-blue-600 hover:underline">
-              Επαναφορά στο προεπιλεγμένο
-            </button>
           </div>
         )}
       </div>
 
-      {/* Filters */}
-      <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+      {/* Filters — sticky so they stay accessible while scrolling the table */}
+      <div className="sticky top-0 z-30 bg-white rounded-xl border border-gray-100 shadow-sm p-4">
         <div className="flex flex-wrap gap-3 items-center">
           {/* Search */}
           <div className="relative flex-1 min-w-48">
@@ -460,9 +512,9 @@ export default function PortalBroadcastPage() {
 
       {/* Table */}
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
           <table className="w-full text-sm">
-            <thead className="bg-gray-50 border-b border-gray-100">
+            <thead className="bg-gray-50 border-b border-gray-100 sticky top-0 z-10">
               <tr>
                 <th className="w-10 px-4 py-3 text-center">
                   <input
