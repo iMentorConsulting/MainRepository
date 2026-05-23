@@ -1,3 +1,4 @@
+import base64
 import io
 import json
 import os
@@ -5,6 +6,7 @@ from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from fastapi.responses import Response
+from sqlalchemy import text as _sqlt
 from sqlalchemy.orm import Session
 
 from database import get_db, fmt_dt
@@ -13,7 +15,9 @@ from models_cases import (
     CMCase, CMUser, CMTask, CMPayment, CMMessage, CMDocument,
     CMBudgetCategory, CMCasePendingItem, CMPaymentLog,
     CMCaseStatusHistory, CMCaseModification, CMNotificationLog,
-    CMBackupLog,
+    CMBackupLog, CMNotificationTemplate, CMStatusSLA, CMPipelineConfig,
+    CMPendingItemTemplate, CMWorkList, CMStatusNotificationConfig,
+    CMCaseAnakainizw,
 )
 
 try:
@@ -33,7 +37,7 @@ def _d(val):
 def _build_export(db: Session) -> dict:
     data: dict = {
         "exported_at": fmt_dt(datetime.utcnow()),
-        "version": "1.0",
+        "version": "2.0",
         "app": "iMentor CRM",
     }
 
@@ -118,15 +122,24 @@ def _build_export(db: Session) -> dict:
         data["messages"] = []
 
     try:
-        data["documents"] = [
-            {"id": d.id, "case_id": d.case_id, "name": d.name,
-             "document_type": d.document_type, "status": d.status,
-             "uploaded_by": d.uploaded_by,
-             "uploaded_by_client": getattr(d, "uploaded_by_client", None),
-             "notes": d.notes, "mime_type": getattr(d, "mime_type", None),
-             "created_at": fmt_dt(d.created_at)}
-            for d in db.query(CMDocument).all()
-        ]
+        doc_rows = db.execute(_sqlt(
+            "SELECT id, case_id, name, document_type, status, uploaded_by, "
+            "uploaded_by_client, notes, mime_type, created_at, file_data "
+            "FROM cm_documents"
+        )).fetchall()
+        data["documents"] = []
+        for r in doc_rows:
+            fd = r.file_data
+            file_b64 = base64.b64encode(bytes(fd)).decode("ascii") if fd else None
+            data["documents"].append({
+                "id": r.id, "case_id": r.case_id, "name": r.name,
+                "document_type": r.document_type, "status": r.status,
+                "uploaded_by": r.uploaded_by,
+                "uploaded_by_client": r.uploaded_by_client,
+                "notes": r.notes, "mime_type": r.mime_type,
+                "created_at": fmt_dt(r.created_at),
+                "file_data_b64": file_b64,
+            })
     except Exception:
         data["documents"] = []
 
@@ -196,17 +209,119 @@ def _build_export(db: Session) -> dict:
 
     if CMPortalFile is not None:
         try:
-            data["portal_files"] = [
-                {"id": pf.id, "service_type": pf.service_type,
-                 "original_filename": pf.original_filename, "mime_type": pf.mime_type,
-                 "file_size": pf.file_size, "client_description": pf.client_description,
-                 "client_instructions": getattr(pf, "client_instructions", None),
-                 "internal_notes": getattr(pf, "internal_notes", None),
-                 "uploaded_at": fmt_dt(pf.uploaded_at)}
-                for pf in db.query(CMPortalFile).all()
-            ]
+            pf_rows = db.execute(_sqlt(
+                "SELECT id, service_type, original_filename, mime_type, file_size, "
+                "client_description, client_instructions, internal_notes, uploaded_at, file_data "
+                "FROM cm_portal_files"
+            )).fetchall()
+            data["portal_files"] = []
+            for r in pf_rows:
+                fd = r.file_data
+                file_b64 = base64.b64encode(bytes(fd)).decode("ascii") if fd else None
+                data["portal_files"].append({
+                    "id": r.id, "service_type": r.service_type,
+                    "original_filename": r.original_filename, "mime_type": r.mime_type,
+                    "file_size": r.file_size, "client_description": r.client_description,
+                    "client_instructions": r.client_instructions,
+                    "internal_notes": r.internal_notes,
+                    "uploaded_at": fmt_dt(r.uploaded_at),
+                    "file_data_b64": file_b64,
+                })
         except Exception:
             data["portal_files"] = []
+
+    try:
+        data["anakainizw"] = [
+            {
+                "id": a.id, "case_id": a.case_id,
+                "property_sqm": a.property_sqm, "property_prefecture": a.property_prefecture,
+                "property_address": a.property_address, "property_type": a.property_type,
+                "property_age": a.property_age, "property_usage": a.property_usage,
+                "renovation_works": a.renovation_works, "legality": a.legality,
+                "cooperating_engineer": a.cooperating_engineer, "subsidy_percent": a.subsidy_percent,
+                "energy_works_budget": a.energy_works_budget, "general_works_budget": a.general_works_budget,
+                "household_type": a.household_type, "num_children": a.num_children,
+                "is_single_parent": a.is_single_parent, "is_three_children": a.is_three_children,
+                "boost_island": a.boost_island, "boost_single_parent": a.boost_single_parent,
+                "boost_three_children": a.boost_three_children, "boost_large_family": a.boost_large_family,
+                "boost_youth": a.boost_youth, "boost_disability": a.boost_disability,
+                "doc_title_deed": a.doc_title_deed, "doc_e9": a.doc_e9, "doc_permit": a.doc_permit,
+                "doc_legalization": a.doc_legalization, "doc_plans": a.doc_plans,
+                "doc_e1": a.doc_e1, "doc_tax_clearance": a.doc_tax_clearance, "doc_e2": a.doc_e2,
+                "doc_extras": a.doc_extras, "actual_income": a.actual_income,
+                "budget_items": a.budget_items, "advisor_checks": a.advisor_checks,
+                "inspection_fee_paid": a.inspection_fee_paid,
+                "inspection_fee_paid_at": fmt_dt(a.inspection_fee_paid_at),
+                "client_intake_submitted_at": a.client_intake_submitted_at,
+                "client_intake_data": a.client_intake_data,
+            }
+            for a in db.query(CMCaseAnakainizw).all()
+        ]
+    except Exception:
+        data["anakainizw"] = []
+
+    try:
+        data["notification_templates"] = [
+            {"id": t.id, "key": t.key, "label": t.label, "subject": t.subject,
+             "content": t.content, "notification_type": t.notification_type,
+             "is_active": t.is_active, "created_at": fmt_dt(t.created_at),
+             "updated_at": fmt_dt(t.updated_at)}
+            for t in db.query(CMNotificationTemplate).all()
+        ]
+    except Exception:
+        data["notification_templates"] = []
+
+    try:
+        data["pipeline_configs"] = [
+            {"id": p.id, "program_category": p.program_category,
+             "phases_json": p.phases_json, "extra_statuses_json": p.extra_statuses_json,
+             "status_descriptions_json": p.status_descriptions_json,
+             "updated_at": fmt_dt(p.updated_at)}
+            for p in db.query(CMPipelineConfig).all()
+        ]
+    except Exception:
+        data["pipeline_configs"] = []
+
+    try:
+        data["status_sla"] = [
+            {"id": s.id, "status": s.status, "sla_days": s.sla_days,
+             "notification_message": s.notification_message,
+             "updated_at": fmt_dt(s.updated_at)}
+            for s in db.query(CMStatusSLA).all()
+        ]
+    except Exception:
+        data["status_sla"] = []
+
+    try:
+        data["pending_item_templates"] = [
+            {"id": t.id, "program_category": t.program_category,
+             "item_text": t.item_text, "sort_order": t.sort_order,
+             "created_at": fmt_dt(t.created_at)}
+            for t in db.query(CMPendingItemTemplate).all()
+        ]
+    except Exception:
+        data["pending_item_templates"] = []
+
+    try:
+        data["work_lists"] = [
+            {"id": w.id, "name": w.name, "description": w.description,
+             "programs": w.programs, "service_types": w.service_types,
+             "statuses": w.statuses, "min_days_in_status": w.min_days_in_status,
+             "max_days_in_status": w.max_days_in_status, "sort_order": w.sort_order,
+             "created_by_id": w.created_by_id, "created_at": fmt_dt(w.created_at),
+             "updated_at": fmt_dt(w.updated_at)}
+            for w in db.query(CMWorkList).all()
+        ]
+    except Exception:
+        data["work_lists"] = []
+
+    try:
+        data["status_notification_configs"] = [
+            {"id": c.id, "status": c.status, "enabled": c.enabled}
+            for c in db.query(CMStatusNotificationConfig).all()
+        ]
+    except Exception:
+        data["status_notification_configs"] = []
 
     return data
 
