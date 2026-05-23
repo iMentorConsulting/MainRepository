@@ -443,17 +443,17 @@ def submit_anakainizw_intake(token: str, body: dict, db: Session = Depends(get_d
     ana.updated_at = _dt.utcnow()
     db.commit()
 
-    # Notify assigned agent
-    if case.assigned_agent and case.assigned_agent.email:
-        try:
-            from routes.cm_notifications import _send_email
-            _send_email(
-                case.assigned_agent.email,
-                f"Νέα Φόρμα Στοιχείων από πελάτη — {case.client_name}",
-                f"Ο πελάτης {case.client_name} υπέβαλε τη φόρμα επιβεβαίωσης στοιχείων ΑΝΑΚΑΙΝΙΖΩ.\n\nΥπόθεση: {case.service_type or ''}",
-            )
-        except Exception:
-            pass
+    # Notify office + assigned agent
+    _subj = f"Νέα Φόρμα Στοιχείων ΑΝΑΚΑΙΝΙΖΩ — {case.client_name}"
+    _body = f"Ο πελάτης {case.client_name} υπέβαλε τη φόρμα επιβεβαίωσης στοιχείων.\n\nΥπόθεση: {case.service_type or ''}"
+    try:
+        from routes.cm_notifications import _send_email
+        _send_email("info@i-mentor.gr", _subj, _body)
+        _agent_email = case.assigned_agent.email if case.assigned_agent else None
+        if _agent_email and _agent_email != "info@i-mentor.gr":
+            _send_email(_agent_email, _subj, _body)
+    except Exception:
+        pass
 
     return {"ok": True, "submitted_at": now_str}
 
@@ -691,18 +691,17 @@ async def client_upload_file(
     db.add(doc)
     db.commit()
 
-    # Notify agent
-    agent_email = case.assigned_agent.email if case.assigned_agent else None
-    if agent_email:
-        try:
-            from routes.cm_notifications import _send_email
-            _send_email(
-                agent_email,
-                f"Νέο αρχείο από πελάτη: {case.client_name}",
-                f"Ο πελάτης {case.client_name} ανέβασε αρχείο: {file.filename}\n\nΥπόθεση: {case.service_type or ''}",
-            )
-        except Exception:
-            pass
+    # Notify office + assigned agent
+    subject = f"Νέο αρχείο από πελάτη: {case.client_name}"
+    body = f"Ο πελάτης {case.client_name} ανέβασε αρχείο: {file.filename}\n\nΥπόθεση: {case.service_type or ''}"
+    try:
+        from routes.cm_notifications import _send_email
+        _send_email("info@i-mentor.gr", subject, body)
+        agent_email = case.assigned_agent.email if case.assigned_agent else None
+        if agent_email and agent_email != "info@i-mentor.gr":
+            _send_email(agent_email, subject, body)
+    except Exception:
+        pass
 
     return {"ok": True, "filename": file.filename}
 

@@ -483,6 +483,8 @@ def _detect_prog(status, service_type):
         return 'ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ'
     if 'ΔΥΠΑ' in st or 'ΟΑΕΔ' in st:
         return 'ΔΥΠΑ'
+    if 'ΑΝΑΚΑΙΝ' in st:
+        return 'ΑΝΑΚΑΙΝΙΖΩ'
     if status in _UNIQUE_MIKRO:
         return 'ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ'
     if status in _UNIQUE_DYPA:
@@ -496,6 +498,10 @@ with SessionLocal() as _db:
         if _c.status in _OSM:
             _c.status = _OSM[_c.status]
         _correct = _detect_prog(_c.status, _c.service_type)
+        # Never override an explicitly-set non-ΕΣΠΑ category back to ΕΣΠΑ
+        # (e.g. ΑΝΑΚΑΙΝΙΖΩ cases without the keyword in service_type)
+        if _c.program_category and _c.program_category not in (None, 'ΕΣΠΑ') and _correct == 'ΕΣΠΑ':
+            _correct = _c.program_category
         if _c.program_category != _correct:
             _c.program_category = _correct
             _fixed += 1
