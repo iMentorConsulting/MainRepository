@@ -1049,12 +1049,10 @@ def save_status_configs_bulk(
         seen.add(item.status)
         if item.status in existing_rows:
             existing_rows[item.status].enabled = item.enabled
-            existing_rows[item.status].updated_at = _dt_cls.utcnow()
         else:
             new_row = CMStatusNotificationConfig(
                 status=item.status,
                 enabled=item.enabled,
-                updated_at=_dt_cls.utcnow(),
             )
             db.add(new_row)
             existing_rows[item.status] = new_row
