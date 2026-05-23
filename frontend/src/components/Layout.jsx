@@ -26,7 +26,7 @@ import { changePassword } from '../api'
 import toast from 'react-hot-toast'
 
 const nav = [
-  { to: '/', label: 'Dashboard', Icon: HomeIcon, exact: true },
+  { to: '/', label: 'Dashboard', Icon: HomeIcon, exact: true, adminOnly: true },
   { to: '/workview', label: 'Γρήγορη Εργασία', Icon: TableCellsIcon },
   { to: '/cases', label: 'Υποθέσεις', Icon: FolderOpenIcon },
   { to: '/kanban', label: 'Pipeline', Icon: ViewColumnsIcon },
