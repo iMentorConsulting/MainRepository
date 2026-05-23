@@ -77,12 +77,27 @@ async def upload_document(
     if len(data) > MAX_FILE_SIZE:
         raise HTTPException(status_code=400, detail="Μέγιστο μέγεθος αρχείου: 15MB")
 
+    drive_id = None
+    file_data_db = data
+    try:
+        from drive_storage import upload_portal_template
+        drive_id = upload_portal_template(
+            content=data,
+            filename=file.filename,
+            mime_type=file.content_type,
+            service_type=service_type,
+        )
+        file_data_db = None
+    except Exception:
+        pass
+
     pf = CMPortalFile(
         service_type=service_type,
         original_filename=file.filename,
         mime_type=file.content_type,
         file_size=len(data),
-        file_data=data,
+        file_data=file_data_db,
+        drive_file_id=drive_id,
         client_description=client_description,
         client_instructions=client_instructions,
         internal_notes=internal_notes,
@@ -115,10 +130,34 @@ async def replace_document(
     if len(data) > MAX_FILE_SIZE:
         raise HTTPException(status_code=400, detail="Μέγιστο μέγεθος αρχείου: 15MB")
 
+    # Delete old Drive file if present
+    if old.drive_file_id:
+        try:
+            from drive_storage import delete_file as _drive_del
+            _drive_del(old.drive_file_id)
+        except Exception:
+            pass
+
+    # Upload new file to Drive; fall back to DB on failure
+    new_drive_id = None
+    file_data_db = data
+    try:
+        from drive_storage import upload_portal_template
+        new_drive_id = upload_portal_template(
+            content=data,
+            filename=file.filename,
+            mime_type=file.content_type,
+            service_type=old.service_type,
+        )
+        file_data_db = None
+    except Exception:
+        pass
+
     old.original_filename = file.filename
     old.mime_type = file.content_type
     old.file_size = len(data)
-    old.file_data = data
+    old.file_data = file_data_db
+    old.drive_file_id = new_drive_id
     if client_description is not None:
         old.client_description = client_description
     if client_instructions is not None:
@@ -163,6 +202,12 @@ def delete_document(
     pf = db.query(CMPortalFile).filter(CMPortalFile.id == file_id).first()
     if not pf:
         raise HTTPException(status_code=404, detail="Αρχείο δεν βρέθηκε")
+    if pf.drive_file_id:
+        try:
+            from drive_storage import delete_file as _drive_del
+            _drive_del(pf.drive_file_id)
+        except Exception:
+            pass
     db.delete(pf)
     db.commit()
     return {"ok": True}
@@ -177,8 +222,19 @@ def download_document_admin(
     pf = db.query(CMPortalFile).filter(CMPortalFile.id == file_id).first()
     if not pf:
         raise HTTPException(status_code=404, detail="Αρχείο δεν βρέθηκε")
+    content = None
+    if pf.drive_file_id:
+        try:
+            from drive_storage import download_file as _drive_dl
+            content = _drive_dl(pf.drive_file_id)
+        except Exception:
+            pass
+    if content is None and pf.file_data:
+        content = bytes(pf.file_data)
+    if content is None:
+        raise HTTPException(status_code=404, detail="Αρχείο δεν βρέθηκε")
     return Response(
-        content=pf.file_data,
+        content=content,
         media_type=pf.mime_type,
         headers={"Content-Disposition": f'attachment; filename="{pf.original_filename}"'},
     )

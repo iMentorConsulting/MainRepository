@@ -188,6 +188,7 @@ class CMDocument(Base):
     file_url = Column(String(500))
     file_data = deferred(Column(LargeBinary, nullable=True))
     mime_type = Column(String(100), nullable=True)
+    drive_file_id = Column(String(200), nullable=True)
 
     created_at = Column(DateTime, default=datetime.utcnow)
 
@@ -322,7 +323,8 @@ class CMPortalFile(Base):
     original_filename = Column(String(300), nullable=False)
     mime_type = Column(String(100), nullable=False)
     file_size = Column(Integer, nullable=False)
-    file_data = Column(LargeBinary, nullable=False)
+    file_data = Column(LargeBinary, nullable=True)
+    drive_file_id = Column(String(200), nullable=True)
 
     client_description = Column(String(500), nullable=False)
     client_instructions = Column(Text, nullable=True)

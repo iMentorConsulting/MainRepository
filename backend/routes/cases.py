@@ -225,7 +225,9 @@ def doc_to_dict(d: CMDocument) -> dict:
         "notes": d.notes,
         "file_url": d.file_url,
         "uploaded_by_client": getattr(d, "uploaded_by_client", False) or False,
+        "has_file": bool(getattr(d, "drive_file_id", None) or d.mime_type),
         "has_file_data": d.mime_type is not None,
+        "drive_file_id": getattr(d, "drive_file_id", None),
         "created_at": fmt_dt(d.created_at),
     }
 
@@ -853,20 +855,28 @@ def download_document(
 ):
     from fastapi.responses import Response as _Resp
     from sqlalchemy import text as _sqlt
-    # Use raw SQL to avoid ORM deferred-column issues and memoryview/bytes mismatch.
+    from urllib.parse import quote as _uq
     row = db.execute(
-        _sqlt("SELECT name, file_data, mime_type FROM cm_documents WHERE id = :doc_id AND case_id = :case_id"),
+        _sqlt("SELECT name, file_data, mime_type, drive_file_id FROM cm_documents WHERE id = :doc_id AND case_id = :case_id"),
         {"doc_id": doc_id, "case_id": case_id},
     ).first()
     if not row:
         raise HTTPException(status_code=404, detail="Έγγραφο δεν βρέθηκε")
-    if not row.file_data:
-        raise HTTPException(status_code=404, detail="Δεν υπάρχουν δεδομένα αρχείου (ανέβηκε πριν τη νέα έκδοση)")
-    from urllib.parse import quote as _uq
+    content = None
+    if row.drive_file_id:
+        try:
+            from drive_storage import download_file as _drive_dl
+            content = _drive_dl(row.drive_file_id)
+        except Exception:
+            pass
+    if content is None and row.file_data:
+        content = bytes(row.file_data)
+    if content is None:
+        raise HTTPException(status_code=404, detail="Δεν υπάρχει αρχείο")
     _safe = (row.name or "file").encode("ascii", errors="replace").decode("ascii")
     _enc = _uq(row.name or "file", safe="")
     return _Resp(
-        content=bytes(row.file_data),
+        content=content,
         media_type=row.mime_type or "application/octet-stream",
         headers={"Content-Disposition": f"attachment; filename=\"{_safe}\"; filename*=UTF-8''{_enc}"},
     )

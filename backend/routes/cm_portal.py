@@ -396,8 +396,19 @@ def download_portal_file_public(token: str, file_id: int, db: Session = Depends(
     pf = db.query(CMPortalFile).filter(CMPortalFile.id == file_id).first()
     if not pf or pf.service_type != case.service_type:
         raise HTTPException(status_code=404, detail="Αρχείο δεν βρέθηκε")
+    content = None
+    if pf.drive_file_id:
+        try:
+            from drive_storage import download_file as _drive_dl
+            content = _drive_dl(pf.drive_file_id)
+        except Exception:
+            pass
+    if content is None and pf.file_data:
+        content = bytes(pf.file_data)
+    if content is None:
+        raise HTTPException(status_code=404, detail="Αρχείο δεν βρέθηκε")
     return _Resp(
-        content=pf.file_data,
+        content=content,
         media_type=pf.mime_type,
         headers={"Content-Disposition": _content_disposition(pf.original_filename)},
     )
@@ -687,22 +698,39 @@ async def client_upload_file(
     if len(data) > 20 * 1024 * 1024:
         raise HTTPException(status_code=400, detail="Μέγιστο μέγεθος αρχείου: 20MB")
 
+    # Try to upload to Google Drive; fall back to DB storage on any failure.
+    drive_id = None
+    file_data_db = None
+    try:
+        from drive_storage import upload_case_document
+        drive_id = upload_case_document(
+            content=data,
+            filename=file.filename or "upload",
+            mime_type=file.content_type or "application/octet-stream",
+            program_category=case.program_category or "Άλλο",
+            case_id=case.id,
+            client_name=case.client_name or "Πελάτης",
+        )
+    except Exception:
+        file_data_db = data
+
     # Use raw SQL so the BYTEA column is always stored (ORM deferred columns
     # can silently skip binary data in INSERT on some SQLAlchemy versions).
     from sqlalchemy import text as _sqlt
     db.execute(_sqlt("""
         INSERT INTO cm_documents
             (case_id, name, document_type, status, uploaded_by,
-             uploaded_by_client, file_data, mime_type, created_at)
+             uploaded_by_client, file_data, mime_type, drive_file_id, created_at)
         VALUES
             (:case_id, :name, 'client_upload', 'pending', :uploaded_by,
-             TRUE, :file_data, :mime_type, NOW())
+             TRUE, :file_data, :mime_type, :drive_file_id, NOW())
     """), {
         "case_id": case.id,
         "name": file.filename or "upload",
         "uploaded_by": case.client_name or "Πελάτης",
-        "file_data": data,
+        "file_data": file_data_db,
         "mime_type": file.content_type or "application/octet-stream",
+        "drive_file_id": drive_id,
     })
     db.commit()
 
@@ -730,13 +758,24 @@ def download_client_upload(token: str, doc_id: int, db: Session = Depends(get_db
     if not case or not case.portal_active:
         raise HTTPException(status_code=404, detail="Not found")
     row = db.execute(
-        _sqlt("SELECT name, file_data, mime_type FROM cm_documents WHERE id = :doc_id AND case_id = :case_id AND uploaded_by_client = TRUE"),
+        _sqlt("SELECT name, file_data, mime_type, drive_file_id FROM cm_documents WHERE id = :doc_id AND case_id = :case_id AND uploaded_by_client = TRUE"),
         {"doc_id": doc_id, "case_id": case.id},
     ).first()
-    if not row or not row.file_data:
+    if not row:
+        raise HTTPException(status_code=404, detail="Αρχείο δεν βρέθηκε")
+    content = None
+    if row.drive_file_id:
+        try:
+            from drive_storage import download_file as _drive_dl
+            content = _drive_dl(row.drive_file_id)
+        except Exception:
+            pass
+    if content is None and row.file_data:
+        content = bytes(row.file_data)
+    if content is None:
         raise HTTPException(status_code=404, detail="Αρχείο δεν βρέθηκε")
     return _Resp(
-        content=bytes(row.file_data),
+        content=content,
         media_type=row.mime_type or "application/octet-stream",
         headers={"Content-Disposition": _content_disposition(row.name)},
     )
@@ -753,12 +792,22 @@ def serve_portal_upload(case_id: int, filename: str, db: Session = Depends(get_d
         .filter(CMDocument.name.ilike(f"%{os.path.basename(filename).split('_', 2)[-1]}%"))
         .first()
     )
-    if doc and doc.file_data:
-        return _Resp(
-            content=doc.file_data,
-            media_type=doc.mime_type or "application/octet-stream",
-        headers={"Content-Disposition": _content_disposition(doc.name)},
-        )
+    if doc:
+        content = None
+        if doc.drive_file_id:
+            try:
+                from drive_storage import download_file as _drive_dl
+                content = _drive_dl(doc.drive_file_id)
+            except Exception:
+                pass
+        if content is None and doc.file_data:
+            content = bytes(doc.file_data)
+        if content is not None:
+            return _Resp(
+                content=content,
+                media_type=doc.mime_type or "application/octet-stream",
+                headers={"Content-Disposition": _content_disposition(doc.name)},
+            )
     raise HTTPException(status_code=404, detail="Αρχείο δεν βρέθηκε")
 
 

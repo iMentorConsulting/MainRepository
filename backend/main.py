@@ -220,6 +220,16 @@ try:
 except Exception:
     pass
 
+# Migration: Google Drive storage columns
+try:
+    with engine.connect() as _conn:
+        _conn.execute(_text("ALTER TABLE cm_documents ADD COLUMN IF NOT EXISTS drive_file_id VARCHAR(200)"))
+        _conn.execute(_text("ALTER TABLE cm_portal_files ADD COLUMN IF NOT EXISTS drive_file_id VARCHAR(200)"))
+        _conn.execute(_text("ALTER TABLE cm_portal_files ALTER COLUMN file_data DROP NOT NULL"))
+        _conn.commit()
+except Exception:
+    pass
+
 # Normalize property_usage values imported before case-normalization fix
 try:
     with engine.connect() as _conn:
