@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
 import { getPortalCase, recordPortalVisit, submitPortalNps, recordPortalReviewClick, submitPortalMessage, uploadPortalFile } from '../api'
 import AnakainizwPortalSection from './AnakainizwPortalSection'
+import AnakainizwIntakeSection from './AnakainizwIntakeSection'
 import {
   BuildingOffice2Icon,
   CheckCircleIcon,
@@ -1082,6 +1083,10 @@ export default function ClientPortal() {
     setVerified(true)
   }
 
+  const refreshData = () => {
+    getPortalCase(token).then(setData).catch(() => {})
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -1226,6 +1231,9 @@ export default function ClientPortal() {
         {/* ── ΑΝΑΚΑΙΝΙΖΩ: custom card order ─────────────────────────────── */}
         {data.program_category === 'ΑΝΑΚΑΙΝΙΖΩ' && (
           <>
+            {/* 1: Client intake form — property + household confirmation + missing docs */}
+            <AnakainizwIntakeSection caseData={data} token={token} onRefresh={refreshData} />
+
             {/* 2-5: Program header, property, income criteria, documents */}
             <AnakainizwPortalSection caseData={data} />
 

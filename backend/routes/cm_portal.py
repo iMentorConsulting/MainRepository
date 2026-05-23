@@ -256,6 +256,8 @@ def _build_portal_data(case: CMCase, db: Session) -> dict:
                 "doc_extras": doc_extras,
                 "advisor_checks": advisor_checks,
                 "inspection_fee_paid": ana.inspection_fee_paid,
+                "client_intake_submitted_at": getattr(ana, 'client_intake_submitted_at', None),
+                "client_intake_data": _json.loads(ana.client_intake_data) if getattr(ana, 'client_intake_data', None) else None,
             }
         else:
             response["anakainizw"] = None
@@ -390,6 +392,70 @@ def download_portal_file_public(token: str, file_id: int, db: Session = Depends(
         media_type=pf.mime_type,
         headers={"Content-Disposition": f'attachment; filename="{pf.original_filename}"'},
     )
+
+
+@router.put("/public/{token}/anakainizw-intake")
+def submit_anakainizw_intake(token: str, body: dict, db: Session = Depends(get_db)):
+    """Client submits property + household intake form from ΑΝΑΚΑΙΝΙΖΩ portal."""
+    import json as _json
+    from datetime import datetime as _dt
+    from models_cases import CMCaseAnakainizw
+
+    case = db.query(CMCase).filter(CMCase.share_token == token).first()
+    if not case or not case.portal_active:
+        raise HTTPException(status_code=404, detail="Portal not found or inactive")
+    if case.program_category != "ΑΝΑΚΑΙΝΙΖΩ":
+        raise HTTPException(status_code=400, detail="Not an ΑΝΑΚΑΙΝΙΖΩ case")
+
+    ana = db.query(CMCaseAnakainizw).filter(CMCaseAnakainizw.case_id == case.id).first()
+    if not ana:
+        raise HTTPException(status_code=404, detail="ΑΝΑΚΑΙΝΙΖΩ data not found")
+
+    allowed_fields = {
+        "property_sqm", "property_prefecture", "property_address",
+        "property_type", "property_age", "property_usage",
+        "renovation_works", "legality",
+        "household_type", "num_children", "actual_income",
+    }
+    for field, value in body.items():
+        if field in allowed_fields:
+            if field == "property_sqm":
+                try:
+                    setattr(ana, field, float(value) if value not in (None, "") else None)
+                except (TypeError, ValueError):
+                    pass
+            elif field in ("num_children",):
+                try:
+                    setattr(ana, field, int(value) if value not in (None, "") else 0)
+                except (TypeError, ValueError):
+                    pass
+            elif field == "actual_income":
+                try:
+                    setattr(ana, field, float(value) if value not in (None, "") else None)
+                except (TypeError, ValueError):
+                    pass
+            else:
+                setattr(ana, field, value)
+
+    now_str = _dt.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+    ana.client_intake_submitted_at = now_str
+    ana.client_intake_data = _json.dumps(body, ensure_ascii=False)
+    ana.updated_at = _dt.utcnow()
+    db.commit()
+
+    # Notify assigned agent
+    if case.assigned_agent and case.assigned_agent.email:
+        try:
+            from routes.cm_notifications import _send_email
+            _send_email(
+                case.assigned_agent.email,
+                f"Νέα Φόρμα Στοιχείων από πελάτη — {case.client_name}",
+                f"Ο πελάτης {case.client_name} υπέβαλε τη φόρμα επιβεβαίωσης στοιχείων ΑΝΑΚΑΙΝΙΖΩ.\n\nΥπόθεση: {case.service_type or ''}",
+            )
+        except Exception:
+            pass
+
+    return {"ok": True, "submitted_at": now_str}
 
 
 @router.post("/public/{token}/visit")

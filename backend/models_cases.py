@@ -427,6 +427,10 @@ class CMCaseAnakainizw(Base):
     inspection_fee_paid = Column(Boolean, default=False)
     inspection_fee_paid_at = Column(DateTime, nullable=True)
 
+    # Client intake form submitted via portal
+    client_intake_submitted_at = Column(Text, nullable=True)  # ISO timestamp string
+    client_intake_data = Column(Text, nullable=True)           # JSON snapshot of submitted values
+
     updated_at = Column(DateTime, default=datetime.utcnow)
 
     case = relationship("CMCase", backref=backref("anakainizw_data", cascade="all, delete-orphan", uselist=False))

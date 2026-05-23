@@ -199,6 +199,8 @@ try:
             "ALTER TABLE cm_case_anakainizw ADD COLUMN IF NOT EXISTS actual_income NUMERIC(12,2)",
             "ALTER TABLE cm_case_anakainizw ADD COLUMN IF NOT EXISTS budget_items TEXT",
             "ALTER TABLE cm_case_anakainizw ADD COLUMN IF NOT EXISTS advisor_checks TEXT",
+            "ALTER TABLE cm_case_anakainizw ADD COLUMN IF NOT EXISTS client_intake_submitted_at TEXT",
+            "ALTER TABLE cm_case_anakainizw ADD COLUMN IF NOT EXISTS client_intake_data TEXT",
         ]
         for stmt in new_cols:
             try:

@@ -168,6 +168,8 @@ export const uploadPortalFile = (token, file) => {
   fd.append('file', file)
   return axios.post(`${BASE}/api/cm/portal/public/${token}/upload`, fd).then(r => r.data)
 }
+export const submitAnakainizwIntake = (token, data) =>
+  axios.put(`${BASE}/api/cm/portal/public/${token}/anakainizw-intake`, data).then(r => r.data)
 
 // Analytics
 export const getAnalyticsOverview = () => api.get('/api/cm/analytics/overview').then(r => r.data)
