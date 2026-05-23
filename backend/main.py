@@ -225,7 +225,21 @@ try:
     with engine.connect() as _conn:
         _conn.execute(_text("ALTER TABLE cm_documents ADD COLUMN IF NOT EXISTS drive_file_id VARCHAR(200)"))
         _conn.execute(_text("ALTER TABLE cm_portal_files ADD COLUMN IF NOT EXISTS drive_file_id VARCHAR(200)"))
-        _conn.execute(_text("ALTER TABLE cm_portal_files ALTER COLUMN file_data DROP NOT NULL"))
+        # DROP NOT NULL needs exclusive lock — set a short timeout so startup never hangs
+        _conn.execute(_text("SET LOCAL lock_timeout = '4s'"))
+        _conn.execute(_text("""
+            DO $$
+            BEGIN
+                IF EXISTS (
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_name = 'cm_portal_files'
+                      AND column_name = 'file_data'
+                      AND is_nullable = 'NO'
+                ) THEN
+                    ALTER TABLE cm_portal_files ALTER COLUMN file_data DROP NOT NULL;
+                END IF;
+            END $$
+        """))
         _conn.commit()
 except Exception:
     pass
