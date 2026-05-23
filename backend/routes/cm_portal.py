@@ -1,6 +1,7 @@
 import uuid
 import os
 import shutil
+from urllib.parse import quote as _url_quote
 from datetime import datetime, date as _date
 import requests as http_requests
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
@@ -13,6 +14,14 @@ from auth_cases import get_current_user
 UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "..", "portal_uploads")
 
 router = APIRouter(prefix="/api/cm/portal", tags=["portal"])
+
+
+def _content_disposition(filename: str) -> str:
+    """Return a Content-Disposition header value that handles non-ASCII filenames
+    (RFC 5987: filename*=UTF-8''<percent-encoded>)."""
+    safe_ascii = filename.encode("ascii", errors="replace").decode("ascii")
+    encoded = _url_quote(filename, safe="")
+    return f"attachment; filename=\"{safe_ascii}\"; filename*=UTF-8''{encoded}"
 
 
 def _get_pipeline(program_category: str, db: Session) -> dict:
@@ -390,7 +399,7 @@ def download_portal_file_public(token: str, file_id: int, db: Session = Depends(
     return _Resp(
         content=pf.file_data,
         media_type=pf.mime_type,
-        headers={"Content-Disposition": f'attachment; filename="{pf.original_filename}"'},
+        headers={"Content-Disposition": _content_disposition(pf.original_filename)},
     )
 
 
@@ -729,7 +738,7 @@ def download_client_upload(token: str, doc_id: int, db: Session = Depends(get_db
     return _Resp(
         content=bytes(row.file_data),
         media_type=row.mime_type or "application/octet-stream",
-        headers={"Content-Disposition": f'attachment; filename="{row.name}"'},
+        headers={"Content-Disposition": _content_disposition(row.name)},
     )
 
 
@@ -748,7 +757,7 @@ def serve_portal_upload(case_id: int, filename: str, db: Session = Depends(get_d
         return _Resp(
             content=doc.file_data,
             media_type=doc.mime_type or "application/octet-stream",
-            headers={"Content-Disposition": f'attachment; filename="{doc.name}"'},
+        headers={"Content-Disposition": _content_disposition(doc.name)},
         )
     raise HTTPException(status_code=404, detail="Αρχείο δεν βρέθηκε")
 

@@ -862,10 +862,13 @@ def download_document(
         raise HTTPException(status_code=404, detail="Έγγραφο δεν βρέθηκε")
     if not row.file_data:
         raise HTTPException(status_code=404, detail="Δεν υπάρχουν δεδομένα αρχείου (ανέβηκε πριν τη νέα έκδοση)")
+    from urllib.parse import quote as _uq
+    _safe = (row.name or "file").encode("ascii", errors="replace").decode("ascii")
+    _enc = _uq(row.name or "file", safe="")
     return _Resp(
-        content=bytes(row.file_data),   # cast memoryview → bytes
+        content=bytes(row.file_data),
         media_type=row.mime_type or "application/octet-stream",
-        headers={"Content-Disposition": f'attachment; filename="{row.name}"'},
+        headers={"Content-Disposition": f"attachment; filename=\"{_safe}\"; filename*=UTF-8''{_enc}"},
     )
 
 
