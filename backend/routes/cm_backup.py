@@ -525,6 +525,99 @@ def purge_old_json_data(
             "message": f"Εκαθαρίστηκαν {freed} backup JSON blobs από τη βάση. Ο χώρος αποδεσμεύτηκε."}
 
 
+@router.post("/migrate-files-to-drive")
+def migrate_files_to_drive(
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Migrate all file_data blobs from Postgres → Google Drive.
+    Safe to run multiple times — skips files already in Drive.
+    Returns counts of migrated/skipped/failed files.
+    """
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Μόνο διαχειριστές")
+
+    try:
+        from drive_storage import upload_case_document, upload_portal_template
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Drive not available: {e}")
+
+    migrated_docs = 0
+    skipped_docs = 0
+    failed_docs = 0
+    migrated_portal = 0
+    skipped_portal = 0
+    failed_portal = 0
+
+    # ── Migrate cm_documents ──────────────────────────────────────────────
+    rows = db.execute(_sqlt("""
+        SELECT d.id, d.name, d.mime_type, d.file_data,
+               c.id as case_id, c.client_name, c.program_category
+        FROM cm_documents d
+        JOIN cm_cases c ON c.id = d.case_id
+        WHERE d.drive_file_id IS NULL
+          AND d.file_data IS NOT NULL
+          AND d.mime_type IS NOT NULL
+    """)).fetchall()
+
+    for row in rows:
+        try:
+            drive_id = upload_case_document(
+                content=bytes(row.file_data),
+                filename=row.name or "document",
+                mime_type=row.mime_type,
+                program_category=row.program_category or "Άλλο",
+                case_id=row.case_id,
+                client_name=row.client_name or "Πελάτης",
+            )
+            db.execute(_sqlt(
+                "UPDATE cm_documents SET drive_file_id = :did, file_data = NULL WHERE id = :id"
+            ), {"did": drive_id, "id": row.id})
+            db.commit()
+            migrated_docs += 1
+        except Exception as exc:
+            db.rollback()
+            failed_docs += 1
+            _log.warning("Migration failed for doc %s: %s", row.id, exc)
+
+    # ── Migrate cm_portal_files ───────────────────────────────────────────
+    if CMPortalFile is not None:
+        pf_rows = db.execute(_sqlt("""
+            SELECT id, original_filename, mime_type, file_data, service_type
+            FROM cm_portal_files
+            WHERE drive_file_id IS NULL
+              AND file_data IS NOT NULL
+              AND mime_type IS NOT NULL
+        """)).fetchall()
+
+        for row in pf_rows:
+            try:
+                drive_id = upload_portal_template(
+                    content=bytes(row.file_data),
+                    filename=row.original_filename or "template",
+                    mime_type=row.mime_type,
+                    service_type=row.service_type or "Γενικά",
+                )
+                db.execute(_sqlt(
+                    "UPDATE cm_portal_files SET drive_file_id = :did, file_data = NULL WHERE id = :id"
+                ), {"did": drive_id, "id": row.id})
+                db.commit()
+                migrated_portal += 1
+            except Exception as exc:
+                db.rollback()
+                failed_portal += 1
+                _log.warning("Migration failed for portal file %s: %s", row.id, exc)
+
+    total = migrated_docs + migrated_portal
+    return {
+        "ok": True,
+        "case_documents": {"migrated": migrated_docs, "failed": failed_docs},
+        "portal_files": {"migrated": migrated_portal, "failed": failed_portal},
+        "total_migrated": total,
+        "message": f"Μεταφέρθηκαν {total} αρχεία στο Google Drive.",
+    }
+
+
 @router.get("/download/{backup_id}")
 def download_backup(
     backup_id: int,
