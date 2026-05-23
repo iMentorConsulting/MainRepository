@@ -3,9 +3,35 @@ import json
 import base64
 import logging
 import threading
+import queue
+import time
 import requests
 
 logger = logging.getLogger(__name__)
+
+# ── Chatwoot rate-limited queue ──────────────────────────────────────────────
+# All Chatwoot logging is funnelled through a single background worker so bulk
+# sends (e.g. 300 messages) don't hammer the Chatwoot API simultaneously.
+# The worker processes one entry at a time with a 0.4s delay (~2.5/sec).
+_cw_queue: queue.Queue = queue.Queue(maxsize=2000)
+
+def _chatwoot_worker():
+    while True:
+        item = _cw_queue.get()
+        try:
+            if item is None:
+                break
+            phone, message, client_name = item
+            _chatwoot_log_outbound_viber(phone, message, client_name)
+        except Exception:
+            pass
+        finally:
+            _cw_queue.task_done()
+        time.sleep(0.4)   # ~2.5 Chatwoot log ops per second
+
+_cw_thread = threading.Thread(target=_chatwoot_worker, daemon=True, name="chatwoot-logger")
+_cw_thread.start()
+# ─────────────────────────────────────────────────────────────────────────────
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from fastapi import APIRouter, Depends, HTTPException
@@ -587,7 +613,7 @@ def _chatwoot_log_outbound_viber(phone_normalized: str, message: str = "", conta
         for q in [phone_normalized, f"+{phone_normalized}"]:
             r = requests.get(f"{api}/contacts/search",
                              params={"q": q, "include_contacts": "true"},
-                             headers=headers, timeout=8)
+                             headers=headers, timeout=15)
             if r.ok:
                 hits = r.json().get("payload", {}).get("contacts", [])
                 if hits:
@@ -599,7 +625,7 @@ def _chatwoot_log_outbound_viber(phone_normalized: str, message: str = "", conta
             r = requests.post(f"{api}/contacts", json={
                 "name": contact_name or phone_normalized,
                 "phone_number": phone_e164,
-            }, headers=headers, timeout=8)
+            }, headers=headers, timeout=15)
             if r.ok:
                 body = r.json()
                 # Chatwoot returns the contact directly or nested under "id"
@@ -614,7 +640,7 @@ def _chatwoot_log_outbound_viber(phone_normalized: str, message: str = "", conta
         # 2. Find existing conversation in this inbox (any status)
         conv_id = None
         r = requests.get(f"{api}/contacts/{contact_id}/conversations",
-                         headers=headers, timeout=8)
+                         headers=headers, timeout=15)
         if r.ok:
             payload = r.json().get("payload", [])
             for conv in payload:
@@ -624,7 +650,7 @@ def _chatwoot_log_outbound_viber(phone_normalized: str, message: str = "", conta
                     if conv.get("status") == "resolved":
                         requests.patch(f"{api}/conversations/{conv_id}",
                                        json={"status": "open"},
-                                       headers=headers, timeout=8)
+                                       headers=headers, timeout=15)
                     break
 
         # 3. Create conversation if none exists
@@ -633,7 +659,7 @@ def _chatwoot_log_outbound_viber(phone_normalized: str, message: str = "", conta
                 "inbox_id": inbox_id,
                 "contact_id": contact_id,
                 "status": "open",
-            }, headers=headers, timeout=8)
+            }, headers=headers, timeout=15)
             if r.ok:
                 body = r.json()
                 conv_id = body.get("id")
@@ -650,14 +676,14 @@ def _chatwoot_log_outbound_viber(phone_normalized: str, message: str = "", conta
                 "content": message,
                 "message_type": "outgoing",
                 "private": True,
-            }, headers=headers, timeout=10)
+            }, headers=headers, timeout=15)
             if not r.ok:
                 logger.warning("Chatwoot post message failed %s: %s", r.status_code, r.text[:300])
 
         # 5. Resolve the conversation
         requests.patch(f"{api}/conversations/{conv_id}",
                        json={"status": "resolved"},
-                       headers=headers, timeout=8)
+                       headers=headers, timeout=15)
 
     except Exception as exc:
         logger.exception("Chatwoot outbound Viber log failed for %s: %s", phone_normalized, exc)
@@ -688,12 +714,11 @@ def _send_viber(phone: str, message: str, client_name: str = "", agent_name: str
     try:
         resp = requests.post(f"{bridge_url}/send", json=payload, timeout=10)
         if resp.status_code in (200, 201):
-            # Run Chatwoot logging in background so bulk sends don't time out
-            threading.Thread(
-                target=_chatwoot_log_outbound_viber,
-                args=(phone, message, client_name),
-                daemon=True,
-            ).start()
+            # Enqueue Chatwoot logging — processed by rate-limited background worker
+            try:
+                _cw_queue.put_nowait((phone, message, client_name))
+            except queue.Full:
+                pass  # queue full (>2000 pending), skip Chatwoot log for this one
             return True, "OK"
         return False, f"Bridge HTTP {resp.status_code} — {resp.text[:500]}"
     except Exception as e:
