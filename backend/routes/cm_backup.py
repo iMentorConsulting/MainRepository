@@ -673,3 +673,129 @@ def export_json(
         media_type="application/json",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+@router.post("/upload-recovery-guide")
+def upload_recovery_guide(
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Create and upload the disaster recovery guide to the Drive backup folder."""
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Μόνο διαχειριστές")
+
+    guide = """IMENTΟR CRM — ΟΔΗΓΟΣ ΑΠΟΚΑΤΑΣΤΑΣΗΣ ΚΑΤΑΣΤΡΟΦΗΣ
+iMENTOR CRM — DISASTER RECOVERY GUIDE
+Generated: {date}
+=========================================================
+
+ΤΙ ΠΕΡΙΕΧΕΙ ΤΟ BACKUP
+======================
+Κάθε αρχείο backup (CaseMngt-backup_YYYY-MM-DD.json) περιέχει:
+  - Όλες τις υποθέσεις (cases) με όλα τα στοιχεία πελατών
+  - Χρήστες και ρόλους
+  - Εργασίες (tasks) ανά υπόθεση
+  - Πληρωμές και οικονομικά στοιχεία
+  - Μηνύματα και σχόλια (εσωτερικά + από πελάτες)
+  - Metadata εγγράφων (τα αρχεία βρίσκονται στο Google Drive)
+  - Ιστορικό αλλαγών status
+  - Στοιχεία προγράμματος Ανακαινίζω
+
+ΤΑ ΑΡΧΕΙΑ (PDF/DOCX) βρίσκονται ξεχωριστά στο Google Drive Shared Drive
+"iMentor Case Management" και ΔΕΝ χρειάζονται restore — είναι ήδη εκεί.
+
+=========================================================
+ΒΗΜΑΤΑ ΑΠΟΚΑΤΑΣΤΑΣΗΣ ΑΝ ΤΟ RAILWAY ΚΑΤΑΡΡΕΥΣΕΙ ΤΕΛΕΙΩΣ
+=========================================================
+
+ΒΗΜΑ 1 — Κατέβασε το τελευταίο backup
+  → Άνοιξε το Google Drive
+  → Πήγαινε στο Shared Drive "iMentor Case Management"
+  → Φάκελος "Αντίγραφα Ασφαλείας"
+  → Κατέβασε το πιο πρόσφατο αρχείο CaseMngt-backup_YYYY-MM-DD.json
+
+ΒΗΜΑ 2 — Δημιούργησε νέο Railway project
+  → Πήγαινε στο railway.app
+  → New Project → Deploy PostgreSQL
+  → Αντέγραψε το DATABASE_URL από τα Variables
+
+ΒΗΜΑ 3 — Εγκατάστησε Python (αν δεν υπάρχει)
+  → Κατέβασε από python.org
+  → Στο cmd: pip install psycopg2-binary
+
+ΒΗΜΑ 4 — Τρέξε το restore script
+  Στο cmd (από τον φάκελο MainRepository/backend):
+
+  python restore_backup.py --backup CaseMngt-backup_2026-xx-xx.json --db "postgresql://user:pass@host:port/dbname"
+
+  Για καθαρή εκκίνηση (διέγραψε παλιά δεδομένα):
+  python restore_backup.py --backup backup.json --db "postgresql://..." --drop
+
+ΒΗΜΑ 5 — Redeploy το app
+  → Στο νέο Railway project, σύνδεσε το GitHub repo
+  → Branch: claude/case-management-app-4bFWE
+  → Πρόσθεσε τα ίδια Environment Variables:
+      DATABASE_URL = (νέο postgres URL)
+      SECRET_KEY = (ίδιο κλειδί)
+      GOOGLE_SERVICE_ACCOUNT_JSON = (ίδιο service account)
+      GOOGLE_DRIVE_DOCUMENTS_FOLDER_ID = 0AMBSVT9EzkIHUk9PVA
+      SMTP_HOST, SMTP_USER, SMTP_PASS = (ίδια email settings)
+
+ΒΗΜΑ 6 — Επαλήθευσε
+  → Άνοιξε την εφαρμογή
+  → Κάνε login ως admin
+  → Έλεγξε ότι οι υποθέσεις, πληρωμές και μηνύματα είναι εκεί
+  → Τα έγγραφα φορτώνουν από το Drive αυτόματα
+
+=========================================================
+ΣΗΜΑΝΤΙΚΕΣ ΠΛΗΡΟΦΟΡΙΕΣ
+=========================================================
+
+Service Account Email:
+  case-management@imentor-493921.iam.gserviceaccount.com
+
+Google Drive Shared Drive ID:
+  0AMBSVT9EzkIHUk9PVA
+
+Railway Project:
+  CASE MANAGEMENT (production)
+  Backend URL: https://consult.i-mentor.gr
+
+GitHub Repository:
+  iMentorConsulting/MainRepository
+  Branch: claude/case-management-app-4bFWE
+
+Backup Schedule:
+  Αυτόματο backup κάθε μέρα στις 02:00 (ώρα server / US East)
+  Manual backup: Εφαρμογή → Αντίγραφα Ασφαλείας → Δημιουργία τώρα
+
+=========================================================
+ΕΠΙΚΟΙΝΩΝΙΑ ΓΙΑ ΒΟΗΘΕΙΑ
+=========================================================
+  Railway Support: railway.app/help
+  Google Drive Support: support.google.com/drive
+  
+  Το restore_backup.py βρίσκεται στο:
+  GitHub → MainRepository → backend → restore_backup.py
+""".format(date=datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC"))
+
+    content = guide.encode("utf-8")
+    filename = "DISASTER_RECOVERY_GUIDE.txt"
+
+    try:
+        from drive_storage import _build_service, _get_or_create_folder, _upload_media
+        svc = _build_service()
+        docs_root = os.getenv("GOOGLE_DRIVE_DOCUMENTS_FOLDER_ID", "").strip()
+        if not docs_root:
+            raise RuntimeError("GOOGLE_DRIVE_DOCUMENTS_FOLDER_ID not set")
+        backup_folder = _get_or_create_folder(svc, docs_root, "Αντίγραφα Ασφαλείας")
+        file_id = _upload_media(
+            svc,
+            meta={"name": filename, "parents": [backup_folder], "mimeType": "text/plain"},
+            content=content,
+            mime_type="text/plain",
+        )
+        return {"ok": True, "drive_file_id": file_id,
+                "message": f"Ο οδηγός αποθηκεύτηκε στο Drive: {filename}"}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Drive upload failed: {exc}")
