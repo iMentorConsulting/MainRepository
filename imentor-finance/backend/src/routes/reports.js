@@ -1,0 +1,225 @@
+const router = require('express').Router();
+const { Op, fn, col, literal, QueryTypes } = require('sequelize');
+const sequelize = require('../config/db');
+const Income = require('../models/Income');
+const Expense = require('../models/Expense');
+
+// Summary: total income, expenses, profit for a period
+router.get('/summary', async (req, res) => {
+  try {
+    const { year, month } = req.query;
+    let incomeWhere = {}, expenseWhere = {};
+
+    if (year && month) {
+      const start = `${year}-${month.padStart(2,'0')}-01`;
+      const end = `${year}-${month.padStart(2,'0')}-31`;
+      incomeWhere.sale_date = { [Op.between]: [start, end] };
+      expenseWhere.date = { [Op.between]: [start, end] };
+    } else if (year) {
+      incomeWhere.sale_date = { [Op.between]: [`${year}-01-01`, `${year}-12-31`] };
+      expenseWhere.date = { [Op.between]: [`${year}-01-01`, `${year}-12-31`] };
+    }
+
+    const [incomeResult] = await Income.findAll({
+      where: incomeWhere,
+      attributes: [[fn('SUM', col('amount_collected')), 'total'], [fn('COUNT', col('id')), 'count']],
+      raw: true
+    });
+    const [expenseResult] = await Expense.findAll({
+      where: expenseWhere,
+      attributes: [[fn('SUM', col('amount')), 'total'], [fn('COUNT', col('id')), 'count']],
+      raw: true
+    });
+
+    const income = parseFloat(incomeResult?.total || 0);
+    const expenses = parseFloat(expenseResult?.total || 0);
+    const profit = income - expenses;
+    const profitPct = income > 0 ? (profit / income) * 100 : 0;
+
+    res.json({
+      income, expenses, profit, profit_pct: profitPct,
+      income_count: parseInt(incomeResult?.count || 0),
+      expense_count: parseInt(expenseResult?.count || 0)
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Monthly breakdown for a year
+router.get('/monthly', async (req, res) => {
+  try {
+    const { year } = req.query;
+    if (!year) return res.status(400).json({ error: 'Απαιτείται year' });
+
+    const incomeRows = await sequelize.query(`
+      SELECT TO_CHAR(sale_date, 'MM') as month,
+             SUM(amount_collected) as income,
+             COUNT(*) as count
+      FROM income
+      WHERE sale_date BETWEEN :start AND :end
+        AND amount_collected IS NOT NULL
+      GROUP BY month ORDER BY month
+    `, { replacements: { start: `${year}-01-01`, end: `${year}-12-31` }, type: QueryTypes.SELECT });
+
+    const expenseRows = await sequelize.query(`
+      SELECT TO_CHAR(date, 'MM') as month,
+             SUM(amount) as expenses
+      FROM expenses
+      WHERE date BETWEEN :start AND :end
+        AND amount IS NOT NULL
+      GROUP BY month ORDER BY month
+    `, { replacements: { start: `${year}-01-01`, end: `${year}-12-31` }, type: QueryTypes.SELECT });
+
+    const months = ['01','02','03','04','05','06','07','08','09','10','11','12'];
+    const monthNames = ['Ιανουάριος','Φεβρουάριος','Μάρτιος','Απρίλιος','Μάιος','Ιούνιος','Ιούλιος','Αύγουστος','Σεπτέμβριος','Οκτώβριος','Νοέμβριος','Δεκέμβριος'];
+
+    const data = months.map((m, i) => {
+      const inc = incomeRows.find(r => r.month === m);
+      const exp = expenseRows.find(r => r.month === m);
+      const income = parseFloat(inc?.income || 0);
+      const expenses = parseFloat(exp?.expenses || 0);
+      const profit = income - expenses;
+      return {
+        month: m, month_name: monthNames[i],
+        income, expenses, profit,
+        profit_pct: income > 0 ? (profit / income) * 100 : 0,
+        count: parseInt(inc?.count || 0)
+      };
+    });
+
+    res.json(data);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// By service type
+router.get('/by-service', async (req, res) => {
+  try {
+    const { year, month } = req.query;
+    let where = {};
+    if (year && month) where.sale_date = { [Op.between]: [`${year}-${month.padStart(2,'0')}-01`, `${year}-${month.padStart(2,'0')}-31`] };
+    else if (year) where.sale_date = { [Op.between]: [`${year}-01-01`, `${year}-12-31`] };
+
+    const rows = await Income.findAll({
+      where,
+      attributes: [
+        'service_type',
+        [fn('SUM', col('amount_collected')), 'income'],
+        [fn('COUNT', col('id')), 'count']
+      ],
+      group: ['service_type'],
+      order: [[literal('income'), 'DESC']],
+      raw: true
+    });
+
+    res.json(rows.map(r => ({
+      service_type: r.service_type || 'Άγνωστο',
+      income: parseFloat(r.income || 0),
+      count: parseInt(r.count || 0)
+    })));
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// By agent
+router.get('/by-agent', async (req, res) => {
+  try {
+    const { year, month } = req.query;
+    let where = {};
+    if (year && month) where.sale_date = { [Op.between]: [`${year}-${month.padStart(2,'0')}-01`, `${year}-${month.padStart(2,'0')}-31`] };
+    else if (year) where.sale_date = { [Op.between]: [`${year}-01-01`, `${year}-12-31`] };
+
+    const rows = await Income.findAll({
+      where,
+      attributes: [
+        'sales_agent',
+        [fn('SUM', col('amount_collected')), 'income'],
+        [fn('SUM', col('bonus')), 'bonus'],
+        [fn('COUNT', col('id')), 'count']
+      ],
+      group: ['sales_agent'],
+      order: [[literal('income'), 'DESC']],
+      raw: true
+    });
+
+    res.json(rows.map(r => ({
+      agent: r.sales_agent || 'Άγνωστος',
+      income: parseFloat(r.income || 0),
+      bonus: parseFloat(r.bonus || 0),
+      count: parseInt(r.count || 0)
+    })));
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Bonus report by agent per month
+router.get('/bonus', async (req, res) => {
+  try {
+    const { year } = req.query;
+    if (!year) return res.status(400).json({ error: 'Απαιτείται year' });
+
+    const rows = await sequelize.query(`
+      SELECT
+        sales_agent,
+        TO_CHAR(sale_date, 'MM') as month,
+        SUM(bonus) as bonus,
+        SUM(amount_application) as amount_application,
+        COUNT(*) as count
+      FROM income
+      WHERE sale_date BETWEEN :start AND :end
+        AND sales_agent IS NOT NULL
+      GROUP BY sales_agent, month
+      ORDER BY sales_agent, month
+    `, { replacements: { start: `${year}-01-01`, end: `${year}-12-31` }, type: QueryTypes.SELECT });
+
+    const agents = [...new Set(rows.map(r => r.sales_agent))];
+    const months = ['01','02','03','04','05','06','07','08','09','10','11','12'];
+    const monthNames = ['Ιαν','Φεβ','Μαρ','Απρ','Μαι','Ιουν','Ιουλ','Αυγ','Σεπ','Οκτ','Νοε','Δεκ'];
+
+    const data = agents.map(agent => {
+      const agentRows = rows.filter(r => r.sales_agent === agent);
+      const monthly = months.map((m, i) => {
+        const r = agentRows.find(x => x.month === m);
+        return { month: m, month_name: monthNames[i], bonus: parseFloat(r?.bonus || 0), count: parseInt(r?.count || 0) };
+      });
+      const total = monthly.reduce((s, m) => s + m.bonus, 0);
+      return { agent, monthly, total };
+    });
+
+    res.json(data);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Expense breakdown by category
+router.get('/expenses-by-category', async (req, res) => {
+  try {
+    const { year, month } = req.query;
+    let where = {};
+    if (year && month) where.date = { [Op.between]: [`${year}-${month.padStart(2,'0')}-01`, `${year}-${month.padStart(2,'0')}-31`] };
+    else if (year) where.date = { [Op.between]: [`${year}-01-01`, `${year}-12-31`] };
+
+    const rows = await Expense.findAll({
+      where,
+      attributes: ['category', [fn('SUM', col('amount')), 'total'], [fn('COUNT', col('id')), 'count']],
+      group: ['category'],
+      order: [[literal('total'), 'DESC']],
+      raw: true
+    });
+
+    res.json(rows.map(r => ({
+      category: r.category || 'Άγνωστο',
+      total: parseFloat(r.total || 0),
+      count: parseInt(r.count || 0)
+    })));
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+module.exports = router;
