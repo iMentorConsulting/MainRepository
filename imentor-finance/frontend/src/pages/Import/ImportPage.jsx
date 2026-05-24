@@ -2,10 +2,11 @@ import { useState, useRef } from 'react';
 import api from '../../api/client';
 import toast from 'react-hot-toast';
 
-function ImportSection({ title, endpoint, description, note }) {
+function ImportSection({ title, endpoint, deleteEndpoint, description, note, sourceSheet }) {
   const [file, setFile] = useState(null);
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const inputRef = useRef();
 
   const handleImport = async () => {
@@ -13,7 +14,7 @@ function ImportSection({ title, endpoint, description, note }) {
     setLoading(true);
     const form = new FormData();
     form.append('file', file);
-    if (endpoint.includes('expenses')) form.append('source_sheet', title.includes('2') ? 'ΕΞΟΔΑ2' : 'ΕΞΟΔΑ');
+    if (sourceSheet) form.append('source_sheet', sourceSheet);
     try {
       const res = await api.post(endpoint, form, { headers: { 'Content-Type': 'multipart/form-data' } });
       setResult(res.data);
@@ -25,15 +26,34 @@ function ImportSection({ title, endpoint, description, note }) {
     } finally { setLoading(false); }
   };
 
+  const handleDelete = async () => {
+    if (!window.confirm('Σίγουρα να διαγραφούν ΟΛΕΣ οι εγγραφές;')) return;
+    setDeleting(true);
+    try {
+      await api.delete(deleteEndpoint);
+      toast.success('Διαγράφηκαν όλες οι εγγραφές');
+      setResult(null);
+    } catch (e) {
+      toast.error('Σφάλμα διαγραφής');
+    } finally { setDeleting(false); }
+  };
+
   return (
     <div className="card space-y-4">
-      <div>
-        <h2 className="text-lg font-semibold">{title}</h2>
-        <p className="text-sm text-gray-500 mt-1">{description}</p>
-        {note && <p className="text-xs text-amber-600 mt-1 bg-amber-50 rounded p-2">⚠️ {note}</p>}
+      <div className="flex items-start justify-between">
+        <div>
+          <h2 className="text-lg font-semibold">{title}</h2>
+          <p className="text-sm text-gray-500 mt-1">{description}</p>
+          {note && <p className="text-xs text-amber-600 mt-1 bg-amber-50 rounded p-2">⚠️ {note}</p>}
+        </div>
+        <button onClick={handleDelete} disabled={deleting}
+          className="btn-danger btn-sm shrink-0 ml-4">
+          {deleting ? 'Διαγραφή...' : '🗑 Διαγραφή Όλων'}
+        </button>
       </div>
       <div className="flex items-center gap-3">
-        <input ref={inputRef} type="file" accept=".csv,.txt" onChange={e => setFile(e.target.files[0])}
+        <input ref={inputRef} type="file" accept=".csv,.txt"
+          onChange={e => setFile(e.target.files[0])}
           className="block text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-primary-50 file:text-primary-700 hover:file:bg-primary-100" />
         <button className="btn-primary" onClick={handleImport} disabled={!file || loading}>
           {loading ? 'Εισαγωγή...' : '📥 Εισαγωγή'}
@@ -70,19 +90,22 @@ export default function ImportPage() {
         <ImportSection
           title="Εισαγωγή ΕΣΟΔΑ"
           endpoint="/import/income"
-          description="CSV από το φύλλο ΕΣΟΔΑ. Η πρώτη γραμμή πρέπει να είναι τα headers."
+          deleteEndpoint="/import/income"
+          description="CSV από το φύλλο ΕΣΟΔΑ. Αναγνωρίζει αυτόματα ελληνικές ημερομηνίες (π.χ. 31-Ιουλ-2017) και ποσά με €."
         />
         <ImportSection
           title="Εισαγωγή ΕΞΟΔΑ"
           endpoint="/import/expenses"
+          deleteEndpoint="/import/expenses"
+          sourceSheet="ΕΞΟΔΑ"
           description="CSV από το φύλλο ΕΞΟΔΑ."
-          note="Το φύλλο ΕΞΟΔΑ έχει headers στη 2η γραμμή. Αν το CSV έχει μια κενή/άσχετη πρώτη γραμμή, η εφαρμογή την παραλείπει αυτόματα."
         />
         <ImportSection
           title="Εισαγωγή ΕΞΟΔΑ2"
           endpoint="/import/expenses"
-          description="CSV από το φύλλο ΕΞΟΔΑ2. Συγχωνεύεται με το ΕΞΟΔΑ."
-          note="Οι εγγραφές θα σημανθούν ως source_sheet=ΕΞΟΔΑ2 για διαχωρισμό."
+          deleteEndpoint="/import/expenses"
+          sourceSheet="ΕΞΟΔΑ2"
+          description="CSV από το φύλλο ΕΞΟΔΑ2. Προσοχή: το κουμπί 'Διαγραφή Όλων' διαγράφει ΚΑΙ τα ΕΞΟΔΑ2."
         />
       </div>
     </div>
