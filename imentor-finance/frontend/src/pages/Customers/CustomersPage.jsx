@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import axios from 'axios';
+import api from '../../api/client';
 import toast from 'react-hot-toast';
 
 const API = (path, opts = {}) =>
-  axios({ url: `/api${path}`, headers: { Authorization: 'Bearer ' + localStorage.getItem('token') }, ...opts });
+  api({ url: path, ...opts });
 
 const EMPTY_FORM = {
   name: '',

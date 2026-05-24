@@ -140,8 +140,9 @@ export default function EmailsPage() {
   }, [activeTab, loadLogs]);
 
   // Filter displayed rows by selected accountants (client-side)
+  // Key uses email-or-name fallback, must match what getKey() returns in the dropdown
   const displayedRows = selectedAccountants.length > 0
-    ? data.data.filter(r => selectedAccountants.includes(r.accountant_email))
+    ? data.data.filter(r => selectedAccountants.includes(r.accountant_email || r.accountant || ''))
     : data.data;
 
   const toggle = id => setSelected(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
