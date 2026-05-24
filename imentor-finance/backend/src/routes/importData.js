@@ -6,7 +6,7 @@ const Expense = require('../models/Expense');
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
 
-// Normalize row: trim all keys so ' ΠΟΣΟ' and 'ΠΟΣΟ' both work
+// Trim all keys in a CSV row — handles Google Sheets' leading-space column names
 function normalizeRow(row) {
   const out = {};
   for (const [k, v] of Object.entries(row)) {
@@ -25,7 +25,7 @@ function parseDate(v) {
   if (!v || String(v).trim() === '') return null;
   const s = String(v).trim();
 
-  // DD/MM/YYYY or DD-MM-YYYY or DD.MM.YYYY
+  // DD/MM/YYYY or DD-MM-YYYY or DD.MM.YYYY (numeric)
   const m1 = s.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{2,4})$/);
   if (m1) {
     let [, d, mo, y] = m1;
@@ -33,33 +33,45 @@ function parseDate(v) {
     return `${y}-${mo.padStart(2,'0')}-${d.padStart(2,'0')}`;
   }
 
-  // DD-GreekMonth-YYYY  e.g. 31-Ιουλ-2017
+  // DD-GreekMonth-YYYY  e.g. "31-Ιουλ-2017", "03-Αυγ-2017"
   const m2 = s.match(/^(\d{1,2})[- ]([^\d\s\-]+)[- ](\d{4})$/);
   if (m2) {
     const [, d, monthStr, y] = m2;
     const upper = monthStr.toUpperCase();
     const monthKey = Object.keys(GREEK_MONTHS).find(k => upper.startsWith(k));
-    if (monthKey) {
-      return `${y}-${GREEK_MONTHS[monthKey]}-${d.padStart(2,'0')}`;
-    }
+    if (monthKey) return `${y}-${GREEK_MONTHS[monthKey]}-${d.padStart(2,'0')}`;
   }
 
   // YYYY-MM-DD passthrough
   if (s.match(/^\d{4}-\d{2}-\d{2}$/)) return s;
-
   return null;
 }
 
 function parseNum(v) {
   if (!v || String(v).trim() === '') return null;
   let s = String(v).trim();
-  // Remove currency symbol, extra spaces, and dash-only values
+
+  // Remove currency symbols and whitespace
   s = s.replace(/[€$\s]/g, '').trim();
-  if (!s || s === '-' || s.replace(/-/g,'') === '') return null;
-  // Handle Greek number format: 1.234,56 → 1234.56
+  if (!s || /^-+$/.test(s) || s === '') return null;
+
+  // Detect Greek number format: dot = thousands separator, comma = decimal
   if (s.includes(',')) {
+    // Greek decimal: "1.234,56" → "1234.56"
     s = s.replace(/\./g, '').replace(',', '.');
+  } else {
+    // No comma — dots may be thousands separators
+    // Rule: if all segments separated by dots after the first are exactly 3 digits → thousands
+    const parts = s.split('.');
+    if (parts.length > 1) {
+      const allThousands = parts.slice(1).every(p => /^\d{3}$/.test(p));
+      if (allThousands) {
+        s = parts.join(''); // "1.000" → "1000", "1.234.567" → "1234567"
+      }
+      // else: last dot is decimal separator (e.g. "1.5")
+    }
   }
+
   const n = parseFloat(s);
   return isNaN(n) ? null : n;
 }
@@ -67,7 +79,7 @@ function parseNum(v) {
 // DELETE all income
 router.delete('/income', async (req, res) => {
   try {
-    const count = await Income.destroy({ where: {}, truncate: true });
+    await Income.destroy({ where: {}, truncate: true });
     res.json({ deleted: true });
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -91,22 +103,13 @@ router.post('/income', upload.single('file'), async (req, res) => {
 
     const content = req.file.buffer.toString('utf-8');
     const rawRecords = parse(content, {
-      columns: true,
-      skip_empty_lines: true,
-      trim: true,
-      bom: true,
-      relax_column_count: true
+      columns: true, skip_empty_lines: true, trim: true, bom: true, relax_column_count: true
     });
 
     const toInsert = rawRecords
-      .filter(raw => {
-        const r = normalizeRow(raw);
-        return r['ΕΠΩΝΥΜΙΑ ΠΕΛΑΤΗ ΧΟΝΔΡΙΚΗΣ'];
-      })
+      .filter(raw => normalizeRow(raw)['ΕΠΩΝΥΜΙΑ ΠΕΛΑΤΗ ΧΟΝΔΡΙΚΗΣ'])
       .map(raw => {
         const r = normalizeRow(raw);
-        const amountApp = parseNum(r['ΠΟΣΟ ΓΙΑ ΑΙΤΗΣΗ']);
-        const amountCollected = parseNum(r['ΠΟΣΟ']);
         return {
           customer_name:         r['ΕΠΩΝΥΜΙΑ ΠΕΛΑΤΗ ΧΟΝΔΡΙΚΗΣ'] || '',
           work_status:           r['ΚΑΤΑΣΤΑΣΗ ΕΡΓΑΣΙΑΣ'] || '',
@@ -119,7 +122,7 @@ router.post('/income', upload.single('file'), async (req, res) => {
           business_activity:     r['ΑΝΤΙΚΕΙΜΕΝΟ'] || '',
           accountant:            r['ΛΟΓΙΣΤΗΣ'] || '',
           accountant_email:      r['EMAIL ΛΟΓΙΣΤΗ'] || '',
-          amount_application:    amountApp,
+          amount_application:    parseNum(r['ΠΟΣΟ ΓΙΑ ΑΙΤΗΣΗ']),
           amount_implementation: parseNum(r['ΣΥΜΦΩΝΗΘΕΝ ΠΟΣΟ ΓΙΑ ΥΛΟΠΟΙΗΣΗ']),
           approval_date:         parseDate(r['Ημερομηνία Έγκρισης / Απόρριψης']),
           completion_deadline:   parseDate(r['Προθεσμία Ολοκλήρωσης']),
@@ -127,16 +130,17 @@ router.post('/income', upload.single('file'), async (req, res) => {
           total_debts:           parseNum(r['ΣΥΝΟΛΟ ΟΦΕΙΛΩΝ']),
           source_referral:       r['ΠΡΟΕΛΕΥΣΗ - ΣΥΣΤΑΣΗ'] || '',
           sales_agent:           r['Υπεύθυνος Πώλησης'] || '',
-          bonus:                 parseNum(r['BONUS']) ?? (amountApp ? amountApp * 0.05 : null),
+          bonus:                 parseNum(r['BONUS']),         // no auto-calc
           folder_agent:          r['Υπεύθυνος Φακέλου'] || '',
-          amount_collected:      amountCollected,
-          vat_amount:            parseNum(r['ΦΠΑ']) ?? (amountCollected ? amountCollected * 0.24 : null),
+          amount_collected:      parseNum(r['ΠΟΣΟ']),
+          vat_amount:            parseNum(r['ΦΠΑ']),          // no auto-calc
           service_type:          r['ΕΙΔΟΣ ΥΠΗΡΕΣΙΑΣ'] || '',
           targeting_category:    r['ΚΑΤΗΓΟΡΙΑ ΣΤΟΧΟΘΕΣΙΑΣ'] || '',
           sale_date:             parseDate(r['ΗΜ.ΝΙΑ ΠΩΛΗΣΗΣ']),
           description:           r['ΑΙΤΙΟΛΟΓΙΑ - ΠΕΡΙΓΡΑΦΗ'] || '',
           invoice_number:        r['Νο'] || '',
-          unsubscribe:           ['ναι','yes','true','1'].includes(String(r['UNSUBSCRIBE'] || '').toLowerCase().trim())
+          unsubscribe:           ['ναι','yes','true','1'].includes(
+                                   String(r['UNSUBSCRIBE'] || '').toLowerCase().trim())
         };
       });
 
@@ -155,11 +159,7 @@ router.post('/expenses', upload.single('file'), async (req, res) => {
 
     const content = req.file.buffer.toString('utf-8');
     const rawRecords = parse(content, {
-      columns: true,
-      skip_empty_lines: true,
-      trim: true,
-      bom: true,
-      relax_column_count: true
+      columns: true, skip_empty_lines: true, trim: true, bom: true, relax_column_count: true
     });
 
     const toInsert = rawRecords

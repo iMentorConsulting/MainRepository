@@ -26,12 +26,6 @@ router.get('/', async (req, res) => {
 router.post('/', async (req, res) => {
   try {
     const body = req.body;
-    if (body.amount_application && !body.bonus) {
-      body.bonus = parseFloat(body.amount_application) * 0.05;
-    }
-    if (body.amount_collected && !body.vat_amount) {
-      body.vat_amount = parseFloat(body.amount_collected) * 0.24;
-    }
     const record = await Income.create(body);
     res.status(201).json(record);
   } catch (e) {
@@ -54,8 +48,6 @@ router.put('/:id', async (req, res) => {
     const record = await Income.findByPk(req.params.id);
     if (!record) return res.status(404).json({ error: 'Δεν βρέθηκε' });
     const body = req.body;
-    if (body.amount_application) body.bonus = parseFloat(body.amount_application) * 0.05;
-    if (body.amount_collected) body.vat_amount = parseFloat(body.amount_collected) * 0.24;
     await record.update(body);
     res.json(record);
   } catch (e) {
