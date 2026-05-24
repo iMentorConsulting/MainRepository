@@ -2,6 +2,7 @@ const router = require('express').Router();
 const nodemailer = require('nodemailer');
 const { Op } = require('sequelize');
 const Income = require('../models/Income');
+const CommissionLog = require('../models/CommissionLog');
 
 function createTransport() {
   return nodemailer.createTransport({
@@ -83,6 +84,18 @@ router.post('/send', async (req, res) => {
         { where: { id: { [Op.in]: rows.map(r => r.id) } } }
       );
 
+      const year = new Date().getFullYear();
+      const month = new Date().getMonth() + 1;
+      await CommissionLog.create({
+        accountant_name: accountant,
+        accountant_email: email,
+        income_ids: rows.map(r => r.id),
+        total_amount: rows.reduce((s, r) => s + parseFloat(r.amount_collected || 0), 0),
+        records_count: rows.length,
+        year,
+        month
+      });
+
       results.push({ accountant, email, status: 'sent', count: rows.length });
     }
 
@@ -131,5 +144,32 @@ function buildEmailHtml(accountant, rows) {
   </body>
   </html>`;
 }
+
+router.get('/logs', async (req, res) => {
+  try {
+    const { year, month, accountant_email } = req.query;
+    const where = {};
+    if (year) where.year = parseInt(year);
+    if (month) where.month = parseInt(month);
+    if (accountant_email) where.accountant_email = accountant_email;
+    const logs = await CommissionLog.findAll({ where, order: [['createdAt', 'DESC']], limit: 200 });
+    res.json(logs);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+router.get('/accountants', async (req, res) => {
+  try {
+    const { Op } = require('sequelize');
+    const Income = require('../models/Income');
+    const rows = await Income.findAll({
+      attributes: ['accountant', 'accountant_email'],
+      where: { accountant: { [Op.ne]: null, [Op.ne]: '' } },
+      group: ['accountant', 'accountant_email'],
+      order: [['accountant', 'ASC']],
+      raw: true
+    });
+    res.json(rows);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
 
 module.exports = router;

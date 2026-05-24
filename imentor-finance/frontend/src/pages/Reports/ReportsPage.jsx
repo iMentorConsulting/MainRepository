@@ -4,8 +4,9 @@ import api from '../../api/client';
 
 const fmt = n => n != null ? Math.round(n).toLocaleString('el-GR') + ' €' : '—';
 const fmtPct = n => (n || 0).toFixed(1) + '%';
+const fmtMoney = n => Number(n).toLocaleString('el-GR', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) + ' €';
 
-const PALETTE = ['#6366f1','#10b981','#f59e0b','#f43f5e','#a855f7','#06b6d4','#ec4899','#84cc16','#f97316','#64748b'];
+const PALETTE = ['#6366f1','#10b981','#f59e0b','#f43f5e','#a855f7','#06b6d4'];
 
 const CustomTooltip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null;
@@ -31,51 +32,22 @@ const StatCard = ({ label, value, color }) => (
   </div>
 );
 
-export default function ReportsPage() {
-  const [year, setYear] = useState(new Date().getFullYear());
-  const [month, setMonth] = useState('');
-  const [monthly, setMonthly] = useState([]);
-  const [byService, setByService] = useState([]);
-  const [byAgent, setByAgent] = useState([]);
-  const [byExpCat, setByExpCat] = useState([]);
-  const [summary, setSummary] = useState(null);
+const RANK_BADGES = [
+  { label: '🥇 1ος', bg: 'bg-amber-50', text: 'text-amber-700', ring: 'ring-amber-300' },
+  { label: '🥈 2ος', bg: 'bg-slate-100', text: 'text-slate-600', ring: 'ring-slate-300' },
+  { label: '🥉 3ος', bg: 'bg-orange-50', text: 'text-orange-700', ring: 'ring-orange-300' },
+];
 
-  useEffect(() => {
-    const q = month ? `year=${year}&month=${month}` : `year=${year}`;
-    Promise.all([
-      api.get(`/reports/monthly?year=${year}`),
-      api.get(`/reports/by-service?${q}`),
-      api.get(`/reports/by-agent?${q}`),
-      api.get(`/reports/expenses-by-category?${q}`),
-      api.get(`/reports/summary?${q}`)
-    ]).then(([m, sv, ag, ec, sm]) => {
-      setMonthly(m.data.map(d => ({ ...d, name: d.month_name.slice(0, 3) })));
-      setByService(sv.data);
-      setByAgent(ag.data);
-      setByExpCat(ec.data);
-      setSummary(sm.data);
-    });
-  }, [year, month]);
-
-  const years = Array.from({ length: 6 }, (_, i) => new Date().getFullYear() - i);
-  const months = ['','01','02','03','04','05','06','07','08','09','10','11','12'];
-  const monthLabels = ['Όλοι οι μήνες','Ιαν','Φεβ','Μαρ','Απρ','Μαι','Ιουν','Ιουλ','Αυγ','Σεπ','Οκτ','Νοε','Δεκ'];
-
+function TabOverview({ year, setYear, month, setMonth, years, months, monthLabels, monthly, byService, byAgent, byExpCat, summary }) {
   return (
-    <div className="page">
-      <div className="page-header">
-        <div>
-          <h1 className="page-title">Αναφορές</h1>
-          <p className="page-sub">Ανάλυση εσόδων, εξόδων & κερδοφορίας</p>
-        </div>
-        <div className="flex gap-2">
-          <select className="input w-28" value={year} onChange={e => setYear(+e.target.value)}>
-            {years.map(y => <option key={y}>{y}</option>)}
-          </select>
-          <select className="input w-44" value={month} onChange={e => setMonth(e.target.value)}>
-            {months.map((m, i) => <option key={m} value={m}>{monthLabels[i]}</option>)}
-          </select>
-        </div>
+    <>
+      <div className="flex gap-2 mb-6">
+        <select className="input w-28" value={year} onChange={e => setYear(+e.target.value)}>
+          {years.map(y => <option key={y}>{y}</option>)}
+        </select>
+        <select className="input w-44" value={month} onChange={e => setMonth(e.target.value)}>
+          {months.map((m, i) => <option key={m} value={m}>{monthLabels[i]}</option>)}
+        </select>
       </div>
 
       {summary && (
@@ -196,6 +168,325 @@ export default function ReportsPage() {
           </table>
         </div>
       </div>
+    </>
+  );
+}
+
+function TabTopCustomers({ years }) {
+  const [year, setYear] = useState(new Date().getFullYear());
+  const [data, setData] = useState([]);
+  const [sortCol, setSortCol] = useState('income');
+  const [sortDir, setSortDir] = useState('desc');
+
+  useEffect(() => {
+    api.get(`/reports/by-customer?year=${year}`).then(r => setData(r.data)).catch(() => setData([]));
+  }, [year]);
+
+  const handleSort = col => {
+    if (sortCol === col) {
+      setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortCol(col);
+      setSortDir('desc');
+    }
+  };
+
+  const sorted = [...data].sort((a, b) => {
+    const av = a[sortCol] ?? 0;
+    const bv = b[sortCol] ?? 0;
+    if (typeof av === 'string') return sortDir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av);
+    return sortDir === 'asc' ? av - bv : bv - av;
+  });
+
+  const top3 = data.slice(0, 3);
+  const chartData = data.slice(0, 10).map(d => ({ name: d.customer_name, income: d.income }));
+
+  const SortIcon = ({ col }) => {
+    if (sortCol !== col) return <span className="text-slate-300 ml-1">↕</span>;
+    return <span className="text-indigo-500 ml-1">{sortDir === 'asc' ? '↑' : '↓'}</span>;
+  };
+
+  return (
+    <>
+      <div className="flex gap-2 mb-6">
+        <select className="input w-28" value={year} onChange={e => setYear(+e.target.value)}>
+          {years.map(y => <option key={y}>{y}</option>)}
+        </select>
+      </div>
+
+      {top3.length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          {top3.map((c, i) => {
+            const badge = RANK_BADGES[i];
+            return (
+              <div key={i} className={`card p-5 border-t-4 ${i === 0 ? 'border-amber-400' : i === 1 ? 'border-slate-400' : 'border-orange-400'}`}>
+                <div className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold mb-3 ring-1 ${badge.bg} ${badge.text} ${badge.ring}`}>
+                  {badge.label}
+                </div>
+                <div className="font-bold text-slate-800 text-sm mb-1 truncate">{c.customer_name}</div>
+                <div className="text-xs text-slate-400 mb-3">{c.vat_number}</div>
+                <div className="text-xl font-black text-emerald-600">{fmtMoney(c.income)}</div>
+                <div className="flex gap-3 mt-2">
+                  <span className="text-xs text-slate-400">{c.count} εγγραφές</span>
+                  <span className="text-xs text-slate-400">{c.service_count} υπηρεσίες</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {chartData.length > 0 && (
+        <div className="card p-6 mb-6">
+          <h2 className="section-title">Top 10 Πελάτες — Εισπράξεις {year}</h2>
+          <ResponsiveContainer width="100%" height={300}>
+            <BarChart data={chartData} layout="vertical" margin={{ left: 0, right: 20 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" horizontal={false} />
+              <XAxis type="number" tickFormatter={v => `${Math.round(v/1000)}k`} tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+              <YAxis type="category" dataKey="name" width={160} tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} />
+              <Tooltip content={<CustomTooltip />} />
+              <Bar dataKey="income" name="Εισπράξεις" radius={[0, 6, 6, 0]}>
+                {chartData.map((_, idx) => (
+                  <Cell key={idx} fill={PALETTE[idx % PALETTE.length]} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+
+      <div className="card overflow-hidden">
+        <div className="px-6 py-4 border-b border-slate-100">
+          <h2 className="section-title mb-0">Πλήρης Κατάταξη Πελατών {year}</h2>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr>
+                <th className="th">Κατάταξη</th>
+                {[
+                  { label: 'Πελάτης', col: 'customer_name' },
+                  { label: 'ΑΦΜ', col: 'vat_number' },
+                  { label: 'Εισπράξεις', col: 'income' },
+                  { label: 'Αρ. Εγγραφών', col: 'count' },
+                  { label: 'Υπηρεσίες', col: 'service_count' },
+                ].map(({ label, col }) => (
+                  <th key={col} className="th cursor-pointer select-none hover:text-indigo-600 transition-colors"
+                    onClick={() => handleSort(col)}>
+                    {label}<SortIcon col={col} />
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {sorted.map((row, i) => {
+                const originalRank = data.findIndex(d => d.vat_number === row.vat_number || d.customer_name === row.customer_name) + 1;
+                return (
+                  <tr key={i} className="tr">
+                    <td className="td">
+                      {originalRank <= 3 ? (
+                        <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold ring-1 ${RANK_BADGES[originalRank - 1].bg} ${RANK_BADGES[originalRank - 1].text} ${RANK_BADGES[originalRank - 1].ring}`}>
+                          {RANK_BADGES[originalRank - 1].label}
+                        </span>
+                      ) : (
+                        <span className="badge-gray">{originalRank}</span>
+                      )}
+                    </td>
+                    <td className="td font-semibold text-slate-800">{row.customer_name}</td>
+                    <td className="td text-slate-500 font-mono text-xs">{row.vat_number}</td>
+                    <td className="td font-bold text-emerald-600">{fmtMoney(row.income)}</td>
+                    <td className="td text-slate-500">{row.count}</td>
+                    <td className="td text-slate-500">{row.service_count}</td>
+                  </tr>
+                );
+              })}
+              {sorted.length === 0 && (
+                <tr><td colSpan={6} className="td text-center text-slate-400 py-10">Δεν υπάρχουν δεδομένα</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function TabAccountants({ years }) {
+  const [year, setYear] = useState(new Date().getFullYear());
+  const [month, setMonth] = useState('');
+  const [data, setData] = useState([]);
+
+  const months = ['','01','02','03','04','05','06','07','08','09','10','11','12'];
+  const monthLabels = ['Όλοι οι μήνες','Ιαν','Φεβ','Μαρ','Απρ','Μαι','Ιουν','Ιουλ','Αυγ','Σεπ','Οκτ','Νοε','Δεκ'];
+
+  useEffect(() => {
+    const q = month ? `year=${year}&month=${month}` : `year=${year}`;
+    api.get(`/reports/by-accountant?${q}`).then(r => setData(r.data)).catch(() => setData([]));
+  }, [year, month]);
+
+  return (
+    <>
+      <div className="flex gap-2 mb-6">
+        <select className="input w-28" value={year} onChange={e => setYear(+e.target.value)}>
+          {years.map(y => <option key={y}>{y}</option>)}
+        </select>
+        <select className="input w-44" value={month} onChange={e => setMonth(e.target.value)}>
+          {months.map((m, i) => <option key={m} value={m}>{monthLabels[i]}</option>)}
+        </select>
+        <button
+          className="ml-auto px-4 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold transition-colors"
+          onClick={() => window.print()}>
+          Εκτύπωση
+        </button>
+      </div>
+
+      {data.length === 0 && (
+        <div className="card p-10 text-center text-slate-400 text-sm">Δεν υπάρχουν δεδομένα</div>
+      )}
+
+      <div className="space-y-6">
+        {data.map((acc, ai) => {
+          const records = acc.records ?? [];
+          const total = acc.total ?? records.reduce((s, r) => s + Number(r.amount_collected || 0), 0);
+          return (
+            <div key={ai} className="card overflow-hidden">
+              <div className="px-6 py-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center text-sm font-black text-white shrink-0"
+                    style={{ background: `hsl(${220 + ai * 45}, 65%, 52%)` }}>
+                    {(acc.accountant || '?')[0]}
+                  </div>
+                  <div>
+                    <div className="font-bold text-slate-800">{acc.accountant}</div>
+                    {acc.email && <div className="text-xs text-slate-400">{acc.email}</div>}
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-xs text-slate-400 uppercase font-semibold tracking-wide">Σύνολο</div>
+                  <div className="text-lg font-black text-emerald-600">{fmtMoney(total)}</div>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr>
+                      {['Πελάτης','Υπηρεσία','Ποσό','Ημερομηνία','Αρ. Τιμολογίου','Κατάσταση'].map(h => (
+                        <th key={h} className="th">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {records.map((r, ri) => (
+                      <tr key={ri} className="tr">
+                        <td className="td font-medium text-slate-800">{r.customer_name}</td>
+                        <td className="td text-slate-500 text-xs">{r.service_type}</td>
+                        <td className="td font-bold text-emerald-600">{fmtMoney(r.amount_collected)}</td>
+                        <td className="td text-slate-500 text-xs">{r.sale_date ? new Date(r.sale_date).toLocaleDateString('el-GR') : '—'}</td>
+                        <td className="td text-slate-500 font-mono text-xs">{r.invoice_number || '—'}</td>
+                        <td className="td">
+                          {r.work_status ? (
+                            <span className={`badge ${r.work_status === 'Ολοκληρώθηκε' ? 'badge-green' : r.work_status === 'Σε εξέλιξη' ? 'badge-blue' : 'badge-gray'}`}>
+                              {r.work_status}
+                            </span>
+                          ) : '—'}
+                        </td>
+                      </tr>
+                    ))}
+                    {records.length === 0 && (
+                      <tr><td colSpan={6} className="td text-center text-slate-400 py-6">Δεν υπάρχουν εγγραφές</td></tr>
+                    )}
+                    {records.length > 0 && (
+                      <tr className="bg-slate-50 border-t-2 border-slate-200">
+                        <td className="td font-bold text-slate-700" colSpan={2}>Σύνολο</td>
+                        <td className="td font-black text-emerald-700">{fmtMoney(total)}</td>
+                        <td className="td" colSpan={3}></td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </>
+  );
+}
+
+const TABS = [
+  { id: 'overview', label: 'Επισκόπηση' },
+  { id: 'top-customers', label: 'Κορυφαίοι Πελάτες' },
+  { id: 'accountants', label: 'Αναφορά Λογιστών' },
+];
+
+export default function ReportsPage() {
+  const [activeTab, setActiveTab] = useState('overview');
+  const [year, setYear] = useState(new Date().getFullYear());
+  const [month, setMonth] = useState('');
+  const [monthly, setMonthly] = useState([]);
+  const [byService, setByService] = useState([]);
+  const [byAgent, setByAgent] = useState([]);
+  const [byExpCat, setByExpCat] = useState([]);
+  const [summary, setSummary] = useState(null);
+
+  useEffect(() => {
+    if (activeTab !== 'overview') return;
+    const q = month ? `year=${year}&month=${month}` : `year=${year}`;
+    Promise.all([
+      api.get(`/reports/monthly?year=${year}`),
+      api.get(`/reports/by-service?${q}`),
+      api.get(`/reports/by-agent?${q}`),
+      api.get(`/reports/expenses-by-category?${q}`),
+      api.get(`/reports/summary?${q}`)
+    ]).then(([m, sv, ag, ec, sm]) => {
+      setMonthly(m.data.map(d => ({ ...d, name: d.month_name.slice(0, 3) })));
+      setByService(sv.data);
+      setByAgent(ag.data);
+      setByExpCat(ec.data);
+      setSummary(sm.data);
+    });
+  }, [year, month, activeTab]);
+
+  const years = Array.from({ length: 6 }, (_, i) => new Date().getFullYear() - i);
+  const months = ['','01','02','03','04','05','06','07','08','09','10','11','12'];
+  const monthLabels = ['Όλοι οι μήνες','Ιαν','Φεβ','Μαρ','Απρ','Μαι','Ιουν','Ιουλ','Αυγ','Σεπ','Οκτ','Νοε','Δεκ'];
+
+  return (
+    <div className="page">
+      <div className="page-header">
+        <div>
+          <h1 className="page-title">Αναφορές</h1>
+          <p className="page-sub">Ανάλυση εσόδων, εξόδων & κερδοφορίας</p>
+        </div>
+      </div>
+
+      <div className="flex gap-1 border-b border-slate-200 mb-6">
+        {TABS.map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={`px-4 py-2.5 text-sm font-semibold rounded-t-lg transition-colors border-b-2 -mb-px ${
+              activeTab === tab.id
+                ? 'border-indigo-500 text-indigo-600 bg-indigo-50'
+                : 'border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-50'
+            }`}>
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {activeTab === 'overview' && (
+        <TabOverview
+          year={year} setYear={setYear}
+          month={month} setMonth={setMonth}
+          years={years} months={months} monthLabels={monthLabels}
+          monthly={monthly} byService={byService} byAgent={byAgent}
+          byExpCat={byExpCat} summary={summary}
+        />
+      )}
+      {activeTab === 'top-customers' && <TabTopCustomers years={years} />}
+      {activeTab === 'accountants' && <TabAccountants years={years} />}
     </div>
   );
 }

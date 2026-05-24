@@ -2,8 +2,9 @@ import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import api from '../../api/client';
 import toast from 'react-hot-toast';
+import CustomerSearch from '../../components/CustomerSearch';
 
-const TARGETING_OPTS = ['ΑΙΤΗΣΗ', 'ΥΛΟΠΟΙΗΣΗ'];
+const TARGETING_OPTS = ['ΑΙΤΗΣΗ', 'ΥΛΟΠΟΙΗΣΗ', 'ΠΩΛΗΣΗ ΑΙΤΗΣΗΣ', 'ΠΩΛΗΣΗ ΥΛΟΠΟΙΗΣΗΣ'];
 
 const SectionTitle = ({ children }) => (
   <div className="flex items-center gap-3 mb-4">
@@ -14,6 +15,8 @@ const SectionTitle = ({ children }) => (
 
 export default function IncomeForm({ record, onSave, onCancel }) {
   const [lists, setLists] = useState({});
+  const [customerLinked, setCustomerLinked] = useState(false);
+  const [autoTargeting, setAutoTargeting] = useState(true);
   const { register, handleSubmit, watch, setValue } = useForm({ defaultValues: record || {} });
 
   useEffect(() => {
@@ -35,6 +38,42 @@ export default function IncomeForm({ record, onSave, onCancel }) {
   useEffect(() => {
     if (amountCollected) setValue('vat_amount', (parseFloat(amountCollected) * 0.24).toFixed(2));
   }, [amountCollected]);
+
+  const amountImpl = watch('amount_implementation');
+  useEffect(() => {
+    if (!autoTargeting) return;
+    const impl = parseFloat(amountImpl);
+    const app = parseFloat(amountApp);
+    if (impl > 0) {
+      setValue('targeting_category', 'ΠΩΛΗΣΗ ΥΛΟΠΟΙΗΣΗΣ');
+    } else if (app > 0 && !(impl > 0)) {
+      setValue('targeting_category', 'ΠΩΛΗΣΗ ΑΙΤΗΣΗΣ');
+    }
+  }, [amountImpl, amountApp]);
+
+  const handleCustomerSelect = c => {
+    if (!c) {
+      setCustomerLinked(false);
+      return;
+    }
+    if (c._new) {
+      setValue('customer_name', c.name);
+      setCustomerLinked(false);
+      return;
+    }
+    setValue('customer_name', c.name);
+    if (c.vat_number) setValue('vat_number', c.vat_number);
+    if (c.email) setValue('email', c.email);
+    if (c.phone) setValue('phone', c.phone);
+    if (c.city) setValue('city', c.city);
+    if (c.postal_code) setValue('postal_code', c.postal_code);
+    if (c.address) setValue('address', c.address);
+    if (c.business_activity) setValue('business_activity', c.business_activity);
+    if (c.accountant) setValue('accountant', c.accountant);
+    if (c.accountant_email) setValue('accountant_email', c.accountant_email);
+    if (c.id) setValue('customer_id', c.id);
+    setCustomerLinked(true);
+  };
 
   const onSubmit = async data => {
     try {
@@ -69,7 +108,17 @@ export default function IncomeForm({ record, onSave, onCancel }) {
       <div>
         <SectionTitle>Στοιχεία Πελάτη</SectionTitle>
         <div className="grid grid-cols-2 gap-4">
-          <F label="Επωνυμία Πελάτη" name="customer_name" required />
+          <div className="col-span-2">
+            <label className="label">Αναζήτηση Πελάτη</label>
+            <CustomerSearch
+              value={record?.customer_name || ''}
+              onSelect={handleCustomerSelect}
+            />
+            {customerLinked && (
+              <p className="text-xs text-green-600 mt-1">Πελάτης συνδέθηκε από βάση δεδομένων</p>
+            )}
+          </div>
+          <F label="Επωνυμία *" name="customer_name" required />
           <S label="Κατάσταση Εργασίας" name="work_status" opts={lists['ΚΑΤΑΣΤΑΣΗ_ΕΡΓΑΣΙΑΣ']} />
           <F label="Email" name="email" type="email" />
           <F label="Κινητό" name="phone" type="tel" />
@@ -92,7 +141,13 @@ export default function IncomeForm({ record, onSave, onCancel }) {
           <F label="Σύνολο Οφειλών (€)" name="total_debts" type="number" />
           <F label="Ποσό Είσπραξης (€)" name="amount_collected" type="number" required />
           <F label="ΦΠΑ (€)" name="vat_amount" type="number" />
-          <S label="Κατηγορία Στοχοθεσίας" name="targeting_category" opts={TARGETING_OPTS} />
+          <div>
+            <label className="label">Κατηγορία Στοχοθεσίας</label>
+            <select className="input" {...register('targeting_category')} onChange={e => { setAutoTargeting(false); setValue('targeting_category', e.target.value); }}>
+              <option value="">— Επιλογή —</option>
+              {TARGETING_OPTS.map(o => <option key={o} value={o}>{o}</option>)}
+            </select>
+          </div>
         </div>
       </div>
 

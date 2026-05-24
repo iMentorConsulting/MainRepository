@@ -6,6 +6,9 @@ const sequelize = require('./config/db');
 require('./models/Income');
 require('./models/Expense');
 require('./models/ListItem');
+require('./models/CommissionLog');
+require('./models/Customer');
+require('./models/ServiceAgreement');
 
 const authMiddleware = require('./middleware/auth');
 
@@ -21,6 +24,8 @@ app.use('/api/invoices',   authMiddleware, require('./routes/invoices'));
 app.use('/api/emails',     authMiddleware, require('./routes/emails'));
 app.use('/api/reports',    authMiddleware, require('./routes/reports'));
 app.use('/api/import',     authMiddleware, require('./routes/importData'));
+app.use('/api/customers',          authMiddleware, require('./routes/customers'));
+app.use('/api/service-agreements', authMiddleware, require('./routes/serviceAgreements'));
 
 app.get('/health', (_, res) => res.json({ ok: true }));
 
@@ -33,7 +38,7 @@ if (process.env.NODE_ENV === 'production') {
 
 const PORT = process.env.PORT || 3001;
 
-sequelize.sync({ alter: false }).then(async () => {
+sequelize.sync({ alter: true }).then(async () => {
   console.log('Database connected & synced');
   app.listen(PORT, () => console.log(`Backend running on port ${PORT}`));
 }).catch(err => {

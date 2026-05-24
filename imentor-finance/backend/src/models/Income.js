@@ -34,7 +34,9 @@ const Income = sequelize.define('Income', {
   unsubscribe:             { type: DataTypes.BOOLEAN, defaultValue: false },
   elorus_invoice_id:       { type: DataTypes.STRING },
   accountant_notified:     { type: DataTypes.BOOLEAN, defaultValue: false },
-  accountant_notified_at:  { type: DataTypes.DATE }
+  accountant_notified_at:  { type: DataTypes.DATE },
+  customer_id:           { type: DataTypes.INTEGER },
+  service_agreement_id:  { type: DataTypes.INTEGER }
 }, {
   tableName: 'income',
   timestamps: true
