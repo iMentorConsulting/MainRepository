@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { Link } from 'react-router-dom'
-import { getCases, updateCase, getUsers, sendNotification } from '../api'
+import { getCases, updateCase, getUsers, sendNotification, getCaseFilterOptions } from '../api'
 import { PIPELINES } from '../pipelines'
 import {
   ClockIcon,
@@ -312,6 +312,7 @@ function PhaseColumn({ phase, casesByStatus, onMoved, pipeline }) {
 export default function Kanban() {
   const [activeProgram, setActiveProgram] = useState('ΕΣΠΑ')
   const [cases, setCases] = useState([])
+  const [filterOptions, setFilterOptions] = useState({ service_types: [] })
   const [loading, setLoading] = useState(true)
   const [agents, setAgents] = useState([])
   const [filterAgent, setFilterAgent] = useState('')
@@ -334,6 +335,7 @@ export default function Kanban() {
 
   useEffect(() => { load() }, [load])
   useEffect(() => { getUsers().then(setAgents).catch(() => {}) }, [])
+  useEffect(() => { getCaseFilterOptions().then(setFilterOptions).catch(() => {}) }, [])
 
   const handleMoved = useCallback((caseId, newStatus) => {
     setCases(prev => prev.map(c => c.id === caseId ? { ...c, status: newStatus } : c))
@@ -408,7 +410,7 @@ export default function Kanban() {
         </div>
         <select className="input w-auto text-sm" value={filterService} onChange={e => setFilterService(e.target.value)}>
           <option value="">Όλα τα Προγράμματα</option>
-          {[...new Set(cases.map(c => c.service_type).filter(Boolean))].sort().map(s => (
+          {filterOptions.service_types.map(s => (
             <option key={s} value={s}>{s}</option>
           ))}
         </select>

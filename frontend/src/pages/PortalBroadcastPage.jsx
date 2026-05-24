@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo, useRef } from 'react'
-import { getCases, bulkActivateNotify, activateAllPortals } from '../api'
+import { getCases, bulkActivateNotify, activateAllPortals, getCaseFilterOptions } from '../api'
 import {
   GlobeAltIcon,
   CheckCircleIcon,
@@ -152,6 +152,7 @@ function MultiSelectDropdown({ label, options, selected, onChange, maxW = 'min-w
 
 export default function PortalBroadcastPage() {
   const [cases, setCases] = useState([])
+  const [filterOptions, setFilterOptions] = useState({ service_types: [], statuses: [], programs: [] })
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [filterProgram, setFilterProgram] = useState(new Set())
@@ -181,20 +182,11 @@ export default function PortalBroadcastPage() {
       .finally(() => setLoading(false))
   }, [])
 
-  const allPrograms = useMemo(() => {
-    const s = new Set(cases.map(c => c.program_category).filter(Boolean))
-    return [...s].sort()
-  }, [cases])
+  useEffect(() => { getCaseFilterOptions().then(setFilterOptions).catch(() => {}) }, [])
 
-  const allServices = useMemo(() => {
-    const s = new Set(cases.map(c => c.service_type).filter(Boolean))
-    return [...s].sort((a, b) => a.localeCompare(b, 'el'))
-  }, [cases])
-
-  const allStatuses = useMemo(() => {
-    const s = new Set(cases.map(c => c.status).filter(Boolean))
-    return [...s].sort((a, b) => a.localeCompare(b, 'el'))
-  }, [cases])
+  const allPrograms = filterOptions.programs
+  const allServices = filterOptions.service_types
+  const allStatuses = filterOptions.statuses
 
   const filtered = useMemo(() => {
     const arr = cases.filter(c => {
