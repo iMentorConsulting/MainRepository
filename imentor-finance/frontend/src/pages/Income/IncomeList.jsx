@@ -3,6 +3,7 @@ import api from '../../api/client';
 import Modal from '../../components/Modal';
 import IncomeForm from './IncomeForm';
 import toast from 'react-hot-toast';
+import ElorusActionsButton from '../../components/ElorusActionsButton';
 
 const now = new Date();
 const fmtNum = n => n != null && n !== '' ? Number(n).toLocaleString('el-GR', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) : '—';
@@ -140,7 +141,7 @@ export default function IncomeList() {
                 <SortTh label="Αίτ." field="amount_application" sort={sort} onSort={handleSort} className="text-right" />
                 <SortTh label="Υλ." field="amount_implementation" sort={sort} onSort={handleSort} className="text-right" />
                 <SortTh label="Ποσό" field="amount_collected" sort={sort} onSort={handleSort} className="text-right" />
-                <th className="th w-16"></th>
+                <th className="th w-24"></th>
               </tr>
             </thead>
             <tbody>
@@ -172,7 +173,8 @@ export default function IncomeList() {
                     {r.bonus > 0 && <div className="text-xs text-amber-500 whitespace-nowrap">+{fmtNum(r.bonus)} bonus</div>}
                   </td>
                   <td className="td">
-                    <div className="flex gap-1">
+                    <div className="flex items-center gap-1">
+                      <ElorusActionsButton record={r} onRefresh={load} />
                       <button onClick={() => setModal({ open: true, record: r })} className="btn-ghost btn-sm p-2 rounded-lg">
                         <svg viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5"><path d="M13.488 2.513a1.75 1.75 0 0 0-2.475 0L6.75 6.774a2.75 2.75 0 0 0-.596.892l-.633 1.73a.75.75 0 0 0 .963.963l1.73-.633a2.75 2.75 0 0 0 .892-.596l4.261-4.262a1.75 1.75 0 0 0 0-2.475ZM4.75 3.5c-.69 0-1.25.56-1.25 1.25v6.5c0 .69.56 1.25 1.25 1.25h6.5c.69 0 1.25-.56 1.25-1.25V9A.75.75 0 0 1 14 9v2.25A2.75 2.75 0 0 1 11.25 14h-6.5A2.75 2.75 0 0 1 2 11.25v-6.5A2.75 2.75 0 0 1 4.75 2H7a.75.75 0 0 1 0 1.5H4.75Z"/></svg>
                       </button>
