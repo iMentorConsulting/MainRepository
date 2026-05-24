@@ -250,6 +250,19 @@ def bc_to_dict(b: CMBudgetCategory) -> dict:
     }
 
 
+@router.get("/filter-options")
+def get_filter_options(
+    current_user: CMUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Return all distinct filter values from ALL cases — not limited by page size."""
+    from sqlalchemy import distinct
+    service_types = [r[0] for r in db.query(distinct(CMCase.service_type)).filter(CMCase.service_type.isnot(None)).order_by(CMCase.service_type).all() if r[0]]
+    statuses = [r[0] for r in db.query(distinct(CMCase.status)).filter(CMCase.status.isnot(None)).order_by(CMCase.status).all() if r[0]]
+    programs = [r[0] for r in db.query(distinct(CMCase.program_category)).filter(CMCase.program_category.isnot(None)).order_by(CMCase.program_category).all() if r[0]]
+    return {"service_types": service_types, "statuses": statuses, "programs": programs}
+
+
 @router.get("/")
 def list_cases(
     status: Optional[str] = Query(None),
@@ -892,6 +905,12 @@ def delete_document(
     d = db.query(CMDocument).filter(CMDocument.id == doc_id, CMDocument.case_id == case_id).first()
     if not d:
         raise HTTPException(status_code=404, detail="Έγγραφο δεν βρέθηκε")
+    if getattr(d, "drive_file_id", None):
+        try:
+            from drive_storage import delete_file as _drive_del
+            _drive_del(d.drive_file_id)
+        except Exception:
+            pass
     db.delete(d)
     db.commit()
     return {"message": "Έγγραφο διαγράφηκε"}

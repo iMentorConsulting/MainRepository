@@ -44,6 +44,7 @@ export const deleteUser = (id) => api.delete(`/api/cm/users/${id}`).then(r => r.
 
 // Cases
 export const getCases = (params) => api.get('/api/cm/cases/', { params }).then(r => r.data)
+export const getCaseFilterOptions = () => api.get('/api/cm/cases/filter-options').then(r => r.data)
 export const getCase = (id) => api.get(`/api/cm/cases/${id}`).then(r => r.data)
 export const createCase = (data) => api.post('/api/cm/cases/', data).then(r => r.data)
 export const updateCase = (id, data) => api.put(`/api/cm/cases/${id}`, data).then(r => r.data)

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { getCases, getUsers, deleteCase, createCase, updateCase, getPipelines, sendNotification } from '../api'
+import { getCases, getUsers, deleteCase, createCase, updateCase, getPipelines, sendNotification, getCaseFilterOptions } from '../api'
 import { PIPELINES } from '../pipelines'
 import { MagnifyingGlassIcon, PlusIcon, TrashIcon, FolderOpenIcon, BoltIcon, ChevronDownIcon, ChevronUpIcon, CheckIcon } from '@heroicons/react/24/outline'
 import toast from 'react-hot-toast'
@@ -261,6 +261,7 @@ function NewCaseModal({ agents, onClose, onSaved }) {
 
 export default function Cases() {
   const [allCases, setAllCases] = useState([])
+  const [filterOptions, setFilterOptions] = useState({ service_types: [], statuses: [], programs: [] })
   const [agents, setAgents] = useState([])
   const [livePipelines, setLivePipelines] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -316,6 +317,7 @@ export default function Cases() {
 
   useEffect(() => { load(); setSelectedIds(new Set()) }, [load])
   useEffect(() => { getUsers().then(setAgents).catch(() => {}) }, [])
+  useEffect(() => { getCaseFilterOptions().then(setFilterOptions).catch(() => {}) }, [])
 
   const handleDelete = async (e, id) => {
     e.preventDefault(); e.stopPropagation()
@@ -356,8 +358,8 @@ export default function Cases() {
     load()
   }
 
-  const serviceTypes = [...new Set(allCases.map(c => c.service_type).filter(Boolean))].sort()
-  const availableStatuses = [...new Set(allCases.map(c => c.status).filter(Boolean))].sort()
+  const serviceTypes = filterOptions.service_types
+  const availableStatuses = filterOptions.statuses
 
   return (
     <div className="space-y-5">
