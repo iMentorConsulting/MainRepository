@@ -45,7 +45,7 @@ function DrilldownModal({ agent, month, monthName, year, onClose }) {
     <div className="space-y-4">
       <div className="rounded-xl p-4 space-y-2 text-sm" style={{ background: 'linear-gradient(135deg, rgba(99,102,241,0.08), rgba(139,92,246,0.08))', border: '1px solid rgba(99,102,241,0.15)' }}>
         <div className="flex justify-between">
-          <span className="text-slate-500">Πράκτορας</span>
+          <span className="text-slate-500">Σύμβουλος</span>
           <span className="font-bold text-slate-800">{agent}</span>
         </div>
         <div className="flex justify-between">
@@ -180,7 +180,7 @@ export default function BonusReport() {
       )}
 
       <div className="card p-6">
-        <h2 className="section-title">Μηνιαίο Bonus ανά Πράκτορα — {year}</h2>
+        <h2 className="section-title">Μηνιαίο Bonus ανά Σύμβουλο — {year}</h2>
         <ResponsiveContainer width="100%" height={320}>
           <BarChart data={chartData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
@@ -203,7 +203,7 @@ export default function BonusReport() {
           <table className="w-full">
             <thead>
               <tr>
-                <th className="th">Πράκτορας</th>
+                <th className="th">Σύμβουλος</th>
                 {monthNames.map(m => <th key={m} className="th text-center">{m}</th>)}
                 <th className="th text-right">Σύνολο</th>
               </tr>

@@ -1,6 +1,58 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import api from '../api/client';
+
+function MultiSelectDropdown({ label, options, selected, onChange, getKey, getLabel }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    const handler = e => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const allSelected = selected.length === 0;
+  const displayLabel = allSelected
+    ? label
+    : selected.length === 1
+      ? getLabel(options.find(o => getKey(o) === selected[0]) || {})
+      : `${selected.length} επιλεγμένα`;
+
+  const toggle = key => onChange(selected.includes(key) ? selected.filter(k => k !== key) : [...selected, key]);
+
+  return (
+    <div className="relative" ref={ref}>
+      <button type="button"
+        className="input flex items-center justify-between gap-2 min-w-[110px] text-left"
+        onClick={() => setOpen(v => !v)}>
+        <span className={`truncate text-sm ${allSelected ? 'text-slate-400' : 'text-slate-700'}`}>{displayLabel}</span>
+        <svg viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5 text-slate-400 shrink-0">
+          <path fillRule="evenodd" d="M4.22 6.22a.75.75 0 0 1 1.06 0L8 8.94l2.72-2.72a.75.75 0 1 1 1.06 1.06l-3.25 3.25a.75.75 0 0 1-1.06 0L4.22 7.28a.75.75 0 0 1 0-1.06Z" clipRule="evenodd"/>
+        </svg>
+      </button>
+      {open && (
+        <div className="absolute z-50 top-full mt-1 left-0 min-w-[160px] bg-white border border-slate-200 rounded-xl shadow-lg py-1 max-h-64 overflow-y-auto">
+          <label className="flex items-center gap-2.5 px-3 py-2 hover:bg-slate-50 cursor-pointer border-b border-slate-100">
+            <input type="checkbox" checked={allSelected} onChange={() => onChange([])}
+              className="w-4 h-4 rounded border-slate-300 text-primary-600" />
+            <span className="text-sm text-slate-600 font-medium">{label}</span>
+          </label>
+          {options.map(opt => {
+            const key = getKey(opt);
+            return (
+              <label key={key} className="flex items-center gap-2.5 px-3 py-2 hover:bg-slate-50 cursor-pointer">
+                <input type="checkbox" checked={selected.includes(key)} onChange={() => toggle(key)}
+                  className="w-4 h-4 rounded border-slate-300 text-primary-600" />
+                <span className="text-sm text-slate-700">{getLabel(opt)}</span>
+              </label>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
 
 const fmt = n => n != null ? Math.round(n).toLocaleString('el-GR') + ' €' : '—';
 const fmtK = n => {
@@ -52,8 +104,19 @@ const CustomTooltip = ({ active, payload, label }) => {
 
 export default function Dashboard() {
   const [year, setYear] = useState(new Date().getFullYear());
+  const [selectedMonths, setSelectedMonths] = useState([]);
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+
+  const yearOptions = Array.from({ length: 6 }, (_, i) => ({ value: String(new Date().getFullYear() - i), label: String(new Date().getFullYear() - i) }));
+  const monthOptions = [
+    { value: '1', label: 'Ιανουάριος' }, { value: '2', label: 'Φεβρουάριος' },
+    { value: '3', label: 'Μάρτιος' }, { value: '4', label: 'Απρίλιος' },
+    { value: '5', label: 'Μάιος' }, { value: '6', label: 'Ιούνιος' },
+    { value: '7', label: 'Ιούλιος' }, { value: '8', label: 'Αύγουστος' },
+    { value: '9', label: 'Σεπτέμβριος' }, { value: '10', label: 'Οκτώβριος' },
+    { value: '11', label: 'Νοέμβριος' }, { value: '12', label: 'Δεκέμβριος' },
+  ];
   const [summary, setSummary] = useState(null);
   const [monthly, setMonthly] = useState([]);
   const [byService, setByService] = useState([]);
@@ -78,6 +141,8 @@ export default function Dashboard() {
   useEffect(() => {
     const buildParams = (base) => {
       const p = new URLSearchParams(base);
+      if (selectedMonths.length === 1) p.set('month', selectedMonths[0]);
+      else if (selectedMonths.length > 1) p.set('months', selectedMonths.join(','));
       if (dateFrom) p.set('date_from', dateFrom);
       if (dateTo) p.set('date_to', dateTo);
       return p.toString();
@@ -93,7 +158,7 @@ export default function Dashboard() {
       setByService(sv.data.slice(0, 7));
       setByAgent(ag.data.slice(0, 6));
     });
-  }, [year, dateFrom, dateTo]);
+  }, [year, selectedMonths, dateFrom, dateTo]);
 
   useEffect(() => {
     api.get('/reports/summary', { params: { year: now.getFullYear(), month: currentMonth } })
@@ -139,8 +204,6 @@ export default function Dashboard() {
       .sort((a, b) => b.year - a.year);
   }, [allIncome, allExpenses]);
 
-  const years = Array.from({ length: 6 }, (_, i) => new Date().getFullYear() - i);
-
   return (
     <div className="page">
       <div className="page-header">
@@ -150,8 +213,16 @@ export default function Dashboard() {
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <select value={year} onChange={e => setYear(+e.target.value)} className="input w-28">
-            {years.map(y => <option key={y}>{y}</option>)}
+            {yearOptions.map(y => <option key={y.value} value={y.value}>{y.label}</option>)}
           </select>
+          <MultiSelectDropdown
+            label="Όλοι οι μήνες"
+            options={monthOptions}
+            selected={selectedMonths}
+            onChange={setSelectedMonths}
+            getKey={o => o.value}
+            getLabel={o => o.label}
+          />
           <div className="flex items-center gap-1 text-slate-400 text-xs">ή</div>
           <div className="flex items-center gap-1">
             <input type="date" className="input w-36 text-sm" value={dateFrom} onChange={e => setDateFrom(e.target.value)} placeholder="Από" />
@@ -293,7 +364,7 @@ export default function Dashboard() {
 
         {/* By Agent */}
         <div className="card p-6">
-          <h2 className="section-title">Αποτελέσματα ανά Πράκτορα</h2>
+          <h2 className="section-title">Αποτελέσματα ανά Σύμβουλο</h2>
           <div className="space-y-2">
             {byAgent.map((a, i) => (
               <div key={i} className="flex items-center justify-between p-3 rounded-xl bg-slate-50 hover:bg-slate-100 transition-colors">

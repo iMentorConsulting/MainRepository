@@ -203,13 +203,12 @@ export default function EmailsPage() {
         </div>
         {activeTab === 'send' && (
           <div className="flex gap-2">
-            <button className="btn-secondary" onClick={handlePreview} disabled={selected.size === 0}>
+            <button className="btn-secondary" onClick={() => { if (selected.size === 0) { toast.error('Επιλέξτε εγγραφές για προεπισκόπηση'); return; } handlePreview(); }}>
               Προεπισκόπηση
               {selected.size > 0 && <span className="ml-1.5 bg-slate-200 text-slate-700 text-xs rounded-full px-1.5 py-0.5">{selected.size}</span>}
             </button>
-            <button className="btn-primary" onClick={handleSend} disabled={selected.size === 0 || sending}>
-              {sending ? 'Αποστολή...' : 'Αποστολή Email'}
-              {selected.size > 0 && !sending && <span className="ml-1.5 bg-white/20 text-white text-xs rounded-full px-1.5 py-0.5">{selected.size}</span>}
+            <button className="btn-primary" onClick={() => { if (selected.size === 0) { toast.error('Επιλέξτε εγγραφές για αποστολή'); return; } handleSend(); }} disabled={sending}>
+              {sending ? 'Αποστολή...' : `Αποστολή Email (${selected.size})`}
             </button>
           </div>
         )}
