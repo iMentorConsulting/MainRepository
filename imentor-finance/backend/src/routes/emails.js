@@ -175,33 +175,127 @@ function buildSectionHtml(rows, color, title) {
     </div>`;
 }
 
-function buildEmailHtml(accountant, rows) {
+function buildEmailHtml(accountant, rows, customFinancingHtml) {
+  const today = new Date().toLocaleDateString('el-GR', { day: '2-digit', month: '2-digit', year: 'numeric' });
   const deduped = deduplicateRows(rows);
-  const inProgress = deduped.filter(r => !COMPLETED_STATUSES.includes((r.work_status || '').toUpperCase().trim()));
-  const completed = deduped.filter(r => COMPLETED_STATUSES.includes((r.work_status || '').toUpperCase().trim()));
+  const inProgress = deduped.filter(r => !COMPLETED_STATUSES.includes((r.work_status || '').trim()));
+  const completed = deduped.filter(r => COMPLETED_STATUSES.includes((r.work_status || '').trim()));
 
-  const programs = `
-    <div style="margin-top:28px;padding:14px 18px;background:#f0f4ff;border-left:4px solid #3f51b5;border-radius:4px;font-size:13px;color:#333">
-      <strong>Χρηματοδοτικά Εργαλεία i-Mentor:</strong><br>
-      Επιδότηση Ανακαίνισης · Μικροδάνεια · Τουρισμός · Μεταποίηση · Αγροτικά · Εξοικονόμηση Ενέργειας
-      <br><a href="https://i-mentor.gr" style="color:#3f51b5">www.i-mentor.gr</a>
+  const financingHtml = customFinancingHtml || `
+    <div style="margin-top:32px;padding:0">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
+        <div style="width:28px;height:28px;background:#d32f2f;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+          <span style="color:#fff;font-size:14px;font-weight:bold">★</span>
+        </div>
+        <h2 style="margin:0;font-size:17px;font-weight:700;color:#1a237e">Νέα Χρηματοδοτικά Προγράμματα από την i-Mentor</h2>
+      </div>
+      <hr style="border:none;border-top:2px dashed #1a237e;margin:0 0 20px 0">
+
+      <div style="margin-bottom:16px">
+        <p style="margin:0 0 6px 0;font-size:14px;font-weight:700;color:#333">• Ανακαίνιση Παλαιών Κατοικιών 36.000€</p>
+        <ul style="margin:4px 0 4px 20px;padding:0;font-size:13px;color:#555">
+          <li>Επιχορήγηση 70%-90% για ενεργειακή και λειτουργική αναβάθμιση κατοικιών</li>
+          <li>Ιδανικό για ιδιοκτήτες που θέλουν αναβάθμιση ακινήτου</li>
+          <li>Προτεραιότητα στα κλειστά ακίνητα</li>
+        </ul>
+        <a href="https://i-mentor.gr" style="color:#1565c0;font-size:13px;text-decoration:none">→ Δείτε περισσότερα</a>
+      </div>
+
+      <div style="margin-bottom:16px">
+        <p style="margin:0 0 6px 0;font-size:14px;font-weight:700;color:#333">• Ταμείο Μικροπιστώσεων 25.000€</p>
+        <ul style="margin:4px 0 4px 20px;padding:0;font-size:13px;color:#555">
+          <li>Επιχειρηματικά Δάνεια</li>
+          <li>Διαδικασία online μέσω ΤΜΕΔΕ - AFI - MICROSMART</li>
+          <li>ΤΕΠΙΧ ΙΙΙ - Ελληνική Αναπτυξιακή Τράπεζα</li>
+        </ul>
+        <a href="https://i-mentor.gr" style="color:#1565c0;font-size:13px;text-decoration:none">→ Δείτε περισσότερα</a>
+      </div>
+
+      <div style="margin-bottom:16px">
+        <p style="margin:0 0 6px 0;font-size:14px;font-weight:700;color:#333">• Παράγομε Ελλάδα | 50% έως 200.000€ Επιχορήγηση</p>
+        <ul style="margin:4px 0 4px 20px;padding:0;font-size:13px;color:#555">
+          <li>Αφορά μόνο Μεταποιητικές Επιχειρήσεις</li>
+          <li>Χρηματοδότηση για εξοπλισμό &amp; ανάπτυξη</li>
+          <li>Προθεσμία αιτήσεων έως 2 Ιουνίου 2026</li>
+        </ul>
+        <a href="https://i-mentor.gr" style="color:#1565c0;font-size:13px;text-decoration:none">→ Δείτε περισσότερα</a>
+      </div>
+
+      <div style="margin-bottom:16px">
+        <p style="margin:0 0 6px 0;font-size:14px;font-weight:700;color:#333">• Επιχειρώ Πράσινα στην Κρήτη | 50% έως 200.000€ Επιχορήγηση</p>
+        <ul style="margin:4px 0 4px 20px;padding:0;font-size:13px;color:#555">
+          <li>Αφορά Ξενοδοχεία &amp; Μεταποίηση στην Κρήτη</li>
+          <li>Προθεσμία αιτήσεων έως 28 Μαΐου 2026</li>
+        </ul>
+        <a href="https://i-mentor.gr" style="color:#1565c0;font-size:13px;text-decoration:none">→ Δείτε περισσότερα</a>
+      </div>
+
+      <div style="margin-bottom:16px">
+        <p style="margin:0 0 6px 0;font-size:14px;font-weight:700;color:#333">• Έναρξη Επιχείρησης από Πτυχιούχους</p>
+        <ul style="margin:4px 0 4px 20px;padding:0;font-size:13px;color:#555">
+          <li>Επιχορήγηση για δημιουργία νέας επιχείρησης</li>
+          <li>Αφορά Πτυχιούχους για έναρξη επιχείρησης στον τομέα τους</li>
+        </ul>
+        <a href="https://i-mentor.gr" style="color:#1565c0;font-size:13px;text-decoration:none">→ Δείτε περισσότερα</a>
+      </div>
+
+      <div style="margin-bottom:16px">
+        <p style="margin:0 0 6px 0;font-size:14px;font-weight:700;color:#333">• Υπηρεσία Ρύθμισης Οφειλών μέσω Εξωδικαστικού Μηχανισμού</p>
+        <ul style="margin:4px 0 4px 20px;padding:0;font-size:13px;color:#555">
+          <li>Ρύθμιση οφειλών σε Εφορία, ΚΕΑΟ, Τράπεζες &amp; Funds</li>
+          <li>Έως 240 δόσεις για Δημόσιο και 420 για τράπεζες</li>
+          <li>Αξιολόγηση επιλεξιμότητας &amp; πλήρης υποστήριξη από i-Mentor</li>
+        </ul>
+        <a href="https://i-mentor.gr" style="color:#1565c0;font-size:13px;text-decoration:none">→ Δείτε περισσότερα</a>
+      </div>
+
+      <div style="margin-bottom:16px">
+        <p style="margin:0 0 6px 0;font-size:14px;font-weight:700;color:#333">• Πτώχευση ιδιωτών Μικρού Αντικειμένου</p>
+        <ul style="margin:4px 0 4px 20px;padding:0;font-size:13px;color:#555">
+          <li>Δικαστική διαδικασία με πλήρη μηδενισμό οφειλών</li>
+          <li>Η i-Mentor Consulting αναλαμβάνει συνολικά τη διαδικασία</li>
+        </ul>
+        <a href="https://i-mentor.gr" style="color:#1565c0;font-size:13px;text-decoration:none">→ Δείτε περισσότερα</a>
+      </div>
+
+      <div style="text-align:right;margin-top:24px">
+        <a href="https://i-mentor.gr/contact" style="display:inline-block;background:#1565c0;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;font-size:14px;font-weight:600">📞 Επικοινωνήστε μαζί μας</a>
+      </div>
     </div>`;
 
   return `<!DOCTYPE html>
 <html lang="el">
-<head><meta charset="UTF-8">
-<style>
-  body { font-family: Arial, sans-serif; font-size: 14px; color: #333; max-width: 900px; margin: 0 auto; padding: 20px; }
-</style>
-</head>
-<body>
-  <p>Καλησπέρα <strong>${accountant}</strong>,</p>
-  <p>Σας αποστέλλουμε ενημέρωση για την πορεία των πελατών σας:</p>
-  ${buildSectionHtml(inProgress, 'green', 'Πελάτες σε εξέλιξη')}
-  ${buildSectionHtml(completed, 'blue', 'Ολοκληρωμένοι Πελάτες')}
-  ${programs}
-  <br>
-  <p>Με εκτίμηση,<br><strong>i-Mentor Team</strong><br>info@i-mentor.gr | www.i-mentor.gr</p>
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:20px;background:#f5f6fa;font-family:Arial,Helvetica,sans-serif;color:#333">
+  <div style="max-width:900px;margin:0 auto;background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 4px 16px rgba(0,0,0,0.10)">
+
+    <!-- Header with logo -->
+    <div style="background:#1a237e;padding:16px 30px;display:flex;align-items:center;justify-content:space-between">
+      <div style="color:#fff;font-size:18px;font-weight:700;letter-spacing:0.5px">i-Mentor Consulting</div>
+      <div style="color:#90caf9;font-size:13px">${today}</div>
+    </div>
+
+    <!-- Body -->
+    <div style="padding:30px">
+      <p style="font-size:15px;margin:0 0 12px">Αγαπητή/ε <strong>${accountant}</strong>,</p>
+      <p style="font-size:14px;color:#555;margin:0 0 8px">Σας αποστέλλουμε την επικαιροποιημένη εικόνα των κοινών πελατών μας με βάση τα δεδομένα μας (ημερομηνία αναφοράς: <strong>${today}</strong>).</p>
+      <p style="font-size:14px;color:#555;margin:0 0 8px">Η παρούσα αναφορά έχει ως στόχο να διευκολύνει τη συνεργασία μας και να σας κρατά ενήμερους για την κατάσταση των πελατών σας.</p>
+      <p style="font-size:14px;color:#555;margin:0 0 4px">Ο πίνακας χωρίζεται σε δύο ενότητες:</p>
+      <ul style="font-size:14px;color:#555;margin:4px 0 16px 20px;padding:0">
+        <li><strong>Πελάτες σε εξέλιξη</strong>: υποβολές αιτήσεων, εγκρίσεις, προετοιμασία φακέλου κ.λπ.</li>
+        <li><strong>Ολοκληρωμένοι πελάτες</strong>: πελάτες με ολοκληρωμένες ή κλεισμένες υποθέσεις</li>
+      </ul>
+
+      ${buildSectionHtml(inProgress, 'green', 'Πελάτες σε εξέλιξη')}
+      ${buildSectionHtml(completed, 'blue', 'Ολοκληρωμένοι Πελάτες')}
+      ${financingHtml}
+    </div>
+
+    <!-- Footer -->
+    <div style="background:#f5f6fa;padding:16px 30px;border-top:1px solid #e0e0e0">
+      <p style="font-size:12px;color:#888;margin:0">Αν δεν επιθυμείτε να λαμβάνετε παρόμοιες ενημερώσεις, απαντήστε με θέμα <strong>"ΑΠΕΓΓΡΑΦΗ"</strong> στο <a href="mailto:info@i-mentor.gr" style="color:#1565c0">info@i-mentor.gr</a></p>
+    </div>
+  </div>
 </body>
 </html>`;
 }
