@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { BarChart, Bar, AreaChart, Area, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { BarChart, Bar, AreaChart, Area, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import api from '../../api/client';
 
 const fmt = n => n != null ? Math.round(n).toLocaleString('el-GR') + ' €' : '—';
@@ -426,10 +426,203 @@ function TabAccountants({ years }) {
   );
 }
 
+function TabOpenCases() {
+  const [year, setYear] = useState(new Date().getFullYear());
+  const [data, setData] = useState([]);
+  const years = Array.from({ length: 6 }, (_, i) => new Date().getFullYear() - i);
+  const STATUS_COLORS = { open: '#10b981', frozen: '#f59e0b', completed_ok: '#6366f1', completed_fail: '#f43f5e' };
+
+  useEffect(() => {
+    api.get(`/reports/open-cases?year=${year}`).then(r => setData(r.data)).catch(() => {});
+  }, [year]);
+
+  const hasData = data.some(m => m.total > 0);
+  const chartData = data.filter(m => m.total > 0).map(m => ({
+    month: m.month_name,
+    'Εν Εξελίξει': m.open,
+    'Παγωμένες': m.frozen,
+    'Ολοκλ. Επιτ.': m.completed_ok,
+    'Ολοκλ. Fail': m.completed_fail
+  }));
+
+  const agents = [...new Set(data.flatMap(m => m.agents.map(a => a.agent)).filter(Boolean))];
+
+  return (
+    <div className="space-y-6">
+      <div className="filter-bar">
+        <select className="input w-28" value={year} onChange={e => setYear(+e.target.value)}>
+          {years.map(y => <option key={y}>{y}</option>)}
+        </select>
+      </div>
+
+      {hasData && (
+        <div className="card p-6">
+          <h2 className="section-title">Μηνιαία Κατάσταση Υποθέσεων — {year}</h2>
+          <ResponsiveContainer width="100%" height={300}>
+            <BarChart data={chartData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+              <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} allowDecimals={false} />
+              <Tooltip />
+              <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 12 }} />
+              {['Εν Εξελίξει','Παγωμένες','Ολοκλ. Επιτ.','Ολοκλ. Fail'].map((k, i) => (
+                <Bar key={k} dataKey={k} fill={Object.values(STATUS_COLORS)[i]} radius={[3,3,0,0]} maxBarSize={30} stackId="a" />
+              ))}
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+
+      {agents.length > 0 && (
+        <div className="card overflow-hidden">
+          <div className="px-4 py-3 border-b border-slate-100 text-xs font-bold text-slate-500 uppercase tracking-wide">Ανά Υπάλληλο</div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr>
+                  <th className="th">Υπάλληλος</th>
+                  {data.filter(m => m.total > 0).map(m => <th key={m.month} className="th text-center">{m.month_name}</th>)}
+                  <th className="th text-right">Σύνολο</th>
+                </tr>
+              </thead>
+              <tbody>
+                {agents.map(agent => {
+                  const agentMonths = data.filter(m => m.total > 0).map(m => {
+                    const a = m.agents.find(x => x.agent === agent);
+                    return a?.total || 0;
+                  });
+                  const total = agentMonths.reduce((s, v) => s + v, 0);
+                  return (
+                    <tr key={agent} className="tr">
+                      <td className="td font-semibold text-slate-800">{agent}</td>
+                      {agentMonths.map((v, i) => (
+                        <td key={i} className="td text-center text-xs">
+                          {v > 0 ? <span className="badge-blue">{v}</span> : <span className="text-slate-200">—</span>}
+                        </td>
+                      ))}
+                      <td className="td text-right font-bold text-indigo-600">{total}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {!hasData && (
+        <div className="card p-12 text-center text-slate-400">
+          <div className="text-3xl mb-2">📊</div>
+          Δεν υπάρχουν δεδομένα για το {year}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TabServiceTrend() {
+  const [serviceTypes, setServiceTypes] = useState([]);
+  const [selected, setSelected] = useState('');
+  const [data, setData] = useState([]);
+
+  useEffect(() => {
+    api.get('/reports/service-trend').then(r => {
+      setServiceTypes(r.data);
+      if (r.data.length) setSelected(r.data[0]);
+    }).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (!selected) return;
+    api.get(`/reports/service-trend?service_type=${encodeURIComponent(selected)}`).then(r => setData(r.data)).catch(() => {});
+  }, [selected]);
+
+  const fmt2 = n => Math.round(n).toLocaleString('el-GR') + ' €';
+  const totalCount = data.reduce((s, r) => s + r.count, 0);
+  const totalAmount = data.reduce((s, r) => s + r.total_application, 0);
+  const avgAmount = totalCount > 0 ? totalAmount / totalCount : 0;
+
+  return (
+    <div className="space-y-6">
+      <div className="filter-bar">
+        <select className="input w-64" value={selected} onChange={e => setSelected(e.target.value)}>
+          <option value="">— Επιλογή Υπηρεσίας —</option>
+          {serviceTypes.map(t => <option key={t} value={t}>{t}</option>)}
+        </select>
+      </div>
+
+      {data.length > 0 && (
+        <>
+          <div className="grid grid-cols-3 gap-4">
+            {[
+              { label: 'Σύνολο Συμφωνιών', value: totalCount, suffix: '' },
+              { label: 'Συνολικό Ποσό', value: fmt2(totalAmount), suffix: '' },
+              { label: 'Μέσος Όρος/Συμφωνία', value: fmt2(avgAmount), suffix: '' }
+            ].map(({ label, value }) => (
+              <div key={label} className="card p-4">
+                <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">{label}</div>
+                <div className="text-xl font-black text-indigo-600">{value}</div>
+              </div>
+            ))}
+          </div>
+
+          <div className="card p-6">
+            <h2 className="section-title">Εξέλιξη Συμφωνιών — {selected}</h2>
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={data} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                <XAxis dataKey="period" tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                <YAxis yAxisId="left" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} tickFormatter={v => v.toLocaleString('el-GR')} />
+                <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                <Tooltip formatter={(value, name) => name === 'Αρ. Συμφωνιών' ? value : Math.round(value).toLocaleString('el-GR') + ' €'} />
+                <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 12 }} />
+                <Bar yAxisId="left" dataKey="total_application" name="Σύνολο Ποσών" fill="#6366f1" radius={[4,4,0,0]} maxBarSize={40} />
+                <Bar yAxisId="right" dataKey="count" name="Αρ. Συμφωνιών" fill="#10b981" radius={[4,4,0,0]} maxBarSize={40} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+
+          <div className="card overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr>
+                    {['Περίοδος','Πλήθος','Σύνολο Αίτησης','Μ.Ο. Αίτησης','Σύνολο Υλοποίησης','Μ.Ο. Υλοποίησης'].map(h => (
+                      <th key={h} className="th">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.map(r => (
+                    <tr key={r.period} className="tr">
+                      <td className="td font-semibold text-slate-700">{r.period}</td>
+                      <td className="td text-center"><span className="badge-blue">{r.count}</span></td>
+                      <td className="td text-right font-medium text-slate-700">{fmt2(r.total_application)}</td>
+                      <td className="td text-right text-slate-500">{fmt2(r.avg_application)}</td>
+                      <td className="td text-right font-medium text-slate-700">{r.total_implementation > 0 ? fmt2(r.total_implementation) : '—'}</td>
+                      <td className="td text-right text-slate-500">{r.avg_implementation > 0 ? fmt2(r.avg_implementation) : '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
+      )}
+
+      {data.length === 0 && selected && (
+        <div className="card p-12 text-center text-slate-400">Δεν υπάρχουν δεδομένα για "{selected}"</div>
+      )}
+    </div>
+  );
+}
+
 const TABS = [
   { id: 'overview', label: 'Επισκόπηση' },
   { id: 'top-customers', label: 'Κορυφαίοι Πελάτες' },
   { id: 'accountants', label: 'Αναφορά Λογιστών' },
+  { id: 'open-cases', label: 'Ανοικτές Υποθέσεις' },
+  { id: 'service-trend', label: 'Ανά Υπηρεσία' },
 ];
 
 export default function ReportsPage() {
@@ -509,6 +702,8 @@ export default function ReportsPage() {
       )}
       {activeTab === 'top-customers' && <TabTopCustomers years={years} />}
       {activeTab === 'accountants' && <TabAccountants years={years} />}
+      {activeTab === 'open-cases' && <TabOpenCases />}
+      {activeTab === 'service-trend' && <TabServiceTrend />}
     </div>
   );
 }

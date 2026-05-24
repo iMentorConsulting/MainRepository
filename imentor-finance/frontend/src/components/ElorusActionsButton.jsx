@@ -4,7 +4,7 @@ import Modal from './Modal';
 import toast from 'react-hot-toast';
 
 const ORGS = [
-  { key: 'DEFAULT', label: 'ΑΠΟΣΤΟΛΑΚΗΣ (παρακράτηση 20%)' },
+  { key: 'DEFAULT', label: 'ΑΠΟΣΤΟΛΑΚΗΣ' },
   { key: 'IMENTOR_IKE', label: 'I MENTOR IKE (χωρίς παρακράτηση)' },
 ];
 

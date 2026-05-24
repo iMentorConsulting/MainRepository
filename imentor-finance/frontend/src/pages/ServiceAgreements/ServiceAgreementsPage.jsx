@@ -8,19 +8,20 @@ const fmt = n => n != null && n !== '' ? Number(n).toLocaleString('el-GR', { min
 const fmtDate = d => d ? new Date(d + 'T00:00:00').toLocaleDateString('el-GR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—';
 
 const STATUS_BADGE = {
-  'ΕΝΕΡΓΟ': 'badge-green',
-  'ΟΛΟΚΛΗΡΩΜΕΝΟ': 'badge-blue',
-  'ΑΚΥΡΩΜΕΝΟ': 'badge-red',
+  'ΕΝ ΕΞΕΛΙΞΕΙ': 'badge-green',
+  'ΠΑΓΩΜΕΝΕΣ': 'badge-yellow',
+  'ΟΛΟΚΛΗΡΩΜΕΝΕΣ ΕΠΙΤΥΧΩΣ': 'badge-blue',
+  'ΟΛΟΚΛΗΡΩΜΕΝΕΣ FAIL': 'badge-red',
 };
 
-const STATUS_OPTS = ['ΕΝΕΡΓΟ', 'ΟΛΟΚΛΗΡΩΜΕΝΟ', 'ΑΚΥΡΩΜΕΝΟ'];
+const STATUS_OPTS = ['ΕΝ ΕΞΕΛΙΞΕΙ', 'ΠΑΓΩΜΕΝΕΣ', 'ΟΛΟΚΛΗΡΩΜΕΝΕΣ ΕΠΙΤΥΧΩΣ', 'ΟΛΟΚΛΗΡΩΜΕΝΕΣ FAIL'];
 
 const EMPTY_FORM = {
   customer_id: '',
   customer_name: '',
   vat_number: '',
   service_type: '',
-  status: 'ΕΝΕΡΓΟ',
+  status: 'ΕΝ ΕΞΕΛΙΞΕΙ',
   amount_application: '',
   amount_implementation: '',
   approval_date: '',
@@ -187,7 +188,7 @@ export default function ServiceAgreementsPage() {
   };
 
   const rows = data.data || [];
-  const totalActive = rows.filter(r => r.status === 'ΕΝΕΡΓΟ').length;
+  const totalActive = rows.filter(r => r.status === 'ΕΝ ΕΞΕΛΙΞΕΙ').length;
   const sumApplication = rows.reduce((a, r) => a + parseFloat(r.amount_application || 0), 0);
   const sumImplementation = rows.reduce((a, r) => a + parseFloat(r.amount_implementation || 0), 0);
 

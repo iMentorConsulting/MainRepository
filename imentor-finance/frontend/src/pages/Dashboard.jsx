@@ -55,6 +55,19 @@ export default function Dashboard() {
   const [monthly, setMonthly] = useState([]);
   const [byService, setByService] = useState([]);
   const [byAgent, setByAgent] = useState([]);
+  const [targets, setTargets] = useState({
+    income: parseInt(localStorage.getItem('income_target') || '20000'),
+    profit: parseInt(localStorage.getItem('profit_target') || '10000')
+  });
+  const [editingTargets, setEditingTargets] = useState(false);
+  const [tempTargets, setTempTargets] = useState({
+    income: parseInt(localStorage.getItem('income_target') || '20000'),
+    profit: parseInt(localStorage.getItem('profit_target') || '10000')
+  });
+  const [monthSummary, setMonthSummary] = useState(null);
+  const now = new Date();
+  const currentMonth = String(now.getMonth() + 1).padStart(2, '0');
+  const monthNames = ['Ιαν','Φεβ','Μαρ','Απρ','Μαι','Ιουν','Ιουλ','Αυγ','Σεπ','Οκτ','Νοε','Δεκ'];
 
   useEffect(() => {
     const buildParams = (base) => {
@@ -75,6 +88,11 @@ export default function Dashboard() {
       setByAgent(ag.data.slice(0, 6));
     });
   }, [year, dateFrom, dateTo]);
+
+  useEffect(() => {
+    api.get('/reports/summary', { params: { year: now.getFullYear(), month: currentMonth } })
+      .then(r => setMonthSummary(r.data)).catch(() => {});
+  }, []);
 
   const years = Array.from({ length: 6 }, (_, i) => new Date().getFullYear() - i);
 
@@ -108,6 +126,67 @@ export default function Dashboard() {
         <KPICard label="Κέρδος" type="profit" value={fmtK(summary?.profit)} />
         <KPICard label="Περιθώριο" type="margin" value={`${(summary?.profit_pct ?? 0).toFixed(1)}%`} />
       </div>
+
+      {/* Monthly targets */}
+      {monthSummary && (
+        <div className="card p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="section-title mb-0">Στοχοθεσία {monthNames[now.getMonth()]} {now.getFullYear()}</h2>
+            <button className="btn-ghost btn-sm text-xs" onClick={() => { setTempTargets(targets); setEditingTargets(v => !v); }}>
+              {editingTargets ? '✕ Κλείσιμο' : '✎ Επεξεργασία'}
+            </button>
+          </div>
+          {editingTargets && (
+            <div className="flex gap-4 mb-4 p-3 rounded-xl bg-slate-50 border border-slate-100">
+              <div>
+                <label className="label">Στόχος Εσόδων (€)</label>
+                <input type="number" className="input w-36" value={tempTargets.income} onChange={e => setTempTargets(t => ({ ...t, income: parseInt(e.target.value) || 0 }))} />
+              </div>
+              <div>
+                <label className="label">Στόχος Κερδών (€)</label>
+                <input type="number" className="input w-36" value={tempTargets.profit} onChange={e => setTempTargets(t => ({ ...t, profit: parseInt(e.target.value) || 0 }))} />
+              </div>
+              <div className="flex items-end">
+                <button className="btn-primary btn-sm" onClick={() => {
+                  setTargets(tempTargets);
+                  localStorage.setItem('income_target', tempTargets.income);
+                  localStorage.setItem('profit_target', tempTargets.profit);
+                  setEditingTargets(false);
+                }}>Αποθήκευση</button>
+              </div>
+            </div>
+          )}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {[
+              { label: 'Έσοδα Μήνα', value: parseFloat(monthSummary.income || 0), target: targets.income, color: 'emerald' },
+              { label: 'Κέρδη Μήνα', value: parseFloat(monthSummary.profit || 0), target: targets.profit, color: 'indigo' }
+            ].map(({ label, value, target, color }) => {
+              const pct = target > 0 ? Math.min(100, (value / target) * 100) : 0;
+              const barColor = pct >= 100 ? '#10b981' : pct >= 60 ? '#f59e0b' : '#f43f5e';
+              return (
+                <div key={label} className="space-y-2">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-semibold text-slate-700">{label}</span>
+                    <span className="text-xs text-slate-500">{Math.round(value).toLocaleString('el-GR')} € / {target.toLocaleString('el-GR')} €</span>
+                  </div>
+                  <div className="h-3 rounded-full bg-slate-100 overflow-hidden">
+                    <div className="h-full rounded-full transition-all duration-500"
+                      style={{ width: `${pct}%`, background: barColor }} />
+                  </div>
+                  <div className="flex justify-between text-xs">
+                    <span style={{ color: barColor }} className="font-bold">{pct.toFixed(0)}%</span>
+                    <span className="text-slate-400">
+                      {value < target
+                        ? `Υπολείπεται ${(target - value).toLocaleString('el-GR')} €`
+                        : '✓ Στόχος επιτεύχθηκε'}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Monthly chart */}
       <div className="card p-6">

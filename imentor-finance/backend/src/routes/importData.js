@@ -252,7 +252,7 @@ router.post('/sync-agreements', async (req, res) => {
           vat_number: r.vat_number || null,
           customer_id: r.customer_id || null,
           service_type: r.service_type || null,
-          status: r.work_status || 'ΕΝΕΡΓΟ',
+          status: 'ΕΝ ΕΞΕΛΙΞΕΙ',
           amount_application: parseFloat(r.amount_application || 0),
           amount_implementation: parseFloat(r.amount_implementation || 0),
           approval_date: r.approval_date || null,

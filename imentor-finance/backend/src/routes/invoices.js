@@ -2,13 +2,18 @@ const router = require('express').Router();
 const axios = require('axios');
 const Income = require('../models/Income');
 
-async function aadeSearchAfm(vat) {
+async function aadeSearchAfm(vat, orgKey) {
+  const isIke = orgKey === 'IMENTOR_IKE';
+  const username = isIke ? (process.env.AADE_USER_IMENTOR || '') : (process.env.AADE_USER || '');
+  const password = isIke ? (process.env.AADE_PASS_IMENTOR || '') : (process.env.AADE_PASS || '');
+  const myAfm   = isIke ? (process.env.MY_AFM_IMENTOR  || '') : (process.env.MY_AFM  || '');
+
   const soapBody = `<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:pub="http://rgwspublic2.rg.gov.gr/">
     <soapenv:Header/>
     <soapenv:Body>
       <pub:rgWsPublic2AfmMethod>
         <pub:INPUT_REC>
-          <pub:afm_called_by>${process.env.AADE_AFM || ''}</pub:afm_called_by>
+          <pub:afm_called_by>${myAfm}</pub:afm_called_by>
           <pub:afm_called_for>${vat}</pub:afm_called_for>
         </pub:INPUT_REC>
       </pub:rgWsPublic2AfmMethod>
@@ -20,10 +25,7 @@ async function aadeSearchAfm(vat) {
     soapBody,
     {
       headers: { 'Content-Type': 'text/xml; charset=UTF-8', 'SOAPAction': '' },
-      auth: {
-        username: process.env.AADE_USERNAME || '',
-        password: process.env.AADE_PASSWORD || ''
-      },
+      auth: { username, password },
       timeout: 10000
     }
   );
@@ -113,11 +115,11 @@ function errMsg(e) {
 
 router.get('/search-afm', async (req, res) => {
   try {
-    const { income_id } = req.query;
+    const { income_id, org_key = 'DEFAULT' } = req.query;
     const income = await Income.findByPk(income_id);
     if (!income) return res.status(404).json({ error: 'Εγγραφή δεν βρέθηκε' });
     if (!income.vat_number) return res.json({ error: 'Δεν υπάρχει ΑΦΜ σε αυτή την εγγραφή' });
-    const result = await aadeSearchAfm(income.vat_number.trim());
+    const result = await aadeSearchAfm(income.vat_number.trim(), org_key);
     res.json(result);
   } catch (e) { res.status(500).json({ error: errMsg(e) }); }
 });

@@ -293,4 +293,107 @@ router.get('/by-accountant', async (req, res) => {
   }
 });
 
+router.get('/open-cases', async (req, res) => {
+  try {
+    const { year } = req.query;
+    if (!year) return res.status(400).json({ error: 'Απαιτείται year' });
+    const ServiceAgreement = require('../models/ServiceAgreement');
+
+    const rows = await sequelize.query(`
+      SELECT
+        TO_CHAR(created_at, 'MM') as month,
+        sales_agent,
+        COUNT(*) FILTER (WHERE status = 'ΕΝ ΕΞΕΛΙΞΕΙ') as open_count,
+        COUNT(*) FILTER (WHERE status = 'ΠΑΓΩΜΕΝΕΣ') as frozen_count,
+        COUNT(*) FILTER (WHERE status = 'ΟΛΟΚΛΗΡΩΜΕΝΕΣ ΕΠΙΤΥΧΩΣ') as completed_ok,
+        COUNT(*) FILTER (WHERE status = 'ΟΛΟΚΛΗΡΩΜΕΝΕΣ FAIL') as completed_fail,
+        COUNT(*) as total
+      FROM service_agreements
+      WHERE created_at BETWEEN :start AND :end
+      GROUP BY month, sales_agent
+      ORDER BY month, sales_agent
+    `, {
+      replacements: { start: `${year}-01-01`, end: `${year}-12-31 23:59:59` },
+      type: QueryTypes.SELECT
+    });
+
+    const months = ['01','02','03','04','05','06','07','08','09','10','11','12'];
+    const monthNames = ['Ιαν','Φεβ','Μαρ','Απρ','Μαι','Ιουν','Ιουλ','Αυγ','Σεπ','Οκτ','Νοε','Δεκ'];
+
+    const data = months.map((m, i) => {
+      const monthRows = rows.filter(r => r.month === m);
+      const agents = monthRows.reduce((acc, r) => {
+        if (r.sales_agent) acc.push({
+          agent: r.sales_agent,
+          open: parseInt(r.open_count || 0),
+          frozen: parseInt(r.frozen_count || 0),
+          completed_ok: parseInt(r.completed_ok || 0),
+          completed_fail: parseInt(r.completed_fail || 0),
+          total: parseInt(r.total || 0)
+        });
+        return acc;
+      }, []);
+      const totals = monthRows.reduce((acc, r) => ({
+        open: acc.open + parseInt(r.open_count || 0),
+        frozen: acc.frozen + parseInt(r.frozen_count || 0),
+        completed_ok: acc.completed_ok + parseInt(r.completed_ok || 0),
+        completed_fail: acc.completed_fail + parseInt(r.completed_fail || 0),
+        total: acc.total + parseInt(r.total || 0)
+      }), { open: 0, frozen: 0, completed_ok: 0, completed_fail: 0, total: 0 });
+      return { month: m, month_name: monthNames[i], ...totals, agents };
+    });
+
+    res.json(data);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+router.get('/service-trend', async (req, res) => {
+  try {
+    const { service_type, year } = req.query;
+    const ServiceAgreement = require('../models/ServiceAgreement');
+
+    if (!service_type) {
+      const types = await ServiceAgreement.findAll({
+        attributes: [[fn('DISTINCT', col('service_type')), 'service_type']],
+        where: { service_type: { [Op.ne]: null, [Op.ne]: '' } },
+        order: [['service_type', 'ASC']],
+        raw: true
+      });
+      return res.json(types.map(t => t.service_type));
+    }
+
+    const yearCond = year ? `AND EXTRACT(YEAR FROM created_at) = ${parseInt(year)}` : '';
+
+    const rows = await sequelize.query(`
+      SELECT
+        TO_CHAR(created_at, 'YYYY') as yr,
+        TO_CHAR(created_at, 'MM') as month,
+        TO_CHAR(created_at, 'YYYY-MM') as period,
+        COUNT(*) as count,
+        COALESCE(SUM(amount_application), 0) as total_application,
+        CASE WHEN COUNT(*) > 0 THEN COALESCE(SUM(amount_application), 0) / COUNT(*) ELSE 0 END as avg_application,
+        COALESCE(SUM(amount_implementation), 0) as total_implementation,
+        CASE WHEN COUNT(*) > 0 THEN COALESCE(SUM(amount_implementation), 0) / COUNT(*) ELSE 0 END as avg_implementation
+      FROM service_agreements
+      WHERE service_type = :service_type ${yearCond}
+      GROUP BY yr, month, period
+      ORDER BY period
+    `, {
+      replacements: { service_type },
+      type: QueryTypes.SELECT
+    });
+
+    res.json(rows.map(r => ({
+      period: r.period,
+      yr: r.yr,
+      month: r.month,
+      count: parseInt(r.count || 0),
+      total_application: parseFloat(r.total_application || 0),
+      avg_application: parseFloat(r.avg_application || 0),
+      total_implementation: parseFloat(r.total_implementation || 0),
+      avg_implementation: parseFloat(r.avg_implementation || 0)
+    })));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 module.exports = router;
