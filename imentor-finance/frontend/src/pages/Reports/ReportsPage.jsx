@@ -327,6 +327,9 @@ function TabAccountants({ years }) {
   const [year, setYear] = useState(new Date().getFullYear());
   const [month, setMonth] = useState('');
   const [data, setData] = useState([]);
+  const [selectedAccountants, setSelectedAccountants] = useState([]);
+  const [sortCol, setSortCol] = useState('total');
+  const [sortDir, setSortDir] = useState('desc');
 
   const months = ['','01','02','03','04','05','06','07','08','09','10','11','12'];
   const monthLabels = ['Όλοι οι μήνες','Ιαν','Φεβ','Μαρ','Απρ','Μαι','Ιουν','Ιουλ','Αυγ','Σεπ','Οκτ','Νοε','Δεκ'];
@@ -336,15 +339,70 @@ function TabAccountants({ years }) {
     api.get(`/reports/by-accountant?${q}`).then(r => setData(r.data)).catch(() => setData([]));
   }, [year, month]);
 
+  // Build flat list of accountants for multi-select
+  const accountantOptions = data.map((acc, i) => ({
+    key: acc.accountant || String(i),
+    name: acc.accountant || '—',
+    total: acc.total ?? 0,
+    count: (acc.records ?? []).length,
+  }));
+
+  const filteredData = selectedAccountants.length > 0
+    ? data.filter(acc => selectedAccountants.includes(acc.accountant))
+    : data;
+
+  // Top 10 summary: use flat accountant data (accountant_name, count, total from API or derived)
+  const top10 = [...data]
+    .map(acc => {
+      const records = acc.records ?? [];
+      const total = acc.total ?? records.reduce((s, r) => s + Number(r.amount_collected || 0), 0);
+      const uniqueCustomers = new Set(records.map(r => r.customer_name || r.vat_number)).size;
+      return { accountant: acc.accountant, total, uniqueCustomers, count: acc.count ?? records.length };
+    })
+    .sort((a, b) => {
+      const av = a[sortCol === 'total' ? 'total' : sortCol] ?? 0;
+      const bv = b[sortCol === 'total' ? 'total' : sortCol] ?? 0;
+      return sortDir === 'desc' ? bv - av : av - bv;
+    })
+    .slice(0, 10);
+
+  const handleTopSort = col => {
+    if (sortCol === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    else { setSortCol(col); setSortDir('desc'); }
+  };
+  const SortIcon = ({ col }) => sortCol === col
+    ? <span className="text-indigo-500 ml-1">{sortDir === 'asc' ? '↑' : '↓'}</span>
+    : <span className="text-slate-300 ml-1">↕</span>;
+
   return (
     <>
-      <div className="flex gap-2 mb-6">
+      <div className="flex flex-wrap gap-2 mb-6 items-center">
         <select className="input w-28" value={year} onChange={e => setYear(+e.target.value)}>
           {years.map(y => <option key={y}>{y}</option>)}
         </select>
         <select className="input w-44" value={month} onChange={e => setMonth(e.target.value)}>
           {months.map((m, i) => <option key={m} value={m}>{monthLabels[i]}</option>)}
         </select>
+        {/* Multi-select accountant filter */}
+        <div className="flex items-center gap-1">
+          {accountantOptions.map(opt => (
+            <label key={opt.key} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 cursor-pointer text-sm select-none">
+              <input type="checkbox"
+                checked={selectedAccountants.includes(opt.key)}
+                onChange={() => {
+                  setSelectedAccountants(prev =>
+                    prev.includes(opt.key) ? prev.filter(k => k !== opt.key) : [...prev, opt.key]
+                  );
+                }}
+                className="w-3.5 h-3.5 rounded border-slate-300 text-primary-600" />
+              <span className="text-slate-700">{opt.name}</span>
+              <span className="text-xs text-slate-400">({opt.count})</span>
+            </label>
+          ))}
+          {selectedAccountants.length > 0 && (
+            <button className="btn-ghost btn-sm text-xs" onClick={() => setSelectedAccountants([])}>✕ Καθαρισμός</button>
+          )}
+        </div>
         <button
           className="ml-auto px-4 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold transition-colors"
           onClick={() => window.print()}>
@@ -357,7 +415,7 @@ function TabAccountants({ years }) {
       )}
 
       <div className="space-y-6">
-        {data.map((acc, ai) => {
+        {filteredData.map((acc, ai) => {
           const records = acc.records ?? [];
           const total = acc.total ?? records.reduce((s, r) => s + Number(r.amount_collected || 0), 0);
           return (
@@ -422,6 +480,51 @@ function TabAccountants({ years }) {
           );
         })}
       </div>
+
+      {/* Top 10 Λογιστές table */}
+      {top10.length > 0 && (
+        <div className="card overflow-hidden mt-6">
+          <div className="px-6 py-4 border-b border-slate-100">
+            <h2 className="section-title mb-0">Top 10 Λογιστές</h2>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr>
+                  <th className="th">Κατάταξη</th>
+                  <th className="th cursor-pointer select-none hover:text-indigo-600" onClick={() => handleTopSort('accountant')}>
+                    Λογιστής <SortIcon col="accountant" />
+                  </th>
+                  <th className="th cursor-pointer select-none hover:text-indigo-600" onClick={() => handleTopSort('uniqueCustomers')}>
+                    Πελάτες <SortIcon col="uniqueCustomers" />
+                  </th>
+                  <th className="th cursor-pointer select-none hover:text-indigo-600" onClick={() => handleTopSort('total')}>
+                    Σύνολο Εισπράξεων € <SortIcon col="total" />
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {top10.map((row, i) => (
+                  <tr key={i} className="tr">
+                    <td className="td">
+                      {i < 3 ? (
+                        <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold ring-1 ${RANK_BADGES[i].bg} ${RANK_BADGES[i].text} ${RANK_BADGES[i].ring}`}>
+                          {RANK_BADGES[i].label}
+                        </span>
+                      ) : (
+                        <span className="badge-gray">{i + 1}</span>
+                      )}
+                    </td>
+                    <td className="td font-semibold text-slate-800">{row.accountant}</td>
+                    <td className="td text-slate-500">{row.uniqueCustomers}</td>
+                    <td className="td font-bold text-emerald-600">{fmtMoney(row.total)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </>
   );
 }
@@ -513,7 +616,8 @@ function TabOpenCases() {
       {!hasData && (
         <div className="card p-12 text-center text-slate-400">
           <div className="text-3xl mb-2">📊</div>
-          Δεν υπάρχουν δεδομένα για το {year}
+          <div className="font-medium text-slate-500 mb-1">Δεν υπάρχουν ανοικτές υποθέσεις.</div>
+          <div className="text-sm">Προσθέστε συμφωνίες από τη σελίδα Συμφωνίες.</div>
         </div>
       )}
     </div>
@@ -524,17 +628,28 @@ function TabServiceTrend() {
   const [serviceTypes, setServiceTypes] = useState([]);
   const [selected, setSelected] = useState('');
   const [data, setData] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     api.get('/reports/service-trend').then(r => {
-      setServiceTypes(r.data);
-      if (r.data.length) setSelected(r.data[0]);
-    }).catch(() => {});
+      // Normalize: the endpoint might return an array of strings or objects
+      const types = Array.isArray(r.data)
+        ? r.data.map(item => (typeof item === 'string' ? item : (item.service_type || item.name || String(item))))
+        : [];
+      setServiceTypes(types);
+      if (types.length) setSelected(types[0]);
+    }).catch(() => { setServiceTypes([]); });
   }, []);
 
   useEffect(() => {
     if (!selected) return;
-    api.get(`/reports/service-trend?service_type=${encodeURIComponent(selected)}`).then(r => setData(r.data)).catch(() => {});
+    setLoading(true);
+    setError('');
+    api.get(`/reports/service-trend?service_type=${encodeURIComponent(selected)}`)
+      .then(r => { setData(Array.isArray(r.data) ? r.data : []); })
+      .catch(e => { setError(e.response?.data?.error || 'Σφάλμα φόρτωσης δεδομένων'); setData([]); })
+      .finally(() => setLoading(false));
   }, [selected]);
 
   const fmt2 = n => Math.round(n).toLocaleString('el-GR') + ' €';
@@ -551,7 +666,7 @@ function TabServiceTrend() {
         </select>
       </div>
 
-      {data.length > 0 && (
+      {!loading && !error && data.length > 0 && (
         <>
           <div className="grid grid-cols-3 gap-4">
             {[
@@ -610,8 +725,20 @@ function TabServiceTrend() {
         </>
       )}
 
-      {data.length === 0 && selected && (
-        <div className="card p-12 text-center text-slate-400">Δεν υπάρχουν δεδομένα για "{selected}"</div>
+      {loading && (
+        <div className="card p-12 text-center text-slate-400">Φόρτωση...</div>
+      )}
+      {!loading && error && (
+        <div className="card p-12 text-center text-rose-400">{error}</div>
+      )}
+      {!loading && !error && data.length === 0 && selected && (
+        <div className="card p-12 text-center text-slate-400">
+          <div className="text-3xl mb-2">📉</div>
+          Δεν βρέθηκαν δεδομένα για αυτή την υπηρεσία. Δοκιμάστε άλλη επιλογή.
+        </div>
+      )}
+      {!loading && !error && data.length === 0 && !selected && (
+        <div className="card p-12 text-center text-slate-400">Επιλέξτε υπηρεσία για να δείτε στατιστικά.</div>
       )}
     </div>
   );

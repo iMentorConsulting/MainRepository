@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import api from '../../api/client';
 import toast from 'react-hot-toast';
 import Modal from '../../components/Modal';
@@ -8,63 +8,140 @@ const fmt = n => n ? Number(n).toLocaleString('el-GR', { minimumFractionDigits: 
 const fmtDate = d => d ? new Date(d + 'T00:00:00').toLocaleDateString('el-GR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—';
 const fmtDateTime = d => d ? new Date(d).toLocaleDateString('el-GR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
 
+// Multi-select dropdown component
+function MultiSelectDropdown({ label, options, selected, onChange, getKey, getLabel, getCount }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    const handler = e => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const allSelected = selected.length === 0;
+  const displayLabel = allSelected
+    ? label
+    : selected.length === 1
+      ? getLabel(options.find(o => getKey(o) === selected[0]) || {})
+      : `${selected.length} επιλεγμένα`;
+
+  const toggle = key => {
+    if (selected.includes(key)) {
+      onChange(selected.filter(k => k !== key));
+    } else {
+      onChange([...selected, key]);
+    }
+  };
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        type="button"
+        className="input flex items-center justify-between gap-2 min-w-[180px] text-left"
+        onClick={() => setOpen(v => !v)}
+      >
+        <span className={`truncate text-sm ${allSelected ? 'text-slate-400' : 'text-slate-700'}`}>{displayLabel}</span>
+        <svg viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5 text-slate-400 shrink-0">
+          <path fillRule="evenodd" d="M4.22 6.22a.75.75 0 0 1 1.06 0L8 8.94l2.72-2.72a.75.75 0 1 1 1.06 1.06l-3.25 3.25a.75.75 0 0 1-1.06 0L4.22 7.28a.75.75 0 0 1 0-1.06Z" clipRule="evenodd"/>
+        </svg>
+      </button>
+      {open && (
+        <div className="absolute z-50 top-full mt-1 left-0 min-w-[220px] bg-white border border-slate-200 rounded-xl shadow-lg py-1 max-h-64 overflow-y-auto">
+          <label className="flex items-center gap-2.5 px-3 py-2 hover:bg-slate-50 cursor-pointer border-b border-slate-100">
+            <input type="checkbox" checked={allSelected} onChange={() => onChange([])}
+              className="w-4 h-4 rounded border-slate-300 text-primary-600" />
+            <span className="text-sm text-slate-600 font-medium">{label}</span>
+          </label>
+          {options.map(opt => {
+            const key = getKey(opt);
+            const checked = selected.includes(key);
+            return (
+              <label key={key} className="flex items-center gap-2.5 px-3 py-2 hover:bg-slate-50 cursor-pointer">
+                <input type="checkbox" checked={checked} onChange={() => toggle(key)}
+                  className="w-4 h-4 rounded border-slate-300 text-primary-600" />
+                <span className="text-sm text-slate-700 flex-1">{getLabel(opt)}</span>
+                {getCount && <span className="text-xs text-slate-400 bg-slate-100 rounded-full px-1.5 py-0.5">{getCount(opt)}</span>}
+              </label>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function EmailsPage() {
   const [activeTab, setActiveTab] = useState('send');
 
   const [data, setData] = useState({ total: 0, data: [] });
   const [selected, setSelected] = useState(new Set());
-  const [filters, setFilters] = useState({ year: new Date().getFullYear(), page: 1 });
-  const [accountantFilter, setAccountantFilter] = useState('');
+  const [selectedYears, setSelectedYears] = useState([String(new Date().getFullYear())]);
+  const [selectedMonths, setSelectedMonths] = useState([]);
+  const [selectedAccountants, setSelectedAccountants] = useState([]);
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [sort, setSort] = useState({ field: 'sale_date', dir: 'DESC' });
+  const [page, setPage] = useState(1);
   const [preview, setPreview] = useState([]);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [sending, setSending] = useState(false);
+  // Per-email custom financing text: { [index]: string }
+  const [customFinancingTexts, setCustomFinancingTexts] = useState({});
+  const [editingFinancing, setEditingFinancing] = useState({});
 
   const [accountants, setAccountants] = useState([]);
   const [logs, setLogs] = useState([]);
-  const [logFilters, setLogFilters] = useState({ year: new Date().getFullYear(), month: '', accountant_email: '' });
+  const [logSelectedYears, setLogSelectedYears] = useState([String(new Date().getFullYear())]);
+  const [logSelectedMonths, setLogSelectedMonths] = useState([]);
+  const [logSelectedAccountants, setLogSelectedAccountants] = useState([]);
   const [logsLoading, setLogsLoading] = useState(false);
 
   const years = Array.from({ length: 6 }, (_, i) => new Date().getFullYear() - i);
+  const yearOptions = years.map(y => ({ value: String(y), label: String(y) }));
   const months = [
-    { value: 1, label: 'Ιανουάριος' }, { value: 2, label: 'Φεβρουάριος' },
-    { value: 3, label: 'Μάρτιος' }, { value: 4, label: 'Απρίλιος' },
-    { value: 5, label: 'Μάιος' }, { value: 6, label: 'Ιούνιος' },
-    { value: 7, label: 'Ιούλιος' }, { value: 8, label: 'Αύγουστος' },
-    { value: 9, label: 'Σεπτέμβριος' }, { value: 10, label: 'Οκτώβριος' },
-    { value: 11, label: 'Νοέμβριος' }, { value: 12, label: 'Δεκέμβριος' }
+    { value: '1', label: 'Ιανουάριος' }, { value: '2', label: 'Φεβρουάριος' },
+    { value: '3', label: 'Μάρτιος' }, { value: '4', label: 'Απρίλιος' },
+    { value: '5', label: 'Μάιος' }, { value: '6', label: 'Ιούνιος' },
+    { value: '7', label: 'Ιούλιος' }, { value: '8', label: 'Αύγουστος' },
+    { value: '9', label: 'Σεπτέμβριος' }, { value: '10', label: 'Οκτώβριος' },
+    { value: '11', label: 'Νοέμβριος' }, { value: '12', label: 'Δεκέμβριος' }
   ];
 
   const load = useCallback(() => {
-    const params = { year: filters.year, limit: 100, page: filters.page, sort_field: sort.field, sort_dir: sort.dir };
+    const params = { limit: 100, page, sort_field: sort.field, sort_dir: sort.dir };
+    if (selectedYears.length === 1) params.year = selectedYears[0];
+    else if (selectedYears.length > 1) params.years = selectedYears.join(',');
+    if (selectedMonths.length === 1) params.month = selectedMonths[0];
+    else if (selectedMonths.length > 1) params.months = selectedMonths.join(',');
     if (dateFrom) params.date_from = dateFrom;
     if (dateTo) params.date_to = dateTo;
     api.get('/income', { params }).then(r => setData(r.data));
-  }, [filters, sort, dateFrom, dateTo]);
+  }, [selectedYears, selectedMonths, page, sort, dateFrom, dateTo]);
 
   useEffect(() => { load(); }, [load]);
 
   useEffect(() => {
-    api.get('/emails/accountants', { params: { year: filters.year } }).then(r => setAccountants(r.data)).catch(() => {});
-  }, [filters.year]);
+    const year = selectedYears.length === 1 ? selectedYears[0] : new Date().getFullYear();
+    api.get('/emails/accountants', { params: { year } }).then(r => setAccountants(r.data)).catch(() => {});
+  }, [selectedYears]);
 
   const loadLogs = useCallback(() => {
     setLogsLoading(true);
     const params = {};
-    if (logFilters.year) params.year = logFilters.year;
-    if (logFilters.month) params.month = logFilters.month;
-    if (logFilters.accountant_email) params.accountant_email = logFilters.accountant_email;
+    if (logSelectedYears.length === 1) params.year = logSelectedYears[0];
+    if (logSelectedMonths.length === 1) params.month = logSelectedMonths[0];
+    if (logSelectedAccountants.length === 1) params.accountant_email = logSelectedAccountants[0];
     api.get('/emails/logs', { params }).then(r => setLogs(r.data)).catch(() => {}).finally(() => setLogsLoading(false));
-  }, [logFilters]);
+  }, [logSelectedYears, logSelectedMonths, logSelectedAccountants]);
 
   useEffect(() => {
     if (activeTab === 'history') loadLogs();
   }, [activeTab, loadLogs]);
 
-  const displayedRows = accountantFilter
-    ? data.data.filter(r => r.accountant_email === accountantFilter)
+  // Filter displayed rows by selected accountants (client-side)
+  const displayedRows = selectedAccountants.length > 0
+    ? data.data.filter(r => selectedAccountants.includes(r.accountant_email))
     : data.data;
 
   const toggle = id => setSelected(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
@@ -77,6 +154,8 @@ export default function EmailsPage() {
     if (selected.size === 0) return toast.error('Επιλέξτε εγγραφές');
     const res = await api.post('/emails/preview', { income_ids: [...selected] });
     setPreview(res.data);
+    setCustomFinancingTexts({});
+    setEditingFinancing({});
     setPreviewOpen(true);
   };
 
@@ -107,6 +186,13 @@ export default function EmailsPage() {
       </span>
     </th>
   );
+
+  // Extract financing section from HTML
+  const extractFinancingSection = (html) => {
+    if (!html) return '';
+    const match = html.match(/(<[^>]*financing[^>]*>[\s\S]*?<\/[^>]+>|<table[\s\S]*?χρηματοδοτ[\s\S]*?<\/table>)/i);
+    return match ? match[0] : '';
+  };
 
   return (
     <div className="page">
@@ -146,16 +232,32 @@ export default function EmailsPage() {
 
       {activeTab === 'send' && (
         <>
-          <div className="filter-bar">
-            <select className="input w-28" value={filters.year} onChange={e => setFilters(f => ({ ...f, year: e.target.value, page: 1 }))}>
-              {years.map(y => <option key={y}>{y}</option>)}
-            </select>
-            <select className="input w-48" value={accountantFilter} onChange={e => { setAccountantFilter(e.target.value); setSelected(new Set()); }}>
-              <option value="">Όλοι οι λογιστές</option>
-              {accountants.map(a => (
-                <option key={a.accountant_email || a.accountant} value={a.accountant_email || ''}>{a.accountant}</option>
-              ))}
-            </select>
+          <div className="filter-bar flex-wrap">
+            <MultiSelectDropdown
+              label="Όλα τα Έτη"
+              options={yearOptions}
+              selected={selectedYears}
+              onChange={v => { setSelectedYears(v); setPage(1); setSelected(new Set()); }}
+              getKey={o => o.value}
+              getLabel={o => o.label}
+            />
+            <MultiSelectDropdown
+              label="Όλοι οι μήνες"
+              options={months}
+              selected={selectedMonths}
+              onChange={v => { setSelectedMonths(v); setPage(1); setSelected(new Set()); }}
+              getKey={o => o.value}
+              getLabel={o => o.label}
+            />
+            <MultiSelectDropdown
+              label="Όλοι οι λογιστές"
+              options={accountants}
+              selected={selectedAccountants}
+              onChange={v => { setSelectedAccountants(v); setSelected(new Set()); }}
+              getKey={o => o.accountant_email || o.accountant || ''}
+              getLabel={o => o.accountant_name || o.accountant || ''}
+              getCount={o => o.count}
+            />
             <div className="flex items-center gap-1 text-slate-400 text-xs">ή</div>
             <div className="flex items-center gap-1">
               <input type="date" className="input w-36 text-sm" value={dateFrom} onChange={e => setDateFrom(e.target.value)} placeholder="Από" />
@@ -233,11 +335,11 @@ export default function EmailsPage() {
               </table>
             </div>
             <div className="px-4 py-3 border-t border-slate-100 flex items-center justify-between">
-              <span className="text-xs text-slate-400">Σελίδα {filters.page} · {data.total.toLocaleString('el-GR')} σύνολο</span>
+              <span className="text-xs text-slate-400">Σελίδα {page} · {data.total.toLocaleString('el-GR')} σύνολο</span>
               <div className="flex gap-2">
-                <button disabled={filters.page <= 1} onClick={() => setFilters(f => ({ ...f, page: f.page - 1 }))}
+                <button disabled={page <= 1} onClick={() => setPage(p => p - 1)}
                   className="btn-secondary btn-sm disabled:opacity-40">← Προηγ.</button>
-                <button disabled={filters.page * 100 >= data.total} onClick={() => setFilters(f => ({ ...f, page: f.page + 1 }))}
+                <button disabled={page * 100 >= data.total} onClick={() => setPage(p => p + 1)}
                   className="btn-secondary btn-sm disabled:opacity-40">Επόμ. →</button>
               </div>
             </div>
@@ -248,20 +350,31 @@ export default function EmailsPage() {
       {activeTab === 'history' && (
         <>
           <div className="filter-bar">
-            <select className="input w-28" value={logFilters.year} onChange={e => setLogFilters(f => ({ ...f, year: e.target.value }))}>
-              <option value="">Όλα τα έτη</option>
-              {years.map(y => <option key={y} value={y}>{y}</option>)}
-            </select>
-            <select className="input w-44" value={logFilters.month} onChange={e => setLogFilters(f => ({ ...f, month: e.target.value }))}>
-              <option value="">Όλοι οι μήνες</option>
-              {months.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
-            </select>
-            <select className="input w-48" value={logFilters.accountant_email} onChange={e => setLogFilters(f => ({ ...f, accountant_email: e.target.value }))}>
-              <option value="">Όλοι οι λογιστές</option>
-              {accountants.map(a => (
-                <option key={a.accountant_email || a.accountant} value={a.accountant_email || ''}>{a.accountant}</option>
-              ))}
-            </select>
+            <MultiSelectDropdown
+              label="Όλα τα Έτη"
+              options={yearOptions}
+              selected={logSelectedYears}
+              onChange={setLogSelectedYears}
+              getKey={o => o.value}
+              getLabel={o => o.label}
+            />
+            <MultiSelectDropdown
+              label="Όλοι οι μήνες"
+              options={months}
+              selected={logSelectedMonths}
+              onChange={setLogSelectedMonths}
+              getKey={o => o.value}
+              getLabel={o => o.label}
+            />
+            <MultiSelectDropdown
+              label="Όλοι οι λογιστές"
+              options={accountants}
+              selected={logSelectedAccountants}
+              onChange={setLogSelectedAccountants}
+              getKey={o => o.accountant_email || o.accountant || ''}
+              getLabel={o => o.accountant_name || o.accountant || ''}
+              getCount={o => o.count}
+            />
             <button className="btn-secondary btn-sm" onClick={loadLogs}>Φίλτρα</button>
           </div>
 
@@ -310,18 +423,63 @@ export default function EmailsPage() {
 
       <Modal open={previewOpen} onClose={() => setPreviewOpen(false)} title="Προεπισκόπηση Email" size="xl">
         <div className="space-y-4">
-          {preview.map((email, i) => (
-            <div key={i} className="rounded-xl overflow-hidden border border-slate-200">
-              <div className="px-4 py-3 flex items-center justify-between text-sm bg-slate-50 border-b border-slate-100">
-                <div className="flex items-center gap-2">
-                  <span className="badge-blue">{email.accountant}</span>
-                  <span className="text-slate-500">{email.email || 'χωρίς email'}</span>
+          {preview.map((email, i) => {
+            const isEditingFinancing = editingFinancing[i];
+            const customText = customFinancingTexts[i];
+
+            // Build displayed HTML: replace financing section if customized
+            const displayHtml = customText !== undefined
+              ? email.html.replace(/<div[^>]*class="[^"]*financing[^"]*"[\s\S]*?<\/div>|<table[\s\S]*?χρηματοδοτ[\s\S]*?<\/table>/i, customText)
+              : email.html;
+
+            return (
+              <div key={i} className="rounded-xl overflow-hidden border border-slate-200">
+                <div className="px-4 py-3 bg-slate-50 border-b border-slate-100">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="font-semibold text-slate-700 text-sm">Προς: <span className="text-indigo-600">{email.email || 'χωρίς email'}</span></span>
+                    <span className="text-xs text-slate-400">{email.subject}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="badge-blue">{email.accountant}</span>
+                  </div>
                 </div>
-                <span className="text-xs text-slate-400">{email.subject}</span>
+                <div className="p-4 bg-white">
+                  <div className="max-h-56 overflow-y-auto" dangerouslySetInnerHTML={{ __html: displayHtml }} />
+                  <div className="mt-3 pt-3 border-t border-slate-100">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Χρηματοδοτικά Προγράμματα</span>
+                      <button
+                        className="btn-ghost btn-sm text-xs"
+                        onClick={() => {
+                          if (isEditingFinancing) {
+                            setEditingFinancing(prev => ({ ...prev, [i]: false }));
+                          } else {
+                            // Extract current financing text from HTML
+                            const match = email.html.match(/<div[^>]*class="[^"]*financing[^"]*"[\s\S]*?<\/div>|<section[\s\S]*?χρηματοδοτ[\s\S]*?<\/section>/i);
+                            const current = customFinancingTexts[i] !== undefined
+                              ? customFinancingTexts[i]
+                              : (match ? match[0] : '');
+                            setCustomFinancingTexts(prev => ({ ...prev, [i]: current }));
+                            setEditingFinancing(prev => ({ ...prev, [i]: true }));
+                          }
+                        }}
+                      >
+                        {isEditingFinancing ? '✓ Αποθήκευση' : '✎ Επεξεργασία'}
+                      </button>
+                    </div>
+                    {isEditingFinancing && (
+                      <textarea
+                        className="input w-full text-xs font-mono min-h-[100px] resize-y"
+                        value={customFinancingTexts[i] || ''}
+                        onChange={e => setCustomFinancingTexts(prev => ({ ...prev, [i]: e.target.value }))}
+                        placeholder="Εισάγετε HTML κείμενο για τα χρηματοδοτικά προγράμματα..."
+                      />
+                    )}
+                  </div>
+                </div>
               </div>
-              <div className="p-4 max-h-64 overflow-y-auto bg-white" dangerouslySetInnerHTML={{ __html: email.html }} />
-            </div>
-          ))}
+            );
+          })}
           <div className="flex justify-end gap-3 pt-2 border-t border-slate-100">
             <button className="btn-secondary" onClick={() => setPreviewOpen(false)}>Ακύρωση</button>
             <button className="btn-primary" onClick={handleSend} disabled={sending}>

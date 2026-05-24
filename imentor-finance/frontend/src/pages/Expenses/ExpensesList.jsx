@@ -1,8 +1,60 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import api from '../../api/client';
 import Modal from '../../components/Modal';
 import ExpensesForm from './ExpensesForm';
 import toast from 'react-hot-toast';
+
+function MultiSelectDropdown({ label, options, selected, onChange, getKey, getLabel }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    const handler = e => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const allSelected = selected.length === 0;
+  const displayLabel = allSelected
+    ? label
+    : selected.length === 1
+      ? getLabel(options.find(o => getKey(o) === selected[0]) || {})
+      : selected.map(k => getLabel(options.find(o => getKey(o) === k) || {})).join(', ');
+
+  const toggle = key => onChange(selected.includes(key) ? selected.filter(k => k !== key) : [...selected, key]);
+
+  return (
+    <div className="relative" ref={ref}>
+      <button type="button"
+        className="input flex items-center justify-between gap-2 min-w-[110px] text-left"
+        onClick={() => setOpen(v => !v)}>
+        <span className={`truncate text-sm ${allSelected ? 'text-slate-400' : 'text-slate-700'}`}>{displayLabel}</span>
+        <svg viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5 text-slate-400 shrink-0">
+          <path fillRule="evenodd" d="M4.22 6.22a.75.75 0 0 1 1.06 0L8 8.94l2.72-2.72a.75.75 0 1 1 1.06 1.06l-3.25 3.25a.75.75 0 0 1-1.06 0L4.22 7.28a.75.75 0 0 1 0-1.06Z" clipRule="evenodd"/>
+        </svg>
+      </button>
+      {open && (
+        <div className="absolute z-50 top-full mt-1 left-0 min-w-[160px] bg-white border border-slate-200 rounded-xl shadow-lg py-1 max-h-64 overflow-y-auto">
+          <label className="flex items-center gap-2.5 px-3 py-2 hover:bg-slate-50 cursor-pointer border-b border-slate-100">
+            <input type="checkbox" checked={allSelected} onChange={() => onChange([])}
+              className="w-4 h-4 rounded border-slate-300 text-primary-600" />
+            <span className="text-sm text-slate-600 font-medium">{label}</span>
+          </label>
+          {options.map(opt => {
+            const key = getKey(opt);
+            return (
+              <label key={key} className="flex items-center gap-2.5 px-3 py-2 hover:bg-slate-50 cursor-pointer">
+                <input type="checkbox" checked={selected.includes(key)} onChange={() => toggle(key)}
+                  className="w-4 h-4 rounded border-slate-300 text-primary-600" />
+                <span className="text-sm text-slate-700">{getLabel(opt)}</span>
+              </label>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
 
 const now = new Date();
 const fmt = n => n != null && n !== '' ? Number(n).toLocaleString('el-GR', { minimumFractionDigits: 0, maximumFractionDigits: 2 }) + ' €' : '—';
@@ -88,10 +140,10 @@ function CategorySummary({ data }) {
 export default function ExpensesList() {
   const [data, setData] = useState({ total: 0, data: [] });
   const [filters, setFilters] = useState({
-    year: String(now.getFullYear()),
-    month: String(now.getMonth() + 1).padStart(2, '0'),
     category: '', search: '', page: 1
   });
+  const [selectedYears, setSelectedYears] = useState([String(now.getFullYear())]);
+  const [selectedMonths, setSelectedMonths] = useState([String(now.getMonth() + 1).padStart(2, '0')]);
   const [sort, setSort] = useState({ field: 'date', dir: 'DESC' });
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
@@ -104,12 +156,16 @@ export default function ExpensesList() {
     const params = Object.fromEntries(Object.entries(filters).filter(([, v]) => v !== ''));
     params.sort_field = sort.field;
     params.sort_dir = sort.dir;
+    if (selectedYears.length === 1) params.year = selectedYears[0];
+    else if (selectedYears.length > 1) params.years = selectedYears.join(',');
+    if (selectedMonths.length === 1) params.month = selectedMonths[0];
+    else if (selectedMonths.length > 1) params.months = selectedMonths.join(',');
     if (hideNoAmount) params.hide_no_amount = 'true';
     if (dateFrom) params.date_from = dateFrom;
     if (dateTo) params.date_to = dateTo;
     params.limit = 200;
     api.get('/expenses', { params }).then(r => setData(r.data));
-  }, [filters, sort, hideNoAmount, dateFrom, dateTo]);
+  }, [filters, selectedYears, selectedMonths, sort, hideNoAmount, dateFrom, dateTo]);
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => {
@@ -126,9 +182,13 @@ export default function ExpensesList() {
     catch { toast.error('Σφάλμα διαγραφής'); }
   };
 
-  const years = Array.from({ length: 8 }, (_, i) => now.getFullYear() - i);
-  const months = ['01','02','03','04','05','06','07','08','09','10','11','12'];
-  const monthNames = ['Ιαν','Φεβ','Μαρ','Απρ','Μαι','Ιουν','Ιουλ','Αυγ','Σεπ','Οκτ','Νοε','Δεκ'];
+  const yearOptions = Array.from({ length: 8 }, (_, i) => ({ value: String(now.getFullYear() - i), label: String(now.getFullYear() - i) }));
+  const monthOptions = [
+    { value: '01', label: 'Ιαν' }, { value: '02', label: 'Φεβ' }, { value: '03', label: 'Μαρ' },
+    { value: '04', label: 'Απρ' }, { value: '05', label: 'Μαι' }, { value: '06', label: 'Ιουν' },
+    { value: '07', label: 'Ιουλ' }, { value: '08', label: 'Αυγ' }, { value: '09', label: 'Σεπ' },
+    { value: '10', label: 'Οκτ' }, { value: '11', label: 'Νοε' }, { value: '12', label: 'Δεκ' },
+  ];
   const pageTotal = data.data.reduce((a, r) => a + parseFloat(r.amount || 0), 0);
 
   return (
@@ -152,14 +212,22 @@ export default function ExpensesList() {
             <path fillRule="evenodd" d="M9 3.5a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11ZM2 9a7 7 0 1 1 12.452 4.391l3.328 3.329a.75.75 0 1 1-1.06 1.06l-3.329-3.328A7 7 0 0 1 2 9Z" clipRule="evenodd"/>
           </svg>
         </div>
-        <select className="input w-28" value={filters.year} onChange={e => setFilters(f => ({ ...f, year: e.target.value, page: 1 }))}>
-          <option value="">Έτος</option>
-          {years.map(y => <option key={y}>{y}</option>)}
-        </select>
-        <select className="input w-28" value={filters.month} onChange={e => setFilters(f => ({ ...f, month: e.target.value, page: 1 }))}>
-          <option value="">Μήνας</option>
-          {months.map((m, i) => <option key={m} value={m}>{monthNames[i]}</option>)}
-        </select>
+        <MultiSelectDropdown
+          label="Όλα τα Έτη"
+          options={yearOptions}
+          selected={selectedYears}
+          onChange={v => { setSelectedYears(v); setFilters(f => ({ ...f, page: 1 })); }}
+          getKey={o => o.value}
+          getLabel={o => o.label}
+        />
+        <MultiSelectDropdown
+          label="Όλοι οι μήνες"
+          options={monthOptions}
+          selected={selectedMonths}
+          onChange={v => { setSelectedMonths(v); setFilters(f => ({ ...f, page: 1 })); }}
+          getKey={o => o.value}
+          getLabel={o => o.label}
+        />
         <select className="input w-44" value={filters.category} onChange={e => setFilters(f => ({ ...f, category: e.target.value, page: 1 }))}>
           <option value="">Κατηγορία</option>
           {categories.map(c => <option key={c}>{c}</option>)}
@@ -178,7 +246,7 @@ export default function ExpensesList() {
             <button className="btn-ghost btn-sm text-xs" onClick={() => { setDateFrom(''); setDateTo(''); }}>✕</button>
           )}
         </div>
-        <button className="btn-ghost btn-sm" onClick={() => { setFilters({ year: String(now.getFullYear()), month: String(now.getMonth()+1).padStart(2,'0'), category: '', search: '', page: 1 }); setHideNoAmount(false); setDateFrom(''); setDateTo(''); }}>
+        <button className="btn-ghost btn-sm" onClick={() => { setFilters({ category: '', search: '', page: 1 }); setSelectedYears([String(now.getFullYear())]); setSelectedMonths([String(now.getMonth()+1).padStart(2,'0')]); setHideNoAmount(false); setDateFrom(''); setDateTo(''); }}>
           ✕ Καθαρισμός
         </button>
       </div>

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import api from '../api/client';
 
@@ -7,6 +7,9 @@ const fmtK = n => {
   if (!n) return '0 €';
   return n >= 1000 ? (n / 1000).toFixed(1).replace('.', ',') + ' χιλ.€' : Math.round(n) + ' €';
 };
+const fmtGR = n => n != null ? Math.round(n).toLocaleString('el-GR') + ' €' : '—';
+
+const MONTH_NAMES_SHORT = ['Ιαν','Φεβ','Μαρ','Απρ','Μαι','Ιουν','Ιουλ','Αυγ','Σεπ','Οκτ','Νοε','Δεκ'];
 
 function KPICard({ label, value, sub, type }) {
   const styles = {
@@ -65,6 +68,9 @@ export default function Dashboard() {
     profit: parseInt(localStorage.getItem('profit_target') || '10000')
   });
   const [monthSummary, setMonthSummary] = useState(null);
+  const [allIncome, setAllIncome] = useState([]);
+  const [allExpenses, setAllExpenses] = useState([]);
+  const [expandedYears, setExpandedYears] = useState(new Set());
   const now = new Date();
   const currentMonth = String(now.getMonth() + 1).padStart(2, '0');
   const monthNames = ['Ιαν','Φεβ','Μαρ','Απρ','Μαι','Ιουν','Ιουλ','Αυγ','Σεπ','Οκτ','Νοε','Δεκ'];
@@ -93,6 +99,45 @@ export default function Dashboard() {
     api.get('/reports/summary', { params: { year: now.getFullYear(), month: currentMonth } })
       .then(r => setMonthSummary(r.data)).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    api.get('/income', { params: { limit: 9999 } }).then(r => setAllIncome(r.data?.data || [])).catch(() => {});
+    api.get('/expenses', { params: { limit: 9999 } }).then(r => setAllExpenses(r.data?.data || [])).catch(() => {});
+  }, []);
+
+  const yearlySummary = useMemo(() => {
+    const byYear = {};
+    for (const row of allIncome) {
+      const d = row.sale_date || row.date || '';
+      const y = d ? d.slice(0, 4) : null;
+      if (!y) continue;
+      if (!byYear[y]) byYear[y] = { income: 0, expenses: 0, months: {} };
+      const m = d.slice(5, 7);
+      byYear[y].income += parseFloat(row.amount_collected || 0);
+      if (!byYear[y].months[m]) byYear[y].months[m] = { income: 0, expenses: 0 };
+      byYear[y].months[m].income += parseFloat(row.amount_collected || 0);
+    }
+    for (const row of allExpenses) {
+      const d = row.date || '';
+      const y = d ? d.slice(0, 4) : null;
+      if (!y) continue;
+      if (!byYear[y]) byYear[y] = { income: 0, expenses: 0, months: {} };
+      const m = d.slice(5, 7);
+      byYear[y].expenses += parseFloat(row.amount || 0);
+      if (!byYear[y].months[m]) byYear[y].months[m] = { income: 0, expenses: 0 };
+      byYear[y].months[m].expenses += parseFloat(row.amount || 0);
+    }
+    return Object.entries(byYear)
+      .map(([year, v]) => ({
+        year,
+        income: v.income,
+        expenses: v.expenses,
+        profit: v.income - v.expenses,
+        profitPct: v.income > 0 ? ((v.income - v.expenses) / v.income * 100) : 0,
+        months: v.months,
+      }))
+      .sort((a, b) => b.year - a.year);
+  }, [allIncome, allExpenses]);
 
   const years = Array.from({ length: 6 }, (_, i) => new Date().getFullYear() - i);
 
@@ -272,6 +317,81 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
+
+      {/* Yearly Summary Table */}
+      {yearlySummary.length > 0 && (
+        <div className="card overflow-hidden">
+          <div className="px-6 py-4 border-b border-slate-100">
+            <h2 className="section-title mb-0">Ετήσια Επισκόπηση</h2>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr>
+                  <th className="th w-8"></th>
+                  <th className="th">Έτος</th>
+                  <th className="th text-right">Έσοδα</th>
+                  <th className="th text-right">Έξοδα</th>
+                  <th className="th text-right">Κέρδος</th>
+                  <th className="th text-right">% Κέρδους</th>
+                </tr>
+              </thead>
+              <tbody>
+                {yearlySummary.map(row => {
+                  const isExpanded = expandedYears.has(row.year);
+                  const profitColor = row.profitPct < 0 ? 'text-rose-600' : row.profitPct > 30 ? 'text-emerald-600' : 'text-amber-600';
+                  // Build monthly rows
+                  const monthRows = Object.entries(row.months)
+                    .map(([m, v]) => ({ month: m, income: v.income, expenses: v.expenses, profit: v.income - v.expenses }))
+                    .sort((a, b) => a.month.localeCompare(b.month));
+
+                  return (
+                    <React.Fragment key={row.year}>
+                      <tr
+                        className="tr cursor-pointer hover:bg-slate-50 transition-colors"
+                        onClick={() => setExpandedYears(prev => {
+                          const n = new Set(prev);
+                          n.has(row.year) ? n.delete(row.year) : n.add(row.year);
+                          return n;
+                        })}
+                      >
+                        <td className="td w-8 text-center">
+                          <svg viewBox="0 0 16 16" fill="currentColor"
+                            className={`w-3.5 h-3.5 text-slate-400 inline transition-transform ${isExpanded ? 'rotate-90' : ''}`}>
+                            <path fillRule="evenodd" d="M6.22 4.22a.75.75 0 0 1 1.06 0l3.25 3.25a.75.75 0 0 1 0 1.06l-3.25 3.25a.75.75 0 0 1-1.06-1.06L9.19 8 6.22 5.28a.75.75 0 0 1 0-1.06Z" clipRule="evenodd"/>
+                          </svg>
+                        </td>
+                        <td className="td font-bold text-slate-800 text-base">{row.year}</td>
+                        <td className="td text-right font-semibold text-emerald-600 whitespace-nowrap">{fmtGR(row.income)}</td>
+                        <td className="td text-right font-semibold text-rose-500 whitespace-nowrap">{fmtGR(row.expenses)}</td>
+                        <td className={`td text-right font-bold whitespace-nowrap ${profitColor}`}>{fmtGR(row.profit)}</td>
+                        <td className={`td text-right font-bold whitespace-nowrap ${profitColor}`}>{row.profitPct.toFixed(1)}%</td>
+                      </tr>
+                      {isExpanded && monthRows.map(mr => {
+                        const mIdx = parseInt(mr.month, 10) - 1;
+                        const mName = MONTH_NAMES_SHORT[mIdx] || mr.month;
+                        const mProfitColor = mr.profit < 0 ? 'text-rose-500' : 'text-emerald-600';
+                        return (
+                          <tr key={`${row.year}-${mr.month}`} className="bg-slate-50/60 border-l-4 border-indigo-100">
+                            <td className="td"></td>
+                            <td className="td pl-8 text-sm text-slate-500 font-medium">{mName}</td>
+                            <td className="td text-right text-sm text-emerald-600 whitespace-nowrap">{fmtGR(mr.income)}</td>
+                            <td className="td text-right text-sm text-rose-400 whitespace-nowrap">{fmtGR(mr.expenses)}</td>
+                            <td className={`td text-right text-sm font-semibold whitespace-nowrap ${mProfitColor}`}>{fmtGR(mr.profit)}</td>
+                            <td className="td text-right text-sm text-slate-400">
+                              {mr.income > 0 ? (mr.profit / mr.income * 100).toFixed(1) + '%' : '—'}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </React.Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
