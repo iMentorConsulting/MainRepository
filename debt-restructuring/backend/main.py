@@ -155,7 +155,7 @@ def export_data():
     })
 
 
-@app.post("/admin/upload-docs")
+@app.get("/admin/upload-docs")
 def upload_docs():
     """Upload the backup & restore instructions PDF to Google Drive."""
     folder_id = os.getenv("GOOGLE_DRIVE_BACKUP_FOLDER_ID", "").strip()
