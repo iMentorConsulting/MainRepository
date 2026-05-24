@@ -12,6 +12,7 @@ import InvoicesPage from './pages/Invoices/InvoicesPage';
 import EmailsPage from './pages/Emails/EmailsPage';
 import ListManager from './pages/Settings/ListManager';
 import ImportPage from './pages/Import/ImportPage';
+import ServiceAgreementsPage from './pages/ServiceAgreements/ServiceAgreementsPage';
 
 function ProtectedRoute({ children }) {
   const { isAuthenticated } = useAuth();
@@ -32,6 +33,7 @@ function AppRoutes() {
       <Route path="/emails" element={<ProtectedRoute><EmailsPage /></ProtectedRoute>} />
       <Route path="/settings" element={<ProtectedRoute><ListManager /></ProtectedRoute>} />
       <Route path="/import" element={<ProtectedRoute><ImportPage /></ProtectedRoute>} />
+      <Route path="/service-agreements" element={<ProtectedRoute><ServiceAgreementsPage /></ProtectedRoute>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
