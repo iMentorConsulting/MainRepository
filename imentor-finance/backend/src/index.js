@@ -27,8 +27,8 @@ app.get('/health', (_, res) => res.json({ ok: true }));
 // Serve React frontend in production
 if (process.env.NODE_ENV === 'production') {
   const path = require('path');
-  app.use(express.static(path.join(__dirname, '../../public')));
-  app.get('*', (_, res) => res.sendFile(path.join(__dirname, '../../public/index.html')));
+  app.use(express.static(path.join(__dirname, '../public')));
+  app.get('*', (_, res) => res.sendFile(path.join(__dirname, '../public/index.html')));
 }
 
 const PORT = process.env.PORT || 3001;
