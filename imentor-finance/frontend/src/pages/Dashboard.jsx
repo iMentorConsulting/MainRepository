@@ -24,7 +24,7 @@ function MultiSelectDropdown({ label, options, selected, onChange, getKey, getLa
   return (
     <div className="relative" ref={ref}>
       <button type="button"
-        className="input flex items-center justify-between gap-2 min-w-[110px] text-left"
+        className="input flex items-center justify-between gap-2 min-w-[130px] text-left"
         onClick={() => setOpen(v => !v)}>
         <span className={`truncate text-sm ${allSelected ? 'text-slate-400' : 'text-slate-700'}`}>{displayLabel}</span>
         <svg viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5 text-slate-400 shrink-0">
@@ -32,7 +32,7 @@ function MultiSelectDropdown({ label, options, selected, onChange, getKey, getLa
         </svg>
       </button>
       {open && (
-        <div className="absolute z-50 top-full mt-1 left-0 min-w-[160px] bg-white border border-slate-200 rounded-xl shadow-lg py-1 max-h-64 overflow-y-auto">
+        <div className="absolute z-50 top-full mt-1 left-0 min-w-[180px] bg-white border border-slate-200 rounded-xl shadow-lg py-1 max-h-64 overflow-y-auto">
           <label className="flex items-center gap-2.5 px-3 py-2 hover:bg-slate-50 cursor-pointer border-b border-slate-100">
             <input type="checkbox" checked={allSelected} onChange={() => onChange([])}
               className="w-4 h-4 rounded border-slate-300 text-primary-600" />
