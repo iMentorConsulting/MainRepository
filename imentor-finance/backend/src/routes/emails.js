@@ -105,44 +105,88 @@ router.post('/send', async (req, res) => {
   }
 });
 
-function buildEmailHtml(accountant, rows) {
-  const rows_html = rows.map(r => `
-    <tr>
-      <td style="padding:8px;border:1px solid #ddd;">${r.customer_name || ''}</td>
-      <td style="padding:8px;border:1px solid #ddd;">${r.service_type || ''}</td>
-      <td style="padding:8px;border:1px solid #ddd;">${formatMoney(r.amount_collected)}</td>
-      <td style="padding:8px;border:1px solid #ddd;">${formatMoney(r.vat_amount)}</td>
-      <td style="padding:8px;border:1px solid #ddd;">${formatDate(r.sale_date)}</td>
-      <td style="padding:8px;border:1px solid #ddd;">${r.invoice_number || ''}</td>
-      <td style="padding:8px;border:1px solid #ddd;">${r.work_status || ''}</td>
-      <td style="padding:8px;border:1px solid #ddd;">${r.description || ''}</td>
+const COMPLETED_STATUSES = ['ΟΛΟΚΛΗΡΩΘΗΚΕ', 'ΑΠΟΡΡΙΦΘΗΚΕ', 'ΑΚΥΡΩΜΕΝΟ', 'ΑΚΥΡΩΘΗΚΕ'];
+
+function deduplicateRows(rows) {
+  const map = new Map();
+  for (const r of rows) {
+    const key = `${r.customer_name}|||${r.service_type || ''}`;
+    if (!map.has(key)) {
+      map.set(key, { ...r });
+    } else {
+      const existing = map.get(key);
+      if (r.sale_date && (!existing.sale_date || r.sale_date < existing.sale_date)) {
+        existing.sale_date = r.sale_date;
+      }
+      if (r.approval_date && !existing.approval_date) existing.approval_date = r.approval_date;
+      if (r.investment_height && !existing.investment_height) existing.investment_height = r.investment_height;
+      if (r.total_debts && !existing.total_debts) existing.total_debts = r.total_debts;
+    }
+  }
+  return [...map.values()];
+}
+
+function buildSectionHtml(rows, color, title) {
+  if (rows.length === 0) return '';
+  const headerBg = color === 'green' ? '#2e7d32' : '#1565c0';
+  const rowsHtml = rows.map((r, i) => `
+    <tr style="background:${i % 2 === 0 ? '#fff' : '#f5f5f5'}">
+      <td style="padding:7px 10px;border:1px solid #ddd;font-weight:600">${r.customer_name || ''}</td>
+      <td style="padding:7px 10px;border:1px solid #ddd">${r.work_status || ''}</td>
+      <td style="padding:7px 10px;border:1px solid #ddd">${r.service_type || ''}</td>
+      <td style="padding:7px 10px;border:1px solid #ddd;white-space:nowrap">${formatDate(r.sale_date)}</td>
+      <td style="padding:7px 10px;border:1px solid #ddd;text-align:right">${r.investment_height ? formatMoney(r.investment_height) : ''}</td>
+      <td style="padding:7px 10px;border:1px solid #ddd;text-align:right">${r.total_debts ? formatMoney(r.total_debts) : ''}</td>
+      <td style="padding:7px 10px;border:1px solid #ddd;white-space:nowrap">${formatDate(r.approval_date)}</td>
     </tr>`).join('');
 
   return `
-  <!DOCTYPE html>
-  <html lang="el">
-  <head><meta charset="UTF-8"><style>
-    body { font-family: Arial, sans-serif; font-size: 14px; color: #333; }
-    table { border-collapse: collapse; width: 100%; }
-    th { background: #1a56db; color: white; padding: 10px; text-align: left; }
-    tr:nth-child(even) td { background: #f8f9fa; }
-  </style></head>
-  <body>
-    <p>Καλησπέρα ${accountant},</p>
-    <p>Σας αποστέλλουμε τις παρακάτω νέες εισπράξεις για ενημέρωση:</p>
-    <table>
+    <h3 style="margin:20px 0 8px;color:${headerBg}">${title} (${rows.length})</h3>
+    <table style="border-collapse:collapse;width:100%;font-size:13px">
       <thead>
-        <tr>
-          <th>Πελάτης</th><th>Υπηρεσία</th><th>Ποσό</th><th>ΦΠΑ</th>
-          <th>Ημ/νία</th><th>Τιμολόγιο</th><th>Κατάσταση</th><th>Αιτιολογία</th>
+        <tr style="background:${headerBg};color:#fff">
+          <th style="padding:9px 10px;text-align:left;border:1px solid #ddd">Επωνυμία</th>
+          <th style="padding:9px 10px;text-align:left;border:1px solid #ddd">Κατάσταση</th>
+          <th style="padding:9px 10px;text-align:left;border:1px solid #ddd">Υπηρεσία</th>
+          <th style="padding:9px 10px;text-align:left;border:1px solid #ddd">Ημ. Πώλησης</th>
+          <th style="padding:9px 10px;text-align:right;border:1px solid #ddd">Ύψος Επένδυσης</th>
+          <th style="padding:9px 10px;text-align:right;border:1px solid #ddd">Σύνολο Οφειλών</th>
+          <th style="padding:9px 10px;text-align:left;border:1px solid #ddd">Ημ. Έγκρισης</th>
         </tr>
       </thead>
-      <tbody>${rows_html}</tbody>
-    </table>
-    <br>
-    <p>Με εκτίμηση,<br><strong>i-Mentor Team</strong><br>info@i-mentor.gr</p>
-  </body>
-  </html>`;
+      <tbody>${rowsHtml}</tbody>
+    </table>`;
+}
+
+function buildEmailHtml(accountant, rows) {
+  const deduped = deduplicateRows(rows);
+  const inProgress = deduped.filter(r => !COMPLETED_STATUSES.includes((r.work_status || '').toUpperCase().trim()));
+  const completed = deduped.filter(r => COMPLETED_STATUSES.includes((r.work_status || '').toUpperCase().trim()));
+
+  const programs = `
+    <div style="margin-top:28px;padding:14px 18px;background:#f0f4ff;border-left:4px solid #3f51b5;border-radius:4px;font-size:13px;color:#333">
+      <strong>Χρηματοδοτικά Εργαλεία i-Mentor:</strong><br>
+      Επιδότηση Ανακαίνισης · Μικροδάνεια · Τουρισμός · Μεταποίηση · Αγροτικά · Εξοικονόμηση Ενέργειας
+      <br><a href="https://i-mentor.gr" style="color:#3f51b5">www.i-mentor.gr</a>
+    </div>`;
+
+  return `<!DOCTYPE html>
+<html lang="el">
+<head><meta charset="UTF-8">
+<style>
+  body { font-family: Arial, sans-serif; font-size: 14px; color: #333; max-width: 900px; margin: 0 auto; padding: 20px; }
+</style>
+</head>
+<body>
+  <p>Καλησπέρα <strong>${accountant}</strong>,</p>
+  <p>Σας αποστέλλουμε ενημέρωση για την πορεία των πελατών σας:</p>
+  ${buildSectionHtml(inProgress, 'green', 'Πελάτες σε εξέλιξη')}
+  ${buildSectionHtml(completed, 'blue', 'Ολοκληρωμένοι Πελάτες')}
+  ${programs}
+  <br>
+  <p>Με εκτίμηση,<br><strong>i-Mentor Team</strong><br>info@i-mentor.gr | www.i-mentor.gr</p>
+</body>
+</html>`;
 }
 
 router.get('/logs', async (req, res) => {
@@ -161,9 +205,12 @@ router.get('/accountants', async (req, res) => {
   try {
     const { Op } = require('sequelize');
     const Income = require('../models/Income');
+    const { year } = req.query;
+    const where = { accountant: { [Op.and]: [{ [Op.ne]: null }, { [Op.ne]: '' }] } };
+    if (year) where.sale_date = { [Op.between]: [`${year}-01-01`, `${year}-12-31`] };
     const rows = await Income.findAll({
       attributes: ['accountant', 'accountant_email'],
-      where: { accountant: { [Op.ne]: null, [Op.ne]: '' } },
+      where,
       group: ['accountant', 'accountant_email'],
       order: [['accountant', 'ASC']],
       raw: true

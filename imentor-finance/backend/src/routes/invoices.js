@@ -2,6 +2,52 @@ const router = require('express').Router();
 const axios = require('axios');
 const Income = require('../models/Income');
 
+async function aadeSearchAfm(vat) {
+  const soapBody = `<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:pub="http://rgwspublic2.rg.gov.gr/">
+    <soapenv:Header/>
+    <soapenv:Body>
+      <pub:rgWsPublic2AfmMethod>
+        <pub:INPUT_REC>
+          <pub:afm_called_by>${process.env.AADE_AFM || ''}</pub:afm_called_by>
+          <pub:afm_called_for>${vat}</pub:afm_called_for>
+        </pub:INPUT_REC>
+      </pub:rgWsPublic2AfmMethod>
+    </soapenv:Body>
+  </soapenv:Envelope>`;
+
+  const r = await axios.post(
+    'https://www1.gsis.gr/wsaade/RgWsPublic2/RgWsPublic2',
+    soapBody,
+    {
+      headers: { 'Content-Type': 'text/xml; charset=UTF-8', 'SOAPAction': '' },
+      auth: {
+        username: process.env.AADE_USERNAME || '',
+        password: process.env.AADE_PASSWORD || ''
+      },
+      timeout: 10000
+    }
+  );
+
+  const xml = r.data;
+  const get = tag => {
+    const m = xml.match(new RegExp(`<[^:>]*:?${tag}>([^<]*)<`));
+    return m ? m[1].trim() : null;
+  };
+  const errorCode = get('error_code');
+  if (errorCode && errorCode !== 'RET_CODE_OK' && errorCode !== '') {
+    return { error: get('error_descr') || `Error: ${errorCode}` };
+  }
+  return {
+    name: get('onomasia'),
+    address: get('postal_address'),
+    city: get('postal_address_city'),
+    postal_code: get('postal_zip_code'),
+    vat: get('afm'),
+    activity: get('activity_descr'),
+    legal_status: get('legal_status_descr')
+  };
+}
+
 const BASE = 'https://api.elorus.com/v1.1/';
 const ORGS = {
   DEFAULT: process.env.ELORUS_ORG_DEFAULT,
@@ -33,8 +79,13 @@ async function findOrCreateContact(orgKey, income) {
   const c = await a.post('contacts/', {
     company: income.customer_name,
     vat_number: income.vat_number || '',
-    email: income.email || '',
-    addresses: income.address ? [{ address: income.address, city: income.city || '', zip: income.postal_code || '' }] : [],
+    email: income.email ? [income.email] : [],
+    addresses: income.address ? [{
+      address: income.address,
+      city: income.city || '',
+      zip: income.postal_code || '',
+      country: 'GR'
+    }] : [],
     is_client: true,
   });
   return c.data.id;
@@ -50,7 +101,9 @@ function lines(net, desc, serviceType) {
   }];
 }
 
-function withholding(net) {
+function withholding(net, orgKey) {
+  if (orgKey === 'IMENTOR_IKE') return [];
+  if (net <= 301) return [];
   return [{ value: (-net * 0.20).toFixed(2), title: 'Παρακράτηση 20%' }];
 }
 
@@ -60,12 +113,12 @@ function errMsg(e) {
 
 router.get('/search-afm', async (req, res) => {
   try {
-    const { income_id, org_key = 'DEFAULT' } = req.query;
+    const { income_id } = req.query;
     const income = await Income.findByPk(income_id);
     if (!income) return res.status(404).json({ error: 'Εγγραφή δεν βρέθηκε' });
-    const term = income.vat_number || income.customer_name;
-    const r = await api(org_key).get(`contacts/?search=${encodeURIComponent(term)}`);
-    res.json({ contacts: r.data.results || [], vat_number: income.vat_number });
+    if (!income.vat_number) return res.json({ error: 'Δεν υπάρχει ΑΦΜ σε αυτή την εγγραφή' });
+    const result = await aadeSearchAfm(income.vat_number.trim());
+    res.json(result);
   } catch (e) { res.status(500).json({ error: errMsg(e) }); }
 });
 
@@ -83,7 +136,7 @@ router.post('/create-draft', async (req, res) => {
       document_type: 1,
       draft: true,
       lines: lines(net, description, income.service_type),
-      ...(org_key !== 'IMENTOR_IKE' ? { extra_fees: withholding(net) } : {}),
+      ...(withholding(net, org_key).length ? { extra_fees: withholding(net, org_key) } : {}),
     };
     const r = await a.post('invoices/', body);
     await income.update({ elorus_invoice_id: String(r.data.id) });
@@ -141,7 +194,7 @@ router.post('/one-shot', async (req, res) => {
       date: iDate,
       document_type: 1,
       lines: lines(net, description, income.service_type),
-      ...(org_key !== 'IMENTOR_IKE' ? { extra_fees: withholding(net) } : {}),
+      ...(withholding(net, org_key).length ? { extra_fees: withholding(net, org_key) } : {}),
     };
     const cr = await a.post('invoices/', body);
     const inv = cr.data;

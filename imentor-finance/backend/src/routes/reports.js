@@ -222,33 +222,41 @@ router.get('/expenses-by-category', async (req, res) => {
   }
 });
 
-// Top customers grouped by customer_name + vat_number
 router.get('/by-customer', async (req, res) => {
   try {
     const { year, month } = req.query;
-    let where = {};
-    if (year && month) where.sale_date = { [Op.between]: [`${year}-${month.padStart(2,'0')}-01`, `${year}-${month.padStart(2,'0')}-31`] };
-    else if (year) where.sale_date = { [Op.between]: [`${year}-01-01`, `${year}-12-31`] };
+    let dateCondition = '1=1';
+    const replacements = {};
+    if (year && month) {
+      dateCondition = `sale_date BETWEEN :start AND :end`;
+      replacements.start = `${year}-${month.padStart(2,'0')}-01`;
+      replacements.end = `${year}-${month.padStart(2,'0')}-31`;
+    } else if (year) {
+      dateCondition = `sale_date BETWEEN :start AND :end`;
+      replacements.start = `${year}-01-01`;
+      replacements.end = `${year}-12-31`;
+    }
 
-    const rows = await Income.findAll({
-      where,
-      attributes: [
-        'customer_name', 'vat_number',
-        [fn('SUM', col('amount_collected')), 'income'],
-        [fn('COUNT', col('id')), 'count'],
-        [fn('COUNT', fn('DISTINCT', col('service_type'))), 'service_count']
-      ],
-      group: ['customer_name', 'vat_number'],
-      order: [[literal('income'), 'DESC']],
-      raw: true
-    });
+    const rows = await sequelize.query(`
+      SELECT
+        customer_name,
+        vat_number,
+        COALESCE(SUM(amount_collected), 0) as income,
+        COUNT(*) as count,
+        STRING_AGG(DISTINCT service_type, ', ' ORDER BY service_type) as services
+      FROM income
+      WHERE ${dateCondition}
+      GROUP BY customer_name, vat_number
+      HAVING COALESCE(SUM(amount_collected), 0) > 0
+      ORDER BY income DESC
+    `, { replacements, type: require('sequelize').QueryTypes.SELECT });
 
     res.json(rows.map(r => ({
       customer_name: r.customer_name,
       vat_number: r.vat_number || '—',
       income: parseFloat(r.income || 0),
       count: parseInt(r.count || 0),
-      service_count: parseInt(r.service_count || 0)
+      services: r.services || '—'
     })));
   } catch (e) {
     res.status(500).json({ error: e.message });

@@ -6,10 +6,19 @@ const ALLOWED_SORT = ['sale_date','customer_name','amount_collected','amount_app
 
 router.get('/', async (req, res) => {
   try {
-    const { year, month, service_type, sales_agent, search, page = 1, limit = 50, sort_field, sort_dir } = req.query;
+    const { year, month, date_from, date_to, service_type, sales_agent, search, page = 1, limit = 50, sort_field, sort_dir } = req.query;
     const where = {};
-    if (year) where.sale_date = { [Op.between]: [`${year}-01-01`, `${year}-12-31`] };
-    if (month && year) where.sale_date = { [Op.between]: [`${year}-${month.padStart(2,'0')}-01`, `${year}-${month.padStart(2,'0')}-31`] };
+    if (date_from && date_to) {
+      where.sale_date = { [Op.between]: [date_from, date_to] };
+    } else if (date_from) {
+      where.sale_date = { [Op.gte]: date_from };
+    } else if (date_to) {
+      where.sale_date = { [Op.lte]: date_to };
+    } else if (year && month) {
+      where.sale_date = { [Op.between]: [`${year}-${month.padStart(2,'0')}-01`, `${year}-${month.padStart(2,'0')}-31`] };
+    } else if (year) {
+      where.sale_date = { [Op.between]: [`${year}-01-01`, `${year}-12-31`] };
+    }
     if (service_type) where.service_type = service_type;
     if (sales_agent) where.sales_agent = sales_agent;
     if (search) where.customer_name = { [Op.iLike]: `%${search}%` };

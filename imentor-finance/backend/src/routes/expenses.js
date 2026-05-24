@@ -6,10 +6,19 @@ const ALLOWED_SORT = ['date','amount','category','supplier','description'];
 
 router.get('/', async (req, res) => {
   try {
-    const { year, month, category, supplier, search, page = 1, limit = 50, sort_field, sort_dir, hide_no_amount } = req.query;
+    const { year, month, date_from, date_to, category, supplier, search, page = 1, limit = 50, sort_field, sort_dir, hide_no_amount } = req.query;
     const where = {};
-    if (year) where.date = { [Op.between]: [`${year}-01-01`, `${year}-12-31`] };
-    if (month && year) where.date = { [Op.between]: [`${year}-${month.padStart(2,'0')}-01`, `${year}-${month.padStart(2,'0')}-31`] };
+    if (date_from && date_to) {
+      where.date = { [Op.between]: [date_from, date_to] };
+    } else if (date_from) {
+      where.date = { [Op.gte]: date_from };
+    } else if (date_to) {
+      where.date = { [Op.lte]: date_to };
+    } else if (year && month) {
+      where.date = { [Op.between]: [`${year}-${month.padStart(2,'0')}-01`, `${year}-${month.padStart(2,'0')}-31`] };
+    } else if (year) {
+      where.date = { [Op.between]: [`${year}-01-01`, `${year}-12-31`] };
+    }
     if (category) where.category = category;
     if (supplier) where.supplier = supplier;
     if (hide_no_amount === 'true') where.amount = { [Op.gt]: 0 };

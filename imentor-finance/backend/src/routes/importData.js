@@ -191,4 +191,105 @@ router.post('/expenses', upload.single('file'), async (req, res) => {
   }
 });
 
+const Customer = require('../models/Customer');
+const ServiceAgreement = require('../models/ServiceAgreement');
+
+router.post('/sync-customers', async (req, res) => {
+  try {
+    const { Op } = require('sequelize');
+    const Income = require('../models/Income');
+    const rows = await Income.findAll({ raw: true });
+
+    const seen = new Map();
+    for (const r of rows) {
+      if (!r.customer_name) continue;
+      const key = `${r.customer_name}|||${r.vat_number || ''}`;
+      if (!seen.has(key)) seen.set(key, r);
+    }
+
+    let created = 0, updated = 0;
+    for (const r of seen.values()) {
+      const [cust, isNew] = await Customer.findOrCreate({
+        where: { name: r.customer_name, vat_number: r.vat_number || null },
+        defaults: {
+          name: r.customer_name,
+          vat_number: r.vat_number || null,
+          email: r.email || null,
+          phone: r.phone || null,
+          city: r.city || null,
+          postal_code: r.postal_code || null,
+          address: r.address || null,
+          business_activity: r.business_activity || null,
+          accountant: r.accountant || null,
+          accountant_email: r.accountant_email || null
+        }
+      });
+      if (isNew) created++; else updated++;
+
+      await Income.update(
+        { customer_id: cust.id },
+        { where: { customer_name: r.customer_name, vat_number: r.vat_number || { [Op.is]: null } } }
+      );
+    }
+
+    res.json({ created, updated, total: seen.size });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+router.post('/sync-agreements', async (req, res) => {
+  try {
+    const { Op } = require('sequelize');
+    const Income = require('../models/Income');
+    const rows = await Income.findAll({ raw: true });
+
+    const seen = new Map();
+    for (const r of rows) {
+      if (!r.customer_name) continue;
+      const key = `${r.customer_name}|||${r.service_type || ''}`;
+      if (!seen.has(key)) {
+        seen.set(key, {
+          customer_name: r.customer_name,
+          vat_number: r.vat_number || null,
+          customer_id: r.customer_id || null,
+          service_type: r.service_type || null,
+          status: r.work_status || 'ΕΝΕΡΓΟ',
+          amount_application: parseFloat(r.amount_application || 0),
+          amount_implementation: parseFloat(r.amount_implementation || 0),
+          approval_date: r.approval_date || null,
+          completion_deadline: r.completion_deadline || null,
+          investment_height: parseFloat(r.investment_height || 0) || null,
+          total_debts: parseFloat(r.total_debts || 0) || null,
+          sales_agent: r.sales_agent || null,
+          folder_agent: r.folder_agent || null,
+          source_referral: r.source_referral || null,
+          targeting_category: r.targeting_category || null,
+          description: r.description || null,
+          amount_collected_total: 0,
+          income_ids: []
+        });
+      }
+      const sa = seen.get(key);
+      sa.amount_collected_total += parseFloat(r.amount_collected || 0);
+      sa.income_ids.push(r.id);
+    }
+
+    let created = 0, skipped = 0;
+    for (const sa of seen.values()) {
+      const existing = await ServiceAgreement.findOne({
+        where: { customer_name: sa.customer_name, service_type: sa.service_type || { [Op.is]: null } }
+      });
+      if (existing) { skipped++; continue; }
+      const { income_ids, ...saData } = sa;
+      const newSa = await ServiceAgreement.create(saData);
+      await Income.update(
+        { service_agreement_id: newSa.id },
+        { where: { id: { [Op.in]: income_ids } } }
+      );
+      created++;
+    }
+
+    res.json({ created, skipped, total: seen.size });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 module.exports = router;
