@@ -103,7 +103,7 @@ const CustomTooltip = ({ active, payload, label }) => {
 };
 
 export default function Dashboard() {
-  const [year, setYear] = useState(new Date().getFullYear());
+  const [selectedYears, setSelectedYears] = useState([String(new Date().getFullYear())]);
   const [selectedMonths, setSelectedMonths] = useState([]);
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
@@ -121,49 +121,40 @@ export default function Dashboard() {
   const [monthly, setMonthly] = useState([]);
   const [byService, setByService] = useState([]);
   const [byAgent, setByAgent] = useState([]);
-  const [targets, setTargets] = useState({
-    income: parseInt(localStorage.getItem('income_target') || '20000'),
-    profit: parseInt(localStorage.getItem('profit_target') || '10000')
+  const [monthlyTargets, setMonthlyTargets] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('imf_monthly_targets') || '{}'); }
+    catch { return {}; }
   });
-  const [editingTargets, setEditingTargets] = useState(false);
-  const [tempTargets, setTempTargets] = useState({
-    income: parseInt(localStorage.getItem('income_target') || '20000'),
-    profit: parseInt(localStorage.getItem('profit_target') || '10000')
-  });
-  const [monthSummary, setMonthSummary] = useState(null);
+  const [defaultIncomeTarget, setDefaultIncomeTarget] = useState(() => parseFloat(localStorage.getItem('income_target') || '20000'));
+  const [defaultProfitTarget, setDefaultProfitTarget] = useState(() => parseFloat(localStorage.getItem('profit_target') || '10000'));
   const [allIncome, setAllIncome] = useState([]);
   const [allExpenses, setAllExpenses] = useState([]);
   const [expandedYears, setExpandedYears] = useState(new Set());
-  const now = new Date();
-  const currentMonth = String(now.getMonth() + 1).padStart(2, '0');
-  const monthNames = ['Ιαν','Φεβ','Μαρ','Απρ','Μαι','Ιουν','Ιουλ','Αυγ','Σεπ','Οκτ','Νοε','Δεκ'];
 
   useEffect(() => {
     const buildParams = (base) => {
       const p = new URLSearchParams(base);
+      if (selectedYears.length === 1) p.set('year', selectedYears[0]);
+      else if (selectedYears.length > 1) p.set('years', selectedYears.join(','));
       if (selectedMonths.length === 1) p.set('month', selectedMonths[0]);
       else if (selectedMonths.length > 1) p.set('months', selectedMonths.join(','));
       if (dateFrom) p.set('date_from', dateFrom);
       if (dateTo) p.set('date_to', dateTo);
       return p.toString();
     };
+    const monthlyYear = selectedYears.length === 1 ? selectedYears[0] : (selectedYears[0] || new Date().getFullYear());
     Promise.all([
-      api.get(`/reports/summary?${buildParams(`year=${year}`)}`),
-      api.get(`/reports/monthly?year=${year}`),
-      api.get(`/reports/by-service?${buildParams(`year=${year}`)}`),
-      api.get(`/reports/by-agent?${buildParams(`year=${year}`)}`)
+      api.get(`/reports/summary?${buildParams('')}`),
+      api.get(`/reports/monthly?year=${monthlyYear}`),
+      api.get(`/reports/by-service?${buildParams('')}`),
+      api.get(`/reports/by-agent?${buildParams('')}`)
     ]).then(([s, m, sv, ag]) => {
       setSummary(s.data);
       setMonthly(m.data.map(d => ({ ...d, name: d.month_name.slice(0, 3) })));
       setByService(sv.data.slice(0, 7));
       setByAgent(ag.data.slice(0, 6));
     });
-  }, [year, selectedMonths, dateFrom, dateTo]);
-
-  useEffect(() => {
-    api.get('/reports/summary', { params: { year: now.getFullYear(), month: currentMonth } })
-      .then(r => setMonthSummary(r.data)).catch(() => {});
-  }, []);
+  }, [selectedYears, selectedMonths, dateFrom, dateTo]);
 
   useEffect(() => {
     api.get('/income', { params: { limit: 9999 } }).then(r => setAllIncome(r.data?.data || [])).catch(() => {});
@@ -212,9 +203,14 @@ export default function Dashboard() {
           <p className="page-sub">Οικονομική επισκόπηση</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          <select value={year} onChange={e => setYear(+e.target.value)} className="input w-28">
-            {yearOptions.map(y => <option key={y.value} value={y.value}>{y.label}</option>)}
-          </select>
+          <MultiSelectDropdown
+            label="Όλα τα Έτη"
+            options={yearOptions}
+            selected={selectedYears}
+            onChange={setSelectedYears}
+            getKey={o => o.value}
+            getLabel={o => o.label}
+          />
           <MultiSelectDropdown
             label="Όλοι οι μήνες"
             options={monthOptions}
@@ -243,70 +239,155 @@ export default function Dashboard() {
         <KPICard label="Περιθώριο" type="margin" value={`${(summary?.profit_pct ?? 0).toFixed(1)}%`} />
       </div>
 
-      {/* Monthly targets */}
-      {monthSummary && (
-        <div className="card p-5">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="section-title mb-0">Στοχοθεσία {monthNames[now.getMonth()]} {now.getFullYear()}</h2>
-            <button className="btn-ghost btn-sm text-xs" onClick={() => { setTempTargets(targets); setEditingTargets(v => !v); }}>
-              {editingTargets ? '✕ Κλείσιμο' : '✎ Επεξεργασία'}
-            </button>
-          </div>
-          {editingTargets && (
-            <div className="flex gap-4 mb-4 p-3 rounded-xl bg-slate-50 border border-slate-100">
+      {/* Monthly targets & achievement */}
+      {(() => {
+        const getMonthTarget = (yr, month) => {
+          const key = `${yr}-${String(month).padStart(2, '0')}`;
+          return monthlyTargets[key] || { income: defaultIncomeTarget, profit: defaultProfitTarget };
+        };
+        const setMonthTarget = (yr, month, field, value) => {
+          const key = `${yr}-${String(month).padStart(2, '0')}`;
+          const updated = { ...monthlyTargets, [key]: { ...getMonthTarget(yr, month), [field]: parseFloat(value) || 0 } };
+          setMonthlyTargets(updated);
+          localStorage.setItem('imf_monthly_targets', JSON.stringify(updated));
+        };
+        const applyToAll = () => {
+          const yr = selectedYears.length === 1 ? parseInt(selectedYears[0]) : new Date().getFullYear();
+          const updated = { ...monthlyTargets };
+          for (let m = 1; m <= 12; m++) {
+            const key = `${yr}-${String(m).padStart(2, '0')}`;
+            updated[key] = { income: defaultIncomeTarget, profit: defaultProfitTarget };
+          }
+          setMonthlyTargets(updated);
+          localStorage.setItem('imf_monthly_targets', JSON.stringify(updated));
+          localStorage.setItem('income_target', String(defaultIncomeTarget));
+          localStorage.setItem('profit_target', String(defaultProfitTarget));
+        };
+        const achColor = pct => pct === null ? 'text-slate-400' : pct >= 100 ? 'text-emerald-600 font-bold' : pct >= 70 ? 'text-amber-600 font-semibold' : 'text-rose-600 font-semibold';
+        const MONTHS = ['Ιαν', 'Φεβ', 'Μαρ', 'Απρ', 'Μαϊ', 'Ιουν', 'Ιουλ', 'Αυγ', 'Σεπ', 'Οκτ', 'Νοε', 'Δεκ'];
+        const displayYr = selectedYears.length === 1 ? parseInt(selectedYears[0]) : new Date().getFullYear();
+
+        // Compute totals for summary row
+        let totalActualIncome = 0, totalActualProfit = 0, totalTargetIncome = 0, totalTargetProfit = 0;
+        for (let m = 1; m <= 12; m++) {
+          const actual = monthly?.find(d => d.month === m) || { income: 0, expenses: 0 };
+          const ai = parseFloat(actual.income || actual.total_income || 0);
+          const ap = ai - parseFloat(actual.expenses || actual.total_expenses || 0);
+          const t = getMonthTarget(displayYr, m);
+          totalActualIncome += ai;
+          totalActualProfit += ap;
+          totalTargetIncome += t.income;
+          totalTargetProfit += t.profit;
+        }
+        const totalIncomeAch = totalTargetIncome > 0 ? Math.round(totalActualIncome / totalTargetIncome * 100) : null;
+        const totalProfitAch = totalTargetProfit > 0 ? Math.round(totalActualProfit / totalTargetProfit * 100) : null;
+
+        return (
+          <div className="card p-5">
+            <h2 className="section-title mb-4">Στοχοθεσία &amp; Επίτευξη</h2>
+            {/* Default target inputs */}
+            <div className="flex flex-wrap gap-4 mb-5 p-4 rounded-xl bg-slate-50 border border-slate-100">
               <div>
-                <label className="label">Στόχος Εσόδων (€)</label>
-                <input type="number" className="input w-36" value={tempTargets.income} onChange={e => setTempTargets(t => ({ ...t, income: parseInt(e.target.value) || 0 }))} />
+                <label className="label">Μηνιαίος Στόχος Εσόδων (€)</label>
+                <input
+                  type="number"
+                  className="input w-40"
+                  value={defaultIncomeTarget}
+                  onChange={e => {
+                    const v = parseFloat(e.target.value) || 0;
+                    setDefaultIncomeTarget(v);
+                    localStorage.setItem('income_target', String(v));
+                  }}
+                />
               </div>
               <div>
-                <label className="label">Στόχος Κερδών (€)</label>
-                <input type="number" className="input w-36" value={tempTargets.profit} onChange={e => setTempTargets(t => ({ ...t, profit: parseInt(e.target.value) || 0 }))} />
+                <label className="label">Μηνιαίος Στόχος Κέρδους (€)</label>
+                <input
+                  type="number"
+                  className="input w-40"
+                  value={defaultProfitTarget}
+                  onChange={e => {
+                    const v = parseFloat(e.target.value) || 0;
+                    setDefaultProfitTarget(v);
+                    localStorage.setItem('profit_target', String(v));
+                  }}
+                />
               </div>
               <div className="flex items-end">
-                <button className="btn-primary btn-sm" onClick={() => {
-                  setTargets(tempTargets);
-                  localStorage.setItem('income_target', tempTargets.income);
-                  localStorage.setItem('profit_target', tempTargets.profit);
-                  setEditingTargets(false);
-                }}>Αποθήκευση</button>
+                <button className="btn-primary btn-sm" onClick={applyToAll}>
+                  Εφαρμογή σε Όλους τους Μήνες
+                </button>
               </div>
             </div>
-          )}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {[
-              { label: 'Έσοδα Μήνα', value: parseFloat(monthSummary.income || 0), target: targets.income, color: 'emerald' },
-              { label: 'Κέρδη Μήνα', value: parseFloat(monthSummary.profit || 0), target: targets.profit, color: 'indigo' }
-            ].map(({ label, value, target, color }) => {
-              const pct = target > 0 ? Math.min(100, (value / target) * 100) : 0;
-              const barColor = pct >= 100 ? '#10b981' : pct >= 60 ? '#f59e0b' : '#f43f5e';
-              return (
-                <div key={label} className="space-y-2">
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm font-semibold text-slate-700">{label}</span>
-                    <span className="text-xs text-slate-500">{Math.round(value).toLocaleString('el-GR')} € / {target.toLocaleString('el-GR')} €</span>
-                  </div>
-                  <div className="h-3 rounded-full bg-slate-100 overflow-hidden">
-                    <div className="h-full rounded-full transition-all duration-500"
-                      style={{ width: `${pct}%`, background: barColor }} />
-                  </div>
-                  <div className="flex justify-between text-xs">
-                    <span style={{ color: barColor }} className="font-bold">{pct.toFixed(0)}%</span>
-                    <span className="text-slate-400">
-                      {value < target
-                        ? `Υπολείπεται ${(target - value).toLocaleString('el-GR')} €`
-                        : '✓ Στόχος επιτεύχθηκε'}
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
+            {/* Monthly targets table */}
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr>
+                    <th className="th">Μήνας</th>
+                    <th className="th text-right">Στόχος Εσόδων</th>
+                    <th className="th text-right">Πραγματικά Έσοδα</th>
+                    <th className="th text-center">Επίτευξη %</th>
+                    <th className="th text-right">Στόχος Κέρδους</th>
+                    <th className="th text-right">Κέρδος</th>
+                    <th className="th text-center">Επίτευξη %</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[1,2,3,4,5,6,7,8,9,10,11,12].map(m => {
+                    const actual = monthly?.find(d => d.month === m) || { income: 0, expenses: 0 };
+                    const actualIncome = parseFloat(actual.income || actual.total_income || 0);
+                    const actualProfit = actualIncome - parseFloat(actual.expenses || actual.total_expenses || 0);
+                    const target = getMonthTarget(displayYr, m);
+                    const incomeAch = target.income > 0 ? Math.round(actualIncome / target.income * 100) : null;
+                    const profitAch = target.profit > 0 ? Math.round(actualProfit / target.profit * 100) : null;
+                    return (
+                      <tr key={m} className="tr">
+                        <td className="td font-medium">{MONTHS[m-1]}</td>
+                        <td className="td text-right">
+                          <input
+                            type="number"
+                            className="input w-24 text-right py-1 text-xs"
+                            value={target.income}
+                            onChange={e => setMonthTarget(displayYr, m, 'income', e.target.value)}
+                          />
+                        </td>
+                        <td className="td text-right">{actualIncome.toLocaleString('el-GR', {maximumFractionDigits:0})} €</td>
+                        <td className={`td text-center ${achColor(incomeAch)}`}>{incomeAch !== null ? `${incomeAch}%` : '—'}</td>
+                        <td className="td text-right">
+                          <input
+                            type="number"
+                            className="input w-24 text-right py-1 text-xs"
+                            value={target.profit}
+                            onChange={e => setMonthTarget(displayYr, m, 'profit', e.target.value)}
+                          />
+                        </td>
+                        <td className="td text-right">{actualProfit.toLocaleString('el-GR', {maximumFractionDigits:0})} €</td>
+                        <td className={`td text-center ${achColor(profitAch)}`}>{profitAch !== null ? `${profitAch}%` : '—'}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+                <tfoot>
+                  <tr className="bg-slate-100 font-bold">
+                    <td className="td font-bold text-slate-800">Σύνολο</td>
+                    <td className="td text-right text-slate-700">{totalTargetIncome.toLocaleString('el-GR', {maximumFractionDigits:0})} €</td>
+                    <td className="td text-right text-emerald-700">{totalActualIncome.toLocaleString('el-GR', {maximumFractionDigits:0})} €</td>
+                    <td className={`td text-center ${achColor(totalIncomeAch)}`}>{totalIncomeAch !== null ? `${totalIncomeAch}%` : '—'}</td>
+                    <td className="td text-right text-slate-700">{totalTargetProfit.toLocaleString('el-GR', {maximumFractionDigits:0})} €</td>
+                    <td className="td text-right text-indigo-700">{totalActualProfit.toLocaleString('el-GR', {maximumFractionDigits:0})} €</td>
+                    <td className={`td text-center ${achColor(totalProfitAch)}`}>{totalProfitAch !== null ? `${totalProfitAch}%` : '—'}</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Monthly chart */}
       <div className="card p-6">
-        <h2 className="section-title">Μηνιαία Εξέλιξη {year}</h2>
+        <h2 className="section-title">Μηνιαία Εξέλιξη {selectedYears.length > 0 ? selectedYears.join(', ') : new Date().getFullYear()}</h2>
         <ResponsiveContainer width="100%" height={260}>
           <AreaChart data={monthly} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
             <defs>
