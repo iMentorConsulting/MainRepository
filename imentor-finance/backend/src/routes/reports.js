@@ -350,49 +350,20 @@ router.get('/open-cases', async (req, res) => {
 router.get('/service-trend', async (req, res) => {
   try {
     const { service_type, year } = req.query;
-    const ServiceAgreement = require('../models/ServiceAgreement');
-
-    if (!service_type) {
-      const types = await ServiceAgreement.findAll({
-        attributes: [[fn('DISTINCT', col('service_type')), 'service_type']],
-        where: { service_type: { [Op.ne]: null, [Op.ne]: '' } },
-        order: [['service_type', 'ASC']],
-        raw: true
-      });
-      return res.json(types.map(t => t.service_type));
-    }
-
-    const yearCond = year ? `AND EXTRACT(YEAR FROM created_at) = ${parseInt(year)}` : '';
-
+    if (!service_type) return res.json([]);
+    const whereYear = year ? `AND EXTRACT(YEAR FROM date) = ${parseInt(year)}` : '';
     const rows = await sequelize.query(`
       SELECT
-        TO_CHAR(created_at, 'YYYY') as yr,
-        TO_CHAR(created_at, 'MM') as month,
-        TO_CHAR(created_at, 'YYYY-MM') as period,
-        COUNT(*) as count,
-        COALESCE(SUM(amount_application), 0) as total_application,
-        CASE WHEN COUNT(*) > 0 THEN COALESCE(SUM(amount_application), 0) / COUNT(*) ELSE 0 END as avg_application,
-        COALESCE(SUM(amount_implementation), 0) as total_implementation,
-        CASE WHEN COUNT(*) > 0 THEN COALESCE(SUM(amount_implementation), 0) / COUNT(*) ELSE 0 END as avg_implementation
-      FROM service_agreements
-      WHERE service_type = :service_type ${yearCond}
-      GROUP BY yr, month, period
-      ORDER BY period
-    `, {
-      replacements: { service_type },
-      type: QueryTypes.SELECT
-    });
-
-    res.json(rows.map(r => ({
-      period: r.period,
-      yr: r.yr,
-      month: r.month,
-      count: parseInt(r.count || 0),
-      total_application: parseFloat(r.total_application || 0),
-      avg_application: parseFloat(r.avg_application || 0),
-      total_implementation: parseFloat(r.total_implementation || 0),
-      avg_implementation: parseFloat(r.avg_implementation || 0)
-    })));
+        EXTRACT(YEAR FROM date)::int AS year,
+        EXTRACT(MONTH FROM date)::int AS month,
+        COUNT(*) AS count,
+        COALESCE(SUM(amount_collected), 0) AS total
+      FROM incomes
+      WHERE service_type = :service_type ${whereYear}
+      GROUP BY year, month
+      ORDER BY year, month
+    `, { replacements: { service_type }, type: sequelize.QueryTypes.SELECT });
+    res.json(rows);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 

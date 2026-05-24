@@ -14,18 +14,21 @@ function fmtE(n) {
 
 function Breakdown({ amount, orgKey }) {
   if (!amount || isNaN(parseFloat(amount))) return null;
-  const g = parseFloat(amount);
-  const net = g / 1.24;
-  const vat = g - net;
+  const net = parseFloat(amount);
+  const vat = net * 0.24;
+  const gross = net * 1.24;
   const wh = (orgKey !== 'IMENTOR_IKE' && net > 301) ? net * 0.20 : 0;
   return (
     <div className="rounded-xl p-3 text-xs space-y-1.5 bg-slate-50 border border-slate-100">
       <div className="flex justify-between text-slate-500"><span>Καθαρό</span><span className="font-medium text-slate-700">{fmtE(net)}</span></div>
       <div className="flex justify-between text-slate-500"><span>ΦΠΑ 24%</span><span className="font-medium text-slate-700">{fmtE(vat)}</span></div>
+      <div className="flex justify-between font-semibold text-slate-600"><span>Σύνολο</span><span>{fmtE(gross)}</span></div>
       {wh > 0 && <div className="flex justify-between text-rose-500"><span>Παρακράτηση 20%</span><span className="font-medium">−{fmtE(wh)}</span></div>}
-      <div className="flex justify-between font-bold border-t border-slate-200 pt-1.5 text-slate-800">
-        <span>Πληρωτέο</span><span className="text-emerald-700">{fmtE(g - wh)}</span>
-      </div>
+      {wh > 0 && (
+        <div className="flex justify-between font-bold border-t border-slate-200 pt-1.5 text-slate-800">
+          <span>Καθαρή Είσπραξη</span><span className="text-emerald-700">{fmtE(net - wh)}</span>
+        </div>
+      )}
     </div>
   );
 }
@@ -36,6 +39,7 @@ function InvoiceForm({ action, record, onClose, onDone }) {
   const [amount, setAmount] = useState(String(record.amount_collected || ''));
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [description, setDescription] = useState(record.description || record.service_type || '');
+  const [docType, setDocType] = useState(1);
   const [methods, setMethods] = useState([]);
   const [methodId, setMethodId] = useState('');
   const [loading, setLoading] = useState(false);
@@ -55,6 +59,7 @@ function InvoiceForm({ action, record, onClose, onDone }) {
       const r = await api.post(endpoint, {
         income_id: record.id, org_key: orgKey,
         amount: parseFloat(amount), description, date,
+        document_type: docType,
         ...(isOneShot && methodId ? { payment_method_id: methodId } : {}),
       });
       toast.success(r.data.invoice_number ? `✅ ${r.data.invoice_number}` : '📄 Draft δημιουργήθηκε');
@@ -77,9 +82,22 @@ function InvoiceForm({ action, record, onClose, onDone }) {
           {ORGS.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
         </select>
       </div>
+      <div>
+        <label className="label">Τύπος Παραστατικού *</label>
+        <div className="flex gap-4">
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input type="radio" name="document_type" value="1" checked={docType === 1} onChange={() => setDocType(1)} />
+            <span>ΤΠΥ (Τιμολόγιο Παροχής Υπηρεσιών)</span>
+          </label>
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input type="radio" name="document_type" value="2" checked={docType === 2} onChange={() => setDocType(2)} />
+            <span>ΑΠΥ (Απόδειξη Παροχής Υπηρεσιών)</span>
+          </label>
+        </div>
+      </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="label">Ποσό με ΦΠΑ (€) *</label>
+          <label className="label">Καθαρό Ποσό (€) *</label>
           <input type="number" step="0.01" className="input" value={amount} onChange={e => setAmount(e.target.value)} autoFocus />
         </div>
         <div>

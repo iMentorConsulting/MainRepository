@@ -24,7 +24,7 @@ async function aadeSearchAfm(vat, orgKey) {
     'https://www1.gsis.gr/wsaade/RgWsPublic2/RgWsPublic2',
     soapBody,
     {
-      headers: { 'Content-Type': 'text/xml; charset=UTF-8', 'SOAPAction': '' },
+      headers: { 'Content-Type': 'text/xml;charset=UTF-8', 'SOAPAction': '""' },
       auth: { username, password },
       timeout: 10000
     }
@@ -126,16 +126,16 @@ router.get('/search-afm', async (req, res) => {
 
 router.post('/create-draft', async (req, res) => {
   try {
-    const { income_id, org_key = 'DEFAULT', amount, description, date } = req.body;
+    const { income_id, org_key = 'DEFAULT', amount, description, date, document_type = 1 } = req.body;
     const income = await Income.findByPk(income_id);
     if (!income) return res.status(404).json({ error: 'Εγγραφή δεν βρέθηκε' });
     const a = api(org_key);
-    const net = parseFloat(amount) / 1.24;
+    const net = parseFloat(amount);
     const contactId = await findOrCreateContact(org_key, income);
     const body = {
       client: contactId,
       date: date || new Date().toISOString().split('T')[0],
-      document_type: 1,
+      document_type: parseInt(document_type) || 1,
       draft: true,
       lines: lines(net, description, income.service_type),
       ...(withholding(net, org_key).length ? { extra_fees: withholding(net, org_key) } : {}),
@@ -184,17 +184,17 @@ router.post('/finalize-and-send', async (req, res) => {
 
 router.post('/one-shot', async (req, res) => {
   try {
-    const { income_id, org_key = 'DEFAULT', amount, description, date, payment_method_id } = req.body;
+    const { income_id, org_key = 'DEFAULT', amount, description, date, payment_method_id, document_type = 1 } = req.body;
     const income = await Income.findByPk(income_id);
     if (!income) return res.status(404).json({ error: 'Εγγραφή δεν βρέθηκε' });
     const a = api(org_key);
-    const net = parseFloat(amount) / 1.24;
+    const net = parseFloat(amount);
     const iDate = date || new Date().toISOString().split('T')[0];
     const contactId = await findOrCreateContact(org_key, income);
     const body = {
       client: contactId,
       date: iDate,
-      document_type: 1,
+      document_type: parseInt(document_type) || 1,
       lines: lines(net, description, income.service_type),
       ...(withholding(net, org_key).length ? { extra_fees: withholding(net, org_key) } : {}),
     };

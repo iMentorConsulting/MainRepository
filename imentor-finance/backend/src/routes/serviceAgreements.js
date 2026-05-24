@@ -20,9 +20,20 @@ router.get('/', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+const COMPLETED_STATUSES = ['ΑΠΟΠΛΗΡΩΜΕΝΕΣ', 'ΟΛΟΚΛΗΡΩΜΕΝΕΣ ΕΠΙΤΥΧΩΣ', 'ΟΛΟΚΛΗΡΩΜΕΝΕΣ FAIL'];
+
+async function applyAutoStatus(sa) {
+  const collected = parseFloat(sa.amount_collected_total || 0);
+  const application = parseFloat(sa.amount_application || 0);
+  if (application > 0 && collected >= application && !COMPLETED_STATUSES.includes(sa.status)) {
+    await sa.update({ status: 'ΑΠΟΠΛΗΡΩΜΕΝΕΣ' });
+  }
+}
+
 router.post('/', async (req, res) => {
   try {
     const sa = await ServiceAgreement.create(req.body);
+    await applyAutoStatus(sa);
     res.json(sa);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -32,6 +43,7 @@ router.put('/:id', async (req, res) => {
     const sa = await ServiceAgreement.findByPk(req.params.id);
     if (!sa) return res.status(404).json({ error: 'Δεν βρέθηκε' });
     await sa.update(req.body);
+    await applyAutoStatus(sa);
     res.json(sa);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });

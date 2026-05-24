@@ -4,14 +4,7 @@ const sequelize = require('../config/db');
 const ListItem = sequelize.define('ListItem', {
   id:        { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
   list_type: {
-    type: DataTypes.ENUM(
-      'ΚΑΤΗΓΟΡΙΕΣ_ΕΞΟΔΩΝ',
-      'ΠΡΟΜΗΘΕΥΤΕΣ',
-      'ΚΑΤΑΣΤΑΣΗ_ΕΡΓΑΣΙΑΣ',
-      'ΕΙΔΟΣ_ΥΠΗΡΕΣΙΑΣ',
-      'ΠΗΓΗ_ΣΥΣΤΑΣΗ',
-      'ΠΡΑΚΤΟΡΕΣ'
-    )
+    type: DataTypes.STRING
   },
   value:     { type: DataTypes.STRING, allowNull: false },
   is_active: { type: DataTypes.BOOLEAN, defaultValue: true },
