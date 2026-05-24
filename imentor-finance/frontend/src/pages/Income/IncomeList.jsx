@@ -184,7 +184,7 @@ export default function IncomeList() {
           {services.map(s => <option key={s}>{s}</option>)}
         </select>
         <select className="input w-36" value={filters.sales_agent} onChange={e => setFilters(f => ({ ...f, sales_agent: e.target.value, page: 1 }))}>
-          <option value="">Πράκτορας</option>
+          <option value="">Σύμβουλος</option>
           {agents.map(a => <option key={a}>{a}</option>)}
         </select>
         <div className="flex items-center gap-1 text-slate-400 text-xs">ή</div>
@@ -218,7 +218,7 @@ export default function IncomeList() {
                 <th className="th text-xs">ΑΦΜ</th>
                 <SortTh label="Υπηρεσία" field="service_type" sort={sort} onSort={handleSort} />
                 <SortTh label="Κατάσταση" field="work_status" sort={sort} onSort={handleSort} />
-                <SortTh label="Πράκτορας" field="sales_agent" sort={sort} onSort={handleSort} />
+                <SortTh label="Σύμβουλος" field="sales_agent" sort={sort} onSort={handleSort} />
                 <SortTh label="Αίτ." field="amount_application" sort={sort} onSort={handleSort} className="text-right" />
                 <SortTh label="Υλ." field="amount_implementation" sort={sort} onSort={handleSort} className="text-right" />
                 <SortTh label="Ποσό" field="amount_collected" sort={sort} onSort={handleSort} className="text-right" />

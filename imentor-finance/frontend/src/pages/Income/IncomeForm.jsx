@@ -122,7 +122,6 @@ export default function IncomeForm({ record, onSave, onCancel }) {
             )}
           </div>
           <F label="Επωνυμία *" name="customer_name" required />
-          <S label="Κατάσταση Εργασίας" name="work_status" opts={lists['ΚΑΤΑΣΤΑΣΗ_ΕΡΓΑΣΙΑΣ']} />
           <F label="Email" name="email" type="email" />
           <F label="Κινητό" name="phone" type="tel" />
           <F label="Πόλη / Περιφέρεια" name="city" />
@@ -157,6 +156,7 @@ export default function IncomeForm({ record, onSave, onCancel }) {
       <div>
         <SectionTitle>Στοιχεία Πώλησης</SectionTitle>
         <div className="grid grid-cols-2 gap-4">
+          <S label="Κατάσταση Εργασίας" name="work_status" opts={lists['ΚΑΤΑΣΤΑΣΗ_ΕΡΓΑΣΙΑΣ']} />
           <S label="Είδος Υπηρεσίας" name="service_type" opts={lists['ΕΙΔΟΣ_ΥΠΗΡΕΣΙΑΣ']} required />
           <S label="Πηγή / Σύσταση" name="source_referral" opts={lists['ΠΗΓΗ_ΣΥΣΤΑΣΗ']} />
           <S label="Υπεύθυνος Πώλησης" name="sales_agent" opts={lists['ΠΡΑΚΤΟΡΕΣ']} />

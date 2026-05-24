@@ -22,8 +22,28 @@ const EMPTY_FORM = {
 function CustomerModal({ customer, onSave, onCancel }) {
   const [form, setForm] = useState(customer ? { ...customer } : { ...EMPTY_FORM });
   const [saving, setSaving] = useState(false);
+  const [afmLoading, setAfmLoading] = useState(false);
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+  const handleAfmSearch = async () => {
+    if (!form.vat_number?.trim()) return toast.error('Εισάγετε ΑΦΜ');
+    setAfmLoading(true);
+    try {
+      const r = await API(`/customers/search-afm?vat=${form.vat_number.trim()}`);
+      const d = r.data;
+      if (d.name) set('name', d.name);
+      if (d.address) set('address', d.address);
+      if (d.city) set('city', d.city);
+      if (d.postal_code) set('postal_code', d.postal_code);
+      if (d.business_activity) set('business_activity', d.business_activity);
+      toast.success('Στοιχεία ΑΦΜ συμπληρώθηκαν');
+    } catch (e) {
+      toast.error(e.response?.data?.error || 'Αποτυχία αναζήτησης ΑΦΜ');
+    } finally {
+      setAfmLoading(false);
+    }
+  };
 
   const handleSubmit = async () => {
     if (!form.name.trim()) return toast.error('Το όνομα είναι υποχρεωτικό');
@@ -61,7 +81,12 @@ function CustomerModal({ customer, onSave, onCancel }) {
             </div>
             <div>
               <label className="label">ΑΦΜ</label>
-              <input className="input" value={form.vat_number} onChange={e => set('vat_number', e.target.value)} />
+              <div className="flex gap-2">
+                <input className="input flex-1" value={form.vat_number} onChange={e => set('vat_number', e.target.value)} />
+                <button type="button" className="btn-secondary whitespace-nowrap" onClick={handleAfmSearch} disabled={afmLoading}>
+                  {afmLoading ? '...' : 'ΑΑΔΕ'}
+                </button>
+              </div>
             </div>
             <div>
               <label className="label">Email</label>

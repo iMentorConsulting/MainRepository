@@ -105,7 +105,11 @@ router.post('/send', async (req, res) => {
   }
 });
 
-const COMPLETED_STATUSES = ['ΟΛΟΚΛΗΡΩΘΗΚΕ', 'ΑΠΟΡΡΙΦΘΗΚΕ', 'ΑΚΥΡΩΜΕΝΟ', 'ΑΚΥΡΩΘΗΚΕ'];
+const COMPLETED_STATUSES = [
+  'ΟΛΟΚΛΗΡΩΜΕΝΗ - ΠΑΡΑΙΤΗΣΗ', 'ΟΛΟΚΛΗΡΩΜΕΝΗ - ΕΠΙΤΥΧΩΣ', 'ΟΛΟΚΛΗΡΩΜΕΝΗ - ΑΠΟΡΡΙΨΗ',
+  'ΟΛΟΚΛΗΡΩΜΕΝΗ - ΑΠΕΝΤΑΞΗ', 'ΟΛΟΚΛΗΡΩΣΗ - ΑΠΛΗ', 'ΟΛΟΚΛΗΡΩΜΕΝΗ - ΕΚΚΡΕΜΟΤΗΤΑ',
+  'ΔΕΝ ΠΡΟΧΩΡΗΣΕ', 'ΟΛΟΚΛΗΡΩΘΗΚΕ', 'ΑΠΟΡΡΙΦΘΗΚΕ', 'ΑΚΥΡΩΜΕΝΟ', 'ΑΚΥΡΩΘΗΚΕ'
+];
 
 function deduplicateRows(rows) {
   const map = new Map();
@@ -128,34 +132,47 @@ function deduplicateRows(rows) {
 
 function buildSectionHtml(rows, color, title) {
   if (rows.length === 0) return '';
-  const headerBg = color === 'green' ? '#2e7d32' : '#1565c0';
+  const isGreen = color === 'green';
+  const borderColor = isGreen ? '#2e7d32' : '#1565c0';
+  const headerBg = isGreen ? '#2e7d32' : '#1565c0';
+  const bgLight = isGreen ? '#e8f5e9' : '#e3f2fd';
+  const icon = isGreen ? '✅' : '☑';
+
   const rowsHtml = rows.map((r, i) => `
-    <tr style="background:${i % 2 === 0 ? '#fff' : '#f5f5f5'}">
-      <td style="padding:7px 10px;border:1px solid #ddd;font-weight:600">${r.customer_name || ''}</td>
-      <td style="padding:7px 10px;border:1px solid #ddd">${r.work_status || ''}</td>
-      <td style="padding:7px 10px;border:1px solid #ddd">${r.service_type || ''}</td>
-      <td style="padding:7px 10px;border:1px solid #ddd;white-space:nowrap">${formatDate(r.sale_date)}</td>
-      <td style="padding:7px 10px;border:1px solid #ddd;text-align:right">${r.investment_height ? formatMoney(r.investment_height) : ''}</td>
-      <td style="padding:7px 10px;border:1px solid #ddd;text-align:right">${r.total_debts ? formatMoney(r.total_debts) : ''}</td>
-      <td style="padding:7px 10px;border:1px solid #ddd;white-space:nowrap">${formatDate(r.approval_date)}</td>
+    <tr style="background:${i % 2 === 0 ? '#fff' : '#f9f9f9'}">
+      <td style="padding:8px 10px;border:1px solid #e0e0e0;font-weight:600;font-size:13px">${r.customer_name || ''}</td>
+      <td style="padding:8px 10px;border:1px solid #e0e0e0;font-size:13px">${r.work_status || ''}</td>
+      <td style="padding:8px 10px;border:1px solid #e0e0e0;font-size:13px">${r.service_type || ''}</td>
+      <td style="padding:8px 10px;border:1px solid #e0e0e0;font-size:13px;white-space:nowrap">${formatDate(r.sale_date)}</td>
+      <td style="padding:8px 10px;border:1px solid #e0e0e0;font-size:13px;text-align:right">${r.investment_height ? formatMoney(r.investment_height) : ''}</td>
+      <td style="padding:8px 10px;border:1px solid #e0e0e0;font-size:13px;text-align:right">${r.total_debts ? formatMoney(r.total_debts) : ''}</td>
+      <td style="padding:8px 10px;border:1px solid #e0e0e0;font-size:13px;white-space:nowrap">${formatDate(r.approval_date)}</td>
     </tr>`).join('');
 
   return `
-    <h3 style="margin:20px 0 8px;color:${headerBg}">${title} (${rows.length})</h3>
-    <table style="border-collapse:collapse;width:100%;font-size:13px">
-      <thead>
-        <tr style="background:${headerBg};color:#fff">
-          <th style="padding:9px 10px;text-align:left;border:1px solid #ddd">Επωνυμία</th>
-          <th style="padding:9px 10px;text-align:left;border:1px solid #ddd">Κατάσταση</th>
-          <th style="padding:9px 10px;text-align:left;border:1px solid #ddd">Υπηρεσία</th>
-          <th style="padding:9px 10px;text-align:left;border:1px solid #ddd">Ημ. Πώλησης</th>
-          <th style="padding:9px 10px;text-align:right;border:1px solid #ddd">Ύψος Επένδυσης</th>
-          <th style="padding:9px 10px;text-align:right;border:1px solid #ddd">Σύνολο Οφειλών</th>
-          <th style="padding:9px 10px;text-align:left;border:1px solid #ddd">Ημ. Έγκρισης</th>
-        </tr>
-      </thead>
-      <tbody>${rowsHtml}</tbody>
-    </table>`;
+    <div style="margin:24px 0;border:2px solid ${borderColor};border-radius:8px;overflow:hidden">
+      <div style="background:${bgLight};padding:10px 16px;border-bottom:2px solid ${borderColor};display:flex;align-items:center;gap:8px">
+        <span style="font-size:18px">${icon}</span>
+        <span style="font-size:15px;font-weight:700;color:${borderColor}">${title}</span>
+        <span style="margin-left:auto;font-size:12px;color:${borderColor};background:#fff;padding:2px 8px;border-radius:999px;border:1px solid ${borderColor}">${rows.length} εγγραφές</span>
+      </div>
+      <div style="overflow-x:auto">
+        <table style="border-collapse:collapse;width:100%;font-size:13px;min-width:700px">
+          <thead>
+            <tr style="background:${headerBg};color:#fff">
+              <th style="padding:9px 10px;text-align:left;border:1px solid rgba(255,255,255,0.2)">Επωνυμία Πελάτη</th>
+              <th style="padding:9px 10px;text-align:left;border:1px solid rgba(255,255,255,0.2)">Κατάσταση Εργασίας</th>
+              <th style="padding:9px 10px;text-align:left;border:1px solid rgba(255,255,255,0.2)">Είδος Υπηρεσίας</th>
+              <th style="padding:9px 10px;text-align:left;border:1px solid rgba(255,255,255,0.2)">Ημ/νία Συνεργασίας</th>
+              <th style="padding:9px 10px;text-align:right;border:1px solid rgba(255,255,255,0.2)">Ύψος Επένδυσης</th>
+              <th style="padding:9px 10px;text-align:right;border:1px solid rgba(255,255,255,0.2)">Σύνολο Οφειλών</th>
+              <th style="padding:9px 10px;text-align:left;border:1px solid rgba(255,255,255,0.2)">Ημερομηνία Απόφασης</th>
+            </tr>
+          </thead>
+          <tbody>${rowsHtml}</tbody>
+        </table>
+      </div>
+    </div>`;
 }
 
 function buildEmailHtml(accountant, rows) {

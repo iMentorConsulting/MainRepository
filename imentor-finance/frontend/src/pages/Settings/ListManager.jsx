@@ -8,7 +8,7 @@ const LIST_TYPES = [
   { key: 'ΚΑΤΑΣΤΑΣΗ_ΕΡΓΑΣΙΑΣ',       label: 'Κατάσταση Εργασίας',     color: 'bg-violet-500' },
   { key: 'ΕΙΔΟΣ_ΥΠΗΡΕΣΙΑΣ',         label: 'Είδος Υπηρεσίας',         color: 'bg-emerald-500' },
   { key: 'ΠΗΓΗ_ΣΥΣΤΑΣΗ',             label: 'Πηγή / Σύσταση',          color: 'bg-pink-500' },
-  { key: 'ΠΡΑΚΤΟΡΕΣ',                label: 'Πράκτορες',               color: 'bg-amber-500' },
+  { key: 'ΠΡΑΚΤΟΡΕΣ',                label: 'Σύμβουλοι',               color: 'bg-amber-500' },
   { key: 'description_templates',    label: 'Αιτιολογίες Εσόδων',      color: 'bg-teal-500' },
 ];
 

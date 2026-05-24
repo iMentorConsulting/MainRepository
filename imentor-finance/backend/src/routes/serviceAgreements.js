@@ -1,22 +1,62 @@
 const router = require('express').Router();
 const { Op } = require('sequelize');
 const ServiceAgreement = require('../models/ServiceAgreement');
+const sequelize = require('../config/db');
+
+router.get('/stats', async (req, res) => {
+  try {
+    const counts = await ServiceAgreement.findAll({
+      attributes: ['status', [sequelize.fn('COUNT', sequelize.col('id')), 'count']],
+      group: ['status'],
+      raw: true
+    });
+    const byStatus = {};
+    let total = 0;
+    for (const { status, count } of counts) {
+      byStatus[status] = parseInt(count);
+      total += parseInt(count);
+    }
+    res.json({ total, byStatus });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
 
 router.get('/', async (req, res) => {
   try {
-    const { status, customer_id, search, limit = 100, offset = 0 } = req.query;
+    const { status, customer_id, search, sales_agent, service_type, limit = 50, offset = 0, page } = req.query;
+    const actualOffset = page ? (parseInt(page) - 1) * parseInt(limit) : parseInt(offset);
     const where = {};
     if (status) where.status = status;
     if (customer_id) where.customer_id = parseInt(customer_id);
+    if (sales_agent) where.sales_agent = sales_agent;
+    if (service_type) where.service_type = service_type;
     if (search) where[Op.or] = [
       { customer_name: { [Op.iLike]: `%${search}%` } },
       { service_type: { [Op.iLike]: `%${search}%` } }
     ];
     const { count, rows } = await ServiceAgreement.findAndCountAll({
-      where, limit: parseInt(limit), offset: parseInt(offset),
+      where, limit: parseInt(limit), offset: actualOffset,
       order: [['createdAt', 'DESC']]
     });
-    res.json({ data: rows, total: count });
+
+    // For each agreement, compute the actual collected from incomes by customer_name + service_type
+    const [incomeSums] = await sequelize.query(`
+      SELECT customer_name, service_type, COALESCE(SUM(amount_collected), 0) AS total_collected, COUNT(*) AS payment_count
+      FROM incomes
+      WHERE customer_name IS NOT NULL
+      GROUP BY customer_name, service_type
+    `);
+    const sumMap = new Map();
+    for (const row of incomeSums) {
+      sumMap.set(`${row.customer_name}|||${row.service_type || ''}`, { total: parseFloat(row.total_collected), count: parseInt(row.payment_count) });
+    }
+
+    const enriched = rows.map(sa => {
+      const key = `${sa.customer_name}|||${sa.service_type || ''}`;
+      const inc = sumMap.get(key) || { total: 0, count: 0 };
+      return { ...sa.toJSON(), income_collected: inc.total, income_payment_count: inc.count };
+    });
+
+    res.json({ data: enriched, total: count });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 

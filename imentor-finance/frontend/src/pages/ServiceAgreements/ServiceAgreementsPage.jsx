@@ -12,9 +12,10 @@ const STATUS_BADGE = {
   'ΠΑΓΩΜΕΝΕΣ': 'badge-yellow',
   'ΟΛΟΚΛΗΡΩΜΕΝΕΣ ΕΠΙΤΥΧΩΣ': 'badge-blue',
   'ΟΛΟΚΛΗΡΩΜΕΝΕΣ FAIL': 'badge-red',
+  'ΑΠΟΠΛΗΡΩΜΕΝΕΣ': 'badge-purple',
 };
 
-const STATUS_OPTS = ['ΕΝ ΕΞΕΛΙΞΕΙ', 'ΠΑΓΩΜΕΝΕΣ', 'ΟΛΟΚΛΗΡΩΜΕΝΕΣ ΕΠΙΤΥΧΩΣ', 'ΟΛΟΚΛΗΡΩΜΕΝΕΣ FAIL'];
+const STATUS_OPTS = ['ΕΝ ΕΞΕΛΙΞΕΙ', 'ΠΑΓΩΜΕΝΕΣ', 'ΟΛΟΚΛΗΡΩΜΕΝΕΣ ΕΠΙΤΥΧΩΣ', 'ΟΛΟΚΛΗΡΩΜΕΝΕΣ FAIL', 'ΑΠΟΠΛΗΡΩΜΕΝΕΣ'];
 
 const EMPTY_FORM = {
   customer_id: '',
@@ -165,16 +166,26 @@ function SAForm({ record, onSave, onCancel }) {
 
 export default function ServiceAgreementsPage() {
   const [data, setData] = useState({ data: [], total: 0 });
-  const [filters, setFilters] = useState({ search: '', status: '' });
+  const [filters, setFilters] = useState({ search: '', status: '', sales_agent: '', service_type: '' });
   const [modal, setModal] = useState({ open: false, record: null });
   const [deleteId, setDeleteId] = useState(null);
+  const [stats, setStats] = useState({ total: 0, byStatus: {} });
+  const [agents, setAgents] = useState([]);
+  const [services, setServices] = useState([]);
 
   const load = useCallback(() => {
     const params = Object.fromEntries(Object.entries(filters).filter(([, v]) => v !== ''));
+    params.limit = 50;
     api.get('/service-agreements', { params }).then(r => setData(r.data)).catch(() => {});
   }, [filters]);
 
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    api.get('/service-agreements/stats').then(r => setStats(r.data)).catch(() => {});
+    api.get('/lists?list_type=ΠΡΑΚΤΟΡΕΣ&active_only=true').then(r => setAgents(r.data.map(x => x.value))).catch(() => {});
+    api.get('/lists?list_type=ΕΙΔΟΣ_ΥΠΗΡΕΣΙΑΣ&active_only=true').then(r => setServices(r.data.map(x => x.value))).catch(() => {});
+  }, []);
 
   const handleDelete = async id => {
     try {
@@ -188,7 +199,6 @@ export default function ServiceAgreementsPage() {
   };
 
   const rows = data.data || [];
-  const totalActive = rows.filter(r => r.status === 'ΕΝ ΕΞΕΛΙΞΕΙ').length;
   const sumApplication = rows.reduce((a, r) => a + parseFloat(r.amount_application || 0), 0);
   const sumImplementation = rows.reduce((a, r) => a + parseFloat(r.amount_implementation || 0), 0);
 
@@ -197,7 +207,7 @@ export default function ServiceAgreementsPage() {
       <div className="page-header">
         <div>
           <h1 className="page-title">Συμφωνίες Υπηρεσιών</h1>
-          <p className="page-sub">{data.total} εγγραφές σύνολο</p>
+          <p className="page-sub">{data.total} εγγραφές (φίλτρο) · {stats.total} σύνολο</p>
         </div>
         <button className="btn-primary" onClick={() => setModal({ open: true, record: null })}>
           <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
@@ -207,18 +217,22 @@ export default function ServiceAgreementsPage() {
         </button>
       </div>
 
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <div className="card p-4 border-l-4 border-slate-400">
+          <div className="text-xs font-bold text-slate-400 uppercase tracking-wide">Σύνολο</div>
+          <div className="text-2xl font-black text-slate-600">{stats.total}</div>
+        </div>
         <div className="card p-4 border-l-4 border-emerald-400">
           <div className="text-xs font-bold text-slate-400 uppercase tracking-wide">Ενεργές</div>
-          <div className="text-2xl font-black text-emerald-600">{totalActive}</div>
+          <div className="text-2xl font-black text-emerald-600">{stats.byStatus['ΕΝ ΕΞΕΛΙΞΕΙ'] || 0}</div>
         </div>
         <div className="card p-4 border-l-4 border-blue-400">
-          <div className="text-xs font-bold text-slate-400 uppercase tracking-wide">Σύνολο Αιτήσεων</div>
-          <div className="text-2xl font-black text-blue-600">{fmt(sumApplication)}</div>
+          <div className="text-xs font-bold text-slate-400 uppercase tracking-wide">Ολοκληρωμένες</div>
+          <div className="text-2xl font-black text-blue-600">{(stats.byStatus['ΟΛΟΚΛΗΡΩΜΕΝΕΣ ΕΠΙΤΥΧΩΣ'] || 0) + (stats.byStatus['ΑΠΟΠΛΗΡΩΜΕΝΕΣ'] || 0)}</div>
         </div>
         <div className="card p-4 border-l-4 border-indigo-400">
-          <div className="text-xs font-bold text-slate-400 uppercase tracking-wide">Σύνολο Υλοποίησης</div>
-          <div className="text-2xl font-black text-indigo-600">{fmt(sumImplementation)}</div>
+          <div className="text-xs font-bold text-slate-400 uppercase tracking-wide">Σύνολο Αιτήσεων</div>
+          <div className="text-2xl font-black text-indigo-600">{fmt(sumApplication)}</div>
         </div>
       </div>
 
@@ -234,7 +248,15 @@ export default function ServiceAgreementsPage() {
           <option value="">Όλες οι καταστάσεις</option>
           {STATUS_OPTS.map(s => <option key={s} value={s}>{s}</option>)}
         </select>
-        <button className="btn-ghost btn-sm" onClick={() => setFilters({ search: '', status: '' })}>
+        <select className="input w-36" value={filters.sales_agent} onChange={e => setFilters(f => ({ ...f, sales_agent: e.target.value }))}>
+          <option value="">Σύμβουλος</option>
+          {agents.map(a => <option key={a} value={a}>{a}</option>)}
+        </select>
+        <select className="input w-44" value={filters.service_type} onChange={e => setFilters(f => ({ ...f, service_type: e.target.value }))}>
+          <option value="">Υπηρεσία</option>
+          {services.map(s => <option key={s} value={s}>{s}</option>)}
+        </select>
+        <button className="btn-ghost btn-sm" onClick={() => setFilters({ search: '', status: '', sales_agent: '', service_type: '' })}>
           ✕ Καθαρισμός
         </button>
       </div>
@@ -250,7 +272,8 @@ export default function ServiceAgreementsPage() {
                 <th className="th">Κατάσταση</th>
                 <th className="th text-right">Ποσό Αίτησης</th>
                 <th className="th text-right">Ποσό Υλοποίησης</th>
-                <th className="th">Πράκτορας</th>
+                <th className="th">Είσπραξη</th>
+                <th className="th">Σύμβουλος</th>
                 <th className="th">Ημ. Έγκρισης</th>
                 <th className="th w-20"></th>
               </tr>
@@ -274,6 +297,25 @@ export default function ServiceAgreementsPage() {
                   <td className="td text-right text-xs font-medium text-slate-600 whitespace-nowrap">
                     {r.amount_implementation ? fmt(r.amount_implementation) : <span className="text-slate-300">—</span>}
                   </td>
+                  <td className="td min-w-[140px]">
+                    {(() => {
+                      const collected = parseFloat(r.income_collected || 0);
+                      const target = parseFloat(r.amount_application || 0);
+                      const pct = target > 0 ? Math.min(100, (collected / target) * 100) : 0;
+                      const barColor = collected >= target && target > 0 ? '#10b981' : collected > 0 ? '#f59e0b' : '#cbd5e1';
+                      return (
+                        <div className="space-y-1">
+                          <div className="text-xs text-slate-600 whitespace-nowrap">
+                            {fmt(collected)} / {target > 0 ? fmt(target) : '—'}
+                            {r.income_payment_count > 0 && <span className="ml-1 text-slate-400">({r.income_payment_count})</span>}
+                          </div>
+                          <div className="h-1.5 rounded-full bg-slate-100 overflow-hidden">
+                            <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: barColor }} />
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </td>
                   <td className="td">
                     {r.sales_agent ? <span className="badge-gray">{r.sales_agent}</span> : <span className="text-slate-300">—</span>}
                   </td>
@@ -296,7 +338,7 @@ export default function ServiceAgreementsPage() {
               ))}
               {rows.length === 0 && (
                 <tr>
-                  <td colSpan={9} className="td text-center text-slate-400 py-12">
+                  <td colSpan={10} className="td text-center text-slate-400 py-12">
                     Δεν βρέθηκαν εγγραφές
                   </td>
                 </tr>
