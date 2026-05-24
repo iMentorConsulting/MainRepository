@@ -5,9 +5,16 @@ import toast from 'react-hot-toast';
 
 const TARGETING_OPTS = ['ΑΙΤΗΣΗ', 'ΥΛΟΠΟΙΗΣΗ'];
 
+const SectionTitle = ({ children }) => (
+  <div className="flex items-center gap-3 mb-4">
+    <span className="text-xs font-bold uppercase tracking-widest text-primary-500">{children}</span>
+    <div className="flex-1 h-px bg-slate-100" />
+  </div>
+);
+
 export default function IncomeForm({ record, onSave, onCancel }) {
   const [lists, setLists] = useState({});
-  const { register, handleSubmit, watch, setValue, reset } = useForm({ defaultValues: record || {} });
+  const { register, handleSubmit, watch, setValue } = useForm({ defaultValues: record || {} });
 
   useEffect(() => {
     const types = ['ΚΑΤΑΣΤΑΣΗ_ΕΡΓΑΣΙΑΣ', 'ΕΙΔΟΣ_ΥΠΗΡΕΣΙΑΣ', 'ΠΗΓΗ_ΣΥΣΤΑΣΗ', 'ΠΡΑΚΤΟΡΕΣ'];
@@ -40,16 +47,16 @@ export default function IncomeForm({ record, onSave, onCancel }) {
     }
   };
 
-  const field = (label, name, type = 'text', required = false, extra = {}) => (
+  const F = ({ label, name, type = 'text', required = false, extra = {} }) => (
     <div>
-      <label className="label">{label}{required && <span className="text-red-500 ml-1">*</span>}</label>
+      <label className="label">{label}{required && <span className="text-rose-500 ml-1">*</span>}</label>
       <input type={type} className="input" {...register(name)} {...extra} />
     </div>
   );
 
-  const select = (label, name, opts, required = false) => (
+  const S = ({ label, name, opts, required = false }) => (
     <div>
-      <label className="label">{label}{required && <span className="text-red-500 ml-1">*</span>}</label>
+      <label className="label">{label}{required && <span className="text-rose-500 ml-1">*</span>}</label>
       <select className="input" {...register(name)}>
         <option value="">— Επιλογή —</option>
         {opts?.map(o => <option key={o} value={o}>{o}</option>)}
@@ -59,66 +66,69 @@ export default function IncomeForm({ record, onSave, onCancel }) {
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-      <fieldset className="border rounded-lg p-4 space-y-4">
-        <legend className="text-sm font-semibold px-2 text-primary-700">Στοιχεία Πελάτη</legend>
+      <div>
+        <SectionTitle>Στοιχεία Πελάτη</SectionTitle>
         <div className="grid grid-cols-2 gap-4">
-          {field('Επωνυμία Πελάτη', 'customer_name', 'text', true)}
-          {select('Κατάσταση Εργασίας', 'work_status', lists['ΚΑΤΑΣΤΑΣΗ_ΕΡΓΑΣΙΑΣ'])}
-          {field('Email', 'email', 'email')}
-          {field('Κινητό', 'phone', 'tel')}
-          {field('Πόλη / Περιφέρεια', 'city')}
-          {field('Τ.Κ.', 'postal_code')}
-          {field('Διεύθυνση', 'address')}
-          {field('ΑΦΜ', 'vat_number')}
-          {field('Αντικείμενο', 'business_activity')}
-          {field('Λογιστής', 'accountant')}
-          {field('Email Λογιστή', 'accountant_email', 'email')}
+          <F label="Επωνυμία Πελάτη" name="customer_name" required />
+          <S label="Κατάσταση Εργασίας" name="work_status" opts={lists['ΚΑΤΑΣΤΑΣΗ_ΕΡΓΑΣΙΑΣ']} />
+          <F label="Email" name="email" type="email" />
+          <F label="Κινητό" name="phone" type="tel" />
+          <F label="Πόλη / Περιφέρεια" name="city" />
+          <F label="Τ.Κ." name="postal_code" />
+          <F label="Διεύθυνση" name="address" />
+          <F label="ΑΦΜ" name="vat_number" />
+          <F label="Αντικείμενο" name="business_activity" />
+          <F label="Λογιστής" name="accountant" />
+          <F label="Email Λογιστή" name="accountant_email" type="email" />
         </div>
-      </fieldset>
+      </div>
 
-      <fieldset className="border rounded-lg p-4 space-y-4">
-        <legend className="text-sm font-semibold px-2 text-primary-700">Οικονομικά Στοιχεία</legend>
+      <div>
+        <SectionTitle>Οικονομικά Στοιχεία</SectionTitle>
         <div className="grid grid-cols-2 gap-4">
-          {field('Ποσό για Αίτηση (€)', 'amount_application', 'number')}
-          {field('Ποσό για Υλοποίηση (€)', 'amount_implementation', 'number')}
-          {field('Ύψος Επένδυσης (€)', 'investment_height', 'number')}
-          {field('Σύνολο Οφειλών (€)', 'total_debts', 'number')}
-          {field('Ποσό Είσπραξης (€)', 'amount_collected', 'number', true)}
-          {field('ΦΠΑ (€)', 'vat_amount', 'number')}
-          {select('Κατηγορία Στοχοθεσίας', 'targeting_category', TARGETING_OPTS)}
+          <F label="Ποσό Αίτησης (€)" name="amount_application" type="number" />
+          <F label="Ποσό Υλοποίησης (€)" name="amount_implementation" type="number" />
+          <F label="Ύψος Επένδυσης (€)" name="investment_height" type="number" />
+          <F label="Σύνολο Οφειλών (€)" name="total_debts" type="number" />
+          <F label="Ποσό Είσπραξης (€)" name="amount_collected" type="number" required />
+          <F label="ΦΠΑ (€)" name="vat_amount" type="number" />
+          <S label="Κατηγορία Στοχοθεσίας" name="targeting_category" opts={TARGETING_OPTS} />
         </div>
-      </fieldset>
+      </div>
 
-      <fieldset className="border rounded-lg p-4 space-y-4">
-        <legend className="text-sm font-semibold px-2 text-primary-700">Στοιχεία Πώλησης</legend>
+      <div>
+        <SectionTitle>Στοιχεία Πώλησης</SectionTitle>
         <div className="grid grid-cols-2 gap-4">
-          {select('Είδος Υπηρεσίας', 'service_type', lists['ΕΙΔΟΣ_ΥΠΗΡΕΣΙΑΣ'], true)}
-          {select('Πηγή / Σύσταση', 'source_referral', lists['ΠΗΓΗ_ΣΥΣΤΑΣΗ'])}
-          {select('Υπεύθυνος Πώλησης', 'sales_agent', lists['ΠΡΑΚΤΟΡΕΣ'])}
-          {select('Υπεύθυνος Φακέλου', 'folder_agent', lists['ΠΡΑΚΤΟΡΕΣ'])}
-          {field('Bonus (€)', 'bonus', 'number')}
-          {field('Ημ/νία Πώλησης / Είσπραξης', 'sale_date', 'date', true)}
-          {field('Ημ/νία Έγκρισης / Απόρριψης', 'approval_date', 'date')}
-          {field('Προθεσμία Ολοκλήρωσης', 'completion_deadline', 'date')}
+          <S label="Είδος Υπηρεσίας" name="service_type" opts={lists['ΕΙΔΟΣ_ΥΠΗΡΕΣΙΑΣ']} required />
+          <S label="Πηγή / Σύσταση" name="source_referral" opts={lists['ΠΗΓΗ_ΣΥΣΤΑΣΗ']} />
+          <S label="Υπεύθυνος Πώλησης" name="sales_agent" opts={lists['ΠΡΑΚΤΟΡΕΣ']} />
+          <S label="Υπεύθυνος Φακέλου" name="folder_agent" opts={lists['ΠΡΑΚΤΟΡΕΣ']} />
+          <F label="Bonus (€)" name="bonus" type="number" />
+          <F label="Ημ/νία Πώλησης / Είσπραξης" name="sale_date" type="date" required />
+          <F label="Ημ/νία Έγκρισης / Απόρριψης" name="approval_date" type="date" />
+          <F label="Προθεσμία Ολοκλήρωσης" name="completion_deadline" type="date" />
         </div>
-        <div>
+        <div className="mt-4">
           <label className="label">Αιτιολογία – Περιγραφή</label>
-          <textarea className="input h-20" {...register('description')} />
+          <textarea className="input h-20 resize-none" {...register('description')} />
         </div>
-      </fieldset>
+      </div>
 
-      <fieldset className="border rounded-lg p-4 space-y-4">
-        <legend className="text-sm font-semibold px-2 text-primary-700">Τιμολόγιο</legend>
+      <div>
+        <SectionTitle>Τιμολόγιο</SectionTitle>
         <div className="grid grid-cols-2 gap-4">
-          {field('Αρ. Τιμολογίου (Νο.xxx / ΗΗ-ΜΜ-ΕΕΕΕ)', 'invoice_number')}
+          <F label="Αρ. Τιμολογίου" name="invoice_number" />
         </div>
-        <div className="flex items-center gap-2">
-          <input type="checkbox" id="unsubscribe" {...register('unsubscribe')} className="w-4 h-4" />
-          <label htmlFor="unsubscribe" className="text-sm">Unsubscribe από email/viber</label>
-        </div>
-      </fieldset>
+        <label className="flex items-center gap-2.5 mt-4 cursor-pointer group">
+          <div className="relative">
+            <input type="checkbox" id="unsubscribe" {...register('unsubscribe')} className="sr-only peer" />
+            <div className="w-4 h-4 rounded border-2 border-slate-300 peer-checked:bg-primary-600 peer-checked:border-primary-600 transition-all" />
+          </div>
+          <span className="text-sm text-slate-600 group-hover:text-slate-800 transition-colors">Unsubscribe από email/viber</span>
+        </label>
+      </div>
 
-      <div className="flex justify-end gap-3 pt-2">
+      <div className="flex justify-end gap-3 pt-2 border-t border-slate-100">
         <button type="button" className="btn-secondary" onClick={onCancel}>Ακύρωση</button>
         <button type="submit" className="btn-primary">{record?.id ? 'Αποθήκευση' : 'Καταχώρηση'}</button>
       </div>

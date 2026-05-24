@@ -10,9 +10,9 @@ export default function ExpensesForm({ record, onSave, onCancel }) {
   const { register, handleSubmit } = useForm({ defaultValues: record || {} });
 
   useEffect(() => {
-    api.get('/lists?list_type=ΚΑΤΗΓΟΡΙΕΣ_ΕΞΟΔΩΝ&active_only=true').then(r => setCategories(r.data.map(x=>x.value)));
-    api.get('/lists?list_type=ΠΡΟΜΗΘΕΥΤΕΣ&active_only=true').then(r => setSuppliers(r.data.map(x=>x.value)));
-    api.get('/lists?list_type=ΕΙΔΟΣ_ΥΠΗΡΕΣΙΑΣ&active_only=true').then(r => setServices(r.data.map(x=>x.value)));
+    api.get('/lists?list_type=ΚΑΤΗΓΟΡΙΕΣ_ΕΞΟΔΩΝ&active_only=true').then(r => setCategories(r.data.map(x => x.value)));
+    api.get('/lists?list_type=ΠΡΟΜΗΘΕΥΤΕΣ&active_only=true').then(r => setSuppliers(r.data.map(x => x.value)));
+    api.get('/lists?list_type=ΕΙΔΟΣ_ΥΠΗΡΕΣΙΑΣ&active_only=true').then(r => setServices(r.data.map(x => x.value)));
   }, []);
 
   const onSubmit = async data => {
@@ -27,15 +27,15 @@ export default function ExpensesForm({ record, onSave, onCancel }) {
   };
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+    <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="label">Ημερομηνία <span className="text-red-500">*</span></label>
+          <label className="label">Ημερομηνία <span className="text-rose-500">*</span></label>
           <input type="date" className="input" {...register('date', { required: true })} />
         </div>
         <div>
-          <label className="label">Ποσό (€) <span className="text-red-500">*</span></label>
-          <input type="number" step="0.01" className="input" {...register('amount', { required: true })} />
+          <label className="label">Ποσό (€) <span className="text-rose-500">*</span></label>
+          <input type="number" step="0.01" className="input" placeholder="0.00" {...register('amount', { required: true })} />
         </div>
         <div>
           <label className="label">Κατηγορία Εξόδου</label>
@@ -51,7 +51,7 @@ export default function ExpensesForm({ record, onSave, onCancel }) {
             {suppliers.map(s => <option key={s}>{s}</option>)}
           </select>
         </div>
-        <div>
+        <div className="col-span-2">
           <label className="label">Αφορά Υπηρεσία</label>
           <select className="input" {...register('related_service')}>
             <option value="">— Επιλογή —</option>
@@ -61,9 +61,9 @@ export default function ExpensesForm({ record, onSave, onCancel }) {
       </div>
       <div>
         <label className="label">Αιτιολογία – Περιγραφή</label>
-        <textarea className="input h-20" {...register('description')} />
+        <textarea className="input h-20 resize-none" {...register('description')} />
       </div>
-      <div className="flex justify-end gap-3 pt-2">
+      <div className="flex justify-end gap-3 pt-2 border-t border-slate-100">
         <button type="button" className="btn-secondary" onClick={onCancel}>Ακύρωση</button>
         <button type="submit" className="btn-primary">{record?.id ? 'Αποθήκευση' : 'Καταχώρηση'}</button>
       </div>
