@@ -18,6 +18,14 @@ export default function IncomeForm({ record, onSave, onCancel }) {
   const [descTemplates, setDescTemplates] = useState([]);
   const [customerLinked, setCustomerLinked] = useState(false);
   const [autoTargeting, setAutoTargeting] = useState(true);
+
+  // Agreement state
+  const [customerAgreements, setCustomerAgreements] = useState([]);
+  const [loadingAgreements, setLoadingAgreements] = useState(false);
+  const [selectedAgreementId, setSelectedAgreementId] = useState(record?.service_agreement_id ? String(record.service_agreement_id) : '');
+  const [showNewAgreementForm, setShowNewAgreementForm] = useState(false);
+  const [newSA, setNewSA] = useState({ service_type: '', amount_application: '' });
+
   const { register, handleSubmit, watch, setValue } = useForm({ defaultValues: record || {} });
 
   useEffect(() => {
@@ -54,6 +62,17 @@ export default function IncomeForm({ record, onSave, onCancel }) {
     }
   }, [amountImpl, amountApp]);
 
+  // Load agreements when customer_name changes
+  const customerName = watch('customer_name');
+  useEffect(() => {
+    if (!customerName || customerName.length < 2) { setCustomerAgreements([]); return; }
+    setLoadingAgreements(true);
+    api.get('/service-agreements', { params: { customer_name: customerName, limit: 100 } })
+      .then(r => setCustomerAgreements(r.data.data || []))
+      .catch(() => setCustomerAgreements([]))
+      .finally(() => setLoadingAgreements(false));
+  }, [customerName]);
+
   const handleCustomerSelect = c => {
     if (!c) {
       setCustomerLinked(false);
@@ -75,7 +94,35 @@ export default function IncomeForm({ record, onSave, onCancel }) {
     if (c.accountant) setValue('accountant', c.accountant);
     if (c.accountant_email) setValue('accountant_email', c.accountant_email);
     if (c.id) setValue('customer_id', c.id);
+    setValue('service_agreement_id', '');
+    setSelectedAgreementId('');
+    setCustomerAgreements([]);
     setCustomerLinked(true);
+  };
+
+  const handleCreateAgreement = async () => {
+    try {
+      const customerNameVal = watch('customer_name');
+      const customerId = watch('customer_id');
+      const res = await api.post('/service-agreements', {
+        customer_name: customerNameVal,
+        customer_id: customerId || undefined,
+        service_type: newSA.service_type,
+        amount_application: newSA.amount_application || undefined,
+        status: 'ΕΝ ΕΞΕΛΙΞΕΙ'
+      });
+      const created = res.data;
+      setCustomerAgreements(prev => [...prev, created]);
+      setSelectedAgreementId(String(created.id));
+      setValue('service_agreement_id', String(created.id));
+      setValue('service_type', created.service_type);
+      if (created.amount_application) setValue('amount_application', created.amount_application);
+      setShowNewAgreementForm(false);
+      setNewSA({ service_type: '', amount_application: '' });
+      toast.success('Νέα συμφωνία δημιουργήθηκε!');
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Σφάλμα δημιουργίας συμφωνίας');
+    }
   };
 
   const onSubmit = async data => {
@@ -156,6 +203,69 @@ export default function IncomeForm({ record, onSave, onCancel }) {
       <div>
         <SectionTitle>Στοιχεία Πώλησης</SectionTitle>
         <div className="grid grid-cols-2 gap-4">
+
+          {/* Agreement selection */}
+          <div className="col-span-2">
+            <label className="label">Συμφωνία Πελάτη</label>
+            {loadingAgreements ? (
+              <div className="text-sm text-slate-400">Φόρτωση συμφωνιών...</div>
+            ) : (
+              <select
+                className="input"
+                value={selectedAgreementId || ''}
+                onChange={e => {
+                  if (e.target.value === '__new__') {
+                    setShowNewAgreementForm(true);
+                    setSelectedAgreementId('');
+                  } else {
+                    setShowNewAgreementForm(false);
+                    const sa = customerAgreements.find(a => String(a.id) === e.target.value);
+                    setSelectedAgreementId(e.target.value);
+                    setValue('service_agreement_id', e.target.value);
+                    if (sa) {
+                      if (sa.service_type) setValue('service_type', sa.service_type);
+                      if (sa.amount_application) setValue('amount_application', sa.amount_application);
+                      if (sa.investment_height) setValue('investment_height', sa.investment_height);
+                    }
+                  }
+                }}
+              >
+                <option value="">— Επιλέξτε Συμφωνία —</option>
+                <option value="__new__">➕ Νέα Συμφωνία</option>
+                {customerAgreements.map(a => (
+                  <option key={a.id} value={String(a.id)}>
+                    {a.service_type || 'Χωρίς τύπο'} · {a.status} · {a.amount_application ? Number(a.amount_application).toLocaleString('el-GR') + '€' : '—'}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+
+          {showNewAgreementForm && (
+            <div className="col-span-2 p-4 bg-blue-50 border border-blue-200 rounded-lg space-y-3">
+              <p className="text-sm font-semibold text-blue-700">Νέα Συμφωνία</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="label">Είδος Υπηρεσίας *</label>
+                  <select className="input" value={newSA.service_type || ''} onChange={e => setNewSA(f => ({...f, service_type: e.target.value}))}>
+                    <option value="">— Επιλογή —</option>
+                    {(lists['ΕΙΔΟΣ_ΥΠΗΡΕΣΙΑΣ'] || []).map(o => <option key={o} value={o}>{o}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="label">Ποσό Συμφωνίας (€)</label>
+                  <input type="number" className="input" value={newSA.amount_application || ''} onChange={e => setNewSA(f => ({...f, amount_application: e.target.value}))} />
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <button type="button" className="btn-primary text-sm" onClick={handleCreateAgreement} disabled={!newSA.service_type}>Δημιουργία Συμφωνίας</button>
+                <button type="button" className="btn-secondary text-sm" onClick={() => setShowNewAgreementForm(false)}>Ακύρωση</button>
+              </div>
+            </div>
+          )}
+
+          <input type="hidden" {...register('service_agreement_id')} />
+
           <S label="Κατάσταση Εργασίας" name="work_status" opts={lists['ΚΑΤΑΣΤΑΣΗ_ΕΡΓΑΣΙΑΣ']} />
           <S label="Είδος Υπηρεσίας" name="service_type" opts={lists['ΕΙΔΟΣ_ΥΠΗΡΕΣΙΑΣ']} required />
           <S label="Πηγή / Σύσταση" name="source_referral" opts={lists['ΠΗΓΗ_ΣΥΣΤΑΣΗ']} />

@@ -22,11 +22,12 @@ router.get('/stats', async (req, res) => {
 
 router.get('/', async (req, res) => {
   try {
-    const { status, customer_id, search, sales_agent, service_type, limit = 50, offset = 0, page } = req.query;
+    const { status, customer_id, customer_name, search, sales_agent, service_type, limit = 50, offset = 0, page } = req.query;
     const actualOffset = page ? (parseInt(page) - 1) * parseInt(limit) : parseInt(offset);
     const where = {};
     if (status) where.status = status;
     if (customer_id) where.customer_id = parseInt(customer_id);
+    if (customer_name) where.customer_name = { [Op.iLike]: `%${customer_name}%` };
     if (sales_agent) where.sales_agent = sales_agent;
     if (service_type) where.service_type = service_type;
     if (search) where[Op.or] = [
