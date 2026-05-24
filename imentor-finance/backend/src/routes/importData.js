@@ -55,6 +55,11 @@ function parseNum(v) {
   s = s.replace(/[€$\s]/g, '').trim();
   if (!s || /^-+$/.test(s) || s === '') return null;
 
+  // Parenthetical notation: (750) or (1.234,50) → positive number
+  if (s.startsWith('(') && s.endsWith(')')) {
+    s = s.slice(1, -1).trim();
+  }
+
   // Detect Greek number format: dot = thousands separator, comma = decimal
   if (s.includes(',')) {
     // Greek decimal: "1.234,56" → "1234.56"

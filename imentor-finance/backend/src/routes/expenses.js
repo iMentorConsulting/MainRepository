@@ -2,22 +2,28 @@ const router = require('express').Router();
 const { Op } = require('sequelize');
 const Expense = require('../models/Expense');
 
+const ALLOWED_SORT = ['date','amount','category','supplier','description'];
+
 router.get('/', async (req, res) => {
   try {
-    const { year, month, category, supplier, search, page = 1, limit = 50 } = req.query;
+    const { year, month, category, supplier, search, page = 1, limit = 50, sort_field, sort_dir, hide_no_amount } = req.query;
     const where = {};
     if (year) where.date = { [Op.between]: [`${year}-01-01`, `${year}-12-31`] };
     if (month && year) where.date = { [Op.between]: [`${year}-${month.padStart(2,'0')}-01`, `${year}-${month.padStart(2,'0')}-31`] };
     if (category) where.category = category;
     if (supplier) where.supplier = supplier;
+    if (hide_no_amount === 'true') where.amount = { [Op.gt]: 0 };
     if (search) where[Op.or] = [
       { supplier: { [Op.iLike]: `%${search}%` } },
       { description: { [Op.iLike]: `%${search}%` } }
     ];
 
+    const sf = ALLOWED_SORT.includes(sort_field) ? sort_field : 'date';
+    const sd = sort_dir?.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
+
     const offset = (parseInt(page) - 1) * parseInt(limit);
     const { count, rows } = await Expense.findAndCountAll({
-      where, order: [['date', 'DESC'], ['id', 'DESC']],
+      where, order: [[sf, sd], ['id', 'DESC']],
       limit: parseInt(limit), offset
     });
     res.json({ total: count, page: parseInt(page), data: rows });

@@ -2,9 +2,11 @@ const router = require('express').Router();
 const { Op } = require('sequelize');
 const Income = require('../models/Income');
 
+const ALLOWED_SORT = ['sale_date','customer_name','amount_collected','amount_application','amount_implementation','service_type','sales_agent','work_status','vat_number','bonus'];
+
 router.get('/', async (req, res) => {
   try {
-    const { year, month, service_type, sales_agent, search, page = 1, limit = 50 } = req.query;
+    const { year, month, service_type, sales_agent, search, page = 1, limit = 50, sort_field, sort_dir } = req.query;
     const where = {};
     if (year) where.sale_date = { [Op.between]: [`${year}-01-01`, `${year}-12-31`] };
     if (month && year) where.sale_date = { [Op.between]: [`${year}-${month.padStart(2,'0')}-01`, `${year}-${month.padStart(2,'0')}-31`] };
@@ -12,9 +14,12 @@ router.get('/', async (req, res) => {
     if (sales_agent) where.sales_agent = sales_agent;
     if (search) where.customer_name = { [Op.iLike]: `%${search}%` };
 
+    const sf = ALLOWED_SORT.includes(sort_field) ? sort_field : 'sale_date';
+    const sd = sort_dir?.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
+
     const offset = (parseInt(page) - 1) * parseInt(limit);
     const { count, rows } = await Income.findAndCountAll({
-      where, order: [['sale_date', 'DESC'], ['id', 'DESC']],
+      where, order: [[sf, sd], ['id', 'DESC']],
       limit: parseInt(limit), offset
     });
     res.json({ total: count, page: parseInt(page), data: rows });
@@ -25,8 +30,7 @@ router.get('/', async (req, res) => {
 
 router.post('/', async (req, res) => {
   try {
-    const body = req.body;
-    const record = await Income.create(body);
+    const record = await Income.create(req.body);
     res.status(201).json(record);
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -47,8 +51,7 @@ router.put('/:id', async (req, res) => {
   try {
     const record = await Income.findByPk(req.params.id);
     if (!record) return res.status(404).json({ error: 'Δεν βρέθηκε' });
-    const body = req.body;
-    await record.update(body);
+    await record.update(req.body);
     res.json(record);
   } catch (e) {
     res.status(500).json({ error: e.message });

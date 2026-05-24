@@ -222,4 +222,67 @@ router.get('/expenses-by-category', async (req, res) => {
   }
 });
 
+// Top customers grouped by customer_name + vat_number
+router.get('/by-customer', async (req, res) => {
+  try {
+    const { year, month } = req.query;
+    let where = {};
+    if (year && month) where.sale_date = { [Op.between]: [`${year}-${month.padStart(2,'0')}-01`, `${year}-${month.padStart(2,'0')}-31`] };
+    else if (year) where.sale_date = { [Op.between]: [`${year}-01-01`, `${year}-12-31`] };
+
+    const rows = await Income.findAll({
+      where,
+      attributes: [
+        'customer_name', 'vat_number',
+        [fn('SUM', col('amount_collected')), 'income'],
+        [fn('COUNT', col('id')), 'count'],
+        [fn('COUNT', fn('DISTINCT', col('service_type'))), 'service_count']
+      ],
+      group: ['customer_name', 'vat_number'],
+      order: [[literal('income'), 'DESC']],
+      raw: true
+    });
+
+    res.json(rows.map(r => ({
+      customer_name: r.customer_name,
+      vat_number: r.vat_number || '—',
+      income: parseFloat(r.income || 0),
+      count: parseInt(r.count || 0),
+      service_count: parseInt(r.service_count || 0)
+    })));
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Income grouped by accountant (for email-style report)
+router.get('/by-accountant', async (req, res) => {
+  try {
+    const { year, month } = req.query;
+    let where = {};
+    if (year && month) where.sale_date = { [Op.between]: [`${year}-${month.padStart(2,'0')}-01`, `${year}-${month.padStart(2,'0')}-31`] };
+    else if (year) where.sale_date = { [Op.between]: [`${year}-01-01`, `${year}-12-31`] };
+
+    const rows = await Income.findAll({
+      where,
+      order: [['accountant', 'ASC'], ['sale_date', 'DESC']],
+      raw: true
+    });
+
+    const grouped = {};
+    for (const r of rows) {
+      const key = r.accountant || 'Χωρίς Λογιστή';
+      if (!grouped[key]) grouped[key] = { accountant: key, email: r.accountant_email, records: [] };
+      grouped[key].records.push(r);
+    }
+
+    res.json(Object.values(grouped).map(g => ({
+      ...g,
+      total: g.records.reduce((s, r) => s + parseFloat(r.amount_collected || 0), 0)
+    })));
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 module.exports = router;
