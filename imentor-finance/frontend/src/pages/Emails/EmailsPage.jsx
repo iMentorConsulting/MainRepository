@@ -4,6 +4,7 @@ import toast from 'react-hot-toast';
 import Modal from '../../components/Modal';
 
 const fmt = n => n ? Number(n).toLocaleString('el-GR', { minimumFractionDigits: 0 }) + ' €' : '—';
+
 const fmtDate = d => d ? new Date(d + 'T00:00:00').toLocaleDateString('el-GR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—';
 const fmtDateTime = d => d ? new Date(d).toLocaleDateString('el-GR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
 
@@ -14,6 +15,9 @@ export default function EmailsPage() {
   const [selected, setSelected] = useState(new Set());
   const [filters, setFilters] = useState({ year: new Date().getFullYear(), page: 1 });
   const [accountantFilter, setAccountantFilter] = useState('');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [sort, setSort] = useState({ field: 'sale_date', dir: 'DESC' });
   const [preview, setPreview] = useState([]);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [sending, setSending] = useState(false);
@@ -34,14 +38,17 @@ export default function EmailsPage() {
   ];
 
   const load = useCallback(() => {
-    api.get('/income', { params: { year: filters.year, limit: 100, page: filters.page } }).then(r => setData(r.data));
-  }, [filters]);
+    const params = { year: filters.year, limit: 100, page: filters.page, sort_field: sort.field, sort_dir: sort.dir };
+    if (dateFrom) params.date_from = dateFrom;
+    if (dateTo) params.date_to = dateTo;
+    api.get('/income', { params }).then(r => setData(r.data));
+  }, [filters, sort, dateFrom, dateTo]);
 
   useEffect(() => { load(); }, [load]);
 
   useEffect(() => {
-    api.get('/emails/accountants').then(r => setAccountants(r.data)).catch(() => {});
-  }, []);
+    api.get('/emails/accountants', { params: { year: filters.year } }).then(r => setAccountants(r.data)).catch(() => {});
+  }, [filters.year]);
 
   const loadLogs = useCallback(() => {
     setLogsLoading(true);
@@ -92,6 +99,15 @@ export default function EmailsPage() {
 
   const allSelected = selected.size === displayedRows.length && displayedRows.length > 0;
 
+  const SortTh = ({ field, label }) => (
+    <th className="th cursor-pointer select-none hover:bg-slate-50" onClick={() => { setSort(s => ({ field, dir: s.field === field && s.dir === 'DESC' ? 'ASC' : 'DESC' })); }}>
+      <span className="flex items-center gap-1">
+        {label}
+        {sort.field === field ? (sort.dir === 'DESC' ? ' ↓' : ' ↑') : <span className="text-slate-300"> ↕</span>}
+      </span>
+    </th>
+  );
+
   return (
     <div className="page">
       <div className="page-header">
@@ -140,6 +156,15 @@ export default function EmailsPage() {
                 <option key={a.accountant_email || a.accountant} value={a.accountant_email || ''}>{a.accountant}</option>
               ))}
             </select>
+            <div className="flex items-center gap-1 text-slate-400 text-xs">ή</div>
+            <div className="flex items-center gap-1">
+              <input type="date" className="input w-36 text-sm" value={dateFrom} onChange={e => setDateFrom(e.target.value)} placeholder="Από" />
+              <span className="text-slate-400 text-xs">—</span>
+              <input type="date" className="input w-36 text-sm" value={dateTo} onChange={e => setDateTo(e.target.value)} placeholder="Έως" />
+              {(dateFrom || dateTo) && (
+                <button className="btn-ghost btn-sm text-xs" onClick={() => { setDateFrom(''); setDateTo(''); }}>✕</button>
+              )}
+            </div>
             {selected.size > 0 && (
               <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-indigo-50 text-indigo-700 text-sm font-medium">
                 <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path fillRule="evenodd" d="M16.704 4.153a.75.75 0 0 1 .143 1.052l-8 10.5a.75.75 0 0 1-1.127.075l-4.5-4.5a.75.75 0 0 1 1.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 0 1 1.05-.143Z" clipRule="evenodd"/></svg>
@@ -160,9 +185,13 @@ export default function EmailsPage() {
                       <input type="checkbox" checked={allSelected} onChange={toggleAll}
                         className="w-4 h-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500 cursor-pointer" />
                     </th>
-                    {['Ημερομηνία','Πελάτης','Υπηρεσία','Ποσό','Λογιστής','Τιμολόγιο','Ενημέρωση'].map(h => (
-                      <th key={h} className="th">{h}</th>
-                    ))}
+                    <SortTh field="sale_date" label="Ημερομηνία" />
+                    <SortTh field="customer_name" label="Πελάτης" />
+                    <SortTh field="service_type" label="Υπηρεσία" />
+                    <SortTh field="amount_collected" label="Ποσό" />
+                    <SortTh field="accountant" label="Λογιστής" />
+                    <th className="th">Τιμολόγιο</th>
+                    <th className="th">Ενημέρωση</th>
                   </tr>
                 </thead>
                 <tbody>

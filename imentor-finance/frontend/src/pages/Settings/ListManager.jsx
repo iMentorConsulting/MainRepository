@@ -3,12 +3,13 @@ import api from '../../api/client';
 import toast from 'react-hot-toast';
 
 const LIST_TYPES = [
-  { key: 'ΚΑΤΗΓΟΡΙΕΣ_ΕΞΟΔΩΝ',  label: 'Κατηγορίες Εξόδων',     color: 'bg-orange-500' },
-  { key: 'ΠΡΟΜΗΘΕΥΤΕΣ',         label: 'Προμηθευτές / Υπάλληλοι', color: 'bg-blue-500' },
-  { key: 'ΚΑΤΑΣΤΑΣΗ_ΕΡΓΑΣΙΑΣ',  label: 'Κατάσταση Εργασίας',     color: 'bg-violet-500' },
-  { key: 'ΕΙΔΟΣ_ΥΠΗΡΕΣΙΑΣ',    label: 'Είδος Υπηρεσίας',         color: 'bg-emerald-500' },
-  { key: 'ΠΗΓΗ_ΣΥΣΤΑΣΗ',        label: 'Πηγή / Σύσταση',          color: 'bg-pink-500' },
-  { key: 'ΠΡΑΚΤΟΡΕΣ',           label: 'Πράκτορες',               color: 'bg-amber-500' },
+  { key: 'ΚΑΤΗΓΟΡΙΕΣ_ΕΞΟΔΩΝ',       label: 'Κατηγορίες Εξόδων',     color: 'bg-orange-500' },
+  { key: 'ΠΡΟΜΗΘΕΥΤΕΣ',              label: 'Προμηθευτές / Υπάλληλοι', color: 'bg-blue-500' },
+  { key: 'ΚΑΤΑΣΤΑΣΗ_ΕΡΓΑΣΙΑΣ',       label: 'Κατάσταση Εργασίας',     color: 'bg-violet-500' },
+  { key: 'ΕΙΔΟΣ_ΥΠΗΡΕΣΙΑΣ',         label: 'Είδος Υπηρεσίας',         color: 'bg-emerald-500' },
+  { key: 'ΠΗΓΗ_ΣΥΣΤΑΣΗ',             label: 'Πηγή / Σύσταση',          color: 'bg-pink-500' },
+  { key: 'ΠΡΑΚΤΟΡΕΣ',                label: 'Πράκτορες',               color: 'bg-amber-500' },
+  { key: 'description_templates',    label: 'Αιτιολογίες Εσόδων',      color: 'bg-teal-500' },
 ];
 
 export default function ListManager() {

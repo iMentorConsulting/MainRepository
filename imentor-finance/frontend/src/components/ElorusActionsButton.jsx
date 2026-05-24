@@ -4,7 +4,7 @@ import Modal from './Modal';
 import toast from 'react-hot-toast';
 
 const ORGS = [
-  { key: 'DEFAULT', label: 'i-Mentor (κύρια — παρακράτηση 20%)' },
+  { key: 'DEFAULT', label: 'ΑΠΟΣΤΟΛΑΚΗΣ (παρακράτηση 20%)' },
   { key: 'IMENTOR_IKE', label: 'I MENTOR IKE (χωρίς παρακράτηση)' },
 ];
 
@@ -17,7 +17,7 @@ function Breakdown({ amount, orgKey }) {
   const g = parseFloat(amount);
   const net = g / 1.24;
   const vat = g - net;
-  const wh = orgKey !== 'IMENTOR_IKE' ? net * 0.20 : 0;
+  const wh = (orgKey !== 'IMENTOR_IKE' && net > 301) ? net * 0.20 : 0;
   return (
     <div className="rounded-xl p-3 text-xs space-y-1.5 bg-slate-50 border border-slate-100">
       <div className="flex justify-between text-slate-500"><span>Καθαρό</span><span className="font-medium text-slate-700">{fmtE(net)}</span></div>
@@ -35,7 +35,7 @@ function InvoiceForm({ action, record, onClose, onDone }) {
   const [orgKey, setOrgKey] = useState('DEFAULT');
   const [amount, setAmount] = useState(String(record.amount_collected || ''));
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
-  const [description, setDescription] = useState(record.service_type || '');
+  const [description, setDescription] = useState(record.description || record.service_type || '');
   const [methods, setMethods] = useState([]);
   const [methodId, setMethodId] = useState('');
   const [loading, setLoading] = useState(false);
@@ -194,25 +194,17 @@ function AfmResult({ record, onClose }) {
         <div className="flex justify-between"><span className="text-slate-500">Πελάτης</span><span className="font-semibold text-slate-800">{record.customer_name}</span></div>
         <div className="flex justify-between"><span className="text-slate-500">ΑΦΜ</span><span className="text-slate-700">{record.vat_number || '—'}</span></div>
       </div>
-      {loading && <div className="text-center py-6 text-slate-400 text-sm">Αναζήτηση στο Elorus…</div>}
-      {!loading && result?.error && <div className="rounded-xl p-3 bg-rose-50 border border-rose-100 text-sm text-rose-700">{result.error}</div>}
+      {loading && <div className="text-center py-6 text-slate-400 text-sm">Αναζήτηση στο ΑΑΔΕ…</div>}
+      {!loading && result?.error && (
+        <div className="rounded-xl p-3 bg-rose-50 border border-rose-100 text-sm text-rose-700">{result.error}</div>
+      )}
       {!loading && result && !result.error && (
-        result.contacts?.length > 0 ? (
-          <div className="space-y-2">
-            <div className="text-xs font-bold text-slate-400 uppercase tracking-wide">Βρέθηκε στο Elorus:</div>
-            {result.contacts.slice(0, 3).map((c, i) => (
-              <div key={i} className="rounded-xl p-3 bg-emerald-50 border border-emerald-100 text-sm space-y-0.5">
-                <div className="font-semibold text-emerald-800">{c.company || c.display_name}</div>
-                {c.vat_number && <div className="text-xs text-emerald-600">ΑΦΜ: {c.vat_number}</div>}
-                {c.email && <div className="text-xs text-emerald-600">{c.email}</div>}
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="rounded-xl p-4 bg-amber-50 border border-amber-100 text-sm text-amber-700 text-center">
-            Δεν βρέθηκε επαφή στο Elorus. Θα δημιουργηθεί αυτόματα κατά την έκδοση.
-          </div>
-        )
+        <div className="rounded-xl p-4 bg-emerald-50 border border-emerald-100 space-y-2 text-sm">
+          <div className="font-bold text-emerald-800 text-base">{result.name}</div>
+          {result.activity && <div className="text-xs text-emerald-600">Δραστηριότητα: {result.activity}</div>}
+          {result.legal_status && <div className="text-xs text-emerald-600">Μορφή: {result.legal_status}</div>}
+          {result.address && <div className="text-xs text-emerald-700">📍 {result.address}, {result.city} {result.postal_code}</div>}
+        </div>
       )}
       <div className="flex justify-end pt-2 border-t border-slate-100">
         <button className="btn-secondary" onClick={onClose}>Κλείσιμο</button>

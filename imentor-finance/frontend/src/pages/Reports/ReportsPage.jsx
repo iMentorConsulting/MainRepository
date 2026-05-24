@@ -38,16 +38,25 @@ const RANK_BADGES = [
   { label: '🥉 3ος', bg: 'bg-orange-50', text: 'text-orange-700', ring: 'ring-orange-300' },
 ];
 
-function TabOverview({ year, setYear, month, setMonth, years, months, monthLabels, monthly, byService, byAgent, byExpCat, summary }) {
+function TabOverview({ year, setYear, month, setMonth, years, months, monthLabels, monthly, byService, byAgent, byExpCat, summary, dateFrom, setDateFrom, dateTo, setDateTo }) {
   return (
     <>
-      <div className="flex gap-2 mb-6">
+      <div className="flex flex-wrap gap-2 mb-6">
         <select className="input w-28" value={year} onChange={e => setYear(+e.target.value)}>
           {years.map(y => <option key={y}>{y}</option>)}
         </select>
         <select className="input w-44" value={month} onChange={e => setMonth(e.target.value)}>
           {months.map((m, i) => <option key={m} value={m}>{monthLabels[i]}</option>)}
         </select>
+        <div className="flex items-center gap-1 text-slate-400 text-xs">ή</div>
+        <div className="flex items-center gap-1">
+          <input type="date" className="input w-36 text-sm" value={dateFrom} onChange={e => setDateFrom(e.target.value)} placeholder="Από" />
+          <span className="text-slate-400 text-xs">—</span>
+          <input type="date" className="input w-36 text-sm" value={dateTo} onChange={e => setDateTo(e.target.value)} placeholder="Έως" />
+          {(dateFrom || dateTo) && (
+            <button className="btn-ghost btn-sm text-xs" onClick={() => { setDateFrom(''); setDateTo(''); }}>✕</button>
+          )}
+        </div>
       </div>
 
       {summary && (
@@ -198,7 +207,7 @@ function TabTopCustomers({ years }) {
     return sortDir === 'asc' ? av - bv : bv - av;
   });
 
-  const top3 = data.slice(0, 3);
+  const top3 = [data[0], data[1], data[2]].filter(Boolean);
   const chartData = data.slice(0, 10).map(d => ({ name: d.customer_name, income: d.income }));
 
   const SortIcon = ({ col }) => {
@@ -215,25 +224,28 @@ function TabTopCustomers({ years }) {
       </div>
 
       {top3.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-          {top3.map((c, i) => {
-            const badge = RANK_BADGES[i];
-            return (
-              <div key={i} className={`card p-5 border-t-4 ${i === 0 ? 'border-amber-400' : i === 1 ? 'border-slate-400' : 'border-orange-400'}`}>
-                <div className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold mb-3 ring-1 ${badge.bg} ${badge.text} ${badge.ring}`}>
-                  {badge.label}
+        <>
+          <p className="text-xs text-slate-400 mb-3">Τα μετάλλια απονέμονται στους 3 πελάτες με το μεγαλύτερο συνολικό εισπραχθέν ποσό για το επιλεγμένο έτος.</p>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            {top3.map((c, i) => {
+              const badge = RANK_BADGES[i];
+              return (
+                <div key={i} className={`card p-5 border-t-4 ${i === 0 ? 'border-amber-400' : i === 1 ? 'border-slate-400' : 'border-orange-400'}`}>
+                  <div className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold mb-3 ring-1 ${badge.bg} ${badge.text} ${badge.ring}`}>
+                    {badge.label}
+                  </div>
+                  <div className="font-bold text-slate-800 text-sm mb-1 truncate">{c.customer_name}</div>
+                  <div className="text-xs text-slate-400 mb-3">{c.vat_number}</div>
+                  <div className="text-xl font-black text-emerald-600">{fmtMoney(c.income)}</div>
+                  <div className="flex gap-3 mt-2">
+                    <span className="text-xs text-slate-400">{c.count} εγγραφές</span>
+                    <span className="text-xs text-slate-400">{c.service_count} υπηρεσίες</span>
+                  </div>
                 </div>
-                <div className="font-bold text-slate-800 text-sm mb-1 truncate">{c.customer_name}</div>
-                <div className="text-xs text-slate-400 mb-3">{c.vat_number}</div>
-                <div className="text-xl font-black text-emerald-600">{fmtMoney(c.income)}</div>
-                <div className="flex gap-3 mt-2">
-                  <span className="text-xs text-slate-400">{c.count} εγγραφές</span>
-                  <span className="text-xs text-slate-400">{c.service_count} υπηρεσίες</span>
-                </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        </>
       )}
 
       {chartData.length > 0 && (
@@ -266,7 +278,6 @@ function TabTopCustomers({ years }) {
                 <th className="th">Κατάταξη</th>
                 {[
                   { label: 'Πελάτης', col: 'customer_name' },
-                  { label: 'ΑΦΜ', col: 'vat_number' },
                   { label: 'Εισπράξεις', col: 'income' },
                   { label: 'Αρ. Εγγραφών', col: 'count' },
                   { label: 'Υπηρεσίες', col: 'service_count' },
@@ -276,6 +287,7 @@ function TabTopCustomers({ years }) {
                     {label}<SortIcon col={col} />
                   </th>
                 ))}
+                <th className="th">Υπηρεσίες</th>
               </tr>
             </thead>
             <tbody>
@@ -293,10 +305,10 @@ function TabTopCustomers({ years }) {
                       )}
                     </td>
                     <td className="td font-semibold text-slate-800">{row.customer_name}</td>
-                    <td className="td text-slate-500 font-mono text-xs">{row.vat_number}</td>
                     <td className="td font-bold text-emerald-600">{fmtMoney(row.income)}</td>
                     <td className="td text-slate-500">{row.count}</td>
                     <td className="td text-slate-500">{row.service_count}</td>
+                    <td className="td text-xs text-slate-500 max-w-[200px] truncate">{row.services || '—'}</td>
                   </tr>
                 );
               })}
@@ -424,6 +436,8 @@ export default function ReportsPage() {
   const [activeTab, setActiveTab] = useState('overview');
   const [year, setYear] = useState(new Date().getFullYear());
   const [month, setMonth] = useState('');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
   const [monthly, setMonthly] = useState([]);
   const [byService, setByService] = useState([]);
   const [byAgent, setByAgent] = useState([]);
@@ -432,13 +446,19 @@ export default function ReportsPage() {
 
   useEffect(() => {
     if (activeTab !== 'overview') return;
+    const buildQ = (base) => {
+      const params = new URLSearchParams(base);
+      if (dateFrom) params.set('date_from', dateFrom);
+      if (dateTo) params.set('date_to', dateTo);
+      return params.toString();
+    };
     const q = month ? `year=${year}&month=${month}` : `year=${year}`;
     Promise.all([
       api.get(`/reports/monthly?year=${year}`),
-      api.get(`/reports/by-service?${q}`),
-      api.get(`/reports/by-agent?${q}`),
-      api.get(`/reports/expenses-by-category?${q}`),
-      api.get(`/reports/summary?${q}`)
+      api.get(`/reports/by-service?${buildQ(q)}`),
+      api.get(`/reports/by-agent?${buildQ(q)}`),
+      api.get(`/reports/expenses-by-category?${buildQ(q)}`),
+      api.get(`/reports/summary?${buildQ(q)}`)
     ]).then(([m, sv, ag, ec, sm]) => {
       setMonthly(m.data.map(d => ({ ...d, name: d.month_name.slice(0, 3) })));
       setByService(sv.data);
@@ -446,7 +466,7 @@ export default function ReportsPage() {
       setByExpCat(ec.data);
       setSummary(sm.data);
     });
-  }, [year, month, activeTab]);
+  }, [year, month, dateFrom, dateTo, activeTab]);
 
   const years = Array.from({ length: 6 }, (_, i) => new Date().getFullYear() - i);
   const months = ['','01','02','03','04','05','06','07','08','09','10','11','12'];
@@ -483,6 +503,8 @@ export default function ReportsPage() {
           years={years} months={months} monthLabels={monthLabels}
           monthly={monthly} byService={byService} byAgent={byAgent}
           byExpCat={byExpCat} summary={summary}
+          dateFrom={dateFrom} setDateFrom={setDateFrom}
+          dateTo={dateTo} setDateTo={setDateTo}
         />
       )}
       {activeTab === 'top-customers' && <TabTopCustomers years={years} />}

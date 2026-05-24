@@ -2,6 +2,56 @@ import { useState, useRef } from 'react';
 import api from '../../api/client';
 import toast from 'react-hot-toast';
 
+function SyncSection() {
+  const [syncing, setSyncing] = useState({ customers: false, agreements: false });
+  const [syncResults, setSyncResults] = useState({});
+
+  const syncCustomers = async () => {
+    setSyncing(s => ({ ...s, customers: true }));
+    try {
+      const r = await api.post('/import/sync-customers');
+      setSyncResults(prev => ({ ...prev, customers: r.data }));
+      toast.success(`Πελάτες: ${r.data.created} νέοι, ${r.data.updated} υπάρχοντες`);
+    } catch (e) { toast.error(e.response?.data?.error || 'Σφάλμα'); }
+    finally { setSyncing(s => ({ ...s, customers: false })); }
+  };
+
+  const syncAgreements = async () => {
+    setSyncing(s => ({ ...s, agreements: true }));
+    try {
+      const r = await api.post('/import/sync-agreements');
+      setSyncResults(prev => ({ ...prev, agreements: r.data }));
+      toast.success(`Συμφωνίες: ${r.data.created} νέες, ${r.data.skipped} υπάρχουσες`);
+    } catch (e) { toast.error(e.response?.data?.error || 'Σφάλμα'); }
+    finally { setSyncing(s => ({ ...s, agreements: false })); }
+  };
+
+  return (
+    <div className="card p-6 border-2 border-dashed border-amber-200 bg-amber-50/30">
+      <h2 className="section-title mb-1">Συγχρονισμός Δεδομένων (Εφάπαξ)</h2>
+      <p className="text-xs text-slate-500 mb-4">Δημιουργεί Πελάτες και Συμφωνίες Υπηρεσιών από τις υπάρχουσες εγγραφές ΕΣΟΔΑ. Εκτελέστε μία φορά μετά την εισαγωγή CSV.</p>
+      <div className="flex flex-wrap gap-3">
+        <div className="flex flex-col gap-1">
+          <button className="btn-secondary" onClick={syncCustomers} disabled={syncing.customers}>
+            {syncing.customers ? 'Επεξεργασία...' : '👥 Δημιουργία Πελατών από ΕΣΟΔΑ'}
+          </button>
+          {syncResults.customers && (
+            <span className="text-xs text-slate-500">{syncResults.customers.created} νέοι · {syncResults.customers.updated} υπάρχοντες · {syncResults.customers.total} σύνολο</span>
+          )}
+        </div>
+        <div className="flex flex-col gap-1">
+          <button className="btn-secondary" onClick={syncAgreements} disabled={syncing.agreements}>
+            {syncing.agreements ? 'Επεξεργασία...' : '📋 Δημιουργία Συμφωνιών από ΕΣΟΔΑ'}
+          </button>
+          {syncResults.agreements && (
+            <span className="text-xs text-slate-500">{syncResults.agreements.created} νέες · {syncResults.agreements.skipped} υπάρχουσες · {syncResults.agreements.total} σύνολο</span>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ImportSection({ title, endpoint, deleteEndpoint, description, note, sourceSheet, color = 'bg-indigo-500' }) {
   const [file, setFile] = useState(null);
   const [result, setResult] = useState(null);
@@ -146,6 +196,7 @@ export default function ImportPage() {
           description="CSV από το φύλλο ΕΞΟΔΑ2."
           note="Το κουμπί 'Διαγραφή Όλων' διαγράφει ΚΑΙ τα δεδομένα του ΕΞΟΔΑ."
         />
+        <SyncSection />
       </div>
     </div>
   );

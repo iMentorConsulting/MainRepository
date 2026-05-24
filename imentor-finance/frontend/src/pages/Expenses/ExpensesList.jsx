@@ -93,6 +93,8 @@ export default function ExpensesList() {
     category: '', search: '', page: 1
   });
   const [sort, setSort] = useState({ field: 'date', dir: 'DESC' });
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
   const [hideNoAmount, setHideNoAmount] = useState(false);
   const [modal, setModal] = useState({ open: false, record: null });
   const [deleteId, setDeleteId] = useState(null);
@@ -103,9 +105,11 @@ export default function ExpensesList() {
     params.sort_field = sort.field;
     params.sort_dir = sort.dir;
     if (hideNoAmount) params.hide_no_amount = 'true';
+    if (dateFrom) params.date_from = dateFrom;
+    if (dateTo) params.date_to = dateTo;
     params.limit = 200;
     api.get('/expenses', { params }).then(r => setData(r.data));
-  }, [filters, sort, hideNoAmount]);
+  }, [filters, sort, hideNoAmount, dateFrom, dateTo]);
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => {
@@ -165,7 +169,16 @@ export default function ExpensesList() {
             className="w-4 h-4 rounded border-slate-300 text-primary-600" />
           <span className="text-sm text-slate-600 whitespace-nowrap">Κρύψε χωρίς ποσό</span>
         </label>
-        <button className="btn-ghost btn-sm" onClick={() => { setFilters({ year: String(now.getFullYear()), month: String(now.getMonth()+1).padStart(2,'0'), category: '', search: '', page: 1 }); setHideNoAmount(false); }}>
+        <div className="flex items-center gap-1 text-slate-400 text-xs">ή</div>
+        <div className="flex items-center gap-1">
+          <input type="date" className="input w-36 text-sm" value={dateFrom} onChange={e => setDateFrom(e.target.value)} placeholder="Από" />
+          <span className="text-slate-400 text-xs">—</span>
+          <input type="date" className="input w-36 text-sm" value={dateTo} onChange={e => setDateTo(e.target.value)} placeholder="Έως" />
+          {(dateFrom || dateTo) && (
+            <button className="btn-ghost btn-sm text-xs" onClick={() => { setDateFrom(''); setDateTo(''); }}>✕</button>
+          )}
+        </div>
+        <button className="btn-ghost btn-sm" onClick={() => { setFilters({ year: String(now.getFullYear()), month: String(now.getMonth()+1).padStart(2,'0'), category: '', search: '', page: 1 }); setHideNoAmount(false); setDateFrom(''); setDateTo(''); }}>
           ✕ Καθαρισμός
         </button>
       </div>

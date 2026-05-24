@@ -45,6 +45,8 @@ export default function IncomeList() {
     service_type: '', sales_agent: '', search: '', page: 1
   });
   const [sort, setSort] = useState({ field: 'sale_date', dir: 'DESC' });
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
   const [modal, setModal] = useState({ open: false, record: null });
   const [deleteId, setDeleteId] = useState(null);
   const [services, setServices] = useState([]);
@@ -54,8 +56,10 @@ export default function IncomeList() {
     const params = Object.fromEntries(Object.entries(filters).filter(([, v]) => v !== ''));
     params.sort_field = sort.field;
     params.sort_dir = sort.dir;
+    if (dateFrom) params.date_from = dateFrom;
+    if (dateTo) params.date_to = dateTo;
     api.get('/income', { params }).then(r => setData(r.data));
-  }, [filters, sort]);
+  }, [filters, sort, dateFrom, dateTo]);
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => {
@@ -115,7 +119,16 @@ export default function IncomeList() {
           <option value="">Πράκτορας</option>
           {agents.map(a => <option key={a}>{a}</option>)}
         </select>
-        <button className="btn-ghost btn-sm" onClick={() => setFilters({ year: String(now.getFullYear()), month: String(now.getMonth()+1).padStart(2,'0'), service_type: '', sales_agent: '', search: '', page: 1 })}>
+        <div className="flex items-center gap-1 text-slate-400 text-xs">ή</div>
+        <div className="flex items-center gap-1">
+          <input type="date" className="input w-36 text-sm" value={dateFrom} onChange={e => setDateFrom(e.target.value)} placeholder="Από" />
+          <span className="text-slate-400 text-xs">—</span>
+          <input type="date" className="input w-36 text-sm" value={dateTo} onChange={e => setDateTo(e.target.value)} placeholder="Έως" />
+          {(dateFrom || dateTo) && (
+            <button className="btn-ghost btn-sm text-xs" onClick={() => { setDateFrom(''); setDateTo(''); }}>✕</button>
+          )}
+        </div>
+        <button className="btn-ghost btn-sm" onClick={() => { setFilters({ year: String(now.getFullYear()), month: String(now.getMonth()+1).padStart(2,'0'), service_type: '', sales_agent: '', search: '', page: 1 }); setDateFrom(''); setDateTo(''); }}>
           ✕ Καθαρισμός
         </button>
       </div>

@@ -15,6 +15,7 @@ const SectionTitle = ({ children }) => (
 
 export default function IncomeForm({ record, onSave, onCancel }) {
   const [lists, setLists] = useState({});
+  const [descTemplates, setDescTemplates] = useState([]);
   const [customerLinked, setCustomerLinked] = useState(false);
   const [autoTargeting, setAutoTargeting] = useState(true);
   const { register, handleSubmit, watch, setValue } = useForm({ defaultValues: record || {} });
@@ -27,6 +28,8 @@ export default function IncomeForm({ record, onSave, onCancel }) {
         types.forEach((t, i) => { l[t] = results[i].data.map(x => x.value); });
         setLists(l);
       });
+    api.get('/lists', { params: { category: 'description_templates', active: true } })
+      .then(r => setDescTemplates(r.data.map(x => x.name)));
   }, []);
 
   const amountApp = watch('amount_application');
@@ -165,7 +168,10 @@ export default function IncomeForm({ record, onSave, onCancel }) {
         </div>
         <div className="mt-4">
           <label className="label">Αιτιολογία – Περιγραφή</label>
-          <textarea className="input h-20 resize-none" {...register('description')} />
+          <datalist id="desc-templates">
+            {descTemplates.map((t, i) => <option key={i} value={t} />)}
+          </datalist>
+          <textarea className="input h-20 resize-none" list="desc-templates" {...register('description')} />
         </div>
       </div>
 

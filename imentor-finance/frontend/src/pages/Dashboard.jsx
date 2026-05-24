@@ -49,24 +49,32 @@ const CustomTooltip = ({ active, payload, label }) => {
 
 export default function Dashboard() {
   const [year, setYear] = useState(new Date().getFullYear());
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
   const [summary, setSummary] = useState(null);
   const [monthly, setMonthly] = useState([]);
   const [byService, setByService] = useState([]);
   const [byAgent, setByAgent] = useState([]);
 
   useEffect(() => {
+    const buildParams = (base) => {
+      const p = new URLSearchParams(base);
+      if (dateFrom) p.set('date_from', dateFrom);
+      if (dateTo) p.set('date_to', dateTo);
+      return p.toString();
+    };
     Promise.all([
-      api.get(`/reports/summary?year=${year}`),
+      api.get(`/reports/summary?${buildParams(`year=${year}`)}`),
       api.get(`/reports/monthly?year=${year}`),
-      api.get(`/reports/by-service?year=${year}`),
-      api.get(`/reports/by-agent?year=${year}`)
+      api.get(`/reports/by-service?${buildParams(`year=${year}`)}`),
+      api.get(`/reports/by-agent?${buildParams(`year=${year}`)}`)
     ]).then(([s, m, sv, ag]) => {
       setSummary(s.data);
       setMonthly(m.data.map(d => ({ ...d, name: d.month_name.slice(0, 3) })));
       setByService(sv.data.slice(0, 7));
       setByAgent(ag.data.slice(0, 6));
     });
-  }, [year]);
+  }, [year, dateFrom, dateTo]);
 
   const years = Array.from({ length: 6 }, (_, i) => new Date().getFullYear() - i);
 
@@ -77,9 +85,20 @@ export default function Dashboard() {
           <h1 className="page-title">Dashboard</h1>
           <p className="page-sub">Οικονομική επισκόπηση</p>
         </div>
-        <select value={year} onChange={e => setYear(+e.target.value)} className="input w-28">
-          {years.map(y => <option key={y}>{y}</option>)}
-        </select>
+        <div className="flex items-center gap-2 flex-wrap">
+          <select value={year} onChange={e => setYear(+e.target.value)} className="input w-28">
+            {years.map(y => <option key={y}>{y}</option>)}
+          </select>
+          <div className="flex items-center gap-1 text-slate-400 text-xs">ή</div>
+          <div className="flex items-center gap-1">
+            <input type="date" className="input w-36 text-sm" value={dateFrom} onChange={e => setDateFrom(e.target.value)} placeholder="Από" />
+            <span className="text-slate-400 text-xs">—</span>
+            <input type="date" className="input w-36 text-sm" value={dateTo} onChange={e => setDateTo(e.target.value)} placeholder="Έως" />
+            {(dateFrom || dateTo) && (
+              <button className="btn-ghost btn-sm text-xs" onClick={() => { setDateFrom(''); setDateTo(''); }}>✕</button>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* KPI Grid */}
