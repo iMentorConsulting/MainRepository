@@ -14,6 +14,7 @@ function createTransport() {
   return nodemailer.createTransport({
     host, port,
     secure: false,
+    requireTLS: true,
     auth: { user, pass },
     tls: { rejectUnauthorized: false },
     connectionTimeout: 30000,

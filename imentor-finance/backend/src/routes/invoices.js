@@ -9,6 +9,10 @@ async function aadeSearchAfm(vat, orgKey) {
   const password = isIke ? (process.env.AADE_PASS_IMENTOR || '') : (process.env.AADE_PASS || '');
   const myAfm   = isIke ? (process.env.MY_AFM_IMENTOR  || '') : (process.env.MY_AFM  || '');
 
+  console.log(`AADE call: orgKey=${orgKey} user=${username||'EMPTY'} myAfm=${myAfm||'EMPTY'} vat=${vat}`);
+  if (!myAfm) return { error: `MY_AFM${isIke ? '_IMENTOR' : ''} env var is not set in Railway` };
+  if (!username) return { error: `AADE_USER${isIke ? '_IMENTOR' : ''} env var is not set in Railway` };
+
   const soapBody = `<?xml version="1.0" encoding="UTF-8"?><env:Envelope xmlns:env="http://www.w3.org/2003/05/soap-envelope" xmlns:pub="http://rgwspublic2.rg.gov.gr/"><env:Header/><env:Body><pub:rgWsPublic2AfmMethod><pub:INPUT_REC><pub:afm_called_by>${myAfm}</pub:afm_called_by><pub:afm_called_for>${vat}</pub:afm_called_for></pub:INPUT_REC></pub:rgWsPublic2AfmMethod></env:Body></env:Envelope>`;
 
   const bodyBuffer = Buffer.from(soapBody, 'utf8');
@@ -142,14 +146,18 @@ async function getVatTaxRateId(orgKey) {
   return null;
 }
 
-function lines(net, desc, serviceType, taxRateId) {
-  // Elorus v1.1: taxes is an array of plain integer IDs
+function lines(net, desc, serviceType, taxRateId, mydataDocType) {
   const taxes = taxRateId ? [taxRateId] : [];
+  // MyDATA classification: category1_3 = revenues from services
+  // E3_561_001 for ΤΠΥ (2.1), E3_561_003 for ΑΠΥ (11.1)
+  const classType = mydataDocType === '11.1' ? 'E3_561_003' : 'E3_561_001';
   return [{
     title: desc || serviceType || 'Παροχή Υπηρεσιών',
     quantity: '1.00',
     unit_value: net.toFixed(2),
     discount: '0.00',
+    mydata_classification_category: 'category1_3',
+    mydata_classification_type: classType,
     ...(taxes.length ? { taxes } : {}),
   }];
 }
@@ -218,7 +226,7 @@ router.post('/create-draft', async (req, res) => {
       document_type: parseInt(document_type) || 1,
       mydata_document_type: req.body.mydata_document_type || '2.1',
       draft: true,
-      items: lines(net, description, income.service_type, taxRateId),
+      items: lines(net, description, income.service_type, taxRateId, req.body.mydata_document_type || '2.1'),
       ...(withholding(net, org_key).length ? { extra_fees: withholding(net, org_key) } : {}),
     };
     const r = await a.post('invoices/', body);
@@ -282,7 +290,7 @@ router.post('/one-shot', async (req, res) => {
       date: iDate,
       document_type: parseInt(document_type) || 1,
       mydata_document_type: req.body.mydata_document_type || '2.1',
-      items: lines(net, description, income.service_type, taxRateId),
+      items: lines(net, description, income.service_type, taxRateId, req.body.mydata_document_type || '2.1'),
       ...(withholding(net, org_key).length ? { extra_fees: withholding(net, org_key) } : {}),
     };
     const cr = await a.post('invoices/', body);
