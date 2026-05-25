@@ -9,7 +9,7 @@ async function aadeSearchAfm(vat, orgKey) {
   const password = isIke ? (process.env.AADE_PASS_IMENTOR || '') : (process.env.AADE_PASS || '');
   const myAfm   = isIke ? (process.env.MY_AFM_IMENTOR  || '') : (process.env.MY_AFM  || '');
 
-  const soapBody = `<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:pub="http://rgwspublic2.rg.gov.gr/"><soapenv:Header/><soapenv:Body><pub:rgWsPublic2AfmMethod><pub:INPUT_REC><pub:afm_called_by>${myAfm}</pub:afm_called_by><pub:afm_called_for>${vat}</pub:afm_called_for></pub:INPUT_REC></pub:rgWsPublic2AfmMethod></soapenv:Body></soapenv:Envelope>`;
+  const soapBody = `<?xml version="1.0" encoding="UTF-8"?><env:Envelope xmlns:env="http://www.w3.org/2003/05/soap-envelope" xmlns:pub="http://rgwspublic2.rg.gov.gr/"><env:Header/><env:Body><pub:rgWsPublic2AfmMethod><pub:INPUT_REC><pub:afm_called_by>${myAfm}</pub:afm_called_by><pub:afm_called_for>${vat}</pub:afm_called_for></pub:INPUT_REC></pub:rgWsPublic2AfmMethod></env:Body></env:Envelope>`;
 
   const bodyBuffer = Buffer.from(soapBody, 'utf8');
   const credentials = Buffer.from(`${username}:${password}`).toString('base64');
@@ -20,8 +20,7 @@ async function aadeSearchAfm(vat, orgKey) {
       path: '/wsaade/RgWsPublic2/RgWsPublic2',
       method: 'POST',
       headers: {
-        'Content-Type': 'text/xml;charset=UTF-8',
-        'SOAPAction': '""',
+        'Content-Type': 'application/soap+xml;charset=utf-8',
         'Authorization': `Basic ${credentials}`,
         'Content-Length': Buffer.byteLength(bodyBuffer),
       },
