@@ -3,6 +3,10 @@ const https = require('https');
 const axios = require('axios');
 const Income = require('../models/Income');
 
+function xmlEscape(s) {
+  return (s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c]));
+}
+
 async function aadeSearchAfm(vat, orgKey) {
   const isIke = orgKey === 'IMENTOR_IKE';
   const username = (isIke ? (process.env.AADE_USER_IMENTOR || '') : (process.env.AADE_USER || '')).trim();
@@ -13,10 +17,10 @@ async function aadeSearchAfm(vat, orgKey) {
   if (!myAfm) return { error: `MY_AFM${isIke ? '_IMENTOR' : ''} env var is not set in Railway` };
   if (!username) return { error: `AADE_USER${isIke ? '_IMENTOR' : ''} env var is not set in Railway` };
 
-  const soapBody = `<?xml version="1.0" encoding="UTF-8"?><env:Envelope xmlns:env="http://www.w3.org/2003/05/soap-envelope"><env:Header/><env:Body><pub:rgWsPublic2AfmMethod xmlns:pub="http://rgwspublic2.rg.gov.gr/"><pub:INPUT_REC><pub:afm_called_by>${myAfm}</pub:afm_called_by><pub:afm_called_for>${vat}</pub:afm_called_for></pub:INPUT_REC></pub:rgWsPublic2AfmMethod></env:Body></env:Envelope>`;
+  // GSIS requires WS-Security UsernameToken in SOAP Header — NOT HTTP Basic Auth
+  const soapBody = `<?xml version="1.0" encoding="UTF-8"?><env:Envelope xmlns:env="http://www.w3.org/2003/05/soap-envelope" xmlns:ns1="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd" xmlns:ns2="http://rgwspublic2/RgWsPublic2Service" xmlns:ns3="http://rgwspublic2/RgWsPublic2"><env:Header><ns1:Security><ns1:UsernameToken><ns1:Username>${xmlEscape(username)}</ns1:Username><ns1:Password>${xmlEscape(password)}</ns1:Password></ns1:UsernameToken></ns1:Security></env:Header><env:Body><ns2:rgWsPublic2AfmMethod><ns2:INPUT_REC><ns3:afm_called_by>${xmlEscape(myAfm)}</ns3:afm_called_by><ns3:afm_called_for>${xmlEscape(vat)}</ns3:afm_called_for></ns2:INPUT_REC></ns2:rgWsPublic2AfmMethod></env:Body></env:Envelope>`;
 
   const bodyBuffer = Buffer.from(soapBody, 'utf8');
-  const credentials = Buffer.from(`${username}:${password}`).toString('base64');
 
   return new Promise((resolve, reject) => {
     const options = {
@@ -24,8 +28,7 @@ async function aadeSearchAfm(vat, orgKey) {
       path: '/wsaade/RgWsPublic2/RgWsPublic2',
       method: 'POST',
       headers: {
-        'Content-Type': 'application/soap+xml;charset=utf-8',
-        'Authorization': `Basic ${credentials}`,
+        'Content-Type': 'application/soap+xml; charset=utf-8',
         'Content-Length': Buffer.byteLength(bodyBuffer),
       },
     };
@@ -35,6 +38,7 @@ async function aadeSearchAfm(vat, orgKey) {
       res.on('end', () => {
         const xml = Buffer.concat(chunks).toString('utf8');
         if (res.statusCode !== 200) {
+          console.error('AADE error XML:', xml.substring(0, 2000));
           return reject(new Error(`GSIS HTTP ${res.statusCode}: ${xml.substring(0, 500)}`));
         }
         const get = tag => {
@@ -42,7 +46,7 @@ async function aadeSearchAfm(vat, orgKey) {
           return m ? m[1].trim() : null;
         };
         const errorCode = get('error_code');
-        if (errorCode && errorCode !== 'RET_CODE_OK' && errorCode !== '') {
+        if (errorCode && errorCode !== 'RET_CODE_OK' && errorCode !== '' && errorCode !== 'null') {
           console.error('AADE error XML:', xml.substring(0, 2000));
           return resolve({ error: `[${errorCode}] ${get('error_descr') || ''}` });
         }
@@ -52,7 +56,7 @@ async function aadeSearchAfm(vat, orgKey) {
           city: get('postal_address_city'),
           postal_code: get('postal_zip_code'),
           vat: get('afm'),
-          activity: get('activity_descr'),
+          activity: get('firm_act_descr') || get('activity_descr'),
           legal_status: get('legal_status_descr')
         });
       });
@@ -78,8 +82,9 @@ function api(orgKey) {
     'X-Elorus-Organization': orgId,
   };
   return {
-    get:  (path, cfg)       => axios.get (`${BASE}${path}`, { ...cfg, headers }),
-    post: (path, data, cfg) => axios.post(`${BASE}${path}`, data, { ...cfg, headers }),
+    get:   (path, cfg)       => axios.get  (`${BASE}${path}`, { ...cfg, headers }),
+    post:  (path, data, cfg) => axios.post (`${BASE}${path}`, data, { ...cfg, headers }),
+    patch: (path, data, cfg) => axios.patch(`${BASE}${path}`, data, { ...cfg, headers }),
   };
 }
 
@@ -266,12 +271,15 @@ router.post('/send-to-self', async (req, res) => {
     const { income_id, org_key = 'DEFAULT' } = req.body;
     const income = await Income.findByPk(income_id);
     if (!income?.elorus_invoice_id) return res.status(400).json({ error: 'Δεν υπάρχει draft τιμολόγιο' });
-    await api(org_key).post(`invoices/${income.elorus_invoice_id}/mail/`, {
-      recipients: [process.env.GMAIL_USER],
-      subject: `[Draft] ΤΠΥ - ${income.customer_name}`,
-      message: 'Draft για έλεγχο πριν την οριστική έκδοση.',
-    });
-    res.json({ success: true, sent_to: process.env.GMAIL_USER });
+    const selfEmail = process.env.SMTP_USER || process.env.GMAIL_USER;
+    try {
+      await api(org_key).post(`invoices/${income.elorus_invoice_id}/mail/`, {
+        recipients: [selfEmail],
+        subject: `[Draft] ΤΠΥ - ${income.customer_name}`,
+        message: 'Draft για έλεγχο πριν την οριστική έκδοση.',
+      });
+    } catch (mailErr) { console.warn('Elorus send-to-self mail:', mailErr.message); }
+    res.json({ success: true, sent_to: selfEmail });
   } catch (e) { res.status(500).json({ error: errMsg(e) }); }
 });
 
@@ -281,16 +289,19 @@ router.post('/finalize-and-send', async (req, res) => {
     const income = await Income.findByPk(income_id);
     if (!income?.elorus_invoice_id) return res.status(400).json({ error: 'Δεν υπάρχει draft τιμολόγιο' });
     const a = api(org_key);
-    const fr = await a.post(`invoices/${income.elorus_invoice_id}/finalize/`, {});
-    const inv = fr.data;
+    // Elorus v1.1: finalize by PATCHing draft=false (no /finalize/ endpoint)
+    await a.patch(`invoices/${income.elorus_invoice_id}/`, { draft: false });
+    const inv = (await a.get(`invoices/${income.elorus_invoice_id}/`)).data;
     const invoiceNumber = `Νο.${inv.number} / ${inv.date}`;
     const recipients = [...new Set([income.email, income.accountant_email].filter(Boolean))];
     if (recipients.length) {
-      await a.post(`invoices/${income.elorus_invoice_id}/mail/`, {
-        recipients,
-        subject: `Τιμολόγιο Νο.${inv.number}`,
-        message: 'Σας αποστέλλουμε το τιμολόγιο παροχής υπηρεσιών.',
-      });
+      try {
+        await a.post(`invoices/${income.elorus_invoice_id}/mail/`, {
+          recipients,
+          subject: `Τιμολόγιο Νο.${inv.number}`,
+          message: 'Σας αποστέλλουμε το τιμολόγιο παροχής υπηρεσιών.',
+        });
+      } catch (mailErr) { console.warn('Elorus finalize mail:', mailErr.message); }
     }
     await income.update({ invoice_number: invoiceNumber });
     res.json({ success: true, invoice_number: invoiceNumber, invoice: inv });
