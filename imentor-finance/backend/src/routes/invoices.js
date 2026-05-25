@@ -9,7 +9,7 @@ async function aadeSearchAfm(vat, orgKey) {
   const password = isIke ? (process.env.AADE_PASS_IMENTOR || '') : (process.env.AADE_PASS || '');
   const myAfm   = isIke ? (process.env.MY_AFM_IMENTOR  || '') : (process.env.MY_AFM  || '');
 
-  const soapBody = `<?xml version="1.0" encoding="UTF-8"?><soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:pub="http://rgwspublic2.rg.gov.gr/"><soapenv:Header/><soapenv:Body><pub:rgWsPublic2AfmMethod><pub:INPUT_REC><pub:afm_called_by>${myAfm}</pub:afm_called_by><pub:afm_called_for>${vat}</pub:afm_called_for></pub:INPUT_REC></pub:rgWsPublic2AfmMethod></soapenv:Body></soapenv:Envelope>`;
+  const soapBody = `<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:pub="http://rgwspublic2.rg.gov.gr/"><soapenv:Header/><soapenv:Body><pub:rgWsPublic2AfmMethod><pub:INPUT_REC><pub:afm_called_by>${myAfm}</pub:afm_called_by><pub:afm_called_for>${vat}</pub:afm_called_for></pub:INPUT_REC></pub:rgWsPublic2AfmMethod></soapenv:Body></soapenv:Envelope>`;
 
   const bodyBuffer = Buffer.from(soapBody, 'utf8');
   const credentials = Buffer.from(`${username}:${password}`).toString('base64');
@@ -20,8 +20,7 @@ async function aadeSearchAfm(vat, orgKey) {
       path: '/wsaade/RgWsPublic2/RgWsPublic2',
       method: 'POST',
       headers: {
-        'Content-Type': 'text/xml;charset=UTF-8',
-        'SOAPAction': '""',
+        'Content-Type': 'text/xml',
         'Authorization': `Basic ${credentials}`,
         'Content-Length': bodyBuffer.length,
       },
@@ -106,28 +105,66 @@ async function findOrCreateContact(orgKey, income) {
 const vatTaxRateCache = {};
 
 async function getVatTaxRateId(orgKey) {
+  // Allow manual override via env variable (set after checking /api/invoices/tax-rates)
+  const envId = orgKey === 'IMENTOR_IKE' ? process.env.ELORUS_VAT_RATE_ID_IKE : process.env.ELORUS_VAT_RATE_ID;
+  if (envId) return envId;
   if (vatTaxRateCache[orgKey]) return vatTaxRateCache[orgKey];
-  const endpoints = ['taxratecategories/?active=true', 'taxratecategories/', 'taxrates/?active=true', 'taxrates/'];
-  for (const endpoint of endpoints) {
+
+  // Try taxratecategories first — Elorus stores rate categories with nested taxes array
+  for (const ep of ['taxratecategories/?active=true', 'taxratecategories/']) {
     try {
-      const r = await api(orgKey).get(endpoint);
-      const results = r.data.results || (Array.isArray(r.data) ? r.data : []);
-      if (!results.length) continue;
-      console.log(`Elorus ${endpoint}:`, JSON.stringify(results.slice(0, 3)));
-      const vat24 = results.find(t =>
-        parseFloat(t.percent || t.rate || 0) === 24 ||
-        String(t.percent || t.rate || '') === '24.00' ||
-        (t.title || t.name || '').includes('24')
-      );
-      const chosen = vat24 || results[0];
+      const r = await api(orgKey).get(ep);
+      const cats = r.data.results || (Array.isArray(r.data) ? r.data : []);
+      console.log(`Elorus ${ep}:`, JSON.stringify(cats));
+      if (!cats.length) continue;
+      // Each category may have a nested taxes[] with {taxrate, percent} entries
+      for (const cat of cats) {
+        if (Array.isArray(cat.taxes)) {
+          const t24 = cat.taxes.find(t => parseFloat(t.percent || 0) === 24);
+          const chosen = t24 || cat.taxes[0];
+          if (chosen?.taxrate) {
+            vatTaxRateCache[orgKey] = chosen.taxrate;
+            return chosen.taxrate;
+          }
+        }
+        // Some versions expose percent/rate directly on the category object
+        if (
+          parseFloat(cat.percent || cat.rate || 0) === 24 ||
+          (cat.title || '').includes('24')
+        ) {
+          vatTaxRateCache[orgKey] = cat.id;
+          return cat.id;
+        }
+      }
+      // Absolute fallback: first category id
+      if (cats[0]?.id) {
+        console.warn('Elorus: using first category as VAT rate fallback:', cats[0]);
+        vatTaxRateCache[orgKey] = cats[0].id;
+        return cats[0].id;
+      }
+    } catch (e) {
+      console.warn(`Elorus ${ep} failed:`, e.message);
+    }
+  }
+
+  // Fallback: try flat taxrates endpoint
+  for (const ep of ['taxrates/?active=true', 'taxrates/']) {
+    try {
+      const r = await api(orgKey).get(ep);
+      const rates = r.data.results || (Array.isArray(r.data) ? r.data : []);
+      console.log(`Elorus ${ep}:`, JSON.stringify(rates));
+      if (!rates.length) continue;
+      const r24 = rates.find(t => parseFloat(t.percent || t.rate || 0) === 24 || (t.title || '').includes('24'));
+      const chosen = r24 || rates[0];
       if (chosen?.id) {
         vatTaxRateCache[orgKey] = chosen.id;
         return chosen.id;
       }
     } catch (e) {
-      console.warn(`Could not fetch Elorus tax rates from ${endpoint}:`, e.message);
+      console.warn(`Elorus ${ep} failed:`, e.message);
     }
   }
+
   return null;
 }
 
