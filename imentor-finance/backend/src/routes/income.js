@@ -28,7 +28,11 @@ router.get('/', async (req, res) => {
     if (service_type) where.service_type = service_type;
     if (sales_agent) where.sales_agent = sales_agent;
     if (accountant_email) where.accountant_email = accountant_email;
-    if (accountant && !accountant_email) where.accountant = accountant;
+    if (accountant && !accountant_email) {
+      const names = accountant.split(',').map(n => n.trim()).filter(Boolean);
+      if (names.length === 1) where.accountant = names[0];
+      else if (names.length > 1) where.accountant = { [Op.in]: names };
+    }
     if (search) where.customer_name = { [Op.iLike]: `%${search}%` };
 
     const sf = ALLOWED_SORT.includes(sort_field) ? sort_field : 'sale_date';

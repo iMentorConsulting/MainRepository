@@ -1,4 +1,5 @@
 const router = require('express').Router();
+const https = require('https');
 const axios = require('axios');
 const Income = require('../models/Income');
 
@@ -8,56 +9,55 @@ async function aadeSearchAfm(vat, orgKey) {
   const password = isIke ? (process.env.AADE_PASS_IMENTOR || '') : (process.env.AADE_PASS || '');
   const myAfm   = isIke ? (process.env.MY_AFM_IMENTOR  || '') : (process.env.MY_AFM  || '');
 
-  const soapBody = `<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:pub="http://rgwspublic2.rg.gov.gr/">
-    <soapenv:Header/>
-    <soapenv:Body>
-      <pub:rgWsPublic2AfmMethod>
-        <pub:INPUT_REC>
-          <pub:afm_called_by>${myAfm}</pub:afm_called_by>
-          <pub:afm_called_for>${vat}</pub:afm_called_for>
-        </pub:INPUT_REC>
-      </pub:rgWsPublic2AfmMethod>
-    </soapenv:Body>
-  </soapenv:Envelope>`;
+  const soapBody = `<?xml version="1.0" encoding="UTF-8"?><soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:pub="http://rgwspublic2.rg.gov.gr/"><soapenv:Header/><soapenv:Body><pub:rgWsPublic2AfmMethod><pub:INPUT_REC><pub:afm_called_by>${myAfm}</pub:afm_called_by><pub:afm_called_for>${vat}</pub:afm_called_for></pub:INPUT_REC></pub:rgWsPublic2AfmMethod></soapenv:Body></soapenv:Envelope>`;
 
   const bodyBuffer = Buffer.from(soapBody, 'utf8');
   const credentials = Buffer.from(`${username}:${password}`).toString('base64');
-  const r = await axios({
-    method: 'post',
-    url: 'https://www1.gsis.gr/wsaade/RgWsPublic2/RgWsPublic2',
-    data: bodyBuffer,
-    headers: {
-      'Content-Type': 'text/xml;charset=UTF-8',
-      'SOAPAction': '""',
-      'Authorization': `Basic ${credentials}`,
-      'Content-Length': bodyBuffer.length,
-    },
-    timeout: 10000,
-    validateStatus: () => true,
-  });
-  if (r.status !== 200) {
-    const body = typeof r.data === 'string' ? r.data.substring(0, 500) : JSON.stringify(r.data);
-    throw new Error(`GSIS HTTP ${r.status}: ${body}`);
-  }
 
-  const xml = r.data;
-  const get = tag => {
-    const m = xml.match(new RegExp(`<[^:>]*:?${tag}>([^<]*)<`));
-    return m ? m[1].trim() : null;
-  };
-  const errorCode = get('error_code');
-  if (errorCode && errorCode !== 'RET_CODE_OK' && errorCode !== '') {
-    return { error: get('error_descr') || `Error: ${errorCode}` };
-  }
-  return {
-    name: get('onomasia'),
-    address: get('postal_address'),
-    city: get('postal_address_city'),
-    postal_code: get('postal_zip_code'),
-    vat: get('afm'),
-    activity: get('activity_descr'),
-    legal_status: get('legal_status_descr')
-  };
+  return new Promise((resolve, reject) => {
+    const options = {
+      hostname: 'www1.gsis.gr',
+      path: '/wsaade/RgWsPublic2/RgWsPublic2',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'text/xml;charset=UTF-8',
+        'SOAPAction': '""',
+        'Authorization': `Basic ${credentials}`,
+        'Content-Length': bodyBuffer.length,
+      },
+    };
+    const req = https.request(options, res => {
+      const chunks = [];
+      res.on('data', chunk => chunks.push(chunk));
+      res.on('end', () => {
+        const xml = Buffer.concat(chunks).toString('utf8');
+        if (res.statusCode !== 200) {
+          return reject(new Error(`GSIS HTTP ${res.statusCode}: ${xml.substring(0, 500)}`));
+        }
+        const get = tag => {
+          const m = xml.match(new RegExp(`<[^:>]*:?${tag}>([^<]*)<`));
+          return m ? m[1].trim() : null;
+        };
+        const errorCode = get('error_code');
+        if (errorCode && errorCode !== 'RET_CODE_OK' && errorCode !== '') {
+          return resolve({ error: get('error_descr') || `Error: ${errorCode}` });
+        }
+        resolve({
+          name: get('onomasia'),
+          address: get('postal_address'),
+          city: get('postal_address_city'),
+          postal_code: get('postal_zip_code'),
+          vat: get('afm'),
+          activity: get('activity_descr'),
+          legal_status: get('legal_status_descr')
+        });
+      });
+    });
+    req.setTimeout(15000, () => { req.destroy(); reject(new Error('GSIS request timeout')); });
+    req.on('error', reject);
+    req.write(bodyBuffer);
+    req.end();
+  });
 }
 
 const BASE = 'https://api.elorus.com/v1.1/';
@@ -107,19 +107,22 @@ const vatTaxRateCache = {};
 
 async function getVatTaxRateId(orgKey) {
   if (vatTaxRateCache[orgKey]) return vatTaxRateCache[orgKey];
-  // Try multiple Elorus endpoints to find the 24% VAT rate ID
-  for (const endpoint of ['taxratecategories/?active=true', 'taxrates/?active=true']) {
+  const endpoints = ['taxratecategories/?active=true', 'taxratecategories/', 'taxrates/?active=true', 'taxrates/'];
+  for (const endpoint of endpoints) {
     try {
       const r = await api(orgKey).get(endpoint);
-      const results = r.data.results || r.data || [];
+      const results = r.data.results || (Array.isArray(r.data) ? r.data : []);
+      if (!results.length) continue;
+      console.log(`Elorus ${endpoint}:`, JSON.stringify(results.slice(0, 3)));
       const vat24 = results.find(t =>
-        parseFloat(t.percent || 0) === 24 ||
-        String(t.percent || '') === '24.00' ||
-        (t.title || '').includes('24')
+        parseFloat(t.percent || t.rate || 0) === 24 ||
+        String(t.percent || t.rate || '') === '24.00' ||
+        (t.title || t.name || '').includes('24')
       );
-      if (vat24?.id) {
-        vatTaxRateCache[orgKey] = vat24.id;
-        return vat24.id;
+      const chosen = vat24 || results[0];
+      if (chosen?.id) {
+        vatTaxRateCache[orgKey] = chosen.id;
+        return chosen.id;
       }
     } catch (e) {
       console.warn(`Could not fetch Elorus tax rates from ${endpoint}:`, e.message);
@@ -149,6 +152,18 @@ function withholding(net, orgKey) {
 function errMsg(e) {
   return e.response?.data ? JSON.stringify(e.response.data) : e.message;
 }
+
+router.get('/tax-rates', async (req, res) => {
+  try {
+    const orgKey = req.query.org_key || 'DEFAULT';
+    const out = {};
+    for (const ep of ['taxratecategories/?active=true', 'taxratecategories/', 'taxrates/?active=true', 'taxrates/']) {
+      try { out[ep] = (await api(orgKey).get(ep)).data; }
+      catch (e) { out[ep] = { error: e.message }; }
+    }
+    res.json(out);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
 
 router.get('/search-afm', async (req, res) => {
   try {

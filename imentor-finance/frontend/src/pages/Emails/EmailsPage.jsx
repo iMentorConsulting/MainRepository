@@ -109,19 +109,14 @@ export default function EmailsPage() {
   ];
 
   const load = useCallback(() => {
-    const isAccountantFiltered = selectedAccountants.length === 1;
-    const params = { limit: isAccountantFiltered ? 500 : 100, page, sort_field: sort.field, sort_dir: sort.dir };
+    const params = { limit: selectedAccountants.length > 0 ? 500 : 100, page, sort_field: sort.field, sort_dir: sort.dir };
     if (selectedYears.length === 1) params.year = selectedYears[0];
     else if (selectedYears.length > 1) params.years = selectedYears.join(',');
     if (selectedMonths.length === 1) params.month = selectedMonths[0];
     else if (selectedMonths.length > 1) params.months = selectedMonths.join(',');
     if (dateFrom) params.date_from = dateFrom;
     if (dateTo) params.date_to = dateTo;
-    if (isAccountantFiltered) {
-      const key = selectedAccountants[0];
-      if (key.includes('@')) params.accountant_email = key;
-      else params.accountant = key;
-    }
+    if (selectedAccountants.length > 0) params.accountant = selectedAccountants.join(',');
     api.get('/income', { params }).then(r => setData(r.data));
   }, [selectedYears, selectedMonths, selectedAccountants, page, sort, dateFrom, dateTo]);
 
@@ -145,10 +140,8 @@ export default function EmailsPage() {
     if (activeTab === 'history') loadLogs();
   }, [activeTab, loadLogs]);
 
-  // Filter displayed rows by selected accountants (client-side)
-  // Key uses email-or-name fallback, must match what getKey() returns in the dropdown
   const displayedRows = selectedAccountants.length > 0
-    ? data.data.filter(r => selectedAccountants.includes(r.accountant_email || r.accountant || ''))
+    ? data.data.filter(r => selectedAccountants.includes(r.accountant || ''))
     : data.data;
 
   const toggle = id => setSelected(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
@@ -184,7 +177,14 @@ export default function EmailsPage() {
       const res = await api.post('/emails/send', { income_ids: ids }, { timeout: 60000 });
       const sent = res.data.results.filter(r => r.status === 'sent').length;
       const skipped = res.data.results.filter(r => r.status === 'skipped').length;
-      toast.success(`Εστάλησαν ${sent} email${skipped > 0 ? ` · Παραλείφθηκαν ${skipped}` : ''}`);
+      const errors = res.data.results.filter(r => r.status === 'error');
+      if (sent > 0) {
+        toast.success(`Εστάλησαν ${sent} email${skipped > 0 ? ` · Παραλείφθηκαν ${skipped}` : ''}${errors.length > 0 ? ` · Σφάλμα ${errors.length}` : ''}`);
+      } else if (errors.length > 0) {
+        toast.error(`Σφάλμα αποστολής: ${errors.map(e => `${e.accountant}: ${e.reason || '—'}`).join(' | ')}`);
+      } else {
+        toast.error(`Δεν εστάλη κανένα email · ${skipped} παραλείφθηκαν (δεν βρέθηκε email λογιστή)`);
+      }
       setPreviewOpen(false);
       setSelected(new Set());
       load();
@@ -267,18 +267,15 @@ export default function EmailsPage() {
               getKey={o => o.value}
               getLabel={o => o.label}
             />
-            <select
-              className="input w-56"
-              value={selectedAccountants[0] || ''}
-              onChange={e => { setSelectedAccountants(e.target.value ? [e.target.value] : []); setSelected(new Set()); setPage(1); }}
-            >
-              <option value="">Όλοι οι λογιστές</option>
-              {accountants.map(o => {
-                const key = o.accountant_email || o.accountant || '';
-                const label = o.accountant_name || o.accountant || '';
-                return <option key={key} value={key}>{label}{o.count ? ` (${o.count})` : ''}</option>;
-              })}
-            </select>
+            <MultiSelectDropdown
+              label="Όλοι οι λογιστές"
+              options={accountants}
+              selected={selectedAccountants}
+              onChange={v => { setSelectedAccountants(v); setSelected(new Set()); setPage(1); }}
+              getKey={o => o.accountant || ''}
+              getLabel={o => o.accountant || ''}
+              getCount={o => o.count}
+            />
             <div className="flex items-center gap-1 text-slate-400 text-xs">ή</div>
             <div className="flex items-center gap-1">
               <input type="date" className="input w-36 text-sm" value={dateFrom} onChange={e => setDateFrom(e.target.value)} placeholder="Από" />
