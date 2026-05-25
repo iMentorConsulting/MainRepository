@@ -346,12 +346,13 @@ router.post('/finalize-and-send', async (req, res) => {
 
 router.post('/one-shot', async (req, res) => {
   try {
-    const { income_id, org_key = 'DEFAULT', amount, description, date, payment_method_id, document_type = 1 } = req.body;
+    const { income_id, org_key = 'DEFAULT', amount, description, date, document_type = 1 } = req.body;
     const income = await Income.findByPk(income_id);
     if (!income) return res.status(404).json({ error: 'Εγγραφή δεν βρέθηκε' });
     const a = api(org_key);
     const net = parseFloat(amount);
     const iDate = date || new Date().toISOString().split('T')[0];
+    const mydataDocType = req.body.mydata_document_type || '2.1';
     const [taxRateId, contactId] = await Promise.all([getVatTaxRateId(org_key), findOrCreateContact(org_key, income)]);
     if (!taxRateId) {
       let debug = '?';
@@ -362,21 +363,49 @@ router.post('/one-shot', async (req, res) => {
       client: contactId,
       date: iDate,
       document_type: parseInt(document_type) || 1,
-      mydata_document_type: req.body.mydata_document_type || '2.1',
-      items: lines(net, description, income.service_type, taxRateId, req.body.mydata_document_type || '2.1'),
+      mydata_document_type: mydataDocType,
+      items: lines(net, description, income.service_type, taxRateId, mydataDocType),
       ...(withholding(net, org_key).length ? { extra_fees: withholding(net, org_key) } : {}),
     };
     const inv = await elorusPostInvoice(a, body);
     const invoiceNumber = `Νο.${inv.number} / ${inv.date}`;
-    const recipients = [...new Set([income.email, income.accountant_email, process.env.GMAIL_USER].filter(Boolean))];
-    if (recipients.length) {
-      try { await a.post(`invoices/${inv.id}/mail/`, { recipients, subject: `Τιμολόγιο Νο.${inv.number}`, message: 'Σας αποστέλλουμε το τιμολόγιο παροχής υπηρεσιών.' }); }
-      catch (err) { console.warn('mail failed:', err.message); }
-    }
-    if (payment_method_id) {
-      try { await a.post(`invoices/${inv.id}/recordpayment/`, { date: iDate, amount: parseFloat(amount).toFixed(2), payment_mode: payment_method_id }); }
-      catch (err) { console.warn('payment failed:', err.message); }
-    }
+    const fromAddr = process.env.SMTP_USER || process.env.GMAIL_USER;
+
+    // Send email with PDF via Gmail (same as finalize-and-send)
+    try {
+      const pdfBuffer = await fetchInvoicePdf(org_key, inv.id);
+      const recipients = [...new Set([income.email, income.accountant_email].filter(Boolean))];
+      for (const to of recipients) {
+        try {
+          await sendViaGmailApi(
+            fromAddr, to, fromAddr,
+            `Τιμολόγιο Νο.${inv.number} – i-Mentor`,
+            `<p>Αγαπητέ/ή ${income.customer_name},</p><p>Σας αποστέλλουμε το τιμολόγιο παροχής υπηρεσιών σε μορφή PDF.</p><p>Με εκτίμηση,<br>i-Mentor</p>`,
+            [{ filename: `invoice-${inv.number}.pdf`, content: pdfBuffer, mimeType: 'application/pdf' }]
+          );
+        } catch (mailErr) { console.warn(`one-shot mail to ${to}:`, mailErr.message); }
+      }
+    } catch (pdfErr) { console.warn('one-shot PDF fetch:', pdfErr.message); }
+
+    // Record payment via cashreceipts (same as GAS submitPaymentCashreceipt_)
+    try {
+      const invFresh = (await a.get(`invoices/${inv.id}/`)).data;
+      const clientId = String(invFresh.client || contactId);
+      const currency = invFresh.currency_code || invFresh.currency || 'EUR';
+      // Calculate payment: net + VAT - withholding (if ΤΠΥ, > 301€, not IMENTOR_IKE)
+      const isApy = mydataDocType === '11.1';
+      const wh = (!isApy && org_key !== 'IMENTOR_IKE' && net > 301) ? net * 0.20 : 0;
+      const payAmount = (net * 1.24 - wh).toFixed(2);
+      await a.post('cashreceipts/', {
+        transaction_type: 'ip',
+        contact: clientId,
+        date: iDate,
+        amount: payAmount,
+        currency_code: currency,
+        invoice_payments: [{ invoice: String(inv.id), amount: payAmount }],
+      });
+    } catch (payErr) { console.warn('one-shot payment:', payErr.message); }
+
     await income.update({ invoice_number: invoiceNumber, elorus_invoice_id: String(inv.id) });
     res.json({ success: true, invoice_number: invoiceNumber, invoice: inv });
   } catch (e) { res.status(500).json({ error: errMsg(e) }); }
@@ -384,15 +413,24 @@ router.post('/one-shot', async (req, res) => {
 
 router.post('/record-payment', async (req, res) => {
   try {
-    const { income_id, org_key = 'DEFAULT', amount, date, payment_method_id } = req.body;
+    const { income_id, org_key = 'DEFAULT', amount, date } = req.body;
     const income = await Income.findByPk(income_id);
     if (!income?.elorus_invoice_id) return res.status(400).json({ error: 'Δεν υπάρχει τιμολόγιο Elorus' });
-    const r = await api(org_key).post(`invoices/${income.elorus_invoice_id}/recordpayment/`, {
-      date: date || new Date().toISOString().split('T')[0],
-      amount: parseFloat(amount).toFixed(2),
-      payment_mode: payment_method_id,
-    });
-    res.json({ success: true, payment: r.data });
+    const a = api(org_key);
+    const invData = (await a.get(`invoices/${income.elorus_invoice_id}/`)).data;
+    const contactId = String(invData.client || invData.contact || '');
+    const currency = invData.currency_code || invData.currency || 'EUR';
+    const payAmount = parseFloat(amount).toFixed(2);
+    const dateStr = date || new Date().toISOString().split('T')[0];
+    const receipt = (await a.post('cashreceipts/', {
+      transaction_type: 'ip',
+      contact: contactId,
+      date: dateStr,
+      amount: payAmount,
+      currency_code: currency,
+      invoice_payments: [{ invoice: String(income.elorus_invoice_id), amount: payAmount }],
+    })).data;
+    res.json({ success: true, receipt });
   } catch (e) { res.status(500).json({ error: errMsg(e) }); }
 });
 

@@ -42,8 +42,6 @@ function InvoiceForm({ action, record, onClose, onDone }) {
   const [docType, setDocType] = useState('');
   const [docTypes, setDocTypes] = useState([]);
   const [docTypesLoading, setDocTypesLoading] = useState(false);
-  const [methods, setMethods] = useState([]);
-  const [methodId, setMethodId] = useState('');
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -61,13 +59,6 @@ function InvoiceForm({ action, record, onClose, onDone }) {
       .finally(() => setDocTypesLoading(false));
   }, [orgKey]);
 
-  useEffect(() => {
-    if (!isOneShot) return;
-    api.get(`/invoices/payment-methods?org_key=${orgKey}`)
-      .then(r => { setMethods(r.data); if (r.data.length) setMethodId(String(r.data[0].id)); })
-      .catch(() => {});
-  }, [isOneShot, orgKey]);
-
   const selectedDocType = docTypes.find(d => String(d.id) === docType);
   const docTitle = (selectedDocType?.title || '').toLowerCase();
   const isApy = docTitle.includes('απόδειξη') || docTitle.includes('αποδειξη') || docTitle.includes('α.π.υ');
@@ -84,7 +75,6 @@ function InvoiceForm({ action, record, onClose, onDone }) {
         amount: parseFloat(amount), description, date,
         document_type: docType,
         mydata_document_type: mydataDocType,
-        ...(isOneShot && methodId ? { payment_method_id: methodId } : {}),
       });
       toast.success(r.data.invoice_number ? `✅ ${r.data.invoice_number}` : '📄 Draft δημιουργήθηκε');
       onDone();
@@ -138,12 +128,8 @@ function InvoiceForm({ action, record, onClose, onDone }) {
       </div>
       <Breakdown amount={amount} orgKey={orgKey} />
       {isOneShot && (
-        <div>
-          <label className="label">Τρόπος Πληρωμής</label>
-          <select className="input" value={methodId} onChange={e => setMethodId(e.target.value)}>
-            <option value="">— χωρίς καταχώριση πληρωμής —</option>
-            {methods.map(m => <option key={m.id} value={String(m.id)}>{m.title}</option>)}
-          </select>
+        <div className="rounded-xl p-3 bg-emerald-50 border border-emerald-100 text-xs text-emerald-700">
+          💳 Η πληρωμή καταχωρείται αυτόματα στο Elorus για το παραπάνω ποσό.
         </div>
       )}
       <div className="flex justify-end gap-3 border-t border-slate-100 pt-3">
@@ -160,23 +146,15 @@ function PaymentForm({ record, onClose, onDone }) {
   const [orgKey, setOrgKey] = useState('DEFAULT');
   const [amount, setAmount] = useState(String(record.amount_collected || ''));
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
-  const [methods, setMethods] = useState([]);
-  const [methodId, setMethodId] = useState('');
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    api.get(`/invoices/payment-methods?org_key=${orgKey}`)
-      .then(r => { setMethods(r.data); if (r.data.length) setMethodId(String(r.data[0].id)); })
-      .catch(() => {});
-  }, [orgKey]);
-
   const submit = async () => {
+    if (!amount) return toast.error('Εισάγετε ποσό');
     setLoading(true);
     try {
       await api.post('/invoices/record-payment', {
         income_id: record.id, org_key: orgKey,
         amount: parseFloat(amount), date,
-        payment_method_id: methodId || undefined,
       });
       toast.success('💳 Πληρωμή καταχωρήθηκε');
       onDone();
@@ -200,19 +178,12 @@ function PaymentForm({ record, onClose, onDone }) {
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="label">Ποσό (€)</label>
-          <input type="number" step="0.01" className="input" value={amount} onChange={e => setAmount(e.target.value)} />
+          <input type="number" step="0.01" className="input" value={amount} onChange={e => setAmount(e.target.value)} autoFocus />
         </div>
         <div>
           <label className="label">Ημερομηνία</label>
           <input type="date" className="input" value={date} onChange={e => setDate(e.target.value)} />
         </div>
-      </div>
-      <div>
-        <label className="label">Τρόπος Πληρωμής</label>
-        <select className="input" value={methodId} onChange={e => setMethodId(e.target.value)}>
-          <option value="">— Επιλογή —</option>
-          {methods.map(m => <option key={m.id} value={String(m.id)}>{m.title}</option>)}
-        </select>
       </div>
       <div className="flex justify-end gap-3 border-t border-slate-100 pt-3">
         <button className="btn-secondary" onClick={onClose}>Ακύρωση</button>
