@@ -5,9 +5,9 @@ const Income = require('../models/Income');
 
 async function aadeSearchAfm(vat, orgKey) {
   const isIke = orgKey === 'IMENTOR_IKE';
-  const username = isIke ? (process.env.AADE_USER_IMENTOR || '') : (process.env.AADE_USER || '');
-  const password = isIke ? (process.env.AADE_PASS_IMENTOR || '') : (process.env.AADE_PASS || '');
-  const myAfm   = isIke ? (process.env.MY_AFM_IMENTOR  || '') : (process.env.MY_AFM  || '');
+  const username = (isIke ? (process.env.AADE_USER_IMENTOR || '') : (process.env.AADE_USER || '')).trim();
+  const password = (isIke ? (process.env.AADE_PASS_IMENTOR || '') : (process.env.AADE_PASS || '')).trim();
+  const myAfm   = (isIke ? (process.env.MY_AFM_IMENTOR  || '') : (process.env.MY_AFM  || '')).trim();
 
   console.log(`AADE call: orgKey=${orgKey} user=${username||'EMPTY'} myAfm=${myAfm||'EMPTY'} vat=${vat}`);
   if (!myAfm) return { error: `MY_AFM${isIke ? '_IMENTOR' : ''} env var is not set in Railway` };
@@ -43,7 +43,8 @@ async function aadeSearchAfm(vat, orgKey) {
         };
         const errorCode = get('error_code');
         if (errorCode && errorCode !== 'RET_CODE_OK' && errorCode !== '') {
-          return resolve({ error: get('error_descr') || `Error: ${errorCode}` });
+          console.error('AADE error XML:', xml.substring(0, 2000));
+          return resolve({ error: `[${errorCode}] ${get('error_descr') || ''}` });
         }
         resolve({
           name: get('onomasia'),
@@ -173,6 +174,30 @@ function errMsg(e) {
   return e.response?.data ? JSON.stringify(e.response.data) : e.message;
 }
 
+async function elorusPostInvoice(a, body) {
+  try {
+    return (await a.post('invoices/', body)).data;
+  } catch (e) {
+    const errStr = JSON.stringify(e.response?.data || '');
+    if (!errStr.includes('mydata_document_type')) throw e;
+    // Elorus rejected the mydata_document_type for this org — try alternatives
+    const tried = new Set([body.mydata_document_type]);
+    for (const alt of ['11.1', '1.1', '2.1', '2.4', '2.2']) {
+      if (tried.has(alt)) continue;
+      tried.add(alt);
+      console.log(`Elorus: retrying with mydata_document_type=${alt}`);
+      try { return (await a.post('invoices/', { ...body, mydata_document_type: alt })).data; }
+      catch (e2) { if (!JSON.stringify(e2.response?.data || '').includes('mydata_document_type')) throw e2; }
+    }
+    // Last resort: omit mydata fields entirely
+    console.log('Elorus: retrying without mydata_document_type');
+    const { mydata_document_type, ...bodyNoMydata } = body;
+    // Also strip mydata_classification fields from items
+    const items = (bodyNoMydata.items || []).map(({ mydata_classification_category, mydata_classification_type, ...item }) => item);
+    return (await a.post('invoices/', { ...bodyNoMydata, items })).data;
+  }
+}
+
 router.get('/tax-rates', async (req, res) => {
   try {
     const orgKey = req.query.org_key || 'DEFAULT';
@@ -230,9 +255,9 @@ router.post('/create-draft', async (req, res) => {
       items: lines(net, description, income.service_type, taxRateId, req.body.mydata_document_type || '2.1'),
       ...(withholding(net, org_key).length ? { extra_fees: withholding(net, org_key) } : {}),
     };
-    const r = await a.post('invoices/', body);
-    await income.update({ elorus_invoice_id: String(r.data.id) });
-    res.json({ success: true, invoice: r.data });
+    const inv = await elorusPostInvoice(a, body);
+    await income.update({ elorus_invoice_id: String(inv.id) });
+    res.json({ success: true, invoice: inv });
   } catch (e) { res.status(500).json({ error: errMsg(e) }); }
 });
 
@@ -294,8 +319,7 @@ router.post('/one-shot', async (req, res) => {
       items: lines(net, description, income.service_type, taxRateId, req.body.mydata_document_type || '2.1'),
       ...(withholding(net, org_key).length ? { extra_fees: withholding(net, org_key) } : {}),
     };
-    const cr = await a.post('invoices/', body);
-    const inv = cr.data;
+    const inv = await elorusPostInvoice(a, body);
     const invoiceNumber = `Νο.${inv.number} / ${inv.date}`;
     const recipients = [...new Set([income.email, income.accountant_email, process.env.GMAIL_USER].filter(Boolean))];
     if (recipients.length) {

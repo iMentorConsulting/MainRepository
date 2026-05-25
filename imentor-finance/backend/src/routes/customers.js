@@ -5,9 +5,9 @@ const Customer = require('../models/Customer');
 
 async function aadeSearchAfm(vat, orgKey) {
   const isIke = orgKey === 'IMENTOR_IKE';
-  const username = isIke ? (process.env.AADE_USER_IMENTOR || '') : (process.env.AADE_USER || '');
-  const password = isIke ? (process.env.AADE_PASS_IMENTOR || '') : (process.env.AADE_PASS || '');
-  const myAfm   = isIke ? (process.env.MY_AFM_IMENTOR  || '') : (process.env.MY_AFM  || '');
+  const username = (isIke ? (process.env.AADE_USER_IMENTOR || '') : (process.env.AADE_USER || '')).trim();
+  const password = (isIke ? (process.env.AADE_PASS_IMENTOR || '') : (process.env.AADE_PASS || '')).trim();
+  const myAfm   = (isIke ? (process.env.MY_AFM_IMENTOR  || '') : (process.env.MY_AFM  || '')).trim();
 
   console.log(`AADE call: orgKey=${orgKey} user=${username||'EMPTY'} myAfm=${myAfm||'EMPTY'} vat=${vat}`);
   if (!myAfm) throw new Error(`MY_AFM${isIke ? '_IMENTOR' : ''} env var is not set in Railway`);
@@ -43,7 +43,8 @@ async function aadeSearchAfm(vat, orgKey) {
         };
         const errorCode = get('error_code');
         if (errorCode && errorCode !== 'RET_CODE_OK' && errorCode !== '') {
-          return resolve({ error: get('error_descr') || `Error: ${errorCode}` });
+          console.error('AADE error XML:', xml.substring(0, 2000));
+          return resolve({ error: `[${errorCode}] ${get('error_descr') || ''}` });
         }
         resolve({
           name: get('onomasia'),
