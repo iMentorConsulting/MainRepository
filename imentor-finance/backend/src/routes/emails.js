@@ -5,16 +5,15 @@ const Income = require('../models/Income');
 const CommissionLog = require('../models/CommissionLog');
 
 function createTransport() {
-  // Configurable SMTP — set SMTP_HOST/PORT/USER/PASS in Railway env vars
-  // Gmail is often blocked from cloud: use smtp.resend.com:465 (RESEND_API_KEY as pass, 'resend' as user)
-  // or smtp-relay.brevo.com:587 with Brevo credentials
+  // Port 587 + secure:false (STARTTLS) — Railway blocks 465/SMTPS
+  // Required Railway env vars: GMAIL_USER, GMAIL_APP_PASS (16-char App Password)
   const host = process.env.SMTP_HOST || 'smtp.gmail.com';
-  const port = parseInt(process.env.SMTP_PORT || '465');
+  const port = parseInt(process.env.SMTP_PORT || '587');
   const user = process.env.SMTP_USER || process.env.GMAIL_USER;
-  const pass = process.env.SMTP_PASS || process.env.GMAIL_APP_PASSWORD;
+  const pass = process.env.SMTP_PASS || process.env.GMAIL_APP_PASS || process.env.GMAIL_APP_PASSWORD;
   return nodemailer.createTransport({
     host, port,
-    secure: port === 465,
+    secure: false,
     auth: { user, pass },
     tls: { rejectUnauthorized: false },
     connectionTimeout: 30000,

@@ -176,9 +176,21 @@ router.get('/tax-rates', async (req, res) => {
   try {
     const orgKey = req.query.org_key || 'DEFAULT';
     const out = {};
-    for (const ep of ['itemtaxes/', 'itemtaxes/?active=true', 'taxes/', 'taxratecategories/', 'taxrates/']) {
-      try { out[ep] = (await api(orgKey).get(ep)).data; }
-      catch (e) { out[ep] = { error: e.message }; }
+    // Try every plausible Elorus tax endpoint
+    for (const ep of [
+      '', 'itemtaxes/', 'itemtaxes/?active=true',
+      'taxes/', 'taxes/?active=true',
+      'taxratecategories/', 'taxratecategories/?active=true',
+      'taxrates/', 'taxrates/?active=true',
+      'taxtypes/', 'vat/', 'vatrates/',
+      'invoices/?page_size=2',
+    ]) {
+      try {
+        const r = await api(orgKey).get(ep);
+        out[ep || 'ROOT'] = r.data;
+      } catch (e) {
+        out[ep || 'ROOT'] = { status: e.response?.status, error: e.message };
+      }
     }
     res.json(out);
   } catch (e) { res.status(500).json({ error: e.message }); }
