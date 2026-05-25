@@ -39,10 +39,25 @@ function InvoiceForm({ action, record, onClose, onDone }) {
   const [amount, setAmount] = useState(String(record.amount_collected || ''));
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [description, setDescription] = useState(record.description || record.service_type || '');
-  const [docType, setDocType] = useState(1);
+  const [docType, setDocType] = useState('');
+  const [docTypes, setDocTypes] = useState([]);
+  const [docTypesLoading, setDocTypesLoading] = useState(false);
   const [methods, setMethods] = useState([]);
   const [methodId, setMethodId] = useState('');
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    setDocTypesLoading(true);
+    setDocType('');
+    api.get(`/invoices/document-types?org_key=${orgKey}`)
+      .then(r => {
+        const list = r.data || [];
+        setDocTypes(list);
+        if (list.length) setDocType(String(list[0].id));
+      })
+      .catch(() => setDocTypes([]))
+      .finally(() => setDocTypesLoading(false));
+  }, [orgKey]);
 
   useEffect(() => {
     if (!isOneShot) return;
@@ -51,8 +66,14 @@ function InvoiceForm({ action, record, onClose, onDone }) {
       .catch(() => {});
   }, [isOneShot, orgKey]);
 
+  const selectedDocType = docTypes.find(d => String(d.id) === docType);
+  const docTitle = (selectedDocType?.title || '').toLowerCase();
+  const isApy = docTitle.includes('απόδειξη') || docTitle.includes('αποδειξη') || docTitle.includes('α.π.υ');
+  const mydataDocType = isApy ? '11.1' : '2.1';
+
   const submit = async () => {
     if (!amount) return toast.error('Εισάγετε ποσό');
+    if (!docType) return toast.error('Επιλέξτε τύπο παραστατικού');
     setLoading(true);
     try {
       const endpoint = isOneShot ? '/invoices/one-shot' : '/invoices/create-draft';
@@ -60,6 +81,7 @@ function InvoiceForm({ action, record, onClose, onDone }) {
         income_id: record.id, org_key: orgKey,
         amount: parseFloat(amount), description, date,
         document_type: docType,
+        mydata_document_type: mydataDocType,
         ...(isOneShot && methodId ? { payment_method_id: methodId } : {}),
       });
       toast.success(r.data.invoice_number ? `✅ ${r.data.invoice_number}` : '📄 Draft δημιουργήθηκε');
@@ -76,7 +98,7 @@ function InvoiceForm({ action, record, onClose, onDone }) {
         {record.vat_number && <div className="flex justify-between"><span className="text-slate-500">ΑΦΜ</span><span className="text-slate-700">{record.vat_number}</span></div>}
         {record.service_type && <div className="flex justify-between"><span className="text-slate-500">Υπηρεσία</span><span className="text-xs text-slate-600 text-right max-w-[60%] truncate">{record.service_type}</span></div>}
       </div>
-      <div className="col-span-2">
+      <div>
         <label className="label">Οργανισμός</label>
         <select className="input" value={orgKey} onChange={e => setOrgKey(e.target.value)}>
           {ORGS.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
@@ -84,16 +106,19 @@ function InvoiceForm({ action, record, onClose, onDone }) {
       </div>
       <div>
         <label className="label">Τύπος Παραστατικού *</label>
-        <div className="flex gap-4">
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input type="radio" name="document_type" value="1" checked={docType === 1} onChange={() => setDocType(1)} />
-            <span>ΤΠΥ (Τιμολόγιο Παροχής Υπηρεσιών)</span>
-          </label>
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input type="radio" name="document_type" value="2" checked={docType === 2} onChange={() => setDocType(2)} />
-            <span>ΑΠΥ (Απόδειξη Παροχής Υπηρεσιών)</span>
-          </label>
-        </div>
+        {docTypesLoading ? (
+          <div className="text-sm text-slate-400 py-2">Φόρτωση τύπων παραστατικών…</div>
+        ) : docTypes.length === 0 ? (
+          <div className="text-sm text-rose-500 py-2">Δεν βρέθηκαν τύποι στο Elorus</div>
+        ) : (
+          <select className="input" value={docType} onChange={e => setDocType(e.target.value)}>
+            {docTypes.map(d => (
+              <option key={d.id} value={String(d.id)}>
+                {d.title}{d.next_number != null ? ` — Επόμενο: #${d.next_number}` : ''}
+              </option>
+            ))}
+          </select>
+        )}
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>

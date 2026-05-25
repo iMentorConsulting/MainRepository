@@ -206,6 +206,14 @@ async function elorusPostInvoice(a, body) {
   }
 }
 
+router.get('/document-types', async (req, res) => {
+  try {
+    const orgKey = req.query.org_key || 'DEFAULT';
+    const r = await api(orgKey).get('documenttypes/?active=true');
+    res.json(r.data.results || r.data || []);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 router.get('/tax-rates', async (req, res) => {
   try {
     const orgKey = req.query.org_key || 'DEFAULT';
@@ -292,16 +300,12 @@ router.post('/send-to-self', async (req, res) => {
     const income = await Income.findByPk(income_id);
     if (!income?.elorus_invoice_id) return res.status(400).json({ error: 'Δεν υπάρχει draft τιμολόγιο' });
     const selfEmail = process.env.SMTP_USER || process.env.GMAIL_USER;
-    let attachments = [];
-    try {
-      const pdfBuffer = await fetchInvoicePdf(org_key, income.elorus_invoice_id);
-      attachments = [{ filename: `draft-${income.customer_name}.pdf`, content: pdfBuffer, mimeType: 'application/pdf' }];
-    } catch (pdfErr) { console.warn('Draft PDF fetch failed:', pdfErr.message); }
+    const pdfBuffer = await fetchInvoicePdf(org_key, income.elorus_invoice_id);
     await sendViaGmailApi(
       selfEmail, selfEmail, null,
       `[Draft] ΤΠΥ - ${income.customer_name}`,
-      `<p>Draft τιμολόγιο για <strong>${income.customer_name}</strong>.<br>Ελέγξτε το${attachments.length ? ' συνημμένο PDF' : ' στο Elorus (ID: ' + income.elorus_invoice_id + ')'} πριν την οριστική έκδοση.</p>`,
-      attachments
+      `<p>Draft τιμολόγιο για <strong>${income.customer_name}</strong>.<br>Ελέγξτε το συνημμένο PDF πριν την οριστική έκδοση.</p>`,
+      [{ filename: `draft-${income.customer_name}.pdf`, content: pdfBuffer, mimeType: 'application/pdf' }]
     );
     res.json({ success: true, sent_to: selfEmail });
   } catch (e) { res.status(500).json({ error: errMsg(e) }); }
