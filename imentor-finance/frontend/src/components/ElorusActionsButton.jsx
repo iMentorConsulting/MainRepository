@@ -234,6 +234,9 @@ function AfmResult({ record, onClose }) {
 export default function ElorusActionsButton({ record, onRefresh }) {
   const [open, setOpen] = useState(false);
   const [modal, setModal] = useState(null);
+  const [finalizeOrgKey, setFinalizeOrgKey] = useState('DEFAULT');
+  const [sendSelfOrgKey, setSendSelfOrgKey] = useState('DEFAULT');
+  const [actionLoading, setActionLoading] = useState(false);
   const ref = useRef();
 
   useEffect(() => {
@@ -247,16 +250,16 @@ export default function ElorusActionsButton({ record, onRefresh }) {
 
   const trigger = m => { setOpen(false); setModal(m); };
 
-  const simpleAction = async (endpoint) => {
-    setOpen(false);
-    setModal(null);
+  const runAction = async (endpoint, orgKey) => {
+    setActionLoading(true);
     try {
-      const r = await api.post(endpoint, { income_id: record.id, org_key: 'DEFAULT' });
+      const r = await api.post(endpoint, { income_id: record.id, org_key: orgKey });
       toast.success(r.data.invoice_number ? `✅ ${r.data.invoice_number}` : r.data.sent_to ? `📧 Εστάλη στο ${r.data.sent_to}` : '✅ Επιτυχία');
+      setModal(null);
       onRefresh();
     } catch (e) {
       toast.error(e.response?.data?.error || 'Σφάλμα');
-    }
+    } finally { setActionLoading(false); }
   };
 
   let btnCls, btnTxt;
@@ -322,9 +325,17 @@ export default function ElorusActionsButton({ record, onRefresh }) {
       <Modal open={modal === 'send-self'} onClose={() => setModal(null)} title="Αποστολή Draft σε εμένα" size="sm">
         <div className="space-y-4">
           <p className="text-slate-600 text-sm">Αποστολή του draft τιμολογίου στο email διαχειριστή για έλεγχο.</p>
+          <div>
+            <label className="label">Οργανισμός</label>
+            <select className="input" value={sendSelfOrgKey} onChange={e => setSendSelfOrgKey(e.target.value)}>
+              {ORGS.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
+            </select>
+          </div>
           <div className="flex justify-end gap-3 border-t border-slate-100 pt-3">
             <button className="btn-secondary" onClick={() => setModal(null)}>Ακύρωση</button>
-            <button className="btn-primary" onClick={() => simpleAction('/invoices/send-to-self')}>📧 Αποστολή</button>
+            <button className="btn-primary" onClick={() => runAction('/invoices/send-to-self', sendSelfOrgKey)} disabled={actionLoading}>
+              {actionLoading ? 'Αποστολή...' : '📧 Αποστολή'}
+            </button>
           </div>
         </div>
       </Modal>
@@ -332,6 +343,12 @@ export default function ElorusActionsButton({ record, onRefresh }) {
       <Modal open={modal === 'finalize'} onClose={() => setModal(null)} title="Οριστική Έκδοση & Αποστολή" size="sm">
         <div className="space-y-4">
           <p className="text-slate-600 text-sm">Οριστικοποίηση του draft και αποστολή.</p>
+          <div>
+            <label className="label">Οργανισμός</label>
+            <select className="input" value={finalizeOrgKey} onChange={e => setFinalizeOrgKey(e.target.value)}>
+              {ORGS.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
+            </select>
+          </div>
           {(record.email || record.accountant_email) ? (
             <div className="rounded-xl p-3 bg-slate-50 border border-slate-100 text-xs space-y-1">
               {record.email && <div className="flex gap-2"><span className="text-slate-400 w-16">Πελάτης:</span><span className="font-medium">{record.email}</span></div>}
@@ -344,7 +361,9 @@ export default function ElorusActionsButton({ record, onRefresh }) {
           )}
           <div className="flex justify-end gap-3 border-t border-slate-100 pt-3">
             <button className="btn-secondary" onClick={() => setModal(null)}>Ακύρωση</button>
-            <button className="btn-primary" onClick={() => simpleAction('/invoices/finalize-and-send')}>✅ Οριστικοποίηση</button>
+            <button className="btn-primary" onClick={() => runAction('/invoices/finalize-and-send', finalizeOrgKey)} disabled={actionLoading}>
+              {actionLoading ? 'Επεξεργασία...' : '✅ Οριστικοποίηση'}
+            </button>
           </div>
         </div>
       </Modal>
