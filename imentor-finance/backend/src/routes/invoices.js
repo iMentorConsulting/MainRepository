@@ -110,57 +110,37 @@ async function getVatTaxRateId(orgKey) {
   if (envId) return envId;
   if (vatTaxRateCache[orgKey]) return vatTaxRateCache[orgKey];
 
-  // Try taxratecategories — Elorus stores rate categories with nested taxes[]
-  for (const ep of ['taxratecategories/?active=true', 'taxratecategories/']) {
+  // Try all known Elorus tax endpoints (endpoint names vary by account/version)
+  for (const ep of ['itemtaxes/', 'itemtaxes/?active=true', 'taxes/', 'taxes/?active=true', 'taxratecategories/', 'taxrates/']) {
     try {
       const r = await api(orgKey).get(ep);
-      const cats = r.data.results || (Array.isArray(r.data) ? r.data : []);
-      console.log(`Elorus ${ep} (${cats.length} items):`, JSON.stringify(cats).slice(0, 400));
-      if (!cats.length) continue;
-      for (const cat of cats) {
-        // nested taxes[] with {taxrate: id-or-obj, percent} entries
-        if (Array.isArray(cat.taxes)) {
-          const t24 = cat.taxes.find(t => parseFloat(t.percent || 0) === 24);
-          const chosen = t24 || cat.taxes[0];
-          if (chosen?.taxrate != null) {
-            // taxrate can be a plain ID or an object {id, ...}
-            const id = (typeof chosen.taxrate === 'object') ? chosen.taxrate.id : chosen.taxrate;
-            if (id) { vatTaxRateCache[orgKey] = id; return id; }
-          }
-        }
-        // Some versions expose percent/rate directly on category
-        if (parseFloat(cat.percent || cat.rate || 0) === 24 || (cat.title || '').includes('24')) {
-          vatTaxRateCache[orgKey] = cat.id; return cat.id;
-        }
+      const items = r.data.results || (Array.isArray(r.data) ? r.data : []);
+      if (!items.length) { console.log(`Elorus ${ep}: empty`); continue; }
+      console.log(`Elorus ${ep} (${items.length}):`, JSON.stringify(items).slice(0, 400));
+      // Find 24% VAT; fall back to first entry
+      const vat24 = items.find(t =>
+        parseFloat(t.percent || t.rate || t.tax_percent || 0) === 24 ||
+        (t.title || t.name || t.label || '').includes('24')
+      );
+      const chosen = vat24 || items[0];
+      // Handle nested taxrate object or direct id
+      let id = chosen.id;
+      if (!id && chosen.taxrate) {
+        id = typeof chosen.taxrate === 'object' ? chosen.taxrate.id : chosen.taxrate;
       }
-      // Last resort: first category's id
-      if (cats[0]?.id) {
-        console.warn('Elorus: first category fallback:', JSON.stringify(cats[0]));
-        vatTaxRateCache[orgKey] = cats[0].id; return cats[0].id;
-      }
-    } catch (e) { console.warn(`Elorus ${ep}:`, e.message); }
-  }
-
-  // Fallback: flat taxrates endpoint
-  for (const ep of ['taxrates/?active=true', 'taxrates/']) {
-    try {
-      const r = await api(orgKey).get(ep);
-      const rates = r.data.results || (Array.isArray(r.data) ? r.data : []);
-      console.log(`Elorus ${ep} (${rates.length} items):`, JSON.stringify(rates).slice(0, 400));
-      if (!rates.length) continue;
-      const r24 = rates.find(t => parseFloat(t.percent || t.rate || 0) === 24 || (t.title || '').includes('24'));
-      const chosen = r24 || rates[0];
-      if (chosen?.id) { vatTaxRateCache[orgKey] = chosen.id; return chosen.id; }
-    } catch (e) { console.warn(`Elorus ${ep}:`, e.message); }
+      if (id) { vatTaxRateCache[orgKey] = id; return id; }
+    } catch (e) {
+      if (e.response?.status !== 404) console.warn(`Elorus ${ep}:`, e.message);
+    }
   }
 
   // Last resort: extract tax id from an existing Elorus invoice
   try {
-    const r = await api(orgKey).get('invoices/?page_size=5&draft=false');
+    const r = await api(orgKey).get('invoices/?page_size=5');
     const invs = r.data.results || [];
     for (const inv of invs) {
       const taxId = inv.items?.[0]?.taxes?.[0];
-      if (taxId) {
+      if (taxId != null) {
         const id = typeof taxId === 'object' ? taxId.id : taxId;
         if (id) { console.log('Elorus: tax rate from existing invoice:', id); vatTaxRateCache[orgKey] = id; return id; }
       }
@@ -196,7 +176,7 @@ router.get('/tax-rates', async (req, res) => {
   try {
     const orgKey = req.query.org_key || 'DEFAULT';
     const out = {};
-    for (const ep of ['taxratecategories/?active=true', 'taxratecategories/', 'taxrates/?active=true', 'taxrates/']) {
+    for (const ep of ['itemtaxes/', 'itemtaxes/?active=true', 'taxes/', 'taxratecategories/', 'taxrates/']) {
       try { out[ep] = (await api(orgKey).get(ep)).data; }
       catch (e) { out[ep] = { error: e.message }; }
     }
