@@ -182,6 +182,13 @@ export default function ExpensesList() {
     catch { toast.error('Σφάλμα διαγραφής'); }
   };
 
+  const handleDuplicate = (row) => {
+    const copy = { ...row };
+    delete copy.id;
+    copy.date = '';
+    setModal({ open: true, record: copy, isDuplicate: true });
+  };
+
   const yearOptions = Array.from({ length: 8 }, (_, i) => ({ value: String(now.getFullYear() - i), label: String(now.getFullYear() - i) }));
   const monthOptions = [
     { value: '01', label: 'Ιαν' }, { value: '02', label: 'Φεβ' }, { value: '03', label: 'Μαρ' },
@@ -293,7 +300,14 @@ export default function ExpensesList() {
                   </td>
                   <td className="td">
                     <div className="flex gap-1">
-                      <button onClick={() => setModal({ open: true, record: r })} className="btn-ghost btn-sm p-2 rounded-lg">
+                      <button
+                        className="btn-secondary text-xs py-1 px-2"
+                        title="Αντιγραφή"
+                        onClick={() => handleDuplicate(r)}
+                      >
+                        📋
+                      </button>
+                      <button onClick={() => setModal({ open: true, record: r })} className="btn-ghost btn-sm p-2 rounded-lg" title="Επεξεργασία">
                         <svg viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5"><path d="M13.488 2.513a1.75 1.75 0 0 0-2.475 0L6.75 6.774a2.75 2.75 0 0 0-.596.892l-.633 1.73a.75.75 0 0 0 .963.963l1.73-.633a2.75 2.75 0 0 0 .892-.596l4.261-4.262a1.75 1.75 0 0 0 0-2.475ZM4.75 3.5c-.69 0-1.25.56-1.25 1.25v6.5c0 .69.56 1.25 1.25 1.25h6.5c.69 0 1.25-.56 1.25-1.25V9A.75.75 0 0 1 14 9v2.25A2.75 2.75 0 0 1 11.25 14h-6.5A2.75 2.75 0 0 1 2 11.25v-6.5A2.75 2.75 0 0 1 4.75 2H7a.75.75 0 0 1 0 1.5H4.75Z"/></svg>
                       </button>
                       <button onClick={() => setDeleteId(r.id)} className="p-2 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50 transition-colors">
@@ -323,11 +337,11 @@ export default function ExpensesList() {
         </div>
       </div>
 
-      <Modal open={modal.open} onClose={() => setModal({ open: false, record: null })}
-        title={modal.record ? 'Επεξεργασία Εξόδου' : 'Νέα Εγγραφή Εξόδου'} size="md">
-        <ExpensesForm record={modal.record}
-          onSave={() => { setModal({ open: false, record: null }); load(); }}
-          onCancel={() => setModal({ open: false, record: null })} />
+      <Modal open={modal.open} onClose={() => setModal({ open: false, record: null, isDuplicate: false })}
+        title={modal.isDuplicate ? 'Αντιγραφή Εξόδου' : modal.record ? 'Επεξεργασία Εξόδου' : 'Νέα Εγγραφή Εξόδου'} size="md">
+        <ExpensesForm record={modal.isDuplicate ? { ...modal.record, id: undefined } : modal.record}
+          onSave={() => { setModal({ open: false, record: null, isDuplicate: false }); load(); }}
+          onCancel={() => setModal({ open: false, record: null, isDuplicate: false })} />
       </Modal>
 
       <Modal open={!!deleteId} onClose={() => setDeleteId(null)} title="Επιβεβαίωση Διαγραφής" size="sm">
