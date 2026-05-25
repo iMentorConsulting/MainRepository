@@ -18,6 +18,7 @@ app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 
 app.use('/api/auth', require('./routes/auth'));
+app.use('/api/invoices/tax-rates', require('./routes/invoices')); // public debug — no auth
 app.use('/api/income',     authMiddleware, require('./routes/income'));
 app.use('/api/expenses',   authMiddleware, require('./routes/expenses'));
 app.use('/api/lists',      authMiddleware, require('./routes/listItems'));
