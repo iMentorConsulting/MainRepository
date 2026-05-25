@@ -110,24 +110,17 @@ async function getVatTaxRateId(orgKey) {
   if (vatTaxRateCache[orgKey]) return vatTaxRateCache[orgKey];
 
   // Try all known Elorus tax endpoints (endpoint names vary by account/version)
-  for (const ep of ['itemtaxes/', 'itemtaxes/?active=true', 'taxes/', 'taxes/?active=true', 'taxratecategories/', 'taxrates/']) {
+  for (const ep of ['taxes/', 'taxes/?active=true', 'itemtaxes/', 'taxratecategories/', 'taxrates/']) {
     try {
       const r = await api(orgKey).get(ep);
       const items = r.data.results || (Array.isArray(r.data) ? r.data : []);
       if (!items.length) { console.log(`Elorus ${ep}: empty`); continue; }
       console.log(`Elorus ${ep} (${items.length}):`, JSON.stringify(items).slice(0, 400));
-      // Find 24% VAT; fall back to first entry
-      const vat24 = items.find(t =>
-        parseFloat(t.percent || t.rate || t.tax_percent || 0) === 24 ||
-        (t.title || t.name || t.label || '').includes('24')
-      );
-      const chosen = vat24 || items[0];
-      // Handle nested taxrate object or direct id
-      let id = chosen.id;
-      if (!id && chosen.taxrate) {
-        id = typeof chosen.taxrate === 'object' ? chosen.taxrate.id : chosen.taxrate;
-      }
-      if (id) { vatTaxRateCache[orgKey] = id; return id; }
+      // Find VAT-type tax at 24% — field is "percentage" in Elorus v1.1
+      const vatItems = items.filter(t => t.tax_type === 'vat' || t.operand === '+');
+      const vat24 = vatItems.find(t => parseFloat(t.percentage || t.percent || t.rate || 0) === 24)
+        || vatItems[0];
+      if (vat24?.id) { vatTaxRateCache[orgKey] = vat24.id; return vat24.id; }
     } catch (e) {
       if (e.response?.status !== 404) console.warn(`Elorus ${ep}:`, e.message);
     }
