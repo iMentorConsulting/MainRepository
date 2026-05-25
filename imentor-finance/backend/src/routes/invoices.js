@@ -13,7 +13,7 @@ async function aadeSearchAfm(vat, orgKey) {
   if (!myAfm) return { error: `MY_AFM${isIke ? '_IMENTOR' : ''} env var is not set in Railway` };
   if (!username) return { error: `AADE_USER${isIke ? '_IMENTOR' : ''} env var is not set in Railway` };
 
-  const soapBody = `<?xml version="1.0" encoding="UTF-8"?><env:Envelope xmlns:env="http://www.w3.org/2003/05/soap-envelope" xmlns:pub="http://rgwspublic2.rg.gov.gr/"><env:Header/><env:Body><pub:rgWsPublic2AfmMethod><pub:INPUT_REC><pub:afm_called_by>${myAfm}</pub:afm_called_by><pub:afm_called_for>${vat}</pub:afm_called_for></pub:INPUT_REC></pub:rgWsPublic2AfmMethod></env:Body></env:Envelope>`;
+  const soapBody = `<?xml version="1.0" encoding="UTF-8"?><env:Envelope xmlns:env="http://www.w3.org/2003/05/soap-envelope"><env:Header/><env:Body><pub:rgWsPublic2AfmMethod xmlns:pub="http://rgwspublic2.rg.gov.gr/"><pub:INPUT_REC><pub:afm_called_by>${myAfm}</pub:afm_called_by><pub:afm_called_for>${vat}</pub:afm_called_for></pub:INPUT_REC></pub:rgWsPublic2AfmMethod></env:Body></env:Envelope>`;
 
   const bodyBuffer = Buffer.from(soapBody, 'utf8');
   const credentials = Buffer.from(`${username}:${password}`).toString('base64');
@@ -101,6 +101,7 @@ async function findOrCreateContact(orgKey, income) {
       country: 'GR'
     }] : [],
     is_client: true,
+    client_type: 1,
   });
   return c.data.id;
 }
