@@ -50,11 +50,16 @@ async function aadeSearchAfm(vat, orgKey) {
           console.error('AADE error XML:', xml.substring(0, 2000));
           return resolve({ error: `[${errorCode}] ${get('error_descr') || ''}` });
         }
-        const city = get('postal_address_city') || get('postal_city') || get('postal_city_descr')
+        // RgWsPublic2 uses snake_case; primary city field is postal_area_description
+        const city = get('postal_area_description')
+          || get('postal_address_city') || get('postal_city') || get('postal_city_descr')
           || get('firm_city') || get('firm_city_descr') || get('municipality_descr') || get('municipality') || '';
+        const street = get('postal_address') || '';
+        const streetNo = get('postal_address_no') || '';
+        const address = streetNo ? `${street} ${streetNo}`.trim() : street;
         resolve({
           name: get('onomasia'),
-          address: get('postal_address'),
+          address,
           city,
           postal_code: get('postal_zip_code'),
           vat: get('afm'),
