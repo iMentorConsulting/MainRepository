@@ -270,8 +270,20 @@ router.post('/create-draft', async (req, res) => {
 });
 
 async function fetchInvoicePdf(orgKey, invoiceId) {
-  const r = await api(orgKey).get(`invoices/${invoiceId}/pdf/`, { responseType: 'arraybuffer' });
-  return Buffer.from(r.data);
+  // Use PDF-specific headers — omit Accept:application/json which breaks binary downloads
+  const orgId = ORGS[orgKey] || ORGS.DEFAULT;
+  const r = await axios.get(`${BASE}invoices/${invoiceId}/pdf/`, {
+    responseType: 'arraybuffer',
+    headers: {
+      Authorization: `Token ${process.env.ELORUS_TOKEN}`,
+      'X-Elorus-Organization': orgId,
+    },
+  });
+  const buf = Buffer.from(r.data);
+  if (buf.slice(0, 4).toString() !== '%PDF') {
+    throw new Error(`Elorus PDF returned non-PDF content: ${buf.slice(0, 200).toString()}`);
+  }
+  return buf;
 }
 
 router.post('/send-to-self', async (req, res) => {
@@ -280,13 +292,16 @@ router.post('/send-to-self', async (req, res) => {
     const income = await Income.findByPk(income_id);
     if (!income?.elorus_invoice_id) return res.status(400).json({ error: 'Δεν υπάρχει draft τιμολόγιο' });
     const selfEmail = process.env.SMTP_USER || process.env.GMAIL_USER;
-    // Elorus does not generate PDFs for draft invoices — send notification only
+    let attachments = [];
+    try {
+      const pdfBuffer = await fetchInvoicePdf(org_key, income.elorus_invoice_id);
+      attachments = [{ filename: `draft-${income.customer_name}.pdf`, content: pdfBuffer, mimeType: 'application/pdf' }];
+    } catch (pdfErr) { console.warn('Draft PDF fetch failed:', pdfErr.message); }
     await sendViaGmailApi(
       selfEmail, selfEmail, null,
       `[Draft] ΤΠΥ - ${income.customer_name}`,
-      `<p>Draft τιμολόγιο δημιουργήθηκε στο Elorus για <strong>${income.customer_name}</strong>.</p>
-       <p>Elorus ID: <strong>${income.elorus_invoice_id}</strong></p>
-       <p>Ελέγξτε το στο Elorus πριν την οριστική έκδοση.</p>`
+      `<p>Draft τιμολόγιο για <strong>${income.customer_name}</strong>.<br>Ελέγξτε το${attachments.length ? ' συνημμένο PDF' : ' στο Elorus (ID: ' + income.elorus_invoice_id + ')'} πριν την οριστική έκδοση.</p>`,
+      attachments
     );
     res.json({ success: true, sent_to: selfEmail });
   } catch (e) { res.status(500).json({ error: errMsg(e) }); }

@@ -212,7 +212,7 @@ function buildEmailHtml(accountant, rows, customFinancingHtml) {
           <li>Ιδανικό για ιδιοκτήτες που θέλουν αναβάθμιση ακινήτου</li>
           <li>Προτεραιότητα στα κλειστά ακίνητα</li>
         </ul>
-        <a href="https://i-mentor.gr" style="color:#1565c0;font-size:13px;text-decoration:none">→ Δείτε περισσότερα</a>
+        <a href="https://i-mentor.gr/anakainisi-palaiwn-spitiwn/" style="color:#1565c0;font-size:13px;text-decoration:none">→ Δείτε περισσότερα</a>
       </div>
 
       <div style="margin-bottom:16px">
@@ -222,7 +222,7 @@ function buildEmailHtml(accountant, rows, customFinancingHtml) {
           <li>Διαδικασία online μέσω ΤΜΕΔΕ - AFI - MICROSMART</li>
           <li>ΤΕΠΙΧ ΙΙΙ - Ελληνική Αναπτυξιακή Τράπεζα</li>
         </ul>
-        <a href="https://i-mentor.gr" style="color:#1565c0;font-size:13px;text-decoration:none">→ Δείτε περισσότερα</a>
+        <a href="https://i-mentor.gr/tamio-mikropistoseon" style="color:#1565c0;font-size:13px;text-decoration:none">→ Δείτε περισσότερα</a>
       </div>
 
       <div style="margin-bottom:16px">
@@ -232,7 +232,7 @@ function buildEmailHtml(accountant, rows, customFinancingHtml) {
           <li>Χρηματοδότηση για εξοπλισμό &amp; ανάπτυξη</li>
           <li>Προθεσμία αιτήσεων έως 2 Ιουνίου 2026</li>
         </ul>
-        <a href="https://i-mentor.gr" style="color:#1565c0;font-size:13px;text-decoration:none">→ Δείτε περισσότερα</a>
+        <a href="https://i-mentor.gr/paragoume-ellada/" style="color:#1565c0;font-size:13px;text-decoration:none">→ Δείτε περισσότερα</a>
       </div>
 
       <div style="margin-bottom:16px">
@@ -241,7 +241,6 @@ function buildEmailHtml(accountant, rows, customFinancingHtml) {
           <li>Αφορά Ξενοδοχεία &amp; Μεταποίηση στην Κρήτη</li>
           <li>Προθεσμία αιτήσεων έως 28 Μαΐου 2026</li>
         </ul>
-        <a href="https://i-mentor.gr" style="color:#1565c0;font-size:13px;text-decoration:none">→ Δείτε περισσότερα</a>
       </div>
 
       <div style="margin-bottom:16px">
@@ -250,7 +249,7 @@ function buildEmailHtml(accountant, rows, customFinancingHtml) {
           <li>Επιχορήγηση για δημιουργία νέας επιχείρησης</li>
           <li>Αφορά Πτυχιούχους για έναρξη επιχείρησης στον τομέα τους</li>
         </ul>
-        <a href="https://i-mentor.gr" style="color:#1565c0;font-size:13px;text-decoration:none">→ Δείτε περισσότερα</a>
+        <a href="https://i-mentor.gr/program/ksekinw-epixeirhmatika/" style="color:#1565c0;font-size:13px;text-decoration:none">→ Δείτε περισσότερα</a>
       </div>
 
       <div style="margin-bottom:16px">
@@ -260,7 +259,7 @@ function buildEmailHtml(accountant, rows, customFinancingHtml) {
           <li>Έως 240 δόσεις για Δημόσιο και 420 για τράπεζες</li>
           <li>Αξιολόγηση επιλεξιμότητας &amp; πλήρης υποστήριξη από i-Mentor</li>
         </ul>
-        <a href="https://i-mentor.gr" style="color:#1565c0;font-size:13px;text-decoration:none">→ Δείτε περισσότερα</a>
+        <a href="https://i-mentor.gr/exodikastikos/" style="color:#1565c0;font-size:13px;text-decoration:none">→ Δείτε περισσότερα</a>
       </div>
 
       <div style="margin-bottom:16px">
@@ -269,7 +268,7 @@ function buildEmailHtml(accountant, rows, customFinancingHtml) {
           <li>Δικαστική διαδικασία με πλήρη μηδενισμό οφειλών</li>
           <li>Η i-Mentor Consulting αναλαμβάνει συνολικά τη διαδικασία</li>
         </ul>
-        <a href="https://i-mentor.gr" style="color:#1565c0;font-size:13px;text-decoration:none">→ Δείτε περισσότερα</a>
+        <a href="https://i-mentor.gr/neos-ptocheftikos-nomos/" style="color:#1565c0;font-size:13px;text-decoration:none">→ Δείτε περισσότερα</a>
       </div>
 
       <div style="text-align:right;margin-top:24px">
