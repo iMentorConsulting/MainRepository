@@ -13,9 +13,10 @@ const STATUS_BADGE = {
   'ΟΛΟΚΛΗΡΩΜΕΝΕΣ ΕΠΙΤΥΧΩΣ': 'badge-blue',
   'ΟΛΟΚΛΗΡΩΜΕΝΕΣ FAIL': 'badge-red',
   'ΑΠΟΠΛΗΡΩΜΕΝΕΣ': 'badge-purple',
+  'ΑΠΟΠΛΗΡΩΜΗ ΑΙΤΗΣΗΣ': 'badge-orange',
 };
 
-const STATUS_OPTS = ['ΕΝ ΕΞΕΛΙΞΕΙ', 'ΠΑΓΩΜΕΝΕΣ', 'ΟΛΟΚΛΗΡΩΜΕΝΕΣ ΕΠΙΤΥΧΩΣ', 'ΟΛΟΚΛΗΡΩΜΕΝΕΣ FAIL', 'ΑΠΟΠΛΗΡΩΜΕΝΕΣ'];
+const STATUS_OPTS = ['ΕΝ ΕΞΕΛΙΞΕΙ', 'ΠΑΓΩΜΕΝΕΣ', 'ΑΠΟΠΛΗΡΩΜΗ ΑΙΤΗΣΗΣ', 'ΟΛΟΚΛΗΡΩΜΕΝΕΣ ΕΠΙΤΥΧΩΣ', 'ΟΛΟΚΛΗΡΩΜΕΝΕΣ FAIL', 'ΑΠΟΠΛΗΡΩΜΕΝΕΣ'];
 
 const EMPTY_FORM = {
   customer_id: '',
@@ -275,6 +276,7 @@ export default function ServiceAgreementsPage() {
                 <th className="th text-right">Ποσό Αίτησης</th>
                 <th className="th text-right">Ποσό Υλοποίησης</th>
                 <th className="th">Είσπραξη</th>
+                <th className="th text-right">Υπόλοιπο</th>
                 <th className="th">Σύμβουλος</th>
                 <th className="th">Ημ. Έγκρισης</th>
                 <th className="th w-20"></th>
@@ -320,6 +322,18 @@ export default function ServiceAgreementsPage() {
                       );
                     })()}
                   </td>
+                  <td className="td text-right text-xs font-bold whitespace-nowrap">
+                    {(() => {
+                      const collected = parseFloat(r.income_collected || 0);
+                      const target = r.approval_date
+                        ? parseFloat(r.amount_application || 0) + parseFloat(r.amount_implementation || 0)
+                        : parseFloat(r.amount_application || 0);
+                      const remaining = Math.max(0, target - collected);
+                      return remaining > 0
+                        ? <span className="text-rose-600">{fmt(remaining)}</span>
+                        : <span className="text-emerald-600">—</span>;
+                    })()}
+                  </td>
                   <td className="td">
                     {r.sales_agent ? <span className="badge-gray">{r.sales_agent}</span> : <span className="text-slate-300">—</span>}
                   </td>
@@ -342,7 +356,7 @@ export default function ServiceAgreementsPage() {
               ))}
               {rows.length === 0 && (
                 <tr>
-                  <td colSpan={10} className="td text-center text-slate-400 py-12">
+                  <td colSpan={11} className="td text-center text-slate-400 py-12">
                     Δεν βρέθηκαν εγγραφές
                   </td>
                 </tr>

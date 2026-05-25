@@ -776,7 +776,6 @@ const TABS = [
   { id: 'overview', label: 'Επισκόπηση' },
   { id: 'top-customers', label: 'Κορυφαίοι Πελάτες' },
   { id: 'accountants', label: 'Αναφορά Λογιστών' },
-  { id: 'open-cases', label: 'Ανοικτές Υποθέσεις' },
   { id: 'service-trend', label: 'Ανά Υπηρεσία' },
 ];
 
@@ -876,7 +875,6 @@ export default function ReportsPage() {
       )}
       {activeTab === 'top-customers' && <TabTopCustomers years={years} />}
       {activeTab === 'accountants' && <TabAccountants years={years} />}
-      {activeTab === 'open-cases' && <TabOpenCases years={years} />}
       {activeTab === 'service-trend' && <TabServiceTrend />}
     </div>
   );

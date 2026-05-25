@@ -109,15 +109,17 @@ export default function EmailsPage() {
   ];
 
   const load = useCallback(() => {
-    const params = { limit: 100, page, sort_field: sort.field, sort_dir: sort.dir };
+    const isAccountantFiltered = selectedAccountants.length === 1;
+    const params = { limit: isAccountantFiltered ? 500 : 100, page, sort_field: sort.field, sort_dir: sort.dir };
     if (selectedYears.length === 1) params.year = selectedYears[0];
     else if (selectedYears.length > 1) params.years = selectedYears.join(',');
     if (selectedMonths.length === 1) params.month = selectedMonths[0];
     else if (selectedMonths.length > 1) params.months = selectedMonths.join(',');
     if (dateFrom) params.date_from = dateFrom;
     if (dateTo) params.date_to = dateTo;
+    if (isAccountantFiltered) params.accountant_email = selectedAccountants[0];
     api.get('/income', { params }).then(r => setData(r.data));
-  }, [selectedYears, selectedMonths, page, sort, dateFrom, dateTo]);
+  }, [selectedYears, selectedMonths, selectedAccountants, page, sort, dateFrom, dateTo]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -264,7 +266,7 @@ export default function EmailsPage() {
             <select
               className="input w-56"
               value={selectedAccountants[0] || ''}
-              onChange={e => { setSelectedAccountants(e.target.value ? [e.target.value] : []); setSelected(new Set()); }}
+              onChange={e => { setSelectedAccountants(e.target.value ? [e.target.value] : []); setSelected(new Set()); setPage(1); }}
             >
               <option value="">Όλοι οι λογιστές</option>
               {accountants.map(o => {

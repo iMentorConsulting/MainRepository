@@ -7,7 +7,7 @@ const ALLOWED_SORT = ['sale_date','customer_name','amount_collected','amount_app
 
 router.get('/', async (req, res) => {
   try {
-    const { year, month, date_from, date_to, service_type, sales_agent, search, page = 1, limit = 50, sort_field, sort_dir } = req.query;
+    const { year, years, month, months, date_from, date_to, service_type, sales_agent, accountant_email, accountant, search, page = 1, limit = 50, sort_field, sort_dir } = req.query;
     const where = {};
     if (date_from && date_to) {
       where.sale_date = { [Op.between]: [date_from, date_to] };
@@ -19,9 +19,16 @@ router.get('/', async (req, res) => {
       where.sale_date = { [Op.between]: [`${year}-${month.padStart(2,'0')}-01`, `${year}-${month.padStart(2,'0')}-31`] };
     } else if (year) {
       where.sale_date = { [Op.between]: [`${year}-01-01`, `${year}-12-31`] };
+    } else if (years) {
+      const yearList = years.split(',').map(y => y.trim()).filter(Boolean);
+      if (yearList.length > 0) {
+        where.sale_date = { [Op.or]: yearList.map(y => ({ [Op.between]: [`${y}-01-01`, `${y}-12-31`] })) };
+      }
     }
     if (service_type) where.service_type = service_type;
     if (sales_agent) where.sales_agent = sales_agent;
+    if (accountant_email) where.accountant_email = accountant_email;
+    if (accountant && !accountant_email) where.accountant = accountant;
     if (search) where.customer_name = { [Op.iLike]: `%${search}%` };
 
     const sf = ALLOWED_SORT.includes(sort_field) ? sort_field : 'sale_date';

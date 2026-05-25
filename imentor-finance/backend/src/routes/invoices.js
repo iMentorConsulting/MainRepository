@@ -24,7 +24,7 @@ async function aadeSearchAfm(vat, orgKey) {
     'https://www1.gsis.gr/wsaade/RgWsPublic2/RgWsPublic2',
     soapBody,
     {
-      headers: { 'Content-Type': 'text/xml;charset=UTF-8', 'SOAPAction': '""' },
+      headers: { 'Content-Type': 'text/xml', 'SOAPAction': '""' },
       auth: { username, password },
       timeout: 10000
     }
@@ -136,8 +136,9 @@ router.post('/create-draft', async (req, res) => {
       client: contactId,
       date: date || new Date().toISOString().split('T')[0],
       document_type: parseInt(document_type) || 1,
+      mydata_document_type: req.body.mydata_document_type || '2.1',
       draft: true,
-      lines: lines(net, description, income.service_type),
+      items: lines(net, description, income.service_type),
       ...(withholding(net, org_key).length ? { extra_fees: withholding(net, org_key) } : {}),
     };
     const r = await a.post('invoices/', body);
@@ -195,7 +196,8 @@ router.post('/one-shot', async (req, res) => {
       client: contactId,
       date: iDate,
       document_type: parseInt(document_type) || 1,
-      lines: lines(net, description, income.service_type),
+      mydata_document_type: req.body.mydata_document_type || '2.1',
+      items: lines(net, description, income.service_type),
       ...(withholding(net, org_key).length ? { extra_fees: withholding(net, org_key) } : {}),
     };
     const cr = await a.post('invoices/', body);

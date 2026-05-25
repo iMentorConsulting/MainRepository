@@ -8,16 +8,21 @@ async function checkAndAutoStatus(saId) {
   try {
     const sa = await ServiceAgreement.findByPk(saId);
     if (!sa || COMPLETED_STATUSES.includes(sa.status)) return;
-    const application = parseFloat(sa.amount_application || 0);
-    const implementation = sa.approval_date ? parseFloat(sa.amount_implementation || 0) : 0;
-    const target = application + implementation;
-    if (target <= 0) return;
     const [row] = await sequelize.query(
       `SELECT COALESCE(SUM(amount_collected),0) AS total FROM income WHERE service_agreement_id = :id`,
       { replacements: { id: saId }, type: QueryTypes.SELECT }
     );
-    if (parseFloat(row?.total || 0) >= target) {
-      await sa.update({ status: 'ΑΠΟΠΛΗΡΩΜΕΝΕΣ' });
+    const collected = parseFloat(row?.total || 0);
+    const application = parseFloat(sa.amount_application || 0);
+    if (!sa.approval_date) {
+      if (application > 0 && collected >= application) {
+        await sa.update({ status: 'ΑΠΟΠΛΗΡΩΜΗ ΑΙΤΗΣΗΣ' });
+      }
+    } else {
+      const target = application + parseFloat(sa.amount_implementation || 0);
+      if (target > 0 && collected >= target) {
+        await sa.update({ status: 'ΑΠΟΠΛΗΡΩΜΕΝΕΣ' });
+      }
     }
   } catch (e) {
     console.error('checkAndAutoStatus failed:', e.message);
@@ -108,15 +113,21 @@ router.get('/', async (req, res) => {
 
     res.json({ data: enriched, total: count });
 
-    // Background: auto-mark fully-paid agreements as ΑΠΟΠΛΗΡΩΜΕΝΕΣ
+    // Background: auto-update statuses based on collected income
     setImmediate(() => {
       for (const row of enriched) {
-        if (['ΑΠΟΠΛΗΡΩΜΕΝΕΣ','ΟΛΟΚΛΗΡΩΜΕΝΕΣ ΕΠΙΤΥΧΩΣ','ΟΛΟΚΛΗΡΩΜΕΝΕΣ FAIL'].includes(row.status)) continue;
+        if (COMPLETED_STATUSES.includes(row.status)) continue;
         const application = parseFloat(row.amount_application || 0);
-        const implementation = row.approval_date ? parseFloat(row.amount_implementation || 0) : 0;
-        const target = application + implementation;
-        if (target > 0 && parseFloat(row.income_collected || 0) >= target) {
-          ServiceAgreement.update({ status: 'ΑΠΟΠΛΗΡΩΜΕΝΕΣ' }, { where: { id: row.id } }).catch(() => {});
+        const collected = parseFloat(row.income_collected || 0);
+        if (!row.approval_date) {
+          if (application > 0 && collected >= application) {
+            ServiceAgreement.update({ status: 'ΑΠΟΠΛΗΡΩΜΗ ΑΙΤΗΣΗΣ' }, { where: { id: row.id } }).catch(() => {});
+          }
+        } else {
+          const target = application + parseFloat(row.amount_implementation || 0);
+          if (target > 0 && collected >= target) {
+            ServiceAgreement.update({ status: 'ΑΠΟΠΛΗΡΩΜΕΝΕΣ' }, { where: { id: row.id } }).catch(() => {});
+          }
         }
       }
     });
@@ -127,17 +138,21 @@ const COMPLETED_STATUSES = ['ΑΠΟΠΛΗΡΩΜΕΝΕΣ', 'ΟΛΟΚΛΗΡΩΜΕ�
 
 async function applyAutoStatus(sa) {
   if (COMPLETED_STATUSES.includes(sa.status)) return;
-  const application = parseFloat(sa.amount_application || 0);
-  const implementation = sa.approval_date ? parseFloat(sa.amount_implementation || 0) : 0;
-  const target = application + implementation;
-  if (target <= 0) return;
   const [row] = await sequelize.query(
     `SELECT COALESCE(SUM(amount_collected),0) AS total FROM income WHERE service_agreement_id = :id`,
     { replacements: { id: sa.id }, type: QueryTypes.SELECT }
   );
   const collected = parseFloat(row?.total || 0) || parseFloat(sa.amount_collected_total || 0);
-  if (collected >= target) {
-    await sa.update({ status: 'ΑΠΟΠΛΗΡΩΜΕΝΕΣ' });
+  const application = parseFloat(sa.amount_application || 0);
+  if (!sa.approval_date) {
+    if (application > 0 && collected >= application) {
+      await sa.update({ status: 'ΑΠΟΠΛΗΡΩΜΗ ΑΙΤΗΣΗΣ' });
+    }
+  } else {
+    const target = application + parseFloat(sa.amount_implementation || 0);
+    if (target > 0 && collected >= target) {
+      await sa.update({ status: 'ΑΠΟΠΛΗΡΩΜΕΝΕΣ' });
+    }
   }
 }
 

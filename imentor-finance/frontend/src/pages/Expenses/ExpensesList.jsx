@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import api from '../../api/client';
 import Modal from '../../components/Modal';
 import ExpensesForm from './ExpensesForm';
@@ -74,6 +75,8 @@ function SortTh({ label, field, sort, onSort, className = '' }) {
   );
 }
 
+const PIE_COLORS = ['#f43f5e', '#f97316', '#eab308', '#10b981', '#6366f1', '#a855f7', '#06b6d4', '#0ea5e9'];
+
 function CategorySummary({ data }) {
   const [expanded, setExpanded] = useState(new Set());
 
@@ -93,45 +96,72 @@ function CategorySummary({ data }) {
 
   const toggle = cat => setExpanded(s => { const n = new Set(s); n.has(cat) ? n.delete(cat) : n.add(cat); return n; });
 
+  const pieData = cats.map(([name, { total }]) => ({ name, value: total }));
+
+  const renderCustomLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent }) => {
+    if (percent < 0.04) return null;
+    const RADIAN = Math.PI / 180;
+    const r = innerRadius + (outerRadius - innerRadius) * 0.55;
+    return (
+      <text x={cx + r * Math.cos(-midAngle * RADIAN)} y={cy + r * Math.sin(-midAngle * RADIAN)}
+        fill="white" textAnchor="middle" dominantBaseline="central" fontSize={11} fontWeight="bold">
+        {`${(percent * 100).toFixed(0)}%`}
+      </text>
+    );
+  };
+
   return (
     <div className="card overflow-hidden">
       <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
         <h3 className="section-title mb-0">Σύνολο ανά Κατηγορία</h3>
         <span className="text-sm font-bold text-rose-600">{fmt(grandTotal)}</span>
       </div>
-      <div className="divide-y divide-slate-50">
-        {cats.map(([cat, { total, suppliers }]) => {
-          const pct = grandTotal > 0 ? (total / grandTotal) * 100 : 0;
-          const isOpen = expanded.has(cat);
-          return (
-            <div key={cat}>
-              <button className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-slate-50 transition-colors text-left group"
-                onClick={() => toggle(cat)}>
-                <div className="flex-1 flex items-center gap-3">
-                  <span className="text-sm font-medium text-slate-700">{cat}</span>
-                  <div className="flex-1 h-1.5 rounded-full bg-slate-100 overflow-hidden max-w-[120px]">
-                    <div className="h-full rounded-full bg-rose-400 transition-all" style={{ width: `${pct}%` }} />
+      <div className="flex">
+        <div className="flex-1 min-w-0 divide-y divide-slate-50">
+          {cats.map(([cat, { total, suppliers }], idx) => {
+            const pct = grandTotal > 0 ? (total / grandTotal) * 100 : 0;
+            const isOpen = expanded.has(cat);
+            return (
+              <div key={cat}>
+                <button className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-slate-50 transition-colors text-left group"
+                  onClick={() => toggle(cat)}>
+                  <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: PIE_COLORS[idx % PIE_COLORS.length] }} />
+                  <div className="flex-1 flex items-center gap-2 min-w-0">
+                    <span className="text-sm font-medium text-slate-700 truncate">{cat}</span>
                   </div>
-                </div>
-                <span className="text-xs text-slate-400">{pct.toFixed(0)}%</span>
-                <span className="text-sm font-bold text-rose-600 w-24 text-right">{fmt(total)}</span>
-                <svg viewBox="0 0 16 16" fill="currentColor" className={`w-3.5 h-3.5 text-slate-400 transition-transform shrink-0 ${isOpen ? 'rotate-90' : ''}`}>
-                  <path fillRule="evenodd" d="M6.22 4.22a.75.75 0 0 1 1.06 0l3.25 3.25a.75.75 0 0 1 0 1.06l-3.25 3.25a.75.75 0 0 1-1.06-1.06L9.19 8 6.22 5.28a.75.75 0 0 1 0-1.06Z" clipRule="evenodd"/>
-                </svg>
-              </button>
-              {isOpen && (
-                <div className="bg-slate-50 border-t border-slate-100">
-                  {Object.entries(suppliers).sort((a, b) => b[1] - a[1]).map(([sup, amt]) => (
-                    <div key={sup} className="flex items-center justify-between px-8 py-1.5">
-                      <span className="text-xs text-slate-500">{sup}</span>
-                      <span className="text-xs font-semibold text-slate-700">{fmt(amt)}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          );
-        })}
+                  <span className="text-xs text-slate-400 shrink-0">{pct.toFixed(0)}%</span>
+                  <span className="text-sm font-bold text-rose-600 w-24 text-right shrink-0">{fmt(total)}</span>
+                  <svg viewBox="0 0 16 16" fill="currentColor" className={`w-3.5 h-3.5 text-slate-400 transition-transform shrink-0 ${isOpen ? 'rotate-90' : ''}`}>
+                    <path fillRule="evenodd" d="M6.22 4.22a.75.75 0 0 1 1.06 0l3.25 3.25a.75.75 0 0 1 0 1.06l-3.25 3.25a.75.75 0 0 1-1.06-1.06L9.19 8 6.22 5.28a.75.75 0 0 1 0-1.06Z" clipRule="evenodd"/>
+                  </svg>
+                </button>
+                {isOpen && (
+                  <div className="bg-slate-50 border-t border-slate-100">
+                    {Object.entries(suppliers).sort((a, b) => b[1] - a[1]).map(([sup, amt]) => (
+                      <div key={sup} className="flex items-center justify-between px-8 py-1.5">
+                        <span className="text-xs text-slate-500">{sup}</span>
+                        <span className="text-xs font-semibold text-slate-700">{fmt(amt)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+        <div className="w-64 shrink-0 flex items-center justify-center p-4 border-l border-slate-100">
+          <ResponsiveContainer width="100%" height={220}>
+            <PieChart>
+              <Pie data={pieData} cx="50%" cy="50%" outerRadius={95} dataKey="value"
+                labelLine={false} label={renderCustomLabel}>
+                {pieData.map((_, idx) => (
+                  <Cell key={idx} fill={PIE_COLORS[idx % PIE_COLORS.length]} />
+                ))}
+              </Pie>
+              <Tooltip formatter={(v, name) => [fmt(v), name]} />
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
       </div>
     </div>
   );

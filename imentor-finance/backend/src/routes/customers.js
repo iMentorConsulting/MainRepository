@@ -25,7 +25,7 @@ async function aadeSearchAfm(vat, orgKey) {
     'https://www1.gsis.gr/wsaade/RgWsPublic2/RgWsPublic2',
     soapBody,
     {
-      headers: { 'Content-Type': 'text/xml;charset=UTF-8', 'SOAPAction': '""' },
+      headers: { 'Content-Type': 'text/xml', 'SOAPAction': '""' },
       auth: { username, password },
       timeout: 10000
     }
