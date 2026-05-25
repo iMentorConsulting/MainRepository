@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func as sa_func
 from pydantic import BaseModel
 from typing import Optional, List
-from database import get_db
+from database import get_db, fmt_dt
 from models_cases import CMCase, CMTask, CMUser, CMWorkList
 from auth_cases import get_current_user
 
@@ -37,7 +37,7 @@ def _wl_to_dict(wl: CMWorkList) -> dict:
         "min_days_in_status": wl.min_days_in_status,
         "max_days_in_status": wl.max_days_in_status,
         "sort_order": wl.sort_order,
-        "created_at": wl.created_at.isoformat() if wl.created_at else None,
+        "created_at": fmt_dt(wl.created_at),
     }
 
 
@@ -58,7 +58,7 @@ def _case_summary(c: CMCase, days: int) -> dict:
         "program_category": c.program_category,
         "status": c.status,
         "days_in_status": days,
-        "status_changed_at": c.status_changed_at.isoformat() if c.status_changed_at else None,
+        "status_changed_at": fmt_dt(c.status_changed_at),
         "assigned_name": c.assigned_agent.full_name if c.assigned_agent else None,
         "total_paid": c.total_paid or 0,
         "agreed_fee_application": c.agreed_fee_application or 0,
@@ -204,6 +204,6 @@ def get_all_tasks(
             "assigned_name": t.assigned_user.full_name if t.assigned_user else None,
             "due_date": t.due_date.isoformat() if t.due_date else None,
             "notes": t.notes,
-            "created_at": t.created_at.isoformat() if t.created_at else None,
+            "created_at": fmt_dt(t.created_at),
         })
     return result

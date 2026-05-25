@@ -54,7 +54,7 @@ function fmtDateTime(isoStr) {
   if (!isoStr) return ''
   try {
     const d = new Date(isoStr)
-    return d.toLocaleString('el-GR', { dateStyle: 'long', timeStyle: 'short' })
+    return d.toLocaleString('el-GR', { dateStyle: 'long', timeStyle: 'short', timeZone: 'Europe/Athens' })
   } catch {
     return isoStr
   }
