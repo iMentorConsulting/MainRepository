@@ -18,6 +18,7 @@ export default function IncomeForm({ record, onSave, onCancel }) {
   const [descTemplates, setDescTemplates] = useState([]);
   const [customerLinked, setCustomerLinked] = useState(false);
   const [autoTargeting, setAutoTargeting] = useState(true);
+  const [afmLoading, setAfmLoading] = useState(false);
 
   // Agreement state
   const [customerAgreements, setCustomerAgreements] = useState([]);
@@ -72,6 +73,24 @@ export default function IncomeForm({ record, onSave, onCancel }) {
       .catch(() => setCustomerAgreements([]))
       .finally(() => setLoadingAgreements(false));
   }, [customerName]);
+
+  const handleAadeSearch = async () => {
+    const vat = watch('vat_number')?.trim();
+    if (!vat || !/^\d{9}$/.test(vat)) { toast.error('Συμπληρώστε ΑΦΜ 9 ψηφίων'); return; }
+    setAfmLoading(true);
+    try {
+      const r = await api.get(`/customers/search-afm?vat=${vat}`);
+      const d = r.data;
+      if (d.error) { toast.error(d.error); return; }
+      if (d.name) setValue('customer_name', d.name);
+      if (d.address) setValue('address', d.address);
+      if (d.city) setValue('city', d.city);
+      if (d.postal_code) setValue('postal_code', d.postal_code);
+      if (d.activity) setValue('business_activity', d.activity);
+      toast.success('Στοιχεία ΑΑΔΕ συμπληρώθηκαν');
+    } catch (e) { toast.error(e.response?.data?.error || 'Σφάλμα ΑΑΔΕ'); }
+    finally { setAfmLoading(false); }
+  };
 
   const handleCustomerSelect = c => {
     if (!c) {
@@ -174,7 +193,20 @@ export default function IncomeForm({ record, onSave, onCancel }) {
           <F label="Πόλη / Περιφέρεια" name="city" />
           <F label="Τ.Κ." name="postal_code" />
           <F label="Διεύθυνση" name="address" />
-          <F label="ΑΦΜ" name="vat_number" />
+          <div>
+            <label className="label">ΑΦΜ</label>
+            <div className="flex gap-2">
+              <input type="text" className="input flex-1" {...register('vat_number')} placeholder="9 ψηφία" />
+              <button
+                type="button"
+                onClick={handleAadeSearch}
+                disabled={afmLoading}
+                className="btn-secondary text-xs px-3 whitespace-nowrap"
+              >
+                {afmLoading ? '...' : '🔍 ΑΑΔΕ'}
+              </button>
+            </div>
+          </div>
           <F label="Αντικείμενο" name="business_activity" />
           <F label="Λογιστής" name="accountant" />
           <F label="Email Λογιστή" name="accountant_email" type="email" />

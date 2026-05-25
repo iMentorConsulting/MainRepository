@@ -2,6 +2,7 @@ const router = require('express').Router();
 const https = require('https');
 const axios = require('axios');
 const Income = require('../models/Income');
+const { sendViaGmailApi } = require('../utils/gmail');
 
 function xmlEscape(s) {
   return (s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c]));
@@ -266,19 +267,24 @@ router.post('/create-draft', async (req, res) => {
   } catch (e) { res.status(500).json({ error: errMsg(e) }); }
 });
 
+async function fetchInvoicePdf(orgKey, invoiceId) {
+  const r = await api(orgKey).get(`invoices/${invoiceId}/pdf/`, { responseType: 'arraybuffer' });
+  return Buffer.from(r.data);
+}
+
 router.post('/send-to-self', async (req, res) => {
   try {
     const { income_id, org_key = 'DEFAULT' } = req.body;
     const income = await Income.findByPk(income_id);
     if (!income?.elorus_invoice_id) return res.status(400).json({ error: 'Δεν υπάρχει draft τιμολόγιο' });
     const selfEmail = process.env.SMTP_USER || process.env.GMAIL_USER;
-    try {
-      await api(org_key).post(`invoices/${income.elorus_invoice_id}/mail/`, {
-        recipients: [selfEmail],
-        subject: `[Draft] ΤΠΥ - ${income.customer_name}`,
-        message: 'Draft για έλεγχο πριν την οριστική έκδοση.',
-      });
-    } catch (mailErr) { console.warn('Elorus send-to-self mail:', mailErr.message); }
+    const pdfBuffer = await fetchInvoicePdf(org_key, income.elorus_invoice_id);
+    await sendViaGmailApi(
+      selfEmail, selfEmail, null,
+      `[Draft] ΤΠΥ - ${income.customer_name}`,
+      `<p>Draft τιμολόγιο για <strong>${income.customer_name}</strong>.<br>Ελέγξτε το συνημμένο PDF πριν την οριστική έκδοση.</p>`,
+      [{ filename: `draft-${income.elorus_invoice_id}.pdf`, content: pdfBuffer, mimeType: 'application/pdf' }]
+    );
     res.json({ success: true, sent_to: selfEmail });
   } catch (e) { res.status(500).json({ error: errMsg(e) }); }
 });
@@ -293,15 +299,18 @@ router.post('/finalize-and-send', async (req, res) => {
     await a.patch(`invoices/${income.elorus_invoice_id}/`, { draft: false });
     const inv = (await a.get(`invoices/${income.elorus_invoice_id}/`)).data;
     const invoiceNumber = `Νο.${inv.number} / ${inv.date}`;
+    const fromAddr = process.env.SMTP_USER || process.env.GMAIL_USER;
+    const pdfBuffer = await fetchInvoicePdf(org_key, income.elorus_invoice_id);
     const recipients = [...new Set([income.email, income.accountant_email].filter(Boolean))];
-    if (recipients.length) {
+    for (const to of recipients) {
       try {
-        await a.post(`invoices/${income.elorus_invoice_id}/mail/`, {
-          recipients,
-          subject: `Τιμολόγιο Νο.${inv.number}`,
-          message: 'Σας αποστέλλουμε το τιμολόγιο παροχής υπηρεσιών.',
-        });
-      } catch (mailErr) { console.warn('Elorus finalize mail:', mailErr.message); }
+        await sendViaGmailApi(
+          fromAddr, to, fromAddr,
+          `Τιμολόγιο Νο.${inv.number} – i-Mentor`,
+          `<p>Αγαπητέ/ή ${income.customer_name},</p><p>Σας αποστέλλουμε το τιμολόγιο παροχής υπηρεσιών σε μορφή PDF.</p><p>Με εκτίμηση,<br>i-Mentor</p>`,
+          [{ filename: `invoice-${inv.number}.pdf`, content: pdfBuffer, mimeType: 'application/pdf' }]
+        );
+      } catch (mailErr) { console.warn(`finalize-and-send mail to ${to}:`, mailErr.message); }
     }
     await income.update({ invoice_number: invoiceNumber });
     res.json({ success: true, invoice_number: invoiceNumber, invoice: inv });

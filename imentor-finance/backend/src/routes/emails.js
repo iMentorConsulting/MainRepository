@@ -1,98 +1,8 @@
 const router = require('express').Router();
-const crypto = require('crypto');
-const https = require('https');
 const { Op } = require('sequelize');
 const Income = require('../models/Income');
 const CommissionLog = require('../models/CommissionLog');
-
-async function getGmailAccessToken(impersonateEmail) {
-  const saJson = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON || '{}');
-  const { client_email, private_key } = saJson;
-  if (!client_email || !private_key) throw new Error('GOOGLE_SERVICE_ACCOUNT_JSON is not set or invalid in Railway');
-
-  const now = Math.floor(Date.now() / 1000);
-  const header = Buffer.from(JSON.stringify({ alg: 'RS256', typ: 'JWT' })).toString('base64url');
-  const payload = Buffer.from(JSON.stringify({
-    iss: client_email,
-    sub: impersonateEmail,
-    scope: 'https://www.googleapis.com/auth/gmail.send',
-    aud: 'https://oauth2.googleapis.com/token',
-    iat: now,
-    exp: now + 3600,
-  })).toString('base64url');
-
-  const toSign = `${header}.${payload}`;
-  const sign = crypto.createSign('RSA-SHA256');
-  sign.update(toSign);
-  const signature = sign.sign(private_key, 'base64url');
-  const jwt = `${toSign}.${signature}`;
-
-  const body = `grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer&assertion=${jwt}`;
-  return new Promise((resolve, reject) => {
-    const req = https.request({
-      hostname: 'oauth2.googleapis.com',
-      path: '/token',
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Content-Length': Buffer.byteLength(body) },
-    }, res => {
-      const chunks = [];
-      res.on('data', c => chunks.push(c));
-      res.on('end', () => {
-        const data = JSON.parse(Buffer.concat(chunks).toString());
-        if (data.access_token) resolve(data.access_token);
-        else reject(new Error(`Gmail token error: ${JSON.stringify(data)}`));
-      });
-    });
-    req.on('error', reject);
-    req.end(body);
-  });
-}
-
-async function sendViaGmailApi(fromAddr, to, bcc, subject, html) {
-  const accessToken = await getGmailAccessToken(fromAddr);
-  const boundary = `boundary_${Date.now()}`;
-  const encodedSubject = `=?UTF-8?B?${Buffer.from(subject).toString('base64')}?=`;
-  const mime = [
-    `From: i-Mentor <${fromAddr}>`,
-    `To: ${to}`,
-    ...(bcc ? [`Bcc: ${bcc}`] : []),
-    `Subject: ${encodedSubject}`,
-    'MIME-Version: 1.0',
-    `Content-Type: multipart/alternative; boundary="${boundary}"`,
-    '',
-    `--${boundary}`,
-    'Content-Type: text/html; charset=UTF-8',
-    'Content-Transfer-Encoding: base64',
-    '',
-    Buffer.from(html).toString('base64'),
-    `--${boundary}--`,
-  ].join('\r\n');
-
-  const raw = Buffer.from(mime).toString('base64url');
-  const body = JSON.stringify({ raw });
-  return new Promise((resolve, reject) => {
-    const req = https.request({
-      hostname: 'gmail.googleapis.com',
-      path: '/gmail/v1/users/me/messages/send',
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-        'Content-Length': Buffer.byteLength(body),
-      },
-    }, res => {
-      const chunks = [];
-      res.on('data', c => chunks.push(c));
-      res.on('end', () => {
-        const data = JSON.parse(Buffer.concat(chunks).toString());
-        if (res.statusCode >= 200 && res.statusCode < 300) resolve(data);
-        else reject(new Error(`Gmail API ${res.statusCode}: ${JSON.stringify(data)}`));
-      });
-    });
-    req.on('error', reject);
-    req.end(body);
-  });
-}
+const { sendViaGmailApi } = require('../utils/gmail');
 
 function formatDate(d) {
   if (!d) return '';
@@ -146,7 +56,7 @@ router.post('/preview', async (req, res) => {
 
     const emails = Object.values(grouped).map(({ accountant, email, rows }) => ({
       accountant, email,
-      subject: `Ενημέρωση Νέων Εισπράξεων – i-Mentor`,
+      subject: `📬 Κατάσταση Πελατών Λογιστή: ${accountant} – i-Mentor (${new Date().toLocaleDateString('el-GR', { day: '2-digit', month: '2-digit', year: 'numeric' })})`,
       html: buildEmailHtml(accountant, rows)
     }));
 
@@ -178,7 +88,7 @@ router.post('/send', async (req, res) => {
       if (!email) { results.push({ accountant, status: 'skipped', reason: 'Δεν υπάρχει email λογιστή' }); continue; }
 
       try {
-        await sendViaGmailApi(fromAddr, email, fromAddr, `Ενημέρωση Νέων Εισπράξεων – i-Mentor`, buildEmailHtml(accountant, rows));
+        await sendViaGmailApi(fromAddr, email, fromAddr, `📬 Κατάσταση Πελατών Λογιστή: ${accountant} – i-Mentor (${new Date().toLocaleDateString('el-GR', { day: '2-digit', month: '2-digit', year: 'numeric' })})`, buildEmailHtml(accountant, rows));
 
         await Income.update(
           { accountant_notified: true, accountant_notified_at: new Date() },
