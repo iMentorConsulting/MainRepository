@@ -56,7 +56,7 @@ router.get('/monthly', async (req, res) => {
       SELECT TO_CHAR(sale_date, 'MM') as month,
              SUM(amount_collected) as income,
              COUNT(*) as count
-      FROM income
+      FROM incomes
       WHERE sale_date BETWEEN :start AND :end
         AND amount_collected IS NOT NULL
       GROUP BY month ORDER BY month
@@ -169,7 +169,7 @@ router.get('/bonus', async (req, res) => {
         SUM(bonus) as bonus,
         SUM(amount_application) as amount_application,
         COUNT(*) as count
-      FROM income
+      FROM incomes
       WHERE sale_date BETWEEN :start AND :end
         AND sales_agent IS NOT NULL
       GROUP BY sales_agent, month
@@ -244,7 +244,7 @@ router.get('/by-customer', async (req, res) => {
         COALESCE(SUM(amount_collected), 0) as income,
         COUNT(*) as count,
         STRING_AGG(DISTINCT service_type, ', ' ORDER BY service_type) as services
-      FROM income
+      FROM incomes
       WHERE ${dateCondition}
       GROUP BY customer_name, vat_number
       HAVING COALESCE(SUM(amount_collected), 0) > 0

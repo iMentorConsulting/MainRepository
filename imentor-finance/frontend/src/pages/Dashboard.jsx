@@ -150,7 +150,7 @@ export default function Dashboard() {
       api.get(`/reports/by-agent?${buildParams('')}`)
     ]).then(([s, m, sv, ag]) => {
       setSummary(s.data);
-      setMonthly(m.data.map(d => ({ ...d, name: d.month_name.slice(0, 3) })));
+      setMonthly(m.data.map(d => ({ ...d, month: parseInt(d.month, 10), name: d.month_name?.slice(0, 3) || '' })));
       setByService(sv.data.slice(0, 7));
       setByAgent(ag.data.slice(0, 6));
     });

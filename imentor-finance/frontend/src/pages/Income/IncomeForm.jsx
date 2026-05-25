@@ -184,12 +184,12 @@ export default function IncomeForm({ record, onSave, onCancel }) {
       <div>
         <SectionTitle>Οικονομικά Στοιχεία</SectionTitle>
         <div className="grid grid-cols-2 gap-4">
-          <F label="Ποσό Αίτησης (€)" name="amount_application" type="number" />
-          <F label="Ποσό Υλοποίησης (€)" name="amount_implementation" type="number" />
-          <F label="Ύψος Επένδυσης (€)" name="investment_height" type="number" />
-          <F label="Σύνολο Οφειλών (€)" name="total_debts" type="number" />
-          <F label="Ποσό Είσπραξης (€)" name="amount_collected" type="number" required />
-          <F label="ΦΠΑ (€)" name="vat_amount" type="number" />
+          <F label="Ποσό Αίτησης (€)" name="amount_application" type="number" extra={{ step: '0.01' }} />
+          <F label="Ποσό Υλοποίησης (€)" name="amount_implementation" type="number" extra={{ step: '0.01' }} />
+          <F label="Ύψος Επένδυσης (€)" name="investment_height" type="number" extra={{ step: '0.01' }} />
+          <F label="Σύνολο Οφειλών (€)" name="total_debts" type="number" extra={{ step: '0.01' }} />
+          <F label="Ποσό Είσπραξης (€)" name="amount_collected" type="number" required extra={{ step: '0.01' }} />
+          <F label="ΦΠΑ (€)" name="vat_amount" type="number" extra={{ step: '0.01' }} />
           <div>
             <label className="label">Κατηγορία Στοχοθεσίας</label>
             <select className="input" {...register('targeting_category')} onChange={e => { setAutoTargeting(false); setValue('targeting_category', e.target.value); }}>

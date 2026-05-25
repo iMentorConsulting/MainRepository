@@ -160,7 +160,7 @@ export default function CustomersPage() {
         setCustomers(data);
         setTotalPages(1);
       } else {
-        setCustomers(data.customers || data.rows || []);
+        setCustomers(data.data || data.customers || data.rows || []);
         setTotalPages(data.pages || data.totalPages || 1);
       }
     } catch (e) {
