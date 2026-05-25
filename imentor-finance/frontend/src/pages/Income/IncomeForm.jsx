@@ -46,10 +46,6 @@ export default function IncomeForm({ record, onSave, onCancel }) {
     if (amountApp) setValue('bonus', (parseFloat(amountApp) * 0.05).toFixed(2));
   }, [amountApp]);
 
-  const amountCollected = watch('amount_collected');
-  useEffect(() => {
-    if (amountCollected) setValue('vat_amount', (parseFloat(amountCollected) * 0.24).toFixed(2));
-  }, [amountCollected]);
 
   const amountImpl = watch('amount_implementation');
   useEffect(() => {
@@ -220,7 +216,17 @@ export default function IncomeForm({ record, onSave, onCancel }) {
           <F label="Ποσό Υλοποίησης (€)" name="amount_implementation" type="number" extra={{ step: '0.01' }} />
           <F label="Ύψος Επένδυσης (€)" name="investment_height" type="number" extra={{ step: '0.01' }} />
           <F label="Σύνολο Οφειλών (€)" name="total_debts" type="number" extra={{ step: '0.01' }} />
-          <F label="Ποσό Είσπραξης (€)" name="amount_collected" type="number" required extra={{ step: '0.01' }} />
+          <div>
+            <label className="label">Ποσό Είσπραξης (€)<span className="text-rose-500 ml-1">*</span></label>
+            <input type="number" step="0.01" className="input" required
+              {...register('amount_collected', {
+                onChange: e => {
+                  const v = parseFloat(e.target.value);
+                  if (!isNaN(v) && v > 0) setValue('vat_amount', (v * 0.24).toFixed(2));
+                }
+              })}
+            />
+          </div>
           <F label="ΦΠΑ (€)" name="vat_amount" type="number" extra={{ step: '0.01' }} />
           <div>
             <label className="label">Κατηγορία Στοχοθεσίας</label>
