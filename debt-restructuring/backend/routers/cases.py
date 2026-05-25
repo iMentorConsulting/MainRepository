@@ -123,27 +123,39 @@ def _chatwoot_send(client_name: str, phone: str, message: str) -> tuple[bool, st
             print(f"[Chatwoot] create_contact status={r.status_code} body={r.text[:300]}")
             if r.status_code in (200, 201):
                 contact_id = r.json().get("id")
-            elif r.status_code == 422:
-                # Contact already exists (duplicate phone) — search again to get the id
-                print(f"[Chatwoot] 422 on create (contact exists), retrying search...")
-                r2 = http_requests.get(
-                    f"{base}/contacts/search",
-                    params={"q": phone, "include_contacts": "true"},
-                    headers=headers, timeout=8,
-                )
-                if r2.status_code == 200:
-                    payload = r2.json().get("payload", [])
-                    contacts = payload if isinstance(payload, list) else payload.get("contacts", [])
-                    if contacts:
-                        contact_id = contacts[0]["id"]
-                        print(f"[Chatwoot] found contact on retry id={contact_id}")
             else:
-                return False, f"create_contact HTTP {r.status_code}: {r.text[:200]}"
+                # Some Chatwoot versions embed the existing contact in the error body
+                try:
+                    body = r.json()
+                    contact_id = (
+                        body.get("id") or
+                        body.get("data", {}).get("id") or
+                        (body.get("errors", [{}])[0] if isinstance(body.get("errors"), list) else {}).get("id")
+                    ) or None
+                except Exception:
+                    pass
+                # If still not found, retry search — contact likely already exists
+                if not contact_id:
+                    print(f"[Chatwoot] create failed ({r.status_code}), retrying search...")
+                    try:
+                        r2 = http_requests.get(
+                            f"{base}/contacts/search",
+                            params={"q": phone, "include_contacts": "true"},
+                            headers=headers, timeout=8,
+                        )
+                        if r2.status_code == 200:
+                            payload = r2.json().get("payload", [])
+                            contacts = payload if isinstance(payload, list) else payload.get("contacts", [])
+                            if contacts:
+                                contact_id = contacts[0]["id"]
+                                print(f"[Chatwoot] found contact on retry id={contact_id}")
+                    except Exception as e2:
+                        print(f"[Chatwoot] retry search exception: {e2}")
         except Exception as e:
             return False, f"create_contact exception: {e}"
 
     if not contact_id:
-        return False, "Αδυναμία δημιουργίας/εύρεσης contact"
+        return False, f"Αδυναμία δημιουργίας/εύρεσης contact για αριθμό {phone}"
 
     # 3. Create new conversation
     conv_id = None
