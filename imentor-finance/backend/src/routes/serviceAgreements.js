@@ -48,7 +48,7 @@ router.get('/stats', async (req, res) => {
 
 router.get('/', async (req, res) => {
   try {
-    const { status, customer_id, customer_name, search, sales_agent, service_type, limit = 50, offset = 0, page } = req.query;
+    const { status, customer_id, customer_name, search, sales_agent, service_type, limit = 50, offset = 0, page, sort_field, sort_dir } = req.query;
     const actualOffset = page ? (parseInt(page) - 1) * parseInt(limit) : parseInt(offset);
     const where = {};
     if (status) where.status = status;
@@ -60,9 +60,12 @@ router.get('/', async (req, res) => {
       { customer_name: { [Op.iLike]: `%${search}%` } },
       { service_type: { [Op.iLike]: `%${search}%` } }
     ];
+    const ALLOWED_SORT = ['customer_name', 'service_type', 'status', 'amount_application', 'amount_implementation', 'approval_date', 'createdAt', 'sales_agent'];
+    const sf = ALLOWED_SORT.includes(sort_field) ? sort_field : 'createdAt';
+    const sd = (sort_dir || '').toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
     const { count, rows } = await ServiceAgreement.findAndCountAll({
       where, limit: parseInt(limit), offset: actualOffset,
-      order: [['createdAt', 'DESC']]
+      order: [[sf, sd]]
     });
 
     // Enrich agreements with collected income; non-fatal if it fails
@@ -72,6 +75,7 @@ router.get('/', async (req, res) => {
       // Primary: match by service_agreement_id (for income records properly linked)
       const byId = await sequelize.query(`
         SELECT service_agreement_id,
+               MIN(sale_date) AS first_sale_date,
                COALESCE(SUM(amount_collected), 0) AS total_collected,
                COUNT(*) AS payment_count
         FROM income
@@ -81,7 +85,8 @@ router.get('/', async (req, res) => {
       for (const row of byId) {
         idMap.set(Number(row.service_agreement_id), {
           total: parseFloat(row.total_collected || 0),
-          count: parseInt(row.payment_count || 0)
+          count: parseInt(row.payment_count || 0),
+          first_sale_date: row.first_sale_date || null
         });
       }
       // Fallback: match by (customer_name + service_type) for imported data without agreement link
@@ -107,8 +112,8 @@ router.get('/', async (req, res) => {
       const byIdMatch = idMap.get(sa.id);
       const nameKey = `${(sa.customer_name || '').toLowerCase().trim()}|${(sa.service_type || '').toLowerCase().trim()}`;
       const byNameMatch = nameMap.get(nameKey);
-      const inc = byIdMatch || byNameMatch || { total: 0, count: 0 };
-      return { ...sa.toJSON(), income_collected: inc.total, income_payment_count: inc.count };
+      const inc = byIdMatch || byNameMatch || { total: 0, count: 0, first_sale_date: null };
+      return { ...sa.toJSON(), income_collected: inc.total, income_payment_count: inc.count, first_sale_date: inc.first_sale_date };
     });
 
     res.json({ data: enriched, total: count });

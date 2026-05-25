@@ -117,7 +117,11 @@ export default function EmailsPage() {
     else if (selectedMonths.length > 1) params.months = selectedMonths.join(',');
     if (dateFrom) params.date_from = dateFrom;
     if (dateTo) params.date_to = dateTo;
-    if (isAccountantFiltered) params.accountant_email = selectedAccountants[0];
+    if (isAccountantFiltered) {
+      const key = selectedAccountants[0];
+      if (key.includes('@')) params.accountant_email = key;
+      else params.accountant = key;
+    }
     api.get('/income', { params }).then(r => setData(r.data));
   }, [selectedYears, selectedMonths, selectedAccountants, page, sort, dateFrom, dateTo]);
 

@@ -39,7 +39,8 @@ router.post('/preview', async (req, res) => {
     const grouped = {};
     for (const r of records) {
       const key = r.accountant || 'ΧΩΡΙΣ ΛΟΓΙΣΤΗ';
-      if (!grouped[key]) grouped[key] = { accountant: key, email: r.accountant_email || '', rows: [] };
+      if (!grouped[key]) grouped[key] = { accountant: key, email: '', rows: [] };
+      if (!grouped[key].email && r.accountant_email) grouped[key].email = r.accountant_email;
       grouped[key].rows.push(r);
     }
 
@@ -64,7 +65,8 @@ router.post('/send', async (req, res) => {
     const grouped = {};
     for (const r of records) {
       const key = r.accountant || 'ΧΩΡΙΣ ΛΟΓΙΣΤΗ';
-      if (!grouped[key]) grouped[key] = { accountant: key, email: r.accountant_email || '', rows: [] };
+      if (!grouped[key]) grouped[key] = { accountant: key, email: '', rows: [] };
+      if (!grouped[key].email && r.accountant_email) grouped[key].email = r.accountant_email;
       grouped[key].rows.push(r);
     }
 
@@ -321,19 +323,23 @@ router.get('/logs', async (req, res) => {
 
 router.get('/accountants', async (req, res) => {
   try {
-    const { Op } = require('sequelize');
-    const Income = require('../models/Income');
+    const sequelize = require('../config/db');
+    const { QueryTypes } = require('sequelize');
     const { year } = req.query;
-    const where = { accountant: { [Op.and]: [{ [Op.ne]: null }, { [Op.ne]: '' }] } };
-    if (year) where.sale_date = { [Op.between]: [`${year}-01-01`, `${year}-12-31`] };
-    const rows = await Income.findAll({
-      attributes: ['accountant', 'accountant_email'],
-      where,
-      group: ['accountant', 'accountant_email'],
-      order: [['accountant', 'ASC']],
-      raw: true
-    });
-    res.json(rows);
+    const yearClause = year
+      ? `AND sale_date BETWEEN '${year}-01-01' AND '${year}-12-31'`
+      : '';
+    const rows = await sequelize.query(`
+      SELECT
+        accountant,
+        MAX(accountant_email) AS accountant_email,
+        COUNT(*) AS count
+      FROM income
+      WHERE accountant IS NOT NULL AND accountant != '' ${yearClause}
+      GROUP BY accountant
+      ORDER BY accountant ASC
+    `, { type: QueryTypes.SELECT });
+    res.json(rows.map(r => ({ ...r, count: parseInt(r.count || 0) })));
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 

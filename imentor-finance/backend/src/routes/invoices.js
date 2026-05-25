@@ -20,12 +20,17 @@ async function aadeSearchAfm(vat, orgKey) {
     </soapenv:Body>
   </soapenv:Envelope>`;
 
+  const credentials = Buffer.from(`${username}:${password}`).toString('base64');
   const r = await axios.post(
     'https://www1.gsis.gr/wsaade/RgWsPublic2/RgWsPublic2',
     soapBody,
     {
-      headers: { 'Content-Type': 'text/xml', 'SOAPAction': '""' },
-      auth: { username, password },
+      headers: {
+        'Content-Type': 'text/xml;charset=UTF-8',
+        'SOAPAction': '""',
+        'Authorization': `Basic ${credentials}`,
+        'Accept': 'text/xml',
+      },
       timeout: 10000
     }
   );
@@ -93,13 +98,38 @@ async function findOrCreateContact(orgKey, income) {
   return c.data.id;
 }
 
-function lines(net, desc, serviceType) {
+const vatTaxRateCache = {};
+
+async function getVatTaxRateId(orgKey) {
+  if (vatTaxRateCache[orgKey]) return vatTaxRateCache[orgKey];
+  try {
+    const r = await api(orgKey).get('taxratecategories/?active=true');
+    const results = r.data.results || [];
+    const vat24 = results.find(t =>
+      parseFloat(t.percent || 0) === 24 ||
+      String(t.percent || '') === '24.00' ||
+      (t.title || '').includes('24')
+    );
+    if (vat24?.id) {
+      vatTaxRateCache[orgKey] = vat24.id;
+      return vat24.id;
+    }
+  } catch (e) {
+    console.warn('Could not fetch Elorus tax rates:', e.message);
+  }
+  return null;
+}
+
+function lines(net, desc, serviceType, taxRateId) {
+  const taxes = taxRateId
+    ? [{ taxrate: taxRateId }]
+    : [{ percent: '24.00', title: 'ΦΠΑ 24%' }];
   return [{
     title: desc || serviceType || 'Παροχή Υπηρεσιών',
     quantity: '1.00',
     unit_value: net.toFixed(2),
-    vat_rate: '24.00',
     discount: '0.00',
+    taxes,
   }];
 }
 
@@ -131,14 +161,14 @@ router.post('/create-draft', async (req, res) => {
     if (!income) return res.status(404).json({ error: 'Εγγραφή δεν βρέθηκε' });
     const a = api(org_key);
     const net = parseFloat(amount);
-    const contactId = await findOrCreateContact(org_key, income);
+    const [taxRateId, contactId] = await Promise.all([getVatTaxRateId(org_key), findOrCreateContact(org_key, income)]);
     const body = {
       client: contactId,
       date: date || new Date().toISOString().split('T')[0],
       document_type: parseInt(document_type) || 1,
       mydata_document_type: req.body.mydata_document_type || '2.1',
       draft: true,
-      items: lines(net, description, income.service_type),
+      items: lines(net, description, income.service_type, taxRateId),
       ...(withholding(net, org_key).length ? { extra_fees: withholding(net, org_key) } : {}),
     };
     const r = await a.post('invoices/', body);
@@ -191,13 +221,13 @@ router.post('/one-shot', async (req, res) => {
     const a = api(org_key);
     const net = parseFloat(amount);
     const iDate = date || new Date().toISOString().split('T')[0];
-    const contactId = await findOrCreateContact(org_key, income);
+    const [taxRateId, contactId] = await Promise.all([getVatTaxRateId(org_key), findOrCreateContact(org_key, income)]);
     const body = {
       client: contactId,
       date: iDate,
       document_type: parseInt(document_type) || 1,
       mydata_document_type: req.body.mydata_document_type || '2.1',
-      items: lines(net, description, income.service_type),
+      items: lines(net, description, income.service_type, taxRateId),
       ...(withholding(net, org_key).length ? { extra_fees: withholding(net, org_key) } : {}),
     };
     const cr = await a.post('invoices/', body);

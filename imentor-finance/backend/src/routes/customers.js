@@ -21,12 +21,17 @@ async function aadeSearchAfm(vat, orgKey) {
     </soapenv:Body>
   </soapenv:Envelope>`;
 
+  const credentials = Buffer.from(`${username}:${password}`).toString('base64');
   const r = await axios.post(
     'https://www1.gsis.gr/wsaade/RgWsPublic2/RgWsPublic2',
     soapBody,
     {
-      headers: { 'Content-Type': 'text/xml', 'SOAPAction': '""' },
-      auth: { username, password },
+      headers: {
+        'Content-Type': 'text/xml;charset=UTF-8',
+        'SOAPAction': '""',
+        'Authorization': `Basic ${credentials}`,
+        'Accept': 'text/xml',
+      },
       timeout: 10000
     }
   );

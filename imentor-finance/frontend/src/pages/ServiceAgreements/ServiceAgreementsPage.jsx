@@ -165,22 +165,43 @@ function SAForm({ record, onSave, onCancel }) {
   );
 }
 
+function SortTh({ label, field, sort, onSort, className = '' }) {
+  const active = sort.field === field;
+  return (
+    <th className={`th cursor-pointer select-none group ${className}`} onClick={() => onSort(field)}>
+      <div className="flex items-center gap-1">
+        {label}
+        <span className={`text-[10px] transition-opacity ${active ? 'opacity-100' : 'opacity-0 group-hover:opacity-40'}`}>
+          {active && sort.dir === 'ASC' ? '↑' : '↓'}
+        </span>
+      </div>
+    </th>
+  );
+}
+
 export default function ServiceAgreementsPage() {
   const [data, setData] = useState({ data: [], total: 0 });
   const [filters, setFilters] = useState({ search: '', status: '', sales_agent: '', service_type: '' });
+  const [sort, setSort] = useState({ field: 'createdAt', dir: 'DESC' });
   const [modal, setModal] = useState({ open: false, record: null });
   const [deleteId, setDeleteId] = useState(null);
   const [stats, setStats] = useState({ total: 0, byStatus: {} });
   const [agents, setAgents] = useState([]);
   const [services, setServices] = useState([]);
 
+  const handleSort = field => {
+    setSort(s => s.field === field ? { field, dir: s.dir === 'DESC' ? 'ASC' : 'DESC' } : { field, dir: 'DESC' });
+  };
+
   const load = useCallback(() => {
     const params = Object.fromEntries(Object.entries(filters).filter(([, v]) => v !== ''));
     params.limit = 50;
+    params.sort_field = sort.field;
+    params.sort_dir = sort.dir;
     api.get('/service-agreements', { params })
       .then(r => setData(r.data))
       .catch(err => toast.error('Σφάλμα φόρτωσης συμφωνιών: ' + (err.response?.data?.error || err.message)));
-  }, [filters]);
+  }, [filters, sort]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -269,16 +290,17 @@ export default function ServiceAgreementsPage() {
           <table className="w-full">
             <thead>
               <tr>
-                <th className="th">Πελάτης</th>
+                <SortTh label="Πελάτης" field="customer_name" sort={sort} onSort={handleSort} />
                 <th className="th">ΑΦΜ</th>
-                <th className="th">Υπηρεσία</th>
-                <th className="th">Κατάσταση</th>
-                <th className="th text-right">Ποσό Αίτησης</th>
-                <th className="th text-right">Ποσό Υλοποίησης</th>
+                <SortTh label="Υπηρεσία" field="service_type" sort={sort} onSort={handleSort} />
+                <SortTh label="Κατάσταση" field="status" sort={sort} onSort={handleSort} />
+                <SortTh label="Ποσό Αίτησης" field="amount_application" sort={sort} onSort={handleSort} className="text-right" />
+                <SortTh label="Ποσό Υλοποίησης" field="amount_implementation" sort={sort} onSort={handleSort} className="text-right" />
                 <th className="th">Είσπραξη</th>
                 <th className="th text-right">Υπόλοιπο</th>
-                <th className="th">Σύμβουλος</th>
-                <th className="th">Ημ. Έγκρισης</th>
+                <SortTh label="Σύμβουλος" field="sales_agent" sort={sort} onSort={handleSort} />
+                <th className="th">Ημ. Συμφωνίας</th>
+                <SortTh label="Ημ. Έγκρισης" field="approval_date" sort={sort} onSort={handleSort} />
                 <th className="th w-20"></th>
               </tr>
             </thead>
@@ -337,6 +359,7 @@ export default function ServiceAgreementsPage() {
                   <td className="td">
                     {r.sales_agent ? <span className="badge-gray">{r.sales_agent}</span> : <span className="text-slate-300">—</span>}
                   </td>
+                  <td className="td text-xs text-slate-500 whitespace-nowrap">{fmtDate(r.first_sale_date)}</td>
                   <td className="td text-xs text-slate-500 whitespace-nowrap">{fmtDate(r.approval_date)}</td>
                   <td className="td">
                     <div className="flex items-center gap-1">
@@ -356,7 +379,7 @@ export default function ServiceAgreementsPage() {
               ))}
               {rows.length === 0 && (
                 <tr>
-                  <td colSpan={11} className="td text-center text-slate-400 py-12">
+                  <td colSpan={12} className="td text-center text-slate-400 py-12">
                     Δεν βρέθηκαν εγγραφές
                   </td>
                 </tr>
