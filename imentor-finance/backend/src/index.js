@@ -9,6 +9,7 @@ require('./models/ListItem');
 require('./models/CommissionLog');
 require('./models/Customer');
 require('./models/ServiceAgreement');
+require('./models/RecurringExpense');
 
 const authMiddleware = require('./middleware/auth');
 
@@ -26,6 +27,7 @@ app.use('/api/reports',    authMiddleware, require('./routes/reports'));
 app.use('/api/import',     authMiddleware, require('./routes/importData'));
 app.use('/api/customers',          authMiddleware, require('./routes/customers'));
 app.use('/api/service-agreements', authMiddleware, require('./routes/serviceAgreements'));
+app.use('/api/recurring-expenses', authMiddleware, require('./routes/recurringExpenses'));
 
 app.get('/health', (_, res) => res.json({ ok: true }));
 
