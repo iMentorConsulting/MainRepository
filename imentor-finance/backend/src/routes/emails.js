@@ -273,7 +273,7 @@ function buildEmailHtml(accountant, rows, customFinancingHtml) {
       </div>
 
       <div style="text-align:right;margin-top:24px">
-        <a href="https://i-mentor.gr/contact" style="display:inline-block;background:#1565c0;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;font-size:14px;font-weight:600">📞 Επικοινωνήστε μαζί μας</a>
+        <span style="font-size:14px;color:#333">📞 <strong>2810 363007</strong> &nbsp;|&nbsp; ✉️ <a href="mailto:info@i-mentor.gr" style="color:#1565c0;text-decoration:none">info@i-mentor.gr</a></span>
       </div>
     </div>`;
 

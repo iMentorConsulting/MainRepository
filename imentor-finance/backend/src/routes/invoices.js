@@ -51,10 +51,12 @@ async function aadeSearchAfm(vat, orgKey) {
           console.error('AADE error XML:', xml.substring(0, 2000));
           return resolve({ error: `[${errorCode}] ${get('error_descr') || ''}` });
         }
+        const city = get('postal_address_city') || get('postal_city') || get('postal_city_descr')
+          || get('firm_city') || get('firm_city_descr') || get('municipality_descr') || get('municipality') || '';
         resolve({
           name: get('onomasia'),
           address: get('postal_address'),
-          city: get('postal_address_city'),
+          city,
           postal_code: get('postal_zip_code'),
           vat: get('afm'),
           activity: get('firm_act_descr') || get('activity_descr'),
@@ -278,12 +280,13 @@ router.post('/send-to-self', async (req, res) => {
     const income = await Income.findByPk(income_id);
     if (!income?.elorus_invoice_id) return res.status(400).json({ error: 'Δεν υπάρχει draft τιμολόγιο' });
     const selfEmail = process.env.SMTP_USER || process.env.GMAIL_USER;
-    const pdfBuffer = await fetchInvoicePdf(org_key, income.elorus_invoice_id);
+    // Elorus does not generate PDFs for draft invoices — send notification only
     await sendViaGmailApi(
       selfEmail, selfEmail, null,
       `[Draft] ΤΠΥ - ${income.customer_name}`,
-      `<p>Draft τιμολόγιο για <strong>${income.customer_name}</strong>.<br>Ελέγξτε το συνημμένο PDF πριν την οριστική έκδοση.</p>`,
-      [{ filename: `draft-${income.elorus_invoice_id}.pdf`, content: pdfBuffer, mimeType: 'application/pdf' }]
+      `<p>Draft τιμολόγιο δημιουργήθηκε στο Elorus για <strong>${income.customer_name}</strong>.</p>
+       <p>Elorus ID: <strong>${income.elorus_invoice_id}</strong></p>
+       <p>Ελέγξτε το στο Elorus πριν την οριστική έκδοση.</p>`
     );
     res.json({ success: true, sent_to: selfEmail });
   } catch (e) { res.status(500).json({ error: errMsg(e) }); }
