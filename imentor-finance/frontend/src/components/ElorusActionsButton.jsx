@@ -53,7 +53,9 @@ function InvoiceForm({ action, record, onClose, onDone }) {
       .then(r => {
         const list = r.data || [];
         setDocTypes(list);
-        if (list.length) setDocType(String(list[0].id));
+        // Default to ΤΠΥ (Τιμολόγιο), fall back to first item
+        const preferred = list.find(d => /τιμολόγιο/i.test(d.title || '')) || list[0];
+        if (preferred) setDocType(String(preferred.id));
       })
       .catch(() => setDocTypes([]))
       .finally(() => setDocTypesLoading(false));

@@ -50,11 +50,15 @@ router.get('/', async (req, res) => {
 });
 
 const NUMERIC_FIELDS = ['amount_collected','amount_application','amount_implementation','vat_amount','bonus','investment_height','total_debts'];
+const DATE_FIELDS = ['approval_date', 'completion_deadline', 'sale_date'];
 const sanitize = body => {
   const clean = { ...body };
   for (const f of NUMERIC_FIELDS) {
     if (clean[f] === '' || clean[f] === undefined) clean[f] = null;
     else if (clean[f] !== null) clean[f] = parseFloat(clean[f]) || null;
+  }
+  for (const f of DATE_FIELDS) {
+    if (!clean[f] || clean[f] === '') clean[f] = null;
   }
   return clean;
 };

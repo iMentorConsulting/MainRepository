@@ -27,7 +27,7 @@ export default function IncomeForm({ record, onSave, onCancel }) {
   const [showNewAgreementForm, setShowNewAgreementForm] = useState(false);
   const [newSA, setNewSA] = useState({ service_type: '', amount_application: '' });
 
-  const { register, handleSubmit, watch, setValue } = useForm({ defaultValues: record || {} });
+  const { register, handleSubmit, watch, setValue, getValues } = useForm({ defaultValues: record || {} });
 
   useEffect(() => {
     const types = ['ΚΑΤΑΣΤΑΣΗ_ΕΡΓΑΣΙΑΣ', 'ΕΙΔΟΣ_ΥΠΗΡΕΣΙΑΣ', 'ΠΗΓΗ_ΣΥΣΤΑΣΗ', 'ΠΡΑΚΤΟΡΕΣ'];
@@ -41,23 +41,8 @@ export default function IncomeForm({ record, onSave, onCancel }) {
       .then(r => setDescTemplates(r.data.map(x => x.name)));
   }, []);
 
-  const amountApp = watch('amount_application');
-  useEffect(() => {
-    if (amountApp) setValue('bonus', (parseFloat(amountApp) * 0.05).toFixed(2));
-  }, [amountApp]);
 
 
-  const amountImpl = watch('amount_implementation');
-  useEffect(() => {
-    if (!autoTargeting) return;
-    const impl = parseFloat(amountImpl);
-    const app = parseFloat(amountApp);
-    if (impl > 0) {
-      setValue('targeting_category', 'ΠΩΛΗΣΗ ΥΛΟΠΟΙΗΣΗΣ');
-    } else if (app > 0 && !(impl > 0)) {
-      setValue('targeting_category', 'ΠΩΛΗΣΗ ΑΙΤΗΣΗΣ');
-    }
-  }, [amountImpl, amountApp]);
 
   // Load agreements when customer_name changes
   const customerName = watch('customer_name');
@@ -212,8 +197,36 @@ export default function IncomeForm({ record, onSave, onCancel }) {
       <div>
         <SectionTitle>Οικονομικά Στοιχεία</SectionTitle>
         <div className="grid grid-cols-2 gap-4">
-          <F label="Ποσό Αίτησης (€)" name="amount_application" type="number" extra={{ step: '0.01' }} />
-          <F label="Ποσό Υλοποίησης (€)" name="amount_implementation" type="number" extra={{ step: '0.01' }} />
+          <div>
+            <label className="label">Ποσό Αίτησης (€)</label>
+            <input type="number" step="0.01" className="input"
+              {...register('amount_application', {
+                onChange: e => {
+                  const app = parseFloat(e.target.value);
+                  if (!isNaN(app) && app > 0) setValue('bonus', (app * 0.05).toFixed(2));
+                  if (autoTargeting) {
+                    const impl = parseFloat(getValues('amount_implementation'));
+                    if (impl > 0) setValue('targeting_category', 'ΠΩΛΗΣΗ ΥΛΟΠΟΙΗΣΗΣ');
+                    else if (app > 0) setValue('targeting_category', 'ΠΩΛΗΣΗ ΑΙΤΗΣΗΣ');
+                  }
+                }
+              })}
+            />
+          </div>
+          <div>
+            <label className="label">Ποσό Υλοποίησης (€)</label>
+            <input type="number" step="0.01" className="input"
+              {...register('amount_implementation', {
+                onChange: e => {
+                  if (!autoTargeting) return;
+                  const impl = parseFloat(e.target.value);
+                  const app = parseFloat(getValues('amount_application'));
+                  if (impl > 0) setValue('targeting_category', 'ΠΩΛΗΣΗ ΥΛΟΠΟΙΗΣΗΣ');
+                  else if (app > 0) setValue('targeting_category', 'ΠΩΛΗΣΗ ΑΙΤΗΣΗΣ');
+                }
+              })}
+            />
+          </div>
           <F label="Ύψος Επένδυσης (€)" name="investment_height" type="number" extra={{ step: '0.01' }} />
           <F label="Σύνολο Οφειλών (€)" name="total_debts" type="number" extra={{ step: '0.01' }} />
           <div>
