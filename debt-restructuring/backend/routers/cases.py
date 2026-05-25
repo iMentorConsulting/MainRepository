@@ -123,6 +123,20 @@ def _chatwoot_send(client_name: str, phone: str, message: str) -> tuple[bool, st
             print(f"[Chatwoot] create_contact status={r.status_code} body={r.text[:300]}")
             if r.status_code in (200, 201):
                 contact_id = r.json().get("id")
+            elif r.status_code == 422:
+                # Contact already exists (duplicate phone) — search again to get the id
+                print(f"[Chatwoot] 422 on create (contact exists), retrying search...")
+                r2 = http_requests.get(
+                    f"{base}/contacts/search",
+                    params={"q": phone, "include_contacts": "true"},
+                    headers=headers, timeout=8,
+                )
+                if r2.status_code == 200:
+                    payload = r2.json().get("payload", [])
+                    contacts = payload if isinstance(payload, list) else payload.get("contacts", [])
+                    if contacts:
+                        contact_id = contacts[0]["id"]
+                        print(f"[Chatwoot] found contact on retry id={contact_id}")
             else:
                 return False, f"create_contact HTTP {r.status_code}: {r.text[:200]}"
         except Exception as e:
