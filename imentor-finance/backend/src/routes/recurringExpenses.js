@@ -28,7 +28,15 @@ router.put('/:id', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// Delete recurring expense
+// Delete all recurring expenses
+router.delete('/all', async (req, res) => {
+  try {
+    const count = await RecurringExpense.destroy({ where: {}, truncate: false });
+    res.json({ deleted: count });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Delete single recurring expense
 router.delete('/:id', async (req, res) => {
   try {
     await RecurringExpense.destroy({ where: { id: req.params.id } });

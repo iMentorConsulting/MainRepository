@@ -188,7 +188,12 @@ function TabTopCustomers({ years }) {
   const [sortDir, setSortDir] = useState('desc');
 
   useEffect(() => {
-    api.get(`/reports/by-customer?year=${year}`).then(r => setData(r.data)).catch(() => setData([]));
+    api.get(`/reports/by-customer?year=${year}`)
+      .then(r => {
+        setData(r.data);
+        if (r.data.length === 0 && year === new Date().getFullYear()) setYear(year - 1);
+      })
+      .catch(() => setData([]));
   }, [year]);
 
   const handleSort = col => {
@@ -536,7 +541,12 @@ function TabOpenCases() {
   const STATUS_COLORS = { open: '#10b981', frozen: '#f59e0b', completed_ok: '#6366f1', completed_fail: '#f43f5e' };
 
   useEffect(() => {
-    api.get(`/reports/open-cases?year=${year}`).then(r => setData(r.data)).catch(() => {});
+    api.get(`/reports/open-cases?year=${year}`)
+      .then(r => {
+        setData(r.data);
+        if (!r.data.some(m => m.total > 0) && year === new Date().getFullYear()) setYear(year - 1);
+      })
+      .catch(() => {});
   }, [year]);
 
   const hasData = data.some(m => m.total > 0);
@@ -780,7 +790,15 @@ export default function ReportsPage() {
       api.get(`/reports/expenses-by-category?${buildQ(q)}`),
       api.get(`/reports/summary?${buildQ(q)}`)
     ]).then(([m, sv, ag, ec, sm]) => {
-      if (m.status === 'fulfilled') setMonthly(m.value.data.map(d => ({ ...d, name: d.month_name?.slice(0, 3) || '' })));
+      if (m.status === 'fulfilled') {
+        const monthData = m.value.data.map(d => ({ ...d, name: d.month_name?.slice(0, 3) || '' }));
+        setMonthly(monthData);
+        // Auto-switch to previous year if current year has no data
+        if (sm.status === 'fulfilled' && sm.value.data.income === 0 && sm.value.data.income_count === 0 && year === new Date().getFullYear()) {
+          setYear(year - 1);
+          return;
+        }
+      }
       if (sv.status === 'fulfilled') setByService(sv.value.data);
       if (ag.status === 'fulfilled') setByAgent(ag.value.data);
       if (ec.status === 'fulfilled') setByExpCat(ec.value.data);

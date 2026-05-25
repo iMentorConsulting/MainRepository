@@ -39,19 +39,36 @@ router.get('/', async (req, res) => {
       order: [['createdAt', 'DESC']]
     });
 
-    // Enrich agreements with collected income totals; if this fails, still return rows
-    const sumMap = new Map();
+    // Enrich agreements with collected income; non-fatal if it fails
+    const idMap = new Map();
+    const nameMap = new Map();
     try {
-      const incomeSums = await sequelize.query(`
-        SELECT customer_name, service_type,
-               COALESCE(SUM(amount_collected::numeric), 0) AS total_collected,
+      // Primary: match by service_agreement_id (for income records properly linked)
+      const byId = await sequelize.query(`
+        SELECT service_agreement_id,
+               COALESCE(SUM(amount_collected), 0) AS total_collected,
+               COUNT(*) AS payment_count
+        FROM incomes
+        WHERE service_agreement_id IS NOT NULL
+        GROUP BY service_agreement_id
+      `, { type: QueryTypes.SELECT });
+      for (const row of byId) {
+        idMap.set(Number(row.service_agreement_id), {
+          total: parseFloat(row.total_collected || 0),
+          count: parseInt(row.payment_count || 0)
+        });
+      }
+      // Fallback: match by lower(trim(customer_name)) for imported data without agreement link
+      const byName = await sequelize.query(`
+        SELECT LOWER(TRIM(customer_name)) AS cname,
+               COALESCE(SUM(amount_collected), 0) AS total_collected,
                COUNT(*) AS payment_count
         FROM incomes
         WHERE customer_name IS NOT NULL
-        GROUP BY customer_name, service_type
+        GROUP BY LOWER(TRIM(customer_name))
       `, { type: QueryTypes.SELECT });
-      for (const row of incomeSums) {
-        sumMap.set(`${row.customer_name}|||${row.service_type || ''}`, {
+      for (const row of byName) {
+        nameMap.set(row.cname, {
           total: parseFloat(row.total_collected || 0),
           count: parseInt(row.payment_count || 0)
         });
@@ -61,8 +78,9 @@ router.get('/', async (req, res) => {
     }
 
     const enriched = rows.map(sa => {
-      const key = `${sa.customer_name}|||${sa.service_type || ''}`;
-      const inc = sumMap.get(key) || { total: 0, count: 0 };
+      const byIdMatch = idMap.get(sa.id);
+      const byNameMatch = nameMap.get((sa.customer_name || '').toLowerCase().trim());
+      const inc = byIdMatch || byNameMatch || { total: 0, count: 0 };
       return { ...sa.toJSON(), income_collected: inc.total, income_payment_count: inc.count };
     });
 
