@@ -361,6 +361,19 @@ router.get('/available-years', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+router.get('/available-case-years', async (req, res) => {
+  try {
+    const rows = await sequelize.query(
+      `SELECT DISTINCT EXTRACT(YEAR FROM created_at)::int AS year
+       FROM service_agreements
+       WHERE created_at IS NOT NULL
+       ORDER BY year DESC`,
+      { type: QueryTypes.SELECT }
+    );
+    res.json(rows.map(r => r.year).filter(Boolean));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 router.get('/service-trend', async (req, res) => {
   try {
     const { service_type, year } = req.query;

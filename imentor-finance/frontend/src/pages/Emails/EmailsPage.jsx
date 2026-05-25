@@ -152,8 +152,12 @@ export default function EmailsPage() {
   };
 
   const handlePreview = async () => {
-    if (selected.size === 0) return toast.error('Επιλέξτε εγγραφές');
-    const res = await api.post('/emails/preview', { income_ids: [...selected] });
+    const ids = selected.size > 0
+      ? [...selected]
+      : (selectedAccountants.length > 0 ? displayedRows.map(r => r.id) : []);
+    if (ids.length === 0) return toast.error('Επιλέξτε εγγραφές ή φιλτράρετε κατά λογιστή');
+    if (selected.size === 0) setSelected(new Set(ids));
+    const res = await api.post('/emails/preview', { income_ids: ids });
     setPreview(res.data);
     setCustomFinancingTexts({});
     setEditingFinancing({});
@@ -161,9 +165,13 @@ export default function EmailsPage() {
   };
 
   const handleSend = async () => {
+    const ids = selected.size > 0
+      ? [...selected]
+      : (selectedAccountants.length > 0 ? displayedRows.map(r => r.id) : []);
+    if (ids.length === 0) return toast.error('Επιλέξτε εγγραφές ή φιλτράρετε κατά λογιστή');
     setSending(true);
     try {
-      const res = await api.post('/emails/send', { income_ids: [...selected] });
+      const res = await api.post('/emails/send', { income_ids: ids });
       const sent = res.data.results.filter(r => r.status === 'sent').length;
       const skipped = res.data.results.filter(r => r.status === 'skipped').length;
       toast.success(`Εστάλησαν ${sent} email${skipped > 0 ? ` · Παραλείφθηκαν ${skipped}` : ''}`);
@@ -204,12 +212,12 @@ export default function EmailsPage() {
         </div>
         {activeTab === 'send' && (
           <div className="flex gap-2">
-            <button className="btn-secondary" onClick={() => { if (selected.size === 0) { toast.error('Επιλέξτε εγγραφές για προεπισκόπηση'); return; } handlePreview(); }}>
+            <button className="btn-secondary" onClick={handlePreview}>
               Προεπισκόπηση
               {selected.size > 0 && <span className="ml-1.5 bg-slate-200 text-slate-700 text-xs rounded-full px-1.5 py-0.5">{selected.size}</span>}
             </button>
-            <button className="btn-primary" onClick={() => { if (selected.size === 0) { toast.error('Επιλέξτε εγγραφές για αποστολή'); return; } handleSend(); }} disabled={sending}>
-              {sending ? 'Αποστολή...' : `Αποστολή Email (${selected.size})`}
+            <button className="btn-primary" onClick={handleSend} disabled={sending}>
+              {sending ? 'Αποστολή...' : `Αποστολή Email${selected.size > 0 ? ` (${selected.size})` : ''}`}
             </button>
           </div>
         )}

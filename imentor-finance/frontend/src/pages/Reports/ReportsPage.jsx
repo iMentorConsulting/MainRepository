@@ -536,17 +536,26 @@ function TabAccountants({ years }) {
 }
 
 function TabOpenCases({ years: propYears }) {
-  const years = propYears?.length > 0 ? propYears : Array.from({ length: 6 }, (_, i) => new Date().getFullYear() - i);
-  const [year, setYear] = useState(years[0] || new Date().getFullYear());
+  const [caseYears, setCaseYears] = useState([]);
+  const years = caseYears.length > 0 ? caseYears : (propYears?.length > 0 ? propYears : Array.from({ length: 6 }, (_, i) => new Date().getFullYear() - i));
+  const [year, setYear] = useState(null);
   const [data, setData] = useState([]);
   const STATUS_COLORS = { open: '#10b981', frozen: '#f59e0b', completed_ok: '#6366f1', completed_fail: '#f43f5e' };
 
   useEffect(() => {
+    api.get('/reports/available-case-years').then(r => {
+      const yrs = r.data || [];
+      if (yrs.length > 0) {
+        setCaseYears(yrs);
+        setYear(yrs[0]);
+      }
+    }).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (!year) return;
     api.get(`/reports/open-cases?year=${year}`)
-      .then(r => {
-        setData(r.data);
-        if (!r.data.some(m => m.total > 0) && year === new Date().getFullYear()) setYear(year - 1);
-      })
+      .then(r => { setData(r.data); })
       .catch(() => {});
   }, [year]);
 
@@ -564,7 +573,7 @@ function TabOpenCases({ years: propYears }) {
   return (
     <div className="space-y-6">
       <div className="filter-bar">
-        <select className="input w-28" value={year} onChange={e => setYear(+e.target.value)}>
+        <select className="input w-28" value={year || ''} onChange={e => setYear(+e.target.value)}>
           {years.map(y => <option key={y}>{y}</option>)}
         </select>
       </div>
@@ -658,7 +667,15 @@ function TabServiceTrend() {
     setLoading(true);
     setError('');
     api.get(`/reports/service-trend?service_type=${encodeURIComponent(selected)}`)
-      .then(r => { setData(Array.isArray(r.data) ? r.data : []); })
+      .then(r => {
+        setData(Array.isArray(r.data) ? r.data.map(row => ({
+          ...row,
+          count: parseInt(row.count || 0),
+          total: parseFloat(row.total || 0),
+          total_application: parseFloat(row.total_application || 0),
+          total_implementation: parseFloat(row.total_implementation || 0)
+        })) : []);
+      })
       .catch(e => { setError(e.response?.data?.error || 'Σφάλμα φόρτωσης δεδομένων'); setData([]); })
       .finally(() => setLoading(false));
   }, [selected]);
@@ -724,9 +741,9 @@ function TabServiceTrend() {
                       <td className="td font-semibold text-slate-700">{r.period}</td>
                       <td className="td text-center"><span className="badge-blue">{r.count}</span></td>
                       <td className="td text-right font-medium text-slate-700">{fmt2(r.total_application)}</td>
-                      <td className="td text-right text-slate-500">{fmt2(r.avg_application)}</td>
+                      <td className="td text-right text-slate-500">{r.count > 0 ? fmt2(r.total_application / r.count) : '—'}</td>
                       <td className="td text-right font-medium text-slate-700">{r.total_implementation > 0 ? fmt2(r.total_implementation) : '—'}</td>
-                      <td className="td text-right text-slate-500">{r.avg_implementation > 0 ? fmt2(r.avg_implementation) : '—'}</td>
+                      <td className="td text-right text-slate-500">{r.count > 0 && r.total_implementation > 0 ? fmt2(r.total_implementation / r.count) : '—'}</td>
                     </tr>
                   ))}
                 </tbody>

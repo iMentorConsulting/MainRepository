@@ -94,7 +94,9 @@ const COMPLETED_STATUSES = ['ΑΠΟΠΛΗΡΩΜΕΝΕΣ', 'ΟΛΟΚΛΗΡΩΜΕ�
 async function applyAutoStatus(sa) {
   const collected = parseFloat(sa.amount_collected_total || 0);
   const application = parseFloat(sa.amount_application || 0);
-  if (application > 0 && collected >= application && !COMPLETED_STATUSES.includes(sa.status)) {
+  const implementation = sa.approval_date ? parseFloat(sa.amount_implementation || 0) : 0;
+  const target = application + implementation;
+  if (target > 0 && collected >= target && !COMPLETED_STATUSES.includes(sa.status)) {
     await sa.update({ status: 'ΑΠΟΠΛΗΡΩΜΕΝΕΣ' });
   }
 }

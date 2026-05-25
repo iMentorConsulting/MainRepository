@@ -24,7 +24,7 @@ async function aadeSearchAfm(vat, orgKey) {
     'https://www1.gsis.gr/wsaade/RgWsPublic2/RgWsPublic2',
     soapBody,
     {
-      headers: { 'Content-Type': 'text/xml;charset=UTF-8', 'SOAPAction': '""' },
+      headers: { 'Content-Type': 'text/xml;charset=UTF-8', 'SOAPAction': '' },
       auth: { username, password },
       timeout: 10000
     }
@@ -81,7 +81,7 @@ async function findOrCreateContact(orgKey, income) {
   const c = await a.post('contacts/', {
     company: income.customer_name,
     vat_number: income.vat_number || '',
-    email: income.email ? [income.email] : [],
+    email: income.email ? [{ email: income.email }] : [],
     addresses: income.address ? [{
       address: income.address,
       city: income.city || '',

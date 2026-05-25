@@ -10,7 +10,10 @@ function createTransport() {
     auth: {
       user: process.env.GMAIL_USER,
       pass: process.env.GMAIL_APP_PASSWORD
-    }
+    },
+    connectionTimeout: 10000,
+    greetingTimeout: 10000,
+    socketTimeout: 20000
   });
 }
 
@@ -71,32 +74,36 @@ router.post('/send', async (req, res) => {
     for (const { accountant, email, rows } of Object.values(grouped)) {
       if (!email) { results.push({ accountant, status: 'skipped', reason: 'Δεν υπάρχει email λογιστή' }); continue; }
 
-      await transport.sendMail({
-        from: `i-Mentor <${process.env.GMAIL_USER}>`,
-        to: email,
-        bcc: process.env.GMAIL_USER,
-        subject: `Ενημέρωση Νέων Εισπράξεων – i-Mentor`,
-        html: buildEmailHtml(accountant, rows)
-      });
+      try {
+        await transport.sendMail({
+          from: `i-Mentor <${process.env.GMAIL_USER}>`,
+          to: email,
+          bcc: process.env.GMAIL_USER,
+          subject: `Ενημέρωση Νέων Εισπράξεων – i-Mentor`,
+          html: buildEmailHtml(accountant, rows)
+        });
 
-      await Income.update(
-        { accountant_notified: true, accountant_notified_at: new Date() },
-        { where: { id: { [Op.in]: rows.map(r => r.id) } } }
-      );
+        await Income.update(
+          { accountant_notified: true, accountant_notified_at: new Date() },
+          { where: { id: { [Op.in]: rows.map(r => r.id) } } }
+        );
 
-      const year = new Date().getFullYear();
-      const month = new Date().getMonth() + 1;
-      await CommissionLog.create({
-        accountant_name: accountant,
-        accountant_email: email,
-        income_ids: rows.map(r => r.id),
-        total_amount: rows.reduce((s, r) => s + parseFloat(r.amount_collected || 0), 0),
-        records_count: rows.length,
-        year,
-        month
-      });
+        const year = new Date().getFullYear();
+        const month = new Date().getMonth() + 1;
+        await CommissionLog.create({
+          accountant_name: accountant,
+          accountant_email: email,
+          income_ids: rows.map(r => r.id),
+          total_amount: rows.reduce((s, r) => s + parseFloat(r.amount_collected || 0), 0),
+          records_count: rows.length,
+          year,
+          month
+        });
 
-      results.push({ accountant, email, status: 'sent', count: rows.length });
+        results.push({ accountant, email, status: 'sent', count: rows.length });
+      } catch (mailErr) {
+        results.push({ accountant, email, status: 'error', reason: mailErr.message });
+      }
     }
 
     res.json({ results });
