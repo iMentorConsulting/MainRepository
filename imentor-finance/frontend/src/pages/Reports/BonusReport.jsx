@@ -124,9 +124,25 @@ export default function BonusReport() {
   const [year, setYear] = useState(new Date().getFullYear());
   const [data, setData] = useState([]);
   const [drill, setDrill] = useState(null); // { agent, month, monthName }
+  const [noData, setNoData] = useState(false);
 
   useEffect(() => {
-    api.get(`/reports/bonus?year=${year}`).then(r => setData(r.data));
+    setNoData(false);
+    api.get(`/reports/bonus?year=${year}`)
+      .then(r => {
+        setData(r.data);
+        // If no data for this year, try previous year automatically
+        if (r.data.length === 0 && year === new Date().getFullYear()) {
+          const prevYear = year - 1;
+          api.get(`/reports/bonus?year=${prevYear}`).then(r2 => {
+            if (r2.data.length > 0) setYear(prevYear);
+            else setNoData(true);
+          }).catch(() => setNoData(true));
+        } else if (r.data.length === 0) {
+          setNoData(true);
+        }
+      })
+      .catch(() => setNoData(true));
   }, [year]);
 
   const years = Array.from({ length: 6 }, (_, i) => new Date().getFullYear() - i);
@@ -154,6 +170,14 @@ export default function BonusReport() {
           {years.map(y => <option key={y}>{y}</option>)}
         </select>
       </div>
+
+      {noData && data.length === 0 && (
+        <div className="card p-12 text-center text-slate-400">
+          <div className="text-3xl mb-3">📊</div>
+          <div className="font-semibold">Δεν υπάρχουν δεδομένα bonus για το {year}</div>
+          <div className="text-sm mt-1">Επιλέξτε άλλο έτος από το dropdown παραπάνω</div>
+        </div>
+      )}
 
       {data.length > 0 && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">

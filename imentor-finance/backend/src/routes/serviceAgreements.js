@@ -39,16 +39,25 @@ router.get('/', async (req, res) => {
       order: [['createdAt', 'DESC']]
     });
 
-    // For each agreement, compute the actual collected from incomes by customer_name + service_type
-    const incomeSums = await sequelize.query(`
-      SELECT customer_name, service_type, COALESCE(SUM(amount_collected), 0) AS total_collected, COUNT(*) AS payment_count
-      FROM incomes
-      WHERE customer_name IS NOT NULL
-      GROUP BY customer_name, service_type
-    `, { type: QueryTypes.SELECT });
+    // Enrich agreements with collected income totals; if this fails, still return rows
     const sumMap = new Map();
-    for (const row of incomeSums) {
-      sumMap.set(`${row.customer_name}|||${row.service_type || ''}`, { total: parseFloat(row.total_collected), count: parseInt(row.payment_count) });
+    try {
+      const incomeSums = await sequelize.query(`
+        SELECT customer_name, service_type,
+               COALESCE(SUM(amount_collected::numeric), 0) AS total_collected,
+               COUNT(*) AS payment_count
+        FROM incomes
+        WHERE customer_name IS NOT NULL
+        GROUP BY customer_name, service_type
+      `, { type: QueryTypes.SELECT });
+      for (const row of incomeSums) {
+        sumMap.set(`${row.customer_name}|||${row.service_type || ''}`, {
+          total: parseFloat(row.total_collected || 0),
+          count: parseInt(row.payment_count || 0)
+        });
+      }
+    } catch (enrichErr) {
+      console.error('Income enrichment failed (non-fatal):', enrichErr.message);
     }
 
     const enriched = rows.map(sa => {

@@ -10,9 +10,10 @@ const CSV_HEADERS = ['amount','category','service_type','supplier','description'
 function parseCSV(text) {
   const lines = text.trim().split('\n').map(l => l.trim()).filter(Boolean);
   if (lines.length < 2) return [];
-  const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/['"]/g, ''));
+  const delimiter = lines[0].includes(';') ? ';' : ',';
+  const headers = lines[0].split(delimiter).map(h => h.trim().toLowerCase().replace(/['"]/g, ''));
   return lines.slice(1).map(line => {
-    const values = line.split(',').map(v => v.trim().replace(/^["']|["']$/g, ''));
+    const values = line.split(delimiter).map(v => v.trim().replace(/^["']|["']$/g, ''));
     const obj = {};
     headers.forEach((h, i) => { obj[h] = values[i] || ''; });
     return obj;
@@ -74,7 +75,14 @@ export default function RecurringExpensesPage() {
     if (!file) return;
     setImporting(true);
     try {
-      const text = await file.text();
+      // Try Windows-1253 first (common for Greek Excel exports), fall back to UTF-8
+      let text;
+      try {
+        const buf = await file.arrayBuffer();
+        text = new TextDecoder('windows-1253').decode(buf);
+      } catch {
+        text = await file.text();
+      }
       const parsed = parseCSV(text);
       if (parsed.length === 0) { toast.error('Δεν βρέθηκαν δεδομένα στο CSV'); return; }
       const r = await api.post('/recurring-expenses/import-csv', { rows: parsed });

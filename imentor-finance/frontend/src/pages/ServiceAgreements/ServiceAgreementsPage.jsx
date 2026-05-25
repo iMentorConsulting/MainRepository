@@ -176,7 +176,9 @@ export default function ServiceAgreementsPage() {
   const load = useCallback(() => {
     const params = Object.fromEntries(Object.entries(filters).filter(([, v]) => v !== ''));
     params.limit = 50;
-    api.get('/service-agreements', { params }).then(r => setData(r.data)).catch(() => {});
+    api.get('/service-agreements', { params })
+      .then(r => setData(r.data))
+      .catch(err => toast.error('Σφάλμα φόρτωσης συμφωνιών: ' + (err.response?.data?.error || err.message)));
   }, [filters]);
 
   useEffect(() => { load(); }, [load]);
