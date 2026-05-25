@@ -536,9 +536,10 @@ function TabAccountants({ years }) {
 }
 
 function TabOpenCases({ years: propYears }) {
+  const defaultYear = propYears?.[0] || new Date().getFullYear();
   const [caseYears, setCaseYears] = useState([]);
   const years = caseYears.length > 0 ? caseYears : (propYears?.length > 0 ? propYears : Array.from({ length: 6 }, (_, i) => new Date().getFullYear() - i));
-  const [year, setYear] = useState(null);
+  const [year, setYear] = useState(defaultYear);
   const [data, setData] = useState([]);
   const STATUS_COLORS = { open: '#10b981', frozen: '#f59e0b', completed_ok: '#6366f1', completed_fail: '#f43f5e' };
 
@@ -547,13 +548,12 @@ function TabOpenCases({ years: propYears }) {
       const yrs = r.data || [];
       if (yrs.length > 0) {
         setCaseYears(yrs);
-        setYear(yrs[0]);
+        setYear(prev => yrs.includes(prev) ? prev : yrs[0]);
       }
     }).catch(() => {});
   }, []);
 
   useEffect(() => {
-    if (!year) return;
     api.get(`/reports/open-cases?year=${year}`)
       .then(r => { setData(r.data); })
       .catch(() => {});

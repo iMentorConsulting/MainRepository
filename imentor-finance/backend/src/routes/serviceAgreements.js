@@ -3,6 +3,27 @@ const { Op, QueryTypes } = require('sequelize');
 const ServiceAgreement = require('../models/ServiceAgreement');
 const sequelize = require('../config/db');
 
+// Exported so income routes can call it after creating/updating income records
+async function checkAndAutoStatus(saId) {
+  try {
+    const sa = await ServiceAgreement.findByPk(saId);
+    if (!sa || COMPLETED_STATUSES.includes(sa.status)) return;
+    const application = parseFloat(sa.amount_application || 0);
+    const implementation = sa.approval_date ? parseFloat(sa.amount_implementation || 0) : 0;
+    const target = application + implementation;
+    if (target <= 0) return;
+    const [row] = await sequelize.query(
+      `SELECT COALESCE(SUM(amount_collected),0) AS total FROM income WHERE service_agreement_id = :id`,
+      { replacements: { id: saId }, type: QueryTypes.SELECT }
+    );
+    if (parseFloat(row?.total || 0) >= target) {
+      await sa.update({ status: 'ΑΠΟΠΛΗΡΩΜΕΝΕΣ' });
+    }
+  } catch (e) {
+    console.error('checkAndAutoStatus failed:', e.message);
+  }
+}
+
 router.get('/stats', async (req, res) => {
   try {
     const counts = await ServiceAgreement.findAll({
@@ -86,17 +107,36 @@ router.get('/', async (req, res) => {
     });
 
     res.json({ data: enriched, total: count });
+
+    // Background: auto-mark fully-paid agreements as ΑΠΟΠΛΗΡΩΜΕΝΕΣ
+    setImmediate(() => {
+      for (const row of enriched) {
+        if (['ΑΠΟΠΛΗΡΩΜΕΝΕΣ','ΟΛΟΚΛΗΡΩΜΕΝΕΣ ΕΠΙΤΥΧΩΣ','ΟΛΟΚΛΗΡΩΜΕΝΕΣ FAIL'].includes(row.status)) continue;
+        const application = parseFloat(row.amount_application || 0);
+        const implementation = row.approval_date ? parseFloat(row.amount_implementation || 0) : 0;
+        const target = application + implementation;
+        if (target > 0 && parseFloat(row.income_collected || 0) >= target) {
+          ServiceAgreement.update({ status: 'ΑΠΟΠΛΗΡΩΜΕΝΕΣ' }, { where: { id: row.id } }).catch(() => {});
+        }
+      }
+    });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 const COMPLETED_STATUSES = ['ΑΠΟΠΛΗΡΩΜΕΝΕΣ', 'ΟΛΟΚΛΗΡΩΜΕΝΕΣ ΕΠΙΤΥΧΩΣ', 'ΟΛΟΚΛΗΡΩΜΕΝΕΣ FAIL'];
 
 async function applyAutoStatus(sa) {
-  const collected = parseFloat(sa.amount_collected_total || 0);
+  if (COMPLETED_STATUSES.includes(sa.status)) return;
   const application = parseFloat(sa.amount_application || 0);
   const implementation = sa.approval_date ? parseFloat(sa.amount_implementation || 0) : 0;
   const target = application + implementation;
-  if (target > 0 && collected >= target && !COMPLETED_STATUSES.includes(sa.status)) {
+  if (target <= 0) return;
+  const [row] = await sequelize.query(
+    `SELECT COALESCE(SUM(amount_collected),0) AS total FROM income WHERE service_agreement_id = :id`,
+    { replacements: { id: sa.id }, type: QueryTypes.SELECT }
+  );
+  const collected = parseFloat(row?.total || 0) || parseFloat(sa.amount_collected_total || 0);
+  if (collected >= target) {
     await sa.update({ status: 'ΑΠΟΠΛΗΡΩΜΕΝΕΣ' });
   }
 }
@@ -127,3 +167,4 @@ router.delete('/:id', async (req, res) => {
 });
 
 module.exports = router;
+module.exports.checkAndAutoStatus = checkAndAutoStatus;

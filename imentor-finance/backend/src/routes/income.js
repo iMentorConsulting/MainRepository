@@ -1,6 +1,7 @@
 const router = require('express').Router();
 const { Op } = require('sequelize');
 const Income = require('../models/Income');
+const { checkAndAutoStatus } = require('./serviceAgreements');
 
 const ALLOWED_SORT = ['sale_date','customer_name','amount_collected','amount_application','amount_implementation','service_type','sales_agent','work_status','vat_number','bonus'];
 
@@ -50,6 +51,7 @@ const sanitize = body => {
 router.post('/', async (req, res) => {
   try {
     const record = await Income.create(sanitize(req.body));
+    if (record.service_agreement_id) checkAndAutoStatus(record.service_agreement_id);
     res.status(201).json(record);
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -71,6 +73,8 @@ router.put('/:id', async (req, res) => {
     const record = await Income.findByPk(req.params.id);
     if (!record) return res.status(404).json({ error: 'Δεν βρέθηκε' });
     await record.update(sanitize(req.body));
+    const saId = record.service_agreement_id;
+    if (saId) checkAndAutoStatus(saId);
     res.json(record);
   } catch (e) {
     res.status(500).json({ error: e.message });

@@ -25,7 +25,7 @@ async function aadeSearchAfm(vat, orgKey) {
     'https://www1.gsis.gr/wsaade/RgWsPublic2/RgWsPublic2',
     soapBody,
     {
-      headers: { 'Content-Type': 'text/xml;charset=UTF-8', 'SOAPAction': '' },
+      headers: { 'Content-Type': 'text/xml;charset=UTF-8', 'SOAPAction': '""' },
       auth: { username, password },
       timeout: 10000
     }
@@ -72,7 +72,12 @@ router.get('/search-afm', async (req, res) => {
     if (!vat) return res.status(400).json({ error: 'ΑΦΜ απαιτείται' });
     const result = await aadeSearchAfm(vat.trim(), org_key);
     res.json(result);
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) {
+    const detail = e.response?.data
+      ? (typeof e.response.data === 'string' ? e.response.data.substring(0, 500) : JSON.stringify(e.response.data))
+      : e.message;
+    res.status(500).json({ error: detail, status: e.response?.status });
+  }
 });
 
 router.post('/', async (req, res) => {

@@ -157,11 +157,15 @@ export default function EmailsPage() {
       : (selectedAccountants.length > 0 ? displayedRows.map(r => r.id) : []);
     if (ids.length === 0) return toast.error('Επιλέξτε εγγραφές ή φιλτράρετε κατά λογιστή');
     if (selected.size === 0) setSelected(new Set(ids));
-    const res = await api.post('/emails/preview', { income_ids: ids });
-    setPreview(res.data);
-    setCustomFinancingTexts({});
-    setEditingFinancing({});
-    setPreviewOpen(true);
+    try {
+      const res = await api.post('/emails/preview', { income_ids: ids });
+      setPreview(res.data);
+      setCustomFinancingTexts({});
+      setEditingFinancing({});
+      setPreviewOpen(true);
+    } catch (e) {
+      toast.error(e.response?.data?.error || 'Σφάλμα φόρτωσης προεπισκόπησης');
+    }
   };
 
   const handleSend = async () => {
@@ -171,7 +175,7 @@ export default function EmailsPage() {
     if (ids.length === 0) return toast.error('Επιλέξτε εγγραφές ή φιλτράρετε κατά λογιστή');
     setSending(true);
     try {
-      const res = await api.post('/emails/send', { income_ids: ids });
+      const res = await api.post('/emails/send', { income_ids: ids }, { timeout: 60000 });
       const sent = res.data.results.filter(r => r.status === 'sent').length;
       const skipped = res.data.results.filter(r => r.status === 'skipped').length;
       toast.success(`Εστάλησαν ${sent} email${skipped > 0 ? ` · Παραλείφθηκαν ${skipped}` : ''}`);
@@ -454,8 +458,14 @@ export default function EmailsPage() {
                     <span className="badge-blue">{email.accountant}</span>
                   </div>
                 </div>
-                <div className="p-4 bg-white">
-                  <div className="max-h-56 overflow-y-auto" dangerouslySetInnerHTML={{ __html: displayHtml }} />
+                <div className="bg-white">
+                  <iframe
+                    srcDoc={displayHtml}
+                    className="w-full border-0"
+                    style={{ height: '500px' }}
+                    title={`email-preview-${i}`}
+                    sandbox="allow-same-origin"
+                  />
                   <div className="mt-3 pt-3 border-t border-slate-100">
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Χρηματοδοτικά Προγράμματα</span>
