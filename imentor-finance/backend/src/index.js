@@ -18,7 +18,30 @@ app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 
 app.use('/api/auth', require('./routes/auth'));
-app.use('/api/invoices/tax-rates', require('./routes/invoices')); // public debug — no auth
+
+// Public debug endpoint — no auth (temporary, for Elorus tax rate discovery)
+app.get('/api/debug/elorus', async (req, res) => {
+  try {
+    const axios = require('axios');
+    const orgKey = req.query.org_key || 'DEFAULT';
+    const ORGS = { DEFAULT: process.env.ELORUS_ORG_DEFAULT, IMENTOR_IKE: process.env.ELORUS_ORG_IMENTOR_IKE };
+    const headers = {
+      Authorization: `Token ${process.env.ELORUS_TOKEN}`,
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+      'X-Elorus-Organization': ORGS[orgKey] || ORGS.DEFAULT,
+    };
+    const BASE = 'https://api.elorus.com/v1.1/';
+    const out = {};
+    for (const ep of ['', 'itemtaxes/', 'itemtaxes/?active=true', 'taxes/', 'taxratecategories/', 'taxrates/', 'invoices/?page_size=1']) {
+      try { out[ep || 'ROOT'] = (await axios.get(`${BASE}${ep}`, { headers })).data; }
+      catch (e) { out[ep || 'ROOT'] = { status: e.response?.status, error: e.message }; }
+    }
+    res.json(out);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.use('/api/invoices/tax-rates', require('./routes/invoices')); // kept but unused now
 app.use('/api/income',     authMiddleware, require('./routes/income'));
 app.use('/api/expenses',   authMiddleware, require('./routes/expenses'));
 app.use('/api/lists',      authMiddleware, require('./routes/listItems'));
