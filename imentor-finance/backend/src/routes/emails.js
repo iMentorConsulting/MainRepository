@@ -30,18 +30,41 @@ function formatMoney(v) {
   return Number(v).toLocaleString('el-GR', { style: 'currency', currency: 'EUR' });
 }
 
+async function lookupAccountantEmail(accountantName) {
+  try {
+    const found = await Income.findOne({
+      where: { accountant: accountantName, accountant_email: { [Op.and]: [{ [Op.ne]: null }, { [Op.ne]: '' }] } },
+      attributes: ['accountant_email'],
+      raw: true
+    });
+    return found?.accountant_email || '';
+  } catch { return ''; }
+}
+
+function groupRecords(records) {
+  const grouped = {};
+  for (const r of records) {
+    const row = r.toJSON ? r.toJSON() : r;
+    const key = row.accountant || 'ΧΩΡΙΣ ΛΟΓΙΣΤΗ';
+    if (!grouped[key]) grouped[key] = { accountant: key, email: '', rows: [] };
+    if (!grouped[key].email && row.accountant_email) grouped[key].email = row.accountant_email;
+    grouped[key].rows.push(row);
+  }
+  return grouped;
+}
+
 // Preview email content for given income IDs grouped by accountant
 router.post('/preview', async (req, res) => {
   try {
     const { income_ids } = req.body;
     const records = await Income.findAll({ where: { id: { [Op.in]: income_ids } } });
+    const grouped = groupRecords(records);
 
-    const grouped = {};
-    for (const r of records) {
-      const key = r.accountant || 'ΧΩΡΙΣ ΛΟΓΙΣΤΗ';
-      if (!grouped[key]) grouped[key] = { accountant: key, email: '', rows: [] };
-      if (!grouped[key].email && r.accountant_email) grouped[key].email = r.accountant_email;
-      grouped[key].rows.push(r);
+    // Fill missing emails via DB lookup
+    for (const group of Object.values(grouped)) {
+      if (!group.email && group.accountant !== 'ΧΩΡΙΣ ΛΟΓΙΣΤΗ') {
+        group.email = await lookupAccountantEmail(group.accountant);
+      }
     }
 
     const emails = Object.values(grouped).map(({ accountant, email, rows }) => ({
@@ -62,12 +85,13 @@ router.post('/send', async (req, res) => {
     const { income_ids } = req.body;
     const records = await Income.findAll({ where: { id: { [Op.in]: income_ids } } });
 
-    const grouped = {};
-    for (const r of records) {
-      const key = r.accountant || 'ΧΩΡΙΣ ΛΟΓΙΣΤΗ';
-      if (!grouped[key]) grouped[key] = { accountant: key, email: '', rows: [] };
-      if (!grouped[key].email && r.accountant_email) grouped[key].email = r.accountant_email;
-      grouped[key].rows.push(r);
+    const grouped = groupRecords(records);
+
+    // Fill missing emails via DB lookup
+    for (const group of Object.values(grouped)) {
+      if (!group.email && group.accountant !== 'ΧΩΡΙΣ ΛΟΓΙΣΤΗ') {
+        group.email = await lookupAccountantEmail(group.accountant);
+      }
     }
 
     const transport = createTransport();

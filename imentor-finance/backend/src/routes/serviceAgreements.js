@@ -48,7 +48,7 @@ router.get('/stats', async (req, res) => {
 
 router.get('/', async (req, res) => {
   try {
-    const { status, customer_id, customer_name, search, sales_agent, service_type, limit = 50, offset = 0, page, sort_field, sort_dir } = req.query;
+    const { status, customer_id, customer_name, search, sales_agent, service_type, sale_year, sale_years, sale_month, sale_months, limit = 50, offset = 0, page, sort_field, sort_dir } = req.query;
     const actualOffset = page ? (parseInt(page) - 1) * parseInt(limit) : parseInt(offset);
     const where = {};
     if (status) where.status = status;
@@ -60,6 +60,23 @@ router.get('/', async (req, res) => {
       { customer_name: { [Op.iLike]: `%${search}%` } },
       { service_type: { [Op.iLike]: `%${search}%` } }
     ];
+    // Filter by first income sale_date year/month
+    const saleDateConditions = ['service_agreement_id IS NOT NULL'];
+    if (sale_years) {
+      const years = sale_years.split(',').map(y => parseInt(y.trim())).filter(Boolean);
+      if (years.length) saleDateConditions.push(`EXTRACT(YEAR FROM sale_date) IN (${years.join(',')})`);
+    } else if (sale_year) {
+      saleDateConditions.push(`EXTRACT(YEAR FROM sale_date) = ${parseInt(sale_year)}`);
+    }
+    if (sale_months) {
+      const months = sale_months.split(',').map(m => parseInt(m.trim())).filter(Boolean);
+      if (months.length) saleDateConditions.push(`EXTRACT(MONTH FROM sale_date) IN (${months.join(',')})`);
+    } else if (sale_month) {
+      saleDateConditions.push(`EXTRACT(MONTH FROM sale_date) = ${parseInt(sale_month)}`);
+    }
+    if (saleDateConditions.length > 1) {
+      where.id = { [Op.in]: sequelize.literal(`(SELECT DISTINCT service_agreement_id FROM income WHERE ${saleDateConditions.join(' AND ')})`) };
+    }
     const ALLOWED_SORT = ['customer_name', 'service_type', 'status', 'amount_application', 'amount_implementation', 'approval_date', 'createdAt', 'sales_agent'];
     const sf = ALLOWED_SORT.includes(sort_field) ? sort_field : 'createdAt';
     const sd = (sort_dir || '').toUpperCase() === 'ASC' ? 'ASC' : 'DESC';

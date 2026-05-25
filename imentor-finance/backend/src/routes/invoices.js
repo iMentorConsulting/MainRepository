@@ -20,20 +20,25 @@ async function aadeSearchAfm(vat, orgKey) {
     </soapenv:Body>
   </soapenv:Envelope>`;
 
+  const bodyBuffer = Buffer.from(soapBody, 'utf8');
   const credentials = Buffer.from(`${username}:${password}`).toString('base64');
-  const r = await axios.post(
-    'https://www1.gsis.gr/wsaade/RgWsPublic2/RgWsPublic2',
-    soapBody,
-    {
-      headers: {
-        'Content-Type': 'text/xml;charset=UTF-8',
-        'SOAPAction': '""',
-        'Authorization': `Basic ${credentials}`,
-        'Accept': 'text/xml',
-      },
-      timeout: 10000
-    }
-  );
+  const r = await axios({
+    method: 'post',
+    url: 'https://www1.gsis.gr/wsaade/RgWsPublic2/RgWsPublic2',
+    data: bodyBuffer,
+    headers: {
+      'Content-Type': 'text/xml;charset=UTF-8',
+      'SOAPAction': '""',
+      'Authorization': `Basic ${credentials}`,
+      'Content-Length': bodyBuffer.length,
+    },
+    timeout: 10000,
+    validateStatus: () => true,
+  });
+  if (r.status !== 200) {
+    const body = typeof r.data === 'string' ? r.data.substring(0, 500) : JSON.stringify(r.data);
+    throw new Error(`GSIS HTTP ${r.status}: ${body}`);
+  }
 
   const xml = r.data;
   const get = tag => {
@@ -102,34 +107,36 @@ const vatTaxRateCache = {};
 
 async function getVatTaxRateId(orgKey) {
   if (vatTaxRateCache[orgKey]) return vatTaxRateCache[orgKey];
-  try {
-    const r = await api(orgKey).get('taxratecategories/?active=true');
-    const results = r.data.results || [];
-    const vat24 = results.find(t =>
-      parseFloat(t.percent || 0) === 24 ||
-      String(t.percent || '') === '24.00' ||
-      (t.title || '').includes('24')
-    );
-    if (vat24?.id) {
-      vatTaxRateCache[orgKey] = vat24.id;
-      return vat24.id;
+  // Try multiple Elorus endpoints to find the 24% VAT rate ID
+  for (const endpoint of ['taxratecategories/?active=true', 'taxrates/?active=true']) {
+    try {
+      const r = await api(orgKey).get(endpoint);
+      const results = r.data.results || r.data || [];
+      const vat24 = results.find(t =>
+        parseFloat(t.percent || 0) === 24 ||
+        String(t.percent || '') === '24.00' ||
+        (t.title || '').includes('24')
+      );
+      if (vat24?.id) {
+        vatTaxRateCache[orgKey] = vat24.id;
+        return vat24.id;
+      }
+    } catch (e) {
+      console.warn(`Could not fetch Elorus tax rates from ${endpoint}:`, e.message);
     }
-  } catch (e) {
-    console.warn('Could not fetch Elorus tax rates:', e.message);
   }
   return null;
 }
 
 function lines(net, desc, serviceType, taxRateId) {
-  const taxes = taxRateId
-    ? [{ taxrate: taxRateId }]
-    : [{ percent: '24.00', title: 'ΦΠΑ 24%' }];
+  // Elorus v1.1: taxes is an array of plain integer IDs
+  const taxes = taxRateId ? [taxRateId] : [];
   return [{
     title: desc || serviceType || 'Παροχή Υπηρεσιών',
     quantity: '1.00',
     unit_value: net.toFixed(2),
     discount: '0.00',
-    taxes,
+    ...(taxes.length ? { taxes } : {}),
   }];
 }
 

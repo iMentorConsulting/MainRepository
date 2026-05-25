@@ -1,8 +1,52 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import api from '../../api/client';
 import Modal from '../../components/Modal';
 import CustomerSearch from '../../components/CustomerSearch';
 import toast from 'react-hot-toast';
+
+const now = new Date();
+
+function MultiSelectDropdown({ label, options, selected, onChange, getKey, getLabel }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  useEffect(() => {
+    const h = e => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', h);
+    return () => document.removeEventListener('mousedown', h);
+  }, []);
+  const allSelected = selected.length === 0;
+  const displayLabel = allSelected ? label
+    : selected.length === 1 ? getLabel(options.find(o => getKey(o) === selected[0]) || {})
+    : `${selected.length} επιλεγμένα`;
+  const toggle = key => onChange(selected.includes(key) ? selected.filter(k => k !== key) : [...selected, key]);
+  return (
+    <div className="relative" ref={ref}>
+      <button type="button" className="input flex items-center justify-between gap-2 min-w-[110px] text-left" onClick={() => setOpen(v => !v)}>
+        <span className={`truncate text-sm ${allSelected ? 'text-slate-400' : 'text-slate-700'}`}>{displayLabel}</span>
+        <svg viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5 text-slate-400 shrink-0">
+          <path fillRule="evenodd" d="M4.22 6.22a.75.75 0 0 1 1.06 0L8 8.94l2.72-2.72a.75.75 0 1 1 1.06 1.06l-3.25 3.25a.75.75 0 0 1-1.06 0L4.22 7.28a.75.75 0 0 1 0-1.06Z" clipRule="evenodd"/>
+        </svg>
+      </button>
+      {open && (
+        <div className="absolute z-50 top-full mt-1 left-0 min-w-[140px] bg-white border border-slate-200 rounded-xl shadow-lg py-1 max-h-64 overflow-y-auto">
+          <label className="flex items-center gap-2.5 px-3 py-2 hover:bg-slate-50 cursor-pointer border-b border-slate-100">
+            <input type="checkbox" checked={allSelected} onChange={() => onChange([])} className="w-4 h-4 rounded border-slate-300 text-primary-600" />
+            <span className="text-sm text-slate-600 font-medium">{label}</span>
+          </label>
+          {options.map(opt => {
+            const key = getKey(opt);
+            return (
+              <label key={key} className="flex items-center gap-2.5 px-3 py-2 hover:bg-slate-50 cursor-pointer">
+                <input type="checkbox" checked={selected.includes(key)} onChange={() => toggle(key)} className="w-4 h-4 rounded border-slate-300 text-primary-600" />
+                <span className="text-sm text-slate-700">{getLabel(opt)}</span>
+              </label>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
 
 const fmt = n => n != null && n !== '' ? Number(n).toLocaleString('el-GR', { minimumFractionDigits: 0, maximumFractionDigits: 2 }) + ' €' : '—';
 const fmtDate = d => d ? new Date(d + 'T00:00:00').toLocaleDateString('el-GR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—';
@@ -179,10 +223,20 @@ function SortTh({ label, field, sort, onSort, className = '' }) {
   );
 }
 
+const YEAR_OPTS = Array.from({ length: 8 }, (_, i) => ({ value: String(now.getFullYear() - i) }));
+const MONTH_OPTS = [
+  { value: '1', label: 'Ιαν' }, { value: '2', label: 'Φεβ' }, { value: '3', label: 'Μαρ' },
+  { value: '4', label: 'Απρ' }, { value: '5', label: 'Μαι' }, { value: '6', label: 'Ιουν' },
+  { value: '7', label: 'Ιουλ' }, { value: '8', label: 'Αυγ' }, { value: '9', label: 'Σεπ' },
+  { value: '10', label: 'Οκτ' }, { value: '11', label: 'Νοε' }, { value: '12', label: 'Δεκ' },
+];
+
 export default function ServiceAgreementsPage() {
   const [data, setData] = useState({ data: [], total: 0 });
   const [filters, setFilters] = useState({ search: '', status: '', sales_agent: '', service_type: '' });
   const [sort, setSort] = useState({ field: 'createdAt', dir: 'DESC' });
+  const [selectedSaleYears, setSelectedSaleYears] = useState([]);
+  const [selectedSaleMonths, setSelectedSaleMonths] = useState([]);
   const [modal, setModal] = useState({ open: false, record: null });
   const [deleteId, setDeleteId] = useState(null);
   const [stats, setStats] = useState({ total: 0, byStatus: {} });
@@ -198,10 +252,14 @@ export default function ServiceAgreementsPage() {
     params.limit = 50;
     params.sort_field = sort.field;
     params.sort_dir = sort.dir;
+    if (selectedSaleYears.length === 1) params.sale_year = selectedSaleYears[0];
+    else if (selectedSaleYears.length > 1) params.sale_years = selectedSaleYears.join(',');
+    if (selectedSaleMonths.length === 1) params.sale_month = selectedSaleMonths[0];
+    else if (selectedSaleMonths.length > 1) params.sale_months = selectedSaleMonths.join(',');
     api.get('/service-agreements', { params })
       .then(r => setData(r.data))
       .catch(err => toast.error('Σφάλμα φόρτωσης συμφωνιών: ' + (err.response?.data?.error || err.message)));
-  }, [filters, sort]);
+  }, [filters, sort, selectedSaleYears, selectedSaleMonths]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -280,7 +338,26 @@ export default function ServiceAgreementsPage() {
           <option value="">Υπηρεσία</option>
           {services.map(s => <option key={s} value={s}>{s}</option>)}
         </select>
-        <button className="btn-ghost btn-sm" onClick={() => setFilters({ search: '', status: '', sales_agent: '', service_type: '' })}>
+        <div className="flex items-center gap-1 border-l border-slate-200 pl-2 ml-1">
+          <span className="text-xs text-slate-400 whitespace-nowrap">Ημ. Συμφωνίας:</span>
+          <MultiSelectDropdown
+            label="Έτος"
+            options={YEAR_OPTS}
+            selected={selectedSaleYears}
+            onChange={setSelectedSaleYears}
+            getKey={o => o.value}
+            getLabel={o => o.value}
+          />
+          <MultiSelectDropdown
+            label="Μήνας"
+            options={MONTH_OPTS}
+            selected={selectedSaleMonths}
+            onChange={setSelectedSaleMonths}
+            getKey={o => o.value}
+            getLabel={o => o.label}
+          />
+        </div>
+        <button className="btn-ghost btn-sm" onClick={() => { setFilters({ search: '', status: '', sales_agent: '', service_type: '' }); setSelectedSaleYears([]); setSelectedSaleMonths([]); }}>
           ✕ Καθαρισμός
         </button>
       </div>
