@@ -20,9 +20,10 @@ async function aadeSearchAfm(vat, orgKey) {
       path: '/wsaade/RgWsPublic2/RgWsPublic2',
       method: 'POST',
       headers: {
-        'Content-Type': 'text/xml',
+        'Content-Type': 'text/xml;charset=UTF-8',
+        'SOAPAction': '""',
         'Authorization': `Basic ${credentials}`,
-        'Content-Length': bodyBuffer.length,
+        'Content-Length': Buffer.byteLength(bodyBuffer),
       },
     };
     const req = https.request(options, res => {
@@ -54,8 +55,7 @@ async function aadeSearchAfm(vat, orgKey) {
     });
     req.setTimeout(15000, () => { req.destroy(); reject(new Error('GSIS request timeout')); });
     req.on('error', reject);
-    req.write(bodyBuffer);
-    req.end();
+    req.end(bodyBuffer);
   });
 }
 
@@ -110,60 +110,62 @@ async function getVatTaxRateId(orgKey) {
   if (envId) return envId;
   if (vatTaxRateCache[orgKey]) return vatTaxRateCache[orgKey];
 
-  // Try taxratecategories first — Elorus stores rate categories with nested taxes array
+  // Try taxratecategories — Elorus stores rate categories with nested taxes[]
   for (const ep of ['taxratecategories/?active=true', 'taxratecategories/']) {
     try {
       const r = await api(orgKey).get(ep);
       const cats = r.data.results || (Array.isArray(r.data) ? r.data : []);
-      console.log(`Elorus ${ep}:`, JSON.stringify(cats));
+      console.log(`Elorus ${ep} (${cats.length} items):`, JSON.stringify(cats).slice(0, 400));
       if (!cats.length) continue;
-      // Each category may have a nested taxes[] with {taxrate, percent} entries
       for (const cat of cats) {
+        // nested taxes[] with {taxrate: id-or-obj, percent} entries
         if (Array.isArray(cat.taxes)) {
           const t24 = cat.taxes.find(t => parseFloat(t.percent || 0) === 24);
           const chosen = t24 || cat.taxes[0];
-          if (chosen?.taxrate) {
-            vatTaxRateCache[orgKey] = chosen.taxrate;
-            return chosen.taxrate;
+          if (chosen?.taxrate != null) {
+            // taxrate can be a plain ID or an object {id, ...}
+            const id = (typeof chosen.taxrate === 'object') ? chosen.taxrate.id : chosen.taxrate;
+            if (id) { vatTaxRateCache[orgKey] = id; return id; }
           }
         }
-        // Some versions expose percent/rate directly on the category object
-        if (
-          parseFloat(cat.percent || cat.rate || 0) === 24 ||
-          (cat.title || '').includes('24')
-        ) {
-          vatTaxRateCache[orgKey] = cat.id;
-          return cat.id;
+        // Some versions expose percent/rate directly on category
+        if (parseFloat(cat.percent || cat.rate || 0) === 24 || (cat.title || '').includes('24')) {
+          vatTaxRateCache[orgKey] = cat.id; return cat.id;
         }
       }
-      // Absolute fallback: first category id
+      // Last resort: first category's id
       if (cats[0]?.id) {
-        console.warn('Elorus: using first category as VAT rate fallback:', cats[0]);
-        vatTaxRateCache[orgKey] = cats[0].id;
-        return cats[0].id;
+        console.warn('Elorus: first category fallback:', JSON.stringify(cats[0]));
+        vatTaxRateCache[orgKey] = cats[0].id; return cats[0].id;
       }
-    } catch (e) {
-      console.warn(`Elorus ${ep} failed:`, e.message);
-    }
+    } catch (e) { console.warn(`Elorus ${ep}:`, e.message); }
   }
 
-  // Fallback: try flat taxrates endpoint
+  // Fallback: flat taxrates endpoint
   for (const ep of ['taxrates/?active=true', 'taxrates/']) {
     try {
       const r = await api(orgKey).get(ep);
       const rates = r.data.results || (Array.isArray(r.data) ? r.data : []);
-      console.log(`Elorus ${ep}:`, JSON.stringify(rates));
+      console.log(`Elorus ${ep} (${rates.length} items):`, JSON.stringify(rates).slice(0, 400));
       if (!rates.length) continue;
       const r24 = rates.find(t => parseFloat(t.percent || t.rate || 0) === 24 || (t.title || '').includes('24'));
       const chosen = r24 || rates[0];
-      if (chosen?.id) {
-        vatTaxRateCache[orgKey] = chosen.id;
-        return chosen.id;
-      }
-    } catch (e) {
-      console.warn(`Elorus ${ep} failed:`, e.message);
-    }
+      if (chosen?.id) { vatTaxRateCache[orgKey] = chosen.id; return chosen.id; }
+    } catch (e) { console.warn(`Elorus ${ep}:`, e.message); }
   }
+
+  // Last resort: extract tax id from an existing Elorus invoice
+  try {
+    const r = await api(orgKey).get('invoices/?page_size=5&draft=false');
+    const invs = r.data.results || [];
+    for (const inv of invs) {
+      const taxId = inv.items?.[0]?.taxes?.[0];
+      if (taxId) {
+        const id = typeof taxId === 'object' ? taxId.id : taxId;
+        if (id) { console.log('Elorus: tax rate from existing invoice:', id); vatTaxRateCache[orgKey] = id; return id; }
+      }
+    }
+  } catch (e) { console.warn('Elorus invoice fallback:', e.message); }
 
   return null;
 }
@@ -221,6 +223,11 @@ router.post('/create-draft', async (req, res) => {
     const a = api(org_key);
     const net = parseFloat(amount);
     const [taxRateId, contactId] = await Promise.all([getVatTaxRateId(org_key), findOrCreateContact(org_key, income)]);
+    if (!taxRateId) {
+      let debug = '?';
+      try { debug = JSON.stringify((await api(org_key).get('taxratecategories/')).data).slice(0, 300); } catch (de) { debug = de.message; }
+      return res.status(400).json({ error: `Elorus: δεν βρέθηκε VAT rate ID. Ορίστε ELORUS_VAT_RATE_ID στο Railway. taxratecategories: ${debug}` });
+    }
     const body = {
       client: contactId,
       date: date || new Date().toISOString().split('T')[0],
@@ -281,6 +288,11 @@ router.post('/one-shot', async (req, res) => {
     const net = parseFloat(amount);
     const iDate = date || new Date().toISOString().split('T')[0];
     const [taxRateId, contactId] = await Promise.all([getVatTaxRateId(org_key), findOrCreateContact(org_key, income)]);
+    if (!taxRateId) {
+      let debug = '?';
+      try { debug = JSON.stringify((await api(org_key).get('taxratecategories/')).data).slice(0, 300); } catch (de) { debug = de.message; }
+      return res.status(400).json({ error: `Elorus: δεν βρέθηκε VAT rate ID. Ορίστε ELORUS_VAT_RATE_ID στο Railway. taxratecategories: ${debug}` });
+    }
     const body = {
       client: contactId,
       date: iDate,

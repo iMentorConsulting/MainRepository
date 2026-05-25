@@ -5,14 +5,18 @@ const Income = require('../models/Income');
 const CommissionLog = require('../models/CommissionLog');
 
 function createTransport() {
+  // Configurable SMTP — set SMTP_HOST/PORT/USER/PASS in Railway env vars
+  // Gmail is often blocked from cloud: use smtp.resend.com:465 (RESEND_API_KEY as pass, 'resend' as user)
+  // or smtp-relay.brevo.com:587 with Brevo credentials
+  const host = process.env.SMTP_HOST || 'smtp.gmail.com';
+  const port = parseInt(process.env.SMTP_PORT || '465');
+  const user = process.env.SMTP_USER || process.env.GMAIL_USER;
+  const pass = process.env.SMTP_PASS || process.env.GMAIL_APP_PASSWORD;
   return nodemailer.createTransport({
-    host: 'smtp.gmail.com',
-    port: 465,
-    secure: true,
-    auth: {
-      user: process.env.GMAIL_USER,
-      pass: process.env.GMAIL_APP_PASSWORD
-    },
+    host, port,
+    secure: port === 465,
+    auth: { user, pass },
+    tls: { rejectUnauthorized: false },
     connectionTimeout: 30000,
     greetingTimeout: 30000,
     socketTimeout: 45000,
@@ -103,10 +107,11 @@ router.post('/send', async (req, res) => {
       if (!email) { results.push({ accountant, status: 'skipped', reason: 'Δεν υπάρχει email λογιστή' }); continue; }
 
       try {
+        const fromAddr = process.env.SMTP_USER || process.env.GMAIL_USER;
         await transport.sendMail({
-          from: `i-Mentor <${process.env.GMAIL_USER}>`,
+          from: `i-Mentor <${fromAddr}>`,
           to: email,
-          bcc: process.env.GMAIL_USER,
+          bcc: fromAddr,
           subject: `Ενημέρωση Νέων Εισπράξεων – i-Mentor`,
           html: buildEmailHtml(accountant, rows)
         });

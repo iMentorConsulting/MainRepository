@@ -20,9 +20,10 @@ async function aadeSearchAfm(vat, orgKey) {
       path: '/wsaade/RgWsPublic2/RgWsPublic2',
       method: 'POST',
       headers: {
-        'Content-Type': 'text/xml',
+        'Content-Type': 'text/xml;charset=UTF-8',
+        'SOAPAction': '""',
         'Authorization': `Basic ${credentials}`,
-        'Content-Length': bodyBuffer.length,
+        'Content-Length': Buffer.byteLength(bodyBuffer),
       },
     };
     const req = https.request(options, res => {
@@ -54,8 +55,7 @@ async function aadeSearchAfm(vat, orgKey) {
     });
     req.setTimeout(15000, () => { req.destroy(); reject(new Error('GSIS request timeout')); });
     req.on('error', reject);
-    req.write(bodyBuffer);
-    req.end();
+    req.end(bodyBuffer);
   });
 }
 
