@@ -157,18 +157,17 @@ export default function Dashboard() {
   }, [selectedYears, selectedMonths, dateFrom, dateTo]);
 
   useEffect(() => {
-    api.get('/income', { params: { limit: 9999 } }).then(r => {
-      const rows = r.data?.data || [];
-      setAllIncome(rows);
-      // Auto-select the most recent year that has actual income data
-      const yearsWithData = [...new Set(rows.map(x => (x.sale_date || '').slice(0, 4)).filter(Boolean))].sort((a, b) => b - a);
-      if (yearsWithData.length > 0) {
+    // Detect latest year with data and auto-switch to it
+    api.get('/reports/available-years').then(r => {
+      const years = r.data || [];
+      if (years.length > 0) {
         setSelectedYears(prev => {
-          const hasData = rows.some(x => (x.sale_date || '').startsWith(prev[0]));
-          return hasData ? prev : [yearsWithData[0]];
+          const currentHasData = years.includes(parseInt(prev[0]));
+          return currentHasData ? prev : [String(years[0])];
         });
       }
     }).catch(() => {});
+    api.get('/income', { params: { limit: 9999 } }).then(r => setAllIncome(r.data?.data || [])).catch(() => {});
     api.get('/expenses', { params: { limit: 9999 } }).then(r => setAllExpenses(r.data?.data || [])).catch(() => {});
   }, []);
 

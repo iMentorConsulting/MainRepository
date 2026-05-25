@@ -56,7 +56,7 @@ router.get('/monthly', async (req, res) => {
       SELECT TO_CHAR(sale_date, 'MM') as month,
              SUM(amount_collected) as income,
              COUNT(*) as count
-      FROM incomes
+      FROM income
       WHERE sale_date BETWEEN :start AND :end
         AND amount_collected IS NOT NULL
       GROUP BY month ORDER BY month
@@ -169,7 +169,7 @@ router.get('/bonus', async (req, res) => {
         SUM(bonus) as bonus,
         SUM(amount_application) as amount_application,
         COUNT(*) as count
-      FROM incomes
+      FROM income
       WHERE sale_date BETWEEN :start AND :end
         AND sales_agent IS NOT NULL
       GROUP BY sales_agent, month
@@ -243,13 +243,14 @@ router.get('/by-customer', async (req, res) => {
         vat_number,
         COALESCE(SUM(amount_collected), 0) as income,
         COUNT(*) as count,
+        COUNT(DISTINCT service_type) as service_count,
         STRING_AGG(DISTINCT service_type, ', ' ORDER BY service_type) as services
-      FROM incomes
+      FROM income
       WHERE ${dateCondition}
       GROUP BY customer_name, vat_number
       HAVING COALESCE(SUM(amount_collected), 0) > 0
       ORDER BY income DESC
-    `, { replacements, type: require('sequelize').QueryTypes.SELECT });
+    `, { replacements, type: QueryTypes.SELECT });
 
     res.json(rows.map(r => ({
       customer_name: r.customer_name,
@@ -347,22 +348,45 @@ router.get('/open-cases', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+router.get('/available-years', async (req, res) => {
+  try {
+    const rows = await sequelize.query(
+      `SELECT DISTINCT EXTRACT(YEAR FROM sale_date)::int AS year
+       FROM income
+       WHERE sale_date IS NOT NULL
+       ORDER BY year DESC`,
+      { type: QueryTypes.SELECT }
+    );
+    res.json(rows.map(r => r.year).filter(Boolean));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 router.get('/service-trend', async (req, res) => {
   try {
     const { service_type, year } = req.query;
-    if (!service_type) return res.json([]);
-    const whereYear = year ? `AND EXTRACT(YEAR FROM date) = ${parseInt(year)}` : '';
+    if (!service_type) {
+      // Return distinct service types when called without parameters
+      const types = await sequelize.query(
+        `SELECT DISTINCT service_type FROM income WHERE service_type IS NOT NULL ORDER BY service_type`,
+        { type: QueryTypes.SELECT }
+      );
+      return res.json(types.map(r => r.service_type));
+    }
+    const whereYear = year ? `AND EXTRACT(YEAR FROM sale_date) = ${parseInt(year)}` : '';
     const rows = await sequelize.query(`
       SELECT
-        EXTRACT(YEAR FROM date)::int AS year,
-        EXTRACT(MONTH FROM date)::int AS month,
+        EXTRACT(YEAR FROM sale_date)::int AS year,
+        EXTRACT(MONTH FROM sale_date)::int AS month,
+        TO_CHAR(DATE_TRUNC('month', sale_date), 'YYYY-MM') AS period,
         COUNT(*) AS count,
-        COALESCE(SUM(amount_collected), 0) AS total
-      FROM incomes
+        COALESCE(SUM(amount_collected), 0) AS total,
+        COALESCE(SUM(amount_application), 0) AS total_application,
+        COALESCE(SUM(amount_implementation), 0) AS total_implementation
+      FROM income
       WHERE service_type = :service_type ${whereYear}
-      GROUP BY year, month
+      GROUP BY year, month, period
       ORDER BY year, month
-    `, { replacements: { service_type }, type: sequelize.QueryTypes.SELECT });
+    `, { replacements: { service_type }, type: QueryTypes.SELECT });
     res.json(rows);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });

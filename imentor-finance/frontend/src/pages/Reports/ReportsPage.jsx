@@ -182,17 +182,18 @@ function TabOverview({ year, setYear, month, setMonth, years, months, monthLabel
 }
 
 function TabTopCustomers({ years }) {
-  const [year, setYear] = useState(new Date().getFullYear());
+  const [year, setYear] = useState(years[0] || new Date().getFullYear());
   const [data, setData] = useState([]);
   const [sortCol, setSortCol] = useState('income');
   const [sortDir, setSortDir] = useState('desc');
 
   useEffect(() => {
+    if (years.length > 0 && !years.includes(year)) setYear(years[0]);
+  }, [years]);
+
+  useEffect(() => {
     api.get(`/reports/by-customer?year=${year}`)
-      .then(r => {
-        setData(r.data);
-        if (r.data.length === 0 && year === new Date().getFullYear()) setYear(year - 1);
-      })
+      .then(r => setData(r.data))
       .catch(() => setData([]));
   }, [year]);
 
@@ -329,7 +330,7 @@ function TabTopCustomers({ years }) {
 }
 
 function TabAccountants({ years }) {
-  const [year, setYear] = useState(new Date().getFullYear());
+  const [year, setYear] = useState(years[0] || new Date().getFullYear());
   const [month, setMonth] = useState('');
   const [data, setData] = useState([]);
   const [selectedAccountants, setSelectedAccountants] = useState([]);
@@ -534,10 +535,10 @@ function TabAccountants({ years }) {
   );
 }
 
-function TabOpenCases() {
-  const [year, setYear] = useState(new Date().getFullYear());
+function TabOpenCases({ years: propYears }) {
+  const years = propYears?.length > 0 ? propYears : Array.from({ length: 6 }, (_, i) => new Date().getFullYear() - i);
+  const [year, setYear] = useState(years[0] || new Date().getFullYear());
   const [data, setData] = useState([]);
-  const years = Array.from({ length: 6 }, (_, i) => new Date().getFullYear() - i);
   const STATUS_COLORS = { open: '#10b981', frozen: '#f59e0b', completed_ok: '#6366f1', completed_fail: '#f43f5e' };
 
   useEffect(() => {
@@ -773,6 +774,15 @@ export default function ReportsPage() {
   const [byAgent, setByAgent] = useState([]);
   const [byExpCat, setByExpCat] = useState([]);
   const [summary, setSummary] = useState(null);
+  const [availableYears, setAvailableYears] = useState([]);
+
+  useEffect(() => {
+    api.get('/reports/available-years').then(r => {
+      const years = r.data || [];
+      setAvailableYears(years);
+      if (years.length > 0 && !years.includes(year)) setYear(years[0]);
+    }).catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (activeTab !== 'overview') return;
@@ -806,7 +816,9 @@ export default function ReportsPage() {
     });
   }, [year, month, dateFrom, dateTo, activeTab]);
 
-  const years = Array.from({ length: 6 }, (_, i) => new Date().getFullYear() - i);
+  const years = availableYears.length > 0
+    ? availableYears
+    : Array.from({ length: 6 }, (_, i) => new Date().getFullYear() - i);
   const months = ['','01','02','03','04','05','06','07','08','09','10','11','12'];
   const monthLabels = ['Όλοι οι μήνες','Ιαν','Φεβ','Μαρ','Απρ','Μαι','Ιουν','Ιουλ','Αυγ','Σεπ','Οκτ','Νοε','Δεκ'];
 
@@ -847,7 +859,7 @@ export default function ReportsPage() {
       )}
       {activeTab === 'top-customers' && <TabTopCustomers years={years} />}
       {activeTab === 'accountants' && <TabAccountants years={years} />}
-      {activeTab === 'open-cases' && <TabOpenCases />}
+      {activeTab === 'open-cases' && <TabOpenCases years={years} />}
       {activeTab === 'service-trend' && <TabServiceTrend />}
     </div>
   );

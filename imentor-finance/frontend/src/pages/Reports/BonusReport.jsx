@@ -125,27 +125,29 @@ export default function BonusReport() {
   const [data, setData] = useState([]);
   const [drill, setDrill] = useState(null); // { agent, month, monthName }
   const [noData, setNoData] = useState(false);
+  const [availableYears, setAvailableYears] = useState([]);
+
+  useEffect(() => {
+    api.get('/reports/available-years').then(r => {
+      const yrs = r.data || [];
+      setAvailableYears(yrs);
+      if (yrs.length > 0 && !yrs.includes(year)) setYear(yrs[0]);
+    }).catch(() => {});
+  }, []);
 
   useEffect(() => {
     setNoData(false);
     api.get(`/reports/bonus?year=${year}`)
       .then(r => {
         setData(r.data);
-        // If no data for this year, try previous year automatically
-        if (r.data.length === 0 && year === new Date().getFullYear()) {
-          const prevYear = year - 1;
-          api.get(`/reports/bonus?year=${prevYear}`).then(r2 => {
-            if (r2.data.length > 0) setYear(prevYear);
-            else setNoData(true);
-          }).catch(() => setNoData(true));
-        } else if (r.data.length === 0) {
-          setNoData(true);
-        }
+        if (r.data.length === 0) setNoData(true);
       })
       .catch(() => setNoData(true));
   }, [year]);
 
-  const years = Array.from({ length: 6 }, (_, i) => new Date().getFullYear() - i);
+  const years = availableYears.length > 0
+    ? availableYears
+    : Array.from({ length: 6 }, (_, i) => new Date().getFullYear() - i);
 
   const chartData = monthNames.map((name, i) => {
     const month = String(i + 1).padStart(2, '0');

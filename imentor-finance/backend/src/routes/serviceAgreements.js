@@ -48,7 +48,7 @@ router.get('/', async (req, res) => {
         SELECT service_agreement_id,
                COALESCE(SUM(amount_collected), 0) AS total_collected,
                COUNT(*) AS payment_count
-        FROM incomes
+        FROM income
         WHERE service_agreement_id IS NOT NULL
         GROUP BY service_agreement_id
       `, { type: QueryTypes.SELECT });
@@ -58,17 +58,17 @@ router.get('/', async (req, res) => {
           count: parseInt(row.payment_count || 0)
         });
       }
-      // Fallback: match by lower(trim(customer_name)) for imported data without agreement link
+      // Fallback: match by (customer_name + service_type) for imported data without agreement link
       const byName = await sequelize.query(`
-        SELECT LOWER(TRIM(customer_name)) AS cname,
+        SELECT LOWER(TRIM(customer_name)) || '|' || COALESCE(LOWER(TRIM(service_type)), '') AS name_svc_key,
                COALESCE(SUM(amount_collected), 0) AS total_collected,
                COUNT(*) AS payment_count
-        FROM incomes
+        FROM income
         WHERE customer_name IS NOT NULL
-        GROUP BY LOWER(TRIM(customer_name))
+        GROUP BY name_svc_key
       `, { type: QueryTypes.SELECT });
       for (const row of byName) {
-        nameMap.set(row.cname, {
+        nameMap.set(row.name_svc_key, {
           total: parseFloat(row.total_collected || 0),
           count: parseInt(row.payment_count || 0)
         });
@@ -79,7 +79,8 @@ router.get('/', async (req, res) => {
 
     const enriched = rows.map(sa => {
       const byIdMatch = idMap.get(sa.id);
-      const byNameMatch = nameMap.get((sa.customer_name || '').toLowerCase().trim());
+      const nameKey = `${(sa.customer_name || '').toLowerCase().trim()}|${(sa.service_type || '').toLowerCase().trim()}`;
+      const byNameMatch = nameMap.get(nameKey);
       const inc = byIdMatch || byNameMatch || { total: 0, count: 0 };
       return { ...sa.toJSON(), income_collected: inc.total, income_payment_count: inc.count };
     });
