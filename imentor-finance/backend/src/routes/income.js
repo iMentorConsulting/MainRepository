@@ -37,9 +37,19 @@ router.get('/', async (req, res) => {
   }
 });
 
+const NUMERIC_FIELDS = ['amount_collected','amount_application','amount_implementation','vat_amount','bonus','investment_height','total_debts'];
+const sanitize = body => {
+  const clean = { ...body };
+  for (const f of NUMERIC_FIELDS) {
+    if (clean[f] === '' || clean[f] === undefined) clean[f] = null;
+    else if (clean[f] !== null) clean[f] = parseFloat(clean[f]) || null;
+  }
+  return clean;
+};
+
 router.post('/', async (req, res) => {
   try {
-    const record = await Income.create(req.body);
+    const record = await Income.create(sanitize(req.body));
     res.status(201).json(record);
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -60,7 +70,7 @@ router.put('/:id', async (req, res) => {
   try {
     const record = await Income.findByPk(req.params.id);
     if (!record) return res.status(404).json({ error: 'Δεν βρέθηκε' });
-    await record.update(req.body);
+    await record.update(sanitize(req.body));
     res.json(record);
   } catch (e) {
     res.status(500).json({ error: e.message });

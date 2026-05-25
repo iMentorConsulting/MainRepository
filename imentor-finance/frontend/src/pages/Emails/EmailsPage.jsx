@@ -249,15 +249,18 @@ export default function EmailsPage() {
               getKey={o => o.value}
               getLabel={o => o.label}
             />
-            <MultiSelectDropdown
-              label="Όλοι οι λογιστές"
-              options={accountants}
-              selected={selectedAccountants}
-              onChange={v => { setSelectedAccountants(v); setSelected(new Set()); }}
-              getKey={o => o.accountant_email || o.accountant || ''}
-              getLabel={o => o.accountant_name || o.accountant || ''}
-              getCount={o => o.count}
-            />
+            <select
+              className="input w-56"
+              value={selectedAccountants[0] || ''}
+              onChange={e => { setSelectedAccountants(e.target.value ? [e.target.value] : []); setSelected(new Set()); }}
+            >
+              <option value="">Όλοι οι λογιστές</option>
+              {accountants.map(o => {
+                const key = o.accountant_email || o.accountant || '';
+                const label = o.accountant_name || o.accountant || '';
+                return <option key={key} value={key}>{label}{o.count ? ` (${o.count})` : ''}</option>;
+              })}
+            </select>
             <div className="flex items-center gap-1 text-slate-400 text-xs">ή</div>
             <div className="flex items-center gap-1">
               <input type="date" className="input w-36 text-sm" value={dateFrom} onChange={e => setDateFrom(e.target.value)} placeholder="Από" />

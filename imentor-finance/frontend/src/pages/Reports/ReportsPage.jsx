@@ -773,18 +773,18 @@ export default function ReportsPage() {
       return params.toString();
     };
     const q = month ? `year=${year}&month=${month}` : `year=${year}`;
-    Promise.all([
+    Promise.allSettled([
       api.get(`/reports/monthly?year=${year}`),
       api.get(`/reports/by-service?${buildQ(q)}`),
       api.get(`/reports/by-agent?${buildQ(q)}`),
       api.get(`/reports/expenses-by-category?${buildQ(q)}`),
       api.get(`/reports/summary?${buildQ(q)}`)
     ]).then(([m, sv, ag, ec, sm]) => {
-      setMonthly(m.data.map(d => ({ ...d, name: d.month_name.slice(0, 3) })));
-      setByService(sv.data);
-      setByAgent(ag.data);
-      setByExpCat(ec.data);
-      setSummary(sm.data);
+      if (m.status === 'fulfilled') setMonthly(m.value.data.map(d => ({ ...d, name: d.month_name?.slice(0, 3) || '' })));
+      if (sv.status === 'fulfilled') setByService(sv.value.data);
+      if (ag.status === 'fulfilled') setByAgent(ag.value.data);
+      if (ec.status === 'fulfilled') setByExpCat(ec.value.data);
+      if (sm.status === 'fulfilled') setSummary(sm.value.data);
     });
   }, [year, month, dateFrom, dateTo, activeTab]);
 

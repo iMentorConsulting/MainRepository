@@ -271,7 +271,7 @@ export default function IncomeForm({ record, onSave, onCancel }) {
           <S label="Πηγή / Σύσταση" name="source_referral" opts={lists['ΠΗΓΗ_ΣΥΣΤΑΣΗ']} />
           <S label="Υπεύθυνος Πώλησης" name="sales_agent" opts={lists['ΠΡΑΚΤΟΡΕΣ']} />
           <S label="Υπεύθυνος Φακέλου" name="folder_agent" opts={lists['ΠΡΑΚΤΟΡΕΣ']} />
-          <F label="Bonus (€)" name="bonus" type="number" />
+          <F label="Bonus (€)" name="bonus" type="number" extra={{ step: '0.01' }} />
           <F label="Ημ/νία Πώλησης / Είσπραξης" name="sale_date" type="date" required />
           <F label="Ημ/νία Έγκρισης / Απόρριψης" name="approval_date" type="date" />
           <F label="Προθεσμία Ολοκλήρωσης" name="completion_deadline" type="date" />

@@ -1,9 +1,23 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import api from '../../api/client';
 import toast from 'react-hot-toast';
 import Modal from '../../components/Modal';
 
-const EMPTY = { amount: '', category: '', supplier: '', description: '', vat_amount: '', payment_method: '', notes: '', is_active: true, day_of_month: 1 };
+const EMPTY = { amount: '', category: '', service_type: '', supplier: '', description: '', vat_amount: '', payment_method: '', notes: '', is_active: true, day_of_month: 1 };
+
+const CSV_HEADERS = ['amount','category','service_type','supplier','description','vat_amount','payment_method','notes','day_of_month'];
+
+function parseCSV(text) {
+  const lines = text.trim().split('\n').map(l => l.trim()).filter(Boolean);
+  if (lines.length < 2) return [];
+  const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/['"]/g, ''));
+  return lines.slice(1).map(line => {
+    const values = line.split(',').map(v => v.trim().replace(/^["']|["']$/g, ''));
+    const obj = {};
+    headers.forEach((h, i) => { obj[h] = values[i] || ''; });
+    return obj;
+  });
+}
 
 export default function RecurringExpensesPage() {
   const [rows, setRows] = useState([]);
@@ -11,14 +25,20 @@ export default function RecurringExpensesPage() {
   const [form, setForm] = useState(EMPTY);
   const [lists, setLists] = useState({});
   const [generating, setGenerating] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const csvInputRef = useRef(null);
 
   useEffect(() => {
     load();
-    // Load category and supplier lists
     Promise.all([
       api.get('/lists?list_type=ΚΑΤΗΓΟΡΙΕΣ_ΕΞΟΔΩΝ&active_only=true'),
       api.get('/lists?list_type=ΠΡΟΜΗΘΕΥΤΕΣ&active_only=true'),
-    ]).then(([c, s]) => setLists({ categories: c.data.map(x => x.value), suppliers: s.data.map(x => x.value) }));
+      api.get('/lists?list_type=ΕΙΔΟΣ_ΥΠΗΡΕΣΙΑΣ&active_only=true'),
+    ]).then(([c, s, sv]) => setLists({
+      categories: c.data.map(x => x.value),
+      suppliers: s.data.map(x => x.value),
+      services: sv.data.map(x => x.value),
+    }));
   }, []);
 
   const load = () => api.get('/recurring-expenses').then(r => setRows(r.data)).catch(() => {});
@@ -49,6 +69,35 @@ export default function RecurringExpensesPage() {
     load();
   };
 
+  const handleCSVImport = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImporting(true);
+    try {
+      const text = await file.text();
+      const parsed = parseCSV(text);
+      if (parsed.length === 0) { toast.error('Δεν βρέθηκαν δεδομένα στο CSV'); return; }
+      const r = await api.post('/recurring-expenses/import-csv', { rows: parsed });
+      toast.success(`Εισήχθησαν ${r.data.created} εγγραφές${r.data.errors.length > 0 ? ` · ${r.data.errors.length} σφάλματα` : ''}`);
+      if (r.data.errors.length > 0) console.warn('CSV import errors:', r.data.errors);
+      load();
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Σφάλμα εισαγωγής');
+    } finally {
+      setImporting(false);
+      e.target.value = '';
+    }
+  };
+
+  const downloadTemplate = () => {
+    const header = CSV_HEADERS.join(',');
+    const example = '150.00,ΓΡΑΦΕΙΟ,,Εταιρεία Α.Ε.,Ενοίκιο γραφείου,36.00,Τράπεζα,,1';
+    const blob = new Blob([header + '\n' + example], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = 'recurring_expenses_template.csv'; a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const fmt = n => n != null ? Number(n).toLocaleString('el-GR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €' : '—';
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
@@ -59,10 +108,17 @@ export default function RecurringExpensesPage() {
           <h1 className="page-title">Επαναλαμβανόμενα Έξοδα</h1>
           <p className="page-sub">{rows.length} επαναλαμβανόμενες εγγραφές</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <button className="btn-secondary" onClick={handleGenerate} disabled={generating}>
             {generating ? 'Δημιουργία...' : '🔄 Δημιουργία Εξόδων Μήνα'}
           </button>
+          <button className="btn-secondary" onClick={downloadTemplate}>
+            📥 Πρότυπο CSV
+          </button>
+          <label className={`btn-secondary cursor-pointer ${importing ? 'opacity-50' : ''}`}>
+            {importing ? 'Εισαγωγή...' : '📂 Εισαγωγή CSV'}
+            <input ref={csvInputRef} type="file" accept=".csv" className="hidden" onChange={handleCSVImport} disabled={importing} />
+          </label>
           <button className="btn-primary" onClick={() => { setForm(EMPTY); setModal({ open: true, record: null }); }}>
             + Νέο Επαναλαμβανόμενο
           </button>
@@ -74,6 +130,7 @@ export default function RecurringExpensesPage() {
           <thead>
             <tr>
               <th className="th">Κατηγορία</th>
+              <th className="th">Είδος Υπηρεσίας</th>
               <th className="th">Προμηθευτής</th>
               <th className="th text-right">Ποσό</th>
               <th className="th text-center">Ημέρα</th>
@@ -86,6 +143,7 @@ export default function RecurringExpensesPage() {
             {rows.map(r => (
               <tr key={r.id} className="tr">
                 <td className="td">{r.category || '—'}</td>
+                <td className="td text-slate-500">{r.service_type || '—'}</td>
                 <td className="td font-medium">{r.supplier || '—'}</td>
                 <td className="td text-right font-semibold">{fmt(r.amount)}</td>
                 <td className="td text-center">{r.day_of_month || 1}</td>
@@ -102,7 +160,7 @@ export default function RecurringExpensesPage() {
               </tr>
             ))}
             {rows.length === 0 && (
-              <tr><td colSpan={7} className="td text-center text-slate-400 py-8">Δεν υπάρχουν επαναλαμβανόμενα έξοδα</td></tr>
+              <tr><td colSpan={8} className="td text-center text-slate-400 py-8">Δεν υπάρχουν επαναλαμβανόμενα έξοδα</td></tr>
             )}
           </tbody>
         </table>
@@ -115,6 +173,13 @@ export default function RecurringExpensesPage() {
             <select className="input" value={form.category || ''} onChange={e => set('category', e.target.value)}>
               <option value="">— Επιλογή —</option>
               {(lists.categories || []).map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="label">Είδος Υπηρεσίας</label>
+            <select className="input" value={form.service_type || ''} onChange={e => set('service_type', e.target.value)}>
+              <option value="">— Επιλογή —</option>
+              {(lists.services || []).map(s => <option key={s} value={s}>{s}</option>)}
             </select>
           </div>
           <div>

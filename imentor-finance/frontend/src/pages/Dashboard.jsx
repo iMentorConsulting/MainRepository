@@ -143,16 +143,16 @@ export default function Dashboard() {
       return p.toString();
     };
     const monthlyYear = selectedYears.length === 1 ? selectedYears[0] : (selectedYears[0] || new Date().getFullYear());
-    Promise.all([
+    Promise.allSettled([
       api.get(`/reports/summary?${buildParams('')}`),
       api.get(`/reports/monthly?year=${monthlyYear}`),
       api.get(`/reports/by-service?${buildParams('')}`),
       api.get(`/reports/by-agent?${buildParams('')}`)
     ]).then(([s, m, sv, ag]) => {
-      setSummary(s.data);
-      setMonthly(m.data.map(d => ({ ...d, month: parseInt(d.month, 10), name: d.month_name?.slice(0, 3) || '' })));
-      setByService(sv.data.slice(0, 7));
-      setByAgent(ag.data.slice(0, 6));
+      if (s.status === 'fulfilled') setSummary(s.value.data);
+      if (m.status === 'fulfilled') setMonthly(m.value.data.map(d => ({ ...d, month: parseInt(d.month, 10), name: d.month_name?.slice(0, 3) || '' })));
+      if (sv.status === 'fulfilled') setByService(sv.value.data.slice(0, 7));
+      if (ag.status === 'fulfilled') setByAgent(ag.value.data.slice(0, 6));
     });
   }, [selectedYears, selectedMonths, dateFrom, dateTo]);
 

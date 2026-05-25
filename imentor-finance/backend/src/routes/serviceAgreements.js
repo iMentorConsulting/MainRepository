@@ -1,5 +1,5 @@
 const router = require('express').Router();
-const { Op } = require('sequelize');
+const { Op, QueryTypes } = require('sequelize');
 const ServiceAgreement = require('../models/ServiceAgreement');
 const sequelize = require('../config/db');
 
@@ -40,12 +40,12 @@ router.get('/', async (req, res) => {
     });
 
     // For each agreement, compute the actual collected from incomes by customer_name + service_type
-    const [incomeSums] = await sequelize.query(`
+    const incomeSums = await sequelize.query(`
       SELECT customer_name, service_type, COALESCE(SUM(amount_collected), 0) AS total_collected, COUNT(*) AS payment_count
       FROM incomes
       WHERE customer_name IS NOT NULL
       GROUP BY customer_name, service_type
-    `);
+    `, { type: QueryTypes.SELECT });
     const sumMap = new Map();
     for (const row of incomeSums) {
       sumMap.set(`${row.customer_name}|||${row.service_type || ''}`, { total: parseFloat(row.total_collected), count: parseInt(row.payment_count) });

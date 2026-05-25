@@ -110,7 +110,7 @@ router.get('/by-service', async (req, res) => {
         [fn('COUNT', col('id')), 'count']
       ],
       group: ['service_type'],
-      order: [[literal('income'), 'DESC']],
+      order: [[fn('SUM', col('amount_collected')), 'DESC']],
       raw: true
     });
 
@@ -141,7 +141,7 @@ router.get('/by-agent', async (req, res) => {
         [fn('COUNT', col('id')), 'count']
       ],
       group: ['sales_agent'],
-      order: [[literal('income'), 'DESC']],
+      order: [[fn('SUM', col('amount_collected')), 'DESC']],
       raw: true
     });
 
@@ -208,7 +208,7 @@ router.get('/expenses-by-category', async (req, res) => {
       where,
       attributes: ['category', [fn('SUM', col('amount')), 'total'], [fn('COUNT', col('id')), 'count']],
       group: ['category'],
-      order: [[literal('total'), 'DESC']],
+      order: [[fn('SUM', col('amount')), 'DESC']],
       raw: true
     });
 
