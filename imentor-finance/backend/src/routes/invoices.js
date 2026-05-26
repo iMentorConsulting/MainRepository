@@ -217,8 +217,20 @@ function errMsg(e) {
   return e.response?.data ? JSON.stringify(e.response.data) : e.message;
 }
 
-async function elorusPostInvoice(a, body) {
-  return (await a.post('invoices/', body)).data;
+async function elorusPostInvoice(orgKey, body) {
+  const orgId = ORGS[orgKey] || ORGS.DEFAULT;
+  const headers = {
+    Authorization: `Token ${process.env.ELORUS_TOKEN}`,
+    Accept: 'application/json',
+    'Content-Type': 'application/json',
+    'X-Elorus-Organization': orgId,
+  };
+  // Elorus returns IDs as JSON strings (19 digits exceed JS float precision).
+  // Sending them back as quoted strings causes Elorus to silently ignore
+  // document_type and fall back to the org default (ΤΠΥ). Strip the quotes
+  // so the JSON contains raw integers, which is what Elorus expects.
+  const jsonStr = JSON.stringify(body).replace(/"(document_type|client)":"(\d{10,})"/g, '"$1":$2');
+  return (await axios.post(`${BASE}invoices/`, jsonStr, { headers })).data;
 }
 
 router.get('/document-types', async (req, res) => {
@@ -290,7 +302,7 @@ router.post('/create-draft', async (req, res) => {
       ...(wh.length ? { extra_fees: wh } : {}),
     };
     console.log(`[create-draft] kind=${kind} docTypeId=${docType.id} mydata=${body.mydata_document_type} classType=${body.items[0]?.mydata_classification_type}`);
-    const inv = await elorusPostInvoice(a, body);
+    const inv = await elorusPostInvoice(org_key, body);
     await income.update({ elorus_invoice_id: String(inv.id) });
     res.json({ success: true, invoice: inv });
   } catch (e) { res.status(500).json({ error: errMsg(e) }); }
@@ -384,7 +396,7 @@ router.post('/one-shot', async (req, res) => {
       ...(wh.length ? { extra_fees: wh } : {}),
     };
     console.log(`[one-shot] kind=${kind} docTypeId=${docType.id} mydata=${body.mydata_document_type} classType=${body.items[0]?.mydata_classification_type}`);
-    const inv = await elorusPostInvoice(a, body);
+    const inv = await elorusPostInvoice(org_key, body);
     const invoiceNumber = `Νο.${inv.number} / ${inv.date}`;
     const fromAddr = process.env.SMTP_USER || process.env.GMAIL_USER;
 
