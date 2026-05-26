@@ -6,7 +6,7 @@ from pydantic import BaseModel
 from typing import Optional, List
 from datetime import datetime, date
 from database import get_db, fmt_dt
-from models_cases import CMCase, CMUser, CMTask, CMPayment, CMMessage, CMDocument, CMBudgetCategory, CMStatusSLA, CMNotificationLog, CMCasePendingItem, CMCaseModification, CMPortalFile
+from models_cases import CMCase, CMUser, CMTask, CMPayment, CMMessage, CMDocument, CMBudgetCategory, CMStatusSLA, CMNotificationLog, CMCasePendingItem, CMCaseModification
 from sqlalchemy import func as sa_func
 from auth_cases import get_current_user
 from pipelines import TERMINAL_STATUSES, get_all_statuses_for_program
@@ -360,10 +360,8 @@ def list_cases(
 
     case_ids = [c.id for c in cases]
 
-    # Batch: cases that have at least one document (CMDocument or CMPortalFile)
-    doc_case_ids = {r[0] for r in db.query(CMDocument.case_id).filter(CMDocument.case_id.in_(case_ids)).distinct().all()}
-    portal_file_case_ids = {r[0] for r in db.query(CMPortalFile.case_id).filter(CMPortalFile.case_id.in_(case_ids)).distinct().all()}
-    cases_with_docs = doc_case_ids | portal_file_case_ids
+    # Batch: cases that have at least one document (CMDocument covers both staff uploads and client portal uploads)
+    cases_with_docs = {r[0] for r in db.query(CMDocument.case_id).filter(CMDocument.case_id.in_(case_ids)).distinct().all()}
 
     # --- Batch: agent names (avoids any JOIN on the main case query) ---
     agent_ids = list({c.assigned_agent_id for c in cases if c.assigned_agent_id})
