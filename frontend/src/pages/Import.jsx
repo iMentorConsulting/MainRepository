@@ -665,7 +665,7 @@ export default function Import() {
         </div>
 
         <p className="text-xs text-gray-400">
-          Ο αυτόματος sync τρέχει κάθε μέρα 08:00 &amp; 14:00. Η «Αναίρεση» είναι διαθέσιμη μόνο εφόσον η εφαρμογή δεν έχει επανεκκινηθεί από τον τελευταίο sync.
+          Ο αυτόματος sync τρέχει κάθε μέρα 12:00 &amp; 22:00. Η «Αναίρεση» είναι διαθέσιμη μόνο εφόσον η εφαρμογή δεν έχει επανεκκινηθεί από τον τελευταίο sync.
         </p>
       </div>
 
@@ -690,35 +690,7 @@ export default function Import() {
         </div>
       </div>
 
-      {/* Auto-refresh status */}
-      {autoRefreshStatus && (
-        <div className={`flex items-center gap-3 rounded-xl border px-4 py-3 text-sm ${
-          autoRefreshStatus.error
-            ? 'bg-red-50 border-red-200 text-red-700'
-            : autoRefreshStatus.last_run_at
-              ? 'bg-green-50 border-green-200 text-green-800'
-              : 'bg-gray-50 border-gray-200 text-gray-600'
-        }`}>
-          <ClockIcon className="w-5 h-5 flex-shrink-0" />
-          <div className="flex-1">
-            <span className="font-semibold">Αυτόματο Refresh Sheet:</span>{' '}
-            {autoRefreshStatus.last_run_at
-              ? <>
-                  Τελευταία εκτέλεση:{' '}
-                  <span className="font-medium">
-                    {new Date(autoRefreshStatus.last_run_at).toLocaleString('el-GR', { dateStyle: 'short', timeStyle: 'short', timeZone: 'Europe/Athens' })}
-                  </span>
-                  {autoRefreshStatus.error
-                    ? <> — <span className="text-red-600">Σφάλμα: {autoRefreshStatus.error}</span></>
-                    : <> — εισήχθησαν <span className="font-medium">{autoRefreshStatus.imported}</span> νέες,
-                        ενημερώθηκαν <span className="font-medium">{autoRefreshStatus.updated_paid}</span> ποσά</>
-                  }
-                </>
-              : 'Δεν έχει εκτελεστεί ακόμα (τρέχει κάθε μέρα 08:00 & 14:00 ώρα Ελλάδας)'
-            }
-          </div>
-        </div>
-      )}
+      {/* Auto-refresh status — disabled, sync now comes from Finance App */}
 
       {/* Info banner */}
       <div className="flex items-start gap-3 bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 text-sm text-blue-700">
@@ -728,7 +700,7 @@ export default function Import() {
           Πρώτα εκτελέστε <span className="font-medium">Προεπισκόπηση</span> για να δείτε ποιες
           υποθέσεις θα εισαχθούν. Στη συνέχεια πατήστε <span className="font-medium">Εισαγωγή</span>{' '}
           για να ολοκληρωθεί η διαδικασία. Οι ήδη εισηγμένες υποθέσεις (με βάση το ΑΦΜ) παραλείπονται.
-          Το σύστημα εκτελεί <span className="font-medium">αυτόματο refresh κάθε μέρα στις 08:00 & 14:00</span>.
+          Ο αυτόματος συγχρονισμός γίνεται πλέον μόνο από το <span className="font-medium">Finance App</span>.
         </div>
       </div>
 
