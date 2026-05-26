@@ -229,9 +229,24 @@ router.get('/document-types', async (req, res) => {
     const orgKey = req.query.org_key || 'DEFAULT';
     const r = await api(orgKey).get('documenttypes/?active=true&page_size=100');
     const list = r.data.results || r.data || [];
-    // Log full detail of every doc type so we can see series/mydata config
-    list.forEach(d => console.log('[doctype-full]', JSON.stringify(d)));
     res.json(list);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Debug: fetch real ΑΠΥ invoices to see exact mydata_document_type value
+router.get('/debug-apy-invoice', async (req, res) => {
+  try {
+    const orgKey = req.query.org_key || 'DEFAULT';
+    // Get the ΑΠΥ doc type id
+    const dtR = await api(orgKey).get('documenttypes/?active=true&page_size=100');
+    const all = dtR.data.results || [];
+    const apyDt = all.find(d => (d.title || '').toLowerCase().includes('απόδειξη παροχής'));
+    if (!apyDt) return res.json({ error: 'ΑΠΥ doc type not found', titles: all.map(d => d.title) });
+    // Fetch real (non-draft) invoices with this doc type
+    const invR = await api(orgKey).get(`invoices/?document_type=${apyDt.id}&page_size=5`);
+    const invs = (invR.data.results || []).filter(i => !i.draft);
+    invs.forEach(i => console.log('[apy-invoice-full]', JSON.stringify(i)));
+    res.json({ docType: apyDt, invoices: invs });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
