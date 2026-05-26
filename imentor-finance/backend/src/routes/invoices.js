@@ -161,19 +161,15 @@ async function getVatTaxRateId(orgKey) {
   return null;
 }
 
-// kind = 'TPY' | 'APY'
-// ΤΠΥ: mydata_document_type=2.1, E3_561_001, withholding if >301
-// ΑΠΥ: mydata_document_type=11.2, E3_561_003 (per Elorus docs), never withholding
+// ΤΠΥ/ΑΠΥ: omit mydata classification fields — they trigger invoice-level mydata_document_type
+// requirement which fails because Elorus account has no myDATA doc types configured.
 function lines(net, desc, serviceType, taxRateId, kind) {
   const taxes = taxRateId ? [taxRateId] : [];
-  const isApy = kind === 'APY';
   return [{
     title: desc || serviceType || 'Παροχή Υπηρεσιών',
     quantity: '1.00',
     unit_value: net.toFixed(2),
     discount: '0.00',
-    mydata_classification_category: 'category1_3',
-    mydata_classification_type: isApy ? 'E3_561_003' : 'E3_561_001',
     ...(taxes.length ? { taxes } : {}),
   }];
 }
