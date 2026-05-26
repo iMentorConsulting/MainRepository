@@ -12,12 +12,12 @@ function fmtE(n) {
   return Number(n).toLocaleString('el-GR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
 }
 
-function Breakdown({ amount, orgKey }) {
+function Breakdown({ amount, orgKey, kind }) {
   if (!amount || isNaN(parseFloat(amount))) return null;
   const net = parseFloat(amount);
   const vat = net * 0.24;
   const gross = net * 1.24;
-  const wh = (orgKey !== 'IMENTOR_IKE' && net > 301) ? net * 0.20 : 0;
+  const wh = (kind !== 'APY' && orgKey !== 'IMENTOR_IKE' && net > 301) ? net * 0.20 : 0;
   return (
     <div className="rounded-xl p-3 text-xs space-y-1.5 bg-slate-50 border border-slate-100">
       <div className="flex justify-between text-slate-500"><span>Καθαρό</span><span className="font-medium text-slate-700">{fmtE(net)}</span></div>
@@ -33,68 +33,26 @@ function Breakdown({ amount, orgKey }) {
   );
 }
 
-const MYDATA_TYPES = [
-  { value: '2.1',  label: '2.1 — ΤΠΥ (Τιμολόγιο Παροχής Υπηρεσιών)' },
-  { value: '11.1', label: '11.1 — ΑΠΥ (Απόδειξη Παροχής Υπηρεσιών)' },
-  { value: '1.1',  label: '1.1 — Τιμολόγιο Πώλησης' },
-  { value: '2.4',  label: '2.4 — ΤΠΥ Αλλοδαπής' },
-];
-
-function guessMydata(title) {
-  const t = (title || '').toLowerCase();
-  if (t.includes('απόδειξη') || t.includes('αποδειξη') || t.includes('α.π.υ') || t.includes('αδυ') || t.includes('apy')) return '11.1';
-  if (t.includes('πώλησης') || t.includes('πωλησης')) return '1.1';
-  return '2.1';
-}
-
 function InvoiceForm({ action, record, onClose, onDone }) {
   const isOneShot = action === 'one-shot';
   const [orgKey, setOrgKey] = useState('DEFAULT');
+  const [kind, setKind] = useState('TPY');
   const [amount, setAmount] = useState(String(record.amount_collected || ''));
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [description, setDescription] = useState(record.description || record.service_type || '');
-  const [docType, setDocType] = useState('');
-  const [docTypes, setDocTypes] = useState([]);
-  const [docTypesLoading, setDocTypesLoading] = useState(false);
-  const [mydataDocType, setMydataDocType] = useState('2.1');
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    setDocTypesLoading(true);
-    setDocType('');
-    api.get(`/invoices/document-types?org_key=${orgKey}`)
-      .then(r => {
-        const list = r.data || [];
-        setDocTypes(list);
-        const preferred = list.find(d => /τιμολόγιο/i.test(d.title || '')) || list[0];
-        if (preferred) {
-          setDocType(String(preferred.id));
-          setMydataDocType(guessMydata(preferred.title));
-        }
-      })
-      .catch(() => setDocTypes([]))
-      .finally(() => setDocTypesLoading(false));
-  }, [orgKey]);
-
-  const handleDocTypeChange = id => {
-    setDocType(id);
-    const dt = docTypes.find(d => String(d.id) === id);
-    if (dt) setMydataDocType(guessMydata(dt.title));
-  };
-
-  const isApy = mydataDocType === '11.1';
+  const isApy = kind === 'APY';
 
   const submit = async () => {
     if (!amount) return toast.error('Εισάγετε ποσό');
-    if (!docType) return toast.error('Επιλέξτε τύπο παραστατικού');
     setLoading(true);
     try {
       const endpoint = isOneShot ? '/invoices/one-shot' : '/invoices/create-draft';
       const r = await api.post(endpoint, {
         income_id: record.id, org_key: orgKey,
         amount: parseFloat(amount), description, date,
-        document_type: docType,
-        mydata_document_type: mydataDocType,
+        kind,
       });
       toast.success(r.data.invoice_number ? `✅ ${r.data.invoice_number}` : '📄 Draft δημιουργήθηκε');
       onDone();
@@ -117,30 +75,25 @@ function InvoiceForm({ action, record, onClose, onDone }) {
         </select>
       </div>
       <div>
-        <label className="label">Τύπος Παραστατικού (Elorus) *</label>
-        {docTypesLoading ? (
-          <div className="text-sm text-slate-400 py-2">Φόρτωση τύπων παραστατικών…</div>
-        ) : docTypes.length === 0 ? (
-          <div className="text-sm text-rose-500 py-2">Δεν βρέθηκαν τύποι στο Elorus</div>
-        ) : (
-          <select className="input" value={docType} onChange={e => handleDocTypeChange(e.target.value)}>
-            {docTypes.map(d => (
-              <option key={d.id} value={String(d.id)}>
-                {d.title}{d.next_number != null ? ` — Επόμενο: #${d.next_number}` : ''}
-              </option>
-            ))}
-          </select>
-        )}
-      </div>
-      <div>
-        <label className="label">MyDATA Τύπος *</label>
-        <select className="input" value={mydataDocType} onChange={e => setMydataDocType(e.target.value)}>
-          {MYDATA_TYPES.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
-        </select>
+        <label className="label">Τύπος Παραστατικού *</label>
+        <div className="grid grid-cols-2 gap-2">
+          {[
+            { k: 'TPY', label: 'ΤΠΥ', sub: 'Τιμολόγιο Παροχής Υπηρεσιών' },
+            { k: 'APY', label: 'ΑΠΥ', sub: 'Απόδειξη Παροχής Υπηρεσιών' },
+          ].map(({ k, label, sub }) => (
+            <button key={k} type="button"
+              onClick={() => setKind(k)}
+              className={`py-2.5 px-3 rounded-xl text-sm font-bold border transition-all text-left leading-tight
+                ${kind === k ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-300'}`}>
+              {label}<br/>
+              <span className="text-xs font-normal opacity-75">{sub}</span>
+            </button>
+          ))}
+        </div>
       </div>
       {!isOneShot && isApy && (
         <div className="rounded-xl p-3 bg-amber-50 border border-amber-100 text-xs text-amber-700">
-          ⚠️ Το ΑΠΥ (11.1) δεν υποστηρίζει draft στο Elorus — θα εκδοθεί <strong>αμέσως</strong> ως οριστικό παραστατικό.
+          ⚠️ Το ΑΠΥ δεν υποστηρίζει draft στο Elorus — θα εκδοθεί <strong>αμέσως</strong>.
         </div>
       )}
       <div className="grid grid-cols-2 gap-3">
@@ -157,7 +110,7 @@ function InvoiceForm({ action, record, onClose, onDone }) {
         <label className="label">Περιγραφή</label>
         <textarea className="input h-14 resize-none" value={description} onChange={e => setDescription(e.target.value)} />
       </div>
-      <Breakdown amount={amount} orgKey={orgKey} />
+      <Breakdown amount={amount} orgKey={orgKey} kind={kind} />
       {isOneShot && (
         <div className="rounded-xl p-3 bg-emerald-50 border border-emerald-100 text-xs text-emerald-700">
           💳 Η πληρωμή καταχωρείται αυτόματα στο Elorus για το παραπάνω ποσό.

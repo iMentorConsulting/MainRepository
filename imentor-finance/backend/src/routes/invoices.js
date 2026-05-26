@@ -161,26 +161,39 @@ async function getVatTaxRateId(orgKey) {
   return null;
 }
 
-function lines(net, desc, serviceType, taxRateId, mydataDocType) {
+// kind = 'TPY' | 'APY'
+// ΤΠΥ: mydata_document_type 2.1 + E3_561_001, withholding applies
+// ΑΠΥ: no mydata_document_type + E3_561_003, never withholding
+function lines(net, desc, serviceType, taxRateId, kind) {
   const taxes = taxRateId ? [taxRateId] : [];
-  // MyDATA classification: category1_3 = revenues from services
-  // E3_561_001 for ΤΠΥ B2B (2.1), E3_561_002 for ΑΠΥ retail (11.1)
-  const classType = mydataDocType === '11.1' ? 'E3_561_002' : 'E3_561_001';
   return [{
     title: desc || serviceType || 'Παροχή Υπηρεσιών',
     quantity: '1.00',
     unit_value: net.toFixed(2),
     discount: '0.00',
     mydata_classification_category: 'category1_3',
-    mydata_classification_type: classType,
+    mydata_classification_type: kind === 'APY' ? 'E3_561_003' : 'E3_561_001',
     ...(taxes.length ? { taxes } : {}),
   }];
 }
 
-function withholding(net, orgKey) {
+function withholding(net, orgKey, kind) {
+  if (kind === 'APY') return [];
   if (orgKey === 'IMENTOR_IKE') return [];
   if (net <= 301) return [];
   return [{ value: (-net * 0.20).toFixed(2), title: 'Παρακράτηση 20%' }];
+}
+
+const docTypeCache = {};
+async function findDocTypeId(orgKey, kind) {
+  const cacheKey = `${orgKey}_${kind}`;
+  if (docTypeCache[cacheKey]) return docTypeCache[cacheKey];
+  const title = kind === 'APY' ? 'Απόδειξη παροχής υπηρεσιών' : 'Τιμολόγιο παροχής υπηρεσιών';
+  const r = await api(orgKey).get(`documenttypes/?search=${encodeURIComponent(title)}&search_fields=title`);
+  const results = r.data.results || [];
+  if (!results.length) throw new Error(`Δεν βρέθηκε Document Type "${title}"`);
+  docTypeCache[cacheKey] = String(results[0].id);
+  return docTypeCache[cacheKey];
 }
 
 function errMsg(e) {
@@ -236,25 +249,28 @@ router.get('/search-afm', async (req, res) => {
 
 router.post('/create-draft', async (req, res) => {
   try {
-    const { income_id, org_key = 'DEFAULT', amount, description, date, document_type = 1 } = req.body;
+    const { income_id, org_key = 'DEFAULT', amount, description, date, kind = 'TPY' } = req.body;
     const income = await Income.findByPk(income_id);
     if (!income) return res.status(404).json({ error: 'Εγγραφή δεν βρέθηκε' });
     const a = api(org_key);
     const net = parseFloat(amount);
-    const [taxRateId, contactId] = await Promise.all([getVatTaxRateId(org_key), findOrCreateContact(org_key, income)]);
+    const [taxRateId, contactId, docTypeId] = await Promise.all([
+      getVatTaxRateId(org_key), findOrCreateContact(org_key, income), findDocTypeId(org_key, kind),
+    ]);
     if (!taxRateId) {
       let debug = '?';
       try { debug = JSON.stringify((await api(org_key).get('taxratecategories/')).data).slice(0, 300); } catch (de) { debug = de.message; }
       return res.status(400).json({ error: `Elorus: δεν βρέθηκε VAT rate ID. Ορίστε ELORUS_VAT_RATE_ID στο Railway. taxratecategories: ${debug}` });
     }
+    const wh = withholding(net, org_key, kind);
     const body = {
       client: contactId,
       date: date || new Date().toISOString().split('T')[0],
-      document_type: parseInt(document_type) || 1,
-      mydata_document_type: req.body.mydata_document_type || '2.1',
+      document_type: parseInt(docTypeId),
       draft: true,
-      items: lines(net, description, income.service_type, taxRateId, req.body.mydata_document_type || '2.1'),
-      ...(withholding(net, org_key).length ? { extra_fees: withholding(net, org_key) } : {}),
+      items: lines(net, description, income.service_type, taxRateId, kind),
+      ...(kind !== 'APY' ? { mydata_document_type: '2.1' } : {}),
+      ...(wh.length ? { extra_fees: wh } : {}),
     };
     const inv = await elorusPostInvoice(a, body);
     await income.update({ elorus_invoice_id: String(inv.id) });
@@ -326,26 +342,28 @@ router.post('/finalize-and-send', async (req, res) => {
 
 router.post('/one-shot', async (req, res) => {
   try {
-    const { income_id, org_key = 'DEFAULT', amount, description, date, document_type = 1 } = req.body;
+    const { income_id, org_key = 'DEFAULT', amount, description, date, kind = 'TPY' } = req.body;
     const income = await Income.findByPk(income_id);
     if (!income) return res.status(404).json({ error: 'Εγγραφή δεν βρέθηκε' });
     const a = api(org_key);
     const net = parseFloat(amount);
     const iDate = date || new Date().toISOString().split('T')[0];
-    const mydataDocType = req.body.mydata_document_type || '2.1';
-    const [taxRateId, contactId] = await Promise.all([getVatTaxRateId(org_key), findOrCreateContact(org_key, income)]);
+    const [taxRateId, contactId, docTypeId] = await Promise.all([
+      getVatTaxRateId(org_key), findOrCreateContact(org_key, income), findDocTypeId(org_key, kind),
+    ]);
     if (!taxRateId) {
       let debug = '?';
       try { debug = JSON.stringify((await api(org_key).get('taxratecategories/')).data).slice(0, 300); } catch (de) { debug = de.message; }
       return res.status(400).json({ error: `Elorus: δεν βρέθηκε VAT rate ID. Ορίστε ELORUS_VAT_RATE_ID στο Railway. taxratecategories: ${debug}` });
     }
+    const wh = withholding(net, org_key, kind);
     const body = {
       client: contactId,
       date: iDate,
-      document_type: parseInt(document_type) || 1,
-      mydata_document_type: mydataDocType,
-      items: lines(net, description, income.service_type, taxRateId, mydataDocType),
-      ...(withholding(net, org_key).length ? { extra_fees: withholding(net, org_key) } : {}),
+      document_type: parseInt(docTypeId),
+      items: lines(net, description, income.service_type, taxRateId, kind),
+      ...(kind !== 'APY' ? { mydata_document_type: '2.1' } : {}),
+      ...(wh.length ? { extra_fees: wh } : {}),
     };
     const inv = await elorusPostInvoice(a, body);
     const invoiceNumber = `Νο.${inv.number} / ${inv.date}`;
@@ -372,9 +390,9 @@ router.post('/one-shot', async (req, res) => {
       const invFresh = (await a.get(`invoices/${inv.id}/`)).data;
       const clientId = String(invFresh.client || contactId);
       const currency = invFresh.currency_code || invFresh.currency || 'EUR';
-      // Calculate payment: net + VAT - withholding (if ΤΠΥ, > 301€, not IMENTOR_IKE)
-      const isApy = mydataDocType === '11.1';
-      const wh = (!isApy && org_key !== 'IMENTOR_IKE' && net > 301) ? net * 0.20 : 0;
+      // Calculate payment: net + VAT - withholding (ΤΠΥ only, > 301€, not IMENTOR_IKE)
+      const whAmt = (kind !== 'APY' && org_key !== 'IMENTOR_IKE' && net > 301) ? net * 0.20 : 0;
+      const wh = whAmt;
       const payAmount = (net * 1.24 - wh).toFixed(2);
       await a.post('cashreceipts/', {
         transaction_type: 'ip',
