@@ -353,16 +353,17 @@ def list_cases(
     except Exception:
         _valid_statuses_map = None
 
-    # Batch: cases that have at least one document (CMDocument or CMPortalFile)
-    doc_case_ids = {r[0] for r in db.query(CMDocument.case_id).filter(CMDocument.case_id.in_(case_ids)).distinct().all()}
-    portal_file_case_ids = {r[0] for r in db.query(CMPortalFile.case_id).filter(CMPortalFile.case_id.in_(case_ids)).distinct().all()}
-    cases_with_docs = doc_case_ids | portal_file_case_ids
     sla_map = {r.status: r.sla_days for r in db.query(CMStatusSLA).all()}
 
     if not cases:
         return []
 
     case_ids = [c.id for c in cases]
+
+    # Batch: cases that have at least one document (CMDocument or CMPortalFile)
+    doc_case_ids = {r[0] for r in db.query(CMDocument.case_id).filter(CMDocument.case_id.in_(case_ids)).distinct().all()}
+    portal_file_case_ids = {r[0] for r in db.query(CMPortalFile.case_id).filter(CMPortalFile.case_id.in_(case_ids)).distinct().all()}
+    cases_with_docs = doc_case_ids | portal_file_case_ids
 
     # --- Batch: agent names (avoids any JOIN on the main case query) ---
     agent_ids = list({c.assigned_agent_id for c in cases if c.assigned_agent_id})
