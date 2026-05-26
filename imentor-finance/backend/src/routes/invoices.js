@@ -188,11 +188,13 @@ const docTypeCache = {};
 async function findDocType(orgKey, kind) {
   const cacheKey = `${orgKey}_${kind}`;
   if (docTypeCache[cacheKey]) return docTypeCache[cacheKey];
-  const title = kind === 'APY' ? 'Απόδειξη παροχής υπηρεσιών' : 'Τιμολόγιο παροχής υπηρεσιών';
-  const r = await api(orgKey).get(`documenttypes/?search=${encodeURIComponent(title)}&search_fields=title`);
-  const results = r.data.results || [];
-  if (!results.length) throw new Error(`Δεν βρέθηκε Document Type "${title}"`);
-  const dt = results[0];
+  const r = await api(orgKey).get('documenttypes/?active=true&page_size=100');
+  const all = r.data.results || [];
+  console.log(`[doctype] all titles for ${orgKey}:`, all.map(d => d.title));
+  // Match strictly on "παροχής" to distinguish from "Πώλησης"
+  const keyword = kind === 'APY' ? 'απόδειξη παροχής' : 'τιμολόγιο παροχής';
+  const dt = all.find(d => (d.title || '').toLowerCase().includes(keyword));
+  if (!dt) throw new Error(`Δεν βρέθηκε τύπος παραστατικού "${keyword}" (διαθέσιμοι: ${all.map(d => d.title).join(', ')})`);
   const dtId = String(dt.id);
   let mydataDocType = dt.mydata_document_type || null;
   console.log(`[doctype ${kind}] id=${dtId} title=${dt.title} mydata_document_type=${mydataDocType}`);

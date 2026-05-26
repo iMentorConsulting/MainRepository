@@ -52,7 +52,7 @@ function InvoiceForm({ action, record, onClose, onDone }) {
   const isApy = kind === 'APY';
 
   const nextNumber = (k) => {
-    const titleKey = k === 'APY' ? 'απόδειξη' : 'τιμολόγιο';
+    const titleKey = k === 'APY' ? 'απόδειξη παροχής' : 'τιμολόγιο παροχής';
     const dt = docTypes.find(d => (d.title || '').toLowerCase().includes(titleKey));
     return dt?.next_number ?? null;
   };
