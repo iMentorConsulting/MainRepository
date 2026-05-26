@@ -214,11 +214,10 @@ async function elorusPostInvoice(orgKey, body) {
     'Content-Type': 'application/json',
     'X-Elorus-Organization': orgId,
   };
-  // Elorus returns IDs as JSON strings (19 digits exceed JS float precision).
-  // Sending them back as quoted strings causes Elorus to silently ignore
-  // document_type and fall back to the org default (ΤΠΥ). Strip the quotes
-  // so the JSON contains raw integers, which is what Elorus expects.
-  const jsonStr = JSON.stringify(body).replace(/"(document_type|client)":"(\d{10,})"/g, '"$1":$2');
+  // GAS script sends documenttype (no underscore) as string — match that exactly.
+  // Only client ID needs integer conversion for precision.
+  const jsonStr = JSON.stringify(body).replace(/"client":"(\d{10,})"/g, '"client":$1');
+  console.log('[elorus-post] sending JSON:', jsonStr.slice(0, 600));
   try {
     return (await axios.post(`${BASE}invoices/`, jsonStr, { headers })).data;
   } catch (e) {
@@ -354,7 +353,7 @@ router.post('/create-draft', async (req, res) => {
     const body = {
       client: contactId,
       date: date || new Date().toISOString().split('T')[0],
-      document_type: docType.id,
+      documenttype: docType.id,
       draft: true,
       currency: 'EUR',
       ...(zip ? { billing_address: { address_line: income.address || '-', city: income.city || '-', zip, country: 'GR' } } : {}),
@@ -453,7 +452,7 @@ router.post('/one-shot', async (req, res) => {
     const body = {
       client: contactId,
       date: iDate,
-      document_type: docType.id,
+      documenttype: docType.id,
       currency: 'EUR',
       ...(zip ? { billing_address: { address_line: income.address || '-', city: income.city || '-', zip, country: 'GR' } } : {}),
       items: lines(net, description, income.service_type, taxRateId, kind),
