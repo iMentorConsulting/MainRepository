@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import {
-  getCases, getUsers, updateCase, getAllPendingOverview, createMessage, getMessages, deleteMessage,
+  getCases, getUsers, updateCase, createMessage, getMessages, deleteMessage,
   createCasePendingItem, deleteCasePendingItem, notifyCasePendingItems, getNotificationLogs,
   getPendingItemTemplates, sendNotification, getPipelines,
 } from '../api'
@@ -444,25 +444,8 @@ export default function WorkView() {
       if (filterAgent) caseParams.agent_id = filterAgent
       if (search) caseParams.search = search
 
-      const overviewParams = {}
-      if (filterProgram) overviewParams.program_category = filterProgram
-      if (filterAgent) overviewParams.assigned_agent_id = filterAgent
-      if (search) overviewParams.search = search
-
-      const [casesData, pendingData] = await Promise.all([
-        getCases(caseParams),
-        getAllPendingOverview(overviewParams).catch(() => []),
-      ])
-
-      const pendingMap = {}
-      for (const p of pendingData) {
-        pendingMap[p.id] = p.pending_items || []
-      }
-
-      setCases(casesData.map(c => ({
-        ...c,
-        pending_items: pendingMap[c.id] || [],
-      })))
+      const casesData = await getCases(caseParams)
+      setCases(casesData)
     } catch { toast.error('Σφάλμα φόρτωσης') }
     finally { setLoading(false) }
   }, [filterProgram, filterAgent, search])

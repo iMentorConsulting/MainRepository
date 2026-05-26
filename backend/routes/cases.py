@@ -80,7 +80,8 @@ def _last_note(c: CMCase) -> tuple[str | None, str | None]:
 def case_to_dict(c: CMCase, include_related: bool = False, sla_map: dict = None,
                  _pending_texts: list = None, _last_note_data: tuple = None,
                  _agent_name: str = None, _valid_statuses: dict = None,
-                 _has_documents: bool = False) -> dict:
+                 _has_documents: bool = False,
+                 _pending_items_full: list = None) -> dict:
     agent_name = _agent_name if _agent_name is not None else (c.assigned_agent.full_name if c.assigned_agent else None)
     total_agreed = (c.agreed_fee_application or 0) + (c.agreed_fee_implementation or 0)
     balance = total_agreed - (c.total_paid or 0)
@@ -144,6 +145,7 @@ def case_to_dict(c: CMCase, include_related: bool = False, sla_map: dict = None,
         "open_tasks": 0,
         "pending_count": len(_pending_texts) if _pending_texts is not None else (len(c.pending_items) if c.pending_items is not None else 0),
         "pending_items_text": _pending_texts if _pending_texts is not None else [pi.item_text for pi in (c.pending_items or [])],
+        "pending_items": _pending_items_full if _pending_items_full is not None else [{"id": pi.id, "item_text": pi.item_text, "comment": pi.comment, "sort_order": pi.sort_order} for pi in (c.pending_items or [])],
         "open_task_titles": [],
         "last_note_preview": _last_note_data[0] if _last_note_data is not None else _last_note(c)[0],
         "last_note_at": _last_note_data[1] if _last_note_data is not None else _last_note(c)[1],
@@ -368,7 +370,7 @@ def list_cases(
     agents = db.query(CMUser).filter(CMUser.id.in_(agent_ids)).all() if agent_ids else []
     agent_map: dict = {a.id: a.full_name for a in agents}
 
-    # --- Batch: pending item texts ---
+    # --- Batch: pending items ---
     pending_rows = (
         db.query(CMCasePendingItem)
         .filter(CMCasePendingItem.case_id.in_(case_ids))
@@ -377,7 +379,7 @@ def list_cases(
     )
     pending_by_case: dict = {}
     for pi in pending_rows:
-        pending_by_case.setdefault(pi.case_id, []).append(pi.item_text)
+        pending_by_case.setdefault(pi.case_id, []).append(pi)
 
     # --- Batch: latest message per case (for last_note preview) ---
     latest_msg_sq = (
@@ -425,7 +427,9 @@ def list_cases(
 
     result = []
     for c in cases:
-        pending_texts = pending_by_case.get(c.id, [])
+        pending_items_full = pending_by_case.get(c.id, [])
+        pending_texts = [pi.item_text for pi in pending_items_full]
+        pending_dicts = [{"id": pi.id, "item_text": pi.item_text, "comment": pi.comment, "sort_order": pi.sort_order} for pi in pending_items_full]
 
         lm = last_msg_by_case.get(c.id)
         if lm:
@@ -437,6 +441,7 @@ def list_cases(
 
         d = case_to_dict(c, sla_map=sla_map,
                          _pending_texts=pending_texts,
+                         _pending_items_full=pending_dicts,
                          _last_note_data=last_note_data,
                          _agent_name=agent_map.get(c.assigned_agent_id),
                          _valid_statuses=_valid_statuses_map,
