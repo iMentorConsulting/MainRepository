@@ -161,15 +161,18 @@ async function getVatTaxRateId(orgKey) {
   return null;
 }
 
-// ΤΠΥ/ΑΠΥ: omit mydata classification fields — they trigger invoice-level mydata_document_type
-// requirement which fails because Elorus account has no myDATA doc types configured.
+// Matches the working GAS script: category1_3 + E3_561_003 for ΑΠΥ, E3_561_001 for ΤΠΥ
+// mydata_document_type is set at invoice level: "2.1" for ΤΠΥ, nothing for ΑΠΥ
 function lines(net, desc, serviceType, taxRateId, kind) {
   const taxes = taxRateId ? [taxRateId] : [];
+  const isApy = kind === 'APY';
   return [{
     title: desc || serviceType || 'Παροχή Υπηρεσιών',
     quantity: '1.00',
     unit_value: net.toFixed(2),
     discount: '0.00',
+    mydata_classification_category: 'category1_3',
+    mydata_classification_type: isApy ? 'E3_561_003' : 'E3_561_001',
     ...(taxes.length ? { taxes } : {}),
   }];
 }
@@ -192,11 +195,8 @@ async function findDocType(orgKey, kind) {
   const dt = all.find(d => (d.title || '').toLowerCase().includes(keyword));
   if (!dt) throw new Error(`Δεν βρέθηκε τύπος παραστατικού "${keyword}" (διαθέσιμοι: ${all.map(d => d.title).join(', ')})`);
   const dtId = String(dt.id);
-  // Fetch full detail — list endpoint returns partial objects without mydata_document_type.
-  // If Elorus doesn't return it (not configured in account myDATA settings), send null
-  // so we omit it from the invoice body — forcing any value causes "Invalid" errors.
-  const detail = (await api(orgKey).get(`documenttypes/${dt.id}/`)).data;
-  const mydataDocType = detail.mydata_document_type ?? null;
+  // Per GAS script: ΤΠΥ → '2.1', ΑΠΥ → null (omitted from invoice body)
+  const mydataDocType = kind === 'TPY' ? '2.1' : null;
   console.log(`[doctype ${kind}] id=${dtId} title=${dt.title} mydata=${mydataDocType}`);
   docTypeCache[cacheKey] = { id: dtId, mydataDocType };
   return docTypeCache[cacheKey];
@@ -349,12 +349,16 @@ router.post('/create-draft', async (req, res) => {
       return res.status(400).json({ error: `Elorus: δεν βρέθηκε VAT rate ID. Ορίστε ELORUS_VAT_RATE_ID στο Railway. taxratecategories: ${debug}` });
     }
     const wh = withholding(net, org_key, kind);
+    const zipRaw = (income.postal_code || '').toString().replace(/\D/g, '');
+    const zip = zipRaw.length === 4 ? '0' + zipRaw : (zipRaw.length === 5 ? zipRaw : '');
     const body = {
       client: contactId,
       date: date || new Date().toISOString().split('T')[0],
       document_type: docType.id,
       draft: true,
-            items: lines(net, description, income.service_type, taxRateId, kind),
+      currency: 'EUR',
+      ...(zip ? { billing_address: { address_line: income.address || '-', city: income.city || '-', zip, country: 'GR' } } : {}),
+      items: lines(net, description, income.service_type, taxRateId, kind),
       ...(docType.mydataDocType ? { mydata_document_type: docType.mydataDocType } : {}),
       ...(wh.length ? { extra_fees: wh } : {}),
     };
@@ -444,11 +448,15 @@ router.post('/one-shot', async (req, res) => {
       return res.status(400).json({ error: `Elorus: δεν βρέθηκε VAT rate ID. Ορίστε ELORUS_VAT_RATE_ID στο Railway. taxratecategories: ${debug}` });
     }
     const wh = withholding(net, org_key, kind);
+    const zipRaw = (income.postal_code || '').toString().replace(/\D/g, '');
+    const zip = zipRaw.length === 4 ? '0' + zipRaw : (zipRaw.length === 5 ? zipRaw : '');
     const body = {
       client: contactId,
       date: iDate,
       document_type: docType.id,
-            items: lines(net, description, income.service_type, taxRateId, kind),
+      currency: 'EUR',
+      ...(zip ? { billing_address: { address_line: income.address || '-', city: income.city || '-', zip, country: 'GR' } } : {}),
+      items: lines(net, description, income.service_type, taxRateId, kind),
       ...(docType.mydataDocType ? { mydata_document_type: docType.mydataDocType } : {}),
       ...(wh.length ? { extra_fees: wh } : {}),
     };
