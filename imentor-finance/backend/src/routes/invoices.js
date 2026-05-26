@@ -163,7 +163,7 @@ async function getVatTaxRateId(orgKey) {
 
 // kind = 'TPY' | 'APY'
 // ΤΠΥ: document_type=ΤΠΥ id, mydata_document_type 2.1, E3_561_001, withholding if >301
-// ΑΠΥ: document_type=ΑΠΥ id, mydata_document_type 11.1, E3_561_002, never withholding
+// ΑΠΥ: document_type=ΑΠΥ id, mydata_document_type 11.2, E3_561_002, never withholding
 function lines(net, desc, serviceType, taxRateId, kind) {
   const taxes = taxRateId ? [taxRateId] : [];
   return [{
@@ -269,7 +269,7 @@ router.post('/create-draft', async (req, res) => {
       document_type: docTypeId,
       draft: true,
       items: lines(net, description, income.service_type, taxRateId, kind),
-      mydata_document_type: kind === 'APY' ? '11.1' : '2.1',
+      mydata_document_type: kind === 'APY' ? '11.2' : '2.1',
       ...(wh.length ? { extra_fees: wh } : {}),
     };
     console.log(`[create-draft] kind=${kind} docTypeId=${docTypeId} mydata=${body.mydata_document_type} classType=${body.items[0]?.mydata_classification_type}`);
@@ -363,7 +363,7 @@ router.post('/one-shot', async (req, res) => {
       date: iDate,
       document_type: docTypeId,
       items: lines(net, description, income.service_type, taxRateId, kind),
-      mydata_document_type: kind === 'APY' ? '11.1' : '2.1',
+      mydata_document_type: kind === 'APY' ? '11.2' : '2.1',
       ...(wh.length ? { extra_fees: wh } : {}),
     };
     console.log(`[one-shot] kind=${kind} docTypeId=${docTypeId} mydata=${body.mydata_document_type} classType=${body.items[0]?.mydata_classification_type}`);
