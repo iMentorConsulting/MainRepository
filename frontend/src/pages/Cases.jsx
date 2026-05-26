@@ -278,6 +278,7 @@ export default function Cases() {
     has_pending: false,
     sla_overdue: false,
     status_mismatch: false,
+    has_documents: false,
     exclude_anakainizw: true,
   })
   const [showNew, setShowNew] = useState(false)
@@ -292,6 +293,7 @@ export default function Cases() {
     if (filters.has_pending && !(c.pending_count > 0)) return false
     if (filters.sla_overdue && !(c.sla_overdue_days > 0)) return false
     if (filters.status_mismatch && !c.status_mismatch) return false
+    if (filters.has_documents && !c.has_documents) return false
     if (filters.programs.length && !filters.programs.includes(c.program_category)) return false
     if (filters.services.length && !filters.services.includes(c.service_type)) return false
     if (filters.agentIds.length && !filters.agentIds.includes(String(c.assigned_agent_id))) return false
@@ -427,6 +429,10 @@ export default function Cases() {
         <label className="flex items-center gap-2 text-sm text-rose-700 cursor-pointer select-none font-medium">
           <input type="checkbox" checked={filters.status_mismatch} onChange={e => setFilters(f => ({ ...f, status_mismatch: e.target.checked }))} className="rounded" />
           ⚠ Λάθος Κατάσταση
+        </label>
+        <label className="flex items-center gap-2 text-sm text-blue-600 cursor-pointer select-none">
+          <input type="checkbox" checked={filters.has_documents} onChange={e => setFilters(f => ({ ...f, has_documents: e.target.checked }))} className="rounded" />
+          Έχουν έγγραφα
         </label>
         <button
           onClick={() => setFilters(f => ({ ...f, exclude_anakainizw: !f.exclude_anakainizw, programs: [] }))}

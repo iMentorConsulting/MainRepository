@@ -434,6 +434,7 @@ export default function WorkView() {
   const [filterStatus, setFilterStatus] = useState('')
   const [filterFollowUp, setFilterFollowUp] = useState(false)
   const [hideCompleted, setHideCompleted] = useState(true)
+  const [filterHasDocs, setFilterHasDocs] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -481,6 +482,7 @@ export default function WorkView() {
   const displayed = cases.filter(c => {
     if (hideCompleted && FINAL_STATUSES.has(c.status)) return false
     if (filterFollowUp && !(c.follow_up_date && c.follow_up_date <= today)) return false
+    if (filterHasDocs && !c.has_documents) return false
     if (filterServiceType && c.service_type !== filterServiceType) return false
     if (filterStatus && c.status !== filterStatus) return false
     return true
@@ -574,6 +576,10 @@ export default function WorkView() {
         <label className="flex items-center gap-1.5 text-sm text-gray-600 cursor-pointer select-none">
           <input type="checkbox" checked={hideCompleted} onChange={e => setHideCompleted(e.target.checked)} className="rounded" />
           Απόκρυψη ολοκληρωμένων
+        </label>
+        <label className="flex items-center gap-1.5 text-sm text-blue-600 cursor-pointer select-none">
+          <input type="checkbox" checked={filterHasDocs} onChange={e => setFilterHasDocs(e.target.checked)} className="rounded" />
+          Έχουν έγγραφα
         </label>
       </div>
 

@@ -322,6 +322,7 @@ export default function Kanban() {
   const [showPendingTemplates, setShowPendingTemplates] = useState(false)
   const [pipelinesData, setPipelinesData] = useState(PIPELINES)
   const [showSLA, setShowSLA] = useState(false)
+  const [filterHasDocs, setFilterHasDocs] = useState(false)
 
   const pipeline = pipelinesData[activeProgram] || PIPELINES[activeProgram]
 
@@ -347,7 +348,8 @@ export default function Kanban() {
     (!filterAgent || String(c.assigned_agent_id) === filterAgent) &&
     (!filterService || c.service_type === filterService) &&
     (!filterSLA || (c.sla_overdue_days != null && c.sla_overdue_days >= filterSLA)) &&
-    (!filterSearch || c.client_name?.toLowerCase().includes(filterSearch.toLowerCase()))
+    (!filterSearch || c.client_name?.toLowerCase().includes(filterSearch.toLowerCase())) &&
+    (!filterHasDocs || c.has_documents)
   )
 
   // Build lookup: status → [cases]
@@ -425,8 +427,12 @@ export default function Kanban() {
           <input type="number" min="0" className="input w-20 text-sm" placeholder="ημ."
             value={filterSLA || ''} onChange={e => setFilterSLA(parseInt(e.target.value) || 0)} />
         </div>
-        {(filterAgent || filterService || filterSLA > 0 || filterSearch) && (
-          <button onClick={() => { setFilterAgent(''); setFilterService(''); setFilterSLA(0); setFilterSearch('') }}
+        <label className="flex items-center gap-1.5 text-sm text-blue-600 cursor-pointer select-none">
+          <input type="checkbox" checked={filterHasDocs} onChange={e => setFilterHasDocs(e.target.checked)} className="rounded" />
+          Έχουν έγγραφα
+        </label>
+        {(filterAgent || filterService || filterSLA > 0 || filterSearch || filterHasDocs) && (
+          <button onClick={() => { setFilterAgent(''); setFilterService(''); setFilterSLA(0); setFilterSearch(''); setFilterHasDocs(false) }}
             className="text-sm text-gray-500 hover:text-gray-800 underline">
             Καθαρισμός
           </button>
