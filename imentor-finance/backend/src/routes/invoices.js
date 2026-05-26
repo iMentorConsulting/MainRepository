@@ -227,9 +227,10 @@ async function elorusPostInvoice(orgKey, body) {
 router.get('/document-types', async (req, res) => {
   try {
     const orgKey = req.query.org_key || 'DEFAULT';
-    const r = await api(orgKey).get('documenttypes/?active=true');
+    const r = await api(orgKey).get('documenttypes/?active=true&page_size=100');
     const list = r.data.results || r.data || [];
-    if (list.length) console.log('[document-types] first result keys:', JSON.stringify(Object.keys(list[0])), 'sample:', JSON.stringify(list[0]).slice(0, 500));
+    // Log full detail of every doc type so we can see series/mydata config
+    list.forEach(d => console.log('[doctype-full]', JSON.stringify(d)));
     res.json(list);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
