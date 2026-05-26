@@ -187,7 +187,8 @@ export default function CaseForm({ currentEmployee }) {
   useEffect(() => {
     const validDebts = debts.filter((d) => d.amount > 0)
     if (validDebts.length > 0) {
-      setCalc(calculateAll(debts, assets, income, PARAMS_B))
+      const cfg = loadPricingConfig()
+      setCalc(calculateAll(debts, assets, income, { ...PARAMS_B, writeoffCapPct: cfg.writeoffCapPct ?? 70 }))
     } else {
       setCalc(null)
     }

@@ -987,6 +987,16 @@ function PricingAdminPanel({ config, onSave, allCases }) {
           </div>
         </div>
         <div>
+          <div className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">Cap Διαγραφής ανά Πιστωτή</div>
+          <div className="flex items-center gap-3 mb-4">
+            <label className="text-xs text-gray-600 flex-1">Μέγιστη διαγραφή (% οφειλής ανά πιστωτή) — 0 = χωρίς cap</label>
+            <input type="number" step={5} min={0} max={100}
+              className="w-20 border border-gray-200 rounded px-2 py-1 text-xs font-mono text-right"
+              value={local.writeoffCapPct ?? 70} onChange={e => set('writeoffCapPct', Number(e.target.value))} />
+            <span className="text-xs text-gray-400">%</span>
+          </div>
+        </div>
+        <div>
           <div className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">Κατώφλια Εισοδήματος / Τζίρου</div>
           <div className="space-y-2">
             {[
