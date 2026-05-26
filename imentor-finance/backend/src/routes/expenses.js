@@ -31,11 +31,12 @@ router.get('/', async (req, res) => {
     const sd = sort_dir?.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
 
     const offset = (parseInt(page) - 1) * parseInt(limit);
-    const [{ count, rows }, sumResult] = await Promise.all([
+    const [{ count, rows }, sumResult, byCatRows] = await Promise.all([
       Expense.findAndCountAll({ where, order: [[sf, sd], ['id', 'DESC']], limit: parseInt(limit), offset }),
-      Expense.findOne({ where, attributes: [[fn('SUM', col('amount')), 'total']], raw: true })
+      Expense.findOne({ where, attributes: [[fn('SUM', col('amount')), 'total']], raw: true }),
+      Expense.findAll({ where, attributes: ['category', 'supplier', [fn('SUM', col('amount')), 'sum']], group: ['category', 'supplier'], order: [['category', 'ASC'], [fn('SUM', col('amount')), 'DESC']], raw: true })
     ]);
-    res.json({ total: count, sum: parseFloat(sumResult?.total || 0), page: parseInt(page), data: rows });
+    res.json({ total: count, sum: parseFloat(sumResult?.total || 0), by_category: byCatRows, page: parseInt(page), data: rows });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }

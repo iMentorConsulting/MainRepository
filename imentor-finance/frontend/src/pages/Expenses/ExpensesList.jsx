@@ -78,17 +78,18 @@ function SortTh({ label, field, sort, onSort, className = '' }) {
 
 const PIE_COLORS = ['#f43f5e', '#f97316', '#eab308', '#10b981', '#6366f1', '#a855f7', '#06b6d4', '#0ea5e9'];
 
-function CategorySummary({ data }) {
+function CategorySummary({ byCategory }) {
   const [expanded, setExpanded] = useState(new Set());
 
   const grouped = {};
-  for (const r of data) {
-    if (!r.amount) continue;
+  for (const r of byCategory || []) {
+    const s = parseFloat(r.sum || 0);
+    if (!s) continue;
     const cat = r.category || 'Άγνωστο';
     if (!grouped[cat]) grouped[cat] = { total: 0, suppliers: {} };
-    grouped[cat].total += parseFloat(r.amount || 0);
+    grouped[cat].total += s;
     const sup = r.supplier || 'Χωρίς προμηθευτή';
-    grouped[cat].suppliers[sup] = (grouped[cat].suppliers[sup] || 0) + parseFloat(r.amount || 0);
+    grouped[cat].suppliers[sup] = (grouped[cat].suppliers[sup] || 0) + s;
   }
 
   const cats = Object.entries(grouped).sort((a, b) => b[1].total - a[1].total);
@@ -178,7 +179,7 @@ export default function ExpensesList() {
   const [sort, setSort] = useState({ field: 'date', dir: 'DESC' });
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
-  const [hideNoAmount, setHideNoAmount] = useState(false);
+  const [hideNoAmount, setHideNoAmount] = useState(true);
   const [modal, setModal] = useState({ open: false, record: null });
   const [deleteId, setDeleteId] = useState(null);
   const [categories, setCategories] = useState([]);
@@ -330,7 +331,7 @@ export default function ExpensesList() {
         </div>
       </div>
 
-      <CategorySummary data={data.data} />
+      <CategorySummary byCategory={data.by_category} />
 
       <div className="card overflow-hidden">
         <div className="overflow-x-auto">
