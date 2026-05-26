@@ -196,11 +196,9 @@ async function findDocType(orgKey, kind) {
   const dt = all.find(d => (d.title || '').toLowerCase().includes(keyword));
   if (!dt) throw new Error(`Δεν βρέθηκε τύπος παραστατικού "${keyword}" (διαθέσιμοι: ${all.map(d => d.title).join(', ')})`);
   const dtId = String(dt.id);
-  // Read mydata_document_type from the Elorus document type object.
-  // Fall back to per-kind defaults that match what GAS used successfully:
-  // ΑΠΥ → '1.1', ΤΠΥ → '2.1'  (Elorus internal mapping, not raw myDATA codes)
-  const mydataFallback = kind === 'APY' ? '1.1' : '2.1';
-  const mydataDocType = dt.mydata_document_type || mydataFallback;
+  // For ΑΠΥ: omit mydata_document_type — Elorus auto-sets it from the document type
+  // For ΤΠΥ: send 2.1 (Τιμολόγιο Παροχής Υπηρεσιών)
+  const mydataDocType = kind === 'APY' ? null : (dt.mydata_document_type || '2.1');
   console.log(`[doctype ${kind}] id=${dtId} title=${dt.title} mydata=${mydataDocType}`);
   docTypeCache[cacheKey] = { id: dtId, mydataDocType };
   return docTypeCache[cacheKey];
