@@ -115,6 +115,7 @@ export default function IncomeList() {
     else if (selectedMonths.length > 1) params.months = selectedMonths.join(',');
     if (dateFrom) params.date_from = dateFrom;
     if (dateTo) params.date_to = dateTo;
+    params.limit = 100;
     api.get('/income', { params }).then(r => setData(r.data));
   }, [filters, selectedYears, selectedMonths, sort, dateFrom, dateTo]);
 
@@ -340,7 +341,7 @@ export default function IncomeList() {
           <div className="flex gap-2">
             <button disabled={filters.page <= 1} onClick={() => setFilters(f => ({ ...f, page: f.page - 1 }))}
               className="btn-secondary btn-sm disabled:opacity-40">← Προηγ.</button>
-            <button disabled={filters.page * 50 >= data.total} onClick={() => setFilters(f => ({ ...f, page: f.page + 1 }))}
+            <button disabled={filters.page * 100 >= data.total} onClick={() => setFilters(f => ({ ...f, page: f.page + 1 }))}
               className="btn-secondary btn-sm disabled:opacity-40">Επόμ. →</button>
           </div>
         </div>

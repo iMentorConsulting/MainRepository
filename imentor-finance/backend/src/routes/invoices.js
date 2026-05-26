@@ -58,14 +58,21 @@ async function aadeSearchAfm(vat, orgKey) {
         const street = get('postal_address') || '';
         const streetNo = get('postal_address_no') || '';
         const address = streetNo ? `${street} ${streetNo}`.trim() : street;
+        const legalStatus = (get('legal_status_descr') || '').trim();
+        let name = ((get('onomasia') || '').replace(/\s+/g, ' ')).trim();
+        // Physical persons (empty legal form) have SURNAME FIRSTNAME PATRONYMIC — strip patronymic
+        if (!legalStatus) {
+          const parts = name.split(' ');
+          if (parts.length >= 3) name = parts.slice(0, -1).join(' ');
+        }
         resolve({
-          name: get('onomasia'),
+          name,
           address,
           city,
           postal_code: get('postal_zip_code'),
           vat: get('afm'),
           activity: get('firm_act_descr') || get('activity_descr'),
-          legal_status: get('legal_status_descr')
+          legal_status: legalStatus
         });
       });
     });

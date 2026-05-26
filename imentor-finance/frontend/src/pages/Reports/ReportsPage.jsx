@@ -1,6 +1,53 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { BarChart, Bar, AreaChart, Area, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import api from '../../api/client';
+
+function MultiSelectDropdown({ label, options, selected, onChange, getKey, getLabel }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  useEffect(() => {
+    const h = e => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', h);
+    return () => document.removeEventListener('mousedown', h);
+  }, []);
+  const allSelected = selected.length === 0;
+  const displayLabel = allSelected ? label
+    : selected.length === 1
+      ? getLabel(options.find(o => getKey(o) === selected[0]) || {})
+      : `${selected.length} επιλεγμένα`;
+  const toggle = key => onChange(selected.includes(key) ? selected.filter(k => k !== key) : [...selected, key]);
+  return (
+    <div className="relative" ref={ref}>
+      <button type="button"
+        className="input flex items-center justify-between gap-2 min-w-[110px] text-left"
+        onClick={() => setOpen(v => !v)}>
+        <span className={`truncate text-sm ${allSelected ? 'text-slate-400' : 'text-slate-700'}`}>{displayLabel}</span>
+        <svg viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5 text-slate-400 shrink-0">
+          <path fillRule="evenodd" d="M4.22 6.22a.75.75 0 0 1 1.06 0L8 8.94l2.72-2.72a.75.75 0 1 1 1.06 1.06l-3.25 3.25a.75.75 0 0 1-1.06 0L4.22 7.28a.75.75 0 0 1 0-1.06Z" clipRule="evenodd"/>
+        </svg>
+      </button>
+      {open && (
+        <div className="absolute z-50 top-full mt-1 left-0 min-w-[140px] bg-white border border-slate-200 rounded-xl shadow-lg py-1 max-h-64 overflow-y-auto">
+          <label className="flex items-center gap-2.5 px-3 py-2 hover:bg-slate-50 cursor-pointer border-b border-slate-100">
+            <input type="checkbox" checked={allSelected} onChange={() => onChange([])}
+              className="w-4 h-4 rounded border-slate-300 text-primary-600" />
+            <span className="text-sm text-slate-600 font-medium">{label}</span>
+          </label>
+          {options.map(opt => {
+            const key = getKey(opt);
+            return (
+              <label key={key} className="flex items-center gap-2.5 px-3 py-2 hover:bg-slate-50 cursor-pointer">
+                <input type="checkbox" checked={selected.includes(key)} onChange={() => toggle(key)}
+                  className="w-4 h-4 rounded border-slate-300 text-primary-600" />
+                <span className="text-sm text-slate-700">{getLabel(opt)}</span>
+              </label>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
 
 const fmt = n => n != null ? Math.round(n).toLocaleString('el-GR') + ' €' : '—';
 const fmtPct = n => (n || 0).toFixed(1) + '%';
@@ -38,16 +85,33 @@ const RANK_BADGES = [
   { label: '🥉 3ος', bg: 'bg-orange-50', text: 'text-orange-700', ring: 'ring-orange-300' },
 ];
 
-function TabOverview({ year, setYear, month, setMonth, years, months, monthLabels, monthly, byService, byAgent, byExpCat, summary, dateFrom, setDateFrom, dateTo, setDateTo }) {
+const MONTH_OPTS = [
+  { value: '01', label: 'Ιαν' }, { value: '02', label: 'Φεβ' }, { value: '03', label: 'Μαρ' },
+  { value: '04', label: 'Απρ' }, { value: '05', label: 'Μαι' }, { value: '06', label: 'Ιουν' },
+  { value: '07', label: 'Ιουλ' }, { value: '08', label: 'Αυγ' }, { value: '09', label: 'Σεπ' },
+  { value: '10', label: 'Οκτ' }, { value: '11', label: 'Νοε' }, { value: '12', label: 'Δεκ' },
+];
+
+function TabOverview({ selectedYears, setSelectedYears, selectedMonths, setSelectedMonths, years, monthly, byService, byAgent, byExpCat, summary, dateFrom, setDateFrom, dateTo, setDateTo }) {
   return (
     <>
       <div className="flex flex-wrap gap-2 mb-6">
-        <select className="input w-28" value={year} onChange={e => setYear(+e.target.value)}>
-          {years.map(y => <option key={y}>{y}</option>)}
-        </select>
-        <select className="input w-44" value={month} onChange={e => setMonth(e.target.value)}>
-          {months.map((m, i) => <option key={m} value={m}>{monthLabels[i]}</option>)}
-        </select>
+        <MultiSelectDropdown
+          label="Έτος"
+          options={years.map(y => ({ value: String(y), label: String(y) }))}
+          selected={selectedYears.map(String)}
+          onChange={v => setSelectedYears(v.length ? v.map(Number) : [])}
+          getKey={o => o.value}
+          getLabel={o => o.label}
+        />
+        <MultiSelectDropdown
+          label="Μήνας"
+          options={MONTH_OPTS}
+          selected={selectedMonths}
+          onChange={setSelectedMonths}
+          getKey={o => o.value}
+          getLabel={o => o.label}
+        />
         <div className="flex items-center gap-1 text-slate-400 text-xs">ή</div>
         <div className="flex items-center gap-1">
           <input type="date" className="input w-36 text-sm" value={dateFrom} onChange={e => setDateFrom(e.target.value)} placeholder="Από" />
@@ -69,7 +133,7 @@ function TabOverview({ year, setYear, month, setMonth, years, months, monthLabel
       )}
 
       <div className="card p-6">
-        <h2 className="section-title">Μηνιαία Εξέλιξη {year}</h2>
+        <h2 className="section-title">Μηνιαία Εξέλιξη {selectedYears[0] || ''}</h2>
         <ResponsiveContainer width="100%" height={280}>
           <AreaChart data={monthly} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
             <defs>
@@ -182,20 +246,21 @@ function TabOverview({ year, setYear, month, setMonth, years, months, monthLabel
 }
 
 function TabTopCustomers({ years }) {
-  const [year, setYear] = useState(years[0] || new Date().getFullYear());
+  const [selectedYears, setSelectedYears] = useState([years[0] || new Date().getFullYear()]);
   const [data, setData] = useState([]);
   const [sortCol, setSortCol] = useState('income');
   const [sortDir, setSortDir] = useState('desc');
 
   useEffect(() => {
-    if (years.length > 0 && !years.includes(year)) setYear(years[0]);
+    if (years.length > 0 && !years.includes(selectedYears[0])) setSelectedYears([years[0]]);
   }, [years]);
 
   useEffect(() => {
-    api.get(`/reports/by-customer?year=${year}`)
+    const q = selectedYears.length > 1 ? `years=${selectedYears.join(',')}` : `year=${selectedYears[0] || ''}`;
+    api.get(`/reports/by-customer?${q}`)
       .then(r => setData(r.data))
       .catch(() => setData([]));
-  }, [year]);
+  }, [selectedYears]);
 
   const handleSort = col => {
     if (sortCol === col) {
@@ -224,9 +289,14 @@ function TabTopCustomers({ years }) {
   return (
     <>
       <div className="flex gap-2 mb-6">
-        <select className="input w-28" value={year} onChange={e => setYear(+e.target.value)}>
-          {years.map(y => <option key={y}>{y}</option>)}
-        </select>
+        <MultiSelectDropdown
+          label="Έτος"
+          options={years.map(y => ({ value: String(y), label: String(y) }))}
+          selected={selectedYears.map(String)}
+          onChange={v => setSelectedYears(v.length ? v.map(Number) : [years[0] || new Date().getFullYear()])}
+          getKey={o => o.value}
+          getLabel={o => o.label}
+        />
       </div>
 
       {top3.length > 0 && (
@@ -256,7 +326,7 @@ function TabTopCustomers({ years }) {
 
       {chartData.length > 0 && (
         <div className="card p-6 mb-6">
-          <h2 className="section-title">Top 10 Πελάτες — Εισπράξεις {year}</h2>
+          <h2 className="section-title">Top 10 Πελάτες — Εισπράξεις {selectedYears.join(', ')}</h2>
           <ResponsiveContainer width="100%" height={300}>
             <BarChart data={chartData} layout="vertical" margin={{ left: 0, right: 20 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" horizontal={false} />
@@ -275,7 +345,7 @@ function TabTopCustomers({ years }) {
 
       <div className="card overflow-hidden">
         <div className="px-6 py-4 border-b border-slate-100">
-          <h2 className="section-title mb-0">Πλήρης Κατάταξη Πελατών {year}</h2>
+          <h2 className="section-title mb-0">Πλήρης Κατάταξη Πελατών {selectedYears.join(', ')}</h2>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full">
@@ -330,20 +400,21 @@ function TabTopCustomers({ years }) {
 }
 
 function TabAccountants({ years }) {
-  const [year, setYear] = useState(years[0] || new Date().getFullYear());
-  const [month, setMonth] = useState('');
+  const [selectedYears, setSelectedYears] = useState([years[0] || new Date().getFullYear()]);
+  const [selectedMonths, setSelectedMonths] = useState([]);
   const [data, setData] = useState([]);
   const [selectedAccountants, setSelectedAccountants] = useState([]);
   const [sortCol, setSortCol] = useState('total');
   const [sortDir, setSortDir] = useState('desc');
 
-  const months = ['','01','02','03','04','05','06','07','08','09','10','11','12'];
-  const monthLabels = ['Όλοι οι μήνες','Ιαν','Φεβ','Μαρ','Απρ','Μαι','Ιουν','Ιουλ','Αυγ','Σεπ','Οκτ','Νοε','Δεκ'];
-
   useEffect(() => {
-    const q = month ? `year=${year}&month=${month}` : `year=${year}`;
-    api.get(`/reports/by-accountant?${q}`).then(r => setData(r.data)).catch(() => setData([]));
-  }, [year, month]);
+    const params = new URLSearchParams();
+    if (selectedYears.length === 1) params.set('year', selectedYears[0]);
+    else if (selectedYears.length > 1) params.set('years', selectedYears.join(','));
+    if (selectedMonths.length === 1) params.set('month', selectedMonths[0]);
+    else if (selectedMonths.length > 1) params.set('months', selectedMonths.join(','));
+    api.get(`/reports/by-accountant?${params.toString()}`).then(r => setData(r.data)).catch(() => setData([]));
+  }, [selectedYears, selectedMonths]);
 
   // Build flat list of accountants for multi-select
   const accountantOptions = data.map((acc, i) => ({
@@ -383,12 +454,22 @@ function TabAccountants({ years }) {
   return (
     <>
       <div className="flex flex-wrap gap-2 mb-6 items-center">
-        <select className="input w-28" value={year} onChange={e => setYear(+e.target.value)}>
-          {years.map(y => <option key={y}>{y}</option>)}
-        </select>
-        <select className="input w-44" value={month} onChange={e => setMonth(e.target.value)}>
-          {months.map((m, i) => <option key={m} value={m}>{monthLabels[i]}</option>)}
-        </select>
+        <MultiSelectDropdown
+          label="Έτος"
+          options={years.map(y => ({ value: String(y), label: String(y) }))}
+          selected={selectedYears.map(String)}
+          onChange={v => setSelectedYears(v.length ? v.map(Number) : [years[0] || new Date().getFullYear()])}
+          getKey={o => o.value}
+          getLabel={o => o.label}
+        />
+        <MultiSelectDropdown
+          label="Μήνας"
+          options={MONTH_OPTS}
+          selected={selectedMonths}
+          onChange={setSelectedMonths}
+          getKey={o => o.value}
+          getLabel={o => o.label}
+        />
         {/* Multi-select accountant filter */}
         <div className="flex items-center gap-1">
           {accountantOptions.map(opt => (
@@ -781,8 +862,8 @@ const TABS = [
 
 export default function ReportsPage() {
   const [activeTab, setActiveTab] = useState('overview');
-  const [year, setYear] = useState(new Date().getFullYear());
-  const [month, setMonth] = useState('');
+  const [selectedYears, setSelectedYears] = useState([new Date().getFullYear()]);
+  const [selectedMonths, setSelectedMonths] = useState([]);
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [monthly, setMonthly] = useState([]);
@@ -796,7 +877,7 @@ export default function ReportsPage() {
     api.get('/reports/available-years').then(r => {
       const years = r.data || [];
       setAvailableYears(years);
-      if (years.length > 0 && !years.includes(year)) setYear(years[0]);
+      if (years.length > 0 && !years.includes(selectedYears[0])) setSelectedYears([years[0]]);
     }).catch(() => {});
   }, []);
 
@@ -808,9 +889,15 @@ export default function ReportsPage() {
       if (dateTo) params.set('date_to', dateTo);
       return params.toString();
     };
-    const q = month ? `year=${year}&month=${month}` : `year=${year}`;
+    const ymParams = new URLSearchParams();
+    if (selectedYears.length === 1) ymParams.set('year', selectedYears[0]);
+    else if (selectedYears.length > 1) ymParams.set('years', selectedYears.join(','));
+    if (selectedMonths.length === 1) ymParams.set('month', selectedMonths[0]);
+    else if (selectedMonths.length > 1) ymParams.set('months', selectedMonths.join(','));
+    const q = ymParams.toString();
+    const chartYear = selectedYears[0] || new Date().getFullYear();
     Promise.allSettled([
-      api.get(`/reports/monthly?year=${year}`),
+      api.get(`/reports/monthly?year=${chartYear}`),
       api.get(`/reports/by-service?${buildQ(q)}`),
       api.get(`/reports/by-agent?${buildQ(q)}`),
       api.get(`/reports/expenses-by-category?${buildQ(q)}`),
@@ -819,9 +906,8 @@ export default function ReportsPage() {
       if (m.status === 'fulfilled') {
         const monthData = m.value.data.map(d => ({ ...d, name: d.month_name?.slice(0, 3) || '' }));
         setMonthly(monthData);
-        // Auto-switch to previous year if current year has no data
-        if (sm.status === 'fulfilled' && sm.value.data.income === 0 && sm.value.data.income_count === 0 && year === new Date().getFullYear()) {
-          setYear(year - 1);
+        if (sm.status === 'fulfilled' && sm.value.data.income === 0 && sm.value.data.income_count === 0 && selectedYears[0] === new Date().getFullYear()) {
+          setSelectedYears([selectedYears[0] - 1]);
           return;
         }
       }
@@ -830,7 +916,7 @@ export default function ReportsPage() {
       if (ec.status === 'fulfilled') setByExpCat(ec.value.data);
       if (sm.status === 'fulfilled') setSummary(sm.value.data);
     });
-  }, [year, month, dateFrom, dateTo, activeTab]);
+  }, [selectedYears, selectedMonths, dateFrom, dateTo, activeTab]);
 
   const years = availableYears.length > 0
     ? availableYears
@@ -864,9 +950,9 @@ export default function ReportsPage() {
 
       {activeTab === 'overview' && (
         <TabOverview
-          year={year} setYear={setYear}
-          month={month} setMonth={setMonth}
-          years={years} months={months} monthLabels={monthLabels}
+          selectedYears={selectedYears} setSelectedYears={setSelectedYears}
+          selectedMonths={selectedMonths} setSelectedMonths={setSelectedMonths}
+          years={years}
           monthly={monthly} byService={byService} byAgent={byAgent}
           byExpCat={byExpCat} summary={summary}
           dateFrom={dateFrom} setDateFrom={setDateFrom}

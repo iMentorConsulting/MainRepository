@@ -4,21 +4,56 @@ const sequelize = require('../config/db');
 const Income = require('../models/Income');
 const Expense = require('../models/Expense');
 
+// Build Sequelize WHERE for a date field supporting single or multi year/month
+function dateWhere(query, field) {
+  const yearList = (query.years || query.year || '').toString().split(',').map(s => s.trim()).filter(Boolean);
+  const monthList = (query.months || query.month || '').toString().split(',').map(s => s.trim()).filter(Boolean);
+  if (!yearList.length) return {};
+  const ranges = [];
+  for (const y of yearList) {
+    if (monthList.length) {
+      for (const m of monthList) {
+        const mm = m.padStart(2, '0');
+        ranges.push({ [field]: { [Op.between]: [`${y}-${mm}-01`, `${y}-${mm}-31`] } });
+      }
+    } else {
+      ranges.push({ [field]: { [Op.between]: [`${y}-01-01`, `${y}-12-31`] } });
+    }
+  }
+  return ranges.length === 1 ? ranges[0] : { [Op.or]: ranges };
+}
+
+// Build SQL snippet for raw queries
+function sqlDateCond(query, field) {
+  const yearList = (query.years || query.year || '').toString().split(',').map(s => s.trim()).filter(Boolean);
+  const monthList = (query.months || query.month || '').toString().split(',').map(s => s.trim()).filter(Boolean);
+  if (!yearList.length) return { condition: '1=1', replacements: {} };
+  const parts = [], rep = {};
+  let idx = 0;
+  for (const y of yearList) {
+    if (monthList.length) {
+      for (const m of monthList) {
+        const mm = m.padStart(2, '0');
+        const [sk, ek] = [`start${idx}`, `end${idx}`];
+        parts.push(`${field} BETWEEN :${sk} AND :${ek}`);
+        rep[sk] = `${y}-${mm}-01`; rep[ek] = `${y}-${mm}-31`;
+        idx++;
+      }
+    } else {
+      const [sk, ek] = [`start${idx}`, `end${idx}`];
+      parts.push(`${field} BETWEEN :${sk} AND :${ek}`);
+      rep[sk] = `${y}-01-01`; rep[ek] = `${y}-12-31`;
+      idx++;
+    }
+  }
+  return { condition: `(${parts.join(' OR ')})`, replacements: rep };
+}
+
 // Summary: total income, expenses, profit for a period
 router.get('/summary', async (req, res) => {
   try {
-    const { year, month } = req.query;
-    let incomeWhere = {}, expenseWhere = {};
-
-    if (year && month) {
-      const start = `${year}-${month.padStart(2,'0')}-01`;
-      const end = `${year}-${month.padStart(2,'0')}-31`;
-      incomeWhere.sale_date = { [Op.between]: [start, end] };
-      expenseWhere.date = { [Op.between]: [start, end] };
-    } else if (year) {
-      incomeWhere.sale_date = { [Op.between]: [`${year}-01-01`, `${year}-12-31`] };
-      expenseWhere.date = { [Op.between]: [`${year}-01-01`, `${year}-12-31`] };
-    }
+    const incomeWhere = dateWhere(req.query, 'sale_date');
+    const expenseWhere = dateWhere(req.query, 'date');
 
     const [incomeResult] = await Income.findAll({
       where: incomeWhere,
@@ -46,10 +81,10 @@ router.get('/summary', async (req, res) => {
   }
 });
 
-// Monthly breakdown for a year
+// Monthly breakdown for a year (uses first selected year)
 router.get('/monthly', async (req, res) => {
   try {
-    const { year } = req.query;
+    const year = (req.query.years || req.query.year || '').toString().split(',')[0].trim();
     if (!year) return res.status(400).json({ error: 'Απαιτείται year' });
 
     const incomeRows = await sequelize.query(`
@@ -97,10 +132,7 @@ router.get('/monthly', async (req, res) => {
 // By service type
 router.get('/by-service', async (req, res) => {
   try {
-    const { year, month } = req.query;
-    let where = {};
-    if (year && month) where.sale_date = { [Op.between]: [`${year}-${month.padStart(2,'0')}-01`, `${year}-${month.padStart(2,'0')}-31`] };
-    else if (year) where.sale_date = { [Op.between]: [`${year}-01-01`, `${year}-12-31`] };
+    const where = dateWhere(req.query, 'sale_date');
 
     const rows = await Income.findAll({
       where,
@@ -127,10 +159,7 @@ router.get('/by-service', async (req, res) => {
 // By agent
 router.get('/by-agent', async (req, res) => {
   try {
-    const { year, month } = req.query;
-    let where = {};
-    if (year && month) where.sale_date = { [Op.between]: [`${year}-${month.padStart(2,'0')}-01`, `${year}-${month.padStart(2,'0')}-31`] };
-    else if (year) where.sale_date = { [Op.between]: [`${year}-01-01`, `${year}-12-31`] };
+    const where = dateWhere(req.query, 'sale_date');
 
     const rows = await Income.findAll({
       where,
@@ -199,10 +228,7 @@ router.get('/bonus', async (req, res) => {
 // Expense breakdown by category
 router.get('/expenses-by-category', async (req, res) => {
   try {
-    const { year, month } = req.query;
-    let where = {};
-    if (year && month) where.date = { [Op.between]: [`${year}-${month.padStart(2,'0')}-01`, `${year}-${month.padStart(2,'0')}-31`] };
-    else if (year) where.date = { [Op.between]: [`${year}-01-01`, `${year}-12-31`] };
+    const where = dateWhere(req.query, 'date');
 
     const rows = await Expense.findAll({
       where,
@@ -224,18 +250,7 @@ router.get('/expenses-by-category', async (req, res) => {
 
 router.get('/by-customer', async (req, res) => {
   try {
-    const { year, month } = req.query;
-    let dateCondition = '1=1';
-    const replacements = {};
-    if (year && month) {
-      dateCondition = `sale_date BETWEEN :start AND :end`;
-      replacements.start = `${year}-${month.padStart(2,'0')}-01`;
-      replacements.end = `${year}-${month.padStart(2,'0')}-31`;
-    } else if (year) {
-      dateCondition = `sale_date BETWEEN :start AND :end`;
-      replacements.start = `${year}-01-01`;
-      replacements.end = `${year}-12-31`;
-    }
+    const { condition: dateCondition, replacements } = sqlDateCond(req.query, 'sale_date');
 
     const rows = await sequelize.query(`
       SELECT
@@ -267,10 +282,7 @@ router.get('/by-customer', async (req, res) => {
 // Income grouped by accountant (for email-style report)
 router.get('/by-accountant', async (req, res) => {
   try {
-    const { year, month } = req.query;
-    let where = {};
-    if (year && month) where.sale_date = { [Op.between]: [`${year}-${month.padStart(2,'0')}-01`, `${year}-${month.padStart(2,'0')}-31`] };
-    else if (year) where.sale_date = { [Op.between]: [`${year}-01-01`, `${year}-12-31`] };
+    const where = dateWhere(req.query, 'sale_date');
 
     const rows = await Income.findAll({
       where,
