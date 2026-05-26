@@ -195,13 +195,13 @@ async function findDocType(orgKey, kind) {
   const keyword = kind === 'APY' ? 'απόδειξη παροχής' : 'τιμολόγιο παροχής';
   const dt = all.find(d => (d.title || '').toLowerCase().includes(keyword));
   if (!dt) throw new Error(`Δεν βρέθηκε τύπος παραστατικού "${keyword}" (διαθέσιμοι: ${all.map(d => d.title).join(', ')})`);
-  // Fetch full detail — list endpoint returns partial objects, detail has mydata_document_type
-  const detail = (await api(orgKey).get(`documenttypes/${dt.id}/`)).data;
-  console.log(`[doctype-detail ${kind}]:`, JSON.stringify(detail));
   const dtId = String(dt.id);
-  const mydataDocType = detail.mydata_document_type ?? dt.mydata_document_type ?? null;
-  console.log(`[doctype ${kind}] id=${dtId} title=${dt.title} mydata=${mydataDocType} (type: ${typeof mydataDocType})`);
-  if (!mydataDocType) throw new Error(`mydata_document_type δεν βρέθηκε στο doc type "${dt.title}". Ελέγξτε τις ρυθμίσεις myDATA στο Elorus.`);
+  // Fetch full detail — list endpoint returns partial objects without mydata_document_type.
+  // If Elorus doesn't return it (not configured in account myDATA settings), send null
+  // so we omit it from the invoice body — forcing any value causes "Invalid" errors.
+  const detail = (await api(orgKey).get(`documenttypes/${dt.id}/`)).data;
+  const mydataDocType = detail.mydata_document_type ?? null;
+  console.log(`[doctype ${kind}] id=${dtId} title=${dt.title} mydata=${mydataDocType}`);
   docTypeCache[cacheKey] = { id: dtId, mydataDocType };
   return docTypeCache[cacheKey];
 }
@@ -358,8 +358,7 @@ router.post('/create-draft', async (req, res) => {
       date: date || new Date().toISOString().split('T')[0],
       document_type: docType.id,
       draft: true,
-      ...(kind === 'APY' ? { paid_on_receipt: 1 } : {}),
-      items: lines(net, description, income.service_type, taxRateId, kind),
+            items: lines(net, description, income.service_type, taxRateId, kind),
       ...(docType.mydataDocType ? { mydata_document_type: docType.mydataDocType } : {}),
       ...(wh.length ? { extra_fees: wh } : {}),
     };
@@ -453,8 +452,7 @@ router.post('/one-shot', async (req, res) => {
       client: contactId,
       date: iDate,
       document_type: docType.id,
-      ...(kind === 'APY' ? { paid_on_receipt: 1 } : {}),
-      items: lines(net, description, income.service_type, taxRateId, kind),
+            items: lines(net, description, income.service_type, taxRateId, kind),
       ...(docType.mydataDocType ? { mydata_document_type: docType.mydataDocType } : {}),
       ...(wh.length ? { extra_fees: wh } : {}),
     };
