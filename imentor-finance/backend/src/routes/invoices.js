@@ -192,16 +192,16 @@ async function findDocType(orgKey, kind) {
   const r = await api(orgKey).get('documenttypes/?active=true&page_size=100');
   const all = r.data.results || [];
   console.log(`[doctype] all titles for ${orgKey}:`, all.map(d => d.title));
-  // Match strictly on 'παροχής' to exclude 'Πώλησης' doc types
   const keyword = kind === 'APY' ? 'απόδειξη παροχής' : 'τιμολόγιο παροχής';
   const dt = all.find(d => (d.title || '').toLowerCase().includes(keyword));
   if (!dt) throw new Error(`Δεν βρέθηκε τύπος παραστατικού "${keyword}" (διαθέσιμοι: ${all.map(d => d.title).join(', ')})`);
+  // Fetch full detail — list endpoint returns partial objects, detail has mydata_document_type
+  const detail = (await api(orgKey).get(`documenttypes/${dt.id}/`)).data;
+  console.log(`[doctype-detail ${kind}]:`, JSON.stringify(detail));
   const dtId = String(dt.id);
-  // Log full doc type object to see ALL fields Elorus returns
-  console.log(`[doctype-full ${kind}]:`, JSON.stringify(dt));
-  // Try numeric float (not string) — Elorus may require 11.2 not "11.2"
-  const mydataDocType = dt.mydata_document_type ?? (kind === 'APY' ? 11.2 : 2.1);
-  console.log(`[doctype ${kind}] id=${dtId} title=${dt.title} mydata=${mydataDocType} type=${typeof mydataDocType}`);
+  const mydataDocType = detail.mydata_document_type ?? dt.mydata_document_type ?? null;
+  console.log(`[doctype ${kind}] id=${dtId} title=${dt.title} mydata=${mydataDocType} (type: ${typeof mydataDocType})`);
+  if (!mydataDocType) throw new Error(`mydata_document_type δεν βρέθηκε στο doc type "${dt.title}". Ελέγξτε τις ρυθμίσεις myDATA στο Elorus.`);
   docTypeCache[cacheKey] = { id: dtId, mydataDocType };
   return docTypeCache[cacheKey];
 }
@@ -269,16 +269,21 @@ router.get('/debug-apy-invoice', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// Debug: see exact mydata_document_type values on real invoices and full doc type objects
+// Debug: full doc type detail objects + mydata_document_type on real invoices
 router.get('/debug-invoice-fields', async (req, res) => {
   try {
     const orgKey = req.query.org_key || 'DEFAULT';
     const dtR = await api(orgKey).get('documenttypes/?active=true&page_size=100');
     const allDt = dtR.data.results || [];
-    const result = { docTypes: allDt, invoices: {} };
+    const result = { docTypeDetails: {}, invoices: {} };
     for (const dt of allDt.slice(0, 10)) {
       try {
-        const invR = await api(orgKey).get(`invoices/?document_type=${dt.id}&page_size=3`);
+        const detail = (await api(orgKey).get(`documenttypes/${dt.id}/`)).data;
+        result.docTypeDetails[dt.title] = detail;
+        console.log(`[dt-detail] ${dt.title}:`, JSON.stringify(detail));
+      } catch (de) { result.docTypeDetails[dt.title] = { error: de.message }; }
+      try {
+        const invR = await api(orgKey).get(`invoices/?document_type=${dt.id}&page_size=2`);
         const invs = invR.data.results || [];
         if (invs.length) {
           result.invoices[dt.title] = invs.map(i => ({
