@@ -3,21 +3,22 @@ import { Link } from 'react-router-dom'
 import {
   getCases, getUsers, updateCase, getAllPendingOverview, createMessage, getMessages, deleteMessage,
   createCasePendingItem, deleteCasePendingItem, notifyCasePendingItems, getNotificationLogs,
-  getPendingItemTemplates, sendNotification,
+  getPendingItemTemplates, sendNotification, getPipelines,
 } from '../api'
 import { PIPELINES } from '../pipelines'
 import {
   MagnifyingGlassIcon, PlusIcon, TrashIcon,
-  CalendarDaysIcon, PaperAirplaneIcon, ArrowTopRightOnSquareIcon, BoltIcon,
+  CalendarDaysIcon, PaperAirplaneIcon, ArrowTopRightOnSquareIcon, BoltIcon, PhoneIcon,
 } from '@heroicons/react/24/outline'
 import toast from 'react-hot-toast'
 
-const PROGRAMS = ['ΕΣΠΑ', 'ΔΥΠΑ', 'ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ']
+const PROGRAMS = ['ΕΣΠΑ', 'ΔΥΠΑ', 'ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ', 'ΑΝΑΚΑΙΝΙΖΩ']
 const FINAL_STATUSES = new Set(['ΟΛΟΚΛΗΡΩΜΕΝΗ ΥΠΟΘΕΣΗ', 'ΠΑΡΑΙΤΗΣΗ', 'ΠΑΓΩΜΕΝΗ ΥΠΟΘΕΣΗ', 'ΑΚΥΡΩΣΗ', 'ΑΠΟΡΡΙΨΗ'])
 const PROG_COLOR = {
   ΕΣΠΑ: 'bg-blue-100 text-blue-700',
   ΔΥΠΑ: 'bg-green-100 text-green-700',
   ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ: 'bg-purple-100 text-purple-700',
+  ΑΝΑΚΑΙΝΙΖΩ: 'bg-orange-100 text-orange-700',
 }
 
 function followUpCellClass(dateStr) {
@@ -38,8 +39,8 @@ function fmtNoteDate(s) {
   return d.toLocaleDateString('el-GR', { day: '2-digit', month: '2-digit', year: '2-digit', timeZone: 'Europe/Athens' })
 }
 
-function getStatusGroups(prog) {
-  const pipeline = PIPELINES[prog]
+function getStatusGroups(prog, pipelinesData = PIPELINES) {
+  const pipeline = (pipelinesData || PIPELINES)[prog] || PIPELINES[prog]
   if (!pipeline) return []
   const groups = pipeline.phases.map(ph => ({ group: ph.label, statuses: ph.statuses }))
   if (pipeline.extra_statuses?.length) groups.push({ group: 'Λοιπά', statuses: pipeline.extra_statuses })
@@ -47,8 +48,8 @@ function getStatusGroups(prog) {
 }
 
 // ── Status inline select ───────────────────────────────────────────────────────
-function StatusCell({ caseId, program, value, onChange }) {
-  const groups = getStatusGroups(program)
+function StatusCell({ caseId, program, value, onChange, pipelinesData }) {
+  const groups = getStatusGroups(program, pipelinesData)
   const [saving, setSaving] = useState(false)
 
   const handle = async (e) => {
@@ -427,6 +428,7 @@ export default function WorkView() {
   const [agents, setAgents] = useState([])
   const [search, setSearch] = useState('')
   const [filterProgram, setFilterProgram] = useState('')
+  const [pipelinesData, setPipelinesData] = useState(PIPELINES)
   const [filterAgent, setFilterAgent] = useState('')
   const [filterServiceType, setFilterServiceType] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
@@ -467,6 +469,7 @@ export default function WorkView() {
   useEffect(() => { load() }, [load])
   useEffect(() => { setFilterServiceType(''); setFilterStatus('') }, [filterProgram])
   useEffect(() => { getUsers().then(setAgents).catch(() => {}) }, [])
+  useEffect(() => { getPipelines().then(setPipelinesData).catch(() => {}) }, [])
 
   const serviceTypeOptions = [...new Set(cases.map(c => c.service_type).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'el'))
 
@@ -606,6 +609,16 @@ export default function WorkView() {
                     <ArrowTopRightOnSquareIcon className="w-3.5 h-3.5 opacity-0 group-hover:opacity-60 shrink-0" />
                   </Link>
                   <div className="text-xs text-gray-400 mt-0.5 truncate max-w-[10rem]">{c.service_type || '—'}</div>
+                  {c.phone && (
+                    <a
+                      href={`tel:${c.phone}`}
+                      className="flex items-center gap-1 mt-0.5 text-xs text-blue-600 hover:text-blue-800 hover:underline"
+                      onClick={e => e.stopPropagation()}
+                    >
+                      <PhoneIcon className="w-3 h-3 shrink-0" />
+                      {c.phone}
+                    </a>
+                  )}
                   <span className={`inline-block mt-1 text-xs font-semibold px-1.5 py-0.5 rounded ${PROG_COLOR[c.program_category] || 'bg-gray-100 text-gray-600'}`}>
                     {c.program_category || '—'}
                   </span>
@@ -616,6 +629,7 @@ export default function WorkView() {
                     program={c.program_category}
                     value={c.status}
                     onChange={v => updateField(c.id, { status: v })}
+                    pipelinesData={pipelinesData}
                   />
                 </td>
                 <td className="px-3 py-2.5">

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { Link } from 'react-router-dom'
-import { getCases, updateCase, getUsers, sendNotification, getCaseFilterOptions } from '../api'
+import { getCases, updateCase, getUsers, sendNotification, getCaseFilterOptions, getPipelines } from '../api'
 import { PIPELINES } from '../pipelines'
 import {
   ClockIcon,
@@ -320,9 +320,10 @@ export default function Kanban() {
   const [filterSLA, setFilterSLA] = useState(0)
   const [filterSearch, setFilterSearch] = useState('')
   const [showPendingTemplates, setShowPendingTemplates] = useState(false)
+  const [pipelinesData, setPipelinesData] = useState(PIPELINES)
   const [showSLA, setShowSLA] = useState(false)
 
-  const pipeline = PIPELINES[activeProgram]
+  const pipeline = pipelinesData[activeProgram] || PIPELINES[activeProgram]
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -336,6 +337,7 @@ export default function Kanban() {
   useEffect(() => { load() }, [load])
   useEffect(() => { getUsers().then(setAgents).catch(() => {}) }, [])
   useEffect(() => { getCaseFilterOptions().then(setFilterOptions).catch(() => {}) }, [])
+  useEffect(() => { getPipelines().then(setPipelinesData).catch(() => {}) }, [])
 
   const handleMoved = useCallback((caseId, newStatus) => {
     setCases(prev => prev.map(c => c.id === caseId ? { ...c, status: newStatus } : c))
