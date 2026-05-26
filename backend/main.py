@@ -26,6 +26,7 @@ from routes.cm_revenue import router as cm_revenue_router
 from routes.cm_backup import router as cm_backup_router
 from models_cases import CMBackupLog
 from routes.cm_anakainizw import router as cm_anakainizw_router
+from routes.cm_finance_sync import router as cm_finance_sync_router
 
 load_dotenv()
 
@@ -678,7 +679,7 @@ try:
 except Exception as _e:
     print(f"[startup] seed_admin failed: {_e}")
 
-# ── Scheduled sheet auto-refresh (08:00 and 14:00 Athens time) ────────────────
+# ── Scheduled finance-app sync (08:00 and 14:00 Athens time) ─────────────────
 import pytz as _pytz
 from apscheduler.schedulers.background import BackgroundScheduler as _BGScheduler
 
@@ -686,27 +687,27 @@ _athens_tz = _pytz.timezone("Europe/Athens")
 
 
 def _run_scheduled_refresh():
-    from routes.cm_google_sheets import _do_import, _do_sync_paid, _last_auto_refresh
-    import routes.cm_google_sheets as _sheets_mod
+    from routes.cm_finance_sync import _do_sync_from_finance, _last_sync
+    import routes.cm_finance_sync as _finance_mod
     db = SessionLocal()
     try:
-        import_res = _do_import(db)
-        sync_res = _do_sync_paid(db)
-        _sheets_mod._last_auto_refresh.update({
+        result = _do_sync_from_finance(db)
+        _finance_mod._last_sync.update({
             "last_run_at": datetime.utcnow().isoformat() + "Z",
-            "imported": import_res["imported"],
-            "updated_paid": sync_res["updated"],
+            "imported": result["imported"],
+            "updated_paid": result["updated_paid"],
+            "total_records": result["total_records"],
             "error": None,
         })
-        print(f"[scheduler] Auto-refresh OK — imported={import_res['imported']}, updated_paid={sync_res['updated']}")
+        print(f"[scheduler] Finance sync OK — imported={result['imported']}, updated_paid={result['updated_paid']}, total={result['total_records']}")
     except Exception as e:
-        _sheets_mod._last_auto_refresh.update({
+        _finance_mod._last_sync.update({
             "last_run_at": datetime.utcnow().isoformat() + "Z",
             "imported": None,
             "updated_paid": None,
             "error": str(e),
         })
-        print(f"[scheduler] Auto-refresh ERROR: {e}")
+        print(f"[scheduler] Finance sync ERROR: {e}")
     finally:
         db.close()
 
@@ -803,6 +804,7 @@ app.include_router(cm_portal_files_router)
 app.include_router(cm_revenue_router)
 app.include_router(cm_backup_router)
 app.include_router(cm_anakainizw_router)
+app.include_router(cm_finance_sync_router)
 
 
 @app.on_event("shutdown")
