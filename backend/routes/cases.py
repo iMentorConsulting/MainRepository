@@ -6,7 +6,7 @@ from pydantic import BaseModel
 from typing import Optional, List
 from datetime import datetime, date
 from database import get_db, fmt_dt
-from models_cases import CMCase, CMUser, CMTask, CMPayment, CMMessage, CMDocument, CMBudgetCategory, CMStatusSLA, CMNotificationLog, CMCasePendingItem, CMCaseModification
+from models_cases import CMCase, CMUser, CMTask, CMPayment, CMMessage, CMDocument, CMBudgetCategory, CMStatusSLA, CMNotificationLog, CMCasePendingItem, CMCaseModification, CMPortalFile
 from sqlalchemy import func as sa_func
 from auth_cases import get_current_user
 from pipelines import TERMINAL_STATUSES, get_all_statuses_for_program
@@ -79,7 +79,8 @@ def _last_note(c: CMCase) -> tuple[str | None, str | None]:
 
 def case_to_dict(c: CMCase, include_related: bool = False, sla_map: dict = None,
                  _pending_texts: list = None, _last_note_data: tuple = None,
-                 _agent_name: str = None, _valid_statuses: dict = None) -> dict:
+                 _agent_name: str = None, _valid_statuses: dict = None,
+                 _has_documents: bool = False) -> dict:
     agent_name = _agent_name if _agent_name is not None else (c.assigned_agent.full_name if c.assigned_agent else None)
     total_agreed = (c.agreed_fee_application or 0) + (c.agreed_fee_implementation or 0)
     balance = total_agreed - (c.total_paid or 0)
@@ -156,6 +157,7 @@ def case_to_dict(c: CMCase, include_related: bool = False, sla_map: dict = None,
         "portal_last_visit_at": fmt_dt(c.portal_last_visit_at),
         "total_msgs_sent": 0,
         "last_msg_at": None,
+        "has_documents": _has_documents,
     }
 
     if include_related:
@@ -350,6 +352,11 @@ def list_cases(
             _valid_statuses_map[prog] = s
     except Exception:
         _valid_statuses_map = None
+
+    # Batch: cases that have at least one document (CMDocument or CMPortalFile)
+    doc_case_ids = {r[0] for r in db.query(CMDocument.case_id).filter(CMDocument.case_id.in_(case_ids)).distinct().all()}
+    portal_file_case_ids = {r[0] for r in db.query(CMPortalFile.case_id).filter(CMPortalFile.case_id.in_(case_ids)).distinct().all()}
+    cases_with_docs = doc_case_ids | portal_file_case_ids
     sla_map = {r.status: r.sla_days for r in db.query(CMStatusSLA).all()}
 
     if not cases:
@@ -433,7 +440,8 @@ def list_cases(
                          _pending_texts=pending_texts,
                          _last_note_data=last_note_data,
                          _agent_name=agent_map.get(c.assigned_agent_id),
-                         _valid_statuses=_valid_statuses_map)
+                         _valid_statuses=_valid_statuses_map,
+                         _has_documents=c.id in cases_with_docs)
 
         ts = tasks_by_case.get(c.id, [])
         d["open_tasks"] = len(ts)
