@@ -79,7 +79,7 @@ function successFeeDue(c) {
 
 // Best date proxy for when a fee event occurred
 function collectionDate(c) {
-  return c.submitted_at || c.completed_at || c.created_at
+  return c.stage_changed_at || c.submitted_at || c.completed_at || c.created_at
 }
 
 const STATUS_LABELS = {
