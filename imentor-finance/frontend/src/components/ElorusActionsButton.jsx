@@ -33,6 +33,20 @@ function Breakdown({ amount, orgKey }) {
   );
 }
 
+const MYDATA_TYPES = [
+  { value: '2.1',  label: '2.1 — ΤΠΥ (Τιμολόγιο Παροχής Υπηρεσιών)' },
+  { value: '11.1', label: '11.1 — ΑΠΥ (Απόδειξη Παροχής Υπηρεσιών)' },
+  { value: '1.1',  label: '1.1 — Τιμολόγιο Πώλησης' },
+  { value: '2.4',  label: '2.4 — ΤΠΥ Αλλοδαπής' },
+];
+
+function guessMydata(title) {
+  const t = (title || '').toLowerCase();
+  if (t.includes('απόδειξη') || t.includes('αποδειξη') || t.includes('α.π.υ') || t.includes('αδυ') || t.includes('apy')) return '11.1';
+  if (t.includes('πώλησης') || t.includes('πωλησης')) return '1.1';
+  return '2.1';
+}
+
 function InvoiceForm({ action, record, onClose, onDone }) {
   const isOneShot = action === 'one-shot';
   const [orgKey, setOrgKey] = useState('DEFAULT');
@@ -42,6 +56,7 @@ function InvoiceForm({ action, record, onClose, onDone }) {
   const [docType, setDocType] = useState('');
   const [docTypes, setDocTypes] = useState([]);
   const [docTypesLoading, setDocTypesLoading] = useState(false);
+  const [mydataDocType, setMydataDocType] = useState('2.1');
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -51,18 +66,23 @@ function InvoiceForm({ action, record, onClose, onDone }) {
       .then(r => {
         const list = r.data || [];
         setDocTypes(list);
-        // Default to ΤΠΥ (Τιμολόγιο), fall back to first item
         const preferred = list.find(d => /τιμολόγιο/i.test(d.title || '')) || list[0];
-        if (preferred) setDocType(String(preferred.id));
+        if (preferred) {
+          setDocType(String(preferred.id));
+          setMydataDocType(guessMydata(preferred.title));
+        }
       })
       .catch(() => setDocTypes([]))
       .finally(() => setDocTypesLoading(false));
   }, [orgKey]);
 
-  const selectedDocType = docTypes.find(d => String(d.id) === docType);
-  const docTitle = (selectedDocType?.title || '').toLowerCase();
-  const isApy = docTitle.includes('απόδειξη') || docTitle.includes('αποδειξη') || docTitle.includes('α.π.υ');
-  const mydataDocType = isApy ? '11.1' : '2.1';
+  const handleDocTypeChange = id => {
+    setDocType(id);
+    const dt = docTypes.find(d => String(d.id) === id);
+    if (dt) setMydataDocType(guessMydata(dt.title));
+  };
+
+  const isApy = mydataDocType === '11.1';
 
   const submit = async () => {
     if (!amount) return toast.error('Εισάγετε ποσό');
@@ -97,13 +117,13 @@ function InvoiceForm({ action, record, onClose, onDone }) {
         </select>
       </div>
       <div>
-        <label className="label">Τύπος Παραστατικού *</label>
+        <label className="label">Τύπος Παραστατικού (Elorus) *</label>
         {docTypesLoading ? (
           <div className="text-sm text-slate-400 py-2">Φόρτωση τύπων παραστατικών…</div>
         ) : docTypes.length === 0 ? (
           <div className="text-sm text-rose-500 py-2">Δεν βρέθηκαν τύποι στο Elorus</div>
         ) : (
-          <select className="input" value={docType} onChange={e => setDocType(e.target.value)}>
+          <select className="input" value={docType} onChange={e => handleDocTypeChange(e.target.value)}>
             {docTypes.map(d => (
               <option key={d.id} value={String(d.id)}>
                 {d.title}{d.next_number != null ? ` — Επόμενο: #${d.next_number}` : ''}
@@ -112,6 +132,17 @@ function InvoiceForm({ action, record, onClose, onDone }) {
           </select>
         )}
       </div>
+      <div>
+        <label className="label">MyDATA Τύπος *</label>
+        <select className="input" value={mydataDocType} onChange={e => setMydataDocType(e.target.value)}>
+          {MYDATA_TYPES.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+        </select>
+      </div>
+      {!isOneShot && isApy && (
+        <div className="rounded-xl p-3 bg-amber-50 border border-amber-100 text-xs text-amber-700">
+          ⚠️ Το ΑΠΥ (11.1) δεν υποστηρίζει draft στο Elorus — θα εκδοθεί <strong>αμέσως</strong> ως οριστικό παραστατικό.
+        </div>
+      )}
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="label">Καθαρό Ποσό (€) *</label>

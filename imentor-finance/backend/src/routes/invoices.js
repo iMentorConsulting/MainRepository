@@ -188,27 +188,7 @@ function errMsg(e) {
 }
 
 async function elorusPostInvoice(a, body) {
-  try {
-    return (await a.post('invoices/', body)).data;
-  } catch (e) {
-    const errStr = JSON.stringify(e.response?.data || '');
-    if (!errStr.includes('mydata_document_type')) throw e;
-    // Elorus rejected the mydata_document_type for this org — try alternatives
-    const tried = new Set([body.mydata_document_type]);
-    for (const alt of ['11.1', '1.1', '2.1', '2.4', '2.2']) {
-      if (tried.has(alt)) continue;
-      tried.add(alt);
-      console.log(`Elorus: retrying with mydata_document_type=${alt}`);
-      try { return (await a.post('invoices/', { ...body, mydata_document_type: alt })).data; }
-      catch (e2) { if (!JSON.stringify(e2.response?.data || '').includes('mydata_document_type')) throw e2; }
-    }
-    // Last resort: omit mydata fields entirely
-    console.log('Elorus: retrying without mydata_document_type');
-    const { mydata_document_type, ...bodyNoMydata } = body;
-    // Also strip mydata_classification fields from items
-    const items = (bodyNoMydata.items || []).map(({ mydata_classification_category, mydata_classification_type, ...item }) => item);
-    return (await a.post('invoices/', { ...bodyNoMydata, items })).data;
-  }
+  return (await a.post('invoices/', body)).data;
 }
 
 router.get('/document-types', async (req, res) => {
