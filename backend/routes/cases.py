@@ -10,6 +10,7 @@ from models_cases import CMCase, CMUser, CMTask, CMPayment, CMMessage, CMDocumen
 from sqlalchemy import func as sa_func
 from auth_cases import get_current_user
 from pipelines import TERMINAL_STATUSES, get_all_statuses_for_program
+from routes.cm_pipeline import get_all_pipeline_configs as _get_db_pipelines
 from routes.cm_notifications import _send_email
 
 log = logging.getLogger(__name__)
@@ -78,7 +79,7 @@ def _last_note(c: CMCase) -> tuple[str | None, str | None]:
 
 def case_to_dict(c: CMCase, include_related: bool = False, sla_map: dict = None,
                  _pending_texts: list = None, _last_note_data: tuple = None,
-                 _agent_name: str = None) -> dict:
+                 _agent_name: str = None, _valid_statuses: dict = None) -> dict:
     agent_name = _agent_name if _agent_name is not None else (c.assigned_agent.full_name if c.assigned_agent else None)
     total_agreed = (c.agreed_fee_application or 0) + (c.agreed_fee_implementation or 0)
     balance = total_agreed - (c.total_paid or 0)
@@ -145,7 +146,13 @@ def case_to_dict(c: CMCase, include_related: bool = False, sla_map: dict = None,
         "open_task_titles": [],
         "last_note_preview": _last_note_data[0] if _last_note_data is not None else _last_note(c)[0],
         "last_note_at": _last_note_data[1] if _last_note_data is not None else _last_note(c)[1],
-        "status_mismatch": bool(c.status and c.program_category and c.status not in get_all_statuses_for_program(c.program_category)),
+        "status_mismatch": bool(
+            c.status and c.program_category and c.status not in (
+                _valid_statuses.get(c.program_category, set())
+                if _valid_statuses is not None
+                else set(get_all_statuses_for_program(c.program_category))
+            )
+        ),
         "portal_last_visit_at": fmt_dt(c.portal_last_visit_at),
         "total_msgs_sent": 0,
         "last_msg_at": None,
@@ -330,6 +337,19 @@ def list_cases(
 
     cap = min(limit, 1000) if limit else 500
     cases = q.order_by(CMCase.updated_at.desc()).limit(cap).all()
+
+    # Load DB pipeline statuses once for status_mismatch check
+    try:
+        _db_pipelines = _get_db_pipelines(db)
+        _valid_statuses_map = {}
+        for prog, cfg in _db_pipelines.items():
+            s = set()
+            for ph in cfg.get("phases", []):
+                s.update(ph.get("statuses", []))
+            s.update(cfg.get("extra_statuses", []))
+            _valid_statuses_map[prog] = s
+    except Exception:
+        _valid_statuses_map = None
     sla_map = {r.status: r.sla_days for r in db.query(CMStatusSLA).all()}
 
     if not cases:
@@ -412,7 +432,8 @@ def list_cases(
         d = case_to_dict(c, sla_map=sla_map,
                          _pending_texts=pending_texts,
                          _last_note_data=last_note_data,
-                         _agent_name=agent_map.get(c.assigned_agent_id))
+                         _agent_name=agent_map.get(c.assigned_agent_id),
+                         _valid_statuses=_valid_statuses_map)
 
         ts = tasks_by_case.get(c.id, [])
         d["open_tasks"] = len(ts)

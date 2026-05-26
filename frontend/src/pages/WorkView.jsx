@@ -474,8 +474,8 @@ export default function WorkView() {
   const serviceTypeOptions = [...new Set(cases.map(c => c.service_type).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'el'))
 
   const statusGroups = filterProgram
-    ? getStatusGroups(filterProgram)
-    : PROGRAMS.flatMap(p => getStatusGroups(p).map(g => ({ ...g, group: `${p} · ${g.group}` })))
+    ? getStatusGroups(filterProgram, pipelinesData)
+    : PROGRAMS.flatMap(p => getStatusGroups(p, pipelinesData).map(g => ({ ...g, group: `${p} · ${g.group}` })))
 
   const today = new Date().toISOString().slice(0, 10)
   const displayed = cases.filter(c => {
