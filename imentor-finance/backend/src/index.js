@@ -92,6 +92,7 @@ app.use('/api/service-agreements', authMiddleware, require('./routes/serviceAgre
 app.use('/api/recurring-expenses', authMiddleware, require('./routes/recurringExpenses'));
 // Case management sync — own API-key auth, no user auth middleware
 app.use('/api/cm-sync', require('./routes/cmSync'));
+app.use('/api/backup',  authMiddleware, require('./routes/backup'));
 
 app.get('/health', (_, res) => res.json({ ok: true }));
 
@@ -107,6 +108,18 @@ const PORT = process.env.PORT || 3001;
 sequelize.sync({ alter: true }).then(async () => {
   console.log('Database connected & synced');
   app.listen(PORT, () => console.log(`Backend running on port ${PORT}`));
+
+  // Daily backup at 03:00 UTC
+  try {
+    const cron = require('node-cron');
+    const { runBackup } = require('./backup');
+    cron.schedule('0 3 * * *', () => {
+      runBackup().catch(e => console.error('[backup-cron] error:', e.message));
+    });
+    console.log('[backup-cron] Daily backup scheduled at 03:00 UTC');
+  } catch (e) {
+    console.warn('[backup-cron] Could not schedule backup:', e.message);
+  }
 }).catch(err => {
   console.error('DB sync error:', err.message);
   process.exit(1);
