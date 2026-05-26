@@ -679,7 +679,7 @@ try:
 except Exception as _e:
     print(f"[startup] seed_admin failed: {_e}")
 
-# ── Scheduled finance-app sync (08:00 and 14:00 Athens time) ─────────────────
+# ── Scheduled finance-app sync (12:00 and 22:00 Athens time) ─────────────────
 import pytz as _pytz
 from apscheduler.schedulers.background import BackgroundScheduler as _BGScheduler
 
@@ -766,8 +766,8 @@ def _scheduled_backup():
 
 
 _scheduler = _BGScheduler(timezone=_athens_tz)
-_scheduler.add_job(_run_scheduled_refresh, "cron", hour=8, minute=0, id="refresh_08")
-_scheduler.add_job(_run_scheduled_refresh, "cron", hour=14, minute=0, id="refresh_14")
+_scheduler.add_job(_run_scheduled_refresh, "cron", hour=12, minute=0, id="refresh_12")
+_scheduler.add_job(_run_scheduled_refresh, "cron", hour=22, minute=0, id="refresh_22")
 _scheduler.add_job(_run_agent_sla_digest, "cron", hour=9, minute=0, id="sla_digest_09")
 _backup_hour = int(os.getenv("BACKUP_SCHEDULE_HOUR", "2"))
 _scheduler.add_job(_scheduled_backup, "cron", hour=_backup_hour, minute=0, id="drive_backup")
