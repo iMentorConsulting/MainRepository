@@ -765,9 +765,8 @@ def _scheduled_backup():
 
 
 _scheduler = _BGScheduler(timezone=_athens_tz)
-# Sheet auto-refresh disabled — ΕΣΟΔΑ sheet replaced by finance.i-mentor.gr
-# _scheduler.add_job(_run_scheduled_refresh, "cron", hour=8, minute=0, id="refresh_08")
-# _scheduler.add_job(_run_scheduled_refresh, "cron", hour=14, minute=0, id="refresh_14")
+_scheduler.add_job(_run_scheduled_refresh, "cron", hour=8, minute=0, id="refresh_08")
+_scheduler.add_job(_run_scheduled_refresh, "cron", hour=14, minute=0, id="refresh_14")
 _scheduler.add_job(_run_agent_sla_digest, "cron", hour=9, minute=0, id="sla_digest_09")
 _backup_hour = int(os.getenv("BACKUP_SCHEDULE_HOUR", "2"))
 _scheduler.add_job(_scheduled_backup, "cron", hour=_backup_hour, minute=0, id="drive_backup")
