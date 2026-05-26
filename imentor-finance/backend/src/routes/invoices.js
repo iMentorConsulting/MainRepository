@@ -162,8 +162,8 @@ async function getVatTaxRateId(orgKey) {
 }
 
 // kind = 'TPY' | 'APY'
-// ΤΠΥ: mydata_document_type 2.1 + E3_561_001, withholding applies
-// ΑΠΥ: no mydata_document_type + E3_561_003, never withholding
+// ΤΠΥ: document_type=ΤΠΥ id, mydata_document_type 2.1, E3_561_001, withholding if >301
+// ΑΠΥ: document_type=ΑΠΥ id, mydata_document_type 11.1, E3_561_002, never withholding
 function lines(net, desc, serviceType, taxRateId, kind) {
   const taxes = taxRateId ? [taxRateId] : [];
   return [{
@@ -266,12 +266,13 @@ router.post('/create-draft', async (req, res) => {
     const body = {
       client: contactId,
       date: date || new Date().toISOString().split('T')[0],
-      document_type: parseInt(docTypeId),
+      document_type: docTypeId,
       draft: true,
       items: lines(net, description, income.service_type, taxRateId, kind),
       mydata_document_type: kind === 'APY' ? '11.1' : '2.1',
       ...(wh.length ? { extra_fees: wh } : {}),
     };
+    console.log(`[create-draft] kind=${kind} docTypeId=${docTypeId} mydata=${body.mydata_document_type} classType=${body.items[0]?.mydata_classification_type}`);
     const inv = await elorusPostInvoice(a, body);
     await income.update({ elorus_invoice_id: String(inv.id) });
     res.json({ success: true, invoice: inv });
@@ -360,11 +361,12 @@ router.post('/one-shot', async (req, res) => {
     const body = {
       client: contactId,
       date: iDate,
-      document_type: parseInt(docTypeId),
+      document_type: docTypeId,
       items: lines(net, description, income.service_type, taxRateId, kind),
       mydata_document_type: kind === 'APY' ? '11.1' : '2.1',
       ...(wh.length ? { extra_fees: wh } : {}),
     };
+    console.log(`[one-shot] kind=${kind} docTypeId=${docTypeId} mydata=${body.mydata_document_type} classType=${body.items[0]?.mydata_classification_type}`);
     const inv = await elorusPostInvoice(a, body);
     const invoiceNumber = `Νο.${inv.number} / ${inv.date}`;
     const fromAddr = process.env.SMTP_USER || process.env.GMAIL_USER;
