@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import * as XLSX from 'xlsx';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import api from '../../api/client';
 import Modal from '../../components/Modal';
@@ -228,6 +229,36 @@ export default function ExpensesList() {
   ];
   const pageTotal = data.data.reduce((a, r) => a + parseFloat(r.amount || 0), 0);
 
+  const handleExport = async () => {
+    try {
+      const params = Object.fromEntries(Object.entries(filters).filter(([, v]) => v !== ''));
+      if (selectedYears.length === 1) params.year = selectedYears[0];
+      else if (selectedYears.length > 1) params.years = selectedYears.join(',');
+      if (selectedMonths.length === 1) params.month = selectedMonths[0];
+      else if (selectedMonths.length > 1) params.months = selectedMonths.join(',');
+      if (hideNoAmount) params.hide_no_amount = 'true';
+      if (dateFrom) params.date_from = dateFrom;
+      if (dateTo) params.date_to = dateTo;
+      params.limit = 5000;
+      params.page = 1;
+      const r = await api.get('/expenses', { params });
+      const rows = r.data.data.map(row => ({
+        'Ημερομηνία': row.date || '',
+        'Κατηγορία': row.category || '',
+        'Προμηθευτής': row.supplier || '',
+        'Υπηρεσία': row.related_service || '',
+        'Αιτιολογία': row.description || '',
+        'Ποσό': row.amount != null ? Number(row.amount) : '',
+      }));
+      const ws = XLSX.utils.json_to_sheet(rows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Έξοδα');
+      XLSX.writeFile(wb, `exoda_${new Date().toISOString().slice(0,10)}.xlsx`);
+    } catch {
+      toast.error('Σφάλμα εξαγωγής');
+    }
+  };
+
   return (
     <div className="page">
       <div className="page-header">
@@ -235,10 +266,16 @@ export default function ExpensesList() {
           <h1 className="page-title">Έξοδα</h1>
           <p className="page-sub">{data.total.toLocaleString('el-GR')} εγγραφές σύνολο</p>
         </div>
-        <button className="btn-primary" onClick={() => setModal({ open: true, record: null })}>
-          <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path d="M10.75 4.75a.75.75 0 0 0-1.5 0v4.5h-4.5a.75.75 0 0 0 0 1.5h4.5v4.5a.75.75 0 0 0 1.5 0v-4.5h4.5a.75.75 0 0 0 0-1.5h-4.5v-4.5Z"/></svg>
-          Νέα Εγγραφή
-        </button>
+        <div className="flex items-center gap-2">
+          <button className="btn-ghost btn-sm" onClick={handleExport}>
+            <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path fillRule="evenodd" d="M10 3a.75.75 0 0 1 .75.75v8.69l2.22-2.22a.75.75 0 1 1 1.06 1.06l-3.5 3.5a.75.75 0 0 1-1.06 0l-3.5-3.5a.75.75 0 1 1 1.06-1.06l2.22 2.22V3.75A.75.75 0 0 1 10 3ZM5.75 16a.75.75 0 0 0 0 1.5h8.5a.75.75 0 0 0 0-1.5h-8.5Z" clipRule="evenodd"/></svg>
+            Excel
+          </button>
+          <button className="btn-primary" onClick={() => setModal({ open: true, record: null })}>
+            <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path d="M10.75 4.75a.75.75 0 0 0-1.5 0v4.5h-4.5a.75.75 0 0 0 0 1.5h4.5v4.5a.75.75 0 0 0 1.5 0v-4.5h4.5a.75.75 0 0 0 0-1.5h-4.5v-4.5Z"/></svg>
+            Νέα Εγγραφή
+          </button>
+        </div>
       </div>
 
       <div className="filter-bar">

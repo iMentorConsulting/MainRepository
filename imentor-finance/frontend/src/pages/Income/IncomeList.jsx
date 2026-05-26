@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import * as XLSX from 'xlsx';
 import api from '../../api/client';
 import Modal from '../../components/Modal';
 import IncomeForm from './IncomeForm';
@@ -153,6 +154,41 @@ export default function IncomeList() {
   ];
   const pageTotal = data.data.reduce((a, r) => a + parseFloat(r.amount_collected || 0), 0);
 
+  const handleExport = async () => {
+    try {
+      const params = Object.fromEntries(Object.entries(filters).filter(([, v]) => v !== ''));
+      if (selectedYears.length === 1) params.year = selectedYears[0];
+      else if (selectedYears.length > 1) params.years = selectedYears.join(',');
+      if (selectedMonths.length === 1) params.month = selectedMonths[0];
+      else if (selectedMonths.length > 1) params.months = selectedMonths.join(',');
+      if (dateFrom) params.date_from = dateFrom;
+      if (dateTo) params.date_to = dateTo;
+      params.limit = 5000;
+      params.page = 1;
+      const r = await api.get('/income', { params });
+      const rows = r.data.data.map(row => ({
+        'Ημερομηνία': row.sale_date || '',
+        'Πελάτης': row.customer_name || '',
+        'ΑΦΜ': row.vat_number || '',
+        'Υπηρεσία': row.service_type || '',
+        'Κατάσταση': row.work_status || '',
+        'Σύμβουλος': row.sales_agent || '',
+        'Ποσό Αίτησης': row.amount_application != null ? Number(row.amount_application) : '',
+        'Ποσό Υλοποίησης': row.amount_implementation != null ? Number(row.amount_implementation) : '',
+        'Ποσό Είσπραξης': row.amount_collected != null ? Number(row.amount_collected) : '',
+        'ΦΠΑ': row.vat_amount != null ? Number(row.vat_amount) : '',
+        'Bonus': row.bonus != null ? Number(row.bonus) : '',
+        'Αρ. Τιμολογίου': row.invoice_number || '',
+      }));
+      const ws = XLSX.utils.json_to_sheet(rows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Έσοδα');
+      XLSX.writeFile(wb, `esoda_${new Date().toISOString().slice(0,10)}.xlsx`);
+    } catch {
+      toast.error('Σφάλμα εξαγωγής');
+    }
+  };
+
   return (
     <div className="page">
       <div className="page-header">
@@ -160,10 +196,16 @@ export default function IncomeList() {
           <h1 className="page-title">Έσοδα</h1>
           <p className="page-sub">{data.total.toLocaleString('el-GR')} εγγραφές σύνολο</p>
         </div>
-        <button className="btn-primary" onClick={() => setModal({ open: true, record: null })}>
-          <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path d="M10.75 4.75a.75.75 0 0 0-1.5 0v4.5h-4.5a.75.75 0 0 0 0 1.5h4.5v4.5a.75.75 0 0 0 1.5 0v-4.5h4.5a.75.75 0 0 0 0-1.5h-4.5v-4.5Z"/></svg>
-          Νέα Εγγραφή
-        </button>
+        <div className="flex items-center gap-2">
+          <button className="btn-ghost btn-sm" onClick={handleExport}>
+            <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path fillRule="evenodd" d="M10 3a.75.75 0 0 1 .75.75v8.69l2.22-2.22a.75.75 0 1 1 1.06 1.06l-3.5 3.5a.75.75 0 0 1-1.06 0l-3.5-3.5a.75.75 0 1 1 1.06-1.06l2.22 2.22V3.75A.75.75 0 0 1 10 3ZM5.75 16a.75.75 0 0 0 0 1.5h8.5a.75.75 0 0 0 0-1.5h-8.5Z" clipRule="evenodd"/></svg>
+            Excel
+          </button>
+          <button className="btn-primary" onClick={() => setModal({ open: true, record: null })}>
+            <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path d="M10.75 4.75a.75.75 0 0 0-1.5 0v4.5h-4.5a.75.75 0 0 0 0 1.5h4.5v4.5a.75.75 0 0 0 1.5 0v-4.5h4.5a.75.75 0 0 0 0-1.5h-4.5v-4.5Z"/></svg>
+            Νέα Εγγραφή
+          </button>
+        </div>
       </div>
 
       <div className="filter-bar">
