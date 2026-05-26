@@ -31,10 +31,15 @@ router.get('/', async (req, res) => {
         sa.sales_agent,
         COALESCE(SUM(i.amount_collected), 0)                          AS total_paid,
         MIN(i.sale_date)                                              AS sale_date,
-        MAX(i.email)       FILTER (WHERE i.email       IS NOT NULL AND i.email       <> '') AS email,
-        MAX(i.phone)       FILTER (WHERE i.phone       IS NOT NULL AND i.phone       <> '') AS phone,
-        MAX(i.accountant)  FILTER (WHERE i.accountant  IS NOT NULL AND i.accountant  <> '') AS accountant,
-        MAX(i.work_status) FILTER (WHERE i.work_status IS NOT NULL AND i.work_status <> '') AS work_status
+        MAX(i.email)      FILTER (WHERE i.email      IS NOT NULL AND i.email      <> '') AS email,
+        MAX(i.phone)      FILTER (WHERE i.phone      IS NOT NULL AND i.phone      <> '') AS phone,
+        MAX(i.accountant) FILTER (WHERE i.accountant IS NOT NULL AND i.accountant <> '') AS accountant,
+        (SELECT i2.work_status FROM income i2
+         WHERE i2.service_agreement_id = sa.id
+           AND i2.work_status IS NOT NULL
+           AND i2.work_status <> ''
+         ORDER BY i2.id DESC
+         LIMIT 1)                                                     AS work_status
       FROM service_agreements sa
       LEFT JOIN income i ON i.service_agreement_id = sa.id
       GROUP BY sa.id
