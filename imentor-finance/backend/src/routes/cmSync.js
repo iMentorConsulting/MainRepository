@@ -20,26 +20,26 @@ router.get('/', async (req, res) => {
       SELECT
         sa.id                                                          AS finance_id,
         sa.customer_name,
-        sa.vat_number,
         sa.service_type,
-        sa.amount_application,
-        sa.amount_implementation,
         sa.approval_date,
         sa.completion_deadline,
-        sa.investment_height,
         sa.folder_agent,
         sa.sales_agent,
         COALESCE(SUM(i.amount_collected), 0)                          AS total_paid,
+        MAX(i.vat_number)        FILTER (WHERE i.vat_number        IS NOT NULL AND i.vat_number        <> '') AS vat_number,
+        MAX(i.amount_application)                                     AS amount_application,
+        MAX(i.amount_implementation)                                  AS amount_implementation,
+        MAX(i.investment_height)                                      AS investment_height,
         MIN(i.sale_date)                                              AS sale_date,
-        MAX(i.email)      FILTER (WHERE i.email      IS NOT NULL AND i.email      <> '') AS email,
-        MAX(i.phone)      FILTER (WHERE i.phone      IS NOT NULL AND i.phone      <> '') AS phone,
-        MAX(i.accountant) FILTER (WHERE i.accountant IS NOT NULL AND i.accountant <> '') AS accountant,
+        MAX(i.email)             FILTER (WHERE i.email             IS NOT NULL AND i.email             <> '') AS email,
+        MAX(i.phone)             FILTER (WHERE i.phone             IS NOT NULL AND i.phone             <> '') AS phone,
+        MAX(i.accountant)        FILTER (WHERE i.accountant        IS NOT NULL AND i.accountant        <> '') AS accountant,
         (SELECT i2.work_status FROM income i2
          WHERE i2.service_agreement_id = sa.id
            AND i2.work_status IS NOT NULL
            AND i2.work_status <> ''
          ORDER BY i2.id DESC
-         LIMIT 1)                                                     AS work_status
+         LIMIT 1)                                                      AS work_status
       FROM service_agreements sa
       LEFT JOIN income i ON i.service_agreement_id = sa.id
       GROUP BY sa.id
