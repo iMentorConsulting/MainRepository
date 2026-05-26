@@ -164,8 +164,8 @@ async function getVatTaxRateId(orgKey) {
 function lines(net, desc, serviceType, taxRateId, mydataDocType) {
   const taxes = taxRateId ? [taxRateId] : [];
   // MyDATA classification: category1_3 = revenues from services
-  // E3_561_001 for ΤΠΥ (2.1), E3_561_003 for ΑΠΥ (11.1)
-  const classType = mydataDocType === '11.1' ? 'E3_561_003' : 'E3_561_001';
+  // E3_561_001 for ΤΠΥ B2B (2.1), E3_561_002 for ΑΠΥ retail (11.1)
+  const classType = mydataDocType === '11.1' ? 'E3_561_002' : 'E3_561_001';
   return [{
     title: desc || serviceType || 'Παροχή Υπηρεσιών',
     quantity: '1.00',
