@@ -196,4 +196,10 @@ export const updatePortalFileMeta = (caseId, fileId, formData) =>
 export const deletePortalFile = (caseId, fileId) => api.delete(`/api/cm/cases/${caseId}/portal-files/${fileId}`).then(r => r.data)
 export const getPortalFileDownloadUrl = (caseId, fileId) => `/api/cm/cases/${caseId}/portal-files/${fileId}/download`
 
+// Finance App Sync
+export const getFinanceSyncStatus = () => api.get('/api/cm/finance-sync/status').then(r => r.data)
+export const previewFinanceSync = () => api.get('/api/cm/finance-sync/preview').then(r => r.data)
+export const runFinanceSync = () => api.post('/api/cm/finance-sync/run').then(r => r.data)
+export const undoFinanceSync = () => api.post('/api/cm/finance-sync/undo').then(r => r.data)
+
 export default api

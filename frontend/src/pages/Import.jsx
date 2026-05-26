@@ -10,9 +10,11 @@ import {
   UserIcon,
   TagIcon,
   ClockIcon,
+  ArrowUturnLeftIcon,
+  BoltIcon,
 } from '@heroicons/react/24/outline'
 import toast from 'react-hot-toast'
-import { previewSheet, importFromSheet, syncPaidFromSheet, syncAgentsFromSheet, getServiceTypes, assignPrograms, syncInvestmentFromSheet, syncSaleDatesFromSheet, getAutoRefreshStatus, previewAnakainizwSheet, importAnakainizwSheet, getAnakainizwHeaders } from '../api'
+import { previewSheet, importFromSheet, syncPaidFromSheet, syncAgentsFromSheet, getServiceTypes, assignPrograms, syncInvestmentFromSheet, syncSaleDatesFromSheet, getAutoRefreshStatus, previewAnakainizwSheet, importAnakainizwSheet, getAnakainizwHeaders, getFinanceSyncStatus, previewFinanceSync, runFinanceSync, undoFinanceSync } from '../api'
 
 const PREVIEW_COLUMNS = [
   { key: 'client_name', label: 'Πελάτης' },
@@ -74,12 +76,86 @@ function Spinner({ color = 'blue' }) {
   )
 }
 
+const fmtEurDelta = (val) => {
+  if (val == null) return '—'
+  const abs = Math.abs(val)
+  const sign = val >= 0 ? '+' : '-'
+  return `${sign}${new Intl.NumberFormat('el-GR', { style: 'currency', currency: 'EUR', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(abs)}`
+}
+
 export default function Import() {
   const [autoRefreshStatus, setAutoRefreshStatus] = useState(null)
 
+  // Finance Sync state
+  const [financeSyncStatus, setFinanceSyncStatus] = useState(null)
+  const [financePreview, setFinancePreview] = useState(null)
+  const [loadingFinancePreview, setLoadingFinancePreview] = useState(false)
+  const [loadingFinanceRun, setLoadingFinanceRun] = useState(false)
+  const [loadingFinanceUndo, setLoadingFinanceUndo] = useState(false)
+  const [financeError, setFinanceError] = useState(null)
+  const [financeResult, setFinanceResult] = useState(null)
+
   useEffect(() => {
     getAutoRefreshStatus().then(setAutoRefreshStatus).catch(() => {})
+    getFinanceSyncStatus().then(setFinanceSyncStatus).catch(() => {})
   }, [])
+
+  const handleFinancePreview = async () => {
+    setLoadingFinancePreview(true)
+    setFinancePreview(null)
+    setFinanceError(null)
+    setFinanceResult(null)
+    try {
+      const data = await previewFinanceSync()
+      setFinancePreview(data)
+      toast.success(`${data.new_cases_count} νέες + ${data.paid_updates_count} αλλαγές ΠΟΣΟ`)
+    } catch (err) {
+      const msg = err.response?.data?.detail || err.message || 'Σφάλμα προεπισκόπησης'
+      setFinanceError(msg)
+      toast.error(msg)
+    } finally {
+      setLoadingFinancePreview(false)
+    }
+  }
+
+  const handleFinanceRun = async () => {
+    setLoadingFinanceRun(true)
+    setFinanceError(null)
+    setFinanceResult(null)
+    try {
+      const data = await runFinanceSync()
+      setFinanceResult(data.message)
+      setFinancePreview(null)
+      const status = await getFinanceSyncStatus()
+      setFinanceSyncStatus(status)
+      toast.success(data.message)
+    } catch (err) {
+      const msg = err.response?.data?.detail || err.message || 'Σφάλμα sync'
+      setFinanceError(msg)
+      toast.error(msg)
+    } finally {
+      setLoadingFinanceRun(false)
+    }
+  }
+
+  const handleFinanceUndo = async () => {
+    if (!window.confirm('Είσαι σίγουρος; Η αναίρεση θα διαγράψει τις νέες υποθέσεις και θα επαναφέρει τα ποσά από τον τελευταίο sync.')) return
+    setLoadingFinanceUndo(true)
+    setFinanceError(null)
+    try {
+      const data = await undoFinanceSync()
+      setFinanceResult(null)
+      const status = await getFinanceSyncStatus()
+      setFinanceSyncStatus(status)
+      toast.success(data.message)
+    } catch (err) {
+      const msg = err.response?.data?.detail || err.message || 'Σφάλμα αναίρεσης'
+      setFinanceError(msg)
+      toast.error(msg)
+    } finally {
+      setLoadingFinanceUndo(false)
+    }
+  }
 
   // Preview state
   const [loadingPreview, setLoadingPreview] = useState(false)
@@ -338,6 +414,168 @@ export default function Import() {
 
   return (
     <div className="space-y-6">
+
+      {/* ── Finance App Sync Panel ── */}
+      <div className="bg-white rounded-xl border-2 border-indigo-200 p-5 space-y-4">
+        {/* Header row */}
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-indigo-50 rounded-lg">
+              <BoltIcon className="w-6 h-6 text-indigo-600" />
+            </div>
+            <div>
+              <h2 className="text-base font-bold text-gray-900">Συγχρονισμός από Finance App</h2>
+              <p className="text-xs text-gray-500">finance.i-mentor.gr → case management (αντικαθιστά το Google Sheet)</p>
+            </div>
+          </div>
+          {/* Last sync badge */}
+          {financeSyncStatus?.last_run_at && (
+            <div className={`text-xs px-3 py-1.5 rounded-full font-medium ${financeSyncStatus.error ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
+              {financeSyncStatus.error
+                ? `Σφάλμα: ${financeSyncStatus.error}`
+                : `Τελευταίος: ${new Date(financeSyncStatus.last_run_at).toLocaleString('el-GR', { dateStyle: 'short', timeStyle: 'short', timeZone: 'Europe/Athens' })} — ${financeSyncStatus.imported ?? 0} νέες, ${financeSyncStatus.updated_paid ?? 0} ποσά`
+              }
+            </div>
+          )}
+        </div>
+
+        {/* Error / Result banners */}
+        {financeError && (
+          <div className="flex items-start gap-2 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-4 py-3">
+            <ExclamationTriangleIcon className="w-5 h-5 flex-shrink-0 mt-0.5" />
+            <span>{financeError}</span>
+          </div>
+        )}
+        {financeResult && (
+          <div className="flex items-start gap-2 text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg px-4 py-3">
+            <CheckCircleIcon className="w-5 h-5 flex-shrink-0 mt-0.5" />
+            <span>{financeResult}</span>
+          </div>
+        )}
+
+        {/* Preview results */}
+        {financePreview && (
+          <div className="space-y-4">
+            {/* Summary cards */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <StatCard label="Εγγραφές finance app" value={financePreview.total_records} color="gray" />
+              <StatCard label="Νέες υποθέσεις" value={financePreview.new_cases_count} color="green" />
+              <StatCard label="Αλλαγές ΠΟΣΟ" value={financePreview.paid_updates_count} color="blue" />
+              <StatCard label="Χωρίς αλλαγή" value={financePreview.no_change_count} color="gray" />
+            </div>
+
+            {/* New cases table */}
+            {financePreview.new_cases?.length > 0 && (
+              <div>
+                <p className="text-xs font-semibold text-gray-600 mb-2">Νέες υποθέσεις που θα εισαχθούν {financePreview.new_cases_count > 50 && `(πρώτες 50 από ${financePreview.new_cases_count})`}</p>
+                <div className="overflow-x-auto rounded-lg border">
+                  <table className="w-full text-xs">
+                    <thead className="bg-gray-50 border-b">
+                      <tr>
+                        {['Πελάτης', 'ΑΦΜ', 'Τύπος Υπηρεσίας', 'Ποσό', 'Email'].map(h => (
+                          <th key={h} className="px-3 py-2 text-left font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {financePreview.new_cases.map((r, i) => (
+                        <tr key={i} className="hover:bg-green-50">
+                          <td className="px-3 py-2 font-medium text-gray-800">{r.customer_name}</td>
+                          <td className="px-3 py-2 text-gray-500 font-mono">{r.vat_number || '—'}</td>
+                          <td className="px-3 py-2 text-gray-600">{r.service_type || '—'}</td>
+                          <td className="px-3 py-2 text-gray-700">{fmtEur(r.total_paid)}</td>
+                          <td className="px-3 py-2 text-gray-500">{r.email || '—'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* Paid updates table */}
+            {financePreview.paid_updates?.length > 0 && (
+              <div>
+                <p className="text-xs font-semibold text-gray-600 mb-2">Αλλαγές ΠΟΣΟ σε υπάρχουσες υποθέσεις {financePreview.paid_updates_count > 50 && `(πρώτες 50)`}</p>
+                <div className="overflow-x-auto rounded-lg border">
+                  <table className="w-full text-xs">
+                    <thead className="bg-gray-50 border-b">
+                      <tr>
+                        {['Πελάτης', 'Τύπος Υπηρεσίας', 'Τρέχον ΠΟΣΟ', 'Νέο ΠΟΣΟ', 'Διαφορά'].map(h => (
+                          <th key={h} className="px-3 py-2 text-left font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {financePreview.paid_updates.map((r, i) => (
+                        <tr key={i} className="hover:bg-blue-50">
+                          <td className="px-3 py-2 font-medium text-gray-800">{r.client_name}</td>
+                          <td className="px-3 py-2 text-gray-600">{r.service_type || '—'}</td>
+                          <td className="px-3 py-2 text-gray-500">{fmtEur(r.current_paid)}</td>
+                          <td className="px-3 py-2 font-semibold text-gray-800">{fmtEur(r.new_paid)}</td>
+                          <td className={`px-3 py-2 font-bold ${r.delta >= 0 ? 'text-green-600' : 'text-red-600'}`}>{fmtEurDelta(r.delta)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {financePreview.new_cases_count === 0 && financePreview.paid_updates_count === 0 && (
+              <div className="flex items-center gap-2 text-sm text-gray-500 bg-gray-50 border rounded-lg px-4 py-3">
+                <CheckCircleIcon className="w-5 h-5 text-green-500 flex-shrink-0" />
+                Τα δεδομένα είναι ήδη ενημερωμένα. Δεν υπάρχουν αλλαγές.
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Action buttons */}
+        <div className="flex flex-wrap items-center gap-3 pt-1">
+          <button
+            onClick={handleFinancePreview}
+            disabled={loadingFinancePreview || loadingFinanceRun}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-300 bg-white text-gray-700 text-sm font-medium hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            {loadingFinancePreview ? <Spinner /> : <DocumentArrowDownIcon className="w-4 h-4" />}
+            {loadingFinancePreview ? 'Φόρτωση...' : 'Προεπισκόπηση'}
+          </button>
+
+          <button
+            onClick={handleFinanceRun}
+            disabled={loadingFinanceRun || loadingFinancePreview}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            {loadingFinanceRun ? <Spinner /> : <BoltIcon className="w-4 h-4" />}
+            {loadingFinanceRun ? 'Εκτέλεση...' : 'Εκτέλεση Sync'}
+          </button>
+
+          {financeSyncStatus?.can_undo && (
+            <button
+              onClick={handleFinanceUndo}
+              disabled={loadingFinanceUndo}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-red-50 border border-red-300 text-red-700 text-sm font-medium hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {loadingFinanceUndo ? <Spinner color="blue" /> : <ArrowUturnLeftIcon className="w-4 h-4" />}
+              {loadingFinanceUndo ? 'Αναίρεση...' : 'Αναίρεση Τελευταίου Sync'}
+            </button>
+          )}
+        </div>
+
+        <p className="text-xs text-gray-400">
+          Ο αυτόματος sync τρέχει κάθε μέρα 08:00 &amp; 14:00. Η «Αναίρεση» είναι διαθέσιμη μόνο εφόσον η εφαρμογή δεν έχει επανεκκινηθεί από τον τελευταίο sync.
+        </p>
+      </div>
+
+      {/* Divider */}
+      <div className="relative">
+        <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-200" /></div>
+        <div className="relative flex justify-center">
+          <span className="bg-gray-50 px-4 text-sm font-semibold text-gray-500 uppercase tracking-wider">Google Sheets (παλαιό)</span>
+        </div>
+      </div>
+
       {/* Header */}
       <div className="flex items-center gap-3">
         <div className="p-2 bg-green-50 rounded-lg">
