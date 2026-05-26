@@ -10,6 +10,7 @@ import ResultsPanel from '../components/ResultsPanel'
 import PlanParamsModal from '../components/PlanParamsModal'
 import * as api from '../api'
 import { calculateAll, creditorDisplayName, fmt, buildForecastText } from '../utils/calculations'
+import { PARAMS_B } from '../utils/calculationParams'
 import { buildPlanHtml, wrapPlanDocument } from '../utils/reportGenerators'
 
 const EMPLOYEES = ['STELLA', 'VALLIA', 'SOFIA', 'HARIS']
@@ -186,7 +187,7 @@ export default function CaseForm({ currentEmployee }) {
   useEffect(() => {
     const validDebts = debts.filter((d) => d.amount > 0)
     if (validDebts.length > 0) {
-      setCalc(calculateAll(debts, assets, income))
+      setCalc(calculateAll(debts, assets, income, PARAMS_B))
     } else {
       setCalc(null)
     }

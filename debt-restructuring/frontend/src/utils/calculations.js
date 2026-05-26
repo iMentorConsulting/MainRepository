@@ -517,6 +517,10 @@ export function calculateAll(debts, assets, incomeData, params = PARAMS_B) {
     if (!ref) return { ...p, writeoff: 0, newAmt: p.amount, payShown: 0, c1: 0, c2: 0 }
 
     let safeWr = Math.min(p.writeoff || 0, ref.calc || 0, p.amount)
+    const capPct = params.writeoffCapPct > 0 && params.writeoffCapPct < 100 ? params.writeoffCapPct : null
+    const capAmt = capPct != null ? p.amount * (capPct / 100) : Infinity
+    const capped = safeWr > capAmt ? capPct : null
+    if (capped != null) safeWr = Math.min(safeWr, capAmt)
     if (ref.status === 'Ενήμερη') safeWr = 0
     const newAmt = Math.max(0, p.amount - safeWr)
     let months = Math.min(p.months || p.maxMonths, p.maxMonths)
@@ -546,7 +550,7 @@ export function calculateAll(debts, assets, incomeData, params = PARAMS_B) {
 
     return {
       idx: p.idx, type: p.type, creditorName: ref.creditorName, isSecured: p.isSecured,
-      amount: p.amount, writeoff: safeWr,
+      amount: p.amount, capped, writeoff: safeWr,
       writeoffPct: p.amount ? Math.round(safeWr * 100 / p.amount) : 0,
       newAmt, months,
       c1: Math.max(0, Math.floor(c1)),

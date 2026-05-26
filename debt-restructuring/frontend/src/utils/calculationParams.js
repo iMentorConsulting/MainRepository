@@ -8,6 +8,9 @@ export const EURIBOR_3M = 0.0216 // as of 2024 Q4
 export const PARAMS_B = {
   label: 'Πρόταση Β — ΚΥΑ 13243/2024',
 
+  // Max allowed write-off per creditor as % of their debt (0 = disabled)
+  writeoffCapPct: 70,
+
   // Promo period: first 36 months
   promoMonths: 36,
 

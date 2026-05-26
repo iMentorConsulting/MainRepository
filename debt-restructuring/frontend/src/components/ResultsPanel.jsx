@@ -144,6 +144,11 @@ export default function ResultsPanel({ calc, incomeData }) {
                           ? `${rng(p.writeoffC, p.writeoff)} (${rngPct(p.writeoffPctC, p.writeoffPct)})`
                           : `${fmt(p.writeoff)} (${p.writeoffPct}%)`
                         : '—'}
+                      {p.capped != null && (
+                        <span className="ml-1 inline-block text-[10px] font-bold bg-amber-100 text-amber-700 border border-amber-300 rounded px-1 leading-tight">
+                          cap {p.capped}%
+                        </span>
+                      )}
                     </td>
                     <td className="td font-mono text-blue-700">
                       {hasConservative ? rng(p.newAmtC, p.newAmt) : fmt(p.newAmt)}
