@@ -163,7 +163,7 @@ async function getVatTaxRateId(orgKey) {
 
 // kind = 'TPY' | 'APY'
 // ΤΠΥ: mydata_document_type=2.1, E3_561_001, withholding if >301
-// ΑΠΥ: mydata_document_type=11.2, no classification in items (avoid conflict), never withholding
+// ΑΠΥ: mydata_document_type=11.2, E3_561_003 (per Elorus docs), never withholding
 function lines(net, desc, serviceType, taxRateId, kind) {
   const taxes = taxRateId ? [taxRateId] : [];
   const isApy = kind === 'APY';
@@ -172,11 +172,8 @@ function lines(net, desc, serviceType, taxRateId, kind) {
     quantity: '1.00',
     unit_value: net.toFixed(2),
     discount: '0.00',
-    // ΑΠΥ: omit mydata classification fields to avoid validation conflict with mydata_document_type=11.2
-    ...(isApy ? {} : {
-      mydata_classification_category: 'category1_3',
-      mydata_classification_type: 'E3_561_001',
-    }),
+    mydata_classification_category: 'category1_3',
+    mydata_classification_type: isApy ? 'E3_561_003' : 'E3_561_001',
     ...(taxes.length ? { taxes } : {}),
   }];
 }
@@ -323,6 +320,7 @@ router.post('/create-draft', async (req, res) => {
       date: date || new Date().toISOString().split('T')[0],
       document_type: docType.id,
       draft: true,
+      ...(kind === 'APY' ? { paid_on_receipt: true } : {}),
       items: lines(net, description, income.service_type, taxRateId, kind),
       ...(docType.mydataDocType ? { mydata_document_type: docType.mydataDocType } : {}),
       ...(wh.length ? { extra_fees: wh } : {}),
@@ -417,6 +415,7 @@ router.post('/one-shot', async (req, res) => {
       client: contactId,
       date: iDate,
       document_type: docType.id,
+      ...(kind === 'APY' ? { paid_on_receipt: true } : {}),
       items: lines(net, description, income.service_type, taxRateId, kind),
       ...(docType.mydataDocType ? { mydata_document_type: docType.mydataDocType } : {}),
       ...(wh.length ? { extra_fees: wh } : {}),
