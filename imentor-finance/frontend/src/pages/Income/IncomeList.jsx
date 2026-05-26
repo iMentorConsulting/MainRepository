@@ -256,18 +256,19 @@ export default function IncomeList() {
       <div className="card p-4 flex flex-wrap items-center gap-4 border-l-4 border-emerald-400">
         <div className="shrink-0">
           <div className="text-xs font-bold text-slate-400 uppercase tracking-wide">Σύνολο Φίλτρων</div>
-          <div className="text-xl font-black text-emerald-600">{fmt(data.sum ?? 0)}</div>
+          <div className="text-xl font-black text-emerald-600">{Math.round(data.sum ?? 0).toLocaleString('el-GR')} €</div>
         </div>
-        {(data.by_service || []).map((s, i) => (
-          <div key={i} className="px-3 py-1.5 bg-slate-50 rounded-lg border border-slate-100 shrink-0">
-            <div className="text-[10px] font-bold text-slate-400 uppercase truncate max-w-[120px]">{s.service_type || '—'}</div>
-            <div className="text-sm font-black text-slate-700">
-              {parseFloat(s.sum) >= 1000
-                ? (parseFloat(s.sum) / 1000).toFixed(1).replace('.', ',') + 'χ'
-                : Math.round(parseFloat(s.sum))}
+        {(data.by_service || []).map((s, i) => {
+          const sSum = parseFloat(s.sum) || 0;
+          const kLabel = sSum >= 1000 ? (sSum / 1000).toFixed(1).replace('.', ',') + 'k' : Math.round(sSum) + '€';
+          const pct = data.sum > 0 ? Math.round(sSum / data.sum * 100) : 0;
+          return (
+            <div key={i} className="px-3 py-1.5 bg-slate-50 rounded-lg border border-slate-100 shrink-0">
+              <div className="text-[10px] font-bold text-slate-400 uppercase truncate max-w-[120px]">{s.service_type || '—'}</div>
+              <div className="text-sm font-black text-slate-700">{kLabel} <span className="text-xs font-semibold text-slate-400">{pct}%</span></div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       <div className="card overflow-hidden">
