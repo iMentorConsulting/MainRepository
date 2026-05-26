@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 from auth_cases import get_current_user, CMUser
 from database import get_db
 from models_cases import CMCase, CMPaymentLog
-from pipelines import PIPELINES, get_all_statuses_for_program, OLD_STATUS_MAP
+from pipelines import PIPELINES
 
 router = APIRouter(prefix="/api/cm/finance-sync", tags=["cm-finance-sync"])
 
@@ -36,13 +36,8 @@ _last_sync: dict = {
 FINANCE_APP_URL = os.getenv("FINANCE_APP_URL", "https://finance.i-mentor.gr")
 CM_SYNC_SECRET  = os.getenv("CM_SYNC_SECRET", "")
 
-# Exactly the same status filter as the old Google Sheet import in cm_google_sheets.py
-VALID_IMPORT_STATUSES = (
-    set(OLD_STATUS_MAP.keys())
-    | set(get_all_statuses_for_program("ΕΣΠΑ"))
-    | set(get_all_statuses_for_program("ΔΥΠΑ"))
-    | set(get_all_statuses_for_program("ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ"))
-)
+# Service types excluded from sync (handled by a separate pipeline)
+EXCLUDED_SERVICE_TYPES = {"ΑΝΑΚΑΙΝΙΣΗ ΚΑΤΟΙΚΙΩΝ"}
 
 
 # ── helpers ──────────────────────────────────────────────────────────────────
@@ -159,8 +154,8 @@ def _do_preview(db: Session) -> dict:
         customer_name = (r.get("customer_name") or "").strip()
         if not customer_name:
             continue
-        work_status = (r.get("work_status") or "").strip()
-        if work_status and work_status not in VALID_IMPORT_STATUSES:
+        service_type_raw = (r.get("service_type") or "").strip()
+        if _strip_accents(service_type_raw) in {_strip_accents(s) for s in EXCLUDED_SERVICE_TYPES}:
             continue
         total_paid = _parse_float(r.get("total_paid"))
         existing, _ = _find_existing(r, by_ref, by_afm, by_name)
@@ -224,8 +219,8 @@ def _do_sync_from_finance(db: Session) -> dict:
         customer_name = (r.get("customer_name") or "").strip()
         if not customer_name:
             continue
-        work_status = (r.get("work_status") or "").strip()
-        if work_status and work_status not in VALID_IMPORT_STATUSES:
+        service_type_raw = (r.get("service_type") or "").strip()
+        if _strip_accents(service_type_raw) in {_strip_accents(s) for s in EXCLUDED_SERVICE_TYPES}:
             continue
 
         vat_number   = (r.get("vat_number")   or "").strip()
