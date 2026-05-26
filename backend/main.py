@@ -679,27 +679,6 @@ try:
 except Exception as _e:
     print(f"[startup] seed_admin failed: {_e}")
 
-# ── One-time migration: bulk status rename for ΑΝΑΚΑΙΝΙΖΩ ────────────────────
-try:
-    from models_cases import CMCase as _CMCase
-    from datetime import datetime as _dt
-    with SessionLocal() as _db:
-        _affected = (
-            _db.query(_CMCase)
-            .filter(
-                _CMCase.program_category == "ΑΝΑΚΑΙΝΙΖΩ",
-                _CMCase.status == "ΥΠΟΒΟΛΗ ΣΤΟΙΧΕΙΩΝ ΕΝΔΙΑΦΕΡΟΜΕΝΟΥ",
-            )
-            .all()
-        )
-        for _c in _affected:
-            _c.status = "ΥΠΟΒΟΛΗ ΦΟΡΜΑΣ ΕΝΔΙΑΦΕΡΟΝΤΟΣ"
-            _c.status_changed_at = _dt.utcnow()
-            _c.updated_at = _dt.utcnow()
-        _db.commit()
-        print(f"[startup] bulk status migration: updated {len(_affected)} ΑΝΑΚΑΙΝΙΖΩ cases")
-except Exception as _e:
-    print(f"[startup] bulk status migration failed: {_e}")
 
 
 import pytz as _pytz
