@@ -106,7 +106,7 @@ export default function Import() {
     getFinanceSyncStatus().then(setFinanceSyncStatus).catch(() => {})
   }, [])
 
-  const handleLoadServiceTypes = async () => {
+  const handleLoadFinanceServiceTypes = async () => {
     setLoadingFinanceServiceTypes(true)
     try {
       const data = await getFinanceSyncServiceTypes()
@@ -573,7 +573,7 @@ export default function Import() {
         {/* Service type configurator */}
         <div className="border border-gray-200 rounded-lg overflow-hidden">
           <button
-            onClick={() => showServiceTypes ? setShowServiceTypes(false) : handleLoadServiceTypes()}
+            onClick={() => showServiceTypes ? setShowServiceTypes(false) : handleLoadFinanceServiceTypes()}
             className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 text-sm font-medium text-gray-700 transition-colors"
           >
             <span className="flex items-center gap-2">
@@ -620,7 +620,7 @@ export default function Import() {
                   {savingServiceTypes ? 'Αποθήκευση...' : 'Αποθήκευση'}
                 </button>
                 <button
-                  onClick={handleLoadServiceTypes}
+                  onClick={handleLoadFinanceServiceTypes}
                   disabled={loadingFinanceServiceTypes}
                   className="flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-300 bg-white text-gray-600 text-sm hover:bg-gray-50 disabled:opacity-50 transition-colors"
                 >
