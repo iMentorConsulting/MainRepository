@@ -4,7 +4,7 @@ from pydantic import BaseModel
 from typing import List, Optional
 from datetime import datetime
 from database import get_db, fmt_dt
-from models_cases import CMStatusSLA
+from models_cases import CMStatusSLA, CMCase
 from auth_cases import require_admin, CMUser
 
 router = APIRouter(prefix="/api/cm/admin", tags=["cm-admin"])
@@ -49,6 +49,37 @@ def update_sla_config(
             updated += 1
     db.commit()
     return {"updated": updated, "message": f"Ενημερώθηκαν {updated} εγγραφές SLA."}
+
+
+class BulkStatusChange(BaseModel):
+    program_category: str
+    from_status: str
+    to_status: str
+
+
+@router.post("/bulk-status-change")
+def bulk_status_change(
+    body: BulkStatusChange,
+    current_user: CMUser = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Change all cases in a program from one status to another."""
+    cases = (
+        db.query(CMCase)
+        .filter(CMCase.program_category == body.program_category, CMCase.status == body.from_status)
+        .all()
+    )
+    if not cases:
+        return {"updated": 0, "message": "Δεν βρέθηκαν υποθέσεις με αυτό το status."}
+    for c in cases:
+        c.status = body.to_status
+        c.status_changed_at = datetime.utcnow()
+        c.updated_at = datetime.utcnow()
+    db.commit()
+    return {
+        "updated": len(cases),
+        "message": f"Ενημερώθηκαν {len(cases)} υποθέσεις: {body.from_status} → {body.to_status}",
+    }
 
 
 @router.delete("/sla/{status_name}")
