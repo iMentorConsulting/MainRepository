@@ -172,7 +172,7 @@ function lines(net, desc, serviceType, taxRateId, kind) {
     unit_value: net.toFixed(2),
     discount: '0.00',
     mydata_classification_category: 'category1_3',
-    mydata_classification_type: kind === 'APY' ? 'E3_561_003' : 'E3_561_001',
+    mydata_classification_type: kind === 'APY' ? 'E3_561_002' : 'E3_561_001',
     ...(taxes.length ? { taxes } : {}),
   }];
 }
@@ -269,7 +269,7 @@ router.post('/create-draft', async (req, res) => {
       document_type: parseInt(docTypeId),
       draft: true,
       items: lines(net, description, income.service_type, taxRateId, kind),
-      ...(kind !== 'APY' ? { mydata_document_type: '2.1' } : {}),
+      mydata_document_type: kind === 'APY' ? '11.1' : '2.1',
       ...(wh.length ? { extra_fees: wh } : {}),
     };
     const inv = await elorusPostInvoice(a, body);
@@ -362,7 +362,7 @@ router.post('/one-shot', async (req, res) => {
       date: iDate,
       document_type: parseInt(docTypeId),
       items: lines(net, description, income.service_type, taxRateId, kind),
-      ...(kind !== 'APY' ? { mydata_document_type: '2.1' } : {}),
+      mydata_document_type: kind === 'APY' ? '11.1' : '2.1',
       ...(wh.length ? { extra_fees: wh } : {}),
     };
     const inv = await elorusPostInvoice(a, body);
