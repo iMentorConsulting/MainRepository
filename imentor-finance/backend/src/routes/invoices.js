@@ -162,17 +162,21 @@ async function getVatTaxRateId(orgKey) {
 }
 
 // kind = 'TPY' | 'APY'
-// ΤΠΥ: document_type=ΤΠΥ id, mydata_document_type from doc type or existing invoice, E3_561_001, withholding if >301
-// ΑΠΥ: document_type=ΑΠΥ id, mydata_document_type from doc type or existing invoice, E3_561_002, never withholding
+// ΤΠΥ: mydata_document_type=2.1, E3_561_001, withholding if >301
+// ΑΠΥ: mydata_document_type=11.2, no classification in items (avoid conflict), never withholding
 function lines(net, desc, serviceType, taxRateId, kind) {
   const taxes = taxRateId ? [taxRateId] : [];
+  const isApy = kind === 'APY';
   return [{
     title: desc || serviceType || 'Παροχή Υπηρεσιών',
     quantity: '1.00',
     unit_value: net.toFixed(2),
     discount: '0.00',
-    mydata_classification_category: 'category1_3',
-    mydata_classification_type: kind === 'APY' ? 'E3_561_002' : 'E3_561_001',
+    // ΑΠΥ: omit mydata classification fields to avoid validation conflict with mydata_document_type=11.2
+    ...(isApy ? {} : {
+      mydata_classification_category: 'category1_3',
+      mydata_classification_type: 'E3_561_001',
+    }),
     ...(taxes.length ? { taxes } : {}),
   }];
 }
@@ -196,8 +200,7 @@ async function findDocType(orgKey, kind) {
   const dt = all.find(d => (d.title || '').toLowerCase().includes(keyword));
   if (!dt) throw new Error(`Δεν βρέθηκε τύπος παραστατικού "${keyword}" (διαθέσιμοι: ${all.map(d => d.title).join(', ')})`);
   const dtId = String(dt.id);
-  // B2B ΑΠΥ in Greek myDATA uses 2.1 (same as ΤΠΥ); retail would use 11.2
-  const mydataDocType = dt.mydata_document_type || '2.1';
+  const mydataDocType = dt.mydata_document_type || (kind === 'APY' ? '11.2' : '2.1');
   console.log(`[doctype ${kind}] id=${dtId} title=${dt.title} mydata=${mydataDocType}`);
   docTypeCache[cacheKey] = { id: dtId, mydataDocType };
   return docTypeCache[cacheKey];
