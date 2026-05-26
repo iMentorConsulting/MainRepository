@@ -162,8 +162,8 @@ async function getVatTaxRateId(orgKey) {
 }
 
 // kind = 'TPY' | 'APY'
-// ΤΠΥ: document_type=ΤΠΥ id, mydata_document_type 2.1, E3_561_001, withholding if >301
-// ΑΠΥ: document_type=ΑΠΥ id, mydata_document_type 11.2, E3_561_002, never withholding
+// ΤΠΥ: document_type=ΤΠΥ id, mydata_document_type from doc type or existing invoice, E3_561_001, withholding if >301
+// ΑΠΥ: document_type=ΑΠΥ id, mydata_document_type from doc type or existing invoice, E3_561_002, never withholding
 function lines(net, desc, serviceType, taxRateId, kind) {
   const taxes = taxRateId ? [taxRateId] : [];
   return [{
@@ -193,8 +193,23 @@ async function findDocType(orgKey, kind) {
   const results = r.data.results || [];
   if (!results.length) throw new Error(`Δεν βρέθηκε Document Type "${title}"`);
   const dt = results[0];
-  console.log(`[doctype ${kind}] id=${dt.id} title=${dt.title} mydata_document_type=${dt.mydata_document_type}`);
-  docTypeCache[cacheKey] = { id: String(dt.id), mydataDocType: dt.mydata_document_type || (kind === 'APY' ? '11.2' : '2.1') };
+  const dtId = String(dt.id);
+  let mydataDocType = dt.mydata_document_type || null;
+  console.log(`[doctype ${kind}] id=${dtId} title=${dt.title} mydata_document_type=${mydataDocType}`);
+
+  // If not set on the document type, read it from an existing issued invoice
+  if (!mydataDocType) {
+    try {
+      const invR = await api(orgKey).get(`invoices/?document_type=${dtId}&page_size=10`);
+      const invs = (invR.data.results || []).filter(i => !i.draft);
+      for (const inv of invs) {
+        if (inv.mydata_document_type) { mydataDocType = inv.mydata_document_type; break; }
+      }
+      console.log(`[doctype ${kind}] inferred mydata from existing invoice: ${mydataDocType}`);
+    } catch (e) { console.warn('[doctype] existing invoice lookup failed:', e.message); }
+  }
+
+  docTypeCache[cacheKey] = { id: dtId, mydataDocType };
   return docTypeCache[cacheKey];
 }
 
@@ -271,7 +286,7 @@ router.post('/create-draft', async (req, res) => {
       document_type: docType.id,
       draft: true,
       items: lines(net, description, income.service_type, taxRateId, kind),
-      mydata_document_type: docType.mydataDocType,
+      ...(docType.mydataDocType ? { mydata_document_type: docType.mydataDocType } : {}),
       ...(wh.length ? { extra_fees: wh } : {}),
     };
     console.log(`[create-draft] kind=${kind} docTypeId=${docType.id} mydata=${body.mydata_document_type} classType=${body.items[0]?.mydata_classification_type}`);
@@ -365,7 +380,7 @@ router.post('/one-shot', async (req, res) => {
       date: iDate,
       document_type: docType.id,
       items: lines(net, description, income.service_type, taxRateId, kind),
-      mydata_document_type: docType.mydataDocType,
+      ...(docType.mydataDocType ? { mydata_document_type: docType.mydataDocType } : {}),
       ...(wh.length ? { extra_fees: wh } : {}),
     };
     console.log(`[one-shot] kind=${kind} docTypeId=${docType.id} mydata=${body.mydata_document_type} classType=${body.items[0]?.mydata_classification_type}`);
