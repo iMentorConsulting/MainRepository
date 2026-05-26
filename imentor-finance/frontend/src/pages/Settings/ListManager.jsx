@@ -2,6 +2,84 @@ import { useState, useEffect } from 'react';
 import api from '../../api/client';
 import toast from 'react-hot-toast';
 
+function BackupPanel() {
+  const [running, setRunning] = useState(false);
+  const [lastResult, setLastResult] = useState(null);
+
+  const handleDownload = () => {
+    const token = localStorage.getItem('token');
+    const base = api.defaults?.baseURL || '/api';
+    const a = document.createElement('a');
+    a.href = `${base}/backup/export`;
+    a.click();
+  };
+
+  const handleDriveBackup = async () => {
+    setRunning(true);
+    try {
+      const r = await api.post('/backup/run');
+      setLastResult(r.data);
+      if (r.data.driveFile) {
+        toast.success(`Αποθηκεύτηκε στο Drive: ${r.data.driveFile.name}`);
+      } else {
+        toast('Backup αρχείο δημιουργήθηκε (Drive upload χρειάζεται ρύθμιση)', { icon: '⚠️' });
+      }
+    } catch (e) {
+      toast.error(e.response?.data?.error || 'Σφάλμα backup');
+    } finally {
+      setRunning(false);
+    }
+  };
+
+  return (
+    <div className="card p-6">
+      <div className="flex items-center gap-3 mb-4">
+        <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center text-xl shrink-0">☁️</div>
+        <div>
+          <h3 className="font-bold text-slate-800">Backup Δεδομένων</h3>
+          <p className="text-xs text-slate-400">Εξαγωγή όλων των δεδομένων — αυτόματο backup στο Google Drive κάθε μέρα στις 03:00 UTC</p>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap gap-3">
+        <button onClick={handleDownload} className="btn-secondary flex items-center gap-2">
+          <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+            <path fillRule="evenodd" d="M10 3a.75.75 0 0 1 .75.75v8.69l2.22-2.22a.75.75 0 1 1 1.06 1.06l-3.5 3.5a.75.75 0 0 1-1.06 0l-3.5-3.5a.75.75 0 1 1 1.06-1.06l2.22 2.22V3.75A.75.75 0 0 1 10 3ZM5.75 16a.75.75 0 0 0 0 1.5h8.5a.75.75 0 0 0 0-1.5h-8.5Z" clipRule="evenodd"/>
+          </svg>
+          Λήψη JSON Backup
+        </button>
+        <button onClick={handleDriveBackup} disabled={running} className="btn-primary flex items-center gap-2">
+          <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+            <path d="M9.25 13.25a.75.75 0 0 0 1.5 0V4.636l2.955 3.129a.75.75 0 0 0 1.09-1.03l-4.25-4.5a.75.75 0 0 0-1.09 0l-4.25 4.5a.75.75 0 1 0 1.09 1.03L9.25 4.636v8.614Z"/>
+            <path d="M3.5 12.75a.75.75 0 0 0-1.5 0v2.5A2.75 2.75 0 0 0 4.75 18h10.5A2.75 2.75 0 0 0 18 15.25v-2.5a.75.75 0 0 0-1.5 0v2.5c0 .69-.56 1.25-1.25 1.25H4.75c-.69 0-1.25-.56-1.25-1.25v-2.5Z"/>
+          </svg>
+          {running ? 'Αποστολή…' : 'Αποστολή στο Google Drive'}
+        </button>
+      </div>
+
+      {lastResult && (
+        <div className="mt-4 p-3 rounded-xl bg-slate-50 border border-slate-100 text-xs text-slate-600">
+          <div className="font-semibold mb-1 text-slate-700">Αποτέλεσμα τελευταίου backup</div>
+          {lastResult.driveFile && (
+            <div className="text-emerald-600 font-medium mb-1">Drive: {lastResult.driveFile.name}</div>
+          )}
+          <div className="grid grid-cols-3 gap-2 mt-1">
+            {Object.entries(lastResult.counts || {}).map(([k, v]) => (
+              <div key={k}><span className="text-slate-400">{k}:</span> <strong>{v}</strong></div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="mt-4 p-3 rounded-xl bg-amber-50 border border-amber-100 text-xs text-amber-700">
+        <strong>Google Drive αυτόματο backup:</strong> χρειάζεται Railway env var{' '}
+        <code className="bg-amber-100 px-1 rounded font-mono">GOOGLE_SERVICE_ACCOUNT_KEY</code>.{' '}
+        Δείτε οδηγίες στο <code className="bg-amber-100 px-1 rounded font-mono">BACKUP_SETUP.md</code>.
+      </div>
+    </div>
+  );
+}
+
 const LIST_TYPES = [
   { key: 'ΚΑΤΗΓΟΡΙΕΣ_ΕΞΟΔΩΝ',       label: 'Κατηγορίες Εξόδων',     color: 'bg-orange-500' },
   { key: 'ΠΡΟΜΗΘΕΥΤΕΣ',              label: 'Προμηθευτές / Υπάλληλοι', color: 'bg-blue-500' },
@@ -211,6 +289,8 @@ export default function ListManager() {
           </div>
         </div>
       </div>
+
+      <BackupPanel />
     </div>
   );
 }
