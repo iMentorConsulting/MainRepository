@@ -19,13 +19,14 @@ export default function IncomeForm({ record, onSave, onCancel }) {
   const [customerLinked, setCustomerLinked] = useState(false);
   const [autoTargeting, setAutoTargeting] = useState(true);
   const [afmLoading, setAfmLoading] = useState(false);
+  const [descFree, setDescFree] = useState(false);
 
   // Agreement state
   const [customerAgreements, setCustomerAgreements] = useState([]);
   const [loadingAgreements, setLoadingAgreements] = useState(false);
   const [selectedAgreementId, setSelectedAgreementId] = useState(record?.service_agreement_id ? String(record.service_agreement_id) : '');
   const [showNewAgreementForm, setShowNewAgreementForm] = useState(false);
-  const [newSA, setNewSA] = useState({ service_type: '', amount_application: '' });
+  const [newSA, setNewSA] = useState({ service_type: '', amount_application: '', amount_implementation: '' });
 
   const { register, handleSubmit, watch, setValue, getValues } = useForm({ defaultValues: record || {} });
 
@@ -37,8 +38,8 @@ export default function IncomeForm({ record, onSave, onCancel }) {
         types.forEach((t, i) => { l[t] = results[i].data.map(x => x.value); });
         setLists(l);
       });
-    api.get('/lists', { params: { category: 'description_templates', active: true } })
-      .then(r => setDescTemplates(r.data.map(x => x.name)));
+    api.get('/lists', { params: { list_type: 'description_templates', active_only: 'true' } })
+      .then(r => setDescTemplates(r.data.map(x => x.value)));
   }, []);
 
 
@@ -109,6 +110,7 @@ export default function IncomeForm({ record, onSave, onCancel }) {
         customer_id: customerId || undefined,
         service_type: newSA.service_type,
         amount_application: newSA.amount_application || undefined,
+        amount_implementation: newSA.amount_implementation || undefined,
         status: 'ΕΝ ΕΞΕΛΙΞΕΙ'
       });
       const created = res.data;
@@ -118,7 +120,7 @@ export default function IncomeForm({ record, onSave, onCancel }) {
       setValue('service_type', created.service_type);
       if (created.amount_application) setValue('amount_application', created.amount_application);
       setShowNewAgreementForm(false);
-      setNewSA({ service_type: '', amount_application: '' });
+      setNewSA({ service_type: '', amount_application: '', amount_implementation: '' });
       toast.success('Νέα συμφωνία δημιουργήθηκε!');
     } catch (err) {
       toast.error(err.response?.data?.error || 'Σφάλμα δημιουργίας συμφωνίας');
@@ -295,7 +297,7 @@ export default function IncomeForm({ record, onSave, onCancel }) {
           {showNewAgreementForm && (
             <div className="col-span-2 p-4 bg-blue-50 border border-blue-200 rounded-lg space-y-3">
               <p className="text-sm font-semibold text-blue-700">Νέα Συμφωνία</p>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-3 gap-3">
                 <div>
                   <label className="label">Είδος Υπηρεσίας *</label>
                   <select className="input" value={newSA.service_type || ''} onChange={e => setNewSA(f => ({...f, service_type: e.target.value}))}>
@@ -304,8 +306,12 @@ export default function IncomeForm({ record, onSave, onCancel }) {
                   </select>
                 </div>
                 <div>
-                  <label className="label">Ποσό Συμφωνίας (€)</label>
+                  <label className="label">Ποσό Αίτησης (€)</label>
                   <input type="number" className="input" value={newSA.amount_application || ''} onChange={e => setNewSA(f => ({...f, amount_application: e.target.value}))} />
+                </div>
+                <div>
+                  <label className="label">Ποσό Υλοποίησης (€)</label>
+                  <input type="number" className="input" value={newSA.amount_implementation || ''} onChange={e => setNewSA(f => ({...f, amount_implementation: e.target.value}))} />
                 </div>
               </div>
               <div className="flex gap-2">
@@ -329,10 +335,26 @@ export default function IncomeForm({ record, onSave, onCancel }) {
         </div>
         <div className="mt-4">
           <label className="label">Αιτιολογία – Περιγραφή</label>
-          <datalist id="desc-templates">
-            {descTemplates.map((t, i) => <option key={i} value={t} />)}
-          </datalist>
-          <textarea className="input h-20 resize-none" list="desc-templates" {...register('description')} />
+          <select
+            className="input mb-2"
+            value={descFree ? '__free__' : (watch('description') || '')}
+            onChange={e => {
+              if (e.target.value === '__free__') {
+                setDescFree(true);
+                setValue('description', '');
+              } else {
+                setDescFree(false);
+                setValue('description', e.target.value);
+              }
+            }}
+          >
+            <option value="">— Επιλογή αιτιολογίας —</option>
+            {descTemplates.map((t, i) => <option key={i} value={t}>{t}</option>)}
+            <option value="__free__">✏️ Ελεύθερο κείμενο</option>
+          </select>
+          {descFree && (
+            <textarea className="input h-20 resize-none" {...register('description')} placeholder="Πληκτρολογήστε αιτιολογία..." />
+          )}
         </div>
       </div>
 

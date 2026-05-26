@@ -238,6 +238,22 @@ async function elorusPostInvoice(orgKey, body) {
   }
 }
 
+async function elorusPostCashreceipt(orgKey, body) {
+  const orgId = ORGS[orgKey] || ORGS.DEFAULT;
+  const headers = {
+    Authorization: `Token ${process.env.ELORUS_TOKEN}`,
+    Accept: 'application/json',
+    'Content-Type': 'application/json',
+    'X-Elorus-Organization': orgId,
+  };
+  // Elorus large integer IDs must be sent as integers, not strings
+  const jsonStr = JSON.stringify(body)
+    .replace(/"contact":"(\d{10,})"/g, '"contact":$1')
+    .replace(/"invoice":"(\d{10,})"/g, '"invoice":$1');
+  console.log('[elorus-cashreceipt] sending:', jsonStr.slice(0, 400));
+  return (await axios.post(`${BASE}cashreceipts/`, jsonStr, { headers })).data;
+}
+
 router.get('/document-types', async (req, res) => {
   try {
     const orgKey = req.query.org_key || 'DEFAULT';
@@ -487,9 +503,8 @@ router.post('/one-shot', async (req, res) => {
       const currency = invFresh.currency_code || invFresh.currency || 'EUR';
       // Calculate payment: net + VAT - withholding (ΤΠΥ only, > 301€, not IMENTOR_IKE)
       const whAmt = (kind !== 'APY' && org_key !== 'IMENTOR_IKE' && net > 301) ? net * 0.20 : 0;
-      const wh = whAmt;
-      const payAmount = (net * 1.24 - wh).toFixed(2);
-      await a.post('cashreceipts/', {
+      const payAmount = (net * 1.24 - whAmt).toFixed(2);
+      await elorusPostCashreceipt(org_key, {
         transaction_type: 'ip',
         contact: clientId,
         date: iDate,
@@ -515,14 +530,14 @@ router.post('/record-payment', async (req, res) => {
     const currency = invData.currency_code || invData.currency || 'EUR';
     const payAmount = parseFloat(amount).toFixed(2);
     const dateStr = date || new Date().toISOString().split('T')[0];
-    const receipt = (await a.post('cashreceipts/', {
+    const receipt = await elorusPostCashreceipt(org_key, {
       transaction_type: 'ip',
       contact: contactId,
       date: dateStr,
       amount: payAmount,
       currency_code: currency,
       invoice_payments: [{ invoice: String(income.elorus_invoice_id), amount: payAmount }],
-    })).data;
+    });
     res.json({ success: true, receipt });
   } catch (e) { res.status(500).json({ error: errMsg(e) }); }
 });

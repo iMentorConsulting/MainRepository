@@ -144,7 +144,8 @@ function InvoiceForm({ action, record, onClose, onDone }) {
 
 function PaymentForm({ record, onClose, onDone }) {
   const [orgKey, setOrgKey] = useState('DEFAULT');
-  const [amount, setAmount] = useState(String(record.amount_collected || ''));
+  const defaultAmt = parseFloat(record.amount_collected || 0);
+  const [amount, setAmount] = useState(defaultAmt > 0 ? (defaultAmt * 1.24).toFixed(2) : '');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [loading, setLoading] = useState(false);
 
