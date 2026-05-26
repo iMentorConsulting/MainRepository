@@ -185,14 +185,16 @@ function withholding(net, orgKey, kind) {
 }
 
 const docTypeCache = {};
-async function findDocTypeId(orgKey, kind) {
+async function findDocType(orgKey, kind) {
   const cacheKey = `${orgKey}_${kind}`;
   if (docTypeCache[cacheKey]) return docTypeCache[cacheKey];
   const title = kind === 'APY' ? 'Απόδειξη παροχής υπηρεσιών' : 'Τιμολόγιο παροχής υπηρεσιών';
   const r = await api(orgKey).get(`documenttypes/?search=${encodeURIComponent(title)}&search_fields=title`);
   const results = r.data.results || [];
   if (!results.length) throw new Error(`Δεν βρέθηκε Document Type "${title}"`);
-  docTypeCache[cacheKey] = String(results[0].id);
+  const dt = results[0];
+  console.log(`[doctype ${kind}] id=${dt.id} title=${dt.title} mydata_document_type=${dt.mydata_document_type}`);
+  docTypeCache[cacheKey] = { id: String(dt.id), mydataDocType: dt.mydata_document_type || (kind === 'APY' ? '11.2' : '2.1') };
   return docTypeCache[cacheKey];
 }
 
@@ -254,8 +256,8 @@ router.post('/create-draft', async (req, res) => {
     if (!income) return res.status(404).json({ error: 'Εγγραφή δεν βρέθηκε' });
     const a = api(org_key);
     const net = parseFloat(amount);
-    const [taxRateId, contactId, docTypeId] = await Promise.all([
-      getVatTaxRateId(org_key), findOrCreateContact(org_key, income), findDocTypeId(org_key, kind),
+    const [taxRateId, contactId, docType] = await Promise.all([
+      getVatTaxRateId(org_key), findOrCreateContact(org_key, income), findDocType(org_key, kind),
     ]);
     if (!taxRateId) {
       let debug = '?';
@@ -266,13 +268,13 @@ router.post('/create-draft', async (req, res) => {
     const body = {
       client: contactId,
       date: date || new Date().toISOString().split('T')[0],
-      document_type: docTypeId,
+      document_type: docType.id,
       draft: true,
       items: lines(net, description, income.service_type, taxRateId, kind),
-      mydata_document_type: kind === 'APY' ? '11.2' : '2.1',
+      mydata_document_type: docType.mydataDocType,
       ...(wh.length ? { extra_fees: wh } : {}),
     };
-    console.log(`[create-draft] kind=${kind} docTypeId=${docTypeId} mydata=${body.mydata_document_type} classType=${body.items[0]?.mydata_classification_type}`);
+    console.log(`[create-draft] kind=${kind} docTypeId=${docType.id} mydata=${body.mydata_document_type} classType=${body.items[0]?.mydata_classification_type}`);
     const inv = await elorusPostInvoice(a, body);
     await income.update({ elorus_invoice_id: String(inv.id) });
     res.json({ success: true, invoice: inv });
@@ -349,8 +351,8 @@ router.post('/one-shot', async (req, res) => {
     const a = api(org_key);
     const net = parseFloat(amount);
     const iDate = date || new Date().toISOString().split('T')[0];
-    const [taxRateId, contactId, docTypeId] = await Promise.all([
-      getVatTaxRateId(org_key), findOrCreateContact(org_key, income), findDocTypeId(org_key, kind),
+    const [taxRateId, contactId, docType] = await Promise.all([
+      getVatTaxRateId(org_key), findOrCreateContact(org_key, income), findDocType(org_key, kind),
     ]);
     if (!taxRateId) {
       let debug = '?';
@@ -361,12 +363,12 @@ router.post('/one-shot', async (req, res) => {
     const body = {
       client: contactId,
       date: iDate,
-      document_type: docTypeId,
+      document_type: docType.id,
       items: lines(net, description, income.service_type, taxRateId, kind),
-      mydata_document_type: kind === 'APY' ? '11.2' : '2.1',
+      mydata_document_type: docType.mydataDocType,
       ...(wh.length ? { extra_fees: wh } : {}),
     };
-    console.log(`[one-shot] kind=${kind} docTypeId=${docTypeId} mydata=${body.mydata_document_type} classType=${body.items[0]?.mydata_classification_type}`);
+    console.log(`[one-shot] kind=${kind} docTypeId=${docType.id} mydata=${body.mydata_document_type} classType=${body.items[0]?.mydata_classification_type}`);
     const inv = await elorusPostInvoice(a, body);
     const invoiceNumber = `Νο.${inv.number} / ${inv.date}`;
     const fromAddr = process.env.SMTP_USER || process.env.GMAIL_USER;
