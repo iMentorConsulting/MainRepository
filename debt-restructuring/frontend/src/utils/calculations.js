@@ -237,10 +237,14 @@ export function calculateAll(debts, assets, incomeData, params = PARAMS_B) {
       }
     }
     const calc = Math.min(uncov, legalMax)
+    const capPct = params.writeoffCapPct > 0 && params.writeoffCapPct < 100 ? params.writeoffCapPct : null
+    const calcCapped = capPct != null ? Math.min(calc, r.amount * capPct / 100) : calc
     return {
       ...r, cov, covPct: r.amount ? Math.round(cov * 100 / r.amount) : 0,
-      uncov, legalMax, calc, calcPct: r.amount ? Math.round(calc * 100 / r.amount) : 0,
-      remaining: Math.max(0, r.amount - calc),
+      uncov, legalMax, calc: calcCapped,
+      calcCapped: capPct != null && calc > calcCapped ? capPct : null,
+      calcPct: r.amount ? Math.round(calcCapped * 100 / r.amount) : 0,
+      remaining: Math.max(0, r.amount - calcCapped),
     }
   })
   const sumMaxWriteoff = analysisRows.reduce((a, r) => a + r.calc, 0)
@@ -517,11 +521,8 @@ export function calculateAll(debts, assets, incomeData, params = PARAMS_B) {
     if (!ref) return { ...p, writeoff: 0, newAmt: p.amount, payShown: 0, c1: 0, c2: 0 }
 
     let safeWr = Math.min(p.writeoff || 0, ref.calc || 0, p.amount)
-    const capPct = params.writeoffCapPct > 0 && params.writeoffCapPct < 100 ? params.writeoffCapPct : null
-    const capAmt = capPct != null ? p.amount * (capPct / 100) : Infinity
-    const capped = safeWr > capAmt ? capPct : null
-    if (capped != null) safeWr = Math.min(safeWr, capAmt)
     if (ref.status === 'Ενήμερη') safeWr = 0
+    const capped = ref.calcCapped ?? null
     const newAmt = Math.max(0, p.amount - safeWr)
     let months = Math.min(p.months || p.maxMonths, p.maxMonths)
 
