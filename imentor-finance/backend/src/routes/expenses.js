@@ -1,5 +1,5 @@
 const router = require('express').Router();
-const { Op } = require('sequelize');
+const { Op, fn, col } = require('sequelize');
 const Expense = require('../models/Expense');
 
 const ALLOWED_SORT = ['date','amount','category','supplier','description'];
@@ -31,11 +31,11 @@ router.get('/', async (req, res) => {
     const sd = sort_dir?.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
 
     const offset = (parseInt(page) - 1) * parseInt(limit);
-    const { count, rows } = await Expense.findAndCountAll({
-      where, order: [[sf, sd], ['id', 'DESC']],
-      limit: parseInt(limit), offset
-    });
-    res.json({ total: count, page: parseInt(page), data: rows });
+    const [{ count, rows }, sumResult] = await Promise.all([
+      Expense.findAndCountAll({ where, order: [[sf, sd], ['id', 'DESC']], limit: parseInt(limit), offset }),
+      Expense.findOne({ where, attributes: [[fn('SUM', col('amount')), 'total']], raw: true })
+    ]);
+    res.json({ total: count, sum: parseFloat(sumResult?.total || 0), page: parseInt(page), data: rows });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }

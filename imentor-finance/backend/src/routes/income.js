@@ -1,5 +1,5 @@
 const router = require('express').Router();
-const { Op } = require('sequelize');
+const { Op, fn, col } = require('sequelize');
 const Income = require('../models/Income');
 const { checkAndAutoStatus } = require('./serviceAgreements');
 
@@ -39,11 +39,12 @@ router.get('/', async (req, res) => {
     const sd = sort_dir?.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
 
     const offset = (parseInt(page) - 1) * parseInt(limit);
-    const { count, rows } = await Income.findAndCountAll({
-      where, order: [[sf, sd], ['id', 'DESC']],
-      limit: parseInt(limit), offset
-    });
-    res.json({ total: count, page: parseInt(page), data: rows });
+    const [{ count, rows }, sumResult, byServiceRows] = await Promise.all([
+      Income.findAndCountAll({ where, order: [[sf, sd], ['id', 'DESC']], limit: parseInt(limit), offset }),
+      Income.findOne({ where, attributes: [[fn('SUM', col('amount_collected')), 'total']], raw: true }),
+      Income.findAll({ where, attributes: ['service_type', [fn('SUM', col('amount_collected')), 'sum']], group: ['service_type'], order: [[fn('SUM', col('amount_collected')), 'DESC']], raw: true })
+    ]);
+    res.json({ total: count, sum: parseFloat(sumResult?.total || 0), by_service: byServiceRows, page: parseInt(page), data: rows });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
