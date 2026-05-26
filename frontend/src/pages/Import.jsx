@@ -14,7 +14,7 @@ import {
   BoltIcon,
 } from '@heroicons/react/24/outline'
 import toast from 'react-hot-toast'
-import { previewSheet, importFromSheet, syncPaidFromSheet, syncAgentsFromSheet, getServiceTypes, assignPrograms, syncInvestmentFromSheet, syncSaleDatesFromSheet, getAutoRefreshStatus, previewAnakainizwSheet, importAnakainizwSheet, getAnakainizwHeaders, getFinanceSyncStatus, previewFinanceSync, runFinanceSync, undoFinanceSync } from '../api'
+import { previewSheet, importFromSheet, syncPaidFromSheet, syncAgentsFromSheet, getServiceTypes, assignPrograms, syncInvestmentFromSheet, syncSaleDatesFromSheet, getAutoRefreshStatus, previewAnakainizwSheet, importAnakainizwSheet, getAnakainizwHeaders, getFinanceSyncStatus, previewFinanceSync, runFinanceSync, undoFinanceSync, getFinanceSyncServiceTypes, updateFinanceSyncServiceTypes } from '../api'
 
 const PREVIEW_COLUMNS = [
   { key: 'client_name', label: 'Πελάτης' },
@@ -95,10 +95,49 @@ export default function Import() {
   const [financeError, setFinanceError] = useState(null)
   const [financeResult, setFinanceResult] = useState(null)
 
+  // Service type config state
+  const [serviceTypesList, setServiceTypesList] = useState(null) // [{service_type, enabled}]
+  const [loadingFinanceServiceTypes, setLoadingFinanceServiceTypes] = useState(false)
+  const [savingServiceTypes, setSavingServiceTypes] = useState(false)
+  const [showServiceTypes, setShowServiceTypes] = useState(false)
+
   useEffect(() => {
     getAutoRefreshStatus().then(setAutoRefreshStatus).catch(() => {})
     getFinanceSyncStatus().then(setFinanceSyncStatus).catch(() => {})
   }, [])
+
+  const handleLoadServiceTypes = async () => {
+    setLoadingFinanceServiceTypes(true)
+    try {
+      const data = await getFinanceSyncServiceTypes()
+      setServiceTypesList(data)
+      setShowServiceTypes(true)
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Σφάλμα φόρτωσης τύπων υπηρεσιών')
+    } finally {
+      setLoadingFinanceServiceTypes(false)
+    }
+  }
+
+  const handleToggleServiceType = (serviceType) => {
+    setServiceTypesList(prev =>
+      prev.map(item =>
+        item.service_type === serviceType ? { ...item, enabled: !item.enabled } : item
+      )
+    )
+  }
+
+  const handleSaveServiceTypes = async () => {
+    setSavingServiceTypes(true)
+    try {
+      const data = await updateFinanceSyncServiceTypes(serviceTypesList)
+      toast.success(data.message)
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Σφάλμα αποθήκευσης')
+    } finally {
+      setSavingServiceTypes(false)
+    }
+  }
 
   const handleFinancePreview = async () => {
     setLoadingFinancePreview(true)
@@ -530,6 +569,68 @@ export default function Import() {
             )}
           </div>
         )}
+
+        {/* Service type configurator */}
+        <div className="border border-gray-200 rounded-lg overflow-hidden">
+          <button
+            onClick={() => showServiceTypes ? setShowServiceTypes(false) : handleLoadServiceTypes()}
+            className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 text-sm font-medium text-gray-700 transition-colors"
+          >
+            <span className="flex items-center gap-2">
+              <TagIcon className="w-4 h-4 text-gray-500" />
+              Τύποι Υπηρεσιών που συγχρονίζονται
+              {serviceTypesList && (
+                <span className="ml-1 text-xs font-normal text-gray-500">
+                  ({serviceTypesList.filter(s => s.enabled).length}/{serviceTypesList.length} ενεργοί)
+                </span>
+              )}
+            </span>
+            <span className="text-gray-400 text-xs">{showServiceTypes ? '▲ Απόκρυψη' : '▼ Εμφάνιση / Ανανέωση'}</span>
+          </button>
+
+          {showServiceTypes && serviceTypesList && (
+            <div className="p-4 space-y-3">
+              <p className="text-xs text-gray-500">
+                Επίλεξε ποιοι τύποι υπηρεσιών θα εισάγονται κατά το sync. Νέοι τύποι που θα εμφανιστούν στο finance app θα προστίθενται αυτόματα εδώ ως <span className="font-semibold">απενεργοποιημένοι</span>.
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                {serviceTypesList.map(item => (
+                  <label key={item.service_type} className={`flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer select-none text-sm transition-colors ${
+                    item.enabled
+                      ? 'bg-indigo-50 border-indigo-200 text-indigo-800'
+                      : 'bg-white border-gray-200 text-gray-500'
+                  }`}>
+                    <input
+                      type="checkbox"
+                      checked={item.enabled}
+                      onChange={() => handleToggleServiceType(item.service_type)}
+                      className="rounded accent-indigo-600"
+                    />
+                    <span className="font-medium truncate">{item.service_type}</span>
+                  </label>
+                ))}
+              </div>
+              <div className="flex items-center gap-3 pt-1">
+                <button
+                  onClick={handleSaveServiceTypes}
+                  disabled={savingServiceTypes}
+                  className="flex items-center gap-2 px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+                >
+                  {savingServiceTypes ? <Spinner /> : <CheckCircleIcon className="w-4 h-4" />}
+                  {savingServiceTypes ? 'Αποθήκευση...' : 'Αποθήκευση'}
+                </button>
+                <button
+                  onClick={handleLoadServiceTypes}
+                  disabled={loadingFinanceServiceTypes}
+                  className="flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-300 bg-white text-gray-600 text-sm hover:bg-gray-50 disabled:opacity-50 transition-colors"
+                >
+                  {loadingFinanceServiceTypes ? <Spinner /> : <ArrowPathIcon className="w-4 h-4" />}
+                  Ανανέωση από Finance App
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
 
         {/* Action buttons */}
         <div className="flex flex-wrap items-center gap-3 pt-1">

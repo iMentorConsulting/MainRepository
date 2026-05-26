@@ -201,5 +201,7 @@ export const getFinanceSyncStatus = () => api.get('/api/cm/finance-sync/status')
 export const previewFinanceSync = () => api.get('/api/cm/finance-sync/preview').then(r => r.data)
 export const runFinanceSync = () => api.post('/api/cm/finance-sync/run').then(r => r.data)
 export const undoFinanceSync = () => api.post('/api/cm/finance-sync/undo').then(r => r.data)
+export const getFinanceSyncServiceTypes = () => api.get('/api/cm/finance-sync/service-types').then(r => r.data)
+export const updateFinanceSyncServiceTypes = (items) => api.put('/api/cm/finance-sync/service-types', items).then(r => r.data)
 
 export default api

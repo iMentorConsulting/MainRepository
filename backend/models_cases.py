@@ -436,3 +436,12 @@ class CMCaseAnakainizw(Base):
     updated_at = Column(DateTime, default=datetime.utcnow)
 
     case = relationship("CMCase", backref=backref("anakainizw_data", cascade="all, delete-orphan", uselist=False))
+
+
+class CMFinanceSyncServiceType(Base):
+    """Allowlist of service types that the finance sync is permitted to import."""
+    __tablename__ = "cm_finance_sync_service_types"
+    id = Column(Integer, primary_key=True)
+    service_type = Column(String(200), unique=True, nullable=False)
+    enabled = Column(Boolean, default=False, nullable=False)
+    discovered_at = Column(DateTime, default=datetime.utcnow)

@@ -8,14 +8,16 @@ Runs on the same 08:00 + 14:00 schedule via APScheduler in main.py.
 import os
 import unicodedata
 from datetime import datetime, date
+from typing import List
 
 import requests
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from auth_cases import get_current_user, CMUser
 from database import get_db
-from models_cases import CMCase, CMPaymentLog
+from models_cases import CMCase, CMPaymentLog, CMFinanceSyncServiceType
 from pipelines import PIPELINES
 
 router = APIRouter(prefix="/api/cm/finance-sync", tags=["cm-finance-sync"])
@@ -35,9 +37,6 @@ _last_sync: dict = {
 
 FINANCE_APP_URL = os.getenv("FINANCE_APP_URL", "https://finance.i-mentor.gr")
 CM_SYNC_SECRET  = os.getenv("CM_SYNC_SECRET", "")
-
-# Service types excluded from sync (handled by a separate pipeline)
-EXCLUDED_SERVICE_TYPES = {"ΑΝΑΚΑΙΝΙΣΗ ΚΑΤΟΙΚΙΩΝ"}
 
 
 # ── helpers ──────────────────────────────────────────────────────────────────
@@ -113,6 +112,22 @@ def _fetch_finance_records() -> list[dict]:
     return resp.json().get("data", [])
 
 
+def _get_enabled_service_types(db: Session) -> set[str]:
+    """Returns the set of enabled service type strings from the DB."""
+    rows = db.query(CMFinanceSyncServiceType).filter(CMFinanceSyncServiceType.enabled == True).all()
+    return {r.service_type for r in rows}
+
+
+def _discover_and_upsert_service_types(records: list[dict], db: Session) -> None:
+    """Add any service types found in records that are not yet in the DB (default disabled)."""
+    found = {(r.get("service_type") or "").strip() for r in records}
+    found.discard("")
+    existing = {r.service_type for r in db.query(CMFinanceSyncServiceType).all()}
+    for st in sorted(found - existing):
+        db.add(CMFinanceSyncServiceType(service_type=st, enabled=False))
+    db.commit()
+
+
 def _build_lookup_maps(db: Session):
     """Return (existing_by_ref, existing_by_afm, existing_by_name) from all cases."""
     existing_cases = db.query(CMCase).all()
@@ -144,6 +159,20 @@ def _find_existing(r, by_ref, by_afm, by_name):
 
 def _do_preview(db: Session) -> dict:
     records = _fetch_finance_records()
+    _discover_and_upsert_service_types(records, db)
+    enabled = _get_enabled_service_types(db)
+
+    if not enabled:
+        return {
+            "total_records": len(records),
+            "new_cases_count": 0,
+            "paid_updates_count": 0,
+            "no_change_count": 0,
+            "new_cases": [],
+            "paid_updates": [],
+            "warning": "Δεν έχουν επιλεγεί τύποι υπηρεσιών. Ρύθμισε τους τύπους υπηρεσιών πρώτα.",
+        }
+
     by_ref, by_afm, by_name = _build_lookup_maps(db)
 
     new_cases     = []
@@ -155,7 +184,7 @@ def _do_preview(db: Session) -> dict:
         if not customer_name:
             continue
         service_type_raw = (r.get("service_type") or "").strip()
-        if _strip_accents(service_type_raw) in {_strip_accents(s) for s in EXCLUDED_SERVICE_TYPES}:
+        if service_type_raw not in enabled:
             continue
         total_paid = _parse_float(r.get("total_paid"))
         existing, _ = _find_existing(r, by_ref, by_afm, by_name)
@@ -177,7 +206,7 @@ def _do_preview(db: Session) -> dict:
             new_cases.append({
                 "customer_name": customer_name,
                 "vat_number": (r.get("vat_number") or "").strip() or None,
-                "service_type": (r.get("service_type") or "").strip() or None,
+                "service_type": service_type_raw or None,
                 "total_paid": total_paid,
                 "sale_date": r.get("sale_date"),
                 "email": (r.get("email") or "").strip() or None,
@@ -204,28 +233,38 @@ def _do_sync_from_finance(db: Session) -> dict:
     Tracks created case IDs and payment log IDs for undo support.
     """
     records = _fetch_finance_records()
+    _discover_and_upsert_service_types(records, db)
+    enabled = _get_enabled_service_types(db)
+
+    if not enabled:
+        return {
+            "imported": 0,
+            "updated_paid": 0,
+            "total_records": len(records),
+            "created_case_ids": [],
+            "updated_log_ids": [],
+        }
 
     from models_cases import CMUser as CMUserModel
     users = db.query(CMUserModel).filter(CMUserModel.is_active == True).all()
 
     by_ref, by_afm, by_name = _build_lookup_maps(db)
 
-    imported       = 0
-    updated_paid   = 0
-    created_ids    = []
+    imported        = 0
+    updated_paid    = 0
+    created_ids     = []
     updated_log_ids = []
 
     for r in records:
         customer_name = (r.get("customer_name") or "").strip()
         if not customer_name:
             continue
-        service_type_raw = (r.get("service_type") or "").strip()
-        if _strip_accents(service_type_raw) in {_strip_accents(s) for s in EXCLUDED_SERVICE_TYPES}:
+        service_type = (r.get("service_type") or "").strip()
+        if service_type not in enabled:
             continue
 
-        vat_number   = (r.get("vat_number")   or "").strip()
-        service_type = (r.get("service_type") or "").strip()
-        total_paid   = _parse_float(r.get("total_paid"))
+        vat_number = (r.get("vat_number") or "").strip()
+        total_paid = _parse_float(r.get("total_paid"))
         existing, ref = _find_existing(r, by_ref, by_afm, by_name)
 
         if existing:
@@ -235,8 +274,8 @@ def _do_sync_from_finance(db: Session) -> dict:
             if abs((existing.total_paid or 0) - total_paid) > 0.01:
                 prev  = existing.total_paid or 0.0
                 delta = total_paid - prev
-                existing.total_paid  = total_paid
-                existing.updated_at  = datetime.utcnow()
+                existing.total_paid = total_paid
+                existing.updated_at = datetime.utcnow()
                 log = CMPaymentLog(
                     case_id=existing.id,
                     previous_total=prev,
@@ -313,16 +352,15 @@ def _do_undo(db: Session) -> dict:
     - Delete cases that were created (created_case_ids)
     - Revert total_paid to previous_total for updated cases (updated_log_ids)
     """
-    created_ids    = _last_sync.get("created_case_ids", [])
+    created_ids     = _last_sync.get("created_case_ids", [])
     updated_log_ids = _last_sync.get("updated_log_ids", [])
 
     if not created_ids and not updated_log_ids:
         raise RuntimeError("Δεν υπάρχουν δεδομένα για αναίρεση. Είτε δεν έχει εκτελεστεί sync, είτε η εφαρμογή επανεκκινήθηκε από τότε.")
 
-    deleted_cases  = 0
-    reverted_paid  = 0
+    deleted_cases = 0
+    reverted_paid = 0
 
-    # Revert total_paid for existing cases that were updated
     for log_id in updated_log_ids:
         log = db.query(CMPaymentLog).filter(CMPaymentLog.id == log_id).first()
         if not log:
@@ -335,7 +373,6 @@ def _do_undo(db: Session) -> dict:
                 reverted_paid += 1
         db.delete(log)
 
-    # Delete newly created cases (with all their child records via cascade)
     for case_id in created_ids:
         case = db.query(CMCase).filter(CMCase.id == case_id).first()
         if case:
@@ -344,7 +381,6 @@ def _do_undo(db: Session) -> dict:
 
     db.commit()
 
-    # Clear undo data so it can't be applied twice
     _last_sync["created_case_ids"] = []
     _last_sync["updated_log_ids"]  = []
     _last_sync["can_undo"]         = False
@@ -357,6 +393,47 @@ def _do_undo(db: Session) -> dict:
 @router.get("/status")
 def finance_sync_status(current_user: CMUser = Depends(get_current_user)):
     return _last_sync
+
+
+@router.get("/service-types")
+def get_finance_service_types(
+    current_user: CMUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Returns all known service types with enabled status.
+    Also fetches the finance app to discover any new service types (added as disabled).
+    """
+    try:
+        records = _fetch_finance_records()
+        _discover_and_upsert_service_types(records, db)
+        rows = db.query(CMFinanceSyncServiceType).order_by(CMFinanceSyncServiceType.service_type).all()
+        return [{"service_type": r.service_type, "enabled": r.enabled} for r in rows]
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+class ServiceTypeUpdate(BaseModel):
+    service_type: str
+    enabled: bool
+
+
+@router.put("/service-types")
+def update_finance_service_types(
+    items: List[ServiceTypeUpdate],
+    current_user: CMUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Save enabled/disabled settings for service types."""
+    for item in items:
+        st = item.service_type.strip()
+        row = db.query(CMFinanceSyncServiceType).filter(CMFinanceSyncServiceType.service_type == st).first()
+        if row:
+            row.enabled = item.enabled
+        else:
+            db.add(CMFinanceSyncServiceType(service_type=st, enabled=item.enabled))
+    db.commit()
+    return {"message": f"Αποθηκεύτηκαν {len(items)} τύποι υπηρεσιών"}
 
 
 @router.get("/preview")
