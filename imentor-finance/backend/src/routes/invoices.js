@@ -237,7 +237,9 @@ router.get('/document-types', async (req, res) => {
   try {
     const orgKey = req.query.org_key || 'DEFAULT';
     const r = await api(orgKey).get('documenttypes/?active=true');
-    res.json(r.data.results || r.data || []);
+    const list = r.data.results || r.data || [];
+    if (list.length) console.log('[document-types] first result keys:', JSON.stringify(Object.keys(list[0])), 'sample:', JSON.stringify(list[0]).slice(0, 500));
+    res.json(list);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
