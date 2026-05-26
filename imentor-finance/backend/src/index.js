@@ -90,8 +90,6 @@ app.use('/api/import',     authMiddleware, require('./routes/importData'));
 app.use('/api/customers',          authMiddleware, require('./routes/customers'));
 app.use('/api/service-agreements', authMiddleware, require('./routes/serviceAgreements'));
 app.use('/api/recurring-expenses', authMiddleware, require('./routes/recurringExpenses'));
-// Case management sync — own API-key auth, no user auth middleware
-app.use('/api/cm-sync', require('./routes/cmSync'));
 
 app.get('/health', (_, res) => res.json({ ok: true }));
 

@@ -99,7 +99,14 @@ def _fetch_finance_records() -> list[dict]:
         raise RuntimeError("CM_SYNC_SECRET env var not set on case management app")
     url = f"{FINANCE_APP_URL}/api/cm-sync"
     resp = requests.get(url, headers={"X-CM-Sync-Secret": CM_SYNC_SECRET}, timeout=30)
-    resp.raise_for_status()
+    if not resp.ok:
+        raise RuntimeError(f"Finance app returned HTTP {resp.status_code}: {resp.text[:300]}")
+    content_type = resp.headers.get("content-type", "")
+    if "application/json" not in content_type:
+        raise RuntimeError(
+            f"Finance app returned non-JSON response (Content-Type: {content_type}). "
+            f"Body: {resp.text[:300]}"
+        )
     return resp.json().get("data", [])
 
 
