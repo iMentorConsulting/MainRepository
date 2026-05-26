@@ -196,9 +196,8 @@ async function findDocType(orgKey, kind) {
   const dt = all.find(d => (d.title || '').toLowerCase().includes(keyword));
   if (!dt) throw new Error(`Δεν βρέθηκε τύπος παραστατικού "${keyword}" (διαθέσιμοι: ${all.map(d => d.title).join(', ')})`);
   const dtId = String(dt.id);
-  // For ΑΠΥ: omit mydata_document_type — Elorus auto-sets it from the document type
-  // For ΤΠΥ: send 2.1 (Τιμολόγιο Παροχής Υπηρεσιών)
-  const mydataDocType = kind === 'APY' ? null : (dt.mydata_document_type || '2.1');
+  // B2B ΑΠΥ in Greek myDATA uses 2.1 (same as ΤΠΥ); retail would use 11.2
+  const mydataDocType = dt.mydata_document_type || '2.1';
   console.log(`[doctype ${kind}] id=${dtId} title=${dt.title} mydata=${mydataDocType}`);
   docTypeCache[cacheKey] = { id: dtId, mydataDocType };
   return docTypeCache[cacheKey];
@@ -221,7 +220,22 @@ async function elorusPostInvoice(orgKey, body) {
   // document_type and fall back to the org default (ΤΠΥ). Strip the quotes
   // so the JSON contains raw integers, which is what Elorus expects.
   const jsonStr = JSON.stringify(body).replace(/"(document_type|client)":"(\d{10,})"/g, '"$1":$2');
-  return (await axios.post(`${BASE}invoices/`, jsonStr, { headers })).data;
+  try {
+    return (await axios.post(`${BASE}invoices/`, jsonStr, { headers })).data;
+  } catch (e) {
+    // On mydata_document_type error, fetch Elorus OPTIONS to log valid choices
+    if (e.response?.data?.mydata_document_type) {
+      console.error('[elorus] mydata_document_type error. Fetching OPTIONS to find valid values...');
+      try {
+        const optR = await axios.options(`${BASE}invoices/`, { headers });
+        const choices = optR.data?.actions?.POST?.mydata_document_type?.choices;
+        console.log('[elorus-options] mydata_document_type valid choices:', JSON.stringify(choices || optR.data).slice(0, 1000));
+      } catch (optE) {
+        console.log('[elorus-options] OPTIONS failed:', optE.response?.status, optE.message);
+      }
+    }
+    throw e;
+  }
 }
 
 router.get('/document-types', async (req, res) => {
