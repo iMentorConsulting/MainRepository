@@ -41,8 +41,21 @@ function InvoiceForm({ action, record, onClose, onDone }) {
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [description, setDescription] = useState(record.description || record.service_type || '');
   const [loading, setLoading] = useState(false);
+  const [docTypes, setDocTypes] = useState([]);
+
+  useEffect(() => {
+    api.get(`/invoices/document-types?org_key=${orgKey}`)
+      .then(r => setDocTypes(r.data || []))
+      .catch(() => setDocTypes([]));
+  }, [orgKey]);
 
   const isApy = kind === 'APY';
+
+  const nextNumber = (k) => {
+    const titleKey = k === 'APY' ? 'απόδειξη' : 'τιμολόγιο';
+    const dt = docTypes.find(d => (d.title || '').toLowerCase().includes(titleKey));
+    return dt?.next_number ?? null;
+  };
 
   const submit = async () => {
     if (!amount) return toast.error('Εισάγετε ποσό');
@@ -80,22 +93,25 @@ function InvoiceForm({ action, record, onClose, onDone }) {
           {[
             { k: 'TPY', label: 'ΤΠΥ', sub: 'Τιμολόγιο Παροχής Υπηρεσιών' },
             { k: 'APY', label: 'ΑΠΥ', sub: 'Απόδειξη Παροχής Υπηρεσιών' },
-          ].map(({ k, label, sub }) => (
-            <button key={k} type="button"
-              onClick={() => setKind(k)}
-              className={`py-2.5 px-3 rounded-xl text-sm font-bold border transition-all text-left leading-tight
-                ${kind === k ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-300'}`}>
-              {label}<br/>
-              <span className="text-xs font-normal opacity-75">{sub}</span>
-            </button>
-          ))}
+          ].map(({ k, label, sub }) => {
+            const nn = nextNumber(k);
+            return (
+              <button key={k} type="button"
+                onClick={() => setKind(k)}
+                className={`py-2.5 px-3 rounded-xl text-sm font-bold border transition-all text-left leading-tight
+                  ${kind === k ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-300'}`}>
+                {label}<br/>
+                <span className="text-xs font-normal opacity-75">{sub}</span>
+                {nn != null && (
+                  <span className={`block text-xs mt-1 font-semibold ${kind === k ? 'text-indigo-200' : 'text-indigo-500'}`}>
+                    Επόμενο: #{nn}
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </div>
       </div>
-      {!isOneShot && isApy && (
-        <div className="rounded-xl p-3 bg-amber-50 border border-amber-100 text-xs text-amber-700">
-          ⚠️ Το ΑΠΥ δεν υποστηρίζει draft στο Elorus — θα εκδοθεί <strong>αμέσως</strong>.
-        </div>
-      )}
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="label">Καθαρό Ποσό (€) *</label>
