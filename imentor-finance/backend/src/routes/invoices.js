@@ -191,26 +191,15 @@ async function findDocType(orgKey, kind) {
   const r = await api(orgKey).get('documenttypes/?active=true&page_size=100');
   const all = r.data.results || [];
   console.log(`[doctype] all titles for ${orgKey}:`, all.map(d => d.title));
-  // Match strictly on "παροχής" to distinguish from "Πώλησης"
+  // Match strictly on 'παροχής' to exclude 'Πώλησης' doc types
   const keyword = kind === 'APY' ? 'απόδειξη παροχής' : 'τιμολόγιο παροχής';
   const dt = all.find(d => (d.title || '').toLowerCase().includes(keyword));
   if (!dt) throw new Error(`Δεν βρέθηκε τύπος παραστατικού "${keyword}" (διαθέσιμοι: ${all.map(d => d.title).join(', ')})`);
   const dtId = String(dt.id);
-  let mydataDocType = dt.mydata_document_type || null;
-  console.log(`[doctype ${kind}] id=${dtId} title=${dt.title} mydata_document_type=${mydataDocType}`);
-
-  // If not set on the document type, read it from an existing issued invoice
-  if (!mydataDocType) {
-    try {
-      const invR = await api(orgKey).get(`invoices/?document_type=${dtId}&page_size=10`);
-      const invs = (invR.data.results || []).filter(i => !i.draft);
-      for (const inv of invs) {
-        if (inv.mydata_document_type) { mydataDocType = inv.mydata_document_type; break; }
-      }
-      console.log(`[doctype ${kind}] inferred mydata from existing invoice: ${mydataDocType}`);
-    } catch (e) { console.warn('[doctype] existing invoice lookup failed:', e.message); }
-  }
-
+  // Hardcode correct myDATA types — do not infer from existing invoices
+  // which may have incorrect values from previous bugs
+  const mydataDocType = kind === 'APY' ? '11.2' : '2.1';
+  console.log(`[doctype ${kind}] id=${dtId} title=${dt.title} mydata=${mydataDocType}`);
   docTypeCache[cacheKey] = { id: dtId, mydataDocType };
   return docTypeCache[cacheKey];
 }
