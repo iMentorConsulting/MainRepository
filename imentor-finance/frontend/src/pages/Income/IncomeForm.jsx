@@ -129,6 +129,25 @@ export default function IncomeForm({ record, onSave, onCancel }) {
 
   const onSubmit = async data => {
     try {
+      if (!customerLinked && !record?.id && data.customer_name) {
+        try {
+          const custRes = await api.post('/customers', {
+            name: data.customer_name,
+            vat_number: data.vat_number || undefined,
+            email: data.email || undefined,
+            phone: data.phone || undefined,
+            city: data.city || undefined,
+            postal_code: data.postal_code || undefined,
+            address: data.address || undefined,
+            business_activity: data.business_activity || undefined,
+            accountant: data.accountant || undefined,
+            accountant_email: data.accountant_email || undefined,
+          });
+          if (custRes.data?.id) data.customer_id = custRes.data.id;
+        } catch (err) {
+          console.error('Customer auto-create failed:', err);
+        }
+      }
       if (record?.id) await api.put(`/income/${record.id}`, data);
       else await api.post('/income', data);
       toast.success(record?.id ? 'Ενημερώθηκε!' : 'Καταχωρήθηκε!');

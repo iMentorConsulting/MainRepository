@@ -153,8 +153,6 @@ export default function IncomeList() {
     { value: '07', label: 'Ιουλ' }, { value: '08', label: 'Αυγ' }, { value: '09', label: 'Σεπ' },
     { value: '10', label: 'Οκτ' }, { value: '11', label: 'Νοε' }, { value: '12', label: 'Δεκ' },
   ];
-  const pageTotal = data.data.reduce((a, r) => a + parseFloat(r.amount_collected || 0), 0);
-
   const handleExport = async () => {
     try {
       const params = Object.fromEntries(Object.entries(filters).filter(([, v]) => v !== ''));
@@ -255,11 +253,21 @@ export default function IncomeList() {
         </button>
       </div>
 
-      <div className="card p-4 flex items-center gap-3 border-l-4 border-emerald-400">
-        <div>
-          <div className="text-xs font-bold text-slate-400 uppercase tracking-wide">Σύνολο σελίδας</div>
-          <div className="text-xl font-black text-emerald-600">{fmt(pageTotal)}</div>
+      <div className="card p-4 flex flex-wrap items-center gap-4 border-l-4 border-emerald-400">
+        <div className="shrink-0">
+          <div className="text-xs font-bold text-slate-400 uppercase tracking-wide">Σύνολο Φίλτρων</div>
+          <div className="text-xl font-black text-emerald-600">{fmt(data.sum ?? 0)}</div>
         </div>
+        {(data.by_service || []).map((s, i) => (
+          <div key={i} className="px-3 py-1.5 bg-slate-50 rounded-lg border border-slate-100 shrink-0">
+            <div className="text-[10px] font-bold text-slate-400 uppercase truncate max-w-[120px]">{s.service_type || '—'}</div>
+            <div className="text-sm font-black text-slate-700">
+              {parseFloat(s.sum) >= 1000
+                ? (parseFloat(s.sum) / 1000).toFixed(1).replace('.', ',') + 'χ'
+                : Math.round(parseFloat(s.sum))}
+            </div>
+          </div>
+        ))}
       </div>
 
       <div className="card overflow-hidden">

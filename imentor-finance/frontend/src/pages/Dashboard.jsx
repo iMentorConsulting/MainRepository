@@ -171,6 +171,40 @@ export default function Dashboard() {
     api.get('/expenses', { params: { limit: 9999 } }).then(r => setAllExpenses(r.data?.data || [])).catch(() => {});
   }, []);
 
+  const chartData = useMemo(() => {
+    if (selectedYears.length <= 1) return monthly;
+    const years = selectedYears.slice().sort();
+    const byYearMonth = {};
+    for (const r of allIncome) {
+      const d = r.sale_date || '';
+      const y = d.slice(0, 4);
+      const m = d.slice(5, 7);
+      if (!years.includes(y)) continue;
+      if (selectedMonths.length > 0 && !selectedMonths.map(sm => sm.padStart(2, '0')).includes(m)) continue;
+      const key = `${y}-${m}`;
+      if (!byYearMonth[key]) byYearMonth[key] = { income: 0, expenses: 0, year: y, monthNum: parseInt(m, 10) };
+      byYearMonth[key].income += parseFloat(r.amount_collected || 0);
+    }
+    for (const r of allExpenses) {
+      const d = r.date || '';
+      const y = d.slice(0, 4);
+      const m = d.slice(5, 7);
+      if (!years.includes(y)) continue;
+      if (selectedMonths.length > 0 && !selectedMonths.map(sm => sm.padStart(2, '0')).includes(m)) continue;
+      const key = `${y}-${m}`;
+      if (!byYearMonth[key]) byYearMonth[key] = { income: 0, expenses: 0, year: y, monthNum: parseInt(m, 10) };
+      byYearMonth[key].expenses += parseFloat(r.amount || 0);
+    }
+    return Object.entries(byYearMonth)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([, v]) => ({
+        name: `${MONTH_NAMES_SHORT[v.monthNum - 1]} ${v.year.slice(2)}`,
+        income: v.income,
+        expenses: v.expenses,
+        profit: v.income - v.expenses,
+      }));
+  }, [selectedYears, selectedMonths, monthly, allIncome, allExpenses]);
+
   const yearlySummary = useMemo(() => {
     const byYear = {};
     for (const row of allIncome) {
@@ -249,157 +283,11 @@ export default function Dashboard() {
         <KPICard label="Περιθώριο" type="margin" value={`${(summary?.profit_pct ?? 0).toFixed(1)}%`} />
       </div>
 
-      {/* Monthly targets & achievement */}
-      {(() => {
-        const getMonthTarget = (yr, month) => {
-          const key = `${yr}-${String(month).padStart(2, '0')}`;
-          return monthlyTargets[key] || { income: defaultIncomeTarget, profit: defaultProfitTarget };
-        };
-        const setMonthTarget = (yr, month, field, value) => {
-          const key = `${yr}-${String(month).padStart(2, '0')}`;
-          const updated = { ...monthlyTargets, [key]: { ...getMonthTarget(yr, month), [field]: parseFloat(value) || 0 } };
-          setMonthlyTargets(updated);
-          localStorage.setItem('imf_monthly_targets', JSON.stringify(updated));
-        };
-        const applyToAll = () => {
-          const yr = selectedYears.length === 1 ? parseInt(selectedYears[0]) : new Date().getFullYear();
-          const updated = { ...monthlyTargets };
-          for (let m = 1; m <= 12; m++) {
-            const key = `${yr}-${String(m).padStart(2, '0')}`;
-            updated[key] = { income: defaultIncomeTarget, profit: defaultProfitTarget };
-          }
-          setMonthlyTargets(updated);
-          localStorage.setItem('imf_monthly_targets', JSON.stringify(updated));
-          localStorage.setItem('income_target', String(defaultIncomeTarget));
-          localStorage.setItem('profit_target', String(defaultProfitTarget));
-        };
-        const achColor = pct => pct === null ? 'text-slate-400' : pct >= 100 ? 'text-emerald-600 font-bold' : pct >= 70 ? 'text-amber-600 font-semibold' : 'text-rose-600 font-semibold';
-        const MONTHS = ['Ιαν', 'Φεβ', 'Μαρ', 'Απρ', 'Μαϊ', 'Ιουν', 'Ιουλ', 'Αυγ', 'Σεπ', 'Οκτ', 'Νοε', 'Δεκ'];
-        const displayYr = selectedYears.length === 1 ? parseInt(selectedYears[0]) : new Date().getFullYear();
-
-        // Compute totals for summary row
-        let totalActualIncome = 0, totalActualProfit = 0, totalTargetIncome = 0, totalTargetProfit = 0;
-        for (let m = 1; m <= 12; m++) {
-          const actual = monthly?.find(d => d.month === m) || { income: 0, expenses: 0 };
-          const ai = parseFloat(actual.income || actual.total_income || 0);
-          const ap = ai - parseFloat(actual.expenses || actual.total_expenses || 0);
-          const t = getMonthTarget(displayYr, m);
-          totalActualIncome += ai;
-          totalActualProfit += ap;
-          totalTargetIncome += t.income;
-          totalTargetProfit += t.profit;
-        }
-        const totalIncomeAch = totalTargetIncome > 0 ? Math.round(totalActualIncome / totalTargetIncome * 100) : null;
-        const totalProfitAch = totalTargetProfit > 0 ? Math.round(totalActualProfit / totalTargetProfit * 100) : null;
-
-        return (
-          <div className="card p-5">
-            <h2 className="section-title mb-4">Στοχοθεσία &amp; Επίτευξη</h2>
-            {/* Default target inputs */}
-            <div className="flex flex-wrap gap-4 mb-5 p-4 rounded-xl bg-slate-50 border border-slate-100">
-              <div>
-                <label className="label">Μηνιαίος Στόχος Εσόδων (€)</label>
-                <input
-                  type="number"
-                  className="input w-40"
-                  value={defaultIncomeTarget}
-                  onChange={e => {
-                    const v = parseFloat(e.target.value) || 0;
-                    setDefaultIncomeTarget(v);
-                    localStorage.setItem('income_target', String(v));
-                  }}
-                />
-              </div>
-              <div>
-                <label className="label">Μηνιαίος Στόχος Κέρδους (€)</label>
-                <input
-                  type="number"
-                  className="input w-40"
-                  value={defaultProfitTarget}
-                  onChange={e => {
-                    const v = parseFloat(e.target.value) || 0;
-                    setDefaultProfitTarget(v);
-                    localStorage.setItem('profit_target', String(v));
-                  }}
-                />
-              </div>
-              <div className="flex items-end">
-                <button className="btn-primary btn-sm" onClick={applyToAll}>
-                  Εφαρμογή σε Όλους τους Μήνες
-                </button>
-              </div>
-            </div>
-            {/* Monthly targets table */}
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr>
-                    <th className="th">Μήνας</th>
-                    <th className="th text-right">Στόχος Εσόδων</th>
-                    <th className="th text-right">Πραγματικά Έσοδα</th>
-                    <th className="th text-center">Επίτευξη %</th>
-                    <th className="th text-right">Στόχος Κέρδους</th>
-                    <th className="th text-right">Κέρδος</th>
-                    <th className="th text-center">Επίτευξη %</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {[1,2,3,4,5,6,7,8,9,10,11,12].map(m => {
-                    const actual = monthly?.find(d => d.month === m) || { income: 0, expenses: 0 };
-                    const actualIncome = parseFloat(actual.income || actual.total_income || 0);
-                    const actualProfit = actualIncome - parseFloat(actual.expenses || actual.total_expenses || 0);
-                    const target = getMonthTarget(displayYr, m);
-                    const incomeAch = target.income > 0 ? Math.round(actualIncome / target.income * 100) : null;
-                    const profitAch = target.profit > 0 ? Math.round(actualProfit / target.profit * 100) : null;
-                    return (
-                      <tr key={m} className="tr">
-                        <td className="td font-medium">{MONTHS[m-1]}</td>
-                        <td className="td text-right">
-                          <input
-                            type="number"
-                            className="input w-24 text-right py-1 text-xs"
-                            value={target.income}
-                            onChange={e => setMonthTarget(displayYr, m, 'income', e.target.value)}
-                          />
-                        </td>
-                        <td className="td text-right">{actualIncome.toLocaleString('el-GR', {maximumFractionDigits:0})} €</td>
-                        <td className={`td text-center ${achColor(incomeAch)}`}>{incomeAch !== null ? `${incomeAch}%` : '—'}</td>
-                        <td className="td text-right">
-                          <input
-                            type="number"
-                            className="input w-24 text-right py-1 text-xs"
-                            value={target.profit}
-                            onChange={e => setMonthTarget(displayYr, m, 'profit', e.target.value)}
-                          />
-                        </td>
-                        <td className="td text-right">{actualProfit.toLocaleString('el-GR', {maximumFractionDigits:0})} €</td>
-                        <td className={`td text-center ${achColor(profitAch)}`}>{profitAch !== null ? `${profitAch}%` : '—'}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-                <tfoot>
-                  <tr className="bg-slate-100 font-bold">
-                    <td className="td font-bold text-slate-800">Σύνολο</td>
-                    <td className="td text-right text-slate-700">{totalTargetIncome.toLocaleString('el-GR', {maximumFractionDigits:0})} €</td>
-                    <td className="td text-right text-emerald-700">{totalActualIncome.toLocaleString('el-GR', {maximumFractionDigits:0})} €</td>
-                    <td className={`td text-center ${achColor(totalIncomeAch)}`}>{totalIncomeAch !== null ? `${totalIncomeAch}%` : '—'}</td>
-                    <td className="td text-right text-slate-700">{totalTargetProfit.toLocaleString('el-GR', {maximumFractionDigits:0})} €</td>
-                    <td className="td text-right text-indigo-700">{totalActualProfit.toLocaleString('el-GR', {maximumFractionDigits:0})} €</td>
-                    <td className={`td text-center ${achColor(totalProfitAch)}`}>{totalProfitAch !== null ? `${totalProfitAch}%` : '—'}</td>
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
-          </div>
-        );
-      })()}
-
       {/* Monthly chart */}
       <div className="card p-6">
         <h2 className="section-title">Μηνιαία Εξέλιξη {selectedYears.length > 0 ? selectedYears.join(', ') : new Date().getFullYear()}</h2>
         <ResponsiveContainer width="100%" height={260}>
-          <AreaChart data={monthly} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
+          <AreaChart data={chartData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
             <defs>
               <linearGradient id="gIncome" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="5%" stopColor="#10b981" stopOpacity={0.2} />
@@ -482,6 +370,7 @@ export default function Dashboard() {
 
       {/* Yearly Summary Table */}
       {yearlySummary.length > 0 && (
+        <div className="lg:w-1/2">
         <div className="card overflow-hidden">
           <div className="px-6 py-4 border-b border-slate-100">
             <h2 className="section-title mb-0">Ετήσια Επισκόπηση</h2>
@@ -553,7 +442,151 @@ export default function Dashboard() {
             </table>
           </div>
         </div>
+        </div>
       )}
+
+      {/* Monthly targets & achievement */}
+      {(() => {
+        const getMonthTarget = (yr, month) => {
+          const key = `${yr}-${String(month).padStart(2, '0')}`;
+          return monthlyTargets[key] || { income: defaultIncomeTarget, profit: defaultProfitTarget };
+        };
+        const setMonthTarget = (yr, month, field, value) => {
+          const key = `${yr}-${String(month).padStart(2, '0')}`;
+          const updated = { ...monthlyTargets, [key]: { ...getMonthTarget(yr, month), [field]: parseFloat(value) || 0 } };
+          setMonthlyTargets(updated);
+          localStorage.setItem('imf_monthly_targets', JSON.stringify(updated));
+        };
+        const applyToAll = () => {
+          const yr = selectedYears.length === 1 ? parseInt(selectedYears[0]) : new Date().getFullYear();
+          const updated = { ...monthlyTargets };
+          for (let m = 1; m <= 12; m++) {
+            const key = `${yr}-${String(m).padStart(2, '0')}`;
+            updated[key] = { income: defaultIncomeTarget, profit: defaultProfitTarget };
+          }
+          setMonthlyTargets(updated);
+          localStorage.setItem('imf_monthly_targets', JSON.stringify(updated));
+          localStorage.setItem('income_target', String(defaultIncomeTarget));
+          localStorage.setItem('profit_target', String(defaultProfitTarget));
+        };
+        const achColor = pct => pct === null ? 'text-slate-400' : pct >= 100 ? 'text-emerald-600 font-bold' : pct >= 70 ? 'text-amber-600 font-semibold' : 'text-rose-600 font-semibold';
+        const MONTHS = ['Ιαν', 'Φεβ', 'Μαρ', 'Απρ', 'Μαϊ', 'Ιουν', 'Ιουλ', 'Αυγ', 'Σεπ', 'Οκτ', 'Νοε', 'Δεκ'];
+        const displayYr = selectedYears.length === 1 ? parseInt(selectedYears[0]) : new Date().getFullYear();
+
+        let totalActualIncome = 0, totalActualProfit = 0, totalTargetIncome = 0, totalTargetProfit = 0;
+        for (let m = 1; m <= 12; m++) {
+          const actual = monthly?.find(d => d.month === m) || { income: 0, expenses: 0 };
+          const ai = parseFloat(actual.income || actual.total_income || 0);
+          const ap = ai - parseFloat(actual.expenses || actual.total_expenses || 0);
+          const t = getMonthTarget(displayYr, m);
+          totalActualIncome += ai;
+          totalActualProfit += ap;
+          totalTargetIncome += t.income;
+          totalTargetProfit += t.profit;
+        }
+        const totalIncomeAch = totalTargetIncome > 0 ? Math.round(totalActualIncome / totalTargetIncome * 100) : null;
+        const totalProfitAch = totalTargetProfit > 0 ? Math.round(totalActualProfit / totalTargetProfit * 100) : null;
+
+        return (
+          <div className="card p-5">
+            <h2 className="section-title mb-4">Στοχοθεσία &amp; Επίτευξη</h2>
+            <div className="flex flex-wrap gap-4 mb-5 p-4 rounded-xl bg-slate-50 border border-slate-100">
+              <div>
+                <label className="label">Μηνιαίος Στόχος Εσόδων (€)</label>
+                <input
+                  type="number"
+                  className="input w-40"
+                  value={defaultIncomeTarget}
+                  onChange={e => {
+                    const v = parseFloat(e.target.value) || 0;
+                    setDefaultIncomeTarget(v);
+                    localStorage.setItem('income_target', String(v));
+                  }}
+                />
+              </div>
+              <div>
+                <label className="label">Μηνιαίος Στόχος Κέρδους (€)</label>
+                <input
+                  type="number"
+                  className="input w-40"
+                  value={defaultProfitTarget}
+                  onChange={e => {
+                    const v = parseFloat(e.target.value) || 0;
+                    setDefaultProfitTarget(v);
+                    localStorage.setItem('profit_target', String(v));
+                  }}
+                />
+              </div>
+              <div className="flex items-end">
+                <button className="btn-primary btn-sm" onClick={applyToAll}>
+                  Εφαρμογή σε Όλους τους Μήνες
+                </button>
+              </div>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr>
+                    <th className="th">Μήνας</th>
+                    <th className="th text-right">Στόχος Εσόδων</th>
+                    <th className="th text-right">Πραγματικά Έσοδα</th>
+                    <th className="th text-center">Επίτευξη %</th>
+                    <th className="th text-right">Στόχος Κέρδους</th>
+                    <th className="th text-right">Κέρδος</th>
+                    <th className="th text-center">Επίτευξη %</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[1,2,3,4,5,6,7,8,9,10,11,12].map(m => {
+                    const actual = monthly?.find(d => d.month === m) || { income: 0, expenses: 0 };
+                    const actualIncome = parseFloat(actual.income || actual.total_income || 0);
+                    const actualProfit = actualIncome - parseFloat(actual.expenses || actual.total_expenses || 0);
+                    const target = getMonthTarget(displayYr, m);
+                    const incomeAch = target.income > 0 ? Math.round(actualIncome / target.income * 100) : null;
+                    const profitAch = target.profit > 0 ? Math.round(actualProfit / target.profit * 100) : null;
+                    return (
+                      <tr key={m} className="tr">
+                        <td className="td font-medium">{MONTHS[m-1]}</td>
+                        <td className="td text-right">
+                          <input
+                            type="number"
+                            className="input w-24 text-right py-1 text-xs"
+                            value={target.income}
+                            onChange={e => setMonthTarget(displayYr, m, 'income', e.target.value)}
+                          />
+                        </td>
+                        <td className="td text-right">{actualIncome.toLocaleString('el-GR', {maximumFractionDigits:0})} €</td>
+                        <td className={`td text-center ${achColor(incomeAch)}`}>{incomeAch !== null ? `${incomeAch}%` : '—'}</td>
+                        <td className="td text-right">
+                          <input
+                            type="number"
+                            className="input w-24 text-right py-1 text-xs"
+                            value={target.profit}
+                            onChange={e => setMonthTarget(displayYr, m, 'profit', e.target.value)}
+                          />
+                        </td>
+                        <td className="td text-right">{actualProfit.toLocaleString('el-GR', {maximumFractionDigits:0})} €</td>
+                        <td className={`td text-center ${achColor(profitAch)}`}>{profitAch !== null ? `${profitAch}%` : '—'}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+                <tfoot>
+                  <tr className="bg-slate-100 font-bold">
+                    <td className="td font-bold text-slate-800">Σύνολο</td>
+                    <td className="td text-right text-slate-700">{totalTargetIncome.toLocaleString('el-GR', {maximumFractionDigits:0})} €</td>
+                    <td className="td text-right text-emerald-700">{totalActualIncome.toLocaleString('el-GR', {maximumFractionDigits:0})} €</td>
+                    <td className={`td text-center ${achColor(totalIncomeAch)}`}>{totalIncomeAch !== null ? `${totalIncomeAch}%` : '—'}</td>
+                    <td className="td text-right text-slate-700">{totalTargetProfit.toLocaleString('el-GR', {maximumFractionDigits:0})} €</td>
+                    <td className="td text-right text-indigo-700">{totalActualProfit.toLocaleString('el-GR', {maximumFractionDigits:0})} €</td>
+                    <td className={`td text-center ${achColor(totalProfitAch)}`}>{totalProfitAch !== null ? `${totalProfitAch}%` : '—'}</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
