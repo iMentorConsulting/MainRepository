@@ -15,12 +15,12 @@ async function checkAndAutoStatus(saId) {
     const collected = parseFloat(row?.total || 0);
     const application = parseFloat(sa.amount_application || 0);
     if (!sa.approval_date) {
-      if (application > 0 && collected >= application) {
+      if (collected > 0 && (application === 0 || collected >= application)) {
         await sa.update({ status: 'ΑΠΟΠΛΗΡΩΜΗ ΑΙΤΗΣΗΣ' });
       }
     } else {
       const target = application + parseFloat(sa.amount_implementation || 0);
-      if (target > 0 && collected >= target) {
+      if (collected > 0 && (target === 0 || collected >= target)) {
         await sa.update({ status: 'ΑΠΟΠΛΗΡΩΜΕΝΕΣ' });
       }
     }
@@ -142,12 +142,12 @@ router.get('/', async (req, res) => {
         const application = parseFloat(row.amount_application || 0);
         const collected = parseFloat(row.income_collected || 0);
         if (!row.approval_date) {
-          if (application > 0 && collected >= application) {
+          if (collected > 0 && (application === 0 || collected >= application)) {
             ServiceAgreement.update({ status: 'ΑΠΟΠΛΗΡΩΜΗ ΑΙΤΗΣΗΣ' }, { where: { id: row.id } }).catch(() => {});
           }
         } else {
           const target = application + parseFloat(row.amount_implementation || 0);
-          if (target > 0 && collected >= target) {
+          if (collected > 0 && (target === 0 || collected >= target)) {
             ServiceAgreement.update({ status: 'ΑΠΟΠΛΗΡΩΜΕΝΕΣ' }, { where: { id: row.id } }).catch(() => {});
           }
         }
@@ -167,12 +167,12 @@ async function applyAutoStatus(sa) {
   const collected = parseFloat(row?.total || 0) || parseFloat(sa.amount_collected_total || 0);
   const application = parseFloat(sa.amount_application || 0);
   if (!sa.approval_date) {
-    if (application > 0 && collected >= application) {
+    if (collected > 0 && (application === 0 || collected >= application)) {
       await sa.update({ status: 'ΑΠΟΠΛΗΡΩΜΗ ΑΙΤΗΣΗΣ' });
     }
   } else {
     const target = application + parseFloat(sa.amount_implementation || 0);
-    if (target > 0 && collected >= target) {
+    if (collected > 0 && (target === 0 || collected >= target)) {
       await sa.update({ status: 'ΑΠΟΠΛΗΡΩΜΕΝΕΣ' });
     }
   }
