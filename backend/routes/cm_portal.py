@@ -508,8 +508,19 @@ def get_related_cases(token: str, db: Session = Depends(get_db)):
             p = p[2:]
         return p
 
+    def effective_phone(c):
+        """Normalized phone from case.phone, or from share_token if it looks like a phone (legacy)."""
+        p = norm_phone(c.phone)
+        if p:
+            return p
+        # Legacy ΑΝΑΚΑΙΝΙΖΩ: share_token was set to phone digits (digits-only, 8–12 chars)
+        tok = c.share_token or ''
+        if tok.isdigit() and 8 <= len(tok) <= 12:
+            return tok
+        return ''
+
     case_afm = (case.afm or "").strip()
-    case_phone = norm_phone(case.phone)
+    case_phone = effective_phone(case)
 
     if not case_afm and not case_phone:
         return []
@@ -525,7 +536,7 @@ def get_related_cases(token: str, db: Session = Depends(get_db)):
         match = False
         if case_afm and (c.afm or "").strip() == case_afm:
             match = True
-        if not match and case_phone and norm_phone(c.phone) == case_phone:
+        if not match and case_phone and effective_phone(c) == case_phone:
             match = True
         if match and c.id not in seen_ids:
             related.append(c)
@@ -600,14 +611,18 @@ def record_visit(token: str, body: dict, db: Session = Depends(get_db)):
     if not case or not case.portal_active:
         raise HTTPException(status_code=404, detail="Portal not found or inactive")
 
-    # For ΑΝΑΚΑΙΝΙΖΩ cases without AFM: verify entered phone against case.phone field
+    # For ΑΝΑΚΑΙΝΙΖΩ cases without AFM: verify entered phone
     if case.program_category == "ΑΝΑΚΑΙΝΙΖΩ" and not (case.afm or "").strip():
         def _norm(p):
             p = _re.sub(r'\D', '', p or '')
             if p.startswith('30') and len(p) > 10:
                 p = p[2:]
             return p
-        if not _norm(credential) or _norm(credential) != _norm(case.phone or ''):
+        normalized_cred = _norm(credential)
+        # Use case.phone if stored; legacy cases have phone encoded as share_token (digits-only token)
+        stored_phone = _norm(case.phone or '')
+        expected = stored_phone if stored_phone else token
+        if not normalized_cred or normalized_cred != expected:
             raise HTTPException(status_code=403, detail="Λάθος τηλέφωνο")
     else:
         if not credential or (case.afm or "").strip() != credential:
