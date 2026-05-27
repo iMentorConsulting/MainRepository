@@ -138,7 +138,7 @@ export default function IncomeList() {
   const handleDuplicate = (row) => {
     const copy = { ...row };
     delete copy.id;
-    copy.sale_date = '';
+    copy.sale_date = new Date().toISOString().slice(0, 10);
     copy.invoice_number = '';
     copy.accountant_notified = false;
     copy.accountant_notified_at = null;
