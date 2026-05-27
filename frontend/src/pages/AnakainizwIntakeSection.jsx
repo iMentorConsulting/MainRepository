@@ -18,6 +18,13 @@ const TYPE_OPTIONS = [
   'Άλλο',
 ]
 
+const AGE_OPTIONS = [
+  'Πριν το 1980',
+  '1980–2000',
+  '2000–2011',
+  'Πριν το 1960',
+]
+
 const HOUSEHOLD_OPTIONS = [
   { value: 'άγαμος', label: 'Άγαμος/η (μεμονωμένο άτομο)' },
   { value: 'ζευγάρι', label: 'Ζευγάρι / Οικογένεια' },
@@ -221,15 +228,16 @@ export default function AnakainizwIntakeSection({ caseData, token, onRefresh }) 
             </div>
             {/* Age */}
             <div>
-              <label className="block text-xs font-semibold text-gray-600 mb-1">Παλαιότητα / Ηλικία Κατοικίας</label>
-              <input
-                type="text"
+              <label className="block text-xs font-semibold text-gray-600 mb-1">Παλαιότητα Κατοικίας</label>
+              <select
                 value={form.property_age}
                 onChange={e => set('property_age', e.target.value)}
                 disabled={isLocked}
-                placeholder="π.χ. 1985 ή &gt;25 έτη"
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 disabled:bg-gray-50 disabled:text-gray-500"
-              />
+              >
+                <option value="">— Επιλέξτε —</option>
+                {AGE_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
+              </select>
             </div>
             {/* Usage */}
             <div>
