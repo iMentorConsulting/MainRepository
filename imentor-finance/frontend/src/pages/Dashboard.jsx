@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, LabelList } from 'recharts';
 import api from '../api/client';
 
 function MultiSelectDropdown({ label, options, selected, onChange, getKey, getLabel }) {
@@ -172,7 +172,14 @@ export default function Dashboard() {
   }, []);
 
   const chartData = useMemo(() => {
-    if (selectedYears.length <= 1) return monthly;
+    const nowDate = new Date();
+    const currentYear = String(nowDate.getFullYear());
+    const currentMonth = nowDate.getMonth() + 1;
+    if (selectedYears.length <= 1) {
+      const isCurrYear = selectedYears.length === 0 || selectedYears[0] === currentYear;
+      const data = isCurrYear ? monthly.filter(d => d.month <= currentMonth) : monthly;
+      return data;
+    }
     const years = selectedYears.slice().sort();
     const byYearMonth = {};
     for (const r of allIncome) {
@@ -180,6 +187,7 @@ export default function Dashboard() {
       const y = d.slice(0, 4);
       const m = d.slice(5, 7);
       if (!years.includes(y)) continue;
+      if (y === currentYear && parseInt(m, 10) > currentMonth) continue;
       if (selectedMonths.length > 0 && !selectedMonths.map(sm => sm.padStart(2, '0')).includes(m)) continue;
       const key = `${y}-${m}`;
       if (!byYearMonth[key]) byYearMonth[key] = { income: 0, expenses: 0, year: y, monthNum: parseInt(m, 10) };
@@ -190,6 +198,7 @@ export default function Dashboard() {
       const y = d.slice(0, 4);
       const m = d.slice(5, 7);
       if (!years.includes(y)) continue;
+      if (y === currentYear && parseInt(m, 10) > currentMonth) continue;
       if (selectedMonths.length > 0 && !selectedMonths.map(sm => sm.padStart(2, '0')).includes(m)) continue;
       const key = `${y}-${m}`;
       if (!byYearMonth[key]) byYearMonth[key] = { income: 0, expenses: 0, year: y, monthNum: parseInt(m, 10) };
@@ -251,7 +260,7 @@ export default function Dashboard() {
             label="Όλα τα Έτη"
             options={yearOptions}
             selected={selectedYears}
-            onChange={setSelectedYears}
+            onChange={y => { setSelectedYears(y); if (y.length) { setDateFrom(''); setDateTo(''); } }}
             getKey={o => o.value}
             getLabel={o => o.label}
           />
@@ -259,17 +268,21 @@ export default function Dashboard() {
             label="Όλοι οι μήνες"
             options={monthOptions}
             selected={selectedMonths}
-            onChange={setSelectedMonths}
+            onChange={m => { setSelectedMonths(m); if (m.length) { setDateFrom(''); setDateTo(''); } }}
             getKey={o => o.value}
             getLabel={o => o.label}
           />
           <div className="flex items-center gap-1 text-slate-400 text-xs">ή</div>
           <div className="flex items-center gap-1">
-            <input type="date" className="input w-36 text-sm" value={dateFrom} onChange={e => setDateFrom(e.target.value)} placeholder="Από" />
+            <input type="date" className="input w-36 text-sm" value={dateFrom}
+              onChange={e => { setDateFrom(e.target.value); if (e.target.value) { setSelectedYears([]); setSelectedMonths([]); } }}
+              placeholder="Από" />
             <span className="text-slate-400 text-xs">—</span>
-            <input type="date" className="input w-36 text-sm" value={dateTo} onChange={e => setDateTo(e.target.value)} placeholder="Έως" />
+            <input type="date" className="input w-36 text-sm" value={dateTo}
+              onChange={e => { setDateTo(e.target.value); if (e.target.value) { setSelectedYears([]); setSelectedMonths([]); } }}
+              placeholder="Έως" />
             {(dateFrom || dateTo) && (
-              <button className="btn-ghost btn-sm text-xs" onClick={() => { setDateFrom(''); setDateTo(''); }}>✕</button>
+              <button className="btn-ghost btn-sm text-xs" onClick={() => { setDateFrom(''); setDateTo(''); setSelectedYears([String(new Date().getFullYear())]); }}>✕</button>
             )}
           </div>
         </div>
@@ -303,10 +316,14 @@ export default function Dashboard() {
             <YAxis tickFormatter={v => `${Math.round(v/1000)}k`} tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
             <Tooltip content={<CustomTooltip />} />
             <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 12, paddingTop: 16 }} />
-            <Area type="monotone" dataKey="income" name="Έσοδα" stroke="#10b981" strokeWidth={2} fill="url(#gIncome)"
-              dot={{ r: 3, fill: '#10b981', strokeWidth: 0 }} activeDot={{ r: 5 }} />
-            <Area type="monotone" dataKey="profit" name="Κέρδος" stroke="#6366f1" strokeWidth={2} fill="url(#gProfit)"
-              dot={{ r: 3, fill: '#6366f1', strokeWidth: 0 }} activeDot={{ r: 5 }} />
+            <Area type="monotone" dataKey="income" name="Έσοδα" stroke="#10b981" strokeWidth={2} fill="url(#gIncome)" dot={false} activeDot={{ r: 4 }}>
+              <LabelList dataKey="income" position="top" style={{ fontSize: 9, fill: '#10b981', fontWeight: 600 }}
+                formatter={v => v > 0 ? (v >= 1000 ? (v / 1000).toFixed(1).replace(/\.0$/, '') + 'k' : Math.round(v)) : ''} />
+            </Area>
+            <Area type="monotone" dataKey="profit" name="Κέρδος" stroke="#6366f1" strokeWidth={2} fill="url(#gProfit)" dot={false} activeDot={{ r: 4 }}>
+              <LabelList dataKey="profit" position="insideTop" offset={-14} style={{ fontSize: 9, fill: '#6366f1', fontWeight: 600 }}
+                formatter={v => v > 0 ? (v >= 1000 ? (v / 1000).toFixed(1).replace(/\.0$/, '') + 'k' : Math.round(v)) : ''} />
+            </Area>
           </AreaChart>
         </ResponsiveContainer>
       </div>
