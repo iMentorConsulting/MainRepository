@@ -469,13 +469,14 @@ def get_case(
     c = (
         db.query(CMCase)
         .options(
-            joinedload(CMCase.assigned_agent),
-            joinedload(CMCase.tasks).joinedload(CMTask.assigned_user),
-            joinedload(CMCase.payments),
-            joinedload(CMCase.messages).joinedload(CMMessage.user),
-            joinedload(CMCase.documents),
-            joinedload(CMCase.budget_categories),
-            joinedload(CMCase.modifications),
+            joinedload(CMCase.assigned_agent),          # many-to-one: safe as JOIN
+            selectinload(CMCase.tasks).joinedload(CMTask.assigned_user),
+            selectinload(CMCase.payments),
+            selectinload(CMCase.messages).joinedload(CMMessage.user),
+            selectinload(CMCase.documents),
+            selectinload(CMCase.budget_categories),
+            selectinload(CMCase.modifications),
+            selectinload(CMCase.pending_items),
         )
         .filter(CMCase.id == case_id)
         .first()
