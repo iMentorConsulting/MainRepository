@@ -559,6 +559,11 @@ with SessionLocal() as _db:
         if not _c.share_token:
             _c.share_token = str(uuid.uuid4())
             _fixed += 1
+        # Activate ΑΝΑΚΑΙΝΙΖΩ cases that have a share_token and phone but portal_active=False
+        # (covers duplicates that failed import due to unique constraint and got UUID via migration)
+        if _c.program_category == 'ΑΝΑΚΑΙΝΙΖΩ' and _c.share_token and _c.phone and not _c.portal_active:
+            _c.portal_active = True
+            _fixed += 1
     if _fixed:
         _db.commit()
         print(f"[migration] Fixed program_category / backfilled share_token for {_fixed} cases")

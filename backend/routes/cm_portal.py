@@ -510,9 +510,6 @@ def get_related_cases(token: str, db: Session = Depends(get_db)):
 
     case_afm = (case.afm or "").strip()
     case_phone = norm_phone(case.phone)
-    # For ΑΝΑΚΑΙΝΙΖΩ without AFM, share_token IS the normalized phone (set during portal activation)
-    if not case_phone and case.program_category == "ΑΝΑΚΑΙΝΙΖΩ" and not case_afm:
-        case_phone = norm_phone(case.share_token)
 
     if not case_afm and not case_phone:
         return []
@@ -528,13 +525,8 @@ def get_related_cases(token: str, db: Session = Depends(get_db)):
         match = False
         if case_afm and (c.afm or "").strip() == case_afm:
             match = True
-        if not match and case_phone:
-            if norm_phone(c.phone) == case_phone:
-                match = True
-            # Also check share_token as phone for ΑΝΑΚΑΙΝΙΖΩ without AFM
-            elif c.program_category == "ΑΝΑΚΑΙΝΙΖΩ" and not (c.afm or "").strip():
-                if norm_phone(c.share_token) == case_phone:
-                    match = True
+        if not match and case_phone and norm_phone(c.phone) == case_phone:
+            match = True
         if match and c.id not in seen_ids:
             related.append(c)
             seen_ids.add(c.id)
@@ -608,12 +600,14 @@ def record_visit(token: str, body: dict, db: Session = Depends(get_db)):
     if not case or not case.portal_active:
         raise HTTPException(status_code=404, detail="Portal not found or inactive")
 
-    # For ΑΝΑΚΑΙΝΙΖΩ cases without AFM: verify against phone (token = normalized phone)
+    # For ΑΝΑΚΑΙΝΙΖΩ cases without AFM: verify entered phone against case.phone field
     if case.program_category == "ΑΝΑΚΑΙΝΙΖΩ" and not (case.afm or "").strip():
-        normalized = _re.sub(r'\D', '', credential)
-        if normalized.startswith('30') and len(normalized) > 10:
-            normalized = normalized[2:]
-        if not normalized or normalized != token:
+        def _norm(p):
+            p = _re.sub(r'\D', '', p or '')
+            if p.startswith('30') and len(p) > 10:
+                p = p[2:]
+            return p
+        if not _norm(credential) or _norm(credential) != _norm(case.phone or ''):
             raise HTTPException(status_code=403, detail="Λάθος τηλέφωνο")
     else:
         if not credential or (case.afm or "").strip() != credential:

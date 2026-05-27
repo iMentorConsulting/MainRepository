@@ -1,6 +1,7 @@
 import os
 import json
 import re
+import uuid
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import func
@@ -824,6 +825,11 @@ def _do_import_anakainizw(db: Session, selected_rows: list[int] | None = None) -
         doc_e2 = _parse_bool_cell(row[ANA_COL["doc_e2"]])
 
         phone_token = _normalize_phone_token(phone) if phone else None
+        # If phone_token already taken by another case, use UUID (verification checks case.phone)
+        if phone_token:
+            token_conflict = db.query(CMCase.id).filter(CMCase.share_token == phone_token).first()
+            if token_conflict:
+                phone_token = str(uuid.uuid4())
         # For duplicates each row is a separate case — use phone+row as unique ref
         if client_name in duplicate_names:
             ref = _merge_key("", f"{client_name}__row{sheet_row}", ANAKAINIZW_SERVICE_TYPE)
