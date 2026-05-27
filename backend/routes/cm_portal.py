@@ -495,37 +495,49 @@ def submit_anakainizw_intake(token: str, body: dict, db: Session = Depends(get_d
 
 @router.get("/public/{token}/related-cases")
 def get_related_cases(token: str, db: Session = Depends(get_db)):
-    """Return other portal-active cases for the same client (matched by AFM or phone)."""
+    """Return other portal-active cases for the same client (matched by AFM and/or phone)."""
     import re as _re
+
     case = db.query(CMCase).filter(CMCase.share_token == token).first()
     if not case or not case.portal_active:
         raise HTTPException(status_code=404, detail="Not found")
 
+    def norm_phone(p):
+        p = _re.sub(r'\D', '', p or '')
+        if p.startswith('30') and len(p) > 10:
+            p = p[2:]
+        return p
+
+    case_afm = (case.afm or "").strip()
+    case_phone = norm_phone(case.phone)
+    # For ΑΝΑΚΑΙΝΙΖΩ without AFM, share_token IS the normalized phone (set during portal activation)
+    if not case_phone and case.program_category == "ΑΝΑΚΑΙΝΙΖΩ" and not case_afm:
+        case_phone = norm_phone(case.share_token)
+
+    if not case_afm and not case_phone:
+        return []
+
+    candidates = db.query(CMCase).filter(
+        CMCase.portal_active == True,
+        CMCase.id != case.id,
+    ).all()
+
     related = []
-
-    # Match by AFM first (most reliable)
-    if (case.afm or "").strip():
-        related = db.query(CMCase).filter(
-            CMCase.afm == case.afm.strip(),
-            CMCase.portal_active == True,
-            CMCase.id != case.id,
-        ).all()
-
-    # Fallback: match by normalized phone
-    if not related and (case.phone or "").strip():
-        def norm(p):
-            p = _re.sub(r'\D', '', p or '')
-            if p.startswith('30') and len(p) > 10:
-                p = p[2:]
-            return p
-        my_phone = norm(case.phone)
-        if my_phone:
-            candidates = db.query(CMCase).filter(
-                CMCase.portal_active == True,
-                CMCase.id != case.id,
-                CMCase.phone.isnot(None),
-            ).all()
-            related = [c for c in candidates if norm(c.phone) == my_phone]
+    seen_ids = set()
+    for c in candidates:
+        match = False
+        if case_afm and (c.afm or "").strip() == case_afm:
+            match = True
+        if not match and case_phone:
+            if norm_phone(c.phone) == case_phone:
+                match = True
+            # Also check share_token as phone for ΑΝΑΚΑΙΝΙΖΩ without AFM
+            elif c.program_category == "ΑΝΑΚΑΙΝΙΖΩ" and not (c.afm or "").strip():
+                if norm_phone(c.share_token) == case_phone:
+                    match = True
+        if match and c.id not in seen_ids:
+            related.append(c)
+            seen_ids.add(c.id)
 
     return [
         {
