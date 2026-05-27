@@ -493,6 +493,56 @@ def submit_anakainizw_intake(token: str, body: dict, db: Session = Depends(get_d
     return {"ok": True, "submitted_at": now_str}
 
 
+@router.post("/public/lookup")
+def portal_lookup(body: dict, db: Session = Depends(get_db)):
+    """Find active portal cases by AFM or phone number."""
+    import re as _re
+    credential = (body.get("credential") or "").strip().replace(" ", "")
+    if not credential:
+        raise HTTPException(status_code=400, detail="Απαιτείται στοιχείο αναγνώρισης")
+
+    # Normalize as phone
+    norm_phone = _re.sub(r'\D', '', credential)
+    if norm_phone.startswith('30') and len(norm_phone) > 10:
+        norm_phone = norm_phone[2:]
+
+    is_afm = len(credential) == 9 and credential.isdigit()
+
+    # Search by AFM first
+    cases = []
+    if is_afm:
+        cases = db.query(CMCase).filter(
+            CMCase.afm == credential,
+            CMCase.portal_active == True,
+        ).all()
+
+    # If no AFM match (or not AFM format), try phone
+    if not cases:
+        phone_cases = db.query(CMCase).filter(CMCase.portal_active == True).filter(
+            CMCase.phone.isnot(None)
+        ).all()
+        for c in phone_cases:
+            p = _re.sub(r'\D', '', c.phone or '')
+            if p.startswith('30') and len(p) > 10:
+                p = p[2:]
+            if p and p == norm_phone:
+                cases.append(c)
+
+    if not cases:
+        raise HTTPException(status_code=404, detail="Δεν βρέθηκαν ενεργές υποθέσεις με αυτά τα στοιχεία")
+
+    return [
+        {
+            "token": c.share_token,
+            "client_name": c.client_name,
+            "program_category": c.program_category,
+            "service_type": c.service_type or "",
+            "status": c.status or "",
+        }
+        for c in cases if c.share_token
+    ]
+
+
 @router.post("/public/{token}/visit")
 def record_visit(token: str, body: dict, db: Session = Depends(get_db)):
     """Verify client AFM (or phone for ΑΝΑΚΑΙΝΙΖΩ) and increment visit counter."""

@@ -1078,10 +1078,26 @@ export default function ClientPortal() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [verified, setVerified] = useState(isPreview)
+  const [autoVerifying, setAutoVerifying] = useState(false)
 
   useEffect(() => {
+    const storedCred = sessionStorage.getItem('portal_lookup_cred')
     getPortalCase(token)
-      .then(setData)
+      .then(async (caseData) => {
+        setData(caseData)
+        if (!isPreview && storedCred) {
+          setAutoVerifying(true)
+          try {
+            await recordPortalVisit(token, storedCred)
+            sessionStorage.removeItem('portal_lookup_cred')
+            setVerified(true)
+          } catch {
+            // credential didn't match this case — show gate normally
+          } finally {
+            setAutoVerifying(false)
+          }
+        }
+      })
       .catch(err => setError(err.response?.status === 404 ? 'not_found' : 'error'))
       .finally(() => setLoading(false))
   }, [token])
@@ -1095,7 +1111,7 @@ export default function ClientPortal() {
     getPortalCase(token).then(setData).catch(() => {})
   }
 
-  if (loading) {
+  if (loading || autoVerifying) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="animate-spin w-10 h-10 border-4 border-[#1e3a5f] border-t-transparent rounded-full" />
