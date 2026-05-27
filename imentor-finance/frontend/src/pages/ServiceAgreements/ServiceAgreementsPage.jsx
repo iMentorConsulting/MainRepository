@@ -484,9 +484,7 @@ export default function ServiceAgreementsPage() {
                   <td className="td min-w-[140px]">
                     {(() => {
                       const collected = parseFloat(r.income_collected || 0);
-                      const target = r.approval_date
-                        ? parseFloat(r.amount_application || 0) + parseFloat(r.amount_implementation || 0)
-                        : parseFloat(r.amount_application || 0);
+                      const target = parseFloat(r.amount_application || 0) + parseFloat(r.amount_implementation || 0);
                       const pct = target > 0 ? Math.min(100, (collected / target) * 100) : 0;
                       const barColor = collected >= target && target > 0 ? '#10b981' : collected > 0 ? '#f59e0b' : '#cbd5e1';
                       return (
@@ -505,9 +503,7 @@ export default function ServiceAgreementsPage() {
                   <td className="td text-right text-xs font-bold whitespace-nowrap">
                     {(() => {
                       const collected = parseFloat(r.income_collected || 0);
-                      const target = r.approval_date
-                        ? parseFloat(r.amount_application || 0) + parseFloat(r.amount_implementation || 0)
-                        : parseFloat(r.amount_application || 0);
+                      const target = parseFloat(r.amount_application || 0) + parseFloat(r.amount_implementation || 0);
                       const remaining = Math.max(0, target - collected);
                       return remaining > 0
                         ? <span className="text-rose-600">{fmt(remaining)}</span>
