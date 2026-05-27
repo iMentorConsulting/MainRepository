@@ -509,11 +509,10 @@ def get_related_cases(token: str, db: Session = Depends(get_db)):
         return p
 
     def effective_phone(c):
-        """Normalized phone from case.phone, or from share_token if it looks like a phone (legacy)."""
+        """Phone from case.phone, or from share_token if it's digits-only (legacy ΑΝΑΚΑΙΝΙΖΩ)."""
         p = norm_phone(c.phone)
         if p:
             return p
-        # Legacy ΑΝΑΚΑΙΝΙΖΩ: share_token was set to phone digits (digits-only, 8–12 chars)
         tok = c.share_token or ''
         if tok.isdigit() and 8 <= len(tok) <= 12:
             return tok
@@ -525,22 +524,31 @@ def get_related_cases(token: str, db: Session = Depends(get_db)):
     if not case_afm and not case_phone:
         return []
 
-    candidates = db.query(CMCase).filter(
-        CMCase.portal_active == True,
-        CMCase.id != case.id,
-    ).all()
-
     related = []
-    seen_ids = set()
-    for c in candidates:
-        match = False
-        if case_afm and (c.afm or "").strip() == case_afm:
-            match = True
-        if not match and case_phone and effective_phone(c) == case_phone:
-            match = True
-        if match and c.id not in seen_ids:
-            related.append(c)
-            seen_ids.add(c.id)
+    seen_ids: set = set()
+
+    # Match by AFM (DB-level query, reliable)
+    if case_afm:
+        afm_matches = db.query(CMCase).filter(
+            CMCase.afm == case_afm,
+            CMCase.portal_active == True,
+            CMCase.id != case.id,
+        ).all()
+        for c in afm_matches:
+            if c.id not in seen_ids:
+                related.append(c)
+                seen_ids.add(c.id)
+
+    # Match by phone (covers ΑΝΑΚΑΙΝΙΖΩ without AFM, or missing AFM on either side)
+    if case_phone:
+        candidates = db.query(CMCase).filter(
+            CMCase.portal_active == True,
+            CMCase.id != case.id,
+        ).all()
+        for c in candidates:
+            if c.id not in seen_ids and effective_phone(c) == case_phone:
+                related.append(c)
+                seen_ids.add(c.id)
 
     return [
         {

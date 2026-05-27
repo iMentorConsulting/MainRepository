@@ -339,7 +339,7 @@ def list_cases(
             )
         )
 
-    cap = min(limit, 1000) if limit else 500
+    cap = min(limit, 9999) if limit else 500
     cases = q.order_by(CMCase.updated_at.desc()).limit(cap).all()
 
     # Load DB pipeline statuses once for status_mismatch check

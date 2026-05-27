@@ -169,7 +169,7 @@ export default function PortalBroadcastPage() {
   const [results, setResults] = useState(null)
 
   useEffect(() => {
-    getCases()
+    getCases({ limit: 9999 })
       .then(data => {
         const list = Array.isArray(data) ? data : (data.cases || data.items || [])
         setCases(list.filter(c =>
@@ -250,7 +250,7 @@ export default function PortalBroadcastPage() {
     }
   }, [filterProgram])
 
-  const reloadCases = () => getCases().then(data => {
+  const reloadCases = () => getCases({ limit: 9999 }).then(data => {
     const list = Array.isArray(data) ? data : (data.cases || data.items || [])
     setCases(list.filter(c =>
       c.status !== 'ΟΛΟΚΛΗΡΩΜΕΝΗ ΥΠΟΘΕΣΗ' &&
