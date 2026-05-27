@@ -569,8 +569,8 @@ def get_related_cases(token: str, db: Session = Depends(get_db)):
 
 
 @router.get("/public/{token}/related-cases-diag")
-def related_cases_diag(token: str, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
-    """Admin-only: returns full diagnostic info for the related-cases matching of a given portal token."""
+def related_cases_diag(token: str, db: Session = Depends(get_db)):
+    """Temporary public diagnostic endpoint — remove after debugging."""
     import re as _re
 
     case = db.query(CMCase).filter(CMCase.share_token == token).first()
