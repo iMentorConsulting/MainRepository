@@ -509,7 +509,7 @@ def get_related_cases(token: str, db: Session = Depends(get_db)):
         return p
 
     def effective_phone(c):
-        """Phone from case.phone, or from share_token if it's digits-only (legacy ΑΝΑΚΑΙΝΙΖΩ)."""
+        """Phone from case.phone field, or from share_token if it's digits-only (legacy ΑΝΑΚΑΙΝΙΖΩ)."""
         p = norm_phone(c.phone)
         if p:
             return p
@@ -521,35 +521,45 @@ def get_related_cases(token: str, db: Session = Depends(get_db)):
     case_afm = (case.afm or "").strip()
     case_phone = effective_phone(case)
 
+    _log.info("[related-cases] token=%s case_id=%s afm=%r phone=%r share_token=%r → case_afm=%r case_phone=%r",
+              token, case.id, case.afm, case.phone, case.share_token, case_afm, case_phone)
+
     if not case_afm and not case_phone:
+        _log.info("[related-cases] no afm/phone to match on, returning []")
         return []
 
     related = []
     seen_ids: set = set()
 
-    # Match by AFM (DB-level query, reliable)
+    # Match by AFM (DB-level, case-sensitive exact match on trimmed value)
     if case_afm:
         afm_matches = db.query(CMCase).filter(
             CMCase.afm == case_afm,
             CMCase.portal_active == True,
             CMCase.id != case.id,
         ).all()
+        _log.info("[related-cases] AFM query for %r → %d results", case_afm, len(afm_matches))
         for c in afm_matches:
             if c.id not in seen_ids:
                 related.append(c)
                 seen_ids.add(c.id)
 
-    # Match by phone (covers ΑΝΑΚΑΙΝΙΖΩ without AFM, or missing AFM on either side)
+    # Match by phone (covers ΑΝΑΚΑΙΝΙΖΩ without AFM, or cases where AFM wasn't filled)
     if case_phone:
         candidates = db.query(CMCase).filter(
             CMCase.portal_active == True,
             CMCase.id != case.id,
         ).all()
+        _log.info("[related-cases] phone query for %r → %d portal-active candidates", case_phone, len(candidates))
         for c in candidates:
-            if c.id not in seen_ids and effective_phone(c) == case_phone:
+            ep = effective_phone(c)
+            _log.info("[related-cases]   candidate id=%s phone=%r share_token=%r → ep=%r match=%s",
+                      c.id, c.phone, c.share_token, ep, ep == case_phone and c.id not in seen_ids)
+            if c.id not in seen_ids and ep == case_phone:
                 related.append(c)
                 seen_ids.add(c.id)
 
+    _log.info("[related-cases] final related: %s", [c.id for c in related])
     return [
         {
             "token": c.share_token,

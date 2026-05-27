@@ -1090,7 +1090,9 @@ export default function ClientPortal() {
   const handleAfmVerify = async (afm) => {
     await recordPortalVisit(token, afm)
     setVerified(true)
-    getPortalRelatedCases(token).then(setRelatedCases).catch(() => {})
+    getPortalRelatedCases(token).then(setRelatedCases).catch(err => {
+      console.warn('[portal] related-cases error', err?.response?.status, err?.message)
+    })
   }
 
   const refreshData = () => {
