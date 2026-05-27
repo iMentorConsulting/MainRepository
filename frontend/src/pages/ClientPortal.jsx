@@ -1087,12 +1087,21 @@ export default function ClientPortal() {
       .finally(() => setLoading(false))
   }, [token])
 
+  useEffect(() => {
+    if (!verified || !token) return
+    getPortalRelatedCases(token)
+      .then(data => {
+        console.log('[portal] related-cases response:', JSON.stringify(data))
+        setRelatedCases(data)
+      })
+      .catch(err => {
+        console.warn('[portal] related-cases error', err?.response?.status, err?.message)
+      })
+  }, [verified, token])
+
   const handleAfmVerify = async (afm) => {
     await recordPortalVisit(token, afm)
     setVerified(true)
-    getPortalRelatedCases(token).then(setRelatedCases).catch(err => {
-      console.warn('[portal] related-cases error', err?.response?.status, err?.message)
-    })
   }
 
   const refreshData = () => {
