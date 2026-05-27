@@ -80,10 +80,51 @@ router.get('/', async (req, res) => {
     const ALLOWED_SORT = ['customer_name', 'service_type', 'status', 'amount_application', 'amount_implementation', 'approval_date', 'createdAt', 'sales_agent'];
     const sf = ALLOWED_SORT.includes(sort_field) ? sort_field : 'createdAt';
     const sd = (sort_dir || '').toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
-    const { count, rows } = await ServiceAgreement.findAndCountAll({
-      where, limit: parseInt(limit), offset: actualOffset,
-      order: [[sf, sd]]
-    });
+
+    // Run paginated results + aggregate queries in parallel
+    const [
+      { count, rows },
+      saSums,
+      statusCounts,
+      allIds,
+    ] = await Promise.all([
+      ServiceAgreement.findAndCountAll({ where, limit: parseInt(limit), offset: actualOffset, order: [[sf, sd]] }),
+      ServiceAgreement.findOne({
+        where,
+        attributes: [
+          [sequelize.fn('COALESCE', sequelize.fn('SUM', sequelize.col('amount_application')), 0), 'total_application'],
+          [sequelize.fn('COALESCE', sequelize.fn('SUM', sequelize.col('amount_implementation')), 0), 'total_implementation'],
+        ],
+        raw: true,
+      }),
+      ServiceAgreement.findAll({
+        where,
+        attributes: ['status', [sequelize.fn('COUNT', sequelize.col('id')), 'cnt']],
+        group: ['status'],
+        raw: true,
+      }),
+      ServiceAgreement.findAll({ where, attributes: ['id'], raw: true }),
+    ]);
+
+    // Sum collected income for all filtered agreement IDs
+    const filteredIds = allIds.map(r => r.id);
+    let totalCollected = 0;
+    if (filteredIds.length > 0) {
+      const [cr] = await sequelize.query(
+        `SELECT COALESCE(SUM(amount_collected), 0) AS total FROM income WHERE service_agreement_id IN (:ids)`,
+        { replacements: { ids: filteredIds }, type: QueryTypes.SELECT }
+      );
+      totalCollected = parseFloat(cr?.total || 0);
+    }
+
+    const filteredByStatus = {};
+    for (const { status, cnt } of statusCounts) filteredByStatus[status] = parseInt(cnt);
+
+    const sums = {
+      application:    parseFloat(saSums?.total_application    || 0),
+      implementation: parseFloat(saSums?.total_implementation || 0),
+      collected:      totalCollected,
+    };
 
     // Enrich agreements with collected income; non-fatal if it fails
     const idMap = new Map();
@@ -133,7 +174,7 @@ router.get('/', async (req, res) => {
       return { ...sa.toJSON(), income_collected: inc.total, income_payment_count: inc.count, first_sale_date: inc.first_sale_date };
     });
 
-    res.json({ data: enriched, total: count });
+    res.json({ data: enriched, total: count, sums, byStatus: filteredByStatus });
 
     // Background: auto-update statuses based on collected income
     setImmediate(() => {

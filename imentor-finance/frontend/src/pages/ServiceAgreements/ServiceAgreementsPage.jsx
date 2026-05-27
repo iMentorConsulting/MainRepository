@@ -49,6 +49,12 @@ function MultiSelectDropdown({ label, options, selected, onChange, getKey, getLa
 }
 
 const fmt = n => n != null && n !== '' ? Number(n).toLocaleString('el-GR', { minimumFractionDigits: 0, maximumFractionDigits: 2 }) + ' €' : '—';
+const fmtK = n => {
+  if (!n) return '—';
+  const abs = Math.abs(n);
+  if (abs >= 1000) return (n / 1000).toFixed(1).replace(/\.0$/, '') + 'k €';
+  return Math.round(n) + ' €';
+};
 const fmtDate = d => d ? new Date(d + 'T00:00:00').toLocaleDateString('el-GR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—';
 
 const STATUS_BADGE = {
@@ -312,8 +318,8 @@ export default function ServiceAgreementsPage() {
   };
 
   const rows = data.data || [];
-  const sumApplication = rows.reduce((a, r) => a + parseFloat(r.amount_application || 0), 0);
-  const sumImplementation = rows.reduce((a, r) => a + parseFloat(r.amount_implementation || 0), 0);
+  const sums = data.sums || { application: 0, implementation: 0, collected: 0 };
+  const fByStatus = data.byStatus || {};
 
   return (
     <div className="page">
@@ -330,22 +336,33 @@ export default function ServiceAgreementsPage() {
         </button>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-4">
         <div className="card p-4 border-l-4 border-slate-400">
-          <div className="text-xs font-bold text-slate-400 uppercase tracking-wide">Σύνολο</div>
-          <div className="text-2xl font-black text-slate-600">{stats.total}</div>
+          <div className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-1">Σύνολο</div>
+          <div className="text-2xl font-black text-slate-600">{data.total}</div>
+          <div className="text-[10px] text-slate-400 mt-0.5">{stats.total} συνολικά</div>
         </div>
         <div className="card p-4 border-l-4 border-emerald-400">
-          <div className="text-xs font-bold text-slate-400 uppercase tracking-wide">Ενεργές</div>
-          <div className="text-2xl font-black text-emerald-600">{stats.byStatus['ΕΝ ΕΞΕΛΙΞΕΙ'] || 0}</div>
+          <div className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-1">Ενεργές</div>
+          <div className="text-2xl font-black text-emerald-600">{fByStatus['ΕΝ ΕΞΕΛΙΞΕΙ'] || 0}</div>
         </div>
         <div className="card p-4 border-l-4 border-blue-400">
-          <div className="text-xs font-bold text-slate-400 uppercase tracking-wide">Ολοκληρωμένες</div>
-          <div className="text-2xl font-black text-blue-600">{(stats.byStatus['ΟΛΟΚΛΗΡΩΜΕΝΕΣ ΕΠΙΤΥΧΩΣ'] || 0) + (stats.byStatus['ΑΠΟΠΛΗΡΩΜΕΝΕΣ'] || 0)}</div>
+          <div className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-1">Ολοκληρωμένες</div>
+          <div className="text-2xl font-black text-blue-600">
+            {(fByStatus['ΟΛΟΚΛΗΡΩΜΕΝΕΣ ΕΠΙΤΥΧΩΣ'] || 0) + (fByStatus['ΑΠΟΠΛΗΡΩΜΕΝΕΣ'] || 0)}
+          </div>
         </div>
         <div className="card p-4 border-l-4 border-indigo-400">
-          <div className="text-xs font-bold text-slate-400 uppercase tracking-wide">Σύνολο Αιτήσεων</div>
-          <div className="text-2xl font-black text-indigo-600">{fmt(sumApplication)}</div>
+          <div className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-1">Σύνολο Αιτήσεων</div>
+          <div className="text-2xl font-black text-indigo-600">{fmtK(sums.application)}</div>
+        </div>
+        <div className="card p-4 border-l-4 border-violet-400">
+          <div className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-1">Σύνολο Υλοποιήσεων</div>
+          <div className="text-2xl font-black text-violet-600">{fmtK(sums.implementation)}</div>
+        </div>
+        <div className="card p-4 border-l-4 border-teal-400">
+          <div className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-1">Σύνολο Εισπράξεων</div>
+          <div className="text-2xl font-black text-teal-600">{fmtK(sums.collected)}</div>
         </div>
       </div>
 
