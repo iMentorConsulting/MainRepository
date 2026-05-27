@@ -217,7 +217,7 @@ export default function ExpensesList() {
   const handleDuplicate = (row) => {
     const copy = { ...row };
     delete copy.id;
-    copy.date = '';
+    copy.date = new Date().toISOString().slice(0, 10);
     setModal({ open: true, record: copy, isDuplicate: true });
   };
 
