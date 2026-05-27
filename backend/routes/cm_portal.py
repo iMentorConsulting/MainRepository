@@ -568,6 +568,76 @@ def get_related_cases(token: str, db: Session = Depends(get_db)):
     ]
 
 
+@router.get("/public/{token}/related-cases-diag")
+def related_cases_diag(token: str, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    """Admin-only: returns full diagnostic info for the related-cases matching of a given portal token."""
+    import re as _re
+
+    case = db.query(CMCase).filter(CMCase.share_token == token).first()
+    if not case:
+        return {"error": "case not found for token"}
+
+    def norm_phone(p):
+        p = _re.sub(r'\D', '', p or '')
+        if p.startswith('30') and len(p) > 10:
+            p = p[2:]
+        return p
+
+    def effective_phone(c):
+        p = norm_phone(c.phone)
+        if p:
+            return p
+        tok = c.share_token or ''
+        if tok.isdigit() and 8 <= len(tok) <= 12:
+            return tok
+        return ''
+
+    case_afm = (case.afm or "").strip()
+    case_phone = effective_phone(case)
+
+    all_active = db.query(CMCase).filter(
+        CMCase.portal_active == True,
+        CMCase.id != case.id,
+    ).all()
+
+    candidates_info = []
+    for c in all_active:
+        ep = effective_phone(c)
+        candidates_info.append({
+            "id": c.id,
+            "client_name": c.client_name,
+            "afm": c.afm,
+            "phone": c.phone,
+            "share_token_prefix": (c.share_token or '')[:12],
+            "effective_phone": ep,
+            "afm_match": bool(case_afm and (c.afm or "").strip() == case_afm),
+            "phone_match": bool(case_phone and ep == case_phone),
+        })
+
+    afm_matches = [x for x in candidates_info if x["afm_match"]]
+    phone_matches = [x for x in candidates_info if x["phone_match"] and not x["afm_match"]]
+
+    return {
+        "case": {
+            "id": case.id,
+            "client_name": case.client_name,
+            "afm": case.afm,
+            "phone": case.phone,
+            "share_token": case.share_token,
+            "portal_active": case.portal_active,
+            "program_category": case.program_category,
+        },
+        "computed": {
+            "case_afm": case_afm,
+            "case_phone": case_phone,
+            "would_return_early": not case_afm and not case_phone,
+        },
+        "afm_matches": afm_matches,
+        "phone_matches": phone_matches,
+        "total_portal_active_candidates": len(all_active),
+    }
+
+
 @router.post("/public/lookup")
 def portal_lookup(body: dict, db: Session = Depends(get_db)):
     """Find active portal cases by AFM or phone number."""
