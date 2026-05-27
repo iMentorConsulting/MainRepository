@@ -267,7 +267,7 @@ class CMPendingItemTemplate(Base):
     __tablename__ = "cm_pending_item_templates"
     id = Column(Integer, primary_key=True, index=True)
     program_category = Column(String(100), nullable=False)
-    item_text = Column(String(300), nullable=False)
+    item_text = Column(String(2000), nullable=False)
     sort_order = Column(Integer, default=0)
     created_at = Column(DateTime, default=datetime.utcnow)
 
@@ -276,7 +276,7 @@ class CMCasePendingItem(Base):
     __tablename__ = "cm_case_pending_items"
     id = Column(Integer, primary_key=True, index=True)
     case_id = Column(Integer, ForeignKey("cm_cases.id"), nullable=False)
-    item_text = Column(String(300), nullable=False)
+    item_text = Column(String(2000), nullable=False)
     comment = Column(Text)
     sort_order = Column(Integer, default=0)
     created_at = Column(DateTime, default=datetime.utcnow)

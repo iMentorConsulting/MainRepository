@@ -271,6 +271,14 @@ try:
 except Exception:
     pass
 
+try:
+    with engine.connect() as _conn:
+        _conn.execute(_text("ALTER TABLE cm_pending_item_templates ALTER COLUMN item_text TYPE VARCHAR(2000)"))
+        _conn.execute(_text("ALTER TABLE cm_case_pending_items ALTER COLUMN item_text TYPE VARCHAR(2000)"))
+        _conn.commit()
+except Exception:
+    pass
+
 # Normalize property_usage values imported before case-normalization fix
 try:
     with engine.connect() as _conn:
