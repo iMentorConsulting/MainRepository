@@ -74,8 +74,8 @@ function Tooltip({ children, tip }) {
 }
 
 const STATUS_LABELS = {
-  draft: 'Σε Επεξεργασία', submitted: 'Υποβλήθηκε',
-  in_review: 'Υπό Αξιολόγηση', completed: 'Ολοκληρώθηκε', cancelled: 'Ακυρώθηκε',
+  draft: 'Άντληση Στοιχείων', submitted: 'Οριστικοποίηση Αίτησης',
+  in_review: 'Πρόταση Ρύθμισης', completed: 'Αποδοχή Ρύθμισης', cancelled: 'Απορρίψη Ρύθμισης',
 }
 const STATUS_COLORS = {
   draft: 'bg-gray-200 text-gray-700', submitted: 'bg-blue-100 text-blue-800',

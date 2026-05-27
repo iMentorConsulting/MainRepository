@@ -28,8 +28,6 @@ import {
 const SUCCESS_FEE_DAYS = 75
 const CONSULTANTS = ['STELLA', 'VALLIA', 'SOFIA']
 
-// Stages where app fee has been paid
-const APP_FEE_PAID = new Set(['Έκλεισε', 'Αποδοχή Ρύθμισης', 'Απόρριψη Ρύθμισης'])
 // Terminal stages
 const TERMINAL = new Set(['Αποδοχή Ρύθμισης', 'Απόρριψη Ρύθμισης', 'Δεν Ενδιαφέρεται'])
 
@@ -50,29 +48,34 @@ function pct(n, d) {
   return Math.round((n / d) * 100)
 }
 
+// App fee: collected when status = 'submitted' (Οριστικοποίηση Αίτησης) or beyond
 function appFeeStatus(c) {
+  const s = c.status || 'draft'
+  if (['submitted', 'in_review', 'completed'].includes(s)) return 'collected'
+  if (s === 'cancelled') return 'lost'
   const stage = c.contact_stage || 'Νέα Ανάλυση'
-  if (APP_FEE_PAID.has(stage)) return 'collected'
-  if (stage === 'Θετική Ανταπόκριση' || stage === 'Σε Διαπραγμάτευση') return 'expected'
+  if (stage === 'Θετική Ανταπόκριση' || stage === 'Σε Διαπραγμάτευση' || stage === 'Έκλεισε') return 'expected'
   if (stage === 'Δεν Ενδιαφέρεται') return 'lost'
   return 'pipeline'
 }
 
+// Success fee: collected only when status = 'completed' (Αποδοχή Ρύθμισης)
 function successFeeStatus(c) {
-  const stage = c.contact_stage || 'Νέα Ανάλυση'
-  if (stage === 'Αποδοχή Ρύθμισης') return 'collected'
-  if (stage === 'Απόρριψη Ρύθμισης' || stage === 'Δεν Ενδιαφέρεται') return 'lost'
-  if (stage === 'Έκλεισε') {
+  const s = c.status || 'draft'
+  if (s === 'completed') return 'collected'
+  if (s === 'cancelled') return 'lost'
+  if (s === 'in_review') {
     if (!c.submitted_at) return 'expected'
     const due = addDays(new Date(c.submitted_at), SUCCESS_FEE_DAYS)
     return isAfter(new Date(), due) ? 'overdue' : 'expected'
   }
+  if (s === 'submitted') return 'expected'
   return 'pipeline'
 }
 
 function successFeeDue(c) {
-  const stage = c.contact_stage || 'Νέα Ανάλυση'
-  if (!['Έκλεισε', 'Αποδοχή Ρύθμισης', 'Απόρριψη Ρύθμισης'].includes(stage)) return null
+  const s = c.status || 'draft'
+  if (!['submitted', 'in_review', 'completed', 'cancelled'].includes(s)) return null
   if (!c.submitted_at) return null
   return addDays(new Date(c.submitted_at), SUCCESS_FEE_DAYS)
 }

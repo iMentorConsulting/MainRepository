@@ -7,8 +7,8 @@ const EMPLOYEES = ['STELLA', 'VALLIA', 'SOFIA', 'HARIS']
 const EMPLOYEE_COLORS = { STELLA: '#004aad', VALLIA: '#00a3a3', SOFIA: '#ff9f1a', HARIS: '#7b61ff' }
 
 const STATUS_LABELS = {
-  draft: 'Πρόχειρο', submitted: 'Υποβλήθηκε',
-  in_review: 'Υπό Εξέταση', completed: 'Ολοκληρώθηκε', cancelled: 'Ακυρώθηκε'
+  draft: 'Άντληση Στοιχείων', submitted: 'Οριστικοποίηση Αίτησης',
+  in_review: 'Πρόταση Ρύθμισης', completed: 'Αποδοχή Ρύθμισης', cancelled: 'Απορρίψη Ρύθμισης'
 }
 const STATUS_COLORS = {
   draft: '#94a3b8', submitted: '#3b82f6', in_review: '#f59e0b',

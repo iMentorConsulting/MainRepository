@@ -10,11 +10,11 @@ import { fmt } from '../utils/calculations'
 const EMPLOYEES = ['STELLA', 'VALLIA', 'SOFIA', 'HARIS']
 
 const STATUS_LABELS = {
-  draft: { label: 'Πρόχειρο', cls: 'bg-gray-100 text-gray-700' },
-  submitted: { label: 'Υποβλήθηκε', cls: 'bg-blue-100 text-blue-700' },
-  in_review: { label: 'Υπό Εξέταση', cls: 'bg-yellow-100 text-yellow-700' },
-  completed: { label: 'Ολοκληρώθηκε', cls: 'bg-green-100 text-green-700' },
-  cancelled: { label: 'Ακυρώθηκε', cls: 'bg-red-100 text-red-700' },
+  draft:     { label: 'Άντληση Στοιχείων',      cls: 'bg-gray-100 text-gray-700' },
+  submitted: { label: 'Οριστικοποίηση Αίτησης', cls: 'bg-blue-100 text-blue-700' },
+  in_review: { label: 'Πρόταση Ρύθμισης',       cls: 'bg-yellow-100 text-yellow-700' },
+  completed: { label: 'Αποδοχή Ρύθμισης',       cls: 'bg-green-100 text-green-700' },
+  cancelled: { label: 'Απορρίψη Ρύθμισης',      cls: 'bg-red-100 text-red-700' },
 }
 
 const CONTACT_STAGE_CONFIG = {

@@ -16,11 +16,11 @@ import { buildPlanHtml, wrapPlanDocument } from '../utils/reportGenerators'
 const EMPLOYEES = ['STELLA', 'VALLIA', 'SOFIA', 'HARIS']
 
 const STATUS_OPTIONS = [
-  { value: 'draft', label: 'Πρόχειρο' },
-  { value: 'submitted', label: 'Υποβλήθηκε' },
-  { value: 'in_review', label: 'Υπό Εξέταση' },
-  { value: 'completed', label: 'Ολοκληρώθηκε' },
-  { value: 'cancelled', label: 'Ακυρώθηκε' },
+  { value: 'draft',     label: 'Άντληση Στοιχείων' },
+  { value: 'submitted', label: 'Οριστικοποίηση Αίτησης' },
+  { value: 'in_review', label: 'Πρόταση Ρύθμισης' },
+  { value: 'completed', label: 'Αποδοχή Ρύθμισης' },
+  { value: 'cancelled', label: 'Απορρίψη Ρύθμισης' },
 ]
 
 function defaultIncome() {
