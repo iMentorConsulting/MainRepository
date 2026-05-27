@@ -468,6 +468,10 @@ def submit_anakainizw_intake(token: str, body: dict, db: Session = Depends(get_d
             else:
                 setattr(ana, field, value)
 
+    # Recalculate subsidy_percent: base 70% + 5% per active boost flag
+    active_boosts = sum(1 for f in boost_fields if getattr(ana, f, False))
+    ana.subsidy_percent = 70 + active_boosts * 5
+
     now_str = _dt.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
     ana.client_intake_submitted_at = now_str
     ana.client_intake_data = _json.dumps(body, ensure_ascii=False)

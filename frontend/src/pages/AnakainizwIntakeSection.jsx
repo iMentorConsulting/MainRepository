@@ -18,13 +18,6 @@ const TYPE_OPTIONS = [
   'Άλλο',
 ]
 
-const AGE_OPTIONS = [
-  'Πριν το 1980',
-  '1980–2000',
-  '2000–2011',
-  'Πριν το 1960',
-]
-
 const HOUSEHOLD_OPTIONS = [
   { value: 'άγαμος', label: 'Άγαμος/η (μεμονωμένο άτομο)' },
   { value: 'ζευγάρι', label: 'Ζευγάρι / Οικογένεια' },
@@ -228,16 +221,15 @@ export default function AnakainizwIntakeSection({ caseData, token, onRefresh }) 
             </div>
             {/* Age */}
             <div>
-              <label className="block text-xs font-semibold text-gray-600 mb-1">Παλαιότητα Κατοικίας</label>
-              <select
+              <label className="block text-xs font-semibold text-gray-600 mb-1">Παλαιότητα / Ηλικία Κατοικίας</label>
+              <input
+                type="text"
                 value={form.property_age}
                 onChange={e => set('property_age', e.target.value)}
                 disabled={isLocked}
+                placeholder="π.χ. 1985 ή &gt;25 έτη"
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 disabled:bg-gray-50 disabled:text-gray-500"
-              >
-                <option value="">— Επιλέξτε —</option>
-                {AGE_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
-              </select>
+              />
             </div>
             {/* Usage */}
             <div>
@@ -326,10 +318,25 @@ export default function AnakainizwIntakeSection({ caseData, token, onRefresh }) 
 
           {/* ── Special Conditions ── */}
           <div className="border-t pt-4 mt-2">
-            <h4 className="text-sm font-bold text-gray-700 uppercase tracking-wide mb-1 flex items-center gap-2">
-              <span>⭐</span> Ειδικές Συνθήκες (αύξηση επιχορήγησης)
-            </h4>
-            <p className="text-xs text-gray-500 mb-3">Επιλέξτε αν ισχύει κάποια από τις παρακάτω κατηγορίες. Μπορεί να αυξήσουν το ποσοστό επιχορήγησής σας.</p>
+            <div className="flex items-center justify-between mb-1 flex-wrap gap-2">
+              <h4 className="text-sm font-bold text-gray-700 uppercase tracking-wide flex items-center gap-2">
+                <span>⭐</span> Ειδικές Συνθήκες (αύξηση επιχορήγησης)
+              </h4>
+              {(() => {
+                const checked = SPECIAL_CONDITIONS.filter(c => form[c.key]).length
+                const pct = 70 + checked * 5
+                return (
+                  <div className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border font-bold text-sm transition-colors ${
+                    checked > 0 ? 'bg-green-50 border-green-300 text-green-700' : 'bg-gray-50 border-gray-200 text-gray-500'
+                  }`}>
+                    <span>Επιχορήγηση:</span>
+                    <span className="text-xl">{pct}%</span>
+                    {checked > 0 && <span className="text-xs font-normal text-green-600">(+{checked * 5}%)</span>}
+                  </div>
+                )
+              })()}
+            </div>
+            <p className="text-xs text-gray-500 mb-3">Κάθε ισχύουσα κατηγορία αυξάνει την επιχορήγηση κατά +5% (βάση 70%).</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               {SPECIAL_CONDITIONS.map(({ key, icon, label, hint }) => (
                 <label key={key} className={`flex items-start gap-3 rounded-xl border px-4 py-3 cursor-pointer transition-all ${
