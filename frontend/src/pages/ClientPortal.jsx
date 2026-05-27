@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
-import { getPortalCase, recordPortalVisit, submitPortalNps, recordPortalReviewClick, submitPortalMessage, uploadPortalFile } from '../api'
+import { getPortalCase, recordPortalVisit, submitPortalNps, recordPortalReviewClick, submitPortalMessage, uploadPortalFile, getPortalRelatedCases } from '../api'
 import AnakainizwPortalSection from './AnakainizwPortalSection'
 import AnakainizwIntakeSection from './AnakainizwIntakeSection'
 import {
@@ -1078,26 +1078,11 @@ export default function ClientPortal() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [verified, setVerified] = useState(isPreview)
-  const [autoVerifying, setAutoVerifying] = useState(false)
+  const [relatedCases, setRelatedCases] = useState([])
 
   useEffect(() => {
-    const storedCred = sessionStorage.getItem('portal_lookup_cred')
     getPortalCase(token)
-      .then(async (caseData) => {
-        setData(caseData)
-        if (!isPreview && storedCred) {
-          setAutoVerifying(true)
-          try {
-            await recordPortalVisit(token, storedCred)
-            sessionStorage.removeItem('portal_lookup_cred')
-            setVerified(true)
-          } catch {
-            // credential didn't match this case — show gate normally
-          } finally {
-            setAutoVerifying(false)
-          }
-        }
-      })
+      .then(setData)
       .catch(err => setError(err.response?.status === 404 ? 'not_found' : 'error'))
       .finally(() => setLoading(false))
   }, [token])
@@ -1105,13 +1090,14 @@ export default function ClientPortal() {
   const handleAfmVerify = async (afm) => {
     await recordPortalVisit(token, afm)
     setVerified(true)
+    getPortalRelatedCases(token).then(setRelatedCases).catch(() => {})
   }
 
   const refreshData = () => {
     getPortalCase(token).then(setData).catch(() => {})
   }
 
-  if (loading || autoVerifying) {
+  if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="animate-spin w-10 h-10 border-4 border-[#1e3a5f] border-t-transparent rounded-full" />
@@ -1156,6 +1142,36 @@ export default function ClientPortal() {
       </header>
 
       <div className="max-w-3xl mx-auto px-4 py-6 space-y-5">
+        {/* Other active services */}
+        {relatedCases.length > 0 && (
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 shadow-sm">
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-lg">🔗</span>
+              <h3 className="text-sm font-bold text-amber-800">Άλλες ενεργές υπηρεσίες σας με την iMentor</h3>
+            </div>
+            <div className="space-y-2">
+              {relatedCases.map(c => {
+                const icons = { 'ΕΣΠΑ': '📋', 'ΔΥΠΑ': '🎓', 'ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ': '💶', 'ΑΝΑΚΑΙΝΙΖΩ': '🏠' }
+                const labels = { 'ΕΣΠΑ': 'ΕΣΠΑ', 'ΔΥΠΑ': 'ΔΥΠΑ / ΟΑΕΔ', 'ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ': 'Μικροπιστώσεις', 'ΑΝΑΚΑΙΝΙΖΩ': 'Ανακαινίζω' }
+                return (
+                  <a
+                    key={c.token}
+                    href={`/portal/${c.token}`}
+                    className="flex items-center gap-3 bg-white border border-amber-100 rounded-lg px-4 py-3 hover:border-amber-300 hover:bg-amber-50 transition-all group"
+                  >
+                    <span className="text-xl">{icons[c.program_category] || '📁'}</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-semibold text-gray-800 group-hover:text-amber-800">{labels[c.program_category] || c.program_category}</div>
+                      {c.service_type && <div className="text-xs text-gray-500 truncate">{c.service_type}</div>}
+                    </div>
+                    <span className="text-xs text-amber-600 font-medium group-hover:underline">Μετάβαση →</span>
+                  </a>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
         {/* Welcome card */}
         <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
           <div className="flex items-start justify-between gap-3 flex-wrap">

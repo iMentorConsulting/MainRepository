@@ -15,7 +15,6 @@ import Notifications from './pages/Notifications'
 import Users from './pages/Users'
 import Import from './pages/Import'
 import ClientPortal from './pages/ClientPortal'
-import PortalLoginPage from './pages/PortalLoginPage'
 import PortalBroadcastPage from './pages/PortalBroadcastPage'
 import PortalDocumentsPage from './pages/PortalDocumentsPage'
 import RevenueForecastPage from './pages/RevenueForecastPage'
@@ -45,7 +44,6 @@ export default function App() {
       <Routes>
         {/* Public portal route — no auth required */}
         <Route path="/portal/:token" element={<ErrorBoundary><ClientPortal /></ErrorBoundary>} />
-        <Route path="/portal" element={<ErrorBoundary><PortalLoginPage /></ErrorBoundary>} />
 
         {/* Auth-protected app */}
         {!auth ? (

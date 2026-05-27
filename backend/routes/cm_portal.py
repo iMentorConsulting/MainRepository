@@ -493,6 +493,50 @@ def submit_anakainizw_intake(token: str, body: dict, db: Session = Depends(get_d
     return {"ok": True, "submitted_at": now_str}
 
 
+@router.get("/public/{token}/related-cases")
+def get_related_cases(token: str, db: Session = Depends(get_db)):
+    """Return other portal-active cases for the same client (matched by AFM or phone)."""
+    import re as _re
+    case = db.query(CMCase).filter(CMCase.share_token == token).first()
+    if not case or not case.portal_active:
+        raise HTTPException(status_code=404, detail="Not found")
+
+    related = []
+
+    # Match by AFM first (most reliable)
+    if (case.afm or "").strip():
+        related = db.query(CMCase).filter(
+            CMCase.afm == case.afm.strip(),
+            CMCase.portal_active == True,
+            CMCase.id != case.id,
+        ).all()
+
+    # Fallback: match by normalized phone
+    if not related and (case.phone or "").strip():
+        def norm(p):
+            p = _re.sub(r'\D', '', p or '')
+            if p.startswith('30') and len(p) > 10:
+                p = p[2:]
+            return p
+        my_phone = norm(case.phone)
+        if my_phone:
+            candidates = db.query(CMCase).filter(
+                CMCase.portal_active == True,
+                CMCase.id != case.id,
+                CMCase.phone.isnot(None),
+            ).all()
+            related = [c for c in candidates if norm(c.phone) == my_phone]
+
+    return [
+        {
+            "token": c.share_token,
+            "program_category": c.program_category,
+            "service_type": c.service_type or "",
+        }
+        for c in related if c.share_token
+    ]
+
+
 @router.post("/public/lookup")
 def portal_lookup(body: dict, db: Session = Depends(get_db)):
     """Find active portal cases by AFM or phone number."""
