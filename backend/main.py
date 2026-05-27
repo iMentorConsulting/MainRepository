@@ -576,6 +576,27 @@ with SessionLocal() as _db:
         _db.commit()
         print(f"[migration] Fixed program_category / backfilled share_token for {_fixed} cases")
 
+# Fix duplicate share_tokens: keep the first (oldest) case's token, assign new UUIDs to the rest.
+# Happens when multiple ΑΝΑΚΑΙΝΙΖΩ cases were imported with the same phone number before the
+# duplicate-check was added to the Sheets importer.
+with SessionLocal() as _db:
+    from collections import defaultdict as _dd
+    _by_token = _dd(list)
+    for _c in _db.query(_CMCase).filter(_CMCase.share_token.isnot(None)).all():
+        _by_token[_c.share_token].append(_c)
+    _dedup_fixed = 0
+    for _tok, _cases in _by_token.items():
+        if len(_cases) <= 1:
+            continue
+        # Sort by id: keep the lowest (oldest) case's token; reassign the rest
+        _cases.sort(key=lambda x: x.id)
+        for _dup in _cases[1:]:
+            _dup.share_token = str(uuid.uuid4())
+            _dedup_fixed += 1
+    if _dedup_fixed:
+        _db.commit()
+        print(f"[migration] Deduplicated share_tokens: assigned new UUIDs to {_dedup_fixed} cases")
+
 # Import new models so create_all creates their tables
 from models_cases import CMNotificationTemplate, CMStatusSLA, CMCaseModification, CMPortalFile, CMPaymentLog
 
