@@ -242,6 +242,9 @@ export default function ServiceAgreementsPage() {
   const [stats, setStats] = useState({ total: 0, byStatus: {} });
   const [agents, setAgents] = useState([]);
   const [services, setServices] = useState([]);
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [bulkStatus, setBulkStatus] = useState('');
+  const [bulkSaving, setBulkSaving] = useState(false);
 
   const handleSort = field => {
     setSort(s => s.field === field ? { field, dir: s.dir === 'DESC' ? 'ASC' : 'DESC' } : { field, dir: 'DESC' });
@@ -268,6 +271,34 @@ export default function ServiceAgreementsPage() {
     api.get('/lists?list_type=ΠΡΑΚΤΟΡΕΣ&active_only=true').then(r => setAgents(r.data.map(x => x.value))).catch(() => {});
     api.get('/lists?list_type=ΕΙΔΟΣ_ΥΠΗΡΕΣΙΑΣ&active_only=true').then(r => setServices(r.data.map(x => x.value))).catch(() => {});
   }, []);
+
+  const allVisibleIds = (data.data || []).map(r => r.id);
+  const allSelected = allVisibleIds.length > 0 && allVisibleIds.every(id => selectedIds.has(id));
+  const toggleSelectAll = () => {
+    if (allSelected) setSelectedIds(new Set());
+    else setSelectedIds(new Set(allVisibleIds));
+  };
+  const toggleOne = id => setSelectedIds(prev => {
+    const next = new Set(prev);
+    next.has(id) ? next.delete(id) : next.add(id);
+    return next;
+  });
+
+  const handleBulkStatus = async () => {
+    if (!bulkStatus || selectedIds.size === 0) return;
+    setBulkSaving(true);
+    try {
+      await Promise.all([...selectedIds].map(id => api.put(`/service-agreements/${id}`, { status: bulkStatus })));
+      toast.success(`Ενημερώθηκαν ${selectedIds.size} συμφωνίες → ${bulkStatus}`);
+      setSelectedIds(new Set());
+      setBulkStatus('');
+      load();
+    } catch {
+      toast.error('Σφάλμα μαζικής ενημέρωσης');
+    } finally {
+      setBulkSaving(false);
+    }
+  };
 
   const handleDelete = async id => {
     try {
@@ -362,11 +393,40 @@ export default function ServiceAgreementsPage() {
         </button>
       </div>
 
+      {selectedIds.size > 0 && (
+        <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-indigo-50 border border-indigo-200 animate-slide-up">
+          <span className="text-sm font-bold text-indigo-700 shrink-0">{selectedIds.size} επιλεγμένες</span>
+          <div className="flex-1" />
+          <select
+            className="input w-56 text-sm"
+            value={bulkStatus}
+            onChange={e => setBulkStatus(e.target.value)}
+          >
+            <option value="">— Νέα Κατάσταση —</option>
+            {STATUS_OPTS.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+          <button
+            className="btn-primary text-sm px-4 py-2 disabled:opacity-50"
+            disabled={!bulkStatus || bulkSaving}
+            onClick={handleBulkStatus}
+          >
+            {bulkSaving ? 'Εφαρμογή…' : 'Εφαρμογή'}
+          </button>
+          <button className="btn-ghost btn-sm text-slate-500" onClick={() => setSelectedIds(new Set())}>
+            ✕ Αποεπιλογή
+          </button>
+        </div>
+      )}
+
       <div className="card overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
               <tr>
+                <th className="th w-10 pr-0">
+                  <input type="checkbox" checked={allSelected} onChange={toggleSelectAll}
+                    className="w-4 h-4 rounded border-slate-300 text-primary-600 cursor-pointer" />
+                </th>
                 <SortTh label="Πελάτης" field="customer_name" sort={sort} onSort={handleSort} />
                 <th className="th">ΑΦΜ</th>
                 <SortTh label="Υπηρεσία" field="service_type" sort={sort} onSort={handleSort} />
@@ -383,7 +443,11 @@ export default function ServiceAgreementsPage() {
             </thead>
             <tbody>
               {rows.map(r => (
-                <tr key={r.id} className="tr">
+                <tr key={r.id} className={`tr ${selectedIds.has(r.id) ? 'bg-indigo-50/60' : ''}`}>
+                  <td className="td pr-0">
+                    <input type="checkbox" checked={selectedIds.has(r.id)} onChange={() => toggleOne(r.id)}
+                      className="w-4 h-4 rounded border-slate-300 text-primary-600 cursor-pointer" />
+                  </td>
                   <td className="td">
                     <div className="font-semibold text-slate-800 max-w-[180px] truncate">{r.customer_name || '—'}</div>
                   </td>
@@ -456,7 +520,7 @@ export default function ServiceAgreementsPage() {
               ))}
               {rows.length === 0 && (
                 <tr>
-                  <td colSpan={12} className="td text-center text-slate-400 py-12">
+                  <td colSpan={13} className="td text-center text-slate-400 py-12">
                     Δεν βρέθηκαν εγγραφές
                   </td>
                 </tr>
