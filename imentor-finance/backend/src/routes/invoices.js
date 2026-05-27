@@ -106,8 +106,11 @@ function api(orgKey) {
 async function findOrCreateContact(orgKey, income) {
   const a = api(orgKey);
   if (income.vat_number) {
+    const vatClean = income.vat_number.replace(/\D/g, '');
     const r = await a.get(`contacts/?search=${encodeURIComponent(income.vat_number)}`);
-    if (r.data.results?.length) return r.data.results[0].id;
+    // Require exact VAT match to avoid wrong-customer matches on substring searches
+    const exact = (r.data.results || []).find(c => (c.vat_number || '').replace(/\D/g, '') === vatClean);
+    if (exact) return exact.id;
   }
   const r = await a.get(`contacts/?search=${encodeURIComponent(income.customer_name)}`);
   if (r.data.results?.length) return r.data.results[0].id;
@@ -386,7 +389,7 @@ router.post('/create-draft', async (req, res) => {
     };
     console.log(`[create-draft] kind=${kind} docTypeId=${docType.id} mydata=${body.mydata_document_type} classType=${body.items[0]?.mydata_classification_type}`);
     const inv = await elorusPostInvoice(org_key, body);
-    await income.update({ elorus_invoice_id: String(inv.id) });
+    await income.update({ elorus_invoice_id: String(inv.id), elorus_org_key: org_key });
     res.json({ success: true, invoice: inv });
   } catch (e) { res.status(500).json({ error: errMsg(e) }); }
 });
@@ -427,9 +430,11 @@ router.post('/send-to-self', async (req, res) => {
 
 router.post('/finalize-and-send', async (req, res) => {
   try {
-    const { income_id, org_key = 'DEFAULT' } = req.body;
+    const { income_id } = req.body;
     const income = await Income.findByPk(income_id);
     if (!income?.elorus_invoice_id) return res.status(400).json({ error: 'Δεν υπάρχει draft τιμολόγιο' });
+    // Use the org that created the draft — don't require caller to re-specify
+    const org_key = req.body.org_key || income.elorus_org_key || 'DEFAULT';
     const a = api(org_key);
     // Elorus v1.1: finalize by PATCHing draft=false (no /finalize/ endpoint)
     await a.patch(`invoices/${income.elorus_invoice_id}/`, { draft: false });
@@ -476,6 +481,7 @@ router.post('/one-shot', async (req, res) => {
       client: contactId,
       date: iDate,
       documenttype: docType.id,
+      draft: false,   // one-shot must produce a finalized invoice, not a draft
       currency: 'EUR',
       ...(zip ? { billing_address: { address_line: income.address || '-', city: income.city || '-', zip, country: 'GR' } } : {}),
       items: lines(net, description, income.service_type, taxRateId, kind),
@@ -521,16 +527,18 @@ router.post('/one-shot', async (req, res) => {
       });
     } catch (payErr) { console.warn('one-shot payment:', payErr.message); }
 
-    await income.update({ invoice_number: invoiceNumber, elorus_invoice_id: String(inv.id) });
+    await income.update({ invoice_number: invoiceNumber, elorus_invoice_id: String(inv.id), elorus_org_key: org_key });
     res.json({ success: true, invoice_number: invoiceNumber, invoice: inv });
   } catch (e) { res.status(500).json({ error: errMsg(e) }); }
 });
 
 router.post('/record-payment', async (req, res) => {
   try {
-    const { income_id, org_key = 'DEFAULT', amount, date } = req.body;
+    const { income_id, amount, date } = req.body;
     const income = await Income.findByPk(income_id);
     if (!income?.elorus_invoice_id) return res.status(400).json({ error: 'Δεν υπάρχει τιμολόγιο Elorus' });
+    // Use the org that created the invoice — don't require caller to re-specify
+    const org_key = req.body.org_key || income.elorus_org_key || 'DEFAULT';
     const a = api(org_key);
     const invData = (await a.get(`invoices/${income.elorus_invoice_id}/`)).data;
     const contactId = String(invData.client || invData.contact || '');
