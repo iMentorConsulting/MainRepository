@@ -33,6 +33,7 @@ const Income = sequelize.define('Income', {
   invoice_number:          { type: DataTypes.STRING },
   unsubscribe:             { type: DataTypes.BOOLEAN, defaultValue: false },
   elorus_invoice_id:       { type: DataTypes.STRING },
+  elorus_org_key:          { type: DataTypes.STRING },
   accountant_notified:     { type: DataTypes.BOOLEAN, defaultValue: false },
   accountant_notified_at:  { type: DataTypes.DATE },
   customer_id:           { type: DataTypes.INTEGER },

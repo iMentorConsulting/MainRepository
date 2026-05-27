@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useForm } from 'react-hook-form';
 import api from '../../api/client';
 import Modal from '../../components/Modal';
 import toast from 'react-hot-toast';
@@ -7,109 +6,221 @@ import toast from 'react-hot-toast';
 const fmt = n => n ? Number(n).toLocaleString('el-GR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €' : '—';
 const fmtDate = d => d ? new Date(d + 'T00:00:00').toLocaleDateString('el-GR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—';
 
+const ORG_LABEL = { DEFAULT: 'i-Mentor (κύρια)', IMENTOR_IKE: 'I MENTOR IKE' };
+
+function calcAmounts(amountWithVat, orgKey, kind) {
+  const gross = parseFloat(amountWithVat) || 0;
+  const net = gross / 1.24;
+  const vat = gross - net;
+  const hasWH = kind !== 'APY' && orgKey !== 'IMENTOR_IKE' && net > 301;
+  const wh = hasWH ? net * 0.20 : 0;
+  const payable = gross - wh;
+  return { gross, net, vat, wh, payable };
+}
+
+function AmountBreakdown({ amount, orgKey, kind }) {
+  if (!amount || parseFloat(amount) <= 0) return null;
+  const { net, vat, wh, payable } = calcAmounts(amount, orgKey, kind);
+  return (
+    <div className="rounded-xl p-4 space-y-2 text-sm" style={{ background: '#f0fdf4', border: '1px solid #bbf7d0' }}>
+      <div className="flex justify-between text-slate-600"><span>Καθαρό</span><span className="font-semibold">{fmt(net)}</span></div>
+      <div className="flex justify-between text-slate-600"><span>ΦΠΑ 24%</span><span className="font-semibold">{fmt(vat)}</span></div>
+      {wh > 0 && <div className="flex justify-between text-rose-600"><span>Παρακράτηση 20%</span><span className="font-semibold">−{fmt(wh)}</span></div>}
+      <div className="flex justify-between font-black text-slate-800 border-t border-emerald-200 pt-2"><span>Πληρωτέο</span><span className="text-emerald-700">{fmt(payable)}</span></div>
+    </div>
+  );
+}
+
 function InvoiceModal({ record, onClose, onDone }) {
-  const { register, handleSubmit, watch } = useForm({
-    defaultValues: {
-      income_id: record?.id,
-      org_key: 'DEFAULT',
-      amount: record?.amount_collected || '',
-      description: record?.description || record?.service_type || '',
-      date: new Date().toISOString().split('T')[0]
+  const today = new Date().toISOString().split('T')[0];
+  // State detection
+  const hasDraft   = !!record.elorus_invoice_id && !record.invoice_number;
+  const hasInvoice = !!record.invoice_number;
+  // When a draft or invoice exists, use the org that created it — no need to ask again
+  const lockedOrg  = record.elorus_org_key || null;
+
+  const [orgKey, setOrgKey]           = useState(lockedOrg || 'DEFAULT');
+  const [kind, setKind]               = useState('TPY');
+  const [amount, setAmount]           = useState(String(record.amount_collected || ''));
+  const [description, setDescription] = useState(record.description || record.service_type || '');
+  const [date, setDate]               = useState(today);
+  const [payAmount, setPayAmount]     = useState('');
+  const [payDate, setPayDate]         = useState(today);
+  const [loading, setLoading]         = useState(null);
+
+  // Pre-fill payable when amount changes
+  useEffect(() => {
+    if (amount) {
+      const effectiveOrg = (hasDraft || hasInvoice) ? (lockedOrg || orgKey) : orgKey;
+      const { payable } = calcAmounts(amount, effectiveOrg, kind);
+      setPayAmount(payable.toFixed(2));
     }
-  });
-  const [loading, setLoading] = useState(false);
+  }, [amount, orgKey, kind]);
 
-  const amount = watch('amount');
-  const orgKey = watch('org_key');
-  const net = amount ? (parseFloat(amount) / 1.24).toFixed(2) : 0;
-  const vat = amount ? (parseFloat(amount) - net).toFixed(2) : 0;
-  const withholding = orgKey !== 'IMENTOR_IKE';
-  const withholdingAmt = withholding ? (net * 0.20).toFixed(2) : 0;
-  const payable = parseFloat(amount || 0) - (withholding ? parseFloat(withholdingAmt) : 0);
+  const effectiveOrg = (hasDraft || hasInvoice) ? (lockedOrg || orgKey) : orgKey;
 
-  const onSubmit = async data => {
-    setLoading(true);
+  const call = async (action, extra = {}) => {
+    setLoading(action);
     try {
-      const res = await api.post('/invoices/create', data);
-      toast.success(`Τιμολόγιο εκδόθηκε: ${res.data.invoice_number}`);
-      onDone();
-    } catch (e) {
-      toast.error(e.response?.data?.error || 'Σφάλμα έκδοσης');
-    } finally {
-      setLoading(false);
-    }
+      return (await api.post(`/invoices/${action}`, { income_id: record.id, org_key: effectiveOrg, ...extra })).data;
+    } finally { setLoading(null); }
   };
 
-  return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
-      <div className="rounded-xl p-4 space-y-1.5 text-sm" style={{ background: 'linear-gradient(135deg, rgba(99,102,241,0.08), rgba(139,92,246,0.08))', border: '1px solid rgba(99,102,241,0.15)' }}>
-        <div className="flex justify-between">
-          <span className="text-slate-500">Πελάτης</span>
-          <span className="font-semibold text-slate-800">{record?.customer_name}</span>
+  const handleDraft = async () => {
+    try {
+      await call('create-draft', { amount, description, date, kind });
+      toast.success('Draft δημιουργήθηκε στο Elorus');
+      onDone();
+    } catch (e) { toast.error(e.response?.data?.error || 'Σφάλμα'); }
+  };
+
+  const handleOneShot = async () => {
+    try {
+      const r = await call('one-shot', { amount, description, date, kind });
+      toast.success(`Τιμολόγιο ${r.invoice_number} — εκδόθηκε, εστάλη & πληρώθηκε`);
+      onDone();
+    } catch (e) { toast.error(e.response?.data?.error || 'Σφάλμα'); }
+  };
+
+  const handleFinalize = async () => {
+    try {
+      const r = await call('finalize-and-send');
+      toast.success(`Εκδόθηκε: ${r.invoice_number}`);
+      onDone();
+    } catch (e) { toast.error(e.response?.data?.error || 'Σφάλμα'); }
+  };
+
+  const handlePayment = async () => {
+    if (!payAmount || parseFloat(payAmount) <= 0) return toast.error('Εισάγετε ποσό πληρωμής');
+    try {
+      await call('record-payment', { amount: payAmount, date: payDate });
+      toast.success('Πληρωμή καταχωρήθηκε στο Elorus');
+      onDone();
+    } catch (e) { toast.error(e.response?.data?.error || 'Σφάλμα'); }
+  };
+
+  // Customer info box — always shown
+  const infoBox = (
+    <div className="rounded-xl p-4 space-y-1.5 text-sm" style={{ background: 'linear-gradient(135deg,rgba(99,102,241,.08),rgba(139,92,246,.08))', border: '1px solid rgba(99,102,241,.15)' }}>
+      <div className="flex justify-between"><span className="text-slate-500">Πελάτης</span><span className="font-bold text-slate-800">{record.customer_name}</span></div>
+      <div className="flex justify-between"><span className="text-slate-500">ΑΦΜ</span><span className="text-slate-700">{record.vat_number || '—'}</span></div>
+      <div className="flex justify-between"><span className="text-slate-500">Υπηρεσία</span><span className="text-slate-700 text-right max-w-[60%]">{record.service_type || '—'}</span></div>
+    </div>
+  );
+
+  // ── MODE: Draft exists — org is locked, choose finalize or payment ──
+  if (hasDraft) {
+    return (
+      <div className="space-y-5">
+        {infoBox}
+        <div className="rounded-xl px-4 py-3 flex items-center gap-3 bg-amber-50 border border-amber-200 text-sm">
+          <span className="text-xl">📄</span>
+          <div>
+            <div className="font-bold text-amber-800">Draft υπάρχει στο Elorus</div>
+            <div className="text-amber-600 text-xs">Οργανισμός: <strong>{ORG_LABEL[lockedOrg] || lockedOrg || '—'}</strong> · ID: {record.elorus_invoice_id}</div>
+          </div>
         </div>
-        <div className="flex justify-between">
-          <span className="text-slate-500">ΑΦΜ</span>
-          <span className="text-slate-700">{record?.vat_number || '—'}</span>
+        <div className="space-y-3">
+          <div className="text-xs font-bold text-slate-400 uppercase tracking-widest">Πληρωμή για καταχώρηση</div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="label">Ποσό Πληρωμής (€)</label>
+              <input type="number" step="0.01" className="input" value={payAmount} onChange={e => setPayAmount(e.target.value)} />
+            </div>
+            <div>
+              <label className="label">Ημερομηνία</label>
+              <input type="date" className="input" value={payDate} onChange={e => setPayDate(e.target.value)} />
+            </div>
+          </div>
         </div>
-        <div className="flex justify-between">
-          <span className="text-slate-500">Υπηρεσία</span>
-          <span className="text-slate-700 text-right max-w-[60%]">{record?.service_type || '—'}</span>
+        <div className="flex justify-end gap-3 border-t border-slate-100 pt-4">
+          <button className="btn-secondary" onClick={onClose}>Ακύρωση</button>
+          <button className="btn-secondary" disabled={loading === 'record-payment'} onClick={handlePayment}>
+            {loading === 'record-payment' ? 'Καταχώρηση…' : '💳 Καταχώρηση Πληρωμής'}
+          </button>
+          <button className="btn-primary" disabled={loading === 'finalize-and-send'} onClick={handleFinalize}>
+            {loading === 'finalize-and-send' ? 'Έκδοση…' : '✅ Οριστική Έκδοση + Αποστολή'}
+          </button>
         </div>
       </div>
+    );
+  }
 
+  // ── MODE: Invoice exists — org is locked, only payment ──
+  if (hasInvoice) {
+    return (
+      <div className="space-y-5">
+        {infoBox}
+        <div className="rounded-xl px-4 py-3 flex items-center gap-3 bg-emerald-50 border border-emerald-200 text-sm">
+          <span className="text-xl">🧾</span>
+          <div>
+            <div className="font-bold text-emerald-800">{record.invoice_number}</div>
+            <div className="text-emerald-600 text-xs">Οργανισμός: <strong>{ORG_LABEL[lockedOrg] || lockedOrg || '—'}</strong></div>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="label">Ποσό Πληρωμής (€)</label>
+            <input type="number" step="0.01" className="input" value={payAmount} onChange={e => setPayAmount(e.target.value)} />
+          </div>
+          <div>
+            <label className="label">Ημερομηνία</label>
+            <input type="date" className="input" value={payDate} onChange={e => setPayDate(e.target.value)} />
+          </div>
+        </div>
+        <div className="flex justify-end gap-3 border-t border-slate-100 pt-4">
+          <button className="btn-secondary" onClick={onClose}>Ακύρωση</button>
+          <button className="btn-primary" disabled={loading === 'record-payment'} onClick={handlePayment}>
+            {loading === 'record-payment' ? 'Καταχώρηση…' : '💳 Καταχώρηση Πληρωμής'}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── MODE: No draft, no invoice — full creation form ──
+  return (
+    <div className="space-y-5">
+      {infoBox}
       <div className="grid grid-cols-2 gap-4">
         <div>
           <label className="label">Οργανισμός Έκδοσης</label>
-          <select className="input" {...register('org_key')}>
+          <select className="input" value={orgKey} onChange={e => setOrgKey(e.target.value)}>
             <option value="DEFAULT">i-Mentor (κύρια)</option>
             <option value="IMENTOR_IKE">I MENTOR IKE</option>
           </select>
         </div>
         <div>
-          <label className="label">Ημερομηνία Τιμολογίου</label>
-          <input type="date" className="input" {...register('date')} />
+          <label className="label">Τύπος</label>
+          <select className="input" value={kind} onChange={e => setKind(e.target.value)}>
+            <option value="TPY">ΤΠΥ — Τιμολόγιο Παροχής Υπηρεσιών</option>
+            <option value="APY">ΑΠΥ — Απόδειξη Παροχής Υπηρεσιών</option>
+          </select>
         </div>
         <div>
           <label className="label">Ποσό με ΦΠΑ (€) <span className="text-rose-500">*</span></label>
-          <input type="number" step="0.01" className="input" {...register('amount', { required: true })} />
+          <input type="number" step="0.01" className="input" value={amount} onChange={e => setAmount(e.target.value)} />
+        </div>
+        <div>
+          <label className="label">Ημερομηνία</label>
+          <input type="date" className="input" value={date} onChange={e => setDate(e.target.value)} />
         </div>
       </div>
-
       <div>
         <label className="label">Περιγραφή / Αιτιολογία</label>
-        <textarea className="input h-16 resize-none" {...register('description')} />
+        <textarea className="input h-16 resize-none" value={description} onChange={e => setDescription(e.target.value)} />
       </div>
-
-      {amount && parseFloat(amount) > 0 && (
-        <div className="rounded-xl p-4 space-y-2 text-sm" style={{ background: '#f0fdf4', border: '1px solid #bbf7d0' }}>
-          <div className="flex justify-between text-slate-600">
-            <span>Καθαρό ποσό</span>
-            <span className="font-semibold">{fmt(parseFloat(net))}</span>
-          </div>
-          <div className="flex justify-between text-slate-600">
-            <span>ΦΠΑ 24%</span>
-            <span className="font-semibold">{fmt(parseFloat(vat))}</span>
-          </div>
-          {withholding && (
-            <div className="flex justify-between text-rose-600">
-              <span>Παρακράτηση 20%</span>
-              <span className="font-semibold">−{fmt(parseFloat(withholdingAmt))}</span>
-            </div>
-          )}
-          <div className="flex justify-between font-black text-slate-800 border-t border-emerald-200 pt-2 mt-1">
-            <span>Πληρωτέο</span>
-            <span className="text-emerald-700">{fmt(payable)}</span>
-          </div>
-        </div>
-      )}
-
+      <AmountBreakdown amount={amount} orgKey={orgKey} kind={kind} />
       <div className="flex justify-end gap-3 border-t border-slate-100 pt-4">
-        <button type="button" className="btn-secondary" onClick={onClose}>Ακύρωση</button>
-        <button type="submit" className="btn-primary" disabled={loading}>
-          {loading ? 'Έκδοση...' : 'Έκδοση Τιμολογίου'}
+        <button className="btn-secondary" onClick={onClose}>Ακύρωση</button>
+        <button className="btn-secondary" disabled={!amount || loading === 'create-draft'} onClick={handleDraft}>
+          {loading === 'create-draft' ? 'Δημιουργία…' : '📝 Δημιουργία Draft'}
+        </button>
+        <button className="btn-primary" disabled={!amount || !!loading} onClick={handleOneShot}>
+          {loading === 'one-shot' ? 'Επεξεργασία…' : '⚡ Έκδοση + Αποστολή + Πληρωμή'}
         </button>
       </div>
-    </form>
+    </div>
   );
 }
 
@@ -177,12 +288,14 @@ export default function InvoicesPage() {
                   <td className="td">
                     {r.invoice_number
                       ? <span className="badge-blue">{r.invoice_number}</span>
-                      : <span className="text-xs text-slate-300">Χωρίς τιμολόγιο</span>
+                      : r.elorus_invoice_id
+                        ? <span className="badge-yellow text-xs">Draft · {ORG_LABEL[r.elorus_org_key] || r.elorus_org_key || '—'}</span>
+                        : <span className="text-xs text-slate-300">Χωρίς τιμολόγιο</span>
                     }
                   </td>
                   <td className="td">
                     <button className="btn-primary btn-sm" onClick={() => setSelected(r)}>
-                      {r.invoice_number ? 'Νέο' : 'Έκδοση'}
+                      {r.invoice_number ? 'Πληρωμή' : r.elorus_invoice_id ? 'Συνέχεια →' : 'Έκδοση'}
                     </button>
                   </td>
                 </tr>
