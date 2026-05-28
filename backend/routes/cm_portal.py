@@ -126,16 +126,18 @@ def _build_portal_data(case: CMCase, db: Session) -> dict:
     ]
 
 
-    # Client-uploaded documents
+    # Documents visible to client: client-uploaded + consultant docs marked portal_visible
     client_docs = [
         {
             "id": d.id,
             "name": d.name,
             "file_url": d.file_url,
             "status": d.status,
+            "uploaded_by_client": getattr(d, "uploaded_by_client", False) or False,
             "created_at": fmt_dt(d.created_at),
         }
-        for d in (case.documents or []) if d.uploaded_by_client
+        for d in (case.documents or [])
+        if d.uploaded_by_client or getattr(d, "portal_visible", False)
     ]
 
     # Budget breakdown

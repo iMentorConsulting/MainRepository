@@ -190,6 +190,7 @@ class CMDocument(Base):
     mime_type = Column(String(100), nullable=True)
     drive_file_id = Column(String(200), nullable=True)
     upload_source = Column(String(50), nullable=True)  # 'consultant' | 'portal_general' | 'portal_pending_item'
+    portal_visible = Column(Boolean, default=False, nullable=True)  # consultant docs visible in client portal
 
     created_at = Column(DateTime, default=datetime.utcnow)
 

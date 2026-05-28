@@ -240,6 +240,7 @@ def doc_to_dict(d: CMDocument) -> dict:
         "has_file_data": d.mime_type is not None,
         "drive_file_id": getattr(d, "drive_file_id", None),
         "upload_source": getattr(d, "upload_source", None),
+        "portal_visible": getattr(d, "portal_visible", False) or False,
         "created_at": fmt_dt(d.created_at),
     }
 
@@ -860,6 +861,7 @@ async def upload_consultant_document(
     name: str = Form(default=""),
     document_type: str = Form(default=""),
     notes: str = Form(default=""),
+    portal_visible: str = Form(default="false"),
     db: Session = Depends(get_db),
     current_user = Depends(get_current_user),
 ):
@@ -889,14 +891,15 @@ async def upload_consultant_document(
     except Exception:
         file_data_db = data
 
+    is_portal_visible = portal_visible.lower() in ("true", "1", "yes")
     from sqlalchemy import text as _sqlt
     result = db.execute(_sqlt("""
         INSERT INTO cm_documents
             (case_id, name, document_type, status, uploaded_by,
-             uploaded_by_client, file_data, mime_type, drive_file_id, upload_source, notes, created_at)
+             uploaded_by_client, file_data, mime_type, drive_file_id, upload_source, notes, portal_visible, created_at)
         VALUES
             (:case_id, :name, :document_type, 'pending', :uploaded_by,
-             FALSE, :file_data, :mime_type, :drive_file_id, 'consultant', :notes, NOW())
+             FALSE, :file_data, :mime_type, :drive_file_id, 'consultant', :notes, :portal_visible, NOW())
         RETURNING id
     """), {
         "case_id": case_id,
@@ -907,6 +910,7 @@ async def upload_consultant_document(
         "mime_type": file.content_type or "application/octet-stream",
         "drive_file_id": drive_id,
         "notes": notes.strip() or None,
+        "portal_visible": is_portal_visible,
     })
     db.commit()
     doc_id = result.fetchone()[0]

@@ -74,6 +74,7 @@ export default function DocumentsTab({ caseId, caseData, onRefresh }) {
   const [uploading, setUploading] = useState(false)
   const [uploadName, setUploadName] = useState('')
   const [uploadType, setUploadType] = useState('')
+  const [uploadPortalVisible, setUploadPortalVisible] = useState(false)
   const fileRef = useRef(null)
   const f = (k) => ({ value: form[k], onChange: e => setForm(p => ({ ...p, [k]: e.target.value })) })
 
@@ -95,9 +96,9 @@ export default function DocumentsTab({ caseId, caseData, onRefresh }) {
     if (!uploadName) setUploadName(file.name)
     setUploading(true)
     try {
-      await uploadConsultantDocument(caseId, file, uploadName || file.name, uploadType)
+      await uploadConsultantDocument(caseId, file, uploadName || file.name, uploadType, '', uploadPortalVisible)
       toast.success('Αρχείο ανέβηκε')
-      setUploadName(''); setUploadType('')
+      setUploadName(''); setUploadType(''); setUploadPortalVisible(false)
       if (fileRef.current) fileRef.current.value = ''
       onRefresh()
     } catch { toast.error('Σφάλμα ανεβάσματος') } finally { setUploading(false) }
@@ -122,6 +123,12 @@ export default function DocumentsTab({ caseId, caseData, onRefresh }) {
         <div className="flex flex-wrap gap-3 items-end">
           <div className="flex-1 min-w-40"><label className="label">Όνομα αρχείου</label><input className="input" placeholder="Αφήστε κενό για αυτόματο" value={uploadName} onChange={e => setUploadName(e.target.value)} /></div>
           <div className="w-40"><label className="label">Τύπος</label><input className="input" placeholder="π.χ. Τιμολόγιο" value={uploadType} onChange={e => setUploadType(e.target.value)} /></div>
+          <div className="flex items-end pb-1">
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+              <input type="checkbox" checked={uploadPortalVisible} onChange={e => setUploadPortalVisible(e.target.checked)} className="w-4 h-4 rounded border-gray-300 text-blue-600 cursor-pointer" />
+              <span className="text-sm text-gray-700">Ορατό στο portal</span>
+            </label>
+          </div>
           <div>
             <label className="label">Αρχείο *</label>
             <label className={`btn-primary flex items-center gap-2 cursor-pointer ${uploading ? 'opacity-50 pointer-events-none' : ''}`}>
@@ -184,7 +191,12 @@ export default function DocumentsTab({ caseId, caseData, onRefresh }) {
                       </select>
                     </td>
                     <td className="px-4 py-3">
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${src.color}`}>{src.label}</span>
+                      <div className="flex flex-col gap-1">
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium w-fit ${src.color}`}>{src.label}</span>
+                        {d.portal_visible && !d.uploaded_by_client && (
+                          <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-amber-100 text-amber-700 w-fit">👁 Portal</span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-4 py-3 max-w-[180px]">
                       <NotesCell caseId={caseId} docId={d.id} initialValue={d.notes} onRefresh={onRefresh} />

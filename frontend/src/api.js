@@ -173,12 +173,13 @@ export const uploadPortalFile = (token, file, source = 'portal_general') => {
   return axios.post(`${BASE}/api/cm/portal/public/${token}/upload`, fd).then(r => r.data)
 }
 
-export const uploadConsultantDocument = (caseId, file, name = '', documentType = '', notes = '') => {
+export const uploadConsultantDocument = (caseId, file, name = '', documentType = '', notes = '', portalVisible = false) => {
   const fd = new FormData()
   fd.append('file', file)
   if (name) fd.append('name', name)
   if (documentType) fd.append('document_type', documentType)
   if (notes) fd.append('notes', notes)
+  fd.append('portal_visible', portalVisible ? 'true' : 'false')
   return api.post(`/api/cm/cases/${caseId}/documents/upload`, fd).then(r => r.data)
 }
 export const submitAnakainizwIntake = (token, data) =>
