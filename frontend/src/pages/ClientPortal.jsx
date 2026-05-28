@@ -1173,7 +1173,9 @@ export default function ClientPortal() {
                     <span className="text-xl">{icons[c.program_category] || '📁'}</span>
                     <div className="flex-1 min-w-0">
                       <div className="text-sm font-semibold text-gray-800 group-hover:text-amber-800">{labels[c.program_category] || c.program_category}</div>
+                      {c.client_name && <div className="text-xs text-gray-600">{c.client_name}</div>}
                       {c.service_type && <div className="text-xs text-gray-500 truncate">{c.service_type}</div>}
+                      {c.property_address && <div className="text-xs text-gray-400 truncate">📍 {c.property_address}</div>}
                     </div>
                     <span className="text-xs text-amber-600 font-medium group-hover:underline">Μετάβαση →</span>
                   </a>

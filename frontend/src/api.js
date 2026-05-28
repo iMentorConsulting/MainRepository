@@ -166,10 +166,20 @@ export const recordPortalReviewClick = (token) =>
   axios.post(`${BASE}/api/cm/portal/public/${token}/review-click`).then(r => r.data)
 export const submitPortalMessage = (token, content) =>
   axios.post(`${BASE}/api/cm/portal/public/${token}/message`, { content }).then(r => r.data)
-export const uploadPortalFile = (token, file) => {
+export const uploadPortalFile = (token, file, source = 'portal_general') => {
   const fd = new FormData()
   fd.append('file', file)
+  fd.append('source', source)
   return axios.post(`${BASE}/api/cm/portal/public/${token}/upload`, fd).then(r => r.data)
+}
+
+export const uploadConsultantDocument = (caseId, file, name = '', documentType = '', notes = '') => {
+  const fd = new FormData()
+  fd.append('file', file)
+  if (name) fd.append('name', name)
+  if (documentType) fd.append('document_type', documentType)
+  if (notes) fd.append('notes', notes)
+  return api.post(`/api/cm/cases/${caseId}/documents/upload`, fd).then(r => r.data)
 }
 export const submitAnakainizwIntake = (token, data) =>
   axios.put(`${BASE}/api/cm/portal/public/${token}/anakainizw-intake`, data).then(r => r.data)

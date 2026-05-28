@@ -189,6 +189,7 @@ class CMDocument(Base):
     file_data = deferred(Column(LargeBinary, nullable=True))
     mime_type = Column(String(100), nullable=True)
     drive_file_id = Column(String(200), nullable=True)
+    upload_source = Column(String(50), nullable=True)  # 'consultant' | 'portal_general' | 'portal_pending_item'
 
     created_at = Column(DateTime, default=datetime.utcnow)
 

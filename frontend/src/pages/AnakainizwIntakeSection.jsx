@@ -131,7 +131,7 @@ export default function AnakainizwIntakeSection({ caseData, token, onRefresh }) 
     setUploading(u => ({ ...u, [docKey]: true }))
     setUploadError(ue => ({ ...ue, [docKey]: '' }))
     try {
-      await uploadPortalFile(token, file)
+      await uploadPortalFile(token, file, 'portal_pending_item')
       setUploaded(u => ({ ...u, [docKey]: file.name }))
     } catch {
       setUploadError(ue => ({ ...ue, [docKey]: 'Αποτυχία μεταφόρτωσης' }))

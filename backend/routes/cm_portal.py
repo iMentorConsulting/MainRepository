@@ -532,7 +532,7 @@ def get_related_cases(token: str, db: Session = Depends(get_db)):
 
     # Match by AFM (DB-level, case-sensitive exact match on trimmed value)
     if case_afm:
-        afm_matches = db.query(CMCase).filter(
+        afm_matches = db.query(CMCase).options(joinedload(CMCase.anakainizw_data)).filter(
             CMCase.afm == case_afm,
             CMCase.portal_active == True,
             CMCase.id != case.id,
@@ -545,7 +545,7 @@ def get_related_cases(token: str, db: Session = Depends(get_db)):
 
     # Match by phone (covers ΑΝΑΚΑΙΝΙΖΩ without AFM, or cases where AFM wasn't filled)
     if case_phone:
-        candidates = db.query(CMCase).filter(
+        candidates = db.query(CMCase).options(joinedload(CMCase.anakainizw_data)).filter(
             CMCase.portal_active == True,
             CMCase.id != case.id,
         ).all()
@@ -563,6 +563,8 @@ def get_related_cases(token: str, db: Session = Depends(get_db)):
             "token": c.share_token,
             "program_category": c.program_category,
             "service_type": c.service_type or "",
+            "client_name": c.client_name or "",
+            "property_address": (getattr(c.anakainizw_data, "property_address", None) if c.anakainizw_data else None) or "",
         }
         for c in related if c.share_token
     ]
@@ -903,6 +905,7 @@ def client_send_message(token: str, body: dict, db: Session = Depends(get_db)):
 async def client_upload_file(
     token: str,
     file: UploadFile = File(...),
+    source: str = Form(default="portal_general"),
     db: Session = Depends(get_db),
 ):
     """Client uploads a file from the portal — stored as binary in DB."""
@@ -937,10 +940,10 @@ async def client_upload_file(
     db.execute(_sqlt("""
         INSERT INTO cm_documents
             (case_id, name, document_type, status, uploaded_by,
-             uploaded_by_client, file_data, mime_type, drive_file_id, created_at)
+             uploaded_by_client, file_data, mime_type, drive_file_id, upload_source, created_at)
         VALUES
             (:case_id, :name, 'client_upload', 'pending', :uploaded_by,
-             TRUE, :file_data, :mime_type, :drive_file_id, NOW())
+             TRUE, :file_data, :mime_type, :drive_file_id, :upload_source, NOW())
     """), {
         "case_id": case.id,
         "name": file.filename or "upload",
@@ -948,6 +951,7 @@ async def client_upload_file(
         "file_data": file_data_db,
         "mime_type": file.content_type or "application/octet-stream",
         "drive_file_id": drive_id,
+        "upload_source": source,
     })
     db.commit()
 

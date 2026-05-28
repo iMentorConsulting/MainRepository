@@ -1,5 +1,5 @@
 import logging
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Form
 from sqlalchemy.orm import Session, joinedload, selectinload, defer
 from sqlalchemy import or_
 from pydantic import BaseModel
@@ -239,6 +239,7 @@ def doc_to_dict(d: CMDocument) -> dict:
         "has_file": bool(getattr(d, "drive_file_id", None) or d.mime_type),
         "has_file_data": d.mime_type is not None,
         "drive_file_id": getattr(d, "drive_file_id", None),
+        "upload_source": getattr(d, "upload_source", None),
         "created_at": fmt_dt(d.created_at),
     }
 
@@ -850,6 +851,67 @@ def list_documents(
 ):
     docs = db.query(CMDocument).filter(CMDocument.case_id == case_id).order_by(CMDocument.created_at.desc()).all()
     return [doc_to_dict(d) for d in docs]
+
+
+@router.post("/{case_id}/documents/upload")
+async def upload_consultant_document(
+    case_id: int,
+    file: UploadFile = File(...),
+    name: str = Form(default=""),
+    document_type: str = Form(default=""),
+    notes: str = Form(default=""),
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user),
+):
+    """Consultant uploads a file directly from the documents tab."""
+    case = db.query(CMCase).filter(CMCase.id == case_id).first()
+    if not case:
+        raise HTTPException(status_code=404)
+
+    data = await file.read()
+    if len(data) > 20 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="Μέγιστο μέγεθος: 20MB")
+
+    actual_name = name.strip() or file.filename or "document"
+
+    drive_id = None
+    file_data_db = None
+    try:
+        from drive_storage import upload_case_document
+        drive_id = upload_case_document(
+            content=data,
+            filename=actual_name,
+            mime_type=file.content_type or "application/octet-stream",
+            program_category=case.program_category or "Άλλο",
+            case_id=case.id,
+            client_name=case.client_name or "client",
+        )
+    except Exception:
+        file_data_db = data
+
+    from sqlalchemy import text as _sqlt
+    result = db.execute(_sqlt("""
+        INSERT INTO cm_documents
+            (case_id, name, document_type, status, uploaded_by,
+             uploaded_by_client, file_data, mime_type, drive_file_id, upload_source, notes, created_at)
+        VALUES
+            (:case_id, :name, :document_type, 'pending', :uploaded_by,
+             FALSE, :file_data, :mime_type, :drive_file_id, 'consultant', :notes, NOW())
+        RETURNING id
+    """), {
+        "case_id": case_id,
+        "name": actual_name,
+        "document_type": document_type.strip() or None,
+        "uploaded_by": current_user.full_name,
+        "file_data": file_data_db,
+        "mime_type": file.content_type or "application/octet-stream",
+        "drive_file_id": drive_id,
+        "notes": notes.strip() or None,
+    })
+    db.commit()
+    doc_id = result.fetchone()[0]
+    doc = db.query(CMDocument).filter(CMDocument.id == doc_id).first()
+    return doc_to_dict(doc)
 
 
 @router.post("/{case_id}/documents")
