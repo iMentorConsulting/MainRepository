@@ -52,11 +52,14 @@ def _chatwoot_send_with_retry(client_name: str, phone: str, message: str, max_at
         if ok:
             return True, ""
         last_err = err
-        is_timeout = "timed out" in err.lower() or "timeout" in err.lower() or "connectionpool" in err.lower()
-        if not is_timeout or attempt == max_attempts:
+        is_retryable = (
+            "timed out" in err.lower() or "timeout" in err.lower() or
+            "connectionpool" in err.lower() or "αδυναμία" in err.lower()
+        )
+        if not is_retryable or attempt == max_attempts:
             break
         wait = attempt * 3
-        print(f"[Chatwoot] attempt {attempt} failed (timeout), retrying in {wait}s...")
+        print(f"[Chatwoot] attempt {attempt} failed ({err[:60]}), retrying in {wait}s...")
         time.sleep(wait)
     return False, last_err
 
@@ -150,9 +153,10 @@ def _chatwoot_send(client_name: str, phone: str, message: str) -> tuple[bool, st
                     ) or None
                 except Exception:
                     pass
-                # If still not found, retry search — contact likely already exists
+                # If still not found, wait briefly then retry search — Chatwoot may need time to commit
                 if not contact_id:
-                    print(f"[Chatwoot] create failed ({r.status_code}), retrying search...")
+                    print(f"[Chatwoot] create failed ({r.status_code}), waiting 2s then retrying search...")
+                    time.sleep(2)
                     try:
                         r2 = http_requests.get(
                             f"{base}/contacts/search",
