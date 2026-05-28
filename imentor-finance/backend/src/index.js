@@ -13,71 +13,35 @@ require('./models/RecurringExpense');
 
 const authMiddleware = require('./middleware/auth');
 
+// ── Fix 6: Warn on startup if ADMIN_PASSWORD is not bcrypt-hashed ──────────
+if (process.env.ADMIN_PASSWORD && !process.env.ADMIN_PASSWORD.startsWith('$2')) {
+  console.warn('\n⚠️  SECURITY WARNING: ADMIN_PASSWORD is stored as plaintext in Railway env vars.');
+  console.warn('   Run this once to generate a bcrypt hash and update the env var:');
+  console.warn('   node -e "require(\'bcryptjs\').hash(\'YOUR_PASSWORD\', 12).then(h => console.log(h))"');
+  console.warn('   Then set ADMIN_PASSWORD=<the hash> in Railway.\n');
+}
+
 const app = express();
-app.use(cors());
+
+// ── Fix 4: Restrict CORS ────────────────────────────────────────────────────
+// Set CORS_ORIGINS in Railway env vars (comma-separated) to lock down origins.
+// In development (no env var set) all origins are allowed so local dev still works.
+const allowedOrigins = process.env.CORS_ORIGINS
+  ? process.env.CORS_ORIGINS.split(',').map(o => o.trim()).filter(Boolean)
+  : null;
+
+app.use(cors(allowedOrigins ? {
+  origin: (origin, cb) => {
+    // Allow requests with no Origin header (Railway health checks, curl, same-origin)
+    if (!origin || allowedOrigins.includes(origin)) cb(null, true);
+    else cb(new Error(`CORS: origin ${origin} not allowed`));
+  },
+  credentials: true,
+} : undefined));
+
 app.use(express.json({ limit: '10mb' }));
 
 app.use('/api/auth', require('./routes/auth'));
-
-// Public debug: read full doc type details + real invoice mydata_document_type from Elorus
-app.get('/api/debug/invoice-fields', async (req, res) => {
-  try {
-    const axios = require('axios');
-    const orgKey = req.query.org_key || 'DEFAULT';
-    const ORGS = { DEFAULT: process.env.ELORUS_ORG_DEFAULT, IMENTOR_IKE: process.env.ELORUS_ORG_IMENTOR_IKE };
-    const BASE = 'https://api.elorus.com/v1.1/';
-    const headers = {
-      Authorization: `Token ${process.env.ELORUS_TOKEN}`,
-      Accept: 'application/json',
-      'Content-Type': 'application/json',
-      'X-Elorus-Organization': ORGS[orgKey] || ORGS.DEFAULT,
-    };
-    const dtR = await axios.get(`${BASE}documenttypes/?active=true&page_size=100`, { headers });
-    const allDt = dtR.data.results || [];
-    const result = { docTypeDetails: {}, invoices: {} };
-    for (const dt of allDt) {
-      const detail = (await axios.get(`${BASE}documenttypes/${dt.id}/`, { headers })).data;
-      result.docTypeDetails[dt.title] = detail;
-      try {
-        const invR = await axios.get(`${BASE}invoices/?document_type=${dt.id}&page_size=2`, { headers });
-        const invs = invR.data.results || [];
-        if (invs.length) {
-          result.invoices[dt.title] = invs.map(i => ({
-            number: i.number, draft: i.draft,
-            mydata_document_type: i.mydata_document_type,
-            items: (i.items || []).map(it => ({
-              mydata_classification_category: it.mydata_classification_category,
-              mydata_classification_type: it.mydata_classification_type,
-            })),
-          }));
-        }
-      } catch (ie) { /* skip */ }
-    }
-    res.json(result);
-  } catch (e) { res.status(500).json({ error: e.response?.data || e.message }); }
-});
-
-// Public debug endpoint — no auth (temporary, for Elorus tax rate discovery)
-app.get('/api/debug/elorus', async (req, res) => {
-  try {
-    const axios = require('axios');
-    const orgKey = req.query.org_key || 'DEFAULT';
-    const ORGS = { DEFAULT: process.env.ELORUS_ORG_DEFAULT, IMENTOR_IKE: process.env.ELORUS_ORG_IMENTOR_IKE };
-    const headers = {
-      Authorization: `Token ${process.env.ELORUS_TOKEN}`,
-      Accept: 'application/json',
-      'Content-Type': 'application/json',
-      'X-Elorus-Organization': ORGS[orgKey] || ORGS.DEFAULT,
-    };
-    const BASE = 'https://api.elorus.com/v1.1/';
-    const out = {};
-    for (const ep of ['', 'itemtaxes/', 'itemtaxes/?active=true', 'taxes/', 'taxratecategories/', 'taxrates/', 'invoices/?page_size=1']) {
-      try { out[ep || 'ROOT'] = (await axios.get(`${BASE}${ep}`, { headers })).data; }
-      catch (e) { out[ep || 'ROOT'] = { status: e.response?.status, error: e.message }; }
-    }
-    res.json(out);
-  } catch (e) { res.status(500).json({ error: e.message }); }
-});
 
 app.use('/api/invoices/tax-rates', require('./routes/invoices')); // kept but unused now
 app.use('/api/income',     authMiddleware, require('./routes/income'));

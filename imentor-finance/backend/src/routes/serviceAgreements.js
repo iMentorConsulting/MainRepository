@@ -60,22 +60,32 @@ router.get('/', async (req, res) => {
       { customer_name: { [Op.iLike]: `%${search}%` } },
       { service_type: { [Op.iLike]: `%${search}%` } }
     ];
-    // Filter by first income sale_date year/month
-    const saleDateConditions = ['service_agreement_id IS NOT NULL'];
-    if (sale_years) {
-      const years = sale_years.split(',').map(y => parseInt(y.trim())).filter(Boolean);
-      if (years.length) saleDateConditions.push(`EXTRACT(YEAR FROM sale_date) IN (${years.join(',')})`);
-    } else if (sale_year) {
-      saleDateConditions.push(`EXTRACT(YEAR FROM sale_date) = ${parseInt(sale_year)}`);
+    // Filter by first income sale_date year/month — fully parameterized, no string interpolation
+    const saleDateParts = ['service_agreement_id IS NOT NULL'];
+    const saleDateReplacements = {};
+    const validYear  = n => Number.isInteger(n) && n >= 2000 && n <= 2100;
+    const validMonth = n => Number.isInteger(n) && n >= 1    && n <= 12;
+    const yearVals = sale_years
+      ? sale_years.split(',').map(y => parseInt(y.trim(), 10)).filter(validYear)
+      : sale_year ? [parseInt(sale_year, 10)].filter(validYear) : [];
+    const monthVals = sale_months
+      ? sale_months.split(',').map(m => parseInt(m.trim(), 10)).filter(validMonth)
+      : sale_month ? [parseInt(sale_month, 10)].filter(validMonth) : [];
+    if (yearVals.length) {
+      saleDateParts.push('EXTRACT(YEAR FROM sale_date) IN (:saleYears)');
+      saleDateReplacements.saleYears = yearVals;
     }
-    if (sale_months) {
-      const months = sale_months.split(',').map(m => parseInt(m.trim())).filter(Boolean);
-      if (months.length) saleDateConditions.push(`EXTRACT(MONTH FROM sale_date) IN (${months.join(',')})`);
-    } else if (sale_month) {
-      saleDateConditions.push(`EXTRACT(MONTH FROM sale_date) = ${parseInt(sale_month)}`);
+    if (monthVals.length) {
+      saleDateParts.push('EXTRACT(MONTH FROM sale_date) IN (:saleMonths)');
+      saleDateReplacements.saleMonths = monthVals;
     }
-    if (saleDateConditions.length > 1) {
-      where.id = { [Op.in]: sequelize.literal(`(SELECT DISTINCT service_agreement_id FROM income WHERE ${saleDateConditions.join(' AND ')})`) };
+    if (saleDateParts.length > 1) {
+      const incomeIds = await sequelize.query(
+        `SELECT DISTINCT service_agreement_id FROM income WHERE ${saleDateParts.join(' AND ')}`,
+        { replacements: saleDateReplacements, type: QueryTypes.SELECT }
+      );
+      const saleFilterIds = incomeIds.map(r => r.service_agreement_id).filter(Boolean);
+      where.id = { [Op.in]: saleFilterIds.length ? saleFilterIds : [-1] };
     }
     const ALLOWED_SORT = ['customer_name', 'service_type', 'status', 'amount_application', 'amount_implementation', 'approval_date', 'createdAt', 'sales_agent'];
     const sf = ALLOWED_SORT.includes(sort_field) ? sort_field : 'createdAt';
