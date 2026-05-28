@@ -228,7 +228,7 @@ export default function Dashboard({ currentEmployee }) {
                   <tr key={c.id} className={`hover:bg-blue-50 transition-colors ${attention ? 'bg-amber-50/40' : ''}`}>
                     <td className="td text-left pl-4">
                       <div className="font-semibold text-blue-900">{c.client_name}</div>
-                      {c.client_phone && <div className="text-xs text-gray-500">{c.client_phone}</div>}
+                      {c.client_phone && <a href={`tel:${c.client_phone}`} onClick={e => e.stopPropagation()} className="text-xs text-blue-600 hover:text-blue-800 hover:underline">{c.client_phone}</a>}
                       {hasActuals && <div className="text-xs text-green-600 font-semibold mt-0.5">✓ Αποτέλεσμα</div>}
                       {attention && <div className="text-xs text-amber-600 font-semibold mt-0.5">⚡ Follow-up</div>}
                       {c.portal_visit_count > 0 && <div className="text-xs text-indigo-600 font-semibold mt-0.5">👁 {c.portal_visit_count} επίσκεψη{c.portal_visit_count !== 1 ? 'εις' : ''}</div>}
