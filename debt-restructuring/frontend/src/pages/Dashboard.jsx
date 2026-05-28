@@ -231,7 +231,7 @@ export default function Dashboard({ currentEmployee }) {
                       {c.client_phone && <a href={`tel:${c.client_phone}`} onClick={e => e.stopPropagation()} className="text-xs text-blue-600 hover:text-blue-800 hover:underline">{c.client_phone}</a>}
                       {hasActuals && <div className="text-xs text-green-600 font-semibold mt-0.5">✓ Αποτέλεσμα</div>}
                       {attention && <div className="text-xs text-amber-600 font-semibold mt-0.5">⚡ Follow-up</div>}
-                      {c.portal_visit_count > 0 && <div className="text-xs text-indigo-600 font-semibold mt-0.5">👁 {c.portal_visit_count} επίσκεψη{c.portal_visit_count !== 1 ? 'εις' : ''}</div>}
+                      {c.portal_visit_count > 0 && <div className="text-xs text-indigo-600 font-semibold mt-0.5">👁 {c.portal_visit_count} {c.portal_visit_count === 1 ? 'επίσκεψη' : 'επισκέψεις'}</div>}
                     </td>
                     <td className="td">
                       <span className="bg-blue-100 text-blue-800 text-xs font-bold px-2 py-0.5 rounded-full">{c.employee}</span>
