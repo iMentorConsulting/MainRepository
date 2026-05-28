@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import datetime
 from pydantic import BaseModel
-import os, json, base64
+import os, json, base64, time
 import requests as http_requests
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
@@ -43,6 +43,22 @@ class EmailSendRequest(BaseModel):
     to: str
     subject: str
     body: str
+
+
+def _chatwoot_send_with_retry(client_name: str, phone: str, message: str, max_attempts: int = 3) -> tuple[bool, str]:
+    last_err = ""
+    for attempt in range(1, max_attempts + 1):
+        ok, err = _chatwoot_send(client_name, phone, message)
+        if ok:
+            return True, ""
+        last_err = err
+        is_timeout = "timed out" in err.lower() or "timeout" in err.lower() or "connectionpool" in err.lower()
+        if not is_timeout or attempt == max_attempts:
+            break
+        wait = attempt * 3
+        print(f"[Chatwoot] attempt {attempt} failed (timeout), retrying in {wait}s...")
+        time.sleep(wait)
+    return False, last_err
 
 
 def _send_gmail(to: str, subject: str, body: str) -> tuple[bool, str]:
@@ -398,7 +414,7 @@ def send_winback(id: int, data: WinbackSendRequest, db: Session = Depends(get_db
         else:
             if not phone.startswith("+"):
                 phone = "+30" + (phone[1:] if phone.startswith("0") else phone)
-            ok, err = _chatwoot_send(case.client_name, phone, data.message)
+            ok, err = _chatwoot_send_with_retry(case.client_name, phone, data.message)
             if not ok:
                 errors.append(f"Viber: {err}")
 

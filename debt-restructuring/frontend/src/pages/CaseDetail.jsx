@@ -812,6 +812,17 @@ export default function CaseDetail({ currentEmployee }) {
               </div>
             )}
           </div>
+          {caseData.commercial_offer?.winback_status === 'sent' && (
+            <div className="mt-3 pt-3 border-t border-blue-200">
+              <div className="flex items-center gap-2 text-xs font-bold text-violet-700 mb-1">
+                <span>💎 Εστάλη Ειδική Τιμή Win-back</span>
+              </div>
+              <div className="flex gap-6 text-xs text-gray-600">
+                <span>Αίτηση: <strong className="text-violet-700">{Number(caseData.commercial_offer.winback_app || 0).toLocaleString('el-GR')} €</strong></span>
+                <span>Success fee: <strong className="text-violet-700">{Number(caseData.commercial_offer.winback_suc || 0).toLocaleString('el-GR')} €</strong></span>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

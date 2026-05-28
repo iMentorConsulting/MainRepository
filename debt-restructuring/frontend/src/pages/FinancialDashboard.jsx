@@ -1387,9 +1387,12 @@ function WinbackPanel({ cases, onCasesUpdate }) {
     c.commercial_offer?.winback_status === 'approved'
   )
 
+  const sent = cases.filter(c => c.commercial_offer?.winback_status === 'sent')
+
   const totalSaving = cases.reduce((s, c) => s + (c.commercial_offer?.winback_saving || 0), 0)
 
   const [openComposer, setOpenComposer] = useState(null)
+  const [showSent, setShowSent] = useState(false)
 
   const handleApprove = async (c, approve) => {
     try {
@@ -1411,7 +1414,7 @@ function WinbackPanel({ cases, onCasesUpdate }) {
     }
   }
 
-  if (candidates.length === 0 && approved.length === 0) return null
+  if (candidates.length === 0 && approved.length === 0 && sent.length === 0) return null
 
   return (
     <div className="bg-violet-50 border border-violet-200 rounded-2xl p-5 space-y-4">
@@ -1517,6 +1520,39 @@ function WinbackPanel({ cases, onCasesUpdate }) {
               )
             })}
           </div>
+        </div>
+      )}
+
+      {/* Sent win-backs */}
+      {sent.length > 0 && (
+        <div>
+          <button
+            onClick={() => setShowSent(v => !v)}
+            className="text-xs text-violet-600 font-bold hover:underline flex items-center gap-1"
+          >
+            💎 {sent.length} ειδικές τιμές εστάλησαν {showSent ? '▲' : '▼'}
+          </button>
+          {showSent && (
+            <div className="mt-2 space-y-1.5">
+              <div className="grid grid-cols-4 text-xs text-gray-400 font-semibold px-3 pb-1 border-b border-violet-100">
+                <span>Πελάτης</span><span>Σύμβουλος</span><span>Ειδική τιμή</span><span>Αρχική τιμή</span>
+              </div>
+              {sent.map(c => {
+                const wbApp = c.commercial_offer?.winback_app || 0
+                const wbSuc = c.commercial_offer?.winback_suc || 0
+                const origApp = c.commercial_offer?.application_fee || c.commercial_offer?.system_app || 0
+                const origSuc = c.commercial_offer?.success_fee || c.commercial_offer?.system_suc || 0
+                return (
+                  <div key={c.id} className="grid grid-cols-4 text-xs bg-white border border-violet-100 rounded-lg px-3 py-2 items-center">
+                    <span className="font-semibold text-gray-800 truncate">{c.client_name}</span>
+                    <span className="text-gray-500">{c.employee}</span>
+                    <span className="font-black text-violet-700">{Number(wbApp).toLocaleString('el-GR')}€ + {Number(wbSuc).toLocaleString('el-GR')}€</span>
+                    <span className="text-gray-400 line-through">{Number(origApp).toLocaleString('el-GR')}€ + {Number(origSuc).toLocaleString('el-GR')}€</span>
+                  </div>
+                )
+              })}
+            </div>
+          )}
         </div>
       )}
     </div>
