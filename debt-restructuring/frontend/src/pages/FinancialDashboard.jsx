@@ -149,7 +149,7 @@ export default function FinancialDashboard({ currentEmployee }) {
   const scenario = useMemo(() => {
     const active = offerCases.filter(c => {
       const stage = c.contact_stage || 'Νέα Ανάλυση'
-      return !TERMINAL.has(stage) && !APP_FEE_PAID.has(stage)
+      return !TERMINAL.has(stage) && !['submitted', 'in_review', 'completed', 'cancelled'].includes(c.status || 'draft')
     })
     const count = active.length
     const totalApp = active.reduce((s, c) => s + Number(c.commercial_offer?.application_fee || 0), 0)
