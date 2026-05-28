@@ -24,17 +24,12 @@ def _get_drive_service():
     sa_json = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON", "").strip()
     if not sa_json:
         raise RuntimeError("GOOGLE_SERVICE_ACCOUNT_JSON not set")
-    # Impersonate the real Google user (same pattern as Gmail sending)
-    # so uploads count against their Drive quota, not the service account's.
-    impersonate = os.getenv("SMTP_USER", "").strip()
     from google.oauth2.service_account import Credentials
     from googleapiclient.discovery import build
     creds = Credentials.from_service_account_info(
         json.loads(sa_json),
         scopes=["https://www.googleapis.com/auth/drive"],
     )
-    if impersonate:
-        creds = creds.with_subject(impersonate)
     return build("drive", "v3", credentials=creds, cache_discovery=False)
 
 
