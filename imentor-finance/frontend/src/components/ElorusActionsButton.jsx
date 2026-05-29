@@ -12,16 +12,16 @@ function fmtE(n) {
   return Number(n).toLocaleString('el-GR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
 }
 
-function Breakdown({ amount, orgKey, kind }) {
+function Breakdown({ amount, orgKey, kind, vatRate = 24 }) {
   if (!amount || isNaN(parseFloat(amount))) return null;
   const net = parseFloat(amount);
-  const vat = net * 0.24;
-  const gross = net * 1.24;
+  const vat = net * (vatRate / 100);
+  const gross = net * (1 + vatRate / 100);
   const wh = (kind !== 'APY' && orgKey !== 'IMENTOR_IKE' && net > 301) ? net * 0.20 : 0;
   return (
     <div className="rounded-xl p-3 text-xs space-y-1.5 bg-slate-50 border border-slate-100">
       <div className="flex justify-between text-slate-500"><span>Καθαρό</span><span className="font-medium text-slate-700">{fmtE(net)}</span></div>
-      <div className="flex justify-between text-slate-500"><span>ΦΠΑ 24%</span><span className="font-medium text-slate-700">{fmtE(vat)}</span></div>
+      <div className="flex justify-between text-slate-500"><span>ΦΠΑ {vatRate}%</span><span className="font-medium text-slate-700">{fmtE(vat)}</span></div>
       <div className="flex justify-between font-semibold text-slate-600"><span>Σύνολο</span><span>{fmtE(gross)}</span></div>
       {wh > 0 && <div className="flex justify-between text-rose-500"><span>Παρακράτηση 20%</span><span className="font-medium">−{fmtE(wh)}</span></div>}
       {wh > 0 && (
@@ -42,6 +42,9 @@ function InvoiceForm({ action, record, onClose, onDone }) {
   const [description, setDescription] = useState(record.description || record.service_type || '');
   const [loading, setLoading] = useState(false);
   const [docTypes, setDocTypes] = useState([]);
+  const [reducedVat, setReducedVat] = useState(false);
+
+  const vatRate = reducedVat ? 17 : 24;
 
   useEffect(() => {
     api.get(`/invoices/document-types?org_key=${orgKey}`)
@@ -65,7 +68,7 @@ function InvoiceForm({ action, record, onClose, onDone }) {
       const r = await api.post(endpoint, {
         income_id: record.id, org_key: orgKey,
         amount: parseFloat(amount), description, date,
-        kind,
+        kind, reduced_vat: reducedVat,
       });
       toast.success(r.data.invoice_number ? `✅ ${r.data.invoice_number}` : '📄 Draft δημιουργήθηκε');
       onDone();
@@ -126,7 +129,12 @@ function InvoiceForm({ action, record, onClose, onDone }) {
         <label className="label">Περιγραφή</label>
         <textarea className="input h-14 resize-none" value={description} onChange={e => setDescription(e.target.value)} />
       </div>
-      <Breakdown amount={amount} orgKey={orgKey} kind={kind} />
+      <label className="flex items-center gap-2 text-sm cursor-pointer select-none w-fit">
+        <input type="checkbox" checked={reducedVat} onChange={e => setReducedVat(e.target.checked)}
+          className="w-4 h-4 rounded accent-sky-600 cursor-pointer" />
+        <span className="text-slate-600">Μειωμένος ΦΠΑ <strong>17%</strong> <span className="text-slate-400">(νησιά)</span></span>
+      </label>
+      <Breakdown amount={amount} orgKey={orgKey} kind={kind} vatRate={vatRate} />
       {isOneShot && (
         <div className="rounded-xl p-3 bg-emerald-50 border border-emerald-100 text-xs text-emerald-700">
           💳 Η πληρωμή καταχωρείται αυτόματα στο Elorus για το παραπάνω ποσό.
