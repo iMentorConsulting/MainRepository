@@ -4,6 +4,9 @@ from datetime import datetime
 import secrets
 
 
+
+
+
 class AppConfig(Base):
     __tablename__ = "app_config"
     key = Column(String, primary_key=True)
@@ -70,3 +73,39 @@ class Case(Base):
     submitted_at = Column(DateTime, nullable=True)
     completed_at = Column(DateTime, nullable=True)
     stage_changed_at = Column(DateTime, nullable=True)
+
+
+class Lead(Base):
+    __tablename__ = "leads"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    # Synced from Google Sheets (overwritten on each sync)
+    sheet_row_num = Column(Integer, nullable=True, index=True)
+    status = Column(String, default="")
+    assigned_to = Column(String, default="")
+    date = Column(String, default="")
+    name = Column(String, default="", index=True)
+    sheet_comments = Column(Text, default="")
+    next_call_sheet = Column(String, default="")
+    total_debt = Column(String, default="")
+    phone = Column(String, default="", index=True)
+    email = Column(String, default="")
+    offer_sent = Column(Boolean, default=False)
+    offer_sent_date = Column(String, default="")
+    offer_amount = Column(String, default="")
+    success_fee = Column(String, default="")
+    vulnerable_debtor = Column(Boolean, default=False)
+    referrer = Column(String, default="")
+    service_type = Column(String, default="")
+    application_number = Column(String, default="")
+    viber_info = Column(String, default="")
+
+    # App-only fields (never overwritten by sync)
+    app_comments = Column(JSON, default=list)   # [{text, author, at}]
+    app_next_call = Column(DateTime, nullable=True)
+    linked_case_id = Column(Integer, nullable=True)
+
+    # Timestamps
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow)

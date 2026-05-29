@@ -6,8 +6,8 @@ import os
 from dotenv import load_dotenv
 
 from database import engine, Base
-from models import Case, AppConfig
-from routers import cases, statistics, public, config
+from models import Case, AppConfig, Lead
+from routers import cases, statistics, public, config, leads
 
 load_dotenv()
 
@@ -85,12 +85,25 @@ def run_migrations():
         except Exception:
             pass
 
+        # Leads table columns (safe adds for existing deployments)
+        for col_ddl in [
+            "ALTER TABLE leads ADD COLUMN app_comments TEXT DEFAULT '[]'",
+            "ALTER TABLE leads ADD COLUMN app_next_call DATETIME",
+            "ALTER TABLE leads ADD COLUMN linked_case_id INTEGER",
+        ]:
+            try:
+                conn.execute(text(col_ddl))
+                conn.commit()
+            except Exception:
+                pass
+
 run_migrations()
 
 app.include_router(cases.router)
 app.include_router(statistics.router)
 app.include_router(public.router)
 app.include_router(config.router)
+app.include_router(leads.router)
 
 
 # ── Daily backup scheduler ────────────────────────────────────────────────────
@@ -102,10 +115,26 @@ def _run_backup_safe():
     except Exception as e:
         print(f"[Backup] FAILED — {e}")
 
+def _run_leads_sync_safe():
+    try:
+        from sheets_sync import sync_leads
+        from database import SessionLocal
+        db = SessionLocal()
+        try:
+            result = sync_leads(db)
+            print(f"[LeadsSync] OK — {result['inserted']} inserted, {result['updated']} updated")
+        finally:
+            db.close()
+    except Exception as e:
+        print(f"[LeadsSync] FAILED — {e}")
+
 if os.getenv("GOOGLE_DRIVE_BACKUP_FOLDER_ID"):
     from apscheduler.schedulers.background import BackgroundScheduler
     _scheduler = BackgroundScheduler()
     _scheduler.add_job(_run_backup_safe, "cron", hour=18, minute=0)  # 18:00 UTC daily
+    if os.getenv("GOOGLE_SHEET_ID"):
+        _scheduler.add_job(_run_leads_sync_safe, "cron", hour=6, minute=0)  # 06:00 UTC daily
+        print("[LeadsSync] Scheduler started — daily at 06:00 UTC")
     _scheduler.start()
     print("[Backup] Scheduler started — daily at 02:00 UTC")
 

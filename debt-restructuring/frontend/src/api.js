@@ -30,6 +30,16 @@ export const getOverview = () => api.get('/statistics/overview')
 export const getEmployeeStats = (employee) => api.get(`/statistics/employee/${employee}`)
 export const getComparison = () => api.get('/statistics/comparison')
 
+// Leads
+export const listLeads = (params) => api.get('/leads/', { params })
+export const getLead = (id) => api.get(`/leads/${id}`)
+export const patchLead = (id, data) => api.patch(`/leads/${id}`, data)
+export const addLeadComment = (id, text, author) => api.post(`/leads/${id}/comment`, { text, author })
+export const deleteLeadComment = (id, idx) => api.delete(`/leads/${id}/comment/${idx}`)
+export const syncLeads = () => api.post('/leads/sync')
+export const sendLeadViber = (id, message) => api.post(`/leads/${id}/send-viber`, { message })
+export const sendLeadEmail = (id, to, subject, body) => api.post(`/leads/${id}/send-email`, { to, subject, body })
+
 // Health / diagnostics
 export const getHealth = () => api.get('/health')
 

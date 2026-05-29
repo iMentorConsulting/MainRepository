@@ -7,9 +7,11 @@ import {
   RocketLaunchIcon,
   BoltIcon,
   BanknotesIcon,
+  UserGroupIcon,
 } from '@heroicons/react/24/outline'
 
 const nav = [
+  { to: '/leads', label: 'Leads', Icon: UserGroupIcon },
   { to: '/', label: 'Υποθέσεις', Icon: HomeIcon, exact: true },
   { to: '/cases/new', label: 'Νέα Υπόθεση', Icon: PlusCircleIcon },
   { to: '/quick-quote', label: 'Γρήγορη Ανάλυση', Icon: BoltIcon },
