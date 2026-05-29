@@ -3,30 +3,59 @@ const { Op, fn, col } = require('sequelize');
 const Income = require('../models/Income');
 const { checkAndAutoStatus } = require('./serviceAgreements');
 
-const ALLOWED_SORT = ['sale_date','customer_name','amount_collected','amount_application','amount_implementation','service_type','sales_agent','work_status','vat_number','bonus'];
+const ALLOWED_SORT = ['sale_date','customer_name','amount_collected','amount_application','amount_implementation','service_type','sales_agent','work_status','vat_number','bonus','createdAt'];
 
 router.get('/', async (req, res) => {
   try {
-    const { year, years, month, months, date_from, date_to, service_type, sales_agent, accountant_email, accountant, search, page = 1, limit = 50, sort_field, sort_dir } = req.query;
+    const { year, years, month, months, date_from, date_to, service_type, sales_agent, sales_agents, work_status, work_statuses, accountant_email, accountant, search, page = 1, limit = 50, sort_field, sort_dir } = req.query;
     const where = {};
+
+    // Date filtering — normalize year/years and month/months to arrays
+    const yearArr  = years  ? years.split(',').map(y => y.trim()).filter(Boolean)
+                            : (year  ? [year]  : []);
+    const monthArr = months ? months.split(',').map(m => m.trim().padStart(2,'0')).filter(Boolean)
+                            : (month ? [month.padStart(2,'0')] : []);
+
     if (date_from && date_to) {
       where.sale_date = { [Op.between]: [date_from, date_to] };
     } else if (date_from) {
       where.sale_date = { [Op.gte]: date_from };
     } else if (date_to) {
       where.sale_date = { [Op.lte]: date_to };
-    } else if (year && month) {
-      where.sale_date = { [Op.between]: [`${year}-${month.padStart(2,'0')}-01`, `${year}-${month.padStart(2,'0')}-31`] };
-    } else if (year) {
-      where.sale_date = { [Op.between]: [`${year}-01-01`, `${year}-12-31`] };
-    } else if (years) {
-      const yearList = years.split(',').map(y => y.trim()).filter(Boolean);
-      if (yearList.length > 0) {
-        where.sale_date = { [Op.or]: yearList.map(y => ({ [Op.between]: [`${y}-01-01`, `${y}-12-31`] })) };
+    } else if (yearArr.length > 0 && monthArr.length > 0) {
+      const ranges = [];
+      for (const y of yearArr) {
+        for (const m of monthArr) {
+          ranges.push({ [Op.between]: [`${y}-${m}-01`, `${y}-${m}-31`] });
+        }
       }
+      where.sale_date = { [Op.or]: ranges };
+    } else if (yearArr.length === 1) {
+      where.sale_date = { [Op.between]: [`${yearArr[0]}-01-01`, `${yearArr[0]}-12-31`] };
+    } else if (yearArr.length > 1) {
+      where.sale_date = { [Op.or]: yearArr.map(y => ({ [Op.between]: [`${y}-01-01`, `${y}-12-31`] })) };
     }
+
     if (service_type) where.service_type = service_type;
-    if (sales_agent) where.sales_agent = sales_agent;
+
+    // Multi-agent support
+    if (sales_agents) {
+      const agentList = sales_agents.split(',').map(a => a.trim()).filter(Boolean);
+      if (agentList.length === 1) where.sales_agent = agentList[0];
+      else if (agentList.length > 1) where.sales_agent = { [Op.in]: agentList };
+    } else if (sales_agent) {
+      where.sales_agent = sales_agent;
+    }
+
+    // Work status filter
+    if (work_statuses) {
+      const statusList = work_statuses.split(',').map(s => s.trim()).filter(Boolean);
+      if (statusList.length === 1) where.work_status = statusList[0];
+      else if (statusList.length > 1) where.work_status = { [Op.in]: statusList };
+    } else if (work_status) {
+      where.work_status = work_status;
+    }
+
     if (accountant_email) where.accountant_email = accountant_email;
     if (accountant && !accountant_email) {
       const names = accountant.split(',').map(n => n.trim()).filter(Boolean);

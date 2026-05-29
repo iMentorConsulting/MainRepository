@@ -21,7 +21,7 @@ function MultiSelectDropdown({ label, options, selected, onChange, getKey, getLa
     ? label
     : selected.length === 1
       ? getLabel(options.find(o => getKey(o) === selected[0]) || {})
-      : selected.map(k => getLabel(options.find(o => getKey(o) === k) || {})).join(', ');
+      : `${selected.length} επιλεγμένα`;
 
   const toggle = key => onChange(selected.includes(key) ? selected.filter(k => k !== key) : [...selected, key]);
 
@@ -90,39 +90,61 @@ function SortTh({ label, field, sort, onSort, className = '' }) {
   );
 }
 
+// Max 3 years of history
+const yearOptions = Array.from({ length: 3 }, (_, i) => ({ value: String(now.getFullYear() - i), label: String(now.getFullYear() - i) }));
+const monthOptions = [
+  { value: '01', label: 'Ιαν' }, { value: '02', label: 'Φεβ' }, { value: '03', label: 'Μαρ' },
+  { value: '04', label: 'Απρ' }, { value: '05', label: 'Μαι' }, { value: '06', label: 'Ιουν' },
+  { value: '07', label: 'Ιουλ' }, { value: '08', label: 'Αυγ' }, { value: '09', label: 'Σεπ' },
+  { value: '10', label: 'Οκτ' }, { value: '11', label: 'Νοε' }, { value: '12', label: 'Δεκ' },
+];
+
 export default function IncomeList() {
   const [data, setData] = useState({ total: 0, data: [] });
-  const [filters, setFilters] = useState({
-    service_type: '', sales_agent: '', search: '', page: 1
-  });
+  const [filters, setFilters] = useState({ service_type: '', search: '', page: 1 });
+  // Default: current year only, no month filter
   const [selectedYears, setSelectedYears] = useState([String(now.getFullYear())]);
-  const [selectedMonths, setSelectedMonths] = useState([String(now.getMonth() + 1).padStart(2, '0')]);
-  const [sort, setSort] = useState({ field: 'sale_date', dir: 'DESC' });
+  const [selectedMonths, setSelectedMonths] = useState([]);
+  const [selectedAgents, setSelectedAgents] = useState([]);
+  const [selectedStatuses, setSelectedStatuses] = useState([]);
+  const [sort, setSort] = useState({ field: 'createdAt', dir: 'DESC' });
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [modal, setModal] = useState({ open: false, record: null });
   const [deleteId, setDeleteId] = useState(null);
   const [services, setServices] = useState([]);
   const [agents, setAgents] = useState([]);
+  const [workStatusOptions, setWorkStatusOptions] = useState([]);
 
   const load = useCallback(() => {
     const params = Object.fromEntries(Object.entries(filters).filter(([, v]) => v !== ''));
     params.sort_field = sort.field;
     params.sort_dir = sort.dir;
+    params.limit = 50;
+
     if (selectedYears.length === 1) params.year = selectedYears[0];
     else if (selectedYears.length > 1) params.years = selectedYears.join(',');
+
     if (selectedMonths.length === 1) params.month = selectedMonths[0];
     else if (selectedMonths.length > 1) params.months = selectedMonths.join(',');
+
+    if (selectedAgents.length === 1) params.sales_agent = selectedAgents[0];
+    else if (selectedAgents.length > 1) params.sales_agents = selectedAgents.join(',');
+
+    if (selectedStatuses.length === 1) params.work_status = selectedStatuses[0];
+    else if (selectedStatuses.length > 1) params.work_statuses = selectedStatuses.join(',');
+
     if (dateFrom) params.date_from = dateFrom;
     if (dateTo) params.date_to = dateTo;
-    params.limit = 100;
+
     api.get('/income', { params }).then(r => setData(r.data));
-  }, [filters, selectedYears, selectedMonths, sort, dateFrom, dateTo]);
+  }, [filters, selectedYears, selectedMonths, selectedAgents, selectedStatuses, sort, dateFrom, dateTo]);
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => {
     api.get('/lists?list_type=ΕΙΔΟΣ_ΥΠΗΡΕΣΙΑΣ&active_only=true').then(r => setServices(r.data.map(x => x.value)));
     api.get('/lists?list_type=ΠΡΑΚΤΟΡΕΣ&active_only=true').then(r => setAgents(r.data.map(x => x.value)));
+    api.get('/lists?list_type=ΚΑΤΑΣΤΑΣΗ_ΕΡΓΑΣΙΑΣ&active_only=true').then(r => setWorkStatusOptions(r.data.map(x => x.value))).catch(() => {});
   }, []);
 
   const handleSort = field => {
@@ -146,13 +168,16 @@ export default function IncomeList() {
     setModal({ open: true, record: copy, isDuplicate: true });
   };
 
-  const yearOptions = Array.from({ length: 8 }, (_, i) => ({ value: String(now.getFullYear() - i), label: String(now.getFullYear() - i) }));
-  const monthOptions = [
-    { value: '01', label: 'Ιαν' }, { value: '02', label: 'Φεβ' }, { value: '03', label: 'Μαρ' },
-    { value: '04', label: 'Απρ' }, { value: '05', label: 'Μαι' }, { value: '06', label: 'Ιουν' },
-    { value: '07', label: 'Ιουλ' }, { value: '08', label: 'Αυγ' }, { value: '09', label: 'Σεπ' },
-    { value: '10', label: 'Οκτ' }, { value: '11', label: 'Νοε' }, { value: '12', label: 'Δεκ' },
-  ];
+  const clearFilters = () => {
+    setFilters({ service_type: '', search: '', page: 1 });
+    setSelectedYears([String(now.getFullYear())]);
+    setSelectedMonths([]);
+    setSelectedAgents([]);
+    setSelectedStatuses([]);
+    setDateFrom('');
+    setDateTo('');
+  };
+
   const handleExport = async () => {
     try {
       const params = Object.fromEntries(Object.entries(filters).filter(([, v]) => v !== ''));
@@ -160,6 +185,10 @@ export default function IncomeList() {
       else if (selectedYears.length > 1) params.years = selectedYears.join(',');
       if (selectedMonths.length === 1) params.month = selectedMonths[0];
       else if (selectedMonths.length > 1) params.months = selectedMonths.join(',');
+      if (selectedAgents.length === 1) params.sales_agent = selectedAgents[0];
+      else if (selectedAgents.length > 1) params.sales_agents = selectedAgents.join(',');
+      if (selectedStatuses.length === 1) params.work_status = selectedStatuses[0];
+      else if (selectedStatuses.length > 1) params.work_statuses = selectedStatuses.join(',');
       if (dateFrom) params.date_from = dateFrom;
       if (dateTo) params.date_to = dateTo;
       params.limit = 5000;
@@ -167,11 +196,13 @@ export default function IncomeList() {
       const r = await api.get('/income', { params });
       const rows = r.data.data.map(row => ({
         'Ημερομηνία': row.sale_date || '',
-        'Πελάτης': row.customer_name || '',
+        'Επωνυμία': row.customer_name || '',
         'ΑΦΜ': row.vat_number || '',
         'Υπηρεσία': row.service_type || '',
         'Κατάσταση': row.work_status || '',
         'Σύμβουλος': row.sales_agent || '',
+        'Τηλ': row.phone || '',
+        'Email': row.email || '',
         'Ποσό Αίτησης': row.amount_application != null ? Number(row.amount_application) : '',
         'Ποσό Υλοποίησης': row.amount_implementation != null ? Number(row.amount_implementation) : '',
         'Ποσό Είσπραξης': row.amount_collected != null ? Number(row.amount_collected) : '',
@@ -187,6 +218,11 @@ export default function IncomeList() {
       toast.error('Σφάλμα εξαγωγής');
     }
   };
+
+  const agentOptions = agents.map(a => ({ value: a }));
+  const statusOpts = workStatusOptions.length > 0
+    ? workStatusOptions.map(s => ({ value: s }))
+    : Object.keys(STATUS_STYLE).map(s => ({ value: s }));
 
   return (
     <div className="page">
@@ -207,16 +243,16 @@ export default function IncomeList() {
         </div>
       </div>
 
-      <div className="filter-bar">
+      <div className="filter-bar flex-wrap gap-2">
         <div className="relative flex-1 min-w-[160px]">
-          <input className="input pl-9" placeholder="Αναζήτηση πελάτη…" value={filters.search}
+          <input className="input pl-9" placeholder="Αναζήτηση επωνυμίας…" value={filters.search}
             onChange={e => setFilters(f => ({ ...f, search: e.target.value, page: 1 }))} />
           <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 absolute left-3 top-3 text-slate-400">
             <path fillRule="evenodd" d="M9 3.5a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11ZM2 9a7 7 0 1 1 12.452 4.391l3.328 3.329a.75.75 0 1 1-1.06 1.06l-3.329-3.328A7 7 0 0 1 2 9Z" clipRule="evenodd"/>
           </svg>
         </div>
         <MultiSelectDropdown
-          label="Όλα τα Έτη"
+          label="Έτος"
           options={yearOptions}
           selected={selectedYears}
           onChange={v => { setSelectedYears(v); setFilters(f => ({ ...f, page: 1 })); }}
@@ -224,7 +260,7 @@ export default function IncomeList() {
           getLabel={o => o.label}
         />
         <MultiSelectDropdown
-          label="Όλοι οι μήνες"
+          label="Μήνας"
           options={monthOptions}
           selected={selectedMonths}
           onChange={v => { setSelectedMonths(v); setFilters(f => ({ ...f, page: 1 })); }}
@@ -235,22 +271,31 @@ export default function IncomeList() {
           <option value="">Υπηρεσία</option>
           {services.map(s => <option key={s}>{s}</option>)}
         </select>
-        <select className="input w-36" value={filters.sales_agent} onChange={e => setFilters(f => ({ ...f, sales_agent: e.target.value, page: 1 }))}>
-          <option value="">Σύμβουλος</option>
-          {agents.map(a => <option key={a}>{a}</option>)}
-        </select>
-        <div className="flex items-center gap-1 text-slate-400 text-xs">ή</div>
+        <MultiSelectDropdown
+          label="Σύμβουλος"
+          options={agentOptions}
+          selected={selectedAgents}
+          onChange={v => { setSelectedAgents(v); setFilters(f => ({ ...f, page: 1 })); }}
+          getKey={o => o.value}
+          getLabel={o => o.value}
+        />
+        <MultiSelectDropdown
+          label="Κατάσταση"
+          options={statusOpts}
+          selected={selectedStatuses}
+          onChange={v => { setSelectedStatuses(v); setFilters(f => ({ ...f, page: 1 })); }}
+          getKey={o => o.value}
+          getLabel={o => o.value}
+        />
         <div className="flex items-center gap-1">
-          <input type="date" className="input w-36 text-sm" value={dateFrom} onChange={e => setDateFrom(e.target.value)} placeholder="Από" />
+          <input type="date" className="input w-34 text-sm" value={dateFrom} onChange={e => setDateFrom(e.target.value)} />
           <span className="text-slate-400 text-xs">—</span>
-          <input type="date" className="input w-36 text-sm" value={dateTo} onChange={e => setDateTo(e.target.value)} placeholder="Έως" />
+          <input type="date" className="input w-34 text-sm" value={dateTo} onChange={e => setDateTo(e.target.value)} />
           {(dateFrom || dateTo) && (
             <button className="btn-ghost btn-sm text-xs" onClick={() => { setDateFrom(''); setDateTo(''); }}>✕</button>
           )}
         </div>
-        <button className="btn-ghost btn-sm" onClick={() => { setFilters({ service_type: '', sales_agent: '', search: '', page: 1 }); setSelectedYears([String(now.getFullYear())]); setSelectedMonths([String(now.getMonth()+1).padStart(2,'0')]); setDateFrom(''); setDateTo(''); }}>
-          ✕ Καθαρισμός
-        </button>
+        <button className="btn-ghost btn-sm" onClick={clearFilters}>✕ Καθαρισμός</button>
       </div>
 
       <div className="card p-4 flex flex-wrap items-center gap-4 border-l-4 border-emerald-400">
@@ -277,11 +322,13 @@ export default function IncomeList() {
             <thead>
               <tr>
                 <SortTh label="Ημερομηνία" field="sale_date" sort={sort} onSort={handleSort} />
-                <SortTh label="Πελάτης" field="customer_name" sort={sort} onSort={handleSort} />
+                <SortTh label="Επωνυμία" field="customer_name" sort={sort} onSort={handleSort} />
                 <th className="th text-xs">ΑΦΜ</th>
                 <SortTh label="Υπηρεσία" field="service_type" sort={sort} onSort={handleSort} />
                 <SortTh label="Κατάσταση" field="work_status" sort={sort} onSort={handleSort} />
                 <SortTh label="Σύμβουλος" field="sales_agent" sort={sort} onSort={handleSort} />
+                <th className="th text-xs w-20">Τηλ</th>
+                <th className="th text-xs w-24">Email</th>
                 <SortTh label="Αίτ." field="amount_application" sort={sort} onSort={handleSort} className="text-right" />
                 <SortTh label="Υλ." field="amount_implementation" sort={sort} onSort={handleSort} className="text-right" />
                 <SortTh label="Ποσό" field="amount_collected" sort={sort} onSort={handleSort} className="text-right" />
@@ -292,7 +339,7 @@ export default function IncomeList() {
               {data.data.map(r => (
                 <tr key={r.id} className="tr">
                   <td className="td whitespace-nowrap text-slate-500 text-xs">{fmtDate(r.sale_date)}</td>
-                  <td className="td">
+                  <td className="td text-left">
                     <div className="font-semibold text-slate-800 max-w-[180px] truncate">{r.customer_name}</div>
                     {r.accountant && <div className="text-xs text-slate-400 mt-0.5 truncate max-w-[180px]">{r.accountant}</div>}
                   </td>
@@ -305,6 +352,14 @@ export default function IncomeList() {
                     {r.sales_agent
                       ? <span className="badge-purple">{r.sales_agent}</span>
                       : <span className="text-slate-300">—</span>}
+                  </td>
+                  <td className="td w-20 max-w-[80px]">
+                    <div className="text-xs text-slate-500 truncate">{r.phone || '—'}</div>
+                  </td>
+                  <td className="td w-24 max-w-[96px]">
+                    {r.email
+                      ? <a href={`mailto:${r.email}`} className="text-xs text-indigo-500 hover:underline truncate block max-w-[96px]">{r.email}</a>
+                      : <span className="text-xs text-slate-300">—</span>}
                   </td>
                   <td className="td text-right text-xs font-medium text-slate-600 whitespace-nowrap">
                     {r.amount_application ? fmtNum(r.amount_application) : <span className="text-slate-200">—</span>}
@@ -337,7 +392,7 @@ export default function IncomeList() {
                 </tr>
               ))}
               {data.data.length === 0 && (
-                <tr><td colSpan={10} className="td text-center text-slate-400 py-12">
+                <tr><td colSpan={12} className="td text-center text-slate-400 py-12">
                   <div className="text-3xl mb-2">🔍</div>
                   Δεν βρέθηκαν εγγραφές
                 </td></tr>
@@ -350,7 +405,7 @@ export default function IncomeList() {
           <div className="flex gap-2">
             <button disabled={filters.page <= 1} onClick={() => setFilters(f => ({ ...f, page: f.page - 1 }))}
               className="btn-secondary btn-sm disabled:opacity-40">← Προηγ.</button>
-            <button disabled={filters.page * 100 >= data.total} onClick={() => setFilters(f => ({ ...f, page: f.page + 1 }))}
+            <button disabled={filters.page * 50 >= data.total} onClick={() => setFilters(f => ({ ...f, page: f.page + 1 }))}
               className="btn-secondary btn-sm disabled:opacity-40">Επόμ. →</button>
           </div>
         </div>
