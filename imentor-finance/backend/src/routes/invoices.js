@@ -130,6 +130,8 @@ async function findOrCreateContact(orgKey, income) {
   return c.data.id;
 }
 
+const ELORUS_VAT_RATE_ID_REDUCED = '3548882149455168584'; // ΦΠΑ μειωμένος 17% (νησιά)
+
 const vatTaxRateCache = {};
 
 async function getVatTaxRateId(orgKey) {
@@ -360,13 +362,15 @@ router.get('/search-afm', async (req, res) => {
 
 router.post('/create-draft', async (req, res) => {
   try {
-    const { income_id, org_key = 'DEFAULT', amount, description, date, kind = 'TPY' } = req.body;
+    const { income_id, org_key = 'DEFAULT', amount, description, date, kind = 'TPY', reduced_vat = false } = req.body;
     const income = await Income.findByPk(income_id);
     if (!income) return res.status(404).json({ error: 'Εγγραφή δεν βρέθηκε' });
     const a = api(org_key);
     const net = parseFloat(amount);
     const [taxRateId, contactId, docType] = await Promise.all([
-      getVatTaxRateId(org_key), findOrCreateContact(org_key, income), findDocType(org_key, kind),
+      reduced_vat ? Promise.resolve(ELORUS_VAT_RATE_ID_REDUCED) : getVatTaxRateId(org_key),
+      findOrCreateContact(org_key, income),
+      findDocType(org_key, kind),
     ]);
     if (!taxRateId) {
       let debug = '?';
@@ -460,14 +464,16 @@ router.post('/finalize-and-send', async (req, res) => {
 
 router.post('/one-shot', async (req, res) => {
   try {
-    const { income_id, org_key = 'DEFAULT', amount, description, date, kind = 'TPY' } = req.body;
+    const { income_id, org_key = 'DEFAULT', amount, description, date, kind = 'TPY', reduced_vat = false } = req.body;
     const income = await Income.findByPk(income_id);
     if (!income) return res.status(404).json({ error: 'Εγγραφή δεν βρέθηκε' });
     const a = api(org_key);
     const net = parseFloat(amount);
     const iDate = date || new Date().toISOString().split('T')[0];
     const [taxRateId, contactId, docType] = await Promise.all([
-      getVatTaxRateId(org_key), findOrCreateContact(org_key, income), findDocType(org_key, kind),
+      reduced_vat ? Promise.resolve(ELORUS_VAT_RATE_ID_REDUCED) : getVatTaxRateId(org_key),
+      findOrCreateContact(org_key, income),
+      findDocType(org_key, kind),
     ]);
     if (!taxRateId) {
       let debug = '?';
@@ -516,7 +522,8 @@ router.post('/one-shot', async (req, res) => {
       const currency = invFresh.currency_code || invFresh.currency || 'EUR';
       // Calculate payment: net + VAT - withholding (ΤΠΥ only, > 301€, not IMENTOR_IKE)
       const whAmt = (kind !== 'APY' && org_key !== 'IMENTOR_IKE' && net > 301) ? net * 0.20 : 0;
-      const payAmount = (net * 1.24 - whAmt).toFixed(2);
+      const vatMultiplier = reduced_vat ? 1.17 : 1.24;
+      const payAmount = (net * vatMultiplier - whAmt).toFixed(2);
       await elorusPostCashreceipt(org_key, {
         transaction_type: 'ip',
         contact: clientId,
