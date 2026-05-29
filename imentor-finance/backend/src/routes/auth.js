@@ -28,7 +28,7 @@ router.post('/login', loginLimiter, async (req, res) => {
     return res.status(401).json({ error: 'Λάθος κωδικός' });
   }
 
-  const token = jwt.sign({ role: 'admin' }, process.env.JWT_SECRET, { expiresIn: '24h' });
+  const token = jwt.sign({ role: 'admin' }, process.env.JWT_SECRET, { expiresIn: '6h' });
   res.json({ token });
 });
 

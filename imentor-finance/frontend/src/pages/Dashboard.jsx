@@ -121,6 +121,7 @@ export default function Dashboard() {
   const [monthly, setMonthly] = useState([]);
   const [byService, setByService] = useState([]);
   const [byAgent, setByAgent] = useState([]);
+  const [serviceTypes, setServiceTypes] = useState([]);
   const [monthlyTargets, setMonthlyTargets] = useState(() => {
     try { return JSON.parse(localStorage.getItem('imf_monthly_targets') || '{}'); }
     catch { return {}; }
@@ -155,6 +156,10 @@ export default function Dashboard() {
       if (ag.status === 'fulfilled') setByAgent(ag.value.data.slice(0, 6));
     });
   }, [selectedYears, selectedMonths, dateFrom, dateTo]);
+
+  useEffect(() => {
+    api.get('/lists?list_type=ΕΙΔΟΣ_ΥΠΗΡΕΣΙΑΣ&active_only=true').then(r => setServiceTypes(r.data)).catch(() => {});
+  }, []);
 
   useEffect(() => {
     // Detect latest year with data and auto-switch to it
@@ -329,30 +334,85 @@ export default function Dashboard() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        {/* By Service */}
+        {/* By Service / Category */}
         <div className="card p-6">
           <h2 className="section-title">Έσοδα ανά Υπηρεσία</h2>
-          <div className="space-y-3">
-            {byService.map((s, i) => {
-              const pct = summary?.income > 0 ? (s.income / summary.income) * 100 : 0;
+          {(() => {
+            const hasCategories = serviceTypes.some(s => s.category);
+            if (hasCategories && byService.length > 0) {
+              const catMap = {};
+              serviceTypes.forEach(s => { catMap[s.value] = s.category || 'Άλλα'; });
+              const groups = {};
+              byService.forEach(s => {
+                const cat = catMap[s.service_type] || 'Άλλα';
+                if (!groups[cat]) groups[cat] = { income: 0, items: [] };
+                groups[cat].income += parseFloat(s.income) || 0;
+                groups[cat].items.push(s);
+              });
+              const sorted = Object.entries(groups).sort((a, b) => b[1].income - a[1].income);
+              const totalIncome = summary?.income || 0;
+              const GRAD = ['linear-gradient(90deg,#6366f1,#a855f7)', 'linear-gradient(90deg,#10b981,#06b6d4)', 'linear-gradient(90deg,#f59e0b,#f97316)', 'linear-gradient(90deg,#f43f5e,#ec4899)'];
               return (
-                <div key={i} className="group">
-                  <div className="flex justify-between items-center mb-1.5">
-                    <span className="text-xs font-medium text-slate-600 truncate max-w-[55%]">{s.service_type}</span>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <span className="text-xs text-slate-400">{pct.toFixed(0)}%</span>
-                      <span className="text-xs font-bold text-slate-800">{fmt(s.income)}</span>
-                    </div>
-                  </div>
-                  <div className="h-1.5 rounded-full bg-slate-100 overflow-hidden">
-                    <div className="h-full rounded-full transition-all duration-500"
-                      style={{ width: `${pct}%`, background: 'linear-gradient(90deg, #6366f1, #a855f7)' }} />
-                  </div>
+                <div className="space-y-4">
+                  {sorted.map(([cat, info], ci) => {
+                    const catPct = totalIncome > 0 ? (info.income / totalIncome) * 100 : 0;
+                    return (
+                      <div key={cat}>
+                        <div className="flex justify-between items-center mb-1">
+                          <span className="text-xs font-bold text-slate-700 uppercase tracking-wide">{cat}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-slate-400">{catPct.toFixed(0)}%</span>
+                            <span className="text-sm font-black text-slate-800">{fmt(info.income)}</span>
+                          </div>
+                        </div>
+                        <div className="h-2 rounded-full bg-slate-100 overflow-hidden mb-2">
+                          <div className="h-full rounded-full transition-all duration-500"
+                            style={{ width: `${catPct}%`, background: GRAD[ci % GRAD.length] }} />
+                        </div>
+                        <div className="pl-3 space-y-1 border-l-2 border-slate-100">
+                          {info.items.sort((a, b) => b.income - a.income).map((s, si) => {
+                            const sPct = info.income > 0 ? (s.income / info.income) * 100 : 0;
+                            return (
+                              <div key={si} className="flex justify-between items-center">
+                                <span className="text-[11px] text-slate-500 truncate max-w-[55%]">{s.service_type}</span>
+                                <div className="flex items-center gap-2 shrink-0">
+                                  <span className="text-[10px] text-slate-300">{sPct.toFixed(0)}%</span>
+                                  <span className="text-[11px] font-semibold text-slate-600">{fmt(s.income)}</span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               );
-            })}
-            {byService.length === 0 && <p className="text-slate-400 text-sm text-center py-4">Δεν υπάρχουν δεδομένα</p>}
-          </div>
+            }
+            return (
+              <div className="space-y-3">
+                {byService.map((s, i) => {
+                  const pct = summary?.income > 0 ? (s.income / summary.income) * 100 : 0;
+                  return (
+                    <div key={i} className="group">
+                      <div className="flex justify-between items-center mb-1.5">
+                        <span className="text-xs font-medium text-slate-600 truncate max-w-[55%]">{s.service_type}</span>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className="text-xs text-slate-400">{pct.toFixed(0)}%</span>
+                          <span className="text-xs font-bold text-slate-800">{fmt(s.income)}</span>
+                        </div>
+                      </div>
+                      <div className="h-1.5 rounded-full bg-slate-100 overflow-hidden">
+                        <div className="h-full rounded-full transition-all duration-500"
+                          style={{ width: `${pct}%`, background: 'linear-gradient(90deg, #6366f1, #a855f7)' }} />
+                      </div>
+                    </div>
+                  );
+                })}
+                {byService.length === 0 && <p className="text-slate-400 text-sm text-center py-4">Δεν υπάρχουν δεδομένα</p>}
+              </div>
+            );
+          })()}
         </div>
 
         {/* By Agent */}

@@ -92,7 +92,7 @@ const MONTH_OPTS = [
   { value: '10', label: 'Οκτ' }, { value: '11', label: 'Νοε' }, { value: '12', label: 'Δεκ' },
 ];
 
-function TabOverview({ selectedYears, setSelectedYears, selectedMonths, setSelectedMonths, years, monthly, byService, byAgent, byExpCat, summary, dateFrom, setDateFrom, dateTo, setDateTo }) {
+function TabOverview({ selectedYears, setSelectedYears, selectedMonths, setSelectedMonths, years, monthly, byService, byAgent, byExpCat, summary, dateFrom, setDateFrom, dateTo, setDateTo, serviceTypes }) {
   return (
     <>
       <div className="flex flex-wrap gap-2 mb-6">
@@ -165,15 +165,70 @@ function TabOverview({ selectedYears, setSelectedYears, selectedMonths, setSelec
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         <div className="card p-6">
           <h2 className="section-title">Έσοδα ανά Υπηρεσία</h2>
-          <ResponsiveContainer width="100%" height={280}>
-            <BarChart data={byService.slice(0, 10)} layout="vertical" margin={{ left: 0, right: 10 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" horizontal={false} />
-              <XAxis type="number" tickFormatter={v => `${Math.round(v/1000)}k`} tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-              <YAxis type="category" dataKey="service_type" width={140} tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} />
-              <Tooltip content={<CustomTooltip />} />
-              <Bar dataKey="income" name="Έσοδα" fill="#6366f1" radius={[0, 6, 6, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
+          {(() => {
+            const hasCategories = serviceTypes?.some(s => s.category);
+            const GRAD = ['#6366f1','#10b981','#f59e0b','#f43f5e'];
+            if (hasCategories && byService.length > 0) {
+              const catMap = {};
+              (serviceTypes || []).forEach(s => { catMap[s.value] = s.category || 'Άλλα'; });
+              const groups = {};
+              byService.forEach(s => {
+                const cat = catMap[s.service_type] || 'Άλλα';
+                if (!groups[cat]) groups[cat] = { income: 0, items: [] };
+                groups[cat].income += parseFloat(s.income) || 0;
+                groups[cat].items.push(s);
+              });
+              const sorted = Object.entries(groups).sort((a, b) => b[1].income - a[1].income);
+              const totalIncome = summary?.income || 0;
+              return (
+                <div className="space-y-5">
+                  {sorted.map(([cat, info], ci) => {
+                    const catPct = totalIncome > 0 ? (info.income / totalIncome) * 100 : 0;
+                    return (
+                      <div key={cat}>
+                        <div className="flex justify-between items-center mb-1">
+                          <span className="text-xs font-bold text-slate-700 uppercase tracking-wide">{cat}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-slate-400">{catPct.toFixed(0)}%</span>
+                            <span className="text-sm font-black text-slate-800">{fmt(info.income)}</span>
+                          </div>
+                        </div>
+                        <div className="h-2 rounded-full bg-slate-100 overflow-hidden mb-2">
+                          <div className="h-full rounded-full transition-all"
+                            style={{ width: `${catPct}%`, background: GRAD[ci % GRAD.length] }} />
+                        </div>
+                        <div className="pl-3 space-y-1 border-l-2 border-slate-100">
+                          {info.items.sort((a, b) => b.income - a.income).map((s, si) => {
+                            const sPct = info.income > 0 ? (s.income / info.income) * 100 : 0;
+                            return (
+                              <div key={si} className="flex justify-between items-center">
+                                <span className="text-[11px] text-slate-500 truncate max-w-[55%]">{s.service_type}</span>
+                                <div className="flex items-center gap-2 shrink-0">
+                                  <span className="text-[10px] text-slate-300">{sPct.toFixed(0)}%</span>
+                                  <span className="text-[11px] font-semibold text-slate-600">{fmt(s.income)}</span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            }
+            return (
+              <ResponsiveContainer width="100%" height={280}>
+                <BarChart data={byService.slice(0, 10)} layout="vertical" margin={{ left: 0, right: 10 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" horizontal={false} />
+                  <XAxis type="number" tickFormatter={v => `${Math.round(v/1000)}k`} tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                  <YAxis type="category" dataKey="service_type" width={140} tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Bar dataKey="income" name="Έσοδα" fill="#6366f1" radius={[0, 6, 6, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            );
+          })()}
         </div>
 
         <div className="card p-6">
@@ -872,6 +927,7 @@ export default function ReportsPage() {
   const [byExpCat, setByExpCat] = useState([]);
   const [summary, setSummary] = useState(null);
   const [availableYears, setAvailableYears] = useState([]);
+  const [serviceTypes, setServiceTypes] = useState([]);
 
   useEffect(() => {
     api.get('/reports/available-years').then(r => {
@@ -879,6 +935,7 @@ export default function ReportsPage() {
       setAvailableYears(years);
       if (years.length > 0 && !years.includes(selectedYears[0])) setSelectedYears([years[0]]);
     }).catch(() => {});
+    api.get('/lists?list_type=ΕΙΔΟΣ_ΥΠΗΡΕΣΙΑΣ&active_only=true').then(r => setServiceTypes(r.data)).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -957,6 +1014,7 @@ export default function ReportsPage() {
           byExpCat={byExpCat} summary={summary}
           dateFrom={dateFrom} setDateFrom={setDateFrom}
           dateTo={dateTo} setDateTo={setDateTo}
+          serviceTypes={serviceTypes}
         />
       )}
       {activeTab === 'top-customers' && <TabTopCustomers years={years} />}

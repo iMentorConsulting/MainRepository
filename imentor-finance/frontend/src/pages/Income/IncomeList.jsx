@@ -112,7 +112,7 @@ export default function IncomeList() {
   const [dateTo, setDateTo] = useState('');
   const [modal, setModal] = useState({ open: false, record: null });
   const [deleteId, setDeleteId] = useState(null);
-  const [services, setServices] = useState([]);
+  const [services, setServices] = useState([]); // full objects: { id, value, category, ... }
   const [agents, setAgents] = useState([]);
   const [workStatusOptions, setWorkStatusOptions] = useState([]);
 
@@ -142,7 +142,7 @@ export default function IncomeList() {
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => {
-    api.get('/lists?list_type=ΕΙΔΟΣ_ΥΠΗΡΕΣΙΑΣ&active_only=true').then(r => setServices(r.data.map(x => x.value)));
+    api.get('/lists?list_type=ΕΙΔΟΣ_ΥΠΗΡΕΣΙΑΣ&active_only=true').then(r => setServices(r.data));
     api.get('/lists?list_type=ΠΡΑΚΤΟΡΕΣ&active_only=true').then(r => setAgents(r.data.map(x => x.value)));
     api.get('/lists?list_type=ΚΑΤΑΣΤΑΣΗ_ΕΡΓΑΣΙΑΣ&active_only=true').then(r => setWorkStatusOptions(r.data.map(x => x.value))).catch(() => {});
   }, []);
@@ -224,6 +224,22 @@ export default function IncomeList() {
     ? workStatusOptions.map(s => ({ value: s }))
     : Object.keys(STATUS_STYLE).map(s => ({ value: s }));
 
+  // Build category → services grouping for the summary bar
+  const hasCategories = services.some(s => s.category);
+  const summaryCategoryGroups = (() => {
+    if (!hasCategories || !data.by_service?.length) return null;
+    const catMap = {};
+    services.forEach(s => { catMap[s.value] = s.category || 'Άλλα'; });
+    const groups = {};
+    (data.by_service || []).forEach(s => {
+      const cat = catMap[s.service_type] || 'Άλλα';
+      if (!groups[cat]) groups[cat] = { sum: 0, services: [] };
+      groups[cat].sum += parseFloat(s.sum) || 0;
+      groups[cat].services.push({ type: s.service_type, sum: parseFloat(s.sum) || 0 });
+    });
+    return Object.entries(groups).sort((a, b) => b[1].sum - a[1].sum);
+  })();
+
   return (
     <div className="page">
       <div className="page-header">
@@ -269,7 +285,7 @@ export default function IncomeList() {
         />
         <select className="input w-44" value={filters.service_type} onChange={e => setFilters(f => ({ ...f, service_type: e.target.value, page: 1 }))}>
           <option value="">Υπηρεσία</option>
-          {services.map(s => <option key={s}>{s}</option>)}
+          {services.map(s => <option key={s.id} value={s.value}>{s.value}</option>)}
         </select>
         <MultiSelectDropdown
           label="Σύμβουλος"
@@ -303,17 +319,43 @@ export default function IncomeList() {
           <div className="text-xs font-bold text-slate-400 uppercase tracking-wide">Σύνολο Φίλτρων</div>
           <div className="text-xl font-black text-emerald-600">{Math.round(data.sum ?? 0).toLocaleString('el-GR')} €</div>
         </div>
-        {(data.by_service || []).map((s, i) => {
-          const sSum = parseFloat(s.sum) || 0;
-          const kLabel = sSum >= 1000 ? (sSum / 1000).toFixed(1).replace('.', ',') + 'k' : Math.round(sSum) + '€';
-          const pct = data.sum > 0 ? Math.round(sSum / data.sum * 100) : 0;
-          return (
-            <div key={i} className="px-3 py-1.5 bg-slate-50 rounded-lg border border-slate-100 shrink-0">
-              <div className="text-[10px] font-bold text-slate-400 uppercase truncate max-w-[120px]">{s.service_type || '—'}</div>
-              <div className="text-sm font-black text-slate-700">{kLabel} <span className="text-xs font-semibold text-slate-400">{pct}%</span></div>
-            </div>
-          );
-        })}
+        {summaryCategoryGroups
+          ? summaryCategoryGroups.map(([cat, info]) => {
+              const pct = data.sum > 0 ? Math.round(info.sum / data.sum * 100) : 0;
+              const kLabel = info.sum >= 1000 ? (info.sum / 1000).toFixed(1).replace('.', ',') + 'k' : Math.round(info.sum) + '€';
+              return (
+                <div key={cat} className="group relative px-3 py-1.5 bg-indigo-50 rounded-lg border border-indigo-100 shrink-0 cursor-default">
+                  <div className="text-[10px] font-bold text-indigo-400 uppercase truncate max-w-[140px]">{cat}</div>
+                  <div className="text-sm font-black text-indigo-700">{kLabel} <span className="text-xs font-semibold text-indigo-300">{pct}%</span></div>
+                  {/* Hover breakdown tooltip */}
+                  <div className="absolute z-20 bottom-full left-0 mb-1 hidden group-hover:block bg-white border border-slate-200 rounded-xl shadow-xl p-3 min-w-[180px]">
+                    <div className="text-[10px] font-bold text-slate-400 uppercase mb-2">{cat} – Ανάλυση</div>
+                    {info.services.sort((a, b) => b.sum - a.sum).map(sv => {
+                      const svPct = info.sum > 0 ? Math.round(sv.sum / info.sum * 100) : 0;
+                      const svK = sv.sum >= 1000 ? (sv.sum / 1000).toFixed(1).replace('.', ',') + 'k' : Math.round(sv.sum) + '€';
+                      return (
+                        <div key={sv.type} className="flex items-center justify-between gap-3 py-0.5">
+                          <span className="text-xs text-slate-600 truncate max-w-[120px]">{sv.type || '—'}</span>
+                          <span className="text-xs font-bold text-slate-700 shrink-0">{svK} <span className="text-slate-400 font-normal">{svPct}%</span></span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })
+          : (data.by_service || []).map((s, i) => {
+              const sSum = parseFloat(s.sum) || 0;
+              const kLabel = sSum >= 1000 ? (sSum / 1000).toFixed(1).replace('.', ',') + 'k' : Math.round(sSum) + '€';
+              const pct = data.sum > 0 ? Math.round(sSum / data.sum * 100) : 0;
+              return (
+                <div key={i} className="px-3 py-1.5 bg-slate-50 rounded-lg border border-slate-100 shrink-0">
+                  <div className="text-[10px] font-bold text-slate-400 uppercase truncate max-w-[120px]">{s.service_type || '—'}</div>
+                  <div className="text-sm font-black text-slate-700">{kLabel} <span className="text-xs font-semibold text-slate-400">{pct}%</span></div>
+                </div>
+              );
+            })
+        }
       </div>
 
       <div className="card overflow-hidden">
