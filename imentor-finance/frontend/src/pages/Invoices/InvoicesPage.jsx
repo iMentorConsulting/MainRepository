@@ -8,9 +8,9 @@ const fmtDate = d => d ? new Date(d + 'T00:00:00').toLocaleDateString('el-GR', {
 
 const ORG_LABEL = { DEFAULT: 'i-Mentor (κύρια)', IMENTOR_IKE: 'I MENTOR IKE' };
 
-function calcAmounts(amountWithVat, orgKey, kind) {
+function calcAmounts(amountWithVat, orgKey, kind, vatRate = 24) {
   const gross = parseFloat(amountWithVat) || 0;
-  const net = gross / 1.24;
+  const net = gross / (1 + vatRate / 100);
   const vat = gross - net;
   const hasWH = kind !== 'APY' && orgKey !== 'IMENTOR_IKE' && net > 301;
   const wh = hasWH ? net * 0.20 : 0;
@@ -18,13 +18,13 @@ function calcAmounts(amountWithVat, orgKey, kind) {
   return { gross, net, vat, wh, payable };
 }
 
-function AmountBreakdown({ amount, orgKey, kind }) {
+function AmountBreakdown({ amount, orgKey, kind, vatRate = 24 }) {
   if (!amount || parseFloat(amount) <= 0) return null;
-  const { net, vat, wh, payable } = calcAmounts(amount, orgKey, kind);
+  const { net, vat, wh, payable } = calcAmounts(amount, orgKey, kind, vatRate);
   return (
     <div className="rounded-xl p-4 space-y-2 text-sm" style={{ background: '#f0fdf4', border: '1px solid #bbf7d0' }}>
       <div className="flex justify-between text-slate-600"><span>Καθαρό</span><span className="font-semibold">{fmt(net)}</span></div>
-      <div className="flex justify-between text-slate-600"><span>ΦΠΑ 24%</span><span className="font-semibold">{fmt(vat)}</span></div>
+      <div className="flex justify-between text-slate-600"><span>ΦΠΑ {vatRate}%</span><span className="font-semibold">{fmt(vat)}</span></div>
       {wh > 0 && <div className="flex justify-between text-rose-600"><span>Παρακράτηση 20%</span><span className="font-semibold">−{fmt(wh)}</span></div>}
       <div className="flex justify-between font-black text-slate-800 border-t border-emerald-200 pt-2"><span>Πληρωτέο</span><span className="text-emerald-700">{fmt(payable)}</span></div>
     </div>
@@ -47,15 +47,18 @@ function InvoiceModal({ record, onClose, onDone }) {
   const [payAmount, setPayAmount]     = useState('');
   const [payDate, setPayDate]         = useState(today);
   const [loading, setLoading]         = useState(null);
+  const [reducedVat, setReducedVat]   = useState(false);
+
+  const vatRate = reducedVat ? 17 : 24;
 
   // Pre-fill payable when amount changes
   useEffect(() => {
     if (amount) {
       const effectiveOrg = (hasDraft || hasInvoice) ? (lockedOrg || orgKey) : orgKey;
-      const { payable } = calcAmounts(amount, effectiveOrg, kind);
+      const { payable } = calcAmounts(amount, effectiveOrg, kind, vatRate);
       setPayAmount(payable.toFixed(2));
     }
-  }, [amount, orgKey, kind]);
+  }, [amount, orgKey, kind, vatRate]);
 
   const effectiveOrg = (hasDraft || hasInvoice) ? (lockedOrg || orgKey) : orgKey;
 
@@ -68,7 +71,7 @@ function InvoiceModal({ record, onClose, onDone }) {
 
   const handleDraft = async () => {
     try {
-      await call('create-draft', { amount, description, date, kind });
+      await call('create-draft', { amount, description, date, kind, reduced_vat: reducedVat });
       toast.success('Draft δημιουργήθηκε στο Elorus');
       onDone();
     } catch (e) { toast.error(e.response?.data?.error || 'Σφάλμα'); }
@@ -76,7 +79,7 @@ function InvoiceModal({ record, onClose, onDone }) {
 
   const handleOneShot = async () => {
     try {
-      const r = await call('one-shot', { amount, description, date, kind });
+      const r = await call('one-shot', { amount, description, date, kind, reduced_vat: reducedVat });
       toast.success(`Τιμολόγιο ${r.invoice_number} — εκδόθηκε, εστάλη & πληρώθηκε`);
       onDone();
     } catch (e) { toast.error(e.response?.data?.error || 'Σφάλμα'); }
@@ -210,7 +213,12 @@ function InvoiceModal({ record, onClose, onDone }) {
         <label className="label">Περιγραφή / Αιτιολογία</label>
         <textarea className="input h-16 resize-none" value={description} onChange={e => setDescription(e.target.value)} />
       </div>
-      <AmountBreakdown amount={amount} orgKey={orgKey} kind={kind} />
+      <label className="flex items-center gap-2 text-sm cursor-pointer select-none w-fit">
+        <input type="checkbox" checked={reducedVat} onChange={e => setReducedVat(e.target.checked)}
+          className="w-4 h-4 rounded accent-sky-600 cursor-pointer" />
+        <span className="text-slate-600">Μειωμένος ΦΠΑ <strong>17%</strong> <span className="text-slate-400">(νησιά)</span></span>
+      </label>
+      <AmountBreakdown amount={amount} orgKey={orgKey} kind={kind} vatRate={vatRate} />
       <div className="flex justify-end gap-3 border-t border-slate-100 pt-4">
         <button className="btn-secondary" onClick={onClose}>Ακύρωση</button>
         <button className="btn-secondary" disabled={!amount || loading === 'create-draft'} onClick={handleDraft}>
