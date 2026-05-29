@@ -4,7 +4,6 @@ import { format, parseISO, differenceInDays, isPast } from 'date-fns'
 import { el } from 'date-fns/locale'
 import {
   MagnifyingGlassIcon,
-  ArrowPathIcon,
   PhoneIcon,
   ChatBubbleLeftEllipsisIcon,
   ChevronDownIcon,
@@ -623,7 +622,6 @@ function ExpandedRow({ lead, currentEmployee, onUpdate, colCount, templates, tax
                 <LinkIcon className="w-3.5 h-3.5" /> Υπόθεση #{lead.linked_case_id}
               </a>
             )}
-            {lead.next_call_sheet && <span><span className="font-semibold">Next Call:</span> {lead.next_call_sheet}</span>}
           </div>
           {/* Related leads (same phone or email) */}
           {relatedLeads.length > 0 && (
@@ -761,8 +759,8 @@ function LeadRow({ lead, currentEmployee, expanded, onToggle, onLeadUpdate, temp
         </td>
 
         {/* Total Debt */}
-        <td className="td w-[110px] text-xs text-gray-700">
-          <div className="truncate">{lead.total_debt || '—'}</div>
+        <td className="td w-[85px] text-left">
+          <div className="text-xs text-gray-700 truncate">{lead.total_debt || '—'}</div>
         </td>
 
         {/* Reminder */}
@@ -778,13 +776,14 @@ function LeadRow({ lead, currentEmployee, expanded, onToggle, onLeadUpdate, temp
         <td className="td w-[80px] text-xs text-gray-500">{lead.date || '—'}</td>
 
         {/* Last comment */}
-        <td className="td text-left">
+        <td className="td text-left min-w-[200px]">
           {lastComment
-            ? <div className="text-xs text-gray-500 truncate max-w-[260px]">
-                <span className="font-semibold text-gray-700">{agentShort(lastComment.author)}:</span> {lastComment.text}
+            ? <div className="text-xs text-gray-500 max-w-[380px]">
+                <span className="font-semibold text-gray-700">{agentShort(lastComment.author)}:</span>{' '}
+                <span className="line-clamp-3 whitespace-pre-wrap">{lastComment.text}</span>
               </div>
             : lead.sheet_comments
-            ? <div className="text-xs text-gray-400 truncate max-w-[260px] italic">{lead.sheet_comments}</div>
+            ? <div className="text-xs text-gray-400 max-w-[380px] italic line-clamp-3 whitespace-pre-wrap">{lead.sheet_comments}</div>
             : <span className="text-gray-300 text-xs">—</span>}
         </td>
 
@@ -824,7 +823,6 @@ function LeadRow({ lead, currentEmployee, expanded, onToggle, onLeadUpdate, temp
 export default function Leads({ currentEmployee }) {
   const [leads, setLeads] = useState([])
   const [loading, setLoading] = useState(true)
-  const [syncing, setSyncing] = useState(false)
   const [search, setSearch] = useState('')
   const [debtSearch, setDebtSearch] = useState('')
   const [filterYears, setFilterYears] = useState([String(THIS_YEAR)])
@@ -868,29 +866,6 @@ export default function Leads({ currentEmployee }) {
     api.getLeadLinks().then(r => setTaxisnetLinks(r.data || [])).catch(() => {})
   }, [])
 
-  const handleSync = async (full = false) => {
-    setSyncing(true)
-    try {
-      const res = await api.syncLeads(full)
-      const d = res.data
-      toast.success(`Sync OK (${d.mode}) — ${d.inserted} νέα${d.updated ? `, ${d.updated} ενημ.` : ''}`)
-      load()
-    } catch (err) {
-      toast.error(err?.response?.data?.detail || 'Σφάλμα sync')
-    } finally { setSyncing(false) }
-  }
-
-  const handleNormalize = async () => {
-    setSyncing(true)
-    try {
-      const res = await api.normalizeLeadStatuses()
-      toast.success(`Fix Status OK — ${res.data.fixed} εγγραφές διορθώθηκαν`)
-      load()
-    } catch (err) {
-      toast.error(err?.response?.data?.detail || 'Σφάλμα')
-    } finally { setSyncing(false) }
-  }
-
   const updateLead = (updated) => {
     setLeads(prev => prev.map(l => l.id === updated.id ? updated : l))
   }
@@ -913,20 +888,36 @@ export default function Leads({ currentEmployee }) {
   if (debtSearch.trim())
     displayed = displayed.filter(l => (l.total_debt || '').toLowerCase().includes(debtSearch.toLowerCase()))
 
-  // Reminder filter
+  // Reminder filter — checks app_next_call (ISO) and next_call_sheet (free text)
   if (filterReminder) {
     const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0)
     const todayEnd = new Date(); todayEnd.setHours(23, 59, 59, 999)
     const weekEnd = new Date(todayStart); weekEnd.setDate(weekEnd.getDate() + 7)
+
+    const parseAnyDate = (s) => {
+      if (!s) return null
+      try { const d = parseISO(s); if (!isNaN(d)) return d } catch {}
+      // Greek DD/MM/YYYY or DD-MM-YYYY
+      const m1 = String(s).match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})/)
+      if (m1) { const d = new Date(+m1[3], +m1[2] - 1, +m1[1]); if (!isNaN(d)) return d }
+      // YYYY-MM-DD
+      const m2 = String(s).match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/)
+      if (m2) { const d = new Date(+m2[1], +m2[2] - 1, +m2[3]); if (!isNaN(d)) return d }
+      return null
+    }
+
+    const getCallDate = (l) => {
+      if (l.app_next_call) return parseAnyDate(l.app_next_call)
+      return parseAnyDate(l.next_call_sheet)
+    }
+
     displayed = displayed.filter(l => {
-      if (filterReminder === 'none') return !l.app_next_call
-      if (!l.app_next_call) return false
-      try {
-        const d = parseISO(l.app_next_call)
-        if (filterReminder === 'overdue') return isPast(d) && d < todayStart
-        if (filterReminder === 'today') return d >= todayStart && d <= todayEnd
-        if (filterReminder === 'week') return d >= todayStart && d <= weekEnd
-      } catch { return false }
+      const d = getCallDate(l)
+      if (filterReminder === 'none') return !d
+      if (!d) return false
+      if (filterReminder === 'overdue') return d < todayStart
+      if (filterReminder === 'today') return d >= todayStart && d <= todayEnd
+      if (filterReminder === 'week') return d >= todayStart && d <= weekEnd
       return false
     })
   }
@@ -965,24 +956,6 @@ export default function Leads({ currentEmployee }) {
           <p className="text-gray-500 text-sm mt-0.5">
             {displayed.length} εγγραφές{displayed.length !== leads.length ? ` (από ${leads.length})` : ''}
           </p>
-        </div>
-        <div className="flex gap-2">
-          <button onClick={() => handleSync(false)} disabled={syncing}
-            className="btn-secondary flex items-center gap-2 text-sm"
-            title="Εισάγει μόνο νέες γραμμές">
-            <ArrowPathIcon className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} />
-            {syncing ? '…' : 'Sync'}
-          </button>
-          <button onClick={() => { if (window.confirm('Full sync: ανανεώνει ΟΛΑ τα sheet πεδία. Συνέχεια;')) handleSync(true) }}
-            disabled={syncing}
-            className="btn-secondary text-xs text-amber-700 border-amber-300 hover:bg-amber-50">
-            Full Sync
-          </button>
-          <button onClick={handleNormalize} disabled={syncing}
-            className="btn-secondary text-xs text-violet-700 border-violet-200 hover:bg-violet-50"
-            title="Διορθώνει status">
-            Fix Status
-          </button>
         </div>
       </div>
 
@@ -1052,7 +1025,7 @@ export default function Leads({ currentEmployee }) {
         <MultiSelect options={monthOptions} selected={filterMonths} onChange={v => { setFilterMonths(v); setPage(1) }} placeholder="Μήνας" cls="w-[130px]" />
 
         {/* Agents */}
-        <MultiSelect options={employeeOptions} selected={filterEmployees} onChange={setFilterEmployees} placeholder="Agent" cls="w-[140px]" />
+        <MultiSelect options={employeeOptions} selected={filterEmployees} onChange={setFilterEmployees} placeholder="Σύμβουλος" cls="w-[150px]" />
       </div>
 
       {/* Table */}
@@ -1063,9 +1036,14 @@ export default function Leads({ currentEmployee }) {
           <div className="p-10 text-center text-gray-400">
             <div className="text-4xl mb-3">📋</div>
             <div className="font-semibold mb-2">Δεν βρέθηκαν leads</div>
-            <button onClick={handleSync} className="btn-primary mt-2 flex items-center gap-2 mx-auto">
-              <ArrowPathIcon className="w-4 h-4" /> Sync από Google Sheet
-            </button>
+            {!hasFilters && leads.length === 0 && (
+              <a href="/lead-lists" className="btn-primary mt-2 inline-flex items-center gap-2">
+                → Μεταβείτε στις Λίστες για Sync
+              </a>
+            )}
+            {hasFilters && (
+              <p className="text-sm mt-1">Δοκιμάστε να αλλάξετε τα φίλτρα αναζήτησης.</p>
+            )}
           </div>
         ) : (
           <>
@@ -1074,10 +1052,10 @@ export default function Leads({ currentEmployee }) {
                 <tr className="bg-gray-50 border-b border-gray-200 text-xs text-gray-500 uppercase tracking-wide">
                   <th className="th w-6 px-1"></th>
                   <SortTh col="status" label="Status" sortCol={sortCol} sortDir={sortDir} onSort={toggleSort} className="w-[120px]" />
-                  <SortTh col="assigned_to" label="Agent" sortCol={sortCol} sortDir={sortDir} onSort={toggleSort} className="w-[85px]" />
+                  <SortTh col="assigned_to" label="Σύμβουλος" sortCol={sortCol} sortDir={sortDir} onSort={toggleSort} className="w-[85px]" />
                   <SortTh col="name" label="Επωνυμία" sortCol={sortCol} sortDir={sortDir} onSort={toggleSort} />
                   <th className="th text-left w-[105px]">Τηλ / Email</th>
-                  <SortTh col="total_debt" label="Σύν. Οφειλών" sortCol={sortCol} sortDir={sortDir} onSort={toggleSort} className="w-[110px]" />
+                  <SortTh col="total_debt" label="Σύν. Οφειλών" sortCol={sortCol} sortDir={sortDir} onSort={toggleSort} className="w-[85px]" />
                   <SortTh col="app_next_call" label="Reminder" sortCol={sortCol} sortDir={sortDir} onSort={toggleSort} className="w-[80px]" />
                   <SortTh col="date" label="Ημ/νία" sortCol={sortCol} sortDir={sortDir} onSort={toggleSort} className="w-[80px]" />
                   <th className="th text-left">Τελευταίο Σχόλιο</th>

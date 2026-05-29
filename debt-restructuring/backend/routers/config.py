@@ -1,5 +1,6 @@
 import json
-from fastapi import APIRouter, Depends
+from typing import Any, List
+from fastapi import APIRouter, Depends, Body
 from sqlalchemy.orm import Session
 from database import get_db
 from models import AppConfig
@@ -16,7 +17,7 @@ def get_pricing_config(db: Session = Depends(get_db)):
 
 
 @router.put("/pricing")
-def save_pricing_config(data: dict, db: Session = Depends(get_db)):
+def save_pricing_config(data: dict = Body(...), db: Session = Depends(get_db)):
     row = db.query(AppConfig).filter(AppConfig.key == "pricing").first()
     if row:
         row.value = json.dumps(data)
@@ -35,7 +36,7 @@ def get_lead_templates(db: Session = Depends(get_db)):
 
 
 @router.put("/lead-templates")
-def save_lead_templates(data: list, db: Session = Depends(get_db)):
+def save_lead_templates(data: List[Any] = Body(...), db: Session = Depends(get_db)):
     row = db.query(AppConfig).filter(AppConfig.key == "lead_templates").first()
     if row:
         row.value = json.dumps(data)
@@ -54,7 +55,7 @@ def get_lead_links(db: Session = Depends(get_db)):
 
 
 @router.put("/lead-links")
-def save_lead_links(data: list, db: Session = Depends(get_db)):
+def save_lead_links(data: List[Any] = Body(...), db: Session = Depends(get_db)):
     row = db.query(AppConfig).filter(AppConfig.key == "lead_links").first()
     if row:
         row.value = json.dumps(data)

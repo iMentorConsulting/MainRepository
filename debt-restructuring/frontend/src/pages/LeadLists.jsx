@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { toast } from 'react-hot-toast'
-import { TrashIcon, PlusIcon } from '@heroicons/react/24/outline'
+import { TrashIcon, PlusIcon, ArrowPathIcon } from '@heroicons/react/24/outline'
 import * as api from '../api'
 
 const TEMPLATE_TYPES = [
@@ -98,11 +98,33 @@ export default function LeadLists() {
   const [addingLink, setAddingLink] = useState(false)
   const [editingLink, setEditingLink] = useState(null) // index
   const [saving, setSaving] = useState(false)
+  const [syncing, setSyncing] = useState(false)
 
   useEffect(() => {
     api.getLeadTemplates().then(r => setTemplates(r.data || [])).catch(() => {})
     api.getLeadLinks().then(r => setLinks(r.data || [])).catch(() => {})
   }, [])
+
+  const handleSync = async (full = false) => {
+    setSyncing(true)
+    try {
+      const res = await api.syncLeads(full)
+      const d = res.data
+      toast.success(`Sync OK (${d.mode}) — ${d.inserted} νέα${d.updated ? `, ${d.updated} ενημ.` : ''}`)
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || 'Σφάλμα sync')
+    } finally { setSyncing(false) }
+  }
+
+  const handleNormalize = async () => {
+    setSyncing(true)
+    try {
+      const res = await api.normalizeLeadStatuses()
+      toast.success(`Fix Status OK — ${res.data.fixed} εγγραφές διορθώθηκαν`)
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || 'Σφάλμα')
+    } finally { setSyncing(false) }
+  }
 
   const saveTpls = async (next) => {
     setSaving(true)
@@ -136,10 +158,36 @@ export default function LeadLists() {
 
   return (
     <div className="p-4 md:p-6 max-w-[900px] mx-auto space-y-8">
-      <div>
-        <h1 className="text-2xl font-black text-blue-800">Λίστες & Ρυθμίσεις</h1>
-        <p className="text-gray-500 text-sm mt-0.5">Templates επικοινωνίας και σύνδεσμοι TaxisNet</p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-2xl font-black text-blue-800">Λίστες & Ρυθμίσεις</h1>
+          <p className="text-gray-500 text-sm mt-0.5">Templates επικοινωνίας, σύνδεσμοι TaxisNet και συγχρονισμός</p>
+        </div>
       </div>
+
+      {/* Sync section */}
+      <section className="card p-4">
+        <h2 className="text-base font-bold text-gray-800 mb-3">Συγχρονισμός Google Sheet</h2>
+        <div className="flex flex-wrap gap-2">
+          <button onClick={() => handleSync(false)} disabled={syncing}
+            className="btn-secondary flex items-center gap-2 text-sm"
+            title="Εισάγει μόνο νέες γραμμές">
+            <ArrowPathIcon className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} />
+            {syncing ? 'Φόρτωση…' : 'Sync (νέες γραμμές)'}
+          </button>
+          <button onClick={() => { if (window.confirm('Full sync: ανανεώνει ΟΛΑ τα sheet πεδία. Συνέχεια;')) handleSync(true) }}
+            disabled={syncing}
+            className="btn-secondary text-sm text-amber-700 border-amber-300 hover:bg-amber-50">
+            Full Sync (όλα τα πεδία)
+          </button>
+          <button onClick={handleNormalize} disabled={syncing}
+            className="btn-secondary text-sm text-violet-700 border-violet-200 hover:bg-violet-50"
+            title="Διορθώνει status (CANCEL-INTEREST → Cancelled) σε υπάρχουσες εγγραφές">
+            Fix Status
+          </button>
+        </div>
+        <p className="text-xs text-gray-400 mt-2">Αυτόματο sync κάθε μέρα στις 07:45 πρωί.</p>
+      </section>
 
       {/* Templates */}
       <section>

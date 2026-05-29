@@ -270,6 +270,58 @@ def normalize_statuses(db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/reporting")
+def get_reporting(db: Session = Depends(get_db)):
+    from collections import defaultdict
+    try:
+        leads = db.query(Lead).all()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"DB error: {e}")
+
+    AGENTS = ["STELLA", "VALLIA", "SOFIA"]
+
+    events = []
+    for lead in leads:
+        for c in (lead.app_comments or []):
+            at_str = c.get("at")
+            author = c.get("author", "")
+            if at_str and author and author not in ("system",):
+                try:
+                    at = datetime.fromisoformat(at_str.split(".")[0])  # strip microseconds
+                    events.append({"at": at, "author": author.upper()})
+                except Exception:
+                    pass
+
+    daily: dict = defaultdict(lambda: defaultdict(int))
+    weekly: dict = defaultdict(lambda: defaultdict(int))
+    monthly: dict = defaultdict(lambda: defaultdict(int))
+    hourly: dict = defaultdict(int)
+
+    for ev in events:
+        day_key = ev["at"].strftime("%Y-%m-%d")
+        week_key = ev["at"].strftime("%G-W%V")
+        month_key = ev["at"].strftime("%Y-%m")
+        hour = ev["at"].hour
+        author = ev["author"]
+        daily[day_key][author] += 1
+        weekly[week_key][author] += 1
+        monthly[month_key][author] += 1
+        hourly[hour] += 1
+
+    return {
+        "daily": [{"date": k, **{a: v.get(a, 0) for a in AGENTS}} for k, v in sorted(daily.items())[-90:]],
+        "weekly": [{"week": k, **{a: v.get(a, 0) for a in AGENTS}} for k, v in sorted(weekly.items())[-26:]],
+        "monthly": [{"month": k, **{a: v.get(a, 0) for a in AGENTS}} for k, v in sorted(monthly.items())[-12:]],
+        "hourly": [{"hour": f"{h}:00", "count": hourly.get(h, 0)} for h in range(8, 17)],
+        "total_comments": len(events),
+        "total_leads": len(leads),
+        "deals": sum(1 for l in leads if l.status == "deal"),
+        "active": sum(1 for l in leads if l.status == "active"),
+        "hot": sum(1 for l in leads if l.status == "hot"),
+        "cancelled": sum(1 for l in leads if l.status == "cancelled"),
+    }
+
+
 @router.get("/{lead_id}")
 def get_lead(lead_id: int, db: Session = Depends(get_db)):
     lead = db.query(Lead).filter(Lead.id == lead_id).first()
@@ -407,52 +459,3 @@ def send_email(lead_id: int, data: EmailLeadRequest, db: Session = Depends(get_d
     lead.updated_at = datetime.utcnow()
     db.commit()
     return {"ok": True}
-
-
-@router.get("/reporting")
-def get_reporting(db: Session = Depends(get_db)):
-    from collections import defaultdict
-    leads = db.query(Lead).all()
-
-    AGENTS = ["STELLA", "VALLIA", "SOFIA"]
-
-    events = []
-    for lead in leads:
-        for c in (lead.app_comments or []):
-            at_str = c.get("at")
-            author = c.get("author", "")
-            if at_str and author and author not in ("system",):
-                try:
-                    at = datetime.fromisoformat(at_str)
-                    events.append({"at": at, "author": author.upper()})
-                except Exception:
-                    pass
-
-    daily: dict = defaultdict(lambda: defaultdict(int))
-    weekly: dict = defaultdict(lambda: defaultdict(int))
-    monthly: dict = defaultdict(lambda: defaultdict(int))
-    hourly: dict = defaultdict(int)
-
-    for ev in events:
-        day_key = ev["at"].strftime("%Y-%m-%d")
-        week_key = ev["at"].strftime("%G-W%V")
-        month_key = ev["at"].strftime("%Y-%m")
-        hour = ev["at"].hour
-        author = ev["author"]
-        daily[day_key][author] += 1
-        weekly[week_key][author] += 1
-        monthly[month_key][author] += 1
-        hourly[hour] += 1
-
-    return {
-        "daily": [{"date": k, **{a: v.get(a, 0) for a in AGENTS}} for k, v in sorted(daily.items())[-90:]],
-        "weekly": [{"week": k, **{a: v.get(a, 0) for a in AGENTS}} for k, v in sorted(weekly.items())[-26:]],
-        "monthly": [{"month": k, **{a: v.get(a, 0) for a in AGENTS}} for k, v in sorted(monthly.items())[-12:]],
-        "hourly": [{"hour": f"{h}:00", "count": hourly.get(h, 0)} for h in range(8, 17)],
-        "total_comments": len(events),
-        "total_leads": len(leads),
-        "deals": sum(1 for l in leads if l.status == "deal"),
-        "active": sum(1 for l in leads if l.status == "active"),
-        "hot": sum(1 for l in leads if l.status == "hot"),
-        "cancelled": sum(1 for l in leads if l.status == "cancelled"),
-    }
