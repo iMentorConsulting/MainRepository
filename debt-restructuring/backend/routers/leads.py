@@ -154,6 +154,7 @@ def _lead_to_dict(lead: Lead) -> dict:
         "id": lead.id,
         "sheet_row_num": lead.sheet_row_num,
         "status": lead.status or "",
+        "status_raw": lead.status_raw or "",
         "assigned_to": lead.assigned_to or "",
         "date": lead.date or "",
         "name": lead.name or "",
@@ -264,7 +265,9 @@ def patch_lead(lead_id: int, data: LeadPatch, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Lead not found")
 
     if data.status is not None:
-        lead.status = data.status.lower()
+        from sheets_sync import _normalize_status
+        lead.status = _normalize_status(data.status)
+        lead.status_raw = data.status  # keep what user typed
     if data.assigned_to is not None:
         lead.assigned_to = data.assigned_to
     if data.sheet_comments is not None:

@@ -82,7 +82,8 @@ class Lead(Base):
 
     # Synced from Google Sheets (overwritten on each sync)
     sheet_row_num = Column(Integer, nullable=True, index=True)
-    status = Column(String, default="")
+    status = Column(String, default="")        # normalized group: call/hot/active/deal/cancelled
+    status_raw = Column(String, default="")    # original value from sheet e.g. CANCEL-INTEREST
     assigned_to = Column(String, default="")
     date = Column(String, default="")
     name = Column(String, default="", index=True)

@@ -12,7 +12,7 @@ import {
   TrashIcon,
   BellIcon,
   LinkIcon,
-  FunnelIcon,
+  ChevronUpDownIcon,
 } from '@heroicons/react/24/outline'
 import * as api from '../api'
 
@@ -35,6 +35,24 @@ const STATUS_CFG = {
 
 function statusCfg(val) {
   return STATUS_CFG[(val || '').toLowerCase()] || STATUS_CFG['']
+}
+
+// ── Sortable column header ──────────────────────────────────────────────────
+function SortTh({ col, label, sortCol, sortDir, onSort, className = '' }) {
+  const active = sortCol === col
+  return (
+    <th
+      className={`th text-left cursor-pointer select-none hover:bg-gray-100 ${className}`}
+      onClick={() => onSort(col)}
+    >
+      <span className="flex items-center gap-1">
+        {label}
+        <span className={`text-[10px] ${active ? 'text-blue-600' : 'text-gray-300'}`}>
+          {active ? (sortDir === 'asc' ? '▲' : '▼') : '⇅'}
+        </span>
+      </span>
+    </th>
+  )
 }
 
 // ── Reusable multi-select dropdown ─────────────────────────────────────────
@@ -95,11 +113,13 @@ function MultiSelect({ options, selected, onChange, placeholder, cls = '' }) {
   )
 }
 
-// ── Status badge with inline dropdown ──────────────────────────────────────
-function StatusBadge({ value, onChange }) {
+// ── Status badge: shows raw text with group color ──────────────────────────
+function StatusBadge({ value, rawValue, onChange }) {
   const [open, setOpen] = useState(false)
   const ref = useRef()
   const cfg = statusCfg(value)
+  // Display the raw sheet value if available (e.g. "CANCEL-INTEREST"), else the group label
+  const displayLabel = rawValue && rawValue !== value?.toUpperCase() ? rawValue : cfg.label
 
   useEffect(() => {
     const h = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
@@ -111,9 +131,10 @@ function StatusBadge({ value, onChange }) {
     <div className="relative" ref={ref}>
       <button
         onClick={() => setOpen(o => !o)}
-        className={`text-xs font-semibold px-2 py-0.5 rounded-full cursor-pointer hover:opacity-80 whitespace-nowrap ${cfg.cls}`}
+        title={rawValue ? `Raw: ${rawValue}` : undefined}
+        className={`text-[11px] font-semibold px-2 py-0.5 rounded-full cursor-pointer hover:opacity-80 max-w-[110px] truncate block ${cfg.cls}`}
       >
-        {cfg.label}
+        {displayLabel || '—'}
       </button>
       {open && (
         <div className="absolute z-50 top-7 left-0 bg-white border border-gray-200 rounded-xl shadow-lg min-w-[130px] py-1">
@@ -433,8 +454,8 @@ function LeadRow({ lead, currentEmployee, expanded, onToggle, onLeadUpdate }) {
         </td>
 
         {/* Status */}
-        <td className="td w-[90px]" onClick={e => e.stopPropagation()}>
-          <StatusBadge value={lead.status} onChange={v => update({ status: v })} />
+        <td className="td w-[120px]" onClick={e => e.stopPropagation()}>
+          <StatusBadge value={lead.status} rawValue={lead.status_raw} onChange={v => update({ status: v })} />
         </td>
 
         {/* Assigned */}
@@ -445,7 +466,6 @@ function LeadRow({ lead, currentEmployee, expanded, onToggle, onLeadUpdate }) {
         {/* Name — left aligned */}
         <td className="td text-left">
           <div className="font-semibold text-blue-900 text-sm leading-tight">{lead.name || '—'}</div>
-          {lead.date && <div className="text-[10px] text-gray-400 mt-0.5">{lead.date}</div>}
         </td>
 
         {/* Phone + Email — narrow */}
@@ -475,6 +495,9 @@ function LeadRow({ lead, currentEmployee, expanded, onToggle, onLeadUpdate }) {
             onChange={v => update({ app_next_call: v })}
           />
         </td>
+
+        {/* Date */}
+        <td className="td w-[80px] text-xs text-gray-500">{lead.date || '—'}</td>
 
         {/* Last comment */}
         <td className="td text-left">
@@ -510,7 +533,7 @@ function LeadRow({ lead, currentEmployee, expanded, onToggle, onLeadUpdate }) {
         </td>
       </tr>
       {expanded && (
-        <ExpandedRow lead={lead} currentEmployee={currentEmployee} onUpdate={onLeadUpdate} colCount={9} />
+        <ExpandedRow lead={lead} currentEmployee={currentEmployee} onUpdate={onLeadUpdate} colCount={10} />
       )}
     </>
   )
@@ -528,6 +551,14 @@ export default function Leads({ currentEmployee }) {
   const [filterEmployees, setFilterEmployees] = useState([])
   const [page, setPage] = useState(1)
   const [expandedId, setExpandedId] = useState(null)
+  const [sortCol, setSortCol] = useState('sheet_row_num')
+  const [sortDir, setSortDir] = useState('desc')
+
+  const toggleSort = (col) => {
+    if (sortCol === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setSortCol(col); setSortDir('asc') }
+    setPage(1)
+  }
 
   const load = async () => {
     setLoading(true)
@@ -574,9 +605,18 @@ export default function Leads({ currentEmployee }) {
   let displayed = leads
   if (filterMonths.length > 0)
     displayed = displayed.filter(l => filterMonths.includes(parseMonth(l.date)))
-  // Client-side status filter as well (for immediate feedback even if backend missed it)
   if (filterStatus.length > 0)
     displayed = displayed.filter(l => filterStatus.includes((l.status || '').toLowerCase()))
+
+  // Client-side sort
+  displayed = [...displayed].sort((a, b) => {
+    let av = a[sortCol] ?? ''
+    let bv = b[sortCol] ?? ''
+    // Numeric columns
+    if (sortCol === 'sheet_row_num') { av = Number(av) || 0; bv = Number(bv) || 0 }
+    const cmp = typeof av === 'number' ? av - bv : String(av).localeCompare(String(bv), 'el')
+    return sortDir === 'asc' ? cmp : -cmp
+  })
 
   // Pagination
   const totalPages = Math.ceil(displayed.length / PAGE_SIZE)
@@ -699,12 +739,13 @@ export default function Leads({ currentEmployee }) {
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-200 text-xs text-gray-500 uppercase tracking-wide">
                   <th className="th w-6 px-1"></th>
-                  <th className="th text-left w-[90px]">Status</th>
-                  <th className="th text-left w-[85px]">Agent</th>
-                  <th className="th text-left">Επωνυμία</th>
+                  <SortTh col="status" label="Status" sortCol={sortCol} sortDir={sortDir} onSort={toggleSort} className="w-[120px]" />
+                  <SortTh col="assigned_to" label="Agent" sortCol={sortCol} sortDir={sortDir} onSort={toggleSort} className="w-[85px]" />
+                  <SortTh col="name" label="Επωνυμία" sortCol={sortCol} sortDir={sortDir} onSort={toggleSort} />
                   <th className="th text-left w-[105px]">Τηλ / Email</th>
-                  <th className="th text-left w-[110px]">Σύν. Οφειλών</th>
-                  <th className="th text-left w-[80px]">Reminder</th>
+                  <SortTh col="total_debt" label="Σύν. Οφειλών" sortCol={sortCol} sortDir={sortDir} onSort={toggleSort} className="w-[110px]" />
+                  <SortTh col="app_next_call" label="Reminder" sortCol={sortCol} sortDir={sortDir} onSort={toggleSort} className="w-[80px]" />
+                  <SortTh col="date" label="Ημ/νία" sortCol={sortCol} sortDir={sortDir} onSort={toggleSort} className="w-[80px]" />
                   <th className="th text-left">Τελευταίο Σχόλιο</th>
                   <th className="th text-center w-[60px]">—</th>
                 </tr>

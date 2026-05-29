@@ -125,14 +125,35 @@ def fetch_sheet_rows(from_row: int = 0) -> list:
     return data_rows
 
 
+def _normalize_status(raw: str) -> str:
+    """Map any sheet status value to a canonical group."""
+    r = raw.strip().upper()
+    if not r:
+        return ""
+    if r.startswith("CANCEL"):
+        return "cancelled"
+    if r == "DEAL":
+        return "deal"
+    if r == "ACTIVE":
+        return "active"
+    if r == "CALL":
+        return "call"
+    if r == "HOT":
+        return "hot"
+    # Unknown value — keep lowercased
+    return r.lower()
+
+
 def _parse_bool(v: str) -> bool:
     return str(v).strip().lower() in ("true", "yes", "ναι", "✓", "x", "1", "☑")
 
 
 def _build_sheet_fields(row: dict) -> dict:
+    raw_status = row.get("status", "").strip()
     return dict(
         sheet_row_num=row["_row_num"],
-        status=row.get("status", "").strip().lower(),
+        status=_normalize_status(raw_status),
+        status_raw=raw_status,
         assigned_to=row.get("assigned_to", ""),
         date=row.get("date", ""),
         name=row.get("name", "").strip(),

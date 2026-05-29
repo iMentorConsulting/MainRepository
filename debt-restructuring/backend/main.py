@@ -90,6 +90,7 @@ def run_migrations():
             "ALTER TABLE leads ADD COLUMN app_comments TEXT DEFAULT '[]'",
             "ALTER TABLE leads ADD COLUMN app_next_call DATETIME",
             "ALTER TABLE leads ADD COLUMN linked_case_id INTEGER",
+            "ALTER TABLE leads ADD COLUMN status_raw VARCHAR DEFAULT ''",
         ]:
             try:
                 conn.execute(text(col_ddl))
