@@ -7,12 +7,16 @@ export default function ExpensesForm({ record, onSave, onCancel }) {
   const [categories, setCategories] = useState([]);
   const [suppliers, setSuppliers] = useState([]);
   const [services, setServices] = useState([]);
-  const { register, handleSubmit } = useForm({ defaultValues: record || {} });
+  const { register, handleSubmit, reset } = useForm({ defaultValues: record || {} });
 
   useEffect(() => {
-    api.get('/lists?list_type=ΚΑΤΗΓΟΡΙΕΣ_ΕΞΟΔΩΝ&active_only=true').then(r => setCategories(r.data.map(x => x.value)));
-    api.get('/lists?list_type=ΠΡΟΜΗΘΕΥΤΕΣ&active_only=true').then(r => setSuppliers(r.data.map(x => x.value)));
-    api.get('/lists?list_type=ΕΙΔΟΣ_ΥΠΗΡΕΣΙΑΣ&active_only=true').then(r => setServices(r.data.map(x => x.value)));
+    Promise.all([
+      api.get('/lists?list_type=ΚΑΤΗΓΟΡΙΕΣ_ΕΞΟΔΩΝ&active_only=true').then(r => setCategories(r.data.map(x => x.value))),
+      api.get('/lists?list_type=ΠΡΟΜΗΘΕΥΤΕΣ&active_only=true').then(r => setSuppliers(r.data.map(x => x.value))),
+      api.get('/lists?list_type=ΕΙΔΟΣ_ΥΠΗΡΕΣΙΑΣ&active_only=true').then(r => setServices(r.data.map(x => x.value))),
+    ]).then(() => {
+      if (record) reset(record);
+    });
   }, []);
 
   const onSubmit = async data => {
