@@ -224,14 +224,27 @@ def list_leads(
 
 
 @router.post("/sync")
-def sync_from_sheets(db: Session = Depends(get_db)):
+def sync_from_sheets(full: bool = False, db: Session = Depends(get_db)):
     sheet_id = os.getenv("GOOGLE_SHEET_ID", "").strip()
     if not sheet_id:
         raise HTTPException(status_code=503, detail="GOOGLE_SHEET_ID not configured")
     try:
         from sheets_sync import sync_leads
-        result = sync_leads(db)
+        result = sync_leads(db, full=full)
         return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/sheet-headers")
+def sheet_headers():
+    """Debug endpoint: returns raw sheet headers and their field mapping."""
+    sheet_id = os.getenv("GOOGLE_SHEET_ID", "").strip()
+    if not sheet_id:
+        raise HTTPException(status_code=503, detail="GOOGLE_SHEET_ID not configured")
+    try:
+        from sheets_sync import fetch_raw_headers
+        return fetch_raw_headers()
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

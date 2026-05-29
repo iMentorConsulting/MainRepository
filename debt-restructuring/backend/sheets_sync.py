@@ -16,7 +16,7 @@ from datetime import datetime
 
 TAB_NAME = "ΔΙΑΧΕΙΡΙΣΗ"
 
-# Sheet header → Lead field name
+# Sheet header → Lead field name (exact match)
 COL_MAP = {
     "Status": "status",
     "Assigned To": "assigned_to",
@@ -45,6 +45,15 @@ COL_MAP = {
     "Viber & email (αυτοματοποιημένα)": "viber_info",
 }
 
+# Case-insensitive fallback lookup
+_COL_MAP_LOWER = {k.lower(): v for k, v in COL_MAP.items()}
+
+
+def _map_header(header: str) -> str:
+    """Map a sheet header to a Lead field name, case-insensitively."""
+    h = header.strip()
+    return COL_MAP.get(h) or _COL_MAP_LOWER.get(h.lower()) or ("_col_" + h.lower().replace(" ", "_")[:20])
+
 
 def _get_sheets_service():
     sa_json = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON", "").strip()
@@ -59,7 +68,26 @@ def _get_sheets_service():
     return build("sheets", "v4", credentials=creds, cache_discovery=False)
 
 
-def fetch_sheet_rows() -> list:
+def fetch_raw_headers() -> dict:
+    """Return the raw first row of the sheet for debugging header mapping."""
+    sheet_id = os.getenv("GOOGLE_SHEET_ID", "").strip()
+    if not sheet_id:
+        raise RuntimeError("GOOGLE_SHEET_ID not set")
+    svc = _get_sheets_service()
+    result = svc.spreadsheets().values().get(
+        spreadsheetId=sheet_id,
+        range=f"'{TAB_NAME}'!A1:Z1",
+    ).execute()
+    raw_headers = result.get("values", [[]])[0]
+    mapping = {}
+    for h in raw_headers:
+        field = _map_header(h)
+        mapping[h] = field
+    return {"raw_headers": raw_headers, "mapping": mapping}
+
+
+def fetch_sheet_rows(from_row: int = 0) -> list:
+    """Fetch rows from the sheet. If from_row > 0, skip rows with row_num <= from_row."""
     sheet_id = os.getenv("GOOGLE_SHEET_ID", "").strip()
     if not sheet_id:
         raise RuntimeError("GOOGLE_SHEET_ID not set")
@@ -74,18 +102,24 @@ def fetch_sheet_rows() -> list:
     if len(rows) < 2:
         return []
 
-    headers = [h.strip() for h in rows[0]]
+    raw_headers = rows[0]
+    headers = [h.strip() for h in raw_headers]
     data_rows = []
 
     for row_num, row in enumerate(rows[1:], start=2):
+        if from_row > 0 and row_num <= from_row:
+            continue
+
         row_dict = {"_row_num": row_num}
         for i, header in enumerate(headers):
-            field = COL_MAP.get(header, "_col_" + header.lower().replace(" ", "_")[:20])
+            field = _map_header(header)
             val = row[i].strip() if i < len(row) else ""
             row_dict[field] = val
-        # Fill missing mapped fields with empty string
+
+        # Ensure all mapped fields exist
         for field in set(COL_MAP.values()):
             row_dict.setdefault(field, "")
+
         data_rows.append(row_dict)
 
     return data_rows
@@ -95,65 +129,88 @@ def _parse_bool(v: str) -> bool:
     return str(v).strip().lower() in ("true", "yes", "ναι", "✓", "x", "1", "☑")
 
 
-def sync_leads(db) -> dict:
-    from models import Lead
+def _build_sheet_fields(row: dict) -> dict:
+    return dict(
+        sheet_row_num=row["_row_num"],
+        status=row.get("status", "").strip().lower(),
+        assigned_to=row.get("assigned_to", ""),
+        date=row.get("date", ""),
+        name=row.get("name", "").strip(),
+        sheet_comments=row.get("sheet_comments", ""),
+        next_call_sheet=row.get("next_call_sheet", ""),
+        total_debt=row.get("total_debt", ""),
+        phone=row.get("phone", "").strip(),
+        email=row.get("email", ""),
+        offer_sent=_parse_bool(row.get("offer_sent", "")),
+        offer_sent_date=row.get("offer_sent_date", ""),
+        offer_amount=row.get("offer_amount", ""),
+        success_fee=row.get("success_fee", ""),
+        vulnerable_debtor=_parse_bool(row.get("vulnerable_debtor", "")),
+        referrer=row.get("referrer", ""),
+        service_type=row.get("service_type", ""),
+        application_number=row.get("application_number", ""),
+        viber_info=row.get("viber_info", ""),
+    )
 
-    rows = fetch_sheet_rows()
+
+def sync_leads(db, full: bool = False) -> dict:
+    """
+    Sync sheet rows into the leads table.
+
+    full=False (default) → incremental: only NEW rows beyond the max already in DB.
+                           Existing records are never touched.
+    full=True            → full re-sync: updates sheet-origin fields on existing records
+                           (app_comments / app_next_call / linked_case_id are always preserved).
+    """
+    from models import Lead
+    from sqlalchemy import func
+
+    # Determine starting row for incremental sync
+    from_row = 0
+    if not full:
+        max_row = db.query(func.max(Lead.sheet_row_num)).scalar()
+        from_row = max_row or 0
+
+    rows = fetch_sheet_rows(from_row=from_row)
     inserted = 0
     updated = 0
     skipped = 0
 
     for row in rows:
-        phone = row.get("phone", "").strip()
-        name = row.get("name", "").strip()
+        fields = _build_sheet_fields(row)
+        phone = fields["phone"]
+        name = fields["name"]
 
         if not phone and not name:
             skipped += 1
             continue
 
-        # Match by phone first, then by row number
-        existing = None
-        if phone:
-            existing = db.query(Lead).filter(Lead.phone == phone).first()
-        if not existing:
-            existing = db.query(Lead).filter(Lead.sheet_row_num == row["_row_num"]).first()
+        if full:
+            # In full mode, find and update existing records (sheet fields only)
+            existing = None
+            if phone:
+                existing = db.query(Lead).filter(Lead.phone == phone).first()
+            if not existing:
+                existing = db.query(Lead).filter(Lead.sheet_row_num == row["_row_num"]).first()
 
-        sheet_fields = dict(
-            sheet_row_num=row["_row_num"],
-            status=row.get("status", "").strip().lower(),
-            assigned_to=row.get("assigned_to", ""),
-            date=row.get("date", ""),
-            name=name,
-            sheet_comments=row.get("sheet_comments", ""),
-            next_call_sheet=row.get("next_call_sheet", ""),
-            total_debt=row.get("total_debt", ""),
-            phone=phone,
-            email=row.get("email", ""),
-            offer_sent=_parse_bool(row.get("offer_sent", "")),
-            offer_sent_date=row.get("offer_sent_date", ""),
-            offer_amount=row.get("offer_amount", ""),
-            success_fee=row.get("success_fee", ""),
-            vulnerable_debtor=_parse_bool(row.get("vulnerable_debtor", "")),
-            referrer=row.get("referrer", ""),
-            service_type=row.get("service_type", ""),
-            application_number=row.get("application_number", ""),
-            viber_info=row.get("viber_info", ""),
-        )
+            if existing:
+                for k, v in fields.items():
+                    setattr(existing, k, v)
+                existing.updated_at = datetime.utcnow()
+                updated += 1
+                continue
 
-        if existing:
-            for k, v in sheet_fields.items():
-                setattr(existing, k, v)
-            existing.updated_at = datetime.utcnow()
-            updated += 1
-        else:
-            db.add(Lead(**sheet_fields))
-            inserted += 1
+        # Insert new record
+        db.add(Lead(**fields))
+        inserted += 1
 
     db.commit()
     return {
         "ok": True,
+        "mode": "full" if full else "incremental",
+        "from_row": from_row,
         "inserted": inserted,
         "updated": updated,
         "skipped": skipped,
-        "total_sheet_rows": len(rows),
+        "new_rows_processed": len(rows),
     }

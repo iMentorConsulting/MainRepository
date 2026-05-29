@@ -16,7 +16,7 @@ import {
 } from '@heroicons/react/24/outline'
 import * as api from '../api'
 
-const EMPLOYEES = ['STELLA', 'VALLIA', 'SOFIA', 'HARIS']
+const EMPLOYEES = ['STELLA', 'VALLIA', 'SOFIA']
 const PAGE_SIZE = 50
 
 const THIS_YEAR = new Date().getFullYear()
@@ -150,7 +150,8 @@ function AssignedSelect({ value, onChange }) {
 }
 
 // ── Next-call pill ──────────────────────────────────────────────────────────
-function NextCallPill({ value, onChange }) {
+// value = app_next_call (ISO), sheetValue = next_call_sheet (free text from sheet)
+function NextCallPill({ value, sheetValue, onChange }) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(value ? value.slice(0, 10) : '')
 
@@ -174,16 +175,41 @@ function NextCallPill({ value, onChange }) {
     )
   }
 
+  // App reminder (ISO date)
+  if (value && parsed) {
+    return (
+      <button
+        onClick={e => { e.stopPropagation(); setEditing(true) }}
+        className={`text-xs px-1.5 py-0.5 rounded-full font-medium whitespace-nowrap flex items-center gap-1
+          ${overdue ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'}`}
+      >
+        <BellIcon className="w-3 h-3 shrink-0" />
+        {format(parsed, 'dd/MM', { locale: el })}
+      </button>
+    )
+  }
+
+  // Sheet next call (free text, read-only display + click to set app reminder)
+  if (sheetValue) {
+    return (
+      <button
+        onClick={e => { e.stopPropagation(); setEditing(true) }}
+        title={`Sheet: ${sheetValue} — κλικ για να θέσετε reminder`}
+        className="text-xs px-1.5 py-0.5 rounded-full font-medium whitespace-nowrap flex items-center gap-1 bg-amber-50 text-amber-700 border border-amber-200"
+      >
+        <BellIcon className="w-3 h-3 shrink-0" />
+        {sheetValue.length > 8 ? sheetValue.slice(0, 8) + '…' : sheetValue}
+      </button>
+    )
+  }
+
+  // Empty — click to add
   return (
     <button
       onClick={e => { e.stopPropagation(); setEditing(true) }}
-      className={`text-xs px-1.5 py-0.5 rounded-full font-medium whitespace-nowrap flex items-center gap-1
-        ${value
-          ? overdue ? 'bg-red-100 text-red-700' : 'bg-blue-50 text-blue-700'
-          : 'text-gray-300 hover:text-gray-500'}`}
+      className="text-xs text-gray-300 hover:text-gray-500 flex items-center gap-1"
     >
       <BellIcon className="w-3 h-3 shrink-0" />
-      {value && parsed ? format(parsed, 'dd/MM', { locale: el }) : ''}
     </button>
   )
 }
@@ -443,7 +469,11 @@ function LeadRow({ lead, currentEmployee, expanded, onToggle, onLeadUpdate }) {
 
         {/* Reminder */}
         <td className="td w-[80px]" onClick={e => e.stopPropagation()}>
-          <NextCallPill value={nextCall} onChange={v => update({ app_next_call: v })} />
+          <NextCallPill
+            value={nextCall}
+            sheetValue={lead.next_call_sheet}
+            onChange={v => update({ app_next_call: v })}
+          />
         </td>
 
         {/* Last comment */}
@@ -516,11 +546,12 @@ export default function Leads({ currentEmployee }) {
 
   useEffect(() => { load() }, [search, filterStatus, filterEmployees, filterYears])
 
-  const handleSync = async () => {
+  const handleSync = async (full = false) => {
     setSyncing(true)
     try {
-      const res = await api.syncLeads()
-      toast.success(`Sync OK — ${res.data.inserted} νέα, ${res.data.updated} ενημερώθηκαν`)
+      const res = await api.syncLeads(full)
+      const d = res.data
+      toast.success(`Sync OK (${d.mode}) — ${d.inserted} νέα${d.updated ? `, ${d.updated} ενημ.` : ''}`)
       load()
     } catch (err) {
       toast.error(err?.response?.data?.detail || 'Σφάλμα sync')
@@ -531,33 +562,30 @@ export default function Leads({ currentEmployee }) {
     setLeads(prev => prev.map(l => l.id === updated.id ? updated : l))
   }
 
-  // Client-side month filter (date is free text, parse year/month)
-  function parseYear(s) {
-    const m = (s || '').match(/\b(20\d{2})\b/)
-    return m ? m[1] : null
-  }
+  // Client-side filters
   function parseMonth(s) {
-    // dd/mm/yyyy or d/m/yyyy
-    const m1 = (s || '').match(/^\d{1,2}[\/\-](\d{1,2})[\/\-]20\d{2}$/)
+    const m1 = (s || '').match(/^\d{1,2}[\/\-](\d{1,2})[\/\-]20\d{2}/)
     if (m1) return String(parseInt(m1[1]))
-    // yyyy-mm-dd
     const m2 = (s || '').match(/^20\d{2}-(\d{2})-/)
     if (m2) return String(parseInt(m2[1]))
     return null
   }
 
-  const displayed = filterMonths.length > 0
-    ? leads.filter(l => filterMonths.includes(parseMonth(l.date)))
-    : leads
+  let displayed = leads
+  if (filterMonths.length > 0)
+    displayed = displayed.filter(l => filterMonths.includes(parseMonth(l.date)))
+  // Client-side status filter as well (for immediate feedback even if backend missed it)
+  if (filterStatus.length > 0)
+    displayed = displayed.filter(l => filterStatus.includes((l.status || '').toLowerCase()))
 
   // Pagination
   const totalPages = Math.ceil(displayed.length / PAGE_SIZE)
   const paginated = displayed.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
-  // Status counts (from full list, not page)
+  // Status counts from full (unfiltered) list
   const statusCounts = leads.reduce((acc, l) => {
     const k = (l.status || '').toLowerCase()
-    acc[k] = (acc[k] || 0) + 1
+    if (k) acc[k] = (acc[k] || 0) + 1
     return acc
   }, {})
 
@@ -578,11 +606,20 @@ export default function Leads({ currentEmployee }) {
             {displayed.length} εγγραφές{displayed.length !== leads.length ? ` (από ${leads.length})` : ''}
           </p>
         </div>
-        <button onClick={handleSync} disabled={syncing}
-          className="btn-secondary flex items-center gap-2 text-sm">
-          <ArrowPathIcon className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} />
-          {syncing ? 'Συγχρονισμός…' : 'Sync Google Sheet'}
-        </button>
+        <div className="flex gap-2">
+          <button onClick={() => handleSync(false)} disabled={syncing}
+            className="btn-secondary flex items-center gap-2 text-sm"
+            title="Εισάγει μόνο νέες γραμμές (δεν αγγίζει υπάρχουσες)">
+            <ArrowPathIcon className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} />
+            {syncing ? '…' : 'Sync'}
+          </button>
+          <button onClick={() => { if (window.confirm('Full sync: θα ανανεωθούν ΟΛΑ τα sheet πεδία σε υπάρχουσες εγγραφές. Συνέχεια;')) handleSync(true) }}
+            disabled={syncing}
+            className="btn-secondary text-xs text-amber-700 border-amber-300 hover:bg-amber-50"
+            title="Ανανεώνει sheet πεδία σε υπάρχουσες εγγραφές">
+            Full Sync
+          </button>
+        </div>
       </div>
 
       {/* Status quick-filter pills */}
