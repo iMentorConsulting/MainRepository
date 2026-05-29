@@ -157,6 +157,7 @@ def _lead_to_dict(lead: Lead) -> dict:
         "status_raw": lead.status_raw or "",
         "assigned_to": lead.assigned_to or "",
         "date": lead.date or "",
+        "month_sheet": getattr(lead, "month_sheet", "") or "",
         "name": lead.name or "",
         "sheet_comments": lead.sheet_comments or "",
         "next_call_sheet": lead.next_call_sheet or "",
@@ -172,6 +173,8 @@ def _lead_to_dict(lead: Lead) -> dict:
         "service_type": lead.service_type or "",
         "application_number": lead.application_number or "",
         "viber_info": lead.viber_info or "",
+        "platform_result": getattr(lead, "platform_result", "") or "",
+        "extra_fields": getattr(lead, "extra_fields", {}) or {},
         "app_comments": lead.app_comments or [],
         "app_next_call": lead.app_next_call.isoformat() if lead.app_next_call else None,
         "linked_case_id": lead.linked_case_id,
@@ -239,13 +242,23 @@ def sync_from_sheets(full: bool = False, db: Session = Depends(get_db)):
 
 @router.get("/sheet-headers")
 def sheet_headers():
-    """Debug endpoint: returns raw sheet headers and their field mapping."""
+    """Debug: returns raw sheet headers and their field mapping (now reads up to 78 cols)."""
     sheet_id = os.getenv("GOOGLE_SHEET_ID", "").strip()
     if not sheet_id:
         raise HTTPException(status_code=503, detail="GOOGLE_SHEET_ID not configured")
     try:
         from sheets_sync import fetch_raw_headers
         return fetch_raw_headers()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/normalize-statuses")
+def normalize_statuses(db: Session = Depends(get_db)):
+    """Fix existing leads where status wasn't normalized (e.g. CANCEL-INTEREST → cancelled)."""
+    try:
+        from sheets_sync import normalize_all_statuses
+        return normalize_all_statuses(db)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

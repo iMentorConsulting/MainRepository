@@ -45,6 +45,7 @@ export const addLeadComment = (id, text, author) => api.post(`/leads/${id}/comme
 export const deleteLeadComment = (id, idx) => api.delete(`/leads/${id}/comment/${idx}`)
 export const syncLeads = (full = false) => api.post(`/leads/sync${full ? '?full=true' : ''}`)
 export const getLeadSheetHeaders = () => api.get('/leads/sheet-headers')
+export const normalizeLeadStatuses = () => api.post('/leads/normalize-statuses')
 export const sendLeadViber = (id, message) => api.post(`/leads/${id}/send-viber`, { message })
 export const sendLeadEmail = (id, to, subject, body) => api.post(`/leads/${id}/send-email`, { to, subject, body })
 

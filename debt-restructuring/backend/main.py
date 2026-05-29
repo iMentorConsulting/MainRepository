@@ -91,6 +91,9 @@ def run_migrations():
             "ALTER TABLE leads ADD COLUMN app_next_call DATETIME",
             "ALTER TABLE leads ADD COLUMN linked_case_id INTEGER",
             "ALTER TABLE leads ADD COLUMN status_raw VARCHAR DEFAULT ''",
+            "ALTER TABLE leads ADD COLUMN month_sheet VARCHAR DEFAULT ''",
+            "ALTER TABLE leads ADD COLUMN platform_result VARCHAR DEFAULT ''",
+            "ALTER TABLE leads ADD COLUMN extra_fields TEXT DEFAULT '{}'",
         ]:
             try:
                 conn.execute(text(col_ddl))

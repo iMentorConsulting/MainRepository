@@ -379,9 +379,10 @@ function ExpandedRow({ lead, currentEmployee, onUpdate, colCount }) {
       <td colSpan={colCount} className="px-4 py-3">
         <div className="max-w-4xl">
           {/* Info strip */}
-          <div className="flex flex-wrap gap-4 text-xs text-gray-600 mb-3 pb-2 border-b border-gray-200">
+          <div className="flex flex-wrap gap-3 text-xs text-gray-600 mb-3 pb-2 border-b border-gray-200">
+            {lead.service_type && <span className="bg-blue-50 px-2 py-0.5 rounded"><span className="font-semibold">Υπηρεσία:</span> {lead.service_type}</span>}
+            {lead.platform_result && <span className="bg-purple-50 px-2 py-0.5 rounded"><span className="font-semibold">Αποτ. Πλατφόρμας:</span> {lead.platform_result}</span>}
             {lead.referrer && <span><span className="font-semibold">Referrer:</span> {lead.referrer}</span>}
-            {lead.service_type && <span><span className="font-semibold">Υπηρεσία:</span> {lead.service_type}</span>}
             {lead.application_number && <span><span className="font-semibold">Αρ. Αίτησης:</span> {lead.application_number}</span>}
             {lead.vulnerable_debtor && <span className="text-orange-600 font-semibold">⚠ Ευάλωτος Οφειλέτης</span>}
             {lead.offer_sent && (
@@ -394,8 +395,18 @@ function ExpandedRow({ lead, currentEmployee, onUpdate, colCount }) {
                 <LinkIcon className="w-3.5 h-3.5" /> Υπόθεση #{lead.linked_case_id}
               </a>
             )}
-            {lead.next_call_sheet && <span><span className="font-semibold">Next Call (Sheet):</span> {lead.next_call_sheet}</span>}
+            {lead.next_call_sheet && <span><span className="font-semibold">Next Call:</span> {lead.next_call_sheet}</span>}
           </div>
+          {/* Extra fields from sheet (debt breakdown etc.) */}
+          {lead.extra_fields && Object.keys(lead.extra_fields).length > 0 && (
+            <div className="flex flex-wrap gap-2 mb-3 pb-2 border-b border-gray-200">
+              {Object.entries(lead.extra_fields).map(([k, v]) => v ? (
+                <span key={k} className="text-xs bg-gray-50 border border-gray-200 rounded px-2 py-0.5">
+                  <span className="font-semibold text-gray-500">{k}:</span> <span className="text-gray-800">{v}</span>
+                </span>
+              ) : null)}
+            </div>
+          )}
           {/* Tabs */}
           <div className="flex gap-1 mb-3">
             {[
@@ -589,6 +600,17 @@ export default function Leads({ currentEmployee }) {
     } finally { setSyncing(false) }
   }
 
+  const handleNormalize = async () => {
+    setSyncing(true)
+    try {
+      const res = await api.normalizeLeadStatuses()
+      toast.success(`Fix Status OK — ${res.data.fixed} εγγραφές διορθώθηκαν`)
+      load()
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || 'Σφάλμα')
+    } finally { setSyncing(false) }
+  }
+
   const updateLead = (updated) => {
     setLeads(prev => prev.map(l => l.id === updated.id ? updated : l))
   }
@@ -649,15 +671,19 @@ export default function Leads({ currentEmployee }) {
         <div className="flex gap-2">
           <button onClick={() => handleSync(false)} disabled={syncing}
             className="btn-secondary flex items-center gap-2 text-sm"
-            title="Εισάγει μόνο νέες γραμμές (δεν αγγίζει υπάρχουσες)">
+            title="Εισάγει μόνο νέες γραμμές">
             <ArrowPathIcon className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} />
             {syncing ? '…' : 'Sync'}
           </button>
-          <button onClick={() => { if (window.confirm('Full sync: θα ανανεωθούν ΟΛΑ τα sheet πεδία σε υπάρχουσες εγγραφές. Συνέχεια;')) handleSync(true) }}
+          <button onClick={() => { if (window.confirm('Full sync: ανανεώνει ΟΛΑ τα sheet πεδία. Συνέχεια;')) handleSync(true) }}
             disabled={syncing}
-            className="btn-secondary text-xs text-amber-700 border-amber-300 hover:bg-amber-50"
-            title="Ανανεώνει sheet πεδία σε υπάρχουσες εγγραφές">
+            className="btn-secondary text-xs text-amber-700 border-amber-300 hover:bg-amber-50">
             Full Sync
+          </button>
+          <button onClick={handleNormalize} disabled={syncing}
+            className="btn-secondary text-xs text-violet-700 border-violet-200 hover:bg-violet-50"
+            title="Διορθώνει status (CANCEL-INTEREST → Cancelled) σε υπάρχουσες εγγραφές">
+            Fix Status
           </button>
         </div>
       </div>

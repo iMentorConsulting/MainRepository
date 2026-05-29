@@ -86,6 +86,7 @@ class Lead(Base):
     status_raw = Column(String, default="")    # original value from sheet e.g. CANCEL-INTEREST
     assigned_to = Column(String, default="")
     date = Column(String, default="")
+    month_sheet = Column(String, default="")   # ΜΗΝΑΣ column
     name = Column(String, default="", index=True)
     sheet_comments = Column(Text, default="")
     next_call_sheet = Column(String, default="")
@@ -101,6 +102,8 @@ class Lead(Base):
     service_type = Column(String, default="")
     application_number = Column(String, default="")
     viber_info = Column(String, default="")
+    platform_result = Column(String, default="")  # ΑΠΟΤΕΛΕΣΜΑ ΠΛΑΤΦΟΡΜΑΣ
+    extra_fields = Column(JSON, default=dict)     # all other unmapped sheet columns
 
     # App-only fields (never overwritten by sync)
     app_comments = Column(JSON, default=list)   # [{text, author, at}]
