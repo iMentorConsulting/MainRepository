@@ -519,13 +519,19 @@ function TaxisNetPanel({ lead, onUpdate, links }) {
     finally { setSaving(false) }
   }
 
-  const openLink = (link) => {
-    let url = link.url
-    if (link.auto_fill && username) {
-      const sep = url.includes('?') ? '&' : '?'
-      url += `${sep}AFM=${encodeURIComponent(username)}`
+  const openLink = async (link) => {
+    if (link.auto_fill && (username || password)) {
+      const parts = []
+      if (username) parts.push(`Username: ${username}`)
+      if (password) parts.push(`Password: ${password}`)
+      try {
+        await navigator.clipboard.writeText(parts.join('\n'))
+        toast.success(`📋 ${parts.join(' | ')} — αντιγράφηκε στο πρόχειρο`, { duration: 4000 })
+      } catch {
+        toast(`Username: ${username || '—'}  Password: ${password || '—'}`, { duration: 5000 })
+      }
     }
-    window.open(url, '_blank', 'noopener,noreferrer')
+    window.open(link.url, '_blank', 'noopener,noreferrer')
   }
 
   const hasCredentials = username || password
@@ -605,11 +611,16 @@ function ExpandedRow({ lead, currentEmployee, onUpdate, colCount, templates, tax
     <tr className="bg-slate-50 border-b border-slate-200">
       <td colSpan={colCount} className="px-4 py-3">
         <div className="max-w-4xl">
-          {/* Info strip */}
-          <div className="flex flex-wrap gap-3 text-xs text-gray-600 mb-3 pb-2 border-b border-gray-200">
+          {/* Info strip + extra fields merged */}
+          <div className="flex flex-wrap gap-2 text-xs text-gray-600 mb-3 pb-2 border-b border-gray-200">
             {lead.service_type && <span className="bg-blue-50 px-2 py-0.5 rounded"><span className="font-semibold">Υπηρεσία:</span> {lead.service_type}</span>}
+            {lead.referrer && <span className="bg-gray-50 border border-gray-200 px-2 py-0.5 rounded"><span className="font-semibold">Referrer:</span> {lead.referrer}</span>}
+            {approvedExtras.map(([k, v]) => (
+              <span key={k} className="bg-gray-50 border border-gray-200 px-2 py-0.5 rounded">
+                <span className="font-semibold text-gray-500">{k}:</span> <span className="text-gray-800">{v}</span>
+              </span>
+            ))}
             {lead.platform_result && <span className="bg-purple-50 px-2 py-0.5 rounded"><span className="font-semibold">Αποτ. Πλατφόρμας:</span> {lead.platform_result}</span>}
-            {lead.referrer && <span><span className="font-semibold">Referrer:</span> {lead.referrer}</span>}
             {lead.application_number && <span><span className="font-semibold">Αρ. Αίτησης:</span> {lead.application_number}</span>}
             {lead.vulnerable_debtor && <span className="text-orange-600 font-semibold">⚠ Ευάλωτος Οφειλέτης</span>}
             {lead.offer_sent && (
@@ -644,16 +655,6 @@ function ExpandedRow({ lead, currentEmployee, onUpdate, colCount, templates, tax
                   )
                 })}
               </div>
-            </div>
-          )}
-          {/* Approved extra fields: Εφορία, Ασφ.Ταμεία, Τράπεζες only */}
-          {approvedExtras.length > 0 && (
-            <div className="flex flex-wrap gap-2 mb-3 pb-2 border-b border-gray-200">
-              {approvedExtras.map(([k, v]) => (
-                <span key={k} className="text-xs bg-gray-50 border border-gray-200 rounded px-2 py-0.5">
-                  <span className="font-semibold text-gray-500">{k}:</span> <span className="text-gray-800">{v}</span>
-                </span>
-              ))}
             </div>
           )}
           {/* Tabs */}
@@ -927,6 +928,10 @@ export default function Leads({ currentEmployee }) {
     let av = a[sortCol] ?? ''
     let bv = b[sortCol] ?? ''
     if (sortCol === 'sheet_row_num') { av = Number(av) || 0; bv = Number(bv) || 0 }
+    else if (sortCol === 'app_next_call') {
+      av = av ? new Date(av).getTime() : 0
+      bv = bv ? new Date(bv).getTime() : 0
+    }
     const cmp = typeof av === 'number' ? av - bv : String(av).localeCompare(String(bv), 'el')
     return sortDir === 'asc' ? cmp : -cmp
   })
