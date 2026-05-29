@@ -28,6 +28,11 @@ class LeadPatch(BaseModel):
     service_type: Optional[str] = None
     application_number: Optional[str] = None
     linked_case_id: Optional[int] = None
+    name: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    taxisnet_username: Optional[str] = None
+    taxisnet_password: Optional[str] = None
 
 
 class CommentAdd(BaseModel):
@@ -178,6 +183,8 @@ def _lead_to_dict(lead: Lead) -> dict:
         "app_comments": lead.app_comments or [],
         "app_next_call": lead.app_next_call.isoformat() if lead.app_next_call else None,
         "linked_case_id": lead.linked_case_id,
+        "taxisnet_username": getattr(lead, "taxisnet_username", "") or "",
+        "taxisnet_password": getattr(lead, "taxisnet_password", "") or "",
         "created_at": lead.created_at.isoformat() if lead.created_at else None,
         "updated_at": lead.updated_at.isoformat() if lead.updated_at else None,
     }
@@ -299,6 +306,16 @@ def patch_lead(lead_id: int, data: LeadPatch, db: Session = Depends(get_db)):
         lead.application_number = data.application_number
     if data.linked_case_id is not None:
         lead.linked_case_id = data.linked_case_id
+    if data.name is not None:
+        lead.name = data.name
+    if data.phone is not None:
+        lead.phone = data.phone
+    if data.email is not None:
+        lead.email = data.email
+    if data.taxisnet_username is not None:
+        lead.taxisnet_username = data.taxisnet_username
+    if data.taxisnet_password is not None:
+        lead.taxisnet_password = data.taxisnet_password
     if data.app_next_call is not None:
         if data.app_next_call == "":
             lead.app_next_call = None
@@ -390,3 +407,52 @@ def send_email(lead_id: int, data: EmailLeadRequest, db: Session = Depends(get_d
     lead.updated_at = datetime.utcnow()
     db.commit()
     return {"ok": True}
+
+
+@router.get("/reporting")
+def get_reporting(db: Session = Depends(get_db)):
+    from collections import defaultdict
+    leads = db.query(Lead).all()
+
+    AGENTS = ["STELLA", "VALLIA", "SOFIA"]
+
+    events = []
+    for lead in leads:
+        for c in (lead.app_comments or []):
+            at_str = c.get("at")
+            author = c.get("author", "")
+            if at_str and author and author not in ("system",):
+                try:
+                    at = datetime.fromisoformat(at_str)
+                    events.append({"at": at, "author": author.upper()})
+                except Exception:
+                    pass
+
+    daily: dict = defaultdict(lambda: defaultdict(int))
+    weekly: dict = defaultdict(lambda: defaultdict(int))
+    monthly: dict = defaultdict(lambda: defaultdict(int))
+    hourly: dict = defaultdict(int)
+
+    for ev in events:
+        day_key = ev["at"].strftime("%Y-%m-%d")
+        week_key = ev["at"].strftime("%G-W%V")
+        month_key = ev["at"].strftime("%Y-%m")
+        hour = ev["at"].hour
+        author = ev["author"]
+        daily[day_key][author] += 1
+        weekly[week_key][author] += 1
+        monthly[month_key][author] += 1
+        hourly[hour] += 1
+
+    return {
+        "daily": [{"date": k, **{a: v.get(a, 0) for a in AGENTS}} for k, v in sorted(daily.items())[-90:]],
+        "weekly": [{"week": k, **{a: v.get(a, 0) for a in AGENTS}} for k, v in sorted(weekly.items())[-26:]],
+        "monthly": [{"month": k, **{a: v.get(a, 0) for a in AGENTS}} for k, v in sorted(monthly.items())[-12:]],
+        "hourly": [{"hour": f"{h}:00", "count": hourly.get(h, 0)} for h in range(8, 17)],
+        "total_comments": len(events),
+        "total_leads": len(leads),
+        "deals": sum(1 for l in leads if l.status == "deal"),
+        "active": sum(1 for l in leads if l.status == "active"),
+        "hot": sum(1 for l in leads if l.status == "hot"),
+        "cancelled": sum(1 for l in leads if l.status == "cancelled"),
+    }

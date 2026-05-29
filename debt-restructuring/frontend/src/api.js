@@ -24,6 +24,10 @@ export const sendEmail = (id, data) => api.post(`/cases/${id}/send-email`, data)
 // Config
 export const getPricingConfig = () => api.get('/config/pricing')
 export const putPricingConfig = (data) => api.put('/config/pricing', data)
+export const getLeadTemplates = () => api.get('/config/lead-templates')
+export const putLeadTemplates = (data) => api.put('/config/lead-templates', data)
+export const getLeadLinks = () => api.get('/config/lead-links')
+export const putLeadLinks = (data) => api.put('/config/lead-links', data)
 
 // Statistics
 export const getOverview = () => api.get('/statistics/overview')
@@ -48,6 +52,7 @@ export const getLeadSheetHeaders = () => api.get('/leads/sheet-headers')
 export const normalizeLeadStatuses = () => api.post('/leads/normalize-statuses')
 export const sendLeadViber = (id, message) => api.post(`/leads/${id}/send-viber`, { message })
 export const sendLeadEmail = (id, to, subject, body) => api.post(`/leads/${id}/send-email`, { to, subject, body })
+export const getLeadsReporting = () => api.get('/leads/reporting')
 
 // Health / diagnostics
 export const getHealth = () => api.get('/health')

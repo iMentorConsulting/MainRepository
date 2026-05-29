@@ -8,6 +8,8 @@ import {
   BoltIcon,
   BanknotesIcon,
   UserGroupIcon,
+  ListBulletIcon,
+  PresentationChartLineIcon,
 } from '@heroicons/react/24/outline'
 
 const nav = [
@@ -17,10 +19,12 @@ const nav = [
   { to: '/quick-quote', label: 'Γρήγορη Ανάλυση', Icon: BoltIcon },
   { to: '/pipeline', label: 'Sales Pipeline', Icon: RocketLaunchIcon },
   { to: '/statistics', label: 'Στατιστικά', Icon: ChartBarIcon },
+  { to: '/lead-lists', label: 'Λίστες', Icon: ListBulletIcon },
 ]
 
 const adminNav = [
   { to: '/finances', label: 'Οικονομικά', Icon: BanknotesIcon },
+  { to: '/leads-reporting', label: 'Reporting', Icon: PresentationChartLineIcon },
 ]
 
 export default function Layout({ auth, onLogout }) {

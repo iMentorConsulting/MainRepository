@@ -12,6 +12,8 @@ import Login from './pages/Login'
 import QuickQuote from './pages/QuickQuote'
 import FinancialDashboard from './pages/FinancialDashboard'
 import Leads from './pages/Leads'
+import LeadsReporting from './pages/LeadsReporting'
+import LeadLists from './pages/LeadLists'
 
 const EMPLOYEES = ['STELLA', 'VALLIA', 'SOFIA', 'HARIS']
 const APP_PASSWORD = 'imentor2024'
@@ -58,6 +60,8 @@ export default function App() {
             <Route path="/statistics" element={<Statistics currentEmployee={auth.employee} />} />
             <Route path="/finances" element={<FinancialDashboard currentEmployee={auth.employee} />} />
             <Route path="/leads" element={<Leads currentEmployee={auth.employee} />} />
+            <Route path="/lead-lists" element={<LeadLists />} />
+            <Route path="/leads-reporting" element={<LeadsReporting currentEmployee={auth.employee} />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         )}

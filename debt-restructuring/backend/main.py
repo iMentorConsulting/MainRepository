@@ -94,6 +94,8 @@ def run_migrations():
             "ALTER TABLE leads ADD COLUMN month_sheet VARCHAR DEFAULT ''",
             "ALTER TABLE leads ADD COLUMN platform_result VARCHAR DEFAULT ''",
             "ALTER TABLE leads ADD COLUMN extra_fields TEXT DEFAULT '{}'",
+            "ALTER TABLE leads ADD COLUMN taxisnet_username VARCHAR DEFAULT ''",
+            "ALTER TABLE leads ADD COLUMN taxisnet_password VARCHAR DEFAULT ''",
         ]:
             try:
                 conn.execute(text(col_ddl))
@@ -137,8 +139,8 @@ if os.getenv("GOOGLE_DRIVE_BACKUP_FOLDER_ID"):
     _scheduler = BackgroundScheduler()
     _scheduler.add_job(_run_backup_safe, "cron", hour=18, minute=0)  # 18:00 UTC daily
     if os.getenv("GOOGLE_SHEET_ID"):
-        _scheduler.add_job(_run_leads_sync_safe, "cron", hour=4, minute=30)  # 04:30 UTC = 07:30 EEST
-        print("[LeadsSync] Scheduler started — daily at 04:30 UTC (07:30 EEST)")
+        _scheduler.add_job(_run_leads_sync_safe, "cron", hour=4, minute=45)  # 04:45 UTC = 07:45 EEST
+        print("[LeadsSync] Scheduler started — daily at 04:45 UTC (07:45 EEST)")
     _scheduler.start()
     print("[Backup] Scheduler started — daily at 02:00 UTC")
 

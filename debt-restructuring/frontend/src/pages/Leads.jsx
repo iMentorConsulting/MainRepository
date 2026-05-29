@@ -12,12 +12,14 @@ import {
   TrashIcon,
   BellIcon,
   LinkIcon,
-  ChevronUpDownIcon,
+  PencilIcon,
 } from '@heroicons/react/24/outline'
 import * as api from '../api'
 
 const EMPLOYEES = ['STELLA', 'VALLIA', 'SOFIA']
 const PAGE_SIZE = 50
+const AGENT_SHORT = { HARIS: 'H', SOFIA: 'S', VALLIA: 'V', STELLA: 'S', system: '⚙', Sheet: '📋' }
+const APPROVED_EXTRA_FIELDS = ['Εφορία', 'Ασφ.Ταμεία', 'Τράπεζες']
 
 const THIS_YEAR = new Date().getFullYear()
 const YEARS = [THIS_YEAR, THIS_YEAR - 1, THIS_YEAR - 2]
@@ -25,16 +27,40 @@ const MONTHS_EL = ['Ιαν', 'Φεβ', 'Μαρ', 'Απρ', 'Μαϊ', 'Ιουν',
 
 const STATUS_OPTIONS = ['call', 'hot', 'active', 'deal', 'cancelled']
 const STATUS_CFG = {
-  call:      { cls: 'bg-blue-100 text-blue-800',    label: 'Call' },
-  hot:       { cls: 'bg-red-100 text-red-700',      label: '🔥 Hot' },
-  active:    { cls: 'bg-yellow-100 text-yellow-800', label: 'Active' },
-  deal:      { cls: 'bg-green-100 text-green-800',  label: '✅ Deal' },
-  cancelled: { cls: 'bg-gray-100 text-gray-500',    label: 'Cancelled' },
-  '':        { cls: 'bg-gray-50 text-gray-400',     label: '—' },
+  call:      { cls: 'bg-blue-100 text-blue-800',    label: 'Call',      rowCls: 'bg-blue-50/40' },
+  hot:       { cls: 'bg-red-100 text-red-700',      label: '🔥 Hot',   rowCls: 'bg-red-50/40' },
+  active:    { cls: 'bg-yellow-100 text-yellow-800', label: 'Active',   rowCls: 'bg-yellow-50/30' },
+  deal:      { cls: 'bg-green-100 text-green-800',  label: '✅ Deal',  rowCls: 'bg-green-50/40' },
+  cancelled: { cls: 'bg-gray-100 text-gray-500',    label: 'Cancelled', rowCls: 'bg-gray-50/60' },
+  '':        { cls: 'bg-gray-50 text-gray-400',     label: '—',         rowCls: '' },
 }
+
+const REMINDER_OPTIONS = [
+  { value: 'overdue', label: '🔴 Ληξιπρόθεσμα' },
+  { value: 'today',   label: '🟡 Σήμερα' },
+  { value: 'week',    label: '📅 Εβδομάδα' },
+  { value: 'none',    label: '⬜ Χωρίς reminder' },
+]
 
 function statusCfg(val) {
   return STATUS_CFG[(val || '').toLowerCase()] || STATUS_CFG['']
+}
+
+function formatPhone(p) {
+  const clean = (p || '').replace(/[\s\-\+\(\)]/g, '')
+  if (clean.startsWith('30') && clean.length === 12) return clean.slice(2)
+  return clean
+}
+
+function applyTemplate(body, lead) {
+  return (body || '').replace(/\{(\w+)\}/g, (_, key) => {
+    const map = {
+      name: lead.name, total_debt: lead.total_debt, offer_amount: lead.offer_amount,
+      success_fee: lead.success_fee, assigned_to: lead.assigned_to,
+      phone: formatPhone(lead.phone), email: lead.email,
+    }
+    return map[key] ?? `{${key}}`
+  })
 }
 
 // ── Sortable column header ──────────────────────────────────────────────────
@@ -118,7 +144,6 @@ function StatusBadge({ value, rawValue, onChange }) {
   const [open, setOpen] = useState(false)
   const ref = useRef()
   const cfg = statusCfg(value)
-  // Display the raw sheet value if available (e.g. "CANCEL-INTEREST"), else the group label
   const displayLabel = rawValue && rawValue !== value?.toUpperCase() ? rawValue : cfg.label
 
   useEffect(() => {
@@ -171,7 +196,6 @@ function AssignedSelect({ value, onChange }) {
 }
 
 // ── Next-call pill ──────────────────────────────────────────────────────────
-// value = app_next_call (ISO), sheetValue = next_call_sheet (free text from sheet)
 function NextCallPill({ value, sheetValue, onChange }) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(value ? value.slice(0, 10) : '')
@@ -196,7 +220,6 @@ function NextCallPill({ value, sheetValue, onChange }) {
     )
   }
 
-  // App reminder (ISO date)
   if (value && parsed) {
     return (
       <button
@@ -210,7 +233,6 @@ function NextCallPill({ value, sheetValue, onChange }) {
     )
   }
 
-  // Sheet next call (free text, read-only display + click to set app reminder)
   if (sheetValue) {
     return (
       <button
@@ -224,7 +246,6 @@ function NextCallPill({ value, sheetValue, onChange }) {
     )
   }
 
-  // Empty — click to add
   return (
     <button
       onClick={e => { e.stopPropagation(); setEditing(true) }}
@@ -270,7 +291,7 @@ function CommentPanel({ lead, currentEmployee, onUpdate }) {
         <div key={i} className={`flex items-start gap-2 text-xs ${c._sheet ? 'opacity-70' : ''}`}>
           <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold shrink-0 mt-0.5
             ${c._sheet ? 'bg-gray-200 text-gray-500' : 'bg-blue-600 text-white'}`}>
-            {c.author === 'system' ? '⚙' : (c.author?.[0] || '?')}
+            {AGENT_SHORT[c.author?.toUpperCase?.()] ?? AGENT_SHORT[c.author] ?? c.author?.[0] ?? '?'}
           </div>
           <div className="flex-1 bg-gray-50 rounded-lg px-2 py-1">
             <div className="flex items-center justify-between gap-2">
@@ -303,10 +324,18 @@ function CommentPanel({ lead, currentEmployee, onUpdate }) {
   )
 }
 
-// ── Viber panel ─────────────────────────────────────────────────────────────
-function ViberPanel({ lead, onUpdate }) {
+// ── Viber panel with template picker ────────────────────────────────────────
+function ViberPanel({ lead, onUpdate, templates }) {
   const [msg, setMsg] = useState('')
   const [sending, setSending] = useState(false)
+  const [activeTpl, setActiveTpl] = useState('')
+
+  const viberTpls = (templates || []).filter(t => t.type === 'viber' || t.type === 'both')
+
+  const applyTpl = (tpl) => {
+    setMsg(applyTemplate(tpl.body, lead))
+    setActiveTpl(tpl.name)
+  }
 
   const send = async () => {
     if (!msg.trim()) return
@@ -317,6 +346,7 @@ function ViberPanel({ lead, onUpdate }) {
       const res = await api.getLead(lead.id)
       onUpdate(res.data)
       setMsg('')
+      setActiveTpl('')
     } catch (err) {
       toast.error(err?.response?.data?.detail || 'Σφάλμα Viber')
     } finally { setSending(false) }
@@ -324,9 +354,22 @@ function ViberPanel({ lead, onUpdate }) {
 
   return (
     <div className="space-y-2">
+      {viberTpls.length > 0 && (
+        <div className="flex flex-wrap gap-1 mb-1">
+          <span className="text-xs text-gray-400 self-center mr-1">Template:</span>
+          {viberTpls.map(t => (
+            <button key={t.name} onClick={() => applyTpl(t)}
+              className={`text-xs px-2 py-0.5 rounded-full border transition-colors
+                ${activeTpl === t.name ? 'bg-blue-600 text-white border-blue-600' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
+              {t.name}
+            </button>
+          ))}
+        </div>
+      )}
       <textarea
         className="w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5 resize-none focus:outline-none focus:ring-1 focus:ring-blue-400"
-        rows={3} placeholder="Μήνυμα Viber…" value={msg} onChange={e => setMsg(e.target.value)}
+        rows={3} placeholder="Μήνυμα Viber…" value={msg}
+        onChange={e => { setMsg(e.target.value); setActiveTpl('') }}
       />
       <button onClick={send} disabled={sending || !msg.trim() || !lead.phone} className="btn-primary text-xs px-4">
         {sending ? '…' : '📱 Αποστολή Viber'}
@@ -336,12 +379,21 @@ function ViberPanel({ lead, onUpdate }) {
   )
 }
 
-// ── Email panel ─────────────────────────────────────────────────────────────
-function EmailPanel({ lead, onUpdate }) {
+// ── Email panel with template picker ────────────────────────────────────────
+function EmailPanel({ lead, onUpdate, templates }) {
   const [to, setTo] = useState(lead.email || '')
   const [subject, setSubject] = useState('')
   const [body, setBody] = useState('')
   const [sending, setSending] = useState(false)
+  const [activeTpl, setActiveTpl] = useState('')
+
+  const emailTpls = (templates || []).filter(t => t.type === 'email' || t.type === 'both')
+
+  const applyTpl = (tpl) => {
+    if (tpl.subject) setSubject(applyTemplate(tpl.subject, lead))
+    if (tpl.body) setBody(applyTemplate(tpl.body, lead))
+    setActiveTpl(tpl.name)
+  }
 
   const send = async () => {
     if (!to || !subject || !body) return
@@ -351,7 +403,7 @@ function EmailPanel({ lead, onUpdate }) {
       toast.success('Email εστάλη!')
       const res = await api.getLead(lead.id)
       onUpdate(res.data)
-      setSubject(''); setBody('')
+      setSubject(''); setBody(''); setActiveTpl('')
     } catch (err) {
       toast.error(err?.response?.data?.detail || 'Σφάλμα email')
     } finally { setSending(false) }
@@ -359,9 +411,21 @@ function EmailPanel({ lead, onUpdate }) {
 
   return (
     <div className="space-y-2">
+      {emailTpls.length > 0 && (
+        <div className="flex flex-wrap gap-1 mb-1">
+          <span className="text-xs text-gray-400 self-center mr-1">Template:</span>
+          {emailTpls.map(t => (
+            <button key={t.name} onClick={() => applyTpl(t)}
+              className={`text-xs px-2 py-0.5 rounded-full border transition-colors
+                ${activeTpl === t.name ? 'bg-blue-600 text-white border-blue-600' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
+              {t.name}
+            </button>
+          ))}
+        </div>
+      )}
       <input className="w-full text-xs border border-gray-200 rounded px-2 py-1 focus:outline-none" placeholder="Προς" value={to} onChange={e => setTo(e.target.value)} />
-      <input className="w-full text-xs border border-gray-200 rounded px-2 py-1 focus:outline-none" placeholder="Θέμα" value={subject} onChange={e => setSubject(e.target.value)} />
-      <textarea className="w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5 resize-none focus:outline-none" rows={4} placeholder="Κείμενο…" value={body} onChange={e => setBody(e.target.value)} />
+      <input className="w-full text-xs border border-gray-200 rounded px-2 py-1 focus:outline-none" placeholder="Θέμα" value={subject} onChange={e => { setSubject(e.target.value); setActiveTpl('') }} />
+      <textarea className="w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5 resize-none focus:outline-none" rows={4} placeholder="Κείμενο…" value={body} onChange={e => { setBody(e.target.value); setActiveTpl('') }} />
       <button onClick={send} disabled={sending || !to || !subject || !body} className="btn-primary text-xs px-4">
         {sending ? '…' : '✉️ Αποστολή Email'}
       </button>
@@ -369,10 +433,174 @@ function EmailPanel({ lead, onUpdate }) {
   )
 }
 
+// ── Edit panel (inline edit name/phone/email with confirmation) ─────────────
+function EditPanel({ lead, onUpdate }) {
+  const [name, setName] = useState(lead.name || '')
+  const [phone, setPhone] = useState(lead.phone || '')
+  const [email, setEmail] = useState(lead.email || '')
+  const [saving, setSaving] = useState(false)
+  const [confirming, setConfirming] = useState(false)
+
+  const hasChanges = name !== (lead.name || '') || phone !== (lead.phone || '') || email !== (lead.email || '')
+
+  const save = async () => {
+    setSaving(true)
+    try {
+      const res = await api.patchLead(lead.id, { name, phone, email })
+      onUpdate(res.data)
+      toast.success('Αποθηκεύτηκε')
+      setConfirming(false)
+    } catch { toast.error('Σφάλμα αποθήκευσης') }
+    finally { setSaving(false) }
+  }
+
+  const reset = () => {
+    setName(lead.name || ''); setPhone(lead.phone || ''); setEmail(lead.email || ''); setConfirming(false)
+  }
+
+  return (
+    <div className="space-y-3 max-w-md">
+      <div className="space-y-2">
+        <div>
+          <label className="text-xs text-gray-500 mb-0.5 block">Επωνυμία</label>
+          <input
+            className="w-full text-xs border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-400"
+            value={name} onChange={e => { setName(e.target.value); setConfirming(false) }}
+          />
+        </div>
+        <div>
+          <label className="text-xs text-gray-500 mb-0.5 block">Τηλέφωνο</label>
+          <input
+            className="w-full text-xs border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-400"
+            value={phone} onChange={e => { setPhone(e.target.value); setConfirming(false) }}
+          />
+        </div>
+        <div>
+          <label className="text-xs text-gray-500 mb-0.5 block">Email</label>
+          <input
+            className="w-full text-xs border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-400"
+            value={email} onChange={e => { setEmail(e.target.value); setConfirming(false) }}
+          />
+        </div>
+      </div>
+      {hasChanges && !confirming && (
+        <div className="flex gap-2">
+          <button onClick={() => setConfirming(true)} className="btn-primary text-xs px-4">Αποθήκευση αλλαγών</button>
+          <button onClick={reset} className="text-xs text-gray-400 hover:text-gray-600">Αναίρεση</button>
+        </div>
+      )}
+      {confirming && (
+        <div className="flex items-center gap-2 p-2 bg-amber-50 border border-amber-200 rounded-lg">
+          <span className="text-xs text-amber-700 font-semibold">⚠ Επιβεβαίωση αλλαγής στοιχείων πελάτη;</span>
+          <button onClick={save} disabled={saving} className="text-xs px-3 py-1 bg-amber-500 text-white rounded font-semibold shrink-0">
+            {saving ? '…' : 'Ναι'}
+          </button>
+          <button onClick={() => setConfirming(false)} className="text-xs text-gray-500 shrink-0">Άκυρο</button>
+        </div>
+      )}
+      {!hasChanges && <p className="text-xs text-gray-400">Τροποποιήστε τα στοιχεία και πατήστε αποθήκευση.</p>}
+    </div>
+  )
+}
+
+// ── TaxisNet panel ───────────────────────────────────────────────────────────
+function TaxisNetPanel({ lead, onUpdate, links }) {
+  const [username, setUsername] = useState(lead.taxisnet_username || '')
+  const [password, setPassword] = useState(lead.taxisnet_password || '')
+  const [saving, setSaving] = useState(false)
+  const [showPass, setShowPass] = useState(false)
+
+  const save = async () => {
+    setSaving(true)
+    try {
+      const res = await api.patchLead(lead.id, { taxisnet_username: username, taxisnet_password: password })
+      onUpdate(res.data)
+      toast.success('TaxisNet αποθηκεύτηκε')
+    } catch { toast.error('Σφάλμα') }
+    finally { setSaving(false) }
+  }
+
+  const openLink = (link) => {
+    let url = link.url
+    if (link.auto_fill && username) {
+      const sep = url.includes('?') ? '&' : '?'
+      url += `${sep}AFM=${encodeURIComponent(username)}`
+    }
+    window.open(url, '_blank', 'noopener,noreferrer')
+  }
+
+  const hasCredentials = username || password
+
+  return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-2 gap-2 max-w-sm">
+        <div>
+          <label className="text-xs text-gray-500 mb-0.5 block">Username / ΑΦΜ</label>
+          <input
+            className="w-full text-xs border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-400"
+            value={username} onChange={e => setUsername(e.target.value)}
+          />
+        </div>
+        <div>
+          <label className="text-xs text-gray-500 mb-0.5 block">Password</label>
+          <div className="relative">
+            <input
+              type={showPass ? 'text' : 'password'}
+              className="w-full text-xs border border-gray-200 rounded px-2 py-1.5 pr-7 focus:outline-none focus:ring-1 focus:ring-blue-400"
+              value={password} onChange={e => setPassword(e.target.value)}
+            />
+            <button onClick={() => setShowPass(s => !s)}
+              className="absolute right-1.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs">
+              {showPass ? '🙈' : '👁'}
+            </button>
+          </div>
+        </div>
+      </div>
+      <button onClick={save} disabled={saving} className="btn-primary text-xs px-4">
+        {saving ? '…' : '💾 Αποθήκευση'}
+      </button>
+      {links && links.length > 0 && (
+        <div className="mt-1 pt-2 border-t border-gray-100">
+          <div className="text-xs text-gray-500 mb-1.5 font-semibold">Σύνδεσμοι TaxisNet</div>
+          <div className="flex flex-wrap gap-2">
+            {links.map((l, i) => (
+              <button key={i} onClick={() => openLink(l)}
+                className={`text-xs px-3 py-1.5 rounded border flex items-center gap-1.5 transition-colors
+                  ${hasCredentials && l.auto_fill ? 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100' : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100'}`}>
+                <LinkIcon className="w-3 h-3" />
+                {l.label}
+                {hasCredentials && l.auto_fill && <span className="text-[9px] text-blue-400 font-semibold">+ΑΦΜ</span>}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+      {(!links || links.length === 0) && (
+        <p className="text-xs text-gray-400">
+          Διαχειριστείτε τους συνδέσμους από τη σελίδα <a href="/lead-lists" className="text-blue-500 hover:underline">Λίστες</a>.
+        </p>
+      )}
+    </div>
+  )
+}
+
 // ── Expanded inline row ─────────────────────────────────────────────────────
-function ExpandedRow({ lead, currentEmployee, onUpdate, colCount }) {
+function ExpandedRow({ lead, currentEmployee, onUpdate, colCount, templates, taxisnetLinks, allLeads }) {
   const [tab, setTab] = useState('comments')
   const commentCount = (lead.app_comments?.length || 0) + (lead.sheet_comments ? 1 : 0)
+
+  const myPhone = formatPhone(lead.phone)
+  const myEmail = (lead.email || '').toLowerCase()
+  const relatedLeads = (allLeads || []).filter(l =>
+    l.id !== lead.id && (
+      (myPhone && myPhone.length > 5 && formatPhone(l.phone) === myPhone) ||
+      (myEmail && myEmail.includes('@') && (l.email || '').toLowerCase() === myEmail)
+    )
+  )
+
+  const approvedExtras = APPROVED_EXTRA_FIELDS
+    .filter(k => lead.extra_fields?.[k])
+    .map(k => [k, lead.extra_fields[k]])
 
   return (
     <tr className="bg-slate-50 border-b border-slate-200">
@@ -397,22 +625,47 @@ function ExpandedRow({ lead, currentEmployee, onUpdate, colCount }) {
             )}
             {lead.next_call_sheet && <span><span className="font-semibold">Next Call:</span> {lead.next_call_sheet}</span>}
           </div>
-          {/* Extra fields from sheet (debt breakdown etc.) */}
-          {lead.extra_fields && Object.keys(lead.extra_fields).length > 0 && (
+          {/* Related leads (same phone or email) */}
+          {relatedLeads.length > 0 && (
+            <div className="mb-3 pb-2 border-b border-orange-200">
+              <div className="text-xs font-semibold text-orange-600 mb-1.5 flex items-center gap-1">
+                ⚠ {relatedLeads.length} άλλ{relatedLeads.length === 1 ? 'η' : 'ες'} εγγραφ{relatedLeads.length === 1 ? 'ή' : 'ές'} με ίδιο τηλ/email
+              </div>
+              <div className="flex flex-col gap-1">
+                {relatedLeads.map(r => {
+                  const cfg = statusCfg(r.status)
+                  return (
+                    <div key={r.id} className="flex items-center gap-2 text-xs bg-orange-50 border border-orange-100 rounded-lg px-2 py-1">
+                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${cfg.cls}`}>{r.status_raw || r.status || '—'}</span>
+                      <span className="font-semibold text-gray-700">{r.name || '—'}</span>
+                      {r.assigned_to && <span className="text-gray-400">({r.assigned_to})</span>}
+                      {formatPhone(r.phone) === myPhone && <span className="text-orange-500">📞 ίδιο τηλ</span>}
+                      {(r.email || '').toLowerCase() === myEmail && myEmail && <span className="text-orange-500">✉️ ίδιο email</span>}
+                      <span className="text-gray-400 ml-auto">{r.date || ''}</span>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+          {/* Approved extra fields: Εφορία, Ασφ.Ταμεία, Τράπεζες only */}
+          {approvedExtras.length > 0 && (
             <div className="flex flex-wrap gap-2 mb-3 pb-2 border-b border-gray-200">
-              {Object.entries(lead.extra_fields).map(([k, v]) => v ? (
+              {approvedExtras.map(([k, v]) => (
                 <span key={k} className="text-xs bg-gray-50 border border-gray-200 rounded px-2 py-0.5">
                   <span className="font-semibold text-gray-500">{k}:</span> <span className="text-gray-800">{v}</span>
                 </span>
-              ) : null)}
+              ))}
             </div>
           )}
           {/* Tabs */}
-          <div className="flex gap-1 mb-3">
+          <div className="flex flex-wrap gap-1 mb-3">
             {[
               { id: 'comments', label: `💬 Σχόλια${commentCount > 0 ? ` (${commentCount})` : ''}` },
               { id: 'viber', label: '📱 Viber' },
               { id: 'email', label: '✉️ Email' },
+              { id: 'taxisnet', label: '🔑 TaxisNet' },
+              { id: 'edit', label: '✏️ Επεξεργασία' },
             ].map(t => (
               <button key={t.id} onClick={() => setTab(t.id)}
                 className={`text-xs px-3 py-1 rounded-full font-semibold transition-colors
@@ -423,8 +676,10 @@ function ExpandedRow({ lead, currentEmployee, onUpdate, colCount }) {
           </div>
           <div className="bg-white rounded-xl p-3 border border-gray-100">
             {tab === 'comments' && <CommentPanel lead={lead} currentEmployee={currentEmployee} onUpdate={onUpdate} />}
-            {tab === 'viber' && <ViberPanel lead={lead} onUpdate={onUpdate} />}
-            {tab === 'email' && <EmailPanel lead={lead} onUpdate={onUpdate} />}
+            {tab === 'viber' && <ViberPanel lead={lead} onUpdate={onUpdate} templates={templates} />}
+            {tab === 'email' && <EmailPanel lead={lead} onUpdate={onUpdate} templates={templates} />}
+            {tab === 'taxisnet' && <TaxisNetPanel lead={lead} onUpdate={onUpdate} links={taxisnetLinks} />}
+            {tab === 'edit' && <EditPanel lead={lead} onUpdate={onUpdate} />}
           </div>
         </div>
       </td>
@@ -433,7 +688,7 @@ function ExpandedRow({ lead, currentEmployee, onUpdate, colCount }) {
 }
 
 // ── Single lead row ─────────────────────────────────────────────────────────
-function LeadRow({ lead, currentEmployee, expanded, onToggle, onLeadUpdate }) {
+function LeadRow({ lead, currentEmployee, expanded, onToggle, onLeadUpdate, templates, taxisnetLinks, allLeads }) {
   const update = async (fields) => {
     try {
       const res = await api.patchLead(lead.id, fields)
@@ -448,13 +703,17 @@ function LeadRow({ lead, currentEmployee, expanded, onToggle, onLeadUpdate }) {
   const parsed = nextCall ? (() => { try { return parseISO(nextCall) } catch { return null } })() : null
   const nextCallOverdue = parsed ? isPast(parsed) : false
   const commentCount = (lead.app_comments?.length || 0) + (lead.sheet_comments ? 1 : 0)
+  const phone = formatPhone(lead.phone)
+  const statusRowCls = (STATUS_CFG[(lead.status || '').toLowerCase()] || STATUS_CFG['']).rowCls
+
+  const agentShort = (author) => AGENT_SHORT[author?.toUpperCase?.()] ?? AGENT_SHORT[author] ?? author?.[0] ?? '?'
 
   return (
     <>
       <tr
-        className={`border-b border-gray-100 hover:bg-blue-50/40 transition-colors cursor-pointer
-          ${expanded ? 'bg-blue-50/60' : ''}
-          ${nextCallOverdue ? 'bg-amber-50/30' : ''}`}
+        className={`border-b border-gray-100 hover:brightness-95 transition-colors cursor-pointer
+          ${nextCallOverdue ? 'bg-amber-50/80' : statusRowCls}
+          ${expanded ? '!bg-blue-100/50' : ''}`}
         onClick={onToggle}
       >
         {/* Expand */}
@@ -482,14 +741,22 @@ function LeadRow({ lead, currentEmployee, expanded, onToggle, onLeadUpdate }) {
         {/* Phone + Email — narrow */}
         <td className="td w-[105px]" onClick={e => e.stopPropagation()}>
           {lead.phone
-            ? <a href={`tel:${lead.phone}`}
+            ? <a href={`tel:${phone}`}
                 className="text-blue-600 hover:underline font-mono text-[11px] flex items-center gap-0.5 leading-tight">
                 <PhoneIcon className="w-3 h-3 shrink-0" />
-                <span className="truncate">{lead.phone}</span>
+                <span className="truncate">{phone}</span>
               </a>
             : <span className="text-gray-300 text-xs">—</span>}
           {lead.email && (
-            <div className="text-[10px] text-gray-400 truncate max-w-[100px] mt-0.5">{lead.email}</div>
+            <a
+              href={`https://mail.google.com/mail/?view=cm&to=${encodeURIComponent(lead.email)}`}
+              target="_blank" rel="noopener noreferrer"
+              className="text-[10px] text-blue-500 hover:underline truncate max-w-[100px] block mt-0.5"
+              onClick={e => e.stopPropagation()}
+              title={`Άνοιγμα Gmail → ${lead.email}`}
+            >
+              {lead.email.length > 14 ? lead.email.slice(0, 13) + '…' : lead.email}
+            </a>
           )}
         </td>
 
@@ -514,7 +781,7 @@ function LeadRow({ lead, currentEmployee, expanded, onToggle, onLeadUpdate }) {
         <td className="td text-left">
           {lastComment
             ? <div className="text-xs text-gray-500 truncate max-w-[260px]">
-                <span className="font-semibold text-gray-700">{lastComment.author}:</span> {lastComment.text}
+                <span className="font-semibold text-gray-700">{agentShort(lastComment.author)}:</span> {lastComment.text}
               </div>
             : lead.sheet_comments
             ? <div className="text-xs text-gray-400 truncate max-w-[260px] italic">{lead.sheet_comments}</div>
@@ -525,7 +792,7 @@ function LeadRow({ lead, currentEmployee, expanded, onToggle, onLeadUpdate }) {
         <td className="td w-[60px]" onClick={e => e.stopPropagation()}>
           <div className="flex items-center gap-0.5 justify-center">
             {lead.phone && (
-              <a href={`tel:${lead.phone}`} title="Κλήση"
+              <a href={`tel:${phone}`} title="Κλήση"
                 className="p-1 rounded hover:bg-blue-100 text-blue-700">
                 <PhoneIcon className="w-3.5 h-3.5" />
               </a>
@@ -544,7 +811,10 @@ function LeadRow({ lead, currentEmployee, expanded, onToggle, onLeadUpdate }) {
         </td>
       </tr>
       {expanded && (
-        <ExpandedRow lead={lead} currentEmployee={currentEmployee} onUpdate={onLeadUpdate} colCount={10} />
+        <ExpandedRow
+          lead={lead} currentEmployee={currentEmployee} onUpdate={onLeadUpdate}
+          colCount={10} templates={templates} taxisnetLinks={taxisnetLinks} allLeads={allLeads}
+        />
       )}
     </>
   )
@@ -556,6 +826,7 @@ export default function Leads({ currentEmployee }) {
   const [loading, setLoading] = useState(true)
   const [syncing, setSyncing] = useState(false)
   const [search, setSearch] = useState('')
+  const [debtSearch, setDebtSearch] = useState('')
   const [filterYears, setFilterYears] = useState([String(THIS_YEAR)])
   const [filterMonths, setFilterMonths] = useState([])
   const [filterStatus, setFilterStatus] = useState([])
@@ -564,6 +835,10 @@ export default function Leads({ currentEmployee }) {
   const [expandedId, setExpandedId] = useState(null)
   const [sortCol, setSortCol] = useState('sheet_row_num')
   const [sortDir, setSortDir] = useState('desc')
+  const [templates, setTemplates] = useState([])
+  const [taxisnetLinks, setTaxisnetLinks] = useState([])
+  const [hideCancelled, setHideCancelled] = useState(true)
+  const [filterReminder, setFilterReminder] = useState('')
 
   const toggleSort = (col) => {
     if (sortCol === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
@@ -587,6 +862,11 @@ export default function Leads({ currentEmployee }) {
   }
 
   useEffect(() => { load() }, [search, filterStatus, filterEmployees, filterYears])
+
+  useEffect(() => {
+    api.getLeadTemplates().then(r => setTemplates(r.data || [])).catch(() => {})
+    api.getLeadLinks().then(r => setTaxisnetLinks(r.data || [])).catch(() => {})
+  }, [])
 
   const handleSync = async (full = false) => {
     setSyncing(true)
@@ -615,7 +895,6 @@ export default function Leads({ currentEmployee }) {
     setLeads(prev => prev.map(l => l.id === updated.id ? updated : l))
   }
 
-  // Client-side filters
   function parseMonth(s) {
     const m1 = (s || '').match(/^\d{1,2}[\/\-](\d{1,2})[\/\-]20\d{2}/)
     if (m1) return String(parseInt(m1[1]))
@@ -625,33 +904,52 @@ export default function Leads({ currentEmployee }) {
   }
 
   let displayed = leads
+  if (hideCancelled && filterStatus.length === 0)
+    displayed = displayed.filter(l => l.status !== 'cancelled')
   if (filterMonths.length > 0)
     displayed = displayed.filter(l => filterMonths.includes(parseMonth(l.date)))
   if (filterStatus.length > 0)
     displayed = displayed.filter(l => filterStatus.includes((l.status || '').toLowerCase()))
+  if (debtSearch.trim())
+    displayed = displayed.filter(l => (l.total_debt || '').toLowerCase().includes(debtSearch.toLowerCase()))
+
+  // Reminder filter
+  if (filterReminder) {
+    const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0)
+    const todayEnd = new Date(); todayEnd.setHours(23, 59, 59, 999)
+    const weekEnd = new Date(todayStart); weekEnd.setDate(weekEnd.getDate() + 7)
+    displayed = displayed.filter(l => {
+      if (filterReminder === 'none') return !l.app_next_call
+      if (!l.app_next_call) return false
+      try {
+        const d = parseISO(l.app_next_call)
+        if (filterReminder === 'overdue') return isPast(d) && d < todayStart
+        if (filterReminder === 'today') return d >= todayStart && d <= todayEnd
+        if (filterReminder === 'week') return d >= todayStart && d <= weekEnd
+      } catch { return false }
+      return false
+    })
+  }
 
   // Client-side sort
   displayed = [...displayed].sort((a, b) => {
     let av = a[sortCol] ?? ''
     let bv = b[sortCol] ?? ''
-    // Numeric columns
     if (sortCol === 'sheet_row_num') { av = Number(av) || 0; bv = Number(bv) || 0 }
     const cmp = typeof av === 'number' ? av - bv : String(av).localeCompare(String(bv), 'el')
     return sortDir === 'asc' ? cmp : -cmp
   })
 
-  // Pagination
   const totalPages = Math.ceil(displayed.length / PAGE_SIZE)
   const paginated = displayed.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
-  // Status counts from full (unfiltered) list
   const statusCounts = leads.reduce((acc, l) => {
     const k = (l.status || '').toLowerCase()
     if (k) acc[k] = (acc[k] || 0) + 1
     return acc
   }, {})
 
-  const hasFilters = filterStatus.length || filterEmployees.length || filterMonths.length || search
+  const hasFilters = filterStatus.length || filterEmployees.length || filterMonths.length || search || debtSearch || filterReminder
 
   const yearOptions = YEARS.map(y => ({ value: String(y), label: String(y) }))
   const monthOptions = MONTHS_EL.map((m, i) => ({ value: String(i + 1), label: m }))
@@ -682,69 +980,79 @@ export default function Leads({ currentEmployee }) {
           </button>
           <button onClick={handleNormalize} disabled={syncing}
             className="btn-secondary text-xs text-violet-700 border-violet-200 hover:bg-violet-50"
-            title="Διορθώνει status (CANCEL-INTEREST → Cancelled) σε υπάρχουσες εγγραφές">
+            title="Διορθώνει status">
             Fix Status
           </button>
         </div>
       </div>
 
       {/* Status quick-filter pills */}
-      <div className="flex flex-wrap items-center gap-2 mb-3">
+      <div className="flex flex-wrap items-center gap-2 mb-2">
+        {/* Hide cancelled toggle */}
+        <button
+          onClick={() => setHideCancelled(h => !h)}
+          className={`text-xs font-semibold px-3 py-1 rounded-full border transition-colors
+            ${hideCancelled ? 'bg-gray-700 text-white border-gray-700' : 'bg-white text-gray-500 border-gray-300 hover:bg-gray-50'}`}>
+          {hideCancelled ? '👁 Cancelled κρυφά' : '👁 Cancelled ορατά'}
+        </button>
+        <div className="w-px h-4 bg-gray-200" />
         {STATUS_OPTIONS.map(key => {
           const cfg = statusCfg(key)
           const active = filterStatus.includes(key)
+          const count = (leads.filter(l => l.status === key)).length
           return (
             <button key={key}
               onClick={() => setFilterStatus(active ? filterStatus.filter(s => s !== key) : [...filterStatus, key])}
               className={`text-xs font-semibold px-3 py-1 rounded-full transition-colors ${cfg.cls}
                 ${active ? 'ring-2 ring-offset-1 ring-blue-500' : 'hover:opacity-80'}`}>
-              {cfg.label} ({statusCounts[key] || 0})
+              {cfg.label} ({count})
             </button>
           )
         })}
         {hasFilters && (
-          <button onClick={() => { setFilterStatus([]); setFilterEmployees([]); setFilterMonths([]); setSearch('') }}
+          <button onClick={() => { setFilterStatus([]); setFilterEmployees([]); setFilterMonths([]); setSearch(''); setDebtSearch(''); setFilterReminder('') }}
             className="text-xs text-gray-400 hover:text-red-500 px-2 ml-1">
             ✕ Καθαρισμός φίλτρων
           </button>
         )}
       </div>
 
+      {/* Reminder quick-filters */}
+      <div className="flex flex-wrap items-center gap-2 mb-3">
+        <span className="text-xs text-gray-400 font-medium">Reminder:</span>
+        {REMINDER_OPTIONS.map(opt => (
+          <button key={opt.value}
+            onClick={() => setFilterReminder(filterReminder === opt.value ? '' : opt.value)}
+            className={`text-xs px-2.5 py-0.5 rounded-full border transition-colors font-medium
+              ${filterReminder === opt.value ? 'bg-indigo-600 text-white border-indigo-600' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
+            {opt.label}
+          </button>
+        ))}
+      </div>
+
       {/* Filters row */}
       <div className="flex flex-wrap gap-2 mb-4 items-center">
-        {/* Search */}
-        <div className="relative flex-1 min-w-[200px] max-w-[340px]">
+        {/* General search */}
+        <div className="relative flex-1 min-w-[180px] max-w-[280px]">
           <MagnifyingGlassIcon className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input className="input pl-9 text-sm w-full" placeholder="Αναζήτηση…"
             value={search} onChange={e => setSearch(e.target.value)} />
         </div>
 
+        {/* Debt search */}
+        <div className="relative min-w-[140px] max-w-[180px]">
+          <input className="input text-sm w-full" placeholder="Σύν. Οφειλών…"
+            value={debtSearch} onChange={e => { setDebtSearch(e.target.value); setPage(1) }} />
+        </div>
+
         {/* Years */}
-        <MultiSelect
-          options={yearOptions}
-          selected={filterYears}
-          onChange={setFilterYears}
-          placeholder="Έτος"
-          cls="w-[130px]"
-        />
+        <MultiSelect options={yearOptions} selected={filterYears} onChange={setFilterYears} placeholder="Έτος" cls="w-[130px]" />
 
         {/* Months */}
-        <MultiSelect
-          options={monthOptions}
-          selected={filterMonths}
-          onChange={v => { setFilterMonths(v); setPage(1) }}
-          placeholder="Μήνας"
-          cls="w-[130px]"
-        />
+        <MultiSelect options={monthOptions} selected={filterMonths} onChange={v => { setFilterMonths(v); setPage(1) }} placeholder="Μήνας" cls="w-[130px]" />
 
         {/* Agents */}
-        <MultiSelect
-          options={employeeOptions}
-          selected={filterEmployees}
-          onChange={setFilterEmployees}
-          placeholder="Agent"
-          cls="w-[140px]"
-        />
+        <MultiSelect options={employeeOptions} selected={filterEmployees} onChange={setFilterEmployees} placeholder="Agent" cls="w-[140px]" />
       </div>
 
       {/* Table */}
@@ -785,6 +1093,9 @@ export default function Leads({ currentEmployee }) {
                     expanded={expandedId === lead.id}
                     onToggle={() => setExpandedId(expandedId === lead.id ? null : lead.id)}
                     onLeadUpdate={updateLead}
+                    templates={templates}
+                    taxisnetLinks={taxisnetLinks}
+                    allLeads={leads}
                   />
                 ))}
               </tbody>
