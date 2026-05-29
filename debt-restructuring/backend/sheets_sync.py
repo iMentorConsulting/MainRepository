@@ -120,7 +120,7 @@ def sync_leads(db) -> dict:
 
         sheet_fields = dict(
             sheet_row_num=row["_row_num"],
-            status=row.get("status", ""),
+            status=row.get("status", "").strip().lower(),
             assigned_to=row.get("assigned_to", ""),
             date=row.get("date", ""),
             name=name,

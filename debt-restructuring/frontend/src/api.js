@@ -31,7 +31,14 @@ export const getEmployeeStats = (employee) => api.get(`/statistics/employee/${em
 export const getComparison = () => api.get('/statistics/comparison')
 
 // Leads
-export const listLeads = (params) => api.get('/leads/', { params })
+export const listLeads = (params) => api.get('/leads/', { params, paramsSerializer: p => {
+  const sp = new URLSearchParams()
+  Object.entries(p).forEach(([k, v]) => {
+    if (Array.isArray(v)) v.forEach(val => sp.append(k, val))
+    else if (v !== undefined && v !== null && v !== '') sp.append(k, v)
+  })
+  return sp.toString()
+}})
 export const getLead = (id) => api.get(`/leads/${id}`)
 export const patchLead = (id, data) => api.patch(`/leads/${id}`, data)
 export const addLeadComment = (id, text, author) => api.post(`/leads/${id}/comment`, { text, author })

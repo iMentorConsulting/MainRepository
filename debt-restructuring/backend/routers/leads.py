@@ -1,8 +1,8 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
-from typing import Optional
-from datetime import datetime
+from typing import Optional, List
+from datetime import datetime, timedelta
 from pydantic import BaseModel
 import os, json, base64, time
 
@@ -184,12 +184,18 @@ def _lead_to_dict(lead: Lead) -> dict:
 @router.get("/")
 def list_leads(
     search: Optional[str] = None,
-    status: Optional[str] = None,
-    assigned_to: Optional[str] = None,
+    status: Optional[List[str]] = Query(default=None),
+    assigned_to: Optional[List[str]] = Query(default=None),
+    years: Optional[List[str]] = Query(default=None),
     has_next_call: Optional[bool] = None,
+    max_years: int = 3,
     db: Session = Depends(get_db),
 ):
     q = db.query(Lead)
+
+    # Limit to last N years by sync date for performance
+    cutoff = datetime.utcnow() - timedelta(days=365 * max_years)
+    q = q.filter(Lead.created_at >= cutoff)
 
     if search:
         term = f"%{search}%"
@@ -202,13 +208,18 @@ def list_leads(
             Lead.referrer.ilike(term),
         ))
     if status:
-        q = q.filter(Lead.status.ilike(f"%{status}%"))
+        normalized = [s.lower() for s in status]
+        q = q.filter(Lead.status.in_(normalized))
     if assigned_to:
-        q = q.filter(Lead.assigned_to == assigned_to)
+        q = q.filter(Lead.assigned_to.in_(assigned_to))
+    if years:
+        year_filters = [Lead.date.ilike(f"%{y}%") for y in years]
+        q = q.filter(or_(*year_filters))
     if has_next_call is True:
         q = q.filter(Lead.app_next_call != None)
 
-    leads = q.order_by(Lead.sheet_row_num.asc().nullslast(), Lead.id.asc()).all()
+    # Newest first (highest sheet row = most recent entry)
+    leads = q.order_by(Lead.sheet_row_num.desc().nullslast(), Lead.id.desc()).all()
     return [_lead_to_dict(l) for l in leads]
 
 
@@ -240,7 +251,7 @@ def patch_lead(lead_id: int, data: LeadPatch, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Lead not found")
 
     if data.status is not None:
-        lead.status = data.status
+        lead.status = data.status.lower()
     if data.assigned_to is not None:
         lead.assigned_to = data.assigned_to
     if data.sheet_comments is not None:
