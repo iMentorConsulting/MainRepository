@@ -23,6 +23,7 @@ from routes.cm_analytics import router as cm_analytics_router
 from routes.cm_modifications import router as cm_modifications_router
 from routes.cm_portal_files import router as cm_portal_files_router  # portal docs per service type
 from routes.cm_revenue import router as cm_revenue_router
+from routes.finance_api import router as finance_api_router
 
 load_dotenv()
 
@@ -517,6 +518,7 @@ app.include_router(cm_analytics_router)
 app.include_router(cm_modifications_router)
 app.include_router(cm_portal_files_router)
 app.include_router(cm_revenue_router)
+app.include_router(finance_api_router)
 
 
 @app.on_event("shutdown")

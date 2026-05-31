@@ -359,6 +359,14 @@ export default function ServiceAgreementsPage() {
   const [missingData, setMissingData] = useState([]);
   const [missingLoading, setMissingLoading] = useState(false);
 
+  // CM sync
+  const [syncModal, setSyncModal] = useState(false);
+  const [syncPreview, setSyncPreview] = useState(null); // { stats, rows }
+  const [syncLoading, setSyncLoading] = useState(false);
+  const [syncApplying, setSyncApplying] = useState(false);
+  const [syncField, setSyncField] = useState('both');
+  const [syncOverwrite, setSyncOverwrite] = useState(false);
+
   const handleSort = field => {
     setSort(s => s.field === field ? { field, dir: s.dir === 'DESC' ? 'ASC' : 'DESC' } : { field, dir: 'DESC' });
   };
@@ -405,6 +413,30 @@ export default function ServiceAgreementsPage() {
     if (activeTab === 'pivot') loadPivot();
     if (activeTab === 'missing') loadMissing();
   }, [activeTab, loadPivot, loadMissing]);
+
+  const handleSyncPreview = async () => {
+    setSyncLoading(true);
+    try {
+      const r = await api.get('/cm-cases/preview');
+      setSyncPreview(r.data);
+    } catch (e) {
+      toast.error(e.response?.data?.error || 'Σφάλμα σύνδεσης με το consult.i-mentor.gr');
+    } finally { setSyncLoading(false); }
+  };
+
+  const handleSyncApply = async () => {
+    setSyncApplying(true);
+    try {
+      const r = await api.post('/cm-cases/apply', { field: syncField, overwrite: syncOverwrite });
+      toast.success(`Ενημερώθηκαν ${r.data.updated} συμφωνίες (${r.data.skipped} παρελείφθησαν)`);
+      setSyncModal(false);
+      setSyncPreview(null);
+      load();
+      if (activeTab === 'missing') loadMissing();
+    } catch (e) {
+      toast.error(e.response?.data?.error || 'Σφάλμα εφαρμογής');
+    } finally { setSyncApplying(false); }
+  };
 
   const handlePivotCellClick = async (service_type, status) => {
     setPivotCellLoading(true);
@@ -501,12 +533,21 @@ export default function ServiceAgreementsPage() {
           <h1 className="page-title">Συμφωνίες Υπηρεσιών</h1>
           <p className="page-sub">{data.total} εγγραφές (φίλτρο) · {stats.total} σύνολο</p>
         </div>
-        <button className="btn-primary" onClick={() => setModal({ open: true, record: null })}>
-          <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
-            <path d="M10.75 4.75a.75.75 0 0 0-1.5 0v4.5h-4.5a.75.75 0 0 0 0 1.5h4.5v4.5a.75.75 0 0 0 1.5 0v-4.5h4.5a.75.75 0 0 0 0-1.5h-4.5v-4.5Z"/>
-          </svg>
-          Νέα Συμφωνία
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={() => { setSyncModal(true); setSyncPreview(null); }}
+            className="btn-secondary flex items-center gap-2">
+            <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+              <path fillRule="evenodd" d="M15.312 11.424a5.5 5.5 0 0 1-9.201 2.466l-.312-.311h2.433a.75.75 0 0 0 0-1.5H3.989a.75.75 0 0 0-.75.75v4.242a.75.75 0 0 0 1.5 0v-2.43l.31.31a7 7 0 0 0 11.712-3.138.75.75 0 0 0-1.449-.39Zm1.23-3.723a.75.75 0 0 0 .219-.53V2.929a.75.75 0 0 0-1.5 0V5.36l-.31-.31A7 7 0 0 0 3.239 8.188a.75.75 0 1 0 1.448.389A5.5 5.5 0 0 1 13.89 6.11l.311.31h-2.432a.75.75 0 0 0 0 1.5h4.243a.75.75 0 0 0 .53-.219Z" clipRule="evenodd"/>
+            </svg>
+            Συγχρονισμός CM
+          </button>
+          <button className="btn-primary" onClick={() => setModal({ open: true, record: null })}>
+            <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+              <path d="M10.75 4.75a.75.75 0 0 0-1.5 0v4.5h-4.5a.75.75 0 0 0 0 1.5h4.5v4.5a.75.75 0 0 0 1.5 0v-4.5h4.5a.75.75 0 0 0 0-1.5h-4.5v-4.5Z"/>
+            </svg>
+            Νέα Συμφωνία
+          </button>
+        </div>
       </div>
 
       {/* Stats cards */}
@@ -909,6 +950,7 @@ export default function ServiceAgreementsPage() {
                   <th className="th">ΑΦΜ</th>
                   <th className="th text-right">Αίτηση</th>
                   <th className="th text-right">Υλοποίηση</th>
+                  <th className="th text-right">Είσπραξη</th>
                   <th className="th">Σύμβουλος</th>
                   <th className="th">Ημ. Συμφωνίας</th>
                   <th className="th">Ημ. Έγκρισης</th>
@@ -918,7 +960,7 @@ export default function ServiceAgreementsPage() {
               </thead>
               <tbody>
                 {pivotCell.items.length === 0 && (
-                  <tr><td colSpan={9} className="td text-center text-slate-400 py-8">Δεν βρέθηκαν εγγραφές</td></tr>
+                  <tr><td colSpan={10} className="td text-center text-slate-400 py-8">Δεν βρέθηκαν εγγραφές</td></tr>
                 )}
                 {pivotCell.items.map(r => (
                   <tr key={r.id} className="tr">
@@ -928,6 +970,11 @@ export default function ServiceAgreementsPage() {
                     <td className="td text-xs text-slate-500 whitespace-nowrap">{r.vat_number || '—'}</td>
                     <td className="td text-right text-xs text-slate-600 whitespace-nowrap">{fmt(r.amount_application)}</td>
                     <td className="td text-right text-xs text-slate-600 whitespace-nowrap">{fmt(r.amount_implementation)}</td>
+                    <td className="td text-right text-xs font-semibold whitespace-nowrap">
+                      {parseFloat(r.income_collected || 0) > 0
+                        ? <span className="text-teal-600">{fmt(r.income_collected)}</span>
+                        : <span className="text-slate-300">—</span>}
+                    </td>
                     <td className="td text-xs">{r.sales_agent || '—'}</td>
                     <td className="td text-xs text-slate-500 whitespace-nowrap">{fmtDate(r.first_sale_date)}</td>
                     <td className="td text-xs whitespace-nowrap">
@@ -954,6 +1001,99 @@ export default function ServiceAgreementsPage() {
             </table>
           </div>
         )}
+      </Modal>
+
+      {/* CM Sync modal */}
+      <Modal open={syncModal} onClose={() => setSyncModal(false)}
+        title="Συγχρονισμός από consult.i-mentor.gr" size="xl">
+        <div className="space-y-4">
+          {/* Settings row */}
+          <div className="flex flex-wrap items-end gap-4 p-4 rounded-xl bg-slate-50 border border-slate-200">
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 mb-1">Πεδία προς ενημέρωση</label>
+              <select value={syncField} onChange={e => setSyncField(e.target.value)} className="input w-52 text-sm">
+                <option value="both">Ημ. Έγκρισης + Προθεσμία</option>
+                <option value="approval">Μόνο Ημ. Έγκρισης</option>
+                <option value="deadline">Μόνο Προθεσμία Ολοκλήρωσης</option>
+              </select>
+            </div>
+            <label className="flex items-center gap-2 cursor-pointer pb-1">
+              <input type="checkbox" checked={syncOverwrite} onChange={e => setSyncOverwrite(e.target.checked)}
+                className="w-4 h-4 rounded border-slate-300 text-indigo-600" />
+              <span className="text-sm text-slate-600">Αντικατάσταση υπαρχουσών ημερομηνιών</span>
+            </label>
+            <button onClick={handleSyncPreview} disabled={syncLoading}
+              className="btn-secondary flex items-center gap-2">
+              {syncLoading ? 'Φόρτωση…' : '↺ Φόρτωση προεπισκόπησης'}
+            </button>
+          </div>
+
+          {syncPreview && (
+            <>
+              {/* Stats */}
+              <div className="grid grid-cols-4 gap-3">
+                {[
+                  { label: 'Σύνολο CM', val: syncPreview.stats.total_cm, color: 'text-slate-700' },
+                  { label: 'Ταιριάζουν', val: syncPreview.stats.matched, color: 'text-emerald-600' },
+                  { label: 'Δεν ταιριάζουν', val: syncPreview.stats.unmatched, color: 'text-amber-600' },
+                  { label: 'Θα ενημερωθούν', val: syncPreview.stats.will_update, color: 'text-indigo-600' },
+                ].map(s => (
+                  <div key={s.label} className="card p-3 text-center">
+                    <div className={`text-2xl font-black ${s.color}`}>{s.val}</div>
+                    <div className="text-xs text-slate-400 mt-0.5">{s.label}</div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Preview table */}
+              <div className="overflow-x-auto max-h-96 rounded-xl border border-slate-200">
+                <table className="w-full text-xs">
+                  <thead className="sticky top-0 bg-white">
+                    <tr>
+                      <th className="th">CM Πελάτης</th>
+                      <th className="th">CM Υπηρεσία</th>
+                      <th className="th">CM Έγκριση</th>
+                      <th className="th">CM Προθεσμία</th>
+                      <th className="th">Finance Πελάτης</th>
+                      <th className="th">Finance Έγκριση</th>
+                      <th className="th">Finance Προθεσμία</th>
+                      <th className="th">Match</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {syncPreview.rows.map((r, i) => (
+                      <tr key={i} className={`tr ${r.matched ? '' : 'bg-amber-50/40'}`}>
+                        <td className="td font-medium max-w-[160px] truncate">{r.cm_name}</td>
+                        <td className="td text-slate-500 max-w-[120px] truncate">{r.cm_service || '—'}</td>
+                        <td className="td whitespace-nowrap">{r.cm_approval_date ? fmtDate(r.cm_approval_date) : <span className="text-slate-300">—</span>}</td>
+                        <td className="td whitespace-nowrap">{r.cm_deadline ? fmtDate(r.cm_deadline) : <span className="text-slate-300">—</span>}</td>
+                        <td className="td text-slate-500 max-w-[160px] truncate">{r.finance_name || <span className="text-amber-500 font-semibold">Δεν βρέθηκε</span>}</td>
+                        <td className="td whitespace-nowrap">{r.finance_approval ? fmtDate(r.finance_approval) : <span className="text-slate-300">—</span>}</td>
+                        <td className="td whitespace-nowrap">{r.finance_deadline ? fmtDate(r.finance_deadline) : <span className="text-slate-300">—</span>}</td>
+                        <td className="td text-center">{r.matched ? '✓' : <span className="text-amber-500">✗</span>}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Apply button */}
+              <div className="flex justify-end gap-3 pt-2 border-t border-slate-100">
+                <button onClick={() => setSyncModal(false)} className="btn-secondary">Ακύρωση</button>
+                <button onClick={handleSyncApply} disabled={syncApplying || syncPreview.stats.will_update === 0}
+                  className="btn-primary disabled:opacity-50">
+                  {syncApplying ? 'Εφαρμογή…' : `Εφαρμογή σε ${syncPreview.stats.will_update} συμφωνίες`}
+                </button>
+              </div>
+            </>
+          )}
+
+          {!syncPreview && !syncLoading && (
+            <div className="p-8 text-center text-slate-400 text-sm">
+              Πατήστε "Φόρτωση προεπισκόπησης" για να δείτε ποια δεδομένα θα εισαχθούν.
+            </div>
+          )}
+        </div>
       </Modal>
     </div>
   );

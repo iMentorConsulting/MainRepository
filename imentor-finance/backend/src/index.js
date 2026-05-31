@@ -56,7 +56,9 @@ app.use('/api/customers',          authMiddleware, require('./routes/customers')
 app.use('/api/service-agreements', authMiddleware, require('./routes/serviceAgreements'));
 app.use('/api/recurring-expenses', authMiddleware, require('./routes/recurringExpenses'));
 // Case management sync — own API-key auth, no user auth middleware
-app.use('/api/cm-sync', require('./routes/cmSync'));
+app.use('/api/cm-sync',  require('./routes/cmSync'));
+// Pull case data from consult.i-mentor.gr (requires CM_APP_URL + FINANCE_API_KEY env vars)
+app.use('/api/cm-cases', authMiddleware, require('./routes/cmCasesFetch'));
 app.use('/api/backup',  authMiddleware, require('./routes/backup'));
 
 app.get('/health', (_, res) => res.json({ ok: true }));
