@@ -27,6 +27,7 @@ from routes.cm_backup import router as cm_backup_router
 from models_cases import CMBackupLog
 from routes.cm_anakainizw import router as cm_anakainizw_router
 from routes.cm_finance_sync import router as cm_finance_sync_router
+from routes.finance_api import router as finance_api_router
 
 load_dotenv()
 
@@ -842,6 +843,7 @@ app.include_router(cm_revenue_router)
 app.include_router(cm_backup_router)
 app.include_router(cm_anakainizw_router)
 app.include_router(cm_finance_sync_router)
+app.include_router(finance_api_router)
 
 
 @app.on_event("shutdown")
