@@ -3,8 +3,9 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 from database import get_db
 from models import Case
+from auth_utils import get_current_user
 
-router = APIRouter(prefix="/statistics", tags=["statistics"])
+router = APIRouter(prefix="/statistics", tags=["statistics"], dependencies=[Depends(get_current_user)])
 
 EMPLOYEES = ["STELLA", "VALLIA", "SOFIA", "HARIS"]
 

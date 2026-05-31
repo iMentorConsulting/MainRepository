@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
@@ -7,7 +7,8 @@ from dotenv import load_dotenv
 
 from database import engine, Base
 from models import Case, AppConfig, Lead
-from routers import cases, statistics, public, config, leads
+from routers import cases, statistics, public, config, leads, auth
+from auth_utils import get_current_user
 
 load_dotenv()
 
@@ -15,12 +16,14 @@ app = FastAPI(title="Debt Restructuring API", version="1.0.0")
 
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5174")
 
+_allowed_origins = [FRONTEND_URL, "http://localhost:5173", "http://localhost:5174"]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_allowed_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization"],
 )
 
 # Create tables
@@ -105,6 +108,7 @@ def run_migrations():
 
 run_migrations()
 
+app.include_router(auth.router)
 app.include_router(cases.router)
 app.include_router(statistics.router)
 app.include_router(public.router)
@@ -151,7 +155,7 @@ def root():
 
 
 @app.post("/admin/backup-now")
-def backup_now():
+def backup_now(_: str = Depends(get_current_user)):
     """Trigger an immediate backup to Google Drive."""
     folder_id = os.getenv("GOOGLE_DRIVE_BACKUP_FOLDER_ID", "").strip()
     if not folder_id:
@@ -165,7 +169,7 @@ def backup_now():
 
 
 @app.get("/admin/service-account-email")
-def service_account_email():
+def service_account_email(_: str = Depends(get_current_user)):
     """Return just the client_email from GOOGLE_SERVICE_ACCOUNT_JSON."""
     sa_json = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON", "").strip()
     if not sa_json:
@@ -181,7 +185,7 @@ def service_account_email():
 
 
 @app.get("/admin/export")
-def export_data():
+def export_data(_: str = Depends(get_current_user)):
     """Download a full JSON export of all cases (no Drive upload)."""
     from backup import build_backup_payload
     payload = build_backup_payload()
@@ -191,7 +195,7 @@ def export_data():
 
 
 @app.get("/admin/upload-docs")
-def upload_docs():
+def upload_docs(_: str = Depends(get_current_user)):
     """Upload the backup & restore instructions PDF to Google Drive."""
     folder_id = os.getenv("GOOGLE_DRIVE_BACKUP_FOLDER_ID", "").strip()
     if not folder_id:
@@ -322,7 +326,7 @@ Backend: https://innovative-nourishment-production.up.railway.app
 
 
 @app.post("/admin/restore")
-def restore_data(request: dict, wipe_first: bool = False):
+def restore_data(request: dict, wipe_first: bool = False, _: str = Depends(get_current_user)):
     """
     Restore cases from a backup JSON payload.
     POST the full backup JSON as the request body.

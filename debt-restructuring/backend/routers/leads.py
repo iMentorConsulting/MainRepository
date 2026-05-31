@@ -8,8 +8,9 @@ import os, json, base64, time
 
 from database import get_db
 from models import Lead
+from auth_utils import get_current_user
 
-router = APIRouter(prefix="/leads", tags=["leads"])
+router = APIRouter(prefix="/leads", tags=["leads"], dependencies=[Depends(get_current_user)])
 
 EMPLOYEES = ["STELLA", "VALLIA", "SOFIA", "HARIS"]
 

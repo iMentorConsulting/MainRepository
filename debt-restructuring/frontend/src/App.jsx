@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
 import Layout from './components/Layout'
@@ -14,22 +14,49 @@ import FinancialDashboard from './pages/FinancialDashboard'
 import Leads from './pages/Leads'
 import LeadsReporting from './pages/LeadsReporting'
 import LeadLists from './pages/LeadLists'
+import { loginUser } from './api'
 
-const EMPLOYEES = ['STELLA', 'VALLIA', 'SOFIA', 'HARIS']
-const APP_PASSWORD = 'imentor2024'
+const SESSION_MS = 8 * 60 * 60 * 1000  // 8 hours
+
+function getStoredAuth() {
+  try {
+    const raw = localStorage.getItem('debt-auth')
+    if (!raw) return null
+    const auth = JSON.parse(raw)
+    if (!auth?.token || !auth?.loginAt) return null
+    if (Date.now() - auth.loginAt > SESSION_MS) {
+      localStorage.removeItem('debt-auth')
+      return null
+    }
+    return auth
+  } catch {
+    return null
+  }
+}
 
 export default function App() {
-  const [auth, setAuth] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('debt-auth') || 'null') } catch { return null }
-  })
+  const [auth, setAuth] = useState(getStoredAuth)
 
-  const login = (employee, password) => {
-    if (!EMPLOYEES.includes(employee)) return 'Μη έγκυρος υπάλληλος'
-    if (password !== APP_PASSWORD) return 'Λάθος κωδικός'
-    const user = { employee }
-    localStorage.setItem('debt-auth', JSON.stringify(user))
-    setAuth(user)
-    return null
+  // Auto-logout: check every 60s and on window focus
+  useEffect(() => {
+    if (!auth) return
+    const check = () => { if (!getStoredAuth()) setAuth(null) }
+    const id = setInterval(check, 60_000)
+    window.addEventListener('focus', check)
+    return () => { clearInterval(id); window.removeEventListener('focus', check) }
+  }, [auth])
+
+  const login = async (employee, password) => {
+    try {
+      const res = await loginUser(employee, password)
+      const { token, employee: emp } = res.data
+      const user = { employee: emp, token, loginAt: Date.now() }
+      localStorage.setItem('debt-auth', JSON.stringify(user))
+      setAuth(user)
+      return null
+    } catch (err) {
+      return err?.response?.data?.detail || 'Σφάλμα σύνδεσης'
+    }
   }
 
   const logout = () => {

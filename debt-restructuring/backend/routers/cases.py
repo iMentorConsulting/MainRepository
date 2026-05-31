@@ -11,8 +11,9 @@ from email.mime.multipart import MIMEMultipart
 from database import get_db
 from models import Case
 from schemas import CaseCreate, CaseUpdate, CaseResponse, CaseListItem, ActualResultsUpdate, ContactUpdate
+from auth_utils import get_current_user
 
-router = APIRouter(prefix="/cases", tags=["cases"])
+router = APIRouter(prefix="/cases", tags=["cases"], dependencies=[Depends(get_current_user)])
 
 EMPLOYEES = ["STELLA", "VALLIA", "SOFIA", "HARIS"]
 

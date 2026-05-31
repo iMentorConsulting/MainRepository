@@ -5,6 +5,32 @@ const api = axios.create({
   headers: { 'Content-Type': 'application/json' },
 })
 
+// Inject Bearer token from localStorage on every request
+api.interceptors.request.use(config => {
+  try {
+    const stored = localStorage.getItem('debt-auth')
+    if (stored) {
+      const { token } = JSON.parse(stored)
+      if (token) config.headers.Authorization = `Bearer ${token}`
+    }
+  } catch {}
+  return config
+})
+
+// On 401, clear session and reload to login screen
+api.interceptors.response.use(
+  res => res,
+  err => {
+    if (err.response?.status === 401 && !err.config?.url?.includes('/auth/login')) {
+      localStorage.removeItem('debt-auth')
+      window.location.reload()
+    }
+    return Promise.reject(err)
+  }
+)
+
+export const loginUser = (employee, password) => api.post('/auth/login', { employee, password })
+
 // Cases
 export const listCases = (params) => api.get('/cases/', { params })
 export const getCase = (id) => api.get(`/cases/${id}`)

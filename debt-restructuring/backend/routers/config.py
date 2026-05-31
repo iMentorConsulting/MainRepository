@@ -4,8 +4,9 @@ from fastapi import APIRouter, Depends, Body
 from sqlalchemy.orm import Session
 from database import get_db
 from models import AppConfig
+from auth_utils import get_current_user
 
-router = APIRouter(prefix="/config", tags=["config"])
+router = APIRouter(prefix="/config", tags=["config"], dependencies=[Depends(get_current_user)])
 
 
 @router.get("/pricing")
