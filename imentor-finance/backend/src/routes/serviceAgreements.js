@@ -21,7 +21,7 @@ async function checkAndAutoStatus(saId) {
     } else {
       const target = application + parseFloat(sa.amount_implementation || 0);
       if (collected > 0 && (target === 0 || collected >= target)) {
-        await sa.update({ status: 'ΑΠΟΠΛΗΡΩΜΕΝΕΣ' });
+        await sa.update({ status: 'ΟΛΟΚΛΗΡΩΜΕΝΕΣ ΕΠΙΤΥΧΩΣ' });
       }
     }
   } catch (e) {
@@ -226,7 +226,7 @@ router.get('/', async (req, res) => {
         } else {
           const target = application + parseFloat(row.amount_implementation || 0);
           if (collected > 0 && (target === 0 || collected >= target)) {
-            ServiceAgreement.update({ status: 'ΑΠΟΠΛΗΡΩΜΕΝΕΣ' }, { where: { id: row.id } }).catch(() => {});
+            ServiceAgreement.update({ status: 'ΟΛΟΚΛΗΡΩΜΕΝΕΣ ΕΠΙΤΥΧΩΣ' }, { where: { id: row.id } }).catch(() => {});
           }
         }
       }
@@ -234,7 +234,7 @@ router.get('/', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-const COMPLETED_STATUSES = ['ΑΠΟΠΛΗΡΩΜΕΝΕΣ', 'ΟΛΟΚΛΗΡΩΜΕΝΕΣ ΕΠΙΤΥΧΩΣ', 'ΟΛΟΚΛΗΡΩΜΕΝΕΣ FAIL'];
+const COMPLETED_STATUSES = ['ΟΛΟΚΛΗΡΩΜΕΝΕΣ ΕΠΙΤΥΧΩΣ', 'ΟΛΟΚΛΗΡΩΜΕΝΕΣ FAIL'];
 
 async function applyAutoStatus(sa) {
   if (COMPLETED_STATUSES.includes(sa.status)) return;
@@ -251,7 +251,7 @@ async function applyAutoStatus(sa) {
   } else {
     const target = application + parseFloat(sa.amount_implementation || 0);
     if (collected > 0 && (target === 0 || collected >= target)) {
-      await sa.update({ status: 'ΑΠΟΠΛΗΡΩΜΕΝΕΣ' });
+      await sa.update({ status: 'ΟΛΟΚΛΗΡΩΜΕΝΕΣ ΕΠΙΤΥΧΩΣ' });
     }
   }
 }
