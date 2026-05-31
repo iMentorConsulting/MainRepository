@@ -58,26 +58,20 @@ const fmtK = n => {
 const fmtDate = d => d ? new Date(d + 'T00:00:00').toLocaleDateString('el-GR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—';
 
 const STATUS_BADGE = {
-  'ΕΝ ΕΞΕΛΙΞΕΙ': 'badge-green',
-  'ΠΑΓΩΜΕΝΕΣ': 'badge-yellow',
-  'ΟΛΟΚΛΗΡΩΜΕΝΕΣ ΕΠΙΤΥΧΩΣ': 'badge-blue',
-  'ΟΛΟΚΛΗΡΩΜΕΝΕΣ FAIL': 'badge-red',
-  'ΑΠΟΠΛΗΡΩΜΗ ΑΙΤΗΣΗΣ': 'badge-orange',
+  'ΕΝ ΕΞΕΛΙΞΕΙ':           'badge-green',
+  'ΟΛΟΚΛΗΡΩΜΕΝΕΣ ΕΠΙΤΥΧΩΣ':'badge-blue',
+  'ΟΛΟΚΛΗΡΩΜΕΝΕΣ FAIL':    'badge-red',
 };
 
-const STATUS_OPTS = ['ΕΝ ΕΞΕΛΙΞΕΙ', 'ΠΑΓΩΜΕΝΕΣ', 'ΑΠΟΠΛΗΡΩΜΗ ΑΙΤΗΣΗΣ', 'ΟΛΟΚΛΗΡΩΜΕΝΕΣ ΕΠΙΤΥΧΩΣ', 'ΟΛΟΚΛΗΡΩΜΕΝΕΣ FAIL'];
+const STATUS_OPTS = ['ΕΝ ΕΞΕΛΙΞΕΙ', 'ΟΛΟΚΛΗΡΩΜΕΝΕΣ ΕΠΙΤΥΧΩΣ', 'ΟΛΟΚΛΗΡΩΜΕΝΕΣ FAIL'];
 
 const STATUS_CELL_BG = {
   'ΕΝ ΕΞΕΛΙΞΕΙ':            '#dcfce7',
-  'ΠΑΓΩΜΕΝΕΣ':              '#fef9c3',
-  'ΑΠΟΠΛΗΡΩΜΗ ΑΙΤΗΣΗΣ':    '#ffedd5',
   'ΟΛΟΚΛΗΡΩΜΕΝΕΣ ΕΠΙΤΥΧΩΣ':'#dbeafe',
   'ΟΛΟΚΛΗΡΩΜΕΝΕΣ FAIL':     '#ffe4e6',
 };
 const STATUS_TEXT_COLOR = {
   'ΕΝ ΕΞΕΛΙΞΕΙ':            '#166534',
-  'ΠΑΓΩΜΕΝΕΣ':              '#854d0e',
-  'ΑΠΟΠΛΗΡΩΜΗ ΑΙΤΗΣΗΣ':    '#9a3412',
   'ΟΛΟΚΛΗΡΩΜΕΝΕΣ ΕΠΙΤΥΧΩΣ':'#1e40af',
   'ΟΛΟΚΛΗΡΩΜΕΝΕΣ FAIL':     '#9f1239',
 };

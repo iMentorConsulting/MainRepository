@@ -18,8 +18,6 @@ async function checkAndAutoStatus(saId) {
     const target = application + implementation;
     if (collected > 0 && target > 0 && collected >= target) {
       await sa.update({ status: 'ΟΛΟΚΛΗΡΩΜΕΝΕΣ ΕΠΙΤΥΧΩΣ' });
-    } else if (collected > 0 && application > 0 && collected >= application) {
-      await sa.update({ status: 'ΑΠΟΠΛΗΡΩΜΗ ΑΙΤΗΣΗΣ' });
     }
   } catch (e) {
     console.error('checkAndAutoStatus failed:', e.message);
@@ -220,8 +218,6 @@ router.get('/', async (req, res) => {
         const target = application + implementation;
         if (collected > 0 && target > 0 && collected >= target) {
           ServiceAgreement.update({ status: 'ΟΛΟΚΛΗΡΩΜΕΝΕΣ ΕΠΙΤΥΧΩΣ' }, { where: { id: row.id } }).catch(() => {});
-        } else if (collected > 0 && application > 0 && collected >= application) {
-          ServiceAgreement.update({ status: 'ΑΠΟΠΛΗΡΩΜΗ ΑΙΤΗΣΗΣ' }, { where: { id: row.id } }).catch(() => {});
         }
       }
     });
@@ -242,8 +238,6 @@ async function applyAutoStatus(sa) {
   const target = application + implementation;
   if (collected > 0 && target > 0 && collected >= target) {
     await sa.update({ status: 'ΟΛΟΚΛΗΡΩΜΕΝΕΣ ΕΠΙΤΥΧΩΣ' });
-  } else if (collected > 0 && application > 0 && collected >= application) {
-    await sa.update({ status: 'ΑΠΟΠΛΗΡΩΜΗ ΑΙΤΗΣΗΣ' });
   }
 }
 
