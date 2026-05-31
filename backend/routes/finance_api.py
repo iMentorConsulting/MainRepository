@@ -5,7 +5,7 @@ Call with:  Authorization: Bearer <FINANCE_API_KEY>
 """
 import os
 from fastapi import APIRouter, Depends, HTTPException, Header
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from database import get_db
 from models_cases import CMCase
 
@@ -29,7 +29,12 @@ def get_cases_for_finance(db: Session = Depends(get_db)):
     Returns all active cases with the fields iMentor Finance needs:
     client_name, afm, service_type, status, approval_date, project_deadline (=completion_deadline).
     """
-    cases = db.query(CMCase).order_by(CMCase.client_name).all()
+    cases = (
+        db.query(CMCase)
+        .options(joinedload(CMCase.assigned_agent))
+        .order_by(CMCase.client_name)
+        .all()
+    )
     return {
         "count": len(cases),
         "data": [

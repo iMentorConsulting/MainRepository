@@ -2,21 +2,38 @@ const router = require('express').Router();
 const axios = require('axios');
 const ServiceAgreement = require('../models/ServiceAgreement');
 
-// GET /api/cm-cases/fetch — pull cases from consult.i-mentor.gr and return them
-// GET /api/cm-cases/preview — same pull but returns raw CM data for review before applying
-// POST /api/cm-cases/apply — write CM dates/status back to matching service agreements
-// Requires: CM_APP_URL and FINANCE_API_KEY set in Railway env vars
+// GET /api/cm-cases/preview — fetch CM data and show matching without writing
+// POST /api/cm-cases/apply  — write CM dates into matching service agreements
+// Requires: CM_APP_URL (use the Railway .up.railway.app URL, NOT the Cloudflare domain)
+//           FINANCE_API_KEY — same key set on both apps
 
 function getCmClient() {
   const base = process.env.CM_APP_URL;
   const key  = process.env.FINANCE_API_KEY;
-  if (!base) throw new Error('CM_APP_URL not configured');
-  if (!key)  throw new Error('FINANCE_API_KEY not configured');
+  if (!base) throw new Error('CM_APP_URL not configured in Railway env vars');
+  if (!key)  throw new Error('FINANCE_API_KEY not configured in Railway env vars');
   return axios.create({
     baseURL: base.replace(/\/$/, ''),
     headers: { Authorization: `Bearer ${key}` },
-    timeout: 15000,
+    timeout: 20000,
+    // Don't auto-transform — we need to validate it's actually JSON
+    transformResponse: [data => data],
   });
+}
+
+function parseCmResponse(rawData) {
+  if (typeof rawData !== 'string') return rawData;
+  if (rawData.trim().startsWith('<')) {
+    throw new Error(
+      'Το CM server επέστρεψε HTML αντί για JSON — πιθανόν Cloudflare block. ' +
+      'Χρησιμοποιήστε το Railway URL (*.up.railway.app) αντί για το Cloudflare domain στο CM_APP_URL.'
+    );
+  }
+  try {
+    return JSON.parse(rawData);
+  } catch {
+    throw new Error('Μη έγκυρη απόκριση από CM server (όχι JSON): ' + rawData.slice(0, 200));
+  }
 }
 
 // Normalise strings for matching: lowercase + trim + collapse spaces
@@ -62,7 +79,8 @@ function matchCases(saList, cmCases) {
 router.get('/preview', async (req, res) => {
   try {
     const client = getCmClient();
-    const { data } = await client.get('/api/finance-sync/cases');
+    const response = await client.get('/api/finance-sync/cases');
+    const data = parseCmResponse(response.data);
     const saList = await ServiceAgreement.findAll({ raw: true });
     const matched = matchCases(saList, data.data || []);
     const stats = {
@@ -83,7 +101,8 @@ router.post('/apply', async (req, res) => {
   try {
     const { field = 'both', overwrite = false } = req.body;
     const client = getCmClient();
-    const { data } = await client.get('/api/finance-sync/cases');
+    const response = await client.get('/api/finance-sync/cases');
+    const data = parseCmResponse(response.data);
     const saList = await ServiceAgreement.findAll();
     const matched = matchCases(saList.map(s => s.toJSON()), data.data || []);
 
