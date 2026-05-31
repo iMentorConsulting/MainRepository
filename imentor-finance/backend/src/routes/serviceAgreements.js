@@ -29,6 +29,24 @@ async function checkAndAutoStatus(saId) {
   }
 }
 
+// ── GET /pivot — service × status cross-tab ──────────────────────────────────
+router.get('/pivot', async (req, res) => {
+  try {
+    const rows = await sequelize.query(`
+      SELECT
+        COALESCE(NULLIF(TRIM(service_type), ''), 'Χωρίς Υπηρεσία') AS service_type,
+        COALESCE(NULLIF(TRIM(status), ''), 'Χωρίς Κατάσταση') AS status,
+        COUNT(*) AS cnt,
+        COALESCE(SUM(amount_application), 0) AS sum_application,
+        COALESCE(SUM(amount_implementation), 0) AS sum_implementation
+      FROM service_agreements
+      GROUP BY 1, 2
+      ORDER BY 1, 2
+    `, { type: QueryTypes.SELECT });
+    res.json(rows);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 router.get('/stats', async (req, res) => {
   try {
     const counts = await ServiceAgreement.findAll({
@@ -48,7 +66,7 @@ router.get('/stats', async (req, res) => {
 
 router.get('/', async (req, res) => {
   try {
-    const { status, customer_id, customer_name, search, sales_agent, service_type, sale_year, sale_years, sale_month, sale_months, limit = 50, offset = 0, page, sort_field, sort_dir } = req.query;
+    const { status, customer_id, customer_name, search, sales_agent, service_type, sale_year, sale_years, sale_month, sale_months, missing_dates, limit = 50, offset = 0, page, sort_field, sort_dir } = req.query;
     const actualOffset = page ? (parseInt(page) - 1) * parseInt(limit) : parseInt(offset);
     const where = {};
     if (status) where.status = status;
@@ -60,6 +78,15 @@ router.get('/', async (req, res) => {
       { customer_name: { [Op.iLike]: `%${search}%` } },
       { service_type: { [Op.iLike]: `%${search}%` } }
     ];
+    if (missing_dates === 'true') {
+      const missingCond = { [Op.or]: [{ approval_date: null }, { completion_deadline: null }] };
+      if (where[Op.or]) {
+        where[Op.and] = [{ [Op.or]: where[Op.or] }, missingCond];
+        delete where[Op.or];
+      } else {
+        Object.assign(where, missingCond);
+      }
+    }
     // Filter by first income sale_date year/month — fully parameterized, no string interpolation
     const saleDateParts = ['service_agreement_id IS NOT NULL'];
     const saleDateReplacements = {};
@@ -228,6 +255,53 @@ async function applyAutoStatus(sa) {
     }
   }
 }
+
+// ── POST /bulk-dates — mass-set approval_date or completion_deadline ──────────
+router.post('/bulk-dates', async (req, res) => {
+  try {
+    const { ids, field, mode, months, value } = req.body;
+    const ALLOWED_FIELDS = ['approval_date', 'completion_deadline'];
+    if (!ALLOWED_FIELDS.includes(field)) return res.status(400).json({ error: 'Invalid field' });
+    if (!Array.isArray(ids) || ids.length === 0) return res.status(400).json({ error: 'No ids provided' });
+
+    const safeIds = ids.map(Number).filter(n => Number.isFinite(n) && n > 0);
+    const agreements = await ServiceAgreement.findAll({ where: { id: safeIds } });
+
+    let firstSaleDateMap = new Map();
+    if (mode === 'months_after_agreement' && safeIds.length > 0) {
+      const saleRows = await sequelize.query(
+        `SELECT service_agreement_id, MIN(sale_date) AS first_sale_date FROM income WHERE service_agreement_id IN (:ids) GROUP BY service_agreement_id`,
+        { replacements: { ids: safeIds }, type: QueryTypes.SELECT }
+      );
+      for (const row of saleRows) firstSaleDateMap.set(Number(row.service_agreement_id), row.first_sale_date);
+    }
+
+    const addMonths = (dateStr, n) => {
+      const d = new Date(String(dateStr).replace(/T.*/, '') + 'T00:00:00');
+      d.setMonth(d.getMonth() + parseInt(n));
+      return d.toISOString().split('T')[0];
+    };
+
+    let updated = 0;
+    for (const sa of agreements) {
+      let dateVal = null;
+      if (mode === 'fixed') {
+        dateVal = value || null;
+      } else if (mode === 'months_after_agreement') {
+        const base = firstSaleDateMap.get(sa.id) || sa.createdAt?.toISOString().split('T')[0];
+        if (base) dateVal = addMonths(base, months);
+      } else if (mode === 'months_after_approval') {
+        if (sa.approval_date) dateVal = addMonths(sa.approval_date, months);
+      }
+      if (dateVal) {
+        await sa.update({ [field]: dateVal });
+        updated++;
+      }
+    }
+
+    res.json({ updated, skipped: agreements.length - updated });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
 
 router.post('/', async (req, res) => {
   try {

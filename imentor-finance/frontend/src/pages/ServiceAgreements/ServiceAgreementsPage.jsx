@@ -68,23 +68,28 @@ const STATUS_BADGE = {
 
 const STATUS_OPTS = ['ΕΝ ΕΞΕΛΙΞΕΙ', 'ΠΑΓΩΜΕΝΕΣ', 'ΑΠΟΠΛΗΡΩΜΗ ΑΙΤΗΣΗΣ', 'ΟΛΟΚΛΗΡΩΜΕΝΕΣ ΕΠΙΤΥΧΩΣ', 'ΟΛΟΚΛΗΡΩΜΕΝΕΣ FAIL', 'ΑΠΟΠΛΗΡΩΜΕΝΕΣ'];
 
+const STATUS_CELL_BG = {
+  'ΕΝ ΕΞΕΛΙΞΕΙ':            '#dcfce7',
+  'ΠΑΓΩΜΕΝΕΣ':              '#fef9c3',
+  'ΑΠΟΠΛΗΡΩΜΗ ΑΙΤΗΣΗΣ':    '#ffedd5',
+  'ΟΛΟΚΛΗΡΩΜΕΝΕΣ ΕΠΙΤΥΧΩΣ':'#dbeafe',
+  'ΟΛΟΚΛΗΡΩΜΕΝΕΣ FAIL':     '#ffe4e6',
+  'ΑΠΟΠΛΗΡΩΜΕΝΕΣ':          '#f3e8ff',
+};
+const STATUS_TEXT_COLOR = {
+  'ΕΝ ΕΞΕΛΙΞΕΙ':            '#166534',
+  'ΠΑΓΩΜΕΝΕΣ':              '#854d0e',
+  'ΑΠΟΠΛΗΡΩΜΗ ΑΙΤΗΣΗΣ':    '#9a3412',
+  'ΟΛΟΚΛΗΡΩΜΕΝΕΣ ΕΠΙΤΥΧΩΣ':'#1e40af',
+  'ΟΛΟΚΛΗΡΩΜΕΝΕΣ FAIL':     '#9f1239',
+  'ΑΠΟΠΛΗΡΩΜΕΝΕΣ':          '#6b21a8',
+};
+
 const EMPTY_FORM = {
-  customer_id: '',
-  customer_name: '',
-  vat_number: '',
-  service_type: '',
-  status: 'ΕΝ ΕΞΕΛΙΞΕΙ',
-  amount_application: '',
-  amount_implementation: '',
-  approval_date: '',
-  completion_deadline: '',
-  investment_height: '',
-  total_debts: '',
-  sales_agent: '',
-  folder_agent: '',
-  source_referral: '',
-  targeting_category: '',
-  description: '',
+  customer_id: '', customer_name: '', vat_number: '', service_type: '',
+  status: 'ΕΝ ΕΞΕΛΙΞΕΙ', amount_application: '', amount_implementation: '',
+  approval_date: '', completion_deadline: '', investment_height: '', total_debts: '',
+  sales_agent: '', folder_agent: '', source_referral: '', targeting_category: '', description: '',
 };
 
 function SAForm({ record, onSave, onCancel }) {
@@ -105,12 +110,7 @@ function SAForm({ record, onSave, onCancel }) {
   const handleCustomerSelect = c => {
     if (!c) { setForm(f => ({ ...f, customer_id: '', customer_name: '' })); return; }
     if (c._new) { setForm(f => ({ ...f, customer_name: c.name, customer_id: '' })); return; }
-    setForm(f => ({
-      ...f,
-      customer_name: c.name,
-      vat_number: c.vat_number || f.vat_number,
-      customer_id: c.id || '',
-    }));
+    setForm(f => ({ ...f, customer_name: c.name, vat_number: c.vat_number || f.vat_number, customer_id: c.id || '' }));
   };
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
@@ -126,9 +126,7 @@ function SAForm({ record, onSave, onCancel }) {
       onSave();
     } catch (err) {
       toast.error(err.response?.data?.error || 'Σφάλμα');
-    } finally {
-      setSaving(false);
-    }
+    } finally { setSaving(false); }
   };
 
   const F = ({ label, name, type = 'text', required = false }) => (
@@ -137,7 +135,6 @@ function SAForm({ record, onSave, onCancel }) {
       <input type={type} className="input" value={form[name] || ''} onChange={e => set(name, e.target.value)} />
     </div>
   );
-
   const Sel = ({ label, name, opts, required = false }) => (
     <div>
       <label className="label">{label}{required && <span className="text-rose-500 ml-1">*</span>}</label>
@@ -169,7 +166,6 @@ function SAForm({ record, onSave, onCancel }) {
           </div>
         </div>
       </div>
-
       <div>
         <div className="flex items-center gap-3 mb-4">
           <span className="text-xs font-bold uppercase tracking-widest text-indigo-500">Στοιχεία Συμφωνίας</span>
@@ -186,7 +182,6 @@ function SAForm({ record, onSave, onCancel }) {
           <F label="Σύνολο Οφειλών (€)" name="total_debts" type="number" />
         </div>
       </div>
-
       <div>
         <div className="flex items-center gap-3 mb-4">
           <span className="text-xs font-bold uppercase tracking-widest text-indigo-500">Στοιχεία Πώλησης</span>
@@ -206,7 +201,6 @@ function SAForm({ record, onSave, onCancel }) {
           <textarea className="input h-20 resize-none" value={form.description || ''} onChange={e => set('description', e.target.value)} />
         </div>
       </div>
-
       <div className="flex justify-end gap-3 pt-2 border-t border-slate-100">
         <button type="button" className="btn-secondary" onClick={onCancel}>Ακύρωση</button>
         <button type="submit" className="btn-primary" disabled={saving}>{record?.id ? 'Αποθήκευση' : 'Καταχώρηση'}</button>
@@ -237,20 +231,133 @@ const MONTH_OPTS = [
   { value: '10', label: 'Οκτ' }, { value: '11', label: 'Νοε' }, { value: '12', label: 'Δεκ' },
 ];
 
+// ── Pivot Table ───────────────────────────────────────────────────────────────
+function PivotTable({ data, loading, onCellClick }) {
+  if (loading) return <div className="p-12 text-center text-slate-400 text-sm">Φόρτωση ανάλυσης...</div>;
+  if (!data.length) return <div className="p-12 text-center text-slate-400 text-sm">Δεν υπάρχουν δεδομένα</div>;
+
+  const services = [...new Set(data.map(r => r.service_type))].sort((a, b) => a.localeCompare(b, 'el'));
+  const matrix = {};
+  data.forEach(r => {
+    if (!matrix[r.service_type]) matrix[r.service_type] = {};
+    matrix[r.service_type][r.status] = { cnt: parseInt(r.cnt), sumApp: parseFloat(r.sum_application) };
+  });
+
+  const colTotals = {};
+  STATUS_OPTS.forEach(s => {
+    colTotals[s] = data.filter(r => r.status === s).reduce((sum, r) => sum + parseInt(r.cnt), 0);
+  });
+  const grandTotal = data.reduce((sum, r) => sum + parseInt(r.cnt), 0);
+
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full">
+        <thead>
+          <tr className="border-b-2 border-slate-200">
+            <th className="text-left py-3 px-4 text-sm font-bold text-slate-600 min-w-[160px] sticky left-0 bg-white z-10">Υπηρεσία</th>
+            {STATUS_OPTS.map(s => (
+              <th key={s} className="text-center py-2 px-3 text-[11px] font-bold whitespace-nowrap"
+                style={{ color: STATUS_TEXT_COLOR[s], background: STATUS_CELL_BG[s] + 'aa' }}>
+                {s}
+              </th>
+            ))}
+            <th className="text-center py-3 px-4 text-sm font-bold text-slate-600 bg-slate-100 whitespace-nowrap">Σύνολο</th>
+          </tr>
+        </thead>
+        <tbody>
+          {services.map(svc => {
+            const rowTotal = STATUS_OPTS.reduce((sum, s) => sum + (matrix[svc]?.[s]?.cnt || 0), 0);
+            return (
+              <tr key={svc} className="border-b border-slate-100 hover:bg-slate-50/60 transition-colors">
+                <td className="py-3 px-4 font-semibold text-slate-800 text-sm sticky left-0 bg-white">
+                  <span className="block max-w-[200px] truncate" title={svc}>{svc}</span>
+                </td>
+                {STATUS_OPTS.map(s => {
+                  const cell = matrix[svc]?.[s];
+                  return (
+                    <td key={s} className="text-center py-1.5 px-2">
+                      {cell ? (
+                        <button
+                          onClick={() => onCellClick(svc, s)}
+                          className="flex flex-col items-center gap-0.5 mx-auto px-3 py-1.5 rounded-xl transition-all hover:shadow-md hover:scale-105 active:scale-95 cursor-pointer"
+                          style={{ background: STATUS_CELL_BG[s] + '70' }}
+                          title={`${cell.cnt} συμφωνίες — κλικ για λεπτομέρειες`}
+                        >
+                          <span className="text-xl font-black leading-none" style={{ color: STATUS_TEXT_COLOR[s] }}>{cell.cnt}</span>
+                          {cell.sumApp > 0 && <span className="text-[10px] text-slate-400 whitespace-nowrap">{fmtK(cell.sumApp)}</span>}
+                        </button>
+                      ) : (
+                        <span className="text-slate-200 text-lg select-none">·</span>
+                      )}
+                    </td>
+                  );
+                })}
+                <td className="text-center py-3 px-4 bg-slate-50">
+                  <span className="text-lg font-black text-slate-700">{rowTotal}</span>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+        <tfoot>
+          <tr className="border-t-2 border-slate-300 bg-slate-50">
+            <td className="py-3 px-4 font-bold text-slate-700 sticky left-0 bg-slate-50">Σύνολο</td>
+            {STATUS_OPTS.map(s => (
+              <td key={s} className="text-center py-3 px-3 font-bold text-slate-700">
+                {colTotals[s] > 0 ? colTotals[s] : <span className="text-slate-300">—</span>}
+              </td>
+            ))}
+            <td className="text-center py-3 px-4 bg-slate-100">
+              <span className="text-2xl font-black text-slate-800">{grandTotal}</span>
+            </td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  );
+}
+
+// ── Main Page ─────────────────────────────────────────────────────────────────
 export default function ServiceAgreementsPage() {
+  // List tab state
   const [data, setData] = useState({ data: [], total: 0 });
   const [filters, setFilters] = useState({ search: '', status: '', sales_agent: '', service_type: '' });
   const [sort, setSort] = useState({ field: 'createdAt', dir: 'DESC' });
   const [selectedSaleYears, setSelectedSaleYears] = useState([]);
   const [selectedSaleMonths, setSelectedSaleMonths] = useState([]);
-  const [modal, setModal] = useState({ open: false, record: null });
-  const [deleteId, setDeleteId] = useState(null);
   const [stats, setStats] = useState({ total: 0, byStatus: {} });
   const [agents, setAgents] = useState([]);
   const [services, setServices] = useState([]);
+
+  // Selection & bulk actions
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [bulkStatus, setBulkStatus] = useState('');
   const [bulkSaving, setBulkSaving] = useState(false);
+
+  // Bulk date tool
+  const [showDateTool, setShowDateTool] = useState(false);
+  const [bulkDateField, setBulkDateField] = useState('approval_date');
+  const [bulkDateMode, setBulkDateMode] = useState('fixed');
+  const [bulkDateValue, setBulkDateValue] = useState('');
+  const [bulkDateMonths, setBulkDateMonths] = useState(6);
+  const [bulkDateSaving, setBulkDateSaving] = useState(false);
+
+  // Modals
+  const [modal, setModal] = useState({ open: false, record: null });
+  const [deleteId, setDeleteId] = useState(null);
+
+  // Tabs
+  const [activeTab, setActiveTab] = useState('list');
+
+  // Pivot tab
+  const [pivotData, setPivotData] = useState([]);
+  const [pivotLoading, setPivotLoading] = useState(false);
+  const [pivotCell, setPivotCell] = useState(null); // { service_type, status, items }
+  const [pivotCellLoading, setPivotCellLoading] = useState(false);
+
+  // Missing dates tab
+  const [missingData, setMissingData] = useState([]);
+  const [missingLoading, setMissingLoading] = useState(false);
 
   const handleSort = field => {
     setSort(s => s.field === field ? { field, dir: s.dir === 'DESC' ? 'ASC' : 'DESC' } : { field, dir: 'DESC' });
@@ -258,7 +365,7 @@ export default function ServiceAgreementsPage() {
 
   const load = useCallback(() => {
     const params = Object.fromEntries(Object.entries(filters).filter(([, v]) => v !== ''));
-    params.limit = 50;
+    params.limit = 200;
     params.sort_field = sort.field;
     params.sort_dir = sort.dir;
     if (selectedSaleYears.length === 1) params.sale_year = selectedSaleYears[0];
@@ -267,8 +374,24 @@ export default function ServiceAgreementsPage() {
     else if (selectedSaleMonths.length > 1) params.sale_months = selectedSaleMonths.join(',');
     api.get('/service-agreements', { params })
       .then(r => setData(r.data))
-      .catch(err => toast.error('Σφάλμα φόρτωσης συμφωνιών: ' + (err.response?.data?.error || err.message)));
+      .catch(err => toast.error('Σφάλμα φόρτωσης: ' + (err.response?.data?.error || err.message)));
   }, [filters, sort, selectedSaleYears, selectedSaleMonths]);
+
+  const loadPivot = useCallback(() => {
+    setPivotLoading(true);
+    api.get('/service-agreements/pivot')
+      .then(r => setPivotData(r.data))
+      .catch(() => {})
+      .finally(() => setPivotLoading(false));
+  }, []);
+
+  const loadMissing = useCallback(() => {
+    setMissingLoading(true);
+    api.get('/service-agreements', { params: { missing_dates: 'true', limit: 500, sort_field: 'createdAt', sort_dir: 'DESC' } })
+      .then(r => setMissingData(r.data.data || []))
+      .catch(() => {})
+      .finally(() => setMissingLoading(false));
+  }, []);
 
   useEffect(() => { load(); }, [load]);
 
@@ -278,7 +401,23 @@ export default function ServiceAgreementsPage() {
     api.get('/lists?list_type=ΕΙΔΟΣ_ΥΠΗΡΕΣΙΑΣ&active_only=true').then(r => setServices(r.data.map(x => x.value))).catch(() => {});
   }, []);
 
-  const allVisibleIds = (data.data || []).map(r => r.id);
+  useEffect(() => {
+    if (activeTab === 'pivot') loadPivot();
+    if (activeTab === 'missing') loadMissing();
+  }, [activeTab, loadPivot, loadMissing]);
+
+  const handlePivotCellClick = async (service_type, status) => {
+    setPivotCellLoading(true);
+    try {
+      const r = await api.get('/service-agreements', { params: { service_type, status, limit: 500, sort_field: 'customer_name', sort_dir: 'ASC' } });
+      setPivotCell({ service_type, status, items: r.data.data || [] });
+    } catch { toast.error('Σφάλμα φόρτωσης λεπτομερειών'); }
+    finally { setPivotCellLoading(false); }
+  };
+
+  // Select-all operates on whichever tab is active
+  const activeRows = activeTab === 'missing' ? missingData : (data.data || []);
+  const allVisibleIds = activeRows.map(r => r.id);
   const allSelected = allVisibleIds.length > 0 && allVisibleIds.every(id => selectedIds.has(id));
   const toggleSelectAll = () => {
     if (allSelected) setSelectedIds(new Set());
@@ -299,11 +438,30 @@ export default function ServiceAgreementsPage() {
       setSelectedIds(new Set());
       setBulkStatus('');
       load();
-    } catch {
-      toast.error('Σφάλμα μαζικής ενημέρωσης');
-    } finally {
-      setBulkSaving(false);
-    }
+      if (activeTab === 'missing') loadMissing();
+      if (activeTab === 'pivot') loadPivot();
+    } catch { toast.error('Σφάλμα μαζικής ενημέρωσης'); }
+    finally { setBulkSaving(false); }
+  };
+
+  const handleBulkDates = async () => {
+    if (selectedIds.size === 0) return;
+    if (bulkDateMode === 'fixed' && !bulkDateValue) { toast.error('Επιλέξτε ημερομηνία'); return; }
+    setBulkDateSaving(true);
+    try {
+      const payload = { ids: [...selectedIds], field: bulkDateField, mode: bulkDateMode };
+      if (bulkDateMode === 'fixed') payload.value = bulkDateValue;
+      else payload.months = bulkDateMonths;
+      const r = await api.post('/service-agreements/bulk-dates', payload);
+      const skippedMsg = r.data.skipped > 0 ? ` (${r.data.skipped} παρελείφθησαν — έλλειψη βάσης)` : '';
+      toast.success(`Ενημερώθηκαν ${r.data.updated} ημερομηνίες${skippedMsg}`);
+      setSelectedIds(new Set());
+      setShowDateTool(false);
+      load();
+      if (activeTab === 'missing') loadMissing();
+      if (activeTab === 'pivot') loadPivot();
+    } catch (e) { toast.error(e.response?.data?.error || 'Σφάλμα ενημέρωσης ημερομηνιών'); }
+    finally { setBulkDateSaving(false); }
   };
 
   const handleDelete = async id => {
@@ -312,17 +470,32 @@ export default function ServiceAgreementsPage() {
       toast.success('Διαγράφηκε');
       setDeleteId(null);
       load();
-    } catch {
-      toast.error('Σφάλμα διαγραφής');
-    }
+      if (activeTab === 'missing') loadMissing();
+    } catch { toast.error('Σφάλμα διαγραφής'); }
   };
 
   const rows = data.data || [];
   const sums = data.sums || { application: 0, implementation: 0, collected: 0 };
   const fByStatus = data.byStatus || {};
 
+  const ActionBtns = ({ r }) => (
+    <div className="flex items-center gap-1">
+      <button onClick={() => setModal({ open: true, record: r })} className="btn-ghost btn-sm p-2 rounded-lg">
+        <svg viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5">
+          <path d="M13.488 2.513a1.75 1.75 0 0 0-2.475 0L6.75 6.774a2.75 2.75 0 0 0-.596.892l-.633 1.73a.75.75 0 0 0 .963.963l1.73-.633a2.75 2.75 0 0 0 .892-.596l4.261-4.262a1.75 1.75 0 0 0 0-2.475ZM4.75 3.5c-.69 0-1.25.56-1.25 1.25v6.5c0 .69.56 1.25 1.25 1.25h6.5c.69 0 1.25-.56 1.25-1.25V9A.75.75 0 0 1 14 9v2.25A2.75 2.75 0 0 1 11.25 14h-6.5A2.75 2.75 0 0 1 2 11.25v-6.5A2.75 2.75 0 0 1 4.75 2H7a.75.75 0 0 1 0 1.5H4.75Z"/>
+        </svg>
+      </button>
+      <button onClick={() => setDeleteId(r.id)} className="p-2 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50 transition-colors">
+        <svg viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5">
+          <path fillRule="evenodd" d="M5 3.25V4H2.75a.75.75 0 0 0 0 1.5h.3l.815 8.15A1.5 1.5 0 0 0 5.357 15h5.285a1.5 1.5 0 0 0 1.493-1.35l.815-8.15h.3a.75.75 0 0 0 0-1.5H11v-.75A2.25 2.25 0 0 0 8.75 1h-1.5A2.25 2.25 0 0 0 5 3.25Zm2.25-.75a.75.75 0 0 0-.75.75V4h3v-.75a.75.75 0 0 0-.75-.75h-1.5ZM6.05 6a.75.75 0 0 1 .787.713l.275 5.5a.75.75 0 0 1-1.498.075l-.275-5.5A.75.75 0 0 1 6.05 6Zm3.9 0a.75.75 0 0 1 .712.787l-.275 5.5a.75.75 0 0 1-1.498-.075l.275-5.5a.75.75 0 0 1 .786-.711Z" clipRule="evenodd"/>
+        </svg>
+      </button>
+    </div>
+  );
+
   return (
     <div className="page">
+      {/* Header */}
       <div className="page-header">
         <div>
           <h1 className="page-title">Συμφωνίες Υπηρεσιών</h1>
@@ -336,6 +509,7 @@ export default function ServiceAgreementsPage() {
         </button>
       </div>
 
+      {/* Stats cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-4">
         <div className="card p-4 border-l-4 border-slate-400">
           <div className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-1">Σύνολο</div>
@@ -366,198 +540,420 @@ export default function ServiceAgreementsPage() {
         </div>
       </div>
 
-      <div className="filter-bar">
-        <div className="relative flex-1 min-w-[160px]">
-          <input className="input pl-9" placeholder="Αναζήτηση πελάτη / υπηρεσίας…" value={filters.search}
-            onChange={e => setFilters(f => ({ ...f, search: e.target.value }))} />
-          <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 absolute left-3 top-3 text-slate-400">
-            <path fillRule="evenodd" d="M9 3.5a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11ZM2 9a7 7 0 1 1 12.452 4.391l3.328 3.329a.75.75 0 1 1-1.06 1.06l-3.329-3.328A7 7 0 0 1 2 9Z" clipRule="evenodd"/>
-          </svg>
-        </div>
-        <select className="input w-44" value={filters.status} onChange={e => setFilters(f => ({ ...f, status: e.target.value }))}>
-          <option value="">Όλες οι καταστάσεις</option>
-          {STATUS_OPTS.map(s => <option key={s} value={s}>{s}</option>)}
-        </select>
-        <select className="input w-36" value={filters.sales_agent} onChange={e => setFilters(f => ({ ...f, sales_agent: e.target.value }))}>
-          <option value="">Σύμβουλος</option>
-          {agents.map(a => <option key={a} value={a}>{a}</option>)}
-        </select>
-        <select className="input w-44" value={filters.service_type} onChange={e => setFilters(f => ({ ...f, service_type: e.target.value }))}>
-          <option value="">Υπηρεσία</option>
-          {services.map(s => <option key={s} value={s}>{s}</option>)}
-        </select>
-        <div className="flex items-center gap-1 border-l border-slate-200 pl-2 ml-1">
-          <span className="text-xs text-slate-400 whitespace-nowrap">Ημ. Συμφωνίας:</span>
-          <MultiSelectDropdown
-            label="Έτος"
-            options={YEAR_OPTS}
-            selected={selectedSaleYears}
-            onChange={setSelectedSaleYears}
-            getKey={o => o.value}
-            getLabel={o => o.value}
-          />
-          <MultiSelectDropdown
-            label="Μήνας"
-            options={MONTH_OPTS}
-            selected={selectedSaleMonths}
-            onChange={setSelectedSaleMonths}
-            getKey={o => o.value}
-            getLabel={o => o.label}
-          />
-        </div>
-        <button className="btn-ghost btn-sm" onClick={() => { setFilters({ search: '', status: '', sales_agent: '', service_type: '' }); setSelectedSaleYears([]); setSelectedSaleMonths([]); }}>
-          ✕ Καθαρισμός
-        </button>
+      {/* Tab switcher */}
+      <div className="flex gap-0 border-b border-slate-200 -mb-1 overflow-x-auto">
+        {[
+          { key: 'list',    label: 'Λίστα',                  badge: data.total },
+          { key: 'pivot',   label: 'Ανάλυση ανά Υπηρεσία' },
+          { key: 'missing', label: 'Χωρίς Ημερομηνίες',      badge: missingData.length, alert: true },
+        ].map(t => (
+          <button key={t.key} onClick={() => setActiveTab(t.key)}
+            className={`flex items-center gap-2 px-5 py-2.5 text-sm font-semibold border-b-2 transition-colors whitespace-nowrap
+              ${activeTab === t.key
+                ? 'border-indigo-500 text-indigo-600'
+                : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
+            {t.label}
+            {t.badge > 0 && (
+              <span className={`text-xs font-bold px-1.5 py-0.5 rounded-full
+                ${t.alert && t.badge > 0 ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'}`}>
+                {t.badge}
+              </span>
+            )}
+          </button>
+        ))}
       </div>
 
-      {selectedIds.size > 0 && (
-        <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-indigo-50 border border-indigo-200 animate-slide-up">
-          <span className="text-sm font-bold text-indigo-700 shrink-0">{selectedIds.size} επιλεγμένες</span>
-          <div className="flex-1" />
-          <select
-            className="input w-56 text-sm"
-            value={bulkStatus}
-            onChange={e => setBulkStatus(e.target.value)}
-          >
-            <option value="">— Νέα Κατάσταση —</option>
+      {/* Filter bar — list tab only */}
+      {activeTab === 'list' && (
+        <div className="filter-bar">
+          <div className="relative flex-1 min-w-[160px]">
+            <input className="input pl-9" placeholder="Αναζήτηση πελάτη / υπηρεσίας…" value={filters.search}
+              onChange={e => setFilters(f => ({ ...f, search: e.target.value }))} />
+            <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 absolute left-3 top-3 text-slate-400">
+              <path fillRule="evenodd" d="M9 3.5a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11ZM2 9a7 7 0 1 1 12.452 4.391l3.328 3.329a.75.75 0 1 1-1.06 1.06l-3.329-3.328A7 7 0 0 1 2 9Z" clipRule="evenodd"/>
+            </svg>
+          </div>
+          <select className="input w-44" value={filters.status} onChange={e => setFilters(f => ({ ...f, status: e.target.value }))}>
+            <option value="">Όλες οι καταστάσεις</option>
             {STATUS_OPTS.map(s => <option key={s} value={s}>{s}</option>)}
           </select>
-          <button
-            className="btn-primary text-sm px-4 py-2 disabled:opacity-50"
-            disabled={!bulkStatus || bulkSaving}
-            onClick={handleBulkStatus}
-          >
-            {bulkSaving ? 'Εφαρμογή…' : 'Εφαρμογή'}
-          </button>
-          <button className="btn-ghost btn-sm text-slate-500" onClick={() => setSelectedIds(new Set())}>
-            ✕ Αποεπιλογή
-          </button>
+          <select className="input w-36" value={filters.sales_agent} onChange={e => setFilters(f => ({ ...f, sales_agent: e.target.value }))}>
+            <option value="">Σύμβουλος</option>
+            {agents.map(a => <option key={a} value={a}>{a}</option>)}
+          </select>
+          <select className="input w-44" value={filters.service_type} onChange={e => setFilters(f => ({ ...f, service_type: e.target.value }))}>
+            <option value="">Υπηρεσία</option>
+            {services.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+          <div className="flex items-center gap-1 border-l border-slate-200 pl-2 ml-1">
+            <span className="text-xs text-slate-400 whitespace-nowrap">Ημ. Συμφωνίας:</span>
+            <MultiSelectDropdown label="Έτος" options={YEAR_OPTS} selected={selectedSaleYears}
+              onChange={setSelectedSaleYears} getKey={o => o.value} getLabel={o => o.value} />
+            <MultiSelectDropdown label="Μήνας" options={MONTH_OPTS} selected={selectedSaleMonths}
+              onChange={setSelectedSaleMonths} getKey={o => o.value} getLabel={o => o.label} />
+          </div>
+          <button className="btn-ghost btn-sm" onClick={() => {
+            setFilters({ search: '', status: '', sales_agent: '', service_type: '' });
+            setSelectedSaleYears([]); setSelectedSaleMonths([]);
+          }}>✕ Καθαρισμός</button>
         </div>
       )}
 
-      <div className="card overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr>
-                <th className="th w-10 pr-0">
-                  <input type="checkbox" checked={allSelected} onChange={toggleSelectAll}
-                    className="w-4 h-4 rounded border-slate-300 text-primary-600 cursor-pointer" />
-                </th>
-                <SortTh label="Πελάτης" field="customer_name" sort={sort} onSort={handleSort} />
-                <th className="th">ΑΦΜ</th>
-                <SortTh label="Υπηρεσία" field="service_type" sort={sort} onSort={handleSort} />
-                <SortTh label="Κατάσταση" field="status" sort={sort} onSort={handleSort} />
-                <SortTh label="Ποσό Αίτησης" field="amount_application" sort={sort} onSort={handleSort} className="text-right" />
-                <SortTh label="Ποσό Υλοποίησης" field="amount_implementation" sort={sort} onSort={handleSort} className="text-right" />
-                <th className="th">Είσπραξη</th>
-                <th className="th text-right">Υπόλοιπο</th>
-                <SortTh label="Σύμβουλος" field="sales_agent" sort={sort} onSort={handleSort} />
-                <th className="th">Ημ. Συμφωνίας</th>
-                <SortTh label="Ημ. Έγκρισης" field="approval_date" sort={sort} onSort={handleSort} />
-                <th className="th w-20"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map(r => (
-                <tr key={r.id} className={`tr ${selectedIds.has(r.id) ? 'bg-indigo-50/60' : ''}`}>
-                  <td className="td pr-0">
-                    <input type="checkbox" checked={selectedIds.has(r.id)} onChange={() => toggleOne(r.id)}
-                      className="w-4 h-4 rounded border-slate-300 text-primary-600 cursor-pointer" />
-                  </td>
-                  <td className="td">
-                    <div className="font-semibold text-slate-800 max-w-[180px] truncate">{r.customer_name || '—'}</div>
-                  </td>
-                  <td className="td text-xs text-slate-500 whitespace-nowrap">{r.vat_number || '—'}</td>
-                  <td className="td max-w-[140px]">
-                    <div className="text-xs text-slate-600 truncate">{r.service_type || '—'}</div>
-                  </td>
-                  <td className="td">
-                    <span className={STATUS_BADGE[r.status] || 'badge-gray'}>{r.status || '—'}</span>
-                  </td>
-                  <td className="td text-right text-xs font-medium text-slate-600 whitespace-nowrap">
-                    {r.amount_application ? fmt(r.amount_application) : <span className="text-slate-300">—</span>}
-                  </td>
-                  <td className="td text-right text-xs font-medium text-slate-600 whitespace-nowrap">
-                    {r.amount_implementation ? fmt(r.amount_implementation) : <span className="text-slate-300">—</span>}
-                  </td>
-                  <td className="td min-w-[140px]">
-                    {(() => {
-                      const collected = parseFloat(r.income_collected || 0);
-                      const target = parseFloat(r.amount_application || 0) + parseFloat(r.amount_implementation || 0);
-                      const pct = target > 0 ? Math.min(100, (collected / target) * 100) : 0;
-                      const barColor = collected >= target && target > 0 ? '#10b981' : collected > 0 ? '#f59e0b' : '#cbd5e1';
-                      return (
-                        <div className="space-y-1">
-                          <div className="text-xs text-slate-600 whitespace-nowrap">
-                            {fmt(collected)} / {target > 0 ? fmt(target) : '—'}
-                            {r.income_payment_count > 0 && <span className="ml-1 text-slate-400">({r.income_payment_count})</span>}
-                          </div>
-                          <div className="h-1.5 rounded-full bg-slate-100 overflow-hidden">
-                            <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: barColor }} />
-                          </div>
-                        </div>
-                      );
-                    })()}
-                  </td>
-                  <td className="td text-right text-xs font-bold whitespace-nowrap">
-                    {(() => {
-                      const collected = parseFloat(r.income_collected || 0);
-                      const target = parseFloat(r.amount_application || 0) + parseFloat(r.amount_implementation || 0);
-                      const remaining = Math.max(0, target - collected);
-                      return remaining > 0
-                        ? <span className="text-rose-600">{fmt(remaining)}</span>
-                        : <span className="text-emerald-600">—</span>;
-                    })()}
-                  </td>
-                  <td className="td">
-                    {r.sales_agent ? <span className="badge-gray">{r.sales_agent}</span> : <span className="text-slate-300">—</span>}
-                  </td>
-                  <td className="td text-xs text-slate-500 whitespace-nowrap">{fmtDate(r.first_sale_date)}</td>
-                  <td className="td text-xs text-slate-500 whitespace-nowrap">{fmtDate(r.approval_date)}</td>
-                  <td className="td">
-                    <div className="flex items-center gap-1">
-                      <button onClick={() => setModal({ open: true, record: r })} className="btn-ghost btn-sm p-2 rounded-lg">
-                        <svg viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5">
-                          <path d="M13.488 2.513a1.75 1.75 0 0 0-2.475 0L6.75 6.774a2.75 2.75 0 0 0-.596.892l-.633 1.73a.75.75 0 0 0 .963.963l1.73-.633a2.75 2.75 0 0 0 .892-.596l4.261-4.262a1.75 1.75 0 0 0 0-2.475ZM4.75 3.5c-.69 0-1.25.56-1.25 1.25v6.5c0 .69.56 1.25 1.25 1.25h6.5c.69 0 1.25-.56 1.25-1.25V9A.75.75 0 0 1 14 9v2.25A2.75 2.75 0 0 1 11.25 14h-6.5A2.75 2.75 0 0 1 2 11.25v-6.5A2.75 2.75 0 0 1 4.75 2H7a.75.75 0 0 1 0 1.5H4.75Z"/>
-                        </svg>
-                      </button>
-                      <button onClick={() => setDeleteId(r.id)} className="p-2 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50 transition-colors">
-                        <svg viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5">
-                          <path fillRule="evenodd" d="M5 3.25V4H2.75a.75.75 0 0 0 0 1.5h.3l.815 8.15A1.5 1.5 0 0 0 5.357 15h5.285a1.5 1.5 0 0 0 1.493-1.35l.815-8.15h.3a.75.75 0 0 0 0-1.5H11v-.75A2.25 2.25 0 0 0 8.75 1h-1.5A2.25 2.25 0 0 0 5 3.25Zm2.25-.75a.75.75 0 0 0-.75.75V4h3v-.75a.75.75 0 0 0-.75-.75h-1.5ZM6.05 6a.75.75 0 0 1 .787.713l.275 5.5a.75.75 0 0 1-1.498.075l-.275-5.5A.75.75 0 0 1 6.05 6Zm3.9 0a.75.75 0 0 1 .712.787l-.275 5.5a.75.75 0 0 1-1.498-.075l.275-5.5a.75.75 0 0 1 .786-.711Z" clipRule="evenodd"/>
-                        </svg>
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-              {rows.length === 0 && (
-                <tr>
-                  <td colSpan={13} className="td text-center text-slate-400 py-12">
-                    Δεν βρέθηκαν εγγραφές
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      {/* Bulk actions bar */}
+      {selectedIds.size > 0 && (
+        <div className="px-4 py-3 rounded-xl bg-indigo-50 border border-indigo-200 animate-slide-up space-y-3">
+          <div className="flex items-center gap-3 flex-wrap">
+            <span className="text-sm font-bold text-indigo-700 shrink-0">{selectedIds.size} επιλεγμένες</span>
+            <div className="flex-1" />
+            {/* Bulk status */}
+            <select className="input w-52 text-sm" value={bulkStatus} onChange={e => setBulkStatus(e.target.value)}>
+              <option value="">— Νέα Κατάσταση —</option>
+              {STATUS_OPTS.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+            <button className="btn-primary text-sm px-4 py-2 disabled:opacity-50" disabled={!bulkStatus || bulkSaving} onClick={handleBulkStatus}>
+              {bulkSaving ? 'Εφαρμογή…' : 'Εφαρμογή'}
+            </button>
+            <div className="w-px h-6 bg-indigo-200 shrink-0" />
+            {/* Date tool toggle */}
+            <button onClick={() => setShowDateTool(v => !v)}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold transition-colors ${showDateTool ? 'bg-indigo-200 text-indigo-800' : 'bg-white text-indigo-600 border border-indigo-200 hover:bg-indigo-100'}`}>
+              <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+                <path fillRule="evenodd" d="M5.75 2a.75.75 0 0 1 .75.75V4h7V2.75a.75.75 0 0 1 1.5 0V4h.25A2.75 2.75 0 0 1 18 6.75v8.5A2.75 2.75 0 0 1 15.25 18H4.75A2.75 2.75 0 0 1 2 15.25v-8.5A2.75 2.75 0 0 1 4.75 4H5V2.75A.75.75 0 0 1 5.75 2Zm-1 5.5c-.69 0-1.25.56-1.25 1.25v6.5c0 .69.56 1.25 1.25 1.25h10.5c.69 0 1.25-.56 1.25-1.25v-6.5c0-.69-.56-1.25-1.25-1.25H4.75Z" clipRule="evenodd"/>
+              </svg>
+              Μαζικές Ημερομηνίες
+            </button>
+            <button className="btn-ghost btn-sm text-slate-500" onClick={() => { setSelectedIds(new Set()); setShowDateTool(false); }}>
+              ✕ Αποεπιλογή
+            </button>
+          </div>
 
+          {/* Date tool panel */}
+          {showDateTool && (
+            <div className="pt-3 border-t border-indigo-200 flex flex-wrap items-end gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-indigo-600 mb-1">Πεδίο</label>
+                <select value={bulkDateField} onChange={e => setBulkDateField(e.target.value)} className="input w-48 text-sm">
+                  <option value="approval_date">Ημ. Έγκρισης</option>
+                  <option value="completion_deadline">Προθεσμία Ολοκλήρωσης</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-indigo-600 mb-1">Τρόπος υπολογισμού</label>
+                <select value={bulkDateMode} onChange={e => setBulkDateMode(e.target.value)} className="input w-56 text-sm">
+                  <option value="fixed">Συγκεκριμένη ημερομηνία</option>
+                  <option value="months_after_agreement">+ X μήνες από Ημ. Συμφωνίας</option>
+                  <option value="months_after_approval">+ X μήνες από Ημ. Έγκρισης</option>
+                </select>
+              </div>
+              {bulkDateMode === 'fixed' ? (
+                <div>
+                  <label className="block text-xs font-semibold text-indigo-600 mb-1">Ημερομηνία</label>
+                  <input type="date" value={bulkDateValue} onChange={e => setBulkDateValue(e.target.value)} className="input w-40 text-sm" />
+                </div>
+              ) : (
+                <div>
+                  <label className="block text-xs font-semibold text-indigo-600 mb-1">Αριθμός μηνών</label>
+                  <input type="number" min={1} max={120} value={bulkDateMonths}
+                    onChange={e => setBulkDateMonths(e.target.value)} className="input w-28 text-sm" />
+                </div>
+              )}
+              <button onClick={handleBulkDates} disabled={bulkDateSaving}
+                className="btn-primary text-sm disabled:opacity-50">
+                {bulkDateSaving ? 'Εφαρμογή…' : `Ορισμός σε ${selectedIds.size} συμφωνίες`}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── LIST TAB ──────────────────────────────────────────────────────── */}
+      {activeTab === 'list' && (
+        <div className="card overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr>
+                  <th className="th w-10 pr-0">
+                    <input type="checkbox" checked={allSelected} onChange={toggleSelectAll}
+                      className="w-4 h-4 rounded border-slate-300 text-primary-600 cursor-pointer" />
+                  </th>
+                  <SortTh label="Πελάτης" field="customer_name" sort={sort} onSort={handleSort} />
+                  <th className="th">ΑΦΜ</th>
+                  <SortTh label="Υπηρεσία" field="service_type" sort={sort} onSort={handleSort} />
+                  <SortTh label="Κατάσταση" field="status" sort={sort} onSort={handleSort} />
+                  <SortTh label="Ποσό Αίτησης" field="amount_application" sort={sort} onSort={handleSort} className="text-right" />
+                  <SortTh label="Ποσό Υλοποίησης" field="amount_implementation" sort={sort} onSort={handleSort} className="text-right" />
+                  <th className="th">Είσπραξη</th>
+                  <th className="th text-right">Υπόλοιπο</th>
+                  <SortTh label="Σύμβουλος" field="sales_agent" sort={sort} onSort={handleSort} />
+                  <th className="th">Ημ. Συμφωνίας</th>
+                  <SortTh label="Ημ. Έγκρισης" field="approval_date" sort={sort} onSort={handleSort} />
+                  <th className="th w-20"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map(r => (
+                  <tr key={r.id} className={`tr ${selectedIds.has(r.id) ? 'bg-indigo-50/60' : ''}`}>
+                    <td className="td pr-0">
+                      <input type="checkbox" checked={selectedIds.has(r.id)} onChange={() => toggleOne(r.id)}
+                        className="w-4 h-4 rounded border-slate-300 text-primary-600 cursor-pointer" />
+                    </td>
+                    <td className="td">
+                      <div className="font-semibold text-slate-800 max-w-[180px] truncate">{r.customer_name || '—'}</div>
+                    </td>
+                    <td className="td text-xs text-slate-500 whitespace-nowrap">{r.vat_number || '—'}</td>
+                    <td className="td max-w-[140px]">
+                      <div className="text-xs text-slate-600 truncate">{r.service_type || '—'}</div>
+                    </td>
+                    <td className="td">
+                      <span className={STATUS_BADGE[r.status] || 'badge-gray'}>{r.status || '—'}</span>
+                    </td>
+                    <td className="td text-right text-xs font-medium text-slate-600 whitespace-nowrap">
+                      {r.amount_application ? fmt(r.amount_application) : <span className="text-slate-300">—</span>}
+                    </td>
+                    <td className="td text-right text-xs font-medium text-slate-600 whitespace-nowrap">
+                      {r.amount_implementation ? fmt(r.amount_implementation) : <span className="text-slate-300">—</span>}
+                    </td>
+                    <td className="td min-w-[140px]">
+                      {(() => {
+                        const collected = parseFloat(r.income_collected || 0);
+                        const target = parseFloat(r.amount_application || 0) + parseFloat(r.amount_implementation || 0);
+                        const pct = target > 0 ? Math.min(100, (collected / target) * 100) : 0;
+                        const barColor = collected >= target && target > 0 ? '#10b981' : collected > 0 ? '#f59e0b' : '#cbd5e1';
+                        return (
+                          <div className="space-y-1">
+                            <div className="text-xs text-slate-600 whitespace-nowrap">
+                              {fmt(collected)} / {target > 0 ? fmt(target) : '—'}
+                              {r.income_payment_count > 0 && <span className="ml-1 text-slate-400">({r.income_payment_count})</span>}
+                            </div>
+                            <div className="h-1.5 rounded-full bg-slate-100 overflow-hidden">
+                              <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: barColor }} />
+                            </div>
+                          </div>
+                        );
+                      })()}
+                    </td>
+                    <td className="td text-right text-xs font-bold whitespace-nowrap">
+                      {(() => {
+                        const collected = parseFloat(r.income_collected || 0);
+                        const target = parseFloat(r.amount_application || 0) + parseFloat(r.amount_implementation || 0);
+                        const remaining = Math.max(0, target - collected);
+                        return remaining > 0
+                          ? <span className="text-rose-600">{fmt(remaining)}</span>
+                          : <span className="text-emerald-600">—</span>;
+                      })()}
+                    </td>
+                    <td className="td">
+                      {r.sales_agent ? <span className="badge-gray">{r.sales_agent}</span> : <span className="text-slate-300">—</span>}
+                    </td>
+                    <td className="td text-xs text-slate-500 whitespace-nowrap">{fmtDate(r.first_sale_date)}</td>
+                    <td className="td text-xs text-slate-500 whitespace-nowrap">{fmtDate(r.approval_date)}</td>
+                    <td className="td"><ActionBtns r={r} /></td>
+                  </tr>
+                ))}
+                {rows.length === 0 && (
+                  <tr><td colSpan={13} className="td text-center text-slate-400 py-12">Δεν βρέθηκαν εγγραφές</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ── PIVOT TAB ─────────────────────────────────────────────────────── */}
+      {activeTab === 'pivot' && (
+        <div className="card overflow-hidden">
+          <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+            <div>
+              <div className="font-bold text-slate-800">Κατανομή ανά Υπηρεσία & Κατάσταση</div>
+              <div className="text-xs text-slate-400 mt-0.5">Κλικ σε κελί για να δείτε τις συμφωνίες</div>
+            </div>
+            <button onClick={loadPivot} disabled={pivotLoading} className="btn-secondary btn-sm">
+              {pivotLoading ? 'Φόρτωση…' : '↺ Ανανέωση'}
+            </button>
+          </div>
+          <PivotTable data={pivotData} loading={pivotLoading} onCellClick={handlePivotCellClick} />
+        </div>
+      )}
+
+      {/* ── MISSING DATES TAB ─────────────────────────────────────────────── */}
+      {activeTab === 'missing' && (
+        <div className="card overflow-hidden">
+          <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+            <div>
+              <div className="font-bold text-slate-800 flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-amber-400 inline-block" />
+                Συμφωνίες χωρίς Ημ. Έγκρισης ή Προθεσμία
+                {missingData.length > 0 && (
+                  <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">{missingData.length}</span>
+                )}
+              </div>
+              <div className="text-xs text-slate-400 mt-0.5">Επιλέξτε γραμμές και χρησιμοποιήστε "Μαζικές Ημερομηνίες" για μαζική συμπλήρωση</div>
+            </div>
+            <button onClick={loadMissing} disabled={missingLoading} className="btn-secondary btn-sm">
+              {missingLoading ? 'Φόρτωση…' : '↺ Ανανέωση'}
+            </button>
+          </div>
+          {missingLoading ? (
+            <div className="p-12 text-center text-slate-400 text-sm">Φόρτωση...</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr>
+                    <th className="th w-10 pr-0">
+                      <input type="checkbox" checked={allSelected} onChange={toggleSelectAll}
+                        className="w-4 h-4 rounded border-slate-300 text-primary-600 cursor-pointer" />
+                    </th>
+                    <th className="th">Πελάτης</th>
+                    <th className="th">Υπηρεσία</th>
+                    <th className="th">Κατάσταση</th>
+                    <th className="th">Σύμβουλος</th>
+                    <th className="th">Ημ. Συμφωνίας</th>
+                    <th className="th">Ημ. Έγκρισης</th>
+                    <th className="th">Προθεσμία Ολοκλήρωσης</th>
+                    <th className="th w-20"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {missingData.map(r => {
+                    const missingApproval = !r.approval_date;
+                    const missingDeadline = !r.completion_deadline;
+                    return (
+                      <tr key={r.id} className={`tr ${selectedIds.has(r.id) ? 'bg-indigo-50/60' : ''}`}>
+                        <td className="td pr-0">
+                          <input type="checkbox" checked={selectedIds.has(r.id)} onChange={() => toggleOne(r.id)}
+                            className="w-4 h-4 rounded border-slate-300 text-primary-600 cursor-pointer" />
+                        </td>
+                        <td className="td">
+                          <div className="font-semibold text-slate-800 max-w-[180px] truncate">{r.customer_name || '—'}</div>
+                          {r.vat_number && <div className="text-[11px] text-slate-400">{r.vat_number}</div>}
+                        </td>
+                        <td className="td">
+                          <div className="text-xs text-slate-600 max-w-[140px] truncate">{r.service_type || '—'}</div>
+                        </td>
+                        <td className="td">
+                          <span className={STATUS_BADGE[r.status] || 'badge-gray'}>{r.status || '—'}</span>
+                        </td>
+                        <td className="td">
+                          {r.sales_agent ? <span className="badge-gray">{r.sales_agent}</span> : <span className="text-slate-300">—</span>}
+                        </td>
+                        <td className="td text-xs text-slate-500 whitespace-nowrap">{fmtDate(r.first_sale_date)}</td>
+                        <td className="td whitespace-nowrap">
+                          {missingApproval ? (
+                            <span className="inline-flex items-center gap-1 text-xs font-semibold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-lg">
+                              <svg viewBox="0 0 16 16" fill="currentColor" className="w-3 h-3"><path fillRule="evenodd" d="M6.701 2.25c.577-1 2.02-1 2.598 0l5.196 9a1.5 1.5 0 0 1-1.299 2.25H2.804a1.5 1.5 0 0 1-1.3-2.25l5.197-9ZM8 6a.75.75 0 0 1 .75.75v2.5a.75.75 0 0 1-1.5 0v-2.5A.75.75 0 0 1 8 6Zm0 6a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z" clipRule="evenodd"/></svg>
+                              Δεν έχει οριστεί
+                            </span>
+                          ) : (
+                            <span className="text-xs text-emerald-600 font-medium">{fmtDate(r.approval_date)}</span>
+                          )}
+                        </td>
+                        <td className="td whitespace-nowrap">
+                          {missingDeadline ? (
+                            <span className="inline-flex items-center gap-1 text-xs font-semibold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-lg">
+                              <svg viewBox="0 0 16 16" fill="currentColor" className="w-3 h-3"><path fillRule="evenodd" d="M6.701 2.25c.577-1 2.02-1 2.598 0l5.196 9a1.5 1.5 0 0 1-1.299 2.25H2.804a1.5 1.5 0 0 1-1.3-2.25l5.197-9ZM8 6a.75.75 0 0 1 .75.75v2.5a.75.75 0 0 1-1.5 0v-2.5A.75.75 0 0 1 8 6Zm0 6a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z" clipRule="evenodd"/></svg>
+                              Δεν έχει οριστεί
+                            </span>
+                          ) : (
+                            <span className="text-xs text-emerald-600 font-medium">{fmtDate(r.completion_deadline)}</span>
+                          )}
+                        </td>
+                        <td className="td"><ActionBtns r={r} /></td>
+                      </tr>
+                    );
+                  })}
+                  {missingData.length === 0 && (
+                    <tr>
+                      <td colSpan={9} className="td text-center py-12">
+                        <div className="text-emerald-600 font-semibold text-sm">Όλες οι συμφωνίες έχουν συμπληρωμένες ημερομηνίες!</div>
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Edit / Create modal */}
       <Modal open={modal.open} onClose={() => setModal({ open: false, record: null })}
         title={modal.record ? 'Επεξεργασία Συμφωνίας' : 'Νέα Συμφωνία Υπηρεσίας'} size="lg">
         <SAForm
           record={modal.record}
-          onSave={() => { setModal({ open: false, record: null }); load(); }}
+          onSave={() => { setModal({ open: false, record: null }); load(); if (activeTab === 'missing') loadMissing(); if (activeTab === 'pivot') loadPivot(); }}
           onCancel={() => setModal({ open: false, record: null })}
         />
       </Modal>
 
+      {/* Delete confirm modal */}
       <Modal open={!!deleteId} onClose={() => setDeleteId(null)} title="Επιβεβαίωση Διαγραφής" size="sm">
         <p className="text-slate-600 mb-6">Σίγουρα να διαγραφεί η συμφωνία; Η ενέργεια δεν αναιρείται.</p>
         <div className="flex justify-end gap-3">
           <button className="btn-secondary" onClick={() => setDeleteId(null)}>Ακύρωση</button>
           <button className="btn-danger" onClick={() => handleDelete(deleteId)}>Διαγραφή</button>
         </div>
+      </Modal>
+
+      {/* Pivot cell drill-down modal */}
+      <Modal open={!!pivotCell} onClose={() => setPivotCell(null)}
+        title={pivotCell ? `${pivotCell.service_type} — ${pivotCell.status} (${pivotCell.items.length})` : ''}
+        size="xl">
+        {pivotCell && (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr>
+                  <th className="th">Πελάτης</th>
+                  <th className="th">ΑΦΜ</th>
+                  <th className="th text-right">Αίτηση</th>
+                  <th className="th text-right">Υλοποίηση</th>
+                  <th className="th">Σύμβουλος</th>
+                  <th className="th">Ημ. Συμφωνίας</th>
+                  <th className="th">Ημ. Έγκρισης</th>
+                  <th className="th">Προθεσμία</th>
+                  <th className="th w-16"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {pivotCell.items.length === 0 && (
+                  <tr><td colSpan={9} className="td text-center text-slate-400 py-8">Δεν βρέθηκαν εγγραφές</td></tr>
+                )}
+                {pivotCell.items.map(r => (
+                  <tr key={r.id} className="tr">
+                    <td className="td font-semibold text-slate-800 max-w-[180px]">
+                      <div className="truncate">{r.customer_name || '—'}</div>
+                    </td>
+                    <td className="td text-xs text-slate-500 whitespace-nowrap">{r.vat_number || '—'}</td>
+                    <td className="td text-right text-xs text-slate-600 whitespace-nowrap">{fmt(r.amount_application)}</td>
+                    <td className="td text-right text-xs text-slate-600 whitespace-nowrap">{fmt(r.amount_implementation)}</td>
+                    <td className="td text-xs">{r.sales_agent || '—'}</td>
+                    <td className="td text-xs text-slate-500 whitespace-nowrap">{fmtDate(r.first_sale_date)}</td>
+                    <td className="td text-xs whitespace-nowrap">
+                      {r.approval_date
+                        ? <span className="text-slate-600">{fmtDate(r.approval_date)}</span>
+                        : <span className="text-amber-500 font-semibold">—</span>}
+                    </td>
+                    <td className="td text-xs whitespace-nowrap">
+                      {r.completion_deadline
+                        ? <span className="text-slate-600">{fmtDate(r.completion_deadline)}</span>
+                        : <span className="text-amber-500 font-semibold">—</span>}
+                    </td>
+                    <td className="td">
+                      <button onClick={() => { setPivotCell(null); setModal({ open: true, record: r }); }}
+                        className="btn-ghost btn-sm p-1.5 rounded-lg">
+                        <svg viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5">
+                          <path d="M13.488 2.513a1.75 1.75 0 0 0-2.475 0L6.75 6.774a2.75 2.75 0 0 0-.596.892l-.633 1.73a.75.75 0 0 0 .963.963l1.73-.633a2.75 2.75 0 0 0 .892-.596l4.261-4.262a1.75 1.75 0 0 0 0-2.475ZM4.75 3.5c-.69 0-1.25.56-1.25 1.25v6.5c0 .69.56 1.25 1.25 1.25h6.5c.69 0 1.25-.56 1.25-1.25V9A.75.75 0 0 1 14 9v2.25A2.75 2.75 0 0 1 11.25 14h-6.5A2.75 2.75 0 0 1 2 11.25v-6.5A2.75 2.75 0 0 1 4.75 2H7a.75.75 0 0 1 0 1.5H4.75Z"/>
+                        </svg>
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </Modal>
     </div>
   );
