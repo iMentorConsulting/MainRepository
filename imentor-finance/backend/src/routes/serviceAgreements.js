@@ -14,15 +14,12 @@ async function checkAndAutoStatus(saId) {
     );
     const collected = parseFloat(row?.total || 0);
     const application = parseFloat(sa.amount_application || 0);
-    if (!sa.approval_date) {
-      if (collected > 0 && (application === 0 || collected >= application)) {
-        await sa.update({ status: 'ΑΠΟΠΛΗΡΩΜΗ ΑΙΤΗΣΗΣ' });
-      }
-    } else {
-      const target = application + parseFloat(sa.amount_implementation || 0);
-      if (collected > 0 && (target === 0 || collected >= target)) {
-        await sa.update({ status: 'ΟΛΟΚΛΗΡΩΜΕΝΕΣ ΕΠΙΤΥΧΩΣ' });
-      }
+    const implementation = parseFloat(sa.amount_implementation || 0);
+    const target = application + implementation;
+    if (collected > 0 && target > 0 && collected >= target) {
+      await sa.update({ status: 'ΟΛΟΚΛΗΡΩΜΕΝΕΣ ΕΠΙΤΥΧΩΣ' });
+    } else if (collected > 0 && application > 0 && collected >= application) {
+      await sa.update({ status: 'ΑΠΟΠΛΗΡΩΜΗ ΑΙΤΗΣΗΣ' });
     }
   } catch (e) {
     console.error('checkAndAutoStatus failed:', e.message);
@@ -218,16 +215,13 @@ router.get('/', async (req, res) => {
       for (const row of enriched) {
         if (COMPLETED_STATUSES.includes(row.status)) continue;
         const application = parseFloat(row.amount_application || 0);
+        const implementation = parseFloat(row.amount_implementation || 0);
         const collected = parseFloat(row.income_collected || 0);
-        if (!row.approval_date) {
-          if (collected > 0 && (application === 0 || collected >= application)) {
-            ServiceAgreement.update({ status: 'ΑΠΟΠΛΗΡΩΜΗ ΑΙΤΗΣΗΣ' }, { where: { id: row.id } }).catch(() => {});
-          }
-        } else {
-          const target = application + parseFloat(row.amount_implementation || 0);
-          if (collected > 0 && (target === 0 || collected >= target)) {
-            ServiceAgreement.update({ status: 'ΟΛΟΚΛΗΡΩΜΕΝΕΣ ΕΠΙΤΥΧΩΣ' }, { where: { id: row.id } }).catch(() => {});
-          }
+        const target = application + implementation;
+        if (collected > 0 && target > 0 && collected >= target) {
+          ServiceAgreement.update({ status: 'ΟΛΟΚΛΗΡΩΜΕΝΕΣ ΕΠΙΤΥΧΩΣ' }, { where: { id: row.id } }).catch(() => {});
+        } else if (collected > 0 && application > 0 && collected >= application) {
+          ServiceAgreement.update({ status: 'ΑΠΟΠΛΗΡΩΜΗ ΑΙΤΗΣΗΣ' }, { where: { id: row.id } }).catch(() => {});
         }
       }
     });
@@ -244,15 +238,12 @@ async function applyAutoStatus(sa) {
   );
   const collected = parseFloat(row?.total || 0) || parseFloat(sa.amount_collected_total || 0);
   const application = parseFloat(sa.amount_application || 0);
-  if (!sa.approval_date) {
-    if (collected > 0 && (application === 0 || collected >= application)) {
-      await sa.update({ status: 'ΑΠΟΠΛΗΡΩΜΗ ΑΙΤΗΣΗΣ' });
-    }
-  } else {
-    const target = application + parseFloat(sa.amount_implementation || 0);
-    if (collected > 0 && (target === 0 || collected >= target)) {
-      await sa.update({ status: 'ΟΛΟΚΛΗΡΩΜΕΝΕΣ ΕΠΙΤΥΧΩΣ' });
-    }
+  const implementation = parseFloat(sa.amount_implementation || 0);
+  const target = application + implementation;
+  if (collected > 0 && target > 0 && collected >= target) {
+    await sa.update({ status: 'ΟΛΟΚΛΗΡΩΜΕΝΕΣ ΕΠΙΤΥΧΩΣ' });
+  } else if (collected > 0 && application > 0 && collected >= application) {
+    await sa.update({ status: 'ΑΠΟΠΛΗΡΩΜΗ ΑΙΤΗΣΗΣ' });
   }
 }
 
