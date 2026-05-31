@@ -85,7 +85,16 @@ export const getHealth = () => api.get('/health')
 
 // Admin / backup
 export const triggerBackup = () => api.post('/admin/backup-now')
-export const getExportUrl = () => `${import.meta.env.VITE_API_URL || '/api'}/admin/export`
+export const exportData = async () => {
+  const res = await api.get('/admin/export', { responseType: 'blob' })
+  const url = URL.createObjectURL(res.data)
+  const a = document.createElement('a')
+  const date = new Date().toISOString().slice(0, 10)
+  a.href = url
+  a.download = `Exodikastikos-backup_${date}.json`
+  a.click()
+  URL.revokeObjectURL(url)
+}
 
 // Public (no auth)
 export const getPublicCase = (token, vat, notrack = false) => {

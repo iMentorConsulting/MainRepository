@@ -17,6 +17,7 @@ import {
 } from '@heroicons/react/24/outline'
 import * as api from '../api'
 import { patchOffer, approveWinback, sendWinback } from '../api'
+import { toast } from 'react-hot-toast'
 import {
   DEFAULT_PRICING_CONFIG,
   loadPricingConfig,
@@ -117,7 +118,7 @@ export default function FinancialDashboard({ currentEmployee }) {
     }
   }
 
-  const handleDownloadExport = () => window.open(api.getExportUrl(), '_blank')
+  const handleDownloadExport = () => api.exportData().catch(() => toast.error('Σφάλμα export'))
 
   const handleSavePricing = async (cfg) => {
     try {
