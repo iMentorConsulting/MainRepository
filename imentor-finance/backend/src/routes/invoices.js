@@ -543,10 +543,28 @@ router.post('/record-payment', async (req, res) => {
   try {
     const { income_id, amount, date } = req.body;
     const income = await Income.findByPk(income_id);
-    if (!income?.elorus_invoice_id) return res.status(400).json({ error: 'Δεν υπάρχει τιμολόγιο Elorus' });
-    // Use the org that created the invoice — don't require caller to re-specify
+    if (!income) return res.status(404).json({ error: 'Εγγραφή εισοδήματος δεν βρέθηκε' });
     const org_key = req.body.org_key || income.elorus_org_key || 'DEFAULT';
     const a = api(org_key);
+
+    // If elorus_invoice_id is missing, try to look it up by invoice_number
+    if (!income.elorus_invoice_id) {
+      const rawNum = income.invoice_number || '';
+      // Formats: "Νο.117 / 22-05-2026", "No.117 / ...", "117"
+      const m = rawNum.match(/(\d+)/);
+      if (!m) return res.status(400).json({ error: 'Δεν υπάρχει τιμολόγιο Elorus και δεν βρέθηκε αριθμός τιμολογίου' });
+      const numStr = m[1];
+      let foundId = null;
+      try {
+        const r = await a.get(`invoices/?number=${encodeURIComponent(numStr)}&active=true`);
+        const results = r.data?.results || [];
+        const match = results.find(inv => String(inv.number) === numStr) || results[0];
+        if (match) foundId = String(match.id);
+      } catch (_) {}
+      if (!foundId) return res.status(400).json({ error: `Δεν βρέθηκε τιμολόγιο Νο.${numStr} στο Elorus` });
+      await income.update({ elorus_invoice_id: foundId, elorus_org_key: org_key });
+      income.elorus_invoice_id = foundId;
+    }
     const invData = (await a.get(`invoices/${income.elorus_invoice_id}/`)).data;
     const contactId = String(invData.client || invData.contact || '');
     const currency = invData.currency_code || invData.currency || 'EUR';
