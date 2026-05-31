@@ -1,6 +1,185 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import api from '../../api/client';
 import toast from 'react-hot-toast';
+
+function TwoFAPanel() {
+  const [status, setStatus] = useState(null); // null=loading, true=enabled, false=disabled
+  const [phase, setPhase] = useState('idle'); // 'idle' | 'setup' | 'disable'
+  const [qr, setQr] = useState(null);
+  const [secret, setSecret] = useState('');
+  const [code, setCode] = useState('');
+  const [loading, setLoading] = useState(false);
+  const codeRef = useRef(null);
+
+  const loadStatus = () =>
+    api.get('/auth/2fa/status').then(r => setStatus(r.data.enabled)).catch(() => setStatus(false));
+
+  useEffect(() => { loadStatus(); }, []);
+
+  useEffect(() => {
+    if ((phase === 'setup' || phase === 'disable') && codeRef.current) {
+      setTimeout(() => codeRef.current?.focus(), 50);
+    }
+  }, [phase]);
+
+  const startSetup = async () => {
+    setLoading(true);
+    try {
+      const r = await api.get('/auth/2fa/setup');
+      setQr(r.data.qr);
+      setSecret(r.data.secret);
+      setCode('');
+      setPhase('setup');
+    } catch { toast.error('Σφάλμα φόρτωσης QR'); } finally { setLoading(false); }
+  };
+
+  const activate = async () => {
+    if (code.length < 6) return;
+    setLoading(true);
+    try {
+      await api.post('/auth/2fa/activate', { secret, code });
+      toast.success('2FA ενεργοποιήθηκε!');
+      setPhase('idle');
+      setQr(null);
+      setSecret('');
+      setCode('');
+      loadStatus();
+    } catch (e) {
+      toast.error(e.response?.data?.error || 'Λάθος κωδικός — σκανάρετε ξανά');
+      setCode('');
+      codeRef.current?.focus();
+    } finally { setLoading(false); }
+  };
+
+  const disable = async () => {
+    if (code.length < 6) return;
+    setLoading(true);
+    try {
+      await api.delete('/auth/2fa', { data: { code } });
+      toast.success('2FA απενεργοποιήθηκε');
+      setPhase('idle');
+      setCode('');
+      loadStatus();
+    } catch (e) {
+      toast.error(e.response?.data?.error || 'Λάθος κωδικός authenticator');
+      setCode('');
+      codeRef.current?.focus();
+    } finally { setLoading(false); }
+  };
+
+  const cancel = () => { setPhase('idle'); setCode(''); setQr(null); setSecret(''); };
+
+  return (
+    <div className="card p-6">
+      <div className="flex items-center gap-3 mb-5">
+        <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center shrink-0">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-5 h-5 text-indigo-500">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 1.5H8.25A2.25 2.25 0 0 0 6 3.75v16.5a2.25 2.25 0 0 0 2.25 2.25h7.5A2.25 2.25 0 0 0 18 20.25V3.75a2.25 2.25 0 0 0-2.25-2.25H13.5m-3 0V3h3V1.5m-3 0h3m-3 8.25h3m-3 4.5h1.5" />
+          </svg>
+        </div>
+        <div className="flex-1">
+          <h3 className="font-bold text-slate-800">Έλεγχος Ταυτότητας 2 Βημάτων (2FA)</h3>
+          <p className="text-xs text-slate-400">Google Authenticator — TOTP κωδικός κάθε 30 δευτερόλεπτα</p>
+        </div>
+        {status !== null && (
+          <span className={`text-xs font-bold px-3 py-1 rounded-full ${status ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
+            {status ? '✓ Ενεργό' : 'Ανενεργό'}
+          </span>
+        )}
+      </div>
+
+      {phase === 'idle' && (
+        <div className="flex gap-3">
+          {status === false && (
+            <button onClick={startSetup} disabled={loading}
+              className="btn-primary flex items-center gap-2">
+              {loading ? 'Φόρτωση…' : '+ Ενεργοποίηση 2FA'}
+            </button>
+          )}
+          {status === true && (
+            <button onClick={() => { setCode(''); setPhase('disable'); }}
+              className="px-4 py-2 rounded-xl text-sm font-semibold bg-rose-50 text-rose-600 border border-rose-200 hover:bg-rose-100 transition-colors">
+              Απενεργοποίηση 2FA
+            </button>
+          )}
+          {status === null && <span className="text-sm text-slate-400">Φόρτωση…</span>}
+        </div>
+      )}
+
+      {phase === 'setup' && qr && (
+        <div className="space-y-5">
+          <div className="p-4 rounded-2xl bg-indigo-50 border border-indigo-100 text-sm text-indigo-800">
+            <strong className="block mb-1">Βήμα 1</strong>
+            Σκανάρετε το QR code με το <strong>Google Authenticator</strong> (ή οποιαδήποτε TOTP εφαρμογή).
+          </div>
+          <div className="flex flex-col sm:flex-row gap-6 items-start">
+            <div className="p-3 bg-white rounded-2xl border border-slate-200 shadow-sm shrink-0">
+              <img src={qr} alt="2FA QR" className="w-40 h-40" />
+            </div>
+            <div className="space-y-3 flex-1">
+              <div>
+                <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Ή εισάγετε χειροκίνητα το secret key:</div>
+                <code className="block bg-slate-100 px-3 py-2 rounded-xl text-xs font-mono text-slate-700 break-all select-all">
+                  {secret}
+                </code>
+              </div>
+              <div className="p-3 rounded-xl bg-amber-50 border border-amber-100 text-sm text-amber-800">
+                <strong className="block mb-0.5">Βήμα 2</strong>
+                Μόλις σκανάρετε, εισάγετε τον <strong>6ψήφιο κωδικό</strong> που εμφανίζεται στην εφαρμογή για επαλήθευση.
+              </div>
+              <div className="flex gap-2">
+                <input
+                  ref={codeRef}
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  maxLength={6}
+                  placeholder="000000"
+                  value={code}
+                  onChange={e => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  onKeyDown={e => e.key === 'Enter' && activate()}
+                  className="input w-36 font-mono text-center text-xl tracking-widest"
+                />
+                <button onClick={activate} disabled={loading || code.length < 6}
+                  className="btn-primary">
+                  {loading ? 'Επαλήθευση…' : 'Ενεργοποίηση'}
+                </button>
+                <button onClick={cancel} className="btn-secondary">Ακύρωση</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {phase === 'disable' && (
+        <div className="space-y-4">
+          <div className="p-4 rounded-2xl bg-rose-50 border border-rose-100 text-sm text-rose-800">
+            Για να απενεργοποιήσετε το 2FA, εισάγετε τον <strong>τρέχοντα κωδικό</strong> από το Google Authenticator.
+          </div>
+          <div className="flex gap-2">
+            <input
+              ref={codeRef}
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              maxLength={6}
+              placeholder="000000"
+              value={code}
+              onChange={e => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+              onKeyDown={e => e.key === 'Enter' && disable()}
+              className="input w-36 font-mono text-center text-xl tracking-widest"
+            />
+            <button onClick={disable} disabled={loading || code.length < 6}
+              className="px-4 py-2 rounded-xl text-sm font-semibold bg-rose-600 text-white hover:bg-rose-700 disabled:opacity-50 transition-colors">
+              {loading ? 'Απενεργοποίηση…' : 'Επιβεβαίωση'}
+            </button>
+            <button onClick={cancel} className="btn-secondary">Ακύρωση</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 function BackupPanel() {
   const [running, setRunning] = useState(false);
@@ -393,6 +572,7 @@ export default function ListManager() {
         </div>
       </div>
 
+      <TwoFAPanel />
       <BackupPanel />
     </div>
   );

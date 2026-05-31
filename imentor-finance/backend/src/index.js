@@ -10,6 +10,7 @@ require('./models/CommissionLog');
 require('./models/Customer');
 require('./models/ServiceAgreement');
 require('./models/RecurringExpense');
+require('./models/AppSetting');
 
 const authMiddleware = require('./middleware/auth');
 
