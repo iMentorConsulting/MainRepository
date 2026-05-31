@@ -4,11 +4,18 @@ const BASE = import.meta.env.VITE_API_URL || ''
 
 const api = axios.create({ baseURL: BASE, timeout: 30000 })
 
+const SESSION_HOURS = 8
+
 api.interceptors.request.use((config) => {
   const auth = getAuth()
-  if (auth?.token) {
-    config.headers.Authorization = `Bearer ${auth.token}`
+  if (!auth?.token) return config
+  // Client-side expiry check — log out before even sending the request
+  if (auth.expires_at && Date.now() > auth.expires_at) {
+    clearAuth()
+    window.location.href = '/?session_expired=1'
+    return Promise.reject(new Error('Session expired'))
   }
+  config.headers.Authorization = `Bearer ${auth.token}`
   return config
 })
 
@@ -16,8 +23,8 @@ api.interceptors.response.use(
   (r) => r,
   (err) => {
     if (err.response?.status === 401) {
-      localStorage.removeItem('cm_auth')
-      window.location.href = '/'
+      clearAuth()
+      window.location.href = '/?session_expired=1'
     }
     return Promise.reject(err)
   }
@@ -26,7 +33,10 @@ api.interceptors.response.use(
 export const getAuth = () => {
   try { return JSON.parse(localStorage.getItem('cm_auth') || 'null') } catch { return null }
 }
-export const setAuth = (data) => localStorage.setItem('cm_auth', JSON.stringify(data))
+export const setAuth = (data) => {
+  const expires_at = Date.now() + SESSION_HOURS * 60 * 60 * 1000
+  localStorage.setItem('cm_auth', JSON.stringify({ ...data, expires_at }))
+}
 export const clearAuth = () => localStorage.removeItem('cm_auth')
 
 // Auth

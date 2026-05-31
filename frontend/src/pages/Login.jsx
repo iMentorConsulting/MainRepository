@@ -1,10 +1,13 @@
 import { useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { login } from '../api'
 import toast from 'react-hot-toast'
 
 export default function Login({ onLogin }) {
   const [form, setForm] = useState({ username: '', password: '' })
   const [loading, setLoading] = useState(false)
+  const [searchParams] = useSearchParams()
+  const sessionExpired = searchParams.get('session_expired') === '1'
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -26,6 +29,12 @@ export default function Login({ onLogin }) {
           <img src="/logo-white.png" alt="iMentor Consulting" className="h-44 w-auto object-contain mx-auto mb-3" />
           <p className="text-blue-200 mt-1">Σύστημα Διαχείρισης Υποθέσεων</p>
         </div>
+
+        {sessionExpired && (
+          <div className="mb-4 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-800 text-center">
+            Η συνεδρία σας έληξε μετά από 8 ώρες. Παρακαλώ συνδεθείτε ξανά.
+          </div>
+        )}
 
         <div className="bg-white rounded-2xl shadow-2xl p-8">
           <form onSubmit={handleSubmit} className="space-y-5">

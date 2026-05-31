@@ -523,10 +523,7 @@ def get_related_cases(token: str, db: Session = Depends(get_db)):
     case_afm = (case.afm or "").strip()
     case_phone = effective_phone(case)
 
-    print(f"[related-cases] token={token} case_id={case.id} afm={case.afm!r} phone={case.phone!r} share_token={case.share_token!r} → case_afm={case_afm!r} case_phone={case_phone!r}", flush=True)
-
     if not case_afm and not case_phone:
-        print("[related-cases] no afm/phone to match on, returning []", flush=True)
         return []
 
     related = []
@@ -539,7 +536,6 @@ def get_related_cases(token: str, db: Session = Depends(get_db)):
             CMCase.portal_active == True,
             CMCase.id != case.id,
         ).all()
-        print(f"[related-cases] AFM query for {case_afm!r} → {len(afm_matches)} results", flush=True)
         for c in afm_matches:
             if c.id not in seen_ids:
                 related.append(c)
@@ -551,15 +547,12 @@ def get_related_cases(token: str, db: Session = Depends(get_db)):
             CMCase.portal_active == True,
             CMCase.id != case.id,
         ).all()
-        print(f"[related-cases] phone query for {case_phone!r} → {len(candidates)} portal-active candidates", flush=True)
         for c in candidates:
             ep = effective_phone(c)
-            print(f"[related-cases]   candidate id={c.id} phone={c.phone!r} share_token={c.share_token!r} → ep={ep!r} match={ep == case_phone and c.id not in seen_ids}", flush=True)
             if c.id not in seen_ids and ep == case_phone:
                 related.append(c)
                 seen_ids.add(c.id)
 
-    print(f"[related-cases] final related: {[c.id for c in related]}", flush=True)
     return [
         {
             "token": c.share_token,
