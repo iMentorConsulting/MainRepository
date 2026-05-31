@@ -51,6 +51,16 @@ function formatPhone(p) {
   return clean
 }
 
+function parseAnyDate(s) {
+  if (!s) return null
+  try { const d = parseISO(s); if (!isNaN(d)) return d } catch {}
+  const m1 = String(s).match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})/)
+  if (m1) { const d = new Date(+m1[3], +m1[2] - 1, +m1[1]); if (!isNaN(d)) return d }
+  const m2 = String(s).match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/)
+  if (m2) { const d = new Date(+m2[1], +m2[2] - 1, +m2[3]); if (!isNaN(d)) return d }
+  return null
+}
+
 function applyTemplate(body, lead) {
   return (body || '').replace(/\{(\w+)\}/g, (_, key) => {
     const map = {
@@ -687,7 +697,7 @@ function ExpandedRow({ lead, currentEmployee, onUpdate, colCount, templates, tax
 }
 
 // ── Single lead row ─────────────────────────────────────────────────────────
-function LeadRow({ lead, currentEmployee, expanded, onToggle, onLeadUpdate, templates, taxisnetLinks, allLeads }) {
+function LeadRow({ lead, currentEmployee, expanded, onToggle, onLeadUpdate, templates, taxisnetLinks, allLeads, selected, onSelect }) {
   const update = async (fields) => {
     try {
       const res = await api.patchLead(lead.id, fields)
@@ -715,6 +725,11 @@ function LeadRow({ lead, currentEmployee, expanded, onToggle, onLeadUpdate, temp
           ${expanded ? '!bg-blue-100/50' : ''}`}
         onClick={onToggle}
       >
+        {/* Checkbox */}
+        <td className="td w-8 px-2 text-center" onClick={e => e.stopPropagation()}>
+          <input type="checkbox" className="rounded border-gray-300 text-blue-600 cursor-pointer"
+            checked={selected} onChange={() => onSelect(lead.id)} />
+        </td>
         {/* Expand */}
         <td className="td w-6 text-center px-1">
           {expanded
@@ -813,7 +828,7 @@ function LeadRow({ lead, currentEmployee, expanded, onToggle, onLeadUpdate, temp
       {expanded && (
         <ExpandedRow
           lead={lead} currentEmployee={currentEmployee} onUpdate={onLeadUpdate}
-          colCount={10} templates={templates} taxisnetLinks={taxisnetLinks} allLeads={allLeads}
+          colCount={11} templates={templates} taxisnetLinks={taxisnetLinks} allLeads={allLeads}
         />
       )}
     </>
@@ -826,10 +841,14 @@ export default function Leads({ currentEmployee }) {
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [debtSearch, setDebtSearch] = useState('')
-  const [filterYears, setFilterYears] = useState([String(THIS_YEAR)])
-  const [filterMonths, setFilterMonths] = useState([])
+  const [filterDateFrom, setFilterDateFrom] = useState('')
+  const [filterDateTo, setFilterDateTo] = useState('')
   const [filterStatus, setFilterStatus] = useState([])
   const [filterEmployees, setFilterEmployees] = useState([])
+  const [selectedIds, setSelectedIds] = useState(new Set())
+  const [massEmailOpen, setMassEmailOpen] = useState(false)
+  const [massEmailTemplate, setMassEmailTemplate] = useState('')
+  const [massSending, setMassSending] = useState(false)
   const [page, setPage] = useState(1)
   const [expandedId, setExpandedId] = useState(null)
   const [sortCol, setSortCol] = useState('sheet_row_num')
@@ -852,7 +871,6 @@ export default function Leads({ currentEmployee }) {
       if (search) params.search = search
       if (filterStatus.length) params.status = filterStatus
       if (filterEmployees.length) params.assigned_to = filterEmployees
-      if (filterYears.length) params.years = filterYears
       const res = await api.listLeads(params)
       setLeads(res.data)
       setPage(1)
@@ -860,7 +878,7 @@ export default function Leads({ currentEmployee }) {
     finally { setLoading(false) }
   }
 
-  useEffect(() => { load() }, [search, filterStatus, filterEmployees, filterYears])
+  useEffect(() => { load() }, [search, filterStatus, filterEmployees])
 
   useEffect(() => {
     api.getLeadTemplates().then(r => setTemplates(r.data || [])).catch(() => {})
@@ -882,10 +900,20 @@ export default function Leads({ currentEmployee }) {
   let displayed = leads
   if (hideCancelled && filterStatus.length === 0)
     displayed = displayed.filter(l => l.status !== 'cancelled')
-  if (filterMonths.length > 0)
-    displayed = displayed.filter(l => filterMonths.includes(parseMonth(l.date)))
   if (filterStatus.length > 0)
     displayed = displayed.filter(l => filterStatus.includes((l.status || '').toLowerCase()))
+  if (filterDateFrom || filterDateTo) {
+    displayed = displayed.filter(l => {
+      const d = parseAnyDate(l.date)
+      if (!d) return false
+      if (filterDateFrom && d < new Date(filterDateFrom)) return false
+      if (filterDateTo) {
+        const to = new Date(filterDateTo); to.setHours(23, 59, 59, 999)
+        if (d > to) return false
+      }
+      return true
+    })
+  }
   if (debtSearch.trim())
     displayed = displayed.filter(l => (l.total_debt || '').toLowerCase().includes(debtSearch.toLowerCase()))
 
@@ -894,18 +922,6 @@ export default function Leads({ currentEmployee }) {
     const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0)
     const todayEnd = new Date(); todayEnd.setHours(23, 59, 59, 999)
     const weekEnd = new Date(todayStart); weekEnd.setDate(weekEnd.getDate() + 7)
-
-    const parseAnyDate = (s) => {
-      if (!s) return null
-      try { const d = parseISO(s); if (!isNaN(d)) return d } catch {}
-      // Greek DD/MM/YYYY or DD-MM-YYYY
-      const m1 = String(s).match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})/)
-      if (m1) { const d = new Date(+m1[3], +m1[2] - 1, +m1[1]); if (!isNaN(d)) return d }
-      // YYYY-MM-DD
-      const m2 = String(s).match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/)
-      if (m2) { const d = new Date(+m2[1], +m2[2] - 1, +m2[3]); if (!isNaN(d)) return d }
-      return null
-    }
 
     const getCallDate = (l) => {
       if (l.app_next_call) return parseAnyDate(l.app_next_call)
@@ -945,12 +961,44 @@ export default function Leads({ currentEmployee }) {
     return acc
   }, {})
 
-  const hasFilters = filterStatus.length || filterEmployees.length || filterMonths.length || search || debtSearch || filterReminder
+  const hasFilters = filterStatus.length || filterEmployees.length || filterDateFrom || filterDateTo || search || debtSearch || filterReminder
 
-  const yearOptions = YEARS.map(y => ({ value: String(y), label: String(y) }))
-  const monthOptions = MONTHS_EL.map((m, i) => ({ value: String(i + 1), label: m }))
-  const statusOptions = STATUS_OPTIONS.map(s => ({ value: s, label: statusCfg(s).label }))
   const employeeOptions = EMPLOYEES.map(e => ({ value: e, label: e }))
+
+  const toggleSelect = (id) => setSelectedIds(prev => {
+    const next = new Set(prev)
+    next.has(id) ? next.delete(id) : next.add(id)
+    return next
+  })
+  const allDisplayedSelected = displayed.length > 0 && displayed.every(l => selectedIds.has(l.id))
+  const toggleSelectAll = () => {
+    if (allDisplayedSelected) {
+      setSelectedIds(prev => { const n = new Set(prev); displayed.forEach(l => n.delete(l.id)); return n })
+    } else {
+      setSelectedIds(prev => { const n = new Set(prev); displayed.forEach(l => n.add(l.id)); return n })
+    }
+  }
+
+  const emailTemplates = templates.filter(t => t.type === 'email' || t.type === 'both')
+  const sendMassEmail = async () => {
+    const tpl = emailTemplates.find(t => t.name === massEmailTemplate)
+    if (!tpl) return
+    setMassSending(true)
+    const targets = leads.filter(l => selectedIds.has(l.id))
+    let sent = 0, failed = 0, skipped = 0
+    for (const lead of targets) {
+      if (!lead.email) { skipped++; continue }
+      try {
+        await api.sendLeadEmail(lead.id, lead.email, applyTemplate(tpl.subject || '', lead), applyTemplate(tpl.body, lead))
+        sent++
+      } catch { failed++ }
+    }
+    const msg = [`${sent} εστάλησαν`, skipped > 0 && `${skipped} χωρίς email παραλείφθηκαν`, failed > 0 && `${failed} απέτυχαν`].filter(Boolean).join(' · ')
+    toast.success(msg, { duration: 5000 })
+    setMassEmailOpen(false)
+    setSelectedIds(new Set())
+    setMassSending(false)
+  }
 
   return (
     <div className="p-4 md:p-6 max-w-[1400px] mx-auto">
@@ -1023,11 +1071,20 @@ export default function Leads({ currentEmployee }) {
             value={debtSearch} onChange={e => { setDebtSearch(e.target.value); setPage(1) }} />
         </div>
 
-        {/* Years */}
-        <MultiSelect options={yearOptions} selected={filterYears} onChange={setFilterYears} placeholder="Έτος" cls="w-[130px]" />
-
-        {/* Months */}
-        <MultiSelect options={monthOptions} selected={filterMonths} onChange={v => { setFilterMonths(v); setPage(1) }} placeholder="Μήνας" cls="w-[130px]" />
+        {/* Date range */}
+        <div className="flex items-center gap-1">
+          <input type="date" className="input text-sm w-[135px]" value={filterDateFrom}
+            onChange={e => { setFilterDateFrom(e.target.value); setPage(1) }}
+            title="Από ημερομηνία" />
+          <span className="text-gray-400 text-xs font-bold">—</span>
+          <input type="date" className="input text-sm w-[135px]" value={filterDateTo}
+            onChange={e => { setFilterDateTo(e.target.value); setPage(1) }}
+            title="Έως ημερομηνία" />
+          {(filterDateFrom || filterDateTo) && (
+            <button onClick={() => { setFilterDateFrom(''); setFilterDateTo(''); setPage(1) }}
+              className="text-xs text-gray-400 hover:text-gray-600 px-1" title="Καθαρισμός ημερομηνίας">✕</button>
+          )}
+        </div>
 
         {/* Agents */}
         <MultiSelect options={employeeOptions} selected={filterEmployees} onChange={setFilterEmployees} placeholder="Σύμβουλος" cls="w-[150px]" />
@@ -1055,6 +1112,11 @@ export default function Leads({ currentEmployee }) {
             <table className="w-full">
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-200 text-xs text-gray-500 uppercase tracking-wide">
+                  <th className="th w-8 px-2">
+                    <input type="checkbox" className="rounded border-gray-300 text-blue-600 cursor-pointer"
+                      checked={allDisplayedSelected} onChange={toggleSelectAll}
+                      title="Επιλογή όλων" />
+                  </th>
                   <th className="th w-6 px-1"></th>
                   <SortTh col="status" label="Status" sortCol={sortCol} sortDir={sortDir} onSort={toggleSort} className="w-[120px]" />
                   <SortTh col="assigned_to" label="Σύμβουλος" sortCol={sortCol} sortDir={sortDir} onSort={toggleSort} className="w-[85px]" />
@@ -1079,6 +1141,8 @@ export default function Leads({ currentEmployee }) {
                     templates={templates}
                     taxisnetLinks={taxisnetLinks}
                     allLeads={leads}
+                    selected={selectedIds.has(lead.id)}
+                    onSelect={toggleSelect}
                   />
                 ))}
               </tbody>
@@ -1115,6 +1179,87 @@ export default function Leads({ currentEmployee }) {
           </>
         )}
       </div>
+
+      {/* ── Mass selection action bar ────────────────────────────────── */}
+      {selectedIds.size > 0 && (
+        <div className="fixed bottom-0 left-0 right-0 z-50 flex justify-center pb-4 pointer-events-none">
+          <div className="pointer-events-auto bg-gray-900 text-white rounded-2xl shadow-2xl px-5 py-3 flex items-center gap-4 min-w-[400px]">
+            <span className="font-bold text-sm">{selectedIds.size} επιλεγμένα</span>
+            <div className="w-px h-5 bg-gray-600" />
+            <button
+              onClick={() => { setMassEmailOpen(true); setMassEmailTemplate(emailTemplates[0]?.name || '') }}
+              className="flex items-center gap-1.5 text-sm bg-blue-600 hover:bg-blue-500 px-3 py-1.5 rounded-lg font-semibold transition-colors">
+              ✉️ Mass Email
+            </button>
+            <button
+              onClick={() => setSelectedIds(new Set())}
+              className="text-xs text-gray-400 hover:text-white transition-colors ml-2">
+              ✕ Αποεπιλογή
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Mass email modal ─────────────────────────────────────────── */}
+      {massEmailOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-black text-gray-800">✉️ Mass Email</h2>
+              <button onClick={() => setMassEmailOpen(false)} className="text-gray-400 hover:text-gray-600 text-xl">✕</button>
+            </div>
+
+            <div className="bg-blue-50 border border-blue-100 rounded-lg px-3 py-2 text-sm text-blue-700">
+              {(() => {
+                const targets = leads.filter(l => selectedIds.has(l.id))
+                const withEmail = targets.filter(l => l.email).length
+                const noEmail = targets.length - withEmail
+                return (
+                  <>
+                    <span className="font-bold">{withEmail} leads με email</span>
+                    {noEmail > 0 && <span className="text-orange-500 ml-2">· {noEmail} χωρίς email θα παραλειφθούν</span>}
+                  </>
+                )
+              })()}
+            </div>
+
+            <div>
+              <label className="text-xs text-gray-500 mb-1.5 block font-semibold">Επιλογή Template</label>
+              {emailTemplates.length === 0 ? (
+                <p className="text-sm text-gray-400">Δεν υπάρχουν email templates. <a href="/lead-lists" className="text-blue-500 hover:underline">Προσθέστε από τις Λίστες</a>.</p>
+              ) : (
+                <div className="space-y-2 max-h-60 overflow-y-auto">
+                  {emailTemplates.map(t => (
+                    <label key={t.name}
+                      className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-colors
+                        ${massEmailTemplate === t.name ? 'border-blue-400 bg-blue-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                      <input type="radio" name="masstpl" value={t.name} checked={massEmailTemplate === t.name}
+                        onChange={() => setMassEmailTemplate(t.name)} className="mt-0.5 text-blue-600" />
+                      <div className="flex-1 min-w-0">
+                        <div className="font-semibold text-sm text-gray-800">{t.name}</div>
+                        {t.subject && <div className="text-xs text-gray-500 mt-0.5">Θέμα: {t.subject}</div>}
+                        <p className="text-xs text-gray-400 mt-0.5 line-clamp-2">{t.body}</p>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {emailTemplates.length > 0 && (
+              <div className="flex gap-2 pt-1">
+                <button
+                  onClick={sendMassEmail}
+                  disabled={massSending || !massEmailTemplate}
+                  className="btn-primary flex-1 justify-center py-2.5 disabled:opacity-60">
+                  {massSending ? '⏳ Αποστολή…' : `✉️ Αποστολή σε ${leads.filter(l => selectedIds.has(l.id) && l.email).length} leads`}
+                </button>
+                <button onClick={() => setMassEmailOpen(false)} className="btn-secondary px-4">Άκυρο</button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
