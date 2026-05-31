@@ -62,11 +62,10 @@ const STATUS_BADGE = {
   'ΠΑΓΩΜΕΝΕΣ': 'badge-yellow',
   'ΟΛΟΚΛΗΡΩΜΕΝΕΣ ΕΠΙΤΥΧΩΣ': 'badge-blue',
   'ΟΛΟΚΛΗΡΩΜΕΝΕΣ FAIL': 'badge-red',
-  'ΑΠΟΠΛΗΡΩΜΕΝΕΣ': 'badge-purple',
   'ΑΠΟΠΛΗΡΩΜΗ ΑΙΤΗΣΗΣ': 'badge-orange',
 };
 
-const STATUS_OPTS = ['ΕΝ ΕΞΕΛΙΞΕΙ', 'ΠΑΓΩΜΕΝΕΣ', 'ΑΠΟΠΛΗΡΩΜΗ ΑΙΤΗΣΗΣ', 'ΟΛΟΚΛΗΡΩΜΕΝΕΣ ΕΠΙΤΥΧΩΣ', 'ΟΛΟΚΛΗΡΩΜΕΝΕΣ FAIL', 'ΑΠΟΠΛΗΡΩΜΕΝΕΣ'];
+const STATUS_OPTS = ['ΕΝ ΕΞΕΛΙΞΕΙ', 'ΠΑΓΩΜΕΝΕΣ', 'ΑΠΟΠΛΗΡΩΜΗ ΑΙΤΗΣΗΣ', 'ΟΛΟΚΛΗΡΩΜΕΝΕΣ ΕΠΙΤΥΧΩΣ', 'ΟΛΟΚΛΗΡΩΜΕΝΕΣ FAIL'];
 
 const STATUS_CELL_BG = {
   'ΕΝ ΕΞΕΛΙΞΕΙ':            '#dcfce7',
@@ -74,7 +73,6 @@ const STATUS_CELL_BG = {
   'ΑΠΟΠΛΗΡΩΜΗ ΑΙΤΗΣΗΣ':    '#ffedd5',
   'ΟΛΟΚΛΗΡΩΜΕΝΕΣ ΕΠΙΤΥΧΩΣ':'#dbeafe',
   'ΟΛΟΚΛΗΡΩΜΕΝΕΣ FAIL':     '#ffe4e6',
-  'ΑΠΟΠΛΗΡΩΜΕΝΕΣ':          '#f3e8ff',
 };
 const STATUS_TEXT_COLOR = {
   'ΕΝ ΕΞΕΛΙΞΕΙ':            '#166534',
@@ -82,7 +80,6 @@ const STATUS_TEXT_COLOR = {
   'ΑΠΟΠΛΗΡΩΜΗ ΑΙΤΗΣΗΣ':    '#9a3412',
   'ΟΛΟΚΛΗΡΩΜΕΝΕΣ ΕΠΙΤΥΧΩΣ':'#1e40af',
   'ΟΛΟΚΛΗΡΩΜΕΝΕΣ FAIL':     '#9f1239',
-  'ΑΠΟΠΛΗΡΩΜΕΝΕΣ':          '#6b21a8',
 };
 
 const EMPTY_FORM = {
@@ -564,7 +561,7 @@ export default function ServiceAgreementsPage() {
         <div className="card p-4 border-l-4 border-blue-400">
           <div className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-1">Ολοκληρωμένες</div>
           <div className="text-2xl font-black text-blue-600">
-            {(fByStatus['ΟΛΟΚΛΗΡΩΜΕΝΕΣ ΕΠΙΤΥΧΩΣ'] || 0) + (fByStatus['ΑΠΟΠΛΗΡΩΜΕΝΕΣ'] || 0)}
+            {fByStatus['ΟΛΟΚΛΗΡΩΜΕΝΕΣ ΕΠΙΤΥΧΩΣ'] || 0}
           </div>
         </div>
         <div className="card p-4 border-l-4 border-indigo-400">

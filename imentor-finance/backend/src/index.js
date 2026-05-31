@@ -74,6 +74,15 @@ const PORT = process.env.PORT || 3001;
 
 sequelize.sync({ alter: true }).then(async () => {
   console.log('Database connected & synced');
+
+  // One-time migration: ΑΠΟΠΛΗΡΩΜΕΝΕΣ is retired — promote to ΟΛΟΚΛΗΡΩΜΕΝΕΣ ΕΠΙΤΥΧΩΣ
+  try {
+    const [n] = await sequelize.query(
+      `UPDATE service_agreements SET status = 'ΟΛΟΚΛΗΡΩΜΕΝΕΣ ΕΠΙΤΥΧΩΣ' WHERE status = 'ΑΠΟΠΛΗΡΩΜΕΝΕΣ'`
+    );
+    if (n > 0) console.log(`[migration] Promoted ${n} ΑΠΟΠΛΗΡΩΜΕΝΕΣ → ΟΛΟΚΛΗΡΩΜΕΝΕΣ ΕΠΙΤΥΧΩΣ`);
+  } catch (e) { console.warn('[migration] status promotion failed:', e.message); }
+
   app.listen(PORT, () => console.log(`Backend running on port ${PORT}`));
 
   // Daily backup at 03:00 UTC
