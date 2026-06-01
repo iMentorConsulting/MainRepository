@@ -266,6 +266,16 @@ export default function ExpensesList() {
           <p className="page-sub">{data.total.toLocaleString('el-GR')} εγγραφές σύνολο</p>
         </div>
         <div className="flex items-center gap-2">
+          <button className="btn-ghost btn-sm text-rose-600 hover:bg-rose-50" onClick={async () => {
+            if (!window.confirm('Διαγραφή ΟΛΩΝ των εγγραφών με 0€;')) return;
+            try {
+              const r = await api.delete('/expenses/zero');
+              toast.success(`Διαγράφηκαν ${r.data.deleted} εγγραφές με 0€`);
+              load();
+            } catch (e) { toast.error('Σφάλμα διαγραφής'); }
+          }}>
+            Διαγρ. 0€
+          </button>
           <button className="btn-ghost btn-sm" onClick={handleExport}>
             <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path fillRule="evenodd" d="M10 3a.75.75 0 0 1 .75.75v8.69l2.22-2.22a.75.75 0 1 1 1.06 1.06l-3.5 3.5a.75.75 0 0 1-1.06 0l-3.5-3.5a.75.75 0 1 1 1.06-1.06l2.22 2.22V3.75A.75.75 0 0 1 10 3ZM5.75 16a.75.75 0 0 0 0 1.5h8.5a.75.75 0 0 0 0-1.5h-8.5Z" clipRule="evenodd"/></svg>
             Excel

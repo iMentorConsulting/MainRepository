@@ -72,6 +72,17 @@ router.put('/:id', async (req, res) => {
   }
 });
 
+router.delete('/zero', async (req, res) => {
+  try {
+    const count = await Expense.destroy({
+      where: { amount: { [Op.or]: [null, 0] } }
+    });
+    res.json({ success: true, deleted: count });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 router.delete('/:id', async (req, res) => {
   try {
     const record = await Expense.findByPk(req.params.id);
