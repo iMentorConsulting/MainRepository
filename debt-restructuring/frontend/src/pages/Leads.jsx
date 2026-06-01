@@ -887,8 +887,10 @@ function LeadRow({ lead, currentEmployee, expanded, onToggle, onLeadUpdate, temp
 export default function Leads({ currentEmployee }) {
   const [leads, setLeads] = useState([])
   const [loading, setLoading] = useState(true)
-  const [search, setSearch] = useState('')
+  const [searchInput, setSearchInput] = useState('')  // immediate (typed by user)
+  const [search, setSearch] = useState('')             // debounced (triggers backend)
   const [debtSearch, setDebtSearch] = useState('')
+  const loadIdRef = useRef(0)
   const [filterDateFrom, setFilterDateFrom] = useState('')
   const [filterDateTo, setFilterDateTo] = useState('')
   const [filterStatus, setFilterStatus] = useState([])
@@ -912,21 +914,39 @@ export default function Leads({ currentEmployee }) {
     setPage(1)
   }
 
+  // Debounce: wait 400ms after user stops typing before hitting backend
+  useEffect(() => {
+    const id = setTimeout(() => setSearch(searchInput), 400)
+    return () => clearTimeout(id)
+  }, [searchInput])
+
   const load = async () => {
+    const myId = ++loadIdRef.current
     setLoading(true)
     try {
       const params = {}
       if (search) params.search = search
       if (filterStatus.length) params.status = filterStatus
       if (filterEmployees.length) params.assigned_to = filterEmployees
+      // Always send a year scope to avoid loading all-time data
+      if (filterDateFrom || filterDateTo) {
+        const fromY = filterDateFrom ? parseInt(filterDateFrom.slice(0, 4)) : THIS_YEAR - 2
+        const toY   = filterDateTo   ? parseInt(filterDateTo.slice(0, 4))   : THIS_YEAR
+        const years = []
+        for (let y = fromY; y <= toY; y++) years.push(String(y))
+        params.years = years
+      } else {
+        params.years = [String(THIS_YEAR)]
+      }
       const res = await api.listLeads(params)
+      if (myId !== loadIdRef.current) return  // stale response — discard
       setLeads(res.data)
       setPage(1)
     } catch { toast.error('Σφάλμα φόρτωσης leads') }
-    finally { setLoading(false) }
+    finally { if (myId === loadIdRef.current) setLoading(false) }
   }
 
-  useEffect(() => { load() }, [search, filterStatus, filterEmployees])
+  useEffect(() => { load() }, [search, filterStatus, filterEmployees, filterDateFrom, filterDateTo])
 
   useEffect(() => {
     api.getLeadTemplates().then(r => setTemplates(r.data || [])).catch(() => {})
@@ -1009,7 +1029,7 @@ export default function Leads({ currentEmployee }) {
     return acc
   }, {})
 
-  const hasFilters = filterStatus.length || filterEmployees.length || filterDateFrom || filterDateTo || search || debtSearch || filterReminder
+  const hasFilters = filterStatus.length || filterEmployees.length || filterDateFrom || filterDateTo || searchInput || debtSearch || filterReminder
 
   const employeeOptions = EMPLOYEES.map(e => ({ value: e, label: e }))
 
@@ -1110,7 +1130,7 @@ export default function Leads({ currentEmployee }) {
         <div className="relative flex-1 min-w-[180px] max-w-[280px]">
           <MagnifyingGlassIcon className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input className="input pl-9 text-sm w-full" placeholder="Αναζήτηση…"
-            value={search} onChange={e => setSearch(e.target.value)} />
+            value={searchInput} onChange={e => setSearchInput(e.target.value)} />
         </div>
 
         {/* Debt search */}

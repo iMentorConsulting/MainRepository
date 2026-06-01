@@ -90,7 +90,8 @@ function LinkForm({ initial, onSave, onCancel }) {
   )
 }
 
-export default function LeadLists() {
+export default function LeadLists({ currentEmployee }) {
+  const isAdmin = currentEmployee === 'HARIS'
   const [templates, setTemplates] = useState([])
   const [links, setLinks] = useState([])
   const [addingTpl, setAddingTpl] = useState(false)
@@ -165,8 +166,8 @@ export default function LeadLists() {
         </div>
       </div>
 
-      {/* Sync section */}
-      <section className="card p-4">
+      {/* Sync section — admin only */}
+      {isAdmin && <section className="card p-4 border-amber-100 bg-amber-50/30">
         <h2 className="text-base font-bold text-gray-800 mb-3">Συγχρονισμός Google Sheet</h2>
         <div className="flex flex-wrap gap-2">
           <button onClick={() => handleSync(false)} disabled={syncing}
@@ -187,7 +188,7 @@ export default function LeadLists() {
           </button>
         </div>
         <p className="text-xs text-gray-400 mt-2">Αυτόματο sync κάθε μέρα στις 07:45 πρωί.</p>
-      </section>
+      </section>}
 
       {/* Templates */}
       <section>

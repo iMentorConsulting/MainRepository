@@ -87,7 +87,7 @@ export default function App() {
             <Route path="/statistics" element={<Statistics currentEmployee={auth.employee} />} />
             <Route path="/finances" element={<FinancialDashboard currentEmployee={auth.employee} />} />
             <Route path="/leads" element={<Leads currentEmployee={auth.employee} />} />
-            <Route path="/lead-lists" element={<LeadLists />} />
+            <Route path="/lead-lists" element={<LeadLists currentEmployee={auth.employee} />} />
             <Route path="/leads-reporting" element={<LeadsReporting currentEmployee={auth.employee} />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
