@@ -57,6 +57,23 @@ def _tenant_name(tenant: str) -> str:
     return TENANTS.get(tenant, {}).get('name', tenant)
 
 
+_NAT_LANG = {
+    'gr': 'el', 'grc': 'el', 'greek': 'el', 'greece': 'el',
+    'ελλάδα': 'el', 'ελλας': 'el', 'ελληνας': 'el', 'ελληνίδα': 'el',
+    'de': 'de', 'deu': 'de', 'german': 'de', 'germany': 'de',
+    'deutsch': 'de', 'deutschland': 'de',
+    'at': 'de', 'aut': 'de', 'austria': 'de', 'österreich': 'de',
+    'ch': 'de', 'che': 'de', 'switzerland': 'de', 'schweiz': 'de',
+    'fr': 'fr', 'fra': 'fr', 'french': 'fr', 'france': 'fr',
+    'français': 'fr', 'be': 'fr', 'bel': 'fr', 'belgium': 'fr', 'belgique': 'fr',
+}
+
+
+def _suggested_lang(customer) -> str:
+    nat = (customer.nationality or '').lower().strip() if customer else ''
+    return _NAT_LANG.get(nat, 'en')
+
+
 # ── Info & Verification ────────────────────────────────────────────────────────
 
 @router.get("/{token}/info")
@@ -70,6 +87,7 @@ def guest_info(token: str, db: Session = Depends(get_db)):
     return {
         "is_verified": gt.is_verified,
         "property_name": _tenant_name(booking.tenant),
+        "suggested_language": _suggested_lang(booking.customer),
         "booking": {
             "unit_name": booking.unit.name if booking.unit else "",
             "check_in": booking.check_in.isoformat(),
