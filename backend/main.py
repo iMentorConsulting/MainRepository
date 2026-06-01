@@ -58,14 +58,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(auth.router)
-app.include_router(units.router)
-app.include_router(bookings.router)
-app.include_router(customers.router)
-app.include_router(reports.router)
-app.include_router(ai_advisor.router)
-app.include_router(cleaning.router)
-app.include_router(ical.router)
+app.include_router(auth.router, prefix="/api")
+app.include_router(units.router, prefix="/api")
+app.include_router(bookings.router, prefix="/api")
+app.include_router(customers.router, prefix="/api")
+app.include_router(reports.router, prefix="/api")
+app.include_router(ai_advisor.router, prefix="/api")
+app.include_router(cleaning.router, prefix="/api")
+app.include_router(ical.router, prefix="/api")
 
 
 @app.get("/health")
