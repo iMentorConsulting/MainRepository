@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
-import api from '../api'
+import api, { getLicense } from '../api'
 import toast from 'react-hot-toast'
 import {
   PlusIcon,
@@ -190,10 +190,12 @@ function SettingsTab() {
   const [showSmtpPass, setShowSmtpPass] = useState(false)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [license, setLicense] = useState(null)
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
 
   useEffect(() => {
+    getLicense().then(r => setLicense(r.data)).catch(() => {})
     api.get('/portal/settings')
       .then(r => setForm(f => ({ ...f, ...r.data })))
       .catch(() => toast.error('Failed to load settings.'))
@@ -294,11 +296,39 @@ function SettingsTab() {
         </div>
       </div>
 
+      {/* License Serial Number */}
+      {license && (
+        <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm space-y-3">
+          <h3 className="font-semibold text-gray-800 text-sm uppercase tracking-wider text-[#1e3a5f]">Άδεια Λογισμικού</h3>
+          <div className="bg-gray-50 rounded-xl p-4 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-gray-500">Serial Number</span>
+              <button
+                type="button"
+                onClick={() => { navigator.clipboard.writeText(license.license_key); toast.success('Serial αντιγράφηκε') }}
+                className="text-xs text-blue-600 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 rounded"
+                aria-label="Αντιγραφή serial number"
+              >
+                Αντιγραφή
+              </button>
+            </div>
+            <p className="font-mono text-base font-bold text-[#1e3a5f] tracking-widest select-all">{license.license_key}</p>
+            <div className="grid grid-cols-2 gap-2 mt-2 text-xs text-gray-500">
+              <span>Λογισμικό: <strong className="text-gray-700">{license.software_name}</strong></span>
+              <span>Έκδοση: <strong className="text-gray-700">v{license.software_version}</strong></span>
+              <span>Εγκατάσταση: <strong className="text-gray-700">{license.tenant}</strong></span>
+              <span>Ημ/νία: <strong className="text-gray-700">{license.generated_at}</strong></span>
+            </div>
+          </div>
+          <p className="text-xs text-gray-400">Αυτός ο αριθμός αδείας είναι μοναδικός για την εγκατάστασή σας. Διατηρήστε τον για τους σκοπούς τεκμηρίωσης και ΕΣΠΑ.</p>
+        </div>
+      )}
+
       <div className="flex justify-end">
         <button
           type="submit"
           disabled={saving}
-          className="bg-[#1e3a5f] text-white px-8 py-3 rounded-xl font-semibold hover:bg-[#16305a] transition-colors disabled:opacity-50"
+          className="bg-[#1e3a5f] text-white px-8 py-3 rounded-xl font-semibold hover:bg-[#16305a] transition-colors disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1e3a5f] focus-visible:ring-offset-2"
         >
           {saving ? 'Saving...' : 'Save Settings'}
         </button>

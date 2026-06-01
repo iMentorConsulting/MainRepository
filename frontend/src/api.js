@@ -81,6 +81,7 @@ export const syncIcalUnit = (unitId) => api.post(`/ical/sync/${unitId}`)
 // Guest Portal — admin side
 export const getPortalSettings = () => api.get('/portal/settings')
 export const savePortalSettings = (data) => api.put('/portal/settings', data)
+export const getLicense = () => api.get('/portal/license')
 export const getPortalGuide = () => api.get('/portal/guide')
 export const createGuideItem = (data) => api.post('/portal/guide', data)
 export const updateGuideItem = (id, data) => api.put(`/portal/guide/${id}`, data)

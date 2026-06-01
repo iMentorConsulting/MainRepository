@@ -185,3 +185,14 @@ class GuestPortalSettings(Base):
     smtp_user = Column(String(200))
     smtp_pass = Column(String(200))
     notification_email = Column(String(200))
+
+
+class InstallationLicense(Base):
+    __tablename__ = 'installation_licenses'
+
+    id = Column(Integer, primary_key=True)
+    tenant = Column(String(50), nullable=False, unique=True, index=True)
+    license_key = Column(String(100), nullable=False, unique=True)
+    generated_at = Column(DateTime, default=datetime.utcnow)
+    software_name = Column(String(200), default='Villa Booking Management System')
+    software_version = Column(String(20), default='2.0')

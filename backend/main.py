@@ -78,6 +78,20 @@ try:
 except Exception:
     pass
 
+# Generate license keys for all tenants (idempotent)
+try:
+    from license_manager import get_or_create_license
+    from auth_utils import TENANTS
+    from database import SessionLocal as _SL3
+    _lic_db = _SL3()
+    try:
+        for _t in TENANTS:
+            get_or_create_license(_t, _lic_db)
+    finally:
+        _lic_db.close()
+except Exception:
+    pass
+
 app = FastAPI(
     title="Σύστημα Διαχείρισης Κρατήσεων",
     description="API διαχείρισης κρατήσεων τουριστικών καταλυμάτων",

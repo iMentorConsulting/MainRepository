@@ -117,22 +117,39 @@ function VerifyScreen({ token, onVerified, lang, setLang }) {
           <h1 className="text-xl font-bold text-gray-900">{tr.verify_title}</h1>
           <p className="text-sm text-gray-500 mt-2">{tr.verify_sub}</p>
         </div>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <input
-            type="text"
-            value={contact}
-            onChange={e => setContact(e.target.value)}
-            placeholder={tr.verify_placeholder}
-            autoFocus
-            className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]"
-          />
+        <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+          <div>
+            <label htmlFor="guest-contact" className="block text-sm font-medium text-gray-700 mb-1">
+              {tr.verify_placeholder}
+            </label>
+            <input
+              id="guest-contact"
+              type="text"
+              value={contact}
+              onChange={e => setContact(e.target.value)}
+              placeholder={tr.verify_placeholder}
+              autoFocus
+              autoComplete="email tel"
+              aria-describedby={error ? 'verify-error' : undefined}
+              aria-invalid={!!error}
+              className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f]"
+            />
+          </div>
           {error && (
-            <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700">{error}</div>
+            <div
+              id="verify-error"
+              role="alert"
+              aria-live="assertive"
+              className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700"
+            >
+              {error}
+            </div>
           )}
           <button
             type="submit"
             disabled={loading || !contact.trim()}
-            className="w-full bg-[#1e3a5f] text-white py-3 rounded-xl font-semibold disabled:opacity-50"
+            aria-busy={loading}
+            className="w-full bg-[#1e3a5f] text-white py-3 rounded-xl font-semibold disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#1e3a5f]"
           >
             {loading ? tr.verifying : tr.verify_btn}
           </button>
@@ -802,7 +819,9 @@ export default function GuestPortal() {
       </header>
 
       {/* Content */}
-      <main className="flex-1 overflow-y-auto px-4 pt-4">
+      <main id="portal-main" className="flex-1 overflow-y-auto px-4 pt-4" role="main" aria-label="Περιεχόμενο Portal"
+        tabIndex="-1"
+      >
         {activeTab === 'home'      && <HomeTab info={homeInfo} token={token} lang={lang} />}
         {activeTab === 'guide'     && <GuideTab token={token} lang={lang} />}
         {activeTab === 'local'     && <LocalTab token={token} lang={lang} />}
@@ -812,11 +831,15 @@ export default function GuestPortal() {
       </main>
 
       {/* Bottom nav */}
-      <nav className="bg-white border-t border-gray-200 sticky bottom-0 z-30">
-        <div className="grid grid-cols-6">
+      <nav className="bg-white border-t border-gray-200 sticky bottom-0 z-30" aria-label="Πλοήγηση Portal">
+        <div className="grid grid-cols-6" role="tablist">
           {TABS.map(tab => (
             <button
               key={tab.id}
+              role="tab"
+              aria-selected={activeTab === tab.id}
+              aria-controls="portal-main"
+              aria-label={tab.label}
               onClick={() => setActiveTab(tab.id)}
               className={`flex flex-col items-center gap-0.5 py-2.5 transition-colors ${
                 activeTab === tab.id

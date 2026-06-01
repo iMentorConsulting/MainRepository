@@ -7,7 +7,7 @@ from database import get_db
 from models import (
     Booking, Customer, Unit, GuestToken,
     WelcomeGuideItem, LocalRecommendation, MarketplaceItem,
-    ServiceRequest, GuestMessage, GuestPortalSettings,
+    ServiceRequest, GuestMessage, GuestPortalSettings, InstallationLicense,
 )
 from auth_utils import get_tenant
 
@@ -62,6 +62,19 @@ def save_settings(body: dict, db: Session = Depends(get_db), tenant: str = Depen
             setattr(s, f, body[f])
     db.commit()
     return {"saved": True}
+
+
+@router.get("/license")
+def get_license(db: Session = Depends(get_db), tenant: str = Depends(get_tenant)):
+    from license_manager import get_or_create_license
+    lic = get_or_create_license(tenant, db)
+    return {
+        "license_key": lic.license_key,
+        "tenant": lic.tenant,
+        "software_name": lic.software_name,
+        "software_version": lic.software_version,
+        "generated_at": lic.generated_at.strftime("%Y-%m-%d") if lic.generated_at else None,
+    }
 
 
 # ── Welcome Guide ──────────────────────────────────────────────────────────────
