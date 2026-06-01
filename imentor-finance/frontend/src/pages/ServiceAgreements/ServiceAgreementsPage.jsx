@@ -343,12 +343,14 @@ export default function ServiceAgreementsPage() {
   // Pivot tab
   const [pivotData, setPivotData] = useState([]);
   const [pivotLoading, setPivotLoading] = useState(false);
-  const [pivotCell, setPivotCell] = useState(null); // { service_type, status, items }
+  const [pivotCell, setPivotCell] = useState(null);
   const [pivotCellLoading, setPivotCellLoading] = useState(false);
+  const [pivotFilters, setPivotFilters] = useState({ service_types: [], statuses: [], years: [], months: [] });
 
   // Missing dates tab
   const [missingData, setMissingData] = useState([]);
   const [missingLoading, setMissingLoading] = useState(false);
+  const [missingFilters, setMissingFilters] = useState({ service_types: [], years: [], months: [] });
 
   // CM sync
   const [syncModal, setSyncModal] = useState(false);
@@ -378,21 +380,32 @@ export default function ServiceAgreementsPage() {
 
   const loadPivot = useCallback(() => {
     setPivotLoading(true);
-    api.get('/service-agreements/pivot')
+    const p = {};
+    if (pivotFilters.service_types.length) p.service_types = pivotFilters.service_types.join(',');
+    if (pivotFilters.statuses.length) p.statuses = pivotFilters.statuses.join(',');
+    if (pivotFilters.years.length) p.years = pivotFilters.years.join(',');
+    if (pivotFilters.months.length) p.months = pivotFilters.months.join(',');
+    api.get('/service-agreements/pivot', { params: p })
       .then(r => setPivotData(r.data))
       .catch(() => {})
       .finally(() => setPivotLoading(false));
-  }, []);
+  }, [pivotFilters]);
 
   const loadMissing = useCallback(() => {
     setMissingLoading(true);
-    api.get('/service-agreements', { params: { missing_dates: 'true', limit: 500, sort_field: 'createdAt', sort_dir: 'DESC' } })
+    const p = { missing_dates: 'true', limit: 500, sort_field: 'createdAt', sort_dir: 'DESC' };
+    if (missingFilters.service_types.length) p.service_type = missingFilters.service_types.join(',');
+    if (missingFilters.years.length) { p.sale_years = missingFilters.years.join(','); }
+    if (missingFilters.months.length) { p.sale_months = missingFilters.months.join(','); }
+    api.get('/service-agreements', { params: p })
       .then(r => setMissingData(r.data.data || []))
       .catch(() => {})
       .finally(() => setMissingLoading(false));
-  }, []);
+  }, [missingFilters]);
 
   useEffect(() => { load(); }, [load]);
+  useEffect(() => { if (activeTab === 'pivot') loadPivot(); }, [pivotFilters]);
+  useEffect(() => { if (activeTab === 'missing') loadMissing(); }, [missingFilters]);
 
   useEffect(() => {
     api.get('/service-agreements/stats').then(r => setStats(r.data)).catch(() => {});
@@ -794,22 +807,59 @@ export default function ServiceAgreementsPage() {
 
       {/* ── PIVOT TAB ─────────────────────────────────────────────────────── */}
       {activeTab === 'pivot' && (
-        <div className="card overflow-hidden">
-          <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
-            <div>
-              <div className="font-bold text-slate-800">Κατανομή ανά Υπηρεσία & Κατάσταση</div>
-              <div className="text-xs text-slate-400 mt-0.5">Κλικ σε κελί για να δείτε τις συμφωνίες</div>
-            </div>
-            <button onClick={loadPivot} disabled={pivotLoading} className="btn-secondary btn-sm">
+        <div className="space-y-3">
+          {/* Filter bar */}
+          <div className="filter-bar flex-wrap gap-2">
+            <MultiSelectDropdown label="Υπηρεσία" options={(services || []).map(s => ({ value: s }))}
+              selected={pivotFilters.service_types}
+              onChange={v => setPivotFilters(f => ({ ...f, service_types: v }))} />
+            <MultiSelectDropdown label="Κατάσταση" options={STATUS_OPTS.map(s => ({ value: s }))}
+              selected={pivotFilters.statuses}
+              onChange={v => setPivotFilters(f => ({ ...f, statuses: v }))} />
+            <MultiSelectDropdown label="Έτος" options={YEAR_OPTS}
+              selected={pivotFilters.years}
+              onChange={v => setPivotFilters(f => ({ ...f, years: v }))} />
+            <MultiSelectDropdown label="Μήνας" options={MONTH_OPTS}
+              selected={pivotFilters.months}
+              onChange={v => setPivotFilters(f => ({ ...f, months: v }))} />
+            {(pivotFilters.service_types.length || pivotFilters.statuses.length || pivotFilters.years.length || pivotFilters.months.length) ? (
+              <button className="btn-ghost btn-sm text-xs" onClick={() => setPivotFilters({ service_types: [], statuses: [], years: [], months: [] })}>✕ Καθαρισμός</button>
+            ) : null}
+            <button onClick={loadPivot} disabled={pivotLoading} className="btn-secondary btn-sm ml-auto">
               {pivotLoading ? 'Φόρτωση…' : '↺ Ανανέωση'}
             </button>
           </div>
-          <PivotTable data={pivotData} loading={pivotLoading} onCellClick={handlePivotCellClick} />
+          <div className="card overflow-hidden">
+            <div className="px-5 py-3 border-b border-slate-100">
+              <div className="font-bold text-slate-800">Κατανομή ανά Υπηρεσία & Κατάσταση</div>
+              <div className="text-xs text-slate-400 mt-0.5">Κλικ σε κελί για να δείτε τις συμφωνίες</div>
+            </div>
+            <PivotTable data={pivotData} loading={pivotLoading} onCellClick={handlePivotCellClick} />
+          </div>
         </div>
       )}
 
       {/* ── MISSING DATES TAB ─────────────────────────────────────────────── */}
       {activeTab === 'missing' && (
+        <div className="space-y-3">
+          {/* Filter bar */}
+          <div className="filter-bar flex-wrap gap-2">
+            <MultiSelectDropdown label="Υπηρεσία" options={(services || []).map(s => ({ value: s }))}
+              selected={missingFilters.service_types}
+              onChange={v => setMissingFilters(f => ({ ...f, service_types: v }))} />
+            <MultiSelectDropdown label="Έτος" options={YEAR_OPTS}
+              selected={missingFilters.years}
+              onChange={v => setMissingFilters(f => ({ ...f, years: v }))} />
+            <MultiSelectDropdown label="Μήνας" options={MONTH_OPTS}
+              selected={missingFilters.months}
+              onChange={v => setMissingFilters(f => ({ ...f, months: v }))} />
+            {(missingFilters.service_types.length || missingFilters.years.length || missingFilters.months.length) ? (
+              <button className="btn-ghost btn-sm text-xs" onClick={() => setMissingFilters({ service_types: [], years: [], months: [] })}>✕ Καθαρισμός</button>
+            ) : null}
+            <button onClick={loadMissing} disabled={missingLoading} className="btn-secondary btn-sm ml-auto">
+              {missingLoading ? 'Φόρτωση…' : '↺ Ανανέωση'}
+            </button>
+          </div>
         <div className="card overflow-hidden">
           <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
             <div>
@@ -822,9 +872,6 @@ export default function ServiceAgreementsPage() {
               </div>
               <div className="text-xs text-slate-400 mt-0.5">Επιλέξτε γραμμές και χρησιμοποιήστε "Μαζικές Ημερομηνίες" για μαζική συμπλήρωση</div>
             </div>
-            <button onClick={loadMissing} disabled={missingLoading} className="btn-secondary btn-sm">
-              {missingLoading ? 'Φόρτωση…' : '↺ Ανανέωση'}
-            </button>
           </div>
           {missingLoading ? (
             <div className="p-12 text-center text-slate-400 text-sm">Φόρτωση...</div>
@@ -906,6 +953,7 @@ export default function ServiceAgreementsPage() {
               </table>
             </div>
           )}
+        </div>
         </div>
       )}
 

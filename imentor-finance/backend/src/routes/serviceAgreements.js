@@ -27,6 +27,45 @@ async function checkAndAutoStatus(saId) {
 // ── GET /pivot — service × status cross-tab ──────────────────────────────────
 router.get('/pivot', async (req, res) => {
   try {
+    const { service_types, statuses, years, months } = req.query;
+    const conditions = [];
+    const replacements = {};
+
+    if (service_types) {
+      const list = service_types.split(',').map(s => s.trim()).filter(Boolean);
+      if (list.length) {
+        conditions.push(`service_type IN (:serviceList)`);
+        replacements.serviceList = list;
+      }
+    }
+    if (statuses) {
+      const list = statuses.split(',').map(s => s.trim()).filter(Boolean);
+      if (list.length) {
+        conditions.push(`status IN (:statusList)`);
+        replacements.statusList = list;
+      }
+    }
+    if (years && months) {
+      const yList = years.split(',').map(s => s.trim()).filter(Boolean);
+      const mList = months.split(',').map(s => s.trim()).filter(Boolean);
+      const dateParts = [];
+      for (const y of yList) {
+        for (const m of mList) {
+          const mm = m.padStart(2, '0');
+          const lastDay = new Date(parseInt(y), parseInt(m), 0).getDate();
+          dateParts.push(`"createdAt" BETWEEN '${y}-${mm}-01' AND '${y}-${mm}-${String(lastDay).padStart(2,'0')}'`);
+        }
+      }
+      if (dateParts.length) conditions.push(`(${dateParts.join(' OR ')})`);
+    } else if (years) {
+      const yList = years.split(',').map(s => s.trim()).filter(Boolean);
+      if (yList.length) {
+        const yParts = yList.map(y => `"createdAt" BETWEEN '${y}-01-01' AND '${y}-12-31'`);
+        conditions.push(`(${yParts.join(' OR ')})`);
+      }
+    }
+
+    const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
     const rows = await sequelize.query(`
       SELECT
         COALESCE(NULLIF(TRIM(service_type), ''), 'Χωρίς Υπηρεσία') AS service_type,
@@ -35,9 +74,10 @@ router.get('/pivot', async (req, res) => {
         COALESCE(SUM(amount_application), 0) AS sum_application,
         COALESCE(SUM(amount_implementation), 0) AS sum_implementation
       FROM service_agreements
+      ${where}
       GROUP BY 1, 2
       ORDER BY 1, 2
-    `, { type: QueryTypes.SELECT });
+    `, { replacements, type: QueryTypes.SELECT });
     res.json(rows);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
