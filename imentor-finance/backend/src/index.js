@@ -88,14 +88,22 @@ sequelize.sync({ alter: true }).then(async () => {
 
   app.listen(PORT, () => console.log(`Backend running on port ${PORT}`));
 
-  // Daily backup at 03:00 UTC
+  // Daily backup at 18:00 Athens time
   try {
     const cron = require('node-cron');
     const { runBackup } = require('./backup');
-    cron.schedule('0 3 * * *', () => {
-      runBackup().catch(e => console.error('[backup-cron] error:', e.message));
-    });
-    console.log('[backup-cron] Daily backup scheduled at 03:00 UTC');
+    cron.schedule('0 18 * * *', () => {
+      runBackup()
+        .then(r => {
+          global._lastBackup = { ran_at: new Date().toISOString(), ok: true, counts: r.counts, filename: r.filename };
+          console.log('[backup-cron] Success:', r.filename);
+        })
+        .catch(e => {
+          global._lastBackup = { ran_at: new Date().toISOString(), ok: false, error: e.message };
+          console.error('[backup-cron] error:', e.message);
+        });
+    }, { timezone: 'Europe/Athens' });
+    console.log('[backup-cron] Daily backup scheduled at 18:00 Europe/Athens');
   } catch (e) {
     console.warn('[backup-cron] Could not schedule backup:', e.message);
   }

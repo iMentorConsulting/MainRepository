@@ -184,6 +184,15 @@ function TwoFAPanel() {
 function BackupPanel() {
   const [running, setRunning] = useState(false);
   const [lastResult, setLastResult] = useState(null);
+  const [autoStatus, setAutoStatus] = useState(null);
+
+  useEffect(() => {
+    api.get('/backup/status').then(r => setAutoStatus(r.data)).catch(() => {});
+  }, []);
+
+  const fmtDate = iso => iso
+    ? new Date(iso).toLocaleString('el-GR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+    : null;
 
   const handleDownload = () => {
     const base = api.defaults?.baseURL || '/api';
@@ -197,6 +206,7 @@ function BackupPanel() {
     try {
       const r = await api.post('/backup/run');
       setLastResult(r.data);
+      setAutoStatus({ ran_at: new Date().toISOString(), ok: true, counts: r.data.counts, filename: r.data.filename });
       if (r.data.driveFile) {
         toast.success(`Αποθηκεύτηκε στο Drive: ${r.data.driveFile.name}`);
       } else {
@@ -215,28 +225,50 @@ function BackupPanel() {
         <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center text-xl shrink-0">☁️</div>
         <div>
           <h3 className="font-bold text-slate-800">Backup Δεδομένων</h3>
-          <p className="text-xs text-slate-400">Εξαγωγή όλων των δεδομένων — αυτόματο backup στο Google Drive κάθε μέρα στις 03:00 UTC</p>
+          <p className="text-xs text-slate-400">Αυτόματο backup στο Google Drive κάθε μέρα στις <strong>18:00 Αθήνα</strong></p>
         </div>
       </div>
+
+      {/* Automated backup status */}
+      <div className={`mb-4 p-3 rounded-xl border text-xs flex items-center gap-3 ${
+        autoStatus?.ran_at === null ? 'bg-slate-50 border-slate-200 text-slate-500' :
+        autoStatus?.ok ? 'bg-emerald-50 border-emerald-200 text-emerald-700' :
+        'bg-rose-50 border-rose-200 text-rose-700'
+      }`}>
+        <span className="text-lg">
+          {autoStatus?.ran_at === null ? '⏳' : autoStatus?.ok ? '✅' : '❌'}
+        </span>
+        <div>
+          <div className="font-semibold">
+            {autoStatus?.ran_at === null
+              ? 'Δεν έχει τρέξει αυτόματο backup από την τελευταία εκκίνηση'
+              : autoStatus?.ok
+              ? `Τελευταίο αυτόματο backup: ${fmtDate(autoStatus.ran_at)}`
+              : `Αποτυχία backup: ${autoStatus?.error}`}
+          </div>
+          {autoStatus?.filename && <div className="opacity-75 mt-0.5">{autoStatus.filename}</div>}
+        </div>
+      </div>
+
       <div className="flex flex-wrap gap-3">
         <button onClick={handleDownload} className="btn-secondary flex items-center gap-2">
           <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
             <path fillRule="evenodd" d="M10 3a.75.75 0 0 1 .75.75v8.69l2.22-2.22a.75.75 0 1 1 1.06 1.06l-3.5 3.5a.75.75 0 0 1-1.06 0l-3.5-3.5a.75.75 0 1 1 1.06-1.06l2.22 2.22V3.75A.75.75 0 0 1 10 3ZM5.75 16a.75.75 0 0 0 0 1.5h8.5a.75.75 0 0 0 0-1.5h-8.5Z" clipRule="evenodd"/>
           </svg>
-          Λήψη JSON Backup
+          Λήψη JSON
         </button>
         <button onClick={handleDriveBackup} disabled={running} className="btn-primary flex items-center gap-2">
           <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
             <path d="M9.25 13.25a.75.75 0 0 0 1.5 0V4.636l2.955 3.129a.75.75 0 0 0 1.09-1.03l-4.25-4.5a.75.75 0 0 0-1.09 0l-4.25 4.5a.75.75 0 1 0 1.09 1.03L9.25 4.636v8.614Z"/>
             <path d="M3.5 12.75a.75.75 0 0 0-1.5 0v2.5A2.75 2.75 0 0 0 4.75 18h10.5A2.75 2.75 0 0 0 18 15.25v-2.5a.75.75 0 0 0-1.5 0v2.5c0 .69-.56 1.25-1.25 1.25H4.75c-.69 0-1.25-.56-1.25-1.25v-2.5Z"/>
           </svg>
-          {running ? 'Αποστολή…' : 'Αποστολή στο Google Drive'}
+          {running ? 'Αποστολή…' : 'Backup τώρα → Drive'}
         </button>
       </div>
       {lastResult && (
         <div className="mt-4 p-3 rounded-xl bg-slate-50 border border-slate-100 text-xs text-slate-600">
-          <div className="font-semibold mb-1 text-slate-700">Αποτέλεσμα τελευταίου backup</div>
-          {lastResult.driveFile && <div className="text-emerald-600 font-medium mb-1">Drive: {lastResult.driveFile.name}</div>}
+          <div className="font-semibold mb-1 text-slate-700">Αποτέλεσμα</div>
+          {lastResult.driveFile && <div className="text-emerald-600 font-medium mb-1">{lastResult.driveFile.name}</div>}
           <div className="grid grid-cols-3 gap-2 mt-1">
             {Object.entries(lastResult.counts || {}).map(([k, v]) => (
               <div key={k}><span className="text-slate-400">{k}:</span> <strong>{v}</strong></div>
@@ -244,10 +276,6 @@ function BackupPanel() {
           </div>
         </div>
       )}
-      <div className="mt-4 p-3 rounded-xl bg-amber-50 border border-amber-100 text-xs text-amber-700">
-        <strong>Google Drive αυτόματο backup:</strong> χρειάζεται Railway env var{' '}
-        <code className="bg-amber-100 px-1 rounded font-mono">GOOGLE_SERVICE_ACCOUNT_KEY</code>.
-      </div>
     </div>
   );
 }
