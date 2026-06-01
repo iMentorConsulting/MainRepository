@@ -56,6 +56,18 @@ try:
 except Exception:
     pass
 
+# Seed Vie Verde Villas demo data (idempotent — skips if already present)
+try:
+    from seed_vieverde import seed_vieverde
+    from database import SessionLocal as _SL2
+    _seed_db = _SL2()
+    try:
+        seed_vieverde(_seed_db)
+    finally:
+        _seed_db.close()
+except Exception:
+    pass
+
 app = FastAPI(
     title="Σύστημα Διαχείρισης Κρατήσεων",
     description="API διαχείρισης κρατήσεων τουριστικών καταλυμάτων",
