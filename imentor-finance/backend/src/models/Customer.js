@@ -13,9 +13,7 @@ const Customer = sequelize.define('Customer', {
   business_activity: { type: DataTypes.STRING },
   accountant:        { type: DataTypes.STRING },
   accountant_email:  { type: DataTypes.STRING },
-  notes:             { type: DataTypes.TEXT },
-  taxisnet_username: { type: DataTypes.STRING },
-  taxisnet_password: { type: DataTypes.STRING },
+  notes:             { type: DataTypes.TEXT }
 }, {
   tableName: 'customers',
   timestamps: true

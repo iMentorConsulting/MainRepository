@@ -5,8 +5,6 @@ import toast from 'react-hot-toast';
 const API = (path, opts = {}) =>
   api({ url: path, ...opts });
 
-const TAXISNET_URL = 'https://www1.gsis.gr/taxisnet/protected/welcomeA.jsp';
-
 const EMPTY_FORM = {
   name: '',
   vat_number: '',
@@ -19,35 +17,7 @@ const EMPTY_FORM = {
   accountant: '',
   accountant_email: '',
   notes: '',
-  taxisnet_username: '',
-  taxisnet_password: '',
 };
-
-function TaxisPasswordField({ value, onChange }) {
-  const [show, setShow] = useState(false);
-  return (
-    <div className="flex gap-2">
-      <input
-        type={show ? 'text' : 'password'}
-        className="input flex-1 font-mono text-sm"
-        value={value}
-        onChange={e => onChange(e.target.value)}
-        placeholder="TaxisNet password"
-        autoComplete="new-password"
-      />
-      <button type="button" className="btn-secondary text-xs px-2" title={show ? 'Απόκρυψη' : 'Εμφάνιση'}
-        onClick={() => setShow(s => !s)}>
-        {show ? '🙈' : '👁'}
-      </button>
-      {value && (
-        <button type="button" className="btn-secondary text-xs px-2" title="Αντιγραφή"
-          onClick={() => { navigator.clipboard.writeText(value); toast.success('Password αντιγράφηκε'); }}>
-          📋
-        </button>
-      )}
-    </div>
-  );
-}
 
 function CustomerModal({ customer, onSave, onCancel }) {
   const [form, setForm] = useState(customer ? { ...customer } : { ...EMPTY_FORM });
@@ -153,39 +123,6 @@ function CustomerModal({ customer, onSave, onCancel }) {
             <div className="md:col-span-2">
               <label className="label">Σημειώσεις</label>
               <textarea className="input h-20 resize-none" value={form.notes} onChange={e => set('notes', e.target.value)} />
-            </div>
-            {/* TaxisNet credentials */}
-            <div className="md:col-span-2 border-t border-slate-100 pt-3">
-              <div className="flex items-center gap-2 mb-3">
-                <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">Σύνδεσμοι TaxisNet</span>
-                {(form.taxisnet_username || form.taxisnet_password) && (
-                  <button
-                    type="button"
-                    className="ml-auto text-xs px-3 py-1 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors"
-                    onClick={() => window.open(TAXISNET_URL, '_blank')}
-                  >
-                    🔗 Άνοιγμα TaxisNet
-                  </button>
-                )}
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div>
-                  <label className="label">Όνομα χρήστη</label>
-                  <div className="flex gap-2">
-                    <input className="input flex-1 font-mono text-sm" value={form.taxisnet_username} onChange={e => set('taxisnet_username', e.target.value)} placeholder="TaxisNet username" />
-                    {form.taxisnet_username && (
-                      <button type="button" className="btn-secondary text-xs px-2" title="Αντιγραφή"
-                        onClick={() => { navigator.clipboard.writeText(form.taxisnet_username); toast.success('Username αντιγράφηκε'); }}>
-                        📋
-                      </button>
-                    )}
-                  </div>
-                </div>
-                <div>
-                  <label className="label">Κωδικός</label>
-                  <TaxisPasswordField value={form.taxisnet_password} onChange={v => set('taxisnet_password', v)} />
-                </div>
-              </div>
             </div>
           </div>
           <div className="flex justify-end gap-3 pt-2 border-t border-slate-100">
@@ -387,21 +324,7 @@ export default function CustomersPage() {
                       ) : '—'}
                     </td>
                     <td className="td">
-                      <div className="flex gap-2 flex-wrap">
-                        {c.taxisnet_username && (
-                          <button
-                            className="text-xs px-2 py-1 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors"
-                            title={`${c.taxisnet_username} ${c.taxisnet_password || ''}`}
-                            onClick={() => {
-                              const combined = `${c.taxisnet_username} ${c.taxisnet_password || ''}`.trim();
-                              navigator.clipboard.writeText(combined);
-                              toast.success('Αντιγράφηκε: username password — ανοίγει TaxisNet');
-                              window.open(TAXISNET_URL, '_blank');
-                            }}
-                          >
-                            TaxisNet
-                          </button>
-                        )}
+                      <div className="flex gap-2">
                         <button
                           className="text-xs px-2 py-1 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition-colors"
                           onClick={() => setModal({ edit: c })}
