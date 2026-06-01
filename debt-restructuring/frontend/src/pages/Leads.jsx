@@ -269,6 +269,7 @@ function NextCallPill({ value, sheetValue, onChange }) {
 function CommentPanel({ lead, currentEmployee, onUpdate }) {
   const [text, setText] = useState('')
   const [saving, setSaving] = useState(false)
+  const [expandedIdx, setExpandedIdx] = useState(null)
 
   const submit = async () => {
     if (!text.trim()) return
@@ -294,29 +295,77 @@ function CommentPanel({ lead, currentEmployee, onUpdate }) {
   ]
 
   return (
-    <div className="space-y-2">
-      {all.length === 0 && <p className="text-xs text-gray-400 italic">Χωρίς σχόλια</p>}
-      {all.map((c, i) => (
-        <div key={i} className={`flex items-start gap-2 text-xs ${c._sheet ? 'opacity-70' : ''}`}>
-          <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold shrink-0 mt-0.5
-            ${c._sheet ? 'bg-gray-200 text-gray-500' : 'bg-blue-600 text-white'}`}>
-            {AGENT_SHORT[c.author?.toUpperCase?.()] ?? AGENT_SHORT[c.author] ?? c.author?.[0] ?? '?'}
-          </div>
-          <div className="flex-1 bg-gray-50 rounded-lg px-2 py-1">
-            <div className="flex items-center justify-between gap-2">
-              <span className="font-semibold text-gray-600">{c.author}</span>
-              {c.at && <span className="text-gray-400">{format(parseISO(c.at), 'dd/MM HH:mm')}</span>}
+    <div className="space-y-1.5">
+      {/* Comment feed */}
+      <div className="max-h-56 overflow-y-auto space-y-0.5 pr-0.5">
+        {all.length === 0 && <p className="text-xs text-gray-400 italic py-1">Χωρίς σχόλια</p>}
+        {all.map((c, i) => {
+          const isSystem = c.author === 'system'
+          const isSheet = c._sheet
+          const short = AGENT_SHORT[c.author?.toUpperCase?.()] ?? AGENT_SHORT[c.author] ?? c.author?.[0] ?? '?'
+          // For system messages show only the first line (type + template name)
+          const firstLine = c.text?.split('\n')[0] || ''
+          const hasMore = isSystem && c.text?.includes('\n')
+          const expanded = expandedIdx === i
+          const appIdx = isSheet ? -1 : lead.app_comments?.indexOf(c) ?? -1
+
+          return (
+            <div key={i}
+              className={`flex items-start gap-1.5 text-xs group rounded px-1.5 py-0.5 -mx-1 transition-colors
+                ${isSystem ? 'hover:bg-gray-50' : isSheet ? 'hover:bg-gray-50 opacity-80' : 'hover:bg-blue-50/40'}`}>
+
+              {/* Avatar */}
+              <div className={`w-4 h-4 rounded-full flex items-center justify-center text-[8px] font-bold shrink-0 mt-0.5
+                ${isSystem ? 'bg-gray-200 text-gray-500' : isSheet ? 'bg-gray-300 text-gray-500' : 'bg-blue-600 text-white'}`}>
+                {short}
+              </div>
+
+              {/* Content */}
+              <div className="flex-1 min-w-0">
+                {isSystem ? (
+                  <span className="text-gray-500">
+                    {firstLine}
+                    {hasMore && (
+                      <button onClick={() => setExpandedIdx(expanded ? null : i)}
+                        className="ml-1 text-blue-400 hover:text-blue-600 text-[10px]">
+                        {expanded ? '▲' : '▼'}
+                      </button>
+                    )}
+                    {expanded && (
+                      <span className="block text-gray-400 mt-0.5 whitespace-pre-wrap leading-tight">
+                        {c.text.split('\n').slice(1).join('\n')}
+                      </span>
+                    )}
+                  </span>
+                ) : (
+                  <span className="text-gray-800 whitespace-pre-wrap leading-relaxed">
+                    {!isSheet && <span className="font-semibold text-gray-600 mr-1">{short}:</span>}
+                    {c.text}
+                  </span>
+                )}
+              </div>
+
+              {/* Timestamp + delete */}
+              <div className="flex items-center gap-1 shrink-0 mt-0.5">
+                {c.at && (
+                  <span className="text-gray-400 text-[10px] whitespace-nowrap">
+                    {format(parseISO(c.at), 'dd/MM HH:mm')}
+                  </span>
+                )}
+                {!isSheet && !isSystem && appIdx >= 0 && (
+                  <button onClick={() => del(appIdx)}
+                    className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-500 transition-opacity">
+                    <TrashIcon className="w-3 h-3" />
+                  </button>
+                )}
+              </div>
             </div>
-            <p className="text-gray-800 mt-0.5 whitespace-pre-wrap">{c.text}</p>
-          </div>
-          {!c._sheet && (
-            <button onClick={() => del(lead.app_comments.indexOf(c))} className="text-gray-300 hover:text-red-500 mt-1">
-              <TrashIcon className="w-3.5 h-3.5" />
-            </button>
-          )}
-        </div>
-      ))}
-      <div className="flex gap-2 pt-1">
+          )
+        })}
+      </div>
+
+      {/* New comment input */}
+      <div className="flex gap-2 pt-1 border-t border-gray-100">
         <textarea
           className="flex-1 text-xs border border-gray-200 rounded-lg px-2 py-1.5 resize-none focus:outline-none focus:ring-1 focus:ring-blue-400"
           rows={2}
