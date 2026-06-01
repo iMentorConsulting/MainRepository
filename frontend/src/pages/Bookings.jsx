@@ -49,13 +49,18 @@ function BookingModal({ booking, units, customers: initCustomers, onClose, onSav
   const [newCust, setNewCust] = useState({ fullName: '', email: '', phone: '', nationality: '', id_number: '' })
   const [savingCust, setSavingCust] = useState(false)
   const [portalLink, setPortalLink] = useState(null)
+  const [portalLinkError, setPortalLinkError] = useState(false)
   const [sendingEmail, setSendingEmail] = useState(false)
 
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }))
 
   useEffect(() => {
     if (booking?.id) {
-      getPortalLink(booking.id).then((r) => setPortalLink(r.data)).catch(() => {})
+      setPortalLink(null)
+      setPortalLinkError(false)
+      getPortalLink(booking.id)
+        .then((r) => setPortalLink(r.data))
+        .catch(() => setPortalLinkError(true))
     }
   }, [booking?.id])
 
@@ -70,7 +75,6 @@ function BookingModal({ booking, units, customers: initCustomers, onClose, onSav
   }
 
   const handleSendEmail = async () => {
-    if (!portalLink?.url) return
     setSendingEmail(true)
     try {
       await sendPortalEmail(booking.id, {})
@@ -329,41 +333,55 @@ function BookingModal({ booking, units, customers: initCustomers, onClose, onSav
           </div>
 
           {/* Guest Portal Link — only for saved bookings */}
-          {booking?.id && portalLink && (
+          {booking?.id && (
             <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-4 space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-sm font-semibold text-indigo-800 flex items-center gap-1.5">
                   <LinkIcon className="h-4 w-4" /> Guest Portal
                 </span>
-                {portalLink.is_verified
-                  ? <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">✓ Επαληθευμένος</span>
-                  : <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">Αναμένει επαλήθευση</span>
-                }
+                {portalLink && (
+                  portalLink.is_verified
+                    ? <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">✓ Επαληθευμένος</span>
+                    : <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">Αναμένει επαλήθευση</span>
+                )}
               </div>
-              <div className="flex gap-2">
-                <input
-                  readOnly
-                  value={portalFullUrl || ''}
-                  className="input text-xs flex-1 bg-white font-mono select-all cursor-pointer"
-                  onClick={(e) => e.target.select()}
-                />
-                <button
-                  type="button"
-                  onClick={handleCopyLink}
-                  className="btn-secondary text-xs whitespace-nowrap px-3"
-                >
-                  Αντιγραφή
-                </button>
-              </div>
-              <button
-                type="button"
-                onClick={handleSendEmail}
-                disabled={sendingEmail}
-                className="w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium py-2 rounded-lg transition disabled:opacity-60"
-              >
-                <EnvelopeIcon className="h-4 w-4" />
-                {sendingEmail ? 'Αποστολή...' : 'Αποστολή email στον πελάτη'}
-              </button>
+
+              {portalLinkError && (
+                <p className="text-xs text-red-500">Σφάλμα φόρτωσης συνδέσμου — ελέγξτε αν οι πίνακες guest portal έχουν δημιουργηθεί.</p>
+              )}
+
+              {!portalLink && !portalLinkError && (
+                <p className="text-xs text-indigo-400 animate-pulse">Φόρτωση συνδέσμου...</p>
+              )}
+
+              {portalLink && (
+                <>
+                  <div className="flex gap-2">
+                    <input
+                      readOnly
+                      value={portalFullUrl || ''}
+                      className="input text-xs flex-1 bg-white font-mono select-all cursor-pointer"
+                      onClick={(e) => e.target.select()}
+                    />
+                    <button
+                      type="button"
+                      onClick={handleCopyLink}
+                      className="btn-secondary text-xs whitespace-nowrap px-3"
+                    >
+                      Αντιγραφή
+                    </button>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleSendEmail}
+                    disabled={sendingEmail}
+                    className="w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium py-2 rounded-lg transition disabled:opacity-60"
+                  >
+                    <EnvelopeIcon className="h-4 w-4" />
+                    {sendingEmail ? 'Αποστολή...' : 'Αποστολή email στον πελάτη'}
+                  </button>
+                </>
+              )}
             </div>
           )}
 
