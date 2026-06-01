@@ -391,10 +391,11 @@ export default function CustomersPage() {
                         {c.taxisnet_username && (
                           <button
                             className="text-xs px-2 py-1 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors"
-                            title={`User: ${c.taxisnet_username}`}
+                            title={`${c.taxisnet_username} ${c.taxisnet_password || ''}`}
                             onClick={() => {
-                              navigator.clipboard.writeText(c.taxisnet_username);
-                              toast.success('Username αντιγράφηκε — ανοίγει TaxisNet');
+                              const combined = `${c.taxisnet_username} ${c.taxisnet_password || ''}`.trim();
+                              navigator.clipboard.writeText(combined);
+                              toast.success('Αντιγράφηκε: username password — ανοίγει TaxisNet');
                               window.open(TAXISNET_URL, '_blank');
                             }}
                           >
