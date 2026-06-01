@@ -139,7 +139,7 @@ def _run_leads_sync_safe():
 if os.getenv("GOOGLE_DRIVE_BACKUP_FOLDER_ID"):
     from apscheduler.schedulers.background import BackgroundScheduler
     _scheduler = BackgroundScheduler()
-    _scheduler.add_job(_run_backup_safe, "cron", hour=18, minute=0)  # 18:00 UTC daily
+    _scheduler.add_job(_run_backup_safe, "cron", hour=15, minute=0)  # 15:00 UTC = 18:00 Athens (EEST/UTC+3)
     if os.getenv("GOOGLE_SHEET_ID"):
         _scheduler.add_job(_run_leads_sync_safe, "cron", hour=4, minute=45)  # 04:45 UTC = 07:45 EEST
         print("[LeadsSync] Scheduler started — daily at 04:45 UTC (07:45 EEST)")

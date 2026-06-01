@@ -531,14 +531,13 @@ function TaxisNetPanel({ lead, onUpdate, links }) {
 
   const openLink = async (link) => {
     if (link.auto_fill && (username || password)) {
-      const parts = []
-      if (username) parts.push(`Username: ${username}`)
-      if (password) parts.push(`Password: ${password}`)
+      const text = [username, password].filter(Boolean).join('\n')
+      const preview = [username, password].filter(Boolean).join('  ')
       try {
-        await navigator.clipboard.writeText(parts.join('\n'))
-        toast.success(`📋 ${parts.join(' | ')} — αντιγράφηκε στο πρόχειρο`, { duration: 4000 })
+        await navigator.clipboard.writeText(text)
+        toast.success(`📋 ${preview} — αντιγράφηκε στο πρόχειρο`, { duration: 4000 })
       } catch {
-        toast(`Username: ${username || '—'}  Password: ${password || '—'}`, { duration: 5000 })
+        toast(`${preview}`, { duration: 5000 })
       }
     }
     window.open(link.url, '_blank', 'noopener,noreferrer')
