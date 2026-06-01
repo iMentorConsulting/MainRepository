@@ -128,6 +128,11 @@ _uploads = os.getenv("UPLOAD_DIR", "/data/uploads")
 if os.path.exists(_uploads):
     app.mount("/uploads", StaticFiles(directory=_uploads), name="uploads")
 
+# Serve documentation (ΕΣΠΑ presentation, etc.)
+_docs_dir = os.path.join(os.path.dirname(__file__), "docs")
+if os.path.exists(_docs_dir):
+    app.mount("/docs", StaticFiles(directory=_docs_dir), name="docs")
+
 # Serve React frontend — must be last so API routes take priority
 _static = os.path.join(os.path.dirname(__file__), "static")
 if os.path.exists(_static):
