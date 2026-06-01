@@ -39,6 +39,9 @@ def get_settings(db: Session = Depends(get_db), tenant: str = Depends(get_tenant
         "hospital_name": s.hospital_name, "hospital_phone": s.hospital_phone,
         "police_phone": s.police_phone, "ambulance_phone": s.ambulance_phone,
         "fire_phone": s.fire_phone, "from_name": s.from_name,
+        "smtp_host": s.smtp_host or "", "smtp_port": s.smtp_port or 587,
+        "smtp_user": s.smtp_user or "", "smtp_pass": s.smtp_pass or "",
+        "notification_email": s.notification_email or "",
     }
 
 
@@ -52,6 +55,7 @@ def save_settings(body: dict, db: Session = Depends(get_db), tenant: str = Depen
         "welcome_message", "checkin_time", "checkout_time", "manager_phone",
         "manager_email", "emergency_contact", "hospital_name", "hospital_phone",
         "police_phone", "ambulance_phone", "fire_phone", "from_name",
+        "smtp_host", "smtp_port", "smtp_user", "smtp_pass", "notification_email",
     ]
     for f in fields:
         if f in body:

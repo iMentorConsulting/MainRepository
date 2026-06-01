@@ -84,10 +84,13 @@ def guest_info(token: str, db: Session = Depends(get_db)):
     db.commit()
 
     s = _settings(db, booking.tenant)
+    cust = booking.customer
     return {
         "is_verified": gt.is_verified,
         "property_name": _tenant_name(booking.tenant),
-        "suggested_language": _suggested_lang(booking.customer),
+        "suggested_language": _suggested_lang(cust),
+        "customer_name": f"{cust.first_name} {cust.last_name}".strip() if cust else "",
+        "customer_first_name": cust.first_name or "" if cust else "",
         "booking": {
             "unit_name": booking.unit.name if booking.unit else "",
             "check_in": booking.check_in.isoformat(),
@@ -216,6 +219,28 @@ def create_request(token: str, body: dict, db: Session = Depends(get_db)):
     db.add(req)
     db.commit()
     db.refresh(req)
+
+    # Notify manager
+    try:
+        from email_utils import send_notification_email
+        s = _settings(db, booking.tenant)
+        cust = booking.customer
+        guest_name = f"{cust.first_name} {cust.last_name}".strip() if cust else "Guest"
+        unit_name = booking.unit.name if booking.unit else ""
+        content = f"{req.service_type}"
+        if req.description:
+            content += f"\n{req.description}"
+        send_notification_email(
+            event_type="service_request",
+            guest_name=guest_name,
+            unit_name=unit_name,
+            content=content,
+            portal_admin_url="/portal",
+            settings=s,
+        )
+    except Exception:
+        pass
+
     return {"id": req.id, "status": req.status}
 
 
@@ -291,6 +316,7 @@ def guest_messages(token: str, db: Session = Depends(get_db)):
 def send_guest_message(token: str, body: dict, db: Session = Depends(get_db)):
     gt, booking = _resolve(token, db)
     text = (body.get("message") or "").strip()
+    lang = (body.get("lang") or "en").strip()
     if not text:
         raise HTTPException(status_code=400, detail="Message cannot be empty")
 
@@ -302,8 +328,8 @@ def send_guest_message(token: str, body: dict, db: Session = Depends(get_db)):
     db.add(msg)
     db.flush()
 
-    # Try AI response
-    ai_reply = _ai_respond(text, booking, db)
+    # Try AI response (language-aware)
+    ai_reply = _ai_respond(text, booking, db, lang=lang)
     if ai_reply:
         ai_msg = GuestMessage(
             booking_id=booking.id, tenant=booking.tenant,
@@ -312,6 +338,26 @@ def send_guest_message(token: str, body: dict, db: Session = Depends(get_db)):
         db.add(ai_msg)
 
     db.commit()
+
+    # Notify manager if AI couldn't answer (or always notify)
+    if not ai_reply:
+        try:
+            from email_utils import send_notification_email
+            s = _settings(db, booking.tenant)
+            cust = booking.customer
+            guest_name = f"{cust.first_name} {cust.last_name}".strip() if cust else "Guest"
+            unit_name = booking.unit.name if booking.unit else ""
+            send_notification_email(
+                event_type="message",
+                guest_name=guest_name,
+                unit_name=unit_name,
+                content=text,
+                portal_admin_url="/portal",
+                settings=s,
+            )
+        except Exception:
+            pass
+
     return {"sent": True, "ai_replied": ai_reply is not None}
 
 
@@ -346,6 +392,25 @@ async def upload_photo_message(
     )
     db.add(msg)
     db.commit()
+
+    # Notify manager
+    try:
+        from email_utils import send_notification_email
+        s = _settings(db, booking.tenant)
+        cust = booking.customer
+        guest_name = f"{cust.first_name} {cust.last_name}".strip() if cust else "Guest"
+        unit_name = booking.unit.name if booking.unit else ""
+        send_notification_email(
+            event_type="photo",
+            guest_name=guest_name,
+            unit_name=unit_name,
+            content=description or "Guest submitted a photo report.",
+            portal_admin_url="/portal",
+            settings=s,
+        )
+    except Exception:
+        pass
+
     return {"photo_path": rel_path}
 
 
@@ -418,7 +483,7 @@ def guest_emergency(token: str, db: Session = Depends(get_db)):
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
-def _ai_respond(question: str, booking: Booking, db: Session) -> str | None:
+def _ai_respond(question: str, booking: Booking, db: Session, lang: str = "en") -> str | None:
     api_key = os.getenv("ANTHROPIC_API_KEY", "")
     if not api_key:
         return None
@@ -434,6 +499,12 @@ def _ai_respond(question: str, booking: Booking, db: Session) -> str | None:
     guide_text = "\n".join(f"[{g.category}] {g.title}: {g.content}" for g in guide_items)
     s = db.query(GuestPortalSettings).filter(GuestPortalSettings.tenant == booking.tenant).first()
 
+    lang_instruction = {
+        "el": "Respond in Greek (Ελληνικά).",
+        "de": "Respond in German (Deutsch).",
+        "fr": "Respond in French (Français).",
+    }.get(lang, "Respond in English.")
+
     context = f"""You are a helpful AI concierge for {booking.unit.name if booking.unit else 'the property'}.
 Guest check-in: {booking.check_in}, check-out: {booking.check_out}.
 Check-in time: {s.checkin_time if s else '14:00'}, Check-out time: {s.checkout_time if s else '11:00'}.
@@ -441,6 +512,7 @@ Check-in time: {s.checkin_time if s else '14:00'}, Check-out time: {s.checkout_t
 PROPERTY GUIDE:
 {guide_text or 'No guide available.'}
 
+{lang_instruction}
 Answer the guest's question based on the guide. Be friendly and concise (2-3 sentences max).
 If you cannot answer from the guide, reply ONLY with: ESCALATE"""
 

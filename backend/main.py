@@ -43,6 +43,16 @@ with engine.connect() as _conn:
         _conn.commit()
     except Exception:
         pass
+    for _col, _type in [
+        ('smtp_host', 'VARCHAR(200)'), ('smtp_port', 'INTEGER DEFAULT 587'),
+        ('smtp_user', 'VARCHAR(200)'), ('smtp_pass', 'VARCHAR(200)'),
+        ('notification_email', 'VARCHAR(200)'),
+    ]:
+        try:
+            _conn.execute(_text(f"ALTER TABLE guest_portal_settings ADD COLUMN {_col} {_type}"))
+            _conn.commit()
+        except Exception:
+            pass
 
 # Clean up guest photo uploads for bookings that checked out yesterday+
 try:

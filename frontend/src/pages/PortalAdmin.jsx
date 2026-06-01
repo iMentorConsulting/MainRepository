@@ -181,7 +181,13 @@ function SettingsTab() {
     police_phone: '100',
     ambulance_phone: '166',
     fire_phone: '199',
+    smtp_host: '',
+    smtp_port: 587,
+    smtp_user: '',
+    smtp_pass: '',
+    notification_email: '',
   })
+  const [showSmtpPass, setShowSmtpPass] = useState(false)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
 
@@ -244,6 +250,47 @@ function SettingsTab() {
           <Input label="Police Phone" type="tel" value={form.police_phone} onChange={e => set('police_phone', e.target.value)} />
           <Input label="Ambulance Phone" type="tel" value={form.ambulance_phone} onChange={e => set('ambulance_phone', e.target.value)} />
           <Input label="Fire Department Phone" type="tel" value={form.fire_phone} onChange={e => set('fire_phone', e.target.value)} />
+        </div>
+      </div>
+
+      <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm space-y-4">
+        <div>
+          <h3 className="font-semibold text-gray-800 text-sm uppercase tracking-wider text-[#1e3a5f]">Email & Notifications</h3>
+          <p className="text-xs text-gray-400 mt-1">Configure the email account that sends portal links and receives guest notifications. Overrides any global SMTP settings.</p>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <Input label="SMTP Host" value={form.smtp_host} onChange={e => set('smtp_host', e.target.value)} placeholder="smtp.gmail.com" />
+          <Input label="SMTP Port" type="number" value={form.smtp_port} onChange={e => set('smtp_port', +e.target.value)} placeholder="587" />
+          <Input label="Email (username)" type="email" value={form.smtp_user} onChange={e => set('smtp_user', e.target.value)} placeholder="villa@gmail.com" />
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">App Password</label>
+            <div className="relative">
+              <input
+                type={showSmtpPass ? 'text' : 'password'}
+                value={form.smtp_pass}
+                onChange={e => set('smtp_pass', e.target.value)}
+                placeholder="Gmail App Password (16 chars)"
+                className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f] pr-16"
+              />
+              <button
+                type="button"
+                onClick={() => setShowSmtpPass(v => !v)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400 hover:text-gray-600"
+              >
+                {showSmtpPass ? 'Hide' : 'Show'}
+              </button>
+            </div>
+          </div>
+        </div>
+        <Input
+          label="Notification Email (receives alerts when guests send messages or requests)"
+          type="email"
+          value={form.notification_email}
+          onChange={e => set('notification_email', e.target.value)}
+          placeholder="Same as above, or a different address"
+        />
+        <div className="bg-blue-50 rounded-xl p-3 text-xs text-blue-700">
+          <strong>Gmail setup:</strong> Use smtp.gmail.com · port 587 · your Gmail address · a <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noreferrer" className="underline">Gmail App Password</a> (not your regular password). Enable 2FA first.
         </div>
       </div>
 

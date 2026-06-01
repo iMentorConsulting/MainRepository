@@ -174,7 +174,10 @@ function HomeTab({ info, token, lang }) {
       <div className="bg-gradient-to-br from-[#1e3a5f] to-[#2d5491] rounded-2xl p-5 text-white shadow-sm">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <p className="text-blue-200 text-sm font-medium">{tr.welcome_to}</p>
+            {info.guest_first_name
+              ? <p className="text-blue-200 text-sm font-medium">{tr.welcome_to}, <span className="text-white font-semibold">{info.guest_first_name}</span> 👋</p>
+              : <p className="text-blue-200 text-sm font-medium">{tr.welcome_to}</p>
+            }
             <h2 className="text-xl font-bold mt-0.5">{info.property_name || 'Your Property'}</h2>
             {info.unit_name && <p className="text-blue-200 text-sm mt-0.5">{info.unit_name}</p>}
           </div>
@@ -592,7 +595,7 @@ function ChatTab({ token, lang }) {
     if (!text.trim()) return
     setSending(true)
     try {
-      await axios.post(`/api/guest/${token}/messages`, { message: text.trim(), message_type: 'chat' })
+      await axios.post(`/api/guest/${token}/messages`, { message: text.trim(), message_type: 'chat', lang })
       setText('')
       await loadMessages()
     } catch { toast.error(tr.send_error) }
@@ -767,6 +770,7 @@ export default function GuestPortal() {
   const homeInfo = {
     property_name: info.property_name,
     unit_name: info.booking?.unit_name,
+    guest_first_name: info.customer_first_name || '',
     check_in: info.booking?.check_in,
     check_out: info.booking?.check_out,
     guests: info.booking?.guests,
