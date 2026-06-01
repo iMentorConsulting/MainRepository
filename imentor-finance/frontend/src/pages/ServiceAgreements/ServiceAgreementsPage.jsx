@@ -811,16 +811,16 @@ export default function ServiceAgreementsPage() {
           {/* Filter bar */}
           <div className="filter-bar flex-wrap gap-2">
             <MultiSelectDropdown label="Υπηρεσία" options={(services || []).map(s => ({ value: s }))}
-              selected={pivotFilters.service_types}
+              selected={pivotFilters.service_types} getKey={o => o.value} getLabel={o => o.value}
               onChange={v => setPivotFilters(f => ({ ...f, service_types: v }))} />
             <MultiSelectDropdown label="Κατάσταση" options={STATUS_OPTS.map(s => ({ value: s }))}
-              selected={pivotFilters.statuses}
+              selected={pivotFilters.statuses} getKey={o => o.value} getLabel={o => o.value}
               onChange={v => setPivotFilters(f => ({ ...f, statuses: v }))} />
             <MultiSelectDropdown label="Έτος" options={YEAR_OPTS}
-              selected={pivotFilters.years}
+              selected={pivotFilters.years} getKey={o => o.value} getLabel={o => o.value}
               onChange={v => setPivotFilters(f => ({ ...f, years: v }))} />
             <MultiSelectDropdown label="Μήνας" options={MONTH_OPTS}
-              selected={pivotFilters.months}
+              selected={pivotFilters.months} getKey={o => o.value} getLabel={o => o.label}
               onChange={v => setPivotFilters(f => ({ ...f, months: v }))} />
             {(pivotFilters.service_types.length || pivotFilters.statuses.length || pivotFilters.years.length || pivotFilters.months.length) ? (
               <button className="btn-ghost btn-sm text-xs" onClick={() => setPivotFilters({ service_types: [], statuses: [], years: [], months: [] })}>✕ Καθαρισμός</button>
@@ -845,13 +845,13 @@ export default function ServiceAgreementsPage() {
           {/* Filter bar */}
           <div className="filter-bar flex-wrap gap-2">
             <MultiSelectDropdown label="Υπηρεσία" options={(services || []).map(s => ({ value: s }))}
-              selected={missingFilters.service_types}
+              selected={missingFilters.service_types} getKey={o => o.value} getLabel={o => o.value}
               onChange={v => setMissingFilters(f => ({ ...f, service_types: v }))} />
             <MultiSelectDropdown label="Έτος" options={YEAR_OPTS}
-              selected={missingFilters.years}
+              selected={missingFilters.years} getKey={o => o.value} getLabel={o => o.value}
               onChange={v => setMissingFilters(f => ({ ...f, years: v }))} />
             <MultiSelectDropdown label="Μήνας" options={MONTH_OPTS}
-              selected={missingFilters.months}
+              selected={missingFilters.months} getKey={o => o.value} getLabel={o => o.label}
               onChange={v => setMissingFilters(f => ({ ...f, months: v }))} />
             {(missingFilters.service_types.length || missingFilters.years.length || missingFilters.months.length) ? (
               <button className="btn-ghost btn-sm text-xs" onClick={() => setMissingFilters({ service_types: [], years: [], months: [] })}>✕ Καθαρισμός</button>
