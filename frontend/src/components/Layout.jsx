@@ -2,7 +2,7 @@ import { Outlet, NavLink } from 'react-router-dom'
 import {
   HomeIcon, CalendarDaysIcon, BookmarkSquareIcon, BuildingOfficeIcon,
   UsersIcon, ChartBarIcon, SparklesIcon, ArrowRightOnRectangleIcon,
-  ClipboardDocumentCheckIcon,
+  ClipboardDocumentCheckIcon, GlobeAltIcon,
 } from '@heroicons/react/24/outline'
 
 const nav = [
@@ -14,6 +14,7 @@ const nav = [
   { to: '/reports', label: 'Αναφορές', Icon: ChartBarIcon },
   { to: '/smart-advisor', label: 'AI Σύμβουλος', Icon: SparklesIcon },
   { to: '/cleaning', label: 'Καθαριότητα', Icon: ClipboardDocumentCheckIcon },
+  { to: '/portal', label: 'Guest Portal', Icon: GlobeAltIcon },
 ]
 
 function NavItem({ to, label, Icon, exact }) {
