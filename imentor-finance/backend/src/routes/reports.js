@@ -14,7 +14,8 @@ function dateWhere(query, field) {
     if (monthList.length) {
       for (const m of monthList) {
         const mm = m.padStart(2, '0');
-        ranges.push({ [field]: { [Op.between]: [`${y}-${mm}-01`, `${y}-${mm}-31`] } });
+        const lastDay = new Date(parseInt(y), parseInt(m), 0).getDate();
+        ranges.push({ [field]: { [Op.between]: [`${y}-${mm}-01`, `${y}-${mm}-${String(lastDay).padStart(2,'0')}`] } });
       }
     } else {
       ranges.push({ [field]: { [Op.between]: [`${y}-01-01`, `${y}-12-31`] } });
@@ -36,7 +37,8 @@ function sqlDateCond(query, field) {
         const mm = m.padStart(2, '0');
         const [sk, ek] = [`start${idx}`, `end${idx}`];
         parts.push(`${field} BETWEEN :${sk} AND :${ek}`);
-        rep[sk] = `${y}-${mm}-01`; rep[ek] = `${y}-${mm}-31`;
+        const lastDay = new Date(parseInt(y), parseInt(m), 0).getDate();
+        rep[sk] = `${y}-${mm}-01`; rep[ek] = `${y}-${mm}-${String(lastDay).padStart(2,'0')}`;
         idx++;
       }
     } else {

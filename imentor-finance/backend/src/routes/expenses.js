@@ -15,7 +15,8 @@ router.get('/', async (req, res) => {
     } else if (date_to) {
       where.date = { [Op.lte]: date_to };
     } else if (year && month) {
-      where.date = { [Op.between]: [`${year}-${month.padStart(2,'0')}-01`, `${year}-${month.padStart(2,'0')}-31`] };
+      const lastDay = new Date(parseInt(year), parseInt(month), 0).getDate();
+      where.date = { [Op.between]: [`${year}-${month.padStart(2,'0')}-01`, `${year}-${month.padStart(2,'0')}-${String(lastDay).padStart(2,'0')}`] };
     } else if (year) {
       where.date = { [Op.between]: [`${year}-01-01`, `${year}-12-31`] };
     }

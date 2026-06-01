@@ -26,7 +26,9 @@ router.get('/', async (req, res) => {
       const ranges = [];
       for (const y of yearArr) {
         for (const m of monthArr) {
-          ranges.push({ [Op.between]: [`${y}-${m}-01`, `${y}-${m}-31`] });
+          const mm = m.padStart(2, '0');
+          const lastDay = new Date(parseInt(y), parseInt(m), 0).getDate();
+          ranges.push({ [Op.between]: [`${y}-${mm}-01`, `${y}-${mm}-${String(lastDay).padStart(2,'0')}`] });
         }
       }
       where.sale_date = { [Op.or]: ranges };
