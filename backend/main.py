@@ -1,6 +1,8 @@
 import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from dotenv import load_dotenv
 from database import Base, engine
 from routes import units, bookings, customers, reports, ai_advisor
@@ -66,11 +68,18 @@ app.include_router(cleaning.router)
 app.include_router(ical.router)
 
 
-@app.get("/")
-def root():
-    return {"message": "Σύστημα Διαχείρισης Κρατήσεων API v2.0"}
-
-
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+
+# Serve React frontend — must be last so API routes take priority
+_static = os.path.join(os.path.dirname(__file__), "static")
+if os.path.exists(_static):
+    _assets = os.path.join(_static, "assets")
+    if os.path.exists(_assets):
+        app.mount("/assets", StaticFiles(directory=_assets), name="assets")
+
+    @app.get("/{full_path:path}")
+    def serve_spa(full_path: str):
+        return FileResponse(os.path.join(_static, "index.html"))
