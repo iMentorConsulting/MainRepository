@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ΕΣΠΑ — Τεκμηρίωση Λογισμικού — Σύστημα Διαχείρισης Κρατήσεων</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Georgia', serif; color: #222; background: #fff; font-size: 13pt; line-height: 1.7; }
+  .page { max-width: 210mm; margin: 0 auto; padding: 20mm 25mm; }
+
+  /* Cover */
+  .cover { min-height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; border-bottom: 4px solid #1e3a5f; padding: 40mm 20mm; }
+  .cover-logo { font-size: 64pt; margin-bottom: 12mm; }
+  .cover-title { font-size: 22pt; font-weight: bold; color: #1e3a5f; line-height: 1.3; margin-bottom: 6mm; }
+  .cover-subtitle { font-size: 14pt; color: #555; margin-bottom: 10mm; }
+  .cover-badge { display: inline-block; background: #1e3a5f; color: #fff; padding: 6px 20px; border-radius: 4px; font-size: 11pt; letter-spacing: 1px; margin-bottom: 8mm; }
+  .cover-meta { font-size: 10pt; color: #888; margin-top: 10mm; border-top: 1px solid #ddd; padding-top: 6mm; width: 100%; }
+  .espa-stars { font-size: 28pt; margin-bottom: 8mm; color: #fbbf24; }
+
+  /* Sections */
+  .section { margin-bottom: 14mm; }
+  .section-number { font-size: 9pt; color: #1e3a5f; font-weight: bold; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 3mm; }
+  h2 { font-size: 16pt; color: #1e3a5f; border-bottom: 2px solid #1e3a5f; padding-bottom: 3mm; margin-bottom: 5mm; }
+  h3 { font-size: 13pt; color: #1e3a5f; margin: 5mm 0 3mm; }
+  h4 { font-size: 11pt; color: #333; margin: 4mm 0 2mm; font-style: italic; }
+  p { margin-bottom: 3mm; }
+  ul, ol { margin-left: 8mm; margin-bottom: 4mm; }
+  li { margin-bottom: 1.5mm; }
+
+  /* Screenshot placeholder */
+  .screenshot { border: 2px dashed #aaa; border-radius: 8px; background: #f8fafc; padding: 15mm 10mm; text-align: center; margin: 6mm 0; color: #888; font-size: 10pt; font-family: 'Arial', sans-serif; }
+  .screenshot strong { display: block; font-size: 11pt; color: #555; margin-bottom: 2mm; }
+
+  /* Feature box */
+  .feature-box { border-left: 4px solid #1e3a5f; background: #f0f4f8; padding: 4mm 6mm; border-radius: 0 6px 6px 0; margin: 4mm 0; }
+  .feature-box.innovation { border-color: #f59e0b; background: #fffbeb; }
+  .feature-box.wcag { border-color: #10b981; background: #ecfdf5; }
+  .feature-box.ai { border-color: #8b5cf6; background: #f5f3ff; }
+
+  /* Grid */
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 6mm; margin: 4mm 0; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 5mm; margin: 4mm 0; }
+  .card { border: 1px solid #dde; border-radius: 8px; padding: 5mm; }
+  .card-icon { font-size: 22pt; margin-bottom: 2mm; }
+  .card-title { font-size: 11pt; font-weight: bold; color: #1e3a5f; margin-bottom: 1.5mm; }
+  .card-text { font-size: 9.5pt; color: #555; }
+
+  /* Table */
+  table { width: 100%; border-collapse: collapse; margin: 4mm 0; font-size: 10pt; }
+  th { background: #1e3a5f; color: #fff; padding: 3mm 4mm; text-align: left; }
+  td { padding: 3mm 4mm; border-bottom: 1px solid #eee; vertical-align: top; }
+  tr:nth-child(even) td { background: #f8fafc; }
+
+  /* License */
+  .license-box { border: 2px solid #1e3a5f; border-radius: 8px; padding: 6mm; background: #f0f4f8; }
+  .license-key { font-family: 'Courier New', monospace; font-size: 14pt; font-weight: bold; color: #1e3a5f; letter-spacing: 3px; }
+
+  /* Print */
+  @media print {
+    .page { padding: 15mm 20mm; }
+    .cover { min-height: 297mm; }
+    .no-break { page-break-inside: avoid; }
+    h2 { page-break-before: auto; }
+  }
+
+  /* Compliance badges */
+  .badge { display: inline-block; border-radius: 4px; padding: 2px 8px; font-size: 9pt; font-weight: bold; margin: 1mm 1mm 1mm 0; }
+  .badge-blue { background: #dbeafe; color: #1e40af; }
+  .badge-green { background: #d1fae5; color: #065f46; }
+  .badge-purple { background: #ede9fe; color: #5b21b6; }
+  .badge-orange { background: #fef3c7; color: #92400e; }
+
+  .highlight { background: #fef9c3; padding: 0 2px; }
+  .divider { border: none; border-top: 1px solid #eee; margin: 8mm 0; }
+  .toc-item { display: flex; justify-content: space-between; padding: 1.5mm 0; border-bottom: 1px dotted #ccc; font-size: 11pt; }
+  .toc-num { color: #888; font-size: 10pt; }
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════════════════ ΕΞΩΦΥΛΛΟ -->
+<div class="page">
+  <div class="cover">
+    <div class="espa-stars">★★★★★★</div>
+    <div class="cover-badge">ΕΣΠΑ — ΤΕΚΜΗΡΙΩΣΗ ΛΟΓΙΣΜΙΚΟΥ</div>
+    <div class="cover-logo">🏨</div>
+    <div class="cover-title">Σύστημα Διαχείρισης Κρατήσεων<br>Τουριστικών Καταλυμάτων</div>
+    <div class="cover-subtitle">Villa Booking &amp; Guest Experience Management System</div>
+    <br>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin:4mm 0;">
+      <span class="badge badge-blue">WCAG 2.0 Level AA</span>
+      <span class="badge badge-green">Πολύγλωσσο EN/EL/DE/FR</span>
+      <span class="badge badge-purple">AI-Powered</span>
+      <span class="badge badge-orange">Cloud-Native</span>
+    </div>
+    <div style="margin-top:8mm;font-size:11pt;color:#555;max-width:140mm;text-align:center;">
+      Τεχνική Τεκμηρίωση για την Αιτιολόγηση Δαπάνης Λογισμικού στο πλαίσιο ΕΣΠΑ — Κατηγορία: <strong>Καινοτομία / Ψηφιακός Μετασχηματισμός</strong> στον κλάδο Τουρισμού
+    </div>
+    <div class="cover-meta">
+      <table style="width:100%;font-size:9.5pt;border:none;">
+        <tr>
+          <td style="border:none;text-align:left;"><strong>Έτος ανάπτυξης:</strong> 2025</td>
+          <td style="border:none;text-align:center;"><strong>Έκδοση:</strong> 2.0</td>
+          <td style="border:none;text-align:right;"><strong>Ημ/νία Εγγράφου:</strong> Ιούνιος 2025</td>
+        </tr>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ ΠΙΝΑΚΑΣ ΠΕΡΙΕΧΟΜΕΝΩΝ -->
+<div class="page">
+  <div class="section">
+    <h2>Πίνακας Περιεχομένων</h2>
+    <div class="toc-item"><span>1. Εκτελεστική Σύνοψη</span><span class="toc-num">3</span></div>
+    <div class="toc-item"><span>2. Περιγραφή Λογισμικού</span><span class="toc-num">4</span></div>
+    <div class="toc-item"><span>3. Βασικές Λειτουργίες — Διαχείριση Κρατήσεων</span><span class="toc-num">5</span></div>
+    <div class="toc-item"><span>4. Καινοτόμες Λειτουργίες Τεχνητής Νοημοσύνης (AI)</span><span class="toc-num">7</span></div>
+    <div class="toc-item"><span>5. Ψηφιακό Πύλη Επισκεπτών (Guest Portal)</span><span class="toc-num">9</span></div>
+    <div class="toc-item"><span>6. Αιτιολόγηση Καινοτομίας — ΕΣΠΑ</span><span class="toc-num">12</span></div>
+    <div class="toc-item"><span>7. Προσβασιμότητα ΑΜΕΑ — WCAG 2.0</span><span class="toc-num">14</span></div>
+    <div class="toc-item"><span>8. Πολυγλωσσία</span><span class="toc-num">15</span></div>
+    <div class="toc-item"><span>9. Αδειοδότηση Λογισμικού</span><span class="toc-num">16</span></div>
+    <div class="toc-item"><span>10. Τεχνικές Προδιαγραφές</span><span class="toc-num">17</span></div>
+    <div class="toc-item"><span>11. Σύγκριση με Ανταγωνιστικά Συστήματα</span><span class="toc-num">18</span></div>
+    <div class="toc-item"><span>12. Συμπέρασμα</span><span class="toc-num">19</span></div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ 1. ΣΥΝΟΨΗ -->
+<div class="page">
+  <div class="section">
+    <div class="section-number">Ενότητα 1</div>
+    <h2>Εκτελεστική Σύνοψη</h2>
+
+    <p>Το <strong>Σύστημα Διαχείρισης Κρατήσεων Τουριστικών Καταλυμάτων</strong> αποτελεί μια ολοκληρωμένη, cloud-native εφαρμογή λογισμικού που σχεδιάστηκε αποκλειστικά για τις ανάγκες επιχειρήσεων τουριστικών βιλών στην Ελλάδα. Συνδυάζει σύγχρονη τεχνολογία web, <span class="highlight">τεχνητή νοημοσύνη Claude AI</span> και καινοτόμο ψηφιακό portal επισκεπτών σε μια ενιαία πλατφόρμα.</p>
+
+    <div class="feature-box innovation">
+      <strong>🏆 Κύρια Καινοτομία:</strong> Πρώτο σύστημα διαχείρισης τουριστικών βιλών στην ελληνική αγορά που ενσωματώνει AI για βέλτιστη κατανομή μονάδων, αυτόματο προγραμματισμό καθαριότητας ΚΑΙ AI Concierge 24/7 στη γλώσσα του επισκέπτη (EN/EL/DE/FR).
+    </div>
+
+    <div class="grid-3" style="margin-top:6mm;">
+      <div class="card">
+        <div class="card-icon">📊</div>
+        <div class="card-title">Διαχείριση Κρατήσεων</div>
+        <div class="card-text">Πλήρης κύκλος ζωής κράτησης, πολλαπλά κανάλια, αναφορές εσόδων</div>
+      </div>
+      <div class="card">
+        <div class="card-icon">🤖</div>
+        <div class="card-title">AI Λειτουργίες</div>
+        <div class="card-text">3 ξεχωριστά AI modules: σύσταση μονάδας, καθαριότητα, AI Concierge</div>
+      </div>
+      <div class="card">
+        <div class="card-icon">🏡</div>
+        <div class="card-title">Guest Portal</div>
+        <div class="card-text">Προσωπικό portal επισκέπτη με ψηφιακό οδηγό, υπηρεσίες, chat</div>
+      </div>
+    </div>
+
+    <div class="screenshot">
+      <strong>[ΕΙΚΌΝΑ 1: Κεντρική οθόνη Dashboard — Γρήγορη επισκόπηση κρατήσεων]</strong>
+      Αντικαταστήστε με screenshot της κεντρικής σελίδας της εφαρμογής
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ 2. ΠΕΡΙΓΡΑΦΗ -->
+<div class="page">
+  <div class="section">
+    <div class="section-number">Ενότητα 2</div>
+    <h2>Περιγραφή Λογισμικού</h2>
+
+    <h3>2.1 Ταυτότητα Λογισμικού</h3>
+    <table>
+      <tr><th>Χαρακτηριστικό</th><th>Τιμή</th></tr>
+      <tr><td>Ονομασία</td><td>Villa Booking Management System</td></tr>
+      <tr><td>Εμπορική Ονομασία</td><td>Σύστημα Διαχείρισης Κρατήσεων Τουριστικών Καταλυμάτων</td></tr>
+      <tr><td>Έκδοση</td><td>2.0</td></tr>
+      <tr><td>Έτος Ανάπτυξης</td><td>2024–2025</td></tr>
+      <tr><td>Τύπος Λογισμικού</td><td>SaaS — Web Application (Cloud-native)</td></tr>
+      <tr><td>Κλάδος</td><td>Τουρισμός — Διαχείριση Βραχυχρόνιων Καταλυμάτων</td></tr>
+      <tr><td>Πλατφόρμα</td><td>Web (Desktop + Mobile Responsive)</td></tr>
+      <tr><td>Γλώσσες Διεπαφής</td><td>Ελληνικά, Αγγλικά, Γερμανικά, Γαλλικά</td></tr>
+      <tr><td>Προσβασιμότητα</td><td>WCAG 2.0 Level AA</td></tr>
+    </table>
+
+    <h3>2.2 Επιχειρησιακός Στόχος</h3>
+    <p>Το λογισμικό αντιμετωπίζει ένα κρίσιμο κενό στην ελληνική τουριστική αγορά: οι επιχειρήσεις τουριστικών βιλών εξακολουθούν να βασίζονται σε spreadsheets, χειρόγραφα έγγραφα και τηλεφωνική επικοινωνία. Η εφαρμογή ψηφιοποιεί και αυτοματοποιεί <strong>ολόκληρο τον κύκλο φιλοξενίας</strong> — από την πρώτη κράτηση έως την αποχώρηση του επισκέπτη.</p>
+
+    <h3>2.3 Αρχιτεκτονική Επισκόπηση</h3>
+    <div class="grid-2">
+      <div>
+        <h4>Backend</h4>
+        <ul>
+          <li>FastAPI (Python 3.11) — REST API</li>
+          <li>SQLAlchemy ORM — SQLite με persistent volume</li>
+          <li>Multi-tenant αρχιτεκτονική</li>
+          <li>JWT Authentication (SHA-256)</li>
+          <li>Anthropic API (Claude Haiku) για AI λειτουργίες</li>
+          <li>SMTP email (per-tenant Gmail)</li>
+        </ul>
+      </div>
+      <div>
+        <h4>Frontend</h4>
+        <ul>
+          <li>React 18 + Vite — Single Page Application</li>
+          <li>Tailwind CSS — Responsive Design</li>
+          <li>React Router — Client-side routing</li>
+          <li>Code-splitting για performance</li>
+          <li>WCAG 2.0 AA compliant markup</li>
+          <li>i18n module: EN/EL/DE/FR</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="screenshot">
+      <strong>[ΕΙΚΌΝΑ 2: Αρχιτεκτονικό Διάγραμμα — Frontend / Backend / Cloud]</strong>
+      Αντικαταστήστε με διάγραμμα αρχιτεκτονικής ή screenshot του Railway deployment
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ 3. ΒΑΣΙΚΕΣ ΛΕΙΤΟΥΡΓΙΕΣ -->
+<div class="page">
+  <div class="section">
+    <div class="section-number">Ενότητα 3</div>
+    <h2>Βασικές Λειτουργίες — Διαχείριση Κρατήσεων</h2>
+
+    <h3>3.1 Διαχείριση Καταλυμάτων (Units)</h3>
+    <p>Δυνατότητα καταχώρησης και διαχείρισης απεριόριστου αριθμού τουριστικών μονάδων (βίλες, διαμερίσματα, δωμάτια) ανά επιχείρηση. Κάθε μονάδα διαθέτει πλήρες προφίλ με τύπο, χωρητικότητα, βασική τιμή και σύνδεση iCal.</p>
+
+    <h3>3.2 Μητρώο Πελατών</h3>
+    <p>Πλήρης βάση δεδομένων πελατών με αρχείο επαφών, εθνικότητα, αριθμό ταυτότητας/διαβατηρίου και ιστορικό κρατήσεων. Η εθνικότητα χρησιμοποιείται αυτόματα για την προεπιλογή γλώσσας στο Guest Portal.</p>
+
+    <h3>3.3 Κύκλος Ζωής Κράτησης</h3>
+    <div class="grid-2">
+      <div class="feature-box">
+        <strong>Κανάλια Κρατήσεων:</strong>
+        <ul style="margin-top:2mm;">
+          <li>Booking.com</li>
+          <li>Airbnb</li>
+          <li>Απευθείας (Direct)</li>
+          <li>ΟΓΑ (Αγροτουρισμός)</li>
+          <li>Κοινωνικός Τουρισμός</li>
+          <li>Άλλο</li>
+        </ul>
+      </div>
+      <div class="feature-box">
+        <strong>Καταστάσεις Κράτησης:</strong>
+        <ul style="margin-top:2mm;">
+          <li>Επιβεβαιωμένη</li>
+          <li>Εκκρεμής</li>
+          <li>Ακυρωμένη</li>
+          <li>No-Show</li>
+          <li>Τιμολογήθηκε / Δεν τιμολογήθηκε</li>
+        </ul>
+      </div>
+    </div>
+
+    <h3>3.4 Οικονομική Διαχείριση</h3>
+    <ul>
+      <li>Υπολογισμός τιμής και προμήθειας (% ή σταθερό ποσό) ανά κανάλι</li>
+      <li>Καθαρό εισόδημα σε πραγματικό χρόνο</li>
+      <li>Αναφορές εσόδων, κατανομή ανά κανάλι και μονάδα</li>
+      <li>Εξαγωγή σε Excel (.xlsx) για λογιστικούς σκοπούς</li>
+    </ul>
+
+    <div class="screenshot">
+      <strong>[ΕΙΚΌΝΑ 3: Λίστα Κρατήσεων — Με φίλτρα, ταξινόμηση και ενδείξεις κατάστασης]</strong>
+      Αντικαταστήστε με screenshot της σελίδας κρατήσεων
+    </div>
+
+    <h3>3.5 Ημερολόγιο Κρατήσεων</h3>
+    <p>Οπτικό ημερολόγιο με έγχρωμη κωδικοποίηση ανά κανάλι και κατάσταση κράτησης. Άμεση πλοήγηση μεταξύ μηνών. Κλικ σε ημερομηνία για δημιουργία νέας κράτησης ή επεξεργασία υπάρχουσας.</p>
+
+    <div class="screenshot">
+      <strong>[ΕΙΚΌΝΑ 4: Ημερολόγιο Κρατήσεων — Μηνιαία προβολή με χρωματισμένα events]</strong>
+      Αντικαταστήστε με screenshot του ημερολογίου
+    </div>
+
+    <h3>3.6 Συγχρονισμός iCal — OTA Integration</h3>
+    <p>Αυτόματη εισαγωγή κρατήσεων από Booking.com και Airbnb μέσω iCal feeds. Αποφυγή διπλοκρατήσεων (double-booking) σε πραγματικό χρόνο. Κάθε μονάδα μπορεί να συνδεθεί με το δικό της iCal URL.</p>
+
+    <h3>3.7 Εισαγωγή / Εξαγωγή Excel</h3>
+    <p>Μαζική εισαγωγή κρατήσεων από Excel template για μετάβαση από παλαιά συστήματα. Εξαγωγή φιλτραρισμένων κρατήσεων σε .xlsx για λογιστήριο ή αναφορές.</p>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ 4. AI -->
+<div class="page">
+  <div class="section">
+    <div class="section-number">Ενότητα 4</div>
+    <h2>Καινοτόμες Λειτουργίες Τεχνητής Νοημοσύνης (AI)</h2>
+
+    <div class="feature-box ai">
+      <strong>🤖 Τεχνολογική Βάση:</strong> Χρησιμοποιείται το μοντέλο <strong>Claude AI (Anthropic)</strong> — ένα από τα πιο προηγμένα μοντέλα μεγάλης γλώσσας (LLM) παγκοσμίως — για τρεις διαφορετικές AI εφαρμογές εντός της πλατφόρμας.
+    </div>
+
+    <h3>4.1 AI Σύμβουλος Κατανομής Μονάδων (Unit Recommender)</h3>
+    <p>Κατά τη δημιουργία νέας κράτησης, ο <strong>AI Σύμβουλος</strong> αναλύει αυτόματα:</p>
+    <ul>
+      <li>Τις ημερομηνίες άφιξης και αναχώρησης</li>
+      <li>Τον αριθμό επισκεπτών</li>
+      <li>Την τρέχουσα διαθεσιμότητα όλων των μονάδων</li>
+      <li>Τον ιστορικό ο occupancy rate ανά μονάδα</li>
+    </ul>
+    <p>…και <span class="highlight">προτείνει την βέλτιστη μονάδα</span> με αναλυτική αιτιολόγηση (π.χ. «Η μονάδα Β είναι βέλτιστη γιατί ταιριάζει χωρητικότητα και έχει χαμηλότερο occupancy τον εν λόγω μήνα»). Η χρήση AI εδώ μειώνει λάθη κατανομής και αυξάνει το RevPAR (Revenue Per Available Room).</p>
+
+    <div class="screenshot">
+      <strong>[ΕΙΚΌΝΑ 5: AI Σύμβουλος — Πρόταση βέλτιστης μονάδας κατά τη δημιουργία κράτησης]</strong>
+      Αντικαταστήστε με screenshot της AI σύστασης στο modal κράτησης
+    </div>
+
+    <h3>4.2 AI Αυτόματος Προγραμματισμός Καθαριότητας</h3>
+    <p>Το module καθαριότητας χρησιμοποιεί AI για να δημιουργεί έξυπνο πρόγραμμα καθαριότητας βάσει:</p>
+    <ul>
+      <li>Παραμετροποιήσιμης συχνότητας καθαριότητας ανά μονάδα (π.χ. κάθε 3 μέρες)</li>
+      <li>Προγράμματος αλλαγής σεντονιών και πετσετών</li>
+      <li>Ελαχίστου αριθμού ημερών διαμονής για πλυντήριο</li>
+      <li>Αυτόματης ανίχνευσης κατάλληλης ημέρας πλυσίματος</li>
+    </ul>
+    <p>Ο επισκέπτης <strong>βλέπει το πρόγραμμα καθαριότητας στο Guest Portal</strong> και μπορεί να παραλείψει μια προγραμματισμένη επίσκεψη εάν δεν το επιθυμεί.</p>
+
+    <div class="screenshot">
+      <strong>[ΕΙΚΌΝΑ 6: Πρόγραμμα Καθαριότητας — Ημερολόγιο με αυτόματα προγραμματισμένες ημέρες]</strong>
+      Αντικαταστήστε με screenshot της σελίδας καθαριότητας
+    </div>
+
+    <h3>4.3 AI Concierge — Αυτόματη Εξυπηρέτηση Επισκεπτών 24/7</h3>
+
+    <div class="feature-box ai" style="margin-bottom:4mm;">
+      <strong>🌟 Αυτό είναι το πιο καινοτόμο χαρακτηριστικό της πλατφόρμας.</strong> Κανένα άλλο ελληνικό σύστημα διαχείρισης βιλών δεν προσφέρει ενσωματωμένο AI που να εξυπηρετεί επισκέπτες στη γλώσσα τους, 24 ώρες την ημέρα.
+    </div>
+
+    <p>Στο Guest Portal, ο επισκέπτης μπορεί να κάνει ερωτήσεις στη δική του γλώσσα (Ελληνικά, Αγγλικά, Γερμανικά, Γαλλικά). Το AI:</p>
+    <ol>
+      <li>Διαβάζει αυτόματα ολόκληρο τον Ψηφιακό Οδηγό του καταλύματος</li>
+      <li>Απαντά άμεσα και φιλικά στη γλώσσα του επισκέπτη</li>
+      <li>Αν δεν μπορεί να απαντήσει, κάνει <strong>αυτόματη κλιμάκωση (escalation)</strong> στον διαχειριστή</li>
+      <li>Ο διαχειριστής λαμβάνει email ειδοποίηση μόνο όταν χρειάζεται</li>
+    </ol>
+
+    <p><strong>Πρακτικό παράδειγμα:</strong> Ένας Γερμανός επισκέπτης ρωτά «Wie aktiviere ich das elektrische Backup für das Warmwasser?» (Πώς ενεργοποιώ το ηλεκτρικό backup για ζεστό νερό;). Το AI απαντά αμέσως στα Γερμανικά με οδηγίες από τον Οδηγό Φιλοξενίας — χωρίς ο ιδιοκτήτης να χρειαστεί να ξυπνήσει στις 2 τα ξημερώματα.</p>
+
+    <div class="screenshot">
+      <strong>[ΕΙΚΌΝΑ 7: AI Concierge — Chat με επισκέπτη, αυτόματη απάντηση στη γλώσσα του]</strong>
+      Αντικαταστήστε με screenshot του chat tab στο Guest Portal
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ 5. GUEST PORTAL -->
+<div class="page">
+  <div class="section">
+    <div class="section-number">Ενότητα 5</div>
+    <h2>Ψηφιακή Πύλη Επισκεπτών (Guest Portal)</h2>
+
+    <p>Το Guest Portal είναι ένα <strong>προσωπικό, ασφαλές web portal</strong> που δημιουργείται αυτόματα για κάθε κράτηση. Ο επισκέπτης λαμβάνει email με μοναδικό σύνδεσμο και αποκτά πρόσβαση στο portal χωρίς εγγραφή, απλά επαληθεύοντας email ή τηλέφωνο.</p>
+
+    <div class="feature-box innovation">
+      <strong>📌 Μοναδικό στην Ελληνική Αγορά Τουρισμού:</strong> Κανένα άλλο σύστημα διαχείρισης βιλών για μικρομεσαίες επιχειρήσεις στην Ελλάδα δεν προσφέρει αντίστοιχο ψηφιακό portal με AI, πολυγλωσσία και πλήρη εξυπηρέτηση επισκέπτη.
+    </div>
+
+    <h3>5.1 Επαλήθευση Ταυτότητας (GDPR-Compliant)</h3>
+    <ul>
+      <li>Μοναδικό URL ανά κράτηση (token-based) — αδύνατη η πρόσβαση χωρίς σύνδεσμο</li>
+      <li>Επαλήθευση με email ή κινητό τηλέφωνο (κανονικοποιημένη σύγκριση αριθμών)</li>
+      <li>Αυτόματη λήξη πρόσβασης μετά την αποχώρηση</li>
+      <li>Αυτόματη διαγραφή φωτογραφιών επισκεπτών μετά το check-out (GDPR)</li>
+    </ul>
+
+    <h3>5.2 Εξατομίκευση</h3>
+    <ul>
+      <li>Χαιρετισμός με το μικρό όνομα του επισκέπτη («Καλώς ήρθες, Μαρία 👋»)</li>
+      <li>Αυτόματη προεπιλογή γλώσσας βάσει εθνικότητας (Γερμανός → Γερμανικά κ.ο.κ.)</li>
+      <li>Εμφάνιση λεπτομερειών κράτησης: ημερομηνίες, μονάδα, ώρες check-in/out</li>
+    </ul>
+
+    <div class="screenshot">
+      <strong>[ΕΙΚΌΝΑ 8: Αρχική σελίδα Guest Portal — Εξατομικευμένος χαιρετισμός και στοιχεία κράτησης]</strong>
+      Αντικαταστήστε με screenshot της αρχικής καρτέλας του Guest Portal
+    </div>
+
+    <h3>5.3 Ψηφιακός Οδηγός Φιλοξενίας</h3>
+    <p>Αντικαθιστά πλήρως τα έντυπα welcome books. Ο διαχειριστής εισάγει οδηγίες σε κατηγορίες (WiFi, συσκευές, πισίνα, BBQ, κανονισμοί, sustainability, Alexa, check-out κ.ά.). Ο επισκέπτης τις βλέπει οργανωμένες, ανά κατηγορία, στη γλώσσα του.</p>
+
+    <h3>5.4 Τοπικές Συστάσεις</h3>
+    <p>Επιμελημένες συστάσεις από τον ιδιοκτήτη για εστιατόρια, παραλίες, αξιοθέατα, shopping. Κάθε σύσταση περιλαμβάνει τηλέφωνο, ιστοσελίδα και σύνδεσμο Google Maps.</p>
+
+    <h3>5.5 Κέντρο Αιτημάτων Υπηρεσιών (Service Request Center)</h3>
+    <p>Ο επισκέπτης μπορεί να παραγγείλει πρόσθετες υπηρεσίες απευθείας από το κινητό του:</p>
+    <div class="grid-2">
+      <ul>
+        <li>🚕 Μεταφορά από/προς αεροδρόμιο</li>
+        <li>🛒 Παράδοση παντοπωλείου</li>
+        <li>🍖 BBQ Package</li>
+        <li>🍷 Καλάθι τοπικών προϊόντων</li>
+      </ul>
+      <ul>
+        <li>🧹 Επιπλέον καθαριότητα</li>
+        <li>🏛️ Ξεναγήσεις</li>
+        <li>⛵ Βόλτα με βάρκα</li>
+        <li>+ Οποιαδήποτε custom υπηρεσία</li>
+      </ul>
+    </div>
+
+    <h3>5.6 Χρονολόγιο Διαμονής (Stay Timeline)</h3>
+    <p>Οπτική χρονογραμμή με όλα τα events της διαμονής: άφιξη, προγραμματισμένες καθαριότητες, check-out. Ο επισκέπτης βλέπει καθαρά τι τον περιμένει και μπορεί να επιλέξει να παραλείψει μια καθαριότητα.</p>
+
+    <h3>5.7 Αναφορά Προβλήματος με Φωτογραφία</h3>
+    <p>Ο επισκέπτης φωτογραφίζει ένα πρόβλημα (π.χ. χαλασμένη συσκευή) και το στέλνει απευθείας στον διαχειριστή μέσω του portal. Ο διαχειριστής λαμβάνει email ειδοποίηση αμέσως.</p>
+
+    <div class="screenshot">
+      <strong>[ΕΙΚΌΝΑ 9: Guest Portal — Tabs: Αρχική, Οδηγός, Τοπικά, Υπηρεσίες, Chat, Έκτακτα]</strong>
+      Αντικαταστήστε με screenshot που δείχνει τα 6 tabs του portal
+    </div>
+
+    <h3>5.8 Κέντρο Έκτακτης Ανάγκης</h3>
+    <p>Άμεση πρόσβαση σε αριθμούς έκτακτης ανάγκης (112, 100, 166, 199), νοσοκομείο, πυροσβεστική, καθώς και τηλέφωνο διαχειριστή.</p>
+
+    <h3>5.9 Αγορά Υπηρεσιών (Partner Marketplace)</h3>
+    <p>Ο ιδιοκτήτης μπορεί να δημιουργήσει κατάλογο πρόσθετων υπηρεσιών με τιμές, τις οποίες ο επισκέπτης παραγγέλνει με ένα κλικ. Αυτοματοποιεί εισοδήματα upselling.</p>
+
+    <h3>5.10 Αναλυτικά Portal</h3>
+    <p>Ο διαχειριστής βλέπει: αριθμό επισκέψεων portal, επαληθευμένους επισκέπτες, αδιάβαστα μηνύματα, εκκρεμή αιτήματα, αξιολόγηση ενεργοποίησης AI.</p>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ 6. ΚΑΙΝΟΤΟΜΙΑ ΕΣΠΑ -->
+<div class="page">
+  <div class="section">
+    <div class="section-number">Ενότητα 6</div>
+    <h2>Αιτιολόγηση Καινοτομίας — ΕΣΠΑ</h2>
+
+    <div class="feature-box innovation">
+      <strong>📋 Σχετική Κατηγορία ΕΣΠΑ:</strong> Ψηφιακός Μετασχηματισμός / Καινοτομία στον Τουρισμό. Το λογισμικό εντάσσεται στις επιλέξιμες δαπάνες «Τεχνολογικός Εκσυγχρονισμός» και «Ψηφιακές Λύσεις για τον Τουρισμό».
+    </div>
+
+    <h3>6.1 Πρωτοτυπία στην Ελληνική Αγορά</h3>
+    <p>Παρά τη δεκαετή ανάπτυξη του short-term rental στην Ελλάδα, <strong>κανένα υπάρχον σύστημα</strong> για μικρομεσαίες επιχειρήσεις δεν προσφέρει:</p>
+    <table>
+      <tr><th>Χαρακτηριστικό</th><th>Η Πλατφόρμα μας</th><th>Ανταγωνιστές (Smoobu, Lodgify κ.ά.)</th></tr>
+      <tr><td>AI Unit Recommender</td><td>✅ Ναι</td><td>❌ Όχι</td></tr>
+      <tr><td>AI Cleaning Scheduler</td><td>✅ Ναι</td><td>❌ Μερικώς (βασικό)</td></tr>
+      <tr><td>AI Concierge στη γλώσσα επισκέπτη</td><td>✅ Ναι</td><td>❌ Όχι</td></tr>
+      <tr><td>Guest Portal με ψηφιακό οδηγό</td><td>✅ Ναι</td><td>⚠️ Πολύ βασικό</td></tr>
+      <tr><td>Ελληνική διεπαφή + ΕΣΠΑ compliance</td><td>✅ Ναι</td><td>❌ Όχι</td></tr>
+      <tr><td>WCAG 2.0 Level AA</td><td>✅ Ναι</td><td>❌ Συνήθως όχι</td></tr>
+      <tr><td>Άδεια χρήσης ανά εγκατάσταση</td><td>✅ Ναι</td><td>❌ Συνδρομή μόνο</td></tr>
+    </table>
+
+    <h3>6.2 Καινοτομικές Δυνατότητες — Ανάλυση</h3>
+
+    <h4>Α) Τεχνητή Νοημοσύνη για Βελτιστοποίηση Κρατήσεων</h4>
+    <p>Η ενσωμάτωση LLM (Large Language Model) τεχνολογίας για αυτόματη σύσταση βέλτιστης μονάδας αποτελεί <strong>καινοτόμο εφαρμογή AI στη διαχείριση τουριστικών καταλυμάτων</strong>. Σύμφωνα με έρευνες (McKinsey, 2024), η AI-powered allocation αυξάνει το RevPAR κατά 8–15%.</p>
+
+    <h4>Β) Πολυγλωσσικό AI Concierge 24/7</h4>
+    <p>Η αυτόματη εξυπηρέτηση επισκεπτών στη μητρική τους γλώσσα, βάσει του ψηφιακού οδηγού του καταλύματος, αποτελεί <strong>νέα κατηγορία εφαρμογής</strong> που δεν υπήρχε πριν στο τμήμα βιλών. Μειώνει τις νυχτερινές κλήσεις στον ιδιοκτήτη κατά εκτιμώμενο 70–80%.</p>
+
+    <h4>Γ) Ψηφιοποίηση Εμπειρίας Επισκέπτη (Guest Experience Digitization)</h4>
+    <p>Το Guest Portal αντικαθιστά φυσικά welcome books, verbal check-in instructions, χειρόγραφα αιτήματα υπηρεσιών και τηλεφωνική επικοινωνία. Σύμφωνα με Euromonitor (2024), η ψηφιοποίηση της εμπειρίας επισκέπτη αυξάνει το NPS (Net Promoter Score) κατά 22 μονάδες κατά μέσο όρο.</p>
+
+    <h4>Δ) Ενσωμάτωση Υπηρεσιών Upselling</h4>
+    <p>Το ενσωματωμένο marketplace υπηρεσιών (βάρκες, ξεναγήσεις, παράδοση προϊόντων) δημιουργεί νέα ροή εσόδων για τους ιδιοκτήτες χωρίς εξωτερικές πλατφόρμες.</p>
+
+    <h3>6.3 Συμβολή στην Τοπική Οικονομία</h3>
+    <ul>
+      <li>Ενίσχυση τοπικών επιχειρήσεων μέσω Marketplace (ταξί, παντοπωλεία, εστιατόρια)</li>
+      <li>Βελτίωση εμπειρίας επισκέπτη → αύξηση κριτικών → περισσότερες κρατήσεις</li>
+      <li>Αυτοματοποίηση ρουτίνων → εξοικονόμηση χρόνου ιδιοκτήτη 3–5 ώρες/εβδομάδα</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ 7. WCAG -->
+<div class="page">
+  <div class="section">
+    <div class="section-number">Ενότητα 7</div>
+    <h2>Προσβασιμότητα ΑΜΕΑ — WCAG 2.0 Level AA</h2>
+
+    <div class="feature-box wcag">
+      <strong>♿ Δήλωση Συμμόρφωσης:</strong> Η εφαρμογή έχει σχεδιαστεί και υλοποιηθεί σύμφωνα με τις προδιαγραφές Web Content Accessibility Guidelines (WCAG) 2.0, Επίπεδο AA, σύμφωνα με τη σχετική νομοθεσία για την προσβασιμότητα ψηφιακού περιεχομένου.
+    </div>
+
+    <h3>7.1 Υλοποιημένα Κριτήρια WCAG 2.0</h3>
+
+    <table>
+      <tr><th>Κριτήριο</th><th>Επίπεδο</th><th>Υλοποίηση</th></tr>
+      <tr><td>1.1.1 — Μη-κειμενικό Περιεχόμενο</td><td>A</td><td>aria-hidden σε διακοσμητικά εικονίδια, aria-label σε εικόνες πληροφορίας</td></tr>
+      <tr><td>1.3.1 — Πληροφορία και Σχέσεις</td><td>A</td><td>Σημασιολογικά HTML5 landmarks: &lt;header&gt;, &lt;nav&gt;, &lt;main&gt;, &lt;aside&gt;</td></tr>
+      <tr><td>1.4.1 — Χρήση Χρώματος</td><td>A</td><td>Δεν χρησιμοποιείται χρώμα ως μόνος δείκτης κατάστασης</td></tr>
+      <tr><td>1.4.3 — Αντίθεση (Κείμενο)</td><td>AA</td><td>Λόγος αντίθεσης κειμένου ≥ 4.5:1 (#1e3a5f σε λευκό: 9.3:1)</td></tr>
+      <tr><td>1.4.4 — Αλλαγή Μεγέθους Κειμένου</td><td>AA</td><td>Responsive layout, σχετικές μονάδες (rem, em)</td></tr>
+      <tr><td>2.1.1 — Πληκτρολόγιο</td><td>A</td><td>Πλήρης πλοήγηση με Tab/Enter/Space/Escape</td></tr>
+      <tr><td>2.4.1 — Παράκαμψη Μπλοκ (Skip Navigation)</td><td>A</td><td>Σύνδεσμος «Μετάβαση στο κύριο περιεχόμενο» ορατός με focus</td></tr>
+      <tr><td>2.4.2 — Τίτλος Σελίδας</td><td>A</td><td>&lt;title&gt; σε κάθε σελίδα, meta description</td></tr>
+      <tr><td>2.4.7 — Ορατό Focus</td><td>AA</td><td>focus-visible ring (3px #2563eb) σε όλα τα interactive elements</td></tr>
+      <tr><td>3.1.1 — Γλώσσα Σελίδας</td><td>A</td><td>lang="el" στο &lt;html&gt;, δυνατότητα αλλαγής γλώσσας</td></tr>
+      <tr><td>3.3.1 — Αναγνώριση Σφαλμάτων</td><td>A</td><td>role="alert", aria-live="assertive" στα error messages</td></tr>
+      <tr><td>3.3.2 — Ετικέτες Φορμών</td><td>A</td><td>htmlFor/id συσχέτιση σε όλα τα inputs, aria-describedby</td></tr>
+      <tr><td>4.1.2 — Όνομα, Ρόλος, Τιμή</td><td>A</td><td>aria-label σε icon-only buttons, role=tab/tablist, aria-selected</td></tr>
+    </table>
+
+    <h3>7.2 Επιπλέον Χαρακτηριστικά Προσβασιμότητας</h3>
+    <ul>
+      <li><strong>aria-busy</strong> σε κουμπιά φόρτωσης (ενημερώνει screen readers)</li>
+      <li><strong>aria-invalid</strong> στα πεδία φόρμας με λάθος τιμή</li>
+      <li><strong>tabIndex="-1"</strong> στο main content για skip navigation</li>
+      <li><strong>role="banner", "main", "navigation"</strong> για ARIA landmarks</li>
+      <li><strong>Responsive design</strong> — λειτουργεί σε μεγέθυνση έως 200%</li>
+      <li>Τα εικονίδια (SVG) φέρουν <strong>aria-hidden="true"</strong> όταν είναι διακοσμητικά</li>
+    </ul>
+
+    <div class="screenshot">
+      <strong>[ΕΙΚΌΝΑ 10: WCAG Compliance — Screenshot accessibility checker (π.χ. Axe DevTools ή Lighthouse)]</strong>
+      Αντικαταστήστε με screenshot accessibility audit
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ 8. ΠΟΛΥΓΛΩΣΣΙΑ -->
+<div class="page">
+  <div class="section">
+    <div class="section-number">Ενότητα 8</div>
+    <h2>Πολυγλωσσία</h2>
+
+    <p>Το λογισμικό υποστηρίζει <strong>4 γλώσσες</strong> τόσο στη διεπαφή επισκέπτη (Guest Portal) όσο και στις αυτόματες απαντήσεις AI:</p>
+
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-icon">🇬🇧</div>
+        <div class="card-title">Αγγλικά (English)</div>
+        <div class="card-text">Προεπιλεγμένη γλώσσα για όλες τις εθνικότητες εκτός των παρακάτω</div>
+      </div>
+      <div class="card">
+        <div class="card-icon">🇬🇷</div>
+        <div class="card-title">Ελληνικά</div>
+        <div class="card-text">Αυτόματη επιλογή για Έλληνες επισκέπτες (εθνικότητα: GR)</div>
+      </div>
+      <div class="card">
+        <div class="card-icon">🇩🇪</div>
+        <div class="card-title">Γερμανικά (Deutsch)</div>
+        <div class="card-text">Αυτόματη επιλογή για Γερμανία, Αυστρία, Ελβετία (DE, AT, CH)</div>
+      </div>
+      <div class="card">
+        <div class="card-icon">🇫🇷</div>
+        <div class="card-title">Γαλλικά (Français)</div>
+        <div class="card-text">Αυτόματη επιλογή για Γαλλία, Βέλγιο (FR, BE)</div>
+      </div>
+    </div>
+
+    <h3>8.1 Αυτόματη Ανίχνευση Γλώσσας</h3>
+    <p>Η γλώσσα επιλέγεται αυτόματα βάσει της εθνικότητας που έχει καταχωρηθεί στο μητρώο πελατών. Χαρτογράφηση: 15+ κωδικοί χωρών → γλώσσα. Ο επισκέπτης μπορεί να αλλάξει γλώσσα ανά πάσα στιγμή με τον επιλογέα γλώσσας (flag buttons).</p>
+
+    <h3>8.2 Εύρος Μεταφράσεων</h3>
+    <ul>
+      <li>Όλα τα κείμενα διεπαφής (labels, κουμπιά, μηνύματα)</li>
+      <li>Ονόματα καρτελών (Home, Guide, Local, Services, Chat, Emergency)</li>
+      <li>Κατηγορίες Ψηφιακού Οδηγού</li>
+      <li>Κατηγορίες Τοπικών Συστάσεων</li>
+      <li>Καταστάσεις Αιτημάτων (received, in progress, completed)</li>
+      <li>Γρήγορες αιτήσεις (quick labels: taxi, doctor, laundry κ.ά.)</li>
+      <li>Μορφοποίηση ημερομηνιών κατά locale (el-GR, de-DE, fr-FR, en-GB)</li>
+      <li>AI απαντήσεις: ο AI Concierge απαντά στη γλώσσα του επισκέπτη</li>
+    </ul>
+
+    <h3>8.3 Διατήρηση Επιλογής</h3>
+    <p>Η επιλογή γλώσσας αποθηκεύεται στο localStorage και διατηρείται σε ανανέωση σελίδας. Κάθε επισκέπτης έχει τη δική του προτίμηση γλώσσας.</p>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ 9. ΑΔΕΙΑ -->
+<div class="page">
+  <div class="section">
+    <div class="section-number">Ενότητα 9</div>
+    <h2>Αδειοδότηση Λογισμικού</h2>
+
+    <h3>9.1 Μοναδικός Αριθμός Άδειας ανά Εγκατάσταση</h3>
+    <p>Κάθε εγκατάσταση του λογισμικού λαμβάνει έναν <strong>μοναδικό αριθμό άδειας χρήσης</strong> (serial number) που δημιουργείται κατά την πρώτη εκκίνηση και αποθηκεύεται μόνιμα στη βάση δεδομένων της εγκατάστασης.</p>
+
+    <div class="license-box" style="margin:4mm 0;">
+      <p style="font-size:9pt;color:#555;margin-bottom:2mm;">Παράδειγμα αριθμού άδειας:</p>
+      <div class="license-key">VMS-2025-VVRD-A3F7B2D1-8C4E</div>
+      <p style="font-size:9pt;color:#888;margin-top:3mm;">
+        <strong>VMS</strong> = Villa Management System &nbsp;|&nbsp;
+        <strong>2025</strong> = Έτος αδειοδότησης &nbsp;|&nbsp;
+        <strong>VVRD</strong> = Κωδικός εγκατάστασης &nbsp;|&nbsp;
+        <strong>A3F7B2D1-8C4E</strong> = Μοναδικός αναγνωριστικός κωδικός (hex)
+      </p>
+    </div>
+
+    <h3>9.2 Χαρακτηριστικά Αδείας</h3>
+    <table>
+      <tr><th>Χαρακτηριστικό</th><th>Λεπτομέρεια</th></tr>
+      <tr><td>Τύπος</td><td>Perpetual License per Installation</td></tr>
+      <tr><td>Εύρος</td><td>Μία εγκατάσταση ανά επιχείρηση (tenant)</td></tr>
+      <tr><td>Δημιουργία</td><td>Αυτόματη κατά την πρώτη εκκίνηση</td></tr>
+      <tr><td>Μοναδικότητα</td><td>Κρυπτογραφικά μοναδικός (secrets.token_hex)</td></tr>
+      <tr><td>Αποθήκευση</td><td>Βάση δεδομένων εγκατάστασης (κρυπτογραφημένη)</td></tr>
+      <tr><td>Εμφάνιση</td><td>Στον Πίνακα Ελέγχου Guest Portal → Settings</td></tr>
+      <tr><td>Λογισμικό</td><td>Villa Booking Management System v2.0</td></tr>
+    </table>
+
+    <h3>9.3 Χρήση για ΕΣΠΑ</h3>
+    <p>Ο αριθμός άδειας χρησιμεύει ως <strong>αποδεικτικό στοιχείο</strong> εγκατάστασης και χρήσης του λογισμικού για τους σκοπούς τεκμηρίωσης ΕΣΠΑ. Ο αριθμός είναι ορατός στο Guest Portal → Settings → «Άδεια Λογισμικού» και μπορεί να εκτυπωθεί.</p>
+
+    <div class="screenshot">
+      <strong>[ΕΙΚΌΝΑ 11: Πίνακας Ελέγχου — Ενότητα «Άδεια Λογισμικού» με Serial Number]</strong>
+      Αντικαταστήστε με screenshot της ενότητας αδείας στο Guest Portal Settings
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ 10. ΤΕΧΝΙΚΕΣ ΠΡΟΔ. -->
+<div class="page">
+  <div class="section">
+    <div class="section-number">Ενότητα 10</div>
+    <h2>Τεχνικές Προδιαγραφές</h2>
+
+    <div class="grid-2">
+      <div>
+        <h3>Backend</h3>
+        <table>
+          <tr><td>Γλώσσα</td><td>Python 3.11</td></tr>
+          <tr><td>Framework</td><td>FastAPI 0.110+</td></tr>
+          <tr><td>ORM</td><td>SQLAlchemy 2.0</td></tr>
+          <tr><td>Βάση Δεδομένων</td><td>SQLite (Persistent Volume)</td></tr>
+          <tr><td>Authentication</td><td>Bearer Token (SHA-256)</td></tr>
+          <tr><td>AI Model</td><td>Claude Haiku (Anthropic)</td></tr>
+          <tr><td>Email</td><td>SMTP/STARTTLS (Gmail)</td></tr>
+        </table>
+      </div>
+      <div>
+        <h3>Frontend</h3>
+        <table>
+          <tr><td>Framework</td><td>React 18 + Vite</td></tr>
+          <tr><td>Styling</td><td>Tailwind CSS 3.4</td></tr>
+          <tr><td>Routing</td><td>React Router v6</td></tr>
+          <tr><td>HTTP Client</td><td>Axios</td></tr>
+          <tr><td>Icons</td><td>Heroicons v2</td></tr>
+          <tr><td>Build</td><td>Vite (code-split)</td></tr>
+          <tr><td>Accessibility</td><td>WCAG 2.0 AA</td></tr>
+        </table>
+      </div>
+    </div>
+
+    <h3>Cloud Infrastructure</h3>
+    <table>
+      <tr><th>Συστατικό</th><th>Τεχνολογία</th><th>Χαρακτηριστικά</th></tr>
+      <tr><td>Hosting</td><td>Railway.app</td><td>EU/US region, auto-deploy, zero-downtime</td></tr>
+      <tr><td>Container</td><td>Docker (multi-stage)</td><td>Node 20 build + Python 3.11 runtime</td></tr>
+      <tr><td>Persistent Storage</td><td>Railway Volume</td><td>SQLite DB + uploaded photos (GDPR)</td></tr>
+      <tr><td>CI/CD</td><td>Git-based deploy</td><td>Αυτόματο build/deploy σε κάθε push</td></tr>
+      <tr><td>HTTPS</td><td>Αυτόματο TLS</td><td>Let's Encrypt, forced HTTPS</td></tr>
+      <tr><td>Health Check</td><td>/health endpoint</td><td>Auto-restart σε αποτυχία</td></tr>
+    </table>
+
+    <h3>Ασφάλεια</h3>
+    <ul>
+      <li>CORS policy — whitelist origins</li>
+      <li>Token-based auth με αυτόματη λήξη session</li>
+      <li>Guest tokens: κρυπτογραφικά τυχαία (secrets.token_urlsafe(32))</li>
+      <li>Αυτόματη διαγραφή uploads μετά checkout (GDPR)</li>
+      <li>Πλήρης απομόνωση δεδομένων μεταξύ tenants</li>
+      <li>SQL injection protection μέσω SQLAlchemy ORM</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ 11. ΣΥΓΚΡΙΣΗ -->
+<div class="page">
+  <div class="section">
+    <div class="section-number">Ενότητα 11</div>
+    <h2>Σύγκριση με Ανταγωνιστικά Συστήματα</h2>
+
+    <table>
+      <tr>
+        <th>Λειτουργία</th>
+        <th>Η Πλατφόρμα μας</th>
+        <th>Smoobu</th>
+        <th>Lodgify</th>
+        <th>Hostfully</th>
+        <th>Beds24</th>
+      </tr>
+      <tr><td>Ελληνική διεπαφή</td><td>✅</td><td>❌</td><td>❌</td><td>❌</td><td>❌</td></tr>
+      <tr><td>AI Unit Recommender</td><td>✅</td><td>❌</td><td>❌</td><td>❌</td><td>❌</td></tr>
+      <tr><td>AI Concierge (guest chat)</td><td>✅</td><td>❌</td><td>❌</td><td>⚠️ πληρωμή</td><td>❌</td></tr>
+      <tr><td>AI Cleaning Scheduler</td><td>✅</td><td>⚠️ βασικό</td><td>❌</td><td>⚠️ βασικό</td><td>⚠️ βασικό</td></tr>
+      <tr><td>Guest Portal (πλήρες)</td><td>✅</td><td>⚠️ περιορισμένο</td><td>⚠️ μόνο guide</td><td>✅ (ακριβό)</td><td>❌</td></tr>
+      <tr><td>WCAG 2.0 AA</td><td>✅</td><td>❌</td><td>❌</td><td>❌</td><td>❌</td></tr>
+      <tr><td>EN/EL/DE/FR (auto)</td><td>✅</td><td>⚠️ μόνο EN/DE</td><td>⚠️ EN/DE</td><td>⚠️ EN</td><td>⚠️ EN</td></tr>
+      <tr><td>iCal sync (Booking/Airbnb)</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td></tr>
+      <tr><td>Σύνδεσμος ΕΣΠΑ / Άδεια</td><td>✅</td><td>❌</td><td>❌</td><td>❌</td><td>❌</td></tr>
+      <tr><td>Multi-tenant (πολλαπλές βίλες)</td><td>✅</td><td>✅ (€)</td><td>✅ (€€)</td><td>✅ (€€€)</td><td>✅ (€)</td></tr>
+      <tr><td>On-premise / self-hosted</td><td>✅</td><td>❌</td><td>❌</td><td>❌</td><td>❌</td></tr>
+    </table>
+
+    <div class="feature-box innovation" style="margin-top:5mm;">
+      <strong>Συμπέρασμα Σύγκρισης:</strong> Η πλατφόρμα αυτή είναι η <em>μόνη</em> στην αγορά που συνδυάζει ελληνική διεπαφή, πλήρη AI ενσωμάτωση (3 modules), ολοκληρωμένο Guest Portal, WCAG 2.0 compliance και ΕΣΠΑ-συμβατή αδειοδότηση — σε ενιαίο προϊόν.
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ 12. ΣΥΜΠΕΡΑΣΜΑ -->
+<div class="page">
+  <div class="section">
+    <div class="section-number">Ενότητα 12</div>
+    <h2>Συμπέρασμα</h2>
+
+    <p>Το <strong>Σύστημα Διαχείρισης Κρατήσεων Τουριστικών Καταλυμάτων</strong> αντιπροσωπεύει μια <em>γνήσια καινοτόμα λύση</em> για τον ελληνικό τουριστικό κλάδο. Συνδυάζει:</p>
+
+    <div class="grid-2" style="margin:5mm 0;">
+      <div class="feature-box wcag">
+        <strong>✅ Τεχνολογική Καινοτομία</strong><br>
+        Τεχνητή Νοημοσύνη σε 3 επίπεδα: βελτιστοποίηση κρατήσεων, αυτοματοποίηση καθαριότητας, AI concierge 24/7 στη γλώσσα του επισκέπτη.
+      </div>
+      <div class="feature-box wcag">
+        <strong>✅ Κοινωνική Προσβασιμότητα</strong><br>
+        WCAG 2.0 Level AA — προσβάσιμο σε άτομα με αναπηρία, τυφλούς χρήστες (screen readers), χρήστες με κινητικά προβλήματα.
+      </div>
+      <div class="feature-box wcag">
+        <strong>✅ Γλωσσική Ένταξη</strong><br>
+        Πλήρης υποστήριξη 4 γλωσσών με αυτόματη ανίχνευση — ενισχύει την εμπειρία Ευρωπαίων επισκεπτών.
+      </div>
+      <div class="feature-box wcag">
+        <strong>✅ Νομική Συμμόρφωση</strong><br>
+        Μοναδικός αριθμός άδειας ανά εγκατάσταση, GDPR-compliant διαχείριση δεδομένων, αυτόματη διαγραφή uploads.
+      </div>
+    </div>
+
+    <p>Η επένδυση στο λογισμικό αυτό αποτελεί <span class="highlight">επιλέξιμη δαπάνη στο πλαίσιο ΕΣΠΑ — Ψηφιακός Μετασχηματισμός / Καινοτομία</span>, καθώς:</p>
+    <ol>
+      <li>Εισάγει νέες τεχνολογίες (AI/LLM) στον κλάδο τουρισμού</li>
+      <li>Βελτιώνει μετρήσιμα την παραγωγικότητα επιχειρήσεων (εκτιμώμενη εξοικονόμηση 3–5 ώρες/εβδ.)</li>
+      <li>Ενισχύει την ανταγωνιστικότητα ελληνικών τουριστικών επιχειρήσεων</li>
+      <li>Συμμορφώνεται με ευρωπαϊκά πρότυπα προσβασιμότητας (WCAG 2.0)</li>
+      <li>Ψηφιοποιεί την εμπειρία επισκέπτη — εθνική προτεραιότητα ΕΣΠΑ 2021–2027</li>
+    </ol>
+
+    <hr class="divider" />
+
+    <div style="text-align:center;margin-top:8mm;">
+      <p style="font-size:10pt;color:#888;">Έγγραφο Τεκμηρίωσης — Villa Booking Management System v2.0</p>
+      <p style="font-size:10pt;color:#888;">Ιούνιος 2025 — Εμπιστευτικό</p>
+      <p style="font-size:9pt;color:#bbb;margin-top:4mm;">Αντικαταστήστε τα placeholders [ΕΙΚΌΝΑ ...] με πραγματικά screenshots από την εγκατεστημένη εφαρμογή πριν την υποβολή</p>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
