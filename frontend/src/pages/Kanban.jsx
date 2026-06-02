@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { Link } from 'react-router-dom'
 import { getCases, updateCase, getUsers, sendNotification, getCaseFilterOptions, getPipelines } from '../api'
@@ -323,6 +323,7 @@ export default function Kanban() {
   const [pipelinesData, setPipelinesData] = useState(PIPELINES)
   const [showSLA, setShowSLA] = useState(false)
   const [filterHasDocs, setFilterHasDocs] = useState(false)
+  const [filterStatus, setFilterStatus] = useState('')
 
   const pipeline = pipelinesData[activeProgram] || PIPELINES[activeProgram]
 
@@ -344,12 +345,18 @@ export default function Kanban() {
     setCases(prev => prev.map(c => c.id === caseId ? { ...c, status: newStatus } : c))
   }, [])
 
+  const allPipelineStatuses = useMemo(() => [
+    ...(pipeline?.phases || []).flatMap(ph => ph.statuses || []),
+    ...(pipeline?.extra_statuses || []),
+  ], [pipeline])
+
   const filtered = cases.filter(c =>
     (!filterAgent || String(c.assigned_agent_id) === filterAgent) &&
     (!filterService || c.service_type === filterService) &&
     (!filterSLA || (c.sla_overdue_days != null && c.sla_overdue_days >= filterSLA)) &&
     (!filterSearch || c.client_name?.toLowerCase().includes(filterSearch.toLowerCase())) &&
-    (!filterHasDocs || c.has_documents)
+    (!filterHasDocs || c.has_documents) &&
+    (!filterStatus || c.status === filterStatus)
   )
 
   // Build lookup: status → [cases]
@@ -391,7 +398,7 @@ export default function Kanban() {
         {PROGRAM_TABS.map(prog => (
           <button
             key={prog}
-            onClick={() => { setActiveProgram(prog); setFilterAgent('') }}
+            onClick={() => { setActiveProgram(prog); setFilterAgent(''); setFilterStatus('') }}
             className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${
               activeProgram === prog ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-800'
             }`}
@@ -422,6 +429,12 @@ export default function Kanban() {
           <option value="">Όλοι οι Agents</option>
           {agents.map(a => <option key={a.id} value={String(a.id)}>{a.full_name}</option>)}
         </select>
+        <select className="input w-auto text-sm max-w-[220px]" value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
+          <option value="">Όλα τα Status</option>
+          {allPipelineStatuses.map(s => (
+            <option key={s} value={s}>{s}</option>
+          ))}
+        </select>
         <div className="flex items-center gap-1.5">
           <span className="text-sm text-gray-500 whitespace-nowrap">SLA &gt;</span>
           <input type="number" min="0" className="input w-20 text-sm" placeholder="ημ."
@@ -431,8 +444,8 @@ export default function Kanban() {
           <input type="checkbox" checked={filterHasDocs} onChange={e => setFilterHasDocs(e.target.checked)} className="rounded" />
           Έχουν έγγραφα
         </label>
-        {(filterAgent || filterService || filterSLA > 0 || filterSearch || filterHasDocs) && (
-          <button onClick={() => { setFilterAgent(''); setFilterService(''); setFilterSLA(0); setFilterSearch(''); setFilterHasDocs(false) }}
+        {(filterAgent || filterService || filterSLA > 0 || filterSearch || filterHasDocs || filterStatus) && (
+          <button onClick={() => { setFilterAgent(''); setFilterService(''); setFilterSLA(0); setFilterSearch(''); setFilterHasDocs(false); setFilterStatus('') }}
             className="text-sm text-gray-500 hover:text-gray-800 underline">
             Καθαρισμός
           </button>
