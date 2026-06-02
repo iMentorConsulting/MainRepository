@@ -12,7 +12,7 @@ router.post('/run', async (req, res) => {
   try {
     const result = await runBackup();
     const driveOk = !result.driveError;
-    global._lastBackup = { ran_at: new Date().toISOString(), ok: driveOk, counts: result.counts, filename: result.filename, driveError: result.driveError || null };
+    global._lastBackup = { ran_at: new Date().toISOString(), ok: driveOk, counts: result.counts, filename: result.filename, driveError: result.driveError || null, codeSnapshot: result.codeSnapshot || null, codeError: result.codeError || null };
     res.json({ ok: driveOk, ...result });
   } catch (e) {
     global._lastBackup = { ran_at: new Date().toISOString(), ok: false, error: e.message };

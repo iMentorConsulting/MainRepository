@@ -1,6 +1,8 @@
 'use strict';
 require('dotenv').config();
 
+const fs     = require('fs');
+const path   = require('path');
 const crypto = require('crypto');
 const https  = require('https');
 const sequelize = require('./config/db');
@@ -23,6 +25,7 @@ const RecurringExpense = require('./models/RecurringExpense');
 const CommissionLog    = require('./models/CommissionLog');
 
 const BACKUP_FOLDER_ID = process.env.GDRIVE_BACKUP_FOLDER_ID || '19FRqXOTePavaJ07CmKFTWF4aKKJTraE4';
+const CODE_FOLDER_ID   = process.env.GDRIVE_CODE_FOLDER_ID   || BACKUP_FOLDER_ID;
 
 function getServiceAccountKey() {
   const rawJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
@@ -109,9 +112,9 @@ function driveRequest(method, path, accessToken, bodyBuffer, contentType) {
   });
 }
 
-async function uploadToDrive(accessToken, filename, jsonContent) {
+async function uploadToFolder(accessToken, folderId, filename, jsonContent) {
   const boundary = `bk_${Date.now()}`;
-  const metadata = JSON.stringify({ name: filename, parents: [BACKUP_FOLDER_ID] });
+  const metadata = JSON.stringify({ name: filename, parents: [folderId] });
   const body = Buffer.from(
     `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${metadata}\r\n` +
     `--${boundary}\r\nContent-Type: application/json\r\n\r\n${jsonContent}\r\n` +
@@ -127,6 +130,10 @@ async function uploadToDrive(accessToken, filename, jsonContent) {
   return data;
 }
 
+async function uploadToDrive(accessToken, filename, jsonContent) {
+  return uploadToFolder(accessToken, BACKUP_FOLDER_ID, filename, jsonContent);
+}
+
 async function pruneOldBackups(accessToken, keepCount = 30) {
   const q = encodeURIComponent(`'${BACKUP_FOLDER_ID}' in parents and trashed = false`);
   const { status, data } = await driveRequest(
@@ -140,6 +147,49 @@ async function pruneOldBackups(accessToken, keepCount = 30) {
     await driveRequest('DELETE', `/drive/v3/files/${f.id}`, accessToken).catch(() => {});
   }
   return toDelete.length;
+}
+
+const CODE_EXTENSIONS = new Set(['.js', '.jsx', '.ts', '.tsx', '.css', '.json', '.html', '.env.example']);
+const SKIP_DIRS = new Set(['node_modules', '.git', 'dist', 'build', 'public', '.vite', 'coverage']);
+
+function walkDir(dir, baseLabel, files = {}) {
+  if (!fs.existsSync(dir)) return files;
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    if (SKIP_DIRS.has(entry.name)) continue;
+    const full = path.join(dir, entry.name);
+    const rel  = `${baseLabel}/${entry.name}`;
+    if (entry.isDirectory()) {
+      walkDir(full, rel, files);
+    } else if (CODE_EXTENSIONS.has(path.extname(entry.name))) {
+      try {
+        const content = fs.readFileSync(full, 'utf8');
+        if (content.length < 500_000) files[rel] = content; // skip giant generated files
+      } catch (_) {}
+    }
+  }
+  return files;
+}
+
+async function collectCodeSnapshot() {
+  const backendSrc  = path.join(__dirname);
+  const frontendSrc = path.join(__dirname, '../../frontend/src');
+  const files = {};
+  walkDir(backendSrc,  'backend/src',   files);
+  walkDir(frontendSrc, 'frontend/src',  files);
+  return {
+    snapshot_at:  new Date().toISOString(),
+    file_count:   Object.keys(files).length,
+    files,
+  };
+}
+
+async function runCodeBackup(accessToken) {
+  const data = await collectCodeSnapshot();
+  const ts   = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+  const filename = `imentor-code-snapshot-${ts}.json`;
+  const file = await uploadToFolder(accessToken, CODE_FOLDER_ID, filename, JSON.stringify(data, null, 2));
+  console.log(`[backup] Code snapshot uploaded: ${file.name} (${data.file_count} files)`);
+  return { filename, file_count: data.file_count, driveFile: file };
 }
 
 async function exportAllData() {
@@ -165,7 +215,7 @@ async function exportAllData() {
 }
 
 async function runBackup() {
-  console.log('[backup] Starting database export…');
+  console.log('[backup] Starting database + code export…');
   await sequelize.authenticate();
 
   const data = await exportAllData();
@@ -176,19 +226,29 @@ async function runBackup() {
   let driveFile = null;
   let pruned = 0;
   let driveError = null;
+  let codeSnapshot = null;
+  let codeError = null;
 
   try {
     const accessToken = await getDriveAccessToken();
+    // Data backup
     driveFile = await uploadToDrive(accessToken, filename, jsonContent);
     pruned = await pruneOldBackups(accessToken);
-    console.log(`[backup] Uploaded to Drive: ${driveFile.name} (id=${driveFile.id})`);
+    console.log(`[backup] Data uploaded: ${driveFile.name}`);
+    // Code snapshot
+    try {
+      codeSnapshot = await runCodeBackup(accessToken);
+    } catch (ce) {
+      codeError = ce.message;
+      console.warn('[backup] Code snapshot failed:', ce.message);
+    }
   } catch (err) {
     driveError = err.message;
     console.warn('[backup] Drive upload failed:', err.message);
   }
 
-  console.log(`[backup] Done — records: ${JSON.stringify(data.counts)}, pruned: ${pruned}`);
-  return { filename, counts: data.counts, driveFile, pruned, driveError };
+  console.log(`[backup] Done — records: ${JSON.stringify(data.counts)}, pruned: ${pruned}, code: ${codeSnapshot?.file_count ?? 'failed'} files`);
+  return { filename, counts: data.counts, driveFile, pruned, driveError, codeSnapshot, codeError };
 }
 
 // Run directly: node src/backup.js

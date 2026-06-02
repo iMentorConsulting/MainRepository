@@ -207,9 +207,10 @@ function BackupPanel() {
       const r = await api.post('/backup/run');
       setLastResult(r.data);
       const driveOk = !!r.data.driveFile;
-      setAutoStatus({ ran_at: new Date().toISOString(), ok: driveOk, counts: r.data.counts, filename: r.data.filename, driveError: r.data.driveError || null });
+      setAutoStatus({ ran_at: new Date().toISOString(), ok: driveOk, counts: r.data.counts, filename: r.data.filename, driveError: r.data.driveError || null, codeSnapshot: r.data.codeSnapshot || null, codeError: r.data.codeError || null });
       if (driveOk) {
-        toast.success(`Αποθηκεύτηκε στο Drive: ${r.data.driveFile.name}`);
+        const codeInfo = r.data.codeSnapshot ? ` · Κώδικας: ${r.data.codeSnapshot.file_count} αρχεία` : '';
+        toast.success(`Αποθηκεύτηκε στο Drive: ${r.data.driveFile.name}${codeInfo}`);
       } else {
         toast.error(`Drive upload απέτυχε: ${r.data.driveError || 'Άγνωστο σφάλμα'}`);
       }
@@ -247,7 +248,9 @@ function BackupPanel() {
               ? `Τελευταίο αυτόματο backup: ${fmtDate(autoStatus.ran_at)}`
               : `Αποτυχία Drive upload: ${autoStatus?.driveError || autoStatus?.error || 'Άγνωστο σφάλμα'}`}
           </div>
-          {autoStatus?.filename && <div className="opacity-75 mt-0.5">{autoStatus.filename}</div>}
+          {autoStatus?.filename && <div className="opacity-75 mt-0.5">📦 {autoStatus.filename}</div>}
+          {autoStatus?.codeSnapshot && <div className="opacity-75 mt-0.5">💻 {autoStatus.codeSnapshot.filename} ({autoStatus.codeSnapshot.file_count} αρχεία)</div>}
+          {autoStatus?.codeError && <div className="text-amber-600 mt-0.5">⚠️ Κώδικας: {autoStatus.codeError}</div>}
         </div>
       </div>
 
