@@ -908,11 +908,144 @@ function TabServiceTrend() {
   );
 }
 
+function TabPayroll({ years }) {
+  const [year, setYear] = useState(years[0] || new Date().getFullYear());
+  const [data, setData] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (years.length > 0 && !years.includes(year)) setYear(years[0]);
+  }, [years]);
+
+  useEffect(() => {
+    if (!year) return;
+    setLoading(true);
+    api.get(`/reports/bonus?year=${year}`)
+      .then(r => setData(r.data || []))
+      .catch(() => setData([]))
+      .finally(() => setLoading(false));
+  }, [year]);
+
+  const MONTH_NAMES = ['Ιαν','Φεβ','Μαρ','Απρ','Μαι','Ιουν','Ιουλ','Αυγ','Σεπ','Οκτ','Νοε','Δεκ'];
+  const BORDER_COLORS = ['border-indigo-400','border-emerald-400','border-amber-400','border-rose-400','border-cyan-400','border-purple-400'];
+
+  const allChartData = MONTH_NAMES.map((name, i) => {
+    const monthNum = String(i + 1).padStart(2, '0');
+    const entry = { month: name };
+    for (const d of data) {
+      const m = d.monthly.find(x => x.month === monthNum);
+      entry[d.agent] = m?.bonus || 0;
+    }
+    return entry;
+  });
+
+  const grandTotal = data.reduce((s, d) => s + d.total, 0);
+
+  return (
+    <div className="space-y-6">
+      <div className="filter-bar">
+        <select className="input w-28" value={year} onChange={e => setYear(+e.target.value)}>
+          {years.map(y => <option key={y}>{y}</option>)}
+        </select>
+      </div>
+
+      {loading && <div className="card p-12 text-center text-slate-400">Φόρτωση...</div>}
+
+      {!loading && data.length > 0 && (
+        <>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            {data.map((d, i) => (
+              <StatCard key={d.agent} label={d.agent} value={fmt(d.total)} color={BORDER_COLORS[i % BORDER_COLORS.length]} />
+            ))}
+            {data.length > 1 && (
+              <StatCard label="Σύνολο Μισθοδοσίας" value={fmt(grandTotal)} color="border-slate-400" />
+            )}
+          </div>
+
+          <div className="card p-6">
+            <h2 className="section-title">Μηνιαία Αμοιβή Συμβούλων — {year}</h2>
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={allChartData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                <YAxis tickFormatter={v => `${Math.round(v/1000)}k`} tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                <Tooltip content={<CustomTooltip />} />
+                <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 12, paddingTop: 16 }} />
+                {data.map((d, i) => (
+                  <Bar key={d.agent} dataKey={d.agent} name={d.agent} fill={PALETTE[i % PALETTE.length]} radius={[4, 4, 0, 0]} maxBarSize={40} />
+                ))}
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+
+          <div className="card overflow-hidden">
+            <div className="px-6 py-4 border-b border-slate-100">
+              <h2 className="section-title mb-0">Αναλυτική Μισθοδοσία ανά Μήνα — {year}</h2>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr>
+                    <th className="th">Μήνας</th>
+                    {data.map(d => <th key={d.agent} className="th text-right">{d.agent}</th>)}
+                    <th className="th text-right">Σύνολο</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {MONTH_NAMES.map((name, i) => {
+                    const monthNum = String(i + 1).padStart(2, '0');
+                    const amounts = data.map(d => {
+                      const m = d.monthly.find(x => x.month === monthNum);
+                      return m?.bonus || 0;
+                    });
+                    const rowTotal = amounts.reduce((s, v) => s + v, 0);
+                    return (
+                      <tr key={name} className={`tr ${rowTotal === 0 ? 'opacity-40' : ''}`}>
+                        <td className="td font-semibold text-slate-700">{name} {year}</td>
+                        {amounts.map((amt, ai) => (
+                          <td key={ai} className="td text-right">
+                            {amt > 0
+                              ? <span className="font-bold text-indigo-600">{fmt(amt)}</span>
+                              : <span className="text-slate-300">—</span>}
+                          </td>
+                        ))}
+                        <td className="td text-right font-black text-emerald-600">
+                          {rowTotal > 0 ? fmt(rowTotal) : <span className="text-slate-300">—</span>}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  <tr className="bg-indigo-50 border-t-2 border-indigo-200">
+                    <td className="td font-black text-slate-800 uppercase text-xs tracking-wide">ΣΥΝΟΛΟ {year}</td>
+                    {data.map(d => (
+                      <td key={d.agent} className="td text-right font-black text-indigo-700">{fmt(d.total)}</td>
+                    ))}
+                    <td className="td text-right font-black text-emerald-700 text-base">{fmt(grandTotal)}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
+      )}
+
+      {!loading && data.length === 0 && (
+        <div className="card p-12 text-center text-slate-400">
+          <div className="text-3xl mb-2">💰</div>
+          <div className="font-medium text-slate-500 mb-1">Δεν υπάρχουν δεδομένα μισθοδοσίας για {year}.</div>
+          <div className="text-sm">Οι εγγραφές εισοδήματος με συμπληρωμένο πεδίο bonus θα εμφανίζονται εδώ.</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 const TABS = [
   { id: 'overview', label: 'Επισκόπηση' },
   { id: 'top-customers', label: 'Κορυφαίοι Πελάτες' },
   { id: 'accountants', label: 'Αναφορά Λογιστών' },
   { id: 'service-trend', label: 'Ανά Υπηρεσία' },
+  { id: 'payroll', label: 'Μισθοδοσία' },
 ];
 
 export default function ReportsPage() {
@@ -1020,6 +1153,7 @@ export default function ReportsPage() {
       {activeTab === 'top-customers' && <TabTopCustomers years={years} />}
       {activeTab === 'accountants' && <TabAccountants years={years} />}
       {activeTab === 'service-trend' && <TabServiceTrend />}
+      {activeTab === 'payroll' && <TabPayroll years={years} />}
     </div>
   );
 }
