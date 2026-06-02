@@ -52,13 +52,18 @@ function formatPhone(p) {
 
 function parseAnyDate(s) {
   if (!s) return null
+  const str = String(s).trim()
 
-  // DD/MM/YYYY or DD-MM-YYYY or DD.MM.YYYY
-  const m1 = String(s).match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})/)
+  // DD/MM/YYYY or DD-MM-YYYY or DD.MM.YYYY (4-digit year — must match before 2-digit)
+  const m1 = str.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})/)
   if (m1) { const d = new Date(+m1[3], +m1[2] - 1, +m1[1]); if (!isNaN(d)) return d }
 
+  // DD/MM/YY or DD-MM-YY (2-digit year → 20xx; Google Sheets often exports this format)
+  const m1b = str.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{2})(?:\s|$)/)
+  if (m1b) { const d = new Date(2000 + +m1b[3], +m1b[2] - 1, +m1b[1]); if (!isNaN(d)) return d }
+
   // YYYY-MM-DD or YYYY/MM/DD — parse as LOCAL midnight (not UTC)
-  const m2 = String(s).match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/)
+  const m2 = str.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/)
   if (m2) { const d = new Date(+m2[1], +m2[2] - 1, +m2[3]); if (!isNaN(d)) return d }
 
   // DD-GreekMonth-YYYY (e.g., "31-Μαρ-2026", "1-Ιουν-2026")
@@ -71,7 +76,7 @@ function parseAnyDate(s) {
     'ιαν': 0, 'φεβ': 1, 'μαρ': 2, 'απρ': 3, 'μαι': 4,
     'ιουν': 5, 'ιουλ': 6, 'αυγ': 7, 'σεπ': 8, 'οκτ': 9, 'νοε': 10, 'δεκ': 11,
   }
-  const m3 = String(s).match(/^(\d{1,2})[\/\-](\S{3,})[\/\-](\d{4})/)
+  const m3 = str.match(/^(\d{1,2})[\/\-](\S{3,})[\/\-](\d{4})/)
   if (m3) {
     const month = greekMonthsNorm[_norm(m3[2])]
     if (month !== undefined) {
@@ -318,6 +323,18 @@ function NextCallPill({ value, sheetValue, onChange }) {
 
   if (sheetValue) {
     const sheetParsed = parseAnyDate(sheetValue)
+    if (!sheetParsed) {
+      // Non-date sheet text (e.g. "ΤΕΛΟΣ") — show as plain grey badge, not a reminder pill
+      return (
+        <button
+          onClick={e => { e.stopPropagation(); setEditing(true) }}
+          title={`Sheet: ${sheetValue} — κλικ για να θέσετε reminder`}
+          className="text-xs px-1.5 py-0.5 rounded text-gray-400 border border-gray-200 whitespace-nowrap"
+        >
+          {sheetValue.length > 8 ? sheetValue.slice(0, 8) + '…' : sheetValue}
+        </button>
+      )
+    }
     return (
       <button
         onClick={e => { e.stopPropagation(); setEditing(true) }}
@@ -325,7 +342,7 @@ function NextCallPill({ value, sheetValue, onChange }) {
         className="text-xs px-1.5 py-0.5 rounded-full font-medium whitespace-nowrap flex items-center gap-1 bg-amber-50 text-amber-700 border border-amber-200"
       >
         <BellIcon className="w-3 h-3 shrink-0" />
-        {sheetParsed ? format(sheetParsed, 'dd/MM/yy') : (sheetValue.length > 8 ? sheetValue.slice(0, 8) + '…' : sheetValue)}
+        {format(sheetParsed, 'dd/MM/yy')}
       </button>
     )
   }
