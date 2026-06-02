@@ -1,5 +1,4 @@
-// AnakainizwPortalSection.jsx
-// Renders ΑΝΑΚΑΙΝΙΖΩ-specific content on the client portal page.
+// AnakainizwPortalSection.jsx — split into named section exports
 
 function fmtEuro(n) {
   if (!n && n !== 0) return '—'
@@ -68,21 +67,273 @@ function CheckStatusBadge({ status }) {
   )
 }
 
-export default function AnakainizwPortalSection({ caseData }) {
+export function AnaHeader({ caseData }) {
   const ana = caseData?.anakainizw
   if (!ana) return null
-
   const activeBoosts = BOOST_LABELS.filter(b => ana[b.key])
+  return (
+    <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#1e3a5f] to-[#2c5282] text-white p-6 shadow-lg">
+      <div className="absolute -top-8 -right-8 w-40 h-40 rounded-full bg-white/5" />
+      <div className="absolute -bottom-10 -left-6 w-32 h-32 rounded-full bg-white/5" />
+      <div className="relative flex items-start gap-4">
+        <div className="flex-shrink-0 w-14 h-14 rounded-2xl bg-white/15 flex items-center justify-center text-3xl shadow-inner">🏠</div>
+        <div className="flex-1 min-w-0">
+          <div className="text-xs font-bold uppercase tracking-widest text-blue-200 mb-0.5">Πρόγραμμα</div>
+          <h2 className="text-2xl font-extrabold leading-tight">Ανακαινίζω</h2>
+          <p className="text-sm text-blue-200 mt-1">Επιδότηση ανακαίνισης κατοικίας</p>
+          <a href="https://i-mentor.gr/anakainisi-palaiwn-spitiwn/" target="_blank" rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 mt-2 text-xs text-blue-300 hover:text-white underline underline-offset-2 transition-colors">
+            🔗 Πληροφορίες Προγράμματος
+          </a>
+        </div>
+        {ana.subsidy_percent && (
+          <div className="flex-shrink-0 bg-white/20 backdrop-blur rounded-xl px-4 py-2 text-center border border-white/20">
+            <div className="text-2xl font-black">{ana.subsidy_percent}%</div>
+            <div className="text-xs text-blue-200 font-medium">Επιδότηση</div>
+          </div>
+        )}
+      </div>
+      {activeBoosts.length > 0 && (
+        <div className="relative mt-4 flex gap-2 flex-wrap">
+          {activeBoosts.map(b => (
+            <span key={b.key} className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full bg-white/15 border border-white/25 text-blue-100">
+              {b.icon} {b.label}
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+export function AnaProperty({ caseData }) {
+  const ana = caseData?.anakainizw
+  if (!ana) return null
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
+      <div className="flex items-center gap-2 mb-4">
+        <span className="text-xl">🏡</span>
+        <h3 className="text-sm font-bold text-gray-800">Στοιχεία Ακινήτου</h3>
+      </div>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        <div className="bg-blue-50 border border-blue-100 rounded-xl p-3">
+          <div className="text-xs text-blue-500 font-medium mb-0.5">Εμβαδόν</div>
+          <div className="text-lg font-bold text-blue-800">{ana.property_sqm ? `${ana.property_sqm} τ.μ.` : <span className="text-sm text-blue-300">Σε επεξεργασία</span>}</div>
+        </div>
+        <div className="bg-green-50 border border-green-100 rounded-xl p-3">
+          <div className="text-xs text-green-500 font-medium mb-0.5">Περιοχή</div>
+          <div className="text-base font-bold text-green-800 leading-tight">{ana.property_prefecture || <span className="text-sm text-green-300">Σε επεξεργασία</span>}</div>
+        </div>
+        <div className="bg-orange-50 border border-orange-100 rounded-xl p-3">
+          <div className="text-xs text-orange-500 font-medium mb-0.5">Χρήση Ακινήτου</div>
+          <div className="text-base font-bold text-orange-800">{ana.property_usage ? (USAGE_LABELS[ana.property_usage] || ana.property_usage) : <span className="text-sm text-orange-300">Σε επεξεργασία</span>}</div>
+        </div>
+        <div className="bg-gray-50 border border-gray-200 rounded-xl p-3">
+          <div className="text-xs text-gray-500 font-medium mb-0.5">Τύπος Κατοικίας</div>
+          <div className="text-base font-bold text-gray-700">{ana.property_type || <span className="text-sm text-gray-300">Σε επεξεργασία</span>}</div>
+        </div>
+        <div className="bg-gray-50 border border-gray-200 rounded-xl p-3">
+          <div className="text-xs text-gray-500 font-medium mb-0.5">Παλαιότητα</div>
+          <div className="text-base font-bold text-gray-700">{ana.property_age || <span className="text-sm text-gray-300">Σε επεξεργασία</span>}</div>
+        </div>
+      </div>
+      {ana.property_address && (
+        <div className="mt-3 bg-gray-50 border border-gray-100 rounded-xl p-3">
+          <div className="text-xs text-gray-400 font-medium mb-0.5">📍 Διεύθυνση</div>
+          <div className="text-sm font-semibold text-gray-700">{ana.property_address}</div>
+        </div>
+      )}
+      {ana.renovation_works && (
+        <div className="mt-3 bg-blue-50 border border-blue-100 rounded-xl p-3">
+          <div className="text-xs text-blue-500 font-medium mb-0.5">Εργασίες Ανακαίνισης</div>
+          <div className="text-sm text-blue-800">{ana.renovation_works}</div>
+        </div>
+      )}
+      {ana.legality && (
+        <div className="mt-3 bg-gray-50 border border-gray-200 rounded-xl p-3">
+          <div className="text-xs text-gray-500 font-medium mb-0.5">Νομιμότητα Ακινήτου</div>
+          <div className="text-sm font-semibold text-gray-700">{ana.legality}</div>
+        </div>
+      )}
+      {ana.cooperating_engineer && (
+        <div className="mt-3 bg-amber-50 border border-amber-100 rounded-xl p-3 flex items-center gap-3">
+          <span className="text-2xl">👷</span>
+          <div>
+            <div className="text-xs text-amber-500 font-medium mb-0.5">Συνεργαζόμενος Μηχανικός</div>
+            <div className="text-sm font-bold text-amber-800">{ana.cooperating_engineer}</div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+export function AnaIncome({ caseData }) {
+  const ana = caseData?.anakainizw
+  if (!ana) return null
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
+      <div className="flex items-center gap-2 mb-4">
+        <span className="text-xl">💶</span>
+        <h3 className="text-sm font-bold text-gray-800">Εισοδηματικά Κριτήρια</h3>
+      </div>
+      <div className={`rounded-2xl p-5 mb-3 border-2 ${
+        ana.income_eligible === true ? 'bg-green-50 border-green-300' :
+        ana.income_eligible === false ? 'bg-red-50 border-red-300' :
+        'bg-gray-50 border-gray-200'
+      }`}>
+        <div className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">
+          {ana.income_eligible === true ? '✅ ΕΠΙΛΕΞΙΜΟΣ' : ana.income_eligible === false ? '❌ ΜΗ ΕΠΙΛΕΞΙΜΟΣ' : '⏳ Υπό Έλεγχο Εισοδήματος'}
+        </div>
+        <div className={`text-3xl font-black leading-tight ${
+          ana.income_eligible === true ? 'text-green-800' :
+          ana.income_eligible === false ? 'text-red-800' : 'text-gray-400'
+        }`}>
+          {ana.actual_income ? fmtEuro(ana.actual_income) : '— €'}
+        </div>
+        <div className="text-xs text-gray-500 mt-1">Δηλωθέν Εισόδημα</div>
+      </div>
+      <div className="flex items-center justify-between bg-blue-50 border border-blue-100 rounded-xl px-4 py-2.5">
+        <div className="text-xs text-blue-600">
+          Τύπος: <strong>{ana.household_type || '—'}</strong>
+          {(ana.num_children || 0) > 0 && ` · ${ana.num_children} παιδί${ana.num_children > 1 ? 'α' : ''}`}
+          <span className="text-blue-400 ml-1">(max 45.000€)</span>
+        </div>
+        <div className="text-right">
+          <div className="text-xs text-blue-400">Όριο</div>
+          <div className="text-sm font-bold text-blue-700">{ana.income_limit ? fmtEuro(ana.income_limit) : '—'}</div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export function AnaDocChecklist({ caseData }) {
+  const ana = caseData?.anakainizw
+  if (!ana) return null
   const docItems = DOC_ITEMS.map(d => ({ ...d, received: !!ana[d.key] }))
   const visibleDocs = docItems.filter(d => !ana.doc_extras?.[d.key]?.not_needed)
   const docsReceived = visibleDocs.filter(d => d.received).length
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
+      <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+        <div className="flex items-center gap-2">
+          <span className="text-xl">📂</span>
+          <div>
+            <h3 className="text-sm font-bold text-gray-800">Έγγραφα Ακινήτου</h3>
+            <p className="text-xs text-gray-400 mt-0.5">Απαιτούμενα για τη συγκέντρωση φακέλου</p>
+          </div>
+        </div>
+        <div className={`text-xs font-bold px-3 py-1.5 rounded-full border ${
+          docsReceived === visibleDocs.length && visibleDocs.length > 0
+            ? 'bg-green-100 text-green-700 border-green-200'
+            : 'bg-blue-100 text-blue-700 border-blue-200'
+        }`}>
+          {docsReceived}/{visibleDocs.length} παραλήφθηκαν
+        </div>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        {visibleDocs.map(({ key, icon, label, received }) => {
+          const notes = ana.doc_extras?.[key]?.notes
+          return (
+            <div key={key} className={`flex flex-col gap-1 rounded-xl px-4 py-3 border ${
+              received ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-100'
+            }`}>
+              <div className="flex items-center gap-3">
+                <span className="flex-shrink-0 text-xl">{received ? '✅' : icon}</span>
+                <span className={`text-sm font-medium leading-tight ${received ? 'text-green-700' : 'text-gray-600'}`}>
+                  {label}
+                </span>
+                {received && <span className="ml-auto text-xs font-bold text-green-600">✓</span>}
+              </div>
+              {notes && <div className="ml-8 text-xs text-gray-500 italic">{notes}</div>}
+            </div>
+          )
+        })}
+        {visibleDocs.length === 0 && (
+          <div className="col-span-2 text-center text-sm text-gray-400 py-4">
+            Τα έγγραφα θα καταγραφούν κατά τη διάρκεια του ελέγχου
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
 
+export function AnaAdvisorChecklist({ caseData }) {
+  const ana = caseData?.anakainizw
+  if (!ana) return null
   const advisorChecks = ana.advisor_checks || {}
   const visibleChecks = ADVISOR_CHECK_ITEMS.filter(
     item => (advisorChecks[item.key]?.status || 'pending') !== 'not_required'
   )
   const positiveCount = visibleChecks.filter(item => advisorChecks[item.key]?.status === 'positive').length
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
+      <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+        <div className="flex items-center gap-2">
+          <span className="text-xl">🔎</span>
+          <div>
+            <h3 className="text-sm font-bold text-gray-800">Έλεγχοι Επιλεξιμότητας</h3>
+            <p className="text-xs text-gray-400 mt-0.5">Ανάλυση από τον Σύμβουλο iMentor</p>
+          </div>
+        </div>
+        <div className={`text-xs font-bold px-3 py-1.5 rounded-full border ${
+          positiveCount === visibleChecks.length && visibleChecks.length > 0
+            ? 'bg-green-100 text-green-700 border-green-200'
+            : positiveCount > 0
+            ? 'bg-blue-100 text-blue-700 border-blue-200'
+            : 'bg-gray-100 text-gray-500 border-gray-200'
+        }`}>
+          {positiveCount}/{visibleChecks.length} θετικοί
+        </div>
+      </div>
+      <div className="space-y-2">
+        {visibleChecks.map(({ key, label, icon }) => {
+          const check = advisorChecks[key] || { status: 'pending', comment: '' }
+          return (
+            <div key={key} className={`rounded-xl border px-4 py-3 ${
+              check.status === 'positive' ? 'bg-green-50 border-green-200' :
+              check.status === 'negative' ? 'bg-red-50 border-red-200' :
+              check.status === 'in_progress' ? 'bg-blue-50 border-blue-100' :
+              'bg-gray-50 border-gray-100'
+            }`}>
+              <div className="flex items-center gap-3">
+                <span className="text-base shrink-0">{icon}</span>
+                <span className={`flex-1 text-sm font-medium ${
+                  check.status === 'positive' ? 'text-green-800' :
+                  check.status === 'negative' ? 'text-red-800' :
+                  check.status === 'in_progress' ? 'text-blue-800' :
+                  'text-gray-600'
+                }`}>{label}</span>
+                <CheckStatusBadge status={check.status} />
+              </div>
+              {check.comment && (
+                <div className="mt-1.5 ml-7 text-xs text-gray-500 italic border-l-2 border-gray-200 pl-2">
+                  {check.comment}
+                </div>
+              )}
+              {!check.comment && check.status === 'pending' && (
+                <div className="mt-1 ml-7 text-xs text-gray-300 italic">
+                  Ο έλεγχος αυτός θα πραγματοποιηθεί κατά τη συνεδρία με τον Σύμβουλο
+                </div>
+              )}
+            </div>
+          )
+        })}
+        {visibleChecks.length === 0 && (
+          <div className="text-center text-sm text-gray-400 py-4">
+            Οι έλεγχοι επιλεξιμότητας θα ξεκινήσουν σύντομα
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
 
+export function AnaBudget({ caseData }) {
+  const ana = caseData?.anakainizw
+  if (!ana) return null
   const ENERGY_KEYS_SET = new Set(['energy_insulation','energy_windows','energy_hvac','energy_solar','energy_pv','energy_other'])
   const bi = ana.budget_items || {}
   const hasBudget = Object.values(bi).some(v => v > 0)
@@ -116,317 +367,91 @@ export default function AnakainizwPortalSection({ caseData }) {
   const maxBudget = ana.max_budget || 0
   const eligible = Math.min(grandTotal, maxBudget > 0 ? maxBudget : grandTotal)
   const subsidyAmt = eligible * ((ana.subsidy_percent || 70) / 100)
-
   return (
-    <div className="space-y-5">
-      {/* ── Header card ─────────────────────────────────────────────────── */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#1e3a5f] to-[#2c5282] text-white p-6 shadow-lg">
-        <div className="absolute -top-8 -right-8 w-40 h-40 rounded-full bg-white/5" />
-        <div className="absolute -bottom-10 -left-6 w-32 h-32 rounded-full bg-white/5" />
-        <div className="relative flex items-start gap-4">
-          <div className="flex-shrink-0 w-14 h-14 rounded-2xl bg-white/15 flex items-center justify-center text-3xl shadow-inner">🏠</div>
-          <div className="flex-1 min-w-0">
-            <div className="text-xs font-bold uppercase tracking-widest text-blue-200 mb-0.5">Πρόγραμμα</div>
-            <h2 className="text-2xl font-extrabold leading-tight">Ανακαινίζω</h2>
-            <p className="text-sm text-blue-200 mt-1">Επιδότηση ανακαίνισης κατοικίας</p>
-            <a href="https://i-mentor.gr/anakainisi-palaiwn-spitiwn/" target="_blank" rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 mt-2 text-xs text-blue-300 hover:text-white underline underline-offset-2 transition-colors">
-              🔗 Πληροφορίες Προγράμματος
-            </a>
-          </div>
-          {ana.subsidy_percent && (
-            <div className="flex-shrink-0 bg-white/20 backdrop-blur rounded-xl px-4 py-2 text-center border border-white/20">
-              <div className="text-2xl font-black">{ana.subsidy_percent}%</div>
-              <div className="text-xs text-blue-200 font-medium">Επιδότηση</div>
-            </div>
-          )}
-        </div>
-        {activeBoosts.length > 0 && (
-          <div className="relative mt-4 flex gap-2 flex-wrap">
-            {activeBoosts.map(b => (
-              <span key={b.key} className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full bg-white/15 border border-white/25 text-blue-100">
-                {b.icon} {b.label}
-              </span>
-            ))}
-          </div>
-        )}
+    <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
+      <div className="flex items-center gap-2 mb-4">
+        <span className="text-xl">💰</span>
+        <h3 className="text-sm font-bold text-gray-800">Προϋπολογισμός Εργασιών</h3>
       </div>
-
-      {/* ── Property info grid (always visible) ─────────────────────────── */}
-      <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
-        <div className="flex items-center gap-2 mb-4">
-          <span className="text-xl">🏡</span>
-          <h3 className="text-sm font-bold text-gray-800">Στοιχεία Ακινήτου</h3>
-        </div>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-          <div className="bg-blue-50 border border-blue-100 rounded-xl p-3">
-            <div className="text-xs text-blue-500 font-medium mb-0.5">Εμβαδόν</div>
-            <div className="text-lg font-bold text-blue-800">{ana.property_sqm ? `${ana.property_sqm} τ.μ.` : <span className="text-sm text-blue-300">Σε επεξεργασία</span>}</div>
-          </div>
-          <div className="bg-green-50 border border-green-100 rounded-xl p-3">
-            <div className="text-xs text-green-500 font-medium mb-0.5">Περιοχή</div>
-            <div className="text-base font-bold text-green-800 leading-tight">{ana.property_prefecture || <span className="text-sm text-green-300">Σε επεξεργασία</span>}</div>
-          </div>
-          <div className="bg-orange-50 border border-orange-100 rounded-xl p-3">
-            <div className="text-xs text-orange-500 font-medium mb-0.5">Χρήση Ακινήτου</div>
-            <div className="text-base font-bold text-orange-800">{ana.property_usage ? (USAGE_LABELS[ana.property_usage] || ana.property_usage) : <span className="text-sm text-orange-300">Σε επεξεργασία</span>}</div>
-          </div>
-          <div className="bg-gray-50 border border-gray-200 rounded-xl p-3">
-            <div className="text-xs text-gray-500 font-medium mb-0.5">Τύπος Κατοικίας</div>
-            <div className="text-base font-bold text-gray-700">{ana.property_type || <span className="text-sm text-gray-300">Σε επεξεργασία</span>}</div>
-          </div>
-          <div className="bg-gray-50 border border-gray-200 rounded-xl p-3">
-            <div className="text-xs text-gray-500 font-medium mb-0.5">Παλαιότητα</div>
-            <div className="text-base font-bold text-gray-700">{ana.property_age || <span className="text-sm text-gray-300">Σε επεξεργασία</span>}</div>
-          </div>
-        </div>
-        {ana.property_address && (
-          <div className="mt-3 bg-gray-50 border border-gray-100 rounded-xl p-3">
-            <div className="text-xs text-gray-400 font-medium mb-0.5">📍 Διεύθυνση</div>
-            <div className="text-sm font-semibold text-gray-700">{ana.property_address}</div>
-          </div>
-        )}
-        {ana.renovation_works && (
-          <div className="mt-3 bg-blue-50 border border-blue-100 rounded-xl p-3">
-            <div className="text-xs text-blue-500 font-medium mb-0.5">Εργασίες Ανακαίνισης</div>
-            <div className="text-sm text-blue-800">{ana.renovation_works}</div>
-          </div>
-        )}
-        {ana.legality && (
-          <div className="mt-3 bg-gray-50 border border-gray-200 rounded-xl p-3">
-            <div className="text-xs text-gray-500 font-medium mb-0.5">Νομιμότητα Ακινήτου</div>
-            <div className="text-sm font-semibold text-gray-700">{ana.legality}</div>
-          </div>
-        )}
-        {ana.cooperating_engineer && (
-          <div className="mt-3 bg-amber-50 border border-amber-100 rounded-xl p-3 flex items-center gap-3">
-            <span className="text-2xl">👷</span>
-            <div>
-              <div className="text-xs text-amber-500 font-medium mb-0.5">Συνεργαζόμενος Μηχανικός</div>
-              <div className="text-sm font-bold text-amber-800">{ana.cooperating_engineer}</div>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* ── Income eligibility (always visible, actual income prominent) ── */}
-      <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
-        <div className="flex items-center gap-2 mb-4">
-          <span className="text-xl">💶</span>
-          <h3 className="text-sm font-bold text-gray-800">Εισοδηματικά Κριτήρια</h3>
-        </div>
-
-        {/* Actual income — BIG */}
-        <div className={`rounded-2xl p-5 mb-3 border-2 ${
-          ana.income_eligible === true ? 'bg-green-50 border-green-300' :
-          ana.income_eligible === false ? 'bg-red-50 border-red-300' :
-          'bg-gray-50 border-gray-200'
-        }`}>
-          <div className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">
-            {ana.income_eligible === true ? '✅ ΕΠΙΛΕΞΙΜΟΣ' : ana.income_eligible === false ? '❌ ΜΗ ΕΠΙΛΕΞΙΜΟΣ' : '⏳ Υπό Έλεγχο Εισοδήματος'}
-          </div>
-          <div className={`text-3xl font-black leading-tight ${
-            ana.income_eligible === true ? 'text-green-800' :
-            ana.income_eligible === false ? 'text-red-800' : 'text-gray-400'
-          }`}>
-            {ana.actual_income ? fmtEuro(ana.actual_income) : '— €'}
-          </div>
-          <div className="text-xs text-gray-500 mt-1">Δηλωθέν Εισόδημα</div>
-        </div>
-
-        {/* Income limit — small */}
-        <div className="flex items-center justify-between bg-blue-50 border border-blue-100 rounded-xl px-4 py-2.5">
-          <div className="text-xs text-blue-600">
-            Τύπος: <strong>{ana.household_type || '—'}</strong>
-            {(ana.num_children || 0) > 0 && ` · ${ana.num_children} παιδί${ana.num_children > 1 ? 'α' : ''}`}
-            <span className="text-blue-400 ml-1">(max 45.000€)</span>
-          </div>
-          <div className="text-right">
-            <div className="text-xs text-blue-400">Όριο</div>
-            <div className="text-sm font-bold text-blue-700">{ana.income_limit ? fmtEuro(ana.income_limit) : '—'}</div>
-          </div>
-        </div>
-      </div>
-
-      {/* ── Document checklist (always visible) ─────────────────────────── */}
-      <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
-        <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-          <div className="flex items-center gap-2">
-            <span className="text-xl">📂</span>
-            <div>
-              <h3 className="text-sm font-bold text-gray-800">Έγγραφα Ακινήτου</h3>
-              <p className="text-xs text-gray-400 mt-0.5">Απαιτούμενα για τη συγκέντρωση φακέλου</p>
-            </div>
-          </div>
-          <div className={`text-xs font-bold px-3 py-1.5 rounded-full border ${
-            docsReceived === visibleDocs.length && visibleDocs.length > 0
-              ? 'bg-green-100 text-green-700 border-green-200'
-              : 'bg-blue-100 text-blue-700 border-blue-200'
-          }`}>
-            {docsReceived}/{visibleDocs.length} παραλήφθηκαν
-          </div>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-          {visibleDocs.map(({ key, icon, label, received }) => {
-            const notes = ana.doc_extras?.[key]?.notes
+      {hasBudget ? (
+        <>
+          {BUDGET_GROUPS.map(group => {
+            const groupLines = group.items.filter(item => (bi[item.key] || 0) > 0)
+            if (groupLines.length === 0) return null
+            const groupTotal = groupLines.reduce((s, item) => s + (bi[item.key] || 0), 0)
             return (
-              <div key={key} className={`flex flex-col gap-1 rounded-xl px-4 py-3 border ${
-                received ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-100'
-              }`}>
-                <div className="flex items-center gap-3">
-                  <span className="flex-shrink-0 text-xl">{received ? '✅' : icon}</span>
-                  <span className={`text-sm font-medium leading-tight ${received ? 'text-green-700' : 'text-gray-600'}`}>
-                    {label}
-                  </span>
-                  {received && <span className="ml-auto text-xs font-bold text-green-600">✓</span>}
-                </div>
-                {notes && <div className="ml-8 text-xs text-gray-500 italic">{notes}</div>}
-              </div>
-            )
-          })}
-          {visibleDocs.length === 0 && (
-            <div className="col-span-2 text-center text-sm text-gray-400 py-4">
-              Τα έγγραφα θα καταγραφούν κατά τη διάρκεια του ελέγχου
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* ── Advisor Checklist (always visible) ──────────────────────────── */}
-      <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
-        <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-          <div className="flex items-center gap-2">
-            <span className="text-xl">🔎</span>
-            <div>
-              <h3 className="text-sm font-bold text-gray-800">Έλεγχοι Επιλεξιμότητας</h3>
-              <p className="text-xs text-gray-400 mt-0.5">Ανάλυση από τον Σύμβουλο iMentor</p>
-            </div>
-          </div>
-          <div className={`text-xs font-bold px-3 py-1.5 rounded-full border ${
-            positiveCount === visibleChecks.length && visibleChecks.length > 0
-              ? 'bg-green-100 text-green-700 border-green-200'
-              : positiveCount > 0
-              ? 'bg-blue-100 text-blue-700 border-blue-200'
-              : 'bg-gray-100 text-gray-500 border-gray-200'
-          }`}>
-            {positiveCount}/{visibleChecks.length} θετικοί
-          </div>
-        </div>
-        <div className="space-y-2">
-          {visibleChecks.map(({ key, label, icon }) => {
-            const check = advisorChecks[key] || { status: 'pending', comment: '' }
-            return (
-              <div key={key} className={`rounded-xl border px-4 py-3 ${
-                check.status === 'positive' ? 'bg-green-50 border-green-200' :
-                check.status === 'negative' ? 'bg-red-50 border-red-200' :
-                check.status === 'in_progress' ? 'bg-blue-50 border-blue-100' :
-                'bg-gray-50 border-gray-100'
-              }`}>
-                <div className="flex items-center gap-3">
-                  <span className="text-base shrink-0">{icon}</span>
-                  <span className={`flex-1 text-sm font-medium ${
-                    check.status === 'positive' ? 'text-green-800' :
-                    check.status === 'negative' ? 'text-red-800' :
-                    check.status === 'in_progress' ? 'text-blue-800' :
-                    'text-gray-600'
-                  }`}>{label}</span>
-                  <CheckStatusBadge status={check.status} />
-                </div>
-                {check.comment && (
-                  <div className="mt-1.5 ml-7 text-xs text-gray-500 italic border-l-2 border-gray-200 pl-2">
-                    {check.comment}
-                  </div>
-                )}
-                {!check.comment && check.status === 'pending' && (
-                  <div className="mt-1 ml-7 text-xs text-gray-300 italic">
-                    Ο έλεγχος αυτός θα πραγματοποιηθεί κατά τη συνεδρία με τον Σύμβουλο
-                  </div>
-                )}
-              </div>
-            )
-          })}
-          {visibleChecks.length === 0 && (
-            <div className="text-center text-sm text-gray-400 py-4">
-              Οι έλεγχοι επιλεξιμότητας θα ξεκινήσουν σύντομα
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* ── Budget breakdown (always visible) ───────────────────────────── */}
-      <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
-        <div className="flex items-center gap-2 mb-4">
-          <span className="text-xl">💰</span>
-          <h3 className="text-sm font-bold text-gray-800">Προϋπολογισμός Εργασιών</h3>
-        </div>
-        {hasBudget ? (
-          <>
-            {BUDGET_GROUPS.map(group => {
-              const groupLines = group.items.filter(item => (bi[item.key] || 0) > 0)
-              if (groupLines.length === 0) return null
-              const groupTotal = groupLines.reduce((s, item) => s + (bi[item.key] || 0), 0)
-              return (
-                <div key={group.key} className="mb-3">
-                  <div className="flex items-center gap-2 mb-1.5">
-                    <span className="text-sm">{group.icon}</span>
-                    <span className={`text-xs font-semibold ${group.is_energy ? 'text-blue-700' : 'text-gray-700'}`}>{group.label}</span>
-                    <span className="ml-auto text-xs font-bold text-gray-700">{fmtEuro(groupTotal)}</span>
-                  </div>
-                  {groupLines.map(item => (
-                    <div key={item.key} className="flex justify-between text-xs text-gray-600 pl-5 py-0.5">
-                      <span>{item.label}</span>
-                      <span className="font-medium">{fmtEuro(bi[item.key])}</span>
-                    </div>
-                  ))}
-                </div>
-              )
-            })}
-            <div className="mt-3 bg-gray-50 rounded-xl p-3 space-y-1.5 text-xs border border-gray-200">
-              <div className="flex justify-between font-semibold text-gray-800">
-                <span>Σύνολο Προϋπολογισμού</span>
-                <span>{fmtEuro(grandTotal)}</span>
-              </div>
-              {maxBudget > 0 && (
-                <div className="flex justify-between text-gray-500">
-                  <span>Ανώτατο Επιλέξιμο (τ.μ.×300, max 36.000€)</span>
-                  <span className="font-medium">{fmtEuro(maxBudget)}</span>
-                </div>
-              )}
-              <div className={`flex justify-between font-medium ${energyPct >= 20 ? 'text-green-700' : 'text-red-600'}`}>
-                <span>Ενεργειακά {energyPct}% {energyPct >= 20 ? '✓' : '⚠ απαιτείται ≥20%'}</span>
-                <span>{fmtEuro(energyTotal)}</span>
-              </div>
-              <div className="flex justify-between text-green-700 font-bold border-t pt-1.5">
-                <span>Εκτιμώμενη Επιδότηση ({ana.subsidy_percent || 70}%)</span>
-                <span>{fmtEuro(subsidyAmt)}</span>
-              </div>
-            </div>
-          </>
-        ) : (
-          /* empty state: show energy + general category names as placeholders */
-          <>
-            {BUDGET_GROUPS.filter(g => g.key !== 'consultant').map(group => (
-              <div key={group.key} className="mb-4">
-                <div className="flex items-center gap-2 mb-2">
+              <div key={group.key} className="mb-3">
+                <div className="flex items-center gap-2 mb-1.5">
                   <span className="text-sm">{group.icon}</span>
                   <span className={`text-xs font-semibold ${group.is_energy ? 'text-blue-700' : 'text-gray-700'}`}>{group.label}</span>
-                  <span className="ml-auto text-xs text-gray-300 italic">Σε επεξεργασία</span>
+                  <span className="ml-auto text-xs font-bold text-gray-700">{fmtEuro(groupTotal)}</span>
                 </div>
-                {group.items.map(item => (
-                  <div key={item.key} className="flex justify-between text-xs text-gray-400 pl-5 py-0.5 border-l border-gray-100 ml-1">
+                {groupLines.map(item => (
+                  <div key={item.key} className="flex justify-between text-xs text-gray-600 pl-5 py-0.5">
                     <span>{item.label}</span>
-                    <span className="text-gray-200">— €</span>
+                    <span className="font-medium">{fmtEuro(bi[item.key])}</span>
                   </div>
                 ))}
               </div>
-            ))}
-            <div className="mt-2 bg-blue-50 border border-blue-100 rounded-xl p-3 text-xs text-blue-600 text-center">
-              Ο προϋπολογισμός θα συμπληρωθεί κατά τη διαδικασία κατάρτισης φακέλου
+            )
+          })}
+          <div className="mt-3 bg-gray-50 rounded-xl p-3 space-y-1.5 text-xs border border-gray-200">
+            <div className="flex justify-between font-semibold text-gray-800">
+              <span>Σύνολο Προϋπολογισμού</span>
+              <span>{fmtEuro(grandTotal)}</span>
             </div>
-          </>
-        )}
-      </div>
+            {maxBudget > 0 && (
+              <div className="flex justify-between text-gray-500">
+                <span>Ανώτατο Επιλέξιμο (τ.μ.×300, max 36.000€)</span>
+                <span className="font-medium">{fmtEuro(maxBudget)}</span>
+              </div>
+            )}
+            <div className={`flex justify-between font-medium ${energyPct >= 20 ? 'text-green-700' : 'text-red-600'}`}>
+              <span>Ενεργειακά {energyPct}% {energyPct >= 20 ? '✓' : '⚠ απαιτείται ≥20%'}</span>
+              <span>{fmtEuro(energyTotal)}</span>
+            </div>
+            <div className="flex justify-between text-green-700 font-bold border-t pt-1.5">
+              <span>Εκτιμώμενη Επιδότηση ({ana.subsidy_percent || 70}%)</span>
+              <span>{fmtEuro(subsidyAmt)}</span>
+            </div>
+          </div>
+        </>
+      ) : (
+        <>
+          {BUDGET_GROUPS.filter(g => g.key !== 'consultant').map(group => (
+            <div key={group.key} className="mb-4">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-sm">{group.icon}</span>
+                <span className={`text-xs font-semibold ${group.is_energy ? 'text-blue-700' : 'text-gray-700'}`}>{group.label}</span>
+                <span className="ml-auto text-xs text-gray-300 italic">Σε επεξεργασία</span>
+              </div>
+              {group.items.map(item => (
+                <div key={item.key} className="flex justify-between text-xs text-gray-400 pl-5 py-0.5 border-l border-gray-100 ml-1">
+                  <span>{item.label}</span>
+                  <span className="text-gray-200">— €</span>
+                </div>
+              ))}
+            </div>
+          ))}
+          <div className="mt-2 bg-blue-50 border border-blue-100 rounded-xl p-3 text-xs text-blue-600 text-center">
+            Ο προϋπολογισμός θα συμπληρωθεί κατά τη διαδικασία κατάρτισης φακέλου
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
 
+// Legacy default export — kept for any remaining imports
+export default function AnakainizwPortalSection({ caseData }) {
+  return (
+    <div className="space-y-5">
+      <AnaHeader caseData={caseData} />
+      <AnaProperty caseData={caseData} />
+      <AnaIncome caseData={caseData} />
+      <AnaDocChecklist caseData={caseData} />
+      <AnaAdvisorChecklist caseData={caseData} />
+      <AnaBudget caseData={caseData} />
     </div>
   )
 }

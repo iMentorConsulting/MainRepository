@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
 import { getPortalCase, recordPortalVisit, submitPortalNps, recordPortalReviewClick, submitPortalMessage, uploadPortalFile, getPortalRelatedCases } from '../api'
-import AnakainizwPortalSection from './AnakainizwPortalSection'
+import { AnaHeader, AnaProperty, AnaIncome, AnaDocChecklist, AnaAdvisorChecklist, AnaBudget } from './AnakainizwPortalSection'
 import AnakainizwIntakeSection from './AnakainizwIntakeSection'
 import {
   BuildingOffice2Icon,
@@ -1185,7 +1185,8 @@ export default function ClientPortal() {
           </div>
         )}
 
-        {/* Welcome card */}
+        {/* Welcome card — only for non-ΑΝΑΚΑΙΝΙΖΩ (ΑΝΑΚΑΙΝΙΖΩ renders it at position 8) */}
+        {data.program_category !== 'ΑΝΑΚΑΙΝΙΖΩ' && (
         <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
           <div className="flex items-start justify-between gap-3 flex-wrap">
             <div>
@@ -1214,7 +1215,6 @@ export default function ClientPortal() {
               <span>{data.status_descriptions[data.status]}</span>
             </div>
           )}
-          {/* Progress bar */}
           {data.progress_percent > 0 && (
             <div className="mt-3">
               <div className="flex justify-between text-xs text-gray-400 mb-1">
@@ -1233,6 +1233,7 @@ export default function ClientPortal() {
             <p className="mt-2 text-xs text-gray-400">Υπεύθυνος: <span className="font-medium text-gray-600">{data.assigned_agent_name}</span></p>
           )}
         </div>
+        )}
 
         {/* KPIs — not for ΑΝΑΚΑΙΝΙΖΩ (shown in different position) */}
         {data.program_category !== 'ΑΝΑΚΑΙΝΙΖΩ' && (
@@ -1284,31 +1285,19 @@ export default function ClientPortal() {
         {/* ── ΑΝΑΚΑΙΝΙΖΩ: custom card order ─────────────────────────────── */}
         {data.program_category === 'ΑΝΑΚΑΙΝΙΖΩ' && (
           <>
-            {/* 1: Client intake form — property + household confirmation + missing docs */}
+            {/* 2: Program Header */}
+            <AnaHeader caseData={data} />
+
+            {/* 3: Επιβεβαίωση Στοιχείων Ακινήτου & Νοικοκυριού */}
             <AnakainizwIntakeSection caseData={data} token={token} onRefresh={refreshData} />
 
-            {/* 2-5: Program header, property, income criteria, documents */}
-            <AnakainizwPortalSection caseData={data} />
+            {/* 4: Στοιχεία Ακινήτου */}
+            <AnaProperty caseData={data} />
 
-            {/* 6: Πορεία Υπόθεσης */}
-            {data.full_status_list?.length > 0 && (
-              <StatusTimeline
-                fullStatusList={data.full_status_list}
-                currentStatus={data.status}
-                nextStatus={data.next_status}
-                statusDescriptions={data.status_descriptions || {}}
-                statusHistory={data.status_history || []}
-              />
-            )}
+            {/* 5: Εισοδηματικά Κριτήρια */}
+            <AnaIncome caseData={data} />
 
-            {/* 7: KPI cards */}
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-              <KpiCard icon={CurrencyEuroIcon} label="Εγκεκρ. Προϋπολογισμός" value={budget} color="blue" />
-              <KpiCard icon={CalendarDaysIcon} label="Ημερ. Έγκρισης" value={fmtDate(data.approval_date)} color="purple" />
-              <KpiCard icon={CalendarDaysIcon} label="Προθεσμία" value={fmtDate(data.project_deadline)} color="orange" />
-            </div>
-
-            {/* 8: Εκκρεμεί Πληρωμή */}
+            {/* 6: Εκκρεμεί Πληρωμή */}
             {data.anakainizw?.inspection_fee_paid === false && (
               <div className="relative overflow-hidden rounded-2xl border-2 border-amber-400 bg-amber-50 p-5 shadow-sm">
                 <div className="absolute -top-6 -right-6 w-24 h-24 rounded-full bg-amber-400/10" />
@@ -1363,7 +1352,130 @@ export default function ClientPortal() {
               </div>
             )}
 
-            {/* 9: Επικοινωνία με το Γραφείο */}
+            {/* 7: Κατάσταση Εγγράφων */}
+            <AnaDocChecklist caseData={data} />
+
+            {/* 8: Welcome card */}
+            <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
+              <div className="flex items-start justify-between gap-3 flex-wrap">
+                <div>
+                  <h1 className="text-xl font-bold text-gray-900">{data.client_name}</h1>
+                  <p className="text-sm text-gray-500 mt-0.5">{data.service_type}</p>
+                </div>
+                <span className="text-xs font-semibold px-3 py-1 rounded-full border bg-purple-50 text-purple-700 border-purple-200">
+                  ΑΝΑΚΑΙΝΙΖΩ
+                </span>
+              </div>
+              <div className="mt-3 flex items-center gap-2 flex-wrap">
+                <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#1e3a5f] bg-blue-50 px-3 py-1 rounded-full border border-blue-200">
+                  <ClockIcon className="w-4 h-4" />
+                  {data.status}
+                </span>
+                {data.next_status && (
+                  <span className="text-xs text-gray-400">→ <span className="text-gray-600">{data.next_status}</span></span>
+                )}
+              </div>
+              {data.status_descriptions?.[data.status] && (
+                <div className="mt-2 flex items-start gap-2 bg-[#1e3a5f]/5 border border-[#1e3a5f]/10 rounded-lg px-3 py-2 text-xs text-[#1e3a5f]">
+                  <span className="flex-shrink-0 w-4 h-4 rounded-full bg-[#1e3a5f]/10 flex items-center justify-center font-bold text-[10px] mt-0.5">?</span>
+                  <span>{data.status_descriptions[data.status]}</span>
+                </div>
+              )}
+              {data.progress_percent > 0 && (
+                <div className="mt-3">
+                  <div className="flex justify-between text-xs text-gray-400 mb-1">
+                    <span>Πρόοδος υπόθεσης</span>
+                    <span className="font-semibold text-gray-600">{data.progress_percent}%</span>
+                  </div>
+                  <div className="w-full bg-gray-100 rounded-full h-2">
+                    <div className="h-2 rounded-full bg-gradient-to-r from-blue-500 to-green-500 transition-all" style={{ width: `${data.progress_percent}%` }} />
+                  </div>
+                </div>
+              )}
+              {data.assigned_agent_name && (
+                <p className="mt-2 text-xs text-gray-400">Υπεύθυνος: <span className="font-medium text-gray-600">{data.assigned_agent_name}</span></p>
+              )}
+            </div>
+
+            {/* 9: Πορεία Υπόθεσης */}
+            {data.full_status_list?.length > 0 && (
+              <StatusTimeline
+                fullStatusList={data.full_status_list}
+                currentStatus={data.status}
+                nextStatus={data.next_status}
+                statusDescriptions={data.status_descriptions || {}}
+                statusHistory={data.status_history || []}
+              />
+            )}
+
+            {/* 10: KPI cards */}
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+              <KpiCard icon={CurrencyEuroIcon} label="Εγκεκρ. Προϋπολογισμός" value={budget} color="blue" />
+              <KpiCard icon={CalendarDaysIcon} label="Ημερ. Έγκρισης" value={fmtDate(data.approval_date)} color="purple" />
+              <KpiCard icon={CalendarDaysIcon} label="Προθεσμία" value={fmtDate(data.project_deadline)} color="orange" />
+            </div>
+
+            {/* 11: Εκκρεμότητες */}
+            {data.pending_items?.length > 0 && (
+              <div className="bg-white rounded-xl border border-orange-200 p-5 shadow-sm">
+                <h3 className="text-sm font-semibold text-orange-700 mb-3 flex items-center gap-2">
+                  <ExclamationCircleIcon className="w-5 h-5" />
+                  Εκκρεμότητες που χρειάζονται την προσοχή σας ({data.pending_items.length})
+                </h3>
+                <div className="space-y-2">
+                  {data.pending_items.map((item, idx) => (
+                    <div key={item.id} className="flex gap-3 items-start">
+                      <span className="flex-shrink-0 w-6 h-6 bg-orange-100 text-orange-600 rounded-full flex items-center justify-center text-xs font-bold">{idx + 1}</span>
+                      <div>
+                        <p className="text-sm text-gray-800 font-medium">{item.item_text}</p>
+                        {item.comment && <p className="text-xs text-gray-500 italic mt-0.5">→ {item.comment}</p>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* 12: Έλεγχοι Συμβούλου */}
+            <AnaAdvisorChecklist caseData={data} />
+
+            {/* 13: Τροποποιήσεις */}
+            {data.modifications?.length > 0 && (
+              <div className="bg-white rounded-xl border border-blue-100 p-5 shadow-sm">
+                <h3 className="text-sm font-semibold text-blue-700 mb-4 flex items-center gap-2">
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125" />
+                  </svg>
+                  Τροποποιήσεις Έργου
+                </h3>
+                <div className="space-y-3">
+                  {data.modifications.map((m, i) => (
+                    <div key={i} className="flex flex-col sm:flex-row sm:items-start gap-2 p-3 bg-blue-50 rounded-lg border border-blue-100">
+                      <div className="flex-shrink-0 text-xs font-medium text-blue-600 whitespace-nowrap pt-0.5">
+                        {m.modification_date ? new Date(m.modification_date + 'T12:00:00').toLocaleDateString('el-GR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—'}
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-sm font-semibold text-gray-800">{m.title}</p>
+                        {m.justification && <p className="text-xs text-gray-500 mt-0.5">{m.justification}</p>}
+                      </div>
+                      <div className="flex-shrink-0 text-xs whitespace-nowrap">
+                        {m.approval_date
+                          ? <span className="text-green-700 font-medium">Εγκρίθηκε {new Date(m.approval_date + 'T12:00:00').toLocaleDateString('el-GR', { day: '2-digit', month: '2-digit', year: 'numeric' })}</span>
+                          : <span className="text-orange-500">Εκκρεμεί έγκριση</span>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* 14: Αποστολή Εγγράφων */}
+            <ClientUploadSection token={token} clientDocs={data.client_documents || []} onUploaded={() => getPortalCase(token).then(setData)} />
+
+            {/* 15: Προϋπολογισμός Εργασιών */}
+            <AnaBudget caseData={data} />
+
+            {/* 16: Επικοινωνία με το Γραφείο */}
             <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
               <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
                 <ChatBubbleLeftEllipsisIcon className="w-5 h-5 text-gray-400" />
@@ -1392,16 +1504,13 @@ export default function ClientPortal() {
               <ClientMessageForm token={token} onSent={() => getPortalCase(token).then(setData)} />
             </div>
 
-            {/* 10: Αποστολή Εγγράφων */}
-            <ClientUploadSection token={token} clientDocs={data.client_documents || []} onUploaded={() => getPortalCase(token).then(setData)} />
-
-            {/* 11: Η γνώμη σας μετράει */}
+            {/* 17: Η γνώμη σας μετράει */}
             <NpsWidget token={token} serviceType={data.service_type} />
           </>
         )}
 
-        {/* Pending Items */}
-        {data.pending_items?.length > 0 && (
+        {/* Pending Items — non-ΑΝΑΚΑΙΝΙΖΩ only (ΑΝΑΚΑΙΝΙΖΩ renders these at position 11) */}
+        {data.program_category !== 'ΑΝΑΚΑΙΝΙΖΩ' && data.pending_items?.length > 0 && (
           <div className="bg-white rounded-xl border border-orange-200 p-5 shadow-sm">
             <h3 className="text-sm font-semibold text-orange-700 mb-3 flex items-center gap-2">
               <ExclamationCircleIcon className="w-5 h-5" />
@@ -1425,8 +1534,8 @@ export default function ClientPortal() {
           </div>
         )}
 
-        {/* Modifications */}
-        {data.modifications?.length > 0 && (
+        {/* Modifications — non-ΑΝΑΚΑΙΝΙΖΩ only (ΑΝΑΚΑΙΝΙΖΩ renders these at position 13) */}
+        {data.program_category !== 'ΑΝΑΚΑΙΝΙΖΩ' && data.modifications?.length > 0 && (
           <div className="bg-white rounded-xl border border-blue-100 p-5 shadow-sm">
             <h3 className="text-sm font-semibold text-blue-700 mb-4 flex items-center gap-2">
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
