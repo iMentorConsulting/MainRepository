@@ -1,4 +1,4 @@
-import { Outlet, NavLink, useNavigate } from 'react-router-dom'
+import { Outlet, NavLink } from 'react-router-dom'
 import {
   HomeIcon,
   PlusCircleIcon,
@@ -10,7 +10,6 @@ import {
   UserGroupIcon,
   ListBulletIcon,
   PresentationChartLineIcon,
-  PhoneIcon,
   XMarkIcon,
 } from '@heroicons/react/24/outline'
 import { toast } from 'sonner'
@@ -84,8 +83,9 @@ export default function Layout({ auth, onLogout }) {
 
         <div className="px-3 py-4 border-t border-blue-700 space-y-2">
           <button onClick={handleHangup}
-            className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-amber-300 hover:bg-red-700 w-full transition-colors font-medium">
-            <XMarkIcon className="w-5 h-5" />Hang Up
+            className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm bg-red-600 hover:bg-red-700 text-white w-full transition-colors font-bold">
+            <XMarkIcon className="w-5 h-5" />
+            ☎ Hang Up
           </button>
           <button onClick={onLogout}
             className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-blue-200 hover:bg-blue-700 w-full transition-colors">
@@ -99,8 +99,8 @@ export default function Layout({ auth, onLogout }) {
       <div className="md:hidden fixed top-0 inset-x-0 z-30 bg-blue-900 text-white flex items-center justify-between px-4 h-14">
         <img src="/logo.png" alt="i-Mentor" className="h-10 w-auto object-contain" onError={e => { e.target.onerror=null; e.target.src='https://i-mentor.gr/wp-content/uploads/2025/11/transparent-logo.png' }} />
         <div className="flex items-center gap-3">
-          <button onClick={handleHangup} title="Hang up call" className="p-1 text-amber-300 hover:text-red-400 transition-colors">
-            <XMarkIcon className="w-6 h-6" />
+          <button onClick={handleHangup} title="Hang up call" className="px-2 py-1 bg-red-600 hover:bg-red-700 text-white text-xs font-bold rounded transition-colors">
+            ☎ Hang Up
           </button>
           <span className="text-sm text-blue-300">{auth.employee}</span>
         </div>
