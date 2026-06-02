@@ -1196,9 +1196,9 @@ export default function Leads({ currentEmployee }) {
 
   // Reminder filter — checks app_next_call (ISO) and next_call_sheet (free text)
   if (filterReminder) {
-    const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0)
-    const todayEnd = new Date(); todayEnd.setHours(23, 59, 59, 999)
-    const weekEnd = new Date(todayStart); weekEnd.setDate(weekEnd.getDate() + 7)
+    const _today = new Date()
+    const todayDay = new Date(_today.getFullYear(), _today.getMonth(), _today.getDate())
+    const weekEndDay = new Date(todayDay); weekEndDay.setDate(weekEndDay.getDate() + 7)
 
     const getCallDate = (l) => {
       if (l.app_next_call) {
@@ -1213,9 +1213,11 @@ export default function Leads({ currentEmployee }) {
       const d = getCallDate(l)
       if (filterReminder === 'none') return !d
       if (!d) return false
-      if (filterReminder === 'overdue') return d < todayStart
-      if (filterReminder === 'today') return d >= todayStart && d <= todayEnd
-      if (filterReminder === 'week') return d >= todayStart && d <= weekEnd
+      // Strip time — compare date parts only to avoid any timezone/boundary issues
+      const dDay = new Date(d.getFullYear(), d.getMonth(), d.getDate())
+      if (filterReminder === 'overdue') return dDay < todayDay
+      if (filterReminder === 'today') return dDay.getTime() === todayDay.getTime()
+      if (filterReminder === 'week') return dDay >= todayDay && dDay < weekEndDay
       return false
     })
   }
