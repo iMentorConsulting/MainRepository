@@ -206,11 +206,12 @@ function BackupPanel() {
     try {
       const r = await api.post('/backup/run');
       setLastResult(r.data);
-      setAutoStatus({ ran_at: new Date().toISOString(), ok: true, counts: r.data.counts, filename: r.data.filename });
-      if (r.data.driveFile) {
+      const driveOk = !!r.data.driveFile;
+      setAutoStatus({ ran_at: new Date().toISOString(), ok: driveOk, counts: r.data.counts, filename: r.data.filename, driveError: r.data.driveError || null });
+      if (driveOk) {
         toast.success(`Αποθηκεύτηκε στο Drive: ${r.data.driveFile.name}`);
       } else {
-        toast('Backup αρχείο δημιουργήθηκε (Drive upload χρειάζεται ρύθμιση)', { icon: '⚠️' });
+        toast.error(`Drive upload απέτυχε: ${r.data.driveError || 'Άγνωστο σφάλμα'}`);
       }
     } catch (e) {
       toast.error(e.response?.data?.error || 'Σφάλμα backup');
@@ -244,7 +245,7 @@ function BackupPanel() {
               ? 'Δεν έχει τρέξει αυτόματο backup από την τελευταία εκκίνηση'
               : autoStatus?.ok
               ? `Τελευταίο αυτόματο backup: ${fmtDate(autoStatus.ran_at)}`
-              : `Αποτυχία backup: ${autoStatus?.error}`}
+              : `Αποτυχία Drive upload: ${autoStatus?.driveError || autoStatus?.error || 'Άγνωστο σφάλμα'}`}
           </div>
           {autoStatus?.filename && <div className="opacity-75 mt-0.5">{autoStatus.filename}</div>}
         </div>

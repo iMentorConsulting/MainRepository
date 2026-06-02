@@ -95,8 +95,9 @@ sequelize.sync({ alter: true }).then(async () => {
     cron.schedule('0 18 * * *', () => {
       runBackup()
         .then(r => {
-          global._lastBackup = { ran_at: new Date().toISOString(), ok: true, counts: r.counts, filename: r.filename };
-          console.log('[backup-cron] Success:', r.filename);
+          const driveOk = !r.driveError;
+          global._lastBackup = { ran_at: new Date().toISOString(), ok: driveOk, counts: r.counts, filename: r.filename, driveError: r.driveError || null };
+          console.log('[backup-cron] Success:', r.filename, driveOk ? '(Drive OK)' : `(Drive FAILED: ${r.driveError})`);
         })
         .catch(e => {
           global._lastBackup = { ran_at: new Date().toISOString(), ok: false, error: e.message };

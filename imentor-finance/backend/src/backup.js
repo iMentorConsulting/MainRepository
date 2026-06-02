@@ -22,14 +22,20 @@ const RecurringExpense = require('./models/RecurringExpense');
 const CommissionLog    = require('./models/CommissionLog');
 
 // Google Drive folder where backups land
-const BACKUP_FOLDER_ID = process.env.GDRIVE_BACKUP_FOLDER_ID || '1D-BdHnXcdfGSX_H-fc6nWDtfivcU_6iO';
+const BACKUP_FOLDER_ID = process.env.GDRIVE_BACKUP_FOLDER_ID || '19FRqXOTePavaJ07CmKFTWF4aKKJTraE4';
 
 function getDriveClient() {
-  const keyJson = process.env.GOOGLE_SERVICE_ACCOUNT_KEY;
-  if (!keyJson) throw new Error('GOOGLE_SERVICE_ACCOUNT_KEY env var not set');
-  const key = JSON.parse(
-    Buffer.from(keyJson, 'base64').toString('utf8')
-  );
+  // Support raw JSON (GOOGLE_SERVICE_ACCOUNT_JSON, same as gmail.js) or
+  // legacy base64-encoded form (GOOGLE_SERVICE_ACCOUNT_KEY)
+  const rawJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
+  const b64Key  = process.env.GOOGLE_SERVICE_ACCOUNT_KEY;
+  if (!rawJson && !b64Key) throw new Error('Neither GOOGLE_SERVICE_ACCOUNT_JSON nor GOOGLE_SERVICE_ACCOUNT_KEY is set');
+  let key;
+  if (rawJson) {
+    key = JSON.parse(rawJson);
+  } else {
+    key = JSON.parse(Buffer.from(b64Key, 'base64').toString('utf8'));
+  }
   const auth = new google.auth.GoogleAuth({
     credentials: key,
     scopes: ['https://www.googleapis.com/auth/drive.file'],
@@ -114,6 +120,7 @@ async function runBackup() {
 
   let driveFile = null;
   let pruned = 0;
+  let driveError = null;
 
   try {
     const drive = getDriveClient();
@@ -121,11 +128,12 @@ async function runBackup() {
     pruned = await pruneOldBackups(drive);
     console.log(`[backup] Uploaded to Drive: ${driveFile.name} (id=${driveFile.id})`);
   } catch (err) {
+    driveError = err.message;
     console.warn('[backup] Drive upload failed:', err.message);
   }
 
   console.log(`[backup] Done — records: ${JSON.stringify(data.counts)}, pruned: ${pruned}`);
-  return { filename, counts: data.counts, driveFile, pruned };
+  return { filename, counts: data.counts, driveFile, pruned, driveError };
 }
 
 // Run directly: node src/backup.js
