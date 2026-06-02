@@ -136,15 +136,14 @@ def _run_leads_sync_safe():
     except Exception as e:
         print(f"[LeadsSync] FAILED — {e}")
 
-if os.getenv("GOOGLE_DRIVE_BACKUP_FOLDER_ID"):
-    from apscheduler.schedulers.background import BackgroundScheduler
-    _scheduler = BackgroundScheduler()
-    _scheduler.add_job(_run_backup_safe, "cron", hour=15, minute=0)  # 15:00 UTC = 18:00 Athens (EEST/UTC+3)
-    if os.getenv("GOOGLE_SHEET_ID"):
-        _scheduler.add_job(_run_leads_sync_safe, "cron", hour=4, minute=45)  # 04:45 UTC = 07:45 EEST
-        print("[LeadsSync] Scheduler started — daily at 04:45 UTC (07:45 EEST)")
-    _scheduler.start()
-    print("[Backup] Scheduler started — daily at 02:00 UTC")
+from apscheduler.schedulers.background import BackgroundScheduler
+_scheduler = BackgroundScheduler()
+_scheduler.add_job(_run_backup_safe, "cron", hour=15, minute=0)  # 15:00 UTC = 18:00 Athens (EEST/UTC+3)
+if os.getenv("GOOGLE_SHEET_ID"):
+    _scheduler.add_job(_run_leads_sync_safe, "cron", hour=4, minute=45)  # 04:45 UTC = 07:45 EEST
+    print("[LeadsSync] Scheduler started — daily at 04:45 UTC (07:45 EEST)")
+_scheduler.start()
+print("[Backup] Scheduler started — daily at 15:00 UTC (18:00 Athens)")
 
 
 @app.get("/")
@@ -154,10 +153,7 @@ def root():
 
 @app.post("/admin/backup-now")
 def backup_now(_: str = Depends(get_current_user)):
-    """Trigger an immediate backup to Google Drive."""
-    folder_id = os.getenv("GOOGLE_DRIVE_BACKUP_FOLDER_ID", "").strip()
-    if not folder_id:
-        raise HTTPException(status_code=503, detail="GOOGLE_DRIVE_BACKUP_FOLDER_ID not configured")
+    """Trigger an immediate backup (local + Google Drive if configured)."""
     try:
         from backup import run_backup
         result = run_backup()

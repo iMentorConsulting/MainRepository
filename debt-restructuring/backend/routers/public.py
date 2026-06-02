@@ -1,7 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 from datetime import datetime
+from zoneinfo import ZoneInfo
 import os, smtplib, json, base64
+
+_ATHENS = ZoneInfo("Europe/Athens")
+def _now():
+    return datetime.now(_ATHENS).replace(tzinfo=None)
 import requests as http_requests
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
@@ -32,7 +37,7 @@ def get_public_case(token: str, request: Request, vat: str = Query(default=None)
     try:
         ip = request.client.host if request.client else "unknown"
         if not notrack and ip not in EXCLUDED_IPS:
-            now = datetime.utcnow().isoformat()
+            now = _now().isoformat()
             visits = list(case.portal_visits or [])
             visits.append({"at": now, "ip": ip})
             case.portal_visits = visits
@@ -91,7 +96,7 @@ def _send_interested_email(case: Case) -> bool:
             f"έκανε κλικ στο κουμπί «Θέλω να Προχωρήσω» στο portal.\n\n"
             f"Υπόθεση ID: {case.id}\n"
             f"Υπεύθυνος: {case.employee or '-'}\n"
-            f"Ώρα: {datetime.utcnow().strftime('%d/%m/%Y %H:%M')} UTC\n"
+            f"Ώρα: {_now().strftime('%d/%m/%Y %H:%M')} (Αθήνα)\n"
         )
         msg = MIMEMultipart("alternative")
         msg["Subject"] = f"[i-Mentor] Ενδιαφέρον πελάτη: {case.client_name or case.id}"
@@ -217,8 +222,8 @@ def mark_interested(token: str, db: Session = Depends(get_db)):
     interested_idx = STAGE_ORDER.index('Θετική Ανταπόκριση')
     if current_idx < interested_idx:
         case.contact_stage = 'Θετική Ανταπόκριση'
-        case.last_contacted_at = datetime.utcnow()
-        case.updated_at = datetime.utcnow()
+        case.last_contacted_at = _now()
+        case.updated_at = _now()
         db.commit()
         email_sent = _send_interested_email(case)
         if not email_sent:

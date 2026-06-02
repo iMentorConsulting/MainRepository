@@ -288,7 +288,7 @@ function NextCallPill({ value, sheetValue, onChange }) {
           ${overdue ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'}`}
       >
         <BellIcon className="w-3 h-3 shrink-0" />
-        {format(parsed, 'dd/MM', { locale: el })}
+        {format(parsed, 'dd/MM/yy')}
       </button>
     )
   }

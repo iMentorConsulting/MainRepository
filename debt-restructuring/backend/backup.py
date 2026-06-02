@@ -137,12 +137,12 @@ def run_backup() -> dict:
     cutoff = datetime.utcnow() - timedelta(days=90)
     local_pruned = 0
     for f in backup_dir.glob("Exodikastikos-backup_*.json"):
-        if datetime.fromisoformat(f.stat().st_mtime) < cutoff.timestamp():
-            try:
+        try:
+            if datetime.fromtimestamp(f.stat().st_mtime) < cutoff:
                 f.unlink()
                 local_pruned += 1
-            except Exception:
-                pass
+        except Exception:
+            pass
 
     result = {
         "ok": True,

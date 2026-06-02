@@ -2,8 +2,13 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import datetime
+from zoneinfo import ZoneInfo
 from pydantic import BaseModel
 import os, json, base64, time
+
+_ATHENS = ZoneInfo("Europe/Athens")
+def _now():
+    return datetime.now(_ATHENS).replace(tzinfo=None)
 import requests as http_requests
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
@@ -260,14 +265,14 @@ def update_case(id: int, data: CaseUpdate, db: Session = Depends(get_db)):
     # Auto-set timestamps for status transitions
     if "status" in updates:
         if updates["status"] == "submitted" and case.status != "submitted":
-            case.submitted_at = datetime.utcnow()
+            case.submitted_at = _now()
         if updates["status"] == "completed" and case.status != "completed":
-            case.completed_at = datetime.utcnow()
+            case.completed_at = _now()
 
     for k, v in updates.items():
         setattr(case, k, v)
 
-    case.updated_at = datetime.utcnow()
+    case.updated_at = _now()
     db.commit()
     db.refresh(case)
     return case
@@ -279,10 +284,10 @@ def save_actual_results(id: int, data: ActualResultsUpdate, db: Session = Depend
     if not case:
         raise HTTPException(status_code=404, detail="Η υπόθεση δεν βρέθηκε")
     case.actual_results = data.actual_results
-    case.updated_at = datetime.utcnow()
+    case.updated_at = _now()
     if case.status not in ("completed", "cancelled"):
         case.status = "completed"
-        case.completed_at = datetime.utcnow()
+        case.completed_at = _now()
     db.commit()
     db.refresh(case)
     return case
@@ -295,11 +300,11 @@ def update_contact(id: int, data: ContactUpdate, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Η υπόθεση δεν βρέθηκε")
     if data.contact_stage and data.contact_stage != case.contact_stage:
         case.contact_stage = data.contact_stage
-        case.stage_changed_at = datetime.utcnow()
+        case.stage_changed_at = _now()
     if data.increment_reminder:
         case.reminder_count = (case.reminder_count or 0) + 1
-    case.last_contacted_at = datetime.utcnow()
-    case.updated_at = datetime.utcnow()
+    case.last_contacted_at = _now()
+    case.updated_at = _now()
     db.commit()
     db.refresh(case)
     return case
@@ -327,7 +332,7 @@ def approve_winback(id: int, data: WinbackApprove, db: Session = Depends(get_db)
     else:
         offer["winback_status"] = "dismissed"
     case.commercial_offer = offer
-    case.updated_at = datetime.utcnow()
+    case.updated_at = _now()
     db.commit()
     db.refresh(case)
     return case
@@ -339,7 +344,7 @@ def update_offer(id: int, data: OfferPatch, db: Session = Depends(get_db)):
     if not case:
         raise HTTPException(status_code=404, detail="Η υπόθεση δεν βρέθηκε")
     case.commercial_offer = data.commercial_offer
-    case.updated_at = datetime.utcnow()
+    case.updated_at = _now()
     db.commit()
     db.refresh(case)
     return case
@@ -436,8 +441,8 @@ def send_winback(id: int, data: WinbackSendRequest, db: Session = Depends(get_db
 
     offer["winback_status"] = "sent"
     case.commercial_offer = offer
-    case.last_contacted_at = datetime.utcnow()
-    case.updated_at = datetime.utcnow()
+    case.last_contacted_at = _now()
+    case.updated_at = _now()
     db.commit()
     db.refresh(case)
     return case
@@ -492,12 +497,12 @@ def send_viber_message(id: int, data: ViberSendRequest, db: Session = Depends(ge
         except Exception as exc:
             raise HTTPException(status_code=503, detail=f"Αδυναμία σύνδεσης bridge: {exc}")
 
-    case.last_contacted_at = datetime.utcnow()
+    case.last_contacted_at = _now()
     if data.is_reminder:
         case.reminder_count = (case.reminder_count or 0) + 1
     if data.is_initial and (case.contact_stage or "Νέα Ανάλυση") == "Νέα Ανάλυση":
         case.contact_stage = "Εστάλη Σύνδεσμος"
-    case.updated_at = datetime.utcnow()
+    case.updated_at = _now()
     db.commit()
     db.refresh(case)
     return case

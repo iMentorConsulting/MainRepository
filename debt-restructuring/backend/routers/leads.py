@@ -3,8 +3,13 @@ from sqlalchemy.orm import Session
 from sqlalchemy import or_
 from typing import Optional, List
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 from pydantic import BaseModel
 import os, json, base64, time
+
+_ATHENS = ZoneInfo("Europe/Athens")
+def _now():
+    return datetime.now(_ATHENS).replace(tzinfo=None)
 
 from database import get_db
 from models import Lead
@@ -210,7 +215,7 @@ def list_leads(
     q = db.query(Lead)
 
     # Limit to last N years by sync date for performance
-    cutoff = datetime.utcnow() - timedelta(days=365 * max_years)
+    cutoff = _now() - timedelta(days=365 * max_years)
     q = q.filter(Lead.created_at >= cutoff)
 
     if search:
@@ -384,7 +389,7 @@ def patch_lead(lead_id: int, data: LeadPatch, db: Session = Depends(get_db)):
     elif hasattr(data, 'app_next_call') and data.app_next_call == "":
         lead.app_next_call = None
 
-    lead.updated_at = datetime.utcnow()
+    lead.updated_at = _now()
     db.commit()
     return _lead_to_dict(lead)
 
@@ -399,10 +404,10 @@ def add_comment(lead_id: int, data: CommentAdd, db: Session = Depends(get_db)):
     comments.append({
         "text": data.text,
         "author": data.author,
-        "at": datetime.utcnow().isoformat(),
+        "at": _now().isoformat(),
     })
     lead.app_comments = comments
-    lead.updated_at = datetime.utcnow()
+    lead.updated_at = _now()
     db.commit()
     return _lead_to_dict(lead)
 
@@ -414,9 +419,9 @@ def edit_comment(lead_id: int, idx: int, data: CommentEdit, db: Session = Depend
         raise HTTPException(status_code=404, detail="Lead not found")
     comments = list(lead.app_comments or [])
     if 0 <= idx < len(comments):
-        comments[idx] = {**comments[idx], "text": data.text, "edited_at": datetime.utcnow().isoformat()}
+        comments[idx] = {**comments[idx], "text": data.text, "edited_at": _now().isoformat()}
         lead.app_comments = comments
-        lead.updated_at = datetime.utcnow()
+        lead.updated_at = _now()
         db.commit()
     return _lead_to_dict(lead)
 
@@ -430,7 +435,7 @@ def delete_comment(lead_id: int, idx: int, db: Session = Depends(get_db)):
     if 0 <= idx < len(comments):
         comments.pop(idx)
         lead.app_comments = comments
-        lead.updated_at = datetime.utcnow()
+        lead.updated_at = _now()
         db.commit()
     return _lead_to_dict(lead)
 
@@ -451,9 +456,9 @@ def send_viber(lead_id: int, data: ViberLeadRequest, db: Session = Depends(get_d
 
     # Log in app_comments
     comments = list(lead.app_comments or [])
-    comments.append({"text": f"📱 Viber εστάλη: {data.message[:80]}…" if len(data.message) > 80 else f"📱 Viber εστάλη: {data.message}", "author": "system", "at": datetime.utcnow().isoformat()})
+    comments.append({"text": f"📱 Viber εστάλη: {data.message[:80]}…" if len(data.message) > 80 else f"📱 Viber εστάλη: {data.message}", "author": "system", "at": _now().isoformat()})
     lead.app_comments = comments
-    lead.updated_at = datetime.utcnow()
+    lead.updated_at = _now()
     db.commit()
     return {"ok": True}
 
@@ -473,8 +478,8 @@ def send_email(lead_id: int, data: EmailLeadRequest, db: Session = Depends(get_d
         raise HTTPException(status_code=502, detail=f"Email: {err}")
 
     comments = list(lead.app_comments or [])
-    comments.append({"text": f"✉️ Email εστάλη: {data.subject}", "author": "system", "at": datetime.utcnow().isoformat()})
+    comments.append({"text": f"✉️ Email εστάλη: {data.subject}", "author": "system", "at": _now().isoformat()})
     lead.app_comments = comments
-    lead.updated_at = datetime.utcnow()
+    lead.updated_at = _now()
     db.commit()
     return {"ok": True}
