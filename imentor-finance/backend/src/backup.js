@@ -29,12 +29,14 @@ function getServiceAccountKey() {
   const b64Key  = process.env.GOOGLE_SERVICE_ACCOUNT_KEY;
   const src = rawJson || b64Key;
   if (!src) throw new Error('GOOGLE_SERVICE_ACCOUNT_JSON (or GOOGLE_SERVICE_ACCOUNT_KEY) is not set in Railway env vars');
+  // Strip surrounding whitespace + accidental single/double quotes (common Railway paste artifact)
+  const stripped = src.trim().replace(/^'+|'+$/g, '').replace(/^"+|"+$/g, '');
   // Try direct JSON parse first, then base64-decode fallback
   try {
-    return JSON.parse(src);
+    return JSON.parse(stripped);
   } catch (e1) {
     try {
-      return JSON.parse(Buffer.from(src, 'base64').toString('utf8'));
+      return JSON.parse(Buffer.from(stripped, 'base64').toString('utf8'));
     } catch (e2) {
       throw new Error(`Service account key parse failed — direct: ${e1.message} | base64: ${e2.message}`);
     }
