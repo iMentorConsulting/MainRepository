@@ -84,8 +84,13 @@ export const getLeadsReporting = () => api.get('/leads/reporting')
 // Health / diagnostics
 export const getHealth = () => api.get('/health')
 
-// Phone / Lite
-export const hangupCall = () => api.post('/phone/hangup')
+// Phone / PhoneLite — calls the local PhoneLite HTTP API directly from the browser
+// PhoneLite must be running on the same machine as the browser (port 7070 default)
+export const hangupCall = () =>
+  fetch('http://127.0.0.1:7070/hangup', { mode: 'no-cors' }).catch(() => {})
+
+// Leads — manual create
+export const createLead = (data) => api.post('/leads/create', data)
 
 // Admin / backup
 export const triggerBackup = () => api.post('/admin/backup-now')

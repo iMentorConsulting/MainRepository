@@ -200,7 +200,53 @@ def _lead_to_dict(lead: Lead) -> dict:
     }
 
 
+class LeadCreate(BaseModel):
+    name: Optional[str] = ""
+    phone: Optional[str] = ""
+    email: Optional[str] = ""
+    status: Optional[str] = ""
+    assigned_to: Optional[str] = ""
+    date: Optional[str] = ""
+    total_debt: Optional[str] = ""
+    sheet_comments: Optional[str] = ""
+    service_type: Optional[str] = ""
+    referrer: Optional[str] = ""
+    application_number: Optional[str] = ""
+    offer_amount: Optional[str] = ""
+    success_fee: Optional[str] = ""
+
+
 # ── Endpoints ─────────────────────────────────────────────────────────────────
+
+@router.post("/create")
+def create_lead(data: LeadCreate, db: Session = Depends(get_db)):
+    """Manually create a new lead (not from Google Sheets)."""
+    lead = Lead(
+        sheet_row_num=None,
+        name=data.name or "",
+        phone=(data.phone or "").strip(),
+        email=data.email or "",
+        status=(data.status or "").lower(),
+        status_raw=data.status or "",
+        assigned_to=data.assigned_to or "",
+        date=data.date or "",
+        total_debt=data.total_debt or "",
+        sheet_comments=data.sheet_comments or "",
+        service_type=data.service_type or "",
+        referrer=data.referrer or "",
+        application_number=data.application_number or "",
+        offer_amount=data.offer_amount or "",
+        success_fee=data.success_fee or "",
+        extra_fields={},
+        app_comments=[],
+        created_at=_now(),
+        updated_at=_now(),
+    )
+    db.add(lead)
+    db.commit()
+    db.refresh(lead)
+    return _lead_to_dict(lead)
+
 
 @router.get("/")
 def list_leads(
@@ -228,6 +274,7 @@ def list_leads(
             Lead.sheet_comments.ilike(term),
             Lead.total_debt.ilike(term),
             Lead.referrer.ilike(term),
+            Lead.application_number.ilike(term),
         ))
     if status:
         normalized = [s.lower() for s in status]

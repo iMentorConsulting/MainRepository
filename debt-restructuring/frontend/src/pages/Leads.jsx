@@ -62,24 +62,19 @@ function parseAnyDate(s) {
   const m2 = String(s).match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/)
   if (m2) { const d = new Date(+m2[1], +m2[2] - 1, +m2[3]); if (!isNaN(d)) return d }
 
-  // DD-ΓrepGreek_Month-YYYY (e.g., "1-Ιουν-2026")
-  const greekMonths = {
-    'Ιαν': 0, 'ιαν': 0, 'ΙΑΝ': 0,
-    'Φεβ': 1, 'φεβ': 1, 'ΦΕΒ': 1,
-    'Μάρ': 2, 'μάρ': 2, 'ΜΆΡ': 2,
-    'Απρ': 3, 'απρ': 3, 'ΑΠΡ': 3,
-    'Μάι': 4, 'μάι': 4, 'ΜÁÌ': 4,
-    'Ιουν': 5, 'ιουν': 5, 'ΙΟΥΝ': 5,
-    'Ιουλ': 6, 'ιουλ': 6, 'ΙΟΥΛ': 6,
-    'Αυγ': 7, 'αυγ': 7, 'ΑΥΓ': 7,
-    'Σεπ': 8, 'σεπ': 8, 'ΣΕΠ': 8,
-    'Οκτ': 9, 'οκτ': 9, 'ΟΚΤ': 9,
-    'Νοε': 10, 'νοε': 10, 'ΝΟΕ': 10,
-    'Δεκ': 11, 'δεκ': 11, 'ΔΕΚ': 11,
+  // DD-GreekMonth-YYYY (e.g., "31-Μαρ-2026", "1-Ιουν-2026")
+  // Normalize to lowercase without accents for robust matching
+  const _norm = str => str.toLowerCase()
+    .replace(/[άα]/g, v => v === 'ά' ? 'α' : v).replace(/ά/g,'α')
+    .replace(/έ/g,'ε').replace(/ή/g,'η').replace(/[ίϊΐ]/g,'ι')
+    .replace(/ό/g,'ο').replace(/[ύϋΰ]/g,'υ').replace(/ώ/g,'ω')
+  const greekMonthsNorm = {
+    'ιαν': 0, 'φεβ': 1, 'μαρ': 2, 'απρ': 3, 'μαι': 4,
+    'ιουν': 5, 'ιουλ': 6, 'αυγ': 7, 'σεπ': 8, 'οκτ': 9, 'νοε': 10, 'δεκ': 11,
   }
-  const m3 = String(s).match(/^(\d{1,2})[\/\-]([α-ωΑ-Ω]{3,})[\/\-](\d{4})/)
+  const m3 = String(s).match(/^(\d{1,2})[\/\-](\S{3,})[\/\-](\d{4})/)
   if (m3) {
-    const month = greekMonths[m3[2]]
+    const month = greekMonthsNorm[_norm(m3[2])]
     if (month !== undefined) {
       const d = new Date(+m3[3], month, +m3[1])
       if (!isNaN(d)) return d
@@ -323,6 +318,7 @@ function NextCallPill({ value, sheetValue, onChange }) {
   }
 
   if (sheetValue) {
+    const sheetParsed = parseAnyDate(sheetValue)
     return (
       <button
         onClick={e => { e.stopPropagation(); setEditing(true) }}
@@ -330,7 +326,7 @@ function NextCallPill({ value, sheetValue, onChange }) {
         className="text-xs px-1.5 py-0.5 rounded-full font-medium whitespace-nowrap flex items-center gap-1 bg-amber-50 text-amber-700 border border-amber-200"
       >
         <BellIcon className="w-3 h-3 shrink-0" />
-        {sheetValue.length > 8 ? sheetValue.slice(0, 8) + '…' : sheetValue}
+        {sheetParsed ? format(sheetParsed, 'dd/MM/yy') : (sheetValue.length > 8 ? sheetValue.slice(0, 8) + '…' : sheetValue)}
       </button>
     )
   }
@@ -1081,6 +1077,9 @@ export default function Leads({ currentEmployee }) {
   const [taxisnetLinks, setTaxisnetLinks] = useState([])
   const [hideCancelled, setHideCancelled] = useState(true)
   const [filterReminder, setFilterReminder] = useState('')
+  const [newLeadOpen, setNewLeadOpen] = useState(false)
+  const [newLeadData, setNewLeadData] = useState({})
+  const [newLeadSaving, setNewLeadSaving] = useState(false)
 
   const toggleSort = (col) => {
     if (sortCol === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
@@ -1252,7 +1251,96 @@ export default function Leads({ currentEmployee }) {
             {displayed.length} εγγραφές{displayed.length !== leads.length ? ` (από ${leads.length})` : ''}
           </p>
         </div>
+        <button
+          onClick={() => { setNewLeadData({}); setNewLeadOpen(true) }}
+          className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-lg transition-colors shadow">
+          + Νέο Lead
+        </button>
       </div>
+
+      {/* New Lead Modal */}
+      {newLeadOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-white px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+              <h2 className="text-lg font-black text-blue-800">Νέο Lead (χειροκίνητη εισαγωγή)</h2>
+              <button onClick={() => setNewLeadOpen(false)} className="text-gray-400 hover:text-gray-600 text-xl font-bold">✕</button>
+            </div>
+            <div className="px-6 py-4 space-y-3">
+              {[
+                { key: 'name', label: 'Επωνυμία / Όνομα', required: true },
+                { key: 'phone', label: 'Τηλέφωνο', type: 'tel' },
+                { key: 'email', label: 'Email', type: 'email' },
+                { key: 'total_debt', label: 'Σύνολο Οφειλών' },
+                { key: 'service_type', label: 'Υπηρεσία' },
+                { key: 'referrer', label: 'Referrer' },
+                { key: 'application_number', label: 'Αρ. Αίτησης' },
+                { key: 'offer_amount', label: 'Ποσό Προσφοράς' },
+                { key: 'success_fee', label: 'Success Fee' },
+              ].map(({ key, label, type, required }) => (
+                <div key={key}>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1">{label}{required && <span className="text-red-500 ml-0.5">*</span>}</label>
+                  <input
+                    type={type || 'text'}
+                    className="input w-full text-sm"
+                    value={newLeadData[key] || ''}
+                    onChange={e => setNewLeadData(d => ({ ...d, [key]: e.target.value }))}
+                  />
+                </div>
+              ))}
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1">Status</label>
+                <select className="input w-full text-sm" value={newLeadData.status || ''}
+                  onChange={e => setNewLeadData(d => ({ ...d, status: e.target.value }))}>
+                  <option value="">—</option>
+                  {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1">Ανατέθηκε σε</label>
+                <select className="input w-full text-sm" value={newLeadData.assigned_to || ''}
+                  onChange={e => setNewLeadData(d => ({ ...d, assigned_to: e.target.value }))}>
+                  <option value="">—</option>
+                  {EMPLOYEES.map(e => <option key={e} value={e}>{e}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1">Ημερομηνία</label>
+                <input type="date" className="input w-full text-sm"
+                  value={newLeadData.date || ''}
+                  onChange={e => setNewLeadData(d => ({ ...d, date: e.target.value }))} />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1">Σχόλια</label>
+                <textarea rows={3} className="input w-full text-sm resize-none"
+                  value={newLeadData.sheet_comments || ''}
+                  onChange={e => setNewLeadData(d => ({ ...d, sheet_comments: e.target.value }))} />
+              </div>
+            </div>
+            <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-3">
+              <button onClick={() => setNewLeadOpen(false)}
+                className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
+                Ακύρωση
+              </button>
+              <button
+                disabled={newLeadSaving || !newLeadData.name}
+                onClick={async () => {
+                  setNewLeadSaving(true)
+                  try {
+                    const res = await api.createLead(newLeadData)
+                    setLeads(prev => [res.data, ...prev])
+                    setNewLeadOpen(false)
+                    toast.success('Lead δημιουργήθηκε!')
+                  } catch { toast.error('Σφάλμα δημιουργίας lead') }
+                  finally { setNewLeadSaving(false) }
+                }}
+                className="px-5 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-bold rounded-lg transition-colors">
+                {newLeadSaving ? 'Αποθήκευση…' : 'Δημιουργία'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Status quick-filter pills */}
       <div className="flex flex-wrap items-center gap-2 mb-2">

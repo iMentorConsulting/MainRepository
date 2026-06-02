@@ -52,9 +52,14 @@ export default function Layout({ auth, onLogout }) {
           <div className="text-blue-300 text-xs mt-1">Οφειλές &amp; Ρυθμίσεις</div>
         </div>
 
-        <div className="px-3 py-3 border-b border-blue-700">
+        <div className="px-3 py-3 border-b border-blue-700 space-y-2">
           <div className="text-xs text-blue-300 px-2 mb-1">Συνδεδεμένος ως</div>
           <div className="bg-blue-700 rounded-lg px-3 py-2 text-sm font-bold">{auth.employee}</div>
+          <button onClick={handleHangup}
+            className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm bg-red-600 hover:bg-red-700 text-white w-full transition-colors font-bold">
+            <XMarkIcon className="w-5 h-5" />
+            ☎ Hang Up
+          </button>
         </div>
 
         <nav className="flex-1 px-3 py-4 space-y-1">
@@ -82,11 +87,6 @@ export default function Layout({ auth, onLogout }) {
         </nav>
 
         <div className="px-3 py-4 border-t border-blue-700 space-y-2">
-          <button onClick={handleHangup}
-            className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm bg-red-600 hover:bg-red-700 text-white w-full transition-colors font-bold">
-            <XMarkIcon className="w-5 h-5" />
-            ☎ Hang Up
-          </button>
           <button onClick={onLogout}
             className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-blue-200 hover:bg-blue-700 w-full transition-colors">
             <ArrowRightOnRectangleIcon className="w-5 h-5" />Αποσύνδεση
