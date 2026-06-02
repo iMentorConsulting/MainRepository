@@ -41,6 +41,10 @@ class CommentAdd(BaseModel):
     author: str
 
 
+class CommentEdit(BaseModel):
+    text: str
+
+
 class ViberLeadRequest(BaseModel):
     message: str
 
@@ -400,6 +404,20 @@ def add_comment(lead_id: int, data: CommentAdd, db: Session = Depends(get_db)):
     lead.app_comments = comments
     lead.updated_at = datetime.utcnow()
     db.commit()
+    return _lead_to_dict(lead)
+
+
+@router.patch("/{lead_id}/comment/{idx}")
+def edit_comment(lead_id: int, idx: int, data: CommentEdit, db: Session = Depends(get_db)):
+    lead = db.query(Lead).filter(Lead.id == lead_id).first()
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead not found")
+    comments = list(lead.app_comments or [])
+    if 0 <= idx < len(comments):
+        comments[idx] = {**comments[idx], "text": data.text, "edited_at": datetime.utcnow().isoformat()}
+        lead.app_comments = comments
+        lead.updated_at = datetime.utcnow()
+        db.commit()
     return _lead_to_dict(lead)
 
 

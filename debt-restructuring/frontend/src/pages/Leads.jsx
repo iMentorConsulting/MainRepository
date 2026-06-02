@@ -18,7 +18,6 @@ import * as api from '../api'
 const EMPLOYEES = ['STELLA', 'VALLIA', 'SOFIA']
 const PAGE_SIZE = 50
 const AGENT_SHORT = { HARIS: 'H', SOFIA: 'S', VALLIA: 'V', STELLA: 'S', system: '⚙', Sheet: '📋' }
-const APPROVED_EXTRA_FIELDS = ['Εφορία', 'Ασφ.Ταμεία', 'Τράπεζες']
 
 const THIS_YEAR = new Date().getFullYear()
 const YEARS = [THIS_YEAR, THIS_YEAR - 1, THIS_YEAR - 2]
@@ -70,6 +69,58 @@ function applyTemplate(body, lead) {
     }
     return map[key] ?? `{${key}}`
   })
+}
+
+// ── Formatted text renderer (supports **bold** and [c=#hex]color[/c]) ──────
+function parseFormatted(text) {
+  if (!text) return null
+  const re = /(\*\*[^*]+\*\*|\[c=#[0-9a-fA-F]{3,6}\][^\[]+\[\/c\])/g
+  const parts = []
+  let last = 0, m, key = 0
+  while ((m = re.exec(text)) !== null) {
+    if (m.index > last) parts.push(<span key={key++}>{text.slice(last, m.index)}</span>)
+    const raw = m[0]
+    if (raw.startsWith('**')) {
+      parts.push(<strong key={key++}>{raw.slice(2, -2)}</strong>)
+    } else {
+      const cm = raw.match(/\[c=(#[0-9a-fA-F]{3,6})\]([^\[]+)\[\/c\]/)
+      if (cm) parts.push(<span key={key++} style={{ color: cm[1] }}>{cm[2]}</span>)
+    }
+    last = m.index + raw.length
+  }
+  if (last < text.length) parts.push(<span key={key++}>{text.slice(last)}</span>)
+  return parts.length ? parts : null
+}
+
+const PRESET_COLORS = ['#ef4444', '#f97316', '#3b82f6', '#16a34a', '#9333ea']
+
+function FormatToolbar({ textareaRef, value, onChange }) {
+  const wrap = (pre, suf) => {
+    const el = textareaRef.current
+    if (!el) return
+    const s = el.selectionStart, e = el.selectionEnd
+    const sel = value.slice(s, e) || 'κείμενο'
+    const newVal = value.slice(0, s) + pre + sel + suf + value.slice(e)
+    onChange(newVal)
+    setTimeout(() => {
+      el.focus()
+      el.selectionStart = s + pre.length
+      el.selectionEnd = s + pre.length + sel.length
+    }, 0)
+  }
+  return (
+    <div className="flex items-center gap-1 mb-1">
+      <button type="button" onMouseDown={e => { e.preventDefault(); wrap('**', '**') }}
+        className="text-xs px-2 py-0.5 border border-gray-300 rounded font-bold hover:bg-gray-100 text-gray-700 leading-none">
+        B
+      </button>
+      {PRESET_COLORS.map(c => (
+        <button key={c} type="button" onMouseDown={e => { e.preventDefault(); wrap(`[c=${c}]`, '[/c]') }}
+          style={{ backgroundColor: c }}
+          className="w-4 h-4 rounded-full border border-white shadow-sm hover:scale-110 transition-transform shrink-0" />
+      ))}
+    </div>
+  )
 }
 
 // ── Sortable column header ──────────────────────────────────────────────────
@@ -270,6 +321,10 @@ function CommentPanel({ lead, currentEmployee, onUpdate }) {
   const [text, setText] = useState('')
   const [saving, setSaving] = useState(false)
   const [expandedIdx, setExpandedIdx] = useState(null)
+  const [editingIdx, setEditingIdx] = useState(null)
+  const [editText, setEditText] = useState('')
+  const newRef = useRef()
+  const editRef = useRef()
 
   const submit = async () => {
     if (!text.trim()) return
@@ -289,6 +344,18 @@ function CommentPanel({ lead, currentEmployee, onUpdate }) {
     } catch { toast.error('Σφάλμα') }
   }
 
+  const saveEdit = async (appIdx) => {
+    if (!editText.trim()) return
+    setSaving(true)
+    try {
+      const res = await api.editLeadComment(lead.id, appIdx, editText.trim())
+      onUpdate(res.data)
+      setEditingIdx(null)
+      setEditText('')
+    } catch { toast.error('Σφάλμα') }
+    finally { setSaving(false) }
+  }
+
   const all = [
     ...(lead.sheet_comments ? [{ text: lead.sheet_comments, author: 'Sheet', at: null, _sheet: true }] : []),
     ...(lead.app_comments || []),
@@ -303,11 +370,11 @@ function CommentPanel({ lead, currentEmployee, onUpdate }) {
           const isSystem = c.author === 'system'
           const isSheet = c._sheet
           const short = AGENT_SHORT[c.author?.toUpperCase?.()] ?? AGENT_SHORT[c.author] ?? c.author?.[0] ?? '?'
-          // For system messages show only the first line (type + template name)
           const firstLine = c.text?.split('\n')[0] || ''
           const hasMore = isSystem && c.text?.includes('\n')
           const expanded = expandedIdx === i
           const appIdx = isSheet ? -1 : lead.app_comments?.indexOf(c) ?? -1
+          const isEditing = editingIdx === appIdx && appIdx >= 0
 
           return (
             <div key={i}
@@ -337,26 +404,52 @@ function CommentPanel({ lead, currentEmployee, onUpdate }) {
                       </span>
                     )}
                   </span>
+                ) : isEditing ? (
+                  <div>
+                    <FormatToolbar textareaRef={editRef} value={editText} onChange={setEditText} />
+                    <textarea
+                      ref={editRef}
+                      className="w-full text-xs border border-blue-300 rounded px-2 py-1 resize-none focus:outline-none focus:ring-1 focus:ring-blue-400"
+                      rows={2}
+                      value={editText}
+                      onChange={e => setEditText(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Escape') { setEditingIdx(null); setEditText('') } }}
+                    />
+                    <div className="flex gap-2 mt-0.5">
+                      <button onClick={() => saveEdit(appIdx)} disabled={saving || !editText.trim()}
+                        className="text-xs px-2 py-0.5 bg-blue-600 text-white rounded font-semibold disabled:opacity-50">
+                        {saving ? '…' : 'OK'}
+                      </button>
+                      <button onClick={() => { setEditingIdx(null); setEditText('') }}
+                        className="text-xs text-gray-400 hover:text-gray-600">Άκυρο</button>
+                    </div>
+                  </div>
                 ) : (
                   <span className="text-gray-800 whitespace-pre-wrap leading-relaxed">
                     {!isSheet && <span className="font-semibold text-gray-600 mr-1">{short}:</span>}
-                    {c.text}
+                    {isSheet ? c.text : (parseFormatted(c.text) || c.text)}
                   </span>
                 )}
               </div>
 
-              {/* Timestamp + delete */}
+              {/* Timestamp + actions */}
               <div className="flex items-center gap-1 shrink-0 mt-0.5">
-                {c.at && (
+                {c.at && !isEditing && (
                   <span className="text-gray-400 text-[10px] whitespace-nowrap">
                     {format(parseISO(c.at), 'dd/MM HH:mm')}
                   </span>
                 )}
-                {!isSheet && !isSystem && appIdx >= 0 && (
-                  <button onClick={() => del(appIdx)}
-                    className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-500 transition-opacity">
-                    <TrashIcon className="w-3 h-3" />
-                  </button>
+                {!isSheet && !isSystem && appIdx >= 0 && !isEditing && (
+                  <>
+                    <button onClick={() => { setEditingIdx(appIdx); setEditText(c.text) }}
+                      className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-blue-500 transition-opacity">
+                      <PencilIcon className="w-3 h-3" />
+                    </button>
+                    <button onClick={() => del(appIdx)}
+                      className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-500 transition-opacity">
+                      <TrashIcon className="w-3 h-3" />
+                    </button>
+                  </>
                 )}
               </div>
             </div>
@@ -365,18 +458,22 @@ function CommentPanel({ lead, currentEmployee, onUpdate }) {
       </div>
 
       {/* New comment input */}
-      <div className="flex gap-2 pt-1 border-t border-gray-100">
-        <textarea
-          className="flex-1 text-xs border border-gray-200 rounded-lg px-2 py-1.5 resize-none focus:outline-none focus:ring-1 focus:ring-blue-400"
-          rows={2}
-          placeholder="Νέο σχόλιο… (Ctrl+Enter)"
-          value={text}
-          onChange={e => setText(e.target.value)}
-          onKeyDown={e => { if (e.key === 'Enter' && e.ctrlKey) submit() }}
-        />
-        <button onClick={submit} disabled={saving || !text.trim()} className="btn-primary text-xs px-3 self-end">
-          {saving ? '…' : 'OK'}
-        </button>
+      <div className="flex flex-col gap-1 pt-1 border-t border-gray-100">
+        <FormatToolbar textareaRef={newRef} value={text} onChange={setText} />
+        <div className="flex gap-2">
+          <textarea
+            ref={newRef}
+            className="flex-1 text-xs border border-gray-200 rounded-lg px-2 py-1.5 resize-none focus:outline-none focus:ring-1 focus:ring-blue-400"
+            rows={2}
+            placeholder="Νέο σχόλιο… (Ctrl+Enter)"
+            value={text}
+            onChange={e => setText(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter' && e.ctrlKey) submit() }}
+          />
+          <button onClick={submit} disabled={saving || !text.trim()} className="btn-primary text-xs px-3 self-end">
+            {saving ? '…' : 'OK'}
+          </button>
+        </div>
       </div>
     </div>
   )
@@ -387,6 +484,7 @@ function ViberPanel({ lead, onUpdate, templates }) {
   const [msg, setMsg] = useState('')
   const [sending, setSending] = useState(false)
   const [activeTpl, setActiveTpl] = useState('')
+  const msgRef = useRef()
 
   const viberTpls = (templates || []).filter(t => t.type === 'viber' || t.type === 'both')
 
@@ -424,7 +522,9 @@ function ViberPanel({ lead, onUpdate, templates }) {
           ))}
         </div>
       )}
+      <FormatToolbar textareaRef={msgRef} value={msg} onChange={setMsg} />
       <textarea
+        ref={msgRef}
         className="w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5 resize-none focus:outline-none focus:ring-1 focus:ring-blue-400"
         rows={3} placeholder="Μήνυμα Viber…" value={msg}
         onChange={e => { setMsg(e.target.value); setActiveTpl('') }}
@@ -444,6 +544,7 @@ function EmailPanel({ lead, onUpdate, templates }) {
   const [body, setBody] = useState('')
   const [sending, setSending] = useState(false)
   const [activeTpl, setActiveTpl] = useState('')
+  const bodyRef = useRef()
 
   const emailTpls = (templates || []).filter(t => t.type === 'email' || t.type === 'both')
 
@@ -483,7 +584,8 @@ function EmailPanel({ lead, onUpdate, templates }) {
       )}
       <input className="w-full text-xs border border-gray-200 rounded px-2 py-1 focus:outline-none" placeholder="Προς" value={to} onChange={e => setTo(e.target.value)} />
       <input className="w-full text-xs border border-gray-200 rounded px-2 py-1 focus:outline-none" placeholder="Θέμα" value={subject} onChange={e => { setSubject(e.target.value); setActiveTpl('') }} />
-      <textarea className="w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5 resize-none focus:outline-none" rows={4} placeholder="Κείμενο…" value={body} onChange={e => { setBody(e.target.value); setActiveTpl('') }} />
+      <FormatToolbar textareaRef={bodyRef} value={body} onChange={setBody} />
+      <textarea ref={bodyRef} className="w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5 resize-none focus:outline-none" rows={4} placeholder="Κείμενο…" value={body} onChange={e => { setBody(e.target.value); setActiveTpl('') }} />
       <button onClick={send} disabled={sending || !to || !subject || !body} className="btn-primary text-xs px-4">
         {sending ? '…' : '✉️ Αποστολή Email'}
       </button>
@@ -647,6 +749,53 @@ function TaxisNetPanel({ lead, onUpdate, links }) {
   )
 }
 
+// ── Inline editable application number ─────────────────────────────────────
+function AppNumberEdit({ lead, onUpdate }) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(lead.application_number || '')
+  const [saving, setSaving] = useState(false)
+
+  const save = async () => {
+    setSaving(true)
+    try {
+      const res = await api.patchLead(lead.id, { application_number: draft })
+      onUpdate(res.data)
+      setEditing(false)
+    } catch { toast.error('Σφάλμα') }
+    finally { setSaving(false) }
+  }
+
+  if (editing) {
+    return (
+      <span className="flex items-center gap-1">
+        <span className="font-semibold text-gray-600">Αρ. Αίτησης:</span>
+        <input
+          autoFocus
+          className="text-xs border border-blue-300 rounded px-1.5 py-0.5 w-32 focus:outline-none focus:ring-1 focus:ring-blue-400"
+          value={draft}
+          onChange={e => setDraft(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter') save(); if (e.key === 'Escape') setEditing(false) }}
+        />
+        <button onClick={save} disabled={saving} className="text-xs text-green-700 font-bold">{saving ? '…' : 'OK'}</button>
+        <button onClick={() => setEditing(false)} className="text-xs text-gray-400">✕</button>
+      </span>
+    )
+  }
+
+  return (
+    <button
+      onClick={() => { setDraft(lead.application_number || ''); setEditing(true) }}
+      className="flex items-center gap-1 text-gray-600 hover:bg-gray-100 px-2 py-0.5 rounded transition-colors group/an"
+    >
+      <span className="font-semibold">Αρ. Αίτησης:</span>
+      <span className={lead.application_number ? 'text-gray-800' : 'text-gray-300 italic text-[11px]'}>
+        {lead.application_number || 'προσθήκη…'}
+      </span>
+      <PencilIcon className="w-3 h-3 text-gray-300 group-hover/an:text-gray-500 ml-0.5" />
+    </button>
+  )
+}
+
 // ── Expanded inline row ─────────────────────────────────────────────────────
 function ExpandedRow({ lead, currentEmployee, onUpdate, colCount, templates, taxisnetLinks, allLeads }) {
   const [tab, setTab] = useState('comments')
@@ -661,36 +810,32 @@ function ExpandedRow({ lead, currentEmployee, onUpdate, colCount, templates, tax
     )
   )
 
-  const approvedExtras = APPROVED_EXTRA_FIELDS
-    .filter(k => lead.extra_fields?.[k])
-    .map(k => [k, lead.extra_fields[k]])
-
   return (
     <tr className="bg-slate-50 border-b border-slate-200">
       <td colSpan={colCount} className="px-4 py-3">
         <div className="max-w-4xl">
-          {/* Info strip + extra fields merged */}
-          <div className="flex flex-wrap gap-2 text-xs text-gray-600 mb-3 pb-2 border-b border-gray-200">
+          {/* Row 1: Offer / platform / case link */}
+          {(lead.platform_result || lead.vulnerable_debtor || lead.offer_sent || lead.linked_case_id) && (
+            <div className="flex flex-wrap gap-2 text-xs text-gray-600 mb-1">
+              {lead.platform_result && <span className="bg-purple-50 px-2 py-0.5 rounded"><span className="font-semibold">Αποτ. Πλατφόρμας:</span> {lead.platform_result}</span>}
+              {lead.vulnerable_debtor && <span className="text-orange-600 font-semibold">⚠ Ευάλωτος Οφειλέτης</span>}
+              {lead.offer_sent && (
+                <span className="text-green-700 font-semibold">
+                  ✓ Προσφορά {lead.offer_sent_date ? `(${lead.offer_sent_date})` : ''} — {lead.offer_amount || '—'} € / suc {lead.success_fee || '—'} €
+                </span>
+              )}
+              {lead.linked_case_id && (
+                <a href={`/cases/${lead.linked_case_id}`} className="text-blue-600 hover:underline font-semibold flex items-center gap-1">
+                  <LinkIcon className="w-3.5 h-3.5" /> Υπόθεση #{lead.linked_case_id}
+                </a>
+              )}
+            </div>
+          )}
+          {/* Row 2: Υπηρεσία, Referrer, Αρ. Αίτησης */}
+          <div className="flex flex-wrap items-center gap-2 text-xs text-gray-600 mb-3 pb-2 border-b border-gray-200">
             {lead.service_type && <span className="bg-blue-50 px-2 py-0.5 rounded"><span className="font-semibold">Υπηρεσία:</span> {lead.service_type}</span>}
             {lead.referrer && <span className="bg-gray-50 border border-gray-200 px-2 py-0.5 rounded"><span className="font-semibold">Referrer:</span> {lead.referrer}</span>}
-            {approvedExtras.map(([k, v]) => (
-              <span key={k} className="bg-gray-50 border border-gray-200 px-2 py-0.5 rounded">
-                <span className="font-semibold text-gray-500">{k}:</span> <span className="text-gray-800">{v}</span>
-              </span>
-            ))}
-            {lead.platform_result && <span className="bg-purple-50 px-2 py-0.5 rounded"><span className="font-semibold">Αποτ. Πλατφόρμας:</span> {lead.platform_result}</span>}
-            {lead.application_number && <span><span className="font-semibold">Αρ. Αίτησης:</span> {lead.application_number}</span>}
-            {lead.vulnerable_debtor && <span className="text-orange-600 font-semibold">⚠ Ευάλωτος Οφειλέτης</span>}
-            {lead.offer_sent && (
-              <span className="text-green-700 font-semibold">
-                ✓ Προσφορά {lead.offer_sent_date ? `(${lead.offer_sent_date})` : ''} — {lead.offer_amount || '—'} € / suc {lead.success_fee || '—'} €
-              </span>
-            )}
-            {lead.linked_case_id && (
-              <a href={`/cases/${lead.linked_case_id}`} className="text-blue-600 hover:underline font-semibold flex items-center gap-1">
-                <LinkIcon className="w-3.5 h-3.5" /> Υπόθεση #{lead.linked_case_id}
-              </a>
-            )}
+            <AppNumberEdit lead={lead} onUpdate={onUpdate} />
           </div>
           {/* Related leads (same phone or email) */}
           {relatedLeads.length > 0 && (

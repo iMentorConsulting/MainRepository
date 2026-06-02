@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { toast } from 'react-hot-toast'
 import { TrashIcon, PlusIcon, ArrowPathIcon } from '@heroicons/react/24/outline'
 import * as api from '../api'
@@ -11,11 +11,43 @@ const TEMPLATE_TYPES = [
 
 const VARS_HINT = '{name}  {total_debt}  {offer_amount}  {success_fee}  {phone}  {email}  {assigned_to}'
 
+const PRESET_COLORS = ['#ef4444', '#f97316', '#3b82f6', '#16a34a', '#9333ea']
+
+function FormatToolbar({ textareaRef, value, onChange }) {
+  const wrap = (pre, suf) => {
+    const el = textareaRef.current
+    if (!el) return
+    const s = el.selectionStart, e = el.selectionEnd
+    const sel = value.slice(s, e) || 'κείμενο'
+    const newVal = value.slice(0, s) + pre + sel + suf + value.slice(e)
+    onChange(newVal)
+    setTimeout(() => {
+      el.focus()
+      el.selectionStart = s + pre.length
+      el.selectionEnd = s + pre.length + sel.length
+    }, 0)
+  }
+  return (
+    <div className="flex items-center gap-1 mb-1">
+      <button type="button" onMouseDown={e => { e.preventDefault(); wrap('**', '**') }}
+        className="text-xs px-2 py-0.5 border border-gray-300 rounded font-bold hover:bg-gray-100 text-gray-700 leading-none">
+        B
+      </button>
+      {PRESET_COLORS.map(c => (
+        <button key={c} type="button" onMouseDown={e => { e.preventDefault(); wrap(`[c=${c}]`, '[/c]') }}
+          style={{ backgroundColor: c }}
+          className="w-4 h-4 rounded-full border border-white shadow-sm hover:scale-110 transition-transform shrink-0" />
+      ))}
+    </div>
+  )
+}
+
 function TemplateForm({ initial, onSave, onCancel }) {
   const [name, setName] = useState(initial?.name || '')
   const [type, setType] = useState(initial?.type || 'viber')
   const [subject, setSubject] = useState(initial?.subject || '')
   const [body, setBody] = useState(initial?.body || '')
+  const bodyRef = useRef()
 
   const valid = name.trim() && body.trim()
 
@@ -41,7 +73,8 @@ function TemplateForm({ initial, onSave, onCancel }) {
       )}
       <div>
         <label className="text-xs text-gray-500 mb-0.5 block">Κείμενο *</label>
-        <textarea className="input text-sm w-full resize-y" rows={4} value={body} onChange={e => setBody(e.target.value)} placeholder="Κείμενο μηνύματος…" />
+        <FormatToolbar textareaRef={bodyRef} value={body} onChange={setBody} />
+        <textarea ref={bodyRef} className="input text-sm w-full resize-y" rows={4} value={body} onChange={e => setBody(e.target.value)} placeholder="Κείμενο μηνύματος…" />
       </div>
       <div className="text-xs text-gray-400 bg-white border border-gray-100 rounded px-2 py-1.5">
         <span className="font-semibold">Μεταβλητές:</span> {VARS_HINT}

@@ -72,6 +72,7 @@ export const listLeads = (params) => api.get('/leads/', { params, paramsSerializ
 export const getLead = (id) => api.get(`/leads/${id}`)
 export const patchLead = (id, data) => api.patch(`/leads/${id}`, data)
 export const addLeadComment = (id, text, author) => api.post(`/leads/${id}/comment`, { text, author })
+export const editLeadComment = (id, idx, text) => api.patch(`/leads/${id}/comment/${idx}`, { text })
 export const deleteLeadComment = (id, idx) => api.delete(`/leads/${id}/comment/${idx}`)
 export const syncLeads = (full = false) => api.post(`/leads/sync${full ? '?full=true' : ''}`)
 export const getLeadSheetHeaders = () => api.get('/leads/sheet-headers')
