@@ -1,7 +1,8 @@
 const router = require('express').Router();
 const https = require('https');
-const { Op } = require('sequelize');
+const { Op, QueryTypes } = require('sequelize');
 const Customer = require('../models/Customer');
+const sequelize = require('../config/db');
 
 function xmlEscape(s) {
   return (s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c]));
@@ -108,6 +109,32 @@ router.get('/search-afm', async (req, res) => {
       : e.message;
     res.status(500).json({ error: detail, status: e.response?.status });
   }
+});
+
+router.post('/dedup', async (req, res) => {
+  try {
+    const dupes = await sequelize.query(`
+      SELECT vat_number, MIN(id) AS keep_id, array_agg(id ORDER BY id) AS all_ids
+      FROM customers
+      WHERE vat_number IS NOT NULL AND TRIM(vat_number) != ''
+      GROUP BY vat_number
+      HAVING COUNT(*) > 1
+    `, { type: QueryTypes.SELECT });
+
+    let removed = 0;
+    for (const { keep_id, all_ids } of dupes) {
+      const drop_ids = all_ids.map(Number).filter(id => id !== Number(keep_id));
+      if (!drop_ids.length) continue;
+      await sequelize.query(`UPDATE income SET customer_id = :keep WHERE customer_id IN (:drop)`,
+        { replacements: { keep: keep_id, drop: drop_ids } });
+      await sequelize.query(`UPDATE service_agreements SET customer_id = :keep WHERE customer_id IN (:drop)`,
+        { replacements: { keep: keep_id, drop: drop_ids } });
+      await sequelize.query(`DELETE FROM customers WHERE id IN (:drop)`,
+        { replacements: { drop: drop_ids } });
+      removed += drop_ids.length;
+    }
+    res.json({ ok: true, groups: dupes.length, removed });
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 router.post('/', async (req, res) => {

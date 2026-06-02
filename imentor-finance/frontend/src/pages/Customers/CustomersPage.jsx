@@ -250,6 +250,19 @@ export default function CustomersPage() {
         </div>
         <div className="flex gap-2">
           <button
+            className="btn-secondary flex items-center gap-2 text-rose-600 border-rose-200 hover:bg-rose-50"
+            onClick={async () => {
+              if (!window.confirm('Αφαίρεση όλων των διπλοτύπων πελατών (ίδιο ΑΦΜ); Θα διατηρηθεί η παλαιότερη εγγραφή.')) return;
+              try {
+                const r = await API('/customers/dedup', { method: 'POST' });
+                toast.success(`Αφαιρέθηκαν ${r.data.removed} διπλότυπα από ${r.data.groups} ομάδες`);
+                load(1, search); setPage(1);
+              } catch (e) { toast.error(e.response?.data?.error || 'Σφάλμα'); }
+            }}
+          >
+            🧹 Διπλότυπα
+          </button>
+          <button
             className="btn-secondary flex items-center gap-2"
             onClick={handleSync}
             disabled={syncing}
