@@ -10,7 +10,11 @@ import {
   UserGroupIcon,
   ListBulletIcon,
   PresentationChartLineIcon,
+  PhoneIcon,
+  XMarkIcon,
 } from '@heroicons/react/24/outline'
+import { toast } from 'sonner'
+import { hangupCall } from '../api'
 
 const nav = [
   { to: '/leads', label: 'Leads', Icon: UserGroupIcon },
@@ -30,6 +34,15 @@ const adminNav = [
 export default function Layout({ auth, onLogout }) {
   const isHaris = auth.employee === 'HARIS'
   const allNav = isHaris ? [...nav, ...adminNav] : nav
+
+  const handleHangup = async () => {
+    try {
+      await hangupCall()
+      toast.success('📞 Κλήση τερματίστηκε')
+    } catch (err) {
+      toast.info('📞 Κανένα ενεργό κάλεσμα')
+    }
+  }
 
   return (
     <div className="flex min-h-screen">
@@ -69,7 +82,11 @@ export default function Layout({ auth, onLogout }) {
           )}
         </nav>
 
-        <div className="px-3 py-4 border-t border-blue-700">
+        <div className="px-3 py-4 border-t border-blue-700 space-y-2">
+          <button onClick={handleHangup}
+            className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-amber-300 hover:bg-red-700 w-full transition-colors font-medium">
+            <XMarkIcon className="w-5 h-5" />Hang Up
+          </button>
           <button onClick={onLogout}
             className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-blue-200 hover:bg-blue-700 w-full transition-colors">
             <ArrowRightOnRectangleIcon className="w-5 h-5" />Αποσύνδεση
@@ -81,7 +98,12 @@ export default function Layout({ auth, onLogout }) {
       {/* Mobile top bar */}
       <div className="md:hidden fixed top-0 inset-x-0 z-30 bg-blue-900 text-white flex items-center justify-between px-4 h-14">
         <img src="/logo.png" alt="i-Mentor" className="h-10 w-auto object-contain" onError={e => { e.target.onerror=null; e.target.src='https://i-mentor.gr/wp-content/uploads/2025/11/transparent-logo.png' }} />
-        <span className="text-sm text-blue-300">{auth.employee}</span>
+        <div className="flex items-center gap-3">
+          <button onClick={handleHangup} title="Hang up call" className="p-1 text-amber-300 hover:text-red-400 transition-colors">
+            <XMarkIcon className="w-6 h-6" />
+          </button>
+          <span className="text-sm text-blue-300">{auth.employee}</span>
+        </div>
       </div>
 
       {/* Main */}

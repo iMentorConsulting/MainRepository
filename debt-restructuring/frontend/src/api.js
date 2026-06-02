@@ -84,6 +84,9 @@ export const getLeadsReporting = () => api.get('/leads/reporting')
 // Health / diagnostics
 export const getHealth = () => api.get('/health')
 
+// Phone / Lite
+export const hangupCall = () => api.post('/phone/hangup')
+
 // Admin / backup
 export const triggerBackup = () => api.post('/admin/backup-now')
 export const exportData = async () => {

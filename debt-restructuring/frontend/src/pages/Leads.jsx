@@ -53,10 +53,39 @@ function formatPhone(p) {
 function parseAnyDate(s) {
   if (!s) return null
   try { const d = parseISO(s); if (!isNaN(d)) return d } catch {}
+
+  // DD/MM/YYYY or DD-MM-YYYY or DD.MM.YYYY
   const m1 = String(s).match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})/)
   if (m1) { const d = new Date(+m1[3], +m1[2] - 1, +m1[1]); if (!isNaN(d)) return d }
+
+  // YYYY/MM/DD or YYYY-MM-DD
   const m2 = String(s).match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/)
   if (m2) { const d = new Date(+m2[1], +m2[2] - 1, +m2[3]); if (!isNaN(d)) return d }
+
+  // DD-ΓrepGreek_Month-YYYY (e.g., "1-Ιουν-2026")
+  const greekMonths = {
+    'Ιαν': 0, 'ιαν': 0, 'ΙΑΝ': 0,
+    'Φεβ': 1, 'φεβ': 1, 'ΦΕΒ': 1,
+    'Μάρ': 2, 'μάρ': 2, 'ΜΆΡ': 2,
+    'Απρ': 3, 'απρ': 3, 'ΑΠΡ': 3,
+    'Μάι': 4, 'μάι': 4, 'ΜÁÌ': 4,
+    'Ιουν': 5, 'ιουν': 5, 'ΙΟΥΝ': 5,
+    'Ιουλ': 6, 'ιουλ': 6, 'ΙΟΥΛ': 6,
+    'Αυγ': 7, 'αυγ': 7, 'ΑΥΓ': 7,
+    'Σεπ': 8, 'σεπ': 8, 'ΣΕΠ': 8,
+    'Οκτ': 9, 'οκτ': 9, 'ΟΚΤ': 9,
+    'Νοε': 10, 'νοε': 10, 'ΝΟΕ': 10,
+    'Δεκ': 11, 'δεκ': 11, 'ΔΕΚ': 11,
+  }
+  const m3 = String(s).match(/^(\d{1,2})[\/\-]([α-ωΑ-Ω]{3,})[\/\-](\d{4})/)
+  if (m3) {
+    const month = greekMonths[m3[2]]
+    if (month !== undefined) {
+      const d = new Date(+m3[3], month, +m3[1])
+      if (!isNaN(d)) return d
+    }
+  }
+
   return null
 }
 
