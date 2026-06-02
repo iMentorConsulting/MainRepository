@@ -1110,7 +1110,7 @@ export default function Leads({ currentEmployee }) {
         for (let y = fromY; y <= toY; y++) years.push(String(y))
         params.years = years
       } else {
-        params.years = [String(THIS_YEAR)]
+        params.years = [String(THIS_YEAR - 2), String(THIS_YEAR - 1), String(THIS_YEAR)]
       }
       const res = await api.listLeads(params)
       if (myId !== loadIdRef.current) return  // stale response — discard

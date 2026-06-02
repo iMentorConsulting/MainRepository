@@ -214,9 +214,10 @@ def list_leads(
 ):
     q = db.query(Lead)
 
-    # Limit to last N years by sync date for performance
-    cutoff = _now() - timedelta(days=365 * max_years)
-    q = q.filter(Lead.created_at >= cutoff)
+    # Limit to last N years by sync date for performance (unless years are explicitly specified)
+    if not years:
+        cutoff = _now() - timedelta(days=365 * max_years)
+        q = q.filter(Lead.created_at >= cutoff)
 
     if search:
         term = f"%{search}%"
