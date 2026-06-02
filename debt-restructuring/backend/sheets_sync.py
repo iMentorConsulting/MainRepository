@@ -225,7 +225,11 @@ def _build_sheet_fields(row: dict) -> dict:
 def sync_leads(db, full: bool = False) -> dict:
     """
     full=False → incremental: only new rows beyond max sheet_row_num in DB.
-    full=True  → re-sync all rows, updating sheet-origin fields (app_ fields preserved).
+    full=True  → insert rows missing from DB (matched by sheet_row_num only).
+                 Existing records are NEVER updated — app data (status, comments,
+                 app_next_call, assigned_to) is always preserved.
+    Matching is by sheet_row_num only. Phone is NOT used for matching because
+    multiple sheet rows can share the same phone number (different family members).
     """
     from models import Lead
     from sqlalchemy import func
@@ -237,8 +241,13 @@ def sync_leads(db, full: bool = False) -> dict:
 
     rows = fetch_sheet_rows(from_row=from_row)
     inserted = 0
-    updated = 0
     skipped = 0
+
+    # For full sync build a set of existing row numbers to avoid N+1 queries
+    if full:
+        existing_row_nums = set(
+            r[0] for r in db.query(Lead.sheet_row_num).filter(Lead.sheet_row_num != None).all()
+        )
 
     for row in rows:
         fields = _build_sheet_fields(row)
@@ -249,19 +258,10 @@ def sync_leads(db, full: bool = False) -> dict:
             skipped += 1
             continue
 
-        if full:
-            existing = None
-            if phone:
-                existing = db.query(Lead).filter(Lead.phone == phone).first()
-            if not existing:
-                existing = db.query(Lead).filter(Lead.sheet_row_num == row["_row_num"]).first()
-
-            if existing:
-                for k, v in fields.items():
-                    setattr(existing, k, v)
-                existing.updated_at = datetime.utcnow()
-                updated += 1
-                continue
+        if full and row["_row_num"] in existing_row_nums:
+            # Already in DB — never overwrite existing records
+            skipped += 1
+            continue
 
         db.add(Lead(**fields))
         inserted += 1
@@ -272,7 +272,7 @@ def sync_leads(db, full: bool = False) -> dict:
         "mode": "full" if full else "incremental",
         "from_row": from_row,
         "inserted": inserted,
-        "updated": updated,
+        "updated": 0,
         "skipped": skipped,
         "new_rows_processed": len(rows),
     }
