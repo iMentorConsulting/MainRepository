@@ -1,10 +1,19 @@
 const crypto = require('crypto');
 const https = require('https');
 
+function parseServiceAccountJson() {
+  const src = process.env.GOOGLE_SERVICE_ACCOUNT_JSON || '';
+  if (!src) throw new Error('GOOGLE_SERVICE_ACCOUNT_JSON is not set in Railway');
+  const start = src.indexOf('{'); const end = src.lastIndexOf('}');
+  if (start !== -1 && end > start) {
+    try { return JSON.parse(src.slice(start, end + 1)); } catch (_) {}
+  }
+  throw new Error('GOOGLE_SERVICE_ACCOUNT_JSON is not valid JSON — check Railway env vars');
+}
+
 async function getGmailAccessToken(impersonateEmail) {
-  const saJson = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON || '{}');
-  const { client_email, private_key } = saJson;
-  if (!client_email || !private_key) throw new Error('GOOGLE_SERVICE_ACCOUNT_JSON is not set or invalid in Railway');
+  const { client_email, private_key } = parseServiceAccountJson();
+  if (!client_email || !private_key) throw new Error('GOOGLE_SERVICE_ACCOUNT_JSON is missing client_email or private_key');
 
   const now = Math.floor(Date.now() / 1000);
   const header = Buffer.from(JSON.stringify({ alg: 'RS256', typ: 'JWT' })).toString('base64url');
