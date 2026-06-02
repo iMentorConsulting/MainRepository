@@ -1201,7 +1201,11 @@ export default function Leads({ currentEmployee }) {
     const weekEnd = new Date(todayStart); weekEnd.setDate(weekEnd.getDate() + 7)
 
     const getCallDate = (l) => {
-      if (l.app_next_call) return parseAnyDate(l.app_next_call)
+      if (l.app_next_call) {
+        try { const d = parseISO(l.app_next_call); if (!isNaN(d)) return d } catch {}
+        const d2 = parseAnyDate(l.app_next_call)
+        if (d2) return d2
+      }
       return parseAnyDate(l.next_call_sheet)
     }
 
