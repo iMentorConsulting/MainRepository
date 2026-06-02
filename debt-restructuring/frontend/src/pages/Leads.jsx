@@ -52,13 +52,12 @@ function formatPhone(p) {
 
 function parseAnyDate(s) {
   if (!s) return null
-  try { const d = parseISO(s); if (!isNaN(d)) return d } catch {}
 
   // DD/MM/YYYY or DD-MM-YYYY or DD.MM.YYYY
   const m1 = String(s).match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})/)
   if (m1) { const d = new Date(+m1[3], +m1[2] - 1, +m1[1]); if (!isNaN(d)) return d }
 
-  // YYYY/MM/DD or YYYY-MM-DD
+  // YYYY-MM-DD or YYYY/MM/DD — parse as LOCAL midnight (not UTC)
   const m2 = String(s).match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/)
   if (m2) { const d = new Date(+m2[1], +m2[2] - 1, +m2[3]); if (!isNaN(d)) return d }
 
@@ -1179,12 +1178,14 @@ export default function Leads({ currentEmployee }) {
   if (filterStatus.length > 0)
     displayed = displayed.filter(l => filterStatus.includes((l.status || '').toLowerCase()))
   if (filterDateFrom || filterDateTo) {
+    // Parse filter bounds as LOCAL midnight to match how parseAnyDate builds dates
+    const parseLocalDate = s => { const [y,m,d] = s.split('-'); return new Date(+y, +m-1, +d) }
     displayed = displayed.filter(l => {
       const d = parseAnyDate(l.date)
       if (!d) return false
-      if (filterDateFrom && d < new Date(filterDateFrom)) return false
+      if (filterDateFrom && d < parseLocalDate(filterDateFrom)) return false
       if (filterDateTo) {
-        const to = new Date(filterDateTo); to.setHours(23, 59, 59, 999)
+        const to = parseLocalDate(filterDateTo); to.setHours(23, 59, 59, 999)
         if (d > to) return false
       }
       return true
