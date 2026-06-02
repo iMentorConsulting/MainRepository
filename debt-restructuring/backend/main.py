@@ -117,12 +117,13 @@ app.include_router(config.router)
 app.include_router(leads.router)
 
 
-# ── Daily backup scheduler ────────────────────────────────────────────────────
+# ── Daily scheduler: sync then backup at 18:00 Athens (15:00 UTC) ────────────
 def _run_backup_safe():
     try:
         from backup import run_backup
         result = run_backup()
-        print(f"[Backup] OK — {result['filename']} ({result['case_count']} cases)")
+        drive_ok = "Drive ✓" if result.get("drive_backup") else f"Drive ✗ {result.get('drive_error','')}"
+        print(f"[Backup] OK — {result['filename']} ({result['case_count']} cases) {drive_ok}")
     except Exception as e:
         print(f"[Backup] FAILED — {e}")
 
@@ -133,20 +134,23 @@ def _run_leads_sync_safe():
         db = SessionLocal()
         try:
             result = sync_leads(db)
-            print(f"[LeadsSync] OK — {result['inserted']} inserted, {result['updated']} updated")
+            print(f"[LeadsSync] OK — {result['inserted']} inserted, skipped {result['skipped']}")
         finally:
             db.close()
     except Exception as e:
         print(f"[LeadsSync] FAILED — {e}")
 
+def _run_sync_then_backup():
+    """Run incremental leads sync then backup — both at 18:00 Athens daily."""
+    _run_leads_sync_safe()
+    _run_backup_safe()
+
 from apscheduler.schedulers.background import BackgroundScheduler
 _scheduler = BackgroundScheduler()
-_scheduler.add_job(_run_backup_safe, "cron", hour=15, minute=0)  # 15:00 UTC = 18:00 Athens (EEST/UTC+3)
-if os.getenv("GOOGLE_SHEET_ID"):
-    _scheduler.add_job(_run_leads_sync_safe, "cron", hour=4, minute=45)  # 04:45 UTC = 07:45 EEST
-    print("[LeadsSync] Scheduler started — daily at 04:45 UTC (07:45 EEST)")
+# 15:00 UTC = 18:00 Athens (EEST / UTC+3 in summer, UTC+2 in winter = 17:00)
+_scheduler.add_job(_run_sync_then_backup, "cron", hour=15, minute=0)
 _scheduler.start()
-print("[Backup] Scheduler started — daily at 15:00 UTC (18:00 Athens)")
+print("[Scheduler] Daily sync+backup at 15:00 UTC (18:00 Athens EEST)")
 
 
 @app.get("/")
