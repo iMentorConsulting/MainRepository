@@ -168,17 +168,36 @@ def backup_now(_: str = Depends(get_current_user)):
 @app.get("/admin/service-account-email")
 def service_account_email(_: str = Depends(get_current_user)):
     """Return just the client_email from GOOGLE_SERVICE_ACCOUNT_JSON."""
-    sa_json = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON", "").strip()
-    if not sa_json:
-        raise HTTPException(status_code=404, detail="GOOGLE_SERVICE_ACCOUNT_JSON not set")
-    import json as _json
     try:
-        email = _json.loads(sa_json).get("client_email", "")
+        from backup import _load_service_account_json
+        info = _load_service_account_json()
+        email = info.get("client_email", "")
         if not email:
             raise HTTPException(status_code=404, detail="client_email not found in JSON")
         return {"client_email": email}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/admin/drive-check")
+def drive_check(_: str = Depends(get_current_user)):
+    """Diagnose Drive connectivity: validates JSON, gets service account email, lists folder."""
+    result = {"json_ok": False, "client_email": None, "folder_id": None, "folder_accessible": False, "error": None}
+    try:
+        from backup import _load_service_account_json, _get_drive_service
+        info = _load_service_account_json()
+        result["json_ok"] = True
+        result["client_email"] = info.get("client_email")
+        folder_id = os.getenv("GOOGLE_DRIVE_BACKUP_FOLDER_ID", "").strip()
+        result["folder_id"] = folder_id or "NOT SET"
+        if folder_id:
+            svc = _get_drive_service()
+            meta = svc.files().get(fileId=folder_id, fields="id,name", supportsAllDrives=True).execute()
+            result["folder_accessible"] = True
+            result["folder_name"] = meta.get("name")
+    except Exception as e:
+        result["error"] = str(e)
+    return result
 
 
 @app.get("/admin/export")

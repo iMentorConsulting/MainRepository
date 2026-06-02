@@ -22,14 +22,42 @@ from database import SessionLocal
 from models import Case, AppConfig, Lead
 
 
-def _get_drive_service():
-    sa_json = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON", "").strip()
-    if not sa_json:
+def _load_service_account_json() -> dict:
+    """
+    Load and parse GOOGLE_SERVICE_ACCOUNT_JSON, cleaning up common env-var issues.
+    Railway and similar platforms sometimes wrap the value in extra quotes.
+    """
+    raw = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON", "").strip()
+    if not raw:
         raise RuntimeError("GOOGLE_SERVICE_ACCOUNT_JSON not set")
+
+    # Strip BOM if present
+    raw = raw.lstrip('﻿')
+
+    # Strip wrapping single or double quotes added by some platforms
+    if (raw.startswith('"') and raw.endswith('"')) or \
+       (raw.startswith("'") and raw.endswith("'")):
+        raw = raw[1:-1]
+
+    # Unescape \" → " (Railway sometimes double-escapes)
+    if '\\"' in raw and '"' not in raw.replace('\\"', ''):
+        raw = raw.replace('\\"', '"')
+
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError as e:
+        raise RuntimeError(
+            f"GOOGLE_SERVICE_ACCOUNT_JSON is invalid JSON: {e}. "
+            f"Tip: paste the JSON as a single minified line in Railway env vars, with no surrounding quotes."
+        )
+
+
+def _get_drive_service():
+    sa_info = _load_service_account_json()
     from google.oauth2.service_account import Credentials
     from googleapiclient.discovery import build
     creds = Credentials.from_service_account_info(
-        json.loads(sa_json),
+        sa_info,
         scopes=["https://www.googleapis.com/auth/drive"],
     )
     return build("drive", "v3", credentials=creds, cache_discovery=False)
