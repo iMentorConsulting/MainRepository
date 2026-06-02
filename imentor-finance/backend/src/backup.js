@@ -27,10 +27,18 @@ const BACKUP_FOLDER_ID = process.env.GDRIVE_BACKUP_FOLDER_ID || '19FRqXOTePavaJ0
 function getServiceAccountKey() {
   const rawJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
   const b64Key  = process.env.GOOGLE_SERVICE_ACCOUNT_KEY;
-  if (!rawJson && !b64Key) throw new Error('Neither GOOGLE_SERVICE_ACCOUNT_JSON nor GOOGLE_SERVICE_ACCOUNT_KEY is set');
-  return rawJson
-    ? JSON.parse(rawJson)
-    : JSON.parse(Buffer.from(b64Key, 'base64').toString('utf8'));
+  const src = rawJson || b64Key;
+  if (!src) throw new Error('GOOGLE_SERVICE_ACCOUNT_JSON (or GOOGLE_SERVICE_ACCOUNT_KEY) is not set in Railway env vars');
+  // Try direct JSON parse first, then base64-decode fallback
+  try {
+    return JSON.parse(src);
+  } catch (e1) {
+    try {
+      return JSON.parse(Buffer.from(src, 'base64').toString('utf8'));
+    } catch (e2) {
+      throw new Error(`Service account key parse failed — direct: ${e1.message} | base64: ${e2.message}`);
+    }
+  }
 }
 
 // Same JWT-based token approach as gmail.js — proven to work with domain-wide delegation
@@ -66,7 +74,11 @@ async function getDriveAccessToken() {
       const chunks = [];
       res.on('data', c => chunks.push(c));
       res.on('end', () => {
-        const data = JSON.parse(Buffer.concat(chunks).toString());
+        const raw = Buffer.concat(chunks).toString();
+        let data;
+        try { data = JSON.parse(raw); } catch (e) {
+          return reject(new Error(`Drive token response not JSON: ${raw.slice(0, 200)}`));
+        }
         if (data.access_token) resolve(data.access_token);
         else reject(new Error(`Drive token error: ${JSON.stringify(data)}`));
       });
