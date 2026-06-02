@@ -46,17 +46,14 @@ function getServiceAccountKey() {
   throw new Error('Cannot parse service account key from GOOGLE_SERVICE_ACCOUNT_JSON or GOOGLE_SERVICE_ACCOUNT_KEY — paste the raw JSON file contents into Railway');
 }
 
-// Same JWT-based token approach as gmail.js — proven to work with domain-wide delegation
+// Service account authenticates as itself (no impersonation needed for Shared Drives)
 async function getDriveAccessToken() {
   const key = getServiceAccountKey();
-  const impersonateEmail = process.env.GDRIVE_IMPERSONATE_EMAIL || process.env.GMAIL_USER;
-  if (!impersonateEmail) throw new Error('Set GDRIVE_IMPERSONATE_EMAIL or GMAIL_USER for Drive impersonation');
 
   const now = Math.floor(Date.now() / 1000);
   const header  = Buffer.from(JSON.stringify({ alg: 'RS256', typ: 'JWT' })).toString('base64url');
   const payload = Buffer.from(JSON.stringify({
     iss: key.client_email,
-    sub: impersonateEmail,
     scope: 'https://www.googleapis.com/auth/drive',
     aud: 'https://oauth2.googleapis.com/token',
     iat: now,
@@ -122,7 +119,7 @@ async function uploadToDrive(accessToken, filename, jsonContent) {
   );
   const { status, data } = await driveRequest(
     'POST',
-    '/upload/drive/v3/files?uploadType=multipart&fields=id,name,webViewLink',
+    '/upload/drive/v3/files?uploadType=multipart&fields=id,name,webViewLink&supportsAllDrives=true',
     accessToken, body,
     `multipart/related; boundary=${boundary}`
   );
@@ -134,7 +131,7 @@ async function pruneOldBackups(accessToken, keepCount = 30) {
   const q = encodeURIComponent(`'${BACKUP_FOLDER_ID}' in parents and trashed = false`);
   const { status, data } = await driveRequest(
     'GET',
-    `/drive/v3/files?q=${q}&orderBy=createdTime+desc&fields=files(id,name)&pageSize=100`,
+    `/drive/v3/files?q=${q}&orderBy=createdTime+desc&fields=files(id,name)&pageSize=100&supportsAllDrives=true&includeItemsFromAllDrives=true`,
     accessToken
   );
   if (status !== 200) return 0;
