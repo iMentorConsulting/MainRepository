@@ -831,11 +831,25 @@ function ExpandedRow({ lead, currentEmployee, onUpdate, colCount, templates, tax
               )}
             </div>
           )}
-          {/* Row 2: Υπηρεσία, Referrer, Αρ. Αίτησης */}
+          {/* Info + Tabs on one line */}
           <div className="flex flex-wrap items-center gap-2 text-xs text-gray-600 mb-3 pb-2 border-b border-gray-200">
             {lead.service_type && <span className="bg-blue-50 px-2 py-0.5 rounded"><span className="font-semibold">Υπηρεσία:</span> {lead.service_type}</span>}
             {lead.referrer && <span className="bg-gray-50 border border-gray-200 px-2 py-0.5 rounded"><span className="font-semibold">Referrer:</span> {lead.referrer}</span>}
             <AppNumberEdit lead={lead} onUpdate={onUpdate} />
+            <div className="flex-1" />
+            {[
+              { id: 'comments', label: `💬 Σχόλια${commentCount > 0 ? ` (${commentCount})` : ''}` },
+              { id: 'viber', label: '📱 Viber' },
+              { id: 'email', label: '✉️ Email' },
+              { id: 'taxisnet', label: '🔑 TaxisNet' },
+              { id: 'edit', label: '✏️ Επεξεργασία' },
+            ].map(t => (
+              <button key={t.id} onClick={() => setTab(t.id)}
+                className={`text-xs px-3 py-1 rounded-full font-semibold transition-colors whitespace-nowrap
+                  ${tab === t.id ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                {t.label}
+              </button>
+            ))}
           </div>
           {/* Related leads (same phone or email) */}
           {relatedLeads.length > 0 && (
@@ -860,22 +874,6 @@ function ExpandedRow({ lead, currentEmployee, onUpdate, colCount, templates, tax
               </div>
             </div>
           )}
-          {/* Tabs */}
-          <div className="flex flex-wrap gap-1 mb-3">
-            {[
-              { id: 'comments', label: `💬 Σχόλια${commentCount > 0 ? ` (${commentCount})` : ''}` },
-              { id: 'viber', label: '📱 Viber' },
-              { id: 'email', label: '✉️ Email' },
-              { id: 'taxisnet', label: '🔑 TaxisNet' },
-              { id: 'edit', label: '✏️ Επεξεργασία' },
-            ].map(t => (
-              <button key={t.id} onClick={() => setTab(t.id)}
-                className={`text-xs px-3 py-1 rounded-full font-semibold transition-colors
-                  ${tab === t.id ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
-                {t.label}
-              </button>
-            ))}
-          </div>
           <div className="bg-white rounded-xl p-3 border border-gray-100">
             {tab === 'comments' && <CommentPanel lead={lead} currentEmployee={currentEmployee} onUpdate={onUpdate} />}
             {tab === 'viber' && <ViberPanel lead={lead} onUpdate={onUpdate} templates={templates} />}
@@ -982,14 +980,16 @@ function LeadRow({ lead, currentEmployee, expanded, onToggle, onLeadUpdate, temp
         </td>
 
         {/* Date */}
-        <td className="td w-[80px] text-xs text-gray-500">{lead.date || '—'}</td>
+        <td className="td w-[80px] text-xs text-gray-500">
+          {(() => { const d = parseAnyDate(lead.date); return d ? format(d, 'dd/MM/yy') : (lead.date || '—') })()}
+        </td>
 
         {/* Last comment */}
         <td className="td text-left min-w-[200px]">
           {lastComment
             ? <div className="text-xs text-gray-500 max-w-[380px]">
                 <span className="font-semibold text-gray-700">{agentShort(lastComment.author)}:</span>{' '}
-                <span className="line-clamp-3 whitespace-pre-wrap">{lastComment.text}</span>
+                <span className="line-clamp-3 whitespace-pre-wrap">{parseFormatted(lastComment.text) || lastComment.text}</span>
               </div>
             : lead.sheet_comments
             ? <div className="text-xs text-gray-400 max-w-[380px] italic line-clamp-3 whitespace-pre-wrap">{lead.sheet_comments}</div>
