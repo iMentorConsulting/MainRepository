@@ -36,9 +36,14 @@ function getDriveClient() {
   } else {
     key = JSON.parse(Buffer.from(b64Key, 'base64').toString('utf8'));
   }
-  const auth = new google.auth.GoogleAuth({
-    credentials: key,
-    scopes: ['https://www.googleapis.com/auth/drive.file'],
+  // Impersonate a real user so files land in their Drive quota (same pattern as gmail.js)
+  const impersonateEmail = process.env.GDRIVE_IMPERSONATE_EMAIL || process.env.GMAIL_USER;
+  if (!impersonateEmail) throw new Error('Set GDRIVE_IMPERSONATE_EMAIL (or GMAIL_USER) to the Google Workspace account to impersonate for Drive uploads');
+  const auth = new google.auth.JWT({
+    email: key.client_email,
+    key: key.private_key,
+    scopes: ['https://www.googleapis.com/auth/drive'],
+    subject: impersonateEmail,
   });
   return google.drive({ version: 'v3', auth });
 }
