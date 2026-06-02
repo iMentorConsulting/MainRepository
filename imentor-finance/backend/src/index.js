@@ -86,6 +86,40 @@ sequelize.sync({ alter: true }).then(async () => {
     console.log('[migration] Status consolidation complete');
   } catch (e) { console.warn('[migration] status consolidation failed:', e.message); }
 
+  // Deduplicate customers: keep lowest id per vat_number, re-point all references
+  try {
+    const { QueryTypes } = require('sequelize');
+    const dupes = await sequelize.query(`
+      SELECT vat_number, MIN(id) AS keep_id, array_agg(id ORDER BY id) AS all_ids
+      FROM customers
+      WHERE vat_number IS NOT NULL AND TRIM(vat_number) != ''
+      GROUP BY vat_number
+      HAVING COUNT(*) > 1
+    `, { type: QueryTypes.SELECT });
+
+    let dedupCount = 0;
+    for (const { keep_id, all_ids } of dupes) {
+      const drop_ids = all_ids.filter(id => id !== keep_id);
+      if (!drop_ids.length) continue;
+      await sequelize.query(`UPDATE income SET customer_id = :keep WHERE customer_id = ANY(:drop)`,
+        { replacements: { keep: keep_id, drop: drop_ids }, type: QueryTypes.UPDATE });
+      await sequelize.query(`UPDATE service_agreements SET customer_id = :keep WHERE customer_id = ANY(:drop)`,
+        { replacements: { keep: keep_id, drop: drop_ids }, type: QueryTypes.UPDATE });
+      await sequelize.query(`DELETE FROM customers WHERE id = ANY(:drop)`,
+        { replacements: { drop: drop_ids }, type: QueryTypes.DELETE });
+      dedupCount += drop_ids.length;
+    }
+    if (dedupCount > 0) console.log(`[migration] Removed ${dedupCount} duplicate customer(s)`);
+
+    // Partial unique index: one customer per vat_number (non-null, non-empty)
+    await sequelize.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS customers_vat_unique
+      ON customers (TRIM(vat_number))
+      WHERE vat_number IS NOT NULL AND TRIM(vat_number) != ''
+    `);
+    console.log('[migration] Customer deduplication complete');
+  } catch (e) { console.warn('[migration] customer dedup failed:', e.message); }
+
   app.listen(PORT, () => console.log(`Backend running on port ${PORT}`));
 
   // Daily backup at 18:00 Athens time

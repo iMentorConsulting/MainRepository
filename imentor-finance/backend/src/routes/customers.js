@@ -112,6 +112,11 @@ router.get('/search-afm', async (req, res) => {
 
 router.post('/', async (req, res) => {
   try {
+    const vat = (req.body.vat_number || '').trim();
+    if (vat) {
+      const existing = await Customer.findOne({ where: { vat_number: vat } });
+      if (existing) return res.status(409).json({ error: `Πελάτης με ΑΦΜ ${vat} υπάρχει ήδη (${existing.name})`, existing });
+    }
     const c = await Customer.create(req.body);
     res.json(c);
   } catch (e) { res.status(500).json({ error: e.message }); }
