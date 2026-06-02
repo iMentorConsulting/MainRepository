@@ -12,7 +12,7 @@ import {
   PresentationChartLineIcon,
   XMarkIcon,
 } from '@heroicons/react/24/outline'
-import { toast } from 'sonner'
+import { toast } from 'react-hot-toast'
 import { hangupCall } from '../api'
 
 const nav = [
