@@ -600,6 +600,42 @@ with SessionLocal() as _db:
         _db.commit()
         print(f"[migration] Deduplicated share_tokens: assigned new UUIDs to {_dedup_fixed} cases")
 
+# Rename "ΥΠΟΒΟΛΗ ΣΤΟΙΧΕΙΩΝ ΕΝΔΙΑΦΕΡΟΜΕΝΟΥ" → "ΥΠΟΒΟΛΗ ΦΟΡΜΑΣ ΕΝΔΙΑΦΕΡΟΝΤΟΣ" for ΑΝΑΚΑΙΝΙΖΩ
+try:
+    with engine.connect() as _conn:
+        _r = _conn.execute(_text("""
+            UPDATE cm_cases
+            SET status = 'ΥΠΟΒΟΛΗ ΦΟΡΜΑΣ ΕΝΔΙΑΦΕΡΟΝΤΟΣ'
+            WHERE program_category = 'ΑΝΑΚΑΙΝΙΖΩ'
+              AND status = 'ΥΠΟΒΟΛΗ ΣΤΟΙΧΕΙΩΝ ΕΝΔΙΑΦΕΡΟΜΕΝΟΥ'
+        """))
+        if _r.rowcount:
+            print(f"[migration] Renamed status for {_r.rowcount} ΑΝΑΚΑΙΝΙΖΩ cases", flush=True)
+        # Also update the stored pipeline JSON in cm_pipeline_configs
+        _conn.execute(_text("""
+            UPDATE cm_pipeline_configs
+            SET phases_json = REPLACE(
+                phases_json,
+                'ΥΠΟΒΟΛΗ ΣΤΟΙΧΕΙΩΝ ΕΝΔΙΑΦΕΡΟΜΕΝΟΥ',
+                'ΥΠΟΒΟΛΗ ΦΟΡΜΑΣ ΕΝΔΙΑΦΕΡΟΝΤΟΣ'
+            )
+            WHERE program_category = 'ΑΝΑΚΑΙΝΙΖΩ'
+        """))
+        # Also update status history entries
+        _conn.execute(_text("""
+            UPDATE cm_case_status_history
+            SET from_status = 'ΥΠΟΒΟΛΗ ΦΟΡΜΑΣ ΕΝΔΙΑΦΕΡΟΝΤΟΣ'
+            WHERE from_status = 'ΥΠΟΒΟΛΗ ΣΤΟΙΧΕΙΩΝ ΕΝΔΙΑΦΕΡΟΜΕΝΟΥ'
+        """))
+        _conn.execute(_text("""
+            UPDATE cm_case_status_history
+            SET to_status = 'ΥΠΟΒΟΛΗ ΦΟΡΜΑΣ ΕΝΔΙΑΦΕΡΟΝΤΟΣ'
+            WHERE to_status = 'ΥΠΟΒΟΛΗ ΣΤΟΙΧΕΙΩΝ ΕΝΔΙΑΦΕΡΟΜΕΝΟΥ'
+        """))
+        _conn.commit()
+except Exception as _e:
+    print(f"[migration] Status rename skipped: {_e}", flush=True)
+
 # Import new models so create_all creates their tables
 from models_cases import CMNotificationTemplate, CMStatusSLA, CMCaseModification, CMPortalFile, CMPaymentLog
 
