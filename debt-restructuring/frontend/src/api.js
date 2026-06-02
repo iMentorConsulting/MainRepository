@@ -84,10 +84,14 @@ export const getLeadsReporting = () => api.get('/leads/reporting')
 // Health / diagnostics
 export const getHealth = () => api.get('/health')
 
-// Phone / PhoneLite — calls the local PhoneLite HTTP API directly from the browser
-// PhoneLite must be running on the same machine as the browser (port 7070 default)
-export const hangupCall = () =>
-  fetch('http://127.0.0.1:7070/hangup', { mode: 'no-cors' }).catch(() => {})
+// Phone / PhoneLite — fires GET to PhoneLite's local HTTP API using Image()
+// Image() bypasses CORS and HTTPS→HTTP mixed-content restrictions (browser allows it for localhost)
+// PhoneLite must have HTTP interface enabled; default port 7070
+export const hangupCall = () => new Promise(resolve => {
+  const img = new Image()
+  img.onload = img.onerror = resolve
+  img.src = `http://127.0.0.1:7070/hangup?_=${Date.now()}`
+})
 
 // Leads — manual create
 export const createLead = (data) => api.post('/leads/create', data)

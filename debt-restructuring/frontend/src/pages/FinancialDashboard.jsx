@@ -109,7 +109,14 @@ export default function FinancialDashboard({ currentEmployee }) {
     try {
       const { toast } = await import('react-hot-toast')
       const res = await api.triggerBackup()
-      toast.success(`Backup στο Drive: ${res.data.filename} (${res.data.case_count} υποθέσεις)`)
+      const d = res.data
+      if (d.drive_error) {
+        toast.error(`Drive σφάλμα: ${d.drive_error}`, { duration: 8000 })
+      } else if (d.drive_backup) {
+        toast.success(`✅ Backup Drive: ${d.filename} (${d.lead_count} leads, ${d.case_count} υποθέσεις)`)
+      } else {
+        toast(`📁 Τοπικό backup μόνο — Drive δεν ρυθμίστηκε`, { duration: 5000 })
+      }
     } catch (err) {
       const { toast } = await import('react-hot-toast')
       toast.error(err?.response?.data?.detail || 'Σφάλμα backup')

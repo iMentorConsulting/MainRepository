@@ -692,13 +692,20 @@ function EditPanel({ lead, onUpdate }) {
 function TaxisNetPanel({ lead, onUpdate, links }) {
   const [username, setUsername] = useState(lead.taxisnet_username || '')
   const [password, setPassword] = useState(lead.taxisnet_password || '')
+  const [spouseName, setSpouseName] = useState(lead.spouse_name || '')
+  const [username2, setUsername2] = useState(lead.taxisnet_username_2 || '')
+  const [password2, setPassword2] = useState(lead.taxisnet_password_2 || '')
   const [saving, setSaving] = useState(false)
   const [showPass, setShowPass] = useState(false)
+  const [showPass2, setShowPass2] = useState(false)
 
   const save = async () => {
     setSaving(true)
     try {
-      const res = await api.patchLead(lead.id, { taxisnet_username: username, taxisnet_password: password })
+      const res = await api.patchLead(lead.id, {
+        taxisnet_username: username, taxisnet_password: password,
+        spouse_name: spouseName, taxisnet_username_2: username2, taxisnet_password_2: password2,
+      })
       onUpdate(res.data)
       toast.success('TaxisNet αποθηκεύτηκε')
     } catch { toast.error('Σφάλμα') }
@@ -746,6 +753,34 @@ function TaxisNetPanel({ lead, onUpdate, links }) {
           </div>
         </div>
       </div>
+      {/* Spouse / 2nd person */}
+      <div className="border-t border-gray-100 pt-3 mt-1">
+        <div className="text-xs font-semibold text-gray-500 mb-2">Σύζυγος / 2ος Οφειλέτης</div>
+        <div className="grid grid-cols-3 gap-2 max-w-lg">
+          <div>
+            <label className="text-xs text-gray-400 mb-0.5 block">Όνομα</label>
+            <input className="w-full text-xs border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-400"
+              placeholder="Προαιρετικό" value={spouseName} onChange={e => setSpouseName(e.target.value)} />
+          </div>
+          <div>
+            <label className="text-xs text-gray-400 mb-0.5 block">Username / ΑΦΜ</label>
+            <input className="w-full text-xs border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-400"
+              value={username2} onChange={e => setUsername2(e.target.value)} />
+          </div>
+          <div>
+            <label className="text-xs text-gray-400 mb-0.5 block">Password</label>
+            <div className="relative">
+              <input type={showPass2 ? 'text' : 'password'}
+                className="w-full text-xs border border-gray-200 rounded px-2 py-1.5 pr-7 focus:outline-none focus:ring-1 focus:ring-blue-400"
+                value={password2} onChange={e => setPassword2(e.target.value)} />
+              <button onClick={() => setShowPass2(s => !s)} className="absolute right-1.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs">
+                {showPass2 ? '🙈' : '👁'}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <button onClick={save} disabled={saving} className="btn-primary text-xs px-4">
         {saving ? '…' : '💾 Αποθήκευση'}
       </button>

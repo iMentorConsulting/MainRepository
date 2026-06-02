@@ -105,9 +105,14 @@ class Lead(Base):
     platform_result = Column(String, default="")  # ΑΠΟΤΕΛΕΣΜΑ ΠΛΑΤΦΟΡΜΑΣ
     extra_fields = Column(JSON, default=dict)     # all other unmapped sheet columns
 
-    # TaxisNet credentials (app-only)
+    # TaxisNet credentials (app-only) — primary debtor
     taxisnet_username = Column(String, default="")
     taxisnet_password = Column(String, default="")
+
+    # Spouse / 2nd person credentials (app-only)
+    spouse_name = Column(String, default="")
+    taxisnet_username_2 = Column(String, default="")
+    taxisnet_password_2 = Column(String, default="")
 
     # App-only fields (never overwritten by sync)
     app_comments = Column(JSON, default=list)   # [{text, author, at}]

@@ -39,6 +39,9 @@ class LeadPatch(BaseModel):
     email: Optional[str] = None
     taxisnet_username: Optional[str] = None
     taxisnet_password: Optional[str] = None
+    spouse_name: Optional[str] = None
+    taxisnet_username_2: Optional[str] = None
+    taxisnet_password_2: Optional[str] = None
 
 
 class CommentAdd(BaseModel):
@@ -195,6 +198,9 @@ def _lead_to_dict(lead: Lead) -> dict:
         "linked_case_id": lead.linked_case_id,
         "taxisnet_username": getattr(lead, "taxisnet_username", "") or "",
         "taxisnet_password": getattr(lead, "taxisnet_password", "") or "",
+        "spouse_name": getattr(lead, "spouse_name", "") or "",
+        "taxisnet_username_2": getattr(lead, "taxisnet_username_2", "") or "",
+        "taxisnet_password_2": getattr(lead, "taxisnet_password_2", "") or "",
         "created_at": lead.created_at.isoformat() if lead.created_at else None,
         "updated_at": lead.updated_at.isoformat() if lead.updated_at else None,
     }
@@ -426,6 +432,12 @@ def patch_lead(lead_id: int, data: LeadPatch, db: Session = Depends(get_db)):
         lead.taxisnet_username = data.taxisnet_username
     if data.taxisnet_password is not None:
         lead.taxisnet_password = data.taxisnet_password
+    if data.spouse_name is not None:
+        lead.spouse_name = data.spouse_name
+    if data.taxisnet_username_2 is not None:
+        lead.taxisnet_username_2 = data.taxisnet_username_2
+    if data.taxisnet_password_2 is not None:
+        lead.taxisnet_password_2 = data.taxisnet_password_2
     if data.app_next_call is not None:
         if data.app_next_call == "":
             lead.app_next_call = None

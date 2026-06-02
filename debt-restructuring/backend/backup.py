@@ -95,6 +95,9 @@ def _serialize_lead(l: Lead) -> dict:
         "linked_case_id": l.linked_case_id,
         "taxisnet_username": getattr(l, "taxisnet_username", "") or "",
         "taxisnet_password": getattr(l, "taxisnet_password", "") or "",
+        "spouse_name": getattr(l, "spouse_name", "") or "",
+        "taxisnet_username_2": getattr(l, "taxisnet_username_2", "") or "",
+        "taxisnet_password_2": getattr(l, "taxisnet_password_2", "") or "",
         "created_at": dt(l.created_at),
         "updated_at": dt(l.updated_at),
     }
@@ -167,7 +170,10 @@ def run_backup() -> dict:
                 resumable=False,
             )
             file_meta = {"name": filename, "parents": [folder_id]}
-            uploaded = svc.files().create(body=file_meta, media_body=media, fields="id,name").execute()
+            uploaded = svc.files().create(
+                body=file_meta, media_body=media, fields="id,name",
+                supportsAllDrives=True,
+            ).execute()
             result["drive_backup"] = uploaded.get("id")
 
             # Prune old Drive backups
@@ -175,6 +181,8 @@ def run_backup() -> dict:
             old_files = svc.files().list(
                 q=f"'{folder_id}' in parents and createdTime < '{cutoff}' and trashed = false",
                 fields="files(id,name)",
+                supportsAllDrives=True,
+                includeItemsFromAllDrives=True,
             ).execute().get("files", [])
             for f in old_files:
                 try:

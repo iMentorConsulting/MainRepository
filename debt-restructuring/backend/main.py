@@ -97,6 +97,9 @@ def run_migrations():
             "ALTER TABLE leads ADD COLUMN extra_fields TEXT DEFAULT '{}'",
             "ALTER TABLE leads ADD COLUMN taxisnet_username VARCHAR DEFAULT ''",
             "ALTER TABLE leads ADD COLUMN taxisnet_password VARCHAR DEFAULT ''",
+            "ALTER TABLE leads ADD COLUMN spouse_name VARCHAR DEFAULT ''",
+            "ALTER TABLE leads ADD COLUMN taxisnet_username_2 VARCHAR DEFAULT ''",
+            "ALTER TABLE leads ADD COLUMN taxisnet_password_2 VARCHAR DEFAULT ''",
         ]:
             try:
                 conn.execute(text(col_ddl))
