@@ -140,17 +140,12 @@ def _run_leads_sync_safe():
     except Exception as e:
         print(f"[LeadsSync] FAILED — {e}")
 
-def _run_sync_then_backup():
-    """Run incremental leads sync then backup — both at 18:00 Athens daily."""
-    _run_leads_sync_safe()
-    _run_backup_safe()
-
 from apscheduler.schedulers.background import BackgroundScheduler
 _scheduler = BackgroundScheduler()
-# 15:00 UTC = 18:00 Athens (EEST / UTC+3 in summer, UTC+2 in winter = 17:00)
-_scheduler.add_job(_run_sync_then_backup, "cron", hour=15, minute=0)
+_scheduler.add_job(_run_leads_sync_safe, "cron", hour=4, minute=45)   # 04:45 UTC = 07:45 Athens
+_scheduler.add_job(_run_backup_safe,     "cron", hour=15, minute=0)   # 15:00 UTC = 18:00 Athens
 _scheduler.start()
-print("[Scheduler] Daily sync+backup at 15:00 UTC (18:00 Athens EEST)")
+print("[Scheduler] Leads sync daily 04:45 UTC (07:45 Athens) | Backup daily 15:00 UTC (18:00 Athens)")
 
 
 @app.get("/")
