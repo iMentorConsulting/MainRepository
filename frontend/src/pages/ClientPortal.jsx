@@ -1297,7 +1297,28 @@ export default function ClientPortal() {
             {/* 5: Εισοδηματικά Κριτήρια */}
             <AnaIncome caseData={data} />
 
-            {/* 6: Εκκρεμεί Πληρωμή */}
+            {/* 6: Εκκρεμή Έγγραφα */}
+            {data.pending_items?.length > 0 && (
+              <div className="bg-white rounded-xl border border-orange-200 p-5 shadow-sm">
+                <h3 className="text-sm font-semibold text-orange-700 mb-3 flex items-center gap-2">
+                  <ExclamationCircleIcon className="w-5 h-5" />
+                  Εκκρεμότητες που χρειάζονται την προσοχή σας ({data.pending_items.length})
+                </h3>
+                <div className="space-y-2">
+                  {data.pending_items.map((item, idx) => (
+                    <div key={item.id} className="flex gap-3 items-start">
+                      <span className="flex-shrink-0 w-6 h-6 bg-orange-100 text-orange-600 rounded-full flex items-center justify-center text-xs font-bold">{idx + 1}</span>
+                      <div>
+                        <p className="text-sm text-gray-800 font-medium">{item.item_text}</p>
+                        {item.comment && <p className="text-xs text-gray-500 italic mt-0.5">→ {item.comment}</p>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* 7: Εκκρεμεί Πληρωμή */}
             {data.anakainizw?.inspection_fee_paid === false && (
               <div className="relative overflow-hidden rounded-2xl border-2 border-amber-400 bg-amber-50 p-5 shadow-sm">
                 <div className="absolute -top-6 -right-6 w-24 h-24 rounded-full bg-amber-400/10" />
@@ -1408,33 +1429,37 @@ export default function ClientPortal() {
               />
             )}
 
-            {/* 10: KPI cards */}
+            {/* 10: Ιστορικό Κατάστασης */}
+            {data.status_history?.length > 0 && (
+              <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
+                <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                  <ClockIcon className="w-5 h-5 text-gray-400" />
+                  Ιστορικό Κατάστασης
+                </h3>
+                <div className="relative">
+                  <div className="absolute left-3 top-0 bottom-0 w-px bg-gray-100" />
+                  <div className="space-y-3 pl-8">
+                    {data.status_history.map((h, i) => (
+                      <div key={i} className="relative">
+                        <div className="absolute -left-5 top-1.5 w-2.5 h-2.5 rounded-full bg-blue-500 border-2 border-white" />
+                        <div className="text-xs text-gray-400">{fmtDateTime(h.changed_at)}</div>
+                        <div className="text-sm text-gray-800">
+                          {h.from_status && <span className="text-gray-400 line-through mr-1">{h.from_status}</span>}
+                          <span className="font-medium text-[#1e3a5f]">→ {h.to_status}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* 11: KPI cards */}
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
               <KpiCard icon={CurrencyEuroIcon} label="Εγκεκρ. Προϋπολογισμός" value={budget} color="blue" />
               <KpiCard icon={CalendarDaysIcon} label="Ημερ. Έγκρισης" value={fmtDate(data.approval_date)} color="purple" />
               <KpiCard icon={CalendarDaysIcon} label="Προθεσμία" value={fmtDate(data.project_deadline)} color="orange" />
             </div>
-
-            {/* 11: Εκκρεμότητες */}
-            {data.pending_items?.length > 0 && (
-              <div className="bg-white rounded-xl border border-orange-200 p-5 shadow-sm">
-                <h3 className="text-sm font-semibold text-orange-700 mb-3 flex items-center gap-2">
-                  <ExclamationCircleIcon className="w-5 h-5" />
-                  Εκκρεμότητες που χρειάζονται την προσοχή σας ({data.pending_items.length})
-                </h3>
-                <div className="space-y-2">
-                  {data.pending_items.map((item, idx) => (
-                    <div key={item.id} className="flex gap-3 items-start">
-                      <span className="flex-shrink-0 w-6 h-6 bg-orange-100 text-orange-600 rounded-full flex items-center justify-center text-xs font-bold">{idx + 1}</span>
-                      <div>
-                        <p className="text-sm text-gray-800 font-medium">{item.item_text}</p>
-                        {item.comment && <p className="text-xs text-gray-500 italic mt-0.5">→ {item.comment}</p>}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
 
             {/* 12: Έλεγχοι Συμβούλου */}
             <AnaAdvisorChecklist caseData={data} />
@@ -1469,13 +1494,13 @@ export default function ClientPortal() {
               </div>
             )}
 
-            {/* 14: Αποστολή Εγγράφων */}
-            <ClientUploadSection token={token} clientDocs={data.client_documents || []} onUploaded={() => getPortalCase(token).then(setData)} />
-
             {/* 15: Προϋπολογισμός Εργασιών */}
             <AnaBudget caseData={data} />
 
-            {/* 16: Επικοινωνία με το Γραφείο */}
+            {/* 16: Αποστολή Εγγράφων */}
+            <ClientUploadSection token={token} clientDocs={data.client_documents || []} onUploaded={() => getPortalCase(token).then(setData)} />
+
+            {/* 17: Επικοινωνία με το Γραφείο */}
             <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
               <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
                 <ChatBubbleLeftEllipsisIcon className="w-5 h-5 text-gray-400" />
@@ -1567,8 +1592,8 @@ export default function ClientPortal() {
         {/* Financial agreement */}
         {hasFinancial && <FinancialSection data={data} />}
 
-        {/* Status History */}
-        {data.status_history?.length > 0 && (
+        {/* Status History — non-ΑΝΑΚΑΙΝΙΖΩ only (ΑΝΑΚΑΙΝΙΖΩ renders it after StatusTimeline) */}
+        {data.program_category !== 'ΑΝΑΚΑΙΝΙΖΩ' && data.status_history?.length > 0 && (
           <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
             <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
               <ClockIcon className="w-5 h-5 text-gray-400" />
