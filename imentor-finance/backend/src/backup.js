@@ -29,19 +29,21 @@ function getServiceAccountKey() {
   const b64Key  = process.env.GOOGLE_SERVICE_ACCOUNT_KEY;
   const src = rawJson || b64Key;
   if (!src) throw new Error('GOOGLE_SERVICE_ACCOUNT_JSON (or GOOGLE_SERVICE_ACCOUNT_KEY) is not set in Railway env vars');
-  // Strategy 1: extract by { ... } boundaries — handles any surrounding garbage chars
-  const start = src.indexOf('{');
-  const end = src.lastIndexOf('}');
-  if (start !== -1 && end > start) {
-    try { return JSON.parse(src.slice(start, end + 1)); } catch (_) {}
+  // Try each source — pick the first one that contains a valid JSON object
+  for (const candidate of [rawJson, b64Key].filter(Boolean)) {
+    // Direct: find { ... } boundaries (handles surrounding quotes/whitespace)
+    const s = candidate.indexOf('{'); const e = candidate.lastIndexOf('}');
+    if (s !== -1 && e > s) {
+      try { return JSON.parse(candidate.slice(s, e + 1)); } catch (_) {}
+    }
+    // Base64-encoded fallback
+    try {
+      const decoded = Buffer.from(candidate.trim(), 'base64').toString('utf8');
+      const s2 = decoded.indexOf('{'); const e2 = decoded.lastIndexOf('}');
+      if (s2 !== -1 && e2 > s2) return JSON.parse(decoded.slice(s2, e2 + 1));
+    } catch (_) {}
   }
-  // Strategy 2: base64-decode (GOOGLE_SERVICE_ACCOUNT_KEY legacy format)
-  try {
-    const decoded = Buffer.from(src.trim(), 'base64').toString('utf8');
-    const s2 = decoded.indexOf('{'); const e2 = decoded.lastIndexOf('}');
-    if (s2 !== -1 && e2 > s2) return JSON.parse(decoded.slice(s2, e2 + 1));
-  } catch (_) {}
-  throw new Error(`Cannot parse service account key (len=${src.length}, first_char_code=${src.charCodeAt(0)}). Check GOOGLE_SERVICE_ACCOUNT_JSON in Railway — must be raw JSON starting with {`);
+  throw new Error('Cannot parse service account key from GOOGLE_SERVICE_ACCOUNT_JSON or GOOGLE_SERVICE_ACCOUNT_KEY — paste the raw JSON file contents into Railway');
 }
 
 // Same JWT-based token approach as gmail.js — proven to work with domain-wide delegation
