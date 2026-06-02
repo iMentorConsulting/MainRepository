@@ -1,7 +1,8 @@
 'use strict';
 require('dotenv').config();
 
-const { google } = require('googleapis');
+const crypto = require('crypto');
+const https  = require('https');
 const sequelize = require('./config/db');
 
 // Models
@@ -21,31 +22,110 @@ const ListItem         = require('./models/ListItem');
 const RecurringExpense = require('./models/RecurringExpense');
 const CommissionLog    = require('./models/CommissionLog');
 
-// Google Drive folder where backups land
 const BACKUP_FOLDER_ID = process.env.GDRIVE_BACKUP_FOLDER_ID || '19FRqXOTePavaJ07CmKFTWF4aKKJTraE4';
 
-function getDriveClient() {
-  // Support raw JSON (GOOGLE_SERVICE_ACCOUNT_JSON, same as gmail.js) or
-  // legacy base64-encoded form (GOOGLE_SERVICE_ACCOUNT_KEY)
+function getServiceAccountKey() {
   const rawJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
   const b64Key  = process.env.GOOGLE_SERVICE_ACCOUNT_KEY;
   if (!rawJson && !b64Key) throw new Error('Neither GOOGLE_SERVICE_ACCOUNT_JSON nor GOOGLE_SERVICE_ACCOUNT_KEY is set');
-  let key;
-  if (rawJson) {
-    key = JSON.parse(rawJson);
-  } else {
-    key = JSON.parse(Buffer.from(b64Key, 'base64').toString('utf8'));
-  }
-  // Impersonate a real user so files land in their Drive quota (same pattern as gmail.js)
+  return rawJson
+    ? JSON.parse(rawJson)
+    : JSON.parse(Buffer.from(b64Key, 'base64').toString('utf8'));
+}
+
+// Same JWT-based token approach as gmail.js — proven to work with domain-wide delegation
+async function getDriveAccessToken() {
+  const key = getServiceAccountKey();
   const impersonateEmail = process.env.GDRIVE_IMPERSONATE_EMAIL || process.env.GMAIL_USER;
-  if (!impersonateEmail) throw new Error('Set GDRIVE_IMPERSONATE_EMAIL (or GMAIL_USER) to the Google Workspace account to impersonate for Drive uploads');
-  const auth = new google.auth.JWT({
-    email: key.client_email,
-    key: key.private_key,
-    scopes: ['https://www.googleapis.com/auth/drive'],
-    subject: impersonateEmail,
+  if (!impersonateEmail) throw new Error('Set GDRIVE_IMPERSONATE_EMAIL or GMAIL_USER for Drive impersonation');
+
+  const now = Math.floor(Date.now() / 1000);
+  const header  = Buffer.from(JSON.stringify({ alg: 'RS256', typ: 'JWT' })).toString('base64url');
+  const payload = Buffer.from(JSON.stringify({
+    iss: key.client_email,
+    sub: impersonateEmail,
+    scope: 'https://www.googleapis.com/auth/drive',
+    aud: 'https://oauth2.googleapis.com/token',
+    iat: now,
+    exp: now + 3600,
+  })).toString('base64url');
+  const toSign = `${header}.${payload}`;
+  const sign = crypto.createSign('RSA-SHA256');
+  sign.update(toSign);
+  const signature = sign.sign(key.private_key, 'base64url');
+  const jwt  = `${toSign}.${signature}`;
+  const body = `grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer&assertion=${jwt}`;
+
+  return new Promise((resolve, reject) => {
+    const req = https.request({
+      hostname: 'oauth2.googleapis.com',
+      path: '/token',
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Content-Length': Buffer.byteLength(body) },
+    }, res => {
+      const chunks = [];
+      res.on('data', c => chunks.push(c));
+      res.on('end', () => {
+        const data = JSON.parse(Buffer.concat(chunks).toString());
+        if (data.access_token) resolve(data.access_token);
+        else reject(new Error(`Drive token error: ${JSON.stringify(data)}`));
+      });
+    });
+    req.on('error', reject);
+    req.end(body);
   });
-  return google.drive({ version: 'v3', auth });
+}
+
+function driveRequest(method, path, accessToken, bodyBuffer, contentType) {
+  return new Promise((resolve, reject) => {
+    const headers = { 'Authorization': `Bearer ${accessToken}` };
+    if (contentType) headers['Content-Type'] = contentType;
+    if (bodyBuffer) headers['Content-Length'] = bodyBuffer.length;
+    const req = https.request({ hostname: 'www.googleapis.com', path, method, headers }, res => {
+      const chunks = [];
+      res.on('data', c => chunks.push(c));
+      res.on('end', () => {
+        const text = Buffer.concat(chunks).toString();
+        let data; try { data = JSON.parse(text); } catch { data = text; }
+        resolve({ status: res.statusCode, data });
+      });
+    });
+    req.on('error', reject);
+    if (bodyBuffer) req.end(bodyBuffer); else req.end();
+  });
+}
+
+async function uploadToDrive(accessToken, filename, jsonContent) {
+  const boundary = `bk_${Date.now()}`;
+  const metadata = JSON.stringify({ name: filename, parents: [BACKUP_FOLDER_ID] });
+  const body = Buffer.from(
+    `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${metadata}\r\n` +
+    `--${boundary}\r\nContent-Type: application/json\r\n\r\n${jsonContent}\r\n` +
+    `--${boundary}--`
+  );
+  const { status, data } = await driveRequest(
+    'POST',
+    '/upload/drive/v3/files?uploadType=multipart&fields=id,name,webViewLink',
+    accessToken, body,
+    `multipart/related; boundary=${boundary}`
+  );
+  if (status < 200 || status >= 300) throw new Error(`Drive upload ${status}: ${JSON.stringify(data)}`);
+  return data;
+}
+
+async function pruneOldBackups(accessToken, keepCount = 30) {
+  const q = encodeURIComponent(`'${BACKUP_FOLDER_ID}' in parents and trashed = false`);
+  const { status, data } = await driveRequest(
+    'GET',
+    `/drive/v3/files?q=${q}&orderBy=createdTime+desc&fields=files(id,name)&pageSize=100`,
+    accessToken
+  );
+  if (status !== 200) return 0;
+  const toDelete = (data.files || []).slice(keepCount);
+  for (const f of toDelete) {
+    await driveRequest('DELETE', `/drive/v3/files/${f.id}`, accessToken).catch(() => {});
+  }
+  return toDelete.length;
 }
 
 async function exportAllData() {
@@ -58,61 +138,16 @@ async function exportAllData() {
     RecurringExpense.findAll({ raw: true }),
     CommissionLog.findAll({ raw: true }),
   ]);
-
   return {
     exported_at: new Date().toISOString(),
     counts: {
-      income: income.length,
-      expenses: expenses.length,
-      customers: customers.length,
-      service_agreements: agreements.length,
-      list_items: listItems.length,
-      recurring_expenses: recurring.length,
-      commission_logs: commissions.length,
+      income: income.length, expenses: expenses.length, customers: customers.length,
+      service_agreements: agreements.length, list_items: listItems.length,
+      recurring_expenses: recurring.length, commission_logs: commissions.length,
     },
-    income,
-    expenses,
-    customers,
-    service_agreements: agreements,
-    list_items: listItems,
-    recurring_expenses: recurring,
-    commission_logs: commissions,
+    income, expenses, customers, service_agreements: agreements,
+    list_items: listItems, recurring_expenses: recurring, commission_logs: commissions,
   };
-}
-
-async function uploadToDrive(drive, filename, jsonData) {
-  const { Readable } = require('stream');
-  const content = JSON.stringify(jsonData, null, 2);
-  const stream = Readable.from([content]);
-
-  const res = await drive.files.create({
-    requestBody: {
-      name: filename,
-      parents: [BACKUP_FOLDER_ID],
-      mimeType: 'application/json',
-    },
-    media: {
-      mimeType: 'application/json',
-      body: stream,
-    },
-    fields: 'id,name,size,webViewLink',
-  });
-  return res.data;
-}
-
-async function pruneOldBackups(drive, keepCount = 30) {
-  const list = await drive.files.list({
-    q: `'${BACKUP_FOLDER_ID}' in parents and trashed = false`,
-    orderBy: 'createdTime desc',
-    fields: 'files(id,name,createdTime)',
-    pageSize: 100,
-  });
-  const files = list.data.files || [];
-  const toDelete = files.slice(keepCount);
-  for (const f of toDelete) {
-    await drive.files.delete({ fileId: f.id }).catch(() => {});
-  }
-  return toDelete.length;
 }
 
 async function runBackup() {
@@ -122,15 +157,16 @@ async function runBackup() {
   const data = await exportAllData();
   const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
   const filename = `imentor-finance-backup-${ts}.json`;
+  const jsonContent = JSON.stringify(data, null, 2);
 
   let driveFile = null;
   let pruned = 0;
   let driveError = null;
 
   try {
-    const drive = getDriveClient();
-    driveFile = await uploadToDrive(drive, filename, data);
-    pruned = await pruneOldBackups(drive);
+    const accessToken = await getDriveAccessToken();
+    driveFile = await uploadToDrive(accessToken, filename, jsonContent);
+    pruned = await pruneOldBackups(accessToken);
     console.log(`[backup] Uploaded to Drive: ${driveFile.name} (id=${driveFile.id})`);
   } catch (err) {
     driveError = err.message;
