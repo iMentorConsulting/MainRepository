@@ -636,6 +636,31 @@ try:
 except Exception as _e:
     print(f"[migration] Status rename skipped: {_e}", flush=True)
 
+# ONE-TIME RECOVERY: restore ΑΝΑΚΑΙΝΙΖΩ case statuses overwritten by sheet import.
+# The import (2/6/26) silently reset all existing cases to the first pipeline status
+# because it unconditionally overwrote status from the sheet column (which contained
+# non-pipeline values). This restores each case to the last recorded status_history entry.
+try:
+    with engine.connect() as _conn:
+        _r = _conn.execute(_text("""
+            UPDATE cm_cases c
+            SET status = h.to_status,
+                status_changed_at = h.changed_at
+            FROM (
+                SELECT DISTINCT ON (case_id) case_id, to_status, changed_at
+                FROM cm_case_status_history
+                ORDER BY case_id, changed_at DESC
+            ) h
+            WHERE c.id = h.case_id
+              AND c.program_category = 'ΑΝΑΚΑΙΝΙΖΩ'
+              AND c.status != h.to_status
+        """))
+        if _r.rowcount:
+            _conn.commit()
+            print(f"[migration] Restored status for {_r.rowcount} ΑΝΑΚΑΙΝΙΖΩ cases from history", flush=True)
+except Exception as _e:
+    print(f"[migration] ΑΝΑΚΑΙΝΙΖΩ status restore skipped: {_e}", flush=True)
+
 # Fix duplicate statuses across phases in ΑΝΑΚΑΙΝΙΖΩ pipeline config
 try:
     with engine.connect() as _conn:

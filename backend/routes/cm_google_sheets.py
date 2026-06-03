@@ -851,10 +851,9 @@ def _do_import_anakainizw(db: Session, selected_rows: list[int] | None = None) -
             if existing.service_type != ANAKAINIZW_SERVICE_TYPE:
                 existing.service_type = ANAKAINIZW_SERVICE_TYPE
                 changed = True
-            if status and existing.status != status:
-                existing.status = status
-                existing.status_changed_at = datetime.utcnow()
-                changed = True
+            # Never overwrite status of existing cases from the sheet.
+            # Status is managed exclusively inside the app; the sheet status column
+            # contains CRM/lead values that don't map reliably to pipeline stages.
             for field, val in [("phone", phone), ("email", email), ("sale_date", sale_date)]:
                 if val and getattr(existing, field) != val:
                     setattr(existing, field, val)
