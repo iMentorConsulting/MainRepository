@@ -357,6 +357,36 @@ function NextCallPill({ value, sheetValue, onChange }) {
   )
 }
 
+// ── Inline debt editor ──────────────────────────────────────────────────────
+function DebtCell({ value, onSave }) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(value || '')
+  if (editing) {
+    return (
+      <input
+        autoFocus
+        className="text-xs border border-blue-300 rounded px-1 py-0.5 w-full focus:outline-none focus:ring-1 focus:ring-blue-400"
+        value={draft}
+        onChange={e => setDraft(e.target.value)}
+        onBlur={() => { onSave(draft); setEditing(false) }}
+        onKeyDown={e => {
+          if (e.key === 'Enter') { onSave(draft); setEditing(false) }
+          if (e.key === 'Escape') { setDraft(value || ''); setEditing(false) }
+        }}
+      />
+    )
+  }
+  return (
+    <div
+      className="text-xs text-gray-700 truncate cursor-pointer hover:bg-blue-50 rounded px-0.5 min-h-[18px]"
+      title="Κλικ για επεξεργασία"
+      onClick={() => { setDraft(value || ''); setEditing(true) }}
+    >
+      {value || <span className="text-gray-300">—</span>}
+    </div>
+  )
+}
+
 // ── Comment panel ───────────────────────────────────────────────────────────
 function CommentPanel({ lead, currentEmployee, onUpdate }) {
   const [text, setText] = useState('')
@@ -465,6 +495,24 @@ function CommentPanel({ lead, currentEmployee, onUpdate }) {
                         className="text-xs text-gray-400 hover:text-gray-600">Άκυρο</button>
                     </div>
                   </div>
+                ) : isSheet && editingSheet ? (
+                  <div>
+                    <textarea
+                      className="w-full text-xs border border-blue-300 rounded px-2 py-1 resize-none focus:outline-none focus:ring-1 focus:ring-blue-400"
+                      rows={3}
+                      value={editSheetText}
+                      onChange={e => setEditSheetText(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Escape') setEditingSheet(false) }}
+                    />
+                    <div className="flex gap-2 mt-0.5">
+                      <button onClick={saveSheetEdit} disabled={saving}
+                        className="text-xs px-2 py-0.5 bg-blue-600 text-white rounded font-semibold disabled:opacity-50">
+                        {saving ? '…' : 'OK'}
+                      </button>
+                      <button onClick={() => setEditingSheet(false)}
+                        className="text-xs text-gray-400 hover:text-gray-600">Άκυρο</button>
+                    </div>
+                  </div>
                 ) : (
                   <span className="text-gray-800 whitespace-pre-wrap leading-relaxed">
                     {!isSheet && <span className="font-semibold text-gray-600 mr-1">{short}:</span>}
@@ -479,6 +527,18 @@ function CommentPanel({ lead, currentEmployee, onUpdate }) {
                   <span className="text-gray-400 text-[10px] whitespace-nowrap">
                     {format(parseISO(c.at), 'dd/MM HH:mm')}
                   </span>
+                )}
+                {isSheet && !editingSheet && (
+                  <>
+                    <button onClick={() => { setEditingSheet(true); setEditSheetText(c.text) }}
+                      className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-blue-500 transition-opacity">
+                      <PencilIcon className="w-3 h-3" />
+                    </button>
+                    <button onClick={deleteSheetComment}
+                      className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-500 transition-opacity">
+                      <TrashIcon className="w-3 h-3" />
+                    </button>
+                  </>
                 )}
                 {!isSheet && !isSystem && appIdx >= 0 && !isEditing && (
                   <>
@@ -505,10 +565,10 @@ function CommentPanel({ lead, currentEmployee, onUpdate }) {
           <textarea
             ref={newRef}
             className="flex-1 text-xs border border-gray-200 rounded-lg px-2 py-1.5 resize-none focus:outline-none focus:ring-1 focus:ring-blue-400"
-            rows={2}
+            rows={4}
             placeholder="Νέο σχόλιο… (Ctrl+Enter)"
             value={text}
-            onChange={e => setText(e.target.value)}
+            onChange={e => { setText(e.target.value); autoResize(e.target) }}
             onKeyDown={e => { if (e.key === 'Enter' && e.ctrlKey) submit() }}
           />
           <button onClick={submit} disabled={saving || !text.trim()} className="btn-primary text-xs px-3 self-end">
@@ -1041,9 +1101,9 @@ function LeadRow({ lead, currentEmployee, expanded, onToggle, onLeadUpdate, temp
           )}
         </td>
 
-        {/* Total Debt */}
-        <td className="td w-[85px] text-left">
-          <div className="text-xs text-gray-700 truncate">{lead.total_debt || '—'}</div>
+        {/* Total Debt — inline editable */}
+        <td className="td w-[85px] text-left" onClick={e => e.stopPropagation()}>
+          <DebtCell value={lead.total_debt} onSave={v => update({ total_debt: v })} />
         </td>
 
         {/* Reminder */}
