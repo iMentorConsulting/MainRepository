@@ -394,8 +394,32 @@ function CommentPanel({ lead, currentEmployee, onUpdate }) {
   const [expandedIdx, setExpandedIdx] = useState(null)
   const [editingIdx, setEditingIdx] = useState(null)
   const [editText, setEditText] = useState('')
+  const [editingSheet, setEditingSheet] = useState(false)
+  const [editSheetText, setEditSheetText] = useState('')
   const newRef = useRef()
   const editRef = useRef()
+
+  const saveSheetEdit = async () => {
+    setSaving(true)
+    try {
+      const res = await api.patchLead(lead.id, { sheet_comments: editSheetText })
+      onUpdate(res.data)
+      setEditingSheet(false)
+    } catch { toast.error('Σφάλμα') }
+    finally { setSaving(false) }
+  }
+
+  const deleteSheetComment = async () => {
+    try {
+      const res = await api.patchLead(lead.id, { sheet_comments: '' })
+      onUpdate(res.data)
+    } catch { toast.error('Σφάλμα') }
+  }
+
+  const autoResize = (el) => {
+    el.style.height = 'auto'
+    el.style.height = el.scrollHeight + 'px'
+  }
 
   const submit = async () => {
     if (!text.trim()) return
