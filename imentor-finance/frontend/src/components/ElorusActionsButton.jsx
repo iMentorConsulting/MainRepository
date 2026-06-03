@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import api from '../api/client';
 import Modal from './Modal';
 import toast from 'react-hot-toast';
@@ -240,17 +241,39 @@ function AfmResult({ record, onClose }) {
 
 export default function ElorusActionsButton({ record, onRefresh }) {
   const [open, setOpen] = useState(false);
+  const [dropPos, setDropPos] = useState({ top: 0, right: 0 });
   const [modal, setModal] = useState(null);
   const [finalizeOrgKey, setFinalizeOrgKey] = useState('DEFAULT');
   const [sendSelfOrgKey, setSendSelfOrgKey] = useState('DEFAULT');
   const [actionLoading, setActionLoading] = useState(false);
-  const ref = useRef();
+  const btnRef = useRef();
+  const dropRef = useRef();
 
   useEffect(() => {
-    const h = e => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    const h = e => {
+      if (
+        btnRef.current && !btnRef.current.contains(e.target) &&
+        dropRef.current && !dropRef.current.contains(e.target)
+      ) setOpen(false);
+    };
     document.addEventListener('mousedown', h);
     return () => document.removeEventListener('mousedown', h);
   }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    const onScroll = () => setOpen(false);
+    window.addEventListener('scroll', onScroll, true);
+    return () => window.removeEventListener('scroll', onScroll, true);
+  }, [open]);
+
+  const toggleOpen = () => {
+    if (!open && btnRef.current) {
+      const rect = btnRef.current.getBoundingClientRect();
+      setDropPos({ top: rect.bottom + 6, right: window.innerWidth - rect.right });
+    }
+    setOpen(v => !v);
+  };
 
   const hasDraft = !!record.elorus_invoice_id && !record.invoice_number;
   const hasInvoice = !!record.invoice_number;
@@ -283,33 +306,40 @@ export default function ElorusActionsButton({ record, onRefresh }) {
     </button>
   );
 
+  const dropdown = open && createPortal(
+    <div
+      ref={dropRef}
+      style={{ position: 'fixed', top: dropPos.top, right: dropPos.right, zIndex: 9999 }}
+      className="w-72 rounded-2xl shadow-2xl border border-slate-200/80 bg-white overflow-hidden animate-scale-in"
+    >
+      <div className="px-3 pt-3 pb-2 border-b border-slate-100">
+        <div className="text-xs font-bold text-slate-700 truncate">{record.customer_name}</div>
+        {hasInvoice && <div className="text-xs text-emerald-600 font-medium mt-0.5">{record.invoice_number}</div>}
+        {hasDraft && <div className="text-xs text-amber-600 font-medium mt-0.5">Draft ID: {record.elorus_invoice_id}</div>}
+      </div>
+      <div className="py-1">
+        <Item icon="🔍" label="Αναζήτηση ΑΦΜ (τρέχουσα γραμμή)" onClick={() => trigger('afm')} />
+        <div className="border-t border-slate-100 my-1" />
+        <div className="px-3 pt-1 pb-0.5 text-[10px] font-bold uppercase tracking-widest text-slate-400">Elorus</div>
+        <Item icon="📄" label="Δημιουργία ΤΠΥ/ΑΠΥ (draft) από γραμμή" onClick={() => trigger('draft')} />
+        <Item icon="📧" label="Αποστολή draft (ΜΟΝΟ σε εμένα)" onClick={() => trigger('send-self')} disabled={!hasDraft} />
+        <div className="border-t border-slate-100 my-1" />
+        <Item icon="✅" label="Οριστική έκδοση & αποστολή (από No)" onClick={() => trigger('finalize')} disabled={!hasDraft} />
+        <Item icon="🚀" label="Έκδοση + Αποστολή + Πληρωμή (one-shot)" onClick={() => trigger('oneshot')} hi />
+        <Item icon="💳" label="Καταχώριση Πληρωμής..." onClick={() => trigger('payment')} disabled={!hasInvoice && !hasDraft} />
+      </div>
+    </div>,
+    document.body
+  );
+
   return (
-    <div ref={ref} className="relative">
-      <button onClick={() => setOpen(v => !v)}
+    <div className="relative">
+      <button ref={btnRef} onClick={toggleOpen}
         className={`px-2.5 py-1.5 rounded-lg text-xs font-bold border transition-all whitespace-nowrap ${btnCls}`}>
         {btnTxt}
       </button>
 
-      {open && (
-        <div className="absolute right-0 top-full mt-1.5 w-72 rounded-2xl shadow-2xl border border-slate-200/80 bg-white z-50 overflow-hidden animate-scale-in">
-          <div className="px-3 pt-3 pb-2 border-b border-slate-100">
-            <div className="text-xs font-bold text-slate-700 truncate">{record.customer_name}</div>
-            {hasInvoice && <div className="text-xs text-emerald-600 font-medium mt-0.5">{record.invoice_number}</div>}
-            {hasDraft && <div className="text-xs text-amber-600 font-medium mt-0.5">Draft ID: {record.elorus_invoice_id}</div>}
-          </div>
-          <div className="py-1">
-            <Item icon="🔍" label="Αναζήτηση ΑΦΜ (τρέχουσα γραμμή)" onClick={() => trigger('afm')} />
-            <div className="border-t border-slate-100 my-1" />
-            <div className="px-3 pt-1 pb-0.5 text-[10px] font-bold uppercase tracking-widest text-slate-400">Elorus</div>
-            <Item icon="📄" label="Δημιουργία ΤΠΥ/ΑΠΥ (draft) από γραμμή" onClick={() => trigger('draft')} />
-            <Item icon="📧" label="Αποστολή draft (ΜΟΝΟ σε εμένα)" onClick={() => trigger('send-self')} disabled={!hasDraft} />
-            <div className="border-t border-slate-100 my-1" />
-            <Item icon="✅" label="Οριστική έκδοση & αποστολή (από No)" onClick={() => trigger('finalize')} disabled={!hasDraft} />
-            <Item icon="🚀" label="Έκδοση + Αποστολή + Πληρωμή (one-shot)" onClick={() => trigger('oneshot')} hi />
-            <Item icon="💳" label="Καταχώριση Πληρωμής..." onClick={() => trigger('payment')} disabled={!hasInvoice && !hasDraft} />
-          </div>
-        </div>
-      )}
+      {dropdown}
 
       <Modal open={modal === 'afm'} onClose={() => setModal(null)} title="Αναζήτηση ΑΦΜ" size="sm">
         <AfmResult record={record} onClose={() => setModal(null)} />
