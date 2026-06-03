@@ -531,11 +531,11 @@ function CommentPanel({ lead, currentEmployee, onUpdate }) {
                 {isSheet && !editingSheet && (
                   <>
                     <button onClick={() => { setEditingSheet(true); setEditSheetText(c.text) }}
-                      className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-blue-500 transition-opacity">
+                      title="Επεξεργασία" className="text-gray-400 hover:text-blue-500 transition-colors">
                       <PencilIcon className="w-3 h-3" />
                     </button>
                     <button onClick={deleteSheetComment}
-                      className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-500 transition-opacity">
+                      title="Διαγραφή" className="text-gray-400 hover:text-red-500 transition-colors">
                       <TrashIcon className="w-3 h-3" />
                     </button>
                   </>

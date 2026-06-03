@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
-import { ArrowLeftIcon, DocumentTextIcon, CloudArrowUpIcon, SparklesIcon, CheckCircleIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline'
+import { ArrowLeftIcon, DocumentTextIcon, CloudArrowUpIcon, SparklesIcon, CheckCircleIcon, ExclamationTriangleIcon, BanknotesIcon, ClipboardDocumentListIcon, CalculatorIcon, ChartBarIcon } from '@heroicons/react/24/outline'
 import { computeOffer, loadPricingConfig, scoreBreakdown, DEFAULT_PRICING_CONFIG } from '../utils/pricing'
 import { patchOffer, notifyPricingApproval } from '../api'
 import DebtTable, { emptyDebt } from '../components/DebtTable'
@@ -351,7 +351,7 @@ export default function CaseForm({ currentEmployee }) {
       </div>
 
       {/* Commercial Offer */}
-      <h2 className="section-title">💼 Οικονομική Προσφορά</h2>
+      <h2 className="section-title flex items-center gap-2"><BanknotesIcon className="w-5 h-5 text-blue-600 shrink-0" /> Οικονομική Προσφορά</h2>
       <OfferSection
         debts={debts} assets={assets} income={income} setIncome={setIncome}
         commercialOffer={commercialOffer} setCommercialOffer={setCommercialOffer}
@@ -359,13 +359,13 @@ export default function CaseForm({ currentEmployee }) {
       />
 
       {/* Debts */}
-      <h2 className="section-title">📋 Οφειλές</h2>
+      <h2 className="section-title flex items-center gap-2"><ClipboardDocumentListIcon className="w-5 h-5 text-blue-600 shrink-0" /> Οφειλές</h2>
       <div className="card mb-5">
         <DebtTable debts={debts} onChange={setDebts} calculations={calc} />
       </div>
 
       {/* Income & Assets */}
-      <h2 className="section-title">🧾 Παράμετροι Εισοδήματος & Περιουσία</h2>
+      <h2 className="section-title flex items-center gap-2"><CalculatorIcon className="w-5 h-5 text-blue-600 shrink-0" /> Παράμετροι Εισοδήματος & Περιουσία</h2>
       <div className="card mb-5">
         <IncomePanel income={income} onChange={setIncome} assets={assets} onAssetsChange={setAssets} />
       </div>
@@ -373,7 +373,7 @@ export default function CaseForm({ currentEmployee }) {
       {/* Income analysis block — FP only, shows ratio + 3-phase caps */}
       {calc && income.debtorType !== 'Νομικό Πρόσωπο' && calc.monthlyDisp1 !== undefined && (
         <div className="mb-5 rounded-xl border border-indigo-200 bg-indigo-50 p-4">
-          <p className="font-bold text-indigo-800 mb-3 text-sm">📊 ΑΝΑΛΥΣΗ ΕΙΣΟΔΗΜΑΤΟΣ — ΚΥΑ 67360 άρθρο 8Α §5</p>
+          <p className="font-bold text-indigo-800 mb-3 text-sm flex items-center gap-1.5"><ChartBarIcon className="w-4 h-4 shrink-0" /> ΑΝΑΛΥΣΗ ΕΙΣΟΔΗΜΑΤΟΣ — ΚΥΑ 67360 άρθρο 8Α §5</p>
           <div className="text-sm text-indigo-900 space-y-1 font-mono">
             <div className="flex justify-between">
               <span>Εισόδημα οφειλέτη (έτος Τ):</span>
@@ -492,7 +492,7 @@ export default function CaseForm({ currentEmployee }) {
       {/* Results */}
       {calc && calc.sumDebt > 0 && (
         <>
-          <h2 className="section-title">📊 Αποτελέσματα Υπολογισμού</h2>
+          <h2 className="section-title flex items-center gap-2"><ChartBarIcon className="w-5 h-5 text-blue-600 shrink-0" /> Αποτελέσματα Υπολογισμού</h2>
           <div className="card mb-5">
             <ResultsPanel calc={calc} incomeData={income} />
           </div>

@@ -6,6 +6,7 @@ import { el } from 'date-fns/locale'
 import {
   ArrowLeftIcon, PencilIcon, LinkIcon, CheckCircleIcon,
   PhoneIcon, EyeIcon, EyeSlashIcon, ChevronDownIcon, EnvelopeIcon,
+  BanknotesIcon, ChartBarSquareIcon, ClipboardDocumentCheckIcon, ChartBarIcon,
 } from '@heroicons/react/24/outline'
 import * as api from '../api'
 import { fmt, creditorDisplayName } from '../utils/calculations'
@@ -749,7 +750,7 @@ export default function CaseDetail({ currentEmployee }) {
       <div className="card mb-5">
         <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
           <div className="flex items-center gap-2">
-            <span className="text-sm font-bold text-gray-700">📊 Pipeline Πωλήσεων</span>
+            <span className="text-sm font-bold text-gray-700 flex items-center gap-1.5"><ChartBarIcon className="w-4 h-4 shrink-0 text-blue-600" /> Pipeline Πωλήσεων</span>
             <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${currentStage.cls}`}>
               {currentStage.icon} {currentStage.key}
             </span>
@@ -793,7 +794,7 @@ export default function CaseDetail({ currentEmployee }) {
       {/* Commercial Offer */}
       {(caseData.commercial_offer?.application_fee > 0 || caseData.commercial_offer?.success_fee > 0) && (
         <div className="card mb-5 bg-blue-50 border border-blue-200">
-          <div className="text-sm font-black text-blue-800 mb-3">💼 Οικονομική Προσφορά</div>
+          <div className="text-sm font-black text-blue-800 mb-3 flex items-center gap-1.5"><BanknotesIcon className="w-4 h-4 shrink-0" /> Οικονομική Προσφορά</div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
             {caseData.commercial_offer?.application_fee > 0 && (
               <div>
@@ -827,7 +828,7 @@ export default function CaseDetail({ currentEmployee }) {
       )}
 
       {/* Estimated results */}
-      <h2 className="section-title">📊 Εκτιμώμενα Αποτελέσματα</h2>
+      <h2 className="section-title flex items-center gap-2"><ChartBarIcon className="w-5 h-5 text-blue-600 shrink-0" /> Εκτιμώμενα Αποτελέσματα</h2>
       <div className="card mb-5">
         <div className="flex flex-wrap gap-3 mb-4">
           <div className="kpi-card"><div className="kpi-label">Συνολική Οφειλή</div><div className="kpi-value">{est.sumDebt ? fmt(est.sumDebt) : '—'}</div></div>
@@ -872,7 +873,7 @@ export default function CaseDetail({ currentEmployee }) {
       </div>
 
       {/* Actual results entry */}
-      <h2 className="section-title">✅ Πραγματικά Αποτελέσματα Ρύθμισης</h2>
+      <h2 className="section-title flex items-center gap-2"><ClipboardDocumentCheckIcon className="w-5 h-5 text-blue-600 shrink-0" /> Πραγματικά Αποτελέσματα Ρύθμισης</h2>
       <div className="card mb-5">
         {act?.creditors?.length > 0 && (
           <div className="bg-green-50 border border-green-200 rounded-xl p-3 mb-4 flex items-center gap-2 text-sm text-green-800">
@@ -1209,7 +1210,7 @@ export default function CaseDetail({ currentEmployee }) {
       {/* Comparison */}
       {act?.creditors?.length > 0 && est.sumDebt > 0 && (
         <>
-          <h2 className="section-title">📈 Σύγκριση Εκτίμησης vs Πραγματικού</h2>
+          <h2 className="section-title flex items-center gap-2"><ChartBarSquareIcon className="w-5 h-5 text-blue-600 shrink-0" /> Σύγκριση Εκτίμησης vs Πραγματικού</h2>
           <div className="card mb-5">
             <table className="w-full">
               <thead>
