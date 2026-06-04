@@ -1101,6 +1101,7 @@ export default function ClientPortal() {
 
   const handleAfmVerify = async (afm) => {
     await recordPortalVisit(token, afm)
+    await getPortalCase(token).then(setData).catch(() => {})
     setVerified(true)
   }
 
