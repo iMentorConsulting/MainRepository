@@ -510,6 +510,11 @@ function CommentPanel({ lead, currentEmployee, onUpdate }) {
                       onChange={e => setEditText(e.target.value)}
                       onKeyDown={e => { if (e.key === 'Escape') { setEditingIdx(null); setEditText('') } }}
                     />
+                    {parseFormatted(editText) && (
+                      <div className="text-xs text-gray-700 bg-gray-50 rounded px-2 py-1 mt-0.5 whitespace-pre-wrap leading-relaxed border border-gray-100">
+                        {parseFormatted(editText)}
+                      </div>
+                    )}
                     <div className="flex gap-2 mt-0.5">
                       <button onClick={() => saveEdit(appIdx)} disabled={saving || !editText.trim()}
                         className="text-xs px-2 py-0.5 bg-blue-600 text-white rounded font-semibold disabled:opacity-50">
@@ -722,16 +727,17 @@ function EmailPanel({ lead, onUpdate, templates }) {
 function EditPanel({ lead, onUpdate }) {
   const [name, setName] = useState(lead.name || '')
   const [phone, setPhone] = useState(lead.phone || '')
+  const [phone2, setPhone2] = useState(lead.phone2 || '')
   const [email, setEmail] = useState(lead.email || '')
   const [saving, setSaving] = useState(false)
   const [confirming, setConfirming] = useState(false)
 
-  const hasChanges = name !== (lead.name || '') || phone !== (lead.phone || '') || email !== (lead.email || '')
+  const hasChanges = name !== (lead.name || '') || phone !== (lead.phone || '') || phone2 !== (lead.phone2 || '') || email !== (lead.email || '')
 
   const save = async () => {
     setSaving(true)
     try {
-      const res = await api.patchLead(lead.id, { name, phone, email })
+      const res = await api.patchLead(lead.id, { name, phone, phone2, email })
       onUpdate(res.data)
       toast.success('Αποθηκεύτηκε')
       setConfirming(false)
@@ -740,7 +746,7 @@ function EditPanel({ lead, onUpdate }) {
   }
 
   const reset = () => {
-    setName(lead.name || ''); setPhone(lead.phone || ''); setEmail(lead.email || ''); setConfirming(false)
+    setName(lead.name || ''); setPhone(lead.phone || ''); setPhone2(lead.phone2 || ''); setEmail(lead.email || ''); setConfirming(false)
   }
 
   return (
@@ -753,12 +759,22 @@ function EditPanel({ lead, onUpdate }) {
             value={name} onChange={e => { setName(e.target.value); setConfirming(false) }}
           />
         </div>
-        <div>
-          <label className="text-xs text-gray-500 mb-0.5 block">Τηλέφωνο</label>
-          <input
-            className="w-full text-xs border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-400"
-            value={phone} onChange={e => { setPhone(e.target.value); setConfirming(false) }}
-          />
+        <div className="flex gap-2">
+          <div className="flex-1">
+            <label className="text-xs text-gray-500 mb-0.5 block">Τηλέφωνο 1</label>
+            <input
+              className="w-full text-xs border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-400"
+              value={phone} onChange={e => { setPhone(e.target.value); setConfirming(false) }}
+            />
+          </div>
+          <div className="flex-1">
+            <label className="text-xs text-gray-500 mb-0.5 block">Τηλέφωνο 2</label>
+            <input
+              className="w-full text-xs border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-400"
+              placeholder="Προαιρετικό"
+              value={phone2} onChange={e => { setPhone2(e.target.value); setConfirming(false) }}
+            />
+          </div>
         </div>
         <div>
           <label className="text-xs text-gray-500 mb-0.5 block">Email</label>
@@ -1112,6 +1128,14 @@ function LeadRow({ lead, currentEmployee, expanded, onToggle, onLeadUpdate, temp
                 <span className="truncate">{phone}</span>
               </a>
             : <span className="text-gray-300 text-xs">—</span>}
+          {lead.phone2 && (
+            <a href={`tel:${formatPhone(lead.phone2)}`}
+              className="text-blue-400 hover:underline font-mono text-[10px] flex items-center gap-0.5 leading-tight mt-0.5"
+              title="Τηλέφωνο 2">
+              <PhoneIcon className="w-2.5 h-2.5 shrink-0" />
+              <span className="truncate">{formatPhone(lead.phone2)}</span>
+            </a>
+          )}
           {lead.email && (
             <a
               href={`https://mail.google.com/mail/?view=cm&to=${encodeURIComponent(lead.email)}`}

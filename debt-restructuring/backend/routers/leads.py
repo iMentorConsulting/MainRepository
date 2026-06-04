@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from sqlalchemy import or_
+from sqlalchemy import or_, cast, String
 from typing import Optional, List
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
@@ -42,6 +42,8 @@ class LeadPatch(BaseModel):
     spouse_name: Optional[str] = None
     taxisnet_username_2: Optional[str] = None
     taxisnet_password_2: Optional[str] = None
+    total_debt: Optional[str] = None
+    phone2: Optional[str] = None
 
 
 class CommentAdd(BaseModel):
@@ -140,6 +142,25 @@ def _chatwoot_send_with_retry(client_name: str, phone: str, message: str, max_at
     return False, last_err
 
 
+def _markup_to_html(text: str) -> str:
+    import re as _re
+    import html as _html
+    escaped = _html.escape(text)
+    # **bold**
+    escaped = _re.sub(r'\*\*([^*]+)\*\*', r'<strong>\1</strong>', escaped)
+    # [c=#hex]text[/c]
+    escaped = _re.sub(r'\[c=(#[0-9a-fA-F]{3,6})\]([^\[]+)\[/c\]', r'<span style="color:\1">\2</span>', escaped)
+    escaped = escaped.replace('\n', '<br>\n')
+    return f'<html><body style="font-family:Arial,sans-serif;font-size:14px;line-height:1.6">{escaped}</body></html>'
+
+
+def _markup_strip(text: str) -> str:
+    import re as _re
+    text = _re.sub(r'\*\*([^*]+)\*\*', r'\1', text)
+    text = _re.sub(r'\[c=#[0-9a-fA-F]{3,6}\]([^\[]+)\[/c\]', r'\1', text)
+    return text
+
+
 def _send_gmail(to: str, subject: str, body: str) -> tuple:
     from email.mime.text import MIMEText
     from email.mime.multipart import MIMEMultipart
@@ -159,7 +180,8 @@ def _send_gmail(to: str, subject: str, body: str) -> tuple:
         msg["Subject"] = subject
         msg["From"] = sender
         msg["To"] = to
-        msg.attach(MIMEText(body, "plain", "utf-8"))
+        msg.attach(MIMEText(_markup_strip(body), "plain", "utf-8"))
+        msg.attach(MIMEText(_markup_to_html(body), "html", "utf-8"))
         raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
         svc.users().messages().send(userId="me", body={"raw": raw}).execute()
         return True, ""
@@ -181,6 +203,7 @@ def _lead_to_dict(lead: Lead) -> dict:
         "next_call_sheet": lead.next_call_sheet or "",
         "total_debt": lead.total_debt or "",
         "phone": lead.phone or "",
+        "phone2": getattr(lead, "phone2", "") or "",
         "email": lead.email or "",
         "offer_sent": lead.offer_sent or False,
         "offer_sent_date": lead.offer_sent_date or "",
@@ -276,8 +299,10 @@ def list_leads(
         q = q.filter(or_(
             Lead.name.ilike(term),
             Lead.phone.ilike(term),
+            Lead.phone2.ilike(term),
             Lead.email.ilike(term),
             Lead.sheet_comments.ilike(term),
+            cast(Lead.app_comments, String).ilike(term),
             Lead.total_debt.ilike(term),
             Lead.referrer.ilike(term),
             Lead.application_number.ilike(term),
@@ -438,6 +463,10 @@ def patch_lead(lead_id: int, data: LeadPatch, db: Session = Depends(get_db)):
         lead.taxisnet_username_2 = data.taxisnet_username_2
     if data.taxisnet_password_2 is not None:
         lead.taxisnet_password_2 = data.taxisnet_password_2
+    if data.total_debt is not None:
+        lead.total_debt = data.total_debt
+    if data.phone2 is not None:
+        lead.phone2 = data.phone2
     if data.app_next_call is not None:
         if data.app_next_call == "":
             lead.app_next_call = None

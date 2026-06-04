@@ -115,6 +115,7 @@ class Lead(Base):
     taxisnet_password_2 = Column(String, default="")
 
     # App-only fields (never overwritten by sync)
+    phone2 = Column(String, default="")         # second contact phone (agent-entered)
     app_comments = Column(JSON, default=list)   # [{text, author, at}]
     app_next_call = Column(DateTime, nullable=True)
     linked_case_id = Column(Integer, nullable=True)
