@@ -149,6 +149,37 @@ const PROGRAM_OPTIONS = [
 
 const NON_ANA_PROGRAMS = ['ΕΣΠΑ', 'ΔΥΠΑ', 'ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ']
 
+function SortTh({ label, col, sortCol, sortDir, onSort, className = '' }) {
+  const active = sortCol === col
+  return (
+    <th
+      onClick={() => onSort(col)}
+      className={`text-left px-3 py-3 text-xs font-semibold text-gray-500 tracking-wider whitespace-nowrap cursor-pointer select-none hover:bg-gray-100 transition-colors ${className}`}
+    >
+      <span className="flex items-center gap-1">
+        {label}
+        <span className="flex flex-col -space-y-1">
+          <ChevronUpIcon className={`w-2.5 h-2.5 ${active && sortDir === 'asc' ? 'text-[#1e3a5f]' : 'text-gray-300'}`} />
+          <ChevronDownIcon className={`w-2.5 h-2.5 ${active && sortDir === 'desc' ? 'text-[#1e3a5f]' : 'text-gray-300'}`} />
+        </span>
+      </span>
+    </th>
+  )
+}
+
+function sortCases(rows, col, dir) {
+  if (!col) return rows
+  return [...rows].sort((a, b) => {
+    let av = a[col], bv = b[col]
+    if (av == null) av = ''
+    if (bv == null) bv = ''
+    const cmp = typeof av === 'number' && typeof bv === 'number'
+      ? av - bv
+      : String(av).localeCompare(String(bv), 'el', { sensitivity: 'base' })
+    return dir === 'asc' ? cmp : -cmp
+  })
+}
+
 const fmt = (n) =>
   new Intl.NumberFormat('el-GR', { style: 'currency', currency: 'EUR', minimumFractionDigits: 0 }).format(n || 0)
 
@@ -282,7 +313,14 @@ export default function Cases() {
     exclude_anakainizw: true,
   })
   const [showNew, setShowNew] = useState(false)
+  const [sortCol, setSortCol] = useState('client_name')
+  const [sortDir, setSortDir] = useState('asc')
   const navigate = useNavigate()
+
+  const handleSort = (col) => {
+    if (sortCol === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setSortCol(col); setSortDir('asc') }
+  }
 
   useEffect(() => {
     getPipelines().then(setLivePipelines).catch(() => {})
@@ -359,6 +397,8 @@ export default function Cases() {
     if (fail > 0) toast.error(`${fail} αποτυχίες διαγραφής`)
     load()
   }
+
+  const sortedCases = useMemo(() => sortCases(cases, sortCol, sortDir), [cases, sortCol, sortDir])
 
   const serviceTypes = filterOptions.service_types
   const availableStatuses = filterOptions.statuses
@@ -507,15 +547,17 @@ export default function Cases() {
                         : null}
                     </button>
                   </th>
-                  {['Επωνυμία', 'Πρόγραμμα', 'Κατάσταση', 'Εκκρεμότητες', 'Προθεσμία', 'Εργασίες', ''].map(h => (
-                    <th key={h} className="text-left px-3 py-3 text-xs font-semibold text-gray-500 tracking-wider whitespace-nowrap">
-                      {h}
-                    </th>
-                  ))}
+                  <SortTh label="Επωνυμία" col="client_name" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
+                  <SortTh label="Πρόγραμμα" col="program_category" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
+                  <SortTh label="Κατάσταση" col="status" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
+                  <SortTh label="Εκκρεμότητες" col="pending_count" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
+                  <SortTh label="Προθεσμία" col="days_to_deadline" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
+                  <th className="text-left px-3 py-3 text-xs font-semibold text-gray-500 tracking-wider whitespace-nowrap">Εργασίες</th>
+                  <th className="px-3 py-3 w-16" />
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {cases.map(c => {
+                {sortedCases.map(c => {
                   const urgent = c.days_to_deadline !== null && c.days_to_deadline <= 15 && c.days_to_deadline >= 0
                   const prog = livePipelines?.[c.program_category] || PIPELINES[c.program_category] || {}
                   const caseStatuses = [
