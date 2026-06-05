@@ -21,7 +21,7 @@ import {
 } from '@heroicons/react/24/outline'
 import toast from 'react-hot-toast'
 
-const PAGE_SIZE = 25
+const PAGE_SIZE = 100
 
 const PRIORITY_COLORS = {
   urgent: 'bg-red-100 text-red-700 border-red-200',
