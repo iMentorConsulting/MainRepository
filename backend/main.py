@@ -990,7 +990,10 @@ if os.path.isfile(_index_html):
         candidate = os.path.join(_static_dir, full_path)
         if full_path and os.path.isfile(candidate):
             return FileResponse(candidate)
-        return FileResponse(_index_html)
+        return FileResponse(
+            _index_html,
+            headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
+        )
 else:
     @app.get("/")
     def root():
