@@ -5,6 +5,7 @@ import { format, differenceInDays } from 'date-fns'
 import { el } from 'date-fns/locale'
 import { MagnifyingGlassIcon, PlusIcon, DocumentDuplicateIcon, TrashIcon, EyeIcon, PencilIcon, LinkIcon, ExclamationTriangleIcon, RocketLaunchIcon } from '@heroicons/react/24/outline'
 import * as api from '../api'
+import { PORTAL_BASE } from '../api'
 import { fmt } from '../utils/calculations'
 
 const EMPLOYEES = ['STELLA', 'VALLIA', 'SOFIA', 'HARIS']
@@ -97,7 +98,7 @@ export default function Dashboard({ currentEmployee }) {
   }
 
   const copyShareLink = (token) => {
-    const url = `${window.location.origin}/preview/${token}`
+    const url = `${PORTAL_BASE}/preview/${token}`
     navigator.clipboard.writeText(url).then(() => toast.success('Σύνδεσμος αντιγράφηκε!')).catch(() => toast.error('Αδύνατη αντιγραφή'))
   }
 

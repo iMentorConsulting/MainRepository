@@ -1,5 +1,10 @@
 import axios from 'axios'
 
+// Base URL for client-facing portal links (preview pages sent to clients via Viber/email).
+// Set VITE_PORTAL_URL in Railway env to the custom domain (e.g. https://portal.i-mentor.gr).
+// Falls back to the current origin so local dev still works.
+export const PORTAL_BASE = (import.meta.env.VITE_PORTAL_URL || '').replace(/\/$/, '') || window.location.origin
+
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || '/api',
   headers: { 'Content-Type': 'application/json' },

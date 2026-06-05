@@ -11,6 +11,7 @@ import {
   ChatBubbleLeftEllipsisIcon,
 } from '@heroicons/react/24/outline'
 import * as api from '../api'
+import { PORTAL_BASE } from '../api'
 import { fmt } from '../utils/calculations'
 
 // ── Viber helpers ────────────────────────────────────────────────────────────
@@ -47,7 +48,7 @@ function buildViberMessage(type, name, url, offer = null, includeOffer = false) 
 }
 
 function ViberInlineModal({ caseItem, onSend, onClose, sending }) {
-  const url = `${window.location.origin}/preview/${caseItem.share_token}`
+  const url = `${PORTAL_BASE}/preview/${caseItem.share_token}`
   const hasOffer = !!(caseItem.commercial_offer?.application_fee || caseItem.commercial_offer?.success_fee)
   const [selectedType, setSelectedType] = useState('initial')
   const [includeOffer, setIncludeOffer] = useState(false)

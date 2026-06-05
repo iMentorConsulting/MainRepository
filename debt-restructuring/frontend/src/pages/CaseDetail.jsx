@@ -9,6 +9,7 @@ import {
   BanknotesIcon, ChartBarSquareIcon, ClipboardDocumentCheckIcon, ChartBarIcon,
 } from '@heroicons/react/24/outline'
 import * as api from '../api'
+import { PORTAL_BASE } from '../api'
 import { fmt, creditorDisplayName } from '../utils/calculations'
 import { buildEmailHtml, wrapEmailDocument, buildResultsEmailHtml } from '../utils/reportGenerators'
 
@@ -281,7 +282,7 @@ function EmailOptionsModal({ caseData, onClose }) {
   const toggleDisclaimer = (v) => { setIncludeDisclaimer(v); rebuildPreview(includeTable, v, includeOffer) }
   const toggleOffer = (v) => { setIncludeOffer(v); rebuildPreview(includeTable, includeDisclaimer, v) }
 
-  const portalUrl = caseData.share_token ? `${window.location.origin}/preview/${caseData.share_token}` : null
+  const portalUrl = caseData.share_token ? `${PORTAL_BASE}/preview/${caseData.share_token}` : null
 
   const openHtmlEmail = () => {
     const finalPlan = est.finalPlan || []
@@ -583,7 +584,7 @@ export default function CaseDetail({ currentEmployee }) {
 
   const copyShareLink = () => {
     if (!caseData) return
-    const url = `${window.location.origin}/preview/${caseData.share_token}`
+    const url = `${PORTAL_BASE}/preview/${caseData.share_token}`
     navigator.clipboard.writeText(url).then(() => toast.success('Σύνδεσμος αντιγράφηκε!')).catch(() => toast.error('Αδύνατη αντιγραφή'))
   }
 
@@ -639,7 +640,7 @@ export default function CaseDetail({ currentEmployee }) {
           {/* Staff preview — notrack */}
           {caseData.share_token && (
             <a
-              href={`${window.location.origin}/preview/${caseData.share_token}?notrack=1`}
+              href={`${PORTAL_BASE}/preview/${caseData.share_token}?notrack=1`}
               target="_blank"
               rel="noreferrer"
               className="btn-secondary gap-2 text-sm"
@@ -718,7 +719,7 @@ export default function CaseDetail({ currentEmployee }) {
           msgType={viberModal.msgType}
           msgLabel={viberModal.msgLabel}
           caseName={caseData.client_name}
-          url={`${window.location.origin}/preview/${caseData.share_token}`}
+          url={`${PORTAL_BASE}/preview/${caseData.share_token}`}
           offer={caseData.commercial_offer || {}}
           onSend={handleViberSend}
           onClose={() => setViberModal(null)}
