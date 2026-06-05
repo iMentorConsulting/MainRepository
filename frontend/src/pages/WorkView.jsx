@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import {
   getCases, getUsers, updateCase, createMessage, getMessages, deleteMessage,
@@ -9,8 +9,11 @@ import { PIPELINES } from '../pipelines'
 import {
   MagnifyingGlassIcon, PlusIcon, TrashIcon,
   CalendarDaysIcon, PaperAirplaneIcon, ArrowTopRightOnSquareIcon, BoltIcon, PhoneIcon,
+  ChevronUpIcon, ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon,
 } from '@heroicons/react/24/outline'
 import toast from 'react-hot-toast'
+
+const PAGE_SIZE = 100
 
 const PROGRAMS = ['ΕΣΠΑ', 'ΔΥΠΑ', 'ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ', 'ΑΝΑΚΑΙΝΙΖΩ']
 const FINAL_STATUSES = new Set(['ΟΛΟΚΛΗΡΩΜΕΝΗ ΥΠΟΘΕΣΗ', 'ΠΑΡΑΙΤΗΣΗ', 'ΠΑΓΩΜΕΝΗ ΥΠΟΘΕΣΗ', 'ΑΚΥΡΩΣΗ', 'ΑΠΟΡΡΙΨΗ'])
@@ -421,6 +424,72 @@ function SendButton({ caseId, hasItems }) {
   )
 }
 
+function SortTh({ label, col, sortCol, sortDir, onSort, className = '' }) {
+  const active = sortCol === col
+  return (
+    <th
+      className={`px-3 py-2.5 text-left cursor-pointer select-none hover:bg-gray-700 transition-colors ${className}`}
+      onClick={() => onSort(col)}
+    >
+      <span className="flex items-center gap-1">
+        {label}
+        <span className="flex flex-col -space-y-1">
+          <ChevronUpIcon className={`w-2.5 h-2.5 ${active && sortDir === 'asc' ? 'text-white' : 'text-gray-500'}`} />
+          <ChevronDownIcon className={`w-2.5 h-2.5 ${active && sortDir === 'desc' ? 'text-white' : 'text-gray-500'}`} />
+        </span>
+      </span>
+    </th>
+  )
+}
+
+function Pagination({ page, total, pageSize, onChange }) {
+  const totalPages = Math.ceil(total / pageSize)
+  if (totalPages <= 1) return null
+  const from = page * pageSize + 1
+  const to = Math.min((page + 1) * pageSize, total)
+  const pages = []
+  for (let i = 0; i < totalPages; i++) {
+    if (i === 0 || i === totalPages - 1 || Math.abs(i - page) <= 2) pages.push(i)
+    else if (pages[pages.length - 1] !== '...') pages.push('...')
+  }
+  return (
+    <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100 bg-gray-50 flex-shrink-0">
+      <span className="text-xs text-gray-500">{from}–{to} από {total}</span>
+      <div className="flex items-center gap-1">
+        <button onClick={() => onChange(page - 1)} disabled={page === 0}
+          className="p-1.5 rounded-lg hover:bg-gray-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+          <ChevronLeftIcon className="w-4 h-4 text-gray-600" />
+        </button>
+        {pages.map((p, i) =>
+          p === '...'
+            ? <span key={`e${i}`} className="px-1 text-gray-400 text-xs">…</span>
+            : <button key={p} onClick={() => onChange(p)}
+                className={`w-7 h-7 rounded-lg text-xs font-medium transition-colors ${p === page ? 'bg-[#1e3a5f] text-white' : 'text-gray-600 hover:bg-gray-200'}`}>
+                {p + 1}
+              </button>
+        )}
+        <button onClick={() => onChange(page + 1)} disabled={page >= totalPages - 1}
+          className="p-1.5 rounded-lg hover:bg-gray-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+          <ChevronRightIcon className="w-4 h-4 text-gray-600" />
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function sortRows(rows, col, dir) {
+  if (!col) return rows
+  return [...rows].sort((a, b) => {
+    let av = a[col], bv = b[col]
+    if (av == null) av = ''
+    if (bv == null) bv = ''
+    const cmp = typeof av === 'number' && typeof bv === 'number'
+      ? av - bv
+      : String(av).localeCompare(String(bv), 'el', { sensitivity: 'base' })
+    return dir === 'asc' ? cmp : -cmp
+  })
+}
+
 // ── Main component ─────────────────────────────────────────────────────────────
 export default function WorkView() {
   const [cases, setCases] = useState([])
@@ -435,6 +504,15 @@ export default function WorkView() {
   const [filterFollowUp, setFilterFollowUp] = useState(false)
   const [hideCompleted, setHideCompleted] = useState(true)
   const [filterHasDocs, setFilterHasDocs] = useState(false)
+  const [sortCol, setSortCol] = useState('')
+  const [sortDir, setSortDir] = useState('asc')
+  const [page, setPage] = useState(0)
+
+  const handleSort = (col) => {
+    if (sortCol === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setSortCol(col); setSortDir('asc') }
+    setPage(0)
+  }
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -454,6 +532,7 @@ export default function WorkView() {
   useEffect(() => { setFilterServiceType(''); setFilterStatus('') }, [filterProgram])
   useEffect(() => { getUsers().then(setAgents).catch(() => {}) }, [])
   useEffect(() => { getPipelines().then(setPipelinesData).catch(() => {}) }, [])
+  useEffect(() => { setPage(0) }, [search, filterProgram, filterAgent, filterServiceType, filterStatus, filterFollowUp, hideCompleted, filterHasDocs])
 
   const serviceTypeOptions = [...new Set(cases.map(c => c.service_type).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'el'))
 
@@ -470,6 +549,9 @@ export default function WorkView() {
     if (filterStatus && c.status !== filterStatus) return false
     return true
   })
+
+  const sorted = useMemo(() => sortRows(displayed, sortCol, sortDir), [displayed, sortCol, sortDir])
+  const pageRows = useMemo(() => sorted.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE), [sorted, page])
 
   const updateField = (caseId, fields) =>
     setCases(prev => prev.map(c => c.id === caseId ? { ...c, ...fields } : c))
@@ -567,15 +649,16 @@ export default function WorkView() {
       </div>
 
       {/* Table */}
-      <div className="flex-1 overflow-auto bg-white rounded-xl border">
+      <div className="flex-1 overflow-auto bg-white rounded-xl border flex flex-col">
+        <div className="flex-1 overflow-auto">
         <table className="w-full text-sm border-collapse">
           <thead className="sticky top-0 z-10">
             <tr className="bg-gray-800 text-white text-xs uppercase tracking-wide">
-              <th className="px-3 py-2.5 text-left w-44">Πελάτης</th>
-              <th className="px-3 py-2.5 text-left w-44">Κατάσταση / Μετακίνηση</th>
+              <SortTh label="Πελάτης" col="client_name" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} className="w-44" />
+              <SortTh label="Κατάσταση / Μετακίνηση" col="status" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} className="w-44" />
               <th className="px-3 py-2.5 text-left min-w-[18rem]">Σημειώσεις</th>
               <th className="px-3 py-2.5 text-left w-64">Εκκρεμότητες</th>
-              <th className="px-3 py-2.5 text-center w-32">Υπενθύμιση</th>
+              <SortTh label="Υπενθύμιση" col="follow_up_date" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} className="w-32" />
               <th className="px-3 py-2.5 text-center w-28">Αποστολή</th>
             </tr>
           </thead>
@@ -587,7 +670,7 @@ export default function WorkView() {
               </td></tr>
             ) : displayed.length === 0 ? (
               <tr><td colSpan={6} className="text-center py-16 text-gray-400">Δεν βρέθηκαν υποθέσεις</td></tr>
-            ) : displayed.map(c => (
+            ) : pageRows.map(c => (
               <tr key={c.id} className="border-b border-gray-100 hover:bg-gray-50/50 align-top">
                 <td className="px-3 py-2.5">
                   <Link
@@ -650,6 +733,8 @@ export default function WorkView() {
             ))}
           </tbody>
         </table>
+        </div>
+        <Pagination page={page} total={displayed.length} pageSize={PAGE_SIZE} onChange={setPage} />
       </div>
     </div>
   )
