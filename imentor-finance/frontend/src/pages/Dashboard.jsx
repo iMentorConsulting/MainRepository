@@ -544,8 +544,14 @@ export default function Dashboard() {
           localStorage.setItem('profit_target', String(defaultProfitTarget));
         };
         const achColor = pct => pct === null ? 'text-slate-400' : pct >= 100 ? 'text-emerald-600 font-bold' : pct >= 70 ? 'text-amber-600 font-semibold' : 'text-rose-600 font-semibold';
+        const paceColor = pct => pct === null ? 'text-slate-400' : pct >= 120 ? 'text-emerald-600 font-bold' : pct >= 100 ? 'text-emerald-500 font-semibold' : pct >= 70 ? 'text-amber-600 font-semibold' : 'text-rose-600 font-semibold';
         const MONTHS = ['Ιαν', 'Φεβ', 'Μαρ', 'Απρ', 'Μαϊ', 'Ιουν', 'Ιουλ', 'Αυγ', 'Σεπ', 'Οκτ', 'Νοε', 'Δεκ'];
         const displayYr = selectedYears.length === 1 ? parseInt(selectedYears[0]) : new Date().getFullYear();
+        const today = new Date();
+        const isCurrentDisplayYear = displayYr === today.getFullYear();
+        const currentMonthNum = today.getMonth() + 1;
+        const daysElapsed = today.getDate();
+        const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
 
         let totalActualIncome = 0, totalActualProfit = 0, totalTargetIncome = 0, totalTargetProfit = 0;
         for (let m = 1; m <= 12; m++) {
@@ -605,6 +611,7 @@ export default function Dashboard() {
                     <th className="th text-right">Στόχος Εσόδων</th>
                     <th className="th text-right">Πραγματικά Έσοδα</th>
                     <th className="th text-center">Επίτευξη %</th>
+                    <th className="th text-center">Ρυθμός (Pace)</th>
                     <th className="th text-right">Στόχος Κέρδους</th>
                     <th className="th text-right">Κέρδος</th>
                     <th className="th text-center">Επίτευξη %</th>
@@ -618,9 +625,29 @@ export default function Dashboard() {
                     const target = getMonthTarget(displayYr, m);
                     const incomeAch = target.income > 0 ? Math.round(actualIncome / target.income * 100) : null;
                     const profitAch = target.profit > 0 ? Math.round(actualProfit / target.profit * 100) : null;
+                    const isCurrentMonth = isCurrentDisplayYear && m === currentMonthNum;
+                    let paceCell = null;
+                    if (isCurrentMonth && daysElapsed > 0 && target.income > 0) {
+                      const dailyRate = actualIncome / daysElapsed;
+                      const projected = dailyRate * daysInMonth;
+                      const pacePct = Math.round(projected / target.income * 100);
+                      paceCell = (
+                        <td className={`td text-center ${paceColor(pacePct)}`}>
+                          <div className="font-bold">{pacePct}%</div>
+                          <div className="text-[10px] text-slate-400 font-normal leading-tight">
+                            {projected.toLocaleString('el-GR', {maximumFractionDigits:0})} € / {Math.round(dailyRate).toLocaleString('el-GR')} €/ημ
+                          </div>
+                        </td>
+                      );
+                    } else {
+                      paceCell = <td className="td text-center text-slate-300">—</td>;
+                    }
                     return (
-                      <tr key={m} className="tr">
-                        <td className="td font-medium">{MONTHS[m-1]}</td>
+                      <tr key={m} className={`tr ${isCurrentMonth ? 'bg-indigo-50/40' : ''}`}>
+                        <td className="td font-medium">
+                          {MONTHS[m-1]}
+                          {isCurrentMonth && <span className="ml-1 text-[9px] font-bold text-indigo-400 uppercase tracking-wide">τρέχων</span>}
+                        </td>
                         <td className="td text-right">
                           <input
                             type="number"
@@ -631,6 +658,7 @@ export default function Dashboard() {
                         </td>
                         <td className="td text-right">{actualIncome.toLocaleString('el-GR', {maximumFractionDigits:0})} €</td>
                         <td className={`td text-center ${achColor(incomeAch)}`}>{incomeAch !== null ? `${incomeAch}%` : '—'}</td>
+                        {paceCell}
                         <td className="td text-right">
                           <input
                             type="number"
@@ -651,6 +679,7 @@ export default function Dashboard() {
                     <td className="td text-right text-slate-700">{totalTargetIncome.toLocaleString('el-GR', {maximumFractionDigits:0})} €</td>
                     <td className="td text-right text-emerald-700">{totalActualIncome.toLocaleString('el-GR', {maximumFractionDigits:0})} €</td>
                     <td className={`td text-center ${achColor(totalIncomeAch)}`}>{totalIncomeAch !== null ? `${totalIncomeAch}%` : '—'}</td>
+                    <td className="td text-center text-slate-300">—</td>
                     <td className="td text-right text-slate-700">{totalTargetProfit.toLocaleString('el-GR', {maximumFractionDigits:0})} €</td>
                     <td className="td text-right text-indigo-700">{totalActualProfit.toLocaleString('el-GR', {maximumFractionDigits:0})} €</td>
                     <td className={`td text-center ${achColor(totalProfitAch)}`}>{totalProfitAch !== null ? `${totalProfitAch}%` : '—'}</td>
