@@ -466,7 +466,7 @@ export default function WorkListsPage() {
           Εκκρεμείς Εργασίες Συμβούλου
         </h1>
         <p className="text-sm text-gray-500 mt-1">
-          Λίστα tasks και δυναμικές λίστες υποθέσεων βάσει κριτηρίων.
+          Λίστα tasks και δυναμικές λίστες υποθέσεων βάσει κριτηρίων. <span className="text-xs text-gray-300">v3</span>
         </p>
       </div>
 
