@@ -10,14 +10,18 @@ import {
   PencilIcon,
   TrashIcon,
   MagnifyingGlassIcon,
-  ExclamationTriangleIcon,
   CheckCircleIcon,
-  ClockIcon,
   XMarkIcon,
   ListBulletIcon,
   Squares2X2Icon,
+  ChevronUpIcon,
+  ChevronDownIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
 } from '@heroicons/react/24/outline'
 import toast from 'react-hot-toast'
+
+const PAGE_SIZE = 25
 
 const PRIORITY_COLORS = {
   urgent: 'bg-red-100 text-red-700 border-red-200',
@@ -44,6 +48,78 @@ const PROGRAM_OPTIONS = ['ΕΣΠΑ', 'ΔΥΠΑ', 'ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ']
 function DaysChip({ days }) {
   const color = days >= 30 ? 'bg-red-100 text-red-700' : days >= 14 ? 'bg-orange-100 text-orange-700' : 'bg-green-100 text-green-700'
   return <span className={`inline-block text-xs font-bold px-2 py-0.5 rounded-full ${color}`}>{days}ημ.</span>
+}
+
+function SortTh({ label, col, sortCol, sortDir, onSort, className = '' }) {
+  const active = sortCol === col
+  return (
+    <th
+      className={`px-4 py-3 text-left text-xs font-semibold text-gray-500 cursor-pointer select-none hover:bg-gray-100 transition-colors ${className}`}
+      onClick={() => onSort(col)}
+    >
+      <span className="flex items-center gap-1">
+        {label}
+        <span className="flex flex-col -space-y-1">
+          <ChevronUpIcon className={`w-2.5 h-2.5 ${active && sortDir === 'asc' ? 'text-[#1e3a5f]' : 'text-gray-300'}`} />
+          <ChevronDownIcon className={`w-2.5 h-2.5 ${active && sortDir === 'desc' ? 'text-[#1e3a5f]' : 'text-gray-300'}`} />
+        </span>
+      </span>
+    </th>
+  )
+}
+
+function Pagination({ page, total, pageSize, onChange }) {
+  const totalPages = Math.ceil(total / pageSize)
+  if (totalPages <= 1) return null
+  const from = page * pageSize + 1
+  const to = Math.min((page + 1) * pageSize, total)
+
+  const pages = []
+  for (let i = 0; i < totalPages; i++) {
+    if (i === 0 || i === totalPages - 1 || Math.abs(i - page) <= 2) pages.push(i)
+    else if (pages[pages.length - 1] !== '...') pages.push('...')
+  }
+
+  return (
+    <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100 bg-gray-50">
+      <span className="text-xs text-gray-500">
+        {from}–{to} από {total}
+      </span>
+      <div className="flex items-center gap-1">
+        <button
+          onClick={() => onChange(page - 1)}
+          disabled={page === 0}
+          className="p-1.5 rounded-lg hover:bg-gray-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+        >
+          <ChevronLeftIcon className="w-4 h-4 text-gray-600" />
+        </button>
+        {pages.map((p, i) =>
+          p === '...' ? (
+            <span key={`ellipsis-${i}`} className="px-1 text-gray-400 text-xs">…</span>
+          ) : (
+            <button
+              key={p}
+              onClick={() => onChange(p)}
+              className={`w-7 h-7 rounded-lg text-xs font-medium transition-colors ${
+                p === page
+                  ? 'bg-[#1e3a5f] text-white'
+                  : 'text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              {p + 1}
+            </button>
+          )
+        )}
+        <button
+          onClick={() => onChange(page + 1)}
+          disabled={page >= totalPages - 1}
+          className="p-1.5 rounded-lg hover:bg-gray-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+        >
+          <ChevronRightIcon className="w-4 h-4 text-gray-600" />
+        </button>
+      </div>
+    </div>
+  )
 }
 
 function MultiCheck({ label, options, selected, onChange }) {
@@ -214,9 +290,25 @@ function WorkListModal({ wl, allServices, allStatuses, onSave, onClose }) {
   )
 }
 
+function sortRows(rows, col, dir) {
+  if (!col) return rows
+  return [...rows].sort((a, b) => {
+    let av = a[col] ?? ''
+    let bv = b[col] ?? ''
+    if (typeof av === 'number' && typeof bv === 'number') {
+      return dir === 'asc' ? av - bv : bv - av
+    }
+    av = String(av).toLowerCase()
+    bv = String(bv).toLowerCase()
+    if (av < bv) return dir === 'asc' ? -1 : 1
+    if (av > bv) return dir === 'asc' ? 1 : -1
+    return 0
+  })
+}
+
 export default function WorkListsPage() {
   const navigate = useNavigate()
-  const [tab, setTab] = useState('worklists') // worklists | tasks
+  const [tab, setTab] = useState('worklists')
   const [workLists, setWorkLists] = useState([])
   const [selectedWL, setSelectedWL] = useState(null)
   const [wlCases, setWlCases] = useState([])
@@ -228,13 +320,22 @@ export default function WorkListsPage() {
   const [taskAgentFilter, setTaskAgentFilter] = useState('')
   const [allServices, setAllServices] = useState([])
   const [allStatuses, setAllStatuses] = useState([])
-  const [modal, setModal] = useState(null) // null | 'create' | {wl}
+  const [modal, setModal] = useState(null)
   const [searchWL, setSearchWL] = useState('')
   const [caseSearch, setCaseSearch] = useState('')
 
+  // Sorting — worklist cases
+  const [caseSortCol, setCaseSortCol] = useState('days_in_status')
+  const [caseSortDir, setCaseSortDir] = useState('desc')
+  const [casePage, setCasePage] = useState(0)
+
+  // Sorting — tasks
+  const [taskSortCol, setTaskSortCol] = useState('')
+  const [taskSortDir, setTaskSortDir] = useState('asc')
+  const [taskPage, setTaskPage] = useState(0)
+
   useEffect(() => {
     getWorkLists().then(setWorkLists).catch(() => {})
-    // Load available services and statuses for modal
     getServiceTypes().then(d => setAllServices((d || []).sort((a, b) => a.localeCompare(b, 'el')))).catch(() => {})
     getPipelines().then(pipelines => {
       const statuses = new Set()
@@ -255,6 +356,7 @@ export default function WorkListsPage() {
     setSelectedWL(wl)
     setWlLoading(true)
     setCaseSearch('')
+    setCasePage(0)
     try {
       const data = await getWorkListCases(wl.id)
       setWlCases(data)
@@ -288,6 +390,26 @@ export default function WorkListsPage() {
     } catch { toast.error('Σφάλμα') }
   }
 
+  const handleCaseSort = (col) => {
+    if (caseSortCol === col) {
+      setCaseSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    } else {
+      setCaseSortCol(col)
+      setCaseSortDir('asc')
+    }
+    setCasePage(0)
+  }
+
+  const handleTaskSort = (col) => {
+    if (taskSortCol === col) {
+      setTaskSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    } else {
+      setTaskSortCol(col)
+      setTaskSortDir('asc')
+    }
+    setTaskPage(0)
+  }
+
   const taskAgents = useMemo(() => {
     const seen = new Set()
     return allTasks.filter(t => t.assigned_name && !seen.has(t.assigned_name) && seen.add(t.assigned_name)).map(t => t.assigned_name)
@@ -305,6 +427,9 @@ export default function WorkListsPage() {
     })
   }, [allTasks, taskFilter, taskAgentFilter, taskSearch])
 
+  const sortedTasks = useMemo(() => sortRows(filteredTasks, taskSortCol, taskSortDir), [filteredTasks, taskSortCol, taskSortDir])
+  const pagedTasks = useMemo(() => sortedTasks.slice(taskPage * PAGE_SIZE, (taskPage + 1) * PAGE_SIZE), [sortedTasks, taskPage])
+
   const filteredWLs = workLists.filter(w =>
     !searchWL || w.name.toLowerCase().includes(searchWL.toLowerCase())
   )
@@ -314,6 +439,13 @@ export default function WorkListsPage() {
     const q = caseSearch.toLowerCase()
     return wlCases.filter(c => c.client_name?.toLowerCase().includes(q) || c.service_type?.toLowerCase().includes(q))
   }, [wlCases, caseSearch])
+
+  const sortedCases = useMemo(() => sortRows(filteredCases, caseSortCol, caseSortDir), [filteredCases, caseSortCol, caseSortDir])
+  const pagedCases = useMemo(() => sortedCases.slice(casePage * PAGE_SIZE, (casePage + 1) * PAGE_SIZE), [sortedCases, casePage])
+
+  // Reset pages when search changes
+  useEffect(() => { setCasePage(0) }, [caseSearch])
+  useEffect(() => { setTaskPage(0) }, [taskSearch, taskFilter, taskAgentFilter])
 
   const criteriaLabel = (wl) => {
     const parts = []
@@ -420,16 +552,20 @@ export default function WorkListsPage() {
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 border-b border-gray-100">
                   <tr>
-                    {['Task', 'Υπόθεση', 'Υπηρεσία', 'Κατάσταση Task', 'Προτεραιότητα', 'Ανατέθηκε', 'Προθεσμία'].map(h => (
-                      <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500">{h}</th>
-                    ))}
+                    <SortTh label="Task" col="title" sortCol={taskSortCol} sortDir={taskSortDir} onSort={handleTaskSort} />
+                    <SortTh label="Υπόθεση" col="case_name" sortCol={taskSortCol} sortDir={taskSortDir} onSort={handleTaskSort} />
+                    <SortTh label="Υπηρεσία" col="case_service" sortCol={taskSortCol} sortDir={taskSortDir} onSort={handleTaskSort} />
+                    <SortTh label="Κατάσταση Task" col="status" sortCol={taskSortCol} sortDir={taskSortDir} onSort={handleTaskSort} />
+                    <SortTh label="Προτεραιότητα" col="priority" sortCol={taskSortCol} sortDir={taskSortDir} onSort={handleTaskSort} />
+                    <SortTh label="Ανατέθηκε" col="assigned_name" sortCol={taskSortCol} sortDir={taskSortDir} onSort={handleTaskSort} />
+                    <SortTh label="Προθεσμία" col="due_date" sortCol={taskSortCol} sortDir={taskSortDir} onSort={handleTaskSort} />
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
-                  {filteredTasks.length === 0 && (
+                  {pagedTasks.length === 0 && (
                     <tr><td colSpan={7} className="text-center py-10 text-gray-400">Δεν βρέθηκαν tasks</td></tr>
                   )}
-                  {filteredTasks.map(t => (
+                  {pagedTasks.map(t => (
                     <tr key={t.id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-4 py-3">
                         <div className="font-medium text-gray-800">{t.title}</div>
@@ -466,6 +602,7 @@ export default function WorkListsPage() {
                   ))}
                 </tbody>
               </table>
+              <Pagination page={taskPage} total={filteredTasks.length} pageSize={PAGE_SIZE} onChange={setTaskPage} />
             </div>
           )}
         </div>
@@ -578,13 +715,16 @@ export default function WorkListsPage() {
                     <table className="w-full text-sm">
                       <thead className="bg-gray-50 border-b border-gray-100">
                         <tr>
-                          {['Πελάτης', 'Υπηρεσία', 'Κατάσταση', 'Ημέρες', 'Σύμβουλος', 'Τηλ.'].map(h => (
-                            <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500">{h}</th>
-                          ))}
+                          <SortTh label="Πελάτης" col="client_name" sortCol={caseSortCol} sortDir={caseSortDir} onSort={handleCaseSort} />
+                          <SortTh label="Υπηρεσία" col="service_type" sortCol={caseSortCol} sortDir={caseSortDir} onSort={handleCaseSort} />
+                          <SortTh label="Κατάσταση" col="status" sortCol={caseSortCol} sortDir={caseSortDir} onSort={handleCaseSort} />
+                          <SortTh label="Ημέρες" col="days_in_status" sortCol={caseSortCol} sortDir={caseSortDir} onSort={handleCaseSort} />
+                          <SortTh label="Σύμβουλος" col="assigned_name" sortCol={caseSortCol} sortDir={caseSortDir} onSort={handleCaseSort} />
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500">Τηλ.</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-50">
-                        {filteredCases.map(c => (
+                        {pagedCases.map(c => (
                           <tr key={c.id}
                             onClick={() => navigate(`/cases/${c.id}`)}
                             className="hover:bg-gray-50 cursor-pointer transition-colors"
@@ -609,6 +749,7 @@ export default function WorkListsPage() {
                         ))}
                       </tbody>
                     </table>
+                    <Pagination page={casePage} total={filteredCases.length} pageSize={PAGE_SIZE} onChange={setCasePage} />
                   </div>
                 )}
               </div>
