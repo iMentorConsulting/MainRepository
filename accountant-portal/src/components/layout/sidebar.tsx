@@ -1,0 +1,96 @@
+'use client'
+import Link from 'next/link'
+import { usePathname } from 'next/navigation'
+import { useSession, signOut } from 'next-auth/react'
+import { cn } from '@/lib/utils'
+import { LayoutDashboard, Users, Building2, Zap, Target, Send, CreditCard, Percent, Inbox, BarChart3, Settings, LogOut } from 'lucide-react'
+
+const navItems = [
+  { href: '/', label: 'Dashboard', icon: LayoutDashboard, adminOnly: false },
+  { href: '/accountants', label: 'Λογιστές', icon: Users, adminOnly: true },
+  { href: '/businesses', label: 'Επιχειρήσεις', icon: Building2, adminOnly: false },
+  { href: '/programs', label: 'Προγράμματα', icon: Zap, adminOnly: false },
+  { href: '/matches', label: 'Matches', icon: Target, adminOnly: false },
+  { href: '/campaigns', label: 'Καμπάνιες', icon: Send, adminOnly: false },
+  { href: '/payments', label: 'Πληρωμές', icon: CreditCard, adminOnly: false },
+  { href: '/commissions', label: 'Προμήθειες', icon: Percent, adminOnly: false },
+  { href: '/requests', label: 'Αιτήματα', icon: Inbox, adminOnly: false },
+  { href: '/reports', label: 'Αναφορές', icon: BarChart3, adminOnly: false },
+  { href: '/settings', label: 'Ρυθμίσεις', icon: Settings, adminOnly: true },
+]
+
+export function Sidebar() {
+  const pathname = usePathname()
+  const { data: session } = useSession()
+  const isAdmin = session?.user?.role === 'ADMIN'
+  const visible = navItems.filter(i => !i.adminOnly || isAdmin)
+
+  return (
+    <aside className="fixed left-0 top-0 h-full w-64 bg-white border-r border-slate-100 flex flex-col z-50 shadow-sm">
+      {/* Logo */}
+      <div className="p-5 border-b border-slate-100">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 shadow-brand"
+            style={{background: 'linear-gradient(135deg, #4f46e5, #7c3aed)'}}>
+            <Zap className="w-4 h-4 text-white" />
+          </div>
+          <div>
+            <p className="text-sm font-bold text-slate-900 leading-tight">I-MENTOR</p>
+            <p className="text-xs text-slate-400 leading-tight">Portal</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Role badge */}
+      <div className="px-4 pt-3 pb-1">
+        <span className={cn(
+          'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium',
+          isAdmin ? 'bg-indigo-50 text-indigo-700' : 'bg-violet-50 text-violet-700'
+        )}>
+          <span className={cn('w-1.5 h-1.5 rounded-full', isAdmin ? 'bg-indigo-500' : 'bg-violet-500')} />
+          {isAdmin ? 'Administrator' : 'Λογιστής'}
+        </span>
+      </div>
+
+      {/* Nav */}
+      <nav className="flex-1 px-3 py-2 space-y-0.5 overflow-y-auto">
+        {visible.map(item => {
+          const Icon = item.icon
+          const isActive = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href))
+          return (
+            <Link key={item.href} href={item.href}
+              className={cn(
+                'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150',
+                isActive
+                  ? 'bg-indigo-50 text-indigo-700'
+                  : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+              )}>
+              <Icon className={cn('w-4 h-4 flex-shrink-0', isActive ? 'text-indigo-600' : 'text-slate-400')} />
+              {item.label}
+              {isActive && <div className="ml-auto w-1.5 h-1.5 rounded-full bg-indigo-500" />}
+            </Link>
+          )
+        })}
+      </nav>
+
+      {/* User */}
+      <div className="p-4 border-t border-slate-100">
+        <div className="flex items-center gap-3 px-3 py-2 rounded-xl bg-slate-50 mb-2">
+          <div className="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold text-white flex-shrink-0"
+            style={{background: 'linear-gradient(135deg, #4f46e5, #7c3aed)'}}>
+            {session?.user?.name?.[0]?.toUpperCase() || 'U'}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-semibold text-slate-800 truncate">{session?.user?.name}</p>
+            <p className="text-xs text-slate-400 truncate">{session?.user?.email}</p>
+          </div>
+        </div>
+        <button onClick={() => signOut({ callbackUrl: '/login' })}
+          className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-slate-500 hover:text-red-600 hover:bg-red-50 transition-all duration-150 text-xs font-medium">
+          <LogOut className="w-3.5 h-3.5" />
+          Αποσύνδεση
+        </button>
+      </div>
+    </aside>
+  )
+}

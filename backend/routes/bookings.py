@@ -240,6 +240,11 @@ def create_booking(booking: BookingCreate, db: Session = Depends(get_db), tenant
         raise HTTPException(status_code=409, detail=f"Σύγκρουση με κράτηση #{overlap.id} ({overlap.check_in} – {overlap.check_out})")
     obj = Booking(**booking.model_dump(), tenant=tenant)
     db.add(obj)
+    db.flush()
+    # Auto-create guest portal token
+    from models import GuestToken
+    gt = GuestToken(booking_id=obj.id, tenant=tenant)
+    db.add(gt)
     db.commit()
     db.refresh(obj)
     return _load(db, obj.id, tenant)
