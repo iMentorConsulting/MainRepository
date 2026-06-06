@@ -1,37 +1,61 @@
-import { cn } from '@/lib/utils'
 import { HTMLAttributes, TdHTMLAttributes, ThHTMLAttributes } from 'react'
+import { cn } from '@/lib/utils'
 
-export function Table({ className, ...props }: HTMLAttributes<HTMLTableElement>) {
+export function Table({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
-    <div className="overflow-x-auto rounded-lg border border-gray-200">
-      <table className={cn('min-w-full divide-y divide-gray-200 text-sm', className)} {...props} />
+    <div className={cn('overflow-x-auto', className)} style={{
+      background: 'rgba(255,255,255,0.02)',
+      border: '1px solid rgba(255,255,255,0.06)',
+      borderRadius: '16px',
+      overflow: 'hidden',
+    }}>
+      <table className="w-full">{children}</table>
     </div>
   )
 }
 
 export function TableHead({ className, ...props }: HTMLAttributes<HTMLTableSectionElement>) {
-  return <thead className={cn('bg-gray-50', className)} {...props} />
+  return <thead className={cn('', className)} {...props} />
 }
 
 export function TableBody({ className, ...props }: HTMLAttributes<HTMLTableSectionElement>) {
-  return <tbody className={cn('divide-y divide-gray-200 bg-white', className)} {...props} />
+  return <tbody className={cn('', className)} {...props} />
 }
 
-export function TableRow({ className, ...props }: HTMLAttributes<HTMLTableRowElement>) {
-  return <tr className={cn('hover:bg-gray-50 transition-colors', className)} {...props} />
-}
-
-export function Th({ className, ...props }: ThHTMLAttributes<HTMLTableCellElement>) {
+export function Th({ children, className, ...props }: ThHTMLAttributes<HTMLTableCellElement>) {
   return (
     <th
-      className={cn('px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider', className)}
+      className={cn('px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-text-muted', className)}
+      style={{borderBottom: '1px solid rgba(255,255,255,0.06)'}}
       {...props}
-    />
+    >
+      {children}
+    </th>
   )
 }
 
-export function Td({ className, ...props }: TdHTMLAttributes<HTMLTableCellElement>) {
+export function Td({ children, className, ...props }: TdHTMLAttributes<HTMLTableCellElement>) {
   return (
-    <td className={cn('px-4 py-3 text-gray-800 whitespace-nowrap', className)} {...props} />
+    <td className={cn('px-4 py-3 text-sm text-text-primary', className)} {...props}>
+      {children}
+    </td>
   )
 }
+
+export function Tr({ children, className, onClick, ...props }: HTMLAttributes<HTMLTableRowElement> & { onClick?: () => void }) {
+  return (
+    <tr
+      className={cn('transition-all duration-150', onClick ? 'cursor-pointer' : '', className)}
+      style={{borderBottom: '1px solid rgba(255,255,255,0.04)'}}
+      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(0,212,255,0.03)' }}
+      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}
+      onClick={onClick}
+      {...props}
+    >
+      {children}
+    </tr>
+  )
+}
+
+// Alias for backward compat
+export const TableRow = Tr

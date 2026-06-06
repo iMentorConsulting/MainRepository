@@ -1,56 +1,55 @@
 'use client'
 import { usePathname } from 'next/navigation'
-import { useSession } from 'next-auth/react'
-import { Bell } from 'lucide-react'
 
-const breadcrumbLabels: Record<string, string> = {
-  '': 'Dashboard',
-  'accountants': 'Λογιστές',
-  'businesses': 'Επιχειρήσεις',
-  'programs': 'Προγράμματα',
-  'matches': 'Matches',
-  'campaigns': 'Καμπάνιες',
-  'requests': 'Αιτήματα',
-  'reports': 'Αναφορές',
-  'settings': 'Ρυθμίσεις',
-  'new': 'Νέο',
+const breadcrumbMap: Record<string, string> = {
+  '/': 'Dashboard',
+  '/accountants': 'Λογιστές',
+  '/businesses': 'Επιχειρήσεις',
+  '/programs': 'Προγράμματα',
+  '/matches': 'Matches',
+  '/campaigns': 'Καμπάνιες',
+  '/payments': 'Πληρωμές',
+  '/commissions': 'Προμήθειες',
+  '/requests': 'Αιτήματα',
+  '/reports': 'Αναφορές',
+  '/settings': 'Ρυθμίσεις',
 }
 
 export function Header() {
   const pathname = usePathname()
-  const { data: session } = useSession()
-
-  const segments = pathname.split('/').filter(Boolean)
-  const breadcrumbs = segments.map(seg => ({
-    label: breadcrumbLabels[seg] || seg,
-    href: '/' + segments.slice(0, segments.indexOf(seg) + 1).join('/')
-  }))
+  const base = '/' + pathname.split('/')[1]
+  const title = breadcrumbMap[base] || breadcrumbMap[pathname] || 'Portal'
 
   return (
-    <header className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
-      <nav className="flex items-center gap-2 text-sm text-gray-500">
-        <span className="font-medium text-gray-900">I-MENTOR Portal</span>
-        {breadcrumbs.map((crumb, i) => (
-          <span key={i} className="flex items-center gap-2">
-            <span>/</span>
-            <span className={i === breadcrumbs.length - 1 ? 'text-blue-800 font-medium' : ''}>
-              {crumb.label}
-            </span>
-          </span>
-        ))}
-      </nav>
+    <header className="fixed top-0 right-0 left-64 h-16 z-40 flex items-center px-6 gap-4"
+      style={{
+        background: 'rgba(5,5,8,0.8)',
+        backdropFilter: 'blur(20px)',
+        borderBottom: '1px solid rgba(255,255,255,0.06)',
+      }}>
+      {/* Page title */}
+      <div className="flex-1">
+        <div className="flex items-center gap-2 text-xs text-text-muted">
+          <span>I-MENTOR</span>
+          <span className="text-white/20">›</span>
+          <span className="text-text-secondary">{title}</span>
+        </div>
+        <h1 className="text-base font-semibold text-text-primary leading-tight">{title}</h1>
+      </div>
+
+      {/* Right side */}
       <div className="flex items-center gap-3">
-        <button className="p-2 rounded-lg hover:bg-gray-100 transition-colors text-gray-500">
-          <Bell size={18} />
-        </button>
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-full bg-blue-800 flex items-center justify-center text-white text-sm font-medium">
-            {session?.user?.name?.charAt(0) || 'U'}
-          </div>
-          <div className="hidden sm:block">
-            <div className="text-sm font-medium text-gray-900">{session?.user?.name}</div>
-            <div className="text-xs text-gray-500">{session?.user?.email}</div>
-          </div>
+        {/* Live indicator */}
+        <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full"
+          style={{background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.2)'}}>
+          <div className="w-1.5 h-1.5 rounded-full bg-accent-emerald animate-pulse"
+            style={{boxShadow: '0 0 6px #10b981'}} />
+          <span className="text-xs text-accent-emerald font-medium">Live</span>
+        </div>
+
+        {/* Date */}
+        <div className="hidden md:block text-xs text-text-muted font-mono">
+          {new Date().toLocaleDateString('el-GR')}
         </div>
       </div>
     </header>
