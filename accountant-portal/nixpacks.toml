@@ -8,4 +8,4 @@ cmds = ["npm ci"]
 cmds = ["npx prisma generate", "npm run build"]
 
 [start]
-cmd = "npx prisma migrate deploy && node .next/standalone/server.js"
+cmd = "npx prisma db push --accept-data-loss && node .next/standalone/server.js"
