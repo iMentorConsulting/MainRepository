@@ -7,66 +7,79 @@ async function fetchFromGsis(afm: string) {
   const callerAfm = process.env.MY_AFM_IMENTOR || process.env.MY_AFM || ''
 
   const soapBody = `<?xml version="1.0" encoding="UTF-8"?>
-<env:Envelope xmlns:env="http://schemas.xmlsoap.org/soap/envelope/" xmlns:ns="http://gr/gsis/rgwspublic/RgWsPublic2.wsdl">
-  <env:Body>
-    <ns:rgWsPublic2AfmMethod>
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:rgws="http://gr/gsis/rgwspublic/RgWsPublic2.wsdl">
+  <soapenv:Header/>
+  <soapenv:Body>
+    <rgws:rgWsPublic2AfmMethod>
       <afmCalledBy>${callerAfm}</afmCalledBy>
       <afmCalledFor>${afm}</afmCalledFor>
-    </ns:rgWsPublic2AfmMethod>
-  </env:Body>
-</env:Envelope>`
+    </rgws:rgWsPublic2AfmMethod>
+  </soapenv:Body>
+</soapenv:Envelope>`
 
   const headers: Record<string, string> = {
     'Content-Type': 'text/xml; charset=utf-8',
-    'SOAPAction': '',
+    'SOAPAction': '""',
   }
 
   if (username && password) {
     headers['Authorization'] = 'Basic ' + Buffer.from(`${username}:${password}`).toString('base64')
   }
 
-  const response = await fetch('https://www1.gsis.gr/wsaade/RgWsPublic2/RgWsPublic2?WSDL', {
+  // Correct GSIS endpoint
+  const endpoint = 'https://www1.gsis.gr/wsaade/RgWsPublic2/RgWsPublic2'
+
+  console.log(`[AFM] Calling GSIS for AFM: ${afm}, user: ${username}, callerAfm: ${callerAfm}`)
+
+  const response = await fetch(endpoint, {
     method: 'POST',
     headers,
     body: soapBody,
-    signal: AbortSignal.timeout(10000),
+    signal: AbortSignal.timeout(12000),
   })
 
-  if (!response.ok) {
-    // Try alternative endpoint
-    const response2 = await fetch('https://www.gsis.gr/rgwspublic/RgWsPublic2/callSerivce', {
-      method: 'POST',
-      headers,
-      body: soapBody,
-      signal: AbortSignal.timeout(10000),
-    })
-    if (!response2.ok) return null
-    return parseGsisResponse(await response2.text(), afm)
-  }
+  const text = await response.text()
+  console.log(`[AFM] GSIS response status: ${response.status}`)
+  console.log(`[AFM] GSIS response (first 500 chars): ${text.substring(0, 500)}`)
 
-  return parseGsisResponse(await response.text(), afm)
+  if (!response.ok) return null
+
+  return parseGsisResponse(text, afm)
 }
 
 function parseGsisResponse(text: string, afm: string) {
   const extractTag = (xml: string, tag: string): string => {
-    const match = xml.match(new RegExp(`<(?:[^:>]+:)?${tag}[^>]*>([^<]*)<\/(?:[^:>]+:)?${tag}>`, 'i'))
-    return match ? match[1].trim() : ''
+    const patterns = [
+      new RegExp(`<${tag}>([^<]*)<\/${tag}>`, 'i'),
+      new RegExp(`<[^:>]+:${tag}>([^<]*)<\/[^:>]+:${tag}>`, 'i'),
+      new RegExp(`<${tag}[^>]*>([^<]*)<\/${tag}>`, 'i'),
+    ]
+    for (const p of patterns) {
+      const m = xml.match(p)
+      if (m) return m[1].trim()
+    }
+    return ''
   }
 
   const onomasia = extractTag(text, 'onomasia')
-  if (!onomasia) return null
+  if (!onomasia) {
+    console.log('[AFM] Could not find onomasia in response')
+    return null
+  }
 
   // Parse activities
   const activities: any[] = []
-  const actBlocks = text.match(/<(?:[^:>]+:)?RgWsPublic2AfmMethodResults[\s\S]*?<\/(?:[^:>]+:)?RgWsPublic2AfmMethodResults>/g) || []
+  const actBlocks = text.match(/<firm_act_tab[^>]*>[\s\S]*?<\/firm_act_tab>/gi) ||
+                    text.match(/<RgWsPublic2AfmMethodResults[^>]*>[\s\S]*?<\/RgWsPublic2AfmMethodResults>/gi) || []
+
   for (const block of actBlocks) {
-    const code = extractTag(block, 'firmActCode')
+    const code = extractTag(block, 'firm_act_code') || extractTag(block, 'firmActCode')
     if (code) {
       activities.push({
         firmActCode: code,
-        firmActDescr: extractTag(block, 'firmActDescr'),
-        firmActKind: parseInt(extractTag(block, 'firmActKind') || '1'),
-        firmActKindDescr: extractTag(block, 'firmActKindDescr') || 'ΚΥΡΙΑ',
+        firmActDescr: extractTag(block, 'firm_act_descr') || extractTag(block, 'firmActDescr'),
+        firmActKind: parseInt(extractTag(block, 'firm_act_kind') || extractTag(block, 'firmActKind') || '1'),
+        firmActKindDescr: extractTag(block, 'firm_act_kind_descr') || extractTag(block, 'firmActKindDescr') || 'ΚΥΡΙΑ',
       })
     }
   }
@@ -74,21 +87,22 @@ function parseGsisResponse(text: string, afm: string) {
   return {
     afm,
     onomasia,
-    commercialTitle: extractTag(text, 'commercialTitle') || onomasia,
-    legalStatusDescr: extractTag(text, 'legalStatusDescr'),
-    firmFlagDescr: extractTag(text, 'firmFlagDescr'),
-    iNiFlagDescr: extractTag(text, 'iNiFlagDescr'),
-    deactivationFlag: extractTag(text, 'deactivationFlag'),
-    deactivationFlagDescr: extractTag(text, 'deactivationFlagDescr'),
-    regdate: extractTag(text, 'registDate') || extractTag(text, 'regdate'),
-    stopDate: extractTag(text, 'stopDate') || null,
-    postalAddress: extractTag(text, 'postalAddress'),
-    postalAddressNo: extractTag(text, 'postalAddressNo'),
-    postalZipCode: extractTag(text, 'postalZipCode'),
-    postalAreaDescription: extractTag(text, 'postalAreaDescription'),
+    commercialTitle: extractTag(text, 'commercial_title') || extractTag(text, 'commercialTitle') || onomasia,
+    legalStatusDescr: extractTag(text, 'legal_status_descr') || extractTag(text, 'legalStatusDescr'),
+    firmFlagDescr: extractTag(text, 'firm_flag_descr') || extractTag(text, 'firmFlagDescr'),
+    iNiFlagDescr: extractTag(text, 'i_ni_flag_descr') || extractTag(text, 'iNiFlagDescr'),
+    deactivationFlag: extractTag(text, 'deactivation_flag') || extractTag(text, 'deactivationFlag'),
+    deactivationFlagDescr: extractTag(text, 'deactivation_flag_descr') || extractTag(text, 'deactivationFlagDescr'),
+    regdate: extractTag(text, 'regdate') || extractTag(text, 'registDate'),
+    stopDate: extractTag(text, 'stop_date') || extractTag(text, 'stopDate') || null,
+    postalAddress: extractTag(text, 'postal_address') || extractTag(text, 'postalAddress'),
+    postalAddressNo: extractTag(text, 'postal_address_no') || extractTag(text, 'postalAddressNo'),
+    postalZipCode: extractTag(text, 'postal_zip_code') || extractTag(text, 'postalZipCode'),
+    postalAreaDescription: extractTag(text, 'postal_area_description') || extractTag(text, 'postalAreaDescription'),
     doy: extractTag(text, 'doy'),
-    doyDescr: extractTag(text, 'doyDescr'),
+    doyDescr: extractTag(text, 'doy_descr') || extractTag(text, 'doyDescr'),
     activities,
+    _source: 'gsis',
   }
 }
 
@@ -103,16 +117,13 @@ export async function GET(request: NextRequest) {
 
   try {
     const realData = await fetchFromGsis(afm)
-    if (realData) {
-      return NextResponse.json({ ...realData, _source: 'gsis' })
-    }
-  } catch (e) {
-    console.error('GSIS API error:', e)
+    if (realData) return NextResponse.json(realData)
+  } catch (e: any) {
+    console.error('[AFM] Error:', e?.message)
   }
 
-  // Return error instead of mock - let user know API failed
   return NextResponse.json(
-    { error: 'Δεν ήταν δυνατή η ανάκτηση στοιχείων από ΓΓΠΣ. Ελέγξτε τα credentials AADE.' },
+    { error: 'Δεν ήταν δυνατή η ανάκτηση στοιχείων από ΓΓΠΣ.' },
     { status: 503 }
   )
 }
