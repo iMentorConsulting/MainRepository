@@ -1,98 +1,87 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 
-function generateMockData(afm: string) {
-  const prefixes: Record<string, any> = {
-    '1': { onomasia: 'ΠΑΡΑΔΕΙΓΜΑ ΕΜΠΟΡΙΚΗ ΑΕ', legalStatusDescr: 'ΑΕ', kad: '47.11.10.01' },
-    '2': { onomasia: 'ΔΟΚΙΜΑΣΤΙΚΗ ΕΠΕ', legalStatusDescr: 'ΕΠΕ', kad: '62.01.20.00' },
-    '3': { onomasia: 'ΤΕΣΤ ΙΚΕ', legalStatusDescr: 'ΙΚΕ', kad: '56.10.11.01' },
-    '4': { onomasia: 'SAMPLE ΟΕ', legalStatusDescr: 'ΟΕ', kad: '43.22.10.00' },
-    '9': { onomasia: 'ΑΤΟΜΙΚΗ ΕΠΙΧΕΙΡΗΣΗ', legalStatusDescr: 'ΑΤΟΜΙΚΗ', kad: '47.59.11.01' },
-  }
-  const prefix = afm[0]
-  const mock = prefixes[prefix] || prefixes['1']
-  return {
-    afm,
-    onomasia: mock.onomasia,
-    commercialTitle: mock.onomasia,
-    legalStatusDescr: mock.legalStatusDescr,
-    firmFlagDescr: 'ΕΝΕΡΓΟΣ',
-    iNiFlagDescr: 'ΜΗ ΙΝΙ',
-    deactivationFlag: 'N',
-    deactivationFlagDescr: 'ΕΝΕΡΓΗ ΕΠΙΧΕΙΡΗΣΗ',
-    regdate: '2015-03-15',
-    stopDate: null,
-    postalAddress: 'ΣΤΑΔΙΟΥ',
-    postalAddressNo: '10',
-    postalZipCode: '10562',
-    postalAreaDescription: 'ΑΘΗΝΑ',
-    doy: '1101',
-    doyDescr: 'Α\' ΑΘΗΝΩΝ',
-    activities: [
-      {
-        firmActCode: mock.kad,
-        firmActDescr: 'Λιανικό εμπόριο τροφίμων σε εξειδικευμένα καταστήματα',
-        firmActKind: 1,
-        firmActKindDescr: 'ΚΥΡΙΑ'
-      },
-      {
-        firmActCode: '46.90.10.00',
-        firmActDescr: 'Μη εξειδικευμένο χονδρικό εμπόριο',
-        firmActKind: 2,
-        firmActKindDescr: 'ΔΕΥΤΕΡΕΥΟΥΣΑ'
-      }
-    ]
-  }
-}
-
 async function fetchFromGsis(afm: string) {
+  const username = process.env.AADE_USER_IMENTOR || process.env.AADE_USER
+  const password = process.env.AADE_PASS_IMENTOR || process.env.AADE_PASS
+  const callerAfm = process.env.MY_AFM_IMENTOR || process.env.MY_AFM || ''
+
   const soapBody = `<?xml version="1.0" encoding="UTF-8"?>
 <env:Envelope xmlns:env="http://schemas.xmlsoap.org/soap/envelope/" xmlns:ns="http://gr/gsis/rgwspublic/RgWsPublic2.wsdl">
   <env:Body>
     <ns:rgWsPublic2AfmMethod>
-      <afmCalledBy/>
+      <afmCalledBy>${callerAfm}</afmCalledBy>
       <afmCalledFor>${afm}</afmCalledFor>
     </ns:rgWsPublic2AfmMethod>
   </env:Body>
 </env:Envelope>`
 
-  const response = await fetch('https://www.gsis.gr/rgwspublic/RgWsPublic2/callSerivce', {
+  const headers: Record<string, string> = {
+    'Content-Type': 'text/xml; charset=utf-8',
+    'SOAPAction': '',
+  }
+
+  if (username && password) {
+    headers['Authorization'] = 'Basic ' + Buffer.from(`${username}:${password}`).toString('base64')
+  }
+
+  const response = await fetch('https://www1.gsis.gr/wsaade/RgWsPublic2/RgWsPublic2?WSDL', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'text/xml; charset=utf-8',
-      'SOAPAction': '',
-    },
+    headers,
     body: soapBody,
-    signal: AbortSignal.timeout(8000),
+    signal: AbortSignal.timeout(10000),
   })
 
-  if (!response.ok) return null
+  if (!response.ok) {
+    // Try alternative endpoint
+    const response2 = await fetch('https://www.gsis.gr/rgwspublic/RgWsPublic2/callSerivce', {
+      method: 'POST',
+      headers,
+      body: soapBody,
+      signal: AbortSignal.timeout(10000),
+    })
+    if (!response2.ok) return null
+    return parseGsisResponse(await response2.text(), afm)
+  }
 
-  const text = await response.text()
+  return parseGsisResponse(await response.text(), afm)
+}
 
-  // Parse SOAP XML response
+function parseGsisResponse(text: string, afm: string) {
   const extractTag = (xml: string, tag: string): string => {
-    const match = xml.match(new RegExp(`<${tag}[^>]*>([^<]*)<\/${tag}>`, 'i'))
+    const match = xml.match(new RegExp(`<(?:[^:>]+:)?${tag}[^>]*>([^<]*)<\/(?:[^:>]+:)?${tag}>`, 'i'))
     return match ? match[1].trim() : ''
   }
 
   const onomasia = extractTag(text, 'onomasia')
   if (!onomasia) return null
 
+  // Parse activities
   const activities: any[] = []
-  const activityMatches = text.match(/<RgWsPublic2AfmMethodResults[^>]*>[\s\S]*?<\/RgWsPublic2AfmMethodResults>/g) || []
+  const actBlocks = text.match(/<(?:[^:>]+:)?RgWsPublic2AfmMethodResults[\s\S]*?<\/(?:[^:>]+:)?RgWsPublic2AfmMethodResults>/g) || []
+  for (const block of actBlocks) {
+    const code = extractTag(block, 'firmActCode')
+    if (code) {
+      activities.push({
+        firmActCode: code,
+        firmActDescr: extractTag(block, 'firmActDescr'),
+        firmActKind: parseInt(extractTag(block, 'firmActKind') || '1'),
+        firmActKindDescr: extractTag(block, 'firmActKindDescr') || 'ΚΥΡΙΑ',
+      })
+    }
+  }
 
   return {
     afm,
     onomasia,
-    commercialTitle: extractTag(text, 'commercialTitle'),
+    commercialTitle: extractTag(text, 'commercialTitle') || onomasia,
     legalStatusDescr: extractTag(text, 'legalStatusDescr'),
     firmFlagDescr: extractTag(text, 'firmFlagDescr'),
     iNiFlagDescr: extractTag(text, 'iNiFlagDescr'),
     deactivationFlag: extractTag(text, 'deactivationFlag'),
     deactivationFlagDescr: extractTag(text, 'deactivationFlagDescr'),
-    regdate: extractTag(text, 'regdate'),
-    stopDate: extractTag(text, 'stopDate'),
+    regdate: extractTag(text, 'registDate') || extractTag(text, 'regdate'),
+    stopDate: extractTag(text, 'stopDate') || null,
     postalAddress: extractTag(text, 'postalAddress'),
     postalAddressNo: extractTag(text, 'postalAddressNo'),
     postalZipCode: extractTag(text, 'postalZipCode'),
@@ -113,16 +102,17 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    // Try real GSIS API first
     const realData = await fetchFromGsis(afm)
     if (realData) {
-      return NextResponse.json(realData)
+      return NextResponse.json({ ...realData, _source: 'gsis' })
     }
   } catch (e) {
-    // Fall through to mock
+    console.error('GSIS API error:', e)
   }
 
-  // Fallback to mock data for development
-  const mockData = generateMockData(afm)
-  return NextResponse.json(mockData)
+  // Return error instead of mock - let user know API failed
+  return NextResponse.json(
+    { error: 'Δεν ήταν δυνατή η ανάκτηση στοιχείων από ΓΓΠΣ. Ελέγξτε τα credentials AADE.' },
+    { status: 503 }
+  )
 }
