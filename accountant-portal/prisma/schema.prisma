@@ -1,0 +1,218 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String     @id @default(cuid())
+  name         String
+  email        String     @unique
+  passwordHash String
+  role         Role       @default(ACCOUNTANT)
+  accountantId String?
+  accountant   Accountant? @relation(fields: [accountantId], references: [id])
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+}
+
+enum Role {
+  ADMIN
+  ACCOUNTANT
+}
+
+model Accountant {
+  id            String     @id @default(cuid())
+  officeName    String
+  contactPerson String
+  email         String
+  phone         String?
+  logoUrl       String?
+  address       String?
+  notes         String?
+  active        Boolean    @default(true)
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  users         User[]
+  businesses    Business[]
+  campaigns     Campaign[]
+  requests      ImentorRequest[]
+}
+
+model Business {
+  id                    String     @id @default(cuid())
+  accountantId          String?
+  accountant            Accountant? @relation(fields: [accountantId], references: [id])
+  source                String     @default("accountant")
+  afm                   String     @unique
+  onomasia              String?
+  commercialTitle       String?
+  legalStatusDescr      String?
+  firmFlagDescr         String?
+  iNiFlagDescr          String?
+  deactivationFlag      String?
+  deactivationFlagDescr String?
+  regdate               String?
+  stopDate              String?
+  postalAddress         String?
+  postalAddressNo       String?
+  postalZipCode         String?
+  postalAreaDescription String?
+  doy                   String?
+  doyDescr              String?
+  email                 String?
+  phone                 String?
+  viberPhone            String?
+  notes                 String?
+  tags                  String[]
+  unsubscribeToken      String?    @unique @default(cuid())
+  createdAt             DateTime   @default(now())
+  updatedAt             DateTime   @updatedAt
+  activities            BusinessActivity[]
+  programMatches        ProgramMatch[]
+  campaignRecipients    CampaignRecipient[]
+  requests              ImentorRequest[]
+}
+
+model BusinessActivity {
+  id               String   @id @default(cuid())
+  businessId       String
+  business         Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  firmActCode      String
+  firmActDescr     String?
+  firmActKind      Int?
+  firmActKindDescr String?
+  createdAt        DateTime @default(now())
+}
+
+model Program {
+  id               String          @id @default(cuid())
+  title            String
+  category         ProgramCategory
+  description      String?
+  regionRules      String[]
+  zipCodeRules     String[]
+  kadRules         String[]
+  minRegdate       String?
+  maxRegdate       String?
+  legalStatusRules String[]
+  active           Boolean         @default(true)
+  startDate        DateTime?
+  endDate          DateTime?
+  internalNotes    String?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  matches          ProgramMatch[]
+  campaigns        Campaign[]
+  requests         ImentorRequest[]
+}
+
+enum ProgramCategory {
+  ESPA
+  DYPA
+  MICROLOANS
+  LOAN
+  OTHER
+}
+
+model ProgramMatch {
+  id          String      @id @default(cuid())
+  programId   String
+  program     Program     @relation(fields: [programId], references: [id])
+  businessId  String
+  business    Business    @relation(fields: [businessId], references: [id])
+  matchScore  Float       @default(0)
+  matchReason String[]
+  status      MatchStatus @default(POTENTIAL)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@unique([programId, businessId])
+}
+
+enum MatchStatus {
+  POTENTIAL
+  REVIEWED
+  REJECTED
+  INTERESTED
+  SUBMITTED
+}
+
+model Campaign {
+  id              String          @id @default(cuid())
+  programId       String?
+  program         Program?        @relation(fields: [programId], references: [id])
+  accountantId    String?
+  accountant      Accountant?     @relation(fields: [accountantId], references: [id])
+  channel         CampaignChannel
+  title           String
+  messageTemplate String
+  status          CampaignStatus  @default(DRAFT)
+  scheduledAt     DateTime?
+  sentAt          DateTime?
+  createdBy       String
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  recipients      CampaignRecipient[]
+}
+
+enum CampaignChannel {
+  EMAIL
+  VIBER
+}
+
+enum CampaignStatus {
+  DRAFT
+  SCHEDULED
+  SENT
+}
+
+model CampaignRecipient {
+  id           String    @id @default(cuid())
+  campaignId   String
+  campaign     Campaign  @relation(fields: [campaignId], references: [id])
+  businessId   String
+  business     Business  @relation(fields: [businessId], references: [id])
+  channel      String
+  recipient    String
+  status       String    @default("pending")
+  sentAt       DateTime?
+  openedAt     DateTime?
+  clickedAt    DateTime?
+  errorMessage String?
+}
+
+model ImentorRequest {
+  id           String        @id @default(cuid())
+  accountantId String
+  accountant   Accountant    @relation(fields: [accountantId], references: [id])
+  businessId   String
+  business     Business      @relation(fields: [businessId], references: [id])
+  programId    String?
+  program      Program?      @relation(fields: [programId], references: [id])
+  subject      String
+  message      String
+  status       RequestStatus @default(NEW)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+}
+
+enum RequestStatus {
+  NEW
+  IN_REVIEW
+  COMPLETED
+  REJECTED
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String
+  action    String
+  entity    String
+  entityId  String?
+  details   String?
+  createdAt DateTime @default(now())
+}
