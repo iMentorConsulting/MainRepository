@@ -5,6 +5,7 @@ import bcrypt from 'bcryptjs'
 import { z } from 'zod'
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
+  secret: process.env.NEXTAUTH_SECRET || process.env.AUTH_SECRET,
   session: { strategy: 'jwt' },
   pages: { signIn: '/login' },
   callbacks: {
