@@ -3,12 +3,7 @@ import { cn } from '@/lib/utils'
 
 export function Table({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
-    <div className={cn('overflow-x-auto', className)} style={{
-      background: 'rgba(255,255,255,0.02)',
-      border: '1px solid rgba(255,255,255,0.06)',
-      borderRadius: '16px',
-      overflow: 'hidden',
-    }}>
+    <div className={cn('bg-white rounded-2xl border border-slate-100 shadow-card overflow-hidden', className)}>
       <table className="w-full">{children}</table>
     </div>
   )
@@ -24,11 +19,7 @@ export function TableBody({ className, ...props }: HTMLAttributes<HTMLTableSecti
 
 export function Th({ children, className, ...props }: ThHTMLAttributes<HTMLTableCellElement>) {
   return (
-    <th
-      className={cn('px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-text-muted', className)}
-      style={{borderBottom: '1px solid rgba(255,255,255,0.06)'}}
-      {...props}
-    >
+    <th className={cn('px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider border-b border-slate-100 bg-slate-50/50', className)} {...props}>
       {children}
     </th>
   )
@@ -36,7 +27,7 @@ export function Th({ children, className, ...props }: ThHTMLAttributes<HTMLTable
 
 export function Td({ children, className, ...props }: TdHTMLAttributes<HTMLTableCellElement>) {
   return (
-    <td className={cn('px-4 py-3 text-sm text-text-primary', className)} {...props}>
+    <td className={cn('px-4 py-3.5 text-sm text-slate-700 border-b border-slate-50', className)} {...props}>
       {children}
     </td>
   )
@@ -45,10 +36,7 @@ export function Td({ children, className, ...props }: TdHTMLAttributes<HTMLTable
 export function Tr({ children, className, onClick, ...props }: HTMLAttributes<HTMLTableRowElement> & { onClick?: () => void }) {
   return (
     <tr
-      className={cn('transition-all duration-150', onClick ? 'cursor-pointer' : '', className)}
-      style={{borderBottom: '1px solid rgba(255,255,255,0.04)'}}
-      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(0,212,255,0.03)' }}
-      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}
+      className={cn('transition-colors duration-100', onClick ? 'cursor-pointer hover:bg-indigo-50/30' : 'hover:bg-slate-50/50', className)}
       onClick={onClick}
       {...props}
     >
@@ -57,5 +45,4 @@ export function Tr({ children, className, onClick, ...props }: HTMLAttributes<HT
   )
 }
 
-// Alias for backward compat
 export const TableRow = Tr
