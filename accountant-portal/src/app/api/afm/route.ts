@@ -28,8 +28,8 @@ async function fetchFromGsis(afm: string) {
 </soapenv:Envelope>`
 
   const headers: Record<string, string> = {
-    'Content-Type': 'text/xml; charset=utf-8',
-    'SOAPAction': '',
+    'Content-Type': 'text/xml;charset=UTF-8',
+    'SOAPAction': '""',
   }
 
   // Correct GSIS endpoint
