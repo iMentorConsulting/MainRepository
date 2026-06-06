@@ -970,6 +970,21 @@ app.include_router(cm_finance_sync_router)
 app.include_router(finance_api_router)
 
 
+try:
+    with engine.connect() as _conn:
+        _conn.execute(_text("""
+            CREATE TABLE IF NOT EXISTS cm_import_blocklist (
+                id SERIAL PRIMARY KEY,
+                sheet_import_ref TEXT NOT NULL UNIQUE,
+                program_category VARCHAR(50),
+                blocked_at TIMESTAMP DEFAULT NOW()
+            )
+        """))
+        _conn.commit()
+except Exception as _e:
+    print(f"[migration] cm_import_blocklist create skipped: {_e}", flush=True)
+
+
 @app.on_event("shutdown")
 def _shutdown_scheduler():
     _scheduler.shutdown(wait=False)

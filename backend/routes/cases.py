@@ -586,6 +586,17 @@ def delete_case(
     c = db.query(CMCase).filter(CMCase.id == case_id).first()
     if not c:
         raise HTTPException(status_code=404, detail="Υπόθεση δεν βρέθηκε")
+    # Remember this sheet_import_ref so the row is never re-imported from the sheet
+    if c.sheet_import_ref:
+        from sqlalchemy import text as _t
+        try:
+            db.execute(_t("""
+                INSERT INTO cm_import_blocklist (sheet_import_ref, program_category)
+                VALUES (:ref, :prog)
+                ON CONFLICT (sheet_import_ref) DO NOTHING
+            """), {"ref": c.sheet_import_ref, "prog": c.program_category})
+        except Exception:
+            pass
     db.delete(c)
     db.commit()
     return {"message": "Η υπόθεση διαγράφηκε"}

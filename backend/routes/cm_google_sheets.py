@@ -254,6 +254,15 @@ def _do_import(db: Session) -> dict:
         (_strip_accents(c.client_name or ''), _strip_accents(c.service_type or '')): True
         for c in existing_cases
     }
+
+    # Load blocklist so manually-deleted cases are never re-imported
+    from sqlalchemy import text as _txt2
+    try:
+        _bl2 = _txt2("SELECT sheet_import_ref FROM cm_import_blocklist")
+        blocklist2 = {row[0] for row in db.execute(_bl2).fetchall()}
+    except Exception:
+        blocklist2 = set()
+
     paid_map = _build_paid_map(records)
 
     imported = 0
@@ -262,6 +271,9 @@ def _do_import(db: Session) -> dict:
     for r in records:
         ref = _merge_key(r['afm'] or '', r['client_name'], r['service_type'] or '')
         if ref in existing_refs:
+            skipped += 1
+            continue
+        if ref in blocklist2:
             skipped += 1
             continue
         name_svc_key = (_strip_accents(r['client_name']), _strip_accents(r['service_type'] or ''))
@@ -774,6 +786,14 @@ def _do_import_anakainizw(db: Session, selected_rows: list[int] | None = None) -
     valid_statuses = set(get_all_statuses_for_program("ΑΝΑΚΑΙΝΙΖΩ"))
     first_status = _PIPELINES["ΑΝΑΚΑΙΝΙΖΩ"]["phases"][0]["statuses"][0]
 
+    # Load blocklist — refs that were manually deleted and must not be re-imported
+    from sqlalchemy import text as _txt
+    try:
+        _bl = db.execute(_txt("SELECT sheet_import_ref FROM cm_import_blocklist")).fetchall()
+        blocklist = {row[0] for row in _bl}
+    except Exception:
+        blocklist = set()
+
     imported = 0
     updated = 0
     skipped = 0
@@ -835,6 +855,11 @@ def _do_import_anakainizw(db: Session, selected_rows: list[int] | None = None) -
             ref = _merge_key("", f"{client_name}__row{sheet_row}", ANAKAINIZW_SERVICE_TYPE)
         else:
             ref = _merge_key("", client_name, ANAKAINIZW_SERVICE_TYPE)
+
+        # Skip refs that were manually deleted — user chose to remove them
+        if ref in blocklist:
+            skipped += 1
+            continue
 
         existing = db.query(CMCase).filter(CMCase.sheet_import_ref == ref).first()
         if not existing and client_name not in duplicate_names:
