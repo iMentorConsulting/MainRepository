@@ -388,6 +388,15 @@ function OverviewTab({ caseData, users, onSaved, livePipelines }) {
                   </optgroup>
                 ))}
               </select>
+              {(() => {
+                const desc = livePipelines?.[caseData?.program_category]?.status_descriptions?.[form.status]
+                if (!desc) return null
+                return (
+                  <p className="mt-1.5 text-xs text-blue-700 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2 leading-relaxed">
+                    <span className="font-semibold">Αυτοματοποιημένη ενημέρωση πελάτη:</span> {desc}
+                  </p>
+                )
+              })()}
             </FormField>
           </div>
 
