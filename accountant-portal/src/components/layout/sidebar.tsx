@@ -12,6 +12,7 @@ import {
   Megaphone,
   MessageSquare,
   CreditCard,
+  Percent,
   BarChart3,
   Settings,
   LogOut,
@@ -30,6 +31,7 @@ const navItems = [
   { href: '/campaigns', label: 'Καμπάνιες', icon: Megaphone, adminOnly: false },
   { href: '/requests', label: 'Αιτήματα', icon: MessageSquare, adminOnly: false },
   { href: '/payments', label: 'Πληρωμές', icon: CreditCard, adminOnly: false },
+  { href: '/commissions', label: 'Προμήθειες', icon: Percent, adminOnly: false },
   { href: '/reports', label: 'Αναφορές', icon: BarChart3, adminOnly: false },
   { href: '/settings', label: 'Ρυθμίσεις', icon: Settings, adminOnly: true },
 ]

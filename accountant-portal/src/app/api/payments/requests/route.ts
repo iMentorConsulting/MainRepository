@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { createCheckoutSession } from '@/lib/stripe'
+import { generateIrisReference, createIrisPayment } from '@/lib/iris'
 
 export async function GET(req: NextRequest) {
   const session = await auth()
@@ -40,15 +40,12 @@ export async function POST(req: NextRequest) {
   const body = await req.json()
   const { businessId, serviceId, programId, description, customAmount } = body
 
-  // Get service
   const service = await prisma.service.findUnique({ where: { id: serviceId } })
   if (!service) return NextResponse.json({ error: 'Service not found' }, { status: 404 })
 
-  // Get business
   const business = await prisma.business.findUnique({ where: { id: businessId } })
   if (!business) return NextResponse.json({ error: 'Business not found' }, { status: 404 })
 
-  // Determine accountantId
   const accountantId =
     session.user.role === 'ACCOUNTANT'
       ? session.user.accountantId!
@@ -61,19 +58,16 @@ export async function POST(req: NextRequest) {
       ? Math.round(parseFloat(customAmount) * 100)
       : service.price
 
-  // Create Stripe session
-  const stripeSession = await createCheckoutSession({
-    paymentRequestId: 'temp', // will update after DB insert
-    serviceName: service.name,
-    description: description || service.description || undefined,
+  // Generate IRIS payment data
+  const reference = generateIrisReference(process.env.IRIS_REFERENCE_PREFIX || 'IMENT')
+  const irisData = createIrisPayment({
+    iban: process.env.IRIS_IBAN || '',
+    merchantName: process.env.IRIS_MERCHANT_NAME || 'I-MENTOR',
     amount,
-    currency: service.currency,
-    customerEmail: business.email || undefined,
-    customerName: business.onomasia || undefined,
-    metadata: { businessId, accountantId, serviceId },
+    reference,
+    description: description || service.name,
   })
 
-  // Create payment request
   const paymentRequest = await prisma.paymentRequest.create({
     data: {
       businessId,
@@ -81,12 +75,13 @@ export async function POST(req: NextRequest) {
       serviceId,
       programId: programId || null,
       amount,
-      currency: service.currency,
+      currency: 'EUR',
       description: description || null,
-      stripeSessionId: stripeSession.id,
-      stripePaymentLink: stripeSession.url,
+      irisReference: reference,
+      irisLink: irisData.irisLink,
+      irisQrData: irisData.qrData,
       status: 'PENDING',
-      expiresAt: new Date(stripeSession.expires_at * 1000),
+      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
       createdBy: session.user.id,
     },
     include: {
@@ -97,5 +92,5 @@ export async function POST(req: NextRequest) {
     },
   })
 
-  return NextResponse.json(paymentRequest, { status: 201 })
+  return NextResponse.json({ ...paymentRequest, irisData }, { status: 201 })
 }

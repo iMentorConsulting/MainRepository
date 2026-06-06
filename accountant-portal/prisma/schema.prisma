@@ -250,8 +250,11 @@ model PaymentRequest {
   amount            Int           // in cents
   currency          String        @default("eur")
   description       String?
-  stripeSessionId   String?       @unique
-  stripePaymentLink String?
+  irisReference     String?       @unique
+  irisLink          String?
+  irisQrData        String?
+  confirmedBy       String?
+  bankReference     String?
   status            PaymentStatus @default(PENDING)
   paidAt            DateTime?
   expiresAt         DateTime?

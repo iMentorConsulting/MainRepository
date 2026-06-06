@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Table, TableHead, TableBody, TableRow, Th, Td } from '@/components/ui/table'
 import { formatDate } from '@/lib/utils'
-import { Plus, Send, Copy, X, CreditCard, Clock, CheckCircle, AlertCircle } from 'lucide-react'
+import { Plus, Send, Copy, X, Banknote, Clock, CheckCircle, AlertCircle, ShieldCheck } from 'lucide-react'
 
 const statusLabel: Record<string, string> = {
   PENDING: 'Εκκρεμεί',
@@ -37,6 +37,11 @@ export default function PaymentsPage() {
   const [cancelling, setCancelling] = useState<string | null>(null)
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null)
 
+  // Confirm modal state
+  const [confirmModal, setConfirmModal] = useState<{ id: string; irisReference: string } | null>(null)
+  const [bankReference, setBankReference] = useState('')
+  const [confirming, setConfirming] = useState(false)
+
   const isAdmin = session?.user?.role === 'ADMIN'
 
   useEffect(() => {
@@ -62,7 +67,7 @@ export default function PaymentsPage() {
     setSending(id)
     const res = await fetch(`/api/payments/requests/${id}/send`, { method: 'POST' })
     if (res.ok) {
-      showToast('Ο σύνδεσμος πληρωμής εστάλη με επιτυχία!')
+      showToast('Ο σύνδεσμος IRIS εστάλη με επιτυχία!')
       setRequests(prev => prev.map(r => r.id === id ? { ...r, status: 'SENT' } : r))
     } else {
       const err = await res.json()
@@ -73,7 +78,7 @@ export default function PaymentsPage() {
 
   async function copyLink(link: string) {
     await navigator.clipboard.writeText(link)
-    showToast('Ο σύνδεσμος αντιγράφηκε!')
+    showToast('Ο σύνδεσμος IRIS αντιγράφηκε!')
   }
 
   async function cancelRequest(id: string) {
@@ -93,6 +98,25 @@ export default function PaymentsPage() {
     setCancelling(null)
   }
 
+  async function confirmPayment() {
+    if (!confirmModal) return
+    setConfirming(true)
+    const res = await fetch(`/api/payments/requests/${confirmModal.id}/confirm`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ bankReference }),
+    })
+    if (res.ok) {
+      showToast('Η πληρωμή επιβεβαιώθηκε!')
+      setRequests(prev => prev.map(r => r.id === confirmModal.id ? { ...r, status: 'PAID', paidAt: new Date().toISOString() } : r))
+      setConfirmModal(null)
+      setBankReference('')
+    } else {
+      showToast('Σφάλμα επιβεβαίωσης', 'error')
+    }
+    setConfirming(false)
+  }
+
   // Stats
   const total = requests.length
   const pending = requests.filter(r => r.status === 'PENDING' || r.status === 'SENT').length
@@ -108,11 +132,44 @@ export default function PaymentsPage() {
         </div>
       )}
 
+      {/* Confirm Payment Modal */}
+      {confirmModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6 space-y-4">
+            <h3 className="text-lg font-semibold text-gray-900">Επιβεβαίωση Πληρωμής</h3>
+            <p className="text-sm text-gray-600">
+              Επιβεβαιώστε ότι λάβατε την πληρωμή IRIS με αριθμό αναφοράς:{' '}
+              <span className="font-mono font-bold text-blue-800">{confirmModal.irisReference}</span>
+            </p>
+            <div>
+              <label className="text-sm font-medium text-gray-700 mb-1 block">
+                Αριθμός Συναλλαγής Τράπεζας <span className="font-normal text-gray-400">(προαιρετικό)</span>
+              </label>
+              <input
+                type="text"
+                value={bankReference}
+                onChange={e => setBankReference(e.target.value)}
+                placeholder="π.χ. TXN20240601123456"
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+              />
+            </div>
+            <div className="flex gap-3 pt-2">
+              <Button onClick={confirmPayment} loading={confirming}>
+                Επιβεβαίωση Πληρωμής
+              </Button>
+              <Button variant="outline" onClick={() => { setConfirmModal(null); setBankReference('') }}>
+                Ακύρωση
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Πληρωμές</h1>
-          <p className="text-gray-500 mt-1">Διαχείριση αιτημάτων πληρωμής μέσω Stripe</p>
+          <p className="text-gray-500 mt-1">Διαχείριση αιτημάτων πληρωμής μέσω IRIS</p>
         </div>
         <Link href="/payments/new">
           <Button>
@@ -127,7 +184,7 @@ export default function PaymentsPage() {
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-blue-50 rounded-lg flex items-center justify-center">
-              <CreditCard size={20} className="text-blue-600" />
+              <Banknote size={20} className="text-blue-600" />
             </div>
             <div>
               <div className="text-2xl font-bold text-gray-900">{total}</div>
@@ -203,6 +260,7 @@ export default function PaymentsPage() {
                 <Th>Υπηρεσία</Th>
                 {isAdmin && <Th>Λογιστής</Th>}
                 <Th>Ποσό</Th>
+                <Th>Αριθμός IRIS</Th>
                 <Th>Κατάσταση</Th>
                 <Th>Δημιουργία</Th>
                 <Th>Πληρωμή</Th>
@@ -212,7 +270,7 @@ export default function PaymentsPage() {
             <TableBody>
               {requests.length === 0 ? (
                 <TableRow>
-                  <Td colSpan={isAdmin ? 8 : 7} className="text-center text-gray-400 py-8">
+                  <Td colSpan={isAdmin ? 9 : 8} className="text-center text-gray-400 py-8">
                     Δεν βρέθηκαν αιτήματα πληρωμής
                   </Td>
                 </TableRow>
@@ -227,31 +285,50 @@ export default function PaymentsPage() {
                     {isAdmin && <Td className="text-sm text-gray-500">{r.accountant?.officeName}</Td>}
                     <Td className="text-sm font-semibold text-gray-900">{formatEur(r.amount)}</Td>
                     <Td>
+                      {r.irisReference
+                        ? <span className="font-mono text-xs text-blue-800">{r.irisReference}</span>
+                        : <span className="text-gray-400 text-xs">—</span>
+                      }
+                    </Td>
+                    <Td>
                       <Badge variant={statusVariant[r.status]}>{statusLabel[r.status]}</Badge>
                     </Td>
                     <Td className="text-sm text-gray-500">{formatDate(r.createdAt)}</Td>
                     <Td className="text-sm text-gray-500">{r.paidAt ? formatDate(r.paidAt) : '-'}</Td>
                     <Td>
                       <div className="flex gap-1">
+                        {/* Send email */}
                         {r.status !== 'PAID' && r.status !== 'EXPIRED' && r.status !== 'CANCELLED' && r.business?.email && (
                           <button
                             onClick={() => sendLink(r.id)}
                             disabled={sending === r.id}
-                            title="Αποστολή email"
+                            title="Αποστολή email IRIS"
                             className="p-1.5 rounded hover:bg-blue-50 text-blue-600 disabled:opacity-50"
                           >
                             <Send size={14} />
                           </button>
                         )}
-                        {r.stripePaymentLink && (
+                        {/* Copy IRIS link */}
+                        {r.irisLink && (
                           <button
-                            onClick={() => copyLink(r.stripePaymentLink)}
-                            title="Αντιγραφή συνδέσμου"
+                            onClick={() => copyLink(r.irisLink)}
+                            title="Αντιγραφή συνδέσμου IRIS"
                             className="p-1.5 rounded hover:bg-gray-100 text-gray-500"
                           >
                             <Copy size={14} />
                           </button>
                         )}
+                        {/* Admin: confirm payment */}
+                        {isAdmin && (r.status === 'PENDING' || r.status === 'SENT') && (
+                          <button
+                            onClick={() => setConfirmModal({ id: r.id, irisReference: r.irisReference || '' })}
+                            title="Επιβεβαίωση Πληρωμής"
+                            className="p-1.5 rounded hover:bg-green-50 text-green-600"
+                          >
+                            <ShieldCheck size={14} />
+                          </button>
+                        )}
+                        {/* Cancel */}
                         {r.status !== 'PAID' && r.status !== 'CANCELLED' && r.status !== 'EXPIRED' && (
                           <button
                             onClick={() => cancelRequest(r.id)}

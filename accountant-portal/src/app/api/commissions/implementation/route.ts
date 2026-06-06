@@ -59,7 +59,6 @@ export async function POST(req: NextRequest) {
     data: {
       accountantId,
       businessId,
-      programId: programId || null,
       commissionPolicyId: commissionPolicyId || null,
       stage: 'IMPLEMENTATION',
       grossAmount: grossCents,

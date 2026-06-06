@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
-import { ArrowLeft, CreditCard } from 'lucide-react'
+import { ArrowLeft, Banknote } from 'lucide-react'
 import Link from 'next/link'
 
 function formatEur(cents: number) {
@@ -18,6 +18,7 @@ export default function NewPaymentPage() {
   const [businesses, setBusinesses] = useState<any[]>([])
   const [services, setServices] = useState<any[]>([])
   const [programs, setPrograms] = useState<any[]>([])
+  const [irisSettings, setIrisSettings] = useState<{ iban: string; merchantName: string; referencePrefix: string } | null>(null)
 
   const [form, setForm] = useState({
     businessId: '',
@@ -42,7 +43,10 @@ export default function NewPaymentPage() {
     fetch('/api/businesses?limit=200').then(r => r.json()).then(d => setBusinesses(d.businesses || []))
     fetch('/api/payments/services').then(r => r.json()).then(d => setServices(Array.isArray(d) ? d : []))
     fetch('/api/programs').then(r => r.json()).then(d => setPrograms(d.programs || []))
-  }, [])
+    if (isAdmin) {
+      fetch('/api/settings/iris').then(r => r.json()).then(d => setIrisSettings(d)).catch(() => null)
+    }
+  }, [isAdmin])
 
   const filteredBusinesses = businessSearch
     ? businesses.filter(b =>
@@ -101,7 +105,19 @@ export default function NewPaymentPage() {
         </Link>
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Νέο Αίτημα Πληρωμής</h1>
-          <p className="text-gray-500 text-sm mt-0.5">Δημιουργία Stripe Checkout session για πελάτη</p>
+          <p className="text-gray-500 text-sm mt-0.5">Δημιουργία αιτήματος πληρωμής μέσω IRIS</p>
+        </div>
+      </div>
+
+      {/* IRIS Info box */}
+      <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex gap-3">
+        <Banknote size={20} className="text-blue-600 flex-shrink-0 mt-0.5" />
+        <div className="text-sm text-blue-800 space-y-1">
+          <p className="font-semibold">Πληρωμή μέσω IRIS</p>
+          <p>Το σύστημα θα δημιουργήσει αυτόματα μοναδικό αριθμό αναφοράς και σύνδεσμο IRIS για τον πελάτη. Η πληρωμή επιβεβαιώνεται χειροκίνητα μετά από τραπεζική μεταφορά.</p>
+          {irisSettings?.iban && (
+            <p className="font-mono text-xs mt-1">IBAN: {irisSettings.iban}</p>
+          )}
         </div>
       </div>
 
@@ -219,7 +235,7 @@ export default function NewPaymentPage() {
               className="rounded border-gray-300"
             />
             <label htmlFor="sendNow" className="text-sm text-gray-700">
-              Αποστολή email στον πελάτη αμέσως μετά τη δημιουργία
+              Αποστολή email IRIS στον πελάτη αμέσως μετά τη δημιουργία
             </label>
           </div>
         )}
@@ -228,8 +244,8 @@ export default function NewPaymentPage() {
         {selectedService && (
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
             <div className="text-sm font-semibold text-blue-900 mb-2 flex items-center gap-2">
-              <CreditCard size={16} />
-              Προεπισκόπηση Αιτήματος
+              <Banknote size={16} />
+              Προεπισκόπηση Αιτήματος IRIS
             </div>
             <div className="grid grid-cols-2 gap-2 text-sm">
               <div className="text-gray-500">Επιχείρηση:</div>
@@ -239,7 +255,7 @@ export default function NewPaymentPage() {
               <div className="text-gray-500">Ποσό:</div>
               <div className="font-bold text-green-700">{formatEur(effectiveAmount)}</div>
               <div className="text-gray-500">Αποστολή:</div>
-              <div>{form.sendNow && selectedBusiness?.email ? `Email στο ${selectedBusiness.email}` : 'Χειροκίνητα (αντιγραφή link)'}</div>
+              <div>{form.sendNow && selectedBusiness?.email ? `Email IRIS στο ${selectedBusiness.email}` : 'Χειροκίνητα (αντιγραφή link IRIS)'}</div>
             </div>
           </div>
         )}
@@ -252,7 +268,7 @@ export default function NewPaymentPage() {
 
         <div className="flex gap-3 pt-2">
           <Button type="submit" loading={saving}>
-            Δημιουργία Αιτήματος Πληρωμής
+            Δημιουργία Αιτήματος IRIS
           </Button>
           <Link href="/payments">
             <Button type="button" variant="outline">Ακύρωση</Button>
