@@ -32,10 +32,10 @@ async function fetchFromGsis(afm: string) {
     'SOAPAction': '""',
   }
 
-  // Correct GSIS endpoint
-  const endpoint = 'https://www1.gsis.gr/wsaade/RgWsPublic2/RgWsPublic2'
+  // GSIS blocks cloud IPs — use a Greek proxy if configured
+  const endpoint = process.env.GSIS_PROXY_URL || 'https://www1.gsis.gr/wsaade/RgWsPublic2/RgWsPublic2'
 
-  console.log(`[AFM] Calling GSIS for AFM: ${afm}, user: ${username}, callerAfm: ${callerAfm}`)
+  console.log(`[AFM] Calling GSIS for AFM: ${afm}, user: ${username}, callerAfm: ${callerAfm}, endpoint: ${endpoint}`)
 
   const response = await fetch(endpoint, {
     method: 'POST',
@@ -138,7 +138,7 @@ export async function GET(request: NextRequest) {
   }
 
   return NextResponse.json(
-    { error: 'Δεν ήταν δυνατή η ανάκτηση στοιχείων από ΓΓΠΣ.' },
+    { error: 'Δεν ήταν δυνατή η ανάκτηση στοιχείων από ΓΓΠΣ. Η υπηρεσία AADE ενδέχεται να αποκλείει εξωτερικές διευθύνσεις IP. Επικοινωνήστε με τον διαχειριστή.' },
     { status: 503 }
   )
 }
