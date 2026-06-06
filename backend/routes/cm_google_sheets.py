@@ -869,33 +869,8 @@ def _do_import_anakainizw(db: Session, selected_rows: list[int] | None = None) -
             ).first()
 
         if existing:
-            changed = False
-            if existing.program_category != "ΑΝΑΚΑΙΝΙΖΩ":
-                existing.program_category = "ΑΝΑΚΑΙΝΙΖΩ"
-                changed = True
-            if existing.service_type != ANAKAINIZW_SERVICE_TYPE:
-                existing.service_type = ANAKAINIZW_SERVICE_TYPE
-                changed = True
-            # Never overwrite status of existing cases from the sheet.
-            # Status is managed exclusively inside the app; the sheet status column
-            # contains CRM/lead values that don't map reliably to pipeline stages.
-            for field, val in [("phone", phone), ("email", email), ("sale_date", sale_date)]:
-                if val and getattr(existing, field) != val:
-                    setattr(existing, field, val)
-                    changed = True
-            if notes and existing.notes != notes:
-                existing.notes = notes
-                changed = True
-            if not existing.share_token and phone_token:
-                existing.share_token = phone_token
-                existing.portal_active = True
-                changed = True
-            if changed:
-                existing.updated_at = datetime.utcnow()
-                updated += 1
-            else:
-                skipped += 1
-
+            # Existing cases are never updated from the sheet — skip entirely.
+            skipped += 1
             case_id = existing.id
             if case_id not in ana_row_cache:
                 ana_row = db.query(CMCaseAna).filter(CMCaseAna.case_id == case_id).first()
