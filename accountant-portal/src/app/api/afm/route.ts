@@ -7,8 +7,18 @@ async function fetchFromGsis(afm: string) {
   const callerAfm = process.env.MY_AFM_IMENTOR || process.env.MY_AFM || ''
 
   const soapBody = `<?xml version="1.0" encoding="UTF-8"?>
-<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:rgws="http://gr/gsis/rgwspublic/RgWsPublic2.wsdl">
-  <soapenv:Header/>
+<soapenv:Envelope
+  xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/"
+  xmlns:rgws="http://gr/gsis/rgwspublic/RgWsPublic2.wsdl"
+  xmlns:wsse="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd">
+  <soapenv:Header>
+    <wsse:Security>
+      <wsse:UsernameToken>
+        <wsse:Username>${username}</wsse:Username>
+        <wsse:Password>${password}</wsse:Password>
+      </wsse:UsernameToken>
+    </wsse:Security>
+  </soapenv:Header>
   <soapenv:Body>
     <rgws:rgWsPublic2AfmMethod>
       <afmCalledBy>${callerAfm}</afmCalledBy>
@@ -19,11 +29,7 @@ async function fetchFromGsis(afm: string) {
 
   const headers: Record<string, string> = {
     'Content-Type': 'text/xml; charset=utf-8',
-    'SOAPAction': '""',
-  }
-
-  if (username && password) {
-    headers['Authorization'] = 'Basic ' + Buffer.from(`${username}:${password}`).toString('base64')
+    'SOAPAction': '',
   }
 
   // Correct GSIS endpoint
