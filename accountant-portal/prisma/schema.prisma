@@ -36,10 +36,11 @@ model Accountant {
   active        Boolean    @default(true)
   createdAt     DateTime   @default(now())
   updatedAt     DateTime   @updatedAt
-  users         User[]
-  businesses    Business[]
-  campaigns     Campaign[]
-  requests      ImentorRequest[]
+  users           User[]
+  businesses      Business[]
+  campaigns       Campaign[]
+  requests        ImentorRequest[]
+  paymentRequests PaymentRequest[]
 }
 
 model Business {
@@ -75,6 +76,7 @@ model Business {
   programMatches        ProgramMatch[]
   campaignRecipients    CampaignRecipient[]
   requests              ImentorRequest[]
+  paymentRequests       PaymentRequest[]
 }
 
 model BusinessActivity {
@@ -108,6 +110,7 @@ model Program {
   matches          ProgramMatch[]
   campaigns        Campaign[]
   requests         ImentorRequest[]
+  paymentRequests  PaymentRequest[]
 }
 
 enum ProgramCategory {
@@ -215,4 +218,47 @@ model AuditLog {
   entityId  String?
   details   String?
   createdAt DateTime @default(now())
+}
+
+model Service {
+  id              String           @id @default(cuid())
+  name            String
+  description     String?
+  price           Int              // in cents (e.g. 20000 = €200)
+  currency        String           @default("eur")
+  active          Boolean          @default(true)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  paymentRequests PaymentRequest[]
+}
+
+model PaymentRequest {
+  id                String        @id @default(cuid())
+  businessId        String
+  business          Business      @relation(fields: [businessId], references: [id])
+  accountantId      String
+  accountant        Accountant    @relation(fields: [accountantId], references: [id])
+  serviceId         String
+  service           Service       @relation(fields: [serviceId], references: [id])
+  programId         String?
+  program           Program?      @relation(fields: [programId], references: [id])
+  amount            Int           // in cents
+  currency          String        @default("eur")
+  description       String?
+  stripeSessionId   String?       @unique
+  stripePaymentLink String?
+  status            PaymentStatus @default(PENDING)
+  paidAt            DateTime?
+  expiresAt         DateTime?
+  createdBy         String
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+}
+
+enum PaymentStatus {
+  PENDING
+  SENT
+  PAID
+  EXPIRED
+  CANCELLED
 }
