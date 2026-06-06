@@ -36,11 +36,13 @@ model Accountant {
   active        Boolean    @default(true)
   createdAt     DateTime   @default(now())
   updatedAt     DateTime   @updatedAt
-  users           User[]
-  businesses      Business[]
-  campaigns       Campaign[]
-  requests        ImentorRequest[]
-  paymentRequests PaymentRequest[]
+  users               User[]
+  businesses          Business[]
+  campaigns           Campaign[]
+  requests            ImentorRequest[]
+  paymentRequests     PaymentRequest[]
+  commissions         Commission[]
+  commissionOverrides AccountantCommissionOverride[]
 }
 
 model Business {
@@ -77,6 +79,7 @@ model Business {
   campaignRecipients    CampaignRecipient[]
   requests              ImentorRequest[]
   paymentRequests       PaymentRequest[]
+  commissions           Commission[]
 }
 
 model BusinessActivity {
@@ -107,10 +110,11 @@ model Program {
   internalNotes    String?
   createdAt        DateTime        @default(now())
   updatedAt        DateTime        @updatedAt
-  matches          ProgramMatch[]
-  campaigns        Campaign[]
-  requests         ImentorRequest[]
-  paymentRequests  PaymentRequest[]
+  matches             ProgramMatch[]
+  campaigns           Campaign[]
+  requests            ImentorRequest[]
+  paymentRequests     PaymentRequest[]
+  commissionPolicies  CommissionPolicy[]
 }
 
 enum ProgramCategory {
@@ -221,15 +225,16 @@ model AuditLog {
 }
 
 model Service {
-  id              String           @id @default(cuid())
-  name            String
-  description     String?
-  price           Int              // in cents (e.g. 20000 = €200)
-  currency        String           @default("eur")
-  active          Boolean          @default(true)
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
-  paymentRequests PaymentRequest[]
+  id                 String             @id @default(cuid())
+  name               String
+  description        String?
+  price              Int                // in cents (e.g. 20000 = €200)
+  currency           String             @default("eur")
+  active             Boolean            @default(true)
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  paymentRequests    PaymentRequest[]
+  commissionPolicies CommissionPolicy[]
 }
 
 model PaymentRequest {
@@ -253,6 +258,7 @@ model PaymentRequest {
   createdBy         String
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
+  commissions       Commission[]
 }
 
 enum PaymentStatus {
@@ -261,4 +267,99 @@ enum PaymentStatus {
   PAID
   EXPIRED
   CANCELLED
+}
+
+// ─── Commission System ───────────────────────────────────────────────────────
+
+enum CommissionType {
+  FIXED
+  PERCENTAGE
+  PERCENTAGE_WITH_MIN
+  PERCENTAGE_WITH_MAX
+  PERCENTAGE_WITH_MIN_MAX
+}
+
+enum CommissionStage {
+  APPLICATION
+  IMPLEMENTATION
+}
+
+enum CommissionStatus {
+  PENDING
+  APPROVED
+  PAID
+  CANCELLED
+}
+
+model CommissionPolicy {
+  id                      String          @id @default(cuid())
+  name                    String
+  description             String?
+  commissionType          CommissionType  @default(PERCENTAGE)
+  // For FIXED type
+  fixedAmount             Int?            // in cents
+  // For PERCENTAGE type
+  percentage              Float?          // 0-100
+  minAmount               Int?            // minimum commission in cents
+  maxAmount               Int?            // maximum commission in cents (cap)
+  // Which stages this applies to
+  appliesToApplication    Boolean         @default(true)
+  appliesToImplementation Boolean         @default(false)
+  // Link to service or program
+  serviceId               String?
+  service                 Service?        @relation(fields: [serviceId], references: [id])
+  programId               String?
+  program                 Program?        @relation(fields: [programId], references: [id])
+  active                  Boolean         @default(true)
+  createdAt               DateTime        @default(now())
+  updatedAt               DateTime        @updatedAt
+  accountantOverrides     AccountantCommissionOverride[]
+}
+
+model AccountantCommissionOverride {
+  id                 String           @id @default(cuid())
+  accountantId       String
+  accountant         Accountant       @relation(fields: [accountantId], references: [id])
+  commissionPolicyId String
+  commissionPolicy   CommissionPolicy @relation(fields: [commissionPolicyId], references: [id])
+  // Override values (null = use policy default)
+  percentage         Float?
+  fixedAmount        Int?
+  minAmount          Int?
+  maxAmount          Int?
+  notes              String?
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+
+  @@unique([accountantId, commissionPolicyId])
+}
+
+model Commission {
+  id                 String           @id @default(cuid())
+  accountantId       String
+  accountant         Accountant       @relation(fields: [accountantId], references: [id])
+  businessId         String
+  business           Business         @relation(fields: [businessId], references: [id])
+  paymentRequestId   String?
+  paymentRequest     PaymentRequest?  @relation(fields: [paymentRequestId], references: [id])
+  commissionPolicyId String?
+  stage              CommissionStage
+  // Calculation details
+  grossAmount        Int              // what client paid, in cents
+  commissionRate     Float?           // percentage used (if applicable)
+  commissionAmount   Int              // final commission in cents
+  // Status
+  status             CommissionStatus @default(PENDING)
+  approvedAt         DateTime?
+  approvedBy         String?
+  paidAt             DateTime?
+  cancelledAt        DateTime?
+  // Invoicing system link
+  externalInvoiceId  String?
+  externalInvoiceNo  String?
+  externalInvoiceUrl String?
+  externalSyncedAt   DateTime?
+  notes              String?
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
 }
