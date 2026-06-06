@@ -46,9 +46,17 @@ async function fetchFromGsis(afm: string) {
 
   const text = await response.text()
   console.log(`[AFM] GSIS response status: ${response.status}`)
-  console.log(`[AFM] GSIS response (first 500 chars): ${text.substring(0, 500)}`)
+  console.log(`[AFM] GSIS response (first 1000 chars): ${text.substring(0, 1000)}`)
 
-  if (!response.ok) return null
+  if (!response.ok) {
+    console.log(`[AFM] GSIS non-OK status, full body: ${text}`)
+    return null
+  }
+
+  // Check for SOAP fault
+  if (text.includes('faultcode') || text.includes('Fault')) {
+    console.log(`[AFM] SOAP Fault detected: ${text.substring(0, 2000)}`)
+  }
 
   return parseGsisResponse(text, afm)
 }
@@ -69,7 +77,8 @@ function parseGsisResponse(text: string, afm: string) {
 
   const onomasia = extractTag(text, 'onomasia')
   if (!onomasia) {
-    console.log('[AFM] Could not find onomasia in response')
+    console.log('[AFM] Could not find onomasia in response. Full XML:')
+    console.log(text.substring(0, 3000))
     return null
   }
 
