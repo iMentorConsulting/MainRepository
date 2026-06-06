@@ -167,7 +167,7 @@ export default function DocumentsTab({ caseId, caseData, onRefresh }) {
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b">
               <tr>
-                {['Όνομα', 'Τύπος', 'Κατάσταση', 'Πηγή', 'Σχόλιο Συμβούλου', ''].map(h => (
+                {['Όνομα', 'Τύπος', 'Κατάσταση', 'Πηγή', 'Ημερομηνία', 'Σχόλιο Συμβούλου', ''].map(h => (
                   <th key={h} className="text-left px-4 py-2 text-xs font-semibold text-gray-500 uppercase">{h}</th>
                 ))}
               </tr>
@@ -175,6 +175,9 @@ export default function DocumentsTab({ caseId, caseData, onRefresh }) {
             <tbody className="divide-y divide-gray-100">
               {docs.map(d => {
                 const src = SOURCE_LABELS[d.upload_source] || (d.uploaded_by_client ? SOURCE_LABELS.portal_general : SOURCE_LABELS.consultant)
+                const uploadedAt = d.created_at
+                  ? new Date(d.created_at).toLocaleDateString('el-GR', { day: '2-digit', month: '2-digit', year: '2-digit', timeZone: 'Europe/Athens' })
+                  : '—'
                 return (
                   <tr key={d.id} className={`hover:bg-gray-50 ${d.uploaded_by_client ? 'bg-green-50/40' : ''}`}>
                     <td className="px-4 py-3 font-medium text-gray-900 max-w-[200px]">
@@ -198,6 +201,7 @@ export default function DocumentsTab({ caseId, caseData, onRefresh }) {
                         )}
                       </div>
                     </td>
+                    <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{uploadedAt}</td>
                     <td className="px-4 py-3 max-w-[180px]">
                       <NotesCell caseId={caseId} docId={d.id} initialValue={d.notes} onRefresh={onRefresh} />
                     </td>
