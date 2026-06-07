@@ -28,14 +28,15 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     ...(campaign.accountantId ? { where: { accountantId: campaign.accountantId } } : {}),
   })
 
-  // If campaign has program, filter by matched businesses
+  // If campaign has program, filter by matched businesses and collect match reasons
+  let matchReasonByBusiness = new Map<string, string[]>()
   if (campaign.programId) {
-    const matchedIds = await prisma.programMatch.findMany({
+    const matches = await prisma.programMatch.findMany({
       where: { programId: campaign.programId },
-      select: { businessId: true }
+      select: { businessId: true, matchReason: true }
     })
-    const matchedSet = new Set(matchedIds.map(m => m.businessId))
-    businesses = businesses.filter(b => matchedSet.has(b.id))
+    matchReasonByBusiness = new Map(matches.map(m => [m.businessId, m.matchReason]))
+    businesses = businesses.filter(b => matchReasonByBusiness.has(b.id))
   }
 
   let sent = 0
@@ -55,6 +56,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       accountant_office: business.accountant?.officeName || '',
       program_title: campaign.program?.title || '',
       kad_description: business.activities[0]?.firmActCode || '',
+      match_reason: (matchReasonByBusiness.get(business.id) || []).map(r => `• ${r}`).join('\n'),
       unsubscribe_link: `${process.env.NEXTAUTH_URL || 'http://localhost:3001'}/api/unsubscribe/${business.unsubscribeToken}`,
     }
 
@@ -63,10 +65,23 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
 
     try {
       if (campaign.channel === 'EMAIL') {
+        const imentorLogo = process.env.IMENTOR_LOGO_URL || ''
+        const accountantLogo = business.accountant?.logoUrl || ''
+        const logoRow = (imentorLogo || accountantLogo)
+          ? `<tr><td style="padding:16px 24px;border-bottom:1px solid #e2e8f0;">
+               <table width="100%"><tr>
+                 <td>${imentorLogo ? `<img src="${imentorLogo}" alt="I-MENTOR" height="36" style="display:block;" />` : '<span style="font-weight:700;color:#4f46e5;font-size:16px;">I-MENTOR</span>'}</td>
+                 <td align="right">${accountantLogo ? `<img src="${accountantLogo}" alt="${business.accountant?.officeName || ''}" height="36" style="display:block;margin-left:auto;" />` : (business.accountant?.officeName ? `<span style="font-weight:600;color:#475569;font-size:14px;">${business.accountant.officeName}</span>` : '')}</td>
+               </tr></table>
+             </td></tr>`
+          : ''
         success = await sendEmail({
           to: recipient,
           subject: campaign.title,
-          html: `<div style="font-family:sans-serif;max-width:600px;margin:auto;">${message.replace(/\n/g, '<br>')}</div>`,
+          html: `<table width="100%" cellpadding="0" cellspacing="0" style="font-family:sans-serif;max-width:600px;margin:auto;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;">
+            ${logoRow}
+            <tr><td style="padding:24px;color:#1e293b;font-size:14px;line-height:1.6;">${message.replace(/\n/g, '<br>')}</td></tr>
+          </table>`,
         })
       } else {
         success = await sendViberMessage({ to: recipient, text: message })
