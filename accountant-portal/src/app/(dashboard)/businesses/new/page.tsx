@@ -43,10 +43,24 @@ export default function NewBusinessPage() {
   })
 
   function handleAfmResult(data: any) {
+    let onomasia = data.onomasia || ''
+    let legalStatusDescr = data.legalStatusDescr || ''
+
+    // Natural persons (sole proprietors) come back from GSIS as
+    // "ΕΠΩΝΥΜΟ ΟΝΟΜΑ ΠΑΤΡΩΝΥΜΟ" with no legal status — trim the patronymic
+    // and label them as ΑΤΟΜΙΚΗ
+    if (!legalStatusDescr) {
+      const parts = onomasia.trim().split(/\s+/)
+      if (parts.length >= 3) {
+        onomasia = parts.slice(0, 2).join(' ')
+      }
+      legalStatusDescr = 'ΑΤΟΜΙΚΗ'
+    }
+
     setValue('afm', data.afm)
-    setValue('onomasia', data.onomasia)
+    setValue('onomasia', onomasia)
     setValue('commercialTitle', data.commercialTitle)
-    setValue('legalStatusDescr', data.legalStatusDescr)
+    setValue('legalStatusDescr', legalStatusDescr)
     setValue('regdate', data.regdate)
     setValue('postalAddress', data.postalAddress)
     setValue('postalAddressNo', data.postalAddressNo)
