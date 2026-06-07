@@ -67,24 +67,29 @@ export default function NewCampaignPage() {
     if (status === 'DRAFT') setSavingDraft(true)
     else setSending(true)
 
-    const body = { title, channel, programId: programId || undefined, messageTemplate, status }
-    const res = await fetch('/api/campaigns', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    })
+    try {
+      const body = { title, channel, programId: programId || undefined, messageTemplate, status }
+      const res = await fetch('/api/campaigns', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
 
-    if (res.ok) {
-      const created = await res.json()
-      if (status === 'SENT') {
-        await fetch(`/api/campaigns/${created.id}/send`, { method: 'POST' })
+      if (res.ok) {
+        const created = await res.json()
+        if (status === 'SENT') {
+          fetch(`/api/campaigns/${created.id}/send`, { method: 'POST' }).catch(() => {})
+        }
+        router.push(`/campaigns/${created.id}`)
+      } else {
+        alert('Σφάλμα αποθήκευσης')
       }
-      router.push(`/campaigns/${created.id}`)
-    } else {
-      alert('Σφάλμα αποθήκευσης')
+    } catch (e) {
+      alert('Σφάλμα δικτύου')
+    } finally {
+      setSavingDraft(false)
+      setSending(false)
     }
-    setSavingDraft(false)
-    setSending(false)
   }
 
   return (

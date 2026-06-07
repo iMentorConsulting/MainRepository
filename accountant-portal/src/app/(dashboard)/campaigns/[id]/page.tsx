@@ -24,12 +24,32 @@ export default function CampaignDetailPage() {
 
   async function sendCampaign() {
     setSending(true)
-    const res = await fetch(`/api/campaigns/${id}/send`, { method: 'POST' })
-    const data = await res.json()
-    alert(`Απεστάλη σε ${data.sent || 0} παραλήπτες`)
-    const updated = await fetch(`/api/campaigns/${id}`).then(r => r.json())
-    setCampaign(updated)
-    setSending(false)
+    try {
+      const res = await fetch(`/api/campaigns/${id}/send`, { method: 'POST' })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        alert(err.error || 'Σφάλμα κατά την έναρξη αποστολής')
+        return
+      }
+      const data = await res.json()
+      alert(`Η αποστολή ξεκίνησε για ${data.total || 0} παραλήπτες. Η κατάσταση θα ενημερωθεί σταδιακά παρακάτω.`)
+      pollCampaign()
+    } catch (e) {
+      alert('Σφάλμα δικτύου κατά την αποστολή')
+    } finally {
+      setSending(false)
+    }
+  }
+
+  function pollCampaign(attemptsLeft = 20) {
+    fetch(`/api/campaigns/${id}`)
+      .then(r => r.json())
+      .then(updated => {
+        setCampaign(updated)
+        if (updated.status !== 'SENT' && attemptsLeft > 0) {
+          setTimeout(() => pollCampaign(attemptsLeft - 1), 5000)
+        }
+      })
   }
 
   if (loading) return <div className="flex items-center justify-center h-64"><div className="animate-spin w-8 h-8 border-4 border-blue-800 border-t-transparent rounded-full" /></div>

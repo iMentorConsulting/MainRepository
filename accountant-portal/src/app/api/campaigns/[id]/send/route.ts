@@ -5,40 +5,12 @@ import { sendEmail, renderTemplate } from '@/lib/email'
 import { sendViberMessage } from '@/lib/viber'
 import { createAuditLog } from '@/lib/audit'
 
-export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
-  const session = await auth()
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
-  const campaign = await prisma.campaign.findUnique({
-    where: { id: params.id },
-    include: {
-      program: true,
-      accountant: true,
-    }
-  })
-
-  if (!campaign) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-
-  // Find eligible businesses
-  let businesses = await prisma.business.findMany({
-    include: {
-      accountant: true,
-      activities: { where: { firmActKind: 1 }, take: 1 },
-    },
-    ...(campaign.accountantId ? { where: { accountantId: campaign.accountantId } } : {}),
-  })
-
-  // If campaign has program, filter by matched businesses and collect match reasons
-  let matchReasonByBusiness = new Map<string, string[]>()
-  if (campaign.programId) {
-    const matches = await prisma.programMatch.findMany({
-      where: { programId: campaign.programId },
-      select: { businessId: true, matchReason: true }
-    })
-    matchReasonByBusiness = new Map(matches.map(m => [m.businessId, m.matchReason]))
-    businesses = businesses.filter(b => matchReasonByBusiness.has(b.id))
-  }
-
+async function processCampaignSend(
+  campaign: any,
+  businesses: any[],
+  matchReasonByBusiness: Map<string, string[]>,
+  userId: string
+) {
   let sent = 0
   let failed = 0
 
@@ -86,7 +58,9 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       } else {
         success = await sendViberMessage({ to: recipient, text: message })
       }
-    } catch {}
+    } catch (err: any) {
+      console.error(`[Campaign ${campaign.id}] Send error to ${recipient}:`, err?.message || err)
+    }
 
     await prisma.campaignRecipient.create({
       data: {
@@ -109,12 +83,55 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
   })
 
   await createAuditLog({
-    userId: session.user.id,
+    userId,
     action: 'SEND_CAMPAIGN',
     entity: 'Campaign',
     entityId: campaign.id,
     details: `Sent to ${sent} recipients, ${failed} failed`,
   })
 
-  return NextResponse.json({ sent, failed, total: businesses.length })
+  console.log(`[Campaign ${campaign.id}] Finished: ${sent} sent, ${failed} failed, ${businesses.length} total`)
+}
+
+export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
+  const session = await auth()
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const campaign = await prisma.campaign.findUnique({
+    where: { id: params.id },
+    include: {
+      program: true,
+      accountant: true,
+    }
+  })
+
+  if (!campaign) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  // Find eligible businesses
+  let businesses = await prisma.business.findMany({
+    include: {
+      accountant: true,
+      activities: { where: { firmActKind: 1 }, take: 1 },
+    },
+    ...(campaign.accountantId ? { where: { accountantId: campaign.accountantId } } : {}),
+  })
+
+  // If campaign has program, filter by matched businesses and collect match reasons
+  let matchReasonByBusiness = new Map<string, string[]>()
+  if (campaign.programId) {
+    const matches = await prisma.programMatch.findMany({
+      where: { programId: campaign.programId },
+      select: { businessId: true, matchReason: true }
+    })
+    matchReasonByBusiness = new Map(matches.map(m => [m.businessId, m.matchReason]))
+    businesses = businesses.filter(b => matchReasonByBusiness.has(b.id))
+  }
+
+  // Run the send in the background — emails/Viber messages can take a long
+  // time per recipient, and awaiting the whole batch here causes the HTTP
+  // request to hang (and the UI to spin) past the platform's timeout.
+  processCampaignSend(campaign, businesses, matchReasonByBusiness, session.user.id)
+    .catch(err => console.error(`[Campaign ${campaign.id}] Background send failed:`, err?.message || err))
+
+  return NextResponse.json({ started: true, total: businesses.length })
 }

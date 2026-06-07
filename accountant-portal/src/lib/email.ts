@@ -2,15 +2,20 @@ import nodemailer from 'nodemailer'
 
 const smtpUser = process.env.SMTP_USER || process.env.GMAIL_USER || ''
 const smtpPass = process.env.SMTP_PASS || process.env.GMAIL_APP_PASSWORD || ''
+const smtpPort = parseInt(process.env.SMTP_PORT || '587')
 
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST || 'smtp.gmail.com',
-  port: parseInt(process.env.SMTP_PORT || '587'),
-  secure: false,
+  port: smtpPort,
+  secure: smtpPort === 465,
+  requireTLS: smtpPort !== 465,
   auth: {
     user: smtpUser,
     pass: smtpPass,
   },
+  connectionTimeout: 15000,
+  greetingTimeout: 15000,
+  socketTimeout: 20000,
 })
 
 interface EmailData {
@@ -20,16 +25,22 @@ interface EmailData {
 }
 
 export async function sendEmail(data: EmailData): Promise<boolean> {
+  if (!smtpUser || !smtpPass) {
+    console.error('[Email] Missing SMTP credentials (SMTP_USER/SMTP_PASS or GMAIL_USER/GMAIL_APP_PASSWORD)')
+    return false
+  }
   try {
+    console.log(`[Email] Sending to ${data.to} via ${process.env.SMTP_HOST || 'smtp.gmail.com'}:${smtpPort} as ${smtpUser}`)
     await transporter.sendMail({
       from: process.env.SMTP_FROM || smtpUser || 'noreply@i-mentor.gr',
       to: data.to,
       subject: data.subject,
       html: data.html,
     })
+    console.log(`[Email] Sent to ${data.to}`)
     return true
-  } catch (error) {
-    console.error('Email send error:', error)
+  } catch (error: any) {
+    console.error(`[Email] Send error for ${data.to}:`, error?.message || error)
     return false
   }
 }
