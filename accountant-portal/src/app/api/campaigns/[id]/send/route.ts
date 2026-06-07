@@ -56,7 +56,7 @@ async function processCampaignSend(
           </table>`,
         })
       } else {
-        success = await sendViberMessage({ to: recipient, text: message })
+        success = await sendViberMessage({ to: recipient, text: message, senderName: business.onomasia || business.afm })
       }
     } catch (err: any) {
       console.error(`[Campaign ${campaign.id}] Send error to ${recipient}:`, err?.message || err)
