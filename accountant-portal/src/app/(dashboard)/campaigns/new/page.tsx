@@ -9,7 +9,8 @@ import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { TemplateEditor } from '@/components/campaigns/template-editor'
-import { ArrowLeft, Send } from 'lucide-react'
+import { CAMPAIGN_TEMPLATES } from '@/lib/campaign-templates'
+import { ArrowLeft, Send, FileText } from 'lucide-react'
 import Link from 'next/link'
 
 const schema = z.object({
@@ -47,6 +48,7 @@ export default function NewCampaignPage() {
       .replace(/\{\{accountant_office\}\}/g, 'Λογιστικό Γραφείο Παπαδόπουλος')
       .replace(/\{\{program_title\}\}/g, 'ΕΣΠΑ 2024')
       .replace(/\{\{kad_description\}\}/g, '47.11 - Λιανικό εμπόριο')
+      .replace(/\{\{match_reason\}\}/g, '• Επιλέξιμος ΚΑΔ: 47.11 - Λιανικό εμπόριο\n• Επιλέξιμη περιοχή: Αττική')
       .replace(/\{\{unsubscribe_link\}\}/g, 'https://portal.i-mentor.gr/unsubscribe/TOKEN')
     setPreview(rendered)
   }
@@ -114,6 +116,32 @@ export default function NewCampaignPage() {
                 options={programs.map(p => ({ value: p.id, label: p.title }))}
                 placeholder="Χωρίς πρόγραμμα"
               />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader><CardTitle>Έτοιμα Templates</CardTitle></CardHeader>
+          <CardContent className="space-y-2">
+            <p className="text-sm text-gray-500">
+              Επιλέξτε ένα έτοιμο, εξατομικευμένο template ως αφετηρία. Δείχνει στον πελάτη τι ελέγξαμε
+              (κριτήρια επιλεξιμότητας) και τονίζει τη συνεργασία I-MENTOR με το λογιστικό γραφείο.
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {CAMPAIGN_TEMPLATES.map(t => (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => setTemplate(t.body)}
+                  className="text-left p-3 rounded-lg border border-gray-200 hover:border-blue-400 hover:bg-blue-50 transition-colors"
+                >
+                  <div className="flex items-center gap-2 text-sm font-medium text-gray-800">
+                    <FileText size={14} className="text-blue-600" />
+                    {t.label}
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">{t.description}</p>
+                </button>
+              ))}
             </div>
           </CardContent>
         </Card>
