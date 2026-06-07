@@ -1,0 +1,255 @@
+'use client'
+import { useEffect, useState } from 'react'
+import { useParams, useRouter } from 'next/navigation'
+import { useForm } from 'react-hook-form'
+import { z } from 'zod'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
+import { Select } from '@/components/ui/select'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { ArrowLeft, Plus, X, FileUp } from 'lucide-react'
+import Link from 'next/link'
+
+const schema = z.object({
+  title: z.string().min(3, 'Απαιτείται τίτλος'),
+  category: z.enum(['ESPA', 'DYPA', 'MICROLOANS', 'LOAN', 'OTHER']),
+  description: z.string().optional(),
+  minRegdate: z.string().optional(),
+  maxRegdate: z.string().optional(),
+  startDate: z.string().optional(),
+  endDate: z.string().optional(),
+  active: z.boolean().default(true),
+  internalNotes: z.string().optional(),
+})
+type FormData = z.infer<typeof schema>
+
+function TagInput({ label, values, onChange, placeholder, bulkImport }: {
+  label: string
+  values: string[]
+  onChange: (v: string[]) => void
+  placeholder?: string
+  bulkImport?: boolean
+}) {
+  const [input, setInput] = useState('')
+  const [bulkOpen, setBulkOpen] = useState(false)
+  const [bulkText, setBulkText] = useState('')
+
+  function add() {
+    const v = input.trim()
+    if (v && !values.includes(v)) onChange([...values, v])
+    setInput('')
+  }
+
+  function importBulk() {
+    const parsed = bulkText
+      .split(/[\n,;]+/)
+      .map(s => s.trim())
+      .filter(Boolean)
+    if (parsed.length === 0) return
+    const merged = [...values]
+    for (const p of parsed) if (!merged.includes(p)) merged.push(p)
+    onChange(merged)
+    setBulkText('')
+    setBulkOpen(false)
+  }
+
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center justify-between">
+        <label className="text-sm font-medium text-gray-700">{label}</label>
+        {bulkImport && (
+          <Button type="button" variant="outline" size="sm" onClick={() => setBulkOpen(!bulkOpen)}>
+            <FileUp size={12} className="mr-1" />
+            Μαζική Εισαγωγή
+          </Button>
+        )}
+      </div>
+      <div className="flex flex-wrap gap-1.5 mb-2">
+        {values.map(v => (
+          <span key={v} className="flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs">
+            {v}
+            <button type="button" onClick={() => onChange(values.filter(x => x !== v))}>
+              <X size={11} />
+            </button>
+          </span>
+        ))}
+      </div>
+      <div className="flex gap-2">
+        <input
+          value={input}
+          onChange={e => setInput(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), add())}
+          placeholder={placeholder}
+          className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+        />
+        <Button type="button" variant="outline" size="sm" onClick={add}>
+          <Plus size={14} />
+        </Button>
+      </div>
+      {bulkImport && bulkOpen && (
+        <div className="space-y-2 p-3 rounded-lg border border-gray-200 bg-gray-50">
+          <p className="text-xs text-gray-500">
+            Επικολλήστε λίστα τιμών χωρισμένες με κόμμα, ελληνικό ερωτηματικό ή νέα γραμμή.
+          </p>
+          <textarea
+            value={bulkText}
+            onChange={e => setBulkText(e.target.value)}
+            rows={4}
+            placeholder={`π.χ.\n${placeholder || ''}`}
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+          />
+          <div className="flex gap-2">
+            <Button type="button" size="sm" onClick={importBulk}>Προσθήκη στη Λίστα</Button>
+            <Button type="button" variant="outline" size="sm" onClick={() => { setBulkOpen(false); setBulkText('') }}>Ακύρωση</Button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function toDateInputValue(value: any): string {
+  if (!value) return ''
+  const d = new Date(value)
+  if (isNaN(d.getTime())) return ''
+  return d.toISOString().slice(0, 10)
+}
+
+export default function EditProgramPage() {
+  const { id } = useParams()
+  const router = useRouter()
+  const [loading, setLoading] = useState(true)
+  const [kadRules, setKadRules] = useState<string[]>([])
+  const [regionRules, setRegionRules] = useState<string[]>([])
+  const [zipCodeRules, setZipCodeRules] = useState<string[]>([])
+
+  const { register, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm<FormData>({
+    resolver: zodResolver(schema),
+  })
+
+  useEffect(() => {
+    fetch(`/api/programs/${id}`)
+      .then(r => r.json())
+      .then(program => {
+        setKadRules(program.kadRules || [])
+        setRegionRules(program.regionRules || [])
+        setZipCodeRules(program.zipCodeRules || [])
+        reset({
+          title: program.title || '',
+          category: program.category || 'ESPA',
+          description: program.description || '',
+          minRegdate: toDateInputValue(program.minRegdate),
+          maxRegdate: toDateInputValue(program.maxRegdate),
+          startDate: toDateInputValue(program.startDate),
+          endDate: toDateInputValue(program.endDate),
+          active: program.active ?? true,
+          internalNotes: program.internalNotes || '',
+        })
+      })
+      .finally(() => setLoading(false))
+  }, [id, reset])
+
+  async function onSubmit(data: FormData) {
+    const res = await fetch(`/api/programs/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...data, kadRules, regionRules, zipCodeRules }),
+    })
+    if (res.ok) {
+      router.push(`/programs/${id}`)
+    } else {
+      const err = await res.json()
+      alert(err.error || 'Σφάλμα ενημέρωσης')
+    }
+  }
+
+  if (loading) return (
+    <div className="flex items-center justify-center h-64">
+      <div className="animate-spin w-8 h-8 border-4 border-blue-800 border-t-transparent rounded-full" />
+    </div>
+  )
+
+  return (
+    <div className="max-w-2xl mx-auto space-y-6">
+      <div className="flex items-center gap-3">
+        <Link href={`/programs/${id}`}>
+          <Button variant="ghost" size="sm"><ArrowLeft size={16} className="mr-1" />Πίσω</Button>
+        </Link>
+        <h1 className="text-2xl font-bold text-gray-900">Επεξεργασία Προγράμματος</h1>
+      </div>
+
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+        <Card>
+          <CardHeader><CardTitle>Βασικά Στοιχεία</CardTitle></CardHeader>
+          <CardContent className="space-y-4">
+            <Input label="Τίτλος Προγράμματος *" {...register('title')} error={errors.title?.message} />
+            <Select
+              label="Κατηγορία *"
+              {...register('category')}
+              options={[
+                { value: 'ESPA', label: 'ΕΣΠΑ' },
+                { value: 'DYPA', label: 'ΔΥΠΑ' },
+                { value: 'MICROLOANS', label: 'Μικροδάνεια' },
+                { value: 'LOAN', label: 'Δάνεια' },
+                { value: 'OTHER', label: 'Άλλο' },
+              ]}
+            />
+            <Textarea label="Περιγραφή" {...register('description')} rows={4} />
+            <div className="grid grid-cols-2 gap-4">
+              <Input label="Ημ/νία Έναρξης" type="date" {...register('startDate')} />
+              <Input label="Ημ/νία Λήξης" type="date" {...register('endDate')} />
+            </div>
+            <div className="flex items-center gap-2">
+              <input type="checkbox" {...register('active')} id="active" className="rounded" />
+              <label htmlFor="active" className="text-sm text-gray-700">Ενεργό πρόγραμμα</label>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader><CardTitle>Κριτήρια Επιλεξιμότητας</CardTitle></CardHeader>
+          <CardContent className="space-y-5">
+            <TagInput
+              label="Κανόνες ΚΑΔ"
+              values={kadRules}
+              onChange={setKadRules}
+              placeholder="π.χ. 47 ή 47.11.10.01"
+              bulkImport
+            />
+            <TagInput
+              label="Κανόνες Περιοχής"
+              values={regionRules}
+              onChange={setRegionRules}
+              placeholder="π.χ. Αθήνα, Αττική"
+            />
+            <TagInput
+              label="Κανόνες ΤΚ"
+              values={zipCodeRules}
+              onChange={setZipCodeRules}
+              placeholder="π.χ. 104 (prefix) ή 10431"
+              bulkImport
+            />
+            <div className="grid grid-cols-2 gap-4">
+              <Input label="Ελάχιστη Ημ. Ίδρυσης" type="date" {...register('minRegdate')} />
+              <Input label="Μέγιστη Ημ. Ίδρυσης" type="date" {...register('maxRegdate')} />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader><CardTitle>Εσωτερικές Σημειώσεις</CardTitle></CardHeader>
+          <CardContent>
+            <Textarea {...register('internalNotes')} rows={3} placeholder="Εσωτερικές πληροφορίες..." />
+          </CardContent>
+        </Card>
+
+        <div className="flex gap-3">
+          <Button type="submit" loading={isSubmitting}>Αποθήκευση</Button>
+          <Link href={`/programs/${id}`}><Button variant="outline">Ακύρωση</Button></Link>
+        </div>
+      </form>
+    </div>
+  )
+}
