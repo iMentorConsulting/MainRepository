@@ -26,17 +26,17 @@ export function Sidebar() {
   const visible = navItems.filter(i => !i.adminOnly || isAdmin)
 
   return (
-    <aside className="fixed left-0 top-0 h-full w-64 bg-white border-r border-slate-100 flex flex-col z-50 shadow-sm">
+    <aside className="fixed left-0 top-0 h-full w-64 bg-slate-900 border-r border-slate-800 flex flex-col z-50 shadow-sm">
       {/* Logo */}
-      <div className="p-5 border-b border-slate-100">
+      <div className="p-5 border-b border-slate-800">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 shadow-brand"
             style={{background: 'linear-gradient(135deg, #4f46e5, #7c3aed)'}}>
             <Zap className="w-4 h-4 text-white" />
           </div>
           <div>
-            <p className="text-sm font-bold text-slate-900 leading-tight">I-MENTOR</p>
-            <p className="text-xs text-slate-400 leading-tight">Portal</p>
+            <p className="text-sm font-bold text-white leading-tight">I-MENTOR</p>
+            <p className="text-xs text-slate-500 leading-tight">Portal</p>
           </div>
         </div>
       </div>
@@ -45,7 +45,7 @@ export function Sidebar() {
       <div className="px-4 pt-3 pb-1">
         <span className={cn(
           'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium',
-          isAdmin ? 'bg-indigo-50 text-indigo-700' : 'bg-violet-50 text-violet-700'
+          isAdmin ? 'bg-indigo-500/20 text-indigo-300' : 'bg-violet-500/20 text-violet-300'
         )}>
           <span className={cn('w-1.5 h-1.5 rounded-full', isAdmin ? 'bg-indigo-500' : 'bg-violet-500')} />
           {isAdmin ? 'Administrator' : 'Λογιστής'}
@@ -62,10 +62,10 @@ export function Sidebar() {
               className={cn(
                 'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150',
                 isActive
-                  ? 'bg-indigo-50 text-indigo-700'
-                  : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                  ? 'bg-indigo-500/15 text-indigo-300'
+                  : 'text-slate-400 hover:bg-slate-800 hover:text-white'
               )}>
-              <Icon className={cn('w-4 h-4 flex-shrink-0', isActive ? 'text-indigo-600' : 'text-slate-400')} />
+              <Icon className={cn('w-4 h-4 flex-shrink-0', isActive ? 'text-indigo-300' : 'text-slate-500')} />
               {item.label}
               {isActive && <div className="ml-auto w-1.5 h-1.5 rounded-full bg-indigo-500" />}
             </Link>
@@ -74,19 +74,19 @@ export function Sidebar() {
       </nav>
 
       {/* User */}
-      <div className="p-4 border-t border-slate-100">
-        <div className="flex items-center gap-3 px-3 py-2 rounded-xl bg-slate-50 mb-2">
+      <div className="p-4 border-t border-slate-800">
+        <div className="flex items-center gap-3 px-3 py-2 rounded-xl bg-slate-800 mb-2">
           <div className="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold text-white flex-shrink-0"
             style={{background: 'linear-gradient(135deg, #4f46e5, #7c3aed)'}}>
             {session?.user?.name?.[0]?.toUpperCase() || 'U'}
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-xs font-semibold text-slate-800 truncate">{session?.user?.name}</p>
-            <p className="text-xs text-slate-400 truncate">{session?.user?.email}</p>
+            <p className="text-xs font-semibold text-white truncate">{session?.user?.name}</p>
+            <p className="text-xs text-slate-500 truncate">{session?.user?.email}</p>
           </div>
         </div>
         <button onClick={() => signOut({ callbackUrl: '/login' })}
-          className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-slate-500 hover:text-red-600 hover:bg-red-50 transition-all duration-150 text-xs font-medium">
+          className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-slate-400 hover:text-red-400 hover:bg-red-500/10 transition-all duration-150 text-xs font-medium">
           <LogOut className="w-3.5 h-3.5" />
           Αποσύνδεση
         </button>

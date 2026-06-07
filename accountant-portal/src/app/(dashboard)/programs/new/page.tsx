@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Select } from '@/components/ui/select'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { ArrowLeft, Plus, X } from 'lucide-react'
+import { ArrowLeft, Plus, X, FileUp } from 'lucide-react'
 import Link from 'next/link'
 
 const schema = z.object({
@@ -25,21 +25,47 @@ const schema = z.object({
 })
 type FormData = z.infer<typeof schema>
 
-function TagInput({ label, values, onChange, placeholder }: {
+function TagInput({ label, values, onChange, placeholder, bulkImport }: {
   label: string
   values: string[]
   onChange: (v: string[]) => void
   placeholder?: string
+  bulkImport?: boolean
 }) {
   const [input, setInput] = useState('')
+  const [bulkOpen, setBulkOpen] = useState(false)
+  const [bulkText, setBulkText] = useState('')
+
   function add() {
     const v = input.trim()
     if (v && !values.includes(v)) onChange([...values, v])
     setInput('')
   }
+
+  function importBulk() {
+    const parsed = bulkText
+      .split(/[\n,;]+/)
+      .map(s => s.trim())
+      .filter(Boolean)
+    if (parsed.length === 0) return
+    const merged = [...values]
+    for (const p of parsed) if (!merged.includes(p)) merged.push(p)
+    onChange(merged)
+    setBulkText('')
+    setBulkOpen(false)
+  }
+
   return (
     <div className="space-y-1.5">
-      <label className="text-sm font-medium text-gray-700">{label}</label>
+      <div className="flex items-center justify-between">
+        <label className="text-sm font-medium text-gray-700">{label}</label>
+        {bulkImport && (
+          <Button type="button" variant="outline" size="sm" onClick={() => setBulkOpen(!bulkOpen)}>
+            <FileUp size={12} className="mr-1" />
+            Μαζική Εισαγωγή
+          </Button>
+        )}
+      </div>
       <div className="flex flex-wrap gap-1.5 mb-2">
         {values.map(v => (
           <span key={v} className="flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs">
@@ -62,6 +88,24 @@ function TagInput({ label, values, onChange, placeholder }: {
           <Plus size={14} />
         </Button>
       </div>
+      {bulkImport && bulkOpen && (
+        <div className="space-y-2 p-3 rounded-lg border border-gray-200 bg-gray-50">
+          <p className="text-xs text-gray-500">
+            Επικολλήστε λίστα τιμών χωρισμένες με κόμμα, ελληνικό ερωτηματικό ή νέα γραμμή.
+          </p>
+          <textarea
+            value={bulkText}
+            onChange={e => setBulkText(e.target.value)}
+            rows={4}
+            placeholder={`π.χ.\n${placeholder || ''}`}
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+          />
+          <div className="flex gap-2">
+            <Button type="button" size="sm" onClick={importBulk}>Προσθήκη στη Λίστα</Button>
+            <Button type="button" variant="outline" size="sm" onClick={() => { setBulkOpen(false); setBulkText('') }}>Ακύρωση</Button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -71,7 +115,6 @@ export default function NewProgramPage() {
   const [kadRules, setKadRules] = useState<string[]>([])
   const [regionRules, setRegionRules] = useState<string[]>([])
   const [zipCodeRules, setZipCodeRules] = useState<string[]>([])
-  const [legalStatusRules, setLegalStatusRules] = useState<string[]>([])
 
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -82,7 +125,7 @@ export default function NewProgramPage() {
     const res = await fetch('/api/programs', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...data, kadRules, regionRules, zipCodeRules, legalStatusRules }),
+      body: JSON.stringify({ ...data, kadRules, regionRules, zipCodeRules }),
     })
     if (res.ok) {
       const created = await res.json()
@@ -138,6 +181,7 @@ export default function NewProgramPage() {
               values={kadRules}
               onChange={setKadRules}
               placeholder="π.χ. 47 ή 47.11.10.01"
+              bulkImport
             />
             <TagInput
               label="Κανόνες Περιοχής"
@@ -150,12 +194,7 @@ export default function NewProgramPage() {
               values={zipCodeRules}
               onChange={setZipCodeRules}
               placeholder="π.χ. 104 (prefix) ή 10431"
-            />
-            <TagInput
-              label="Νομική Μορφή"
-              values={legalStatusRules}
-              onChange={setLegalStatusRules}
-              placeholder="π.χ. ΑΕ, ΕΠΕ, ΙΚΕ"
+              bulkImport
             />
             <div className="grid grid-cols-2 gap-4">
               <Input label="Ελάχιστη Ημ. Ίδρυσης" type="date" {...register('minRegdate')} />
