@@ -14,7 +14,7 @@ export function Header() {
   const title = breadcrumbMap[base] || 'Portal'
 
   return (
-    <header className="fixed top-0 right-0 left-64 h-16 z-40 flex items-center px-6 gap-4 bg-white/80 backdrop-blur-xl border-b border-slate-100">
+    <header className="fixed top-0 right-0 left-64 h-16 z-40 flex items-center px-6 gap-4 bg-slate-100/80 backdrop-blur-xl border-b border-slate-200">
       <div className="flex-1">
         <div className="flex items-center gap-1.5 text-xs text-slate-400 mb-0.5">
           <span>I-MENTOR</span>

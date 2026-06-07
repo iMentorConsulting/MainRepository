@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { runMatchingForProgram } from '@/lib/matching'
 
 export async function GET(request: NextRequest) {
   const session = await auth()
@@ -29,5 +30,10 @@ export async function POST(request: NextRequest) {
   else delete data.endDate
 
   const program = await prisma.program.create({ data })
+
+  if (program.active) {
+    runMatchingForProgram(program.id).catch(err => console.error('[Matching] Auto-match for new program failed:', err?.message))
+  }
+
   return NextResponse.json(program, { status: 201 })
 }

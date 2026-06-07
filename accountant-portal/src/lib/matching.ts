@@ -117,6 +117,22 @@ function matchesBusiness(
   return { score, reasons }
 }
 
+async function upsertMatch(programId: string, businessId: string, score: number, reasons: string[]) {
+  if (score < 40) return false
+  await prisma.programMatch.upsert({
+    where: { programId_businessId: { programId, businessId } },
+    update: { matchScore: score, matchReason: reasons, updatedAt: new Date() },
+    create: {
+      programId,
+      businessId,
+      matchScore: score,
+      matchReason: reasons,
+      status: MatchStatus.POTENTIAL
+    }
+  })
+  return true
+}
+
 export async function runMatchingForProgram(programId: string): Promise<number> {
   const program = await prisma.program.findUnique({ where: { id: programId } })
   if (!program) throw new Error('Program not found')
@@ -129,21 +145,26 @@ export async function runMatchingForProgram(programId: string): Promise<number> 
 
   for (const business of businesses) {
     const { score, reasons } = matchesBusiness(business, program)
+    if (await upsertMatch(programId, business.id, score, reasons)) matchCount++
+  }
 
-    if (score >= 40) {
-      await prisma.programMatch.upsert({
-        where: { programId_businessId: { programId, businessId: business.id } },
-        update: { matchScore: score, matchReason: reasons, updatedAt: new Date() },
-        create: {
-          programId,
-          businessId: business.id,
-          matchScore: score,
-          matchReason: reasons,
-          status: MatchStatus.POTENTIAL
-        }
-      })
-      matchCount++
-    }
+  return matchCount
+}
+
+export async function runMatchingForBusiness(businessId: string): Promise<number> {
+  const business = await prisma.business.findUnique({
+    where: { id: businessId },
+    include: { activities: true }
+  })
+  if (!business) throw new Error('Business not found')
+
+  const programs = await prisma.program.findMany({ where: { active: true } })
+
+  let matchCount = 0
+
+  for (const program of programs) {
+    const { score, reasons } = matchesBusiness(business, program)
+    if (await upsertMatch(program.id, business.id, score, reasons)) matchCount++
   }
 
   return matchCount
