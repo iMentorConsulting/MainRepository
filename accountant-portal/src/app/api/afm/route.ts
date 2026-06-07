@@ -101,19 +101,32 @@ function parseGsisResponse(text: string, afm: string) {
   }
 
   const activities: any[] = []
-  // Split on each firm_act_code occurrence so we capture every activity
-  // regardless of whether they're wrapped in one array or repeated elements
-  const actSegments = text.split(/(?=<[^:>]*:?firm_act_code>)/i).slice(1)
-  for (const seg of actSegments) {
-    const code = extractTag(seg, 'firm_act_code')
-    if (code) {
-      activities.push({
-        firmActCode: code,
-        firmActDescr: extractTag(seg, 'firm_act_descr'),
-        firmActKind: parseInt(extractTag(seg, 'firm_act_kind') || '1'),
-        firmActKindDescr: extractTag(seg, 'firm_act_kind_descr') || 'ΚΥΡΙΑ',
-      })
-    }
+  // Find every firm_act_code occurrence with its index, then slice out the
+  // segment up to the next occurrence to extract sibling fields (descr/kind)
+  const codeRegex = /<(?:[^:>]*:)?firm_act_code>([^<]*)<\/(?:[^:>]*:)?firm_act_code>/gi
+  const codeMatches: RegExpExecArray[] = []
+  let cm: RegExpExecArray | null
+  while ((cm = codeRegex.exec(text)) !== null) {
+    codeMatches.push(cm)
+  }
+  for (let i = 0; i < codeMatches.length; i++) {
+    const m = codeMatches[i]
+    const code = m[1].trim()
+    if (!code) continue
+    const start = m.index ?? 0
+    const end = i + 1 < codeMatches.length ? (codeMatches[i + 1].index ?? text.length) : text.length
+    const seg = text.slice(start, end)
+    activities.push({
+      firmActCode: code,
+      firmActDescr: extractTag(seg, 'firm_act_descr'),
+      firmActKind: parseInt(extractTag(seg, 'firm_act_kind') || '1'),
+      firmActKindDescr: extractTag(seg, 'firm_act_kind_descr') || 'ΚΥΡΙΑ',
+    })
+  }
+
+  if (activities.length === 0) {
+    const sample = text.match(/firm_act[^>]*>/gi)
+    console.log(`[AFM] No activities parsed. firm_act tag samples: ${sample ? sample.slice(0, 10).join(', ') : '(none found)'}`)
   }
 
   const regdate =
