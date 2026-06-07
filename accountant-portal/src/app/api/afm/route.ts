@@ -1,78 +1,96 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
+import https from 'https'
 
-async function fetchFromGsis(afm: string) {
-  const username = process.env.AADE_USER_IMENTOR || process.env.AADE_USER
-  const password = process.env.AADE_PASS_IMENTOR || process.env.AADE_PASS
+function xmlEscape(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;')
+}
+
+function fetchFromGsis(afm: string): Promise<string> {
+  const username = process.env.AADE_USER_IMENTOR || process.env.AADE_USER || ''
+  const password = process.env.AADE_PASS_IMENTOR || process.env.AADE_PASS || ''
   const callerAfm = process.env.MY_AFM_IMENTOR || process.env.MY_AFM || ''
 
-  const soapBody = `<?xml version="1.0" encoding="UTF-8"?>
-<soapenv:Envelope
-  xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/"
-  xmlns:rgws="http://gr/gsis/rgwspublic/RgWsPublic2.wsdl"
-  xmlns:wsse="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd">
-  <soapenv:Header>
-    <wsse:Security>
-      <wsse:UsernameToken>
-        <wsse:Username>${username}</wsse:Username>
-        <wsse:Password>${password}</wsse:Password>
-      </wsse:UsernameToken>
-    </wsse:Security>
-  </soapenv:Header>
-  <soapenv:Body>
-    <rgws:rgWsPublic2AfmMethod>
-      <afmCalledBy>${callerAfm}</afmCalledBy>
-      <afmCalledFor>${afm}</afmCalledFor>
-    </rgws:rgWsPublic2AfmMethod>
-  </soapenv:Body>
-</soapenv:Envelope>`
+  const soapBody =
+    `<?xml version="1.0" encoding="UTF-8"?>` +
+    `<env:Envelope xmlns:env="http://www.w3.org/2003/05/soap-envelope" ` +
+    `xmlns:ns1="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd" ` +
+    `xmlns:ns2="http://rgwspublic2/RgWsPublic2Service" ` +
+    `xmlns:ns3="http://rgwspublic2/RgWsPublic2">` +
+    `<env:Header>` +
+    `<ns1:Security>` +
+    `<ns1:UsernameToken>` +
+    `<ns1:Username>${xmlEscape(username)}</ns1:Username>` +
+    `<ns1:Password>${xmlEscape(password)}</ns1:Password>` +
+    `</ns1:UsernameToken>` +
+    `</ns1:Security>` +
+    `</env:Header>` +
+    `<env:Body>` +
+    `<ns2:rgWsPublic2AfmMethod>` +
+    `<ns2:INPUT_REC>` +
+    `<ns3:afm_called_by>${xmlEscape(callerAfm)}</ns3:afm_called_by>` +
+    `<ns3:afm_called_for>${xmlEscape(afm)}</ns3:afm_called_for>` +
+    `</ns2:INPUT_REC>` +
+    `</ns2:rgWsPublic2AfmMethod>` +
+    `</env:Body>` +
+    `</env:Envelope>`
 
-  const headers: Record<string, string> = {
-    'Content-Type': 'text/xml;charset=UTF-8',
-    'SOAPAction': '""',
-  }
+  const bodyBuffer = Buffer.from(soapBody, 'utf-8')
 
-  // GSIS blocks cloud IPs — use a Greek proxy if configured
-  const endpoint = process.env.GSIS_PROXY_URL || 'https://www1.gsis.gr/wsaade/RgWsPublic2/RgWsPublic2'
+  console.log(`[AFM] Calling GSIS for AFM: ${afm}, user: ${username}, callerAfm: ${callerAfm}`)
 
-  console.log(`[AFM] Calling GSIS for AFM: ${afm}, user: ${username}, callerAfm: ${callerAfm}, endpoint: ${endpoint}`)
+  return new Promise((resolve, reject) => {
+    const req = https.request(
+      {
+        hostname: 'www1.gsis.gr',
+        path: '/wsaade/RgWsPublic2/RgWsPublic2',
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/soap+xml; charset=utf-8',
+          'Content-Length': Buffer.byteLength(bodyBuffer),
+        },
+      },
+      (res) => {
+        let data = ''
+        res.setEncoding('utf-8')
+        res.on('data', (chunk) => { data += chunk })
+        res.on('end', () => {
+          console.log(`[AFM] GSIS response status: ${res.statusCode}`)
+          console.log(`[AFM] GSIS response (first 1000 chars): ${data.substring(0, 1000)}`)
+          resolve(data)
+        })
+      }
+    )
 
-  const response = await fetch(endpoint, {
-    method: 'POST',
-    headers,
-    body: soapBody,
-    signal: AbortSignal.timeout(12000),
+    req.setTimeout(15000, () => {
+      req.destroy(new Error('GSIS request timed out'))
+    })
+
+    req.on('error', (err) => {
+      console.error('[AFM] GSIS request error:', err.message)
+      reject(err)
+    })
+
+    req.write(bodyBuffer)
+    req.end()
   })
-
-  const text = await response.text()
-  console.log(`[AFM] GSIS response status: ${response.status}`)
-  console.log(`[AFM] GSIS response (first 1000 chars): ${text.substring(0, 1000)}`)
-
-  if (!response.ok) {
-    console.log(`[AFM] GSIS non-OK status, full body: ${text}`)
-    return null
-  }
-
-  // Check for SOAP fault
-  if (text.includes('faultcode') || text.includes('Fault')) {
-    console.log(`[AFM] SOAP Fault detected: ${text.substring(0, 2000)}`)
-  }
-
-  return parseGsisResponse(text, afm)
 }
 
 function parseGsisResponse(text: string, afm: string) {
   const extractTag = (xml: string, tag: string): string => {
-    const patterns = [
-      new RegExp(`<${tag}>([^<]*)<\/${tag}>`, 'i'),
-      new RegExp(`<[^:>]+:${tag}>([^<]*)<\/[^:>]+:${tag}>`, 'i'),
-      new RegExp(`<${tag}[^>]*>([^<]*)<\/${tag}>`, 'i'),
-    ]
-    for (const p of patterns) {
-      const m = xml.match(p)
-      if (m) return m[1].trim()
-    }
-    return ''
+    const m = xml.match(new RegExp(`<[^:>]*:?${tag}>([^<]*)<`, 'i'))
+    return m ? m[1].trim() : ''
+  }
+
+  const errorCode = extractTag(text, 'error_code')
+  if (errorCode && errorCode !== 'RET_CODE_OK') {
+    console.log(`[AFM] GSIS returned error_code: ${errorCode}, error_descr: ${extractTag(text, 'error_descr')}`)
+    return null
   }
 
   const onomasia = extractTag(text, 'onomasia')
@@ -82,19 +100,17 @@ function parseGsisResponse(text: string, afm: string) {
     return null
   }
 
-  // Parse activities
   const activities: any[] = []
-  const actBlocks = text.match(/<firm_act_tab[^>]*>[\s\S]*?<\/firm_act_tab>/gi) ||
-                    text.match(/<RgWsPublic2AfmMethodResults[^>]*>[\s\S]*?<\/RgWsPublic2AfmMethodResults>/gi) || []
+  const actBlocks = text.match(/<[^:>]*:?firm_act_tab[^>]*>[\s\S]*?<\/[^:>]*:?firm_act_tab>/gi) || []
 
   for (const block of actBlocks) {
-    const code = extractTag(block, 'firm_act_code') || extractTag(block, 'firmActCode')
+    const code = extractTag(block, 'firm_act_code')
     if (code) {
       activities.push({
         firmActCode: code,
-        firmActDescr: extractTag(block, 'firm_act_descr') || extractTag(block, 'firmActDescr'),
-        firmActKind: parseInt(extractTag(block, 'firm_act_kind') || extractTag(block, 'firmActKind') || '1'),
-        firmActKindDescr: extractTag(block, 'firm_act_kind_descr') || extractTag(block, 'firmActKindDescr') || 'ΚΥΡΙΑ',
+        firmActDescr: extractTag(block, 'firm_act_descr'),
+        firmActKind: parseInt(extractTag(block, 'firm_act_kind') || '1'),
+        firmActKindDescr: extractTag(block, 'firm_act_kind_descr') || 'ΚΥΡΙΑ',
       })
     }
   }
@@ -102,20 +118,20 @@ function parseGsisResponse(text: string, afm: string) {
   return {
     afm,
     onomasia,
-    commercialTitle: extractTag(text, 'commercial_title') || extractTag(text, 'commercialTitle') || onomasia,
-    legalStatusDescr: extractTag(text, 'legal_status_descr') || extractTag(text, 'legalStatusDescr'),
-    firmFlagDescr: extractTag(text, 'firm_flag_descr') || extractTag(text, 'firmFlagDescr'),
-    iNiFlagDescr: extractTag(text, 'i_ni_flag_descr') || extractTag(text, 'iNiFlagDescr'),
-    deactivationFlag: extractTag(text, 'deactivation_flag') || extractTag(text, 'deactivationFlag'),
-    deactivationFlagDescr: extractTag(text, 'deactivation_flag_descr') || extractTag(text, 'deactivationFlagDescr'),
-    regdate: extractTag(text, 'regdate') || extractTag(text, 'registDate'),
-    stopDate: extractTag(text, 'stop_date') || extractTag(text, 'stopDate') || null,
-    postalAddress: extractTag(text, 'postal_address') || extractTag(text, 'postalAddress'),
-    postalAddressNo: extractTag(text, 'postal_address_no') || extractTag(text, 'postalAddressNo'),
-    postalZipCode: extractTag(text, 'postal_zip_code') || extractTag(text, 'postalZipCode'),
-    postalAreaDescription: extractTag(text, 'postal_area_description') || extractTag(text, 'postalAreaDescription'),
+    commercialTitle: extractTag(text, 'commer_title') || extractTag(text, 'commercial_title') || onomasia,
+    legalStatusDescr: extractTag(text, 'legal_status_descr'),
+    firmFlagDescr: extractTag(text, 'firm_flag_descr'),
+    iNiFlagDescr: extractTag(text, 'i_ni_flag_descr'),
+    deactivationFlag: extractTag(text, 'deactivation_flag'),
+    deactivationFlagDescr: extractTag(text, 'deactivation_flag_descr'),
+    regdate: extractTag(text, 'regdate'),
+    stopDate: extractTag(text, 'stop_date') || null,
+    postalAddress: extractTag(text, 'postal_address'),
+    postalAddressNo: extractTag(text, 'postal_address_no'),
+    postalZipCode: extractTag(text, 'postal_zip_code'),
+    postalAreaDescription: extractTag(text, 'postal_area_description'),
     doy: extractTag(text, 'doy'),
-    doyDescr: extractTag(text, 'doy_descr') || extractTag(text, 'doyDescr'),
+    doyDescr: extractTag(text, 'doy_descr'),
     activities,
     _source: 'gsis',
   }
@@ -131,14 +147,15 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const realData = await fetchFromGsis(afm)
+    const text = await fetchFromGsis(afm)
+    const realData = parseGsisResponse(text, afm)
     if (realData) return NextResponse.json(realData)
   } catch (e: any) {
     console.error('[AFM] Error:', e?.message)
   }
 
   return NextResponse.json(
-    { error: 'Δεν ήταν δυνατή η ανάκτηση στοιχείων από ΓΓΠΣ. Η υπηρεσία AADE ενδέχεται να αποκλείει εξωτερικές διευθύνσεις IP. Επικοινωνήστε με τον διαχειριστή.' },
+    { error: 'Δεν ήταν δυνατή η ανάκτηση στοιχείων από ΓΓΠΣ.' },
     { status: 503 }
   )
 }
