@@ -101,18 +101,33 @@ function parseGsisResponse(text: string, afm: string) {
   }
 
   const activities: any[] = []
-  const actBlocks = text.match(/<[^:>]*:?firm_act_tab[^>]*>[\s\S]*?<\/[^:>]*:?firm_act_tab>/gi) || []
-
-  for (const block of actBlocks) {
-    const code = extractTag(block, 'firm_act_code')
+  // Split on each firm_act_code occurrence so we capture every activity
+  // regardless of whether they're wrapped in one array or repeated elements
+  const actSegments = text.split(/(?=<[^:>]*:?firm_act_code>)/i).slice(1)
+  for (const seg of actSegments) {
+    const code = extractTag(seg, 'firm_act_code')
     if (code) {
       activities.push({
         firmActCode: code,
-        firmActDescr: extractTag(block, 'firm_act_descr'),
-        firmActKind: parseInt(extractTag(block, 'firm_act_kind') || '1'),
-        firmActKindDescr: extractTag(block, 'firm_act_kind_descr') || 'ΚΥΡΙΑ',
+        firmActDescr: extractTag(seg, 'firm_act_descr'),
+        firmActKind: parseInt(extractTag(seg, 'firm_act_kind') || '1'),
+        firmActKindDescr: extractTag(seg, 'firm_act_kind_descr') || 'ΚΥΡΙΑ',
       })
     }
+  }
+
+  const regdate =
+    extractTag(text, 'regdate') ||
+    extractTag(text, 'regist_date') ||
+    extractTag(text, 'registration_date') ||
+    extractTag(text, 'reg_date') ||
+    extractTag(text, 'date_of_reg') ||
+    extractTag(text, 'firm_date_of_reg')
+
+  console.log(`[AFM] Parsed regdate: "${regdate}", activities found: ${activities.length}`)
+  if (!regdate) {
+    const basicRecMatch = text.match(/<[^:>]*:?basic_rec>[\s\S]*?<\/[^:>]*:?basic_rec>/i)
+    console.log(`[AFM] No regdate found. basic_rec block: ${basicRecMatch ? basicRecMatch[0] : '(not found)'}`)
   }
 
   return {
@@ -124,7 +139,7 @@ function parseGsisResponse(text: string, afm: string) {
     iNiFlagDescr: extractTag(text, 'i_ni_flag_descr'),
     deactivationFlag: extractTag(text, 'deactivation_flag'),
     deactivationFlagDescr: extractTag(text, 'deactivation_flag_descr'),
-    regdate: extractTag(text, 'regdate'),
+    regdate,
     stopDate: extractTag(text, 'stop_date') || null,
     postalAddress: extractTag(text, 'postal_address'),
     postalAddressNo: extractTag(text, 'postal_address_no'),
