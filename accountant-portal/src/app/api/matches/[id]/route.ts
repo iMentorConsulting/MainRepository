@@ -13,11 +13,15 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  const { status } = await request.json()
+  const { status, notes } = await request.json()
+
+  const updateData: any = { updatedAt: new Date() }
+  if (status !== undefined) updateData.status = status
+  if (notes !== undefined) updateData.notes = notes
 
   const match = await prisma.programMatch.update({
     where: { id: params.id },
-    data: { status, updatedAt: new Date() },
+    data: updateData,
   })
 
   return NextResponse.json(match)

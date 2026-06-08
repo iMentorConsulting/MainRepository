@@ -151,6 +151,7 @@ model ProgramMatch {
   matchScore  Float       @default(0)
   matchReason String[]
   status      MatchStatus @default(POTENTIAL)
+  notes       String?
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
 
