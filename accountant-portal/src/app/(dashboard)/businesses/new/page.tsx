@@ -126,8 +126,9 @@ export default function NewBusinessPage() {
           <CardHeader><CardTitle>Μαζική Εισαγωγή από Excel/CSV</CardTitle></CardHeader>
           <CardContent className="space-y-4">
             <p className="text-sm text-gray-500">
-              Ανεβάστε αρχείο Excel ή CSV με στήλη "afm" για μαζική εισαγωγή.
-              Τα στοιχεία θα αντληθούν αυτόματα από GSIS.
+              Ανεβάστε αρχείο Excel ή CSV με στήλη "afm" (υποχρεωτική) και προαιρετικά
+              στήλες "tel" και "email" για μαζική εισαγωγή. Τα υπόλοιπα στοιχεία θα
+              αντληθούν αυτόματα από GSIS.
             </p>
             <input
               type="file"

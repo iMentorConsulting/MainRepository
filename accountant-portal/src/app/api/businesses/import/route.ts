@@ -56,6 +56,9 @@ export async function POST(request: NextRequest) {
     const afm = String(row.afm || row.ΑΦΜ || row.AFM || '').trim().replace(/\D/g, '')
     if (!afm || afm.length !== 9) { skipped++; continue }
 
+    const phone = String(row.tel || row.phone || row.τηλ || row.τηλέφωνο || row.ΤΗΛ || row.ΤΗΛΕΦΩΝΟ || '').trim() || null
+    const email = String(row.email || row.mail || row.Email || row.EMAIL || '').trim() || null
+
     try {
       // Try to fetch real data from GSIS
       let businessData: any = { afm }
@@ -71,7 +74,10 @@ export async function POST(request: NextRequest) {
 
       const business = await prisma.business.upsert({
         where: { afm },
-        update: {},
+        update: {
+          ...(phone ? { phone } : {}),
+          ...(email ? { email } : {}),
+        },
         create: {
           afm,
           onomasia: businessData.onomasia || row.onomasia || null,
@@ -84,6 +90,8 @@ export async function POST(request: NextRequest) {
           postalAreaDescription: businessData.postalAreaDescription || null,
           doy: businessData.doy || null,
           doyDescr: businessData.doyDescr || null,
+          phone,
+          email,
           accountantId,
           activities: businessData.activities?.length ? {
             create: businessData.activities.map((a: any) => ({
