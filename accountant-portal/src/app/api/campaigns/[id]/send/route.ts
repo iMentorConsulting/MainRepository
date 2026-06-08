@@ -15,7 +15,7 @@ async function processCampaignSend(
   let failed = 0
 
   for (const business of businesses) {
-    const recipient = campaign.channel === 'EMAIL' ? business.email : business.viberPhone
+    const recipient = campaign.channel === 'EMAIL' ? business.email : (business.viberPhone || business.phone)
     if (!recipient) {
       failed++
       continue

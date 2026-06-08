@@ -15,6 +15,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
       onomasia: true,
       afm: true,
       email: true,
+      phone: true,
       viberPhone: true,
       excludedFromCampaigns: true,
     },
@@ -34,7 +35,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     .map(b => ({
       id: b.id,
       name: b.onomasia || b.afm,
-      contact: campaign.channel === 'EMAIL' ? b.email : b.viberPhone,
+      contact: campaign.channel === 'EMAIL' ? b.email : (b.viberPhone || b.phone),
       excludedFromCampaigns: b.excludedFromCampaigns,
     }))
     .filter(b => !!b.contact)

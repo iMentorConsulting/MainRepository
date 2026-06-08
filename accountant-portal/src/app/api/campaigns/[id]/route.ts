@@ -37,3 +37,20 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
 
   return NextResponse.json(campaign)
 }
+
+export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
+  const session = await auth()
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const campaign = await prisma.campaign.findUnique({ where: { id: params.id } })
+  if (!campaign) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  if (campaign.status !== 'DRAFT') {
+    return NextResponse.json({ error: 'Μόνο πρόχειρες καμπάνιες μπορούν να διαγραφούν' }, { status: 400 })
+  }
+
+  await prisma.campaignRecipient.deleteMany({ where: { campaignId: params.id } })
+  await prisma.campaign.delete({ where: { id: params.id } })
+
+  return NextResponse.json({ success: true })
+}

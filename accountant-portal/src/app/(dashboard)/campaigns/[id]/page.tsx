@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableHead, TableBody, TableRow, Th, Td } from '@/components/ui/table'
-import { ArrowLeft, Send, Mail, MessageCircle, Users, X } from 'lucide-react'
+import { ArrowLeft, Send, Mail, MessageCircle, Users, X, Edit } from 'lucide-react'
 import { formatDateTime } from '@/lib/utils'
 
 export default function CampaignDetailPage() {
@@ -18,6 +18,7 @@ export default function CampaignDetailPage() {
   const [previewLoading, setPreviewLoading] = useState(false)
   const [previewRecipients, setPreviewRecipients] = useState<any[]>([])
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [recipientSearch, setRecipientSearch] = useState('')
 
   useEffect(() => {
     fetch(`/api/campaigns/${id}`)
@@ -28,6 +29,7 @@ export default function CampaignDetailPage() {
 
   async function openRecipientsPreview() {
     setShowPreview(true)
+    setRecipientSearch('')
     setPreviewLoading(true)
     try {
       const res = await fetch(`/api/campaigns/${id}/recipients-preview`)
@@ -110,6 +112,12 @@ export default function CampaignDetailPage() {
             </Badge>
           </div>
         </div>
+        <Link href={`/campaigns/${id}/edit`}>
+          <Button variant="outline">
+            <Edit size={16} className="mr-2" />
+            Επεξεργασία
+          </Button>
+        </Link>
         {campaign.status === 'DRAFT' && (
           <Button onClick={openRecipientsPreview}>
             <Users size={16} className="mr-2" />
@@ -127,14 +135,23 @@ export default function CampaignDetailPage() {
                 <X size={20} />
               </button>
             </div>
-            <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between text-sm">
-              <span className="text-gray-500">
-                Επιλέχθηκαν <span className="font-semibold text-gray-900">{selectedIds.size}</span> από {previewRecipients.length} πιθανούς παραλήπτες.
-                Οι εξαιρεμένες επιχειρήσεις είναι προ-αποεπιλεγμένες.
-              </span>
-              <div className="flex gap-2">
-                <button type="button" className="text-blue-700 hover:underline" onClick={() => setSelectedIds(new Set(previewRecipients.map(r => r.id)))}>Επιλογή όλων</button>
-                <button type="button" className="text-gray-500 hover:underline" onClick={() => setSelectedIds(new Set())}>Καμία επιλογή</button>
+            <div className="px-5 py-3 border-b border-gray-100 space-y-2.5">
+              <input
+                type="text"
+                value={recipientSearch}
+                onChange={e => setRecipientSearch(e.target.value)}
+                placeholder="Αναζήτηση παραλήπτη (επωνυμία, email, τηλέφωνο)…"
+                className="w-full text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-600/30 focus:border-blue-400"
+              />
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-gray-500">
+                  Επιλέχθηκαν <span className="font-semibold text-gray-900">{selectedIds.size}</span> από {previewRecipients.length} πιθανούς παραλήπτες.
+                  Οι εξαιρεμένες επιχειρήσεις είναι προ-αποεπιλεγμένες.
+                </span>
+                <div className="flex gap-2">
+                  <button type="button" className="text-blue-700 hover:underline" onClick={() => setSelectedIds(new Set(previewRecipients.map(r => r.id)))}>Επιλογή όλων</button>
+                  <button type="button" className="text-gray-500 hover:underline" onClick={() => setSelectedIds(new Set())}>Καμία επιλογή</button>
+                </div>
               </div>
             </div>
             <div className="overflow-y-auto flex-1">
@@ -144,9 +161,17 @@ export default function CampaignDetailPage() {
                 </div>
               ) : previewRecipients.length === 0 ? (
                 <div className="text-center text-gray-400 py-10 text-sm">Δεν βρέθηκαν επιλέξιμοι παραλήπτες</div>
-              ) : (
+              ) : (() => {
+                const q = recipientSearch.trim().toLowerCase()
+                const filtered = q
+                  ? previewRecipients.filter(r => r.name?.toLowerCase().includes(q) || r.contact?.toLowerCase().includes(q))
+                  : previewRecipients
+                if (filtered.length === 0) {
+                  return <div className="text-center text-gray-400 py-10 text-sm">Δεν βρέθηκαν αποτελέσματα για «{recipientSearch}»</div>
+                }
+                return (
                 <ul className="divide-y divide-gray-100">
-                  {previewRecipients.map(r => (
+                  {filtered.map(r => (
                     <li key={r.id} className="flex items-center gap-3 px-5 py-2.5">
                       <input
                         type="checkbox"
@@ -164,7 +189,8 @@ export default function CampaignDetailPage() {
                     </li>
                   ))}
                 </ul>
-              )}
+                )
+              })()}
             </div>
             <div className="px-5 py-4 border-t border-gray-100 flex justify-end gap-3">
               <Button variant="outline" onClick={() => setShowPreview(false)}>Άκυρο</Button>
