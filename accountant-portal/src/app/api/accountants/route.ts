@@ -5,6 +5,9 @@ import { prisma } from '@/lib/prisma'
 export async function GET(request: NextRequest) {
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (session.user.role !== 'ADMIN') {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
 
   const accountants = await prisma.accountant.findMany({
     include: { _count: { select: { businesses: true, users: true } } },

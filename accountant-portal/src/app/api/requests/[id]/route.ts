@@ -16,6 +16,11 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
   })
 
   if (!req) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  if (session.user.role === 'ACCOUNTANT' && req.accountantId !== session.user.accountantId) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
   return NextResponse.json(req)
 }
 

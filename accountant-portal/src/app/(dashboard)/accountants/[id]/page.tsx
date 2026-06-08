@@ -40,8 +40,12 @@ export default function AccountantDetailPage() {
 
   useEffect(() => {
     fetch(`/api/accountants/${id}`)
-      .then(r => r.json())
+      .then(async r => {
+        if (!r.ok) { setAccountant(null); return null }
+        return r.json()
+      })
       .then(data => {
+        if (!data) return
         setAccountant(data)
         setLogoUrl(data.logoUrl || null)
         reset({

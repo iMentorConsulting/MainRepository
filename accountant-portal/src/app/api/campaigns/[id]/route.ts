@@ -19,6 +19,11 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
   })
 
   if (!campaign) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  if (session.user.role === 'ACCOUNTANT' && campaign.accountantId !== session.user.accountantId) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
   return NextResponse.json(campaign)
 }
 
@@ -26,9 +31,17 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
+  const existing = await prisma.campaign.findUnique({ where: { id: params.id }, select: { accountantId: true } })
+  if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  if (session.user.role === 'ACCOUNTANT' && existing.accountantId !== session.user.accountantId) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
   const data = await request.json()
   delete data.id; delete data.recipients; delete data.program; delete data.accountant
   delete data.createdAt; delete data.updatedAt; delete data._count
+  if (session.user.role === 'ACCOUNTANT') delete data.accountantId
 
   const campaign = await prisma.campaign.update({
     where: { id: params.id },
@@ -44,6 +57,10 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
 
   const campaign = await prisma.campaign.findUnique({ where: { id: params.id } })
   if (!campaign) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  if (session.user.role === 'ACCOUNTANT' && campaign.accountantId !== session.user.accountantId) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
 
   if (campaign.status !== 'DRAFT') {
     return NextResponse.json({ error: 'Μόνο πρόχειρες καμπάνιες μπορούν να διαγραφούν' }, { status: 400 })
