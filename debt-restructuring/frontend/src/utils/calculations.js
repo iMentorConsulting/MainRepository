@@ -443,11 +443,11 @@ export function calculateAll(debts, assets, incomeData, params = PARAMS_B) {
   // --- plan base: compute max months per debt ---
   const planBase = analysisRows.map((r) => {
     const theoretical = getMaxMonths(r.type, isLE, r.isSecured, params)
-    let maxM = effectiveMaxMonths(theoretical, isLE, youngestAge, params)
-    // FP Επιτηδευματίας with flagMaxDoses: all creditors capped at 240 (ΦΕΚ Β' 2896/2021 §7.1/4)
-    if (flagMaxDoses && !isLE) maxM = Math.min(maxM, params.maxMonths.publicMax)
-    // force-start at maxM: all debts for FP Επιτηδευματίας, or public debts for LE (ΚΥΑ 7712925/2025)
-    const isForcedMax = flagMaxDoses && (!isLE || isPublicDebt(r.type))
+    const maxM = effectiveMaxMonths(theoretical, isLE, youngestAge, params)
+    // εύλογο ποσοστό κέρδους rule (FP Επιτηδευματίας) / small-LE turnover floor: only ΑΑΔΕ/ΕΦΚΑ
+    // (public debts) are forced to the maximum 240 installments — banks/other creditors are unaffected
+    // and keep their own normal max-months & greedy-extension behaviour (ΚΥΑ 77697/2021 §7.1.4)
+    const isForcedMax = flagMaxDoses && isPublicDebt(r.type)
     const initMonths = isForcedMax ? maxM : Math.min(12, maxM)
     return {
       idx: r.idx, type: r.type, isSecured: r.isSecured,
