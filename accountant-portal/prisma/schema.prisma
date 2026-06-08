@@ -111,6 +111,10 @@ model Program {
   title            String
   category         ProgramCategory
   description      String?
+  minInvestment    Int?
+  maxInvestment    Int?
+  otherRequirements String?
+  websiteUrl       String?
   regionRules      String[]
   zipCodeRules     String[]
   kadRules         String[]

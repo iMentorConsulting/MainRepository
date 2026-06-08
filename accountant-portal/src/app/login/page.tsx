@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { signIn } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 
@@ -9,7 +9,15 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [showPass, setShowPass] = useState(false)
+  const [logoUrl, setLogoUrl] = useState<string | null>(null)
   const router = useRouter()
+
+  useEffect(() => {
+    fetch('/api/settings/logo')
+      .then(r => r.json())
+      .then(data => setLogoUrl(data.imentorLogoUrl || null))
+      .catch(() => {})
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -30,22 +38,33 @@ export default function LoginPage() {
       </div>
 
       <div className="relative w-full max-w-md">
-        {/* Logo */}
+        {/* Logo on blue background */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl mb-4 shadow-brand"
-            style={{background: 'linear-gradient(135deg, #4f46e5, #7c3aed)'}}>
-            <svg className="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
-            </svg>
+          <div className="flex items-center justify-center w-full max-w-xs mx-auto rounded-3xl py-8 px-6 mb-5 shadow-brand"
+            style={{background: 'linear-gradient(135deg, #4f46e5, #4338ca)'}}>
+            {logoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={logoUrl} alt="I-MENTOR" className="max-h-20 w-auto object-contain" />
+            ) : (
+              <div className="flex items-center gap-3">
+                <div className="w-14 h-14 rounded-2xl flex items-center justify-center bg-white/15">
+                  <svg className="w-8 h-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
+                </div>
+                <span className="text-3xl font-bold text-white tracking-tight">I-MENTOR</span>
+              </div>
+            )}
           </div>
-          <h1 className="text-2xl font-bold text-slate-900">I-MENTOR</h1>
+          <a href="https://www.i-mentor.gr" target="_blank" rel="noopener noreferrer"
+            className="text-indigo-600 hover:underline text-sm font-medium">www.i-mentor.gr</a>
           <p className="text-slate-500 text-sm mt-1">Business Opportunity Platform</p>
         </div>
 
         {/* Card */}
         <div className="bg-white rounded-2xl shadow-lg border border-slate-100 p-8">
-          <h2 className="text-lg font-semibold text-slate-900 mb-1">Καλώς ήρθατε</h2>
-          <p className="text-slate-500 text-sm mb-6">Συνδεθείτε στην πλατφόρμα</p>
+          <h2 className="text-xl font-bold text-slate-900 mb-1.5">Καλώς ήρθατε, Λογιστικά Γραφεία 👋</h2>
+          <p className="text-slate-500 text-sm mb-6">Συνδεθείτε στο portal συνεργατών της I-MENTOR για να διαχειριστείτε τους πελάτες και τις ευκαιρίες επιδότησής τους.</p>
 
           {error && (
             <div className="mb-4 p-3 rounded-xl bg-red-50 border border-red-100 text-red-600 text-sm flex items-center gap-2">
@@ -92,10 +111,13 @@ export default function LoginPage() {
             </button>
           </form>
 
-          <p className="text-center text-slate-400 text-xs mt-5">
-            Είστε λογιστικό γραφείο και θέλετε να συνεργαστείτε με την I-MENTOR;{' '}
-            <a href="/register" className="text-indigo-600 hover:underline font-medium">Δημιουργήστε λογαριασμό εδώ</a>
-          </p>
+          <div className="mt-6 pt-5 border-t border-slate-100 text-center">
+            <p className="text-slate-500 text-sm mb-2">Είστε λογιστικό γραφείο και θέλετε να συνεργαστείτε με την I-MENTOR;</p>
+            <a href="/register"
+              className="inline-block w-full py-2.5 rounded-xl text-indigo-600 font-semibold text-base border-2 border-indigo-200 hover:bg-indigo-50 hover:border-indigo-300 transition-all duration-200">
+              Δημιουργία Νέου Λογαριασμού →
+            </a>
+          </div>
         </div>
 
         <p className="text-center text-slate-400 text-xs mt-6">
