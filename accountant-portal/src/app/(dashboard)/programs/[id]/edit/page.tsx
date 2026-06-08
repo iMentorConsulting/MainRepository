@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Select } from '@/components/ui/select'
+import { RegionMultiSelect } from '@/components/programs/region-multi-select'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ArrowLeft, Plus, X, FileUp } from 'lucide-react'
 import Link from 'next/link'
@@ -263,11 +264,10 @@ export default function EditProgramPage() {
               bulkImport
               pdfImport
             />
-            <TagInput
-              label="Κανόνες Περιοχής"
+            <RegionMultiSelect
+              label="Κανόνες Περιοχής (Περιφέρειες)"
               values={regionRules}
               onChange={setRegionRules}
-              placeholder="π.χ. Αθήνα, Αττική"
             />
             <TagInput
               label="Κανόνες ΤΚ"

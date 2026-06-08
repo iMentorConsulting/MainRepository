@@ -1,5 +1,6 @@
 import { prisma } from './prisma'
 import { MatchStatus } from '@prisma/client'
+import { resolveRegionFromZip } from './greek-regions'
 
 interface BusinessWithActivities {
   id: string
@@ -63,14 +64,15 @@ function matchesBusiness(
     }
   }
 
-  // Region matching
+  // Region matching — resolve the business's Greek region ("Περιφέρεια")
+  // from its postal code and compare against the program's selected regions.
   if (program.regionRules.length > 0) {
-    const area = business.postalAreaDescription?.toLowerCase() || ''
-    const matchedRegion = program.regionRules.find(r =>
-      area.includes(r.toLowerCase()) || r.toLowerCase().includes(area)
-    )
+    const businessRegion = resolveRegionFromZip(business.postalZipCode)
+    const matchedRegion = businessRegion && program.regionRules.includes(businessRegion)
+      ? businessRegion
+      : null
     if (matchedRegion) {
-      reasons.push(`Επιλέξιμη περιοχή: ${matchedRegion}`)
+      reasons.push(`Επιλέξιμη περιφέρεια: ${matchedRegion}`)
     } else {
       allMatched = false
     }
