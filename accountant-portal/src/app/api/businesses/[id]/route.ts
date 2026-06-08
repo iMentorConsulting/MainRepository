@@ -54,6 +54,21 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     data: updateData,
   })
 
+  if (Array.isArray(activities)) {
+    await prisma.businessActivity.deleteMany({ where: { businessId: params.id } })
+    if (activities.length > 0) {
+      await prisma.businessActivity.createMany({
+        data: activities.map((a: any) => ({
+          businessId: params.id,
+          firmActCode: a.firmActCode,
+          firmActDescr: a.firmActDescr || null,
+          firmActKind: a.firmActKind ?? null,
+          firmActKindDescr: a.firmActKindDescr || null,
+        })),
+      })
+    }
+  }
+
   await createAuditLog({
     userId: session.user.id,
     action: 'UPDATE',

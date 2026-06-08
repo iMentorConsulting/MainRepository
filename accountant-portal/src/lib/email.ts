@@ -13,10 +13,14 @@ const transporter = nodemailer.createTransport({
     user: smtpUser,
     pass: smtpPass,
   },
+  // Railway's containers often have broken/slow IPv6 routing to Gmail's SMTP
+  // servers, which manifests as ETIMEDOUT on connection — force IPv4.
+  // `family` isn't in nodemailer's TS typings but is forwarded to net.connect.
+  family: 4,
   connectionTimeout: 15000,
   greetingTimeout: 15000,
   socketTimeout: 20000,
-})
+} as any)
 
 interface EmailData {
   to: string

@@ -72,6 +72,12 @@ export default function BusinessDetailPage() {
             )}
           </div>
         </div>
+        <Link href={`/businesses/${id}/edit`}>
+          <Button variant="outline">
+            <Edit size={16} className="mr-2" />
+            Επεξεργασία
+          </Button>
+        </Link>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
