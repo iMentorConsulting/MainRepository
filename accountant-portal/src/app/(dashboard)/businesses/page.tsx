@@ -191,13 +191,39 @@ export default function BusinessesPage() {
             Export Excel
           </Button>
           <Link href="/businesses/new">
-            <Button size="sm">
-              <Plus size={16} className="mr-1" />
-              Νέα Επιχείρηση
+            <Button size={isAdmin ? 'sm' : 'md'} className={!isAdmin ? 'bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-6 py-2.5 text-base shadow-lg' : ''}>
+              <Plus size={isAdmin ? 16 : 20} className="mr-2" />
+              {isAdmin ? 'Νέα Επιχείρηση' : '+ Προσθήκη Επιχείρησης'}
             </Button>
           </Link>
         </div>
       </div>
+
+      {!isAdmin && total === 0 && !loading && (
+        <div className="bg-gradient-to-br from-indigo-600 to-purple-700 rounded-2xl p-8 text-white text-center shadow-xl">
+          <div className="text-5xl mb-4">🏢</div>
+          <h2 className="text-2xl font-bold mb-2">Δεν έχετε προσθέσει επιχειρήσεις ακόμη!</h2>
+          <p className="text-indigo-100 text-base mb-6 max-w-lg mx-auto">
+            Κάθε πελάτης που λείπει = χαμένη ευκαιρία χρηματοδότησης και χαμένη προμήθεια για εσάς.
+            Προσθέστε τους πελάτες σας τώρα — είναι εύκολο!
+          </p>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <Link href="/businesses/new">
+              <button className="bg-white text-indigo-700 font-bold px-8 py-3 rounded-xl text-base hover:bg-indigo-50 transition-colors w-full sm:w-auto">
+                🔍 Αναζήτηση μέσω ΑΦΜ (1 πελάτης)
+              </button>
+            </Link>
+            <Link href="/businesses/new">
+              <button className="bg-indigo-500 border-2 border-white/40 text-white font-bold px-8 py-3 rounded-xl text-base hover:bg-indigo-400 transition-colors w-full sm:w-auto">
+                📊 Μαζική Εισαγωγή από Excel
+              </button>
+            </Link>
+          </div>
+          <p className="text-indigo-200 text-sm mt-4">
+            Εξαγάγετε τη λίστα πελατών από το λογιστικό σας πρόγραμμα → Excel → Εισαγωγή εδώ
+          </p>
+        </div>
+      )}
 
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
         <div className="p-4 border-b border-gray-100 space-y-3">

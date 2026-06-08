@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { LogoUploader } from '@/components/shared/logo-uploader'
-import { CheckCircle, XCircle, Mail, Settings, Image as ImageIcon } from 'lucide-react'
+import { CheckCircle, XCircle, Mail, Settings, Image as ImageIcon, Shield } from 'lucide-react'
 
 export default function SettingsPage() {
   const { data: session } = useSession()
@@ -15,9 +15,24 @@ export default function SettingsPage() {
   const [logoSaving, setLogoSaving] = useState(false)
   const [logoSaved, setLogoSaved] = useState(false)
 
+  const [aadeUser, setAadeUser] = useState('')
+  const [aadePass, setAadePass] = useState('')
+  const [aadeCallerAfm, setAadeCallerAfm] = useState('')
+  const [aadePassSet, setAadePassSet] = useState(false)
+  const [aadeSaving, setAadeSaving] = useState(false)
+  const [aadeSaved, setAadeSaved] = useState(false)
+  const [aadeError, setAadeError] = useState('')
+
   useEffect(() => {
     fetch('/api/settings/logo').then(r => r.json()).then(d => setImentorLogoUrl(d.imentorLogoUrl || null))
-  }, [])
+    if (session?.user?.role === 'ADMIN') {
+      fetch('/api/settings/aade').then(r => r.json()).then(d => {
+        setAadeUser(d.aadeUser || '')
+        setAadeCallerAfm(d.aadeCallerAfm || '')
+        setAadePassSet(d.aadePassSet || false)
+      })
+    }
+  }, [session])
 
   async function saveImentorLogo(dataUrl: string | null) {
     setImentorLogoUrl(dataUrl)
@@ -32,6 +47,27 @@ export default function SettingsPage() {
       setLogoSaved(true)
     } finally {
       setLogoSaving(false)
+    }
+  }
+
+  async function saveAade(e: React.FormEvent) {
+    e.preventDefault()
+    setAadeSaving(true)
+    setAadeSaved(false)
+    setAadeError('')
+    const res = await fetch('/api/settings/aade', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ aadeUser, aadePass, aadeCallerAfm }),
+    })
+    setAadeSaving(false)
+    if (res.ok) {
+      const d = await res.json()
+      setAadePassSet(d.aadePassSet)
+      setAadePass('')
+      setAadeSaved(true)
+    } else {
+      setAadeError('Σφάλμα αποθήκευσης')
     }
   }
 
@@ -54,6 +90,56 @@ export default function SettingsPage() {
         <h1 className="text-2xl font-bold text-gray-900">Ρυθμίσεις Συστήματος</h1>
         <p className="text-gray-500 mt-1">Διαχείριση παραμέτρων I-MENTOR Portal</p>
       </div>
+
+      {session?.user?.role === 'ADMIN' && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Shield size={18} className="text-blue-600" />
+              Διαπιστευτήρια ΑΑΔΕ / TAXISnet (GSIS)
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-gray-500 mb-4">
+              Τα διαπιστευτήρια αυτά χρησιμοποιούνται για αναζήτηση επιχειρήσεων μέσω της Υπηρεσίας Αναζήτησης Βασικών Στοιχείων Μητρώου Επιχειρήσεων της ΑΑΔΕ.
+              Δημιουργήστε <strong>Ειδικό Κωδικό</strong> στο TAXISnet για την εφαρμογή «Αναζήτηση Βασικών Στοιχείων Μητρώου Επιχειρήσεων».
+            </p>
+            <form onSubmit={saveAade} className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <Input
+                  label="TAXISnet Username (Όνομα Χρήστη)"
+                  value={aadeUser}
+                  onChange={e => setAadeUser(e.target.value)}
+                  placeholder="π.χ. WW1089396U158"
+                  helperText="Το 'Όνομα Χρήστη στο TAXISnet' του Ειδικού Κωδικού"
+                />
+                <Input
+                  label="ΑΦΜ Εκκαλούντος"
+                  value={aadeCallerAfm}
+                  onChange={e => setAadeCallerAfm(e.target.value)}
+                  placeholder="π.χ. 110739500"
+                  helperText="Το ΑΦΜ με το οποίο εκδόθηκε ο κωδικός"
+                />
+              </div>
+              <Input
+                label={aadePassSet ? 'Νέος Κωδικός Πρόσβασης TAXISnet (αφήστε κενό για να διατηρήσετε τον υπάρχοντα)' : 'Κωδικός Πρόσβασης TAXISnet'}
+                type="password"
+                value={aadePass}
+                onChange={e => setAadePass(e.target.value)}
+                placeholder={aadePassSet ? '••••••••' : 'Εισάγετε κωδικό TAXISnet'}
+                helperText={aadePassSet ? '✓ Κωδικός έχει ήδη αποθηκευτεί' : 'Ο κωδικός αποθηκεύεται κρυπτογραφημένα'}
+              />
+              {aadeError && <p className="text-sm text-red-600">{aadeError}</p>}
+              <div className="flex items-center gap-3">
+                <Button type="submit" loading={aadeSaving}>
+                  Αποθήκευση Διαπιστευτηρίων
+                </Button>
+                {aadeSaved && <span className="text-sm text-green-600 flex items-center gap-1"><CheckCircle size={14} /> Αποθηκεύτηκε!</span>}
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>
