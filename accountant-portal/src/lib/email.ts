@@ -203,11 +203,14 @@ export function renderCampaignEmailHtml(options: CampaignEmailOptions): string {
 
 export function renderTemplate(
   template: string,
-  variables: Record<string, string>
+  variables: Record<string, string>,
+  options?: { boldKeys?: string[] }
 ): string {
   let result = template
+  const boldKeys = new Set(options?.boldKeys || [])
   for (const [key, value] of Object.entries(variables)) {
-    result = result.replace(new RegExp(`\\{\\{${key}\\}\\}`, 'g'), value)
+    const replacement = value && boldKeys.has(key) ? `<strong>${value}</strong>` : value
+    result = result.replace(new RegExp(`\\{\\{${key}\\}\\}`, 'g'), replacement)
   }
   return result
 }
