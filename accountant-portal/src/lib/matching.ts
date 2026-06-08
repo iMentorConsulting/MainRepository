@@ -31,7 +31,6 @@ function matchesBusiness(
   program: ProgramCriteria
 ): { score: number; reasons: string[] } {
   const reasons: string[] = []
-  let score = 0
   const totalCriteria = [
     program.kadRules.length > 0,
     program.regionRules.length > 0,
@@ -44,7 +43,7 @@ function matchesBusiness(
     return { score: 50, reasons: ['Γενικό πρόγραμμα χωρίς ειδικά κριτήρια'] }
   }
 
-  let matchedCriteria = 0
+  let allMatched = true
 
   // KAD matching
   if (program.kadRules.length > 0) {
@@ -58,8 +57,9 @@ function matchesBusiness(
       })
     })
     if (matchedKad) {
-      matchedCriteria++
       reasons.push(`Επιλέξιμος ΚΑΔ: ${matchedKad.firmActCode} - ${matchedKad.firmActDescr || ''}`)
+    } else {
+      allMatched = false
     }
   }
 
@@ -70,8 +70,9 @@ function matchesBusiness(
       area.includes(r.toLowerCase()) || r.toLowerCase().includes(area)
     )
     if (matchedRegion) {
-      matchedCriteria++
       reasons.push(`Επιλέξιμη περιοχή: ${matchedRegion}`)
+    } else {
+      allMatched = false
     }
   }
 
@@ -80,15 +81,16 @@ function matchesBusiness(
     const zip = business.postalZipCode || ''
     const matchedZip = program.zipCodeRules.find(r => zip.startsWith(r) || zip === r)
     if (matchedZip) {
-      matchedCriteria++
       reasons.push(`Επιλέξιμος ΤΚ: ${matchedZip}`)
+    } else {
+      allMatched = false
     }
   }
 
   // Date matching
   if (program.minRegdate || program.maxRegdate) {
     const regdate = business.regdate ? new Date(business.regdate) : null
-    let dateOk = true
+    let dateOk = !!regdate
     if (program.minRegdate && regdate) {
       if (regdate < new Date(program.minRegdate)) dateOk = false
     }
@@ -96,8 +98,9 @@ function matchesBusiness(
       if (regdate > new Date(program.maxRegdate)) dateOk = false
     }
     if (dateOk && regdate) {
-      matchedCriteria++
       reasons.push(`Επιλέξιμη ημερομηνία ίδρυσης: ${business.regdate}`)
+    } else {
+      allMatched = false
     }
   }
 
@@ -108,13 +111,13 @@ function matchesBusiness(
       legalStatus.toLowerCase().includes(r.toLowerCase())
     )
     if (matchedStatus) {
-      matchedCriteria++
       reasons.push(`Επιλέξιμη νομική μορφή: ${matchedStatus}`)
+    } else {
+      allMatched = false
     }
   }
 
-  score = totalCriteria > 0 ? Math.round((matchedCriteria / totalCriteria) * 100) : 0
-  return { score, reasons }
+  return { score: allMatched ? 100 : 0, reasons: allMatched ? reasons : [] }
 }
 
 async function upsertMatch(programId: string, businessId: string, score: number, reasons: string[]) {
