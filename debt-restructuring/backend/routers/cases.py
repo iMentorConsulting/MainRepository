@@ -312,6 +312,8 @@ def update_contact(id: int, data: ContactUpdate, db: Session = Depends(get_db)):
 
 class WinbackApprove(BaseModel):
     approve: bool  # True = approve, False = dismiss
+    winback_app: Optional[float] = None   # agent-edited override; if absent, auto-computed (-30%)
+    winback_suc: Optional[float] = None
 
 
 @router.post("/{id}/approve-winback", response_model=CaseResponse)
@@ -323,8 +325,14 @@ def approve_winback(id: int, data: WinbackApprove, db: Session = Depends(get_db)
     if data.approve:
         orig_app = float(offer.get("application_fee") or offer.get("system_app") or 0)
         orig_suc = float(offer.get("success_fee") or offer.get("system_suc") or 0)
-        wb_app = round(orig_app * 0.7 / 10) * 10
-        wb_suc = round(orig_suc * 0.7 / 10) * 10
+        if data.winback_app is not None:
+            wb_app = round(data.winback_app / 10) * 10
+        else:
+            wb_app = round(orig_app * 0.7 / 10) * 10
+        if data.winback_suc is not None:
+            wb_suc = round(data.winback_suc / 10) * 10
+        else:
+            wb_suc = round(orig_suc * 0.7 / 10) * 10
         offer["winback_app"] = max(wb_app, 10)
         offer["winback_suc"] = max(wb_suc, 10)
         offer["winback_status"] = "approved"

@@ -469,15 +469,25 @@ export default function CaseForm({ currentEmployee }) {
       {/* flag_MAX_DOSES warning banner — ΦΕΚ Β' 2896/2021 §7.1/4 + ΚΥΑ 7712925/2025 */}
       {calc?.flagMaxDoses && (() => {
         const isFpSE = income.debtorType !== 'Νομικό Πρόσωπο' && income.fpSubType === 'Επιτηδευματίας'
-        const lawRef = isFpSE ? 'ΦΕΚ Β\' 2896/2021 §7.1/4' : 'ΚΥΑ 7712925/2025'
-        const pct = isFpSE ? `${income.fp_eulogo_pct ?? 10}%` : '10%'
+        if (isFpSE && calc.fpEulogoNote) {
+          return (
+            <div className="mb-5 rounded-xl border border-amber-300 bg-amber-50 p-4 flex gap-3">
+              <span className="text-xl shrink-0">⚡</span>
+              <div>
+                <p className="font-bold text-amber-800 mb-0.5">ΕΝΕΡΓΟΠΟΙΗΣΗ ΚΑΝΟΝΑ ΕΎΛΟΓΟΥ ΠΟΣΟΣΤΟΎ ΚΕΡΔΟΥΣ — ΚΥΑ 77697/2021 §7.1.4</p>
+                <p className="text-sm text-amber-700">{calc.fpEulogoNote}</p>
+              </div>
+            </div>
+          )
+        }
+        const lawRef = 'ΚΥΑ 7712925/2025'
         return (
           <div className="mb-5 rounded-xl border border-amber-300 bg-amber-50 p-4 flex gap-3">
             <span className="text-xl shrink-0">⚡</span>
             <div>
               <p className="font-bold text-amber-800 mb-0.5">ΕΝΕΡΓΟΠΟΙΗΣΗ ΚΑΝΟΝΑ ΕΎΛΟΓΟΥ ΠΟΣΟΣΤΟΎ — {lawRef}</p>
               <p className="text-sm text-amber-700 mb-1">
-                Το υπολογισθέν διαθέσιμο ({fmt(calc.leMoDispMonthly)}/μήνα) &lt; {pct} × ΚΕ ({fmt(calc.leFloorMonthly)}/μήνα).
+                Το υπολογισθέν διαθέσιμο ({fmt(calc.leMoDispMonthly)}/μήνα) &lt; 10% × ΚΕ ({fmt(calc.leFloorMonthly)}/μήνα).
               </p>
               <ul className="text-sm text-amber-700 space-y-0.5">
                 <li>→ Διαθέσιμο αναπροσαρμόζεται σε: <b>{fmt(calc.dispMonthly)}/μήνα</b></li>

@@ -255,6 +255,7 @@ export function calculateAll(debts, assets, incomeData, params = PARAMS_B) {
   let flagMaxDoses = false, isFPEpit = false, leMoDispMonthly = 0, leFloorMonthly = 0
   let fpRatio = 1, fpFamilyIncome = 0, fpSpouseIncome = 0
   let fpDispFromAvg = 0, fpAvg2Income = 0
+  let fpEulogoMarginPct = null, fpEulogoPresumedIncome = 0, fpEulogoNote = null
   if (isLE) {
     const ke_t1 = incomeData.ke_t1 || 0
     const ke_t2 = incomeData.ke_t2 || 0
@@ -394,15 +395,23 @@ export function calculateAll(debts, assets, incomeData, params = PARAMS_B) {
       const sortedKpa = [kpa1, kpa2, kpa3].sort((a, b) => b - a)
       const avg2kpa = (sortedKpa[0] + sortedKpa[1]) / 2
 
-      // Turnover floor check on year1 (ΦΕΚ Β' 2896/2021 §7.1/4) — floor hardcoded to 0% per business policy
-      const floorPct = 0
-      const floor = fp_ke_t1 * floorPct
+      // "Εύλογο ποσοστό κέρδους επί κύκλου εργασιών" (ΚΥΑ 77697/2021 §7.1 περ.4 / ΚΥΑ 67360/2021 άρθρο 8Α περ.4,
+      // όπως ισχύει μετά το ΦΕΚ Β' 1253/13.03.2025): όταν περιθώριο κέρδους = Εισόδημα_Τ / ΚΕ_Τ < 10%,
+      // το ετήσιο εισόδημα τεκμαίρεται στο 10% × ΚΕ_Τ (μόνο προς τα πάνω) και ΑΑΔΕ/ΕΦΚΑ ορίζονται στο
+      // ανώτατο όριο των 240 δόσεων (ΦΕΚ Β' 2499/2021 άρθρο 7 / όρος 7.13, με το cap ηλικίας να υπερισχύει αν είναι μικρότερο)
+      const eulogoPct = incomeData.fp_eulogo_pct != null ? incomeData.fp_eulogo_pct / 100 : params.fpSelfEmployedFloorPct
+      const eulogoFloorIncome = fp_ke_t1 * eulogoPct
       let disp1 = dispFromY1
-      if (fp_ke_t1 > 0 && dispFromY1 < floor) {
+      if (fp_ke_t1 > 0 && y1 < eulogoFloorIncome) {
+        fpEulogoMarginPct = (y1 / fp_ke_t1) * 100
+        fpEulogoPresumedIncome = eulogoFloorIncome
+        const presumedKpa1 = Math.max(0, eulogoFloorIncome - totalExpenses) * 0.8
+        const dispFromPresumed = presumedKpa1 + savingsAdd
         leMoDispMonthly = dispFromY1 / 12
-        leFloorMonthly = floor / 12
-        disp1 = floor + savingsAdd
+        leFloorMonthly = dispFromPresumed / 12
+        disp1 = Math.max(dispFromY1, dispFromPresumed)
         flagMaxDoses = true
+        fpEulogoNote = `⚠️ Εφαρμόστηκε ο κανόνας εύλογου ποσοστού κέρδους (ΚΥΑ 77697/2021 §7.1.4, όπως ισχύει): περιθώριο κέρδους ${fpEulogoMarginPct.toFixed(1).replace('.', ',')}% < 10% → το διαθέσιμο εισόδημα αναπροσαρμόστηκε σε ${fmt(fpEulogoPresumedIncome)} (10% × ΚΕ Τ) και επιβλήθηκε ο μέγιστος αριθμός δόσεων (240 μήνες) σε ΑΑΔΕ και ΕΦΚΑ.`
       }
 
       dispYear1 = disp1
@@ -611,6 +620,7 @@ export function calculateAll(debts, assets, incomeData, params = PARAMS_B) {
     scenario, lowIncome, isFullCoveredByAssets, isPartialCoveredByAssets,
     flagMaxDoses, isFPEpit, leMoDispMonthly, leFloorMonthly,
     fpDispFromAvg, fpAvg2Income,
+    fpEulogoMarginPct, fpEulogoPresumedIncome, fpEulogoNote,
   }
 }
 

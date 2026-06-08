@@ -1401,10 +1401,11 @@ function WinbackPanel({ cases, onCasesUpdate }) {
 
   const [openComposer, setOpenComposer] = useState(null)
   const [showSent, setShowSent] = useState(false)
+  const [edits, setEdits] = useState({})  // { [caseId]: { app, suc } }
 
-  const handleApprove = async (c, approve) => {
+  const handleApprove = async (c, approve, overrides = {}) => {
     try {
-      const res = await approveWinback(c.id, approve)
+      const res = await approveWinback(c.id, approve, overrides)
       onCasesUpdate(prev => prev.map(x => x.id === c.id ? { ...x, commercial_offer: res.data.commercial_offer } : x))
       if (approve) setOpenComposer(c.id)
     } catch (e) {
@@ -1448,8 +1449,12 @@ function WinbackPanel({ cases, onCasesUpdate }) {
             {candidates.map(c => {
               const origApp = c.commercial_offer?.application_fee || c.commercial_offer?.system_app || 0
               const origSuc = c.commercial_offer?.success_fee || c.commercial_offer?.system_suc || 0
-              const wbApp = Math.round(origApp * 0.7 / 10) * 10
-              const wbSuc = Math.round(origSuc * 0.7 / 10) * 10
+              const defaultApp = Math.round(origApp * 0.7 / 10) * 10
+              const defaultSuc = Math.round(origSuc * 0.7 / 10) * 10
+              const edit = edits[c.id] || {}
+              const wbApp = edit.app !== undefined ? edit.app : defaultApp
+              const wbSuc = edit.suc !== undefined ? edit.suc : defaultSuc
+              const setEdit = (field, value) => setEdits(prev => ({ ...prev, [c.id]: { ...prev[c.id], [field]: value } }))
               const ref = c.stage_changed_at || c.updated_at
               const days = ref ? Math.floor((now - new Date(ref)) / (1000 * 60 * 60 * 24)) : '?'
               return (
@@ -1461,18 +1466,28 @@ function WinbackPanel({ cases, onCasesUpdate }) {
                   <div className="flex gap-3 text-sm">
                     <div className="text-center">
                       <div className="text-xs text-gray-400 line-through">{Number(origApp).toLocaleString('el-GR')}€</div>
-                      <div className="font-black text-violet-700">{wbApp.toLocaleString('el-GR')}€</div>
+                      <input
+                        type="number"
+                        className="w-20 text-center font-black text-violet-700 border border-violet-200 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-violet-400"
+                        value={wbApp}
+                        onChange={e => setEdit('app', e.target.value === '' ? '' : Number(e.target.value))}
+                      />
                       <div className="text-xs text-gray-400">Αίτηση</div>
                     </div>
                     <div className="text-center">
                       <div className="text-xs text-gray-400 line-through">{Number(origSuc).toLocaleString('el-GR')}€</div>
-                      <div className="font-black text-violet-700">{wbSuc.toLocaleString('el-GR')}€</div>
+                      <input
+                        type="number"
+                        className="w-20 text-center font-black text-violet-700 border border-violet-200 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-violet-400"
+                        value={wbSuc}
+                        onChange={e => setEdit('suc', e.target.value === '' ? '' : Number(e.target.value))}
+                      />
                       <div className="text-xs text-gray-400">Success</div>
                     </div>
                   </div>
                   <div className="flex gap-2">
                     <button
-                      onClick={() => handleApprove(c, true)}
+                      onClick={() => handleApprove(c, true, { winback_app: Number(wbApp) || 0, winback_suc: Number(wbSuc) || 0 })}
                       className="bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold px-4 py-1.5 rounded-lg transition-colors"
                     >
                       ✓ Έγκριση &amp; Σύνταξη
