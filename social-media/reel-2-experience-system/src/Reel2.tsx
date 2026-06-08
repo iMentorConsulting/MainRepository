@@ -13,6 +13,8 @@ import {TitleCard, PunchLine} from './components/TitleCard';
 import {SyncedCaptions} from './components/SyncedCaptions';
 import {SplitScreen} from './components/SplitScreen';
 import {LogoOutro} from './components/LogoOutro';
+import {Subtitle} from './components/Subtitle';
+import {SUBTITLES} from './subtitles';
 import {DURATIONS, TRANSITION} from './timeline';
 import {
 	SCREEN_RECORDING_1,
@@ -67,9 +69,11 @@ export const Reel2: React.FC<Reel2Props> = ({video1DurationInFrames, video2Durat
 
 	return (
 		<AbsoluteFill style={{backgroundColor: 'black'}}>
-			{/* Background music bed -- runs under the whole reel, ducked under VO sections */}
+			{/* Background music bed -- runs under the whole reel, kept low so the
+			    continuous voiceover (now playing from every clip, not just the
+			    screen-recording inserts) stays clearly audible on top. */}
 			<Sequence from={0} durationInFrames={totalDuration}>
-				<Audio src={staticFile('audio/background-pad.mp3')} volume={0.5} />
+				<Audio src={staticFile('audio/background-pad.mp3')} volume={0.18} />
 			</Sequence>
 
 			{/* 1. "Η εμπειρία στον εξωδικαστικό μηχανισμό είναι απαραίτητη."
@@ -77,6 +81,7 @@ export const Reel2: React.FC<Reel2Props> = ({video1DurationInFrames, video2Durat
 			<Sequence from={hookFrom} durationInFrames={DURATIONS.hook}>
 				<Clip src={SHOT_HOOK} />
 				<TitleCard headline="ΕΜΠΕΙΡΙΑ" subline="είναι απαραίτητη" />
+				<Subtitle text={SUBTITLES.hook} />
 			</Sequence>
 
 			{/* 2. ΕΜΠΕΙΡΙΑ-VIDEO1 -- "Ξέρεις πώς απαντούν οι τράπεζες..."
@@ -85,6 +90,7 @@ export const Reel2: React.FC<Reel2Props> = ({video1DurationInFrames, video2Durat
 				<AbsoluteFill style={{backgroundColor: 'black'}}>
 					<OffthreadVideo src={staticFile(`footage/${SCREEN_RECORDING_1}`)} style={{width: '100%', height: '100%', objectFit: 'contain'}} />
 					<BlurRegion />
+					<Subtitle text={SUBTITLES.video1} />
 				</AbsoluteFill>
 			</Sequence>
 
@@ -92,6 +98,7 @@ export const Reel2: React.FC<Reel2Props> = ({video1DurationInFrames, video2Durat
 			<Sequence from={builtFrom} durationInFrames={DURATIONS.builtOverYears}>
 				<Clip src={SHOT_BUILT_OVER_YEARS} />
 				<PunchLine text="Χτίζεται με τα χρόνια" />
+				<Subtitle text={SUBTITLES.builtOverYears} />
 			</Sequence>
 
 			{/* 4. "Μετάβαση από το system πίσω σε σένα: καθαρό smash cut με ελαφρύ motion blur.
@@ -105,6 +112,7 @@ export const Reel2: React.FC<Reel2Props> = ({video1DurationInFrames, video2Durat
 			<Sequence from={notEnoughFrom} durationInFrames={DURATIONS.notEnough}>
 				<Clip src={SHOT_NOT_ENOUGH} />
 				<PunchLine text="Δεν αρκεί." />
+				<Subtitle text={SUBTITLES.notEnough} />
 			</Sequence>
 
 			{/* 6. ΕΜΠΕΙΡΙΑ-VIDEO2 -- "Γιατί οι παράμετροι που πρέπει να συνυπολογιστούν..." */}
@@ -112,6 +120,7 @@ export const Reel2: React.FC<Reel2Props> = ({video1DurationInFrames, video2Durat
 				<AbsoluteFill style={{backgroundColor: 'black'}}>
 					<OffthreadVideo src={staticFile(`footage/${SCREEN_RECORDING_2}`)} style={{width: '100%', height: '100%', objectFit: 'contain'}} />
 					<BlurRegion />
+					<Subtitle text={SUBTITLES.video2} />
 				</AbsoluteFill>
 			</Sequence>
 
@@ -123,12 +132,14 @@ export const Reel2: React.FC<Reel2Props> = ({video1DurationInFrames, video2Durat
 			<Sequence from={systemFrom + DURATIONS.systemPause} durationInFrames={DURATIONS.systemBeat}>
 				<Clip src={SHOT_SYSTEM_BEAT} startFrom={DURATIONS.systemPause} />
 				<TitleCard headline="ΣΥΣΤΗΜΑ" />
+				<Subtitle text={SUBTITLES.system} />
 				<Audio src={staticFile('audio/whoosh.mp3')} volume={0.7} />
 			</Sequence>
 
 			{/* 8. "Στο γραφείο μας έχουμε και τα δύο." Split screen: εσύ πάνω / σύστημα κάτω. */}
 			<Sequence from={splitFrom} durationInFrames={DURATIONS.splitScreen}>
 				<SplitScreen topClip={SHOT_SPLIT_TOP} />
+				<Subtitle text={SUBTITLES.splitScreen} />
 			</Sequence>
 
 			{/* 9. "Την εμπειρία από εκατοντάδες υποθέσεις... ένα προς ένα."
@@ -136,6 +147,7 @@ export const Reel2: React.FC<Reel2Props> = ({video1DurationInFrames, video2Durat
 			<Sequence from={captionsFrom} durationInFrames={DURATIONS.syncedCaptions}>
 				<Clip src={SHOT_HUNDREDS_CASES} />
 				<SyncedCaptions />
+				<Subtitle text={SUBTITLES.syncedCaptions} />
 			</Sequence>
 			{/* quick cutaways under the 2nd/3rd caption lines, matching "highlight διαδοχικά ... γρήγορα" */}
 			<Sequence from={captionsFrom + 45} durationInFrames={45}>
@@ -149,12 +161,14 @@ export const Reel2: React.FC<Reel2Props> = ({video1DurationInFrames, video2Durat
 			<Sequence from={seriousFrom} durationInFrames={DURATIONS.seriousApproach}>
 				<Clip src={SHOT_SERIOUS_APPROACH} zoom={false} />
 				<PunchLine text="Σοβαρή προσέγγιση" />
+				<Subtitle text={SUBTITLES.seriousApproach} />
 			</Sequence>
 
 			{/* 11. "iMentor Consulting. Εμπειρία και σύστημα. Και τα δύο."
 			       Λογότυπο fade-in σε brand color, μουσική κλείνει σε καθαρή νότα, CTA. */}
 			<Sequence from={outroFrom} durationInFrames={DURATIONS.outro}>
 				<LogoOutro />
+				<Subtitle text={SUBTITLES.outro} />
 				<Audio src={staticFile('audio/outro-note.mp3')} volume={0.8} />
 			</Sequence>
 		</AbsoluteFill>

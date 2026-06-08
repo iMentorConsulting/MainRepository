@@ -5,8 +5,8 @@ import {AbsoluteFill, OffthreadVideo, interpolate, staticFile, useCurrentFrame, 
  * Wraps a footage clip with:
  *  - a slow Ken Burns zoom (keeps static-feeling shots alive on a vertical reel)
  *  - an optional dark gradient so white text overlays stay legible
- *  - optional volume (most "you talking" clips should be muted; we already
- *    carry VO through the screen-recording inserts)
+ *  - the clip's own audio playing (your voice carries continuously through
+ *    the "you on camera" beats, not just the screen-recording inserts)
  */
 export const Clip: React.FC<{
 	src: string;
@@ -14,7 +14,7 @@ export const Clip: React.FC<{
 	muted?: boolean;
 	zoom?: boolean;
 	startFrom?: number;
-}> = ({src, dim = true, muted = true, zoom = true, startFrom = 0}) => {
+}> = ({src, dim = true, muted = false, zoom = true, startFrom = 0}) => {
 	const frame = useCurrentFrame();
 	const {durationInFrames} = useVideoConfig();
 
