@@ -136,6 +136,19 @@ async function upsertMatch(programId: string, businessId: string, score: number,
   return true
 }
 
+// Removes stale matches that no longer satisfy the program criteria.
+// Only POTENTIAL matches are reset — matches the accountant has already
+// reviewed or acted upon are preserved.
+async function resetStaleMatches(programId: string, qualifyingBusinessIds: string[]) {
+  await prisma.programMatch.deleteMany({
+    where: {
+      programId,
+      status: MatchStatus.POTENTIAL,
+      businessId: { notIn: qualifyingBusinessIds }
+    }
+  })
+}
+
 export async function runMatchingForProgram(programId: string): Promise<number> {
   const program = await prisma.program.findUnique({ where: { id: programId } })
   if (!program) throw new Error('Program not found')
@@ -145,11 +158,15 @@ export async function runMatchingForProgram(programId: string): Promise<number> 
   })
 
   let matchCount = 0
+  const qualifyingBusinessIds: string[] = []
 
   for (const business of businesses) {
     const { score, reasons } = matchesBusiness(business, program)
+    if (score >= 40) qualifyingBusinessIds.push(business.id)
     if (await upsertMatch(programId, business.id, score, reasons)) matchCount++
   }
+
+  await resetStaleMatches(programId, qualifyingBusinessIds)
 
   return matchCount
 }
@@ -168,6 +185,11 @@ export async function runMatchingForBusiness(businessId: string): Promise<number
   for (const program of programs) {
     const { score, reasons } = matchesBusiness(business, program)
     if (await upsertMatch(program.id, business.id, score, reasons)) matchCount++
+    if (score < 40) {
+      await prisma.programMatch.deleteMany({
+        where: { programId: program.id, businessId, status: MatchStatus.POTENTIAL }
+      })
+    }
   }
 
   return matchCount
