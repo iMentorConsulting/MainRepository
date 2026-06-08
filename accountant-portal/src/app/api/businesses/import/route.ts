@@ -80,8 +80,13 @@ export async function POST(request: NextRequest) {
         if (res.ok) {
           const gsis = await res.json()
           businessData = applySoleProprietorFix({ ...businessData, ...gsis })
+        } else {
+          // No record in GSIS — most likely an individual, not a registered business
+          businessData.legalStatusDescr = 'ΙΔΙΩΤΗΣ'
         }
-      } catch {}
+      } catch {
+        businessData.legalStatusDescr = 'ΙΔΙΩΤΗΣ'
+      }
 
       const business = await prisma.business.upsert({
         where: { afm },
