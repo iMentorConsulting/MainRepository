@@ -18,6 +18,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
       phone: true,
       viberPhone: true,
       excludedFromCampaigns: true,
+      accountantId: true,
     },
     ...(campaign.accountantId ? { where: { accountantId: campaign.accountantId } } : {}),
   })
@@ -31,12 +32,19 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     businesses = businesses.filter(b => matchedIds.has(b.id))
   }
 
+  // The campaign template is chosen at creation time as either an
+  // "with accountant" or "direct" variant — the resulting messageTemplate
+  // text carries {{accountant_name}}/{{accountant_office}} placeholders
+  // only in the "with accountant" variant, so we detect it from the text.
+  const usesAccountantTemplate = /\{\{accountant_(name|office)\}\}/.test(campaign.messageTemplate)
+
   const recipients = businesses
     .map(b => ({
       id: b.id,
       name: b.onomasia || b.afm,
       contact: campaign.channel === 'EMAIL' ? b.email : (b.viberPhone || b.phone),
       excludedFromCampaigns: b.excludedFromCampaigns,
+      missingAccountant: usesAccountantTemplate && !b.accountantId,
     }))
     .filter(b => !!b.contact)
 
