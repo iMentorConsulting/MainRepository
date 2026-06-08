@@ -20,6 +20,10 @@ const schema = z.object({
   description: z.string().optional(),
   minInvestment: z.coerce.number().optional(),
   maxInvestment: z.coerce.number().optional(),
+  minSubsidyPct: z.coerce.number().optional(),
+  maxSubsidyPct: z.coerce.number().optional(),
+  minInterestRate: z.coerce.number().optional(),
+  maxInterestRate: z.coerce.number().optional(),
   otherRequirements: z.string().optional(),
   websiteUrl: z.string().optional(),
   heroImageUrl: z.string().optional(),
@@ -208,8 +212,8 @@ export default function NewProgramPage() {
               options={[
                 { value: 'ESPA', label: 'ΕΣΠΑ' },
                 { value: 'DYPA', label: 'ΔΥΠΑ' },
-                { value: 'MICROLOANS', label: 'Μικροδάνεια' },
-                { value: 'LOAN', label: 'Δάνεια' },
+                { value: 'DYPA_OAED', label: 'ΔΥΠΑ-ΟΑΕΔ' },
+                { value: 'MICROCREDITS', label: 'Μικροπιστώσεις' },
                 { value: 'OTHER', label: 'Άλλο' },
               ]}
             />
@@ -217,6 +221,14 @@ export default function NewProgramPage() {
             <div className="grid grid-cols-2 gap-4">
               <Input label="Ποσό Επένδυσης Από (€)" type="number" {...register('minInvestment')} />
               <Input label="Ποσό Επένδυσης Έως (€)" type="number" {...register('maxInvestment')} />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <Input label="Επιχορήγηση Από (%)" type="number" step="0.1" {...register('minSubsidyPct')} placeholder="π.χ. 25" />
+              <Input label="Επιχορήγηση Έως (%)" type="number" step="0.1" {...register('maxSubsidyPct')} placeholder="π.χ. 70" />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <Input label="Επιτόκιο Από (%) — για δάνεια/μικροπιστώσεις" type="number" step="0.01" {...register('minInterestRate')} placeholder="π.χ. 3.5" />
+              <Input label="Επιτόκιο Έως (%)" type="number" step="0.01" {...register('maxInterestRate')} placeholder="π.χ. 6.0" />
             </div>
             <Textarea label="Άλλες Προϋποθέσεις Προγράμματος" {...register('otherRequirements')} rows={3} placeholder="π.χ. ελάχιστος κύκλος εργασιών, υποχρεωτική απασχόληση προσωπικού κ.λπ." />
             <Input label="Σελίδα Προγράμματος στο Website μας (URL)" {...register('websiteUrl')} placeholder="https://www.i-mentor.gr/programs/..." />

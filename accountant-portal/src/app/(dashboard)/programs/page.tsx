@@ -18,6 +18,10 @@ interface Program {
   endDate: string | null
   minInvestment: number | null
   maxInvestment: number | null
+  minSubsidyPct: number | null
+  maxSubsidyPct: number | null
+  minInterestRate: number | null
+  maxInterestRate: number | null
   regionRules: string[]
   kadRules: string[]
   _count: { matches: number }
@@ -26,24 +30,24 @@ interface Program {
 const categoryLabel: Record<string, string> = {
   ESPA: 'ΕΣΠΑ',
   DYPA: 'ΔΥΠΑ',
-  MICROLOANS: 'Μικροδάνεια',
-  LOAN: 'Δάνεια',
+  DYPA_OAED: 'ΔΥΠΑ-ΟΑΕΔ',
+  MICROCREDITS: 'Μικροπιστώσεις',
   OTHER: 'Άλλο',
 }
 
 const categoryColor: Record<string, string> = {
   ESPA: 'from-blue-700 to-blue-900',
   DYPA: 'from-emerald-600 to-teal-800',
-  MICROLOANS: 'from-amber-600 to-orange-800',
-  LOAN: 'from-violet-600 to-purple-900',
+  DYPA_OAED: 'from-teal-600 to-cyan-800',
+  MICROCREDITS: 'from-amber-600 to-orange-800',
   OTHER: 'from-slate-600 to-slate-800',
 }
 
 const categoryVariant: Record<string, any> = {
   ESPA: 'default',
   DYPA: 'success',
-  MICROLOANS: 'warning',
-  LOAN: 'info',
+  DYPA_OAED: 'success',
+  MICROCREDITS: 'warning',
   OTHER: 'secondary',
 }
 
@@ -83,7 +87,7 @@ export default function ProgramsPage() {
 
       {/* Category Filters */}
       <div className="flex gap-2 flex-wrap">
-        {['', 'ESPA', 'DYPA', 'MICROLOANS', 'LOAN', 'OTHER'].map(cat => (
+        {['', 'ESPA', 'DYPA', 'DYPA_OAED', 'MICROCREDITS', 'OTHER'].map(cat => (
           <button
             key={cat}
             onClick={() => setFilter(cat)}
@@ -160,6 +164,32 @@ export default function ProgramsPage() {
                             : program.minInvestment
                             ? `από ${formatEuro(program.minInvestment)}`
                             : `έως ${formatEuro(program.maxInvestment!)}`}
+                        </span>
+                      </div>
+                    )}
+                    {(program.minSubsidyPct != null || program.maxSubsidyPct != null) && (
+                      <div className="flex items-center gap-1.5 text-xs text-gray-600">
+                        <TrendingUp size={11} className="text-blue-600 flex-shrink-0" />
+                        <span className="font-medium">Επιχορήγηση:</span>
+                        <span>
+                          {program.minSubsidyPct != null && program.maxSubsidyPct != null
+                            ? `${program.minSubsidyPct}% – ${program.maxSubsidyPct}%`
+                            : program.minSubsidyPct != null
+                            ? `από ${program.minSubsidyPct}%`
+                            : `έως ${program.maxSubsidyPct}%`}
+                        </span>
+                      </div>
+                    )}
+                    {(program.minInterestRate != null || program.maxInterestRate != null) && (
+                      <div className="flex items-center gap-1.5 text-xs text-gray-600">
+                        <TrendingUp size={11} className="text-amber-600 flex-shrink-0" />
+                        <span className="font-medium">Επιτόκιο:</span>
+                        <span>
+                          {program.minInterestRate != null && program.maxInterestRate != null
+                            ? `${program.minInterestRate}% – ${program.maxInterestRate}%`
+                            : program.minInterestRate != null
+                            ? `από ${program.minInterestRate}%`
+                            : `έως ${program.maxInterestRate}%`}
                         </span>
                       </div>
                     )}

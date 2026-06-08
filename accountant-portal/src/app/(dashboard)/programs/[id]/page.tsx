@@ -16,7 +16,7 @@ function formatEuro(value: number | null | undefined) {
 }
 
 const categoryLabel: Record<string, string> = {
-  ESPA: 'ΕΣΠΑ', DYPA: 'ΔΥΠΑ', MICROLOANS: 'Μικροδάνεια', LOAN: 'Δάνεια', OTHER: 'Άλλο',
+  ESPA: 'ΕΣΠΑ', DYPA: 'ΔΥΠΑ', DYPA_OAED: 'ΔΥΠΑ-ΟΑΕΔ', MICROCREDITS: 'Μικροπιστώσεις', OTHER: 'Άλλο',
 }
 
 export default function ProgramDetailPage() {
@@ -87,7 +87,7 @@ export default function ProgramDetailPage() {
             </Card>
           )}
 
-          {(program.minInvestment != null || program.maxInvestment != null || program.otherRequirements || program.websiteUrl) && (
+          {(program.minInvestment != null || program.maxInvestment != null || program.minSubsidyPct != null || program.maxSubsidyPct != null || program.minInterestRate != null || program.maxInterestRate != null || program.otherRequirements || program.websiteUrl) && (
             <Card>
               <CardHeader><CardTitle>Στοιχεία Προγράμματος</CardTitle></CardHeader>
               <CardContent className="space-y-4">
@@ -98,6 +98,30 @@ export default function ProgramDetailPage() {
                       {program.minInvestment != null ? formatEuro(program.minInvestment) : '...'}
                       {' — '}
                       {program.maxInvestment != null ? formatEuro(program.maxInvestment) : '...'}
+                    </span>
+                  </div>
+                )}
+                {(program.minSubsidyPct != null || program.maxSubsidyPct != null) && (
+                  <div>
+                    <div className="text-xs font-semibold text-gray-500 uppercase mb-1.5">% Επιχορήγησης</div>
+                    <span className="text-sm font-semibold text-blue-700">
+                      {program.minSubsidyPct != null && program.maxSubsidyPct != null
+                        ? `${program.minSubsidyPct}% — ${program.maxSubsidyPct}%`
+                        : program.minSubsidyPct != null
+                        ? `από ${program.minSubsidyPct}%`
+                        : `έως ${program.maxSubsidyPct}%`}
+                    </span>
+                  </div>
+                )}
+                {(program.minInterestRate != null || program.maxInterestRate != null) && (
+                  <div>
+                    <div className="text-xs font-semibold text-gray-500 uppercase mb-1.5">Επιτόκιο</div>
+                    <span className="text-sm font-semibold text-amber-700">
+                      {program.minInterestRate != null && program.maxInterestRate != null
+                        ? `${program.minInterestRate}% — ${program.maxInterestRate}%`
+                        : program.minInterestRate != null
+                        ? `από ${program.minInterestRate}%`
+                        : `έως ${program.maxInterestRate}%`}
                     </span>
                   </div>
                 )}

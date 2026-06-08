@@ -120,6 +120,10 @@ model Program {
   heroImageUrl     String?
   minInvestment    Int?
   maxInvestment    Int?
+  minSubsidyPct    Float?
+  maxSubsidyPct    Float?
+  minInterestRate  Float?
+  maxInterestRate  Float?
   otherRequirements String?
   websiteUrl       String?
   regionRules      String[]
@@ -144,8 +148,8 @@ model Program {
 enum ProgramCategory {
   ESPA
   DYPA
-  MICROLOANS
-  LOAN
+  DYPA_OAED
+  MICROCREDITS
   OTHER
 }
 
