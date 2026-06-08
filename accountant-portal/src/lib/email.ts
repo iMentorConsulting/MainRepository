@@ -56,11 +56,15 @@ export function renderTemplate(
   return result
 }
 
-export async function testSmtpConnection(): Promise<boolean> {
+export async function testSmtpConnection(): Promise<{ ok: boolean; error?: string }> {
+  if (!smtpUser || !smtpPass) {
+    return { ok: false, error: 'Λείπουν τα SMTP_USER / SMTP_PASS (ή GMAIL_USER / GMAIL_APP_PASSWORD)' }
+  }
   try {
     await transporter.verify()
-    return true
-  } catch {
-    return false
+    return { ok: true }
+  } catch (error: any) {
+    console.error('[Email] SMTP verify failed:', error?.code, error?.message || error)
+    return { ok: false, error: `${error?.code ? `[${error.code}] ` : ''}${error?.message || 'Άγνωστο σφάλμα σύνδεσης'}` }
   }
 }

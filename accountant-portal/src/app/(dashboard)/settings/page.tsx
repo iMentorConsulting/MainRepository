@@ -7,11 +7,19 @@ import { CheckCircle, XCircle, Mail, Settings } from 'lucide-react'
 
 export default function SettingsPage() {
   const [smtpTest, setSmtpTest] = useState<'idle' | 'loading' | 'ok' | 'fail'>('idle')
+  const [smtpError, setSmtpError] = useState('')
 
   async function testSmtp() {
     setSmtpTest('loading')
+    setSmtpError('')
     const res = await fetch('/api/settings/smtp-test', { method: 'POST' })
-    setSmtpTest(res.ok ? 'ok' : 'fail')
+    if (res.ok) {
+      setSmtpTest('ok')
+    } else {
+      const data = await res.json().catch(() => ({}))
+      setSmtpError(data.error || '')
+      setSmtpTest('fail')
+    }
   }
 
   return (
@@ -45,7 +53,10 @@ export default function SettingsPage() {
               <span className="flex items-center gap-1 text-green-600 text-sm"><CheckCircle size={16} />Επιτυχία!</span>
             )}
             {smtpTest === 'fail' && (
-              <span className="flex items-center gap-1 text-red-600 text-sm"><XCircle size={16} />Αποτυχία σύνδεσης</span>
+              <span className="flex items-center gap-1 text-red-600 text-sm">
+                <XCircle size={16} />
+                Αποτυχία σύνδεσης{smtpError ? `: ${smtpError}` : ''}
+              </span>
             )}
           </div>
         </CardContent>

@@ -8,10 +8,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  const ok = await testSmtpConnection()
-  if (ok) {
+  const result = await testSmtpConnection()
+  if (result.ok) {
     return NextResponse.json({ success: true })
   } else {
-    return NextResponse.json({ error: 'SMTP connection failed' }, { status: 500 })
+    return NextResponse.json({ error: result.error || 'SMTP connection failed' }, { status: 500 })
   }
 }
