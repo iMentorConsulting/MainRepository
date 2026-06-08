@@ -24,6 +24,7 @@ async function processCampaignSend(
       continue
     }
 
+    const matchReasons = matchReasonByBusiness.get(business.id) || []
     const variables: Record<string, string> = {
       business_name: business.onomasia || business.afm,
       afm: business.afm,
@@ -31,7 +32,7 @@ async function processCampaignSend(
       accountant_office: business.accountant?.officeName || '',
       program_title: campaign.program?.title || '',
       kad_description: business.activities[0]?.firmActCode || '',
-      match_reason: (matchReasonByBusiness.get(business.id) || []).map(r => `• ${r}`).join('\n'),
+      match_reason: matchReasons.map(r => `• ${r}`).join('\n'),
       unsubscribe_link: `${process.env.NEXTAUTH_URL || 'http://localhost:3001'}/api/unsubscribe/${business.unsubscribeToken}`,
     }
 
@@ -42,10 +43,14 @@ async function processCampaignSend(
       if (campaign.channel === 'EMAIL') {
         // Bold the personalized fields in the HTML body so the email visibly
         // reads as targeted/specialized rather than a generic newsletter.
-        const boldedMessage = renderTemplate(campaign.messageTemplate, variables, {
-          // match_reason is a multi-line bullet list — wrapping it whole in
-          // <strong> would break the bullet-block detection in the renderer.
-          boldKeys: ['business_name', 'accountant_name', 'accountant_office', 'program_title', 'kad_description'],
+        // match_reason is bolded per-bullet here (each line still starts
+        // with "•" so the bullet-block detection in the renderer still works).
+        const emailVariables: Record<string, string> = {
+          ...variables,
+          match_reason: matchReasons.map(r => `• <strong>${r}</strong>`).join('\n'),
+        }
+        const boldedMessage = renderTemplate(campaign.messageTemplate, emailVariables, {
+          boldKeys: ['business_name', 'afm', 'accountant_name', 'accountant_office', 'program_title', 'kad_description'],
         })
         // The footer already renders the unsubscribe link, so drop any
         // trailing line from the template that duplicates it in the body.

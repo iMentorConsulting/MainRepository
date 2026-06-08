@@ -153,13 +153,13 @@ export function renderCampaignEmailHtml(options: CampaignEmailOptions): string {
     .join('')
 
   const brandLeft = imentorLogoUrl
-    ? `<img src="${imentorLogoUrl}" alt="I-MENTOR" height="32" style="display:block;" />`
-    : '<span style="font-weight:800;letter-spacing:.5px;color:#ffffff;font-size:18px;">iMENTOR <span style="font-weight:400;opacity:.8;">CONSULTING</span></span>'
+    ? `<img src="${imentorLogoUrl}" alt="I-MENTOR" height="44" style="display:block;height:44px;width:auto;max-width:180px;object-fit:contain;" />`
+    : '<span style="font-weight:800;letter-spacing:.5px;color:#ffffff;font-size:20px;">iMENTOR <span style="font-weight:400;opacity:.8;">CONSULTING</span></span>'
 
   const brandRight = accountantLogoUrl
-    ? `<img src="${accountantLogoUrl}" alt="${accountantOfficeName || ''}" height="32" style="display:block;margin-left:auto;" />`
+    ? `<img src="${accountantLogoUrl}" alt="${accountantOfficeName || ''}" height="44" style="display:block;height:44px;width:auto;max-width:180px;object-fit:contain;margin-left:auto;background:#ffffff;border-radius:8px;padding:4px 10px;" />`
     : (accountantOfficeName
-        ? `<span style="color:#cbd5e1;font-size:13px;font-weight:600;">${accountantOfficeName}</span>`
+        ? `<span style="color:#cbd5e1;font-size:14px;font-weight:600;">${accountantOfficeName}</span>`
         : '')
 
   const unsubscribeRow = unsubscribeUrl
@@ -174,8 +174,8 @@ export function renderCampaignEmailHtml(options: CampaignEmailOptions): string {
 
         <tr><td style="background:linear-gradient(135deg,#1e3a8a,#1e40af);padding:24px 28px;">
           <table width="100%" cellpadding="0" cellspacing="0"><tr>
-            <td>${brandLeft}</td>
-            <td align="right">${brandRight}</td>
+            <td valign="middle" align="left" style="padding-right:12px;">${brandLeft}</td>
+            <td valign="middle" align="right" style="padding-left:12px;">${brandRight}</td>
           </tr></table>
           <div style="margin-top:18px;display:inline-block;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.25);border-radius:999px;padding:5px 14px;color:#dbeafe;font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;">
             Αυτόματη Ενημέρωση
