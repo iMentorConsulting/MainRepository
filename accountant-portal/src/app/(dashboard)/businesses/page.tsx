@@ -1,11 +1,12 @@
 'use client'
 import { useEffect, useState, useCallback } from 'react'
 import Link from 'next/link'
+import { useSession } from 'next-auth/react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableHead, TableBody, TableRow, Th, Td } from '@/components/ui/table'
 import { Pagination } from '@/components/ui/pagination'
-import { Plus, Search, Download, Upload, Filter } from 'lucide-react'
+import { Plus, Search, Download, Upload, Filter, Trash2 } from 'lucide-react'
 
 interface Business {
   id: string
@@ -21,12 +22,16 @@ interface Business {
 const PAGE_SIZE = 20
 
 export default function BusinessesPage() {
+  const { data: session } = useSession()
+  const isAdmin = session?.user?.role === 'ADMIN'
   const [businesses, setBusinesses] = useState<Business[]>([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
   const [search, setSearch] = useState('')
   const [searchInput, setSearchInput] = useState('')
   const [loading, setLoading] = useState(true)
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [deleting, setDeleting] = useState(false)
 
   const fetchData = useCallback(async () => {
     setLoading(true)
@@ -43,10 +48,48 @@ export default function BusinessesPage() {
   }, [page, search])
 
   useEffect(() => { fetchData() }, [fetchData])
+  useEffect(() => { setSelected(new Set()) }, [page, search])
 
   function handleSearch() {
     setSearch(searchInput)
     setPage(1)
+  }
+
+  function toggleSelect(id: string) {
+    setSelected(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  function toggleSelectAll() {
+    setSelected(prev => prev.size === businesses.length ? new Set() : new Set(businesses.map(b => b.id)))
+  }
+
+  async function handleBulkDelete() {
+    if (selected.size === 0) return
+    if (!confirm(`Διαγραφή ${selected.size} επιχειρήσεων; Η ενέργεια δεν αναιρείται.`)) return
+    setDeleting(true)
+    try {
+      const res = await fetch('/api/businesses/bulk-delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: Array.from(selected) }),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        alert(`Διαγράφηκαν ${data.deleted} επιχειρήσεις`)
+        setSelected(new Set())
+        fetchData()
+      } else {
+        const err = await res.json()
+        alert(err.error || 'Σφάλμα διαγραφής')
+      }
+    } finally {
+      setDeleting(false)
+    }
   }
 
   async function handleExport() {
@@ -100,6 +143,12 @@ export default function BusinessesPage() {
             <Filter size={14} className="mr-1" />
             Φίλτρα
           </Button>
+          {isAdmin && selected.size > 0 && (
+            <Button variant="destructive" size="sm" onClick={handleBulkDelete} loading={deleting}>
+              <Trash2 size={14} className="mr-1" />
+              Διαγραφή ({selected.size})
+            </Button>
+          )}
         </div>
 
         {loading ? (
@@ -111,6 +160,16 @@ export default function BusinessesPage() {
             <Table>
               <TableHead>
                 <TableRow>
+                  {isAdmin && (
+                    <Th className="w-10">
+                      <input
+                        type="checkbox"
+                        checked={businesses.length > 0 && selected.size === businesses.length}
+                        onChange={toggleSelectAll}
+                        className="rounded"
+                      />
+                    </Th>
+                  )}
                   <Th>ΑΦΜ</Th>
                   <Th>Επωνυμία</Th>
                   <Th>Κύρια ΚΑΔ</Th>
@@ -123,7 +182,7 @@ export default function BusinessesPage() {
               <TableBody>
                 {businesses.length === 0 ? (
                   <TableRow>
-                    <Td colSpan={7} className="text-center text-gray-400 py-8">
+                    <Td colSpan={isAdmin ? 8 : 7} className="text-center text-gray-400 py-8">
                       Δεν βρέθηκαν επιχειρήσεις
                     </Td>
                   </TableRow>
@@ -132,6 +191,16 @@ export default function BusinessesPage() {
                     const primaryKad = b.activities?.find(a => a.firmActKind === 1)
                     return (
                       <TableRow key={b.id}>
+                        {isAdmin && (
+                          <Td>
+                            <input
+                              type="checkbox"
+                              checked={selected.has(b.id)}
+                              onChange={() => toggleSelect(b.id)}
+                              className="rounded"
+                            />
+                          </Td>
+                        )}
                         <Td>
                           <Link href={`/businesses/${b.id}`} className="font-mono text-blue-800 hover:underline">
                             {b.afm}
