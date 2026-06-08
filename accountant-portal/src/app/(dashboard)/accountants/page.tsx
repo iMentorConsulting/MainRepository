@@ -1,5 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { useSession } from 'next-auth/react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -18,16 +20,26 @@ interface Accountant {
 }
 
 export default function AccountantsPage() {
+  const router = useRouter()
+  const { data: session, status } = useSession()
   const [accountants, setAccountants] = useState<Accountant[]>([])
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    if (status === 'loading') return
+    if (session && session.user.role !== 'ADMIN') {
+      const accountantId = (session.user as any)?.accountantId
+      router.replace(accountantId ? `/accountants/${accountantId}` : '/')
+      return
+    }
+    if (session?.user.role !== 'ADMIN') return
+
     fetch('/api/accountants')
       .then(r => r.json())
       .then(data => setAccountants(data.accountants || []))
       .finally(() => setLoading(false))
-  }, [])
+  }, [session, status, router])
 
   const filtered = accountants.filter(a =>
     a.officeName.toLowerCase().includes(search.toLowerCase()) ||

@@ -7,6 +7,11 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
+  const isOwnAccountant = session.user.role === 'ACCOUNTANT' && session.user.accountantId === params.id
+  if (session.user.role !== 'ADMIN' && !isOwnAccountant) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
   const accountant = await prisma.accountant.findUnique({
     where: { id: params.id },
     include: {

@@ -41,6 +41,14 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
+  const existing = await prisma.business.findUnique({ where: { id: params.id }, select: { accountantId: true } })
+  if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  // Accountants may only edit their own businesses, and may not reassign ownership
+  if (session.user.role === 'ACCOUNTANT' && existing.accountantId !== session.user.accountantId) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
   const data = await request.json()
   const { activities, ...updateData } = data
 
@@ -52,6 +60,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
   delete updateData.campaignRecipients
   delete updateData.createdAt
   delete updateData.updatedAt
+  if (session.user.role === 'ACCOUNTANT') delete updateData.accountantId
 
   const business = await prisma.business.update({
     where: { id: params.id },
