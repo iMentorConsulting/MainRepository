@@ -22,11 +22,17 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
 
 export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
   const session = await auth()
-  if (!session || session.user.role !== 'ADMIN') {
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const isOwnAccountant = session.user.role === 'ACCOUNTANT' && session.user.accountantId === params.id
+  if (session.user.role !== 'ADMIN' && !isOwnAccountant) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  const data = await request.json()
+  const body = await request.json()
+  // Accountants may only self-manage their own logo — every other field
+  // (office name, contacts, status, etc.) stays admin-managed.
+  const data = isOwnAccountant ? { logoUrl: body.logoUrl } : body
   delete data.id
   delete data.createdAt
   delete data.updatedAt

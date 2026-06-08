@@ -1,13 +1,39 @@
 'use client'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { useSession } from 'next-auth/react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import { CheckCircle, XCircle, Mail, Settings } from 'lucide-react'
+import { LogoUploader } from '@/components/shared/logo-uploader'
+import { CheckCircle, XCircle, Mail, Settings, Image as ImageIcon } from 'lucide-react'
 
 export default function SettingsPage() {
+  const { data: session } = useSession()
   const [smtpTest, setSmtpTest] = useState<'idle' | 'loading' | 'ok' | 'fail'>('idle')
   const [smtpError, setSmtpError] = useState('')
+  const [imentorLogoUrl, setImentorLogoUrl] = useState<string | null>(null)
+  const [logoSaving, setLogoSaving] = useState(false)
+  const [logoSaved, setLogoSaved] = useState(false)
+
+  useEffect(() => {
+    fetch('/api/settings/logo').then(r => r.json()).then(d => setImentorLogoUrl(d.imentorLogoUrl || null))
+  }, [])
+
+  async function saveImentorLogo(dataUrl: string | null) {
+    setImentorLogoUrl(dataUrl)
+    setLogoSaving(true)
+    setLogoSaved(false)
+    try {
+      await fetch('/api/settings/logo', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imentorLogoUrl: dataUrl }),
+      })
+      setLogoSaved(true)
+    } finally {
+      setLogoSaving(false)
+    }
+  }
 
   async function testSmtp() {
     setSmtpTest('loading')
@@ -61,6 +87,25 @@ export default function SettingsPage() {
           </div>
         </CardContent>
       </Card>
+
+      {session?.user?.role === 'ADMIN' && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <ImageIcon size={18} />
+              Λογότυπο I-MENTOR
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-sm text-gray-500">
+              Το λογότυπο εμφανίζεται στο πάνω μέρος των email καμπανιών προς τους πελάτες, αντί του κειμένου «iMENTOR CONSULTING».
+            </p>
+            <LogoUploader label="Λογότυπο I-MENTOR (PNG, transparent)" value={imentorLogoUrl} onChange={saveImentorLogo} />
+            {logoSaving && <span className="text-xs text-gray-400">Αποθήκευση...</span>}
+            {!logoSaving && logoSaved && <span className="text-xs text-green-600">Αποθηκεύτηκε ✓</span>}
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>

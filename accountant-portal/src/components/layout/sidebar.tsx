@@ -23,7 +23,9 @@ export function Sidebar() {
   const pathname = usePathname()
   const { data: session } = useSession()
   const isAdmin = session?.user?.role === 'ADMIN'
+  const accountantId = (session?.user as any)?.accountantId
   const visible = navItems.filter(i => !i.adminOnly || isAdmin)
+  const officeHref = !isAdmin && accountantId ? `/accountants/${accountantId}` : null
 
   return (
     <aside className="fixed left-0 top-0 h-full w-64 bg-slate-900 border-r border-slate-800 flex flex-col z-50 shadow-sm">
@@ -71,6 +73,18 @@ export function Sidebar() {
             </Link>
           )
         })}
+        {officeHref && (
+          <Link href={officeHref}
+            className={cn(
+              'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150',
+              pathname === officeHref
+                ? 'bg-indigo-500/15 text-indigo-300'
+                : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+            )}>
+            <Building2 className={cn('w-4 h-4 flex-shrink-0', pathname === officeHref ? 'text-indigo-300' : 'text-slate-500')} />
+            Το Γραφείο μου
+          </Link>
+        )}
       </nav>
 
       {/* User */}

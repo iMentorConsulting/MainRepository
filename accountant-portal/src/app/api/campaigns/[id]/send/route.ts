@@ -14,6 +14,9 @@ async function processCampaignSend(
   let sent = 0
   let failed = 0
 
+  const appSetting = await prisma.appSetting.findUnique({ where: { id: 'main' } })
+  const imentorLogoUrl = appSetting?.imentorLogoUrl || ''
+
   for (const business of businesses) {
     const recipient = campaign.channel === 'EMAIL' ? business.email : (business.viberPhone || business.phone)
     if (!recipient) {
@@ -59,7 +62,7 @@ async function processCampaignSend(
             title: campaign.title,
             bodyText: bodyWithoutUnsubscribe,
             recipientName: business.onomasia || business.afm,
-            imentorLogoUrl: process.env.IMENTOR_LOGO_URL || '',
+            imentorLogoUrl,
             accountantOfficeName: business.accountant?.officeName || '',
             accountantLogoUrl: business.accountant?.logoUrl || '',
             unsubscribeUrl: variables.unsubscribe_link,
