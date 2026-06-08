@@ -153,6 +153,11 @@ export default function CampaignDetailPage() {
                   <button type="button" className="text-gray-500 hover:underline" onClick={() => setSelectedIds(new Set())}>Καμία επιλογή</button>
                 </div>
               </div>
+              {previewRecipients.some(r => r.missingAccountant) && (
+                <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                  ⚠️ Το μήνυμα της καμπάνιας αναφέρεται σε λογιστή, αλλά κάποιοι παραλήπτες (σημειωμένοι με «Χωρίς λογιστή») δεν έχουν καταχωρημένο λογιστή — ελέγξτε πριν την αποστολή.
+                </div>
+              )}
             </div>
             <div className="overflow-y-auto flex-1">
               {previewLoading ? (
@@ -185,6 +190,11 @@ export default function CampaignDetailPage() {
                       </div>
                       {r.excludedFromCampaigns && (
                         <Badge variant="danger">Μόνιμη εξαίρεση</Badge>
+                      )}
+                      {r.missingAccountant && (
+                        <Badge variant="warning" title="Το template αναφέρεται σε λογιστή, αλλά η επιχείρηση δεν έχει καταχωρημένο λογιστή">
+                          Χωρίς λογιστή
+                        </Badge>
                       )}
                     </li>
                   ))}

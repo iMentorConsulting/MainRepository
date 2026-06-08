@@ -24,6 +24,14 @@ enum Role {
   ACCOUNTANT
 }
 
+// Singleton row (id "main") holding global I-MENTOR branding settings,
+// e.g. the logo shown in the header of campaign emails.
+model AppSetting {
+  id            String   @id @default("main")
+  imentorLogoUrl String?
+  updatedAt     DateTime @updatedAt
+}
+
 model Accountant {
   id            String     @id @default(cuid())
   officeName    String

@@ -28,9 +28,14 @@ export default function CampaignsPage() {
           <h1 className="text-2xl font-bold text-gray-900">Καμπάνιες</h1>
           <p className="text-gray-500 mt-1">{campaigns.length} καμπάνιες</p>
         </div>
-        <Link href="/campaigns/new">
-          <Button><Plus size={16} className="mr-2" />Νέα Καμπάνια</Button>
-        </Link>
+        <div className="flex gap-2">
+          <Link href="/campaigns/analytics">
+            <Button variant="outline">Analytics</Button>
+          </Link>
+          <Link href="/campaigns/new">
+            <Button><Plus size={16} className="mr-2" />Νέα Καμπάνια</Button>
+          </Link>
+        </div>
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm">

@@ -162,6 +162,37 @@ export default function BusinessDetailPage() {
             </CardContent>
           </Card>
 
+          {/* Campaign messaging history */}
+          {business.campaignRecipients && business.campaignRecipients.length > 0 && (
+            <Card>
+              <CardHeader><CardTitle>Μηνύματα Καμπανιών ({business.campaignRecipients.length})</CardTitle></CardHeader>
+              <CardContent>
+                <ul className="divide-y divide-gray-100">
+                  {business.campaignRecipients.map((r: any) => (
+                    <li key={r.id} className="flex items-center justify-between gap-3 py-2.5 text-sm">
+                      <div className="min-w-0">
+                        <Link href={`/campaigns/${r.campaign?.id}`} className="font-medium text-blue-700 hover:underline truncate block">
+                          {r.campaign?.title || '—'}
+                        </Link>
+                        <div className="text-xs text-gray-400">
+                          {r.channel === 'EMAIL' ? 'Email' : 'Viber'} · {r.recipient}
+                          {r.sentAt && <> · {formatDate(r.sentAt)}</>}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {r.status === 'sent' && <Badge variant="success">Εστάλη</Badge>}
+                        {r.status === 'failed' && <Badge variant="danger">Απέτυχε</Badge>}
+                        {r.status === 'pending' && <Badge variant="secondary">Σε εκκρεμότητα</Badge>}
+                        {r.openedAt && <Badge variant="info">Ανοίχτηκε</Badge>}
+                        {r.clickedAt && <Badge variant="purple">Κλικ</Badge>}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Matches */}
           {business.programMatches && business.programMatches.length > 0 && (
             <Card>

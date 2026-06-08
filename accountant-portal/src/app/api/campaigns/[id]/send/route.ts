@@ -14,6 +14,9 @@ async function processCampaignSend(
   let sent = 0
   let failed = 0
 
+  const appSetting = await prisma.appSetting.findUnique({ where: { id: 'main' } })
+  const imentorLogoUrl = appSetting?.imentorLogoUrl || ''
+
   for (const business of businesses) {
     const recipient = campaign.channel === 'EMAIL' ? business.email : (business.viberPhone || business.phone)
     if (!recipient) {
@@ -37,9 +40,16 @@ async function processCampaignSend(
 
     try {
       if (campaign.channel === 'EMAIL') {
+        // Bold the personalized fields in the HTML body so the email visibly
+        // reads as targeted/specialized rather than a generic newsletter.
+        const boldedMessage = renderTemplate(campaign.messageTemplate, variables, {
+          // match_reason is a multi-line bullet list — wrapping it whole in
+          // <strong> would break the bullet-block detection in the renderer.
+          boldKeys: ['business_name', 'accountant_name', 'accountant_office', 'program_title', 'kad_description'],
+        })
         // The footer already renders the unsubscribe link, so drop any
         // trailing line from the template that duplicates it in the body.
-        const bodyWithoutUnsubscribe = message
+        const bodyWithoutUnsubscribe = boldedMessage
           .split('\n')
           .filter(line => !line.includes(variables.unsubscribe_link))
           .join('\n')
@@ -47,16 +57,14 @@ async function processCampaignSend(
 
         success = await sendEmail({
           to: recipient,
-          subject: campaign.title,
+          subject: renderTemplate(campaign.title, variables),
           html: renderCampaignEmailHtml({
             title: campaign.title,
             bodyText: bodyWithoutUnsubscribe,
             recipientName: business.onomasia || business.afm,
-            imentorLogoUrl: process.env.IMENTOR_LOGO_URL || '',
+            imentorLogoUrl,
             accountantOfficeName: business.accountant?.officeName || '',
             accountantLogoUrl: business.accountant?.logoUrl || '',
-            ctaUrl: `${process.env.NEXTAUTH_URL || 'http://localhost:3001'}/portal`,
-            ctaLabel: 'Δείτε το Portal σας',
             unsubscribeUrl: variables.unsubscribe_link,
           }),
         })

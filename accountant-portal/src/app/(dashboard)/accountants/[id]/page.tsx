@@ -9,9 +9,11 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { LogoUploader } from '@/components/shared/logo-uploader'
 import { Table, TableHead, TableBody, TableRow, Th, Td } from '@/components/ui/table'
 import { ArrowLeft, Building2 } from 'lucide-react'
 import Link from 'next/link'
+import { useSession } from 'next-auth/react'
 
 const schema = z.object({
   officeName: z.string().min(2),
@@ -27,8 +29,11 @@ type FormData = z.infer<typeof schema>
 export default function AccountantDetailPage() {
   const { id } = useParams()
   const router = useRouter()
+  const { data: session } = useSession()
+  const isAdmin = session?.user?.role === 'ADMIN'
   const [accountant, setAccountant] = useState<any>(null)
   const [loading, setLoading] = useState(true)
+  const [logoUrl, setLogoUrl] = useState<string | null>(null)
   const { register, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm<FormData>({
     resolver: zodResolver(schema)
   })
@@ -38,6 +43,7 @@ export default function AccountantDetailPage() {
       .then(r => r.json())
       .then(data => {
         setAccountant(data)
+        setLogoUrl(data.logoUrl || null)
         reset({
           officeName: data.officeName,
           contactPerson: data.contactPerson,
@@ -55,7 +61,7 @@ export default function AccountantDetailPage() {
     const res = await fetch(`/api/accountants/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
+      body: JSON.stringify({ ...data, logoUrl }),
     })
     if (res.ok) {
       router.push('/accountants')
@@ -88,16 +94,25 @@ export default function AccountantDetailPage() {
             <CardHeader><CardTitle>Επεξεργασία Στοιχείων</CardTitle></CardHeader>
             <CardContent>
               <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-                <Input label="Επωνυμία *" {...register('officeName')} error={errors.officeName?.message} />
-                <Input label="Υπεύθυνος *" {...register('contactPerson')} error={errors.contactPerson?.message} />
+                {!isAdmin && (
+                  <p className="text-xs text-gray-400 -mt-1">Τα στοιχεία γραφείου διαχειρίζεται η I-MENTOR. Μπορείτε να ανεβάσετε το δικό σας λογότυπο παρακάτω.</p>
+                )}
+                <Input label="Επωνυμία *" {...register('officeName')} error={errors.officeName?.message} disabled={!isAdmin} />
+                <Input label="Υπεύθυνος *" {...register('contactPerson')} error={errors.contactPerson?.message} disabled={!isAdmin} />
                 <div className="grid grid-cols-2 gap-4">
-                  <Input label="Email *" type="email" {...register('email')} error={errors.email?.message} />
-                  <Input label="Τηλέφωνο" {...register('phone')} />
+                  <Input label="Email *" type="email" {...register('email')} error={errors.email?.message} disabled={!isAdmin} />
+                  <Input label="Τηλέφωνο" {...register('phone')} disabled={!isAdmin} />
                 </div>
-                <Input label="Διεύθυνση" {...register('address')} />
-                <Textarea label="Σημειώσεις" {...register('notes')} rows={3} />
+                <LogoUploader
+                  label="Λογότυπο γραφείου (PNG, transparent)"
+                  value={logoUrl}
+                  onChange={setLogoUrl}
+                  helperText="Εμφανίζεται στο πάνω μέρος των email καμπανιών προς τους πελάτες σας. Συνιστάται PNG με διαφανές φόντο, έως 1MB."
+                />
+                <Input label="Διεύθυνση" {...register('address')} disabled={!isAdmin} />
+                <Textarea label="Σημειώσεις" {...register('notes')} rows={3} disabled={!isAdmin} />
                 <div className="flex items-center gap-2">
-                  <input type="checkbox" {...register('active')} id="active" className="rounded" />
+                  <input type="checkbox" {...register('active')} id="active" className="rounded" disabled={!isAdmin} />
                   <label htmlFor="active" className="text-sm text-gray-700">Ενεργός</label>
                 </div>
                 <div className="flex gap-3 pt-2">
