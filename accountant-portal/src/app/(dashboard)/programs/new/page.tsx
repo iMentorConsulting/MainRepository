@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
@@ -25,16 +25,19 @@ const schema = z.object({
 })
 type FormData = z.infer<typeof schema>
 
-function TagInput({ label, values, onChange, placeholder, bulkImport }: {
+function TagInput({ label, values, onChange, placeholder, bulkImport, pdfImport }: {
   label: string
   values: string[]
   onChange: (v: string[]) => void
   placeholder?: string
   bulkImport?: boolean
+  pdfImport?: boolean
 }) {
   const [input, setInput] = useState('')
   const [bulkOpen, setBulkOpen] = useState(false)
   const [bulkText, setBulkText] = useState('')
+  const [pdfLoading, setPdfLoading] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   function add() {
     const v = input.trim()
@@ -55,16 +58,57 @@ function TagInput({ label, values, onChange, placeholder, bulkImport }: {
     setBulkOpen(false)
   }
 
+  async function handlePdfFile(file: File | null) {
+    if (!file) return
+    setPdfLoading(true)
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      const res = await fetch('/api/programs/parse-kad-pdf', { method: 'POST', body: formData })
+      const data = await res.json()
+      if (res.ok) {
+        const merged = [...values]
+        for (const code of data.kadRules || []) if (!merged.includes(code)) merged.push(code)
+        onChange(merged)
+        alert(`Βρέθηκαν ${data.unique} μοναδικοί ΚΑΔ στο PDF και προστέθηκαν στη λίστα.`)
+      } else {
+        alert(data.error || 'Σφάλμα ανάγνωσης PDF')
+      }
+    } catch {
+      alert('Σφάλμα ανάγνωσης PDF')
+    } finally {
+      setPdfLoading(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
+
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between">
         <label className="text-sm font-medium text-gray-700">{label}</label>
-        {bulkImport && (
-          <Button type="button" variant="outline" size="sm" onClick={() => setBulkOpen(!bulkOpen)}>
-            <FileUp size={12} className="mr-1" />
-            Μαζική Εισαγωγή
-          </Button>
-        )}
+        <div className="flex gap-1.5">
+          {pdfImport && (
+            <>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="application/pdf"
+                className="hidden"
+                onChange={e => handlePdfFile(e.target.files?.[0] || null)}
+              />
+              <Button type="button" variant="outline" size="sm" loading={pdfLoading} onClick={() => fileInputRef.current?.click()}>
+                <FileUp size={12} className="mr-1" />
+                Εισαγωγή από PDF
+              </Button>
+            </>
+          )}
+          {bulkImport && (
+            <Button type="button" variant="outline" size="sm" onClick={() => setBulkOpen(!bulkOpen)}>
+              <FileUp size={12} className="mr-1" />
+              Μαζική Εισαγωγή
+            </Button>
+          )}
+        </div>
       </div>
       <div className="flex flex-wrap gap-1.5 mb-2">
         {values.map(v => (
@@ -182,6 +226,7 @@ export default function NewProgramPage() {
               onChange={setKadRules}
               placeholder="π.χ. 47 ή 47.11.10.01"
               bulkImport
+              pdfImport
             />
             <TagInput
               label="Κανόνες Περιοχής"
