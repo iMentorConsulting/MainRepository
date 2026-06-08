@@ -55,6 +55,7 @@ model Accountant {
   paymentRequests     PaymentRequest[]
   commissions         Commission[]
   commissionOverrides AccountantCommissionOverride[]
+  notifications       Notification[]
 }
 
 model Business {
@@ -383,4 +384,16 @@ model Commission {
   notes              String?
   createdAt          DateTime         @default(now())
   updatedAt          DateTime         @updatedAt
+}
+
+model Notification {
+  id           String     @id @default(cuid())
+  accountantId String
+  accountant   Accountant @relation(fields: [accountantId], references: [id])
+  type         String
+  title        String
+  body         String
+  link         String?
+  read         Boolean    @default(false)
+  createdAt    DateTime   @default(now())
 }
