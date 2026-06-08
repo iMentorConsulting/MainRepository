@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { runMatchingForBusiness } from '@/lib/matching'
 import * as XLSX from 'xlsx'
 
 function applySoleProprietorFix(businessData: any) {
@@ -68,7 +69,7 @@ export async function POST(request: NextRequest) {
         }
       } catch {}
 
-      await prisma.business.upsert({
+      const business = await prisma.business.upsert({
         where: { afm },
         update: {},
         create: {
@@ -94,6 +95,9 @@ export async function POST(request: NextRequest) {
           } : undefined
         }
       })
+
+      runMatchingForBusiness(business.id).catch(err => console.error('[Matching] Auto-match for imported business failed:', err?.message))
+
       created++
     } catch {
       skipped++
