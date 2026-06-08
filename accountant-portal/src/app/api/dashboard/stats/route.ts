@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
     prisma.programMatch.count({
       where: isAdmin ? {} : { business: { accountantId: accountantId || undefined } }
     }),
-    prisma.campaign.count({ where: { status: 'SENT' } }),
+    prisma.campaign.count({ where: { status: 'SENT', ...(isAdmin ? {} : { accountantId: accountantId || undefined }) } }),
     prisma.imentorRequest.count({
       where: {
         status: 'NEW',
