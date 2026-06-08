@@ -1,6 +1,8 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { useSession } from 'next-auth/react'
+import { useRouter } from 'next/navigation'
+import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -30,6 +32,7 @@ function formatEur(cents: number) {
 
 export default function PaymentsPage() {
   const { data: session } = useSession()
+  const router = useRouter()
   const [requests, setRequests] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState('')
@@ -43,6 +46,10 @@ export default function PaymentsPage() {
   const [confirming, setConfirming] = useState(false)
 
   const isAdmin = session?.user?.role === 'ADMIN'
+
+  useEffect(() => {
+    if (session && !isAdmin) router.replace('/')
+  }, [session, isAdmin, router])
 
   useEffect(() => {
     loadRequests()
