@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableHead, TableBody, TableRow, Th, Td } from '@/components/ui/table'
-import { Plus, Search, Edit, Trash2, Building2 } from 'lucide-react'
+import { Plus, Search, Edit, Trash2, Building2, ShieldCheck } from 'lucide-react'
 
 interface Accountant {
   id: string
@@ -13,6 +13,7 @@ interface Accountant {
   email: string
   phone: string | null
   active: boolean
+  approved: boolean
   _count: { businesses: number; users: number }
 }
 
@@ -38,6 +39,18 @@ export default function AccountantsPage() {
     if (!confirm('Διαγραφή λογιστή; Αυτή η ενέργεια είναι μη αναστρέψιμη.')) return
     await fetch(`/api/accountants/${id}`, { method: 'DELETE' })
     setAccountants(prev => prev.filter(a => a.id !== id))
+  }
+
+  async function handleApprove(id: string) {
+    if (!confirm('Έγκριση πρόσβασης ΑΑΔΕ για αυτό το γραφείο;')) return
+    const res = await fetch(`/api/accountants/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ approved: true }),
+    })
+    if (res.ok) {
+      setAccountants(prev => prev.map(a => a.id === id ? { ...a, approved: true } : a))
+    }
   }
 
   return (
@@ -111,12 +124,28 @@ export default function AccountantsPage() {
                       </span>
                     </Td>
                     <Td>
-                      <Badge variant={a.active ? 'success' : 'secondary'}>
-                        {a.active ? 'Ενεργός' : 'Ανενεργός'}
-                      </Badge>
+                      <div className="flex flex-col gap-1 items-start">
+                        <Badge variant={a.active ? 'success' : 'secondary'}>
+                          {a.active ? 'Ενεργός' : 'Ανενεργός'}
+                        </Badge>
+                        {!a.approved && (
+                          <Badge variant="warning">Εκκρεμεί έγκριση ΑΑΔΕ</Badge>
+                        )}
+                      </div>
                     </Td>
                     <Td>
                       <div className="flex items-center gap-2">
+                        {!a.approved && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleApprove(a.id)}
+                            className="text-green-600 hover:text-green-700"
+                            title="Έγκριση πρόσβασης ΑΑΔΕ"
+                          >
+                            <ShieldCheck size={14} />
+                          </Button>
+                        )}
                         <Link href={`/accountants/${a.id}`}>
                           <Button variant="ghost" size="sm">
                             <Edit size={14} />

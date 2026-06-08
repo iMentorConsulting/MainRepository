@@ -91,6 +91,11 @@ export default function LoginPage() {
               ) : 'Σύνδεση →'}
             </button>
           </form>
+
+          <p className="text-center text-slate-400 text-xs mt-5">
+            Είστε λογιστικό γραφείο και θέλετε να συνεργαστείτε με την I-MENTOR;{' '}
+            <a href="/register" className="text-indigo-600 hover:underline font-medium">Δημιουργήστε λογαριασμό εδώ</a>
+          </p>
         </div>
 
         <p className="text-center text-slate-400 text-xs mt-6">

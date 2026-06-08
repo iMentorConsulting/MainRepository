@@ -42,6 +42,10 @@ model Accountant {
   address       String?
   notes         String?
   active        Boolean    @default(true)
+  // Self-registered offices start unapproved — they can use the portal but
+  // cannot run AADE/GSIS lookups (search/import businesses) until an admin
+  // reviews their signup questionnaire and approves them.
+  approved      Boolean    @default(true)
   createdAt     DateTime   @default(now())
   updatedAt     DateTime   @updatedAt
   users               User[]

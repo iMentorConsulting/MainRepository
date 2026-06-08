@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
+import { prisma } from '@/lib/prisma'
 import https from 'https'
+
+const PENDING_APPROVAL_MESSAGE = 'Η αναζήτηση επιχειρήσεων μέσω ΑΑΔΕ θα ενεργοποιηθεί μόλις εγκριθεί ο λογαριασμός σας από την ομάδα της I-MENTOR.'
 
 function xmlEscape(value: string): string {
   return value
@@ -168,6 +171,13 @@ function parseGsisResponse(text: string, afm: string) {
 export async function GET(request: NextRequest) {
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  if (session.user.role === 'ACCOUNTANT' && session.user.accountantId) {
+    const accountant = await prisma.accountant.findUnique({ where: { id: session.user.accountantId }, select: { approved: true } })
+    if (accountant && !accountant.approved) {
+      return NextResponse.json({ error: PENDING_APPROVAL_MESSAGE, pendingApproval: true }, { status: 403 })
+    }
+  }
 
   const afm = request.nextUrl.searchParams.get('afm')
   if (!afm || !/^\d{9}$/.test(afm)) {

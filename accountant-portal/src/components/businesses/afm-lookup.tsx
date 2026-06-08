@@ -37,7 +37,7 @@ interface AfmLookupProps {
 export function AfmLookup({ onResult, onNotFound }: AfmLookupProps) {
   const [afm, setAfm] = useState('')
   const [loading, setLoading] = useState(false)
-  const [status, setStatus] = useState<'idle' | 'success' | 'error' | 'not-found'>('idle')
+  const [status, setStatus] = useState<'idle' | 'success' | 'error' | 'not-found' | 'pending-approval'>('idle')
   const [errorMessage, setErrorMessage] = useState('')
 
   async function handleLookup() {
@@ -53,6 +53,11 @@ export function AfmLookup({ onResult, onNotFound }: AfmLookupProps) {
       const res = await fetch(`/api/afm?afm=${afm}`)
       const data = await res.json()
       if (!res.ok) {
+        if (res.status === 403 && data?.pendingApproval) {
+          setStatus('pending-approval')
+          setErrorMessage(data.error || '')
+          return
+        }
         // No record found in GSIS — most likely an individual, not a registered business
         setStatus('not-found')
         onNotFound?.(afm)
@@ -96,6 +101,12 @@ export function AfmLookup({ onResult, onNotFound }: AfmLookupProps) {
         <div className="mt-2 flex items-center gap-1 text-amber-700 text-xs">
           <AlertCircle size={14} />
           <span>Δεν βρέθηκε επιχείρηση στο ΓΓΠΣ — συμπληρώθηκε ως «ΙΔΙΩΤΗΣ»</span>
+        </div>
+      )}
+      {status === 'pending-approval' && (
+        <div className="mt-2 flex items-center gap-1 text-amber-700 text-xs">
+          <AlertCircle size={14} />
+          <span>{errorMessage || 'Η αναζήτηση ΑΑΔΕ θα ενεργοποιηθεί μόλις εγκριθεί ο λογαριασμός σας από την ομάδα της I-MENTOR.'}</span>
         </div>
       )}
       {status === 'error' && (
