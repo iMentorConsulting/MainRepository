@@ -14,10 +14,17 @@ function xmlEscape(value: string): string {
     .replace(/'/g, '&apos;')
 }
 
-function fetchFromGsis(afm: string): Promise<string> {
-  const username = process.env.AADE_USER_IMENTOR || process.env.AADE_USER || ''
-  const password = process.env.AADE_PASS_IMENTOR || process.env.AADE_PASS || ''
-  const callerAfm = process.env.MY_AFM_IMENTOR || process.env.MY_AFM || ''
+async function getGsisCredentials() {
+  const setting = await prisma.appSetting.findUnique({ where: { id: 'main' } })
+  return {
+    username: setting?.aadeUser || process.env.AADE_USER_IMENTOR || process.env.AADE_USER || '',
+    password: setting?.aadePass || process.env.AADE_PASS_IMENTOR || process.env.AADE_PASS || '',
+    callerAfm: setting?.aadeCallerAfm || process.env.MY_AFM_IMENTOR || process.env.MY_AFM || '',
+  }
+}
+
+async function fetchFromGsis(afm: string): Promise<string> {
+  const { username, password, callerAfm } = await getGsisCredentials()
 
   const soapBody =
     `<?xml version="1.0" encoding="UTF-8"?>` +

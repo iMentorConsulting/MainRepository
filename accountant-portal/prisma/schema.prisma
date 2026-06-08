@@ -27,9 +27,12 @@ enum Role {
 // Singleton row (id "main") holding global I-MENTOR branding settings,
 // e.g. the logo shown in the header of campaign emails.
 model AppSetting {
-  id            String   @id @default("main")
+  id             String   @id @default("main")
   imentorLogoUrl String?
-  updatedAt     DateTime @updatedAt
+  aadeUser       String?
+  aadePass       String?
+  aadeCallerAfm  String?
+  updatedAt      DateTime @updatedAt
 }
 
 model Accountant {
@@ -148,7 +151,7 @@ model ProgramMatch {
   programId   String
   program     Program     @relation(fields: [programId], references: [id])
   businessId  String
-  business    Business    @relation(fields: [businessId], references: [id])
+  business    Business    @relation(fields: [businessId], references: [id], onDelete: Cascade)
   matchScore  Float       @default(0)
   matchReason String[]
   status      MatchStatus @default(POTENTIAL)
@@ -201,7 +204,7 @@ model CampaignRecipient {
   campaignId   String
   campaign     Campaign  @relation(fields: [campaignId], references: [id])
   businessId   String
-  business     Business  @relation(fields: [businessId], references: [id])
+  business     Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
   channel      String
   recipient    String
   status       String    @default("pending")
@@ -216,7 +219,7 @@ model ImentorRequest {
   accountantId String
   accountant   Accountant    @relation(fields: [accountantId], references: [id])
   businessId   String
-  business     Business      @relation(fields: [businessId], references: [id])
+  business     Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
   programId    String?
   program      Program?      @relation(fields: [programId], references: [id])
   subject      String
@@ -259,7 +262,7 @@ model Service {
 model PaymentRequest {
   id                String        @id @default(cuid())
   businessId        String
-  business          Business      @relation(fields: [businessId], references: [id])
+  business          Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
   accountantId      String
   accountant        Accountant    @relation(fields: [accountantId], references: [id])
   serviceId         String
@@ -361,7 +364,7 @@ model Commission {
   accountantId       String
   accountant         Accountant       @relation(fields: [accountantId], references: [id])
   businessId         String
-  business           Business         @relation(fields: [businessId], references: [id])
+  business           Business         @relation(fields: [businessId], references: [id], onDelete: Cascade)
   paymentRequestId   String?
   paymentRequest     PaymentRequest?  @relation(fields: [paymentRequestId], references: [id])
   commissionPolicyId String?
