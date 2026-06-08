@@ -5,7 +5,7 @@ import { redirect } from 'next/navigation'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Table, TableHead, TableBody, TableRow, Th, Td } from '@/components/ui/table'
-import { Plus, Pencil, Trash2, X } from 'lucide-react'
+import { Plus, Pencil, Trash2, Copy, X } from 'lucide-react'
 
 function formatEur(cents: number) {
   return (cents / 100).toLocaleString('el-GR', { style: 'currency', currency: 'EUR' })
@@ -64,11 +64,11 @@ function PolicyModal({
   onClose: () => void
   onSaved: () => void
 }) {
-  const editing = !!initial
+  const editing = !!initial && !initial.__duplicate
   const [form, setForm] = useState<PolicyForm>(
     initial
       ? {
-          name: initial.name,
+          name: initial.__duplicate ? `${initial.name} (Αντίγραφο)` : initial.name,
           description: initial.description || '',
           commissionType: initial.commissionType,
           fixedAmount: initial.fixedAmount ? String(initial.fixedAmount / 100) : '',
@@ -144,7 +144,7 @@ function PolicyModal({
       <div className="bg-white rounded-xl shadow-xl w-full max-w-lg mx-4 p-6 max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-bold text-gray-900">
-            {editing ? 'Επεξεργασία Πολιτικής' : 'Νέα Πολιτική Προμήθειας'}
+            {editing ? 'Επεξεργασία Πολιτικής' : initial?.__duplicate ? 'Αντιγραφή Πολιτικής' : 'Νέα Πολιτική Προμήθειας'}
           </h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
             <X size={20} />
@@ -470,6 +470,13 @@ export default function CommissionPoliciesPage() {
                           title="Επεξεργασία"
                         >
                           <Pencil size={14} />
+                        </button>
+                        <button
+                          onClick={() => setModal({ ...p, __duplicate: true })}
+                          className="p-1.5 rounded hover:bg-amber-50 text-amber-600"
+                          title="Αντιγραφή"
+                        >
+                          <Copy size={14} />
                         </button>
                         <button
                           onClick={() => deletePolicy(p.id)}

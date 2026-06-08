@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { resolveRegionFromZip } from '@/lib/greek-regions'
 
 export async function GET(request: NextRequest) {
   const session = await auth()
@@ -38,11 +39,8 @@ export async function GET(request: NextRequest) {
       where: businessWhere,
       select: {
         postalAreaDescription: true,
-        activities: {
-          where: { firmActKind: 1 },
-          select: { firmActCode: true },
-          take: 1,
-        }
+        postalZipCode: true,
+        legalStatusDescr: true,
       }
     }),
     prisma.programMatch.groupBy({
@@ -52,29 +50,26 @@ export async function GET(request: NextRequest) {
     }),
   ])
 
-  // Group by KAD category (first 2 digits)
-  const kadGroups: Record<string, number> = {}
+  // Group by legal status (Νομική Μορφή)
+  const legalStatusGroups: Record<string, number> = {}
   for (const b of businesses) {
-    const kad = b.activities[0]?.firmActCode
-    if (kad) {
-      const prefix = kad.split('.')[0] || kad.slice(0, 2)
-      kadGroups[prefix] = (kadGroups[prefix] || 0) + 1
-    }
+    const status = b.legalStatusDescr || 'Άγνωστη'
+    legalStatusGroups[status] = (legalStatusGroups[status] || 0) + 1
   }
-  const businessesByCategory = Object.entries(kadGroups)
+  const businessesByLegalStatus = Object.entries(legalStatusGroups)
     .sort(([, a], [, b]) => b - a)
     .slice(0, 10)
     .map(([name, count]) => ({ name, count }))
 
-  // Group by region
+  // Group by Περιφέρεια (resolved from postal ZIP code prefix)
   const regionGroups: Record<string, number> = {}
   for (const b of businesses) {
-    const region = b.postalAreaDescription || 'Άγνωστη'
+    const region = resolveRegionFromZip(b.postalZipCode) || 'Άγνωστη'
     regionGroups[region] = (regionGroups[region] || 0) + 1
   }
   const businessesByRegion = Object.entries(regionGroups)
     .sort(([, a], [, b]) => b - a)
-    .slice(0, 8)
+    .slice(0, 14)
     .map(([name, count]) => ({ name, count }))
 
   // Matches by program
@@ -96,7 +91,7 @@ export async function GET(request: NextRequest) {
     totalMatches,
     campaignsSent,
     pendingRequests,
-    businessesByCategory,
+    businessesByLegalStatus,
     businessesByRegion,
     matchesByProgram: matchesByProgramFormatted,
   })

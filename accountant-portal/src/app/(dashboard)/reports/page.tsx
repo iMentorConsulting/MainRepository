@@ -33,13 +33,13 @@ export default function ReportsPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <ChartCard title="Επιχειρήσεις ανά Κατηγορία ΚΑΔ">
-          {stats?.businessesByCategory?.length > 0 ? (
+        <ChartCard title="Επιχειρήσεις ανά Νομική Μορφή">
+          {stats?.businessesByLegalStatus?.length > 0 ? (
             <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={stats.businessesByCategory}>
+              <BarChart data={stats.businessesByLegalStatus}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-                <YAxis tick={{ fontSize: 11 }} />
+                <XAxis dataKey="name" tick={{ fontSize: 10 }} angle={-20} textAnchor="end" height={70} interval={0} />
+                <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
                 <Tooltip />
                 <Bar dataKey="count" fill="#1e40af" radius={[4, 4, 0, 0]} name="Επιχειρήσεις" />
               </BarChart>
@@ -47,7 +47,7 @@ export default function ReportsPage() {
           ) : <NoData />}
         </ChartCard>
 
-        <ChartCard title="Επιχειρήσεις ανά Περιοχή">
+        <ChartCard title="Επιχειρήσεις ανά Περιφέρεια">
           {stats?.businessesByRegion?.length > 0 ? (
             <ResponsiveContainer width="100%" height={300}>
               <PieChart>
