@@ -47,8 +47,8 @@ const categoryVariant: Record<string, any> = {
   OTHER: 'secondary',
 }
 
-function formatEuro(cents: number) {
-  return (cents / 100).toLocaleString('el-GR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })
+function formatEuro(value: number) {
+  return value.toLocaleString('el-GR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })
 }
 
 export default function ProgramsPage() {

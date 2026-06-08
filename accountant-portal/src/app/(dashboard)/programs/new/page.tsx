@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Select } from '@/components/ui/select'
 import { RegionMultiSelect } from '@/components/programs/region-multi-select'
+import { HeroImageUpload } from '@/components/programs/hero-image-upload'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ArrowLeft, Plus, X, FileUp } from 'lucide-react'
 import Link from 'next/link'
@@ -165,6 +166,7 @@ export default function NewProgramPage() {
   const [kadRules, setKadRules] = useState<string[]>([])
   const [regionRules, setRegionRules] = useState<string[]>([])
   const [zipCodeRules, setZipCodeRules] = useState<string[]>([])
+  const [heroImage, setHeroImage] = useState('')
 
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -175,7 +177,7 @@ export default function NewProgramPage() {
     const res = await fetch('/api/programs', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...data, kadRules, regionRules, zipCodeRules }),
+      body: JSON.stringify({ ...data, heroImageUrl: heroImage || data.heroImageUrl, kadRules, regionRules, zipCodeRules }),
     })
     if (res.ok) {
       const created = await res.json()
@@ -218,7 +220,7 @@ export default function NewProgramPage() {
             </div>
             <Textarea label="Άλλες Προϋποθέσεις Προγράμματος" {...register('otherRequirements')} rows={3} placeholder="π.χ. ελάχιστος κύκλος εργασιών, υποχρεωτική απασχόληση προσωπικού κ.λπ." />
             <Input label="Σελίδα Προγράμματος στο Website μας (URL)" {...register('websiteUrl')} placeholder="https://www.i-mentor.gr/programs/..." />
-            <Input label="Hero Image URL (εικόνα κάρτας προγράμματος)" {...register('heroImageUrl')} placeholder="https://..." helperText="Εμφανίζεται ως φωτογραφία στη λίστα προγραμμάτων" />
+            <HeroImageUpload value={heroImage} onChange={setHeroImage} />
             <div className="grid grid-cols-2 gap-4">
               <Input label="Ημ/νία Έναρξης" type="date" {...register('startDate')} />
               <Input label="Ημ/νία Λήξης" type="date" {...register('endDate')} />
