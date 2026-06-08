@@ -1,4 +1,4 @@
-import { GREEK_REGIONS } from '@/lib/greek-regions'
+import { GREEK_REGIONS, zipPrefixesForRegion } from '@/lib/greek-regions'
 
 export function RegionMultiSelect({ label, values, onChange }: {
   label: string
@@ -26,6 +26,19 @@ export function RegionMultiSelect({ label, values, onChange }: {
           </label>
         ))}
       </div>
+      {values.length > 0 && (
+        <div className="rounded-xl border border-indigo-100 bg-indigo-50/50 p-3 space-y-1.5">
+          <p className="text-xs font-medium text-indigo-900">Καλύπτονται οι ΤΚ που ξεκινούν με:</p>
+          {values.map(region => (
+            <div key={region} className="flex flex-wrap items-baseline gap-x-2 text-xs">
+              <span className="font-medium text-slate-600">{region}:</span>
+              <span className="font-mono text-indigo-700">
+                {zipPrefixesForRegion(region as any).map(p => `${p}x`).join(', ') || '—'}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
       <p className="text-xs text-slate-400">
         Η αντιστοίχιση επιχείρησης σε περιφέρεια γίνεται αυτόματα βάσει του Ταχυδρομικού Κώδικα (ΤΚ).
       </p>

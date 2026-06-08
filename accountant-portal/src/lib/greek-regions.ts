@@ -56,3 +56,12 @@ export function resolveRegionFromZip(zip: string | null | undefined): GreekRegio
   const prefix = zip.trim().slice(0, 2)
   return ZIP_PREFIX_TO_REGION[prefix] || null
 }
+
+// Reverse lookup: which ΤΚ prefixes (2-digit) map to a given region —
+// used to show admins exactly which postal codes a region selection covers.
+export function zipPrefixesForRegion(region: GreekRegion): string[] {
+  return Object.entries(ZIP_PREFIX_TO_REGION)
+    .filter(([, r]) => r === region)
+    .map(([prefix]) => prefix)
+    .sort()
+}
