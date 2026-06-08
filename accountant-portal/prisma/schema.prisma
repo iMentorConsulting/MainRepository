@@ -59,6 +59,7 @@ model Accountant {
   commissions         Commission[]
   commissionOverrides AccountantCommissionOverride[]
   notifications       Notification[]
+  chatConversations   ChatConversation[]
 }
 
 model Business {
@@ -97,6 +98,7 @@ model Business {
   requests              ImentorRequest[]
   paymentRequests       PaymentRequest[]
   commissions           Commission[]
+  chatConversations     ChatConversation[]
 }
 
 model BusinessActivity {
@@ -399,4 +401,28 @@ model Notification {
   link         String?
   read         Boolean    @default(false)
   createdAt    DateTime   @default(now())
+}
+
+model ChatConversation {
+  id           String        @id @default(cuid())
+  accountantId String
+  accountant   Accountant    @relation(fields: [accountantId], references: [id])
+  businessId   String?
+  business     Business?     @relation(fields: [businessId], references: [id], onDelete: SetNull)
+  subject      String
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  messages     ChatMessage[]
+}
+
+model ChatMessage {
+  id             String           @id @default(cuid())
+  conversationId String
+  conversation   ChatConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  senderRole     String
+  senderId       String
+  senderName     String
+  body           String
+  readAt         DateTime?
+  createdAt      DateTime         @default(now())
 }

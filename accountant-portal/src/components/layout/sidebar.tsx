@@ -2,8 +2,9 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useSession, signOut } from 'next-auth/react'
+import { useEffect, useState } from 'react'
 import { cn } from '@/lib/utils'
-import { LayoutDashboard, Users, Building2, Zap, Target, Send, CreditCard, Percent, Inbox, BarChart3, Settings, LogOut } from 'lucide-react'
+import { LayoutDashboard, Users, Building2, Zap, Target, Send, CreditCard, Percent, Inbox, BarChart3, Settings, LogOut, MessageSquare, Globe, Mail, Phone } from 'lucide-react'
 
 const navItems = [
   { href: '/', label: 'Dashboard', icon: LayoutDashboard, adminOnly: false },
@@ -15,6 +16,7 @@ const navItems = [
   { href: '/payments', label: 'Πληρωμές', icon: CreditCard, adminOnly: false },
   { href: '/commissions', label: 'Προμήθειες', icon: Percent, adminOnly: false },
   { href: '/requests', label: 'Αιτήματα', icon: Inbox, adminOnly: false },
+  { href: '/chat', label: 'Επικοινωνία', icon: MessageSquare, adminOnly: false },
   { href: '/reports', label: 'Αναφορές', icon: BarChart3, adminOnly: false },
   { href: '/settings', label: 'Ρυθμίσεις', icon: Settings, adminOnly: true },
 ]
@@ -26,21 +28,53 @@ export function Sidebar() {
   const accountantId = (session?.user as any)?.accountantId
   const visible = navItems.filter(i => !i.adminOnly || isAdmin)
   const officeHref = !isAdmin && accountantId ? `/accountants/${accountantId}` : null
+  const [logoUrl, setLogoUrl] = useState<string | null>(null)
+
+  useEffect(() => {
+    fetch('/api/settings/logo')
+      .then(r => r.json())
+      .then(d => setLogoUrl(d.imentorLogoUrl || null))
+      .catch(() => {})
+  }, [])
 
   return (
     <aside className="fixed left-0 top-0 h-full w-64 bg-slate-900 border-r border-slate-800 flex flex-col z-50 shadow-sm">
       {/* Logo */}
-      <div className="p-5 border-b border-slate-800">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 shadow-brand"
-            style={{background: 'linear-gradient(135deg, #4f46e5, #7c3aed)'}}>
-            <Zap className="w-4 h-4 text-white" />
+      <div className="p-4 border-b border-slate-800">
+        <Link href="/" className="block">
+          <div className="flex items-center justify-center w-full rounded-2xl py-4 px-3 mb-1"
+            style={{background: 'linear-gradient(135deg, #4f46e5, #4338ca)'}}>
+            {logoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={logoUrl} alt="I-MENTOR" className="max-h-14 w-auto object-contain" />
+            ) : (
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-white/15">
+                  <Zap className="w-4 h-4 text-white" />
+                </div>
+                <span className="text-lg font-bold text-white tracking-tight">I-MENTOR</span>
+              </div>
+            )}
           </div>
-          <div>
-            <p className="text-sm font-bold text-white leading-tight">I-MENTOR</p>
-            <p className="text-xs text-slate-500 leading-tight">Portal</p>
+          {/* Contact info */}
+          <div className="mt-2 space-y-0.5">
+            <a href="https://www.i-mentor.gr" target="_blank" rel="noopener noreferrer"
+              className="flex items-center gap-1.5 text-[11px] text-slate-400 hover:text-indigo-300 transition-colors">
+              <Globe className="w-3 h-3 flex-shrink-0" />
+              www.i-mentor.gr
+            </a>
+            <a href="mailto:info@i-mentor.gr"
+              className="flex items-center gap-1.5 text-[11px] text-slate-400 hover:text-indigo-300 transition-colors">
+              <Mail className="w-3 h-3 flex-shrink-0" />
+              info@i-mentor.gr
+            </a>
+            <a href="tel:+302810363007"
+              className="flex items-center gap-1.5 text-[11px] text-slate-400 hover:text-indigo-300 transition-colors">
+              <Phone className="w-3 h-3 flex-shrink-0" />
+              2810 363007
+            </a>
           </div>
-        </div>
+        </Link>
       </div>
 
       {/* Role badge */}
