@@ -12,15 +12,20 @@ const fromAddress = process.env.SMTP_FROM || smtpUser || 'noreply@i-mentor.gr'
 // over HTTPS instead — using domain-wide delegation to send "as" SMTP_USER.
 const googleServiceAccountJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON || ''
 
-function getGmailClient() {
+function getGmailAuth() {
   if (!googleServiceAccountJson || !smtpUser) return null
   const credentials = JSON.parse(googleServiceAccountJson)
-  const auth = new google.auth.JWT({
+  return new google.auth.JWT({
     email: credentials.client_email,
     key: credentials.private_key,
     scopes: ['https://www.googleapis.com/auth/gmail.send'],
     subject: smtpUser, // impersonate this mailbox via domain-wide delegation
   })
+}
+
+function getGmailClient() {
+  const auth = getGmailAuth()
+  if (!auth) return null
   return google.gmail({ version: 'v1', auth })
 }
 
@@ -111,8 +116,6 @@ interface CampaignEmailOptions {
   imentorLogoUrl?: string
   accountantOfficeName?: string
   accountantLogoUrl?: string
-  ctaUrl?: string
-  ctaLabel?: string
   unsubscribeUrl?: string
 }
 
@@ -128,8 +131,6 @@ export function renderCampaignEmailHtml(options: CampaignEmailOptions): string {
     imentorLogoUrl,
     accountantOfficeName,
     accountantLogoUrl,
-    ctaUrl,
-    ctaLabel,
     unsubscribeUrl,
   } = options
 
@@ -161,19 +162,9 @@ export function renderCampaignEmailHtml(options: CampaignEmailOptions): string {
         ? `<span style="color:#cbd5e1;font-size:13px;font-weight:600;">${accountantOfficeName}</span>`
         : '')
 
-  const cta = ctaUrl
-    ? `<table cellpadding="0" cellspacing="0" style="margin:8px 0 24px;">
-        <tr><td style="border-radius:8px;background:#1d4ed8;">
-          <a href="${ctaUrl}" style="display:inline-block;padding:12px 28px;color:#ffffff;font-size:14px;font-weight:600;text-decoration:none;border-radius:8px;">
-            🔗 ${ctaLabel || 'Δείτε το Portal σας'}
-          </a>
-        </td></tr>
-      </table>`
-    : ''
-
   const unsubscribeRow = unsubscribeUrl
     ? `<p style="margin:12px 0 0;color:#94a3b8;font-size:11px;">
-        Διαχείριση ενημερώσεων: <a href="${unsubscribeUrl}" style="color:#94a3b8;text-decoration:underline;">απεγγραφή</a>
+        Δεν επιθυμείτε να λαμβάνετε ενημερώσεις σαν κι αυτή; <a href="${unsubscribeUrl}" style="color:#64748b;text-decoration:underline;">Κάντε απεγγραφή εδώ</a>.
       </p>`
     : ''
 
@@ -194,13 +185,12 @@ export function renderCampaignEmailHtml(options: CampaignEmailOptions): string {
         <tr><td style="padding:28px 28px 8px;">
           <p style="margin:0 0 18px;color:#0f172a;font-size:16px;font-weight:700;">Αγαπητέ/ή ${recipientName},</p>
           ${paragraphs}
-          ${cta}
         </td></tr>
 
         <tr><td style="padding:0 28px 28px;">
           <table width="100%" cellpadding="0" cellspacing="0" style="border-top:1px solid #e2e8f0;padding-top:18px;">
             <tr><td style="color:#94a3b8;font-size:11px;line-height:1.6;">
-              🔒 Αυτό είναι ένα αυτοματοποιημένο μήνυμα ενημέρωσης. Μη δημιουργηθεί επιβεβαίωση παραλαβής, παρακαλούμε επικοινωνήστε με το λογιστικό σας γραφείο ή απαντήστε σε αυτό το email για οποιαδήποτε ερώτηση.
+              🔒 Αυτό είναι ένα αυτοματοποιημένο μήνυμα ενημέρωσης από το λογιστικό σας γραφείο σε συνεργασία με την I-MENTOR Consulting. Για οποιαδήποτε ερώτηση, επικοινωνήστε απευθείας με το λογιστικό σας γραφείο.
               ${unsubscribeRow}
             </td></tr>
           </table>
@@ -224,12 +214,16 @@ export function renderTemplate(
 
 export async function testSmtpConnection(): Promise<{ ok: boolean; error?: string }> {
   if (googleServiceAccountJson) {
-    const gmail = getGmailClient()
-    if (!gmail) {
+    const auth = getGmailAuth()
+    if (!auth) {
       return { ok: false, error: 'Λείπει το SMTP_USER (mailbox προς αποστολή) για χρήση με το Gmail API' }
     }
     try {
-      await gmail.users.getProfile({ userId: 'me' })
+      // Only request an access token scoped to gmail.send — calling an API
+      // like users.getProfile would require a broader scope (gmail.readonly/
+      // gmail.metadata) that domain-wide delegation may not have authorized,
+      // surfacing a misleading "insufficient authentication scopes" error.
+      await auth.authorize()
       return { ok: true }
     } catch (error: any) {
       console.error('[Email] Gmail API verify failed:', error?.message || error)

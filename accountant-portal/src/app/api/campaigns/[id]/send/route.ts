@@ -55,8 +55,6 @@ async function processCampaignSend(
             imentorLogoUrl: process.env.IMENTOR_LOGO_URL || '',
             accountantOfficeName: business.accountant?.officeName || '',
             accountantLogoUrl: business.accountant?.logoUrl || '',
-            ctaUrl: `${process.env.NEXTAUTH_URL || 'http://localhost:3001'}/portal`,
-            ctaLabel: 'Δείτε το Portal σας',
             unsubscribeUrl: variables.unsubscribe_link,
           }),
         })
