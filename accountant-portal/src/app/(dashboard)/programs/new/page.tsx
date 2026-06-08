@@ -17,6 +17,10 @@ const schema = z.object({
   title: z.string().min(3, 'Απαιτείται τίτλος'),
   category: z.enum(['ESPA', 'DYPA', 'MICROLOANS', 'LOAN', 'OTHER']),
   description: z.string().optional(),
+  minInvestment: z.coerce.number().optional(),
+  maxInvestment: z.coerce.number().optional(),
+  otherRequirements: z.string().optional(),
+  websiteUrl: z.string().optional(),
   minRegdate: z.string().optional(),
   maxRegdate: z.string().optional(),
   startDate: z.string().optional(),
@@ -207,6 +211,12 @@ export default function NewProgramPage() {
               ]}
             />
             <Textarea label="Περιγραφή" {...register('description')} rows={4} />
+            <div className="grid grid-cols-2 gap-4">
+              <Input label="Ποσό Επένδυσης Από (€)" type="number" {...register('minInvestment')} />
+              <Input label="Ποσό Επένδυσης Έως (€)" type="number" {...register('maxInvestment')} />
+            </div>
+            <Textarea label="Άλλες Προϋποθέσεις Προγράμματος" {...register('otherRequirements')} rows={3} placeholder="π.χ. ελάχιστος κύκλος εργασιών, υποχρεωτική απασχόληση προσωπικού κ.λπ." />
+            <Input label="Σελίδα Προγράμματος στο Website μας (URL)" {...register('websiteUrl')} placeholder="https://www.i-mentor.gr/programs/..." />
             <div className="grid grid-cols-2 gap-4">
               <Input label="Ημ/νία Έναρξης" type="date" {...register('startDate')} />
               <Input label="Ημ/νία Λήξης" type="date" {...register('endDate')} />

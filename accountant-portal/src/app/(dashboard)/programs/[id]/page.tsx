@@ -7,8 +7,13 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { MatchCard } from '@/components/matching/match-card'
-import { ArrowLeft, Zap, Calendar, Tag } from 'lucide-react'
+import { ArrowLeft, Zap, Calendar, Tag, ExternalLink } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
+
+function formatEuro(value: number | null | undefined) {
+  if (value === null || value === undefined) return null
+  return new Intl.NumberFormat('el-GR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(value)
+}
 
 const categoryLabel: Record<string, string> = {
   ESPA: 'ΕΣΠΑ', DYPA: 'ΔΥΠΑ', MICROLOANS: 'Μικροδάνεια', LOAN: 'Δάνεια', OTHER: 'Άλλο',
@@ -79,6 +84,40 @@ export default function ProgramDetailPage() {
             <Card>
               <CardHeader><CardTitle>Περιγραφή</CardTitle></CardHeader>
               <CardContent><p className="text-sm text-gray-700 leading-relaxed">{program.description}</p></CardContent>
+            </Card>
+          )}
+
+          {(program.minInvestment != null || program.maxInvestment != null || program.otherRequirements || program.websiteUrl) && (
+            <Card>
+              <CardHeader><CardTitle>Στοιχεία Προγράμματος</CardTitle></CardHeader>
+              <CardContent className="space-y-4">
+                {(program.minInvestment != null || program.maxInvestment != null) && (
+                  <div>
+                    <div className="text-xs font-semibold text-gray-500 uppercase mb-1.5">Ποσό Επένδυσης</div>
+                    <span className="text-sm text-gray-700">
+                      {program.minInvestment != null ? formatEuro(program.minInvestment) : '...'}
+                      {' — '}
+                      {program.maxInvestment != null ? formatEuro(program.maxInvestment) : '...'}
+                    </span>
+                  </div>
+                )}
+                {program.otherRequirements && (
+                  <div>
+                    <div className="text-xs font-semibold text-gray-500 uppercase mb-1.5">Άλλες Προϋποθέσεις</div>
+                    <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-line">{program.otherRequirements}</p>
+                  </div>
+                )}
+                {program.websiteUrl && (
+                  <div>
+                    <div className="text-xs font-semibold text-gray-500 uppercase mb-1.5">Σελίδα στο Website μας</div>
+                    <a href={program.websiteUrl} target="_blank" rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 text-sm text-blue-700 hover:underline">
+                      {program.websiteUrl}
+                      <ExternalLink size={13} />
+                    </a>
+                  </div>
+                )}
+              </CardContent>
             </Card>
           )}
 
