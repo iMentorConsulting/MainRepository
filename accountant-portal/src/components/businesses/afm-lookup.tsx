@@ -31,12 +31,13 @@ interface AfmData {
 
 interface AfmLookupProps {
   onResult: (data: AfmData) => void
+  onNotFound?: (afm: string) => void
 }
 
-export function AfmLookup({ onResult }: AfmLookupProps) {
+export function AfmLookup({ onResult, onNotFound }: AfmLookupProps) {
   const [afm, setAfm] = useState('')
   const [loading, setLoading] = useState(false)
-  const [status, setStatus] = useState<'idle' | 'success' | 'error'>('idle')
+  const [status, setStatus] = useState<'idle' | 'success' | 'error' | 'not-found'>('idle')
   const [errorMessage, setErrorMessage] = useState('')
 
   async function handleLookup() {
@@ -51,7 +52,12 @@ export function AfmLookup({ onResult }: AfmLookupProps) {
     try {
       const res = await fetch(`/api/afm?afm=${afm}`)
       const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Σφάλμα αναζήτησης')
+      if (!res.ok) {
+        // No record found in GSIS — most likely an individual, not a registered business
+        setStatus('not-found')
+        onNotFound?.(afm)
+        return
+      }
       setStatus('success')
       onResult(data)
     } catch (err: any) {
@@ -84,6 +90,12 @@ export function AfmLookup({ onResult }: AfmLookupProps) {
         <div className="mt-2 flex items-center gap-1 text-green-700 text-xs">
           <CheckCircle size={14} />
           <span>Τα στοιχεία βρέθηκαν και συμπληρώθηκαν</span>
+        </div>
+      )}
+      {status === 'not-found' && (
+        <div className="mt-2 flex items-center gap-1 text-amber-700 text-xs">
+          <AlertCircle size={14} />
+          <span>Δεν βρέθηκε επιχείρηση στο ΓΓΠΣ — συμπληρώθηκε ως «ΙΔΙΩΤΗΣ»</span>
         </div>
       )}
       {status === 'error' && (

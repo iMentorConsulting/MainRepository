@@ -6,7 +6,26 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableHead, TableBody, TableRow, Th, Td } from '@/components/ui/table'
 import { Pagination } from '@/components/ui/pagination'
-import { Plus, Search, Download, Upload, Filter, Trash2 } from 'lucide-react'
+import { MultiSelect } from '@/components/ui/multi-select'
+import { Modal } from '@/components/ui/modal'
+import { Select } from '@/components/ui/select'
+import { Plus, Search, Download, Upload, Filter, Trash2, UserCog } from 'lucide-react'
+
+interface Accountant {
+  id: string
+  officeName: string
+}
+
+const SORT_OPTIONS = [
+  { value: 'createdAt:desc', label: 'Νεότερες πρώτα' },
+  { value: 'createdAt:asc', label: 'Παλαιότερες πρώτα' },
+  { value: 'onomasia:asc', label: 'Επωνυμία (Α-Ω)' },
+  { value: 'onomasia:desc', label: 'Επωνυμία (Ω-Α)' },
+  { value: 'afm:asc', label: 'ΑΦΜ (αύξουσα)' },
+  { value: 'afm:desc', label: 'ΑΦΜ (φθίνουσα)' },
+  { value: 'postalAreaDescription:asc', label: 'Περιοχή (Α-Ω)' },
+  { value: 'postalZipCode:asc', label: 'ΤΚ (αύξουσα)' },
+]
 
 interface Business {
   id: string
@@ -33,22 +52,51 @@ export default function BusinessesPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [deleting, setDeleting] = useState(false)
 
+  const [accountants, setAccountants] = useState<Accountant[]>([])
+  const [legalStatusOptions, setLegalStatusOptions] = useState<string[]>([])
+  const [regionOptions, setRegionOptions] = useState<string[]>([])
+  const [accountantFilter, setAccountantFilter] = useState<string[]>([])
+  const [legalStatusFilter, setLegalStatusFilter] = useState<string[]>([])
+  const [regionFilter, setRegionFilter] = useState<string[]>([])
+  const [sort, setSort] = useState('createdAt:desc')
+
+  const [assignOpen, setAssignOpen] = useState(false)
+  const [assignAccountantId, setAssignAccountantId] = useState('')
+  const [assigning, setAssigning] = useState(false)
+
   const fetchData = useCallback(async () => {
     setLoading(true)
+    const [sortBy, sortDir] = sort.split(':')
     const params = new URLSearchParams({
       page: String(page),
       limit: String(PAGE_SIZE),
+      sortBy,
+      sortDir,
       ...(search ? { search } : {}),
+      ...(accountantFilter.length ? { accountantIds: accountantFilter.join(',') } : {}),
+      ...(legalStatusFilter.length ? { legalStatuses: legalStatusFilter.join(',') } : {}),
+      ...(regionFilter.length ? { regions: regionFilter.join(',') } : {}),
     })
     const res = await fetch(`/api/businesses?${params}`)
     const data = await res.json()
     setBusinesses(data.businesses || [])
     setTotal(data.total || 0)
     setLoading(false)
-  }, [page, search])
+  }, [page, search, accountantFilter, legalStatusFilter, regionFilter, sort])
 
   useEffect(() => { fetchData() }, [fetchData])
-  useEffect(() => { setSelected(new Set()) }, [page, search])
+  useEffect(() => { setSelected(new Set()) }, [page, search, accountantFilter, legalStatusFilter, regionFilter, sort])
+  useEffect(() => { setPage(1) }, [accountantFilter, legalStatusFilter, regionFilter, sort])
+
+  useEffect(() => {
+    fetch('/api/businesses/facets')
+      .then(r => r.json())
+      .then(data => {
+        setAccountants(data.accountants || [])
+        setLegalStatusOptions(data.legalStatuses || [])
+        setRegionOptions(data.regions || [])
+      })
+  }, [])
 
   function handleSearch() {
     setSearch(searchInput)
@@ -92,6 +140,31 @@ export default function BusinessesPage() {
     }
   }
 
+  async function handleBulkAssign() {
+    if (selected.size === 0) return
+    setAssigning(true)
+    try {
+      const res = await fetch('/api/businesses/bulk-assign', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: Array.from(selected), accountantId: assignAccountantId || null }),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        alert(`Ανατέθηκαν ${data.updated} επιχειρήσεις${assignAccountantId ? '' : ' (αφαιρέθηκε ο λογιστής)'}`)
+        setSelected(new Set())
+        setAssignOpen(false)
+        setAssignAccountantId('')
+        fetchData()
+      } else {
+        const err = await res.json()
+        alert(err.error || 'Σφάλμα ανάθεσης')
+      }
+    } finally {
+      setAssigning(false)
+    }
+  }
+
   async function handleExport() {
     const res = await fetch('/api/businesses/export')
     const blob = await res.blob()
@@ -127,28 +200,74 @@ export default function BusinessesPage() {
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
-        <div className="p-4 border-b border-gray-100 flex gap-2">
-          <div className="relative flex-1 max-w-sm">
-            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Αναζήτηση ΑΦΜ, επωνυμία..."
-              value={searchInput}
-              onChange={e => setSearchInput(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && handleSearch()}
-              className="w-full pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
-            />
-          </div>
-          <Button variant="outline" size="sm" onClick={handleSearch}>
-            <Filter size={14} className="mr-1" />
-            Φίλτρα
-          </Button>
-          {isAdmin && selected.size > 0 && (
-            <Button variant="destructive" size="sm" onClick={handleBulkDelete} loading={deleting}>
-              <Trash2 size={14} className="mr-1" />
-              Διαγραφή ({selected.size})
+        <div className="p-4 border-b border-gray-100 space-y-3">
+          <div className="flex flex-wrap gap-2 items-center">
+            <div className="relative flex-1 min-w-[200px] max-w-sm">
+              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Αναζήτηση ΑΦΜ, επωνυμία..."
+                value={searchInput}
+                onChange={e => setSearchInput(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleSearch()}
+                className="w-full pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
+              />
+            </div>
+            <Button variant="outline" size="sm" onClick={handleSearch}>
+              <Filter size={14} className="mr-1" />
+              Αναζήτηση
             </Button>
-          )}
+            {isAdmin && selected.size > 0 && (
+              <>
+                <Button variant="outline" size="sm" onClick={() => setAssignOpen(true)}>
+                  <UserCog size={14} className="mr-1" />
+                  Ανάθεση σε Λογιστή ({selected.size})
+                </Button>
+                <Button variant="destructive" size="sm" onClick={handleBulkDelete} loading={deleting}>
+                  <Trash2 size={14} className="mr-1" />
+                  Διαγραφή ({selected.size})
+                </Button>
+              </>
+            )}
+          </div>
+          <div className="flex flex-wrap gap-2 items-end">
+            {isAdmin && (
+              <MultiSelect
+                label="Λογιστής"
+                options={accountants.map(a => ({ value: a.id, label: a.officeName }))}
+                selected={accountantFilter}
+                onChange={setAccountantFilter}
+                placeholder="Όλοι οι λογιστές"
+              />
+            )}
+            <MultiSelect
+              label="Νομική Μορφή"
+              options={legalStatusOptions.map(v => ({ value: v, label: v }))}
+              selected={legalStatusFilter}
+              onChange={setLegalStatusFilter}
+              placeholder="Όλες οι μορφές"
+            />
+            <MultiSelect
+              label="Περιοχή"
+              options={regionOptions.map(v => ({ value: v, label: v }))}
+              selected={regionFilter}
+              onChange={setRegionFilter}
+              placeholder="Όλες οι περιοχές"
+            />
+            <div>
+              <label className="text-xs font-medium text-gray-500 block mb-1">Ταξινόμηση</label>
+              <Select value={sort} onChange={e => setSort(e.target.value)} options={SORT_OPTIONS} className="min-w-[180px]" />
+            </div>
+            {(accountantFilter.length > 0 || legalStatusFilter.length > 0 || regionFilter.length > 0) && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => { setAccountantFilter([]); setLegalStatusFilter([]); setRegionFilter([]) }}
+              >
+                Καθαρισμός φίλτρων
+              </Button>
+            )}
+          </div>
         </div>
 
         {loading ? (
@@ -226,6 +345,25 @@ export default function BusinessesPage() {
           </>
         )}
       </div>
+
+      <Modal open={assignOpen} onClose={() => setAssignOpen(false)} title="Ανάθεση σε Λογιστή" size="sm">
+        <div className="space-y-4">
+          <p className="text-sm text-gray-500">
+            Ανάθεση {selected.size} επιχειρήσεων σε υφιστάμενο λογιστή.
+          </p>
+          <Select
+            label="Λογιστής"
+            value={assignAccountantId}
+            onChange={e => setAssignAccountantId(e.target.value)}
+            placeholder="— Χωρίς λογιστή —"
+            options={accountants.map(a => ({ value: a.id, label: a.officeName }))}
+          />
+          <div className="flex gap-2">
+            <Button onClick={handleBulkAssign} loading={assigning}>Ανάθεση</Button>
+            <Button variant="outline" onClick={() => setAssignOpen(false)}>Ακύρωση</Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   )
 }

@@ -14,11 +14,22 @@ export async function GET(request: NextRequest) {
   const search = searchParams.get('search') || ''
   const skip = (page - 1) * limit
 
+  const accountantIds = (searchParams.get('accountantIds') || '').split(',').filter(Boolean)
+  const legalStatuses = (searchParams.get('legalStatuses') || '').split(',').filter(Boolean)
+  const regions = (searchParams.get('regions') || '').split(',').filter(Boolean)
+  const sortBy = searchParams.get('sortBy') || 'createdAt'
+  const sortDir = searchParams.get('sortDir') === 'asc' ? 'asc' : 'desc'
+
   const where: any = {}
 
   if (session.user.role === 'ACCOUNTANT' && session.user.accountantId) {
     where.accountantId = session.user.accountantId
+  } else if (session.user.role === 'ADMIN' && accountantIds.length > 0) {
+    where.accountantId = { in: accountantIds }
   }
+
+  if (legalStatuses.length > 0) where.legalStatusDescr = { in: legalStatuses }
+  if (regions.length > 0) where.postalAreaDescription = { in: regions }
 
   if (search) {
     where.OR = [
@@ -27,6 +38,9 @@ export async function GET(request: NextRequest) {
       { commercialTitle: { contains: search, mode: 'insensitive' } },
     ]
   }
+
+  const sortableFields = ['createdAt', 'onomasia', 'afm', 'postalAreaDescription', 'postalZipCode', 'legalStatusDescr']
+  const orderBy = sortableFields.includes(sortBy) ? { [sortBy]: sortDir } : { createdAt: 'desc' as const }
 
   const [businesses, total] = await Promise.all([
     prisma.business.findMany({
@@ -37,7 +51,7 @@ export async function GET(request: NextRequest) {
         accountant: { select: { id: true, officeName: true } },
         activities: { take: 5 },
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy,
     }),
     prisma.business.count({ where }),
   ])

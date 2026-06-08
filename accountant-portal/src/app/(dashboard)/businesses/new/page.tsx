@@ -70,6 +70,12 @@ export default function NewBusinessPage() {
     setActivities(data.activities || [])
   }
 
+  function handleAfmNotFound(afm: string) {
+    // No GSIS record — treat as a private individual rather than a registered business
+    setValue('afm', afm)
+    setValue('legalStatusDescr', 'ΙΔΙΩΤΗΣ')
+  }
+
   async function onSubmit(data: FormData) {
     const res = await fetch('/api/businesses', {
       method: 'POST',
@@ -146,7 +152,7 @@ export default function NewBusinessPage() {
         </Card>
       ) : (
         <>
-          <AfmLookup onResult={handleAfmResult} />
+          <AfmLookup onResult={handleAfmResult} onNotFound={handleAfmNotFound} />
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
             <Card>
