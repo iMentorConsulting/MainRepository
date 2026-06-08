@@ -37,6 +37,13 @@ export async function POST(request: NextRequest) {
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
+  if (session.user.role === 'ACCOUNTANT' && session.user.accountantId) {
+    const accountant = await prisma.accountant.findUnique({ where: { id: session.user.accountantId }, select: { approved: true } })
+    if (accountant && !accountant.approved) {
+      return NextResponse.json({ error: 'Η εισαγωγή επιχειρήσεων μέσω ΑΑΔΕ θα ενεργοποιηθεί μόλις εγκριθεί ο λογαριασμός σας από την ομάδα της I-MENTOR.', pendingApproval: true }, { status: 403 })
+    }
+  }
+
   const formData = await request.formData()
   const file = formData.get('file') as File
   if (!file) return NextResponse.json({ error: 'Χωρίς αρχείο' }, { status: 400 })
