@@ -20,6 +20,10 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
         include: { program: { select: { id: true, title: true } } },
         orderBy: { createdAt: 'desc' },
       },
+      campaignRecipients: {
+        include: { campaign: { select: { id: true, title: true, channel: true } } },
+        orderBy: { sentAt: 'desc' },
+      },
     }
   })
 
