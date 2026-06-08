@@ -3,6 +3,24 @@ import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import * as XLSX from 'xlsx'
 
+function applySoleProprietorFix(businessData: any) {
+  let onomasia = businessData.onomasia || ''
+  let legalStatusDescr = businessData.legalStatusDescr || ''
+
+  // Natural persons (sole proprietors) come back from GSIS as
+  // "ΕΠΩΝΥΜΟ ΟΝΟΜΑ ΠΑΤΡΩΝΥΜΟ" with no legal status — trim the patronymic
+  // and label them as ΑΤΟΜΙΚΗ
+  if (!legalStatusDescr) {
+    const parts = onomasia.trim().split(/\s+/)
+    if (parts.length >= 3) {
+      onomasia = parts.slice(0, 2).join(' ')
+    }
+    legalStatusDescr = 'ΑΤΟΜΙΚΗ'
+  }
+
+  return { ...businessData, onomasia, legalStatusDescr }
+}
+
 export async function POST(request: NextRequest) {
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -46,7 +64,7 @@ export async function POST(request: NextRequest) {
         })
         if (res.ok) {
           const gsis = await res.json()
-          businessData = { ...businessData, ...gsis }
+          businessData = applySoleProprietorFix({ ...businessData, ...gsis })
         }
       } catch {}
 
