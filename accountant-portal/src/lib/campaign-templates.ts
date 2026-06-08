@@ -83,3 +83,131 @@ export const CAMPAIGN_TEMPLATES: CampaignTemplate[] = [
 {{unsubscribe_link}}`
   },
 ]
+
+// Viber messages are short, punchy, and support light markdown — *text*
+// renders as bold on the recipient's device. Each template comes in two
+// flavors: one that highlights the partnership with the accounting office,
+// and a "direct" one for contacts of I-MENTOR that have no linked accountant.
+export interface ViberCampaignTemplate {
+  id: string
+  label: string
+  description: string
+  bodyWithAccountant: string
+  bodyDirect: string
+}
+
+export const VIBER_CAMPAIGN_TEMPLATES: ViberCampaignTemplate[] = [
+  {
+    id: 'viber-program-eligibility',
+    label: 'Ενημέρωση Επιλεξιμότητας Προγράμματος',
+    description: 'Σύντομο μήνυμα Viber που ενημερώνει την επιχείρηση ότι βρέθηκε επιλέξιμη για συγκεκριμένο πρόγραμμα.',
+    bodyWithAccountant:
+`Γειά σας, *{{business_name}}* 👋
+
+Σας γράφουμε από κοινού με το λογιστικό σας γραφείο *{{accountant_office}}* και την *I-MENTOR*.
+
+Ελέγξαμε τα στοιχεία σας (ΑΦΜ {{afm}}) και είστε *επιλέξιμοι* για το πρόγραμμα «*{{program_title}}*»!
+
+{{match_reason}}
+
+Επικοινωνήστε με τον/την *{{accountant_name}}* ή απαντήστε εδώ για αναλυτική ενημέρωση.
+
+— {{accountant_office}} & I-MENTOR
+{{unsubscribe_link}}`,
+    bodyDirect:
+`Γειά σας, *{{business_name}}* 👋
+
+Σας γράφει η ομάδα της *I-MENTOR*.
+
+Ελέγξαμε τα στοιχεία σας (ΑΦΜ {{afm}}) και είστε *επιλέξιμοι* για το πρόγραμμα «*{{program_title}}*»!
+
+{{match_reason}}
+
+Απαντήστε σε αυτό το μήνυμα για αναλυτική ενημέρωση σχετικά με τις προϋποθέσεις και τα επόμενα βήματα.
+
+— Η ομάδα της I-MENTOR
+{{unsubscribe_link}}`
+  },
+  {
+    id: 'viber-partnership-intro',
+    label: 'Πρώτη Επαφή & Παρουσίαση',
+    description: 'Σύντομη πρώτη επαφή μέσω Viber που παρουσιάζει την υπηρεσία ενημέρωσης για επιδοτήσεις.',
+    bodyWithAccountant:
+`Γειά σας, *{{business_name}}* 👋
+
+Το λογιστικό σας γραφείο *{{accountant_office}}* συνεργάζεται με την *I-MENTOR* ώστε να σας ενημερώνει έγκαιρα για προγράμματα επιδότησης (ΕΣΠΑ, ΔΥΠΑ, μικροδάνεια κ.ά.) που ταιριάζουν στο προφίλ σας.
+
+Με βάση τα στοιχεία σας (ΑΦΜ {{afm}}, ΚΑΔ {{kad_description}}) θα σας ενημερώνουμε άμεσα μόλις προκύψει κάτι που σας αφορά.
+
+Για ό,τι χρειαστείτε, ο/η *{{accountant_name}}* είναι στη διάθεσή σας.
+
+— {{accountant_office}} & I-MENTOR
+{{unsubscribe_link}}`,
+    bodyDirect:
+`Γειά σας, *{{business_name}}* 👋
+
+Είμαστε η *I-MENTOR* — βοηθάμε επιχειρήσεις σαν τη δική σας να εντοπίζουν προγράμματα επιδότησης και χρηματοδότησης (ΕΣΠΑ, ΔΥΠΑ, μικροδάνεια κ.ά.) που ταιριάζουν στο προφίλ τους.
+
+Με βάση τα στοιχεία σας (ΑΦΜ {{afm}}, ΚΑΔ {{kad_description}}) θα σας ενημερώνουμε απευθείας κάθε φορά που προκύπτει κάτι που σας αφορά — χωρίς καμία δέσμευση.
+
+Απαντήστε «ΝΑΙ» αν θέλετε να ξεκινήσουμε!
+
+— Η ομάδα της I-MENTOR
+{{unsubscribe_link}}`
+  },
+  {
+    id: 'viber-deadline-reminder',
+    label: 'Υπενθύμιση Προθεσμίας',
+    description: 'Σύντομη υπενθύμιση μέσω Viber για επικείμενη λήξη προθεσμίας υποβολής σε πρόγραμμα στο οποίο είναι επιλέξιμη η επιχείρηση.',
+    bodyWithAccountant:
+`Γειά σας, *{{business_name}}* ⏰
+
+Υπενθύμιση από το *{{accountant_office}}* και την *I-MENTOR*: είστε επιλέξιμοι για το πρόγραμμα «*{{program_title}}*» και η προθεσμία υποβολής *πλησιάζει*!
+
+{{match_reason}}
+
+Επικοινωνήστε άμεσα με τον/την *{{accountant_name}}* για να προετοιμάσουμε έγκαιρα τον φάκελό σας.
+
+— {{accountant_office}} & I-MENTOR
+{{unsubscribe_link}}`,
+    bodyDirect:
+`Γειά σας, *{{business_name}}* ⏰
+
+Υπενθύμιση από την *I-MENTOR*: είστε επιλέξιμοι για το πρόγραμμα «*{{program_title}}*» και η προθεσμία υποβολής *πλησιάζει*!
+
+{{match_reason}}
+
+Απαντήστε σε αυτό το μήνυμα άμεσα ώστε να προχωρήσουμε έγκαιρα στην προετοιμασία του φακέλου σας.
+
+— Η ομάδα της I-MENTOR
+{{unsubscribe_link}}`
+  },
+  {
+    id: 'viber-kad-match',
+    label: 'Στοχευμένη Ενημέρωση βάσει ΚΑΔ',
+    description: 'Τονίζει μέσω Viber ότι η επιλεξιμότητα προέκυψε ειδικά από τον κωδικό δραστηριότητας (ΚΑΔ) της επιχείρησης.',
+    bodyWithAccountant:
+`Γειά σας, *{{business_name}}* 👋
+
+Κατά τον έλεγχο που κάναμε με το *{{accountant_office}}*, είδαμε ότι ο ΚΑΔ σας (*{{kad_description}}*) εντάσσεται στις επιλέξιμες κατηγορίες του προγράμματος «*{{program_title}}*»!
+
+{{match_reason}}
+
+Ο/Η *{{accountant_name}}* μπορεί να σας ενημερώσει για το ποσοστό επιδότησης και τα επόμενα βήματα.
+
+— {{accountant_office}} & I-MENTOR
+{{unsubscribe_link}}`,
+    bodyDirect:
+`Γειά σας, *{{business_name}}* 👋
+
+Είδαμε ότι ο ΚΑΔ σας (*{{kad_description}}*) εντάσσεται στις επιλέξιμες κατηγορίες του προγράμματος «*{{program_title}}*»!
+
+{{match_reason}}
+
+Απαντήστε σε αυτό το μήνυμα και θα σας ενημερώσουμε αναλυτικά για το ποσοστό επιδότησης και τα επόμενα βήματα.
+
+— Η ομάδα της I-MENTOR
+{{unsubscribe_link}}`
+  },
+]
+
