@@ -1,8 +1,8 @@
 node_modules
 .remotion
 out
+# Raw camera footage and the screen-recording inserts -- too large to keep in git.
+# Drop your files into public/footage/ locally before rendering (see README.md).
 public/footage
-public/audio
 *.mov
 *.MOV
-*.mp4
