@@ -21,6 +21,9 @@ export async function POST(request: NextRequest) {
 
   try {
     const { PDFParse } = await import('pdf-parse')
+    const path = await import('path')
+    const { pathToFileURL } = await import('url')
+    PDFParse.setWorker(pathToFileURL(path.join(process.cwd(), 'node_modules/pdf-parse/dist/worker/pdf.worker.mjs')).href)
     const buffer = Buffer.from(await file.arrayBuffer())
     const parser = new PDFParse({ data: buffer })
     const result = await parser.getText()
