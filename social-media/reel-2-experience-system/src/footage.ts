@@ -9,6 +9,7 @@ export const FOOTAGE = [
 	'3 BEST IMG_1963.MOV',
 	'4. BEST IMG_1966.MOV',
 	'5. BEST IMG_1972.MOV',
+	'6. BEST IMG_1975.MOV',
 	'7. BEST IMG_1975.MOV',
 	'8. BEST IMG_1981.MOV',
 	'9. BEST IMG_1982.MOV',
@@ -29,9 +30,9 @@ export const SHOT_BUILT_OVER_YEARS = FOOTAGE[1]; // 2. "Χτίζεται με τ
 export const SHOT_SMASH_CUT = FOOTAGE[2]; // 3. smash cut back to you
 export const SHOT_NOT_ENOUGH = FOOTAGE[3]; // 4. "Δεν αρκεί."
 export const SHOT_SYSTEM_BEAT = FOOTAGE[4]; // 5. "ΣΥΣΤΗΜΑ"
-export const SHOT_SPLIT_TOP = FOOTAGE[5]; // 7. split-screen top half (you)
-export const SHOT_HUNDREDS_CASES = FOOTAGE[6]; // 8. "Εκατοντάδες υποθέσεις" cutaway
-export const SHOT_RULES_OF_LAW = FOOTAGE[7]; // 9. "Οι κανόνες του νόμου..." cutaway
-export const SHOT_ONE_BY_ONE = FOOTAGE[8]; // 10. "Ένα προς ένα" cutaway
-export const SHOT_SERIOUS_APPROACH = FOOTAGE[1]; // reuse calm shot for "Σοβαρή προσέγγιση"
+export const SHOT_SERIOUS_APPROACH = FOOTAGE[5]; // 6. "Σοβαρή προσέγγιση" -- now its own clip
+export const SHOT_SPLIT_TOP = FOOTAGE[6]; // 7. split-screen top half (you)
+export const SHOT_HUNDREDS_CASES = FOOTAGE[7]; // 8. "Εκατοντάδες υποθέσεις" cutaway
+export const SHOT_RULES_OF_LAW = FOOTAGE[8]; // 9. "Οι κανόνες του νόμου..." cutaway
+export const SHOT_ONE_BY_ONE = FOOTAGE[9]; // 10. "Ένα προς ένα" cutaway
 export const SHOT_OUTRO_BG = FOOTAGE[0]; // soft b-roll behind the logo card (heavily dimmed)

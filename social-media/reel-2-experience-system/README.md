@@ -15,6 +15,7 @@ public/footage/
   3 BEST IMG_1963.MOV
   4. BEST IMG_1966.MOV
   5. BEST IMG_1972.MOV
+  6. BEST IMG_1975.MOV
   7. BEST IMG_1975.MOV
   8. BEST IMG_1981.MOV
   9. BEST IMG_1982.MOV
@@ -23,9 +24,8 @@ public/footage/
   ΕΜΠΕΙΡΙΑ-VIDEO2.mp4
 ```
 
-> Note: the Drive folder has clips numbered 1-5 and 7-10 (no "6") — nine
-> camera clips total, plus the two screen recordings. `src/footage.ts`
-> already reflects this.
+> All ten numbered camera clips (1-10) plus the two screen recordings.
+> `src/footage.ts` already reflects this.
 
 The brand logo (`logo-white-transparent.png`) is already included in `public/`.
 
