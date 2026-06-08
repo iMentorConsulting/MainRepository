@@ -22,6 +22,17 @@ function applySoleProprietorFix(businessData: any) {
   return { ...businessData, onomasia, legalStatusDescr }
 }
 
+function normalizePhone(value: any): string | null {
+  if (value === undefined || value === null || value === '') return null
+  // Numeric cells from Excel can render in scientific notation (e.g. 3,06972E+11)
+  let raw = typeof value === 'number' ? value.toFixed(0) : String(value)
+  let digits = raw.replace(/\D/g, '')
+  if (!digits) return null
+  if (digits.startsWith('0030')) digits = digits.slice(4)
+  else if (digits.startsWith('30') && digits.length > 10) digits = digits.slice(2)
+  return digits || null
+}
+
 export async function POST(request: NextRequest) {
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -56,7 +67,7 @@ export async function POST(request: NextRequest) {
     const afm = String(row.afm || row.ΑΦΜ || row.AFM || '').trim().replace(/\D/g, '')
     if (!afm || afm.length !== 9) { skipped++; continue }
 
-    const phone = String(row.tel || row.phone || row.τηλ || row.τηλέφωνο || row.ΤΗΛ || row.ΤΗΛΕΦΩΝΟ || '').trim() || null
+    const phone = normalizePhone(row.tel ?? row.phone ?? row.τηλ ?? row.τηλέφωνο ?? row.ΤΗΛ ?? row.ΤΗΛΕΦΩΝΟ)
     const email = String(row.email || row.mail || row.Email || row.EMAIL || '').trim() || null
 
     try {
