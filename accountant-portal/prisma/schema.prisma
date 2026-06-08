@@ -117,6 +117,7 @@ model Program {
   title            String
   category         ProgramCategory
   description      String?
+  heroImageUrl     String?
   minInvestment    Int?
   maxInvestment    Int?
   otherRequirements String?

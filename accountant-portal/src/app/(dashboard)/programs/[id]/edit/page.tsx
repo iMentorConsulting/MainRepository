@@ -21,6 +21,7 @@ const schema = z.object({
   maxInvestment: z.coerce.number().optional(),
   otherRequirements: z.string().optional(),
   websiteUrl: z.string().optional(),
+  heroImageUrl: z.string().optional(),
   minRegdate: z.string().optional(),
   maxRegdate: z.string().optional(),
   startDate: z.string().optional(),
@@ -193,6 +194,7 @@ export default function EditProgramPage() {
           maxInvestment: program.maxInvestment ?? undefined,
           otherRequirements: program.otherRequirements || '',
           websiteUrl: program.websiteUrl || '',
+          heroImageUrl: program.heroImageUrl || '',
           minRegdate: toDateInputValue(program.minRegdate),
           maxRegdate: toDateInputValue(program.maxRegdate),
           startDate: toDateInputValue(program.startDate),
@@ -256,6 +258,7 @@ export default function EditProgramPage() {
             </div>
             <Textarea label="Άλλες Προϋποθέσεις Προγράμματος" {...register('otherRequirements')} rows={3} placeholder="π.χ. ελάχιστος κύκλος εργασιών, υποχρεωτική απασχόληση προσωπικού κ.λπ." />
             <Input label="Σελίδα Προγράμματος στο Website μας (URL)" {...register('websiteUrl')} placeholder="https://www.i-mentor.gr/programs/..." />
+            <Input label="Hero Image URL (εικόνα κάρτας προγράμματος)" {...register('heroImageUrl')} placeholder="https://..." helperText="Εμφανίζεται ως φωτογραφία στη λίστα προγραμμάτων" />
             <div className="grid grid-cols-2 gap-4">
               <Input label="Ημ/νία Έναρξης" type="date" {...register('startDate')} />
               <Input label="Ημ/νία Λήξης" type="date" {...register('endDate')} />
