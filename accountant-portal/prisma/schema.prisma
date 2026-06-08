@@ -71,6 +71,7 @@ model Business {
   viberPhone            String?
   notes                 String?
   tags                  String[]
+  excludedFromCampaigns Boolean    @default(false)
   unsubscribeToken      String?    @unique @default(cuid())
   createdAt             DateTime   @default(now())
   updatedAt             DateTime   @updatedAt

@@ -27,6 +27,16 @@ export default function BusinessDetailPage() {
       .finally(() => setLoading(false))
   }, [id])
 
+  async function toggleExcludeFromCampaigns() {
+    const next = !business.excludedFromCampaigns
+    await fetch(`/api/businesses/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ excludedFromCampaigns: next }),
+    })
+    setBusiness((prev: any) => ({ ...prev, excludedFromCampaigns: next }))
+  }
+
   async function saveNotes() {
     await fetch(`/api/businesses/${id}`, {
       method: 'PUT',
@@ -121,6 +131,19 @@ export default function BusinessDetailPage() {
                 <div>
                   <dt className="text-gray-500">Viber</dt>
                   <dd>{business.viberPhone || '-'}</dd>
+                </div>
+                <div className="col-span-2 pt-2 border-t border-gray-100">
+                  <label className="flex items-center gap-2 text-sm cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={!!business.excludedFromCampaigns}
+                      onChange={toggleExcludeFromCampaigns}
+                      className="rounded border-gray-300 text-red-600 focus:ring-red-500"
+                    />
+                    <span className={business.excludedFromCampaigns ? 'text-red-600 font-medium' : 'text-gray-600'}>
+                      Εξαίρεση από καμπάνιες (η επιχείρηση δεν θα λαμβάνει ποτέ email/Viber καμπάνιες)
+                    </span>
+                  </label>
                 </div>
               </dl>
             </CardContent>

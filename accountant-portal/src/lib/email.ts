@@ -45,6 +45,113 @@ export async function sendEmail(data: EmailData): Promise<boolean> {
   }
 }
 
+interface CampaignEmailOptions {
+  title: string
+  bodyText: string
+  recipientName: string
+  imentorLogoUrl?: string
+  accountantOfficeName?: string
+  accountantLogoUrl?: string
+  ctaUrl?: string
+  ctaLabel?: string
+  unsubscribeUrl?: string
+}
+
+// Renders a polished, branded HTML email: a dark blue header banner with the
+// I-MENTOR / accountant identity and a status badge, a personalized greeting,
+// the message body rendered as styled paragraphs/bullets, an optional CTA
+// button, and a footer disclaimer about automated messages.
+export function renderCampaignEmailHtml(options: CampaignEmailOptions): string {
+  const {
+    title,
+    bodyText,
+    recipientName,
+    imentorLogoUrl,
+    accountantOfficeName,
+    accountantLogoUrl,
+    ctaUrl,
+    ctaLabel,
+    unsubscribeUrl,
+  } = options
+
+  const paragraphs = bodyText
+    .split(/\n{2,}/)
+    .map(block => block.trim())
+    .filter(Boolean)
+    .map(block => {
+      const lines = block.split('\n').map(l => l.trim()).filter(Boolean)
+      const isBulletBlock = lines.length > 1 && lines.every(l => l.startsWith('•') || l.startsWith('-'))
+      if (isBulletBlock) {
+        return `<ul style="margin:0 0 16px;padding:0;list-style:none;">
+          ${lines.map(l => `<li style="padding:6px 0 6px 22px;position:relative;color:#334155;font-size:14px;line-height:1.6;">
+            <span style="position:absolute;left:0;top:6px;color:#1e3a8a;font-weight:700;">•</span>${l.replace(/^[•-]\s*/, '')}
+          </li>`).join('')}
+        </ul>`
+      }
+      return `<p style="margin:0 0 16px;color:#334155;font-size:14px;line-height:1.7;">${lines.join('<br>')}</p>`
+    })
+    .join('')
+
+  const brandLeft = imentorLogoUrl
+    ? `<img src="${imentorLogoUrl}" alt="I-MENTOR" height="32" style="display:block;" />`
+    : '<span style="font-weight:800;letter-spacing:.5px;color:#ffffff;font-size:18px;">iMENTOR <span style="font-weight:400;opacity:.8;">CONSULTING</span></span>'
+
+  const brandRight = accountantLogoUrl
+    ? `<img src="${accountantLogoUrl}" alt="${accountantOfficeName || ''}" height="32" style="display:block;margin-left:auto;" />`
+    : (accountantOfficeName
+        ? `<span style="color:#cbd5e1;font-size:13px;font-weight:600;">${accountantOfficeName}</span>`
+        : '')
+
+  const cta = ctaUrl
+    ? `<table cellpadding="0" cellspacing="0" style="margin:8px 0 24px;">
+        <tr><td style="border-radius:8px;background:#1d4ed8;">
+          <a href="${ctaUrl}" style="display:inline-block;padding:12px 28px;color:#ffffff;font-size:14px;font-weight:600;text-decoration:none;border-radius:8px;">
+            🔗 ${ctaLabel || 'Δείτε το Portal σας'}
+          </a>
+        </td></tr>
+      </table>`
+    : ''
+
+  const unsubscribeRow = unsubscribeUrl
+    ? `<p style="margin:12px 0 0;color:#94a3b8;font-size:11px;">
+        Διαχείριση ενημερώσεων: <a href="${unsubscribeUrl}" style="color:#94a3b8;text-decoration:underline;">απεγγραφή</a>
+      </p>`
+    : ''
+
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f1f5f9;padding:32px 16px;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;">
+    <tr><td align="center">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;background:#ffffff;border-radius:14px;overflow:hidden;box-shadow:0 1px 3px rgba(15,23,42,.08);">
+
+        <tr><td style="background:linear-gradient(135deg,#1e3a8a,#1e40af);padding:24px 28px;">
+          <table width="100%" cellpadding="0" cellspacing="0"><tr>
+            <td>${brandLeft}</td>
+            <td align="right">${brandRight}</td>
+          </tr></table>
+          <div style="margin-top:18px;display:inline-block;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.25);border-radius:999px;padding:5px 14px;color:#dbeafe;font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;">
+            Αυτόματη Ενημέρωση
+          </div>
+        </td></tr>
+
+        <tr><td style="padding:28px 28px 8px;">
+          <p style="margin:0 0 18px;color:#0f172a;font-size:16px;font-weight:700;">Αγαπητέ/ή ${recipientName},</p>
+          ${paragraphs}
+          ${cta}
+        </td></tr>
+
+        <tr><td style="padding:0 28px 28px;">
+          <table width="100%" cellpadding="0" cellspacing="0" style="border-top:1px solid #e2e8f0;padding-top:18px;">
+            <tr><td style="color:#94a3b8;font-size:11px;line-height:1.6;">
+              🔒 Αυτό είναι ένα αυτοματοποιημένο μήνυμα ενημέρωσης. Μη δημιουργηθεί επιβεβαίωση παραλαβής, παρακαλούμε επικοινωνήστε με το λογιστικό σας γραφείο ή απαντήστε σε αυτό το email για οποιαδήποτε ερώτηση.
+              ${unsubscribeRow}
+            </td></tr>
+          </table>
+        </td></tr>
+
+      </table>
+    </td></tr>
+  </table>`
+}
+
 export function renderTemplate(
   template: string,
   variables: Record<string, string>

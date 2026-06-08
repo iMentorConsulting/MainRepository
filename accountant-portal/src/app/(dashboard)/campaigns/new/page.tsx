@@ -26,6 +26,7 @@ export default function NewCampaignPage() {
   const [programs, setPrograms] = useState<any[]>([])
   const [template, setTemplate] = useState('')
   const [viberMode, setViberMode] = useState<'withAccountant' | 'direct'>('withAccountant')
+  const [emailMode, setEmailMode] = useState<'withAccountant' | 'direct'>('withAccountant')
   const [savingDraft, setSavingDraft] = useState(false)
   const [sending, setSending] = useState(false)
   const [preview, setPreview] = useState('')
@@ -173,14 +174,31 @@ export default function NewCampaignPage() {
               <>
                 <p className="text-sm text-gray-500">
                   Επιλέξτε ένα έτοιμο, εξατομικευμένο template ως αφετηρία. Δείχνει στον πελάτη τι ελέγξαμε
-                  (κριτήρια επιλεξιμότητας) και τονίζει τη συνεργασία I-MENTOR με το λογιστικό γραφείο.
+                  (κριτήρια επιλεξιμότητας). Επιλέξτε αν η επικοινωνία γίνεται μέσω του λογιστικού γραφείου ή
+                  απευθείας από την I-MENTOR (π.χ. για δικές μας επαφές χωρίς συνεργαζόμενο λογιστή).
                 </p>
+                <div className="inline-flex rounded-lg border border-gray-200 p-1 bg-gray-50">
+                  <button
+                    type="button"
+                    onClick={() => setEmailMode('withAccountant')}
+                    className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${emailMode === 'withAccountant' ? 'bg-white text-blue-700 shadow-sm border border-gray-200' : 'text-gray-500 hover:text-gray-700'}`}
+                  >
+                    Μέσω Λογιστικού Γραφείου
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEmailMode('direct')}
+                    className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${emailMode === 'direct' ? 'bg-white text-blue-700 shadow-sm border border-gray-200' : 'text-gray-500 hover:text-gray-700'}`}
+                  >
+                    Απευθείας από I-MENTOR
+                  </button>
+                </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {CAMPAIGN_TEMPLATES.map(t => (
                     <button
                       key={t.id}
                       type="button"
-                      onClick={() => setTemplate(t.body)}
+                      onClick={() => setTemplate(emailMode === 'withAccountant' ? t.bodyWithAccountant : t.bodyDirect)}
                       className="text-left p-3 rounded-lg border border-gray-200 hover:border-blue-400 hover:bg-blue-50 transition-colors"
                     >
                       <div className="flex items-center gap-2 text-sm font-medium text-gray-800">
