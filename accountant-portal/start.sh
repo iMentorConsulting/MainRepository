@@ -1,6 +1,9 @@
 #!/bin/sh
 set -e
 
+echo ">>> Running pre-migration script (enum/data fixes)..."
+node scripts/pre-migrate.js || echo "Pre-migration skipped (non-fatal)"
+
 echo ">>> Running prisma db push..."
 npx prisma db push --accept-data-loss
 
