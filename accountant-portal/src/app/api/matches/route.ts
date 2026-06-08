@@ -25,7 +25,19 @@ export async function GET(request: NextRequest) {
       skip,
       take: limit,
       include: {
-        business: { select: { id: true, afm: true, onomasia: true } },
+        business: {
+          select: {
+            id: true,
+            afm: true,
+            onomasia: true,
+            campaignRecipients: {
+              where: { sentAt: { not: null } },
+              orderBy: { sentAt: 'desc' },
+              take: 1,
+              select: { sentAt: true, campaign: { select: { programId: true, title: true } } },
+            },
+          },
+        },
         program: { select: { id: true, title: true, category: true } },
       },
       orderBy: { matchScore: 'desc' },
