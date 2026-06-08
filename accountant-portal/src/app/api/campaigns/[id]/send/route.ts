@@ -17,14 +17,19 @@ async function processCampaignSend(
   const appSetting = await prisma.appSetting.findUnique({ where: { id: 'main' } })
   const imentorLogoUrl = appSetting?.imentorLogoUrl || ''
 
+  const useEmail = campaign.channel === 'EMAIL' || campaign.channel === 'EMAIL_AND_VIBER'
+  const useViber = campaign.channel === 'VIBER' || campaign.channel === 'EMAIL_AND_VIBER'
+
   for (const business of businesses) {
-    const recipient = campaign.channel === 'EMAIL' ? business.email : (business.viberPhone || business.phone)
-    if (!recipient) {
-      failed++
-      continue
-    }
+    const emailRecipient = business.email
+    const viberRecipient = business.viberPhone || business.phone
+
+    if (useEmail && !emailRecipient && !useViber) { failed++; continue }
+    if (useViber && !viberRecipient && !useEmail) { failed++; continue }
+    if (!emailRecipient && !viberRecipient) { failed++; continue }
 
     const matchReasons = matchReasonByBusiness.get(business.id) || []
+    const bullet = '•'
     const variables: Record<string, string> = {
       business_name: business.onomasia || business.afm,
       afm: business.afm,
@@ -32,39 +37,34 @@ async function processCampaignSend(
       accountant_office: business.accountant?.officeName || '',
       program_title: campaign.program?.title || '',
       kad_description: business.activities[0]?.firmActCode || '',
-      match_reason: matchReasons.map(r => `• ${r}`).join('\n'),
+      match_reason: matchReasons.map(r => `${bullet} ${r}`).join('\n'),
       unsubscribe_link: `${process.env.NEXTAUTH_URL || 'http://localhost:3001'}/api/unsubscribe/${business.unsubscribeToken}`,
     }
 
     const message = renderTemplate(campaign.messageTemplate, variables)
+    const emailSubject = renderTemplate(campaign.subject || campaign.title, variables)
     let success = false
 
     try {
-      if (campaign.channel === 'EMAIL') {
-        // Bold the personalized fields in the HTML body so the email visibly
-        // reads as targeted/specialized rather than a generic newsletter.
-        // match_reason is bolded per-bullet here (each line still starts
-        // with "•" so the bullet-block detection in the renderer still works).
+      if (useEmail && emailRecipient) {
         const emailVariables: Record<string, string> = {
           ...variables,
-          match_reason: matchReasons.map(r => `• <strong>${r}</strong>`).join('\n'),
+          match_reason: matchReasons.map(r => `${bullet} <strong>${r}</strong>`).join('\n'),
         }
         const boldedMessage = renderTemplate(campaign.messageTemplate, emailVariables, {
           boldKeys: ['business_name', 'afm', 'accountant_name', 'accountant_office', 'program_title', 'kad_description'],
         })
-        // The footer already renders the unsubscribe link, so drop any
-        // trailing line from the template that duplicates it in the body.
         const bodyWithoutUnsubscribe = boldedMessage
           .split('\n')
           .filter(line => !line.includes(variables.unsubscribe_link))
           .join('\n')
           .trim()
 
-        success = await sendEmail({
-          to: recipient,
-          subject: renderTemplate(campaign.title, variables),
+        const emailOk = await sendEmail({
+          to: emailRecipient,
+          subject: emailSubject,
           html: renderCampaignEmailHtml({
-            title: campaign.title,
+            title: emailSubject,
             bodyText: bodyWithoutUnsubscribe,
             recipientName: business.onomasia || business.afm,
             imentorLogoUrl,
@@ -73,19 +73,24 @@ async function processCampaignSend(
             unsubscribeUrl: variables.unsubscribe_link,
           }),
         })
-      } else {
-        success = await sendViberMessage({ to: recipient, text: message, senderName: business.onomasia || business.afm })
+        if (emailOk) success = true
+      }
+
+      if (useViber && viberRecipient) {
+        const viberOk = await sendViberMessage({ to: viberRecipient, text: message, senderName: business.onomasia || business.afm })
+        if (viberOk) success = true
       }
     } catch (err: any) {
-      console.error(`[Campaign ${campaign.id}] Send error to ${recipient}:`, err?.message || err)
+      console.error(`[Campaign ${campaign.id}] Send error for ${business.afm}:`, err?.message || err)
     }
 
+    const primaryRecipient = emailRecipient || viberRecipient || ''
     await prisma.campaignRecipient.create({
       data: {
         campaignId: campaign.id,
         businessId: business.id,
         channel: campaign.channel,
-        recipient,
+        recipient: primaryRecipient,
         status: success ? 'sent' : 'failed',
         sentAt: success ? new Date() : null,
       }
@@ -125,7 +130,6 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
 
   if (!campaign) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  // Optional explicit recipient selection (from the recipients-preview UI)
   let selectedBusinessIds: string[] | null = null
   try {
     const body = await request.json()
@@ -134,7 +138,6 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     // no body provided — send to all eligible recipients
   }
 
-  // Find eligible businesses
   let businesses = await prisma.business.findMany({
     include: {
       accountant: true,
@@ -143,16 +146,13 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     ...(campaign.accountantId ? { where: { accountantId: campaign.accountantId } } : {}),
   })
 
-  // Always exclude businesses marked as excluded from campaigns
   businesses = businesses.filter(b => !b.excludedFromCampaigns)
 
-  // If a specific recipient list was provided, restrict to it
   if (selectedBusinessIds) {
     const selectedSet = new Set(selectedBusinessIds)
     businesses = businesses.filter(b => selectedSet.has(b.id))
   }
 
-  // If campaign has program, filter by matched businesses and collect match reasons
   let matchReasonByBusiness = new Map<string, string[]>()
   if (campaign.programId) {
     const matches = await prisma.programMatch.findMany({
@@ -163,9 +163,6 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     businesses = businesses.filter(b => matchReasonByBusiness.has(b.id))
   }
 
-  // Run the send in the background — emails/Viber messages can take a long
-  // time per recipient, and awaiting the whole batch here causes the HTTP
-  // request to hang (and the UI to spin) past the platform's timeout.
   processCampaignSend(campaign, businesses, matchReasonByBusiness, session.user.id)
     .catch(err => console.error(`[Campaign ${campaign.id}] Background send failed:`, err?.message || err))
 

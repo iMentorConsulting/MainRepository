@@ -198,6 +198,7 @@ model Campaign {
 enum CampaignChannel {
   EMAIL
   VIBER
+  EMAIL_AND_VIBER
 }
 
 enum CampaignStatus {

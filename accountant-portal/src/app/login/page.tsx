@@ -23,10 +23,20 @@ export default function LoginPage() {
     e.preventDefault()
     setLoading(true)
     setError('')
-    const res = await signIn('credentials', { email, password, redirect: false })
-    setLoading(false)
-    if (res?.ok) router.push('/')
-    else setError('Λάθος email ή κωδικός πρόσβασης')
+    try {
+      const res = await signIn('credentials', { email, password, redirect: false })
+      // NextAuth v5 beta returns a URL string on success, not { ok: true }
+      if (res && (res as any).error) {
+        setError('Λάθος email ή κωδικός πρόσβασης')
+      } else {
+        router.push('/')
+        router.refresh()
+      }
+    } catch {
+      setError('Λάθος email ή κωδικός πρόσβασης')
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (

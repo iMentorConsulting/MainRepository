@@ -2,6 +2,7 @@ export interface CampaignTemplate {
   id: string
   label: string
   description: string
+  subject: string
   bodyWithAccountant: string
   bodyDirect: string
 }
@@ -11,6 +12,7 @@ export const CAMPAIGN_TEMPLATES: CampaignTemplate[] = [
     id: 'program-eligibility',
     label: 'Ενημέρωση Επιλεξιμότητας Προγράμματος',
     description: 'Εξηγεί στην επιχείρηση γιατί ελέγχθηκε και βρέθηκε επιλέξιμη για ένα συγκεκριμένο πρόγραμμα.',
+    subject: '{{accountant_office}} & I-MENTOR: Επιλέξιμοι για το «{{program_title}}»',
     bodyWithAccountant:
 `Αγαπητοί συνεργάτες της {{business_name}},
 
@@ -48,6 +50,7 @@ export const CAMPAIGN_TEMPLATES: CampaignTemplate[] = [
     id: 'partnership-intro',
     label: 'Παρουσίαση Συνεργασίας I-MENTOR & Λογιστικού Γραφείου',
     description: 'Πρώτη επαφή — παρουσιάζει τη συνεργασία I-MENTOR με το λογιστικό γραφείο και τη συνδρομή στην εύρεση επιδοτήσεων.',
+    subject: '{{accountant_office}}: Νέα υπηρεσία ενημέρωσης για επιδοτήσεις από την I-MENTOR',
     bodyWithAccountant:
 `Αγαπητοί κύριοι/κυρίες της {{business_name}},
 
@@ -79,6 +82,7 @@ export const CAMPAIGN_TEMPLATES: CampaignTemplate[] = [
     id: 'deadline-reminder',
     label: 'Υπενθύμιση Προθεσμίας Υποβολής',
     description: 'Υπενθύμιση για επικείμενη λήξη προθεσμίας υποβολής αίτησης σε πρόγραμμα για το οποίο η επιχείρηση είναι επιλέξιμη.',
+    subject: '⏰ {{accountant_office}}: Η προθεσμία για το «{{program_title}}» πλησιάζει!',
     bodyWithAccountant:
 `Αγαπητοί συνεργάτες της {{business_name}},
 
@@ -110,6 +114,7 @@ export const CAMPAIGN_TEMPLATES: CampaignTemplate[] = [
     id: 'kad-match',
     label: 'Στοχευμένη Ενημέρωση βάσει ΚΑΔ',
     description: 'Τονίζει ότι η επιλεξιμότητα προέκυψε ειδικά από τον κωδικό δραστηριότητας (ΚΑΔ) της επιχείρησης.',
+    subject: '{{accountant_office}}: Ο ΚΑΔ σας σας δίνει πρόσβαση στο «{{program_title}}»',
     bodyWithAccountant:
 `Αγαπητοί συνεργάτες της {{business_name}},
 
@@ -149,6 +154,7 @@ export interface ViberCampaignTemplate {
   id: string
   label: string
   description: string
+  subject: string
   bodyWithAccountant: string
   bodyDirect: string
 }
@@ -158,6 +164,7 @@ export const VIBER_CAMPAIGN_TEMPLATES: ViberCampaignTemplate[] = [
     id: 'viber-program-eligibility',
     label: 'Ενημέρωση Επιλεξιμότητας Προγράμματος',
     description: 'Σύντομο μήνυμα Viber που ενημερώνει την επιχείρηση ότι βρέθηκε επιλέξιμη για συγκεκριμένο πρόγραμμα.',
+    subject: '{{accountant_office}} & I-MENTOR: Επιλέξιμοι για το «{{program_title}}»',
     bodyWithAccountant:
 `Γειά σας, *{{business_name}}* 👋
 
@@ -189,6 +196,7 @@ export const VIBER_CAMPAIGN_TEMPLATES: ViberCampaignTemplate[] = [
     id: 'viber-partnership-intro',
     label: 'Πρώτη Επαφή & Παρουσίαση',
     description: 'Σύντομη πρώτη επαφή μέσω Viber που παρουσιάζει την υπηρεσία ενημέρωσης για επιδοτήσεις.',
+    subject: '{{accountant_office}}: Νέα υπηρεσία ενημέρωσης για επιδοτήσεις από την I-MENTOR',
     bodyWithAccountant:
 `Γειά σας, *{{business_name}}* 👋
 
@@ -216,6 +224,7 @@ export const VIBER_CAMPAIGN_TEMPLATES: ViberCampaignTemplate[] = [
     id: 'viber-deadline-reminder',
     label: 'Υπενθύμιση Προθεσμίας',
     description: 'Σύντομη υπενθύμιση μέσω Viber για επικείμενη λήξη προθεσμίας υποβολής σε πρόγραμμα στο οποίο είναι επιλέξιμη η επιχείρηση.',
+    subject: '⏰ {{accountant_office}}: Η προθεσμία για το «{{program_title}}» πλησιάζει!',
     bodyWithAccountant:
 `Γειά σας, *{{business_name}}* ⏰
 
@@ -243,6 +252,7 @@ export const VIBER_CAMPAIGN_TEMPLATES: ViberCampaignTemplate[] = [
     id: 'viber-kad-match',
     label: 'Στοχευμένη Ενημέρωση βάσει ΚΑΔ',
     description: 'Τονίζει μέσω Viber ότι η επιλεξιμότητα προέκυψε ειδικά από τον κωδικό δραστηριότητας (ΚΑΔ) της επιχείρησης.',
+    subject: '{{accountant_office}}: Ο ΚΑΔ σας σας δίνει πρόσβαση στο «{{program_title}}»',
     bodyWithAccountant:
 `Γειά σας, *{{business_name}}* 👋
 
