@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 
+export const dynamic = 'force-dynamic'
+
 export async function GET() {
   // Public branding asset — needed on the pre-auth login page too.
   const setting = await prisma.appSetting.findUnique({ where: { id: 'main' } })
