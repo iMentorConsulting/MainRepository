@@ -40,7 +40,6 @@ export default function NewPaymentPage() {
     : selectedService?.price || 0
 
   useEffect(() => {
-    fetch('/api/businesses?limit=200').then(r => r.json()).then(d => setBusinesses(d.businesses || []))
     fetch('/api/payments/services').then(r => r.json()).then(d => setServices(Array.isArray(d) ? d : []))
     fetch('/api/programs').then(r => r.json()).then(d => setPrograms(d.programs || []))
     if (isAdmin) {
@@ -48,12 +47,15 @@ export default function NewPaymentPage() {
     }
   }, [isAdmin])
 
-  const filteredBusinesses = businessSearch
-    ? businesses.filter(b =>
-        (b.onomasia || '').toLowerCase().includes(businessSearch.toLowerCase()) ||
-        b.afm.includes(businessSearch)
-      )
-    : businesses
+  useEffect(() => {
+    const params = new URLSearchParams({ limit: '50' })
+    if (businessSearch) params.set('search', businessSearch)
+    fetch(`/api/businesses?${params.toString()}`)
+      .then(r => r.json())
+      .then(d => setBusinesses(d.businesses || []))
+  }, [businessSearch])
+
+  const filteredBusinesses = businesses
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
