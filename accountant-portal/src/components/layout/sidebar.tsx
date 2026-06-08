@@ -38,39 +38,45 @@ export function Sidebar() {
   }, [])
 
   return (
-    <aside className="fixed left-0 top-0 h-full w-64 bg-slate-900 border-r border-slate-800 flex flex-col z-50 shadow-sm">
+    <aside className="fixed left-0 top-0 h-full w-64 bg-slate-900 border-r border-slate-800 flex flex-col z-50 shadow-xl">
+      {/* Brand accent bar at very top */}
+      <div className="h-1 w-full flex-shrink-0" style={{background: 'linear-gradient(90deg, #4f46e5, #7c3aed, #4f46e5)'}} />
+
       {/* Logo */}
-      <div className="px-4 pt-5 pb-4 border-b border-slate-800">
+      <div className="px-5 pt-5 pb-5 border-b border-slate-800">
         <Link href="/" className="block">
-          <div className="flex items-center justify-center mb-3">
+          <div className="flex items-center justify-center py-2 mb-4">
             {logoUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={logoUrl} alt="I-MENTOR" className="max-h-16 w-auto object-contain" />
+              <img src={logoUrl} alt="I-MENTOR" className="max-h-24 w-auto object-contain drop-shadow-lg" />
             ) : (
-              <div className="flex items-center gap-2">
-                <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
-                  style={{background: 'linear-gradient(135deg, #4f46e5, #7c3aed)'}}>
-                  <Zap className="w-4 h-4 text-white" />
+              <div className="flex flex-col items-center gap-1.5">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0"
+                    style={{background: 'linear-gradient(135deg, #4f46e5, #7c3aed)'}}>
+                    <Zap className="w-5 h-5 text-white" />
+                  </div>
+                  <span className="text-2xl font-bold text-white tracking-tight">I-MENTOR</span>
                 </div>
-                <span className="text-xl font-bold text-white tracking-tight">I-MENTOR</span>
+                <span className="text-[10px] text-slate-500 tracking-widest uppercase font-medium">Accountant Portal</span>
               </div>
             )}
           </div>
           {/* Contact info */}
-          <div className="space-y-0.5">
+          <div className="space-y-1.5 bg-slate-800/60 rounded-xl px-3 py-3">
             <a href="https://www.i-mentor.gr" target="_blank" rel="noopener noreferrer"
-              className="flex items-center gap-1.5 text-[11px] text-slate-400 hover:text-indigo-300 transition-colors">
-              <Globe className="w-3 h-3 flex-shrink-0" />
+              className="flex items-center gap-2 text-[11px] text-slate-400 hover:text-indigo-300 transition-colors">
+              <Globe className="w-3 h-3 flex-shrink-0 text-indigo-400" />
               www.i-mentor.gr
             </a>
             <a href="mailto:info@i-mentor.gr"
-              className="flex items-center gap-1.5 text-[11px] text-slate-400 hover:text-indigo-300 transition-colors">
-              <Mail className="w-3 h-3 flex-shrink-0" />
+              className="flex items-center gap-2 text-[11px] text-slate-400 hover:text-indigo-300 transition-colors">
+              <Mail className="w-3 h-3 flex-shrink-0 text-indigo-400" />
               info@i-mentor.gr
             </a>
             <a href="tel:+302810363007"
-              className="flex items-center gap-1.5 text-[11px] text-slate-400 hover:text-indigo-300 transition-colors">
-              <Phone className="w-3 h-3 flex-shrink-0" />
+              className="flex items-center gap-2 text-[11px] text-slate-400 hover:text-indigo-300 transition-colors">
+              <Phone className="w-3 h-3 flex-shrink-0 text-indigo-400" />
               2810 363007
             </a>
           </div>

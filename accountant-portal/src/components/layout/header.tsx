@@ -111,23 +111,25 @@ export function Header() {
   const title = breadcrumbMap[base] || 'Portal'
 
   return (
-    <header className="fixed top-0 right-0 left-64 h-16 z-40 flex items-center px-6 gap-4 bg-slate-100/80 backdrop-blur-xl border-b border-slate-200">
+    <header className="fixed top-0 right-0 left-64 h-16 z-40 flex items-center px-6 gap-4 bg-white/90 backdrop-blur-xl border-b border-slate-200 shadow-sm">
+      {/* Left accent bar matching sidebar */}
+      <div className="absolute left-0 top-0 bottom-0 w-0.5" style={{background: 'linear-gradient(180deg, #4f46e5, #7c3aed)'}} />
       <div className="flex-1">
-        <div className="flex items-center gap-1.5 text-xs text-slate-400 mb-0.5">
-          <span>I-MENTOR</span>
-          <span>›</span>
-          <span className="text-slate-600">{title}</span>
+        <div className="flex items-center gap-1.5 text-xs mb-0.5">
+          <span className="font-semibold text-indigo-600 tracking-wide">I-MENTOR</span>
+          <span className="text-slate-300">›</span>
+          <span className="text-slate-500">{title}</span>
         </div>
-        <h1 className="text-base font-semibold text-slate-900">{title}</h1>
+        <h1 className="text-base font-bold text-slate-900">{title}</h1>
       </div>
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-3">
         <NotificationBell />
-        <span className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 text-xs font-medium border border-emerald-100">
+        <span className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-50 text-emerald-700 text-xs font-semibold border border-emerald-100">
           <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
           Ενεργό
         </span>
-        <span className="hidden md:block text-xs text-slate-400">
-          {new Date().toLocaleDateString('el-GR')}
+        <span className="hidden md:flex items-center gap-1.5 text-xs text-slate-400 bg-slate-50 px-3 py-1.5 rounded-full border border-slate-200">
+          {new Date().toLocaleDateString('el-GR', { weekday: 'short', day: '2-digit', month: 'short' })}
         </span>
       </div>
     </header>
