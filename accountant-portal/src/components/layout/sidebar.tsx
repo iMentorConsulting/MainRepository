@@ -40,24 +40,24 @@ export function Sidebar() {
   return (
     <aside className="fixed left-0 top-0 h-full w-64 bg-slate-900 border-r border-slate-800 flex flex-col z-50 shadow-sm">
       {/* Logo */}
-      <div className="p-4 border-b border-slate-800">
+      <div className="px-4 pt-5 pb-4 border-b border-slate-800">
         <Link href="/" className="block">
-          <div className="flex items-center justify-center w-full rounded-2xl py-4 px-3 mb-1"
-            style={{background: 'linear-gradient(135deg, #4f46e5, #4338ca)'}}>
+          <div className="flex items-center justify-center mb-3">
             {logoUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={logoUrl} alt="I-MENTOR" className="max-h-14 w-auto object-contain" />
+              <img src={logoUrl} alt="I-MENTOR" className="max-h-16 w-auto object-contain" />
             ) : (
               <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-white/15">
+                <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+                  style={{background: 'linear-gradient(135deg, #4f46e5, #7c3aed)'}}>
                   <Zap className="w-4 h-4 text-white" />
                 </div>
-                <span className="text-lg font-bold text-white tracking-tight">I-MENTOR</span>
+                <span className="text-xl font-bold text-white tracking-tight">I-MENTOR</span>
               </div>
             )}
           </div>
           {/* Contact info */}
-          <div className="mt-2 space-y-0.5">
+          <div className="space-y-0.5">
             <a href="https://www.i-mentor.gr" target="_blank" rel="noopener noreferrer"
               className="flex items-center gap-1.5 text-[11px] text-slate-400 hover:text-indigo-300 transition-colors">
               <Globe className="w-3 h-3 flex-shrink-0" />

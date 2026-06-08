@@ -4,8 +4,7 @@ import Link from 'next/link'
 import { useSession } from 'next-auth/react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Card } from '@/components/ui/card'
-import { Plus, Target, Calendar, Zap } from 'lucide-react'
+import { Plus, Target, Calendar, Zap, TrendingUp, MapPin } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
 
 interface Program {
@@ -13,9 +12,14 @@ interface Program {
   title: string
   category: string
   description: string | null
+  heroImageUrl: string | null
   active: boolean
   startDate: string | null
   endDate: string | null
+  minInvestment: number | null
+  maxInvestment: number | null
+  regionRules: string[]
+  kadRules: string[]
   _count: { matches: number }
 }
 
@@ -27,12 +31,24 @@ const categoryLabel: Record<string, string> = {
   OTHER: 'Άλλο',
 }
 
+const categoryColor: Record<string, string> = {
+  ESPA: 'from-blue-700 to-blue-900',
+  DYPA: 'from-emerald-600 to-teal-800',
+  MICROLOANS: 'from-amber-600 to-orange-800',
+  LOAN: 'from-violet-600 to-purple-900',
+  OTHER: 'from-slate-600 to-slate-800',
+}
+
 const categoryVariant: Record<string, any> = {
   ESPA: 'default',
   DYPA: 'success',
   MICROLOANS: 'warning',
   LOAN: 'info',
   OTHER: 'secondary',
+}
+
+function formatEuro(cents: number) {
+  return (cents / 100).toLocaleString('el-GR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })
 }
 
 export default function ProgramsPage() {
@@ -87,34 +103,79 @@ export default function ProgramsPage() {
           <div className="animate-spin w-8 h-8 border-4 border-blue-800 border-t-transparent rounded-full" />
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
           {filtered.map(program => (
-            <Link key={program.id} href={`/programs/${program.id}`}>
-              <div className="bg-white rounded-xl border border-gray-200 p-5 hover:shadow-md transition-shadow cursor-pointer h-full">
-                <div className="flex items-start justify-between mb-3">
-                  <div className="p-2 bg-blue-50 rounded-lg">
-                    <Target size={20} className="text-blue-700" />
-                  </div>
-                  <div className="flex gap-1.5">
-                    <Badge variant={categoryVariant[program.category]}>{categoryLabel[program.category]}</Badge>
-                    {!program.active && <Badge variant="secondary">Ανενεργό</Badge>}
-                  </div>
-                </div>
-                <h3 className="font-semibold text-gray-900 mb-2 leading-snug">{program.title}</h3>
-                {program.description && (
-                  <p className="text-sm text-gray-500 line-clamp-2 mb-3">{program.description}</p>
-                )}
-                <div className="flex items-center justify-between text-xs text-gray-400 pt-3 border-t border-gray-100">
-                  <div className="flex items-center gap-1">
-                    <Zap size={12} />
-                    <span>{program._count.matches} matches</span>
-                  </div>
-                  {program.endDate && (
-                    <div className="flex items-center gap-1">
-                      <Calendar size={12} />
-                      <span>Έως {formatDate(program.endDate)}</span>
+            <Link key={program.id} href={`/programs/${program.id}`} className="block group">
+              <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden hover:shadow-xl transition-all duration-200 cursor-pointer h-full flex flex-col group-hover:-translate-y-0.5">
+                {/* Hero image / gradient banner */}
+                <div className={`relative h-36 bg-gradient-to-br ${categoryColor[program.category] || 'from-slate-600 to-slate-800'} overflow-hidden flex-shrink-0`}>
+                  {program.heroImageUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={program.heroImageUrl}
+                      alt={program.title}
+                      className="w-full h-full object-cover opacity-80"
+                    />
+                  ) : (
+                    <div className="absolute inset-0 flex items-center justify-center opacity-10">
+                      <Target size={80} className="text-white" />
                     </div>
                   )}
+                  {/* Category badge */}
+                  <div className="absolute top-3 right-3">
+                    <span className="bg-white/90 backdrop-blur-sm text-xs font-bold px-2.5 py-1 rounded-full text-gray-800">
+                      {categoryLabel[program.category]}
+                    </span>
+                  </div>
+                  {!program.active && (
+                    <div className="absolute top-3 left-3">
+                      <span className="bg-gray-800/80 text-white text-xs font-medium px-2 py-0.5 rounded-full">Ανενεργό</span>
+                    </div>
+                  )}
+                  {/* Matches badge */}
+                  <div className="absolute bottom-3 left-3">
+                    <span className={`flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full ${program._count.matches > 0 ? 'bg-green-500 text-white' : 'bg-black/40 text-white'}`}>
+                      <Zap size={10} />
+                      {program._count.matches} matches
+                    </span>
+                  </div>
+                </div>
+
+                {/* Content */}
+                <div className="p-4 flex flex-col flex-1">
+                  <h3 className="font-bold text-gray-900 mb-2 leading-snug text-sm">{program.title}</h3>
+                  {program.description && (
+                    <p className="text-xs text-gray-500 line-clamp-2 mb-3 leading-relaxed">{program.description}</p>
+                  )}
+
+                  {/* Details grid */}
+                  <div className="mt-auto space-y-1.5 pt-3 border-t border-gray-100">
+                    {(program.minInvestment || program.maxInvestment) && (
+                      <div className="flex items-center gap-1.5 text-xs text-gray-600">
+                        <TrendingUp size={11} className="text-green-600 flex-shrink-0" />
+                        <span className="font-medium">Επένδυση:</span>
+                        <span>
+                          {program.minInvestment && program.maxInvestment
+                            ? `${formatEuro(program.minInvestment)} – ${formatEuro(program.maxInvestment)}`
+                            : program.minInvestment
+                            ? `από ${formatEuro(program.minInvestment)}`
+                            : `έως ${formatEuro(program.maxInvestment!)}`}
+                        </span>
+                      </div>
+                    )}
+                    {program.regionRules.length > 0 && (
+                      <div className="flex items-center gap-1.5 text-xs text-gray-600">
+                        <MapPin size={11} className="text-indigo-500 flex-shrink-0" />
+                        <span className="truncate">{program.regionRules.slice(0, 2).join(', ')}{program.regionRules.length > 2 ? ` +${program.regionRules.length - 2}` : ''}</span>
+                      </div>
+                    )}
+                    {program.endDate && (
+                      <div className="flex items-center gap-1.5 text-xs text-gray-500">
+                        <Calendar size={11} className="flex-shrink-0" />
+                        <span>Λήξη {formatDate(program.endDate)}</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             </Link>
