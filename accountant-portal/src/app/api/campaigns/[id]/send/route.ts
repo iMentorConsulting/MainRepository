@@ -132,6 +132,11 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
 
   if (!campaign) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
+  // ACCOUNTANT can only send their own campaigns
+  if (session.user.role === 'ACCOUNTANT' && campaign.accountantId !== (session.user as any).accountantId) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
   let selectedBusinessIds: string[] | null = null
   try {
     const body = await request.json()

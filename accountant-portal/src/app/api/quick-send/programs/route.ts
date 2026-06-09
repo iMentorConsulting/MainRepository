@@ -11,9 +11,14 @@ export async function GET(request: NextRequest) {
   const businessIds = request.nextUrl.searchParams.get('businessIds')?.split(',').filter(Boolean) || []
   if (businessIds.length === 0) return NextResponse.json({ programs: [] })
 
-  // Find all programs that have at least one match with any of the selected businesses
+  // ACCOUNTANTs can only query matches for their own businesses
+  const matchWhere: any = { businessId: { in: businessIds } }
+  if (session.user.role === 'ACCOUNTANT' && (session.user as any).accountantId) {
+    matchWhere.business = { accountantId: (session.user as any).accountantId }
+  }
+
   const matches = await prisma.programMatch.findMany({
-    where: { businessId: { in: businessIds } },
+    where: matchWhere,
     select: { program: { select: { id: true, title: true } } },
     distinct: ['programId'],
   })

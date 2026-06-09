@@ -6,15 +6,26 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
+  const isAccountant = session.user.role === 'ACCOUNTANT'
+  const accountantId = (session.user as any).accountantId as string | null
+
+  const matchWhere = isAccountant && accountantId
+    ? { programId: params.id, business: { accountantId } }
+    : { programId: params.id }
+
   const program = await prisma.program.findUnique({
     where: { id: params.id },
     include: {
       matches: {
+        where: matchWhere,
         include: { business: { select: { id: true, afm: true, onomasia: true } } },
         orderBy: { matchScore: 'desc' },
         take: 50,
       },
-      campaigns: { select: { id: true, title: true, status: true, sentAt: true } },
+      // ACCOUNTANTs should not see other accountants' campaigns for this program
+      campaigns: isAccountant && accountantId
+        ? { where: { accountantId }, select: { id: true, title: true, status: true, sentAt: true } }
+        : { select: { id: true, title: true, status: true, sentAt: true } },
     }
   })
 

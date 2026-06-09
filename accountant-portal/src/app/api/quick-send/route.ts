@@ -15,9 +15,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'businessIds, channel and messageTemplate are required' }, { status: 400 })
   }
 
+  // ACCOUNTANTs can only send to their own businesses
+  const businessWhere: any = { id: { in: businessIds } }
+  if (session.user.role === 'ACCOUNTANT' && (session.user as any).accountantId) {
+    businessWhere.accountantId = (session.user as any).accountantId
+  }
+
   const [businesses, matchRows, program] = await Promise.all([
     prisma.business.findMany({
-      where: { id: { in: businessIds } },
+      where: businessWhere,
       include: {
         accountant: true,
         activities: { where: { firmActKind: 1 }, take: 1 },

@@ -26,8 +26,9 @@ export async function GET(request: NextRequest) {
 
   const businessFilter: any = {}
   if (session.user.role === 'ACCOUNTANT' && session.user.accountantId) {
+    // Always enforce the session accountant — ignore any client-supplied accountantIds
     businessFilter.accountantId = session.user.accountantId
-  } else if (accountantIds.length > 0) {
+  } else if (session.user.role === 'ADMIN' && accountantIds.length > 0) {
     businessFilter.accountantId = { in: accountantIds }
   }
   if (Object.keys(businessFilter).length > 0) where.business = businessFilter

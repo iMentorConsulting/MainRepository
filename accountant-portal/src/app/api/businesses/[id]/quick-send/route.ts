@@ -21,6 +21,10 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
   })
   if (!business) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
+  if (session.user.role === 'ACCOUNTANT' && business.accountantId !== (session.user as any).accountantId) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
   const appSetting = await prisma.appSetting.findUnique({ where: { id: 'main' } })
 
   let emailOk = false
