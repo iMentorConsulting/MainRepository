@@ -95,7 +95,7 @@ export default function RequestsPage() {
                     <Td className="text-sm text-gray-500">{r.program?.title || '-'}</Td>
                     <Td><Badge variant={statusVariant[r.status]}>{statusLabel[r.status]}</Badge></Td>
                     <Td className="text-sm text-gray-500">{formatDate(r.createdAt)}</Td>
-                    <Td>{r.attachmentUrl && <Paperclip size={14} className="text-indigo-400" title={r.attachmentName || 'Συνημμένο'} />}</Td>
+                    <Td>{r.attachmentUrl && <span title={r.attachmentName || 'Συνημμένο'}><Paperclip size={14} className="text-indigo-400" /></span>}</Td>
                     <Td>
                       {isAdmin && (
                         <select
