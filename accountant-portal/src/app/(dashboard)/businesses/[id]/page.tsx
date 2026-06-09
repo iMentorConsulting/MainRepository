@@ -10,6 +10,7 @@ import { MatchCard } from '@/components/matching/match-card'
 import { QuickSendModal } from '@/components/quick-send-modal'
 import { ArrowLeft, Mail, Phone, MapPin, Calendar, Edit, Send, Trash2 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
+import { useSession } from 'next-auth/react'
 import { formatDate } from '@/lib/utils'
 
 export default function BusinessDetailPage() {
@@ -21,6 +22,8 @@ export default function BusinessDetailPage() {
   const [notes, setNotes] = useState('')
   const [quickSend, setQuickSend] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const { data: session } = useSession()
+  const isAdmin = session?.user?.role === 'ADMIN'
 
   useEffect(() => {
     fetch(`/api/businesses/${id}`)
@@ -105,15 +108,17 @@ export default function BusinessDetailPage() {
             Επεξεργασία
           </Button>
         </Link>
-        <Button
-          variant="outline"
-          onClick={handleDelete}
-          loading={deleting}
-          className="border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300"
-        >
-          <Trash2 size={15} className="mr-1.5" />
-          Διαγραφή
-        </Button>
+        {isAdmin && (
+          <Button
+            variant="outline"
+            onClick={handleDelete}
+            loading={deleting}
+            className="border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300"
+          >
+            <Trash2 size={15} className="mr-1.5" />
+            Διαγραφή
+          </Button>
+        )}
       </div>
 
       {quickSend && (

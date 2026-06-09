@@ -20,11 +20,11 @@ function fmtMonthLabel(key: string) {
 }
 
 const LEVELS = [
-  { min: 0,  label: 'Αρχάριος',       emoji: '🌱', color: 'text-gray-500',   bar: '#9ca3af' },
-  { min: 25, label: 'Αναπτυσσόμενος', emoji: '🚀', color: 'text-blue-600',   bar: '#3b82f6' },
-  { min: 50, label: 'Ενεργός',         emoji: '⚡', color: 'text-indigo-600', bar: '#6366f1' },
-  { min: 75, label: 'Εξπέρ',           emoji: '🎯', color: 'text-purple-600', bar: '#a855f7' },
-  { min: 90, label: 'Πρωταθλητής',     emoji: '🏆', color: 'text-amber-500',  bar: '#f59e0b' },
+  { min: 0,   label: 'Αρχάριος',       emoji: '🌱', color: 'text-gray-500',   bar: '#9ca3af' },
+  { min: 50,  label: 'Αναπτυσσόμενος', emoji: '🚀', color: 'text-blue-600',   bar: '#3b82f6' },
+  { min: 150, label: 'Ενεργός',         emoji: '⚡', color: 'text-indigo-600', bar: '#6366f1' },
+  { min: 350, label: 'Εξπέρ',           emoji: '🎯', color: 'text-purple-600', bar: '#a855f7' },
+  { min: 700, label: 'Πρωταθλητής',     emoji: '🏆', color: 'text-amber-500',  bar: '#f59e0b' },
 ]
 function getLevel(score: number) {
   return [...LEVELS].reverse().find(l => score >= l.min) ?? LEVELS[0]
@@ -301,11 +301,10 @@ function TabScores() {
                   <tr className="border-b border-gray-100 bg-gray-50 text-xs text-gray-500 uppercase font-semibold">
                     <th className="px-4 py-3 text-left w-6">#</th>
                     <th className="px-4 py-3 text-left">Γραφείο</th>
-                    <th className="px-4 py-3 text-center">Βαθμολογία</th>
-                    <th className="px-4 py-3 text-center">Επιχ. (30/30)</th>
-                    <th className="px-4 py-3 text-center">Matching (25/25)</th>
-                    <th className="px-4 py-3 text-center">Καμπάνιες (25/25)</th>
-                    <th className="px-4 py-3 text-center">Στοιχεία (20/20)</th>
+                    <th className="px-4 py-3 text-center">Πόντοι</th>
+                    <th className="px-4 py-3 text-center">Επιχειρήσεις</th>
+                    <th className="px-4 py-3 text-center">Με Επικοινωνία</th>
+                    <th className="px-4 py-3 text-center">Μηνύματα Καμπ.</th>
                     <th className="px-4 py-3 text-left">Επίπεδο</th>
                   </tr>
                 </thead>
@@ -320,28 +319,20 @@ function TabScores() {
                           <div className="text-xs text-gray-400">{acc.contactPerson}</div>
                         </td>
                         <td className="px-4 py-3 text-center">
-                          <div className="flex items-center justify-center gap-2">
-                            <div className="w-20 bg-gray-100 rounded-full h-2 overflow-hidden">
-                              <div className="h-2 rounded-full transition-all" style={{ width: `${acc.score.total}%`, backgroundColor: lvl.bar }} />
-                            </div>
-                            <span className="font-bold text-gray-800 w-8 text-right">{acc.score.total}</span>
-                          </div>
+                          <span className="font-bold text-indigo-700 text-lg">{acc.score.total}</span>
+                          <span className="text-gray-400 text-xs ml-1">pts</span>
                         </td>
                         <td className="px-4 py-3 text-center">
-                          <span className={acc.score.vol >= 25 ? 'text-green-600 font-semibold' : 'text-gray-500'}>{acc.score.vol}</span>
-                          <span className="text-gray-300 text-xs"> / {acc.totalBusinesses} επιχ.</span>
+                          <span className="font-semibold text-gray-800">{acc.score.vol}</span>
+                          <span className="text-gray-400 text-xs ml-1">pts ({acc.totalBusinesses} επιχ.)</span>
                         </td>
                         <td className="px-4 py-3 text-center">
-                          <span className={acc.score.mat >= 20 ? 'text-green-600 font-semibold' : 'text-gray-500'}>{acc.score.mat}</span>
-                          <span className="text-gray-300 text-xs"> / {acc.score.matchPct}%</span>
+                          <span className="font-semibold text-gray-800">{acc.score.dat}</span>
+                          <span className="text-gray-400 text-xs ml-1">pts ({acc.contactBiz} επιχ.)</span>
                         </td>
                         <td className="px-4 py-3 text-center">
-                          <span className={acc.score.camp >= 20 ? 'text-green-600 font-semibold' : 'text-gray-500'}>{acc.score.camp}</span>
-                          <span className="text-gray-300 text-xs"> / {acc.campaignsSent} καμπ.</span>
-                        </td>
-                        <td className="px-4 py-3 text-center">
-                          <span className={acc.score.dat >= 16 ? 'text-green-600 font-semibold' : 'text-gray-500'}>{acc.score.dat}</span>
-                          <span className="text-gray-300 text-xs"> / {acc.score.contactPct}%</span>
+                          <span className="font-semibold text-gray-800">{acc.score.camp}</span>
+                          <span className="text-gray-400 text-xs ml-1">pts ({acc.campaignRecipients} μην.)</span>
                         </td>
                         <td className="px-4 py-3">
                           <span className={`text-sm font-medium ${lvl.color}`}>{lvl.emoji} {lvl.label}</span>

@@ -4,14 +4,14 @@ import { prisma } from '@/lib/prisma'
 
 export const dynamic = 'force-dynamic'
 
-function calcScore(totalBiz: number, matchedBiz: number, campaignsSent: number, contactBiz: number) {
-  const matchRate   = totalBiz > 0 ? matchedBiz  / totalBiz : 0
-  const contactRate = totalBiz > 0 ? contactBiz  / totalBiz : 0
-  const vol  = Math.min(30, Math.round((Math.min(totalBiz, 200)     / 200) * 30))
-  const mat  = Math.round(matchRate   * 25)
-  const camp = Math.min(25, Math.round((Math.min(campaignsSent, 10) / 10)  * 25))
-  const dat  = Math.round(contactRate * 20)
-  return { total: vol + mat + camp + dat, vol, mat, camp, dat, matchPct: Math.round(matchRate * 100), contactPct: Math.round(contactRate * 100) }
+// 1 point per business, +1 per business with contact, +1 per campaign recipient sent
+// No ceiling — the more you do, the higher the score
+function calcScore(totalBiz: number, contactBiz: number, campaignRecipients: number) {
+  const vol  = totalBiz          // 1pt per business
+  const dat  = contactBiz        // 1pt per business with contact info
+  const camp = campaignRecipients // 1pt per campaign message sent to a client
+  const total = vol + dat + camp
+  return { total, vol, dat, camp }
 }
 
 export async function GET() {
@@ -26,29 +26,29 @@ export async function GET() {
       contactPerson: true,
       active: true,
       businesses: {
-        select: { email: true, phone: true, programMatches: { select: { id: true }, take: 1 } },
+        select: { email: true, phone: true },
       },
       campaigns: {
         where: { status: 'SENT' },
-        select: { id: true },
+        select: { _count: { select: { recipients: true } } },
       },
     },
     orderBy: { officeName: 'asc' },
   })
 
   const result = accountants.map(acc => {
-    const totalBiz     = acc.businesses.length
-    const matchedBiz   = acc.businesses.filter(b => b.programMatches.length > 0).length
-    const contactBiz   = acc.businesses.filter(b => b.email || b.phone).length
-    const campaignsSent = acc.campaigns.length
-    const score = calcScore(totalBiz, matchedBiz, campaignsSent, contactBiz)
+    const totalBiz          = acc.businesses.length
+    const contactBiz        = acc.businesses.filter(b => b.email || b.phone).length
+    const campaignRecipients = acc.campaigns.reduce((s, c) => s + (c._count?.recipients ?? 0), 0)
+    const score = calcScore(totalBiz, contactBiz, campaignRecipients)
     return {
       id: acc.id,
       officeName: acc.officeName,
       contactPerson: acc.contactPerson,
       active: acc.active,
       totalBusinesses: totalBiz,
-      campaignsSent,
+      contactBiz,
+      campaignRecipients,
       score,
     }
   })

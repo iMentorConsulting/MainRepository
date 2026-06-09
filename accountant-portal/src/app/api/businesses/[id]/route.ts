@@ -100,9 +100,7 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
   const existing = await prisma.business.findUnique({ where: { id: params.id }, select: { accountantId: true } })
   if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  const isAdmin = session.user.role === 'ADMIN'
-  const accountantId = (session.user as any).accountantId as string | null
-  if (!isAdmin && existing.accountantId !== accountantId) {
+  if (session.user.role !== 'ADMIN') {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 

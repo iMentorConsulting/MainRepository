@@ -36,27 +36,12 @@ export async function GET(request: NextRequest) {
       return { month, added, total: running }
     })
 
-  // Scoring inputs
+  // Scoring: 1pt/business, 1pt/business-with-contact, 1pt/campaign-recipient
   const totalBusinesses = businesses.length
-  const withContact = businesses.filter(b => b.email || b.phone).length
+  const contactBiz = businesses.filter(b => b.email || b.phone).length
 
-  const [businessesWithMatches, campaignsSent] = await Promise.all([
-    prisma.business.count({ where: { ...bizWhere, programMatches: { some: {} } } }),
-    prisma.campaign.count({ where: { ...campWhere, status: 'SENT' } }),
-  ])
-
-  const matchRate = totalBusinesses > 0 ? businessesWithMatches / totalBusinesses : 0
-  const contactRate = totalBusinesses > 0 ? withContact / totalBusinesses : 0
-
-  const volumeScore   = Math.min(30, Math.round((Math.min(totalBusinesses, 200) / 200) * 30))
-  const matchScore    = Math.round(matchRate * 25)
-  const campaignScore = Math.min(25, Math.round((Math.min(campaignsSent, 10) / 10) * 25))
-  const dataScore     = Math.round(contactRate * 20)
-  const totalScore    = volumeScore + matchScore + campaignScore + dataScore
-
-  // Campaign history
   const campaigns = await prisma.campaign.findMany({
-    where: campWhere,
+    where: { ...campWhere, status: 'SENT' },
     include: {
       program: { select: { title: true } },
       _count: { select: { recipients: true } },
@@ -64,19 +49,30 @@ export async function GET(request: NextRequest) {
     orderBy: { createdAt: 'desc' },
     take: 50,
   })
+  const allCampaigns = await prisma.campaign.findMany({
+    where: campWhere,
+    include: { program: { select: { title: true } }, _count: { select: { recipients: true } } },
+    orderBy: { createdAt: 'desc' },
+    take: 50,
+  })
+
+  const campaignRecipients = campaigns.reduce((s, c) => s + (c._count?.recipients ?? 0), 0)
+  const volScore  = totalBusinesses
+  const datScore  = contactBiz
+  const campScore = campaignRecipients
+  const totalScore = volScore + datScore + campScore
 
   return NextResponse.json({
     growth,
     score: {
       total: totalScore,
       breakdown: {
-        volume:    { score: volumeScore,   max: 30, value: totalBusinesses,                    label: 'Επιχειρήσεις' },
-        matching:  { score: matchScore,    max: 25, value: Math.round(matchRate * 100),         label: 'Ποσοστό Matching' },
-        campaigns: { score: campaignScore, max: 25, value: campaignsSent,                      label: 'Καμπάνιες που εστάλησαν' },
-        data:      { score: dataScore,     max: 20, value: Math.round(contactRate * 100),       label: 'Πληρότητα Στοιχείων' },
+        volume:    { score: volScore,  value: totalBusinesses,    label: 'Επιχειρήσεις (×1)' },
+        data:      { score: datScore,  value: contactBiz,         label: 'Με στοιχεία επικοινωνίας (×1)' },
+        campaigns: { score: campScore, value: campaignRecipients, label: 'Μηνύματα καμπάνιας (×1)' },
       },
     },
-    campaigns: campaigns.map(c => ({
+    campaigns: allCampaigns.map(c => ({
       id: c.id,
       title: c.title,
       status: c.status,

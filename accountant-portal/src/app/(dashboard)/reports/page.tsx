@@ -9,15 +9,15 @@ import { Mail, MessageCircle, Trophy, TrendingUp, Send, Star } from 'lucide-reac
 import { formatDateTime } from '@/lib/utils'
 
 const LEVELS = [
-  { min: 0,  max: 24,  label: 'Αρχάριος',       color: 'text-gray-500',   bg: 'bg-gray-100',   emoji: '🌱' },
-  { min: 25, max: 49,  label: 'Αναπτυσσόμενος', color: 'text-blue-600',   bg: 'bg-blue-50',    emoji: '🚀' },
-  { min: 50, max: 74,  label: 'Ενεργός',         color: 'text-indigo-600', bg: 'bg-indigo-50',  emoji: '⚡' },
-  { min: 75, max: 89,  label: 'Εξπέρ',           color: 'text-purple-600', bg: 'bg-purple-50',  emoji: '🎯' },
-  { min: 90, max: 100, label: 'Πρωταθλητής',     color: 'text-amber-600',  bg: 'bg-amber-50',   emoji: '🏆' },
+  { min: 0,   label: 'Αρχάριος',       color: 'text-gray-500',   bg: 'bg-gray-100',   emoji: '🌱' },
+  { min: 50,  label: 'Αναπτυσσόμενος', color: 'text-blue-600',   bg: 'bg-blue-50',    emoji: '🚀' },
+  { min: 150, label: 'Ενεργός',         color: 'text-indigo-600', bg: 'bg-indigo-50',  emoji: '⚡' },
+  { min: 350, label: 'Εξπέρ',           color: 'text-purple-600', bg: 'bg-purple-50',  emoji: '🎯' },
+  { min: 700, label: 'Πρωταθλητής',     color: 'text-amber-600',  bg: 'bg-amber-50',   emoji: '🏆' },
 ]
 
 function getLevel(score: number) {
-  return LEVELS.find(l => score >= l.min && score <= l.max) ?? LEVELS[0]
+  return [...LEVELS].reverse().find(l => score >= l.min) ?? LEVELS[0]
 }
 
 function fmtMonth(key: string) {
@@ -49,6 +49,7 @@ export default function ReportsPage() {
   const level   = getLevel(score)
   const nextLvl = LEVELS.find(l => l.min > score)
   const bd      = data?.score?.breakdown ?? {}
+  const maxScore = Math.max(score, nextLvl ? nextLvl.min : score, 1)
   const growth: any[] = data?.growth ?? []
   const campaigns: any[] = data?.campaigns ?? []
 
@@ -73,7 +74,7 @@ export default function ReportsPage() {
             <div className="w-28 h-28 rounded-full bg-white shadow-md flex flex-col items-center justify-center border-4"
               style={{ borderColor: '#6366f1' }}>
               <span className="text-3xl font-black text-indigo-700">{score}</span>
-              <span className="text-xs text-gray-400 font-medium">/ 100</span>
+              <span className="text-xs text-gray-400 font-medium">πόντοι</span>
             </div>
             <span className="absolute -top-2 -right-2 text-2xl">{level.emoji}</span>
           </div>
@@ -89,11 +90,11 @@ export default function ReportsPage() {
               )}
             </div>
 
-            {/* Progress bar */}
+            {/* Progress bar toward next level */}
             <div className="w-full bg-white/70 rounded-full h-3 overflow-hidden shadow-inner">
               <div
                 className="h-3 rounded-full transition-all duration-700"
-                style={{ width: `${score}%`, background: 'linear-gradient(90deg,#6366f1,#a855f7)' }}
+                style={{ width: `${Math.min(100, Math.round((score / maxScore) * 100))}%`, background: 'linear-gradient(90deg,#6366f1,#a855f7)' }}
               />
             </div>
 
@@ -102,12 +103,7 @@ export default function ReportsPage() {
               {Object.entries(bd).map(([key, v]: [string, any]) => (
                 <div key={key} className="bg-white/80 rounded-xl px-3 py-1.5 text-xs shadow-sm">
                   <span className="font-semibold text-gray-700">{v.label}</span>
-                  <span className="ml-1 text-indigo-600 font-bold">{v.score}/{v.max}</span>
-                  <span className="ml-1 text-gray-400">
-                    ({key === 'volume' ? `${v.value} επιχ.`
-                      : key === 'campaigns' ? `${v.value} καμπ.`
-                      : `${v.value}%`})
-                  </span>
+                  <span className="ml-1.5 text-indigo-600 font-bold">+{v.score} pts</span>
                 </div>
               ))}
             </div>
@@ -122,24 +118,18 @@ export default function ReportsPage() {
 
         {/* Tips */}
         <div className="mt-4 pt-4 border-t border-white/50 grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
-          {bd.volume?.score < bd.volume?.max && (
-            <div className="bg-white/70 rounded-xl p-3 flex gap-2 items-start">
-              <TrendingUp size={14} className="text-indigo-500 flex-shrink-0 mt-0.5" />
-              <span className="text-gray-600">Προσθέστε περισσότερες επιχειρήσεις για <strong>+{bd.volume.max - bd.volume.score} πόντους</strong></span>
-            </div>
-          )}
-          {bd.matching?.score < bd.matching?.max && (
-            <div className="bg-white/70 rounded-xl p-3 flex gap-2 items-start">
-              <Star size={14} className="text-purple-500 flex-shrink-0 mt-0.5" />
-              <span className="text-gray-600">Τρέξτε Matching για να βελτιώσετε το <strong>ποσοστό επιλεξιμότητας</strong></span>
-            </div>
-          )}
-          {bd.campaigns?.score < bd.campaigns?.max && (
-            <div className="bg-white/70 rounded-xl p-3 flex gap-2 items-start">
-              <Send size={14} className="text-green-600 flex-shrink-0 mt-0.5" />
-              <span className="text-gray-600">Στείλτε καμπάνιες στους πελάτες σας για <strong>+{bd.campaigns.max - bd.campaigns.score} πόντους</strong></span>
-            </div>
-          )}
+          <div className="bg-white/70 rounded-xl p-3 flex gap-2 items-start">
+            <TrendingUp size={14} className="text-indigo-500 flex-shrink-0 mt-0.5" />
+            <span className="text-gray-600">Κάθε νέα επιχείρηση = <strong>+1 πόντος</strong></span>
+          </div>
+          <div className="bg-white/70 rounded-xl p-3 flex gap-2 items-start">
+            <Star size={14} className="text-purple-500 flex-shrink-0 mt-0.5" />
+            <span className="text-gray-600">Κάθε επιχείρηση με email/τηλ. = <strong>+1 πόντος</strong></span>
+          </div>
+          <div className="bg-white/70 rounded-xl p-3 flex gap-2 items-start">
+            <Send size={14} className="text-green-600 flex-shrink-0 mt-0.5" />
+            <span className="text-gray-600">Κάθε καμπάνια που φτάνει σε πελάτη = <strong>+1 πόντος</strong></span>
+          </div>
         </div>
       </div>
 
@@ -164,7 +154,7 @@ export default function ReportsPage() {
           </div>
         </div>
 
-        {growthChart.length > 1 ? (
+        {growthChart.length > 0 ? (
           <ResponsiveContainer width="100%" height={220}>
             <AreaChart data={growthChart} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
               <defs>
