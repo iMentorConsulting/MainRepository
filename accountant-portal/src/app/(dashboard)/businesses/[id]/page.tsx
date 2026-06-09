@@ -7,7 +7,8 @@ import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { KadTable } from '@/components/businesses/kad-table'
 import { MatchCard } from '@/components/matching/match-card'
-import { ArrowLeft, Mail, Phone, MapPin, Calendar, Edit, Send, X } from 'lucide-react'
+import { QuickSendModal } from '@/components/quick-send-modal'
+import { ArrowLeft, Mail, Phone, MapPin, Calendar, Edit, Send } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
 
 export default function BusinessDetailPage() {
@@ -17,11 +18,6 @@ export default function BusinessDetailPage() {
   const [editNotes, setEditNotes] = useState(false)
   const [notes, setNotes] = useState('')
   const [quickSend, setQuickSend] = useState(false)
-  const [qsChannel, setQsChannel] = useState<'EMAIL' | 'VIBER' | 'EMAIL_AND_VIBER'>('EMAIL')
-  const [qsSubject, setQsSubject] = useState('')
-  const [qsMessage, setQsMessage] = useState('')
-  const [qsSending, setQsSending] = useState(false)
-  const [qsResult, setQsResult] = useState<string | null>(null)
 
   useEffect(() => {
     fetch(`/api/businesses/${id}`)
@@ -41,31 +37,6 @@ export default function BusinessDetailPage() {
       body: JSON.stringify({ excludedFromCampaigns: next }),
     })
     setBusiness((prev: any) => ({ ...prev, excludedFromCampaigns: next }))
-  }
-
-  async function handleQuickSend() {
-    setQsSending(true)
-    setQsResult(null)
-    try {
-      const res = await fetch(`/api/businesses/${id}/quick-send`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ channel: qsChannel, subject: qsSubject, message: qsMessage }),
-      })
-      const data = await res.json()
-      if (data.success) {
-        setQsResult('success')
-        setQsMessage('')
-        setQsSubject('')
-        setTimeout(() => { setQuickSend(false); setQsResult(null) }, 2000)
-      } else {
-        setQsResult('error')
-      }
-    } catch {
-      setQsResult('error')
-    } finally {
-      setQsSending(false)
-    }
   }
 
   async function saveNotes() {
@@ -104,7 +75,7 @@ export default function BusinessDetailPage() {
           </div>
         </div>
         <Button
-          onClick={() => { setQuickSend(true); setQsResult(null) }}
+          onClick={() => setQuickSend(true)}
           className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm px-4 py-2 rounded-lg"
         >
           <Send size={15} />
@@ -118,107 +89,11 @@ export default function BusinessDetailPage() {
         </Link>
       </div>
 
-      {/* Quick Send Modal */}
       {quickSend && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg">
-            <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-slate-100">
-              <div>
-                <h2 className="text-base font-semibold text-slate-900">Γρήγορη Αποστολή</h2>
-                <p className="text-xs text-slate-500 mt-0.5">{business.onomasia || business.afm}</p>
-              </div>
-              <button onClick={() => setQuickSend(false)} className="text-slate-400 hover:text-slate-600 transition-colors">
-                <X size={20} />
-              </button>
-            </div>
-
-            <div className="px-6 py-5 space-y-4">
-              {/* Channel selector */}
-              <div>
-                <label className="block text-xs font-medium text-slate-700 mb-2">Κανάλι αποστολής</label>
-                <div className="flex gap-2">
-                  {(['EMAIL', 'VIBER', 'EMAIL_AND_VIBER'] as const).map(ch => (
-                    <button
-                      key={ch}
-                      onClick={() => setQsChannel(ch)}
-                      className={`flex-1 py-2 rounded-lg text-xs font-semibold border transition-all ${
-                        qsChannel === ch
-                          ? 'bg-indigo-600 text-white border-indigo-600'
-                          : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-300'
-                      }`}
-                    >
-                      {ch === 'EMAIL' ? 'Email' : ch === 'VIBER' ? 'Viber' : 'Email + Viber'}
-                    </button>
-                  ))}
-                </div>
-                {!business.email && (qsChannel === 'EMAIL' || qsChannel === 'EMAIL_AND_VIBER') && (
-                  <p className="mt-1.5 text-xs text-amber-600">Δεν υπάρχει email για αυτή την επιχείρηση.</p>
-                )}
-                {!business.viberPhone && !business.phone && (qsChannel === 'VIBER' || qsChannel === 'EMAIL_AND_VIBER') && (
-                  <p className="mt-1.5 text-xs text-amber-600">Δεν υπάρχει τηλέφωνο για Viber.</p>
-                )}
-              </div>
-
-              {/* Subject (email only) */}
-              {(qsChannel === 'EMAIL' || qsChannel === 'EMAIL_AND_VIBER') && (
-                <div>
-                  <label className="block text-xs font-medium text-slate-700 mb-1.5">Θέμα email</label>
-                  <input
-                    type="text"
-                    value={qsSubject}
-                    onChange={e => setQsSubject(e.target.value)}
-                    placeholder="π.χ. Νέα επιδότηση για την επιχείρησή σας"
-                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-                  />
-                </div>
-              )}
-
-              {/* Message */}
-              <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1.5">
-                  Μήνυμα
-                  {qsChannel !== 'EMAIL' && <span className="text-slate-400 font-normal ml-1">(χρησιμοποιήστε *bold* για έντονη γραφή στο Viber)</span>}
-                </label>
-                <textarea
-                  value={qsMessage}
-                  onChange={e => setQsMessage(e.target.value)}
-                  rows={6}
-                  placeholder="Γράψτε το μήνυμά σας εδώ..."
-                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 resize-none"
-                />
-              </div>
-
-              {qsResult === 'success' && (
-                <div className="flex items-center gap-2 text-sm text-emerald-700 bg-emerald-50 rounded-lg px-4 py-2.5">
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-                  Το μήνυμα στάλθηκε επιτυχώς!
-                </div>
-              )}
-              {qsResult === 'error' && (
-                <div className="text-sm text-red-700 bg-red-50 rounded-lg px-4 py-2.5">
-                  Αποτυχία αποστολής. Ελέγξτε τις ρυθμίσεις email/Viber.
-                </div>
-              )}
-            </div>
-
-            <div className="px-6 pb-5 flex gap-3 justify-end border-t border-slate-100 pt-4">
-              <Button variant="outline" onClick={() => setQuickSend(false)}>Ακύρωση</Button>
-              <button
-                onClick={handleQuickSend}
-                disabled={qsSending || !qsMessage.trim()}
-                className="flex items-center gap-2 px-5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm font-semibold transition-all"
-              >
-                {qsSending ? (
-                  <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                  </svg>
-                ) : <Send size={15} />}
-                {qsSending ? 'Αποστολή...' : 'Αποστολή'}
-              </button>
-            </div>
-          </div>
-        </div>
+        <QuickSendModal
+          businesses={[{ id: business.id, onomasia: business.onomasia, afm: business.afm }]}
+          onClose={() => setQuickSend(false)}
+        />
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

@@ -9,7 +9,8 @@ import { Pagination } from '@/components/ui/pagination'
 import { MultiSelect } from '@/components/ui/multi-select'
 import { Modal } from '@/components/ui/modal'
 import { Select } from '@/components/ui/select'
-import { Plus, Search, Download, Upload, Filter, Trash2, UserCog } from 'lucide-react'
+import { Plus, Search, Download, Filter, Trash2, UserCog, Send } from 'lucide-react'
+import { QuickSendModal } from '@/components/quick-send-modal'
 
 interface Accountant {
   id: string
@@ -60,6 +61,7 @@ export default function BusinessesPage() {
   const [regionFilter, setRegionFilter] = useState<string[]>([])
   const [sort, setSort] = useState('createdAt:desc')
 
+  const [quickSendOpen, setQuickSendOpen] = useState(false)
   const [assignOpen, setAssignOpen] = useState(false)
   const [assignAccountantId, setAssignAccountantId] = useState('')
   const [assigning, setAssigning] = useState(false)
@@ -243,6 +245,16 @@ export default function BusinessesPage() {
               <Filter size={14} className="mr-1" />
               Αναζήτηση
             </Button>
+            {selected.size > 0 && (
+              <Button
+                size="sm"
+                className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                onClick={() => setQuickSendOpen(true)}
+              >
+                <Send size={14} className="mr-1" />
+                Γρήγορη Αποστολή ({selected.size})
+              </Button>
+            )}
             {isAdmin && selected.size > 0 && (
               <>
                 <Button variant="outline" size="sm" onClick={() => setAssignOpen(true)}>
@@ -305,16 +317,14 @@ export default function BusinessesPage() {
             <Table>
               <TableHead>
                 <TableRow>
-                  {isAdmin && (
-                    <Th className="w-10">
-                      <input
-                        type="checkbox"
-                        checked={businesses.length > 0 && selected.size === businesses.length}
-                        onChange={toggleSelectAll}
-                        className="rounded"
-                      />
-                    </Th>
-                  )}
+                  <Th className="w-10">
+                    <input
+                      type="checkbox"
+                      checked={businesses.length > 0 && selected.size === businesses.length}
+                      onChange={toggleSelectAll}
+                      className="rounded"
+                    />
+                  </Th>
                   <Th>ΑΦΜ</Th>
                   <Th>Επωνυμία</Th>
                   <Th>Κύρια ΚΑΔ</Th>
@@ -327,7 +337,7 @@ export default function BusinessesPage() {
               <TableBody>
                 {businesses.length === 0 ? (
                   <TableRow>
-                    <Td colSpan={isAdmin ? 8 : 7} className="text-center text-gray-400 py-8">
+                    <Td colSpan={8} className="text-center text-gray-400 py-8">
                       Δεν βρέθηκαν επιχειρήσεις
                     </Td>
                   </TableRow>
@@ -336,16 +346,14 @@ export default function BusinessesPage() {
                     const primaryKad = b.activities?.find(a => a.firmActKind === 1)
                     return (
                       <TableRow key={b.id}>
-                        {isAdmin && (
-                          <Td>
-                            <input
-                              type="checkbox"
-                              checked={selected.has(b.id)}
-                              onChange={() => toggleSelect(b.id)}
-                              className="rounded"
-                            />
-                          </Td>
-                        )}
+                        <Td>
+                          <input
+                            type="checkbox"
+                            checked={selected.has(b.id)}
+                            onChange={() => toggleSelect(b.id)}
+                            className="rounded"
+                          />
+                        </Td>
                         <Td>
                           <Link href={`/businesses/${b.id}`} className="font-mono text-blue-800 hover:underline">
                             {b.afm}
@@ -371,6 +379,14 @@ export default function BusinessesPage() {
           </>
         )}
       </div>
+
+      {quickSendOpen && (
+        <QuickSendModal
+          businesses={businesses.filter(b => selected.has(b.id)).map(b => ({ id: b.id, onomasia: b.onomasia, afm: b.afm }))}
+          onClose={() => setQuickSendOpen(false)}
+          onSent={() => setSelected(new Set())}
+        />
+      )}
 
       <Modal open={assignOpen} onClose={() => setAssignOpen(false)} title="Ανάθεση σε Λογιστή" size="sm">
         <div className="space-y-4">
