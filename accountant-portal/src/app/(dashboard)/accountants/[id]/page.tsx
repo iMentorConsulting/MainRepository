@@ -10,7 +10,6 @@ import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { LogoUploader } from '@/components/shared/logo-uploader'
-import { Table, TableHead, TableBody, TableRow, Th, Td } from '@/components/ui/table'
 import { ArrowLeft, Building2 } from 'lucide-react'
 import Link from 'next/link'
 import { useSession } from 'next-auth/react'
@@ -151,45 +150,6 @@ export default function AccountantDetailPage() {
         </div>
       </div>
 
-      {/* Businesses */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Building2 size={18} />
-            Επιχειρήσεις ({accountant.businesses?.length ?? 0})
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-0">
-          <Table>
-            <TableHead>
-              <TableRow>
-                <Th>ΑΦΜ</Th>
-                <Th>Επωνυμία</Th>
-                <Th>Περιοχή</Th>
-                <Th>ΤΚ</Th>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {accountant.businesses?.length === 0 ? (
-                <TableRow>
-                  <Td colSpan={4} className="text-center text-gray-400 py-6">
-                    Δεν υπάρχουν επιχειρήσεις
-                  </Td>
-                </TableRow>
-              ) : (
-                accountant.businesses?.map((b: any) => (
-                  <TableRow key={b.id}>
-                    <Td><Link href={`/businesses/${b.id}`} className="text-blue-800 hover:underline font-mono">{b.afm}</Link></Td>
-                    <Td>{b.onomasia || '-'}</Td>
-                    <Td>{b.postalAreaDescription || '-'}</Td>
-                    <Td>{b.postalZipCode || '-'}</Td>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
     </div>
   )
 }

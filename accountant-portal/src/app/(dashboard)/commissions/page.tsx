@@ -361,7 +361,7 @@ export default function CommissionsPage() {
                 ? `${pct}% × ${stage}`
                 : fixed != null
                   ? `${(fixed / 100).toFixed(0)}€ / ${stage}`
-                  : `— × ${stage}`
+                  : stage
               const scope = p.program?.title || p.service?.name || 'Γενική'
               const showName = p.name && p.name !== scope
               return (

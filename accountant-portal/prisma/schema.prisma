@@ -159,6 +159,8 @@ enum ProgramCategory {
   ESPA
   DYPA
   MICROCREDITS
+  EXTRAJUDICIAL
+  RENOVATION
   OTHER
 }
 

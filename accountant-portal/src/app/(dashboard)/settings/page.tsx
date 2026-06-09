@@ -59,16 +59,6 @@ function DeleteRequestForm() {
 export default function SettingsPage() {
   const { data: session } = useSession()
 
-  // Accountant profile editing
-  const [profileOfficeName, setProfileOfficeName] = useState('')
-  const [profileContactPerson, setProfileContactPerson] = useState('')
-  const [profilePhone, setProfilePhone] = useState('')
-  const [profileAddress, setProfileAddress] = useState('')
-  const [profileLogoUrl, setProfileLogoUrl] = useState<string | null>(null)
-  const [profileSaving, setProfileSaving] = useState(false)
-  const [profileSaved, setProfileSaved] = useState(false)
-  const [profileError, setProfileError] = useState('')
-
   const [smtpTest, setSmtpTest] = useState<'idle' | 'loading' | 'ok' | 'fail'>('idle')
   const [smtpError, setSmtpError] = useState('')
   const [imentorLogoUrl, setImentorLogoUrl] = useState<string | null>(null)
@@ -92,40 +82,7 @@ export default function SettingsPage() {
         setAadePassSet(d.aadePassSet || false)
       })
     }
-    if (session?.user?.role === 'ACCOUNTANT' && (session.user as any).accountantId) {
-      fetch(`/api/accountants/${(session.user as any).accountantId}`)
-        .then(r => r.json())
-        .then(d => {
-          setProfileOfficeName(d.officeName || '')
-          setProfileContactPerson(d.contactPerson || '')
-          setProfilePhone(d.phone || '')
-          setProfileAddress(d.address || '')
-          setProfileLogoUrl(d.logoUrl || null)
-        })
-    }
   }, [session])
-
-  async function saveProfile(e: React.FormEvent) {
-    e.preventDefault()
-    setProfileSaving(true)
-    setProfileSaved(false)
-    setProfileError('')
-    const accountantId = (session?.user as any)?.accountantId
-    const res = await fetch(`/api/accountants/${accountantId}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        officeName: profileOfficeName,
-        contactPerson: profileContactPerson,
-        phone: profilePhone,
-        address: profileAddress,
-        logoUrl: profileLogoUrl,
-      }),
-    })
-    setProfileSaving(false)
-    if (res.ok) setProfileSaved(true)
-    else setProfileError('Σφάλμα αποθήκευσης. Δοκιμάστε ξανά.')
-  }
 
   async function saveImentorLogo(dataUrl: string | null) {
     setImentorLogoUrl(dataUrl)
@@ -186,54 +143,12 @@ export default function SettingsPage() {
 
       {session?.user?.role === 'ACCOUNTANT' && (
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Building2 size={18} className="text-indigo-600" />
-              Στοιχεία Λογιστικού Γραφείου
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={saveProfile} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <Input
-                  label="Επωνυμία Γραφείου"
-                  value={profileOfficeName}
-                  onChange={e => setProfileOfficeName(e.target.value)}
-                  required
-                />
-                <Input
-                  label="Υπεύθυνος Επικοινωνίας"
-                  value={profileContactPerson}
-                  onChange={e => setProfileContactPerson(e.target.value)}
-                  required
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <Input
-                  label="Τηλέφωνο"
-                  value={profilePhone}
-                  onChange={e => setProfilePhone(e.target.value)}
-                />
-                <Input
-                  label="Διεύθυνση"
-                  value={profileAddress}
-                  onChange={e => setProfileAddress(e.target.value)}
-                />
-              </div>
-              <div>
-                <p className="text-sm font-medium text-gray-700 mb-2">Λογότυπο Γραφείου</p>
-                <LogoUploader
-                  label="Λογότυπο (PNG, transparent)"
-                  value={profileLogoUrl}
-                  onChange={url => setProfileLogoUrl(url)}
-                />
-              </div>
-              {profileError && <p className="text-sm text-red-600">{profileError}</p>}
-              <div className="flex items-center gap-3">
-                <Button type="submit" loading={profileSaving}>Αποθήκευση</Button>
-                {profileSaved && <span className="text-sm text-green-600 flex items-center gap-1"><CheckCircle size={14} /> Αποθηκεύτηκε!</span>}
-              </div>
-            </form>
+          <CardContent className="py-4">
+            <div className="flex items-center gap-3 text-sm text-gray-600">
+              <Building2 size={16} className="text-indigo-500 flex-shrink-0" />
+              <span>Για επεξεργασία στοιχείων γραφείου και λογότυπου, επισκεφθείτε την ενότητα </span>
+              <Link href={`/accountants/${(session.user as any)?.accountantId}`} className="text-indigo-600 hover:underline font-medium">Το Γραφείο μου →</Link>
+            </div>
           </CardContent>
         </Card>
       )}

@@ -61,7 +61,7 @@ export default function ReportsPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Αναφορές</h1>
-        <p className="text-gray-500 mt-1">Ιστορικό δραστηριότητας & βαθμολογία γραφείου</p>
+        <p className="text-gray-500 mt-1">Στατιστικά & Ιστορικό Δραστηριότητας</p>
       </div>
 
       {/* ── Score Card ─────────────────────────────────────────────────── */}

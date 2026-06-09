@@ -16,7 +16,7 @@ import Link from 'next/link'
 
 const schema = z.object({
   title: z.string().min(3, 'Απαιτείται τίτλος'),
-  category: z.enum(['ESPA', 'DYPA', 'MICROLOANS', 'LOAN', 'OTHER']),
+  category: z.enum(['ESPA', 'DYPA', 'MICROCREDITS', 'EXTRAJUDICIAL', 'RENOVATION', 'OTHER']),
   description: z.string().optional(),
   minInvestment: z.coerce.number().optional(),
   maxInvestment: z.coerce.number().optional(),
@@ -258,6 +258,8 @@ export default function EditProgramPage() {
                 { value: 'ESPA', label: 'ΕΣΠΑ' },
                 { value: 'DYPA', label: 'ΔΥΠΑ' },
                 { value: 'MICROCREDITS', label: 'Μικροπιστώσεις' },
+                { value: 'EXTRAJUDICIAL', label: 'Εξωδικαστικός Μηχανισμός' },
+                { value: 'RENOVATION', label: 'Ανακαίνιση (Ιδιώτες)' },
                 { value: 'OTHER', label: 'Άλλο' },
               ]}
             />
