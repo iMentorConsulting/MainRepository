@@ -27,7 +27,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
   let viberOk = false
 
   if ((channel === 'EMAIL' || channel === 'EMAIL_AND_VIBER') && business.email) {
-    const cleanBody = message.replace(/\*([^*\n]*)\*/g, (_, inner: string) => inner.trim() ? `<strong>${inner}</strong>` : '')
+    const cleanBody = message.replace(/\*([^*\n]*)\*/g, (_match: string, inner: string) => inner.trim() ? `<strong>${inner}</strong>` : '')
     emailOk = await sendEmail({
       to: business.email,
       subject: subject || 'Ενημέρωση από το λογιστικό σας γραφείο',
@@ -44,7 +44,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
 
   if ((channel === 'VIBER' || channel === 'EMAIL_AND_VIBER') && (business.viberPhone || business.phone)) {
     const phone = business.viberPhone || business.phone || ''
-    const cleanViber = message.replace(/\*([^*\n]*)\*/g, (_, inner: string) => inner.trim() || '')
+    const cleanViber = message.replace(/\*([^*\n]*)\*/g, (_match: string, inner: string) => inner.trim() || '')
     viberOk = await sendViberMessage({ to: phone, text: cleanViber, senderName: business.onomasia || business.afm })
   }
 
