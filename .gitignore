@@ -26,4 +26,3 @@ dist/
 *.swp
 *.swo
 .DS_Store
-.claude/
