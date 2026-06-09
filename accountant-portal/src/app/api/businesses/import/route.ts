@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { runMatchingForBusiness } from '@/lib/matching'
+import { runMatchingForBusiness, autoNotifyBusinessMatches } from '@/lib/matching'
 import * as XLSX from 'xlsx'
 
 function applySoleProprietorFix(businessData: any) {
@@ -127,7 +127,9 @@ export async function POST(request: NextRequest) {
         }
       })
 
-      runMatchingForBusiness(business.id).catch(err => console.error('[Matching] Auto-match for imported business failed:', err?.message))
+      runMatchingForBusiness(business.id)
+        .then(() => autoNotifyBusinessMatches(business.id))
+        .catch(err => console.error('[Matching] Auto-match/notify for imported business failed:', err?.message))
 
       created++
     } catch {

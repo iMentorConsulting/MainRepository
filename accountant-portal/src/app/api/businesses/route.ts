@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { createAuditLog } from '@/lib/audit'
-import { runMatchingForBusiness } from '@/lib/matching'
+import { runMatchingForBusiness, autoNotifyBusinessMatches } from '@/lib/matching'
 
 export async function GET(request: NextRequest) {
   const session = await auth()
@@ -96,7 +96,10 @@ export async function POST(request: NextRequest) {
       details: `Created business ${business.afm}`
     })
 
-    runMatchingForBusiness(business.id).catch(err => console.error('[Matching] Auto-match for new business failed:', err?.message))
+    const isAccountant = session.user.role === 'ACCOUNTANT'
+    runMatchingForBusiness(business.id)
+      .then(() => isAccountant ? autoNotifyBusinessMatches(business.id) : Promise.resolve())
+      .catch(err => console.error('[Matching] Auto-match/notify for new business failed:', err?.message))
 
     return NextResponse.json(business, { status: 201 })
   } catch (error: any) {

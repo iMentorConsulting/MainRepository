@@ -1,6 +1,7 @@
 import { prisma } from './prisma'
 import { MatchStatus } from '@prisma/client'
 import { resolveRegionFromZip } from './greek-regions'
+import { sendEmail } from './email'
 
 interface BusinessWithActivities {
   id: string
@@ -178,6 +179,80 @@ export async function runMatchingForProgram(programId: string): Promise<number> 
   await resetStaleMatches(programId, qualifyingBusinessIds)
 
   return matchCount
+}
+
+// Called after an accountant adds a business themselves — immediately notify without admin approval.
+export async function autoNotifyBusinessMatches(businessId: string): Promise<void> {
+  const matches = await prisma.programMatch.findMany({
+    where: { businessId, notified: false, matchScore: { gte: 40 } },
+    include: {
+      program: { select: { title: true } },
+      business: { select: { accountantId: true, onomasia: true, afm: true } },
+    },
+  })
+
+  if (matches.length === 0) return
+
+  const accountantId = matches[0].business.accountantId
+  if (!accountantId) return
+
+  const accountant = await prisma.accountant.findUnique({
+    where: { id: accountantId },
+    select: { email: true, contactPerson: true },
+  })
+  if (!accountant) return
+
+  const businessName = matches[0].business.onomasia || matches[0].business.afm
+  const programTitles = [...new Set(matches.map(m => m.program.title))]
+  const count = matches.length
+
+  const title = `${count} νέα match${count === 1 ? '' : 'es'} για τον πελάτη ${businessName}!`
+
+  await prisma.notification.create({
+    data: {
+      accountantId,
+      type: 'NEW_MATCHES',
+      title,
+      body: `Ο πελάτης ${businessName} είναι επιλέξιμος για ${count} πρόγραμμα${count === 1 ? '' : 'τα'}: ${programTitles.join(', ')}. Στείλτε καμπάνια τώρα!`,
+      link: '/matches',
+    },
+  })
+
+  await sendEmail({
+    to: accountant.email,
+    subject: `🎯 ${title} — I-MENTOR Portal`,
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <div style="background: linear-gradient(135deg, #4f46e5, #4338ca); padding: 24px 32px; border-radius: 12px 12px 0 0;">
+          <h1 style="color: white; margin: 0; font-size: 22px;">🎯 Νέες Ευκαιρίες Χρηματοδότησης!</h1>
+        </div>
+        <div style="background: white; padding: 32px; border: 1px solid #e5e7eb; border-top: 0; border-radius: 0 0 12px 12px;">
+          <p style="color: #374151; font-size: 16px;">Αγαπητέ/ή <strong>${accountant.contactPerson}</strong>,</p>
+          <p style="color: #374151; font-size: 16px;">
+            Ο πελάτης <strong>${businessName}</strong> που μόλις προσθέσατε είναι επιλέξιμος για
+            <strong style="color: #4f46e5; font-size: 20px;">${count} πρόγραμμα${count === 1 ? '' : 'τα'}</strong> χρηματοδότησης!
+          </p>
+          <div style="background: #ede9fe; border-left: 4px solid #7c3aed; padding: 16px; border-radius: 6px; margin: 20px 0;">
+            <p style="margin: 0; color: #5b21b6; font-size: 14px; font-weight: bold;">Επιλέξιμα Προγράμματα:</p>
+            <ul style="margin: 8px 0 0; padding-left: 20px; color: #5b21b6; font-size: 14px;">
+              ${programTitles.map(t => `<li>${t}</li>`).join('')}
+            </ul>
+          </div>
+          <div style="text-align: center; margin: 24px 0;">
+            <a href="${process.env.APP_URL || 'https://logistis.i-mentor.gr'}/matches"
+               style="background: linear-gradient(135deg, #4f46e5, #6366f1); color: white; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 16px; display: inline-block;">
+              Δείτε τα Matches &rarr;
+            </a>
+          </div>
+        </div>
+      </div>
+    `,
+  }).catch(() => {})
+
+  await prisma.programMatch.updateMany({
+    where: { businessId, notified: false },
+    data: { notified: true },
+  })
 }
 
 export async function runMatchingForBusiness(businessId: string): Promise<number> {
