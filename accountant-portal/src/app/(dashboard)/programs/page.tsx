@@ -31,7 +31,6 @@ interface Program {
 const categoryLabel: Record<string, string> = {
   ESPA: 'ΕΣΠΑ',
   DYPA: 'ΔΥΠΑ',
-  DYPA_OAED: 'ΔΥΠΑ-ΟΑΕΔ',
   MICROCREDITS: 'Μικροπιστώσεις',
   OTHER: 'Άλλο',
 }
@@ -39,7 +38,6 @@ const categoryLabel: Record<string, string> = {
 const categoryColor: Record<string, string> = {
   ESPA: 'from-blue-700 to-blue-900',
   DYPA: 'from-emerald-600 to-teal-800',
-  DYPA_OAED: 'from-teal-600 to-cyan-800',
   MICROCREDITS: 'from-amber-600 to-orange-800',
   OTHER: 'from-slate-600 to-slate-800',
 }
@@ -47,7 +45,6 @@ const categoryColor: Record<string, string> = {
 const categoryVariant: Record<string, any> = {
   ESPA: 'default',
   DYPA: 'success',
-  DYPA_OAED: 'success',
   MICROCREDITS: 'warning',
   OTHER: 'secondary',
 }
@@ -91,7 +88,7 @@ export default function ProgramsPage() {
 
       {/* Category Filters */}
       <div className="flex gap-2 flex-wrap items-center">
-        {['', 'ESPA', 'DYPA', 'DYPA_OAED', 'MICROCREDITS', 'OTHER'].map(cat => (
+        {['', 'ESPA', 'DYPA', 'MICROCREDITS', 'OTHER'].map(cat => (
           <button
             key={cat}
             onClick={() => setFilter(cat)}

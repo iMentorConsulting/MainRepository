@@ -212,7 +212,6 @@ export default function NewProgramPage() {
               options={[
                 { value: 'ESPA', label: 'ΕΣΠΑ' },
                 { value: 'DYPA', label: 'ΔΥΠΑ' },
-                { value: 'DYPA_OAED', label: 'ΔΥΠΑ-ΟΑΕΔ' },
                 { value: 'MICROCREDITS', label: 'Μικροπιστώσεις' },
                 { value: 'OTHER', label: 'Άλλο' },
               ]}

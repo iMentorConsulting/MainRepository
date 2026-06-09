@@ -149,7 +149,6 @@ model Program {
 enum ProgramCategory {
   ESPA
   DYPA
-  DYPA_OAED
   MICROCREDITS
   OTHER
 }

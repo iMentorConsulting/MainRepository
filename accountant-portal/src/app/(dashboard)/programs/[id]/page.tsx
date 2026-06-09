@@ -17,7 +17,7 @@ function formatEuro(value: number | null | undefined) {
 }
 
 const categoryLabel: Record<string, string> = {
-  ESPA: 'ΕΣΠΑ', DYPA: 'ΔΥΠΑ', DYPA_OAED: 'ΔΥΠΑ-ΟΑΕΔ', MICROCREDITS: 'Μικροπιστώσεις', OTHER: 'Άλλο',
+  ESPA: 'ΕΣΠΑ', DYPA: 'ΔΥΠΑ', MICROCREDITS: 'Μικροπιστώσεις', OTHER: 'Άλλο',
 }
 
 export default function ProgramDetailPage() {
