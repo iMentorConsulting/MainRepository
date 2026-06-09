@@ -70,7 +70,8 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
   // Notify by email
   try {
     if (isAdmin) {
-      // Admin replied → notify accountant
+      // Admin replied → notify accountant (only if conversation has an accountant)
+      if (conversation.accountant) {
       await sendEmail({
         to: conversation.accountant.email,
         subject: `💬 Νέο μήνυμα από την I-MENTOR — ${conversation.subject}`,
@@ -79,7 +80,8 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
           <blockquote style="border-left:4px solid #4f46e5;padding-left:12px;color:#374151">${body}</blockquote>
           <p><a href="${process.env.APP_URL || 'https://logistis.i-mentor.gr'}/chat/${params.id}">Απαντήστε εδώ →</a></p>`,
       })
-    } else {
+      }
+    } else if (conversation.accountant) {
       // Accountant replied → notify admin via email
       await sendEmail({
         to: process.env.ADMIN_EMAIL || 'info@i-mentor.gr',
