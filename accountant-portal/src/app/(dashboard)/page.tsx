@@ -38,32 +38,32 @@ function OnboardingGuide({ stats }: { stats: DashboardStats }) {
   const steps = [
     {
       done: hasBusinesses,
-      title: 'Βήμα 1 — Προσθέστε τους πελάτες σας',
+      title: 'Βήμα 1 — Καταχωρήστε τους πελάτες σας',
       desc: hasBusinesses
-        ? `Έχετε ${stats.totalBusinesses} επιχειρήσεις. Προσθέστε κι άλλες για περισσότερες ευκαιρίες!`
-        : 'Εισάγετε τους πελάτες σας μαζικά από αρχείο Excel/GSIS.',
+        ? `Έχετε ${stats.totalBusinesses} επιχειρήσεις. Προσθέστε κι άλλες — τα προγράμματα έχουν σύντομες προθεσμίες!`
+        : 'Εισάγετε τους πελάτες σας ώστε να ελεγχθεί ποιοι είναι επιλέξιμοι πριν λήξουν τα προγράμματα.',
       action: '/businesses',
       actionLabel: hasBusinesses ? 'Προσθήκη επιχειρήσεων →' : 'Ξεκινήστε εδώ →',
       icon: Building2,
     },
     {
       done: hasMatches,
-      title: 'Βήμα 2 — Δείτε τα Matches',
+      title: 'Βήμα 2 — Ελέγξτε ποιοι επιλέγονται',
       desc: hasMatches
-        ? `${stats.totalMatches} επιχειρήσεις έχουν matches με ενεργά προγράμματα. Ελέγξτε τα!`
-        : 'Το σύστημα βρίσκει αυτόματα ποιοι πελάτες σας μπορούν να χρηματοδοτηθούν.',
+        ? `${stats.totalMatches} πελάτες σας είναι επιλέξιμοι για ενεργά προγράμματα. Μην τους αφήσετε να χάσουν την ευκαιρία!`
+        : 'Το σύστημα εντοπίζει αυτόματα ποιοι πελάτες σας πληρούν τα κριτήρια κάθε προγράμματος.',
       action: '/matches',
-      actionLabel: hasMatches ? 'Δείτε τα matches →' : 'Προσθέστε πρώτα πελάτες',
+      actionLabel: hasMatches ? 'Δείτε ποιοι επιλέγονται →' : 'Προσθέστε πρώτα πελάτες',
       icon: Target,
     },
     {
       done: hasCampaigns,
-      title: 'Βήμα 3 — Στείλτε Καμπάνια',
+      title: 'Βήμα 3 — Ενημερώστε τους πελάτες σας',
       desc: hasCampaigns
-        ? `Έχετε στείλει ${stats.campaignsSent} καμπάνι${stats.campaignsSent === 1 ? 'α' : 'ες'}. Συνεχίστε — κάθε email = πιθανή προμήθεια!`
-        : 'Στείλτε email/Viber στους πελάτες σας για προγράμματα που τους αφορούν.',
+        ? `Έχετε στείλει ${stats.campaignsSent} καμπάνι${stats.campaignsSent === 1 ? 'α' : 'ες'}. Συνεχίστε — οι πελάτες σας πρέπει να γνωρίζουν τις ευκαιρίες τους εγκαίρως.`
+        : 'Ενημερώστε τους πελάτες σας για τα προγράμματα που τους αφορούν, πριν λήξουν οι προθεσμίες υποβολής.',
       action: '/campaigns/new',
-      actionLabel: hasCampaigns ? 'Νέα καμπάνια →' : hasMatches ? 'Στείλτε καμπάνια τώρα →' : 'Αναμένετε matches',
+      actionLabel: hasCampaigns ? 'Νέα καμπάνια →' : hasMatches ? 'Στείλτε ενημέρωση τώρα →' : 'Αναμένετε matches',
       icon: Mail,
     },
   ]
@@ -78,12 +78,12 @@ function OnboardingGuide({ stats }: { stats: DashboardStats }) {
         </div>
         <div>
           <h2 className="text-base font-bold text-indigo-900">
-            {allDone ? '🎉 Είστε σε πλήρη λειτουργία!' : 'Ξεκινήστε σε 3 απλά βήματα'}
+            {allDone ? '✅ Οι πελάτες σας είναι ενημερωμένοι!' : 'Ξεκινήστε σε 3 βήματα'}
           </h2>
           <p className="text-xs text-indigo-600 mt-0.5">
             {allDone
-              ? 'Κάθε καμπάνια που στέλνετε αυξάνει τις πιθανότητες κέρδους προμήθειας.'
-              : 'Ακολουθήστε τα βήματα για να αρχίσετε να κερδίζετε προμήθειες για τους πελάτες σας.'}
+              ? 'Συνεχίστε να ελέγχετε νέα προγράμματα — οι προθεσμίες μπορεί να αλλάξουν οποιαδήποτε στιγμή.'
+              : 'Τα ενεργά προγράμματα έχουν σύντομες προθεσμίες. Ενημερώστε τους πελάτες σας εγκαίρως.'}
           </p>
         </div>
       </div>
@@ -113,30 +113,30 @@ function BusinessNudge({ stats }: { stats: DashboardStats }) {
   if (stats.totalBusinesses >= 50) return null
 
   return (
-    <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-2xl p-5 flex flex-col md:flex-row items-start md:items-center gap-4">
-      <div className="w-10 h-10 bg-amber-500 rounded-xl flex items-center justify-center flex-shrink-0">
+    <div className="bg-gradient-to-r from-red-50 to-orange-50 border border-red-200 rounded-2xl p-5 flex flex-col md:flex-row items-start md:items-center gap-4">
+      <div className="w-10 h-10 bg-red-500 rounded-xl flex items-center justify-center flex-shrink-0">
         <Upload size={18} className="text-white" />
       </div>
       <div className="flex-1">
-        <h3 className="text-sm font-bold text-amber-900">
-          💡 Έχετε {stats.totalBusinesses} πελάτες — κάθε πελάτης που λείπει = χαμένη προμήθεια!
+        <h3 className="text-sm font-bold text-red-900">
+          ⏰ Τα προγράμματα έχουν σύντομη λήξη — πελάτες που δεν είναι καταχωρημένοι θα τα χάσουν!
         </h3>
-        <p className="text-xs text-amber-700 mt-1 leading-relaxed">
-          Εξαγάγετε τη λίστα πελατών σας από το λογιστικό σας πρόγραμμα σε Excel, και εισάγετε τη μαζικά εδώ.
-          Το σύστημα βρίσκει αυτόματα ποιοι πελάτες επιλέγονται για χρηματοδότηση — και σας ειδοποιεί!
+        <p className="text-xs text-red-700 mt-1 leading-relaxed">
+          Εξαγάγετε τη λίστα πελατών σας από το λογιστικό σας πρόγραμμα σε Excel και εισάγετέ την εδώ.
+          Το σύστημα ελέγχει αυτόματα ποιοι επιλέγονται — ώστε να τους ενημερώσετε εγκαίρως.
         </p>
         <div className="flex flex-wrap gap-3 mt-3">
-          <Link href="/businesses" className="text-xs font-semibold bg-amber-600 text-white px-4 py-2 rounded-lg hover:bg-amber-700 transition-colors">
+          <Link href="/businesses" className="text-xs font-semibold bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors">
             Εισαγωγή Επιχειρήσεων →
           </Link>
-          <Link href="/businesses" className="text-xs font-medium text-amber-700 hover:text-amber-900 flex items-center gap-1">
+          <Link href="/businesses" className="text-xs font-medium text-red-700 hover:text-red-900 flex items-center gap-1">
             Αναζήτηση μέσω ΑΦΜ <ChevronRight size={12} />
           </Link>
         </div>
       </div>
-      <div className="hidden md:flex flex-col items-center bg-white rounded-xl px-4 py-3 border border-amber-100 text-center">
-        <span className="text-2xl font-bold text-amber-600">{stats.activePrograms}</span>
-        <span className="text-xs text-amber-700 mt-0.5">ενεργά<br/>προγράμματα</span>
+      <div className="hidden md:flex flex-col items-center bg-white rounded-xl px-4 py-3 border border-red-100 text-center">
+        <span className="text-2xl font-bold text-red-600">{stats.activePrograms}</span>
+        <span className="text-xs text-red-700 mt-0.5">ενεργά<br/>προγράμματα</span>
       </div>
     </div>
   )
