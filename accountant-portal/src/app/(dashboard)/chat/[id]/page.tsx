@@ -108,15 +108,15 @@ export default function ConversationPage() {
         {conv.messages?.map((msg: any) => {
           const isMe = (isAdmin && msg.senderRole === 'ADMIN') || (!isAdmin && msg.senderRole === 'ACCOUNTANT')
           return (
-            <div key={msg.id} className={`flex items-end gap-1 group ${isMe ? 'justify-end' : 'justify-start'}`}>
+            <div key={msg.id} className={`flex items-end gap-1 ${isMe ? 'justify-end' : 'justify-start'}`}>
               {isAdmin && isMe && (
                 <button
                   onClick={() => deleteMessage(msg.id)}
                   disabled={deletingMsgId === msg.id}
-                  className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded text-gray-400 hover:text-red-500 hover:bg-red-50 flex-shrink-0"
+                  className="p-1 rounded text-indigo-300 hover:text-red-400 hover:bg-red-50 flex-shrink-0 transition-colors"
                   title="Διαγραφή μηνύματος"
                 >
-                  <Trash2 size={13} />
+                  <Trash2 size={12} />
                 </button>
               )}
               <div className={`max-w-[75%] rounded-2xl px-4 py-3 ${
