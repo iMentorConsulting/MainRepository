@@ -49,7 +49,12 @@ export default function AccountantsPage() {
 
   async function handleDelete(id: string) {
     if (!confirm('Διαγραφή λογιστή; Αυτή η ενέργεια είναι μη αναστρέψιμη.')) return
-    await fetch(`/api/accountants/${id}`, { method: 'DELETE' })
+    const res = await fetch(`/api/accountants/${id}`, { method: 'DELETE' })
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      alert(`Σφάλμα διαγραφής: ${data.error || res.status}`)
+      return
+    }
     setAccountants(prev => prev.filter(a => a.id !== id))
   }
 
