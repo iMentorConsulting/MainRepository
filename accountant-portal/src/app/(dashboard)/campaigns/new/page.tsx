@@ -87,20 +87,28 @@ function StepProgram({ programs, selected, onSelect, onNext, onBack }: {
             </div>
           </div>
         </button>
-        {programs.map(p => (
-          <button key={p.id} onClick={() => onSelect(p.id)}
-            className={`text-left p-4 rounded-xl border-2 transition-all ${selected === p.id ? 'border-indigo-500 bg-indigo-50' : 'border-gray-200 hover:border-indigo-200'}`}>
-            <div className="flex items-center gap-3">
-              <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${selected === p.id ? 'bg-indigo-100' : 'bg-gray-100'}`}>
-                <CheckCircle2 size={16} className={selected === p.id ? 'text-indigo-600' : 'text-gray-300'} />
+        {programs.map(p => {
+          const matchCount = p._count?.matches ?? 0
+          return (
+            <button key={p.id} onClick={() => onSelect(p.id)}
+              className={`text-left p-4 rounded-xl border-2 transition-all ${selected === p.id ? 'border-indigo-500 bg-indigo-50' : 'border-gray-200 hover:border-indigo-200'}`}>
+              <div className="flex items-center gap-3">
+                <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${selected === p.id ? 'bg-indigo-100' : 'bg-gray-100'}`}>
+                  <CheckCircle2 size={16} className={selected === p.id ? 'text-indigo-600' : 'text-gray-300'} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-sm text-gray-800 line-clamp-1">{p.title}</p>
+                  <p className="text-xs text-gray-400">{p.category}</p>
+                </div>
+                {matchCount > 0 && (
+                  <span className={`flex-shrink-0 text-xs font-semibold px-2 py-0.5 rounded-full ${selected === p.id ? 'bg-indigo-200 text-indigo-700' : 'bg-green-100 text-green-700'}`}>
+                    {matchCount} match{matchCount !== 1 ? 'es' : ''}
+                  </span>
+                )}
               </div>
-              <div>
-                <p className="font-semibold text-sm text-gray-800 line-clamp-1">{p.title}</p>
-                <p className="text-xs text-gray-400">{p.category}</p>
-              </div>
-            </div>
-          </button>
-        ))}
+            </button>
+          )
+        })}
       </div>
       <div className="flex gap-3 pt-2">
         <Button variant="outline" onClick={onBack}><ArrowLeft size={15} className="mr-1" />Πίσω</Button>
