@@ -137,8 +137,9 @@ export function renderCampaignEmailHtml(options: CampaignEmailOptions): string {
   const paragraphs = bodyText
     // Convert Viber *bold* markdown to HTML <strong> tags; drop empty ** pairs
     .replace(/\*([^*\n]*)\*/g, (_, inner) => inner.trim() ? `<strong>${inner}</strong>` : '')
-    // Remove standalone emoji characters that don't render well in email
-    .replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '')
+    // Remove common emoji ranges that don't render well in email clients
+    // eslint-disable-next-line no-misleading-character-class
+    .replace(/[☀-➿]|[\uD83C-\uDBFF][\uDC00-\uDFFF]/g, '')
     .split(/\n{2,}/)
     .map(block => block.trim())
     .filter(Boolean)
