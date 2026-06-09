@@ -143,10 +143,40 @@ function StepTemplate({ onSelect, onBack }: { onSelect: (t: any) => void; onBack
 // ── Step 3: Preview & send ────────────────────────────────────────────────────
 function StepSend({ template, programId, programs, onBack, onSend, sending, onSaveDraft, savingDraft }: {
   template: any; programId: string; programs: any[];
-  onBack: () => void; onSend: () => void; sending: boolean;
+  onBack: () => void; onSend: (ids: string[]) => void; sending: boolean;
   onSaveDraft: () => void; savingDraft: boolean;
 }) {
   const program = programs.find(p => p.id === programId)
+  const [recipients, setRecipients] = useState<any[]>([])
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [loadingRecipients, setLoadingRecipients] = useState(true)
+
+  useEffect(() => {
+    const url = programId
+      ? `/api/campaigns/recipients?programId=${programId}`
+      : '/api/campaigns/recipients'
+    fetch(url)
+      .then(r => r.json())
+      .then(data => {
+        setRecipients(data)
+        setSelected(new Set(data.map((b: any) => b.id)))
+      })
+      .finally(() => setLoadingRecipients(false))
+  }, [programId])
+
+  function toggleAll() {
+    if (selected.size === recipients.length) setSelected(new Set())
+    else setSelected(new Set(recipients.map(b => b.id)))
+  }
+
+  function toggle(id: string) {
+    setSelected(prev => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+  }
+
   const preview = (template?.bodyWithAccountant || '')
     .replace(/\{\{business_name\}\}/g, 'ΠΑΡΑΔΕΙΓΜΑ ΑΕ')
     .replace(/\{\{afm\}\}/g, '123456789')
@@ -160,38 +190,98 @@ function StepSend({ template, programId, programs, onBack, onSend, sending, onSa
   return (
     <div className="space-y-5">
       <div>
-        <h2 className="text-xl font-bold text-gray-900">Έτοιμο! Δείτε πώς θα φαίνεται.</h2>
-        <p className="text-sm text-gray-500 mt-1">Παρακάτω είναι παράδειγμα του μηνύματος που θα λάβει ένας πελάτης σας.</p>
+        <h2 className="text-xl font-bold text-gray-900">Σε ποιους να σταλεί;</h2>
+        <p className="text-sm text-gray-500 mt-1">Ελέγξτε τη λίστα και αποεπιλέξτε όποιους <strong>δεν</strong> θέλετε να λάβουν το μήνυμα.</p>
       </div>
 
-      <div className="bg-gray-50 border border-gray-200 rounded-xl p-5">
-        <div className="text-xs text-gray-400 font-semibold mb-2 uppercase tracking-wide">Προεπισκόπηση μηνύματος</div>
-        {template?.subject && (
-          <div className="text-xs text-gray-500 mb-3 pb-3 border-b border-gray-200">
-            <span className="font-semibold">Θέμα: </span>
-            {template.subject
-              .replace(/\{\{accountant_office\}\}/g, 'Λογιστικό Γραφείο Παπαδόπουλος')
-              .replace(/\{\{program_title\}\}/g, program?.title || 'ΕΣΠΑ 2024')}
+      {/* Recipients list */}
+      <div className="border border-gray-200 rounded-xl overflow-hidden">
+        <div className="flex items-center justify-between px-4 py-3 bg-gray-50 border-b border-gray-200">
+          <label className="flex items-center gap-2 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={selected.size === recipients.length && recipients.length > 0}
+              onChange={toggleAll}
+              className="w-4 h-4 rounded accent-indigo-600"
+            />
+            <span className="text-sm font-semibold text-gray-700">
+              {loadingRecipients ? 'Φόρτωση...' : `${selected.size} από ${recipients.length} παραλήπτες επιλεγμένοι`}
+            </span>
+          </label>
+          {program && (
+            <span className="text-xs text-indigo-600 bg-indigo-50 px-2 py-1 rounded-full font-medium">
+              {program.title}
+            </span>
+          )}
+        </div>
+
+        {loadingRecipients ? (
+          <div className="flex items-center justify-center py-10">
+            <div className="animate-spin w-6 h-6 border-4 border-indigo-600 border-t-transparent rounded-full" />
+          </div>
+        ) : recipients.length === 0 ? (
+          <div className="text-center py-10 text-gray-400 text-sm">
+            Δεν βρέθηκαν επιλέξιμοι παραλήπτες.{programId ? ' Τρέξτε ξανά το matching για αυτό το πρόγραμμα.' : ''}
+          </div>
+        ) : (
+          <div className="max-h-64 overflow-y-auto divide-y divide-gray-50">
+            {recipients.map(b => (
+              <label key={b.id} className={`flex items-center gap-3 px-4 py-2.5 cursor-pointer hover:bg-gray-50 transition-colors ${!selected.has(b.id) ? 'opacity-50' : ''}`}>
+                <input
+                  type="checkbox"
+                  checked={selected.has(b.id)}
+                  onChange={() => toggle(b.id)}
+                  className="w-4 h-4 rounded accent-indigo-600 flex-shrink-0"
+                />
+                <div className="flex-1 min-w-0">
+                  <span className="text-sm font-medium text-gray-900 truncate block">{b.onomasia || b.afm}</span>
+                  <span className="text-xs text-gray-400">{b.email || b.phone || '—'} {b.postalAreaDescription ? `· ${b.postalAreaDescription}` : ''}</span>
+                </div>
+                {!b.email && !b.phone && <span className="text-xs text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">χωρίς email</span>}
+              </label>
+            ))}
           </div>
         )}
-        <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{preview}</p>
       </div>
 
-      {program && (
-        <div className="flex items-center gap-2 text-sm text-indigo-700 bg-indigo-50 rounded-lg px-4 py-2.5">
-          <CheckCircle2 size={15} />
-          Πρόγραμμα: <strong>{program.title}</strong>
+      {selected.size === 0 && recipients.length > 0 && (
+        <div className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-4 py-2.5">
+          Δεν έχετε επιλέξει κανέναν παραλήπτη. Επιλέξτε τουλάχιστον έναν για να αποστείλετε.
         </div>
       )}
+
+      {/* Message preview */}
+      <details className="group">
+        <summary className="cursor-pointer text-sm text-indigo-600 font-medium select-none list-none flex items-center gap-1">
+          <span className="group-open:hidden">▶ Δείτε πώς θα φαίνεται το μήνυμα</span>
+          <span className="hidden group-open:inline">▼ Κλείστε προεπισκόπηση</span>
+        </summary>
+        <div className="mt-3 bg-gray-50 border border-gray-200 rounded-xl p-4">
+          <div className="text-xs text-gray-400 font-semibold mb-2 uppercase tracking-wide">Προεπισκόπηση</div>
+          {template?.subject && (
+            <div className="text-xs text-gray-500 mb-3 pb-3 border-b border-gray-200">
+              <span className="font-semibold">Θέμα: </span>
+              {template.subject
+                .replace(/\{\{accountant_office\}\}/g, 'Λογιστικό Γραφείο Παπαδόπουλος')
+                .replace(/\{\{program_title\}\}/g, program?.title || 'ΕΣΠΑ 2024')}
+            </div>
+          )}
+          <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{preview}</p>
+        </div>
+      </details>
 
       <div className="flex flex-wrap gap-3 pt-2">
         <Button variant="outline" onClick={onBack}><ArrowLeft size={15} className="mr-1" />Πίσω</Button>
         <Button variant="outline" loading={savingDraft} onClick={onSaveDraft}>
           Αποθήκευση Πρόχειρου
         </Button>
-        <Button loading={sending} onClick={onSend}>
+        <Button
+          loading={sending}
+          disabled={selected.size === 0}
+          onClick={() => onSend(Array.from(selected))}
+        >
           <Send size={15} className="mr-2" />
-          Αποστολή Καμπάνιας
+          Αποστολή σε {selected.size} παραλήπτ{selected.size === 1 ? 'η' : 'ες'}
         </Button>
       </div>
     </div>
@@ -270,7 +360,7 @@ export default function NewCampaignPage() {
     fetch('/api/programs').then(r => r.json()).then(d => setPrograms(d.programs || []))
   }, [])
 
-  async function saveCampaign(status: 'DRAFT' | 'SENT') {
+  async function saveCampaign(status: 'DRAFT' | 'SENT', selectedIds?: string[]) {
     if (!selectedTemplate) return
     if (status === 'DRAFT') setSavingDraft(true)
     else setSending(true)
@@ -291,7 +381,13 @@ export default function NewCampaignPage() {
       })
       if (res.ok) {
         const created = await res.json()
-        if (status === 'SENT') fetch(`/api/campaigns/${created.id}/send`, { method: 'POST' }).catch(() => {})
+        if (status === 'SENT') {
+          fetch(`/api/campaigns/${created.id}/send`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ businessIds: selectedIds }),
+          }).catch(() => {})
+        }
         router.push(`/campaigns/${created.id}`)
       } else {
         alert('Σφάλμα αποθήκευσης')
@@ -350,7 +446,7 @@ export default function NewCampaignPage() {
             programId={programId}
             programs={programs}
             onBack={() => setStep(2)}
-            onSend={() => saveCampaign('SENT')}
+            onSend={(ids) => saveCampaign('SENT', ids)}
             sending={sending}
             onSaveDraft={() => saveCampaign('DRAFT')}
             savingDraft={savingDraft}
