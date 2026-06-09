@@ -36,9 +36,17 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
   }
 
   const body = await request.json()
-  // Accountants may only self-manage their own logo — every other field
-  // (office name, contacts, status, etc.) stays admin-managed.
-  const data = isOwnAccountant ? { logoUrl: body.logoUrl } : body
+  // Accountants can self-manage their own profile fields; only admins can
+  // touch approval/active/notes and other sensitive flags.
+  const data = isOwnAccountant
+    ? {
+        officeName: body.officeName,
+        contactPerson: body.contactPerson,
+        phone: body.phone,
+        address: body.address,
+        logoUrl: body.logoUrl,
+      }
+    : body
   delete data.id
   delete data.createdAt
   delete data.updatedAt

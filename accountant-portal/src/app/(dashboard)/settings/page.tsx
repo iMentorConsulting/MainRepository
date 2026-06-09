@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { LogoUploader } from '@/components/shared/logo-uploader'
-import { CheckCircle, XCircle, Mail, Settings, Image as ImageIcon, Shield, Download, Trash2, Lock } from 'lucide-react'
+import { CheckCircle, XCircle, Mail, Settings, Image as ImageIcon, Shield, Download, Trash2, Lock, Building2 } from 'lucide-react'
 import Link from 'next/link'
 
 function DeleteRequestForm() {
@@ -58,6 +58,17 @@ function DeleteRequestForm() {
 
 export default function SettingsPage() {
   const { data: session } = useSession()
+
+  // Accountant profile editing
+  const [profileOfficeName, setProfileOfficeName] = useState('')
+  const [profileContactPerson, setProfileContactPerson] = useState('')
+  const [profilePhone, setProfilePhone] = useState('')
+  const [profileAddress, setProfileAddress] = useState('')
+  const [profileLogoUrl, setProfileLogoUrl] = useState<string | null>(null)
+  const [profileSaving, setProfileSaving] = useState(false)
+  const [profileSaved, setProfileSaved] = useState(false)
+  const [profileError, setProfileError] = useState('')
+
   const [smtpTest, setSmtpTest] = useState<'idle' | 'loading' | 'ok' | 'fail'>('idle')
   const [smtpError, setSmtpError] = useState('')
   const [imentorLogoUrl, setImentorLogoUrl] = useState<string | null>(null)
@@ -81,7 +92,40 @@ export default function SettingsPage() {
         setAadePassSet(d.aadePassSet || false)
       })
     }
+    if (session?.user?.role === 'ACCOUNTANT' && (session.user as any).accountantId) {
+      fetch(`/api/accountants/${(session.user as any).accountantId}`)
+        .then(r => r.json())
+        .then(d => {
+          setProfileOfficeName(d.officeName || '')
+          setProfileContactPerson(d.contactPerson || '')
+          setProfilePhone(d.phone || '')
+          setProfileAddress(d.address || '')
+          setProfileLogoUrl(d.logoUrl || null)
+        })
+    }
   }, [session])
+
+  async function saveProfile(e: React.FormEvent) {
+    e.preventDefault()
+    setProfileSaving(true)
+    setProfileSaved(false)
+    setProfileError('')
+    const accountantId = (session?.user as any)?.accountantId
+    const res = await fetch(`/api/accountants/${accountantId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        officeName: profileOfficeName,
+        contactPerson: profileContactPerson,
+        phone: profilePhone,
+        address: profileAddress,
+        logoUrl: profileLogoUrl,
+      }),
+    })
+    setProfileSaving(false)
+    if (res.ok) setProfileSaved(true)
+    else setProfileError('Σφάλμα αποθήκευσης. Δοκιμάστε ξανά.')
+  }
 
   async function saveImentorLogo(dataUrl: string | null) {
     setImentorLogoUrl(dataUrl)
@@ -136,9 +180,63 @@ export default function SettingsPage() {
   return (
     <div className="max-w-2xl space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Ρυθμίσεις Συστήματος</h1>
+        <h1 className="text-2xl font-bold text-gray-900">Ρυθμίσεις</h1>
         <p className="text-gray-500 mt-1">Διαχείριση παραμέτρων I-MENTOR Portal</p>
       </div>
+
+      {session?.user?.role === 'ACCOUNTANT' && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Building2 size={18} className="text-indigo-600" />
+              Στοιχεία Λογιστικού Γραφείου
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={saveProfile} className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <Input
+                  label="Επωνυμία Γραφείου"
+                  value={profileOfficeName}
+                  onChange={e => setProfileOfficeName(e.target.value)}
+                  required
+                />
+                <Input
+                  label="Υπεύθυνος Επικοινωνίας"
+                  value={profileContactPerson}
+                  onChange={e => setProfileContactPerson(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <Input
+                  label="Τηλέφωνο"
+                  value={profilePhone}
+                  onChange={e => setProfilePhone(e.target.value)}
+                />
+                <Input
+                  label="Διεύθυνση"
+                  value={profileAddress}
+                  onChange={e => setProfileAddress(e.target.value)}
+                />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-gray-700 mb-2">Λογότυπο Γραφείου</p>
+                <LogoUploader
+                  label="Λογότυπο (PNG, transparent)"
+                  value={profileLogoUrl}
+                  onChange={url => setProfileLogoUrl(url)}
+                />
+              </div>
+              {profileError && <p className="text-sm text-red-600">{profileError}</p>}
+              <div className="flex items-center gap-3">
+                <Button type="submit" loading={profileSaving}>Αποθήκευση</Button>
+                {profileSaved && <span className="text-sm text-green-600 flex items-center gap-1"><CheckCircle size={14} /> Αποθηκεύτηκε!</span>}
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+      )}
 
       {session?.user?.role === 'ADMIN' && (
         <Card>
