@@ -6,6 +6,7 @@ import { z } from 'zod'
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   secret: process.env.NEXTAUTH_SECRET || process.env.AUTH_SECRET,
+  trustHost: true,
   session: { strategy: 'jwt' },
   pages: { signIn: '/login' },
   callbacks: {
@@ -42,6 +43,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         if (!user) return null
         const valid = await bcrypt.compare(parsed.data.password, user.passwordHash)
         if (!valid) return null
+        const now = new Date()
+        await prisma.$transaction([
+          prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: now } }),
+          prisma.loginLog.create({ data: { userId: user.id } }),
+        ]).catch(() => {})
         return {
           id: user.id,
           name: user.name,

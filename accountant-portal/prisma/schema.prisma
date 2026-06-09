@@ -15,8 +15,17 @@ model User {
   role         Role       @default(ACCOUNTANT)
   accountantId String?
   accountant   Accountant? @relation(fields: [accountantId], references: [id])
+  lastLoginAt  DateTime?
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
+  loginLogs    LoginLog[]
+}
+
+model LoginLog {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
 }
 
 enum Role {

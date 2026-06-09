@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import { Button } from '@/components/ui/button'
 import { Select } from '@/components/ui/select'
@@ -355,10 +355,17 @@ function StepWithIMentor({ onBack, session }: { onBack: () => void; session: any
 // ── Main page ─────────────────────────────────────────────────────────────────
 export default function NewCampaignPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { data: session } = useSession()
   const [programs, setPrograms] = useState<any[]>([])
   const [step, setStep] = useState(0)
   const [path, setPath] = useState<'diy' | 'imentor' | null>(null)
+
+  useEffect(() => {
+    const p = searchParams.get('path')
+    if (p === 'diy')     { setPath('diy');     setStep(1) }
+    if (p === 'imentor') { setPath('imentor'); setStep(1) }
+  }, [])
   const [programId, setProgramId] = useState('')
   const [selectedTemplate, setSelectedTemplate] = useState<any>(null)
   const [sending, setSending] = useState(false)
