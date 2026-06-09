@@ -113,30 +113,30 @@ function BusinessNudge({ stats }: { stats: DashboardStats }) {
   if (stats.totalBusinesses >= 50) return null
 
   return (
-    <div className="bg-gradient-to-r from-red-50 to-orange-50 border border-red-200 rounded-2xl p-5 flex flex-col md:flex-row items-start md:items-center gap-4">
-      <div className="w-10 h-10 bg-red-500 rounded-xl flex items-center justify-center flex-shrink-0">
+    <div className="bg-gradient-to-r from-amber-50 to-yellow-50 border border-amber-200 rounded-2xl p-5 flex flex-col md:flex-row items-start md:items-center gap-4">
+      <div className="w-10 h-10 bg-amber-400 rounded-xl flex items-center justify-center flex-shrink-0">
         <Upload size={18} className="text-white" />
       </div>
       <div className="flex-1">
-        <h3 className="text-sm font-bold text-red-900">
+        <h3 className="text-sm font-bold text-amber-900">
           ⏰ Τα προγράμματα έχουν σύντομη λήξη — πελάτες που δεν είναι καταχωρημένοι θα τα χάσουν!
         </h3>
-        <p className="text-xs text-red-700 mt-1 leading-relaxed">
-          Εξαγάγετε τη λίστα πελατών σας από το λογιστικό σας πρόγραμμα σε Excel και εισάγετέ την εδώ.
-          Το σύστημα ελέγχει αυτόματα ποιοι επιλέγονται — ώστε να τους ενημερώσετε εγκαίρως.
+        <p className="text-xs text-amber-700 mt-1 leading-relaxed">
+          Μπορείτε να προσθέσετε πελάτες εύκολα — είτε έναν-έναν μέσω ΑΦΜ, είτε μαζικά από αρχείο Excel.
+          Το σύστημα αναλαμβάνει τα υπόλοιπα και σας ενημερώνει για ποιους επιλέγονται.
         </p>
         <div className="flex flex-wrap gap-3 mt-3">
-          <Link href="/businesses" className="text-xs font-semibold bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors">
-            Εισαγωγή Επιχειρήσεων →
+          <Link href="/businesses" className="text-xs font-semibold bg-amber-500 text-white px-4 py-2 rounded-lg hover:bg-amber-600 transition-colors">
+            Προσθήκη Επιχειρήσεων →
           </Link>
-          <Link href="/businesses" className="text-xs font-medium text-red-700 hover:text-red-900 flex items-center gap-1">
+          <Link href="/businesses" className="text-xs font-medium text-amber-700 hover:text-amber-900 flex items-center gap-1">
             Αναζήτηση μέσω ΑΦΜ <ChevronRight size={12} />
           </Link>
         </div>
       </div>
-      <div className="hidden md:flex flex-col items-center bg-white rounded-xl px-4 py-3 border border-red-100 text-center">
-        <span className="text-2xl font-bold text-red-600">{stats.activePrograms}</span>
-        <span className="text-xs text-red-700 mt-0.5">ενεργά<br/>προγράμματα</span>
+      <div className="hidden md:flex flex-col items-center bg-white rounded-xl px-4 py-3 border border-amber-100 text-center">
+        <span className="text-2xl font-bold text-amber-500">{stats.activePrograms}</span>
+        <span className="text-xs text-amber-700 mt-0.5">ενεργά<br/>προγράμματα</span>
       </div>
     </div>
   )
