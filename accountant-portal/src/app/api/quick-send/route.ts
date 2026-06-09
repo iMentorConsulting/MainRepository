@@ -10,18 +10,31 @@ export async function POST(request: NextRequest) {
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { businessIds, channel, subject, messageTemplate } = await request.json()
+  const { businessIds, channel, subject, messageTemplate, programId } = await request.json()
   if (!channel || !messageTemplate?.trim() || !Array.isArray(businessIds) || businessIds.length === 0) {
     return NextResponse.json({ error: 'businessIds, channel and messageTemplate are required' }, { status: 400 })
   }
 
-  const businesses = await prisma.business.findMany({
-    where: { id: { in: businessIds } },
-    include: {
-      accountant: true,
-      activities: { where: { firmActKind: 1 }, take: 1 },
-    },
-  })
+  const [businesses, matchRows, program] = await Promise.all([
+    prisma.business.findMany({
+      where: { id: { in: businessIds } },
+      include: {
+        accountant: true,
+        activities: { where: { firmActKind: 1 }, take: 1 },
+      },
+    }),
+    programId
+      ? prisma.programMatch.findMany({
+          where: { programId, businessId: { in: businessIds } },
+          select: { businessId: true, matchReason: true },
+        })
+      : Promise.resolve([]),
+    programId
+      ? prisma.program.findUnique({ where: { id: programId }, select: { title: true } })
+      : Promise.resolve(null),
+  ])
+
+  const matchByBusiness = new Map(matchRows.map(m => [m.businessId, m.matchReason]))
 
   const appSetting = await prisma.appSetting.findUnique({ where: { id: 'main' } })
 
@@ -35,8 +48,8 @@ export async function POST(request: NextRequest) {
       accountant_name: business.accountant?.contactPerson || '',
       accountant_office: business.accountant?.officeName || '',
       kad_description: business.activities[0]?.firmActCode || '',
-      program_title: '',
-      match_reason: '',
+      program_title: program?.title || '',
+      match_reason: (matchByBusiness.get(business.id) || []).map((r: string) => `• ${r}`).join('\n'),
       unsubscribe_link: `${process.env.NEXTAUTH_URL || 'http://localhost:3001'}/api/unsubscribe/${business.unsubscribeToken}`,
     }
 

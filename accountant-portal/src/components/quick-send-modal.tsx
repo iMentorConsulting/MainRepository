@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { X, Send, ChevronDown, ChevronUp } from 'lucide-react'
 import { CAMPAIGN_TEMPLATES, VIBER_CAMPAIGN_TEMPLATES } from '@/lib/campaign-templates'
 
@@ -25,6 +25,17 @@ export function QuickSendModal({ businesses, onClose, onSent }: QuickSendModalPr
   const [sending, setSending] = useState(false)
   const [result, setResult] = useState<{ sent: number; failed: number } | null>(null)
   const [showTemplates, setShowTemplates] = useState(false)
+  const [matchedPrograms, setMatchedPrograms] = useState<{ id: string; title: string }[]>([])
+  const [programId, setProgramId] = useState('')
+
+  useEffect(() => {
+    const ids = businesses.map(b => b.id).join(',')
+    if (!ids) return
+    fetch(`/api/quick-send/programs?businessIds=${ids}`)
+      .then(r => r.json())
+      .then(d => setMatchedPrograms(d.programs || []))
+      .catch(() => {})
+  }, [businesses])
 
   const isViber = channel === 'VIBER'
   const isEmail = channel === 'EMAIL'
@@ -50,6 +61,7 @@ export function QuickSendModal({ businesses, onClose, onSent }: QuickSendModalPr
           channel,
           subject,
           messageTemplate: message,
+          programId: programId || undefined,
         }),
       })
       const data = await res.json()
@@ -120,6 +132,26 @@ export function QuickSendModal({ businesses, onClose, onSent }: QuickSendModalPr
               </button>
             ))}
           </div>
+
+          {/* Matched program selector */}
+          {matchedPrograms.length > 0 && (
+            <div>
+              <label className="block text-xs font-medium text-slate-700 mb-1.5">
+                Πρόγραμμα αναφοράς
+                <span className="text-slate-400 font-normal ml-1">(συμπληρώνει το {'{{program_title}}'} και {'{{match_reason}}'})</span>
+              </label>
+              <select
+                value={programId}
+                onChange={e => setProgramId(e.target.value)}
+                className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 bg-white"
+              >
+                <option value="">— Χωρίς συγκεκριμένο πρόγραμμα —</option>
+                {matchedPrograms.map(p => (
+                  <option key={p.id} value={p.id}>{p.title}</option>
+                ))}
+              </select>
+            </div>
+          )}
 
           {/* Template picker */}
           <div>
