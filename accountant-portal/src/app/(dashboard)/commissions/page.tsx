@@ -355,17 +355,20 @@ export default function CommissionsPage() {
                 : p.appliesToApplication
                   ? 'αίτηση'
                   : 'υλοποίηση'
-              const rateLabel = p.commissionType === 'PERCENTAGE'
-                ? `${p.percentage}% × ${stage}`
-                : p.fixedAmount != null
-                  ? `${(p.fixedAmount / 100).toFixed(0)}€ / ${stage}`
-                  : '—'
+              const pct = p.percentage ?? p.commissionPercentage
+              const fixed = p.fixedAmount ?? p.commissionFixed
+              const rateLabel = p.commissionType === 'PERCENTAGE' && pct != null
+                ? `${pct}% × ${stage}`
+                : fixed != null
+                  ? `${(fixed / 100).toFixed(0)}€ / ${stage}`
+                  : `— × ${stage}`
               const scope = p.program?.title || p.service?.name || 'Γενική'
+              const showName = p.name && p.name !== scope
               return (
                 <div key={p.id} className="bg-white border border-indigo-100 rounded-xl px-3 py-2 text-xs shadow-sm flex items-center gap-2">
                   <span className="font-semibold text-gray-700">{scope}</span>
                   <span className="text-indigo-600 font-bold">{rateLabel}</span>
-                  {p.name && <><span className="text-gray-300">·</span><span className="text-gray-400">{p.name}</span></>}
+                  {showName && <><span className="text-gray-300">·</span><span className="text-gray-400">{p.name}</span></>}
                 </div>
               )
             })}

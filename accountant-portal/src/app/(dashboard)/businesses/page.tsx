@@ -202,28 +202,37 @@ export default function BusinessesPage() {
         </div>
       </div>
 
+      {!isAdmin && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <Link href="/businesses/new?mode=afm" className="group block">
+            <div className="bg-white border-2 border-indigo-200 hover:border-indigo-400 rounded-2xl p-5 flex items-start gap-4 shadow-sm hover:shadow-md transition-all">
+              <div className="w-12 h-12 bg-indigo-100 rounded-xl flex items-center justify-center text-2xl flex-shrink-0">🔍</div>
+              <div>
+                <p className="font-bold text-gray-900 text-base">Προσθήκη μέσω ΑΦΜ</p>
+                <p className="text-sm text-gray-500 mt-0.5">Βάλτε το ΑΦΜ του πελάτη → τα στοιχεία συμπληρώνονται αυτόματα από ΑΑΔΕ</p>
+                <p className="text-xs text-indigo-600 font-semibold mt-2 group-hover:underline">Προσθήκη 1 πελάτη →</p>
+              </div>
+            </div>
+          </Link>
+          <Link href="/businesses/new?mode=excel" className="group block">
+            <div className="bg-white border-2 border-violet-200 hover:border-violet-400 rounded-2xl p-5 flex items-start gap-4 shadow-sm hover:shadow-md transition-all">
+              <div className="w-12 h-12 bg-violet-100 rounded-xl flex items-center justify-center text-2xl flex-shrink-0">📊</div>
+              <div>
+                <p className="font-bold text-gray-900 text-base">Μαζική Εισαγωγή από Excel</p>
+                <p className="text-sm text-gray-500 mt-0.5">Εξαγάγετε τους πελάτες από το λογιστικό σας πρόγραμμα → ανεβάστε το Excel εδώ</p>
+                <p className="text-xs text-violet-600 font-semibold mt-2 group-hover:underline">Εισαγωγή πολλών πελατών →</p>
+              </div>
+            </div>
+          </Link>
+        </div>
+      )}
+
       {!isAdmin && total === 0 && !loading && (
-        <div className="bg-gradient-to-br from-indigo-600 to-purple-700 rounded-2xl p-8 text-white text-center shadow-xl">
-          <div className="text-5xl mb-4">🏢</div>
-          <h2 className="text-2xl font-bold mb-2">Δεν έχετε προσθέσει επιχειρήσεις ακόμη!</h2>
-          <p className="text-indigo-100 text-base mb-6 max-w-lg mx-auto">
+        <div className="bg-gradient-to-br from-indigo-600 to-purple-700 rounded-2xl p-6 text-white text-center shadow-xl">
+          <div className="text-4xl mb-3">🏢</div>
+          <h2 className="text-xl font-bold mb-2">Δεν έχετε προσθέσει πελάτες ακόμη!</h2>
+          <p className="text-indigo-100 text-sm">
             Κάθε πελάτης που λείπει = χαμένη ευκαιρία χρηματοδότησης και χαμένη προμήθεια για εσάς.
-            Προσθέστε τους πελάτες σας τώρα — είναι εύκολο!
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link href="/businesses/new">
-              <button className="bg-white text-indigo-700 font-bold px-8 py-3 rounded-xl text-base hover:bg-indigo-50 transition-colors w-full sm:w-auto">
-                🔍 Αναζήτηση μέσω ΑΦΜ (1 πελάτης)
-              </button>
-            </Link>
-            <Link href="/businesses/new">
-              <button className="bg-indigo-500 border-2 border-white/40 text-white font-bold px-8 py-3 rounded-xl text-base hover:bg-indigo-400 transition-colors w-full sm:w-auto">
-                📊 Μαζική Εισαγωγή από Excel
-              </button>
-            </Link>
-          </div>
-          <p className="text-indigo-200 text-sm mt-4">
-            Εξαγάγετε τη λίστα πελατών από το λογιστικό σας πρόγραμμα → Excel → Εισαγωγή εδώ
           </p>
         </div>
       )}

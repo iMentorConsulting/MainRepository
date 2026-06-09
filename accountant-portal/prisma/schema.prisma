@@ -421,8 +421,8 @@ model Notification {
 
 model ChatConversation {
   id           String        @id @default(cuid())
-  accountantId String
-  accountant   Accountant    @relation(fields: [accountantId], references: [id])
+  accountantId String?
+  accountant   Accountant?   @relation(fields: [accountantId], references: [id])
   businessId   String?
   business     Business?     @relation(fields: [businessId], references: [id], onDelete: SetNull)
   subject      String

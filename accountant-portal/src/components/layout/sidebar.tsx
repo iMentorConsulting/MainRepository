@@ -20,7 +20,7 @@ const navItems = [
   { href: '/analytics', label: 'Αναλυτικά', icon: TrendingUp, adminOnly: true },
   { href: '/services', label: 'Υπηρεσίες', icon: Briefcase, adminOnly: true },
   { href: '/invitations', label: 'Προσκλήσεις', icon: UserPlus, adminOnly: true },
-  { href: '/settings', label: 'Ρυθμίσεις', icon: Settings, adminOnly: true },
+  { href: '/settings', label: 'Ρυθμίσεις', icon: Settings, adminOnly: false },
 ]
 
 export function Sidebar() {

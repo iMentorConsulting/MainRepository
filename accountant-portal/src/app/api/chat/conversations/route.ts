@@ -37,14 +37,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Θέμα και μήνυμα είναι υποχρεωτικά' }, { status: 400 })
   }
 
-  const resolvedAccountantId = isAdmin ? targetAccountantId : session.user.accountantId
-  if (!resolvedAccountantId) {
+  const resolvedAccountantId = isAdmin ? (targetAccountantId || null) : session.user.accountantId
+  if (!isAdmin && !resolvedAccountantId) {
     return NextResponse.json({ error: 'Δεν βρέθηκε λογιστικό γραφείο' }, { status: 400 })
   }
 
   const conversation = await prisma.chatConversation.create({
     data: {
-      accountantId: resolvedAccountantId,
+      accountantId: resolvedAccountantId ?? undefined,
       businessId: businessId || null,
       subject,
       updatedAt: new Date(),

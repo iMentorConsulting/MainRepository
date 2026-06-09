@@ -288,7 +288,7 @@ export default function SettingsPage() {
         </Card>
       )}
 
-      <Card>
+      {session?.user?.role === 'ADMIN' && <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Mail size={18} />
@@ -319,7 +319,7 @@ export default function SettingsPage() {
             )}
           </div>
         </CardContent>
-      </Card>
+      </Card>}
 
       {session?.user?.role === 'ADMIN' && (
         <Card>
@@ -370,7 +370,7 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
-      <Card>
+      {session?.user?.role === 'ADMIN' && <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Settings size={18} />
@@ -405,7 +405,7 @@ export default function SettingsPage() {
             </div>
           </dl>
         </CardContent>
-      </Card>
+      </Card>}
     </div>
   )
 }
