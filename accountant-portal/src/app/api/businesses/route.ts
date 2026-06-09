@@ -50,6 +50,7 @@ export async function GET(request: NextRequest) {
       include: {
         accountant: { select: { id: true, officeName: true } },
         activities: { take: 5 },
+        _count: { select: { programMatches: true } },
       },
       orderBy,
     }),

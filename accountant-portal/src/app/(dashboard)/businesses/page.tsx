@@ -37,6 +37,7 @@ interface Business {
   legalStatusDescr: string | null
   accountant: { officeName: string } | null
   activities: { firmActCode: string; firmActKind: number | null }[]
+  _count?: { programMatches: number }
 }
 
 const PAGE_SIZE = 20
@@ -332,12 +333,13 @@ export default function BusinessesPage() {
                   <Th>ΤΚ</Th>
                   <Th>Λογιστής</Th>
                   <Th>Μορφή</Th>
+                  <Th>Matches</Th>
                 </TableRow>
               </TableHead>
               <TableBody>
                 {businesses.length === 0 ? (
                   <TableRow>
-                    <Td colSpan={8} className="text-center text-gray-400 py-8">
+                    <Td colSpan={9} className="text-center text-gray-400 py-8">
                       Δεν βρέθηκαν επιχειρήσεις
                     </Td>
                   </TableRow>
@@ -367,6 +369,17 @@ export default function BusinessesPage() {
                         <Td>
                           {b.legalStatusDescr && (
                             <Badge variant="secondary" className="text-xs">{b.legalStatusDescr}</Badge>
+                          )}
+                        </Td>
+                        <Td>
+                          {(b._count?.programMatches ?? 0) > 0 ? (
+                            <Link href={`/businesses/${b.id}`}>
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-700 hover:bg-green-200 transition-colors">
+                                ✓ {b._count!.programMatches}
+                              </span>
+                            </Link>
+                          ) : (
+                            <span className="text-gray-300 text-xs">—</span>
                           )}
                         </Td>
                       </TableRow>
