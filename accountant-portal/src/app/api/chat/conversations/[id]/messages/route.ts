@@ -73,7 +73,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       // Admin replied → notify accountant
       await sendEmail({
         to: conversation.accountant.email,
-        subject: `💬 Νέο μήνυμα από την I-MENTOR — ${conversation.accountantId}`,
+        subject: `💬 Νέο μήνυμα από την I-MENTOR — ${conversation.subject}`,
         html: `<p>Αγαπητέ/ή <strong>${conversation.accountant.contactPerson}</strong>,</p>
           <p>Λάβατε νέο μήνυμα από την I-MENTOR:</p>
           <blockquote style="border-left:4px solid #4f46e5;padding-left:12px;color:#374151">${body}</blockquote>
