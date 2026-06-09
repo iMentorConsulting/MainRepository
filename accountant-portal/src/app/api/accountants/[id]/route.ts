@@ -72,6 +72,28 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  await prisma.accountant.delete({ where: { id: params.id } })
+  // Delete all dependent records before removing the accountant
+  // (no onDelete: Cascade on most of these relations)
+  const businesses = await prisma.business.findMany({
+    where: { accountantId: params.id },
+    select: { id: true },
+  })
+  const businessIds = businesses.map(b => b.id)
+
+  await prisma.$transaction([
+    // Business-level dependents
+    prisma.campaignRecipient.deleteMany({ where: { businessId: { in: businessIds } } }),
+    prisma.programMatch.deleteMany({ where: { businessId: { in: businessIds } } }),
+    prisma.imentorRequest.deleteMany({ where: { businessId: { in: businessIds } } }),
+    prisma.paymentRequest.deleteMany({ where: { businessId: { in: businessIds } } }),
+    // Accountant-level dependents
+    prisma.campaign.deleteMany({ where: { accountantId: params.id } }),
+    prisma.chatConversation.deleteMany({ where: { accountantId: params.id } }), // messages cascade
+    prisma.commissionPolicy.deleteMany({ where: { accountantId: params.id } }),
+    prisma.business.deleteMany({ where: { accountantId: params.id } }),
+    prisma.user.deleteMany({ where: { accountantId: params.id } }),
+    prisma.accountant.delete({ where: { id: params.id } }),
+  ])
+
   return NextResponse.json({ success: true })
 }
