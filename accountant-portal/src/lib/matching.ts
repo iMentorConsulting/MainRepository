@@ -187,14 +187,14 @@ async function notifyAccountant(accountantId: string, newMatchCount: number, pro
             </p>
           </div>
           <div style="text-align: center; margin: 24px 0;">
-            <a href="${process.env.NEXTAUTH_URL || 'https://logistis.i-mentor.gr'}/matches"
+            <a href="${process.env.APP_URL || 'https://logistis.i-mentor.gr'}/matches"
                style="background: linear-gradient(135deg, #4f46e5, #6366f1); color: white; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 16px; display: inline-block;">
               Δείτε τα Matches &rarr;
             </a>
           </div>
           <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;" />
           <p style="color: #9ca3af; font-size: 12px; text-align: center;">
-            I-MENTOR Business Opportunity Network · <a href="${process.env.NEXTAUTH_URL || 'https://logistis.i-mentor.gr'}/matches" style="color: #6b7280;">Μεταβείτε στο Portal</a>
+            I-MENTOR Business Opportunity Network · <a href="${process.env.APP_URL || 'https://logistis.i-mentor.gr'}/matches" style="color: #6b7280;">Μεταβείτε στο Portal</a>
           </p>
         </div>
       </div>

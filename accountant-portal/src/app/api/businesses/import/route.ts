@@ -81,7 +81,7 @@ export async function POST(request: NextRequest) {
       // Try to fetch real data from GSIS
       let businessData: any = { afm }
       try {
-        const res = await fetch(`${process.env.NEXTAUTH_URL || 'http://localhost:3001'}/api/afm?afm=${afm}`, {
+        const res = await fetch(`${process.env.APP_URL || 'https://logistis.i-mentor.gr'}/api/afm?afm=${afm}`, {
           headers: { Cookie: request.headers.get('cookie') || '' }
         })
         if (res.ok) {

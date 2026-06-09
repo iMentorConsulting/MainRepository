@@ -56,7 +56,7 @@ export async function POST(request: NextRequest) {
       kad_description: business.activities[0]?.firmActCode || '',
       program_title: program?.title || '',
       match_reason: (matchByBusiness.get(business.id) || []).map((r: string) => `• ${r}`).join('\n'),
-      unsubscribe_link: `${process.env.NEXTAUTH_URL || 'http://localhost:3001'}/api/unsubscribe/${business.unsubscribeToken}`,
+      unsubscribe_link: `${process.env.APP_URL || 'https://logistis.i-mentor.gr'}/api/unsubscribe/${business.unsubscribeToken}`,
     }
 
     const renderedSubject = renderTemplate(subject || 'Ενημέρωση από το λογιστικό σας γραφείο', variables)

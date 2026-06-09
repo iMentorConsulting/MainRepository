@@ -77,7 +77,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
         html: `<p>Αγαπητέ/ή <strong>${conversation.accountant.contactPerson}</strong>,</p>
           <p>Λάβατε νέο μήνυμα από την I-MENTOR:</p>
           <blockquote style="border-left:4px solid #4f46e5;padding-left:12px;color:#374151">${body}</blockquote>
-          <p><a href="${process.env.NEXTAUTH_URL || 'https://logistis.i-mentor.gr'}/chat/${params.id}">Απαντήστε εδώ →</a></p>`,
+          <p><a href="${process.env.APP_URL || 'https://logistis.i-mentor.gr'}/chat/${params.id}">Απαντήστε εδώ →</a></p>`,
       })
     } else {
       // Accountant replied → notify admin via email
@@ -86,7 +86,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
         subject: `💬 Νέο μήνυμα από λογιστή — ${conversation.accountant.officeName}`,
         html: `<p>Νέο μήνυμα από <strong>${conversation.accountant.officeName}</strong> (${conversation.accountant.contactPerson}):</p>
           <blockquote style="border-left:4px solid #4f46e5;padding-left:12px;color:#374151">${body}</blockquote>
-          <p><a href="${process.env.NEXTAUTH_URL || 'https://logistis.i-mentor.gr'}/chat/${params.id}">Απαντήστε εδώ →</a></p>`,
+          <p><a href="${process.env.APP_URL || 'https://logistis.i-mentor.gr'}/chat/${params.id}">Απαντήστε εδώ →</a></p>`,
       })
     }
   } catch {}

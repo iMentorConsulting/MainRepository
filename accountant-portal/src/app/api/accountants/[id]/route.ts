@@ -58,7 +58,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
       subject: 'Η πρόσβαση ΑΑΔΕ στο I-MENTOR Portal εγκρίθηκε',
       html: `<p>Αγαπητέ/ή ${existing.contactPerson},</p>
         <p>Ο λογαριασμός του γραφείου <strong>${existing.officeName}</strong> εγκρίθηκε από την ομάδα της I-MENTOR. Μπορείτε πλέον να αναζητάτε και να εισάγετε επιχειρήσεις μέσω ΑΑΔΕ/ΓΓΠΣ στο
-        <a href="${process.env.NEXTAUTH_URL || ''}/login">I-MENTOR Portal</a>.</p>
+        <a href="${process.env.APP_URL || 'https://logistis.i-mentor.gr'}/login">I-MENTOR Portal</a>.</p>
         <p>Με εκτίμηση,<br>Η ομάδα της I-MENTOR</p>`,
     })
   }

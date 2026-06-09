@@ -38,7 +38,7 @@ async function processCampaignSend(
       program_title: campaign.program?.title || '',
       kad_description: business.activities[0]?.firmActCode || '',
       match_reason: matchReasons.map(r => `${bullet} ${r}`).join('\n'),
-      unsubscribe_link: `${process.env.NEXTAUTH_URL || 'http://localhost:3001'}/api/unsubscribe/${business.unsubscribeToken}`,
+      unsubscribe_link: `${process.env.APP_URL || 'https://logistis.i-mentor.gr'}/api/unsubscribe/${business.unsubscribeToken}`,
     }
 
     const rawMessage = renderTemplate(campaign.messageTemplate, variables)

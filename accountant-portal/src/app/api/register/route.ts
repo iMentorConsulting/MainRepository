@@ -75,7 +75,7 @@ export async function POST(request: NextRequest) {
     subject: 'Καλώς ήρθατε στο I-MENTOR Portal — ο λογαριασμός σας είναι έτοιμος',
     html: `<p>Αγαπητέ/ή ${data.contactPerson},</p>
       <p>Ο λογαριασμός του γραφείου <strong>${data.officeName}</strong> δημιουργήθηκε. Μπορείτε να συνδεθείτε άμεσα στο
-      <a href="${process.env.NEXTAUTH_URL || ''}/login">I-MENTOR Portal</a> με το email και τον κωδικό πρόσβασης που επιλέξατε.</p>
+      <a href="${process.env.APP_URL || 'https://logistis.i-mentor.gr'}/login">I-MENTOR Portal</a> με το email και τον κωδικό πρόσβασης που επιλέξατε.</p>
       <p>Η αναζήτηση επιχειρήσεων μέσω ΑΑΔΕ θα ενεργοποιηθεί μόλις η ομάδα μας εγκρίνει την αίτησή σας — θα ενημερωθείτε με νέο email.</p>
       <p>Με εκτίμηση,<br>Η ομάδα της I-MENTOR</p>`,
   })
@@ -87,7 +87,7 @@ export async function POST(request: NextRequest) {
       subject: `Νέα εγγραφή λογιστικού γραφείου σε αναμονή έγκρισης: ${data.officeName}`,
       html: `<p>Νέο γραφείο εγγράφηκε και αναμένει έγκριση πρόσβασης ΑΑΔΕ: <strong>${data.officeName}</strong> (${data.contactPerson}, ${data.email}).</p>
         <p>Τοποθεσία: ${data.officeLocation}<br>Αριθμός πελατών: ${data.clientCountRange}<br>Στόχος συνεργασίας: ${goalLabel}</p>
-        <p>Μεταβείτε στο <a href="${process.env.NEXTAUTH_URL || ''}/accountants?pending=1">/accountants</a> για έγκριση.</p>`,
+        <p>Μεταβείτε στο <a href="${process.env.APP_URL || 'https://logistis.i-mentor.gr'}/accountants?pending=1">/accountants</a> για έγκριση.</p>`,
     })
   }
 
