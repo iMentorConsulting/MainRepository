@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { useSession } from 'next-auth/react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Plus, Target, Calendar, Zap, TrendingUp, MapPin } from 'lucide-react'
+import { Plus, Target, Calendar, Zap, TrendingUp, MapPin, Archive } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
 
 interface Program {
@@ -14,6 +14,7 @@ interface Program {
   description: string | null
   heroImageUrl: string | null
   active: boolean
+  archived: boolean
   startDate: string | null
   endDate: string | null
   minInvestment: number | null
@@ -59,6 +60,7 @@ export default function ProgramsPage() {
   const { data: session } = useSession()
   const [programs, setPrograms] = useState<Program[]>([])
   const [filter, setFilter] = useState('')
+  const [showArchived, setShowArchived] = useState(false)
   const [loading, setLoading] = useState(true)
   const isAdmin = session?.user?.role === 'ADMIN'
 
@@ -69,14 +71,16 @@ export default function ProgramsPage() {
       .finally(() => setLoading(false))
   }, [])
 
-  const filtered = filter ? programs.filter(p => p.category === filter) : programs
+  const visible = programs.filter(p => showArchived ? p.archived : !p.archived)
+  const filtered = filter ? visible.filter(p => p.category === filter) : visible
+  const archivedCount = programs.filter(p => p.archived).length
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Προγράμματα</h1>
-          <p className="text-gray-500 mt-1">{programs.length} προγράμματα συνολικά</p>
+          <p className="text-gray-500 mt-1">{programs.filter(p => !p.archived).length} ενεργά{archivedCount > 0 ? ` · ${archivedCount} αρχειοθετημένα` : ''}</p>
         </div>
         {isAdmin && (
           <Link href="/programs/new">
@@ -86,7 +90,7 @@ export default function ProgramsPage() {
       </div>
 
       {/* Category Filters */}
-      <div className="flex gap-2 flex-wrap">
+      <div className="flex gap-2 flex-wrap items-center">
         {['', 'ESPA', 'DYPA', 'DYPA_OAED', 'MICROCREDITS', 'OTHER'].map(cat => (
           <button
             key={cat}
@@ -100,6 +104,19 @@ export default function ProgramsPage() {
             {cat ? categoryLabel[cat] : 'Όλα'}
           </button>
         ))}
+        {isAdmin && archivedCount > 0 && (
+          <button
+            onClick={() => setShowArchived(v => !v)}
+            className={`ml-2 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+              showArchived
+                ? 'bg-amber-600 text-white'
+                : 'bg-white border border-amber-300 text-amber-700 hover:bg-amber-50'
+            }`}
+          >
+            <Archive size={13} />
+            {showArchived ? 'Αρχειοθετημένα' : `Αρχείο (${archivedCount})`}
+          </button>
+        )}
       </div>
 
       {loading ? (
@@ -131,9 +148,10 @@ export default function ProgramsPage() {
                       {categoryLabel[program.category]}
                     </span>
                   </div>
-                  {!program.active && (
-                    <div className="absolute top-3 left-3">
-                      <span className="bg-gray-800/80 text-white text-xs font-medium px-2 py-0.5 rounded-full">Ανενεργό</span>
+                  {(!program.active || program.archived) && (
+                    <div className="absolute top-3 left-3 flex gap-1">
+                      {!program.active && <span className="bg-gray-800/80 text-white text-xs font-medium px-2 py-0.5 rounded-full">Ανενεργό</span>}
+                      {program.archived && <span className="bg-amber-700/90 text-white text-xs font-medium px-2 py-0.5 rounded-full">Αρχείο</span>}
                     </div>
                   )}
                   {/* Matches badge */}

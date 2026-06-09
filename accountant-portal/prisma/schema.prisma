@@ -133,6 +133,7 @@ model Program {
   maxRegdate       String?
   legalStatusRules String[]
   active           Boolean         @default(true)
+  archived         Boolean         @default(false)
   startDate        DateTime?
   endDate          DateTime?
   internalNotes    String?

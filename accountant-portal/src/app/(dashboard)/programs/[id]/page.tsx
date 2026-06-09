@@ -7,7 +7,8 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { MatchCard } from '@/components/matching/match-card'
-import { ArrowLeft, Zap, Calendar, Tag, ExternalLink } from 'lucide-react'
+import { ArrowLeft, Zap, Calendar, Tag, ExternalLink, Archive, Trash2 } from 'lucide-react'
+import { useRouter } from 'next/navigation'
 import { formatDate } from '@/lib/utils'
 
 function formatEuro(value: number | null | undefined) {
@@ -22,9 +23,12 @@ const categoryLabel: Record<string, string> = {
 export default function ProgramDetailPage() {
   const { id } = useParams()
   const { data: session } = useSession()
+  const router = useRouter()
   const [program, setProgram] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [running, setRunning] = useState(false)
+  const [archiving, setArchiving] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const isAdmin = session?.user?.role === 'ADMIN'
 
   useEffect(() => {
@@ -33,6 +37,25 @@ export default function ProgramDetailPage() {
       .then(setProgram)
       .finally(() => setLoading(false))
   }, [id])
+
+  async function toggleArchive() {
+    setArchiving(true)
+    await fetch(`/api/programs/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ archived: !program.archived }),
+    })
+    setProgram((p: any) => ({ ...p, archived: !p.archived }))
+    setArchiving(false)
+  }
+
+  async function handleDelete() {
+    if (!confirm(`Διαγραφή προγράμματος «${program.title}»;\n\nΘα διαγραφούν και όλα τα matches. Αυτή η ενέργεια δεν αναιρείται.`)) return
+    setDeleting(true)
+    const res = await fetch(`/api/programs/${id}`, { method: 'DELETE' })
+    if (res.ok) router.push('/programs')
+    else setDeleting(false)
+  }
 
   async function runMatching() {
     setRunning(true)
@@ -63,17 +86,26 @@ export default function ProgramDetailPage() {
           <div className="flex items-center gap-2 mt-1">
             <Badge variant="default">{categoryLabel[program.category] || program.category}</Badge>
             <Badge variant={program.active ? 'success' : 'secondary'}>{program.active ? 'Ενεργό' : 'Ανενεργό'}</Badge>
+            {program.archived && <Badge variant="secondary">Αρχειοθετημένο</Badge>}
           </div>
         </div>
         {isAdmin && (
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
             <Button onClick={runMatching} loading={running} variant="outline">
               <Zap size={16} className="mr-1" />
-              Εκτέλεση Matching
+              Matching
             </Button>
             <Link href={`/programs/${id}/edit`}>
               <Button variant="outline">Επεξεργασία</Button>
             </Link>
+            <Button onClick={toggleArchive} loading={archiving} variant="outline" className="text-amber-700 border-amber-300 hover:bg-amber-50">
+              <Archive size={15} className="mr-1" />
+              {program.archived ? 'Αναίρεση Αρχειοθέτησης' : 'Αρχειοθέτηση'}
+            </Button>
+            <Button onClick={handleDelete} loading={deleting} variant="outline" className="text-red-600 border-red-300 hover:bg-red-50">
+              <Trash2 size={15} className="mr-1" />
+              Διαγραφή
+            </Button>
           </div>
         )}
       </div>
