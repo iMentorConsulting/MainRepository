@@ -5,7 +5,56 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { LogoUploader } from '@/components/shared/logo-uploader'
-import { CheckCircle, XCircle, Mail, Settings, Image as ImageIcon, Shield } from 'lucide-react'
+import { CheckCircle, XCircle, Mail, Settings, Image as ImageIcon, Shield, Download, Trash2, Lock } from 'lucide-react'
+import Link from 'next/link'
+
+function DeleteRequestForm() {
+  const [reason, setReason] = useState('')
+  const [sending, setSending] = useState(false)
+  const [sent, setSent] = useState(false)
+  const [error, setError] = useState('')
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!confirm('Είστε σίγουροι ότι θέλετε να υποβάλετε αίτημα διαγραφής; Θα ειδοποιηθεί ο διαχειριστής και τα δεδομένα σας θα διαγραφούν εντός 30 ημερών.')) return
+    setSending(true)
+    setError('')
+    const res = await fetch('/api/account/delete-request', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reason }),
+    })
+    setSending(false)
+    if (res.ok) setSent(true)
+    else setError('Σφάλμα αποστολής. Δοκιμάστε ξανά.')
+  }
+
+  if (sent) return (
+    <div className="flex items-center gap-2 text-green-700 text-sm">
+      <CheckCircle size={16} />
+      Το αίτημά σας ελήφθη. Θα επικοινωνήσουμε μαζί σας εντός 30 ημερών.
+    </div>
+  )
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-3">
+      <p className="text-sm text-gray-500">
+        Υποβάλετε αίτημα διαγραφής του λογαριασμού και όλων των συσχετισμένων δεδομένων σας από το σύστημα, σύμφωνα με το Άρθρο 17 του ΓΚΠΔ (Δικαίωμα στη Λήθη). Ο διαχειριστής θα σας απαντήσει εντός 30 ημερών.
+      </p>
+      <Input
+        label="Αιτία / Σχόλιο (προαιρετικό)"
+        value={reason}
+        onChange={e => setReason(e.target.value)}
+        placeholder="π.χ. Δεν χρησιμοποιώ πλέον την υπηρεσία"
+      />
+      {error && <p className="text-sm text-red-600">{error}</p>}
+      <Button type="submit" variant="destructive" loading={sending}>
+        <Trash2 size={15} className="mr-2" />
+        Υποβολή Αιτήματος Διαγραφής
+      </Button>
+    </form>
+  )
+}
 
 export default function SettingsPage() {
   const { data: session } = useSession()
@@ -196,6 +245,36 @@ export default function SettingsPage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
+            <Download size={18} className="text-blue-600" />
+            Εξαγωγή Δεδομένων (GDPR Άρθρο 20)
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-sm text-gray-500">
+            Κατεβάστε όλα τα δεδομένα επιχειρήσεων που διαχειρίζεστε σε μορφή Excel. Αυτό το αρχείο περιλαμβάνει ΑΦΜ, στοιχεία επικοινωνίας, ΚΑΔ και ιστορικό καμπανιών.
+          </p>
+          <Button variant="outline" onClick={() => window.open('/api/export/businesses', '_blank')}>
+            <Download size={16} className="mr-2" />
+            Εξαγωγή Επιχειρήσεων (.xlsx)
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Card className="border-red-100">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-red-700">
+            <Trash2 size={18} />
+            Αίτημα Διαγραφής Λογαριασμού (GDPR Άρθρο 17)
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <DeleteRequestForm />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
             <Settings size={18} />
             Γενικές Ρυθμίσεις
           </CardTitle>
@@ -214,9 +293,17 @@ export default function SettingsPage() {
               <dt className="text-gray-500">GDPR Unsubscribe</dt>
               <dd className="text-green-600">Ενεργό</dd>
             </div>
-            <div className="flex justify-between py-2">
+            <div className="flex justify-between py-2 border-b border-gray-100">
               <dt className="text-gray-500">Audit Logging</dt>
               <dd className="text-green-600">Ενεργό</dd>
+            </div>
+            <div className="flex justify-between py-2">
+              <dt className="text-gray-500">Νομικά / Ασφάλεια</dt>
+              <dd className="flex gap-3">
+                <Link href="/security" className="text-blue-600 hover:underline flex items-center gap-1"><Lock size={12} />Ασφάλεια</Link>
+                <Link href="/privacy" className="text-blue-600 hover:underline">Απόρρητο</Link>
+                <Link href="/terms" className="text-blue-600 hover:underline">Όροι</Link>
+              </dd>
             </div>
           </dl>
         </CardContent>

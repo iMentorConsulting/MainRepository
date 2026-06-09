@@ -196,6 +196,14 @@ export default function LoginPage() {
             <span className="flex items-center gap-1"><Shield size={11} /> GDPR</span>
             <a href="https://www.i-mentor.gr" target="_blank" rel="noopener noreferrer" className="hover:text-slate-600">www.i-mentor.gr</a>
           </div>
+
+          <div className="mt-4 flex items-center justify-center gap-3 text-xs text-slate-400">
+            <a href="/security" className="hover:text-slate-600">Ασφάλεια</a>
+            <span>·</span>
+            <a href="/privacy" className="hover:text-slate-600">Απόρρητο</a>
+            <span>·</span>
+            <a href="/terms" className="hover:text-slate-600">Όροι</a>
+          </div>
         </div>
       </div>
     </div>

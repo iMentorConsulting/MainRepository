@@ -8,16 +8,19 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { KadTable } from '@/components/businesses/kad-table'
 import { MatchCard } from '@/components/matching/match-card'
 import { QuickSendModal } from '@/components/quick-send-modal'
-import { ArrowLeft, Mail, Phone, MapPin, Calendar, Edit, Send } from 'lucide-react'
+import { ArrowLeft, Mail, Phone, MapPin, Calendar, Edit, Send, Trash2 } from 'lucide-react'
+import { useRouter } from 'next/navigation'
 import { formatDate } from '@/lib/utils'
 
 export default function BusinessDetailPage() {
   const { id } = useParams()
+  const router = useRouter()
   const [business, setBusiness] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [editNotes, setEditNotes] = useState(false)
   const [notes, setNotes] = useState('')
   const [quickSend, setQuickSend] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   useEffect(() => {
     fetch(`/api/businesses/${id}`)
@@ -37,6 +40,21 @@ export default function BusinessDetailPage() {
       body: JSON.stringify({ excludedFromCampaigns: next }),
     })
     setBusiness((prev: any) => ({ ...prev, excludedFromCampaigns: next }))
+  }
+
+  async function handleDelete() {
+    if (!confirm(`Διαγραφή της επιχείρησης "${business.onomasia || business.afm}"; Η ενέργεια δεν αναιρείται και θα διαγραφούν και τα ιστορικά μηνύματα.`)) return
+    setDeleting(true)
+    try {
+      const res = await fetch(`/api/businesses/${id}`, { method: 'DELETE' })
+      if (res.ok) {
+        router.push('/businesses')
+      } else {
+        alert('Σφάλμα διαγραφής')
+      }
+    } finally {
+      setDeleting(false)
+    }
   }
 
   async function saveNotes() {
@@ -87,6 +105,15 @@ export default function BusinessDetailPage() {
             Επεξεργασία
           </Button>
         </Link>
+        <Button
+          variant="outline"
+          onClick={handleDelete}
+          loading={deleting}
+          className="border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300"
+        >
+          <Trash2 size={15} className="mr-1.5" />
+          Διαγραφή
+        </Button>
       </div>
 
       {quickSend && (

@@ -143,6 +143,11 @@ export function Sidebar() {
           <LogOut className="w-3.5 h-3.5" />
           Αποσύνδεση
         </button>
+        <div className="flex gap-3 px-3 pt-1 flex-wrap">
+          <Link href="/security" className="text-[10px] text-slate-400 hover:text-slate-600">Ασφάλεια</Link>
+          <Link href="/privacy" className="text-[10px] text-slate-400 hover:text-slate-600">Απόρρητο</Link>
+          <Link href="/terms" className="text-[10px] text-slate-400 hover:text-slate-600">Όροι</Link>
+        </div>
       </div>
     </aside>
   )
