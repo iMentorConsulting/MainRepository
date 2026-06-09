@@ -1,255 +1,361 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { useForm } from 'react-hook-form'
-import { z } from 'zod'
-import { zodResolver } from '@hookform/resolvers/zod'
+import { useSession } from 'next-auth/react'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { TemplateEditor } from '@/components/campaigns/template-editor'
-import { CAMPAIGN_TEMPLATES, VIBER_CAMPAIGN_TEMPLATES } from '@/lib/campaign-templates'
-import { ArrowLeft, Send, FileText, Mail, MessageCircle } from 'lucide-react'
+import { CAMPAIGN_TEMPLATES } from '@/lib/campaign-templates'
+import { ArrowLeft, ArrowRight, Mail, Users, Send, Sparkles, MessageCircle, CheckCircle2 } from 'lucide-react'
 import Link from 'next/link'
 
-const schema = z.object({
-  title: z.string().min(2, 'Απαιτείται τίτλος'),
-  channel: z.enum(['EMAIL', 'VIBER', 'EMAIL_AND_VIBER']),
-  subject: z.string().min(1, 'Απαιτείται θέμα μηνύματος'),
-  programId: z.string().optional(),
-  messageTemplate: z.string().min(10, 'Απαιτείται μήνυμα'),
-})
-type FormData = z.infer<typeof schema>
+// ── Step tracker ──────────────────────────────────────────────────────────────
+function Steps({ current }: { current: number }) {
+  const labels = ['Τι θέλετε;', 'Για ποιους;', 'Το μήνυμα', 'Αποστολή']
+  return (
+    <div className="flex items-center gap-0 mb-8">
+      {labels.map((label, i) => (
+        <div key={i} className="flex items-center flex-1 last:flex-none">
+          <div className={`flex items-center gap-2 ${i < current ? 'text-green-600' : i === current ? 'text-indigo-700' : 'text-gray-300'}`}>
+            <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold border-2 flex-shrink-0
+              ${i < current ? 'bg-green-100 border-green-400' : i === current ? 'bg-indigo-100 border-indigo-500' : 'bg-gray-50 border-gray-200'}`}>
+              {i < current ? <CheckCircle2 size={14} /> : i + 1}
+            </div>
+            <span className={`text-xs font-medium hidden sm:block ${i === current ? 'text-indigo-700' : ''}`}>{label}</span>
+          </div>
+          {i < labels.length - 1 && (
+            <div className={`flex-1 h-0.5 mx-2 ${i < current ? 'bg-green-300' : 'bg-gray-200'}`} />
+          )}
+        </div>
+      ))}
+    </div>
+  )
+}
 
-const CHANNEL_OPTIONS = [
-  { value: 'EMAIL', label: '✉️ Email' },
-  { value: 'VIBER', label: '💬 Viber' },
-  { value: 'EMAIL_AND_VIBER', label: '✉️+💬 Email & Viber (ταυτόχρονα)' },
-]
+// ── Step 0: Choose path ───────────────────────────────────────────────────────
+function StepChoosePath({ onDiy, onWithIMentor }: { onDiy: () => void; onWithIMentor: () => void }) {
+  return (
+    <div className="space-y-4">
+      <div className="text-center mb-6">
+        <h2 className="text-xl font-bold text-gray-900">Πώς θέλετε να ξεκινήσουμε;</h2>
+        <p className="text-sm text-gray-500 mt-1">Διαλέξτε αυτό που σας βολεύει περισσότερο</p>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <button onClick={onDiy}
+          className="text-left p-6 rounded-2xl border-2 border-indigo-100 hover:border-indigo-400 hover:bg-indigo-50 transition-all group">
+          <div className="w-12 h-12 bg-indigo-100 rounded-xl flex items-center justify-center mb-4 group-hover:bg-indigo-200 transition-colors">
+            <Send size={22} className="text-indigo-600" />
+          </div>
+          <h3 className="font-bold text-gray-900 mb-1">Θα το κάνω μόνος μου</h3>
+          <p className="text-sm text-gray-500">Βήμα-βήμα, απλά και γρήγορα. Δεν χρειάζεται τεχνική γνώση.</p>
+          <span className="mt-3 inline-flex items-center gap-1 text-sm text-indigo-600 font-medium">Ξεκινήστε <ArrowRight size={14} /></span>
+        </button>
 
+        <button onClick={onWithIMentor}
+          className="text-left p-6 rounded-2xl border-2 border-purple-100 hover:border-purple-400 hover:bg-purple-50 transition-all group">
+          <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center mb-4 group-hover:bg-purple-200 transition-colors">
+            <Sparkles size={22} className="text-purple-600" />
+          </div>
+          <h3 className="font-bold text-gray-900 mb-1">Να το κάνουμε παρέα με την I-MENTOR</h3>
+          <p className="text-sm text-gray-500">Στέλνουμε εμείς για λογαριασμό σας — απλά μας πείτε σε ποιους.</p>
+          <span className="mt-3 inline-flex items-center gap-1 text-sm text-purple-600 font-medium">Ζητήστε βοήθεια <ArrowRight size={14} /></span>
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ── Step 1: Pick program ──────────────────────────────────────────────────────
+function StepProgram({ programs, selected, onSelect, onNext, onBack }: {
+  programs: any[]; selected: string; onSelect: (v: string) => void; onNext: () => void; onBack: () => void
+}) {
+  return (
+    <div className="space-y-5">
+      <div>
+        <h2 className="text-xl font-bold text-gray-900">Για ποιο πρόγραμμα;</h2>
+        <p className="text-sm text-gray-500 mt-1">Διαλέξτε το πρόγραμμα που θέλετε να ενημερώσετε τους πελάτες σας.</p>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <button onClick={() => onSelect('')}
+          className={`text-left p-4 rounded-xl border-2 transition-all ${!selected ? 'border-indigo-500 bg-indigo-50' : 'border-gray-200 hover:border-indigo-200'}`}>
+          <div className="flex items-center gap-3">
+            <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${!selected ? 'bg-indigo-100' : 'bg-gray-100'}`}>
+              <Mail size={16} className={!selected ? 'text-indigo-600' : 'text-gray-400'} />
+            </div>
+            <div>
+              <p className="font-semibold text-sm text-gray-800">Γενική ενημέρωση</p>
+              <p className="text-xs text-gray-400">Χωρίς συγκεκριμένο πρόγραμμα</p>
+            </div>
+          </div>
+        </button>
+        {programs.map(p => (
+          <button key={p.id} onClick={() => onSelect(p.id)}
+            className={`text-left p-4 rounded-xl border-2 transition-all ${selected === p.id ? 'border-indigo-500 bg-indigo-50' : 'border-gray-200 hover:border-indigo-200'}`}>
+            <div className="flex items-center gap-3">
+              <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${selected === p.id ? 'bg-indigo-100' : 'bg-gray-100'}`}>
+                <CheckCircle2 size={16} className={selected === p.id ? 'text-indigo-600' : 'text-gray-300'} />
+              </div>
+              <div>
+                <p className="font-semibold text-sm text-gray-800 line-clamp-1">{p.title}</p>
+                <p className="text-xs text-gray-400">{p.category}</p>
+              </div>
+            </div>
+          </button>
+        ))}
+      </div>
+      <div className="flex gap-3 pt-2">
+        <Button variant="outline" onClick={onBack}><ArrowLeft size={15} className="mr-1" />Πίσω</Button>
+        <Button onClick={onNext}>Συνέχεια <ArrowRight size={15} className="ml-1" /></Button>
+      </div>
+    </div>
+  )
+}
+
+// ── Step 2: Pick template ─────────────────────────────────────────────────────
+function StepTemplate({ onSelect, onBack }: { onSelect: (t: any) => void; onBack: () => void }) {
+  return (
+    <div className="space-y-5">
+      <div>
+        <h2 className="text-xl font-bold text-gray-900">Τι είδους μήνυμα;</h2>
+        <p className="text-sm text-gray-500 mt-1">Διαλέξτε ένα έτοιμο μήνυμα — θα το δείτε πριν αποσταλεί.</p>
+      </div>
+      <div className="grid grid-cols-1 gap-3">
+        {CAMPAIGN_TEMPLATES.map(t => (
+          <button key={t.id} onClick={() => onSelect(t)}
+            className="text-left p-4 rounded-xl border-2 border-gray-200 hover:border-indigo-400 hover:bg-indigo-50 transition-all group">
+            <div className="flex items-start gap-3">
+              <div className="w-9 h-9 bg-indigo-100 rounded-lg flex items-center justify-center flex-shrink-0 group-hover:bg-indigo-200">
+                <Mail size={16} className="text-indigo-600" />
+              </div>
+              <div>
+                <p className="font-semibold text-sm text-gray-800">{t.label}</p>
+                <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">{t.description}</p>
+              </div>
+              <ArrowRight size={16} className="ml-auto text-gray-300 group-hover:text-indigo-500 flex-shrink-0 mt-1" />
+            </div>
+          </button>
+        ))}
+      </div>
+      <Button variant="outline" onClick={onBack}><ArrowLeft size={15} className="mr-1" />Πίσω</Button>
+    </div>
+  )
+}
+
+// ── Step 3: Preview & send ────────────────────────────────────────────────────
+function StepSend({ template, programId, programs, onBack, onSend, sending, onSaveDraft, savingDraft }: {
+  template: any; programId: string; programs: any[];
+  onBack: () => void; onSend: () => void; sending: boolean;
+  onSaveDraft: () => void; savingDraft: boolean;
+}) {
+  const program = programs.find(p => p.id === programId)
+  const preview = (template?.bodyWithAccountant || '')
+    .replace(/\{\{business_name\}\}/g, 'ΠΑΡΑΔΕΙΓΜΑ ΑΕ')
+    .replace(/\{\{afm\}\}/g, '123456789')
+    .replace(/\{\{accountant_name\}\}/g, 'Γιώργος Παπαδόπουλος')
+    .replace(/\{\{accountant_office\}\}/g, 'Λογιστικό Γραφείο Παπαδόπουλος')
+    .replace(/\{\{program_title\}\}/g, program?.title || 'ΕΣΠΑ 2024')
+    .replace(/\{\{kad_description\}\}/g, '47.11 - Λιανικό εμπόριο')
+    .replace(/\{\{match_reason\}\}/g, '• Επιλέξιμος ΚΑΔ: 47.11\n• Επιλέξιμη περιοχή: Αττική')
+    .replace(/\{\{unsubscribe_link\}\}/g, '#')
+
+  return (
+    <div className="space-y-5">
+      <div>
+        <h2 className="text-xl font-bold text-gray-900">Έτοιμο! Δείτε πώς θα φαίνεται.</h2>
+        <p className="text-sm text-gray-500 mt-1">Παρακάτω είναι παράδειγμα του μηνύματος που θα λάβει ένας πελάτης σας.</p>
+      </div>
+
+      <div className="bg-gray-50 border border-gray-200 rounded-xl p-5">
+        <div className="text-xs text-gray-400 font-semibold mb-2 uppercase tracking-wide">Προεπισκόπηση μηνύματος</div>
+        {template?.subject && (
+          <div className="text-xs text-gray-500 mb-3 pb-3 border-b border-gray-200">
+            <span className="font-semibold">Θέμα: </span>
+            {template.subject
+              .replace(/\{\{accountant_office\}\}/g, 'Λογιστικό Γραφείο Παπαδόπουλος')
+              .replace(/\{\{program_title\}\}/g, program?.title || 'ΕΣΠΑ 2024')}
+          </div>
+        )}
+        <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{preview}</p>
+      </div>
+
+      {program && (
+        <div className="flex items-center gap-2 text-sm text-indigo-700 bg-indigo-50 rounded-lg px-4 py-2.5">
+          <CheckCircle2 size={15} />
+          Πρόγραμμα: <strong>{program.title}</strong>
+        </div>
+      )}
+
+      <div className="flex flex-wrap gap-3 pt-2">
+        <Button variant="outline" onClick={onBack}><ArrowLeft size={15} className="mr-1" />Πίσω</Button>
+        <Button variant="outline" loading={savingDraft} onClick={onSaveDraft}>
+          Αποθήκευση Πρόχειρου
+        </Button>
+        <Button loading={sending} onClick={onSend}>
+          <Send size={15} className="mr-2" />
+          Αποστολή Καμπάνιας
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+// ── With I-MENTOR path ────────────────────────────────────────────────────────
+function StepWithIMentor({ onBack, session }: { onBack: () => void; session: any }) {
+  const router = useRouter()
+  const [sending, setSending] = useState(false)
+  const [note, setNote] = useState('')
+  const [done, setDone] = useState(false)
+
+  async function sendRequest() {
+    setSending(true)
+    const body = `Παρακαλώ βοηθήστε με να στείλω καμπάνια στους πελάτες μου.${note ? `\n\nΣημείωση: ${note}` : ''}`
+    const res = await fetch('/api/chat/conversations', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ subject: 'Βοήθεια με αποστολή καμπάνιας', body }),
+    })
+    setSending(false)
+    if (res.ok) {
+      const conv = await res.json()
+      router.push(`/chat/${conv.id}`)
+    }
+  }
+
+  return (
+    <div className="space-y-5">
+      <div className="text-center">
+        <div className="w-16 h-16 bg-purple-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+          <Sparkles size={28} className="text-purple-600" />
+        </div>
+        <h2 className="text-xl font-bold text-gray-900">Η I-MENTOR θα στείλει για λογαριασμό σας!</h2>
+        <p className="text-sm text-gray-500 mt-2 max-w-sm mx-auto">
+          Ανοίγουμε μια συνομιλία με την ομάδα I-MENTOR. Θα σας βοηθήσουν να στείλετε την πρώτη σας καμπάνια — εντελώς δωρεάν.
+        </p>
+      </div>
+
+      <div className="bg-purple-50 border border-purple-100 rounded-xl p-4 space-y-3">
+        <p className="text-sm font-semibold text-purple-900">Θέλετε να προσθέσετε κάτι; (προαιρετικό)</p>
+        <textarea
+          value={note}
+          onChange={e => setNote(e.target.value)}
+          rows={3}
+          placeholder="π.χ. Έχω πελάτες στη Θεσσαλονίκη, θέλω να τους ενημερώσω για το ΕΣΠΑ..."
+          className="w-full text-sm border border-purple-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-400 bg-white resize-none"
+        />
+      </div>
+
+      <div className="flex gap-3">
+        <Button variant="outline" onClick={onBack}><ArrowLeft size={15} className="mr-1" />Πίσω</Button>
+        <Button loading={sending} onClick={sendRequest} className="bg-purple-600 hover:bg-purple-700">
+          <MessageCircle size={15} className="mr-2" />
+          Ζητήστε βοήθεια από I-MENTOR
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+// ── Main page ─────────────────────────────────────────────────────────────────
 export default function NewCampaignPage() {
   const router = useRouter()
+  const { data: session } = useSession()
   const [programs, setPrograms] = useState<any[]>([])
-  const [template, setTemplate] = useState('')
-  const [subjectValue, setSubjectValue] = useState('')
-  const [mode, setMode] = useState<'withAccountant' | 'direct'>('withAccountant')
-  const [savingDraft, setSavingDraft] = useState(false)
+  const [step, setStep] = useState(0)
+  const [path, setPath] = useState<'diy' | 'imentor' | null>(null)
+  const [programId, setProgramId] = useState('')
+  const [selectedTemplate, setSelectedTemplate] = useState<any>(null)
   const [sending, setSending] = useState(false)
-  const [preview, setPreview] = useState('')
-
-  const { register, handleSubmit, setValue, watch, formState: { errors } } = useForm<FormData>({
-    resolver: zodResolver(schema),
-    defaultValues: { channel: 'EMAIL', subject: '', messageTemplate: '' }
-  })
-
-  const channel = watch('channel')
-  const isViber = channel === 'VIBER'
-  const isEmail = channel === 'EMAIL'
-  const isBoth = channel === 'EMAIL_AND_VIBER'
-  const showViberTemplates = isViber || isBoth
-  const showEmailTemplates = isEmail || isBoth
+  const [savingDraft, setSavingDraft] = useState(false)
 
   useEffect(() => {
     fetch('/api/programs').then(r => r.json()).then(d => setPrograms(d.programs || []))
   }, [])
 
-  useEffect(() => { setValue('messageTemplate', template) }, [template, setValue])
-  useEffect(() => { setValue('subject', subjectValue) }, [subjectValue, setValue])
-
-  function applyTemplate(subject: string, body: string) {
-    setSubjectValue(subject)
-    setTemplate(body)
-  }
-
-  function buildPreview() {
-    const rendered = (template + (subjectValue ? `\n\n[Θέμα: ${subjectValue}]` : ''))
-      .replace(/\{\{business_name\}\}/g, 'ΠΑΡΑΔΕΙΓΜΑ ΑΕ')
-      .replace(/\{\{afm\}\}/g, '123456789')
-      .replace(/\{\{accountant_name\}\}/g, 'Γιώργος Παπαδόπουλος')
-      .replace(/\{\{accountant_office\}\}/g, 'Λογιστικό Γραφείο Παπαδόπουλος')
-      .replace(/\{\{program_title\}\}/g, 'ΕΣΠΑ 2024')
-      .replace(/\{\{kad_description\}\}/g, '47.11 - Λιανικό εμπόριο')
-      .replace(/\{\{match_reason\}\}/g, '• Επιλέξιμος ΚΑΔ: 47.11\n• Επιλέξιμη περιοχή: Αττική')
-      .replace(/\{\{unsubscribe_link\}\}/g, 'https://portal.i-mentor.gr/unsubscribe/TOKEN')
-    setPreview(rendered)
-  }
-
   async function saveCampaign(status: 'DRAFT' | 'SENT') {
-    const title = watch('title')
-    const channel = watch('channel')
-    const subject = watch('subject')
-    const programId = watch('programId')
-    const messageTemplate = watch('messageTemplate')
-
-    if (!title || !channel || !subject || !messageTemplate) {
-      alert('Συμπληρώστε τα υποχρεωτικά πεδία')
-      return
-    }
-
+    if (!selectedTemplate) return
     if (status === 'DRAFT') setSavingDraft(true)
     else setSending(true)
 
     try {
-      const body = { title, channel, subject, programId: programId || undefined, messageTemplate, status }
+      const body = {
+        title: selectedTemplate.label,
+        channel: 'EMAIL',
+        subject: selectedTemplate.subject,
+        programId: programId || undefined,
+        messageTemplate: selectedTemplate.bodyWithAccountant,
+        status,
+      }
       const res = await fetch('/api/campaigns', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       })
-
       if (res.ok) {
         const created = await res.json()
-        if (status === 'SENT') {
-          fetch(`/api/campaigns/${created.id}/send`, { method: 'POST' }).catch(() => {})
-        }
+        if (status === 'SENT') fetch(`/api/campaigns/${created.id}/send`, { method: 'POST' }).catch(() => {})
         router.push(`/campaigns/${created.id}`)
       } else {
         alert('Σφάλμα αποθήκευσης')
       }
-    } catch {
-      alert('Σφάλμα δικτύου')
     } finally {
       setSavingDraft(false)
       setSending(false)
     }
   }
 
-  const activeTemplates = showViberTemplates ? VIBER_CAMPAIGN_TEMPLATES : CAMPAIGN_TEMPLATES
+  const diyStep = path === 'diy' ? step - 1 : 0 // step 1=program, 2=template, 3=send
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
-      <div className="flex items-center gap-3">
+    <div className="max-w-2xl mx-auto">
+      <div className="flex items-center gap-3 mb-6">
         <Link href="/campaigns">
           <Button variant="ghost" size="sm"><ArrowLeft size={16} className="mr-1" />Πίσω</Button>
         </Link>
         <h1 className="text-2xl font-bold text-gray-900">Νέα Καμπάνια</h1>
       </div>
 
-      <div className="space-y-6">
-        <Card>
-          <CardHeader><CardTitle>Στοιχεία Καμπάνιας</CardTitle></CardHeader>
-          <CardContent className="space-y-4">
-            <Input label="Τίτλος Καμπάνιας (εσωτερικός) *" {...register('title')} error={errors.title?.message} />
-            <div className="grid grid-cols-2 gap-4">
-              <Select
-                label="Κανάλι Αποστολής *"
-                {...register('channel')}
-                options={CHANNEL_OPTIONS}
-              />
-              <Select
-                label="Πρόγραμμα"
-                {...register('programId')}
-                options={programs.map(p => ({ value: p.id, label: p.title }))}
-                placeholder="Χωρίς πρόγραμμα"
-              />
-            </div>
-            {/* Subject — shown for email and combined */}
-            {!isViber && (
-              <div>
-                <Input
-                  label="Θέμα Email (Subject) *"
-                  value={subjectValue}
-                  onChange={e => setSubjectValue(e.target.value)}
-                  placeholder="π.χ. {{accountant_office}} & I-MENTOR: Επιλέξιμοι για το «{{program_title}}»"
-                  error={errors.subject?.message}
-                  helperText="Υποστηρίζει placeholders όπως {{accountant_office}}, {{program_title}}"
-                />
-              </div>
-            )}
-            {isViber && (
-              <p className="text-xs text-gray-400 italic">Το Viber δεν χρησιμοποιεί θέμα — το μήνυμα αποστέλλεται απευθείας.</p>
-            )}
-          </CardContent>
-        </Card>
+      {path === 'diy' && <Steps current={step - 1} />}
 
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle>Έτοιμα Templates</CardTitle>
-              <div className="inline-flex rounded-lg border border-gray-200 p-1 bg-gray-50">
-                <button type="button" onClick={() => setMode('withAccountant')}
-                  className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${mode === 'withAccountant' ? 'bg-white text-blue-700 shadow-sm border border-gray-200' : 'text-gray-500 hover:text-gray-700'}`}>
-                  Μέσω Λογιστικού Γραφείου
-                </button>
-                <button type="button" onClick={() => setMode('direct')}
-                  className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${mode === 'direct' ? 'bg-white text-blue-700 shadow-sm border border-gray-200' : 'text-gray-500 hover:text-gray-700'}`}>
-                  Απευθείας I-MENTOR
-                </button>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <p className="text-xs text-gray-500">
-              Κάντε κλικ σε ένα template για να συμπληρωθούν αυτόματα το <strong>Θέμα</strong> και το <strong>Μήνυμα</strong>.
-              Το θέμα περιέχει ήδη το όνομα του λογιστικού γραφείου (<code className="bg-gray-100 px-1 rounded">{'{{accountant_office}}'}</code>).
-            </p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {activeTemplates.map(t => (
-                <button
-                  key={t.id}
-                  type="button"
-                  onClick={() => applyTemplate(
-                    t.subject,
-                    mode === 'withAccountant' ? t.bodyWithAccountant : t.bodyDirect
-                  )}
-                  className="text-left p-3 rounded-lg border border-gray-200 hover:border-blue-400 hover:bg-blue-50 transition-colors"
-                >
-                  <div className="flex items-center gap-2 text-sm font-medium text-gray-800">
-                    {showViberTemplates ? <MessageCircle size={14} className="text-purple-600" /> : <Mail size={14} className="text-blue-600" />}
-                    {t.label}
-                  </div>
-                  <p className="text-xs text-gray-500 mt-0.5">{t.description}</p>
-                  <p className="text-[11px] text-gray-400 mt-1 truncate font-mono">{t.subject}</p>
-                </button>
-              ))}
-            </div>
-            {isBoth && (
-              <p className="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
-                Επιλέξατε <strong>Email & Viber</strong>. Για βέλτιστο αποτέλεσμα, επιλέξτε Email template για το κυρίως μήνυμα — το ίδιο κείμενο αποστέλλεται και ως Viber.
-              </p>
-            )}
-          </CardContent>
-        </Card>
+      <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
+        {step === 0 && (
+          <StepChoosePath
+            onDiy={() => { setPath('diy'); setStep(1) }}
+            onWithIMentor={() => { setPath('imentor'); setStep(1) }}
+          />
+        )}
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              Μήνυμα / Template
-              {isBoth && (
-                <span className="text-xs font-normal text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full flex items-center gap-1">
-                  <Mail size={11} /><MessageCircle size={11} /> Αποστέλλεται και ως Email και ως Viber
-                </span>
-              )}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <TemplateEditor
-              value={template}
-              onChange={setTemplate}
-              error={errors.messageTemplate?.message}
-            />
-            <Button variant="outline" size="sm" className="mt-3" type="button" onClick={buildPreview}>
-              Προεπισκόπηση
-            </Button>
-            {preview && (
-              <div className="mt-3 p-4 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700 whitespace-pre-wrap">
-                <div className="text-xs text-gray-400 mb-2 font-semibold">ΠΡΟΕΠΙΣΚΟΠΗΣΗ:</div>
-                {preview}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        {path === 'imentor' && step === 1 && (
+          <StepWithIMentor onBack={() => { setPath(null); setStep(0) }} session={session} />
+        )}
 
-        <div className="flex gap-3">
-          <Button variant="outline" loading={savingDraft} onClick={() => saveCampaign('DRAFT')}>
-            Αποθήκευση Πρόχειρου
-          </Button>
-          <Button loading={sending} onClick={() => saveCampaign('SENT')}>
-            <Send size={16} className="mr-2" />
-            Αποστολή Καμπάνιας
-          </Button>
-        </div>
+        {path === 'diy' && step === 1 && (
+          <StepProgram
+            programs={programs}
+            selected={programId}
+            onSelect={setProgramId}
+            onNext={() => setStep(2)}
+            onBack={() => { setPath(null); setStep(0) }}
+          />
+        )}
+
+        {path === 'diy' && step === 2 && (
+          <StepTemplate
+            onSelect={t => { setSelectedTemplate(t); setStep(3) }}
+            onBack={() => setStep(1)}
+          />
+        )}
+
+        {path === 'diy' && step === 3 && (
+          <StepSend
+            template={selectedTemplate}
+            programId={programId}
+            programs={programs}
+            onBack={() => setStep(2)}
+            onSend={() => saveCampaign('SENT')}
+            sending={sending}
+            onSaveDraft={() => saveCampaign('DRAFT')}
+            savingDraft={savingDraft}
+          />
+        )}
       </div>
     </div>
   )
