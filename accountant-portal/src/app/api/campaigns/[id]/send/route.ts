@@ -41,7 +41,9 @@ async function processCampaignSend(
       unsubscribe_link: `${process.env.NEXTAUTH_URL || 'http://localhost:3001'}/api/unsubscribe/${business.unsubscribeToken}`,
     }
 
-    const message = renderTemplate(campaign.messageTemplate, variables)
+    const rawMessage = renderTemplate(campaign.messageTemplate, variables)
+    // Strip empty *...* pairs left when a variable (e.g. accountant_name) is blank
+    const message = rawMessage.replace(/\*([^*\n]*)\*/g, (_, inner) => inner.trim() || '')
     const emailSubject = renderTemplate(campaign.subject || campaign.title, variables)
     let success = false
 

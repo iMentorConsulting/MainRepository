@@ -135,6 +135,10 @@ export function renderCampaignEmailHtml(options: CampaignEmailOptions): string {
   } = options
 
   const paragraphs = bodyText
+    // Convert Viber *bold* markdown to HTML <strong> tags; drop empty ** pairs
+    .replace(/\*([^*\n]*)\*/g, (_, inner) => inner.trim() ? `<strong>${inner}</strong>` : '')
+    // Remove standalone emoji characters that don't render well in email
+    .replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '')
     .split(/\n{2,}/)
     .map(block => block.trim())
     .filter(Boolean)
