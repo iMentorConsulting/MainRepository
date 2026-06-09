@@ -101,9 +101,6 @@ export default function AccountantDetailPage() {
             <CardHeader><CardTitle>Επεξεργασία Στοιχείων</CardTitle></CardHeader>
             <CardContent>
               <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-                {!isAdmin && (
-                  <p className="text-xs text-gray-400 -mt-1">Μπορείτε να επεξεργαστείτε τα στοιχεία του γραφείου σας παρακάτω. Email, κατάσταση και σημειώσεις διαχειρίζεται η I-MENTOR.</p>
-                )}
                 <Input label="Επωνυμία *" {...register('officeName')} error={errors.officeName?.message} />
                 <Input label="Υπεύθυνος *" {...register('contactPerson')} error={errors.contactPerson?.message} />
                 <div className="grid grid-cols-2 gap-4">
