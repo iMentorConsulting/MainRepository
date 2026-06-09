@@ -189,12 +189,10 @@ export default function BusinessesPage() {
           <p className="text-gray-500 mt-1">{total} επιχειρήσεις συνολικά</p>
         </div>
         <div className="flex gap-2">
-          {isAdmin && (
-            <Button variant="outline" onClick={handleExport} size="sm">
-              <Download size={16} className="mr-1" />
-              Export Excel
-            </Button>
-          )}
+          <Button variant="outline" onClick={handleExport} size="sm">
+            <Download size={16} className="mr-1" />
+            Export Excel
+          </Button>
           <Link href="/businesses/new">
             <Button size={isAdmin ? 'sm' : 'md'} className={!isAdmin ? 'bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-6 py-2.5 text-base shadow-lg' : ''}>
               <Plus size={isAdmin ? 16 : 20} className="mr-2" />

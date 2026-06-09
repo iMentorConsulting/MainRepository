@@ -6,9 +6,11 @@ import * as XLSX from 'xlsx'
 export async function GET(request: NextRequest) {
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  if (session.user.role !== 'ADMIN') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const where: any = {}
+  if (session.user.role === 'ACCOUNTANT' && session.user.accountantId) {
+    where.accountantId = session.user.accountantId
+  }
 
   const businesses = await prisma.business.findMany({
     where,

@@ -108,17 +108,15 @@ export default function BusinessDetailPage() {
             Επεξεργασία
           </Button>
         </Link>
-        {isAdmin && (
-          <Button
-            variant="outline"
-            onClick={handleDelete}
-            loading={deleting}
-            className="border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300"
-          >
-            <Trash2 size={15} className="mr-1.5" />
-            Διαγραφή
-          </Button>
-        )}
+        <Button
+          variant="outline"
+          onClick={handleDelete}
+          loading={deleting}
+          className="border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300"
+        >
+          <Trash2 size={15} className="mr-1.5" />
+          Διαγραφή
+        </Button>
       </div>
 
       {quickSend && (
