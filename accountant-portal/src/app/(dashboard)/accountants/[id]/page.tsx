@@ -102,7 +102,7 @@ export default function AccountantDetailPage() {
               <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
                 <Input label="Επωνυμία *" {...register('officeName')} error={errors.officeName?.message} />
                 <Input label="Υπεύθυνος *" {...register('contactPerson')} error={errors.contactPerson?.message} />
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <Input label="Email *" type="email" {...register('email')} error={errors.email?.message} disabled={!isAdmin} />
                   <Input label="Τηλέφωνο" {...register('phone')} />
                 </div>

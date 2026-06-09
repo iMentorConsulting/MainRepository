@@ -4,7 +4,9 @@ import { cn } from '@/lib/utils'
 export function Table({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
     <div className={cn('bg-white rounded-2xl border border-slate-100 shadow-card overflow-hidden', className)}>
-      <table className="w-full">{children}</table>
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[600px]">{children}</table>
+      </div>
     </div>
   )
 }

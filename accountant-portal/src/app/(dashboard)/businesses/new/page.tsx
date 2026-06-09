@@ -261,7 +261,7 @@ export default function NewBusinessPage() {
             <Card>
               <CardHeader><CardTitle>Βασικά Στοιχεία</CardTitle></CardHeader>
               <CardContent className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <Input
                     label="ΑΦΜ *"
                     {...register('afm')}
@@ -286,7 +286,7 @@ export default function NewBusinessPage() {
                   </div>
                   <Input label="Αριθμός" {...register('postalAddressNo')} />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <Input label="ΤΚ" {...register('postalZipCode')} />
                   <Input label="Πόλη/Περιοχή" {...register('postalAreaDescription')} />
                 </div>

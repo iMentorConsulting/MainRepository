@@ -167,7 +167,7 @@ export default function SettingsPage() {
               Δημιουργήστε <strong>Ειδικό Κωδικό</strong> στο TAXISnet για την εφαρμογή «Αναζήτηση Βασικών Στοιχείων Μητρώου Επιχειρήσεων».
             </p>
             <form onSubmit={saveAade} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Input
                   label="TAXISnet Username (Όνομα Χρήστη)"
                   value={aadeUser}
@@ -211,11 +211,11 @@ export default function SettingsPage() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Input label="SMTP Host" defaultValue={process.env.SMTP_HOST || ''} disabled helperText="Ρυθμίζεται μέσω .env" />
             <Input label="SMTP Port" defaultValue="587" disabled />
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Input label="SMTP User" defaultValue="" disabled helperText="Ρυθμίζεται μέσω .env" />
             <Input label="From Address" defaultValue="noreply@i-mentor.gr" disabled />
           </div>

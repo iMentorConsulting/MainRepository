@@ -122,7 +122,7 @@ export default function RequestsPage() {
       <Modal open={!!selectedRequest} onClose={() => setSelectedRequest(null)} title="Λεπτομέρειες Αιτήματος" size="lg">
         {selectedRequest && (
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4 text-sm">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
               <div><span className="text-gray-500">Λογιστής: </span>{selectedRequest.accountant?.officeName}</div>
               <div><span className="text-gray-500">Επιχείρηση: </span>{selectedRequest.business?.onomasia}</div>
               <div><span className="text-gray-500">ΑΦΜ: </span>{selectedRequest.business?.afm}</div>
