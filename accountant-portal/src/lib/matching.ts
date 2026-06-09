@@ -203,7 +203,7 @@ export async function autoNotifyBusinessMatches(businessId: string): Promise<voi
   if (!accountant) return
 
   const businessName = matches[0].business.onomasia || matches[0].business.afm
-  const programTitles = [...new Set(matches.map(m => m.program.title))]
+  const programTitles = Array.from(new Set(matches.map(m => m.program.title)))
   const count = matches.length
 
   const title = `${count} νέα match${count === 1 ? '' : 'es'} για τον πελάτη ${businessName}!`

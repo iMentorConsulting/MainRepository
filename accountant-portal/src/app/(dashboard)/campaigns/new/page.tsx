@@ -159,6 +159,10 @@ function StepSend({ template, programId, programs, onBack, onSend, sending, onSa
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [loadingRecipients, setLoadingRecipients] = useState(true)
 
+  const selectedList = recipients.filter(b => selected.has(b.id))
+  const noContactCount = selectedList.filter(b => !b.email && !b.phone).length
+  const canSend = selected.size > 0 && noContactCount < selected.size
+
   useEffect(() => {
     const url = programId
       ? `/api/campaigns/recipients?programId=${programId}`
@@ -257,6 +261,21 @@ function StepSend({ template, programId, programs, onBack, onSend, sending, onSa
           Δεν έχετε επιλέξει κανέναν παραλήπτη. Επιλέξτε τουλάχιστον έναν για να αποστείλετε.
         </div>
       )}
+      {noContactCount > 0 && selected.size > 0 && (
+        <div className={`text-sm rounded-lg px-4 py-3 border ${noContactCount === selected.size ? 'bg-red-50 border-red-200 text-red-700' : 'bg-amber-50 border-amber-200 text-amber-700'}`}>
+          {noContactCount === selected.size ? (
+            <>
+              <strong>⛔ Αδύνατη αποστολή:</strong> Κανένας από τους {selected.size} επιλεγμένους παραλήπτες δεν έχει email ή τηλέφωνο. Μεταβείτε στις{' '}
+              <a href="/businesses" className="underline font-semibold">Επιχειρήσεις</a> → Εμπλουτισμός Στοιχείων και προσθέστε email/τηλέφωνα πρώτα.
+            </>
+          ) : (
+            <>
+              <strong>⚠️ Προσοχή:</strong> {noContactCount} από τους επιλεγμένους παραλήπτες δεν έχουν email ή τηλέφωνο και θα παραληφθούν κατά την αποστολή.{' '}
+              <a href="/businesses" className="underline font-semibold">Εμπλουτίστε τα στοιχεία τους</a> για πλήρη κάλυψη.
+            </>
+          )}
+        </div>
+      )}
 
       {/* Message preview */}
       <details className="group">
@@ -285,11 +304,12 @@ function StepSend({ template, programId, programs, onBack, onSend, sending, onSa
         </Button>
         <Button
           loading={sending}
-          disabled={selected.size === 0}
+          disabled={!canSend}
           onClick={() => onSend(Array.from(selected))}
         >
           <Send size={15} className="mr-2" />
-          Αποστολή σε {selected.size} παραλήπτ{selected.size === 1 ? 'η' : 'ες'}
+          Αποστολή σε {selected.size - noContactCount} παραλήπτ{(selected.size - noContactCount) === 1 ? 'η' : 'ες'}
+          {noContactCount > 0 && ` (${noContactCount} χωρίς στοιχεία)`}
         </Button>
       </div>
     </div>

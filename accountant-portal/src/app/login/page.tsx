@@ -48,10 +48,10 @@ export default function LoginPage() {
         <div className="absolute inset-0 opacity-5"
           style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, white 1px, transparent 0)', backgroundSize: '32px 32px' }} />
 
-        <div className="relative z-10">
+        <div className="relative z-10 flex justify-center">
           {logoUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={logoUrl} alt="I-MENTOR" className="h-16 w-auto object-contain" />
+            <img src={logoUrl} alt="I-MENTOR" className="h-40 w-auto object-contain drop-shadow-2xl" />
           ) : (
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl flex items-center justify-center"
