@@ -171,20 +171,22 @@ export default function NewBusinessPage() {
                 </div>
                 <button
                   type="button"
-                  onClick={() => {
-                    const csv = 'afm,email,phone,viber_phone\n123456789,info@example.gr,2810123456,6972123456\n'
-                    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' })
-                    const url = URL.createObjectURL(blob)
-                    const a = document.createElement('a')
-                    a.href = url
-                    a.download = 'protupo-eisagogi-pelaton.csv'
-                    a.click()
-                    URL.revokeObjectURL(url)
+                  onClick={async () => {
+                    const XLSX = await import('xlsx')
+                    const ws = XLSX.utils.aoa_to_sheet([
+                      ['afm', 'email', 'phone', 'viber_phone'],
+                      ['123456789', 'info@example.gr', '2810123456', '6972123456'],
+                    ])
+                    // Column widths
+                    ws['!cols'] = [{ wch: 14 }, { wch: 28 }, { wch: 16 }, { wch: 16 }]
+                    const wb = XLSX.utils.book_new()
+                    XLSX.utils.book_append_sheet(wb, ws, 'Πελάτες')
+                    XLSX.writeFile(wb, 'protupo-eisagogi-pelaton.xlsx')
                   }}
                   className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-5 py-2.5 rounded-xl text-sm transition-colors"
                 >
                   <Upload size={16} />
-                  ⬇️ Κατεβάστε Πρότυπο Excel (CSV)
+                  ⬇️ Κατεβάστε Πρότυπο Excel (.xlsx)
                 </button>
               </div>
             </div>
