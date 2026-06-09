@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableHead, TableBody, TableRow, Th, Td } from '@/components/ui/table'
-import { Plus, Mail, MessageCircle } from 'lucide-react'
+import { Plus, Mail, MessageCircle, Send, Users, FileText, CheckCircle2 } from 'lucide-react'
 import { formatDateTime } from '@/lib/utils'
 
 const statusVariant: Record<string, any> = { DRAFT: 'secondary', SCHEDULED: 'warning', SENT: 'success' }
@@ -20,6 +20,10 @@ export default function CampaignsPage() {
       .then(d => setCampaigns(d.campaigns || []))
       .finally(() => setLoading(false))
   }, [])
+
+  const sent      = campaigns.filter(c => c.status === 'SENT')
+  const drafts    = campaigns.filter(c => c.status === 'DRAFT')
+  const totalReach = sent.reduce((s, c) => s + (c._count?.recipients ?? 0), 0)
 
   return (
     <div className="space-y-6">
@@ -38,6 +42,54 @@ export default function CampaignsPage() {
         </div>
       </div>
 
+      {/* ── Stat cards ─────────────────────────────────────────────────── */}
+      {!loading && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 flex items-center gap-3">
+            <div className="p-2.5 rounded-xl bg-indigo-50 flex-shrink-0">
+              <Send size={18} className="text-indigo-600" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-gray-900">{sent.length}</p>
+              <p className="text-xs text-gray-400">Απεστάλησαν</p>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 flex items-center gap-3">
+            <div className="p-2.5 rounded-xl bg-green-50 flex-shrink-0">
+              <Users size={18} className="text-green-600" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-gray-900">{totalReach}</p>
+              <p className="text-xs text-gray-400">Παραλήπτες (σύνολο)</p>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 flex items-center gap-3">
+            <div className="p-2.5 rounded-xl bg-amber-50 flex-shrink-0">
+              <FileText size={18} className="text-amber-600" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-gray-900">{drafts.length}</p>
+              <p className="text-xs text-gray-400">Πρόχειρα</p>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 flex items-center gap-3">
+            <div className="p-2.5 rounded-xl bg-purple-50 flex-shrink-0">
+              <CheckCircle2 size={18} className="text-purple-600" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-gray-900">
+                {sent.length > 0 ? Math.round(totalReach / sent.length) : '—'}
+              </p>
+              <p className="text-xs text-gray-400">Μέσος όρος/καμπάνια</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Table ──────────────────────────────────────────────────────── */}
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
         {loading ? (
           <div className="flex items-center justify-center h-48">
