@@ -226,11 +226,6 @@ export default function MatchesPage() {
                   </Th>
                   <Th>Πρόγραμμα</Th>
                   {isAdmin && <Th>Λογιστής</Th>}
-                  <Th>
-                    <button onClick={() => toggleSort('status')} className="flex items-center hover:text-indigo-700 transition-colors">
-                      Κατάσταση <SortIcon col="status" sortBy={sortBy} sortDir={sortDir} />
-                    </button>
-                  </Th>
                   <Th>Σημειώσεις</Th>
                   <Th>Καμπάνια</Th>
                 </TableRow>
@@ -238,7 +233,7 @@ export default function MatchesPage() {
               <TableBody>
                 {matches.length === 0 ? (
                   <TableRow>
-                    <Td colSpan={isAdmin ? 9 : 8} className="text-center text-gray-400 py-8">Δεν βρέθηκαν matches</Td>
+                    <Td colSpan={isAdmin ? 8 : 7} className="text-center text-gray-400 py-8">Δεν βρέθηκαν matches</Td>
                   </TableRow>
                 ) : (
                   matches.map(m => {
@@ -280,9 +275,6 @@ export default function MatchesPage() {
                             {m.business?.accountant?.officeName || '-'}
                           </Td>
                         )}
-                        <Td>
-                          <Badge variant={statusVariant[m.status]}>{statusOptions.find(o => o.value === m.status)?.label}</Badge>
-                        </Td>
                         <Td>
                           <NotesCell matchId={m.id} initialNotes={m.notes} />
                         </Td>
