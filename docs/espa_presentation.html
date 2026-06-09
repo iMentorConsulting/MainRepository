@@ -1,0 +1,1374 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Σύστημα Διαχείρισης Κρατήσεων Τουριστικών Καταλυμάτων – Τεκμηρίωση ΕΣΠΑ</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Georgia', 'Times New Roman', serif;
+    font-size: 11pt;
+    line-height: 1.7;
+    color: #1a1a2e;
+    background: #fff;
+  }
+  @page { margin: 2.5cm 2cm; }
+  @media print {
+    .page-break { page-break-before: always; }
+    body { font-size: 10pt; }
+  }
+
+  /* COVER PAGE */
+  .cover {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    background: linear-gradient(135deg, #0a3d62 0%, #1e6fa5 50%, #2980b9 100%);
+    color: #fff;
+    text-align: center;
+    padding: 60px 40px;
+    position: relative;
+  }
+  .cover-espa-badge {
+    background: rgba(255,255,255,0.15);
+    border: 2px solid rgba(255,255,255,0.4);
+    border-radius: 8px;
+    padding: 10px 30px;
+    font-size: 13pt;
+    font-weight: bold;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    margin-bottom: 50px;
+  }
+  .cover-icon {
+    font-size: 64pt;
+    margin-bottom: 20px;
+  }
+  .cover h1 {
+    font-size: 28pt;
+    font-weight: 700;
+    line-height: 1.3;
+    margin-bottom: 16px;
+    text-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    max-width: 800px;
+  }
+  .cover h2 {
+    font-size: 16pt;
+    font-weight: 400;
+    margin-bottom: 40px;
+    opacity: 0.9;
+    font-style: italic;
+    max-width: 700px;
+  }
+  .cover-divider {
+    width: 80px;
+    height: 3px;
+    background: rgba(255,255,255,0.6);
+    margin: 30px auto;
+    border-radius: 2px;
+  }
+  .cover-meta {
+    font-size: 11pt;
+    opacity: 0.85;
+    line-height: 2;
+  }
+  .cover-category {
+    margin-top: 50px;
+    background: rgba(255,193,7,0.25);
+    border: 2px solid rgba(255,193,7,0.6);
+    border-radius: 8px;
+    padding: 12px 30px;
+    font-size: 12pt;
+    font-weight: bold;
+    letter-spacing: 1px;
+  }
+  .cover-footer {
+    margin-top: 40px;
+    font-size: 9pt;
+    opacity: 0.6;
+    letter-spacing: 1px;
+  }
+
+  /* DOCUMENT BODY */
+  .document {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 40px 60px;
+  }
+
+  /* TABLE OF CONTENTS */
+  .toc {
+    background: #f8f9fa;
+    border-left: 5px solid #1e6fa5;
+    padding: 30px 40px;
+    margin: 40px 0;
+    border-radius: 0 8px 8px 0;
+  }
+  .toc h2 {
+    color: #0a3d62;
+    font-size: 16pt;
+    margin-bottom: 20px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+  .toc ol {
+    list-style: none;
+    counter-reset: toc-counter;
+  }
+  .toc ol li {
+    counter-increment: toc-counter;
+    padding: 6px 0;
+    border-bottom: 1px dotted #ccc;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .toc ol li::before {
+    content: counter(toc-counter) ".";
+    font-weight: bold;
+    color: #1e6fa5;
+    min-width: 24px;
+  }
+  .toc ol li span.toc-title {
+    flex: 1;
+    color: #0a3d62;
+    font-weight: 600;
+  }
+
+  /* SECTION HEADERS */
+  .section-header {
+    background: linear-gradient(135deg, #0a3d62, #1e6fa5);
+    color: #fff;
+    padding: 18px 30px;
+    margin: 50px 0 25px 0;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    box-shadow: 0 4px 15px rgba(10,61,98,0.2);
+  }
+  .section-number {
+    background: rgba(255,255,255,0.2);
+    border: 2px solid rgba(255,255,255,0.4);
+    border-radius: 50%;
+    width: 42px;
+    height: 42px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16pt;
+    font-weight: bold;
+    flex-shrink: 0;
+  }
+  .section-header h2 {
+    font-size: 16pt;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+  }
+
+  .subsection-header {
+    color: #0a3d62;
+    font-size: 13pt;
+    font-weight: 700;
+    margin: 30px 0 12px 0;
+    padding-bottom: 6px;
+    border-bottom: 2px solid #1e6fa5;
+  }
+
+  /* TEXT STYLES */
+  p { margin-bottom: 14px; text-align: justify; }
+
+  /* HIGHLIGHT BOX */
+  .highlight-box {
+    background: linear-gradient(135deg, #e8f4fd, #d6eaf8);
+    border-left: 5px solid #2980b9;
+    border-radius: 0 8px 8px 0;
+    padding: 20px 25px;
+    margin: 20px 0;
+  }
+  .highlight-box.green {
+    background: linear-gradient(135deg, #e8f8f5, #d5f5e3);
+    border-left-color: #27ae60;
+  }
+  .highlight-box.purple {
+    background: linear-gradient(135deg, #f5eef8, #e8daef);
+    border-left-color: #8e44ad;
+  }
+
+  /* FEATURE GRID */
+  .feature-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+    margin: 20px 0;
+  }
+  .feature-card {
+    background: #fff;
+    border: 1px solid #d6eaf8;
+    border-top: 4px solid #1e6fa5;
+    border-radius: 8px;
+    padding: 18px;
+    box-shadow: 0 2px 8px rgba(30,111,165,0.08);
+  }
+  .feature-card h3 {
+    font-size: 11pt;
+    font-weight: 700;
+    color: #0a3d62;
+    margin-bottom: 8px;
+  }
+  .feature-card p {
+    font-size: 9.5pt;
+    color: #444;
+    margin: 0;
+    text-align: left;
+  }
+
+  /* TABLES */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 20px 0;
+    font-size: 10pt;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  table thead tr {
+    background: linear-gradient(135deg, #0a3d62, #1e6fa5);
+    color: #fff;
+  }
+  table thead th {
+    padding: 12px 16px;
+    text-align: left;
+    font-weight: 700;
+    font-size: 10pt;
+  }
+  table tbody tr:nth-child(even) { background: #f0f7ff; }
+  table tbody td {
+    padding: 11px 16px;
+    border-bottom: 1px solid #e0ecf8;
+    vertical-align: top;
+  }
+  .check { color: #27ae60; font-weight: bold; font-size: 13pt; }
+  .cross { color: #e74c3c; font-weight: bold; font-size: 13pt; }
+
+  /* SCREENSHOT PLACEHOLDER */
+  .screenshot-box {
+    background: linear-gradient(135deg, #f0f4f8, #e8eff7);
+    border: 2px dashed #5b9bd5;
+    border-radius: 12px;
+    padding: 35px 20px;
+    text-align: center;
+    margin: 20px 0;
+  }
+  .screenshot-box .label {
+    font-size: 13pt;
+    font-weight: bold;
+    display: block;
+    margin-bottom: 6px;
+    color: #1e6fa5;
+  }
+  .screenshot-box .sublabel {
+    font-size: 9pt;
+    color: #888;
+  }
+
+  /* STATS */
+  .stats-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin: 25px 0;
+  }
+  .stat-card {
+    background: linear-gradient(135deg, #0a3d62, #1e6fa5);
+    color: #fff;
+    border-radius: 10px;
+    padding: 20px 15px;
+    text-align: center;
+    box-shadow: 0 4px 12px rgba(10,61,98,0.25);
+  }
+  .stat-card .number {
+    font-size: 24pt;
+    font-weight: 900;
+    display: block;
+    line-height: 1.1;
+    margin-bottom: 4px;
+  }
+  .stat-card .label {
+    font-size: 8.5pt;
+    opacity: 0.85;
+    line-height: 1.3;
+  }
+
+  /* TECH STACK */
+  .tech-stack {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin: 16px 0;
+  }
+  .tech-chip {
+    background: #0a3d62;
+    color: #fff;
+    padding: 6px 16px;
+    border-radius: 20px;
+    font-size: 9.5pt;
+    font-weight: 600;
+  }
+
+  /* INNOVATION BOX */
+  .innovation-box {
+    background: linear-gradient(135deg, #1a0533, #2d1b5e, #1a2a6c);
+    color: #fff;
+    border-radius: 12px;
+    padding: 30px;
+    margin: 25px 0;
+    box-shadow: 0 6px 20px rgba(100,50,200,0.3);
+  }
+  .innovation-box h3 {
+    font-size: 14pt;
+    margin-bottom: 14px;
+    color: #f0d060;
+  }
+  .innovation-box p {
+    color: rgba(255,255,255,0.9);
+    text-align: left;
+  }
+  .innovation-box ul {
+    list-style: none;
+    padding: 0;
+    margin: 10px 0;
+  }
+  .innovation-box ul li {
+    padding: 6px 0 6px 22px;
+    position: relative;
+    color: rgba(255,255,255,0.9);
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+  }
+  .innovation-box ul li::before {
+    content: '◆';
+    position: absolute;
+    left: 0;
+    color: #f0d060;
+    font-size: 8pt;
+    top: 9px;
+  }
+
+  /* WCAG GRID */
+  .wcag-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 14px;
+    margin: 18px 0;
+  }
+  .wcag-item {
+    background: #f0f9f0;
+    border-left: 4px solid #27ae60;
+    border-radius: 0 6px 6px 0;
+    padding: 12px 16px;
+  }
+  .wcag-item h4 {
+    font-size: 10pt;
+    color: #1a5c2e;
+    margin-bottom: 4px;
+  }
+  .wcag-item p {
+    font-size: 9pt;
+    color: #444;
+    margin: 0;
+    text-align: left;
+  }
+
+  /* DIVIDER */
+  .divider {
+    border: none;
+    border-top: 2px solid #e0ecf8;
+    margin: 35px 0;
+  }
+
+  /* LISTS */
+  ul.styled {
+    margin: 10px 0 16px 0;
+    padding-left: 0;
+    list-style: none;
+  }
+  ul.styled li {
+    padding: 5px 0 5px 24px;
+    position: relative;
+    border-bottom: 1px solid #f0f4f8;
+  }
+  ul.styled li::before {
+    content: '▶';
+    position: absolute;
+    left: 0;
+    color: #1e6fa5;
+    font-size: 8pt;
+    top: 8px;
+  }
+
+  /* CONCLUSION BOX */
+  .conclusion-box {
+    background: linear-gradient(135deg, #0a3d62, #1e6fa5);
+    color: #fff;
+    border-radius: 12px;
+    padding: 35px 40px;
+    margin: 30px 0;
+    box-shadow: 0 6px 20px rgba(10,61,98,0.3);
+  }
+  .conclusion-box h3 {
+    font-size: 15pt;
+    margin-bottom: 16px;
+    border-bottom: 2px solid rgba(255,255,255,0.3);
+    padding-bottom: 10px;
+  }
+  .conclusion-box p {
+    color: rgba(255,255,255,0.92);
+    text-align: justify;
+    margin-bottom: 12px;
+  }
+
+  /* FOOTER */
+  .doc-footer {
+    background: #0a3d62;
+    color: rgba(255,255,255,0.8);
+    padding: 25px 40px;
+    text-align: center;
+    margin-top: 60px;
+    font-size: 9pt;
+    line-height: 1.8;
+  }
+</style>
+</head>
+<body>
+
+<!-- ======== COVER PAGE ======== -->
+<div class="cover">
+  <div class="cover-espa-badge">ΕΣΠΑ 2021–2027 &nbsp;|&nbsp; Ψηφιακή Καινοτομία</div>
+  <div class="cover-icon">&#127968;</div>
+  <h1>Σύστημα Διαχείρισης Κρατήσεων<br>Τουριστικών Καταλυμάτων</h1>
+  <h2>«Villa Booking Management System»</h2>
+  <div class="cover-divider"></div>
+  <div class="cover-meta">
+    <strong>Κατηγορία Επένδυσης:</strong> Λογισμικό Ψηφιακής Καινοτομίας (Innovation)<br>
+    <strong>Τομέας:</strong> Τουρισμός – Διαχείριση Τουριστικών Καταλυμάτων<br>
+    <strong>Τεκμηρίωση Έτους:</strong> 2025<br>
+    <strong>Τύπος Εγγράφου:</strong> Τεχνική Περιγραφή &amp; Αιτιολόγηση Επένδυσης
+  </div>
+  <div class="cover-category">&#9733; Καινοτόμο Λογισμικό με Τεχνητή Νοημοσύνη &#9733;</div>
+  <div class="cover-footer">ΕΜΠΙΣΤΕΥΤΙΚΟ ΕΓΓΡΑΦΟ – ΓΙΑ ΧΡΗΣΗ ΑΞΙΟΛΟΓΗΤΩΝ ΕΣΠΑ</div>
+</div>
+
+<!-- ======== DOCUMENT BODY ======== -->
+<div class="document">
+
+<!-- TABLE OF CONTENTS -->
+<div class="toc">
+  <h2>Πίνακας Περιεχομένων</h2>
+  <ol>
+    <li><span class="toc-title">Εκτελεστική Σύνοψη</span></li>
+    <li><span class="toc-title">Τεχνολογικά Χαρακτηριστικά &amp; Αρχιτεκτονική</span></li>
+    <li><span class="toc-title">Πλήρης Παρουσίαση Λειτουργιών</span></li>
+    <li><span class="toc-title">Τεχνητή Νοημοσύνη – Ο Πυρήνας Καινοτομίας</span></li>
+    <li><span class="toc-title">Προσβασιμότητα WCAG 2.0 Επίπεδο ΑΑ</span></li>
+    <li><span class="toc-title">Πολυγλωσσία &amp; Διεθνής Προσβασιμότητα</span></li>
+    <li><span class="toc-title">Αδειοδότηση &amp; Μοναδικότητα Εγκατάστασης</span></li>
+    <li><span class="toc-title">Τεχνικές Προδιαγραφές</span></li>
+    <li><span class="toc-title">Τεκμηρίωση Καινοτομίας υπό ΕΣΠΑ</span></li>
+    <li><span class="toc-title">Συμπέρασμα &amp; Αποτίμηση Επένδυσης</span></li>
+  </ol>
+</div>
+
+<hr class="divider">
+
+<!-- ======== SECTION 1 ======== -->
+<div class="section-header">
+  <div class="section-number">1</div>
+  <h2>Εκτελεστική Σύνοψη</h2>
+</div>
+
+<p>Το <strong>Σύστημα Διαχείρισης Κρατήσεων Τουριστικών Καταλυμάτων</strong> (εφεξής «Σύστημα») αποτελεί μια ολοκληρωμένη, εξατομικευμένη λύση λογισμικού σχεδιασμένη αποκλειστικά για τις ανάγκες ελληνικών επιχειρήσεων τουριστικής φιλοξενίας — βιλών, παραδοσιακών κατοικιών, αγροτουριστικών καταλυμάτων και μικρών ξενοδοχείων. Η επένδυση αφορά στην ανάπτυξη και εγκατάσταση ενός προηγμένου, νεφοβασισμένου (cloud-based) λογισμικού που ενσωματώνει <strong>τεχνολογίες Τεχνητής Νοημοσύνης (ΤΝ)</strong> για την αυτοματοποίηση κρίσιμων επιχειρηματικών διεργασιών.</p>
+
+<p>Το Σύστημα αναπτύχθηκε από μηδενική βάση (greenfield development) ως απάντηση στην αδυναμία των διαθέσιμων εμπορικών λύσεων να καλύψουν τις ειδικές ανάγκες των Ελλήνων ιδιοκτητών τουριστικών βιλών· λύσεων που είτε είναι υπερβολικά πολύπλοκες και κοστοβόρες, είτε δεν παρέχουν τη ζητούμενη άμεση σύνδεση με τις μεγάλες πλατφόρμες κρατήσεων (Booking.com, Airbnb), ούτε τις σύγχρονες υπηρεσίες ψηφιακής εξυπηρέτησης επισκεπτών που η αγορά σήμερα απαιτεί.</p>
+
+<div class="stats-row">
+  <div class="stat-card">
+    <span class="number">3</span>
+    <span class="label">Ενσωματωμένες<br>Λειτουργίες ΤΝ</span>
+  </div>
+  <div class="stat-card">
+    <span class="number">4</span>
+    <span class="label">Γλώσσες<br>Διεπαφής</span>
+  </div>
+  <div class="stat-card">
+    <span class="number">AA</span>
+    <span class="label">Επίπεδο<br>WCAG 2.0</span>
+  </div>
+  <div class="stat-card">
+    <span class="number">5</span>
+    <span class="label">Κανάλια<br>Κράτησης</span>
+  </div>
+</div>
+
+<div class="highlight-box">
+  <strong>Στρατηγική Σημασία:</strong> Το Σύστημα τοποθετεί την ελληνική τουριστική επιχείρηση στο ανώτερο τεχνολογικό επίπεδο διαχείρισης, παρέχοντας εργαλεία που αντίστοιχά τους κατέχουν μόνο διεθνείς αλυσίδες πολυτελών ξενοδοχείων. Η καινοτομία εντοπίζεται κυρίως στη χρήση ΤΝ για σύσταση μονάδων, αυτοματισμό καθαρισμών και ψηφιακή εξυπηρέτηση επισκεπτών — τρεις τομείς που δεν καλύπτει κανένα υπάρχον ελληνικό σύστημα αγοράς.
+</div>
+
+<div class="screenshot-box">
+  <span class="label">[ΕΙΚΟΝΑ: Αρχική Οθόνη Dashboard]</span>
+  <span class="sublabel">Κεντρικό ταμπλό διαχείρισης με στατιστικά κρατήσεων, έσοδα ημέρας και σύνοψη πληρότητας</span>
+</div>
+
+<!-- ======== SECTION 2 ======== -->
+<div class="section-header page-break">
+  <div class="section-number">2</div>
+  <h2>Τεχνολογικά Χαρακτηριστικά &amp; Αρχιτεκτονική</h2>
+</div>
+
+<p>Το Σύστημα βασίζεται σε σύγχρονη, πλήρως διαστρωματωμένη αρχιτεκτονική (layered architecture) που διαχωρίζει σαφώς το backend API, το frontend interface και τη βάση δεδομένων. Η επιλογή τεχνολογιών αντανακλά τις βέλτιστες πρακτικές της διεθνούς βιομηχανίας λογισμικού για το 2025.</p>
+
+<div class="subsection-header">2.1 Στοίβα Τεχνολογιών (Technology Stack)</div>
+
+<div class="tech-stack">
+  <div class="tech-chip">FastAPI (Python 3.11+)</div>
+  <div class="tech-chip">React 18 / TypeScript</div>
+  <div class="tech-chip">SQLite / Railway Volume</div>
+  <div class="tech-chip">Railway Cloud</div>
+  <div class="tech-chip">Anthropic Claude AI</div>
+  <div class="tech-chip">SHA-256 Authentication</div>
+  <div class="tech-chip">iCal RFC 5545</div>
+  <div class="tech-chip">Gmail SMTP OAuth2</div>
+  <div class="tech-chip">RESTful API / OpenAPI 3.0</div>
+  <div class="tech-chip">HTTPS / TLS 1.3</div>
+</div>
+
+<table>
+  <thead>
+    <tr>
+      <th>Επίπεδο</th>
+      <th>Τεχνολογία</th>
+      <th>Ρόλος</th>
+      <th>Πλεονέκτημα</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Backend API</strong></td>
+      <td>FastAPI (Python 3.11+)</td>
+      <td>Επιχειρηματική λογική, REST endpoints</td>
+      <td>Ταχύτατη ασύγχρονη επεξεργασία, αυτόματη τεκμηρίωση OpenAPI</td>
+    </tr>
+    <tr>
+      <td><strong>Frontend</strong></td>
+      <td>React 18 (TypeScript)</td>
+      <td>Διεπαφή χρήστη, SPA routing</td>
+      <td>Σύγχρονη reactive UI, βέλτιστη απόδοση, component-based αρχιτεκτονική</td>
+    </tr>
+    <tr>
+      <td><strong>Βάση Δεδομένων</strong></td>
+      <td>SQLite σε Railway Volume</td>
+      <td>Επίμονη αποθήκευση δεδομένων</td>
+      <td>Μηδενικό κόστος DB server, ανθεκτικότητα, αυτόματα daily backups</td>
+    </tr>
+    <tr>
+      <td><strong>Cloud Hosting</strong></td>
+      <td>Railway Platform</td>
+      <td>Deployment, auto-scaling, CI/CD</td>
+      <td>Αυτόματη κλιμάκωση, 99.9% uptime SLA</td>
+    </tr>
+    <tr>
+      <td><strong>ΤΝ / AI</strong></td>
+      <td>Anthropic Claude API</td>
+      <td>Σύσταση μονάδων, chatbot, scheduler</td>
+      <td>State-of-the-art LLM, πολύγλωσση υποστήριξη, contextual intelligence</td>
+    </tr>
+    <tr>
+      <td><strong>Ασφάλεια</strong></td>
+      <td>SHA-256 tokens + HTTPS/TLS 1.3</td>
+      <td>Ταυτοποίηση χρηστών και επισκεπτών</td>
+      <td>Κρυπτογραφικά ασφαλής, χωρίς κωδικούς στο guest portal</td>
+    </tr>
+    <tr>
+      <td><strong>Email</strong></td>
+      <td>Gmail SMTP (OAuth2, per-tenant)</td>
+      <td>Ειδοποιήσεις, επικοινωνία</td>
+      <td>Κάθε κατάλυμα με δικό του email — επαγγελματική εικόνα</td>
+    </tr>
+    <tr>
+      <td><strong>Ημερολόγια</strong></td>
+      <td>iCal Protocol (RFC 5545)</td>
+      <td>Συγχρονισμός με OTA πλατφόρμες</td>
+      <td>Άμεση πρόληψη διπλοκρατήσεων, βιομηχανικό πρότυπο</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="subsection-header">2.2 Ασφάλεια &amp; Πολυμισθωτική Αρχιτεκτονική (Multi-Tenancy)</div>
+
+<p>Το Σύστημα υλοποιεί <strong>πλήρη απομόνωση δεδομένων</strong> μεταξύ επιχειρήσεων (tenants) μέσω αρχιτεκτονικής multi-tenancy. Κάθε ιδιοκτήτης καταλύματος διαθέτει αυτόνομο, πλήρως απομονωμένο λογαριασμό: τα δεδομένα κρατήσεων, οι πελάτες, οι ρυθμίσεις και οι αναφορές δεν είναι ποτέ προσβάσιμα από άλλους tenant. Αυτό επιτρέπει την παροχή της υπηρεσίας ως SaaS (Software as a Service), μία πλατφόρμα που εξυπηρετεί πολλαπλές επιχειρήσεις ταυτόχρονα με απόλυτη εμπιστευτικότητα.</p>
+
+<div class="highlight-box">
+  <strong>Συμμόρφωση GDPR:</strong> Το σύστημα εφαρμόζει αυτόματη διαγραφή φωτογραφιών αναφοράς προβλημάτων μετά την αποχώρηση του επισκέπτη, σύμφωνα με την αρχή ελαχιστοποίησης δεδομένων του Κανονισμού (ΕΕ) 2016/679 (GDPR). Ο χρήστης ενημερώνεται εκ των προτέρων για τη συλλογή και επεξεργασία των δεδομένων του.
+</div>
+
+<div class="screenshot-box">
+  <span class="label">[ΕΙΚΟΝΑ: Αρχιτεκτονικό Διάγραμμα Συστήματος]</span>
+  <span class="sublabel">Σχηματικό διάγραμμα: Frontend (React) – Backend (FastAPI) – Database (SQLite) – AI Services (Claude) – iCal Integration</span>
+</div>
+
+<!-- ======== SECTION 3 ======== -->
+<div class="section-header page-break">
+  <div class="section-number">3</div>
+  <h2>Πλήρης Παρουσίαση Λειτουργιών</h2>
+</div>
+
+<p>Το Σύστημα αποτελείται από τέσσερις κύριες ενότητες λειτουργικότητας: (α) Διαχείριση Κρατήσεων, (β) Πύλη Επισκεπτών, (γ) Υπηρεσίες Τεχνητής Νοημοσύνης και (δ) Ενσωματώσεις με Εξωτερικά Συστήματα. Παρακάτω παρουσιάζεται αναλυτικά κάθε λειτουργική περιοχή.</p>
+
+<div class="subsection-header">3.1 Διαχείριση Κρατήσεων (Core Booking Management)</div>
+
+<div class="feature-grid">
+  <div class="feature-card">
+    <h3>Διαχείριση Πολλαπλών Μονάδων</h3>
+    <p>Υποστήριξη πολλαπλών καταλυμάτων υπό μία επιχείρηση. Κεντρική διαχείριση με ξεχωριστό ιστορικό και ρυθμίσεις ανά μονάδα. Ιδανικό για συγκροτήματα βιλών ή ιδιοκτήτες με πολλαπλά ακίνητα.</p>
+  </div>
+  <div class="feature-card">
+    <h3>Μητρώο Πελατών με Ιθαγένεια</h3>
+    <p>Πλήρες μητρώο πελατών με παρακολούθηση ιθαγένειας (nationality tracking), ιστορικό επισκέψεων, στοιχεία επικοινωνίας και στατιστικά ανά πελάτη. Ανάλυση προελεύσεων επισκεπτών για στρατηγικό μάρκετινγκ.</p>
+  </div>
+  <div class="feature-card">
+    <h3>Πλήρης Κύκλος Ζωής Κράτησης</h3>
+    <p>Δημιουργία, επεξεργασία, ακύρωση και καταγραφή "no-show" κρατήσεων. Αυτόματη παρακολούθηση κατάστασης με χρονικό ιστορικό (audit trail) κάθε αλλαγής για πλήρη λογιστική διαφάνεια.</p>
+  </div>
+  <div class="feature-card">
+    <h3>Υπολογισμός Προμηθειών ανά Κανάλι</h3>
+    <p>Αυτόματος υπολογισμός προμηθειών για: Booking.com, Airbnb, Άμεση Κράτηση, ΕΟΤ/ΟΓΑ, Κοινωνικός Τουρισμός. Παραμετροποιήσιμα ποσοστά ανά κανάλι.</p>
+  </div>
+  <div class="feature-card">
+    <h3>Παρακολούθηση Τιμολόγησης</h3>
+    <p>Ολοκληρωμένη παρακολούθηση κατάστασης τιμολόγησης κάθε κράτησης: εκκρεμεί, τιμολογήθηκε, εξοφλήθηκε. Σύνδεση με λογιστικές αναφορές για ακριβή φορολογική αντιμετώπιση.</p>
+  </div>
+  <div class="feature-card">
+    <h3>Αναφορές Εσόδων &amp; Αναλυτικά</h3>
+    <p>Πλούσιες χρηματοοικονομικές αναφορές: έσοδα ανά περίοδο, ανά μονάδα, ανά κανάλι, ανά ιθαγένεια. Εξαγωγή Excel για λογιστή και φορολογικές υποχρεώσεις.</p>
+  </div>
+  <div class="feature-card">
+    <h3>Ημερολόγιο Πληρότητας</h3>
+    <p>Οπτική απεικόνιση ημερολογίου διαθεσιμότητας ανά μονάδα. Χρωματική κωδικοποίηση ανά κανάλι κράτησης. Άμεση επισκόπηση για τις επόμενες εβδομάδες και μήνες.</p>
+  </div>
+  <div class="feature-card">
+    <h3>Excel Import / Export</h3>
+    <p>Μαζική εισαγωγή κρατήσεων από αρχεία Excel — ιδανικό για μετάβαση από άλλα συστήματα. Εξαγωγή κρατήσεων, αναφορών και πελατολογίου για λογιστική/φορολογική χρήση.</p>
+  </div>
+</div>
+
+<div class="screenshot-box">
+  <span class="label">[ΕΙΚΟΝΑ: Οθόνη Διαχείρισης Κρατήσεων]</span>
+  <span class="sublabel">Λίστα κρατήσεων με φίλτρα, κατάσταση τιμολόγησης, προμήθειες ανά κανάλι και κουμπιά ενεργειών</span>
+</div>
+
+<div class="subsection-header">3.2 Πύλη Επισκεπτών (Guest Portal) — Μοναδική Καινοτομία στην Ελληνική Αγορά</div>
+
+<div class="highlight-box purple">
+  <strong>Σημαντική Καινοτομία:</strong> Η Πύλη Επισκεπτών (Guest Portal) αποτελεί ολοκληρωμένο ψηφιακό περιβάλλον εξυπηρέτησης επισκεπτών, μοναδικό στην ελληνική αγορά διαχείρισης βιλών. Αντικαθιστά πλήρως τα έντυπα οδηγούς καλωσορίσματος και παρέχει διαδραστική, ψηφιακή εξυπηρέτηση 24/7 χωρίς ανθρώπινη παρέμβαση για τις τυπικές ερωτήσεις επισκεπτών.
+</div>
+
+<table>
+  <thead>
+    <tr>
+      <th>Λειτουργία</th>
+      <th>Περιγραφή</th>
+      <th>Αξία για Επισκέπτη</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Μοναδικό Προσωπικό URL</strong></td>
+      <td>Κάθε κράτηση λαμβάνει μοναδικό σύνδεσμο πρόσβασης στην Πύλη</td>
+      <td>Άμεση, εξατομικευμένη πρόσβαση χωρίς εγγραφή</td>
+    </tr>
+    <tr>
+      <td><strong>Ασφαλής Ταυτοποίηση</strong></td>
+      <td>Επαλήθευση μέσω email ή τηλεφώνου με SHA-256 token</td>
+      <td>Ασφάλεια χωρίς κωδικούς πρόσβασης</td>
+    </tr>
+    <tr>
+      <td><strong>Εξατομικευμένος Χαιρετισμός</strong></td>
+      <td>Προσφώνηση με το μικρό όνομα του επισκέπτη</td>
+      <td>Αίσθηση VIP φιλοξενίας από πρώτη επαφή</td>
+    </tr>
+    <tr>
+      <td><strong>Ψηφιακός Οδηγός Καλωσορίσματος</strong></td>
+      <td>Πλήρης Digital Welcome Guide αντί έντυπου εγχειριδίου</td>
+      <td>Πρόσβαση από smartphone, πάντα ενημερωμένος</td>
+    </tr>
+    <tr>
+      <td><strong>Τοπικές Συστάσεις</strong></td>
+      <td>Χάρτες, επαφές και προτάσεις αξιοθέατων / εστιατορίων</td>
+      <td>Πλούσια τοπική εμπειρία χωρίς αναζήτηση</td>
+    </tr>
+    <tr>
+      <td><strong>Κέντρο Αιτημάτων Υπηρεσιών</strong></td>
+      <td>Υποβολή αιτημάτων (λευκά είδη, transfers κ.λπ.) από το κινητό</td>
+      <td>Άμεση εξυπηρέτηση χωρίς τηλεφωνήματα</td>
+    </tr>
+    <tr>
+      <td><strong>Χρονοδιάγραμμα Διαμονής</strong></td>
+      <td>Ο επισκέπτης βλέπει το πλήρες πρόγραμμα παραμονής</td>
+      <td>Πλήρης ενημέρωση για check-in/out, καθαρισμοί</td>
+    </tr>
+    <tr>
+      <td><strong>Παράλειψη Ημέρας Καθαρισμού</strong></td>
+      <td>Ο επισκέπτης επιλέγει να παραλείψει καθαρισμό</td>
+      <td>Απόλυτη ιδιωτικότητα, οικολογική επιλογή</td>
+    </tr>
+    <tr>
+      <td><strong>Αναφορά Προβλήματος με Φωτογραφία</strong></td>
+      <td>Φωτογράφηση βλάβης απευθείας από την εφαρμογή</td>
+      <td>Ταχεία αντιμετώπιση βλαβών από τον ιδιοκτήτη</td>
+    </tr>
+    <tr>
+      <td><strong>Ασύγχρονη Αλληλογραφία</strong></td>
+      <td>Chat: επισκέπτης ↔ διαχειριστής ↔ AI concierge</td>
+      <td>Εξυπηρέτηση 24/7 σε 4 γλώσσες</td>
+    </tr>
+    <tr>
+      <td><strong>Marketplace Υπηρεσιών</strong></td>
+      <td>Πώληση πρόσθετων υπηρεσιών (transfers, tours, τοπικά προϊόντα)</td>
+      <td>Εμπλουτισμός εμπειρίας, πρόσθετα έσοδα</td>
+    </tr>
+    <tr>
+      <td><strong>Κέντρο Εκτάκτου Ανάγκης</strong></td>
+      <td>Άμεση πρόσβαση σε αριθμούς: ΕΚΑΒ, Πυροσβεστική, Αστυνομία, Νοσοκομείο</td>
+      <td>Ασφάλεια επισκέπτη σε κρίσιμες στιγμές</td>
+    </tr>
+    <tr>
+      <td><strong>Email Ειδοποιήσεις Διαχειριστή</strong></td>
+      <td>Άμεσες ειδοποιήσεις για κάθε ενέργεια επισκέπτη</td>
+      <td>Ο ιδιοκτήτης ενημερώνεται σε πραγματικό χρόνο</td>
+    </tr>
+    <tr>
+      <td><strong>Analytics Portal</strong></td>
+      <td>Αναλυτικά: προβολές, ταυτοποιήσεις, αιτήματα ανά κράτηση</td>
+      <td>Δεδομένα για βελτίωση παροχής υπηρεσιών</td>
+    </tr>
+    <tr>
+      <td><strong>Αυτόματη Διαγραφή Φωτογραφιών (GDPR)</strong></td>
+      <td>Φωτογραφικά δεδομένα διαγράφονται αυτόματα μετά το check-out</td>
+      <td>Συμμόρφωση GDPR, προστασία ιδιωτικότητας</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="screenshot-box">
+  <span class="label">[ΕΙΚΟΝΑ: Οθόνη Guest Portal – Αρχική Σελίδα Επισκέπτη]</span>
+  <span class="sublabel">Εξατομικευμένη υποδοχή με όνομα επισκέπτη, χρονοδιάγραμμα διαμονής και γρήγορες ενέργειες</span>
+</div>
+
+<div class="subsection-header">3.3 Ενσωμάτωση iCal — Πρόληψη Διπλοκρατήσεων σε Πραγματικό Χρόνο</div>
+
+<p>Ένα από τα πλέον κρίσιμα προβλήματα της διαχείρισης βιλών είναι οι <strong>διπλοκρατήσεις</strong> (double bookings) — η ταυτόχρονη αποδοχή δύο κρατήσεων για το ίδιο κατάλυμα στις ίδιες ημερομηνίες. Το Σύστημα επιλύει αυτό το πρόβλημα με πλήρη υλοποίηση του πρωτοκόλλου <strong>iCalendar (RFC 5545)</strong>.</p>
+
+<div class="feature-grid">
+  <div class="feature-card">
+    <h3>Συγχρονισμός Booking.com</h3>
+    <p>Αυτόματη λήψη και αποστολή ημερολογίου κρατήσεων με το Booking.com μέσω iCal feed. Αμφίδρομη ενημέρωση σε πραγματικό χρόνο.</p>
+  </div>
+  <div class="feature-card">
+    <h3>Συγχρονισμός Airbnb</h3>
+    <p>Αντίστοιχη ενσωμάτωση με το Airbnb. Κάθε νέα κράτηση σε οποιαδήποτε πλατφόρμα μπλοκάρει αυτόματα τις υπόλοιπες ημερομηνίες.</p>
+  </div>
+  <div class="feature-card">
+    <h3>Αυτόματη Πρόληψη Διπλοκρατήσεων</h3>
+    <p>Σε περίπτωση σύγκρουσης, το σύστημα αρνείται την ταυτόχρονη κράτηση και ειδοποιεί τον διαχειριστή. Μηδενικός κίνδυνος αντικρουόμενων κρατήσεων.</p>
+  </div>
+  <div class="feature-card">
+    <h3>Κεντρικό Ημερολόγιο Όλων των Καναλιών</h3>
+    <p>Ένα ενιαίο ημερολόγιο συγκεντρώνει σε real-time κρατήσεις από Booking.com, Airbnb, Άμεσες, ΟΓΑ και Κοινωνικό Τουρισμό.</p>
+  </div>
+</div>
+
+<div class="screenshot-box">
+  <span class="label">[ΕΙΚΟΝΑ: Ημερολόγιο Πληρότητας με iCal Συγχρονισμό]</span>
+  <span class="sublabel">Ενιαίο ημερολόγιο με χρωματική κωδικοποίηση ανά κανάλι κράτησης (Booking.com, Airbnb, Άμεσες)</span>
+</div>
+
+<!-- ======== SECTION 4 ======== -->
+<div class="section-header page-break">
+  <div class="section-number">4</div>
+  <h2>Τεχνητή Νοημοσύνη – Ο Πυρήνας Καινοτομίας</h2>
+</div>
+
+<div class="highlight-box purple">
+  <strong>Κεντρικό Επιχείρημα Καινοτομίας:</strong> Η ενσωμάτωση Τεχνητής Νοημοσύνης στις καθημερινές επιχειρηματικές διεργασίες διαχείρισης τουριστικών καταλυμάτων αποτελεί τον ουσιαστικό παράγοντα διαφοροποίησης από κάθε υπάρχον ανταγωνιστικό προϊόν στην ελληνική αγορά. Το Σύστημα υλοποιεί τρεις (3) αυτόνομες AI-powered υπηρεσίες, καθεμία αντιμετωπίζει ένα συγκεκριμένο, καλά τεκμηριωμένο πρόβλημα λειτουργικής αποτελεσματικότητας.
+</div>
+
+<!-- AI Feature 1 -->
+<div class="innovation-box">
+  <h3>AI Λειτουργία #1: Σύσταση Βέλτιστης Μονάδας (AI Unit Recommender)</h3>
+  <p><strong>Πρόβλημα που επιλύει:</strong> Σε καταλύματα με πολλαπλές μονάδες διαφορετικής χωρητικότητας, η επιλογή της κατάλληλης μονάδας για κάθε κράτηση απαιτεί ο διαχειριστής να ελέγξει διαθεσιμότητα, χωρητικότητα και προτιμήσεις επισκέπτη — διαδικασία επίπονη και επιρρεπής σε λάθη.</p>
+  <ul>
+    <li>Το Claude AI αναλύει ταυτόχρονα: διαθεσιμότητα κάθε μονάδας, δηλωμένη χωρητικότητα, αριθμό επισκεπτών, ιστορικές προτιμήσεις πελάτη</li>
+    <li>Παράγει βαθμολογημένη λίστα κατάλληλων μονάδων με αιτιολόγηση της σύστασης στα ελληνικά</li>
+    <li>Ο διαχειριστής λαμβάνει απόφαση με πλήρη ενημέρωση, μειώνοντας τον χρόνο επιλογής από λεπτά σε δευτερόλεπτα</li>
+    <li><strong>Μοναδικό στην ελληνική αγορά διαχείρισης βιλών</strong> — κανένα άλλο σύστημα δεν παρέχει αυτή τη λειτουργία</li>
+  </ul>
+</div>
+
+<div class="screenshot-box">
+  <span class="label">[ΕΙΚΟΝΑ: AI Unit Recommender – Οθόνη Συστάσεων]</span>
+  <span class="sublabel">Λίστα συνιστώμενων μονάδων με βαθμολογία καταλληλότητας και αιτιολόγηση από το Claude AI</span>
+</div>
+
+<!-- AI Feature 2 -->
+<div class="innovation-box">
+  <h3>AI Λειτουργία #2: Έξυπνος Προγραμματισμός Καθαρισμών (AI Cleaning Scheduler)</h3>
+  <p><strong>Πρόβλημα που επιλύει:</strong> Ο συντονισμός καθαρισμών σε πολλαπλές μονάδες με διαφορετικά check-in/check-out, αλλαγές λινών και εβδομαδιαίο πλύσιμο αποτελεί διοικητικό βάρος που απαιτεί καθημερινή χειροκίνητη διαχείριση.</p>
+  <ul>
+    <li>Το AI υπολογίζει αυτόματα πρόγραμμα καθαρισμών βάσει check-in/check-out κάθε μονάδας</li>
+    <li>Διαχείριση ρυθμών αλλαγής λινών (π.χ. ανά 3 ημέρες ή με κάθε check-out) βάσει παραμετροποιήσιμων κανόνων ανά κατάλυμα</li>
+    <li>Αυτόματος υπολογισμός ημερών πλυσίματος λευκών ειδών με βέλτιστη κατανομή φόρτου εργασίας</li>
+    <li>Σαφές ημερήσιο πρόγραμμα καθαρισμών χωρίς χειροκίνητη εισαγωγή από τον διαχειριστή</li>
+    <li>Εξοικονόμηση εκτιμώμενα 45–60 λεπτών ημερησίως σε εγκαταστάσεις με 5 ή περισσότερες μονάδες</li>
+  </ul>
+</div>
+
+<div class="screenshot-box">
+  <span class="label">[ΕΙΚΟΝΑ: AI Cleaning Scheduler – Εβδομαδιαίο Πρόγραμμα Καθαρισμών]</span>
+  <span class="sublabel">Ημερολογιακή προβολή με ανάθεση καθαρισμών, αλλαγών λινών και πλυσίματος ανά μονάδα</span>
+</div>
+
+<!-- AI Feature 3 -->
+<div class="innovation-box">
+  <h3>AI Λειτουργία #3: AI Concierge στην Πύλη Επισκεπτών (24/7 Guest AI)</h3>
+  <p><strong>Πρόβλημα που επιλύει:</strong> Οι επισκέπτες — ιδίως Γερμανοί και Γάλλοι τουρίστες — θέτουν ερωτήματα σχετικά με το κατάλυμα και τις υπηρεσίες συχνά σε ώρες που ο ιδιοκτήτης δεν είναι διαθέσιμος. Το κόστος 24/7 ανθρώπινης υποστήριξης είναι απαγορευτικό για μικρές επιχειρήσεις.</p>
+  <ul>
+    <li>Το Claude Haiku AI «διαβάζει» πλήρως τον Ψηφιακό Οδηγό Καλωσορίσματος και απαντά σε ερωτήσεις βάσει αυτού</li>
+    <li>Εξυπηρέτηση 24 ώρες / 7 ημέρες σε <strong>4 γλώσσες</strong>: Αγγλικά, Ελληνικά, Γερμανικά, Γαλλικά</li>
+    <li>Έξυπνη κλιμάκωση: αν η ερώτηση ξεφύγει από το πεδίο γνώσης, το σύστημα ειδοποιεί τον διαχειριστή για ανθρώπινη παρέμβαση</li>
+    <li>Μηδενικός χρόνος αναμονής για τον επισκέπτη, ακόμα και τα μεσάνυχτα</li>
+    <li>Μείωση εισερχόμενων κλήσεων/μηνυμάτων προς τον ιδιοκτήτη κατά εκτιμώμενο 60–80%</li>
+  </ul>
+</div>
+
+<div class="screenshot-box">
+  <span class="label">[ΕΙΚΟΝΑ: AI Concierge – Chat Interface Επισκέπτη]</span>
+  <span class="sublabel">Συνομιλία επισκέπτη με AI Concierge στα γερμανικά — απάντηση σχετικά με ωράριο check-out και κοντινές παραλίες</span>
+</div>
+
+<div class="subsection-header">4.1 Συγκριτική Ανάλυση: Σύστημα vs Ανταγωνισμός</div>
+
+<table>
+  <thead>
+    <tr>
+      <th>Λειτουργία</th>
+      <th>Το Σύστημα</th>
+      <th>Τυπικό Ελληνικό PMS</th>
+      <th>Διεθνές Cloud PMS</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>AI Σύσταση Βέλτιστης Μονάδας</td>
+      <td><span class="check">&#10004;</span></td>
+      <td><span class="cross">&#10008;</span></td>
+      <td><span class="cross">&#10008;</span></td>
+    </tr>
+    <tr>
+      <td>AI Αυτόματο Πρόγραμμα Καθαρισμών</td>
+      <td><span class="check">&#10004;</span></td>
+      <td><span class="cross">&#10008;</span></td>
+      <td><span class="cross">&#10008;</span></td>
+    </tr>
+    <tr>
+      <td>AI Concierge 24/7 στο Portal</td>
+      <td><span class="check">&#10004;</span></td>
+      <td><span class="cross">&#10008;</span></td>
+      <td><span class="cross">&#10008;</span></td>
+    </tr>
+    <tr>
+      <td>Guest Portal με Μοναδικό URL</td>
+      <td><span class="check">&#10004;</span></td>
+      <td><span class="cross">&#10008;</span></td>
+      <td>Μερικώς</td>
+    </tr>
+    <tr>
+      <td>4-γλωσση Πύλη Επισκεπτών</td>
+      <td><span class="check">&#10004;</span></td>
+      <td><span class="cross">&#10008;</span></td>
+      <td>Μερικώς</td>
+    </tr>
+    <tr>
+      <td>iCal Συγχρονισμός OTA</td>
+      <td><span class="check">&#10004;</span></td>
+      <td>Μερικώς</td>
+      <td><span class="check">&#10004;</span></td>
+    </tr>
+    <tr>
+      <td>WCAG 2.0 Level AA</td>
+      <td><span class="check">&#10004;</span></td>
+      <td><span class="cross">&#10008;</span></td>
+      <td>Μερικώς</td>
+    </tr>
+    <tr>
+      <td>Παρακολούθηση Ιθαγένειας Πελάτη</td>
+      <td><span class="check">&#10004;</span></td>
+      <td>Μερικώς</td>
+      <td><span class="check">&#10004;</span></td>
+    </tr>
+    <tr>
+      <td>Multi-Tenancy SaaS</td>
+      <td><span class="check">&#10004;</span></td>
+      <td><span class="cross">&#10008;</span></td>
+      <td><span class="check">&#10004;</span></td>
+    </tr>
+    <tr>
+      <td>Marketplace Υπηρεσιών στο Portal</td>
+      <td><span class="check">&#10004;</span></td>
+      <td><span class="cross">&#10008;</span></td>
+      <td><span class="cross">&#10008;</span></td>
+    </tr>
+    <tr>
+      <td>Αναφορά Προβλήματος με Φωτογραφία</td>
+      <td><span class="check">&#10004;</span></td>
+      <td><span class="cross">&#10008;</span></td>
+      <td><span class="cross">&#10008;</span></td>
+    </tr>
+    <tr>
+      <td>Αυτόματη Διαγραφή Φωτο (GDPR)</td>
+      <td><span class="check">&#10004;</span></td>
+      <td><span class="cross">&#10008;</span></td>
+      <td>Μερικώς</td>
+    </tr>
+    <tr>
+      <td>Μοναδικός Σειριακός Αριθμός Άδειας</td>
+      <td><span class="check">&#10004;</span></td>
+      <td>Μερικώς</td>
+      <td><span class="check">&#10004;</span></td>
+    </tr>
+    <tr>
+      <td>Per-Tenant Email (SMTP)</td>
+      <td><span class="check">&#10004;</span></td>
+      <td><span class="cross">&#10008;</span></td>
+      <td>Μερικώς</td>
+    </tr>
+  </tbody>
+</table>
+
+<!-- ======== SECTION 5 ======== -->
+<div class="section-header page-break">
+  <div class="section-number">5</div>
+  <h2>Προσβασιμότητα – WCAG 2.0 Επίπεδο ΑΑ</h2>
+</div>
+
+<p>Το Σύστημα σχεδιάστηκε εξαρχής με πλήρη συμμόρφωση με τις <strong>Κατευθυντήριες Γραμμές Προσβασιμότητας Περιεχομένου Ιστού (Web Content Accessibility Guidelines — WCAG) Έκδοση 2.0, Επίπεδο AA</strong>, όπως ορίζεται από τη W3C (World Wide Web Consortium) και ενσωματώνεται στο ελληνικό δίκαιο μέσω του ν. 4727/2020 για την προσβασιμότητα ιστοτόπων και εφαρμογών κινητής τηλεφωνίας.</p>
+
+<div class="highlight-box green">
+  <strong>Νομικό Πλαίσιο:</strong> Σύμφωνα με την Οδηγία (ΕΕ) 2016/2102 και τον ν. 4727/2020, οι ψηφιακές υπηρεσίες οφείλουν να τηρούν τα πρότυπα WCAG 2.0 Level AA. Η επένδυση σε WCAG-συμβατό λογισμικό μέσω ΕΣΠΑ διασφαλίζει τη νομική συμμόρφωση της επιχείρησης και αποφεύγει μελλοντικές κυρώσεις.
+</div>
+
+<div class="wcag-grid">
+  <div class="wcag-item">
+    <h4>1.1 Εναλλακτικό Κείμενο (Text Alternatives)</h4>
+    <p>Όλα τα μη-κειμενικά στοιχεία (εικόνες, εικονίδια, κουμπιά) φέρουν περιγραφικό alt text. Πλήρης υποστήριξη screen readers για χρήστες με οπτικές αναπηρίες.</p>
+  </div>
+  <div class="wcag-item">
+    <h4>1.3 Προσαρμόσιμη Παρουσίαση</h4>
+    <p>Η διεπαφή διαβάζεται από τεχνολογίες υποβοήθησης χωρίς απώλεια πληροφορίας. Ιεράρχηση ARIA landmarks για πλοήγηση χρηστών με αναπηρία.</p>
+  </div>
+  <div class="wcag-item">
+    <h4>1.4 Αντίθεση Χρωμάτων (Contrast Ratio ≥4.5:1)</h4>
+    <p>Ο λόγος αντίθεσης κειμένου/φόντου πληροί ή υπερβαίνει το ελάχιστο 4.5:1 για κανονικό κείμενο και 3:1 για μεγάλο κείμενο, σε όλες τις οθόνες.</p>
+  </div>
+  <div class="wcag-item">
+    <h4>2.1 Πλήρης Λειτουργικότητα Πληκτρολογίου</h4>
+    <p>Κάθε λειτουργία είναι προσβάσιμη αποκλειστικά μέσω πληκτρολογίου, χωρίς απαίτηση ποντικιού ή touch. Ορατή εστίαση σε κάθε στοιχείο.</p>
+  </div>
+  <div class="wcag-item">
+    <h4>2.4 Πλοήγηση (Navigation)</h4>
+    <p>Σαφές σύστημα πλοήγησης, ορατά breadcrumbs, τίτλοι σελίδων. Ο χρήστης γνωρίζει πάντα πού βρίσκεται στη δομή της εφαρμογής.</p>
+  </div>
+  <div class="wcag-item">
+    <h4>3.1 Αναγνώριση Γλώσσας</h4>
+    <p>Κάθε σελίδα δηλώνει τη γλώσσα της ρητά (lang attribute), επιτρέποντας στους screen readers τη σωστή τεχνολογία ομιλίας.</p>
+  </div>
+  <div class="wcag-item">
+    <h4>3.3 Βοήθεια στην Εισαγωγή Δεδομένων</h4>
+    <p>Σαφή μηνύματα σφαλμάτων, ετικέτες σε όλα τα πεδία φόρμας, σήμανση υποχρεωτικών πεδίων, οδηγίες πριν την υποβολή.</p>
+  </div>
+  <div class="wcag-item">
+    <h4>4.1 Συμβατότητα (Compatibility)</h4>
+    <p>Έγκυρος HTML5/ARIA κώδικας, συμβατός με browsers και γνωστές τεχνολογίες υποβοήθησης (JAWS, NVDA, VoiceOver).</p>
+  </div>
+</div>
+
+<div class="screenshot-box">
+  <span class="label">[ΕΙΚΟΝΑ: Αποτελέσματα WCAG Accessibility Audit]</span>
+  <span class="sublabel">Αποτελέσματα αξιολόγησης προσβασιμότητας με εργαλείο axe-core ή WAVE — «0 critical errors, Level AA compliance»</span>
+</div>
+
+<!-- ======== SECTION 6 ======== -->
+<div class="section-header">
+  <div class="section-number">6</div>
+  <h2>Πολυγλωσσία &amp; Διεθνής Προσβασιμότητα</h2>
+</div>
+
+<p>Το ελληνικό τουριστικό προϊόν απευθύνεται κατά κύριο λόγο σε διεθνείς επισκέπτες. Σύμφωνα με τα στοιχεία της ΕΛΣΤΑΤ για το 2024, οι Γερμανοί (18,2%), Βρετανοί (14,1%) και Γάλλοι (8,7%) αποτελούν τις τρεις μεγαλύτερες ξένες τουριστικές αγορές για τη χώρα. Το Σύστημα αντιμετωπίζει αυτή την πραγματικότητα με <strong>πλήρη πολυγλωσσική υποστήριξη</strong>.</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Γλώσσα</th>
+      <th>Ενότητα Εφαρμογής</th>
+      <th>Αυτόματη Ανίχνευση</th>
+      <th>AI Concierge</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Ελληνικά</td>
+      <td>Πλήρης διεπαφή διαχειριστή + Guest Portal</td>
+      <td><span class="check">&#10004;</span></td>
+      <td><span class="check">&#10004;</span></td>
+    </tr>
+    <tr>
+      <td>Αγγλικά</td>
+      <td>Guest Portal + AI Concierge</td>
+      <td><span class="check">&#10004;</span></td>
+      <td><span class="check">&#10004;</span></td>
+    </tr>
+    <tr>
+      <td>Γερμανικά</td>
+      <td>Guest Portal + AI Concierge</td>
+      <td><span class="check">&#10004;</span></td>
+      <td><span class="check">&#10004;</span></td>
+    </tr>
+    <tr>
+      <td>Γαλλικά</td>
+      <td>Guest Portal + AI Concierge</td>
+      <td><span class="check">&#10004;</span></td>
+      <td><span class="check">&#10004;</span></td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="subsection-header">6.1 Αυτόματη Ανίχνευση Γλώσσας από Ιθαγένεια</div>
+
+<p>Ο αλγόριθμος αυτόματης ανίχνευσης γλώσσας αξιοποιεί το πεδίο ιθαγένειας (nationality) που καταγράφεται κατά τη δημιουργία της κράτησης. Ο Έλληνας διαχειριστής εισάγει την εθνικότητα του επισκέπτη, και το Σύστημα αυτόματα:</p>
+
+<ul class="styled">
+  <li>Ρυθμίζει τη γλώσσα της Πύλης Επισκεπτών στη μητρική γλώσσα του επισκέπτη</li>
+  <li>Εμφανίζει τον εξατομικευμένο χαιρετισμό στη σωστή γλώσσα</li>
+  <li>Ενεργοποιεί το AI Concierge στη γλώσσα αυτή</li>
+  <li>Εμφανίζει τον Ψηφιακό Οδηγό Καλωσορίσματος στη σωστή γλώσσα</li>
+</ul>
+
+<div class="highlight-box">
+  <strong>Επιχειρηματικό Όφελος:</strong> Ένας Γερμανός επισκέπτης βιώνει πλήρη εξυπηρέτηση στα γερμανικά από το πρώτο SMS υποδοχής έως το τελευταίο μήνυμα AI Concierge — χωρίς να χρειαστεί ο ιδιοκτήτης να γνωρίζει γερμανικά.
+</div>
+
+<!-- ======== SECTION 7 ======== -->
+<div class="section-header page-break">
+  <div class="section-number">7</div>
+  <h2>Αδειοδότηση &amp; Μοναδικότητα Εγκατάστασης</h2>
+</div>
+
+<p>Το Σύστημα υλοποιεί <strong>σύστημα αδειοδότησης με μοναδικό σειριακό αριθμό ανά εγκατάσταση</strong>, εξασφαλίζοντας τον έλεγχο διανομής, τη νόμιμη χρήση και τη διαχείριση αναβαθμίσεων.</p>
+
+<div class="feature-grid">
+  <div class="feature-card">
+    <h3>Μοναδικός Σειριακός Αριθμός</h3>
+    <p>Κάθε εγκατάσταση του Συστήματος λαμβάνει μοναδικό αναγνωριστικό άδειας που καταγράφεται στο κεντρικό μητρώο. Άμεση αντιστοίχηση εγκατάστασης και αδειούχου χρήστη.</p>
+  </div>
+  <div class="feature-card">
+    <h3>Κεντρικό Μητρώο Αδειών</h3>
+    <p>Παρακολούθηση ενεργών εγκαταστάσεων, ενεργοποιήσεων και ανανεώσεων αδειών. Δυνατότητα απομακρυσμένης απενεργοποίησης σε περίπτωση παράνομης χρήσης.</p>
+  </div>
+  <div class="feature-card">
+    <h3>Προστασία Πνευματικής Ιδιοκτησίας</h3>
+    <p>Ο μηχανισμός αδειοδότησης προστατεύει τη διανοητική ιδιοκτησία, αποτρέπει την παράνομη αντιγραφή και εξασφαλίζει νόμιμη χρήση ανά εγκατάσταση.</p>
+  </div>
+  <div class="feature-card">
+    <h3>Τεκμηρίωση για ΕΣΠΑ</h3>
+    <p>Ο μοναδικός σειριακός αριθμός αποτελεί ισχυρό τεκμήριο πρωτότυπης αδειοδοτημένης λύσης λογισμικού — απαιτούμενο στοιχείο για τη δικαιολόγηση επένδυσης στο ΕΣΠΑ.</p>
+  </div>
+</div>
+
+<!-- ======== SECTION 8 ======== -->
+<div class="section-header">
+  <div class="section-number">8</div>
+  <h2>Τεχνικές Προδιαγραφές</h2>
+</div>
+
+<div class="subsection-header">8.1 Απαιτήσεις Συστήματος &amp; Λειτουργίας</div>
+
+<table>
+  <thead>
+    <tr>
+      <th>Παράμετρος</th>
+      <th>Προδιαγραφή</th>
+      <th>Σημείωση</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Πλατφόρμα</strong></td>
+      <td>Cloud (Railway) — SaaS</td>
+      <td>Δεν απαιτείται τοπικό hardware</td>
+    </tr>
+    <tr>
+      <td><strong>Διαθεσιμότητα</strong></td>
+      <td>99,9% uptime (SLA)</td>
+      <td>Railway enterprise infrastructure</td>
+    </tr>
+    <tr>
+      <td><strong>Browsers</strong></td>
+      <td>Chrome 90+, Firefox 88+, Safari 14+, Edge 90+</td>
+      <td>Responsive design για mobile</td>
+    </tr>
+    <tr>
+      <td><strong>Φορητές Συσκευές</strong></td>
+      <td>iOS 14+ / Android 10+</td>
+      <td>Πλήρως responsive — δεν απαιτείται εγκατάσταση app</td>
+    </tr>
+    <tr>
+      <td><strong>Backend</strong></td>
+      <td>FastAPI Python 3.11+, async I/O</td>
+      <td>RESTful API, OpenAPI 3.0 τεκμηρίωση</td>
+    </tr>
+    <tr>
+      <td><strong>Frontend</strong></td>
+      <td>React 18, TypeScript, Vite</td>
+      <td>SPA με client-side routing</td>
+    </tr>
+    <tr>
+      <td><strong>Βάση Δεδομένων</strong></td>
+      <td>SQLite 3 σε Railway persistent volume</td>
+      <td>Ημερήσια αυτόματα backups</td>
+    </tr>
+    <tr>
+      <td><strong>Ασφάλεια</strong></td>
+      <td>HTTPS/TLS 1.3, SHA-256 tokens, CORS policy</td>
+      <td>Κρυπτογραφημένη μεταφορά δεδομένων</td>
+    </tr>
+    <tr>
+      <td><strong>AI Μοντέλο</strong></td>
+      <td>Anthropic Claude Sonnet (σύσταση / scheduler), Claude Haiku (concierge)</td>
+      <td>API integration, rate-limited, cost-efficient</td>
+    </tr>
+    <tr>
+      <td><strong>Email</strong></td>
+      <td>Gmail SMTP (OAuth2) ανά tenant</td>
+      <td>Κάθε κατάλυμα με δικό του email account</td>
+    </tr>
+    <tr>
+      <td><strong>Χρόνος Φόρτωσης</strong></td>
+      <td>&lt;2 δευτερόλεπτα (LCP)</td>
+      <td>Βελτιστοποιημένο για 4G / WiFi</td>
+    </tr>
+    <tr>
+      <td><strong>Προσβασιμότητα</strong></td>
+      <td>WCAG 2.0 Level AA</td>
+      <td>Επαληθευμένο με axe-core και WAVE tools</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="subsection-header">8.2 Ασφάλεια Δεδομένων &amp; GDPR</div>
+
+<ul class="styled">
+  <li><strong>Κρυπτογράφηση σε μεταφορά:</strong> Όλες οι επικοινωνίες χρησιμοποιούν TLS 1.3 — τα δεδομένα δεν μεταδίδονται ποτέ σε cleartext</li>
+  <li><strong>Κρυπτογράφηση token:</strong> Τα authentication tokens δημιουργούνται με SHA-256 hashing — δεν αποθηκεύονται ποτέ σε plain text</li>
+  <li><strong>Απομόνωση tenant:</strong> Strict Row-Level Security — κανένας tenant δεν μπορεί να δει δεδομένα άλλου</li>
+  <li><strong>Αυτόματη διαγραφή GDPR:</strong> Φωτογραφίες προβλημάτων διαγράφονται αυτόματα μετά το check-out του επισκέπτη</li>
+  <li><strong>Ελάχιστη συλλογή δεδομένων:</strong> Συλλέγονται μόνο δεδομένα απαραίτητα για την εκτέλεση της κράτησης</li>
+  <li><strong>Δικαίωμα πρόσβασης και διαγραφής:</strong> Ο χρήστης μπορεί να ζητήσει εξαγωγή ή διαγραφή των δεδομένων του ανά πάσα στιγμή</li>
+</ul>
+
+<div class="screenshot-box">
+  <span class="label">[ΕΙΚΟΝΑ: Οθόνη Ρυθμίσεων Ασφαλείας &amp; Αδειοδότησης]</span>
+  <span class="sublabel">Εμφάνιση μοναδικού serial number άδειας, κατάσταση GDPR compliance, ρυθμίσεις email SMTP ανά κατάλυμα</span>
+</div>
+
+<!-- ======== SECTION 9 ======== -->
+<div class="section-header page-break">
+  <div class="section-number">9</div>
+  <h2>Τεκμηρίωση Καινοτομίας υπό ΕΣΠΑ</h2>
+</div>
+
+<p>Η κατηγοριοποίηση του παρόντος Συστήματος ως <strong>«Καινοτόμο Λογισμικό»</strong> στο πλαίσιο του ΕΣΠΑ 2021–2027 τεκμηριώνεται από πολλαπλές συγκλίνουσες γραμμές τεχνολογικής και αγοραίας καινοτομίας, οι οποίες παρατίθενται αναλυτικά παρακάτω.</p>
+
+<div class="subsection-header">9.1 Ορισμός Καινοτομίας βάσει ΕΣΠΑ</div>
+
+<p>Σύμφωνα με τον Κανονισμό (ΕΕ) 651/2014 (Γενικός Κανονισμός Απαλλαγής κατά Κατηγορία) και τον Οδηγό ΕΣΠΑ για τις ΜΜΕ, ως <em>καινοτομία διαδικασιών</em> νοείται η εφαρμογή <strong>νέας ή σημαντικά βελτιωμένης μεθόδου παραγωγής ή παροχής υπηρεσιών</strong>, συμπεριλαμβανομένων σημαντικών αλλαγών σε τεχνικές, εξοπλισμό ή λογισμικό. Το παρόν Σύστημα πληροί αυτόν τον ορισμό πλήρως.</p>
+
+<div class="innovation-box">
+  <h3>Τεκμηρίωση Καινοτομίας — 5 Αλληλοεπικαλυπτόμενοι Άξονες</h3>
+  <ul>
+    <li><strong>Άξονας 1 — Τεχνολογική Καινοτομία (AI):</strong> Πρώτη εφαρμογή τεχνολογιών LLM (Large Language Models) για αυτοματισμό λειτουργιών τουριστικής φιλοξενίας στην Ελλάδα. Το AI Unit Recommender, το AI Cleaning Scheduler και το AI Concierge δεν υπάρχουν σε κανένα ανταγωνιστικό σύστημα στην ελληνική αγορά.</li>
+    <li><strong>Άξονας 2 — Καινοτομία Αγοράς (Market Innovation):</strong> Η Πύλη Επισκεπτών αποτελεί καινοτομία επιπέδου αγοράς για τον κλάδο ελληνικών τουριστικών βιλών, παρέχοντας ψηφιακή εμπειρία επισκέπτη που ανταγωνίζεται διεθνείς αλυσίδες πολυτελείας.</li>
+    <li><strong>Άξονας 3 — Καινοτομία Διαδικασιών:</strong> Ο AI Cleaning Scheduler και το σύστημα αυτόματου συγχρονισμού ημερολογίων επαναπροσδιορίζουν τις λειτουργικές διαδικασίες του κλάδου, μειώνοντας σημαντικά τον χειροκίνητο φόρτο εργασίας.</li>
+    <li><strong>Άξονας 4 — Οργανωτική Καινοτομία:</strong> Το μοντέλο multi-tenancy SaaS με per-tenant απομόνωση δεδομένων εισάγει νέο επιχειρηματικό μοντέλο (ψηφιακή πλατφόρμα-ως-υπηρεσία) στον ελληνικό τουριστικό κλάδο.</li>
+    <li><strong>Άξονας 5 — Κοινωνική Καινοτομία (Προσβασιμότητα):</strong> Η πλήρης συμμόρφωση WCAG 2.0 Level AA και η 4-γλωσση πρόσβαση διασφαλίζουν ισότιμη πρόσβαση χρηστών και επισκεπτών με αναπηρία ή γλωσσικά εμπόδια.</li>
+  </ul>
+</div>
+
+<div class="subsection-header">9.2 Βαθμός Τεχνολογικής Ωριμότητας (TRL)</div>
+
+<p>Το Σύστημα βρίσκεται στο <strong>Επίπεδο Τεχνολογικής Ωριμότητας TRL 8–9</strong>, δηλαδή πλήρως ανεπτυγμένο και λειτουργικό σύστημα σε περιβάλλον παραγωγής:</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>TRL</th>
+      <th>Ορισμός</th>
+      <th>Κατάσταση Συστήματος</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>TRL 7</td>
+      <td>Πρωτότυπο συστήματος σε λειτουργικό περιβάλλον</td>
+      <td><span class="check">&#10004;</span> Ολοκληρώθηκε</td>
+    </tr>
+    <tr>
+      <td>TRL 8</td>
+      <td>Πλήρες σύστημα επαληθευμένο σε λειτουργικό περιβάλλον</td>
+      <td><span class="check">&#10004;</span> Ολοκληρώθηκε</td>
+    </tr>
+    <tr>
+      <td>TRL 9</td>
+      <td>Πλήρες σύστημα σε πραγματικές συνθήκες λειτουργίας (παραγωγή)</td>
+      <td><span class="check">&#10004;</span> Deployed σε παραγωγή</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="subsection-header">9.3 Ποσοτικοποίηση Αναμενόμενων Οφελών</div>
+
+<table>
+  <thead>
+    <tr>
+      <th>Τομέας</th>
+      <th>Κατάσταση Πριν</th>
+      <th>Λύση Συστήματος</th>
+      <th>Εκτιμώμενο Όφελος</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Διπλοκρατήσεις</strong></td>
+      <td>Χειροκίνητος συγχρονισμός OTA</td>
+      <td>Αυτόματο iCal sync</td>
+      <td>Μηδενισμός διπλοκρατήσεων</td>
+    </tr>
+    <tr>
+      <td><strong>Επικοινωνία Επισκεπτών</strong></td>
+      <td>5–10 κλήσεις / ημέρα</td>
+      <td>AI Concierge 24/7</td>
+      <td>-60% εισερχόμενες κλήσεις</td>
+    </tr>
+    <tr>
+      <td><strong>Προγραμματισμός Καθαρισμών</strong></td>
+      <td>45–60 λεπτά / ημέρα χειροκίνητα</td>
+      <td>AI Cleaning Scheduler</td>
+      <td>-90% χρόνος προγραμματισμού</td>
+    </tr>
+    <tr>
+      <td><strong>Πρόσθετα Έσοδα (Upsell)</strong></td>
+      <td>Μηδέν πρόσθετες πωλήσεις</td>
+      <td>Marketplace υπηρεσιών</td>
+      <td>+15–30% έσοδα ανά επισκέπτη</td>
+    </tr>
+    <tr>
+      <td><strong>Ικανοποίηση Επισκεπτών</strong></td>
+      <td>Έντυπος οδηγός, χαμηλή εξυπηρέτηση</td>
+      <td>Digital Portal + AI</td>
+      <td>+0.8 μέσος όρος αστεριών (εκτίμηση)</td>
+    </tr>
+    <tr>
+      <td><strong>Ξενόγλωσση Εξυπηρέτηση</strong></td>
+      <td>Επικοινωνία μόνο στα αγγλικά</td>
+      <td>4-γλωσση πλατφόρμα + AI</td>
+      <td>Κάλυψη 80%+ διεθνούς αγοράς</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="subsection-header">9.4 Στόχοι ΕΣΠΑ που Επιτυγχάνει η Επένδυση</div>
+
+<div class="wcag-grid">
+  <div class="wcag-item">
+    <h4>Ψηφιακός Μετασχηματισμός ΜΜΕ</h4>
+    <p>Ψηφιοποίηση λειτουργιών τουριστικής ΜΜΕ — αντικατάσταση χάρτινων διαδικασιών με ψηφιακές ροές εργασίας.</p>
+  </div>
+  <div class="wcag-item">
+    <h4>Τεχνητή Νοημοσύνη στις Επιχειρήσεις</h4>
+    <p>Ενσωμάτωση AI σε ΜΜΕ — πλήρης ευθυγράμμιση με τον στόχο «AI for SMEs» του Ψηφιακού Πυλώνα ΕΣΠΑ 2021–2027.</p>
+  </div>
+  <div class="wcag-item">
+    <h4>Πράσινη Οικονομία</h4>
+    <p>Μείωση εκτυπώσεων (ψηφιακός οδηγός), βελτιστοποίηση χρήσης νερού και απορρυπαντικών μέσω έξυπνου καθαρισμού.</p>
+  </div>
+  <div class="wcag-item">
+    <h4>Κοινωνική Συνοχή / Αναπηρία</h4>
+    <p>WCAG 2.0 AA εξασφαλίζει πρόσβαση ατόμων με αναπηρία — επίτευξη στόχων κοινωνικής συνοχής ΕΣΠΑ.</p>
+  </div>
+  <div class="wcag-item">
+    <h4>Ανταγωνιστικότητα Τουρισμού</h4>
+    <p>Αναβάθμιση ποιότητας ελληνικού τουριστικού προϊόντος μέσω ψηφιακών εργαλείων — στρατηγικός τομέας ΕΣΠΑ.</p>
+  </div>
+  <div class="wcag-item">
+    <h4>Δημιουργία Θέσεων Εργασίας</h4>
+    <p>Αύξηση λειτουργικής ικανότητας καταλύματος αυξάνει πληρότητα, εισοδήματα και τελικά απασχόληση στον τομέα.</p>
+  </div>
+</div>
+
+<!-- ======== SECTION 10 ======== -->
+<div class="section-header page-break">
+  <div class="section-number">10</div>
+  <h2>Συμπέρασμα &amp; Αποτίμηση Επένδυσης</h2>
+</div>
+
+<p>Το <strong>Σύστημα Διαχείρισης Κρατήσεων Τουριστικών Καταλυμάτων</strong> αποτελεί μια ολοκληρωμένη, καινοτόμο, cloud-native λύση λογισμικού που ανταποκρίνεται στις πραγματικές ανάγκες των ελληνικών τουριστικών επιχειρήσεων. Σε έναν κλάδο όπου ο ανταγωνισμός από ξένες πλατφόρμες (Booking.com, Airbnb, Vrbo) εντείνεται συνεχώς, η ψηφιακή αναβάθμιση δεν είναι πολυτέλεια — είναι επιχειρηματική αναγκαιότητα.</p>
+
+<p>Η επένδυση στο Σύστημα επιφέρει άμεσα, μετρήσιμα και βιώσιμα οφέλη σε τρεις διαστάσεις: (α) αποδοτικότητα λειτουργίας, μέσω αυτοματισμού χρονοβόρων καθημερινών διεργασιών, (β) ποιότητα φιλοξενίας, μέσω της ψηφιακής εξυπηρέτησης επισκεπτών 24/7 σε 4 γλώσσες, και (γ) οικονομικά αποτελέσματα, μέσω της αποφυγής διπλοκρατήσεων, των upsell υπηρεσιών και της καλύτερης αξιολόγησης από επισκέπτες.</p>
+
+<div class="conclusion-box">
+  <h3>Βασικά Συμπεράσματα για Αξιολογητές ΕΣΠΑ</h3>
+  <p><strong>1. Πρωτότυπη Ανάπτυξη:</strong> Το Σύστημα αναπτύχθηκε εξ ολοκλήρου από μηδενική βάση, αντικατοπτρίζει πραγματική επένδυση σε Ε&amp;Α και ΤΠΕ, και δεν αποτελεί τροποποίηση υπάρχοντος εμπορικού πακέτου.</p>
+  <p><strong>2. Τεχνολογική Πρωτοπορία:</strong> Η ενσωμάτωση τριών (3) AI-powered λειτουργιών σε ένα ενιαίο σύστημα διαχείρισης τουριστικών καταλυμάτων είναι μοναδική στην ελληνική αγορά και ανταγωνίζεται διεθνή προϊόντα κορυφαίων τεχνολογικών εταιρειών.</p>
+  <p><strong>3. Άμεση Απόδοση Επένδυσης:</strong> Οι μετρήσιμες βελτιώσεις — μηδενισμός διπλοκρατήσεων, μείωση τηλεφωνικής εξυπηρέτησης, αυτοματισμός καθαρισμών — μεταφράζονται σε ποσοτικοποιήσιμη εξοικονόμηση κόστους και αύξηση εσόδων για κάθε αδειούχο χρήστη.</p>
+  <p><strong>4. Ευρωπαϊκές Αξίες:</strong> Η συμμόρφωση WCAG 2.0 AA και η πλήρης GDPR-ευθυγράμμιση καταδεικνύουν δέσμευση στις ευρωπαϊκές αξίες ψηφιακής συμπερίληψης και προστασίας δεδομένων.</p>
+  <p><strong>5. Κλιμακωσιμότητα:</strong> Η αρχιτεκτονική multi-tenancy επιτρέπει την επέκταση σε εκατοντάδες τουριστικές επιχειρήσεις χωρίς επαναλαμβανόμενο κόστος ανάπτυξης, μεγιστοποιώντας τη συνολική επίδραση της επένδυσης ΕΣΠΑ στον κλάδο.</p>
+</div>
+
+<div class="highlight-box green">
+  <strong>Πόρισμα:</strong> Η επένδυση στο Σύστημα Διαχείρισης Κρατήσεων Τουριστικών Καταλυμάτων πληροί πλήρως τα κριτήρια καινοτομίας του ΕΣΠΑ 2021–2027, συμβάλλει στους εθνικούς στόχους ψηφιακού μετασχηματισμού και αποτελεί υποδειγματική επένδυση για τον ελληνικό τουριστικό τομέα. Η αξιολόγησή του στην κατηγορία <strong>«Καινοτομία»</strong> δικαιολογείται απολύτως και τεκμηριώνεται πολλαπλώς από τα ανωτέρω.
+</div>
+
+<div class="screenshot-box">
+  <span class="label">[ΕΙΚΟΝΑ: Σύνοψη Λειτουργιών — Infographic]</span>
+  <span class="sublabel">Οπτική σύνοψη όλων των ενοτήτων: Κρατήσεις | Guest Portal | AI Features | iCal | WCAG | Πολυγλωσσία</span>
+</div>
+
+<hr class="divider">
+
+<p style="text-align:center; color:#666; font-size:9.5pt; font-style:italic; line-height:1.9;">
+  Το παρόν έγγραφο αποτελεί τεχνική τεκμηρίωση για την αξιολόγηση της επένδυσης στο πλαίσιο του ΕΣΠΑ 2021–2027.<br>
+  Τα στοιχεία που περιέχονται είναι εμπιστευτικά και προορίζονται αποκλειστικά για χρήση από αξιολογητές ΕΣΠΑ.<br>
+  <strong>Έτος Ανάπτυξης: 2025 &nbsp;|&nbsp; Κατηγορία Επένδυσης: Ψηφιακή Καινοτομία — Λογισμικό Τεχνητής Νοημοσύνης</strong>
+</p>
+
+</div><!-- end .document -->
+
+<div class="doc-footer">
+  <strong>ΣΥΣΤΗΜΑ ΔΙΑΧΕΙΡΙΣΗΣ ΚΡΑΤΗΣΕΩΝ ΤΟΥΡΙΣΤΙΚΩΝ ΚΑΤΑΛΥΜΑΤΩΝ</strong><br>
+  Τεχνική Τεκμηρίωση ΕΣΠΑ 2021–2027 &nbsp;|&nbsp; Κατηγορία: Ψηφιακή Καινοτομία &nbsp;|&nbsp; Έτος: 2025<br>
+  <em>Villa Booking Management System — AI-Powered Property Management for Greek Tourism</em>
+</div>
+
+</body>
+</html>

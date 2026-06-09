@@ -20,5 +20,8 @@ COPY backend/ .
 # Copy built frontend into backend/static/
 COPY --from=frontend-builder /frontend/dist ./static
 
+# Copy docs (ΕΣΠΑ presentation etc.)
+COPY docs/ ./docs/
+
 EXPOSE 8000
 CMD uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}
