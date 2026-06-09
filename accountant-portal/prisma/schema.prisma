@@ -442,3 +442,14 @@ model ChatMessage {
   readAt         DateTime?
   createdAt      DateTime         @default(now())
 }
+
+model Invitation {
+  id          String    @id @default(cuid())
+  email       String
+  token       String    @unique @default(cuid())
+  note        String?
+  status      String    @default("PENDING") // PENDING | ACCEPTED | EXPIRED
+  expiresAt   DateTime
+  acceptedAt  DateTime?
+  createdAt   DateTime  @default(now())
+}

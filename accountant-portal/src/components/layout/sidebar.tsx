@@ -4,7 +4,7 @@ import { usePathname } from 'next/navigation'
 import { useSession, signOut } from 'next-auth/react'
 import { useEffect, useState } from 'react'
 import { cn } from '@/lib/utils'
-import { LayoutDashboard, Users, Building2, Zap, Target, Send, CreditCard, Percent, Inbox, BarChart3, Settings, LogOut, Globe, Mail, Phone, TrendingUp } from 'lucide-react'
+import { LayoutDashboard, Users, Building2, Zap, Target, Send, CreditCard, Percent, Inbox, BarChart3, Settings, LogOut, Globe, Mail, Phone, TrendingUp, UserPlus } from 'lucide-react'
 
 const navItems = [
   { href: '/', label: 'Dashboard', icon: LayoutDashboard, adminOnly: false },
@@ -14,10 +14,11 @@ const navItems = [
   { href: '/matches', label: 'Matches', icon: Target, adminOnly: false },
   { href: '/campaigns', label: 'Καμπάνιες', icon: Send, adminOnly: false },
   { href: '/payments', label: 'Πληρωμές', icon: CreditCard, adminOnly: true },
-  { href: '/commissions', label: 'Προμήθειες', icon: Percent, adminOnly: true },
+  { href: '/commissions', label: 'Προμήθειες', icon: Percent, adminOnly: false },
   { href: '/requests', label: 'Αιτήματα', icon: Inbox, adminOnly: false },
   { href: '/reports', label: 'Αναφορές', icon: BarChart3, adminOnly: false },
   { href: '/analytics', label: 'Αναλυτικά', icon: TrendingUp, adminOnly: true },
+  { href: '/invitations', label: 'Προσκλήσεις', icon: UserPlus, adminOnly: true },
   { href: '/settings', label: 'Ρυθμίσεις', icon: Settings, adminOnly: true },
 ]
 

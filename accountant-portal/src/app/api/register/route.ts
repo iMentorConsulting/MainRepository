@@ -14,6 +14,7 @@ const schema = z.object({
   clientCountRange: z.string().min(1),
   cooperationGoal: z.string().min(1),
   notes: z.string().optional(),
+  invitationToken: z.string().optional(),
 })
 
 const COOPERATION_GOAL_LABELS: Record<string, string> = {
@@ -29,6 +30,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Μη έγκυρα στοιχεία φόρμας' }, { status: 400 })
   }
   const data = parsed.data
+
+  // Validate invitation token if provided
+  if (data.invitationToken) {
+    const inv = await prisma.invitation.findUnique({ where: { token: data.invitationToken } })
+    if (!inv || inv.status !== 'PENDING' || inv.expiresAt < new Date()) {
+      return NextResponse.json({ error: 'Ο σύνδεσμος πρόσκλησης δεν ισχύει ή έχει λήξει.' }, { status: 400 })
+    }
+  }
 
   const existingUser = await prisma.user.findUnique({ where: { email: data.email } })
   if (existingUser) {
@@ -88,6 +97,14 @@ export async function POST(request: NextRequest) {
       html: `<p>Νέο γραφείο εγγράφηκε και αναμένει έγκριση πρόσβασης ΑΑΔΕ: <strong>${data.officeName}</strong> (${data.contactPerson}, ${data.email}).</p>
         <p>Τοποθεσία: ${data.officeLocation}<br>Αριθμός πελατών: ${data.clientCountRange}<br>Στόχος συνεργασίας: ${goalLabel}</p>
         <p>Μεταβείτε στο <a href="${process.env.APP_URL || 'https://logistis.i-mentor.gr'}/accountants?pending=1">/accountants</a> για έγκριση.</p>`,
+    })
+  }
+
+  // Mark invitation as accepted
+  if (data.invitationToken) {
+    await prisma.invitation.updateMany({
+      where: { token: data.invitationToken },
+      data: { status: 'ACCEPTED', acceptedAt: new Date() },
     })
   }
 
