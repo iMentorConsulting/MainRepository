@@ -350,20 +350,22 @@ export default function CommissionsPage() {
           </p>
           <div className="flex flex-wrap gap-2">
             {policies.map((p: any) => {
-              const rate = p.commissionType === 'PERCENTAGE'
-                ? `${p.percentage}%`
+              const stage = p.appliesToApplication && p.appliesToImplementation
+                ? 'αίτηση & υλοποίηση'
+                : p.appliesToApplication
+                  ? 'αίτηση'
+                  : 'υλοποίηση'
+              const rateLabel = p.commissionType === 'PERCENTAGE'
+                ? `${p.percentage}% × ${stage}`
                 : p.fixedAmount != null
-                  ? `${(p.fixedAmount / 100).toLocaleString('el-GR', { style: 'currency', currency: 'EUR' })}`
+                  ? `${(p.fixedAmount / 100).toFixed(0)}€ / ${stage}`
                   : '—'
               const scope = p.program?.title || p.service?.name || 'Γενική'
               return (
                 <div key={p.id} className="bg-white border border-indigo-100 rounded-xl px-3 py-2 text-xs shadow-sm flex items-center gap-2">
                   <span className="font-semibold text-gray-700">{scope}</span>
-                  <span className="text-indigo-600 font-bold">{rate}</span>
-                  {p.minAmount && <span className="text-gray-400">ελάχ. {(p.minAmount/100).toFixed(0)}€</span>}
-                  {p.maxAmount && <span className="text-gray-400">μέγ. {(p.maxAmount/100).toFixed(0)}€</span>}
-                  <span className="text-gray-300">·</span>
-                  <span className="text-gray-400">{p.name}</span>
+                  <span className="text-indigo-600 font-bold">{rateLabel}</span>
+                  {p.name && <><span className="text-gray-300">·</span><span className="text-gray-400">{p.name}</span></>}
                 </div>
               )
             })}

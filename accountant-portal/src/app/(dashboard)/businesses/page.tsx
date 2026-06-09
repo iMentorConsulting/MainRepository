@@ -257,16 +257,16 @@ export default function BusinessesPage() {
               </Button>
             )}
             {isAdmin && selected.size > 0 && (
-              <>
-                <Button variant="outline" size="sm" onClick={() => setAssignOpen(true)}>
-                  <UserCog size={14} className="mr-1" />
-                  Ανάθεση σε Λογιστή ({selected.size})
-                </Button>
-                <Button variant="destructive" size="sm" onClick={handleBulkDelete} loading={deleting}>
-                  <Trash2 size={14} className="mr-1" />
-                  Διαγραφή ({selected.size})
-                </Button>
-              </>
+              <Button variant="outline" size="sm" onClick={() => setAssignOpen(true)}>
+                <UserCog size={14} className="mr-1" />
+                Ανάθεση σε Λογιστή ({selected.size})
+              </Button>
+            )}
+            {selected.size > 0 && (
+              <Button variant="destructive" size="sm" onClick={handleBulkDelete} loading={deleting}>
+                <Trash2 size={14} className="mr-1" />
+                Διαγραφή ({selected.size})
+              </Button>
             )}
           </div>
           <div className="flex flex-wrap gap-2 items-end">
