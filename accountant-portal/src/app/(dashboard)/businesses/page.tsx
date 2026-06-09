@@ -13,131 +13,6 @@ import { Plus, Search, Download, Filter, Trash2, UserCog, Send, Sparkles, Upload
 import { QuickSendModal } from '@/components/quick-send-modal'
 import * as XLSX from 'xlsx'
 
-// ── Bulk Enrich Modal ─────────────────────────────────────────────────────────
-function EnrichModal({ onClose }: { onClose: () => void }) {
-  const [rows, setRows] = useState<any[]>([])
-  const [result, setResult] = useState<{ updated: number; notFound: number } | null>(null)
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState('')
-
-  function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
-    const reader = new FileReader()
-    reader.onload = ev => {
-      try {
-        const wb = XLSX.read(ev.target?.result, { type: 'binary' })
-        const ws = wb.Sheets[wb.SheetNames[0]]
-        const data: any[] = XLSX.utils.sheet_to_json(ws, { defval: '' })
-        // Normalise column names (case-insensitive)
-        const normalised = data.map(row => {
-          const norm: any = {}
-          for (const key of Object.keys(row)) {
-            const k = key.toLowerCase().trim()
-            if (k === 'afm' || k === 'αφμ') norm.afm = String(row[key]).trim()
-            if (k === 'email') norm.email = String(row[key]).trim()
-            if (k.includes('phone') || k.includes('τηλ') || k === 'τηλέφωνο') norm.phone = String(row[key]).trim()
-            if (k.includes('viber')) norm.viberPhone = String(row[key]).trim()
-          }
-          return norm
-        }).filter(r => r.afm)
-        setRows(normalised)
-        setError('')
-      } catch {
-        setError('Σφάλμα ανάγνωσης αρχείου. Βεβαιωθείτε ότι είναι έγκυρο Excel (.xlsx).')
-      }
-    }
-    reader.readAsBinaryString(file)
-  }
-
-  async function submit() {
-    if (rows.length === 0) return
-    setSaving(true)
-    setError('')
-    const res = await fetch('/api/businesses/enrich', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ updates: rows }),
-    })
-    setSaving(false)
-    if (res.ok) setResult(await res.json())
-    else setError('Σφάλμα ενημέρωσης. Δοκιμάστε ξανά.')
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-          <div className="flex items-center gap-2">
-            <Sparkles size={18} className="text-indigo-500" />
-            <h2 className="text-base font-bold text-gray-900">Μαζικός Εμπλουτισμός Στοιχείων</h2>
-          </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
-        </div>
-
-        {result ? (
-          <div className="p-6 text-center space-y-4">
-            <CheckCircle2 size={48} className="text-green-500 mx-auto" />
-            <div>
-              <p className="text-lg font-bold text-gray-900">{result.updated} επιχειρήσεις ενημερώθηκαν!</p>
-              {result.notFound > 0 && <p className="text-sm text-amber-600 mt-1">{result.notFound} ΑΦΜ δεν βρέθηκαν στο σύστημα.</p>}
-            </div>
-            <Button onClick={onClose}>Κλείσιμο</Button>
-          </div>
-        ) : (
-          <div className="p-6 space-y-5">
-            <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-4 text-sm text-indigo-800 space-y-1">
-              <p className="font-semibold">Πώς λειτουργεί:</p>
-              <p>1. Ετοιμάστε ένα Excel με στήλες: <code className="bg-indigo-100 px-1 rounded">ΑΦΜ</code>, <code className="bg-indigo-100 px-1 rounded">Email</code>, <code className="bg-indigo-100 px-1 rounded">Τηλέφωνο</code></p>
-              <p>2. Ανεβάστε το αρχείο — τα στοιχεία συμπληρώνονται αυτόματα</p>
-              <p className="text-indigo-600">✓ Μόνο τα πεδία που έχετε συμπληρώσει ενημερώνονται</p>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Αρχείο Excel (.xlsx)</label>
-              <label className="flex flex-col items-center justify-center gap-2 border-2 border-dashed border-gray-300 rounded-xl p-6 cursor-pointer hover:border-indigo-400 hover:bg-indigo-50 transition-all">
-                <Upload size={24} className="text-gray-400" />
-                <span className="text-sm text-gray-500">Κάντε κλικ για επιλογή ή σύρετε το αρχείο εδώ</span>
-                {rows.length > 0 && <span className="text-xs text-indigo-600 font-semibold">{rows.length} εγγραφές έτοιμες</span>}
-                <input type="file" accept=".xlsx,.xls" onChange={handleFile} className="hidden" />
-              </label>
-            </div>
-
-            {rows.length > 0 && (
-              <div className="bg-gray-50 rounded-xl border border-gray-200 overflow-hidden">
-                <div className="px-4 py-2 bg-gray-100 text-xs font-semibold text-gray-600 grid grid-cols-4 gap-2">
-                  <span>ΑΦΜ</span><span>Email</span><span>Τηλέφωνο</span><span>Viber</span>
-                </div>
-                <div className="max-h-40 overflow-y-auto divide-y divide-gray-100">
-                  {rows.slice(0, 20).map((r, i) => (
-                    <div key={i} className="px-4 py-1.5 text-xs text-gray-700 grid grid-cols-4 gap-2">
-                      <span className="font-mono">{r.afm}</span>
-                      <span className="truncate text-gray-500">{r.email || '—'}</span>
-                      <span className="truncate text-gray-500">{r.phone || '—'}</span>
-                      <span className="truncate text-gray-500">{r.viberPhone || '—'}</span>
-                    </div>
-                  ))}
-                  {rows.length > 20 && <div className="px-4 py-1.5 text-xs text-gray-400">...και {rows.length - 20} ακόμα</div>}
-                </div>
-              </div>
-            )}
-
-            {error && <div className="flex items-center gap-2 text-sm text-red-600"><AlertCircle size={15} />{error}</div>}
-
-            <div className="flex justify-end gap-3">
-              <Button variant="outline" onClick={onClose}>Ακύρωση</Button>
-              <Button disabled={rows.length === 0} loading={saving} onClick={submit}>
-                <Sparkles size={15} className="mr-1" />
-                Εμπλουτισμός {rows.length > 0 ? `(${rows.length} εγγραφές)` : ''}
-              </Button>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}
-
 interface Accountant {
   id: string
   officeName: string
@@ -168,6 +43,133 @@ interface Business {
 
 const PAGE_SIZE = 20
 
+// ── Bulk Enrich Modal ─────────────────────────────────────────────────────────
+function EnrichModal({ onClose }: { onClose: () => void }) {
+  const [rows, setRows] = useState<any[]>([])
+  const [result, setResult] = useState<{ updated: number; notFound: number } | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+
+  function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = ev => {
+      try {
+        const wb = XLSX.read(ev.target?.result, { type: 'binary' })
+        const ws = wb.Sheets[wb.SheetNames[0]]
+        const data: any[] = XLSX.utils.sheet_to_json(ws, { defval: '' })
+        const normalised = data.map(row => {
+          const norm: any = {}
+          for (const key of Object.keys(row)) {
+            const k = key.toLowerCase().trim()
+            if (k === 'afm' || k === 'αφμ') norm.afm = String(row[key]).trim()
+            if (k === 'email') norm.email = String(row[key]).trim()
+            if (k.includes('phone') || k.includes('τηλ') || k === 'τηλέφωνο') norm.phone = String(row[key]).trim()
+            if (k.includes('viber')) norm.viberPhone = String(row[key]).trim()
+          }
+          return norm
+        }).filter((r: any) => r.afm)
+        setRows(normalised)
+        setError('')
+      } catch {
+        setError('Σφάλμα ανάγνωσης αρχείου. Βεβαιωθείτε ότι είναι έγκυρο Excel (.xlsx).')
+      }
+    }
+    reader.readAsBinaryString(file)
+  }
+
+  async function submit() {
+    if (rows.length === 0) return
+    setSaving(true)
+    setError('')
+    const res = await fetch('/api/businesses/enrich', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ updates: rows }),
+    })
+    setSaving(false)
+    if (res.ok) setResult(await res.json())
+    else setError('Σφάλμα ενημέρωσης. Δοκιμάστε ξανά.')
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+          <div className="flex items-center gap-2">
+            <Sparkles size={18} className="text-indigo-500" />
+            <h2 className="text-base font-bold text-gray-900">Εμπλουτισμός Email & Τηλεφώνων</h2>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
+        </div>
+
+        {result ? (
+          <div className="p-6 text-center space-y-4">
+            <CheckCircle2 size={48} className="text-green-500 mx-auto" />
+            <div>
+              <p className="text-lg font-bold text-gray-900">{result.updated} επιχειρήσεις ενημερώθηκαν!</p>
+              {result.notFound > 0 && <p className="text-sm text-amber-600 mt-1">{result.notFound} ΑΦΜ δεν βρέθηκαν στο σύστημα.</p>}
+            </div>
+            <Button onClick={onClose}>Κλείσιμο</Button>
+          </div>
+        ) : (
+          <div className="p-6 space-y-5">
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-900 space-y-2">
+              <p className="font-bold text-amber-800">📋 Προσθέσατε πελάτες μόνο με ΑΦΜ και τώρα θέλετε να στείλετε καμπάνια;</p>
+              <p>Χωρίς email ή τηλέφωνο <strong>τα μηνύματα δεν φτάνουν πουθενά</strong>. Εδώ μπορείτε να προσθέσετε τα στοιχεία επικοινωνίας μαζικά — για όλους τους πελάτες ταυτόχρονα.</p>
+              <div className="mt-2 space-y-1 text-amber-800">
+                <p className="font-medium">👇 Τι κάνετε:</p>
+                <p>1. Ετοιμάστε Excel με 2 στήλες: <code className="bg-amber-100 px-1 rounded font-mono">ΑΦΜ</code> και <code className="bg-amber-100 px-1 rounded font-mono">Email</code> (ή <code className="bg-amber-100 px-1 rounded font-mono">Τηλέφωνο</code>)</p>
+                <p>2. Ανεβάστε το — το σύστημα βρίσκει αυτόματα τον κάθε πελάτη και συμπληρώνει τα στοιχεία</p>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Αρχείο Excel (.xlsx)</label>
+              <label className="flex flex-col items-center justify-center gap-2 border-2 border-dashed border-gray-300 rounded-xl p-6 cursor-pointer hover:border-indigo-400 hover:bg-indigo-50 transition-all">
+                <Upload size={24} className="text-gray-400" />
+                <span className="text-sm text-gray-500">Κάντε κλικ για επιλογή ή σύρετε το αρχείο εδώ</span>
+                {rows.length > 0 && <span className="text-xs text-indigo-600 font-semibold">{rows.length} εγγραφές έτοιμες</span>}
+                <input type="file" accept=".xlsx,.xls" onChange={handleFile} className="hidden" />
+              </label>
+            </div>
+
+            {rows.length > 0 && (
+              <div className="bg-gray-50 rounded-xl border border-gray-200 overflow-hidden">
+                <div className="px-4 py-2 bg-gray-100 text-xs font-semibold text-gray-600 grid grid-cols-4 gap-2">
+                  <span>ΑΦΜ</span><span>Email</span><span>Τηλέφωνο</span><span>Viber</span>
+                </div>
+                <div className="max-h-40 overflow-y-auto divide-y divide-gray-100">
+                  {rows.slice(0, 20).map((r: any, i: number) => (
+                    <div key={i} className="px-4 py-1.5 text-xs text-gray-700 grid grid-cols-4 gap-2">
+                      <span className="font-mono">{r.afm}</span>
+                      <span className="truncate text-gray-500">{r.email || '—'}</span>
+                      <span className="truncate text-gray-500">{r.phone || '—'}</span>
+                      <span className="truncate text-gray-500">{r.viberPhone || '—'}</span>
+                    </div>
+                  ))}
+                  {rows.length > 20 && <div className="px-4 py-1.5 text-xs text-gray-400">...και {rows.length - 20} ακόμα</div>}
+                </div>
+              </div>
+            )}
+
+            {error && <div className="flex items-center gap-2 text-sm text-red-600"><AlertCircle size={15} />{error}</div>}
+
+            <div className="flex justify-end gap-3">
+              <Button variant="outline" onClick={onClose}>Ακύρωση</Button>
+              <Button disabled={rows.length === 0} loading={saving} onClick={submit}>
+                <Sparkles size={15} className="mr-1" />
+                Εμπλουτισμός {rows.length > 0 ? `(${rows.length} εγγραφές)` : ''}
+              </Button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 export default function BusinessesPage() {
   const { data: session } = useSession()
   const isAdmin = session?.user?.role === 'ADMIN'
@@ -190,9 +192,9 @@ export default function BusinessesPage() {
 
   const [quickSendOpen, setQuickSendOpen] = useState(false)
   const [assignOpen, setAssignOpen] = useState(false)
-  const [enrichOpen, setEnrichOpen] = useState(false)
   const [assignAccountantId, setAssignAccountantId] = useState('')
   const [assigning, setAssigning] = useState(false)
+  const [enrichOpen, setEnrichOpen] = useState(false)
 
   const fetchData = useCallback(async () => {
     setLoading(true)
@@ -310,6 +312,8 @@ export default function BusinessesPage() {
 
   return (
     <div className="space-y-6">
+      {enrichOpen && <EnrichModal onClose={() => { setEnrichOpen(false); fetchData() }} />}
+
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Επιχειρήσεις</h1>
@@ -335,6 +339,7 @@ export default function BusinessesPage() {
         </div>
       </div>
 
+      {/* Accountant onboarding cards — always visible */}
       {!isAdmin && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Link href="/businesses/new?mode=afm" className="group block">
@@ -534,8 +539,6 @@ export default function BusinessesPage() {
           </>
         )}
       </div>
-
-      {enrichOpen && <EnrichModal onClose={() => setEnrichOpen(false)} />}
 
       {quickSendOpen && (
         <QuickSendModal

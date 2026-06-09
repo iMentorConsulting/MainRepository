@@ -219,12 +219,7 @@ export default function MatchesPage() {
                     </button>
                   </Th>
                   <Th>ΑΦΜ</Th>
-                  <Th>
-                    <button onClick={() => toggleSort('matchScore')} className="flex items-center hover:text-indigo-700 transition-colors">
-                      Σκορ <SortIcon col="matchScore" sortBy={sortBy} sortDir={sortDir} />
-                    </button>
-                  </Th>
-                  <Th>Πρόγραμμα</Th>
+                  <Th>Επιλέξιμο Πρόγραμμα</Th>
                   {isAdmin && <Th>Λογιστής</Th>}
                   <Th>Σημειώσεις</Th>
                   <Th>Καμπάνια</Th>
@@ -254,17 +249,6 @@ export default function MatchesPage() {
                           </Link>
                         </Td>
                         <Td className="font-mono text-xs">{m.business?.afm}</Td>
-                        <Td>
-                          <div className="flex items-center gap-2">
-                            <div className="w-14 h-1.5 bg-gray-200 rounded-full">
-                              <div
-                                className={`h-1.5 rounded-full ${m.matchScore >= 80 ? 'bg-green-500' : m.matchScore >= 60 ? 'bg-yellow-500' : 'bg-orange-500'}`}
-                                style={{ width: `${m.matchScore}%` }}
-                              />
-                            </div>
-                            <span className="text-xs font-medium">{Math.round(m.matchScore)}%</span>
-                          </div>
-                        </Td>
                         <Td>
                           <Link href={`/programs/${m.programId}`} className="text-blue-600 hover:underline text-sm">
                             {m.program?.title}

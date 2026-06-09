@@ -1,6 +1,6 @@
 'use client'
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useEffect } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -33,8 +33,13 @@ type FormData = z.infer<typeof schema>
 
 export default function NewBusinessPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [activities, setActivities] = useState<any[]>([])
   const [importMode, setImportMode] = useState(false)
+
+  useEffect(() => {
+    if (searchParams.get('mode') === 'excel') setImportMode(true)
+  }, [searchParams])
   const [importFile, setImportFile] = useState<File | null>(null)
   const [importing, setImporting] = useState(false)
 

@@ -24,7 +24,7 @@ export function QuickSendModal({ businesses, onClose, onSent }: QuickSendModalPr
   const [message, setMessage] = useState('')
   const [sending, setSending] = useState(false)
   const [result, setResult] = useState<{ sent: number; failed: number } | null>(null)
-  const [showTemplates, setShowTemplates] = useState(false)
+  const [showTemplates, setShowTemplates] = useState(true)
   const [matchedPrograms, setMatchedPrograms] = useState<{ id: string; title: string }[]>([])
   const [programId, setProgramId] = useState('')
 
@@ -153,28 +153,33 @@ export function QuickSendModal({ businesses, onClose, onSent }: QuickSendModalPr
             </div>
           )}
 
-          {/* Template picker */}
-          <div>
-            <button
-              onClick={() => setShowTemplates(!showTemplates)}
-              className="flex items-center gap-2 text-xs font-medium text-indigo-600 hover:text-indigo-800 transition-colors"
-            >
-              {showTemplates ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-              Επιλογή προτύπου μηνύματος
-            </button>
+          {/* Template picker — primary action */}
+          <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-3">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-bold text-indigo-700 uppercase tracking-wide">✨ Επιλέξτε έτοιμο πρότυπο μηνύματος</span>
+              <button
+                onClick={() => setShowTemplates(!showTemplates)}
+                className="text-xs text-indigo-500 hover:text-indigo-700"
+              >
+                {showTemplates ? 'Σύμπτυξη ▲' : 'Εμφάνιση ▼'}
+              </button>
+            </div>
             {showTemplates && (
-              <div className="mt-2 grid grid-cols-1 gap-2">
+              <div className="grid grid-cols-1 gap-2">
                 {templates.map(tpl => (
                   <button
                     key={tpl.id}
                     onClick={() => applyTemplate(tpl)}
-                    className="text-left p-3 rounded-xl border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50 transition-all"
+                    className="text-left p-3 rounded-xl border border-indigo-200 bg-white hover:border-indigo-400 hover:bg-indigo-50 transition-all"
                   >
                     <div className="text-xs font-semibold text-slate-800">{tpl.label}</div>
                     <div className="text-xs text-slate-500 mt-0.5">{tpl.description}</div>
                   </button>
                 ))}
               </div>
+            )}
+            {!showTemplates && message && (
+              <p className="text-xs text-indigo-600 italic">Πρότυπο επιλεγμένο ✓ — επεξεργαστείτε παρακάτω αν θέλετε</p>
             )}
           </div>
 
