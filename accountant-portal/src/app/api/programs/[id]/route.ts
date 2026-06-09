@@ -56,6 +56,13 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  await prisma.program.delete({ where: { id: params.id } })
+  // Delete dependent records before the program (no cascade set on these relations)
+  await prisma.$transaction([
+    prisma.programMatch.deleteMany({ where: { programId: params.id } }),
+    prisma.imentorRequest.deleteMany({ where: { programId: params.id } }),
+    prisma.paymentRequest.deleteMany({ where: { programId: params.id } }),
+    prisma.commissionPolicy.deleteMany({ where: { programId: params.id } }),
+    prisma.program.delete({ where: { id: params.id } }),
+  ])
   return NextResponse.json({ success: true })
 }
