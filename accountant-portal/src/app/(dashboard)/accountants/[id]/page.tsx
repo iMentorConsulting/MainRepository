@@ -68,7 +68,10 @@ export default function AccountantDetailPage() {
       body: JSON.stringify({ ...data, logoUrl }),
     })
     if (res.ok) {
-      router.push('/accountants')
+      if (isAdmin) router.push('/accountants')
+      else alert('Τα στοιχεία αποθηκεύτηκαν!')
+    } else {
+      alert('Σφάλμα αποθήκευσης. Δοκιμάστε ξανά.')
     }
   }
 
@@ -99,13 +102,13 @@ export default function AccountantDetailPage() {
             <CardContent>
               <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
                 {!isAdmin && (
-                  <p className="text-xs text-gray-400 -mt-1">Τα στοιχεία γραφείου διαχειρίζεται η I-MENTOR. Μπορείτε να ανεβάσετε το δικό σας λογότυπο παρακάτω.</p>
+                  <p className="text-xs text-gray-400 -mt-1">Μπορείτε να επεξεργαστείτε τα στοιχεία του γραφείου σας παρακάτω. Email, κατάσταση και σημειώσεις διαχειρίζεται η I-MENTOR.</p>
                 )}
-                <Input label="Επωνυμία *" {...register('officeName')} error={errors.officeName?.message} disabled={!isAdmin} />
-                <Input label="Υπεύθυνος *" {...register('contactPerson')} error={errors.contactPerson?.message} disabled={!isAdmin} />
+                <Input label="Επωνυμία *" {...register('officeName')} error={errors.officeName?.message} />
+                <Input label="Υπεύθυνος *" {...register('contactPerson')} error={errors.contactPerson?.message} />
                 <div className="grid grid-cols-2 gap-4">
                   <Input label="Email *" type="email" {...register('email')} error={errors.email?.message} disabled={!isAdmin} />
-                  <Input label="Τηλέφωνο" {...register('phone')} disabled={!isAdmin} />
+                  <Input label="Τηλέφωνο" {...register('phone')} />
                 </div>
                 <LogoUploader
                   label="Λογότυπο γραφείου (PNG, transparent)"
@@ -113,7 +116,7 @@ export default function AccountantDetailPage() {
                   onChange={setLogoUrl}
                   helperText="Εμφανίζεται στο πάνω μέρος των email καμπανιών προς τους πελάτες σας. Συνιστάται PNG με διαφανές φόντο, έως 1MB."
                 />
-                <Input label="Διεύθυνση" {...register('address')} disabled={!isAdmin} />
+                <Input label="Διεύθυνση" {...register('address')} />
                 <Textarea label="Σημειώσεις" {...register('notes')} rows={3} disabled={!isAdmin} />
                 <div className="flex items-center gap-2">
                   <input type="checkbox" {...register('active')} id="active" className="rounded" disabled={!isAdmin} />
@@ -121,7 +124,7 @@ export default function AccountantDetailPage() {
                 </div>
                 <div className="flex gap-3 pt-2">
                   <Button type="submit" loading={isSubmitting}>Αποθήκευση</Button>
-                  <Link href="/accountants"><Button variant="outline">Ακύρωση</Button></Link>
+                  <Link href={isAdmin ? '/accountants' : '/dashboard'}><Button variant="outline">Ακύρωση</Button></Link>
                 </div>
               </form>
             </CardContent>
