@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { MatchCard } from '@/components/matching/match-card'
-import { ArrowLeft, Zap, Calendar, Tag, ExternalLink, Archive, Trash2 } from 'lucide-react'
+import { ArrowLeft, Zap, Calendar, Tag, ExternalLink, Archive, Trash2, Bell } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { formatDate } from '@/lib/utils'
 
@@ -29,6 +29,8 @@ export default function ProgramDetailPage() {
   const [running, setRunning] = useState(false)
   const [archiving, setArchiving] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [notifying, setNotifying] = useState(false)
+  const [pendingNotifications, setPendingNotifications] = useState<number | null>(null)
   const isAdmin = session?.user?.role === 'ADMIN'
 
   useEffect(() => {
@@ -36,6 +38,10 @@ export default function ProgramDetailPage() {
       .then(r => r.json())
       .then(setProgram)
       .finally(() => setLoading(false))
+    fetch(`/api/programs/${id}/notify`)
+      .then(r => r.json())
+      .then(d => setPendingNotifications(d.pending ?? 0))
+      .catch(() => {})
   }, [id])
 
   async function toggleArchive() {
@@ -61,11 +67,24 @@ export default function ProgramDetailPage() {
     setRunning(true)
     const res = await fetch(`/api/programs/${id}/match`, { method: 'POST' })
     const data = await res.json()
-    alert(`Βρέθηκαν ${data.count} matches!`)
-    // Reload
-    const updated = await fetch(`/api/programs/${id}`).then(r => r.json())
+    const [updated, notifyData] = await Promise.all([
+      fetch(`/api/programs/${id}`).then(r => r.json()),
+      fetch(`/api/programs/${id}/notify`).then(r => r.json()),
+    ])
     setProgram(updated)
+    setPendingNotifications(notifyData.pending ?? 0)
+    alert(`Βρέθηκαν ${data.count} νέα matches! Μπορείτε τώρα να στείλετε ειδοποιήσεις στους λογιστές.`)
     setRunning(false)
+  }
+
+  async function sendNotifications() {
+    if (!confirm(`Αποστολή ειδοποιήσεων για ${pendingNotifications} matches σε λογιστές;\n\nΟι λογιστές θα λάβουν email και notification στην πλατφόρμα.`)) return
+    setNotifying(true)
+    const res = await fetch(`/api/programs/${id}/notify`, { method: 'POST' })
+    const data = await res.json()
+    setPendingNotifications(0)
+    alert(`Εστάλησαν ειδοποιήσεις για ${data.notified} matches σε ${data.accountants} λογιστές.`)
+    setNotifying(false)
   }
 
   if (loading) return (
@@ -95,6 +114,13 @@ export default function ProgramDetailPage() {
               <Zap size={16} className="mr-1" />
               Matching
             </Button>
+            {pendingNotifications !== null && pendingNotifications > 0 && (
+              <Button onClick={sendNotifications} loading={notifying} variant="outline" className="text-green-700 border-green-300 hover:bg-green-50 relative">
+                <Bell size={15} className="mr-1" />
+                Αποστολή Ειδοποιήσεων
+                <span className="ml-1.5 bg-green-600 text-white text-xs rounded-full px-1.5 py-0.5 font-bold">{pendingNotifications}</span>
+              </Button>
+            )}
             <Link href={`/programs/${id}/edit`}>
               <Button variant="outline">Επεξεργασία</Button>
             </Link>

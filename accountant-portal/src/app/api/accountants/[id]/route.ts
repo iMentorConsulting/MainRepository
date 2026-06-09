@@ -89,7 +89,7 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
     // Accountant-level dependents
     prisma.campaign.deleteMany({ where: { accountantId: params.id } }),
     prisma.chatConversation.deleteMany({ where: { accountantId: params.id } }), // messages cascade
-    prisma.commissionPolicy.deleteMany({ where: { accountantId: params.id } }),
+    prisma.accountantCommissionOverride.deleteMany({ where: { accountantId: params.id } }),
     prisma.business.deleteMany({ where: { accountantId: params.id } }),
     prisma.user.deleteMany({ where: { accountantId: params.id } }),
     prisma.accountant.delete({ where: { id: params.id } }),
