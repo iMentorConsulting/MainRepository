@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableHead, TableBody, TableRow, Th, Td } from '@/components/ui/table'
 import { Modal } from '@/components/ui/modal'
-import { Plus, MessageSquare } from 'lucide-react'
+import { Plus, MessageSquare, Paperclip, Download } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
 
 const statusLabel: Record<string, string> = {
@@ -70,6 +70,7 @@ export default function RequestsPage() {
                 <Th>Πρόγραμμα</Th>
                 <Th>Κατάσταση</Th>
                 <Th>Ημερομηνία</Th>
+                <Th></Th>
                 <Th>Ενέργειες</Th>
               </TableRow>
             </TableHead>
@@ -94,6 +95,7 @@ export default function RequestsPage() {
                     <Td className="text-sm text-gray-500">{r.program?.title || '-'}</Td>
                     <Td><Badge variant={statusVariant[r.status]}>{statusLabel[r.status]}</Badge></Td>
                     <Td className="text-sm text-gray-500">{formatDate(r.createdAt)}</Td>
+                    <Td>{r.attachmentUrl && <Paperclip size={14} className="text-indigo-400" title={r.attachmentName || 'Συνημμένο'} />}</Td>
                     <Td>
                       {isAdmin && (
                         <select
@@ -136,6 +138,20 @@ export default function RequestsPage() {
               <div className="text-sm font-medium text-gray-700 mb-1">Μήνυμα</div>
               <div className="bg-gray-50 rounded-lg p-4 text-sm text-gray-700 whitespace-pre-wrap">{selectedRequest.message}</div>
             </div>
+            {selectedRequest.attachmentUrl && (
+              <div>
+                <div className="text-sm font-medium text-gray-700 mb-1">Συνημμένο Έγγραφο</div>
+                <a
+                  href={selectedRequest.attachmentUrl}
+                  download={selectedRequest.attachmentName || 'attachment'}
+                  className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-indigo-50 border border-indigo-200 text-sm text-indigo-700 hover:bg-indigo-100 transition-colors"
+                >
+                  <Paperclip size={14} />
+                  {selectedRequest.attachmentName || 'Λήψη εγγράφου'}
+                  <Download size={13} />
+                </a>
+              </div>
+            )}
             {isAdmin && (
               <div className="pt-2">
                 <label className="text-sm font-medium text-gray-700 mb-2 block">Αλλαγή Κατάστασης</label>
@@ -171,6 +187,7 @@ function NewRequestModal({ open, onClose, onCreated }: { open: boolean; onClose:
   const [businesses, setBusinesses] = useState<any[]>([])
   const [programs, setPrograms] = useState<any[]>([])
   const [form, setForm] = useState({ businessId: '', programId: '', subject: '', message: '' })
+  const [attachmentFile, setAttachmentFile] = useState<File | null>(null)
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
@@ -185,21 +202,35 @@ function NewRequestModal({ open, onClose, onCreated }: { open: boolean; onClose:
       return
     }
     setSaving(true)
+
+    let attachmentUrl: string | null = null
+    let attachmentName: string | null = null
+
+    if (attachmentFile) {
+      attachmentName = attachmentFile.name
+      await new Promise<void>((resolve) => {
+        const reader = new FileReader()
+        reader.onload = (e) => { attachmentUrl = e.target?.result as string; resolve() }
+        reader.readAsDataURL(attachmentFile)
+      })
+    }
+
     const res = await fetch('/api/requests', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(form),
+      body: JSON.stringify({ ...form, attachmentUrl, attachmentName }),
     })
     if (res.ok) {
       const created = await res.json()
       onCreated(created)
       setForm({ businessId: '', programId: '', subject: '', message: '' })
+      setAttachmentFile(null)
     }
     setSaving(false)
   }
 
   return (
-    <Modal open={open} onClose={onClose} title="Νέο Αίτημα" size="lg">
+    <Modal open={open} onClose={onClose} title="Νέο Αίτημα προς I-MENTOR" size="lg">
       <div className="space-y-4">
         <div>
           <label className="text-sm font-medium text-gray-700 mb-1 block">Επιχείρηση *</label>
@@ -228,17 +259,34 @@ function NewRequestModal({ open, onClose, onCreated }: { open: boolean; onClose:
           <input
             value={form.subject}
             onChange={e => setForm(p => ({ ...p, subject: e.target.value }))}
+            placeholder="π.χ. Αίτηση υποβολής για ΕΣΠΑ - ΑΦΜ 123456789"
             className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
           />
         </div>
         <div>
-          <label className="text-sm font-medium text-gray-700 mb-1 block">Μήνυμα *</label>
+          <label className="text-sm font-medium text-gray-700 mb-1 block">Αναλυτική Περιγραφή *</label>
           <textarea
             value={form.message}
             onChange={e => setForm(p => ({ ...p, message: e.target.value }))}
-            rows={5}
+            rows={7}
+            placeholder="Περιγράψτε αναλυτικά το αίτημά σας: τι χρειάζεστε, ποιο είναι το πρόβλημα, τι έχετε ήδη κάνει..."
             className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none"
           />
+        </div>
+        <div>
+          <label className="text-sm font-medium text-gray-700 mb-1 block">
+            <Paperclip size={14} className="inline mr-1" />
+            Συνημμένο Έγγραφο (προαιρετικό)
+          </label>
+          <input
+            type="file"
+            accept=".pdf,.doc,.docx,.xlsx,.xls,.jpg,.jpeg,.png"
+            onChange={e => setAttachmentFile(e.target.files?.[0] || null)}
+            className="block w-full text-sm text-gray-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-gray-100 file:text-gray-700 file:font-medium hover:file:bg-gray-200"
+          />
+          {attachmentFile && (
+            <p className="text-xs text-gray-500 mt-1">{attachmentFile.name} ({(attachmentFile.size / 1024).toFixed(0)} KB)</p>
+          )}
         </div>
         <div className="flex gap-3">
           <Button onClick={handleSubmit} loading={saving}>Υποβολή Αιτήματος</Button>

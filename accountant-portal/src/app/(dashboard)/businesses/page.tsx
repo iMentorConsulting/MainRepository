@@ -9,9 +9,8 @@ import { Pagination } from '@/components/ui/pagination'
 import { MultiSelect } from '@/components/ui/multi-select'
 import { Modal } from '@/components/ui/modal'
 import { Select } from '@/components/ui/select'
-import { Plus, Search, Download, Filter, Trash2, UserCog, Send, Sparkles, Upload, X, CheckCircle2, AlertCircle } from 'lucide-react'
+import { Plus, Search, Download, Filter, Trash2, UserCog, Send, Smartphone, Upload, X } from 'lucide-react'
 import { QuickSendModal } from '@/components/quick-send-modal'
-import * as XLSX from 'xlsx'
 
 interface Accountant {
   id: string
@@ -43,133 +42,6 @@ interface Business {
 
 const PAGE_SIZE = 20
 
-// ── Bulk Enrich Modal ─────────────────────────────────────────────────────────
-function EnrichModal({ onClose }: { onClose: () => void }) {
-  const [rows, setRows] = useState<any[]>([])
-  const [result, setResult] = useState<{ updated: number; notFound: number } | null>(null)
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState('')
-
-  function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
-    const reader = new FileReader()
-    reader.onload = ev => {
-      try {
-        const wb = XLSX.read(ev.target?.result, { type: 'binary' })
-        const ws = wb.Sheets[wb.SheetNames[0]]
-        const data: any[] = XLSX.utils.sheet_to_json(ws, { defval: '' })
-        const normalised = data.map(row => {
-          const norm: any = {}
-          for (const key of Object.keys(row)) {
-            const k = key.toLowerCase().trim()
-            if (k === 'afm' || k === 'αφμ') norm.afm = String(row[key]).trim()
-            if (k === 'email') norm.email = String(row[key]).trim()
-            if (k.includes('phone') || k.includes('τηλ') || k === 'τηλέφωνο') norm.phone = String(row[key]).trim()
-            if (k.includes('viber')) norm.viberPhone = String(row[key]).trim()
-          }
-          return norm
-        }).filter((r: any) => r.afm)
-        setRows(normalised)
-        setError('')
-      } catch {
-        setError('Σφάλμα ανάγνωσης αρχείου. Βεβαιωθείτε ότι είναι έγκυρο Excel (.xlsx).')
-      }
-    }
-    reader.readAsBinaryString(file)
-  }
-
-  async function submit() {
-    if (rows.length === 0) return
-    setSaving(true)
-    setError('')
-    const res = await fetch('/api/businesses/enrich', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ updates: rows }),
-    })
-    setSaving(false)
-    if (res.ok) setResult(await res.json())
-    else setError('Σφάλμα ενημέρωσης. Δοκιμάστε ξανά.')
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-          <div className="flex items-center gap-2">
-            <Sparkles size={18} className="text-indigo-500" />
-            <h2 className="text-base font-bold text-gray-900">Εμπλουτισμός Email & Τηλεφώνων</h2>
-          </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
-        </div>
-
-        {result ? (
-          <div className="p-6 text-center space-y-4">
-            <CheckCircle2 size={48} className="text-green-500 mx-auto" />
-            <div>
-              <p className="text-lg font-bold text-gray-900">{result.updated} επιχειρήσεις ενημερώθηκαν!</p>
-              {result.notFound > 0 && <p className="text-sm text-amber-600 mt-1">{result.notFound} ΑΦΜ δεν βρέθηκαν στο σύστημα.</p>}
-            </div>
-            <Button onClick={onClose}>Κλείσιμο</Button>
-          </div>
-        ) : (
-          <div className="p-6 space-y-5">
-            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-900 space-y-2">
-              <p className="font-bold text-amber-800">📋 Προσθέσατε πελάτες μόνο με ΑΦΜ και τώρα θέλετε να στείλετε καμπάνια;</p>
-              <p>Χωρίς email ή τηλέφωνο <strong>τα μηνύματα δεν φτάνουν πουθενά</strong>. Εδώ μπορείτε να προσθέσετε τα στοιχεία επικοινωνίας μαζικά — για όλους τους πελάτες ταυτόχρονα.</p>
-              <div className="mt-2 space-y-1 text-amber-800">
-                <p className="font-medium">👇 Τι κάνετε:</p>
-                <p>1. Ετοιμάστε Excel με 2 στήλες: <code className="bg-amber-100 px-1 rounded font-mono">ΑΦΜ</code> και <code className="bg-amber-100 px-1 rounded font-mono">Email</code> (ή <code className="bg-amber-100 px-1 rounded font-mono">Τηλέφωνο</code>)</p>
-                <p>2. Ανεβάστε το — το σύστημα βρίσκει αυτόματα τον κάθε πελάτη και συμπληρώνει τα στοιχεία</p>
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Αρχείο Excel (.xlsx)</label>
-              <label className="flex flex-col items-center justify-center gap-2 border-2 border-dashed border-gray-300 rounded-xl p-6 cursor-pointer hover:border-indigo-400 hover:bg-indigo-50 transition-all">
-                <Upload size={24} className="text-gray-400" />
-                <span className="text-sm text-gray-500">Κάντε κλικ για επιλογή ή σύρετε το αρχείο εδώ</span>
-                {rows.length > 0 && <span className="text-xs text-indigo-600 font-semibold">{rows.length} εγγραφές έτοιμες</span>}
-                <input type="file" accept=".xlsx,.xls" onChange={handleFile} className="hidden" />
-              </label>
-            </div>
-
-            {rows.length > 0 && (
-              <div className="bg-gray-50 rounded-xl border border-gray-200 overflow-hidden">
-                <div className="px-4 py-2 bg-gray-100 text-xs font-semibold text-gray-600 grid grid-cols-4 gap-2">
-                  <span>ΑΦΜ</span><span>Email</span><span>Τηλέφωνο</span><span>Viber</span>
-                </div>
-                <div className="max-h-40 overflow-y-auto divide-y divide-gray-100">
-                  {rows.slice(0, 20).map((r: any, i: number) => (
-                    <div key={i} className="px-4 py-1.5 text-xs text-gray-700 grid grid-cols-4 gap-2">
-                      <span className="font-mono">{r.afm}</span>
-                      <span className="truncate text-gray-500">{r.email || '—'}</span>
-                      <span className="truncate text-gray-500">{r.phone || '—'}</span>
-                      <span className="truncate text-gray-500">{r.viberPhone || '—'}</span>
-                    </div>
-                  ))}
-                  {rows.length > 20 && <div className="px-4 py-1.5 text-xs text-gray-400">...και {rows.length - 20} ακόμα</div>}
-                </div>
-              </div>
-            )}
-
-            {error && <div className="flex items-center gap-2 text-sm text-red-600"><AlertCircle size={15} />{error}</div>}
-
-            <div className="flex justify-end gap-3">
-              <Button variant="outline" onClick={onClose}>Ακύρωση</Button>
-              <Button disabled={rows.length === 0} loading={saving} onClick={submit}>
-                <Sparkles size={15} className="mr-1" />
-                Εμπλουτισμός {rows.length > 0 ? `(${rows.length} εγγραφές)` : ''}
-              </Button>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}
-
 export default function BusinessesPage() {
   const { data: session } = useSession()
   const isAdmin = session?.user?.role === 'ADMIN'
@@ -191,10 +63,10 @@ export default function BusinessesPage() {
   const [sort, setSort] = useState('createdAt:desc')
 
   const [quickSendOpen, setQuickSendOpen] = useState(false)
+  const [enrichOpen, setEnrichOpen] = useState(false)
   const [assignOpen, setAssignOpen] = useState(false)
   const [assignAccountantId, setAssignAccountantId] = useState('')
   const [assigning, setAssigning] = useState(false)
-  const [enrichOpen, setEnrichOpen] = useState(false)
 
   const fetchData = useCallback(async () => {
     setLoading(true)
@@ -312,24 +184,16 @@ export default function BusinessesPage() {
 
   return (
     <div className="space-y-6">
-      {enrichOpen && <EnrichModal onClose={() => { setEnrichOpen(false); fetchData() }} />}
-
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Επιχειρήσεις</h1>
           <p className="text-gray-500 mt-1">{total} επιχειρήσεις συνολικά</p>
         </div>
-        <div className="flex gap-2 flex-wrap">
+        <div className="flex gap-2">
           <Button variant="outline" onClick={handleExport} size="sm">
             <Download size={16} className="mr-1" />
             Export Excel
           </Button>
-          {!isAdmin && (
-            <Button variant="outline" onClick={() => setEnrichOpen(true)} size="sm">
-              <Sparkles size={16} className="mr-1" />
-              Εμπλουτισμός Email/Τηλ.
-            </Button>
-          )}
           <Link href="/businesses/new">
             <Button size={isAdmin ? 'sm' : 'md'} className={!isAdmin ? 'bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-6 py-2.5 text-base shadow-lg' : ''}>
               <Plus size={isAdmin ? 16 : 20} className="mr-2" />
@@ -339,38 +203,60 @@ export default function BusinessesPage() {
         </div>
       </div>
 
-      {/* Accountant onboarding cards — always visible */}
       {!isAdmin && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <Link href="/businesses/new?mode=afm" className="group block">
-            <div className="bg-white border-2 border-indigo-200 hover:border-indigo-400 rounded-2xl p-5 flex items-start gap-4 shadow-sm hover:shadow-md transition-all">
-              <div className="w-12 h-12 bg-indigo-100 rounded-xl flex items-center justify-center text-2xl flex-shrink-0">🔍</div>
-              <div>
-                <p className="font-bold text-gray-900 text-base">Προσθήκη μέσω ΑΦΜ</p>
-                <p className="text-sm text-gray-500 mt-0.5">Βάλτε το ΑΦΜ του πελάτη → τα στοιχεία συμπληρώνονται αυτόματα από ΑΑΔΕ</p>
-                <p className="text-xs text-indigo-600 font-semibold mt-2 group-hover:underline">Προσθήκη 1 πελάτη →</p>
-              </div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <a href="/businesses/new" className="group flex items-center gap-3 p-4 bg-indigo-50 border-2 border-indigo-200 hover:border-indigo-400 hover:bg-indigo-100 rounded-xl transition-all cursor-pointer">
+            <div className="w-9 h-9 bg-indigo-600 rounded-lg flex items-center justify-center flex-shrink-0">
+              <Search size={16} className="text-white" />
             </div>
-          </Link>
-          <Link href="/businesses/new?mode=excel" className="group block">
-            <div className="bg-white border-2 border-violet-200 hover:border-violet-400 rounded-2xl p-5 flex items-start gap-4 shadow-sm hover:shadow-md transition-all">
-              <div className="w-12 h-12 bg-violet-100 rounded-xl flex items-center justify-center text-2xl flex-shrink-0">📊</div>
-              <div>
-                <p className="font-bold text-gray-900 text-base">Μαζική Εισαγωγή από Excel</p>
-                <p className="text-sm text-gray-500 mt-0.5">Εξαγάγετε τους πελάτες από το λογιστικό σας πρόγραμμα → ανεβάστε το Excel εδώ</p>
-                <p className="text-xs text-violet-600 font-semibold mt-2 group-hover:underline">Εισαγωγή πολλών πελατών →</p>
-              </div>
+            <div>
+              <div className="text-sm font-bold text-indigo-900">Προσθήκη μέσω ΑΦΜ</div>
+              <div className="text-xs text-indigo-600">Αναζήτηση από ΑΑΔΕ</div>
             </div>
-          </Link>
+          </a>
+          <a href="/businesses/new?mode=excel" className="group flex items-center gap-3 p-4 bg-emerald-50 border-2 border-emerald-200 hover:border-emerald-400 hover:bg-emerald-100 rounded-xl transition-all cursor-pointer">
+            <div className="w-9 h-9 bg-emerald-600 rounded-lg flex items-center justify-center flex-shrink-0">
+              <Upload size={16} className="text-white" />
+            </div>
+            <div>
+              <div className="text-sm font-bold text-emerald-900">Μαζική Εισαγωγή Excel</div>
+              <div className="text-xs text-emerald-600">Όλοι οι πελάτες ταυτόχρονα</div>
+            </div>
+          </a>
+          <button onClick={() => setEnrichOpen(true)} className="group flex items-center gap-3 p-4 bg-violet-50 border-2 border-violet-200 hover:border-violet-400 hover:bg-violet-100 rounded-xl transition-all cursor-pointer text-left w-full">
+            <div className="w-9 h-9 bg-violet-600 rounded-lg flex items-center justify-center flex-shrink-0">
+              <Smartphone size={16} className="text-white" />
+            </div>
+            <div>
+              <div className="text-sm font-bold text-violet-900">Εμπλουτισμός Viber/Email</div>
+              <div className="text-xs text-violet-600">Προσθήκη στοιχείων επικοινωνίας</div>
+            </div>
+          </button>
         </div>
       )}
 
       {!isAdmin && total === 0 && !loading && (
-        <div className="bg-gradient-to-br from-indigo-600 to-purple-700 rounded-2xl p-6 text-white text-center shadow-xl">
-          <div className="text-4xl mb-3">🏢</div>
-          <h2 className="text-xl font-bold mb-2">Δεν έχετε προσθέσει πελάτες ακόμη!</h2>
-          <p className="text-indigo-100 text-sm">
+        <div className="bg-gradient-to-br from-indigo-600 to-purple-700 rounded-2xl p-8 text-white text-center shadow-xl">
+          <div className="text-5xl mb-4">🏢</div>
+          <h2 className="text-2xl font-bold mb-2">Δεν έχετε προσθέσει επιχειρήσεις ακόμη!</h2>
+          <p className="text-indigo-100 text-base mb-6 max-w-lg mx-auto">
             Κάθε πελάτης που λείπει = χαμένη ευκαιρία χρηματοδότησης και χαμένη προμήθεια για εσάς.
+            Προσθέστε τους πελάτες σας τώρα — είναι εύκολο!
+          </p>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <Link href="/businesses/new">
+              <button className="bg-white text-indigo-700 font-bold px-8 py-3 rounded-xl text-base hover:bg-indigo-50 transition-colors w-full sm:w-auto">
+                🔍 Αναζήτηση μέσω ΑΦΜ (1 πελάτης)
+              </button>
+            </Link>
+            <Link href="/businesses/new">
+              <button className="bg-indigo-500 border-2 border-white/40 text-white font-bold px-8 py-3 rounded-xl text-base hover:bg-indigo-400 transition-colors w-full sm:w-auto">
+                📊 Μαζική Εισαγωγή από Excel
+              </button>
+            </Link>
+          </div>
+          <p className="text-indigo-200 text-sm mt-4">
+            Εξαγάγετε τη λίστα πελατών από το λογιστικό σας πρόγραμμα → Excel → Εισαγωγή εδώ
           </p>
         </div>
       )}
@@ -404,16 +290,16 @@ export default function BusinessesPage() {
               </Button>
             )}
             {isAdmin && selected.size > 0 && (
-              <Button variant="outline" size="sm" onClick={() => setAssignOpen(true)}>
-                <UserCog size={14} className="mr-1" />
-                Ανάθεση σε Λογιστή ({selected.size})
-              </Button>
-            )}
-            {selected.size > 0 && (
-              <Button variant="destructive" size="sm" onClick={handleBulkDelete} loading={deleting}>
-                <Trash2 size={14} className="mr-1" />
-                Διαγραφή ({selected.size})
-              </Button>
+              <>
+                <Button variant="outline" size="sm" onClick={() => setAssignOpen(true)}>
+                  <UserCog size={14} className="mr-1" />
+                  Ανάθεση σε Λογιστή ({selected.size})
+                </Button>
+                <Button variant="destructive" size="sm" onClick={handleBulkDelete} loading={deleting}>
+                  <Trash2 size={14} className="mr-1" />
+                  Διαγραφή ({selected.size})
+                </Button>
+              </>
             )}
           </div>
           <div className="flex flex-wrap gap-2 items-end">
@@ -566,6 +452,101 @@ export default function BusinessesPage() {
           </div>
         </div>
       </Modal>
+
+      {enrichOpen && <EnrichModal onClose={() => setEnrichOpen(false)} onDone={() => { setEnrichOpen(false); fetchData() }} />}
+    </div>
+  )
+}
+
+function EnrichModal({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
+  const [file, setFile] = useState<File | null>(null)
+  const [uploading, setUploading] = useState(false)
+  const [result, setResult] = useState<{ updated: number; notFound: number } | null>(null)
+  const [error, setError] = useState('')
+
+  async function handleUpload() {
+    if (!file) return
+    setUploading(true)
+    setError('')
+    const reader = new FileReader()
+    reader.onload = async (e) => {
+      try {
+        const res = await fetch('/api/businesses/enrich', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fileData: e.target?.result }),
+        })
+        const data = await res.json()
+        if (res.ok) {
+          setResult({ updated: data.updated ?? 0, notFound: data.notFound ?? 0 })
+        } else {
+          setError(data.error || 'Σφάλμα ανεβάσματος')
+        }
+      } catch {
+        setError('Σφάλμα δικτύου')
+      }
+      setUploading(false)
+    }
+    reader.readAsDataURL(file)
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg">
+        <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-slate-100">
+          <div>
+            <h2 className="text-base font-semibold text-slate-900">Μαζικός Εμπλουτισμός Στοιχείων</h2>
+            <p className="text-xs text-slate-500 mt-0.5">Προσθήκη Viber/Κινητού & Email μαζικά</p>
+          </div>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={20} /></button>
+        </div>
+        <div className="px-6 py-5 space-y-4">
+          <div className="bg-violet-50 border border-violet-200 rounded-xl p-4 space-y-2">
+            <p className="text-sm font-semibold text-violet-800 flex items-center gap-2">
+              <Smartphone size={16} className="text-violet-600" />
+              📋 Γιατί χρειάζεται αυτό;
+            </p>
+            <p className="text-xs text-violet-700">
+              Αν προσθέσατε πελάτες μόνο με ΑΦΜ, τα μηνύματα δεν φτάνουν πουθενά χωρίς <strong>κινητό (Viber)</strong> ή email.
+              Το Viber είναι το #1 κανάλι — τα email συχνά πηγαίνουν αδιάβαστα.
+            </p>
+            <p className="text-xs text-violet-600 font-medium mt-2">👇 Τι κάνετε:</p>
+            <ol className="text-xs text-violet-700 space-y-1 list-decimal list-inside">
+              <li>Ετοιμάστε Excel με στήλες: <strong>ΑΦΜ</strong> και <strong>Κινητό</strong> (ή Email ή Viber)</li>
+              <li>Ανεβάστε το — το σύστημα βρίσκει αυτόματα κάθε πελάτη και συμπληρώνει τα στοιχεία</li>
+            </ol>
+          </div>
+          {!result ? (
+            <div className="space-y-3">
+              <label className="block">
+                <span className="text-sm font-medium text-gray-700 block mb-1">Αρχείο Excel (.xlsx)</span>
+                <input
+                  type="file"
+                  accept=".xlsx,.xls,.csv"
+                  onChange={e => setFile(e.target.files?.[0] || null)}
+                  className="block w-full text-sm text-gray-500 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-violet-100 file:text-violet-700 file:font-semibold hover:file:bg-violet-200"
+                />
+              </label>
+              {error && <p className="text-sm text-red-600">{error}</p>}
+              <div className="flex gap-3">
+                <Button onClick={handleUpload} loading={uploading} disabled={!file}>
+                  <Upload size={15} className="mr-2" />
+                  Εμπλουτισμός
+                </Button>
+                <Button variant="outline" onClick={onClose}>Ακύρωση</Button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div className="bg-green-50 border border-green-200 rounded-lg px-4 py-3 text-sm text-green-800">
+                ✅ Ενημερώθηκαν <strong>{result.updated}</strong> επιχειρήσεις
+                {result.notFound > 0 && ` · ${result.notFound} ΑΦΜ δεν βρέθηκαν`}
+              </div>
+              <Button onClick={onDone}>Κλείσιμο</Button>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   )
 }

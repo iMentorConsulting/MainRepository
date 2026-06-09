@@ -45,7 +45,7 @@ export default function CampaignsPage() {
       {/* ── Quick-start wizard cards ────────────────────────────────────── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Link href="/campaigns/new?path=diy">
-          <div className="group p-5 rounded-2xl border-2 border-indigo-100 hover:border-indigo-400 hover:bg-indigo-50 transition-all cursor-pointer">
+          <div className="group p-5 rounded-2xl border-2 border-indigo-200 bg-indigo-50 hover:border-indigo-400 hover:bg-indigo-100 transition-all cursor-pointer">
             <div className="flex items-start gap-4">
               <div className="w-11 h-11 bg-indigo-100 rounded-xl flex items-center justify-center flex-shrink-0 group-hover:bg-indigo-200 transition-colors">
                 <Send size={20} className="text-indigo-600" />
@@ -62,7 +62,7 @@ export default function CampaignsPage() {
         </Link>
 
         <Link href="/campaigns/new?path=imentor">
-          <div className="group p-5 rounded-2xl border-2 border-purple-100 hover:border-purple-400 hover:bg-purple-50 transition-all cursor-pointer">
+          <div className="group p-5 rounded-2xl border-2 border-purple-200 bg-purple-50 hover:border-purple-400 hover:bg-purple-100 transition-all cursor-pointer">
             <div className="flex items-start gap-4">
               <div className="w-11 h-11 bg-purple-100 rounded-xl flex items-center justify-center flex-shrink-0 group-hover:bg-purple-200 transition-colors">
                 <Sparkles size={20} className="text-purple-600" />

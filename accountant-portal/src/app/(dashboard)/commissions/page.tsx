@@ -233,14 +233,14 @@ export default function CommissionsPage() {
   useEffect(() => { load() }, [load])
 
   useEffect(() => {
-    fetch('/api/commissions/policies?active=true').then(r => r.json()).then(d => {
-      setPolicies(Array.isArray(d) ? d : [])
-    })
     if (isAdmin) {
       fetch('/api/accountants').then(r => r.json()).then(d => {
         setAccountants(Array.isArray(d) ? d : d.accountants || [])
       })
     }
+    fetch('/api/commissions/policies?active=true').then(r => r.json()).then(d => {
+      setPolicies(Array.isArray(d) ? d : [])
+    })
   }, [isAdmin])
 
   async function approveOne(id: string) {
@@ -345,24 +345,20 @@ export default function CommissionsPage() {
       {/* Commission Policies compact panel */}
       {policies.length > 0 && (
         <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-4">
-          <p className="text-xs font-bold text-indigo-700 uppercase tracking-wide mb-3">
-            Ισχύουσες Πολιτικές Προμηθειών
-          </p>
+          <p className="text-xs font-bold text-indigo-700 uppercase tracking-wide mb-3">Ισχύουσες Πολιτικές Προμηθειών</p>
           <div className="flex flex-wrap gap-2">
             {policies.map((p: any) => {
               const stage = p.appliesToApplication && p.appliesToImplementation
                 ? 'αίτηση & υλοποίηση'
-                : p.appliesToApplication
-                  ? 'αίτηση'
-                  : 'υλοποίηση'
+                : p.appliesToApplication ? 'αίτηση' : 'υλοποίηση'
               const pct = p.percentage ?? p.commissionPercentage
               const fixed = p.fixedAmount ?? p.commissionFixed
-              const rateLabel = p.commissionType === 'PERCENTAGE' && pct != null
-                ? `${pct}% × ${stage}`
+              const rateLabel = pct != null
+                ? p.description ? `${pct}% ${p.description.replace(/^%\s*/, '')}` : `${pct}% × ${stage}`
                 : fixed != null
                   ? `${(fixed / 100).toFixed(0)}€ / ${stage}`
                   : stage
-              const scope = p.program?.title || p.service?.name || 'Γενική'
+              const scope = p.program?.title ?? p.service?.name ?? p.name
               const showName = p.name && p.name !== scope
               return (
                 <div key={p.id} className="bg-white border border-indigo-100 rounded-xl px-3 py-2 text-xs shadow-sm flex items-center gap-2">

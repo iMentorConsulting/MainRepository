@@ -4,7 +4,7 @@ import { usePathname } from 'next/navigation'
 import { useSession, signOut } from 'next-auth/react'
 import { useEffect, useState } from 'react'
 import { cn } from '@/lib/utils'
-import { LayoutDashboard, Users, Building2, Zap, Target, Send, CreditCard, Percent, Inbox, BarChart3, Settings, LogOut, Globe, Mail, Phone, TrendingUp, UserPlus, Briefcase } from 'lucide-react'
+import { LayoutDashboard, Users, Building2, Zap, Target, Send, CreditCard, Percent, Inbox, BarChart3, Settings, LogOut, Globe, Mail, Phone, TrendingUp } from 'lucide-react'
 
 const navItems = [
   { href: '/', label: 'Dashboard', icon: LayoutDashboard, adminOnly: false },
@@ -15,11 +15,9 @@ const navItems = [
   { href: '/campaigns', label: 'Καμπάνιες', icon: Send, adminOnly: false },
   { href: '/payments', label: 'Πληρωμές', icon: CreditCard, adminOnly: true },
   { href: '/commissions', label: 'Προμήθειες', icon: Percent, adminOnly: false },
-  { href: '/requests', label: 'Αιτήματα', icon: Inbox, adminOnly: false },
   { href: '/reports', label: 'Αναφορές', icon: BarChart3, adminOnly: false },
+  { href: '/requests', label: 'Αιτήματα', icon: Inbox, adminOnly: false },
   { href: '/analytics', label: 'Αναλυτικά', icon: TrendingUp, adminOnly: true },
-  { href: '/services', label: 'Υπηρεσίες', icon: Briefcase, adminOnly: true },
-  { href: '/invitations', label: 'Προσκλήσεις', icon: UserPlus, adminOnly: true },
   { href: '/settings', label: 'Ρυθμίσεις', icon: Settings, adminOnly: false },
 ]
 
@@ -82,6 +80,12 @@ export function Sidebar() {
               2810 363007
             </a>
           </div>
+          <a href="tel:+302810363007"
+            className="mt-3 w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl font-bold text-sm text-white transition-all hover:opacity-90 active:scale-95"
+            style={{ background: 'linear-gradient(135deg, #16a34a, #15803d)' }}>
+            <Phone className="w-4 h-4" />
+            📞 Κλήση Γραφείου Τώρα
+          </a>
         </Link>
       </div>
 

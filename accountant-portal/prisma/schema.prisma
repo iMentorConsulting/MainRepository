@@ -242,11 +242,13 @@ model ImentorRequest {
   business     Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
   programId    String?
   program      Program?      @relation(fields: [programId], references: [id])
-  subject      String
-  message      String
-  status       RequestStatus @default(NEW)
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
+  subject        String
+  message        String
+  attachmentUrl  String?
+  attachmentName String?
+  status         RequestStatus @default(NEW)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
 }
 
 enum RequestStatus {

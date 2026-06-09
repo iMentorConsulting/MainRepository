@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'No accountant profile' }, { status: 400 })
   }
 
-  const { businessId, programId, subject, message } = await request.json()
+  const { businessId, programId, subject, message, attachmentUrl, attachmentName } = await request.json()
 
   const req = await prisma.imentorRequest.create({
     data: {
@@ -43,6 +43,8 @@ export async function POST(request: NextRequest) {
       programId: programId || null,
       subject,
       message,
+      attachmentUrl: attachmentUrl || null,
+      attachmentName: attachmentName || null,
       status: 'NEW',
     },
     include: {
