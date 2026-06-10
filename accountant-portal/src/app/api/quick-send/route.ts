@@ -103,9 +103,9 @@ export async function POST(request: NextRequest) {
         const phone = business.viberPhone || business.phone
         if (phone) {
           const rawMsg = renderTemplate(messageTemplate, variables)
+          // Viber natively renders *text* as bold; collapse any **double** to single *
           const cleanViber = rawMsg
-            .replace(/\*\*([^*]*)\*\*/g, (_m: string, inner: string) => inner.trim() || '')
-            .replace(/\*([^*]*)\*/g, (_m: string, inner: string) => inner.trim() || '')
+            .replace(/\*\*([^*]*)\*\*/g, (_m: string, inner: string) => inner.trim() ? `*${inner.trim()}*` : '')
           const viberOk = await sendViberMessage({ to: phone, text: cleanViber, senderName: business.onomasia || business.afm })
           if (viberOk) success = true
         }

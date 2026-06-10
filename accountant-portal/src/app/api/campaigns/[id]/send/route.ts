@@ -53,10 +53,9 @@ async function processCampaignSend(
     }
 
     const rawMessage = renderTemplate(campaign.messageTemplate, variables)
-    // Viber doesn't support markdown bold — strip *...* and **...** markers entirely
+    // Viber natively renders *text* as bold; collapse any **double** to single *
     const message = rawMessage
-      .replace(/\*\*([^*]*)\*\*/g, (_, inner) => inner.trim() || '')
-      .replace(/\*([^*]*)\*/g, (_, inner) => inner.trim() || '')
+      .replace(/\*\*([^*]*)\*\*/g, (_, inner) => inner.trim() ? `*${inner.trim()}*` : '')
     let emailSubject = renderTemplate(campaign.subject || campaign.title, variables)
     if (!variables.accountant_office) emailSubject = emailSubject.replace(/^\s*&\s*/, '')
     let success = false

@@ -48,7 +48,8 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
 
   if ((channel === 'VIBER' || channel === 'EMAIL_AND_VIBER') && (business.viberPhone || business.phone)) {
     const phone = business.viberPhone || business.phone || ''
-    const cleanViber = message.replace(/\*([^*]*)\*/g, (_match: string, inner: string) => inner.trim() || '')
+    // Viber natively renders *text* as bold; collapse any **double** to single *
+    const cleanViber = message.replace(/\*\*([^*]*)\*\*/g, (_match: string, inner: string) => inner.trim() ? `*${inner.trim()}*` : '')
     viberOk = await sendViberMessage({ to: phone, text: cleanViber, senderName: business.onomasia || business.afm })
   }
 
