@@ -28,6 +28,14 @@ interface ProgramCriteria {
   legalStatusRules: string[]
 }
 
+// AADE's webservice sometimes returns ΚΑΔ codes that start with 0 (e.g.
+// categories 01-09: γεωργία, αλιεία, ορυχεία) without the leading zero —
+// "3112100" instead of the official "03112100". Pad those back to 8 digits
+// so prefix-based program criteria (e.g. "031") match correctly.
+function normalizeKad(code: string): string {
+  return /^\d{7}$/.test(code) ? '0' + code : code
+}
+
 function matchesBusiness(
   business: BusinessWithActivities,
   program: ProgramCriteria
@@ -50,12 +58,13 @@ function matchesBusiness(
   // KAD matching
   if (program.kadRules.length > 0) {
     const matchedKad = business.activities.find(activity => {
+      const activityCode = normalizeKad(activity.firmActCode)
       return program.kadRules.some(rule => {
-        const cleanRule = rule.trim()
+        const cleanRule = normalizeKad(rule.trim())
         if (cleanRule.includes('.')) {
-          return activity.firmActCode === cleanRule
+          return activityCode === cleanRule
         }
-        return activity.firmActCode.startsWith(cleanRule)
+        return activityCode.startsWith(cleanRule)
       })
     })
     if (matchedKad) {
