@@ -1,10 +1,18 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { signIn } from 'next-auth/react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Shield, Lock, Eye, EyeOff } from 'lucide-react'
 
 export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginPageInner />
+    </Suspense>
+  )
+}
+
+function LoginPageInner() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
@@ -12,6 +20,8 @@ export default function LoginPage() {
   const [showPass, setShowPass] = useState(false)
   const [logoUrl, setLogoUrl] = useState<string | null>(null)
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const verifyStatus = searchParams.get('verify')
 
   useEffect(() => {
     fetch('/api/settings/logo')
@@ -27,7 +37,8 @@ export default function LoginPage() {
     try {
       const res = await signIn('credentials', { email, password, redirect: false })
       if (res && (res as any).error) {
-        setError('Λάθος email ή κωδικός πρόσβασης.')
+        const err = (res as any).error
+        setError(err && err !== 'CredentialsSignin' ? err : 'Λάθος email ή κωδικός πρόσβασης, ή ο λογαριασμός σας δεν έχει επιβεβαιωθεί ακόμη (ελέγξτε το email σας).')
       } else {
         router.push('/')
         router.refresh()
@@ -120,6 +131,12 @@ export default function LoginPage() {
             <h1 className="text-2xl font-bold text-slate-900 mb-2">Σύνδεση στο Portal</h1>
             <p className="text-sm text-slate-500">Εισαγάγετε τα στοιχεία πρόσβασής σας για να συνεχίσετε.</p>
           </div>
+
+          {verifyStatus === 'success' && !error && (
+            <div className="mb-5 px-4 py-3 rounded-lg bg-emerald-50 border border-emerald-100 text-emerald-700 text-sm">
+              Το email σας επιβεβαιώθηκε επιτυχώς. Μπορείτε τώρα να συνδεθείτε.
+            </div>
+          )}
 
           {error && (
             <div className="mb-5 flex items-center gap-2.5 px-4 py-3 rounded-lg bg-red-50 border border-red-100 text-red-700 text-sm">

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { sendEmail } from '@/lib/email'
 import bcrypt from 'bcryptjs'
+import crypto from 'crypto'
 import { z } from 'zod'
 
 const schema = z.object({
@@ -45,6 +46,7 @@ export async function POST(request: NextRequest) {
   }
 
   const passwordHash = await bcrypt.hash(data.password, 12)
+  const verifyToken = crypto.randomBytes(32).toString('hex')
   const goalLabel = COOPERATION_GOAL_LABELS[data.cooperationGoal] || data.cooperationGoal
 
   // The questionnaire answers are kept on the office's notes for the admin
@@ -74,17 +76,20 @@ export async function POST(request: NextRequest) {
         passwordHash,
         role: 'ACCOUNTANT',
         accountantId: accountant.id,
+        verifyToken,
       },
     })
     return { accountant, user }
   })
 
+  const verifyUrl = `${process.env.APP_URL || 'https://logistis.i-mentor.gr'}/api/verify-email?token=${verifyToken}`
   await sendEmail({
     to: data.email,
-    subject: 'Καλώς ήρθατε στο I-MENTOR Portal — ο λογαριασμός σας είναι έτοιμος',
+    subject: 'I-MENTOR Portal — Επιβεβαιώστε το email σας',
     html: `<p>Αγαπητέ/ή ${data.contactPerson},</p>
-      <p>Ο λογαριασμός του γραφείου <strong>${data.officeName}</strong> δημιουργήθηκε. Μπορείτε να συνδεθείτε άμεσα στο
-      <a href="${process.env.APP_URL || 'https://logistis.i-mentor.gr'}/login">I-MENTOR Portal</a> με το email και τον κωδικό πρόσβασης που επιλέξατε.</p>
+      <p>Ο λογαριασμός του γραφείου <strong>${data.officeName}</strong> δημιουργήθηκε. Για να ενεργοποιήσετε τον λογαριασμό σας, επιβεβαιώστε το email σας πατώντας τον παρακάτω σύνδεσμο:</p>
+      <p><a href="${verifyUrl}">Επιβεβαίωση email</a></p>
+      <p>Μετά την επιβεβαίωση θα μπορείτε να συνδεθείτε στο <a href="${process.env.APP_URL || 'https://logistis.i-mentor.gr'}/login">I-MENTOR Portal</a> με το email και τον κωδικό πρόσβασης που επιλέξατε.</p>
       <p>Η αναζήτηση επιχειρήσεων μέσω ΑΑΔΕ θα ενεργοποιηθεί μόλις η ομάδα μας εγκρίνει την αίτησή σας — θα ενημερωθείτε με νέο email.</p>
       <p>Με εκτίμηση,<br>Η ομάδα της I-MENTOR</p>`,
   })

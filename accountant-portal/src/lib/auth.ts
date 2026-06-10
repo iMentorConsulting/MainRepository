@@ -86,6 +86,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           recordFailedAttempt(email)
           return null
         }
+        if (user.role === 'ACCOUNTANT' && user.verifyToken && !user.emailVerified) {
+          throw new Error('Παρακαλούμε επιβεβαιώστε το email σας πριν συνδεθείτε. Ελέγξτε τα εισερχόμενά σας.')
+        }
         clearFailedAttempts(email)
         const now = new Date()
         await prisma.$transaction([
