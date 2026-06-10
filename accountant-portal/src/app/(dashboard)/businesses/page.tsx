@@ -9,7 +9,14 @@ import { Pagination } from '@/components/ui/pagination'
 import { MultiSelect } from '@/components/ui/multi-select'
 import { Modal } from '@/components/ui/modal'
 import { Select } from '@/components/ui/select'
-import { Plus, Search, Download, Filter, Trash2, UserCog, Send, Smartphone, Upload, X } from 'lucide-react'
+import { Plus, Search, Download, Filter, Trash2, UserCog, Send, Smartphone, Upload, X, ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react'
+
+function SortIcon({ col, sortBy, sortDir }: { col: string; sortBy: string; sortDir: string }) {
+  if (sortBy !== col) return <ChevronsUpDown size={13} className="text-gray-400 ml-1 inline" />
+  return sortDir === 'asc'
+    ? <ChevronUp size={13} className="text-indigo-600 ml-1 inline" />
+    : <ChevronDown size={13} className="text-indigo-600 ml-1 inline" />
+}
 import { QuickSendModal } from '@/components/quick-send-modal'
 
 interface Accountant {
@@ -61,6 +68,14 @@ export default function BusinessesPage() {
   const [legalStatusFilter, setLegalStatusFilter] = useState<string[]>([])
   const [regionFilter, setRegionFilter] = useState<string[]>([])
   const [sort, setSort] = useState('createdAt:desc')
+  const [sortBy, sortDir] = sort.split(':')
+  function toggleSort(col: string) {
+    setSort(prev => {
+      const [prevCol, prevDir] = prev.split(':')
+      if (prevCol === col) return `${col}:${prevDir === 'asc' ? 'desc' : 'asc'}`
+      return `${col}:asc`
+    })
+  }
   const [includeIndividuals, setIncludeIndividuals] = useState(false)
 
   const [quickSendOpen, setQuickSendOpen] = useState(false)
@@ -370,13 +385,37 @@ export default function BusinessesPage() {
                       className="rounded"
                     />
                   </Th>
-                  <Th>ΑΦΜ</Th>
-                  <Th>Επωνυμία</Th>
+                  <Th>
+                    <button onClick={() => toggleSort('afm')} className="flex items-center hover:text-indigo-700 transition-colors">
+                      ΑΦΜ <SortIcon col="afm" sortBy={sortBy} sortDir={sortDir} />
+                    </button>
+                  </Th>
+                  <Th>
+                    <button onClick={() => toggleSort('onomasia')} className="flex items-center hover:text-indigo-700 transition-colors">
+                      Επωνυμία <SortIcon col="onomasia" sortBy={sortBy} sortDir={sortDir} />
+                    </button>
+                  </Th>
                   <Th>Κύρια ΚΑΔ</Th>
-                  <Th>Περιοχή</Th>
-                  <Th>ΤΚ</Th>
-                  <Th>Λογιστής</Th>
-                  <Th>Μορφή</Th>
+                  <Th>
+                    <button onClick={() => toggleSort('postalAreaDescription')} className="flex items-center hover:text-indigo-700 transition-colors">
+                      Περιοχή <SortIcon col="postalAreaDescription" sortBy={sortBy} sortDir={sortDir} />
+                    </button>
+                  </Th>
+                  <Th>
+                    <button onClick={() => toggleSort('postalZipCode')} className="flex items-center hover:text-indigo-700 transition-colors">
+                      ΤΚ <SortIcon col="postalZipCode" sortBy={sortBy} sortDir={sortDir} />
+                    </button>
+                  </Th>
+                  <Th>
+                    <button onClick={() => toggleSort('accountant.officeName')} className="flex items-center hover:text-indigo-700 transition-colors">
+                      Λογιστής <SortIcon col="accountant.officeName" sortBy={sortBy} sortDir={sortDir} />
+                    </button>
+                  </Th>
+                  <Th>
+                    <button onClick={() => toggleSort('legalStatusDescr')} className="flex items-center hover:text-indigo-700 transition-colors">
+                      Μορφή <SortIcon col="legalStatusDescr" sortBy={sortBy} sortDir={sortDir} />
+                    </button>
+                  </Th>
                   <Th>Matches</Th>
                 </TableRow>
               </TableHead>

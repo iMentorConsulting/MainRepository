@@ -42,7 +42,8 @@ export async function GET(request: NextRequest) {
   }
 
   const sortableFields = ['createdAt', 'onomasia', 'afm', 'postalAreaDescription', 'postalZipCode', 'legalStatusDescr']
-  const orderBy = sortableFields.includes(sortBy) ? { [sortBy]: sortDir } : { createdAt: 'desc' as const }
+  let orderBy: any = sortableFields.includes(sortBy) ? { [sortBy]: sortDir } : { createdAt: 'desc' as const }
+  if (sortBy === 'accountant.officeName') orderBy = { accountant: { officeName: sortDir } }
 
   const [businesses, total] = await Promise.all([
     prisma.business.findMany({
