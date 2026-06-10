@@ -13,17 +13,16 @@ export async function GET(request: NextRequest) {
   const { searchParams } = request.nextUrl
   const page = parseInt(searchParams.get('page') || '1')
   const limit = Math.min(parseInt(searchParams.get('limit') || '25'), 200)
-  const status = searchParams.get('status') || ''
   const accountantIds = searchParams.get('accountantIds')?.split(',').filter(Boolean) || []
   const programIds = searchParams.get('programIds')?.split(',').filter(Boolean) || []
   const legalStatuses = searchParams.get('legalStatuses')?.split(',').filter(Boolean) || []
+  const campaignSent = searchParams.get('campaignSent') || ''
   const search = searchParams.get('search') || ''
   const sortBy = searchParams.get('sortBy') || 'matchScore'
   const sortDir = (searchParams.get('sortDir') || 'desc') === 'asc' ? 'asc' : 'desc'
   const skip = (page - 1) * limit
 
   const where: any = {}
-  if (status) where.status = status
   if (programIds.length > 0) where.programId = { in: programIds }
 
   const businessFilter: any = {}
@@ -34,6 +33,8 @@ export async function GET(request: NextRequest) {
     businessFilter.accountantId = { in: accountantIds }
   }
   if (legalStatuses.length > 0) businessFilter.legalStatusDescr = { in: legalStatuses }
+  if (campaignSent === 'yes') businessFilter.campaignRecipients = { some: { sentAt: { not: null } } }
+  else if (campaignSent === 'no') businessFilter.campaignRecipients = { none: { sentAt: { not: null } } }
   if (search) {
     businessFilter.OR = [
       { onomasia: { contains: search, mode: 'insensitive' } },

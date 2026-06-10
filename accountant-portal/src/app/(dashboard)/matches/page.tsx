@@ -10,24 +10,11 @@ import { MultiSelect } from '@/components/ui/multi-select'
 import { QuickSendModal } from '@/components/quick-send-modal'
 import { Send, ChevronUp, ChevronDown, ChevronsUpDown, Search, Check, X as XIcon, Ban, Eye, EyeOff } from 'lucide-react'
 
-type MatchStatus = 'POTENTIAL' | 'REVIEWED' | 'REJECTED' | 'INTERESTED' | 'SUBMITTED'
-
-const statusOptions = [
+const campaignSentOptions = [
   { value: '', label: 'Όλα' },
-  { value: 'POTENTIAL', label: 'Πιθανό' },
-  { value: 'REVIEWED', label: 'Ελέγχθηκε' },
-  { value: 'REJECTED', label: 'Απορρίφθηκε' },
-  { value: 'INTERESTED', label: 'Ενδιαφέρον' },
-  { value: 'SUBMITTED', label: 'Υποβλήθηκε' },
+  { value: 'yes', label: 'Έχει σταλεί καμπάνια' },
+  { value: 'no', label: 'Δεν έχει σταλεί καμπάνια' },
 ]
-
-const statusVariant: Record<string, any> = {
-  POTENTIAL: 'default',
-  REVIEWED: 'info',
-  REJECTED: 'danger',
-  INTERESTED: 'success',
-  SUBMITTED: 'warning',
-}
 
 const PAGE_SIZE = 25
 
@@ -180,7 +167,7 @@ export default function MatchesPage() {
   const [matches, setMatches] = useState<any[]>([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
-  const [statusFilter, setStatusFilter] = useState('')
+  const [campaignSentFilter, setCampaignSentFilter] = useState('')
   const [accountantFilter, setAccountantFilter] = useState<string[]>([])
   const [programFilter, setProgramFilter] = useState<string[]>([])
   const [legalStatusFilter, setLegalStatusFilter] = useState<string[]>([])
@@ -218,10 +205,10 @@ export default function MatchesPage() {
   const fetchMatches = useCallback(async () => {
     setLoading(true)
     const params = new URLSearchParams({ page: String(page), limit: String(PAGE_SIZE), sortBy, sortDir })
-    if (statusFilter) params.set('status', statusFilter)
     if (accountantFilter.length) params.set('accountantIds', accountantFilter.join(','))
     if (programFilter.length) params.set('programIds', programFilter.join(','))
     if (legalStatusFilter.length) params.set('legalStatuses', legalStatusFilter.join(','))
+    if (campaignSentFilter) params.set('campaignSent', campaignSentFilter)
     if (search) params.set('search', search)
     const res = await fetch(`/api/matches?${params}`)
     const data = await res.json()
@@ -231,11 +218,11 @@ export default function MatchesPage() {
     if (data.programs?.length) setProgramOptions(data.programs.map((p: any) => ({ value: p.id, label: p.title })))
     if (data.legalStatuses?.length) setLegalStatusOptions(data.legalStatuses.map((v: string) => ({ value: v, label: v })))
     setLoading(false)
-  }, [page, statusFilter, accountantFilter, programFilter, legalStatusFilter, search, sortBy, sortDir])
+  }, [page, accountantFilter, programFilter, legalStatusFilter, campaignSentFilter, search, sortBy, sortDir])
 
   useEffect(() => { fetchMatches() }, [fetchMatches])
-  useEffect(() => { setPage(1) }, [statusFilter, accountantFilter, programFilter, legalStatusFilter, search, sortBy, sortDir])
-  useEffect(() => { setSelected(new Set()) }, [page, statusFilter, accountantFilter, programFilter, legalStatusFilter, search])
+  useEffect(() => { setPage(1) }, [accountantFilter, programFilter, legalStatusFilter, campaignSentFilter, search, sortBy, sortDir])
+  useEffect(() => { setSelected(new Set()) }, [page, accountantFilter, programFilter, legalStatusFilter, campaignSentFilter, search])
 
   function handleSearch() {
     setSearch(searchInput)
@@ -281,15 +268,6 @@ export default function MatchesPage() {
           <p className="text-gray-500 mt-1">{total} matches συνολικά</p>
         </div>
         <div className="flex items-center gap-3">
-          {unsuitableCount > 0 && (
-            <button
-              onClick={() => setHideUnsuitable(h => !h)}
-              className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-700 border border-gray-200 rounded-lg px-3 py-2 bg-white"
-            >
-              {hideUnsuitable ? <EyeOff size={14} /> : <Eye size={14} />}
-              {hideUnsuitable ? `${unsuitableCount} κρυμμένα ως ακατάλληλα` : `Απόκρυψη ${unsuitableCount} ακατάλληλων`}
-            </button>
-          )}
           {selected.size > 0 && (
           <Button
             className="bg-indigo-600 hover:bg-indigo-700 text-white flex items-center gap-2"
@@ -321,13 +299,13 @@ export default function MatchesPage() {
               </div>
             </div>
             <div>
-              <label className="text-xs font-medium text-gray-500 block mb-1">Κατάσταση</label>
+              <label className="text-xs font-medium text-gray-500 block mb-1">Καμπάνια</label>
               <select
-                value={statusFilter}
-                onChange={e => setStatusFilter(e.target.value)}
+                value={campaignSentFilter}
+                onChange={e => setCampaignSentFilter(e.target.value)}
                 className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white"
               >
-                {statusOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                {campaignSentOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
               </select>
             </div>
             {isAdmin && accountantOptions.length > 0 && (
@@ -357,9 +335,18 @@ export default function MatchesPage() {
                 placeholder="Όλες οι μορφές"
               />
             )}
-            {(accountantFilter.length > 0 || programFilter.length > 0 || legalStatusFilter.length > 0 || search) && (
+            {unsuitableCount > 0 && (
               <button
-                onClick={() => { setAccountantFilter([]); setProgramFilter([]); setLegalStatusFilter([]); setSearch(''); setSearchInput('') }}
+                onClick={() => setHideUnsuitable(h => !h)}
+                className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-700 border border-gray-200 rounded-lg px-3 py-2 bg-white mt-4"
+              >
+                {hideUnsuitable ? <EyeOff size={14} /> : <Eye size={14} />}
+                {hideUnsuitable ? `${unsuitableCount} κρυμμένα ως ακατάλληλα` : `Απόκρυψη ${unsuitableCount} ακατάλληλων`}
+              </button>
+            )}
+            {(accountantFilter.length > 0 || programFilter.length > 0 || legalStatusFilter.length > 0 || campaignSentFilter || search) && (
+              <button
+                onClick={() => { setAccountantFilter([]); setProgramFilter([]); setLegalStatusFilter([]); setCampaignSentFilter(''); setSearch(''); setSearchInput('') }}
                 className="text-xs text-gray-500 hover:text-gray-700 underline mt-4"
               >
                 Καθαρισμός φίλτρων
@@ -385,14 +372,9 @@ export default function MatchesPage() {
                       className="rounded"
                     />
                   </Th>
-                  <Th className="max-w-[120px]">
+                  <Th className="max-w-[300px]">
                     <button onClick={() => toggleSort('business.onomasia')} className="flex items-center hover:text-indigo-700 transition-colors">
                       Επιχείρηση <SortIcon col="business.onomasia" sortBy={sortBy} sortDir={sortDir} />
-                    </button>
-                  </Th>
-                  <Th>
-                    <button onClick={() => toggleSort('business.afm')} className="flex items-center hover:text-indigo-700 transition-colors">
-                      ΑΦΜ <SortIcon col="business.afm" sortBy={sortBy} sortDir={sortDir} />
                     </button>
                   </Th>
                   <Th>
@@ -401,7 +383,7 @@ export default function MatchesPage() {
                     </button>
                   </Th>
                   {isAdmin && (
-                    <Th>
+                    <Th className="max-w-[60px]">
                       <button onClick={() => toggleSort('business.accountant.officeName')} className="flex items-center hover:text-indigo-700 transition-colors">
                         Λογιστής <SortIcon col="business.accountant.officeName" sortBy={sortBy} sortDir={sortDir} />
                       </button>
@@ -416,7 +398,7 @@ export default function MatchesPage() {
               <TableBody>
                 {visibleMatches.length === 0 ? (
                   <TableRow>
-                    <Td colSpan={isAdmin ? 10 : 9} className="text-center text-gray-400 py-8">Δεν βρέθηκαν matches</Td>
+                    <Td colSpan={isAdmin ? 9 : 8} className="text-center text-gray-400 py-8">Δεν βρέθηκαν matches</Td>
                   </TableRow>
                 ) : (
                   visibleMatches.map(m => {
@@ -432,19 +414,18 @@ export default function MatchesPage() {
                             className="rounded"
                           />
                         </Td>
-                        <Td className="max-w-[120px]">
+                        <Td className="max-w-[300px]">
                           <Link href={`/businesses/${m.businessId}`} className={`text-blue-800 hover:underline font-medium truncate block ${unsuitable ? 'line-through' : ''}`}>
                             {m.business?.onomasia || '-'}
                           </Link>
                         </Td>
-                        <Td className="font-mono text-xs">{m.business?.afm}</Td>
                         <Td>
                           <Link href={`/programs/${m.programId}`} className="text-blue-600 hover:underline text-sm">
                             {m.program?.title}
                           </Link>
                         </Td>
                         {isAdmin && (
-                          <Td className="text-xs text-gray-500">
+                          <Td className="text-xs text-gray-500 max-w-[60px] truncate">
                             {m.business?.accountant?.officeName || '-'}
                           </Td>
                         )}

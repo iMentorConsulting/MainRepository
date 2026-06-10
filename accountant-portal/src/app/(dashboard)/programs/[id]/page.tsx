@@ -31,6 +31,7 @@ export default function ProgramDetailPage() {
   const [deleting, setDeleting] = useState(false)
   const [notifying, setNotifying] = useState(false)
   const [pendingNotifications, setPendingNotifications] = useState<number | null>(null)
+  const [criteriaMap, setCriteriaMap] = useState<Record<string, string>>({})
   const isAdmin = session?.user?.role === 'ADMIN'
 
   useEffect(() => {
@@ -41,6 +42,16 @@ export default function ProgramDetailPage() {
     fetch(`/api/programs/${id}/notify`)
       .then(r => r.json())
       .then(d => setPendingNotifications(d.pending ?? 0))
+      .catch(() => {})
+    fetch('/api/admin/criteria')
+      .then(r => r.json())
+      .then(data => {
+        if (Array.isArray(data)) {
+          const map: Record<string, string> = {}
+          for (const c of data) map[c.id] = c.label
+          setCriteriaMap(map)
+        }
+      })
       .catch(() => {})
   }, [id])
 
@@ -187,6 +198,16 @@ export default function ProgramDetailPage() {
                   <div>
                     <div className="text-xs font-semibold text-gray-500 uppercase mb-1.5">Άλλες Προϋποθέσεις</div>
                     <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-line">{program.otherRequirements}</p>
+                  </div>
+                )}
+                {program.extraCriteriaIds?.length > 0 && (
+                  <div>
+                    <div className="text-xs font-semibold text-gray-500 uppercase mb-1.5">Πρόσθετες Προϋποθέσεις</div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {program.extraCriteriaIds.map((cid: string) => (
+                        <Badge key={cid} variant="secondary">{criteriaMap[cid] || cid}</Badge>
+                      ))}
+                    </div>
                   </div>
                 )}
                 {program.websiteUrl && (

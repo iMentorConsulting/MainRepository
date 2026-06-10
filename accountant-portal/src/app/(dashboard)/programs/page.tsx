@@ -25,6 +25,7 @@ interface Program {
   maxInterestRate: number | null
   regionRules: string[]
   kadRules: string[]
+  extraCriteriaIds: string[]
   _count: { matches: number }
 }
 
@@ -65,6 +66,7 @@ export default function ProgramsPage() {
   const [filter, setFilter] = useState('')
   const [showArchived, setShowArchived] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [criteriaMap, setCriteriaMap] = useState<Record<string, string>>({})
   const isAdmin = session?.user?.role === 'ADMIN'
 
   useEffect(() => {
@@ -72,6 +74,16 @@ export default function ProgramsPage() {
       .then(r => r.json())
       .then(data => setPrograms(data.programs || []))
       .finally(() => setLoading(false))
+    fetch('/api/admin/criteria')
+      .then(r => r.json())
+      .then(data => {
+        if (Array.isArray(data)) {
+          const map: Record<string, string> = {}
+          for (const c of data) map[c.id] = c.label
+          setCriteriaMap(map)
+        }
+      })
+      .catch(() => {})
   }, [])
 
   const visible = programs.filter(p => showArchived ? p.archived : !p.archived)
@@ -224,6 +236,13 @@ export default function ProgramsPage() {
                       <div className="flex items-center gap-1.5 text-xs text-gray-500">
                         <Calendar size={11} className="flex-shrink-0" />
                         <span>Λήξη {formatDate(program.endDate)}</span>
+                      </div>
+                    )}
+                    {program.extraCriteriaIds?.length > 0 && (
+                      <div className="flex flex-wrap gap-1 pt-1">
+                        {program.extraCriteriaIds.map(cid => (
+                          <Badge key={cid} variant="secondary" className="text-[10px]">{criteriaMap[cid] || cid}</Badge>
+                        ))}
                       </div>
                     )}
                   </div>
