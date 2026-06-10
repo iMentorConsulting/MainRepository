@@ -149,7 +149,7 @@ router.get('/', async (req, res) => {
       const saleFilterIds = incomeIds.map(r => r.service_agreement_id).filter(Boolean);
       where.id = { [Op.in]: saleFilterIds.length ? saleFilterIds : [-1] };
     }
-    const ALLOWED_SORT = ['customer_name', 'service_type', 'status', 'amount_application', 'amount_implementation', 'approval_date', 'createdAt', 'sales_agent'];
+    const ALLOWED_SORT = ['customer_name', 'service_type', 'status', 'amount_application', 'amount_implementation', 'approval_date', 'createdAt', 'sales_agent', 'vat_number'];
     const sf = ALLOWED_SORT.includes(sort_field) ? sort_field : 'createdAt';
     const sd = (sort_dir || '').toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
 

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import api from '../../api/client';
 import Modal from '../../components/Modal';
 import CustomerSearch from '../../components/CustomerSearch';
@@ -511,6 +511,23 @@ export default function ServiceAgreementsPage() {
   };
 
   const rows = data.data || [];
+
+  // Computed columns (Είσπραξη, Υπόλοιπο, Ημ. Συμφωνίας) aren't DB columns —
+  // sort the currently loaded page client-side for these fields.
+  const COMPUTED_SORT_FIELDS = ['income_collected', 'remaining', 'first_sale_date'];
+  const sortedRows = useMemo(() => {
+    if (!COMPUTED_SORT_FIELDS.includes(sort.field)) return rows;
+    const dir = sort.dir === 'ASC' ? 1 : -1;
+    const remaining = r => Math.max(0, (parseFloat(r.amount_application || 0) + parseFloat(r.amount_implementation || 0)) - parseFloat(r.income_collected || 0));
+    return [...rows].sort((a, b) => {
+      let av, bv;
+      if (sort.field === 'remaining') { av = remaining(a); bv = remaining(b); }
+      else if (sort.field === 'first_sale_date') { av = a.first_sale_date ? new Date(a.first_sale_date).getTime() : 0; bv = b.first_sale_date ? new Date(b.first_sale_date).getTime() : 0; }
+      else { av = parseFloat(a.income_collected || 0); bv = parseFloat(b.income_collected || 0); }
+      return av < bv ? -1 * dir : av > bv ? 1 * dir : 0;
+    });
+  }, [rows, sort]);
+
   const sums = data.sums || { application: 0, implementation: 0, collected: 0 };
   const fByStatus = data.byStatus || {};
 
@@ -723,21 +740,21 @@ export default function ServiceAgreementsPage() {
                       className="w-4 h-4 rounded border-slate-300 text-primary-600 cursor-pointer" />
                   </th>
                   <SortTh label="Πελάτης" field="customer_name" sort={sort} onSort={handleSort} />
-                  <th className="th">ΑΦΜ</th>
+                  <SortTh label="ΑΦΜ" field="vat_number" sort={sort} onSort={handleSort} />
                   <SortTh label="Υπηρεσία" field="service_type" sort={sort} onSort={handleSort} />
                   <SortTh label="Κατάσταση" field="status" sort={sort} onSort={handleSort} />
                   <SortTh label="Ποσό Αίτησης" field="amount_application" sort={sort} onSort={handleSort} className="text-right" />
                   <SortTh label="Ποσό Υλοποίησης" field="amount_implementation" sort={sort} onSort={handleSort} className="text-right" />
-                  <th className="th">Είσπραξη</th>
-                  <th className="th text-right">Υπόλοιπο</th>
+                  <SortTh label="Είσπραξη" field="income_collected" sort={sort} onSort={handleSort} />
+                  <SortTh label="Υπόλοιπο" field="remaining" sort={sort} onSort={handleSort} className="text-right" />
                   <SortTh label="Σύμβουλος" field="sales_agent" sort={sort} onSort={handleSort} />
-                  <th className="th">Ημ. Συμφωνίας</th>
+                  <SortTh label="Ημ. Συμφωνίας" field="first_sale_date" sort={sort} onSort={handleSort} />
                   <SortTh label="Ημ. Έγκρισης" field="approval_date" sort={sort} onSort={handleSort} />
                   <th className="th w-20"></th>
                 </tr>
               </thead>
               <tbody>
-                {rows.map(r => (
+                {sortedRows.map(r => (
                   <tr key={r.id} className={`tr ${selectedIds.has(r.id) ? 'bg-indigo-50/60' : ''}`}>
                     <td className="td pr-0">
                       <input type="checkbox" checked={selectedIds.has(r.id)} onChange={() => toggleOne(r.id)}
