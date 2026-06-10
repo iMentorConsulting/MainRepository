@@ -1,4 +1,4 @@
-import { Palmtree, ShoppingCart, Factory, UtensilsCrossed, Briefcase, Tag } from 'lucide-react'
+import { Palmtree, ShoppingCart, Factory, UtensilsCrossed, Briefcase, Wheat, Tag } from 'lucide-react'
 import { BusinessCategory, CATEGORY_COLORS } from '@/lib/business-categories'
 
 const ICONS: Record<BusinessCategory, typeof Tag> = {
@@ -7,6 +7,7 @@ const ICONS: Record<BusinessCategory, typeof Tag> = {
   'ΜΕΤΑΠΟΙΗΣΗ': Factory,
   'ΕΣΤΙΑΣΗ': UtensilsCrossed,
   'ΥΠΗΡΕΣΙΕΣ': Briefcase,
+  'ΑΓΡΟΤΙΚΑ': Wheat,
   'ΑΛΛΟ': Tag,
 }
 

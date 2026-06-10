@@ -1,6 +1,6 @@
 // Maps a business's primary ΚΑΔ (NACE activity code) to one of the major
 // portfolio categories used for reporting/segmentation.
-export const BUSINESS_CATEGORIES = ['ΤΟΥΡΙΣΜΟΣ', 'ΕΜΠΟΡΙΟ', 'ΜΕΤΑΠΟΙΗΣΗ', 'ΕΣΤΙΑΣΗ', 'ΥΠΗΡΕΣΙΕΣ'] as const
+export const BUSINESS_CATEGORIES = ['ΤΟΥΡΙΣΜΟΣ', 'ΕΜΠΟΡΙΟ', 'ΜΕΤΑΠΟΙΗΣΗ', 'ΕΣΤΙΑΣΗ', 'ΥΠΗΡΕΣΙΕΣ', 'ΑΓΡΟΤΙΚΑ'] as const
 export type BusinessCategory = typeof BUSINESS_CATEGORIES[number] | 'ΑΛΛΟ'
 export const ALL_CATEGORIES: BusinessCategory[] = [...BUSINESS_CATEGORIES, 'ΑΛΛΟ']
 
@@ -11,6 +11,7 @@ export const CATEGORY_ICONS: Record<BusinessCategory, string> = {
   'ΜΕΤΑΠΟΙΗΣΗ': 'Factory',
   'ΕΣΤΙΑΣΗ': 'UtensilsCrossed',
   'ΥΠΗΡΕΣΙΕΣ': 'Briefcase',
+  'ΑΓΡΟΤΙΚΑ': 'Wheat',
   'ΑΛΛΟ': 'Tag',
 }
 
@@ -21,6 +22,7 @@ export const CATEGORY_COLORS: Record<BusinessCategory, string> = {
   'ΜΕΤΑΠΟΙΗΣΗ': '#64748b',
   'ΕΣΤΙΑΣΗ': '#dc2626',
   'ΥΠΗΡΕΣΙΕΣ': '#7c3aed',
+  'ΑΓΡΟΤΙΚΑ': '#65a30d',
   'ΑΛΛΟ': '#6b7280',
 }
 
@@ -32,9 +34,17 @@ const DIVISION_TO_CATEGORY: Record<string, BusinessCategory> = {
   '45': 'ΕΜΠΟΡΙΟ',
   '46': 'ΕΜΠΟΡΙΟ',
   '47': 'ΕΜΠΟΡΙΟ',
+  '01': 'ΑΓΡΟΤΙΚΑ', // Φυτική και ζωική παραγωγή
+  '02': 'ΑΓΡΟΤΙΚΑ', // Δασοκομία και υλοτομία
+  '03': 'ΑΓΡΟΤΙΚΑ', // Αλιεία και υδατοκαλλιέργεια
 }
 
 const MANUFACTURING_DIVISIONS = Array.from({ length: 24 }, (_, i) => String(i + 10)) // 10..33
+
+// Special ΑΑΔΕ ΚΑΔ used to flag farmers under the special VAT regime
+// ("ΑΓΡΟΤΗΣ ΕΙΔΙΚΟΥ ΚΑΘΕΣΤΩΤΟΣ") — not a real NACE manufacturing division
+// even though it starts with "10".
+const FARMER_SPECIAL_REGIME_CODE = '1000000'
 
 function isManufacturing(division: number): boolean {
   return division >= 10 && division <= 33
@@ -45,6 +55,7 @@ export function categorizeByKad(firmActCode: string | null | undefined): Busines
   if (!firmActCode) return 'ΑΛΛΟ'
   const digits = firmActCode.replace(/\D/g, '')
   if (digits.length < 2) return 'ΑΛΛΟ'
+  if (digits.startsWith(FARMER_SPECIAL_REGIME_CODE)) return 'ΑΓΡΟΤΙΚΑ'
   const division2 = digits.slice(0, 2)
   if (DIVISION_TO_CATEGORY[division2]) return DIVISION_TO_CATEGORY[division2]
   const divisionNum = parseInt(division2, 10)
@@ -82,40 +93,47 @@ export function getEffectiveCategory(business: {
 
 // Builds a Prisma `where` fragment matching businesses that fall into the given
 // category, accounting for manual tag overrides. Combine multiple categories with OR.
+//
+// Note: many existing rows have `tags = NULL` rather than `[]`, and Prisma's
+// `hasSome`/`has` filters on a NULL array column evaluate to NULL in SQL — which
+// makes the whole WHERE clause exclude the row. So we deliberately avoid any
+// `NOT`/`hasSome` over `tags` here and just OR the override-tag match with the
+// ΚΑΔ-derived match (each branch is independently null-safe).
 export function categoryWhereClause(category: BusinessCategory): any {
   const overrideTag = categoryTag(category)
-  const allOverrideTags = ALL_CATEGORIES.map(categoryTag)
-  const noOverride = { NOT: { tags: { hasSome: allOverrideTags } } }
 
-  if (category === 'ΤΟΥΡΙΣΜΟΣ' || category === 'ΕΣΤΙΑΣΗ' || category === 'ΕΜΠΟΡΙΟ' || category === 'ΜΕΤΑΠΟΙΗΣΗ') {
+  if (category === 'ΤΟΥΡΙΣΜΟΣ' || category === 'ΕΣΤΙΑΣΗ' || category === 'ΕΜΠΟΡΙΟ' || category === 'ΑΓΡΟΤΙΚΑ' || category === 'ΜΕΤΑΠΟΙΗΣΗ') {
     const divisions = category === 'ΤΟΥΡΙΣΜΟΣ' ? ['55', '79']
       : category === 'ΕΣΤΙΑΣΗ' ? ['56']
       : category === 'ΕΜΠΟΡΙΟ' ? ['45', '46', '47']
+      : category === 'ΑΓΡΟΤΙΚΑ' ? ['01', '02', '03']
       : MANUFACTURING_DIVISIONS
+
+    const divisionConditions: any[] = divisions.map(d => ({ firmActCode: { startsWith: d } }))
+    if (category === 'ΑΓΡΟΤΙΚΑ') {
+      divisionConditions.push({ firmActCode: { startsWith: FARMER_SPECIAL_REGIME_CODE } })
+    }
+
+    let activityMatch: any = { firmActKind: 1, OR: divisionConditions }
+    if (category === 'ΜΕΤΑΠΟΙΗΣΗ') {
+      // Division "10" overlaps with the special farmer-regime code, which belongs to ΑΓΡΟΤΙΚΑ instead.
+      activityMatch = { AND: [activityMatch, { NOT: { firmActCode: { startsWith: FARMER_SPECIAL_REGIME_CODE } } }] }
+    }
+
     return {
       OR: [
         { tags: { has: overrideTag } },
-        {
-          AND: [
-            noOverride,
-            { activities: { some: { firmActKind: 1, OR: divisions.map(d => ({ firmActCode: { startsWith: d } })) } } },
-          ],
-        },
+        { activities: { some: activityMatch } },
       ],
     }
   }
 
-  const allKnownDivisions = [...Object.keys(DIVISION_TO_CATEGORY), ...MANUFACTURING_DIVISIONS]
+  const allKnownDivisions = Object.keys(DIVISION_TO_CATEGORY).concat(MANUFACTURING_DIVISIONS)
   if (category === 'ΥΠΗΡΕΣΙΕΣ') {
     return {
       OR: [
         { tags: { has: overrideTag } },
-        {
-          AND: [
-            noOverride,
-            { activities: { some: { firmActKind: 1, NOT: { OR: allKnownDivisions.map(d => ({ firmActCode: { startsWith: d } })) } } } },
-          ],
-        },
+        { activities: { some: { firmActKind: 1, NOT: { OR: allKnownDivisions.map(d => ({ firmActCode: { startsWith: d } })) } } } },
       ],
     }
   }
@@ -124,12 +142,7 @@ export function categoryWhereClause(category: BusinessCategory): any {
   return {
     OR: [
       { tags: { has: overrideTag } },
-      {
-        AND: [
-          noOverride,
-          { activities: { none: { firmActKind: 1 } } },
-        ],
-      },
+      { activities: { none: { firmActKind: 1 } } },
     ],
   }
 }
