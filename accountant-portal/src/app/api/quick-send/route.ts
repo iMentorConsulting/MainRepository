@@ -36,11 +36,19 @@ export async function POST(request: NextRequest) {
         })
       : Promise.resolve([]),
     programId
-      ? prisma.program.findUnique({ where: { id: programId }, select: { title: true } })
+      ? prisma.program.findUnique({ where: { id: programId }, select: { title: true, endDate: true, extraCriteriaIds: true } })
       : Promise.resolve(null),
   ])
 
   const matchByBusiness = new Map(matchRows.map(m => [m.businessId, m.matchReason]))
+
+  const extraCriteriaList = program?.extraCriteriaIds?.length
+    ? await prisma.eligibilityCriterion.findMany({ where: { id: { in: program.extraCriteriaIds } }, select: { label: true } })
+    : []
+  const extraCriteriaText = extraCriteriaList.map(c => c.label).join('\n')
+  const programDeadlineText = program?.endDate
+    ? new Date(program.endDate).toLocaleDateString('el-GR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+    : ''
 
   const appSetting = await prisma.appSetting.findUnique({ where: { id: 'main' } })
 
@@ -55,11 +63,14 @@ export async function POST(request: NextRequest) {
       accountant_office: business.accountant?.officeName || '',
       kad_description: business.activities[0]?.firmActCode || '',
       program_title: program?.title || '',
+      program_deadline: programDeadlineText,
+      extra_criteria: extraCriteriaText,
       match_reason: (matchByBusiness.get(business.id) || []).map((r: string) => `• ${r}`).join('\n'),
       unsubscribe_link: `${process.env.APP_URL || 'https://logistis.i-mentor.gr'}/api/unsubscribe/${business.unsubscribeToken}`,
     }
 
-    const renderedSubject = renderTemplate(subject || 'Ενημέρωση από το λογιστικό σας γραφείο', variables)
+    let renderedSubject = renderTemplate(subject || 'Ενημέρωση από το λογιστικό σας γραφείο', variables)
+    if (!variables.accountant_office) renderedSubject = renderedSubject.replace(/^\s*&\s*/, '')
 
     let success = false
 

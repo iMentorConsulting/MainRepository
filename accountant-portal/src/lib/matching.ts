@@ -110,7 +110,7 @@ function matchesBusiness(
       if (regdate > new Date(program.maxRegdate)) dateOk = false
     }
     if (dateOk && regdate) {
-      reasons.push(`Επιλέξιμη ημερομηνία ίδρυσης: ${business.regdate}`)
+      reasons.push(`Επιλέξιμη ημερομηνία ίδρυσης: ${regdate.toLocaleDateString('el-GR', { day: '2-digit', month: '2-digit', year: 'numeric' })}`)
     } else {
       allMatched = false
     }

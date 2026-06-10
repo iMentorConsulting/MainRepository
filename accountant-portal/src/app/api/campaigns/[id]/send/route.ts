@@ -17,6 +17,15 @@ async function processCampaignSend(
   const appSetting = await prisma.appSetting.findUnique({ where: { id: 'main' } })
   const imentorLogoUrl = appSetting?.imentorLogoUrl || ''
 
+  const extraCriteriaIds: string[] = campaign.program?.extraCriteriaIds || []
+  const extraCriteriaList = extraCriteriaIds.length
+    ? await prisma.eligibilityCriterion.findMany({ where: { id: { in: extraCriteriaIds } }, select: { label: true } })
+    : []
+  const extraCriteriaText = extraCriteriaList.map(c => c.label).join('\n')
+  const programDeadlineText = campaign.program?.endDate
+    ? new Date(campaign.program.endDate).toLocaleDateString('el-GR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+    : ''
+
   const useEmail = campaign.channel === 'EMAIL' || campaign.channel === 'EMAIL_AND_VIBER'
   const useViber = campaign.channel === 'VIBER' || campaign.channel === 'EMAIL_AND_VIBER'
 
@@ -36,6 +45,8 @@ async function processCampaignSend(
       accountant_name: business.accountant?.contactPerson || '',
       accountant_office: business.accountant?.officeName || '',
       program_title: campaign.program?.title || '',
+      program_deadline: programDeadlineText,
+      extra_criteria: extraCriteriaText,
       kad_description: business.activities[0]?.firmActCode || '',
       match_reason: matchReasons.map(r => `${bullet} ${r}`).join('\n'),
       unsubscribe_link: `${process.env.APP_URL || 'https://logistis.i-mentor.gr'}/api/unsubscribe/${business.unsubscribeToken}`,
@@ -46,7 +57,8 @@ async function processCampaignSend(
     const message = rawMessage
       .replace(/\*\*([^*]*)\*\*/g, (_, inner) => inner.trim() || '')
       .replace(/\*([^*]*)\*/g, (_, inner) => inner.trim() || '')
-    const emailSubject = renderTemplate(campaign.subject || campaign.title, variables)
+    let emailSubject = renderTemplate(campaign.subject || campaign.title, variables)
+    if (!variables.accountant_office) emailSubject = emailSubject.replace(/^\s*&\s*/, '')
     let success = false
 
     try {
