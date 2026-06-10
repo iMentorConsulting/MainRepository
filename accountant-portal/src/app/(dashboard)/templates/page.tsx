@@ -22,20 +22,22 @@ interface Template {
 
 function TemplateCard({ template, onSaved }: { template: Template; onSaved: (t: Template) => void }) {
   const [open, setOpen] = useState(false)
+  const [label, setLabel] = useState(template.label)
+  const [description, setDescription] = useState(template.description)
   const [subject, setSubject] = useState(template.subject)
   const [bodyWithAccountant, setBodyWithAccountant] = useState(template.bodyWithAccountant)
   const [bodyDirect, setBodyDirect] = useState(template.bodyDirect)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
 
-  const dirty = subject !== template.subject || bodyWithAccountant !== template.bodyWithAccountant || bodyDirect !== template.bodyDirect
+  const dirty = label !== template.label || description !== template.description || subject !== template.subject || bodyWithAccountant !== template.bodyWithAccountant || bodyDirect !== template.bodyDirect
 
   async function save() {
     setSaving(true)
     const res = await fetch(`/api/admin/templates/${template.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ subject, bodyWithAccountant, bodyDirect }),
+      body: JSON.stringify({ label, description, subject, bodyWithAccountant, bodyDirect }),
     })
     if (res.ok) {
       const updated = await res.json()
@@ -78,6 +80,24 @@ function TemplateCard({ template, onSaved }: { template: Template; onSaved: (t: 
       </button>
       {open && (
         <div className="p-4 space-y-4">
+          <div>
+            <label className="text-sm font-medium text-gray-700 mb-1 block">Τίτλος Προτύπου</label>
+            <input
+              type="text"
+              value={label}
+              onChange={e => setLabel(e.target.value)}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+            />
+          </div>
+          <div>
+            <label className="text-sm font-medium text-gray-700 mb-1 block">Περιγραφή</label>
+            <input
+              type="text"
+              value={description}
+              onChange={e => setDescription(e.target.value)}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+            />
+          </div>
           <div>
             <label className="text-sm font-medium text-gray-700 mb-1 block">Θέμα{template.channel === 'VIBER' ? ' (εσωτερική αναφορά)' : ''}</label>
             <input
