@@ -169,8 +169,8 @@ function StepTemplate({ channel, onSelect, onBack }: { channel: 'EMAIL' | 'VIBER
 }
 
 // ── Step 3: Preview & send ────────────────────────────────────────────────────
-function StepSend({ template, programId, programs, onBack, onSend, sending, onSaveDraft, savingDraft }: {
-  template: any; programId: string; programs: any[];
+function StepSend({ template, messageBody, onMessageChange, programId, programs, onBack, onSend, sending, onSaveDraft, savingDraft }: {
+  template: any; messageBody: string; onMessageChange: (v: string) => void; programId: string; programs: any[];
   onBack: () => void; onSend: (ids: string[]) => void; sending: boolean;
   onSaveDraft: () => void; savingDraft: boolean;
 }) {
@@ -209,7 +209,7 @@ function StepSend({ template, programId, programs, onBack, onSend, sending, onSa
     })
   }
 
-  const preview = (template?.bodyWithAccountant || '')
+  const preview = (messageBody || '')
     .replace(/\{\{business_name\}\}/g, 'ΠΑΡΑΔΕΙΓΜΑ ΑΕ')
     .replace(/\{\{afm\}\}/g, '123456789')
     .replace(/\{\{accountant_name\}\}/g, 'Γιώργος Παπαδόπουλος')
@@ -297,23 +297,39 @@ function StepSend({ template, programId, programs, onBack, onSend, sending, onSa
         </div>
       )}
 
-      {/* Message preview */}
-      <details className="group">
+      {/* Message: edit & preview */}
+      <details className="group" open>
         <summary className="cursor-pointer text-sm text-indigo-600 font-medium select-none list-none flex items-center gap-1">
-          <span className="group-open:hidden">▶ Δείτε πώς θα φαίνεται το μήνυμα</span>
-          <span className="hidden group-open:inline">▼ Κλείστε προεπισκόπηση</span>
+          <span className="group-open:hidden">▶ Μήνυμα & προεπισκόπηση</span>
+          <span className="hidden group-open:inline">▼ Μήνυμα & προεπισκόπηση</span>
         </summary>
-        <div className="mt-3 bg-gray-50 border border-gray-200 rounded-xl p-4">
-          <div className="text-xs text-gray-400 font-semibold mb-2 uppercase tracking-wide">Προεπισκόπηση</div>
-          {template?.subject && (
-            <div className="text-xs text-gray-500 mb-3 pb-3 border-b border-gray-200">
-              <span className="font-semibold">Θέμα: </span>
-              {template.subject
-                .replace(/\{\{accountant_office\}\}/g, 'Λογιστικό Γραφείο Παπαδόπουλος')
-                .replace(/\{\{program_title\}\}/g, program?.title || 'ΕΣΠΑ 2024')}
-            </div>
-          )}
-          <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{preview}</p>
+        <div className="mt-3 space-y-3">
+          <div>
+            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block mb-1">
+              Επεξεργασία μηνύματος
+            </label>
+            <textarea
+              value={messageBody}
+              onChange={e => onMessageChange(e.target.value)}
+              rows={10}
+              className="w-full text-sm border border-gray-200 rounded-xl p-3 font-mono leading-relaxed focus:outline-none focus:ring-1 focus:ring-indigo-500"
+            />
+            <p className="text-xs text-gray-400 mt-1">
+              Μπορείτε να αλλάξετε το κείμενο, αλλά μην αλλάξετε τα πεδία μέσα σε διπλά άγκιστρα (π.χ. <code className="bg-gray-100 px-1 rounded">{'{{business_name}}'}</code>) — αντικαθίστανται αυτόματα ανά παραλήπτη.
+            </p>
+          </div>
+          <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
+            <div className="text-xs text-gray-400 font-semibold mb-2 uppercase tracking-wide">Προεπισκόπηση</div>
+            {template?.subject && (
+              <div className="text-xs text-gray-500 mb-3 pb-3 border-b border-gray-200">
+                <span className="font-semibold">Θέμα: </span>
+                {template.subject
+                  .replace(/\{\{accountant_office\}\}/g, 'Λογιστικό Γραφείο Παπαδόπουλος')
+                  .replace(/\{\{program_title\}\}/g, program?.title || 'ΕΣΠΑ 2024')}
+              </div>
+            )}
+            <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{preview}</p>
+          </div>
         </div>
       </details>
 
@@ -409,6 +425,7 @@ export default function NewCampaignPage() {
   const [programId, setProgramId] = useState('')
   const [channel, setChannel] = useState<'EMAIL' | 'VIBER' | 'EMAIL_AND_VIBER'>('EMAIL')
   const [selectedTemplate, setSelectedTemplate] = useState<any>(null)
+  const [messageBody, setMessageBody] = useState('')
   const [sending, setSending] = useState(false)
   const [savingDraft, setSavingDraft] = useState(false)
 
@@ -427,7 +444,7 @@ export default function NewCampaignPage() {
         channel,
         subject: selectedTemplate.subject,
         programId: programId || undefined,
-        messageTemplate: selectedTemplate.bodyWithAccountant,
+        messageTemplate: messageBody,
         status,
       }
       const res = await fetch('/api/campaigns', {
@@ -494,7 +511,7 @@ export default function NewCampaignPage() {
         {path === 'diy' && step === 2 && (
           <StepTemplate
             channel={channel}
-            onSelect={t => { setSelectedTemplate(t); setStep(3) }}
+            onSelect={t => { setSelectedTemplate(t); setMessageBody(t.bodyWithAccountant); setStep(3) }}
             onBack={() => setStep(1)}
           />
         )}
@@ -502,6 +519,8 @@ export default function NewCampaignPage() {
         {path === 'diy' && step === 3 && (
           <StepSend
             template={selectedTemplate}
+            messageBody={messageBody}
+            onMessageChange={setMessageBody}
             programId={programId}
             programs={programs}
             onBack={() => setStep(2)}
