@@ -19,7 +19,12 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     include: {
       users: { select: { id: true, name: true, email: true, role: true } },
       businesses: {
-        select: { id: true, afm: true, onomasia: true, postalAreaDescription: true, postalZipCode: true }
+        select: {
+          id: true, afm: true, onomasia: true, postalAreaDescription: true, postalZipCode: true,
+          commercialTitle: true, legalStatusDescr: true, firmFlagDescr: true, deactivationFlagDescr: true,
+          regdate: true, stopDate: true, postalAddress: true, postalAddressNo: true, doyDescr: true,
+          activities: { select: { firmActCode: true, firmActDescr: true, firmActKindDescr: true } },
+        }
       },
     }
   })

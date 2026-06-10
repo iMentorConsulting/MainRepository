@@ -82,6 +82,8 @@ export default function AccountantDetailPage() {
 
   if (!accountant) return <div className="text-center text-gray-500">Δεν βρέθηκε λογιστής</div>
 
+  const ownBusiness = accountant.businesses?.find((b: any) => b.afm === accountant.afm)
+
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
@@ -128,6 +130,40 @@ export default function AccountantDetailPage() {
         </div>
 
         <div className="space-y-4">
+          {(accountant.afm || ownBusiness) && (
+            <Card>
+              <CardHeader><CardTitle className="flex items-center gap-2"><Building2 size={18} className="text-indigo-500" />Στοιχεία ΑΑΔΕ Γραφείου</CardTitle></CardHeader>
+              <CardContent className="space-y-2 text-sm">
+                <div className="flex justify-between"><span className="text-gray-500">ΑΦΜ</span><span className="font-medium">{accountant.afm || '—'}</span></div>
+                {ownBusiness ? (
+                  <>
+                    <div className="flex justify-between"><span className="text-gray-500">Επωνυμία</span><span className="font-medium text-right">{ownBusiness.onomasia || '—'}</span></div>
+                    {ownBusiness.commercialTitle && ownBusiness.commercialTitle !== ownBusiness.onomasia && (
+                      <div className="flex justify-between"><span className="text-gray-500">Διακριτικός τίτλος</span><span className="font-medium text-right">{ownBusiness.commercialTitle}</span></div>
+                    )}
+                    <div className="flex justify-between"><span className="text-gray-500">Νομική μορφή</span><span className="font-medium text-right">{ownBusiness.legalStatusDescr || '—'}</span></div>
+                    <div className="flex justify-between"><span className="text-gray-500">Ημ/νία έναρξης</span><span className="font-medium">{ownBusiness.regdate || '—'}</span></div>
+                    <div className="flex justify-between"><span className="text-gray-500">Ημ/νία διακοπής</span><span className="font-medium">{ownBusiness.stopDate || '—'}</span></div>
+                    <div className="flex justify-between"><span className="text-gray-500">Κατάσταση</span><span className="font-medium">{ownBusiness.deactivationFlagDescr || ownBusiness.firmFlagDescr || '—'}</span></div>
+                    <div className="flex justify-between"><span className="text-gray-500">Διεύθυνση</span><span className="font-medium text-right">{[ownBusiness.postalAddress, ownBusiness.postalAddressNo].filter(Boolean).join(' ') || '—'}{ownBusiness.postalZipCode || ownBusiness.postalAreaDescription ? `, ${ownBusiness.postalZipCode || ''} ${ownBusiness.postalAreaDescription || ''}` : ''}</span></div>
+                    <div className="flex justify-between"><span className="text-gray-500">ΔΟΥ</span><span className="font-medium">{ownBusiness.doyDescr || '—'}</span></div>
+                    {ownBusiness.activities?.length > 0 && (
+                      <div>
+                        <span className="text-gray-500">Δραστηριότητες ΚΑΔ</span>
+                        <ul className="mt-1 ml-4 list-disc space-y-0.5">
+                          {ownBusiness.activities.map((a: any, i: number) => (
+                            <li key={i}>{a.firmActCode} — {a.firmActDescr || ''} {a.firmActKindDescr ? `(${a.firmActKindDescr})` : ''}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <p className="text-gray-400 text-xs">Τα στοιχεία ΑΑΔΕ θα εμφανιστούν μόλις εγκριθεί ο λογαριασμός.</p>
+                )}
+              </CardContent>
+            </Card>
+          )}
           <Card>
             <CardHeader><CardTitle>Στατιστικά</CardTitle></CardHeader>
             <CardContent className="space-y-3">
