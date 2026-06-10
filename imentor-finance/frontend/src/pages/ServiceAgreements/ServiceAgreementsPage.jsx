@@ -92,11 +92,6 @@ const incomeStatusBadge = s => {
   const short = s.length > 18 ? s.slice(0, 16) + '…' : s;
   return <span className={cls} title={s}>{short}</span>;
 };
-const INCOME_STATUS_OPTS = ['ΥΠΟΒΟΛΗ ΑΙΤΗΣΗΣ', 'ΟΛΟΚΛΗΡΩΜΕΝΗ - ΕΠΙΤΥΧΩΣ', 'ΟΛΟΚΛΗΡΩΜΕΝΗ - ΑΠΟΡΡΙΨΗ', 'ΟΛΟΚΛΗΡΩΜΕΝΗ - ΠΑΡΑΙΤΗΣΗ', 'ΔΕΝ ΠΡΟΧΩΡΗΣΕ'];
-const INCOME_STATUS_FILTER_OPTS = [
-  ...INCOME_STATUS_OPTS.map(s => ({ value: s, label: s })),
-  { value: '__none__', label: 'Χωρίς Κατάσταση' },
-];
 
 const EMPTY_FORM = {
   customer_id: '', customer_name: '', vat_number: '', service_type: '',
@@ -346,6 +341,7 @@ export default function ServiceAgreementsPage() {
   const [agents, setAgents] = useState([]);
   const [services, setServices] = useState([]);
   const [listServiceTypes, setListServiceTypes] = useState([]);
+  const [incomeStatusOpts, setIncomeStatusOpts] = useState([]);
 
   // Selection & bulk actions
   const [selectedIds, setSelectedIds] = useState(new Set());
@@ -442,6 +438,7 @@ export default function ServiceAgreementsPage() {
     api.get('/service-agreements/stats').then(r => setStats(r.data)).catch(() => {});
     api.get('/lists?list_type=ΠΡΑΚΤΟΡΕΣ&active_only=true').then(r => setAgents(r.data.map(x => x.value))).catch(() => {});
     api.get('/lists?list_type=ΕΙΔΟΣ_ΥΠΗΡΕΣΙΑΣ&active_only=true').then(r => setServices(r.data.map(x => x.value))).catch(() => {});
+    api.get('/service-agreements/income-statuses').then(r => setIncomeStatusOpts(r.data || [])).catch(() => {});
   }, []);
 
   // Limit the "Υπηρεσία" filter options (list tab) to service types present
@@ -694,7 +691,8 @@ export default function ServiceAgreementsPage() {
             selected={selectedAgents} onChange={setSelectedAgents} getKey={o => o.value} getLabel={o => o.value} />
           <MultiSelectDropdown label="Υπηρεσία" options={listServiceTypes.map(s => ({ value: s }))}
             selected={selectedServiceTypes} onChange={setSelectedServiceTypes} getKey={o => o.value} getLabel={o => o.value} />
-          <MultiSelectDropdown label="Κατ. Εσόδων" options={INCOME_STATUS_FILTER_OPTS}
+          <MultiSelectDropdown label="Κατ. Εσόδων"
+            options={[...incomeStatusOpts.map(s => ({ value: s, label: s })), { value: '__none__', label: 'Χωρίς Κατάσταση' }]}
             selected={selectedIncomeStatuses} onChange={setSelectedIncomeStatuses} getKey={o => o.value} getLabel={o => o.label} />
           <div className="flex items-center gap-1 border-l border-slate-200 pl-2 ml-1">
             <span className="text-xs text-slate-400 whitespace-nowrap">Ημ. Συμφωνίας:</span>
