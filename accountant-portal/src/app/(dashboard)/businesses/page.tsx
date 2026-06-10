@@ -11,7 +11,7 @@ import { Modal } from '@/components/ui/modal'
 import { Select } from '@/components/ui/select'
 import { getEffectiveCategory, ALL_CATEGORIES } from '@/lib/business-categories'
 import { CategoryBadge } from '@/components/businesses/category-badge'
-import { resolveRegionFromZip } from '@/lib/greek-regions'
+import { resolveRegionFromZip, GREEK_REGIONS } from '@/lib/greek-regions'
 import { Plus, Search, Download, Filter, Trash2, UserCog, Send, Smartphone, Upload, X, ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react'
 
 function SortIcon({ col, sortBy, sortDir }: { col: string; sortBy: string; sortDir: string }) {
@@ -72,6 +72,7 @@ export default function BusinessesPage() {
   const [legalStatusFilter, setLegalStatusFilter] = useState<string[]>([])
   const [regionFilter, setRegionFilter] = useState<string[]>([])
   const [categoryFilter, setCategoryFilter] = useState<string[]>([])
+  const [perifereiaFilter, setPerifereiaFilter] = useState<string[]>([])
   const [sort, setSort] = useState('createdAt:desc')
   const [sortBy, sortDir] = sort.split(':')
   function toggleSort(col: string) {
@@ -102,17 +103,18 @@ export default function BusinessesPage() {
       ...(legalStatusFilter.length ? { legalStatuses: legalStatusFilter.join(',') } : (!includeIndividuals ? { excludeLegalStatuses: 'ΙΔΙΩΤΗΣ' } : {})),
       ...(regionFilter.length ? { regions: regionFilter.join(',') } : {}),
       ...(categoryFilter.length ? { categories: categoryFilter.join(',') } : {}),
+      ...(perifereiaFilter.length ? { perifereies: perifereiaFilter.join(',') } : {}),
     })
     const res = await fetch(`/api/businesses?${params}`)
     const data = await res.json()
     setBusinesses(data.businesses || [])
     setTotal(data.total || 0)
     setLoading(false)
-  }, [page, search, accountantFilter, legalStatusFilter, regionFilter, categoryFilter, sort, includeIndividuals])
+  }, [page, search, accountantFilter, legalStatusFilter, regionFilter, categoryFilter, perifereiaFilter, sort, includeIndividuals])
 
   useEffect(() => { fetchData() }, [fetchData])
-  useEffect(() => { setSelected(new Set()) }, [page, search, accountantFilter, legalStatusFilter, regionFilter, categoryFilter, sort, includeIndividuals])
-  useEffect(() => { setPage(1) }, [accountantFilter, legalStatusFilter, regionFilter, categoryFilter, sort, includeIndividuals])
+  useEffect(() => { setSelected(new Set()) }, [page, search, accountantFilter, legalStatusFilter, regionFilter, categoryFilter, perifereiaFilter, sort, includeIndividuals])
+  useEffect(() => { setPage(1) }, [accountantFilter, legalStatusFilter, regionFilter, categoryFilter, perifereiaFilter, sort, includeIndividuals])
 
   useEffect(() => {
     fetch('/api/businesses/facets')
@@ -355,6 +357,13 @@ export default function BusinessesPage() {
               onChange={setCategoryFilter}
               placeholder="Όλοι οι κλάδοι"
             />
+            <MultiSelect
+              label="Περιφέρεια"
+              options={[...GREEK_REGIONS, 'Άγνωστη'].map(v => ({ value: v, label: v }))}
+              selected={perifereiaFilter}
+              onChange={setPerifereiaFilter}
+              placeholder="Όλες οι περιφέρειες"
+            />
             <div>
               <label className="text-xs font-medium text-gray-500 block mb-1">Ταξινόμηση</label>
               <Select value={sort} onChange={e => setSort(e.target.value)} options={SORT_OPTIONS} className="min-w-[180px]" />
@@ -369,11 +378,11 @@ export default function BusinessesPage() {
                 {includeIndividuals ? 'Απόκρυψη Ιδιωτών' : 'Εμφάνιση Ιδιωτών'}
               </Button>
             )}
-            {(accountantFilter.length > 0 || legalStatusFilter.length > 0 || regionFilter.length > 0 || categoryFilter.length > 0) && (
+            {(accountantFilter.length > 0 || legalStatusFilter.length > 0 || regionFilter.length > 0 || categoryFilter.length > 0 || perifereiaFilter.length > 0) && (
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => { setAccountantFilter([]); setLegalStatusFilter([]); setRegionFilter([]); setCategoryFilter([]) }}
+                onClick={() => { setAccountantFilter([]); setLegalStatusFilter([]); setRegionFilter([]); setCategoryFilter([]); setPerifereiaFilter([]) }}
               >
                 Καθαρισμός φίλτρων
               </Button>

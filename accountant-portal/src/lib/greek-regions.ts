@@ -65,3 +65,20 @@ export function zipPrefixesForRegion(region: GreekRegion): string[] {
     .map(([prefix]) => prefix)
     .sort()
 }
+
+// Builds a Prisma `where` fragment matching businesses whose postal ZIP resolves
+// to the given region (or "Άγνωστη" for ZIPs with no known mapping). Combine
+// multiple regions with OR.
+export function regionWhereClause(region: string): any {
+  if (region === 'Άγνωστη') {
+    const allPrefixes = Object.keys(ZIP_PREFIX_TO_REGION)
+    return {
+      OR: [
+        { postalZipCode: null },
+        { AND: allPrefixes.map(p => ({ NOT: { postalZipCode: { startsWith: p } } })) },
+      ],
+    }
+  }
+  const prefixes = zipPrefixesForRegion(region as GreekRegion)
+  return { OR: prefixes.map(p => ({ postalZipCode: { startsWith: p } })) }
+}

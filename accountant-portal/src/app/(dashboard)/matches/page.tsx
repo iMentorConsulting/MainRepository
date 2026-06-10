@@ -175,6 +175,8 @@ export default function MatchesPage() {
   const [legalStatusOptions, setLegalStatusOptions] = useState<{ value: string; label: string }[]>([])
   const [categoryFilter, setCategoryFilter] = useState<string[]>([])
   const [categoryOptions, setCategoryOptions] = useState<{ value: string; label: string }[]>([])
+  const [perifereiaFilter, setPerifereiaFilter] = useState<string[]>([])
+  const [perifereiaOptions, setPerifereiaOptions] = useState<{ value: string; label: string }[]>([])
   const [search, setSearch] = useState('')
   const [searchInput, setSearchInput] = useState('')
   const [sortBy, setSortBy] = useState('matchScore')
@@ -212,6 +214,7 @@ export default function MatchesPage() {
     if (programFilter.length) params.set('programIds', programFilter.join(','))
     if (legalStatusFilter.length) params.set('legalStatuses', legalStatusFilter.join(','))
     if (categoryFilter.length) params.set('categories', categoryFilter.join(','))
+    if (perifereiaFilter.length) params.set('perifereies', perifereiaFilter.join(','))
     if (campaignSentFilter) params.set('campaignSent', campaignSentFilter)
     if (search) params.set('search', search)
     const res = await fetch(`/api/matches?${params}`)
@@ -222,12 +225,13 @@ export default function MatchesPage() {
     if (data.programs?.length) setProgramOptions(data.programs.map((p: any) => ({ value: p.id, label: p.title })))
     if (data.legalStatuses?.length) setLegalStatusOptions(data.legalStatuses.map((v: string) => ({ value: v, label: v })))
     if (data.categories?.length) setCategoryOptions(data.categories.map((v: string) => ({ value: v, label: v })))
+    if (data.perifereies?.length) setPerifereiaOptions([...data.perifereies, 'Άγνωστη'].map((v: string) => ({ value: v, label: v })))
     setLoading(false)
-  }, [page, accountantFilter, programFilter, legalStatusFilter, categoryFilter, campaignSentFilter, search, sortBy, sortDir])
+  }, [page, accountantFilter, programFilter, legalStatusFilter, categoryFilter, perifereiaFilter, campaignSentFilter, search, sortBy, sortDir])
 
   useEffect(() => { fetchMatches() }, [fetchMatches])
-  useEffect(() => { setPage(1) }, [accountantFilter, programFilter, legalStatusFilter, categoryFilter, campaignSentFilter, search, sortBy, sortDir])
-  useEffect(() => { setSelected(new Set()) }, [page, accountantFilter, programFilter, legalStatusFilter, categoryFilter, campaignSentFilter, search])
+  useEffect(() => { setPage(1) }, [accountantFilter, programFilter, legalStatusFilter, categoryFilter, perifereiaFilter, campaignSentFilter, search, sortBy, sortDir])
+  useEffect(() => { setSelected(new Set()) }, [page, accountantFilter, programFilter, legalStatusFilter, categoryFilter, perifereiaFilter, campaignSentFilter, search])
 
   function handleSearch() {
     setSearch(searchInput)
@@ -350,6 +354,15 @@ export default function MatchesPage() {
                 placeholder="Όλοι οι κλάδοι"
               />
             )}
+            {perifereiaOptions.length > 0 && (
+              <MultiSelect
+                label="Περιφέρεια"
+                options={perifereiaOptions}
+                selected={perifereiaFilter}
+                onChange={setPerifereiaFilter}
+                placeholder="Όλες οι περιφέρειες"
+              />
+            )}
             {unsuitableCount > 0 && (
               <button
                 onClick={() => setHideUnsuitable(h => !h)}
@@ -363,9 +376,9 @@ export default function MatchesPage() {
                 {hideUnsuitable ? `${unsuitableCount} εγγραφές κρυμμένες (μη επιλέξιμες) — κλικ για εμφάνιση` : `Απόκρυψη ${unsuitableCount} μη επιλέξιμων`}
               </button>
             )}
-            {(accountantFilter.length > 0 || programFilter.length > 0 || legalStatusFilter.length > 0 || categoryFilter.length > 0 || campaignSentFilter || search) && (
+            {(accountantFilter.length > 0 || programFilter.length > 0 || legalStatusFilter.length > 0 || categoryFilter.length > 0 || perifereiaFilter.length > 0 || campaignSentFilter || search) && (
               <button
-                onClick={() => { setAccountantFilter([]); setProgramFilter([]); setLegalStatusFilter([]); setCategoryFilter([]); setCampaignSentFilter(''); setSearch(''); setSearchInput('') }}
+                onClick={() => { setAccountantFilter([]); setProgramFilter([]); setLegalStatusFilter([]); setCategoryFilter([]); setPerifereiaFilter([]); setCampaignSentFilter(''); setSearch(''); setSearchInput('') }}
                 className="text-xs text-gray-500 hover:text-gray-700 underline mt-4"
               >
                 Καθαρισμός φίλτρων
