@@ -8,7 +8,7 @@ import { Table, TableHead, TableBody, TableRow, Th, Td } from '@/components/ui/t
 import { Pagination } from '@/components/ui/pagination'
 import { MultiSelect } from '@/components/ui/multi-select'
 import { QuickSendModal } from '@/components/quick-send-modal'
-import { Send, ChevronUp, ChevronDown, ChevronsUpDown, Search } from 'lucide-react'
+import { Send, ChevronUp, ChevronDown, ChevronsUpDown, Search, Check, X as XIcon, Ban } from 'lucide-react'
 
 type MatchStatus = 'POTENTIAL' | 'REVIEWED' | 'REJECTED' | 'INTERESTED' | 'SUBMITTED'
 
@@ -71,6 +71,107 @@ function NotesCell({ matchId, initialNotes }: { matchId: string; initialNotes: s
   )
 }
 
+function CriteriaCell({ match, criteriaMap }: { match: any; criteriaMap: Record<string, string> }) {
+  const extraIds: string[] = match.program?.extraCriteriaIds || []
+  const [checks, setChecks] = useState<Record<string, string>>(() => {
+    const init: Record<string, string> = {}
+    for (const c of match.criterionChecks || []) init[c.criterionId] = c.value
+    return init
+  })
+
+  if (extraIds.length === 0) return <span className="text-xs text-gray-400">—</span>
+
+  async function toggle(criterionId: string) {
+    const current = checks[criterionId]
+    const next = current === 'PASS' ? 'FAIL' : current === 'FAIL' ? undefined : 'PASS'
+    setChecks(prev => {
+      const updated = { ...prev }
+      if (next) updated[criterionId] = next
+      else delete updated[criterionId]
+      return updated
+    })
+    if (next) {
+      await fetch(`/api/matches/${match.id}/criteria`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ criterionId, value: next }),
+      })
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-1 min-w-[160px]">
+      {extraIds.map(id => {
+        const label = criteriaMap[id] || id
+        const value = checks[id]
+        return (
+          <button
+            key={id}
+            type="button"
+            onClick={() => toggle(id)}
+            title="Κλικ για εναλλαγή: εκκρεμές → ΟΚ → ΟΧΙ"
+            className={`flex items-center gap-1.5 text-[11px] text-left rounded px-1.5 py-0.5 border transition-colors ${
+              value === 'PASS' ? 'bg-emerald-50 border-emerald-200 text-emerald-700' :
+              value === 'FAIL' ? 'bg-red-50 border-red-200 text-red-700' :
+              'bg-gray-50 border-gray-200 text-gray-500'
+            }`}
+          >
+            {value === 'PASS' ? <Check size={12} className="flex-shrink-0" /> : value === 'FAIL' ? <XIcon size={12} className="flex-shrink-0" /> : <span className="w-3 h-3 flex-shrink-0 rounded-full border border-gray-300" />}
+            <span className="truncate">{label}</span>
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+function RejectionCell({ match, reasonOptions, onChanged }: { match: any; reasonOptions: { id: string; label: string }[]; onChanged: () => void }) {
+  const [saving, setSaving] = useState(false)
+
+  async function setReason(reasonId: string) {
+    setSaving(true)
+    await fetch(`/api/matches/${match.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ rejectionReasonId: reasonId || null, status: reasonId ? 'REJECTED' : 'POTENTIAL' }),
+    })
+    setSaving(false)
+    onChanged()
+  }
+
+  if (match.rejectionReasonId) {
+    return (
+      <div className="flex items-center gap-1.5 text-xs">
+        <Badge variant="danger" className="whitespace-nowrap">
+          <Ban size={11} />
+          {match.rejectionReason?.label || 'Ακατάλληλο'}
+        </Badge>
+        <button
+          type="button"
+          onClick={() => setReason('')}
+          disabled={saving}
+          title="Αναίρεση"
+          className="text-gray-400 hover:text-gray-600"
+        >
+          <XIcon size={12} />
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <select
+      defaultValue=""
+      disabled={saving}
+      onChange={e => { if (e.target.value) setReason(e.target.value) }}
+      className="text-xs border border-gray-200 rounded-lg px-1.5 py-1 focus:outline-none focus:ring-1 focus:ring-red-400 bg-white text-gray-500 max-w-[140px]"
+    >
+      <option value="">Ακατάλληλος...</option>
+      {reasonOptions.map(r => <option key={r.id} value={r.id}>{r.label}</option>)}
+    </select>
+  )
+}
+
 export default function MatchesPage() {
   const { data: session } = useSession()
   const isAdmin = session?.user?.role === 'ADMIN'
@@ -91,6 +192,25 @@ export default function MatchesPage() {
   const [programOptions, setProgramOptions] = useState<{ value: string; label: string }[]>([])
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [quickSendOpen, setQuickSendOpen] = useState(false)
+  const [criteriaMap, setCriteriaMap] = useState<Record<string, string>>({})
+  const [reasonOptions, setReasonOptions] = useState<{ id: string; label: string }[]>([])
+
+  useEffect(() => {
+    fetch('/api/admin/criteria')
+      .then(r => r.json())
+      .then(data => {
+        if (Array.isArray(data)) {
+          const map: Record<string, string> = {}
+          for (const c of data) map[c.id] = c.label
+          setCriteriaMap(map)
+        }
+      })
+      .catch(() => {})
+    fetch('/api/admin/rejection-reasons')
+      .then(r => r.json())
+      .then(data => setReasonOptions(Array.isArray(data) ? data.filter((r: any) => r.active) : []))
+      .catch(() => {})
+  }, [])
 
   const fetchMatches = useCallback(async () => {
     setLoading(true)
@@ -270,14 +390,16 @@ export default function MatchesPage() {
                       </button>
                     </Th>
                   )}
+                  <Th>Πρόσθετες Προϋποθέσεις</Th>
                   <Th>Σημειώσεις</Th>
                   <Th>Καμπάνια</Th>
+                  <Th>Καταλληλότητα</Th>
                 </TableRow>
               </TableHead>
               <TableBody>
                 {matches.length === 0 ? (
                   <TableRow>
-                    <Td colSpan={isAdmin ? 8 : 7} className="text-center text-gray-400 py-8">Δεν βρέθηκαν matches</Td>
+                    <Td colSpan={isAdmin ? 10 : 9} className="text-center text-gray-400 py-8">Δεν βρέθηκαν matches</Td>
                   </TableRow>
                 ) : (
                   matches.map(m => {
@@ -309,6 +431,9 @@ export default function MatchesPage() {
                           </Td>
                         )}
                         <Td>
+                          <CriteriaCell match={m} criteriaMap={criteriaMap} />
+                        </Td>
+                        <Td>
                           <NotesCell matchId={m.id} initialNotes={m.notes} />
                         </Td>
                         <Td>
@@ -327,6 +452,9 @@ export default function MatchesPage() {
                           ) : (
                             <span className="text-xs text-gray-400">—</span>
                           )}
+                        </Td>
+                        <Td>
+                          <RejectionCell match={m} reasonOptions={reasonOptions} onChanged={fetchMatches} />
                         </Td>
                       </TableRow>
                     )

@@ -4,7 +4,7 @@ import { usePathname } from 'next/navigation'
 import { useSession, signOut } from 'next-auth/react'
 import { useEffect, useState } from 'react'
 import { cn } from '@/lib/utils'
-import { LayoutDashboard, Users, Building2, Zap, Target, Send, CreditCard, Percent, Inbox, BarChart3, Settings, LogOut, Globe, Mail, Phone, TrendingUp, X, MessageSquare } from 'lucide-react'
+import { LayoutDashboard, Users, Building2, Zap, Target, Send, CreditCard, Percent, Inbox, BarChart3, Settings, LogOut, Globe, Mail, Phone, TrendingUp, X, MessageSquare, ListChecks } from 'lucide-react'
 
 const navItems = [
   { href: '/', label: 'Dashboard', icon: LayoutDashboard, adminOnly: false },
@@ -12,6 +12,7 @@ const navItems = [
   { href: '/businesses', label: 'Επιχειρήσεις', icon: Building2, adminOnly: false },
   { href: '/programs', label: 'Προγράμματα', icon: Zap, adminOnly: false },
   { href: '/matches', label: 'Matches', icon: Target, adminOnly: false },
+  { href: '/criteria', label: 'Πρόσθετα Κριτήρια', icon: ListChecks, adminOnly: true },
   { href: '/campaigns', label: 'Καμπάνιες', icon: Send, adminOnly: false },
   { href: '/payments', label: 'Πληρωμές', icon: CreditCard, adminOnly: true },
   { href: '/commissions', label: 'Προμήθειες', icon: Percent, adminOnly: false },

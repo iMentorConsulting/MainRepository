@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { KadTable } from '@/components/businesses/kad-table'
 import { MatchCard } from '@/components/matching/match-card'
 import { QuickSendModal } from '@/components/quick-send-modal'
-import { ArrowLeft, Mail, Phone, MapPin, Calendar, Edit, Send, Trash2 } from 'lucide-react'
+import { ArrowLeft, Mail, Phone, MapPin, Calendar, Edit, Send, Trash2, X as XIcon, Plus } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import { formatDate } from '@/lib/utils'
@@ -24,6 +24,8 @@ export default function BusinessDetailPage() {
   const [deleting, setDeleting] = useState(false)
   const { data: session } = useSession()
   const isAdmin = session?.user?.role === 'ADMIN'
+  const [tagOptions, setTagOptions] = useState<{ id: string; label: string; active: boolean }[]>([])
+  const [tagSelect, setTagSelect] = useState('')
 
   useEffect(() => {
     fetch(`/api/businesses/${id}`)
@@ -33,7 +35,30 @@ export default function BusinessDetailPage() {
         setNotes(data.notes || '')
       })
       .finally(() => setLoading(false))
+    fetch('/api/admin/tags')
+      .then(r => r.json())
+      .then(data => setTagOptions(Array.isArray(data) ? data.filter((t: any) => t.active) : []))
+      .catch(() => {})
   }, [id])
+
+  async function saveTags(tags: string[]) {
+    setBusiness((prev: any) => ({ ...prev, tags }))
+    await fetch(`/api/businesses/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tags }),
+    })
+  }
+
+  function addTag(tag: string) {
+    const t = tag.trim()
+    if (!t || (business.tags || []).includes(t)) return
+    saveTags([...(business.tags || []), t])
+  }
+
+  function removeTag(tag: string) {
+    saveTags((business.tags || []).filter((t: string) => t !== tag))
+  }
 
   async function toggleExcludeFromCampaigns() {
     const next = !business.excludedFromCampaigns
@@ -308,18 +333,41 @@ export default function BusinessDetailPage() {
             </CardContent>
           </Card>
 
-          {business.tags && business.tags.length > 0 && (
-            <Card>
-              <CardHeader><CardTitle>Tags</CardTitle></CardHeader>
-              <CardContent>
-                <div className="flex flex-wrap gap-1.5">
-                  {business.tags.map((tag: string) => (
-                    <Badge key={tag} variant="secondary">{tag}</Badge>
+          <Card>
+            <CardHeader><CardTitle>Tags / Ιδιαιτερότητες</CardTitle></CardHeader>
+            <CardContent className="space-y-2">
+              <div className="flex flex-wrap gap-1.5">
+                {(business.tags || []).length === 0 && <span className="text-sm text-gray-400">Χωρίς tags</span>}
+                {(business.tags || []).map((tag: string) => (
+                  <Badge key={tag} variant="secondary" className="gap-1">
+                    {tag}
+                    <button onClick={() => removeTag(tag)} className="hover:text-red-600">
+                      <XIcon size={11} />
+                    </button>
+                  </Badge>
+                ))}
+              </div>
+              <div className="flex gap-2">
+                <select
+                  value={tagSelect}
+                  onChange={e => setTagSelect(e.target.value)}
+                  className="flex-1 text-sm border border-gray-300 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                >
+                  <option value="">Επιλέξτε tag...</option>
+                  {tagOptions.filter(t => !(business.tags || []).includes(t.label)).map(t => (
+                    <option key={t.id} value={t.label}>{t.label}</option>
                   ))}
-                </div>
-              </CardContent>
-            </Card>
-          )}
+                </select>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => { if (tagSelect) { addTag(tagSelect); setTagSelect('') } }}
+                >
+                  <Plus size={14} />
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
         </div>
       </div>
     </div>

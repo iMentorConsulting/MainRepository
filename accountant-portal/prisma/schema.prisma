@@ -143,6 +143,7 @@ model Program {
   minRegdate       String?
   maxRegdate       String?
   legalStatusRules String[]
+  extraCriteriaIds String[]
   active           Boolean         @default(true)
   archived         Boolean         @default(false)
   startDate        DateTime?
@@ -177,8 +178,12 @@ model ProgramMatch {
   status      MatchStatus @default(POTENTIAL)
   notes       String?
   notified    Boolean     @default(false)
+  rejectionReasonId String?
+  rejectionReason   RejectionReason? @relation(fields: [rejectionReasonId], references: [id])
+  rejectionNote     String?
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
+  criterionChecks   MatchCriterionCheck[]
 
   @@unique([programId, businessId])
 }
@@ -448,6 +453,51 @@ model ChatMessage {
   body           String
   readAt         DateTime?
   createdAt      DateTime         @default(now())
+}
+
+// Admin-managed library of extra eligibility criteria (e.g. "Πτυχίο ΑΕΙ/ΤΕΙ μετά το 2016")
+// that can be attached to programs and checked off per-match by accountants.
+model EligibilityCriterion {
+  id        String   @id @default(cuid())
+  label     String
+  active    Boolean  @default(true)
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+  checks    MatchCriterionCheck[]
+}
+
+// Per-match checkbox state for each of the program's extra eligibility criteria.
+model MatchCriterionCheck {
+  id          String               @id @default(cuid())
+  matchId     String
+  match       ProgramMatch         @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  criterionId String
+  criterion   EligibilityCriterion @relation(fields: [criterionId], references: [id], onDelete: Cascade)
+  value       String               // PASS | FAIL
+  updatedAt   DateTime             @updatedAt
+
+  @@unique([matchId, criterionId])
+}
+
+// Admin-managed library of reasons an accountant can pick when marking a
+// match as not suitable for a particular client (distinct from REJECTED).
+model RejectionReason {
+  id        String         @id @default(cuid())
+  label     String
+  active    Boolean        @default(true)
+  order     Int            @default(0)
+  createdAt DateTime       @default(now())
+  matches   ProgramMatch[]
+}
+
+// Admin-managed library of suggested business "tags"/idiosyncrasies
+// (e.g. "Οφειλές σε Δημόσιο", "Άνεργος") used for future matching.
+model TagOption {
+  id        String   @id @default(cuid())
+  label     String
+  active    Boolean  @default(true)
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
 }
 
 model Invitation {

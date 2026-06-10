@@ -180,10 +180,19 @@ export default function EditProgramPage() {
   const [regionRules, setRegionRules] = useState<string[]>([])
   const [zipCodeRules, setZipCodeRules] = useState<string[]>([])
   const [heroImage, setHeroImage] = useState('')
+  const [extraCriteriaIds, setExtraCriteriaIds] = useState<string[]>([])
+  const [criteriaOptions, setCriteriaOptions] = useState<{ id: string; label: string; active: boolean }[]>([])
 
   const { register, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm<FormData>({
     resolver: zodResolver(schema),
   })
+
+  useEffect(() => {
+    fetch('/api/admin/criteria')
+      .then(r => r.json())
+      .then(data => setCriteriaOptions(Array.isArray(data) ? data : []))
+      .catch(() => {})
+  }, [])
 
   useEffect(() => {
     fetch(`/api/programs/${id}`)
@@ -192,6 +201,7 @@ export default function EditProgramPage() {
         setKadRules(program.kadRules || [])
         setRegionRules(program.regionRules || [])
         setZipCodeRules(program.zipCodeRules || [])
+        setExtraCriteriaIds(program.extraCriteriaIds || [])
         setHeroImage(program.heroImageUrl || '')
         reset({
           title: program.title || '',
@@ -221,7 +231,7 @@ export default function EditProgramPage() {
     const res = await fetch(`/api/programs/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...data, heroImageUrl: heroImage || data.heroImageUrl, kadRules, regionRules, zipCodeRules }),
+      body: JSON.stringify({ ...data, heroImageUrl: heroImage || data.heroImageUrl, kadRules, regionRules, zipCodeRules, extraCriteriaIds }),
     })
     if (res.ok) {
       router.push(`/programs/${id}`)
@@ -317,6 +327,33 @@ export default function EditProgramPage() {
               <Input label="Ελάχιστη Ημ. Ίδρυσης" type="date" {...register('minRegdate')} />
               <Input label="Μέγιστη Ημ. Ίδρυσης" type="date" {...register('maxRegdate')} />
             </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader><CardTitle>Πρόσθετες Προϋποθέσεις (Manual Check)</CardTitle></CardHeader>
+          <CardContent className="space-y-2">
+            <p className="text-sm text-gray-500 mb-2">
+              Επιλέξτε τις πρόσθετες προϋποθέσεις που ισχύουν για αυτό το πρόγραμμα. Θα εμφανίζονται στη σελίδα Matches για χειροκίνητο έλεγχο από τον λογιστή.
+            </p>
+            {criteriaOptions.length === 0 ? (
+              <p className="text-sm text-gray-400">Δεν έχουν οριστεί κριτήρια. Μεταβείτε στη σελίδα "Πρόσθετα Κριτήρια".</p>
+            ) : (
+              criteriaOptions.map(c => (
+                <label key={c.id} className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    className="rounded"
+                    checked={extraCriteriaIds.includes(c.id)}
+                    onChange={e => {
+                      if (e.target.checked) setExtraCriteriaIds([...extraCriteriaIds, c.id])
+                      else setExtraCriteriaIds(extraCriteriaIds.filter(id => id !== c.id))
+                    }}
+                  />
+                  <span className={c.active ? '' : 'text-gray-400'}>{c.label}{!c.active ? ' (ανενεργό)' : ''}</span>
+                </label>
+              ))
+            )}
           </CardContent>
         </Card>
 

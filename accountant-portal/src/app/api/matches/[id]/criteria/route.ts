@@ -13,18 +13,16 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  const { status, notes, rejectionReasonId, rejectionNote } = await request.json()
+  const { criterionId, value } = await request.json()
+  if (!criterionId || !['PASS', 'FAIL'].includes(value)) {
+    return NextResponse.json({ error: 'Invalid payload' }, { status: 400 })
+  }
 
-  const updateData: any = { updatedAt: new Date() }
-  if (status !== undefined) updateData.status = status
-  if (notes !== undefined) updateData.notes = notes
-  if (rejectionReasonId !== undefined) updateData.rejectionReasonId = rejectionReasonId
-  if (rejectionNote !== undefined) updateData.rejectionNote = rejectionNote
-
-  const match = await prisma.programMatch.update({
-    where: { id: params.id },
-    data: updateData,
+  const check = await prisma.matchCriterionCheck.upsert({
+    where: { matchId_criterionId: { matchId: params.id, criterionId } },
+    update: { value },
+    create: { matchId: params.id, criterionId, value },
   })
 
-  return NextResponse.json(match)
+  return NextResponse.json(check)
 }
