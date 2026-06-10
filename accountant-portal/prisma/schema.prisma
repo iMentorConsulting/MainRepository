@@ -59,9 +59,15 @@ model Accountant {
   address       String?
   notes         String?
   active        Boolean    @default(true)
-  // Self-registered offices start unapproved — they can use the portal but
-  // cannot run AADE/GSIS lookups (search/import businesses) until an admin
-  // reviews their signup questionnaire and approves them.
+  // The accounting office's own ΑΦΜ, captured at registration and looked up
+  // via ΑΑΔΕ/GSIS so the admin can verify it's a real office before approving.
+  afm           String?
+  // Raw GSIS lookup result for the office's own ΑΦΜ, captured at registration.
+  // Used to auto-create the office itself as the accountant's first Business
+  // once the admin approves the account; cleared afterwards.
+  pendingBusinessData Json?
+  // Self-registered offices start unapproved — they cannot log in at all
+  // until an admin reviews their signup (incl. ΑΦΜ/ΑΑΔΕ lookup) and approves them.
   approved      Boolean    @default(true)
   createdAt     DateTime   @default(now())
   updatedAt     DateTime   @updatedAt

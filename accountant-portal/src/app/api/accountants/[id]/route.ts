@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { Prisma } from '@prisma/client'
 import { sendEmail } from '@/lib/email'
+import type { GsisBusinessData } from '@/lib/gsis'
 
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   const session = await auth()
@@ -53,7 +55,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
   delete data.users
   delete data.businesses
 
-  const existing = await prisma.accountant.findUnique({ where: { id: params.id }, select: { approved: true, email: true, contactPerson: true, officeName: true } })
+  const existing = await prisma.accountant.findUnique({ where: { id: params.id }, select: { approved: true, email: true, contactPerson: true, officeName: true, afm: true, pendingBusinessData: true } })
 
   const accountant = await prisma.accountant.update({
     where: { id: params.id },
@@ -65,10 +67,53 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
       to: existing.email,
       subject: 'Η πρόσβαση ΑΑΔΕ στο I-MENTOR Portal εγκρίθηκε',
       html: `<p>Αγαπητέ/ή ${existing.contactPerson},</p>
-        <p>Ο λογαριασμός του γραφείου <strong>${existing.officeName}</strong> εγκρίθηκε από την ομάδα της I-MENTOR. Μπορείτε πλέον να αναζητάτε και να εισάγετε επιχειρήσεις μέσω ΑΑΔΕ/ΓΓΠΣ στο
+        <p>Ο λογαριασμός του γραφείου <strong>${existing.officeName}</strong> εγκρίθηκε από την ομάδα της I-MENTOR. Μπορείτε πλέον να συνδεθείτε και να αναζητάτε και να εισάγετε επιχειρήσεις μέσω ΑΑΔΕ/ΓΓΠΣ στο
         <a href="${process.env.APP_URL || 'https://logistis.i-mentor.gr'}/login">I-MENTOR Portal</a>.</p>
         <p>Με εκτίμηση,<br>Η ομάδα της I-MENTOR</p>`,
     })
+
+    // Auto-create the office's own business record (its first "client") from
+    // the GSIS data captured at registration time.
+    if (existing.pendingBusinessData && existing.afm) {
+      const gsisData = existing.pendingBusinessData as unknown as GsisBusinessData
+      const alreadyExists = await prisma.business.findUnique({ where: { afm: existing.afm } })
+      if (!alreadyExists) {
+        const business = await prisma.business.create({
+          data: {
+            accountantId: params.id,
+            afm: existing.afm,
+            onomasia: gsisData.onomasia,
+            commercialTitle: gsisData.commercialTitle,
+            legalStatusDescr: gsisData.legalStatusDescr,
+            firmFlagDescr: gsisData.firmFlagDescr,
+            iNiFlagDescr: gsisData.iNiFlagDescr,
+            deactivationFlag: gsisData.deactivationFlag,
+            deactivationFlagDescr: gsisData.deactivationFlagDescr,
+            regdate: gsisData.regdate,
+            stopDate: gsisData.stopDate,
+            postalAddress: gsisData.postalAddress,
+            postalAddressNo: gsisData.postalAddressNo,
+            postalZipCode: gsisData.postalZipCode,
+            postalAreaDescription: gsisData.postalAreaDescription,
+            doy: gsisData.doy,
+            doyDescr: gsisData.doyDescr,
+            email: existing.email,
+          },
+        })
+        if (gsisData.activities?.length) {
+          await prisma.businessActivity.createMany({
+            data: gsisData.activities.map(a => ({
+              businessId: business.id,
+              firmActCode: a.firmActCode,
+              firmActDescr: a.firmActDescr,
+              firmActKind: a.firmActKind,
+              firmActKindDescr: a.firmActKindDescr,
+            })),
+          })
+        }
+      }
+    }
+    await prisma.accountant.update({ where: { id: params.id }, data: { pendingBusinessData: Prisma.JsonNull } })
   }
 
   return NextResponse.json(accountant)

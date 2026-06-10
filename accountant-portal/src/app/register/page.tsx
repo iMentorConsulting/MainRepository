@@ -20,7 +20,7 @@ const COOPERATION_GOAL_OPTIONS = [
 export default function RegisterPage() {
   const router = useRouter()
   const [form, setForm] = useState({
-    officeName: '', contactPerson: '', email: '', phone: '', password: '',
+    officeName: '', contactPerson: '', email: '', phone: '', password: '', afm: '',
     officeLocation: '', clientCountRange: '', cooperationGoal: '', notes: '',
   })
   const [loading, setLoading] = useState(false)
@@ -40,6 +40,10 @@ export default function RegisterPage() {
     }
     if (!form.clientCountRange || !form.cooperationGoal) {
       setError('Παρακαλούμε συμπληρώστε όλα τα υποχρεωτικά πεδία του ερωτηματολογίου')
+      return
+    }
+    if (!/^\d{9}$/.test(form.afm)) {
+      setError('Το ΑΦΜ του λογιστικού γραφείου πρέπει να αποτελείται από 9 ψηφία')
       return
     }
     setLoading(true)
@@ -64,9 +68,9 @@ export default function RegisterPage() {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
         <div className="bg-white rounded-2xl shadow-lg border border-slate-100 p-8 max-w-md w-full text-center space-y-3">
-          <h1 className="text-xl font-bold text-slate-900">Ο λογαριασμός σας δημιουργήθηκε ✓</h1>
+          <h1 className="text-xl font-bold text-slate-900">Η αίτησή σας υποβλήθηκε ✓</h1>
           <p className="text-slate-500 text-sm">
-            Μπορείτε να συνδεθείτε άμεσα στο portal με το email και τον κωδικό που επιλέξατε. Η αναζήτηση επιχειρήσεων μέσω ΑΑΔΕ θα ενεργοποιηθεί μόλις η ομάδα μας εγκρίνει την αίτησή σας — θα ενημερωθείτε με email.
+            Η ομάδα της I-MENTOR θα ελέγξει τα στοιχεία του γραφείου σας (ΑΦΜ) και θα εγκρίνει τον λογαριασμό σας σύντομα. Μόλις εγκριθεί, θα ενημερωθείτε με email και θα μπορείτε να συνδεθείτε στο portal.
           </p>
           <Link href="/login" className="inline-block text-indigo-600 hover:underline text-sm font-medium">Σύνδεση στο Portal →</Link>
         </div>
@@ -96,6 +100,7 @@ export default function RegisterPage() {
                 <Field label="Τηλέφωνο" value={form.phone} onChange={v => update('phone', v)} />
               </div>
               <Field label="Email *" type="email" value={form.email} onChange={v => update('email', v)} required />
+              <Field label="ΑΦΜ Λογιστικού Γραφείου * (9 ψηφία)" value={form.afm} onChange={v => update('afm', v.replace(/\D/g, '').slice(0, 9))} required />
               <Field label="Κωδικός Πρόσβασης * (τουλ. 8 χαρακτήρες)" type="password" value={form.password} onChange={v => update('password', v)} required />
             </div>
           </div>
