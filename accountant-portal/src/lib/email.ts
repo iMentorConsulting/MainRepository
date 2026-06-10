@@ -140,6 +140,8 @@ export function renderCampaignEmailHtml(options: CampaignEmailOptions): string {
     // Remove common emoji ranges that don't render well in email clients
     // eslint-disable-next-line no-misleading-character-class
     .replace(/[☀-➿]|[\uD83C-\uDBFF][\uDC00-\uDFFF]/g, '')
+    // Drop a leading "Γειά σας, ..." greeting line — the wrapper already renders "Αγαπητέ/ή ..."
+    .replace(/^\s*Γειά σας,[^\n]*\n+/, '')
     .split(/\n{2,}/)
     .map(block => block.trim())
     .filter(Boolean)
@@ -153,7 +155,9 @@ export function renderCampaignEmailHtml(options: CampaignEmailOptions): string {
           </li>`).join('')}
         </ul>`
       }
-      return `<p style="margin:0 0 16px;color:#334155;font-size:14px;line-height:1.7;">${lines.join('<br>')}</p>`
+      // Bold the closing signature line(s) ending with "& I-MENTOR"
+      const styledLines = lines.map(l => /&\s*I-MENTOR\s*$/.test(l) ? `<strong>${l}</strong>` : l)
+      return `<p style="margin:0 0 16px;color:#334155;font-size:14px;line-height:1.7;">${styledLines.join('<br>')}</p>`
     })
     .join('')
 
