@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
 
   const { searchParams } = request.nextUrl
   const page = parseInt(searchParams.get('page') || '1')
-  const limit = parseInt(searchParams.get('limit') || '25')
+  const limit = Math.min(parseInt(searchParams.get('limit') || '25'), 200)
   const status = searchParams.get('status') || ''
   const accountantIds = searchParams.get('accountantIds')?.split(',').filter(Boolean) || []
   const programIds = searchParams.get('programIds')?.split(',').filter(Boolean) || []

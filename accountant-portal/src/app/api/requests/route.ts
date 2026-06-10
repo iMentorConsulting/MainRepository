@@ -36,6 +36,15 @@ export async function POST(request: NextRequest) {
 
   const { businessId, programId, subject, message, attachmentUrl, attachmentName } = await request.json()
 
+  const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024 // 10MB
+  if (attachmentUrl && typeof attachmentUrl === 'string') {
+    // Base64 data URLs are ~33% larger than the raw bytes they encode.
+    const approxBytes = attachmentUrl.length * 0.75
+    if (approxBytes > MAX_ATTACHMENT_BYTES) {
+      return NextResponse.json({ error: 'Το συνημμένο αρχείο υπερβαίνει το όριο των 10MB' }, { status: 413 })
+    }
+  }
+
   const req = await prisma.imentorRequest.create({
     data: {
       accountantId: session.user.accountantId,

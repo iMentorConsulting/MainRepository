@@ -17,6 +17,18 @@ export async function PUT(request: NextRequest) {
   }
 
   const { imentorLogoUrl } = await request.json()
+
+  if (imentorLogoUrl) {
+    try {
+      const url = new URL(imentorLogoUrl)
+      if (url.protocol !== 'https:' && url.protocol !== 'http:') {
+        return NextResponse.json({ error: 'Invalid logo URL' }, { status: 400 })
+      }
+    } catch {
+      return NextResponse.json({ error: 'Invalid logo URL' }, { status: 400 })
+    }
+  }
+
   const setting = await prisma.appSetting.upsert({
     where: { id: 'main' },
     update: { imentorLogoUrl: imentorLogoUrl || null },

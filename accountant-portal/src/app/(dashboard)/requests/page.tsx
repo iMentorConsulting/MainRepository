@@ -281,12 +281,22 @@ function NewRequestModal({ open, onClose, onCreated }: { open: boolean; onClose:
           <input
             type="file"
             accept=".pdf,.doc,.docx,.xlsx,.xls,.jpg,.jpeg,.png"
-            onChange={e => setAttachmentFile(e.target.files?.[0] || null)}
+            onChange={e => {
+              const file = e.target.files?.[0] || null
+              if (file && file.size > 10 * 1024 * 1024) {
+                alert('Το αρχείο υπερβαίνει το όριο των 10MB')
+                e.target.value = ''
+                setAttachmentFile(null)
+                return
+              }
+              setAttachmentFile(file)
+            }}
             className="block w-full text-sm text-gray-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-gray-100 file:text-gray-700 file:font-medium hover:file:bg-gray-200"
           />
           {attachmentFile && (
             <p className="text-xs text-gray-500 mt-1">{attachmentFile.name} ({(attachmentFile.size / 1024).toFixed(0)} KB)</p>
           )}
+          <p className="text-xs text-gray-400 mt-1">Μέγιστο μέγεθος αρχείου: 10MB</p>
         </div>
         <div className="flex gap-3">
           <Button onClick={handleSubmit} loading={saving}>Υποβολή Αιτήματος</Button>

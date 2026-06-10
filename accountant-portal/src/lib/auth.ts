@@ -38,7 +38,7 @@ function clearFailedAttempts(key: string) {
 export const { handlers, auth, signIn, signOut } = NextAuth({
   secret: process.env.NEXTAUTH_SECRET || process.env.AUTH_SECRET,
   trustHost: true,
-  session: { strategy: 'jwt', maxAge: 12 * 60 * 60 },
+  session: { strategy: 'jwt', maxAge: 4 * 60 * 60 },
   pages: { signIn: '/login' },
   callbacks: {
     async jwt({ token, user }) {
