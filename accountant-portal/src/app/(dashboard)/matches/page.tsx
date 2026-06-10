@@ -77,13 +77,11 @@ function CriteriaCell({ match, criteriaMap }: { match: any; criteriaMap: Record<
       else delete updated[criterionId]
       return updated
     })
-    if (next) {
-      await fetch(`/api/matches/${match.id}/criteria`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ criterionId, value: next }),
-      })
-    }
+    await fetch(`/api/matches/${match.id}/criteria`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ criterionId, value: next ?? null }),
+    })
   }
 
   return (

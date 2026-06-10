@@ -3,6 +3,20 @@ import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { resolveRegionFromZip } from '@/lib/greek-regions'
 
+// Individuals (sole proprietors) shouldn't be counted as "businesses" in the legal-form breakdown
+function isIndividualLegalStatus(legalStatusDescr: string | null): boolean {
+  const s = (legalStatusDescr || '').toUpperCase()
+  return s.includes('ΑΤΟΜΙΚΗ') || s.includes('ΙΔΙΩΤΗΣ')
+}
+
+// Collapses equivalent legal-form variants into a single canonical label for the chart
+function normalizeLegalStatus(status: string): string {
+  const s = status.toUpperCase()
+  if (s.includes('ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ')) return 'ΙΚΕ'
+  if (s === 'ΟΕ' || s === 'ΕΕ' || s.includes('ΟΜΟΡΡΥΘΜΗ ΕΤΑΙΡΕΙΑ') || s.includes('ΕΤΕΡΟΡΡΥΘΜΗ ΕΤΑΙΡΕΙΑ')) return 'ΟΕ/ΕΕ'
+  return status
+}
+
 export async function GET(request: NextRequest) {
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -50,16 +64,20 @@ export async function GET(request: NextRequest) {
     }),
   ])
 
-  // Group by legal status (Νομική Μορφή)
+  // Group by legal status (Νομική Μορφή), normalizing equivalent forms into one label
   const legalStatusGroups: Record<string, number> = {}
   for (const b of businesses) {
-    const status = b.legalStatusDescr || 'Άγνωστη'
+    const status = normalizeLegalStatus(b.legalStatusDescr || 'Άγνωστη')
     legalStatusGroups[status] = (legalStatusGroups[status] || 0) + 1
   }
   const businessesByLegalStatus = Object.entries(legalStatusGroups)
     .sort(([, a], [, b]) => b - a)
     .slice(0, 10)
     .map(([name, count]) => ({ name, count }))
+
+  // Split total businesses into individuals (ΑΤΟΜΙΚΗ/ΙΔΙΩΤΗΣ) vs actual companies
+  const individualsCount = businesses.filter(b => isIndividualLegalStatus(b.legalStatusDescr)).length
+  const companiesCount = businesses.length - individualsCount
 
   // Group by Περιφέρεια (resolved from postal ZIP code prefix)
   const regionGroups: Record<string, number> = {}
@@ -91,6 +109,8 @@ export async function GET(request: NextRequest) {
     totalMatches,
     campaignsSent,
     pendingRequests,
+    individualsCount,
+    companiesCount,
     businessesByLegalStatus,
     businessesByRegion,
     matchesByProgram: matchesByProgramFormatted,

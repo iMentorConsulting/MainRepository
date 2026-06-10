@@ -12,6 +12,8 @@ import {
 interface DashboardStats {
   totalAccountants?: number
   totalBusinesses: number
+  individualsCount?: number
+  companiesCount?: number
   activePrograms: number
   totalMatches: number
   campaignsSent: number
@@ -203,7 +205,8 @@ export default function DashboardPage() {
         )}
         <StatCard
           title="Επιχειρήσεις"
-          value={stats?.totalBusinesses ?? 0}
+          value={stats?.companiesCount ?? 0}
+          subtitle={`+ ${stats?.individualsCount ?? 0} ιδιώτες (${stats?.totalBusinesses ?? 0} σύνολο)`}
           icon={Building2}
           color="emerald"
         />

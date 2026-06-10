@@ -14,7 +14,18 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
   }
 
   const { criterionId, value } = await request.json()
-  if (!criterionId || !['PASS', 'FAIL'].includes(value)) {
+  if (!criterionId) {
+    return NextResponse.json({ error: 'Invalid payload' }, { status: 400 })
+  }
+
+  if (value === null) {
+    await prisma.matchCriterionCheck.deleteMany({
+      where: { matchId: params.id, criterionId },
+    })
+    return NextResponse.json({ deleted: true })
+  }
+
+  if (!['PASS', 'FAIL'].includes(value)) {
     return NextResponse.json({ error: 'Invalid payload' }, { status: 400 })
   }
 
