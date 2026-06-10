@@ -13,6 +13,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
   if (typeof data.label === 'string') updateData.label = data.label.trim()
   if (typeof data.active === 'boolean') updateData.active = data.active
   if (typeof data.order === 'number') updateData.order = data.order
+  if (Array.isArray(data.programIds)) updateData.programIds = data.programIds
 
   const item = await prisma.rejectionReason.update({ where: { id: params.id }, data: updateData })
   return NextResponse.json(item)

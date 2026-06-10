@@ -4,6 +4,7 @@ import { useSession } from 'next-auth/react'
 import { redirect } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { MultiSelect } from '@/components/ui/multi-select'
 import { Plus, Trash2, GripVertical, Pencil, Check, X } from 'lucide-react'
 
 interface Item {
@@ -11,9 +12,10 @@ interface Item {
   label: string
   active: boolean
   order: number
+  programIds?: string[]
 }
 
-function Section({ title, description, apiBase }: { title: string; description: string; apiBase: string }) {
+function Section({ title, description, apiBase, programOptions }: { title: string; description: string; apiBase: string; programOptions?: { value: string; label: string }[] }) {
   const [items, setItems] = useState<Item[]>([])
   const [loading, setLoading] = useState(true)
   const [newLabel, setNewLabel] = useState('')
@@ -73,6 +75,15 @@ function Section({ title, description, apiBase }: { title: string; description: 
     if (res.ok) setItems(prev => prev.filter(i => i.id !== id))
   }
 
+  async function setProgramIds(item: Item, programIds: string[]) {
+    setItems(prev => prev.map(i => i.id === item.id ? { ...i, programIds } : i))
+    await fetch(`${apiBase}/${item.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ programIds }),
+    })
+  }
+
   return (
     <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
       <h2 className="text-lg font-bold text-gray-900">{title}</h2>
@@ -101,33 +112,45 @@ function Section({ title, description, apiBase }: { title: string; description: 
       ) : (
         <ul className="divide-y divide-gray-100">
           {items.map(item => (
-            <li key={item.id} className="flex items-center gap-3 py-2.5">
-              <GripVertical size={14} className="text-gray-300 flex-shrink-0" />
-              {editingId === item.id ? (
-                <div className="flex-1 flex items-center gap-2">
-                  <input
-                    type="text"
-                    value={editLabel}
-                    onChange={e => setEditLabel(e.target.value)}
-                    autoFocus
-                    className="flex-1 border border-gray-300 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+            <li key={item.id} className="py-2.5 space-y-1.5">
+              <div className="flex items-center gap-3">
+                <GripVertical size={14} className="text-gray-300 flex-shrink-0" />
+                {editingId === item.id ? (
+                  <div className="flex-1 flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={editLabel}
+                      onChange={e => setEditLabel(e.target.value)}
+                      autoFocus
+                      className="flex-1 border border-gray-300 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    />
+                    <button onClick={() => saveLabel(item.id)} className="p-1.5 rounded hover:bg-green-50 text-green-600"><Check size={14} /></button>
+                    <button onClick={() => setEditingId(null)} className="p-1.5 rounded hover:bg-gray-100 text-gray-500"><X size={14} /></button>
+                  </div>
+                ) : (
+                  <>
+                    <span className={`flex-1 text-sm ${item.active ? 'text-gray-900' : 'text-gray-400 line-through'}`}>{item.label}</span>
+                    <Badge
+                      variant={item.active ? 'success' : 'secondary'}
+                      className="cursor-pointer"
+                      onClick={() => toggleActive(item)}
+                    >
+                      {item.active ? 'Ενεργό' : 'Ανενεργό'}
+                    </Badge>
+                    <button onClick={() => { setEditingId(item.id); setEditLabel(item.label) }} className="p-1.5 rounded hover:bg-blue-50 text-blue-600"><Pencil size={14} /></button>
+                    <button onClick={() => deleteItem(item.id)} className="p-1.5 rounded hover:bg-red-50 text-red-500"><Trash2 size={14} /></button>
+                  </>
+                )}
+              </div>
+              {programOptions && (
+                <div className="pl-6">
+                  <MultiSelect
+                    options={programOptions}
+                    selected={item.programIds || []}
+                    onChange={ids => setProgramIds(item, ids)}
+                    placeholder="Όλα τα προγράμματα"
                   />
-                  <button onClick={() => saveLabel(item.id)} className="p-1.5 rounded hover:bg-green-50 text-green-600"><Check size={14} /></button>
-                  <button onClick={() => setEditingId(null)} className="p-1.5 rounded hover:bg-gray-100 text-gray-500"><X size={14} /></button>
                 </div>
-              ) : (
-                <>
-                  <span className={`flex-1 text-sm ${item.active ? 'text-gray-900' : 'text-gray-400 line-through'}`}>{item.label}</span>
-                  <Badge
-                    variant={item.active ? 'success' : 'secondary'}
-                    className="cursor-pointer"
-                    onClick={() => toggleActive(item)}
-                  >
-                    {item.active ? 'Ενεργό' : 'Ανενεργό'}
-                  </Badge>
-                  <button onClick={() => { setEditingId(item.id); setEditLabel(item.label) }} className="p-1.5 rounded hover:bg-blue-50 text-blue-600"><Pencil size={14} /></button>
-                  <button onClick={() => deleteItem(item.id)} className="p-1.5 rounded hover:bg-red-50 text-red-500"><Trash2 size={14} /></button>
-                </>
               )}
             </li>
           ))}
@@ -139,6 +162,17 @@ function Section({ title, description, apiBase }: { title: string; description: 
 
 export default function CriteriaPage() {
   const { data: session } = useSession()
+  const [programOptions, setProgramOptions] = useState<{ value: string; label: string }[]>([])
+
+  useEffect(() => {
+    fetch('/api/programs')
+      .then(r => r.json())
+      .then(data => {
+        const programs = Array.isArray(data) ? data : data.programs || []
+        setProgramOptions(programs.map((p: any) => ({ value: p.id, label: p.title })))
+      })
+      .catch(() => {})
+  }, [])
 
   if (session && session.user.role !== 'ADMIN') {
     redirect('/')
@@ -159,8 +193,9 @@ export default function CriteriaPage() {
 
       <Section
         title="Λόγοι Απόρριψης Match"
-        description="Λόγοι που μπορεί να επιλέξει ο λογιστής όταν ένα match δεν είναι κατάλληλο για συγκεκριμένο πελάτη"
+        description="Λόγοι που μπορεί να επιλέξει ο λογιστής όταν ένα match δεν είναι κατάλληλο για συγκεκριμένο πελάτη. Αν δεν επιλεγεί κανένα πρόγραμμα, ο λόγος ισχύει για όλα τα προγράμματα."
         apiBase="/api/admin/rejection-reasons"
+        programOptions={programOptions}
       />
 
       <Section

@@ -1,7 +1,14 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { X, Send, ChevronDown, ChevronUp } from 'lucide-react'
-import { CAMPAIGN_TEMPLATES, VIBER_CAMPAIGN_TEMPLATES } from '@/lib/campaign-templates'
+type CampaignTemplate = {
+  id: string
+  label: string
+  description: string
+  subject: string
+  bodyWithAccountant: string
+  bodyDirect: string
+}
 
 interface QuickSendModalProps {
   businesses: { id: string; onomasia?: string | null; afm: string }[]
@@ -40,9 +47,17 @@ export function QuickSendModal({ businesses, onClose, onSent }: QuickSendModalPr
   const isViber = channel === 'VIBER'
   const isEmail = channel === 'EMAIL'
   const isBoth = channel === 'EMAIL_AND_VIBER'
-  const templates = (isViber || isBoth) ? VIBER_CAMPAIGN_TEMPLATES : CAMPAIGN_TEMPLATES
+  const [emailTemplates, setEmailTemplates] = useState<CampaignTemplate[]>([])
+  const [viberTemplates, setViberTemplates] = useState<CampaignTemplate[]>([])
 
-  function applyTemplate(tpl: typeof templates[0]) {
+  useEffect(() => {
+    fetch('/api/templates?channel=EMAIL').then(r => r.json()).then(d => setEmailTemplates(Array.isArray(d) ? d : [])).catch(() => {})
+    fetch('/api/templates?channel=VIBER').then(r => r.json()).then(d => setViberTemplates(Array.isArray(d) ? d : [])).catch(() => {})
+  }, [])
+
+  const templates = (isViber || isBoth) ? viberTemplates : emailTemplates
+
+  function applyTemplate(tpl: CampaignTemplate) {
     setSubject(tpl.subject)
     setMessage(mode === 'withAccountant' ? tpl.bodyWithAccountant : tpl.bodyDirect)
     setShowTemplates(false)

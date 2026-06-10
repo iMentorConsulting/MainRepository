@@ -16,10 +16,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  const { label } = await request.json()
+  const { label, programIds } = await request.json()
   if (!label?.trim()) return NextResponse.json({ error: 'Το πεδίο είναι υποχρεωτικό' }, { status: 400 })
 
   const count = await prisma.rejectionReason.count()
-  const item = await prisma.rejectionReason.create({ data: { label: label.trim(), order: count } })
+  const item = await prisma.rejectionReason.create({ data: { label: label.trim(), order: count, programIds: Array.isArray(programIds) ? programIds : [] } })
   return NextResponse.json(item, { status: 201 })
 }

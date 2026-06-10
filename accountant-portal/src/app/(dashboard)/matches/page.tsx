@@ -8,7 +8,7 @@ import { Table, TableHead, TableBody, TableRow, Th, Td } from '@/components/ui/t
 import { Pagination } from '@/components/ui/pagination'
 import { MultiSelect } from '@/components/ui/multi-select'
 import { QuickSendModal } from '@/components/quick-send-modal'
-import { Send, ChevronUp, ChevronDown, ChevronsUpDown, Search, Check, X as XIcon, Ban } from 'lucide-react'
+import { Send, ChevronUp, ChevronDown, ChevronsUpDown, Search, Check, X as XIcon, Ban, Eye, EyeOff } from 'lucide-react'
 
 type MatchStatus = 'POTENTIAL' | 'REVIEWED' | 'REJECTED' | 'INTERESTED' | 'SUBMITTED'
 
@@ -125,7 +125,7 @@ function CriteriaCell({ match, criteriaMap }: { match: any; criteriaMap: Record<
   )
 }
 
-function RejectionCell({ match, reasonOptions, onChanged }: { match: any; reasonOptions: { id: string; label: string }[]; onChanged: () => void }) {
+function RejectionCell({ match, reasonOptions, onChanged }: { match: any; reasonOptions: { id: string; label: string; programIds?: string[] }[]; onChanged: () => void }) {
   const [saving, setSaving] = useState(false)
 
   async function setReason(reasonId: string) {
@@ -159,15 +159,17 @@ function RejectionCell({ match, reasonOptions, onChanged }: { match: any; reason
     )
   }
 
+  const applicable = reasonOptions.filter(r => !r.programIds?.length || r.programIds.includes(match.programId))
+
   return (
     <select
       defaultValue=""
       disabled={saving}
       onChange={e => { if (e.target.value) setReason(e.target.value) }}
-      className="text-xs border border-gray-200 rounded-lg px-1.5 py-1 focus:outline-none focus:ring-1 focus:ring-red-400 bg-white text-gray-500 max-w-[140px]"
+      className="text-xs border border-gray-200 rounded-lg px-1.5 py-1 focus:outline-none focus:ring-1 focus:ring-red-400 bg-white text-gray-500 w-full max-w-[260px]"
     >
       <option value="">Ακατάλληλος...</option>
-      {reasonOptions.map(r => <option key={r.id} value={r.id}>{r.label}</option>)}
+      {applicable.map(r => <option key={r.id} value={r.id}>{r.label}</option>)}
     </select>
   )
 }
@@ -193,7 +195,8 @@ export default function MatchesPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [quickSendOpen, setQuickSendOpen] = useState(false)
   const [criteriaMap, setCriteriaMap] = useState<Record<string, string>>({})
-  const [reasonOptions, setReasonOptions] = useState<{ id: string; label: string }[]>([])
+  const [reasonOptions, setReasonOptions] = useState<{ id: string; label: string; programIds?: string[] }[]>([])
+  const [hideUnsuitable, setHideUnsuitable] = useState(true)
 
   useEffect(() => {
     fetch('/api/admin/criteria')
@@ -260,6 +263,9 @@ export default function MatchesPage() {
     setSelected(prev => prev.size === matches.length ? new Set() : new Set(matches.map(m => m.id)))
   }
 
+  const visibleMatches = hideUnsuitable ? matches.filter(m => !m.rejectionReasonId) : matches
+  const unsuitableCount = matches.filter(m => m.rejectionReasonId).length
+
   const selectedMatches = matches.filter(m => selected.has(m.id))
   const selectedBusinesses = selectedMatches.map(m => ({
     id: m.business?.id,
@@ -274,7 +280,17 @@ export default function MatchesPage() {
           <h1 className="text-2xl font-bold text-gray-900">Matches</h1>
           <p className="text-gray-500 mt-1">{total} matches συνολικά</p>
         </div>
-        {selected.size > 0 && (
+        <div className="flex items-center gap-3">
+          {unsuitableCount > 0 && (
+            <button
+              onClick={() => setHideUnsuitable(h => !h)}
+              className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-700 border border-gray-200 rounded-lg px-3 py-2 bg-white"
+            >
+              {hideUnsuitable ? <EyeOff size={14} /> : <Eye size={14} />}
+              {hideUnsuitable ? `${unsuitableCount} κρυμμένα ως ακατάλληλα` : `Απόκρυψη ${unsuitableCount} ακατάλληλων`}
+            </button>
+          )}
+          {selected.size > 0 && (
           <Button
             className="bg-indigo-600 hover:bg-indigo-700 text-white flex items-center gap-2"
             onClick={() => setQuickSendOpen(true)}
@@ -282,7 +298,8 @@ export default function MatchesPage() {
             <Send size={15} />
             Γρήγορη Αποστολή ({selected.size})
           </Button>
-        )}
+          )}
+        </div>
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
@@ -368,7 +385,7 @@ export default function MatchesPage() {
                       className="rounded"
                     />
                   </Th>
-                  <Th>
+                  <Th className="max-w-[120px]">
                     <button onClick={() => toggleSort('business.onomasia')} className="flex items-center hover:text-indigo-700 transition-colors">
                       Επιχείρηση <SortIcon col="business.onomasia" sortBy={sortBy} sortDir={sortDir} />
                     </button>
@@ -391,21 +408,22 @@ export default function MatchesPage() {
                     </Th>
                   )}
                   <Th>Πρόσθετες Προϋποθέσεις</Th>
-                  <Th>Σημειώσεις</Th>
+                  <Th className="min-w-[200px]">Σημειώσεις</Th>
+                  <Th className="min-w-[220px]">Καταλληλότητα</Th>
                   <Th>Καμπάνια</Th>
-                  <Th>Καταλληλότητα</Th>
                 </TableRow>
               </TableHead>
               <TableBody>
-                {matches.length === 0 ? (
+                {visibleMatches.length === 0 ? (
                   <TableRow>
                     <Td colSpan={isAdmin ? 10 : 9} className="text-center text-gray-400 py-8">Δεν βρέθηκαν matches</Td>
                   </TableRow>
                 ) : (
-                  matches.map(m => {
+                  visibleMatches.map(m => {
                     const lastCampaign = m.business?.campaignRecipients?.[0]
+                    const unsuitable = !!m.rejectionReasonId
                     return (
-                      <TableRow key={m.id} className={selected.has(m.id) ? 'bg-indigo-50' : undefined}>
+                      <TableRow key={m.id} className={unsuitable ? 'bg-red-50/60 opacity-60' : selected.has(m.id) ? 'bg-indigo-50' : undefined}>
                         <Td>
                           <input
                             type="checkbox"
@@ -414,8 +432,8 @@ export default function MatchesPage() {
                             className="rounded"
                           />
                         </Td>
-                        <Td>
-                          <Link href={`/businesses/${m.businessId}`} className="text-blue-800 hover:underline font-medium">
+                        <Td className="max-w-[120px]">
+                          <Link href={`/businesses/${m.businessId}`} className={`text-blue-800 hover:underline font-medium truncate block ${unsuitable ? 'line-through' : ''}`}>
                             {m.business?.onomasia || '-'}
                           </Link>
                         </Td>
@@ -437,6 +455,9 @@ export default function MatchesPage() {
                           <NotesCell matchId={m.id} initialNotes={m.notes} />
                         </Td>
                         <Td>
+                          <RejectionCell match={m} reasonOptions={reasonOptions} onChanged={fetchMatches} />
+                        </Td>
+                        <Td>
                           {lastCampaign ? (
                             <div className="text-xs space-y-0.5">
                               <div className="text-green-700 font-medium">✓ Εστάλη</div>
@@ -452,9 +473,6 @@ export default function MatchesPage() {
                           ) : (
                             <span className="text-xs text-gray-400">—</span>
                           )}
-                        </Td>
-                        <Td>
-                          <RejectionCell match={m} reasonOptions={reasonOptions} onChanged={fetchMatches} />
                         </Td>
                       </TableRow>
                     )

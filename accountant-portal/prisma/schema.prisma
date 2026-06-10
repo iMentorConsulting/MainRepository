@@ -481,13 +481,33 @@ model MatchCriterionCheck {
 
 // Admin-managed library of reasons an accountant can pick when marking a
 // match as not suitable for a particular client (distinct from REJECTED).
+// Editable copies of campaign message templates (email & Viber), grouped by
+// channel/category, seeded from src/lib/campaign-templates.ts on first load.
+model MessageTemplate {
+  id                String   @id @default(cuid())
+  channel           String   // EMAIL | VIBER
+  templateKey       String   // matches the static template id, e.g. "program-eligibility"
+  category          String   // grouping label, e.g. "Επιλεξιμότητα Προγράμματος"
+  label             String
+  description       String
+  subject           String
+  bodyWithAccountant String  @db.Text
+  bodyDirect        String   @db.Text
+  active            Boolean  @default(true)
+  order             Int      @default(0)
+  updatedAt         DateTime @updatedAt
+
+  @@unique([channel, templateKey])
+}
+
 model RejectionReason {
-  id        String         @id @default(cuid())
-  label     String
-  active    Boolean        @default(true)
-  order     Int            @default(0)
-  createdAt DateTime       @default(now())
-  matches   ProgramMatch[]
+  id         String         @id @default(cuid())
+  label      String
+  active     Boolean        @default(true)
+  order      Int            @default(0)
+  programIds String[]       // empty = applies to all programs
+  createdAt  DateTime       @default(now())
+  matches    ProgramMatch[]
 }
 
 // Admin-managed library of suggested business "tags"/idiosyncrasies

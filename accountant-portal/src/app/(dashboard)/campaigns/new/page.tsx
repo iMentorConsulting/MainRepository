@@ -4,7 +4,6 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import { Button } from '@/components/ui/button'
 import { Select } from '@/components/ui/select'
-import { CAMPAIGN_TEMPLATES, VIBER_CAMPAIGN_TEMPLATES } from '@/lib/campaign-templates'
 import { ArrowLeft, ArrowRight, Mail, Users, Send, Sparkles, MessageCircle, CheckCircle2 } from 'lucide-react'
 import Link from 'next/link'
 
@@ -139,7 +138,13 @@ function StepProgram({ programs, selected, onSelect, channel, onChannelChange, o
 
 // ── Step 2: Pick template ─────────────────────────────────────────────────────
 function StepTemplate({ channel, onSelect, onBack }: { channel: 'EMAIL' | 'VIBER' | 'EMAIL_AND_VIBER'; onSelect: (t: any) => void; onBack: () => void }) {
-  const templates = channel === 'EMAIL' ? CAMPAIGN_TEMPLATES : VIBER_CAMPAIGN_TEMPLATES
+  const [templates, setTemplates] = useState<any[]>([])
+  useEffect(() => {
+    fetch(`/api/templates?channel=${channel === 'EMAIL' ? 'EMAIL' : 'VIBER'}`)
+      .then(r => r.json())
+      .then(d => setTemplates(Array.isArray(d) ? d : []))
+      .catch(() => {})
+  }, [channel])
   return (
     <div className="space-y-5">
       <div>
