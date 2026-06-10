@@ -89,6 +89,12 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         if (user.role === 'ACCOUNTANT' && user.verifyToken && !user.emailVerified) {
           throw new Error('Παρακαλούμε επιβεβαιώστε το email σας πριν συνδεθείτε. Ελέγξτε τα εισερχόμενά σας.')
         }
+        if (user.role === 'ACCOUNTANT' && user.accountantId) {
+          const accountant = await prisma.accountant.findUnique({ where: { id: user.accountantId }, select: { approved: true } })
+          if (accountant && !accountant.approved) {
+            throw new Error('Ο λογαριασμός του γραφείου σας αναμένει έγκριση από την ομάδα της I-MENTOR. Θα ενημερωθείτε με email μόλις εγκριθεί.')
+          }
+        }
         clearFailedAttempts(email)
         const now = new Date()
         await prisma.$transaction([
