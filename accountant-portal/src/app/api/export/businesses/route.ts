@@ -7,13 +7,11 @@ export const dynamic = 'force-dynamic'
 export async function GET(request: NextRequest) {
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
-  const isAdmin = session.user.role === 'ADMIN'
-  const accountantId = (session.user as any).accountantId as string | null
+  if (session.user.role !== 'ADMIN') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   // Businesses
   const businesses = await prisma.business.findMany({
-    where: isAdmin ? {} : { accountantId: accountantId ?? '__none__' },
+    where: {},
     include: {
       activities: { where: { firmActKind: 1 }, take: 1 },
       accountant: { select: { officeName: true } },

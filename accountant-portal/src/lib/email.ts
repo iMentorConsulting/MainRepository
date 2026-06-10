@@ -166,7 +166,7 @@ export function renderCampaignEmailHtml(options: CampaignEmailOptions): string {
     : '<span style="font-weight:800;letter-spacing:.5px;color:#ffffff;font-size:20px;">iMENTOR <span style="font-weight:400;opacity:.8;">CONSULTING</span></span>'
 
   const brandRight = accountantLogoUrl
-    ? `<img src="${accountantLogoUrl}" alt="${accountantOfficeName || ''}" height="72" style="display:block;height:72px;width:auto;max-width:260px;object-fit:contain;margin-left:auto;background:#ffffff;border-radius:8px;padding:6px 12px;" />`
+    ? `<img src="${accountantLogoUrl}" alt="${accountantOfficeName || ''}" height="72" style="display:block;height:72px;width:auto;max-width:260px;object-fit:contain;margin-left:auto;" />`
     : (accountantOfficeName
         ? `<span style="color:#cbd5e1;font-size:14px;font-weight:600;">${accountantOfficeName}</span>`
         : '')

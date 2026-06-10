@@ -255,6 +255,7 @@ export default function SettingsPage() {
         </Card>
       )}
 
+      {session?.user?.role === 'ADMIN' && (
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -272,6 +273,7 @@ export default function SettingsPage() {
           </Button>
         </CardContent>
       </Card>
+      )}
 
       <Card className="border-red-100">
         <CardHeader>
