@@ -279,6 +279,29 @@ router.get('/', async (req, res) => {
           count: parseInt(row.payment_count || 0)
         });
       }
+      // Latest work_status — most recent income record per agreement / per customer+service
+      const latestById = await sequelize.query(`
+        SELECT DISTINCT ON (service_agreement_id) service_agreement_id, work_status
+        FROM income
+        WHERE service_agreement_id IS NOT NULL
+        ORDER BY service_agreement_id, sale_date DESC NULLS LAST, id DESC
+      `, { type: QueryTypes.SELECT });
+      for (const row of latestById) {
+        const e = idMap.get(Number(row.service_agreement_id));
+        if (e) e.latest_status = row.work_status || null;
+      }
+      const latestByName = await sequelize.query(`
+        SELECT DISTINCT ON (name_svc_key) name_svc_key, work_status FROM (
+          SELECT LOWER(TRIM(customer_name)) || '|' || COALESCE(LOWER(TRIM(service_type)), '') AS name_svc_key,
+                 work_status, sale_date, id
+          FROM income WHERE customer_name IS NOT NULL
+        ) t
+        ORDER BY name_svc_key, sale_date DESC NULLS LAST, id DESC
+      `, { type: QueryTypes.SELECT });
+      for (const row of latestByName) {
+        const e = nameMap.get(row.name_svc_key);
+        if (e) e.latest_status = row.work_status || null;
+      }
     } catch (enrichErr) {
       console.error('Income enrichment failed (non-fatal):', enrichErr.message);
     }
@@ -287,8 +310,8 @@ router.get('/', async (req, res) => {
       const byIdMatch = idMap.get(sa.id);
       const nameKey = `${(sa.customer_name || '').toLowerCase().trim()}|${(sa.service_type || '').toLowerCase().trim()}`;
       const byNameMatch = nameMap.get(nameKey);
-      const inc = byIdMatch || byNameMatch || { total: 0, count: 0, first_sale_date: null };
-      return { ...sa.toJSON(), income_collected: inc.total, income_payment_count: inc.count, first_sale_date: inc.first_sale_date };
+      const inc = byIdMatch || byNameMatch || { total: 0, count: 0, first_sale_date: null, latest_status: null };
+      return { ...sa.toJSON(), income_collected: inc.total, income_payment_count: inc.count, first_sale_date: inc.first_sale_date, latest_income_status: inc.latest_status || null };
     });
 
     res.json({ data: enriched, total: count, sums, byStatus: filteredByStatus });
