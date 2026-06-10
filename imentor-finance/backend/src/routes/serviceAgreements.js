@@ -148,6 +148,18 @@ router.get('/service-types', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// ── GET /income-statuses — distinct income work_status values ────────────────
+// Used to populate the "Κατ. Εσόδων" filter dropdown with all values present in income.
+router.get('/income-statuses', async (req, res) => {
+  try {
+    const rows = await sequelize.query(`
+      SELECT DISTINCT work_status FROM income WHERE work_status IS NOT NULL AND TRIM(work_status) <> ''
+    `, { type: QueryTypes.SELECT });
+    const statuses = rows.map(r => r.work_status).filter(Boolean).sort((a, b) => a.localeCompare(b, 'el'));
+    res.json(statuses);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 router.get('/', async (req, res) => {
   try {
     const { status, customer_id, customer_name, search, sales_agent, service_type, sale_year, sale_years, sale_month, sale_months, missing_dates, limit = 50, offset = 0, page, sort_field, sort_dir } = req.query;
