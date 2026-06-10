@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma'
 
 export const dynamic = 'force-dynamic'
 
-const SORTABLE = new Set(['matchScore', 'createdAt', 'status', 'business.onomasia'])
+const SORTABLE = new Set(['matchScore', 'createdAt', 'status', 'business.onomasia', 'business.afm', 'program.title', 'business.accountant.officeName'])
 
 export async function GET(request: NextRequest) {
   const session = await auth()
@@ -16,6 +16,8 @@ export async function GET(request: NextRequest) {
   const status = searchParams.get('status') || ''
   const accountantIds = searchParams.get('accountantIds')?.split(',').filter(Boolean) || []
   const programIds = searchParams.get('programIds')?.split(',').filter(Boolean) || []
+  const legalStatuses = searchParams.get('legalStatuses')?.split(',').filter(Boolean) || []
+  const search = searchParams.get('search') || ''
   const sortBy = searchParams.get('sortBy') || 'matchScore'
   const sortDir = (searchParams.get('sortDir') || 'desc') === 'asc' ? 'asc' : 'desc'
   const skip = (page - 1) * limit
@@ -31,12 +33,21 @@ export async function GET(request: NextRequest) {
   } else if (session.user.role === 'ADMIN' && accountantIds.length > 0) {
     businessFilter.accountantId = { in: accountantIds }
   }
+  if (legalStatuses.length > 0) businessFilter.legalStatusDescr = { in: legalStatuses }
+  if (search) {
+    businessFilter.OR = [
+      { onomasia: { contains: search, mode: 'insensitive' } },
+      { afm: { contains: search, mode: 'insensitive' } },
+    ]
+  }
   if (Object.keys(businessFilter).length > 0) where.business = businessFilter
 
   const safeSort = SORTABLE.has(sortBy) ? sortBy : 'matchScore'
-  const orderBy: any = safeSort === 'business.onomasia'
-    ? { business: { onomasia: sortDir } }
-    : { [safeSort]: sortDir }
+  let orderBy: any = { [safeSort]: sortDir }
+  if (safeSort === 'business.onomasia') orderBy = { business: { onomasia: sortDir } }
+  else if (safeSort === 'business.afm') orderBy = { business: { afm: sortDir } }
+  else if (safeSort === 'program.title') orderBy = { program: { title: sortDir } }
+  else if (safeSort === 'business.accountant.officeName') orderBy = { business: { accountant: { officeName: sortDir } } }
 
   const [matches, total] = await Promise.all([
     prisma.programMatch.findMany({
@@ -77,5 +88,12 @@ export async function GET(request: NextRequest) {
     programs = progs
   }
 
-  return NextResponse.json({ matches, total, page, limit, accountants, programs })
+  const legalStatusFacet = await prisma.business.findMany({
+    where: businessFilter.accountantId ? { accountantId: businessFilter.accountantId } : {},
+    select: { legalStatusDescr: true },
+    distinct: ['legalStatusDescr'],
+  })
+  const legalStatusOptions = legalStatusFacet.map(l => l.legalStatusDescr).filter((v): v is string => !!v).sort()
+
+  return NextResponse.json({ matches, total, page, limit, accountants, programs, legalStatuses: legalStatusOptions })
 }

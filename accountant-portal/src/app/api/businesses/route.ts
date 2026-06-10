@@ -16,6 +16,7 @@ export async function GET(request: NextRequest) {
 
   const accountantIds = (searchParams.get('accountantIds') || '').split(',').filter(Boolean)
   const legalStatuses = (searchParams.get('legalStatuses') || '').split(',').filter(Boolean)
+  const excludeLegalStatuses = (searchParams.get('excludeLegalStatuses') || '').split(',').filter(Boolean)
   const regions = (searchParams.get('regions') || '').split(',').filter(Boolean)
   const sortBy = searchParams.get('sortBy') || 'createdAt'
   const sortDir = searchParams.get('sortDir') === 'asc' ? 'asc' : 'desc'
@@ -29,6 +30,7 @@ export async function GET(request: NextRequest) {
   }
 
   if (legalStatuses.length > 0) where.legalStatusDescr = { in: legalStatuses }
+  else if (excludeLegalStatuses.length > 0) where.legalStatusDescr = { notIn: excludeLegalStatuses }
   if (regions.length > 0) where.postalAreaDescription = { in: regions }
 
   if (search) {

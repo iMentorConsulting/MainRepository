@@ -8,7 +8,7 @@ import { Table, TableHead, TableBody, TableRow, Th, Td } from '@/components/ui/t
 import { Pagination } from '@/components/ui/pagination'
 import { MultiSelect } from '@/components/ui/multi-select'
 import { QuickSendModal } from '@/components/quick-send-modal'
-import { Send, ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react'
+import { Send, ChevronUp, ChevronDown, ChevronsUpDown, Search } from 'lucide-react'
 
 type MatchStatus = 'POTENTIAL' | 'REVIEWED' | 'REJECTED' | 'INTERESTED' | 'SUBMITTED'
 
@@ -80,6 +80,10 @@ export default function MatchesPage() {
   const [statusFilter, setStatusFilter] = useState('')
   const [accountantFilter, setAccountantFilter] = useState<string[]>([])
   const [programFilter, setProgramFilter] = useState<string[]>([])
+  const [legalStatusFilter, setLegalStatusFilter] = useState<string[]>([])
+  const [legalStatusOptions, setLegalStatusOptions] = useState<{ value: string; label: string }[]>([])
+  const [search, setSearch] = useState('')
+  const [searchInput, setSearchInput] = useState('')
   const [sortBy, setSortBy] = useState('matchScore')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
   const [loading, setLoading] = useState(true)
@@ -94,18 +98,25 @@ export default function MatchesPage() {
     if (statusFilter) params.set('status', statusFilter)
     if (accountantFilter.length) params.set('accountantIds', accountantFilter.join(','))
     if (programFilter.length) params.set('programIds', programFilter.join(','))
+    if (legalStatusFilter.length) params.set('legalStatuses', legalStatusFilter.join(','))
+    if (search) params.set('search', search)
     const res = await fetch(`/api/matches?${params}`)
     const data = await res.json()
     setMatches(data.matches || [])
     setTotal(data.total || 0)
     if (data.accountants?.length) setAccountantOptions(data.accountants.map((a: any) => ({ value: a.id, label: a.officeName })))
     if (data.programs?.length) setProgramOptions(data.programs.map((p: any) => ({ value: p.id, label: p.title })))
+    if (data.legalStatuses?.length) setLegalStatusOptions(data.legalStatuses.map((v: string) => ({ value: v, label: v })))
     setLoading(false)
-  }, [page, statusFilter, accountantFilter, programFilter, sortBy, sortDir])
+  }, [page, statusFilter, accountantFilter, programFilter, legalStatusFilter, search, sortBy, sortDir])
 
   useEffect(() => { fetchMatches() }, [fetchMatches])
-  useEffect(() => { setPage(1) }, [statusFilter, accountantFilter, programFilter, sortBy, sortDir])
-  useEffect(() => { setSelected(new Set()) }, [page, statusFilter, accountantFilter, programFilter])
+  useEffect(() => { setPage(1) }, [statusFilter, accountantFilter, programFilter, legalStatusFilter, search, sortBy, sortDir])
+  useEffect(() => { setSelected(new Set()) }, [page, statusFilter, accountantFilter, programFilter, legalStatusFilter, search])
+
+  function handleSearch() {
+    setSearch(searchInput)
+  }
 
   function toggleSort(col: string) {
     if (sortBy === col) {
@@ -158,6 +169,21 @@ export default function MatchesPage() {
         <div className="p-4 border-b border-gray-100 space-y-3">
           <div className="flex flex-wrap gap-2 items-end">
             <div>
+              <label className="text-xs font-medium text-gray-500 block mb-1">Επιχείρηση</label>
+              <div className="relative">
+                <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Επωνυμία ή ΑΦΜ..."
+                  value={searchInput}
+                  onChange={e => setSearchInput(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && handleSearch()}
+                  onBlur={handleSearch}
+                  className="pl-7 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 w-44"
+                />
+              </div>
+            </div>
+            <div>
               <label className="text-xs font-medium text-gray-500 block mb-1">Κατάσταση</label>
               <select
                 value={statusFilter}
@@ -185,9 +211,18 @@ export default function MatchesPage() {
                 placeholder="Όλα τα προγράμματα"
               />
             )}
-            {(accountantFilter.length > 0 || programFilter.length > 0) && (
+            {legalStatusOptions.length > 0 && (
+              <MultiSelect
+                label="Νομική Μορφή"
+                options={legalStatusOptions}
+                selected={legalStatusFilter}
+                onChange={setLegalStatusFilter}
+                placeholder="Όλες οι μορφές"
+              />
+            )}
+            {(accountantFilter.length > 0 || programFilter.length > 0 || legalStatusFilter.length > 0 || search) && (
               <button
-                onClick={() => { setAccountantFilter([]); setProgramFilter([]) }}
+                onClick={() => { setAccountantFilter([]); setProgramFilter([]); setLegalStatusFilter([]); setSearch(''); setSearchInput('') }}
                 className="text-xs text-gray-500 hover:text-gray-700 underline mt-4"
               >
                 Καθαρισμός φίλτρων
@@ -218,9 +253,23 @@ export default function MatchesPage() {
                       Επιχείρηση <SortIcon col="business.onomasia" sortBy={sortBy} sortDir={sortDir} />
                     </button>
                   </Th>
-                  <Th>ΑΦΜ</Th>
-                  <Th>Επιλέξιμο Πρόγραμμα</Th>
-                  {isAdmin && <Th>Λογιστής</Th>}
+                  <Th>
+                    <button onClick={() => toggleSort('business.afm')} className="flex items-center hover:text-indigo-700 transition-colors">
+                      ΑΦΜ <SortIcon col="business.afm" sortBy={sortBy} sortDir={sortDir} />
+                    </button>
+                  </Th>
+                  <Th>
+                    <button onClick={() => toggleSort('program.title')} className="flex items-center hover:text-indigo-700 transition-colors">
+                      Επιλέξιμο Πρόγραμμα <SortIcon col="program.title" sortBy={sortBy} sortDir={sortDir} />
+                    </button>
+                  </Th>
+                  {isAdmin && (
+                    <Th>
+                      <button onClick={() => toggleSort('business.accountant.officeName')} className="flex items-center hover:text-indigo-700 transition-colors">
+                        Λογιστής <SortIcon col="business.accountant.officeName" sortBy={sortBy} sortDir={sortDir} />
+                      </button>
+                    </Th>
+                  )}
                   <Th>Σημειώσεις</Th>
                   <Th>Καμπάνια</Th>
                 </TableRow>

@@ -61,6 +61,7 @@ export default function BusinessesPage() {
   const [legalStatusFilter, setLegalStatusFilter] = useState<string[]>([])
   const [regionFilter, setRegionFilter] = useState<string[]>([])
   const [sort, setSort] = useState('createdAt:desc')
+  const [includeIndividuals, setIncludeIndividuals] = useState(false)
 
   const [quickSendOpen, setQuickSendOpen] = useState(false)
   const [enrichOpen, setEnrichOpen] = useState(false)
@@ -78,7 +79,7 @@ export default function BusinessesPage() {
       sortDir,
       ...(search ? { search } : {}),
       ...(accountantFilter.length ? { accountantIds: accountantFilter.join(',') } : {}),
-      ...(legalStatusFilter.length ? { legalStatuses: legalStatusFilter.join(',') } : {}),
+      ...(legalStatusFilter.length ? { legalStatuses: legalStatusFilter.join(',') } : (!includeIndividuals ? { excludeLegalStatuses: 'ΙΔΙΩΤΗΣ' } : {})),
       ...(regionFilter.length ? { regions: regionFilter.join(',') } : {}),
     })
     const res = await fetch(`/api/businesses?${params}`)
@@ -86,11 +87,11 @@ export default function BusinessesPage() {
     setBusinesses(data.businesses || [])
     setTotal(data.total || 0)
     setLoading(false)
-  }, [page, search, accountantFilter, legalStatusFilter, regionFilter, sort])
+  }, [page, search, accountantFilter, legalStatusFilter, regionFilter, sort, includeIndividuals])
 
   useEffect(() => { fetchData() }, [fetchData])
-  useEffect(() => { setSelected(new Set()) }, [page, search, accountantFilter, legalStatusFilter, regionFilter, sort])
-  useEffect(() => { setPage(1) }, [accountantFilter, legalStatusFilter, regionFilter, sort])
+  useEffect(() => { setSelected(new Set()) }, [page, search, accountantFilter, legalStatusFilter, regionFilter, sort, includeIndividuals])
+  useEffect(() => { setPage(1) }, [accountantFilter, legalStatusFilter, regionFilter, sort, includeIndividuals])
 
   useEffect(() => {
     fetch('/api/businesses/facets')
@@ -330,6 +331,16 @@ export default function BusinessesPage() {
               <label className="text-xs font-medium text-gray-500 block mb-1">Ταξινόμηση</label>
               <Select value={sort} onChange={e => setSort(e.target.value)} options={SORT_OPTIONS} className="min-w-[180px]" />
             </div>
+            {legalStatusFilter.length === 0 && (
+              <Button
+                variant={includeIndividuals ? 'outline' : 'ghost'}
+                size="sm"
+                onClick={() => setIncludeIndividuals(v => !v)}
+                title="Από προεπιλογή κρύβονται οι επιχειρήσεις με νομική μορφή «ΙΔΙΩΤΗΣ»"
+              >
+                {includeIndividuals ? 'Απόκρυψη Ιδιωτών' : 'Εμφάνιση Ιδιωτών'}
+              </Button>
+            )}
             {(accountantFilter.length > 0 || legalStatusFilter.length > 0 || regionFilter.length > 0) && (
               <Button
                 variant="ghost"
