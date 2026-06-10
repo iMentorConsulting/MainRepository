@@ -60,7 +60,7 @@ export function FloatingChat() {
 
   useEffect(() => {
     if (isAdmin) {
-      fetch('/api/accountants').then(r => r.json()).then(d => setAccountants(Array.isArray(d) ? d : []))
+      fetch('/api/accountants').then(r => r.json()).then(d => setAccountants(Array.isArray(d) ? d : (d.accountants || [])))
     }
   }, [isAdmin])
 

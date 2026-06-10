@@ -74,55 +74,103 @@ export default function ChatPage() {
               + Νέο μήνυμα
             </button>
           </div>
+        ) : isAdmin ? (
+          (() => {
+            const groups = new Map<string, { office: string; contact: string; convs: any[] }>()
+            for (const conv of conversations) {
+              const key = conv.accountant?.id || 'unknown'
+              if (!groups.has(key)) {
+                groups.set(key, {
+                  office: conv.accountant?.officeName || 'Άγνωστο γραφείο',
+                  contact: conv.accountant?.contactPerson || '',
+                  convs: [],
+                })
+              }
+              groups.get(key)!.convs.push(conv)
+            }
+            return Array.from(groups.entries()).map(([key, group]) => {
+              const unreadCount = group.convs.filter(conv => {
+                const lastMsg = conv.messages?.[0]
+                return lastMsg && !lastMsg.readAt && lastMsg.senderRole === 'ACCOUNTANT'
+              }).length
+              return (
+                <details key={key} className="group/office border-b border-gray-100 last:border-b-0" open>
+                  <summary className="flex items-center justify-between px-5 py-3 bg-gray-50 cursor-pointer select-none hover:bg-gray-100">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="text-sm font-bold text-gray-900 truncate">{group.office}</span>
+                      {group.contact && <span className="text-xs text-gray-500 truncate">— {group.contact}</span>}
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      {unreadCount > 0 && (
+                        <span className="text-[11px] font-semibold bg-indigo-600 text-white rounded-full px-2 py-0.5">
+                          {unreadCount}
+                        </span>
+                      )}
+                      <span className="text-xs text-gray-400">{group.convs.length} συνομιλίες</span>
+                    </div>
+                  </summary>
+                  <ul className="divide-y divide-gray-100">
+                    {group.convs.map(conv => (
+                      <ConversationRow key={conv.id} conv={conv} isAdmin={isAdmin} />
+                    ))}
+                  </ul>
+                </details>
+              )
+            })
+          })()
         ) : (
           <ul className="divide-y divide-gray-100">
-            {conversations.map(conv => {
-              const lastMsg = conv.messages?.[0]
-              const unread = lastMsg && !lastMsg.readAt &&
-                ((isAdmin && lastMsg.senderRole === 'ACCOUNTANT') ||
-                 (!isAdmin && lastMsg.senderRole === 'ADMIN'))
-              return (
-                <li key={conv.id}>
-                  <Link href={`/chat/${conv.id}`}
-                    className="flex items-start gap-3 px-5 py-4 hover:bg-gray-50 transition-colors">
-                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5 ${unread ? 'bg-indigo-600' : 'bg-indigo-100'}`}>
-                      <MessageSquare size={16} className={unread ? 'text-white' : 'text-indigo-600'} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className={`text-sm font-semibold truncate ${unread ? 'text-gray-900' : 'text-gray-700'}`}>
-                          {conv.subject}
-                        </span>
-                        {unread && <span className="w-2 h-2 bg-indigo-500 rounded-full flex-shrink-0" />}
-                      </div>
-                      {isAdmin && (
-                        <p className="text-xs text-indigo-600 font-medium truncate">
-                          {conv.accountant?.officeName} — {conv.accountant?.contactPerson}
-                        </p>
-                      )}
-                      {conv.business && (
-                        <p className="text-xs text-gray-400 flex items-center gap-1 truncate">
-                          <Building2 size={10} />
-                          {conv.business.onomasia || conv.business.afm}
-                        </p>
-                      )}
-                      {lastMsg && (
-                        <p className="text-xs text-gray-400 truncate mt-0.5">{lastMsg.body}</p>
-                      )}
-                    </div>
-                    {lastMsg && (
-                      <span className="text-[11px] text-gray-400 flex-shrink-0 mt-0.5 flex items-center gap-1">
-                        <Clock size={10} />
-                        {timeAgo(lastMsg.createdAt)}
-                      </span>
-                    )}
-                  </Link>
-                </li>
-              )
-            })}
+            {conversations.map(conv => (
+              <ConversationRow key={conv.id} conv={conv} isAdmin={isAdmin} />
+            ))}
           </ul>
         )}
       </div>
     </div>
+  )
+}
+
+function ConversationRow({ conv, isAdmin }: { conv: any; isAdmin: boolean }) {
+  const lastMsg = conv.messages?.[0]
+  const unread = lastMsg && !lastMsg.readAt &&
+    ((isAdmin && lastMsg.senderRole === 'ACCOUNTANT') ||
+     (!isAdmin && lastMsg.senderRole === 'ADMIN'))
+  return (
+    <li>
+      <Link href={`/chat/${conv.id}`}
+        className="flex items-start gap-3 px-5 py-4 hover:bg-gray-50 transition-colors">
+        <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5 ${unread ? 'bg-indigo-600' : 'bg-indigo-100'}`}>
+          <MessageSquare size={16} className={unread ? 'text-white' : 'text-indigo-600'} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <span className={`text-sm font-semibold truncate ${unread ? 'text-gray-900' : 'text-gray-700'}`}>
+              {conv.subject}
+            </span>
+            {unread && <span className="w-2 h-2 bg-indigo-500 rounded-full flex-shrink-0" />}
+          </div>
+          {isAdmin && (
+            <p className="text-xs text-indigo-600 font-medium truncate">
+              {conv.accountant?.officeName} — {conv.accountant?.contactPerson}
+            </p>
+          )}
+          {conv.business && (
+            <p className="text-xs text-gray-400 flex items-center gap-1 truncate">
+              <Building2 size={10} />
+              {conv.business.onomasia || conv.business.afm}
+            </p>
+          )}
+          {lastMsg && (
+            <p className="text-xs text-gray-400 truncate mt-0.5">{lastMsg.body}</p>
+          )}
+        </div>
+        {lastMsg && (
+          <span className="text-[11px] text-gray-400 flex-shrink-0 mt-0.5 flex items-center gap-1">
+            <Clock size={10} />
+            {timeAgo(lastMsg.createdAt)}
+          </span>
+        )}
+      </Link>
+    </li>
   )
 }
