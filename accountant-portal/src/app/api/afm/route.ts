@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { decrypt } from '@/lib/crypto'
 import https from 'https'
 
 const PENDING_APPROVAL_MESSAGE = 'Η αναζήτηση επιχειρήσεων μέσω ΑΑΔΕ θα ενεργοποιηθεί μόλις εγκριθεί ο λογαριασμός σας από την ομάδα της I-MENTOR.'
@@ -17,9 +18,9 @@ function xmlEscape(value: string): string {
 async function getGsisCredentials() {
   const setting = await prisma.appSetting.findUnique({ where: { id: 'main' } })
   return {
-    username: setting?.aadeUser || process.env.AADE_USER_IMENTOR || process.env.AADE_USER || '',
-    password: setting?.aadePass || process.env.AADE_PASS_IMENTOR || process.env.AADE_PASS || '',
-    callerAfm: setting?.aadeCallerAfm || process.env.MY_AFM_IMENTOR || process.env.MY_AFM || '',
+    username: (setting?.aadeUser ? decrypt(setting.aadeUser) : '') || process.env.AADE_USER_IMENTOR || process.env.AADE_USER || '',
+    password: (setting?.aadePass ? decrypt(setting.aadePass) : '') || process.env.AADE_PASS_IMENTOR || process.env.AADE_PASS || '',
+    callerAfm: (setting?.aadeCallerAfm ? decrypt(setting.aadeCallerAfm) : '') || process.env.MY_AFM_IMENTOR || process.env.MY_AFM || '',
   }
 }
 
