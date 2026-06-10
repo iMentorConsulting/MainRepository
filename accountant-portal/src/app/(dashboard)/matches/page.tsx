@@ -182,7 +182,7 @@ export default function MatchesPage() {
   const [quickSendOpen, setQuickSendOpen] = useState(false)
   const [criteriaMap, setCriteriaMap] = useState<Record<string, string>>({})
   const [reasonOptions, setReasonOptions] = useState<{ id: string; label: string; programIds?: string[] }[]>([])
-  const [hideUnsuitable, setHideUnsuitable] = useState(true)
+  const [hideUnsuitable, setHideUnsuitable] = useState(false)
 
   useEffect(() => {
     fetch('/api/admin/criteria')
@@ -338,10 +338,14 @@ export default function MatchesPage() {
             {unsuitableCount > 0 && (
               <button
                 onClick={() => setHideUnsuitable(h => !h)}
-                className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-700 border border-gray-200 rounded-lg px-3 py-2 bg-white mt-4"
+                className={`flex items-center gap-1.5 text-xs font-medium rounded-lg px-3 py-2 mt-4 border transition-colors ${
+                  hideUnsuitable
+                    ? 'bg-amber-50 border-amber-300 text-amber-800 hover:bg-amber-100'
+                    : 'bg-white border-gray-200 text-gray-500 hover:text-gray-700'
+                }`}
               >
                 {hideUnsuitable ? <EyeOff size={14} /> : <Eye size={14} />}
-                {hideUnsuitable ? `${unsuitableCount} κρυμμένα ως μη επιλέξιμα` : `Απόκρυψη ${unsuitableCount} μη επιλέξιμων`}
+                {hideUnsuitable ? `${unsuitableCount} εγγραφές κρυμμένες (μη επιλέξιμες) — κλικ για εμφάνιση` : `Απόκρυψη ${unsuitableCount} μη επιλέξιμων`}
               </button>
             )}
             {(accountantFilter.length > 0 || programFilter.length > 0 || legalStatusFilter.length > 0 || campaignSentFilter || search) && (
