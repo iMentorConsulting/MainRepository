@@ -109,17 +109,11 @@ export function Sidebar({ open, onClose }: SidebarProps) {
                 info@i-mentor.gr
               </a>
               <a href="tel:+302810363007"
-                className="flex items-center gap-2 text-[11px] text-slate-400 hover:text-indigo-300 transition-colors">
-                <Phone className="w-3 h-3 flex-shrink-0 text-indigo-400" />
+                className="flex items-center gap-2 text-base font-bold text-emerald-400 hover:text-emerald-300 transition-colors">
+                <Phone className="w-4 h-4 flex-shrink-0 text-emerald-400" />
                 2810 363007
               </a>
             </div>
-            <a href="tel:+302810363007"
-              className="mt-3 w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl font-bold text-sm text-white transition-all hover:opacity-90 active:scale-95"
-              style={{ background: 'linear-gradient(135deg, #16a34a, #15803d)' }}>
-              <Phone className="w-4 h-4" />
-              📞 Κλήση Γραφείου Τώρα
-            </a>
           </Link>
         </div>
 
