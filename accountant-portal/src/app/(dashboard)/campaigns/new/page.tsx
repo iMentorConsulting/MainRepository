@@ -4,7 +4,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import { Button } from '@/components/ui/button'
 import { Select } from '@/components/ui/select'
-import { CAMPAIGN_TEMPLATES } from '@/lib/campaign-templates'
+import { CAMPAIGN_TEMPLATES, VIBER_CAMPAIGN_TEMPLATES } from '@/lib/campaign-templates'
 import { ArrowLeft, ArrowRight, Mail, Users, Send, Sparkles, MessageCircle, CheckCircle2 } from 'lucide-react'
 import Link from 'next/link'
 
@@ -65,14 +65,33 @@ function StepChoosePath({ onDiy, onWithIMentor }: { onDiy: () => void; onWithIMe
 }
 
 // ── Step 1: Pick program ──────────────────────────────────────────────────────
-function StepProgram({ programs, selected, onSelect, onNext, onBack }: {
-  programs: any[]; selected: string; onSelect: (v: string) => void; onNext: () => void; onBack: () => void
+function StepProgram({ programs, selected, onSelect, channel, onChannelChange, onNext, onBack }: {
+  programs: any[]; selected: string; onSelect: (v: string) => void;
+  channel: 'EMAIL' | 'VIBER' | 'EMAIL_AND_VIBER'; onChannelChange: (v: 'EMAIL' | 'VIBER' | 'EMAIL_AND_VIBER') => void;
+  onNext: () => void; onBack: () => void
 }) {
   return (
     <div className="space-y-5">
       <div>
         <h2 className="text-xl font-bold text-gray-900">Για ποιο πρόγραμμα;</h2>
         <p className="text-sm text-gray-500 mt-1">Διαλέξτε το πρόγραμμα που θέλετε να ενημερώσετε τους πελάτες σας.</p>
+      </div>
+
+      <div>
+        <p className="text-sm font-semibold text-gray-700 mb-2">Πώς θέλετε να σταλεί το μήνυμα;</p>
+        <div className="grid grid-cols-3 gap-2">
+          {[
+            { value: 'EMAIL', label: 'Email', icon: Mail },
+            { value: 'VIBER', label: 'Viber', icon: MessageCircle },
+            { value: 'EMAIL_AND_VIBER', label: 'Viber + Email', icon: Send },
+          ].map(({ value, label, icon: Icon }) => (
+            <button key={value} type="button" onClick={() => onChannelChange(value as any)}
+              className={`flex flex-col items-center gap-1.5 py-3 px-2 rounded-xl border-2 transition-all ${channel === value ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-gray-200 text-gray-500 hover:border-indigo-200'}`}>
+              <Icon size={16} />
+              <span className="text-xs font-semibold">{label}</span>
+            </button>
+          ))}
+        </div>
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <button onClick={() => onSelect('')}
@@ -119,7 +138,8 @@ function StepProgram({ programs, selected, onSelect, onNext, onBack }: {
 }
 
 // ── Step 2: Pick template ─────────────────────────────────────────────────────
-function StepTemplate({ onSelect, onBack }: { onSelect: (t: any) => void; onBack: () => void }) {
+function StepTemplate({ channel, onSelect, onBack }: { channel: 'EMAIL' | 'VIBER' | 'EMAIL_AND_VIBER'; onSelect: (t: any) => void; onBack: () => void }) {
+  const templates = channel === 'EMAIL' ? CAMPAIGN_TEMPLATES : VIBER_CAMPAIGN_TEMPLATES
   return (
     <div className="space-y-5">
       <div>
@@ -127,7 +147,7 @@ function StepTemplate({ onSelect, onBack }: { onSelect: (t: any) => void; onBack
         <p className="text-sm text-gray-500 mt-1">Διαλέξτε ένα έτοιμο μήνυμα — θα το δείτε πριν αποσταλεί.</p>
       </div>
       <div className="grid grid-cols-1 gap-3">
-        {CAMPAIGN_TEMPLATES.map(t => (
+        {templates.map(t => (
           <button key={t.id} onClick={() => onSelect(t)}
             className="text-left p-4 rounded-xl border-2 border-gray-200 hover:border-indigo-400 hover:bg-indigo-50 transition-all group">
             <div className="flex items-start gap-3">
@@ -387,6 +407,7 @@ export default function NewCampaignPage() {
     if (p === 'imentor') { setPath('imentor'); setStep(1) }
   }, [])
   const [programId, setProgramId] = useState('')
+  const [channel, setChannel] = useState<'EMAIL' | 'VIBER' | 'EMAIL_AND_VIBER'>('EMAIL')
   const [selectedTemplate, setSelectedTemplate] = useState<any>(null)
   const [sending, setSending] = useState(false)
   const [savingDraft, setSavingDraft] = useState(false)
@@ -403,7 +424,7 @@ export default function NewCampaignPage() {
     try {
       const body = {
         title: selectedTemplate.label,
-        channel: 'EMAIL',
+        channel,
         subject: selectedTemplate.subject,
         programId: programId || undefined,
         messageTemplate: selectedTemplate.bodyWithAccountant,
@@ -463,6 +484,8 @@ export default function NewCampaignPage() {
             programs={programs}
             selected={programId}
             onSelect={setProgramId}
+            channel={channel}
+            onChannelChange={setChannel}
             onNext={() => setStep(2)}
             onBack={() => { setPath(null); setStep(0) }}
           />
@@ -470,6 +493,7 @@ export default function NewCampaignPage() {
 
         {path === 'diy' && step === 2 && (
           <StepTemplate
+            channel={channel}
             onSelect={t => { setSelectedTemplate(t); setStep(3) }}
             onBack={() => setStep(1)}
           />
