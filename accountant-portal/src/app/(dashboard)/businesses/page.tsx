@@ -9,7 +9,8 @@ import { Pagination } from '@/components/ui/pagination'
 import { MultiSelect } from '@/components/ui/multi-select'
 import { Modal } from '@/components/ui/modal'
 import { Select } from '@/components/ui/select'
-import { categorizeByKad } from '@/lib/business-categories'
+import { getEffectiveCategory, ALL_CATEGORIES } from '@/lib/business-categories'
+import { CategoryBadge } from '@/components/businesses/category-badge'
 import { resolveRegionFromZip } from '@/lib/greek-regions'
 import { Plus, Search, Download, Filter, Trash2, UserCog, Send, Smartphone, Upload, X, ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react'
 
@@ -46,6 +47,7 @@ interface Business {
   legalStatusDescr: string | null
   accountant: { officeName: string } | null
   activities: { firmActCode: string; firmActKind: number | null }[]
+  tags?: string[]
   _count?: { programMatches: number }
 }
 
@@ -69,6 +71,7 @@ export default function BusinessesPage() {
   const [accountantFilter, setAccountantFilter] = useState<string[]>([])
   const [legalStatusFilter, setLegalStatusFilter] = useState<string[]>([])
   const [regionFilter, setRegionFilter] = useState<string[]>([])
+  const [categoryFilter, setCategoryFilter] = useState<string[]>([])
   const [sort, setSort] = useState('createdAt:desc')
   const [sortBy, sortDir] = sort.split(':')
   function toggleSort(col: string) {
@@ -98,17 +101,18 @@ export default function BusinessesPage() {
       ...(accountantFilter.length ? { accountantIds: accountantFilter.join(',') } : {}),
       ...(legalStatusFilter.length ? { legalStatuses: legalStatusFilter.join(',') } : (!includeIndividuals ? { excludeLegalStatuses: 'ΙΔΙΩΤΗΣ' } : {})),
       ...(regionFilter.length ? { regions: regionFilter.join(',') } : {}),
+      ...(categoryFilter.length ? { categories: categoryFilter.join(',') } : {}),
     })
     const res = await fetch(`/api/businesses?${params}`)
     const data = await res.json()
     setBusinesses(data.businesses || [])
     setTotal(data.total || 0)
     setLoading(false)
-  }, [page, search, accountantFilter, legalStatusFilter, regionFilter, sort, includeIndividuals])
+  }, [page, search, accountantFilter, legalStatusFilter, regionFilter, categoryFilter, sort, includeIndividuals])
 
   useEffect(() => { fetchData() }, [fetchData])
-  useEffect(() => { setSelected(new Set()) }, [page, search, accountantFilter, legalStatusFilter, regionFilter, sort, includeIndividuals])
-  useEffect(() => { setPage(1) }, [accountantFilter, legalStatusFilter, regionFilter, sort, includeIndividuals])
+  useEffect(() => { setSelected(new Set()) }, [page, search, accountantFilter, legalStatusFilter, regionFilter, categoryFilter, sort, includeIndividuals])
+  useEffect(() => { setPage(1) }, [accountantFilter, legalStatusFilter, regionFilter, categoryFilter, sort, includeIndividuals])
 
   useEffect(() => {
     fetch('/api/businesses/facets')
@@ -344,6 +348,13 @@ export default function BusinessesPage() {
               onChange={setRegionFilter}
               placeholder="Όλες οι περιοχές"
             />
+            <MultiSelect
+              label="Κλάδος"
+              options={ALL_CATEGORIES.map(v => ({ value: v, label: v }))}
+              selected={categoryFilter}
+              onChange={setCategoryFilter}
+              placeholder="Όλοι οι κλάδοι"
+            />
             <div>
               <label className="text-xs font-medium text-gray-500 block mb-1">Ταξινόμηση</label>
               <Select value={sort} onChange={e => setSort(e.target.value)} options={SORT_OPTIONS} className="min-w-[180px]" />
@@ -358,11 +369,11 @@ export default function BusinessesPage() {
                 {includeIndividuals ? 'Απόκρυψη Ιδιωτών' : 'Εμφάνιση Ιδιωτών'}
               </Button>
             )}
-            {(accountantFilter.length > 0 || legalStatusFilter.length > 0 || regionFilter.length > 0) && (
+            {(accountantFilter.length > 0 || legalStatusFilter.length > 0 || regionFilter.length > 0 || categoryFilter.length > 0) && (
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => { setAccountantFilter([]); setLegalStatusFilter([]); setRegionFilter([]) }}
+                onClick={() => { setAccountantFilter([]); setLegalStatusFilter([]); setRegionFilter([]); setCategoryFilter([]) }}
               >
                 Καθαρισμός φίλτρων
               </Button>
@@ -451,8 +462,8 @@ export default function BusinessesPage() {
                         <Td className="max-w-xs truncate font-medium">{b.onomasia || '-'}</Td>
                         <Td className="font-mono text-xs">{primaryKad?.firmActCode || '-'}</Td>
                         <Td>
-                          {primaryKad?.firmActCode && (
-                            <Badge variant="secondary" className="text-xs">{categorizeByKad(primaryKad.firmActCode)}</Badge>
+                          {(b.tags?.length || primaryKad?.firmActCode) && (
+                            <CategoryBadge category={getEffectiveCategory(b)} />
                           )}
                         </Td>
                         <Td>{b.postalAreaDescription || '-'}</Td>

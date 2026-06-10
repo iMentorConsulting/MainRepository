@@ -9,6 +9,8 @@ import { Pagination } from '@/components/ui/pagination'
 import { MultiSelect } from '@/components/ui/multi-select'
 import { QuickSendModal } from '@/components/quick-send-modal'
 import { Send, ChevronUp, ChevronDown, ChevronsUpDown, Search, Check, X as XIcon, Ban, Eye, EyeOff } from 'lucide-react'
+import { getEffectiveCategory } from '@/lib/business-categories'
+import { CategoryBadge } from '@/components/businesses/category-badge'
 
 const campaignSentOptions = [
   { value: '', label: 'Όλα' },
@@ -171,6 +173,8 @@ export default function MatchesPage() {
   const [programFilter, setProgramFilter] = useState<string[]>([])
   const [legalStatusFilter, setLegalStatusFilter] = useState<string[]>([])
   const [legalStatusOptions, setLegalStatusOptions] = useState<{ value: string; label: string }[]>([])
+  const [categoryFilter, setCategoryFilter] = useState<string[]>([])
+  const [categoryOptions, setCategoryOptions] = useState<{ value: string; label: string }[]>([])
   const [search, setSearch] = useState('')
   const [searchInput, setSearchInput] = useState('')
   const [sortBy, setSortBy] = useState('matchScore')
@@ -207,6 +211,7 @@ export default function MatchesPage() {
     if (accountantFilter.length) params.set('accountantIds', accountantFilter.join(','))
     if (programFilter.length) params.set('programIds', programFilter.join(','))
     if (legalStatusFilter.length) params.set('legalStatuses', legalStatusFilter.join(','))
+    if (categoryFilter.length) params.set('categories', categoryFilter.join(','))
     if (campaignSentFilter) params.set('campaignSent', campaignSentFilter)
     if (search) params.set('search', search)
     const res = await fetch(`/api/matches?${params}`)
@@ -216,12 +221,13 @@ export default function MatchesPage() {
     if (data.accountants?.length) setAccountantOptions(data.accountants.map((a: any) => ({ value: a.id, label: a.officeName })))
     if (data.programs?.length) setProgramOptions(data.programs.map((p: any) => ({ value: p.id, label: p.title })))
     if (data.legalStatuses?.length) setLegalStatusOptions(data.legalStatuses.map((v: string) => ({ value: v, label: v })))
+    if (data.categories?.length) setCategoryOptions(data.categories.map((v: string) => ({ value: v, label: v })))
     setLoading(false)
-  }, [page, accountantFilter, programFilter, legalStatusFilter, campaignSentFilter, search, sortBy, sortDir])
+  }, [page, accountantFilter, programFilter, legalStatusFilter, categoryFilter, campaignSentFilter, search, sortBy, sortDir])
 
   useEffect(() => { fetchMatches() }, [fetchMatches])
-  useEffect(() => { setPage(1) }, [accountantFilter, programFilter, legalStatusFilter, campaignSentFilter, search, sortBy, sortDir])
-  useEffect(() => { setSelected(new Set()) }, [page, accountantFilter, programFilter, legalStatusFilter, campaignSentFilter, search])
+  useEffect(() => { setPage(1) }, [accountantFilter, programFilter, legalStatusFilter, categoryFilter, campaignSentFilter, search, sortBy, sortDir])
+  useEffect(() => { setSelected(new Set()) }, [page, accountantFilter, programFilter, legalStatusFilter, categoryFilter, campaignSentFilter, search])
 
   function handleSearch() {
     setSearch(searchInput)
@@ -335,6 +341,15 @@ export default function MatchesPage() {
                 placeholder="Όλες οι μορφές"
               />
             )}
+            {categoryOptions.length > 0 && (
+              <MultiSelect
+                label="Κλάδος"
+                options={categoryOptions}
+                selected={categoryFilter}
+                onChange={setCategoryFilter}
+                placeholder="Όλοι οι κλάδοι"
+              />
+            )}
             {unsuitableCount > 0 && (
               <button
                 onClick={() => setHideUnsuitable(h => !h)}
@@ -348,9 +363,9 @@ export default function MatchesPage() {
                 {hideUnsuitable ? `${unsuitableCount} εγγραφές κρυμμένες (μη επιλέξιμες) — κλικ για εμφάνιση` : `Απόκρυψη ${unsuitableCount} μη επιλέξιμων`}
               </button>
             )}
-            {(accountantFilter.length > 0 || programFilter.length > 0 || legalStatusFilter.length > 0 || campaignSentFilter || search) && (
+            {(accountantFilter.length > 0 || programFilter.length > 0 || legalStatusFilter.length > 0 || categoryFilter.length > 0 || campaignSentFilter || search) && (
               <button
-                onClick={() => { setAccountantFilter([]); setProgramFilter([]); setLegalStatusFilter([]); setCampaignSentFilter(''); setSearch(''); setSearchInput('') }}
+                onClick={() => { setAccountantFilter([]); setProgramFilter([]); setLegalStatusFilter([]); setCategoryFilter([]); setCampaignSentFilter(''); setSearch(''); setSearchInput('') }}
                 className="text-xs text-gray-500 hover:text-gray-700 underline mt-4"
               >
                 Καθαρισμός φίλτρων
@@ -381,6 +396,7 @@ export default function MatchesPage() {
                       Επιχείρηση <SortIcon col="business.onomasia" sortBy={sortBy} sortDir={sortDir} />
                     </button>
                   </Th>
+                  <Th className="w-10">Κλάδος</Th>
                   <Th>
                     <button onClick={() => toggleSort('program.title')} className="flex items-center hover:text-indigo-700 transition-colors">
                       Επιλέξιμο Πρόγραμμα <SortIcon col="program.title" sortBy={sortBy} sortDir={sortDir} />
@@ -402,7 +418,7 @@ export default function MatchesPage() {
               <TableBody>
                 {visibleMatches.length === 0 ? (
                   <TableRow>
-                    <Td colSpan={isAdmin ? 9 : 8} className="text-center text-gray-400 py-8">Δεν βρέθηκαν matches</Td>
+                    <Td colSpan={isAdmin ? 10 : 9} className="text-center text-gray-400 py-8">Δεν βρέθηκαν matches</Td>
                   </TableRow>
                 ) : (
                   visibleMatches.map(m => {
@@ -422,6 +438,9 @@ export default function MatchesPage() {
                           <Link href={`/businesses/${m.businessId}`} className={`text-blue-800 hover:underline font-medium truncate block ${unsuitable ? 'line-through' : ''}`}>
                             {m.business?.onomasia || '-'}
                           </Link>
+                        </Td>
+                        <Td>
+                          <CategoryBadge category={getEffectiveCategory(m.business || {})} />
                         </Td>
                         <Td>
                           <Link href={`/programs/${m.programId}`} className="text-blue-600 hover:underline text-sm">

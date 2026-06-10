@@ -2,6 +2,27 @@
 // portfolio categories used for reporting/segmentation.
 export const BUSINESS_CATEGORIES = ['ΤΟΥΡΙΣΜΟΣ', 'ΕΜΠΟΡΙΟ', 'ΜΕΤΑΠΟΙΗΣΗ', 'ΕΣΤΙΑΣΗ', 'ΥΠΗΡΕΣΙΕΣ'] as const
 export type BusinessCategory = typeof BUSINESS_CATEGORIES[number] | 'ΑΛΛΟ'
+export const ALL_CATEGORIES: BusinessCategory[] = [...BUSINESS_CATEGORIES, 'ΑΛΛΟ']
+
+// lucide-react icon name for each category (used to render a representative pic/icon)
+export const CATEGORY_ICONS: Record<BusinessCategory, string> = {
+  'ΤΟΥΡΙΣΜΟΣ': 'Palmtree',
+  'ΕΜΠΟΡΙΟ': 'ShoppingCart',
+  'ΜΕΤΑΠΟΙΗΣΗ': 'Factory',
+  'ΕΣΤΙΑΣΗ': 'UtensilsCrossed',
+  'ΥΠΗΡΕΣΙΕΣ': 'Briefcase',
+  'ΑΛΛΟ': 'Tag',
+}
+
+// Brand color for each category, used for badges/icons
+export const CATEGORY_COLORS: Record<BusinessCategory, string> = {
+  'ΤΟΥΡΙΣΜΟΣ': '#0ea5e9',
+  'ΕΜΠΟΡΙΟ': '#d97706',
+  'ΜΕΤΑΠΟΙΗΣΗ': '#64748b',
+  'ΕΣΤΙΑΣΗ': '#dc2626',
+  'ΥΠΗΡΕΣΙΕΣ': '#7c3aed',
+  'ΑΛΛΟ': '#6b7280',
+}
 
 // 2-digit NACE division -> category
 const DIVISION_TO_CATEGORY: Record<string, BusinessCategory> = {
@@ -12,6 +33,8 @@ const DIVISION_TO_CATEGORY: Record<string, BusinessCategory> = {
   '46': 'ΕΜΠΟΡΙΟ',
   '47': 'ΕΜΠΟΡΙΟ',
 }
+
+const MANUFACTURING_DIVISIONS = Array.from({ length: 24 }, (_, i) => String(i + 10)) // 10..33
 
 function isManufacturing(division: number): boolean {
   return division >= 10 && division <= 33
@@ -28,4 +51,85 @@ export function categorizeByKad(firmActCode: string | null | undefined): Busines
   if (isManufacturing(divisionNum)) return 'ΜΕΤΑΠΟΙΗΣΗ'
   // Sections G(45-47)/I(55-56) handled above; everything else falls back to services.
   return 'ΥΠΗΡΕΣΙΕΣ'
+}
+
+// Manual category overrides are stored as a special tag, e.g. "ΚΛΑΔΟΣ:ΤΟΥΡΙΣΜΟΣ",
+// so accountants can correct the auto-detected category without a schema change.
+export const CATEGORY_TAG_PREFIX = 'ΚΛΑΔΟΣ:'
+
+export function categoryTag(category: BusinessCategory): string {
+  return CATEGORY_TAG_PREFIX + category
+}
+
+export function getCategoryOverride(tags: string[] | null | undefined): BusinessCategory | null {
+  const tag = (tags || []).find(t => t.startsWith(CATEGORY_TAG_PREFIX))
+  if (!tag) return null
+  const value = tag.slice(CATEGORY_TAG_PREFIX.length)
+  return (ALL_CATEGORIES as string[]).includes(value) ? (value as BusinessCategory) : null
+}
+
+// Resolves the effective category for a business: a manual override (via tag) wins,
+// otherwise it's derived from the primary ΚΑΔ.
+export function getEffectiveCategory(business: {
+  tags?: string[] | null
+  activities?: Array<{ firmActCode?: string | null; firmActKind?: number | null }>
+}): BusinessCategory {
+  const override = getCategoryOverride(business.tags)
+  if (override) return override
+  const primary = business.activities?.find(a => a.firmActKind === 1) || business.activities?.[0]
+  return categorizeByKad(primary?.firmActCode)
+}
+
+// Builds a Prisma `where` fragment matching businesses that fall into the given
+// category, accounting for manual tag overrides. Combine multiple categories with OR.
+export function categoryWhereClause(category: BusinessCategory): any {
+  const overrideTag = categoryTag(category)
+  const allOverrideTags = ALL_CATEGORIES.map(categoryTag)
+  const noOverride = { NOT: { tags: { hasSome: allOverrideTags } } }
+
+  if (category === 'ΤΟΥΡΙΣΜΟΣ' || category === 'ΕΣΤΙΑΣΗ' || category === 'ΕΜΠΟΡΙΟ' || category === 'ΜΕΤΑΠΟΙΗΣΗ') {
+    const divisions = category === 'ΤΟΥΡΙΣΜΟΣ' ? ['55', '79']
+      : category === 'ΕΣΤΙΑΣΗ' ? ['56']
+      : category === 'ΕΜΠΟΡΙΟ' ? ['45', '46', '47']
+      : MANUFACTURING_DIVISIONS
+    return {
+      OR: [
+        { tags: { has: overrideTag } },
+        {
+          AND: [
+            noOverride,
+            { activities: { some: { firmActKind: 1, OR: divisions.map(d => ({ firmActCode: { startsWith: d } })) } } },
+          ],
+        },
+      ],
+    }
+  }
+
+  const allKnownDivisions = [...Object.keys(DIVISION_TO_CATEGORY), ...MANUFACTURING_DIVISIONS]
+  if (category === 'ΥΠΗΡΕΣΙΕΣ') {
+    return {
+      OR: [
+        { tags: { has: overrideTag } },
+        {
+          AND: [
+            noOverride,
+            { activities: { some: { firmActKind: 1, NOT: { OR: allKnownDivisions.map(d => ({ firmActCode: { startsWith: d } })) } } } },
+          ],
+        },
+      ],
+    }
+  }
+
+  // ΑΛΛΟ — no primary ΚΑΔ at all
+  return {
+    OR: [
+      { tags: { has: overrideTag } },
+      {
+        AND: [
+          noOverride,
+          { activities: { none: { firmActKind: 1 } } },
+        ],
+      },
+    ],
+  }
 }

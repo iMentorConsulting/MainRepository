@@ -147,15 +147,27 @@ export default function DashboardPage() {
   const { data: session } = useSession()
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [loading, setLoading] = useState(true)
+  const [accountants, setAccountants] = useState<{ id: string; officeName: string }[]>([])
+  const [accountantFilter, setAccountantFilter] = useState('')
+
+  const isAdmin = session?.user?.role === 'ADMIN'
 
   useEffect(() => {
-    fetch('/api/dashboard/stats')
+    setLoading(true)
+    const params = accountantFilter ? `?accountantId=${accountantFilter}` : ''
+    fetch(`/api/dashboard/stats${params}`)
       .then(r => r.json())
       .then(setStats)
       .finally(() => setLoading(false))
-  }, [])
+  }, [accountantFilter])
 
-  const isAdmin = session?.user?.role === 'ADMIN'
+  useEffect(() => {
+    if (!isAdmin) return
+    fetch('/api/accountants')
+      .then(r => r.json())
+      .then(data => setAccountants(data.accountants || []))
+      .catch(() => {})
+  }, [isAdmin])
 
   if (loading) {
     return (
@@ -180,9 +192,21 @@ export default function DashboardPage() {
             {isAdmin ? 'Επισκόπηση συστήματος I-MENTOR Portal' : 'Επισκόπηση του λογιστικού σας γραφείου'}
           </p>
         </div>
-        <div className="text-right hidden md:block">
-          <p className="text-xs text-slate-400 uppercase tracking-wider">Overview</p>
-          <p className="text-xs text-slate-400 mt-0.5">{new Date().toLocaleDateString('el-GR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
+        <div className="flex items-center gap-3">
+          {isAdmin && accountants.length > 0 && (
+            <select
+              value={accountantFilter}
+              onChange={e => setAccountantFilter(e.target.value)}
+              className="text-sm border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white"
+            >
+              <option value="">Όλοι οι λογιστές</option>
+              {accountants.map(a => <option key={a.id} value={a.id}>{a.officeName}</option>)}
+            </select>
+          )}
+          <div className="text-right hidden md:block">
+            <p className="text-xs text-slate-400 uppercase tracking-wider">Overview</p>
+            <p className="text-xs text-slate-400 mt-0.5">{new Date().toLocaleDateString('el-GR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
+          </div>
         </div>
       </div>
 

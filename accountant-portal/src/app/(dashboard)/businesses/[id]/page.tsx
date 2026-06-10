@@ -12,6 +12,9 @@ import { ArrowLeft, Mail, Phone, MapPin, Calendar, Edit, Send, Trash2, X as XIco
 import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import { formatDate } from '@/lib/utils'
+import { ALL_CATEGORIES, getEffectiveCategory, categoryTag, CATEGORY_TAG_PREFIX } from '@/lib/business-categories'
+import { CategoryBadge } from '@/components/businesses/category-badge'
+import { resolveRegionFromZip } from '@/lib/greek-regions'
 
 export default function BusinessDetailPage() {
   const { id } = useParams()
@@ -48,6 +51,11 @@ export default function BusinessDetailPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ tags }),
     })
+  }
+
+  function setCategory(category: string) {
+    const otherTags = (business.tags || []).filter((t: string) => !t.startsWith(CATEGORY_TAG_PREFIX))
+    saveTags([...otherTags, categoryTag(category as any)])
   }
 
   function addTag(tag: string) {
@@ -110,13 +118,28 @@ export default function BusinessDetailPage() {
         </Link>
         <div className="flex-1">
           <h1 className="text-2xl font-bold text-gray-900">{business.onomasia || 'Επιχείρηση'}</h1>
-          <div className="flex items-center gap-3 mt-1">
+          <div className="flex items-center gap-3 mt-1 flex-wrap">
             <span className="font-mono text-gray-500 text-sm">ΑΦΜ: {business.afm}</span>
             {business.legalStatusDescr && (
               <Badge variant="secondary">{business.legalStatusDescr}</Badge>
             )}
             {business.deactivationFlag === 'Y' && (
               <Badge variant="danger">Ανενεργή</Badge>
+            )}
+            <CategoryBadge category={getEffectiveCategory(business)} size="lg" />
+            <select
+              value={getEffectiveCategory(business)}
+              onChange={e => setCategory(e.target.value)}
+              className="text-xs border border-gray-300 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white"
+              title="Αλλαγή κλάδου"
+            >
+              {ALL_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+            {resolveRegionFromZip(business.postalZipCode) && (
+              <Badge variant="info" className="flex items-center gap-1">
+                <MapPin size={12} />
+                {resolveRegionFromZip(business.postalZipCode)}
+              </Badge>
             )}
           </div>
         </div>

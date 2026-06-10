@@ -19,9 +19,12 @@ export async function GET(request: NextRequest) {
 
   const isAdmin = session.user.role === 'ADMIN'
   const accountantId = session.user.accountantId
+  const filterAccountantId = isAdmin ? request.nextUrl.searchParams.get('accountantId') || undefined : undefined
+  const effectiveAccountantId = isAdmin ? filterAccountantId : (accountantId || undefined)
 
-  const businessWhere = isAdmin ? {} : { accountantId: accountantId || undefined }
+  const businessWhere = effectiveAccountantId ? { accountantId: effectiveAccountantId } : {}
   const realBusinessWhere = { ...businessWhere, ...notIndividualWhere }
+  const matchAccountantWhere = effectiveAccountantId ? { business: { accountantId: effectiveAccountantId } } : {}
 
   const [
     totalAccountants,
@@ -36,14 +39,12 @@ export async function GET(request: NextRequest) {
     isAdmin ? prisma.accountant.count() : Promise.resolve(undefined),
     prisma.business.count({ where: realBusinessWhere }),
     prisma.program.count({ where: { active: true } }),
-    prisma.programMatch.count({
-      where: isAdmin ? {} : { business: { accountantId: accountantId || undefined } }
-    }),
-    prisma.campaign.count({ where: { status: 'SENT', ...(isAdmin ? {} : { accountantId: accountantId || undefined }) } }),
+    prisma.programMatch.count({ where: matchAccountantWhere }),
+    prisma.campaign.count({ where: { status: 'SENT', ...(effectiveAccountantId ? { accountantId: effectiveAccountantId } : {}) } }),
     prisma.imentorRequest.count({
       where: {
         status: 'NEW',
-        ...(isAdmin ? {} : { accountantId: accountantId || undefined }),
+        ...(effectiveAccountantId ? { accountantId: effectiveAccountantId } : {}),
       }
     }),
     prisma.business.findMany({
@@ -58,7 +59,7 @@ export async function GET(request: NextRequest) {
     prisma.programMatch.groupBy({
       by: ['programId'],
       _count: true,
-      where: isAdmin ? {} : { business: { accountantId: accountantId || undefined } },
+      where: matchAccountantWhere,
     }),
   ])
 

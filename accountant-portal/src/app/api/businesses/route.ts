@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { createAuditLog } from '@/lib/audit'
 import { runMatchingForBusiness, autoNotifyBusinessMatches } from '@/lib/matching'
+import { categoryWhereClause, BusinessCategory } from '@/lib/business-categories'
 
 export async function GET(request: NextRequest) {
   const session = await auth()
@@ -18,6 +19,7 @@ export async function GET(request: NextRequest) {
   const legalStatuses = (searchParams.get('legalStatuses') || '').split(',').filter(Boolean)
   const excludeLegalStatuses = (searchParams.get('excludeLegalStatuses') || '').split(',').filter(Boolean)
   const regions = (searchParams.get('regions') || '').split(',').filter(Boolean)
+  const categories = (searchParams.get('categories') || '').split(',').filter(Boolean) as BusinessCategory[]
   const sortBy = searchParams.get('sortBy') || 'createdAt'
   const sortDir = searchParams.get('sortDir') === 'asc' ? 'asc' : 'desc'
 
@@ -40,6 +42,7 @@ export async function GET(request: NextRequest) {
   if (legalStatuses.length > 0) where.legalStatusDescr = { in: legalStatuses }
   else if (excludeLegalStatuses.length > 0) where.legalStatusDescr = { notIn: excludeLegalStatuses }
   if (regions.length > 0) where.postalAreaDescription = { in: regions }
+  if (categories.length > 0) where.AND = [...(where.AND || []), { OR: categories.map(categoryWhereClause) }]
 
   if (search) {
     where.OR = [

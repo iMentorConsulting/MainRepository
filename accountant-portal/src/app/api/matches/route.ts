@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { categoryWhereClause, ALL_CATEGORIES, BusinessCategory } from '@/lib/business-categories'
 
 export const dynamic = 'force-dynamic'
 
@@ -16,6 +17,7 @@ export async function GET(request: NextRequest) {
   const accountantIds = searchParams.get('accountantIds')?.split(',').filter(Boolean) || []
   const programIds = searchParams.get('programIds')?.split(',').filter(Boolean) || []
   const legalStatuses = searchParams.get('legalStatuses')?.split(',').filter(Boolean) || []
+  const categories = (searchParams.get('categories')?.split(',').filter(Boolean) || []) as BusinessCategory[]
   const campaignSent = searchParams.get('campaignSent') || ''
   const search = searchParams.get('search') || ''
   const sortBy = searchParams.get('sortBy') || 'matchScore'
@@ -41,6 +43,7 @@ export async function GET(request: NextRequest) {
     }
   }
   if (legalStatuses.length > 0) businessFilter.legalStatusDescr = { in: legalStatuses }
+  if (categories.length > 0) businessFilter.AND = [...(businessFilter.AND || []), { OR: categories.map(categoryWhereClause) }]
   if (campaignSent === 'yes') businessFilter.campaignRecipients = { some: { sentAt: { not: null } } }
   else if (campaignSent === 'no') businessFilter.campaignRecipients = { none: { sentAt: { not: null } } }
   if (search) {
@@ -69,6 +72,8 @@ export async function GET(request: NextRequest) {
             id: true,
             afm: true,
             onomasia: true,
+            tags: true,
+            activities: { where: { firmActKind: 1 }, select: { firmActCode: true }, take: 1 },
             accountant: { select: { id: true, officeName: true, contactPerson: true } },
             campaignRecipients: {
               where: { sentAt: { not: null } },
@@ -106,5 +111,5 @@ export async function GET(request: NextRequest) {
   })
   const legalStatusOptions = legalStatusFacet.map(l => l.legalStatusDescr).filter((v): v is string => !!v).sort()
 
-  return NextResponse.json({ matches, total, page, limit, accountants, programs, legalStatuses: legalStatusOptions })
+  return NextResponse.json({ matches, total, page, limit, accountants, programs, legalStatuses: legalStatusOptions, categories: ALL_CATEGORIES })
 }
