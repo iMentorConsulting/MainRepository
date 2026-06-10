@@ -11,11 +11,13 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     include: {
       service: { select: { id: true, name: true } },
       program: { select: { id: true, title: true } },
-      accountantOverrides: {
-        include: {
-          accountant: { select: { id: true, officeName: true, contactPerson: true } },
+      ...(session.user.role === 'ADMIN' ? {
+        accountantOverrides: {
+          include: {
+            accountant: { select: { id: true, officeName: true, contactPerson: true } },
+          },
         },
-      },
+      } : {}),
     },
   })
 

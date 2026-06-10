@@ -77,6 +77,12 @@ export async function POST(request: NextRequest) {
     const phone = normalizePhone(row.tel ?? row.phone ?? row.τηλ ?? row.τηλέφωνο ?? row.ΤΗΛ ?? row.ΤΗΛΕΦΩΝΟ)
     const email = String(row.email || row.mail || row.Email || row.EMAIL || '').trim() || null
 
+    // Accountants must not be able to overwrite a business already owned by another accountant
+    if (accountantId) {
+      const existing = await prisma.business.findUnique({ where: { afm }, select: { accountantId: true } })
+      if (existing && existing.accountantId && existing.accountantId !== accountantId) { skipped++; continue }
+    }
+
     try {
       // Try to fetch real data from GSIS
       let businessData: any = { afm }

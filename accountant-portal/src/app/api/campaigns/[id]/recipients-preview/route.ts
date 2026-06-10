@@ -9,6 +9,10 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
   const campaign = await prisma.campaign.findUnique({ where: { id: params.id } })
   if (!campaign) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
+  if (session.user.role === 'ACCOUNTANT' && campaign.accountantId !== session.user.accountantId) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
   let businesses = await prisma.business.findMany({
     select: {
       id: true,

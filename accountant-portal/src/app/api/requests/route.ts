@@ -36,6 +36,13 @@ export async function POST(request: NextRequest) {
 
   const { businessId, programId, subject, message, attachmentUrl, attachmentName } = await request.json()
 
+  if (businessId) {
+    const business = await prisma.business.findUnique({ where: { id: businessId }, select: { accountantId: true } })
+    if (!business || business.accountantId !== session.user.accountantId) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+  }
+
   const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024 // 10MB
   if (attachmentUrl && typeof attachmentUrl === 'string') {
     // Base64 data URLs are ~33% larger than the raw bytes they encode.
