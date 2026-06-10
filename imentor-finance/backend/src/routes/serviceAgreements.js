@@ -106,8 +106,12 @@ router.get('/service-types', async (req, res) => {
   try {
     const { status, search, sales_agent, sale_year, sale_years, sale_month, sale_months } = req.query;
     const where = {};
-    if (status) where.status = status;
-    if (sales_agent) where.sales_agent = sales_agent;
+    const multiVal = v => {
+      const list = String(v).split(',').map(s => s.trim()).filter(Boolean);
+      return list.length > 1 ? { [Op.in]: list } : list[0];
+    };
+    if (status) where.status = multiVal(status);
+    if (sales_agent) where.sales_agent = multiVal(sales_agent);
     if (search) where[Op.or] = [
       { customer_name: { [Op.iLike]: `%${search}%` } },
       { service_type: { [Op.iLike]: `%${search}%` } }
@@ -149,11 +153,15 @@ router.get('/', async (req, res) => {
     const { status, customer_id, customer_name, search, sales_agent, service_type, sale_year, sale_years, sale_month, sale_months, missing_dates, limit = 50, offset = 0, page, sort_field, sort_dir } = req.query;
     const actualOffset = page ? (parseInt(page) - 1) * parseInt(limit) : parseInt(offset);
     const where = {};
-    if (status) where.status = status;
+    const multiVal = v => {
+      const list = String(v).split(',').map(s => s.trim()).filter(Boolean);
+      return list.length > 1 ? { [Op.in]: list } : list[0];
+    };
+    if (status) where.status = multiVal(status);
     if (customer_id) where.customer_id = parseInt(customer_id);
     if (customer_name) where.customer_name = { [Op.iLike]: `%${customer_name}%` };
-    if (sales_agent) where.sales_agent = sales_agent;
-    if (service_type) where.service_type = service_type;
+    if (sales_agent) where.sales_agent = multiVal(sales_agent);
+    if (service_type) where.service_type = multiVal(service_type);
     if (search) where[Op.or] = [
       { customer_name: { [Op.iLike]: `%${search}%` } },
       { service_type: { [Op.iLike]: `%${search}%` } }

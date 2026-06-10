@@ -61,19 +61,22 @@ const STATUS_BADGE = {
   'ΕΝ ΕΞΕΛΙΞΕΙ':           'badge-green',
   'ΟΛΟΚΛΗΡΩΜΕΝΕΣ ΕΠΙΤΥΧΩΣ':'badge-blue',
   'ΟΛΟΚΛΗΡΩΜΕΝΕΣ FAIL':    'badge-red',
+  'ΤΑΠΑ ΠΕΛΑΤΗ':           'badge-orange',
 };
 
-const STATUS_OPTS = ['ΕΝ ΕΞΕΛΙΞΕΙ', 'ΟΛΟΚΛΗΡΩΜΕΝΕΣ ΕΠΙΤΥΧΩΣ', 'ΟΛΟΚΛΗΡΩΜΕΝΕΣ FAIL'];
+const STATUS_OPTS = ['ΕΝ ΕΞΕΛΙΞΕΙ', 'ΟΛΟΚΛΗΡΩΜΕΝΕΣ ΕΠΙΤΥΧΩΣ', 'ΟΛΟΚΛΗΡΩΜΕΝΕΣ FAIL', 'ΤΑΠΑ ΠΕΛΑΤΗ'];
 
 const STATUS_CELL_BG = {
   'ΕΝ ΕΞΕΛΙΞΕΙ':            '#dcfce7',
   'ΟΛΟΚΛΗΡΩΜΕΝΕΣ ΕΠΙΤΥΧΩΣ':'#dbeafe',
   'ΟΛΟΚΛΗΡΩΜΕΝΕΣ FAIL':     '#ffe4e6',
+  'ΤΑΠΑ ΠΕΛΑΤΗ':            '#ffedd5',
 };
 const STATUS_TEXT_COLOR = {
   'ΕΝ ΕΞΕΛΙΞΕΙ':            '#166534',
   'ΟΛΟΚΛΗΡΩΜΕΝΕΣ ΕΠΙΤΥΧΩΣ':'#1e40af',
   'ΟΛΟΚΛΗΡΩΜΕΝΕΣ FAIL':     '#9f1239',
+  'ΤΑΠΑ ΠΕΛΑΤΗ':            '#9a3412',
 };
 
 const INCOME_STATUS_STYLE = {
@@ -89,6 +92,11 @@ const incomeStatusBadge = s => {
   const short = s.length > 18 ? s.slice(0, 16) + '…' : s;
   return <span className={cls} title={s}>{short}</span>;
 };
+const INCOME_STATUS_OPTS = ['ΥΠΟΒΟΛΗ ΑΙΤΗΣΗΣ', 'ΟΛΟΚΛΗΡΩΜΕΝΗ - ΕΠΙΤΥΧΩΣ', 'ΟΛΟΚΛΗΡΩΜΕΝΗ - ΑΠΟΡΡΙΨΗ', 'ΟΛΟΚΛΗΡΩΜΕΝΗ - ΠΑΡΑΙΤΗΣΗ', 'ΔΕΝ ΠΡΟΧΩΡΗΣΕ'];
+const INCOME_STATUS_FILTER_OPTS = [
+  ...INCOME_STATUS_OPTS.map(s => ({ value: s, label: s })),
+  { value: '__none__', label: 'Χωρίς Κατάσταση' },
+];
 
 const EMPTY_FORM = {
   customer_id: '', customer_name: '', vat_number: '', service_type: '',
@@ -326,7 +334,11 @@ function PivotTable({ data, loading, onCellClick }) {
 export default function ServiceAgreementsPage() {
   // List tab state
   const [data, setData] = useState({ data: [], total: 0 });
-  const [filters, setFilters] = useState({ search: '', status: '', sales_agent: '', service_type: '' });
+  const [filters, setFilters] = useState({ search: '' });
+  const [selectedStatuses, setSelectedStatuses] = useState([]);
+  const [selectedAgents, setSelectedAgents] = useState([]);
+  const [selectedServiceTypes, setSelectedServiceTypes] = useState([]);
+  const [selectedIncomeStatuses, setSelectedIncomeStatuses] = useState([]);
   const [sort, setSort] = useState({ field: 'createdAt', dir: 'DESC' });
   const [selectedSaleYears, setSelectedSaleYears] = useState([]);
   const [selectedSaleMonths, setSelectedSaleMonths] = useState([]);
@@ -380,7 +392,11 @@ export default function ServiceAgreementsPage() {
   };
 
   const load = useCallback(() => {
-    const params = Object.fromEntries(Object.entries(filters).filter(([, v]) => v !== ''));
+    const params = {};
+    if (filters.search) params.search = filters.search;
+    if (selectedStatuses.length) params.status = selectedStatuses.join(',');
+    if (selectedAgents.length) params.sales_agent = selectedAgents.join(',');
+    if (selectedServiceTypes.length) params.service_type = selectedServiceTypes.join(',');
     params.limit = 200;
     params.sort_field = sort.field;
     params.sort_dir = sort.dir;
@@ -391,7 +407,7 @@ export default function ServiceAgreementsPage() {
     api.get('/service-agreements', { params })
       .then(r => setData(r.data))
       .catch(err => toast.error('Σφάλμα φόρτωσης: ' + (err.response?.data?.error || err.message)));
-  }, [filters, sort, selectedSaleYears, selectedSaleMonths]);
+  }, [filters, selectedStatuses, selectedAgents, selectedServiceTypes, sort, selectedSaleYears, selectedSaleMonths]);
 
   const loadPivot = useCallback(() => {
     setPivotLoading(true);
@@ -432,8 +448,8 @@ export default function ServiceAgreementsPage() {
   // under the currently active filters (status, agent, search, sale date).
   useEffect(() => {
     const params = {};
-    if (filters.status) params.status = filters.status;
-    if (filters.sales_agent) params.sales_agent = filters.sales_agent;
+    if (selectedStatuses.length) params.status = selectedStatuses.join(',');
+    if (selectedAgents.length) params.sales_agent = selectedAgents.join(',');
     if (filters.search) params.search = filters.search;
     if (selectedSaleYears.length === 1) params.sale_year = selectedSaleYears[0];
     else if (selectedSaleYears.length > 1) params.sale_years = selectedSaleYears.join(',');
@@ -442,7 +458,7 @@ export default function ServiceAgreementsPage() {
     api.get('/service-agreements/service-types', { params })
       .then(r => setListServiceTypes(r.data || []))
       .catch(() => {});
-  }, [filters.status, filters.sales_agent, filters.search, selectedSaleYears, selectedSaleMonths]);
+  }, [selectedStatuses, selectedAgents, filters.search, selectedSaleYears, selectedSaleMonths]);
 
   useEffect(() => {
     if (activeTab === 'pivot') loadPivot();
@@ -559,6 +575,12 @@ export default function ServiceAgreementsPage() {
     });
   }, [rows, sort]);
 
+  // Κατ. Εσόδων filter is computed client-side (latest_income_status is enriched, not a DB column)
+  const displayRows = useMemo(() => {
+    if (!selectedIncomeStatuses.length) return sortedRows;
+    return sortedRows.filter(r => selectedIncomeStatuses.includes(r.latest_income_status || '__none__'));
+  }, [sortedRows, selectedIncomeStatuses]);
+
   const sums = data.sums || { application: 0, implementation: 0, collected: 0 };
   const fByStatus = data.byStatus || {};
 
@@ -666,21 +688,14 @@ export default function ServiceAgreementsPage() {
               <path fillRule="evenodd" d="M9 3.5a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11ZM2 9a7 7 0 1 1 12.452 4.391l3.328 3.329a.75.75 0 1 1-1.06 1.06l-3.329-3.328A7 7 0 0 1 2 9Z" clipRule="evenodd"/>
             </svg>
           </div>
-          <select className="input w-44" value={filters.status} onChange={e => setFilters(f => ({ ...f, status: e.target.value }))}>
-            <option value="">Όλες οι καταστάσεις</option>
-            {STATUS_OPTS.map(s => <option key={s} value={s}>{s}</option>)}
-          </select>
-          <select className="input w-36" value={filters.sales_agent} onChange={e => setFilters(f => ({ ...f, sales_agent: e.target.value }))}>
-            <option value="">Σύμβουλος</option>
-            {agents.map(a => <option key={a} value={a}>{a}</option>)}
-          </select>
-          <select className="input w-44" value={filters.service_type} onChange={e => setFilters(f => ({ ...f, service_type: e.target.value }))}>
-            <option value="">Υπηρεσία</option>
-            {listServiceTypes.map(s => <option key={s} value={s}>{s}</option>)}
-            {filters.service_type && !listServiceTypes.includes(filters.service_type) && (
-              <option value={filters.service_type}>{filters.service_type}</option>
-            )}
-          </select>
+          <MultiSelectDropdown label="Όλες οι καταστάσεις" options={STATUS_OPTS.map(s => ({ value: s }))}
+            selected={selectedStatuses} onChange={setSelectedStatuses} getKey={o => o.value} getLabel={o => o.value} />
+          <MultiSelectDropdown label="Σύμβουλος" options={agents.map(a => ({ value: a }))}
+            selected={selectedAgents} onChange={setSelectedAgents} getKey={o => o.value} getLabel={o => o.value} />
+          <MultiSelectDropdown label="Υπηρεσία" options={listServiceTypes.map(s => ({ value: s }))}
+            selected={selectedServiceTypes} onChange={setSelectedServiceTypes} getKey={o => o.value} getLabel={o => o.value} />
+          <MultiSelectDropdown label="Κατ. Εσόδων" options={INCOME_STATUS_FILTER_OPTS}
+            selected={selectedIncomeStatuses} onChange={setSelectedIncomeStatuses} getKey={o => o.value} getLabel={o => o.label} />
           <div className="flex items-center gap-1 border-l border-slate-200 pl-2 ml-1">
             <span className="text-xs text-slate-400 whitespace-nowrap">Ημ. Συμφωνίας:</span>
             <MultiSelectDropdown label="Έτος" options={YEAR_OPTS} selected={selectedSaleYears}
@@ -689,7 +704,8 @@ export default function ServiceAgreementsPage() {
               onChange={setSelectedSaleMonths} getKey={o => o.value} getLabel={o => o.label} />
           </div>
           <button className="btn-ghost btn-sm" onClick={() => {
-            setFilters({ search: '', status: '', sales_agent: '', service_type: '' });
+            setFilters({ search: '' });
+            setSelectedStatuses([]); setSelectedAgents([]); setSelectedServiceTypes([]); setSelectedIncomeStatuses([]);
             setSelectedSaleYears([]); setSelectedSaleMonths([]);
           }}>✕ Καθαρισμός</button>
         </div>
@@ -789,7 +805,7 @@ export default function ServiceAgreementsPage() {
                 </tr>
               </thead>
               <tbody>
-                {sortedRows.map(r => (
+                {displayRows.map(r => (
                   <tr key={r.id} className={`tr ${selectedIds.has(r.id) ? 'bg-indigo-50/60' : ''}`}>
                     <td className="td pr-0">
                       <input type="checkbox" checked={selectedIds.has(r.id)} onChange={() => toggleOne(r.id)}
@@ -849,7 +865,7 @@ export default function ServiceAgreementsPage() {
                     <td className="td"><ActionBtns r={r} /></td>
                   </tr>
                 ))}
-                {rows.length === 0 && (
+                {displayRows.length === 0 && (
                   <tr><td colSpan={14} className="td text-center text-slate-400 py-12">Δεν βρέθηκαν εγγραφές</td></tr>
                 )}
               </tbody>
