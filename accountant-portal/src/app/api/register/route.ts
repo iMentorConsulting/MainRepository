@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Υπάρχει ήδη λογαριασμός με αυτό το email' }, { status: 409 })
   }
 
-  const passwordHash = await bcrypt.hash(data.password, 10)
+  const passwordHash = await bcrypt.hash(data.password, 12)
   const goalLabel = COOPERATION_GOAL_LABELS[data.cooperationGoal] || data.cooperationGoal
 
   // The questionnaire answers are kept on the office's notes for the admin

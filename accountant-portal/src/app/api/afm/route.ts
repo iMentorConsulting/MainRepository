@@ -52,7 +52,7 @@ async function fetchFromGsis(afm: string): Promise<string> {
 
   const bodyBuffer = Buffer.from(soapBody, 'utf-8')
 
-  console.log(`[AFM] Calling GSIS for AFM: ${afm}, user: ${username}, callerAfm: ${callerAfm}`)
+  console.log(`[AFM] Calling GSIS for AFM: ${afm}`)
 
   return new Promise((resolve, reject) => {
     const req = https.request(
@@ -71,7 +71,6 @@ async function fetchFromGsis(afm: string): Promise<string> {
         res.on('data', (chunk) => { data += chunk })
         res.on('end', () => {
           console.log(`[AFM] GSIS response status: ${res.statusCode}`)
-          console.log(`[AFM] GSIS response (first 1000 chars): ${data.substring(0, 1000)}`)
           resolve(data)
         })
       }
@@ -105,8 +104,7 @@ function parseGsisResponse(text: string, afm: string) {
 
   const onomasia = extractTag(text, 'onomasia')
   if (!onomasia) {
-    console.log('[AFM] Could not find onomasia in response. Full XML:')
-    console.log(text.substring(0, 3000))
+    console.log('[AFM] Could not find onomasia in GSIS response')
     return null
   }
 
@@ -148,10 +146,6 @@ function parseGsisResponse(text: string, afm: string) {
     extractTag(text, 'firm_date_of_reg')
 
   console.log(`[AFM] Parsed regdate: "${regdate}", activities found: ${activities.length}`)
-  if (!regdate) {
-    const basicRecMatch = text.match(/<[^:>]*:?basic_rec>[\s\S]*?<\/[^:>]*:?basic_rec>/i)
-    console.log(`[AFM] No regdate found. basic_rec block: ${basicRecMatch ? basicRecMatch[0] : '(not found)'}`)
-  }
 
   return {
     afm,
