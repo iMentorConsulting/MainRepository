@@ -5,7 +5,7 @@ import { redirect } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { TemplateEditor } from '@/components/campaigns/template-editor'
-import { Mail, MessageCircle, ChevronDown, ChevronUp } from 'lucide-react'
+import { Mail, MessageCircle, ChevronDown, ChevronUp, Plus } from 'lucide-react'
 
 interface Template {
   id: string
@@ -109,6 +109,99 @@ function TemplateCard({ template, onSaved }: { template: Template; onSaved: (t: 
   )
 }
 
+function NewTemplateForm({ onCreated }: { onCreated: (items: Template[]) => void }) {
+  const [open, setOpen] = useState(false)
+  const [category, setCategory] = useState('')
+  const [label, setLabel] = useState('')
+  const [description, setDescription] = useState('')
+  const [subject, setSubject] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  async function create() {
+    if (!category.trim() || !label.trim()) return
+    setSaving(true)
+    const res = await fetch('/api/admin/templates', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ category, label, description, subject }),
+    })
+    if (res.ok) {
+      const { email, viber } = await res.json()
+      onCreated([email, viber])
+      setOpen(false)
+      setCategory('')
+      setLabel('')
+      setDescription('')
+      setSubject('')
+    }
+    setSaving(false)
+  }
+
+  if (!open) {
+    return (
+      <Button size="sm" variant="secondary" onClick={() => setOpen(true)}>
+        <Plus size={16} className="mr-2" />Νέο Πρότυπο
+      </Button>
+    )
+  }
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 space-y-4">
+      <h2 className="text-lg font-bold text-gray-900">Νέο Πρότυπο (Email + Viber)</h2>
+      <p className="text-sm text-gray-500">
+        Δημιουργεί ένα νέο ζεύγος προτύπων (Email & Viber), το καθένα με τις δύο εκδοχές μηνύματος
+        (με λογιστικό γραφείο / απευθείας από I-MENTOR) — δηλαδή 4 συνδυασμοί συνολικά.
+      </p>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label className="text-sm font-medium text-gray-700 mb-1 block">Κατηγορία</label>
+          <input
+            type="text"
+            value={category}
+            onChange={e => setCategory(e.target.value)}
+            placeholder="π.χ. Επιλεξιμότητα Προγράμματος"
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+          />
+        </div>
+        <div>
+          <label className="text-sm font-medium text-gray-700 mb-1 block">Όνομα Προτύπου</label>
+          <input
+            type="text"
+            value={label}
+            onChange={e => setLabel(e.target.value)}
+            placeholder="π.χ. Ενημέρωση Επιλεξιμότητας Προγράμματος"
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+          />
+        </div>
+        <div>
+          <label className="text-sm font-medium text-gray-700 mb-1 block">Περιγραφή</label>
+          <input
+            type="text"
+            value={description}
+            onChange={e => setDescription(e.target.value)}
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+          />
+        </div>
+        <div>
+          <label className="text-sm font-medium text-gray-700 mb-1 block">Θέμα (Email)</label>
+          <input
+            type="text"
+            value={subject}
+            onChange={e => setSubject(e.target.value)}
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+          />
+        </div>
+      </div>
+      <div className="flex items-center gap-3">
+        <Button size="sm" onClick={create} disabled={saving || !category.trim() || !label.trim()}>
+          {saving ? 'Δημιουργία...' : 'Δημιουργία'}
+        </Button>
+        <Button size="sm" variant="secondary" onClick={() => setOpen(false)}>Ακύρωση</Button>
+      </div>
+    </div>
+  )
+}
+
 export default function TemplatesPage() {
   const { data: session } = useSession()
   const [templates, setTemplates] = useState<Template[]>([])
@@ -142,10 +235,14 @@ export default function TemplatesPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Πρότυπα Μηνυμάτων</h1>
-        <p className="text-gray-500 mt-1">Όλα τα έτοιμα μηνύματα καμπανιών, οργανωμένα ανά κανάλι και κατηγορία. Επεξεργαστείτε τα ελεύθερα — οι αλλαγές εφαρμόζονται άμεσα στις νέες καμπάνιες.</p>
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Πρότυπα Μηνυμάτων</h1>
+          <p className="text-gray-500 mt-1">Όλα τα έτοιμα μηνύματα καμπανιών, οργανωμένα ανά κανάλι και κατηγορία. Επεξεργαστείτε τα ελεύθερα — οι αλλαγές εφαρμόζονται άμεσα στις νέες καμπάνιες.</p>
+        </div>
       </div>
+
+      <NewTemplateForm onCreated={items => setTemplates(prev => [...prev, ...items])} />
 
       {channels.map(ch => {
         const chTemplates = templates.filter(t => t.channel === ch.key)
