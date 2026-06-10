@@ -184,7 +184,7 @@ export default function ReportsPage() {
         {/* Milestone badges */}
         {totalBiz > 0 && (
           <div className="mt-4 flex flex-wrap gap-2">
-            {[10, 25, 50, 100, 200].map(n => (
+            {[10, 25, 50, 100, 200, 500, 1000, 1500, 2000, 2500, 3000].map(n => (
               <span key={n}
                 className={`text-xs px-2.5 py-1 rounded-full font-semibold border transition-all ${
                   totalBiz >= n

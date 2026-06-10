@@ -9,6 +9,8 @@ import { Pagination } from '@/components/ui/pagination'
 import { MultiSelect } from '@/components/ui/multi-select'
 import { Modal } from '@/components/ui/modal'
 import { Select } from '@/components/ui/select'
+import { categorizeByKad } from '@/lib/business-categories'
+import { resolveRegionFromZip } from '@/lib/greek-regions'
 import { Plus, Search, Download, Filter, Trash2, UserCog, Send, Smartphone, Upload, X, ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react'
 
 function SortIcon({ col, sortBy, sortDir }: { col: string; sortBy: string; sortDir: string }) {
@@ -396,6 +398,7 @@ export default function BusinessesPage() {
                     </button>
                   </Th>
                   <Th>Κύρια ΚΑΔ</Th>
+                  <Th>Κλάδος</Th>
                   <Th>
                     <button onClick={() => toggleSort('postalAreaDescription')} className="flex items-center hover:text-indigo-700 transition-colors">
                       Περιοχή <SortIcon col="postalAreaDescription" sortBy={sortBy} sortDir={sortDir} />
@@ -406,6 +409,7 @@ export default function BusinessesPage() {
                       ΤΚ <SortIcon col="postalZipCode" sortBy={sortBy} sortDir={sortDir} />
                     </button>
                   </Th>
+                  <Th>Περιφέρεια</Th>
                   <Th>
                     <button onClick={() => toggleSort('accountant.officeName')} className="flex items-center hover:text-indigo-700 transition-colors">
                       Λογιστής <SortIcon col="accountant.officeName" sortBy={sortBy} sortDir={sortDir} />
@@ -422,7 +426,7 @@ export default function BusinessesPage() {
               <TableBody>
                 {businesses.length === 0 ? (
                   <TableRow>
-                    <Td colSpan={9} className="text-center text-gray-400 py-8">
+                    <Td colSpan={11} className="text-center text-gray-400 py-8">
                       Δεν βρέθηκαν επιχειρήσεις
                     </Td>
                   </TableRow>
@@ -446,8 +450,16 @@ export default function BusinessesPage() {
                         </Td>
                         <Td className="max-w-xs truncate font-medium">{b.onomasia || '-'}</Td>
                         <Td className="font-mono text-xs">{primaryKad?.firmActCode || '-'}</Td>
+                        <Td>
+                          {primaryKad?.firmActCode && (
+                            <Badge variant="secondary" className="text-xs">{categorizeByKad(primaryKad.firmActCode)}</Badge>
+                          )}
+                        </Td>
                         <Td>{b.postalAreaDescription || '-'}</Td>
                         <Td className="font-mono text-xs">{b.postalZipCode || '-'}</Td>
+                        <Td>
+                          <Badge variant="secondary" className="text-xs">{resolveRegionFromZip(b.postalZipCode) || '-'}</Badge>
+                        </Td>
                         <Td className="text-gray-500 text-xs">{b.accountant?.officeName || '-'}</Td>
                         <Td>
                           {b.legalStatusDescr && (

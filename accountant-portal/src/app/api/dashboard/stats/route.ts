@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { resolveRegionFromZip } from '@/lib/greek-regions'
 import { notIndividualWhere } from '@/lib/business-filters'
+import { categorizeByKad } from '@/lib/business-categories'
 
 // Collapses equivalent legal-form variants into a single canonical label for the chart
 function normalizeLegalStatus(status: string): string {
@@ -51,6 +52,7 @@ export async function GET(request: NextRequest) {
         postalAreaDescription: true,
         postalZipCode: true,
         legalStatusDescr: true,
+        activities: { where: { firmActKind: 1 }, select: { firmActCode: true }, take: 1 },
       }
     }),
     prisma.programMatch.groupBy({
@@ -82,6 +84,16 @@ export async function GET(request: NextRequest) {
     .slice(0, 14)
     .map(([name, count]) => ({ name, count }))
 
+  // Group by major business category, derived from the primary ΚΑΔ
+  const categoryGroups: Record<string, number> = {}
+  for (const b of businesses) {
+    const category = categorizeByKad(b.activities[0]?.firmActCode)
+    categoryGroups[category] = (categoryGroups[category] || 0) + 1
+  }
+  const businessesByCategory = Object.entries(categoryGroups)
+    .sort(([, a], [, b]) => b - a)
+    .map(([name, count]) => ({ name, count }))
+
   // Matches by program
   const programIds = matchesByProgram.map(m => m.programId)
   const programs = await prisma.program.findMany({
@@ -102,6 +114,7 @@ export async function GET(request: NextRequest) {
     campaignsSent,
     pendingRequests,
     businessesByLegalStatus,
+    businessesByCategory,
     businessesByRegion,
     matchesByProgram: matchesByProgramFormatted,
   })

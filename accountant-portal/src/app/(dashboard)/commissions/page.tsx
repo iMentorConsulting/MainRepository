@@ -10,6 +10,7 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
+  LabelList,
 } from 'recharts'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -433,12 +434,14 @@ export default function CommissionsPage() {
             <BarChart data={summary.monthly.map((m: any) => ({
               name: m.month.slice(5) + '/' + m.month.slice(0, 4),
               amount: m.amount / 100,
-            }))}>
+            }))} margin={{ top: 24, right: 5, left: 5, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-              <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `€${v}`} />
+              <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `€${v}`} domain={[0, (max: number) => Math.ceil(max * 1.15)]} />
               <Tooltip formatter={(v: any) => [`€${Number(v).toFixed(2)}`, 'Αμοιβή']} />
-              <Bar dataKey="amount" fill="#2563eb" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="amount" fill="#2563eb" radius={[4, 4, 0, 0]}>
+                <LabelList dataKey="amount" position="top" formatter={(v: any) => `€${Number(v).toFixed(0)}`} style={{ fontSize: 10, fill: '#475569' }} />
+              </Bar>
             </BarChart>
           </ResponsiveContainer>
         </div>

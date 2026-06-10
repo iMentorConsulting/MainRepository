@@ -17,6 +17,7 @@ interface DashboardStats {
   campaignsSent: number
   pendingRequests: number
   businessesByLegalStatus: Array<{ name: string; count: number }>
+  businessesByCategory: Array<{ name: string; count: number }>
   businessesByRegion: Array<{ name: string; count: number }>
   matchesByProgram: Array<{ name: string; count: number }>
 }
@@ -238,10 +239,10 @@ export default function DashboardPage() {
         <ChartCard title="Επιχειρήσεις ανά Νομική Μορφή">
           {stats?.businessesByLegalStatus && stats.businessesByLegalStatus.length > 0 ? (
             <ResponsiveContainer width="100%" height={250}>
-              <BarChart data={stats.businessesByLegalStatus} margin={{ top: 5, right: 10, left: -20, bottom: 60 }}>
+              <BarChart data={stats.businessesByLegalStatus} margin={{ top: 24, right: 10, left: -20, bottom: 60 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
                 <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#64748b' }} angle={-20} textAnchor="end" interval={0} />
-                <YAxis tick={{ fontSize: 11, fill: '#64748b' }} allowDecimals={false} />
+                <YAxis tick={{ fontSize: 11, fill: '#64748b' }} allowDecimals={false} domain={[0, (max: number) => Math.ceil(max * 1.15)]} />
                 <Tooltip contentStyle={customTooltipStyle} cursor={{fill: 'rgba(99,102,241,0.05)'}} />
                 <Bar dataKey="count" fill="#6366f1" radius={[4, 4, 0, 0]} name="Επιχειρήσεις">
                   <LabelList dataKey="count" position="top" style={{ fontSize: 11, fill: '#475569' }} />
@@ -258,12 +259,32 @@ export default function DashboardPage() {
         <ChartCard title="Επιχειρήσεις ανά Περιφέρεια">
           {stats?.businessesByRegion && stats.businessesByRegion.length > 0 ? (
             <ResponsiveContainer width="100%" height={250}>
-              <BarChart data={stats.businessesByRegion} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
+              <BarChart data={stats.businessesByRegion} margin={{ top: 24, right: 10, left: -20, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
                 <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#64748b' }} />
-                <YAxis tick={{ fontSize: 11, fill: '#64748b' }} />
+                <YAxis tick={{ fontSize: 11, fill: '#64748b' }} domain={[0, (max: number) => Math.ceil(max * 1.15)]} />
                 <Tooltip contentStyle={customTooltipStyle} cursor={{fill: 'rgba(5,150,105,0.05)'}} />
                 <Bar dataKey="count" fill="#059669" radius={[4, 4, 0, 0]} name="Επιχειρήσεις">
+                  <LabelList dataKey="count" position="top" style={{ fontSize: 11, fill: '#475569' }} />
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="h-[250px] flex items-center justify-center text-slate-400 text-sm">
+              Δεν υπάρχουν δεδομένα ακόμη
+            </div>
+          )}
+        </ChartCard>
+
+        <ChartCard title="Επιχειρήσεις ανά Κλάδο">
+          {stats?.businessesByCategory && stats.businessesByCategory.length > 0 ? (
+            <ResponsiveContainer width="100%" height={250}>
+              <BarChart data={stats.businessesByCategory} margin={{ top: 24, right: 10, left: -20, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#64748b' }} />
+                <YAxis tick={{ fontSize: 11, fill: '#64748b' }} allowDecimals={false} domain={[0, (max: number) => Math.ceil(max * 1.15)]} />
+                <Tooltip contentStyle={customTooltipStyle} cursor={{fill: 'rgba(217,119,6,0.05)'}} />
+                <Bar dataKey="count" fill="#d97706" radius={[4, 4, 0, 0]} name="Επιχειρήσεις">
                   <LabelList dataKey="count" position="top" style={{ fontSize: 11, fill: '#475569' }} />
                 </Bar>
               </BarChart>
@@ -279,12 +300,14 @@ export default function DashboardPage() {
       {stats?.matchesByProgram && stats.matchesByProgram.length > 0 && (
         <ChartCard title="Matches ανά Πρόγραμμα">
           <ResponsiveContainer width="100%" height={250}>
-            <BarChart data={stats.matchesByProgram} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
+            <BarChart data={stats.matchesByProgram} margin={{ top: 24, right: 10, left: -20, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
               <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#64748b' }} />
-              <YAxis tick={{ fontSize: 11, fill: '#64748b' }} />
+              <YAxis tick={{ fontSize: 11, fill: '#64748b' }} domain={[0, (max: number) => Math.ceil(max * 1.15)]} />
               <Tooltip contentStyle={customTooltipStyle} cursor={{fill: 'rgba(99,102,241,0.05)'}} />
-              <Bar dataKey="count" fill="#4f46e5" radius={[4, 4, 0, 0]} name="Matches" />
+              <Bar dataKey="count" fill="#4f46e5" radius={[4, 4, 0, 0]} name="Matches">
+                <LabelList dataKey="count" position="top" style={{ fontSize: 11, fill: '#475569' }} />
+              </Bar>
             </BarChart>
           </ResponsiveContainer>
         </ChartCard>

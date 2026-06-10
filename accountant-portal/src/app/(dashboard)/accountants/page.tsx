@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableHead, TableBody, TableRow, Th, Td } from '@/components/ui/table'
-import { Plus, Search, Edit, Trash2, Building2, ShieldCheck } from 'lucide-react'
+import { Plus, Search, Edit, Trash2, Building2, ShieldCheck, Target } from 'lucide-react'
 
 interface Accountant {
   id: string
@@ -17,6 +17,7 @@ interface Accountant {
   active: boolean
   approved: boolean
   _count: { businesses: number; users: number }
+  eligibleMatches?: number
 }
 
 export default function AccountantsPage() {
@@ -112,6 +113,7 @@ export default function AccountantsPage() {
                 <Th>Email</Th>
                 <Th>Τηλέφωνο</Th>
                 <Th>Επιχειρήσεις</Th>
+                <Th>Matches (επιλέξιμα)</Th>
                 <Th>Κατάσταση</Th>
                 <Th>Ενέργειες</Th>
               </TableRow>
@@ -138,6 +140,12 @@ export default function AccountantsPage() {
                       <span className="flex items-center gap-1">
                         <Building2 size={14} className="text-gray-400" />
                         {a._count.businesses}
+                      </span>
+                    </Td>
+                    <Td>
+                      <span className="flex items-center gap-1">
+                        <Target size={14} className="text-gray-400" />
+                        {a.eligibleMatches ?? 0}
                       </span>
                     </Td>
                     <Td>

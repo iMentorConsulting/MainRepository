@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import {
-  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend,
+  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend, LabelList,
 } from 'recharts'
 import { TrendingUp, Building2, Clock, ArrowUpDown, LogIn, Trophy, Star, Send } from 'lucide-react'
 
@@ -63,7 +63,13 @@ function TabBusinesses() {
   const top5 = data ? [...data.accountants].sort((a, b) => b.totalBusinesses - a.totalBusinesses).slice(0, 5) : []
   const chartData = data?.labels.map(label => {
     const entry: Record<string, any> = { month: fmtMonthLabel(label) }
-    for (const acc of top5) entry[acc.officeName] = acc.monthly[label] || 0
+    let total = 0
+    for (const acc of top5) {
+      const v = acc.monthly[label] || 0
+      entry[acc.officeName] = v
+      total += v
+    }
+    entry._total = total
     return entry
   }) ?? []
   const COLORS = ['#4f46e5', '#06b6d4', '#10b981', '#f59e0b', '#ef4444']
@@ -101,12 +107,17 @@ function TabBusinesses() {
           <CardHeader><CardTitle className="text-base">Νέες Επιχειρήσεις ανά Μήνα (Top 5 γραφεία)</CardTitle></CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={260}>
-              <BarChart data={chartData} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
+              <BarChart data={chartData} margin={{ top: 24, right: 8, left: -16, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                <XAxis dataKey="month" tick={{ fontSize: 11 }} /><YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
+                <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+                <YAxis tick={{ fontSize: 11 }} allowDecimals={false} domain={[0, (max: number) => Math.ceil(max * 1.15)]} />
                 <Tooltip /><Legend wrapperStyle={{ fontSize: 11 }} />
                 {top5.map((acc, i) => (
-                  <Bar key={acc.id} dataKey={acc.officeName} stackId="a" fill={COLORS[i % COLORS.length]} radius={i === top5.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]} />
+                  <Bar key={acc.id} dataKey={acc.officeName} stackId="a" fill={COLORS[i % COLORS.length]} radius={i === top5.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]}>
+                    {i === top5.length - 1 && (
+                      <LabelList dataKey="_total" position="top" style={{ fontSize: 11, fill: '#475569' }} />
+                    )}
+                  </Bar>
                 ))}
               </BarChart>
             </ResponsiveContainer>
