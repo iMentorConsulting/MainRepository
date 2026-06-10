@@ -319,6 +319,7 @@ export default function ServiceAgreementsPage() {
   const [stats, setStats] = useState({ total: 0, byStatus: {} });
   const [agents, setAgents] = useState([]);
   const [services, setServices] = useState([]);
+  const [listServiceTypes, setListServiceTypes] = useState([]);
 
   // Selection & bulk actions
   const [selectedIds, setSelectedIds] = useState(new Set());
@@ -412,6 +413,22 @@ export default function ServiceAgreementsPage() {
     api.get('/lists?list_type=ΠΡΑΚΤΟΡΕΣ&active_only=true').then(r => setAgents(r.data.map(x => x.value))).catch(() => {});
     api.get('/lists?list_type=ΕΙΔΟΣ_ΥΠΗΡΕΣΙΑΣ&active_only=true').then(r => setServices(r.data.map(x => x.value))).catch(() => {});
   }, []);
+
+  // Limit the "Υπηρεσία" filter options (list tab) to service types present
+  // under the currently active filters (status, agent, search, sale date).
+  useEffect(() => {
+    const params = {};
+    if (filters.status) params.status = filters.status;
+    if (filters.sales_agent) params.sales_agent = filters.sales_agent;
+    if (filters.search) params.search = filters.search;
+    if (selectedSaleYears.length === 1) params.sale_year = selectedSaleYears[0];
+    else if (selectedSaleYears.length > 1) params.sale_years = selectedSaleYears.join(',');
+    if (selectedSaleMonths.length === 1) params.sale_month = selectedSaleMonths[0];
+    else if (selectedSaleMonths.length > 1) params.sale_months = selectedSaleMonths.join(',');
+    api.get('/service-agreements/service-types', { params })
+      .then(r => setListServiceTypes(r.data || []))
+      .catch(() => {});
+  }, [filters.status, filters.sales_agent, filters.search, selectedSaleYears, selectedSaleMonths]);
 
   useEffect(() => {
     if (activeTab === 'pivot') loadPivot();
@@ -645,7 +662,10 @@ export default function ServiceAgreementsPage() {
           </select>
           <select className="input w-44" value={filters.service_type} onChange={e => setFilters(f => ({ ...f, service_type: e.target.value }))}>
             <option value="">Υπηρεσία</option>
-            {services.map(s => <option key={s} value={s}>{s}</option>)}
+            {listServiceTypes.map(s => <option key={s} value={s}>{s}</option>)}
+            {filters.service_type && !listServiceTypes.includes(filters.service_type) && (
+              <option value={filters.service_type}>{filters.service_type}</option>
+            )}
           </select>
           <div className="flex items-center gap-1 border-l border-slate-200 pl-2 ml-1">
             <span className="text-xs text-slate-400 whitespace-nowrap">Ημ. Συμφωνίας:</span>
