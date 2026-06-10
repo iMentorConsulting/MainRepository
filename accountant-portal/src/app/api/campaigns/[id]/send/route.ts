@@ -42,8 +42,10 @@ async function processCampaignSend(
     }
 
     const rawMessage = renderTemplate(campaign.messageTemplate, variables)
-    // Strip empty *...* pairs left when a variable (e.g. accountant_name) is blank
-    const message = rawMessage.replace(/\*([^*\n]*)\*/g, (_, inner) => inner.trim() || '')
+    // Viber doesn't support markdown bold — strip *...* and **...** markers entirely
+    const message = rawMessage
+      .replace(/\*\*([^*\n]*)\*\*/g, (_, inner) => inner.trim() || '')
+      .replace(/\*([^*\n]*)\*/g, (_, inner) => inner.trim() || '')
     const emailSubject = renderTemplate(campaign.subject || campaign.title, variables)
     let success = false
 

@@ -33,6 +33,7 @@ export async function POST(request: NextRequest) {
     data: {
       title: data.title,
       channel: data.channel,
+      subject: data.subject || data.title,
       messageTemplate: data.messageTemplate,
       programId: data.programId || null,
       accountantId: session.user.role === 'ACCOUNTANT' ? session.user.accountantId : data.accountantId || null,

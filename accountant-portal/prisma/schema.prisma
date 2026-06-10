@@ -207,6 +207,7 @@ model Campaign {
   accountant      Accountant?     @relation(fields: [accountantId], references: [id])
   channel         CampaignChannel
   title           String
+  subject         String?
   messageTemplate String
   status          CampaignStatus  @default(DRAFT)
   scheduledAt     DateTime?

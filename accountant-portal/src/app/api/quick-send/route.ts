@@ -92,7 +92,9 @@ export async function POST(request: NextRequest) {
         const phone = business.viberPhone || business.phone
         if (phone) {
           const rawMsg = renderTemplate(messageTemplate, variables)
-          const cleanViber = rawMsg.replace(/\*([^*\n]*)\*/g, (_m: string, inner: string) => inner.trim() || '')
+          const cleanViber = rawMsg
+            .replace(/\*\*([^*\n]*)\*\*/g, (_m: string, inner: string) => inner.trim() || '')
+            .replace(/\*([^*\n]*)\*/g, (_m: string, inner: string) => inner.trim() || '')
           const viberOk = await sendViberMessage({ to: phone, text: cleanViber, senderName: business.onomasia || business.afm })
           if (viberOk) success = true
         }

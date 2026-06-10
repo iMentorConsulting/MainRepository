@@ -10,9 +10,20 @@ export function RegionMultiSelect({ label, values, onChange }: {
     else onChange([...values, region])
   }
 
+  const allSelected = values.length === GREEK_REGIONS.length
+
   return (
     <div className="flex flex-col gap-2">
-      <label className="text-sm font-medium text-slate-700">{label}</label>
+      <div className="flex items-center justify-between">
+        <label className="text-sm font-medium text-slate-700">{label}</label>
+        <button
+          type="button"
+          onClick={() => onChange(allSelected ? [] : [...GREEK_REGIONS])}
+          className="text-xs font-medium text-indigo-600 hover:text-indigo-800 border border-indigo-200 rounded-lg px-2.5 py-1 hover:bg-indigo-50 transition-colors"
+        >
+          {allSelected ? 'Καμία επιλογή' : 'Όλη η Ελλάδα'}
+        </button>
+      </div>
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 p-3 rounded-xl border border-slate-200 bg-white">
         {GREEK_REGIONS.map(region => (
           <label key={region} className="flex items-center gap-2 text-sm cursor-pointer">
