@@ -99,6 +99,51 @@ router.get('/stats', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// ── GET /service-types — distinct service_type values for the current filter set ──
+// Used to limit the "Υπηρεσία" filter dropdown to services actually present
+// under the other active filters (status, sales_agent, search, sale dates).
+router.get('/service-types', async (req, res) => {
+  try {
+    const { status, search, sales_agent, sale_year, sale_years, sale_month, sale_months } = req.query;
+    const where = {};
+    if (status) where.status = status;
+    if (sales_agent) where.sales_agent = sales_agent;
+    if (search) where[Op.or] = [
+      { customer_name: { [Op.iLike]: `%${search}%` } },
+      { service_type: { [Op.iLike]: `%${search}%` } }
+    ];
+
+    const validYear  = n => Number.isInteger(n) && n >= 2000 && n <= 2100;
+    const validMonth = n => Number.isInteger(n) && n >= 1    && n <= 12;
+    const yearVals = sale_years
+      ? sale_years.split(',').map(y => parseInt(y.trim(), 10)).filter(validYear)
+      : sale_year ? [parseInt(sale_year, 10)].filter(validYear) : [];
+    const monthVals = sale_months
+      ? sale_months.split(',').map(m => parseInt(m.trim(), 10)).filter(validMonth)
+      : sale_month ? [parseInt(sale_month, 10)].filter(validMonth) : [];
+    if (yearVals.length || monthVals.length) {
+      const saleDateParts = ['service_agreement_id IS NOT NULL'];
+      const saleDateReplacements = {};
+      if (yearVals.length) { saleDateParts.push('EXTRACT(YEAR FROM sale_date) IN (:saleYears)'); saleDateReplacements.saleYears = yearVals; }
+      if (monthVals.length) { saleDateParts.push('EXTRACT(MONTH FROM sale_date) IN (:saleMonths)'); saleDateReplacements.saleMonths = monthVals; }
+      const incomeIds = await sequelize.query(
+        `SELECT DISTINCT service_agreement_id FROM income WHERE ${saleDateParts.join(' AND ')}`,
+        { replacements: saleDateReplacements, type: QueryTypes.SELECT }
+      );
+      const saleFilterIds = incomeIds.map(r => r.service_agreement_id).filter(Boolean);
+      where.id = { [Op.in]: saleFilterIds.length ? saleFilterIds : [-1] };
+    }
+
+    const rows = await ServiceAgreement.findAll({
+      where: { ...where, service_type: { [Op.ne]: null } },
+      attributes: [[sequelize.fn('DISTINCT', sequelize.col('service_type')), 'service_type']],
+      raw: true,
+    });
+    const types = rows.map(r => r.service_type).filter(Boolean).sort((a, b) => a.localeCompare(b, 'el'));
+    res.json(types);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 router.get('/', async (req, res) => {
   try {
     const { status, customer_id, customer_name, search, sales_agent, service_type, sale_year, sale_years, sale_month, sale_months, missing_dates, limit = 50, offset = 0, page, sort_field, sort_dir } = req.query;
