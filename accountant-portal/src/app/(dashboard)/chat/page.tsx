@@ -46,6 +46,13 @@ export default function ChatPage() {
 
   useEffect(() => { load() }, [])
 
+  const unreadCount = conversations.filter(conv => {
+    const lastMsg = conv.messages?.[0]
+    return lastMsg && !lastMsg.readAt &&
+      ((isAdmin && lastMsg.senderRole === 'ACCOUNTANT') ||
+       (!isAdmin && lastMsg.senderRole === 'ADMIN'))
+  }).length
+
   function onCreated(conv: any) {
     setShowNew(false)
     router.push(`/chat/${conv.id}`)
@@ -59,7 +66,14 @@ export default function ChatPage() {
     <div className="space-y-4 max-w-3xl">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Επικοινωνία</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-bold text-gray-900">Επικοινωνία</h1>
+            {unreadCount > 0 && (
+              <span className="text-xs font-bold text-white bg-red-500 rounded-full px-2.5 py-1">
+                {unreadCount} νέα
+              </span>
+            )}
+          </div>
           <p className="text-gray-500 mt-1 text-sm">Άμεση επικοινωνία με την ομάδα I-MENTOR</p>
         </div>
         <Button onClick={() => setShowNew(true)}>
@@ -175,16 +189,21 @@ function ConversationRow({ conv, isAdmin }: { conv: any; isAdmin: boolean }) {
   return (
     <li>
       <Link href={`/chat/${conv.id}`}
-        className="flex items-start gap-3 px-5 py-4 hover:bg-gray-50 transition-colors">
+        className={`flex items-start gap-3 px-5 py-4 transition-colors border-l-4 ${unread ? 'bg-indigo-50 hover:bg-indigo-100 border-indigo-600' : 'hover:bg-gray-50 border-transparent'}`}>
         <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5 ${unread ? 'bg-indigo-600' : 'bg-indigo-100'}`}>
           <MessageSquare size={16} className={unread ? 'text-white' : 'text-indigo-600'} />
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <span className={`text-sm font-semibold truncate ${unread ? 'text-gray-900' : 'text-gray-700'}`}>
+            <span className={`text-sm truncate ${unread ? 'font-bold text-gray-900' : 'font-semibold text-gray-700'}`}>
               {conv.subject}
             </span>
-            {unread && <span className="w-2 h-2 bg-indigo-500 rounded-full flex-shrink-0" />}
+            {unread && (
+              <span className="flex items-center gap-1 text-[10px] font-bold text-white bg-indigo-600 rounded-full px-2 py-0.5 flex-shrink-0">
+                <span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" />
+                ΝΕΟ
+              </span>
+            )}
             <StatusBadge status={conv.status || 'PENDING'} />
           </div>
           {isAdmin && (
@@ -199,11 +218,11 @@ function ConversationRow({ conv, isAdmin }: { conv: any; isAdmin: boolean }) {
             </p>
           )}
           {lastMsg && (
-            <p className="text-xs text-gray-400 truncate mt-0.5">{lastMsg.body}</p>
+            <p className={`text-xs truncate mt-0.5 ${unread ? 'text-gray-700 font-medium' : 'text-gray-400'}`}>{lastMsg.body}</p>
           )}
         </div>
         {lastMsg && (
-          <span className="text-[11px] text-gray-400 flex-shrink-0 mt-0.5 flex items-center gap-1">
+          <span className={`text-[11px] flex-shrink-0 mt-0.5 flex items-center gap-1 ${unread ? 'text-indigo-600 font-semibold' : 'text-gray-400'}`}>
             <Clock size={10} />
             {timeAgo(lastMsg.createdAt)}
           </span>
