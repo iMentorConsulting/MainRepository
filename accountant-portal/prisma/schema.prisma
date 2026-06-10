@@ -43,6 +43,9 @@ model AppSetting {
   aadeUser       String?
   aadePass       String?
   aadeCallerAfm  String?
+  criteriaSuggestionsSeeded         Boolean @default(false)
+  tagSuggestionsSeeded              Boolean @default(false)
+  rejectionReasonSuggestionsSeeded  Boolean @default(false)
   updatedAt      DateTime @updatedAt
 }
 

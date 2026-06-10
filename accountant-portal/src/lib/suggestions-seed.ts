@@ -44,29 +44,43 @@ const PROGRAM_SPECIFIC_REASONS: { match: string; labels: string[] }[] = [
   { match: 'ΜΙΚΡΟΠΙΣΤΩΣ', labels: ['Ήδη Ενεργό Δάνειο Μικροπίστωσης'] },
 ]
 
+async function getSettings() {
+  return prisma.appSetting.upsert({ where: { id: 'main' }, create: { id: 'main' }, update: {} })
+}
+
 export async function ensureCriteriaSuggestionsSeeded() {
+  const settings = await getSettings()
+  if (settings.criteriaSuggestionsSeeded) return
   const existing = await prisma.eligibilityCriterion.findMany({ select: { label: true } })
   const existingLabels = new Set(existing.map(e => e.label))
   const missing = CRITERIA_SUGGESTIONS.filter(l => !existingLabels.has(l))
-  if (missing.length === 0) return
-  let order = await prisma.eligibilityCriterion.count()
-  await prisma.eligibilityCriterion.createMany({
-    data: missing.map(label => ({ label, order: order++ })),
-  })
+  if (missing.length > 0) {
+    let order = await prisma.eligibilityCriterion.count()
+    await prisma.eligibilityCriterion.createMany({
+      data: missing.map(label => ({ label, order: order++ })),
+    })
+  }
+  await prisma.appSetting.update({ where: { id: 'main' }, data: { criteriaSuggestionsSeeded: true } })
 }
 
 export async function ensureTagSuggestionsSeeded() {
+  const settings = await getSettings()
+  if (settings.tagSuggestionsSeeded) return
   const existing = await prisma.tagOption.findMany({ select: { label: true } })
   const existingLabels = new Set(existing.map(e => e.label))
   const missing = TAG_SUGGESTIONS.filter(l => !existingLabels.has(l))
-  if (missing.length === 0) return
-  let order = await prisma.tagOption.count()
-  await prisma.tagOption.createMany({
-    data: missing.map(label => ({ label, order: order++ })),
-  })
+  if (missing.length > 0) {
+    let order = await prisma.tagOption.count()
+    await prisma.tagOption.createMany({
+      data: missing.map(label => ({ label, order: order++ })),
+    })
+  }
+  await prisma.appSetting.update({ where: { id: 'main' }, data: { tagSuggestionsSeeded: true } })
 }
 
 export async function ensureRejectionReasonSuggestionsSeeded() {
+  const settings = await getSettings()
+  if (settings.rejectionReasonSuggestionsSeeded) return
   const existing = await prisma.rejectionReason.findMany({ select: { label: true } })
   const existingLabels = new Set(existing.map(e => e.label))
 
@@ -90,9 +104,11 @@ export async function ensureRejectionReasonSuggestionsSeeded() {
     }
   }
 
-  if (toCreate.length === 0) return
-  let order = await prisma.rejectionReason.count()
-  for (const item of toCreate) {
-    await prisma.rejectionReason.create({ data: { label: item.label, programIds: item.programIds, order: order++ } })
+  if (toCreate.length > 0) {
+    let order = await prisma.rejectionReason.count()
+    for (const item of toCreate) {
+      await prisma.rejectionReason.create({ data: { label: item.label, programIds: item.programIds, order: order++ } })
+    }
   }
+  await prisma.appSetting.update({ where: { id: 'main' }, data: { rejectionReasonSuggestionsSeeded: true } })
 }
