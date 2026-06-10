@@ -6,7 +6,7 @@ import { resolveRegionFromZip } from '@/lib/greek-regions'
 // Individuals (sole proprietors) shouldn't be counted as "businesses" in the legal-form breakdown
 function isIndividualLegalStatus(legalStatusDescr: string | null): boolean {
   const s = (legalStatusDescr || '').toUpperCase()
-  return s.includes('ΑΤΟΜΙΚΗ') || s.includes('ΙΔΙΩΤΗΣ')
+  return s.includes('ΙΔΙΩΤΗΣ')
 }
 
 // Collapses equivalent legal-form variants into a single canonical label for the chart

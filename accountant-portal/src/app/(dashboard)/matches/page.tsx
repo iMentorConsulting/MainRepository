@@ -58,7 +58,7 @@ function NotesCell({ matchId, initialNotes }: { matchId: string; initialNotes: s
   )
 }
 
-function CriteriaCell({ match, criteriaMap }: { match: any; criteriaMap: Record<string, string> }) {
+function CriteriaCell({ match, criteriaMap, onChanged }: { match: any; criteriaMap: Record<string, string>; onChanged: () => void }) {
   const extraIds: string[] = match.program?.extraCriteriaIds || []
   const [checks, setChecks] = useState<Record<string, string>>(() => {
     const init: Record<string, string> = {}
@@ -82,6 +82,7 @@ function CriteriaCell({ match, criteriaMap }: { match: any; criteriaMap: Record<
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ criterionId, value: next ?? null }),
     })
+    onChanged()
   }
 
   return (
@@ -429,7 +430,7 @@ export default function MatchesPage() {
                           </Td>
                         )}
                         <Td>
-                          <CriteriaCell match={m} criteriaMap={criteriaMap} />
+                          <CriteriaCell match={m} criteriaMap={criteriaMap} onChanged={fetchMatches} />
                         </Td>
                         <Td>
                           <NotesCell matchId={m.id} initialNotes={m.notes} />
