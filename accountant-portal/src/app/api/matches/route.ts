@@ -30,7 +30,15 @@ export async function GET(request: NextRequest) {
     // Always enforce the session accountant — ignore any client-supplied accountantIds
     businessFilter.accountantId = session.user.accountantId
   } else if (session.user.role === 'ADMIN' && accountantIds.length > 0) {
-    businessFilter.accountantId = { in: accountantIds }
+    const realIds = accountantIds.filter(id => id !== '__none__')
+    const wantsNone = accountantIds.includes('__none__')
+    if (wantsNone && realIds.length > 0) {
+      businessFilter.AND = [...(businessFilter.AND || []), { OR: [{ accountantId: null }, { accountantId: { in: realIds } }] }]
+    } else if (wantsNone) {
+      businessFilter.accountantId = null
+    } else {
+      businessFilter.accountantId = { in: realIds }
+    }
   }
   if (legalStatuses.length > 0) businessFilter.legalStatusDescr = { in: legalStatuses }
   if (campaignSent === 'yes') businessFilter.campaignRecipients = { some: { sentAt: { not: null } } }

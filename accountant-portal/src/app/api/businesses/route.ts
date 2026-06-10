@@ -26,7 +26,15 @@ export async function GET(request: NextRequest) {
   if (session.user.role === 'ACCOUNTANT' && session.user.accountantId) {
     where.accountantId = session.user.accountantId
   } else if (session.user.role === 'ADMIN' && accountantIds.length > 0) {
-    where.accountantId = { in: accountantIds }
+    const realIds = accountantIds.filter(id => id !== '__none__')
+    const wantsNone = accountantIds.includes('__none__')
+    if (wantsNone && realIds.length > 0) {
+      where.AND = [...(where.AND || []), { OR: [{ accountantId: null }, { accountantId: { in: realIds } }] }]
+    } else if (wantsNone) {
+      where.accountantId = null
+    } else {
+      where.accountantId = { in: realIds }
+    }
   }
 
   if (legalStatuses.length > 0) where.legalStatusDescr = { in: legalStatuses }

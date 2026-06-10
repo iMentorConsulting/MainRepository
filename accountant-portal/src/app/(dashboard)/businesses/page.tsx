@@ -322,7 +322,7 @@ export default function BusinessesPage() {
             {isAdmin && (
               <MultiSelect
                 label="Λογιστής"
-                options={accountants.map(a => ({ value: a.id, label: a.officeName }))}
+                options={[{ value: '__none__', label: 'Χωρίς Λογιστή' }, ...accountants.map(a => ({ value: a.id, label: a.officeName }))]}
                 selected={accountantFilter}
                 onChange={setAccountantFilter}
                 placeholder="Όλοι οι λογιστές"

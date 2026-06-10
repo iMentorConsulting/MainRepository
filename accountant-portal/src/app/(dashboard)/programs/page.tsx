@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Plus, Target, Calendar, Zap, TrendingUp, MapPin, Archive } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
+import { GREEK_REGIONS } from '@/lib/greek-regions'
 
 interface Program {
   id: string
@@ -229,7 +230,11 @@ export default function ProgramsPage() {
                     {program.regionRules.length > 0 && (
                       <div className="flex items-center gap-1.5 text-xs text-gray-600">
                         <MapPin size={11} className="text-indigo-500 flex-shrink-0" />
-                        <span className="truncate">{program.regionRules.slice(0, 2).join(', ')}{program.regionRules.length > 2 ? ` +${program.regionRules.length - 2}` : ''}</span>
+                        <span className="truncate">
+                          {program.regionRules.length >= GREEK_REGIONS.length
+                            ? 'Όλη η Ελλάδα'
+                            : `${program.regionRules.slice(0, 2).join(', ')}${program.regionRules.length > 2 ? ` +${program.regionRules.length - 2}` : ''}`}
+                        </span>
                       </div>
                     )}
                     {program.endDate && (

@@ -131,7 +131,7 @@ function RejectionCell({ match, reasonOptions, onChanged }: { match: any; reason
       <div className="flex items-center gap-1.5 text-xs">
         <Badge variant="danger" className="whitespace-nowrap">
           <Ban size={11} />
-          {match.rejectionReason?.label || 'Ακατάλληλο'}
+          {match.rejectionReason?.label || 'Μη Επιλέξιμο'}
         </Badge>
         <button
           type="button"
@@ -155,7 +155,7 @@ function RejectionCell({ match, reasonOptions, onChanged }: { match: any; reason
       onChange={e => { if (e.target.value) setReason(e.target.value) }}
       className="text-xs border border-gray-200 rounded-lg px-1.5 py-1 focus:outline-none focus:ring-1 focus:ring-red-400 bg-white text-gray-500 w-full max-w-[260px]"
     >
-      <option value="">Ακατάλληλος...</option>
+      <option value="">Μη Επιλέξιμος...</option>
       {applicable.map(r => <option key={r.id} value={r.id}>{r.label}</option>)}
     </select>
   )
@@ -250,8 +250,9 @@ export default function MatchesPage() {
     setSelected(prev => prev.size === matches.length ? new Set() : new Set(matches.map(m => m.id)))
   }
 
-  const visibleMatches = hideUnsuitable ? matches.filter(m => !m.rejectionReasonId) : matches
-  const unsuitableCount = matches.filter(m => m.rejectionReasonId).length
+  const isUnsuitable = (m: any) => !!m.rejectionReasonId || (m.criterionChecks || []).some((c: any) => c.value === 'FAIL')
+  const visibleMatches = hideUnsuitable ? matches.filter(m => !isUnsuitable(m)) : matches
+  const unsuitableCount = matches.filter(isUnsuitable).length
 
   const selectedMatches = matches.filter(m => selected.has(m.id))
   const selectedBusinesses = selectedMatches.map(m => ({
@@ -311,7 +312,7 @@ export default function MatchesPage() {
             {isAdmin && accountantOptions.length > 0 && (
               <MultiSelect
                 label="Λογιστής"
-                options={accountantOptions}
+                options={[{ value: '__none__', label: 'Χωρίς Λογιστή' }, ...accountantOptions]}
                 selected={accountantFilter}
                 onChange={setAccountantFilter}
                 placeholder="Όλοι οι λογιστές"
@@ -341,7 +342,7 @@ export default function MatchesPage() {
                 className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-700 border border-gray-200 rounded-lg px-3 py-2 bg-white mt-4"
               >
                 {hideUnsuitable ? <EyeOff size={14} /> : <Eye size={14} />}
-                {hideUnsuitable ? `${unsuitableCount} κρυμμένα ως ακατάλληλα` : `Απόκρυψη ${unsuitableCount} ακατάλληλων`}
+                {hideUnsuitable ? `${unsuitableCount} κρυμμένα ως μη επιλέξιμα` : `Απόκρυψη ${unsuitableCount} μη επιλέξιμων`}
               </button>
             )}
             {(accountantFilter.length > 0 || programFilter.length > 0 || legalStatusFilter.length > 0 || campaignSentFilter || search) && (
@@ -403,7 +404,7 @@ export default function MatchesPage() {
                 ) : (
                   visibleMatches.map(m => {
                     const lastCampaign = m.business?.campaignRecipients?.[0]
-                    const unsuitable = !!m.rejectionReasonId
+                    const unsuitable = isUnsuitable(m)
                     return (
                       <TableRow key={m.id} className={unsuitable ? 'bg-red-50/60 opacity-60' : selected.has(m.id) ? 'bg-indigo-50' : undefined}>
                         <Td>

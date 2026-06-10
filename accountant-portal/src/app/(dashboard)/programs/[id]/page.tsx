@@ -10,6 +10,7 @@ import { MatchCard } from '@/components/matching/match-card'
 import { ArrowLeft, Zap, Calendar, Tag, ExternalLink, Archive, Trash2, Bell } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { formatDate } from '@/lib/utils'
+import { GREEK_REGIONS } from '@/lib/greek-regions'
 
 function formatEuro(value: number | null | undefined) {
   if (value === null || value === undefined) return null
@@ -241,9 +242,13 @@ export default function ProgramDetailPage() {
                 <div>
                   <div className="text-xs font-semibold text-gray-500 uppercase mb-1.5">Περιοχές</div>
                   <div className="flex flex-wrap gap-1.5">
-                    {program.regionRules.map((r: string) => (
-                      <Badge key={r} variant="secondary">{r}</Badge>
-                    ))}
+                    {program.regionRules.length >= GREEK_REGIONS.length ? (
+                      <Badge variant="secondary">Όλη η Ελλάδα</Badge>
+                    ) : (
+                      program.regionRules.map((r: string) => (
+                        <Badge key={r} variant="secondary">{r}</Badge>
+                      ))
+                    )}
                   </div>
                 </div>
               )}
