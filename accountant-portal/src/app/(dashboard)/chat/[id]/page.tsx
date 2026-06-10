@@ -6,6 +6,13 @@ import Link from 'next/link'
 import { ArrowLeft, Building2, Send, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
+const STATUS_OPTIONS = [
+  { value: 'PENDING', label: 'Εκκρεμεί', color: 'bg-amber-100 text-amber-700' },
+  { value: 'ANSWERED', label: 'Απαντήθηκε', color: 'bg-blue-100 text-blue-700' },
+  { value: 'COMPLETED', label: 'Ολοκληρώθηκε', color: 'bg-green-100 text-green-700' },
+  { value: 'ARCHIVED', label: 'Αρχειοθετήθηκε', color: 'bg-gray-100 text-gray-600' },
+]
+
 export default function ConversationPage() {
   const { id } = useParams<{ id: string }>()
   const { data: session } = useSession()
@@ -49,6 +56,21 @@ export default function ConversationPage() {
     await fetch(`/api/chat/messages/${msgId}`, { method: 'DELETE' })
     setConv((c: any) => ({ ...c, messages: c.messages.filter((m: any) => m.id !== msgId) }))
     setDeletingMsgId(null)
+  }
+
+  async function changeStatus(status: string) {
+    setConv((c: any) => ({ ...c, status }))
+    await fetch(`/api/chat/conversations/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status }),
+    })
+  }
+
+  async function deleteConversation() {
+    if (!confirm('Διαγραφή ολόκληρης της συνομιλίας; Η ενέργεια δεν αναιρείται.')) return
+    await fetch(`/api/chat/conversations/${id}`, { method: 'DELETE' })
+    router.push('/chat')
   }
 
   async function sendMessage(e: React.FormEvent) {
@@ -101,19 +123,52 @@ export default function ConversationPage() {
             )}
           </div>
         </div>
+        {isAdmin ? (
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <select
+              value={conv.status || 'PENDING'}
+              onChange={e => changeStatus(e.target.value)}
+              className="text-xs font-medium border border-gray-300 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+            >
+              {STATUS_OPTIONS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+            </select>
+            <button
+              onClick={deleteConversation}
+              className="p-2 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+              title="Διαγραφή συνομιλίας"
+            >
+              <Trash2 size={16} />
+            </button>
+          </div>
+        ) : (
+          <span className={`text-xs font-medium px-2 py-1 rounded-lg flex-shrink-0 ${STATUS_OPTIONS.find(s => s.value === conv.status)?.color || 'bg-gray-100 text-gray-600'}`}>
+            {STATUS_OPTIONS.find(s => s.value === conv.status)?.label || 'Εκκρεμεί'}
+          </span>
+        )}
       </div>
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto space-y-3 pr-1">
         {conv.messages?.map((msg: any) => {
           const isMe = (isAdmin && msg.senderRole === 'ADMIN') || (!isAdmin && msg.senderRole === 'ACCOUNTANT')
+          const canDelete = isAdmin || (isMe && msg.senderId === session?.user?.id)
           return (
             <div key={msg.id} className={`flex items-end gap-1 ${isMe ? 'justify-end' : 'justify-start'}`}>
-              {isAdmin && isMe && (
+              {isMe && canDelete && (
                 <button
                   onClick={() => deleteMessage(msg.id)}
                   disabled={deletingMsgId === msg.id}
                   className="p-1 rounded text-indigo-300 hover:text-red-400 hover:bg-red-50 flex-shrink-0 transition-colors"
+                  title="Διαγραφή μηνύματος"
+                >
+                  <Trash2 size={12} />
+                </button>
+              )}
+              {!isMe && canDelete && (
+                <button
+                  onClick={() => deleteMessage(msg.id)}
+                  disabled={deletingMsgId === msg.id}
+                  className="order-2 p-1 rounded text-gray-300 hover:text-red-400 hover:bg-red-50 flex-shrink-0 transition-colors"
                   title="Διαγραφή μηνύματος"
                 >
                   <Trash2 size={12} />

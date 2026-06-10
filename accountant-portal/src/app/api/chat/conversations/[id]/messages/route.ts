@@ -62,9 +62,13 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     },
   })
 
+  const newStatus = conversation.status === 'ARCHIVED' || conversation.status === 'COMPLETED'
+    ? conversation.status
+    : (isAdmin ? 'ANSWERED' : 'PENDING')
+
   await prisma.chatConversation.update({
     where: { id: params.id },
-    data: { updatedAt: new Date() },
+    data: { updatedAt: new Date(), status: newStatus },
   })
 
   // Notify by email

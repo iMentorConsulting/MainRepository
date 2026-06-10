@@ -7,6 +7,18 @@ import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import NewConversationModal from './new-conversation-modal'
 
+const STATUS_OPTIONS = [
+  { value: 'PENDING', label: 'Εκκρεμεί', color: 'bg-amber-100 text-amber-700' },
+  { value: 'ANSWERED', label: 'Απαντήθηκε', color: 'bg-blue-100 text-blue-700' },
+  { value: 'COMPLETED', label: 'Ολοκληρώθηκε', color: 'bg-green-100 text-green-700' },
+  { value: 'ARCHIVED', label: 'Αρχειοθετήθηκε', color: 'bg-gray-100 text-gray-600' },
+]
+
+function StatusBadge({ status }: { status: string }) {
+  const opt = STATUS_OPTIONS.find(s => s.value === status) || STATUS_OPTIONS[0]
+  return <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded flex-shrink-0 ${opt.color}`}>{opt.label}</span>
+}
+
 function timeAgo(dateStr: string) {
   const diff = Date.now() - new Date(dateStr).getTime()
   const mins = Math.floor(diff / 60000)
@@ -24,6 +36,7 @@ export default function ChatPage() {
   const [conversations, setConversations] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [showNew, setShowNew] = useState(false)
+  const [statusFilter, setStatusFilter] = useState<string>('')
 
   async function load() {
     const res = await fetch('/api/chat/conversations')
@@ -37,6 +50,10 @@ export default function ChatPage() {
     setShowNew(false)
     router.push(`/chat/${conv.id}`)
   }
+
+  const visibleConversations = statusFilter
+    ? conversations.filter(c => (c.status || 'PENDING') === statusFilter)
+    : conversations
 
   return (
     <div className="space-y-4 max-w-3xl">
@@ -59,12 +76,32 @@ export default function ChatPage() {
         />
       )}
 
+      {isAdmin && (
+        <div className="flex flex-wrap gap-2 items-center">
+          <button
+            onClick={() => setStatusFilter('')}
+            className={`text-xs font-medium px-3 py-1.5 rounded-lg border transition-colors ${statusFilter === '' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}
+          >
+            Όλες
+          </button>
+          {STATUS_OPTIONS.map(s => (
+            <button
+              key={s.value}
+              onClick={() => setStatusFilter(s.value)}
+              className={`text-xs font-medium px-3 py-1.5 rounded-lg border transition-colors ${statusFilter === s.value ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}
+            >
+              {s.label}
+            </button>
+          ))}
+        </div>
+      )}
+
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         {loading ? (
           <div className="flex items-center justify-center h-40">
             <div className="animate-spin w-7 h-7 border-4 border-indigo-600 border-t-transparent rounded-full" />
           </div>
-        ) : conversations.length === 0 ? (
+        ) : visibleConversations.length === 0 ? (
           <div className="py-16 text-center">
             <MessageSquare size={40} className="mx-auto text-gray-300 mb-4" />
             <p className="text-gray-500 font-medium">Δεν υπάρχουν συνομιλίες</p>
@@ -77,7 +114,7 @@ export default function ChatPage() {
         ) : isAdmin ? (
           (() => {
             const groups = new Map<string, { office: string; contact: string; convs: any[] }>()
-            for (const conv of conversations) {
+            for (const conv of visibleConversations) {
               const key = conv.accountant?.id || 'unknown'
               if (!groups.has(key)) {
                 groups.set(key, {
@@ -120,7 +157,7 @@ export default function ChatPage() {
           })()
         ) : (
           <ul className="divide-y divide-gray-100">
-            {conversations.map(conv => (
+            {visibleConversations.map(conv => (
               <ConversationRow key={conv.id} conv={conv} isAdmin={isAdmin} />
             ))}
           </ul>
@@ -148,6 +185,7 @@ function ConversationRow({ conv, isAdmin }: { conv: any; isAdmin: boolean }) {
               {conv.subject}
             </span>
             {unread && <span className="w-2 h-2 bg-indigo-500 rounded-full flex-shrink-0" />}
+            <StatusBadge status={conv.status || 'PENDING'} />
           </div>
           {isAdmin && (
             <p className="text-xs text-indigo-600 font-medium truncate">
