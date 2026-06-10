@@ -76,6 +76,20 @@ const STATUS_TEXT_COLOR = {
   'ΟΛΟΚΛΗΡΩΜΕΝΕΣ FAIL':     '#9f1239',
 };
 
+const INCOME_STATUS_STYLE = {
+  'ΟΛΟΚΛΗΡΩΜΕΝΗ - ΕΠΙΤΥΧΩΣ':  'badge-green',
+  'ΟΛΟΚΛΗΡΩΜΕΝΗ - ΑΠΟΡΡΙΨΗ':   'badge-red',
+  'ΟΛΟΚΛΗΡΩΜΕΝΗ - ΠΑΡΑΙΤΗΣΗ':  'badge-yellow',
+  'ΥΠΟΒΟΛΗ ΑΙΤΗΣΗΣ':           'badge-blue',
+  'ΔΕΝ ΠΡΟΧΩΡΗΣΕ':             'badge-gray',
+};
+const incomeStatusBadge = s => {
+  if (!s) return <span className="text-slate-300">—</span>;
+  const cls = INCOME_STATUS_STYLE[s] || 'badge-gray';
+  const short = s.length > 18 ? s.slice(0, 16) + '…' : s;
+  return <span className={cls} title={s}>{short}</span>;
+};
+
 const EMPTY_FORM = {
   customer_id: '', customer_name: '', vat_number: '', service_type: '',
   status: 'ΕΝ ΕΞΕΛΙΞΕΙ', amount_application: '', amount_implementation: '',
@@ -770,6 +784,7 @@ export default function ServiceAgreementsPage() {
                   <SortTh label="Σύμβουλος" field="sales_agent" sort={sort} onSort={handleSort} />
                   <SortTh label="Ημ. Συμφωνίας" field="first_sale_date" sort={sort} onSort={handleSort} />
                   <SortTh label="Ημ. Έγκρισης" field="approval_date" sort={sort} onSort={handleSort} />
+                  <th className="th">Κατ. Εσόδων</th>
                   <th className="th w-20"></th>
                 </tr>
               </thead>
@@ -830,11 +845,12 @@ export default function ServiceAgreementsPage() {
                     </td>
                     <td className="td text-xs text-slate-500 whitespace-nowrap">{fmtDate(r.first_sale_date)}</td>
                     <td className="td text-xs text-slate-500 whitespace-nowrap">{fmtDate(r.approval_date)}</td>
+                    <td className="td whitespace-nowrap">{incomeStatusBadge(r.latest_income_status)}</td>
                     <td className="td"><ActionBtns r={r} /></td>
                   </tr>
                 ))}
                 {rows.length === 0 && (
-                  <tr><td colSpan={13} className="td text-center text-slate-400 py-12">Δεν βρέθηκαν εγγραφές</td></tr>
+                  <tr><td colSpan={14} className="td text-center text-slate-400 py-12">Δεν βρέθηκαν εγγραφές</td></tr>
                 )}
               </tbody>
             </table>
