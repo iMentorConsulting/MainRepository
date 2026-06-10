@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { notIndividualWhere } from '@/lib/business-filters'
 
 export const dynamic = 'force-dynamic'
 
@@ -17,7 +18,7 @@ export async function GET(request: NextRequest) {
 
   // All businesses (for growth + scoring)
   const businesses = await prisma.business.findMany({
-    where: bizWhere,
+    where: { ...bizWhere, ...notIndividualWhere },
     select: { createdAt: true, email: true, phone: true },
     orderBy: { createdAt: 'asc' },
   })

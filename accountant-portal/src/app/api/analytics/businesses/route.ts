@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { notIndividualWhere } from '@/lib/business-filters'
 
 export const dynamic = 'force-dynamic'
 
@@ -25,6 +26,7 @@ export async function GET(request: NextRequest) {
       email: true,
       active: true,
       businesses: {
+        where: notIndividualWhere,
         select: { id: true, createdAt: true, updatedAt: true, afm: true, onomasia: true },
         orderBy: { createdAt: 'desc' },
       },

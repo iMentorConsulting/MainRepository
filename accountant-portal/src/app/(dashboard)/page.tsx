@@ -6,14 +6,12 @@ import { ChartCard } from '@/components/dashboard/chart-card'
 import { Users, Building2, Target, Zap, Send, Inbox, Upload, Mail, ChevronRight, CheckCircle2 } from 'lucide-react'
 import Link from 'next/link'
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LabelList
 } from 'recharts'
 
 interface DashboardStats {
   totalAccountants?: number
   totalBusinesses: number
-  individualsCount?: number
-  companiesCount?: number
   activePrograms: number
   totalMatches: number
   campaignsSent: number
@@ -205,8 +203,7 @@ export default function DashboardPage() {
         )}
         <StatCard
           title="Επιχειρήσεις"
-          value={stats?.companiesCount ?? 0}
-          subtitle={`+ ${stats?.individualsCount ?? 0} ιδιώτες (${stats?.totalBusinesses ?? 0} σύνολο)`}
+          value={stats?.totalBusinesses ?? 0}
           icon={Building2}
           color="emerald"
         />
@@ -246,7 +243,9 @@ export default function DashboardPage() {
                 <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#64748b' }} angle={-20} textAnchor="end" interval={0} />
                 <YAxis tick={{ fontSize: 11, fill: '#64748b' }} allowDecimals={false} />
                 <Tooltip contentStyle={customTooltipStyle} cursor={{fill: 'rgba(99,102,241,0.05)'}} />
-                <Bar dataKey="count" fill="#6366f1" radius={[4, 4, 0, 0]} name="Επιχειρήσεις" />
+                <Bar dataKey="count" fill="#6366f1" radius={[4, 4, 0, 0]} name="Επιχειρήσεις">
+                  <LabelList dataKey="count" position="top" style={{ fontSize: 11, fill: '#475569' }} />
+                </Bar>
               </BarChart>
             </ResponsiveContainer>
           ) : (
@@ -264,7 +263,9 @@ export default function DashboardPage() {
                 <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#64748b' }} />
                 <YAxis tick={{ fontSize: 11, fill: '#64748b' }} />
                 <Tooltip contentStyle={customTooltipStyle} cursor={{fill: 'rgba(5,150,105,0.05)'}} />
-                <Bar dataKey="count" fill="#059669" radius={[4, 4, 0, 0]} name="Επιχειρήσεις" />
+                <Bar dataKey="count" fill="#059669" radius={[4, 4, 0, 0]} name="Επιχειρήσεις">
+                  <LabelList dataKey="count" position="top" style={{ fontSize: 11, fill: '#475569' }} />
+                </Bar>
               </BarChart>
             </ResponsiveContainer>
           ) : (

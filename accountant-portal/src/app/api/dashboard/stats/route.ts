@@ -2,12 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { resolveRegionFromZip } from '@/lib/greek-regions'
-
-// Individuals (sole proprietors) shouldn't be counted as "businesses" in the legal-form breakdown
-function isIndividualLegalStatus(legalStatusDescr: string | null): boolean {
-  const s = (legalStatusDescr || '').toUpperCase()
-  return s.includes('ΙΔΙΩΤΗΣ')
-}
+import { notIndividualWhere } from '@/lib/business-filters'
 
 // Collapses equivalent legal-form variants into a single canonical label for the chart
 function normalizeLegalStatus(status: string): string {
@@ -25,6 +20,7 @@ export async function GET(request: NextRequest) {
   const accountantId = session.user.accountantId
 
   const businessWhere = isAdmin ? {} : { accountantId: accountantId || undefined }
+  const realBusinessWhere = { ...businessWhere, ...notIndividualWhere }
 
   const [
     totalAccountants,
@@ -37,7 +33,7 @@ export async function GET(request: NextRequest) {
     matchesByProgram,
   ] = await Promise.all([
     isAdmin ? prisma.accountant.count() : Promise.resolve(undefined),
-    prisma.business.count({ where: businessWhere }),
+    prisma.business.count({ where: realBusinessWhere }),
     prisma.program.count({ where: { active: true } }),
     prisma.programMatch.count({
       where: isAdmin ? {} : { business: { accountantId: accountantId || undefined } }
@@ -50,7 +46,7 @@ export async function GET(request: NextRequest) {
       }
     }),
     prisma.business.findMany({
-      where: businessWhere,
+      where: realBusinessWhere,
       select: {
         postalAreaDescription: true,
         postalZipCode: true,
@@ -74,10 +70,6 @@ export async function GET(request: NextRequest) {
     .sort(([, a], [, b]) => b - a)
     .slice(0, 10)
     .map(([name, count]) => ({ name, count }))
-
-  // Split total businesses into individuals (ΑΤΟΜΙΚΗ/ΙΔΙΩΤΗΣ) vs actual companies
-  const individualsCount = businesses.filter(b => isIndividualLegalStatus(b.legalStatusDescr)).length
-  const companiesCount = businesses.length - individualsCount
 
   // Group by Περιφέρεια (resolved from postal ZIP code prefix)
   const regionGroups: Record<string, number> = {}
@@ -109,8 +101,6 @@ export async function GET(request: NextRequest) {
     totalMatches,
     campaignsSent,
     pendingRequests,
-    individualsCount,
-    companiesCount,
     businessesByLegalStatus,
     businessesByRegion,
     matchesByProgram: matchesByProgramFormatted,

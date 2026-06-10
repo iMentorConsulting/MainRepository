@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { notIndividualWhere } from '@/lib/business-filters'
 
 export async function GET(request: NextRequest) {
   const session = await auth()
@@ -10,7 +11,7 @@ export async function GET(request: NextRequest) {
   }
 
   const accountants = await prisma.accountant.findMany({
-    include: { _count: { select: { businesses: true, users: true } } },
+    include: { _count: { select: { businesses: { where: notIndividualWhere }, users: true } } },
     orderBy: { officeName: 'asc' },
   })
 
