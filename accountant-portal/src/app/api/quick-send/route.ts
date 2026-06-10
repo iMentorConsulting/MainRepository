@@ -70,7 +70,7 @@ export async function POST(request: NextRequest) {
             boldKeys: ['business_name', 'afm', 'accountant_name', 'accountant_office', 'program_title', 'kad_description'],
           })
           // Strip empty *...* pairs
-          const cleanBody = boldedMessage.replace(/\*([^*\n]*)\*/g, (_m: string, inner: string) => inner.trim() ? `<strong>${inner}</strong>` : '')
+          const cleanBody = boldedMessage.replace(/\*([^*]*)\*/g, (_m: string, inner: string) => inner.trim() ? `<strong>${inner}</strong>` : '')
           const emailOk = await sendEmail({
             to: business.email,
             subject: renderedSubject,
@@ -93,8 +93,8 @@ export async function POST(request: NextRequest) {
         if (phone) {
           const rawMsg = renderTemplate(messageTemplate, variables)
           const cleanViber = rawMsg
-            .replace(/\*\*([^*\n]*)\*\*/g, (_m: string, inner: string) => inner.trim() || '')
-            .replace(/\*([^*\n]*)\*/g, (_m: string, inner: string) => inner.trim() || '')
+            .replace(/\*\*([^*]*)\*\*/g, (_m: string, inner: string) => inner.trim() || '')
+            .replace(/\*([^*]*)\*/g, (_m: string, inner: string) => inner.trim() || '')
           const viberOk = await sendViberMessage({ to: phone, text: cleanViber, senderName: business.onomasia || business.afm })
           if (viberOk) success = true
         }

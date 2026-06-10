@@ -115,7 +115,7 @@ function StepProgram({ programs, selected, onSelect, channel, onChannelChange, o
                   <CheckCircle2 size={16} className={selected === p.id ? 'text-indigo-600' : 'text-gray-300'} />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-sm text-gray-800 line-clamp-1">{p.title}</p>
+                  <p className="font-semibold text-sm text-gray-800 line-clamp-2" title={p.title}>{p.title}</p>
                   <p className="text-xs text-gray-400">{p.category}</p>
                 </div>
                 {matchCount > 0 && (

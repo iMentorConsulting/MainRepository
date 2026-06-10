@@ -136,7 +136,7 @@ export function renderCampaignEmailHtml(options: CampaignEmailOptions): string {
 
   const paragraphs = bodyText
     // Convert Viber *bold* markdown to HTML <strong> tags; drop empty ** pairs
-    .replace(/\*([^*\n]*)\*/g, (_, inner) => inner.trim() ? `<strong>${inner}</strong>` : '')
+    .replace(/\*([^*]*)\*/g, (_, inner) => inner.trim() ? `<strong>${inner}</strong>` : '')
     // Remove common emoji ranges that don't render well in email clients
     // eslint-disable-next-line no-misleading-character-class
     .replace(/[☀-➿]|[\uD83C-\uDBFF][\uDC00-\uDFFF]/g, '')
@@ -162,11 +162,11 @@ export function renderCampaignEmailHtml(options: CampaignEmailOptions): string {
     .join('')
 
   const brandLeft = imentorLogoUrl
-    ? `<img src="${imentorLogoUrl}" alt="I-MENTOR" height="44" style="display:block;height:44px;width:auto;max-width:180px;object-fit:contain;" />`
+    ? `<img src="${imentorLogoUrl}" alt="I-MENTOR" height="72" style="display:block;height:72px;width:auto;max-width:260px;object-fit:contain;" />`
     : '<span style="font-weight:800;letter-spacing:.5px;color:#ffffff;font-size:20px;">iMENTOR <span style="font-weight:400;opacity:.8;">CONSULTING</span></span>'
 
   const brandRight = accountantLogoUrl
-    ? `<img src="${accountantLogoUrl}" alt="${accountantOfficeName || ''}" height="44" style="display:block;height:44px;width:auto;max-width:180px;object-fit:contain;margin-left:auto;background:#ffffff;border-radius:8px;padding:4px 10px;" />`
+    ? `<img src="${accountantLogoUrl}" alt="${accountantOfficeName || ''}" height="72" style="display:block;height:72px;width:auto;max-width:260px;object-fit:contain;margin-left:auto;background:#ffffff;border-radius:8px;padding:6px 12px;" />`
     : (accountantOfficeName
         ? `<span style="color:#cbd5e1;font-size:14px;font-weight:600;">${accountantOfficeName}</span>`
         : '')
