@@ -149,37 +149,37 @@ export default function ProgramDetailPage() {
         )}
       </div>
 
+      {program.videoUrls?.length > 0 && (
+        <Card>
+          <CardHeader><CardTitle>Βίντεο Παρουσίασης</CardTitle></CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+              {program.videoUrls.map((url: string, i: number) => {
+                const videoId = getYoutubeId(url)
+                if (!videoId) return null
+                return (
+                  <div key={i} className="aspect-[9/16] rounded-lg overflow-hidden bg-black">
+                    <iframe
+                      src={`https://www.youtube.com/embed/${videoId}`}
+                      title={`Βίντεο ${i + 1}`}
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                      allowFullScreen
+                      className="w-full h-full"
+                    />
+                  </div>
+                )
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
           {program.description && (
             <Card>
               <CardHeader><CardTitle>Περιγραφή</CardTitle></CardHeader>
               <CardContent><p className="text-sm text-gray-700 leading-relaxed">{program.description}</p></CardContent>
-            </Card>
-          )}
-
-          {program.videoUrls?.length > 0 && (
-            <Card>
-              <CardHeader><CardTitle>Βίντεο Παρουσίασης</CardTitle></CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                  {program.videoUrls.map((url: string, i: number) => {
-                    const videoId = getYoutubeId(url)
-                    if (!videoId) return null
-                    return (
-                      <div key={i} className="aspect-[9/16] rounded-lg overflow-hidden bg-black">
-                        <iframe
-                          src={`https://www.youtube.com/embed/${videoId}`}
-                          title={`Βίντεο ${i + 1}`}
-                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                          allowFullScreen
-                          className="w-full h-full"
-                        />
-                      </div>
-                    )
-                  })}
-                </div>
-              </CardContent>
             </Card>
           )}
 

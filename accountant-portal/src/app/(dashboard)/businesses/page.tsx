@@ -12,7 +12,7 @@ import { Select } from '@/components/ui/select'
 import { getEffectiveCategory, ALL_CATEGORIES } from '@/lib/business-categories'
 import { CategoryBadge } from '@/components/businesses/category-badge'
 import { resolveRegionFromZip, GREEK_REGIONS } from '@/lib/greek-regions'
-import { Plus, Search, Download, Filter, Trash2, UserCog, Send, Smartphone, Upload, X, ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react'
+import { Plus, Search, Download, Filter, Trash2, UserCog, Send, Smartphone, Upload, X, ChevronUp, ChevronDown, ChevronsUpDown, RefreshCw } from 'lucide-react'
 
 function SortIcon({ col, sortBy, sortDir }: { col: string; sortBy: string; sortDir: string }) {
   if (sortBy !== col) return <ChevronsUpDown size={13} className="text-gray-400 ml-1 inline" />
@@ -64,6 +64,7 @@ export default function BusinessesPage() {
   const [loading, setLoading] = useState(true)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [deleting, setDeleting] = useState(false)
+  const [refreshingStatus, setRefreshingStatus] = useState(false)
 
   const [accountants, setAccountants] = useState<Accountant[]>([])
   const [legalStatusOptions, setLegalStatusOptions] = useState<string[]>([])
@@ -167,6 +168,32 @@ export default function BusinessesPage() {
       }
     } finally {
       setDeleting(false)
+    }
+  }
+
+  async function handleRefreshStatus() {
+    const ids = Array.from(selected)
+    const msg = ids.length > 0
+      ? `Επανέλεγχος κατάστασης ${ids.length} επιχειρήσεων στην ΑΑΔΕ;`
+      : 'Επανέλεγχος κατάστασης ΟΛΩΝ των επιχειρήσεων στην ΑΑΔΕ; Αυτό μπορεί να πάρει αρκετή ώρα.'
+    if (!confirm(msg)) return
+    setRefreshingStatus(true)
+    try {
+      const res = await fetch('/api/businesses/refresh-status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(ids.length > 0 ? { ids } : {}),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        alert(`Ελέγχθηκαν ${data.total}, ενημερώθηκαν ${data.updated}, ανενεργές: ${data.nowInactive}, απέτυχαν: ${data.failed}`)
+        fetchData()
+      } else {
+        const err = await res.json()
+        alert(err.error || 'Σφάλμα επανελέγχου')
+      }
+    } finally {
+      setRefreshingStatus(false)
     }
   }
 
@@ -387,6 +414,16 @@ export default function BusinessesPage() {
               title="Εμφάνιση μόνο επιχειρήσεων που έχουν κάνει Παύση Εργασιών στην ΑΑΔΕ"
             >
               {inactiveOnly ? 'Προβολή Όλων' : 'Μόνο Ανενεργές'}
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              loading={refreshingStatus}
+              onClick={handleRefreshStatus}
+              title={selected.size > 0 ? 'Επανέλεγχος κατάστασης επιλεγμένων στην ΑΑΔΕ' : 'Επανέλεγχος κατάστασης όλων στην ΑΑΔΕ'}
+            >
+              <RefreshCw size={14} className="mr-1" />
+              {selected.size > 0 ? `Επανέλεγχος Κατάστασης (${selected.size})` : 'Επανέλεγχος Κατάστασης (Όλες)'}
             </Button>
             {(accountantFilter.length > 0 || legalStatusFilter.length > 0 || regionFilter.length > 0 || categoryFilter.length > 0 || perifereiaFilter.length > 0 || inactiveOnly) && (
               <Button
