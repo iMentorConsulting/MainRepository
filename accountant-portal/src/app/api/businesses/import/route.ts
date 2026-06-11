@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { runMatchingForBusiness, autoNotifyBusinessMatches } from '@/lib/matching'
+import { runMatchingForBusiness, notifyBatchMatchesForBusinesses } from '@/lib/matching'
 import * as XLSX from 'xlsx'
 
 function applySoleProprietorFix(businessData: any) {
@@ -69,6 +69,7 @@ export async function POST(request: NextRequest) {
   let created = 0
   let skipped = 0
   const accountantId = session.user.role === 'ACCOUNTANT' ? session.user.accountantId : null
+  const importedBusinessIds: string[] = []
 
   for (const row of rows) {
     const afm = String(row.afm || row.ΑΦΜ || row.AFM || '').trim().replace(/\D/g, '')
@@ -133,14 +134,19 @@ export async function POST(request: NextRequest) {
         }
       })
 
-      runMatchingForBusiness(business.id)
-        .then(() => autoNotifyBusinessMatches(business.id))
-        .catch(err => console.error('[Matching] Auto-match/notify for imported business failed:', err?.message))
-
+      importedBusinessIds.push(business.id)
       created++
     } catch {
       skipped++
     }
+  }
+
+  // Run matching for all imported businesses, then send ONE batched email
+  // per program (not one per business) summarizing all newly-eligible clients.
+  if (importedBusinessIds.length > 0) {
+    Promise.all(importedBusinessIds.map(id => runMatchingForBusiness(id)))
+      .then(() => notifyBatchMatchesForBusinesses(importedBusinessIds))
+      .catch(err => console.error('[Matching] Batch match/notify for import failed:', err?.message))
   }
 
   return NextResponse.json({ created, skipped, total: rows.length })

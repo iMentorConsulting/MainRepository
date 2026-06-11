@@ -105,6 +105,8 @@ export async function GET(request: NextRequest) {
     ])
     accountants = accs
     programs = progs
+  } else {
+    programs = await prisma.program.findMany({ select: { id: true, title: true }, orderBy: { title: 'asc' } })
   }
 
   const legalStatusFacet = await prisma.business.findMany({

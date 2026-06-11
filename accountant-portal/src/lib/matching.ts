@@ -297,3 +297,112 @@ export async function runMatchingForBusiness(businessId: string): Promise<number
 
   return matchCount
 }
+
+// Called after a bulk import — sends ONE email per program (not per business),
+// each listing all newly-matched businesses for that program plus the
+// program's "Πρόσθετες Προϋποθέσεις" (if any), instead of one email per business.
+export async function notifyBatchMatchesForBusinesses(businessIds: string[]): Promise<void> {
+  if (businessIds.length === 0) return
+
+  const matches = await prisma.programMatch.findMany({
+    where: { businessId: { in: businessIds }, notified: false, matchScore: { gte: 40 } },
+    include: {
+      program: { select: { id: true, title: true, otherRequirements: true } },
+      business: { select: { id: true, accountantId: true, onomasia: true, afm: true } },
+    },
+  })
+
+  if (matches.length === 0) return
+
+  // Group by accountant, then by program
+  const byAccountant = new Map<string, typeof matches>()
+  for (const match of matches) {
+    const accountantId = match.business.accountantId
+    if (!accountantId) continue
+    if (!byAccountant.has(accountantId)) byAccountant.set(accountantId, [])
+    byAccountant.get(accountantId)!.push(match)
+  }
+
+  for (const [accountantId, accountantMatches] of Array.from(byAccountant)) {
+    const accountant = await prisma.accountant.findUnique({
+      where: { id: accountantId },
+      select: { email: true, contactPerson: true },
+    })
+    if (!accountant) continue
+
+    const byProgram = new Map<string, typeof matches>()
+    for (const match of accountantMatches) {
+      if (!byProgram.has(match.program.id)) byProgram.set(match.program.id, [])
+      byProgram.get(match.program.id)!.push(match)
+    }
+
+    for (const [, programMatches] of Array.from(byProgram)) {
+      const program = programMatches[0].program
+      const count = programMatches.length
+      const title = `${count} νέα match${count === 1 ? '' : 'es'} για τους πελάτες σας!`
+
+      await prisma.notification.create({
+        data: {
+          accountantId,
+          type: 'NEW_MATCHES',
+          title,
+          body: `Βρέθηκαν νέες ευκαιρίες χρηματοδότησης για ${count} πελάτ${count === 1 ? 'η' : 'ες'} σας μέσω του προγράμματος «${program.title}». Στείλτε καμπάνια τώρα!`,
+          link: '/matches',
+        },
+      })
+
+      const clientsListHtml = programMatches.map(m =>
+        `<li>${m.business.onomasia || 'Άγνωστη επιχείρηση'} (ΑΦΜ: ${m.business.afm})</li>`
+      ).join('')
+
+      const requirementsHtml = program.otherRequirements
+        ? `<div style="background: #f3f4f6; border-left: 4px solid #6b7280; padding: 16px; border-radius: 6px; margin: 20px 0;">
+             <p style="margin: 0; color: #374151; font-size: 14px; font-weight: bold;">Πρόσθετες Προϋποθέσεις Προγράμματος:</p>
+             <p style="margin: 8px 0 0; color: #374151; font-size: 14px; white-space: pre-line;">${program.otherRequirements}</p>
+           </div>`
+        : ''
+
+      await sendEmail({
+        to: accountant.email,
+        subject: `🎯 ${title} — I-MENTOR Portal`,
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <div style="background: linear-gradient(135deg, #4f46e5, #4338ca); padding: 24px 32px; border-radius: 12px 12px 0 0;">
+              <h1 style="color: white; margin: 0; font-size: 22px;">🎯 Νέες Ευκαιρίες για τους Πελάτες σας!</h1>
+            </div>
+            <div style="background: white; padding: 32px; border: 1px solid #e5e7eb; border-top: 0; border-radius: 0 0 12px 12px;">
+              <p style="color: #374151; font-size: 16px;">Αγαπητέ/ή <strong>${accountant.contactPerson}</strong>,</p>
+              <p style="color: #374151; font-size: 16px;">
+                Το σύστημα I-MENTOR εντόπισε <strong style="color: #4f46e5; font-size: 20px;">${count} νέα match${count === 1 ? '' : 'es'}</strong> για τους πελάτες σας μέσω του προγράμματος <strong>«${program.title}»</strong>!
+              </p>
+              <div style="background: #ede9fe; border-left: 4px solid #7c3aed; padding: 16px; border-radius: 6px; margin: 20px 0;">
+                <p style="margin: 0; color: #5b21b6; font-size: 14px; font-weight: bold;">Πελάτες με νέο match:</p>
+                <ul style="margin: 8px 0 0; padding-left: 20px; color: #5b21b6; font-size: 14px;">
+                  ${clientsListHtml}
+                </ul>
+              </div>
+              ${requirementsHtml}
+              <div style="background: #fef3c7; border-left: 4px solid #f59e0b; padding: 16px; border-radius: 6px; margin: 20px 0;">
+                <p style="margin: 0; color: #92400e; font-size: 14px; font-weight: bold;">⏰ Μην χάσετε την ευκαιρία!</p>
+                <p style="margin: 8px 0 0; color: #92400e; font-size: 14px;">
+                  Στείλτε καμπάνια στους πελάτες σας τώρα και κερδίστε προμήθειες.
+                </p>
+              </div>
+              <div style="text-align: center; margin: 24px 0;">
+                <a href="${process.env.APP_URL || 'https://logistis.i-mentor.gr'}/matches"
+                   style="background: linear-gradient(135deg, #4f46e5, #6366f1); color: white; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 16px; display: inline-block;">
+                  Δείτε τα Matches &rarr;
+                </a>
+              </div>
+            </div>
+          </div>
+        `,
+      }).catch(() => {})
+    }
+  }
+
+  await prisma.programMatch.updateMany({
+    where: { businessId: { in: businessIds }, notified: false },
+    data: { notified: true },
+  })
+}
