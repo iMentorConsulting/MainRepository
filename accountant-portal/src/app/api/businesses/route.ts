@@ -5,7 +5,7 @@ import { createAuditLog } from '@/lib/audit'
 import { runMatchingForBusiness, autoNotifyBusinessMatches } from '@/lib/matching'
 import { categoryWhereClause, BusinessCategory } from '@/lib/business-categories'
 import { regionWhereClause } from '@/lib/greek-regions'
-import { notIndividualWhere, FARMER_SPECIAL_REGIME_CODE } from '@/lib/business-filters'
+import { notIndividualWhere, FARMER_SPECIAL_REGIME_CODE, inactiveBusinessWhere } from '@/lib/business-filters'
 import { ensureFirmActCodesNormalized } from '@/lib/suggestions-seed'
 
 export async function GET(request: NextRequest) {
@@ -24,6 +24,7 @@ export async function GET(request: NextRequest) {
   const legalStatuses = (searchParams.get('legalStatuses') || '').split(',').filter(Boolean)
   const excludeLegalStatuses = (searchParams.get('excludeLegalStatuses') || '').split(',').filter(Boolean)
   const excludeIndividualLike = searchParams.get('excludeIndividualLike') !== '0'
+  const inactiveOnly = searchParams.get('inactiveOnly') === '1'
   const regions = (searchParams.get('regions') || '').split(',').filter(Boolean)
   const categories = (searchParams.get('categories') || '').split(',').filter(Boolean) as BusinessCategory[]
   const perifereies = (searchParams.get('perifereies') || '').split(',').filter(Boolean)
@@ -48,7 +49,9 @@ export async function GET(request: NextRequest) {
 
   if (legalStatuses.length > 0) where.legalStatusDescr = { in: legalStatuses }
   else if (excludeLegalStatuses.length > 0) where.legalStatusDescr = { notIn: excludeLegalStatuses }
-  if (excludeIndividualLike) {
+  if (inactiveOnly) {
+    where.AND = [...(where.AND || []), inactiveBusinessWhere]
+  } else if (excludeIndividualLike) {
     // When the accountant explicitly filters by ΑΓΡΟΤΙΚΑ, don't also exclude
     // ΑΓΡΟΤΙΚΑ businesses via the default individual-like filter.
     if (categories.includes('ΑΓΡΟΤΙΚΑ')) {

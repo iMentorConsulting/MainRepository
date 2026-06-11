@@ -2,6 +2,7 @@ import { prisma } from './prisma'
 import { MatchStatus } from '@prisma/client'
 import { resolveRegionFromZip } from './greek-regions'
 import { sendEmail } from './email'
+import { isInactiveBusiness } from './business-filters'
 
 interface BusinessWithActivities {
   id: string
@@ -11,6 +12,8 @@ interface BusinessWithActivities {
   postalZipCode: string | null
   regdate: string | null
   legalStatusDescr: string | null
+  deactivationFlag?: string | null
+  stopDate?: string | null
   activities: {
     firmActCode: string
     firmActDescr: string | null
@@ -179,6 +182,7 @@ export async function runMatchingForProgram(programId: string): Promise<number> 
   const qualifyingBusinessIds: string[] = []
 
   for (const business of businesses) {
+    if (isInactiveBusiness(business)) continue
     const { score, reasons } = matchesBusiness(business, program)
     if (score >= 40) qualifyingBusinessIds.push(business.id)
     const isNew = await upsertMatch(programId, business.id, score, reasons)
@@ -279,6 +283,11 @@ export async function runMatchingForBusiness(businessId: string): Promise<number
     include: { activities: true }
   })
   if (!business) throw new Error('Business not found')
+
+  if (isInactiveBusiness(business)) {
+    await prisma.programMatch.deleteMany({ where: { businessId, status: MatchStatus.POTENTIAL } })
+    return 0
+  }
 
   const programs = await prisma.program.findMany({ where: { active: true } })
 

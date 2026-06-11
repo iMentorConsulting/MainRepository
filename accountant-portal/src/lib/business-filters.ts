@@ -30,7 +30,15 @@ export function isIndividualLike(business: {
   return false
 }
 
-// Prisma where-clause fragment to exclude ΙΔΙΩΤΗΣ rows, businesses with no
+// Businesses that AADE shows as deactivated ("Παύση Εργασιών") — should never be
+// matched against programs and should be easy to find/cleanup.
+export function isInactiveBusiness(business: { deactivationFlag?: string | null; stopDate?: string | null }): boolean {
+  return business.deactivationFlag === 'Y' || !!business.stopDate
+}
+
+export const inactiveBusinessWhere: Prisma.BusinessWhereInput = {
+  OR: [{ deactivationFlag: 'Y' }, { NOT: { stopDate: null } }],
+}
 // primary ΚΑΔ, special-regime farmers, and real ΑΓΡΟΤΙΚΑ businesses, at the query level.
 export const notIndividualWhere: Prisma.BusinessWhereInput = {
   AND: [

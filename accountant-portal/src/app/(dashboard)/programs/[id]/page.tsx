@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { getYoutubeId } from '@/components/programs/video-urls-input'
 import { MatchCard } from '@/components/matching/match-card'
 import { ArrowLeft, Zap, Calendar, Tag, ExternalLink, Archive, Trash2, Bell } from 'lucide-react'
 import { useRouter } from 'next/navigation'
@@ -154,6 +155,31 @@ export default function ProgramDetailPage() {
             <Card>
               <CardHeader><CardTitle>Περιγραφή</CardTitle></CardHeader>
               <CardContent><p className="text-sm text-gray-700 leading-relaxed">{program.description}</p></CardContent>
+            </Card>
+          )}
+
+          {program.videoUrls?.length > 0 && (
+            <Card>
+              <CardHeader><CardTitle>Βίντεο Παρουσίασης</CardTitle></CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                  {program.videoUrls.map((url: string, i: number) => {
+                    const videoId = getYoutubeId(url)
+                    if (!videoId) return null
+                    return (
+                      <div key={i} className="aspect-[9/16] rounded-lg overflow-hidden bg-black">
+                        <iframe
+                          src={`https://www.youtube.com/embed/${videoId}`}
+                          title={`Βίντεο ${i + 1}`}
+                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                          allowFullScreen
+                          className="w-full h-full"
+                        />
+                      </div>
+                    )
+                  })}
+                </div>
+              </CardContent>
             </Card>
           )}
 

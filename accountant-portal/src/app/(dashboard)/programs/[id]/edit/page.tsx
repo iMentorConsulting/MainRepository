@@ -10,6 +10,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Select } from '@/components/ui/select'
 import { RegionMultiSelect } from '@/components/programs/region-multi-select'
 import { HeroImageUpload } from '@/components/programs/hero-image-upload'
+import { VideoUrlsInput } from '@/components/programs/video-urls-input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ArrowLeft, Plus, X, FileUp } from 'lucide-react'
 import Link from 'next/link'
@@ -180,6 +181,7 @@ export default function EditProgramPage() {
   const [regionRules, setRegionRules] = useState<string[]>([])
   const [zipCodeRules, setZipCodeRules] = useState<string[]>([])
   const [heroImage, setHeroImage] = useState('')
+  const [videoUrls, setVideoUrls] = useState<string[]>([])
   const [extraCriteriaIds, setExtraCriteriaIds] = useState<string[]>([])
   const [criteriaOptions, setCriteriaOptions] = useState<{ id: string; label: string; active: boolean }[]>([])
 
@@ -203,6 +205,7 @@ export default function EditProgramPage() {
         setZipCodeRules(program.zipCodeRules || [])
         setExtraCriteriaIds(program.extraCriteriaIds || [])
         setHeroImage(program.heroImageUrl || '')
+        setVideoUrls(program.videoUrls || [])
         reset({
           title: program.title || '',
           category: program.category || 'ESPA',
@@ -231,7 +234,7 @@ export default function EditProgramPage() {
     const res = await fetch(`/api/programs/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...data, heroImageUrl: heroImage || data.heroImageUrl, kadRules, regionRules, zipCodeRules, extraCriteriaIds }),
+      body: JSON.stringify({ ...data, heroImageUrl: heroImage || data.heroImageUrl, kadRules, regionRules, zipCodeRules, extraCriteriaIds, videoUrls }),
     })
     if (res.ok) {
       router.push(`/programs/${id}`)
@@ -289,6 +292,7 @@ export default function EditProgramPage() {
             <Textarea label="Άλλες Προϋποθέσεις Προγράμματος" {...register('otherRequirements')} rows={3} placeholder="π.χ. ελάχιστος κύκλος εργασιών, υποχρεωτική απασχόληση προσωπικού κ.λπ." />
             <Input label="Σελίδα Προγράμματος στο Website μας (URL)" {...register('websiteUrl')} placeholder="https://www.i-mentor.gr/programs/..." />
             <HeroImageUpload value={heroImage} onChange={setHeroImage} />
+            <VideoUrlsInput values={videoUrls} onChange={setVideoUrls} />
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Input label="Ημ/νία Έναρξης" type="date" {...register('startDate')} />
               <Input label="Ημ/νία Λήξης" type="date" {...register('endDate')} />

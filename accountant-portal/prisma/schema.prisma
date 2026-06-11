@@ -154,6 +154,7 @@ model Program {
   maxRegdate       String?
   legalStatusRules String[]
   extraCriteriaIds String[]
+  videoUrls        String[]
   active           Boolean         @default(true)
   archived         Boolean         @default(false)
   startDate        DateTime?

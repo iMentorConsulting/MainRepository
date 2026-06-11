@@ -83,6 +83,7 @@ export default function BusinessesPage() {
     })
   }
   const [includeIndividuals, setIncludeIndividuals] = useState(false)
+  const [inactiveOnly, setInactiveOnly] = useState(false)
 
   const [quickSendOpen, setQuickSendOpen] = useState(false)
   const [enrichOpen, setEnrichOpen] = useState(false)
@@ -104,17 +105,18 @@ export default function BusinessesPage() {
       ...(regionFilter.length ? { regions: regionFilter.join(',') } : {}),
       ...(categoryFilter.length ? { categories: categoryFilter.join(',') } : {}),
       ...(perifereiaFilter.length ? { perifereies: perifereiaFilter.join(',') } : {}),
+      ...(inactiveOnly ? { inactiveOnly: '1' } : {}),
     })
     const res = await fetch(`/api/businesses?${params}`)
     const data = await res.json()
     setBusinesses(data.businesses || [])
     setTotal(data.total || 0)
     setLoading(false)
-  }, [page, search, accountantFilter, legalStatusFilter, regionFilter, categoryFilter, perifereiaFilter, sort, includeIndividuals])
+  }, [page, search, accountantFilter, legalStatusFilter, regionFilter, categoryFilter, perifereiaFilter, sort, includeIndividuals, inactiveOnly])
 
   useEffect(() => { fetchData() }, [fetchData])
-  useEffect(() => { setSelected(new Set()) }, [page, search, accountantFilter, legalStatusFilter, regionFilter, categoryFilter, perifereiaFilter, sort, includeIndividuals])
-  useEffect(() => { setPage(1) }, [accountantFilter, legalStatusFilter, regionFilter, categoryFilter, perifereiaFilter, sort, includeIndividuals])
+  useEffect(() => { setSelected(new Set()) }, [page, search, accountantFilter, legalStatusFilter, regionFilter, categoryFilter, perifereiaFilter, sort, includeIndividuals, inactiveOnly])
+  useEffect(() => { setPage(1) }, [accountantFilter, legalStatusFilter, regionFilter, categoryFilter, perifereiaFilter, sort, includeIndividuals, inactiveOnly])
 
   useEffect(() => {
     fetch('/api/businesses/facets')
@@ -378,11 +380,19 @@ export default function BusinessesPage() {
                 {includeIndividuals ? 'Απόκρυψη Ιδιωτών & Αγροτών Ειδ.Καθεστ.' : 'Εμφάνιση Ιδιωτών & Αγροτών Ειδ.Καθεστ.'}
               </Button>
             )}
-            {(accountantFilter.length > 0 || legalStatusFilter.length > 0 || regionFilter.length > 0 || categoryFilter.length > 0 || perifereiaFilter.length > 0) && (
+            <Button
+              variant={inactiveOnly ? 'outline' : 'ghost'}
+              size="sm"
+              onClick={() => setInactiveOnly(v => !v)}
+              title="Εμφάνιση μόνο επιχειρήσεων που έχουν κάνει Παύση Εργασιών στην ΑΑΔΕ"
+            >
+              {inactiveOnly ? 'Προβολή Όλων' : 'Μόνο Ανενεργές'}
+            </Button>
+            {(accountantFilter.length > 0 || legalStatusFilter.length > 0 || regionFilter.length > 0 || categoryFilter.length > 0 || perifereiaFilter.length > 0 || inactiveOnly) && (
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => { setAccountantFilter([]); setLegalStatusFilter([]); setRegionFilter([]); setCategoryFilter([]); setPerifereiaFilter([]) }}
+                onClick={() => { setAccountantFilter([]); setLegalStatusFilter([]); setRegionFilter([]); setCategoryFilter([]); setPerifereiaFilter([]); setInactiveOnly(false) }}
               >
                 Καθαρισμός φίλτρων
               </Button>
