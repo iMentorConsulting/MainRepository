@@ -207,7 +207,7 @@ export default function BusinessDetailPage() {
                 </div>
                 <div>
                   <dt className="text-gray-500">Κατάσταση</dt>
-                  <dd>{(business.deactivationFlag === 'Y' || business.stopDate) ? (business.deactivationFlagDescr || 'Ανενεργή') : 'Ενεργή'}</dd>
+                  <dd>{(business.deactivationFlag === 'Y' || business.stopDate) ? `Ανενεργή${business.stopDate ? ` (Παύση Εργασιών ${business.stopDate})` : ''}` : 'Ενεργή'}</dd>
                 </div>
               </dl>
             </CardContent>
