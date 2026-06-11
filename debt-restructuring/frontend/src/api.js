@@ -97,16 +97,21 @@ export const getHealth = () => api.get('/health')
 //  2. MicroSIP's registered "msip:" URI scheme — MicroSIP parses "msip:hangupall"
 //     and hangs up all non-incoming calls (works if MicroSIP is installed and
 //     registered as the msip: protocol handler, the default on install)
-export const hangupCall = () => new Promise(resolve => {
-  const img = new Image()
-  img.onload = img.onerror = resolve
-  img.src = `http://127.0.0.1:7070/hangup?_=${Date.now()}`
-  setTimeout(resolve, 500)
-}).then(() => {
+export const hangupCall = () => {
+  // Fire the msip: navigation synchronously so it stays within the click's
+  // user-activation window — browsers silently block custom-protocol
+  // navigations triggered from async callbacks (e.g. after a Promise/setTimeout).
   try {
     window.location.href = 'msip:hangupall'
   } catch {}
-})
+
+  return new Promise(resolve => {
+    const img = new Image()
+    img.onload = img.onerror = resolve
+    img.src = `http://127.0.0.1:7070/hangup?_=${Date.now()}`
+    setTimeout(resolve, 500)
+  })
+}
 
 // Leads — manual create
 export const createLead = (data) => api.post('/leads/create', data)
