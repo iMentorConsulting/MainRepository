@@ -26,6 +26,7 @@ const schema = z.object({
   doyDescr: z.string().optional(),
   deactivationFlag: z.string().optional(),
   deactivationFlagDescr: z.string().optional(),
+  stopDate: z.string().optional(),
   email: z.string().email().optional().or(z.literal('')),
   phone: z.string().optional(),
   viberPhone: z.string().optional(),
@@ -76,6 +77,7 @@ export default function NewBusinessPage() {
     setValue('doyDescr', data.doyDescr)
     setValue('deactivationFlag', data.deactivationFlag)
     setValue('deactivationFlagDescr', data.deactivationFlagDescr)
+    setValue('stopDate', data.stopDate || undefined)
     setActivities(data.activities || [])
   }
 

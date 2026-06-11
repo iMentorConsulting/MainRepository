@@ -44,6 +44,16 @@ const PROGRAM_SPECIFIC_REASONS: { match: string; labels: string[] }[] = [
   { match: 'ΜΙΚΡΟΠΙΣΤΩΣ', labels: ['Ήδη Ενεργό Δάνειο Μικροπίστωσης'] },
 ]
 
+// One-time backfill: ΚΑΔ codes for divisions 01-09 are sometimes stored without
+// their leading zero (e.g. "1261200" instead of "01261200"), which breaks
+// prefix-based category filters/where-clauses. Pad them back to 8 digits.
+export async function ensureFirmActCodesNormalized() {
+  const settings = await getSettings()
+  if (settings.firmActCodesNormalized) return
+  await prisma.$executeRaw`UPDATE "BusinessActivity" SET "firmActCode" = '0' || "firmActCode" WHERE length("firmActCode") = 7 AND "firmActCode" ~ '^[0-9]+$'`
+  await prisma.appSetting.update({ where: { id: 'main' }, data: { firmActCodesNormalized: true } })
+}
+
 async function getSettings() {
   return prisma.appSetting.upsert({ where: { id: 'main' }, create: { id: 'main' }, update: {} })
 }

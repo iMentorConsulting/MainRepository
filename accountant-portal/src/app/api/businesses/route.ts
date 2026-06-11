@@ -5,11 +5,14 @@ import { createAuditLog } from '@/lib/audit'
 import { runMatchingForBusiness, autoNotifyBusinessMatches } from '@/lib/matching'
 import { categoryWhereClause, BusinessCategory } from '@/lib/business-categories'
 import { regionWhereClause } from '@/lib/greek-regions'
-import { notIndividualWhere } from '@/lib/business-filters'
+import { notIndividualWhere, FARMER_SPECIAL_REGIME_CODE } from '@/lib/business-filters'
+import { ensureFirmActCodesNormalized } from '@/lib/suggestions-seed'
 
 export async function GET(request: NextRequest) {
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  ensureFirmActCodesNormalized().catch(err => console.error('[Businesses] ΚΑΔ normalization failed:', err?.message))
 
   const { searchParams } = request.nextUrl
   const page = parseInt(searchParams.get('page') || '1')
@@ -20,7 +23,7 @@ export async function GET(request: NextRequest) {
   const accountantIds = (searchParams.get('accountantIds') || '').split(',').filter(Boolean)
   const legalStatuses = (searchParams.get('legalStatuses') || '').split(',').filter(Boolean)
   const excludeLegalStatuses = (searchParams.get('excludeLegalStatuses') || '').split(',').filter(Boolean)
-  const excludeIndividualLike = searchParams.get('excludeIndividualLike') === '1'
+  const excludeIndividualLike = searchParams.get('excludeIndividualLike') !== '0'
   const regions = (searchParams.get('regions') || '').split(',').filter(Boolean)
   const categories = (searchParams.get('categories') || '').split(',').filter(Boolean) as BusinessCategory[]
   const perifereies = (searchParams.get('perifereies') || '').split(',').filter(Boolean)
@@ -45,7 +48,23 @@ export async function GET(request: NextRequest) {
 
   if (legalStatuses.length > 0) where.legalStatusDescr = { in: legalStatuses }
   else if (excludeLegalStatuses.length > 0) where.legalStatusDescr = { notIn: excludeLegalStatuses }
-  if (excludeIndividualLike) where.AND = [...(where.AND || []), notIndividualWhere]
+  if (excludeIndividualLike) {
+    // When the accountant explicitly filters by ΑΓΡΟΤΙΚΑ, don't also exclude
+    // ΑΓΡΟΤΙΚΑ businesses via the default individual-like filter.
+    if (categories.includes('ΑΓΡΟΤΙΚΑ')) {
+      where.AND = [
+        ...(where.AND || []),
+        {
+          AND: [
+            { NOT: { legalStatusDescr: { contains: 'ΙΔΙΩΤΗΣ', mode: 'insensitive' } } },
+            { activities: { some: { firmActKind: 1, NOT: { firmActCode: { startsWith: FARMER_SPECIAL_REGIME_CODE } } } } },
+          ],
+        },
+      ]
+    } else {
+      where.AND = [...(where.AND || []), notIndividualWhere]
+    }
+  }
   if (regions.length > 0) where.postalAreaDescription = { in: regions }
   if (categories.length > 0) where.AND = [...(where.AND || []), { OR: categories.map(categoryWhereClause) }]
   if (perifereies.length > 0) where.AND = [...(where.AND || []), { OR: perifereies.map(regionWhereClause) }]

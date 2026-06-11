@@ -123,7 +123,7 @@ export default function BusinessDetailPage() {
             {business.legalStatusDescr && (
               <Badge variant="secondary">{business.legalStatusDescr}</Badge>
             )}
-            {business.deactivationFlag === 'Y' && (
+            {(business.deactivationFlag === 'Y' || business.stopDate) && (
               <Badge variant="danger">Ανενεργή</Badge>
             )}
             <CategoryBadge category={getEffectiveCategory(business)} size="lg" />
@@ -207,7 +207,7 @@ export default function BusinessDetailPage() {
                 </div>
                 <div>
                   <dt className="text-gray-500">Κατάσταση</dt>
-                  <dd>{business.deactivationFlag === 'Y' ? (business.deactivationFlagDescr || 'Ανενεργή') : 'Ενεργή'}</dd>
+                  <dd>{(business.deactivationFlag === 'Y' || business.stopDate) ? (business.deactivationFlagDescr || 'Ανενεργή') : 'Ενεργή'}</dd>
                 </div>
               </dl>
             </CardContent>

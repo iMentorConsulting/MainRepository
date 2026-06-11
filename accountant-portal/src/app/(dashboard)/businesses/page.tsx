@@ -100,7 +100,7 @@ export default function BusinessesPage() {
       sortDir,
       ...(search ? { search } : {}),
       ...(accountantFilter.length ? { accountantIds: accountantFilter.join(',') } : {}),
-      ...(legalStatusFilter.length ? { legalStatuses: legalStatusFilter.join(',') } : (!includeIndividuals ? { excludeIndividualLike: '1' } : {})),
+      ...(legalStatusFilter.length ? { legalStatuses: legalStatusFilter.join(',') } : (includeIndividuals ? { excludeIndividualLike: '0' } : {})),
       ...(regionFilter.length ? { regions: regionFilter.join(',') } : {}),
       ...(categoryFilter.length ? { categories: categoryFilter.join(',') } : {}),
       ...(perifereiaFilter.length ? { perifereies: perifereiaFilter.join(',') } : {}),

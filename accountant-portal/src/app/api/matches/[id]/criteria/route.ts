@@ -35,34 +35,6 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     return NextResponse.json({ error: 'Invalid payload' }, { status: 400 })
   }
 
-  // A FAILed criterion means the business doesn't meet a hard requirement —
-  // automatically mark the match as rejected with that criterion as the reason.
-  const failedCheck = await prisma.matchCriterionCheck.findFirst({
-    where: { matchId: params.id, value: 'FAIL' },
-    include: { criterion: true },
-    orderBy: { updatedAt: 'asc' },
-  })
-
-  const allCriteria = await prisma.eligibilityCriterion.findMany({ select: { label: true } })
-  const criterionLabels = new Set(allCriteria.map(c => c.label))
-  const currentReasonIsCriterionDerived = !!existing.rejectionReason && criterionLabels.has(existing.rejectionReason.label)
-
-  if (failedCheck) {
-    let reason = await prisma.rejectionReason.findFirst({ where: { label: failedCheck.criterion.label } })
-    if (!reason) {
-      reason = await prisma.rejectionReason.create({ data: { label: failedCheck.criterion.label, programIds: [] } })
-    }
-    await prisma.programMatch.update({
-      where: { id: params.id },
-      data: { rejectionReasonId: reason.id, status: 'REJECTED' },
-    })
-  } else if (currentReasonIsCriterionDerived) {
-    await prisma.programMatch.update({
-      where: { id: params.id },
-      data: { rejectionReasonId: null, status: 'POTENTIAL' },
-    })
-  }
-
   const match = await prisma.programMatch.findUnique({
     where: { id: params.id },
     include: { criterionChecks: { include: { criterion: true } }, rejectionReason: true },

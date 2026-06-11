@@ -12,6 +12,10 @@ export function isIndividualLegalStatus(legalStatusDescr: string | null | undefi
   return s.includes('ΙΔΙΩΤΗΣ')
 }
 
+// Real ΑΓΡΟΤΙΚΑ NACE divisions (Φυτική/ζωική παραγωγή, Δασοκομία, Αλιεία) — these
+// businesses are treated like individuals and hidden from lists/reports by default.
+export const AGRICULTURAL_DIVISIONS = ['01', '02', '03']
+
 export function isIndividualLike(business: {
   legalStatusDescr?: string | null
   activities?: Array<{ firmActCode?: string | null; firmActKind?: number | null }>
@@ -19,15 +23,30 @@ export function isIndividualLike(business: {
   if (isIndividualLegalStatus(business.legalStatusDescr)) return true
   const primary = business.activities?.find(a => a.firmActKind === 1)
   if (!primary?.firmActCode) return true
-  if (primary.firmActCode.replace(/\D/g, '').startsWith(FARMER_SPECIAL_REGIME_CODE)) return true
+  const digits = primary.firmActCode.replace(/\D/g, '')
+  if (digits.startsWith(FARMER_SPECIAL_REGIME_CODE)) return true
+  const padded = digits.length === 7 ? '0' + digits : digits
+  if (AGRICULTURAL_DIVISIONS.includes(padded.slice(0, 2))) return true
   return false
 }
 
 // Prisma where-clause fragment to exclude ΙΔΙΩΤΗΣ rows, businesses with no
-// primary ΚΑΔ, and special-regime farmers, at the query level.
+// primary ΚΑΔ, special-regime farmers, and real ΑΓΡΟΤΙΚΑ businesses, at the query level.
 export const notIndividualWhere: Prisma.BusinessWhereInput = {
   AND: [
     { NOT: { legalStatusDescr: { contains: 'ΙΔΙΩΤΗΣ', mode: 'insensitive' } } },
-    { activities: { some: { firmActKind: 1, NOT: { firmActCode: { startsWith: FARMER_SPECIAL_REGIME_CODE } } } } },
+    {
+      activities: {
+        some: {
+          firmActKind: 1,
+          NOT: {
+            OR: [
+              { firmActCode: { startsWith: FARMER_SPECIAL_REGIME_CODE } },
+              ...AGRICULTURAL_DIVISIONS.map(d => ({ firmActCode: { startsWith: d } })),
+            ],
+          },
+        },
+      },
+    },
   ],
 }

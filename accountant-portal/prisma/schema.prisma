@@ -46,6 +46,7 @@ model AppSetting {
   criteriaSuggestionsSeeded         Boolean @default(false)
   tagSuggestionsSeeded              Boolean @default(false)
   rejectionReasonSuggestionsSeeded  Boolean @default(false)
+  firmActCodesNormalized            Boolean @default(false)
   updatedAt      DateTime @updatedAt
 }
 
