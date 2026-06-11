@@ -248,11 +248,11 @@ export default function IncomeList() {
           <p className="page-sub">{data.total.toLocaleString('el-GR')} εγγραφές σύνολο</p>
         </div>
         <div className="flex items-center gap-2">
-          <button className="btn-ghost btn-sm" onClick={handleExport}>
+          <button className="btn-ghost btn-sm flex-1 sm:flex-initial justify-center" onClick={handleExport}>
             <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path fillRule="evenodd" d="M10 3a.75.75 0 0 1 .75.75v8.69l2.22-2.22a.75.75 0 1 1 1.06 1.06l-3.5 3.5a.75.75 0 0 1-1.06 0l-3.5-3.5a.75.75 0 1 1 1.06-1.06l2.22 2.22V3.75A.75.75 0 0 1 10 3ZM5.75 16a.75.75 0 0 0 0 1.5h8.5a.75.75 0 0 0 0-1.5h-8.5Z" clipRule="evenodd"/></svg>
             Excel
           </button>
-          <button className="btn-primary" onClick={() => setModal({ open: true, record: null })}>
+          <button className="btn-primary flex-1 sm:flex-initial justify-center" onClick={() => setModal({ open: true, record: null })}>
             <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path d="M10.75 4.75a.75.75 0 0 0-1.5 0v4.5h-4.5a.75.75 0 0 0 0 1.5h4.5v4.5a.75.75 0 0 0 1.5 0v-4.5h4.5a.75.75 0 0 0 0-1.5h-4.5v-4.5Z"/></svg>
             Νέα Εγγραφή
           </button>
@@ -359,7 +359,59 @@ export default function IncomeList() {
       </div>
 
       <div className="card overflow-hidden">
-        <div className="overflow-x-auto">
+        {/* Mobile card list */}
+        <div className="md:hidden divide-y divide-slate-100">
+          {data.data.map(r => (
+            <div key={r.id} className="p-4 space-y-2.5">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="font-semibold text-slate-800 truncate">{r.customer_name}</div>
+                  <div className="text-xs text-slate-400 mt-0.5">{fmtDate(r.sale_date)}{r.vat_number ? ` · ΑΦΜ ${r.vat_number}` : ''}</div>
+                  {r.accountant && <div className="text-xs text-slate-400 truncate">{r.accountant}</div>}
+                </div>
+                <div className="text-right shrink-0">
+                  <div className="font-bold text-emerald-600 whitespace-nowrap">{fmt(r.amount_collected)}</div>
+                  {r.bonus > 0 && <div className="text-xs text-amber-500 whitespace-nowrap">+{fmtNum(r.bonus)} bonus</div>}
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-1.5">
+                {statusBadge(r.work_status)}
+                {r.sales_agent && <span className="badge-purple">{r.sales_agent}</span>}
+                {r.service_type && <span className="text-xs text-slate-500">{r.service_type}</span>}
+              </div>
+              {(r.amount_application || r.amount_implementation) && (
+                <div className="text-xs text-slate-500 flex flex-wrap gap-3">
+                  {r.amount_application ? <span>Αίτ.: {fmtNum(r.amount_application)}</span> : null}
+                  {r.amount_implementation ? <span>Υλ.: {fmtNum(r.amount_implementation)}</span> : null}
+                </div>
+              )}
+              {(r.phone || r.email) && (
+                <div className="text-xs text-slate-500 flex flex-wrap gap-3">
+                  {r.phone && <span>📞 {r.phone}</span>}
+                  {r.email && <a href={`mailto:${r.email}`} className="text-indigo-500 hover:underline">{r.email}</a>}
+                </div>
+              )}
+              <div className="flex items-center gap-2 pt-1">
+                <ElorusActionsButton record={r} onRefresh={load} />
+                <button className="btn-secondary text-xs py-1 px-2" title="Αντιγραφή" onClick={() => handleDuplicate(r)}>📋</button>
+                <button onClick={() => setModal({ open: true, record: r })} className="btn-ghost btn-sm p-2 rounded-lg" title="Επεξεργασία">
+                  <svg viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5"><path d="M13.488 2.513a1.75 1.75 0 0 0-2.475 0L6.75 6.774a2.75 2.75 0 0 0-.596.892l-.633 1.73a.75.75 0 0 0 .963.963l1.73-.633a2.75 2.75 0 0 0 .892-.596l4.261-4.262a1.75 1.75 0 0 0 0-2.475ZM4.75 3.5c-.69 0-1.25.56-1.25 1.25v6.5c0 .69.56 1.25 1.25 1.25h6.5c.69 0 1.25-.56 1.25-1.25V9A.75.75 0 0 1 14 9v2.25A2.75 2.75 0 0 1 11.25 14h-6.5A2.75 2.75 0 0 1 2 11.25v-6.5A2.75 2.75 0 0 1 4.75 2H7a.75.75 0 0 1 0 1.5H4.75Z"/></svg>
+                </button>
+                <button onClick={() => setDeleteId(r.id)} className="p-2 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50 transition-colors">
+                  <svg viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5"><path fillRule="evenodd" d="M5 3.25V4H2.75a.75.75 0 0 0 0 1.5h.3l.815 8.15A1.5 1.5 0 0 0 5.357 15h5.285a1.5 1.5 0 0 0 1.493-1.35l.815-8.15h.3a.75.75 0 0 0 0-1.5H11v-.75A2.25 2.25 0 0 0 8.75 1h-1.5A2.25 2.25 0 0 0 5 3.25Zm2.25-.75a.75.75 0 0 0-.75.75V4h3v-.75a.75.75 0 0 0-.75-.75h-1.5ZM6.05 6a.75.75 0 0 1 .787.713l.275 5.5a.75.75 0 0 1-1.498.075l-.275-5.5A.75.75 0 0 1 6.05 6Zm3.9 0a.75.75 0 0 1 .712.787l-.275 5.5a.75.75 0 0 1-1.498-.075l.275-5.5a.75.75 0 0 1 .786-.711Z" clipRule="evenodd"/></svg>
+                </button>
+              </div>
+            </div>
+          ))}
+          {data.data.length === 0 && (
+            <div className="text-center text-slate-400 py-12">
+              <div className="text-3xl mb-2">🔍</div>
+              Δεν βρέθηκαν εγγραφές
+            </div>
+          )}
+        </div>
+        {/* Desktop table */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full">
             <thead>
               <tr>

@@ -48,15 +48,15 @@ const nav = [
   },
 ];
 
-export default function Sidebar() {
+export default function Sidebar({ open = false, onClose = () => {} }) {
   const { logout } = useAuth();
 
   return (
-    <aside className="w-[220px] shrink-0 min-h-screen flex flex-col"
+    <aside className={`fixed md:static inset-y-0 left-0 z-40 w-[220px] shrink-0 min-h-screen flex flex-col transform transition-transform duration-200 ease-in-out md:translate-x-0 ${open ? 'translate-x-0' : '-translate-x-full'}`}
       style={{ background: 'linear-gradient(180deg, #0f0f1a 0%, #13131f 100%)', borderRight: '1px solid rgba(255,255,255,0.06)' }}>
 
       {/* Logo */}
-      <div className="px-5 pt-6 pb-5 border-b" style={{ borderColor: 'rgba(255,255,255,0.07)' }}>
+      <div className="px-5 pt-6 pb-5 border-b flex items-center justify-between" style={{ borderColor: 'rgba(255,255,255,0.07)' }}>
         <div className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0"
             style={{ background: 'linear-gradient(135deg, #6366f1, #a855f7)' }}>
@@ -67,13 +67,18 @@ export default function Sidebar() {
             <div className="text-[10px] font-medium mt-0.5" style={{ color: 'rgba(255,255,255,0.35)' }}>Finance</div>
           </div>
         </div>
+        <button onClick={onClose} className="md:hidden p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/10">
+          <svg viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
+            <path d="M6.28 5.22a.75.75 0 0 0-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 1 0 1.06 1.06L10 11.06l3.72 3.72a.75.75 0 1 0 1.06-1.06L11.06 10l3.72-3.72a.75.75 0 0 0-1.06-1.06L10 8.94 6.28 5.22Z"/>
+          </svg>
+        </button>
       </div>
 
       {/* Navigation */}
       <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
         {nav.map(({ to, end, icon, label }) => (
           <NavLink
-            key={to} to={to} end={end}
+            key={to} to={to} end={end} onClick={onClose}
             className={({ isActive }) =>
               `flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] font-medium transition-all duration-150 group
                ${isActive
