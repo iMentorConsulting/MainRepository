@@ -594,7 +594,7 @@ function EnrichModal({ onClose, onDone }: { onClose: () => void; onDone: () => v
             </p>
             <p className="text-xs text-violet-600 font-medium mt-2">👇 Τι κάνετε:</p>
             <ol className="text-xs text-violet-700 space-y-1 list-decimal list-inside">
-              <li>Ετοιμάστε Excel με στήλες: <strong>ΑΦΜ</strong> και <strong>Κινητό</strong> (ή Email ή Viber)</li>
+              <li>Ετοιμάστε Excel με στήλες: <strong>ΑΦΜ</strong> και <strong>Κινητό</strong> (ή Email ή Viber) — δεν γίνονται δεκτά σταθερά τηλέφωνα</li>
               <li>Ανεβάστε το — το σύστημα βρίσκει αυτόματα κάθε πελάτη και συμπληρώνει τα στοιχεία</li>
             </ol>
           </div>

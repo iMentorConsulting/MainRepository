@@ -364,7 +364,7 @@ export async function notifyBatchMatchesForBusinesses(businessIds: string[]): Pr
       const criteriaLabels = (program.extraCriteriaIds || []).map(id => criteriaMap.get(id)).filter(Boolean) as string[]
       const requirementsHtml = criteriaLabels.length
         ? `<div style="background: #f3f4f6; border-left: 4px solid #6b7280; padding: 16px; border-radius: 6px; margin: 20px 0;">
-             <p style="margin: 0; color: #374151; font-size: 14px; font-weight: bold;">Πρόσθετες Προϋποθέσεις (Manual Check):</p>
+             <p style="margin: 0; color: #374151; font-size: 14px; font-weight: bold;">Πρόσθετες Προϋποθέσεις:</p>
              <ul style="margin: 8px 0 0; padding-left: 20px; color: #374151; font-size: 14px;">
                ${criteriaLabels.map(l => `<li>${l}</li>`).join('')}
              </ul>
