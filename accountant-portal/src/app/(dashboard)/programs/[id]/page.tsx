@@ -276,36 +276,6 @@ export default function ProgramDetailPage() {
               )}
             </CardContent>
           </Card>
-
-          {/* Matches */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Matched Επιχειρήσεις ({program.matches?.length || 0})</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {program.matches?.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {program.matches.slice(0, 20).map((m: any) => (
-                    <MatchCard
-                      key={m.id}
-                      businessName={m.business?.onomasia || ''}
-                      afm={m.business?.afm || ''}
-                      programTitle={program.title}
-                      matchScore={m.matchScore}
-                      matchReason={m.matchReason}
-                      status={m.status}
-                    />
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-8 text-gray-400">
-                  <Zap size={32} className="mx-auto mb-2 opacity-30" />
-                  <p>Δεν υπάρχουν matches ακόμη.</p>
-                  {isAdmin && <p className="text-sm">Πατήστε "Εκτέλεση Matching" για να τρέξετε τον αλγόριθμο.</p>}
-                </div>
-              )}
-            </CardContent>
-          </Card>
         </div>
 
         <div className="space-y-4">
@@ -364,6 +334,35 @@ export default function ProgramDetailPage() {
           )}
         </div>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Matched Επιχειρήσεις ({program.matches?.length || 0})</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {program.matches?.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {program.matches.slice(0, 20).map((m: any) => (
+                <MatchCard
+                  key={m.id}
+                  businessName={m.business?.onomasia || ''}
+                  afm={m.business?.afm || ''}
+                  programTitle={program.title}
+                  matchScore={m.matchScore}
+                  matchReason={m.matchReason}
+                  status={m.status}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8 text-gray-400">
+              <Zap size={32} className="mx-auto mb-2 opacity-30" />
+              <p>Δεν υπάρχουν matches ακόμη.</p>
+              {isAdmin && <p className="text-sm">Πατήστε "Εκτέλεση Matching" για να τρέξετε τον αλγόριθμο.</p>}
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   )
 }
