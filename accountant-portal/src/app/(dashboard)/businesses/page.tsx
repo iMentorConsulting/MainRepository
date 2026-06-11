@@ -173,16 +173,14 @@ export default function BusinessesPage() {
 
   async function handleRefreshStatus() {
     const ids = Array.from(selected)
-    const msg = ids.length > 0
-      ? `Επανέλεγχος κατάστασης ${ids.length} επιχειρήσεων στην ΑΑΔΕ;`
-      : 'Επανέλεγχος κατάστασης ΟΛΩΝ των επιχειρήσεων στην ΑΑΔΕ; Αυτό μπορεί να πάρει αρκετή ώρα.'
-    if (!confirm(msg)) return
+    if (ids.length === 0) return
+    if (!confirm(`Επανέλεγχος κατάστασης ${ids.length} επιχειρήσεων στην ΑΑΔΕ;`)) return
     setRefreshingStatus(true)
     try {
       const res = await fetch('/api/businesses/refresh-status', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(ids.length > 0 ? { ids } : {}),
+        body: JSON.stringify({ ids }),
       })
       if (res.ok) {
         const data = await res.json()
@@ -415,16 +413,18 @@ export default function BusinessesPage() {
             >
               {inactiveOnly ? 'Προβολή Όλων' : 'Μόνο Ανενεργές'}
             </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              loading={refreshingStatus}
-              onClick={handleRefreshStatus}
-              title={selected.size > 0 ? 'Επανέλεγχος κατάστασης επιλεγμένων στην ΑΑΔΕ' : 'Επανέλεγχος κατάστασης όλων στην ΑΑΔΕ'}
-            >
-              <RefreshCw size={14} className="mr-1" />
-              {selected.size > 0 ? `Επανέλεγχος Κατάστασης (${selected.size})` : 'Επανέλεγχος Κατάστασης (Όλες)'}
-            </Button>
+            {isAdmin && selected.size > 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                loading={refreshingStatus}
+                onClick={handleRefreshStatus}
+                title="Επανέλεγχος κατάστασης επιλεγμένων στην ΑΑΔΕ"
+              >
+                <RefreshCw size={14} className="mr-1" />
+                {`Επανέλεγχος Κατάστασης (${selected.size})`}
+              </Button>
+            )}
             {(accountantFilter.length > 0 || legalStatusFilter.length > 0 || regionFilter.length > 0 || categoryFilter.length > 0 || perifereiaFilter.length > 0 || inactiveOnly) && (
               <Button
                 variant="ghost"

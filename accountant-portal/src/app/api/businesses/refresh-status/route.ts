@@ -5,21 +5,19 @@ import { lookupAfm } from '@/lib/gsis'
 
 // Re-checks businesses against ΑΑΔΕ to refresh deactivationFlag/deactivationFlagDescr/stopDate
 // (needed for businesses imported before these fields were persisted).
-// Body: { ids?: string[] } — when omitted, refreshes all businesses visible to the caller.
+// Admin-only, and requires a non-empty ids array (no bulk-refresh-all to avoid hammering ΑΑΔΕ).
+// Body: { ids: string[] }
 export async function POST(request: NextRequest) {
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
-  const isAdmin = session.user.role === 'ADMIN'
-  const accountantId = (session.user as any).accountantId
+  if (session.user.role !== 'ADMIN') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const { ids } = await request.json().catch(() => ({}))
+  if (!Array.isArray(ids) || ids.length === 0) {
+    return NextResponse.json({ error: 'Δεν επιλέχθηκαν επιχειρήσεις' }, { status: 400 })
+  }
 
-  const where: any = {}
-  if (Array.isArray(ids) && ids.length > 0) where.id = { in: ids }
-  if (!isAdmin && accountantId) where.accountantId = accountantId
-
-  const businesses = await prisma.business.findMany({ where, select: { id: true, afm: true } })
+  const businesses = await prisma.business.findMany({ where: { id: { in: ids } }, select: { id: true, afm: true } })
 
   let updated = 0
   let nowInactive = 0
