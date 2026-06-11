@@ -149,39 +149,71 @@ export default function ProgramDetailPage() {
         )}
       </div>
 
-      {program.videoUrls?.length > 0 && (
-        <Card>
-          <CardHeader><CardTitle>Βίντεο Παρουσίασης</CardTitle></CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
-              {program.videoUrls.map((url: string, i: number) => {
-                const videoId = getYoutubeId(url)
-                if (!videoId) return null
-                return (
-                  <div key={i} className="aspect-[9/16] rounded-lg overflow-hidden bg-black">
-                    <iframe
-                      src={`https://www.youtube.com/embed/${videoId}`}
-                      title={`Βίντεο ${i + 1}`}
-                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                      allowFullScreen
-                      className="w-full h-full"
-                    />
-                  </div>
-                )
-              })}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-6">
-          {program.description && (
+        {program.description && (
+          <Card>
+            <CardHeader><CardTitle>Περιγραφή</CardTitle></CardHeader>
+            <CardContent><p className="text-sm text-gray-700 leading-relaxed">{program.description}</p></CardContent>
+          </Card>
+        )}
+
+        {program.videoUrls?.length > 0 && (
+          <Card>
+            <CardHeader><CardTitle>Βίντεο Παρουσίασης</CardTitle></CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 gap-3">
+                {program.videoUrls.map((url: string, i: number) => {
+                  const videoId = getYoutubeId(url)
+                  if (!videoId) return null
+                  return (
+                    <div key={i} className="aspect-[9/16] rounded-lg overflow-hidden bg-black">
+                      <iframe
+                        src={`https://www.youtube.com/embed/${videoId}`}
+                        title={`Βίντεο ${i + 1}`}
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                        allowFullScreen
+                        className="w-full h-full"
+                      />
+                    </div>
+                  )
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        <div className="space-y-4 lg:row-span-2">
+          <Card>
+            <CardHeader><CardTitle>Πληροφορίες</CardTitle></CardHeader>
+            <CardContent className="space-y-3 text-sm">
+              <div className="flex justify-between">
+                <span className="text-gray-500">Έναρξη</span>
+                <span>{formatDate(program.startDate)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500">Λήξη</span>
+                <span>{formatDate(program.endDate)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500">Matches</span>
+                <span className="font-semibold">{program.matches?.length || 0}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500">Καμπάνιες</span>
+                <span>{program.campaigns?.length || 0}</span>
+              </div>
+            </CardContent>
+          </Card>
+
+          {program.internalNotes && isAdmin && (
             <Card>
-              <CardHeader><CardTitle>Περιγραφή</CardTitle></CardHeader>
-              <CardContent><p className="text-sm text-gray-700 leading-relaxed">{program.description}</p></CardContent>
+              <CardHeader><CardTitle>Εσωτερικές Σημειώσεις</CardTitle></CardHeader>
+              <CardContent><p className="text-sm text-gray-700">{program.internalNotes}</p></CardContent>
             </Card>
           )}
+        </div>
+
+        <div className="lg:col-span-2 space-y-6">
 
           {(program.minInvestment != null || program.maxInvestment != null || program.minSubsidyPct != null || program.maxSubsidyPct != null || program.minInterestRate != null || program.maxInterestRate != null || program.otherRequirements || program.websiteUrl) && (
             <Card>
@@ -331,37 +363,6 @@ export default function ProgramDetailPage() {
               )}
             </CardContent>
           </Card>
-        </div>
-
-        <div className="space-y-4">
-          <Card>
-            <CardHeader><CardTitle>Πληροφορίες</CardTitle></CardHeader>
-            <CardContent className="space-y-3 text-sm">
-              <div className="flex justify-between">
-                <span className="text-gray-500">Έναρξη</span>
-                <span>{formatDate(program.startDate)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-500">Λήξη</span>
-                <span>{formatDate(program.endDate)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-500">Matches</span>
-                <span className="font-semibold">{program.matches?.length || 0}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-500">Καμπάνιες</span>
-                <span>{program.campaigns?.length || 0}</span>
-              </div>
-            </CardContent>
-          </Card>
-
-          {program.internalNotes && isAdmin && (
-            <Card>
-              <CardHeader><CardTitle>Εσωτερικές Σημειώσεις</CardTitle></CardHeader>
-              <CardContent><p className="text-sm text-gray-700">{program.internalNotes}</p></CardContent>
-            </Card>
-          )}
         </div>
       </div>
     </div>
