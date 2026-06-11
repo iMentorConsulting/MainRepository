@@ -95,8 +95,8 @@
   .badge-orange { @apply badge bg-orange-50 text-orange-700 ring-1 ring-orange-100; }
 
   /* ─── Page layout ─── */
-  .page { @apply p-7 space-y-6 animate-fade-in; }
-  .page-header { @apply flex items-start justify-between; }
+  .page { @apply p-4 sm:p-7 space-y-6 animate-fade-in; }
+  .page-header { @apply flex flex-col sm:flex-row items-stretch sm:items-start justify-between gap-3; }
   .page-title { @apply text-2xl font-black text-slate-900 tracking-tight; }
   .page-sub { @apply text-sm text-slate-500 mt-0.5 font-normal; }
 

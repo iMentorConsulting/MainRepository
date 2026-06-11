@@ -32,7 +32,7 @@ export default function ExpensesForm({ record, onSave, onCancel }) {
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
           <label className="label">Ημερομηνία <span className="text-rose-500">*</span></label>
           <input type="date" className="input" {...register('date', { required: true })} />

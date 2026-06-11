@@ -178,7 +178,7 @@ export default function IncomeForm({ record, onSave, onCancel }) {
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
       <div>
         <SectionTitle>Στοιχεία Πελάτη</SectionTitle>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="col-span-2">
             <label className="label">Αναζήτηση Πελάτη</label>
             <CustomerSearch
@@ -217,7 +217,7 @@ export default function IncomeForm({ record, onSave, onCancel }) {
 
       <div>
         <SectionTitle>Οικονομικά Στοιχεία</SectionTitle>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="label">Ποσό Αίτησης (€)</label>
             <input type="number" step="0.01" className="input"
@@ -274,7 +274,7 @@ export default function IncomeForm({ record, onSave, onCancel }) {
 
       <div>
         <SectionTitle>Στοιχεία Πώλησης</SectionTitle>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
 
           {/* Agreement selection */}
           <div className="col-span-2">
@@ -316,7 +316,7 @@ export default function IncomeForm({ record, onSave, onCancel }) {
           {showNewAgreementForm && (
             <div className="col-span-2 p-4 bg-blue-50 border border-blue-200 rounded-lg space-y-3">
               <p className="text-sm font-semibold text-blue-700">Νέα Συμφωνία</p>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
                   <label className="label">Είδος Υπηρεσίας *</label>
                   <select className="input" value={newSA.service_type || ''} onChange={e => setNewSA(f => ({...f, service_type: e.target.value}))}>
@@ -379,7 +379,7 @@ export default function IncomeForm({ record, onSave, onCancel }) {
 
       <div>
         <SectionTitle>Τιμολόγιο</SectionTitle>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <F label="Αρ. Τιμολογίου" name="invoice_number" />
         </div>
         <label className="flex items-center gap-2.5 mt-4 cursor-pointer group">

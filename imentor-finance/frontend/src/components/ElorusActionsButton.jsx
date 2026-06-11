@@ -116,7 +116,7 @@ function InvoiceForm({ action, record, onClose, onDone }) {
           })}
         </div>
       </div>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
           <label className="label">Καθαρό Ποσό (€) *</label>
           <input type="number" step="0.01" className="input" value={amount} onChange={e => setAmount(e.target.value)} autoFocus />
@@ -185,7 +185,7 @@ function PaymentForm({ record, onClose, onDone }) {
           {ORGS.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
         </select>
       </div>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
           <label className="label">Ποσό (€)</label>
           <input type="number" step="0.01" className="input" value={amount} onChange={e => setAmount(e.target.value)} autoFocus />
@@ -241,7 +241,7 @@ function AfmResult({ record, onClose }) {
 
 export default function ElorusActionsButton({ record, onRefresh }) {
   const [open, setOpen] = useState(false);
-  const [dropPos, setDropPos] = useState({ top: 0, right: 0 });
+  const [dropPos, setDropPos] = useState({ top: 0, left: 0 });
   const [modal, setModal] = useState(null);
   const [finalizeOrgKey, setFinalizeOrgKey] = useState('DEFAULT');
   const [sendSelfOrgKey, setSendSelfOrgKey] = useState('DEFAULT');
@@ -270,7 +270,10 @@ export default function ElorusActionsButton({ record, onRefresh }) {
   const toggleOpen = () => {
     if (!open && btnRef.current) {
       const rect = btnRef.current.getBoundingClientRect();
-      setDropPos({ top: rect.bottom + 6, right: window.innerWidth - rect.right });
+      const dropWidth = Math.min(288, window.innerWidth - 16);
+      let left = rect.right - dropWidth;
+      left = Math.max(8, Math.min(left, window.innerWidth - dropWidth - 8));
+      setDropPos({ top: rect.bottom + 6, left });
     }
     setOpen(v => !v);
   };
@@ -309,8 +312,8 @@ export default function ElorusActionsButton({ record, onRefresh }) {
   const dropdown = open && createPortal(
     <div
       ref={dropRef}
-      style={{ position: 'fixed', top: dropPos.top, right: dropPos.right, zIndex: 9999 }}
-      className="w-72 rounded-2xl shadow-2xl border border-slate-200/80 bg-white overflow-hidden animate-scale-in"
+      style={{ position: 'fixed', top: dropPos.top, left: dropPos.left, width: 'min(288px, calc(100vw - 16px))', zIndex: 9999 }}
+      className="rounded-2xl shadow-2xl border border-slate-200/80 bg-white overflow-hidden animate-scale-in"
     >
       <div className="px-3 pt-3 pb-2 border-b border-slate-100">
         <div className="text-xs font-bold text-slate-700 truncate">{record.customer_name}</div>

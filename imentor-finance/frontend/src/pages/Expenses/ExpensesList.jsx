@@ -118,7 +118,7 @@ function CategorySummary({ byCategory }) {
         <h3 className="section-title mb-0">Σύνολο ανά Κατηγορία</h3>
         <span className="text-sm font-bold text-rose-600">{fmt(grandTotal)}</span>
       </div>
-      <div className="flex">
+      <div className="flex flex-col lg:flex-row">
         <div className="flex-1 min-w-0 divide-y divide-slate-50">
           {cats.map(([cat, { total, suppliers }], idx) => {
             const pct = grandTotal > 0 ? (total / grandTotal) * 100 : 0;
@@ -151,7 +151,7 @@ function CategorySummary({ byCategory }) {
             );
           })}
         </div>
-        <div className="w-64 shrink-0 flex items-center justify-center p-4 border-l border-slate-100">
+        <div className="w-full lg:w-64 shrink-0 flex items-center justify-center p-4 border-t lg:border-t-0 lg:border-l border-slate-100">
           <ResponsiveContainer width="100%" height={220}>
             <PieChart>
               <Pie data={pieData} cx="50%" cy="50%" outerRadius={95} dataKey="value"
@@ -265,8 +265,8 @@ export default function ExpensesList() {
           <h1 className="page-title">Έξοδα</h1>
           <p className="page-sub">{data.total.toLocaleString('el-GR')} εγγραφές σύνολο</p>
         </div>
-        <div className="flex items-center gap-2">
-          <button className="btn-ghost btn-sm text-rose-600 hover:bg-rose-50" onClick={async () => {
+        <div className="flex items-center gap-2 flex-wrap">
+          <button className="btn-ghost btn-sm text-rose-600 hover:bg-rose-50 flex-1 sm:flex-initial justify-center" onClick={async () => {
             if (!window.confirm('Διαγραφή ΟΛΩΝ των εγγραφών με 0€;')) return;
             try {
               const r = await api.delete('/expenses/zero');
@@ -276,11 +276,11 @@ export default function ExpensesList() {
           }}>
             Διαγρ. 0€
           </button>
-          <button className="btn-ghost btn-sm" onClick={handleExport}>
+          <button className="btn-ghost btn-sm flex-1 sm:flex-initial justify-center" onClick={handleExport}>
             <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path fillRule="evenodd" d="M10 3a.75.75 0 0 1 .75.75v8.69l2.22-2.22a.75.75 0 1 1 1.06 1.06l-3.5 3.5a.75.75 0 0 1-1.06 0l-3.5-3.5a.75.75 0 1 1 1.06-1.06l2.22 2.22V3.75A.75.75 0 0 1 10 3ZM5.75 16a.75.75 0 0 0 0 1.5h8.5a.75.75 0 0 0 0-1.5h-8.5Z" clipRule="evenodd"/></svg>
             Excel
           </button>
-          <button className="btn-primary" onClick={() => setModal({ open: true, record: null })}>
+          <button className="btn-primary flex-1 sm:flex-initial justify-center" onClick={() => setModal({ open: true, record: null })}>
             <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path d="M10.75 4.75a.75.75 0 0 0-1.5 0v4.5h-4.5a.75.75 0 0 0 0 1.5h4.5v4.5a.75.75 0 0 0 1.5 0v-4.5h4.5a.75.75 0 0 0 0-1.5h-4.5v-4.5Z"/></svg>
             Νέα Εγγραφή
           </button>
@@ -344,7 +344,44 @@ export default function ExpensesList() {
       <CategorySummary byCategory={data.by_category} />
 
       <div className="card overflow-hidden">
-        <div className="overflow-x-auto">
+        {/* Mobile card list */}
+        <div className="md:hidden divide-y divide-slate-100">
+          {data.data.map(r => (
+            <div key={r.id} className="p-4 space-y-2">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="font-semibold text-slate-700 truncate">{r.supplier || '—'}</div>
+                  <div className="text-xs text-slate-400 mt-0.5">{fmtDate(r.date)}</div>
+                </div>
+                <span className="font-bold text-rose-600 whitespace-nowrap shrink-0">{fmt(r.amount)}</span>
+              </div>
+              <div className="flex flex-wrap items-center gap-1.5">
+                {r.category
+                  ? <span className="badge-orange">{r.category}</span>
+                  : <span className="text-slate-300 text-xs">—</span>}
+                {r.related_service && <span className="text-xs text-slate-500">{r.related_service}</span>}
+              </div>
+              {r.description && <div className="text-xs text-slate-500">{r.description}</div>}
+              <div className="flex items-center gap-2 pt-1">
+                <button className="btn-secondary text-xs py-1 px-2" title="Αντιγραφή" onClick={() => handleDuplicate(r)}>📋</button>
+                <button onClick={() => setModal({ open: true, record: r })} className="btn-ghost btn-sm p-2 rounded-lg" title="Επεξεργασία">
+                  <svg viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5"><path d="M13.488 2.513a1.75 1.75 0 0 0-2.475 0L6.75 6.774a2.75 2.75 0 0 0-.596.892l-.633 1.73a.75.75 0 0 0 .963.963l1.73-.633a2.75 2.75 0 0 0 .892-.596l4.261-4.262a1.75 1.75 0 0 0 0-2.475ZM4.75 3.5c-.69 0-1.25.56-1.25 1.25v6.5c0 .69.56 1.25 1.25 1.25h6.5c.69 0 1.25-.56 1.25-1.25V9A.75.75 0 0 1 14 9v2.25A2.75 2.75 0 0 1 11.25 14h-6.5A2.75 2.75 0 0 1 2 11.25v-6.5A2.75 2.75 0 0 1 4.75 2H7a.75.75 0 0 1 0 1.5H4.75Z"/></svg>
+                </button>
+                <button onClick={() => setDeleteId(r.id)} className="p-2 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50 transition-colors">
+                  <svg viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5"><path fillRule="evenodd" d="M5 3.25V4H2.75a.75.75 0 0 0 0 1.5h.3l.815 8.15A1.5 1.5 0 0 0 5.357 15h5.285a1.5 1.5 0 0 0 1.493-1.35l.815-8.15h.3a.75.75 0 0 0 0-1.5H11v-.75A2.25 2.25 0 0 0 8.75 1h-1.5A2.25 2.25 0 0 0 5 3.25Zm2.25-.75a.75.75 0 0 0-.75.75V4h3v-.75a.75.75 0 0 0-.75-.75h-1.5ZM6.05 6a.75.75 0 0 1 .787.713l.275 5.5a.75.75 0 0 1-1.498.075l-.275-5.5A.75.75 0 0 1 6.05 6Zm3.9 0a.75.75 0 0 1 .712.787l-.275 5.5a.75.75 0 0 1-1.498-.075l.275-5.5a.75.75 0 0 1 .786-.711Z" clipRule="evenodd"/></svg>
+                </button>
+              </div>
+            </div>
+          ))}
+          {data.data.length === 0 && (
+            <div className="text-center text-slate-400 py-12">
+              <div className="text-3xl mb-2">🔍</div>
+              Δεν βρέθηκαν εγγραφές
+            </div>
+          )}
+        </div>
+        {/* Desktop table */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full">
             <thead>
               <tr>
