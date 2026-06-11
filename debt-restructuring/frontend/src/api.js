@@ -90,13 +90,22 @@ export const getLeadsReporting = () => api.get('/leads/reporting')
 // Health / diagnostics
 export const getHealth = () => api.get('/health')
 
-// Phone / PhoneLite — fires GET to PhoneLite's local HTTP API using Image()
-// Image() bypasses CORS and HTTPS→HTTP mixed-content restrictions (browser allows it for localhost)
-// PhoneLite must have HTTP interface enabled; default port 7070
+// Phone — hang up the active call in the user's softphone.
+// Tries two mechanisms:
+//  1. PhoneLite's local HTTP API via Image() (bypasses CORS/mixed-content for localhost)
+//     PhoneLite must have HTTP interface enabled; default port 7070
+//  2. MicroSIP's registered "msip:" URI scheme — MicroSIP parses "msip:hangupall"
+//     and hangs up all non-incoming calls (works if MicroSIP is installed and
+//     registered as the msip: protocol handler, the default on install)
 export const hangupCall = () => new Promise(resolve => {
   const img = new Image()
   img.onload = img.onerror = resolve
   img.src = `http://127.0.0.1:7070/hangup?_=${Date.now()}`
+  setTimeout(resolve, 500)
+}).then(() => {
+  try {
+    window.location.href = 'msip:hangupall'
+  } catch {}
 })
 
 // Leads — manual create
