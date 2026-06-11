@@ -8,10 +8,10 @@ const ICONS: Record<BusinessCategory, typeof Tag> = {
   'ΕΣΤΙΑΣΗ': UtensilsCrossed,
   'ΥΠΗΡΕΣΙΕΣ': Briefcase,
   'ΑΓΡΟΤΙΚΑ': Wheat,
-  'ΑΛΛΟ': Tag,
 }
 
-export function CategoryBadge({ category, size = 'sm' }: { category: BusinessCategory; size?: 'sm' | 'lg' }) {
+export function CategoryBadge({ category, size = 'sm' }: { category: BusinessCategory | null; size?: 'sm' | 'lg' }) {
+  if (!category) return <span className="text-slate-400 text-xs">-</span>
   const Icon = ICONS[category] || Tag
   const color = CATEGORY_COLORS[category] || '#6b7280'
   const isLg = size === 'lg'

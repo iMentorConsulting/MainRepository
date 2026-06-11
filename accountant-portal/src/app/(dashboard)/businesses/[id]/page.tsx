@@ -55,7 +55,7 @@ export default function BusinessDetailPage() {
 
   function setCategory(category: string) {
     const otherTags = (business.tags || []).filter((t: string) => !t.startsWith(CATEGORY_TAG_PREFIX))
-    saveTags([...otherTags, categoryTag(category as any)])
+    saveTags(category ? [...otherTags, categoryTag(category as any)] : otherTags)
   }
 
   function addTag(tag: string) {
@@ -128,11 +128,12 @@ export default function BusinessDetailPage() {
             )}
             <CategoryBadge category={getEffectiveCategory(business)} size="lg" />
             <select
-              value={getEffectiveCategory(business)}
+              value={getEffectiveCategory(business) || ''}
               onChange={e => setCategory(e.target.value)}
               className="text-xs border border-gray-300 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white"
               title="Αλλαγή κλάδου"
             >
+              <option value="">-</option>
               {ALL_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
             {resolveRegionFromZip(business.postalZipCode) && (
@@ -206,7 +207,7 @@ export default function BusinessDetailPage() {
                 </div>
                 <div>
                   <dt className="text-gray-500">Κατάσταση</dt>
-                  <dd>{business.deactivationFlagDescr || 'Ενεργή'}</dd>
+                  <dd>{business.deactivationFlag === 'Y' ? (business.deactivationFlagDescr || 'Ανενεργή') : 'Ενεργή'}</dd>
                 </div>
               </dl>
             </CardContent>

@@ -24,6 +24,8 @@ const schema = z.object({
   postalZipCode: z.string().optional(),
   postalAreaDescription: z.string().optional(),
   doyDescr: z.string().optional(),
+  deactivationFlag: z.string().optional(),
+  deactivationFlagDescr: z.string().optional(),
   email: z.string().email().optional().or(z.literal('')),
   phone: z.string().optional(),
   viberPhone: z.string().optional(),
@@ -72,6 +74,8 @@ export default function NewBusinessPage() {
     setValue('postalZipCode', data.postalZipCode)
     setValue('postalAreaDescription', data.postalAreaDescription)
     setValue('doyDescr', data.doyDescr)
+    setValue('deactivationFlag', data.deactivationFlag)
+    setValue('deactivationFlagDescr', data.deactivationFlagDescr)
     setActivities(data.activities || [])
   }
 

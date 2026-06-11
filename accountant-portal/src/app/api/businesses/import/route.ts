@@ -107,6 +107,8 @@ export async function POST(request: NextRequest) {
         update: {
           ...(phone ? { phone } : {}),
           ...(email ? { email } : {}),
+          ...(businessData.deactivationFlag !== undefined ? { deactivationFlag: businessData.deactivationFlag || null } : {}),
+          ...(businessData.deactivationFlagDescr !== undefined ? { deactivationFlagDescr: businessData.deactivationFlagDescr || null } : {}),
         },
         create: {
           afm,
@@ -120,6 +122,8 @@ export async function POST(request: NextRequest) {
           postalAreaDescription: businessData.postalAreaDescription || null,
           doy: businessData.doy || null,
           doyDescr: businessData.doyDescr || null,
+          deactivationFlag: businessData.deactivationFlag || null,
+          deactivationFlagDescr: businessData.deactivationFlagDescr || null,
           phone,
           email,
           accountantId,

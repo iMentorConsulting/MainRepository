@@ -1,8 +1,8 @@
 // Maps a business's primary ΚΑΔ (NACE activity code) to one of the major
 // portfolio categories used for reporting/segmentation.
 export const BUSINESS_CATEGORIES = ['ΤΟΥΡΙΣΜΟΣ', 'ΕΜΠΟΡΙΟ', 'ΜΕΤΑΠΟΙΗΣΗ', 'ΕΣΤΙΑΣΗ', 'ΥΠΗΡΕΣΙΕΣ', 'ΑΓΡΟΤΙΚΑ'] as const
-export type BusinessCategory = typeof BUSINESS_CATEGORIES[number] | 'ΑΛΛΟ'
-export const ALL_CATEGORIES: BusinessCategory[] = [...BUSINESS_CATEGORIES, 'ΑΛΛΟ']
+export type BusinessCategory = typeof BUSINESS_CATEGORIES[number]
+export const ALL_CATEGORIES: BusinessCategory[] = [...BUSINESS_CATEGORIES]
 
 // lucide-react icon name for each category (used to render a representative pic/icon)
 export const CATEGORY_ICONS: Record<BusinessCategory, string> = {
@@ -12,7 +12,6 @@ export const CATEGORY_ICONS: Record<BusinessCategory, string> = {
   'ΕΣΤΙΑΣΗ': 'UtensilsCrossed',
   'ΥΠΗΡΕΣΙΕΣ': 'Briefcase',
   'ΑΓΡΟΤΙΚΑ': 'Wheat',
-  'ΑΛΛΟ': 'Tag',
 }
 
 // Brand color for each category, used for badges/icons
@@ -23,7 +22,6 @@ export const CATEGORY_COLORS: Record<BusinessCategory, string> = {
   'ΕΣΤΙΑΣΗ': '#dc2626',
   'ΥΠΗΡΕΣΙΕΣ': '#7c3aed',
   'ΑΓΡΟΤΙΚΑ': '#65a30d',
-  'ΑΛΛΟ': '#6b7280',
 }
 
 // 2-digit NACE division -> category
@@ -51,11 +49,13 @@ function isManufacturing(division: number): boolean {
 }
 
 // Resolves a category from a business's primary ΚΑΔ code (e.g. "56.10" or "5610").
-export function categorizeByKad(firmActCode: string | null | undefined): BusinessCategory {
-  if (!firmActCode) return 'ΑΛΛΟ'
+// Returns null when the business has no primary ΚΑΔ, or is a special-regime
+// farmer (ΚΑΔ 1000000) — both are treated as ΙΔΙΩΤΕΣ and get no category at all.
+export function categorizeByKad(firmActCode: string | null | undefined): BusinessCategory | null {
+  if (!firmActCode) return null
   const digits = firmActCode.replace(/\D/g, '')
-  if (digits.length < 2) return 'ΑΛΛΟ'
-  if (digits.startsWith(FARMER_SPECIAL_REGIME_CODE)) return 'ΑΓΡΟΤΙΚΑ'
+  if (digits.length < 2) return null
+  if (digits.startsWith(FARMER_SPECIAL_REGIME_CODE)) return null
   const division2 = digits.slice(0, 2)
   if (DIVISION_TO_CATEGORY[division2]) return DIVISION_TO_CATEGORY[division2]
   const divisionNum = parseInt(division2, 10)
@@ -84,7 +84,7 @@ export function getCategoryOverride(tags: string[] | null | undefined): Business
 export function getEffectiveCategory(business: {
   tags?: string[] | null
   activities?: Array<{ firmActCode?: string | null; firmActKind?: number | null }>
-}): BusinessCategory {
+}): BusinessCategory | null {
   const override = getCategoryOverride(business.tags)
   if (override) return override
   const primary = business.activities?.find(a => a.firmActKind === 1) || business.activities?.[0]
@@ -110,9 +110,6 @@ export function categoryWhereClause(category: BusinessCategory): any {
       : MANUFACTURING_DIVISIONS
 
     const divisionConditions: any[] = divisions.map(d => ({ firmActCode: { startsWith: d } }))
-    if (category === 'ΑΓΡΟΤΙΚΑ') {
-      divisionConditions.push({ firmActCode: { startsWith: FARMER_SPECIAL_REGIME_CODE } })
-    }
 
     let activityMatch: any = { firmActKind: 1, OR: divisionConditions }
     if (category === 'ΜΕΤΑΠΟΙΗΣΗ') {
@@ -128,21 +125,19 @@ export function categoryWhereClause(category: BusinessCategory): any {
     }
   }
 
+  // ΥΠΗΡΕΣΙΕΣ — primary ΚΑΔ outside all known divisions, and not the special-regime farmer code
   const allKnownDivisions = Object.keys(DIVISION_TO_CATEGORY).concat(MANUFACTURING_DIVISIONS)
-  if (category === 'ΥΠΗΡΕΣΙΕΣ') {
-    return {
-      OR: [
-        { tags: { has: overrideTag } },
-        { activities: { some: { firmActKind: 1, NOT: { OR: allKnownDivisions.map(d => ({ firmActCode: { startsWith: d } })) } } } },
-      ],
-    }
-  }
-
-  // ΑΛΛΟ — no primary ΚΑΔ at all
   return {
     OR: [
       { tags: { has: overrideTag } },
-      { activities: { none: { firmActKind: 1 } } },
+      {
+        activities: {
+          some: {
+            firmActKind: 1,
+            NOT: { OR: [...allKnownDivisions.map(d => ({ firmActCode: { startsWith: d } })), { firmActCode: { startsWith: FARMER_SPECIAL_REGIME_CODE } }] },
+          },
+        },
+      },
     ],
   }
 }

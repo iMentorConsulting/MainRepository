@@ -100,7 +100,7 @@ export default function BusinessesPage() {
       sortDir,
       ...(search ? { search } : {}),
       ...(accountantFilter.length ? { accountantIds: accountantFilter.join(',') } : {}),
-      ...(legalStatusFilter.length ? { legalStatuses: legalStatusFilter.join(',') } : (!includeIndividuals ? { excludeLegalStatuses: 'ΙΔΙΩΤΗΣ' } : {})),
+      ...(legalStatusFilter.length ? { legalStatuses: legalStatusFilter.join(',') } : (!includeIndividuals ? { excludeIndividualLike: '1' } : {})),
       ...(regionFilter.length ? { regions: regionFilter.join(',') } : {}),
       ...(categoryFilter.length ? { categories: categoryFilter.join(',') } : {}),
       ...(perifereiaFilter.length ? { perifereies: perifereiaFilter.join(',') } : {}),
@@ -373,9 +373,9 @@ export default function BusinessesPage() {
                 variant={includeIndividuals ? 'outline' : 'ghost'}
                 size="sm"
                 onClick={() => setIncludeIndividuals(v => !v)}
-                title="Από προεπιλογή κρύβονται οι επιχειρήσεις με νομική μορφή «ΙΔΙΩΤΗΣ»"
+                title="Από προεπιλογή κρύβονται οι ιδιώτες, οι αγρότες ειδικού καθεστώτος και οι εγγραφές χωρίς ΚΑΔ"
               >
-                {includeIndividuals ? 'Απόκρυψη Ιδιωτών' : 'Εμφάνιση Ιδιωτών'}
+                {includeIndividuals ? 'Απόκρυψη Ιδιωτών & Αγροτών Ειδ.Καθεστ.' : 'Εμφάνιση Ιδιωτών & Αγροτών Ειδ.Καθεστ.'}
               </Button>
             )}
             {(accountantFilter.length > 0 || legalStatusFilter.length > 0 || regionFilter.length > 0 || categoryFilter.length > 0 || perifereiaFilter.length > 0) && (

@@ -89,6 +89,7 @@ export async function GET(request: NextRequest) {
   const categoryGroups: Record<string, number> = {}
   for (const b of businesses) {
     const category = categorizeByKad(b.activities[0]?.firmActCode)
+    if (!category) continue
     categoryGroups[category] = (categoryGroups[category] || 0) + 1
   }
   const businessesByCategory = Object.entries(categoryGroups)
