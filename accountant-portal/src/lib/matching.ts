@@ -307,12 +307,18 @@ export async function notifyBatchMatchesForBusinesses(businessIds: string[]): Pr
   const matches = await prisma.programMatch.findMany({
     where: { businessId: { in: businessIds }, notified: false, matchScore: { gte: 40 } },
     include: {
-      program: { select: { id: true, title: true, otherRequirements: true } },
+      program: { select: { id: true, title: true, extraCriteriaIds: true } },
       business: { select: { id: true, accountantId: true, onomasia: true, afm: true } },
     },
   })
 
   if (matches.length === 0) return
+
+  const allCriteriaIds = Array.from(new Set(matches.flatMap(m => m.program.extraCriteriaIds || [])))
+  const criteriaList = allCriteriaIds.length
+    ? await prisma.eligibilityCriterion.findMany({ where: { id: { in: allCriteriaIds } }, select: { id: true, label: true } })
+    : []
+  const criteriaMap = new Map(criteriaList.map(c => [c.id, c.label]))
 
   // Group by accountant, then by program
   const byAccountant = new Map<string, typeof matches>()
@@ -355,10 +361,13 @@ export async function notifyBatchMatchesForBusinesses(businessIds: string[]): Pr
         `<li>${m.business.onomasia || 'Άγνωστη επιχείρηση'} (ΑΦΜ: ${m.business.afm})</li>`
       ).join('')
 
-      const requirementsHtml = program.otherRequirements
+      const criteriaLabels = (program.extraCriteriaIds || []).map(id => criteriaMap.get(id)).filter(Boolean) as string[]
+      const requirementsHtml = criteriaLabels.length
         ? `<div style="background: #f3f4f6; border-left: 4px solid #6b7280; padding: 16px; border-radius: 6px; margin: 20px 0;">
-             <p style="margin: 0; color: #374151; font-size: 14px; font-weight: bold;">Πρόσθετες Προϋποθέσεις Προγράμματος:</p>
-             <p style="margin: 8px 0 0; color: #374151; font-size: 14px; white-space: pre-line;">${program.otherRequirements}</p>
+             <p style="margin: 0; color: #374151; font-size: 14px; font-weight: bold;">Πρόσθετες Προϋποθέσεις (Manual Check):</p>
+             <ul style="margin: 8px 0 0; padding-left: 20px; color: #374151; font-size: 14px;">
+               ${criteriaLabels.map(l => `<li>${l}</li>`).join('')}
+             </ul>
            </div>`
         : ''
 
@@ -383,9 +392,9 @@ export async function notifyBatchMatchesForBusinesses(businessIds: string[]): Pr
               </div>
               ${requirementsHtml}
               <div style="background: #fef3c7; border-left: 4px solid #f59e0b; padding: 16px; border-radius: 6px; margin: 20px 0;">
-                <p style="margin: 0; color: #92400e; font-size: 14px; font-weight: bold;">⏰ Μην χάσετε την ευκαιρία!</p>
+                <p style="margin: 0; color: #92400e; font-size: 14px; font-weight: bold;">⏰ Μην χάσουν την ευκαιρία οι πελάτες σας!</p>
                 <p style="margin: 8px 0 0; color: #92400e; font-size: 14px;">
-                  Στείλτε καμπάνια στους πελάτες σας τώρα και κερδίστε προμήθειες.
+                  Οι προθεσμίες υποβολής είναι περιορισμένες — στείλτε τώρα την καμπάνια ώστε οι πελάτες σας να επωφεληθούν έγκαιρα από το πρόγραμμα (και να εξασφαλίσετε παράλληλα την προμήθειά σας).
                 </p>
               </div>
               <div style="text-align: center; margin: 24px 0;">

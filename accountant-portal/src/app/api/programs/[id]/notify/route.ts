@@ -90,9 +90,9 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
             </div>
             ${requirementsHtml}
             <div style="background: #fef3c7; border-left: 4px solid #f59e0b; padding: 16px; border-radius: 6px; margin: 20px 0;">
-              <p style="margin: 0; color: #92400e; font-size: 14px; font-weight: bold;">⏰ Μην χάσετε την ευκαιρία!</p>
+              <p style="margin: 0; color: #92400e; font-size: 14px; font-weight: bold;">⏰ Μην χάσουν την ευκαιρία οι πελάτες σας!</p>
               <p style="margin: 8px 0 0; color: #92400e; font-size: 14px;">
-                Στείλτε καμπάνια στους πελάτες σας τώρα και κερδίστε προμήθειες.
+                Οι προθεσμίες υποβολής είναι περιορισμένες — στείλτε τώρα την καμπάνια ώστε οι πελάτες σας να επωφεληθούν έγκαιρα από το πρόγραμμα (και να εξασφαλίσετε παράλληλα την προμήθειά σας).
               </p>
             </div>
             <div style="text-align: center; margin: 24px 0;">

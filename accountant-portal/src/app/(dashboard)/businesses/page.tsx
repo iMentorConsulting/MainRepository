@@ -273,7 +273,7 @@ export default function BusinessesPage() {
                 🔍 Αναζήτηση μέσω ΑΦΜ (1 πελάτης)
               </button>
             </Link>
-            <Link href="/businesses/new">
+            <Link href="/businesses/new?mode=excel">
               <button className="bg-indigo-500 border-2 border-white/40 text-white font-bold px-8 py-3 rounded-xl text-base hover:bg-indigo-400 transition-colors w-full sm:w-auto">
                 📊 Μαζική Εισαγωγή από Excel
               </button>
