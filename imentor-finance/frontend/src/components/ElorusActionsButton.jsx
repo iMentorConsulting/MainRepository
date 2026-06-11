@@ -273,7 +273,13 @@ export default function ElorusActionsButton({ record, onRefresh }) {
       const dropWidth = Math.min(288, window.innerWidth - 16);
       let left = rect.right - dropWidth;
       left = Math.max(8, Math.min(left, window.innerWidth - dropWidth - 8));
-      setDropPos({ top: rect.bottom + 6, left });
+      const spaceBelow = window.innerHeight - rect.bottom - 12;
+      const spaceAbove = rect.top - 12;
+      const openUp = spaceBelow < 280 && spaceAbove > spaceBelow;
+      const maxHeight = Math.max(150, openUp ? spaceAbove : spaceBelow);
+      setDropPos(openUp
+        ? { left, bottom: window.innerHeight - rect.top + 6, maxHeight }
+        : { left, top: rect.bottom + 6, maxHeight });
     }
     setOpen(v => !v);
   };
@@ -312,8 +318,15 @@ export default function ElorusActionsButton({ record, onRefresh }) {
   const dropdown = open && createPortal(
     <div
       ref={dropRef}
-      style={{ position: 'fixed', top: dropPos.top, left: dropPos.left, width: 'min(288px, calc(100vw - 16px))', zIndex: 9999 }}
-      className="rounded-2xl shadow-2xl border border-slate-200/80 bg-white overflow-hidden animate-scale-in"
+      style={{
+        position: 'fixed',
+        ...(dropPos.top != null ? { top: dropPos.top } : { bottom: dropPos.bottom }),
+        left: dropPos.left,
+        width: 'min(288px, calc(100vw - 16px))',
+        maxHeight: dropPos.maxHeight,
+        zIndex: 9999,
+      }}
+      className="rounded-2xl shadow-2xl border border-slate-200/80 bg-white overflow-y-auto animate-scale-in"
     >
       <div className="px-3 pt-3 pb-2 border-b border-slate-100">
         <div className="text-xs font-bold text-slate-700 truncate">{record.customer_name}</div>
