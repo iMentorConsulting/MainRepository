@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
 import { format, parseISO, differenceInDays, isPast } from 'date-fns'
 import { el } from 'date-fns/locale'
@@ -12,10 +13,12 @@ import {
   BellIcon,
   LinkIcon,
   PencilIcon,
+  BriefcaseIcon,
 } from '@heroicons/react/24/outline'
 import * as api from '../api'
 
 const EMPLOYEES = ['STELLA', 'VALLIA', 'SOFIA']
+const CASE_EMPLOYEES = ['STELLA', 'VALLIA', 'SOFIA', 'HARIS']
 const PAGE_SIZE = 50
 const AGENT_SHORT = { HARIS: 'H', SOFIA: 'S', VALLIA: 'V', STELLA: 'S', system: '⚙', Sheet: '📋' }
 
@@ -975,7 +978,37 @@ function AppNumberEdit({ lead, onUpdate }) {
 // ── Expanded inline row ─────────────────────────────────────────────────────
 function ExpandedRow({ lead, currentEmployee, onUpdate, colCount, templates, taxisnetLinks, allLeads }) {
   const [tab, setTab] = useState('comments')
+  const [creatingCase, setCreatingCase] = useState(false)
+  const navigate = useNavigate()
   const commentCount = (lead.app_comments?.length || 0) + (lead.sheet_comments ? 1 : 0)
+
+  const handleCreateCase = async () => {
+    setCreatingCase(true)
+    try {
+      const employee = CASE_EMPLOYEES.includes(lead.assigned_to) ? lead.assigned_to : currentEmployee
+      const notesParts = []
+      if (lead.total_debt) notesParts.push(`Σύνολο Οφειλών (από Lead): ${lead.total_debt}`)
+      if (lead.sheet_comments) notesParts.push(`Σχόλια Lead: ${lead.sheet_comments}`)
+      const res = await api.createCase({
+        client_name: lead.name || '',
+        client_phone: lead.phone || '',
+        client_email: lead.email || '',
+        employee,
+        status: 'draft',
+        contact_stage: 'Νέα Ανάλυση',
+        notes: notesParts.join('\n'),
+      })
+      const newCase = res.data
+      const patched = await api.patchLead(lead.id, { linked_case_id: newCase.id })
+      onUpdate(patched.data)
+      toast.success('Η υπόθεση δημιουργήθηκε ✓')
+      navigate(`/cases/${newCase.id}/edit`)
+    } catch {
+      toast.error('Σφάλμα δημιουργίας υπόθεσης')
+    } finally {
+      setCreatingCase(false)
+    }
+  }
 
   const myPhone = formatPhone(lead.phone)
   const myEmail = (lead.email || '').toLowerCase()
@@ -1009,6 +1042,12 @@ function ExpandedRow({ lead, currentEmployee, onUpdate, colCount, templates, tax
           )}
           {/* Info + Tabs on one line */}
           <div className="flex flex-wrap items-center gap-2 text-xs text-gray-600 mb-3 pb-2 border-b border-gray-200">
+            {!lead.linked_case_id && (
+              <button onClick={handleCreateCase} disabled={creatingCase}
+                className="bg-emerald-50 border border-emerald-300 text-emerald-700 hover:bg-emerald-100 font-semibold px-2 py-0.5 rounded flex items-center gap-1 disabled:opacity-50">
+                <BriefcaseIcon className="w-3.5 h-3.5" /> {creatingCase ? 'Δημιουργία…' : 'Δημιουργία Υπόθεσης'}
+              </button>
+            )}
             {lead.service_type && <span className="bg-blue-50 px-2 py-0.5 rounded"><span className="font-semibold">Υπηρεσία:</span> {lead.service_type}</span>}
             {lead.referrer && <span className="bg-gray-50 border border-gray-200 px-2 py-0.5 rounded"><span className="font-semibold">Referrer:</span> {lead.referrer}</span>}
             <AppNumberEdit lead={lead} onUpdate={onUpdate} />

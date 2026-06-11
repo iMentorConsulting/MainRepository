@@ -1181,7 +1181,15 @@ function buildWinbackTemplates(c) {
   const fmtOrigApp = Number(origApp).toLocaleString('el-GR')
   const fmtOrigSuc = Number(origSuc).toLocaleString('el-GR')
 
-  return [
+  const validUntil = c.commercial_offer?.winback_offer_valid_until
+  let validUntilLine = ''
+  if (validUntil) {
+    const vDate = new Date(validUntil)
+    const daysLeft = Math.max(0, Math.ceil((vDate - new Date()) / (1000 * 60 * 60 * 24)))
+    validUntilLine = `\n\n⏰ Η προσφορά ισχύει έως **${format(vDate, 'dd/MM/yyyy')}** (${daysLeft} ημέρες ακόμα).`
+  }
+
+  const templates = [
     {
       id: 'special-price',
       icon: '💎',
@@ -1276,6 +1284,8 @@ ${totalDebt > 0 ? `Οι οφειλές των ${debtK} € δεν εξαφανί
 Η ομάδα iMentor`,
     },
   ]
+
+  return validUntilLine ? templates.map(t => ({ ...t, text: t.text + validUntilLine })) : templates
 }
 
 function WinbackComposer({ c, onSend, onClose }) {
@@ -1382,6 +1392,8 @@ function WinbackPanel({ cases, onCasesUpdate }) {
   const now = new Date()
 
   const candidates = cases.filter(c => {
+    // Emergency win-back requests (from the case detail page) bypass all other conditions
+    if (c.commercial_offer?.winback_requested) return true
     if (c.contact_stage !== 'Δεν Ενδιαφέρεται') return false
     const ws = c.commercial_offer?.winback_status
     if (ws === 'approved' || ws === 'sent') return false
@@ -1447,10 +1459,11 @@ function WinbackPanel({ cases, onCasesUpdate }) {
           </p>
           <div className="space-y-2">
             {candidates.map(c => {
+              const isEmergency = !!c.commercial_offer?.winback_requested
               const origApp = c.commercial_offer?.application_fee || c.commercial_offer?.system_app || 0
               const origSuc = c.commercial_offer?.success_fee || c.commercial_offer?.system_suc || 0
-              const defaultApp = Math.round(origApp * 0.7 / 10) * 10
-              const defaultSuc = Math.round(origSuc * 0.7 / 10) * 10
+              const defaultApp = c.commercial_offer?.winback_app_suggested ?? Math.round(origApp * 0.7 / 10) * 10
+              const defaultSuc = c.commercial_offer?.winback_suc_suggested ?? Math.round(origSuc * 0.7 / 10) * 10
               const edit = edits[c.id] || {}
               const wbApp = edit.app !== undefined ? edit.app : defaultApp
               const wbSuc = edit.suc !== undefined ? edit.suc : defaultSuc
@@ -1458,10 +1471,16 @@ function WinbackPanel({ cases, onCasesUpdate }) {
               const ref = c.stage_changed_at || c.updated_at
               const days = ref ? Math.floor((now - new Date(ref)) / (1000 * 60 * 60 * 24)) : '?'
               return (
-                <div key={c.id} className="bg-white border border-violet-200 rounded-xl p-3 flex flex-wrap items-center gap-3">
+                <div key={c.id} className={`bg-white border rounded-xl p-3 flex flex-wrap items-center gap-3 ${isEmergency ? 'border-amber-300 ring-1 ring-amber-200' : 'border-violet-200'}`}>
                   <div className="flex-1 min-w-0">
                     <div className="font-bold text-gray-800 truncate">{c.client_name}</div>
                     <div className="text-xs text-gray-500">{c.employee} · {days} ημέρες</div>
+                    {isEmergency && (
+                      <div className="text-xs text-amber-700 font-semibold mt-0.5">
+                        🚨 Έκτακτο αίτημα από {c.commercial_offer.winback_requested_by}
+                        {c.commercial_offer.winback_request_note && <> — «{c.commercial_offer.winback_request_note}»</>}
+                      </div>
+                    )}
                   </div>
                   <div className="flex gap-3 text-sm">
                     <div className="text-center">
@@ -1522,8 +1541,15 @@ function WinbackPanel({ cases, onCasesUpdate }) {
                       <div className="font-bold text-gray-800 truncate">{c.client_name}</div>
                       <div className="text-xs text-gray-500">{c.employee}</div>
                     </div>
-                    <div className="font-black text-green-700 text-sm">
-                      {Number(wbApp).toLocaleString('el-GR')}€ + {Number(wbSuc).toLocaleString('el-GR')}€
+                    <div className="text-right">
+                      <div className="font-black text-green-700 text-sm">
+                        {Number(wbApp).toLocaleString('el-GR')}€ + {Number(wbSuc).toLocaleString('el-GR')}€
+                      </div>
+                      {c.commercial_offer?.winback_offer_valid_until && (
+                        <div className="text-xs text-gray-400">
+                          Ισχύει έως {format(new Date(c.commercial_offer.winback_offer_valid_until), 'dd/MM/yyyy')}
+                        </div>
+                      )}
                     </div>
                     <button
                       onClick={() => setOpenComposer(isOpen ? null : c.id)}

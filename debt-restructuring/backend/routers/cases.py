@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List, Optional
-from datetime import datetime
+from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 from pydantic import BaseModel
 import os, json, base64, time
@@ -316,6 +316,40 @@ class WinbackApprove(BaseModel):
     winback_suc: Optional[float] = None
 
 
+WINBACK_VALIDITY_DAYS = 10
+
+
+class WinbackRequest(BaseModel):
+    employee: str
+    winback_app: Optional[float] = None  # agent-suggested amounts for the admin to review
+    winback_suc: Optional[float] = None
+    note: str = ""
+
+
+@router.post("/{id}/request-winback", response_model=CaseResponse)
+def request_winback(id: int, data: WinbackRequest, db: Session = Depends(get_db)):
+    """Agent-initiated emergency win-back request from the case detail page.
+    Surfaces the case in the admin's Win-back panel regardless of contact_stage,
+    days elapsed, or any previous winback_status."""
+    case = db.query(Case).filter(Case.id == id).first()
+    if not case:
+        raise HTTPException(status_code=404, detail="Η υπόθεση δεν βρέθηκε")
+    offer = dict(case.commercial_offer or {})
+    offer["winback_requested"] = True
+    offer["winback_requested_by"] = data.employee
+    offer["winback_requested_at"] = _now().isoformat()
+    offer["winback_request_note"] = data.note
+    if data.winback_app is not None:
+        offer["winback_app_suggested"] = data.winback_app
+    if data.winback_suc is not None:
+        offer["winback_suc_suggested"] = data.winback_suc
+    case.commercial_offer = offer
+    case.updated_at = _now()
+    db.commit()
+    db.refresh(case)
+    return case
+
+
 @router.post("/{id}/approve-winback", response_model=CaseResponse)
 def approve_winback(id: int, data: WinbackApprove, db: Session = Depends(get_db)):
     case = db.query(Case).filter(Case.id == id).first()
@@ -337,8 +371,15 @@ def approve_winback(id: int, data: WinbackApprove, db: Session = Depends(get_db)
         offer["winback_suc"] = max(wb_suc, 10)
         offer["winback_status"] = "approved"
         offer["winback_saving"] = round((orig_app - offer["winback_app"]) + (orig_suc - offer["winback_suc"]))
+        offer["winback_offer_valid_until"] = (_now() + timedelta(days=WINBACK_VALIDITY_DAYS)).date().isoformat()
     else:
         offer["winback_status"] = "dismissed"
+    offer.pop("winback_requested", None)
+    offer.pop("winback_requested_by", None)
+    offer.pop("winback_requested_at", None)
+    offer.pop("winback_request_note", None)
+    offer.pop("winback_app_suggested", None)
+    offer.pop("winback_suc_suggested", None)
     case.commercial_offer = offer
     case.updated_at = _now()
     db.commit()

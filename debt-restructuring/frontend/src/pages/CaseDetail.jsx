@@ -475,6 +475,9 @@ export default function CaseDetail({ currentEmployee }) {
   const [emailModalOpen, setEmailModalOpen] = useState(false)
   const [stageUpdating, setStageUpdating] = useState(false)
   const [portalUpdating, setPortalUpdating] = useState(false)
+  const [winbackFormOpen, setWinbackFormOpen] = useState(false)
+  const [winbackSubmitting, setWinbackSubmitting] = useState(false)
+  const [winbackForm, setWinbackForm] = useState({ app: '', suc: '', note: '' })
   const viberRef = useRef(null)
 
   useEffect(() => {
@@ -540,6 +543,23 @@ export default function CaseDetail({ currentEmployee }) {
       toast.success('Στάδιο ενημερώθηκε')
     } catch { toast.error('Σφάλμα') }
     finally { setStageUpdating(false) }
+  }
+
+  const handleRequestWinback = async () => {
+    setWinbackSubmitting(true)
+    try {
+      await api.requestWinback(id, {
+        employee: currentEmployee,
+        winback_app: winbackForm.app === '' ? undefined : Number(winbackForm.app),
+        winback_suc: winbackForm.suc === '' ? undefined : Number(winbackForm.suc),
+        note: winbackForm.note,
+      })
+      toast.success('Το αίτημα έκτακτης τιμής στάλθηκε στο Οικονομικό Dashboard ✓')
+      setWinbackFormOpen(false)
+      setWinbackForm({ app: '', suc: '', note: '' })
+      load()
+    } catch { toast.error('Σφάλμα αποστολής αιτήματος') }
+    finally { setWinbackSubmitting(false) }
   }
 
   const openViberModal = (type, label) => {
@@ -822,11 +842,64 @@ export default function CaseDetail({ currentEmployee }) {
               <div className="flex gap-6 text-xs text-gray-600">
                 <span>Αίτηση: <strong className="text-violet-700">{Number(caseData.commercial_offer.winback_app || 0).toLocaleString('el-GR')} €</strong></span>
                 <span>Success fee: <strong className="text-violet-700">{Number(caseData.commercial_offer.winback_suc || 0).toLocaleString('el-GR')} €</strong></span>
+                {caseData.commercial_offer.winback_offer_valid_until && (
+                  <span>Ισχύει έως: <strong className="text-violet-700">{format(new Date(caseData.commercial_offer.winback_offer_valid_until), 'dd/MM/yyyy')}</strong></span>
+                )}
               </div>
             </div>
           )}
         </div>
       )}
+
+      {/* Emergency win-back request — available for all cases */}
+      <div className="card mb-5 bg-blue-50 border border-blue-200">
+        {caseData.commercial_offer?.winback_requested ? (
+          <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+            🚨 Στάλθηκε αίτημα έκτακτης τιμής win-back από <strong>{caseData.commercial_offer.winback_requested_by}</strong>
+            {caseData.commercial_offer.winback_requested_at && (
+              <> στις {format(new Date(caseData.commercial_offer.winback_requested_at), 'dd/MM/yyyy HH:mm')}</>
+            )} — αναμονή έγκρισης από Οικονομικό Dashboard.
+            {caseData.commercial_offer.winback_request_note && (
+              <div className="mt-1 italic">«{caseData.commercial_offer.winback_request_note}»</div>
+            )}
+          </div>
+        ) : winbackFormOpen ? (
+          <div className="space-y-2">
+            <p className="text-xs font-bold text-blue-800">🚨 Αίτημα Έκτακτης Τιμής Win-back</p>
+            <div className="flex flex-wrap gap-3">
+              <div>
+                <label className="label text-xs">Προτεινόμενη Αίτηση (€)</label>
+                <input type="number" className="input w-28 text-sm" value={winbackForm.app}
+                  onChange={e => setWinbackForm(f => ({ ...f, app: e.target.value }))} placeholder="—" />
+              </div>
+              <div>
+                <label className="label text-xs">Προτεινόμενο Success Fee (€)</label>
+                <input type="number" className="input w-28 text-sm" value={winbackForm.suc}
+                  onChange={e => setWinbackForm(f => ({ ...f, suc: e.target.value }))} placeholder="—" />
+              </div>
+            </div>
+            <div>
+              <label className="label text-xs">Σημείωση προς Οικονομικό (προαιρετικό)</label>
+              <textarea className="input w-full text-sm" rows={2} value={winbackForm.note}
+                onChange={e => setWinbackForm(f => ({ ...f, note: e.target.value }))}
+                placeholder="π.χ. Ο πελάτης ζήτησε καλύτερη τιμή για να συμφωνήσει τώρα" />
+            </div>
+            <div className="flex gap-2">
+              <button onClick={handleRequestWinback} disabled={winbackSubmitting}
+                className="btn-primary text-xs px-4 py-1.5 disabled:opacity-50">
+                {winbackSubmitting ? 'Αποστολή…' : 'Αποστολή Αιτήματος'}
+              </button>
+              <button onClick={() => setWinbackFormOpen(false)}
+                className="btn-secondary text-xs px-4 py-1.5">Ακύρωση</button>
+            </div>
+          </div>
+        ) : (
+          <button onClick={() => setWinbackFormOpen(true)}
+            className="text-xs font-bold text-violet-700 hover:underline flex items-center gap-1">
+            🚨 Αίτημα Έκτακτης Τιμής Win-back
+          </button>
+        )}
+      </div>
 
       {/* Estimated results */}
       <h2 className="section-title flex items-center gap-2"><ChartBarIcon className="w-5 h-5 text-blue-600 shrink-0" /> Εκτιμώμενα Αποτελέσματα</h2>
