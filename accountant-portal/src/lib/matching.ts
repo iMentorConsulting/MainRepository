@@ -195,7 +195,7 @@ export async function autoNotifyBusinessMatches(businessId: string): Promise<voi
   const matches = await prisma.programMatch.findMany({
     where: { businessId, notified: false, matchScore: { gte: 40 } },
     include: {
-      program: { select: { title: true } },
+      program: { select: { title: true, otherRequirements: true } },
       business: { select: { accountantId: true, onomasia: true, afm: true } },
     },
   })
@@ -214,6 +214,14 @@ export async function autoNotifyBusinessMatches(businessId: string): Promise<voi
   const businessName = matches[0].business.onomasia || matches[0].business.afm
   const programTitles = Array.from(new Set(matches.map(m => m.program.title)))
   const count = matches.length
+
+  const requirementsHtml = matches
+    .filter(m => m.program.otherRequirements)
+    .map(m => `<div style="background: #f3f4f6; border-left: 4px solid #6b7280; padding: 16px; border-radius: 6px; margin: 12px 0;">
+        <p style="margin: 0; color: #374151; font-size: 14px; font-weight: bold;">Πρόσθετες Προϋποθέσεις «${m.program.title}»:</p>
+        <p style="margin: 8px 0 0; color: #374151; font-size: 14px; white-space: pre-line;">${m.program.otherRequirements}</p>
+      </div>`)
+    .join('')
 
   const title = `${count} νέα match${count === 1 ? '' : 'es'} για τον πελάτη ${businessName}!`
 
@@ -247,6 +255,7 @@ export async function autoNotifyBusinessMatches(businessId: string): Promise<voi
               ${programTitles.map(t => `<li>${t}</li>`).join('')}
             </ul>
           </div>
+          ${requirementsHtml}
           <div style="text-align: center; margin: 24px 0;">
             <a href="${process.env.APP_URL || 'https://logistis.i-mentor.gr'}/matches"
                style="background: linear-gradient(135deg, #4f46e5, #6366f1); color: white; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 16px; display: inline-block;">

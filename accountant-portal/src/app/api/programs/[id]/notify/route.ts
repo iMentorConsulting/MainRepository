@@ -11,7 +11,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
 
   const program = await prisma.program.findUnique({
     where: { id: params.id },
-    select: { title: true },
+    select: { title: true, otherRequirements: true },
   })
   if (!program) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
@@ -19,7 +19,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
   const unnotifiedMatches = await prisma.programMatch.findMany({
     where: { programId: params.id, notified: false },
     include: {
-      business: { select: { accountantId: true } },
+      business: { select: { id: true, accountantId: true, onomasia: true, afm: true } },
     },
   })
 
@@ -28,16 +28,18 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
   }
 
   // Group by accountant
-  const byAccountant: Record<string, number> = {}
+  const byAccountant: Record<string, typeof unnotifiedMatches> = {}
   for (const match of unnotifiedMatches) {
     const accountantId = match.business.accountantId
     if (!accountantId) continue
-    byAccountant[accountantId] = (byAccountant[accountantId] || 0) + 1
+    if (!byAccountant[accountantId]) byAccountant[accountantId] = []
+    byAccountant[accountantId].push(match)
   }
 
   let notifiedCount = 0
 
-  for (const [accountantId, count] of Object.entries(byAccountant)) {
+  for (const [accountantId, accountantMatches] of Object.entries(byAccountant)) {
+    const count = accountantMatches.length
     const accountant = await prisma.accountant.findUnique({
       where: { id: accountantId },
       select: { email: true, contactPerson: true },
@@ -56,6 +58,17 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       },
     })
 
+    const clientsListHtml = accountantMatches.map(m =>
+      `<li>${m.business.onomasia || 'Άγνωστη επιχείρηση'} (ΑΦΜ: ${m.business.afm})</li>`
+    ).join('')
+
+    const requirementsHtml = program.otherRequirements
+      ? `<div style="background: #f3f4f6; border-left: 4px solid #6b7280; padding: 16px; border-radius: 6px; margin: 20px 0;">
+           <p style="margin: 0; color: #374151; font-size: 14px; font-weight: bold;">Πρόσθετες Προϋποθέσεις Προγράμματος:</p>
+           <p style="margin: 8px 0 0; color: #374151; font-size: 14px; white-space: pre-line;">${program.otherRequirements}</p>
+         </div>`
+      : ''
+
     await sendEmail({
       to: accountant.email,
       subject: `🎯 ${title} — I-MENTOR Portal`,
@@ -69,6 +82,13 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
             <p style="color: #374151; font-size: 16px;">
               Το σύστημα I-MENTOR εντόπισε <strong style="color: #4f46e5; font-size: 20px;">${count} νέα match${count === 1 ? '' : 'es'}</strong> για τους πελάτες σας μέσω του προγράμματος <strong>«${program.title}»</strong>!
             </p>
+            <div style="background: #ede9fe; border-left: 4px solid #7c3aed; padding: 16px; border-radius: 6px; margin: 20px 0;">
+              <p style="margin: 0; color: #5b21b6; font-size: 14px; font-weight: bold;">Πελάτες με νέο match:</p>
+              <ul style="margin: 8px 0 0; padding-left: 20px; color: #5b21b6; font-size: 14px;">
+                ${clientsListHtml}
+              </ul>
+            </div>
+            ${requirementsHtml}
             <div style="background: #fef3c7; border-left: 4px solid #f59e0b; padding: 16px; border-radius: 6px; margin: 20px 0;">
               <p style="margin: 0; color: #92400e; font-size: 14px; font-weight: bold;">⏰ Μην χάσετε την ευκαιρία!</p>
               <p style="margin: 8px 0 0; color: #92400e; font-size: 14px;">
