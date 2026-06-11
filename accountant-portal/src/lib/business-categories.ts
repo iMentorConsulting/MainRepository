@@ -55,8 +55,12 @@ export function categorizeByKad(firmActCode: string | null | undefined): Busines
   if (!firmActCode) return null
   const digits = firmActCode.replace(/\D/g, '')
   if (digits.length < 2) return null
-  if (digits.startsWith(FARMER_SPECIAL_REGIME_CODE)) return null
-  const division2 = digits.slice(0, 2)
+  if (digits === FARMER_SPECIAL_REGIME_CODE || digits === '0' + FARMER_SPECIAL_REGIME_CODE) return null
+  // ΚΑΔ for divisions 01-09 are often stored without their leading zero
+  // (e.g. "1261200" instead of "01261200") — pad back to 8 digits so the
+  // 2-digit division prefix below resolves correctly.
+  const padded = digits.length === 7 ? '0' + digits : digits
+  const division2 = padded.slice(0, 2)
   if (DIVISION_TO_CATEGORY[division2]) return DIVISION_TO_CATEGORY[division2]
   const divisionNum = parseInt(division2, 10)
   if (isManufacturing(divisionNum)) return 'ΜΕΤΑΠΟΙΗΣΗ'

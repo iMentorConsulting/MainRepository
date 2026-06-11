@@ -76,12 +76,17 @@ function Section({ title, description, apiBase, programOptions }: { title: strin
   }
 
   async function setProgramIds(item: Item, programIds: string[]) {
+    const prevItems = items
     setItems(prev => prev.map(i => i.id === item.id ? { ...i, programIds } : i))
-    await fetch(`${apiBase}/${item.id}`, {
+    const res = await fetch(`${apiBase}/${item.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ programIds }),
     })
+    if (!res.ok) {
+      setItems(prevItems)
+      alert('Η αποθήκευση απέτυχε. Δοκιμάστε ξανά.')
+    }
   }
 
   return (
