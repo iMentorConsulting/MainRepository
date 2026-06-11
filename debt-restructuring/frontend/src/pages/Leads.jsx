@@ -988,7 +988,19 @@ function ExpandedRow({ lead, currentEmployee, onUpdate, colCount, templates, tax
       const employee = CASE_EMPLOYEES.includes(lead.assigned_to) ? lead.assigned_to : currentEmployee
       const notesParts = []
       if (lead.total_debt) notesParts.push(`Σύνολο Οφειλών (από Lead): ${lead.total_debt}`)
+      if (lead.referrer) notesParts.push(`Referrer: ${lead.referrer}`)
+      if (lead.application_number) notesParts.push(`Αρ. Αίτησης: ${lead.application_number}`)
+      if (lead.taxisnet_username || lead.taxisnet_password) {
+        notesParts.push(`TaxisNet: ${lead.taxisnet_username || '—'} / ${lead.taxisnet_password || '—'}`)
+      }
+      if (lead.taxisnet_username_2 || lead.taxisnet_password_2) {
+        notesParts.push(`TaxisNet Συζύγου${lead.spouse_name ? ` (${lead.spouse_name})` : ''}: ${lead.taxisnet_username_2 || '—'} / ${lead.taxisnet_password_2 || '—'}`)
+      }
       if (lead.sheet_comments) notesParts.push(`Σχόλια Lead: ${lead.sheet_comments}`)
+      if (lead.app_comments?.length) {
+        const formatted = lead.app_comments.map(c => `${c.author || '—'}: ${c.text}`).join(' || ')
+        notesParts.push(`Σχόλια App: ${formatted}`)
+      }
       const res = await api.createCase({
         client_name: lead.name || '',
         client_phone: lead.phone || '',

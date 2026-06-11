@@ -1402,10 +1402,7 @@ function WinbackPanel({ cases, onCasesUpdate }) {
     return (now - new Date(ref)) / (1000 * 60 * 60 * 24) >= WINBACK_DAYS
   })
 
-  const approved = cases.filter(c =>
-    c.contact_stage === 'Δεν Ενδιαφέρεται' &&
-    c.commercial_offer?.winback_status === 'approved'
-  )
+  const approved = cases.filter(c => c.commercial_offer?.winback_status === 'approved')
 
   const sent = cases.filter(c => c.commercial_offer?.winback_status === 'sent')
 
