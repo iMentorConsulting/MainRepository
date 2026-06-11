@@ -31,6 +31,7 @@ export function QuickSendModal({ businesses, onClose, onSent }: QuickSendModalPr
   const [message, setMessage] = useState('')
   const [sending, setSending] = useState(false)
   const [result, setResult] = useState<{ sent: number; failed: number } | null>(null)
+  const [validationError, setValidationError] = useState('')
   const [showTemplates, setShowTemplates] = useState(true)
   const [matchedPrograms, setMatchedPrograms] = useState<{ id: string; title: string }[]>([])
   const [programId, setProgramId] = useState('')
@@ -65,6 +66,14 @@ export function QuickSendModal({ businesses, onClose, onSent }: QuickSendModalPr
 
   async function handleSend() {
     if (!message.trim()) return
+    if (!programId) {
+      const requiresProgram = ['{{program_title}}', '{{match_reason}}', '{{extra_criteria}}'].some(v => message.includes(v))
+      if (requiresProgram) {
+        setValidationError('Το μήνυμα περιέχει {{program_title}}, {{match_reason}} ή {{extra_criteria}} αλλά δεν έχει επιλεγεί Πρόγραμμα αναφοράς. Επιλέξτε πρόγραμμα ή αφαιρέστε αυτές τις μεταβλητές από το μήνυμα.')
+        return
+      }
+    }
+    setValidationError('')
     setSending(true)
     setResult(null)
     try {
@@ -157,7 +166,7 @@ export function QuickSendModal({ businesses, onClose, onSent }: QuickSendModalPr
               </label>
               <select
                 value={programId}
-                onChange={e => setProgramId(e.target.value)}
+                onChange={e => { setProgramId(e.target.value); setValidationError('') }}
                 className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 bg-white"
               >
                 <option value="">— Χωρίς συγκεκριμένο πρόγραμμα —</option>
@@ -223,12 +232,18 @@ export function QuickSendModal({ businesses, onClose, onSent }: QuickSendModalPr
             </label>
             <textarea
               value={message}
-              onChange={e => setMessage(e.target.value)}
+              onChange={e => { setMessage(e.target.value); setValidationError('') }}
               rows={10}
               placeholder="Γράψτε το μήνυμά σας ή επιλέξτε πρότυπο παραπάνω..."
               className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 resize-none font-mono"
             />
           </div>
+
+          {validationError && (
+            <div className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
+              {validationError}
+            </div>
+          )}
 
           {result && result.sent > 0 && (
             <div className="flex items-center gap-2 text-sm text-emerald-700 bg-emerald-50 rounded-lg px-4 py-3">
