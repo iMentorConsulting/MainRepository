@@ -2,12 +2,16 @@
 import { useEffect, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { redirect } from 'next/navigation'
+import Link from 'next/link'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import { Select } from '@/components/ui/select'
-import { Button } from '@/components/ui/button'
+import { MultiSelect } from '@/components/ui/multi-select'
 import { Pagination } from '@/components/ui/pagination'
 import { formatDateTime } from '@/lib/utils'
+import { ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react'
+import {
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
+} from 'recharts'
 
 const ACTION_LABELS: Record<string, string> = {
   CREATE: 'Δημιουργία',
@@ -16,12 +20,16 @@ const ACTION_LABELS: Record<string, string> = {
   BULK_ASSIGN: 'Μαζική Ανάθεση',
   BULK_DELETE: 'Μαζική Διαγραφή',
   SEND_CAMPAIGN: 'Αποστολή Καμπάνιας',
+  PAGE_VIEW: 'Περιήγηση Σελίδας',
 }
 
 const ENTITY_LABELS: Record<string, string> = {
   Business: 'Επιχείρηση',
   Campaign: 'Καμπάνια',
+  Page: 'Σελίδα',
 }
+
+const CHART_COLORS = ['#4f46e5', '#16a34a', '#dc2626', '#d97706', '#0891b2', '#9333ea', '#db2777', '#65a30d']
 
 const PAGE_SIZE = 50
 
@@ -33,69 +41,115 @@ export default function AuditLogPage() {
   const [loading, setLoading] = useState(true)
 
   const [accountants, setAccountants] = useState<{ id: string; officeName: string }[]>([])
+  const [users, setUsers] = useState<{ id: string; name: string; office: string | null }[]>([])
   const [actions, setActions] = useState<string[]>([])
   const [entities, setEntities] = useState<string[]>([])
 
-  const [accountantId, setAccountantId] = useState('')
-  const [action, setAction] = useState('')
-  const [entity, setEntity] = useState('')
+  const [accountantFilter, setAccountantFilter] = useState<string[]>([])
+  const [userFilter, setUserFilter] = useState<string[]>([])
+  const [actionFilter, setActionFilter] = useState<string[]>([])
+  const [entityFilter, setEntityFilter] = useState<string[]>([])
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
   const [search, setSearch] = useState('')
 
-  async function fetchLogs() {
-    setLoading(true)
+  const [sortBy, setSortBy] = useState('createdAt')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
+
+  const [chartData, setChartData] = useState<any[]>([])
+  const [chartKeys, setChartKeys] = useState<string[]>([])
+
+  function buildParams(extra?: Record<string, string>) {
     const params = new URLSearchParams()
-    params.set('page', String(page))
-    params.set('limit', String(PAGE_SIZE))
-    if (accountantId) params.set('accountantId', accountantId)
-    if (action) params.set('action', action)
-    if (entity) params.set('entity', entity)
+    if (accountantFilter.length) params.set('accountantIds', accountantFilter.join(','))
+    if (userFilter.length) params.set('userIds', userFilter.join(','))
+    if (actionFilter.length) params.set('actions', actionFilter.join(','))
+    if (entityFilter.length) params.set('entities', entityFilter.join(','))
     if (dateFrom) params.set('dateFrom', dateFrom)
     if (dateTo) params.set('dateTo', dateTo)
     if (search) params.set('search', search)
+    for (const [k, v] of Object.entries(extra || {})) params.set(k, v)
+    return params
+  }
 
+  async function fetchLogs() {
+    setLoading(true)
+    const params = buildParams({
+      page: String(page),
+      limit: String(PAGE_SIZE),
+      sortBy,
+      sortDir,
+    })
     const res = await fetch(`/api/admin/audit-logs?${params.toString()}`)
     if (res.ok) {
       const data = await res.json()
       setLogs(data.logs || [])
       setTotal(data.total || 0)
       setAccountants(data.accountants || [])
+      setUsers(data.users || [])
       setActions(data.actions || [])
       setEntities(data.entities || [])
     }
     setLoading(false)
   }
 
+  async function fetchChart() {
+    const res = await fetch(`/api/admin/audit-logs?${buildParams({ chart: '1' }).toString()}`)
+    if (res.ok) {
+      const data = await res.json()
+      setChartData(data.data || [])
+      setChartKeys(data.keys || [])
+    }
+  }
+
+  const filterDeps = [accountantFilter, userFilter, actionFilter, entityFilter, dateFrom, dateTo, search]
+
   useEffect(() => {
     if (status !== 'authenticated' || session?.user?.role !== 'ADMIN') return
     fetchLogs()
-  }, [status, session, page])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status, session, page, sortBy, sortDir])
 
   useEffect(() => {
     setPage(1)
-  }, [accountantId, action, entity, dateFrom, dateTo, search])
-
-  useEffect(() => {
     if (status !== 'authenticated' || session?.user?.role !== 'ADMIN') return
-    if (page !== 1) return
     fetchLogs()
+    fetchChart()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [accountantId, action, entity, dateFrom, dateTo, search])
+  }, [status, session, ...filterDeps])
 
   if (status === 'loading') return null
   if (session?.user?.role !== 'ADMIN') redirect('/')
 
+  function toggleSort(field: string) {
+    if (sortBy === field) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setSortBy(field); setSortDir(field === 'createdAt' ? 'desc' : 'asc') }
+  }
+
+  function SortHeader({ field, children }: { field: string; children: React.ReactNode }) {
+    const active = sortBy === field
+    const Icon = !active ? ChevronsUpDown : sortDir === 'asc' ? ChevronUp : ChevronDown
+    return (
+      <th className="px-4 py-2.5 font-medium">
+        <button onClick={() => toggleSort(field)} className="flex items-center gap-1 hover:text-indigo-700 transition-colors">
+          {children}
+          <Icon size={13} />
+        </button>
+      </th>
+    )
+  }
+
   function clearFilters() {
-    setAccountantId('')
-    setAction('')
-    setEntity('')
+    setAccountantFilter([])
+    setUserFilter([])
+    setActionFilter([])
+    setEntityFilter([])
     setDateFrom('')
     setDateTo('')
     setSearch('')
   }
 
-  const hasFilters = !!(accountantId || action || entity || dateFrom || dateTo || search)
+  const hasFilters = !!(accountantFilter.length || userFilter.length || actionFilter.length || entityFilter.length || dateFrom || dateTo || search)
 
   return (
     <div className="space-y-6">
@@ -107,27 +161,34 @@ export default function AuditLogPage() {
       <Card>
         <CardHeader><CardTitle>Φίλτρα</CardTitle></CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-3">
-            <Select
-              label="Λογιστής"
+          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-7 gap-3 items-end">
+            <MultiSelect
+              label="Λογιστές"
               placeholder="Όλοι οι λογιστές"
-              value={accountantId}
-              onChange={e => setAccountantId(e.target.value)}
               options={accountants.map(a => ({ value: a.id, label: a.officeName }))}
+              selected={accountantFilter}
+              onChange={setAccountantFilter}
             />
-            <Select
-              label="Ενέργεια"
+            <MultiSelect
+              label="Χρήστες"
+              placeholder="Όλοι οι χρήστες"
+              options={users.map(u => ({ value: u.id, label: u.office ? `${u.name} (${u.office})` : u.name }))}
+              selected={userFilter}
+              onChange={setUserFilter}
+            />
+            <MultiSelect
+              label="Ενέργειες"
               placeholder="Όλες οι ενέργειες"
-              value={action}
-              onChange={e => setAction(e.target.value)}
               options={actions.map(a => ({ value: a, label: ACTION_LABELS[a] || a }))}
+              selected={actionFilter}
+              onChange={setActionFilter}
             />
-            <Select
-              label="Τύπος"
+            <MultiSelect
+              label="Τύποι"
               placeholder="Όλοι οι τύποι"
-              value={entity}
-              onChange={e => setEntity(e.target.value)}
               options={entities.map(e => ({ value: e, label: ENTITY_LABELS[e] || e }))}
+              selected={entityFilter}
+              onChange={setEntityFilter}
             />
             <Input
               label="Από Ημερομηνία"
@@ -143,7 +204,7 @@ export default function AuditLogPage() {
             />
             <Input
               label="Αναζήτηση"
-              placeholder="Αναζήτηση στις λεπτομέρειες..."
+              placeholder="Στις λεπτομέρειες..."
               value={search}
               onChange={e => setSearch(e.target.value)}
             />
@@ -152,6 +213,28 @@ export default function AuditLogPage() {
             <button onClick={clearFilters} className="text-sm text-blue-600 hover:underline mt-3">
               Καθαρισμός φίλτρων
             </button>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader><CardTitle>Δραστηριότητα στον Χρόνο</CardTitle></CardHeader>
+        <CardContent>
+          {chartData.length === 0 ? (
+            <p className="text-sm text-gray-400 py-8 text-center">Δεν υπάρχουν δεδομένα για τα επιλεγμένα φίλτρα</p>
+          ) : (
+            <ResponsiveContainer width="100%" height={280}>
+              <LineChart data={chartData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                <XAxis dataKey="day" tick={{ fontSize: 11 }} />
+                <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
+                <Tooltip />
+                <Legend wrapperStyle={{ fontSize: 12 }} />
+                {chartKeys.map((k, i) => (
+                  <Line key={k} type="monotone" dataKey={k} stroke={CHART_COLORS[i % CHART_COLORS.length]} strokeWidth={2} dot={false} />
+                ))}
+              </LineChart>
+            </ResponsiveContainer>
           )}
         </CardContent>
       </Card>
@@ -169,17 +252,18 @@ export default function AuditLogPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-gray-100 text-left text-gray-500">
-                    <th className="px-4 py-2.5 font-medium">Ημερομηνία</th>
-                    <th className="px-4 py-2.5 font-medium">Λογιστής</th>
-                    <th className="px-4 py-2.5 font-medium">Χρήστης</th>
-                    <th className="px-4 py-2.5 font-medium">Ενέργεια</th>
-                    <th className="px-4 py-2.5 font-medium">Τύπος</th>
+                    <SortHeader field="createdAt">Ημερομηνία</SortHeader>
+                    <SortHeader field="accountant">Λογιστής</SortHeader>
+                    <SortHeader field="user">Χρήστης</SortHeader>
+                    <SortHeader field="action">Ενέργεια</SortHeader>
+                    <SortHeader field="entity">Τύπος</SortHeader>
+                    <SortHeader field="target">Επιχείρηση / Στόχος</SortHeader>
                     <th className="px-4 py-2.5 font-medium">Λεπτομέρειες</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
                   {logs.map(log => (
-                    <tr key={log.id} className="hover:bg-gray-50">
+                    <tr key={log.id} className="hover:bg-gray-50 align-top">
                       <td className="px-4 py-2.5 whitespace-nowrap text-gray-500">{formatDateTime(log.createdAt)}</td>
                       <td className="px-4 py-2.5 whitespace-nowrap">{log.user?.accountant?.officeName || '—'}</td>
                       <td className="px-4 py-2.5 whitespace-nowrap">
@@ -188,7 +272,16 @@ export default function AuditLogPage() {
                       </td>
                       <td className="px-4 py-2.5 whitespace-nowrap">{ACTION_LABELS[log.action] || log.action}</td>
                       <td className="px-4 py-2.5 whitespace-nowrap">{ENTITY_LABELS[log.entity] || log.entity}</td>
-                      <td className="px-4 py-2.5 text-gray-700">{log.details || '—'}</td>
+                      <td className="px-4 py-2.5">
+                        {log.target ? (
+                          log.target.href ? (
+                            <Link href={log.target.href} className="text-blue-700 hover:underline">{log.target.name}</Link>
+                          ) : (
+                            <span>{log.target.name}</span>
+                          )
+                        ) : '—'}
+                      </td>
+                      <td className="px-4 py-2.5 text-gray-700 max-w-md whitespace-pre-wrap break-words">{log.entity === 'Page' ? '—' : (log.details || '—')}</td>
                     </tr>
                   ))}
                 </tbody>

@@ -47,7 +47,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const existing = await prisma.business.findUnique({ where: { id: params.id }, select: { accountantId: true } })
+  const existing = await prisma.business.findUnique({ where: { id: params.id } })
   if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   // Accountants may only edit their own businesses, and may not reassign ownership
@@ -88,11 +88,25 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     }
   }
 
+  // Record which fields actually changed (old → new) so the admin audit
+  // page can show what the edit was.
+  const changes: string[] = []
+  for (const key of Object.keys(updateData)) {
+    const before = (existing as any)[key]
+    const after = (business as any)[key]
+    if (JSON.stringify(before) !== JSON.stringify(after)) {
+      const fmt = (v: any) => v == null || v === '' ? '—' : Array.isArray(v) ? v.join(', ') : String(v)
+      changes.push(`${key}: «${fmt(before)}» → «${fmt(after)}»`)
+    }
+  }
+  if (Array.isArray(activities)) changes.push('ΚΑΔ δραστηριότητες ενημερώθηκαν')
+
   await createAuditLog({
     userId: session.user.id,
     action: 'UPDATE',
     entity: 'Business',
     entityId: business.id,
+    details: `${business.onomasia || business.afm}${changes.length ? ` — ${changes.join(' | ')}` : ''}`,
   })
 
   return NextResponse.json(business)

@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { Sidebar } from './sidebar'
 import { Header } from './header'
 import { FloatingChat } from '@/components/chat/floating-chat'
+import { NavTracker } from './nav-tracker'
 import { AlertTriangle } from 'lucide-react'
 
 interface DashboardShellProps {
@@ -32,6 +33,7 @@ export function DashboardShell({ children, pendingApproval }: DashboardShellProp
         <div className="p-4 md:p-6 print:p-0">{children}</div>
       </main>
       <FloatingChat />
+      <NavTracker />
     </div>
   )
 }

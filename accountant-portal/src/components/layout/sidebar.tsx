@@ -9,6 +9,7 @@ import { LayoutDashboard, Users, Building2, Zap, Target, Send, CreditCard, Perce
 const navItems = [
   { href: '/', label: 'Dashboard', icon: LayoutDashboard, adminOnly: false },
   { href: '/accountants', label: 'Λογιστές', icon: Users, adminOnly: true },
+  { href: '/invitations', label: 'Προσκλήσεις', icon: Mail, adminOnly: true },
   { href: '/businesses', label: 'Επιχειρήσεις', icon: Building2, adminOnly: false },
   { href: '/programs', label: 'Προγράμματα', icon: Zap, adminOnly: false },
   { href: '/matches', label: 'Matches', icon: Target, adminOnly: false },

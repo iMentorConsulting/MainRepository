@@ -8,7 +8,7 @@ const breadcrumbMap: Record<string, string> = {
   '/': 'Dashboard', '/accountants': 'Λογιστές', '/businesses': 'Επιχειρήσεις',
   '/programs': 'Προγράμματα', '/matches': 'Matches', '/campaigns': 'Καμπάνιες',
   '/payments': 'Πληρωμές', '/commissions': 'Προμήθειες', '/requests': 'Αιτήματα', '/chat': 'Επικοινωνία',
-  '/reports': 'Αναφορές', '/settings': 'Ρυθμίσεις', '/notify-matches': 'Custom Ειδοποιήσεις', '/audit-log': 'Καταγραφή Ενεργειών',
+  '/reports': 'Αναφορές', '/settings': 'Ρυθμίσεις', '/notify-matches': 'Custom Ειδοποιήσεις', '/audit-log': 'Καταγραφή Ενεργειών', '/invitations': 'Προσκλήσεις',
 }
 
 function NotificationBell() {
