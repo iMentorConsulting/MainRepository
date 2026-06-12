@@ -210,6 +210,12 @@ export default function CriteriaPage() {
       />
 
       <Section
+        title="Τύποι Εγγράφων Υποθέσεων"
+        description="Οι διαθέσιμοι τύποι εγγράφων για ζήτηση από τον λογιστή ή ανέβασμα σε υποθέσεις (π.χ. 'Ε3 2025', 'Βεβαίωση Έναρξης')"
+        apiBase="/api/admin/case-document-types"
+      />
+
+      <Section
         title="Tags Επιχειρήσεων"
         description="Ιδιαιτερότητες πελατών (π.χ. 'Οφειλές σε Δημόσιο', 'Άνεργος') που μπορούν να χρησιμοποιηθούν για μελλοντικά matches"
         apiBase="/api/admin/tags"

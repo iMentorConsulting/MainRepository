@@ -8,7 +8,7 @@ import { Table, TableHead, TableBody, TableRow, Th, Td } from '@/components/ui/t
 import { Pagination } from '@/components/ui/pagination'
 import { MultiSelect } from '@/components/ui/multi-select'
 import { QuickSendModal } from '@/components/quick-send-modal'
-import { Send, ChevronUp, ChevronDown, ChevronsUpDown, Search, Check, X as XIcon, Ban, Eye, EyeOff, Briefcase } from 'lucide-react'
+import { Send, ChevronUp, ChevronDown, ChevronsUpDown, Search, Check, X as XIcon, Ban, Eye, EyeOff, ClipboardList } from 'lucide-react'
 import { NewCaseModal } from '@/components/cases/new-case-modal'
 import { getEffectiveCategory } from '@/lib/business-categories'
 import { CategoryBadge } from '@/components/businesses/category-badge'
@@ -166,7 +166,7 @@ function RejectionCell({ match, reasonOptions, onChanged }: { match: any; reason
       defaultValue=""
       disabled={saving}
       onChange={e => { if (e.target.value) setReason(e.target.value) }}
-      className="text-xs border border-gray-200 rounded-lg px-1.5 py-1 focus:outline-none focus:ring-1 focus:ring-red-400 bg-white text-gray-500 w-full max-w-[260px]"
+      className="text-xs border border-gray-200 rounded-lg px-1.5 py-1 focus:outline-none focus:ring-1 focus:ring-red-400 bg-white text-gray-500 w-full max-w-[140px]"
     >
       <option value="">Μη Επιλέξιμος...</option>
       {applicable.map(r => <option key={r.id} value={r.id}>{r.label}</option>)}
@@ -437,8 +437,8 @@ export default function MatchesPage() {
                   )}
                   <Th>Πρόσθετες Προϋποθέσεις</Th>
                   <Th className="min-w-[200px]">Σημειώσεις</Th>
-                  <Th className="min-w-[220px]">Καταλληλότητα</Th>
-                  <Th>Καμπάνια</Th>
+                  <Th className="max-w-[140px] text-xs">Καταλληλότητα</Th>
+                  <Th className="max-w-[90px] text-xs">Καμπάνια</Th>
                   <Th>Ανάθεση</Th>
                 </TableRow>
               </TableHead>
@@ -485,10 +485,10 @@ export default function MatchesPage() {
                         <Td>
                           <NotesCell matchId={m.id} initialNotes={m.notes} />
                         </Td>
-                        <Td>
+                        <Td className="max-w-[140px]">
                           <RejectionCell match={m} reasonOptions={reasonOptions} onChanged={fetchMatches} />
                         </Td>
-                        <Td>
+                        <Td className="max-w-[90px] text-xs truncate">
                           {lastCampaign ? (
                             <div className="text-xs space-y-0.5">
                               <div className="text-green-700 font-medium">✓ Εστάλη</div>
@@ -511,7 +511,7 @@ export default function MatchesPage() {
                             className="p-1.5 rounded-lg text-indigo-600 hover:bg-indigo-50 transition-colors"
                             title="Ανάθεση στην I-MENTOR"
                           >
-                            <Briefcase size={16} />
+                            <ClipboardList size={16} />
                           </button>
                         </Td>
                       </TableRow>

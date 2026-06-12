@@ -1,15 +1,16 @@
 'use client'
 import { useEffect, useState, useRef } from 'react'
-import { useParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import Link from 'next/link'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { MultiSelect } from '@/components/ui/multi-select'
 import { QuickSendModal } from '@/components/quick-send-modal'
 import { formatDateTime } from '@/lib/utils'
 import {
-  Briefcase, User, Building2, CheckCircle2, MessageSquare, Lock, Send,
+  ClipboardList, User, Building2, CheckCircle2, MessageSquare, Lock, Send,
   Mail, Phone, MapPin, Calendar, Target, FileDown, Paperclip, Plus, Trash2, ListChecks, Server,
 } from 'lucide-react'
 
@@ -35,10 +36,12 @@ const ACTIVITY_DOT: Record<string, string> = {
 
 export default function CaseDetailPage() {
   const { id } = useParams<{ id: string }>()
+  const router = useRouter()
   const { data: session } = useSession()
   const isAdmin = session?.user?.role === 'ADMIN'
   const [data, setData] = useState<any>(null)
   const [loading, setLoading] = useState(true)
+  const [deleting, setDeleting] = useState(false)
   const [comment, setComment] = useState('')
   const [internal, setInternal] = useState(false)
   const [notifyAccountant, setNotifyAccountant] = useState(false)
@@ -48,7 +51,7 @@ export default function CaseDetailPage() {
   // Tasks
   const [newTask, setNewTask] = useState('')
   // Document request (admin)
-  const [reqCategory, setReqCategory] = useState('')
+  const [reqCategories, setReqCategories] = useState<string[]>([])
   const [reqNote, setReqNote] = useState('')
   const [requesting, setRequesting] = useState(false)
   // Document upload
@@ -56,6 +59,7 @@ export default function CaseDetailPage() {
   const [upRequestId, setUpRequestId] = useState('')
   const [uploading, setUploading] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
+  const [docTypeOptions, setDocTypeOptions] = useState<{ id: string; label: string; active: boolean }[]>([])
 
   async function load() {
     const res = await fetch(`/api/cases/${id}`)
@@ -64,6 +68,29 @@ export default function CaseDetailPage() {
   }
 
   useEffect(() => { load() }, [id])
+
+  useEffect(() => {
+    fetch('/api/admin/case-document-types')
+      .then(r => r.json())
+      .then(d => setDocTypeOptions(Array.isArray(d) ? d.filter((t: any) => t.active) : []))
+      .catch(() => {})
+  }, [])
+
+  async function handleDeleteCase() {
+    if (!data) return
+    if (!confirm(`Διαγραφή υπόθεσης #${data.case.caseNumber}; Η ενέργεια δεν αναιρείται.`)) return
+    setDeleting(true)
+    try {
+      const res = await fetch(`/api/cases/${id}`, { method: 'DELETE' })
+      if (res.ok) {
+        router.push('/cases')
+      } else {
+        alert('Σφάλμα διαγραφής')
+      }
+    } finally {
+      setDeleting(false)
+    }
+  }
 
   async function updateCase(patch: any) {
     const res = await fetch(`/api/cases/${id}`, {
@@ -116,15 +143,22 @@ export default function CaseDetailPage() {
   }
 
   async function requestDocument() {
-    if (!reqCategory.trim()) return
+    if (reqCategories.length === 0) return
     setRequesting(true)
-    const res = await fetch(`/api/cases/${id}/document-requests`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ category: reqCategory, note: reqNote }),
-    })
-    if (res.ok) { setReqCategory(''); setReqNote(''); load() }
-    setRequesting(false)
+    try {
+      for (const category of reqCategories) {
+        await fetch(`/api/cases/${id}/document-requests`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ category, note: reqNote }),
+        })
+      }
+      setReqCategories([])
+      setReqNote('')
+      load()
+    } finally {
+      setRequesting(false)
+    }
   }
 
   async function uploadDocument(file: File, category: string, requestId?: string) {
@@ -181,7 +215,7 @@ export default function CaseDetailPage() {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="flex items-center gap-2 text-sm text-gray-500 mb-1">
-            <Briefcase size={14} />
+            <ClipboardList size={14} />
             Υπόθεση #{c.caseNumber}
           </div>
           <h1 className="text-2xl font-bold text-gray-900">{c.title}</h1>
@@ -199,6 +233,17 @@ export default function CaseDetailPage() {
           </Button>
           {!isAdmin && c.status === 'NEW' && (
             <Button variant="outline" onClick={() => updateCase({ status: 'CANCELLED' })}>Ακύρωση Υπόθεσης</Button>
+          )}
+          {isAdmin && (
+            <Button
+              variant="outline"
+              onClick={handleDeleteCase}
+              loading={deleting}
+              className="border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300"
+            >
+              <Trash2 size={15} className="mr-1.5" />
+              Διαγραφή
+            </Button>
           )}
         </div>
       </div>
@@ -373,12 +418,14 @@ export default function CaseDetailPage() {
               <div className="pt-3 border-t border-gray-100 space-y-2">
                 <div className="text-xs font-semibold text-gray-500 uppercase">Ανέβασμα εγγράφου</div>
                 <div className="flex flex-wrap gap-2 items-center">
-                  <input
-                    value={upRequestId ? upCategory : upCategory}
+                  <select
+                    value={upCategory}
                     onChange={e => { setUpCategory(e.target.value); setUpRequestId('') }}
-                    placeholder="Κατηγορία π.χ. Ε3 2025"
                     className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  />
+                  >
+                    <option value="">Επιλέξτε κατηγορία...</option>
+                    {docTypeOptions.map(t => <option key={t.id} value={t.label}>{t.label}</option>)}
+                  </select>
                   <input
                     ref={fileRef}
                     type="file"
@@ -405,12 +452,13 @@ export default function CaseDetailPage() {
               {isAdmin && (
                 <div className="pt-3 border-t border-gray-100 space-y-2">
                   <div className="text-xs font-semibold text-gray-500 uppercase">Ζήτηση εγγράφου από τον λογιστή</div>
-                  <div className="flex flex-wrap gap-2">
-                    <input
-                      value={reqCategory}
-                      onChange={e => setReqCategory(e.target.value)}
-                      placeholder="Κατηγορία π.χ. Ε3 2024"
-                      className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  <div className="flex flex-wrap gap-2 items-end">
+                    <MultiSelect
+                      label="Κατηγορίες"
+                      placeholder="Επιλέξτε κατηγορίες..."
+                      options={docTypeOptions.map(t => ({ value: t.label, label: t.label }))}
+                      selected={reqCategories}
+                      onChange={setReqCategories}
                     />
                     <input
                       value={reqNote}

@@ -46,7 +46,7 @@ interface Business {
   postalZipCode: string | null
   legalStatusDescr: string | null
   accountant: { officeName: string } | null
-  activities: { firmActCode: string; firmActKind: number | null }[]
+  activities: { firmActCode: string; firmActDescr: string | null; firmActKind: number | null }[]
   tags?: string[]
   _count?: { programMatches: number }
 }
@@ -464,16 +464,11 @@ export default function BusinessesPage() {
                       Επωνυμία <SortIcon col="onomasia" sortBy={sortBy} sortDir={sortDir} />
                     </button>
                   </Th>
-                  <Th>Κύρια ΚΑΔ</Th>
                   <Th>Κλάδος</Th>
+                  <Th>ΚΑΔ Περιγραφή</Th>
                   <Th>
                     <button onClick={() => toggleSort('postalAreaDescription')} className="flex items-center hover:text-indigo-700 transition-colors">
                       Περιοχή <SortIcon col="postalAreaDescription" sortBy={sortBy} sortDir={sortDir} />
-                    </button>
-                  </Th>
-                  <Th>
-                    <button onClick={() => toggleSort('postalZipCode')} className="flex items-center hover:text-indigo-700 transition-colors">
-                      ΤΚ <SortIcon col="postalZipCode" sortBy={sortBy} sortDir={sortDir} />
                     </button>
                   </Th>
                   <Th>Περιφέρεια</Th>
@@ -493,7 +488,7 @@ export default function BusinessesPage() {
               <TableBody>
                 {businesses.length === 0 ? (
                   <TableRow>
-                    <Td colSpan={11} className="text-center text-gray-400 py-8">
+                    <Td colSpan={10} className="text-center text-gray-400 py-8">
                       Δεν βρέθηκαν επιχειρήσεις
                     </Td>
                   </TableRow>
@@ -516,14 +511,13 @@ export default function BusinessesPage() {
                           </Link>
                         </Td>
                         <Td className="max-w-xs truncate font-medium">{b.onomasia || '-'}</Td>
-                        <Td className="font-mono text-xs">{primaryKad?.firmActCode || '-'}</Td>
                         <Td>
                           {(b.tags?.length || primaryKad?.firmActCode) && (
                             <CategoryBadge category={getEffectiveCategory(b)} />
                           )}
                         </Td>
+                        <Td className="text-xs truncate max-w-[200px]" title={primaryKad?.firmActDescr || ''}>{primaryKad?.firmActDescr || '-'}</Td>
                         <Td>{b.postalAreaDescription || '-'}</Td>
-                        <Td className="font-mono text-xs">{b.postalZipCode || '-'}</Td>
                         <Td>
                           <Badge variant="secondary" className="text-xs">{resolveRegionFromZip(b.postalZipCode) || '-'}</Badge>
                         </Td>

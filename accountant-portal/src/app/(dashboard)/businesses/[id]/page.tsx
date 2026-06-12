@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { KadTable } from '@/components/businesses/kad-table'
 import { MatchCard } from '@/components/matching/match-card'
 import { QuickSendModal } from '@/components/quick-send-modal'
-import { ArrowLeft, Mail, Phone, MapPin, Calendar, Edit, Send, Trash2, X as XIcon, Plus, Printer, Briefcase } from 'lucide-react'
+import { ArrowLeft, Mail, Phone, MapPin, Calendar, Edit, Send, Trash2, X as XIcon, Plus, Printer, ClipboardList } from 'lucide-react'
 import { NewCaseModal } from '@/components/cases/new-case-modal'
 import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
@@ -161,7 +161,7 @@ export default function BusinessDetailPage() {
           Γρήγορη Αποστολή
         </Button>
         <Button variant="outline" onClick={() => setNewCase(true)}>
-          <Briefcase size={16} className="mr-2" />
+          <ClipboardList size={16} className="mr-2" />
           Ανάθεση στην I-MENTOR
         </Button>
         <Link href={`/businesses/${id}/edit`}>

@@ -66,6 +66,28 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
   return NextResponse.json({ case: clientCase, assignees })
 }
 
+export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
+  const session = await auth()
+  if (!session || session.user.role !== 'ADMIN') {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
+  const existing = await prisma.clientCase.findUnique({ where: { id: params.id } })
+  if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  await prisma.clientCase.delete({ where: { id: params.id } })
+
+  await createAuditLog({
+    userId: session.user.id,
+    action: 'DELETE',
+    entity: 'ClientCase',
+    entityId: existing.id,
+    details: `Διαγραφή υπόθεσης #${existing.caseNumber}`,
+  })
+
+  return NextResponse.json({ success: true })
+}
+
 export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

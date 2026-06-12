@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { Table, TableHead, TableBody, TableRow, Th, Td } from '@/components/ui/table'
 import { MultiSelect } from '@/components/ui/multi-select'
 import { NewCaseModal } from '@/components/cases/new-case-modal'
-import { Plus } from 'lucide-react'
+import { Plus, Trash2 } from 'lucide-react'
 import { formatDateTime } from '@/lib/utils'
 
 const STATUS_LABELS: Record<string, string> = {
@@ -51,6 +51,16 @@ export default function CasesPage() {
   }
 
   useEffect(() => { fetchCases() }, [statusFilter, accountantFilter])
+
+  async function deleteCase(c: any) {
+    if (!confirm(`Διαγραφή υπόθεσης #${c.caseNumber}; Η ενέργεια δεν αναιρείται.`)) return
+    const res = await fetch(`/api/cases/${c.id}`, { method: 'DELETE' })
+    if (res.ok) {
+      setCases(prev => prev.filter(x => x.id !== c.id))
+    } else {
+      alert('Σφάλμα διαγραφής')
+    }
+  }
 
   const counts = cases.reduce((acc: Record<string, number>, c) => {
     acc[c.status] = (acc[c.status] || 0) + 1
@@ -114,12 +124,13 @@ export default function CasesPage() {
                 <Th>Προτεραιότητα</Th>
                 <Th>Κατάσταση</Th>
                 <Th>Ημερομηνία</Th>
+                {isAdmin && <Th></Th>}
               </TableRow>
             </TableHead>
             <TableBody>
               {cases.length === 0 ? (
                 <TableRow>
-                  <Td colSpan={isAdmin ? 8 : 7} className="text-center text-gray-400 py-8">Δεν βρέθηκαν υποθέσεις</Td>
+                  <Td colSpan={isAdmin ? 9 : 7} className="text-center text-gray-400 py-8">Δεν βρέθηκαν υποθέσεις</Td>
                 </TableRow>
               ) : (
                 cases.map(c => (
@@ -138,6 +149,13 @@ export default function CasesPage() {
                     <Td><Badge variant={PRIORITY_VARIANT[c.priority]}>{PRIORITY_LABELS[c.priority]}</Badge></Td>
                     <Td><Badge variant={STATUS_VARIANT[c.status]}>{STATUS_LABELS[c.status]}</Badge></Td>
                     <Td className="text-sm text-gray-500 whitespace-nowrap">{formatDateTime(c.createdAt)}</Td>
+                    {isAdmin && (
+                      <Td>
+                        <button onClick={() => deleteCase(c)} className="text-gray-400 hover:text-red-500" title="Διαγραφή">
+                          <Trash2 size={15} />
+                        </button>
+                      </Td>
+                    )}
                   </TableRow>
                 ))
               )}

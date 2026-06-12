@@ -573,6 +573,14 @@ model CaseTypeOption {
   createdAt DateTime @default(now())
 }
 
+model CaseDocumentTypeOption {
+  id        String   @id @default(cuid())
+  label     String
+  active    Boolean  @default(true)
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+}
+
 model CaseTask {
   id          String     @id @default(cuid())
   caseId      String
