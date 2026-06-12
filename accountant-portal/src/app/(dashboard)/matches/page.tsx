@@ -70,9 +70,9 @@ function CriteriaCell({ match, criteriaMap, onChanged }: { match: any; criteriaM
 
   if (extraIds.length === 0) return <span className="text-xs text-gray-400">—</span>
 
-  async function toggle(criterionId: string) {
+  async function setValue(criterionId: string, value: 'PASS' | 'FAIL') {
     const current = checks[criterionId]
-    const next = current === 'PASS' ? 'FAIL' : current === 'FAIL' ? undefined : 'PASS'
+    const next = current === value ? undefined : value
     setChecks(prev => {
       const updated = { ...prev }
       if (next) updated[criterionId] = next
@@ -84,7 +84,6 @@ function CriteriaCell({ match, criteriaMap, onChanged }: { match: any; criteriaM
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ criterionId, value: next ?? null }),
     })
-    onChanged()
   }
 
   return (
@@ -93,20 +92,32 @@ function CriteriaCell({ match, criteriaMap, onChanged }: { match: any; criteriaM
         const label = criteriaMap[id] || id
         const value = checks[id]
         return (
-          <button
+          <div
             key={id}
-            type="button"
-            onClick={() => toggle(id)}
-            title="Κλικ για εναλλαγή: εκκρεμές → ΟΚ → ΟΧΙ"
-            className={`flex items-center gap-1.5 text-[11px] text-left rounded px-1.5 py-0.5 border transition-colors ${
+            className={`flex items-center gap-1.5 text-[11px] rounded px-1.5 py-0.5 border transition-colors ${
               value === 'PASS' ? 'bg-emerald-50 border-emerald-200 text-emerald-700' :
               value === 'FAIL' ? 'bg-red-50 border-red-200 text-red-700' :
               'bg-gray-50 border-gray-200 text-gray-500'
             }`}
           >
-            {value === 'PASS' ? <Check size={12} className="flex-shrink-0" /> : value === 'FAIL' ? <XIcon size={12} className="flex-shrink-0" /> : <span className="w-3 h-3 flex-shrink-0 rounded-full border border-gray-300" />}
+            <button
+              type="button"
+              onClick={() => setValue(id, 'PASS')}
+              title="ΟΚ"
+              className={`flex-shrink-0 rounded p-0.5 ${value === 'PASS' ? 'bg-emerald-200' : 'hover:bg-emerald-100'}`}
+            >
+              <Check size={12} />
+            </button>
+            <button
+              type="button"
+              onClick={() => setValue(id, 'FAIL')}
+              title="ΟΧΙ"
+              className={`flex-shrink-0 rounded p-0.5 ${value === 'FAIL' ? 'bg-red-200' : 'hover:bg-red-100'}`}
+            >
+              <XIcon size={12} />
+            </button>
             <span className="truncate">{label}</span>
-          </button>
+          </div>
         )
       })}
     </div>
