@@ -95,6 +95,17 @@ export async function GET(request: NextRequest) {
     prisma.programMatch.count({ where }),
   ])
 
+  // Self-heal: a FAILed extra criterion makes a match ineligible. Older
+  // records may predate this rule, so reconcile their status on read.
+  const toReject = matches.filter(m => m.status !== 'REJECTED' && m.criterionChecks.some(c => c.value === 'FAIL'))
+  if (toReject.length > 0) {
+    await prisma.programMatch.updateMany({
+      where: { id: { in: toReject.map(m => m.id) } },
+      data: { status: 'REJECTED' },
+    })
+    for (const m of toReject) (m as any).status = 'REJECTED'
+  }
+
   // For admin: also return facets for filters
   let accountants: any[] = []
   let programs: any[] = []
