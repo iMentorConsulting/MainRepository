@@ -11,7 +11,7 @@ import { QuickSendModal } from '@/components/quick-send-modal'
 import { formatDateTime } from '@/lib/utils'
 import {
   ClipboardList, User, Building2, CheckCircle2, MessageSquare, Lock, Send,
-  Mail, Phone, MapPin, Calendar, Target, FileDown, Paperclip, Plus, Trash2, ListChecks, Server,
+  Mail, Phone, MapPin, Calendar, Target, FileDown, Paperclip, Plus, Trash2, ListChecks, Server, X,
 } from 'lucide-react'
 
 const STATUS_LABELS: Record<string, string> = {
@@ -47,6 +47,9 @@ export default function CaseDetailPage() {
   const [notifyAccountant, setNotifyAccountant] = useState(false)
   const [posting, setPosting] = useState(false)
   const [showQuickSend, setShowQuickSend] = useState(false)
+  const [showContactAccountant, setShowContactAccountant] = useState(false)
+  const [accountantMsg, setAccountantMsg] = useState('')
+  const [sendingAccountantMsg, setSendingAccountantMsg] = useState(false)
 
   // Tasks
   const [newTask, setNewTask] = useState('')
@@ -146,13 +149,11 @@ export default function CaseDetailPage() {
     if (reqCategories.length === 0) return
     setRequesting(true)
     try {
-      for (const category of reqCategories) {
-        await fetch(`/api/cases/${id}/document-requests`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ category, note: reqNote }),
-        })
-      }
+      await fetch(`/api/cases/${id}/document-requests`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ categories: reqCategories, note: reqNote }),
+      })
       setReqCategories([])
       setReqNote('')
       load()
@@ -185,6 +186,27 @@ export default function CaseDetailPage() {
       alert(err.error || 'Σφάλμα')
     }
     setUploading(false)
+  }
+
+  async function sendAccountantMessage() {
+    if (!accountantMsg.trim()) return
+    setSendingAccountantMsg(true)
+    try {
+      const res = await fetch(`/api/cases/${id}/contact-accountant`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: accountantMsg }),
+      })
+      if (res.ok) {
+        setAccountantMsg('')
+        setShowContactAccountant(false)
+        load()
+      } else {
+        alert('Σφάλμα αποστολής')
+      }
+    } finally {
+      setSendingAccountantMsg(false)
+    }
   }
 
   async function downloadDocument(docId: string, fileName: string) {
@@ -231,6 +253,12 @@ export default function CaseDetailPage() {
             <Send size={14} className="mr-1.5" />
             Γρήγορη Επικοινωνία
           </Button>
+          {isAdmin && (
+            <Button variant="outline" onClick={() => setShowContactAccountant(true)}>
+              <MessageSquare size={14} className="mr-1.5" />
+              Επικοινωνία με Λογιστή
+            </Button>
+          )}
           {!isAdmin && c.status === 'NEW' && (
             <Button variant="outline" onClick={() => updateCase({ status: 'CANCELLED' })}>Ακύρωση Υπόθεσης</Button>
           )}
@@ -673,6 +701,42 @@ export default function CaseDetailPage() {
           onClose={() => setShowQuickSend(false)}
           onSent={() => { setShowQuickSend(false); load() }}
         />
+      )}
+
+      {showContactAccountant && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col">
+            <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-slate-100">
+              <div>
+                <h2 className="text-base font-semibold text-slate-900">Επικοινωνία με Λογιστή</h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Προς: {c.accountant?.officeName} · Σχετικά με τον πελάτη: {b.onomasia || b.afm} (Υπόθεση #{c.caseNumber})
+                </p>
+              </div>
+              <button onClick={() => setShowContactAccountant(false)} className="text-slate-400 hover:text-slate-600 transition-colors">
+                <X size={20} />
+              </button>
+            </div>
+            <div className="px-6 py-5 space-y-3">
+              <textarea
+                value={accountantMsg}
+                onChange={e => setAccountantMsg(e.target.value)}
+                rows={6}
+                placeholder="Γράψτε το μήνυμά σας προς τον λογιστή..."
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none"
+              />
+            </div>
+            <div className="px-6 pb-5 pt-2 flex justify-end gap-3 border-t border-slate-100">
+              <button onClick={() => setShowContactAccountant(false)} className="px-4 py-2 rounded-lg text-sm text-slate-600 border border-slate-200 hover:bg-slate-50 transition-colors">
+                Ακύρωση
+              </button>
+              <Button size="sm" loading={sendingAccountantMsg} onClick={sendAccountantMessage} disabled={!accountantMsg.trim()}>
+                <Send size={14} className="mr-1.5" />
+                Αποστολή
+              </Button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

@@ -15,23 +15,29 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
   })
   if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  const { category, note } = await request.json()
-  if (!category?.trim()) return NextResponse.json({ error: 'Η κατηγορία εγγράφου είναι υποχρεωτική' }, { status: 400 })
+  const body = await request.json()
+  const { category, note } = body
+  let categories: string[] = Array.isArray(body.categories) ? body.categories.map((c: string) => c?.trim()).filter(Boolean) : []
+  if (categories.length === 0 && category?.trim()) categories = [category.trim()]
+  if (categories.length === 0) return NextResponse.json({ error: 'Η κατηγορία εγγράφου είναι υποχρεωτική' }, { status: 400 })
 
-  const docRequest = await prisma.caseDocumentRequest.create({
-    data: {
-      caseId: existing.id,
-      category: category.trim(),
-      note: note?.trim() || null,
-      createdById: session.user.id,
-    },
-  })
+  const docRequests = await Promise.all(categories.map(cat =>
+    prisma.caseDocumentRequest.create({
+      data: {
+        caseId: existing.id,
+        category: cat,
+        note: note?.trim() || null,
+        createdById: session.user.id,
+      },
+    })
+  ))
 
+  const categoriesList = categories.join(', ')
   await prisma.caseActivity.create({
     data: {
       caseId: existing.id,
       type: 'DOCUMENT',
-      body: `Ζητήθηκε έγγραφο «${category.trim()}» από τον λογιστή${note?.trim() ? ` — ${note.trim()}` : ''}`,
+      body: `Ζητήθηκαν τα έγγραφα: ${categoriesList}${note?.trim() ? ` — ${note.trim()}` : ''}`,
       authorId: session.user.id,
       authorName: session.user.name || '',
       authorRole: session.user.role,
@@ -45,24 +51,24 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       data: {
         accountantId: existing.accountantId,
         type: 'CASE_DOCUMENT_REQUEST',
-        title: `Ζητήθηκε έγγραφο — Υπόθεση #${existing.caseNumber}`,
-        body: `Η I-MENTOR ζητά το έγγραφο «${category.trim()}» για τον πελάτη ${existing.business.onomasia || existing.business.afm}.${note?.trim() ? ` ${note.trim()}` : ''}`,
+        title: `Αίτημα Εγγράφων — Υπόθεση #${existing.caseNumber}`,
+        body: `Η I-MENTOR ζητά τα παρακάτω έγγραφα για τον πελάτη ${existing.business.onomasia || existing.business.afm}: ${categoriesList}.${note?.trim() ? ` ${note.trim()}` : ''}`,
         link: `/cases/${existing.id}`,
       },
     })
     if (existing.accountant.email) {
       await sendEmail({
         to: existing.accountant.email,
-        subject: `📎 Ζητήθηκε έγγραφο «${category.trim()}» — Υπόθεση #${existing.caseNumber}`,
-        html: `<p>Η I-MENTOR ζητά το έγγραφο <strong>${category.trim()}</strong> για τον πελάτη <strong>${existing.business.onomasia || existing.business.afm}</strong>.</p>
-          ${note?.trim() ? `<blockquote style="border-left:4px solid #4f46e5;padding-left:12px;color:#374151">${note.trim()}</blockquote>` : ''}
-          <p>Μπορείτε να το ανεβάσετε εύκολα ακολουθώντας τον σύνδεσμο:</p>
-          <p><a href="${caseUrl}">Μετάβαση στην υπόθεση & ανέβασμα εγγράφου →</a></p>`,
+        subject: `📄 Αίτημα Εγγράφων — Υπόθεση #${existing.caseNumber} (${existing.business.onomasia || existing.business.afm})`,
+        html: `<p>Η ομάδα I-MENTOR ζητά τα παρακάτω έγγραφα για τον πελάτη <strong>${existing.business.onomasia || existing.business.afm}</strong> (Υπόθεση #${existing.caseNumber}):</p>
+          <ul>${categories.map(cat => `<li>${cat}</li>`).join('')}</ul>
+          ${note?.trim() ? `<p>${note.trim()}</p>` : ''}
+          <p><a href="${caseUrl}">Δείτε την υπόθεση και ανεβάστε τα έγγραφα →</a></p>`,
       })
     }
   } catch {}
 
-  return NextResponse.json(docRequest, { status: 201 })
+  return NextResponse.json(docRequests, { status: 201 })
 }
 
 export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
