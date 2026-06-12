@@ -16,7 +16,7 @@ function BulkTagSection() {
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
-    if (!file || !tag.trim()) return
+    if (!file) return
     setLoading(true)
     setError('')
     setResult(null)
@@ -38,10 +38,11 @@ function BulkTagSection() {
       <h2 className="text-lg font-semibold text-gray-900">Μαζική Προσθήκη Tag με Λίστα ΑΦΜ</h2>
       <p className="text-gray-500 mt-1 text-sm">
         Ανεβάστε αρχείο CSV/XLSX με στήλη ΑΦΜ (ή λίστα ΑΦΜ, ένα ανά γραμμή) για να προσθέσετε ένα tag σε όλες τις αντίστοιχες επιχειρήσεις.
+        Μπορείτε επίσης να συμπεριλάβετε στήλη <strong>TAG</strong> στο αρχείο για διαφορετικό tag ανά γραμμή (τότε το παρακάτω πεδίο Tag είναι προαιρετικό — χρησιμοποιείται μόνο ως fallback για γραμμές χωρίς TAG).
       </p>
       <form onSubmit={submit} className="mt-4 flex flex-wrap items-end gap-3">
         <div className="flex flex-col gap-1">
-          <label className="text-xs font-medium text-gray-600">Tag</label>
+          <label className="text-xs font-medium text-gray-600">Tag (προαιρετικό αν το αρχείο έχει στήλη TAG)</label>
           <input
             type="text"
             value={tag}
@@ -59,7 +60,7 @@ function BulkTagSection() {
             className="text-sm"
           />
         </div>
-        <Button type="submit" disabled={loading || !file || !tag.trim()}>
+        <Button type="submit" disabled={loading || !file}>
           <Upload size={14} className="mr-1" /> {loading ? 'Επεξεργασία...' : 'Ανέβασμα'}
         </Button>
       </form>

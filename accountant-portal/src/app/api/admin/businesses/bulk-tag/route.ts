@@ -14,7 +14,6 @@ export async function POST(request: NextRequest) {
   const file = formData.get('file') as File | null
   const tag = String(formData.get('tag') || '').trim()
   if (!file) return NextResponse.json({ error: 'Χωρίς αρχείο' }, { status: 400 })
-  if (!tag) return NextResponse.json({ error: 'Το tag είναι υποχρεωτικό' }, { status: 400 })
 
   const buffer = Buffer.from(await file.arrayBuffer())
   let rows: any[] = []
@@ -35,18 +34,25 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // Collect unique 9-digit AFMs
-  const afms = new Set<string>()
+  // Collect unique 9-digit AFMs, with optional per-row tag from a TAG column
+  const afmTags = new Map<string, string>()
   for (const row of rows) {
     const raw = row.afm ?? row.ΑΦΜ ?? row.AFM ?? row.Afm ?? Object.values(row)[0]
     const afm = String(raw ?? '').trim().replace(/\D/g, '')
-    if (afm.length === 9) afms.add(afm)
+    if (afm.length !== 9) continue
+    const rowTag = String(row.tag ?? row.Tag ?? row.TAG ?? row.tags ?? '').trim()
+    afmTags.set(afm, rowTag || tag)
   }
 
-  if (afms.size === 0) {
+  if (afmTags.size === 0) {
     return NextResponse.json({ error: 'Δεν βρέθηκαν έγκυρα ΑΦΜ στο αρχείο' }, { status: 400 })
   }
 
+  if (!tag && Array.from(afmTags.values()).some(t => !t)) {
+    return NextResponse.json({ error: 'Λείπει το tag — συμπληρώστε το πεδίο Tag ή προσθέστε στήλη TAG στο αρχείο' }, { status: 400 })
+  }
+
+  const afms = new Set(afmTags.keys())
   const businesses = await prisma.business.findMany({
     where: { afm: { in: Array.from(afms) } },
     select: { id: true, afm: true, tags: true },
@@ -54,10 +60,11 @@ export async function POST(request: NextRequest) {
 
   let updated = 0
   for (const business of businesses) {
-    if (business.tags.includes(tag)) continue
+    const businessTag = afmTags.get(business.afm)
+    if (!businessTag || business.tags.includes(businessTag)) continue
     await prisma.business.update({
       where: { id: business.id },
-      data: { tags: { push: tag } },
+      data: { tags: { push: businessTag } },
     })
     updated++
   }
@@ -70,7 +77,7 @@ export async function POST(request: NextRequest) {
     action: 'BULK_TAG',
     entity: 'Business',
     entityId: businesses.map(b => b.id).join(','),
-    details: `Bulk tagged ${updated} businesses with "${tag}" (${afms.size} AFM submitted, ${notFound.length} not found)`,
+    details: `Bulk tagged ${updated} businesses (${afms.size} AFM submitted, ${notFound.length} not found)`,
   })
 
   return NextResponse.json({
