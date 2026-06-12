@@ -52,32 +52,82 @@ function LoginPageInner() {
 
   return (
     <div className="min-h-screen flex">
+      <style jsx global>{`
+        @keyframes bgPan {
+          0% { background-position: 0% 50%; }
+          50% { background-position: 100% 50%; }
+          100% { background-position: 0% 50%; }
+        }
+        @keyframes logoIntro {
+          0% { opacity: 0; transform: scale(0.85) translateY(10px); filter: blur(6px); }
+          60% { opacity: 1; transform: scale(1.04) translateY(0); filter: blur(0); }
+          100% { opacity: 1; transform: scale(1) translateY(0); filter: blur(0); }
+        }
+        @keyframes glowPulse {
+          0%, 100% { opacity: 0.35; transform: scale(1); }
+          50% { opacity: 0.6; transform: scale(1.08); }
+        }
+        @keyframes fadeUp {
+          from { opacity: 0; transform: translateY(14px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes floatSlow {
+          0%, 100% { transform: translate(0, 0); }
+          50% { transform: translate(20px, -16px); }
+        }
+        .anim-bg {
+          background-size: 200% 200%;
+          animation: bgPan 18s ease-in-out infinite;
+        }
+        .anim-logo-glow {
+          animation: glowPulse 4s ease-in-out infinite;
+        }
+        .anim-logo {
+          animation: logoIntro 1.1s cubic-bezier(0.16, 1, 0.3, 1) both;
+        }
+        .anim-fade-up {
+          animation: fadeUp 0.8s ease-out both;
+        }
+        .anim-orb {
+          animation: floatSlow 14s ease-in-out infinite;
+        }
+      `}</style>
       {/* Left panel — branding */}
-      <div className="hidden lg:flex lg:w-1/2 flex-col justify-between p-12 text-white relative overflow-hidden"
-        style={{ background: 'linear-gradient(160deg, #0f172a 0%, #1e1b4b 60%, #312e81 100%)' }}>
+      <div className="hidden lg:flex lg:w-1/2 flex-col justify-between p-12 text-white relative overflow-hidden anim-bg"
+        style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e1b4b 45%, #312e81 75%, #1e1b4b 100%)' }}>
         {/* Subtle geometric texture */}
         <div className="absolute inset-0 opacity-5"
           style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, white 1px, transparent 0)', backgroundSize: '32px 32px' }} />
 
+        {/* Floating ambient orbs */}
+        <div className="absolute -top-24 -right-24 w-72 h-72 rounded-full anim-orb"
+          style={{ background: 'radial-gradient(circle, rgba(99,102,241,0.35), transparent 70%)' }} />
+        <div className="absolute bottom-10 -left-16 w-64 h-64 rounded-full anim-orb"
+          style={{ background: 'radial-gradient(circle, rgba(124,58,237,0.3), transparent 70%)', animationDelay: '-7s' }} />
+
         <div className="relative z-10 flex justify-center">
-          {logoUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={logoUrl} alt="I-MENTOR" className="h-40 w-auto object-contain drop-shadow-2xl" />
-          ) : (
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center"
-                style={{ background: 'rgba(255,255,255,0.15)' }}>
-                <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                </svg>
+          <div className="relative flex items-center justify-center">
+            <div className="absolute inset-0 rounded-full anim-logo-glow"
+              style={{ background: 'radial-gradient(circle, rgba(99,102,241,0.55), transparent 65%)', filter: 'blur(24px)' }} />
+            {logoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={logoUrl} alt="I-MENTOR" className="h-40 w-auto object-contain drop-shadow-2xl relative anim-logo" />
+            ) : (
+              <div className="flex items-center gap-3 relative anim-logo">
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center"
+                  style={{ background: 'rgba(255,255,255,0.15)' }}>
+                  <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
+                </div>
+                <span className="text-2xl font-bold tracking-tight">I-MENTOR</span>
               </div>
-              <span className="text-2xl font-bold tracking-tight">I-MENTOR</span>
-            </div>
-          )}
+            )}
+          </div>
         </div>
 
         <div className="relative z-10 space-y-8">
-          <div>
+          <div className="anim-fade-up" style={{ animationDelay: '0.3s' }}>
             <h2 className="text-3xl font-bold leading-tight mb-4">
               Η πλατφόρμα επιχειρηματικής<br />ευκαιρίας για λογιστικά γραφεία
             </h2>
@@ -93,7 +143,7 @@ function LoginPageInner() {
               { icon: Lock, text: 'Τα δεδομένα επιχειρήσεων ανήκουν αποκλειστικά στο λογιστικό σας γραφείο' },
               { icon: Shield, text: 'Πλήρης συμμόρφωση με τον ΓΚΠΔ (GDPR) — EU-hosted υποδομή' },
             ].map(({ icon: Icon, text }, i) => (
-              <div key={i} className="flex items-start gap-3">
+              <div key={i} className="flex items-start gap-3 anim-fade-up" style={{ animationDelay: `${0.45 + i * 0.12}s` }}>
                 <div className="w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0 mt-0.5"
                   style={{ background: 'rgba(99,102,241,0.3)' }}>
                   <Icon size={13} className="text-indigo-300" />
@@ -118,7 +168,7 @@ function LoginPageInner() {
         <div className="w-full max-w-sm mx-auto">
 
           {/* Mobile logo */}
-          <div className="lg:hidden mb-10 flex justify-center">
+          <div className="lg:hidden mb-10 flex justify-center anim-logo">
             {logoUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={logoUrl} alt="I-MENTOR" className="h-14 w-auto object-contain" />
