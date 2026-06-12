@@ -429,7 +429,7 @@ export default function MatchesPage() {
                     </button>
                   </Th>
                   {isAdmin && (
-                    <Th className="max-w-[60px]">
+                    <Th className="max-w-[110px]">
                       <button onClick={() => toggleSort('business.accountant.officeName')} className="flex items-center hover:text-indigo-700 transition-colors">
                         Λογιστής <SortIcon col="business.accountant.officeName" sortBy={sortBy} sortDir={sortDir} />
                       </button>
@@ -475,7 +475,7 @@ export default function MatchesPage() {
                           </Link>
                         </Td>
                         {isAdmin && (
-                          <Td className="text-xs text-gray-500 max-w-[60px] truncate">
+                          <Td className="text-xs text-gray-500 max-w-[110px] leading-tight break-words">
                             {m.business?.accountant?.officeName || '-'}
                           </Td>
                         )}
