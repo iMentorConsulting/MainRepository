@@ -158,10 +158,32 @@ export default function ProgramDetailPage() {
             </Card>
           )}
 
-          {(program.minInvestment != null || program.maxInvestment != null || program.minSubsidyPct != null || program.maxSubsidyPct != null || program.minInterestRate != null || program.maxInterestRate != null || program.otherRequirements || program.websiteUrl) && (
+          {(program.minInvestment != null || program.maxInvestment != null || program.minSubsidyPct != null || program.maxSubsidyPct != null || program.minInterestRate != null || program.maxInterestRate != null || program.otherRequirements || program.websiteUrl || program.regionRules?.length > 0 || program.minRegdate || program.maxRegdate) && (
             <Card>
               <CardHeader><CardTitle>Στοιχεία Προγράμματος</CardTitle></CardHeader>
               <CardContent className="space-y-4">
+                {program.regionRules?.length > 0 && (
+                  <div>
+                    <div className="text-xs font-semibold text-gray-500 uppercase mb-1.5">Περιοχές</div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {program.regionRules.length >= GREEK_REGIONS.length ? (
+                        <Badge variant="secondary">Όλη η Ελλάδα</Badge>
+                      ) : (
+                        program.regionRules.map((r: string) => (
+                          <Badge key={r} variant="secondary">{r}</Badge>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                )}
+                {(program.minRegdate || program.maxRegdate) && (
+                  <div>
+                    <div className="text-xs font-semibold text-gray-500 uppercase mb-1.5">Ημερομηνία Έναρξης Επιχείρησης</div>
+                    <span className="text-sm text-gray-700">
+                      {program.minRegdate || '...'} — {program.maxRegdate || '...'}
+                    </span>
+                  </div>
+                )}
                 {(program.minInvestment != null || program.maxInvestment != null) && (
                   <div>
                     <div className="text-xs font-semibold text-gray-500 uppercase mb-1.5">Ποσό Επένδυσης</div>
@@ -172,7 +194,7 @@ export default function ProgramDetailPage() {
                     </span>
                   </div>
                 )}
-                {(program.minSubsidyPct != null || program.maxSubsidyPct != null) && (
+                {((program.minSubsidyPct != null && program.minSubsidyPct !== 0) || (program.maxSubsidyPct != null && program.maxSubsidyPct !== 0)) && (
                   <div>
                     <div className="text-xs font-semibold text-gray-500 uppercase mb-1.5">% Επιχορήγησης</div>
                     <span className="text-sm font-semibold text-blue-700">
@@ -184,7 +206,7 @@ export default function ProgramDetailPage() {
                     </span>
                   </div>
                 )}
-                {(program.minInterestRate != null || program.maxInterestRate != null) && (
+                {((program.minInterestRate != null && program.minInterestRate !== 0) || (program.maxInterestRate != null && program.maxInterestRate !== 0)) && (
                   <div>
                     <div className="text-xs font-semibold text-gray-500 uppercase mb-1.5">Επιτόκιο</div>
                     <span className="text-sm font-semibold text-amber-700">
@@ -239,20 +261,6 @@ export default function ProgramDetailPage() {
                   </div>
                 </div>
               )}
-              {program.regionRules?.length > 0 && (
-                <div>
-                  <div className="text-xs font-semibold text-gray-500 uppercase mb-1.5">Περιοχές</div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {program.regionRules.length >= GREEK_REGIONS.length ? (
-                      <Badge variant="secondary">Όλη η Ελλάδα</Badge>
-                    ) : (
-                      program.regionRules.map((r: string) => (
-                        <Badge key={r} variant="secondary">{r}</Badge>
-                      ))
-                    )}
-                  </div>
-                </div>
-              )}
               {program.legalStatusRules?.length > 0 && (
                 <div>
                   <div className="text-xs font-semibold text-gray-500 uppercase mb-1.5">Νομική Μορφή</div>
@@ -263,15 +271,7 @@ export default function ProgramDetailPage() {
                   </div>
                 </div>
               )}
-              {(program.minRegdate || program.maxRegdate) && (
-                <div>
-                  <div className="text-xs font-semibold text-gray-500 uppercase mb-1.5">Ημ. Ίδρυσης</div>
-                  <span className="text-sm text-gray-700">
-                    {program.minRegdate || '...'} — {program.maxRegdate || '...'}
-                  </span>
-                </div>
-              )}
-              {!program.kadRules?.length && !program.regionRules?.length && !program.legalStatusRules?.length && !program.minRegdate && !program.maxRegdate && (
+              {!program.kadRules?.length && !program.legalStatusRules?.length && (
                 <p className="text-sm text-gray-400 italic">Χωρίς ειδικά κριτήρια — γενικό πρόγραμμα</p>
               )}
             </CardContent>
@@ -283,19 +283,19 @@ export default function ProgramDetailPage() {
             <CardHeader><CardTitle>Πληροφορίες</CardTitle></CardHeader>
             <CardContent className="space-y-3 text-sm">
               <div className="flex justify-between">
-                <span className="text-gray-500">Έναρξη</span>
+                <span className="text-gray-500">Υποβολή Αιτήσεων από</span>
                 <span>{formatDate(program.startDate)}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-500">Λήξη</span>
+                <span className="text-gray-500">Προθεσμία Υποβολής Αιτήσεων</span>
                 <span>{formatDate(program.endDate)}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-500">Matches</span>
+                <span className="text-gray-500">Matches Προγράμματος με Πελάτες</span>
                 <span className="font-semibold">{program.matches?.length || 0}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-500">Καμπάνιες</span>
+                <span className="text-gray-500">Καμπάνιες Προγράμματος</span>
                 <span>{program.campaigns?.length || 0}</span>
               </div>
             </CardContent>

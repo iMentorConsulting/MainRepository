@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { KadTable } from '@/components/businesses/kad-table'
 import { MatchCard } from '@/components/matching/match-card'
 import { QuickSendModal } from '@/components/quick-send-modal'
-import { ArrowLeft, Mail, Phone, MapPin, Calendar, Edit, Send, Trash2, X as XIcon, Plus } from 'lucide-react'
+import { ArrowLeft, Mail, Phone, MapPin, Calendar, Edit, Send, Trash2, X as XIcon, Plus, Printer } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import { formatDate } from '@/lib/utils'
@@ -112,7 +112,7 @@ export default function BusinessDetailPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 print:hidden">
         <Link href="/businesses">
           <Button variant="ghost" size="sm"><ArrowLeft size={16} className="mr-1" />Πίσω</Button>
         </Link>
@@ -145,6 +145,13 @@ export default function BusinessDetailPage() {
           </div>
         </div>
         <Button
+          variant="outline"
+          onClick={() => window.print()}
+        >
+          <Printer size={16} className="mr-2" />
+          Εκτύπωση / PDF
+        </Button>
+        <Button
           onClick={() => setQuickSend(true)}
           className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm px-4 py-2 rounded-lg"
         >
@@ -168,6 +175,15 @@ export default function BusinessDetailPage() {
         </Button>
       </div>
 
+      {/* Print-only header */}
+      <div className="hidden print:block">
+        <h1 className="text-2xl font-bold text-gray-900">{business.onomasia || 'Επιχείρηση'}</h1>
+        <div className="flex items-center gap-3 mt-1 flex-wrap text-sm">
+          <span className="font-mono text-gray-500">ΑΦΜ: {business.afm}</span>
+          {business.legalStatusDescr && <span>{business.legalStatusDescr}</span>}
+        </div>
+      </div>
+
       {quickSend && (
         <QuickSendModal
           businesses={[{ id: business.id, onomasia: business.onomasia, afm: business.afm }]}
@@ -175,9 +191,9 @@ export default function BusinessDetailPage() {
         />
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 print:grid-cols-1 print:gap-3">
         {/* Main Info */}
-        <div className="lg:col-span-2 space-y-6">
+        <div className="lg:col-span-2 space-y-6 print:space-y-3">
           <Card>
             <CardHeader><CardTitle>Στοιχεία Επιχείρησης</CardTitle></CardHeader>
             <CardContent>
@@ -233,7 +249,7 @@ export default function BusinessDetailPage() {
                   <dt className="text-gray-500">Viber</dt>
                   <dd>{business.viberPhone || '-'}</dd>
                 </div>
-                <div className="col-span-2 pt-2 border-t border-gray-100">
+                <div className="col-span-2 pt-2 border-t border-gray-100 print:hidden">
                   <label className="flex items-center gap-2 text-sm cursor-pointer">
                     <input
                       type="checkbox"
@@ -332,7 +348,7 @@ export default function BusinessDetailPage() {
             <CardHeader>
               <div className="flex items-center justify-between">
                 <CardTitle>Σημειώσεις</CardTitle>
-                <Button variant="ghost" size="sm" onClick={() => setEditNotes(!editNotes)}>
+                <Button variant="ghost" size="sm" className="print:hidden" onClick={() => setEditNotes(!editNotes)}>
                   <Edit size={14} />
                 </Button>
               </div>
@@ -365,13 +381,13 @@ export default function BusinessDetailPage() {
                 {(business.tags || []).map((tag: string) => (
                   <Badge key={tag} variant="secondary" className="gap-1">
                     {tag}
-                    <button onClick={() => removeTag(tag)} className="hover:text-red-600">
+                    <button onClick={() => removeTag(tag)} className="hover:text-red-600 print:hidden">
                       <XIcon size={11} />
                     </button>
                   </Badge>
                 ))}
               </div>
-              <div className="flex gap-2">
+              <div className="flex gap-2 print:hidden">
                 <select
                   value={tagSelect}
                   onChange={e => setTagSelect(e.target.value)}

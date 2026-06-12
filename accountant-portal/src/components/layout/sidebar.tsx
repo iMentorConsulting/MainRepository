@@ -64,7 +64,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
       )}
 
       <aside className={cn(
-        'fixed left-0 top-0 h-full w-64 bg-slate-900 border-r border-slate-800 flex flex-col z-50 shadow-xl',
+        'fixed left-0 top-0 h-full w-64 bg-slate-900 border-r border-slate-800 flex flex-col z-50 shadow-xl print:hidden',
         'transition-transform duration-300 ease-in-out',
         open ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
       )}>
