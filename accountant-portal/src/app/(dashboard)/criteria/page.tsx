@@ -35,10 +35,17 @@ function BulkTagSection() {
 
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-5">
-      <h2 className="text-lg font-semibold text-gray-900">Μαζική Προσθήκη Tag με Λίστα ΑΦΜ</h2>
+      <h2 className="text-lg font-semibold text-gray-900">Μαζική Εισαγωγή / Ενημέρωση Επιχειρήσεων με Λίστα ΑΦΜ</h2>
       <p className="text-gray-500 mt-1 text-sm">
-        Ανεβάστε αρχείο CSV/XLSX με στήλη ΑΦΜ (ή λίστα ΑΦΜ, ένα ανά γραμμή) για να προσθέσετε ένα tag σε όλες τις αντίστοιχες επιχειρήσεις.
-        Μπορείτε επίσης να συμπεριλάβετε στήλη <strong>TAG</strong> στο αρχείο για διαφορετικό tag ανά γραμμή (τότε το παρακάτω πεδίο Tag είναι προαιρετικό — χρησιμοποιείται μόνο ως fallback για γραμμές χωρίς TAG).
+        Ανεβάστε αρχείο CSV/XLSX με στήλη <strong>ΑΦΜ</strong> (υποχρεωτική). Οι παρακάτω στήλες είναι προαιρετικές και μπορούν να συνδυαστούν στο ίδιο αρχείο:
+      </p>
+      <ul className="text-gray-500 mt-1 text-sm list-disc pl-5 space-y-1">
+        <li><strong>TAG</strong>: προσθέτει το tag στην επιχείρηση (αν δεν υπάρχει ήδη). Αν δεν συμπληρωθεί ανά γραμμή, χρησιμοποιείται το πεδίο &quot;Tag&quot; παρακάτω ως fallback.</li>
+        <li><strong>Πρόγραμμα</strong> + <strong>Λόγοι Απόρριψης Match</strong>: ορίζει τον λόγο απόρριψης (από τη λίστα λόγων) για το match της επιχείρησης με το συγκεκριμένο πρόγραμμα και το θέτει σε κατάσταση &quot;Απορρίφθηκε&quot;.</li>
+        <li><strong>Πρόγραμμα</strong> + <strong>Κριτήριο</strong> + <strong>Πρόσθετες Προϋποθέσεις Προγραμμάτων</strong> (τιμή ΝΑΙ/ΟΧΙ): ορίζει αν η επιχείρηση πληροί το συγκεκριμένο πρόσθετο κριτήριο του προγράμματος.</li>
+      </ul>
+      <p className="text-gray-500 mt-1 text-sm">
+        Το &quot;Πρόγραμμα&quot;, &quot;Λόγοι Απόρριψης Match&quot; και &quot;Κριτήριο&quot; πρέπει να ταιριάζουν (έστω και μερικώς) με τους τίτλους/ετικέτες που υπάρχουν ήδη στο σύστημα.
       </p>
       <form onSubmit={submit} className="mt-4 flex flex-wrap items-end gap-3">
         <div className="flex flex-col gap-1">
@@ -66,10 +73,14 @@ function BulkTagSection() {
       </form>
       {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
       {result && (
-        <p className="mt-3 text-sm text-gray-700">
-          Υποβλήθηκαν {result.submitted} ΑΦΜ, βρέθηκαν {result.matched}, ενημερώθηκαν {result.updated}.
-          {result.notFound?.length > 0 && ` Δεν βρέθηκαν: ${result.notFound.join(', ')}`}
-        </p>
+        <div className="mt-3 text-sm text-gray-700 space-y-1">
+          <p>Υποβλήθηκαν {result.submitted} ΑΦΜ, βρέθηκαν {result.matched}.</p>
+          <p>Tags προστέθηκαν: {result.tagsUpdated ?? result.updated ?? 0}. Λόγοι απόρριψης ορίστηκαν: {result.rejectionsSet ?? 0}. Κριτήρια ορίστηκαν: {result.criteriaSet ?? 0}.</p>
+          {result.notFoundAfms?.length > 0 && <p className="text-amber-700">Δεν βρέθηκαν ΑΦΜ: {result.notFoundAfms.join(', ')}</p>}
+          {result.notFoundPrograms?.length > 0 && <p className="text-amber-700">Δεν βρέθηκαν προγράμματα: {result.notFoundPrograms.join(', ')}</p>}
+          {result.notFoundReasons?.length > 0 && <p className="text-amber-700">Δεν βρέθηκαν λόγοι απόρριψης: {result.notFoundReasons.join(', ')}</p>}
+          {result.notFoundCriteria?.length > 0 && <p className="text-amber-700">Δεν βρέθηκαν κριτήρια: {result.notFoundCriteria.join(', ')}</p>}
+        </div>
       )}
     </div>
   )
