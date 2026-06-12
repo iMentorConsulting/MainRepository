@@ -33,6 +33,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     where: {
       programId: params.id,
       matchScore: { gte: 40 },
+      status: { not: 'REJECTED' },
       business: { accountantId },
     },
     include: {
@@ -123,6 +124,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     where: {
       programId: params.id,
       matchScore: { gte: 40 },
+      status: { not: 'REJECTED' },
       business: { accountantId },
     },
     include: {
