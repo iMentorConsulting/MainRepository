@@ -13,6 +13,26 @@ function BulkTagSection() {
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<any>(null)
   const [error, setError] = useState('')
+  const [programLabel, setProgramLabel] = useState('')
+  const [reasonLabel, setReasonLabel] = useState('')
+  const [criterionLabel, setCriterionLabel] = useState('')
+
+  useEffect(() => {
+    fetch('/api/admin/rejection-reasons').then(r => r.json()).then(data => {
+      const items = Array.isArray(data) ? data : []
+      const active = items.find((i: any) => i.active) || items[0]
+      if (active) setReasonLabel(active.label)
+    }).catch(() => {})
+    fetch('/api/admin/criteria').then(r => r.json()).then(data => {
+      const items = Array.isArray(data) ? data : []
+      const active = items.find((i: any) => i.active) || items[0]
+      if (active) setCriterionLabel(active.label)
+    }).catch(() => {})
+    fetch('/api/programs').then(r => r.json()).then(data => {
+      const programs = Array.isArray(data) ? data : data.programs || []
+      if (programs[0]) setProgramLabel(programs[0].title)
+    }).catch(() => {})
+  }, [])
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
@@ -63,7 +83,7 @@ function BulkTagSection() {
           <tbody className="text-gray-500">
             <tr>
               <td className="border border-gray-200 px-2 py-1">802100033</td>
-              <td className="border border-gray-200 px-2 py-1">Λόγοι Απόρριψης:Συμμετοχή &gt;25% σε επιχείρηση</td>
+              <td className="border border-gray-200 px-2 py-1">{tag || '(το tag που θέλετε)'}</td>
               <td className="border border-gray-200 px-2 py-1"></td>
               <td className="border border-gray-200 px-2 py-1"></td>
               <td className="border border-gray-200 px-2 py-1"></td>
@@ -72,34 +92,34 @@ function BulkTagSection() {
             <tr>
               <td className="border border-gray-200 px-2 py-1">110739500</td>
               <td className="border border-gray-200 px-2 py-1"></td>
-              <td className="border border-gray-200 px-2 py-1">Ψηφιακό Βήμα</td>
-              <td className="border border-gray-200 px-2 py-1">Ήδη Ενεργό Δάνειο Μικροπίστωσης</td>
+              <td className="border border-gray-200 px-2 py-1">{programLabel || '—'}</td>
+              <td className="border border-gray-200 px-2 py-1">{reasonLabel || '—'}</td>
               <td className="border border-gray-200 px-2 py-1"></td>
               <td className="border border-gray-200 px-2 py-1"></td>
             </tr>
             <tr>
               <td className="border border-gray-200 px-2 py-1">123456789</td>
               <td className="border border-gray-200 px-2 py-1"></td>
-              <td className="border border-gray-200 px-2 py-1">Ψηφιακό Βήμα</td>
+              <td className="border border-gray-200 px-2 py-1">{programLabel || '—'}</td>
               <td className="border border-gray-200 px-2 py-1"></td>
-              <td className="border border-gray-200 px-2 py-1">Απασχολεί Προσωπικό</td>
+              <td className="border border-gray-200 px-2 py-1">{criterionLabel || '—'}</td>
               <td className="border border-gray-200 px-2 py-1">ΝΑΙ</td>
             </tr>
             <tr>
               <td className="border border-gray-200 px-2 py-1">987654321</td>
-              <td className="border border-gray-200 px-2 py-1">Οφειλές σε Δημόσιο</td>
-              <td className="border border-gray-200 px-2 py-1">Digital Marketing</td>
-              <td className="border border-gray-200 px-2 py-1">Ήδη Λάβει Επιχορήγηση</td>
-              <td className="border border-gray-200 px-2 py-1">Λειτουργεί &gt;1 έτος</td>
+              <td className="border border-gray-200 px-2 py-1">{tag || '(το tag που θέλετε)'}</td>
+              <td className="border border-gray-200 px-2 py-1">{programLabel || '—'}</td>
+              <td className="border border-gray-200 px-2 py-1">{reasonLabel || '—'}</td>
+              <td className="border border-gray-200 px-2 py-1">{criterionLabel || '—'}</td>
               <td className="border border-gray-200 px-2 py-1">ΟΧΙ</td>
             </tr>
           </tbody>
         </table>
         <ul className="text-gray-500 mt-1 text-xs list-disc pl-5 space-y-0.5">
           <li>Γραμμή 1: μόνο TAG — προσθέτει το tag στην επιχείρηση, χωρίς να αγγίξει matches.</li>
-          <li>Γραμμή 2: μόνο Λόγος Απόρριψης για το πρόγραμμα &quot;Ψηφιακό Βήμα&quot; — το match γίνεται &quot;Απορρίφθηκε&quot;.</li>
-          <li>Γραμμή 3: μόνο Κριτήριο + ΝΑΙ — το match με το &quot;Ψηφιακό Βήμα&quot; σημειώνεται ότι πληροί το κριτήριο &quot;Απασχολεί Προσωπικό&quot;.</li>
-          <li>Γραμμή 4: όλα μαζί — προσθέτει tag, ορίζει λόγο απόρριψης ΚΑΙ κριτήριο (ΟΧΙ) για το ίδιο πρόγραμμα &quot;Digital Marketing&quot;.</li>
+          <li>Γραμμή 2: μόνο Λόγος Απόρριψης για το πρόγραμμα &quot;{programLabel}&quot; — το match γίνεται &quot;Απορρίφθηκε&quot;.</li>
+          <li>Γραμμή 3: μόνο Κριτήριο + ΝΑΙ — το match με το &quot;{programLabel}&quot; σημειώνεται ότι πληροί το κριτήριο &quot;{criterionLabel}&quot;.</li>
+          <li>Γραμμή 4: όλα μαζί — προσθέτει tag, ορίζει λόγο απόρριψης ΚΑΙ κριτήριο (ΟΧΙ) για το ίδιο πρόγραμμα &quot;{programLabel}&quot;.</li>
         </ul>
       </div>
       <form onSubmit={submit} className="mt-4 flex flex-wrap items-end gap-3">
