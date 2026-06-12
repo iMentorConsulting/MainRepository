@@ -39,5 +39,25 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     where: { id: params.id },
     include: { criterionChecks: { include: { criterion: true } }, rejectionReason: true },
   })
-  return NextResponse.json(match)
+  if (!match) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  // Keep status in sync with criterion checks: a FAILed criterion makes the
+  // match ineligible (REJECTED), regardless of the rejectionReason field.
+  const hasFail = match.criterionChecks.some(c => c.value === 'FAIL')
+  let updatedMatch = match
+  if (hasFail && match.status !== 'REJECTED') {
+    updatedMatch = await prisma.programMatch.update({
+      where: { id: params.id },
+      data: { status: 'REJECTED' },
+      include: { criterionChecks: { include: { criterion: true } }, rejectionReason: true },
+    })
+  } else if (!hasFail && match.status === 'REJECTED' && !match.rejectionReasonId) {
+    updatedMatch = await prisma.programMatch.update({
+      where: { id: params.id },
+      data: { status: 'POTENTIAL' },
+      include: { criterionChecks: { include: { criterion: true } }, rejectionReason: true },
+    })
+  }
+
+  return NextResponse.json(updatedMatch)
 }
