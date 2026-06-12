@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { reconcileMatchStatuses } from '@/lib/matching'
 import { sendEmail } from '@/lib/email'
 
 // Admin-triggered, ad-hoc notification: sends a specific accountant the matches
@@ -29,17 +30,19 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
   })
   if (!accountant) return NextResponse.json({ error: 'Ο λογιστής δεν βρέθηκε' }, { status: 404 })
 
-  const matches = await prisma.programMatch.findMany({
+  const allMatches = await prisma.programMatch.findMany({
     where: {
       programId: params.id,
       matchScore: { gte: 40 },
-      status: { not: 'REJECTED' },
       business: { accountantId },
     },
     include: {
       business: { select: { onomasia: true, afm: true } },
+      criterionChecks: true,
     },
   })
+  await reconcileMatchStatuses(allMatches)
+  const matches = allMatches.filter(m => m.status !== 'REJECTED')
 
   if (matches.length === 0) {
     return NextResponse.json({ notified: 0, message: 'Δεν υπάρχουν matches για αυτόν τον λογιστή σε αυτό το πρόγραμμα' })
@@ -120,18 +123,20 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
   const accountantId = searchParams.get('accountantId')
   if (!accountantId) return NextResponse.json({ error: 'Missing accountantId' }, { status: 400 })
 
-  const matches = await prisma.programMatch.findMany({
+  const allMatches = await prisma.programMatch.findMany({
     where: {
       programId: params.id,
       matchScore: { gte: 40 },
-      status: { not: 'REJECTED' },
       business: { accountantId },
     },
     include: {
       business: { select: { onomasia: true, afm: true } },
+      criterionChecks: true,
     },
     orderBy: { matchScore: 'desc' },
   })
+  await reconcileMatchStatuses(allMatches)
+  const matches = allMatches.filter(m => m.status !== 'REJECTED')
 
   return NextResponse.json({ matches })
 }

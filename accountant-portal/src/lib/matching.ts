@@ -424,3 +424,16 @@ export async function notifyBatchMatchesForBusinesses(businessIds: string[]): Pr
     data: { notified: true },
   })
 }
+
+// A FAILed extra criterion makes a match ineligible. Older records may
+// predate this rule (status not synced when the check was recorded), so
+// reconcile on read wherever matches are listed with their criterionChecks.
+export async function reconcileMatchStatuses(matches: { id: string; status: string; criterionChecks: { value: string }[] }[]): Promise<void> {
+  const toReject = matches.filter(m => m.status !== 'REJECTED' && m.criterionChecks.some(c => c.value === 'FAIL'))
+  if (toReject.length === 0) return
+  await prisma.programMatch.updateMany({
+    where: { id: { in: toReject.map(m => m.id) } },
+    data: { status: 'REJECTED' },
+  })
+  for (const m of toReject) m.status = 'REJECTED'
+}

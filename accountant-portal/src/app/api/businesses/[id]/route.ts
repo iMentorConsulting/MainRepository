@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { reconcileMatchStatuses } from '@/lib/matching'
 import { createAuditLog } from '@/lib/audit'
 
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
@@ -13,7 +14,10 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
       accountant: true,
       activities: true,
       programMatches: {
-        include: { program: { select: { id: true, title: true, category: true } } },
+        include: {
+          program: { select: { id: true, title: true, category: true } },
+          criterionChecks: true,
+        },
         orderBy: { matchScore: 'desc' },
       },
       requests: {
@@ -28,6 +32,8 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
   })
 
   if (!business) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  await reconcileMatchStatuses(business.programMatches)
 
   // Accountant can only see their own businesses
   if (session.user.role === 'ACCOUNTANT' && business.accountantId !== session.user.accountantId) {

@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { categoryWhereClause, ALL_CATEGORIES, BusinessCategory } from '@/lib/business-categories'
 import { regionWhereClause, GREEK_REGIONS } from '@/lib/greek-regions'
+import { reconcileMatchStatuses } from '@/lib/matching'
 
 export const dynamic = 'force-dynamic'
 
@@ -97,14 +98,7 @@ export async function GET(request: NextRequest) {
 
   // Self-heal: a FAILed extra criterion makes a match ineligible. Older
   // records may predate this rule, so reconcile their status on read.
-  const toReject = matches.filter(m => m.status !== 'REJECTED' && m.criterionChecks.some(c => c.value === 'FAIL'))
-  if (toReject.length > 0) {
-    await prisma.programMatch.updateMany({
-      where: { id: { in: toReject.map(m => m.id) } },
-      data: { status: 'REJECTED' },
-    })
-    for (const m of toReject) (m as any).status = 'REJECTED'
-  }
+  await reconcileMatchStatuses(matches)
 
   // For admin: also return facets for filters
   let accountants: any[] = []
