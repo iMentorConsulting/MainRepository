@@ -1,13 +1,17 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useParams } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import Link from 'next/link'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { QuickSendModal } from '@/components/quick-send-modal'
 import { formatDateTime } from '@/lib/utils'
-import { Briefcase, User, Building2, CheckCircle2, ArrowRight, MessageSquare, Lock } from 'lucide-react'
+import {
+  Briefcase, User, Building2, CheckCircle2, MessageSquare, Lock, Send,
+  Mail, Phone, MapPin, Calendar, Target, FileDown, Paperclip, Plus, Trash2, ListChecks, Server,
+} from 'lucide-react'
 
 const STATUS_LABELS: Record<string, string> = {
   NEW: 'Νέο', ACCEPTED: 'Αποδεκτό', IN_PROGRESS: 'Σε Εξέλιξη',
@@ -26,7 +30,7 @@ const TYPE_LABELS: Record<string, string> = {
 }
 const ACTIVITY_DOT: Record<string, string> = {
   CREATED: 'bg-indigo-500', STATUS_CHANGE: 'bg-amber-500', ASSIGNMENT: 'bg-violet-500',
-  NOTE: 'bg-slate-400', CONTACT_LOG: 'bg-emerald-500',
+  NOTE: 'bg-slate-400', CONTACT_LOG: 'bg-emerald-500', DOCUMENT: 'bg-blue-500', EXTERNAL: 'bg-cyan-500',
 }
 
 export default function CaseDetailPage() {
@@ -39,6 +43,19 @@ export default function CaseDetailPage() {
   const [internal, setInternal] = useState(false)
   const [notifyAccountant, setNotifyAccountant] = useState(false)
   const [posting, setPosting] = useState(false)
+  const [showQuickSend, setShowQuickSend] = useState(false)
+
+  // Tasks
+  const [newTask, setNewTask] = useState('')
+  // Document request (admin)
+  const [reqCategory, setReqCategory] = useState('')
+  const [reqNote, setReqNote] = useState('')
+  const [requesting, setRequesting] = useState(false)
+  // Document upload
+  const [upCategory, setUpCategory] = useState('')
+  const [upRequestId, setUpRequestId] = useState('')
+  const [uploading, setUploading] = useState(false)
+  const fileRef = useRef<HTMLInputElement>(null)
 
   async function load() {
     const res = await fetch(`/api/cases/${id}`)
@@ -74,12 +91,90 @@ export default function CaseDetailPage() {
     setPosting(false)
   }
 
+  async function addTask() {
+    if (!newTask.trim()) return
+    const res = await fetch(`/api/cases/${id}/tasks`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: newTask }),
+    })
+    if (res.ok) { setNewTask(''); load() }
+  }
+
+  async function toggleTask(task: any) {
+    await fetch(`/api/cases/${id}/tasks`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ taskId: task.id, done: !task.done }),
+    })
+    load()
+  }
+
+  async function deleteTask(taskId: string) {
+    await fetch(`/api/cases/${id}/tasks?taskId=${taskId}`, { method: 'DELETE' })
+    load()
+  }
+
+  async function requestDocument() {
+    if (!reqCategory.trim()) return
+    setRequesting(true)
+    const res = await fetch(`/api/cases/${id}/document-requests`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ category: reqCategory, note: reqNote }),
+    })
+    if (res.ok) { setReqCategory(''); setReqNote(''); load() }
+    setRequesting(false)
+  }
+
+  async function uploadDocument(file: File, category: string, requestId?: string) {
+    if (file.size > 10 * 1024 * 1024) { alert('Μέγιστο μέγεθος αρχείου 10MB'); return }
+    setUploading(true)
+    const dataUrl = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => resolve(reader.result as string)
+      reader.onerror = reject
+      reader.readAsDataURL(file)
+    })
+    const res = await fetch(`/api/cases/${id}/documents`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ category, fileName: file.name, dataUrl, requestId: requestId || undefined }),
+    })
+    if (res.ok) {
+      setUpCategory('')
+      setUpRequestId('')
+      if (fileRef.current) fileRef.current.value = ''
+      load()
+    } else {
+      const err = await res.json()
+      alert(err.error || 'Σφάλμα')
+    }
+    setUploading(false)
+  }
+
+  async function downloadDocument(docId: string, fileName: string) {
+    const res = await fetch(`/api/cases/${id}/documents?documentId=${docId}`)
+    if (!res.ok) return
+    const doc = await res.json()
+    const a = document.createElement('a')
+    a.href = doc.dataUrl
+    a.download = fileName
+    a.click()
+  }
+
   if (loading) {
     return <div className="flex items-center justify-center h-48"><div className="animate-spin w-8 h-8 border-4 border-blue-800 border-t-transparent rounded-full" /></div>
   }
   if (!data) return <div className="text-center text-gray-400 py-12">Δεν βρέθηκε η υπόθεση</div>
 
   const c = data.case
+  const b = c.business || {}
+  const typeLabel = c.caseType || TYPE_LABELS[c.requestType] || c.requestType
+  const matches = (b.programMatches || []).filter((m: any) => m.status !== 'REJECTED')
+  const pendingRequests = (c.documentRequests || []).filter((r: any) => r.status === 'PENDING')
+  const address = [b.postalAddress, b.postalAddressNo, b.postalZipCode, b.postalAreaDescription].filter(Boolean).join(' ')
+  const tasksDone = (c.tasks || []).filter((t: any) => t.done).length
 
   return (
     <div className="space-y-6">
@@ -93,46 +188,239 @@ export default function CaseDetailPage() {
           <div className="flex flex-wrap gap-2 mt-2">
             <Badge variant={STATUS_VARIANT[c.status]}>{STATUS_LABELS[c.status]}</Badge>
             <Badge variant="secondary">{PRIORITY_LABELS[c.priority]}</Badge>
-            <Badge variant="secondary">{TYPE_LABELS[c.requestType] || c.requestType}</Badge>
+            <Badge variant="secondary">{typeLabel}</Badge>
+            {c.externalRef && <Badge variant="purple">Case Mgmt: {c.externalStatus || c.externalRef}</Badge>}
           </div>
         </div>
-        {!isAdmin && c.status === 'NEW' && (
-          <Button variant="outline" onClick={() => updateCase({ status: 'CANCELLED' })}>Ακύρωση Υπόθεσης</Button>
-        )}
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setShowQuickSend(true)}>
+            <Send size={14} className="mr-1.5" />
+            Γρήγορη Επικοινωνία
+          </Button>
+          {!isAdmin && c.status === 'NEW' && (
+            <Button variant="outline" onClick={() => updateCase({ status: 'CANCELLED' })}>Ακύρωση Υπόθεσης</Button>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
           <Card>
-            <CardHeader><CardTitle>Στοιχεία</CardTitle></CardHeader>
-            <CardContent className="space-y-3 text-sm">
-              <div className="flex items-center gap-2">
-                <Building2 size={14} className="text-gray-400" />
-                <span className="text-gray-500">Επιχείρηση:</span>
-                <Link href={`/businesses/${c.business?.id}`} className="font-medium text-blue-800 hover:underline">{c.business?.onomasia || c.business?.afm}</Link>
-              </div>
-              <div className="flex items-center gap-2">
-                <User size={14} className="text-gray-400" />
-                <span className="text-gray-500">Λογιστής:</span>
-                <span className="font-medium">{c.accountant?.officeName}</span>
-              </div>
-              {c.program && (
+            <CardHeader><CardTitle>Στοιχεία Πελάτη & Υπόθεσης</CardTitle></CardHeader>
+            <CardContent className="text-sm">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2.5">
                 <div className="flex items-center gap-2">
-                  <ArrowRight size={14} className="text-gray-400" />
-                  <span className="text-gray-500">Πρόγραμμα:</span>
-                  <Link href={`/programs/${c.program.id}`} className="font-medium text-blue-800 hover:underline">{c.program.title}</Link>
+                  <Building2 size={14} className="text-gray-400 flex-shrink-0" />
+                  <span className="text-gray-500">Επιχείρηση:</span>
+                  <Link href={`/businesses/${b.id}`} className="font-medium text-blue-800 hover:underline truncate">{b.onomasia || b.afm}</Link>
                 </div>
-              )}
+                <div className="flex items-center gap-2">
+                  <span className="text-gray-500">ΑΦΜ:</span>
+                  <span className="font-medium">{b.afm}</span>
+                  {b.doyDescr && <span className="text-gray-400">· ΔΟΥ {b.doyDescr}</span>}
+                </div>
+                <div className="flex items-center gap-2">
+                  <User size={14} className="text-gray-400 flex-shrink-0" />
+                  <span className="text-gray-500">Λογιστής:</span>
+                  <span className="font-medium">{c.accountant?.officeName}</span>
+                </div>
+                {b.regdate && (
+                  <div className="flex items-center gap-2">
+                    <Calendar size={14} className="text-gray-400 flex-shrink-0" />
+                    <span className="text-gray-500">Έναρξη:</span>
+                    <span className="font-medium">{b.regdate}</span>
+                  </div>
+                )}
+                {b.legalStatusDescr && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-gray-500">Νομική μορφή:</span>
+                    <span className="font-medium">{b.legalStatusDescr}</span>
+                  </div>
+                )}
+                {b.firmFlagDescr && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-gray-500">Κατάσταση:</span>
+                    <span className="font-medium">{b.deactivationFlagDescr || b.firmFlagDescr}</span>
+                  </div>
+                )}
+                {address && (
+                  <div className="flex items-center gap-2">
+                    <MapPin size={14} className="text-gray-400 flex-shrink-0" />
+                    <span className="font-medium truncate">{address}</span>
+                  </div>
+                )}
+                {b.email && (
+                  <div className="flex items-center gap-2">
+                    <Mail size={14} className="text-gray-400 flex-shrink-0" />
+                    <a href={`mailto:${b.email}`} className="font-medium text-blue-800 hover:underline truncate">{b.email}</a>
+                  </div>
+                )}
+                {(b.phone || b.viberPhone) && (
+                  <div className="flex items-center gap-2">
+                    <Phone size={14} className="text-gray-400 flex-shrink-0" />
+                    <span className="font-medium">{b.phone || b.viberPhone}</span>
+                    {b.viberPhone && <Badge variant="purple">Viber: {b.viberPhone}</Badge>}
+                  </div>
+                )}
+                {c.program && (
+                  <div className="flex items-center gap-2">
+                    <Target size={14} className="text-gray-400 flex-shrink-0" />
+                    <span className="text-gray-500">Πρόγραμμα:</span>
+                    <Link href={`/programs/${c.program.id}`} className="font-medium text-blue-800 hover:underline truncate">{c.program.title}</Link>
+                  </div>
+                )}
+              </div>
+
               {c.description && (
-                <div>
-                  <div className="text-gray-500 mb-1">Περιγραφή</div>
+                <div className="mt-4">
+                  <div className="text-gray-500 mb-1">Πληροφορίες για τον πελάτη / την επιχείρηση</div>
                   <div className="bg-gray-50 rounded-lg p-3 whitespace-pre-wrap">{c.description}</div>
                 </div>
               )}
               {c.outcome && (
-                <div>
+                <div className="mt-4">
                   <div className="text-gray-500 mb-1">Αποτέλεσμα</div>
                   <div className="bg-emerald-50 border border-emerald-100 rounded-lg p-3 whitespace-pre-wrap">{c.outcome}</div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader><CardTitle>Matches Πελάτη ({matches.length})</CardTitle></CardHeader>
+            <CardContent>
+              {matches.length === 0 ? (
+                <p className="text-sm text-gray-400">Δεν υπάρχουν ενεργά matches</p>
+              ) : (
+                <div className="divide-y divide-gray-50">
+                  {matches.map((m: any) => (
+                    <div key={m.id} className="flex items-center justify-between gap-3 py-2">
+                      <Link href={`/programs/${m.program.id}`} className="text-sm font-medium text-blue-800 hover:underline truncate">
+                        {m.program.title}
+                      </Link>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        {m.program.category && <Badge variant="secondary">{m.program.category}</Badge>}
+                        <Badge variant={m.matchScore >= 80 ? 'success' : 'warning'}>{Math.round(m.matchScore)}%</Badge>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Paperclip size={16} />
+                Έγγραφα ({(c.documents || []).length})
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {pendingRequests.length > 0 && (
+                <div className="space-y-2">
+                  <div className="text-xs font-semibold text-amber-700 uppercase">Εκκρεμή αιτήματα εγγράφων</div>
+                  {pendingRequests.map((r: any) => (
+                    <div key={r.id} className="flex flex-wrap items-center justify-between gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                      <div className="text-sm">
+                        <span className="font-medium text-amber-900">{r.category}</span>
+                        {r.note && <span className="text-amber-700"> — {r.note}</span>}
+                        <span className="text-xs text-amber-600 ml-2">{formatDateTime(r.createdAt)}</span>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button size="sm" variant="outline" onClick={() => {
+                          setUpCategory(r.category)
+                          setUpRequestId(r.id)
+                          fileRef.current?.click()
+                        }}>
+                          <Plus size={13} className="mr-1" />
+                          Ανέβασμα
+                        </Button>
+                        {isAdmin && (
+                          <button onClick={async () => {
+                            await fetch(`/api/cases/${id}/document-requests?requestId=${r.id}`, { method: 'DELETE' })
+                            load()
+                          }} className="text-gray-400 hover:text-red-500">
+                            <Trash2 size={14} />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {(c.documents || []).length > 0 && (
+                <div className="divide-y divide-gray-50">
+                  {c.documents.map((d: any) => (
+                    <div key={d.id} className="flex items-center justify-between gap-3 py-2">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <Badge variant="info">{d.category}</Badge>
+                          <span className="text-sm font-medium truncate">{d.fileName}</span>
+                        </div>
+                        <div className="text-xs text-gray-400 mt-0.5">{d.uploadedByName} · {formatDateTime(d.createdAt)}</div>
+                      </div>
+                      <button onClick={() => downloadDocument(d.id, d.fileName)} className="text-blue-700 hover:text-blue-900 flex-shrink-0" title="Λήψη">
+                        <FileDown size={17} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Free upload */}
+              <div className="pt-3 border-t border-gray-100 space-y-2">
+                <div className="text-xs font-semibold text-gray-500 uppercase">Ανέβασμα εγγράφου</div>
+                <div className="flex flex-wrap gap-2 items-center">
+                  <input
+                    value={upRequestId ? upCategory : upCategory}
+                    onChange={e => { setUpCategory(e.target.value); setUpRequestId('') }}
+                    placeholder="Κατηγορία π.χ. Ε3 2025"
+                    className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  />
+                  <input
+                    ref={fileRef}
+                    type="file"
+                    className="hidden"
+                    onChange={e => {
+                      const file = e.target.files?.[0]
+                      if (!file) return
+                      if (!upCategory.trim()) { alert('Συμπληρώστε πρώτα την κατηγορία εγγράφου'); e.target.value = ''; return }
+                      uploadDocument(file, upCategory.trim(), upRequestId || undefined)
+                    }}
+                  />
+                  <Button size="sm" variant="outline" loading={uploading} onClick={() => {
+                    if (!upCategory.trim()) { alert('Συμπληρώστε πρώτα την κατηγορία εγγράφου'); return }
+                    setUpRequestId('')
+                    fileRef.current?.click()
+                  }}>
+                    <Paperclip size={13} className="mr-1" />
+                    Επιλογή αρχείου
+                  </Button>
+                </div>
+              </div>
+
+              {/* Admin: request a document from the accountant */}
+              {isAdmin && (
+                <div className="pt-3 border-t border-gray-100 space-y-2">
+                  <div className="text-xs font-semibold text-gray-500 uppercase">Ζήτηση εγγράφου από τον λογιστή</div>
+                  <div className="flex flex-wrap gap-2">
+                    <input
+                      value={reqCategory}
+                      onChange={e => setReqCategory(e.target.value)}
+                      placeholder="Κατηγορία π.χ. Ε3 2024"
+                      className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    />
+                    <input
+                      value={reqNote}
+                      onChange={e => setReqNote(e.target.value)}
+                      placeholder="Σημείωση (προαιρετικά)"
+                      className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 flex-1 min-w-[160px]"
+                    />
+                    <Button size="sm" loading={requesting} onClick={requestDocument}>Αποστολή Αιτήματος</Button>
+                  </div>
+                  <p className="text-xs text-gray-400">Ο λογιστής λαμβάνει ειδοποίηση και email με link για να ανεβάσει το έγγραφο.</p>
                 </div>
               )}
             </CardContent>
@@ -196,8 +484,8 @@ export default function CaseDetailPage() {
           </Card>
         </div>
 
-        {isAdmin && (
-          <div className="space-y-6">
+        <div className="space-y-6">
+          {isAdmin && (
             <Card>
               <CardHeader><CardTitle>Διαχείριση</CardTitle></CardHeader>
               <CardContent className="space-y-4">
@@ -268,9 +556,76 @@ export default function CaseDetailPage() {
                 )}
               </CardContent>
             </Card>
-          </div>
-        )}
+          )}
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <ListChecks size={16} />
+                Λίστα Εργασιών {c.tasks?.length ? `(${tasksDone}/${c.tasks.length})` : ''}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {(c.tasks || []).length === 0 && <p className="text-sm text-gray-400">Δεν υπάρχουν εργασίες</p>}
+              {(c.tasks || []).map((t: any) => (
+                <div key={t.id} className="flex items-start justify-between gap-2 group">
+                  <label className={`flex items-start gap-2 text-sm ${isAdmin ? 'cursor-pointer' : ''} ${t.done ? 'text-gray-400 line-through' : 'text-gray-800'}`}>
+                    <input
+                      type="checkbox"
+                      checked={t.done}
+                      disabled={!isAdmin}
+                      onChange={() => toggleTask(t)}
+                      className="mt-0.5"
+                    />
+                    <span>{t.title}</span>
+                  </label>
+                  {isAdmin && (
+                    <button onClick={() => deleteTask(t.id)} className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <Trash2 size={13} />
+                    </button>
+                  )}
+                </div>
+              ))}
+              {isAdmin && (
+                <div className="flex gap-2 pt-2">
+                  <input
+                    value={newTask}
+                    onChange={e => setNewTask(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') addTask() }}
+                    placeholder="Νέα εργασία..."
+                    className="flex-1 rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  />
+                  <Button size="sm" variant="outline" onClick={addTask}><Plus size={14} /></Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {c.externalRef && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Server size={16} />
+                  Case Management I-MENTOR
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2 text-sm">
+                <div className="flex justify-between"><span className="text-gray-500">Αναφορά:</span><span className="font-medium">{c.externalRef}</span></div>
+                {c.externalStatus && <div className="flex justify-between"><span className="text-gray-500">Κατάσταση:</span><Badge variant="purple">{c.externalStatus}</Badge></div>}
+                {c.externalSyncedAt && <div className="flex justify-between"><span className="text-gray-500">Τελ. συγχρονισμός:</span><span>{formatDateTime(c.externalSyncedAt)}</span></div>}
+              </CardContent>
+            </Card>
+          )}
+        </div>
       </div>
+
+      {showQuickSend && (
+        <QuickSendModal
+          businesses={[{ id: b.id, onomasia: b.onomasia, afm: b.afm }]}
+          onClose={() => setShowQuickSend(false)}
+          onSent={() => { setShowQuickSend(false); load() }}
+        />
+      )}
     </div>
   )
 }

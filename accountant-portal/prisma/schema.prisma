@@ -553,9 +553,62 @@ model ClientCase {
   dueDate      DateTime?
   outcome      String?
   createdById  String
+  caseType     String?          // configurable label (CaseTypeOption); fallback to requestType enum for older records
+  externalRef      String?      @unique  // reference of the inhouse case management system
+  externalStatus   String?               // status label pushed by the external system
+  externalSyncedAt DateTime?
   createdAt    DateTime         @default(now())
   updatedAt    DateTime         @updatedAt
   activities   CaseActivity[]
+  tasks            CaseTask[]
+  documents        CaseDocument[]
+  documentRequests CaseDocumentRequest[]
+}
+
+model CaseTypeOption {
+  id        String   @id @default(cuid())
+  label     String
+  active    Boolean  @default(true)
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+}
+
+model CaseTask {
+  id          String     @id @default(cuid())
+  caseId      String
+  case        ClientCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  title       String
+  done        Boolean    @default(false)
+  order       Int        @default(0)
+  createdById String
+  doneAt      DateTime?
+  createdAt   DateTime   @default(now())
+}
+
+model CaseDocument {
+  id             String     @id @default(cuid())
+  caseId         String
+  case           ClientCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  category       String     // e.g. "Ε3 2025"
+  fileName       String
+  dataUrl        String     // base64 data URL (same storage pattern as ImentorRequest attachments)
+  uploadedById   String
+  uploadedByName String
+  uploadedByRole String
+  requestId      String?    // CaseDocumentRequest fulfilled by this upload
+  createdAt      DateTime   @default(now())
+}
+
+model CaseDocumentRequest {
+  id          String     @id @default(cuid())
+  caseId      String
+  case        ClientCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  category    String     // e.g. "Ε3 2024"
+  note        String?
+  status      String     @default("PENDING") // PENDING | UPLOADED
+  createdById String
+  fulfilledAt DateTime?
+  createdAt   DateTime   @default(now())
 }
 
 enum CaseStatus {

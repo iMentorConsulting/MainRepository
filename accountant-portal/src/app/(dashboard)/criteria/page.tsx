@@ -204,6 +204,12 @@ export default function CriteriaPage() {
       />
 
       <Section
+        title="Τύποι Αιτημάτων Υποθέσεων"
+        description="Οι διαθέσιμοι τύποι αιτήματος όταν λογιστής δημιουργεί νέα ανάθεση/υπόθεση προς την I-MENTOR (π.χ. 'Ανάληψη Πελάτη', 'Επικοινωνία με Πελάτη')"
+        apiBase="/api/admin/case-types"
+      />
+
+      <Section
         title="Tags Επιχειρήσεων"
         description="Ιδιαιτερότητες πελατών (π.χ. 'Οφειλές σε Δημόσιο', 'Άνεργος') που μπορούν να χρησιμοποιηθούν για μελλοντικά matches"
         apiBase="/api/admin/tags"

@@ -51,14 +51,30 @@ export async function POST(request: NextRequest) {
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { businessId, programId, requestType, title, description, priority } = await request.json()
+  const { businessId, programId, caseType, description, priority } = await request.json()
 
-  if (!businessId || !title) {
-    return NextResponse.json({ error: 'Επιχείρηση και τίτλος είναι υποχρεωτικά' }, { status: 400 })
+  if (!businessId) {
+    return NextResponse.json({ error: 'Η επιχείρηση είναι υποχρεωτική' }, { status: 400 })
   }
 
   const business = await prisma.business.findUnique({ where: { id: businessId }, select: { id: true, accountantId: true, onomasia: true, afm: true } })
   if (!business) return NextResponse.json({ error: 'Δεν βρέθηκε η επιχείρηση' }, { status: 404 })
+
+  // Program (if any) must be a non-rejected match of this business
+  let programTitle = ''
+  if (programId) {
+    const match = await prisma.programMatch.findUnique({
+      where: { programId_businessId: { programId, businessId } },
+      include: { program: { select: { title: true } } },
+    })
+    if (!match || match.status === 'REJECTED') {
+      return NextResponse.json({ error: 'Το πρόγραμμα δεν κάνει match με την επιχείρηση' }, { status: 400 })
+    }
+    programTitle = match.program.title
+  }
+
+  // Title is generated automatically from client name + program
+  const title = `${business.onomasia || business.afm}${programTitle ? ` — ${programTitle}` : ''}`
 
   let accountantId: string
   if (session.user.role === 'ADMIN') {
@@ -76,7 +92,8 @@ export async function POST(request: NextRequest) {
       accountantId,
       businessId,
       programId: programId || null,
-      requestType: requestType || 'OTHER',
+      requestType: 'OTHER',
+      caseType: caseType || null,
       title,
       description: description || null,
       priority: priority || 'NORMAL',

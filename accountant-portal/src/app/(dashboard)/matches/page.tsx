@@ -8,7 +8,8 @@ import { Table, TableHead, TableBody, TableRow, Th, Td } from '@/components/ui/t
 import { Pagination } from '@/components/ui/pagination'
 import { MultiSelect } from '@/components/ui/multi-select'
 import { QuickSendModal } from '@/components/quick-send-modal'
-import { Send, ChevronUp, ChevronDown, ChevronsUpDown, Search, Check, X as XIcon, Ban, Eye, EyeOff } from 'lucide-react'
+import { Send, ChevronUp, ChevronDown, ChevronsUpDown, Search, Check, X as XIcon, Ban, Eye, EyeOff, Briefcase } from 'lucide-react'
+import { NewCaseModal } from '@/components/cases/new-case-modal'
 import { getEffectiveCategory } from '@/lib/business-categories'
 import { CategoryBadge } from '@/components/businesses/category-badge'
 
@@ -197,6 +198,7 @@ export default function MatchesPage() {
   const [programOptions, setProgramOptions] = useState<{ value: string; label: string }[]>([])
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [quickSendOpen, setQuickSendOpen] = useState(false)
+  const [caseFor, setCaseFor] = useState<{ businessId: string; programId: string } | null>(null)
   const [criteriaMap, setCriteriaMap] = useState<Record<string, string>>({})
   const [reasonOptions, setReasonOptions] = useState<{ id: string; label: string; programIds?: string[] }[]>([])
   const [hideUnsuitable, setHideUnsuitable] = useState(true)
@@ -437,12 +439,13 @@ export default function MatchesPage() {
                   <Th className="min-w-[200px]">Σημειώσεις</Th>
                   <Th className="min-w-[220px]">Καταλληλότητα</Th>
                   <Th>Καμπάνια</Th>
+                  <Th>Ανάθεση</Th>
                 </TableRow>
               </TableHead>
               <TableBody>
                 {visibleMatches.length === 0 ? (
                   <TableRow>
-                    <Td colSpan={isAdmin ? 10 : 9} className="text-center text-gray-400 py-8">Δεν βρέθηκαν matches</Td>
+                    <Td colSpan={isAdmin ? 11 : 10} className="text-center text-gray-400 py-8">Δεν βρέθηκαν matches</Td>
                   </TableRow>
                 ) : (
                   visibleMatches.map(m => {
@@ -502,6 +505,15 @@ export default function MatchesPage() {
                             <span className="text-xs text-gray-400">—</span>
                           )}
                         </Td>
+                        <Td>
+                          <button
+                            onClick={() => setCaseFor({ businessId: m.businessId, programId: m.programId })}
+                            className="p-1.5 rounded-lg text-indigo-600 hover:bg-indigo-50 transition-colors"
+                            title="Ανάθεση στην I-MENTOR"
+                          >
+                            <Briefcase size={16} />
+                          </button>
+                        </Td>
                       </TableRow>
                     )
                   })
@@ -512,6 +524,16 @@ export default function MatchesPage() {
           </>
         )}
       </div>
+
+      {caseFor && (
+        <NewCaseModal
+          open
+          onClose={() => setCaseFor(null)}
+          onCreated={() => setCaseFor(null)}
+          initialBusinessId={caseFor.businessId}
+          initialProgramId={caseFor.programId}
+        />
+      )}
 
       {quickSendOpen && selectedBusinesses.length > 0 && (
         <QuickSendModal

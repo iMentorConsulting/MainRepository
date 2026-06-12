@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { createAuditLog } from '@/lib/audit'
 import { sendEmail } from '@/lib/email'
+import { reconcileMatchStatuses } from '@/lib/matching'
 
 const STATUS_LABELS: Record<string, string> = {
   NEW: 'Νέο', ACCEPTED: 'Αποδεκτό', IN_PROGRESS: 'Σε Εξέλιξη',
@@ -18,9 +19,29 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     where: { id: params.id },
     include: {
       accountant: { select: { id: true, officeName: true, contactPerson: true, email: true } },
-      business: { select: { id: true, afm: true, onomasia: true } },
+      business: {
+        select: {
+          id: true, afm: true, onomasia: true, commercialTitle: true, legalStatusDescr: true,
+          firmFlagDescr: true, deactivationFlagDescr: true, regdate: true, stopDate: true,
+          postalAddress: true, postalAddressNo: true, postalZipCode: true, postalAreaDescription: true,
+          doyDescr: true, email: true, phone: true, viberPhone: true, tags: true,
+          programMatches: {
+            include: {
+              program: { select: { id: true, title: true, category: true } },
+              criterionChecks: true,
+            },
+            orderBy: { matchScore: 'desc' },
+          },
+        },
+      },
       program: { select: { id: true, title: true } },
       activities: { orderBy: { createdAt: 'asc' } },
+      tasks: { orderBy: [{ order: 'asc' }, { createdAt: 'asc' }] },
+      documents: {
+        select: { id: true, category: true, fileName: true, uploadedByName: true, uploadedByRole: true, requestId: true, createdAt: true },
+        orderBy: { createdAt: 'desc' },
+      },
+      documentRequests: { orderBy: { createdAt: 'desc' } },
     },
   })
 
@@ -30,6 +51,8 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
   if (!isAdmin && clientCase.accountantId !== session.user.accountantId) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
+
+  await reconcileMatchStatuses(clientCase.business.programMatches as any)
 
   if (!isAdmin) {
     clientCase.activities = clientCase.activities.filter(a => !a.internal)

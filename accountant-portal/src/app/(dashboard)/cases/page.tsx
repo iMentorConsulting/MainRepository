@@ -131,7 +131,7 @@ export default function CasesPage() {
                       <Link href={`/businesses/${c.business?.id}`} className="hover:underline">{c.business?.onomasia || c.business?.afm}</Link>
                     </Td>
                     {isAdmin && <Td className="text-sm text-gray-500">{c.accountant?.officeName}</Td>}
-                    <Td className="text-sm text-gray-500">{TYPE_LABELS[c.requestType] || c.requestType}</Td>
+                    <Td className="text-sm text-gray-500">{c.caseType || TYPE_LABELS[c.requestType] || c.requestType}</Td>
                     <Td>
                       <Link href={`/cases/${c.id}`} className="text-sm font-medium text-gray-900 hover:underline">{c.title}</Link>
                     </Td>
