@@ -76,6 +76,7 @@ export async function GET(request: NextRequest) {
             id: true,
             afm: true,
             onomasia: true,
+            accountantId: true,
             tags: true,
             activities: { where: { firmActKind: 1 }, select: { firmActCode: true }, take: 1 },
             accountant: { select: { id: true, officeName: true, contactPerson: true } },
@@ -99,6 +100,17 @@ export async function GET(request: NextRequest) {
   // Self-heal: a FAILed extra criterion makes a match ineligible. Older
   // records may predate this rule, so reconcile their status on read.
   await reconcileMatchStatuses(matches)
+
+  // Flag businesses that already have at least one ClientCase, so the UI can
+  // show a check overlay on the "Ανάθεση στην I-MENTOR" button.
+  const businessIds = Array.from(new Set(matches.map(m => m.business?.id).filter((id): id is string => !!id)))
+  const caseGroups = businessIds.length > 0
+    ? await prisma.clientCase.groupBy({ by: ['businessId'], where: { businessId: { in: businessIds } } })
+    : []
+  const businessIdsWithCases = new Set(caseGroups.map(g => g.businessId))
+  for (const m of matches as any[]) {
+    if (m.business) m.business.hasCase = businessIdsWithCases.has(m.business.id)
+  }
 
   // For admin: also return facets for filters
   let accountants: any[] = []

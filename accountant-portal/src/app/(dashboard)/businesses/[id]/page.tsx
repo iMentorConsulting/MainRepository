@@ -17,6 +17,17 @@ import { ALL_CATEGORIES, getEffectiveCategory, categoryTag, CATEGORY_TAG_PREFIX 
 import { CategoryBadge } from '@/components/businesses/category-badge'
 import { resolveRegionFromZip } from '@/lib/greek-regions'
 
+const CASE_STATUS_LABELS: Record<string, string> = {
+  NEW: 'Νέο', ACCEPTED: 'Αποδεκτό', IN_PROGRESS: 'Σε Εξέλιξη',
+  WAITING_CLIENT: 'Αναμονή Πελάτη', WAITING_ACCOUNTANT: 'Αναμονή Λογιστή',
+  COMPLETED: 'Ολοκληρωμένο', CANCELLED: 'Ακυρωμένο',
+}
+const CASE_STATUS_VARIANT: Record<string, any> = {
+  NEW: 'info', ACCEPTED: 'purple', IN_PROGRESS: 'warning',
+  WAITING_CLIENT: 'secondary', WAITING_ACCOUNTANT: 'secondary',
+  COMPLETED: 'success', CANCELLED: 'danger',
+}
+
 export default function BusinessDetailPage() {
   const { id } = useParams()
   const router = useRouter()
@@ -385,6 +396,29 @@ export default function BusinessDetailPage() {
               )}
             </CardContent>
           </Card>
+
+          {business.clientCases && business.clientCases.length > 0 && (
+            <Card>
+              <CardHeader><CardTitle>Υποθέσεις ({business.clientCases.length})</CardTitle></CardHeader>
+              <CardContent className="space-y-2">
+                {business.clientCases.map((c: any) => (
+                  <Link
+                    key={c.id}
+                    href={`/cases/${c.id}`}
+                    className="flex items-center justify-between gap-2 text-sm border border-gray-100 rounded-lg px-3 py-2 hover:bg-gray-50 transition-colors"
+                  >
+                    <div className="min-w-0">
+                      <div className="font-medium truncate">{c.program?.title || `Υπόθεση #${c.caseNumber}`}</div>
+                      <div className="text-xs text-gray-400">{formatDate(c.createdAt)}</div>
+                    </div>
+                    <Badge variant={CASE_STATUS_VARIANT[c.status] || 'secondary'} className="text-xs shrink-0">
+                      {CASE_STATUS_LABELS[c.status] || c.status}
+                    </Badge>
+                  </Link>
+                ))}
+              </CardContent>
+            </Card>
+          )}
 
           <Card>
             <CardHeader><CardTitle>Tags / Ιδιαιτερότητες</CardTitle></CardHeader>

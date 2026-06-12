@@ -8,7 +8,7 @@ import { Table, TableHead, TableBody, TableRow, Th, Td } from '@/components/ui/t
 import { Pagination } from '@/components/ui/pagination'
 import { MultiSelect } from '@/components/ui/multi-select'
 import { QuickSendModal } from '@/components/quick-send-modal'
-import { Send, ChevronUp, ChevronDown, ChevronsUpDown, Search, Check, X as XIcon, Ban, Eye, EyeOff, ClipboardList } from 'lucide-react'
+import { Send, ChevronUp, ChevronDown, ChevronsUpDown, Search, Check, X as XIcon, Ban, Eye, EyeOff, ClipboardList, CheckCircle2 } from 'lucide-react'
 import { NewCaseModal } from '@/components/cases/new-case-modal'
 import { getEffectiveCategory } from '@/lib/business-categories'
 import { CategoryBadge } from '@/components/businesses/category-badge'
@@ -334,7 +334,7 @@ export default function MatchesPage() {
             {isAdmin && accountantOptions.length > 0 && (
               <MultiSelect
                 label="Λογιστής"
-                options={[{ value: '__none__', label: 'Χωρίς Λογιστή' }, ...accountantOptions]}
+                options={[{ value: '__none__', label: 'Χωρίς Λογιστή (I-MENTOR)' }, ...accountantOptions]}
                 selected={accountantFilter}
                 onChange={setAccountantFilter}
                 placeholder="Όλοι οι λογιστές"
@@ -462,9 +462,14 @@ export default function MatchesPage() {
                           />
                         </Td>
                         <Td className="max-w-[300px]">
-                          <Link href={`/businesses/${m.businessId}`} className={`text-blue-800 hover:underline font-medium truncate block ${unsuitable ? 'line-through' : ''}`}>
-                            {m.business?.onomasia || '-'}
-                          </Link>
+                          <span className="flex items-center gap-1.5">
+                            <Link href={`/businesses/${m.businessId}`} className={`text-blue-800 hover:underline font-medium truncate block ${unsuitable ? 'line-through' : ''}`}>
+                              {m.business?.onomasia || '-'}
+                            </Link>
+                            {!m.business?.accountantId && (
+                              <Badge variant="purple" className="text-[10px] shrink-0">I-MENTOR</Badge>
+                            )}
+                          </span>
                         </Td>
                         <Td>
                           <CategoryBadge category={getEffectiveCategory(m.business || {})} />
@@ -508,10 +513,13 @@ export default function MatchesPage() {
                         <Td>
                           <button
                             onClick={() => setCaseFor({ businessId: m.businessId, programId: m.programId })}
-                            className="p-1.5 rounded-lg text-indigo-600 hover:bg-indigo-50 transition-colors"
-                            title="Ανάθεση στην I-MENTOR"
+                            className="relative p-1.5 rounded-lg text-indigo-600 hover:bg-indigo-50 transition-colors"
+                            title={m.business?.hasCase ? 'Ανάθεση στην I-MENTOR (υπάρχει ήδη υπόθεση)' : 'Ανάθεση στην I-MENTOR'}
                           >
                             <ClipboardList size={16} />
+                            {m.business?.hasCase && (
+                              <CheckCircle2 size={11} className="absolute -bottom-0.5 -right-0.5 text-green-600 bg-white rounded-full" />
+                            )}
                           </button>
                         </Td>
                       </TableRow>

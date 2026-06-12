@@ -99,7 +99,13 @@ export async function GET(request: NextRequest) {
     prisma.business.count({ where }),
   ])
 
-  return NextResponse.json({ businesses, total, page, limit })
+  const caseGroups = businesses.length > 0
+    ? await prisma.clientCase.groupBy({ by: ['businessId'], where: { businessId: { in: businesses.map(b => b.id) } } })
+    : []
+  const businessIdsWithCases = new Set(caseGroups.map(g => g.businessId))
+  const businessesWithFlags = businesses.map(b => ({ ...b, hasCase: businessIdsWithCases.has(b.id) }))
+
+  return NextResponse.json({ businesses: businessesWithFlags, total, page, limit })
 }
 
 export async function POST(request: NextRequest) {

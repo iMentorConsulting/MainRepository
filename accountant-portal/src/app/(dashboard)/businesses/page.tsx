@@ -46,8 +46,12 @@ interface Business {
   postalZipCode: string | null
   legalStatusDescr: string | null
   accountant: { officeName: string } | null
+  accountantId?: string | null
+  deactivationFlag?: string | null
+  stopDate?: string | null
   activities: { firmActCode: string; firmActDescr: string | null; firmActKind: number | null }[]
   tags?: string[]
+  hasCase?: boolean
   _count?: { programMatches: number }
 }
 
@@ -357,7 +361,7 @@ export default function BusinessesPage() {
             {isAdmin && (
               <MultiSelect
                 label="Λογιστής"
-                options={[{ value: '__none__', label: 'Χωρίς Λογιστή' }, ...accountants.map(a => ({ value: a.id, label: a.officeName }))]}
+                options={[{ value: '__none__', label: 'Χωρίς Λογιστή (I-MENTOR)' }, ...accountants.map(a => ({ value: a.id, label: a.officeName }))]}
                 selected={accountantFilter}
                 onChange={setAccountantFilter}
                 placeholder="Όλοι οι λογιστές"
@@ -510,7 +514,17 @@ export default function BusinessesPage() {
                             {b.afm}
                           </Link>
                         </Td>
-                        <Td className="max-w-xs truncate font-medium">{b.onomasia || '-'}</Td>
+                        <Td className="max-w-xs truncate font-medium">
+                          <span className="flex items-center gap-1.5">
+                            <span className="truncate">{b.onomasia || '-'}</span>
+                            {(b.deactivationFlag === 'Y' || b.stopDate) && (
+                              <Badge variant="danger" className="text-[10px] shrink-0">Ανενεργή</Badge>
+                            )}
+                            {!b.accountantId && (
+                              <Badge variant="purple" className="text-[10px] shrink-0">I-MENTOR</Badge>
+                            )}
+                          </span>
+                        </Td>
                         <Td>
                           {(b.tags?.length || primaryKad?.firmActCode) && (
                             <CategoryBadge category={getEffectiveCategory(b)} />

@@ -30,6 +30,7 @@ export function MultiSelect({ label, options, selected, onChange, placeholder }:
   }
 
   const text = selected.length === 0 ? (placeholder || 'Όλα') : `${selected.length} επιλεγμένα`
+  const labelFor = (value: string) => options.find(o => o.value === value)?.label || value
 
   return (
     <div className="relative" ref={ref}>
@@ -42,9 +43,20 @@ export function MultiSelect({ label, options, selected, onChange, placeholder }:
         <span className={selected.length ? 'text-gray-900' : 'text-gray-400'}>{text}</span>
         <ChevronDown size={14} className="text-gray-400" />
       </button>
+      {selected.length > 0 && (
+        <div className="flex flex-wrap gap-1 mt-1.5">
+          {selected.map(v => (
+            <span key={v} className="inline-flex items-center gap-1 bg-blue-50 text-blue-700 text-xs rounded-full px-2 py-0.5 border border-blue-100">
+              <span className="truncate max-w-[160px]">{labelFor(v)}</span>
+              <button type="button" onClick={() => toggle(v)} className="hover:text-blue-900 leading-none">×</button>
+            </span>
+          ))}
+        </div>
+      )}
       {open && (
         <div className="absolute z-20 mt-1 w-full min-w-[220px] max-h-64 overflow-auto bg-white border border-gray-200 rounded-lg shadow-lg py-1">
           {options.length === 0 && <div className="px-3 py-2 text-xs text-gray-400">Καμία επιλογή διαθέσιμη</div>}
+          <div className="px-3 py-1.5 text-[11px] text-gray-400 border-b border-gray-100">Επιλέξτε όσες θέλετε — η λίστα παραμένει ανοιχτή</div>
           {options.map(opt => (
             <label key={opt.value} className="flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-gray-50 cursor-pointer">
               <input type="checkbox" checked={selected.includes(opt.value)} onChange={() => toggle(opt.value)} className="rounded" />
