@@ -316,7 +316,7 @@ class WinbackApprove(BaseModel):
     winback_suc: Optional[float] = None
 
 
-WINBACK_VALIDITY_DAYS = 10
+WINBACK_VALIDITY_DAYS = 30
 
 
 class WinbackRequest(BaseModel):

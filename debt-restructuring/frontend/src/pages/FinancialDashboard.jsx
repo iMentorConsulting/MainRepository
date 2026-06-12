@@ -1467,17 +1467,32 @@ function WinbackPanel({ cases, onCasesUpdate }) {
               const setEdit = (field, value) => setEdits(prev => ({ ...prev, [c.id]: { ...prev[c.id], [field]: value } }))
               const ref = c.stage_changed_at || c.updated_at
               const days = ref ? Math.floor((now - new Date(ref)) / (1000 * 60 * 60 * 24)) : '?'
+              const estWoPct = (() => { const d = c.estimates?.sumDebt || 0; return d > 0 ? (c.estimates?.sumWr || 0) / d : 0 })()
+              const bdItems = scoreBreakdown(c.debts, c.assets, c.income_data, undefined, estWoPct)
               return (
                 <div key={c.id} className={`bg-white border rounded-xl p-3 flex flex-wrap items-center gap-3 ${isEmergency ? 'border-amber-300 ring-1 ring-amber-200' : 'border-violet-200'}`}>
                   <div className="flex-1 min-w-0">
-                    <div className="font-bold text-gray-800 truncate">{c.client_name}</div>
-                    <div className="text-xs text-gray-500">{c.employee} · {days} ημέρες</div>
+                    <div className="font-bold text-gray-800 truncate">
+                      <a href={`/cases/${c.id}`} target="_blank" rel="noopener noreferrer" className="hover:underline hover:text-violet-700">
+                        {c.client_name} ↗
+                      </a>
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      {c.employee} · {days} ημέρες{ref && <> · από {format(new Date(ref), 'dd/MM/yyyy')}</>}
+                    </div>
                     {isEmergency && (
                       <div className="text-xs text-amber-700 font-semibold mt-0.5">
                         🚨 Έκτακτο αίτημα από {c.commercial_offer.winback_requested_by}
                         {c.commercial_offer.winback_request_note && <> — «{c.commercial_offer.winback_request_note}»</>}
                       </div>
                     )}
+                    <div className="flex flex-wrap gap-1 mt-1.5">
+                      {bdItems.map((item, i) => (
+                        <span key={i} className={`text-[10px] px-1.5 py-0.5 rounded-full ${item.value > 0 ? 'bg-blue-100 text-blue-700' : item.value < 0 ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-500'}`}>
+                          {item.label} <strong>{item.value > 0 ? '+' : ''}{item.value}</strong>
+                        </span>
+                      ))}
+                    </div>
                   </div>
                   <div className="flex gap-3 text-sm">
                     <div className="text-center">
@@ -1553,6 +1568,18 @@ function WinbackPanel({ cases, onCasesUpdate }) {
                       className="bg-green-600 hover:bg-green-700 text-white text-xs font-bold px-4 py-1.5 rounded-lg transition-colors"
                     >
                       {isOpen ? '▲ Κλείσιμο' : '✏️ Σύνταξη & Αποστολή'}
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (confirm('Ακύρωση της εγκεκριμένης ειδικής τιμής; Η υπόθεση θα επανέλθει στους υποψήφιους.')) {
+                          handleApprove(c, false)
+                          if (isOpen) setOpenComposer(null)
+                        }
+                      }}
+                      className="bg-gray-100 hover:bg-gray-200 text-gray-600 text-xs font-bold px-3 py-1.5 rounded-lg transition-colors"
+                      title="Άκυρο - επιστροφή στους υποψήφιους"
+                    >
+                      ✕ Άκυρο
                     </button>
                   </div>
                   {isOpen && (
