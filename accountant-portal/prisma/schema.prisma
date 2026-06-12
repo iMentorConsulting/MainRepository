@@ -81,6 +81,7 @@ model Accountant {
   commissionOverrides AccountantCommissionOverride[]
   notifications       Notification[]
   chatConversations   ChatConversation[]
+  clientCases         ClientCase[]
 }
 
 model Business {
@@ -120,6 +121,7 @@ model Business {
   paymentRequests       PaymentRequest[]
   commissions           Commission[]
   chatConversations     ChatConversation[]
+  clientCases           ClientCase[]
 }
 
 model BusinessActivity {
@@ -167,6 +169,7 @@ model Program {
   requests            ImentorRequest[]
   paymentRequests     PaymentRequest[]
   commissionPolicies  CommissionPolicy[]
+  clientCases         ClientCase[]
 }
 
 enum ProgramCategory {
@@ -530,6 +533,66 @@ model TagOption {
   active    Boolean  @default(true)
   order     Int      @default(0)
   createdAt DateTime @default(now())
+}
+
+model ClientCase {
+  id           String           @id @default(cuid())
+  caseNumber   Int              @unique @default(autoincrement())
+  accountantId String
+  accountant   Accountant       @relation(fields: [accountantId], references: [id])
+  businessId   String
+  business     Business         @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  programId    String?
+  program      Program?         @relation(fields: [programId], references: [id])
+  requestType  CaseRequestType  @default(OTHER)
+  title        String
+  description  String?
+  priority     CasePriority     @default(NORMAL)
+  status       CaseStatus       @default(NEW)
+  assignedToId String?
+  dueDate      DateTime?
+  outcome      String?
+  createdById  String
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+  activities   CaseActivity[]
+}
+
+enum CaseStatus {
+  NEW
+  ACCEPTED
+  IN_PROGRESS
+  WAITING_CLIENT
+  WAITING_ACCOUNTANT
+  COMPLETED
+  CANCELLED
+}
+
+enum CaseRequestType {
+  TAKE_OVER
+  CONTACT_CLIENT
+  APPLICATION_SUPPORT
+  OTHER
+}
+
+enum CasePriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+model CaseActivity {
+  id         String     @id @default(cuid())
+  caseId     String
+  case       ClientCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  type       String
+  body       String
+  internal   Boolean    @default(false)
+  authorId   String
+  authorName String
+  authorRole String
+  createdAt  DateTime   @default(now())
 }
 
 model Invitation {

@@ -8,7 +8,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { KadTable } from '@/components/businesses/kad-table'
 import { MatchCard } from '@/components/matching/match-card'
 import { QuickSendModal } from '@/components/quick-send-modal'
-import { ArrowLeft, Mail, Phone, MapPin, Calendar, Edit, Send, Trash2, X as XIcon, Plus, Printer } from 'lucide-react'
+import { ArrowLeft, Mail, Phone, MapPin, Calendar, Edit, Send, Trash2, X as XIcon, Plus, Printer, Briefcase } from 'lucide-react'
+import { NewCaseModal } from '@/components/cases/new-case-modal'
 import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import { formatDate } from '@/lib/utils'
@@ -24,6 +25,7 @@ export default function BusinessDetailPage() {
   const [editNotes, setEditNotes] = useState(false)
   const [notes, setNotes] = useState('')
   const [quickSend, setQuickSend] = useState(false)
+  const [newCase, setNewCase] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const { data: session } = useSession()
   const isAdmin = session?.user?.role === 'ADMIN'
@@ -158,6 +160,10 @@ export default function BusinessDetailPage() {
           <Send size={15} />
           Γρήγορη Αποστολή
         </Button>
+        <Button variant="outline" onClick={() => setNewCase(true)}>
+          <Briefcase size={16} className="mr-2" />
+          Ανάθεση στην I-MENTOR
+        </Button>
         <Link href={`/businesses/${id}/edit`}>
           <Button variant="outline">
             <Edit size={16} className="mr-2" />
@@ -190,6 +196,13 @@ export default function BusinessDetailPage() {
           onClose={() => setQuickSend(false)}
         />
       )}
+
+      <NewCaseModal
+        open={newCase}
+        onClose={() => setNewCase(false)}
+        initialBusinessId={business.id}
+        onCreated={() => setNewCase(false)}
+      />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 print:grid-cols-1 print:gap-3">
         {/* Main Info */}

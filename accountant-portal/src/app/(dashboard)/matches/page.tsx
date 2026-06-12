@@ -199,7 +199,7 @@ export default function MatchesPage() {
   const [quickSendOpen, setQuickSendOpen] = useState(false)
   const [criteriaMap, setCriteriaMap] = useState<Record<string, string>>({})
   const [reasonOptions, setReasonOptions] = useState<{ id: string; label: string; programIds?: string[] }[]>([])
-  const [hideUnsuitable, setHideUnsuitable] = useState(false)
+  const [hideUnsuitable, setHideUnsuitable] = useState(true)
 
   useEffect(() => {
     fetch('/api/admin/criteria')

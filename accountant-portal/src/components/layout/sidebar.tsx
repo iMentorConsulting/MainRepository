@@ -4,7 +4,7 @@ import { usePathname } from 'next/navigation'
 import { useSession, signOut } from 'next-auth/react'
 import { useEffect, useState } from 'react'
 import { cn } from '@/lib/utils'
-import { LayoutDashboard, Users, Building2, Zap, Target, Send, CreditCard, Percent, Inbox, BarChart3, Settings, LogOut, Globe, Mail, Phone, TrendingUp, X, MessageSquare, ListChecks, FileText, BellRing, History } from 'lucide-react'
+import { LayoutDashboard, Users, Building2, Zap, Target, Send, CreditCard, Percent, Inbox, BarChart3, Settings, LogOut, Globe, Mail, Phone, TrendingUp, X, MessageSquare, ListChecks, FileText, BellRing, History, Briefcase } from 'lucide-react'
 
 const navItems = [
   { href: '/', label: 'Dashboard', icon: LayoutDashboard, adminOnly: false },
@@ -21,6 +21,7 @@ const navItems = [
   { href: '/commissions', label: 'Προμήθειες', icon: Percent, adminOnly: false },
   { href: '/reports', label: 'Αναφορές', icon: BarChart3, adminOnly: false },
   { href: '/requests', label: 'Αιτήματα', icon: Inbox, adminOnly: false },
+  { href: '/cases', label: 'Υποθέσεις', icon: Briefcase, adminOnly: false },
   { href: '/chat', label: 'Επικοινωνία', icon: MessageSquare, adminOnly: false },
   { href: '/analytics', label: 'Αναλυτικά', icon: TrendingUp, adminOnly: true },
   { href: '/audit-log', label: 'Καταγραφή Ενεργειών', icon: History, adminOnly: true },
