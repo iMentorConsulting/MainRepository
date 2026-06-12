@@ -38,7 +38,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
   await prisma.clientCase.update({ where: { id: existing.id }, data: { updatedAt: new Date() } })
 
   try {
-    if (isAdmin && !activity.internal && notifyAccountant) {
+    if (isAdmin && !activity.internal && notifyAccountant && existing.accountantId) {
       await prisma.notification.create({
         data: {
           accountantId: existing.accountantId,
@@ -48,7 +48,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
           link: `/cases/${existing.id}`,
         },
       })
-      if (existing.accountant.email) {
+      if (existing.accountant?.email) {
         await sendEmail({
           to: existing.accountant.email,
           subject: `🗂️ Νέο σχόλιο στην Υπόθεση #${existing.caseNumber}`,
@@ -61,7 +61,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       await sendEmail({
         to: process.env.ADMIN_EMAIL || 'info@i-mentor.gr',
         subject: `🗂️ Νέο σχόλιο από λογιστή — Υπόθεση #${existing.caseNumber}`,
-        html: `<p>Νέο σχόλιο από <strong>${existing.accountant.officeName}</strong> στην υπόθεση <strong>#${existing.caseNumber}</strong>:</p>
+        html: `<p>Νέο σχόλιο από <strong>${existing.accountant?.officeName || 'I-MENTOR'}</strong> στην υπόθεση <strong>#${existing.caseNumber}</strong>:</p>
           <blockquote style="border-left:4px solid #4f46e5;padding-left:12px;color:#374151">${body.trim()}</blockquote>
           <p><a href="${process.env.APP_URL || 'https://logistis.i-mentor.gr'}/cases/${existing.id}">Δείτε την υπόθεση →</a></p>`,
       })

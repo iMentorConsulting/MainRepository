@@ -66,7 +66,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       await sendEmail({
         to: process.env.ADMIN_EMAIL || 'info@i-mentor.gr',
         subject: `📎 Νέο έγγραφο στην Υπόθεση #${existing.caseNumber} — ${category.trim()}`,
-        html: `<p>Ο/Η <strong>${existing.accountant.officeName}</strong> ανέβασε το έγγραφο <strong>${category.trim()}</strong> (${fileName}) για τον πελάτη <strong>${existing.business.onomasia || existing.business.afm}</strong>.</p>
+        html: `<p>Ο/Η <strong>${existing.accountant?.officeName || 'I-MENTOR'}</strong> ανέβασε το έγγραφο <strong>${category.trim()}</strong> (${fileName}) για τον πελάτη <strong>${existing.business.onomasia || existing.business.afm}</strong>.</p>
           <p><a href="${process.env.APP_URL || 'https://logistis.i-mentor.gr'}/cases/${existing.id}">Δείτε την υπόθεση →</a></p>`,
       })
     } catch {}

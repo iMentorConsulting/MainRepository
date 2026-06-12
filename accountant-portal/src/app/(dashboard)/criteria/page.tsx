@@ -5,7 +5,74 @@ import { redirect } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { MultiSelect } from '@/components/ui/multi-select'
-import { Plus, Trash2, GripVertical, Pencil, Check, X } from 'lucide-react'
+import { Plus, Trash2, GripVertical, Pencil, Check, X, Upload } from 'lucide-react'
+
+function BulkTagSection() {
+  const [tag, setTag] = useState('')
+  const [file, setFile] = useState<File | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [result, setResult] = useState<any>(null)
+  const [error, setError] = useState('')
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!file || !tag.trim()) return
+    setLoading(true)
+    setError('')
+    setResult(null)
+    const formData = new FormData()
+    formData.append('file', file)
+    formData.append('tag', tag.trim())
+    const res = await fetch('/api/admin/businesses/bulk-tag', { method: 'POST', body: formData })
+    const data = await res.json()
+    if (res.ok) {
+      setResult(data)
+    } else {
+      setError(data.error || 'Σφάλμα')
+    }
+    setLoading(false)
+  }
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 p-5">
+      <h2 className="text-lg font-semibold text-gray-900">Μαζική Προσθήκη Tag με Λίστα ΑΦΜ</h2>
+      <p className="text-gray-500 mt-1 text-sm">
+        Ανεβάστε αρχείο CSV/XLSX με στήλη ΑΦΜ (ή λίστα ΑΦΜ, ένα ανά γραμμή) για να προσθέσετε ένα tag σε όλες τις αντίστοιχες επιχειρήσεις.
+      </p>
+      <form onSubmit={submit} className="mt-4 flex flex-wrap items-end gap-3">
+        <div className="flex flex-col gap-1">
+          <label className="text-xs font-medium text-gray-600">Tag</label>
+          <input
+            type="text"
+            value={tag}
+            onChange={e => setTag(e.target.value)}
+            placeholder="π.χ. Οφειλές σε Δημόσιο"
+            className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 w-64"
+          />
+        </div>
+        <div className="flex flex-col gap-1">
+          <label className="text-xs font-medium text-gray-600">Αρχείο (CSV/XLSX)</label>
+          <input
+            type="file"
+            accept=".csv,.xlsx,.xls"
+            onChange={e => setFile(e.target.files?.[0] || null)}
+            className="text-sm"
+          />
+        </div>
+        <Button type="submit" disabled={loading || !file || !tag.trim()}>
+          <Upload size={14} className="mr-1" /> {loading ? 'Επεξεργασία...' : 'Ανέβασμα'}
+        </Button>
+      </form>
+      {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
+      {result && (
+        <p className="mt-3 text-sm text-gray-700">
+          Υποβλήθηκαν {result.submitted} ΑΦΜ, βρέθηκαν {result.matched}, ενημερώθηκαν {result.updated}.
+          {result.notFound?.length > 0 && ` Δεν βρέθηκαν: ${result.notFound.join(', ')}`}
+        </p>
+      )}
+    </div>
+  )
+}
 
 interface Item {
   id: string
@@ -220,6 +287,8 @@ export default function CriteriaPage() {
         description="Ιδιαιτερότητες πελατών (π.χ. 'Οφειλές σε Δημόσιο', 'Άνεργος') που μπορούν να χρησιμοποιηθούν για μελλοντικά matches"
         apiBase="/api/admin/tags"
       />
+
+      <BulkTagSection />
     </div>
   )
 }

@@ -46,6 +46,9 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
   await prisma.clientCase.update({ where: { id: existing.id }, data: { updatedAt: new Date() } })
 
   const caseUrl = `${process.env.APP_URL || 'https://logistis.i-mentor.gr'}/cases/${existing.id}`
+  if (!existing.accountantId) {
+    return NextResponse.json(docRequests, { status: 201 })
+  }
   try {
     await prisma.notification.create({
       data: {
@@ -56,7 +59,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
         link: `/cases/${existing.id}`,
       },
     })
-    if (existing.accountant.email) {
+    if (existing.accountant?.email) {
       await sendEmail({
         to: existing.accountant.email,
         subject: `📄 Αίτημα Εγγράφων — Υπόθεση #${existing.caseNumber} (${existing.business.onomasia || existing.business.afm})`,

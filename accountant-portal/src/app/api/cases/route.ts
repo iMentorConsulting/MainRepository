@@ -76,10 +76,11 @@ export async function POST(request: NextRequest) {
   // Title is generated automatically from client name + program
   const title = `${business.onomasia || business.afm}${programTitle ? ` — ${programTitle}` : ''}`
 
-  let accountantId: string
+  let accountantId: string | null
   if (session.user.role === 'ADMIN') {
-    if (!business.accountantId) return NextResponse.json({ error: 'Η επιχείρηση δεν έχει λογιστικό γραφείο' }, { status: 400 })
-    accountantId = business.accountantId
+    // Businesses with no accountant are direct I-MENTOR clients — allow creating
+    // a case for them without an accounting office attached.
+    accountantId = business.accountantId || null
   } else {
     if (!session.user.accountantId || business.accountantId !== session.user.accountantId) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
@@ -127,8 +128,8 @@ export async function POST(request: NextRequest) {
   try {
     await sendEmail({
       to: process.env.ADMIN_EMAIL || 'info@i-mentor.gr',
-      subject: `🗂️ Νέα Υπόθεση #${clientCase.caseNumber} — ${clientCase.accountant.officeName}`,
-      html: `<p>Νέα υπόθεση από <strong>${clientCase.accountant.officeName}</strong> για τον πελάτη <strong>${business.onomasia || business.afm}</strong>:</p>
+      subject: `🗂️ Νέα Υπόθεση #${clientCase.caseNumber} — ${clientCase.accountant?.officeName || 'I-MENTOR (Direct)'}`,
+      html: `<p>Νέα υπόθεση από <strong>${clientCase.accountant?.officeName || 'I-MENTOR (Direct)'}</strong> για τον πελάτη <strong>${business.onomasia || business.afm}</strong>:</p>
         <p><strong>${title}</strong></p>
         ${description ? `<blockquote style="border-left:4px solid #4f46e5;padding-left:12px;color:#374151">${description}</blockquote>` : ''}
         <p><a href="${process.env.APP_URL || 'https://logistis.i-mentor.gr'}/cases/${clientCase.id}">Δείτε την υπόθεση →</a></p>`,

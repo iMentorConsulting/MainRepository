@@ -173,7 +173,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
   })
 
   // Notify accountant only if admin explicitly opted in
-  if (isAdmin && body.notifyAccountant && activityNotes.length) {
+  if (isAdmin && body.notifyAccountant && activityNotes.length && existing.accountantId) {
     try {
       await prisma.notification.create({
         data: {
@@ -184,7 +184,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
           link: `/cases/${existing.id}`,
         },
       })
-      if (existing.accountant.email) {
+      if (existing.accountant?.email) {
         await sendEmail({
           to: existing.accountant.email,
           subject: `🗂️ Ενημέρωση Υπόθεσης #${existing.caseNumber}`,
