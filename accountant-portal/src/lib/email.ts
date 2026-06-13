@@ -162,7 +162,7 @@ export function renderCampaignEmailHtml(options: CampaignEmailOptions): string {
     .join('')
 
   const brandLeft = imentorLogoUrl
-    ? `<img src="${imentorLogoUrl}" alt="I-MENTOR" height="90" style="display:block;height:90px;width:auto;max-width:300px;object-fit:contain;" />`
+    ? `<img src="${imentorLogoUrl}" alt="I-MENTOR" height="72" style="display:block;height:72px;width:auto;max-width:260px;object-fit:contain;" />`
     : '<span style="font-weight:800;letter-spacing:.5px;color:#ffffff;font-size:20px;">iMENTOR <span style="font-weight:400;opacity:.8;">CONSULTING</span></span>'
 
   const brandRight = accountantLogoUrl
