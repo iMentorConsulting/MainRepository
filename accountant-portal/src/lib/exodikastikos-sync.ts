@@ -40,7 +40,7 @@ export async function pushExodikastikosCase(caseId: string) {
   }
 
   try {
-    const res = await fetch(`${apiUrl.replace(/\/$/, '')}/cases`, {
+    const res = await fetch(`${apiUrl.replace(/\/$/, '')}/external/cases`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey },
       body: JSON.stringify(payload),
