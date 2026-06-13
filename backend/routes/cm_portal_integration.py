@@ -100,6 +100,36 @@ def push_portal_status_update(case: CMCase, note: str = None, outcome: str = Non
             headers={"x-api-key": secret},
             timeout=10,
         )
+        if resp.status_code == 404:
+            # externalRef not registered on the Portal side yet (e.g. accept call
+            # happened before this mapping existed) — re-establish it via the
+            # idempotent POST, then retry the status update.
+            try:
+                relink = requests.post(
+                    PORTAL_CASES_API_URL,
+                    json={
+                        "afm": case.afm,
+                        "externalRef": str(case.id),
+                        "status": "ACCEPTED",
+                        "note": "Επανασύνδεση externalRef από το Case Management",
+                        **({"resultLink": result_link} if result_link else {}),
+                    },
+                    headers={"x-api-key": secret},
+                    timeout=10,
+                )
+                if relink.ok:
+                    resp = requests.put(
+                        PORTAL_CASES_API_URL,
+                        json=body,
+                        headers={"x-api-key": secret},
+                        timeout=10,
+                    )
+                else:
+                    log.error("LOGISTIS Portal relink failed %s: %s", relink.status_code, relink.text[:300])
+                    return {"sent": False, "reason": f"Relink HTTP {relink.status_code}: {relink.text[:300]}", "request": body, "url": PORTAL_CASES_API_URL}
+            except Exception as exc:
+                return {"sent": False, "reason": f"Relink error: {exc}", "request": body, "url": PORTAL_CASES_API_URL}
+
         if not resp.ok:
             log.error("LOGISTIS Portal status push failed %s: %s", resp.status_code, resp.text[:300])
             return {"sent": False, "reason": f"HTTP {resp.status_code}: {resp.text[:300]}", "request": body, "url": PORTAL_CASES_API_URL}
