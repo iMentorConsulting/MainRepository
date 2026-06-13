@@ -56,7 +56,7 @@ export default function ExodikastikosPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Εξωδικαστικός</h1>
+          <h1 className="text-2xl font-bold text-gray-900">Αναθέσεις Εξωδικαστικού</h1>
           <p className="text-gray-500 mt-1">{cases.length} αιτήσεις δωρεάν εκτίμησης</p>
         </div>
         <Link href="/exodikastikos/new">

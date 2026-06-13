@@ -71,8 +71,8 @@ export default function CasesPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Υποθέσεις</h1>
-          <p className="text-gray-500 mt-1">{cases.length} υποθέσεις</p>
+          <h1 className="text-2xl font-bold text-gray-900">Αναθέσεις Προγραμμάτων</h1>
+          <p className="text-gray-500 mt-1">{cases.length} αναθέσεις</p>
         </div>
         <Button onClick={() => setShowNew(true)}>
           <Plus size={16} className="mr-2" />
