@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { createAuditLog } from '@/lib/audit'
 import { sendEmail } from '@/lib/email'
+import { notifyCaseManagement } from '@/lib/case-management-sync'
 
 export async function GET(request: NextRequest) {
   const session = await auth()
@@ -135,6 +136,17 @@ export async function POST(request: NextRequest) {
         <p><a href="${process.env.APP_URL || 'https://logistis.i-mentor.gr'}/cases/${clientCase.id}">Δείτε την υπόθεση →</a></p>`,
     })
   } catch {}
+
+  notifyCaseManagement({
+    caseNumber: clientCase.caseNumber,
+    afm: business.afm,
+    onomasia: business.onomasia,
+    accountantOffice: clientCase.accountant?.officeName || null,
+    caseType: clientCase.caseType,
+    description: clientCase.description,
+    priority: clientCase.priority,
+    programTitle: clientCase.program?.title || null,
+  }).catch(err => console.error('[CaseManagement] notify failed:', err?.message))
 
   return NextResponse.json(clientCase, { status: 201 })
 }
