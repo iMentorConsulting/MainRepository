@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { PIPELINES } from '../pipelines'
-import { getPipelines } from '../api'
+import { getPipelines, syncCaseToPortal } from '../api'
 import PaymentsTab from '../components/PaymentsTab'
 import MessagesTab from '../components/MessagesTab'
 import DocumentsTab from '../components/DocumentsTab'
@@ -252,6 +252,37 @@ function DypaMilestoneTimeline({ startDate }) {
   )
 }
 
+// ─── LOGISTIS Portal sync button ──────────────────────────────────────────────
+
+function PortalSyncButton({ caseId, caseNumber }) {
+  const [syncing, setSyncing] = useState(false)
+
+  const handleSync = async () => {
+    setSyncing(true)
+    try {
+      const res = await syncCaseToPortal(caseId)
+      if (res.sent) {
+        toast.success('Στάλθηκε ενημέρωση στο LOGISTIS Portal')
+      } else {
+        toast.error(`Αποτυχία: ${res.reason || 'άγνωστο σφάλμα'}`, { duration: 8000 })
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Σφάλμα επικοινωνίας με LOGISTIS Portal')
+    } finally {
+      setSyncing(false)
+    }
+  }
+
+  return (
+    <div className="flex items-center gap-2 text-xs text-gray-500 bg-gray-50 border rounded-lg px-3 py-2">
+      <span>Συνδεδεμένη με LOGISTIS Portal — Υπόθεση #{caseNumber}</span>
+      <button type="button" onClick={handleSync} disabled={syncing} className="btn-secondary text-xs px-2 py-1">
+        {syncing ? 'Αποστολή...' : 'Συγχρονισμός με Portal'}
+      </button>
+    </div>
+  )
+}
+
 // ─── Overview Tab ─────────────────────────────────────────────────────────────
 
 function OverviewTab({ caseData, users, onSaved, livePipelines }) {
@@ -399,6 +430,12 @@ function OverviewTab({ caseData, users, onSaved, livePipelines }) {
               })()}
             </FormField>
           </div>
+
+          {caseData?.portal_case_number && (
+            <div className="md:col-span-2">
+              <PortalSyncButton caseId={caseData.id} caseNumber={caseData.portal_case_number} />
+            </div>
+          )}
 
           <FormField label="Ύψος Επένδυσης (€)">
             <input

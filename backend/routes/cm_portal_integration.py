@@ -68,14 +68,15 @@ def _result_link(case: CMCase) -> Optional[str]:
     return f"{base}/cases/{case.id}"
 
 
-def push_portal_status_update(case: CMCase, note: str = None, outcome: str = None) -> None:
+def push_portal_status_update(case: CMCase, note: str = None, outcome: str = None) -> dict:
     """Notify the LOGISTIS Portal of a status change for a linked case.
-    Safe to call for unlinked cases (no-op) — never raises."""
+    Safe to call for unlinked cases (no-op) — never raises.
+    Returns a dict describing what happened, for diagnostics."""
     if not case.portal_case_number:
-        return
+        return {"sent": False, "reason": "Η υπόθεση δεν είναι συνδεδεμένη με LOGISTIS (χωρίς portal_case_number)"}
     secret = _shared_secret()
     if not secret:
-        return
+        return {"sent": False, "reason": "IMENTOR_PORTAL_API_KEY δεν έχει ρυθμιστεί"}
     portal_status = map_status_to_portal(case.status)
     body = {
         "externalRef": str(case.id),
@@ -101,8 +102,11 @@ def push_portal_status_update(case: CMCase, note: str = None, outcome: str = Non
         )
         if not resp.ok:
             log.error("LOGISTIS Portal status push failed %s: %s", resp.status_code, resp.text[:300])
+            return {"sent": False, "reason": f"HTTP {resp.status_code}: {resp.text[:300]}", "request": body, "url": PORTAL_CASES_API_URL}
+        return {"sent": True, "request": body, "url": PORTAL_CASES_API_URL, "response": resp.text[:300]}
     except Exception as exc:
         log.warning("LOGISTIS Portal status push error for case %s: %s", case.id, exc)
+        return {"sent": False, "reason": str(exc), "request": body, "url": PORTAL_CASES_API_URL}
 
 
 # ── Inbound webhook (Portal → us) ────────────────────────────────────────────
@@ -231,3 +235,19 @@ def dismiss_assignment(
     a.resolved_at = datetime.utcnow()
     db.commit()
     return {"message": "OK"}
+
+
+@router.post("/cases/{case_id}/sync")
+def sync_case_to_portal(
+    case_id: int,
+    current_user: CMUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Manually re-push the current status/resultLink of a case to the LOGISTIS
+    Portal. Returns diagnostic details about the attempted call — useful for
+    verifying the integration without digging through server logs."""
+    c = db.query(CMCase).filter(CMCase.id == case_id).first()
+    if not c:
+        raise HTTPException(status_code=404, detail="Υπόθεση δεν βρέθηκε")
+    result = push_portal_status_update(c, note="Χειροκίνητος επανασυγχρονισμός")
+    return result

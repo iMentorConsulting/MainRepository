@@ -231,5 +231,6 @@ export const updateFinanceSyncServiceTypes = (items) => api.put('/api/cm/finance
 export const getPendingPortalAssignments = () => api.get('/api/cm/portal-integration/pending').then(r => r.data)
 export const acceptPortalAssignment = (id) => api.post(`/api/cm/portal-integration/${id}/accept`).then(r => r.data)
 export const dismissPortalAssignment = (id) => api.post(`/api/cm/portal-integration/${id}/dismiss`).then(r => r.data)
+export const syncCaseToPortal = (caseId) => api.post(`/api/cm/portal-integration/cases/${caseId}/sync`).then(r => r.data)
 
 export default api
