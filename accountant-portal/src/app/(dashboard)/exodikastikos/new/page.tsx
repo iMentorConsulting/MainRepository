@@ -14,18 +14,15 @@ export default function NewExodikastikosPage() {
   const [businesses, setBusinesses] = useState<any[]>([])
   const [search, setSearch] = useState('')
   const [saving, setSaving] = useState(false)
+  const [questions, setQuestions] = useState<{ id: string; label: string; active: boolean }[]>([])
 
   const [form, setForm] = useState({
     businessId: presetBusinessId,
     newClient: { afm: '', onomasia: '', clientType: 'INDIVIDUAL', email: '', phone: '' },
-    questionnaire: {
-      hasOverdueDebt: '',
-      debtToState: '',
-      isMarried: '',
-    },
+    isMarried: '',
+    answers: {} as Record<string, string>,
     notes: '',
     hasSpouse: false,
-    spouseFirstName: '', spouseLastName: '', spouseAfm: '',
     taxisnetUsername: '', taxisnetPassword: '',
     spouseTaxisnetUsername: '', spouseTaxisnetPassword: '',
   })
@@ -37,11 +34,17 @@ export default function NewExodikastikosPage() {
     fetch(`/api/businesses?${params.toString()}`).then(r => r.json()).then(d => setBusinesses(d.businesses || []))
   }, [mode, search])
 
+  useEffect(() => {
+    fetch('/api/admin/exodikastikos-questions').then(r => r.json()).then((d: any) => {
+      setQuestions((Array.isArray(d) ? d : []).filter((q: any) => q.active))
+    }).catch(() => {})
+  }, [])
+
   function set(field: string, value: any) {
     setForm(f => ({ ...f, [field]: value }))
   }
-  function setQ(field: string, value: any) {
-    setForm(f => ({ ...f, questionnaire: { ...f.questionnaire, [field]: value } }))
+  function setAnswer(id: string, value: string) {
+    setForm(f => ({ ...f, answers: { ...f.answers, [id]: value } }))
   }
   function setNew(field: string, value: any) {
     setForm(f => ({ ...f, newClient: { ...f.newClient, [field]: value } }))
@@ -57,13 +60,14 @@ export default function NewExodikastikosPage() {
       return
     }
     setSaving(true)
+    const questionnaire = {
+      isMarried: form.isMarried,
+      extra: questions.map(q => ({ id: q.id, label: q.label, answer: form.answers[q.id] || '' })).filter(a => a.answer),
+    }
     const payload: any = {
-      questionnaire: form.questionnaire,
+      questionnaire,
       notes: form.notes,
       hasSpouse: form.hasSpouse,
-      spouseFirstName: form.spouseFirstName,
-      spouseLastName: form.spouseLastName,
-      spouseAfm: form.spouseAfm,
       taxisnetUsername: form.taxisnetUsername,
       taxisnetPassword: form.taxisnetPassword,
       spouseTaxisnetUsername: form.spouseTaxisnetUsername,
@@ -164,19 +168,9 @@ export default function NewExodikastikosPage() {
         <CardHeader><CardTitle>2. Βασικός Έλεγχος Επιλεξιμότητας</CardTitle></CardHeader>
         <CardContent className="space-y-4">
           <div>
-            <label className="text-sm font-medium text-gray-700 mb-1 block">Έχει ληξιπρόθεσμες οφειλές προς Δημόσιο / Τράπεζες;</label>
-            <select value={form.questionnaire.hasOverdueDebt} onChange={e => setQ('hasOverdueDebt', e.target.value)}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500">
-              <option value="">Επιλέξτε...</option>
-              <option value="yes">Ναι</option>
-              <option value="no">Όχι</option>
-              <option value="unsure">Δεν είμαι σίγουρος/η</option>
-            </select>
-          </div>
-          <div>
             <label className="text-sm font-medium text-gray-700 mb-1 block">Είναι παντρεμένος/η;</label>
-            <select value={form.questionnaire.isMarried} onChange={e => {
-              setQ('isMarried', e.target.value)
+            <select value={form.isMarried} onChange={e => {
+              set('isMarried', e.target.value)
               set('hasSpouse', e.target.value === 'yes')
             }}
               className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500">
@@ -186,25 +180,18 @@ export default function NewExodikastikosPage() {
             </select>
             <p className="text-xs text-gray-400 mt-1">Στην εξέταση εξωδικαστικού απαιτείται και ο κωδικός Taxisnet του/της συζύγου.</p>
           </div>
-          {form.hasSpouse && (
-            <div className="grid grid-cols-3 gap-3 bg-gray-50 rounded-lg p-3">
-              <div>
-                <label className="text-sm font-medium text-gray-700 mb-1 block">Όνομα Συζύγου</label>
-                <input value={form.spouseFirstName} onChange={e => set('spouseFirstName', e.target.value)}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
-              </div>
-              <div>
-                <label className="text-sm font-medium text-gray-700 mb-1 block">Επώνυμο Συζύγου</label>
-                <input value={form.spouseLastName} onChange={e => set('spouseLastName', e.target.value)}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
-              </div>
-              <div>
-                <label className="text-sm font-medium text-gray-700 mb-1 block">ΑΦΜ Συζύγου</label>
-                <input value={form.spouseAfm} onChange={e => set('spouseAfm', e.target.value)}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
-              </div>
+          {questions.map(q => (
+            <div key={q.id}>
+              <label className="text-sm font-medium text-gray-700 mb-1 block">{q.label}</label>
+              <select value={form.answers[q.id] || ''} onChange={e => setAnswer(q.id, e.target.value)}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500">
+                <option value="">Επιλέξτε...</option>
+                <option value="yes">Ναι</option>
+                <option value="no">Όχι</option>
+                <option value="unsure">Δεν είμαι σίγουρος/η</option>
+              </select>
             </div>
-          )}
+          ))}
           <div>
             <label className="text-sm font-medium text-gray-700 mb-1 block">Σημειώσεις για την I-MENTOR</label>
             <textarea value={form.notes} onChange={e => set('notes', e.target.value)} rows={3}

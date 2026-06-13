@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
   const data = await request.json()
   const {
     businessId, newClient, questionnaire, notes,
-    hasSpouse, spouseFirstName, spouseLastName, spouseAfm,
+    hasSpouse,
     taxisnetUsername, taxisnetPassword,
     spouseTaxisnetUsername, spouseTaxisnetPassword,
   } = data
@@ -89,9 +89,6 @@ export async function POST(request: NextRequest) {
       questionnaire: questionnaire || undefined,
       notes: notes || null,
       hasSpouse: !!hasSpouse,
-      spouseFirstName: hasSpouse ? (spouseFirstName || null) : null,
-      spouseLastName: hasSpouse ? (spouseLastName || null) : null,
-      spouseAfm: hasSpouse ? (spouseAfm || null) : null,
       taxisnetUsernameEnc: taxisnetUsername ? encrypt(taxisnetUsername) : null,
       taxisnetPasswordEnc: taxisnetPassword ? encrypt(taxisnetPassword) : null,
       spouseTaxisnetUsernameEnc: hasSpouse && spouseTaxisnetUsername ? encrypt(spouseTaxisnetUsername) : null,

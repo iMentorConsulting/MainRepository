@@ -581,6 +581,17 @@ model CaseTypeOption {
   createdAt DateTime @default(now())
 }
 
+// Admin-configurable basic eligibility questions shown on the Εξωδικαστικός
+// referral form (Ναι/Όχι/Δεν είμαι σίγουρος). Answers are stored as a
+// snapshot (id + label + answer) in ExodikastikosCase.questionnaire.
+model ExodikastikosQuestionOption {
+  id        String   @id @default(cuid())
+  label     String
+  active    Boolean  @default(true)
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+}
+
 model CaseDocumentTypeOption {
   id        String   @id @default(cuid())
   label     String
@@ -691,9 +702,6 @@ model ExodikastikosCase {
   questionnaire Json?
   notes        String?
   hasSpouse        Boolean  @default(false)
-  spouseFirstName  String?
-  spouseLastName   String?
-  spouseAfm        String?
   // Taxisnet credentials — stored AES-256-GCM encrypted at rest (see src/lib/crypto.ts),
   // never returned to the client after creation.
   taxisnetUsernameEnc       String?

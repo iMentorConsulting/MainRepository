@@ -18,10 +18,6 @@ const STATUS_VARIANT: Record<string, any> = {
   OFFER_SENT: 'purple', ACCEPTED: 'success', DECLINED: 'danger', COMPLETED: 'success',
 }
 
-const QUESTION_LABELS: Record<string, string> = {
-  hasOverdueDebt: 'Ληξιπρόθεσμες οφειλές',
-  isMarried: 'Έγγαμος/η',
-}
 const ANSWER_LABELS: Record<string, string> = { yes: 'Ναι', no: 'Όχι', unsure: 'Δεν είμαι σίγουρος/η' }
 
 export default function ExodikastikosDetailPage() {
@@ -83,18 +79,18 @@ export default function ExodikastikosDetailPage() {
       <Card>
         <CardHeader><CardTitle>Ερωτηματολόγιο Επιλεξιμότητας</CardTitle></CardHeader>
         <CardContent className="space-y-2 text-sm">
-          {item.questionnaire && Object.entries(item.questionnaire).filter(([, v]) => v).map(([k, v]) => (
-            <div key={k} className="flex justify-between border-b border-gray-50 pb-1">
-              <span className="text-gray-500">{QUESTION_LABELS[k] || k}</span>
-              <span className="font-medium">{ANSWER_LABELS[v as string] || String(v)}</span>
-            </div>
-          ))}
-          {item.hasSpouse && (
+          {item.questionnaire?.isMarried && (
             <div className="flex justify-between border-b border-gray-50 pb-1">
-              <span className="text-gray-500">Σύζυγος</span>
-              <span className="font-medium">{[item.spouseFirstName, item.spouseLastName].filter(Boolean).join(' ')} {item.spouseAfm ? `(${item.spouseAfm})` : ''}</span>
+              <span className="text-gray-500">Έγγαμος/η</span>
+              <span className="font-medium">{ANSWER_LABELS[item.questionnaire.isMarried] || item.questionnaire.isMarried}</span>
             </div>
           )}
+          {(item.questionnaire?.extra || []).map((a: any) => (
+            <div key={a.id} className="flex justify-between border-b border-gray-50 pb-1">
+              <span className="text-gray-500">{a.label}</span>
+              <span className="font-medium">{ANSWER_LABELS[a.answer] || a.answer}</span>
+            </div>
+          ))}
           {item.notes && <div className="pt-2 text-gray-600 whitespace-pre-wrap">{item.notes}</div>}
         </CardContent>
       </Card>

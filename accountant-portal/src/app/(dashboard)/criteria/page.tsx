@@ -375,6 +375,12 @@ export default function CriteriaPage() {
         apiBase="/api/admin/tags"
       />
 
+      <Section
+        title="Ερωτήσεις Ελέγχου Επιλεξιμότητας Εξωδικαστικού"
+        description="Επιπλέον ερωτήσεις Ναι/Όχι/Δεν είμαι σίγουρος που εμφανίζονται στη φόρμα νέας αίτησης Εξωδικαστικού"
+        apiBase="/api/admin/exodikastikos-questions"
+      />
+
       <BulkTagSection />
     </div>
   )
