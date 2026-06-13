@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { createAuditLog } from '@/lib/audit'
 import { encrypt } from '@/lib/crypto'
+import { pushExodikastikosCase } from '@/lib/exodikastikos-sync'
 
 export async function GET(request: NextRequest) {
   const session = await auth()
@@ -110,6 +111,8 @@ export async function POST(request: NextRequest) {
     userId: session.user.id, action: 'CREATE', entity: 'ExodikastikosCase', entityId: created.id,
     details: `Created εξωδικαστικός referral for business ${business.afm}`,
   })
+
+  pushExodikastikosCase(created.id).catch(err => console.error('[Exodikastikos] Sync failed:', err?.message))
 
   return NextResponse.json(created, { status: 201 })
 }

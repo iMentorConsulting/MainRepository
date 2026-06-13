@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableHead, TableBody, TableRow, Th, Td } from '@/components/ui/table'
 import { MultiSelect } from '@/components/ui/multi-select'
-import { Plus, ExternalLink } from 'lucide-react'
+import { Plus, ExternalLink, Scale } from 'lucide-react'
 import { formatDateTime } from '@/lib/utils'
 
 const STATUS_LABELS: Record<string, string> = {
@@ -55,6 +55,24 @@ export default function ExodikastikosPage() {
             Νέα Αίτηση
           </Button>
         </Link>
+      </div>
+
+      <div className="flex items-start gap-4 bg-indigo-50 border border-indigo-100 rounded-xl p-4">
+        <div className="shrink-0 w-10 h-10 rounded-lg bg-indigo-600 text-white flex items-center justify-center">
+          <Scale size={20} />
+        </div>
+        <div className="text-sm text-slate-700">
+          <p className="font-medium mb-1">Τι είναι ο Εξωδικαστικός Μηχανισμός Ρύθμισης Οφειλών;</p>
+          <p className="text-slate-600">
+            Δωρεάν εκτίμηση ρύθμισης/διαγραφής οφειλών προς Δημόσιο, ΕΦΚΑ και τράπεζες, για επιχειρήσεις και φυσικά
+            πρόσωπα. Η ομάδα της I-MENTOR αναλαμβάνει την υπόθεση, αξιολογεί τα δεδομένα από την κρατική πλατφόρμα
+            και επιστρέφει αναλυτική αναφορά και προσφορά εντός ~15 ημερών.
+          </p>
+          <a href="https://i-mentor.gr/exodikastikos/" target="_blank" rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 text-indigo-700 hover:underline font-medium mt-2">
+            Περισσότερα για την υπηρεσία <ExternalLink size={13} />
+          </a>
+        </div>
       </div>
 
       {isAdmin && (

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { createAuditLog } from '@/lib/audit'
-import { sendEmail } from '@/lib/email'
+import { sendEmail, renderCampaignEmailHtml } from '@/lib/email'
 
 const STATUS_LABELS: Record<string, string> = {
   SUBMITTED: 'Υποβλήθηκε', IN_ASSESSMENT: 'Σε Εκτίμηση', REPORT_READY: 'Έτοιμη Αναφορά',
@@ -115,12 +115,19 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
         },
       })
       if (existing.accountant?.email) {
+        const appSetting = await prisma.appSetting.findUnique({ where: { id: 'main' } })
+        const accountant = await prisma.accountant.findUnique({ where: { id: existing.accountantId }, select: { officeName: true, logoUrl: true, contactPerson: true } })
         await sendEmail({
           to: existing.accountant.email,
           subject: `Ενημέρωση Εξωδικαστικού #${existing.caseNumber}`,
-          html: `<p>Η υπόθεση εξωδικαστικού <strong>#${existing.caseNumber}</strong> (${existing.business.onomasia || existing.business.afm}) ενημερώθηκε:</p>
-            <blockquote style="border-left:4px solid #4f46e5;padding-left:12px;color:#374151">${activityNotes.map(a => a.body).join('<br/>')}</blockquote>
-            <p><a href="${process.env.APP_URL || 'https://logistis.i-mentor.gr'}/exodikastikos/${existing.id}">Δείτε την υπόθεση →</a></p>`,
+          html: renderCampaignEmailHtml({
+            title: `Ενημέρωση Εξωδικαστικού #${existing.caseNumber}`,
+            recipientName: accountant?.contactPerson || existing.accountant.officeName,
+            bodyText: `Η υπόθεση εξωδικαστικού #${existing.caseNumber} (${existing.business.onomasia || existing.business.afm}) ενημερώθηκε:\n\n${activityNotes.map(a => `• ${a.body}`).join('\n')}\n\nΔείτε την υπόθεση: ${process.env.APP_URL || 'https://logistis.i-mentor.gr'}/exodikastikos/${existing.id}`,
+            imentorLogoUrl: appSetting?.imentorLogoUrl || '',
+            accountantOfficeName: accountant?.officeName,
+            accountantLogoUrl: accountant?.logoUrl || undefined,
+          }),
         })
       }
     } catch {}
