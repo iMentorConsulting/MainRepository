@@ -11,7 +11,7 @@ import { QuickSendModal } from '@/components/quick-send-modal'
 import { formatDateTime } from '@/lib/utils'
 import {
   ClipboardList, User, Building2, CheckCircle2, MessageSquare, Lock, Send,
-  Mail, Phone, MapPin, Calendar, Target, FileDown, Paperclip, Plus, Trash2, ListChecks, Server, X,
+  Mail, Phone, MapPin, Calendar, Target, FileDown, Paperclip, Plus, Trash2, ListChecks, Server, X, ExternalLink,
 } from 'lucide-react'
 
 const STATUS_LABELS: Record<string, string> = {
@@ -689,6 +689,11 @@ export default function CaseDetailPage() {
                 <div className="flex justify-between"><span className="text-gray-500">Αναφορά:</span><span className="font-medium">{c.externalRef}</span></div>
                 {c.externalStatus && <div className="flex justify-between"><span className="text-gray-500">Κατάσταση:</span><Badge variant="purple">{c.externalStatus}</Badge></div>}
                 {c.externalSyncedAt && <div className="flex justify-between"><span className="text-gray-500">Τελ. συγχρονισμός:</span><span>{formatDateTime(c.externalSyncedAt)}</span></div>}
+                {c.resultLink && (
+                  <a href={c.resultLink} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-blue-800 hover:underline">
+                    Άνοιγμα στο Case Management <ExternalLink size={13} />
+                  </a>
+                )}
               </CardContent>
             </Card>
           )}

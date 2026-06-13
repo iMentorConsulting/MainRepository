@@ -68,11 +68,11 @@ export async function POST(request: NextRequest) {
 }
 
 // PUT /api/external/cases — update an existing case by externalRef or caseNumber.
-// Body: { externalRef?: string, caseNumber?: number, status?, externalStatus?, note?, dueDate?, outcome? }
+// Body: { externalRef?: string, caseNumber?: number, status?, externalStatus?, note?, dueDate?, outcome?, resultLink? }
 export async function PUT(request: NextRequest) {
   if (!checkApiKey(request)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { externalRef, caseNumber, status, externalStatus, note, dueDate, outcome } = await request.json()
+  const { externalRef, caseNumber, status, externalStatus, note, dueDate, outcome, resultLink } = await request.json()
   if (!externalRef && !caseNumber) {
     return NextResponse.json({ error: 'externalRef or caseNumber is required' }, { status: 400 })
   }
@@ -85,8 +85,8 @@ export async function PUT(request: NextRequest) {
     : await prisma.clientCase.findUnique({ where: { caseNumber: Number(caseNumber) } })
   if (!existing) return NextResponse.json({ error: 'Case not found' }, { status: 404 })
 
-  const updated = await applyExternalUpdate(existing.id, { status, externalStatus, note, dueDate, outcome, externalRef })
-  return NextResponse.json({ id: updated.id, caseNumber: updated.caseNumber, status: updated.status })
+  const updated = await applyExternalUpdate(existing.id, { status, externalStatus, note, dueDate, outcome, resultLink, externalRef })
+  return NextResponse.json({ id: updated.id, caseNumber: updated.caseNumber, status: updated.status, resultLink: updated.resultLink })
 }
 
 // GET /api/external/cases?externalRef=... or ?caseNumber=... — read back case state.
@@ -111,6 +111,7 @@ export async function GET(request: NextRequest) {
     externalRef: clientCase.externalRef,
     externalStatus: clientCase.externalStatus,
     externalSyncedAt: clientCase.externalSyncedAt,
+    resultLink: clientCase.resultLink,
     dueDate: clientCase.dueDate,
     outcome: clientCase.outcome,
     business: clientCase.business,
@@ -126,7 +127,7 @@ const STATUS_LABELS: Record<string, string> = {
 }
 
 async function applyExternalUpdate(caseId: string, patch: {
-  status?: string; externalStatus?: string; note?: string; dueDate?: string; outcome?: string; externalRef?: string
+  status?: string; externalStatus?: string; note?: string; dueDate?: string; outcome?: string; resultLink?: string; externalRef?: string
 }) {
   const existing = await prisma.clientCase.findUniqueOrThrow({ where: { id: caseId } })
   const data: any = { externalSyncedAt: new Date() }
@@ -143,6 +144,10 @@ async function applyExternalUpdate(caseId: string, patch: {
   if (patch.externalRef && !existing.externalRef) data.externalRef = patch.externalRef
   if (patch.dueDate !== undefined) data.dueDate = patch.dueDate ? new Date(patch.dueDate) : null
   if (patch.outcome !== undefined) data.outcome = patch.outcome || null
+  if (patch.resultLink !== undefined && patch.resultLink !== existing.resultLink) {
+    data.resultLink = patch.resultLink || null
+    if (patch.resultLink) notes.push('Προστέθηκε σύνδεσμος με την υπόθεση στο Case Management')
+  }
   if (patch.note) notes.push(patch.note)
 
   return prisma.clientCase.update({

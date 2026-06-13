@@ -565,6 +565,7 @@ model ClientCase {
   externalRef      String?      @unique  // reference of the inhouse case management system
   externalStatus   String?               // status label pushed by the external system
   externalSyncedAt DateTime?
+  resultLink       String?               // link to the case in the Case Management portal, pushed by the external system
   createdAt    DateTime         @default(now())
   updatedAt    DateTime         @updatedAt
   activities   CaseActivity[]
