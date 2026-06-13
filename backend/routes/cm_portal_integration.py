@@ -61,6 +61,13 @@ def map_status_to_portal(internal_status: str) -> str:
     return "IN_PROGRESS"
 
 
+def _result_link(case: CMCase) -> Optional[str]:
+    base = os.getenv("PORTAL_BASE_URL", "").rstrip("/")
+    if not base:
+        return None
+    return f"{base}/cases/{case.id}"
+
+
 def push_portal_status_update(case: CMCase, note: str = None, outcome: str = None) -> None:
     """Notify the LOGISTIS Portal of a status change for a linked case.
     Safe to call for unlinked cases (no-op) — never raises."""
@@ -81,6 +88,9 @@ def push_portal_status_update(case: CMCase, note: str = None, outcome: str = Non
         body["dueDate"] = due_date.isoformat()
     if portal_status == "COMPLETED" and outcome:
         body["outcome"] = outcome
+    result_link = _result_link(case)
+    if result_link:
+        body["resultLink"] = result_link
 
     try:
         resp = requests.put(
@@ -182,14 +192,18 @@ def accept_assignment(
     secret = _shared_secret()
     if secret:
         try:
+            payload = {
+                "afm": a.afm,
+                "externalRef": str(case.id),
+                "status": "ACCEPTED",
+                "note": "Η υπόθεση παραλήφθηκε από το Case Management",
+            }
+            result_link = _result_link(case)
+            if result_link:
+                payload["resultLink"] = result_link
             resp = requests.post(
                 PORTAL_CASES_API_URL,
-                json={
-                    "afm": a.afm,
-                    "externalRef": str(case.id),
-                    "status": "ACCEPTED",
-                    "note": "Η υπόθεση παραλήφθηκε από το Case Management",
-                },
+                json=payload,
                 headers={"x-api-key": secret},
                 timeout=10,
             )
