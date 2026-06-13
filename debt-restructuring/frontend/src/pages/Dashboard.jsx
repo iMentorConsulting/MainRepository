@@ -53,6 +53,7 @@ export default function Dashboard({ currentEmployee }) {
   const [search, setSearch] = useState('')
   const [filterEmployee, setFilterEmployee] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
+  const [filterLogistis, setFilterLogistis] = useState(false)
 
   const load = async () => {
     setLoading(true)
@@ -109,6 +110,8 @@ export default function Dashboard({ currentEmployee }) {
   }, {})
 
   const attentionCases = cases.filter(needsAttention)
+  const logistisCases = cases.filter(c => c.external_source === 'logistis')
+  const visibleCases = filterLogistis ? logistisCases : cases
 
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto">
@@ -157,6 +160,22 @@ export default function Dashboard({ currentEmployee }) {
         </Link>
       )}
 
+      {/* LOGISTIS referrals — gather all together */}
+      {logistisCases.length > 0 && (
+        <button
+          onClick={() => setFilterLogistis(f => !f)}
+          className={`w-full flex items-center gap-3 rounded-2xl px-4 py-3 mb-6 border-2 transition-colors ${filterLogistis ? 'bg-fuchsia-600 border-fuchsia-700 text-white' : 'bg-fuchsia-50 border-fuchsia-300 text-fuchsia-800 hover:bg-fuchsia-100'}`}
+        >
+          <span className="text-2xl">🔗</span>
+          <span className="font-black text-sm">
+            {logistisCases.length} {logistisCases.length === 1 ? 'υπόθεση' : 'υποθέσεις'} από LOGISTIS Accountant Portal
+          </span>
+          <span className="ml-auto text-xs font-semibold">
+            {filterLogistis ? 'Εμφάνιση όλων ✕' : 'Προβολή όλων →'}
+          </span>
+        </button>
+      )}
+
       {/* Quick stats */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
         {Object.entries(STATUS_LABELS).map(([key, { label, cls }]) => (
@@ -196,7 +215,7 @@ export default function Dashboard({ currentEmployee }) {
       <div className="card p-0 overflow-x-auto">
         {loading ? (
           <div className="p-10 text-center text-gray-400">Φόρτωση…</div>
-        ) : cases.length === 0 ? (
+        ) : visibleCases.length === 0 ? (
           <div className="p-10 text-center text-gray-400">
             <div className="text-4xl mb-3">📂</div>
             <div className="font-semibold">Δεν βρέθηκαν υποθέσεις</div>
@@ -218,7 +237,7 @@ export default function Dashboard({ currentEmployee }) {
               </tr>
             </thead>
             <tbody>
-              {cases.map((c) => {
+              {visibleCases.map((c) => {
                 const est = c.estimates || {}
                 const st = STATUS_LABELS[c.status] || STATUS_LABELS.draft
                 const hasActuals = !!c.actual_results
@@ -228,6 +247,11 @@ export default function Dashboard({ currentEmployee }) {
                 return (
                   <tr key={c.id} className={`hover:bg-blue-50 transition-colors ${attention ? 'bg-amber-50/40' : ''}`}>
                     <td className="td text-left pl-4">
+                      {c.external_source === 'logistis' && (
+                        <div className="inline-flex items-center gap-1 bg-fuchsia-600 text-white text-xs font-black px-2 py-1 rounded-lg mb-1 shadow-sm">
+                          🔗 LOGISTIS
+                        </div>
+                      )}
                       <div className="font-semibold text-blue-900">{c.client_name}</div>
                       {c.client_phone && <a href={`tel:${c.client_phone}`} onClick={e => e.stopPropagation()} className="text-xs text-blue-600 hover:text-blue-800 hover:underline">{c.client_phone}</a>}
                       {hasActuals && <div className="text-xs text-green-600 font-semibold mt-0.5">✓ Αποτέλεσμα</div>}

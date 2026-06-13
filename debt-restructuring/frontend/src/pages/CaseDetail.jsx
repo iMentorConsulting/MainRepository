@@ -642,6 +642,11 @@ export default function CaseDetail({ currentEmployee }) {
             <ArrowLeftIcon className="w-5 h-5 text-gray-600" />
           </button>
           <div>
+            {caseData.external_source === 'logistis' && (
+              <div className="inline-flex items-center gap-1.5 bg-fuchsia-600 text-white text-sm font-black px-3 py-1.5 rounded-lg mb-1.5 shadow-sm">
+                🔗 LOGISTIS ACCOUNTANT PORTAL
+              </div>
+            )}
             <h1 className="text-2xl font-black text-blue-800">{caseData.client_name}</h1>
             <div className="flex items-center gap-2 mt-0.5 flex-wrap">
               <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${st.cls}`}>{st.label}</span>

@@ -440,6 +440,11 @@ export default function SalesPipeline() {
                   return (
                     <tr key={c.id} className={`border-b border-gray-50 hover:bg-amber-50/50 transition-colors ${isHot ? 'bg-amber-50/20' : ''}`}>
                       <td className="py-3 px-3">
+                        {c.external_source === 'logistis' && (
+                          <div className="inline-flex items-center gap-1 bg-fuchsia-600 text-white text-xs font-black px-2 py-0.5 rounded-lg mb-1">
+                            🔗 LOGISTIS
+                          </div>
+                        )}
                         <div className="font-semibold text-gray-800">{c.client_name}</div>
                         {c.client_phone && <div className="text-xs text-gray-400">{c.client_phone}</div>}
                         {c.notes && <div className="text-xs text-gray-500 italic truncate max-w-[200px]">{c.notes}</div>}
@@ -563,6 +568,11 @@ export default function SalesPipeline() {
                         onClick={() => navigate(`/cases/${c.id}`)}
                         className={`bg-white rounded-xl p-3 shadow-sm cursor-pointer hover:shadow-md transition-shadow border ${urgent ? 'border-amber-300' : 'border-gray-100'}`}
                       >
+                        {c.external_source === 'logistis' && (
+                          <div className="inline-flex items-center gap-1 bg-fuchsia-600 text-white text-[10px] font-black px-1.5 py-0.5 rounded mb-1">
+                            🔗 LOGISTIS
+                          </div>
+                        )}
                         <div className="font-semibold text-gray-800 text-sm leading-tight">{c.client_name}</div>
                         {c.client_phone && (
                           <div className="text-xs text-gray-400 mt-0.5">{c.client_phone}</div>
