@@ -135,6 +135,7 @@ def case_to_dict(c: CMCase, include_related: bool = False, sla_map: dict = None,
         "risk_score": c.risk_score or 0,
         "notes": c.notes,
         "sheet_import_ref": c.sheet_import_ref,
+        "portal_case_number": c.portal_case_number,
         "days_to_deadline": days_to_deadline,
         "status_changed_at": fmt_dt(c.status_changed_at),
         "status_age_days": status_age_days,
@@ -574,6 +575,11 @@ def update_case(
             _send_status_change_notification(c, old_status, new_status, db)
         except Exception as e:
             log.warning("[status notification] failed for case %s: %s", case_id, e)
+        try:
+            from routes.cm_portal_integration import push_portal_status_update
+            push_portal_status_update(c, note=f"Νέο στάδιο: {new_status}")
+        except Exception as e:
+            log.warning("[portal integration] status push failed for case %s: %s", case_id, e)
     return case_to_dict(c)
 
 

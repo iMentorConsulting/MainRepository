@@ -27,6 +27,7 @@ from routes.cm_backup import router as cm_backup_router
 from models_cases import CMBackupLog
 from routes.cm_anakainizw import router as cm_anakainizw_router
 from routes.cm_finance_sync import router as cm_finance_sync_router
+from routes.cm_portal_integration import router as cm_portal_integration_router
 from routes.finance_api import router as finance_api_router
 
 load_dotenv()
@@ -968,6 +969,7 @@ app.include_router(cm_backup_router)
 app.include_router(cm_anakainizw_router)
 app.include_router(cm_finance_sync_router)
 app.include_router(finance_api_router)
+app.include_router(cm_portal_integration_router)
 
 
 try:
@@ -983,6 +985,32 @@ try:
         _conn.commit()
 except Exception as _e:
     print(f"[migration] cm_import_blocklist create skipped: {_e}", flush=True)
+
+try:
+    with engine.connect() as _conn:
+        _conn.execute(_text("""
+            CREATE TABLE IF NOT EXISTS cm_portal_assignments (
+                id SERIAL PRIMARY KEY,
+                case_number INTEGER NOT NULL,
+                afm VARCHAR(20),
+                onomasia VARCHAR(200),
+                accountant_office VARCHAR(200),
+                case_type VARCHAR(200),
+                description TEXT,
+                priority VARCHAR(50),
+                program_title VARCHAR(200),
+                status VARCHAR(20) DEFAULT 'pending',
+                cm_case_id INTEGER REFERENCES cm_cases(id),
+                created_at TIMESTAMP DEFAULT NOW(),
+                resolved_at TIMESTAMP
+            )
+        """))
+        _conn.execute(_text("""
+            ALTER TABLE cm_cases ADD COLUMN IF NOT EXISTS portal_case_number INTEGER
+        """))
+        _conn.commit()
+except Exception as _e:
+    print(f"[migration] cm_portal_assignments create skipped: {_e}", flush=True)
 
 
 @app.on_event("shutdown")

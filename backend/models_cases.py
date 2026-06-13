@@ -82,6 +82,9 @@ class CMCase(Base):
     portal_review_clicked = Column(Boolean, default=False)
     portal_notified_at = Column(DateTime, nullable=True)
 
+    # LOGISTIS Portal integration
+    portal_case_number = Column(Integer, nullable=True, index=True)
+
     # Metadata
     sheet_import_ref = Column(String(200))
     risk_score = Column(Integer, default=0)
@@ -447,3 +450,25 @@ class CMFinanceSyncServiceType(Base):
     service_type = Column(String(200), unique=True, nullable=False)
     enabled = Column(Boolean, default=False, nullable=False)
     discovered_at = Column(DateTime, default=datetime.utcnow)
+
+
+class CMPortalAssignment(Base):
+    """Incoming 'case.created' assignments from the LOGISTIS Accountant Portal,
+    awaiting manual acceptance by a case-management agent."""
+    __tablename__ = "cm_portal_assignments"
+
+    id = Column(Integer, primary_key=True)
+    case_number = Column(Integer, nullable=False, index=True)
+    afm = Column(String(20))
+    onomasia = Column(String(200))
+    accountant_office = Column(String(200))
+    case_type = Column(String(200))
+    description = Column(Text)
+    priority = Column(String(50))
+    program_title = Column(String(200))
+
+    status = Column(String(20), default="pending")  # pending | accepted | dismissed
+    cm_case_id = Column(Integer, ForeignKey("cm_cases.id"), nullable=True)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    resolved_at = Column(DateTime, nullable=True)

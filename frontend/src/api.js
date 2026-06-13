@@ -227,4 +227,9 @@ export const undoFinanceSync = () => api.post('/api/cm/finance-sync/undo').then(
 export const getFinanceSyncServiceTypes = () => api.get('/api/cm/finance-sync/service-types').then(r => r.data)
 export const updateFinanceSyncServiceTypes = (items) => api.put('/api/cm/finance-sync/service-types', items).then(r => r.data)
 
+// LOGISTIS Portal integration
+export const getPendingPortalAssignments = () => api.get('/api/cm/portal-integration/pending').then(r => r.data)
+export const acceptPortalAssignment = (id) => api.post(`/api/cm/portal-integration/${id}/accept`).then(r => r.data)
+export const dismissPortalAssignment = (id) => api.post(`/api/cm/portal-integration/${id}/dismiss`).then(r => r.data)
+
 export default api

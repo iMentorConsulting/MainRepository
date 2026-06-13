@@ -24,6 +24,7 @@ import {
 } from '@heroicons/react/24/outline'
 import { changePassword } from '../api'
 import toast from 'react-hot-toast'
+import PortalAssignmentAlert from './PortalAssignmentAlert'
 
 const nav = [
   { to: '/', label: 'Dashboard', Icon: HomeIcon, exact: true, adminOnly: true },
@@ -129,6 +130,7 @@ export default function Layout({ auth, onLogout }) {
 
   return (
     <div className="min-h-screen bg-gray-50 flex">
+      <PortalAssignmentAlert />
       {/* Sidebar */}
       <aside
         className={`fixed inset-y-0 left-0 z-40 w-64 bg-[#1e3a5f] text-white flex flex-col transition-transform duration-300
