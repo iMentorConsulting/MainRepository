@@ -29,7 +29,6 @@ export async function POST(request: NextRequest) {
     select: { id: true, accountantId: true, onomasia: true, afm: true },
   })
   if (!business) return NextResponse.json({ error: 'Business not found for this AFM' }, { status: 404 })
-  if (!business.accountantId) return NextResponse.json({ error: 'Business has no accountant' }, { status: 400 })
 
   // Idempotent: if a case with this externalRef already exists, update it instead
   const existing = await prisma.clientCase.findUnique({ where: { externalRef } })
