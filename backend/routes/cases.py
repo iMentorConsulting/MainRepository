@@ -603,6 +603,12 @@ def delete_case(
             """), {"ref": c.sheet_import_ref, "prog": c.program_category})
         except Exception:
             pass
+    # Detach any LOGISTIS Portal assignment record so the FK doesn't block deletion
+    from sqlalchemy import text as _t2
+    try:
+        db.execute(_t2("UPDATE cm_portal_assignments SET cm_case_id = NULL WHERE cm_case_id = :cid"), {"cid": c.id})
+    except Exception:
+        pass
     db.delete(c)
     db.commit()
     return {"message": "Η υπόθεση διαγράφηκε"}
