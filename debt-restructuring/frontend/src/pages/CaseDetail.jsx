@@ -469,6 +469,7 @@ export default function CaseDetail({ currentEmployee }) {
   const [actuals, setActuals] = useState({ creditors: [], generalNotes: '' })
   const [savingActuals, setSavingActuals] = useState(false)
   const [statusUpdating, setStatusUpdating] = useState(false)
+  const [pushingStatus, setPushingStatus] = useState(false)
   const [viberMenuOpen, setViberMenuOpen] = useState(false)
   const [viberModal, setViberModal] = useState(null) // { msgType, msgLabel }
   const [viberSending, setViberSending] = useState(false)
@@ -608,6 +609,20 @@ export default function CaseDetail({ currentEmployee }) {
     navigator.clipboard.writeText(url).then(() => toast.success('Σύνδεσμος αντιγράφηκε!')).catch(() => toast.error('Αδύνατη αντιγραφή'))
   }
 
+  const handlePushExternalStatus = async (status, withLink) => {
+    setPushingStatus(true)
+    try {
+      const resultLink = withLink ? `${PORTAL_BASE}/preview/${caseData.share_token}` : undefined
+      const res = await api.pushExternalStatus(id, { status, resultLink })
+      setCaseData(res.data)
+      toast.success('Ενημερώθηκε το Portal')
+    } catch (e) {
+      toast.error('Σφάλμα: ' + (e?.response?.data?.detail || e.message))
+    } finally {
+      setPushingStatus(false)
+    }
+  }
+
   if (loading) return <div className="p-10 text-center text-gray-400">Φόρτωση…</div>
   if (!caseData) return <div className="p-10 text-center text-red-500">Η υπόθεση δεν βρέθηκε</div>
 
@@ -732,6 +747,41 @@ export default function CaseDetail({ currentEmployee }) {
           </button>
         </div>
       </div>
+
+      {/* External referral (LOGISTIS Accountant Portal) */}
+      {caseData.external_source === 'logistis' && (
+        <div className="card mb-5 border-2 border-indigo-200 bg-indigo-50/40">
+          <div className="flex items-center justify-between flex-wrap gap-2 mb-2">
+            <div className="text-sm font-bold text-indigo-800">
+              🔗 Ανάθεση από LOGISTIS Portal
+              {caseData.external_data?.caseNumber != null && <> #{caseData.external_data.caseNumber}</>}
+              {caseData.external_data?.accountantOffice && <> — {caseData.external_data.accountantOffice}</>}
+            </div>
+            <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700">
+              Κατάσταση Portal: {caseData.external_status || '—'}
+            </span>
+          </div>
+          <div className="flex gap-2 flex-wrap">
+            {[
+              { status: 'IN_ASSESSMENT', label: 'Σε Εκτίμηση' },
+              { status: 'REPORT_READY', label: 'Αναφορά Έτοιμη (+ link)', withLink: true },
+              { status: 'OFFER_SENT', label: 'Στάλθηκε Προσφορά' },
+              { status: 'ACCEPTED', label: 'Έγινε Αποδεκτή' },
+              { status: 'DECLINED', label: 'Απορρίφθηκε' },
+              { status: 'COMPLETED', label: 'Ολοκληρώθηκε' },
+            ].map(({ status, label, withLink }) => (
+              <button
+                key={status}
+                disabled={pushingStatus}
+                onClick={() => handlePushExternalStatus(status, withLink)}
+                className="text-xs font-bold px-3 py-1.5 rounded-lg bg-white border border-indigo-300 text-indigo-700 hover:bg-indigo-100 transition-colors disabled:opacity-50"
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Viber preview modal */}
       {viberModal && caseData && (

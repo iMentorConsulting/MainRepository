@@ -74,6 +74,14 @@ class Case(Base):
     completed_at = Column(DateTime, nullable=True)
     stage_changed_at = Column(DateTime, nullable=True)
 
+    # External referral (e.g. LOGISTIS Accountant Portal)
+    external_source = Column(String, nullable=True, default=None)     # e.g. "logistis"
+    external_ref = Column(String, nullable=True, index=True, default=None)  # portal's callbackRef
+    external_status = Column(String, nullable=True, default=None)     # last status pushed back to portal
+    external_accepted = Column(Boolean, default=True)                 # False = awaiting agent acceptance
+    external_data = Column(JSON, default=dict)                        # raw payload from portal (questionnaire, taxisnet creds, etc.)
+
+
 
 class Lead(Base):
     __tablename__ = "leads"

@@ -77,6 +77,11 @@ class CaseResponse(BaseModel):
     submitted_at: Optional[datetime]
     completed_at: Optional[datetime]
     stage_changed_at: Optional[datetime] = None
+    external_source: Optional[str] = None
+    external_ref: Optional[str] = None
+    external_status: Optional[str] = None
+    external_accepted: bool = True
+    external_data: Optional[dict] = None
 
     class Config:
         from_attributes = True
@@ -108,6 +113,10 @@ class CaseListItem(BaseModel):
     submitted_at: Optional[datetime]
     completed_at: Optional[datetime]
     stage_changed_at: Optional[datetime] = None
+    external_source: Optional[str] = None
+    external_ref: Optional[str] = None
+    external_status: Optional[str] = None
+    external_accepted: bool = True
 
     class Config:
         from_attributes = True

@@ -14,6 +14,7 @@ import {
 } from '@heroicons/react/24/outline'
 import { toast } from 'react-hot-toast'
 import { hangupCall } from '../api'
+import ExternalReferralBanner from './ExternalReferralBanner'
 
 const nav = [
   { to: '/leads', label: 'Leads', Icon: UserGroupIcon },
@@ -107,8 +108,11 @@ export default function Layout({ auth, onLogout }) {
       </div>
 
       {/* Main */}
-      <main className="flex-1 overflow-auto md:pt-0 pt-14 pb-16 md:pb-0">
-        <Outlet />
+      <main className="flex-1 overflow-auto md:pt-0 pt-14 pb-16 md:pb-0 flex flex-col">
+        <ExternalReferralBanner employee={auth.employee} />
+        <div className="flex-1">
+          <Outlet />
+        </div>
       </main>
 
       {/* Mobile bottom nav */}

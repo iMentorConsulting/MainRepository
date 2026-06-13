@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 
 from database import engine, Base
 from models import Case, AppConfig, Lead
-from routers import cases, statistics, public, config, leads, auth
+from routers import cases, statistics, public, config, leads, auth, external
 from auth_utils import get_current_user
 
 load_dotenv()
@@ -85,6 +85,18 @@ def run_migrations():
             conn.commit()
         except Exception:
             pass
+        for col_ddl in [
+            "ALTER TABLE cases ADD COLUMN external_source VARCHAR",
+            "ALTER TABLE cases ADD COLUMN external_ref VARCHAR",
+            "ALTER TABLE cases ADD COLUMN external_status VARCHAR",
+            "ALTER TABLE cases ADD COLUMN external_accepted BOOLEAN DEFAULT 1",
+            "ALTER TABLE cases ADD COLUMN external_data TEXT DEFAULT '{}'",
+        ]:
+            try:
+                conn.execute(text(col_ddl))
+                conn.commit()
+            except Exception:
+                pass
 
         # Leads table columns (safe adds for existing deployments)
         for col_ddl in [
@@ -116,6 +128,7 @@ app.include_router(statistics.router)
 app.include_router(public.router)
 app.include_router(config.router)
 app.include_router(leads.router)
+app.include_router(external.router)
 
 
 # ── Daily scheduler: sync then backup at 18:00 Athens (15:00 UTC) ────────────

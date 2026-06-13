@@ -228,6 +228,8 @@ def list_cases(
         q = q.filter(Case.employee == employee)
     if status:
         q = q.filter(Case.status == status)
+    else:
+        q = q.filter(Case.status != "pending_external")
     if search:
         q = q.filter(Case.client_name.ilike(f"%{search}%"))
     return q.order_by(Case.created_at.desc()).all()
@@ -591,3 +593,83 @@ def duplicate_case(id: int, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(new_case)
     return new_case
+
+
+class AcceptExternal(BaseModel):
+    employee: str
+
+
+@router.post("/{id}/accept-external", response_model=CaseResponse)
+def accept_external_case(id: int, data: AcceptExternal, db: Session = Depends(get_db)):
+    """Agent accepts a pending referral from the LOGISTIS Accountant Portal:
+    assigns it to themselves, starts the normal pipeline, and notifies the portal."""
+    case = db.query(Case).filter(Case.id == id).first()
+    if not case:
+        raise HTTPException(status_code=404, detail="Η υπόθεση δεν βρέθηκε")
+    if data.employee not in EMPLOYEES:
+        raise HTTPException(status_code=400, detail="Μη έγκυρος υπάλληλος")
+    if case.external_accepted:
+        raise HTTPException(status_code=400, detail="Η υπόθεση έχει ήδη γίνει αποδεκτή")
+
+    ext = dict(case.external_data or {})
+    if ext.get("hasSpouse"):
+        case.income_data = {**(case.income_data or {}), "withSpouse": True}
+    if ext.get("taxisnetUsername"):
+        case.notes = (case.notes or "") + f"\n\nTaxisnet: {ext.get('taxisnetUsername')} / {ext.get('taxisnetPassword', '')}"
+    if ext.get("spouseTaxisnetUsername"):
+        case.notes = (case.notes or "") + f"\nTaxisnet Συζύγου: {ext.get('spouseTaxisnetUsername')} / {ext.get('spouseTaxisnetPassword', '')}"
+
+    case.employee = data.employee
+    case.status = "draft"
+    case.external_accepted = True
+    case.external_status = "IN_ASSESSMENT"
+    case.updated_at = _now()
+    db.commit()
+    db.refresh(case)
+
+    if case.external_ref:
+        from routers.external import push_portal_update
+        push_portal_update(
+            callbackRef=case.external_ref,
+            status="IN_ASSESSMENT",
+            externalRef=str(case.id),
+            note=f"Η υπόθεση έγινε αποδεκτή από {data.employee}",
+        )
+
+    return case
+
+
+class ExternalStatusPush(BaseModel):
+    status: str  # SUBMITTED | IN_ASSESSMENT | REPORT_READY | OFFER_SENT | ACCEPTED | DECLINED | COMPLETED
+    externalStatus: Optional[str] = None
+    resultLink: Optional[str] = None
+    note: Optional[str] = None
+
+
+@router.post("/{id}/external-status", response_model=CaseResponse)
+def push_external_status(id: int, data: ExternalStatusPush, db: Session = Depends(get_db)):
+    """Manually push a status update (and optional result link) to the LOGISTIS portal
+    for a case originating from it."""
+    case = db.query(Case).filter(Case.id == id).first()
+    if not case:
+        raise HTTPException(status_code=404, detail="Η υπόθεση δεν βρέθηκε")
+    if not case.external_ref:
+        raise HTTPException(status_code=400, detail="Η υπόθεση δεν προέρχεται από εξωτερική πηγή")
+
+    from routers.external import push_portal_update
+    ok, err = push_portal_update(
+        callbackRef=case.external_ref,
+        status=data.status,
+        externalStatus=data.externalStatus,
+        externalRef=str(case.id),
+        resultLink=data.resultLink,
+        note=data.note,
+    )
+    if not ok:
+        raise HTTPException(status_code=502, detail=f"Αποτυχία ενημέρωσης Portal: {err}")
+
+    case.external_status = data.status
+    case.updated_at = _now()
+    db.commit()
+    db.refresh(case)
+    return case
