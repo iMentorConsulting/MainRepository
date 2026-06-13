@@ -311,6 +311,7 @@ export default function Cases() {
     status_mismatch: false,
     has_documents: false,
     exclude_anakainizw: true,
+    portal_only: false,
   })
   const [showNew, setShowNew] = useState(false)
   const [sortCol, setSortCol] = useState('client_name')
@@ -332,6 +333,7 @@ export default function Cases() {
     if (filters.sla_overdue && !(c.sla_overdue_days > 0)) return false
     if (filters.status_mismatch && !c.status_mismatch) return false
     if (filters.has_documents && !c.has_documents) return false
+    if (filters.portal_only && !c.portal_case_number) return false
     if (filters.programs.length && !filters.programs.includes(c.program_category)) return false
     if (filters.services.length && !filters.services.includes(c.service_type)) return false
     if (filters.agentIds.length && !filters.agentIds.includes(String(c.assigned_agent_id))) return false
@@ -408,8 +410,12 @@ export default function Cases() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Υποθέσεις</h1>
-          <p className="text-sm text-gray-500">{cases.length} υποθέσεις</p>
-
+          <p className="text-sm text-gray-500">
+            {cases.length} υποθέσεις
+            {allCases.some(c => c.portal_case_number) && (
+              <> · {allCases.filter(c => c.portal_case_number).length} 🔗 LOGISTIS Portal</>
+            )}
+          </p>
         </div>
         <button onClick={() => setShowNew(true)} className="btn-primary gap-2 flex items-center">
           <PlusIcon className="w-4 h-4" /> Νέα Υπόθεση
@@ -473,6 +479,10 @@ export default function Cases() {
         <label className="flex items-center gap-2 text-sm text-blue-600 cursor-pointer select-none">
           <input type="checkbox" checked={filters.has_documents} onChange={e => setFilters(f => ({ ...f, has_documents: e.target.checked }))} className="rounded" />
           Έχουν έγγραφα
+        </label>
+        <label className="flex items-center gap-2 text-sm text-purple-700 cursor-pointer select-none font-medium">
+          <input type="checkbox" checked={filters.portal_only} onChange={e => setFilters(f => ({ ...f, portal_only: e.target.checked }))} className="rounded" />
+          🔗 Μόνο LOGISTIS Portal
         </label>
         <button
           onClick={() => setFilters(f => ({ ...f, exclude_anakainizw: !f.exclude_anakainizw, programs: [] }))}
@@ -576,7 +586,14 @@ export default function Cases() {
                         </div>
                       </td>
                       <td className="px-3 py-3 max-w-[160px]">
-                        <div className="font-medium text-gray-900 truncate">{c.client_name}</div>
+                        <div className="flex items-center gap-1.5">
+                          <div className="font-medium text-gray-900 truncate">{c.client_name}</div>
+                          {c.portal_case_number && (
+                            <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded-full font-bold bg-purple-600 text-white" title={`LOGISTIS Portal — Υπόθεση #${c.portal_case_number}`}>
+                              🔗 LOGISTIS
+                            </span>
+                          )}
+                        </div>
                         <div className="text-xs text-gray-400">{c.afm || '—'}</div>
                       </td>
                       <td className="px-3 py-3 max-w-[130px]">

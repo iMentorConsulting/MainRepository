@@ -1157,8 +1157,13 @@ export default function CaseDetail() {
       <div className="bg-white rounded-xl border p-5">
         <div className="flex flex-wrap items-start gap-3">
           <div className="flex-1 min-w-0">
-            <h1 className="text-2xl font-bold text-gray-900 truncate">
+            <h1 className="text-2xl font-bold text-gray-900 truncate flex items-center gap-2 flex-wrap">
               {caseData.client_name}
+              {caseData.portal_case_number && (
+                <span className="text-xs px-2.5 py-1 rounded-full font-bold bg-purple-600 text-white tracking-wide" title={`LOGISTIS Portal — Υπόθεση #${caseData.portal_case_number}`}>
+                  🔗 LOGISTIS #{caseData.portal_case_number}
+                </span>
+              )}
             </h1>
             <div className="flex flex-wrap items-center gap-2 mt-2">
               <span className="text-xs px-2.5 py-1 rounded-full font-medium bg-blue-100 text-blue-800">
