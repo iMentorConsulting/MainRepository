@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableHead, TableBody, TableRow, Th, Td } from '@/components/ui/table'
 import { MultiSelect } from '@/components/ui/multi-select'
-import { Plus, ExternalLink, Scale } from 'lucide-react'
+import { Plus, ExternalLink, Scale, Trash2 } from 'lucide-react'
 import { formatDateTime } from '@/lib/utils'
 
 const STATUS_LABELS: Record<string, string> = {
@@ -41,6 +41,16 @@ export default function ExodikastikosPage() {
   }
 
   useEffect(() => { fetchCases() }, [statusFilter, accountantFilter])
+
+  async function handleDelete(id: string, caseNumber: number) {
+    if (!confirm(`Διαγραφή της αίτησης #${caseNumber}; Η ενέργεια δεν αναιρείται.`)) return
+    const res = await fetch(`/api/exodikastikos/${id}`, { method: 'DELETE' })
+    if (res.ok) {
+      setCases(cs => cs.filter(c => c.id !== id))
+    } else {
+      alert('Η διαγραφή απέτυχε')
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -110,12 +120,13 @@ export default function ExodikastikosPage() {
                 <Th>Κατάσταση</Th>
                 <Th>Ημερομηνία</Th>
                 <Th>Αποτέλεσμα</Th>
+                {isAdmin && <Th></Th>}
               </TableRow>
             </TableHead>
             <TableBody>
               {cases.length === 0 ? (
                 <TableRow>
-                  <Td colSpan={isAdmin ? 7 : 6} className="text-center text-gray-400 py-8">Δεν βρέθηκαν αιτήσεις</Td>
+                  <Td colSpan={isAdmin ? 8 : 6} className="text-center text-gray-400 py-8">Δεν βρέθηκαν αιτήσεις</Td>
                 </TableRow>
               ) : (
                 cases.map(c => (
@@ -137,6 +148,13 @@ export default function ExodikastikosPage() {
                         </a>
                       ) : <span className="text-gray-400 text-sm">—</span>}
                     </Td>
+                    {isAdmin && (
+                      <Td>
+                        <button onClick={() => handleDelete(c.id, c.caseNumber)} className="text-gray-400 hover:text-red-600" title="Διαγραφή">
+                          <Trash2 size={16} />
+                        </button>
+                      </Td>
+                    )}
                   </TableRow>
                 ))
               )}
