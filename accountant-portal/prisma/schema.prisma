@@ -82,6 +82,7 @@ model Accountant {
   notifications       Notification[]
   chatConversations   ChatConversation[]
   clientCases         ClientCase[]
+  exodikastikosCases  ExodikastikosCase[]
 }
 
 model Business {
@@ -89,6 +90,7 @@ model Business {
   accountantId          String?
   accountant            Accountant? @relation(fields: [accountantId], references: [id])
   source                String     @default("accountant")
+  clientType            ClientType @default(BUSINESS)
   afm                   String     @unique
   onomasia              String?
   commercialTitle       String?
@@ -122,6 +124,12 @@ model Business {
   commissions           Commission[]
   chatConversations     ChatConversation[]
   clientCases           ClientCase[]
+  exodikastikosCases    ExodikastikosCase[]
+}
+
+enum ClientType {
+  BUSINESS
+  INDIVIDUAL
 }
 
 model BusinessActivity {
@@ -665,4 +673,61 @@ model Invitation {
   expiresAt   DateTime
   acceptedAt  DateTime?
   createdAt   DateTime  @default(now())
+}
+
+// Εξωδικαστικός μηχανισμός ρύθμισης οφειλών — referral of a client
+// (business or individual) to I-MENTOR's dedicated team for a free debt
+// assessment via the κρατική πλατφόρμα εξωδικαστικού.
+model ExodikastikosCase {
+  id           String                 @id @default(cuid())
+  caseNumber   Int                    @unique @default(autoincrement())
+  accountantId String?
+  accountant   Accountant?            @relation(fields: [accountantId], references: [id])
+  businessId   String
+  business     Business               @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  status       ExodikastikosStatus    @default(SUBMITTED)
+  // Free-form answers to the basic eligibility questionnaire, e.g.
+  // { hasOverdueDebt, isMarried, ... }
+  questionnaire Json?
+  notes        String?
+  hasSpouse        Boolean  @default(false)
+  spouseFirstName  String?
+  spouseLastName   String?
+  spouseAfm        String?
+  // Taxisnet credentials — stored AES-256-GCM encrypted at rest (see src/lib/crypto.ts),
+  // never returned to the client after creation.
+  taxisnetUsernameEnc       String?
+  taxisnetPasswordEnc       String?
+  spouseTaxisnetUsernameEnc String?
+  spouseTaxisnetPasswordEnc String?
+  // Sync with the inhouse εξωδικαστικός case-management system
+  externalRef      String?   @unique
+  externalStatus   String?
+  externalSyncedAt DateTime?
+  resultLink       String?
+  createdById  String
+  createdAt    DateTime               @default(now())
+  updatedAt    DateTime               @updatedAt
+  activities   ExodikastikosActivity[]
+}
+
+enum ExodikastikosStatus {
+  SUBMITTED
+  IN_ASSESSMENT
+  REPORT_READY
+  OFFER_SENT
+  ACCEPTED
+  DECLINED
+  COMPLETED
+}
+
+model ExodikastikosActivity {
+  id         String            @id @default(cuid())
+  caseId     String
+  case       ExodikastikosCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  type       String
+  body       String
+  authorId   String
+  authorName String
+  createdAt  DateTime          @default(now())
 }

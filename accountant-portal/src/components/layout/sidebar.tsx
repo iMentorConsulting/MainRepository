@@ -4,7 +4,7 @@ import { usePathname } from 'next/navigation'
 import { useSession, signOut } from 'next-auth/react'
 import { useEffect, useState } from 'react'
 import { cn } from '@/lib/utils'
-import { LayoutDashboard, Users, Building2, Zap, Target, Send, CreditCard, Percent, Inbox, BarChart3, Settings, LogOut, Globe, Mail, Phone, TrendingUp, X, MessageSquare, ListChecks, FileText, BellRing, History, ClipboardList } from 'lucide-react'
+import { LayoutDashboard, Users, Building2, Zap, Target, Send, CreditCard, Percent, Inbox, BarChart3, Settings, LogOut, Globe, Mail, Phone, TrendingUp, X, MessageSquare, ListChecks, FileText, BellRing, History, ClipboardList, Scale } from 'lucide-react'
 
 const navItems = [
   { href: '/', label: 'Dashboard', icon: LayoutDashboard, adminOnly: false },
@@ -13,6 +13,7 @@ const navItems = [
   { href: '/businesses', label: 'Επιχειρήσεις', icon: Building2, adminOnly: false },
   { href: '/programs', label: 'Προγράμματα', icon: Zap, adminOnly: false },
   { href: '/matches', label: 'Matches', icon: Target, adminOnly: false },
+  { href: '/exodikastikos', label: 'Εξωδικαστικός', icon: Scale, adminOnly: false },
   { href: '/notify-matches', label: 'Custom Ειδοποιήσεις', icon: BellRing, adminOnly: true },
   { href: '/criteria', label: 'Πρόσθετα Κριτήρια', icon: ListChecks, adminOnly: true },
   { href: '/templates', label: 'Πρότυπα Μηνυμάτων', icon: FileText, adminOnly: true },

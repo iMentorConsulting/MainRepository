@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { KadTable } from '@/components/businesses/kad-table'
 import { MatchCard } from '@/components/matching/match-card'
 import { QuickSendModal } from '@/components/quick-send-modal'
-import { ArrowLeft, Mail, Phone, MapPin, Calendar, Edit, Send, Trash2, X as XIcon, Plus, Printer, ClipboardList } from 'lucide-react'
+import { ArrowLeft, Mail, Phone, MapPin, Calendar, Edit, Send, Trash2, X as XIcon, Plus, Printer, ClipboardList, Scale } from 'lucide-react'
 import { NewCaseModal } from '@/components/cases/new-case-modal'
 import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
@@ -26,6 +26,14 @@ const CASE_STATUS_VARIANT: Record<string, any> = {
   NEW: 'info', ACCEPTED: 'purple', IN_PROGRESS: 'warning',
   WAITING_CLIENT: 'secondary', WAITING_ACCOUNTANT: 'secondary',
   COMPLETED: 'success', CANCELLED: 'danger',
+}
+const EXODIKASTIKOS_STATUS_LABELS: Record<string, string> = {
+  SUBMITTED: 'Υποβλήθηκε', IN_ASSESSMENT: 'Σε Εκτίμηση', REPORT_READY: 'Έτοιμη Αναφορά',
+  OFFER_SENT: 'Στάλθηκε Προσφορά', ACCEPTED: 'Αποδεκτό', DECLINED: 'Απορρίφθηκε', COMPLETED: 'Ολοκληρωμένο',
+}
+const EXODIKASTIKOS_STATUS_VARIANT: Record<string, any> = {
+  SUBMITTED: 'info', IN_ASSESSMENT: 'warning', REPORT_READY: 'purple',
+  OFFER_SENT: 'purple', ACCEPTED: 'success', DECLINED: 'danger', COMPLETED: 'success',
 }
 
 export default function BusinessDetailPage() {
@@ -175,6 +183,12 @@ export default function BusinessDetailPage() {
           <ClipboardList size={16} className="mr-2" />
           Ανάθεση στην I-MENTOR
         </Button>
+        <Link href={`/exodikastikos/new?businessId=${business.id}`}>
+          <Button variant="outline">
+            <Scale size={16} className="mr-2" />
+            Εξωδικαστικός
+          </Button>
+        </Link>
         <Link href={`/businesses/${id}/edit`}>
           <Button variant="outline">
             <Edit size={16} className="mr-2" />
@@ -413,6 +427,29 @@ export default function BusinessDetailPage() {
                     </div>
                     <Badge variant={CASE_STATUS_VARIANT[c.status] || 'secondary'} className="text-xs shrink-0">
                       {CASE_STATUS_LABELS[c.status] || c.status}
+                    </Badge>
+                  </Link>
+                ))}
+              </CardContent>
+            </Card>
+          )}
+
+          {business.exodikastikosCases && business.exodikastikosCases.length > 0 && (
+            <Card>
+              <CardHeader><CardTitle>Εξωδικαστικός ({business.exodikastikosCases.length})</CardTitle></CardHeader>
+              <CardContent className="space-y-2">
+                {business.exodikastikosCases.map((c: any) => (
+                  <Link
+                    key={c.id}
+                    href={`/exodikastikos/${c.id}`}
+                    className="flex items-center justify-between gap-2 text-sm border border-gray-100 rounded-lg px-3 py-2 hover:bg-gray-50 transition-colors"
+                  >
+                    <div className="min-w-0">
+                      <div className="font-medium truncate">Αίτηση #{c.caseNumber}</div>
+                      <div className="text-xs text-gray-400">{formatDate(c.createdAt)}</div>
+                    </div>
+                    <Badge variant={EXODIKASTIKOS_STATUS_VARIANT[c.status] || 'secondary'} className="text-xs shrink-0">
+                      {EXODIKASTIKOS_STATUS_LABELS[c.status] || c.status}
                     </Badge>
                   </Link>
                 ))}
