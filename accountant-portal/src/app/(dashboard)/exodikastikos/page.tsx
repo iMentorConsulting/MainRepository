@@ -12,9 +12,10 @@ import { formatDateTime } from '@/lib/utils'
 // Σύντομα ενημερωτικά βίντεο (YouTube) για την υπηρεσία και τη μεθοδολογία εκτίμησης.
 // Συμπληρώστε το videoId (το κομμάτι μετά το v= ή youtu.be/) για να εμφανιστεί το βίντεο.
 const ONBOARDING_VIDEOS: { title: string; videoId: string }[] = [
-  { title: 'Τι είναι ο Εξωδικαστικός Μηχανισμός', videoId: '' },
-  { title: 'Η μεθοδολογία εκτίμησης μας', videoId: '' },
-  { title: 'Το προσωπικό portal παρακολούθησης', videoId: '' },
+  { title: 'Εμπειρία & σύστημα στον εξωδικαστικό', videoId: 'XozxChuyE8I' },
+  { title: 'Δωρεάν προσομοίωση αποτελέσματος', videoId: 'jrqwOKUOT_c' },
+  { title: 'Πότε γίνονται διαγραφές', videoId: 'AqcJGo3Cmys' },
+  { title: 'Προσομοίωση πριν την υποβολή', videoId: '0xBy6JiTV9A' },
 ]
 
 const STATUS_LABELS: Record<string, string> = {
