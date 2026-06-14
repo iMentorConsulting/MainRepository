@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { Table, TableHead, TableBody, TableRow, Th, Td } from '@/components/ui/table'
 import { MultiSelect } from '@/components/ui/multi-select'
 import { NewCaseModal } from '@/components/cases/new-case-modal'
-import { Plus, Trash2, Sparkles, MessageCircle, LayoutDashboard, CalendarClock, ShieldCheck } from 'lucide-react'
+import { Plus, Trash2, Sparkles, MessageCircle, LayoutDashboard, CalendarClock, ShieldCheck, Coins } from 'lucide-react'
 import { formatDateTime } from '@/lib/utils'
 
 const STATUS_LABELS: Record<string, string> = {
@@ -74,10 +74,6 @@ export default function CasesPage() {
           <h1 className="text-2xl font-bold text-gray-900">Αναθέσεις Προγραμμάτων</h1>
           <p className="text-gray-500 mt-1">{cases.length} αναθέσεις</p>
         </div>
-        <Button onClick={() => setShowNew(true)}>
-          <Plus size={16} className="mr-2" />
-          Νέα Ανάθεση
-        </Button>
       </div>
 
       {/* ─── Hero ─────────────────────────────────────────────────────────── */}
@@ -99,6 +95,13 @@ export default function CasesPage() {
             για το πού βρίσκεται η υπόθεσή του, μέσα από το σύστημα διαχείρισης υποθέσεων (case management) που
             χρησιμοποιούμε.
           </p>
+
+          <div className="mt-6">
+            <Button onClick={() => setShowNew(true)} size="lg" className="bg-white text-indigo-700 hover:bg-indigo-50 shadow-md">
+              <Plus size={18} className="mr-2" />
+              Νέα Ανάθεση
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -115,6 +118,26 @@ export default function CasesPage() {
               Viber και email σε κάθε αλλαγή σταδίου της ανάθεσης — από την υποβολή έως την έγκριση και την
               αποπληρωμή. Καμία υπόθεση δεν «χάνεται» και ο πελάτης δεν χρειάζεται να ρωτά πού βρίσκεται η αίτησή
               του, μειώνοντας τον φόρτο και για το γραφείο σας.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* ─── Commission ──────────────────────────────────────────────────── */}
+      <div className="rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-50 to-teal-50 p-5 sm:p-6">
+        <div className="flex items-start gap-4">
+          <div className="shrink-0 w-12 h-12 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-md">
+            <Coins size={22} />
+          </div>
+          <div>
+            <h3 className="text-lg font-bold text-emerald-900 flex items-center gap-2">
+              Κερδίζετε προμήθεια για κάθε υλοποίηση
+              <Badge variant="success">Νέο εισόδημα</Badge>
+            </h3>
+            <p className="text-sm text-emerald-800/80 mt-1 max-w-2xl">
+              Όταν ένας πελάτης σας προχωράει σε υλοποίηση επιχορηγούμενου προγράμματος μέσω της I-MENTOR, το
+              γραφείο σας λαμβάνει προμήθεια. Η κατάσταση και το ύψος της αμοιβής σας εμφανίζονται στην ενότητα{' '}
+              <Link href="/commissions" className="font-semibold underline hover:text-emerald-900">Προμήθειες</Link>.
             </p>
           </div>
         </div>
