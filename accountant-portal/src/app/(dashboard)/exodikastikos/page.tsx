@@ -74,16 +74,16 @@ export default function ExodikastikosPage() {
         <div className="relative p-6 sm:p-8 text-white">
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/15 text-xs font-semibold uppercase tracking-wider mb-3">
             <Sparkles size={13} />
-            Η μαγεία του Εξωδικαστικού
+            Εξωδικαστικός Μηχανισμός
           </div>
           <h2 className="text-2xl sm:text-3xl font-bold leading-tight max-w-2xl">
             Δώστε στους πελάτες σας μια δεύτερη ευκαιρία —<br className="hidden sm:block" />
             και κερδίστε προμήθεια σε κάθε ανάθεση.
           </h2>
           <p className="mt-3 text-indigo-100 max-w-2xl text-sm sm:text-base">
-            Κάθε πελάτης σας με οφειλές προς Δημόσιο, ΕΦΚΑ ή τράπεζες είναι μια ευκαιρία: για εκείνον να ανασάνει
-            οικονομικά, και για εσάς να αποκτήσετε ένα νέο κανάλι εσόδων χωρίς καμία επιπλέον δουλειά — όλη η
-            διαδικασία αναλαμβάνεται από την ομάδα της I-MENTOR.
+            Κάθε πελάτης σας με οφειλές προς Δημόσιο, ΕΦΚΑ ή τράπεζες είναι μια ευκαιρία: για εκείνον να αποκτήσει
+            μια ρεαλιστική, τεκμηριωμένη πρόταση ρύθμισης, και για εσάς να αποκτήσετε ένα νέο κανάλι εσόδων χωρίς
+            καμία επιπλέον δουλειά — όλη η διαδικασία αναλαμβάνεται από την ομάδα της I-MENTOR.
           </p>
 
           <div className="mt-6 grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -96,8 +96,8 @@ export default function ExodikastikosPage() {
               <div className="text-[11px] text-indigo-100 mt-0.5">δόσεις σε Δημόσιο &amp; ΕΦΚΑ</div>
             </div>
             <div className="bg-white/10 backdrop-blur rounded-xl p-3 text-center">
-              <div className="text-2xl font-bold">έως 95%</div>
-              <div className="text-[11px] text-indigo-100 mt-0.5">διαγραφή οφειλών</div>
+              <div className="text-2xl font-bold">Πρόβλεψη</div>
+              <div className="text-[11px] text-indigo-100 mt-0.5">αποτελέσματος πριν την υποβολή</div>
             </div>
             <div className="bg-white/10 backdrop-blur rounded-xl p-3 text-center">
               <div className="text-2xl font-bold">~15</div>
@@ -142,21 +142,21 @@ export default function ExodikastikosPage() {
         </div>
       </div>
 
-      {/* ─── Why it's magic ──────────────────────────────────────────────── */}
+      {/* ─── Why it's different ──────────────────────────────────────────── */}
       <div>
         <h3 className="text-base font-bold text-gray-900 mb-3 flex items-center gap-2">
           <Wand2 size={18} className="text-violet-600" />
-          Τι κάνει την υπηρεσία μας μοναδική
+          Τι κάνει τη μεθοδολογία μας σοβαρή και τεκμηριωμένη
         </h3>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
             <div className="w-9 h-9 rounded-lg bg-violet-100 text-violet-700 flex items-center justify-center mb-3">
               <FileSearch size={18} />
             </div>
-            <p className="font-semibold text-sm text-gray-900">Αποκλειστικό εργαλείο πρόβλεψης</p>
+            <p className="font-semibold text-sm text-gray-900">Εργαλείο πρόβλεψης αποτελέσματος</p>
             <p className="text-xs text-gray-500 mt-1">
-              Μοναδικό στην Ελλάδα: εκτιμούμε με μεγάλη ακρίβεια το αποτέλεσμα της ρύθμισης πριν την υποβολή,
-              ώστε ο πελάτης να ξέρει τι να περιμένει από την αρχή.
+              Πριν την υποβολή, αναλύουμε τα δεδομένα της υπόθεσης και παράγουμε μια ρεαλιστική, τεκμηριωμένη
+              πρόβλεψη του αποτελέσματος της ρύθμισης, ώστε ο πελάτης να γνωρίζει εξ αρχής τι να περιμένει.
             </p>
           </div>
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
@@ -173,10 +173,10 @@ export default function ExodikastikosPage() {
             <div className="w-9 h-9 rounded-lg bg-rose-100 text-rose-700 flex items-center justify-center mb-3">
               <PiggyBank size={18} />
             </div>
-            <p className="font-semibold text-sm text-gray-900">Σχέδιο αναδιάρθρωσης δώρο</p>
+            <p className="font-semibold text-sm text-gray-900">Σχέδιο αναδιάρθρωσης ως μέρος της πρότασης</p>
             <p className="text-xs text-gray-500 mt-1">
-              Μαζί με την αίτηση ρύθμισης, ο πελάτης αποκτά business plan αναδιάρθρωσης — επιπλέον αξία που
-              ενισχύει τη σχέση εμπιστοσύνης με το λογιστικό γραφείο.
+              Εκπονούμε σχέδιο αναδιάρθρωσης και το υποβάλλουμε στην πλατφόρμα μαζί με την αίτηση, ώστε να
+              ενισχύσουμε την τεκμηρίωση και τη βιωσιμότητα της πρότασης ρύθμισης.
             </p>
           </div>
         </div>
@@ -206,20 +206,20 @@ export default function ExodikastikosPage() {
         </div>
       </div>
 
-      {/* ─── Debt relief stats strip ─────────────────────────────────────── */}
+      {/* ─── Why it's a serious option ───────────────────────────────────── */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="flex items-center gap-3 bg-white rounded-xl border border-gray-200 shadow-sm p-4">
           <div className="shrink-0 w-10 h-10 rounded-lg bg-rose-100 text-rose-600 flex items-center justify-center"><TrendingDown size={20} /></div>
           <div>
-            <p className="text-sm font-bold text-gray-900">Έως 75-95% διαγραφή</p>
-            <p className="text-xs text-gray-500">οφειλών προς τράπεζες, funds, Δημόσιο και ΕΦΚΑ, ανάλογα με το προφίλ.</p>
+            <p className="text-sm font-bold text-gray-900">Ρεαλιστική, τεκμηριωμένη πρόταση</p>
+            <p className="text-xs text-gray-500">Κάθε ρύθμιση βασίζεται σε ανάλυση δεδομένων, όχι σε υποσχέσεις για μεγάλα κουρέματα.</p>
           </div>
         </div>
         <div className="flex items-center gap-3 bg-white rounded-xl border border-gray-200 shadow-sm p-4">
           <div className="shrink-0 w-10 h-10 rounded-lg bg-amber-100 text-amber-600 flex items-center justify-center"><CalendarClock size={20} /></div>
           <div>
             <p className="text-sm font-bold text-gray-900">Έως 420 / 240 δόσεις</p>
-            <p className="text-xs text-gray-500">εξωπραγματικά ευνοϊκή αποπληρωμή σε τράπεζες/funds και Δημόσιο/ΕΦΚΑ.</p>
+            <p className="text-xs text-gray-500">ευνοϊκή αποπληρωμή σε τράπεζες/funds και Δημόσιο/ΕΦΚΑ, ανάλογα με την υπόθεση.</p>
           </div>
         </div>
         <div className="flex items-center gap-3 bg-white rounded-xl border border-gray-200 shadow-sm p-4">
