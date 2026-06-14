@@ -241,7 +241,7 @@ export default function BusinessesPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Επιχειρήσεις</h1>
+          <h1 className="text-2xl font-bold text-gray-900">Επιχειρήσεις μου</h1>
           <p className="text-gray-500 mt-1">{total} επιχειρήσεις συνολικά</p>
         </div>
         <div className="flex gap-2">

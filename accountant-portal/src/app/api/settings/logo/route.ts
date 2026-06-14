@@ -14,6 +14,7 @@ export async function GET() {
 }
 
 function validateLogoUrl(value: string) {
+  if (value.startsWith('data:image/')) return true
   try {
     const url = new URL(value)
     return url.protocol === 'https:' || url.protocol === 'http:'

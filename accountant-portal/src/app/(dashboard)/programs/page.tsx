@@ -95,7 +95,7 @@ export default function ProgramsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Προγράμματα</h1>
+          <h1 className="text-2xl font-bold text-gray-900">Επιχορηγούμενα Προγράμματα</h1>
           <p className="text-gray-500 mt-1">{programs.filter(p => !p.archived).length} ενεργά{archivedCount > 0 ? ` · ${archivedCount} αρχειοθετημένα` : ''}</p>
         </div>
         {isAdmin && (
@@ -107,7 +107,7 @@ export default function ProgramsPage() {
 
       {/* Category Filters */}
       <div className="flex gap-2 flex-wrap items-center">
-        {['', 'ESPA', 'DYPA', 'MICROCREDITS', 'EXTRAJUDICIAL', 'RENOVATION'].map(cat => (
+        {['', 'ESPA', 'DYPA', 'MICROCREDITS'].map(cat => (
           <button
             key={cat}
             onClick={() => setFilter(cat)}

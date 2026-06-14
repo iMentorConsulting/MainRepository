@@ -215,8 +215,6 @@ export default function NewProgramPage() {
                 { value: 'ESPA', label: 'ΕΣΠΑ' },
                 { value: 'DYPA', label: 'ΔΥΠΑ' },
                 { value: 'MICROCREDITS', label: 'Μικροπιστώσεις' },
-                { value: 'EXTRAJUDICIAL', label: 'Εξωδικαστικός Μηχανισμός' },
-                { value: 'RENOVATION', label: 'Ανακαίνιση (Ιδιώτες)' },
                 { value: 'OTHER', label: 'Άλλο' },
               ]}
             />
