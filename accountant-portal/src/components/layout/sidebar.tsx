@@ -15,10 +15,9 @@ const navItems = [
   { href: '/matches', label: 'Matches', icon: Target, adminOnly: false },
   { href: '/cases', label: 'Αναθέσεις Προγραμμάτων', icon: ClipboardList, adminOnly: false },
   { href: '/exodikastikos', label: 'Αναθέσεις Εξωδικαστικού', icon: Scale, adminOnly: false },
-  { href: '/requests', label: 'Αιτήματα', icon: Inbox, adminOnly: false },
-  { href: '/chat', label: 'Επικοινωνία', icon: MessageSquare, adminOnly: false },
+  { href: '/chat', label: 'Επικοινωνία με i-Mentor', icon: MessageSquare, adminOnly: false },
   { href: '/notify-matches', label: 'Custom Ειδοποιήσεις', icon: BellRing, adminOnly: true },
-  { href: '/campaigns', label: 'Καμπάνιες', icon: Send, adminOnly: false },
+  { href: '/campaigns', label: 'Καμπάνιες προς Πελάτες', icon: Send, adminOnly: false },
   { href: '/templates', label: 'Πρότυπα Μηνυμάτων', icon: FileText, adminOnly: true },
   { href: '/criteria', label: 'Πρόσθετα Κριτήρια', icon: ListChecks, adminOnly: true },
   { href: '/payments', label: 'Πληρωμές', icon: CreditCard, adminOnly: true },
@@ -26,7 +25,7 @@ const navItems = [
   { href: '/reports', label: 'Αναφορές', icon: BarChart3, adminOnly: false },
   { href: '/analytics', label: 'Αναλυτικά', icon: TrendingUp, adminOnly: true },
   { href: '/audit-log', label: 'Καταγραφή Ενεργειών', icon: History, adminOnly: true },
-  { href: '/settings', label: 'Ρυθμίσεις', icon: Settings, adminOnly: false },
+  { href: '/settings', label: 'Ρυθμίσεις', icon: Settings, adminOnly: true },
 ]
 
 interface SidebarProps {
@@ -42,11 +41,15 @@ export function Sidebar({ open, onClose }: SidebarProps) {
   const visible = navItems.filter(i => !i.adminOnly || isAdmin)
   const officeHref = !isAdmin && accountantId ? `/accountants/${accountantId}` : null
   const [logoUrl, setLogoUrl] = useState<string | null>(null)
+  const [logistisLogoUrl, setLogistisLogoUrl] = useState<string | null>(null)
 
   useEffect(() => {
     fetch('/api/settings/logo')
       .then(r => r.json())
-      .then(d => setLogoUrl(d.imentorLogoUrl || null))
+      .then(d => {
+        setLogoUrl(d.imentorLogoUrl || null)
+        setLogistisLogoUrl(d.logistisLogoUrl || null)
+      })
       .catch(() => {})
   }, [])
 
@@ -87,10 +90,19 @@ export function Sidebar({ open, onClose }: SidebarProps) {
           </button>
 
           <Link href="/" className="block">
-            <div className="flex items-center justify-center py-2 mb-4">
+            <div className="flex items-center justify-center gap-3 py-2 mb-4">
               {logoUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={logoUrl} alt="I-MENTOR" className="max-h-24 w-auto object-contain drop-shadow-lg" />
+                <>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={logoUrl} alt="I-MENTOR" className="max-h-24 w-auto object-contain drop-shadow-lg" />
+                  {logistisLogoUrl && (
+                    <>
+                      <div className="w-px h-12 bg-slate-700" />
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={logistisLogoUrl} alt="LOGISTIS" className="max-h-24 w-auto object-contain drop-shadow-lg" />
+                    </>
+                  )}
+                </>
               ) : (
                 <div className="flex flex-col items-center gap-1.5">
                   <div className="flex items-center gap-2.5">
@@ -164,7 +176,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
                   : 'text-slate-400 hover:bg-slate-800 hover:text-white'
               )}>
               <Building2 className={cn('w-4 h-4 flex-shrink-0', pathname === officeHref ? 'text-indigo-300' : 'text-slate-500')} />
-              Το Γραφείο μου
+              Το Λογιστικό μου Γραφείο
             </Link>
           )}
         </nav>

@@ -29,7 +29,7 @@ export default function CampaignsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Καμπάνιες</h1>
+          <h1 className="text-2xl font-bold text-gray-900">Καμπάνιες προς Πελάτες</h1>
           <p className="text-gray-500 mt-1">{campaigns.length} καμπάνιες</p>
         </div>
         <div className="flex gap-2">

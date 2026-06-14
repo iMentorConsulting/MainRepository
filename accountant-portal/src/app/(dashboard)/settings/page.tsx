@@ -5,56 +5,8 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { LogoUploader } from '@/components/shared/logo-uploader'
-import { CheckCircle, XCircle, Mail, Settings, Image as ImageIcon, Shield, Download, Trash2, Lock, Building2 } from 'lucide-react'
+import { CheckCircle, XCircle, Mail, Settings, Image as ImageIcon, Shield, Download, Lock } from 'lucide-react'
 import Link from 'next/link'
-
-function DeleteRequestForm() {
-  const [reason, setReason] = useState('')
-  const [sending, setSending] = useState(false)
-  const [sent, setSent] = useState(false)
-  const [error, setError] = useState('')
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    if (!confirm('Είστε σίγουροι ότι θέλετε να υποβάλετε αίτημα διαγραφής; Θα ειδοποιηθεί ο διαχειριστής και τα δεδομένα σας θα διαγραφούν εντός 30 ημερών.')) return
-    setSending(true)
-    setError('')
-    const res = await fetch('/api/account/delete-request', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ reason }),
-    })
-    setSending(false)
-    if (res.ok) setSent(true)
-    else setError('Σφάλμα αποστολής. Δοκιμάστε ξανά.')
-  }
-
-  if (sent) return (
-    <div className="flex items-center gap-2 text-green-700 text-sm">
-      <CheckCircle size={16} />
-      Το αίτημά σας ελήφθη. Θα επικοινωνήσουμε μαζί σας εντός 30 ημερών.
-    </div>
-  )
-
-  return (
-    <form onSubmit={handleSubmit} className="space-y-3">
-      <p className="text-sm text-gray-500">
-        Υποβάλετε αίτημα διαγραφής του λογαριασμού και όλων των συσχετισμένων δεδομένων σας από το σύστημα, σύμφωνα με το Άρθρο 17 του ΓΚΠΔ (Δικαίωμα στη Λήθη). Ο διαχειριστής θα σας απαντήσει εντός 30 ημερών.
-      </p>
-      <Input
-        label="Αιτία / Σχόλιο (προαιρετικό)"
-        value={reason}
-        onChange={e => setReason(e.target.value)}
-        placeholder="π.χ. Δεν χρησιμοποιώ πλέον την υπηρεσία"
-      />
-      {error && <p className="text-sm text-red-600">{error}</p>}
-      <Button type="submit" variant="destructive" loading={sending}>
-        <Trash2 size={15} className="mr-2" />
-        Υποβολή Αιτήματος Διαγραφής
-      </Button>
-    </form>
-  )
-}
 
 export default function SettingsPage() {
   const { data: session } = useSession()
@@ -62,6 +14,7 @@ export default function SettingsPage() {
   const [smtpTest, setSmtpTest] = useState<'idle' | 'loading' | 'ok' | 'fail'>('idle')
   const [smtpError, setSmtpError] = useState('')
   const [imentorLogoUrl, setImentorLogoUrl] = useState<string | null>(null)
+  const [logistisLogoUrl, setLogistisLogoUrl] = useState<string | null>(null)
   const [logoSaving, setLogoSaving] = useState(false)
   const [logoSaved, setLogoSaved] = useState(false)
 
@@ -74,7 +27,10 @@ export default function SettingsPage() {
   const [aadeError, setAadeError] = useState('')
 
   useEffect(() => {
-    fetch('/api/settings/logo').then(r => r.json()).then(d => setImentorLogoUrl(d.imentorLogoUrl || null))
+    fetch('/api/settings/logo').then(r => r.json()).then(d => {
+      setImentorLogoUrl(d.imentorLogoUrl || null)
+      setLogistisLogoUrl(d.logistisLogoUrl || null)
+    })
     if (session?.user?.role === 'ADMIN') {
       fetch('/api/settings/aade').then(r => r.json()).then(d => {
         setAadeUser(d.aadeUser || '')
@@ -93,6 +49,22 @@ export default function SettingsPage() {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ imentorLogoUrl: dataUrl }),
+      })
+      setLogoSaved(true)
+    } finally {
+      setLogoSaving(false)
+    }
+  }
+
+  async function saveLogistisLogo(dataUrl: string | null) {
+    setLogistisLogoUrl(dataUrl)
+    setLogoSaving(true)
+    setLogoSaved(false)
+    try {
+      await fetch('/api/settings/logo', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ logistisLogoUrl: dataUrl }),
       })
       setLogoSaved(true)
     } finally {
@@ -140,18 +112,6 @@ export default function SettingsPage() {
         <h1 className="text-2xl font-bold text-gray-900">Ρυθμίσεις</h1>
         <p className="text-gray-500 mt-1">Διαχείριση παραμέτρων I-MENTOR Portal</p>
       </div>
-
-      {session?.user?.role === 'ACCOUNTANT' && (
-        <Card>
-          <CardContent className="py-4">
-            <div className="flex items-center gap-3 text-sm text-gray-600">
-              <Building2 size={16} className="text-indigo-500 flex-shrink-0" />
-              <span>Για επεξεργασία στοιχείων γραφείου και λογότυπου, επισκεφθείτε την ενότητα </span>
-              <Link href={`/accountants/${(session.user as any)?.accountantId}`} className="text-indigo-600 hover:underline font-medium">Το Γραφείο μου →</Link>
-            </div>
-          </CardContent>
-        </Card>
-      )}
 
       {session?.user?.role === 'ADMIN' && (
         <Card>
@@ -249,6 +209,10 @@ export default function SettingsPage() {
               Το λογότυπο εμφανίζεται στο πάνω μέρος των email καμπανιών προς τους πελάτες, αντί του κειμένου «iMENTOR CONSULTING».
             </p>
             <LogoUploader label="Λογότυπο I-MENTOR (PNG, transparent)" value={imentorLogoUrl} onChange={saveImentorLogo} />
+            <p className="text-sm text-gray-500">
+              Το λογότυπο LOGISTIS εμφανίζεται δίπλα στο λογότυπο I-MENTOR στο πλαϊνό μενού (whitelabel).
+            </p>
+            <LogoUploader label="Λογότυπο LOGISTIS (PNG, transparent)" value={logistisLogoUrl} onChange={saveLogistisLogo} />
             {logoSaving && <span className="text-xs text-gray-400">Αποθήκευση...</span>}
             {!logoSaving && logoSaved && <span className="text-xs text-green-600">Αποθηκεύτηκε ✓</span>}
           </CardContent>
@@ -274,18 +238,6 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
       )}
-
-      <Card className="border-red-100">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-red-700">
-            <Trash2 size={18} />
-            Αίτημα Διαγραφής Λογαριασμού (GDPR Άρθρο 17)
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <DeleteRequestForm />
-        </CardContent>
-      </Card>
 
       {session?.user?.role === 'ADMIN' && <Card>
         <CardHeader>

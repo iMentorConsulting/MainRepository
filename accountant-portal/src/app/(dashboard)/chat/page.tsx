@@ -67,7 +67,7 @@ export default function ChatPage() {
       <div className="flex items-center justify-between">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-bold text-gray-900">Επικοινωνία</h1>
+            <h1 className="text-2xl font-bold text-gray-900">Επικοινωνία με i-Mentor</h1>
             {unreadCount > 0 && (
               <span className="text-xs font-bold text-white bg-red-500 rounded-full px-2.5 py-1">
                 {unreadCount} νέα

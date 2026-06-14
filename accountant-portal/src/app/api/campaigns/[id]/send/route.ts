@@ -176,7 +176,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
   let matchReasonByBusiness = new Map<string, string[]>()
   if (campaign.programId) {
     const matches = await prisma.programMatch.findMany({
-      where: { programId: campaign.programId },
+      where: { programId: campaign.programId, status: { not: 'REJECTED' } },
       select: { businessId: true, matchReason: true }
     })
     matchReasonByBusiness = new Map(matches.map(m => [m.businessId, m.matchReason]))

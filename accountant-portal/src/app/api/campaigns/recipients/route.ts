@@ -36,9 +36,9 @@ export async function GET(request: NextRequest) {
   if (programId) {
     const matches = await prisma.programMatch.findMany({
       where: { programId },
-      select: { businessId: true },
+      select: { businessId: true, status: true },
     })
-    const matchedIds = new Set(matches.map(m => m.businessId))
+    const matchedIds = new Set(matches.filter(m => m.status !== 'REJECTED').map(m => m.businessId))
     businesses = businesses.filter(b => matchedIds.has(b.id))
   }
 

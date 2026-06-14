@@ -10,7 +10,8 @@ import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { LogoUploader } from '@/components/shared/logo-uploader'
-import { ArrowLeft, Building2 } from 'lucide-react'
+import { ArrowLeft, Building2, Trash2 } from 'lucide-react'
+import { DeleteRequestForm } from '@/components/shared/delete-request-form'
 import Link from 'next/link'
 import { useSession } from 'next-auth/react'
 
@@ -183,6 +184,20 @@ export default function AccountantDetailPage() {
               </div>
             </CardContent>
           </Card>
+
+          {!isAdmin && (
+            <Card className="border-red-100">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-red-700">
+                  <Trash2 size={18} />
+                  Αίτημα Διαγραφής Λογαριασμού (GDPR Άρθρο 17)
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <DeleteRequestForm />
+              </CardContent>
+            </Card>
+          )}
         </div>
       </div>
 
