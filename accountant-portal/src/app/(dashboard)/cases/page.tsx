@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { Table, TableHead, TableBody, TableRow, Th, Td } from '@/components/ui/table'
 import { MultiSelect } from '@/components/ui/multi-select'
 import { NewCaseModal } from '@/components/cases/new-case-modal'
-import { Plus, Trash2 } from 'lucide-react'
+import { Plus, Trash2, Sparkles, MessageCircle, LayoutDashboard, CalendarClock, ShieldCheck } from 'lucide-react'
 import { formatDateTime } from '@/lib/utils'
 
 const STATUS_LABELS: Record<string, string> = {
@@ -78,6 +78,86 @@ export default function CasesPage() {
           <Plus size={16} className="mr-2" />
           Νέα Ανάθεση
         </Button>
+      </div>
+
+      {/* ─── Hero ─────────────────────────────────────────────────────────── */}
+      <div className="relative overflow-hidden rounded-2xl shadow-lg" style={{ background: 'linear-gradient(135deg, #1e3a8a 0%, #4338ca 55%, #6d28d9 100%)' }}>
+        <div className="absolute -top-10 -right-10 w-56 h-56 rounded-full bg-white/10 blur-3xl" />
+        <div className="absolute bottom-0 left-1/3 w-40 h-40 rounded-full bg-white/10 blur-2xl" />
+        <div className="relative p-6 sm:p-8 text-white">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/15 text-xs font-semibold uppercase tracking-wider mb-3">
+            <Sparkles size={13} />
+            Αναθέσεις Προγραμμάτων
+          </div>
+          <h2 className="text-2xl sm:text-3xl font-bold leading-tight max-w-2xl">
+            Κάθε επιχορήγηση είναι μια ευκαιρία για τον πελάτη σας —<br className="hidden sm:block" />
+            εμείς αναλαμβάνουμε την υλοποίηση, χωρίς άγχος και αβεβαιότητα.
+          </h2>
+          <p className="mt-3 text-indigo-100 max-w-2xl text-sm sm:text-base">
+            Η ομάδα της I-MENTOR έχει πολυετή εμπειρία στην υλοποίηση επιχορηγούμενων προγραμμάτων (ΕΣΠΑ, ΔΥΠΑ,
+            μικροπιστώσεις και άλλα). Από την αίτηση έως την αποπληρωμή, ο πελάτης σας έχει πάντα ξεκάθαρη εικόνα
+            για το πού βρίσκεται η υπόθεσή του, μέσα από το σύστημα διαχείρισης υποθέσεων (case management) που
+            χρησιμοποιούμε.
+          </p>
+        </div>
+      </div>
+
+      {/* ─── Case management / communication ─────────────────────────────── */}
+      <div className="rounded-2xl border border-indigo-200 bg-gradient-to-br from-indigo-50 to-blue-50 p-5 sm:p-6">
+        <div className="flex items-start gap-4">
+          <div className="shrink-0 w-12 h-12 rounded-xl bg-indigo-600 text-white flex items-center justify-center shadow-md">
+            <MessageCircle size={22} />
+          </div>
+          <div>
+            <h3 className="text-lg font-bold text-indigo-900">Ο πελάτης ξέρει πάντα πού βρίσκεται</h3>
+            <p className="text-sm text-indigo-800/80 mt-1 max-w-2xl">
+              Το σύστημα διαχείρισης υποθέσεων (case management) της I-MENTOR ενημερώνει αυτόματα τον πελάτη με
+              Viber και email σε κάθε αλλαγή σταδίου της ανάθεσης — από την υποβολή έως την έγκριση και την
+              αποπληρωμή. Καμία υπόθεση δεν «χάνεται» και ο πελάτης δεν χρειάζεται να ρωτά πού βρίσκεται η αίτησή
+              του, μειώνοντας τον φόρτο και για το γραφείο σας.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* ─── Why it's reliable ────────────────────────────────────────────── */}
+      <div>
+        <h3 className="text-base font-bold text-gray-900 mb-3 flex items-center gap-2">
+          <ShieldCheck size={18} className="text-indigo-600" />
+          Γιατί οι πελάτες σας είναι σε καλά χέρια
+        </h3>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+            <div className="w-9 h-9 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center mb-3">
+              <ShieldCheck size={18} />
+            </div>
+            <p className="font-semibold text-sm text-gray-900">Έμπειρη ομάδα υλοποίησης</p>
+            <p className="text-xs text-gray-500 mt-1">
+              Πολυετή εμπειρία σε ΕΣΠΑ, ΔΥΠΑ και άλλα προγράμματα — γνωρίζουμε τις απαιτήσεις, τις προθεσμίες και
+              τις «παγίδες» κάθε πρόσκλησης.
+            </p>
+          </div>
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+            <div className="w-9 h-9 rounded-lg bg-violet-100 text-violet-700 flex items-center justify-center mb-3">
+              <LayoutDashboard size={18} />
+            </div>
+            <p className="font-semibold text-sm text-gray-900">Προσωπικό ασφαλές portal</p>
+            <p className="text-xs text-gray-500 mt-1">
+              Ο πελάτης (και εσείς) έχετε πρόσβαση σε ασφαλές portal για την παρακολούθηση της υπόθεσης, χωρίς
+              να χρειάζονται τηλέφωνα και emails για ενημέρωση.
+            </p>
+          </div>
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+            <div className="w-9 h-9 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center mb-3">
+              <CalendarClock size={18} />
+            </div>
+            <p className="font-semibold text-sm text-gray-900">Παρακολούθηση προθεσμιών</p>
+            <p className="text-xs text-gray-500 mt-1">
+              Παρακολουθούμε συστηματικά τις προθεσμίες υποβολών και δικαιολογητικών κάθε προγράμματος, ώστε να
+              μη χάνεται καμία ευκαιρία λόγω καθυστέρησης.
+            </p>
+          </div>
+        </div>
       </div>
 
       {isAdmin && (
