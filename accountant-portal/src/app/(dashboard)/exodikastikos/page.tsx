@@ -85,13 +85,13 @@ export default function ExodikastikosPage() {
             Εξωδικαστικός Μηχανισμός
           </div>
           <h2 className="text-2xl sm:text-3xl font-bold leading-tight max-w-2xl">
-            Δώστε στους πελάτες σας μια δεύτερη ευκαιρία —<br className="hidden sm:block" />
+            Δώστε στους πελάτες σας μια δεύτερη ευκαιρία<br className="hidden sm:block" />
             και κερδίστε προμήθεια σε κάθε ανάθεση.
           </h2>
           <p className="mt-3 text-indigo-100 max-w-2xl text-sm sm:text-base">
             Κάθε πελάτης σας με οφειλές προς Δημόσιο, ΕΦΚΑ ή τράπεζες είναι μια ευκαιρία: για εκείνον να αποκτήσει
             μια ρεαλιστική, τεκμηριωμένη πρόταση ρύθμισης, και για εσάς να αποκτήσετε ένα νέο κανάλι εσόδων χωρίς
-            καμία επιπλέον δουλειά — όλη η διαδικασία αναλαμβάνεται από την ομάδα της I-MENTOR.
+            καμία επιπλέον δουλειά. Όλη η διαδικασία αναλαμβάνεται από την ομάδα της I-MENTOR.
           </p>
 
           <div className="mt-6 grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -142,7 +142,7 @@ export default function ExodikastikosPage() {
             </h3>
             <p className="text-sm text-emerald-800/80 mt-1 max-w-2xl">
               Κάθε υπόθεση πελάτη σας που προχωράει στον Εξωδικαστικό συνοδεύεται από αμοιβή για το γραφείο σας.
-              Δεν χρειάζεται να αναλάβετε καμία διαδικασία — απλά συστήνετε τον πελάτη, η I-MENTOR κάνει τα
+              Δεν χρειάζεται να αναλάβετε καμία διαδικασία, απλά συστήνετε τον πελάτη και η I-MENTOR κάνει τα
               υπόλοιπα. Η προμήθεια καταβάλλεται στο γραφείο σας με την πληρωμή της αρχικής αμοιβής από τον
               πελάτη (όχι στην αμοιβή επιτυχίας) και εμφανίζεται στην ενότητα{' '}
               <Link href="/commissions" className="font-semibold underline hover:text-emerald-900">Προμήθειες</Link>.
@@ -174,8 +174,8 @@ export default function ExodikastikosPage() {
             </div>
             <p className="font-semibold text-sm text-gray-900">Προσωπικό portal παρακολούθησης</p>
             <p className="text-xs text-gray-500 mt-1">
-              Ο πελάτης (και εσείς) παρακολουθείτε live την πρόοδο της υπόθεσης — έγγραφα, στάδια, αποτελέσματα —
-              χωρίς τηλέφωνα και emails για ενημέρωση.
+              Ο πελάτης (και εσείς) παρακολουθείτε live την πρόοδο της υπόθεσης, με έγγραφα, στάδια και αποτελέσματα,
+              χωρίς να χρειάζονται τηλέφωνα και emails για ενημέρωση.
             </p>
           </div>
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
@@ -195,7 +195,7 @@ export default function ExodikastikosPage() {
       <div>
         <h3 className="text-base font-bold text-gray-900 mb-3 flex items-center gap-2">
           <Handshake size={18} className="text-indigo-600" />
-          Το ταξίδι του πελάτη σας — εσείς απλά τον συστήνετε
+          Το ταξίδι του πελάτη σας: εσείς απλά τον συστήνετε
         </h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           {[

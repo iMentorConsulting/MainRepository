@@ -82,16 +82,16 @@ function LoginPageInner() {
               Η πλατφόρμα επιχειρηματικής<br />ευκαιρίας για λογιστικά γραφεία
             </h2>
             <p className="text-indigo-200 text-sm leading-relaxed max-w-sm">
-              Διαχειριστείτε τους πελάτες σας, εντοπίστε επιδοτήσεις που τους αφορούν και επικοινωνήστε μαζί τους αποτελεσματικά — όλα σε ένα περιβάλλον.
+              Διαχειριστείτε τους πελάτες σας, εντοπίστε επιδοτήσεις που τους αφορούν και επικοινωνήστε μαζί τους αποτελεσματικά, όλα σε ένα περιβάλλον.
             </p>
           </div>
 
           {/* Trust signals */}
           <div className="space-y-3">
             {[
-              { icon: Shield, text: 'Κρυπτογράφηση TLS 1.3 — τα δεδομένα σας μεταφέρονται πάντα κρυπτογραφημένα' },
+              { icon: Shield, text: 'Κρυπτογράφηση TLS 1.3: τα δεδομένα σας μεταφέρονται πάντα κρυπτογραφημένα' },
               { icon: Lock, text: 'Τα δεδομένα επιχειρήσεων ανήκουν αποκλειστικά στο λογιστικό σας γραφείο' },
-              { icon: Shield, text: 'Πλήρης συμμόρφωση με τον ΓΚΠΔ (GDPR) — EU-hosted υποδομή' },
+              { icon: Shield, text: 'Πλήρης συμμόρφωση με τον ΓΚΠΔ (GDPR), σε υποδομή εντός ΕΕ' },
             ].map(({ icon: Icon, text }, i) => (
               <div key={i} className="flex items-start gap-3">
                 <div className="w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0 mt-0.5"
