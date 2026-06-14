@@ -113,7 +113,7 @@ export default function ExodikastikosPage() {
               </Button>
             </Link>
             <a href="https://i-mentor.gr/exodikastikos/" target="_blank" rel="noopener noreferrer">
-              <Button variant="outline" className="border-white/40 text-white hover:bg-white/10">
+              <Button variant="outline" className="bg-transparent border-white/40 text-white hover:bg-white/10">
                 Δείτε την υπηρεσία <ExternalLink size={14} className="ml-2" />
               </Button>
             </a>
@@ -135,7 +135,8 @@ export default function ExodikastikosPage() {
             <p className="text-sm text-emerald-800/80 mt-1 max-w-2xl">
               Κάθε υπόθεση πελάτη σας που προχωράει στον Εξωδικαστικό συνοδεύεται από αμοιβή για το γραφείο σας.
               Δεν χρειάζεται να αναλάβετε καμία διαδικασία — απλά συστήνετε τον πελάτη, η I-MENTOR κάνει τα
-              υπόλοιπα, και η προμήθεια υπολογίζεται και πιστώνεται αυτόματα στην ενότητα{' '}
+              υπόλοιπα. Η προμήθεια καταβάλλεται στο γραφείο σας με την πληρωμή της αρχικής αμοιβής από τον
+              πελάτη (όχι στην αμοιβή επιτυχίας) και εμφανίζεται στην ενότητα{' '}
               <Link href="/commissions" className="font-semibold underline hover:text-emerald-900">Προμήθειες</Link>.
             </p>
           </div>
@@ -193,7 +194,7 @@ export default function ExodikastikosPage() {
             { icon: Handshake, title: '1. Σύσταση πελάτη', desc: 'Δημιουργείτε νέα ανάθεση με 2 κλικ από αυτή τη σελίδα. Τέλος.' },
             { icon: FileSearch, title: '2. Δωρεάν εκτίμηση', desc: 'Η I-MENTOR αντλεί τα στοιχεία οφειλών και ετοιμάζει εκτίμηση εντός ~15 ημερών.' },
             { icon: ShieldCheck, title: '3. Διαπραγμάτευση', desc: 'Υποβολή αίτησης, σχέδιο αναδιάρθρωσης και διαπραγμάτευση με πιστωτές (~2 μήνες).' },
-            { icon: CheckCircle2, title: '4. Αποδοχή & Προμήθεια', desc: 'Ο πελάτης λαμβάνει την ρύθμιση και το γραφείο σας λαμβάνει την προμήθειά του.' },
+            { icon: CheckCircle2, title: '4. Αρχική αμοιβή & Προμήθεια', desc: 'Μετά την ολοκλήρωση της εκτίμησης (~15 ημέρες), ο πελάτης καταβάλλει την αρχική αμοιβή και η προμήθεια του γραφείου σας καταβάλλεται.' },
           ].map((step, i) => (
             <div key={i} className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 relative">
               <div className="w-9 h-9 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center mb-3">
@@ -225,8 +226,8 @@ export default function ExodikastikosPage() {
         <div className="flex items-center gap-3 bg-white rounded-xl border border-gray-200 shadow-sm p-4">
           <div className="shrink-0 w-10 h-10 rounded-lg bg-indigo-100 text-indigo-600 flex items-center justify-center"><Scale size={20} /></div>
           <div>
-            <p className="text-sm font-bold text-gray-900">Μηδενικό ρίσκο για εσάς</p>
-            <p className="text-xs text-gray-500">Καμία αμοιβή προς εσάς αν δεν προχωρήσει η υπόθεση — απλά κερδίζετε.</p>
+            <p className="text-sm font-bold text-gray-900">Προμήθεια εντός ~15 ημερών</p>
+            <p className="text-xs text-gray-500">Με την καταβολή της αρχικής αμοιβής μετά την εκτίμηση, η προμήθεια του γραφείου σας γίνεται διαθέσιμη.</p>
           </div>
         </div>
       </div>
