@@ -6,8 +6,16 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableHead, TableBody, TableRow, Th, Td } from '@/components/ui/table'
 import { MultiSelect } from '@/components/ui/multi-select'
-import { Plus, ExternalLink, Scale, Trash2, Sparkles, TrendingDown, CalendarClock, Wand2, LayoutDashboard, FileSearch, ShieldCheck, Handshake, Coins, PiggyBank, CheckCircle2 } from 'lucide-react'
+import { Plus, ExternalLink, Scale, Trash2, Sparkles, TrendingDown, CalendarClock, Wand2, LayoutDashboard, FileSearch, ShieldCheck, Handshake, Coins, PiggyBank, CheckCircle2, PlayCircle } from 'lucide-react'
 import { formatDateTime } from '@/lib/utils'
+
+// Σύντομα ενημερωτικά βίντεο (YouTube) για την υπηρεσία και τη μεθοδολογία εκτίμησης.
+// Συμπληρώστε το videoId (το κομμάτι μετά το v= ή youtu.be/) για να εμφανιστεί το βίντεο.
+const ONBOARDING_VIDEOS: { title: string; videoId: string }[] = [
+  { title: 'Τι είναι ο Εξωδικαστικός Μηχανισμός', videoId: '' },
+  { title: 'Η μεθοδολογία εκτίμησης μας', videoId: '' },
+  { title: 'Το προσωπικό portal παρακολούθησης', videoId: '' },
+]
 
 const STATUS_LABELS: Record<string, string> = {
   SUBMITTED: 'Υποβλήθηκε', IN_ASSESSMENT: 'Σε Εκτίμηση', REPORT_READY: 'Έτοιμη Αναφορά',
@@ -202,6 +210,34 @@ export default function ExodikastikosPage() {
               </div>
               <p className="font-semibold text-sm text-gray-900">{step.title}</p>
               <p className="text-xs text-gray-500 mt-1">{step.desc}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ─── Onboarding videos ────────────────────────────────────────────── */}
+      <div>
+        <h3 className="text-base font-bold text-gray-900 mb-3 flex items-center gap-2">
+          <PlayCircle size={18} className="text-indigo-600" />
+          Σύντομα βίντεο ενημέρωσης
+        </h3>
+        <div className="flex flex-wrap gap-4">
+          {ONBOARDING_VIDEOS.map((v, i) => (
+            <div key={i} className="w-40 shrink-0">
+              <div className="aspect-[9/16] rounded-xl border border-gray-200 bg-gray-50 overflow-hidden flex items-center justify-center">
+                {v.videoId ? (
+                  <iframe
+                    className="w-full h-full"
+                    src={`https://www.youtube.com/embed/${v.videoId}`}
+                    title={v.title}
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                  />
+                ) : (
+                  <PlayCircle size={28} className="text-gray-300" />
+                )}
+              </div>
+              <p className="text-xs text-gray-500 mt-1.5 text-center">{v.title}</p>
             </div>
           ))}
         </div>
