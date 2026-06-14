@@ -55,7 +55,7 @@ function StepChoosePath({ onDiy, onWithIMentor }: { onDiy: () => void; onWithIMe
             <Sparkles size={22} className="text-purple-600" />
           </div>
           <h3 className="font-bold text-gray-900 mb-1">Να το κάνουμε παρέα με την I-MENTOR</h3>
-          <p className="text-sm text-gray-500">Στέλνουμε εμείς για λογαριασμό σας — απλά μας πείτε σε ποιους.</p>
+          <p className="text-sm text-gray-500">Στέλνουμε εμείς για λογαριασμό σας, απλά μας πείτε σε ποιους.</p>
           <span className="mt-3 inline-flex items-center gap-1 text-sm text-purple-600 font-medium">Ζητήστε βοήθεια <ArrowRight size={14} /></span>
         </button>
       </div>
@@ -149,7 +149,7 @@ function StepTemplate({ channel, onSelect, onBack }: { channel: 'EMAIL' | 'VIBER
     <div className="space-y-5">
       <div>
         <h2 className="text-xl font-bold text-gray-900">Τι είδους μήνυμα;</h2>
-        <p className="text-sm text-gray-500 mt-1">Διαλέξτε ένα έτοιμο μήνυμα — θα το δείτε πριν αποσταλεί.</p>
+        <p className="text-sm text-gray-500 mt-1">Διαλέξτε ένα έτοιμο μήνυμα, θα το δείτε πριν αποσταλεί.</p>
       </div>
       <div className="grid grid-cols-1 gap-3">
         {templates.map(t => (
@@ -320,7 +320,7 @@ function StepSend({ template, messageBody, onMessageChange, programId, programs,
               className="w-full text-sm border border-gray-200 rounded-xl p-3 font-mono leading-relaxed focus:outline-none focus:ring-1 focus:ring-indigo-500"
             />
             <p className="text-xs text-gray-400 mt-1">
-              Μπορείτε να αλλάξετε το κείμενο, αλλά μην αλλάξετε τα πεδία μέσα σε διπλά άγκιστρα (π.χ. <code className="bg-gray-100 px-1 rounded">{'{{business_name}}'}</code>) — αντικαθίστανται αυτόματα ανά παραλήπτη.
+              Μπορείτε να αλλάξετε το κείμενο, αλλά μην αλλάξετε τα πεδία μέσα σε διπλά άγκιστρα (π.χ. <code className="bg-gray-100 px-1 rounded">{'{{business_name}}'}</code>), καθώς αυτά αντικαθίστανται αυτόματα ανά παραλήπτη.
             </p>
           </div>
           <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
@@ -387,7 +387,7 @@ function StepWithIMentor({ onBack, session }: { onBack: () => void; session: any
         </div>
         <h2 className="text-xl font-bold text-gray-900">Η I-MENTOR θα στείλει για λογαριασμό σας!</h2>
         <p className="text-sm text-gray-500 mt-2 max-w-sm mx-auto">
-          Ανοίγουμε μια συνομιλία με την ομάδα I-MENTOR. Θα σας βοηθήσουν να στείλετε την πρώτη σας καμπάνια — εντελώς δωρεάν.
+          Ανοίγουμε μια συνομιλία με την ομάδα I-MENTOR. Θα σας βοηθήσουν να στείλετε την πρώτη σας καμπάνια, εντελώς δωρεάν.
         </p>
       </div>
 

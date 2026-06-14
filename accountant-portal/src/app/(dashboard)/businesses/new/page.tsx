@@ -141,7 +141,7 @@ export default function NewBusinessPage() {
         <div className="space-y-5">
           {/* Big guide card */}
           <div className="bg-gradient-to-br from-emerald-600 to-teal-700 rounded-2xl p-6 text-white">
-            <h2 className="text-xl font-bold mb-1">📊 Μαζική Εισαγωγή Πελατών — Βήμα προς Βήμα</h2>
+            <h2 className="text-xl font-bold mb-1">📊 Μαζική Εισαγωγή Πελατών: Βήμα προς Βήμα</h2>
             <p className="text-emerald-100 text-sm">Εισάγετε εκατοντάδες πελάτες μέσα σε δευτερόλεπτα. Ακολουθήστε τα 3 βήματα:</p>
           </div>
 
@@ -174,10 +174,10 @@ export default function NewBusinessPage() {
                   </table>
                 </div>
                 <div className="text-xs text-gray-500 mb-3 space-y-0.5">
-                  <p>✅ <strong>afm</strong> — Μόνο αυτό είναι υποχρεωτικό! 9-ψήφιος ΑΦΜ του πελάτη</p>
-                  <p>📧 <strong>email</strong> — Email επικοινωνίας (προαιρετικό)</p>
-                  <p>📞 <strong>phone</strong> — Τηλέφωνο (προαιρετικό)</p>
-                  <p>💬 <strong>viber_phone</strong> — Viber (προαιρετικό, για Viber καμπάνιες)</p>
+                  <p>✅ <strong>afm</strong>: Μόνο αυτό είναι υποχρεωτικό! 9-ψήφιος ΑΦΜ του πελάτη</p>
+                  <p>📧 <strong>email</strong>: Email επικοινωνίας (προαιρετικό)</p>
+                  <p>📞 <strong>phone</strong>: Τηλέφωνο (προαιρετικό)</p>
+                  <p>💬 <strong>viber_phone</strong>: Viber (προαιρετικό, για Viber καμπάνιες)</p>
                   <p className="mt-2 text-indigo-600 font-medium">⚡ Τα υπόλοιπα στοιχεία (επωνυμία, ΚΑΔ, διεύθυνση κ.λπ.) αντλούνται αυτόματα από την ΑΑΔΕ!</p>
                 </div>
                 <button

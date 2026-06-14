@@ -296,7 +296,7 @@ export default function BusinessesPage() {
           <h2 className="text-2xl font-bold mb-2">Δεν έχετε προσθέσει επιχειρήσεις ακόμη!</h2>
           <p className="text-indigo-100 text-base mb-6 max-w-lg mx-auto">
             Κάθε πελάτης που λείπει = χαμένη ευκαιρία χρηματοδότησης και χαμένη προμήθεια για εσάς.
-            Προσθέστε τους πελάτες σας τώρα — είναι εύκολο!
+            Προσθέστε τους πελάτες σας τώρα, είναι εύκολο!
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link href="/businesses/new">
@@ -645,12 +645,12 @@ function EnrichModal({ onClose, onDone }: { onClose: () => void; onDone: () => v
             </p>
             <p className="text-xs text-violet-700">
               Αν προσθέσατε πελάτες μόνο με ΑΦΜ, τα μηνύματα δεν φτάνουν πουθενά χωρίς <strong>κινητό (Viber)</strong> ή email.
-              Το Viber είναι το #1 κανάλι — τα email συχνά πηγαίνουν αδιάβαστα.
+              Το Viber είναι το #1 κανάλι, τα email συχνά πηγαίνουν αδιάβαστα.
             </p>
             <p className="text-xs text-violet-600 font-medium mt-2">👇 Τι κάνετε:</p>
             <ol className="text-xs text-violet-700 space-y-1 list-decimal list-inside">
-              <li>Ετοιμάστε Excel με στήλες: <strong>ΑΦΜ</strong> και <strong>Κινητό</strong> (ή Email ή Viber) — δεν γίνονται δεκτά σταθερά τηλέφωνα</li>
-              <li>Ανεβάστε το — το σύστημα βρίσκει αυτόματα κάθε πελάτη και συμπληρώνει τα στοιχεία</li>
+              <li>Ετοιμάστε Excel με στήλες: <strong>ΑΦΜ</strong> και <strong>Κινητό</strong> (ή Email ή Viber). Δεν γίνονται δεκτά σταθερά τηλέφωνα</li>
+              <li>Ανεβάστε το, και το σύστημα βρίσκει αυτόματα κάθε πελάτη και συμπληρώνει τα στοιχεία</li>
             </ol>
           </div>
           {!result ? (

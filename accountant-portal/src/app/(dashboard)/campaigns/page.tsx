@@ -69,7 +69,7 @@ export default function CampaignsPage() {
               </div>
               <div className="flex-1">
                 <h3 className="font-bold text-gray-900 text-base">Να το κάνουμε παρέα με I-MENTOR</h3>
-                <p className="text-sm text-gray-500 mt-0.5">Στέλνουμε εμείς για λογαριασμό σας — απλά μας πείτε σε ποιους.</p>
+                <p className="text-sm text-gray-500 mt-0.5">Στέλνουμε εμείς για λογαριασμό σας, απλά μας πείτε σε ποιους.</p>
                 <span className="mt-2 inline-flex items-center gap-1 text-sm text-purple-600 font-semibold">
                   Ζητήστε βοήθεια <ArrowRight size={14} />
                 </span>
