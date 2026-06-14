@@ -181,12 +181,12 @@ export default function BusinessDetailPage() {
         </Button>
         <Button variant="outline" onClick={() => setNewCase(true)}>
           <ClipboardList size={16} className="mr-2" />
-          Ανάθεση στην I-MENTOR
+          Ανάθεση Επιχορήγησης
         </Button>
         <Link href={`/exodikastikos/new?businessId=${business.id}`}>
           <Button variant="outline">
             <Scale size={16} className="mr-2" />
-            Εξωδικαστικός
+            Ανάθεση Εξωδικαστικού
           </Button>
         </Link>
         <Link href={`/businesses/${id}/edit`}>
