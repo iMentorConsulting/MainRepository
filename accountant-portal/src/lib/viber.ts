@@ -54,7 +54,9 @@ async function chatwootSend(clientName: string, phone: string, message: string):
   } catch {}
 
   // 2. Create contact if not found
+  let isNewContact = false
   if (!contactId) {
+    isNewContact = true
     try {
       const r = await fetchJson(`${base}/contacts`, {
         method: 'POST',
@@ -86,6 +88,10 @@ async function chatwootSend(clientName: string, phone: string, message: string):
   }
 
   if (!contactId) return { ok: false, reason: `Could not create/find contact for ${phone}` }
+
+  // Newly created contacts need a moment to register with the Viber provider
+  // before a conversation/message against them will actually be delivered.
+  if (isNewContact) await new Promise(resolve => setTimeout(resolve, 3000))
 
   // 3. Create conversation on the Viber inbox
   let convId: number | null = null
