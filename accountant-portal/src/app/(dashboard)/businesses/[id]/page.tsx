@@ -324,7 +324,7 @@ export default function BusinessDetailPage() {
                           {r.campaign?.title || '—'}
                         </Link>
                         <div className="text-xs text-gray-400">
-                          {r.channel === 'EMAIL' ? 'Email' : 'Viber'} · {r.recipient}
+                          {r.channel === 'EMAIL' ? 'Email' : r.channel === 'VIBER' ? 'Viber' : 'Email + Viber'} · {r.recipient}
                           {r.sentAt && <> · {formatDate(r.sentAt)}</>}
                         </div>
                       </div>

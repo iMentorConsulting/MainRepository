@@ -87,6 +87,8 @@ export async function POST(request: NextRequest) {
     if (!variables.accountant_office) renderedSubject = renderedSubject.replace(/^\s*&\s*/, '')
 
     let success = false
+    let emailSent: boolean | null = null
+    let viberSent: boolean | null = null
 
     try {
       if (channel === 'EMAIL' || channel === 'EMAIL_AND_VIBER') {
@@ -109,6 +111,7 @@ export async function POST(request: NextRequest) {
               unsubscribeUrl: variables.unsubscribe_link,
             }),
           })
+          emailSent = emailOk
           if (emailOk) success = true
         }
       }
@@ -121,6 +124,7 @@ export async function POST(request: NextRequest) {
           const cleanViber = rawMsg
             .replace(/\*\*([^*]*)\*\*/g, (_m: string, inner: string) => inner.trim() ? `*${inner.trim()}*` : '')
           const viberOk = await sendViberMessage({ to: phone, text: cleanViber, senderName: business.onomasia || business.afm })
+          viberSent = viberOk
           if (viberOk) success = true
         }
       }
@@ -131,17 +135,42 @@ export async function POST(request: NextRequest) {
     if (success) sent++
     else failed++
 
-    const recipient = channel === 'VIBER' ? (business.viberPhone || business.phone || '') : (business.email || '')
-    await prisma.campaignRecipient.create({
-      data: {
-        campaignId: campaign.id,
-        businessId: business.id,
-        channel,
-        recipient,
-        status: success ? 'sent' : 'failed',
-        sentAt: success ? new Date() : null,
-      },
-    })
+    if (emailSent !== null) {
+      await prisma.campaignRecipient.create({
+        data: {
+          campaignId: campaign.id,
+          businessId: business.id,
+          channel: 'EMAIL',
+          recipient: business.email || '',
+          status: emailSent ? 'sent' : 'failed',
+          sentAt: emailSent ? new Date() : null,
+        },
+      })
+    }
+    if (viberSent !== null) {
+      await prisma.campaignRecipient.create({
+        data: {
+          campaignId: campaign.id,
+          businessId: business.id,
+          channel: 'VIBER',
+          recipient: business.viberPhone || business.phone || '',
+          status: viberSent ? 'sent' : 'failed',
+          sentAt: viberSent ? new Date() : null,
+        },
+      })
+    }
+    if (emailSent === null && viberSent === null) {
+      await prisma.campaignRecipient.create({
+        data: {
+          campaignId: campaign.id,
+          businessId: business.id,
+          channel,
+          recipient: business.email || business.viberPhone || business.phone || '',
+          status: 'failed',
+          sentAt: null,
+        },
+      })
+    }
   }
 
   return NextResponse.json({ sent, failed, total: businesses.length })
