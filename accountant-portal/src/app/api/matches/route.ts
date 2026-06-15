@@ -21,6 +21,9 @@ export async function GET(request: NextRequest) {
   const legalStatuses = searchParams.get('legalStatuses')?.split(',').filter(Boolean) || []
   const categories = (searchParams.get('categories')?.split(',').filter(Boolean) || []) as BusinessCategory[]
   const perifereies = searchParams.get('perifereies')?.split(',').filter(Boolean) || []
+  const tags = searchParams.get('tags')?.split(',').filter(Boolean) || []
+  const excludeTags = searchParams.get('excludeTags')?.split(',').filter(Boolean) || []
+  const hideUnsuitable = searchParams.get('hideUnsuitable') === 'true'
   const campaignSent = searchParams.get('campaignSent') || ''
   const search = searchParams.get('search') || ''
   const sortBy = searchParams.get('sortBy') || 'matchScore'
@@ -48,6 +51,8 @@ export async function GET(request: NextRequest) {
   if (legalStatuses.length > 0) businessFilter.legalStatusDescr = { in: legalStatuses }
   if (categories.length > 0) businessFilter.AND = [...(businessFilter.AND || []), { OR: categories.map(categoryWhereClause) }]
   if (perifereies.length > 0) businessFilter.AND = [...(businessFilter.AND || []), { OR: perifereies.map(regionWhereClause) }]
+  if (tags.length > 0) businessFilter.tags = { hasSome: tags }
+  if (excludeTags.length > 0) businessFilter.AND = [...(businessFilter.AND || []), { NOT: { tags: { hasSome: excludeTags } } }]
   if (campaignSent === 'yes') businessFilter.campaignRecipients = { some: { sentAt: { not: null } } }
   else if (campaignSent === 'no') businessFilter.campaignRecipients = { none: { sentAt: { not: null } } }
   if (search) {
@@ -58,6 +63,10 @@ export async function GET(request: NextRequest) {
   }
   if (Object.keys(businessFilter).length > 0) where.business = businessFilter
 
+  const whereWithHidden = hideUnsuitable
+    ? { ...where, rejectionReasonId: null, NOT: { criterionChecks: { some: { value: 'FAIL' } } } }
+    : where
+
   const safeSort = SORTABLE.has(sortBy) ? sortBy : 'matchScore'
   let orderBy: any = { [safeSort]: sortDir }
   if (safeSort === 'business.onomasia') orderBy = { business: { onomasia: sortDir } }
@@ -65,9 +74,9 @@ export async function GET(request: NextRequest) {
   else if (safeSort === 'program.title') orderBy = { program: { title: sortDir } }
   else if (safeSort === 'business.accountant.officeName') orderBy = { business: { accountant: { officeName: sortDir } } }
 
-  const [matches, total] = await Promise.all([
+  const [matches, total, totalAll] = await Promise.all([
     prisma.programMatch.findMany({
-      where,
+      where: whereWithHidden,
       skip,
       take: limit,
       include: {
@@ -94,8 +103,10 @@ export async function GET(request: NextRequest) {
       },
       orderBy,
     }),
+    prisma.programMatch.count({ where: whereWithHidden }),
     prisma.programMatch.count({ where }),
   ])
+  const unsuitableCount = totalAll - total
 
   // Self-heal: a FAILed extra criterion makes a match ineligible. Older
   // records may predate this rule, so reconcile their status on read.
@@ -133,5 +144,7 @@ export async function GET(request: NextRequest) {
   })
   const legalStatusOptions = legalStatusFacet.map(l => l.legalStatusDescr).filter((v): v is string => !!v).sort()
 
-  return NextResponse.json({ matches, total, page, limit, accountants, programs, legalStatuses: legalStatusOptions, categories: ALL_CATEGORIES, perifereies: GREEK_REGIONS })
+  const tagOptions = await prisma.tagOption.findMany({ select: { label: true }, orderBy: [{ order: 'asc' }, { createdAt: 'asc' }] })
+
+  return NextResponse.json({ matches, total, unsuitableCount, page, limit, accountants, programs, legalStatuses: legalStatusOptions, categories: ALL_CATEGORIES, perifereies: GREEK_REGIONS, tags: tagOptions.map(t => t.label) })
 }

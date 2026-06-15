@@ -202,6 +202,10 @@ export default function MatchesPage() {
   const [criteriaMap, setCriteriaMap] = useState<Record<string, string>>({})
   const [reasonOptions, setReasonOptions] = useState<{ id: string; label: string; programIds?: string[] }[]>([])
   const [hideUnsuitable, setHideUnsuitable] = useState(true)
+  const [unsuitableCount, setUnsuitableCount] = useState(0)
+  const [tagFilter, setTagFilter] = useState<string[]>([])
+  const [excludeTagFilter, setExcludeTagFilter] = useState<string[]>([])
+  const [tagOptions, setTagOptions] = useState<{ value: string; label: string }[]>([])
 
   useEffect(() => {
     fetch('/api/admin/criteria')
@@ -228,23 +232,28 @@ export default function MatchesPage() {
     if (legalStatusFilter.length) params.set('legalStatuses', legalStatusFilter.join(','))
     if (categoryFilter.length) params.set('categories', categoryFilter.join(','))
     if (perifereiaFilter.length) params.set('perifereies', perifereiaFilter.join(','))
+    if (tagFilter.length) params.set('tags', tagFilter.join(','))
+    if (excludeTagFilter.length) params.set('excludeTags', excludeTagFilter.join(','))
     if (campaignSentFilter) params.set('campaignSent', campaignSentFilter)
     if (search) params.set('search', search)
+    if (hideUnsuitable) params.set('hideUnsuitable', 'true')
     const res = await fetch(`/api/matches?${params}`)
     const data = await res.json()
     setMatches(data.matches || [])
     setTotal(data.total || 0)
+    setUnsuitableCount(data.unsuitableCount || 0)
+    if (data.tags?.length) setTagOptions(data.tags.map((v: string) => ({ value: v, label: v })))
     if (data.accountants?.length) setAccountantOptions(data.accountants.map((a: any) => ({ value: a.id, label: a.officeName })))
     if (data.programs?.length) setProgramOptions(data.programs.map((p: any) => ({ value: p.id, label: p.title })))
     if (data.legalStatuses?.length) setLegalStatusOptions(data.legalStatuses.map((v: string) => ({ value: v, label: v })))
     if (data.categories?.length) setCategoryOptions(data.categories.map((v: string) => ({ value: v, label: v })))
     if (data.perifereies?.length) setPerifereiaOptions([...data.perifereies, 'Άγνωστη'].map((v: string) => ({ value: v, label: v })))
     setLoading(false)
-  }, [page, accountantFilter, programFilter, legalStatusFilter, categoryFilter, perifereiaFilter, campaignSentFilter, search, sortBy, sortDir])
+  }, [page, accountantFilter, programFilter, legalStatusFilter, categoryFilter, perifereiaFilter, tagFilter, excludeTagFilter, campaignSentFilter, search, sortBy, sortDir, hideUnsuitable])
 
   useEffect(() => { fetchMatches() }, [fetchMatches])
-  useEffect(() => { setPage(1) }, [accountantFilter, programFilter, legalStatusFilter, categoryFilter, perifereiaFilter, campaignSentFilter, search, sortBy, sortDir])
-  useEffect(() => { setSelected(new Set()) }, [page, accountantFilter, programFilter, legalStatusFilter, categoryFilter, perifereiaFilter, campaignSentFilter, search])
+  useEffect(() => { setPage(1) }, [accountantFilter, programFilter, legalStatusFilter, categoryFilter, perifereiaFilter, tagFilter, excludeTagFilter, campaignSentFilter, search, sortBy, sortDir, hideUnsuitable])
+  useEffect(() => { setSelected(new Set()) }, [page, accountantFilter, programFilter, legalStatusFilter, categoryFilter, perifereiaFilter, tagFilter, excludeTagFilter, campaignSentFilter, search])
 
   function handleSearch() {
     setSearch(searchInput)
@@ -273,8 +282,7 @@ export default function MatchesPage() {
   }
 
   const isUnsuitable = (m: any) => !!m.rejectionReasonId || (m.criterionChecks || []).some((c: any) => c.value === 'FAIL')
-  const visibleMatches = hideUnsuitable ? matches.filter(m => !isUnsuitable(m)) : matches
-  const unsuitableCount = matches.filter(isUnsuitable).length
+  const visibleMatches = matches
 
   const selectedMatches = matches.filter(m => selected.has(m.id))
   const selectedBusinesses = selectedMatches.map(m => ({
@@ -376,6 +384,24 @@ export default function MatchesPage() {
                 placeholder="Όλες οι περιφέρειες"
               />
             )}
+            {tagOptions.length > 0 && (
+              <MultiSelect
+                label="Tags"
+                options={tagOptions}
+                selected={tagFilter}
+                onChange={setTagFilter}
+                placeholder="Όλα τα tags"
+              />
+            )}
+            {tagOptions.length > 0 && (
+              <MultiSelect
+                label="Εξαίρεση Tags"
+                options={tagOptions}
+                selected={excludeTagFilter}
+                onChange={setExcludeTagFilter}
+                placeholder="Χωρίς εξαίρεση"
+              />
+            )}
             {unsuitableCount > 0 && (
               <button
                 onClick={() => setHideUnsuitable(h => !h)}
@@ -389,9 +415,9 @@ export default function MatchesPage() {
                 {hideUnsuitable ? `${unsuitableCount} εγγραφές κρυμμένες (μη επιλέξιμες) — κλικ για εμφάνιση` : `Απόκρυψη ${unsuitableCount} μη επιλέξιμων`}
               </button>
             )}
-            {(accountantFilter.length > 0 || programFilter.length > 0 || legalStatusFilter.length > 0 || categoryFilter.length > 0 || perifereiaFilter.length > 0 || campaignSentFilter || search) && (
+            {(accountantFilter.length > 0 || programFilter.length > 0 || legalStatusFilter.length > 0 || categoryFilter.length > 0 || perifereiaFilter.length > 0 || tagFilter.length > 0 || excludeTagFilter.length > 0 || campaignSentFilter || search) && (
               <button
-                onClick={() => { setAccountantFilter([]); setProgramFilter([]); setLegalStatusFilter([]); setCategoryFilter([]); setPerifereiaFilter([]); setCampaignSentFilter(''); setSearch(''); setSearchInput('') }}
+                onClick={() => { setAccountantFilter([]); setProgramFilter([]); setLegalStatusFilter([]); setCategoryFilter([]); setPerifereiaFilter([]); setTagFilter([]); setExcludeTagFilter([]); setCampaignSentFilter(''); setSearch(''); setSearchInput('') }}
                 className="text-xs text-gray-500 hover:text-gray-700 underline mt-4"
               >
                 Καθαρισμός φίλτρων
