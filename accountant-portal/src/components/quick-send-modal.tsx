@@ -59,8 +59,14 @@ export function QuickSendModal({ businesses, onClose, onSent }: QuickSendModalPr
 
   const templates = (isViber || isBoth) ? viberTemplates : emailTemplates
 
+  // The "{{accountant_office}} & " prefix only makes sense when referencing
+  // the accountant; drop it for "Απευθείας I-MENTOR".
+  function subjectForMode(subject: string, m: 'withAccountant' | 'direct') {
+    return m === 'direct' ? subject.replace(/^\{\{accountant_office\}\}\s*&\s*/, '') : subject
+  }
+
   function applyTemplate(tpl: CampaignTemplate) {
-    setSubject(tpl.subject)
+    setSubject(subjectForMode(tpl.subject, mode))
     setMessage(mode === 'withAccountant' ? tpl.bodyWithAccountant : tpl.bodyDirect)
     setSelectedTemplate(tpl)
     setShowTemplates(false)
@@ -72,6 +78,7 @@ export function QuickSendModal({ businesses, onClose, onSent }: QuickSendModalPr
     setMode(m)
     if (selectedTemplate) {
       setMessage(m === 'withAccountant' ? selectedTemplate.bodyWithAccountant : selectedTemplate.bodyDirect)
+      setSubject(subjectForMode(selectedTemplate.subject, m))
     }
   }
 
