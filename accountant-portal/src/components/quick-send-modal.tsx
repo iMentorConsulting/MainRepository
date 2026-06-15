@@ -35,6 +35,7 @@ export function QuickSendModal({ businesses, onClose, onSent }: QuickSendModalPr
   const [showTemplates, setShowTemplates] = useState(true)
   const [matchedPrograms, setMatchedPrograms] = useState<{ id: string; title: string }[]>([])
   const [programId, setProgramId] = useState('')
+  const [selectedTemplate, setSelectedTemplate] = useState<CampaignTemplate | null>(null)
 
   useEffect(() => {
     const ids = businesses.map(b => b.id).join(',')
@@ -61,7 +62,17 @@ export function QuickSendModal({ businesses, onClose, onSent }: QuickSendModalPr
   function applyTemplate(tpl: CampaignTemplate) {
     setSubject(tpl.subject)
     setMessage(mode === 'withAccountant' ? tpl.bodyWithAccountant : tpl.bodyDirect)
+    setSelectedTemplate(tpl)
     setShowTemplates(false)
+  }
+
+  // When switching between "Με αναφορά λογιστή" / "Απευθείας I-MENTOR" after a
+  // template has been picked, re-render the message body in the new mode.
+  function handleModeChange(m: 'withAccountant' | 'direct') {
+    setMode(m)
+    if (selectedTemplate) {
+      setMessage(m === 'withAccountant' ? selectedTemplate.bodyWithAccountant : selectedTemplate.bodyDirect)
+    }
   }
 
   async function handleSend() {
@@ -147,7 +158,7 @@ export function QuickSendModal({ businesses, onClose, onSent }: QuickSendModalPr
             {(['withAccountant', 'direct'] as const).map(m => (
               <button
                 key={m}
-                onClick={() => setMode(m)}
+                onClick={() => handleModeChange(m)}
                 className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
                   mode === m ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-600 border-slate-200 hover:border-slate-400'
                 }`}
