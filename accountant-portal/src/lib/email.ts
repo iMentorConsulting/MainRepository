@@ -140,8 +140,9 @@ export function renderCampaignEmailHtml(options: CampaignEmailOptions): string {
     // Remove common emoji ranges that don't render well in email clients
     // eslint-disable-next-line no-misleading-character-class
     .replace(/[☀-➿]|[\uD83C-\uDBFF][\uDC00-\uDFFF]/g, '')
-    // Drop a leading "Γειά σας, ..." greeting line — the wrapper already renders "Αγαπητέ/ή ..."
-    .replace(/^\s*Γειά σας,[^\n]*\n+/, '')
+    // Drop a leading greeting line ("Γειά σας, ..." or "Αγαπητοί συνεργάτες της ...") —
+    // the wrapper already renders "Αγαπητέ/ή ..."
+    .replace(/^\s*(Γειά σας|Αγαπητο[ίοι] συνεργάτ[ηε]ς?)[^\n]*\n+/, '')
     .split(/\n{2,}/)
     .map(block => block.trim())
     .filter(Boolean)
