@@ -261,7 +261,7 @@ export default function IncomeList() {
 
       <div className="filter-bar flex-wrap gap-2">
         <div className="relative flex-1 min-w-[160px]">
-          <input className="input pl-9" placeholder="Αναζήτηση επωνυμίας…" value={filters.search}
+          <input className="input pl-9" placeholder="Αναζήτηση επωνυμίας, ΑΦΜ, τηλεφώνου, email…" value={filters.search}
             onChange={e => setFilters(f => ({ ...f, search: e.target.value, page: 1 }))} />
           <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 absolute left-3 top-3 text-slate-400">
             <path fillRule="evenodd" d="M9 3.5a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11ZM2 9a7 7 0 1 1 12.452 4.391l3.328 3.329a.75.75 0 1 1-1.06 1.06l-3.329-3.328A7 7 0 0 1 2 9Z" clipRule="evenodd"/>

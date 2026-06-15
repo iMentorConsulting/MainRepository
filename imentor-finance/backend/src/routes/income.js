@@ -64,7 +64,14 @@ router.get('/', async (req, res) => {
       if (names.length === 1) where.accountant = names[0];
       else if (names.length > 1) where.accountant = { [Op.in]: names };
     }
-    if (search) where.customer_name = { [Op.iLike]: `%${search}%` };
+    if (search) {
+      where[Op.or] = [
+        { customer_name: { [Op.iLike]: `%${search}%` } },
+        { vat_number: { [Op.iLike]: `%${search}%` } },
+        { phone: { [Op.iLike]: `%${search}%` } },
+        { email: { [Op.iLike]: `%${search}%` } },
+      ];
+    }
 
     const sf = ALLOWED_SORT.includes(sort_field) ? sort_field : 'sale_date';
     const sd = sort_dir?.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
