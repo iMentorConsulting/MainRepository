@@ -464,7 +464,7 @@ export default function MatchesPage() {
                   <Th>Πρόσθετες Προϋποθέσεις</Th>
                   <Th className="min-w-[200px]">Σημειώσεις</Th>
                   <Th className="max-w-[140px] text-xs">Καταλληλότητα</Th>
-                  <Th className="max-w-[90px] text-xs">Καμπάνια</Th>
+                  <Th className="max-w-[90px] text-xs">Email/Viber</Th>
                   <Th>Ανάθεση</Th>
                 </TableRow>
               </TableHead>

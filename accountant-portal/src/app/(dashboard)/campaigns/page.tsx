@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableHead, TableBody, TableRow, Th, Td } from '@/components/ui/table'
-import { Plus, Mail, MessageCircle, Send, Users, FileText, CheckCircle2, Sparkles, ArrowRight } from 'lucide-react'
+import { Plus, Mail, MessageCircle, Send, Users, FileText, CheckCircle2, Sparkles, ArrowRight, AlertTriangle, Eye, MousePointerClick } from 'lucide-react'
 import { formatDateTime } from '@/lib/utils'
 
 const statusVariant: Record<string, any> = { DRAFT: 'secondary', SCHEDULED: 'warning', SENT: 'success' }
@@ -12,30 +12,33 @@ const statusLabel: Record<string, string> = { DRAFT: 'Πρόχειρο', SCHEDUL
 
 export default function CampaignsPage() {
   const [campaigns, setCampaigns] = useState<any[]>([])
+  const [analytics, setAnalytics] = useState<any>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     fetch('/api/campaigns')
       .then(r => r.json())
-      .then(d => setCampaigns(d.campaigns || []))
+      .then(d => setCampaigns((d.campaigns || []).filter((c: any) => c.status !== 'SENT' || (c._count?.recipients ?? 0) > 0)))
       .finally(() => setLoading(false))
+    fetch('/api/campaigns/analytics')
+      .then(r => r.json())
+      .then(setAnalytics)
+      .catch(() => {})
   }, [])
 
   const sent      = campaigns.filter(c => c.status === 'SENT')
   const drafts    = campaigns.filter(c => c.status === 'DRAFT')
   const totalReach = sent.reduce((s, c) => s + (c._count?.recipients ?? 0), 0)
+  const channelLabel: Record<string, string> = { EMAIL: 'Email', VIBER: 'Viber' }
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Καμπάνιες προς Πελάτες</h1>
+          <h1 className="text-2xl font-bold text-gray-900">Ενημερώσεις προς Πελάτες</h1>
           <p className="text-gray-500 mt-1">{campaigns.length} καμπάνιες</p>
         </div>
         <div className="flex gap-2">
-          <Link href="/campaigns/analytics">
-            <Button variant="outline">Analytics</Button>
-          </Link>
           <Link href="/campaigns/new">
             <Button><Plus size={16} className="mr-2" />Νέα Καμπάνια</Button>
           </Link>
@@ -123,6 +126,46 @@ export default function CampaignsPage() {
               <p className="text-xs text-gray-400">Μέσος όρος/καμπάνια</p>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* ── Analytics summary ─────────────────────────────────────────── */}
+      {analytics && (
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 space-y-3">
+          <h2 className="text-sm font-semibold text-gray-700">Analytics Μηνυμάτων</h2>
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+            <div className="flex items-center gap-2">
+              <div className="w-9 h-9 rounded-lg bg-slate-700 flex items-center justify-center"><Send size={15} className="text-white" /></div>
+              <div><div className="text-lg font-bold text-gray-900">{analytics.total}</div><div className="text-xs text-gray-400">Σύνολο</div></div>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-9 h-9 rounded-lg bg-emerald-600 flex items-center justify-center"><Send size={15} className="text-white" /></div>
+              <div><div className="text-lg font-bold text-gray-900">{analytics.sent}</div><div className="text-xs text-gray-400">Εστάλησαν</div></div>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-9 h-9 rounded-lg bg-red-600 flex items-center justify-center"><AlertTriangle size={15} className="text-white" /></div>
+              <div><div className="text-lg font-bold text-gray-900">{analytics.failed}</div><div className="text-xs text-gray-400">Απέτυχαν</div></div>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-9 h-9 rounded-lg bg-blue-600 flex items-center justify-center"><Eye size={15} className="text-white" /></div>
+              <div><div className="text-lg font-bold text-gray-900">{analytics.opened}</div><div className="text-xs text-gray-400">Ανοίχτηκαν</div></div>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-9 h-9 rounded-lg bg-violet-600 flex items-center justify-center"><MousePointerClick size={15} className="text-white" /></div>
+              <div><div className="text-lg font-bold text-gray-900">{analytics.clicked}</div><div className="text-xs text-gray-400">Κλικ</div></div>
+            </div>
+          </div>
+          {analytics.byChannel?.length > 0 && (
+            <div className="flex flex-wrap gap-2 pt-1">
+              {analytics.byChannel.map((c: any) => (
+                <div key={c.channel} className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-200 bg-gray-50">
+                  {c.channel === 'EMAIL' ? <Mail size={14} className="text-blue-700" /> : <MessageCircle size={14} className="text-violet-700" />}
+                  <span className="text-sm font-medium text-gray-700">{channelLabel[c.channel] || c.channel}</span>
+                  <Badge variant="secondary">{c.count}</Badge>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

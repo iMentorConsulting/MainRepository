@@ -20,7 +20,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
         where: matchWhere,
         include: { business: { select: { id: true, afm: true, onomasia: true, accountantId: true, accountant: { select: { officeName: true } } } } },
         orderBy: { matchScore: 'desc' },
-        take: 50,
+        take: 500,
       },
       // ACCOUNTANTs should not see other accountants' campaigns for this program
       campaigns: isAccountant && accountantId

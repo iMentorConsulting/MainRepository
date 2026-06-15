@@ -183,6 +183,10 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     businesses = businesses.filter(b => matchReasonByBusiness.has(b.id))
   }
 
+  if (businesses.length === 0) {
+    return NextResponse.json({ error: 'Δεν υπάρχουν επιλέξιμοι παραλήπτες για αυτή την καμπάνια' }, { status: 400 })
+  }
+
   processCampaignSend(campaign, businesses, matchReasonByBusiness, session.user.id)
     .catch(err => console.error(`[Campaign ${campaign.id}] Background send failed:`, err?.message || err))
 

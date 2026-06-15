@@ -17,7 +17,7 @@ const navItems = [
   { href: '/exodikastikos', label: 'Αναθέσεις Εξωδικαστικού', icon: Scale, adminOnly: false },
   { href: '/chat', label: 'Επικοινωνία με i-Mentor', icon: MessageSquare, adminOnly: false },
   { href: '/notify-matches', label: 'Custom Ειδοποιήσεις', icon: BellRing, adminOnly: true },
-  { href: '/campaigns', label: 'Καμπάνιες προς Πελάτες', icon: Send, adminOnly: false },
+  { href: '/campaigns', label: 'Ενημερώσεις προς Πελάτες', icon: Send, adminOnly: false },
   { href: '/templates', label: 'Πρότυπα Μηνυμάτων', icon: FileText, adminOnly: true },
   { href: '/criteria', label: 'Πρόσθετα Κριτήρια', icon: ListChecks, adminOnly: true },
   { href: '/payments', label: 'Πληρωμές', icon: CreditCard, adminOnly: true },

@@ -342,7 +342,7 @@ export default function ProgramDetailPage() {
         <CardContent>
           {program.matches?.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-              {program.matches.slice(0, 20).map((m: any) => (
+              {program.matches.map((m: any) => (
                 <MatchCard
                   key={m.id}
                   businessName={m.business?.onomasia || ''}

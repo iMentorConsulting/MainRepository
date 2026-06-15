@@ -6,7 +6,7 @@ import Link from 'next/link'
 
 const breadcrumbMap: Record<string, string> = {
   '/': 'Dashboard', '/accountants': 'Λογιστές', '/businesses': 'Επιχειρήσεις',
-  '/programs': 'Προγράμματα', '/matches': 'Matches', '/campaigns': 'Καμπάνιες',
+  '/programs': 'Προγράμματα', '/matches': 'Matches', '/campaigns': 'Ενημερώσεις',
   '/payments': 'Πληρωμές', '/commissions': 'Προμήθειες', '/requests': 'Αιτήματα', '/chat': 'Επικοινωνία',
   '/reports': 'Αναφορές', '/settings': 'Ρυθμίσεις', '/notify-matches': 'Custom Ειδοποιήσεις', '/audit-log': 'Καταγραφή Ενεργειών', '/invitations': 'Προσκλήσεις', '/cases': 'Υποθέσεις',
 }
