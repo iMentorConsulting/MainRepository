@@ -52,6 +52,20 @@ export async function POST(request: NextRequest) {
 
   const appSetting = await prisma.appSetting.findUnique({ where: { id: 'main' } })
 
+  const campaign = await prisma.campaign.create({
+    data: {
+      programId: programId || null,
+      accountantId: (session.user as any).accountantId || null,
+      channel,
+      title: program?.title ? `Μεμονωμένη Αποστολή · ${program.title}` : 'Μεμονωμένη Αποστολή',
+      subject: subject || null,
+      messageTemplate,
+      status: 'SENT',
+      sentAt: new Date(),
+      createdBy: session.user.id || session.user.email || 'unknown',
+    },
+  })
+
   let sent = 0
   let failed = 0
 
@@ -116,6 +130,18 @@ export async function POST(request: NextRequest) {
 
     if (success) sent++
     else failed++
+
+    const recipient = channel === 'VIBER' ? (business.viberPhone || business.phone || '') : (business.email || '')
+    await prisma.campaignRecipient.create({
+      data: {
+        campaignId: campaign.id,
+        businessId: business.id,
+        channel,
+        recipient,
+        status: success ? 'sent' : 'failed',
+        sentAt: success ? new Date() : null,
+      },
+    })
   }
 
   return NextResponse.json({ sent, failed, total: businesses.length })
