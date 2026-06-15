@@ -52,7 +52,10 @@ export async function GET(request: NextRequest) {
   if (categories.length > 0) businessFilter.AND = [...(businessFilter.AND || []), { OR: categories.map(categoryWhereClause) }]
   if (perifereies.length > 0) businessFilter.AND = [...(businessFilter.AND || []), { OR: perifereies.map(regionWhereClause) }]
   if (tags.length > 0) businessFilter.tags = { hasSome: tags }
-  if (excludeTags.length > 0) businessFilter.AND = [...(businessFilter.AND || []), { NOT: { tags: { hasSome: excludeTags } } }]
+  if (excludeTags.length > 0) {
+    const excluded = await prisma.business.findMany({ where: { tags: { hasSome: excludeTags } }, select: { id: true } })
+    businessFilter.id = { notIn: excluded.map(b => b.id) }
+  }
   if (campaignSent === 'yes') businessFilter.campaignRecipients = { some: { sentAt: { not: null } } }
   else if (campaignSent === 'no') businessFilter.campaignRecipients = { none: { sentAt: { not: null } } }
   if (search) {

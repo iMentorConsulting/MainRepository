@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
         select: {
           // For ACCOUNTANTs, Prisma doesn't natively support filtered _count in findMany.
           // We include full count here and patch it below for accountants.
-          matches: true,
+          matches: { where: { status: { not: 'REJECTED' } } },
           campaigns: true,
         },
       },
@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
   if (isAccountant && accountantId) {
     const myCounts = await prisma.programMatch.groupBy({
       by: ['programId'],
-      where: { business: { accountantId } },
+      where: { business: { accountantId }, status: { not: 'REJECTED' } },
       _count: { _all: true },
     })
     const countMap = new Map(myCounts.map(r => [r.programId, r._count._all]))

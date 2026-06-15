@@ -10,8 +10,8 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
   const accountantId = (session.user as any).accountantId as string | null
 
   const matchWhere = isAccountant && accountantId
-    ? { programId: params.id, business: { accountantId } }
-    : { programId: params.id }
+    ? { programId: params.id, business: { accountantId }, status: { not: 'REJECTED' as const } }
+    : { programId: params.id, status: { not: 'REJECTED' as const } }
 
   const program = await prisma.program.findUnique({
     where: { id: params.id },
@@ -26,6 +26,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
       campaigns: isAccountant && accountantId
         ? { where: { accountantId }, select: { id: true, title: true, status: true, sentAt: true } }
         : { select: { id: true, title: true, status: true, sentAt: true } },
+      _count: { select: { matches: { where: matchWhere } } },
     }
   })
 

@@ -180,7 +180,7 @@ export default function ProgramDetailPage() {
                   <div>
                     <div className="text-xs font-semibold text-gray-500 uppercase mb-1.5">Ημερομηνία Έναρξης Επιχείρησης</div>
                     <span className="text-sm text-gray-700">
-                      {program.minRegdate || '...'} — {program.maxRegdate || '...'}
+                      {program.minRegdate ? formatDate(program.minRegdate) : '...'} — {program.maxRegdate ? formatDate(program.maxRegdate) : '...'}
                     </span>
                   </div>
                 )}
@@ -292,7 +292,7 @@ export default function ProgramDetailPage() {
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-500">Matches Προγράμματος με Πελάτες</span>
-                <span className="font-semibold">{program.matches?.length || 0}</span>
+                <span className="font-semibold">{program._count?.matches ?? program.matches?.length ?? 0}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-500">Καμπάνιες Προγράμματος</span>
@@ -337,7 +337,7 @@ export default function ProgramDetailPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Matched Επιχειρήσεις ({program.matches?.length || 0})</CardTitle>
+          <CardTitle>Matched Επιχειρήσεις ({program._count?.matches ?? program.matches?.length ?? 0})</CardTitle>
         </CardHeader>
         <CardContent>
           {program.matches?.length > 0 ? (
