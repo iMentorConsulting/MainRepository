@@ -18,7 +18,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     include: {
       matches: {
         where: matchWhere,
-        include: { business: { select: { id: true, afm: true, onomasia: true } } },
+        include: { business: { select: { id: true, afm: true, onomasia: true, accountantId: true, accountant: { select: { officeName: true } } } } },
         orderBy: { matchScore: 'desc' },
         take: 50,
       },

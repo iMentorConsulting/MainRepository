@@ -351,6 +351,7 @@ export default function ProgramDetailPage() {
                   matchScore={m.matchScore}
                   matchReason={m.matchReason}
                   status={m.status}
+                  accountantName={m.business?.accountant?.officeName}
                 />
               ))}
             </div>

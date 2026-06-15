@@ -10,6 +10,7 @@ interface MatchCardProps {
   matchScore: number
   matchReason: string[]
   status: MatchStatus
+  accountantName?: string | null
   onStatusChange?: (status: MatchStatus) => void
 }
 
@@ -21,7 +22,7 @@ const statusConfig: Record<MatchStatus, { label: string; variant: any; icon: any
   SUBMITTED: { label: 'Υποβλήθηκε', variant: 'warning', icon: Send },
 }
 
-export function MatchCard({ businessName, afm, programTitle, matchScore, matchReason, status }: MatchCardProps) {
+export function MatchCard({ businessName, afm, programTitle, matchScore, matchReason, status, accountantName }: MatchCardProps) {
   const conf = statusConfig[status]
   const Icon = conf.icon
   return (
@@ -31,6 +32,7 @@ export function MatchCard({ businessName, afm, programTitle, matchScore, matchRe
           <div className="font-semibold text-gray-900">{businessName || '-'}</div>
           <div className="text-xs text-gray-500">ΑΦΜ: {afm}</div>
           <div className="text-xs text-blue-700 mt-0.5">{programTitle}</div>
+          <div className="text-xs text-gray-500 mt-0.5">{accountantName || 'I-MENTOR'}</div>
         </div>
         <Badge variant={conf.variant} className="flex items-center gap-1">
           <Icon size={11} />
