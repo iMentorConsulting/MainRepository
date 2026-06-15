@@ -252,7 +252,7 @@ export default function BusinessDetailPage() {
                   <dt className="text-gray-500">Ημερ. Ίδρυσης</dt>
                   <dd className="flex items-center gap-1">
                     <Calendar size={12} className="text-gray-400" />
-                    {business.regdate || '-'}
+                    {formatDate(business.regdate)}
                   </dd>
                 </div>
                 <div>
