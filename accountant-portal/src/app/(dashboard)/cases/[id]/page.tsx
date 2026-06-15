@@ -373,7 +373,6 @@ export default function CaseDetailPage() {
                       </Link>
                       <div className="flex items-center gap-2 flex-shrink-0">
                         {m.program.category && <Badge variant="secondary">{m.program.category}</Badge>}
-                        <Badge variant={m.matchScore >= 80 ? 'success' : 'warning'}>{Math.round(m.matchScore)}%</Badge>
                       </div>
                     </div>
                   ))}

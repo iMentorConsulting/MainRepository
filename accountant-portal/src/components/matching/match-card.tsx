@@ -21,18 +21,6 @@ const statusConfig: Record<MatchStatus, { label: string; variant: any; icon: any
   SUBMITTED: { label: 'Υποβλήθηκε', variant: 'warning', icon: Send },
 }
 
-function ScoreBar({ score }: { score: number }) {
-  const color = score >= 80 ? 'bg-green-500' : score >= 60 ? 'bg-yellow-500' : 'bg-orange-500'
-  return (
-    <div className="flex items-center gap-2">
-      <div className="flex-1 h-2 bg-gray-200 rounded-full">
-        <div className={`h-2 rounded-full ${color}`} style={{ width: `${score}%` }} />
-      </div>
-      <span className="text-sm font-semibold text-gray-700">{score}%</span>
-    </div>
-  )
-}
-
 export function MatchCard({ businessName, afm, programTitle, matchScore, matchReason, status }: MatchCardProps) {
   const conf = statusConfig[status]
   const Icon = conf.icon
@@ -48,10 +36,6 @@ export function MatchCard({ businessName, afm, programTitle, matchScore, matchRe
           <Icon size={11} />
           {conf.label}
         </Badge>
-      </div>
-      <div className="mb-3">
-        <div className="text-xs text-gray-500 mb-1">Σκορ Match</div>
-        <ScoreBar score={Math.round(matchScore)} />
       </div>
       {matchReason.length > 0 && (
         <div>
