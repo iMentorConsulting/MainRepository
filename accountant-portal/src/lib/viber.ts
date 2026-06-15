@@ -93,18 +93,43 @@ async function chatwootSend(clientName: string, phone: string, message: string):
   // before a conversation/message against them will actually be delivered.
   if (isNewContact) await new Promise(resolve => setTimeout(resolve, 3000))
 
-  // 3. Create conversation on the Viber inbox
+  // 3. Reuse an existing conversation on the Viber inbox if one exists,
+  // reopening it if it was resolved/closed, instead of always starting a new one.
   let convId: number | null = null
   try {
-    const r = await fetchJson(`${base}/conversations`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({ inbox_id: parseInt(cwInbox), contact_id: contactId }),
-    })
-    if (r.status === 200 || r.status === 201) convId = r.body?.id ?? null
-    else return { ok: false, reason: `create_conv HTTP ${r.status}: ${r.text.slice(0, 200)}` }
-  } catch (e: any) {
-    return { ok: false, reason: `create_conv exception: ${e?.message || e}` }
+    const r = await fetchJson(`${base}/contacts/${contactId}/conversations`, { headers })
+    if (r.status === 200) {
+      const conversations = Array.isArray(r.body?.payload) ? r.body.payload : []
+      const existing = conversations
+        .filter((c: any) => c.inbox_id === parseInt(cwInbox))
+        .sort((a: any, b: any) => (b.last_activity_at || 0) - (a.last_activity_at || 0))[0]
+      if (existing) {
+        convId = existing.id
+        if (existing.status !== 'open') {
+          try {
+            await fetchJson(`${base}/conversations/${convId}/toggle_status`, {
+              method: 'POST',
+              headers,
+              body: JSON.stringify({ status: 'open' }),
+            })
+          } catch {}
+        }
+      }
+    }
+  } catch {}
+
+  if (!convId) {
+    try {
+      const r = await fetchJson(`${base}/conversations`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ inbox_id: parseInt(cwInbox), contact_id: contactId }),
+      })
+      if (r.status === 200 || r.status === 201) convId = r.body?.id ?? null
+      else return { ok: false, reason: `create_conv HTTP ${r.status}: ${r.text.slice(0, 200)}` }
+    } catch (e: any) {
+      return { ok: false, reason: `create_conv exception: ${e?.message || e}` }
+    }
   }
 
   if (!convId) return { ok: false, reason: 'Could not create conversation' }
