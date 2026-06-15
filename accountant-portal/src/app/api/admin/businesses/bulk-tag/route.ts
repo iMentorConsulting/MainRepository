@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { createAuditLog } from '@/lib/audit'
+import { ensureRejectionReasonSuggestionsSeeded, ensureCriteriaSuggestionsSeeded } from '@/lib/suggestions-seed'
 import * as XLSX from 'xlsx'
 
 function norm(s: any): string {
@@ -87,6 +88,9 @@ export async function POST(request: NextRequest) {
   })
   const businessByAfm = new Map(businesses.map(b => [b.afm, b]))
   const notFoundAfms = Array.from(afms).filter(afm => !businessByAfm.has(afm))
+
+  await ensureRejectionReasonSuggestionsSeeded().catch(() => {})
+  await ensureCriteriaSuggestionsSeeded().catch(() => {})
 
   // Preload programs, rejection reasons, criteria for matching
   const programs = await prisma.program.findMany({ select: { id: true, title: true } })
