@@ -62,6 +62,10 @@ export async function GET(request: NextRequest) {
     businessFilter.OR = [
       { onomasia: { contains: search, mode: 'insensitive' } },
       { afm: { contains: search, mode: 'insensitive' } },
+      { phone: { contains: search, mode: 'insensitive' } },
+      { viberPhone: { contains: search, mode: 'insensitive' } },
+      { email: { contains: search, mode: 'insensitive' } },
+      { activities: { some: { firmActDescr: { contains: search, mode: 'insensitive' } } } },
     ]
   }
   if (Object.keys(businessFilter).length > 0) where.business = businessFilter

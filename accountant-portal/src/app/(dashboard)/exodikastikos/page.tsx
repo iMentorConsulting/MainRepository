@@ -85,17 +85,17 @@ export default function ExodikastikosPage() {
             <Sparkles size={13} />
             Εξωδικαστικός Μηχανισμός
           </div>
-          <h2 className="text-2xl sm:text-3xl font-bold leading-tight max-w-2xl">
+          <h2 className="text-2xl sm:text-3xl font-bold leading-tight">
             Δώστε στους πελάτες σας μια δεύτερη ευκαιρία<br className="hidden sm:block" />
             και κερδίστε προμήθεια σε κάθε ανάθεση.
           </h2>
-          <p className="mt-3 text-indigo-100 max-w-2xl text-sm sm:text-base">
+          <p className="mt-3 text-indigo-100 text-sm sm:text-base">
             Κάθε πελάτης σας με οφειλές προς Δημόσιο, ΕΦΚΑ ή τράπεζες είναι μια ευκαιρία: για εκείνον να αποκτήσει
             μια ρεαλιστική, τεκμηριωμένη πρόταση ρύθμισης, και για εσάς να αποκτήσετε ένα νέο κανάλι εσόδων χωρίς
             καμία επιπλέον δουλειά. Όλη η διαδικασία αναλαμβάνεται από την ομάδα της I-MENTOR.
           </p>
 
-          <div className="mt-6 grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="mt-6 grid grid-cols-4 gap-3">
             <div className="bg-white/10 backdrop-blur rounded-xl p-3 text-center">
               <div className="text-2xl font-bold">420</div>
               <div className="text-[11px] text-indigo-100 mt-0.5">δόσεις σε τράπεζες &amp; funds</div>
@@ -141,7 +141,7 @@ export default function ExodikastikosPage() {
               Κερδίζετε προμήθεια σε κάθε ανάθεση
               <Badge variant="success">Νέο εισόδημα</Badge>
             </h3>
-            <p className="text-sm text-emerald-800/80 mt-1 max-w-2xl">
+            <p className="text-sm text-emerald-800/80 mt-1">
               Κάθε υπόθεση πελάτη σας που προχωράει στον Εξωδικαστικό συνοδεύεται από αμοιβή για το γραφείο σας.
               Δεν χρειάζεται να αναλάβετε καμία διαδικασία, απλά συστήνετε τον πελάτη και η I-MENTOR κάνει τα
               υπόλοιπα. Η προμήθεια καταβάλλεται στο γραφείο σας με την πληρωμή της αρχικής αμοιβής από τον

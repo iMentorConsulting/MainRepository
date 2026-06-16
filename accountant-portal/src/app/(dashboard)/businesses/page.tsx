@@ -323,7 +323,7 @@ export default function BusinessesPage() {
               <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
               <input
                 type="text"
-                placeholder="Αναζήτηση ΑΦΜ, επωνυμία..."
+                placeholder="ΑΦΜ, επωνυμία, τηλ., email, ΚΑΔ..."
                 value={searchInput}
                 onChange={e => setSearchInput(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && handleSearch()}

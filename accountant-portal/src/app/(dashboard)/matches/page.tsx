@@ -320,7 +320,7 @@ export default function MatchesPage() {
                 <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
                 <input
                   type="text"
-                  placeholder="Επωνυμία ή ΑΦΜ..."
+                  placeholder="Επωνυμία, ΑΦΜ, τηλ., email, ΚΑΔ..."
                   value={searchInput}
                   onChange={e => setSearchInput(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && handleSearch()}

@@ -85,11 +85,11 @@ export default function CasesPage() {
             <Sparkles size={13} />
             Αναθέσεις Προγραμμάτων
           </div>
-          <h2 className="text-2xl sm:text-3xl font-bold leading-tight max-w-2xl">
+          <h2 className="text-2xl sm:text-3xl font-bold leading-tight">
             Κάθε επιχορήγηση είναι μια ευκαιρία για τον πελάτη σας,<br className="hidden sm:block" />
             και εμείς αναλαμβάνουμε την υλοποίηση χωρίς άγχος και αβεβαιότητα.
           </h2>
-          <p className="mt-3 text-indigo-100 max-w-2xl text-sm sm:text-base">
+          <p className="mt-3 text-indigo-100 text-sm sm:text-base">
             Η ομάδα της I-MENTOR έχει πολυετή εμπειρία στην υλοποίηση επιχορηγούμενων προγραμμάτων (ΕΣΠΑ, ΔΥΠΑ,
             μικροπιστώσεις και άλλα). Από την αίτηση έως την αποπληρωμή, ο πελάτης σας έχει πάντα ξεκάθαρη εικόνα
             για το πού βρίσκεται η υπόθεσή του, μέσα από το σύστημα διαχείρισης υποθέσεων (case management) που
@@ -113,7 +113,7 @@ export default function CasesPage() {
           </div>
           <div>
             <h3 className="text-lg font-bold text-indigo-900">Ο πελάτης ξέρει πάντα πού βρίσκεται</h3>
-            <p className="text-sm text-indigo-800/80 mt-1 max-w-2xl">
+            <p className="text-sm text-indigo-800/80 mt-1">
               Το σύστημα διαχείρισης υποθέσεων (case management) της I-MENTOR ενημερώνει αυτόματα τον πελάτη με
               Viber και email σε κάθε αλλαγή σταδίου της ανάθεσης, από την υποβολή έως την έγκριση και την
               αποπληρωμή. Καμία υπόθεση δεν χάνεται, και ο πελάτης δεν χρειάζεται να ρωτά πού βρίσκεται η αίτησή
@@ -134,7 +134,7 @@ export default function CasesPage() {
               Κερδίζετε προμήθεια για κάθε υλοποίηση
               <Badge variant="success">Νέο εισόδημα</Badge>
             </h3>
-            <p className="text-sm text-emerald-800/80 mt-1 max-w-2xl">
+            <p className="text-sm text-emerald-800/80 mt-1">
               Όταν ένας πελάτης σας προχωράει σε υλοποίηση επιχορηγούμενου προγράμματος μέσω της I-MENTOR, το
               γραφείο σας λαμβάνει προμήθεια. Η κατάσταση και το ύψος της αμοιβής σας εμφανίζονται στην ενότητα{' '}
               <Link href="/commissions" className="font-semibold underline hover:text-emerald-900">Προμήθειες</Link>.

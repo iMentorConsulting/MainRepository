@@ -77,6 +77,10 @@ export async function GET(request: NextRequest) {
       { afm: { contains: search, mode: 'insensitive' } },
       { onomasia: { contains: search, mode: 'insensitive' } },
       { commercialTitle: { contains: search, mode: 'insensitive' } },
+      { phone: { contains: search, mode: 'insensitive' } },
+      { viberPhone: { contains: search, mode: 'insensitive' } },
+      { email: { contains: search, mode: 'insensitive' } },
+      { activities: { some: { firmActDescr: { contains: search, mode: 'insensitive' } } } },
     ]
   }
 
