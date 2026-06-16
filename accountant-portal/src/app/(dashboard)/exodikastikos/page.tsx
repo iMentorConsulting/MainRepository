@@ -152,68 +152,31 @@ export default function ExodikastikosPage() {
         </div>
       </div>
 
-      {/* ─── Why it's different ──────────────────────────────────────────── */}
-      <div>
-        <h3 className="text-base font-bold text-gray-900 mb-3 flex items-center gap-2">
-          <Wand2 size={18} className="text-violet-600" />
-          Τι κάνει τη μεθοδολογία μας σοβαρή και τεκμηριωμένη
-        </h3>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
-            <div className="w-9 h-9 rounded-lg bg-violet-100 text-violet-700 flex items-center justify-center mb-3">
-              <FileSearch size={18} />
-            </div>
-            <p className="font-semibold text-sm text-gray-900">Εργαλείο πρόβλεψης αποτελέσματος</p>
-            <p className="text-xs text-gray-500 mt-1">
-              Πριν την υποβολή, αναλύουμε τα δεδομένα της υπόθεσης και παράγουμε μια ρεαλιστική, τεκμηριωμένη
-              πρόβλεψη του αποτελέσματος της ρύθμισης, ώστε ο πελάτης να γνωρίζει εξ αρχής τι να περιμένει.
-            </p>
-          </div>
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
-            <div className="w-9 h-9 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center mb-3">
-              <LayoutDashboard size={18} />
-            </div>
-            <p className="font-semibold text-sm text-gray-900">Προσωπικό portal παρακολούθησης</p>
-            <p className="text-xs text-gray-500 mt-1">
-              Ο πελάτης (και εσείς) παρακολουθείτε live την πρόοδο της υπόθεσης, με έγγραφα, στάδια και αποτελέσματα,
-              χωρίς να χρειάζονται τηλέφωνα και emails για ενημέρωση.
-            </p>
-          </div>
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
-            <div className="w-9 h-9 rounded-lg bg-rose-100 text-rose-700 flex items-center justify-center mb-3">
-              <PiggyBank size={18} />
-            </div>
-            <p className="font-semibold text-sm text-gray-900">Σχέδιο αναδιάρθρωσης ως μέρος της πρότασης</p>
-            <p className="text-xs text-gray-500 mt-1">
-              Εκπονούμε σχέδιο αναδιάρθρωσης και το υποβάλλουμε στην πλατφόρμα μαζί με την αίτηση, ώστε να
-              ενισχύσουμε την τεκμηρίωση και τη βιωσιμότητα της πρότασης ρύθμισης.
-            </p>
-          </div>
+      {/* ─── Why it's different + How it works ──────────────────────────── */}
+      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm divide-y divide-gray-100">
+        <div className="px-4 py-3 flex items-center gap-2">
+          <Wand2 size={15} className="text-violet-500 shrink-0" />
+          <span className="text-xs font-bold text-gray-500 uppercase tracking-wide">Μεθοδολογία & Διαδικασία</span>
         </div>
-      </div>
-
-      {/* ─── How it works ────────────────────────────────────────────────── */}
-      <div>
-        <h3 className="text-base font-bold text-gray-900 mb-3 flex items-center gap-2">
-          <Handshake size={18} className="text-indigo-600" />
-          Το ταξίδι του πελάτη σας: εσείς απλά τον συστήνετε
-        </h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          {[
-            { icon: Handshake, title: '1. Σύσταση πελάτη', desc: 'Δημιουργείτε νέα ανάθεση με 2 κλικ από αυτή τη σελίδα. Τέλος.' },
-            { icon: FileSearch, title: '2. Δωρεάν εκτίμηση', desc: 'Η I-MENTOR αντλεί τα στοιχεία οφειλών και ετοιμάζει εκτίμηση εντός ~15 ημερών.' },
-            { icon: ShieldCheck, title: '3. Διαπραγμάτευση', desc: 'Υποβολή αίτησης, σχέδιο αναδιάρθρωσης και διαπραγμάτευση με πιστωτές (~2 μήνες).' },
-            { icon: CheckCircle2, title: '4. Αρχική αμοιβή & Προμήθεια', desc: 'Μετά την ολοκλήρωση της εκτίμησης (~15 ημέρες), ο πελάτης καταβάλλει την αρχική αμοιβή και η προμήθεια του γραφείου σας καταβάλλεται.' },
-          ].map((step, i) => (
-            <div key={i} className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 relative">
-              <div className="w-9 h-9 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center mb-3">
-                <step.icon size={18} />
-              </div>
-              <p className="font-semibold text-sm text-gray-900">{step.title}</p>
-              <p className="text-xs text-gray-500 mt-1">{step.desc}</p>
+        {[
+          { icon: FileSearch, color: 'text-violet-600 bg-violet-50', title: 'Εργαλείο πρόβλεψης αποτελέσματος', desc: 'Παράγουμε ρεαλιστική πρόβλεψη ρύθμισης πριν την υποβολή, ώστε ο πελάτης να ξέρει τι να περιμένει.' },
+          { icon: LayoutDashboard, color: 'text-indigo-600 bg-indigo-50', title: 'Προσωπικό portal παρακολούθησης', desc: 'Live παρακολούθηση υπόθεσης με έγγραφα & στάδια — χωρίς τηλέφωνα και emails.' },
+          { icon: PiggyBank, color: 'text-rose-600 bg-rose-50', title: 'Σχέδιο αναδιάρθρωσης ως μέρος της πρότασης', desc: 'Εκπονούμε και υποβάλλουμε σχέδιο αναδιάρθρωσης μαζί με την αίτηση για ισχυρότερη τεκμηρίωση.' },
+          { icon: Handshake, color: 'text-teal-600 bg-teal-50', title: '1. Σύσταση πελάτη', desc: 'Δημιουργείτε νέα ανάθεση με 2 κλικ από αυτή τη σελίδα. Τέλος.' },
+          { icon: FileSearch, color: 'text-blue-600 bg-blue-50', title: '2. Δωρεάν εκτίμηση ~15 ημερών', desc: 'Η I-MENTOR αντλεί στοιχεία οφειλών και ετοιμάζει εκτίμηση.' },
+          { icon: ShieldCheck, color: 'text-amber-600 bg-amber-50', title: '3. Διαπραγμάτευση (~2 μήνες)', desc: 'Υποβολή αίτησης, σχέδιο αναδιάρθρωσης και διαπραγμάτευση με πιστωτές.' },
+          { icon: CheckCircle2, color: 'text-emerald-600 bg-emerald-50', title: '4. Αρχική αμοιβή & Προμήθεια', desc: 'Ο πελάτης καταβάλλει αρχική αμοιβή και η προμήθεια του γραφείου σας καταβάλλεται αμέσως.' },
+        ].map((item, i) => (
+          <div key={i} className="flex items-start gap-3 px-4 py-2.5">
+            <div className={`shrink-0 w-7 h-7 rounded-lg flex items-center justify-center mt-0.5 ${item.color}`}>
+              <item.icon size={14} />
             </div>
-          ))}
-        </div>
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-gray-800">{item.title}</p>
+              <p className="text-xs text-gray-400 mt-0.5">{item.desc}</p>
+            </div>
+          </div>
+        ))}
       </div>
 
       {/* ─── Onboarding videos + key facts ──────────────────────────────── */}
