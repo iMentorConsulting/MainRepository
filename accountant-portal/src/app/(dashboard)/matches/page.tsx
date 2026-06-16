@@ -15,8 +15,8 @@ import { CategoryBadge } from '@/components/businesses/category-badge'
 
 const campaignSentOptions = [
   { value: '', label: 'Όλα' },
-  { value: 'yes', label: 'Έχει σταλεί καμπάνια' },
-  { value: 'no', label: 'Δεν έχει σταλεί καμπάνια' },
+  { value: 'yes', label: 'Έχει σταλεί ενημέρωση' },
+  { value: 'no', label: 'Δεν έχει σταλεί ενημέρωση' },
 ]
 
 const PAGE_SIZE = 25
@@ -331,7 +331,7 @@ export default function MatchesPage() {
               </div>
             </div>
             <div>
-              <label className="text-xs font-medium text-gray-500 block mb-1">Καμπάνια</label>
+              <label className="text-xs font-medium text-gray-500 block mb-1">Ενημέρωση</label>
               <select
                 value={campaignSentFilter}
                 onChange={e => setCampaignSentFilter(e.target.value)}

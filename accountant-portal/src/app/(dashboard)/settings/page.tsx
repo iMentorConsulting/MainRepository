@@ -209,10 +209,6 @@ export default function SettingsPage() {
               Το λογότυπο εμφανίζεται στο πάνω μέρος των email καμπανιών προς τους πελάτες, αντί του κειμένου «iMENTOR CONSULTING».
             </p>
             <LogoUploader label="Λογότυπο I-MENTOR (PNG, transparent)" value={imentorLogoUrl} onChange={saveImentorLogo} />
-            <p className="text-sm text-gray-500">
-              Το λογότυπο LOGISTIS εμφανίζεται δίπλα στο λογότυπο I-MENTOR στο πλαϊνό μενού (whitelabel).
-            </p>
-            <LogoUploader label="Λογότυπο LOGISTIS (PNG, transparent)" value={logistisLogoUrl} onChange={saveLogistisLogo} />
             {logoSaving && <span className="text-xs text-gray-400">Αποθήκευση...</span>}
             {!logoSaving && logoSaved && <span className="text-xs text-green-600">Αποθηκεύτηκε ✓</span>}
           </CardContent>

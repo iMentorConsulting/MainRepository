@@ -41,17 +41,22 @@ export function Sidebar({ open, onClose }: SidebarProps) {
   const visible = navItems.filter(i => !i.adminOnly || isAdmin)
   const officeHref = !isAdmin && accountantId ? `/accountants/${accountantId}` : null
   const [logoUrl, setLogoUrl] = useState<string | null>(null)
-  const [logistisLogoUrl, setLogistisLogoUrl] = useState<string | null>(null)
+  const [accountantLogoUrl, setAccountantLogoUrl] = useState<string | null>(null)
 
   useEffect(() => {
     fetch('/api/settings/logo')
       .then(r => r.json())
-      .then(d => {
-        setLogoUrl(d.imentorLogoUrl || null)
-        setLogistisLogoUrl(d.logistisLogoUrl || null)
-      })
+      .then(d => setLogoUrl(d.imentorLogoUrl || null))
       .catch(() => {})
   }, [])
+
+  useEffect(() => {
+    if (!accountantId) return
+    fetch(`/api/accountants/${accountantId}`)
+      .then(r => r.json())
+      .then(d => setAccountantLogoUrl(d.logoUrl || null))
+      .catch(() => {})
+  }, [accountantId])
 
   // Close sidebar on route change (mobile)
   useEffect(() => {
@@ -95,11 +100,11 @@ export function Sidebar({ open, onClose }: SidebarProps) {
                 <>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={logoUrl} alt="I-MENTOR" className="max-h-24 w-auto object-contain drop-shadow-lg" />
-                  {logistisLogoUrl && (
+                  {accountantLogoUrl && (
                     <>
                       <div className="w-px h-12 bg-slate-700" />
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={logistisLogoUrl} alt="LOGISTIS" className="max-h-24 w-auto object-contain drop-shadow-lg" />
+                      <img src={accountantLogoUrl} alt="LOGISTIS" className="max-h-24 w-auto object-contain drop-shadow-lg" />
                     </>
                   )}
                 </>
