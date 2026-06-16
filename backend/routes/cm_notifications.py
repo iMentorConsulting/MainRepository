@@ -628,7 +628,21 @@ def _chatwoot_log_outbound_viber(phone_normalized: str, message: str = "", conta
             }, headers=headers, timeout=15)
             if r.ok:
                 body = r.json()
-                contact_id = body.get("id") or (body.get("contact", {}) or {}).get("id")
+                contact_id = (
+                    body.get("id")
+                    or (body.get("data") or {}).get("id")
+                    or (body.get("contact") or {}).get("id")
+                )
+                if not contact_id:
+                    # Unknown response shape but contact was created — search by phone
+                    phone_e164 = f"+{phone_normalized}" if not phone_normalized.startswith("+") else phone_normalized
+                    r2 = requests.get(f"{api}/contacts/search",
+                                      params={"q": phone_e164, "include_contacts": "true"},
+                                      headers=headers, timeout=15)
+                    if r2.ok:
+                        hits = r2.json().get("payload", {}).get("contacts", [])
+                        if hits:
+                            contact_id = hits[0]["id"]
             else:
                 logger.error("Chatwoot create contact failed %s: %s", r.status_code, r.text[:300])
 
