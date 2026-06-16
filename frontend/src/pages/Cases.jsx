@@ -5,7 +5,7 @@ import { PIPELINES } from '../pipelines'
 import { MagnifyingGlassIcon, PlusIcon, TrashIcon, FolderOpenIcon, BoltIcon, ChevronDownIcon, ChevronUpIcon, CheckIcon } from '@heroicons/react/24/outline'
 import toast from 'react-hot-toast'
 
-const FINAL_STATUSES = new Set(['ΟΛΟΚΛΗΡΩΜΕΝΗ ΥΠΟΘΕΣΗ', 'ΠΑΡΑΙΤΗΣΗ', 'ΠΑΓΩΜΕΝΗ ΥΠΟΘΕΣΗ', 'ΑΚΥΡΩΣΗ', 'ΑΠΟΡΡΙΨΗ'])
+const FINAL_STATUSES = new Set(['ΟΛΟΚΛΗΡΩΜΕΝΗ ΥΠΟΘΕΣΗ', 'ΠΑΡΑΙΤΗΣΗ', 'ΠΑΓΩΜΕΝΗ ΥΠΟΘΕΣΗ', 'ΑΚΥΡΩΣΗ', 'ΑΠΟΡΡΙΨΗ', 'ΜΗ ΕΠΙΛΕΞΙΜΟΣ', 'ΟΧΙ ΕΝΔΙΑΦΕΡΟΝ'])
 
 // ─── Multi-select dropdown ────────────────────────────────────────────────────
 function MultiSelect({ label, options, value, onChange, minWidth = 160 }) {

@@ -16,7 +16,7 @@ import toast from 'react-hot-toast'
 const PAGE_SIZE = 100
 
 const PROGRAMS = ['ΕΣΠΑ', 'ΔΥΠΑ', 'ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ', 'ΑΝΑΚΑΙΝΙΖΩ']
-const FINAL_STATUSES = new Set(['ΟΛΟΚΛΗΡΩΜΕΝΗ ΥΠΟΘΕΣΗ', 'ΠΑΡΑΙΤΗΣΗ', 'ΠΑΓΩΜΕΝΗ ΥΠΟΘΕΣΗ', 'ΑΚΥΡΩΣΗ', 'ΑΠΟΡΡΙΨΗ'])
+const FINAL_STATUSES = new Set(['ΟΛΟΚΛΗΡΩΜΕΝΗ ΥΠΟΘΕΣΗ', 'ΠΑΡΑΙΤΗΣΗ', 'ΠΑΓΩΜΕΝΗ ΥΠΟΘΕΣΗ', 'ΑΚΥΡΩΣΗ', 'ΑΠΟΡΡΙΨΗ', 'ΜΗ ΕΠΙΛΕΞΙΜΟΣ', 'ΟΧΙ ΕΝΔΙΑΦΕΡΟΝ'])
 const PROG_COLOR = {
   ΕΣΠΑ: 'bg-blue-100 text-blue-700',
   ΔΥΠΑ: 'bg-green-100 text-green-700',
