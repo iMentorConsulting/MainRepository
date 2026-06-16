@@ -64,7 +64,8 @@ async function chatwootSend(clientName: string, phone: string, message: string):
         body: JSON.stringify({ name: clientName, phone_number: phone }),
       })
       if (r.status === 200 || r.status === 201) {
-        contactId = r.body?.id ?? null
+        contactId = r.body?.id ?? r.body?.data?.id ?? null
+        if (!contactId) console.warn(`[Viber] create_contact 2xx but no id in body for ${phone}:`, JSON.stringify(r.body).slice(0, 400))
       } else {
         console.warn(`[Viber] create_contact HTTP ${r.status} for ${phone}:`, JSON.stringify(r.body).slice(0, 400))
         contactId = r.body?.id
