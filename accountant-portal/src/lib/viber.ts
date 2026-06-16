@@ -65,7 +65,18 @@ async function chatwootSend(clientName: string, phone: string, message: string):
       })
       if (r.status === 200 || r.status === 201) {
         contactId = r.body?.id ?? r.body?.data?.id ?? null
-        if (!contactId) console.warn(`[Viber] create_contact 2xx but no id in body for ${phone}:`, JSON.stringify(r.body).slice(0, 400))
+        if (!contactId) {
+          // Body structure unknown — search immediately since we know the contact exists
+          console.warn(`[Viber] create_contact 2xx but no id in body for ${phone}:`, JSON.stringify(r.body).slice(0, 400))
+          try {
+            const r2 = await fetchJson(`${base}/contacts/search?q=${encodeURIComponent(phone)}&include_contacts=true`, { headers })
+            if (r2.status === 200) {
+              const payload = r2.body?.payload
+              const contacts = Array.isArray(payload) ? payload : (payload?.contacts || [])
+              if (contacts.length > 0) contactId = contacts[0].id
+            }
+          } catch {}
+        }
       } else {
         console.warn(`[Viber] create_contact HTTP ${r.status} for ${phone}:`, JSON.stringify(r.body).slice(0, 400))
         contactId = r.body?.id
