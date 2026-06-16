@@ -11,7 +11,7 @@ type CampaignTemplate = {
 }
 
 interface QuickSendModalProps {
-  businesses: { id: string; onomasia?: string | null; afm: string }[]
+  businesses: { id: string; onomasia?: string | null; afm: string; accountantId?: string | null }[]
   onClose: () => void
   onSent?: (sent: number, failed: number) => void
 }
@@ -25,8 +25,9 @@ const CHANNELS = [
 type Channel = 'EMAIL' | 'VIBER' | 'EMAIL_AND_VIBER'
 
 export function QuickSendModal({ businesses, onClose, onSent }: QuickSendModalProps) {
+  const allDirect = businesses.length > 0 && businesses.every(b => !b.accountantId)
   const [channel, setChannel] = useState<Channel>('EMAIL')
-  const [mode, setMode] = useState<'withAccountant' | 'direct'>('withAccountant')
+  const [mode, setMode] = useState<'withAccountant' | 'direct'>(allDirect ? 'direct' : 'withAccountant')
   const [subject, setSubject] = useState('')
   const [message, setMessage] = useState('')
   const [sending, setSending] = useState(false)
@@ -160,20 +161,22 @@ export function QuickSendModal({ businesses, onClose, onSent }: QuickSendModalPr
             </div>
           </div>
 
-          {/* Mode toggle */}
-          <div className="flex gap-2">
-            {(['withAccountant', 'direct'] as const).map(m => (
-              <button
-                key={m}
-                onClick={() => handleModeChange(m)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
-                  mode === m ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-600 border-slate-200 hover:border-slate-400'
-                }`}
-              >
-                {m === 'withAccountant' ? 'Με αναφορά λογιστή' : 'Απευθείας I-MENTOR'}
-              </button>
-            ))}
-          </div>
+          {/* Mode toggle — hidden when all selected businesses are direct (no accountant) */}
+          {!allDirect && (
+            <div className="flex gap-2">
+              {(['withAccountant', 'direct'] as const).map(m => (
+                <button
+                  key={m}
+                  onClick={() => handleModeChange(m)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+                    mode === m ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-600 border-slate-200 hover:border-slate-400'
+                  }`}
+                >
+                  {m === 'withAccountant' ? 'Με αναφορά λογιστή' : 'Απευθείας I-MENTOR'}
+                </button>
+              ))}
+            </div>
+          )}
 
           {/* Matched program selector */}
           {matchedPrograms.length > 0 && (

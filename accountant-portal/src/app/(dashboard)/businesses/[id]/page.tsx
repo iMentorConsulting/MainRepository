@@ -217,7 +217,7 @@ export default function BusinessDetailPage() {
 
       {quickSend && (
         <QuickSendModal
-          businesses={[{ id: business.id, onomasia: business.onomasia, afm: business.afm }]}
+          businesses={[{ id: business.id, onomasia: business.onomasia, afm: business.afm, accountantId: business.accountantId }]}
           onClose={() => setQuickSend(false)}
         />
       )}

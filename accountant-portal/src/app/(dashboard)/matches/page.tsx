@@ -289,6 +289,7 @@ export default function MatchesPage() {
     id: m.business?.id,
     onomasia: m.business?.onomasia,
     afm: m.business?.afm,
+    accountantId: m.business?.accountantId,
   })).filter(b => b.id)
 
   return (

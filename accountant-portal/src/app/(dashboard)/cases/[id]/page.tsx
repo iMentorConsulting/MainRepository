@@ -701,7 +701,7 @@ export default function CaseDetailPage() {
 
       {showQuickSend && (
         <QuickSendModal
-          businesses={[{ id: b.id, onomasia: b.onomasia, afm: b.afm }]}
+          businesses={[{ id: b.id, onomasia: b.onomasia, afm: b.afm, accountantId: b.accountantId }]}
           onClose={() => setShowQuickSend(false)}
           onSent={() => { setShowQuickSend(false); load() }}
         />
