@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
   }
 
   const total = businessIds.length
-  const programs = [...countByProgram.entries()]
+  const programs = Array.from(countByProgram.entries())
     .filter(([, count]) => count >= total)
     .map(([id]) => programById.get(id)!)
     .filter(Boolean)
