@@ -37,6 +37,8 @@ def _assignment_to_dict(a: CMPortalAssignment) -> dict:
         "case_number": a.case_number,
         "afm": a.afm,
         "onomasia": a.onomasia,
+        "phone": a.phone,
+        "email": a.email,
         "accountant_office": a.accountant_office,
         "case_type": a.case_type,
         "description": a.description,
@@ -46,6 +48,25 @@ def _assignment_to_dict(a: CMPortalAssignment) -> dict:
         "cm_case_id": a.cm_case_id,
         "created_at": fmt_dt(a.created_at),
     }
+
+
+_PROGRAM_CATEGORY_MAP = [
+    ("ΜΙΚΡΟΠΙΣΤΩΣ", "ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ"),
+    ("ΕΣΠΑ",        "ΕΣΠΑ"),
+    ("ΔΥΠΑ",        "ΔΥΠΑ"),
+    ("ΟΑΕΔ",        "ΔΥΠΑ"),
+    ("ΑΝΑΚΑΙΝΙΖ",   "ΑΝΑΚΑΙΝΙΖΩ"),
+]
+
+
+def _map_program_category(program_title: Optional[str]) -> str:
+    if not program_title:
+        return "ΕΣΠΑ"
+    upper = program_title.upper()
+    for keyword, category in _PROGRAM_CATEGORY_MAP:
+        if keyword in upper:
+            return category
+    return "ΕΣΠΑ"
 
 
 # ── Portal status mapping ────────────────────────────────────────────────────
@@ -145,6 +166,8 @@ class CaseCreatedWebhook(BaseModel):
     caseNumber: int
     afm: Optional[str] = None
     onomasia: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[str] = None
     accountantOffice: Optional[str] = None
     caseType: Optional[str] = None
     description: Optional[str] = None
@@ -165,6 +188,8 @@ def receive_case_created(
         case_number=payload.caseNumber,
         afm=payload.afm,
         onomasia=payload.onomasia,
+        phone=payload.phone,
+        email=payload.email,
         accountant_office=payload.accountantOffice,
         case_type=payload.caseType,
         description=payload.description,
@@ -208,8 +233,12 @@ def accept_assignment(
     case = CMCase(
         client_name=a.onomasia or a.afm or f"Υπόθεση #{a.case_number}",
         afm=a.afm,
+        phone=a.phone,
+        email=a.email,
         accountant=a.accountant_office,
         service_type=a.program_title or a.case_type,
+        program_category=_map_program_category(a.program_title),
+        status="ΕΛΕΓΧΟΣ ΕΠΙΛΕΞΙΜΟΤΗΤΑΣ",
         notes=a.description,
         status_changed_at=datetime.utcnow(),
         portal_case_number=a.case_number,

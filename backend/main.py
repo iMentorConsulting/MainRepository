@@ -1006,6 +1006,8 @@ try:
                 resolved_at TIMESTAMP
             )
         """))
+        _conn.execute(_text("ALTER TABLE cm_portal_assignments ADD COLUMN IF NOT EXISTS phone VARCHAR(50)"))
+        _conn.execute(_text("ALTER TABLE cm_portal_assignments ADD COLUMN IF NOT EXISTS email VARCHAR(200)"))
         _conn.commit()
 except Exception as _e:
     print(f"[migration] cm_portal_assignments create skipped: {_e}", flush=True)

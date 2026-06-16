@@ -461,6 +461,8 @@ class CMPortalAssignment(Base):
     case_number = Column(Integer, nullable=False, index=True)
     afm = Column(String(20))
     onomasia = Column(String(200))
+    phone = Column(String(50))
+    email = Column(String(200))
     accountant_office = Column(String(200))
     case_type = Column(String(200))
     description = Column(Text)
