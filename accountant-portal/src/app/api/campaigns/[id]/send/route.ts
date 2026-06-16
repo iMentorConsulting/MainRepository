@@ -33,9 +33,21 @@ async function processCampaignSend(
     const emailRecipient = business.email
     const viberRecipient = business.viberPhone || business.phone
 
-    if (useEmail && !emailRecipient && !useViber) { failed++; continue }
-    if (useViber && !viberRecipient && !useEmail) { failed++; continue }
-    if (!emailRecipient && !viberRecipient) { failed++; continue }
+    if (useEmail && !emailRecipient && !useViber) {
+      failed++
+      await prisma.campaignRecipient.create({ data: { campaignId: campaign.id, businessId: business.id, channel: campaign.channel, recipient: '', status: 'failed', errorMessage: 'Δεν υπάρχει email' } })
+      continue
+    }
+    if (useViber && !viberRecipient && !useEmail) {
+      failed++
+      await prisma.campaignRecipient.create({ data: { campaignId: campaign.id, businessId: business.id, channel: campaign.channel, recipient: '', status: 'failed', errorMessage: 'Δεν υπάρχει αριθμός τηλεφώνου' } })
+      continue
+    }
+    if (!emailRecipient && !viberRecipient) {
+      failed++
+      await prisma.campaignRecipient.create({ data: { campaignId: campaign.id, businessId: business.id, channel: campaign.channel, recipient: '', status: 'failed', errorMessage: 'Δεν υπάρχει email ούτε τηλέφωνο' } })
+      continue
+    }
 
     const matchReasons = matchReasonByBusiness.get(business.id) || []
     const bullet = '•'
@@ -59,6 +71,7 @@ async function processCampaignSend(
     let emailSubject = renderTemplate(campaign.subject || campaign.title, variables)
     if (!variables.accountant_office) emailSubject = emailSubject.replace(/^\s*&\s*/, '')
     let success = false
+    const errors: string[] = []
 
     try {
       if (useEmail && emailRecipient) {
@@ -89,14 +102,18 @@ async function processCampaignSend(
           }),
         })
         if (emailOk) success = true
+        else errors.push('Email: αποτυχία αποστολής')
       }
 
       if (useViber && viberRecipient) {
-        const viberOk = await sendViberMessage({ to: viberRecipient, text: message, senderName: business.onomasia || business.afm })
-        if (viberOk) success = true
+        const viberResult = await sendViberMessage({ to: viberRecipient, text: message, senderName: business.onomasia || business.afm })
+        if (viberResult.ok) success = true
+        else errors.push(`Viber: ${viberResult.reason}`)
       }
     } catch (err: any) {
-      console.error(`[Campaign ${campaign.id}] Send error for ${business.afm}:`, err?.message || err)
+      const msg = err?.message || String(err)
+      errors.push(`exception: ${msg}`)
+      console.error(`[Campaign ${campaign.id}] Send error for ${business.afm}:`, msg)
     }
 
     const primaryRecipient = emailRecipient || viberRecipient || ''
@@ -108,6 +125,7 @@ async function processCampaignSend(
         recipient: primaryRecipient,
         status: success ? 'sent' : 'failed',
         sentAt: success ? new Date() : null,
+        errorMessage: errors.length > 0 ? errors.join(' | ') : null,
       }
     })
 

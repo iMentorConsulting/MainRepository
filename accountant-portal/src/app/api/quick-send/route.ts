@@ -89,6 +89,7 @@ export async function POST(request: NextRequest) {
     let success = false
     let emailSent: boolean | null = null
     let viberSent: boolean | null = null
+    let viberError = ''
 
     try {
       if (channel === 'EMAIL' || channel === 'EMAIL_AND_VIBER') {
@@ -123,9 +124,12 @@ export async function POST(request: NextRequest) {
           // Viber natively renders *text* as bold; collapse any **double** to single *
           const cleanViber = rawMsg
             .replace(/\*\*([^*]*)\*\*/g, (_m: string, inner: string) => inner.trim() ? `*${inner.trim()}*` : '')
-          const viberOk = await sendViberMessage({ to: phone, text: cleanViber, senderName: business.onomasia || business.afm })
-          viberSent = viberOk
-          if (viberOk) success = true
+          const viberResult = await sendViberMessage({ to: phone, text: cleanViber, senderName: business.onomasia || business.afm })
+          viberSent = viberResult.ok
+          if (viberResult.ok) success = true
+          else viberError = viberResult.reason
+        } else {
+          viberError = 'Δεν υπάρχει αριθμός τηλεφώνου'
         }
       }
     } catch (err: any) {
@@ -144,6 +148,7 @@ export async function POST(request: NextRequest) {
           recipient: business.email || '',
           status: emailSent ? 'sent' : 'failed',
           sentAt: emailSent ? new Date() : null,
+          errorMessage: emailSent ? null : 'Email: αποτυχία αποστολής',
         },
       })
     }
@@ -156,6 +161,7 @@ export async function POST(request: NextRequest) {
           recipient: business.viberPhone || business.phone || '',
           status: viberSent ? 'sent' : 'failed',
           sentAt: viberSent ? new Date() : null,
+          errorMessage: viberSent ? null : viberError || 'Viber: αποτυχία αποστολής',
         },
       })
     }
@@ -168,6 +174,7 @@ export async function POST(request: NextRequest) {
           recipient: business.email || business.viberPhone || business.phone || '',
           status: 'failed',
           sentAt: null,
+          errorMessage: viberError || 'Δεν υπάρχει email ούτε τηλέφωνο',
         },
       })
     }

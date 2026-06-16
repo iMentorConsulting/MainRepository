@@ -162,9 +162,12 @@ async function chatwootSendWithRetry(clientName: string, phone: string, message:
   return { ok: false, reason: lastErr }
 }
 
-export async function sendViberMessage(message: ViberMessage): Promise<boolean> {
+export async function sendViberMessage(message: ViberMessage): Promise<{ ok: boolean; reason: string }> {
   const phone = normalizeGreekPhone(message.to)
-  const { ok, reason } = await chatwootSendWithRetry(message.senderName || 'I-MENTOR', phone, message.text)
-  if (!ok) console.error(`[Viber] Send to ${phone} failed:`, reason)
-  return ok
+  if (!phone) return { ok: false, reason: `Empty phone number (raw: "${message.to}")` }
+  console.log(`[Viber] Attempting send to ${phone} (raw: "${message.to}")`)
+  const result = await chatwootSendWithRetry(message.senderName || 'I-MENTOR', phone, message.text)
+  if (!result.ok) console.error(`[Viber] Send to ${phone} failed: ${result.reason}`)
+  else console.log(`[Viber] Send to ${phone} succeeded`)
+  return result
 }

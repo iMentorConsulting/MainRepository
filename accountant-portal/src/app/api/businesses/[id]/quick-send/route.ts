@@ -29,6 +29,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
 
   let emailOk = false
   let viberOk = false
+  let viberReason = ''
 
   if ((channel === 'EMAIL' || channel === 'EMAIL_AND_VIBER') && business.email) {
     const cleanBody = message.replace(/\*([^*]*)\*/g, (_match: string, inner: string) => inner.trim() ? `<strong>${inner}</strong>` : '')
@@ -50,9 +51,11 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     const phone = business.viberPhone || business.phone || ''
     // Viber natively renders *text* as bold; collapse any **double** to single *
     const cleanViber = message.replace(/\*\*([^*]*)\*\*/g, (_match: string, inner: string) => inner.trim() ? `*${inner.trim()}*` : '')
-    viberOk = await sendViberMessage({ to: phone, text: cleanViber, senderName: business.onomasia || business.afm })
+    const viberResult = await sendViberMessage({ to: phone, text: cleanViber, senderName: business.onomasia || business.afm })
+    viberOk = viberResult.ok
+    viberReason = viberResult.reason
   }
 
   const success = emailOk || viberOk
-  return NextResponse.json({ success, emailOk, viberOk })
+  return NextResponse.json({ success, emailOk, viberOk, viberReason })
 }
