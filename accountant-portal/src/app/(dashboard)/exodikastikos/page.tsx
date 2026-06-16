@@ -130,66 +130,87 @@ export default function ExodikastikosPage() {
         </div>
       </div>
 
-      {/* ─── Commission teaser ───────────────────────────────────────────── */}
-      <div className="rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-50 to-teal-50 p-5 sm:p-6">
-        <div className="flex items-start gap-4">
-          <div className="shrink-0 w-12 h-12 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-md">
-            <Coins size={22} />
-          </div>
-          <div>
-            <h3 className="text-lg font-bold text-emerald-900 flex items-center gap-2">
-              Κερδίζετε προμήθεια σε κάθε ανάθεση
-              <Badge variant="success">Νέο εισόδημα</Badge>
-            </h3>
-            <p className="text-sm text-emerald-800/80 mt-1">
-              Κάθε υπόθεση πελάτη σας που προχωράει στον Εξωδικαστικό συνοδεύεται από αμοιβή για το γραφείο σας.
-              Δεν χρειάζεται να αναλάβετε καμία διαδικασία, απλά συστήνετε τον πελάτη και η I-MENTOR κάνει τα
-              υπόλοιπα. Η προμήθεια καταβάλλεται στο γραφείο σας με την πληρωμή της αρχικής αμοιβής από τον
-              πελάτη (όχι στην αμοιβή επιτυχίας) και εμφανίζεται στην ενότητα{' '}
-              <Link href="/commissions" className="font-semibold underline hover:text-emerald-900">Προμήθειες</Link>.
-            </p>
-          </div>
-        </div>
-      </div>
+      {/* ─── Info row: commission + methodology + steps ──────────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
 
-      {/* ─── Why it's different + How it works ──────────────────────────── */}
-      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm divide-y divide-gray-100">
-        <div className="px-4 py-3 flex items-center gap-2">
-          <Wand2 size={15} className="text-violet-500 shrink-0" />
-          <span className="text-xs font-bold text-gray-500 uppercase tracking-wide">Μεθοδολογία & Διαδικασία</span>
-        </div>
-        {[
-          { icon: FileSearch, color: 'text-violet-600 bg-violet-50', title: 'Εργαλείο πρόβλεψης αποτελέσματος', desc: 'Παράγουμε ρεαλιστική πρόβλεψη ρύθμισης πριν την υποβολή, ώστε ο πελάτης να ξέρει τι να περιμένει.' },
-          { icon: LayoutDashboard, color: 'text-indigo-600 bg-indigo-50', title: 'Προσωπικό portal παρακολούθησης', desc: 'Live παρακολούθηση υπόθεσης με έγγραφα & στάδια — χωρίς τηλέφωνα και emails.' },
-          { icon: PiggyBank, color: 'text-rose-600 bg-rose-50', title: 'Σχέδιο αναδιάρθρωσης ως μέρος της πρότασης', desc: 'Εκπονούμε και υποβάλλουμε σχέδιο αναδιάρθρωσης μαζί με την αίτηση για ισχυρότερη τεκμηρίωση.' },
-          { icon: Handshake, color: 'text-teal-600 bg-teal-50', title: '1. Σύσταση πελάτη', desc: 'Δημιουργείτε νέα ανάθεση με 2 κλικ από αυτή τη σελίδα. Τέλος.' },
-          { icon: FileSearch, color: 'text-blue-600 bg-blue-50', title: '2. Δωρεάν εκτίμηση ~15 ημερών', desc: 'Η I-MENTOR αντλεί στοιχεία οφειλών και ετοιμάζει εκτίμηση.' },
-          { icon: ShieldCheck, color: 'text-amber-600 bg-amber-50', title: '3. Διαπραγμάτευση (~2 μήνες)', desc: 'Υποβολή αίτησης, σχέδιο αναδιάρθρωσης και διαπραγμάτευση με πιστωτές.' },
-          { icon: CheckCircle2, color: 'text-emerald-600 bg-emerald-50', title: '4. Αρχική αμοιβή & Προμήθεια', desc: 'Ο πελάτης καταβάλλει αρχική αμοιβή και η προμήθεια του γραφείου σας καταβάλλεται αμέσως.' },
-        ].map((item, i) => (
-          <div key={i} className="flex items-start gap-3 px-4 py-2.5">
-            <div className={`shrink-0 w-7 h-7 rounded-lg flex items-center justify-center mt-0.5 ${item.color}`}>
-              <item.icon size={14} />
-            </div>
-            <div className="min-w-0">
-              <p className="text-sm font-semibold text-gray-800">{item.title}</p>
-              <p className="text-xs text-gray-400 mt-0.5">{item.desc}</p>
-            </div>
+        {/* Commission */}
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 flex flex-col gap-2">
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-lg bg-emerald-600 text-white flex items-center justify-center shrink-0"><Coins size={14} /></div>
+            <p className="text-sm font-bold text-emerald-900">Κερδίζετε προμήθεια <Badge variant="success" className="ml-1">Νέο</Badge></p>
           </div>
-        ))}
+          <p className="text-xs text-emerald-800/80">
+            Κάθε ανάθεση που προχωράει συνοδεύεται από αμοιβή για το γραφείο σας — καταβάλλεται με την πληρωμή της αρχικής αμοιβής από τον πελάτη.{' '}
+            <Link href="/commissions" className="font-semibold underline hover:text-emerald-900">Προμήθειες →</Link>
+          </p>
+          <div className="mt-auto pt-2 border-t border-emerald-200 grid grid-cols-3 gap-2 text-center">
+            {[['420', 'δόσεις τράπεζες'], ['240', 'δόσεις Δημόσιο'], ['~15', 'ημέρες εκτίμηση']].map(([n, l]) => (
+              <div key={n}>
+                <p className="text-base font-bold text-emerald-800">{n}</p>
+                <p className="text-[10px] text-emerald-600">{l}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Methodology */}
+        <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <Wand2 size={14} className="text-violet-500" />
+            <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">Γιατί είμαστε διαφορετικοί</p>
+          </div>
+          <div className="space-y-2.5">
+            {[
+              { icon: FileSearch, color: 'text-violet-600 bg-violet-50', title: 'Πρόβλεψη αποτελέσματος', desc: 'Ρεαλιστική εκτίμηση πριν την υποβολή.' },
+              { icon: LayoutDashboard, color: 'text-indigo-600 bg-indigo-50', title: 'Portal παρακολούθησης', desc: 'Live παρακολούθηση — χωρίς τηλέφωνα.' },
+              { icon: PiggyBank, color: 'text-rose-600 bg-rose-50', title: 'Σχέδιο αναδιάρθρωσης', desc: 'Εκπονείται και υποβάλλεται μαζί με την αίτηση.' },
+            ].map((item, i) => (
+              <div key={i} className="flex items-start gap-2.5">
+                <div className={`shrink-0 w-6 h-6 rounded-md flex items-center justify-center mt-0.5 ${item.color}`}><item.icon size={12} /></div>
+                <div>
+                  <p className="text-xs font-semibold text-gray-800">{item.title}</p>
+                  <p className="text-[11px] text-gray-400">{item.desc}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Steps */}
+        <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <Handshake size={14} className="text-indigo-500" />
+            <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">Εσείς απλά συστήνετε</p>
+          </div>
+          <div className="space-y-2.5">
+            {[
+              { n: '1', color: 'bg-teal-100 text-teal-700', title: 'Σύσταση πελάτη', desc: '2 κλικ από αυτή τη σελίδα. Τέλος.' },
+              { n: '2', color: 'bg-blue-100 text-blue-700', title: 'Δωρεάν εκτίμηση', desc: 'Η I-MENTOR ετοιμάζει εντός ~15 ημερών.' },
+              { n: '3', color: 'bg-amber-100 text-amber-700', title: 'Διαπραγμάτευση', desc: 'Υποβολή & διαπραγμάτευση (~2 μήνες).' },
+              { n: '4', color: 'bg-emerald-100 text-emerald-700', title: 'Αμοιβή & Προμήθεια', desc: 'Πελάτης πληρώνει → προμήθεια στο γραφείο σας.' },
+            ].map((s, i) => (
+              <div key={i} className="flex items-start gap-2.5">
+                <div className={`shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold mt-0.5 ${s.color}`}>{s.n}</div>
+                <div>
+                  <p className="text-xs font-semibold text-gray-800">{s.title}</p>
+                  <p className="text-[11px] text-gray-400">{s.desc}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
 
       {/* ─── Onboarding videos + key facts ──────────────────────────────── */}
       <div className="flex flex-col lg:flex-row gap-6 items-start">
-        {/* Videos */}
         <div className="flex-1 min-w-0">
-          <h3 className="text-base font-bold text-gray-900 mb-3 flex items-center gap-2">
-            <PlayCircle size={18} className="text-indigo-600" />
+          <h3 className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
+            <PlayCircle size={15} className="text-indigo-500" />
             Σύντομα βίντεο ενημέρωσης
           </h3>
-          <div className="flex flex-wrap gap-4">
+          <div className="flex flex-wrap gap-3">
             {ONBOARDING_VIDEOS.map((v, i) => (
-              <div key={i} className="w-40 shrink-0">
+              <div key={i} className="w-36 shrink-0">
                 <div className="aspect-[9/16] rounded-xl border border-gray-200 bg-gray-50 overflow-hidden flex items-center justify-center">
                   {v.videoId ? (
                     <iframe
@@ -200,38 +221,30 @@ export default function ExodikastikosPage() {
                       allowFullScreen
                     />
                   ) : (
-                    <PlayCircle size={28} className="text-gray-300" />
+                    <PlayCircle size={24} className="text-gray-300" />
                   )}
                 </div>
-                <p className="text-xs text-gray-500 mt-1.5 text-center">{v.title}</p>
+                <p className="text-[11px] text-gray-400 mt-1 text-center leading-tight">{v.title}</p>
               </div>
             ))}
           </div>
         </div>
 
-        {/* Key facts cards */}
-        <div className="flex flex-col gap-4 lg:w-80 shrink-0">
-          <div className="flex items-center gap-3 bg-white rounded-xl border border-gray-200 shadow-sm p-4">
-            <div className="shrink-0 w-10 h-10 rounded-lg bg-rose-100 text-rose-600 flex items-center justify-center"><TrendingDown size={20} /></div>
-            <div>
-              <p className="text-sm font-bold text-gray-900">Ρεαλιστική, τεκμηριωμένη πρόταση</p>
-              <p className="text-xs text-gray-500">Κάθε ρύθμιση βασίζεται σε ανάλυση δεδομένων, όχι σε υποσχέσεις για μεγάλα κουρέματα.</p>
+        {/* Key facts */}
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm divide-y divide-gray-100 lg:w-72 shrink-0">
+          {[
+            { icon: TrendingDown, color: 'text-rose-600 bg-rose-50', title: 'Ρεαλιστική πρόταση', desc: 'Βάσει ανάλυσης δεδομένων, όχι υποσχέσεων.' },
+            { icon: CalendarClock, color: 'text-amber-600 bg-amber-50', title: 'Έως 420 / 240 δόσεις', desc: 'Τράπεζες/funds & Δημόσιο/ΕΦΚΑ.' },
+            { icon: Scale, color: 'text-indigo-600 bg-indigo-50', title: 'Προμήθεια εντός ~15 ημερών', desc: 'Με την καταβολή αρχικής αμοιβής.' },
+          ].map((item, i) => (
+            <div key={i} className="flex items-center gap-3 px-4 py-3">
+              <div className={`shrink-0 w-8 h-8 rounded-lg flex items-center justify-center ${item.color}`}><item.icon size={16} /></div>
+              <div>
+                <p className="text-xs font-bold text-gray-800">{item.title}</p>
+                <p className="text-[11px] text-gray-400">{item.desc}</p>
+              </div>
             </div>
-          </div>
-          <div className="flex items-center gap-3 bg-white rounded-xl border border-gray-200 shadow-sm p-4">
-            <div className="shrink-0 w-10 h-10 rounded-lg bg-amber-100 text-amber-600 flex items-center justify-center"><CalendarClock size={20} /></div>
-            <div>
-              <p className="text-sm font-bold text-gray-900">Έως 420 / 240 δόσεις</p>
-              <p className="text-xs text-gray-500">ευνοϊκή αποπληρωμή σε τράπεζες/funds και Δημόσιο/ΕΦΚΑ, ανάλογα με την υπόθεση.</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-3 bg-white rounded-xl border border-gray-200 shadow-sm p-4">
-            <div className="shrink-0 w-10 h-10 rounded-lg bg-indigo-100 text-indigo-600 flex items-center justify-center"><Scale size={20} /></div>
-            <div>
-              <p className="text-sm font-bold text-gray-900">Προμήθεια εντός ~15 ημερών</p>
-              <p className="text-xs text-gray-500">Με την καταβολή της αρχικής αμοιβής μετά την εκτίμηση, η προμήθεια του γραφείου σας γίνεται διαθέσιμη.</p>
-            </div>
-          </div>
+          ))}
         </div>
       </div>
 
