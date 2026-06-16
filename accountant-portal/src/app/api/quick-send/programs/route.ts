@@ -12,17 +12,32 @@ export async function GET(request: NextRequest) {
   if (businessIds.length === 0) return NextResponse.json({ programs: [] })
 
   // ACCOUNTANTs can only query matches for their own businesses
-  const matchWhere: any = { businessId: { in: businessIds } }
+  const matchWhere: any = {
+    businessId: { in: businessIds },
+    status: { not: 'REJECTED' },
+  }
   if (session.user.role === 'ACCOUNTANT' && (session.user as any).accountantId) {
     matchWhere.business = { accountantId: (session.user as any).accountantId }
   }
 
   const matches = await prisma.programMatch.findMany({
     where: matchWhere,
-    select: { program: { select: { id: true, title: true } } },
-    distinct: ['programId'],
+    select: { businessId: true, programId: true, program: { select: { id: true, title: true } } },
   })
 
-  const programs = matches.map(m => m.program).filter(Boolean)
+  // Keep only programs matched by ALL selected businesses (intersection)
+  const countByProgram = new Map<string, number>()
+  const programById = new Map<string, { id: string; title: string }>()
+  for (const m of matches) {
+    countByProgram.set(m.programId, (countByProgram.get(m.programId) || 0) + 1)
+    if (m.program) programById.set(m.programId, m.program)
+  }
+
+  const total = businessIds.length
+  const programs = [...countByProgram.entries()]
+    .filter(([, count]) => count >= total)
+    .map(([id]) => programById.get(id)!)
+    .filter(Boolean)
+
   return NextResponse.json({ programs })
 }
