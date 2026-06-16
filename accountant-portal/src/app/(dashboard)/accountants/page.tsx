@@ -213,7 +213,7 @@ export default function AccountantsPage() {
                         {a.logoUrl ? (
                           <>
                             {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img src={a.logoUrl} alt="logo" className="h-8 w-8 object-contain rounded border border-gray-200 bg-white p-0.5 cursor-pointer" onClick={() => handleLogoClick(a.id)} title="Αντικατάσταση λογότυπου" />
+                            <img src={a.logoUrl} alt="logo" className="h-8 w-8 object-contain rounded border border-slate-700 bg-slate-900 p-0.5 cursor-pointer" onClick={() => handleLogoClick(a.id)} title="Αντικατάσταση λογότυπου" />
                             <button
                               onClick={() => handleLogoRemove(a.id)}
                               disabled={uploadingId === a.id}
