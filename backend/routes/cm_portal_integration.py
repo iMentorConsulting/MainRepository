@@ -49,7 +49,7 @@ def _assignment_to_dict(a: CMPortalAssignment) -> dict:
 
 
 # ── Portal status mapping ────────────────────────────────────────────────────
-_CANCELLED_STATUSES = {"ΑΚΥΡΩΣΗ", "ΠΑΡΑΙΤΗΣΗ", "ΑΠΟΡΡΙΨΗ"}
+_CANCELLED_STATUSES = {"ΑΚΥΡΩΣΗ", "ΠΑΡΑΙΤΗΣΗ", "ΑΠΟΡΡΙΨΗ", "ΜΗ ΕΠΙΛΕΞΙΜΟΣ", "ΟΧΙ ΕΝΔΙΑΦΕΡΟΝ"}
 _COMPLETED_STATUSES = {"ΟΛΟΚΛΗΡΩΜΕΝΗ ΥΠΟΘΕΣΗ"}
 
 

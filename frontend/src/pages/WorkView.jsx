@@ -680,6 +680,11 @@ export default function WorkView() {
                     {c.client_name}
                     <ArrowTopRightOnSquareIcon className="w-3.5 h-3.5 opacity-0 group-hover:opacity-60 shrink-0" />
                   </Link>
+                  {c.portal_case_number && (
+                    <span className="inline-block mt-0.5 text-[10px] px-1.5 py-0.5 rounded-full font-bold bg-purple-600 text-white" title={`LOGISTIS Portal — Υπόθεση #${c.portal_case_number}`}>
+                      🔗 LOGISTIS #{c.portal_case_number}
+                    </span>
+                  )}
                   <div className="text-xs text-gray-400 mt-0.5 truncate max-w-[10rem]">{c.service_type || '—'}</div>
                   {c.phone && (
                     <a
