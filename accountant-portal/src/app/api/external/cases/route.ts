@@ -37,6 +37,16 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ id: updated.id, caseNumber: updated.caseNumber, created: false })
   }
 
+  // Link to the most recent unlinked case for this business (created by the portal, awaiting external ref)
+  const unlinked = await prisma.clientCase.findFirst({
+    where: { businessId: business.id, externalRef: null },
+    orderBy: { createdAt: 'desc' },
+  })
+  if (unlinked) {
+    const updated = await applyExternalUpdate(unlinked.id, { status, externalStatus, note, dueDate, externalRef })
+    return NextResponse.json({ id: updated.id, caseNumber: updated.caseNumber, created: false })
+  }
+
   const clientCase = await prisma.clientCase.create({
     data: {
       accountantId: business.accountantId,
