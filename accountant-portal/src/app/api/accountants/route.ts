@@ -11,7 +11,11 @@ export async function GET(request: NextRequest) {
   }
 
   const accountants = await prisma.accountant.findMany({
-    include: { _count: { select: { businesses: { where: notIndividualWhere }, users: true } } },
+    select: {
+      id: true, officeName: true, contactPerson: true, email: true, phone: true,
+      active: true, approved: true, logoUrl: true,
+      _count: { select: { businesses: { where: notIndividualWhere }, users: true } },
+    },
     orderBy: { officeName: 'asc' },
   })
 

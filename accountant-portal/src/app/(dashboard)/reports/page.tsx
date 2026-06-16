@@ -182,20 +182,26 @@ export default function ReportsPage() {
         )}
 
         {/* Milestone badges */}
-        {totalBiz > 0 && (
-          <div className="mt-4 flex flex-wrap gap-2">
-            {[10, 25, 50, 100, 200, 500, 1000, 1500, 2000, 2500, 3000].map(n => (
-              <span key={n}
-                className={`text-xs px-2.5 py-1 rounded-full font-semibold border transition-all ${
-                  totalBiz >= n
-                    ? 'bg-indigo-600 text-white border-indigo-600'
-                    : 'bg-gray-50 text-gray-300 border-gray-200'
-                }`}>
-                {totalBiz >= n ? '✓' : '🔒'} {n} επιχ.
-              </span>
-            ))}
-          </div>
-        )}
+        {totalBiz > 0 && (() => {
+          const milestones =
+            totalBiz <= 100  ? [5, 10, 15, 20, 25, 30, 40, 50, 75, 100] :
+            totalBiz <= 300  ? [125, 150, 175, 200, 225, 250, 265, 275, 285, 300] :
+                               [325, 350, 375, 400, 450, 500, 600, 700, 800, 1000]
+          return (
+            <div className="mt-4 flex flex-wrap gap-2">
+              {milestones.map(n => (
+                <span key={n}
+                  className={`text-xs px-2.5 py-1 rounded-full font-semibold border transition-all ${
+                    totalBiz >= n
+                      ? 'bg-indigo-600 text-white border-indigo-600'
+                      : 'bg-gray-50 text-gray-300 border-gray-200'
+                  }`}>
+                  {totalBiz >= n ? '✓' : '🔒'} {n} επιχ.
+                </span>
+              ))}
+            </div>
+          )
+        })()}
       </div>
 
       {/* ── Campaign History ─────────────────────────────────────────────── */}
