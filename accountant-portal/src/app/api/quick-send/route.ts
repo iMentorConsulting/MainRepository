@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
         })
       : Promise.resolve([]),
     programId
-      ? prisma.program.findUnique({ where: { id: programId }, select: { title: true, endDate: true, extraCriteriaIds: true } })
+      ? prisma.program.findUnique({ where: { id: programId }, select: { title: true, description: true, endDate: true, extraCriteriaIds: true } })
       : Promise.resolve(null),
   ])
 
@@ -77,6 +77,7 @@ export async function POST(request: NextRequest) {
       accountant_office: business.accountant?.officeName || '',
       kad_description: business.activities[0]?.firmActCode || '',
       program_title: program?.title || '',
+      program_description: program?.description || '',
       program_deadline: programDeadlineText,
       extra_criteria: extraCriteriaText,
       match_reason: (matchByBusiness.get(business.id) || []).map((r: string) => `• ${r}`).join('\n'),

@@ -57,6 +57,7 @@ async function processCampaignSend(
       accountant_name: business.accountant?.contactPerson || '',
       accountant_office: business.accountant?.officeName || '',
       program_title: campaign.program?.title || '',
+      program_description: campaign.program?.description || '',
       program_deadline: programDeadlineText,
       extra_criteria: extraCriteriaText,
       kad_description: business.activities[0]?.firmActCode || '',

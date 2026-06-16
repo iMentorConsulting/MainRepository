@@ -16,6 +16,7 @@ const PLACEHOLDERS = [
   { key: '{{accountant_name}}', label: 'Λογιστής' },
   { key: '{{accountant_office}}', label: 'Γραφείο' },
   { key: '{{program_title}}', label: 'Πρόγραμμα' },
+  { key: '{{program_description}}', label: 'Περιγραφή Προγράμματος' },
   { key: '{{program_deadline}}', label: 'Προθεσμία Προγράμματος' },
   { key: '{{extra_criteria}}', label: 'Πρόσθετες Προϋποθέσεις' },
   { key: '{{kad_description}}', label: 'ΚΑΔ' },
