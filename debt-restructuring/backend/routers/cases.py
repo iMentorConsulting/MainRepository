@@ -147,7 +147,25 @@ def _chatwoot_send(client_name: str, phone: str, message: str) -> tuple[bool, st
             )
             print(f"[Chatwoot] create_contact status={r.status_code} body={r.text[:300]}")
             if r.status_code in (200, 201):
-                contact_id = r.json().get("id")
+                body = r.json()
+                contact_id = body.get("id") or body.get("data", {}).get("id") or None
+                # Fallback: if body shape is unexpected, search immediately — contact was just created
+                if not contact_id:
+                    print(f"[Chatwoot] 200/201 but no id in body, falling back to search...")
+                    try:
+                        r2 = http_requests.get(
+                            f"{base}/contacts/search",
+                            params={"q": phone, "include_contacts": "true"},
+                            headers=headers, timeout=8,
+                        )
+                        if r2.status_code == 200:
+                            payload = r2.json().get("payload", [])
+                            contacts = payload if isinstance(payload, list) else payload.get("contacts", [])
+                            if contacts:
+                                contact_id = contacts[0]["id"]
+                                print(f"[Chatwoot] fallback search found id={contact_id}")
+                    except Exception as e2:
+                        print(f"[Chatwoot] fallback search exception: {e2}")
             else:
                 # Some Chatwoot versions embed the existing contact in the error body
                 try:

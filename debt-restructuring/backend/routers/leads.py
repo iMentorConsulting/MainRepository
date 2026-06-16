@@ -84,7 +84,18 @@ def _chatwoot_send(client_name: str, phone: str, message: str) -> tuple:
         r = _req.post(f"{cw_url}/api/v1/accounts/{cw_account}/contacts",
                       headers=hdrs, json={"name": client_name, "phone_number": phone}, timeout=10)
         if r.status_code in (200, 201):
-            contact_id = r.json().get("id")
+            body = r.json()
+            contact_id = body.get("id") or body.get("data", {}).get("id") or None
+            # Fallback: if body shape is unexpected, search immediately — contact was just created
+            if not contact_id:
+                r2 = _req.get(f"{cw_url}/api/v1/accounts/{cw_account}/contacts/search",
+                              headers=hdrs, params={"q": phone, "include_contacts": True}, timeout=10)
+                if r2.status_code == 200:
+                    items = r2.json().get("payload", {})
+                    if isinstance(items, dict):
+                        items = items.get("contacts", [])
+                    if items:
+                        contact_id = items[0]["id"]
         elif r.status_code == 422:
             time.sleep(2)
             r2 = _req.get(f"{cw_url}/api/v1/accounts/{cw_account}/contacts/search",
