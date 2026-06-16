@@ -185,8 +185,8 @@ export default function ReportsPage() {
         {totalBiz > 0 && (() => {
           const milestones =
             totalBiz <= 100  ? [5, 10, 15, 20, 25, 30, 40, 50, 75, 100] :
-            totalBiz <= 300  ? [125, 150, 175, 200, 225, 250, 265, 275, 285, 300] :
-                               [325, 350, 375, 400, 450, 500, 600, 700, 800, 1000]
+            totalBiz <= 300  ? [100, 125, 150, 175, 200, 225, 250, 265, 275, 300] :
+                               [300, 325, 350, 400, 450, 500, 600, 700, 800, 1000]
           return (
             <div className="mt-4 flex flex-wrap gap-2">
               {milestones.map(n => (

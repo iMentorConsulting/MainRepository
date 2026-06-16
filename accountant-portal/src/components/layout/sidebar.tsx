@@ -98,7 +98,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
             <div className="flex flex-col items-center gap-2 py-2 mb-4">
               {accountantLogoUrl ? (
                 /* eslint-disable-next-line @next/next/no-img-element */
-                <img src={accountantLogoUrl} alt="Accountant" className="max-h-24 max-w-[180px] w-auto object-contain drop-shadow-lg" />
+                <img src={accountantLogoUrl} alt="Accountant" className="max-h-32 max-w-[200px] w-auto object-contain drop-shadow-lg" />
               ) : logoUrl ? (
                 /* eslint-disable-next-line @next/next/no-img-element */
                 <img src={logoUrl} alt="I-MENTOR" className="max-h-24 max-w-[180px] w-auto object-contain drop-shadow-lg" />

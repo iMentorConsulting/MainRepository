@@ -39,11 +39,11 @@ export function LogoUploader({ label, value, onChange, helperText }: LogoUploade
     <div className="space-y-1.5">
       <label className="text-sm font-medium text-gray-700">{label}</label>
       <div className="flex items-center gap-3">
-        <div className="w-20 h-20 rounded-xl border border-dashed border-gray-300 bg-[repeating-conic-gradient(#f1f5f9_0%_25%,white_0%_50%)] bg-[length:16px_16px] flex items-center justify-center overflow-hidden">
+        <div className="w-20 h-20 rounded-xl border border-slate-600 bg-slate-900 flex items-center justify-center overflow-hidden">
           {value ? (
             <img src={value} alt={label} className="max-w-full max-h-full object-contain" />
           ) : (
-            <ImageIcon size={24} className="text-gray-300" />
+            <ImageIcon size={24} className="text-slate-600" />
           )}
         </div>
         <div className="space-y-1.5">
