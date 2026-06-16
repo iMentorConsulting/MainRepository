@@ -95,19 +95,23 @@ export function Sidebar({ open, onClose }: SidebarProps) {
           </button>
 
           <Link href="/" className="block">
-            <div className="flex items-center justify-center gap-3 py-2 mb-4">
-              {logoUrl ? (
+            <div className="flex flex-col items-center gap-2 py-2 mb-4">
+              {accountantLogoUrl ? (
                 <>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={logoUrl} alt="I-MENTOR" className="max-h-24 w-auto object-contain drop-shadow-lg" />
-                  {accountantLogoUrl && (
-                    <>
-                      <div className="w-px h-12 bg-slate-700" />
+                  <img src={accountantLogoUrl} alt="Accountant" className="max-h-16 max-w-[180px] w-auto object-contain drop-shadow-lg" />
+                  {logoUrl && (
+                    <div className="flex items-center gap-1.5 opacity-60">
+                      <div className="h-px w-8 bg-slate-600" />
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={accountantLogoUrl} alt="LOGISTIS" className="max-h-24 w-auto object-contain drop-shadow-lg" />
-                    </>
+                      <img src={logoUrl} alt="I-MENTOR" className="max-h-7 w-auto object-contain" />
+                      <div className="h-px w-8 bg-slate-600" />
+                    </div>
                   )}
                 </>
+              ) : logoUrl ? (
+                /* eslint-disable-next-line @next/next/no-img-element */
+                <img src={logoUrl} alt="I-MENTOR" className="max-h-24 max-w-[180px] w-auto object-contain drop-shadow-lg" />
               ) : (
                 <div className="flex flex-col items-center gap-1.5">
                   <div className="flex items-center gap-2.5">
