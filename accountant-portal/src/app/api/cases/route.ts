@@ -58,7 +58,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Η επιχείρηση είναι υποχρεωτική' }, { status: 400 })
   }
 
-  const business = await prisma.business.findUnique({ where: { id: businessId }, select: { id: true, accountantId: true, onomasia: true, afm: true } })
+  if (session.user.role === 'ACCOUNTANT' && !programId) {
+    return NextResponse.json({ error: 'Το πρόγραμμα είναι υποχρεωτικό' }, { status: 400 })
+  }
+
+  const business = await prisma.business.findUnique({ where: { id: businessId }, select: { id: true, accountantId: true, onomasia: true, afm: true, phone: true, email: true } })
   if (!business) return NextResponse.json({ error: 'Δεν βρέθηκε η επιχείρηση' }, { status: 404 })
 
   // Program (if any) must be a non-rejected match of this business
@@ -141,6 +145,8 @@ export async function POST(request: NextRequest) {
     caseNumber: clientCase.caseNumber,
     afm: business.afm,
     onomasia: business.onomasia,
+    phone: business.phone || null,
+    email: business.email || null,
     accountantOffice: clientCase.accountant?.officeName || null,
     caseType: clientCase.caseType,
     description: clientCase.description,

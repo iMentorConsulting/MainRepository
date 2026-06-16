@@ -3,9 +3,9 @@ import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Modal } from '@/components/ui/modal'
 
-export function NewCaseModal({ open, onClose, onCreated, initialBusinessId, initialProgramId }: {
+export function NewCaseModal({ open, onClose, onCreated, initialBusinessId, initialProgramId, userRole }: {
   open: boolean; onClose: () => void; onCreated: (c: any) => void
-  initialBusinessId?: string; initialProgramId?: string
+  initialBusinessId?: string; initialProgramId?: string; userRole?: string
 }) {
   const [businesses, setBusinesses] = useState<any[]>([])
   const [matchedPrograms, setMatchedPrograms] = useState<{ id: string; title: string }[]>([])
@@ -52,6 +52,10 @@ export function NewCaseModal({ open, onClose, onCreated, initialBusinessId, init
   async function handleSubmit() {
     if (!form.businessId) {
       alert('Επιλέξτε επιχείρηση')
+      return
+    }
+    if (userRole === 'ACCOUNTANT' && !form.programId) {
+      alert('Παρακαλούμε επιλέξτε πρόγραμμα για να προχωρήσετε με την ανάθεση')
       return
     }
     if (contact.needsPhone && !contact.phone.trim()) {
