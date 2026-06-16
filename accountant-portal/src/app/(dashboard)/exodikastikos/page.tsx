@@ -216,55 +216,58 @@ export default function ExodikastikosPage() {
         </div>
       </div>
 
-      {/* ─── Onboarding videos ────────────────────────────────────────────── */}
-      <div>
-        <h3 className="text-base font-bold text-gray-900 mb-3 flex items-center gap-2">
-          <PlayCircle size={18} className="text-indigo-600" />
-          Σύντομα βίντεο ενημέρωσης
-        </h3>
-        <div className="flex flex-wrap gap-4">
-          {ONBOARDING_VIDEOS.map((v, i) => (
-            <div key={i} className="w-40 shrink-0">
-              <div className="aspect-[9/16] rounded-xl border border-gray-200 bg-gray-50 overflow-hidden flex items-center justify-center">
-                {v.videoId ? (
-                  <iframe
-                    className="w-full h-full"
-                    src={`https://www.youtube.com/embed/${v.videoId}`}
-                    title={v.title}
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                    allowFullScreen
-                  />
-                ) : (
-                  <PlayCircle size={28} className="text-gray-300" />
-                )}
+      {/* ─── Onboarding videos + key facts ──────────────────────────────── */}
+      <div className="flex flex-col lg:flex-row gap-6 items-start">
+        {/* Videos */}
+        <div className="flex-1 min-w-0">
+          <h3 className="text-base font-bold text-gray-900 mb-3 flex items-center gap-2">
+            <PlayCircle size={18} className="text-indigo-600" />
+            Σύντομα βίντεο ενημέρωσης
+          </h3>
+          <div className="flex flex-wrap gap-4">
+            {ONBOARDING_VIDEOS.map((v, i) => (
+              <div key={i} className="w-40 shrink-0">
+                <div className="aspect-[9/16] rounded-xl border border-gray-200 bg-gray-50 overflow-hidden flex items-center justify-center">
+                  {v.videoId ? (
+                    <iframe
+                      className="w-full h-full"
+                      src={`https://www.youtube.com/embed/${v.videoId}`}
+                      title={v.title}
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                      allowFullScreen
+                    />
+                  ) : (
+                    <PlayCircle size={28} className="text-gray-300" />
+                  )}
+                </div>
+                <p className="text-xs text-gray-500 mt-1.5 text-center">{v.title}</p>
               </div>
-              <p className="text-xs text-gray-500 mt-1.5 text-center">{v.title}</p>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
-      </div>
 
-      {/* ─── Why it's a serious option ───────────────────────────────────── */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="flex items-center gap-3 bg-white rounded-xl border border-gray-200 shadow-sm p-4">
-          <div className="shrink-0 w-10 h-10 rounded-lg bg-rose-100 text-rose-600 flex items-center justify-center"><TrendingDown size={20} /></div>
-          <div>
-            <p className="text-sm font-bold text-gray-900">Ρεαλιστική, τεκμηριωμένη πρόταση</p>
-            <p className="text-xs text-gray-500">Κάθε ρύθμιση βασίζεται σε ανάλυση δεδομένων, όχι σε υποσχέσεις για μεγάλα κουρέματα.</p>
+        {/* Key facts cards */}
+        <div className="flex flex-col gap-4 lg:w-80 shrink-0">
+          <div className="flex items-center gap-3 bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+            <div className="shrink-0 w-10 h-10 rounded-lg bg-rose-100 text-rose-600 flex items-center justify-center"><TrendingDown size={20} /></div>
+            <div>
+              <p className="text-sm font-bold text-gray-900">Ρεαλιστική, τεκμηριωμένη πρόταση</p>
+              <p className="text-xs text-gray-500">Κάθε ρύθμιση βασίζεται σε ανάλυση δεδομένων, όχι σε υποσχέσεις για μεγάλα κουρέματα.</p>
+            </div>
           </div>
-        </div>
-        <div className="flex items-center gap-3 bg-white rounded-xl border border-gray-200 shadow-sm p-4">
-          <div className="shrink-0 w-10 h-10 rounded-lg bg-amber-100 text-amber-600 flex items-center justify-center"><CalendarClock size={20} /></div>
-          <div>
-            <p className="text-sm font-bold text-gray-900">Έως 420 / 240 δόσεις</p>
-            <p className="text-xs text-gray-500">ευνοϊκή αποπληρωμή σε τράπεζες/funds και Δημόσιο/ΕΦΚΑ, ανάλογα με την υπόθεση.</p>
+          <div className="flex items-center gap-3 bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+            <div className="shrink-0 w-10 h-10 rounded-lg bg-amber-100 text-amber-600 flex items-center justify-center"><CalendarClock size={20} /></div>
+            <div>
+              <p className="text-sm font-bold text-gray-900">Έως 420 / 240 δόσεις</p>
+              <p className="text-xs text-gray-500">ευνοϊκή αποπληρωμή σε τράπεζες/funds και Δημόσιο/ΕΦΚΑ, ανάλογα με την υπόθεση.</p>
+            </div>
           </div>
-        </div>
-        <div className="flex items-center gap-3 bg-white rounded-xl border border-gray-200 shadow-sm p-4">
-          <div className="shrink-0 w-10 h-10 rounded-lg bg-indigo-100 text-indigo-600 flex items-center justify-center"><Scale size={20} /></div>
-          <div>
-            <p className="text-sm font-bold text-gray-900">Προμήθεια εντός ~15 ημερών</p>
-            <p className="text-xs text-gray-500">Με την καταβολή της αρχικής αμοιβής μετά την εκτίμηση, η προμήθεια του γραφείου σας γίνεται διαθέσιμη.</p>
+          <div className="flex items-center gap-3 bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+            <div className="shrink-0 w-10 h-10 rounded-lg bg-indigo-100 text-indigo-600 flex items-center justify-center"><Scale size={20} /></div>
+            <div>
+              <p className="text-sm font-bold text-gray-900">Προμήθεια εντός ~15 ημερών</p>
+              <p className="text-xs text-gray-500">Με την καταβολή της αρχικής αμοιβής μετά την εκτίμηση, η προμήθεια του γραφείου σας γίνεται διαθέσιμη.</p>
+            </div>
           </div>
         </div>
       </div>
