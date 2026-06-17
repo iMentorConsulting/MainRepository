@@ -7,12 +7,13 @@ import { runMatchingForBusiness } from '@/lib/matching'
 // Auth: header `x-api-key` must match env VAT_UPDATE_API_KEY.
 // The form sends VAT, EMAIL, VIBER, REFERER as URL query parameters on a POST request.
 
-function checkApiKey(request: NextRequest): boolean {
+function checkApiKey(request: NextRequest, body: any): boolean {
   const key = process.env.VAT_UPDATE_API_KEY
   if (!key) return false
   const headerKey = request.headers.get('x-api-key')
   const queryKey = request.nextUrl.searchParams.get('key')
-  return headerKey === key || queryKey === key
+  const bodyKey = body?.key
+  return headerKey === key || queryKey === key || bodyKey === key
 }
 
 function normalizePhone(value: string | null): string | null {
@@ -25,10 +26,10 @@ function normalizePhone(value: string | null): string | null {
 }
 
 export async function POST(request: NextRequest) {
-  if (!checkApiKey(request)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
   const { searchParams } = request.nextUrl
   const body = await request.json().catch(() => ({}))
+
+  if (!checkApiKey(request, body)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const afm = (searchParams.get('VAT') || body.VAT || body.afm || '').replace(/\D/g, '')
   const email = (searchParams.get('EMAIL') || body.EMAIL || body.email || '').trim() || null
