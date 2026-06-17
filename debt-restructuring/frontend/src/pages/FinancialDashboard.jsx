@@ -1396,7 +1396,7 @@ function WinbackPanel({ cases, onCasesUpdate }) {
     if (c.commercial_offer?.winback_requested) return true
     if (c.contact_stage !== 'Δεν Ενδιαφέρεται') return false
     const ws = c.commercial_offer?.winback_status
-    if (ws === 'approved' || ws === 'sent') return false
+    if (ws === 'approved' || ws === 'sent' || ws === 'dismissed') return false
     const ref = c.stage_changed_at || c.updated_at
     if (!ref) return false
     return (now - new Date(ref)) / (1000 * 60 * 60 * 24) >= WINBACK_DAYS
