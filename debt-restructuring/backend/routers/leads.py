@@ -154,15 +154,30 @@ def _chatwoot_send_with_retry(client_name: str, phone: str, message: str, max_at
 
 
 def _markup_to_html(text: str) -> str:
+    """Render our lightweight markup (**bold**, ▸ bullets, [c=#hex]color[/c]) as a styled HTML email."""
     import re as _re
     import html as _html
     escaped = _html.escape(text)
-    # **bold**
     escaped = _re.sub(r'\*\*([^*]+)\*\*', r'<strong>\1</strong>', escaped)
-    # [c=#hex]text[/c]
     escaped = _re.sub(r'\[c=(#[0-9a-fA-F]{3,6})\]([^\[]+)\[/c\]', r'<span style="color:\1">\2</span>', escaped)
-    escaped = escaped.replace('\n', '<br>\n')
-    return f'<html><body style="font-family:Arial,sans-serif;font-size:14px;line-height:1.6">{escaped}</body></html>'
+
+    blocks = []
+    for block in escaped.split('\n\n'):
+        lines = [l for l in block.split('\n') if l.strip()]
+        if not lines:
+            continue
+        if all(l.lstrip().startswith(('▸', '•', '-')) for l in lines):
+            items = ''.join(f'<li style="margin:4px 0;">{l.lstrip()[1:].strip()}</li>' for l in lines)
+            blocks.append(f'<ul style="margin:10px 0 16px;padding-left:18px;color:#1e293b;">{items}</ul>')
+        else:
+            blocks.append(f'<p style="margin:0 0 14px;line-height:1.65;">{"<br>".join(lines)}</p>')
+    body_html = ''.join(blocks)
+
+    return f"""<!DOCTYPE html><html><body style="margin:0;padding:24px;background:#f1f5f9;font-family:Arial,Helvetica,sans-serif;">
+<div style="max-width:560px;margin:0 auto;background:#ffffff;border-radius:14px;padding:28px 32px;box-shadow:0 2px 10px rgba(0,0,0,0.06);font-size:15px;color:#1e293b;">
+{body_html}
+</div>
+</body></html>"""
 
 
 def _markup_strip(text: str) -> str:
