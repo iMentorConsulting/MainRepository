@@ -5,7 +5,7 @@ import { redirect } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { TemplateEditor } from '@/components/campaigns/template-editor'
-import { Mail, MessageCircle, ChevronDown, ChevronUp, Plus } from 'lucide-react'
+import { Mail, MessageCircle, ChevronDown, ChevronUp, Plus, Trash2 } from 'lucide-react'
 
 interface Template {
   id: string
@@ -20,7 +20,7 @@ interface Template {
   active: boolean
 }
 
-function TemplateCard({ template, onSaved }: { template: Template; onSaved: (t: Template) => void }) {
+function TemplateCard({ template, onSaved, onDeleted }: { template: Template; onSaved: (t: Template) => void; onDeleted: (id: string) => void }) {
   const [open, setOpen] = useState(false)
   const [label, setLabel] = useState(template.label)
   const [description, setDescription] = useState(template.description)
@@ -55,6 +55,12 @@ function TemplateCard({ template, onSaved }: { template: Template; onSaved: (t: 
       body: JSON.stringify({ active: !template.active }),
     })
     if (res.ok) onSaved(await res.json())
+  }
+
+  async function remove() {
+    if (!confirm(`Διαγραφή του προτύπου "${template.label}"; Η ενέργεια δεν αναιρείται.`)) return
+    const res = await fetch(`/api/admin/templates/${template.id}`, { method: 'DELETE' })
+    if (res.ok) onDeleted(template.id)
   }
 
   return (
@@ -122,6 +128,10 @@ function TemplateCard({ template, onSaved }: { template: Template; onSaved: (t: 
               {saving ? 'Αποθήκευση...' : 'Αποθήκευση'}
             </Button>
             {saved && <span className="text-xs text-green-600">Αποθηκεύτηκε!</span>}
+            <Button size="sm" variant="ghost" className="text-red-600 hover:bg-red-50 ml-auto" onClick={remove}>
+              <Trash2 size={14} className="mr-1.5" />
+              Διαγραφή Προτύπου
+            </Button>
           </div>
         </div>
       )}
@@ -242,6 +252,10 @@ export default function TemplatesPage() {
     setTemplates(prev => prev.map(t => t.id === updated.id ? updated : t))
   }
 
+  function removeTemplate(id: string) {
+    setTemplates(prev => prev.filter(t => t.id !== id))
+  }
+
   if (loading) return (
     <div className="flex items-center justify-center h-64">
       <div className="animate-spin w-8 h-8 border-4 border-blue-800 border-t-transparent rounded-full" />
@@ -280,7 +294,7 @@ export default function TemplatesPage() {
                 <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">{cat}</h3>
                 <div className="space-y-2">
                   {chTemplates.filter(t => t.category === cat).map(t => (
-                    <TemplateCard key={t.id} template={t} onSaved={updateTemplate} />
+                    <TemplateCard key={t.id} template={t} onSaved={updateTemplate} onDeleted={removeTemplate} />
                   ))}
                 </div>
               </div>

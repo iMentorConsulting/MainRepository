@@ -86,9 +86,9 @@ export function QuickSendModal({ businesses, onClose, onSent }: QuickSendModalPr
   async function handleSend() {
     if (!message.trim()) return
     if (!programId) {
-      const requiresProgram = ['{{program_title}}', '{{program_description}}', '{{match_reason}}', '{{extra_criteria}}', '{{program_deadline}}'].some(v => message.includes(v))
+      const requiresProgram = ['{{program_title}}', '{{program_description}}', '{{program_url}}', '{{match_reason}}', '{{extra_criteria}}', '{{program_deadline}}'].some(v => message.includes(v))
       if (requiresProgram) {
-        setValidationError('Το μήνυμα περιέχει {{program_title}}, {{match_reason}}, {{extra_criteria}} ή {{program_deadline}} αλλά δεν έχει επιλεγεί Πρόγραμμα αναφοράς. Επιλέξτε πρόγραμμα ή αφαιρέστε αυτές τις μεταβλητές από το μήνυμα.')
+        setValidationError('Το μήνυμα περιέχει {{program_title}}, {{match_reason}}, {{extra_criteria}}, {{program_url}} ή {{program_deadline}} αλλά δεν έχει επιλεγεί Πρόγραμμα αναφοράς. Επιλέξτε πρόγραμμα ή αφαιρέστε αυτές τις μεταβλητές από το μήνυμα.')
         return
       }
     }

@@ -20,3 +20,13 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
   const item = await prisma.messageTemplate.update({ where: { id: params.id }, data: updateData })
   return NextResponse.json(item)
 }
+
+export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
+  const session = await auth()
+  if (!session || session.user.role !== 'ADMIN') {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
+  await prisma.messageTemplate.delete({ where: { id: params.id } })
+  return NextResponse.json({ success: true })
+}
