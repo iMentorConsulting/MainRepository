@@ -9,7 +9,10 @@ import { runMatchingForBusiness } from '@/lib/matching'
 
 function checkApiKey(request: NextRequest): boolean {
   const key = process.env.VAT_UPDATE_API_KEY
-  return !!key && request.headers.get('x-api-key') === key
+  if (!key) return false
+  const headerKey = request.headers.get('x-api-key')
+  const queryKey = request.nextUrl.searchParams.get('key')
+  return headerKey === key || queryKey === key
 }
 
 function normalizePhone(value: string | null): string | null {
