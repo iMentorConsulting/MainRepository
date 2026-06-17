@@ -183,10 +183,14 @@ export default function ReportsPage() {
 
         {/* Milestone badges */}
         {totalBiz > 0 && (() => {
-          const milestones =
-            totalBiz <= 100  ? [5, 10, 15, 20, 25, 30, 40, 50, 75, 100] :
-            totalBiz <= 300  ? [100, 125, 150, 175, 200, 225, 250, 265, 275, 300] :
-                               [300, 325, 350, 400, 450, 500, 600, 700, 800, 1000]
+          const TIER1 = [5, 10, 15, 20, 25, 30, 40, 50, 75, 100]
+          const TIER2 = [100, 125, 150, 175, 200, 225, 250, 265, 275, 300]
+          const TIER3 = [300, 325, 350, 400, 450, 500, 600, 700, 800, 1000]
+          const tierMilestones =
+            totalBiz <= 100 ? TIER1 :
+            totalBiz <= 300 ? [...TIER1, ...TIER2] :
+                               [...TIER1, ...TIER2, ...TIER3]
+          const milestones = Array.from(new Set(tierMilestones)).sort((a, b) => a - b)
           return (
             <div className="mt-4 flex flex-wrap gap-2">
               {milestones.map(n => (
