@@ -4,7 +4,7 @@ import { sendEmail } from '@/lib/email'
 import { fetchDypaAnnouncements, fetchDypaDetail } from '@/lib/dypa-scraper'
 
 export const runtime = 'nodejs'
-export const maxDuration = 60
+export const maxDuration = 300
 
 export async function GET(request: NextRequest) {
   const secret = request.nextUrl.searchParams.get('secret')
@@ -29,7 +29,7 @@ async function runCheck() {
 
   let scraped
   try {
-    scraped = await fetchDypaAnnouncements(9)
+    scraped = await fetchDypaAnnouncements()
   } catch (err: any) {
     console.error('[DYPA cron] scrape failed:', err?.message)
     return NextResponse.json({ error: 'Scrape failed', detail: err.message }, { status: 502 })

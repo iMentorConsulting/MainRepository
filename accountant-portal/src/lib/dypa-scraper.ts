@@ -5,6 +5,7 @@ export interface DypaScrapedItem {
   title: string
   detailUrl: string
   status: string | null
+  isClosed: boolean
 }
 
 export interface DypaDetailInfo {
@@ -34,23 +35,30 @@ function parseItems($: cheerio.CheerioAPI): DypaScrapedItem[] {
     const detailUrl = $el.find('a.progLink').first().attr('href') || ''
     if (!title || !detailUrl) return
 
-    const status = $el.find('div.status').first().text().trim() || null
+    const statusEl = $el.find('div.status').first()
+    const status = statusEl.text().trim() || null
+    const isClosed = statusEl.hasClass('closed')
 
     items.push({
       externalItemId: slugFromUrl(detailUrl),
       title,
       detailUrl,
       status,
+      isClosed,
     })
   })
 
   return items
 }
 
-export async function fetchDypaAnnouncements(maxPages = 3): Promise<DypaScrapedItem[]> {
+// Hard ceiling on pages fetched, in case the site's pagination ever stops
+// reporting rel="next" correctly — prevents an unbounded request loop.
+const MAX_PAGE_SAFETY_LIMIT = 100
+
+export async function fetchDypaAnnouncements(): Promise<DypaScrapedItem[]> {
   const items: DypaScrapedItem[] = []
 
-  for (let page = 1; page <= maxPages; page++) {
+  for (let page = 1; page <= MAX_PAGE_SAFETY_LIMIT; page++) {
     const url = page === 1 ? DYPA_LISTING_URL : `${DYPA_LISTING_URL}?page=${page}`
     const res = await fetch(url, { headers: REQUEST_HEADERS })
     if (!res.ok) {
@@ -67,7 +75,7 @@ export async function fetchDypaAnnouncements(maxPages = 3): Promise<DypaScrapedI
     if (!hasNextPage) break
   }
 
-  return items
+  return items.filter(item => !item.isClosed)
 }
 
 export async function fetchDypaDetail(detailUrl: string): Promise<DypaDetailInfo> {
