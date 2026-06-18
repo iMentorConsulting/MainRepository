@@ -15,6 +15,7 @@ export interface EspaDetailInfo {
   beneficiaries: string | null
   budget: string | null
   attachmentUrls: string[]
+  attachmentNames: string[]
 }
 
 export const ESPA_LISTING_URL =
@@ -161,10 +162,14 @@ export async function fetchEspaDetail(detailUrl: string): Promise<EspaDetailInfo
   const budget = fieldText('Προϋπολογισμός')
 
   const attachmentUrls: string[] = []
+  const attachmentNames: string[] = []
   $('ul.files li a').each((_, a) => {
     const href = $(a).attr('href')
-    if (href) attachmentUrls.push(href)
+    if (href) {
+      attachmentUrls.push(href)
+      attachmentNames.push($(a).text().trim() || 'Σχετικό αρχείο')
+    }
   })
 
-  return { description, beneficiaries, budget, attachmentUrls }
+  return { description, beneficiaries, budget, attachmentUrls, attachmentNames }
 }

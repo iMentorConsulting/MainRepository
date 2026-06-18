@@ -166,6 +166,8 @@ model Program {
   legalStatusRules String[]
   extraCriteriaIds String[]
   videoUrls        String[]
+  attachmentUrls   String[]
+  attachmentNames  String[]
   active           Boolean         @default(true)
   archived         Boolean         @default(false)
   startDate        DateTime?
@@ -755,6 +757,7 @@ model EspaAnnouncement {
   beneficiaries   String?                @db.Text
   budget          String?
   attachmentUrls  String[]               @default([])
+  attachmentNames String[]               @default([])
   reviewStatus    EspaAnnouncementStatus @default(NEW)
   convertedProgramId String?
   firstSeenAt     DateTime               @default(now())

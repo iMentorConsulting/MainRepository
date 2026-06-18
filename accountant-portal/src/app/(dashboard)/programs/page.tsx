@@ -73,6 +73,7 @@ interface EspaAnnouncement {
   beneficiaries: string | null
   budget: string | null
   attachmentUrls: string[]
+  attachmentNames: string[]
   reviewStatus: 'NEW' | 'REVIEWED' | 'IGNORED' | 'CONVERTED'
   firstSeenAt: string
 }
@@ -160,7 +161,7 @@ function EspaAnnouncementsTab() {
                 <div className="flex flex-wrap gap-2 mt-1.5">
                   {item.attachmentUrls.map((url, i) => (
                     <a key={url} href={url} target="_blank" rel="noreferrer" className="text-[11px] text-blue-700 hover:underline">
-                      Σχετικό αρχείο {item.attachmentUrls.length > 1 ? i + 1 : ''}
+                      {item.attachmentNames[i] || `Σχετικό αρχείο ${i + 1}`}
                     </a>
                   ))}
                 </div>
@@ -171,9 +172,7 @@ function EspaAnnouncementsTab() {
             </div>
             {item.reviewStatus === 'NEW' && (
               <div className="flex gap-2 flex-shrink-0">
-                <Link
-                  href={`/programs/new?fromAnnouncementId=${item.id}&title=${encodeURIComponent(item.title)}&websiteUrl=${encodeURIComponent(item.detailUrl)}${item.description ? `&description=${encodeURIComponent(item.description)}` : ''}`}
-                >
+                <Link href={`/programs/new?fromAnnouncementId=${item.id}`}>
                   <Button size="sm"><Check size={14} className="mr-1.5" />Μετατροπή σε Πρόγραμμα</Button>
                 </Link>
                 <Button size="sm" variant="ghost" onClick={() => updateStatus(item.id, 'IGNORED')}>

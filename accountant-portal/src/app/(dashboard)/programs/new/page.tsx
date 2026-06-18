@@ -1,5 +1,5 @@
 'use client'
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
@@ -12,8 +12,9 @@ import { RegionMultiSelect } from '@/components/programs/region-multi-select'
 import { HeroImageUpload } from '@/components/programs/hero-image-upload'
 import { VideoUrlsInput } from '@/components/programs/video-urls-input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { ArrowLeft, Plus, X, FileUp } from 'lucide-react'
+import { ArrowLeft, Plus, X, FileUp, Paperclip } from 'lucide-react'
 import Link from 'next/link'
+import { parseRegionsFromApplicationArea, parseBudgetRange, parseSubmissionPeriod } from '@/lib/espa-parse'
 
 const schema = z.object({
   title: z.string().min(3, 'Απαιτείται τίτλος'),
@@ -170,25 +171,54 @@ export default function NewProgramPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const fromAnnouncementId = searchParams.get('fromAnnouncementId')
-  const prefillTitle = searchParams.get('title') || ''
-  const prefillWebsiteUrl = searchParams.get('websiteUrl') || ''
-  const prefillDescription = searchParams.get('description') || ''
   const [kadRules, setKadRules] = useState<string[]>([])
   const [regionRules, setRegionRules] = useState<string[]>([])
   const [zipCodeRules, setZipCodeRules] = useState<string[]>([])
   const [heroImage, setHeroImage] = useState('')
   const [videoUrls, setVideoUrls] = useState<string[]>([])
+  const [attachmentUrls, setAttachmentUrls] = useState<string[]>([])
+  const [attachmentNames, setAttachmentNames] = useState<string[]>([])
+  const [loadingAnnouncement, setLoadingAnnouncement] = useState(!!fromAnnouncementId)
 
-  const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<FormData>({
+  const { register, handleSubmit, setValue, formState: { errors, isSubmitting } } = useForm<FormData>({
     resolver: zodResolver(schema),
-    defaultValues: { active: true, category: 'ESPA', title: prefillTitle, websiteUrl: prefillWebsiteUrl, description: prefillDescription }
+    defaultValues: { active: true, category: 'ESPA' }
   })
+
+  useEffect(() => {
+    if (!fromAnnouncementId) return
+    fetch(`/api/espa-announcements/${fromAnnouncementId}`)
+      .then(res => res.ok ? res.json() : null)
+      .then(a => {
+        if (!a) return
+        setValue('title', a.title || '')
+        setValue('websiteUrl', a.detailUrl || '')
+        if (a.description) setValue('description', a.description)
+
+        const { min, max } = parseBudgetRange(a.budget)
+        if (min !== undefined) setValue('minInvestment', min as any)
+        if (max !== undefined) setValue('maxInvestment', max as any)
+
+        const { startDate, endDate } = parseSubmissionPeriod(a.submissionPeriod)
+        if (startDate) setValue('startDate', startDate)
+        if (endDate) setValue('endDate', endDate)
+
+        const regions = parseRegionsFromApplicationArea(a.applicationArea)
+        if (regions.length > 0) setRegionRules(regions)
+
+        if (a.attachmentUrls?.length) {
+          setAttachmentUrls(a.attachmentUrls)
+          setAttachmentNames(a.attachmentNames || [])
+        }
+      })
+      .finally(() => setLoadingAnnouncement(false))
+  }, [fromAnnouncementId, setValue])
 
   async function onSubmit(data: FormData) {
     const res = await fetch('/api/programs', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...data, heroImageUrl: heroImage || data.heroImageUrl, kadRules, regionRules, zipCodeRules, videoUrls }),
+      body: JSON.stringify({ ...data, heroImageUrl: heroImage || data.heroImageUrl, kadRules, regionRules, zipCodeRules, videoUrls, attachmentUrls, attachmentNames }),
     })
     if (res.ok) {
       const created = await res.json()
@@ -247,6 +277,21 @@ export default function NewProgramPage() {
             </div>
             <Textarea label="Άλλες Προϋποθέσεις Προγράμματος" {...register('otherRequirements')} rows={3} placeholder="π.χ. ελάχιστος κύκλος εργασιών, υποχρεωτική απασχόληση προσωπικού κ.λπ." />
             <Input label="Σελίδα Προγράμματος στο Website μας (URL)" {...register('websiteUrl')} placeholder="https://www.i-mentor.gr/programs/..." />
+            {attachmentUrls.length > 0 && (
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-gray-700">Σχετικά Αρχεία (από ΕΣΠΑ)</label>
+                <ul className="space-y-1">
+                  {attachmentUrls.map((url, i) => (
+                    <li key={url} className="flex items-center gap-2 text-sm">
+                      <Paperclip size={13} className="text-gray-400" />
+                      <a href={url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+                        {attachmentNames[i] || `Σχετικό αρχείο ${i + 1}`}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
             <HeroImageUpload value={heroImage} onChange={setHeroImage} />
             <VideoUrlsInput values={videoUrls} onChange={setVideoUrls} />
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

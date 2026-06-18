@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { getYoutubeId } from '@/components/programs/video-urls-input'
 import { MatchCard } from '@/components/matching/match-card'
-import { ArrowLeft, Zap, Calendar, Tag, ExternalLink, Archive, Trash2, Bell } from 'lucide-react'
+import { ArrowLeft, Zap, Calendar, Tag, ExternalLink, Archive, Trash2, Bell, Paperclip } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { formatDate } from '@/lib/utils'
 import { GREEK_REGIONS } from '@/lib/greek-regions'
@@ -305,6 +305,25 @@ export default function ProgramDetailPage() {
             <Card>
               <CardHeader><CardTitle>Εσωτερικές Σημειώσεις</CardTitle></CardHeader>
               <CardContent><p className="text-sm text-gray-700">{program.internalNotes}</p></CardContent>
+            </Card>
+          )}
+
+          {program.attachmentUrls?.length > 0 && (
+            <Card>
+              <CardHeader><CardTitle>Σχετικά Αρχεία</CardTitle></CardHeader>
+              <CardContent>
+                <ul className="space-y-2">
+                  {program.attachmentUrls.map((url: string, i: number) => (
+                    <li key={url}>
+                      <a href={url} target="_blank" rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 text-sm text-blue-700 hover:underline">
+                        <Paperclip size={13} />
+                        {program.attachmentNames?.[i] || `Σχετικό αρχείο ${i + 1}`}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </CardContent>
             </Card>
           )}
 

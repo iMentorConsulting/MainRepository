@@ -54,7 +54,7 @@ async function runCheck() {
           return { ...item, ...detail }
         } catch (err: any) {
           console.error(`[ESPA cron] detail fetch failed for ${item.externalItemId}:`, err?.message)
-          return { ...item, description: null, beneficiaries: null, budget: null, attachmentUrls: [] }
+          return { ...item, description: null, beneficiaries: null, budget: null, attachmentUrls: [], attachmentNames: [] }
         }
       })
     )
@@ -72,6 +72,7 @@ async function runCheck() {
         beneficiaries: item.beneficiaries,
         budget: item.budget,
         attachmentUrls: item.attachmentUrls,
+        attachmentNames: item.attachmentNames,
       })),
     })
 
