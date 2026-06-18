@@ -1,9 +1,8 @@
 import * as cheerio from 'cheerio'
 
-// www.dypa.gov.gr runs bot-protection that blocks plain HTTP fetches (from
-// Railway directly, and from free read-proxies like r.jina.ai) — it needs a
-// real browser to render the page. Route requests through ScrapingAnt, which
-// renders pages in a headless browser before returning the HTML.
+// www.dypa.gov.gr appears to geo-block non-Greek IPs (Railway, r.jina.ai,
+// and allorigins.win — all non-Greek — were all unreachable). Route through
+// ScrapingAnt with a Greek proxy IP and headless-browser rendering.
 function sleep(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms))
 }
@@ -18,6 +17,7 @@ async function fetchViaProxy(url: string, attempt = 1): Promise<Response> {
   proxyUrl.searchParams.set('url', url)
   proxyUrl.searchParams.set('x-api-key', apiKey)
   proxyUrl.searchParams.set('browser', 'true')
+  proxyUrl.searchParams.set('proxy_country', 'GR')
 
   const res = await fetch(proxyUrl.toString())
   if (res.status === 409 && attempt < 5) {
