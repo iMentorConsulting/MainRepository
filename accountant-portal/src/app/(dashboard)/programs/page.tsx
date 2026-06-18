@@ -187,6 +187,118 @@ function EspaAnnouncementsTab() {
   )
 }
 
+interface DypaAnnouncement {
+  id: string
+  title: string
+  detailUrl: string
+  status: string | null
+  description: string | null
+  attachmentUrls: string[]
+  attachmentNames: string[]
+  reviewStatus: 'NEW' | 'REVIEWED' | 'IGNORED' | 'CONVERTED'
+  firstSeenAt: string
+}
+
+function DypaAnnouncementsTab() {
+  const [items, setItems] = useState<DypaAnnouncement[]>([])
+  const [loading, setLoading] = useState(true)
+  const [showHandled, setShowHandled] = useState(false)
+
+  function load() {
+    setLoading(true)
+    fetch('/api/dypa-announcements')
+      .then(r => r.json())
+      .then(data => setItems(Array.isArray(data) ? data : []))
+      .finally(() => setLoading(false))
+  }
+
+  useEffect(() => { load() }, [])
+
+  async function updateStatus(id: string, reviewStatus: string) {
+    await fetch(`/api/dypa-announcements/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reviewStatus }),
+    })
+    setItems(prev => prev.map(i => i.id === id ? { ...i, reviewStatus: reviewStatus as any } : i))
+  }
+
+  const visible = items.filter(i => showHandled ? (i.reviewStatus !== 'NEW') : i.reviewStatus === 'NEW')
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-48">
+        <div className="animate-spin w-8 h-8 border-4 border-blue-800 border-t-transparent rounded-full" />
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-gray-500">
+          {items.filter(i => i.reviewStatus === 'NEW').length} νέα προγράμματα προς έγκριση
+        </p>
+        <button
+          onClick={() => setShowHandled(v => !v)}
+          className="text-xs text-blue-700 hover:underline"
+        >
+          {showHandled ? 'Εμφάνιση νέων' : 'Εμφάνιση διαχειρισμένων'}
+        </button>
+      </div>
+
+      {visible.length === 0 && (
+        <div className="text-center text-gray-400 py-12">
+          {showHandled ? 'Δεν υπάρχουν διαχειρισμένα προγράμματα' : 'Δεν υπάρχουν νέα προγράμματα προς έγκριση'}
+        </div>
+      )}
+
+      <div className="space-y-3">
+        {visible.map(item => (
+          <div key={item.id} className="bg-white rounded-xl border border-gray-200 p-4 flex items-start justify-between gap-4">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-1">
+                <h3 className="font-semibold text-gray-900 text-sm">{item.title}</h3>
+                {item.status && <Badge variant="warning" className="text-[10px]">{item.status}</Badge>}
+                {item.reviewStatus !== 'NEW' && (
+                  <Badge variant={item.reviewStatus === 'CONVERTED' ? 'success' : 'secondary'} className="text-[10px]">
+                    {item.reviewStatus === 'CONVERTED' ? 'Μετατράπηκε' : item.reviewStatus === 'IGNORED' ? 'Αγνοήθηκε' : 'Ελέγχθηκε'}
+                  </Badge>
+                )}
+              </div>
+              {item.description && (
+                <p className="text-xs text-gray-600 mt-1.5 line-clamp-2">{item.description}</p>
+              )}
+              {item.attachmentUrls.length > 0 && (
+                <div className="flex flex-wrap gap-2 mt-1.5">
+                  {item.attachmentUrls.map((url, i) => (
+                    <a key={url} href={url} target="_blank" rel="noreferrer" className="text-[11px] text-blue-700 hover:underline">
+                      {item.attachmentNames[i] || `Σχετικό αρχείο ${i + 1}`}
+                    </a>
+                  ))}
+                </div>
+              )}
+              <a href={item.detailUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs text-blue-700 hover:underline mt-1.5">
+                Δείτε στη ΔΥΠΑ <ExternalLink size={11} />
+              </a>
+            </div>
+            {item.reviewStatus === 'NEW' && (
+              <div className="flex gap-2 flex-shrink-0">
+                <Link href={`/programs/new?fromDypaAnnouncementId=${item.id}`}>
+                  <Button size="sm"><Check size={14} className="mr-1.5" />Μετατροπή σε Πρόγραμμα</Button>
+                </Link>
+                <Button size="sm" variant="ghost" onClick={() => updateStatus(item.id, 'IGNORED')}>
+                  <X size={14} />
+                </Button>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export default function ProgramsPage() {
   const { data: session } = useSession()
   const [programs, setPrograms] = useState<Program[]>([])
@@ -194,8 +306,9 @@ export default function ProgramsPage() {
   const [showArchived, setShowArchived] = useState(false)
   const [loading, setLoading] = useState(true)
   const [criteriaMap, setCriteriaMap] = useState<Record<string, string>>({})
-  const [tab, setTab] = useState<'programs' | 'espa'>('programs')
+  const [tab, setTab] = useState<'programs' | 'espa' | 'dypa'>('programs')
   const [newEspaCount, setNewEspaCount] = useState(0)
+  const [newDypaCount, setNewDypaCount] = useState(0)
   const isAdmin = session?.user?.role === 'ADMIN'
 
   useEffect(() => {
@@ -221,6 +334,12 @@ export default function ProgramsPage() {
       .then(r => r.json())
       .then(data => {
         if (Array.isArray(data)) setNewEspaCount(data.filter((i: EspaAnnouncement) => i.reviewStatus === 'NEW').length)
+      })
+      .catch(() => {})
+    fetch('/api/dypa-announcements')
+      .then(r => r.json())
+      .then(data => {
+        if (Array.isArray(data)) setNewDypaCount(data.filter((i: DypaAnnouncement) => i.reviewStatus === 'NEW').length)
       })
       .catch(() => {})
   }, [isAdmin, tab])
@@ -265,11 +384,25 @@ export default function ProgramsPage() {
               <span className="bg-red-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{newEspaCount}</span>
             )}
           </button>
+          <button
+            onClick={() => setTab('dypa')}
+            className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+              tab === 'dypa' ? 'border-blue-800 text-blue-800' : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            <Megaphone size={14} />
+            Προς Έγκριση ΔΥΠΑ
+            {newDypaCount > 0 && (
+              <span className="bg-red-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{newDypaCount}</span>
+            )}
+          </button>
         </div>
       )}
 
       {tab === 'espa' ? (
         <EspaAnnouncementsTab />
+      ) : tab === 'dypa' ? (
+        <DypaAnnouncementsTab />
       ) : (
         <>
       {/* Category Filters */}

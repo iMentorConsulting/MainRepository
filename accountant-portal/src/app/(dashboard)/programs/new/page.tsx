@@ -171,6 +171,7 @@ export default function NewProgramPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const fromAnnouncementId = searchParams.get('fromAnnouncementId')
+  const fromDypaAnnouncementId = searchParams.get('fromDypaAnnouncementId')
   const [kadRules, setKadRules] = useState<string[]>([])
   const [regionRules, setRegionRules] = useState<string[]>([])
   const [zipCodeRules, setZipCodeRules] = useState<string[]>([])
@@ -178,11 +179,11 @@ export default function NewProgramPage() {
   const [videoUrls, setVideoUrls] = useState<string[]>([])
   const [attachmentUrls, setAttachmentUrls] = useState<string[]>([])
   const [attachmentNames, setAttachmentNames] = useState<string[]>([])
-  const [loadingAnnouncement, setLoadingAnnouncement] = useState(!!fromAnnouncementId)
+  const [loadingAnnouncement, setLoadingAnnouncement] = useState(!!fromAnnouncementId || !!fromDypaAnnouncementId)
 
   const { register, handleSubmit, setValue, formState: { errors, isSubmitting } } = useForm<FormData>({
     resolver: zodResolver(schema),
-    defaultValues: { active: true, category: 'ESPA' }
+    defaultValues: { active: true, category: fromDypaAnnouncementId ? 'DYPA' : 'ESPA' }
   })
 
   useEffect(() => {
@@ -214,6 +215,24 @@ export default function NewProgramPage() {
       .finally(() => setLoadingAnnouncement(false))
   }, [fromAnnouncementId, setValue])
 
+  useEffect(() => {
+    if (!fromDypaAnnouncementId) return
+    fetch(`/api/dypa-announcements/${fromDypaAnnouncementId}`)
+      .then(res => res.ok ? res.json() : null)
+      .then(a => {
+        if (!a) return
+        setValue('title', a.title || '')
+        setValue('websiteUrl', a.detailUrl || '')
+        if (a.description) setValue('description', a.description)
+
+        if (a.attachmentUrls?.length) {
+          setAttachmentUrls(a.attachmentUrls)
+          setAttachmentNames(a.attachmentNames || [])
+        }
+      })
+      .finally(() => setLoadingAnnouncement(false))
+  }, [fromDypaAnnouncementId, setValue])
+
   async function onSubmit(data: FormData) {
     const res = await fetch('/api/programs', {
       method: 'POST',
@@ -225,6 +244,15 @@ export default function NewProgramPage() {
       if (fromAnnouncementId) {
         try {
           await fetch(`/api/espa-announcements/${fromAnnouncementId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ reviewStatus: 'CONVERTED', convertedProgramId: created.id }),
+          })
+        } catch {}
+      }
+      if (fromDypaAnnouncementId) {
+        try {
+          await fetch(`/api/dypa-announcements/${fromDypaAnnouncementId}`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ reviewStatus: 'CONVERTED', convertedProgramId: created.id }),

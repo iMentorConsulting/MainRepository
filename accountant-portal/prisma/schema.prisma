@@ -764,6 +764,21 @@ model EspaAnnouncement {
   updatedAt       DateTime               @updatedAt
 }
 
+model DypaAnnouncement {
+  id              String                 @id @default(cuid())
+  externalItemId  String                 @unique
+  title           String
+  detailUrl       String
+  status          String?
+  description     String?                @db.Text
+  attachmentUrls  String[]               @default([])
+  attachmentNames String[]               @default([])
+  reviewStatus    EspaAnnouncementStatus @default(NEW)
+  convertedProgramId String?
+  firstSeenAt     DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+}
+
 enum EspaAnnouncementStatus {
   NEW
   REVIEWED
