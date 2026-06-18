@@ -1,6 +1,6 @@
 'use client'
 import { useState, useRef } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -168,6 +168,10 @@ function TagInput({ label, values, onChange, placeholder, bulkImport, pdfImport 
 
 export default function NewProgramPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const fromAnnouncementId = searchParams.get('fromAnnouncementId')
+  const prefillTitle = searchParams.get('title') || ''
+  const prefillWebsiteUrl = searchParams.get('websiteUrl') || ''
   const [kadRules, setKadRules] = useState<string[]>([])
   const [regionRules, setRegionRules] = useState<string[]>([])
   const [zipCodeRules, setZipCodeRules] = useState<string[]>([])
@@ -176,7 +180,7 @@ export default function NewProgramPage() {
 
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<FormData>({
     resolver: zodResolver(schema),
-    defaultValues: { active: true, category: 'ESPA' }
+    defaultValues: { active: true, category: 'ESPA', title: prefillTitle, websiteUrl: prefillWebsiteUrl }
   })
 
   async function onSubmit(data: FormData) {
@@ -187,6 +191,15 @@ export default function NewProgramPage() {
     })
     if (res.ok) {
       const created = await res.json()
+      if (fromAnnouncementId) {
+        try {
+          await fetch(`/api/espa-announcements/${fromAnnouncementId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ reviewStatus: 'CONVERTED', convertedProgramId: created.id }),
+          })
+        } catch {}
+      }
       router.push(`/programs/${created.id}`)
     } else {
       const err = await res.json()
