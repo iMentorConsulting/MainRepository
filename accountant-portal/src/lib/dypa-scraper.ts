@@ -83,8 +83,9 @@ export async function fetchDypaAnnouncements(): Promise<DypaScrapedItem[]> {
     const url = page === 1 ? DYPA_LISTING_URL : `${DYPA_LISTING_URL}?page=${page}`
     const res = await fetchViaProxy(url)
     if (!res.ok) {
-      if (page === 1) throw new Error(`DYPA fetch failed: HTTP ${res.status}`)
-      console.error(`[DYPA scraper] failed to fetch page ${page}: HTTP ${res.status}`)
+      const body = await res.text().catch(() => '')
+      if (page === 1) throw new Error(`DYPA fetch failed: HTTP ${res.status} ${body}`.trim())
+      console.error(`[DYPA scraper] failed to fetch page ${page}: HTTP ${res.status} ${body}`)
       break
     }
 
