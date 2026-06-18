@@ -1,11 +1,18 @@
 import * as cheerio from 'cheerio'
 
-// www.dypa.gov.gr blocks direct outbound connections from Railway's IP
-// range (TCP connect times out, not a 403 — i.e. packets are dropped at the
-// network level). Route requests through r.jina.ai, a free public read-proxy
-// that fetches the page server-side and returns it (optionally as raw HTML).
+// www.dypa.gov.gr runs bot-protection that blocks plain HTTP fetches (from
+// Railway directly, and from free read-proxies like r.jina.ai) — it needs a
+// real browser to render the page. Route requests through ScrapingAnt, which
+// renders pages in a headless browser before returning the HTML.
 function fetchViaProxy(url: string) {
-  return fetch(`https://r.jina.ai/${url}`, { headers: { 'X-Return-Format': 'html' } })
+  const apiKey = process.env.SCRAPINGANT_API_KEY
+  if (!apiKey) throw new Error('SCRAPINGANT_API_KEY is not configured')
+
+  const proxyUrl = new URL('https://api.scrapingant.com/v2/general')
+  proxyUrl.searchParams.set('url', url)
+  proxyUrl.searchParams.set('x-api-key', apiKey)
+  proxyUrl.searchParams.set('browser', 'true')
+  return fetch(proxyUrl.toString())
 }
 
 export interface DypaScrapedItem {
