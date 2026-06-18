@@ -4,8 +4,8 @@ import * as cheerio from 'cheerio'
 // range (TCP connect times out, not a 403 — i.e. packets are dropped at the
 // network level). Route requests through r.jina.ai, a free public read-proxy
 // that fetches the page server-side and returns it (optionally as raw HTML).
-function fetchViaProxy(url: string, headers: Record<string, string>) {
-  return fetch(`https://r.jina.ai/${url}`, { headers: { ...headers, 'X-Return-Format': 'html' } })
+function fetchViaProxy(url: string) {
+  return fetch(`https://r.jina.ai/${url}`, { headers: { 'X-Return-Format': 'html' } })
 }
 
 export interface DypaScrapedItem {
@@ -23,12 +23,6 @@ export interface DypaDetailInfo {
 }
 
 export const DYPA_LISTING_URL = 'https://www.dypa.gov.gr/active-employment-policies'
-
-const REQUEST_HEADERS = {
-  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-  Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-  'Accept-Language': 'el-GR,el;q=0.9,en;q=0.8',
-}
 
 function slugFromUrl(url: string): string {
   return url.replace(/\/+$/, '').split('/').pop() || url
@@ -68,7 +62,7 @@ export async function fetchDypaAnnouncements(): Promise<DypaScrapedItem[]> {
 
   for (let page = 1; page <= MAX_PAGE_SAFETY_LIMIT; page++) {
     const url = page === 1 ? DYPA_LISTING_URL : `${DYPA_LISTING_URL}?page=${page}`
-    const res = await fetchViaProxy(url, REQUEST_HEADERS)
+    const res = await fetchViaProxy(url)
     if (!res.ok) {
       if (page === 1) throw new Error(`DYPA fetch failed: HTTP ${res.status}`)
       console.error(`[DYPA scraper] failed to fetch page ${page}: HTTP ${res.status}`)
@@ -87,7 +81,7 @@ export async function fetchDypaAnnouncements(): Promise<DypaScrapedItem[]> {
 }
 
 export async function fetchDypaDetail(detailUrl: string): Promise<DypaDetailInfo> {
-  const res = await fetchViaProxy(detailUrl, REQUEST_HEADERS)
+  const res = await fetchViaProxy(detailUrl)
   if (!res.ok) {
     throw new Error(`DYPA detail fetch failed: HTTP ${res.status}`)
   }
