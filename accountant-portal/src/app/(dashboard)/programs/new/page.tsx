@@ -15,6 +15,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ArrowLeft, Plus, X, FileUp, Paperclip } from 'lucide-react'
 import Link from 'next/link'
 import { parseRegionsFromApplicationArea, parseBudgetRange, parseSubmissionPeriod } from '@/lib/espa-parse'
+import { detectRegionsInText } from '@/lib/greek-regions'
 
 const schema = z.object({
   title: z.string().min(3, 'Απαιτείται τίτλος'),
@@ -224,6 +225,9 @@ export default function NewProgramPage() {
         setValue('title', a.title || '')
         setValue('websiteUrl', a.detailUrl || '')
         if (a.description) setValue('description', a.description)
+
+        const regions = detectRegionsInText(`${a.title || ''} ${a.description || ''}`)
+        if (regions.length > 0) setRegionRules(regions)
 
         if (a.attachmentUrls?.length) {
           setAttachmentUrls(a.attachmentUrls)

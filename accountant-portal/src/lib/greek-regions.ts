@@ -50,6 +50,43 @@ const ZIP_PREFIX_TO_REGION: Record<string, GreekRegion> = {
   '84': 'Νότιο Αιγαίο', '85': 'Νότιο Αιγαίο',
 }
 
+function stripDiacritics(s: string): string {
+  return s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
+}
+
+// Distinguishing keyword stems per region, matched against diacritic-stripped
+// text — robust to case endings ("Ανατολικής Μακεδονίας") and "&" vs "και".
+const REGION_KEYWORD_STEMS: Record<GreekRegion, string[]> = {
+  'Αττική': ['αττικ'],
+  'Κεντρική Μακεδονία': ['κεντρικ.*μακεδον'],
+  'Θεσσαλία': ['θεσσαλ(?!ονικ)'],
+  'Ανατολική Μακεδονία και Θράκη': ['μακεδον.*θρακ', 'θρακ.*μακεδον'],
+  'Ήπειρος': ['ηπειρ'],
+  'Δυτική Μακεδονία': ['δυτικ.*μακεδον'],
+  'Ιόνια Νησιά': ['ιονι'],
+  'Δυτική Ελλάδα': ['δυτικ.*ελλαδ'],
+  'Στερεά Ελλάδα': ['στερε'],
+  'Πελοπόννησος': ['πελοποννησ'],
+  'Βόρειο Αιγαίο': ['βορει.*αιγαι'],
+  'Νότιο Αιγαίο': ['νοτι.*αιγαι'],
+  'Κρήτη': ['κρητ'],
+}
+
+// Scans free-form text (e.g. a DYPA announcement title/description) for
+// mentions of Greek regions, so a converted Program can be prefilled with
+// the right regionRules instead of defaulting to nationwide eligibility.
+export function detectRegionsInText(text: string): GreekRegion[] {
+  const normalized = stripDiacritics(text)
+  const found: GreekRegion[] = []
+  for (const region of GREEK_REGIONS) {
+    const stems = REGION_KEYWORD_STEMS[region]
+    if (stems.some(stem => new RegExp(stem).test(normalized))) {
+      found.push(region)
+    }
+  }
+  return found
+}
+
 // Resolves a business's Greek region from its postal code (ΤΚ).
 // Returns null when the ΤΚ is missing/malformed or has no known mapping.
 export function resolveRegionFromZip(zip: string | null | undefined): GreekRegion | null {
