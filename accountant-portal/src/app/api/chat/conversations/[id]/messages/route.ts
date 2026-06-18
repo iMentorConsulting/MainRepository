@@ -95,7 +95,9 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
           <p><a href="${process.env.APP_URL || 'https://logistis.i-mentor.gr'}/chat/${params.id}">Απαντήστε εδώ →</a></p>`,
       })
     }
-  } catch {}
+  } catch (err: any) {
+    console.error('[Chat] Reply email notification failed:', err?.message)
+  }
 
   return NextResponse.json(message, { status: 201 })
 }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { sendEmail } from '@/lib/email'
 
 export async function GET() {
   const session = await auth()
@@ -63,6 +64,35 @@ export async function POST(request: NextRequest) {
       messages: true,
     },
   })
+
+  // Notify by email
+  try {
+    if (isAdmin) {
+      if (conversation.accountant) {
+        const accountantEmail = await prisma.accountant.findUnique({ where: { id: conversation.accountant.id }, select: { email: true } })
+        if (accountantEmail?.email) {
+          await sendEmail({
+            to: accountantEmail.email,
+            subject: `💬 Νέο μήνυμα από την I-MENTOR — ${subject}`,
+            html: `<p>Αγαπητέ/ή <strong>${conversation.accountant.contactPerson}</strong>,</p>
+              <p>Λάβατε νέο μήνυμα από την I-MENTOR:</p>
+              <blockquote style="border-left:4px solid #4f46e5;padding-left:12px;color:#374151">${body}</blockquote>
+              <p><a href="${process.env.APP_URL || 'https://logistis.i-mentor.gr'}/chat/${conversation.id}">Απαντήστε εδώ →</a></p>`,
+          })
+        }
+      }
+    } else if (conversation.accountant) {
+      await sendEmail({
+        to: process.env.ADMIN_EMAIL || 'info@i-mentor.gr',
+        subject: `💬 Νέο μήνυμα από λογιστή — ${conversation.accountant.officeName}`,
+        html: `<p>Νέο μήνυμα από <strong>${conversation.accountant.officeName}</strong> (${conversation.accountant.contactPerson}):</p>
+          <blockquote style="border-left:4px solid #4f46e5;padding-left:12px;color:#374151">${body}</blockquote>
+          <p><a href="${process.env.APP_URL || 'https://logistis.i-mentor.gr'}/chat/${conversation.id}">Απαντήστε εδώ →</a></p>`,
+      })
+    }
+  } catch (err: any) {
+    console.error('[Chat] New conversation email notification failed:', err?.message)
+  }
 
   return NextResponse.json(conversation, { status: 201 })
 }
