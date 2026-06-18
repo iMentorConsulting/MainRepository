@@ -47,17 +47,17 @@ async function runCheck() {
   const newItems = scraped.filter(item => !existingIds.has(item.externalItemId))
 
   if (newItems.length > 0) {
-    const enriched = await Promise.all(
-      newItems.map(async item => {
-        try {
-          const detail = await fetchDypaDetail(item.detailUrl)
-          return { ...item, ...detail }
-        } catch (err: any) {
-          console.error(`[DYPA cron] detail fetch failed for ${item.externalItemId}:`, err?.message)
-          return { ...item, description: null, attachmentUrls: [], attachmentNames: [] }
-        }
-      })
-    )
+    // Fetched sequentially: ScrapingAnt's free plan caps concurrent requests.
+    const enriched = []
+    for (const item of newItems) {
+      try {
+        const detail = await fetchDypaDetail(item.detailUrl)
+        enriched.push({ ...item, ...detail })
+      } catch (err: any) {
+        console.error(`[DYPA cron] detail fetch failed for ${item.externalItemId}:`, err?.message)
+        enriched.push({ ...item, description: null, attachmentUrls: [], attachmentNames: [] })
+      }
+    }
 
     await prisma.dypaAnnouncement.createMany({
       data: enriched.map(item => ({

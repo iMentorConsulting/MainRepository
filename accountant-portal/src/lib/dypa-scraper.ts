@@ -4,7 +4,13 @@ import * as cheerio from 'cheerio'
 // Railway directly, and from free read-proxies like r.jina.ai) — it needs a
 // real browser to render the page. Route requests through ScrapingAnt, which
 // renders pages in a headless browser before returning the HTML.
-function fetchViaProxy(url: string) {
+function sleep(ms: number) {
+  return new Promise(resolve => setTimeout(resolve, ms))
+}
+
+// ScrapingAnt's free plan caps concurrency; it returns HTTP 409 when that
+// cap is exceeded. Retry with backoff instead of failing the whole run.
+async function fetchViaProxy(url: string, attempt = 1): Promise<Response> {
   const apiKey = process.env.SCRAPINGANT_API_KEY
   if (!apiKey) throw new Error('SCRAPINGANT_API_KEY is not configured')
 
@@ -12,7 +18,13 @@ function fetchViaProxy(url: string) {
   proxyUrl.searchParams.set('url', url)
   proxyUrl.searchParams.set('x-api-key', apiKey)
   proxyUrl.searchParams.set('browser', 'true')
-  return fetch(proxyUrl.toString())
+
+  const res = await fetch(proxyUrl.toString())
+  if (res.status === 409 && attempt < 5) {
+    await sleep(attempt * 2000)
+    return fetchViaProxy(url, attempt + 1)
+  }
+  return res
 }
 
 export interface DypaScrapedItem {
