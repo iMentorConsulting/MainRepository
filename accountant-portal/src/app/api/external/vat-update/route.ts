@@ -11,9 +11,19 @@ function checkApiKey(request: NextRequest, body: any): boolean {
   const key = process.env.VAT_UPDATE_API_KEY
   if (!key) return false
   const headerKey = request.headers.get('x-api-key')
-  const queryKey = request.nextUrl.searchParams.get('key')
-  const bodyKey = body?.key
+  const queryKey = request.nextUrl.searchParams.get('key') || request.nextUrl.searchParams.get('KEY')
+  const bodyKey = body?.key || body?.KEY
   return headerKey === key || queryKey === key || bodyKey === key
+}
+
+function pick(searchParams: URLSearchParams, body: any, ...names: string[]): string {
+  for (const name of names) {
+    const fromQuery = searchParams.get(name)
+    if (fromQuery) return fromQuery
+    const fromBody = body?.[name]
+    if (fromBody) return String(fromBody)
+  }
+  return ''
 }
 
 function normalizePhone(value: string | null): string | null {
@@ -31,10 +41,10 @@ export async function POST(request: NextRequest) {
 
   if (!checkApiKey(request, body)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const afm = (searchParams.get('VAT') || body.VAT || body.afm || '').replace(/\D/g, '')
-  const email = (searchParams.get('EMAIL') || body.EMAIL || body.email || '').trim() || null
-  const viberPhone = normalizePhone(searchParams.get('VIBER') || body.VIBER || body.viber || null)
-  const referer = (searchParams.get('REFERER') || body.REFERER || '').trim() || null
+  const afm = pick(searchParams, body, 'VAT', 'vat', 'afm').replace(/\D/g, '')
+  const email = pick(searchParams, body, 'EMAIL', 'email').trim() || null
+  const viberPhone = normalizePhone(pick(searchParams, body, 'VIBER', 'viber') || null)
+  const referer = pick(searchParams, body, 'REFERER', 'referer').trim() || null
 
   if (!afm || afm.length !== 9) {
     return NextResponse.json({ error: 'Μη έγκυρο ΑΦΜ' }, { status: 400 })
