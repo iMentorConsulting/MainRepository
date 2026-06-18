@@ -31,8 +31,8 @@ async function runCheck() {
   try {
     scraped = await fetchDypaAnnouncements()
   } catch (err: any) {
-    console.error('[DYPA cron] scrape failed:', err?.message)
-    return NextResponse.json({ error: 'Scrape failed', detail: err.message }, { status: 502 })
+    console.error('[DYPA cron] scrape failed:', err?.message, err?.cause)
+    return NextResponse.json({ error: 'Scrape failed', detail: err.message, cause: String(err?.cause?.message || err?.cause || '') }, { status: 502 })
   }
 
   if (scraped.length === 0) {
