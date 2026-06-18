@@ -49,6 +49,24 @@ function normalizePhone(value: string | null): string | null {
   return digits || null
 }
 
+// Natural persons (sole proprietors) come back from GSIS as
+// "ΕΠΩΝΥΜΟ ΟΝΟΜΑ ΠΑΤΡΩΝΥΜΟ" with no legal status — trim the patronymic
+// and label them as ΑΤΟΜΙΚΗ
+function applySoleProprietorFix(gsisData: any): { onomasia: string | null; legalStatusDescr: string | null } {
+  let onomasia = gsisData?.onomasia || ''
+  let legalStatusDescr = gsisData?.legalStatusDescr || ''
+
+  if (!legalStatusDescr) {
+    const parts = onomasia.trim().split(/\s+/)
+    if (parts.length >= 3) {
+      onomasia = parts.slice(0, 2).join(' ')
+    }
+    legalStatusDescr = 'ΑΤΟΜΙΚΗ'
+  }
+
+  return { onomasia: onomasia || null, legalStatusDescr: legalStatusDescr || null }
+}
+
 export async function POST(request: NextRequest) {
   const { searchParams } = request.nextUrl
   const body = await parseBody(request)
@@ -83,14 +101,17 @@ export async function POST(request: NextRequest) {
       gsisData = null
     }
 
+    const soleProprietorFix = gsisData ? applySoleProprietorFix(gsisData) : null
+
     business = await prisma.business.create({
       data: {
         afm,
         email,
         viberPhone,
         source: 'website-form',
-        legalStatusDescr: gsisData?.legalStatusDescr || (gsisData ? null : 'ΙΔΙΩΤΗΣ'),
-        onomasia: gsisData?.onomasia || null,
+        tags: ['Εγγραφή από Website'],
+        legalStatusDescr: soleProprietorFix?.legalStatusDescr || (gsisData ? null : 'ΙΔΙΩΤΗΣ'),
+        onomasia: soleProprietorFix?.onomasia || gsisData?.onomasia || null,
         commercialTitle: gsisData?.commercialTitle || null,
         regdate: gsisData?.regdate || null,
         postalAddress: gsisData?.postalAddress || null,
