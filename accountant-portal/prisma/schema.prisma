@@ -741,3 +741,25 @@ model ExodikastikosActivity {
   authorName String
   createdAt  DateTime          @default(now())
 }
+
+model EspaAnnouncement {
+  id              String                 @id @default(cuid())
+  externalItemId  String                 @unique
+  title           String
+  detailUrl       String
+  status          String?
+  operationalProgram String?
+  applicationArea String?
+  submissionPeriod String?
+  reviewStatus    EspaAnnouncementStatus @default(NEW)
+  convertedProgramId String?
+  firstSeenAt     DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+}
+
+enum EspaAnnouncementStatus {
+  NEW
+  REVIEWED
+  IGNORED
+  CONVERTED
+}
