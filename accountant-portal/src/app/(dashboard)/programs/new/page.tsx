@@ -172,6 +172,7 @@ export default function NewProgramPage() {
   const fromAnnouncementId = searchParams.get('fromAnnouncementId')
   const prefillTitle = searchParams.get('title') || ''
   const prefillWebsiteUrl = searchParams.get('websiteUrl') || ''
+  const prefillDescription = searchParams.get('description') || ''
   const [kadRules, setKadRules] = useState<string[]>([])
   const [regionRules, setRegionRules] = useState<string[]>([])
   const [zipCodeRules, setZipCodeRules] = useState<string[]>([])
@@ -180,7 +181,7 @@ export default function NewProgramPage() {
 
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<FormData>({
     resolver: zodResolver(schema),
-    defaultValues: { active: true, category: 'ESPA', title: prefillTitle, websiteUrl: prefillWebsiteUrl }
+    defaultValues: { active: true, category: 'ESPA', title: prefillTitle, websiteUrl: prefillWebsiteUrl, description: prefillDescription }
   })
 
   async function onSubmit(data: FormData) {

@@ -751,6 +751,10 @@ model EspaAnnouncement {
   operationalProgram String?
   applicationArea String?
   submissionPeriod String?
+  description     String?                @db.Text
+  beneficiaries   String?                @db.Text
+  budget          String?
+  attachmentUrls  String[]               @default([])
   reviewStatus    EspaAnnouncementStatus @default(NEW)
   convertedProgramId String?
   firstSeenAt     DateTime               @default(now())

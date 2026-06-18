@@ -69,6 +69,10 @@ interface EspaAnnouncement {
   operationalProgram: string | null
   applicationArea: string | null
   submissionPeriod: string | null
+  description: string | null
+  beneficiaries: string | null
+  budget: string | null
+  attachmentUrls: string[]
   reviewStatus: 'NEW' | 'REVIEWED' | 'IGNORED' | 'CONVERTED'
   firstSeenAt: string
 }
@@ -144,7 +148,23 @@ function EspaAnnouncementsTab() {
                 {item.operationalProgram && <span>{item.operationalProgram}</span>}
                 {item.applicationArea && <span>{item.applicationArea}</span>}
                 {item.submissionPeriod && <span>{item.submissionPeriod}</span>}
+                {item.budget && <span>Προϋπολογισμός: {item.budget}</span>}
               </div>
+              {item.description && (
+                <p className="text-xs text-gray-600 mt-1.5 line-clamp-2">{item.description}</p>
+              )}
+              {item.beneficiaries && (
+                <p className="text-xs text-gray-500 mt-1 line-clamp-1"><span className="font-medium">Δικαιούχοι:</span> {item.beneficiaries}</p>
+              )}
+              {item.attachmentUrls.length > 0 && (
+                <div className="flex flex-wrap gap-2 mt-1.5">
+                  {item.attachmentUrls.map((url, i) => (
+                    <a key={url} href={url} target="_blank" rel="noreferrer" className="text-[11px] text-blue-700 hover:underline">
+                      Σχετικό αρχείο {item.attachmentUrls.length > 1 ? i + 1 : ''}
+                    </a>
+                  ))}
+                </div>
+              )}
               <a href={item.detailUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs text-blue-700 hover:underline mt-1.5">
                 Δείτε στο ΕΣΠΑ <ExternalLink size={11} />
               </a>
@@ -152,7 +172,7 @@ function EspaAnnouncementsTab() {
             {item.reviewStatus === 'NEW' && (
               <div className="flex gap-2 flex-shrink-0">
                 <Link
-                  href={`/programs/new?fromAnnouncementId=${item.id}&title=${encodeURIComponent(item.title)}&websiteUrl=${encodeURIComponent(item.detailUrl)}`}
+                  href={`/programs/new?fromAnnouncementId=${item.id}&title=${encodeURIComponent(item.title)}&websiteUrl=${encodeURIComponent(item.detailUrl)}${item.description ? `&description=${encodeURIComponent(item.description)}` : ''}`}
                 >
                   <Button size="sm"><Check size={14} className="mr-1.5" />Μετατροπή σε Πρόγραμμα</Button>
                 </Link>

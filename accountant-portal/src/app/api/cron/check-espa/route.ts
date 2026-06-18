@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { sendEmail } from '@/lib/email'
-import { fetchEspaAnnouncements } from '@/lib/espa-scraper'
+import { fetchEspaAnnouncements, fetchEspaDetail } from '@/lib/espa-scraper'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
@@ -18,7 +18,7 @@ async function runCheck() {
 
   let scraped
   try {
-    scraped = await fetchEspaAnnouncements()
+    scraped = await fetchEspaAnnouncements(3)
   } catch (err: any) {
     console.error('[ESPA cron] scrape failed:', err?.message)
     return NextResponse.json({ error: 'Scrape failed', detail: err.message }, { status: 502 })
@@ -36,8 +36,20 @@ async function runCheck() {
   const newItems = scraped.filter(item => !existingIds.has(item.externalItemId))
 
   if (newItems.length > 0) {
+    const enriched = await Promise.all(
+      newItems.map(async item => {
+        try {
+          const detail = await fetchEspaDetail(item.detailUrl)
+          return { ...item, ...detail }
+        } catch (err: any) {
+          console.error(`[ESPA cron] detail fetch failed for ${item.externalItemId}:`, err?.message)
+          return { ...item, description: null, beneficiaries: null, budget: null, attachmentUrls: [] }
+        }
+      })
+    )
+
     await prisma.espaAnnouncement.createMany({
-      data: newItems.map(item => ({
+      data: enriched.map(item => ({
         externalItemId: item.externalItemId,
         title: item.title,
         detailUrl: item.detailUrl,
@@ -45,6 +57,10 @@ async function runCheck() {
         operationalProgram: item.operationalProgram,
         applicationArea: item.applicationArea,
         submissionPeriod: item.submissionPeriod,
+        description: item.description,
+        beneficiaries: item.beneficiaries,
+        budget: item.budget,
+        attachmentUrls: item.attachmentUrls,
       })),
     })
 
