@@ -26,6 +26,20 @@ function pick(searchParams: URLSearchParams, body: any, ...names: string[]): str
   return ''
 }
 
+async function parseBody(request: NextRequest): Promise<Record<string, any>> {
+  const text = await request.text().catch(() => '')
+  if (!text) return {}
+  try {
+    return JSON.parse(text)
+  } catch {
+    // Not JSON — try x-www-form-urlencoded
+    const params = new URLSearchParams(text)
+    const obj: Record<string, any> = {}
+    params.forEach((v, k) => { obj[k] = v })
+    return obj
+  }
+}
+
 function normalizePhone(value: string | null): string | null {
   if (!value) return null
   let digits = value.replace(/\D/g, '')
@@ -37,7 +51,7 @@ function normalizePhone(value: string | null): string | null {
 
 export async function POST(request: NextRequest) {
   const { searchParams } = request.nextUrl
-  const body = await request.json().catch(() => ({}))
+  const body = await parseBody(request)
 
   if (!checkApiKey(request, body)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
