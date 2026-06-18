@@ -1,4 +1,14 @@
 import * as cheerio from 'cheerio'
+import { Agent } from 'undici'
+
+// www.dypa.gov.gr's connect step times out over IPv6 from some hosts (e.g.
+// Railway); undici's default dual-stack dialer can pick IPv6 first and hang
+// for the full timeout instead of falling back to IPv4. Force IPv4 to avoid that.
+const ipv4Dispatcher = new Agent({ connect: { family: 4 } })
+
+function fetchIpv4(url: string, headers: Record<string, string>) {
+  return fetch(url, { headers, dispatcher: ipv4Dispatcher } as RequestInit)
+}
 
 export interface DypaScrapedItem {
   externalItemId: string
@@ -60,7 +70,7 @@ export async function fetchDypaAnnouncements(): Promise<DypaScrapedItem[]> {
 
   for (let page = 1; page <= MAX_PAGE_SAFETY_LIMIT; page++) {
     const url = page === 1 ? DYPA_LISTING_URL : `${DYPA_LISTING_URL}?page=${page}`
-    const res = await fetch(url, { headers: REQUEST_HEADERS })
+    const res = await fetchIpv4(url, REQUEST_HEADERS)
     if (!res.ok) {
       if (page === 1) throw new Error(`DYPA fetch failed: HTTP ${res.status}`)
       console.error(`[DYPA scraper] failed to fetch page ${page}: HTTP ${res.status}`)
@@ -79,7 +89,7 @@ export async function fetchDypaAnnouncements(): Promise<DypaScrapedItem[]> {
 }
 
 export async function fetchDypaDetail(detailUrl: string): Promise<DypaDetailInfo> {
-  const res = await fetch(detailUrl, { headers: REQUEST_HEADERS })
+  const res = await fetchIpv4(detailUrl, REQUEST_HEADERS)
   if (!res.ok) {
     throw new Error(`DYPA detail fetch failed: HTTP ${res.status}`)
   }
