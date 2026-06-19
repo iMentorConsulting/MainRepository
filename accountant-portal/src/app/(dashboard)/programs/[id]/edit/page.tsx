@@ -179,7 +179,7 @@ export default function EditProgramPage() {
   const router = useRouter()
   const [loading, setLoading] = useState(true)
   const [kadRules, setKadRules] = useState<string[]>([])
-  const [legalStatusRules, setLegalStatusRules] = useState<string[]>([])
+  const [excludedLegalForms, setExcludedLegalForms] = useState<string[]>([])
   const [regionRules, setRegionRules] = useState<string[]>([])
   const [zipCodeRules, setZipCodeRules] = useState<string[]>([])
   const [heroImage, setHeroImage] = useState('')
@@ -210,7 +210,7 @@ export default function EditProgramPage() {
       .then(r => r.json())
       .then(program => {
         setKadRules(program.kadRules || [])
-        setLegalStatusRules(program.legalStatusRules || [])
+        setExcludedLegalForms(program.excludedLegalForms || [])
         setRegionRules(program.regionRules || [])
         setZipCodeRules(program.zipCodeRules || [])
         setExtraCriteriaIds(program.extraCriteriaIds || [])
@@ -246,7 +246,7 @@ export default function EditProgramPage() {
     const res = await fetch(`/api/programs/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...data, heroImageUrl: heroImage || data.heroImageUrl, kadRules, regionRules, zipCodeRules, legalStatusRules, extraCriteriaIds, excludeTags, requireTags, videoUrls }),
+      body: JSON.stringify({ ...data, heroImageUrl: heroImage || data.heroImageUrl, kadRules, regionRules, zipCodeRules, excludedLegalForms, extraCriteriaIds, excludeTags, requireTags, videoUrls }),
     })
     if (res.ok) {
       router.push(`/programs/${id}`)
@@ -342,9 +342,9 @@ export default function EditProgramPage() {
               <Input label="Μέγιστη Ημ. Ίδρυσης" type="date" {...register('maxRegdate')} />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Επιλέξιμες Νομικές Μορφές</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Εξαιρούμενες Νομικές Μορφές</label>
               <p className="text-sm text-gray-500 mb-2">
-                Αν δεν επιλέξετε καμία μορφή, το πρόγραμμα είναι ανοιχτό σε όλες (συμπεριλαμβανομένων ιδιωτών).
+                Επιλέξτε μόνο τις μορφές που ΔΕΝ είναι επιλέξιμες για αυτό το πρόγραμμα. Αν δεν επιλέξετε καμία, το πρόγραμμα είναι ανοιχτό σε όλες τις μορφές (συμπεριλαμβανομένων ιδιωτών).
               </p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-64 overflow-y-auto border rounded-md p-3">
                 {LEGAL_FORMS.map(f => (
@@ -352,10 +352,10 @@ export default function EditProgramPage() {
                     <input
                       type="checkbox"
                       className="rounded"
-                      checked={legalStatusRules.includes(f.value)}
+                      checked={excludedLegalForms.includes(f.value)}
                       onChange={e => {
-                        if (e.target.checked) setLegalStatusRules([...legalStatusRules, f.value])
-                        else setLegalStatusRules(legalStatusRules.filter(v => v !== f.value))
+                        if (e.target.checked) setExcludedLegalForms([...excludedLegalForms, f.value])
+                        else setExcludedLegalForms(excludedLegalForms.filter(v => v !== f.value))
                       }}
                     />
                     <span>{f.label}</span>

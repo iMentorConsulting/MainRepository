@@ -38,20 +38,20 @@ export async function GET(request: NextRequest) {
           activities: { where: { firmActKind: 1 }, select: { firmActDescr: true }, take: 1 },
         },
       },
-      program: { select: { id: true, title: true, description: true, category: true, otherRequirements: true, extraCriteriaIds: true, excludeTags: true, requireTags: true, legalStatusRules: true, endDate: true } },
+      program: { select: { id: true, title: true, description: true, category: true, otherRequirements: true, extraCriteriaIds: true, excludeTags: true, requireTags: true, excludedLegalForms: true, endDate: true } },
     },
   })
 
   // Enforce each program's own tag-based exclusion/require lists and legal-form
-  // restriction live, since old ProgramMatch rows created before these fields
+  // exclusion live, since old ProgramMatch rows created before these fields
   // were set (or already reviewed/notified, which matching cleanup leaves
   // untouched) would otherwise still surface here.
   const visibleMatches = matches.filter(m => {
     if ((m.program.excludeTags || []).some(t => m.business.tags.includes(t))) return false
     const requireTags = m.program.requireTags || []
     if (requireTags.length > 0 && !requireTags.some(t => m.business.tags.includes(t))) return false
-    const legalStatusRules = m.program.legalStatusRules || []
-    if (legalStatusRules.length > 0 && !legalStatusRules.includes(normalizeLegalForm(m.business.legalStatusDescr))) return false
+    const excludedLegalForms = m.program.excludedLegalForms || []
+    if (excludedLegalForms.includes(normalizeLegalForm(m.business.legalStatusDescr))) return false
     return true
   })
 

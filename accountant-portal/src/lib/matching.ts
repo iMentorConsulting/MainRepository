@@ -30,7 +30,7 @@ interface ProgramCriteria {
   zipCodeRules: string[]
   minRegdate: string | null
   maxRegdate: string | null
-  legalStatusRules: string[]
+  excludedLegalForms: string[]
   excludeTags: string[]
   requireTags: string[]
 }
@@ -53,6 +53,9 @@ function matchesBusiness(
   if (program.requireTags.length > 0 && !program.requireTags.some(t => business.tags.includes(t))) {
     return { score: 0, reasons: [] }
   }
+  if (program.excludedLegalForms.length > 0 && program.excludedLegalForms.includes(normalizeLegalForm(business.legalStatusDescr))) {
+    return { score: 0, reasons: [] }
+  }
 
   const reasons: string[] = []
   const totalCriteria = [
@@ -60,7 +63,6 @@ function matchesBusiness(
     program.regionRules.length > 0,
     program.zipCodeRules.length > 0,
     !!program.minRegdate || !!program.maxRegdate,
-    program.legalStatusRules.length > 0,
   ].filter(Boolean).length
 
   if (totalCriteria === 0) {
@@ -125,18 +127,6 @@ function matchesBusiness(
     }
     if (dateOk && regdate) {
       reasons.push(`Επιλέξιμη ημερομηνία ίδρυσης: ${regdate.toLocaleDateString('el-GR', { day: '2-digit', month: '2-digit', year: 'numeric' })}`)
-    } else {
-      allMatched = false
-    }
-  }
-
-  // Legal status matching — exact match against the canonical legal-form
-  // value (businesses with no recognized form count as ΙΔΙΩΤΗΣ), not a
-  // substring match, since legal-form codes are now exact AADE values.
-  if (program.legalStatusRules.length > 0) {
-    const legalForm = normalizeLegalForm(business.legalStatusDescr)
-    if (program.legalStatusRules.includes(legalForm)) {
-      reasons.push(`Επιλέξιμη νομική μορφή: ${legalForm}`)
     } else {
       allMatched = false
     }

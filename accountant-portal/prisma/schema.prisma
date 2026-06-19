@@ -163,7 +163,9 @@ model Program {
   kadRules           String[]
   minRegdate         String?
   maxRegdate         String?
-  legalStatusRules   String[]
+  // Businesses whose legal form (see src/lib/legal-forms.ts) is in this list
+  // are excluded from matching for this program. Empty = open to all forms.
+  excludedLegalForms String[]
   // Businesses carrying any of these tags (e.g. "Οφειλές/Χρέη") are excluded
   // from matching for this program, regardless of how well they otherwise fit.
   excludeTags        String[]

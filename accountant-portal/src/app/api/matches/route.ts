@@ -145,38 +145,32 @@ export async function GET(request: NextRequest) {
       ],
     }
   }
-  // Programs can also restrict eligibility to specific legal forms
-  // (legalStatusRules). Must be enforced live for the same reason as
-  // excludeTags/requireTags above — pre-existing ProgramMatch rows predate
-  // any later change to a program's legalStatusRules.
-  const programsWithLegalStatusRules = await prisma.program.findMany({
-    where: { legalStatusRules: { isEmpty: false } },
-    select: { id: true, legalStatusRules: true },
+  // Programs can also exclude specific legal forms (excludedLegalForms).
+  // Must be enforced live for the same reason as excludeTags above —
+  // pre-existing ProgramMatch rows predate any later change to a program's
+  // excludedLegalForms.
+  const programsWithExcludedLegalForms = await prisma.program.findMany({
+    where: { excludedLegalForms: { isEmpty: false } },
+    select: { id: true, excludedLegalForms: true },
   })
-  let legalStatusPairsFilter: any = null
-  if (programsWithLegalStatusRules.length > 0) {
-    const allBusinessesForLegalStatus = await prisma.business.findMany({ select: { id: true, legalStatusDescr: true } })
-    const eligibleLegalPairs: { businessId: string; programId: string }[] = []
-    for (const program of programsWithLegalStatusRules) {
-      for (const business of allBusinessesForLegalStatus) {
-        if (program.legalStatusRules.includes(normalizeLegalForm(business.legalStatusDescr))) {
-          eligibleLegalPairs.push({ businessId: business.id, programId: program.id })
+  let legalFormExcludePairsFilter: any = null
+  if (programsWithExcludedLegalForms.length > 0) {
+    const allBusinessesForLegalForm = await prisma.business.findMany({ select: { id: true, legalStatusDescr: true } })
+    const excludedLegalPairs: { businessId: string; programId: string }[] = []
+    for (const program of programsWithExcludedLegalForms) {
+      for (const business of allBusinessesForLegalForm) {
+        if (program.excludedLegalForms.includes(normalizeLegalForm(business.legalStatusDescr))) {
+          excludedLegalPairs.push({ businessId: business.id, programId: program.id })
         }
       }
     }
-    const legalStatusProgramIds = programsWithLegalStatusRules.map(p => p.id)
-    legalStatusPairsFilter = {
-      OR: [
-        { programId: { notIn: legalStatusProgramIds } },
-        ...(eligibleLegalPairs.length > 0 ? [{ OR: eligibleLegalPairs }] : []),
-      ],
-    }
+    if (excludedLegalPairs.length > 0) legalFormExcludePairsFilter = { NOT: { OR: excludedLegalPairs } }
   }
   const withProgramExclusions = (w: any) => {
     let result = w
     if (excludePairsFilter) result = { ...result, AND: [...(result.AND || []), excludePairsFilter] }
     if (requirePairsFilter) result = { ...result, AND: [...(result.AND || []), requirePairsFilter] }
-    if (legalStatusPairsFilter) result = { ...result, AND: [...(result.AND || []), legalStatusPairsFilter] }
+    if (legalFormExcludePairsFilter) result = { ...result, AND: [...(result.AND || []), legalFormExcludePairsFilter] }
     return result
   }
 

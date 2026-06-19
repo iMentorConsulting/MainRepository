@@ -265,17 +265,17 @@ export default function ProgramDetailPage() {
                   </div>
                 </div>
               )}
-              {program.legalStatusRules?.length > 0 && (
+              {program.excludedLegalForms?.length > 0 && (
                 <div>
-                  <div className="text-xs font-semibold text-gray-500 uppercase mb-1.5">Νομική Μορφή</div>
+                  <div className="text-xs font-semibold text-gray-500 uppercase mb-1.5">Εξαιρούμενες Νομικές Μορφές</div>
                   <div className="flex flex-wrap gap-1.5">
-                    {program.legalStatusRules.map((r: string) => (
-                      <Badge key={r} variant="info">{LEGAL_FORMS.find(f => f.value === r)?.label || r}</Badge>
+                    {program.excludedLegalForms.map((r: string) => (
+                      <Badge key={r} variant="danger">{LEGAL_FORMS.find(f => f.value === r)?.label || r}</Badge>
                     ))}
                   </div>
                 </div>
               )}
-              {!program.kadRules?.length && !program.legalStatusRules?.length && (
+              {!program.kadRules?.length && !program.excludedLegalForms?.length && (
                 <p className="text-sm text-gray-400 italic">Χωρίς ειδικά κριτήρια — γενικό πρόγραμμα</p>
               )}
               {program.excludeTags?.length > 0 && (
