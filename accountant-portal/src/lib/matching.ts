@@ -3,6 +3,7 @@ import { MatchStatus } from '@prisma/client'
 import { resolveRegionFromZip } from './greek-regions'
 import { sendEmail } from './email'
 import { isInactiveBusiness } from './business-filters'
+import { normalizeLegalForm } from './legal-forms'
 
 interface BusinessWithActivities {
   id: string
@@ -129,14 +130,13 @@ function matchesBusiness(
     }
   }
 
-  // Legal status matching
+  // Legal status matching — exact match against the canonical legal-form
+  // value (businesses with no recognized form count as ΙΔΙΩΤΗΣ), not a
+  // substring match, since legal-form codes are now exact AADE values.
   if (program.legalStatusRules.length > 0) {
-    const legalStatus = business.legalStatusDescr || ''
-    const matchedStatus = program.legalStatusRules.find(r =>
-      legalStatus.toLowerCase().includes(r.toLowerCase())
-    )
-    if (matchedStatus) {
-      reasons.push(`Επιλέξιμη νομική μορφή: ${matchedStatus}`)
+    const legalForm = normalizeLegalForm(business.legalStatusDescr)
+    if (program.legalStatusRules.includes(legalForm)) {
+      reasons.push(`Επιλέξιμη νομική μορφή: ${legalForm}`)
     } else {
       allMatched = false
     }

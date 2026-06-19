@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { categoryWhereClause, ALL_CATEGORIES, BusinessCategory } from '@/lib/business-categories'
 import { regionWhereClause, GREEK_REGIONS } from '@/lib/greek-regions'
 import { reconcileMatchStatuses } from '@/lib/matching'
+import { normalizeLegalForm } from '@/lib/legal-forms'
 
 export const dynamic = 'force-dynamic'
 
@@ -144,10 +145,38 @@ export async function GET(request: NextRequest) {
       ],
     }
   }
+  // Programs can also restrict eligibility to specific legal forms
+  // (legalStatusRules). Must be enforced live for the same reason as
+  // excludeTags/requireTags above — pre-existing ProgramMatch rows predate
+  // any later change to a program's legalStatusRules.
+  const programsWithLegalStatusRules = await prisma.program.findMany({
+    where: { legalStatusRules: { isEmpty: false } },
+    select: { id: true, legalStatusRules: true },
+  })
+  let legalStatusPairsFilter: any = null
+  if (programsWithLegalStatusRules.length > 0) {
+    const allBusinessesForLegalStatus = await prisma.business.findMany({ select: { id: true, legalStatusDescr: true } })
+    const eligibleLegalPairs: { businessId: string; programId: string }[] = []
+    for (const program of programsWithLegalStatusRules) {
+      for (const business of allBusinessesForLegalStatus) {
+        if (program.legalStatusRules.includes(normalizeLegalForm(business.legalStatusDescr))) {
+          eligibleLegalPairs.push({ businessId: business.id, programId: program.id })
+        }
+      }
+    }
+    const legalStatusProgramIds = programsWithLegalStatusRules.map(p => p.id)
+    legalStatusPairsFilter = {
+      OR: [
+        { programId: { notIn: legalStatusProgramIds } },
+        ...(eligibleLegalPairs.length > 0 ? [{ OR: eligibleLegalPairs }] : []),
+      ],
+    }
+  }
   const withProgramExclusions = (w: any) => {
     let result = w
     if (excludePairsFilter) result = { ...result, AND: [...(result.AND || []), excludePairsFilter] }
     if (requirePairsFilter) result = { ...result, AND: [...(result.AND || []), requirePairsFilter] }
+    if (legalStatusPairsFilter) result = { ...result, AND: [...(result.AND || []), legalStatusPairsFilter] }
     return result
   }
 

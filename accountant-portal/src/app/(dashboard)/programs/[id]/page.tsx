@@ -12,6 +12,7 @@ import { ArrowLeft, Zap, Calendar, Tag, ExternalLink, Archive, Trash2, Bell, Pap
 import { useRouter } from 'next/navigation'
 import { formatDate } from '@/lib/utils'
 import { GREEK_REGIONS } from '@/lib/greek-regions'
+import { LEGAL_FORMS } from '@/lib/legal-forms'
 
 function formatEuro(value: number | null | undefined) {
   if (value === null || value === undefined) return null
@@ -269,7 +270,7 @@ export default function ProgramDetailPage() {
                   <div className="text-xs font-semibold text-gray-500 uppercase mb-1.5">Νομική Μορφή</div>
                   <div className="flex flex-wrap gap-1.5">
                     {program.legalStatusRules.map((r: string) => (
-                      <Badge key={r} variant="info">{r}</Badge>
+                      <Badge key={r} variant="info">{LEGAL_FORMS.find(f => f.value === r)?.label || r}</Badge>
                     ))}
                   </div>
                 </div>
