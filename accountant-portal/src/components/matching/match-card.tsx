@@ -11,6 +11,7 @@ interface MatchCardProps {
   matchReason: string[]
   status: MatchStatus
   accountantName?: string | null
+  otherRequirements?: string | null
   onStatusChange?: (status: MatchStatus) => void
 }
 
@@ -22,7 +23,7 @@ const statusConfig: Record<MatchStatus, { label: string; variant: any; icon: any
   SUBMITTED: { label: 'Υποβλήθηκε', variant: 'warning', icon: Send },
 }
 
-export function MatchCard({ businessName, afm, programTitle, matchScore, matchReason, status, accountantName }: MatchCardProps) {
+export function MatchCard({ businessName, afm, programTitle, matchScore, matchReason, status, accountantName, otherRequirements }: MatchCardProps) {
   const conf = statusConfig[status]
   const Icon = conf.icon
   return (
@@ -50,6 +51,12 @@ export function MatchCard({ businessName, afm, programTitle, matchScore, matchRe
               </li>
             ))}
           </ul>
+        </div>
+      )}
+      {otherRequirements && (
+        <div className="mt-2 pt-2 border-t border-gray-100">
+          <div className="text-xs text-gray-500 mb-0.5">Πρόσθετες Προϋποθέσεις</div>
+          <p className="text-xs text-gray-700 leading-relaxed">{otherRequirements}</p>
         </div>
       )}
     </div>

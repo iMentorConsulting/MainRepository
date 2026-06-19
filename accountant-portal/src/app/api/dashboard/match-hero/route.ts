@@ -15,7 +15,10 @@ export async function GET(request: NextRequest) {
   const filterAccountantId = isAdmin ? request.nextUrl.searchParams.get('accountantId') || undefined : undefined
   const effectiveAccountantId = isAdmin ? filterAccountantId : (session.user.accountantId || undefined)
 
-  const where = effectiveAccountantId ? { business: { accountantId: effectiveAccountantId } } : {}
+  const where = {
+    status: { not: 'REJECTED' as const },
+    ...(effectiveAccountantId ? { business: { accountantId: effectiveAccountantId } } : {}),
+  }
 
   const matches = await prisma.programMatch.findMany({
     where,

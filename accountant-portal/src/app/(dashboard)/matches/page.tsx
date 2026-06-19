@@ -13,6 +13,7 @@ import { Send, ChevronUp, ChevronDown, ChevronsUpDown, Search, Check, X as XIcon
 import { NewCaseModal } from '@/components/cases/new-case-modal'
 import { getEffectiveCategory } from '@/lib/business-categories'
 import { CategoryBadge } from '@/components/businesses/category-badge'
+import { MatchesHero } from '@/components/dashboard/matches-hero'
 
 const campaignSentOptions = [
   { value: '', label: 'Όλα' },
@@ -307,6 +308,8 @@ function MatchesPageInner() {
 
   return (
     <div className="space-y-6">
+      <MatchesHero accountantId={accountantFilter.length === 1 ? accountantFilter[0] : undefined} />
+
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Matches</h1>

@@ -371,6 +371,7 @@ export default function ProgramDetailPage() {
                   matchReason={m.matchReason}
                   status={m.status}
                   accountantName={m.business?.accountant?.officeName}
+                  otherRequirements={program.otherRequirements}
                 />
               ))}
             </div>

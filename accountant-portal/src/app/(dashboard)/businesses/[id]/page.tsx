@@ -343,12 +343,16 @@ export default function BusinessDetailPage() {
           )}
 
           {/* Matches */}
-          {business.programMatches && business.programMatches.length > 0 && (
+          {business.programMatches && business.programMatches.filter((m: any) => m.status !== 'REJECTED').length > 0 && (
             <Card>
-              <CardHeader><CardTitle>Matches Προγραμμάτων ({business.programMatches.length})</CardTitle></CardHeader>
+              <CardHeader>
+                <CardTitle>
+                  Matches Προγραμμάτων ({business.programMatches.filter((m: any) => m.status !== 'REJECTED').length})
+                </CardTitle>
+              </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {business.programMatches.map((m: any) => (
+                  {business.programMatches.filter((m: any) => m.status !== 'REJECTED').map((m: any) => (
                     <MatchCard
                       key={m.id}
                       businessName={business.onomasia || ''}
@@ -357,6 +361,7 @@ export default function BusinessDetailPage() {
                       matchScore={m.matchScore}
                       matchReason={m.matchReason}
                       status={m.status}
+                      otherRequirements={m.program?.otherRequirements}
                     />
                   ))}
                 </div>

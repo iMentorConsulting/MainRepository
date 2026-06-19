@@ -15,7 +15,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
       activities: true,
       programMatches: {
         include: {
-          program: { select: { id: true, title: true, category: true } },
+          program: { select: { id: true, title: true, category: true, otherRequirements: true } },
           criterionChecks: true,
         },
         orderBy: { matchScore: 'desc' },
