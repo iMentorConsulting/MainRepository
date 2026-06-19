@@ -57,8 +57,6 @@ export async function GET(request: NextRequest) {
     const excluded = await prisma.business.findMany({ where: { tags: { hasSome: excludeTags } }, select: { id: true } })
     businessFilter.id = { notIn: excluded.map(b => b.id) }
   }
-  if (campaignSent === 'yes') businessFilter.campaignRecipients = { some: { sentAt: { not: null } } }
-  else if (campaignSent === 'no') businessFilter.campaignRecipients = { none: { sentAt: { not: null } } }
   if (search) {
     businessFilter.OR = [
       { onomasia: { contains: search, mode: 'insensitive' } },
@@ -70,6 +68,27 @@ export async function GET(request: NextRequest) {
     ]
   }
   if (Object.keys(businessFilter).length > 0) baseWhere.business = businessFilter
+
+  // "campaignSent" must be scoped per match (businessId + that match's own programId),
+  // not per business overall — a business can have a sent campaign for one program and
+  // none for another, and each match row should reflect only its own program.
+  if (campaignSent === 'yes' || campaignSent === 'no') {
+    const sentRecipients = await prisma.campaignRecipient.findMany({
+      where: { sentAt: { not: null }, campaign: { programId: { not: null } } },
+      select: { businessId: true, campaign: { select: { programId: true } } },
+    })
+    const sentPairs = Array.from(new Set(sentRecipients.map(r => `${r.businessId}::${r.campaign.programId}`)))
+      .map(key => {
+        const [businessId, programId] = key.split('::')
+        return { businessId, programId }
+      })
+
+    if (campaignSent === 'yes') {
+      baseWhere.OR = sentPairs.length > 0 ? sentPairs : [{ id: '__none__' }]
+    } else {
+      baseWhere.AND = [...(baseWhere.AND || []), { NOT: { OR: sentPairs.length > 0 ? sentPairs : [{ id: '__none__' }] } }]
+    }
+  }
 
   const baseWhereWithHidden = hideUnsuitable
     ? { ...baseWhere, rejectionReasonId: null, NOT: { criterionChecks: { some: { value: 'FAIL' } } } }
