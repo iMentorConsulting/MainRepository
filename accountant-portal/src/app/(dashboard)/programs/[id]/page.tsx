@@ -95,11 +95,11 @@ export default function ProgramDetailPage() {
     setNotifying(true)
     const res = await fetch(`/api/programs/${id}/notify`, { method: 'POST' })
     const data = await res.json()
-    setPendingNotifications(data.skippedNoAccountant || 0)
-    const skippedMsg = data.skippedNoAccountant > 0
-      ? `\n\n${data.skippedNoAccountant} match${data.skippedNoAccountant === 1 ? '' : 'es'} παραλείφθηκ${data.skippedNoAccountant === 1 ? 'ε' : 'αν'} επειδή ${data.skippedNoAccountant === 1 ? 'η επιχείρηση' : 'οι επιχειρήσεις'} δεν έχ${data.skippedNoAccountant === 1 ? 'ει' : 'ουν'} ανάθεση λογιστή — στείλτε τους απευθείας μέσω Quick Send.`
+    setPendingNotifications(0)
+    const directMsg = data.directNotified > 0
+      ? `\n\n${data.directNotified} match${data.directNotified === 1 ? '' : 'es'} αφορ${data.directNotified === 1 ? 'ά' : 'ούν'} επιχειρήσεις χωρίς ανάθεση λογιστή — εστάλη εσωτερικό email στην ομάδα I-MENTOR για απευθείας επικοινωνία.`
       : ''
-    alert(`Εστάλησαν ειδοποιήσεις για ${data.notified} matches σε ${data.accountants} λογιστές.${skippedMsg}`)
+    alert(`Εστάλησαν ειδοποιήσεις για ${data.notified} matches σε ${data.accountants} λογιστές.${directMsg}`)
     setNotifying(false)
   }
 
@@ -276,6 +276,16 @@ export default function ProgramDetailPage() {
               )}
               {!program.kadRules?.length && !program.legalStatusRules?.length && (
                 <p className="text-sm text-gray-400 italic">Χωρίς ειδικά κριτήρια — γενικό πρόγραμμα</p>
+              )}
+              {program.excludeTags?.length > 0 && (
+                <div>
+                  <div className="text-xs font-semibold text-gray-500 uppercase mb-1.5">Φίλτρα Εξαίρεσης (Tags)</div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {program.excludeTags.map((r: string) => (
+                      <Badge key={r} variant="danger">{r}</Badge>
+                    ))}
+                  </div>
+                </div>
               )}
             </CardContent>
           </Card>

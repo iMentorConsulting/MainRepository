@@ -14,6 +14,7 @@ interface BusinessWithActivities {
   legalStatusDescr: string | null
   deactivationFlag?: string | null
   stopDate?: string | null
+  tags: string[]
   activities: {
     firmActCode: string
     firmActDescr: string | null
@@ -29,6 +30,7 @@ interface ProgramCriteria {
   minRegdate: string | null
   maxRegdate: string | null
   legalStatusRules: string[]
+  excludeTags: string[]
 }
 
 // AADE's webservice sometimes returns ΚΑΔ codes that start with 0 (e.g.
@@ -43,6 +45,10 @@ function matchesBusiness(
   business: BusinessWithActivities,
   program: ProgramCriteria
 ): { score: number; reasons: string[] } {
+  if (program.excludeTags.length > 0 && business.tags.some(t => program.excludeTags.includes(t))) {
+    return { score: 0, reasons: [] }
+  }
+
   const reasons: string[] = []
   const totalCriteria = [
     program.kadRules.length > 0,

@@ -184,6 +184,8 @@ export default function EditProgramPage() {
   const [videoUrls, setVideoUrls] = useState<string[]>([])
   const [extraCriteriaIds, setExtraCriteriaIds] = useState<string[]>([])
   const [criteriaOptions, setCriteriaOptions] = useState<{ id: string; label: string; active: boolean }[]>([])
+  const [excludeTags, setExcludeTags] = useState<string[]>([])
+  const [tagOptions, setTagOptions] = useState<{ label: string }[]>([])
 
   const { register, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -193,6 +195,10 @@ export default function EditProgramPage() {
     fetch('/api/admin/criteria')
       .then(r => r.json())
       .then(data => setCriteriaOptions(Array.isArray(data) ? data : []))
+      .catch(() => {})
+    fetch('/api/admin/tags')
+      .then(r => r.json())
+      .then(data => setTagOptions(Array.isArray(data) ? data : []))
       .catch(() => {})
   }, [])
 
@@ -204,6 +210,7 @@ export default function EditProgramPage() {
         setRegionRules(program.regionRules || [])
         setZipCodeRules(program.zipCodeRules || [])
         setExtraCriteriaIds(program.extraCriteriaIds || [])
+        setExcludeTags(program.excludeTags || [])
         setHeroImage(program.heroImageUrl || '')
         setVideoUrls(program.videoUrls || [])
         reset({
@@ -234,7 +241,7 @@ export default function EditProgramPage() {
     const res = await fetch(`/api/programs/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...data, heroImageUrl: heroImage || data.heroImageUrl, kadRules, regionRules, zipCodeRules, extraCriteriaIds, videoUrls }),
+      body: JSON.stringify({ ...data, heroImageUrl: heroImage || data.heroImageUrl, kadRules, regionRules, zipCodeRules, extraCriteriaIds, excludeTags, videoUrls }),
     })
     if (res.ok) {
       router.push(`/programs/${id}`)
@@ -353,6 +360,33 @@ export default function EditProgramPage() {
                     }}
                   />
                   <span className={c.active ? '' : 'text-gray-400'}>{c.label}{!c.active ? ' (ανενεργό)' : ''}</span>
+                </label>
+              ))
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader><CardTitle>Φίλτρα Εξαίρεσης (Tags)</CardTitle></CardHeader>
+          <CardContent className="space-y-2">
+            <p className="text-sm text-gray-500 mb-2">
+              Επιχειρήσεις που φέρουν οποιοδήποτε από αυτά τα tags εξαιρούνται αυτόματα από το matching για αυτό το πρόγραμμα, ανεξάρτητα από τα υπόλοιπα κριτήρια.
+            </p>
+            {tagOptions.length === 0 ? (
+              <p className="text-sm text-gray-400">Δεν έχουν οριστεί tags. Μεταβείτε στη σελίδα "Tags Επιχειρήσεων".</p>
+            ) : (
+              tagOptions.map(t => (
+                <label key={t.label} className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    className="rounded"
+                    checked={excludeTags.includes(t.label)}
+                    onChange={e => {
+                      if (e.target.checked) setExcludeTags([...excludeTags, t.label])
+                      else setExcludeTags(excludeTags.filter(v => v !== t.label))
+                    }}
+                  />
+                  <span>{t.label}</span>
                 </label>
               ))
             )}

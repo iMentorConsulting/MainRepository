@@ -109,11 +109,33 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     notifiedCount += count
   }
 
-  // Mark only the matches that were actually emailed as notified — matches
-  // belonging to businesses with no assigned accountant are intentionally
-  // left pending (notified: false) since nobody was ever emailed for them;
-  // they need to be handled directly via quick-send to the business itself.
-  const sentMatchIds = Object.values(byAccountant).flat().map(m => m.id)
+  // Matches for businesses with no assigned accountant ("direct" I-MENTOR
+  // clients) have nobody to email on the accountant side — instead, bundle
+  // them into one internal email to the I-MENTOR team so they can reach out
+  // directly (e.g. via Quick Send), and mark them notified so this doesn't
+  // resurface every time the button is pressed.
+  const directMatches = unnotifiedMatches.filter(m => !m.business.accountantId)
+  if (directMatches.length > 0) {
+    const adminEmail = process.env.ADMIN_EMAIL || 'info@i-mentor.gr'
+    const directListHtml = directMatches.map(m =>
+      `<li>${m.business.onomasia || 'Άγνωστη επιχείρηση'} (ΑΦΜ: ${m.business.afm})</li>`
+    ).join('')
+    await sendEmail({
+      to: adminEmail,
+      subject: `🎯 ${directMatches.length} match${directMatches.length === 1 ? '' : 'es'} χωρίς λογιστή — «${program.title}»`,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <p>Βρέθηκ${directMatches.length === 1 ? 'ε' : 'αν'} <strong>${directMatches.length}</strong> match${directMatches.length === 1 ? '' : 'es'} για το πρόγραμμα <strong>«${program.title}»</strong> σε επιχειρήσεις χωρίς ανάθεση λογιστή (απευθείας πελάτες I-MENTOR):</p>
+          <ul>${directListHtml}</ul>
+          <p>Στείλτε τους ενημέρωση απευθείας μέσω Quick Send από το <a href="${process.env.APP_URL || 'https://logistis.i-mentor.gr'}/programs/${params.id}">πρόγραμμα</a>.</p>
+        </div>
+      `,
+    }).catch(() => {})
+  }
+
+  // Mark every match that was actually acted upon as notified — either
+  // emailed to its accountant, or bundled into the internal I-MENTOR email.
+  const sentMatchIds = [...Object.values(byAccountant).flat(), ...directMatches].map(m => m.id)
   if (sentMatchIds.length > 0) {
     await prisma.programMatch.updateMany({
       where: { id: { in: sentMatchIds } },
@@ -121,11 +143,10 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     })
   }
 
-  const skipped = unnotifiedMatches.length - sentMatchIds.length
   return NextResponse.json({
     notified: notifiedCount,
     accountants: Object.keys(byAccountant).length,
-    skippedNoAccountant: skipped,
+    directNotified: directMatches.length,
   })
 }
 
