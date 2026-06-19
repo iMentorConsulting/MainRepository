@@ -31,8 +31,7 @@ export async function GET(request: NextRequest) {
   const sortDir = (searchParams.get('sortDir') || 'desc') === 'asc' ? 'asc' : 'desc'
   const skip = (page - 1) * limit
 
-  const where: any = {}
-  if (programIds.length > 0) where.programId = { in: programIds }
+  const baseWhere: any = {}
 
   const businessFilter: any = {}
   if (session.user.role === 'ACCOUNTANT' && session.user.accountantId) {
@@ -70,11 +69,17 @@ export async function GET(request: NextRequest) {
       { activities: { some: { firmActDescr: { contains: search, mode: 'insensitive' } } } },
     ]
   }
-  if (Object.keys(businessFilter).length > 0) where.business = businessFilter
+  if (Object.keys(businessFilter).length > 0) baseWhere.business = businessFilter
 
-  const whereWithHidden = hideUnsuitable
-    ? { ...where, rejectionReasonId: null, NOT: { criterionChecks: { some: { value: 'FAIL' } } } }
-    : where
+  const baseWhereWithHidden = hideUnsuitable
+    ? { ...baseWhere, rejectionReasonId: null, NOT: { criterionChecks: { some: { value: 'FAIL' } } } }
+    : baseWhere
+
+  // `where`/`whereWithHidden` scope the actual result set (includes the program filter);
+  // `baseWhereWithHidden` (without the program filter) is reused to compute the program
+  // facet counts below, so the program dropdown reflects only the other active filters.
+  const where = programIds.length > 0 ? { ...baseWhere, programId: { in: programIds } } : baseWhere
+  const whereWithHidden = programIds.length > 0 ? { ...baseWhereWithHidden, programId: { in: programIds } } : baseWhereWithHidden
 
   const safeSort = SORTABLE.has(sortBy) ? sortBy : 'matchScore'
   let orderBy: any = { [safeSort]: sortDir }
@@ -134,17 +139,25 @@ export async function GET(request: NextRequest) {
 
   // For admin: also return facets for filters
   let accountants: any[] = []
-  let programs: any[] = []
   if (session.user.role === 'ADMIN') {
-    const [accs, progs] = await Promise.all([
-      prisma.accountant.findMany({ select: { id: true, officeName: true }, orderBy: { officeName: 'asc' } }),
-      prisma.program.findMany({ select: { id: true, title: true }, orderBy: { title: 'asc' } }),
-    ])
-    accountants = accs
-    programs = progs
-  } else {
-    programs = await prisma.program.findMany({ select: { id: true, title: true }, orderBy: { title: 'asc' } })
+    accountants = await prisma.accountant.findMany({ select: { id: true, officeName: true }, orderBy: { officeName: 'asc' } })
   }
+
+  // Program facet: only programs with at least one match under the other active
+  // filters, with a live count, so the dropdown narrows as the user filters.
+  const programCounts = await prisma.programMatch.groupBy({
+    by: ['programId'],
+    where: baseWhereWithHidden,
+    _count: { _all: true },
+  })
+  const programTitles = await prisma.program.findMany({
+    where: { id: { in: programCounts.map(p => p.programId) } },
+    select: { id: true, title: true },
+  })
+  const titleById = new Map(programTitles.map(p => [p.id, p.title]))
+  const programs = programCounts
+    .map(p => ({ id: p.programId, title: titleById.get(p.programId) || '—', count: p._count._all }))
+    .sort((a, b) => a.title.localeCompare(b.title))
 
   const legalStatusFacet = await prisma.business.findMany({
     where: businessFilter.accountantId ? { accountantId: businessFilter.accountantId } : {},

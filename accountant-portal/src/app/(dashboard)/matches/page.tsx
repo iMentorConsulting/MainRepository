@@ -260,7 +260,7 @@ function MatchesPageInner() {
     setUnsuitableCount(data.unsuitableCount || 0)
     if (data.tags?.length) setTagOptions(data.tags.map((v: string) => ({ value: v, label: v })))
     if (data.accountants?.length) setAccountantOptions(data.accountants.map((a: any) => ({ value: a.id, label: a.officeName })))
-    if (data.programs?.length) setProgramOptions(data.programs.map((p: any) => ({ value: p.id, label: p.title })))
+    setProgramOptions((data.programs || []).map((p: any) => ({ value: p.id, label: `${p.title} (${p.count})` })))
     if (data.legalStatuses?.length) setLegalStatusOptions(data.legalStatuses.map((v: string) => ({ value: v, label: v })))
     if (data.categories?.length) setCategoryOptions(data.categories.map((v: string) => ({ value: v, label: v })))
     if (data.perifereies?.length) setPerifereiaOptions([...data.perifereies, 'Άγνωστη'].map((v: string) => ({ value: v, label: v })))
@@ -332,6 +332,12 @@ function MatchesPageInner() {
 
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
         <div className="p-4 border-b border-gray-100 space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Φίλτρα</span>
+            <span className="inline-flex items-center gap-1.5 text-xs font-semibold bg-indigo-50 text-indigo-700 rounded-full px-2.5 py-1">
+              {loading ? '...' : total} {total === 1 ? 'match' : 'matches'} με τα τρέχοντα φίλτρα
+            </span>
+          </div>
           <div className="flex flex-wrap gap-2 items-end">
             <div>
               <label className="text-xs font-medium text-gray-500 block mb-1">Επιχείρηση</label>
@@ -368,13 +374,15 @@ function MatchesPageInner() {
               />
             )}
             {programOptions.length > 0 && (
-              <MultiSelect
-                label="Πρόγραμμα"
-                options={programOptions}
-                selected={programFilter}
-                onChange={setProgramFilter}
-                placeholder="Όλα τα προγράμματα"
-              />
+              <div className="min-w-[260px]">
+                <MultiSelect
+                  label="Πρόγραμμα (με βάση τα άλλα φίλτρα)"
+                  options={programOptions}
+                  selected={programFilter}
+                  onChange={setProgramFilter}
+                  placeholder="Όλα τα προγράμματα"
+                />
+              </div>
             )}
             {legalStatusOptions.length > 0 && (
               <MultiSelect
