@@ -271,6 +271,11 @@ function MatchesPageInner() {
   useEffect(() => { setPage(1) }, [accountantFilter, programFilter, legalStatusFilter, categoryFilter, perifereiaFilter, tagFilter, excludeTagFilter, campaignSentFilter, search, sortBy, sortDir, hideUnsuitable, websiteFormOnly])
   useEffect(() => { setSelected(new Set()) }, [page, accountantFilter, programFilter, legalStatusFilter, categoryFilter, perifereiaFilter, tagFilter, excludeTagFilter, campaignSentFilter, search])
 
+  useEffect(() => {
+    const fromUrl = searchParams.get('programIds')
+    setProgramFilter(fromUrl ? fromUrl.split(',').filter(Boolean) : [])
+  }, [searchParams])
+
   function handleSearch() {
     setSearch(searchInput)
   }
