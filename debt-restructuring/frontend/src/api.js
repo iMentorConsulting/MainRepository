@@ -144,4 +144,10 @@ export const getPublicCase = (token, vat, notrack = false) => {
 export const markPortalInterested = (token) => api.post(`/public/case/${token}/interested`)
 export const getPublicStats = () => api.get('/public/stats')
 
+// IRIS payments (DIAS Request to Pay)
+export const createIrisPayment = (data) => api.post('/payments/iris/create', data)
+export const listIrisPayments = () => api.get('/payments/iris')
+export const getIrisPayment = (paymentId) => api.get(`/payments/iris/${paymentId}`)
+export const recheckIrisPayment = (paymentId) => api.post(`/payments/iris/${paymentId}/recheck`)
+
 export default api

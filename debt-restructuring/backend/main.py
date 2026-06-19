@@ -6,8 +6,8 @@ import os
 from dotenv import load_dotenv
 
 from database import engine, Base
-from models import Case, AppConfig, Lead
-from routers import cases, statistics, public, config, leads, auth, external
+from models import Case, AppConfig, Lead, IrisPayment
+from routers import cases, statistics, public, config, leads, auth, external, payments
 from auth_utils import get_current_user
 
 load_dotenv()
@@ -154,6 +154,7 @@ app.include_router(public.router)
 app.include_router(config.router)
 app.include_router(leads.router)
 app.include_router(external.router)
+app.include_router(payments.router)
 
 
 # ── Daily scheduler: sync then backup at 18:00 Athens (15:00 UTC) ────────────

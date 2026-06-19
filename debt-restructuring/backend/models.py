@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, DateTime, JSON, Boolean
+from sqlalchemy import Column, Integer, Float, String, Text, DateTime, JSON, Boolean
 from database import Base
 from datetime import datetime
 import secrets
@@ -131,3 +131,53 @@ class Lead(Base):
     # Timestamps
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow)
+
+
+class IrisPayment(Base):
+    """IRIS payments (DIAS Request to Pay) - eCommerce / RI0 unstructured payment code.
+
+    Spec reference: DIAS-ORG05-V1R4 (IRIS payments, Hlektroniko Emporio,
+    Prodiagrafes Leitourgias Hlektronikou Katastimatos), Parartima A.
+    """
+
+    __tablename__ = "iris_payments"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    # Public reference shown to the customer / used in admin UI
+    payment_id = Column(String, unique=True, index=True, nullable=False)
+
+    customer_name = Column(String, nullable=False)
+    customer_afm = Column(String, default="")
+    service_type = Column(String, default="")
+
+    net_amount = Column(Float, nullable=False)
+    vat_amount = Column(Float, nullable=False)
+    total_amount = Column(Float, nullable=False)
+
+    payment_reason = Column(String, default="")          # unstructured1
+    payment_code_ri0 = Column(String, index=True, default="")  # unstructured2
+
+    # DIAS Initiation message correlation
+    message_id = Column(String, index=True, default="")
+    initiating_party_ref_id = Column(String, unique=True, index=True, default="")
+    dias_order_id = Column(String, index=True, default="")
+    bank_selection_tool_url = Column(Text, default="")
+
+    # Internal status: created, pending, authorised, paid, expired, cancelled, failed
+    status = Column(String, default="created", index=True)
+    original_tx_status = Column(String, default="")   # ACSP / RJCT (from DIAS Result)
+    payer_name = Column(String, default="")            # debtorName from DIAS Result
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    expires_at = Column(DateTime, nullable=True)
+    paid_at = Column(DateTime, nullable=True)
+
+    raw_initiation_response = Column(JSON, nullable=True)
+    raw_result_response = Column(JSON, nullable=True)
+
+    error_code = Column(String, default="")
+    error_description = Column(Text, default="")
+
+    linked_case_id = Column(Integer, nullable=True)
+    created_by = Column(String, default="")

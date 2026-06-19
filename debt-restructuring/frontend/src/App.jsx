@@ -14,6 +14,7 @@ import FinancialDashboard from './pages/FinancialDashboard'
 import Leads from './pages/Leads'
 import LeadsReporting from './pages/LeadsReporting'
 import LeadLists from './pages/LeadLists'
+import IrisPayments from './pages/IrisPayments'
 import { loginUser } from './api'
 
 const SESSION_MS = 8 * 60 * 60 * 1000  // 8 hours
@@ -88,6 +89,7 @@ export default function App() {
             <Route path="/finances" element={<FinancialDashboard currentEmployee={auth.employee} />} />
             <Route path="/leads" element={<Leads currentEmployee={auth.employee} />} />
             <Route path="/lead-lists" element={<LeadLists currentEmployee={auth.employee} />} />
+            <Route path="/payments" element={<IrisPayments currentEmployee={auth.employee} />} />
             <Route path="/leads-reporting" element={<LeadsReporting currentEmployee={auth.employee} />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
