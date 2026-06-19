@@ -216,6 +216,7 @@ function MatchesPageInner() {
   const [criteriaMap, setCriteriaMap] = useState<Record<string, string>>({})
   const [reasonOptions, setReasonOptions] = useState<{ id: string; label: string; programIds?: string[] }[]>([])
   const [hideUnsuitable, setHideUnsuitable] = useState(true)
+  const [websiteFormOnly, setWebsiteFormOnly] = useState(false)
   const [unsuitableCount, setUnsuitableCount] = useState(0)
   const [tagFilter, setTagFilter] = useState<string[]>([])
   const [excludeTagFilter, setExcludeTagFilter] = useState<string[]>([])
@@ -251,6 +252,7 @@ function MatchesPageInner() {
     if (campaignSentFilter) params.set('campaignSent', campaignSentFilter)
     if (search) params.set('search', search)
     if (hideUnsuitable) params.set('hideUnsuitable', 'true')
+    if (websiteFormOnly) params.set('websiteFormOnly', '1')
     const res = await fetch(`/api/matches?${params}`)
     const data = await res.json()
     setMatches(data.matches || [])
@@ -263,10 +265,10 @@ function MatchesPageInner() {
     if (data.categories?.length) setCategoryOptions(data.categories.map((v: string) => ({ value: v, label: v })))
     if (data.perifereies?.length) setPerifereiaOptions([...data.perifereies, 'Άγνωστη'].map((v: string) => ({ value: v, label: v })))
     setLoading(false)
-  }, [page, accountantFilter, programFilter, legalStatusFilter, categoryFilter, perifereiaFilter, tagFilter, excludeTagFilter, campaignSentFilter, search, sortBy, sortDir, hideUnsuitable])
+  }, [page, accountantFilter, programFilter, legalStatusFilter, categoryFilter, perifereiaFilter, tagFilter, excludeTagFilter, campaignSentFilter, search, sortBy, sortDir, hideUnsuitable, websiteFormOnly])
 
   useEffect(() => { fetchMatches() }, [fetchMatches])
-  useEffect(() => { setPage(1) }, [accountantFilter, programFilter, legalStatusFilter, categoryFilter, perifereiaFilter, tagFilter, excludeTagFilter, campaignSentFilter, search, sortBy, sortDir, hideUnsuitable])
+  useEffect(() => { setPage(1) }, [accountantFilter, programFilter, legalStatusFilter, categoryFilter, perifereiaFilter, tagFilter, excludeTagFilter, campaignSentFilter, search, sortBy, sortDir, hideUnsuitable, websiteFormOnly])
   useEffect(() => { setSelected(new Set()) }, [page, accountantFilter, programFilter, legalStatusFilter, categoryFilter, perifereiaFilter, tagFilter, excludeTagFilter, campaignSentFilter, search])
 
   function handleSearch() {
@@ -432,9 +434,22 @@ function MatchesPageInner() {
                 {hideUnsuitable ? `${unsuitableCount} εγγραφές κρυμμένες (μη επιλέξιμες) — κλικ για εμφάνιση` : `Απόκρυψη ${unsuitableCount} μη επιλέξιμων`}
               </button>
             )}
-            {(accountantFilter.length > 0 || programFilter.length > 0 || legalStatusFilter.length > 0 || categoryFilter.length > 0 || perifereiaFilter.length > 0 || tagFilter.length > 0 || excludeTagFilter.length > 0 || campaignSentFilter || search) && (
+            {isAdmin && (
               <button
-                onClick={() => { setAccountantFilter([]); setProgramFilter([]); setLegalStatusFilter([]); setCategoryFilter([]); setPerifereiaFilter([]); setTagFilter([]); setExcludeTagFilter([]); setCampaignSentFilter(''); setSearch(''); setSearchInput('') }}
+                onClick={() => setWebsiteFormOnly(v => !v)}
+                title="Εμφάνιση μόνο επιχειρήσεων που εγγράφηκαν μόνες τους μέσω της φόρμας του website"
+                className={`flex items-center gap-1.5 text-xs font-medium rounded-lg px-3 py-2 mt-4 border transition-colors ${
+                  websiteFormOnly
+                    ? 'bg-indigo-50 border-indigo-300 text-indigo-800 hover:bg-indigo-100'
+                    : 'bg-white border-gray-200 text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                {websiteFormOnly ? 'Προβολή Όλων' : 'Εγγραφή μέσω Website'}
+              </button>
+            )}
+            {(accountantFilter.length > 0 || programFilter.length > 0 || legalStatusFilter.length > 0 || categoryFilter.length > 0 || perifereiaFilter.length > 0 || tagFilter.length > 0 || excludeTagFilter.length > 0 || campaignSentFilter || search || websiteFormOnly) && (
+              <button
+                onClick={() => { setAccountantFilter([]); setProgramFilter([]); setLegalStatusFilter([]); setCategoryFilter([]); setPerifereiaFilter([]); setTagFilter([]); setExcludeTagFilter([]); setCampaignSentFilter(''); setSearch(''); setSearchInput(''); setWebsiteFormOnly(false) }}
                 className="text-xs text-gray-500 hover:text-gray-700 underline mt-4"
               >
                 Καθαρισμός φίλτρων

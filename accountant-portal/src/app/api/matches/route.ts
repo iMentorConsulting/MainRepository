@@ -24,6 +24,7 @@ export async function GET(request: NextRequest) {
   const tags = searchParams.get('tags')?.split(',').filter(Boolean) || []
   const excludeTags = searchParams.get('excludeTags')?.split(',').filter(Boolean) || []
   const hideUnsuitable = searchParams.get('hideUnsuitable') === 'true'
+  const websiteFormOnly = searchParams.get('websiteFormOnly') === '1'
   const campaignSent = searchParams.get('campaignSent') || ''
   const search = searchParams.get('search') || ''
   const sortBy = searchParams.get('sortBy') || 'matchScore'
@@ -48,6 +49,7 @@ export async function GET(request: NextRequest) {
       businessFilter.accountantId = { in: realIds }
     }
   }
+  if (websiteFormOnly && session.user.role === 'ADMIN') businessFilter.source = 'website-form'
   if (legalStatuses.length > 0) businessFilter.legalStatusDescr = { in: legalStatuses }
   if (categories.length > 0) businessFilter.AND = [...(businessFilter.AND || []), { OR: categories.map(categoryWhereClause) }]
   if (perifereies.length > 0) businessFilter.AND = [...(businessFilter.AND || []), { OR: perifereies.map(regionWhereClause) }]
