@@ -2,6 +2,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useSession } from 'next-auth/react'
 import Link from 'next/link'
+import { useSearchParams, useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableHead, TableBody, TableRow, Th, Td } from '@/components/ui/table'
@@ -176,6 +177,8 @@ function RejectionCell({ match, reasonOptions, onChanged }: { match: any; reason
 
 export default function MatchesPage() {
   const { data: session } = useSession()
+  const router = useRouter()
+  const searchParams = useSearchParams()
   const isAdmin = session?.user?.role === 'ADMIN'
   const [matches, setMatches] = useState<any[]>([])
   const [total, setTotal] = useState(0)
@@ -539,7 +542,13 @@ export default function MatchesPage() {
                         </Td>
                         <Td>
                           <button
-                            onClick={() => setCaseFor({ businessId: m.businessId, programId: m.programId })}
+                            onClick={() => {
+                              if (m.program?.category === 'DYPA') {
+                                router.push(`/cases/dypa/new?businessId=${m.businessId}&programId=${m.programId}`)
+                              } else {
+                                setCaseFor({ businessId: m.businessId, programId: m.programId })
+                              }
+                            }}
                             className="relative p-1.5 rounded-lg text-indigo-600 hover:bg-indigo-50 transition-colors"
                             title={m.business?.hasCase ? 'Ανάθεση στην I-MENTOR (υπάρχει ήδη υπόθεση)' : 'Ανάθεση στην I-MENTOR'}
                           >

@@ -8,19 +8,19 @@ datasource db {
 }
 
 model User {
-  id           String     @id @default(cuid())
-  name         String
-  email        String     @unique
-  passwordHash String
-  role         Role       @default(ACCOUNTANT)
-  accountantId String?
-  accountant   Accountant? @relation(fields: [accountantId], references: [id])
-  lastLoginAt  DateTime?
+  id            String      @id @default(cuid())
+  name          String
+  email         String      @unique
+  passwordHash  String
+  role          Role        @default(ACCOUNTANT)
+  accountantId  String?
+  accountant    Accountant? @relation(fields: [accountantId], references: [id])
+  lastLoginAt   DateTime?
   emailVerified DateTime?
-  verifyToken  String?    @unique
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
-  loginLogs    LoginLog[]
+  verifyToken   String?     @unique
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  loginLogs     LoginLog[]
 }
 
 model LoginLog {
@@ -38,41 +38,49 @@ enum Role {
 // Singleton row (id "main") holding global I-MENTOR branding settings,
 // e.g. the logo shown in the header of campaign emails.
 model AppSetting {
-  id             String   @id @default("main")
-  imentorLogoUrl String?
-  logistisLogoUrl String?
-  aadeUser       String?
-  aadePass       String?
-  aadeCallerAfm  String?
-  criteriaSuggestionsSeeded         Boolean @default(false)
-  tagSuggestionsSeeded              Boolean @default(false)
-  rejectionReasonSuggestionsSeeded  Boolean @default(false)
-  firmActCodesNormalized            Boolean @default(false)
-  updatedAt      DateTime @updatedAt
+  id                               String   @id @default("main")
+  imentorLogoUrl                   String?
+  logistisLogoUrl                  String?
+  aadeUser                         String?
+  aadePass                         String?
+  aadeCallerAfm                    String?
+  criteriaSuggestionsSeeded        Boolean  @default(false)
+  tagSuggestionsSeeded             Boolean  @default(false)
+  rejectionReasonSuggestionsSeeded Boolean  @default(false)
+  firmActCodesNormalized           Boolean  @default(false)
+  // ΔΥΠΑ hiring-subsidy assignment pricing (cents) and I-MENTOR bank accounts,
+  // shown to the business for manual bank transfer (no payment gateway yet).
+  dypaInitialFeeCents              Int?     @default(15000)
+  dypaRecurringFeeCents            Int?     @default(5000)
+  dypaIbanHolderName               String?  @default("I-MENTOR ΣΥΜΒΟΥΛΟΙ ΕΠΙΧΕΙΡΗΣΕΩΝ ΙΚΕ")
+  dypaIbanPiraeus                  String?
+  dypaIbanEurobank                 String?
+  dypaIbanAlpha                    String?
+  updatedAt                        DateTime @updatedAt
 }
 
 model Accountant {
-  id            String     @id @default(cuid())
-  officeName    String
-  contactPerson String
-  email         String
-  phone         String?
-  logoUrl       String?
-  address       String?
-  notes         String?
-  active        Boolean    @default(true)
+  id                  String                         @id @default(cuid())
+  officeName          String
+  contactPerson       String
+  email               String
+  phone               String?
+  logoUrl             String?
+  address             String?
+  notes               String?
+  active              Boolean                        @default(true)
   // The accounting office's own ΑΦΜ, captured at registration and looked up
   // via ΑΑΔΕ/GSIS so the admin can verify it's a real office before approving.
-  afm           String?
+  afm                 String?
   // Raw GSIS lookup result for the office's own ΑΦΜ, captured at registration.
   // Used to auto-create the office itself as the accountant's first Business
   // once the admin approves the account; cleared afterwards.
   pendingBusinessData Json?
   // Self-registered offices start unapproved — they cannot log in at all
   // until an admin reviews their signup (incl. ΑΦΜ/ΑΑΔΕ lookup) and approves them.
-  approved      Boolean    @default(true)
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
+  approved            Boolean                        @default(true)
+  createdAt           DateTime                       @default(now())
+  updatedAt           DateTime                       @updatedAt
   users               User[]
   businesses          Business[]
   campaigns           Campaign[]
@@ -87,12 +95,12 @@ model Accountant {
 }
 
 model Business {
-  id                    String     @id @default(cuid())
+  id                    String              @id @default(cuid())
   accountantId          String?
-  accountant            Accountant? @relation(fields: [accountantId], references: [id])
-  source                String     @default("accountant")
-  clientType            ClientType @default(BUSINESS)
-  afm                   String     @unique
+  accountant            Accountant?         @relation(fields: [accountantId], references: [id])
+  source                String              @default("accountant")
+  clientType            ClientType          @default(BUSINESS)
+  afm                   String              @unique
   onomasia              String?
   commercialTitle       String?
   legalStatusDescr      String?
@@ -113,10 +121,10 @@ model Business {
   viberPhone            String?
   notes                 String?
   tags                  String[]
-  excludedFromCampaigns Boolean    @default(false)
-  unsubscribeToken      String?    @unique @default(cuid())
-  createdAt             DateTime   @default(now())
-  updatedAt             DateTime   @updatedAt
+  excludedFromCampaigns Boolean             @default(false)
+  unsubscribeToken      String?             @unique @default(cuid())
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
   activities            BusinessActivity[]
   programMatches        ProgramMatch[]
   campaignRecipients    CampaignRecipient[]
@@ -145,40 +153,40 @@ model BusinessActivity {
 }
 
 model Program {
-  id               String          @id @default(cuid())
-  title            String
-  category         ProgramCategory
-  description      String?
-  heroImageUrl     String?
-  minInvestment    Int?
-  maxInvestment    Int?
-  minSubsidyPct    Float?
-  maxSubsidyPct    Float?
-  minInterestRate  Float?
-  maxInterestRate  Float?
-  otherRequirements String?
-  websiteUrl       String?
-  regionRules      String[]
-  zipCodeRules     String[]
-  kadRules         String[]
-  minRegdate       String?
-  maxRegdate       String?
-  legalStatusRules String[]
-  extraCriteriaIds String[]
-  videoUrls        String[]
-  active           Boolean         @default(true)
-  archived         Boolean         @default(false)
-  startDate        DateTime?
-  endDate          DateTime?
-  internalNotes    String?
-  createdAt        DateTime        @default(now())
-  updatedAt        DateTime        @updatedAt
-  matches             ProgramMatch[]
-  campaigns           Campaign[]
-  requests            ImentorRequest[]
-  paymentRequests     PaymentRequest[]
-  commissionPolicies  CommissionPolicy[]
-  clientCases         ClientCase[]
+  id                 String             @id @default(cuid())
+  title              String
+  category           ProgramCategory
+  description        String?
+  heroImageUrl       String?
+  minInvestment      Int?
+  maxInvestment      Int?
+  minSubsidyPct      Float?
+  maxSubsidyPct      Float?
+  minInterestRate    Float?
+  maxInterestRate    Float?
+  otherRequirements  String?
+  websiteUrl         String?
+  regionRules        String[]
+  zipCodeRules       String[]
+  kadRules           String[]
+  minRegdate         String?
+  maxRegdate         String?
+  legalStatusRules   String[]
+  extraCriteriaIds   String[]
+  videoUrls          String[]
+  active             Boolean            @default(true)
+  archived           Boolean            @default(false)
+  startDate          DateTime?
+  endDate            DateTime?
+  internalNotes      String?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  matches            ProgramMatch[]
+  campaigns          Campaign[]
+  requests           ImentorRequest[]
+  paymentRequests    PaymentRequest[]
+  commissionPolicies CommissionPolicy[]
+  clientCases        ClientCase[]
 }
 
 enum ProgramCategory {
@@ -191,21 +199,21 @@ enum ProgramCategory {
 }
 
 model ProgramMatch {
-  id          String      @id @default(cuid())
-  programId   String
-  program     Program     @relation(fields: [programId], references: [id])
-  businessId  String
-  business    Business    @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  matchScore  Float       @default(0)
-  matchReason String[]
-  status      MatchStatus @default(POTENTIAL)
-  notes       String?
-  notified    Boolean     @default(false)
+  id                String                @id @default(cuid())
+  programId         String
+  program           Program               @relation(fields: [programId], references: [id])
+  businessId        String
+  business          Business              @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  matchScore        Float                 @default(0)
+  matchReason       String[]
+  status            MatchStatus           @default(POTENTIAL)
+  notes             String?
+  notified          Boolean               @default(false)
   rejectionReasonId String?
-  rejectionReason   RejectionReason? @relation(fields: [rejectionReasonId], references: [id])
+  rejectionReason   RejectionReason?      @relation(fields: [rejectionReasonId], references: [id])
   rejectionNote     String?
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
   criterionChecks   MatchCriterionCheck[]
 
   @@unique([programId, businessId])
@@ -220,21 +228,21 @@ enum MatchStatus {
 }
 
 model Campaign {
-  id              String          @id @default(cuid())
+  id              String              @id @default(cuid())
   programId       String?
-  program         Program?        @relation(fields: [programId], references: [id])
+  program         Program?            @relation(fields: [programId], references: [id])
   accountantId    String?
-  accountant      Accountant?     @relation(fields: [accountantId], references: [id])
+  accountant      Accountant?         @relation(fields: [accountantId], references: [id])
   channel         CampaignChannel
   title           String
   subject         String?
   messageTemplate String
-  status          CampaignStatus  @default(DRAFT)
+  status          CampaignStatus      @default(DRAFT)
   scheduledAt     DateTime?
   sentAt          DateTime?
   createdBy       String
-  createdAt       DateTime        @default(now())
-  updatedAt       DateTime        @updatedAt
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
   recipients      CampaignRecipient[]
 }
 
@@ -266,20 +274,20 @@ model CampaignRecipient {
 }
 
 model ImentorRequest {
-  id           String        @id @default(cuid())
-  accountantId String
-  accountant   Accountant    @relation(fields: [accountantId], references: [id])
-  businessId   String
-  business     Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  programId    String?
-  program      Program?      @relation(fields: [programId], references: [id])
-  subject      String
-  message      String
+  id             String        @id @default(cuid())
+  accountantId   String
+  accountant     Accountant    @relation(fields: [accountantId], references: [id])
+  businessId     String
+  business       Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  programId      String?
+  program        Program?      @relation(fields: [programId], references: [id])
+  subject        String
+  message        String
   attachmentUrl  String?
   attachmentName String?
-  status       RequestStatus @default(NEW)
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
+  status         RequestStatus @default(NEW)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
 }
 
 enum RequestStatus {
@@ -303,7 +311,7 @@ model Service {
   id                 String             @id @default(cuid())
   name               String
   description        String?
-  price              Int                // in cents (e.g. 20000 = €200)
+  price              Int // in cents (e.g. 20000 = €200)
   currency           String             @default("eur")
   active             Boolean            @default(true)
   createdAt          DateTime           @default(now())
@@ -313,30 +321,30 @@ model Service {
 }
 
 model PaymentRequest {
-  id                String        @id @default(cuid())
-  businessId        String
-  business          Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  accountantId      String
-  accountant        Accountant    @relation(fields: [accountantId], references: [id])
-  serviceId         String
-  service           Service       @relation(fields: [serviceId], references: [id])
-  programId         String?
-  program           Program?      @relation(fields: [programId], references: [id])
-  amount            Int           // in cents
-  currency          String        @default("eur")
-  description       String?
-  irisReference     String?       @unique
-  irisLink          String?
-  irisQrData        String?
-  confirmedBy       String?
-  bankReference     String?
-  status            PaymentStatus @default(PENDING)
-  paidAt            DateTime?
-  expiresAt         DateTime?
-  createdBy         String
-  createdAt         DateTime      @default(now())
-  updatedAt         DateTime      @updatedAt
-  commissions       Commission[]
+  id            String        @id @default(cuid())
+  businessId    String
+  business      Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  accountantId  String
+  accountant    Accountant    @relation(fields: [accountantId], references: [id])
+  serviceId     String
+  service       Service       @relation(fields: [serviceId], references: [id])
+  programId     String?
+  program       Program?      @relation(fields: [programId], references: [id])
+  amount        Int // in cents
+  currency      String        @default("eur")
+  description   String?
+  irisReference String?       @unique
+  irisLink      String?
+  irisQrData    String?
+  confirmedBy   String?
+  bankReference String?
+  status        PaymentStatus @default(PENDING)
+  paidAt        DateTime?
+  expiresAt     DateTime?
+  createdBy     String
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  commissions   Commission[]
 }
 
 enum PaymentStatus {
@@ -370,27 +378,27 @@ enum CommissionStatus {
 }
 
 model CommissionPolicy {
-  id                      String          @id @default(cuid())
+  id                      String                         @id @default(cuid())
   name                    String
   description             String?
-  commissionType          CommissionType  @default(PERCENTAGE)
+  commissionType          CommissionType                 @default(PERCENTAGE)
   // For FIXED type
-  fixedAmount             Int?            // in cents
+  fixedAmount             Int? // in cents
   // For PERCENTAGE type
-  percentage              Float?          // 0-100
-  minAmount               Int?            // minimum commission in cents
-  maxAmount               Int?            // maximum commission in cents (cap)
+  percentage              Float? // 0-100
+  minAmount               Int? // minimum commission in cents
+  maxAmount               Int? // maximum commission in cents (cap)
   // Which stages this applies to
-  appliesToApplication    Boolean         @default(true)
-  appliesToImplementation Boolean         @default(false)
+  appliesToApplication    Boolean                        @default(true)
+  appliesToImplementation Boolean                        @default(false)
   // Link to service or program
   serviceId               String?
-  service                 Service?        @relation(fields: [serviceId], references: [id])
+  service                 Service?                       @relation(fields: [serviceId], references: [id])
   programId               String?
-  program                 Program?        @relation(fields: [programId], references: [id])
-  active                  Boolean         @default(true)
-  createdAt               DateTime        @default(now())
-  updatedAt               DateTime        @updatedAt
+  program                 Program?                       @relation(fields: [programId], references: [id])
+  active                  Boolean                        @default(true)
+  createdAt               DateTime                       @default(now())
+  updatedAt               DateTime                       @updatedAt
   accountantOverrides     AccountantCommissionOverride[]
 }
 
@@ -423,9 +431,9 @@ model Commission {
   commissionPolicyId String?
   stage              CommissionStage
   // Calculation details
-  grossAmount        Int              // what client paid, in cents
-  commissionRate     Float?           // percentage used (if applicable)
-  commissionAmount   Int              // final commission in cents
+  grossAmount        Int // what client paid, in cents
+  commissionRate     Float? // percentage used (if applicable)
+  commissionAmount   Int // final commission in cents
   // Status
   status             CommissionStatus @default(PENDING)
   approvedAt         DateTime?
@@ -482,11 +490,11 @@ model ChatMessage {
 // Admin-managed library of extra eligibility criteria (e.g. "Πτυχίο ΑΕΙ/ΤΕΙ μετά το 2016")
 // that can be attached to programs and checked off per-match by accountants.
 model EligibilityCriterion {
-  id        String   @id @default(cuid())
+  id        String                @id @default(cuid())
   label     String
-  active    Boolean  @default(true)
-  order     Int      @default(0)
-  createdAt DateTime @default(now())
+  active    Boolean               @default(true)
+  order     Int                   @default(0)
+  createdAt DateTime              @default(now())
   checks    MatchCriterionCheck[]
 }
 
@@ -497,7 +505,7 @@ model MatchCriterionCheck {
   match       ProgramMatch         @relation(fields: [matchId], references: [id], onDelete: Cascade)
   criterionId String
   criterion   EligibilityCriterion @relation(fields: [criterionId], references: [id], onDelete: Cascade)
-  value       String               // PASS | FAIL
+  value       String // PASS | FAIL
   updatedAt   DateTime             @updatedAt
 
   @@unique([matchId, criterionId])
@@ -508,18 +516,18 @@ model MatchCriterionCheck {
 // Editable copies of campaign message templates (email & Viber), grouped by
 // channel/category, seeded from src/lib/campaign-templates.ts on first load.
 model MessageTemplate {
-  id                String   @id @default(cuid())
-  channel           String   // EMAIL | VIBER
-  templateKey       String   // matches the static template id, e.g. "program-eligibility"
-  category          String   // grouping label, e.g. "Επιλεξιμότητα Προγράμματος"
-  label             String
-  description       String
-  subject           String
-  bodyWithAccountant String  @db.Text
-  bodyDirect        String   @db.Text
-  active            Boolean  @default(true)
-  order             Int      @default(0)
-  updatedAt         DateTime @updatedAt
+  id                 String   @id @default(cuid())
+  channel            String // EMAIL | VIBER
+  templateKey        String // matches the static template id, e.g. "program-eligibility"
+  category           String // grouping label, e.g. "Επιλεξιμότητα Προγράμματος"
+  label              String
+  description        String
+  subject            String
+  bodyWithAccountant String   @db.Text
+  bodyDirect         String   @db.Text
+  active             Boolean  @default(true)
+  order              Int      @default(0)
+  updatedAt          DateTime @updatedAt
 
   @@unique([channel, templateKey])
 }
@@ -529,7 +537,7 @@ model RejectionReason {
   label      String
   active     Boolean        @default(true)
   order      Int            @default(0)
-  programIds String[]       // empty = applies to all programs
+  programIds String[] // empty = applies to all programs
   createdAt  DateTime       @default(now())
   matches    ProgramMatch[]
 }
@@ -545,34 +553,35 @@ model TagOption {
 }
 
 model ClientCase {
-  id           String           @id @default(cuid())
-  caseNumber   Int              @unique @default(autoincrement())
-  accountantId String?
-  accountant   Accountant?      @relation(fields: [accountantId], references: [id])
-  businessId   String
-  business     Business         @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  programId    String?
-  program      Program?         @relation(fields: [programId], references: [id])
-  requestType  CaseRequestType  @default(OTHER)
-  title        String
-  description  String?
-  priority     CasePriority     @default(NORMAL)
-  status       CaseStatus       @default(NEW)
-  assignedToId String?
-  dueDate      DateTime?
-  outcome      String?
-  createdById  String
-  caseType     String?          // configurable label (CaseTypeOption); fallback to requestType enum for older records
-  externalRef      String?      @unique  // reference of the inhouse case management system
-  externalStatus   String?               // status label pushed by the external system
+  id               String                @id @default(cuid())
+  caseNumber       Int                   @unique @default(autoincrement())
+  accountantId     String?
+  accountant       Accountant?           @relation(fields: [accountantId], references: [id])
+  businessId       String
+  business         Business              @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  programId        String?
+  program          Program?              @relation(fields: [programId], references: [id])
+  requestType      CaseRequestType       @default(OTHER)
+  title            String
+  description      String?
+  priority         CasePriority          @default(NORMAL)
+  status           CaseStatus            @default(NEW)
+  assignedToId     String?
+  dueDate          DateTime?
+  outcome          String?
+  createdById      String
+  caseType         String? // configurable label (CaseTypeOption); fallback to requestType enum for older records
+  externalRef      String?               @unique // reference of the inhouse case management system
+  externalStatus   String? // status label pushed by the external system
   externalSyncedAt DateTime?
-  resultLink       String?               // link to the case in the Case Management portal, pushed by the external system
-  createdAt    DateTime         @default(now())
-  updatedAt    DateTime         @updatedAt
-  activities   CaseActivity[]
+  resultLink       String? // link to the case in the Case Management portal, pushed by the external system
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+  activities       CaseActivity[]
   tasks            CaseTask[]
   documents        CaseDocument[]
   documentRequests CaseDocumentRequest[]
+  dypaAssignment   DypaAssignment?
 }
 
 model CaseTypeOption {
@@ -618,13 +627,13 @@ model CaseDocument {
   id             String     @id @default(cuid())
   caseId         String
   case           ClientCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
-  category       String     // e.g. "Ε3 2025"
+  category       String // e.g. "Ε3 2025"
   fileName       String
-  dataUrl        String     // base64 data URL (same storage pattern as ImentorRequest attachments)
+  dataUrl        String // base64 data URL (same storage pattern as ImentorRequest attachments)
   uploadedById   String
   uploadedByName String
   uploadedByRole String
-  requestId      String?    // CaseDocumentRequest fulfilled by this upload
+  requestId      String? // CaseDocumentRequest fulfilled by this upload
   createdAt      DateTime   @default(now())
 }
 
@@ -632,7 +641,7 @@ model CaseDocumentRequest {
   id          String     @id @default(cuid())
   caseId      String
   case        ClientCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
-  category    String     // e.g. "Ε3 2024"
+  category    String // e.g. "Ε3 2024"
   note        String?
   status      String     @default("PENDING") // PENDING | UPLOADED
   createdById String
@@ -654,6 +663,7 @@ enum CaseRequestType {
   TAKE_OVER
   CONTACT_CLIENT
   APPLICATION_SUPPORT
+  DYPA_HIRING
   OTHER
 }
 
@@ -678,32 +688,120 @@ model CaseActivity {
 }
 
 model Invitation {
-  id          String    @id @default(cuid())
-  email       String
-  token       String    @unique @default(cuid())
-  note        String?
-  status      String    @default("PENDING") // PENDING | ACCEPTED | EXPIRED
-  expiresAt   DateTime
-  acceptedAt  DateTime?
-  createdAt   DateTime  @default(now())
+  id         String    @id @default(cuid())
+  email      String
+  token      String    @unique @default(cuid())
+  note       String?
+  status     String    @default("PENDING") // PENDING | ACCEPTED | EXPIRED
+  expiresAt  DateTime
+  acceptedAt DateTime?
+  createdAt  DateTime  @default(now())
+}
+
+// ΔΥΠΑ — ανάθεση προγράμματος επιδότησης νέας θέσης εργασίας ανέργου από
+// υφιστάμενη επιχείρηση. 1-1 extension of a ClientCase (requestType DYPA_HIRING)
+// holding the extra business/position data, declarations and taxisnet
+// credentials specific to this workflow.
+model DypaAssignment {
+  id           String     @id @default(cuid())
+  clientCaseId String     @unique
+  clientCase   ClientCase @relation(fields: [clientCaseId], references: [id], onDelete: Cascade)
+
+  // Επιχειρησιακά στοιχεία
+  ownerIsLegalEntity   Boolean @default(false)
+  ownerLegalEntityName String?
+  existingStaffCount   Int?
+  existingStaffNotes   String?
+  // Συνδεδεμένες επιχειρήσεις (≥25% συμμετοχή) — [{ name, afm, ownershipPct }]
+  affiliatedCompanies  Json?
+
+  // Στοιχεία θέσης εργασίας
+  positionTitle              String?
+  positionDescription        String?
+  requiresLicense            Boolean @default(false)
+  licenseDescription         String?
+  requiresForeignLanguage    Boolean @default(false)
+  foreignLanguageDescription String?
+
+  // Αυτοδηλούμενες προϋποθέσεις συμμόρφωσης
+  noRecentLaborFines      Boolean @default(false)
+  genderEqualityPrinciple Boolean @default(false)
+  noRecentStaffReduction  Boolean @default(false)
+
+  // Δηλώσεις
+  declarationSoreusis    Boolean @default(false)
+  declarationMiAnaktisis Boolean @default(false)
+  declarationDeMinimis   Boolean @default(false)
+
+  // Αποδοχή 7-σημείου πίνακα όρων & τελική αποδοχή
+  termsAcceptedAt DateTime?
+  finalAcceptedAt DateTime?
+
+  // Ημερομηνία πρόσληψης ανέργου — χειροκίνητη καταχώριση, ξεκινάει το δίμηνο
+  hireStartDate DateTime?
+
+  // Κωδικοί Taxisnet — αποθηκεύονται κρυπτογραφημένα (AES-256-GCM, src/lib/crypto.ts)
+  taxisnetUsernameEnc String?
+  taxisnetPasswordEnc String?
+
+  status DypaAssignmentStatus @default(DRAFT)
+
+  // Αρχική προκαταβολή (€150+ΦΠΑ)
+  initialFeeStatus      String    @default("PENDING") // PENDING | PAID
+  initialFeePaidAt      DateTime?
+  initialFeeConfirmedBy String?
+
+  // Δίμηνος κύκλος παρακολούθησης εγγράφων (€50/δίμηνο) — ξεκινάει μετά την
+  // καταχώριση hireStartDate. Ο cron job (api/cron/check-dypa-billing-cycle)
+  // δημιουργεί ένα CaseDocumentRequest ανά δίμηνο και προωθεί τον μετρητή.
+  recurringFeeActive Boolean   @default(false)
+  billingCycleCount  Int       @default(0)
+  lastBillingCycleAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  formTokens DypaFormToken[]
+}
+
+enum DypaAssignmentStatus {
+  DRAFT
+  SUBMITTED
+  AWAITING_PAYMENT
+  IN_PROGRESS
+  HIRED
+  COMPLETED
+  CANCELLED
+}
+
+// Μοναδικό, χρονικά περιορισμένο link ώστε η επιχείρηση να συμπληρώσει η ίδια
+// (χωρίς login) ολόκληρη τη φόρμα ΔΥΠΑ ανάθεσης, κατ' αναλογία του Invitation.
+model DypaFormToken {
+  id               String         @id @default(cuid())
+  token            String         @unique @default(cuid())
+  dypaAssignmentId String
+  dypaAssignment   DypaAssignment @relation(fields: [dypaAssignmentId], references: [id], onDelete: Cascade)
+  expiresAt        DateTime
+  usedAt           DateTime?
+  createdAt        DateTime       @default(now())
 }
 
 // Εξωδικαστικός μηχανισμός ρύθμισης οφειλών — referral of a client
 // (business or individual) to I-MENTOR's dedicated team for a free debt
 // assessment via the κρατική πλατφόρμα εξωδικαστικού.
 model ExodikastikosCase {
-  id           String                 @id @default(cuid())
-  caseNumber   Int                    @unique @default(autoincrement())
-  accountantId String?
-  accountant   Accountant?            @relation(fields: [accountantId], references: [id])
-  businessId   String
-  business     Business               @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  status       ExodikastikosStatus    @default(SUBMITTED)
+  id                        String                  @id @default(cuid())
+  caseNumber                Int                     @unique @default(autoincrement())
+  accountantId              String?
+  accountant                Accountant?             @relation(fields: [accountantId], references: [id])
+  businessId                String
+  business                  Business                @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  status                    ExodikastikosStatus     @default(SUBMITTED)
   // Free-form answers to the basic eligibility questionnaire, e.g.
   // { hasOverdueDebt, isMarried, ... }
-  questionnaire Json?
-  notes        String?
-  hasSpouse        Boolean  @default(false)
+  questionnaire             Json?
+  notes                     String?
+  hasSpouse                 Boolean                 @default(false)
   // Taxisnet credentials — stored AES-256-GCM encrypted at rest (see src/lib/crypto.ts),
   // never returned to the client after creation.
   taxisnetUsernameEnc       String?
@@ -711,14 +809,14 @@ model ExodikastikosCase {
   spouseTaxisnetUsernameEnc String?
   spouseTaxisnetPasswordEnc String?
   // Sync with the inhouse εξωδικαστικός case-management system
-  externalRef      String?   @unique
-  externalStatus   String?
-  externalSyncedAt DateTime?
-  resultLink       String?
-  createdById  String
-  createdAt    DateTime               @default(now())
-  updatedAt    DateTime               @updatedAt
-  activities   ExodikastikosActivity[]
+  externalRef               String?                 @unique
+  externalStatus            String?
+  externalSyncedAt          DateTime?
+  resultLink                String?
+  createdById               String
+  createdAt                 DateTime                @default(now())
+  updatedAt                 DateTime                @updatedAt
+  activities                ExodikastikosActivity[]
 }
 
 enum ExodikastikosStatus {
