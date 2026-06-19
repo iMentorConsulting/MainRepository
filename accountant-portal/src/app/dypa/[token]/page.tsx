@@ -2,13 +2,13 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { Rocket, ShieldCheck } from 'lucide-react'
-import { DypaForm, DypaFormValue } from '@/components/dypa/dypa-form'
+import { DypaForm, DypaFormValue, DypaBusinessInfo, DypaProgramInfo } from '@/components/dypa/dypa-form'
 
 export default function PublicDypaPage() {
   const { token } = useParams<{ token: string }>()
   const [value, setValue] = useState<DypaFormValue | null>(null)
-  const [business, setBusiness] = useState<{ onomasia: string | null; afm: string } | null>(null)
-  const [program, setProgram] = useState<{ title: string } | null>(null)
+  const [business, setBusiness] = useState<DypaBusinessInfo | null>(null)
+  const [program, setProgram] = useState<DypaProgramInfo | null>(null)
   const [pricing, setPricing] = useState<any>(null)
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
@@ -21,7 +21,7 @@ export default function PublicDypaPage() {
       return
     }
     setValue(data.assignment)
-    setBusiness(data.business)
+    setBusiness(data.business ? { ...data.business, mainActivity: data.business.activities?.[0]?.firmActDescr || null } : null)
     setProgram(data.program)
     setPricing(data.pricing)
   }
@@ -94,6 +94,8 @@ export default function PublicDypaPage() {
 
         <DypaForm
           value={value}
+          business={business}
+          program={program}
           onPatch={patch}
           onSubmitTaxisnet={submitTaxisnet}
           onAcceptTerms={acceptTerms}

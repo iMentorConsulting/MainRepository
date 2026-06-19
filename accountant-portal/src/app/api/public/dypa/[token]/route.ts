@@ -12,7 +12,18 @@ async function loadByToken(token: string) {
   const assignment = await prisma.dypaAssignment.findUnique({
     where: { id: formToken.dypaAssignmentId },
     include: {
-      clientCase: { include: { business: { select: { onomasia: true, afm: true } }, program: { select: { title: true } } } },
+      clientCase: {
+        include: {
+          business: {
+            select: {
+              onomasia: true, afm: true,
+              postalAddress: true, postalAddressNo: true, postalAreaDescription: true, regdate: true,
+              activities: { select: { firmActDescr: true, firmActKind: true }, orderBy: { firmActKind: 'asc' }, take: 1 },
+            },
+          },
+          program: { select: { title: true, description: true, minSubsidyPct: true, maxSubsidyPct: true } },
+        },
+      },
     },
   })
   if (!assignment) return { error: 'Δεν βρέθηκε η ανάθεση.' as const }
@@ -54,10 +65,11 @@ export async function PUT(request: NextRequest, { params }: { params: { token: s
   const data: any = {}
 
   const directFields = [
-    'ownerIsLegalEntity', 'ownerLegalEntityName', 'existingStaffCount', 'existingStaffNotes',
+    'ownerIsLegalEntity', 'ownerLegalEntityName', 'hasExistingStaff',
+    'staffIndefiniteFull', 'staffIndefinitePart', 'staffFixedFull', 'staffFixedPart', 'staffOtherForm',
     'affiliatedCompanies', 'positionTitle', 'positionDescription', 'requiresLicense', 'licenseDescription',
-    'requiresForeignLanguage', 'foreignLanguageDescription', 'noRecentLaborFines', 'genderEqualityPrinciple',
-    'noRecentStaffReduction', 'declarationSoreusis', 'declarationMiAnaktisis', 'declarationDeMinimis',
+    'requiredExperience', 'requiresForeignLanguage', 'foreignLanguageDescription', 'noRecentLaborFines',
+    'genderEqualityPrinciple', 'noRecentStaffReduction',
   ]
   for (const f of directFields) {
     if (body[f] !== undefined) data[f] = body[f]

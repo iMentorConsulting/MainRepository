@@ -5,8 +5,8 @@ import { useSession } from 'next-auth/react'
 import Link from 'next/link'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { ArrowLeft, Link2, Copy, CheckCircle2, Rocket } from 'lucide-react'
-import { DypaForm, DypaFormValue } from '@/components/dypa/dypa-form'
+import { ArrowLeft, Link2, Copy, CheckCircle2, Rocket, Send } from 'lucide-react'
+import { DypaForm, DypaFormValue, DypaBusinessInfo, DypaProgramInfo } from '@/components/dypa/dypa-form'
 
 export default function DypaAssignmentPage() {
   const { id } = useParams<{ id: string }>()
@@ -14,12 +14,15 @@ export default function DypaAssignmentPage() {
   const isAdmin = session?.user?.role === 'ADMIN'
 
   const [value, setValue] = useState<DypaFormValue | null>(null)
-  const [business, setBusiness] = useState<{ onomasia: string | null; afm: string } | null>(null)
-  const [program, setProgram] = useState<{ title: string } | null>(null)
+  const [business, setBusiness] = useState<DypaBusinessInfo | null>(null)
+  const [program, setProgram] = useState<DypaProgramInfo | null>(null)
   const [saving, setSaving] = useState(false)
   const [link, setLink] = useState('')
   const [linkCopied, setLinkCopied] = useState(false)
   const [linkLoading, setLinkLoading] = useState(false)
+  const [contactEmail, setContactEmail] = useState('')
+  const [contactPhone, setContactPhone] = useState('')
+  const [linkNotice, setLinkNotice] = useState('')
 
   async function load() {
     const res = await fetch(`/api/cases/dypa/${id}`)
@@ -27,8 +30,11 @@ export default function DypaAssignmentPage() {
     const data = await res.json()
     setValue(data)
     if (data.clientCase) {
-      setBusiness(data.clientCase.business || null)
+      const b = data.clientCase.business
+      setBusiness(b ? { ...b, mainActivity: b.activities?.[0]?.firmActDescr || null } : null)
       setProgram(data.clientCase.program || null)
+      setContactEmail(b?.email || '')
+      setContactPhone(b?.phone || '')
     }
   }
 
@@ -68,11 +74,20 @@ export default function DypaAssignmentPage() {
 
   async function generateLink() {
     setLinkLoading(true)
-    const res = await fetch(`/api/cases/dypa/${id}/link`, { method: 'POST' })
+    setLinkNotice('')
+    const res = await fetch(`/api/cases/dypa/${id}/link`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contactEmail, contactPhone }),
+    })
     setLinkLoading(false)
     if (res.ok) {
       const data = await res.json()
       setLink(data.url)
+      const sent: string[] = []
+      if (data.emailSent) sent.push('email')
+      if (data.viberSent) sent.push('Viber')
+      setLinkNotice(sent.length ? `Στάλθηκε πρόσκληση συμπλήρωσης μέσω ${sent.join(' & ')}.` : 'Ο σύνδεσμος δημιουργήθηκε. Δεν στάλθηκε ειδοποίηση (συμπληρώστε email/τηλέφωνο).')
     }
   }
 
@@ -101,29 +116,41 @@ export default function DypaAssignmentPage() {
       </div>
 
       <Card className="border-indigo-200 bg-indigo-50/40">
-        <CardContent className="p-4 flex flex-col sm:flex-row items-center justify-between gap-3">
+        <CardContent className="p-4 space-y-3">
           <div className="flex items-center gap-2 text-sm text-indigo-900">
             <Link2 size={16} />
-            Στείλτε στην επιχείρηση τον σύνδεσμο αυτοεξυπηρέτησης για να συμπληρώσει η ίδια όλη τη φόρμα και να κάνει την πληρωμή.
+            Καταχωρίστε email/κινητό της επιχείρησης για να σταλεί πρόσκληση (από I-MENTOR &amp; το λογιστικό γραφείο) να συμπληρώσει η ίδια τη φόρμα και να κάνει την πληρωμή.
+          </div>
+          <div className="grid sm:grid-cols-2 gap-3">
+            <input className="rounded-lg border border-indigo-200 px-3 py-2 text-sm" placeholder="Email επιχείρησης"
+              value={contactEmail} onChange={e => setContactEmail(e.target.value)} />
+            <input className="rounded-lg border border-indigo-200 px-3 py-2 text-sm" placeholder="Κινητό επιχείρησης"
+              value={contactPhone} onChange={e => setContactPhone(e.target.value)} />
           </div>
           <div className="flex items-center gap-2">
-            <Button size="sm" variant="outline" onClick={generateLink} loading={linkLoading}>Δημιουργία Συνδέσμου</Button>
+            <Button size="sm" variant="outline" onClick={generateLink} loading={linkLoading}>
+              <Send size={14} className="mr-1" /> Δημιουργία &amp; Αποστολή Συνδέσμου
+            </Button>
           </div>
-        </CardContent>
-        {link && (
-          <CardContent className="pt-0 px-4 pb-4">
+          {linkNotice && <p className="text-xs text-indigo-700">{linkNotice}</p>}
+          {link && (
             <div className="flex items-center gap-2 bg-white rounded-lg border border-indigo-200 px-3 py-2">
               <input readOnly value={link} className="flex-1 text-xs text-slate-700 outline-none" />
               <button onClick={copyLink} className="text-indigo-600 hover:text-indigo-800">
                 {linkCopied ? <CheckCircle2 size={16} /> : <Copy size={16} />}
               </button>
             </div>
-          </CardContent>
-        )}
+          )}
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800">
+            Υπενθύμιση: αν η διαδικασία προχωρήσει, θα χρειαστούν οι κωδικοί Taxisnet της επιχείρησης. Μπορείτε να τους καταχωρίσετε τώρα (παρακάτω, αποθηκεύονται κρυπτογραφημένα) ή να περιμένετε μέχρι μετά την πληρωμή της επιχείρησης.
+          </div>
+        </CardContent>
       </Card>
 
       <DypaForm
         value={value}
+        business={business}
+        program={program}
         onPatch={patch}
         onSubmitTaxisnet={submitTaxisnet}
         onAcceptTerms={acceptTerms}
