@@ -577,7 +577,7 @@ export default function BusinessesPage() {
 
       {quickSendOpen && (
         <QuickSendModal
-          businesses={businesses.filter(b => selected.has(b.id)).map(b => ({ id: b.id, onomasia: b.onomasia, afm: b.afm, accountantId: b.accountantId }))}
+          businesses={businesses.filter(b => selected.has(b.id)).map(b => ({ id: b.id, onomasia: b.onomasia, afm: b.afm, accountantId: b.accountantId, accountantOfficeName: b.accountant?.officeName }))}
           onClose={() => setQuickSendOpen(false)}
           onSent={() => setSelected(new Set())}
         />

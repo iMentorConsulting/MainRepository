@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { X, Send, ChevronDown, ChevronUp } from 'lucide-react'
+import { useSession } from 'next-auth/react'
+import { X, Send, ChevronDown, ChevronUp, ShieldAlert } from 'lucide-react'
 type CampaignTemplate = {
   id: string
   label: string
@@ -11,7 +12,7 @@ type CampaignTemplate = {
 }
 
 interface QuickSendModalProps {
-  businesses: { id: string; onomasia?: string | null; afm: string; accountantId?: string | null }[]
+  businesses: { id: string; onomasia?: string | null; afm: string; accountantId?: string | null; accountantOfficeName?: string | null }[]
   onClose: () => void
   onSent?: (sent: number, failed: number) => void
 }
@@ -25,7 +26,19 @@ const CHANNELS = [
 type Channel = 'EMAIL' | 'VIBER' | 'EMAIL_AND_VIBER'
 
 export function QuickSendModal({ businesses, onClose, onSent }: QuickSendModalProps) {
+  const { data: session } = useSession()
+  const isAdmin = session?.user?.role === 'ADMIN'
   const allDirect = businesses.length > 0 && businesses.every(b => !b.accountantId)
+
+  // Admins manage every accounting office's pelatologio, but must only message
+  // an office's clients when that office has explicitly asked for it — never
+  // accidentally, as a side effect of a bulk send meant for a different office.
+  const otherAccountantOffices = isAdmin
+    ? Array.from(new Set(businesses.filter(b => b.accountantId).map(b => b.accountantOfficeName || 'Άγνωστο γραφείο')))
+    : []
+  const requiresAccountantConfirm = otherAccountantOffices.length > 0
+  const [accountantConfirmChecked, setAccountantConfirmChecked] = useState(false)
+
   const [channel, setChannel] = useState<Channel>('EMAIL')
   const [mode, setMode] = useState<'withAccountant' | 'direct'>(allDirect ? 'direct' : 'withAccountant')
   const [subject, setSubject] = useState('')
@@ -85,6 +98,10 @@ export function QuickSendModal({ businesses, onClose, onSent }: QuickSendModalPr
 
   async function handleSend() {
     if (!message.trim()) return
+    if (requiresAccountantConfirm && !accountantConfirmChecked) {
+      setValidationError('Επιβεβαιώστε ότι έχετε λάβει εντολή από το/τα λογιστικό/ά γραφείο/α πριν στείλετε.')
+      return
+    }
     if (!programId) {
       const requiresProgram = ['{{program_title}}', '{{program_description}}', '{{program_url}}', '{{match_reason}}', '{{extra_criteria}}', '{{program_deadline}}'].some(v => message.includes(v))
       if (requiresProgram) {
@@ -260,6 +277,30 @@ export function QuickSendModal({ businesses, onClose, onSent }: QuickSendModalPr
             />
           </div>
 
+          {requiresAccountantConfirm && (
+            <div className="border-2 border-red-300 bg-red-50 rounded-xl p-4 space-y-2">
+              <div className="flex items-center gap-2 text-red-800 font-bold text-sm">
+                <ShieldAlert size={18} />
+                Προσοχή: πελατολόγιο λογιστικού γραφείου
+              </div>
+              <p className="text-sm text-red-700">
+                Η αποστολή περιλαμβάνει επιχειρήσεις που ανήκουν στο πελατολόγιο{' '}
+                {otherAccountantOffices.length === 1 ? 'του γραφείου' : 'των γραφείων'}{' '}
+                <span className="font-semibold">{otherAccountantOffices.join(', ')}</span>.
+                Στείλτε μόνο αν το γραφείο σας έχει δώσει ρητή εντολή για αυτή την ενημέρωση.
+              </p>
+              <label className="flex items-start gap-2 text-sm text-red-900 font-medium cursor-pointer pt-1">
+                <input
+                  type="checkbox"
+                  checked={accountantConfirmChecked}
+                  onChange={e => { setAccountantConfirmChecked(e.target.checked); setValidationError('') }}
+                  className="mt-0.5"
+                />
+                Επιβεβαιώνω ότι έχω εντολή από {otherAccountantOffices.length === 1 ? 'το γραφείο' : 'τα γραφεία'} για να στείλω αυτή την ενημέρωση.
+              </label>
+            </div>
+          )}
+
           {validationError && (
             <div className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
               {validationError}
@@ -290,7 +331,7 @@ export function QuickSendModal({ businesses, onClose, onSent }: QuickSendModalPr
             </button>
             <button
               onClick={handleSend}
-              disabled={sending || !message.trim()}
+              disabled={sending || !message.trim() || (requiresAccountantConfirm && !accountantConfirmChecked)}
               className="flex items-center gap-2 px-5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm font-semibold transition-all"
             >
               {sending ? (

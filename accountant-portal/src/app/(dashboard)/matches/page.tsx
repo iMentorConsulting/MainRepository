@@ -311,6 +311,7 @@ function MatchesPageInner() {
     onomasia: m.business?.onomasia,
     afm: m.business?.afm,
     accountantId: m.business?.accountantId,
+    accountantOfficeName: m.business?.accountant?.officeName,
   })).filter(b => b.id)
 
   return (
