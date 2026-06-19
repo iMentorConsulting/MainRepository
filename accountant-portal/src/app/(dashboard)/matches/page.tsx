@@ -515,7 +515,7 @@ function MatchesPageInner() {
                   </TableRow>
                 ) : (
                   visibleMatches.map(m => {
-                    const lastCampaign = m.business?.campaignRecipients?.[0]
+                    const lastCampaign = m.business?.campaignRecipients?.find((c: any) => c.campaign?.programId === m.programId)
                     const unsuitable = isUnsuitable(m)
                     return (
                       <TableRow key={m.id} className={unsuitable ? 'bg-red-50/60 opacity-60' : selected.has(m.id) ? 'bg-indigo-50' : undefined}>

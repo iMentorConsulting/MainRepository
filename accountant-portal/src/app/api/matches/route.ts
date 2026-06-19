@@ -106,7 +106,6 @@ export async function GET(request: NextRequest) {
             campaignRecipients: {
               where: { sentAt: { not: null } },
               orderBy: { sentAt: 'desc' },
-              take: 1,
               select: { sentAt: true, campaign: { select: { programId: true, title: true } } },
             },
           },
