@@ -48,6 +48,14 @@ model AppSetting {
   tagSuggestionsSeeded             Boolean  @default(false)
   rejectionReasonSuggestionsSeeded Boolean  @default(false)
   firmActCodesNormalized           Boolean  @default(false)
+  // ΔΥΠΑ hiring-subsidy assignment pricing (cents) and I-MENTOR bank accounts,
+  // shown to the business for manual bank transfer (no payment gateway yet).
+  dypaInitialFeeCents              Int?     @default(15000)
+  dypaRecurringFeeCents            Int?     @default(5000)
+  dypaIbanHolderName               String?  @default("I-MENTOR ΣΥΜΒΟΥΛΟΙ ΕΠΙΧΕΙΡΗΣΕΩΝ ΙΚΕ")
+  dypaIbanPiraeus                  String?
+  dypaIbanEurobank                 String?
+  dypaIbanAlpha                    String?
   updatedAt                        DateTime @updatedAt
 }
 
@@ -583,6 +591,7 @@ model ClientCase {
   tasks            CaseTask[]
   documents        CaseDocument[]
   documentRequests CaseDocumentRequest[]
+  dypaAssignment   DypaAssignment?
 }
 
 model CaseTypeOption {
@@ -664,6 +673,7 @@ enum CaseRequestType {
   TAKE_OVER
   CONTACT_CLIENT
   APPLICATION_SUPPORT
+  DYPA_HIRING
   OTHER
 }
 
@@ -696,6 +706,94 @@ model Invitation {
   expiresAt  DateTime
   acceptedAt DateTime?
   createdAt  DateTime  @default(now())
+}
+
+// ΔΥΠΑ — ανάθεση προγράμματος επιδότησης νέας θέσης εργασίας ανέργου από
+// υφιστάμενη επιχείρηση. 1-1 extension of a ClientCase (requestType DYPA_HIRING)
+// holding the extra business/position data, declarations and taxisnet
+// credentials specific to this workflow.
+model DypaAssignment {
+  id           String     @id @default(cuid())
+  clientCaseId String     @unique
+  clientCase   ClientCase @relation(fields: [clientCaseId], references: [id], onDelete: Cascade)
+
+  // Επιχειρησιακά στοιχεία
+  ownerIsLegalEntity   Boolean @default(false)
+  ownerLegalEntityName String?
+  existingStaffCount   Int?
+  existingStaffNotes   String?
+  // Συνδεδεμένες επιχειρήσεις (≥25% συμμετοχή) — [{ name, afm, ownershipPct }]
+  affiliatedCompanies  Json?
+
+  // Στοιχεία θέσης εργασίας
+  positionTitle              String?
+  positionDescription        String?
+  requiresLicense            Boolean @default(false)
+  licenseDescription         String?
+  requiresForeignLanguage    Boolean @default(false)
+  foreignLanguageDescription String?
+
+  // Αυτοδηλούμενες προϋποθέσεις συμμόρφωσης
+  noRecentLaborFines      Boolean @default(false)
+  genderEqualityPrinciple Boolean @default(false)
+  noRecentStaffReduction  Boolean @default(false)
+
+  // Δηλώσεις
+  declarationSoreusis    Boolean @default(false)
+  declarationMiAnaktisis Boolean @default(false)
+  declarationDeMinimis   Boolean @default(false)
+
+  // Αποδοχή 7-σημείου πίνακα όρων & τελική αποδοχή
+  termsAcceptedAt DateTime?
+  finalAcceptedAt DateTime?
+
+  // Ημερομηνία πρόσληψης ανέργου — χειροκίνητη καταχώριση, ξεκινάει το δίμηνο
+  hireStartDate DateTime?
+
+  // Κωδικοί Taxisnet — αποθηκεύονται κρυπτογραφημένα (AES-256-GCM, src/lib/crypto.ts)
+  taxisnetUsernameEnc String?
+  taxisnetPasswordEnc String?
+
+  status DypaAssignmentStatus @default(DRAFT)
+
+  // Αρχική προκαταβολή (€150+ΦΠΑ)
+  initialFeeStatus      String    @default("PENDING") // PENDING | PAID
+  initialFeePaidAt      DateTime?
+  initialFeeConfirmedBy String?
+
+  // Δίμηνος κύκλος παρακολούθησης εγγράφων (€50/δίμηνο) — ξεκινάει μετά την
+  // καταχώριση hireStartDate. Ο cron job (api/cron/check-dypa-billing-cycle)
+  // δημιουργεί ένα CaseDocumentRequest ανά δίμηνο και προωθεί τον μετρητή.
+  recurringFeeActive Boolean   @default(false)
+  billingCycleCount  Int       @default(0)
+  lastBillingCycleAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  formTokens DypaFormToken[]
+}
+
+enum DypaAssignmentStatus {
+  DRAFT
+  SUBMITTED
+  AWAITING_PAYMENT
+  IN_PROGRESS
+  HIRED
+  COMPLETED
+  CANCELLED
+}
+
+// Μοναδικό, χρονικά περιορισμένο link ώστε η επιχείρηση να συμπληρώσει η ίδια
+// (χωρίς login) ολόκληρη τη φόρμα ΔΥΠΑ ανάθεσης, κατ' αναλογία του Invitation.
+model DypaFormToken {
+  id               String         @id @default(cuid())
+  token            String         @unique @default(cuid())
+  dypaAssignmentId String
+  dypaAssignment   DypaAssignment @relation(fields: [dypaAssignmentId], references: [id], onDelete: Cascade)
+  expiresAt        DateTime
+  usedAt           DateTime?
+  createdAt        DateTime       @default(now())
 }
 
 // Εξωδικαστικός μηχανισμός ρύθμισης οφειλών — referral of a client

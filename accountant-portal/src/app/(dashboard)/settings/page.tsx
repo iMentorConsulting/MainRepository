@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { LogoUploader } from '@/components/shared/logo-uploader'
-import { CheckCircle, XCircle, Mail, Settings, Image as ImageIcon, Shield, Download, Lock } from 'lucide-react'
+import { CheckCircle, XCircle, Mail, Settings, Image as ImageIcon, Shield, Download, Lock, Banknote } from 'lucide-react'
 import Link from 'next/link'
 
 export default function SettingsPage() {
@@ -26,6 +26,13 @@ export default function SettingsPage() {
   const [aadeSaved, setAadeSaved] = useState(false)
   const [aadeError, setAadeError] = useState('')
 
+  const [dypa, setDypa] = useState({
+    dypaInitialFeeCents: 15000, dypaRecurringFeeCents: 5000, dypaIbanHolderName: '',
+    dypaIbanPiraeus: '', dypaIbanEurobank: '', dypaIbanAlpha: '',
+  })
+  const [dypaSaving, setDypaSaving] = useState(false)
+  const [dypaSaved, setDypaSaved] = useState(false)
+
   useEffect(() => {
     fetch('/api/settings/logo').then(r => r.json()).then(d => {
       setImentorLogoUrl(d.imentorLogoUrl || null)
@@ -37,8 +44,22 @@ export default function SettingsPage() {
         setAadeCallerAfm(d.aadeCallerAfm || '')
         setAadePassSet(d.aadePassSet || false)
       })
+      fetch('/api/settings/dypa').then(r => r.json()).then(d => setDypa(d))
     }
   }, [session])
+
+  async function saveDypa(e: React.FormEvent) {
+    e.preventDefault()
+    setDypaSaving(true)
+    setDypaSaved(false)
+    const res = await fetch('/api/settings/dypa', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(dypa),
+    })
+    setDypaSaving(false)
+    if (res.ok) setDypaSaved(true)
+  }
 
   async function saveImentorLogo(dataUrl: string | null) {
     setImentorLogoUrl(dataUrl)
@@ -157,6 +178,54 @@ export default function SettingsPage() {
                   Αποθήκευση Διαπιστευτηρίων
                 </Button>
                 {aadeSaved && <span className="text-sm text-green-600 flex items-center gap-1"><CheckCircle size={14} /> Αποθηκεύτηκε!</span>}
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+      )}
+
+      {session?.user?.role === 'ADMIN' && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Banknote size={18} className="text-emerald-600" />
+              Τιμολόγηση & Τραπεζικοί Λογαριασμοί ΔΥΠΑ
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-gray-500 mb-4">
+              Ρυθμίσεις χρέωσης και IBAN που εμφανίζονται στη φόρμα ανάθεσης πρόσληψης ανέργου ΔΥΠΑ (αρχική προκαταβολή & αμοιβή παρακολούθησης ανά δίμηνο).
+            </p>
+            <form onSubmit={saveDypa} className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Input
+                  label="Αρχική Προκαταβολή Υποβολής (σε λεπτά €)"
+                  type="number"
+                  value={dypa.dypaInitialFeeCents}
+                  onChange={e => setDypa(d => ({ ...d, dypaInitialFeeCents: parseInt(e.target.value) || 0 }))}
+                  helperText="π.χ. 15000 = €150,00"
+                />
+                <Input
+                  label="Αμοιβή Παρακολούθησης ανά Δίμηνο (σε λεπτά €)"
+                  type="number"
+                  value={dypa.dypaRecurringFeeCents}
+                  onChange={e => setDypa(d => ({ ...d, dypaRecurringFeeCents: parseInt(e.target.value) || 0 }))}
+                  helperText="π.χ. 5000 = €50,00"
+                />
+              </div>
+              <Input
+                label="Δικαιούχος Λογαριασμού"
+                value={dypa.dypaIbanHolderName}
+                onChange={e => setDypa(d => ({ ...d, dypaIbanHolderName: e.target.value }))}
+              />
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <Input label="IBAN Τράπεζα Πειραιώς" value={dypa.dypaIbanPiraeus} onChange={e => setDypa(d => ({ ...d, dypaIbanPiraeus: e.target.value }))} />
+                <Input label="IBAN Eurobank" value={dypa.dypaIbanEurobank} onChange={e => setDypa(d => ({ ...d, dypaIbanEurobank: e.target.value }))} />
+                <Input label="IBAN Alpha Bank" value={dypa.dypaIbanAlpha} onChange={e => setDypa(d => ({ ...d, dypaIbanAlpha: e.target.value }))} />
+              </div>
+              <div className="flex items-center gap-3">
+                <Button type="submit" loading={dypaSaving}>Αποθήκευση Ρυθμίσεων ΔΥΠΑ</Button>
+                {dypaSaved && <span className="text-sm text-green-600 flex items-center gap-1"><CheckCircle size={14} /> Αποθηκεύτηκε!</span>}
               </div>
             </form>
           </CardContent>
