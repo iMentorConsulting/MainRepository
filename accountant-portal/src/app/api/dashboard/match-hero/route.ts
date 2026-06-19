@@ -35,9 +35,18 @@ export async function GET(request: NextRequest) {
           activities: { where: { firmActKind: 1 }, select: { firmActDescr: true }, take: 1 },
         },
       },
-      program: { select: { id: true, title: true, description: true, category: true, otherRequirements: true, endDate: true } },
+      program: { select: { id: true, title: true, description: true, category: true, otherRequirements: true, extraCriteriaIds: true, endDate: true } },
     },
   })
+
+  // "Πρόσθετες Προϋποθέσεις" can come from either the free-text field or the
+  // checklist of EligibilityCriterion entries — fall back to the checklist
+  // labels when the free-text field is empty so both authoring styles show up.
+  const allCriteriaIds = Array.from(new Set(matches.flatMap(m => m.program.extraCriteriaIds || [])))
+  const criteriaList = allCriteriaIds.length > 0
+    ? await prisma.eligibilityCriterion.findMany({ where: { id: { in: allCriteriaIds } }, select: { id: true, label: true } })
+    : []
+  const criteriaLabelById = new Map(criteriaList.map(c => [c.id, c.label]))
 
   const byProgram = new Map<string, {
     programId: string
@@ -56,7 +65,9 @@ export async function GET(request: NextRequest) {
       programTitle: m.program.title,
       programDescription: m.program.description,
       programCategory: m.program.category,
-      otherRequirements: m.program.otherRequirements,
+      otherRequirements: m.program.otherRequirements
+        || (m.program.extraCriteriaIds || []).map(cid => criteriaLabelById.get(cid)).filter(Boolean).join(' · ')
+        || null,
       endDate: m.program.endDate ? m.program.endDate.toISOString() : null,
       matchCount: 0,
       businesses: [],
