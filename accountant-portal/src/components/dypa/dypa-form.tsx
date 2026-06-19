@@ -42,6 +42,8 @@ const EXPERIENCE_OPTIONS = [
   { value: 'OVER_FIVE', label: 'περισσότερα από πέντε έτη' },
 ]
 
+const LANGUAGE_OPTIONS = ['ΑΓΓΛΙΚΑ', 'ΓΕΡΜΑΝΙΚΑ', 'ΙΣΠΑΝΙΚΑ', 'ΓΑΛΛΙΚΑ', 'ΡΩΣΣΙΚΑ']
+
 export interface DypaFormValue {
   ownerIsLegalEntity: boolean
   ownerLegalEntityName: string | null
@@ -51,6 +53,7 @@ export interface DypaFormValue {
   staffFixedFull: number | null
   staffFixedPart: number | null
   staffOtherForm: number | null
+  hasAffiliatedCompanies: boolean
   affiliatedCompanies: { name: string; afm: string }[] | null
   positionTitle: string | null
   positionDescription: string | null
@@ -58,6 +61,7 @@ export interface DypaFormValue {
   licenseDescription: string | null
   requiredExperience: string | null
   requiresForeignLanguage: boolean
+  foreignLanguages: string[]
   foreignLanguageDescription: string | null
   noRecentLaborFines: boolean
   genderEqualityPrinciple: boolean
@@ -174,49 +178,52 @@ export function DypaForm({
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <label className="flex items-center gap-2 text-sm text-gray-700">
-            <input type="checkbox" disabled={locked} checked={value.ownerIsLegalEntity}
-              onChange={e => onPatch({ ownerIsLegalEntity: e.target.checked })} />
-            Ο ιδιοκτήτης/μέτοχος ≥25% είναι νομικό πρόσωπο
-          </label>
-          {value.ownerIsLegalEntity && (
-            <div>
-              <label className={labelCls}>Επωνυμία νομικού προσώπου</label>
-              <input disabled={locked} className={inputCls} value={value.ownerLegalEntityName || ''}
-                onChange={e => onPatch({ ownerLegalEntityName: e.target.value })} />
-            </div>
-          )}
-          <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 text-xs text-slate-600">
-            Υπάρχουν άλλες επιχειρήσεις συνδεδεμένες με την επιχείρηση, ή μέτοχοι/εταίροι της επιχείρησης που συμμετέχουν με ποσοστό άνω του 25% σε άλλη επιχείρηση (συμπεριλαμβανομένων ατομικών επιχειρήσεων που ανήκουν στους ίδιους τους μετόχους/εταίρους);
-          </div>
           <div>
-            <div className="flex items-center justify-between mb-2">
-              <label className={labelCls + ' mb-0'}>Αν ΝΑΙ, καταχωρίστε επωνυμία &amp; ΑΦΜ</label>
+            <p className={labelCls}>Υπάρχουν συνδεδεμένες επιχειρήσεις;</p>
+            <p className="text-xs text-slate-500 mb-2">
+              Συνδεδεμένη θεωρείται κάθε επιχείρηση στην οποία ο επιχειρηματίας ή κάποιος από τους μετόχους/εταίρους της αιτούσας επιχείρησης συμμετέχει άμεσα ή έμμεσα με ποσοστό άνω του 25%, καθώς και τυχόν ατομικές επιχειρήσεις που ανήκουν στους ίδιους.
+            </p>
+            <div className="flex gap-2">
+              <button type="button" disabled={locked} onClick={() => onPatch({ hasAffiliatedCompanies: true })}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium border ${value.hasAffiliatedCompanies ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-700 border-gray-300'}`}>
+                ΝΑΙ
+              </button>
+              <button type="button" disabled={locked} onClick={() => onPatch({ hasAffiliatedCompanies: false })}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium border ${!value.hasAffiliatedCompanies ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-700 border-gray-300'}`}>
+                ΟΧΙ
+              </button>
+            </div>
+          </div>
+          {value.hasAffiliatedCompanies && (
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className={labelCls + ' mb-0'}>Καταχωρίστε επωνυμία &amp; ΑΦΜ</label>
+                {!locked && (
+                  <button type="button" onClick={addAffiliated} className="text-xs text-indigo-600 flex items-center gap-1 hover:underline">
+                    <PlusCircle size={14} /> Προσθήκη
+                  </button>
+                )}
+              </div>
+              <div className="space-y-2">
+                {affiliated.map((row, i) => (
+                  <div key={i} className="grid grid-cols-[1fr_180px_auto] gap-2">
+                    <input disabled={locked} className={inputCls} placeholder="Επωνυμία" value={row.name}
+                      onChange={e => updateAffiliated(i, 'name', e.target.value)} />
+                    <input disabled={locked} className={inputCls} placeholder="ΑΦΜ" value={row.afm}
+                      onChange={e => updateAffiliated(i, 'afm', e.target.value)} />
+                    {!locked && (
+                      <button type="button" onClick={() => removeAffiliated(i)} className="text-red-500 hover:text-red-700"><Trash2 size={16} /></button>
+                    )}
+                  </div>
+                ))}
+              </div>
               {!locked && (
-                <button type="button" onClick={addAffiliated} className="text-xs text-indigo-600 flex items-center gap-1 hover:underline">
-                  <PlusCircle size={14} /> Προσθήκη
-                </button>
+                <Button size="sm" variant="outline" className="mt-2" onClick={() => onPatch({ affiliatedCompanies: affiliated })}>
+                  Αποθήκευση Συνδεδεμένων
+                </Button>
               )}
             </div>
-            <div className="space-y-2">
-              {affiliated.map((row, i) => (
-                <div key={i} className="grid grid-cols-[1fr_180px_auto] gap-2">
-                  <input disabled={locked} className={inputCls} placeholder="Επωνυμία" value={row.name}
-                    onChange={e => updateAffiliated(i, 'name', e.target.value)} />
-                  <input disabled={locked} className={inputCls} placeholder="ΑΦΜ" value={row.afm}
-                    onChange={e => updateAffiliated(i, 'afm', e.target.value)} />
-                  {!locked && (
-                    <button type="button" onClick={() => removeAffiliated(i)} className="text-red-500 hover:text-red-700"><Trash2 size={16} /></button>
-                  )}
-                </div>
-              ))}
-            </div>
-            {!locked && (
-              <Button size="sm" variant="outline" className="mt-2" onClick={() => onPatch({ affiliatedCompanies: affiliated })}>
-                Αποθήκευση Συνδεδεμένων
-              </Button>
-            )}
-          </div>
+          )}
         </CardContent>
       </Card>
 
@@ -322,8 +329,26 @@ export function DypaForm({
             Απαιτείται ξένη γλώσσα
           </label>
           {value.requiresForeignLanguage && (
-            <input disabled={locked} className={inputCls} value={value.foreignLanguageDescription || ''}
-              onChange={e => onPatch({ foreignLanguageDescription: e.target.value })} placeholder="π.χ. Αγγλικά - επίπεδο Β2" />
+            <>
+              <div className="flex flex-wrap gap-3">
+                {LANGUAGE_OPTIONS.map(lang => {
+                  const checked = (value.foreignLanguages || []).includes(lang)
+                  return (
+                    <label key={lang} className="flex items-center gap-1.5 text-sm text-gray-700">
+                      <input type="checkbox" disabled={locked} checked={checked}
+                        onChange={e => {
+                          const current = value.foreignLanguages || []
+                          const next = e.target.checked ? [...current, lang] : current.filter(l => l !== lang)
+                          onPatch({ foreignLanguages: next })
+                        }} />
+                      {lang}
+                    </label>
+                  )
+                })}
+              </div>
+              <input disabled={locked} className={inputCls} value={value.foreignLanguageDescription || ''}
+                onChange={e => onPatch({ foreignLanguageDescription: e.target.value })} placeholder="Άλλη γλώσσα / επίπεδο, π.χ. Αγγλικά - επίπεδο Β2" />
+            </>
           )}
           <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800 flex gap-2">
             <Info size={14} className="flex-shrink-0 mt-0.5" />
@@ -355,12 +380,12 @@ export function DypaForm({
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 normal-case text-base text-slate-800 font-semibold">
-              <Lock size={18} className="text-indigo-600" /> Κωδικοί Taxisnet
+              <Lock size={18} className="text-indigo-600" /> Κωδικοί Taxisnet της αιτούσας επιχείρησης
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800">
-              Οι κωδικοί αποθηκεύονται κρυπτογραφημένα (AES-256) και χρησιμοποιούνται αποκλειστικά για την υποβολή της αίτησης στη ΔΥΠΑ. Μπορούν να καταχωρηθούν τώρα ή να αναβληθούν μέχρι μετά την πληρωμή της επιχείρησης.
+              Εισάγετε τους κωδικούς Taxisnet της ίδιας της αιτούσας επιχείρησης (όχι του λογιστή). Αποθηκεύονται κρυπτογραφημένα (AES-256) και χρησιμοποιούνται αποκλειστικά για την υποβολή της αίτησης στη ΔΥΠΑ. Μπορούν να καταχωρηθούν τώρα ή να αναβληθούν μέχρι μετά την πληρωμή της επιχείρησης.
             </div>
             {(value.taxisnetUsernameSet && value.taxisnetPasswordSet && !taxisnetUser && !taxisnetPass) ? (
               <p className="text-sm text-emerald-700 flex items-center gap-1"><CheckCircle2 size={14} /> Έχουν ήδη καταχωρηθεί.</p>
@@ -420,11 +445,26 @@ export function DypaForm({
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="rounded-lg bg-indigo-50 border border-indigo-100 p-4 text-sm text-indigo-900 space-y-2">
-              <p className="font-semibold">ΑΡΧΙΚΗ ΥΠΟΒΟΛΗ ΤΗΣ ΑΙΤΗΣΗΣ: 150€+ΦΠΑ = 186€</p>
-              <p className="text-xs text-indigo-700">Καταβάλλεται τώρα, με αιτιολογία κατάθεσης τη μορφή «επωνυμία επιχείρησης &amp; ΔΥΠΑ» (π.χ. «ΠΑΠΑΔΑΚΗΣ ΟΕ ΔΥΠΑ»).</p>
-              <p className="font-semibold pt-2">ΚΑΤΟΠΙΝ, ΚΑΙ ΜΟΝΟ ΜΕΤΑ ΤΗΝ ΕΓΚΡΙΣΗ ΑΠΟ ΔΥΠΑ, ΑΦΟΥ ΓΙΝΕΙ Η ΠΡΟΣΛΗΨΗ. ΚΑΤΑΒΑΛΕΤΑΙ 50€+ΦΠΑ ΜΕ ΤΗΝ ΠΡΟΣΛΗΨΗ ΑΤΟΜΟΥ.</p>
-              <p className="font-semibold pt-2">ΚΑΘΕ ΔΙΜΗΝΟ ΑΠΑΙΤΕΙΤΑΙ ΝΑ ΑΝΕΒΑΙΝΟΥΝ ΕΓΓΡΑΦΑ ΣΧΕΤΙΚΑ ΜΕ ΤΗΝ ΜΙΣΘΟΔΟΣΙΑ ΤΟΥ ΣΥΓΚΕΚΡΙΜΕΝΟΥ ΥΠΑΛΛΗΛΟΥ ΣΤΗΝ ΠΛΑΤΦΟΡΜΑ ΤΗΣ ΔΥΠΑ, ΟΥΤΩΣ ΩΣΤΕ ΝΑ ΓΙΝΟΝΤΑΙ ΟΙ ΠΛΗΡΩΜΕΣ (ΕΠΙΧΟΡΗΓΗΣΗ) ΑΠΟ ΤΗΝ ΔΥΠΑ ΠΡΟΣ ΤΗΝ ΕΠΙΧΕΙΡΗΣΗ. Η ΣΥΓΚΕΚΡΙΜΕΝΗ ΔΙΑΔΙΚΑΣΙΑ ΤΙΜΟΛΟΓΕΙΤΑΙ 50€+ΦΠΑ ΚΑΘΕ ΔΙΜΗΝΟ.</p>
+            <div className="rounded-lg bg-indigo-50 border border-indigo-100 p-4 text-sm text-indigo-900 space-y-3">
+              <div>
+                <p className="font-semibold">Αρχική Υποβολή Αίτησης</p>
+                <p>150€ + ΦΠΑ = 186€</p>
+                <p className="text-xs text-indigo-700">Η αμοιβή καταβάλλεται κατά την υποβολή της αίτησης.</p>
+                <p className="text-xs text-indigo-700 mt-1">Αιτιολογία κατάθεσης: <strong>Επωνυμία Επιχείρησης + ΔΥΠΑ</strong> (π.χ. «ΠΑΠΑΔΑΚΗΣ ΟΕ - ΔΥΠΑ»)</p>
+              </div>
+              <div className="border-t border-indigo-200 pt-3">
+                <p className="font-semibold">Μετά την Έγκριση της Αίτησης</p>
+                <p className="text-xs text-indigo-700">Εφόσον η αίτηση εγκριθεί από τη ΔΥΠΑ και πραγματοποιηθεί η πρόσληψη, καταβάλλεται επιπλέον αμοιβή:</p>
+                <p>50€ + ΦΠΑ = 62€ ανά προσλαμβανόμενο εργαζόμενο</p>
+              </div>
+              <div className="border-t border-indigo-200 pt-3">
+                <p className="font-semibold">Υποστήριξη Επιχορήγησης</p>
+                <p className="text-xs text-indigo-700">
+                  Για τη διατήρηση της επιχορήγησης απαιτείται ανά δίμηνο η υποβολή των απαραίτητων δικαιολογητικών μισθοδοσίας στην πλατφόρμα της ΔΥΠΑ, ώστε να πραγματοποιούνται οι πληρωμές της επιχορήγησης προς την επιχείρηση.
+                </p>
+                <p className="text-xs text-indigo-700 mt-1">Η υπηρεσία αυτή παρέχεται προαιρετικά από την εταιρεία μας με κόστος:</p>
+                <p>50€ + ΦΠΑ = 62€ ανά δίμηνο</p>
+              </div>
             </div>
             <div className="grid sm:grid-cols-3 gap-3 text-xs">
               <IbanBox bank="Πειραιώς" iban={pricing.ibanPiraeus || 'GR4501714330006433164381388'} holder="I MENTOR IKE" />

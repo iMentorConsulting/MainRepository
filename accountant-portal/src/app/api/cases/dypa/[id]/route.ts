@@ -74,8 +74,8 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
   const directFields = [
     'ownerIsLegalEntity', 'ownerLegalEntityName', 'hasExistingStaff',
     'staffIndefiniteFull', 'staffIndefinitePart', 'staffFixedFull', 'staffFixedPart', 'staffOtherForm',
-    'affiliatedCompanies', 'positionTitle', 'positionDescription', 'requiresLicense', 'licenseDescription',
-    'requiredExperience', 'requiresForeignLanguage', 'foreignLanguageDescription', 'noRecentLaborFines',
+    'hasAffiliatedCompanies', 'affiliatedCompanies', 'positionTitle', 'positionDescription', 'requiresLicense', 'licenseDescription',
+    'requiredExperience', 'requiresForeignLanguage', 'foreignLanguages', 'foreignLanguageDescription', 'noRecentLaborFines',
     'genderEqualityPrinciple', 'noRecentStaffReduction',
   ]
   for (const f of directFields) {

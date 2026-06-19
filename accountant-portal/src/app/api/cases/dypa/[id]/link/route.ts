@@ -43,35 +43,41 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
   const businessName = assignment.clientCase.business?.onomasia || assignment.clientCase.business?.afm || ''
   const officeName = assignment.clientCase.accountant?.officeName || ''
 
-  let emailSent = false
-  let viberSent = false
+  // Email/Viber sends (SMTP handshakes, Chatwoot retries) can take tens of
+  // seconds — fire them in the background instead of blocking the response,
+  // so the accountant gets the link immediately and isn't left staring at a
+  // spinner. Delivery status lands on the token's emailSentAt/viberSentAt.
+  void (async () => {
+    let emailSent = false
+    let viberSent = false
 
-  if (contactEmail) {
-    emailSent = await sendEmail({
-      to: contactEmail,
-      subject: 'Πρόσκληση συμπλήρωσης αίτησης ΔΥΠΑ',
-      html: `<p>Αγαπητέ/ή ${businessName || 'συνεργάτη'},</p>
-        <p>Η I-MENTOR Consulting, σε συνεργασία με το λογιστικό σας γραφείο${officeName ? ` <strong>${officeName}</strong>` : ''}, σας προσκαλεί να συμπληρώσετε την αίτηση για πρόσληψη ανέργου με επιδότηση ΔΥΠΑ.</p>
-        <p><a href="${url}">${url}</a></p>
-        <p>Με εκτίμηση,<br/>I-MENTOR Consulting${officeName ? ` &amp; ${officeName}` : ''}</p>`,
-    })
-  }
+    if (contactEmail) {
+      emailSent = await sendEmail({
+        to: contactEmail,
+        subject: 'Πρόσκληση συμπλήρωσης αίτησης ΔΥΠΑ',
+        html: `<p>Αγαπητέ/ή ${businessName || 'συνεργάτη'},</p>
+          <p>Η I-MENTOR Consulting, σε συνεργασία με το λογιστικό σας γραφείο${officeName ? ` <strong>${officeName}</strong>` : ''}, σας προσκαλεί να συμπληρώσετε την αίτηση για πρόσληψη ανέργου με επιδότηση ΔΥΠΑ.</p>
+          <p><a href="${url}">${url}</a></p>
+          <p>Με εκτίμηση,<br/>I-MENTOR Consulting${officeName ? ` &amp; ${officeName}` : ''}</p>`,
+      }).catch(() => false)
+    }
 
-  if (contactPhone) {
-    const result = await sendViberMessage({
-      to: contactPhone,
-      text: `Αγαπητέ/ή ${businessName || 'συνεργάτη'}, η I-MENTOR Consulting${officeName ? ` & ${officeName}` : ''} σας προσκαλεί να συμπληρώσετε την αίτηση πρόσληψης ανέργου με επιδότηση ΔΥΠΑ: ${url}`,
-      senderName: 'I-MENTOR',
-    })
-    viberSent = result.ok
-  }
+    if (contactPhone) {
+      const result = await sendViberMessage({
+        to: contactPhone,
+        text: `Αγαπητέ/ή ${businessName || 'συνεργάτη'}, η I-MENTOR Consulting${officeName ? ` & ${officeName}` : ''} σας προσκαλεί να συμπληρώσετε την αίτηση πρόσληψης ανέργου με επιδότηση ΔΥΠΑ: ${url}`,
+        senderName: 'I-MENTOR',
+      }).catch(() => ({ ok: false, reason: '' }))
+      viberSent = result.ok
+    }
 
-  if (emailSent || viberSent) {
-    await prisma.dypaFormToken.update({
-      where: { id: formToken.id },
-      data: { emailSentAt: emailSent ? new Date() : undefined, viberSentAt: viberSent ? new Date() : undefined },
-    })
-  }
+    if (emailSent || viberSent) {
+      await prisma.dypaFormToken.update({
+        where: { id: formToken.id },
+        data: { emailSentAt: emailSent ? new Date() : undefined, viberSentAt: viberSent ? new Date() : undefined },
+      }).catch(() => {})
+    }
+  })()
 
-  return NextResponse.json({ url, expiresAt: formToken.expiresAt, emailSent, viberSent })
+  return NextResponse.json({ url, expiresAt: formToken.expiresAt, notifying: !!(contactEmail || contactPhone) })
 }

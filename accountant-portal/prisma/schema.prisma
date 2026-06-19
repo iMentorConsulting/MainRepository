@@ -718,26 +718,29 @@ model DypaAssignment {
   clientCase   ClientCase @relation(fields: [clientCaseId], references: [id], onDelete: Cascade)
 
   // Επιχειρησιακά στοιχεία
-  ownerIsLegalEntity   Boolean @default(false)
-  ownerLegalEntityName String?
+  ownerIsLegalEntity     Boolean @default(false)
+  ownerLegalEntityName   String?
   // Υφιστάμενο προσωπικό — ΝΑΙ/ΟΧΙ + ανάλυση ανά τύπο απασχόλησης (υποχρεωτικά αν hasExistingStaff, μπορούν να είναι 0)
-  hasExistingStaff     Boolean @default(false)
-  staffIndefiniteFull  Int?
-  staffIndefinitePart  Int?
-  staffFixedFull       Int?
-  staffFixedPart       Int?
-  staffOtherForm       Int?
+  hasExistingStaff       Boolean @default(false)
+  staffIndefiniteFull    Int?
+  staffIndefinitePart    Int?
+  staffFixedFull         Int?
+  staffFixedPart         Int?
+  staffOtherForm         Int?
   // Συνδεδεμένες επιχειρήσεις ή συμμετοχή ιδιοκτητών/μετόχων (>25%) σε άλλη επιχείρηση — [{ name, afm }]
-  affiliatedCompanies  Json?
+  hasAffiliatedCompanies Boolean @default(false)
+  affiliatedCompanies    Json?
 
   // Στοιχεία θέσης εργασίας
   positionTitle              String?
   positionDescription        String?
-  requiresLicense            Boolean @default(false)
+  requiresLicense            Boolean  @default(false)
   licenseDescription         String?
   // Απαιτούμενη προηγούμενη εμπειρία — NONE | UP_TO_1 | UP_TO_2 | TWO_TO_FIVE | OVER_FIVE
   requiredExperience         String?
-  requiresForeignLanguage    Boolean @default(false)
+  requiresForeignLanguage    Boolean  @default(false)
+  // Επιλεγμένες γλώσσες από προκαθορισμένη λίστα (ΑΓΓΛΙΚΑ, ΓΕΡΜΑΝΙΚΑ, ΙΣΠΑΝΙΚΑ, ΓΑΛΛΙΚΑ, ΡΩΣΣΙΚΑ)
+  foreignLanguages           String[]
   foreignLanguageDescription String?
 
   // Αυτοδηλούμενες προϋποθέσεις συμμόρφωσης (πλήρες νομικό κείμενο εμφανίζεται στη φόρμα)

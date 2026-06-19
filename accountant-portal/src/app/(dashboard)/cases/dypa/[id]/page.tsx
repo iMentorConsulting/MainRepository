@@ -75,19 +75,25 @@ export default function DypaAssignmentPage() {
   async function generateLink() {
     setLinkLoading(true)
     setLinkNotice('')
-    const res = await fetch(`/api/cases/dypa/${id}/link`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ contactEmail, contactPhone }),
-    })
-    setLinkLoading(false)
-    if (res.ok) {
-      const data = await res.json()
-      setLink(data.url)
-      const sent: string[] = []
-      if (data.emailSent) sent.push('email')
-      if (data.viberSent) sent.push('Viber')
-      setLinkNotice(sent.length ? `Στάλθηκε πρόσκληση συμπλήρωσης μέσω ${sent.join(' & ')}.` : 'Ο σύνδεσμος δημιουργήθηκε. Δεν στάλθηκε ειδοποίηση (συμπληρώστε email/τηλέφωνο).')
+    try {
+      const res = await fetch(`/api/cases/dypa/${id}/link`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contactEmail, contactPhone }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok) {
+        setLink(data.url)
+        setLinkNotice(contactEmail || contactPhone
+          ? 'Ο σύνδεσμος δημιουργήθηκε. Η πρόσκληση αποστέλλεται στην επιχείρηση.'
+          : 'Ο σύνδεσμος δημιουργήθηκε. Συμπληρώστε email/κινητό για αποστολή πρόσκλησης.')
+      } else {
+        setLinkNotice(data.error || 'Σφάλμα κατά τη δημιουργία του συνδέσμου.')
+      }
+    } catch {
+      setLinkNotice('Σφάλμα δικτύου κατά τη δημιουργία του συνδέσμου.')
+    } finally {
+      setLinkLoading(false)
     }
   }
 
