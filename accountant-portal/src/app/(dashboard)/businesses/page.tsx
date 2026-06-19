@@ -89,6 +89,7 @@ export default function BusinessesPage() {
   }
   const [includeIndividuals, setIncludeIndividuals] = useState(false)
   const [inactiveOnly, setInactiveOnly] = useState(false)
+  const [websiteFormOnly, setWebsiteFormOnly] = useState(false)
 
   const [quickSendOpen, setQuickSendOpen] = useState(false)
   const [enrichOpen, setEnrichOpen] = useState(false)
@@ -111,17 +112,18 @@ export default function BusinessesPage() {
       ...(categoryFilter.length ? { categories: categoryFilter.join(',') } : {}),
       ...(perifereiaFilter.length ? { perifereies: perifereiaFilter.join(',') } : {}),
       ...(inactiveOnly ? { inactiveOnly: '1' } : {}),
+      ...(websiteFormOnly ? { websiteFormOnly: '1' } : {}),
     })
     const res = await fetch(`/api/businesses?${params}`)
     const data = await res.json()
     setBusinesses(data.businesses || [])
     setTotal(data.total || 0)
     setLoading(false)
-  }, [page, search, accountantFilter, legalStatusFilter, regionFilter, categoryFilter, perifereiaFilter, sort, includeIndividuals, inactiveOnly])
+  }, [page, search, accountantFilter, legalStatusFilter, regionFilter, categoryFilter, perifereiaFilter, sort, includeIndividuals, inactiveOnly, websiteFormOnly])
 
   useEffect(() => { fetchData() }, [fetchData])
-  useEffect(() => { setSelected(new Set()) }, [page, search, accountantFilter, legalStatusFilter, regionFilter, categoryFilter, perifereiaFilter, sort, includeIndividuals, inactiveOnly])
-  useEffect(() => { setPage(1) }, [accountantFilter, legalStatusFilter, regionFilter, categoryFilter, perifereiaFilter, sort, includeIndividuals, inactiveOnly])
+  useEffect(() => { setSelected(new Set()) }, [page, search, accountantFilter, legalStatusFilter, regionFilter, categoryFilter, perifereiaFilter, sort, includeIndividuals, inactiveOnly, websiteFormOnly])
+  useEffect(() => { setPage(1) }, [accountantFilter, legalStatusFilter, regionFilter, categoryFilter, perifereiaFilter, sort, includeIndividuals, inactiveOnly, websiteFormOnly])
 
   useEffect(() => {
     fetch('/api/businesses/facets')
@@ -417,6 +419,16 @@ export default function BusinessesPage() {
             >
               {inactiveOnly ? 'Προβολή Όλων' : 'Μόνο Ανενεργές'}
             </Button>
+            {isAdmin && (
+              <Button
+                variant={websiteFormOnly ? 'outline' : 'ghost'}
+                size="sm"
+                onClick={() => setWebsiteFormOnly(v => !v)}
+                title="Εμφάνιση μόνο επιχειρήσεων που εγγράφηκαν μόνες τους μέσω της φόρμας του website"
+              >
+                {websiteFormOnly ? 'Προβολή Όλων' : 'Εγγραφή μέσω Website'}
+              </Button>
+            )}
             {isAdmin && selected.size > 0 && (
               <Button
                 variant="ghost"
@@ -429,11 +441,11 @@ export default function BusinessesPage() {
                 {`Επανέλεγχος Κατάστασης (${selected.size})`}
               </Button>
             )}
-            {(accountantFilter.length > 0 || legalStatusFilter.length > 0 || regionFilter.length > 0 || categoryFilter.length > 0 || perifereiaFilter.length > 0 || inactiveOnly) && (
+            {(accountantFilter.length > 0 || legalStatusFilter.length > 0 || regionFilter.length > 0 || categoryFilter.length > 0 || perifereiaFilter.length > 0 || inactiveOnly || websiteFormOnly) && (
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => { setAccountantFilter([]); setLegalStatusFilter([]); setRegionFilter([]); setCategoryFilter([]); setPerifereiaFilter([]); setInactiveOnly(false) }}
+                onClick={() => { setAccountantFilter([]); setLegalStatusFilter([]); setRegionFilter([]); setCategoryFilter([]); setPerifereiaFilter([]); setInactiveOnly(false); setWebsiteFormOnly(false) }}
               >
                 Καθαρισμός φίλτρων
               </Button>
