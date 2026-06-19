@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Modal } from '@/components/ui/modal'
 
@@ -7,8 +8,9 @@ export function NewCaseModal({ open, onClose, onCreated, initialBusinessId, init
   open: boolean; onClose: () => void; onCreated: (c: any) => void
   initialBusinessId?: string; initialProgramId?: string; userRole?: string
 }) {
+  const router = useRouter()
   const [businesses, setBusinesses] = useState<any[]>([])
-  const [matchedPrograms, setMatchedPrograms] = useState<{ id: string; title: string }[]>([])
+  const [matchedPrograms, setMatchedPrograms] = useState<{ id: string; title: string; category: string }[]>([])
   const [caseTypes, setCaseTypes] = useState<{ id: string; label: string; active: boolean }[]>([])
   const [contact, setContact] = useState({ needsPhone: false, needsEmail: false, phone: '', email: '' })
   const [form, setForm] = useState({
@@ -41,7 +43,7 @@ export function NewCaseModal({ open, onClose, onCreated, initialBusinessId, init
       .then(b => {
         const programs = (b.programMatches || [])
           .filter((m: any) => m.status !== 'REJECTED' && m.program)
-          .map((m: any) => ({ id: m.program.id, title: m.program.title }))
+          .map((m: any) => ({ id: m.program.id, title: m.program.title, category: m.program.category }))
         setMatchedPrograms(programs)
         setForm(f => programs.some((p: any) => p.id === f.programId) ? f : { ...f, programId: '' })
         setContact({ needsPhone: !b.phone, needsEmail: !b.email, phone: '', email: '' })
@@ -52,6 +54,11 @@ export function NewCaseModal({ open, onClose, onCreated, initialBusinessId, init
   async function handleSubmit() {
     if (!form.businessId) {
       alert('Επιλέξτε επιχείρηση')
+      return
+    }
+    if (form.programId && matchedPrograms.find(p => p.id === form.programId)?.category === 'DYPA') {
+      onClose()
+      router.push(`/cases/dypa/new?businessId=${form.businessId}&programId=${form.programId}`)
       return
     }
     if (userRole === 'ACCOUNTANT' && !form.programId) {
