@@ -122,6 +122,31 @@ def run_migrations():
 
 run_migrations()
 
+
+def backfill_unicode_comments():
+    """One-time fixup: older rows stored Lead.app_comments with \\uXXXX-escaped
+    Greek text (json.dumps default), which silently broke ILIKE comment search.
+    Re-encode any row still affected with ensure_ascii=False."""
+    import json as _json
+    with engine.connect() as conn:
+        try:
+            rows = conn.execute(text("SELECT id, app_comments FROM leads WHERE app_comments LIKE '%\\u%'")).fetchall()
+        except Exception:
+            return
+        for lead_id, raw in rows:
+            if not raw:
+                continue
+            try:
+                data = _json.loads(raw)
+            except Exception:
+                continue
+            fixed = _json.dumps(data, ensure_ascii=False)
+            conn.execute(text("UPDATE leads SET app_comments = :v WHERE id = :id"), {"v": fixed, "id": lead_id})
+        conn.commit()
+
+
+backfill_unicode_comments()
+
 app.include_router(auth.router)
 app.include_router(cases.router)
 app.include_router(statistics.router)
