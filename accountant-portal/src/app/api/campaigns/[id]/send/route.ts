@@ -154,6 +154,7 @@ async function processCampaignSend(
 export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (session.user.role === 'CONSULTANT') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const campaign = await prisma.campaign.findUnique({
     where: { id: params.id },

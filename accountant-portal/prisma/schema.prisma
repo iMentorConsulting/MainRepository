@@ -33,6 +33,7 @@ model LoginLog {
 enum Role {
   ADMIN
   ACCOUNTANT
+  CONSULTANT
 }
 
 // Singleton row (id "main") holding global I-MENTOR branding settings,

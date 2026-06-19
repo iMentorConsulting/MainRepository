@@ -17,12 +17,12 @@ const navItems = [
   { href: '/exodikastikos', label: 'Αναθέσεις Εξωδικαστικού', icon: Scale, adminOnly: false },
   { href: '/chat', label: 'Επικοινωνία με i-Mentor', icon: MessageSquare, adminOnly: false },
   { href: '/notify-matches', label: 'Custom Ειδοποιήσεις', icon: BellRing, adminOnly: true },
-  { href: '/campaigns', label: 'Ενημερώσεις προς Πελάτες', icon: Send, adminOnly: false },
+  { href: '/campaigns', label: 'Ενημερώσεις προς Πελάτες', icon: Send, adminOnly: false, hideFor: ['CONSULTANT'] },
   { href: '/templates', label: 'Πρότυπα Μηνυμάτων', icon: FileText, adminOnly: true },
   { href: '/criteria', label: 'Πρόσθετα Κριτήρια', icon: ListChecks, adminOnly: true },
   { href: '/payments', label: 'Πληρωμές', icon: CreditCard, adminOnly: true },
-  { href: '/commissions', label: 'Προμήθειες', icon: Percent, adminOnly: false },
-  { href: '/reports', label: 'Αναφορές', icon: BarChart3, adminOnly: false },
+  { href: '/commissions', label: 'Προμήθειες', icon: Percent, adminOnly: false, hideFor: ['CONSULTANT'] },
+  { href: '/reports', label: 'Αναφορές', icon: BarChart3, adminOnly: false, hideFor: ['CONSULTANT'] },
   { href: '/analytics', label: 'Αναλυτικά', icon: TrendingUp, adminOnly: true },
   { href: '/audit-log', label: 'Καταγραφή Ενεργειών', icon: History, adminOnly: true },
   { href: '/settings', label: 'Ρυθμίσεις', icon: Settings, adminOnly: true },
@@ -36,10 +36,12 @@ interface SidebarProps {
 export function Sidebar({ open, onClose }: SidebarProps) {
   const pathname = usePathname()
   const { data: session } = useSession()
-  const isAdmin = session?.user?.role === 'ADMIN'
+  const role = session?.user?.role
+  const isAdmin = role === 'ADMIN'
+  const isConsultant = role === 'CONSULTANT'
   const accountantId = (session?.user as any)?.accountantId
-  const visible = navItems.filter(i => !i.adminOnly || isAdmin)
-  const officeHref = !isAdmin && accountantId ? `/accountants/${accountantId}` : null
+  const visible = navItems.filter(i => (!i.adminOnly || isAdmin) && !i.hideFor?.includes(role as string))
+  const officeHref = !isAdmin && !isConsultant && accountantId ? `/accountants/${accountantId}` : null
   const [logoUrl, setLogoUrl] = useState<string | null>(null)
   const [accountantLogoUrl, setAccountantLogoUrl] = useState<string | null>(null)
 
@@ -140,10 +142,10 @@ export function Sidebar({ open, onClose }: SidebarProps) {
         <div className="px-4 pt-3 pb-1">
           <span className={cn(
             'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium',
-            isAdmin ? 'bg-indigo-500/20 text-indigo-300' : 'bg-violet-500/20 text-violet-300'
+            isAdmin ? 'bg-indigo-500/20 text-indigo-300' : isConsultant ? 'bg-emerald-500/20 text-emerald-300' : 'bg-violet-500/20 text-violet-300'
           )}>
-            <span className={cn('w-1.5 h-1.5 rounded-full', isAdmin ? 'bg-indigo-500' : 'bg-violet-500')} />
-            {isAdmin ? 'Administrator' : 'Λογιστής'}
+            <span className={cn('w-1.5 h-1.5 rounded-full', isAdmin ? 'bg-indigo-500' : isConsultant ? 'bg-emerald-500' : 'bg-violet-500')} />
+            {isAdmin ? 'Administrator' : isConsultant ? 'Σύμβουλος I-MENTOR' : 'Λογιστής'}
           </span>
         </div>
 
