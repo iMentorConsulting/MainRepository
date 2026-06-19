@@ -95,32 +95,61 @@ export async function GET(request: NextRequest) {
     : baseWhere
 
   // Programs can declare their own tag-based exclusion list (e.g. "Οφειλές/Χρέη"
-  // for ΤΑΜΕΙΟ ΜΙΚΡΟΠΙΣΤΩΣΕΩΝ). This must be enforced live, per match's own
-  // program, since old ProgramMatch rows created before the program's
-  // excludeTags were set (or since reviewed/notified, which the matching
-  // cleanup leaves untouched) would otherwise keep showing up.
-  const programsWithExcludeTags = await prisma.program.findMany({
-    where: { excludeTags: { isEmpty: false } },
-    select: { id: true, excludeTags: true },
+  // for ΤΑΜΕΙΟ ΜΙΚΡΟΠΙΣΤΩΣΕΩΝ) and/or a required-tag list (a business must carry
+  // at least one to be eligible at all). Both must be enforced live, per match's
+  // own program, since old ProgramMatch rows created before these fields were
+  // set (or since reviewed/notified, which the matching cleanup leaves untouched)
+  // would otherwise keep showing up.
+  const programsWithTagRules = await prisma.program.findMany({
+    where: { OR: [{ excludeTags: { isEmpty: false } }, { requireTags: { isEmpty: false } }] },
+    select: { id: true, excludeTags: true, requireTags: true },
   })
   let excludePairsFilter: any = null
-  if (programsWithExcludeTags.length > 0) {
-    const unionTags = Array.from(new Set(programsWithExcludeTags.flatMap(p => p.excludeTags)))
+  if (programsWithTagRules.length > 0) {
+    const unionTags = Array.from(new Set(programsWithTagRules.flatMap(p => [...p.excludeTags, ...p.requireTags])))
     const taggedBusinesses = await prisma.business.findMany({
       where: { tags: { hasSome: unionTags } },
       select: { id: true, tags: true },
     })
     const excludePairs: { businessId: string; programId: string }[] = []
-    for (const program of programsWithExcludeTags) {
+    for (const program of programsWithTagRules) {
       for (const business of taggedBusinesses) {
-        if (business.tags.some(t => program.excludeTags.includes(t))) {
+        if (program.excludeTags.length > 0 && business.tags.some(t => program.excludeTags.includes(t))) {
           excludePairs.push({ businessId: business.id, programId: program.id })
         }
       }
     }
     if (excludePairs.length > 0) excludePairsFilter = { NOT: { OR: excludePairs } }
   }
-  const withProgramExclusions = (w: any) => excludePairsFilter ? { ...w, ...excludePairsFilter } : w
+  const programsWithRequireTags = programsWithTagRules.filter(p => p.requireTags.length > 0)
+  let requirePairsFilter: any = null
+  if (programsWithRequireTags.length > 0) {
+    // Businesses are ineligible for a program with requireTags set unless they
+    // carry at least one of those tags — need ALL businesses here (not just
+    // tagged ones), since untagged businesses are also ineligible.
+    const allBusinesses = await prisma.business.findMany({ select: { id: true, tags: true } })
+    const eligiblePairs: { businessId: string; programId: string }[] = []
+    for (const program of programsWithRequireTags) {
+      for (const business of allBusinesses) {
+        if (business.tags.some(t => program.requireTags.includes(t))) {
+          eligiblePairs.push({ businessId: business.id, programId: program.id })
+        }
+      }
+    }
+    const requireProgramIds = programsWithRequireTags.map(p => p.id)
+    requirePairsFilter = {
+      OR: [
+        { programId: { notIn: requireProgramIds } },
+        ...(eligiblePairs.length > 0 ? [{ OR: eligiblePairs }] : []),
+      ],
+    }
+  }
+  const withProgramExclusions = (w: any) => {
+    let result = w
+    if (excludePairsFilter) result = { ...result, AND: [...(result.AND || []), excludePairsFilter] }
+    if (requirePairsFilter) result = { ...result, AND: [...(result.AND || []), requirePairsFilter] }
+    return result
+  }
 
   // `where`/`whereWithHidden` scope the actual result set (includes the program filter);
   // `baseWhereWithHidden` (without the program filter) is reused to compute the program

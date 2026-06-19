@@ -167,6 +167,9 @@ model Program {
   // Businesses carrying any of these tags (e.g. "Οφειλές/Χρέη") are excluded
   // from matching for this program, regardless of how well they otherwise fit.
   excludeTags        String[]
+  // If set, a business must carry at least one of these tags to match this
+  // program at all, regardless of how well it otherwise fits.
+  requireTags        String[]
   extraCriteriaIds   String[]
   videoUrls          String[]
   attachmentUrls     String[]

@@ -31,6 +31,7 @@ interface ProgramCriteria {
   maxRegdate: string | null
   legalStatusRules: string[]
   excludeTags: string[]
+  requireTags: string[]
 }
 
 // AADE's webservice sometimes returns ΚΑΔ codes that start with 0 (e.g.
@@ -46,6 +47,9 @@ function matchesBusiness(
   program: ProgramCriteria
 ): { score: number; reasons: string[] } {
   if (program.excludeTags.length > 0 && business.tags.some(t => program.excludeTags.includes(t))) {
+    return { score: 0, reasons: [] }
+  }
+  if (program.requireTags.length > 0 && !program.requireTags.some(t => business.tags.includes(t))) {
     return { score: 0, reasons: [] }
   }
 

@@ -36,17 +36,20 @@ export async function GET(request: NextRequest) {
           activities: { where: { firmActKind: 1 }, select: { firmActDescr: true }, take: 1 },
         },
       },
-      program: { select: { id: true, title: true, description: true, category: true, otherRequirements: true, extraCriteriaIds: true, excludeTags: true, endDate: true } },
+      program: { select: { id: true, title: true, description: true, category: true, otherRequirements: true, extraCriteriaIds: true, excludeTags: true, requireTags: true, endDate: true } },
     },
   })
 
-  // Enforce each program's own tag-based exclusion list live, since old
-  // ProgramMatch rows created before excludeTags was set (or already
+  // Enforce each program's own tag-based exclusion/require lists live, since old
+  // ProgramMatch rows created before these fields were set (or already
   // reviewed/notified, which matching cleanup leaves untouched) would
   // otherwise still surface here.
-  const visibleMatches = matches.filter(m =>
-    !(m.program.excludeTags || []).some(t => m.business.tags.includes(t))
-  )
+  const visibleMatches = matches.filter(m => {
+    if ((m.program.excludeTags || []).some(t => m.business.tags.includes(t))) return false
+    const requireTags = m.program.requireTags || []
+    if (requireTags.length > 0 && !requireTags.some(t => m.business.tags.includes(t))) return false
+    return true
+  })
 
   // "Πρόσθετες Προϋποθέσεις" can come from either the free-text field or the
   // checklist of EligibilityCriterion entries — fall back to the checklist

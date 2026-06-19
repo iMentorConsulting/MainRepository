@@ -185,6 +185,7 @@ export default function EditProgramPage() {
   const [extraCriteriaIds, setExtraCriteriaIds] = useState<string[]>([])
   const [criteriaOptions, setCriteriaOptions] = useState<{ id: string; label: string; active: boolean }[]>([])
   const [excludeTags, setExcludeTags] = useState<string[]>([])
+  const [requireTags, setRequireTags] = useState<string[]>([])
   const [tagOptions, setTagOptions] = useState<{ label: string }[]>([])
 
   const { register, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm<FormData>({
@@ -211,6 +212,7 @@ export default function EditProgramPage() {
         setZipCodeRules(program.zipCodeRules || [])
         setExtraCriteriaIds(program.extraCriteriaIds || [])
         setExcludeTags(program.excludeTags || [])
+        setRequireTags(program.requireTags || [])
         setHeroImage(program.heroImageUrl || '')
         setVideoUrls(program.videoUrls || [])
         reset({
@@ -241,7 +243,7 @@ export default function EditProgramPage() {
     const res = await fetch(`/api/programs/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...data, heroImageUrl: heroImage || data.heroImageUrl, kadRules, regionRules, zipCodeRules, extraCriteriaIds, excludeTags, videoUrls }),
+      body: JSON.stringify({ ...data, heroImageUrl: heroImage || data.heroImageUrl, kadRules, regionRules, zipCodeRules, extraCriteriaIds, excludeTags, requireTags, videoUrls }),
     })
     if (res.ok) {
       router.push(`/programs/${id}`)
@@ -384,6 +386,33 @@ export default function EditProgramPage() {
                     onChange={e => {
                       if (e.target.checked) setExcludeTags([...excludeTags, t.label])
                       else setExcludeTags(excludeTags.filter(v => v !== t.label))
+                    }}
+                  />
+                  <span>{t.label}</span>
+                </label>
+              ))
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader><CardTitle>Υποχρεωτικά Tags (Matching)</CardTitle></CardHeader>
+          <CardContent className="space-y-2">
+            <p className="text-sm text-gray-500 mb-2">
+              Αν επιλέξετε ένα ή περισσότερα tags, μια επιχείρηση θα πρέπει να φέρει τουλάχιστον ένα από αυτά για να ταιριάζει με αυτό το πρόγραμμα, ανεξάρτητα από τα υπόλοιπα κριτήρια.
+            </p>
+            {tagOptions.length === 0 ? (
+              <p className="text-sm text-gray-400">Δεν έχουν οριστεί tags. Μεταβείτε στη σελίδα "Tags Επιχειρήσεων".</p>
+            ) : (
+              tagOptions.map(t => (
+                <label key={t.label} className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    className="rounded"
+                    checked={requireTags.includes(t.label)}
+                    onChange={e => {
+                      if (e.target.checked) setRequireTags([...requireTags, t.label])
+                      else setRequireTags(requireTags.filter(v => v !== t.label))
                     }}
                   />
                   <span>{t.label}</span>

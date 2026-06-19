@@ -287,6 +287,16 @@ export default function ProgramDetailPage() {
                   </div>
                 </div>
               )}
+              {program.requireTags?.length > 0 && (
+                <div>
+                  <div className="text-xs font-semibold text-gray-500 uppercase mb-1.5">Υποχρεωτικά Tags (Matching)</div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {program.requireTags.map((r: string) => (
+                      <Badge key={r} variant="success">{r}</Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
