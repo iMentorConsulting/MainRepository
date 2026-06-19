@@ -95,8 +95,11 @@ export default function ProgramDetailPage() {
     setNotifying(true)
     const res = await fetch(`/api/programs/${id}/notify`, { method: 'POST' })
     const data = await res.json()
-    setPendingNotifications(0)
-    alert(`Εστάλησαν ειδοποιήσεις για ${data.notified} matches σε ${data.accountants} λογιστές.`)
+    setPendingNotifications(data.skippedNoAccountant || 0)
+    const skippedMsg = data.skippedNoAccountant > 0
+      ? `\n\n${data.skippedNoAccountant} match${data.skippedNoAccountant === 1 ? '' : 'es'} παραλείφθηκ${data.skippedNoAccountant === 1 ? 'ε' : 'αν'} επειδή ${data.skippedNoAccountant === 1 ? 'η επιχείρηση' : 'οι επιχειρήσεις'} δεν έχ${data.skippedNoAccountant === 1 ? 'ει' : 'ουν'} ανάθεση λογιστή — στείλτε τους απευθείας μέσω Quick Send.`
+      : ''
+    alert(`Εστάλησαν ειδοποιήσεις για ${data.notified} matches σε ${data.accountants} λογιστές.${skippedMsg}`)
     setNotifying(false)
   }
 

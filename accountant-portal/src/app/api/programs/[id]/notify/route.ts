@@ -109,13 +109,24 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     notifiedCount += count
   }
 
-  // Mark all as notified
-  await prisma.programMatch.updateMany({
-    where: { programId: params.id, notified: false },
-    data: { notified: true },
-  })
+  // Mark only the matches that were actually emailed as notified — matches
+  // belonging to businesses with no assigned accountant are intentionally
+  // left pending (notified: false) since nobody was ever emailed for them;
+  // they need to be handled directly via quick-send to the business itself.
+  const sentMatchIds = Object.values(byAccountant).flat().map(m => m.id)
+  if (sentMatchIds.length > 0) {
+    await prisma.programMatch.updateMany({
+      where: { id: { in: sentMatchIds } },
+      data: { notified: true },
+    })
+  }
 
-  return NextResponse.json({ notified: notifiedCount, accountants: Object.keys(byAccountant).length })
+  const skipped = unnotifiedMatches.length - sentMatchIds.length
+  return NextResponse.json({
+    notified: notifiedCount,
+    accountants: Object.keys(byAccountant).length,
+    skippedNoAccountant: skipped,
+  })
 }
 
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
