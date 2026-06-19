@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { StatCard } from '@/components/dashboard/stat-card'
 import { ChartCard } from '@/components/dashboard/chart-card'
+import { MatchesHero } from '@/components/dashboard/matches-hero'
 import { Users, Building2, Target, Zap, Send, Inbox, Upload, Mail, ChevronRight, CheckCircle2 } from 'lucide-react'
 import Link from 'next/link'
 import {
@@ -209,6 +210,9 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
+
+      {/* Matches hero — the core value of the app */}
+      <MatchesHero accountantId={accountantFilter || undefined} />
 
       {/* Accountant onboarding guide */}
       {!isAdmin && stats && <OnboardingGuide stats={stats} />}
