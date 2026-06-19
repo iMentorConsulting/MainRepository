@@ -1,15 +1,14 @@
 'use client'
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { Sparkles, ChevronDown, ArrowRight, Users } from 'lucide-react'
+import { Sparkles, ChevronDown, ArrowRight, Users, ExternalLink, AlertTriangle } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 
 interface MatchBusiness {
   id: string
   name: string
   afm: string
-  matchScore: number
-  status: string
+  activityDescr: string | null
 }
 
 interface ProgramOpportunity {
@@ -17,31 +16,15 @@ interface ProgramOpportunity {
   programTitle: string
   programDescription: string | null
   programCategory: string
+  otherRequirements: string | null
+  endDate: string | null
   matchCount: number
   businesses: MatchBusiness[]
 }
 
-const STATUS_LABELS: Record<string, string> = {
-  POTENTIAL: 'Πιθανό',
-  REVIEWED: 'Ελέγχθηκε',
-  REJECTED: 'Απορρίφθηκε',
-  INTERESTED: 'Ενδιαφέρον',
-  SUBMITTED: 'Υποβλήθηκε',
-}
-
-const STATUS_STYLES: Record<string, string> = {
-  POTENTIAL: 'bg-slate-100 text-slate-600',
-  REVIEWED: 'bg-blue-100 text-blue-700',
-  REJECTED: 'bg-red-100 text-red-700',
-  INTERESTED: 'bg-amber-100 text-amber-700',
-  SUBMITTED: 'bg-emerald-100 text-emerald-700',
-}
-
-function scoreColor(score: number): string {
-  if (score >= 80) return 'text-emerald-600'
-  if (score >= 60) return 'text-lime-600'
-  if (score >= 40) return 'text-amber-600'
-  return 'text-red-600'
+function daysUntil(dateStr: string): number {
+  const diff = new Date(dateStr).getTime() - Date.now()
+  return Math.ceil(diff / (1000 * 60 * 60 * 24))
 }
 
 const VISIBLE_BUSINESSES = 6
@@ -50,17 +33,35 @@ function OpportunityCard({ opp }: { opp: ProgramOpportunity }) {
   const [expanded, setExpanded] = useState(false)
   const visible = expanded ? opp.businesses : opp.businesses.slice(0, VISIBLE_BUSINESSES)
   const hiddenCount = opp.businesses.length - visible.length
+  const remainingDays = opp.endDate ? daysUntil(opp.endDate) : null
 
   return (
     <div className="bg-white rounded-xl border border-slate-100 p-4 flex flex-col">
       <div className="flex items-start justify-between gap-2">
-        <h3 className="text-sm font-bold text-slate-900 leading-snug">{opp.programTitle}</h3>
+        <Link href={`/programs/${opp.programId}`} className="group flex-1 min-w-0">
+          <h3 className="text-sm font-bold text-slate-900 leading-snug group-hover:text-indigo-700 flex items-center gap-1">
+            <span className="truncate">{opp.programTitle}</span>
+            <ExternalLink size={11} className="flex-shrink-0 text-slate-300 group-hover:text-indigo-500" />
+          </h3>
+        </Link>
         <Badge variant="purple" className="flex-shrink-0">
           <Users size={11} /> {opp.matchCount}
         </Badge>
       </div>
+
+      {remainingDays !== null && remainingDays >= 0 && remainingDays <= 30 && (
+        <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-red-600 bg-red-50 px-2 py-0.5 rounded-full mt-1.5 w-fit">
+          <AlertTriangle size={10} /> Λήξη σε {remainingDays} {remainingDays === 1 ? 'ημέρα' : 'ημέρες'}
+        </span>
+      )}
+
       {opp.programDescription && (
         <p className="text-xs text-slate-500 mt-1.5 leading-relaxed line-clamp-2">{opp.programDescription}</p>
+      )}
+      {opp.otherRequirements && (
+        <p className="text-xs text-slate-500 mt-1 leading-relaxed line-clamp-2">
+          <span className="font-medium text-slate-600">Πρόσθετες Προϋποθέσεις:</span> {opp.otherRequirements}
+        </p>
       )}
 
       <button
@@ -74,14 +75,9 @@ function OpportunityCard({ opp }: { opp: ProgramOpportunity }) {
       {expanded && (
         <div className="mt-2 space-y-1.5 max-h-64 overflow-y-auto pr-1">
           {visible.map(b => (
-            <div key={b.id} className="flex items-center justify-between gap-2 bg-slate-50 rounded-lg px-2.5 py-1.5">
-              <div className="min-w-0">
-                <p className="text-xs font-medium text-slate-800 truncate">{b.name}</p>
-                <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${STATUS_STYLES[b.status] || 'bg-slate-100 text-slate-600'}`}>
-                  {STATUS_LABELS[b.status] || b.status}
-                </span>
-              </div>
-              <span className={`text-xs font-bold flex-shrink-0 ${scoreColor(b.matchScore)}`}>{Math.round(b.matchScore)}%</span>
+            <div key={b.id} className="bg-slate-50 rounded-lg px-2.5 py-1.5">
+              <p className="text-xs font-medium text-slate-800 truncate">{b.name}</p>
+              <p className="text-[11px] text-slate-500 truncate">{b.activityDescr || 'Χωρίς καταχωρημένη δραστηριότητα'}</p>
             </div>
           ))}
           {hiddenCount > 0 && (

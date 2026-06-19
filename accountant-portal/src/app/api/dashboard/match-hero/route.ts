@@ -24,8 +24,15 @@ export async function GET(request: NextRequest) {
       id: true,
       matchScore: true,
       status: true,
-      business: { select: { id: true, onomasia: true, afm: true } },
-      program: { select: { id: true, title: true, description: true, category: true } },
+      business: {
+        select: {
+          id: true,
+          onomasia: true,
+          afm: true,
+          activities: { where: { firmActKind: 1 }, select: { firmActDescr: true }, take: 1 },
+        },
+      },
+      program: { select: { id: true, title: true, description: true, category: true, otherRequirements: true, endDate: true } },
     },
   })
 
@@ -34,8 +41,10 @@ export async function GET(request: NextRequest) {
     programTitle: string
     programDescription: string | null
     programCategory: string
+    otherRequirements: string | null
+    endDate: string | null
     matchCount: number
-    businesses: Array<{ id: string; name: string; afm: string; matchScore: number; status: string }>
+    businesses: Array<{ id: string; name: string; afm: string; activityDescr: string | null }>
   }>()
 
   for (const m of matches) {
@@ -44,6 +53,8 @@ export async function GET(request: NextRequest) {
       programTitle: m.program.title,
       programDescription: m.program.description,
       programCategory: m.program.category,
+      otherRequirements: m.program.otherRequirements,
+      endDate: m.program.endDate ? m.program.endDate.toISOString() : null,
       matchCount: 0,
       businesses: [],
     }
@@ -52,8 +63,7 @@ export async function GET(request: NextRequest) {
       id: m.business.id,
       name: m.business.onomasia || m.business.afm,
       afm: m.business.afm,
-      matchScore: m.matchScore,
-      status: m.status,
+      activityDescr: m.business.activities[0]?.firmActDescr || null,
     })
     byProgram.set(m.program.id, entry)
   }
