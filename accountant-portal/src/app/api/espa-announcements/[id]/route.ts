@@ -23,7 +23,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
   }
 
   const { reviewStatus, convertedProgramId } = await request.json()
-  const allowed = ['NEW', 'REVIEWED', 'IGNORED', 'CONVERTED']
+  const allowed = ['NEW', 'REVIEWED', 'IGNORED', 'CONVERTED', 'SNOOZED']
   if (reviewStatus && !allowed.includes(reviewStatus)) {
     return NextResponse.json({ error: 'Invalid reviewStatus' }, { status: 400 })
   }

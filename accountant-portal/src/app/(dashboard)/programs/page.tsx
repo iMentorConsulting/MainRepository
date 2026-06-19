@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { useSession } from 'next-auth/react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Plus, Target, Calendar, Zap, TrendingUp, MapPin, Archive, Megaphone, Check, X, ExternalLink } from 'lucide-react'
+import { Plus, Target, Calendar, Zap, TrendingUp, MapPin, Archive, Megaphone, Check, X, ExternalLink, Clock } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
 import { GREEK_REGIONS } from '@/lib/greek-regions'
 
@@ -74,14 +74,46 @@ interface EspaAnnouncement {
   budget: string | null
   attachmentUrls: string[]
   attachmentNames: string[]
-  reviewStatus: 'NEW' | 'REVIEWED' | 'IGNORED' | 'CONVERTED'
+  reviewStatus: 'NEW' | 'REVIEWED' | 'IGNORED' | 'CONVERTED' | 'SNOOZED'
   firstSeenAt: string
+}
+
+type AnnouncementViewMode = 'new' | 'snoozed' | 'handled'
+
+const VIEW_MODE_LABELS: Record<AnnouncementViewMode, string> = {
+  new: 'Νέα',
+  snoozed: 'Σε αναμονή',
+  handled: 'Διαχειρισμένα',
+}
+
+function matchesViewMode(reviewStatus: string, mode: AnnouncementViewMode): boolean {
+  if (mode === 'new') return reviewStatus === 'NEW'
+  if (mode === 'snoozed') return reviewStatus === 'SNOOZED'
+  return reviewStatus === 'REVIEWED' || reviewStatus === 'IGNORED' || reviewStatus === 'CONVERTED'
+}
+
+function ViewModeTabs({ mode, onChange, counts }: { mode: AnnouncementViewMode; onChange: (m: AnnouncementViewMode) => void; counts: Record<AnnouncementViewMode, number> }) {
+  return (
+    <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
+      {(['new', 'snoozed', 'handled'] as AnnouncementViewMode[]).map(m => (
+        <button
+          key={m}
+          onClick={() => onChange(m)}
+          className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
+            mode === m ? 'bg-white text-blue-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          {VIEW_MODE_LABELS[m]} {counts[m] > 0 ? `(${counts[m]})` : ''}
+        </button>
+      ))}
+    </div>
+  )
 }
 
 function EspaAnnouncementsTab() {
   const [items, setItems] = useState<EspaAnnouncement[]>([])
   const [loading, setLoading] = useState(true)
-  const [showHandled, setShowHandled] = useState(false)
+  const [viewMode, setViewMode] = useState<AnnouncementViewMode>('new')
 
   function load() {
     setLoading(true)
@@ -102,7 +134,12 @@ function EspaAnnouncementsTab() {
     setItems(prev => prev.map(i => i.id === id ? { ...i, reviewStatus: reviewStatus as any } : i))
   }
 
-  const visible = items.filter(i => showHandled ? (i.reviewStatus !== 'NEW') : i.reviewStatus === 'NEW')
+  const visible = items.filter(i => matchesViewMode(i.reviewStatus, viewMode))
+  const counts: Record<AnnouncementViewMode, number> = {
+    new: items.filter(i => i.reviewStatus === 'NEW').length,
+    snoozed: items.filter(i => i.reviewStatus === 'SNOOZED').length,
+    handled: items.filter(i => matchesViewMode(i.reviewStatus, 'handled')).length,
+  }
 
   if (loading) {
     return (
@@ -116,19 +153,14 @@ function EspaAnnouncementsTab() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <p className="text-sm text-gray-500">
-          {items.filter(i => i.reviewStatus === 'NEW').length} νέες προκηρύξεις προς έγκριση
+          {counts.new} νέες προκηρύξεις προς έγκριση
         </p>
-        <button
-          onClick={() => setShowHandled(v => !v)}
-          className="text-xs text-blue-700 hover:underline"
-        >
-          {showHandled ? 'Εμφάνιση νέων' : 'Εμφάνιση διαχειρισμένων'}
-        </button>
+        <ViewModeTabs mode={viewMode} onChange={setViewMode} counts={counts} />
       </div>
 
       {visible.length === 0 && (
         <div className="text-center text-gray-400 py-12">
-          {showHandled ? 'Δεν υπάρχουν διαχειρισμένες προκηρύξεις' : 'Δεν υπάρχουν νέες προκηρύξεις προς έγκριση'}
+          {viewMode === 'new' ? 'Δεν υπάρχουν νέες προκηρύξεις προς έγκριση' : viewMode === 'snoozed' ? 'Δεν υπάρχουν προκηρύξεις σε αναμονή' : 'Δεν υπάρχουν διαχειρισμένες προκηρύξεις'}
         </div>
       )}
 
@@ -140,8 +172,8 @@ function EspaAnnouncementsTab() {
                 <h3 className="font-semibold text-gray-900 text-sm">{item.title}</h3>
                 {item.status && <Badge variant="warning" className="text-[10px]">{item.status}</Badge>}
                 {item.reviewStatus !== 'NEW' && (
-                  <Badge variant={item.reviewStatus === 'CONVERTED' ? 'success' : 'secondary'} className="text-[10px]">
-                    {item.reviewStatus === 'CONVERTED' ? 'Μετατράπηκε' : item.reviewStatus === 'IGNORED' ? 'Αγνοήθηκε' : 'Ελέγχθηκε'}
+                  <Badge variant={item.reviewStatus === 'CONVERTED' ? 'success' : item.reviewStatus === 'SNOOZED' ? 'warning' : 'secondary'} className="text-[10px]">
+                    {item.reviewStatus === 'CONVERTED' ? 'Μετατράπηκε' : item.reviewStatus === 'IGNORED' ? 'Αγνοήθηκε' : item.reviewStatus === 'SNOOZED' ? 'Σε αναμονή' : 'Ελέγχθηκε'}
                   </Badge>
                 )}
               </div>
@@ -175,10 +207,18 @@ function EspaAnnouncementsTab() {
                 <Link href={`/programs/new?fromAnnouncementId=${item.id}`}>
                   <Button size="sm"><Check size={14} className="mr-1.5" />Μετατροπή σε Πρόγραμμα</Button>
                 </Link>
-                <Button size="sm" variant="ghost" onClick={() => updateStatus(item.id, 'IGNORED')}>
+                <Button size="sm" variant="ghost" title="Προσωρινή απόκρυψη" onClick={() => updateStatus(item.id, 'SNOOZED')}>
+                  <Clock size={14} />
+                </Button>
+                <Button size="sm" variant="ghost" title="Αγνόηση" onClick={() => updateStatus(item.id, 'IGNORED')}>
                   <X size={14} />
                 </Button>
               </div>
+            )}
+            {item.reviewStatus === 'SNOOZED' && (
+              <Button size="sm" variant="ghost" onClick={() => updateStatus(item.id, 'NEW')} className="flex-shrink-0">
+                Επαναφορά
+              </Button>
             )}
           </div>
         ))}
@@ -195,14 +235,14 @@ interface DypaAnnouncement {
   description: string | null
   attachmentUrls: string[]
   attachmentNames: string[]
-  reviewStatus: 'NEW' | 'REVIEWED' | 'IGNORED' | 'CONVERTED'
+  reviewStatus: 'NEW' | 'REVIEWED' | 'IGNORED' | 'CONVERTED' | 'SNOOZED'
   firstSeenAt: string
 }
 
 function DypaAnnouncementsTab() {
   const [items, setItems] = useState<DypaAnnouncement[]>([])
   const [loading, setLoading] = useState(true)
-  const [showHandled, setShowHandled] = useState(false)
+  const [viewMode, setViewMode] = useState<AnnouncementViewMode>('new')
 
   function load() {
     setLoading(true)
@@ -223,7 +263,12 @@ function DypaAnnouncementsTab() {
     setItems(prev => prev.map(i => i.id === id ? { ...i, reviewStatus: reviewStatus as any } : i))
   }
 
-  const visible = items.filter(i => showHandled ? (i.reviewStatus !== 'NEW') : i.reviewStatus === 'NEW')
+  const visible = items.filter(i => matchesViewMode(i.reviewStatus, viewMode))
+  const counts: Record<AnnouncementViewMode, number> = {
+    new: items.filter(i => i.reviewStatus === 'NEW').length,
+    snoozed: items.filter(i => i.reviewStatus === 'SNOOZED').length,
+    handled: items.filter(i => matchesViewMode(i.reviewStatus, 'handled')).length,
+  }
 
   if (loading) {
     return (
@@ -237,19 +282,14 @@ function DypaAnnouncementsTab() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <p className="text-sm text-gray-500">
-          {items.filter(i => i.reviewStatus === 'NEW').length} νέα προγράμματα προς έγκριση
+          {counts.new} νέα προγράμματα προς έγκριση
         </p>
-        <button
-          onClick={() => setShowHandled(v => !v)}
-          className="text-xs text-blue-700 hover:underline"
-        >
-          {showHandled ? 'Εμφάνιση νέων' : 'Εμφάνιση διαχειρισμένων'}
-        </button>
+        <ViewModeTabs mode={viewMode} onChange={setViewMode} counts={counts} />
       </div>
 
       {visible.length === 0 && (
         <div className="text-center text-gray-400 py-12">
-          {showHandled ? 'Δεν υπάρχουν διαχειρισμένα προγράμματα' : 'Δεν υπάρχουν νέα προγράμματα προς έγκριση'}
+          {viewMode === 'new' ? 'Δεν υπάρχουν νέα προγράμματα προς έγκριση' : viewMode === 'snoozed' ? 'Δεν υπάρχουν προγράμματα σε αναμονή' : 'Δεν υπάρχουν διαχειρισμένα προγράμματα'}
         </div>
       )}
 
@@ -261,8 +301,8 @@ function DypaAnnouncementsTab() {
                 <h3 className="font-semibold text-gray-900 text-sm">{item.title}</h3>
                 {item.status && <Badge variant="warning" className="text-[10px]">{item.status}</Badge>}
                 {item.reviewStatus !== 'NEW' && (
-                  <Badge variant={item.reviewStatus === 'CONVERTED' ? 'success' : 'secondary'} className="text-[10px]">
-                    {item.reviewStatus === 'CONVERTED' ? 'Μετατράπηκε' : item.reviewStatus === 'IGNORED' ? 'Αγνοήθηκε' : 'Ελέγχθηκε'}
+                  <Badge variant={item.reviewStatus === 'CONVERTED' ? 'success' : item.reviewStatus === 'SNOOZED' ? 'warning' : 'secondary'} className="text-[10px]">
+                    {item.reviewStatus === 'CONVERTED' ? 'Μετατράπηκε' : item.reviewStatus === 'IGNORED' ? 'Αγνοήθηκε' : item.reviewStatus === 'SNOOZED' ? 'Σε αναμονή' : 'Ελέγχθηκε'}
                   </Badge>
                 )}
               </div>
@@ -287,10 +327,18 @@ function DypaAnnouncementsTab() {
                 <Link href={`/programs/new?fromDypaAnnouncementId=${item.id}`}>
                   <Button size="sm"><Check size={14} className="mr-1.5" />Μετατροπή σε Πρόγραμμα</Button>
                 </Link>
-                <Button size="sm" variant="ghost" onClick={() => updateStatus(item.id, 'IGNORED')}>
+                <Button size="sm" variant="ghost" title="Προσωρινή απόκρυψη" onClick={() => updateStatus(item.id, 'SNOOZED')}>
+                  <Clock size={14} />
+                </Button>
+                <Button size="sm" variant="ghost" title="Αγνόηση" onClick={() => updateStatus(item.id, 'IGNORED')}>
                   <X size={14} />
                 </Button>
               </div>
+            )}
+            {item.reviewStatus === 'SNOOZED' && (
+              <Button size="sm" variant="ghost" onClick={() => updateStatus(item.id, 'NEW')} className="flex-shrink-0">
+                Επαναφορά
+              </Button>
             )}
           </div>
         ))}

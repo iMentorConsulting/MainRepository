@@ -784,4 +784,5 @@ enum EspaAnnouncementStatus {
   REVIEWED
   IGNORED
   CONVERTED
+  SNOOZED
 }

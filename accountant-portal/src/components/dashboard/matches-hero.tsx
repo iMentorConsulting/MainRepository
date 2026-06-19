@@ -1,43 +1,24 @@
 'use client'
-import { useEffect, useMemo, useState } from 'react'
-import dynamic from 'next/dynamic'
-import { motion, AnimatePresence } from 'framer-motion'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { Sparkles, Rows3, Network, ArrowRight, Building2 } from 'lucide-react'
+import { Sparkles, ChevronDown, ArrowRight, Users } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
 
-const ForceGraph2D = dynamic(() => import('react-force-graph-2d'), { ssr: false })
-
-interface FeedItem {
+interface MatchBusiness {
   id: string
-  businessId: string
-  businessName: string
-  businessAfm: string
-  programId: string
-  programTitle: string
-  programCategory: string
+  name: string
+  afm: string
   matchScore: number
   status: string
-  notified: boolean
-  createdAt: string
 }
 
-interface GraphNode {
-  id: string
-  label: string
-  type: 'program' | 'business'
-  category?: string
-}
-
-interface GraphLink {
-  source: string
-  target: string
-  score: number
-  status: string
-}
-
-interface MatchHeroData {
-  feed: FeedItem[]
-  graph: { nodes: GraphNode[]; links: GraphLink[] }
+interface ProgramOpportunity {
+  programId: string
+  programTitle: string
+  programDescription: string | null
+  programCategory: string
+  matchCount: number
+  businesses: MatchBusiness[]
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -57,108 +38,77 @@ const STATUS_STYLES: Record<string, string> = {
 }
 
 function scoreColor(score: number): string {
-  if (score >= 80) return '#059669'
-  if (score >= 60) return '#65a30d'
-  if (score >= 40) return '#d97706'
-  return '#dc2626'
+  if (score >= 80) return 'text-emerald-600'
+  if (score >= 60) return 'text-lime-600'
+  if (score >= 40) return 'text-amber-600'
+  return 'text-red-600'
 }
 
-function ScoreRing({ score }: { score: number }) {
-  const color = scoreColor(score)
-  const pct = Math.max(0, Math.min(100, score))
+const VISIBLE_BUSINESSES = 6
+
+function OpportunityCard({ opp }: { opp: ProgramOpportunity }) {
+  const [expanded, setExpanded] = useState(false)
+  const visible = expanded ? opp.businesses : opp.businesses.slice(0, VISIBLE_BUSINESSES)
+  const hiddenCount = opp.businesses.length - visible.length
+
   return (
-    <div
-      className="relative w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0"
-      style={{ background: `conic-gradient(${color} ${pct * 3.6}deg, #f1f5f9 0deg)` }}
-    >
-      <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center">
-        <span className="text-[10px] font-bold" style={{ color }}>{Math.round(score)}</span>
+    <div className="bg-white rounded-xl border border-slate-100 p-4 flex flex-col">
+      <div className="flex items-start justify-between gap-2">
+        <h3 className="text-sm font-bold text-slate-900 leading-snug">{opp.programTitle}</h3>
+        <Badge variant="purple" className="flex-shrink-0">
+          <Users size={11} /> {opp.matchCount}
+        </Badge>
       </div>
-    </div>
-  )
-}
+      {opp.programDescription && (
+        <p className="text-xs text-slate-500 mt-1.5 leading-relaxed line-clamp-2">{opp.programDescription}</p>
+      )}
 
-function LiveFeed({ feed }: { feed: FeedItem[] }) {
-  if (feed.length === 0) {
-    return <div className="h-[340px] flex items-center justify-center text-slate-400 text-sm">Δεν υπάρχουν matches ακόμη</div>
-  }
+      <button
+        onClick={() => setExpanded(v => !v)}
+        className="flex items-center gap-1 text-xs font-medium text-indigo-600 hover:text-indigo-700 mt-3"
+      >
+        {expanded ? 'Απόκρυψη επαφών' : 'Δείτε τις επιχειρήσεις'}
+        <ChevronDown size={13} className={`transition-transform ${expanded ? 'rotate-180' : ''}`} />
+      </button>
 
-  return (
-    <div className="space-y-2 max-h-[380px] overflow-y-auto pr-1">
-      <AnimatePresence initial={false}>
-        {feed.map((item, i) => (
-          <motion.div
-            key={item.id}
-            initial={{ opacity: 0, y: -8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.04, duration: 0.25 }}
-            className="flex items-center gap-3 bg-white rounded-xl border border-slate-100 p-3 hover:border-indigo-200 hover:shadow-sm transition-all"
-          >
-            <ScoreRing score={item.matchScore} />
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 text-sm">
-                <span className="font-semibold text-slate-900 truncate">{item.businessName}</span>
-                <ArrowRight size={12} className="text-slate-300 flex-shrink-0" />
-                <span className="text-slate-600 truncate">{item.programTitle}</span>
-              </div>
-              <div className="flex items-center gap-2 mt-1">
-                <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${STATUS_STYLES[item.status] || 'bg-slate-100 text-slate-600'}`}>
-                  {STATUS_LABELS[item.status] || item.status}
+      {expanded && (
+        <div className="mt-2 space-y-1.5 max-h-64 overflow-y-auto pr-1">
+          {visible.map(b => (
+            <div key={b.id} className="flex items-center justify-between gap-2 bg-slate-50 rounded-lg px-2.5 py-1.5">
+              <div className="min-w-0">
+                <p className="text-xs font-medium text-slate-800 truncate">{b.name}</p>
+                <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${STATUS_STYLES[b.status] || 'bg-slate-100 text-slate-600'}`}>
+                  {STATUS_LABELS[b.status] || b.status}
                 </span>
-                {item.notified && <span className="text-[10px] text-indigo-500">✓ Ενημερώθηκε</span>}
               </div>
+              <span className={`text-xs font-bold flex-shrink-0 ${scoreColor(b.matchScore)}`}>{Math.round(b.matchScore)}%</span>
             </div>
-            <Link
-              href={`/matches?search=${encodeURIComponent(item.businessAfm)}`}
-              className="text-xs font-medium text-indigo-600 hover:text-indigo-700 flex-shrink-0"
-            >
-              Δείτε →
-            </Link>
-          </motion.div>
-        ))}
-      </AnimatePresence>
-    </div>
-  )
-}
+          ))}
+          {hiddenCount > 0 && (
+            <p className="text-[11px] text-slate-400 text-center pt-0.5">+{hiddenCount} ακόμη</p>
+          )}
+        </div>
+      )}
 
-function MatchGraph({ graph }: { graph: { nodes: GraphNode[]; links: GraphLink[] } }) {
-  if (graph.nodes.length === 0) {
-    return <div className="h-[380px] flex items-center justify-center text-slate-400 text-sm">Δεν υπάρχουν matches ακόμη</div>
-  }
-
-  const graphData = useMemo(() => ({
-    nodes: graph.nodes.map(n => ({ ...n })),
-    links: graph.links.map(l => ({ ...l })),
-  }), [graph])
-
-  return (
-    <div className="h-[380px] rounded-xl bg-slate-50 overflow-hidden border border-slate-100">
-      <ForceGraph2D
-        graphData={graphData}
-        nodeLabel={(n: any) => n.label}
-        nodeColor={(n: any) => (n.type === 'program' ? '#4f46e5' : '#94a3b8')}
-        nodeVal={(n: any) => (n.type === 'program' ? 8 : 3)}
-        linkColor={(l: any) => scoreColor(l.score)}
-        linkWidth={(l: any) => Math.max(0.5, l.score / 30)}
-        linkDirectionalParticles={1}
-        linkDirectionalParticleWidth={1.5}
-        cooldownTicks={80}
-        backgroundColor="#f8fafc"
-      />
+      <Link
+        href={`/matches?programIds=${opp.programId}`}
+        className="flex items-center gap-1 text-xs font-semibold text-slate-700 hover:text-indigo-700 mt-3 pt-3 border-t border-slate-100"
+      >
+        Δείτε στα Matches <ArrowRight size={12} />
+      </Link>
     </div>
   )
 }
 
 export function MatchesHero({ accountantId }: { accountantId?: string }) {
-  const [data, setData] = useState<MatchHeroData | null>(null)
-  const [view, setView] = useState<'feed' | 'graph'>('feed')
+  const [programs, setPrograms] = useState<ProgramOpportunity[] | null>(null)
 
   useEffect(() => {
     const params = accountantId ? `?accountantId=${accountantId}` : ''
     fetch(`/api/dashboard/match-hero${params}`)
       .then(r => r.json())
-      .then(setData)
-      .catch(() => {})
+      .then(data => setPrograms(data.programs || []))
+      .catch(() => setPrograms([]))
   }, [accountantId])
 
   return (
@@ -166,42 +116,21 @@ export function MatchesHero({ accountantId }: { accountantId?: string }) {
       <div className="absolute -top-20 -right-20 w-64 h-64 bg-indigo-500/20 rounded-full blur-3xl" />
       <div className="absolute -bottom-20 -left-10 w-64 h-64 bg-fuchsia-500/10 rounded-full blur-3xl" />
 
-      <div className="relative flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2">
-          <Sparkles size={18} className="text-amber-300" />
-          <h2 className="text-base font-bold">Matches Επιχειρήσεων &amp; Προγραμμάτων</h2>
-        </div>
-        <div className="flex items-center gap-1 bg-white/10 rounded-lg p-1">
-          <button
-            onClick={() => setView('feed')}
-            className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-md transition-colors ${view === 'feed' ? 'bg-white text-slate-900' : 'text-white/70 hover:text-white'}`}
-          >
-            <Rows3 size={13} /> Ροή
-          </button>
-          <button
-            onClick={() => setView('graph')}
-            className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-md transition-colors ${view === 'graph' ? 'bg-white text-slate-900' : 'text-white/70 hover:text-white'}`}
-          >
-            <Network size={13} /> Δίκτυο
-          </button>
-        </div>
+      <div className="relative flex items-center gap-2 mb-4">
+        <Sparkles size={18} className="text-amber-300" />
+        <h2 className="text-base font-bold">Matches Επιχειρήσεων &amp; Προγραμμάτων</h2>
       </div>
 
-      <div className="relative bg-white/95 rounded-xl p-3">
-        {!data ? (
-          <div className="h-[380px] flex items-center justify-center text-slate-400 text-sm">Φόρτωση...</div>
-        ) : view === 'feed' ? (
-          <LiveFeed feed={data.feed} />
+      <div className="relative">
+        {!programs ? (
+          <div className="h-40 flex items-center justify-center text-white/60 text-sm">Φόρτωση...</div>
+        ) : programs.length === 0 ? (
+          <div className="h-40 flex items-center justify-center text-white/60 text-sm">Δεν υπάρχουν matches ακόμη</div>
         ) : (
-          <MatchGraph graph={data.graph} />
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {programs.map(opp => <OpportunityCard key={opp.programId} opp={opp} />)}
+          </div>
         )}
-      </div>
-
-      <div className="relative flex items-center justify-between mt-3 text-xs text-white/60">
-        <span className="flex items-center gap-1"><Building2 size={12} /> {data?.graph.nodes.filter(n => n.type === 'business').length ?? 0} επιχειρήσεις σε ταίριασμα</span>
-        <Link href="/matches" className="text-white/90 hover:text-white font-medium flex items-center gap-1">
-          Όλα τα matches <ArrowRight size={12} />
-        </Link>
       </div>
     </div>
   )

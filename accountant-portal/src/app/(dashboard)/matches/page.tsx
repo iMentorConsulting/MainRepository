@@ -1,7 +1,8 @@
 'use client'
-import { useEffect, useState, useCallback, useRef } from 'react'
+import { useEffect, useState, useCallback, useRef, Suspense } from 'react'
 import { useSession } from 'next-auth/react'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableHead, TableBody, TableRow, Th, Td } from '@/components/ui/table'
@@ -175,14 +176,26 @@ function RejectionCell({ match, reasonOptions, onChanged }: { match: any; reason
 }
 
 export default function MatchesPage() {
+  return (
+    <Suspense fallback={null}>
+      <MatchesPageInner />
+    </Suspense>
+  )
+}
+
+function MatchesPageInner() {
   const { data: session } = useSession()
+  const searchParams = useSearchParams()
   const isAdmin = session?.user?.role === 'ADMIN'
   const [matches, setMatches] = useState<any[]>([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
   const [campaignSentFilter, setCampaignSentFilter] = useState('')
   const [accountantFilter, setAccountantFilter] = useState<string[]>([])
-  const [programFilter, setProgramFilter] = useState<string[]>([])
+  const [programFilter, setProgramFilter] = useState<string[]>(() => {
+    const initial = searchParams.get('programIds')
+    return initial ? initial.split(',').filter(Boolean) : []
+  })
   const [legalStatusFilter, setLegalStatusFilter] = useState<string[]>([])
   const [legalStatusOptions, setLegalStatusOptions] = useState<{ value: string; label: string }[]>([])
   const [categoryFilter, setCategoryFilter] = useState<string[]>([])
