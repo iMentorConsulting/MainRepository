@@ -158,13 +158,16 @@ async function upsertMatch(programId: string, businessId: string, score: number,
 }
 
 // Removes stale matches that no longer satisfy the program criteria.
-// Only POTENTIAL matches are reset — matches the accountant has already
-// reviewed or acted upon are preserved.
+// Only un-notified POTENTIAL matches are reset — matches the accountant has
+// already reviewed/acted upon, or that were already notified, are preserved
+// so a re-run of matching (e.g. after a small program edit) never causes the
+// same accountant to be notified twice about the same match.
 async function resetStaleMatches(programId: string, qualifyingBusinessIds: string[]) {
   await prisma.programMatch.deleteMany({
     where: {
       programId,
       status: MatchStatus.POTENTIAL,
+      notified: false,
       businessId: { notIn: qualifyingBusinessIds }
     }
   })
@@ -285,7 +288,7 @@ export async function runMatchingForBusiness(businessId: string): Promise<number
   if (!business) throw new Error('Business not found')
 
   if (isInactiveBusiness(business)) {
-    await prisma.programMatch.deleteMany({ where: { businessId, status: MatchStatus.POTENTIAL } })
+    await prisma.programMatch.deleteMany({ where: { businessId, status: MatchStatus.POTENTIAL, notified: false } })
     return 0
   }
 
@@ -299,7 +302,7 @@ export async function runMatchingForBusiness(businessId: string): Promise<number
     if (isNew) matchCount++
     if (score < 40) {
       await prisma.programMatch.deleteMany({
-        where: { programId: program.id, businessId, status: MatchStatus.POTENTIAL }
+        where: { programId: program.id, businessId, status: MatchStatus.POTENTIAL, notified: false }
       })
     }
   }
