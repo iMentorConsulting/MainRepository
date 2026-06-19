@@ -260,7 +260,7 @@ function MatchesPageInner() {
     setUnsuitableCount(data.unsuitableCount || 0)
     if (data.tags?.length) setTagOptions(data.tags.map((v: string) => ({ value: v, label: v })))
     if (data.accountants?.length) setAccountantOptions(data.accountants.map((a: any) => ({ value: a.id, label: a.officeName })))
-    setProgramOptions((data.programs || []).map((p: any) => ({ value: p.id, label: `${p.title} (${p.count})` })))
+    setProgramOptions((data.programs || []).map((p: any) => ({ value: p.id, label: `(${p.count}) ${p.title}` })))
     if (data.legalStatuses?.length) setLegalStatusOptions(data.legalStatuses.map((v: string) => ({ value: v, label: v })))
     if (data.categories?.length) setCategoryOptions(data.categories.map((v: string) => ({ value: v, label: v })))
     if (data.perifereies?.length) setPerifereiaOptions([...data.perifereies, 'Άγνωστη'].map((v: string) => ({ value: v, label: v })))
@@ -374,7 +374,7 @@ function MatchesPageInner() {
               />
             )}
             {programOptions.length > 0 && (
-              <div className="min-w-[260px]">
+              <div className="min-w-[340px]">
                 <MultiSelect
                   label="Πρόγραμμα (με βάση τα άλλα φίλτρα)"
                   options={programOptions}
