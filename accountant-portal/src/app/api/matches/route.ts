@@ -94,11 +94,39 @@ export async function GET(request: NextRequest) {
     ? { ...baseWhere, rejectionReasonId: null, NOT: { criterionChecks: { some: { value: 'FAIL' } } } }
     : baseWhere
 
+  // Programs can declare their own tag-based exclusion list (e.g. "Οφειλές/Χρέη"
+  // for ΤΑΜΕΙΟ ΜΙΚΡΟΠΙΣΤΩΣΕΩΝ). This must be enforced live, per match's own
+  // program, since old ProgramMatch rows created before the program's
+  // excludeTags were set (or since reviewed/notified, which the matching
+  // cleanup leaves untouched) would otherwise keep showing up.
+  const programsWithExcludeTags = await prisma.program.findMany({
+    where: { excludeTags: { isEmpty: false } },
+    select: { id: true, excludeTags: true },
+  })
+  let excludePairsFilter: any = null
+  if (programsWithExcludeTags.length > 0) {
+    const unionTags = Array.from(new Set(programsWithExcludeTags.flatMap(p => p.excludeTags)))
+    const taggedBusinesses = await prisma.business.findMany({
+      where: { tags: { hasSome: unionTags } },
+      select: { id: true, tags: true },
+    })
+    const excludePairs: { businessId: string; programId: string }[] = []
+    for (const program of programsWithExcludeTags) {
+      for (const business of taggedBusinesses) {
+        if (business.tags.some(t => program.excludeTags.includes(t))) {
+          excludePairs.push({ businessId: business.id, programId: program.id })
+        }
+      }
+    }
+    if (excludePairs.length > 0) excludePairsFilter = { NOT: { OR: excludePairs } }
+  }
+  const withProgramExclusions = (w: any) => excludePairsFilter ? { ...w, ...excludePairsFilter } : w
+
   // `where`/`whereWithHidden` scope the actual result set (includes the program filter);
   // `baseWhereWithHidden` (without the program filter) is reused to compute the program
   // facet counts below, so the program dropdown reflects only the other active filters.
-  const where = programIds.length > 0 ? { ...baseWhere, programId: { in: programIds } } : baseWhere
-  const whereWithHidden = programIds.length > 0 ? { ...baseWhereWithHidden, programId: { in: programIds } } : baseWhereWithHidden
+  const where = withProgramExclusions(programIds.length > 0 ? { ...baseWhere, programId: { in: programIds } } : baseWhere)
+  const whereWithHidden = withProgramExclusions(programIds.length > 0 ? { ...baseWhereWithHidden, programId: { in: programIds } } : baseWhereWithHidden)
 
   const safeSort = SORTABLE.has(sortBy) ? sortBy : 'matchScore'
   let orderBy: any = { [safeSort]: sortDir }
@@ -165,7 +193,7 @@ export async function GET(request: NextRequest) {
   // filters, with a live count, so the dropdown narrows as the user filters.
   const programCounts = await prisma.programMatch.groupBy({
     by: ['programId'],
-    where: baseWhereWithHidden,
+    where: withProgramExclusions(baseWhereWithHidden),
     _count: { _all: true },
   })
   const programTitles = await prisma.program.findMany({

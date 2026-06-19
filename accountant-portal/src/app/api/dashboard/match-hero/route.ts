@@ -32,17 +32,26 @@ export async function GET(request: NextRequest) {
           id: true,
           onomasia: true,
           afm: true,
+          tags: true,
           activities: { where: { firmActKind: 1 }, select: { firmActDescr: true }, take: 1 },
         },
       },
-      program: { select: { id: true, title: true, description: true, category: true, otherRequirements: true, extraCriteriaIds: true, endDate: true } },
+      program: { select: { id: true, title: true, description: true, category: true, otherRequirements: true, extraCriteriaIds: true, excludeTags: true, endDate: true } },
     },
   })
+
+  // Enforce each program's own tag-based exclusion list live, since old
+  // ProgramMatch rows created before excludeTags was set (or already
+  // reviewed/notified, which matching cleanup leaves untouched) would
+  // otherwise still surface here.
+  const visibleMatches = matches.filter(m =>
+    !(m.program.excludeTags || []).some(t => m.business.tags.includes(t))
+  )
 
   // "Πρόσθετες Προϋποθέσεις" can come from either the free-text field or the
   // checklist of EligibilityCriterion entries — fall back to the checklist
   // labels when the free-text field is empty so both authoring styles show up.
-  const allCriteriaIds = Array.from(new Set(matches.flatMap(m => m.program.extraCriteriaIds || [])))
+  const allCriteriaIds = Array.from(new Set(visibleMatches.flatMap(m => m.program.extraCriteriaIds || [])))
   const criteriaList = allCriteriaIds.length > 0
     ? await prisma.eligibilityCriterion.findMany({ where: { id: { in: allCriteriaIds } }, select: { id: true, label: true } })
     : []
@@ -59,7 +68,7 @@ export async function GET(request: NextRequest) {
     businesses: Array<{ id: string; name: string; afm: string; activityDescr: string | null }>
   }>()
 
-  for (const m of matches) {
+  for (const m of visibleMatches) {
     const entry = byProgram.get(m.program.id) || {
       programId: m.program.id,
       programTitle: m.program.title,
