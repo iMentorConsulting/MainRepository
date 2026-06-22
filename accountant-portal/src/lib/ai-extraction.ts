@@ -93,7 +93,7 @@ export async function extractProgramFields(sourceText: string): Promise<Extracti
 
   const anthropic = new Anthropic({ apiKey })
   const response = await anthropic.messages.create({
-    model: 'claude-sonnet-4-5',
+    model: 'claude-opus-4-8',
     max_tokens: MAX_RESPONSE_TOKENS,
     system: systemPrompt,
     tools: [TOOL_SCHEMA],
