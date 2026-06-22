@@ -13,11 +13,33 @@ export const MAX_SOURCE_TEXT_CHARS = 600_000
 const KAD_CODE_REGEX = /\b\d{1,2}(?:\.\d{1,2}){1,4}\b/g
 
 // Greek announcement PDFs are typically: main body (tens of pages) followed
-// by several ΠΑΡΑΡΤΗΜΑ (annex) sections, only one of which — the eligible
-// ΚΑΔ/activities list — matters for extraction. The rest (legal text,
-// declaration templates, scoring grids, etc.) is noise that wastes tokens
-// and dilutes the model's attention on a 200-500 page PDF. Keep the main
-// body plus whichever annex looks most like a ΚΑΔ list (by code density).
+// by several ΠΑΡΑΡΤΗΜΑ (annex) sections. Most annexes (declaration/form
+// templates, legal-framework reprints, scoring grids) are pure noise that
+// wastes tokens on a 200-500 page PDF — but the eligibility criteria
+// themselves are sometimes restated or detailed inside an annex too, so
+// dropping every annex except "whichever one looks most like a ΚΑΔ list" is
+// too aggressive and can throw away the real content (observed: extraction
+// came back almost empty on a real large PDF). Instead, only drop annexes
+// whose own heading clearly marks them as boilerplate (declaration forms,
+// legal text reprints, scoring grids); keep everything else, including all
+// of the main body.
+//
+// "ΠΑΡΑΡΤΗΜΑ" also appears densely clustered in the table of contents near
+// the start of the document (one line per annex) — those are NOT real
+// section breaks and must be ignored, or the "main body" ends up being just
+// the cover page + TOC, discarding all the actual eligibility content.
+// A real heading is followed by a large run of body text before the next
+// one; TOC entries are followed almost immediately by the next TOC entry.
+const MIN_SECTION_GAP = 5_000
+
+// Heading keywords that reliably mark an annex as boilerplate we can safely
+// drop without losing eligibility information.
+const BOILERPLATE_HEADING_KEYWORDS = [
+  'ΥΠΟΔΕΙΓΜΑ', 'ΣΧΕΔΙΟ ΑΠΟΦΑΣΗΣ', 'ΔΗΛΩΣΗ', 'ΕΝΤΥΠΟ',
+  'ΝΟΜΟΘΕΤΙΚΟ ΠΛΑΙΣΙΟ', 'ΒΑΘΜΟΛΟΓ', 'ΤΥΠΟΠΟΙΗΜΕΝΟ', 'ΕΞΟΥΣΙΟΔΟΤΗΣΗ',
+  'ΥΠΕΥΘΥΝΗ ΔΗΛΩΣΗ',
+]
+
 function stripIrrelevantAnnexes(fullText: string): string {
   const headingRegex = /ΠΑΡΑΡΤΗΜΑ/g
   const headingIndexes: number[] = []
@@ -25,24 +47,29 @@ function stripIrrelevantAnnexes(fullText: string): string {
   while ((m = headingRegex.exec(fullText)) !== null) headingIndexes.push(m.index)
   if (headingIndexes.length === 0) return fullText
 
-  const mainBody = fullText.slice(0, headingIndexes[0])
-  const boundaries = [...headingIndexes, fullText.length]
+  const realHeadings = headingIndexes.filter((idx, i) => {
+    const next = headingIndexes[i + 1] ?? fullText.length
+    return next - idx >= MIN_SECTION_GAP
+  })
+  if (realHeadings.length === 0) return fullText
 
-  let bestChunk = ''
-  let bestScore = 0
+  const mainBody = fullText.slice(0, realHeadings[0])
+  const boundaries = [...realHeadings, fullText.length]
+
+  const keptChunks: string[] = []
   for (let i = 0; i < boundaries.length - 1; i++) {
     const chunk = fullText.slice(boundaries[i], boundaries[i + 1])
-    const score = (chunk.match(KAD_CODE_REGEX) || []).length
-    if (score > bestScore) {
-      bestScore = score
-      bestChunk = chunk
-    }
+    const headingLine = chunk.slice(0, 200).toUpperCase()
+    const isBoilerplate = BOILERPLATE_HEADING_KEYWORDS.some(kw => headingLine.includes(kw))
+    if (!isBoilerplate) keptChunks.push(chunk)
   }
 
-  // Only keep an annex if it plausibly is the ΚΑΔ/eligible-activities list —
-  // otherwise the main body alone (which usually states the headline KAD
-  // rules too) is safer than guessing.
-  return bestScore >= 10 ? `${mainBody}\n\n${bestChunk}` : mainBody
+  // Safety net: if every annex got classified as boilerplate (unlikely, but
+  // possible with unusual heading wording), fall back to keeping all of them
+  // rather than risk discarding real eligibility content.
+  if (keptChunks.length === 0) return fullText
+
+  return `${mainBody}\n\n${keptChunks.join('\n\n')}`
 }
 
 // Ceiling on the model's response — large announcements can have dozens of
@@ -217,5 +244,10 @@ export async function extractProgramFields(rawSourceText: string): Promise<Extra
   const toolUse = response.content.find(b => b.type === 'tool_use')
   if (!toolUse || toolUse.type !== 'tool_use') throw new Error('Το μοντέλο δεν επέστρεψε δομημένη εξαγωγή.')
 
-  return extractionSchema.parse(toolUse.input)
+  const parsed = extractionSchema.parse(toolUse.input)
+  // The matching engine (src/lib/matching.ts) compares plain digit strings
+  // (firmActCode has no dots); a kadRule containing a dot falls into its
+  // exact-match branch and never matches a real business activity code.
+  parsed.kadRules = parsed.kadRules.map(c => c.replace(/\./g, '').trim()).filter(Boolean)
+  return parsed
 }
