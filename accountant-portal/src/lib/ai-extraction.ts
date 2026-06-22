@@ -7,9 +7,9 @@ import { prisma } from './prisma'
 // multi-page announcement PDFs while still well short of Claude's 1M context.
 export const MAX_SOURCE_TEXT_CHARS = 400_000
 
-// Small, fixed ceiling on the model's response — the structured tool-call
-// output is always short, so this also limits cost per call.
-const MAX_RESPONSE_TOKENS = 2_000
+// Ceiling on the model's response — large announcements can have dozens of
+// expense-category rows and funded actions, so this is generous but bounded.
+const MAX_RESPONSE_TOKENS = 8_000
 
 // How many past corrected examples to inject as few-shot context.
 const FEW_SHOT_EXAMPLES = 5
@@ -33,6 +33,16 @@ const extractionSchema = z.object({
   requireTags: z.array(z.string()).default([]),
   excludeTags: z.array(z.string()).default([]),
   keyPoints: z.array(z.string()).default([]),
+  fundedActions: z.array(z.object({
+    title: z.string(),
+    description: z.string().default(''),
+  })).default([]),
+  expenseCategories: z.array(z.object({
+    code: z.string().default(''),
+    category: z.string().default(''),
+    expense: z.string().default(''),
+    limit: z.string().default(''),
+  })).default([]),
 })
 
 export type ExtractionResult = z.infer<typeof extractionSchema>
@@ -61,8 +71,34 @@ const TOOL_SCHEMA = {
       requireTags: { type: 'array', items: { type: 'string' } },
       excludeTags: { type: 'array', items: { type: 'string' } },
       keyPoints: { type: 'array', items: { type: 'string' }, description: 'Important points that do not fit the other fields' },
+      fundedActions: {
+        type: 'array',
+        description: 'Distinct funded actions/activities (e.g. "Εκσυγχρονισμός παραγωγής", "Τεχνολογική αναβάθμιση"), one entry per action with a short title and its description',
+        items: {
+          type: 'object',
+          properties: {
+            title: { type: 'string', description: 'Short title of the funded action' },
+            description: { type: 'string', description: 'What the action covers, in the announcement\'s own wording' },
+          },
+          required: ['title', 'description'],
+        },
+      },
+      expenseCategories: {
+        type: 'array',
+        description: 'Rows of the eligible-expense-category table (ΕΠΙΛΕΞΙΜΕΣ ΚΑΤΗΓΟΡΙΕΣ ΔΑΠΑΝΩΝ), one entry per row',
+        items: {
+          type: 'object',
+          properties: {
+            code: { type: 'string', description: 'ΟΠΣΚΕ code, e.g. "02.20"' },
+            category: { type: 'string', description: 'Category group, e.g. "02 Μηχανήματα – Εξοπλισμός"' },
+            expense: { type: 'string', description: 'Expense description, e.g. "Παραγωγικός και Μηχανολογικός εξοπλισμός"' },
+            limit: { type: 'string', description: 'Spending limit/percentage as stated, e.g. "Από 65% (τουλάχιστον) έως 90% του επιχορηγούμενου προϋπολογισμού"' },
+          },
+          required: ['code', 'category', 'expense', 'limit'],
+        },
+      },
     },
-    required: ['kadRules', 'regionRules', 'zipCodeRules', 'excludedLegalForms', 'keyPoints'],
+    required: ['kadRules', 'regionRules', 'zipCodeRules', 'excludedLegalForms', 'keyPoints', 'fundedActions', 'expenseCategories'],
   },
 }
 
@@ -90,7 +126,14 @@ export async function extractProgramFields(sourceText: string): Promise<Extracti
         .join('\n\n')
     : 'Δεν υπάρχουν ακόμα αποθηκευμένα παραδείγματα.'
 
-  const systemPrompt = `Είσαι ειδικός στην ανάγνωση ελληνικών προκηρύξεων προγραμμάτων χρηματοδότησης (ΕΣΠΑ/ΔΥΠΑ). Διάβασε το κείμενο και κάλεσε το εργαλείο "record_extraction" με τα δομημένα κριτήρια επιλεξιμότητας. Χρησιμοποίησε τα παρακάτω διορθωμένα παραδείγματα ως οδηγό ύφους/ακρίβειας:\n\n${fewShotBlock}`
+  const systemPrompt = `Είσαι ειδικός στην ανάγνωση ελληνικών προκηρύξεων προγραμμάτων χρηματοδότησης (ΕΣΠΑ/ΔΥΠΑ). Διάβασε προσεκτικά ΟΛΟ το κείμενο (μπορεί να έχει πολλές σελίδες) και κάλεσε το εργαλείο "record_extraction" με τα δομημένα κριτήρια επιλεξιμότητας.
+
+Δώσε ιδιαίτερη προσοχή στα παρακάτω, που συχνά παραλείπονται αν δεν τα ψάξεις ρητά:
+- Ημερομηνίες έναρξης/λήξης ηλεκτρονικής υποβολής αιτήσεων (startDate/endDate) — αναζήτησε φράσεις όπως "ημερομηνία έναρξης ηλεκτρονικής υποβολής" και "καταληκτική ημερομηνία".
+- fundedActions: όλες οι διακριτές ενέργειες/δράσεις που χρηματοδοτούνται (π.χ. "Εκσυγχρονισμός παραγωγής", "Τεχνολογική αναβάθμιση", "Πιστοποιήσεις και ποιότητα") — μία εγγραφή ανά ενέργεια με σύντομο τίτλο και την περιγραφή της.
+- expenseCategories: αν υπάρχει πίνακας "ΕΠΙΛΕΞΙΜΕΣ ΚΑΤΗΓΟΡΙΕΣ ΔΑΠΑΝΩΝ" (κωδικοί ΟΠΣΚΕ όπως 02.20, 04.18 κ.λπ.), μετέγραψε ΚΑΘΕ γραμμή του πίνακα ως ξεχωριστή εγγραφή με code, category, expense, limit — μην τα συνοψίζεις σε ελεύθερο κείμενο.
+
+Χρησιμοποίησε τα παρακάτω διορθωμένα παραδείγματα ως οδηγό ύφους/ακρίβειας:\n\n${fewShotBlock}`
 
   const anthropic = new Anthropic({ apiKey })
   const response = await anthropic.messages.create({

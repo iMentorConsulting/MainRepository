@@ -196,6 +196,14 @@ model Program {
   videoUrls          String[]
   attachmentUrls     String[]
   attachmentNames    String[]
+  // Free-form important points that don't fit any structured field below.
+  keyPoints          String[]
+  // Array of { title: string, description: string } — actions/expenses the
+  // program funds (e.g. "Εκσυγχρονισμός παραγωγής").
+  fundedActions      Json?
+  // Array of { code: string, category: string, expense: string, limit: string }
+  // mirroring the ΟΠΣΚΕ eligible-expense-category tables in announcement PDFs.
+  expenseCategories  Json?
   active             Boolean            @default(true)
   archived           Boolean            @default(false)
   startDate          DateTime?
