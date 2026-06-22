@@ -4,8 +4,8 @@ import { Button } from '@/components/ui/button'
 import { CheckCircle2, XCircle } from 'lucide-react'
 import { buildEligibilityQuestions, evaluateEligibility, EligibilityAnswers, ProgramEligibilityCriteria, EligibilityCheckResult } from '@/lib/eligibility-questions'
 
-export function EligibilityChecker({ program }: { program: ProgramEligibilityCriteria }) {
-  const questions = buildEligibilityQuestions(program)
+export function EligibilityChecker({ program, labelOverrides }: { program: ProgramEligibilityCriteria; labelOverrides?: Record<string, string> }) {
+  const questions = buildEligibilityQuestions(program, labelOverrides || {})
   const [answers, setAnswers] = useState<EligibilityAnswers>({})
   const [result, setResult] = useState<EligibilityCheckResult | null>(null)
 

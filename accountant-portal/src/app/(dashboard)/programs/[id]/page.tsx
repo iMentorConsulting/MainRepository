@@ -14,6 +14,7 @@ import { formatDate } from '@/lib/utils'
 import { GREEK_REGIONS } from '@/lib/greek-regions'
 import { LEGAL_FORMS } from '@/lib/legal-forms'
 import { parseRequirementsList } from '@/lib/requirements-list'
+import { EligibilityQuestionsEditor } from '@/components/programs/eligibility-questions-editor'
 
 function formatEuro(value: number | null | undefined) {
   if (value === null || value === undefined) return null
@@ -336,6 +337,8 @@ export default function ProgramDetailPage() {
               <CardContent><p className="text-sm text-gray-700">{program.internalNotes}</p></CardContent>
             </Card>
           )}
+
+          {isAdmin && <EligibilityQuestionsEditor programId={program.id} />}
 
           {program.attachmentUrls?.length > 0 && (
             <Card>

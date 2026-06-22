@@ -43,7 +43,10 @@ export interface EligibilityCheckResult {
 
 // Builds a fixed checkbox/select questionnaire from a program's already
 // extracted/approved structured fields — no LLM call involved.
-export function buildEligibilityQuestions(program: ProgramEligibilityCriteria): EligibilityQuestion[] {
+export function buildEligibilityQuestions(
+  program: ProgramEligibilityCriteria,
+  labelOverrides: Record<string, string> = {}
+): EligibilityQuestion[] {
   const questions: EligibilityQuestion[] = []
 
   questions.push({
@@ -92,7 +95,7 @@ export function buildEligibilityQuestions(program: ProgramEligibilityCriteria): 
     })
   }
 
-  return questions
+  return questions.map(q => labelOverrides[q.id] ? { ...q, label: labelOverrides[q.id] } : q)
 }
 
 // Pure rule evaluation against the program's stored eligibility fields —

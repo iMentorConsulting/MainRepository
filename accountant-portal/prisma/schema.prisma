@@ -224,6 +224,9 @@ model Program {
   // Array of { code: string, category: string, expense: string, limit: string }
   // mirroring the ΟΠΣΚΕ eligible-expense-category tables in announcement PDFs.
   expenseCategories  Json?
+  // Array of EligibilityQuestion (see src/lib/eligibility-questions.ts) — auto-generated
+  // from the structured fields above, editable by an admin before going live for Ερμής.
+  eligibilityQuestions Json?
   active             Boolean            @default(true)
   archived           Boolean            @default(false)
   startDate          DateTime?
