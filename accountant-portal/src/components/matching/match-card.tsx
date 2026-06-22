@@ -11,7 +11,7 @@ interface MatchCardProps {
   matchReason: string[]
   status: MatchStatus
   accountantName?: string | null
-  otherRequirements?: string | null
+  extraCriteria?: string[]
   onStatusChange?: (status: MatchStatus) => void
 }
 
@@ -23,7 +23,7 @@ const statusConfig: Record<MatchStatus, { label: string; variant: any; icon: any
   SUBMITTED: { label: 'Υποβλήθηκε', variant: 'warning', icon: Send },
 }
 
-export function MatchCard({ businessName, afm, programTitle, matchScore, matchReason, status, accountantName, otherRequirements }: MatchCardProps) {
+export function MatchCard({ businessName, afm, programTitle, matchScore, matchReason, status, accountantName, extraCriteria }: MatchCardProps) {
   const conf = statusConfig[status]
   const Icon = conf.icon
   return (
@@ -53,10 +53,14 @@ export function MatchCard({ businessName, afm, programTitle, matchScore, matchRe
           </ul>
         </div>
       )}
-      {otherRequirements && (
+      {extraCriteria && extraCriteria.length > 0 && (
         <div className="mt-2 pt-2 border-t border-gray-100">
-          <div className="text-xs text-gray-500 mb-0.5">Πρόσθετες Προϋποθέσεις</div>
-          <p className="text-xs text-gray-700 leading-relaxed">{otherRequirements}</p>
+          <div className="text-xs text-gray-500 mb-1">Πρόσθετες Προϋποθέσεις</div>
+          <div className="flex flex-wrap gap-1">
+            {extraCriteria.map((label, i) => (
+              <Badge key={i} variant="secondary" className="text-[10px]">{label}</Badge>
+            ))}
+          </div>
         </div>
       )}
     </div>

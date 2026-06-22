@@ -395,7 +395,7 @@ export default function ProgramDetailPage() {
                   matchReason={m.matchReason}
                   status={m.status}
                   accountantName={m.business?.accountant?.officeName}
-                  otherRequirements={program.otherRequirements}
+                  extraCriteria={(program.extraCriteriaIds || []).map((cid: string) => criteriaMap[cid] || cid)}
                 />
               ))}
             </div>

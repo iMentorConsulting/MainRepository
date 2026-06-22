@@ -50,6 +50,7 @@ export default function BusinessDetailPage() {
   const isAdmin = session?.user?.role === 'ADMIN'
   const [tagOptions, setTagOptions] = useState<{ id: string; label: string; active: boolean }[]>([])
   const [tagSelect, setTagSelect] = useState('')
+  const [criteriaMap, setCriteriaMap] = useState<Record<string, string>>({})
 
   useEffect(() => {
     fetch(`/api/businesses/${id}`)
@@ -59,6 +60,16 @@ export default function BusinessDetailPage() {
         setNotes(data.notes || '')
       })
       .finally(() => setLoading(false))
+    fetch('/api/admin/criteria')
+      .then(r => r.json())
+      .then(data => {
+        if (Array.isArray(data)) {
+          const map: Record<string, string> = {}
+          for (const c of data) map[c.id] = c.label
+          setCriteriaMap(map)
+        }
+      })
+      .catch(() => {})
     fetch('/api/admin/tags')
       .then(r => r.json())
       .then(data => setTagOptions(Array.isArray(data) ? data.filter((t: any) => t.active) : []))
@@ -361,7 +372,7 @@ export default function BusinessDetailPage() {
                       matchScore={m.matchScore}
                       matchReason={m.matchReason}
                       status={m.status}
-                      otherRequirements={m.program?.otherRequirements}
+                      extraCriteria={(m.program?.extraCriteriaIds || []).map((cid: string) => criteriaMap[cid] || cid)}
                     />
                   ))}
                 </div>
