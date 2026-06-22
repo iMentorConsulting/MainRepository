@@ -2,29 +2,33 @@ import Anthropic from '@anthropic-ai/sdk'
 import { z } from 'zod'
 import { prisma } from './prisma'
 
-// Hard cap on input size sent to Claude — protects against runaway token cost.
-// Applied AFTER stripIrrelevantAnnexes() trims away boilerplate annexes, so a
-// 200-500 page announcement still fits. Claude Opus 4.8 has a 1M-token context
-// window; ~1.6M chars is comfortably under that (~400-500k tokens for Greek
-// text) while leaving headroom for the system prompt, few-shot examples, and
-// the response.
-export const MAX_SOURCE_TEXT_CHARS = 1_600_000
+// Hard cap on input TOKENS sent to Claude — protects against runaway token
+// cost. Checked via the API's own token counter (countTokens) rather than a
+// guessed chars-per-token ratio, since Greek text tokenizes far less
+// efficiently than English and a static character cap kept being wrong in
+// both directions. Claude Opus 4.8 has a 1M-token context window; this
+// leaves headroom for the system prompt, few-shot examples, and the
+// response (MAX_RESPONSE_TOKENS below).
+export const MAX_INPUT_TOKENS = 900_000
+
+// Separate from the token cap above — just a sane ceiling on how much of the
+// (already annex-stripped) source text we store/echo back for display and
+// as a future few-shot example, so the DB row doesn't balloon.
+export const MAX_SOURCE_TEXT_CHARS = 2_000_000
 
 // Same pattern used by src/app/api/programs/parse-kad-pdf/route.ts to spot
 // ΚΑΔ codes like "47.11.10.01" inside the eligible-activities annex.
 const KAD_CODE_REGEX = /\b\d{1,2}(?:\.\d{1,2}){1,4}\b/g
 
 // Greek announcement PDFs are typically: main body (tens of pages) followed
-// by several ΠΑΡΑΡΤΗΜΑ (annex) sections. Most annexes (declaration/form
-// templates, legal-framework reprints, scoring grids) are pure noise that
-// wastes tokens on a 200-500 page PDF — but the eligibility criteria
-// themselves are sometimes restated or detailed inside an annex too, so
-// dropping every annex except "whichever one looks most like a ΚΑΔ list" is
-// too aggressive and can throw away the real content (observed: extraction
-// came back almost empty on a real large PDF). Instead, only drop annexes
-// whose own heading clearly marks them as boilerplate (declaration forms,
-// legal text reprints, scoring grids); keep everything else, including all
-// of the main body.
+// by several ΠΑΡΑΡΤΗΜΑ (annex) sections. On a 200-500 page announcement,
+// most of those annexes (declaration/form templates, legal-framework
+// reprints, scoring grids, sector-specific addenda that don't apply) are
+// pure noise that wastes tokens and can push the document past the context
+// window entirely. Keep the full main body (where the actual eligibility
+// rules almost always live) plus only the annexes that look genuinely
+// relevant — either by heading wording (ΚΑΔ/eligible-activities/expense
+// tables) or by ΚΑΔ-code density. Drop the rest.
 //
 // "ΠΑΡΑΡΤΗΜΑ" also appears densely clustered in the table of contents near
 // the start of the document (one line per annex) — those are NOT real
@@ -34,13 +38,16 @@ const KAD_CODE_REGEX = /\b\d{1,2}(?:\.\d{1,2}){1,4}\b/g
 // one; TOC entries are followed almost immediately by the next TOC entry.
 const MIN_SECTION_GAP = 5_000
 
-// Heading keywords that reliably mark an annex as boilerplate we can safely
-// drop without losing eligibility information.
-const BOILERPLATE_HEADING_KEYWORDS = [
-  'ΥΠΟΔΕΙΓΜΑ', 'ΣΧΕΔΙΟ ΑΠΟΦΑΣΗΣ', 'ΔΗΛΩΣΗ', 'ΕΝΤΥΠΟ',
-  'ΝΟΜΟΘΕΤΙΚΟ ΠΛΑΙΣΙΟ', 'ΒΑΘΜΟΛΟΓ', 'ΤΥΠΟΠΟΙΗΜΕΝΟ', 'ΕΞΟΥΣΙΟΔΟΤΗΣΗ',
-  'ΥΠΕΥΘΥΝΗ ΔΗΛΩΣΗ',
+// Heading keywords that mark an annex as relevant enough to keep even if its
+// ΚΑΔ-code density is low (e.g. an eligible-expense-category table that's
+// mostly prose, not bare codes).
+const RELEVANT_HEADING_KEYWORDS = [
+  'ΚΑΔ', 'ΔΡΑΣΤΗΡΙΟΤ', 'ΕΠΙΛΕΞΙΜ', 'ΔΑΠΑΝ', 'ΠΡΟΥΠΟΛΟΓ', 'ΕΠΙΧΟΡΗΓΗΣΗ',
 ]
+
+// Minimum ΚΑΔ-code-shaped-substring count for an annex to be kept purely on
+// code density, even without a matching heading keyword.
+const MIN_KAD_DENSITY_TO_KEEP = 10
 
 function stripIrrelevantAnnexes(fullText: string): string {
   const headingRegex = /ΠΑΡΑΡΤΗΜΑ/g
@@ -62,14 +69,16 @@ function stripIrrelevantAnnexes(fullText: string): string {
   for (let i = 0; i < boundaries.length - 1; i++) {
     const chunk = fullText.slice(boundaries[i], boundaries[i + 1])
     const headingLine = chunk.slice(0, 200).toUpperCase()
-    const isBoilerplate = BOILERPLATE_HEADING_KEYWORDS.some(kw => headingLine.includes(kw))
-    if (!isBoilerplate) keptChunks.push(chunk)
+    const isRelevant =
+      RELEVANT_HEADING_KEYWORDS.some(kw => headingLine.includes(kw)) ||
+      (chunk.match(KAD_CODE_REGEX) || []).length >= MIN_KAD_DENSITY_TO_KEEP
+    if (isRelevant) keptChunks.push(chunk)
   }
 
-  // Safety net: if every annex got classified as boilerplate (unlikely, but
-  // possible with unusual heading wording), fall back to keeping all of them
-  // rather than risk discarding real eligibility content.
-  if (keptChunks.length === 0) return fullText
+  // Safety net: if no annex looked relevant (unlikely, but possible with
+  // unusual heading wording), fall back to keeping all of them rather than
+  // risk discarding real eligibility content.
+  if (keptChunks.length === 0) return `${mainBody}\n\n${fullText.slice(realHeadings[0])}`
 
   return `${mainBody}\n\n${keptChunks.join('\n\n')}`
 }
@@ -180,14 +189,13 @@ const TOOL_SCHEMA = {
 }
 
 export class SourceTextTooLargeError extends Error {
-  constructor() {
-    super(`Το κείμενο υπερβαίνει το όριο των ${MAX_SOURCE_TEXT_CHARS} χαρακτήρων.`)
+  constructor(tokens: number) {
+    super(`Το κείμενο υπερβαίνει το όριο των ${MAX_INPUT_TOKENS.toLocaleString('el-GR')} tokens (μετρήθηκαν ${tokens.toLocaleString('el-GR')}).`)
   }
 }
 
 export async function extractProgramFields(rawSourceText: string): Promise<ExtractionResult> {
   const sourceText = stripIrrelevantAnnexes(rawSourceText)
-  if (sourceText.length > MAX_SOURCE_TEXT_CHARS) throw new SourceTextTooLargeError()
 
   const apiKey = process.env.ANTHROPIC_API_KEY
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY δεν έχει οριστεί στο περιβάλλον.')
@@ -234,6 +242,15 @@ export async function extractProgramFields(rawSourceText: string): Promise<Extra
 Χρησιμοποίησε τα παρακάτω διορθωμένα παραδείγματα ως οδηγό ύφους/ακρίβειας:\n\n${fewShotBlock}`
 
   const anthropic = new Anthropic({ apiKey })
+
+  const { input_tokens } = await anthropic.messages.countTokens({
+    model: 'claude-opus-4-8',
+    system: systemPrompt,
+    tools: [TOOL_SCHEMA],
+    messages: [{ role: 'user', content: sourceText }],
+  })
+  if (input_tokens > MAX_INPUT_TOKENS) throw new SourceTextTooLargeError(input_tokens)
+
   const response = await anthropic.messages.create({
     model: 'claude-opus-4-8',
     max_tokens: MAX_RESPONSE_TOKENS,
