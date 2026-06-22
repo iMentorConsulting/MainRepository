@@ -33,9 +33,12 @@ interface ExtractedFields {
   maxInvestment: number | null
   minSubsidyPct: number | null
   maxSubsidyPct: number | null
+  subsidyNote: string | null
   minInterestRate: number | null
   maxInterestRate: number | null
-  otherRequirements: string | null
+  otherRequirements: string[]
+  totalBudgetEur: number | null
+  implementationMonths: number | null
   startDate: string | null
   endDate: string | null
   requireTags: string[]
@@ -69,6 +72,34 @@ function TextField({ label, value, onChange, type = 'text' }: { label: string; v
         value={value ?? ''}
         onChange={e => onChange(e.target.value)}
       />
+    </div>
+  )
+}
+
+function NumberedListEditor({ label, value, onChange }: { label: string; value: string[]; onChange: (v: string[]) => void }) {
+  function update(i: number, text: string) {
+    onChange(value.map((v, idx) => idx === i ? text : v))
+  }
+  return (
+    <div className="space-y-2">
+      <label className="text-xs font-medium text-gray-600">{label}</label>
+      {value.map((v, i) => (
+        <div key={i} className="flex gap-2 items-start">
+          <span className="text-sm text-gray-500 mt-2 w-5 shrink-0">{i + 1}.</span>
+          <textarea
+            rows={2}
+            className="flex-1 rounded-lg border border-gray-300 px-2 py-1.5 text-sm"
+            value={v}
+            onChange={e => update(i, e.target.value)}
+          />
+          <button type="button" onClick={() => onChange(value.filter((_, idx) => idx !== i))} className="text-gray-400 hover:text-red-600 mt-2">
+            <Trash2 size={14} />
+          </button>
+        </div>
+      ))}
+      <Button type="button" variant="outline" size="sm" onClick={() => onChange([...value, ''])}>
+        <Plus size={14} className="mr-1.5" /> Προσθήκη Προϋπόθεσης
+      </Button>
     </div>
   )
 }
@@ -223,10 +254,14 @@ export function AiTrainingTab() {
   async function applyToProgram() {
     if (!fields || !targetProgramId) return
     setApplyMsg('')
+    const payload = {
+      ...fields,
+      otherRequirements: fields.otherRequirements.map((r, i) => `${i + 1}. ${r}`).join('\n'),
+    }
     const res = await fetch(`/api/programs/${targetProgramId}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(fields),
+      body: JSON.stringify(payload),
     })
     setApplyMsg(res.ok ? 'Εφαρμόστηκε στο πρόγραμμα' : 'Σφάλμα εφαρμογής στο πρόγραμμα')
   }
@@ -270,13 +305,18 @@ export function AiTrainingTab() {
               <TextField label="Μέγ. Επένδυση" value={fields.maxInvestment} onChange={v => updateField('maxInvestment', v === '' ? null : Number(v))} type="number" />
               <TextField label="Έναρξη Υποβολών" value={fields.startDate} onChange={v => updateField('startDate', v)} type="date" />
               <TextField label="Λήξη Υποβολών" value={fields.endDate} onChange={v => updateField('endDate', v)} type="date" />
+              <TextField label="Συνολικός Π/Υ Δημόσιας Δαπάνης (€)" value={fields.totalBudgetEur} onChange={v => updateField('totalBudgetEur', v === '' ? null : Number(v))} type="number" />
+              <TextField label="Διάρκεια Υλοποίησης (μήνες)" value={fields.implementationMonths} onChange={v => updateField('implementationMonths', v === '' ? null : Number(v))} type="number" />
               <ListField label="Απαιτούμενες Ετικέτες" value={fields.requireTags} onChange={v => updateField('requireTags', v)} />
               <ListField label="Αποκλειόμενες Ετικέτες" value={fields.excludeTags} onChange={v => updateField('excludeTags', v)} />
             </div>
             <div className="space-y-1">
-              <label className="text-xs font-medium text-gray-600">Λοιπές Προϋποθέσεις</label>
-              <textarea rows={2} className="w-full rounded-lg border border-gray-300 px-2 py-1.5 text-sm" value={fields.otherRequirements || ''} onChange={e => updateField('otherRequirements', e.target.value)} />
+              <label className="text-xs font-medium text-gray-600">Σχόλιο Ποσοστού Επιχορήγησης</label>
+              <textarea rows={2} className="w-full rounded-lg border border-gray-300 px-2 py-1.5 text-sm" placeholder="π.χ. bonus 5% ταχείας υλοποίησης υπό προϋποθέσεις" value={fields.subsidyNote || ''} onChange={e => updateField('subsidyNote', e.target.value)} />
             </div>
+
+            <NumberedListEditor label="Λοιπές Προϋποθέσεις" value={fields.otherRequirements} onChange={v => updateField('otherRequirements', v)} />
+
             <div className="space-y-1">
               <label className="text-xs font-medium text-gray-600">Βασικά Σημεία</label>
               <textarea

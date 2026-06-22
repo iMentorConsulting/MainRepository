@@ -174,9 +174,16 @@ model Program {
   maxInvestment      Int?
   minSubsidyPct      Float?
   maxSubsidyPct      Float?
+  // Free-text comment on the subsidy %, e.g. bonus/penalty conditions that
+  // don't fit the plain min/max range (rendered alongside the percentage).
+  subsidyNote        String?
   minInterestRate    Float?
   maxInterestRate    Float?
   otherRequirements  String?
+  // Total public-expenditure budget of the program, in euros.
+  totalBudgetEur     Float?
+  // Implementation duration allowed after final approval, in months.
+  implementationMonths Int?
   websiteUrl         String?
   regionRules        String[]
   zipCodeRules       String[]

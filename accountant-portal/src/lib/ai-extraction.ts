@@ -25,9 +25,12 @@ const extractionSchema = z.object({
   maxInvestment: z.number().nullable().default(null),
   minSubsidyPct: z.number().nullable().default(null),
   maxSubsidyPct: z.number().nullable().default(null),
+  subsidyNote: z.string().nullable().default(null),
   minInterestRate: z.number().nullable().default(null),
   maxInterestRate: z.number().nullable().default(null),
-  otherRequirements: z.string().nullable().default(null),
+  otherRequirements: z.array(z.string()).default([]),
+  totalBudgetEur: z.number().nullable().default(null),
+  implementationMonths: z.number().nullable().default(null),
   startDate: z.string().nullable().default(null),
   endDate: z.string().nullable().default(null),
   requireTags: z.array(z.string()).default([]),
@@ -57,15 +60,22 @@ const TOOL_SCHEMA = {
       regionRules: { type: 'array', items: { type: 'string' }, description: 'Eligible Greek regions (περιφέρειες)' },
       zipCodeRules: { type: 'array', items: { type: 'string' }, description: 'Eligible postal code prefixes' },
       excludedLegalForms: { type: 'array', items: { type: 'string' }, description: 'Legal forms explicitly excluded' },
-      minRegdate: { type: ['string', 'null'], description: 'Earliest allowed business registration date (ISO)' },
-      maxRegdate: { type: ['string', 'null'], description: 'Latest allowed business registration date (ISO)' },
+      minRegdate: { type: ['string', 'null'], description: 'Earliest allowed business registration date (ISO). Almost always "1900-01-01" unless the text states an actual minimum founding date.' },
+      maxRegdate: { type: ['string', 'null'], description: 'Latest allowed business registration date (ISO), derived from the number of required closed fiscal years (see system prompt rule).' },
       minInvestment: { type: ['number', 'null'] },
       maxInvestment: { type: ['number', 'null'] },
       minSubsidyPct: { type: ['number', 'null'] },
       maxSubsidyPct: { type: ['number', 'null'] },
+      subsidyNote: { type: ['string', 'null'], description: 'Comment on the subsidy %, e.g. bonus/penalty conditions, that does not fit the plain min/max range (e.g. "δυνατότητα επιπλέον 5% (bonus ταχείας υλοποίησης) εφόσον...")' },
       minInterestRate: { type: ['number', 'null'] },
       maxInterestRate: { type: ['number', 'null'] },
-      otherRequirements: { type: ['string', 'null'], description: 'Free-text additional requirements' },
+      otherRequirements: {
+        type: 'array',
+        items: { type: 'string' },
+        description: 'Discrete, numbered additional eligibility conditions (one requirement per entry), e.g. budget-vs-turnover caps, minimum self-assessment score, own-contribution percentage. Do NOT put these in keyPoints.',
+      },
+      totalBudgetEur: { type: ['number', 'null'], description: 'Total public-expenditure budget of the whole program/call, in euros (e.g. "Συνολικός προϋπολογισμός Δημόσιας Δαπάνης: 50.000.000€" -> 50000000)' },
+      implementationMonths: { type: ['number', 'null'], description: 'Implementation duration allowed after final approval, in months (e.g. "έως 15 μήνες από την οριστική έγκριση" -> 15)' },
       startDate: { type: ['string', 'null'], description: 'Submission window start (ISO)' },
       endDate: { type: ['string', 'null'], description: 'Submission window end (ISO)' },
       requireTags: { type: 'array', items: { type: 'string' } },
@@ -98,7 +108,7 @@ const TOOL_SCHEMA = {
         },
       },
     },
-    required: ['kadRules', 'regionRules', 'zipCodeRules', 'excludedLegalForms', 'keyPoints', 'fundedActions', 'expenseCategories'],
+    required: ['kadRules', 'regionRules', 'zipCodeRules', 'excludedLegalForms', 'otherRequirements', 'keyPoints', 'fundedActions', 'expenseCategories'],
   },
 }
 
@@ -126,12 +136,30 @@ export async function extractProgramFields(sourceText: string): Promise<Extracti
         .join('\n\n')
     : 'Δεν υπάρχουν ακόμα αποθηκευμένα παραδείγματα.'
 
-  const systemPrompt = `Είσαι ειδικός στην ανάγνωση ελληνικών προκηρύξεων προγραμμάτων χρηματοδότησης (ΕΣΠΑ/ΔΥΠΑ). Διάβασε προσεκτικά ΟΛΟ το κείμενο (μπορεί να έχει πολλές σελίδες) και κάλεσε το εργαλείο "record_extraction" με τα δομημένα κριτήρια επιλεξιμότητας.
+  const systemPrompt = `Είσαι ειδικός στην ανάγνωση ελληνικών προκηρύξεων προγραμμάτων χρηματοδότησης (ΕΣΠΑ/ΔΥΠΑ). Διάβασε προσεκτικά ΟΛΟ το κείμενο (μπορεί να έχει πολλές σελίδες) και κάλεσε το εργαλείο "record_extraction" με τα δομημένα κριτήρια επιλεξιμότητας. Κάθε πληροφορία πρέπει να μπει στο σωστό δομημένο πεδίο — ΠΟΤΕ σε ελεύθερο κείμενο (keyPoints) αν υπάρχει πιο συγκεκριμένο πεδίο.
 
-Δώσε ιδιαίτερη προσοχή στα παρακάτω, που συχνά παραλείπονται αν δεν τα ψάξεις ρητά:
-- Ημερομηνίες έναρξης/λήξης ηλεκτρονικής υποβολής αιτήσεων (startDate/endDate) — αναζήτησε φράσεις όπως "ημερομηνία έναρξης ηλεκτρονικής υποβολής" και "καταληκτική ημερομηνία".
-- fundedActions: όλες οι διακριτές ενέργειες/δράσεις που χρηματοδοτούνται (π.χ. "Εκσυγχρονισμός παραγωγής", "Τεχνολογική αναβάθμιση", "Πιστοποιήσεις και ποιότητα") — μία εγγραφή ανά ενέργεια με σύντομο τίτλο και την περιγραφή της.
-- expenseCategories: αν υπάρχει πίνακας "ΕΠΙΛΕΞΙΜΕΣ ΚΑΤΗΓΟΡΙΕΣ ΔΑΠΑΝΩΝ" (κωδικοί ΟΠΣΚΕ όπως 02.20, 04.18 κ.λπ.), μετέγραψε ΚΑΘΕ γραμμή του πίνακα ως ξεχωριστή εγγραφή με code, category, expense, limit — μην τα συνοψίζεις σε ελεύθερο κείμενο.
+Κανόνες ανά πεδίο:
+
+1. minRegdate/maxRegdate (ημερομηνία ίδρυσης): αν η προκήρυξη απαιτεί αριθμό πλήρων/κλεισμένων διαχειριστικών χρήσεων πριν την υποβολή, υπολόγισε:
+   - minRegdate = "1900-01-01" (πάντα, εκτός αν αναφέρεται ρητά διαφορετικό ελάχιστο).
+   - maxRegdate = 1η Ιανουαρίου του (έτος ηλεκτρονικής υποβολής − Ν), όπου Ν ο αριθμός των απαιτούμενων πλήρων/κλεισμένων χρήσεων.
+   Παράδειγμα: υποβολές ξεκινούν το 2026 και απαιτείται "τουλάχιστον 1 πλήρης χρήση" → maxRegdate = "2025-01-01". Αν απαιτούνται "2 κλεισμένες διαχειριστικές χρήσεις" → maxRegdate = "2024-01-01".
+
+2. startDate/endDate: ημερομηνίες έναρξης/λήξης ηλεκτρονικής υποβολής αιτήσεων — αναζήτησε φράσεις όπως "ημερομηνία έναρξης ηλεκτρονικής υποβολής" και "καταληκτική ημερομηνία".
+
+3. totalBudgetEur: ο συνολικός προϋπολογισμός Δημόσιας Δαπάνης του προγράμματος (π.χ. "Συνολικός προϋπολογισμός Δημόσιας Δαπάνης: 50.000.000€" → 50000000). Αυτό είναι το συνολικό κονδύλι του προγράμματος, όχι το όριο επένδυσης ανά επιχείρηση (minInvestment/maxInvestment).
+
+4. minSubsidyPct/maxSubsidyPct/subsidyNote: το ελάχιστο/μέγιστο ποσοστό δημόσιας επιχορήγησης μπαίνει σε minSubsidyPct/maxSubsidyPct ως αριθμοί. Τυχόν επιπλέον όροι/bonus/penalty σχόλιο (π.χ. "δυνατότητα επιπλέον 5% bonus ταχείας υλοποίησης εφόσον υποβληθεί ΑΚΕ με δαπάνες ≥80% εντός 9 μηνών") μπαίνουν στο subsidyNote ως σχόλιο, ΟΧΙ σε keyPoints.
+
+5. implementationMonths: η διάρκεια υλοποίησης σε μήνες ως αριθμός (π.χ. "Διάρκεια υλοποίησης: έως 15 μήνες από την οριστική έγκριση" → 15), ΟΧΙ σε keyPoints.
+
+6. otherRequirements: λίστα από ΞΕΧΩΡΙΣΤΕΣ, διακριτές πρόσθετες προϋποθέσεις επιλεξιμότητας που δεν καλύπτονται από άλλο πεδίο — μία πρόταση ανά εγγραφή πίνακα (π.χ. όριο επιχορηγούμενου Π/Υ έναντι κύκλου εργασιών, ελάχιστη βαθμολογία αυτοαξιολόγησης, ελάχιστο ποσοστό ίδιας συμμετοχής). ΟΧΙ σε keyPoints.
+
+7. fundedActions: όλες οι διακριτές ενέργειες/δράσεις που χρηματοδοτούνται (π.χ. "Εκσυγχρονισμός παραγωγής", "Τεχνολογική αναβάθμιση", "Πιστοποιήσεις και ποιότητα") — μία εγγραφή ανά ενέργεια με σύντομο τίτλο και την περιγραφή της.
+
+8. expenseCategories: αν υπάρχει πίνακας "ΕΠΙΛΕΞΙΜΕΣ ΚΑΤΗΓΟΡΙΕΣ ΔΑΠΑΝΩΝ" (κωδικοί ΟΠΣΚΕ όπως 02.20, 04.18 κ.λπ.), μετέγραψε ΚΑΘΕ γραμμή του πίνακα ως ξεχωριστή εγγραφή με code, category, expense, limit.
+
+9. keyPoints: ΜΟΝΟ για πληροφορίες που πραγματικά δεν χωρούν σε κανένα από τα παραπάνω δομημένα πεδία.
 
 Χρησιμοποίησε τα παρακάτω διορθωμένα παραδείγματα ως οδηγό ύφους/ακρίβειας:\n\n${fewShotBlock}`
 
