@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Sparkles, ChevronDown, ArrowRight, Users, ExternalLink, AlertTriangle } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
+import { parseRequirementsList } from '@/lib/requirements-list'
 
 interface MatchBusiness {
   id: string
@@ -59,9 +60,14 @@ function OpportunityCard({ opp }: { opp: ProgramOpportunity }) {
         <p className="text-xs text-slate-500 mt-1.5 leading-relaxed line-clamp-2">{opp.programDescription}</p>
       )}
       {opp.otherRequirements && (
-        <p className="text-xs text-slate-500 mt-1 leading-relaxed line-clamp-2">
-          <span className="font-medium text-slate-600">Πρόσθετες Προϋποθέσεις:</span> {opp.otherRequirements}
-        </p>
+        <div className="text-xs text-slate-500 mt-1 leading-relaxed">
+          <span className="font-medium text-slate-600">Πρόσθετες Προϋποθέσεις:</span>
+          <ol className="list-decimal list-outside pl-4 mt-0.5 space-y-0.5">
+            {parseRequirementsList(opp.otherRequirements).map((item, i) => (
+              <li key={i} className="line-clamp-1">{item}</li>
+            ))}
+          </ol>
+        </div>
       )}
 
       <button

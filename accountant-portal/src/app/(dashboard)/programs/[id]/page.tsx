@@ -13,6 +13,7 @@ import { useRouter } from 'next/navigation'
 import { formatDate } from '@/lib/utils'
 import { GREEK_REGIONS } from '@/lib/greek-regions'
 import { LEGAL_FORMS } from '@/lib/legal-forms'
+import { parseRequirementsList } from '@/lib/requirements-list'
 
 function formatEuro(value: number | null | undefined) {
   if (value === null || value === undefined) return null
@@ -225,7 +226,11 @@ export default function ProgramDetailPage() {
                 {program.otherRequirements && (
                   <div>
                     <div className="text-xs font-semibold text-gray-500 uppercase mb-1.5">Άλλες Προϋποθέσεις</div>
-                    <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-line">{program.otherRequirements}</p>
+                    <ol className="text-sm text-gray-700 leading-relaxed list-decimal list-outside pl-5 space-y-1">
+                      {parseRequirementsList(program.otherRequirements).map((item, i) => (
+                        <li key={i}>{item}</li>
+                      ))}
+                    </ol>
                   </div>
                 )}
                 {program.extraCriteriaIds?.length > 0 && (
