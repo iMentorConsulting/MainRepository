@@ -3,10 +3,12 @@ import { z } from 'zod'
 import { prisma } from './prisma'
 
 // Hard cap on input size sent to Claude — protects against runaway token cost.
-// Applied AFTER stripIrrelevantAnnexes() trims away unrelated annexes, so a
-// 200-500 page announcement (which is mostly boilerplate annexes) still fits.
-// ~600k chars ≈ ~150k tokens.
-export const MAX_SOURCE_TEXT_CHARS = 600_000
+// Applied AFTER stripIrrelevantAnnexes() trims away boilerplate annexes, so a
+// 200-500 page announcement still fits. Claude Opus 4.8 has a 1M-token context
+// window; ~1.6M chars is comfortably under that (~400-500k tokens for Greek
+// text) while leaving headroom for the system prompt, few-shot examples, and
+// the response.
+export const MAX_SOURCE_TEXT_CHARS = 1_600_000
 
 // Same pattern used by src/app/api/programs/parse-kad-pdf/route.ts to spot
 // ΚΑΔ codes like "47.11.10.01" inside the eligible-activities annex.
