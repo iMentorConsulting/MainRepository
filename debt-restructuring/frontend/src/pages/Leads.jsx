@@ -53,21 +53,32 @@ function formatPhone(p) {
   return clean
 }
 
+// Builds a Date from (y, monthIndex, d) but rejects out-of-range day/month
+// instead of letting JS silently "roll over" (e.g. month=13 or day=32) into
+// a different, valid-looking date — must match the backend's parse_any_date()
+// which raises/rejects on the same invalid combos via datetime(y, mo, d).
+function _strictLocalDate(y, monthIndex, d) {
+  const dt = new Date(y, monthIndex, d)
+  if (isNaN(dt)) return null
+  if (dt.getFullYear() !== y || dt.getMonth() !== monthIndex || dt.getDate() !== d) return null
+  return dt
+}
+
 function parseAnyDate(s) {
   if (!s) return null
   const str = String(s).trim()
 
   // DD/MM/YYYY or DD-MM-YYYY or DD.MM.YYYY (4-digit year — must match before 2-digit)
   const m1 = str.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})/)
-  if (m1) { const d = new Date(+m1[3], +m1[2] - 1, +m1[1]); if (!isNaN(d)) return d }
+  if (m1) { const d = _strictLocalDate(+m1[3], +m1[2] - 1, +m1[1]); if (d) return d }
 
   // DD/MM/YY or DD-MM-YY (2-digit year → 20xx; Google Sheets often exports this format)
   const m1b = str.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{2})(?:\s|$)/)
-  if (m1b) { const d = new Date(2000 + +m1b[3], +m1b[2] - 1, +m1b[1]); if (!isNaN(d)) return d }
+  if (m1b) { const d = _strictLocalDate(2000 + +m1b[3], +m1b[2] - 1, +m1b[1]); if (d) return d }
 
   // YYYY-MM-DD or YYYY/MM/DD — parse as LOCAL midnight (not UTC)
   const m2 = str.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/)
-  if (m2) { const d = new Date(+m2[1], +m2[2] - 1, +m2[3]); if (!isNaN(d)) return d }
+  if (m2) { const d = _strictLocalDate(+m2[1], +m2[2] - 1, +m2[3]); if (d) return d }
 
   // DD-GreekMonth-YYYY (e.g., "31-Μαρ-2026", "1-Ιουν-2026")
   // Normalize to lowercase without accents for robust matching
@@ -83,8 +94,8 @@ function parseAnyDate(s) {
   if (m3) {
     const month = greekMonthsNorm[_norm(m3[2])]
     if (month !== undefined) {
-      const d = new Date(+m3[3], month, +m3[1])
-      if (!isNaN(d)) return d
+      const d = _strictLocalDate(+m3[3], month, +m3[1])
+      if (d) return d
     }
   }
 

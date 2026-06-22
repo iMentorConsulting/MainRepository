@@ -57,7 +57,7 @@ def parse_any_date(value):
     m = re.match(r"^(\d{1,2})[/\-](\S{3,})[/\-](\d{4})", s)
     if m:
         d, mon_raw, y = int(m.group(1)), m.group(2), int(m.group(3))
-        mon_key = mon_raw.lower().translate(_GREEK_ACCENTS)[:3]
+        mon_key = mon_raw.lower().translate(_GREEK_ACCENTS)
         mo = _GREEK_MONTHS.get(mon_key)
         if mo:
             try:
