@@ -1407,6 +1407,12 @@ export default function Leads({ currentEmployee }) {
       av = av ? new Date(av).getTime() : 0
       bv = bv ? new Date(bv).getTime() : 0
     }
+    else if (sortCol === 'date') {
+      const da = parseAnyDate(av)
+      const db = parseAnyDate(bv)
+      av = da ? da.getTime() : 0
+      bv = db ? db.getTime() : 0
+    }
     const cmp = typeof av === 'number' ? av - bv : String(av).localeCompare(String(bv), 'el')
     return sortDir === 'asc' ? cmp : -cmp
   })
