@@ -22,6 +22,7 @@ const PLACEHOLDERS = [
   { key: '{{extra_criteria}}', label: 'Πρόσθετες Προϋποθέσεις' },
   { key: '{{kad_description}}', label: 'ΚΑΔ' },
   { key: '{{match_reason}}', label: 'Λόγοι Επιλεξιμότητας' },
+  { key: '{{ermis_link}}', label: 'Σύνδεσμος Ερμή' },
   { key: '{{unsubscribe_link}}', label: 'Αποδοχή' },
 ]
 

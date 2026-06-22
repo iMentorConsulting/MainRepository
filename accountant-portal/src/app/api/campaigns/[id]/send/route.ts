@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { sendEmail, renderTemplate, renderCampaignEmailHtml } from '@/lib/email'
 import { sendViberMessage } from '@/lib/viber'
 import { createAuditLog } from '@/lib/audit'
+import { getOrCreateErmisLink } from '@/lib/ermis'
 
 async function processCampaignSend(
   campaign: any,
@@ -51,6 +52,7 @@ async function processCampaignSend(
 
     const matchReasons = matchReasonByBusiness.get(business.id) || []
     const bullet = '•'
+    const ermisLink = campaign.programId ? await getOrCreateErmisLink(business.id, campaign.programId) : ''
     const variables: Record<string, string> = {
       business_name: business.onomasia || business.afm,
       afm: business.afm,
@@ -64,6 +66,7 @@ async function processCampaignSend(
       kad_description: business.activities[0]?.firmActCode || '',
       match_reason: matchReasons.map(r => `${bullet} ${r}`).join('\n'),
       unsubscribe_link: `${process.env.APP_URL || 'https://logistis.i-mentor.gr'}/api/unsubscribe/${business.unsubscribeToken}`,
+      ermis_link: ermisLink,
     }
 
     const rawMessage = renderTemplate(campaign.messageTemplate, variables)

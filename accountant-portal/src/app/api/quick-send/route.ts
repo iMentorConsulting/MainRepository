@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { sendEmail, renderTemplate, renderCampaignEmailHtml } from '@/lib/email'
 import { sendViberMessage } from '@/lib/viber'
+import { getOrCreateErmisLink } from '@/lib/ermis'
 
 export const dynamic = 'force-dynamic'
 
@@ -70,6 +71,7 @@ export async function POST(request: NextRequest) {
   let failed = 0
 
   for (const business of businesses) {
+    const ermisLink = programId ? await getOrCreateErmisLink(business.id, programId) : ''
     const variables: Record<string, string> = {
       business_name: business.onomasia || business.afm,
       afm: business.afm,
@@ -83,6 +85,7 @@ export async function POST(request: NextRequest) {
       extra_criteria: extraCriteriaText,
       match_reason: (matchByBusiness.get(business.id) || []).map((r: string) => `• ${r}`).join('\n'),
       unsubscribe_link: `${process.env.APP_URL || 'https://logistis.i-mentor.gr'}/api/unsubscribe/${business.unsubscribeToken}`,
+      ermis_link: ermisLink,
     }
 
     let renderedSubject = renderTemplate(subject || 'Ενημέρωση από το λογιστικό σας γραφείο', variables)

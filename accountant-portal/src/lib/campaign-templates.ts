@@ -25,6 +25,8 @@ export const CAMPAIGN_TEMPLATES: CampaignTemplate[] = [
 Με εκτίμηση,
 {{accountant_office}} & I-MENTOR
 
+Μάθετε αμέσως αν είστε επιλέξιμοι μιλώντας με τον ψηφιακό μας σύμβουλο, τον Ερμή: {{ermis_link}}
+
 Διαχείριση ενημερώσεων: {{unsubscribe_link}}`,
     bodyDirect:
 `Αγαπητοί κύριοι/κυρίες της {{business_name}},
@@ -37,6 +39,8 @@ export const CAMPAIGN_TEMPLATES: CampaignTemplate[] = [
 
 Με εκτίμηση,
 Η ομάδα της I-MENTOR
+
+Μάθετε αμέσως αν είστε επιλέξιμοι μιλώντας με τον ψηφιακό μας σύμβουλο, τον Ερμή: {{ermis_link}}
 
 Διαχείριση ενημερώσεων: {{unsubscribe_link}}`
   },
@@ -63,6 +67,8 @@ export const CAMPAIGN_TEMPLATES: CampaignTemplate[] = [
 Με εκτίμηση,
 {{accountant_office}} & I-MENTOR
 
+Μάθετε αμέσως αν είστε επιλέξιμοι μιλώντας με τον ψηφιακό μας σύμβουλο, τον Ερμή: {{ermis_link}}
+
 Αν δεν επιθυμείτε να λαμβάνετε ενημερώσεις σχετικά με προγράμματα επιδότησης: {{unsubscribe_link}}`,
     bodyDirect:
 `Αγαπητοί συνεργάτες της {{business_name}},
@@ -81,6 +87,8 @@ export const CAMPAIGN_TEMPLATES: CampaignTemplate[] = [
 
 Με εκτίμηση,
 Η ομάδα της I-MENTOR
+
+Μάθετε αμέσως αν είστε επιλέξιμοι μιλώντας με τον ψηφιακό μας σύμβουλο, τον Ερμή: {{ermis_link}}
 
 Αν δεν επιθυμείτε να λαμβάνετε ενημερώσεις σχετικά με προγράμματα επιδότησης: {{unsubscribe_link}}`
   },
@@ -115,6 +123,7 @@ export const VIBER_CAMPAIGN_TEMPLATES: ViberCampaignTemplate[] = [
 Για ό,τι χρειαστείτε, ο/η *{{accountant_name}}* είναι στη διάθεσή σας.
 
 — {{accountant_office}} & I-MENTOR
+💬 Μίλα με τον Ερμή: {{ermis_link}}
 {{unsubscribe_link}}`,
     bodyDirect:
 `Γειά σας, *{{business_name}}* 👋
@@ -126,6 +135,7 @@ export const VIBER_CAMPAIGN_TEMPLATES: ViberCampaignTemplate[] = [
 Απαντήστε «ΝΑΙ» αν θέλετε να ξεκινήσουμε!
 
 — Η ομάδα της I-MENTOR
+💬 Μίλα με τον Ερμή: {{ermis_link}}
 {{unsubscribe_link}}`
   },
   {
@@ -143,6 +153,7 @@ export const VIBER_CAMPAIGN_TEMPLATES: ViberCampaignTemplate[] = [
 Επικοινωνήστε άμεσα με τον/την *{{accountant_name}}* για να προετοιμάσουμε έγκαιρα τον φάκελό σας.
 
 — {{accountant_office}} & I-MENTOR
+💬 Μίλα με τον Ερμή: {{ermis_link}}
 {{unsubscribe_link}}`,
     bodyDirect:
 `Γειά σας, *{{business_name}}* ⏰
@@ -154,6 +165,7 @@ export const VIBER_CAMPAIGN_TEMPLATES: ViberCampaignTemplate[] = [
 Απαντήστε σε αυτό το μήνυμα άμεσα ώστε να προχωρήσουμε έγκαιρα στην προετοιμασία του φακέλου σας.
 
 — Η ομάδα της I-MENTOR
+💬 Μίλα με τον Ερμή: {{ermis_link}}
 {{unsubscribe_link}}`
   },
   {
@@ -177,6 +189,7 @@ export const VIBER_CAMPAIGN_TEMPLATES: ViberCampaignTemplate[] = [
 Αν τα πληροίτε, απαντήστε ή επικοινωνήστε με τον/την *{{accountant_name}}* για αναλυτική ενημέρωση.
 
 — {{accountant_office}} & I-MENTOR
+💬 Μίλα με τον Ερμή: {{ermis_link}}
 {{unsubscribe_link}}`,
     bodyDirect:
 `Γειά σας, *{{business_name}}* 👋
@@ -194,6 +207,7 @@ export const VIBER_CAMPAIGN_TEMPLATES: ViberCampaignTemplate[] = [
 Αν τα πληροίτε, απαντήστε σε αυτό το μήνυμα για αναλυτική ενημέρωση.
 
 — Η ομάδα της I-MENTOR
+💬 Μίλα με τον Ερμή: {{ermis_link}}
 {{unsubscribe_link}}`
   },
 ]

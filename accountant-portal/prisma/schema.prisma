@@ -153,6 +153,19 @@ enum ClientType {
   INDIVIDUAL
 }
 
+// No-login token granting a business access to the Ερμής eligibility chat for a specific program match.
+model BusinessMatchToken {
+  id         String    @id @default(cuid())
+  token      String    @unique @default(cuid())
+  businessId String
+  programId  String
+  expiresAt  DateTime
+  usedAt     DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@unique([businessId, programId])
+}
+
 model BusinessActivity {
   id               String   @id @default(cuid())
   businessId       String
