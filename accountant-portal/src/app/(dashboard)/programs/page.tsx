@@ -4,9 +4,10 @@ import Link from 'next/link'
 import { useSession } from 'next-auth/react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Plus, Target, Calendar, Zap, TrendingUp, MapPin, Archive, Megaphone, Check, X, ExternalLink, Clock } from 'lucide-react'
+import { Plus, Target, Calendar, Zap, TrendingUp, MapPin, Archive, Megaphone, Check, X, ExternalLink, Clock, Sparkles } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
 import { GREEK_REGIONS } from '@/lib/greek-regions'
+import { AiTrainingTab } from '@/components/programs/ai-training-tab'
 
 interface Program {
   id: string
@@ -354,7 +355,7 @@ export default function ProgramsPage() {
   const [showArchived, setShowArchived] = useState(false)
   const [loading, setLoading] = useState(true)
   const [criteriaMap, setCriteriaMap] = useState<Record<string, string>>({})
-  const [tab, setTab] = useState<'programs' | 'espa' | 'dypa'>('programs')
+  const [tab, setTab] = useState<'programs' | 'espa' | 'dypa' | 'ai-training'>('programs')
   const [newEspaCount, setNewEspaCount] = useState(0)
   const [newDypaCount, setNewDypaCount] = useState(0)
   const isAdmin = session?.user?.role === 'ADMIN'
@@ -444,6 +445,15 @@ export default function ProgramsPage() {
               <span className="bg-red-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{newDypaCount}</span>
             )}
           </button>
+          <button
+            onClick={() => setTab('ai-training')}
+            className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+              tab === 'ai-training' ? 'border-blue-800 text-blue-800' : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            <Sparkles size={14} />
+            AI Εκπαίδευση
+          </button>
         </div>
       )}
 
@@ -451,6 +461,8 @@ export default function ProgramsPage() {
         <EspaAnnouncementsTab />
       ) : tab === 'dypa' ? (
         <DypaAnnouncementsTab />
+      ) : tab === 'ai-training' ? (
+        isAdmin ? <AiTrainingTab /> : null
       ) : (
         <>
       {/* Category Filters */}
