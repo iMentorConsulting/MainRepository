@@ -3,8 +3,9 @@ import { z } from 'zod'
 import { prisma } from './prisma'
 
 // Hard cap on input size sent to Claude — protects against runaway token cost
-// from oversized PDF text. ~150k chars ≈ ~37k tokens.
-export const MAX_SOURCE_TEXT_CHARS = 150_000
+// from oversized PDF text. ~400k chars ≈ ~100k tokens, enough for large
+// multi-page announcement PDFs while still well short of Claude's 1M context.
+export const MAX_SOURCE_TEXT_CHARS = 400_000
 
 // Small, fixed ceiling on the model's response — the structured tool-call
 // output is always short, so this also limits cost per call.
