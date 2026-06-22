@@ -63,7 +63,7 @@ export function EligibilityQuestionsEditor({ programId }: { programId: string })
       const next: QuestionOverrides = { ...overrides }
       ;(data.classifications as RequirementClassification[]).forEach(c => {
         if (c.action === 'ask') {
-          next[c.id] = { label: c.question || c.originalText, skip: false }
+          next[c.id] = { label: c.question || c.originalText, skip: false, expectedAnswer: c.expectedAnswer }
         } else {
           next[c.id] = { skip: true, skipReason: c.reason || undefined }
         }
@@ -94,6 +94,11 @@ export function EligibilityQuestionsEditor({ programId }: { programId: string })
         ? { ...prev[id], skip: true }
         : { ...prev[id], skip: false, label: prev[id]?.label || fallbackLabel },
     }))
+    setSaved(false)
+  }
+
+  function setExpectedAnswer(id: string, expectedAnswer: boolean) {
+    setOverrides(prev => ({ ...prev, [id]: { ...prev[id], expectedAnswer } }))
     setSaved(false)
   }
 
@@ -142,6 +147,23 @@ export function EligibilityQuestionsEditor({ programId }: { programId: string })
                   value={overrides[q.id]?.label ?? q.label}
                   onChange={e => setLabel(q.id, e.target.value)}
                 />
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-gray-400">Σωστή (επιλέξιμη) απάντηση:</span>
+                  <button
+                    type="button"
+                    onClick={() => setExpectedAnswer(q.id, true)}
+                    className={`px-2 py-0.5 rounded text-xs font-semibold border ${q.expectedAnswer ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-gray-500 border-gray-200'}`}
+                  >
+                    Ναι
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setExpectedAnswer(q.id, false)}
+                    className={`px-2 py-0.5 rounded text-xs font-semibold border ${!q.expectedAnswer ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-gray-500 border-gray-200'}`}
+                  >
+                    Όχι
+                  </button>
+                </div>
               </div>
             ))}
 

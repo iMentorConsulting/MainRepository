@@ -49,17 +49,21 @@ export function EligibilityChecker({ program, autoConfirmedReasons, overrides }:
             <div key={q.id} className="flex items-center justify-between gap-3 bg-slate-50 rounded-lg px-3 py-2.5">
               <p className="text-sm text-slate-800">{q.label}</p>
               <div className="flex gap-1.5 flex-shrink-0">
+                {/* Selection is shown neutrally (indigo), never green/red —
+                    which answer is "correct" depends on each question's
+                    expectedAnswer (e.g. for disqualifying conditions, Όχι is
+                    the eligible answer), so Ναι is not always the good one. */}
                 <button
                   type="button"
                   onClick={() => { setAnswers(prev => ({ ...prev, [q.id]: true })); setSubmitted(false) }}
-                  className={`px-3 py-1 rounded-md text-xs font-semibold border ${answers[q.id] === true ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-slate-600 border-slate-200'}`}
+                  className={`px-3 py-1 rounded-md text-xs font-semibold border ${answers[q.id] === true ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-200'}`}
                 >
                   Ναι
                 </button>
                 <button
                   type="button"
                   onClick={() => { setAnswers(prev => ({ ...prev, [q.id]: false })); setSubmitted(false) }}
-                  className={`px-3 py-1 rounded-md text-xs font-semibold border ${answers[q.id] === false ? 'bg-red-600 text-white border-red-600' : 'bg-white text-slate-600 border-slate-200'}`}
+                  className={`px-3 py-1 rounded-md text-xs font-semibold border ${answers[q.id] === false ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-200'}`}
                 >
                   Όχι
                 </button>

@@ -23,6 +23,7 @@ const classificationSchema = z.object({
     id: z.string(),
     action: z.enum(['ask', 'skip_accountant', 'skip_obligation']),
     question: z.string().nullable().default(null),
+    expectedAnswer: z.boolean().nullable().default(true),
     reason: z.string().nullable().default(null),
   })),
 })
@@ -32,6 +33,11 @@ export interface RequirementClassification {
   originalText: string
   action: 'ask' | 'skip_accountant' | 'skip_obligation'
   question: string | null
+  // Which answer (Ναι/Όχι) to the generated question keeps the business
+  // eligible — many requirements are disqualifying conditions ("Έχετε ήδη
+  // λάβει επιχορήγηση για τις ίδιες δαπάνες;") where Όχι is the correct
+  // answer, not Ναι.
+  expectedAnswer: boolean
   reason: string | null
 }
 
@@ -53,6 +59,7 @@ const TOOL_SCHEMA = {
               description: '"ask" if a business owner can answer this in casual conversation; "skip_accountant" if it needs data only the accountant has (revenue breakdowns, ΕΜΕ/employee counts, financial ratios); "skip_obligation" if it is a post-approval obligation/penalty/refund clause, not an eligibility criterion',
             },
             question: { type: ['string', 'null'], description: 'Required when action is "ask": a short, plain-language Ναι/Όχι question a business owner would understand, in Greek. Explain any jargon (e.g. ΕΜΕ) in plain words instead of using the term.' },
+            expectedAnswer: { type: ['boolean', 'null'], description: 'Required when action is "ask": true if answering Ναι to the generated question keeps the business eligible, false if answering Όχι keeps it eligible (i.e. the question is phrased as a disqualifying condition, e.g. "Έχετε ήδη λάβει επιχορήγηση για τις ίδιες δαπάνες;" -> false, because Όχι is the eligible answer)' },
             reason: { type: ['string', 'null'], description: 'Required when action is "skip_accountant" or "skip_obligation": a short note for the admin/accountant explaining why this was skipped' },
           },
           required: ['id', 'action'],
@@ -68,6 +75,8 @@ const SYSTEM_PROMPT = `Είσαι βοηθός που μετατρέπει το�
 Θα σου δοθεί μια λίστα από απαιτήσεις, καθεμία με ένα id. Για ΚΑΘΕ μία, ταξινόμησέ την σε ΜΙΑ από τις τρεις κατηγορίες:
 
 1. "ask" — Ο επιχειρηματίας μπορεί να την απαντήσει ο ίδιος, αμέσως, χωρίς να ψάξει αρχεία ή τον λογιστή του (π.χ. αν η επιχείρηση είναι νεοσύστατη, αν έχει συγκεκριμένη πιστοποίηση, αν δραστηριοποιείται σε συγκεκριμένο τομέα). Γράψε ΣΥΝΤΟΜΗ, απλή ερώτηση Ναι/Όχι στα ελληνικά, σε φυσική γλώσσα, ΧΩΡΙΣ νομική/γραφειοκρατική διατύπωση. Αν η απαίτηση αναφέρεται σε προσωπικό/ΕΜΕ (Ετήσιες Μονάδες Εργασίας), ΜΗΝ χρησιμοποιήσεις τον όρο "ΕΜΕ" — εξήγησέ το σε απλά λόγια: 1 ΕΜΕ = 1 εργαζόμενος πλήρους απασχόλησης για 12 μήνες (ή το ισοδύναμο, π.χ. 2 εργαζόμενοι για 6 μήνες έκαστος). Διατύπωσε την ερώτηση με βάση αυτή την εξήγηση, π.χ. αντί για "Διατηρείτε τουλάχιστον 2 ΕΜΕ;" γράψε "Απασχολείτε προσωπικό που αντιστοιχεί σε τουλάχιστον 2 εργαζομένους πλήρους απασχόλησης όλο τον χρόνο (ή ισοδύναμο, π.χ. 4 εργαζόμενοι με μισή απασχόληση);".
+
+ΠΡΟΣΟΧΗ στην κατεύθυνση της ερώτησης: πολλές απαιτήσεις είναι διατυπωμένες ως όρος αποκλεισμού (π.χ. "Η επιχείρηση δεν πρέπει να έχει λάβει επιχορήγηση από άλλο πρόγραμμα για τις ίδιες δαπάνες"). Σε αυτές, αν διατυπώσεις την ερώτηση θετικά ("Έχετε λάβει επιχορήγηση για τις ίδιες δαπάνες;"), η σωστή/επιλέξιμη απάντηση είναι "Όχι", ΟΧΙ "Ναι". Πρέπει να ορίσεις το expectedAnswer = false σε αυτή την περίπτωση. Μην διατυπώνεις πάντα την ερώτηση έτσι ώστε το "Ναι" να είναι η σωστή απάντηση — διατύπωσέ την με τον πιο φυσικό, συνομιλιακό τρόπο και ΜΕΤΑ όρισε σωστά το expectedAnswer ανάλογα με αυτό που πραγματικά σημαίνει επιλεξιμότητα.
 
 2. "skip_accountant" — Η απαίτηση χρειάζεται συγκεκριμένα οικονομικά/λογιστικά στοιχεία που μόνο ο λογιστής της επιχείρησης γνωρίζει ή μπορεί να υπολογίσει με ακρίβεια (π.χ. ποσοστό κύκλου εργασιών ανά ΚΑΔ, ακριβής αριθμός ΕΜΕ από μισθοδοσία, χρηματοοικονομικοί δείκτες, στοιχεία ισολογισμού). Αυτές ΔΕΝ ρωτιούνται στον επιχειρηματία σε συνομιλία chat — γράψε reason εξηγώντας γιατί, ώστε ο λογιστής να το ελέγξει ο ίδιος αργότερα.
 
@@ -109,6 +118,7 @@ export async function classifyEligibilityRequirements(
       originalText: it.text,
       action: match?.action ?? 'ask',
       question: match?.question ?? null,
+      expectedAnswer: match?.expectedAnswer ?? true,
       reason: match?.reason ?? null,
     }
   })

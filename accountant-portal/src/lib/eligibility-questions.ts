@@ -68,6 +68,13 @@ export function buildPitch(program: ProgramPitchInfo): string {
 export interface EligibilityQuestion {
   id: string
   label: string
+  // Which answer keeps the business eligible. Most criteria are phrased
+  // positively ("Διατηρείτε ενεργό τραπεζικό λογαριασμό;") where Ναι passes
+  // — but disqualifying conditions are often phrased the other way
+  // ("Έχετε λάβει επιχορήγηση για τις ίδιες δαπάνες;") where Όχι is the
+  // correct, eligible answer. Defaults to true (Ναι passes) unless an
+  // override or the AI classification says otherwise.
+  expectedAnswer: boolean
 }
 
 export interface ProgramQualitativeCriteria {
@@ -85,6 +92,7 @@ export interface QuestionOverride {
   label?: string
   skip?: boolean
   skipReason?: string
+  expectedAnswer?: boolean
 }
 export type QuestionOverrides = Record<string, QuestionOverride>
 
@@ -106,14 +114,14 @@ export function buildEligibilityQuestions(
     const id = `req-${i}`
     const ov = overrides[id]
     if (ov?.skip) return
-    questions.push({ id, label: ov?.label || item })
+    questions.push({ id, label: ov?.label || item, expectedAnswer: ov?.expectedAnswer ?? true })
   })
 
   program.extraCriteriaLabels.forEach(c => {
     const id = `criterion-${c.id}`
     const ov = overrides[id]
     if (ov?.skip) return
-    questions.push({ id, label: ov?.label || c.label })
+    questions.push({ id, label: ov?.label || c.label, expectedAnswer: ov?.expectedAnswer ?? true })
   })
 
   return questions
@@ -123,6 +131,6 @@ export function evaluateQualitativeAnswers(
   questions: EligibilityQuestion[],
   answers: Record<string, boolean>
 ): { eligible: boolean; results: { id: string; label: string; pass: boolean }[] } {
-  const results = questions.map(q => ({ id: q.id, label: q.label, pass: answers[q.id] === true }))
+  const results = questions.map(q => ({ id: q.id, label: q.label, pass: answers[q.id] === q.expectedAnswer }))
   return { eligible: results.every(r => r.pass), results }
 }
