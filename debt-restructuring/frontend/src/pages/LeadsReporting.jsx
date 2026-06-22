@@ -1,15 +1,24 @@
 import { useState, useEffect } from 'react'
 import { toast } from 'react-hot-toast'
 import {
-  BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
+  BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LabelList,
 } from 'recharts'
 import * as api from '../api'
 
 const AGENTS = ['STELLA', 'VALLIA', 'SOFIA']
 const AGENT_COLORS = { STELLA: '#3b82f6', VALLIA: '#f59e0b', SOFIA: '#10b981' }
 
+// Same colors already used for status badges/pills on the Leads page (STATUS_CFG)
+const STATUS_COLORS = {
+  call: '#3b82f6',      // blue
+  hot: '#ef4444',       // red
+  active: '#f59e0b',    // yellow/amber
+  deal: '#10b981',      // green
+  cancelled: '#9ca3af', // gray
+}
+
 const SERIES_PALETTE = ['#3b82f6', '#f59e0b', '#10b981', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899', '#84cc16', '#f97316', '#6366f1']
-const colorFor = (key, idx) => AGENT_COLORS[key] || SERIES_PALETTE[idx % SERIES_PALETTE.length]
+const colorFor = (key, idx) => STATUS_COLORS[String(key).toLowerCase()] || AGENT_COLORS[key] || SERIES_PALETTE[idx % SERIES_PALETTE.length]
 
 const VOLUME_VIEWS = [
   { id: 'total', label: 'Σύνολο' },
@@ -17,11 +26,28 @@ const VOLUME_VIEWS = [
   { id: 'agent', label: 'Ανά Σύμβουλο' },
 ]
 
+const RANGE_OPTIONS = [
+  { id: 'week', label: 'Εβδομάδα', days: 7 },
+  { id: 'month', label: 'Μήνας', days: 30 },
+  { id: '3month', label: '3 Μήνες', days: 90 },
+  { id: '6month', label: '6 Μήνες', days: 180 },
+  { id: 'custom', label: 'Custom' },
+]
+
+const _pad = n => String(n).padStart(2, '0')
+const _isoDate = d => `${d.getFullYear()}-${_pad(d.getMonth() + 1)}-${_pad(d.getDate())}`
+
+const _valueLabel = { fontSize: 9, fill: '#fff', fontWeight: 600 }
+const _hideZero = v => (v > 0 ? v : '')
+
 function DailyVolumeReport() {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [view, setView] = useState('total')
-  const [range, setRange] = useState(30) // last N days shown, 0 = all
+  const [rangeOption, setRangeOption] = useState('month')
+  const today = new Date()
+  const [customFrom, setCustomFrom] = useState(_isoDate(new Date(today.getFullYear(), today.getMonth() - 1, today.getDate())))
+  const [customTo, setCustomTo] = useState(_isoDate(today))
 
   useEffect(() => {
     setLoading(true)
@@ -34,21 +60,35 @@ function DailyVolumeReport() {
   if (loading) return <div className="card p-6 text-center text-gray-400">Φόρτωση…</div>
   if (!data) return null
 
-  const seriesKeys = view === 'status' ? data.statuses : view === 'agent' ? data.agents : ['total']
+  const allKeys = view === 'status' ? data.statuses : view === 'agent' ? data.agents : ['total']
   const rows = view === 'status' ? data.daily_by_status : view === 'agent' ? data.daily_by_agent : data.daily_total
-  const limited = range > 0 ? rows.slice(-range) : rows
-  const grandTotal = data.daily_total.reduce((s, d) => s + d.total, 0)
+
+  let fromStr, toStr
+  if (rangeOption === 'custom') {
+    fromStr = customFrom || '0000-00-00'
+    toStr = customTo || '9999-99-99'
+  } else {
+    const opt = RANGE_OPTIONS.find(o => o.id === rangeOption)
+    const from = new Date(today.getFullYear(), today.getMonth(), today.getDate() - opt.days)
+    fromStr = _isoDate(from)
+    toStr = _isoDate(today)
+  }
+  const filtered = rows.filter(r => r.date >= fromStr && r.date <= toStr)
+
+  // Only show series (status/agent) that actually have data within the selected range
+  const seriesKeys = view === 'total' ? ['total'] : allKeys.filter(k => filtered.some(r => (r[k] || 0) > 0))
+  const periodTotal = filtered.reduce((s, row) => s + seriesKeys.reduce((s2, k) => s2 + (row[k] || 0), 0), 0)
 
   return (
     <div className="card p-4 space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
           <h2 className="text-base font-bold text-gray-700">Αριθμός Leads ανά Ημέρα</h2>
-          <p className="text-xs text-gray-400">Σύνολο: {grandTotal} leads με αναγνωρισμένη ημερομηνία
-            {data.total_leads_unparsed_date > 0 && ` · ${data.total_leads_unparsed_date} χωρίς έγκυρη ημερομηνία`}
+          <p className="text-xs text-gray-400">Σύνολο περιόδου: {periodTotal} leads
+            {data.total_leads_unparsed_date > 0 && ` · ${data.total_leads_unparsed_date} χωρίς έγκυρη ημερομηνία (σύνολο)`}
           </p>
         </div>
-        <div className="flex gap-2 items-center">
+        <div className="flex gap-2 items-center flex-wrap">
           {VOLUME_VIEWS.map(v => (
             <button key={v.id} onClick={() => setView(v.id)}
               className={`text-xs px-3 py-1 rounded-full font-semibold transition-colors
@@ -56,28 +96,45 @@ function DailyVolumeReport() {
               {v.label}
             </button>
           ))}
-          <select value={range} onChange={e => setRange(Number(e.target.value))}
-            className="text-xs border border-gray-200 rounded-full px-2 py-1 ml-2">
-            <option value={30}>30 ημέρες</option>
-            <option value={90}>90 ημέρες</option>
-            <option value={0}>Όλες</option>
-          </select>
+          <span className="w-px h-4 bg-gray-200 mx-1" />
+          {RANGE_OPTIONS.map(o => (
+            <button key={o.id} onClick={() => setRangeOption(o.id)}
+              className={`text-xs px-3 py-1 rounded-full font-semibold transition-colors
+                ${rangeOption === o.id ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+              {o.label}
+            </button>
+          ))}
+          {rangeOption === 'custom' && (
+            <span className="flex items-center gap-1">
+              <input type="date" value={customFrom} onChange={e => setCustomFrom(e.target.value)}
+                className="text-xs border border-gray-200 rounded-full px-2 py-1" />
+              <span className="text-gray-400 text-xs">–</span>
+              <input type="date" value={customTo} onChange={e => setCustomTo(e.target.value)}
+                className="text-xs border border-gray-200 rounded-full px-2 py-1" />
+            </span>
+          )}
         </div>
       </div>
 
-      {limited.length === 0 ? (
+      {filtered.length === 0 ? (
         <p className="text-xs text-gray-400 text-center py-8">Δεν υπάρχουν δεδομένα</p>
       ) : (
         <>
           <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={limited} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
+            <BarChart data={filtered} margin={{ top: 20, right: 16, left: 0, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
               <XAxis dataKey="date" tick={{ fontSize: 10 }} tickLine={false} />
               <YAxis tick={{ fontSize: 11 }} tickLine={false} axisLine={false} allowDecimals={false} />
               <Tooltip contentStyle={{ fontSize: 12 }} />
               {seriesKeys.length > 1 && <Legend wrapperStyle={{ fontSize: 12 }} />}
               {seriesKeys.map((k, i) => (
-                <Bar key={k} dataKey={k} stackId="a" fill={colorFor(k, i)} name={k} radius={[0, 0, 0, 0]} />
+                <Bar key={k} dataKey={k} stackId="a" fill={colorFor(k, i)} name={k} radius={[0, 0, 0, 0]}>
+                  {seriesKeys.length === 1 ? (
+                    <LabelList dataKey={k} position="top" style={{ fontSize: 10, fill: '#374151' }} formatter={_hideZero} />
+                  ) : (
+                    <LabelList dataKey={k} position="center" style={_valueLabel} formatter={_hideZero} />
+                  )}
+                </Bar>
               ))}
             </BarChart>
           </ResponsiveContainer>
@@ -92,7 +149,7 @@ function DailyVolumeReport() {
                 </tr>
               </thead>
               <tbody>
-                {[...limited].reverse().map(row => {
+                {[...filtered].reverse().map(row => {
                   const rowTotal = seriesKeys.reduce((s, k) => s + (row[k] || 0), 0)
                   return (
                     <tr key={row.date} className="border-b border-gray-100 hover:bg-blue-50">
@@ -187,14 +244,16 @@ export default function LeadsReporting({ currentEmployee }) {
           <p className="text-xs text-gray-400 text-center py-8">Δεν υπάρχουν δεδομένα</p>
         ) : (
           <ResponsiveContainer width="100%" height={320}>
-            <BarChart data={chartData} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
+            <BarChart data={chartData} margin={{ top: 20, right: 16, left: 0, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
               <XAxis dataKey={dateKey} tick={{ fontSize: 11 }} tickLine={false} />
               <YAxis tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
               <Tooltip contentStyle={{ fontSize: 12 }} />
               <Legend wrapperStyle={{ fontSize: 12 }} />
               {AGENTS.map(a => (
-                <Bar key={a} dataKey={a} stackId="a" fill={AGENT_COLORS[a]} name={a} radius={[0, 0, 0, 0]} />
+                <Bar key={a} dataKey={a} stackId="a" fill={AGENT_COLORS[a]} name={a} radius={[0, 0, 0, 0]}>
+                  <LabelList dataKey={a} position="center" style={_valueLabel} formatter={_hideZero} />
+                </Bar>
               ))}
             </BarChart>
           </ResponsiveContainer>
@@ -227,12 +286,14 @@ export default function LeadsReporting({ currentEmployee }) {
           <p className="text-xs text-gray-400 text-center py-8">Δεν υπάρχουν δεδομένα</p>
         ) : (
           <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={data.hourly} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
+            <BarChart data={data.hourly} margin={{ top: 20, right: 16, left: 0, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
               <XAxis dataKey="hour" tick={{ fontSize: 11 }} tickLine={false} />
               <YAxis tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
               <Tooltip contentStyle={{ fontSize: 12 }} formatter={(v) => [v, 'Σχόλια']} />
-              <Bar dataKey="count" fill="#6366f1" name="Σχόλια" radius={[3, 3, 0, 0]} />
+              <Bar dataKey="count" fill="#6366f1" name="Σχόλια" radius={[3, 3, 0, 0]}>
+                <LabelList dataKey="count" position="top" style={{ fontSize: 10, fill: '#374151' }} formatter={_hideZero} />
+              </Bar>
             </BarChart>
           </ResponsiveContainer>
         )}
