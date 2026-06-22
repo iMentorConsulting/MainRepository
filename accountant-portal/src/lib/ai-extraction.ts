@@ -2,10 +2,48 @@ import Anthropic from '@anthropic-ai/sdk'
 import { z } from 'zod'
 import { prisma } from './prisma'
 
-// Hard cap on input size sent to Claude — protects against runaway token cost
-// from oversized PDF text. ~400k chars ≈ ~100k tokens, enough for large
-// multi-page announcement PDFs while still well short of Claude's 1M context.
-export const MAX_SOURCE_TEXT_CHARS = 400_000
+// Hard cap on input size sent to Claude — protects against runaway token cost.
+// Applied AFTER stripIrrelevantAnnexes() trims away unrelated annexes, so a
+// 200-500 page announcement (which is mostly boilerplate annexes) still fits.
+// ~600k chars ≈ ~150k tokens.
+export const MAX_SOURCE_TEXT_CHARS = 600_000
+
+// Same pattern used by src/app/api/programs/parse-kad-pdf/route.ts to spot
+// ΚΑΔ codes like "47.11.10.01" inside the eligible-activities annex.
+const KAD_CODE_REGEX = /\b\d{1,2}(?:\.\d{1,2}){1,4}\b/g
+
+// Greek announcement PDFs are typically: main body (tens of pages) followed
+// by several ΠΑΡΑΡΤΗΜΑ (annex) sections, only one of which — the eligible
+// ΚΑΔ/activities list — matters for extraction. The rest (legal text,
+// declaration templates, scoring grids, etc.) is noise that wastes tokens
+// and dilutes the model's attention on a 200-500 page PDF. Keep the main
+// body plus whichever annex looks most like a ΚΑΔ list (by code density).
+function stripIrrelevantAnnexes(fullText: string): string {
+  const headingRegex = /ΠΑΡΑΡΤΗΜΑ/g
+  const headingIndexes: number[] = []
+  let m: RegExpExecArray | null
+  while ((m = headingRegex.exec(fullText)) !== null) headingIndexes.push(m.index)
+  if (headingIndexes.length === 0) return fullText
+
+  const mainBody = fullText.slice(0, headingIndexes[0])
+  const boundaries = [...headingIndexes, fullText.length]
+
+  let bestChunk = ''
+  let bestScore = 0
+  for (let i = 0; i < boundaries.length - 1; i++) {
+    const chunk = fullText.slice(boundaries[i], boundaries[i + 1])
+    const score = (chunk.match(KAD_CODE_REGEX) || []).length
+    if (score > bestScore) {
+      bestScore = score
+      bestChunk = chunk
+    }
+  }
+
+  // Only keep an annex if it plausibly is the ΚΑΔ/eligible-activities list —
+  // otherwise the main body alone (which usually states the headline KAD
+  // rules too) is safer than guessing.
+  return bestScore >= 10 ? `${mainBody}\n\n${bestChunk}` : mainBody
+}
 
 // Ceiling on the model's response — large announcements can have dozens of
 // expense-category rows and funded actions, so this is generous but bounded.
@@ -118,7 +156,8 @@ export class SourceTextTooLargeError extends Error {
   }
 }
 
-export async function extractProgramFields(sourceText: string): Promise<ExtractionResult> {
+export async function extractProgramFields(rawSourceText: string): Promise<ExtractionResult> {
+  const sourceText = stripIrrelevantAnnexes(rawSourceText)
   if (sourceText.length > MAX_SOURCE_TEXT_CHARS) throw new SourceTextTooLargeError()
 
   const apiKey = process.env.ANTHROPIC_API_KEY
@@ -160,6 +199,8 @@ export async function extractProgramFields(sourceText: string): Promise<Extracti
 8. expenseCategories: αν υπάρχει πίνακας "ΕΠΙΛΕΞΙΜΕΣ ΚΑΤΗΓΟΡΙΕΣ ΔΑΠΑΝΩΝ" (κωδικοί ΟΠΣΚΕ όπως 02.20, 04.18 κ.λπ.), μετέγραψε ΚΑΘΕ γραμμή του πίνακα ως ξεχωριστή εγγραφή με code, category, expense, limit.
 
 9. keyPoints: ΜΟΝΟ για πληροφορίες που πραγματικά δεν χωρούν σε κανένα από τα παραπάνω δομημένα πεδία.
+
+Σημείωση: από το πλήρες έγγραφο έχει διατηρηθεί μόνο το κύριο σώμα της προκήρυξης και (αν εντοπίστηκε) το παράρτημα με τις επιλέξιμες δραστηριότητες/ΚΑΔ — τα υπόλοιπα παραρτήματα (υποδείγματα δηλώσεων, νομικό πλαίσιο, βαθμολογικοί πίνακες κ.λπ.) έχουν ήδη αφαιρεθεί, οπότε μην εκπλαγείς αν δεν τα βλέπεις.
 
 Χρησιμοποίησε τα παρακάτω διορθωμένα παραδείγματα ως οδηγό ύφους/ακρίβειας:\n\n${fewShotBlock}`
 
