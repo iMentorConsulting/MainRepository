@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { buildEligibilityQuestions, ProgramQualitativeCriteria } from '@/lib/eligibility-questions'
+import { buildEligibilityQuestions, ProgramQualitativeCriteria, QuestionOverrides } from '@/lib/eligibility-questions'
 
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   const session = await auth()
@@ -14,11 +14,14 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     ? await prisma.eligibilityCriterion.findMany({ where: { id: { in: program.extraCriteriaIds } }, select: { id: true, label: true } })
     : []
 
-  const overrides = (program.eligibilityQuestions as Record<string, string> | null) || {}
+  const overrides = (program.eligibilityQuestions as QuestionOverrides | null) || {}
   const criteria: ProgramQualitativeCriteria = { otherRequirements: program.otherRequirements, extraCriteriaLabels: criteriaList }
   const questions = buildEligibilityQuestions(criteria, overrides)
+  // Unfiltered list (ignores skip flags) so the admin UI can still show the
+  // original wording of skipped requirements for review/restore.
+  const allQuestions = buildEligibilityQuestions(criteria, {})
 
-  return NextResponse.json({ questions, overrides })
+  return NextResponse.json({ questions, overrides, allQuestions })
 }
 
 export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {

@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button'
 import { CheckCircle2, XCircle, BadgeEuro } from 'lucide-react'
 import {
   buildEligibilityQuestions, evaluateQualitativeAnswers,
-  buildPitch, ProgramPitchInfo, ProgramQualitativeCriteria,
+  buildPitch, ProgramPitchInfo, ProgramQualitativeCriteria, QuestionOverrides,
 } from '@/lib/eligibility-questions'
 
 interface EligibilityCheckerProps {
@@ -12,11 +12,11 @@ interface EligibilityCheckerProps {
   // Facts already known from the business's own record + the existing
   // ProgramMatch — shown as confirmed, never re-asked.
   autoConfirmedReasons: string[]
-  labelOverrides?: Record<string, string>
+  overrides?: QuestionOverrides
 }
 
-export function EligibilityChecker({ program, autoConfirmedReasons, labelOverrides }: EligibilityCheckerProps) {
-  const questions = buildEligibilityQuestions(program, labelOverrides || {})
+export function EligibilityChecker({ program, autoConfirmedReasons, overrides }: EligibilityCheckerProps) {
+  const questions = buildEligibilityQuestions(program, overrides || {})
   const [answers, setAnswers] = useState<Record<string, boolean>>({})
   const [submitted, setSubmitted] = useState(false)
 

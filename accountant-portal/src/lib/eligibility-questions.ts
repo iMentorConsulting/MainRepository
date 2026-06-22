@@ -75,12 +75,26 @@ export interface ProgramQualitativeCriteria {
   extraCriteriaLabels: { id: string; label: string }[]
 }
 
+// Per-question admin decision, optionally seeded from the AI classification
+// pass (see src/lib/eligibility-ai.ts): an admin can override the wording, or
+// mark a requirement as skipped (with a reason) when it's not something the
+// business owner can answer in a casual conversation — e.g. it requires
+// accountant-only data, or it's a post-approval obligation rather than an
+// eligibility criterion.
+export interface QuestionOverride {
+  label?: string
+  skip?: boolean
+  skipReason?: string
+}
+export type QuestionOverrides = Record<string, QuestionOverride>
+
 // Only the qualitative, not-already-known criteria become questions: each
 // numbered line of "Άλλες Προϋποθέσεις" plus any manually defined extra
-// eligibility criterion. Admins can override the wording per-question.
+// eligibility criterion. Admins can override the wording per-question, or
+// skip questions that aren't genuinely answerable by the business owner.
 export function buildEligibilityQuestions(
   program: ProgramQualitativeCriteria,
-  labelOverrides: Record<string, string> = {}
+  overrides: QuestionOverrides = {}
 ): EligibilityQuestion[] {
   const questions: EligibilityQuestion[] = []
 
@@ -90,12 +104,16 @@ export function buildEligibilityQuestions(
 
   otherRequirementItems.forEach((item, i) => {
     const id = `req-${i}`
-    questions.push({ id, label: labelOverrides[id] || item })
+    const ov = overrides[id]
+    if (ov?.skip) return
+    questions.push({ id, label: ov?.label || item })
   })
 
   program.extraCriteriaLabels.forEach(c => {
     const id = `criterion-${c.id}`
-    questions.push({ id, label: labelOverrides[id] || c.label })
+    const ov = overrides[id]
+    if (ov?.skip) return
+    questions.push({ id, label: ov?.label || c.label })
   })
 
   return questions

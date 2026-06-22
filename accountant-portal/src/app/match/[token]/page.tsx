@@ -3,9 +3,9 @@ import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { Sparkles } from 'lucide-react'
 import { EligibilityChecker } from '@/components/programs/eligibility-checker'
-import { ProgramPitchInfo, ProgramQualitativeCriteria } from '@/lib/eligibility-questions'
+import { ProgramPitchInfo, ProgramQualitativeCriteria, QuestionOverrides } from '@/lib/eligibility-questions'
 
-type PublicProgram = { title: string; description: string | null; eligibilityQuestions: Record<string, string> | null }
+type PublicProgram = { title: string; description: string | null; eligibilityQuestions: QuestionOverrides | null }
   & ProgramPitchInfo & ProgramQualitativeCriteria
 
 export default function PublicMatchPage() {
@@ -50,7 +50,7 @@ export default function PublicMatchPage() {
             <EligibilityChecker
               program={program}
               autoConfirmedReasons={autoConfirmedReasons}
-              labelOverrides={program.eligibilityQuestions || {}}
+              overrides={program.eligibilityQuestions || {}}
             />
           </>
         )}
