@@ -194,6 +194,97 @@ export class SourceTextTooLargeError extends Error {
   }
 }
 
+// Token budget per chunk when a document is too large for a single call —
+// kept comfortably under MAX_INPUT_TOKENS since each chunk still carries the
+// full system prompt + few-shot examples + tool schema overhead.
+const CHUNK_TOKEN_BUDGET = 700_000
+
+// Splits text into `parts` roughly equal pieces, breaking at the nearest
+// blank line to each target offset so a chunk doesn't start/end mid-sentence
+// or mid-table-row.
+function splitIntoChunks(text: string, parts: number): string[] {
+  if (parts <= 1) return [text]
+  const targetSize = Math.ceil(text.length / parts)
+  const chunks: string[] = []
+  let start = 0
+  for (let i = 0; i < parts - 1; i++) {
+    let cut = start + targetSize
+    if (cut >= text.length) break
+    const nextBreak = text.indexOf('\n\n', cut)
+    cut = nextBreak === -1 ? cut : nextBreak
+    chunks.push(text.slice(start, cut))
+    start = cut
+  }
+  chunks.push(text.slice(start))
+  return chunks.filter(c => c.trim().length > 0)
+}
+
+// Merges per-chunk extraction results into one: array fields are
+// concatenated and deduplicated, scalar fields take the first non-null value
+// found across chunks (the program's headline terms — dates, budget,
+// subsidy %, duration — almost always appear once, in whichever chunk
+// contains the main body).
+function mergeExtractionResults(results: ExtractionResult[]): ExtractionResult {
+  const dedupeStrings = (arr: string[]) => Array.from(new Set(arr.map(s => s.trim()).filter(Boolean)))
+  const dedupeObjects = <T>(arr: T[]) => {
+    const seen = new Set<string>()
+    const out: T[] = []
+    for (const item of arr) {
+      const key = JSON.stringify(item)
+      if (!seen.has(key)) { seen.add(key); out.push(item) }
+    }
+    return out
+  }
+  const firstNonNull = <T>(values: (T | null)[]): T | null => values.find(v => v !== null && v !== undefined) ?? null
+
+  return {
+    kadRules: dedupeStrings(results.flatMap(r => r.kadRules)),
+    regionRules: dedupeStrings(results.flatMap(r => r.regionRules)),
+    zipCodeRules: dedupeStrings(results.flatMap(r => r.zipCodeRules)),
+    excludedLegalForms: dedupeStrings(results.flatMap(r => r.excludedLegalForms)),
+    minRegdate: firstNonNull(results.map(r => r.minRegdate)),
+    maxRegdate: firstNonNull(results.map(r => r.maxRegdate)),
+    minInvestment: firstNonNull(results.map(r => r.minInvestment)),
+    maxInvestment: firstNonNull(results.map(r => r.maxInvestment)),
+    minSubsidyPct: firstNonNull(results.map(r => r.minSubsidyPct)),
+    maxSubsidyPct: firstNonNull(results.map(r => r.maxSubsidyPct)),
+    subsidyNote: firstNonNull(results.map(r => r.subsidyNote)),
+    minInterestRate: firstNonNull(results.map(r => r.minInterestRate)),
+    maxInterestRate: firstNonNull(results.map(r => r.maxInterestRate)),
+    otherRequirements: dedupeStrings(results.flatMap(r => r.otherRequirements)),
+    totalBudgetEur: firstNonNull(results.map(r => r.totalBudgetEur)),
+    implementationMonths: firstNonNull(results.map(r => r.implementationMonths)),
+    startDate: firstNonNull(results.map(r => r.startDate)),
+    endDate: firstNonNull(results.map(r => r.endDate)),
+    requireTags: dedupeStrings(results.flatMap(r => r.requireTags)),
+    excludeTags: dedupeStrings(results.flatMap(r => r.excludeTags)),
+    keyPoints: dedupeStrings(results.flatMap(r => r.keyPoints)),
+    fundedActions: dedupeObjects(results.flatMap(r => r.fundedActions)),
+    expenseCategories: dedupeObjects(results.flatMap(r => r.expenseCategories)),
+  }
+}
+
+async function runSingleExtraction(anthropic: Anthropic, systemPrompt: string, text: string): Promise<ExtractionResult> {
+  const response = await anthropic.messages.create({
+    model: 'claude-opus-4-8',
+    max_tokens: MAX_RESPONSE_TOKENS,
+    system: systemPrompt,
+    tools: [TOOL_SCHEMA],
+    tool_choice: { type: 'tool', name: 'record_extraction' },
+    messages: [{ role: 'user', content: text }],
+  })
+
+  const toolUse = response.content.find(b => b.type === 'tool_use')
+  if (!toolUse || toolUse.type !== 'tool_use') throw new Error('Το μοντέλο δεν επέστρεψε δομημένη εξαγωγή.')
+
+  const parsed = extractionSchema.parse(toolUse.input)
+  // The matching engine (src/lib/matching.ts) compares plain digit strings
+  // (firmActCode has no dots); a kadRule containing a dot falls into its
+  // exact-match branch and never matches a real business activity code.
+  parsed.kadRules = parsed.kadRules.map(c => c.replace(/\./g, '').trim()).filter(Boolean)
+  return parsed
+}
+
 export async function extractProgramFields(rawSourceText: string): Promise<ExtractionResult> {
   const sourceText = stripIrrelevantAnnexes(rawSourceText)
 
@@ -237,7 +328,7 @@ export async function extractProgramFields(rawSourceText: string): Promise<Extra
 
 9. keyPoints: ΜΟΝΟ για πληροφορίες που πραγματικά δεν χωρούν σε κανένα από τα παραπάνω δομημένα πεδία.
 
-Σημείωση: από το πλήρες έγγραφο έχει διατηρηθεί μόνο το κύριο σώμα της προκήρυξης και (αν εντοπίστηκε) το παράρτημα με τις επιλέξιμες δραστηριότητες/ΚΑΔ — τα υπόλοιπα παραρτήματα (υποδείγματα δηλώσεων, νομικό πλαίσιο, βαθμολογικοί πίνακες κ.λπ.) έχουν ήδη αφαιρεθεί, οπότε μην εκπλαγείς αν δεν τα βλέπεις.
+Σημείωση: από το πλήρες έγγραφο έχει διατηρηθεί μόνο το κύριο σώμα της προκήρυξης και (αν εντοπίστηκε) το παράρτημα με τις επιλέξιμες δραστηριότητες/ΚΑΔ — τα υπόλοιπα παραρτήματα (υποδείγματα δηλώσεων, νομικό πλαίσιο, βαθμολογικοί πίνακες κ.λπ.) έχουν ήδη αφαιρεθεί, οπότε μην εκπλαγείς αν δεν τα βλέπεις. Το έγγραφο μπορεί να σου έχει σταλεί χωρισμένο σε τμήματα λόγω μεγέθους — εξήγαγε ό,τι βρίσκεις σε ΑΥΤΟ το τμήμα και άφησε null/άδεια λίστα ό,τι δεν αναφέρεται εδώ· τα τμήματα συνδυάζονται αυτόματα μετά.
 
 Χρησιμοποίησε τα παρακάτω διορθωμένα παραδείγματα ως οδηγό ύφους/ακρίβειας:\n\n${fewShotBlock}`
 
@@ -249,24 +340,21 @@ export async function extractProgramFields(rawSourceText: string): Promise<Extra
     tools: [TOOL_SCHEMA],
     messages: [{ role: 'user', content: sourceText }],
   })
-  if (input_tokens > MAX_INPUT_TOKENS) throw new SourceTextTooLargeError(input_tokens)
 
-  const response = await anthropic.messages.create({
-    model: 'claude-opus-4-8',
-    max_tokens: MAX_RESPONSE_TOKENS,
-    system: systemPrompt,
-    tools: [TOOL_SCHEMA],
-    tool_choice: { type: 'tool', name: 'record_extraction' },
-    messages: [{ role: 'user', content: sourceText }],
-  })
+  if (input_tokens <= MAX_INPUT_TOKENS) {
+    return runSingleExtraction(anthropic, systemPrompt, sourceText)
+  }
 
-  const toolUse = response.content.find(b => b.type === 'tool_use')
-  if (!toolUse || toolUse.type !== 'tool_use') throw new Error('Το μοντέλο δεν επέστρεψε δομημένη εξαγωγή.')
+  // Document is too large even after annex-stripping — split into chunks
+  // that each fit comfortably within the per-chunk token budget, run
+  // extraction on each, and merge the results.
+  const numChunks = Math.ceil(input_tokens / CHUNK_TOKEN_BUDGET)
+  const textChunks = splitIntoChunks(sourceText, numChunks)
+  if (textChunks.length === 1) throw new SourceTextTooLargeError(input_tokens)
 
-  const parsed = extractionSchema.parse(toolUse.input)
-  // The matching engine (src/lib/matching.ts) compares plain digit strings
-  // (firmActCode has no dots); a kadRule containing a dot falls into its
-  // exact-match branch and never matches a real business activity code.
-  parsed.kadRules = parsed.kadRules.map(c => c.replace(/\./g, '').trim()).filter(Boolean)
-  return parsed
+  const results: ExtractionResult[] = []
+  for (const chunk of textChunks) {
+    results.push(await runSingleExtraction(anthropic, systemPrompt, chunk))
+  }
+  return mergeExtractionResults(results)
 }
