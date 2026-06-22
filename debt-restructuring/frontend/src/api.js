@@ -91,6 +91,7 @@ export const normalizeLeadStatuses = () => api.post('/leads/normalize-statuses')
 export const sendLeadViber = (id, message) => api.post(`/leads/${id}/send-viber`, { message })
 export const sendLeadEmail = (id, to, subject, body) => api.post(`/leads/${id}/send-email`, { to, subject, body })
 export const getLeadsReporting = () => api.get('/leads/reporting')
+export const getLeadsDailyVolume = () => api.get('/leads/daily-volume')
 
 // Health / diagnostics
 export const getHealth = () => api.get('/health')

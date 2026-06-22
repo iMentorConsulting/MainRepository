@@ -8,6 +8,109 @@ import * as api from '../api'
 const AGENTS = ['STELLA', 'VALLIA', 'SOFIA']
 const AGENT_COLORS = { STELLA: '#3b82f6', VALLIA: '#f59e0b', SOFIA: '#10b981' }
 
+const SERIES_PALETTE = ['#3b82f6', '#f59e0b', '#10b981', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899', '#84cc16', '#f97316', '#6366f1']
+const colorFor = (key, idx) => AGENT_COLORS[key] || SERIES_PALETTE[idx % SERIES_PALETTE.length]
+
+const VOLUME_VIEWS = [
+  { id: 'total', label: 'Σύνολο' },
+  { id: 'status', label: 'Ανά Status' },
+  { id: 'agent', label: 'Ανά Σύμβουλο' },
+]
+
+function DailyVolumeReport() {
+  const [data, setData] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [view, setView] = useState('total')
+  const [range, setRange] = useState(30) // last N days shown, 0 = all
+
+  useEffect(() => {
+    setLoading(true)
+    api.getLeadsDailyVolume()
+      .then(r => setData(r.data))
+      .catch(() => toast.error('Σφάλμα φόρτωσης αναφοράς leads ανά ημέρα'))
+      .finally(() => setLoading(false))
+  }, [])
+
+  if (loading) return <div className="card p-6 text-center text-gray-400">Φόρτωση…</div>
+  if (!data) return null
+
+  const seriesKeys = view === 'status' ? data.statuses : view === 'agent' ? data.agents : ['total']
+  const rows = view === 'status' ? data.daily_by_status : view === 'agent' ? data.daily_by_agent : data.daily_total
+  const limited = range > 0 ? rows.slice(-range) : rows
+  const grandTotal = data.daily_total.reduce((s, d) => s + d.total, 0)
+
+  return (
+    <div className="card p-4 space-y-4">
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div>
+          <h2 className="text-base font-bold text-gray-700">Αριθμός Leads ανά Ημέρα</h2>
+          <p className="text-xs text-gray-400">Σύνολο: {grandTotal} leads με αναγνωρισμένη ημερομηνία
+            {data.total_leads_unparsed_date > 0 && ` · ${data.total_leads_unparsed_date} χωρίς έγκυρη ημερομηνία`}
+          </p>
+        </div>
+        <div className="flex gap-2 items-center">
+          {VOLUME_VIEWS.map(v => (
+            <button key={v.id} onClick={() => setView(v.id)}
+              className={`text-xs px-3 py-1 rounded-full font-semibold transition-colors
+                ${view === v.id ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+              {v.label}
+            </button>
+          ))}
+          <select value={range} onChange={e => setRange(Number(e.target.value))}
+            className="text-xs border border-gray-200 rounded-full px-2 py-1 ml-2">
+            <option value={30}>30 ημέρες</option>
+            <option value={90}>90 ημέρες</option>
+            <option value={0}>Όλες</option>
+          </select>
+        </div>
+      </div>
+
+      {limited.length === 0 ? (
+        <p className="text-xs text-gray-400 text-center py-8">Δεν υπάρχουν δεδομένα</p>
+      ) : (
+        <>
+          <ResponsiveContainer width="100%" height={300}>
+            <BarChart data={limited} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+              <XAxis dataKey="date" tick={{ fontSize: 10 }} tickLine={false} />
+              <YAxis tick={{ fontSize: 11 }} tickLine={false} axisLine={false} allowDecimals={false} />
+              <Tooltip contentStyle={{ fontSize: 12 }} />
+              {seriesKeys.length > 1 && <Legend wrapperStyle={{ fontSize: 12 }} />}
+              {seriesKeys.map((k, i) => (
+                <Bar key={k} dataKey={k} stackId="a" fill={colorFor(k, i)} name={k} radius={[0, 0, 0, 0]} />
+              ))}
+            </BarChart>
+          </ResponsiveContainer>
+
+          <div className="overflow-x-auto max-h-80">
+            <table className="w-full text-xs">
+              <thead className="sticky top-0 bg-white">
+                <tr className="border-b-2 border-blue-100">
+                  <th className="th text-left">Ημερομηνία</th>
+                  {seriesKeys.map(k => <th key={k} className="th">{k}</th>)}
+                  {seriesKeys.length > 1 && <th className="th font-bold">Σύνολο</th>}
+                </tr>
+              </thead>
+              <tbody>
+                {[...limited].reverse().map(row => {
+                  const rowTotal = seriesKeys.reduce((s, k) => s + (row[k] || 0), 0)
+                  return (
+                    <tr key={row.date} className="border-b border-gray-100 hover:bg-blue-50">
+                      <td className="td text-left font-mono">{row.date}</td>
+                      {seriesKeys.map(k => <td key={k} className="td">{row[k] || 0}</td>)}
+                      {seriesKeys.length > 1 && <td className="td font-bold">{rowTotal}</td>}
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
 const PERIODS = [
   { id: 'daily', label: 'Ημερήσια', dateKey: 'date' },
   { id: 'weekly', label: 'Εβδομαδιαία', dateKey: 'week' },
@@ -62,6 +165,9 @@ export default function LeadsReporting({ currentEmployee }) {
           </div>
         ))}
       </div>
+
+      {/* Daily lead volume report */}
+      <DailyVolumeReport />
 
       {/* Period selector */}
       <div className="flex gap-2">

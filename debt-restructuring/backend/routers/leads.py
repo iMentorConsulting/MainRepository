@@ -5,11 +5,67 @@ from typing import Optional, List
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 from pydantic import BaseModel
-import os, json, base64, time
+import os, json, base64, time, re
 
 _ATHENS = ZoneInfo("Europe/Athens")
 def _now():
     return datetime.now(_ATHENS).replace(tzinfo=None)
+
+
+_GREEK_MONTHS = {
+    "ιαν": 1, "φεβ": 2, "μαρ": 3, "απρ": 4, "μαι": 5, "ιουν": 6,
+    "ιουλ": 7, "αυγ": 8, "σεπ": 9, "οκτ": 10, "νοε": 11, "δεκ": 12,
+}
+_GREEK_ACCENTS = str.maketrans("άέήίϊΐόύϋΰώ", "αεηιιιουυυω")
+
+
+def parse_any_date(value):
+    """Mirrors frontend's parseAnyDate() in Leads.jsx so backend reporting
+    and the leads table sort consistently, despite Google Sheets exporting
+    mixed date formats (DD/MM/YYYY, DD/MM/YY, YYYY-MM-DD, DD-GreekMonth-YYYY).
+    """
+    if not value:
+        return None
+    s = str(value).strip()
+    if not s:
+        return None
+
+    m = re.match(r"^(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{4})", s)
+    if m:
+        d, mo, y = int(m.group(1)), int(m.group(2)), int(m.group(3))
+        try:
+            return datetime(y, mo, d)
+        except ValueError:
+            pass
+
+    m = re.match(r"^(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{2})(?:\s|$)", s)
+    if m:
+        d, mo, y = int(m.group(1)), int(m.group(2)), 2000 + int(m.group(3))
+        try:
+            return datetime(y, mo, d)
+        except ValueError:
+            pass
+
+    m = re.match(r"^(\d{4})[/\-](\d{1,2})[/\-](\d{1,2})", s)
+    if m:
+        y, mo, d = int(m.group(1)), int(m.group(2)), int(m.group(3))
+        try:
+            return datetime(y, mo, d)
+        except ValueError:
+            pass
+
+    m = re.match(r"^(\d{1,2})[/\-](\S{3,})[/\-](\d{4})", s)
+    if m:
+        d, mon_raw, y = int(m.group(1)), m.group(2), int(m.group(3))
+        mon_key = mon_raw.lower().translate(_GREEK_ACCENTS)[:3]
+        mo = _GREEK_MONTHS.get(mon_key)
+        if mo:
+            try:
+                return datetime(y, mo, d)
+            except ValueError:
+                pass
+
+    return None
 
 from database import get_db
 from models import Lead
@@ -434,6 +490,61 @@ def get_reporting(db: Session = Depends(get_db)):
         "active": sum(1 for l in leads if l.status == "active"),
         "hot": sum(1 for l in leads if l.status == "hot"),
         "cancelled": sum(1 for l in leads if l.status == "cancelled"),
+    }
+
+
+@router.get("/daily-volume")
+def get_daily_volume(db: Session = Depends(get_db)):
+    """Αριθμός leads ανά ημέρα (βάσει του πεδίου date/ΗΜΕΡΟΜΗΝΙΑ), με ανάλυση
+    σε status & σύμβουλο. Τροφοδοτεί το report (γράφημα + πίνακας) στη σελίδα
+    Reporting.
+    """
+    from collections import defaultdict
+
+    try:
+        leads = db.query(Lead).all()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"DB error: {e}")
+
+    by_day_status: dict = defaultdict(lambda: defaultdict(int))
+    by_day_agent: dict = defaultdict(lambda: defaultdict(int))
+    day_totals: dict = defaultdict(int)
+    statuses_seen, agents_seen = set(), set()
+    unparsed = 0
+
+    for lead in leads:
+        d = parse_any_date(lead.date)
+        if not d:
+            unparsed += 1
+            continue
+        day_key = d.strftime("%Y-%m-%d")
+        status = (lead.status or "χωρίς status").strip() or "χωρίς status"
+        agent = (lead.assigned_to or "χωρίς σύμβουλο").strip().upper() or "ΧΩΡΙΣ ΣΥΜΒΟΥΛΟ"
+
+        day_totals[day_key] += 1
+        by_day_status[day_key][status] += 1
+        by_day_agent[day_key][agent] += 1
+        statuses_seen.add(status)
+        agents_seen.add(agent)
+
+    days_sorted = sorted(day_totals.keys())
+    statuses_sorted = sorted(statuses_seen)
+    agents_sorted = sorted(agents_seen)
+
+    return {
+        "daily_total": [{"date": d, "total": day_totals[d]} for d in days_sorted],
+        "daily_by_status": [
+            {"date": d, **{s: by_day_status[d].get(s, 0) for s in statuses_sorted}}
+            for d in days_sorted
+        ],
+        "daily_by_agent": [
+            {"date": d, **{a: by_day_agent[d].get(a, 0) for a in agents_sorted}}
+            for d in days_sorted
+        ],
+        "statuses": statuses_sorted,
+        "agents": agents_sorted,
+        "total_leads_with_date": sum(day_totals.values()),
+        "total_leads_unparsed_date": unparsed,
     }
 
 
