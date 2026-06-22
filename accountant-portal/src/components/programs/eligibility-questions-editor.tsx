@@ -58,12 +58,13 @@ export function EligibilityQuestionsEditor({ programId }: { programId: string })
         ) : (
           <>
             <p className="text-xs text-gray-500">
-              Αυτές οι ερωτήσεις παράγονται αυτόματα από τα κριτήρια του προγράμματος και εμφανίζονται στην επιχείρηση
-              μέσω του Ερμή. Μπορείτε να αλλάξετε τη διατύπωση παρακάτω αν χρειάζεται.
+              ΚΑΔ, περιφέρεια, νομική μορφή και ημερομηνία ίδρυσης είναι ήδη γνωστά από τα στοιχεία της επιχείρησης
+              και δεν ξαναρωτιούνται. Ο Ερμής ρωτάει μόνο τα παρακάτω, που προέρχονται από τις «Άλλες Προϋποθέσεις»
+              και τα πρόσθετα κριτήρια του προγράμματος. Μπορείτε να αλλάξετε τη διατύπωση παρακάτω αν χρειάζεται.
             </p>
-            {questions.map(q => (
+            {questions.map((q, i) => (
               <div key={q.id} className="space-y-1">
-                <label className="text-xs font-medium text-gray-500">{q.id}</label>
+                <label className="text-xs font-medium text-gray-500">Ερώτηση {i + 1}</label>
                 <textarea
                   className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
                   rows={2}

@@ -3,14 +3,16 @@ import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { Sparkles } from 'lucide-react'
 import { EligibilityChecker } from '@/components/programs/eligibility-checker'
-import { ProgramEligibilityCriteria } from '@/lib/eligibility-questions'
+import { ProgramPitchInfo, ProgramQualitativeCriteria } from '@/lib/eligibility-questions'
 
-type PublicProgram = { title: string; description: string | null } & ProgramEligibilityCriteria & { eligibilityQuestions: Record<string, string> | null }
+type PublicProgram = { title: string; description: string | null; eligibilityQuestions: Record<string, string> | null }
+  & ProgramPitchInfo & ProgramQualitativeCriteria
 
 export default function PublicMatchPage() {
   const { token } = useParams<{ token: string }>()
   const [business, setBusiness] = useState<{ name: string } | null>(null)
   const [program, setProgram] = useState<PublicProgram | null>(null)
+  const [autoConfirmedReasons, setAutoConfirmedReasons] = useState<string[]>([])
   const [error, setError] = useState('')
 
   useEffect(() => {
@@ -20,6 +22,7 @@ export default function PublicMatchPage() {
         if (!r.ok) { setError(data.error || 'Σφάλμα'); return }
         setBusiness(data.business)
         setProgram(data.program)
+        setAutoConfirmedReasons(data.autoConfirmedReasons || [])
       })
       .catch(() => setError('Σφάλμα φόρτωσης'))
   }, [token])
@@ -41,11 +44,14 @@ export default function PublicMatchPage() {
           <p className="text-sm text-slate-400 text-center">Φόρτωση...</p>
         ) : (
           <>
-            <p className="text-sm text-slate-700 mb-1 text-center">
-              Γεια σου{business ? ` ${business.name}` : ''}! Είδα ότι ταιριάζεις με το πρόγραμμα:
+            <p className="text-sm text-slate-700 mb-4 text-center">
+              Γεια σου{business ? ` ${business.name}` : ''}!
             </p>
-            <p className="text-base font-semibold text-slate-900 mb-6 text-center">{program.title}</p>
-            <EligibilityChecker program={program} labelOverrides={program.eligibilityQuestions || {}} />
+            <EligibilityChecker
+              program={program}
+              autoConfirmedReasons={autoConfirmedReasons}
+              labelOverrides={program.eligibilityQuestions || {}}
+            />
           </>
         )}
       </div>

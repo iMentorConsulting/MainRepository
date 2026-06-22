@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { buildEligibilityQuestions, ProgramEligibilityCriteria } from '@/lib/eligibility-questions'
+import { buildEligibilityQuestions, ProgramQualitativeCriteria } from '@/lib/eligibility-questions'
 
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   const session = await auth()
@@ -10,8 +10,13 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
   const program = await prisma.program.findUnique({ where: { id: params.id } })
   if (!program) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
+  const criteriaList = program.extraCriteriaIds.length
+    ? await prisma.eligibilityCriterion.findMany({ where: { id: { in: program.extraCriteriaIds } }, select: { id: true, label: true } })
+    : []
+
   const overrides = (program.eligibilityQuestions as Record<string, string> | null) || {}
-  const questions = buildEligibilityQuestions(program as unknown as ProgramEligibilityCriteria, overrides)
+  const criteria: ProgramQualitativeCriteria = { otherRequirements: program.otherRequirements, extraCriteriaLabels: criteriaList }
+  const questions = buildEligibilityQuestions(criteria, overrides)
 
   return NextResponse.json({ questions, overrides })
 }

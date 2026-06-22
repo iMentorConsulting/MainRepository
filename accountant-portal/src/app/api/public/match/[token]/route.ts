@@ -9,20 +9,27 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   if (!matchToken) return NextResponse.json({ error: 'Ο σύνδεσμος δεν βρέθηκε' }, { status: 404 })
   if (matchToken.expiresAt < new Date()) return NextResponse.json({ error: 'Ο σύνδεσμος έχει λήξει' }, { status: 410 })
 
-  const [business, program] = await Promise.all([
+  const [business, program, match] = await Promise.all([
     prisma.business.findUnique({ where: { id: matchToken.businessId }, select: { onomasia: true, afm: true } }),
     prisma.program.findUnique({
       where: { id: matchToken.programId },
       select: {
         title: true, description: true,
-        kadRules: true, regionRules: true, zipCodeRules: true, excludedLegalForms: true,
-        minRegdate: true, maxRegdate: true, minInvestment: true, maxInvestment: true,
+        minInvestment: true, maxInvestment: true,
         minSubsidyPct: true, maxSubsidyPct: true, minInterestRate: true, maxInterestRate: true,
-        requireTags: true, excludeTags: true, eligibilityQuestions: true,
+        otherRequirements: true, extraCriteriaIds: true, eligibilityQuestions: true,
       },
+    }),
+    prisma.programMatch.findUnique({
+      where: { programId_businessId: { programId: matchToken.programId, businessId: matchToken.businessId } },
+      select: { matchReason: true },
     }),
   ])
   if (!business || !program) return NextResponse.json({ error: 'Δεν βρέθηκαν στοιχεία' }, { status: 404 })
+
+  const extraCriteriaLabels = program.extraCriteriaIds.length
+    ? await prisma.eligibilityCriterion.findMany({ where: { id: { in: program.extraCriteriaIds } }, select: { id: true, label: true } })
+    : []
 
   if (!matchToken.usedAt) {
     await prisma.businessMatchToken.update({ where: { token }, data: { usedAt: new Date() } })
@@ -30,6 +37,19 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
   return NextResponse.json({
     business: { name: business.onomasia || business.afm },
-    program: { ...program, title: program.title, description: program.description },
+    program: {
+      title: program.title,
+      description: program.description,
+      minInvestment: program.minInvestment,
+      maxInvestment: program.maxInvestment,
+      minSubsidyPct: program.minSubsidyPct,
+      maxSubsidyPct: program.maxSubsidyPct,
+      minInterestRate: program.minInterestRate,
+      maxInterestRate: program.maxInterestRate,
+      otherRequirements: program.otherRequirements,
+      extraCriteriaLabels,
+      eligibilityQuestions: program.eligibilityQuestions,
+    },
+    autoConfirmedReasons: match?.matchReason || [],
   })
 }

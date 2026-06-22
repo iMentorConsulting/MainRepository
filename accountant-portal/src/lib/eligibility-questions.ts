@@ -1,154 +1,110 @@
-import { LEGAL_FORMS } from './legal-forms'
-import { GREEK_REGIONS } from './greek-regions'
+// Rule-based, no-LLM Ερμής eligibility logic.
+//
+// Structured facts (ΚΑΔ, περιφέρεια, νομική μορφή, ημερομηνία ίδρυσης) are
+// already known from the Business record and already evaluated once by
+// src/lib/matching.ts when the match was created — re-asking the business to
+// retype them is redundant and feels robotic. Ερμής instead displays those as
+// already-confirmed facts (via the stored ProgramMatch.matchReason) and only
+// asks about what genuinely can't be known from our data: the program's
+// free-text "Άλλες Προϋποθέσεις" and any manual extra eligibility criteria.
 
-export interface ProgramEligibilityCriteria {
+export interface ProgramPitchInfo {
   title: string
-  kadRules: string[]
-  regionRules: string[]
-  zipCodeRules: string[]
-  excludedLegalForms: string[]
-  minRegdate: string | null
-  maxRegdate: string | null
   minInvestment: number | null
   maxInvestment: number | null
   minSubsidyPct: number | null
   maxSubsidyPct: number | null
   minInterestRate: number | null
   maxInterestRate: number | null
-  requireTags: string[]
-  excludeTags: string[]
 }
 
-export type EligibilityQuestion =
-  | { id: string; kind: 'select'; label: string; options: string[] }
-  | { id: string; kind: 'multiselect'; label: string; options: string[] }
-  | { id: string; kind: 'date'; label: string }
-  | { id: string; kind: 'number'; label: string }
-  | { id: string; kind: 'checkboxes'; label: string; options: string[] }
-
-export interface EligibilityAnswers {
-  legalForm?: string
-  kad?: string
-  region?: string
-  zipCode?: string
-  regdate?: string
-  investment?: number
-  tags?: string[]
+function formatEur(n: number): string {
+  return `${n.toLocaleString('el-GR')}€`
 }
 
-export interface EligibilityCheckResult {
-  eligible: boolean
-  criteria: { label: string; pass: boolean; reason: string }[]
+function formatPct(n: number): string {
+  return Number.isInteger(n) ? `${n}%` : `${n.toLocaleString('el-GR')}%`
 }
 
-// Builds a fixed checkbox/select questionnaire from a program's already
-// extracted/approved structured fields — no LLM call involved.
+// Builds a single human, conversational opening line that leads with the
+// money — what the business actually cares about — instead of bureaucratic
+// criteria. e.g. "ΞΕΚΙΝΩ ΕΠΙΧΕΙΡΗΜΑΤΙΚΑ — Σας ενδιαφέρει επένδυση από 20.000€
+// (ελάχιστο) έως 200.000€ (μέγιστο), με επιχορήγηση 50%;"
+export function buildPitch(program: ProgramPitchInfo): string {
+  const parts: string[] = []
+
+  if (program.minInvestment != null && program.maxInvestment != null) {
+    parts.push(`επένδυση από ${formatEur(program.minInvestment)} (ελάχιστο) έως ${formatEur(program.maxInvestment)} (μέγιστο)`)
+  } else if (program.maxInvestment != null) {
+    parts.push(`επένδυση έως ${formatEur(program.maxInvestment)}`)
+  } else if (program.minInvestment != null) {
+    parts.push(`επένδυση από ${formatEur(program.minInvestment)}`)
+  }
+
+  if (program.minSubsidyPct != null && program.maxSubsidyPct != null) {
+    parts.push(program.minSubsidyPct === program.maxSubsidyPct
+      ? `επιχορήγηση ${formatPct(program.minSubsidyPct)}`
+      : `επιχορήγηση από ${formatPct(program.minSubsidyPct)} έως ${formatPct(program.maxSubsidyPct)}`)
+  } else if (program.maxSubsidyPct != null) {
+    parts.push(`επιχορήγηση έως ${formatPct(program.maxSubsidyPct)}`)
+  } else if (program.minSubsidyPct != null) {
+    parts.push(`επιχορήγηση από ${formatPct(program.minSubsidyPct)}`)
+  }
+
+  if (program.minInterestRate != null || program.maxInterestRate != null) {
+    const rate = program.minInterestRate != null && program.maxInterestRate != null && program.minInterestRate !== program.maxInterestRate
+      ? `από ${formatPct(program.minInterestRate)} έως ${formatPct(program.maxInterestRate)}`
+      : formatPct(program.minInterestRate ?? program.maxInterestRate ?? 0)
+    parts.push(`επιτόκιο ${rate}`)
+  }
+
+  if (parts.length === 0) {
+    return `${program.title} — Σας ενδιαφέρει να μάθετε αν είστε επιλέξιμοι;`
+  }
+
+  return `${program.title} — Σας ενδιαφέρει ${parts.join(', ')};`
+}
+
+export interface EligibilityQuestion {
+  id: string
+  label: string
+}
+
+export interface ProgramQualitativeCriteria {
+  otherRequirements: string | null
+  extraCriteriaLabels: { id: string; label: string }[]
+}
+
+// Only the qualitative, not-already-known criteria become questions: each
+// numbered line of "Άλλες Προϋποθέσεις" plus any manually defined extra
+// eligibility criterion. Admins can override the wording per-question.
 export function buildEligibilityQuestions(
-  program: ProgramEligibilityCriteria,
+  program: ProgramQualitativeCriteria,
   labelOverrides: Record<string, string> = {}
 ): EligibilityQuestion[] {
   const questions: EligibilityQuestion[] = []
 
-  questions.push({
-    id: 'legalForm',
-    kind: 'select',
-    label: 'Ποια είναι η νομική μορφή της επιχείρησης;',
-    options: LEGAL_FORMS.map(f => f.value),
+  const otherRequirementItems = program.otherRequirements
+    ? program.otherRequirements.split('\n').map(l => l.replace(/^\s*\d+\.\s*/, '').trim()).filter(Boolean)
+    : []
+
+  otherRequirementItems.forEach((item, i) => {
+    const id = `req-${i}`
+    questions.push({ id, label: labelOverrides[id] || item })
   })
 
-  if (program.kadRules.length > 0) {
-    questions.push({
-      id: 'kad',
-      kind: 'select',
-      label: 'Ποιος είναι ο κύριος ΚΑΔ της επιχείρησης;',
-      options: program.kadRules,
-    })
-  }
+  program.extraCriteriaLabels.forEach(c => {
+    const id = `criterion-${c.id}`
+    questions.push({ id, label: labelOverrides[id] || c.label })
+  })
 
-  if (program.regionRules.length > 0) {
-    questions.push({
-      id: 'region',
-      kind: 'select',
-      label: 'Σε ποια περιφέρεια εδρεύει η επιχείρηση;',
-      options: GREEK_REGIONS as unknown as string[],
-    })
-  }
-
-  if (program.zipCodeRules.length > 0) {
-    questions.push({ id: 'zipCode', kind: 'number', label: 'Ποιος είναι ο ταχυδρομικός κώδικας της επιχείρησης;' })
-  }
-
-  if (program.minRegdate || program.maxRegdate) {
-    questions.push({ id: 'regdate', kind: 'date', label: 'Πότε ιδρύθηκε η επιχείρηση;' })
-  }
-
-  if (program.minInvestment != null || program.maxInvestment != null) {
-    questions.push({ id: 'investment', kind: 'number', label: 'Ποιο είναι το ύψος της επένδυσης (€);' })
-  }
-
-  if (program.requireTags.length > 0 || program.excludeTags.length > 0) {
-    questions.push({
-      id: 'tags',
-      kind: 'checkboxes',
-      label: 'Ποιες από τις παρακάτω συνθήκες ισχύουν για την επιχείρηση;',
-      options: Array.from(new Set([...program.requireTags, ...program.excludeTags])),
-    })
-  }
-
-  return questions.map(q => labelOverrides[q.id] ? { ...q, label: labelOverrides[q.id] } : q)
+  return questions
 }
 
-// Pure rule evaluation against the program's stored eligibility fields —
-// mirrors the logic in src/lib/matching.ts but operates on form answers
-// instead of a full Business record, so the two never diverge on intent.
-export function evaluateEligibility(program: ProgramEligibilityCriteria, answers: EligibilityAnswers): EligibilityCheckResult {
-  const criteria: { label: string; pass: boolean; reason: string }[] = []
-
-  if (program.excludedLegalForms.length > 0) {
-    const pass = !answers.legalForm || !program.excludedLegalForms.includes(answers.legalForm)
-    criteria.push({ label: 'Νομική μορφή', pass, reason: pass ? 'Επιτρεπτή νομική μορφή' : 'Η νομική μορφή εξαιρείται από το πρόγραμμα' })
-  }
-
-  if (program.kadRules.length > 0) {
-    const pass = !!answers.kad && program.kadRules.some(rule => answers.kad!.startsWith(rule) || answers.kad === rule)
-    criteria.push({ label: 'ΚΑΔ', pass, reason: pass ? 'Επιλέξιμος ΚΑΔ' : 'Ο ΚΑΔ δεν ταιριάζει με τα κριτήρια του προγράμματος' })
-  }
-
-  if (program.regionRules.length > 0) {
-    const pass = !!answers.region && program.regionRules.includes(answers.region)
-    criteria.push({ label: 'Περιφέρεια', pass, reason: pass ? 'Επιλέξιμη περιφέρεια' : 'Η περιφέρεια δεν περιλαμβάνεται στο πρόγραμμα' })
-  }
-
-  if (program.zipCodeRules.length > 0) {
-    const pass = !!answers.zipCode && program.zipCodeRules.some(z => answers.zipCode!.startsWith(z))
-    criteria.push({ label: 'Ταχυδρομικός Κώδικας', pass, reason: pass ? 'Επιλέξιμος ΤΚ' : 'Ο ΤΚ δεν περιλαμβάνεται στο πρόγραμμα' })
-  }
-
-  if (program.minRegdate || program.maxRegdate) {
-    const date = answers.regdate ? new Date(answers.regdate) : null
-    let pass = !!date
-    if (date && program.minRegdate && date < new Date(program.minRegdate)) pass = false
-    if (date && program.maxRegdate && date > new Date(program.maxRegdate)) pass = false
-    criteria.push({ label: 'Ημερομηνία Ίδρυσης', pass, reason: pass ? 'Εντός επιτρεπτού εύρους ίδρυσης' : 'Εκτός επιτρεπτού εύρους ημερομηνίας ίδρυσης' })
-  }
-
-  if (program.minInvestment != null || program.maxInvestment != null) {
-    const value = answers.investment
-    let pass = value != null
-    if (value != null && program.minInvestment != null && value < program.minInvestment) pass = false
-    if (value != null && program.maxInvestment != null && value > program.maxInvestment) pass = false
-    criteria.push({ label: 'Ύψος Επένδυσης', pass, reason: pass ? 'Εντός επιτρεπτού εύρους επένδυσης' : 'Εκτός επιτρεπτού εύρους επένδυσης' })
-  }
-
-  if (program.excludeTags.length > 0) {
-    const pass = !(answers.tags || []).some(t => program.excludeTags.includes(t))
-    criteria.push({ label: 'Αποκλειόμενες Συνθήκες', pass, reason: pass ? 'Καμία αποκλειόμενη συνθήκη' : 'Ισχύει αποκλειόμενη συνθήκη' })
-  }
-
-  if (program.requireTags.length > 0) {
-    const pass = (answers.tags || []).some(t => program.requireTags.includes(t))
-    criteria.push({ label: 'Απαιτούμενες Συνθήκες', pass, reason: pass ? 'Ισχύει απαιτούμενη συνθήκη' : 'Δεν ισχύει καμία απαιτούμενη συνθήκη' })
-  }
-
-  return { eligible: criteria.every(c => c.pass), criteria }
+export function evaluateQualitativeAnswers(
+  questions: EligibilityQuestion[],
+  answers: Record<string, boolean>
+): { eligible: boolean; results: { id: string; label: string; pass: boolean }[] } {
+  const results = questions.map(q => ({ id: q.id, label: q.label, pass: answers[q.id] === true }))
+  return { eligible: results.every(r => r.pass), results }
 }
