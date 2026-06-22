@@ -16,6 +16,7 @@ import { ArrowLeft, Plus, X, FileUp, Paperclip } from 'lucide-react'
 import Link from 'next/link'
 import { parseRegionsFromApplicationArea, parseBudgetRange, parseSubmissionPeriod } from '@/lib/espa-parse'
 import { detectRegionsInText } from '@/lib/greek-regions'
+import { LEGAL_FORMS } from '@/lib/legal-forms'
 
 const schema = z.object({
   title: z.string().min(3, 'Απαιτείται τίτλος'),
@@ -176,6 +177,7 @@ export default function NewProgramPage() {
   const [kadRules, setKadRules] = useState<string[]>([])
   const [regionRules, setRegionRules] = useState<string[]>([])
   const [zipCodeRules, setZipCodeRules] = useState<string[]>([])
+  const [excludedLegalForms, setExcludedLegalForms] = useState<string[]>([])
   const [heroImage, setHeroImage] = useState('')
   const [videoUrls, setVideoUrls] = useState<string[]>([])
   const [attachmentUrls, setAttachmentUrls] = useState<string[]>([])
@@ -241,7 +243,7 @@ export default function NewProgramPage() {
     const res = await fetch('/api/programs', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...data, heroImageUrl: heroImage || data.heroImageUrl, kadRules, regionRules, zipCodeRules, videoUrls, attachmentUrls, attachmentNames }),
+      body: JSON.stringify({ ...data, heroImageUrl: heroImage || data.heroImageUrl, kadRules, regionRules, zipCodeRules, excludedLegalForms, videoUrls, attachmentUrls, attachmentNames }),
     })
     if (res.ok) {
       const created = await res.json()
@@ -363,6 +365,28 @@ export default function NewProgramPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Input label="Ελάχιστη Ημ. Ίδρυσης" type="date" {...register('minRegdate')} />
               <Input label="Μέγιστη Ημ. Ίδρυσης" type="date" {...register('maxRegdate')} />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Εξαιρούμενες Νομικές Μορφές</label>
+              <p className="text-sm text-gray-500 mb-2">
+                Επιλέξτε μόνο τις μορφές που ΔΕΝ είναι επιλέξιμες για αυτό το πρόγραμμα. Αν δεν επιλέξετε καμία, το πρόγραμμα είναι ανοιχτό σε όλες τις μορφές (συμπεριλαμβανομένων ιδιωτών).
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-64 overflow-y-auto border rounded-md p-3">
+                {LEGAL_FORMS.map(f => (
+                  <label key={f.value} className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      className="rounded"
+                      checked={excludedLegalForms.includes(f.value)}
+                      onChange={e => {
+                        if (e.target.checked) setExcludedLegalForms([...excludedLegalForms, f.value])
+                        else setExcludedLegalForms(excludedLegalForms.filter(v => v !== f.value))
+                      }}
+                    />
+                    <span>{f.label}</span>
+                  </label>
+                ))}
+              </div>
             </div>
           </CardContent>
         </Card>
