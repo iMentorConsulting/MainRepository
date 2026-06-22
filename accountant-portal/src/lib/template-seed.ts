@@ -14,11 +14,34 @@ const CATEGORY_BY_KEY: Record<string, string> = {
   'viber-deadline-reminder': 'Υπενθυμίσεις',
 }
 
+// Inserts the {{ermis_link}} line into a template body that has an
+// {{unsubscribe_link}} but predates the Ερμής link addition. Idempotent.
+function withErmisLink(body: string): string {
+  if (body.includes('{{ermis_link}}') || !body.includes('{{unsubscribe_link}}')) return body
+  const ermisLine = body.includes('*{{business_name}}*')
+    ? '💬 Μίλα με τον Ερμή: {{ermis_link}}'
+    : 'Μάθετε αμέσως αν είστε επιλέξιμοι μιλώντας με τον ψηφιακό μας σύμβουλο, τον Ερμή: {{ermis_link}}'
+  const separator = body.includes('*{{business_name}}*') ? '\n' : '\n\n'
+  return body.replace('{{unsubscribe_link}}', `${ermisLine}${separator}{{unsubscribe_link}}`)
+}
+
 // Ensures the DB has an editable copy of every static template. Safe to call
-// repeatedly — only inserts templates that don't exist yet.
+// repeatedly — inserts templates that don't exist yet, and retrofits the
+// {{ermis_link}} placeholder into older rows that predate it.
 export async function ensureTemplatesSeeded() {
-  const existing = await prisma.messageTemplate.findMany({ select: { channel: true, templateKey: true } })
+  const existing = await prisma.messageTemplate.findMany({ select: { id: true, channel: true, templateKey: true, bodyWithAccountant: true, bodyDirect: true } })
   const existingKeys = new Set(existing.map(e => `${e.channel}:${e.templateKey}`))
+
+  for (const row of existing) {
+    const newWithAccountant = withErmisLink(row.bodyWithAccountant)
+    const newDirect = withErmisLink(row.bodyDirect)
+    if (newWithAccountant !== row.bodyWithAccountant || newDirect !== row.bodyDirect) {
+      await prisma.messageTemplate.update({
+        where: { id: row.id },
+        data: { bodyWithAccountant: newWithAccountant, bodyDirect: newDirect },
+      })
+    }
+  }
 
   const toCreate: any[] = []
   CAMPAIGN_TEMPLATES.forEach((t, i) => {

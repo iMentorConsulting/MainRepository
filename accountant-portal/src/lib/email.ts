@@ -200,7 +200,10 @@ export function renderCampaignEmailHtml(options: CampaignEmailOptions): string {
         <tr><td style="padding:0 28px 28px;">
           <table width="100%" cellpadding="0" cellspacing="0" style="border-top:1px solid #e2e8f0;padding-top:18px;">
             <tr><td style="color:#94a3b8;font-size:11px;line-height:1.6;">
-              🔒 Αυτό είναι ένα αυτοματοποιημένο μήνυμα ενημέρωσης από το λογιστικό σας γραφείο σε συνεργασία με την I-MENTOR Consulting. Για οποιαδήποτε ερώτηση, επικοινωνήστε απευθείας με το λογιστικό σας γραφείο.
+              🔒 ${accountantOfficeName
+                ? `Αυτό είναι ένα αυτοματοποιημένο μήνυμα ενημέρωσης από το λογιστικό σας γραφείο σε συνεργασία με την I-MENTOR Consulting. Για οποιαδήποτε ερώτηση, επικοινωνήστε απευθείας με το λογιστικό σας γραφείο.`
+                : `Αυτό είναι ένα αυτοματοποιημένο μήνυμα ενημέρωσης από την I-MENTOR Consulting. Για οποιαδήποτε ερώτηση, απαντήστε σε αυτό το μήνυμα.`
+              }
               ${unsubscribeRow}
             </td></tr>
           </table>
