@@ -17,7 +17,7 @@ interface EligibilityCheckerProps {
 
 export function EligibilityChecker({ program, autoConfirmedReasons, overrides }: EligibilityCheckerProps) {
   const questions = buildEligibilityQuestions(program, overrides || {})
-  const [answers, setAnswers] = useState<Record<string, boolean>>({})
+  const [answers, setAnswers] = useState<Record<string, boolean | number>>({})
   const [submitted, setSubmitted] = useState(false)
 
   const allAnswered = questions.every(q => answers[q.id] !== undefined)
@@ -48,26 +48,45 @@ export function EligibilityChecker({ program, autoConfirmedReasons, overrides }:
           {questions.map(q => (
             <div key={q.id} className="flex items-center justify-between gap-3 bg-slate-50 rounded-lg px-3 py-2.5">
               <p className="text-sm text-slate-800">{q.label}</p>
-              <div className="flex gap-1.5 flex-shrink-0">
-                {/* Selection is shown neutrally (indigo), never green/red —
-                    which answer is "correct" depends on each question's
-                    expectedAnswer (e.g. for disqualifying conditions, Όχι is
-                    the eligible answer), so Ναι is not always the good one. */}
-                <button
-                  type="button"
-                  onClick={() => { setAnswers(prev => ({ ...prev, [q.id]: true })); setSubmitted(false) }}
-                  className={`px-3 py-1 rounded-md text-xs font-semibold border ${answers[q.id] === true ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-200'}`}
-                >
-                  Ναι
-                </button>
-                <button
-                  type="button"
-                  onClick={() => { setAnswers(prev => ({ ...prev, [q.id]: false })); setSubmitted(false) }}
-                  className={`px-3 py-1 rounded-md text-xs font-semibold border ${answers[q.id] === false ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-200'}`}
-                >
-                  Όχι
-                </button>
-              </div>
+              {q.type === 'number' ? (
+                <input
+                  type="number"
+                  value={typeof answers[q.id] === 'number' ? (answers[q.id] as number) : ''}
+                  onChange={e => {
+                    const value = e.target.value === '' ? undefined : Number(e.target.value)
+                    setAnswers(prev => {
+                      const next = { ...prev }
+                      if (value === undefined) delete next[q.id]
+                      else next[q.id] = value
+                      return next
+                    })
+                    setSubmitted(false)
+                  }}
+                  placeholder={q.unit || ''}
+                  className="w-32 rounded-md border border-slate-200 px-2 py-1 text-sm text-right flex-shrink-0"
+                />
+              ) : (
+                <div className="flex gap-1.5 flex-shrink-0">
+                  {/* Selection is shown neutrally (indigo), never green/red —
+                      which answer is "correct" depends on each question's
+                      expectedAnswer (e.g. for disqualifying conditions, Όχι is
+                      the eligible answer), so Ναι is not always the good one. */}
+                  <button
+                    type="button"
+                    onClick={() => { setAnswers(prev => ({ ...prev, [q.id]: true })); setSubmitted(false) }}
+                    className={`px-3 py-1 rounded-md text-xs font-semibold border ${answers[q.id] === true ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-200'}`}
+                  >
+                    Ναι
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setAnswers(prev => ({ ...prev, [q.id]: false })); setSubmitted(false) }}
+                    className={`px-3 py-1 rounded-md text-xs font-semibold border ${answers[q.id] === false ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-200'}`}
+                  >
+                    Όχι
+                  </button>
+                </div>
+              )}
             </div>
           ))}
         </div>

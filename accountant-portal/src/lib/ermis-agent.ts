@@ -52,7 +52,19 @@ function buildSystemPrompt(program: {
   // what the admin actually wants Ερμής to ask, phrased for a conversation
   // instead of bureaucratic legalese.
   const qualitativeChecklist = qualitativeQuestions.length
-    ? qualitativeQuestions.map(q => `- ${q.label}${q.expectedAnswer ? '' : ' (η αναμενόμενη/επιλέξιμη απάντηση είναι ΟΧΙ)'}`).join('\n')
+    ? qualitativeQuestions.map(q => {
+        if (q.type === 'number') {
+          const range = q.min != null && q.max != null
+            ? `πρέπει να είναι μεταξύ ${q.min}${q.unit || ''} και ${q.max}${q.unit || ''}`
+            : q.min != null
+            ? `πρέπει να είναι τουλάχιστον ${q.min}${q.unit || ''}`
+            : q.max != null
+            ? `πρέπει να είναι έως ${q.max}${q.unit || ''}`
+            : ''
+          return `- ${q.label}${range ? ` (${range})` : ''}`
+        }
+        return `- ${q.label}${q.expectedAnswer ? '' : ' (η αναμενόμενη/επιλέξιμη απάντηση είναι ΟΧΙ)'}`
+      }).join('\n')
     : program.otherRequirements || '(καμία επιπλέον)'
   return `Είσαι ο "Ερμής", ο ψηφιακός σύμβουλος επιλεξιμότητας της I-MENTOR. Μιλάς απευθείας με τον ιδιοκτήτη της επιχείρησης "${businessName}" σχετικά με ΕΝΑ συγκεκριμένο πρόγραμμα. Μίλα φυσικά, στα ελληνικά, σαν να μιλάει κανείς με το Claude — αλλά ΕΞΥΠΝΑ ΚΑΙ ΛΑΚΩΝΙΚΑ: σύντομες απαντήσεις (1-4 προτάσεις συνήθως), ΧΩΡΙΣ πλατειασμό, χωρίς να επαναλαμβάνεις πράγματα που ήδη ειπώθηκαν.
 

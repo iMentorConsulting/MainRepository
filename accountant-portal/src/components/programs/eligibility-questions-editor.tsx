@@ -147,23 +147,37 @@ export function EligibilityQuestionsEditor({ programId }: { programId: string })
                   value={overrides[q.id]?.label ?? q.label}
                   onChange={e => setLabel(q.id, e.target.value)}
                 />
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-gray-400">Σωστή (επιλέξιμη) απάντηση:</span>
-                  <button
-                    type="button"
-                    onClick={() => setExpectedAnswer(q.id, true)}
-                    className={`px-2 py-0.5 rounded text-xs font-semibold border ${q.expectedAnswer ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-gray-500 border-gray-200'}`}
-                  >
-                    Ναι
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setExpectedAnswer(q.id, false)}
-                    className={`px-2 py-0.5 rounded text-xs font-semibold border ${!q.expectedAnswer ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-gray-500 border-gray-200'}`}
-                  >
-                    Όχι
-                  </button>
-                </div>
+                {q.type === 'number' ? (
+                  <p className="text-xs text-gray-400">
+                    Αριθμητική ερώτηση — αποδεκτό εύρος:{' '}
+                    {q.min != null && q.max != null
+                      ? `${q.min.toLocaleString('el-GR')}${q.unit || ''} – ${q.max.toLocaleString('el-GR')}${q.unit || ''}`
+                      : q.min != null
+                      ? `από ${q.min.toLocaleString('el-GR')}${q.unit || ''}`
+                      : q.max != null
+                      ? `έως ${q.max.toLocaleString('el-GR')}${q.unit || ''}`
+                      : '(χωρίς όριο)'}
+                    {' '}(ορίζεται από τα στοιχεία επένδυσης του προγράμματος)
+                  </p>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-gray-400">Σωστή (επιλέξιμη) απάντηση:</span>
+                    <button
+                      type="button"
+                      onClick={() => setExpectedAnswer(q.id, true)}
+                      className={`px-2 py-0.5 rounded text-xs font-semibold border ${q.expectedAnswer ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-gray-500 border-gray-200'}`}
+                    >
+                      Ναι
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setExpectedAnswer(q.id, false)}
+                      className={`px-2 py-0.5 rounded text-xs font-semibold border ${!q.expectedAnswer ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-gray-500 border-gray-200'}`}
+                    >
+                      Όχι
+                    </button>
+                  </div>
+                )}
               </div>
             ))}
 

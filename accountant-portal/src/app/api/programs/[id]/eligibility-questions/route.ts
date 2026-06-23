@@ -15,7 +15,12 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     : []
 
   const overrides = (program.eligibilityQuestions as QuestionOverrides | null) || {}
-  const criteria: ProgramQualitativeCriteria = { otherRequirements: program.otherRequirements, extraCriteriaLabels: criteriaList }
+  const criteria: ProgramQualitativeCriteria = {
+    otherRequirements: program.otherRequirements,
+    extraCriteriaLabels: criteriaList,
+    minInvestment: program.minInvestment,
+    maxInvestment: program.maxInvestment,
+  }
   const questions = buildEligibilityQuestions(criteria, overrides)
   // Unfiltered list (ignores skip flags) so the admin UI can still show the
   // original wording of skipped requirements for review/restore.

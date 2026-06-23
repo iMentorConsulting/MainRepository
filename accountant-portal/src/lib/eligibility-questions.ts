@@ -68,18 +68,32 @@ export function buildPitch(program: ProgramPitchInfo): string {
 export interface EligibilityQuestion {
   id: string
   label: string
+  type: 'boolean' | 'number'
   // Which answer keeps the business eligible. Most criteria are phrased
   // positively ("Διατηρείτε ενεργό τραπεζικό λογαριασμό;") where Ναι passes
   // — but disqualifying conditions are often phrased the other way
   // ("Έχετε λάβει επιχορήγηση για τις ίδιες δαπάνες;") where Όχι is the
   // correct, eligible answer. Defaults to true (Ναι passes) unless an
-  // override or the AI classification says otherwise.
+  // override or the AI classification says otherwise. Only used when
+  // type === 'boolean'.
   expectedAnswer: boolean
+  // Only used when type === 'number': the answer must fall within
+  // [min, max] (inclusive, either bound optional) to pass. unit is a
+  // display suffix, e.g. "€".
+  min?: number | null
+  max?: number | null
+  unit?: string
 }
 
 export interface ProgramQualitativeCriteria {
   otherRequirements: string | null
   extraCriteriaLabels: { id: string; label: string }[]
+  // Investment range the program funds, if known — generates a numeric
+  // "what's your planned investment?" question so Ερμής actually verifies
+  // the customer's figure against the program instead of only announcing
+  // the range (see buildPitch).
+  minInvestment?: number | null
+  maxInvestment?: number | null
 }
 
 // Per-question admin decision, optionally seeded from the AI classification
@@ -106,6 +120,22 @@ export function buildEligibilityQuestions(
 ): EligibilityQuestion[] {
   const questions: EligibilityQuestion[] = []
 
+  if (program.minInvestment != null || program.maxInvestment != null) {
+    const id = 'investment-amount'
+    const ov = overrides[id]
+    if (!ov?.skip) {
+      questions.push({
+        id,
+        type: 'number',
+        label: ov?.label || 'Ποιο είναι το προβλεπόμενο ύψος της επένδυσής σας (σε ευρώ);',
+        expectedAnswer: true,
+        min: program.minInvestment ?? null,
+        max: program.maxInvestment ?? null,
+        unit: '€',
+      })
+    }
+  }
+
   const otherRequirementItems = program.otherRequirements
     ? program.otherRequirements.split('\n').map(l => l.replace(/^\s*\d+\.\s*/, '').trim()).filter(Boolean)
     : []
@@ -114,14 +144,14 @@ export function buildEligibilityQuestions(
     const id = `req-${i}`
     const ov = overrides[id]
     if (ov?.skip) return
-    questions.push({ id, label: ov?.label || item, expectedAnswer: ov?.expectedAnswer ?? true })
+    questions.push({ id, type: 'boolean', label: ov?.label || item, expectedAnswer: ov?.expectedAnswer ?? true })
   })
 
   program.extraCriteriaLabels.forEach(c => {
     const id = `criterion-${c.id}`
     const ov = overrides[id]
     if (ov?.skip) return
-    questions.push({ id, label: ov?.label || c.label, expectedAnswer: ov?.expectedAnswer ?? true })
+    questions.push({ id, type: 'boolean', label: ov?.label || c.label, expectedAnswer: ov?.expectedAnswer ?? true })
   })
 
   return questions
@@ -129,8 +159,16 @@ export function buildEligibilityQuestions(
 
 export function evaluateQualitativeAnswers(
   questions: EligibilityQuestion[],
-  answers: Record<string, boolean>
+  answers: Record<string, boolean | number>
 ): { eligible: boolean; results: { id: string; label: string; pass: boolean }[] } {
-  const results = questions.map(q => ({ id: q.id, label: q.label, pass: answers[q.id] === q.expectedAnswer }))
+  const results = questions.map(q => {
+    const answer = answers[q.id]
+    if (q.type === 'number') {
+      const value = typeof answer === 'number' ? answer : NaN
+      const pass = !Number.isNaN(value) && (q.min == null || value >= q.min) && (q.max == null || value <= q.max)
+      return { id: q.id, label: q.label, pass }
+    }
+    return { id: q.id, label: q.label, pass: answer === q.expectedAnswer }
+  })
   return { eligible: results.every(r => r.pass), results }
 }

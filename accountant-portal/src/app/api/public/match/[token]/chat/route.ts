@@ -43,7 +43,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     ? await prisma.eligibilityCriterion.findMany({ where: { id: { in: program.extraCriteriaIds } }, select: { id: true, label: true } })
     : []
   const qualitativeQuestions = buildEligibilityQuestions(
-    { otherRequirements: program.otherRequirements, extraCriteriaLabels },
+    {
+      otherRequirements: program.otherRequirements,
+      extraCriteriaLabels,
+      minInvestment: program.minInvestment,
+      maxInvestment: program.maxInvestment,
+    },
     (program.eligibilityQuestions as QuestionOverrides | null) || {},
   )
 
