@@ -42,6 +42,13 @@ export async function ensureTemplatesSeeded() {
   const existing = await prisma.messageTemplate.findMany({ select: { id: true, channel: true, templateKey: true, bodyWithAccountant: true, bodyDirect: true } })
   const existingKeys = new Set(existing.map(e => `${e.channel}:${e.templateKey}`))
 
+  // Remove the hardcoded ΞΕΚΙΝΩ ΕΠΙΧΕΙΡΗΜΑΤΙΚΑ Viber template — it shipped with
+  // the program name/conditions baked into the text instead of resolving from
+  // the actual program, so reusing it for any other program was silently wrong.
+  // Superseded by the generic, fully variable-driven viber-generic-match.
+  const retiredRow = existing.find(e => e.channel === 'VIBER' && e.templateKey === 'viber-ksekino-epixeirimatika')
+  if (retiredRow) await prisma.messageTemplate.delete({ where: { id: retiredRow.id } })
+
   for (const t of VIBER_CAMPAIGN_TEMPLATES) {
     const row = existing.find(e => e.channel === 'VIBER' && e.templateKey === t.id)
     if (row && (needsViberRedesign(row.bodyWithAccountant) || needsViberRedesign(row.bodyDirect))) {
