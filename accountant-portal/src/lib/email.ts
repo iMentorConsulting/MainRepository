@@ -144,9 +144,11 @@ export function renderCampaignEmailHtml(options: CampaignEmailOptions): string {
     // Remove common emoji ranges that don't render well in email clients
     // eslint-disable-next-line no-misleading-character-class
     .replace(/[☀-➿]|[\uD83C-\uDBFF][\uDC00-\uDFFF]/g, '')
-    // Drop a leading greeting line ("Γειά σας, ...", "Αγαπητοί συνεργάτες της ...",
-    // or "Αγαπητέ/ή ...") — the wrapper already renders "Αγαπητέ/ή ..." itself.
-    .replace(/^\s*(Γειά σας|Αγαπητο[ίοι] συνεργάτ[ηε]ς?|Αγαπητ[έό]\/?ή?)[^\n]*\n+/, '')
+    // Drop any greeting line ("Γειά σας, ...", "Αγαπητοί συνεργάτες της ...",
+    // or "Αγαπητέ/ή ...") wherever it appears — the wrapper already renders
+    // "Αγαπητέ/ή ..." itself, and a Viber-sourced body may repeat it after
+    // its own ALL-CAPS section header rather than as the very first line.
+    .replace(/^\s*(Γειά σας|Αγαπητο[ίοι] συνεργάτ[ηε]ς?|Αγαπητ[έό]\/?ή?)[^\n]*\n*/gm, '')
     // The Ερμής link, the CTA line introducing it, and the unsubscribe link
     // are all rendered separately (CTA button / footer) — drop any raw text
     // line that duplicates them.
@@ -171,9 +173,26 @@ export function renderCampaignEmailHtml(options: CampaignEmailOptions): string {
           </li>`).join('')}
         </ul>`
       }
-      // Bold the closing signature line(s) ending with "& I-MENTOR"
-      const styledLines = lines.map(l => /&\s*I-MENTOR\s*$/.test(l) ? `<strong>${l}</strong>` : l)
-      return `<p style="margin:0 0 16px;color:#334155;font-size:14px;line-height:1.7;">${styledLines.join('<br>')}</p>`
+      const bold = (l: string) => (/&\s*I-MENTOR\s*$/.test(l) ? `<strong>${l}</strong>` : l)
+      const asParagraph = (ls: string[]) =>
+        ls.length ? `<p style="margin:0 0 16px;color:#334155;font-size:14px;line-height:1.7;">${ls.map(bold).join('<br>')}</p>` : ''
+
+      // A Viber "─────" separator line is just a handful of characters —
+      // rendered as plain text it's a stubby little dash, not the full-width
+      // divider it reads as in Viber. Split it into its own <hr> so it spans
+      // the email's full width regardless of how many dashes are in the source.
+      if (lines.some(l => /^─{3,}$/.test(l))) {
+        const segments: string[][] = [[]]
+        for (const l of lines) {
+          if (/^─{3,}$/.test(l)) segments.push([])
+          else segments[segments.length - 1].push(l)
+        }
+        return segments
+          .map((seg, i) => asParagraph(seg) + (i < segments.length - 1 ? '<hr style="border:none;border-top:1px solid #e2e8f0;margin:4px 0 16px;" />' : ''))
+          .join('')
+      }
+
+      return asParagraph(lines)
     })
     .join('')
 
@@ -199,7 +218,7 @@ export function renderCampaignEmailHtml(options: CampaignEmailOptions): string {
 
   const programLinkRow = programUrl
     ? `<p style="margin:0 0 16px;text-align:center;">
-        <a href="${programUrl}" target="_blank" style="color:#1e3a8a;font-size:12px;text-decoration:underline;">Δείτε την επίσημη προκήρυξη του προγράμματος</a>
+        <a href="${programUrl}" target="_blank" style="color:#1e3a8a;font-size:12px;text-decoration:underline;">Δείτε περισσότερα στην σελίδα της i-mentor.gr</a>
       </p>`
     : ''
 
