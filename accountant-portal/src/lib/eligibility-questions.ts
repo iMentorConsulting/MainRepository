@@ -110,13 +110,44 @@ export interface QuestionOverride {
 }
 export type QuestionOverrides = Record<string, QuestionOverride>
 
+// A question the admin types in directly — not derived from any program
+// field. Stored and edited in place (no separate override needed): editing
+// or deleting a custom question just changes/removes its entry.
+export interface CustomQuestion {
+  id: string
+  label: string
+  type: 'boolean' | 'number'
+  expectedAnswer?: boolean
+  min?: number | null
+  max?: number | null
+  unit?: string
+}
+
+// Combined shape saved on Program.eligibilityQuestions (a Json? column —
+// no schema change needed to add custom questions alongside overrides).
+export interface EligibilityQuestionsStorage {
+  overrides: QuestionOverrides
+  custom: CustomQuestion[]
+}
+
+// Older saved data is a bare QuestionOverrides object (no "custom" key yet).
+export function parseEligibilityStorage(raw: unknown): EligibilityQuestionsStorage {
+  if (raw && typeof raw === 'object' && ('overrides' in raw || 'custom' in raw)) {
+    const obj = raw as Partial<EligibilityQuestionsStorage>
+    return { overrides: obj.overrides || {}, custom: obj.custom || [] }
+  }
+  return { overrides: (raw as QuestionOverrides) || {}, custom: [] }
+}
+
 // Only the qualitative, not-already-known criteria become questions: each
 // numbered line of "Άλλες Προϋποθέσεις" plus any manually defined extra
-// eligibility criterion. Admins can override the wording per-question, or
-// skip questions that aren't genuinely answerable by the business owner.
+// eligibility criterion, plus any admin-authored custom questions. Admins
+// can override the wording of generated questions, or skip questions that
+// aren't genuinely answerable by the business owner.
 export function buildEligibilityQuestions(
   program: ProgramQualitativeCriteria,
-  overrides: QuestionOverrides = {}
+  overrides: QuestionOverrides = {},
+  custom: CustomQuestion[] = []
 ): EligibilityQuestion[] {
   const questions: EligibilityQuestion[] = []
 
@@ -152,6 +183,20 @@ export function buildEligibilityQuestions(
     const ov = overrides[id]
     if (ov?.skip) return
     questions.push({ id, type: 'boolean', label: ov?.label || c.label, expectedAnswer: ov?.expectedAnswer ?? true })
+  })
+
+  custom.forEach(c => {
+    const ov = overrides[c.id]
+    if (ov?.skip) return
+    questions.push({
+      id: c.id,
+      type: c.type,
+      label: ov?.label || c.label,
+      expectedAnswer: ov?.expectedAnswer ?? c.expectedAnswer ?? true,
+      min: c.min ?? null,
+      max: c.max ?? null,
+      unit: c.unit,
+    })
   })
 
   return questions

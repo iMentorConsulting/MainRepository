@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { runErmisTurn, type ChatMessage } from '@/lib/ermis-agent'
-import { buildEligibilityQuestions, QuestionOverrides } from '@/lib/eligibility-questions'
+import { buildEligibilityQuestions, parseEligibilityStorage } from '@/lib/eligibility-questions'
 
 export const dynamic = 'force-dynamic'
 
@@ -42,6 +42,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const extraCriteriaLabels = program.extraCriteriaIds.length
     ? await prisma.eligibilityCriterion.findMany({ where: { id: { in: program.extraCriteriaIds } }, select: { id: true, label: true } })
     : []
+  const { overrides: questionOverrides, custom: customQuestions } = parseEligibilityStorage(program.eligibilityQuestions)
   const qualitativeQuestions = buildEligibilityQuestions(
     {
       otherRequirements: program.otherRequirements,
@@ -49,7 +50,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       minInvestment: program.minInvestment,
       maxInvestment: program.maxInvestment,
     },
-    (program.eligibilityQuestions as QuestionOverrides | null) || {},
+    questionOverrides,
+    customQuestions,
   )
 
   const history = (Array.isArray(matchToken.chatLog) ? matchToken.chatLog : []) as unknown as ChatMessage[]
