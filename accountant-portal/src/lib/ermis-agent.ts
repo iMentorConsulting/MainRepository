@@ -10,6 +10,10 @@ import { notifyCaseManagement } from './case-management-sync'
 
 const MAX_RESPONSE_TOKENS = 1_000
 
+// Hard per-conversation token budget (input+output, cumulative across turns)
+// to prevent runaway/abusive Claude spend on a single business+program chat.
+export const MAX_CONVERSATION_TOKENS = 60_000
+
 export interface ChatMessage {
   role: 'user' | 'assistant'
   text: string
@@ -63,6 +67,10 @@ ${program.minInterestRate || program.maxInterestRate ? `Επιτόκιο: ${prog
 2. Ενημέρωσε περίπου για το κόστος όταν ζητηθεί ή αφού κλείσει ο έλεγχος επιλεξιμότητας.
 3. Αν η επιχείρηση φαίνεται επιλέξιμη ΚΑΙ θέλει να προχωρήσει, κάλεσε το εργαλείο "assign_case" για να αναλάβει σύμβουλος της I-MENTOR την υπόθεση. Μην το καλέσεις πρόωρα, πριν κάνεις τον βασικό έλεγχο.
 4. Αν δεν φαίνεται επιλέξιμη, πες το ευθέως και ευγενικά, χωρίς να καλέσεις το εργαλείο.
+
+ΠΑΡΕ ΕΣΥ ΤΟΝ ΕΛΕΓΧΟ της συνομιλίας: ΜΗΝ ρωτήσεις ποτέ τον πελάτη "τι θέλεις να μάθεις" ή κάτι αντίστοιχο ανοιχτό. Ξεκίνα πάντα λέγοντας ευθέως τι ήδη γνωρίζεις (τα "ήδη επιβεβαιωμένα") και προχώρα αμέσως στην επόμενη συγκεκριμένη ερώτηση που λείπει για τον έλεγχο επιλεξιμότητας. Εσύ οδηγείς τη συζήτηση βήμα-βήμα μέχρι να καταλήξεις σε συμπέρασμα.
+
+Χρησιμοποίησε **διπλά αστερίσκια** γύρω από λέξεις/φράσεις που θέλεις να εμφανίζονται έντονα (bold) στον πελάτη — π.χ. αριθμούς, ΚΑΔ, ποσά, "επιλέξιμος"/"μη επιλέξιμος". Το frontend τα μετατρέπει αυτόματα σε έντονη γραφή.
 
 Μην κάνεις ποτέ νομικές δεσμευτικές διαβεβαιώσεις — η τελική έγκριση είναι πάντα του φορέα διαχείρισης του προγράμματος.`
 }
@@ -153,17 +161,29 @@ export async function runErmisTurn(params: {
   autoConfirmedReasons: string[]
   history: ChatMessage[]
   alreadyAssigned: boolean
-}): Promise<{ reply: string; caseId: string | null }> {
+  // True only for the very first turn of a conversation, before the customer has
+  // said anything: asks Ερμής to open the conversation itself (lead with what it
+  // already knows + the first missing question) instead of waiting to be asked.
+  isKickoff?: boolean
+  tokensUsedSoFar: number
+}): Promise<{ reply: string; caseId: string | null; tokensUsed: number }> {
   const apiKey = process.env.ANTHROPIC_API_KEY
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY δεν έχει οριστεί στο περιβάλλον.')
+
+  if (params.tokensUsedSoFar >= MAX_CONVERSATION_TOKENS) {
+    return {
+      reply: 'Έχουμε φτάσει στο όριο αυτής της συζήτησης. Επικοινωνήστε απευθείας με την I-MENTOR (info@i-mentor.gr) για να συνεχίσουμε τον έλεγχο επιλεξιμότητάς σας.',
+      caseId: null,
+      tokensUsed: 0,
+    }
+  }
 
   const anthropic = new Anthropic({ apiKey })
   const system = buildSystemPrompt(params.program, params.businessName, params.autoConfirmedReasons)
 
-  const messages: Anthropic.MessageParam[] = params.history.map(m => ({
-    role: m.role,
-    content: m.text,
-  }))
+  const messages: Anthropic.MessageParam[] = params.isKickoff
+    ? [{ role: 'user', content: 'Ξεκίνα εσύ τη συνομιλία.' }]
+    : params.history.map(m => ({ role: m.role, content: m.text }))
 
   const tools = params.alreadyAssigned ? undefined : [TOOL_SCHEMA]
 
@@ -175,6 +195,8 @@ export async function runErmisTurn(params: {
     ...(tools ? { tools, tool_choice: { type: 'auto' } } : {}),
     messages,
   })
+
+  let tokensUsed = (response.usage?.input_tokens || 0) + (response.usage?.output_tokens || 0)
 
   const toolUse = response.content.find(b => b.type === 'tool_use')
   let caseId: string | null = null
@@ -206,10 +228,11 @@ export async function runErmisTurn(params: {
         },
       ],
     })
+    tokensUsed += (followUp.usage?.input_tokens || 0) + (followUp.usage?.output_tokens || 0)
     const text = followUp.content.find(b => b.type === 'text')
-    return { reply: text && text.type === 'text' ? text.text : 'Η υπόθεσή σας καταχωρήθηκε — ένας σύμβουλος της I-MENTOR θα επικοινωνήσει μαζί σας σύντομα.', caseId }
+    return { reply: text && text.type === 'text' ? text.text : 'Η υπόθεσή σας καταχωρήθηκε — ένας σύμβουλος της I-MENTOR θα επικοινωνήσει μαζί σας σύντομα.', caseId, tokensUsed }
   }
 
   const text = response.content.find(b => b.type === 'text')
-  return { reply: text && text.type === 'text' ? text.text : 'Μπορείτε να επαναλάβετε;', caseId: null }
+  return { reply: text && text.type === 'text' ? text.text : 'Μπορείτε να επαναλάβετε;', caseId: null, tokensUsed }
 }

@@ -168,6 +168,9 @@ model BusinessMatchToken {
   // Set once Ερμής has called the case-assignment tool, so the conversation
   // doesn't create a duplicate ClientCase on later turns.
   caseCreatedId  String?
+  // Running total of Claude input+output tokens spent on this conversation —
+  // enforced as a hard budget cap in runErmisTurn to prevent per-case overspend.
+  tokenUsage     Int       @default(0)
 
   @@unique([businessId, programId])
 }

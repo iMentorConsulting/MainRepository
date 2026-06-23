@@ -14,6 +14,8 @@ export default function PublicMatchPage() {
   const [caseAssigned, setCaseAssigned] = useState(false)
   const [error, setError] = useState('')
 
+  const [kickoffPending, setKickoffPending] = useState(false)
+
   useEffect(() => {
     fetch(`/api/public/match/${token}`)
       .then(async r => {
@@ -21,8 +23,24 @@ export default function PublicMatchPage() {
         if (!r.ok) { setError(data.error || 'Σφάλμα'); return }
         setBusiness(data.business)
         setProgram(data.program)
-        setChatLog(data.chatLog || [])
         setCaseAssigned(Boolean(data.caseAssigned))
+        if (data.chatLog?.length) {
+          setChatLog(data.chatLog)
+        } else {
+          // Ερμής leads the conversation himself, with what he already knows,
+          // instead of waiting for the customer to ask something first.
+          setKickoffPending(true)
+          fetch(`/api/public/match/${token}/chat`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ kickoff: true }),
+          })
+            .then(async r2 => {
+              const d2 = await r2.json()
+              if (r2.ok) setChatLog([{ role: 'assistant', text: d2.reply }])
+            })
+            .finally(() => setKickoffPending(false))
+        }
       })
       .catch(() => setError('Σφάλμα φόρτωσης'))
   }, [token])
@@ -40,14 +58,13 @@ export default function PublicMatchPage() {
 
         {error ? (
           <p className="text-sm text-red-600 text-center">{error}</p>
-        ) : !program ? (
-          <p className="text-sm text-slate-400 text-center">Φόρτωση...</p>
+        ) : !program || kickoffPending ? (
+          <p className="text-sm text-slate-400 text-center">{kickoffPending ? 'Ο Ερμής ετοιμάζεται...' : 'Φόρτωση...'}</p>
         ) : (
           <ErmisChat
             token={token}
             initialMessages={chatLog}
             initialCaseAssigned={caseAssigned}
-            greeting={`Γεια σου${business ? ` ${business.name}` : ''}! Είμαι ο Ερμής. Ας δούμε αν ταιριάζετε στο πρόγραμμα «${program.title}» — πες μου λίγα λόγια για την επιχείρησή σου ή ρώτα με ό,τι θέλεις.`}
           />
         )}
       </div>

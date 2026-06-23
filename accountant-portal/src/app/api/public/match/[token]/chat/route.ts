@@ -6,14 +6,17 @@ export const dynamic = 'force-dynamic'
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ token: string }> }) {
   const { token } = await params
-  const { message } = await request.json()
-  if (!message || typeof message !== 'string' || !message.trim()) {
+  const { message, kickoff } = await request.json()
+  if (!kickoff && (!message || typeof message !== 'string' || !message.trim())) {
     return NextResponse.json({ error: 'Το μήνυμα είναι κενό' }, { status: 400 })
   }
 
   const matchToken = await prisma.businessMatchToken.findUnique({ where: { token } })
   if (!matchToken) return NextResponse.json({ error: 'Ο σύνδεσμος δεν βρέθηκε' }, { status: 404 })
   if (matchToken.expiresAt < new Date()) return NextResponse.json({ error: 'Ο σύνδεσμος έχει λήξει' }, { status: 410 })
+  if (kickoff && Array.isArray(matchToken.chatLog) && matchToken.chatLog.length > 0) {
+    return NextResponse.json({ error: 'Η συζήτηση έχει ήδη ξεκινήσει' }, { status: 400 })
+  }
 
   const [business, program, match] = await Promise.all([
     prisma.business.findUnique({ where: { id: matchToken.businessId }, select: { onomasia: true, afm: true } }),
@@ -35,7 +38,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (!business || !program) return NextResponse.json({ error: 'Δεν βρέθηκαν στοιχεία' }, { status: 404 })
 
   const history = (Array.isArray(matchToken.chatLog) ? matchToken.chatLog : []) as unknown as ChatMessage[]
-  const newHistory: ChatMessage[] = [...history, { role: 'user', text: message.trim() }]
+  const newHistory: ChatMessage[] = kickoff ? history : [...history, { role: 'user', text: message.trim() }]
 
   let result
   try {
@@ -47,6 +50,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       autoConfirmedReasons: match?.matchReason || [],
       history: newHistory,
       alreadyAssigned: Boolean(matchToken.caseCreatedId),
+      isKickoff: Boolean(kickoff),
+      tokensUsedSoFar: matchToken.tokenUsage,
     })
   } catch (err: any) {
     console.error('[ErmisChat] failed:', err?.message)
@@ -59,6 +64,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     where: { token },
     data: {
       chatLog: finalHistory as any,
+      tokenUsage: { increment: result.tokensUsed },
       ...(result.caseId ? { caseCreatedId: result.caseId } : {}),
     },
   })

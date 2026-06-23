@@ -7,16 +7,21 @@ export interface ErmisChatMessage {
   text: string
 }
 
+// Splits "**bold**" segments out of Ερμής's replies into <strong> elements —
+// the model is instructed to use this markup for emphasis (numbers, ΚΑΔ, verdicts).
+function renderWithBold(text: string) {
+  const parts = text.split(/\*\*(.+?)\*\*/g)
+  return parts.map((part, i) => (i % 2 === 1 ? <strong key={i}>{part}</strong> : part))
+}
+
 export function ErmisChat({
   token,
   initialMessages,
   initialCaseAssigned,
-  greeting,
 }: {
   token: string
   initialMessages: ErmisChatMessage[]
   initialCaseAssigned: boolean
-  greeting: string
 }) {
   const [messages, setMessages] = useState<ErmisChatMessage[]>(initialMessages)
   const [input, setInput] = useState('')
@@ -59,9 +64,6 @@ export function ErmisChat({
   return (
     <div className="flex flex-col">
       <div className="flex flex-col gap-2 max-h-96 overflow-y-auto mb-3 pr-1">
-        <div className="self-start bg-slate-100 text-slate-700 rounded-2xl rounded-bl-sm px-4 py-2 text-sm max-w-[85%]">
-          {greeting}
-        </div>
         {messages.map((m, i) => (
           <div
             key={i}
@@ -71,7 +73,7 @@ export function ErmisChat({
                 : 'self-start bg-slate-100 text-slate-700 rounded-2xl rounded-bl-sm px-4 py-2 text-sm max-w-[85%] whitespace-pre-wrap'
             }
           >
-            {m.text}
+            {m.role === 'assistant' ? renderWithBold(m.text) : m.text}
           </div>
         ))}
         {sending && (

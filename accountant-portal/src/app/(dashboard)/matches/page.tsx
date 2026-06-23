@@ -9,8 +9,9 @@ import { Table, TableHead, TableBody, TableRow, Th, Td } from '@/components/ui/t
 import { Pagination } from '@/components/ui/pagination'
 import { MultiSelect } from '@/components/ui/multi-select'
 import { QuickSendModal } from '@/components/quick-send-modal'
-import { Send, ChevronUp, ChevronDown, ChevronsUpDown, Search, Check, X as XIcon, Ban, Eye, EyeOff, ClipboardList, CheckCircle2 } from 'lucide-react'
+import { Send, ChevronUp, ChevronDown, ChevronsUpDown, Search, Check, X as XIcon, Ban, Eye, EyeOff, ClipboardList, CheckCircle2, MessageSquare } from 'lucide-react'
 import { NewCaseModal } from '@/components/cases/new-case-modal'
+import { ErmisTranscriptModal } from '@/components/programs/ermis-transcript-modal'
 import { getEffectiveCategory } from '@/lib/business-categories'
 import { CategoryBadge } from '@/components/businesses/category-badge'
 import { MatchesHero } from '@/components/dashboard/matches-hero'
@@ -214,6 +215,7 @@ function MatchesPageInner() {
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [quickSendOpen, setQuickSendOpen] = useState(false)
   const [caseFor, setCaseFor] = useState<{ businessId: string; programId: string } | null>(null)
+  const [transcriptFor, setTranscriptFor] = useState<{ businessId: string; programId: string } | null>(null)
   const [criteriaMap, setCriteriaMap] = useState<Record<string, string>>({})
   const [reasonOptions, setReasonOptions] = useState<{ id: string; label: string; programIds?: string[] }[]>([])
   const [hideUnsuitable, setHideUnsuitable] = useState(true)
@@ -600,6 +602,13 @@ function MatchesPageInner() {
                               <CheckCircle2 size={11} className="absolute -bottom-0.5 -right-0.5 text-green-600 bg-white rounded-full" />
                             )}
                           </button>
+                          <button
+                            onClick={() => setTranscriptFor({ businessId: m.businessId, programId: m.programId })}
+                            className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 transition-colors"
+                            title="Δείτε τη συζήτηση με τον Ερμή"
+                          >
+                            <MessageSquare size={16} />
+                          </button>
                         </Td>
                       </TableRow>
                     )
@@ -619,6 +628,14 @@ function MatchesPageInner() {
           onCreated={() => setCaseFor(null)}
           initialBusinessId={caseFor.businessId}
           initialProgramId={caseFor.programId}
+        />
+      )}
+
+      {transcriptFor && (
+        <ErmisTranscriptModal
+          businessId={transcriptFor.businessId}
+          programId={transcriptFor.programId}
+          onClose={() => setTranscriptFor(null)}
         />
       )}
 
