@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Sparkles, Save, Check, Wand2, EyeOff, Eye, Plus, Trash2 } from 'lucide-react'
-import { EligibilityQuestion, QuestionOverrides, CustomQuestion } from '@/lib/eligibility-questions'
+import { EligibilityQuestion, QuestionOverrides, CustomQuestion, buildEligibilityQuestions } from '@/lib/eligibility-questions'
 import { RequirementClassification } from '@/lib/eligibility-ai'
 
 // Admin-only preview/edit of the Ερμής eligibility questionnaire for this
@@ -110,6 +110,13 @@ export function EligibilityQuestionsEditor({ programId }: { programId: string })
 
   if (!questions) return null
 
+  // `questions` reflects the server's last load and may be stale right after
+  // a local add/edit/delete of a custom question — recompute the custom part
+  // live so additions show up immediately, without waiting for a save+reload.
+  const nonCustomQuestions = questions.filter(q => !q.id.startsWith('custom-'))
+  const liveCustomQuestions = buildEligibilityQuestions({ otherRequirements: null, extraCriteriaLabels: [] }, overrides, custom)
+  const displayQuestions = [...nonCustomQuestions, ...liveCustomQuestions]
+
   const skippedIds = allQuestions.filter(q => overrides[q.id]?.skip).map(q => q.id)
   const originalTextById = Object.fromEntries(allQuestions.map(q => [q.id, q.label]))
 
@@ -156,11 +163,11 @@ export function EligibilityQuestionsEditor({ programId }: { programId: string })
           «Δημιουργία με AI» για προτάσεις διατύπωσης και για να εντοπίσετε όρους που δεν μπορεί να απαντήσει
           ο επιχειρηματίας — ελέγξτε τα πριν αποθηκεύσετε.
         </p>
-        {questions.length === 0 && skippedIds.length === 0 ? (
+        {displayQuestions.length === 0 && skippedIds.length === 0 ? (
           <p className="text-sm text-gray-400">Το πρόγραμμα δεν έχει κριτήρια που να παράγουν ερωτήσεις επιλεξιμότητας ακόμη — προσθέστε μία παρακάτω.</p>
         ) : (
           <>
-            {questions.map((q, i) => {
+            {displayQuestions.map((q, i) => {
               const isCustom = custom.some(c => c.id === q.id)
               return (
                 <div key={q.id} className="space-y-1">
