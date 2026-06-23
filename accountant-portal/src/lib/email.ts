@@ -145,8 +145,11 @@ export function renderCampaignEmailHtml(options: CampaignEmailOptions): string {
     // Drop a leading greeting line ("Γειά σας, ..." or "Αγαπητοί συνεργάτες της ...") —
     // the wrapper already renders "Αγαπητέ/ή ..."
     .replace(/^\s*(Γειά σας|Αγαπητο[ίοι] συνεργάτ[ηε]ς?)[^\n]*\n+/, '')
-    // The Ερμής line is rendered separately as a styled CTA button below
-    .replace(/^.*Μάθετε αμέσως.*Ερμή:.*$\n*/m, '')
+    // The Ερμής link and unsubscribe link are rendered separately (CTA button /
+    // footer), so drop any raw text line that still contains either URL.
+    .split('\n')
+    .filter(line => !(ermisLink && line.includes(ermisLink)) && !(unsubscribeUrl && line.includes(unsubscribeUrl)))
+    .join('\n')
     .split(/\n{2,}/)
     .map(block => block.trim())
     .filter(Boolean)

@@ -218,6 +218,22 @@ export async function GET(request: NextRequest) {
     prisma.programMatch.count({ where: whereWithHidden }),
     prisma.programMatch.count({ where }),
   ])
+
+  // Only matches with a saved Ερμής transcript get a chat icon in the UI —
+  // showing it for every row when no conversation happened is just noise.
+  const tokensWithChat = matches.length > 0
+    ? await prisma.businessMatchToken.findMany({
+        where: {
+          NOT: { chatLog: null as any },
+          OR: matches.map(m => ({ businessId: m.businessId, programId: m.programId })),
+        },
+        select: { businessId: true, programId: true },
+      })
+    : []
+  const chatKeys = new Set(tokensWithChat.map(t => `${t.businessId}:${t.programId}`))
+  for (const m of matches as any[]) {
+    m.hasErmisChat = chatKeys.has(`${m.businessId}:${m.programId}`)
+  }
   const unsuitableCount = totalAll - total
 
   // Self-heal: a FAILed extra criterion makes a match ineligible. Older

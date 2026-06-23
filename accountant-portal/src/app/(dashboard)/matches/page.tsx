@@ -602,13 +602,15 @@ function MatchesPageInner() {
                               <CheckCircle2 size={11} className="absolute -bottom-0.5 -right-0.5 text-green-600 bg-white rounded-full" />
                             )}
                           </button>
-                          <button
-                            onClick={() => setTranscriptFor({ businessId: m.businessId, programId: m.programId })}
-                            className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 transition-colors"
-                            title="Δείτε τη συζήτηση με τον Ερμή"
-                          >
-                            <MessageSquare size={16} />
-                          </button>
+                          {m.hasErmisChat && (
+                            <button
+                              onClick={() => setTranscriptFor({ businessId: m.businessId, programId: m.programId })}
+                              className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 transition-colors"
+                              title="Δείτε τη συζήτηση με τον Ερμή"
+                            >
+                              <MessageSquare size={16} />
+                            </button>
+                          )}
                         </Td>
                       </TableRow>
                     )

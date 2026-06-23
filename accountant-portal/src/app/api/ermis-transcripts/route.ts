@@ -7,11 +7,12 @@ export const dynamic = 'force-dynamic'
 const PAGE_SIZE = 25
 
 // Lists Ερμής conversations (BusinessMatchToken rows that have a chatLog) so
-// admins/accountants can browse every transcript in one place instead of
-// opening them one match at a time from /matches.
+// admins can browse every transcript in one place instead of opening them
+// one match at a time from /matches. Admin-only.
 export async function GET(request: NextRequest) {
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (session.user.role !== 'ADMIN') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const { searchParams } = request.nextUrl
   const page = parseInt(searchParams.get('page') || '1')
@@ -22,9 +23,6 @@ export async function GET(request: NextRequest) {
   const where: any = { chatLog: { not: null } }
 
   const businessFilter: any = {}
-  if (session.user.role === 'ACCOUNTANT' && (session.user as any).accountantId) {
-    businessFilter.accountantId = (session.user as any).accountantId
-  }
   if (search) {
     businessFilter.OR = [
       { onomasia: { contains: search, mode: 'insensitive' } },
