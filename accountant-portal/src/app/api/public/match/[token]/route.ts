@@ -51,5 +51,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       eligibilityQuestions: program.eligibilityQuestions,
     },
     autoConfirmedReasons: match?.matchReason || [],
+    chatLog: matchToken.chatLog || [],
+    caseAssigned: Boolean(matchToken.caseCreatedId),
   })
 }

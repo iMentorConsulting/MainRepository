@@ -1,0 +1,215 @@
+// Conversational eligibility + intake agent ("Ερμής") for the public
+// business-facing match page (/match/[token]). Replaces the old stateless
+// Ναι/Όχι questionnaire with a real per-turn LLM conversation: smart but
+// laconic, scoped to one business+program, with one tool to hand the case
+// off to case management once eligibility looks confirmed.
+import Anthropic from '@anthropic-ai/sdk'
+import { prisma } from './prisma'
+import { sendEmail } from './email'
+import { notifyCaseManagement } from './case-management-sync'
+
+const MAX_RESPONSE_TOKENS = 1_000
+
+export interface ChatMessage {
+  role: 'user' | 'assistant'
+  text: string
+}
+
+const IMENTOR_BASICS = `Η I-MENTOR είναι σύμβουλος επιχειρήσεων που υποστηρίζει ελληνικές επιχειρήσεις στην ένταξη και υλοβολή προγραμμάτων ΕΣΠΑ/ΔΥΠΑ: σύνταξη φακέλου υποβολής, παρακολούθηση της αίτησης, και υποστήριξη μέχρι την εκταμίευση. Η επιχείρηση συνήθως εξυπηρετείται μέσω του λογιστικού γραφείου της (αν έχει συνεργασία με την I-MENTOR) ή απευθείας από σύμβουλο της I-MENTOR.`
+
+const TOOL_SCHEMA = {
+  name: 'assign_case',
+  description: 'Καλείται ΜΟΝΟ όταν έχεις κάνει τον βασικό έλεγχο επιλεξιμότητας, η επιχείρηση φαίνεται επιλέξιμη (ή θέλει να προχωρήσει παρά τις επιφυλάξεις) ΚΑΙ έχει ζητήσει να προχωρήσει/ενδιαφέρεται να αναλάβει η I-MENTOR την υπόθεση. Δημιουργεί υπόθεση στο case management και αναθέτει σε σύμβουλο.',
+  input_schema: {
+    type: 'object' as const,
+    properties: {
+      summary: { type: 'string', description: 'Σύντομη περίληψη (1-2 προτάσεις, ελληνικά) της συνομιλίας: τι ελέγχθηκε, αν φαίνεται επιλέξιμη η επιχείρηση, οποιαδήποτε επιφύλαξη.' },
+    },
+    required: ['summary'],
+  },
+}
+
+function buildSystemPrompt(program: {
+  title: string
+  description: string | null
+  minInvestment: number | null
+  maxInvestment: number | null
+  minSubsidyPct: number | null
+  maxSubsidyPct: number | null
+  subsidyNote: string | null
+  minInterestRate: number | null
+  maxInterestRate: number | null
+  otherRequirements: string | null
+  pricingNote: string | null
+}, businessName: string, autoConfirmedReasons: string[]) {
+  return `Είσαι ο "Ερμής", ο ψηφιακός σύμβουλος επιλεξιμότητας της I-MENTOR. Μιλάς απευθείας με τον ιδιοκτήτη της επιχείρησης "${businessName}" σχετικά με ΕΝΑ συγκεκριμένο πρόγραμμα. Μίλα φυσικά, στα ελληνικά, σαν να μιλάει κανείς με το Claude — αλλά ΕΞΥΠΝΑ ΚΑΙ ΛΑΚΩΝΙΚΑ: σύντομες απαντήσεις (1-4 προτάσεις συνήθως), ΧΩΡΙΣ πλατειασμό, χωρίς να επαναλαμβάνεις πράγματα που ήδη ειπώθηκαν.
+
+ΓΙΑ ΤΗΝ I-MENTOR:
+${IMENTOR_BASICS}
+
+ΣΤΟΙΧΕΙΑ ΠΡΟΓΡΑΜΜΑΤΟΣ "${program.title}":
+${program.description || '(χωρίς περιγραφή)'}
+${program.minInvestment || program.maxInvestment ? `Επένδυση: ${program.minInvestment ?? '?'}–${program.maxInvestment ?? '?'}€` : ''}
+${program.minSubsidyPct || program.maxSubsidyPct ? `Ποσοστό επιχορήγησης: ${program.minSubsidyPct ?? '?'}–${program.maxSubsidyPct ?? '?'}%${program.subsidyNote ? ` (${program.subsidyNote})` : ''}` : ''}
+${program.minInterestRate || program.maxInterestRate ? `Επιτόκιο: ${program.minInterestRate ?? '?'}–${program.maxInterestRate ?? '?'}%` : ''}
+Λοιπές προϋποθέσεις/όροι: ${program.otherRequirements || '(καμία επιπλέον)'}
+
+ΗΔΗ ΕΠΙΒΕΒΑΙΩΜΕΝΑ (ΜΗΝ τα ξαναρωτήσεις): ${autoConfirmedReasons.length ? autoConfirmedReasons.join('· ') : '(τίποτα ακόμη)'}
+
+ΚΟΣΤΟΣ (ΕΣΩΤΕΡΙΚΗ ΠΛΗΡΟΦΟΡΙΑ, πες το ΜΟΝΟ αν ρωτηθείς ή όταν είναι φυσικό στο τέλος): ${program.pricingNote || 'Δεν υπάρχει σταθερή τιμή για αυτό το πρόγραμμα· πες ότι το κόστος εξαρτάται από την υπηρεσία και ότι ο σύμβουλος θα δώσει ακριβή προσφορά.'}
+
+ΣΚΟΠΟΣ ΣΟΥ, με αυτή σειρά:
+1. Κάνε τον βασικό έλεγχο επιλεξιμότητας — ρώτα ΜΟΝΟ ό,τι λείπει από τα "ήδη επιβεβαιωμένα" και είναι κρίσιμο, ΜΙΑ ερώτηση τη φορά, όχι λίστα ερωτήσεων μαζί.
+2. Ενημέρωσε περίπου για το κόστος όταν ζητηθεί ή αφού κλείσει ο έλεγχος επιλεξιμότητας.
+3. Αν η επιχείρηση φαίνεται επιλέξιμη ΚΑΙ θέλει να προχωρήσει, κάλεσε το εργαλείο "assign_case" για να αναλάβει σύμβουλος της I-MENTOR την υπόθεση. Μην το καλέσεις πρόωρα, πριν κάνεις τον βασικό έλεγχο.
+4. Αν δεν φαίνεται επιλέξιμη, πες το ευθέως και ευγενικά, χωρίς να καλέσεις το εργαλείο.
+
+Μην κάνεις ποτέ νομικές δεσμευτικές διαβεβαιώσεις — η τελική έγκριση είναι πάντα του φορέα διαχείρισης του προγράμματος.`
+}
+
+async function createPublicClientCase(params: {
+  businessId: string
+  programId: string
+  programTitle: string
+  businessName: string
+  summary: string
+}) {
+  const business = await prisma.business.findUnique({
+    where: { id: params.businessId },
+    select: { id: true, accountantId: true, onomasia: true, afm: true, phone: true, email: true },
+  })
+  if (!business) throw new Error('Δεν βρέθηκε η επιχείρηση')
+
+  const adminUser = await prisma.user.findFirst({ where: { role: 'ADMIN' }, select: { id: true } })
+  if (!adminUser) throw new Error('Δεν βρέθηκε χρήστης ADMIN για createdById')
+
+  const clientCase = await prisma.clientCase.create({
+    data: {
+      accountantId: business.accountantId || null,
+      businessId: params.businessId,
+      programId: params.programId,
+      requestType: 'APPLICATION_SUPPORT',
+      title: `${business.onomasia || business.afm} — ${params.programTitle}`,
+      description: params.summary,
+      priority: 'NORMAL',
+      status: 'NEW',
+      createdById: adminUser.id,
+      activities: {
+        create: {
+          type: 'CREATED',
+          body: `Η υπόθεση δημιουργήθηκε αυτόματα από τον Ερμής (chat): ${params.summary}`,
+          authorId: adminUser.id,
+          authorName: 'Ερμής (AI)',
+          authorRole: 'ADMIN',
+        },
+      },
+    },
+    include: { accountant: { select: { officeName: true } } },
+  })
+
+  try {
+    await sendEmail({
+      to: process.env.ADMIN_EMAIL || 'info@i-mentor.gr',
+      subject: `🗂️ Νέα Υπόθεση #${clientCase.caseNumber} από Ερμής — ${business.onomasia || business.afm}`,
+      html: `<p>Ο Ερμής δημιούργησε νέα υπόθεση μετά από συνομιλία με τον πελάτη <strong>${business.onomasia || business.afm}</strong> για το πρόγραμμα <strong>${params.programTitle}</strong>:</p>
+        <blockquote style="border-left:4px solid #4f46e5;padding-left:12px;color:#374151">${params.summary}</blockquote>
+        <p><a href="${process.env.APP_URL || 'https://logistis.i-mentor.gr'}/cases/${clientCase.id}">Δείτε την υπόθεση →</a></p>`,
+    })
+  } catch {}
+
+  notifyCaseManagement({
+    caseNumber: clientCase.caseNumber,
+    afm: business.afm,
+    onomasia: business.onomasia,
+    phone: business.phone || null,
+    email: business.email || null,
+    accountantOffice: clientCase.accountant?.officeName || null,
+    caseType: clientCase.caseType,
+    description: clientCase.description,
+    priority: clientCase.priority,
+    programTitle: params.programTitle,
+  }).catch(err => console.error('[CaseManagement] notify failed:', err?.message))
+
+  return clientCase.id
+}
+
+export async function runErmisTurn(params: {
+  businessId: string
+  programId: string
+  businessName: string
+  program: {
+    title: string
+    description: string | null
+    minInvestment: number | null
+    maxInvestment: number | null
+    minSubsidyPct: number | null
+    maxSubsidyPct: number | null
+    subsidyNote: string | null
+    minInterestRate: number | null
+    maxInterestRate: number | null
+    otherRequirements: string | null
+    pricingNote: string | null
+  }
+  autoConfirmedReasons: string[]
+  history: ChatMessage[]
+  alreadyAssigned: boolean
+}): Promise<{ reply: string; caseId: string | null }> {
+  const apiKey = process.env.ANTHROPIC_API_KEY
+  if (!apiKey) throw new Error('ANTHROPIC_API_KEY δεν έχει οριστεί στο περιβάλλον.')
+
+  const anthropic = new Anthropic({ apiKey })
+  const system = buildSystemPrompt(params.program, params.businessName, params.autoConfirmedReasons)
+
+  const messages: Anthropic.MessageParam[] = params.history.map(m => ({
+    role: m.role,
+    content: m.text,
+  }))
+
+  const tools = params.alreadyAssigned ? undefined : [TOOL_SCHEMA]
+
+  const response = await anthropic.messages.create({
+    model: 'claude-opus-4-8',
+    max_tokens: MAX_RESPONSE_TOKENS,
+    system,
+    thinking: { type: 'adaptive' },
+    ...(tools ? { tools, tool_choice: { type: 'auto' } } : {}),
+    messages,
+  })
+
+  const toolUse = response.content.find(b => b.type === 'tool_use')
+  let caseId: string | null = null
+
+  if (toolUse && toolUse.type === 'tool_use' && toolUse.name === 'assign_case') {
+    const summary = String((toolUse.input as any)?.summary || 'Ο πελάτης φαίνεται επιλέξιμος.')
+    caseId = await createPublicClientCase({
+      businessId: params.businessId,
+      programId: params.programId,
+      programTitle: params.program.title,
+      businessName: params.businessName,
+      summary,
+    })
+
+    const followUp = await anthropic.messages.create({
+      model: 'claude-opus-4-8',
+      max_tokens: MAX_RESPONSE_TOKENS,
+      system,
+      messages: [
+        ...messages,
+        { role: 'assistant', content: response.content },
+        {
+          role: 'user',
+          content: [{
+            type: 'tool_result',
+            tool_use_id: toolUse.id,
+            content: 'Η υπόθεση καταχωρήθηκε επιτυχώς στο case management.',
+          }],
+        },
+      ],
+    })
+    const text = followUp.content.find(b => b.type === 'text')
+    return { reply: text && text.type === 'text' ? text.text : 'Η υπόθεσή σας καταχωρήθηκε — ένας σύμβουλος της I-MENTOR θα επικοινωνήσει μαζί σας σύντομα.', caseId }
+  }
+
+  const text = response.content.find(b => b.type === 'text')
+  return { reply: text && text.type === 'text' ? text.text : 'Μπορείτε να επαναλάβετε;', caseId: null }
+}

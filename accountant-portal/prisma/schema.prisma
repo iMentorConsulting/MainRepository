@@ -162,6 +162,12 @@ model BusinessMatchToken {
   expiresAt  DateTime
   usedAt     DateTime?
   createdAt  DateTime  @default(now())
+  // Array of { role: 'user' | 'assistant', text: string } — full transcript
+  // of the Ερμής conversational eligibility chat for this business+program.
+  chatLog        Json?
+  // Set once Ερμής has called the case-assignment tool, so the conversation
+  // doesn't create a duplicate ClientCase on later turns.
+  caseCreatedId  String?
 
   @@unique([businessId, programId])
 }
@@ -190,6 +196,10 @@ model Program {
   // Free-text comment on the subsidy %, e.g. bonus/penalty conditions that
   // don't fit the plain min/max range (rendered alongside the percentage).
   subsidyNote        String?
+  // Free-text note for Ερμής on the approximate I-MENTOR cost of handling this
+  // program (e.g. "Αμοιβή σύνταξης φακέλου: 800-1500€ + 5% επί εγκριθέντος
+  // προϋπολογισμού"). Shown only to the chat agent, never on the public page.
+  pricingNote        String?
   minInterestRate    Float?
   maxInterestRate    Float?
   otherRequirements  String?

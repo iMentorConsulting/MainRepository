@@ -2,17 +2,16 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { Sparkles } from 'lucide-react'
-import { EligibilityChecker } from '@/components/programs/eligibility-checker'
-import { ProgramPitchInfo, ProgramQualitativeCriteria, QuestionOverrides } from '@/lib/eligibility-questions'
+import { ErmisChat, ErmisChatMessage } from '@/components/programs/ermis-chat'
 
-type PublicProgram = { title: string; description: string | null; eligibilityQuestions: QuestionOverrides | null }
-  & ProgramPitchInfo & ProgramQualitativeCriteria
+type PublicProgram = { title: string; description: string | null }
 
 export default function PublicMatchPage() {
   const { token } = useParams<{ token: string }>()
   const [business, setBusiness] = useState<{ name: string } | null>(null)
   const [program, setProgram] = useState<PublicProgram | null>(null)
-  const [autoConfirmedReasons, setAutoConfirmedReasons] = useState<string[]>([])
+  const [chatLog, setChatLog] = useState<ErmisChatMessage[]>([])
+  const [caseAssigned, setCaseAssigned] = useState(false)
   const [error, setError] = useState('')
 
   useEffect(() => {
@@ -22,7 +21,8 @@ export default function PublicMatchPage() {
         if (!r.ok) { setError(data.error || 'Σφάλμα'); return }
         setBusiness(data.business)
         setProgram(data.program)
-        setAutoConfirmedReasons(data.autoConfirmedReasons || [])
+        setChatLog(data.chatLog || [])
+        setCaseAssigned(Boolean(data.caseAssigned))
       })
       .catch(() => setError('Σφάλμα φόρτωσης'))
   }, [token])
@@ -35,7 +35,7 @@ export default function PublicMatchPage() {
             <Sparkles size={24} />
           </div>
           <h1 className="text-lg font-bold text-slate-900 mb-1">Ερμής</h1>
-          <p className="text-sm text-slate-500">Ο ψηφιακός σύμβουλος επιλεξιμότητας του I-MENTOR</p>
+          <p className="text-sm text-slate-500">Ο ψηφιακός σύμβουλος επιλεξιμότητας της I-MENTOR</p>
         </div>
 
         {error ? (
@@ -43,16 +43,12 @@ export default function PublicMatchPage() {
         ) : !program ? (
           <p className="text-sm text-slate-400 text-center">Φόρτωση...</p>
         ) : (
-          <>
-            <p className="text-sm text-slate-700 mb-4 text-center">
-              Γεια σου{business ? ` ${business.name}` : ''}!
-            </p>
-            <EligibilityChecker
-              program={program}
-              autoConfirmedReasons={autoConfirmedReasons}
-              overrides={program.eligibilityQuestions || {}}
-            />
-          </>
+          <ErmisChat
+            token={token}
+            initialMessages={chatLog}
+            initialCaseAssigned={caseAssigned}
+            greeting={`Γεια σου${business ? ` ${business.name}` : ''}! Είμαι ο Ερμής. Ας δούμε αν ταιριάζετε στο πρόγραμμα «${program.title}» — πες μου λίγα λόγια για την επιχείρησή σου ή ρώτα με ό,τι θέλεις.`}
+          />
         )}
       </div>
     </div>

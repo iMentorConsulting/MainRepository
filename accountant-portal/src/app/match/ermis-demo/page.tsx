@@ -65,7 +65,7 @@ export default function ErmisDemoPage() {
             <Sparkles size={24} />
           </div>
           <h1 className="text-lg font-bold text-slate-900 mb-1">Ερμής</h1>
-          <p className="text-sm text-slate-500">Ο ψηφιακός σύμβουλος επιλεξιμότητας του I-MENTOR</p>
+          <p className="text-sm text-slate-500">Ο ψηφιακός σύμβουλος επιλεξιμότητας της I-MENTOR</p>
         </div>
         <p className="text-sm text-slate-700 mb-4 text-center">Γεια σου ΔΟΚΙΜΗ ΑΕ!</p>
         <EligibilityChecker
