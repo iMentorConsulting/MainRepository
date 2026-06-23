@@ -115,6 +115,7 @@ export async function POST(request: NextRequest) {
               accountantOfficeName: business.accountant?.officeName || '',
               accountantLogoUrl: business.accountant?.logoUrl || '',
               unsubscribeUrl: variables.unsubscribe_link,
+              ermisLink: variables.ermis_link,
             }),
           })
           emailSent = emailOk

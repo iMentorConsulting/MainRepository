@@ -117,6 +117,7 @@ interface CampaignEmailOptions {
   accountantOfficeName?: string
   accountantLogoUrl?: string
   unsubscribeUrl?: string
+  ermisLink?: string
 }
 
 // Renders a polished, branded HTML email: a dark blue header banner with the
@@ -132,6 +133,7 @@ export function renderCampaignEmailHtml(options: CampaignEmailOptions): string {
     accountantOfficeName,
     accountantLogoUrl,
     unsubscribeUrl,
+    ermisLink,
   } = options
 
   const paragraphs = bodyText
@@ -143,6 +145,8 @@ export function renderCampaignEmailHtml(options: CampaignEmailOptions): string {
     // Drop a leading greeting line ("Γειά σας, ..." or "Αγαπητοί συνεργάτες της ...") —
     // the wrapper already renders "Αγαπητέ/ή ..."
     .replace(/^\s*(Γειά σας|Αγαπητο[ίοι] συνεργάτ[ηε]ς?)[^\n]*\n+/, '')
+    // The Ερμής line is rendered separately as a styled CTA button below
+    .replace(/^.*Μάθετε αμέσως.*Ερμή:.*$\n*/m, '')
     .split(/\n{2,}/)
     .map(block => block.trim())
     .filter(Boolean)
@@ -172,6 +176,16 @@ export function renderCampaignEmailHtml(options: CampaignEmailOptions): string {
         ? `<span style="color:#cbd5e1;font-size:14px;font-weight:600;">${accountantOfficeName}</span>`
         : '')
 
+  const ermisButton = ermisLink
+    ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:4px 0 20px;">
+        <tr><td align="center">
+          <a href="${ermisLink}" target="_blank" style="display:inline-block;background:linear-gradient(135deg,#4f46e5,#7c3aed);color:#ffffff;font-size:14px;font-weight:700;text-decoration:none;padding:13px 28px;border-radius:10px;box-shadow:0 2px 6px rgba(79,70,229,.35);">
+            💬 Μίλα με τον Ερμή — μάθε αν είσαι επιλέξιμος
+          </a>
+        </td></tr>
+      </table>`
+    : ''
+
   const unsubscribeRow = unsubscribeUrl
     ? `<p style="margin:12px 0 0;color:#94a3b8;font-size:11px;">
         Δεν επιθυμείτε να λαμβάνετε ενημερώσεις σαν κι αυτή; <a href="${unsubscribeUrl}" style="color:#64748b;text-decoration:underline;">Κάντε απεγγραφή εδώ</a>.
@@ -196,6 +210,8 @@ export function renderCampaignEmailHtml(options: CampaignEmailOptions): string {
           <p style="margin:0 0 18px;color:#0f172a;font-size:16px;font-weight:700;">Αγαπητέ/ή ${recipientName},</p>
           ${paragraphs}
         </td></tr>
+
+        ${ermisButton ? `<tr><td style="padding:0 28px 8px;">${ermisButton}</td></tr>` : ''}
 
         <tr><td style="padding:0 28px 28px;">
           <table width="100%" cellpadding="0" cellspacing="0" style="border-top:1px solid #e2e8f0;padding-top:18px;">

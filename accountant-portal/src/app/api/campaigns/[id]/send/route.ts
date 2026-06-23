@@ -104,6 +104,7 @@ async function processCampaignSend(
             accountantOfficeName: business.accountant?.officeName || '',
             accountantLogoUrl: business.accountant?.logoUrl || '',
             unsubscribeUrl: variables.unsubscribe_link,
+            ermisLink: variables.ermis_link,
           }),
         })
         if (emailOk) success = true
