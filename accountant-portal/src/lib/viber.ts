@@ -27,6 +27,14 @@ async function fetchJson(url: string, init: RequestInit): Promise<{ status: numb
   return { status: res.status, body, text }
 }
 
+// Viber clients auto-linkify any run of 6+ digits (KAD codes, AFM, etc.),
+// rendering them as blue/underlined tappable text that looks like a stray
+// link. Breaking the run with invisible zero-width spaces keeps the digits
+// readable but stops the auto-linker from matching.
+function deLinkifyDigitRuns(text: string): string {
+  return text.replace(/\d{6,}/g, digits => digits.split('').join('​'))
+}
+
 async function chatwootSend(clientName: string, phone: string, message: string): Promise<{ ok: boolean; reason: string }> {
   const cwUrl = (process.env.CHATWOOT_URL || '').trim().replace(/\/$/, '')
   const cwToken = (process.env.CHATWOOT_API_TOKEN || '').trim()
@@ -152,7 +160,7 @@ async function chatwootSend(clientName: string, phone: string, message: string):
     const r = await fetchJson(`${base}/conversations/${convId}/messages`, {
       method: 'POST',
       headers,
-      body: JSON.stringify({ content: message, message_type: 'outgoing', private: false }),
+      body: JSON.stringify({ content: deLinkifyDigitRuns(message), message_type: 'outgoing', private: false }),
     })
     // Full body, not just status — Chatwoot reports per-channel delivery
     // problems (e.g. Infobip rejecting the send) via fields on the message

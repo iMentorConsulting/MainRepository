@@ -25,12 +25,32 @@ function withErmisLink(body: string): string {
   return body.replace('{{unsubscribe_link}}', `${ermisLine}${separator}{{unsubscribe_link}}`)
 }
 
+// Viber templates were redesigned (bold section headers, ─── separators, no
+// 👋 wave, no unsubscribe link). Old rows seeded before the redesign still
+// carry the previous layout — detect and overwrite them in place so saved
+// DB copies match the new hardcoded versions. Idempotent: a row already on
+// the new design has neither marker below, so it's left untouched.
+function needsViberRedesign(body: string): boolean {
+  return body.includes('👋') || body.includes('{{unsubscribe_link}}')
+}
+
 // Ensures the DB has an editable copy of every static template. Safe to call
-// repeatedly — inserts templates that don't exist yet, and retrofits the
-// {{ermis_link}} placeholder into older rows that predate it.
+// repeatedly — inserts templates that don't exist yet, retrofits the
+// {{ermis_link}} placeholder into older rows that predate it, and resyncs
+// Viber rows still on the pre-redesign layout.
 export async function ensureTemplatesSeeded() {
   const existing = await prisma.messageTemplate.findMany({ select: { id: true, channel: true, templateKey: true, bodyWithAccountant: true, bodyDirect: true } })
   const existingKeys = new Set(existing.map(e => `${e.channel}:${e.templateKey}`))
+
+  for (const t of VIBER_CAMPAIGN_TEMPLATES) {
+    const row = existing.find(e => e.channel === 'VIBER' && e.templateKey === t.id)
+    if (row && (needsViberRedesign(row.bodyWithAccountant) || needsViberRedesign(row.bodyDirect))) {
+      await prisma.messageTemplate.update({
+        where: { id: row.id },
+        data: { subject: t.subject, description: t.description, bodyWithAccountant: t.bodyWithAccountant, bodyDirect: t.bodyDirect },
+      })
+    }
+  }
 
   for (const row of existing) {
     const newWithAccountant = withErmisLink(row.bodyWithAccountant)
