@@ -430,6 +430,46 @@ def preview_sheet(
     }
 
 
+@router.get("/diagnose-skipped")
+def diagnose_skipped_rows(
+    service_type: Optional[str] = None,
+    current_user: CMUser = Depends(get_current_user),
+):
+    """Diagnostic: list sheet rows that are silently dropped during import because
+    their ΚΑΤΑΣΤΑΣΗ (status) text doesn't match any recognized old or current
+    pipeline status. Optionally filter by ΕΙΔΟΣ ΥΠΗΡΕΣΙΑΣ (service_type)."""
+    rows = _read_sheet_rows()
+    valid_import_statuses = (
+        set(OLD_STATUS_MAP.keys())
+        | set(get_all_statuses_for_program('ΕΣΠΑ'))
+        | set(get_all_statuses_for_program('ΔΥΠΑ'))
+        | set(get_all_statuses_for_program('ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ'))
+    )
+    skipped = []
+    for i, row in enumerate(rows):
+        if i == 0:
+            continue
+        while len(row) < 26:
+            row.append("")
+        client_name = str(row[COL_MAP["client_name"]]).strip()
+        if not client_name:
+            continue
+        st = str(row[COL_MAP["service_type"]]).strip()
+        if service_type and st != service_type:
+            continue
+        status = str(row[COL_MAP["status"]]).strip()
+        if status in valid_import_statuses:
+            continue
+        skipped.append({
+            "row_number": i + 1,
+            "client_name": client_name,
+            "raw_status": status,
+            "service_type": st or None,
+            "afm": str(row[COL_MAP["afm"]]).strip() or None,
+        })
+    return {"count": len(skipped), "rows": skipped}
+
+
 @router.post("/import")
 def import_from_sheet(
     current_user: CMUser = Depends(get_current_user),

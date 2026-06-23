@@ -14,7 +14,7 @@ import {
   BoltIcon,
 } from '@heroicons/react/24/outline'
 import toast from 'react-hot-toast'
-import { previewSheet, importFromSheet, syncPaidFromSheet, syncAgentsFromSheet, getServiceTypes, assignPrograms, syncInvestmentFromSheet, syncSaleDatesFromSheet, getAutoRefreshStatus, previewAnakainizwSheet, importAnakainizwSheet, getAnakainizwHeaders, getFinanceSyncStatus, previewFinanceSync, runFinanceSync, undoFinanceSync, getFinanceSyncServiceTypes, updateFinanceSyncServiceTypes } from '../api'
+import { previewSheet, importFromSheet, syncPaidFromSheet, syncAgentsFromSheet, getServiceTypes, assignPrograms, syncInvestmentFromSheet, syncSaleDatesFromSheet, getAutoRefreshStatus, previewAnakainizwSheet, importAnakainizwSheet, getAnakainizwHeaders, getFinanceSyncStatus, previewFinanceSync, runFinanceSync, undoFinanceSync, getFinanceSyncServiceTypes, updateFinanceSyncServiceTypes, diagnoseSkippedSheetRows } from '../api'
 
 const PREVIEW_COLUMNS = [
   { key: 'client_name', label: 'Πελάτης' },
@@ -210,6 +210,26 @@ export default function Import() {
   const [loadingSync, setLoadingSync] = useState(false)
   const [syncResult, setSyncResult] = useState(null)
   const [syncError, setSyncError] = useState(null)
+
+  // Diagnose-skipped state
+  const [diagServiceType, setDiagServiceType] = useState('')
+  const [loadingDiag, setLoadingDiag] = useState(false)
+  const [diagResult, setDiagResult] = useState(null)
+  const [diagError, setDiagError] = useState(null)
+
+  const handleDiagnoseSkipped = async () => {
+    setLoadingDiag(true)
+    setDiagResult(null)
+    setDiagError(null)
+    try {
+      const data = await diagnoseSkippedSheetRows(diagServiceType.trim() || null)
+      setDiagResult(data)
+    } catch (err) {
+      setDiagError(err.response?.data?.detail || 'Σφάλμα ελέγχου')
+    } finally {
+      setLoadingDiag(false)
+    }
+  }
 
   const [loadingAgents, setLoadingAgents] = useState(false)
   const [agentsResult, setAgentsResult] = useState(null)
@@ -820,6 +840,70 @@ export default function Import() {
             </div>
             <div className="h-40 bg-gray-100 rounded-lg animate-pulse" />
           </div>
+        )}
+      </div>
+
+      {/* Diagnose skipped rows */}
+      <div className="bg-white rounded-xl border p-5 space-y-4">
+        <div>
+          <h2 className="text-base font-semibold text-gray-800">Έλεγχος Παραλειπόμενων Εγγραφών (Sheet)</h2>
+          <p className="text-xs text-gray-500 mt-1">
+            Γραμμές του Sheet με ΚΑΤΑΣΤΑΣΗ που δεν αναγνωρίζεται από το σύστημα παραλείπονται σιωπηλά
+            κατά την εισαγωγή. Χρησιμοποιήστε αυτό για να εντοπίσετε ποιες υποθέσεις λείπουν και γιατί.
+          </p>
+        </div>
+        <div className="flex gap-2 items-center">
+          <input
+            type="text"
+            placeholder="Φιλτράρισμα κατά Είδος Υπηρεσίας (προαιρετικό), π.χ. ΠΡΑΣΙΝΗ ΠΑΡΑΓΩΓΙΚΗ ΕΠΕΝΔΥΣΗ"
+            value={diagServiceType}
+            onChange={e => setDiagServiceType(e.target.value)}
+            className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm"
+          />
+          <button
+            onClick={handleDiagnoseSkipped}
+            disabled={loadingDiag}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-300 bg-white text-gray-700 text-sm font-medium hover:bg-gray-50 disabled:opacity-50 transition-colors"
+          >
+            {loadingDiag ? <Spinner color="blue" /> : <DocumentArrowDownIcon className="w-4 h-4" />}
+            {loadingDiag ? 'Έλεγχος...' : 'Έλεγχος'}
+          </button>
+        </div>
+
+        <ResultBanner result={diagError} type="error" />
+
+        {diagResult && (
+          diagResult.count === 0 ? (
+            <div className="flex items-center gap-2 text-sm text-gray-500 bg-gray-50 border rounded-lg px-4 py-3">
+              <CheckCircleIcon className="w-5 h-5 text-green-500 flex-shrink-0" />
+              Καμία γραμμή με μη αναγνωρισμένη κατάσταση{diagServiceType ? ` για "${diagServiceType}"` : ''}.
+            </div>
+          ) : (
+            <div className="overflow-x-auto rounded-lg border">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 border-b">
+                  <tr>
+                    <th className="text-left px-3 py-2 text-xs font-semibold text-gray-500">Γραμμή</th>
+                    <th className="text-left px-3 py-2 text-xs font-semibold text-gray-500">Επωνυμία</th>
+                    <th className="text-left px-3 py-2 text-xs font-semibold text-gray-500">ΑΦΜ</th>
+                    <th className="text-left px-3 py-2 text-xs font-semibold text-gray-500">Είδος Υπηρεσίας</th>
+                    <th className="text-left px-3 py-2 text-xs font-semibold text-gray-500">Άγνωστη Κατάσταση (raw)</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {diagResult.rows.map((row, i) => (
+                    <tr key={i}>
+                      <td className="px-3 py-2 text-gray-500">{row.row_number}</td>
+                      <td className="px-3 py-2 font-medium text-gray-800">{row.client_name}</td>
+                      <td className="px-3 py-2 text-gray-500">{row.afm || '—'}</td>
+                      <td className="px-3 py-2 text-gray-600">{row.service_type || '—'}</td>
+                      <td className="px-3 py-2 text-red-600 font-mono">{row.raw_status || '(κενό)'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )
         )}
       </div>
 

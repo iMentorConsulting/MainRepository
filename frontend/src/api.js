@@ -99,6 +99,8 @@ export const syncPaidFromSheet = () => api.post('/api/cm/sheets/sync-paid').then
 export const syncAgentsFromSheet = () =>
   api.post('/api/cm/sheets/sync-agents').then(r => r.data)
 export const getServiceTypes = () => api.get('/api/cm/sheets/service-types').then(r => r.data)
+export const diagnoseSkippedSheetRows = (serviceType) =>
+  api.get('/api/cm/sheets/diagnose-skipped', { params: serviceType ? { service_type: serviceType } : {} }).then(r => r.data)
 export const assignPrograms = (assignments) =>
   api.post('/api/cm/sheets/assign-programs', { assignments }).then(r => r.data)
 export const syncInvestmentFromSheet = () => api.post('/api/cm/sheets/sync-investment').then(r => r.data)
