@@ -59,9 +59,12 @@ export async function ensureTemplatesSeeded() {
     }
   }
 
+  const oldErmisLine = 'Μάθετε αμέσως αν είστε επιλέξιμοι μιλώντας με τον ψηφιακό μας σύμβουλο, τον Ερμή: {{ermis_link}}'
+  const newErmisLine = 'Μίλα τώρα με τον Ερμή, τον ψηφιακό σύμβουλο που κάνει τον έλεγχο επιλεξιμότητας σε δευτερόλεπτα: {{ermis_link}}'
+
   for (const row of existing) {
-    const newWithAccountant = withErmisLink(row.bodyWithAccountant)
-    const newDirect = withErmisLink(row.bodyDirect)
+    let newWithAccountant = withErmisLink(row.bodyWithAccountant).replace(oldErmisLine, newErmisLine)
+    let newDirect = withErmisLink(row.bodyDirect).replace(oldErmisLine, newErmisLine)
     if (newWithAccountant !== row.bodyWithAccountant || newDirect !== row.bodyDirect) {
       await prisma.messageTemplate.update({
         where: { id: row.id },

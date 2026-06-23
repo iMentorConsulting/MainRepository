@@ -183,7 +183,7 @@ export function renderCampaignEmailHtml(options: CampaignEmailOptions): string {
     ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:4px 0 20px;">
         <tr><td align="center">
           <a href="${ermisLink}" target="_blank" style="display:inline-block;background:linear-gradient(135deg,#4f46e5,#7c3aed);color:#ffffff;font-size:14px;font-weight:700;text-decoration:none;padding:13px 28px;border-radius:10px;box-shadow:0 2px 6px rgba(79,70,229,.35);">
-            💬 Μίλα με τον Ερμή — μάθε αν είσαι επιλέξιμος
+            🤖 Μίλα τώρα με τον Ερμή, τον ψηφιακό σύμβουλο που κάνει τον έλεγχο επιλεξιμότητας σε δευτερόλεπτα
           </a>
         </td></tr>
       </table>`
