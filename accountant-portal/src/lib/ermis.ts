@@ -8,7 +8,7 @@ export async function getOrCreateErmisLink(businessId: string, programId: string
     where: { businessId_programId: { businessId, programId } },
   })
   if (existing && existing.expiresAt > new Date()) {
-    return `${baseUrl}/match/${existing.token}`
+    return `${baseUrl}/e/${existing.token}`
   }
   const expiresAt = new Date(Date.now() + TOKEN_TTL_DAYS * 24 * 60 * 60 * 1000)
   const token = await prisma.businessMatchToken.upsert({
@@ -16,5 +16,5 @@ export async function getOrCreateErmisLink(businessId: string, programId: string
     create: { businessId, programId, expiresAt },
     update: { expiresAt },
   })
-  return `${baseUrl}/match/${token.token}`
+  return `${baseUrl}/e/${token.token}`
 }

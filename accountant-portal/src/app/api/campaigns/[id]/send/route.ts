@@ -22,7 +22,7 @@ async function processCampaignSend(
   const extraCriteriaList = extraCriteriaIds.length
     ? await prisma.eligibilityCriterion.findMany({ where: { id: { in: extraCriteriaIds } }, select: { label: true } })
     : []
-  const extraCriteriaText = extraCriteriaList.map(c => c.label).join('\n')
+  const extraCriteriaText = extraCriteriaList.map(c => `• ${c.label}`).join('\n')
   const programDeadlineText = campaign.program?.endDate
     ? new Date(campaign.program.endDate).toLocaleDateString('el-GR', { day: '2-digit', month: '2-digit', year: 'numeric' })
     : ''

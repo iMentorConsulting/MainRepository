@@ -169,6 +169,42 @@ export const VIBER_CAMPAIGN_TEMPLATES: ViberCampaignTemplate[] = [
 {{unsubscribe_link}}`
   },
   {
+    id: 'viber-generic-match',
+    label: 'Ενημέρωση Επιλεξιμότητας (Γενικό)',
+    description: 'Γενικό μήνυμα Viber για οποιοδήποτε πρόγραμμα — εμφανίζει τους λόγους αντιστοίχισης, τυχόν πρόσθετα κριτήρια και την προθεσμία, με σύνδεσμο προς τον Ερμή.',
+    subject: '{{accountant_office}} & I-MENTOR: Επιλέξιμοι για το «{{program_title}}»',
+    bodyWithAccountant:
+`Γειά σας, *{{business_name}}* 👋
+
+Σας γράφουμε από κοινού με το *{{accountant_office}}* και την *I-MENTOR*.
+
+Ενδέχεται να είστε *επιλέξιμοι* για το πρόγραμμα «*{{program_title}}*»:
+
+{{match_reason}}
+{{extra_criteria}}
+📅 Προθεσμία: *{{program_deadline}}*
+
+💬 Μάθετε αμέσως αν είστε επιλέξιμοι μιλώντας με τον Ερμή: {{ermis_link}}
+
+— {{accountant_office}} & I-MENTOR
+{{unsubscribe_link}}`,
+    bodyDirect:
+`Γειά σας, *{{business_name}}* 👋
+
+Σας γράφει η ομάδα της *I-MENTOR*.
+
+Ενδέχεται να είστε *επιλέξιμοι* για το πρόγραμμα «*{{program_title}}*»:
+
+{{match_reason}}
+{{extra_criteria}}
+📅 Προθεσμία: *{{program_deadline}}*
+
+💬 Μάθετε αμέσως αν είστε επιλέξιμοι μιλώντας με τον Ερμή: {{ermis_link}}
+
+— Η ομάδα της I-MENTOR
+{{unsubscribe_link}}`
+  },
+  {
     id: 'viber-ksekino-epixeirimatika',
     label: 'ΞΕΚΙΝΩ ΕΠΙΧΕΙΡΗΜΑΤΙΚΑ — Ενημέρωση Επιλεξιμότητας',
     description: 'Σύντομο μήνυμα Viber για το πρόγραμμα «ΞΕΚΙΝΩ ΕΠΙΧΕΙΡΗΜΑΤΙΚΑ»: επιλεξιμότητα βάσει ΚΑΔ/ημερομηνίας έναρξης, πτυχίο ΑΕΙ/ΤΕΙ μετά το 2016 και αυτοτελή έδρα.',

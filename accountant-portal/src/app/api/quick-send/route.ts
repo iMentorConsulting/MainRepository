@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
   const extraCriteriaList = program?.extraCriteriaIds?.length
     ? await prisma.eligibilityCriterion.findMany({ where: { id: { in: program.extraCriteriaIds } }, select: { label: true } })
     : []
-  const extraCriteriaText = extraCriteriaList.map(c => c.label).join('\n')
+  const extraCriteriaText = extraCriteriaList.map(c => `• ${c.label}`).join('\n')
   const programDeadlineText = program?.endDate
     ? new Date(program.endDate).toLocaleDateString('el-GR', { day: '2-digit', month: '2-digit', year: 'numeric' })
     : ''
