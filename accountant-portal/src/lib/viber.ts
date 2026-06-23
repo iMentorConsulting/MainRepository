@@ -154,7 +154,22 @@ async function chatwootSend(clientName: string, phone: string, message: string):
       headers,
       body: JSON.stringify({ content: message, message_type: 'outgoing', private: false }),
     })
-    if (r.status === 200 || r.status === 201) return { ok: true, reason: '' }
+    // Full body, not just status — Chatwoot reports per-channel delivery
+    // problems (e.g. Infobip rejecting the send) via fields on the message
+    // object itself (status/source_id/external_error) even on a 200/201,
+    // since the HTTP call only confirms Chatwoot *accepted* the message into
+    // the conversation, not that the Viber/Infobip channel delivered it.
+    console.log(`[Viber] send_msg HTTP ${r.status} convId=${convId} contactId=${contactId} raw body:`, r.text.slice(0, 2000))
+    if (r.status === 200 || r.status === 201) {
+      const msgStatus = r.body?.status ?? r.body?.message?.status ?? null
+      const sourceId = r.body?.source_id ?? r.body?.message?.source_id ?? null
+      const externalError = r.body?.external_error ?? r.body?.message?.external_error ?? r.body?.content_attributes?.external_error ?? null
+      console.log(`[Viber] message accepted by Chatwoot — status=${msgStatus} source_id=${sourceId} external_error=${externalError ?? '(none)'}`)
+      if (msgStatus === 'failed' || externalError) {
+        return { ok: false, reason: `Chatwoot accepted but channel reported failure — status=${msgStatus} external_error=${externalError}` }
+      }
+      return { ok: true, reason: '' }
+    }
     return { ok: false, reason: `send_msg HTTP ${r.status}: ${r.text.slice(0, 200)}` }
   } catch (e: any) {
     return { ok: false, reason: `send_msg exception: ${e?.message || e}` }
