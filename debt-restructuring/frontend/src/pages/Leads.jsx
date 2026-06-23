@@ -1131,6 +1131,12 @@ function LeadRow({ lead, currentEmployee, expanded, onToggle, onLeadUpdate, temp
     try {
       const res = await api.patchLead(lead.id, fields)
       onLeadUpdate(res.data)
+      // Status changes can make the row vanish instantly (e.g. "Cancelled κρυφά"
+      // hides cancelled leads) — without this toast that looks like the click
+      // silently failed instead of having worked.
+      if (fields.status !== undefined) {
+        toast.success(fields.status ? `Κατάσταση: ${statusCfg(fields.status).label}` : 'Η κατάσταση καθαρίστηκε')
+      }
     } catch { toast.error('Σφάλμα αποθήκευσης') }
   }
 
