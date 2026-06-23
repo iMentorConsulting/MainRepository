@@ -13,6 +13,7 @@ const navItems = [
   { href: '/businesses', label: 'Επιχειρήσεις μου', icon: Building2, adminOnly: false },
   { href: '/programs', label: 'Επιχορηγούμενα Προγράμματα', icon: Zap, adminOnly: false },
   { href: '/matches', label: 'Matches', icon: Target, adminOnly: false },
+  { href: '/ermis-transcripts', label: 'Συζητήσεις με τον Ερμή', icon: MessageSquare, adminOnly: false },
   { href: '/cases', label: 'Αναθέσεις Προγραμμάτων', icon: ClipboardList, adminOnly: false },
   { href: '/exodikastikos', label: 'Αναθέσεις Εξωδικαστικού', icon: Scale, adminOnly: false },
   { href: '/chat', label: 'Επικοινωνία με i-Mentor', icon: MessageSquare, adminOnly: false },
