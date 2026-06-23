@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { Prisma } from '@prisma/client'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 
@@ -20,7 +21,7 @@ export async function GET(request: NextRequest) {
   const caseAssignedFilter = searchParams.get('caseAssigned') || ''
   const skip = (page - 1) * PAGE_SIZE
 
-  const where: any = { chatLog: { not: null } }
+  const where: any = { chatLog: { not: Prisma.DbNull } }
 
   const businessFilter: any = {}
   if (search) {

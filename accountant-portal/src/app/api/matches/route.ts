@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { Prisma } from '@prisma/client'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { categoryWhereClause, ALL_CATEGORIES, BusinessCategory } from '@/lib/business-categories'
@@ -224,7 +225,7 @@ export async function GET(request: NextRequest) {
   const tokensWithChat = matches.length > 0
     ? await prisma.businessMatchToken.findMany({
         where: {
-          NOT: { chatLog: null as any },
+          chatLog: { not: Prisma.DbNull },
           OR: matches.map(m => ({ businessId: m.businessId, programId: m.programId })),
         },
         select: { businessId: true, programId: true },
