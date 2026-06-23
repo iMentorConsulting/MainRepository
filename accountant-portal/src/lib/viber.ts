@@ -30,9 +30,14 @@ async function fetchJson(url: string, init: RequestInit): Promise<{ status: numb
 // Viber clients auto-linkify any run of 6+ digits (KAD codes, AFM, etc.),
 // rendering them as blue/underlined tappable text that looks like a stray
 // link. Breaking the run with invisible zero-width spaces keeps the digits
-// readable but stops the auto-linker from matching.
+// readable but stops the auto-linker from matching. Real links are left
+// untouched — inserting zero-width spaces into a URL (e.g. a digit run in
+// the Ermis token) breaks the link itself.
 function deLinkifyDigitRuns(text: string): string {
-  return text.replace(/\d{6,}/g, digits => digits.split('').join('​'))
+  return text
+    .split(/(https?:\/\/\S+)/g)
+    .map((part, i) => (i % 2 === 1 ? part : part.replace(/\d{6,}/g, digits => digits.split('').join('​'))))
+    .join('')
 }
 
 // Viber's plain-text rendering has no hanging indent, so a "• " bullet only

@@ -14,7 +14,9 @@ export async function getOrCreateErmisLink(businessId: string, programId: string
   const existing = await prisma.businessMatchToken.findUnique({
     where: { businessId_programId: { businessId, programId } },
   })
-  if (existing && existing.expiresAt > new Date()) {
+  // Legacy rows carry a full cuid() token (25 chars) from before short links
+  // existed — swap those in immediately instead of waiting out the TTL.
+  if (existing && existing.expiresAt > new Date() && existing.token.length <= 12) {
     return `${baseUrl}/e/${existing.token}`
   }
   const expiresAt = new Date(Date.now() + TOKEN_TTL_DAYS * 24 * 60 * 60 * 1000)
@@ -23,7 +25,7 @@ export async function getOrCreateErmisLink(businessId: string, programId: string
       const token = await prisma.businessMatchToken.upsert({
         where: { businessId_programId: { businessId, programId } },
         create: { businessId, programId, expiresAt, token: generateShortToken() },
-        update: { expiresAt },
+        update: { expiresAt, token: generateShortToken() },
       })
       return `${baseUrl}/e/${token.token}`
     } catch (error: any) {

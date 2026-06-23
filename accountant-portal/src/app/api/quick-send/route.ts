@@ -46,7 +46,9 @@ export async function POST(request: NextRequest) {
   const extraCriteriaList = program?.extraCriteriaIds?.length
     ? await prisma.eligibilityCriterion.findMany({ where: { id: { in: program.extraCriteriaIds } }, select: { label: true } })
     : []
-  const extraCriteriaText = extraCriteriaList.map(c => `• ${c.label}`).join('\n')
+  const extraCriteriaText = extraCriteriaList.length
+    ? `\n📋 *Πρόσθετες Προϋποθέσεις:*\n${extraCriteriaList.map(c => `• ${c.label}`).join('\n')}`
+    : ''
   const programDeadlineText = program?.endDate
     ? new Date(program.endDate).toLocaleDateString('el-GR', { day: '2-digit', month: '2-digit', year: 'numeric' })
     : ''
@@ -116,6 +118,7 @@ export async function POST(request: NextRequest) {
               accountantLogoUrl: business.accountant?.logoUrl || '',
               unsubscribeUrl: variables.unsubscribe_link,
               ermisLink: variables.ermis_link,
+              programUrl: variables.program_url,
             }),
           })
           emailSent = emailOk

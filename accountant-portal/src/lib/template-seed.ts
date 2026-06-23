@@ -35,9 +35,11 @@ function needsViberRedesign(body: string): boolean {
     || body.includes('{{unsubscribe_link}}')
     || !body.includes('ψηφιακό σύμβουλο που κάνει τον έλεγχο επιλεξιμότητας')
     || !body.includes('*Μίλα τώρα με τον Ερμή*')
-    || !body.includes('i-Mentor.gr')
-    || body.includes('─────────────────────')
+    || body.includes('🤖 *Μίλα τώρα')
+    || body.includes('Αυτοματοποιημένο μήνυμα')
+    || body.includes('ΕΝΗΜΕΡΩΣΗ ΕΠΙΛΕΞΙΜΟΤΗΤΑΣ')
     || body.includes('Λόγοι αντιστοίχισης')
+    || /─{9,}/.test(body)
 }
 
 // Ensures the DB has an editable copy of every static template. Safe to call

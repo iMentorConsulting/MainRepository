@@ -118,6 +118,7 @@ interface CampaignEmailOptions {
   accountantLogoUrl?: string
   unsubscribeUrl?: string
   ermisLink?: string
+  programUrl?: string
 }
 
 // Renders a polished, branded HTML email: a dark blue header banner with the
@@ -134,6 +135,7 @@ export function renderCampaignEmailHtml(options: CampaignEmailOptions): string {
     accountantLogoUrl,
     unsubscribeUrl,
     ermisLink,
+    programUrl,
   } = options
 
   const paragraphs = bodyText
@@ -142,13 +144,19 @@ export function renderCampaignEmailHtml(options: CampaignEmailOptions): string {
     // Remove common emoji ranges that don't render well in email clients
     // eslint-disable-next-line no-misleading-character-class
     .replace(/[☀-➿]|[\uD83C-\uDBFF][\uDC00-\uDFFF]/g, '')
-    // Drop a leading greeting line ("Γειά σας, ..." or "Αγαπητοί συνεργάτες της ...") —
-    // the wrapper already renders "Αγαπητέ/ή ..."
-    .replace(/^\s*(Γειά σας|Αγαπητο[ίοι] συνεργάτ[ηε]ς?)[^\n]*\n+/, '')
-    // The Ερμής link and unsubscribe link are rendered separately (CTA button /
-    // footer), so drop any raw text line that still contains either URL.
+    // Drop a leading greeting line ("Γειά σας, ...", "Αγαπητοί συνεργάτες της ...",
+    // or "Αγαπητέ/ή ...") — the wrapper already renders "Αγαπητέ/ή ..." itself.
+    .replace(/^\s*(Γειά σας|Αγαπητο[ίοι] συνεργάτ[ηε]ς?|Αγαπητ[έό]\/?ή?)[^\n]*\n+/, '')
+    // The Ερμής link, the CTA line introducing it, and the unsubscribe link
+    // are all rendered separately (CTA button / footer) — drop any raw text
+    // line that duplicates them.
     .split('\n')
-    .filter(line => !(ermisLink && line.includes(ermisLink)) && !(unsubscribeUrl && line.includes(unsubscribeUrl)))
+    .filter(line =>
+      !(ermisLink && line.includes(ermisLink))
+      && !(unsubscribeUrl && line.includes(unsubscribeUrl))
+      && !line.includes('Μίλα τώρα με τον Ερμή')
+      && !line.includes('Αυτοματοποιημένο μήνυμα')
+    )
     .join('\n')
     .split(/\n{2,}/)
     .map(block => block.trim())
@@ -180,13 +188,19 @@ export function renderCampaignEmailHtml(options: CampaignEmailOptions): string {
         : '')
 
   const ermisButton = ermisLink
-    ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:4px 0 20px;">
+    ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:4px 0 8px;">
         <tr><td align="center">
           <a href="${ermisLink}" target="_blank" style="display:inline-block;background:linear-gradient(135deg,#4f46e5,#7c3aed);color:#ffffff;font-size:14px;font-weight:700;text-decoration:none;padding:13px 28px;border-radius:10px;box-shadow:0 2px 6px rgba(79,70,229,.35);">
-            🤖 Μίλα τώρα με τον Ερμή, τον ψηφιακό σύμβουλο που κάνει τον έλεγχο επιλεξιμότητας σε δευτερόλεπτα
+            🪽 Μίλα τώρα με τον Ερμή, τον ψηφιακό σύμβουλο που κάνει τον έλεγχο επιλεξιμότητας σε δευτερόλεπτα
           </a>
         </td></tr>
       </table>`
+    : ''
+
+  const programLinkRow = programUrl
+    ? `<p style="margin:0 0 16px;text-align:center;">
+        <a href="${programUrl}" target="_blank" style="color:#1e3a8a;font-size:12px;text-decoration:underline;">Δείτε την επίσημη προκήρυξη του προγράμματος</a>
+      </p>`
     : ''
 
   const unsubscribeRow = unsubscribeUrl
@@ -214,7 +228,7 @@ export function renderCampaignEmailHtml(options: CampaignEmailOptions): string {
           ${paragraphs}
         </td></tr>
 
-        ${ermisButton ? `<tr><td style="padding:0 28px 8px;">${ermisButton}</td></tr>` : ''}
+        ${ermisButton ? `<tr><td style="padding:0 28px 0;">${ermisButton}${programLinkRow}</td></tr>` : ''}
 
         <tr><td style="padding:0 28px 28px;">
           <table width="100%" cellpadding="0" cellspacing="0" style="border-top:1px solid #e2e8f0;padding-top:18px;">
