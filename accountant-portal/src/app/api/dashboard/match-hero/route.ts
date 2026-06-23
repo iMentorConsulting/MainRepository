@@ -38,7 +38,7 @@ export async function GET(request: NextRequest) {
           activities: { where: { firmActKind: 1 }, select: { firmActDescr: true }, take: 1 },
         },
       },
-      program: { select: { id: true, title: true, description: true, category: true, otherRequirements: true, extraCriteriaIds: true, excludeTags: true, requireTags: true, excludedLegalForms: true, endDate: true } },
+      program: { select: { id: true, title: true, description: true, category: true, extraCriteriaIds: true, excludeTags: true, requireTags: true, excludedLegalForms: true, endDate: true } },
     },
   })
 
@@ -69,7 +69,7 @@ export async function GET(request: NextRequest) {
     programTitle: string
     programDescription: string | null
     programCategory: string
-    otherRequirements: string | null
+    extraCriteriaLabels: string[]
     endDate: string | null
     matchCount: number
     businesses: Array<{ id: string; name: string; afm: string; activityDescr: string | null }>
@@ -81,9 +81,11 @@ export async function GET(request: NextRequest) {
       programTitle: m.program.title,
       programDescription: m.program.description,
       programCategory: m.program.category,
-      otherRequirements: m.program.otherRequirements
-        || (m.program.extraCriteriaIds || []).map(cid => criteriaLabelById.get(cid)).filter(Boolean).join(' · ')
-        || null,
+      // Short, scannable badges (e.g. "Πτυχίο ΑΕΙ/ΤΕΙ μετά το 2016") instead
+      // of the program's full free-text "Άλλες Προϋποθέσεις" — that text is
+      // dense, legal-style wording that doesn't fit a card preview; it's
+      // shown in full on the program's own page instead.
+      extraCriteriaLabels: (m.program.extraCriteriaIds || []).map(cid => criteriaLabelById.get(cid)).filter((l): l is string => Boolean(l)),
       endDate: m.program.endDate ? m.program.endDate.toISOString() : null,
       matchCount: 0,
       businesses: [],

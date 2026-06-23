@@ -3,7 +3,6 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Sparkles, ChevronDown, ArrowRight, Users, ExternalLink, AlertTriangle } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
-import { parseRequirementsList } from '@/lib/requirements-list'
 
 interface MatchBusiness {
   id: string
@@ -17,7 +16,7 @@ interface ProgramOpportunity {
   programTitle: string
   programDescription: string | null
   programCategory: string
-  otherRequirements: string | null
+  extraCriteriaLabels: string[]
   endDate: string | null
   matchCount: number
   businesses: MatchBusiness[]
@@ -59,14 +58,14 @@ function OpportunityCard({ opp }: { opp: ProgramOpportunity }) {
       {opp.programDescription && (
         <p className="text-xs text-slate-500 mt-1.5 leading-relaxed line-clamp-2">{opp.programDescription}</p>
       )}
-      {opp.otherRequirements && (
-        <div className="text-xs text-slate-500 mt-1 leading-relaxed">
-          <span className="font-medium text-slate-600">Πρόσθετες Προϋποθέσεις:</span>
-          <ol className="list-decimal list-outside pl-4 mt-0.5 space-y-0.5">
-            {parseRequirementsList(opp.otherRequirements).map((item, i) => (
-              <li key={i} className="line-clamp-1">{item}</li>
+      {opp.extraCriteriaLabels.length > 0 && (
+        <div className="mt-1.5">
+          <span className="text-xs font-medium text-slate-600">Πρόσθετες Προϋποθέσεις:</span>
+          <div className="flex flex-wrap gap-1 mt-1">
+            {opp.extraCriteriaLabels.map((label, i) => (
+              <Badge key={i} variant="secondary" className="text-[10px]">{label}</Badge>
             ))}
-          </ol>
+          </div>
         </div>
       )}
 
