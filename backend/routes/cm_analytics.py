@@ -148,6 +148,8 @@ def analytics_calendar(
                 "label": "Προθεσμία",
                 "case_id": c.id,
                 "client_name": c.client_name,
+                "program_category": c.program_category,
+                "service_type": c.service_type,
                 "done": is_done,
             })
 
@@ -159,7 +161,9 @@ def analytics_calendar(
             ]:
                 if d >= today.isoformat():
                     events.append({"date": d, "type": "dypa", "label": label,
-                                   "case_id": c.id, "client_name": c.client_name, "done": False})
+                                   "case_id": c.id, "client_name": c.client_name,
+                                   "program_category": c.program_category, "service_type": c.service_type,
+                                   "done": False})
 
         if c.follow_up_date and c.follow_up_date >= today and not is_done:
             events.append({
@@ -168,6 +172,8 @@ def analytics_calendar(
                 "label": "Follow-up",
                 "case_id": c.id,
                 "client_name": c.client_name,
+                "program_category": c.program_category,
+                "service_type": c.service_type,
                 "done": False,
             })
 

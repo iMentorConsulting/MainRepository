@@ -13,12 +13,16 @@ function isoToday() {
   return new Date().toISOString().slice(0, 10)
 }
 
+const PROGRAMS = ['ΕΣΠΑ', 'ΔΥΠΑ', 'ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ', 'ΑΝΑΚΑΙΝΙΖΩ']
+
 export default function DeadlineCalendar() {
   const navigate = useNavigate()
   const today = isoToday()
   const [events, setEvents] = useState([])
   const [loading, setLoading] = useState(true)
   const [selected, setSelected] = useState(null)
+  const [programFilter, setProgramFilter] = useState([])
+  const [serviceFilter, setServiceFilter] = useState([])
 
   const now = new Date()
   const [year, setYear] = useState(now.getFullYear())
@@ -39,9 +43,19 @@ export default function DeadlineCalendar() {
   const startOffset = (firstDay + 6) % 7 // Monday-based
   const daysInMonth = new Date(year, month + 1, 0).getDate()
 
+  const serviceOptions = [...new Set(events.map(e => e.service_type).filter(Boolean))].sort()
+
+  const togglePrograms = (v) => setProgramFilter(p => p.includes(v) ? p.filter(x => x !== v) : [...p, v])
+  const toggleServices = (v) => setServiceFilter(p => p.includes(v) ? p.filter(x => x !== v) : [...p, v])
+
+  const filteredEvents = events.filter(ev =>
+    (programFilter.length === 0 || programFilter.includes(ev.program_category)) &&
+    (serviceFilter.length === 0 || serviceFilter.includes(ev.service_type))
+  )
+
   // Group events by date
   const eventMap = {}
-  events.forEach(ev => {
+  filteredEvents.forEach(ev => {
     if (!eventMap[ev.date]) eventMap[ev.date] = []
     eventMap[ev.date].push(ev)
   })
@@ -73,6 +87,48 @@ export default function DeadlineCalendar() {
             {cfg.label}
           </span>
         ))}
+      </div>
+
+      {/* Filters */}
+      <div className="bg-white rounded-xl border p-4 space-y-3">
+        <div>
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Pipeline</p>
+          <div className="flex flex-wrap gap-2">
+            {PROGRAMS.map(p => (
+              <button
+                key={p}
+                onClick={() => togglePrograms(p)}
+                className={`text-xs px-3 py-1.5 rounded-full border font-medium transition-colors ${
+                  programFilter.includes(p)
+                    ? 'bg-[#1e3a5f] text-white border-[#1e3a5f]'
+                    : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
+                }`}
+              >
+                {p}
+              </button>
+            ))}
+          </div>
+        </div>
+        {serviceOptions.length > 0 && (
+          <div>
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Υπηρεσία</p>
+            <div className="flex flex-wrap gap-2">
+              {serviceOptions.map(s => (
+                <button
+                  key={s}
+                  onClick={() => toggleServices(s)}
+                  className={`text-xs px-3 py-1.5 rounded-full border font-medium transition-colors ${
+                    serviceFilter.includes(s)
+                      ? 'bg-[#1e3a5f] text-white border-[#1e3a5f]'
+                      : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
+                  }`}
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -155,9 +211,10 @@ export default function DeadlineCalendar() {
                         className="w-full text-left p-3 rounded-xl border border-gray-100 hover:border-gray-300 hover:shadow-sm transition-all"
                       >
                         <div className={`text-[10px] font-semibold px-2 py-0.5 rounded-full inline-block mb-1.5 ${cfg.badge}`}>
-                          {cfg.label}
+                          {ev.label || cfg.label}
                         </div>
                         <div className="text-sm font-medium text-gray-800">{ev.client_name}</div>
+                        {ev.service_type && <div className="text-xs text-gray-400">{ev.service_type}</div>}
                         {ev.done && <div className="text-xs text-gray-400 mt-0.5">✓ Ολοκληρωμένη</div>}
                       </button>
                     )
@@ -180,7 +237,7 @@ export default function DeadlineCalendar() {
           </div>
         ) : (
           <div className="divide-y divide-gray-100">
-            {events
+            {filteredEvents
               .filter(ev => {
                 const d = ev.date
                 const t30 = new Date(Date.now() + 30 * 864e5).toISOString().slice(0, 10)
@@ -199,12 +256,13 @@ export default function DeadlineCalendar() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="text-sm font-medium text-gray-800 truncate">{ev.client_name}</div>
-                      <span className={`text-xs px-2 py-0.5 rounded-full ${cfg.badge}`}>{cfg.label}</span>
+                      {ev.service_type && <div className="text-xs text-gray-400 truncate">{ev.service_type}</div>}
+                      <span className={`text-xs px-2 py-0.5 rounded-full ${cfg.badge}`}>{ev.label || cfg.label}</span>
                     </div>
                   </button>
                 )
               })}
-            {events.filter(ev => ev.date >= today && ev.date <= new Date(Date.now() + 30 * 864e5).toISOString().slice(0, 10)).length === 0 && (
+            {filteredEvents.filter(ev => ev.date >= today && ev.date <= new Date(Date.now() + 30 * 864e5).toISOString().slice(0, 10)).length === 0 && (
               <p className="text-sm text-gray-400 text-center py-6">Κανένα ορόσημο στις επόμενες 30 ημέρες</p>
             )}
           </div>
