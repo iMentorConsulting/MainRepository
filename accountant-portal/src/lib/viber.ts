@@ -35,6 +35,14 @@ function deLinkifyDigitRuns(text: string): string {
   return text.replace(/\d{6,}/g, digits => digits.split('').join('​'))
 }
 
+// Viber's plain-text rendering has no hanging indent, so a "• " bullet only
+// lines up on the first line of a wrapped item — every following line starts
+// flush left, making the list look broken. Dropping the bullet (the section
+// header already announces it's a list) keeps long, wrapping lines tidy.
+function stripBullets(text: string): string {
+  return text.replace(/^[•-]\s+/gm, '')
+}
+
 async function chatwootSend(clientName: string, phone: string, message: string): Promise<{ ok: boolean; reason: string }> {
   const cwUrl = (process.env.CHATWOOT_URL || '').trim().replace(/\/$/, '')
   const cwToken = (process.env.CHATWOOT_API_TOKEN || '').trim()
@@ -160,7 +168,7 @@ async function chatwootSend(clientName: string, phone: string, message: string):
     const r = await fetchJson(`${base}/conversations/${convId}/messages`, {
       method: 'POST',
       headers,
-      body: JSON.stringify({ content: deLinkifyDigitRuns(message), message_type: 'outgoing', private: false }),
+      body: JSON.stringify({ content: deLinkifyDigitRuns(stripBullets(message)), message_type: 'outgoing', private: false }),
     })
     // Full body, not just status — Chatwoot reports per-channel delivery
     // problems (e.g. Infobip rejecting the send) via fields on the message

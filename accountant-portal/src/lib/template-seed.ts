@@ -31,7 +31,13 @@ function withErmisLink(body: string): string {
 // DB copies match the new hardcoded versions. Idempotent: a row already on
 // the new design has neither marker below, so it's left untouched.
 function needsViberRedesign(body: string): boolean {
-  return body.includes('👋') || body.includes('{{unsubscribe_link}}') || !body.includes('ψηφιακό σύμβουλο που κάνει τον έλεγχο επιλεξιμότητας')
+  return body.includes('👋')
+    || body.includes('{{unsubscribe_link}}')
+    || !body.includes('ψηφιακό σύμβουλο που κάνει τον έλεγχο επιλεξιμότητας')
+    || !body.includes('*Μίλα τώρα με τον Ερμή*')
+    || !body.includes('i-Mentor.gr')
+    || body.includes('─────────────────────')
+    || body.includes('Λόγοι αντιστοίχισης')
 }
 
 // Ensures the DB has an editable copy of every static template. Safe to call
