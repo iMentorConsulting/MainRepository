@@ -7,6 +7,7 @@ import Anthropic from '@anthropic-ai/sdk'
 import { prisma } from './prisma'
 import { sendEmail } from './email'
 import { notifyCaseManagement } from './case-management-sync'
+import { EligibilityQuestion } from './eligibility-questions'
 
 const MAX_RESPONSE_TOKENS = 1_000
 
@@ -45,7 +46,14 @@ function buildSystemPrompt(program: {
   maxInterestRate: number | null
   otherRequirements: string | null
   pricingNote: string | null
-}, businessName: string, autoConfirmedReasons: string[]) {
+}, businessName: string, autoConfirmedReasons: string[], qualitativeQuestions: EligibilityQuestion[]) {
+  // Prefer the admin-curated/approved checklist (per-question wording overrides,
+  // skipped questions removed) over the raw "Άλλες Προϋποθέσεις" text — it's
+  // what the admin actually wants Ερμής to ask, phrased for a conversation
+  // instead of bureaucratic legalese.
+  const qualitativeChecklist = qualitativeQuestions.length
+    ? qualitativeQuestions.map(q => `- ${q.label}${q.expectedAnswer ? '' : ' (η αναμενόμενη/επιλέξιμη απάντηση είναι ΟΧΙ)'}`).join('\n')
+    : program.otherRequirements || '(καμία επιπλέον)'
   return `Είσαι ο "Ερμής", ο ψηφιακός σύμβουλος επιλεξιμότητας της I-MENTOR. Μιλάς απευθείας με τον ιδιοκτήτη της επιχείρησης "${businessName}" σχετικά με ΕΝΑ συγκεκριμένο πρόγραμμα. Μίλα φυσικά, στα ελληνικά, σαν να μιλάει κανείς με το Claude — αλλά ΕΞΥΠΝΑ ΚΑΙ ΛΑΚΩΝΙΚΑ: σύντομες απαντήσεις (1-4 προτάσεις συνήθως), ΧΩΡΙΣ πλατειασμό, χωρίς να επαναλαμβάνεις πράγματα που ήδη ειπώθηκαν.
 
 ΓΙΑ ΤΗΝ I-MENTOR:
@@ -56,7 +64,8 @@ ${program.description || '(χωρίς περιγραφή)'}
 ${program.minInvestment || program.maxInvestment ? `Επένδυση: ${program.minInvestment ?? '?'}–${program.maxInvestment ?? '?'}€` : ''}
 ${program.minSubsidyPct || program.maxSubsidyPct ? `Ποσοστό επιχορήγησης: ${program.minSubsidyPct ?? '?'}–${program.maxSubsidyPct ?? '?'}%${program.subsidyNote ? ` (${program.subsidyNote})` : ''}` : ''}
 ${program.minInterestRate || program.maxInterestRate ? `Επιτόκιο: ${program.minInterestRate ?? '?'}–${program.maxInterestRate ?? '?'}%` : ''}
-Λοιπές προϋποθέσεις/όροι: ${program.otherRequirements || '(καμία επιπλέον)'}
+Λοιπές προϋποθέσεις/όροι (ρώτα ΜΙΑ-ΜΙΑ, σε φυσική γλώσσα, όχι σαν λίστα στον πελάτη):
+${qualitativeChecklist}
 
 ΗΔΗ ΕΠΙΒΕΒΑΙΩΜΕΝΑ (ΜΗΝ τα ξαναρωτήσεις): ${autoConfirmedReasons.length ? autoConfirmedReasons.join('· ') : '(τίποτα ακόμη)'}
 
@@ -159,6 +168,7 @@ export async function runErmisTurn(params: {
     pricingNote: string | null
   }
   autoConfirmedReasons: string[]
+  qualitativeQuestions?: EligibilityQuestion[]
   history: ChatMessage[]
   alreadyAssigned: boolean
   // True only for the very first turn of a conversation, before the customer has
@@ -179,7 +189,7 @@ export async function runErmisTurn(params: {
   }
 
   const anthropic = new Anthropic({ apiKey })
-  const system = buildSystemPrompt(params.program, params.businessName, params.autoConfirmedReasons)
+  const system = buildSystemPrompt(params.program, params.businessName, params.autoConfirmedReasons, params.qualitativeQuestions || [])
 
   const messages: Anthropic.MessageParam[] = params.isKickoff
     ? [{ role: 'user', content: 'Ξεκίνα εσύ τη συνομιλία.' }]

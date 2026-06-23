@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { runErmisTurn, type ChatMessage } from '@/lib/ermis-agent'
+import { buildEligibilityQuestions, QuestionOverrides } from '@/lib/eligibility-questions'
 
 export const dynamic = 'force-dynamic'
 
@@ -28,6 +29,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         minSubsidyPct: true, maxSubsidyPct: true, subsidyNote: true,
         minInterestRate: true, maxInterestRate: true,
         otherRequirements: true, pricingNote: true,
+        extraCriteriaIds: true, eligibilityQuestions: true,
       },
     }),
     prisma.programMatch.findUnique({
@@ -36,6 +38,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }),
   ])
   if (!business || !program) return NextResponse.json({ error: 'Δεν βρέθηκαν στοιχεία' }, { status: 404 })
+
+  const extraCriteriaLabels = program.extraCriteriaIds.length
+    ? await prisma.eligibilityCriterion.findMany({ where: { id: { in: program.extraCriteriaIds } }, select: { id: true, label: true } })
+    : []
+  const qualitativeQuestions = buildEligibilityQuestions(
+    { otherRequirements: program.otherRequirements, extraCriteriaLabels },
+    (program.eligibilityQuestions as QuestionOverrides | null) || {},
+  )
 
   const history = (Array.isArray(matchToken.chatLog) ? matchToken.chatLog : []) as unknown as ChatMessage[]
   const newHistory: ChatMessage[] = kickoff ? history : [...history, { role: 'user', text: message.trim() }]
@@ -48,6 +58,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       businessName: business.onomasia || business.afm,
       program,
       autoConfirmedReasons: match?.matchReason || [],
+      qualitativeQuestions,
       history: newHistory,
       alreadyAssigned: Boolean(matchToken.caseCreatedId),
       isKickoff: Boolean(kickoff),
