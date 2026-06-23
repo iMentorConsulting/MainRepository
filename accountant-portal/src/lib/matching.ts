@@ -157,19 +157,21 @@ async function upsertMatch(programId: string, businessId: string, score: number,
   return !existing
 }
 
-// Removes stale matches that no longer satisfy the program criteria.
-// Only un-notified POTENTIAL matches are reset — matches the accountant has
-// already reviewed/acted upon, or that were already notified, are preserved
-// so a re-run of matching (e.g. after a small program edit) never causes the
-// same accountant to be notified twice about the same match.
+// Marks stale matches as REJECTED once they no longer satisfy the program's
+// (possibly just-edited) criteria. Covers POTENTIAL matches regardless of
+// whether they were already notified — an admin tightening e.g. ΚΑΔ rules
+// must immediately stop a wrong business from showing as a match, even if
+// the accountant already got an email about it. Matches the accountant has
+// already acted on (REVIEWED/INTERESTED/SUBMITTED/REJECTED) are left alone,
+// since those reflect a human decision, not just the auto-matcher's score.
 async function resetStaleMatches(programId: string, qualifyingBusinessIds: string[]) {
-  await prisma.programMatch.deleteMany({
+  await prisma.programMatch.updateMany({
     where: {
       programId,
       status: MatchStatus.POTENTIAL,
-      notified: false,
       businessId: { notIn: qualifyingBusinessIds }
-    }
+    },
+    data: { status: MatchStatus.REJECTED, matchScore: 0 },
   })
 }
 
