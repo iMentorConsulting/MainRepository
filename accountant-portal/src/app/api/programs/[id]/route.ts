@@ -45,7 +45,9 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
   delete data.createdAt; delete data.updatedAt; delete data._count
 
   if (data.startDate) data.startDate = new Date(data.startDate)
+  else data.startDate = null
   if (data.endDate) data.endDate = new Date(data.endDate)
+  else data.endDate = null
 
   const program = await prisma.program.update({ where: { id: params.id }, data })
   return NextResponse.json(program)
