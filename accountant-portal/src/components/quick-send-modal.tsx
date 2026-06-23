@@ -56,7 +56,18 @@ export function QuickSendModal({ businesses, onClose, onSent }: QuickSendModalPr
     if (!ids) return
     fetch(`/api/quick-send/programs?businessIds=${ids}`)
       .then(r => r.json())
-      .then(d => setMatchedPrograms(d.programs || []))
+      .then(d => {
+        if (d.programs?.length) {
+          setMatchedPrograms(d.programs)
+          return
+        }
+        // No recorded matches for these businesses (e.g. a fresh/test business) —
+        // still let the user pick a program manually so {{ermis_link}} etc. can resolve.
+        fetch('/api/programs')
+          .then(r => r.json())
+          .then(d2 => setMatchedPrograms((d2.programs || []).map((p: any) => ({ id: p.id, title: p.title }))))
+          .catch(() => {})
+      })
       .catch(() => {})
   }, [businesses])
 
@@ -103,9 +114,9 @@ export function QuickSendModal({ businesses, onClose, onSent }: QuickSendModalPr
       return
     }
     if (!programId) {
-      const requiresProgram = ['{{program_title}}', '{{program_description}}', '{{program_url}}', '{{match_reason}}', '{{extra_criteria}}', '{{program_deadline}}'].some(v => message.includes(v))
+      const requiresProgram = ['{{program_title}}', '{{program_description}}', '{{program_url}}', '{{match_reason}}', '{{extra_criteria}}', '{{program_deadline}}', '{{ermis_link}}'].some(v => message.includes(v))
       if (requiresProgram) {
-        setValidationError('Το μήνυμα περιέχει {{program_title}}, {{match_reason}}, {{extra_criteria}}, {{program_url}} ή {{program_deadline}} αλλά δεν έχει επιλεγεί Πρόγραμμα αναφοράς. Επιλέξτε πρόγραμμα ή αφαιρέστε αυτές τις μεταβλητές από το μήνυμα.')
+        setValidationError('Το μήνυμα περιέχει {{program_title}}, {{match_reason}}, {{extra_criteria}}, {{program_url}}, {{program_deadline}} ή {{ermis_link}} αλλά δεν έχει επιλεγεί Πρόγραμμα αναφοράς. Επιλέξτε πρόγραμμα ή αφαιρέστε αυτές τις μεταβλητές από το μήνυμα.')
         return
       }
     }
@@ -264,7 +275,7 @@ export function QuickSendModal({ businesses, onClose, onSent }: QuickSendModalPr
             <label className="block text-xs font-medium text-slate-700 mb-1.5">
               Μήνυμα
               <span className="text-slate-400 font-normal ml-2">
-                Διαθέσιμες μεταβλητές: {'{{business_name}}'} {'{{afm}}'} {'{{accountant_name}}'} {'{{accountant_office}}'} {'{{kad_description}}'}
+                Διαθέσιμες μεταβλητές: {'{{business_name}}'} {'{{afm}}'} {'{{accountant_name}}'} {'{{accountant_office}}'} {'{{kad_description}}'} {'{{ermis_link}}'} (απαιτεί επιλογή προγράμματος)
                 {!isEmail && ' · *bold* για Viber'}
               </span>
             </label>

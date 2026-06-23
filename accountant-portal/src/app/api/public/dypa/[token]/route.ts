@@ -1,6 +1,58 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { encrypt } from '@/lib/crypto'
+import { sendEmail } from '@/lib/email'
+
+const EXPERIENCE_LABELS: Record<string, string> = {
+  NONE: 'Καμία',
+  UP_TO_1: 'Έως 1 έτος',
+  UP_TO_2: 'Έως 2 έτη',
+  TWO_TO_FIVE: '2-5 έτη',
+  OVER_FIVE: 'Άνω των 5 ετών',
+}
+
+function yesNo(v: boolean) {
+  return v ? 'ΝΑΙ' : 'ΟΧΙ'
+}
+
+function formAnswersHtml(a: any) {
+  const rows: [string, string][] = [
+    ['Ο ιδιοκτήτης είναι νομικό πρόσωπο', yesNo(a.ownerIsLegalEntity)],
+    ...(a.ownerIsLegalEntity ? [['Επωνυμία νομικού προσώπου', a.ownerLegalEntityName || '—'] as [string, string]] : []),
+    ['Υφιστάμενο προσωπικό', yesNo(a.hasExistingStaff)],
+    ...(a.hasExistingStaff ? [
+      ['Αορίστου πλήρης απασχόληση', String(a.staffIndefiniteFull ?? 0)],
+      ['Αορίστου μερική απασχόληση', String(a.staffIndefinitePart ?? 0)],
+      ['Ορισμένου πλήρης απασχόληση', String(a.staffFixedFull ?? 0)],
+      ['Ορισμένου μερική απασχόληση', String(a.staffFixedPart ?? 0)],
+      ['Άλλη μορφή απασχόλησης', String(a.staffOtherForm ?? 0)],
+    ] as [string, string][] : []),
+    ['Συνδεδεμένες επιχειρήσεις', yesNo(a.hasAffiliatedCompanies)],
+    ...(a.hasAffiliatedCompanies && Array.isArray(a.affiliatedCompanies) ? [
+      ['Στοιχεία συνδεδεμένων', a.affiliatedCompanies.map((c: any) => `${c.name} (${c.afm})`).join(', ') || '—'] as [string, string],
+    ] : []),
+    ['Τίτλος θέσης', a.positionTitle || '—'],
+    ['Περιγραφή θέσης', a.positionDescription || '—'],
+    ['Απαιτείται άδεια', yesNo(a.requiresLicense)],
+    ...(a.requiresLicense ? [['Περιγραφή άδειας', a.licenseDescription || '—'] as [string, string]] : []),
+    ['Απαιτούμενη εμπειρία', EXPERIENCE_LABELS[a.requiredExperience] || a.requiredExperience || '—'],
+    ['Απαιτείται ξένη γλώσσα', yesNo(a.requiresForeignLanguage)],
+    ...(a.requiresForeignLanguage ? [
+      ['Γλώσσες', (a.foreignLanguages || []).join(', ') || '—'] as [string, string],
+      ['Σχόλια γλώσσας', a.foreignLanguageDescription || '—'] as [string, string],
+    ] : []),
+    ['Χωρίς πρόσφατα πρόστιμα εργασιακής νομοθεσίας', yesNo(a.noRecentLaborFines)],
+    ['Τήρηση αρχής ισότητας φύλων', yesNo(a.genderEqualityPrinciple)],
+    ['Χωρίς πρόσφατη μείωση προσωπικού', yesNo(a.noRecentStaffReduction)],
+    ['Δήλωση τραπεζικής κατάθεσης προκαταβολής', yesNo(!!a.businessClaimsPaid)],
+  ]
+  return `<table style="border-collapse:collapse;width:100%;font-size:14px">
+    ${rows.map(([label, value]) => `<tr>
+      <td style="padding:6px 12px;border:1px solid #e5e7eb;color:#374151;font-weight:bold;white-space:nowrap">${label}</td>
+      <td style="padding:6px 12px;border:1px solid #e5e7eb;color:#111827">${value}</td>
+    </tr>`).join('')}
+  </table>`
+}
 
 export const dynamic = 'force-dynamic'
 
@@ -109,6 +161,18 @@ export async function PUT(request: NextRequest, { params }: { params: { token: s
 
   if (data.finalAcceptedAt) {
     await prisma.dypaFormToken.update({ where: { id: formToken.id }, data: { usedAt: new Date() } })
+
+    const business = assignment.clientCase.business
+    const program = assignment.clientCase.program
+    try {
+      await sendEmail({
+        to: process.env.ADMIN_EMAIL || 'info@i-mentor.gr',
+        subject: `✅ Υποβλήθηκε Φόρμα Ανάθεσης ΔΥΠΑ — ${business.onomasia || business.afm}`,
+        html: `<p>Η επιχείρηση <strong>${business.onomasia || business.afm}</strong> (ΑΦΜ: ${business.afm}) υπέβαλε τη φόρμα ανάθεσης για το πρόγραμμα <strong>${program?.title || ''}</strong>.</p>
+          ${formAnswersHtml({ ...updated, businessClaimsPaid: markBusinessPaid })}
+          <p style="margin-top:16px"><a href="${process.env.APP_URL || 'https://logistis.i-mentor.gr'}/cases/dypa/${assignment.id}">Δείτε την ανάθεση →</a></p>`,
+      })
+    } catch {}
   }
 
   const { taxisnetUsernameEnc, taxisnetPasswordEnc, ...rest } = updated
