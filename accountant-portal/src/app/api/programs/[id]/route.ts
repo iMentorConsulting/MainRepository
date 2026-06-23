@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { runMatchingForProgram } from '@/lib/matching'
 
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   const session = await auth()
@@ -50,6 +51,14 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
   else data.endDate = null
 
   const program = await prisma.program.update({ where: { id: params.id }, data })
+
+  // Eligibility criteria (ΚΑΔ, περιφέρεια, ΤΚ, ημ. ίδρυσης, tags κ.λπ.) may have
+  // just changed — re-run matching so stale matches that no longer qualify are
+  // dropped and newly-qualifying businesses are picked up, same as on create.
+  if (program.active) {
+    runMatchingForProgram(program.id).catch(err => console.error('[Matching] Re-match after program edit failed:', err?.message))
+  }
+
   return NextResponse.json(program)
 }
 
