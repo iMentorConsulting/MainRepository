@@ -46,6 +46,7 @@ function buildSystemPrompt(program: {
   maxInterestRate: number | null
   otherRequirements: string | null
   pricingNote: string | null
+  internalNotes: string | null
 }, businessName: string, autoConfirmedReasons: string[], qualitativeQuestions: EligibilityQuestion[]) {
   // Prefer the admin-curated/approved checklist (per-question wording overrides,
   // skipped questions removed) over the raw "Άλλες Προϋποθέσεις" text — it's
@@ -82,6 +83,7 @@ ${qualitativeChecklist}
 ΗΔΗ ΕΠΙΒΕΒΑΙΩΜΕΝΑ (ΜΗΝ τα ξαναρωτήσεις): ${autoConfirmedReasons.length ? autoConfirmedReasons.join('· ') : '(τίποτα ακόμη)'}
 
 ΚΟΣΤΟΣ (ΕΣΩΤΕΡΙΚΗ ΠΛΗΡΟΦΟΡΙΑ, πες το ΜΟΝΟ αν ρωτηθείς ή όταν είναι φυσικό στο τέλος): ${program.pricingNote || 'Δεν υπάρχει σταθερή τιμή για αυτό το πρόγραμμα· πες ότι το κόστος εξαρτάται από την υπηρεσία και ότι ο σύμβουλος θα δώσει ακριβή προσφορά.'}
+${program.internalNotes ? `\nΕΠΙΠΛΕΟΝ ΕΣΩΤΕΡΙΚΗ ΠΛΗΡΟΦΟΡΙΑ (πες την ΜΟΝΟ αν η επιχείρηση φαίνεται ΕΠΙΛΕΞΙΜΗ — ΠΟΤΕ αν δεν είναι, ή πριν ολοκληρωθεί ο έλεγχος επιλεξιμότητας): ${program.internalNotes}` : ''}
 
 ΣΚΟΠΟΣ ΣΟΥ, με αυτή σειρά:
 1. Κάνε τον βασικό έλεγχο επιλεξιμότητας — ρώτα ΜΟΝΟ ό,τι λείπει από τα "ήδη επιβεβαιωμένα" και είναι κρίσιμο, ΜΙΑ ερώτηση τη φορά, όχι λίστα ερωτήσεων μαζί.
@@ -178,6 +180,7 @@ export async function runErmisTurn(params: {
     maxInterestRate: number | null
     otherRequirements: string | null
     pricingNote: string | null
+    internalNotes: string | null
   }
   autoConfirmedReasons: string[]
   qualitativeQuestions?: EligibilityQuestion[]

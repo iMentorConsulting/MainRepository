@@ -28,7 +28,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         minInvestment: true, maxInvestment: true,
         minSubsidyPct: true, maxSubsidyPct: true, subsidyNote: true,
         minInterestRate: true, maxInterestRate: true,
-        otherRequirements: true, pricingNote: true,
+        otherRequirements: true, pricingNote: true, internalNotes: true,
         extraCriteriaIds: true, eligibilityQuestions: true,
       },
     }),
