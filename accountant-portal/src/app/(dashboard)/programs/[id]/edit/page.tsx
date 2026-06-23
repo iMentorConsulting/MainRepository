@@ -16,16 +16,26 @@ import { ArrowLeft, Plus, X, FileUp } from 'lucide-react'
 import Link from 'next/link'
 import { LEGAL_FORMS } from '@/lib/legal-forms'
 
+// Empty-string number inputs (e.g. an untouched/cleared "Επιτόκιο Από" field)
+// must become undefined before z.coerce.number() runs — otherwise Number('')
+// coerces to NaN, .optional() does NOT catch NaN (only undefined), and the
+// whole form fails validation silently since no error is rendered for these
+// fields — the Save button looks like it does nothing.
+const optionalNumber = z.preprocess(
+  v => (v === '' || v === null || v === undefined ? undefined : v),
+  z.coerce.number().optional()
+)
+
 const schema = z.object({
   title: z.string().min(3, 'Απαιτείται τίτλος'),
   category: z.enum(['ESPA', 'DYPA', 'MICROCREDITS', 'EXTRAJUDICIAL', 'RENOVATION', 'OTHER']),
   description: z.string().optional(),
-  minInvestment: z.coerce.number().optional(),
-  maxInvestment: z.coerce.number().optional(),
-  minSubsidyPct: z.coerce.number().optional(),
-  maxSubsidyPct: z.coerce.number().optional(),
-  minInterestRate: z.coerce.number().optional(),
-  maxInterestRate: z.coerce.number().optional(),
+  minInvestment: optionalNumber,
+  maxInvestment: optionalNumber,
+  minSubsidyPct: optionalNumber,
+  maxSubsidyPct: optionalNumber,
+  minInterestRate: optionalNumber,
+  maxInterestRate: optionalNumber,
   otherRequirements: z.string().optional(),
   websiteUrl: z.string().optional(),
   heroImageUrl: z.string().optional(),
@@ -35,6 +45,7 @@ const schema = z.object({
   endDate: z.string().optional(),
   active: z.boolean().default(true),
   internalNotes: z.string().optional(),
+  pricingNote: z.string().optional(),
 })
 type FormData = z.infer<typeof schema>
 
@@ -237,6 +248,7 @@ export default function EditProgramPage() {
           endDate: toDateInputValue(program.endDate),
           active: program.active ?? true,
           internalNotes: program.internalNotes || '',
+          pricingNote: program.pricingNote || '',
         })
       })
       .finally(() => setLoading(false))
@@ -449,8 +461,15 @@ export default function EditProgramPage() {
 
         <Card>
           <CardHeader><CardTitle>Εσωτερικές Σημειώσεις</CardTitle></CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
             <Textarea {...register('internalNotes')} rows={3} placeholder="Εσωτερικές πληροφορίες..." />
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Κόστος για τον Ερμή (AI chat)</label>
+              <p className="text-sm text-gray-500 mb-2">
+                Κατά προσέγγιση κόστος/αμοιβή που θα αναφέρει ο Ερμής στον πελάτη όταν ρωτηθεί. Δεν εμφανίζεται πουθενά δημόσια εκτός από τη συνομιλία.
+              </p>
+              <Textarea {...register('pricingNote')} rows={2} placeholder="π.χ. Αμοιβή σύνταξης φακέλου: 800-1500€ + 5% επί εγκριθέντος προϋπολογισμού" />
+            </div>
           </CardContent>
         </Card>
 
