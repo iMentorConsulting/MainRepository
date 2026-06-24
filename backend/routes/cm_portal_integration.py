@@ -175,15 +175,20 @@ class CaseCreatedWebhook(BaseModel):
     programTitle: Optional[str] = None
 
 
-@router.post("/webhook")
-def receive_case_created(
-    payload: CaseCreatedWebhook,
-    db: Session = Depends(get_db),
-    _=Depends(_verify_portal_key),
-):
-    if payload.event != "case.created":
-        raise HTTPException(status_code=400, detail="Μη υποστηριζόμενο event")
+class DocumentUploadedWebhook(BaseModel):
+    event: str
+    caseNumber: Optional[int] = None
+    externalRef: Optional[str] = None
+    afm: Optional[str] = None
+    onomasia: Optional[str] = None
+    category: Optional[str] = None
+    fileName: Optional[str] = None
+    dataUrl: Optional[str] = None
+    uploadedByName: Optional[str] = None
+    uploadedByRole: Optional[str] = None
 
+
+def _handle_case_created(payload: CaseCreatedWebhook, db: Session) -> dict:
     assignment = CMPortalAssignment(
         case_number=payload.caseNumber,
         afm=payload.afm,
@@ -201,6 +206,108 @@ def receive_case_created(
     db.commit()
     db.refresh(assignment)
     return {"message": "OK", "id": assignment.id}
+
+
+def _handle_document_uploaded(payload: DocumentUploadedWebhook, db: Session) -> dict:
+    case = None
+    if payload.externalRef:
+        try:
+            case = db.query(CMCase).filter(CMCase.id == int(payload.externalRef)).first()
+        except (TypeError, ValueError):
+            case = None
+    if not case and payload.caseNumber:
+        case = db.query(CMCase).filter(CMCase.portal_case_number == payload.caseNumber).first()
+
+    if not case:
+        log.warning(
+            "LOGISTIS document.uploaded: no matching case for caseNumber=%s externalRef=%s",
+            payload.caseNumber, payload.externalRef,
+        )
+        return {"message": "OK", "matched": False}
+
+    if not payload.dataUrl:
+        log.warning("LOGISTIS document.uploaded: missing dataUrl for case %s", case.id)
+        return {"message": "OK", "matched": True, "saved": False}
+
+    import base64
+    import re as _re
+    m = _re.match(r"^data:([^;]+);base64,(.+)$", payload.dataUrl, _re.DOTALL)
+    if not m:
+        log.warning("LOGISTIS document.uploaded: malformed dataUrl for case %s", case.id)
+        return {"message": "OK", "matched": True, "saved": False}
+    mime_type, b64data = m.group(1), m.group(2)
+    try:
+        data = base64.b64decode(b64data)
+    except Exception as exc:
+        log.warning("LOGISTIS document.uploaded: base64 decode failed for case %s: %s", case.id, exc)
+        return {"message": "OK", "matched": True, "saved": False}
+
+    if len(data) > 20 * 1024 * 1024:
+        log.warning("LOGISTIS document.uploaded: file too large for case %s", case.id)
+        return {"message": "OK", "matched": True, "saved": False}
+
+    actual_name = payload.fileName or "document"
+    uploaded_by = payload.uploadedByName
+    if uploaded_by and payload.uploadedByRole:
+        role_label = "Λογιστής" if payload.uploadedByRole.upper() == "ACCOUNTANT" else payload.uploadedByRole
+        uploaded_by = f"{uploaded_by} — {role_label}"
+
+    drive_id = None
+    file_data_db = None
+    try:
+        from drive_storage import upload_case_document
+        drive_id = upload_case_document(
+            content=data,
+            filename=actual_name,
+            mime_type=mime_type,
+            program_category=case.program_category or "Άλλο",
+            case_id=case.id,
+            client_name=case.client_name or "client",
+        )
+    except Exception:
+        file_data_db = data
+
+    from sqlalchemy import text as _sqlt
+    db.execute(_sqlt("""
+        INSERT INTO cm_documents
+            (case_id, name, document_type, status, uploaded_by,
+             uploaded_by_client, file_data, mime_type, drive_file_id, upload_source, created_at)
+        VALUES
+            (:case_id, :name, :document_type, 'pending', :uploaded_by,
+             FALSE, :file_data, :mime_type, :drive_file_id, 'logistis_accountant', NOW())
+    """), {
+        "case_id": case.id,
+        "name": actual_name,
+        "document_type": payload.category,
+        "uploaded_by": uploaded_by,
+        "file_data": file_data_db,
+        "mime_type": mime_type,
+        "drive_file_id": drive_id,
+    })
+    db.commit()
+    return {"message": "OK", "matched": True, "saved": True, "case_id": case.id}
+
+
+@router.post("/webhook")
+def receive_portal_webhook(
+    payload: dict,
+    db: Session = Depends(get_db),
+    _=Depends(_verify_portal_key),
+):
+    event = payload.get("event")
+    if event == "case.created":
+        try:
+            data = CaseCreatedWebhook(**payload)
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail=f"Μη έγκυρο payload: {exc}")
+        return _handle_case_created(data, db)
+    if event == "document.uploaded":
+        try:
+            data = DocumentUploadedWebhook(**payload)
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail=f"Μη έγκυρο payload: {exc}")
+        return _handle_document_uploaded(data, db)
+    raise HTTPException(status_code=400, detail="Μη υποστηριζόμενο event")
 
 
 # ── Agent-facing endpoints ───────────────────────────────────────────────────
