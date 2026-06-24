@@ -15,6 +15,7 @@ import Leads from './pages/Leads'
 import LeadsReporting from './pages/LeadsReporting'
 import LeadLists from './pages/LeadLists'
 import IrisPayments from './pages/IrisPayments'
+import NotificationListener from './components/NotificationListener'
 import { loginUser } from './api'
 
 const SESSION_MS = 8 * 60 * 60 * 1000  // 8 hours
@@ -68,6 +69,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <Toaster position="top-right" toastOptions={{ duration: 3000 }} />
+      <NotificationListener enabled={!!auth} />
       <Routes>
         {/* Public client preview — no auth */}
         <Route path="/preview/:token" element={<ClientPreview />} />

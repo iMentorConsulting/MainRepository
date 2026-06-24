@@ -181,3 +181,23 @@ class IrisPayment(Base):
 
     linked_case_id = Column(Integer, nullable=True)
     created_by = Column(String, default="")
+
+
+class Notification(Base):
+    """In-app notification — delivered once (toast + sound) then marked delivered.
+
+    recipient matches the employee-name string used everywhere else
+    (JWT sub / Case.employee / Lead.assigned_to), e.g. "HARIS".
+    """
+
+    __tablename__ = "notifications"
+
+    id = Column(Integer, primary_key=True, index=True)
+    recipient = Column(String, index=True, nullable=False)
+    kind = Column(String, default="")  # price_request / price_approved / price_rejected / daily_reminders
+    title = Column(String, default="")
+    message = Column(Text, default="")
+    link = Column(String, nullable=True)
+    case_id = Column(Integer, nullable=True)
+    delivered = Column(Boolean, default=False, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow)

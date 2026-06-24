@@ -53,6 +53,9 @@ export const sendWinback = (id, channel, message, subject) => api.post(`/cases/$
 export const sendViber = (id, data) => api.post(`/cases/${id}/send-viber`, data)
 export const sendEmail = (id, data) => api.post(`/cases/${id}/send-email`, data)
 
+// In-app notifications (toast + sound)
+export const getPendingNotifications = () => api.get('/notifications/pending')
+
 // External referrals (LOGISTIS Accountant Portal)
 export const listPendingExternalCases = () => api.get('/cases/', { params: { status: 'pending_external' } })
 export const acceptExternalCase = (id, employee) => api.post(`/cases/${id}/accept-external`, { employee })

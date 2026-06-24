@@ -17,6 +17,7 @@ from database import get_db
 from models import Case
 from schemas import CaseCreate, CaseUpdate, CaseResponse, CaseListItem, ActualResultsUpdate, ContactUpdate
 from auth_utils import get_current_user
+from routers.notifications import create_notification, ADMIN_RECIPIENT
 
 router = APIRouter(prefix="/cases", tags=["cases"], dependencies=[Depends(get_current_user)])
 
@@ -447,10 +448,30 @@ def update_offer(id: int, data: OfferPatch, db: Session = Depends(get_db)):
     case = db.query(Case).filter(Case.id == id).first()
     if not case:
         raise HTTPException(status_code=404, detail="Η υπόθεση δεν βρέθηκε")
+
+    old_status = (case.commercial_offer or {}).get("approval_status")
+    new_status = (data.commercial_offer or {}).get("approval_status")
+
     case.commercial_offer = data.commercial_offer
     case.updated_at = _now()
     db.commit()
     db.refresh(case)
+
+    if old_status != "approved" and new_status == "approved":
+        create_notification(
+            db, case.employee, "price_approved",
+            "Η τιμή εγκρίθηκε",
+            f"Η τιμολόγηση για «{case.client_name}» εγκρίθηκε.",
+            link=f"/cases/{case.id}", case_id=case.id,
+        )
+    elif old_status != "rejected" and new_status == "rejected":
+        create_notification(
+            db, case.employee, "price_rejected",
+            "Η τιμή απορρίφθηκε",
+            f"Η τιμολόγηση για «{case.client_name}» απορρίφθηκε.",
+            link=f"/cases/{case.id}", case_id=case.id,
+        )
+
     return case
 
 
@@ -501,6 +522,13 @@ def notify_pricing_approval(id: int, data: PricingApprovalNotify, db: Session = 
                           body)
     if not ok:
         raise HTTPException(status_code=503, detail=f"Αποτυχία αποστολής email: {err}")
+
+    create_notification(
+        db, ADMIN_RECIPIENT, "price_request",
+        "Νέο αίτημα έγκρισης τιμής",
+        f"{data.employee}: αίτημα έγκρισης για «{case.client_name}» ({data.proposed_app:,.0f} € / {data.proposed_suc:,.0f} €)",
+        link=f"/cases/{case.id}", case_id=case.id,
+    )
     return {"sent": True}
 
 

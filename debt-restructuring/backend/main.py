@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 
 from database import engine, Base
 from models import Case, AppConfig, Lead, IrisPayment
-from routers import cases, statistics, public, config, leads, auth, external, payments
+from routers import cases, statistics, public, config, leads, auth, external, payments, notifications
 from auth_utils import get_current_user
 
 load_dotenv()
@@ -155,6 +155,7 @@ app.include_router(config.router)
 app.include_router(leads.router)
 app.include_router(external.router)
 app.include_router(payments.router)
+app.include_router(notifications.router)
 
 
 # ── Daily scheduler: sync then backup at 18:00 Athens (15:00 UTC) ────────────
@@ -181,12 +182,21 @@ def _run_leads_sync_safe():
     except Exception as e:
         print(f"[LeadsSync] FAILED — {e}")
 
+def _run_daily_reminders_safe():
+    try:
+        from routers.notifications import run_daily_reminder_summary
+        result = run_daily_reminder_summary()
+        print(f"[Reminders] OK — {result['created']} notification(s) created — {result['per_employee']}")
+    except Exception as e:
+        print(f"[Reminders] FAILED — {e}")
+
 from apscheduler.schedulers.background import BackgroundScheduler
 _scheduler = BackgroundScheduler()
-_scheduler.add_job(_run_leads_sync_safe, "cron", hour=4, minute=45)   # 04:45 UTC = 07:45 Athens
-_scheduler.add_job(_run_backup_safe,     "cron", hour=15, minute=0)   # 15:00 UTC = 18:00 Athens
+_scheduler.add_job(_run_leads_sync_safe,      "cron", hour=4, minute=45)   # 04:45 UTC = 07:45 Athens
+_scheduler.add_job(_run_daily_reminders_safe, "cron", hour=5, minute=0)    # 05:00 UTC = 08:00 Athens
+_scheduler.add_job(_run_backup_safe,          "cron", hour=15, minute=0)   # 15:00 UTC = 18:00 Athens
 _scheduler.start()
-print("[Scheduler] Leads sync daily 04:45 UTC (07:45 Athens) | Backup daily 15:00 UTC (18:00 Athens)")
+print("[Scheduler] Leads sync 04:45 UTC | Daily reminders 05:00 UTC | Backup 15:00 UTC (Athens = UTC+2/3)")
 
 
 @app.get("/")
