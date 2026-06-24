@@ -141,18 +141,7 @@ def analytics_calendar(
     for c in cases:
         is_done = c.status in terminal
 
-        if c.project_deadline and c.project_deadline >= today:
-            events.append({
-                "date": c.project_deadline.isoformat(),
-                "type": "deadline",
-                "label": "Προθεσμία",
-                "case_id": c.id,
-                "client_name": c.client_name,
-                "program_category": c.program_category,
-                "service_type": c.service_type,
-                "done": is_done,
-            })
-
+        milestone_dates = set()
         if c.program_category == "ΔΥΠΑ" and c.dypa_start_date and not is_done:
             from datetime import timedelta as _td
             for label, d in [
@@ -160,10 +149,27 @@ def analytics_calendar(
                 ("Γ Ορόσημο", (c.dypa_start_date + _td(days=365)).isoformat()),
             ]:
                 if d >= today.isoformat():
+                    milestone_dates.add(d)
                     events.append({"date": d, "type": "dypa", "label": label,
                                    "case_id": c.id, "client_name": c.client_name,
                                    "program_category": c.program_category, "service_type": c.service_type,
                                    "done": False})
+
+        if c.project_deadline and c.project_deadline >= today:
+            deadline_str = c.project_deadline.isoformat()
+            # Skip if a ΔΥΠΑ milestone already lands on this case on the same day —
+            # showing both is redundant duplicate info for the same case/date.
+            if deadline_str not in milestone_dates:
+                events.append({
+                    "date": deadline_str,
+                    "type": "deadline",
+                    "label": "Προθεσμία",
+                    "case_id": c.id,
+                    "client_name": c.client_name,
+                    "program_category": c.program_category,
+                    "service_type": c.service_type,
+                    "done": is_done,
+                })
 
         if c.follow_up_date and c.follow_up_date >= today and not is_done:
             events.append({
