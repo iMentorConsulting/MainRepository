@@ -296,9 +296,9 @@ const ASSIGNMENT_REQUEST_STATUS_LABEL = {
   fulfilled: { label: 'Συνδέθηκε', cls: 'bg-green-100 text-green-700' },
 }
 
-function NewAssignmentRequestModal({ onClose }) {
+function NewAssignmentRequestModal({ onClose, serviceTypes }) {
   const [email, setEmail] = useState('')
-  const [program, setProgram] = useState(PROGRAM_OPTIONS[0].value)
+  const [program, setProgram] = useState(serviceTypes[0] || '')
   const [note, setNote] = useState('')
   const [saving, setSaving] = useState(false)
   const [recent, setRecent] = useState([])
@@ -349,9 +349,10 @@ function NewAssignmentRequestModal({ onClose }) {
             <input className="input" type="email" required value={email} onChange={e => setEmail(e.target.value)} />
           </div>
           <div>
-            <label className="label">Πρόγραμμα *</label>
-            <select className="input" value={program} onChange={e => setProgram(e.target.value)}>
-              {PROGRAM_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            <label className="label">Πρόγραμμα / Υπηρεσία *</label>
+            <select className="input" required value={program} onChange={e => setProgram(e.target.value)}>
+              <option value="" disabled>— Επιλέξτε —</option>
+              {serviceTypes.map(s => <option key={s} value={s}>{s}</option>)}
             </select>
           </div>
           <div>
@@ -768,7 +769,7 @@ export default function Cases() {
       )}
 
       {showNew && <NewCaseModal agents={agents} onClose={() => setShowNew(false)} onSaved={() => { setShowNew(false); load() }} />}
-      {showAssignReq && <NewAssignmentRequestModal onClose={() => setShowAssignReq(false)} />}
+      {showAssignReq && <NewAssignmentRequestModal serviceTypes={serviceTypes} onClose={() => setShowAssignReq(false)} />}
     </div>
   )
 }
