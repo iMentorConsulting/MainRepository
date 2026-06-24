@@ -4,13 +4,18 @@ import { prisma } from '@/lib/prisma'
 import { sendEmail } from '@/lib/email'
 import { sendViberMessage } from '@/lib/viber'
 import { getOrCreateErmisLink } from '@/lib/ermis'
+import { lookupAfm } from '@/lib/gsis'
 
-// Inbound webhook for the public "θέλω να ξεκινήσω επιχείρηση" lead-capture
-// form (Bitform), for people interested in starting a new business who have
-// no AFM/company yet — unlike /api/external/vat-update, which is for people
-// who DO have an AFM. We create a placeholder Business (synthetic AFM, no
-// accountant), match it to whichever Program is flagged `leadIntake`, and
-// send the lead a link to talk to Ερμής about it directly.
+// Inbound webhook for the public lead-capture forms (Bitform), for people
+// interested in a specific Program who may or may not have an AFM/company
+// yet. Each Bitform form targets one Program — the form must send a field
+// with the program's exact title (PROGRAM/program/ΠΡΟΓΡΑΜΜΑ) so we can look
+// it up; if that's missing/unmatched we fall back to whichever Program is
+// flagged `leadIntake`. If the form also sends a VAT field, we run the same
+// AFM lookup/creation flow as /api/external/vat-update instead of creating a
+// placeholder lead — unlike vat-update, we still target the named Program
+// specifically (manual ProgramMatch + Ερμής link) rather than running the
+// full automated matching engine.
 // Auth: header `x-api-key` (or `key`/`KEY` query/body param, same as
 // vat-update) must match env LEADS_API_KEY.
 
@@ -55,6 +60,24 @@ function normalizePhone(value: string | null): string | null {
   return digits || null
 }
 
+// Natural persons (sole proprietors) come back from GSIS as
+// "ΕΠΩΝΥΜΟ ΟΝΟΜΑ ΠΑΤΡΩΝΥΜΟ" with no legal status — trim the patronymic
+// and label them as ΑΤΟΜΙΚΗ. Mirrors vat-update/route.ts.
+function applySoleProprietorFix(gsisData: any): { onomasia: string | null; legalStatusDescr: string | null } {
+  let onomasia = gsisData?.onomasia || ''
+  let legalStatusDescr = gsisData?.legalStatusDescr || ''
+
+  if (!legalStatusDescr) {
+    const parts = onomasia.trim().split(/\s+/)
+    if (parts.length >= 3) {
+      onomasia = parts.slice(0, 2).join(' ')
+    }
+    legalStatusDescr = 'ΑΤΟΜΙΚΗ'
+  }
+
+  return { onomasia: onomasia || null, legalStatusDescr: legalStatusDescr || null }
+}
+
 async function generateLeadAfm(): Promise<string> {
   for (let attempt = 0; attempt < 5; attempt++) {
     const candidate = `LEAD-${crypto.randomBytes(6).toString('hex')}`
@@ -62,6 +85,19 @@ async function generateLeadAfm(): Promise<string> {
     if (!existing) return candidate
   }
   throw new Error('Could not generate a unique placeholder AFM for lead')
+}
+
+async function resolveProgram(programName: string | null) {
+  if (programName) {
+    const byName = await prisma.program.findFirst({
+      where: { title: { equals: programName, mode: 'insensitive' }, active: true },
+    })
+    if (byName) return byName
+  }
+  return prisma.program.findFirst({
+    where: { leadIntake: true, active: true },
+    orderBy: { createdAt: 'desc' },
+  })
 }
 
 export async function POST(request: NextRequest) {
@@ -75,84 +111,142 @@ export async function POST(request: NextRequest) {
   const phone = normalizePhone(pick(searchParams, body, 'PHONE', 'phone', 'ΤΗΛΕΦΩΝΟ', 'τηλέφωνο', 'viber', 'VIBER') || null)
   const sector = pick(searchParams, body, 'SECTOR', 'sector', 'ΚΛΑΔΟΣ', 'κλάδος', 'category', 'ΚΑΤΗΓΟΡΙΑ').trim() || null
   const referer = pick(searchParams, body, 'REFERER', 'referer').trim() || null
+  const programName = pick(searchParams, body, 'PROGRAM', 'program', 'ΠΡΟΓΡΑΜΜΑ', 'πρόγραμμα').trim() || null
+  const afm = pick(searchParams, body, 'VAT', 'vat', 'afm', 'ΑΦΜ').replace(/\D/g, '') || null
 
   if (!email && !phone) {
     return NextResponse.json({ error: 'Απαιτείται email ή τηλέφωνο' }, { status: 400 })
   }
 
-  // Avoid creating duplicate lead rows for the same person resubmitting the form.
-  const existingLead = email
-    ? await prisma.business.findFirst({ where: { source: 'lead-form', email }, select: { id: true } })
-    : null
+  const program = await resolveProgram(programName)
+  if (!program) {
+    console.error('[Leads webhook] No matching Program found (and none flagged leadIntake) — lead not saved.')
+    return NextResponse.json({ error: 'Δεν βρέθηκε αντίστοιχο πρόγραμμα' }, { status: 404 })
+  }
 
-  const business = existingLead
-    ? await prisma.business.update({
-        where: { id: existingLead.id },
-        data: { ...(phone ? { viberPhone: phone } : {}) },
-      })
-    : await prisma.business.create({
+  let business
+  let created = false
+
+  if (afm && afm.length === 9) {
+    const existingByAfm = await prisma.business.findUnique({ where: { afm }, select: { id: true } })
+    if (existingByAfm) {
+      business = await prisma.business.update({
+        where: { afm },
         data: {
-          afm: await generateLeadAfm(),
-          clientType: 'INDIVIDUAL',
-          source: 'lead-form',
-          onomasia: name,
+          ...(email ? { email } : {}),
+          ...(phone ? { viberPhone: phone } : {}),
+        },
+      })
+    } else {
+      let gsisData: any = null
+      try {
+        gsisData = await lookupAfm(afm)
+      } catch {
+        gsisData = null
+      }
+
+      const soleProprietorFix = gsisData ? applySoleProprietorFix(gsisData) : null
+
+      business = await prisma.business.create({
+        data: {
+          afm,
           email,
           viberPhone: phone,
-          tags: ['Νέα Επιχείρηση', ...(sector ? [sector] : [])],
+          source: 'lead-form',
+          tags: ['Νέο Lead από Φόρμα', ...(sector ? [sector] : [])],
+          legalStatusDescr: soleProprietorFix?.legalStatusDescr || (gsisData ? null : 'ΙΔΙΩΤΗΣ'),
+          onomasia: soleProprietorFix?.onomasia || gsisData?.onomasia || name,
+          commercialTitle: gsisData?.commercialTitle || null,
+          regdate: gsisData?.regdate || null,
+          postalAddress: gsisData?.postalAddress || null,
+          postalAddressNo: gsisData?.postalAddressNo || null,
+          postalZipCode: gsisData?.postalZipCode || null,
+          postalAreaDescription: gsisData?.postalAreaDescription || null,
+          doy: gsisData?.doy || null,
+          doyDescr: gsisData?.doyDescr || null,
           notes: [
-            'Lead από φόρμα ιστοσελίδας (χωρίς ΑΦΜ — ενδιαφέρεται να ξεκινήσει επιχείρηση).',
+            `Lead από φόρμα ιστοσελίδας (πρόγραμμα: ${program.title}).`,
             sector ? `Κλάδος ενδιαφέροντος: ${sector}` : null,
             referer ? `Referer: ${referer}` : null,
           ].filter(Boolean).join('\n'),
+          activities: gsisData?.activities?.length ? {
+            create: gsisData.activities.map((a: any) => ({
+              firmActCode: a.firmActCode,
+              firmActDescr: a.firmActDescr,
+              firmActKind: a.firmActKind ? parseInt(String(a.firmActKind)) : null,
+              firmActKindDescr: a.firmActKindDescr,
+            }))
+          } : undefined,
         },
       })
+      created = true
+    }
+  } else {
+    // No VAT — synthetic placeholder lead, no real business yet.
+    const existingLead = email
+      ? await prisma.business.findFirst({ where: { source: 'lead-form', email }, select: { id: true } })
+      : null
 
-  const leadProgram = await prisma.program.findFirst({
-    where: { leadIntake: true, active: true },
-    orderBy: { createdAt: 'desc' },
-  })
-
-  if (!leadProgram) {
-    console.error('[Leads webhook] No active Program flagged leadIntake — lead saved without an Ερμής link.')
-    return NextResponse.json({ success: true, businessId: business.id, ermisLinkSent: false })
+    business = existingLead
+      ? await prisma.business.update({
+          where: { id: existingLead.id },
+          data: { ...(phone ? { viberPhone: phone } : {}) },
+        })
+      : await prisma.business.create({
+          data: {
+            afm: await generateLeadAfm(),
+            clientType: 'INDIVIDUAL',
+            source: 'lead-form',
+            onomasia: name,
+            email,
+            viberPhone: phone,
+            tags: ['Νέα Επιχείρηση', ...(sector ? [sector] : [])],
+            notes: [
+              `Lead από φόρμα ιστοσελίδας (χωρίς ΑΦΜ — πρόγραμμα: ${program.title}).`,
+              sector ? `Κλάδος ενδιαφέροντος: ${sector}` : null,
+              referer ? `Referer: ${referer}` : null,
+            ].filter(Boolean).join('\n'),
+          },
+        })
+    created = !existingLead
   }
 
   await prisma.programMatch.upsert({
-    where: { programId_businessId: { programId: leadProgram.id, businessId: business.id } },
+    where: { programId_businessId: { programId: program.id, businessId: business.id } },
     create: {
-      programId: leadProgram.id,
+      programId: program.id,
       businessId: business.id,
       status: 'INTERESTED',
-      matchReason: ['Ενδιαφέρον από φόρμα ιστοσελίδας για νέα επιχείρηση'],
+      matchReason: ['Ενδιαφέρον από φόρμα ιστοσελίδας'],
     },
     update: {},
   })
 
-  const ermisLink = await getOrCreateErmisLink(business.id, leadProgram.id)
+  const ermisLink = await getOrCreateErmisLink(business.id, program.id)
 
   let sent = false
   if (email) {
     sendEmail({
       to: email,
-      subject: `Η I-MENTOR θα σας βοηθήσει να ξεκινήσετε — ${leadProgram.title}`,
+      subject: `Η I-MENTOR θα σας βοηθήσει — ${program.title}`,
       html: `<p>Γεια σας${name ? ` ${name}` : ''},</p>
-        <p>Ευχαριστούμε για το ενδιαφέρον σας να ξεκινήσετε νέα επιχείρηση. Μιλήστε τώρα με τον ψηφιακό μας σύμβουλο, τον Ερμή, για να δείτε αμέσως τις επιλογές χρηματοδότησης:</p>
+        <p>Ευχαριστούμε για το ενδιαφέρον σας. Μιλήστε τώρα με τον ψηφιακό μας σύμβουλο, τον Ερμή, για να δείτε αμέσως τις επιλογές χρηματοδότησης:</p>
         <p><a href="${ermisLink}">${ermisLink}</a></p>`,
     }).then(ok => { if (ok) sent = true }).catch(() => {})
   }
   if (phone) {
     sendViberMessage({
       to: phone,
-      text: `Γεια σας${name ? ` ${name}` : ''}! Ευχαριστούμε για το ενδιαφέρον σας να ξεκινήσετε νέα επιχείρηση. Μιλήστε τώρα με τον Ερμή για τις επιλογές χρηματοδότησης: ${ermisLink}`,
+      text: `Γεια σας${name ? ` ${name}` : ''}! Ευχαριστούμε για το ενδιαφέρον σας. Μιλήστε τώρα με τον Ερμή για τις επιλογές χρηματοδότησης: ${ermisLink}`,
     }).then(r => { if (r.ok) sent = true }).catch(() => {})
   }
 
   sendEmail({
     to: process.env.ADMIN_EMAIL || 'info@i-mentor.gr',
-    subject: `🆕 Νέο lead (χωρίς ΑΦΜ): ${name || email || phone}`,
-    html: `<p>Νέο ενδιαφέρον για νέα επιχείρηση από τη φόρμα ιστοσελίδας${sector ? ` (κλάδος: ${sector})` : ''}.</p>
+    subject: `🆕 Νέο lead: ${name || email || phone} (${program.title})`,
+    html: `<p>Νέο ενδιαφέρον από τη φόρμα ιστοσελίδας για το πρόγραμμα <strong>${program.title}</strong>${sector ? ` (κλάδος: ${sector})` : ''}.</p>
       <p><a href="${process.env.APP_URL || 'https://logistis.i-mentor.gr'}/businesses/${business.id}">Δείτε την επιχείρηση →</a></p>`,
   }).catch(() => {})
 
-  return NextResponse.json({ success: true, businessId: business.id, ermisLinkSent: sent, ermisLink })
+  return NextResponse.json({ success: true, businessId: business.id, created, programId: program.id, ermisLinkSent: sent, ermisLink })
 }

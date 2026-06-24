@@ -330,7 +330,7 @@ export default function EditProgramPage() {
             <div className="flex items-center gap-2">
               <input type="checkbox" {...register('leadIntake')} id="leadIntake" className="rounded" />
               <label htmlFor="leadIntake" className="text-sm text-gray-700">
-                Πρόγραμμα υποδοχής leads χωρίς ΑΦΜ (π.χ. "Ξεκινώ Επιχειρηματικά") — νέοι ενδιαφερόμενοι από τη φόρμα ιστοσελίδας θα κατευθύνονται απευθείας σε συζήτηση με τον Ερμή για αυτό το πρόγραμμα
+                Εφεδρικό πρόγραμμα υποδοχής leads — χρησιμοποιείται μόνο όταν η φόρμα Bitform δεν στέλνει (ή δεν ταιριάζει) το όνομα προγράμματος. Κανονικά κάθε φόρμα δηλώνει το πρόγραμμά της ρητά.
               </label>
             </div>
           </CardContent>

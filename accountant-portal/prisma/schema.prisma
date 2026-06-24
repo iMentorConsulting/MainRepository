@@ -249,11 +249,11 @@ model Program {
   // program (e.g. tone, things to emphasize/avoid, special handling) — injected
   // directly into its system prompt, never shown on the public page.
   ermisInstructions  String?
-  // When true, this program is offered to fresh leads captured by the
-  // /api/external/leads webhook (people interested in starting a new
-  // business, with no AFM/company yet) — they're routed straight to an
-  // Ερμής chat for this program. Admin-set; if multiple programs are
-  // flagged, the most recently created active one is used.
+  // Fallback target for the /api/external/leads webhook when a form
+  // submission doesn't include (or doesn't match) a program-name field —
+  // each Bitform lead form normally names its target Program explicitly, so
+  // this flag only matters for older/misconfigured forms. If multiple
+  // programs are flagged, the most recently created active one is used.
   leadIntake         Boolean            @default(false)
   createdAt          DateTime           @default(now())
   updatedAt          DateTime           @updatedAt
