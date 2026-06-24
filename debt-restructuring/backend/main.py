@@ -163,7 +163,8 @@ def _run_backup_safe():
         from backup import run_backup
         result = run_backup()
         drive_ok = "Drive ✓" if result.get("drive_backup") else f"Drive ✗ {result.get('drive_error','')}"
-        print(f"[Backup] OK — {result['filename']} ({result['case_count']} cases) {drive_ok}")
+        local_ok = "Local ✓" if result.get("local_backup") else f"Local ✗ {result.get('local_error','')}"
+        print(f"[Backup] OK — {result['filename']} ({result['case_count']} cases) {local_ok} {drive_ok}")
     except Exception as e:
         print(f"[Backup] FAILED — {e}")
 

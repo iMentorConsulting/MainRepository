@@ -1,14 +1,14 @@
 """
-Backup system: local + Google Drive.
+Backup system: local + Google Drive. Both are best-effort and independent —
+a failure in one (e.g. the Railway volume running out of space) must never
+block the other.
 
-LOCAL BACKUPS (guaranteed — Railway volume /data):
-  Always saved regardless of Google Drive availability
+LOCAL BACKUPS (Railway volume /data):
   Kept for 90 days, auto-pruned
 
-GOOGLE DRIVE BACKUPS (best-effort):
+GOOGLE DRIVE BACKUPS:
   Requires: GOOGLE_DRIVE_BACKUP_FOLDER_ID (shared drive, NOT personal folder)
   Service accounts: Need a Shared Drive (personal Drive has zero quota)
-  If upload fails, local backup still exists — no data loss
 """
 
 import json
@@ -158,30 +158,37 @@ def run_backup() -> dict:
     filename = f"Exodikastikos-backup_{datetime.utcnow().strftime('%Y-%m-%d_%H-%M')}.json"
     content = json.dumps(payload, ensure_ascii=False, indent=2)
 
-    # === LOCAL BACKUP (guaranteed) ===
-    backup_dir = pathlib.Path("/data/backups")
-    backup_dir.mkdir(parents=True, exist_ok=True)
-    local_path = backup_dir / filename
-    local_path.write_text(content, encoding="utf-8")
-
-    # Prune local backups older than 90 days
-    cutoff = datetime.utcnow() - timedelta(days=90)
+    # === LOCAL BACKUP (best-effort — must never block the Drive backup below) ===
+    local_path = None
     local_pruned = 0
-    for f in backup_dir.glob("Exodikastikos-backup_*.json"):
-        try:
-            if datetime.fromtimestamp(f.stat().st_mtime) < cutoff:
-                f.unlink()
-                local_pruned += 1
-        except Exception:
-            pass
+    local_error = None
+    try:
+        backup_dir = pathlib.Path("/data/backups")
+        backup_dir.mkdir(parents=True, exist_ok=True)
+        local_path = backup_dir / filename
+        local_path.write_text(content, encoding="utf-8")
+
+        # Prune local backups older than 90 days
+        cutoff = datetime.utcnow() - timedelta(days=90)
+        for f in backup_dir.glob("Exodikastikos-backup_*.json"):
+            try:
+                if datetime.fromtimestamp(f.stat().st_mtime) < cutoff:
+                    f.unlink()
+                    local_pruned += 1
+            except Exception:
+                pass
+    except Exception as e:
+        local_error = str(e)
+        local_path = None
 
     result = {
         "ok": True,
         "filename": filename,
         "case_count": payload["case_count"],
         "lead_count": payload.get("lead_count", 0),
-        "local_backup": str(local_path),
+        "local_backup": str(local_path) if local_path else None,
         "local_pruned": local_pruned,
+        "local_error": local_error,
         "drive_backup": None,
         "drive_error": None,
     }
