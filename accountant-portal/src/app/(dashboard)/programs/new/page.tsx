@@ -46,6 +46,7 @@ const schema = z.object({
   active: z.boolean().default(true),
   internalNotes: z.string().optional(),
   pricingNote: z.string().optional(),
+  ermisInstructions: z.string().optional(),
 })
 type FormData = z.infer<typeof schema>
 
@@ -410,6 +411,13 @@ export default function NewProgramPage() {
                 Κατά προσέγγιση κόστος/αμοιβή που θα αναφέρει ο Ερμής στον πελάτη όταν ρωτηθεί. Δεν εμφανίζεται πουθενά δημόσια εκτός από τη συνομιλία.
               </p>
               <Textarea {...register('pricingNote')} rows={2} placeholder="π.χ. Αμοιβή σύνταξης φακέλου: 800-1500€ + 5% επί εγκριθέντος προϋπολογισμού" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Ειδικές οδηγίες για τον Ερμή (AI chat)</label>
+              <p className="text-sm text-gray-500 mb-2">
+                Οδηγίες συμπεριφοράς ειδικά για αυτό το πρόγραμμα (π.χ. τόνος, τι να τονίσει/αποφύγει). Προστίθενται απευθείας στις οδηγίες του Ερμή, δεν εμφανίζονται πουθενά δημόσια.
+              </p>
+              <Textarea {...register('ermisInstructions')} rows={3} placeholder="π.χ. Δώσε έμφαση στην ταχύτητα έγκρισης. Μην αναφέρεις το πρόγραμμα Χ ως εναλλακτική." />
             </div>
           </CardContent>
         </Card>

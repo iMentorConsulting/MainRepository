@@ -15,6 +15,12 @@ function renderWithBold(text: string) {
   return parts.map((part, i) => (i % 2 === 1 ? <strong key={i}>{part}</strong> : part))
 }
 
+// Very rough cost estimate — see ermis-transcripts/page.tsx for the same blend.
+function estimateCostEur(tokens: number): string {
+  const eur = (tokens / 1_000_000) * 10 * 0.92
+  return `~${eur < 0.01 && eur > 0 ? eur.toFixed(4) : eur.toFixed(2)}€`
+}
+
 export function ErmisTranscriptModal({ businessId, programId, onClose }: ErmisTranscriptModalProps) {
   const [chatLog, setChatLog] = useState<{ role: string; text: string }[]>([])
   const [tokenUsage, setTokenUsage] = useState(0)
@@ -66,7 +72,7 @@ export function ErmisTranscriptModal({ businessId, programId, onClose }: ErmisTr
 
         {tokenUsage > 0 && (
           <div className="px-6 pb-4 pt-2 border-t border-slate-100 text-xs text-slate-400 flex-shrink-0">
-            Tokens χρησιμοποιημένα σε αυτή τη συζήτηση: {tokenUsage.toLocaleString('el-GR')}
+            Tokens χρησιμοποιημένα σε αυτή τη συζήτηση: {tokenUsage.toLocaleString('el-GR')} · Κόστος (περίπου): {estimateCostEur(tokenUsage)}
           </div>
         )}
       </div>

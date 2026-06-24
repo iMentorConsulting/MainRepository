@@ -9,6 +9,18 @@ import { ErmisTranscriptModal } from '@/components/programs/ermis-transcript-mod
 
 const PAGE_SIZE = 25
 
+// Very rough cost estimate, NOT an exact figure: we only store total
+// (input+output) tokens per conversation, not the input/output split, so we
+// blend Claude Opus pricing ($5/1M input, $25/1M output) into a single
+// approximate $/1M-token rate and convert to € — good enough for a sanity
+// check, not for billing.
+const BLENDED_USD_PER_MILLION_TOKENS = 10
+const USD_TO_EUR = 0.92
+function estimateCostEur(tokens: number): string {
+  const eur = (tokens / 1_000_000) * BLENDED_USD_PER_MILLION_TOKENS * USD_TO_EUR
+  return `~${eur < 0.01 && eur > 0 ? eur.toFixed(4) : eur.toFixed(2)}€`
+}
+
 type Transcript = {
   businessId: string
   programId: string
@@ -99,6 +111,7 @@ export default function ErmisTranscriptsPage() {
                   <Th>Τελευταίο Μήνυμα</Th>
                   <Th className="text-xs">Μηνύματα</Th>
                   <Th className="text-xs">Tokens</Th>
+                  <Th className="text-xs">Κόστος (περίπου)</Th>
                   <Th className="text-xs">Ημερομηνία</Th>
                   <Th className="text-xs">Ανάθεση</Th>
                   <Th />
@@ -107,7 +120,7 @@ export default function ErmisTranscriptsPage() {
               <TableBody>
                 {transcripts.length === 0 ? (
                   <TableRow>
-                    <Td colSpan={9} className="text-center text-gray-400 py-8">Δεν βρέθηκαν συζητήσεις</Td>
+                    <Td colSpan={10} className="text-center text-gray-400 py-8">Δεν βρέθηκαν συζητήσεις</Td>
                   </TableRow>
                 ) : (
                   transcripts.map(t => (
@@ -128,6 +141,7 @@ export default function ErmisTranscriptsPage() {
                       </Td>
                       <Td className="text-xs text-gray-500">{t.messageCount}</Td>
                       <Td className="text-xs text-gray-500">{t.tokenUsage?.toLocaleString('el-GR') || 0}</Td>
+                      <Td className="text-xs text-gray-500">{estimateCostEur(t.tokenUsage || 0)}</Td>
                       <Td className="text-xs text-gray-500">
                         {new Date(t.createdAt).toLocaleDateString('el-GR', { day: '2-digit', month: '2-digit', year: '2-digit' })}
                       </Td>

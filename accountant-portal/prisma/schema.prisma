@@ -245,6 +245,10 @@ model Program {
   startDate          DateTime?
   endDate            DateTime?
   internalNotes      String?
+  // Free-text behavioral instructions for the Ερμής chat agent specific to this
+  // program (e.g. tone, things to emphasize/avoid, special handling) — injected
+  // directly into its system prompt, never shown on the public page.
+  ermisInstructions  String?
   createdAt          DateTime           @default(now())
   updatedAt          DateTime           @updatedAt
   matches            ProgramMatch[]

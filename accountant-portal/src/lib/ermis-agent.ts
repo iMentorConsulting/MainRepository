@@ -13,7 +13,7 @@ const MAX_RESPONSE_TOKENS = 1_000
 
 // Hard per-conversation token budget (input+output, cumulative across turns)
 // to prevent runaway/abusive Claude spend on a single business+program chat.
-export const MAX_CONVERSATION_TOKENS = 60_000
+export const MAX_CONVERSATION_TOKENS = 100_000
 
 export interface ChatMessage {
   role: 'user' | 'assistant'
@@ -48,6 +48,7 @@ function buildSystemPrompt(program: {
   otherRequirements: string | null
   pricingNote: string | null
   internalNotes: string | null
+  ermisInstructions: string | null
 }, businessName: string, autoConfirmedReasons: string[], qualitativeQuestions: EligibilityQuestion[]) {
   const isLoan = program.category === 'MICROCREDITS'
   const amountLabel = isLoan ? 'Ύψος δανείου' : 'Επένδυση'
@@ -87,6 +88,7 @@ ${qualitativeChecklist}
 
 ΚΟΣΤΟΣ (ΕΣΩΤΕΡΙΚΗ ΠΛΗΡΟΦΟΡΙΑ, πες το ΜΟΝΟ αν ρωτηθείς ή όταν είναι φυσικό στο τέλος): ${program.pricingNote || 'Δεν υπάρχει σταθερή τιμή για αυτό το πρόγραμμα· πες ότι το κόστος εξαρτάται από την υπηρεσία και ότι ο σύμβουλος θα δώσει ακριβή προσφορά.'}
 ${program.internalNotes ? `\nΕΠΙΠΛΕΟΝ ΕΣΩΤΕΡΙΚΗ ΠΛΗΡΟΦΟΡΙΑ (πες την ΜΟΝΟ αν η επιχείρηση φαίνεται ΕΠΙΛΕΞΙΜΗ — ΠΟΤΕ αν δεν είναι, ή πριν ολοκληρωθεί ο έλεγχος επιλεξιμότητας): ${program.internalNotes}` : ''}
+${program.ermisInstructions ? `\nΕΙΔΙΚΕΣ ΟΔΗΓΙΕΣ ΓΙΑ ΑΥΤΟ ΤΟ ΠΡΟΓΡΑΜΜΑ (τήρησέ τις αυστηρά, υπερισχύουν των γενικών οδηγιών παρακάτω όπου υπάρχει αντίφαση): ${program.ermisInstructions}` : ''}
 
 ΣΚΟΠΟΣ ΣΟΥ, με αυτή σειρά:
 1. Κάνε τον βασικό έλεγχο επιλεξιμότητας — ρώτα ΜΟΝΟ ό,τι λείπει από τα "ήδη επιβεβαιωμένα" και είναι κρίσιμο, ΜΙΑ ερώτηση τη φορά, όχι λίστα ερωτήσεων μαζί.
@@ -189,6 +191,7 @@ export async function runErmisTurn(params: {
     otherRequirements: string | null
     pricingNote: string | null
     internalNotes: string | null
+    ermisInstructions: string | null
   }
   autoConfirmedReasons: string[]
   qualitativeQuestions?: EligibilityQuestion[]
