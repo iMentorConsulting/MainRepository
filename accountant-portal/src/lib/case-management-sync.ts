@@ -6,6 +6,43 @@
 //                           the inbound /api/external/cases endpoint)
 // If unset, this is a no-op.
 
+// Outbound request to Case Management asking it to look up a prospect by
+// email and open/assign a case for them — used when a consultant wants to
+// follow up on a campaign reply but the prospect isn't a ClientCase on our
+// side yet. Case Management looks the client up, and once it creates a case
+// it echoes `requestRef` back via the existing case.created webhook
+// (POST /api/external/cases), which is how we correlate the eventual case
+// back to this request. Configure via env:
+//   CASE_MGMT_ASSIGNMENT_REQUEST_URL — Case Management's endpoint for this
+//   CASES_API_KEY                    — same shared secret as above
+export async function requestNewAssignment(data: {
+  requestRef: string
+  email: string
+  programTitle?: string | null
+  requestedBy: string
+  note?: string | null
+}): Promise<{ ok: boolean; error?: string }> {
+  const url = process.env.CASE_MGMT_ASSIGNMENT_REQUEST_URL
+  const apiKey = process.env.CASES_API_KEY
+  if (!url || !apiKey) return { ok: false, error: 'Case Management assignment-request integration not configured' }
+
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey },
+      body: JSON.stringify(data),
+    })
+    if (!res.ok) {
+      console.error(`[CaseManagement] Assignment request failed for ${data.requestRef}: HTTP ${res.status}`)
+      return { ok: false, error: `HTTP ${res.status}` }
+    }
+    return { ok: true }
+  } catch (err: any) {
+    console.error(`[CaseManagement] Assignment request error for ${data.requestRef}:`, err?.message || err)
+    return { ok: false, error: err?.message || 'network error' }
+  }
+}
+
 function deriveProgramCategory(programTitle: string | null | undefined): string {
   if (!programTitle) return 'ΕΣΠΑ'
   const t = programTitle.toUpperCase()

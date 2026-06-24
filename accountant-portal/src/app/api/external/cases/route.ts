@@ -12,11 +12,13 @@ function checkApiKey(request: NextRequest): boolean {
 const VALID_STATUSES = ['NEW', 'ACCEPTED', 'IN_PROGRESS', 'WAITING_CLIENT', 'WAITING_ACCOUNTANT', 'COMPLETED', 'CANCELLED']
 
 // POST /api/external/cases — open (or link) a case when the client pays in the inhouse system.
-// Body: { afm: string, externalRef: string, status?, externalStatus?, note?, caseType?, dueDate? }
+// Body: { afm: string, externalRef: string, status?, externalStatus?, note?, caseType?, dueDate?, requestRef? }
+// `requestRef` is echoed back from a prior POST /api/assignment-requests call (see
+// lib/case-management-sync.ts) — when present, it's used to mark that AssignmentRequest as matched.
 export async function POST(request: NextRequest) {
   if (!checkApiKey(request)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { afm, externalRef, status, externalStatus, note, caseType, dueDate } = await request.json()
+  const { afm, externalRef, status, externalStatus, note, caseType, dueDate, requestRef } = await request.json()
   if (!afm || !externalRef) {
     return NextResponse.json({ error: 'afm and externalRef are required' }, { status: 400 })
   }
@@ -34,6 +36,7 @@ export async function POST(request: NextRequest) {
   const existing = await prisma.clientCase.findUnique({ where: { externalRef } })
   if (existing) {
     const updated = await applyExternalUpdate(existing.id, { status, externalStatus, note, dueDate })
+    await linkAssignmentRequest(requestRef, updated.id)
     return NextResponse.json({ id: updated.id, caseNumber: updated.caseNumber, created: false })
   }
 
@@ -44,6 +47,7 @@ export async function POST(request: NextRequest) {
   })
   if (unlinked) {
     const updated = await applyExternalUpdate(unlinked.id, { status, externalStatus, note, dueDate, externalRef })
+    await linkAssignmentRequest(requestRef, updated.id)
     return NextResponse.json({ id: updated.id, caseNumber: updated.caseNumber, created: false })
   }
 
@@ -73,7 +77,17 @@ export async function POST(request: NextRequest) {
     },
   })
 
+  await linkAssignmentRequest(requestRef, clientCase.id)
+
   return NextResponse.json({ id: clientCase.id, caseNumber: clientCase.caseNumber, created: true }, { status: 201 })
+}
+
+async function linkAssignmentRequest(requestRef: string | undefined | null, caseId: string) {
+  if (!requestRef) return
+  await prisma.assignmentRequest.update({
+    where: { id: requestRef },
+    data: { status: 'MATCHED', caseId, matchedAt: new Date() },
+  }).catch(() => {})
 }
 
 // PUT /api/external/cases — update an existing case by externalRef or caseNumber.

@@ -22,6 +22,7 @@ model User {
   updatedAt     DateTime    @updatedAt
   loginLogs     LoginLog[]
   aiExtractionExamples AiExtractionExample[]
+  assignmentRequests   AssignmentRequest[]
 }
 
 model AiExtractionExample {
@@ -648,6 +649,34 @@ model ClientCase {
   documents        CaseDocument[]
   documentRequests CaseDocumentRequest[]
   dypaAssignment   DypaAssignment?
+  assignmentRequest AssignmentRequest?
+}
+
+// A consultant's request to the inhouse Case Management app to look up a
+// prospect by email and open/assign a case for them (used when a customer
+// replies to a campaign and isn't a client yet, so we don't want to create
+// a ClientCase on our side before Case Management has actually taken it on).
+// The request's own id is sent as `requestRef`; Case Management echoes it
+// back on the existing case.created webhook (POST /api/external/cases) once
+// it creates the case, which is how we mark this MATCHED.
+model AssignmentRequest {
+  id            String                  @id @default(cuid())
+  email         String
+  programTitle  String?
+  note          String?
+  requestedById String
+  requestedBy   User                    @relation(fields: [requestedById], references: [id])
+  status        AssignmentRequestStatus @default(SENT)
+  caseId        String?                 @unique
+  case          ClientCase?             @relation(fields: [caseId], references: [id])
+  createdAt     DateTime                @default(now())
+  matchedAt     DateTime?
+}
+
+enum AssignmentRequestStatus {
+  SENT
+  MATCHED
+  FAILED
 }
 
 model CaseTypeOption {
