@@ -1012,6 +1012,26 @@ try:
 except Exception as _e:
     print(f"[migration] cm_portal_assignments create skipped: {_e}", flush=True)
 
+try:
+    with engine.connect() as _conn:
+        _conn.execute(_text("""
+            CREATE TABLE IF NOT EXISTS cm_portal_assignment_requests (
+                id SERIAL PRIMARY KEY,
+                email VARCHAR(200) NOT NULL,
+                program VARCHAR(100) NOT NULL,
+                note TEXT,
+                requested_by VARCHAR(100),
+                status VARCHAR(20) DEFAULT 'sent',
+                portal_response TEXT,
+                case_number INTEGER,
+                cm_assignment_id INTEGER REFERENCES cm_portal_assignments(id),
+                created_at TIMESTAMP DEFAULT NOW()
+            )
+        """))
+        _conn.commit()
+except Exception as _e:
+    print(f"[migration] cm_portal_assignment_requests create skipped: {_e}", flush=True)
+
 
 @app.on_event("shutdown")
 def _shutdown_scheduler():

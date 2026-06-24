@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
 from database import get_db, fmt_dt
-from models_cases import CMCase, CMUser, CMPortalAssignment
+from models_cases import CMCase, CMUser, CMPortalAssignment, CMPortalAssignmentRequest
 from auth_cases import get_current_user
 
 log = logging.getLogger(__name__)
@@ -18,6 +18,9 @@ router = APIRouter(prefix="/api/cm/portal-integration", tags=["cm-portal-integra
 
 PORTAL_CASES_API_URL = os.getenv(
     "LOGISTIS_PORTAL_CASES_URL", "https://logistis.i-mentor.gr/api/external/cases"
+)
+PORTAL_ASSIGNMENT_REQUEST_URL = os.getenv(
+    "LOGISTIS_ASSIGNMENT_REQUEST_URL", "https://logistis.i-mentor.gr/api/external/assignment-requests"
 )
 
 
@@ -173,6 +176,7 @@ class CaseCreatedWebhook(BaseModel):
     description: Optional[str] = None
     priority: Optional[str] = None
     programTitle: Optional[str] = None
+    requestRef: Optional[str] = None
 
 
 class DocumentUploadedWebhook(BaseModel):
@@ -205,6 +209,20 @@ def _handle_case_created(payload: CaseCreatedWebhook, db: Session) -> dict:
     db.add(assignment)
     db.commit()
     db.refresh(assignment)
+
+    if payload.requestRef:
+        try:
+            req = db.query(CMPortalAssignmentRequest).filter(
+                CMPortalAssignmentRequest.id == int(payload.requestRef)
+            ).first()
+        except (TypeError, ValueError):
+            req = None
+        if req:
+            req.status = "fulfilled"
+            req.case_number = payload.caseNumber
+            req.cm_assignment_id = assignment.id
+            db.commit()
+
     return {"message": "OK", "id": assignment.id}
 
 
@@ -308,6 +326,97 @@ def receive_portal_webhook(
             raise HTTPException(status_code=400, detail=f"Μη έγκυρο payload: {exc}")
         return _handle_document_uploaded(data, db)
     raise HTTPException(status_code=400, detail="Μη υποστηριζόμενο event")
+
+
+# ── Outbound assignment requests (us → Portal) ───────────────────────────────
+class AssignmentRequestIn(BaseModel):
+    email: str
+    program: str
+    note: Optional[str] = None
+
+
+def _assignment_request_to_dict(r: CMPortalAssignmentRequest) -> dict:
+    return {
+        "id": r.id,
+        "email": r.email,
+        "program": r.program,
+        "note": r.note,
+        "requested_by": r.requested_by,
+        "status": r.status,
+        "portal_response": r.portal_response,
+        "case_number": r.case_number,
+        "cm_assignment_id": r.cm_assignment_id,
+        "created_at": fmt_dt(r.created_at),
+    }
+
+
+@router.post("/assignment-requests")
+def create_assignment_request(
+    req: AssignmentRequestIn,
+    current_user: CMUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Ask the LOGISTIS Accountant Portal to route a specific client/program
+    assignment to the Case Management app, by email + program."""
+    record = CMPortalAssignmentRequest(
+        email=req.email.strip(),
+        program=req.program,
+        note=req.note,
+        requested_by=current_user.full_name,
+        status="sent",
+    )
+    db.add(record)
+    db.commit()
+    db.refresh(record)
+
+    secret = _shared_secret()
+    if not secret:
+        record.status = "failed"
+        record.portal_response = "IMENTOR_PORTAL_API_KEY δεν έχει ρυθμιστεί"
+        db.commit()
+        return _assignment_request_to_dict(record)
+
+    try:
+        resp = requests.post(
+            PORTAL_ASSIGNMENT_REQUEST_URL,
+            json={
+                "email": record.email,
+                "programTitle": record.program,
+                "requestRef": str(record.id),
+                "requestedBy": record.requested_by,
+                **({"note": record.note} if record.note else {}),
+            },
+            headers={"x-api-key": secret},
+            timeout=10,
+        )
+        if resp.ok:
+            record.portal_response = resp.text[:300]
+        else:
+            record.status = "failed"
+            record.portal_response = f"HTTP {resp.status_code}: {resp.text[:300]}"
+            log.error("LOGISTIS assignment request failed %s: %s", resp.status_code, resp.text[:300])
+    except Exception as exc:
+        record.status = "failed"
+        record.portal_response = str(exc)
+        log.warning("LOGISTIS assignment request error: %s", exc)
+
+    db.commit()
+    db.refresh(record)
+    return _assignment_request_to_dict(record)
+
+
+@router.get("/assignment-requests")
+def list_assignment_requests(
+    current_user: CMUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    rows = (
+        db.query(CMPortalAssignmentRequest)
+        .order_by(CMPortalAssignmentRequest.created_at.desc())
+        .limit(50)
+        .all()
+    )
+    return [_assignment_request_to_dict(r) for r in rows]
 
 
 # ── Agent-facing endpoints ───────────────────────────────────────────────────

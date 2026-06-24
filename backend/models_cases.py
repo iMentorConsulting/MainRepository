@@ -474,3 +474,22 @@ class CMPortalAssignment(Base):
 
     created_at = Column(DateTime, default=datetime.utcnow)
     resolved_at = Column(DateTime, nullable=True)
+
+
+class CMPortalAssignmentRequest(Base):
+    """Outgoing request from a CM agent asking the LOGISTIS Accountant Portal
+    to route a specific client/program assignment to the Case Management app."""
+    __tablename__ = "cm_portal_assignment_requests"
+
+    id = Column(Integer, primary_key=True)
+    email = Column(String(200), nullable=False)
+    program = Column(String(100), nullable=False)
+    note = Column(Text, nullable=True)
+    requested_by = Column(String(100))
+
+    status = Column(String(20), default="sent")  # sent | failed | fulfilled
+    portal_response = Column(Text, nullable=True)
+    case_number = Column(Integer, nullable=True)  # filled in once LOGISTIS links a case via requestRef
+    cm_assignment_id = Column(Integer, ForeignKey("cm_portal_assignments.id"), nullable=True)
+
+    created_at = Column(DateTime, default=datetime.utcnow)

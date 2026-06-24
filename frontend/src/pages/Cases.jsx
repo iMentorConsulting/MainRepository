@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { getCases, getUsers, deleteCase, createCase, updateCase, getPipelines, sendNotification, getCaseFilterOptions } from '../api'
+import { getCases, getUsers, deleteCase, createCase, updateCase, getPipelines, sendNotification, getCaseFilterOptions, createPortalAssignmentRequest, getPortalAssignmentRequests } from '../api'
 import { PIPELINES } from '../pipelines'
 import { MagnifyingGlassIcon, PlusIcon, TrashIcon, FolderOpenIcon, BoltIcon, ChevronDownIcon, ChevronUpIcon, CheckIcon } from '@heroicons/react/24/outline'
 import toast from 'react-hot-toast'
@@ -290,6 +290,108 @@ function NewCaseModal({ agents, onClose, onSaved }) {
   )
 }
 
+const ASSIGNMENT_REQUEST_STATUS_LABEL = {
+  sent: { label: 'Στάλθηκε', cls: 'bg-blue-100 text-blue-700' },
+  failed: { label: 'Αποτυχία', cls: 'bg-red-100 text-red-700' },
+  fulfilled: { label: 'Συνδέθηκε', cls: 'bg-green-100 text-green-700' },
+}
+
+function NewAssignmentRequestModal({ onClose }) {
+  const [email, setEmail] = useState('')
+  const [program, setProgram] = useState(PROGRAM_OPTIONS[0].value)
+  const [note, setNote] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [recent, setRecent] = useState([])
+  const [loadingRecent, setLoadingRecent] = useState(true)
+
+  const loadRecent = useCallback(() => {
+    setLoadingRecent(true)
+    getPortalAssignmentRequests().then(setRecent).catch(() => {}).finally(() => setLoadingRecent(false))
+  }, [])
+
+  useEffect(() => { loadRecent() }, [loadRecent])
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    setSaving(true)
+    try {
+      const result = await createPortalAssignmentRequest({ email: email.trim(), program, note: note.trim() || null })
+      if (result.status === 'failed') {
+        toast.error(result.portal_response || 'Η αίτηση δεν στάλθηκε στο LOGISTIS')
+      } else {
+        toast.success('Η αίτηση ανάθεσης στάλθηκε στο LOGISTIS')
+        setEmail(''); setNote('')
+      }
+      loadRecent()
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Σφάλμα αποστολής αίτησης')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 overflow-y-auto">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg my-4">
+        <div className="p-5 border-b flex items-center justify-between">
+          <h2 className="text-lg font-bold flex items-center gap-2">
+            <span className="text-purple-600">🔗</span> Νέα Ανάθεση από LOGISTIS
+          </h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
+        </div>
+        <form onSubmit={handleSubmit} className="p-5 space-y-4">
+          <p className="text-sm text-gray-500">
+            Ζητήστε από την εφαρμογή LOGISTIS να σας αναθέσει συγκεκριμένο πελάτη/πρόγραμμα. Η αίτηση στέλνεται στο
+            LOGISTIS app και, όταν την επεξεργαστούν, η υπόθεση θα εμφανιστεί στις «Εκκρεμείς Αναθέσεις».
+          </p>
+          <div>
+            <label className="label">Email Πελάτη *</label>
+            <input className="input" type="email" required value={email} onChange={e => setEmail(e.target.value)} />
+          </div>
+          <div>
+            <label className="label">Πρόγραμμα *</label>
+            <select className="input" value={program} onChange={e => setProgram(e.target.value)}>
+              {PROGRAM_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="label">Σημείωση</label>
+            <textarea className="input" rows={2} value={note} onChange={e => setNote(e.target.value)} />
+          </div>
+          <div className="flex gap-3">
+            <button type="button" onClick={onClose} className="flex-1 btn-secondary">Κλείσιμο</button>
+            <button type="submit" disabled={saving} className="flex-1 btn-primary">{saving ? 'Αποστολή...' : 'Αποστολή Αίτησης'}</button>
+          </div>
+        </form>
+
+        <div className="border-t p-5">
+          <h3 className="text-sm font-semibold text-gray-700 mb-2">Πρόσφατες Αιτήσεις</h3>
+          {loadingRecent ? (
+            <p className="text-sm text-gray-400">Φόρτωση...</p>
+          ) : recent.length === 0 ? (
+            <p className="text-sm text-gray-400">Καμία αίτηση ακόμα</p>
+          ) : (
+            <div className="space-y-1.5 max-h-48 overflow-y-auto">
+              {recent.map(r => {
+                const s = ASSIGNMENT_REQUEST_STATUS_LABEL[r.status] || ASSIGNMENT_REQUEST_STATUS_LABEL.sent
+                return (
+                  <div key={r.id} className="flex items-center justify-between text-sm border rounded-lg px-3 py-1.5">
+                    <div className="truncate">
+                      <span className="font-medium text-gray-800">{r.email}</span>
+                      <span className="text-gray-400"> · {r.program}</span>
+                    </div>
+                    <span className={`shrink-0 ml-2 text-xs px-2 py-0.5 rounded-full font-medium ${s.cls}`}>{s.label}</span>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function Cases() {
   const [allCases, setAllCases] = useState([])
   const [filterOptions, setFilterOptions] = useState({ service_types: [], statuses: [], programs: [] })
@@ -314,6 +416,7 @@ export default function Cases() {
     portal_only: false,
   })
   const [showNew, setShowNew] = useState(false)
+  const [showAssignReq, setShowAssignReq] = useState(false)
   const [sortCol, setSortCol] = useState('client_name')
   const [sortDir, setSortDir] = useState('asc')
   const navigate = useNavigate()
@@ -417,9 +520,14 @@ export default function Cases() {
             )}
           </p>
         </div>
-        <button onClick={() => setShowNew(true)} className="btn-primary gap-2 flex items-center">
-          <PlusIcon className="w-4 h-4" /> Νέα Υπόθεση
-        </button>
+        <div className="flex gap-2">
+          <button onClick={() => setShowAssignReq(true)} className="btn-secondary gap-2 flex items-center text-purple-700 border-purple-300">
+            <span>🔗</span> Νέα Ανάθεση
+          </button>
+          <button onClick={() => setShowNew(true)} className="btn-primary gap-2 flex items-center">
+            <PlusIcon className="w-4 h-4" /> Νέα Υπόθεση
+          </button>
+        </div>
       </div>
 
       {/* Filters */}
@@ -660,6 +768,7 @@ export default function Cases() {
       )}
 
       {showNew && <NewCaseModal agents={agents} onClose={() => setShowNew(false)} onSaved={() => { setShowNew(false); load() }} />}
+      {showAssignReq && <NewAssignmentRequestModal onClose={() => setShowAssignReq(false)} />}
     </div>
   )
 }
