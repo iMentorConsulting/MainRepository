@@ -44,6 +44,7 @@ const schema = z.object({
   startDate: z.string().optional(),
   endDate: z.string().optional(),
   active: z.boolean().default(true),
+  leadIntake: z.boolean().default(false),
   internalNotes: z.string().optional(),
   pricingNote: z.string().optional(),
   ermisInstructions: z.string().optional(),
@@ -345,6 +346,12 @@ export default function NewProgramPage() {
             <div className="flex items-center gap-2">
               <input type="checkbox" {...register('active')} id="active" defaultChecked className="rounded" />
               <label htmlFor="active" className="text-sm text-gray-700">Ενεργό πρόγραμμα</label>
+            </div>
+            <div className="flex items-center gap-2">
+              <input type="checkbox" {...register('leadIntake')} id="leadIntake" className="rounded" />
+              <label htmlFor="leadIntake" className="text-sm text-gray-700">
+                Πρόγραμμα υποδοχής leads χωρίς ΑΦΜ (π.χ. "Ξεκινώ Επιχειρηματικά") — νέοι ενδιαφερόμενοι από τη φόρμα ιστοσελίδας θα κατευθύνονται απευθείας σε συζήτηση με τον Ερμή για αυτό το πρόγραμμα
+              </label>
             </div>
           </CardContent>
         </Card>
