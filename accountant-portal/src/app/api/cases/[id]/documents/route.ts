@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { sendEmail } from '@/lib/email'
+import { notifyCaseManagementDocument } from '@/lib/case-management-sync'
 
 const MAX_DATA_URL = 14 * 1024 * 1024 // ~10MB file as base64
 
@@ -59,6 +60,20 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     },
   })
   await prisma.clientCase.update({ where: { id: existing.id }, data: { updatedAt: new Date() } })
+
+  // Mirror the document into the inhouse Case Management app's documents
+  // section for this case, so it doesn't have to be re-uploaded there.
+  notifyCaseManagementDocument({
+    caseNumber: existing.caseNumber,
+    externalRef: existing.externalRef,
+    afm: existing.business.afm,
+    onomasia: existing.business.onomasia,
+    category: category.trim(),
+    fileName,
+    dataUrl,
+    uploadedByName: session.user.name || '',
+    uploadedByRole: session.user.role,
+  }).catch(() => {})
 
   // Uploads from the accountant notify the admin team
   if (!isAdmin) {
