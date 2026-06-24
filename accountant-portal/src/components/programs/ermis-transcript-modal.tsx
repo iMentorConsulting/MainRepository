@@ -8,6 +8,13 @@ interface ErmisTranscriptModalProps {
   onClose: () => void
 }
 
+// Splits "**bold**" segments out of Ερμής's replies into <strong> elements —
+// the model is instructed to use this markup for emphasis (numbers, ΚΑΔ, verdicts).
+function renderWithBold(text: string) {
+  const parts = text.split(/\*\*(.+?)\*\*/g)
+  return parts.map((part, i) => (i % 2 === 1 ? <strong key={i}>{part}</strong> : part))
+}
+
 export function ErmisTranscriptModal({ businessId, programId, onClose }: ErmisTranscriptModalProps) {
   const [chatLog, setChatLog] = useState<{ role: string; text: string }[]>([])
   const [tokenUsage, setTokenUsage] = useState(0)
@@ -51,7 +58,7 @@ export function ErmisTranscriptModal({ businessId, programId, onClose }: ErmisTr
                     : 'self-start bg-slate-100 text-slate-700 rounded-2xl rounded-bl-sm px-4 py-2 text-sm max-w-[85%] whitespace-pre-wrap'
                 }
               >
-                {m.text}
+                {m.role === 'assistant' ? renderWithBold(m.text) : m.text}
               </div>
             ))
           )}
