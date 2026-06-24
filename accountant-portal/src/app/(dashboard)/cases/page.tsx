@@ -7,8 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { Table, TableHead, TableBody, TableRow, Th, Td } from '@/components/ui/table'
 import { MultiSelect } from '@/components/ui/multi-select'
 import { NewCaseModal } from '@/components/cases/new-case-modal'
-import { AssignmentRequestModal } from '@/components/cases/assignment-request-modal'
-import { Plus, Trash2, Sparkles, MessageCircle, LayoutDashboard, CalendarClock, ShieldCheck, Coins, Send } from 'lucide-react'
+import { Plus, Trash2, Sparkles, MessageCircle, LayoutDashboard, CalendarClock, ShieldCheck, Coins } from 'lucide-react'
 import { formatDateTime } from '@/lib/utils'
 
 const STATUS_LABELS: Record<string, string> = {
@@ -31,20 +30,12 @@ const TYPE_LABELS: Record<string, string> = {
 export default function CasesPage() {
   const { data: session } = useSession()
   const isAdmin = session?.user?.role === 'ADMIN'
-  const isConsultant = session?.user?.role === 'CONSULTANT'
   const [cases, setCases] = useState<any[]>([])
   const [accountants, setAccountants] = useState<{ id: string; officeName: string }[]>([])
   const [loading, setLoading] = useState(true)
   const [showNew, setShowNew] = useState(false)
-  const [showAssignReq, setShowAssignReq] = useState(false)
-  const [assignmentRequests, setAssignmentRequests] = useState<any[]>([])
   const [statusFilter, setStatusFilter] = useState<string[]>([])
   const [accountantFilter, setAccountantFilter] = useState<string[]>([])
-
-  async function fetchAssignmentRequests() {
-    const res = await fetch('/api/assignment-requests')
-    if (res.ok) setAssignmentRequests(await res.json())
-  }
 
   async function fetchCases() {
     const params = new URLSearchParams()
@@ -60,7 +51,6 @@ export default function CasesPage() {
   }
 
   useEffect(() => { fetchCases() }, [statusFilter, accountantFilter])
-  useEffect(() => { if (isAdmin || isConsultant) fetchAssignmentRequests() }, [isAdmin, isConsultant])
 
   async function deleteCase(c: any) {
     if (!confirm(`Διαγραφή υπόθεσης #${c.caseNumber}; Η ενέργεια δεν αναιρείται.`)) return
@@ -111,35 +101,9 @@ export default function CasesPage() {
               <Plus size={18} className="mr-2" />
               Νέα Ανάθεση
             </Button>
-            {(isAdmin || isConsultant) && (
-              <Button onClick={() => setShowAssignReq(true)} size="lg" variant="outline" className="border-white/40 text-white hover:bg-white/10">
-                <Send size={18} className="mr-2" />
-                Αίτημα Ανάθεσης από Case Mngt
-              </Button>
-            )}
           </div>
         </div>
       </div>
-
-      {(isAdmin || isConsultant) && assignmentRequests.length > 0 && (
-        <div className="rounded-2xl border border-gray-200 bg-white p-5">
-          <h3 className="text-sm font-semibold text-gray-900 mb-3">Αιτήματα Ανάθεσης προς Case Management</h3>
-          <div className="space-y-2">
-            {assignmentRequests.map(r => (
-              <div key={r.id} className="flex items-center justify-between gap-3 text-sm border-b border-gray-100 last:border-0 pb-2 last:pb-0">
-                <div>
-                  <span className="font-medium text-gray-900">{r.email}</span>
-                  {r.programTitle && <span className="text-gray-500"> — {r.programTitle}</span>}
-                  {isAdmin && <span className="text-gray-400"> · {r.requestedBy?.name}</span>}
-                </div>
-                <Badge variant={r.status === 'MATCHED' ? 'success' : r.status === 'FAILED' ? 'danger' : 'info'}>
-                  {r.status === 'MATCHED' ? 'Αναλήφθηκε' : r.status === 'FAILED' ? 'Αποτυχία' : 'Στάλθηκε'}
-                </Badge>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* ─── Case management / communication ─────────────────────────────── */}
       <div className="rounded-2xl border border-indigo-200 bg-gradient-to-br from-indigo-50 to-blue-50 p-5 sm:p-6">
@@ -304,7 +268,6 @@ export default function CasesPage() {
       </div>
 
       <NewCaseModal open={showNew} onClose={() => setShowNew(false)} onCreated={() => { setShowNew(false); fetchCases() }} userRole={session?.user?.role} />
-      <AssignmentRequestModal open={showAssignReq} onClose={() => setShowAssignReq(false)} onCreated={() => { setShowAssignReq(false); fetchAssignmentRequests() }} />
     </div>
   )
 }
