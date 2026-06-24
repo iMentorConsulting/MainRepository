@@ -16,6 +16,9 @@ export interface ProgramPitchInfo {
   maxSubsidyPct: number | null
   minInterestRate: number | null
   maxInterestRate: number | null
+  // MICROCREDITS programs are loans, not investment subsidies — the amount
+  // is a "ύψος δανείου", not a "ύψος επένδυσης". Affects wording only.
+  isLoan?: boolean
 }
 
 function formatEur(n: number): string {
@@ -32,13 +35,14 @@ function formatPct(n: number): string {
 // (ελάχιστο) έως 200.000€ (μέγιστο), με επιχορήγηση 50%;"
 export function buildPitch(program: ProgramPitchInfo): string {
   const parts: string[] = []
+  const amountNoun = program.isLoan ? 'δάνειο' : 'επένδυση'
 
   if (program.minInvestment != null && program.maxInvestment != null) {
-    parts.push(`επένδυση από ${formatEur(program.minInvestment)} (ελάχιστο) έως ${formatEur(program.maxInvestment)} (μέγιστο)`)
+    parts.push(`${amountNoun} από ${formatEur(program.minInvestment)} (ελάχιστο) έως ${formatEur(program.maxInvestment)} (μέγιστο)`)
   } else if (program.maxInvestment != null) {
-    parts.push(`επένδυση έως ${formatEur(program.maxInvestment)}`)
+    parts.push(`${amountNoun} έως ${formatEur(program.maxInvestment)}`)
   } else if (program.minInvestment != null) {
-    parts.push(`επένδυση από ${formatEur(program.minInvestment)}`)
+    parts.push(`${amountNoun} από ${formatEur(program.minInvestment)}`)
   }
 
   if (program.minSubsidyPct != null && program.maxSubsidyPct != null) {
@@ -94,6 +98,9 @@ export interface ProgramQualitativeCriteria {
   // the range (see buildPitch).
   minInvestment?: number | null
   maxInvestment?: number | null
+  // See ProgramPitchInfo.isLoan — MICROCREDITS programs ask about the loan
+  // amount, not an investment amount.
+  isLoan?: boolean
 }
 
 // Per-question admin decision, optionally seeded from the AI classification
@@ -158,7 +165,9 @@ export function buildEligibilityQuestions(
       questions.push({
         id,
         type: 'number',
-        label: ov?.label || 'Ποιο είναι το προβλεπόμενο ύψος της επένδυσής σας (σε ευρώ);',
+        label: ov?.label || (program.isLoan
+          ? 'Ποιο είναι το ύψος του δανείου που σας ενδιαφέρει (σε ευρώ);'
+          : 'Ποιο είναι το προβλεπόμενο ύψος της επένδυσής σας (σε ευρώ);'),
         expectedAnswer: true,
         min: program.minInvestment ?? null,
         max: program.maxInvestment ?? null,

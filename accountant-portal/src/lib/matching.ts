@@ -84,7 +84,7 @@ function matchesBusiness(
       })
     })
     if (matchedKad) {
-      reasons.push(`Επιλέξιμος ΚΑΔ: ${matchedKad.firmActCode} - ${matchedKad.firmActDescr || ''}`)
+      reasons.push(`ΚΑΔ: ${matchedKad.firmActCode} - ${matchedKad.firmActDescr || ''}`)
     } else {
       allMatched = false
     }
@@ -98,7 +98,7 @@ function matchesBusiness(
       ? businessRegion
       : null
     if (matchedRegion) {
-      reasons.push(`Επιλέξιμη περιφέρεια: ${matchedRegion}`)
+      reasons.push(`Περιφέρεια: ${matchedRegion}`)
     } else {
       allMatched = false
     }
@@ -109,7 +109,7 @@ function matchesBusiness(
     const zip = business.postalZipCode || ''
     const matchedZip = program.zipCodeRules.find(r => zip.startsWith(r) || zip === r)
     if (matchedZip) {
-      reasons.push(`Επιλέξιμος ΤΚ: ${matchedZip}`)
+      reasons.push(`ΤΚ: ${matchedZip}`)
     } else {
       allMatched = false
     }
@@ -126,7 +126,7 @@ function matchesBusiness(
       if (regdate > new Date(program.maxRegdate)) dateOk = false
     }
     if (dateOk && regdate) {
-      reasons.push(`Επιλέξιμη ημερομηνία ίδρυσης: ${regdate.toLocaleDateString('el-GR', { day: '2-digit', month: '2-digit', year: 'numeric' })}`)
+      reasons.push(`Ημερομηνία ίδρυσης: ${regdate.toLocaleDateString('el-GR', { day: '2-digit', month: '2-digit', year: 'numeric' })}`)
     } else {
       allMatched = false
     }

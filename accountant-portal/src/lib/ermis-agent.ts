@@ -37,6 +37,7 @@ const TOOL_SCHEMA = {
 function buildSystemPrompt(program: {
   title: string
   description: string | null
+  category?: string
   minInvestment: number | null
   maxInvestment: number | null
   minSubsidyPct: number | null
@@ -48,6 +49,8 @@ function buildSystemPrompt(program: {
   pricingNote: string | null
   internalNotes: string | null
 }, businessName: string, autoConfirmedReasons: string[], qualitativeQuestions: EligibilityQuestion[]) {
+  const isLoan = program.category === 'MICROCREDITS'
+  const amountLabel = isLoan ? 'Ύψος δανείου' : 'Επένδυση'
   // Prefer the admin-curated/approved checklist (per-question wording overrides,
   // skipped questions removed) over the raw "Άλλες Προϋποθέσεις" text — it's
   // what the admin actually wants Ερμής to ask, phrased for a conversation
@@ -74,7 +77,7 @@ ${IMENTOR_BASICS}
 
 ΣΤΟΙΧΕΙΑ ΠΡΟΓΡΑΜΜΑΤΟΣ "${program.title}":
 ${program.description || '(χωρίς περιγραφή)'}
-${program.minInvestment || program.maxInvestment ? `Επένδυση: ${program.minInvestment ?? '?'}–${program.maxInvestment ?? '?'}€` : ''}
+${program.minInvestment || program.maxInvestment ? `${amountLabel}: ${program.minInvestment ?? '?'}–${program.maxInvestment ?? '?'}€` : ''}
 ${program.minSubsidyPct || program.maxSubsidyPct ? `Ποσοστό επιχορήγησης: ${program.minSubsidyPct ?? '?'}–${program.maxSubsidyPct ?? '?'}%${program.subsidyNote ? ` (${program.subsidyNote})` : ''}` : ''}
 ${program.minInterestRate || program.maxInterestRate ? `Επιτόκιο: ${program.minInterestRate ?? '?'}–${program.maxInterestRate ?? '?'}%` : ''}
 Λοιπές προϋποθέσεις/όροι (ρώτα ΜΙΑ-ΜΙΑ, σε φυσική γλώσσα, όχι σαν λίστα στον πελάτη):
@@ -91,7 +94,11 @@ ${program.internalNotes ? `\nΕΠΙΠΛΕΟΝ ΕΣΩΤΕΡΙΚΗ ΠΛΗΡΟΦΟ�
 3. Αν η επιχείρηση φαίνεται επιλέξιμη ΚΑΙ θέλει να προχωρήσει, κάλεσε το εργαλείο "assign_case" για να αναλάβει σύμβουλος της I-MENTOR την υπόθεση. Μην το καλέσεις πρόωρα, πριν κάνεις τον βασικό έλεγχο.
 4. Αν δεν φαίνεται επιλέξιμη, πες το ευθέως και ευγενικά, χωρίς να καλέσεις το εργαλείο.
 
-ΠΑΡΕ ΕΣΥ ΤΟΝ ΕΛΕΓΧΟ της συνομιλίας: ΜΗΝ ρωτήσεις ποτέ τον πελάτη "τι θέλεις να μάθεις" ή κάτι αντίστοιχο ανοιχτό. Ξεκίνα πάντα λέγοντας ευθέως τι ήδη γνωρίζεις (τα "ήδη επιβεβαιωμένα") και προχώρα αμέσως στην επόμενη συγκεκριμένη ερώτηση που λείπει για τον έλεγχο επιλεξιμότητας. Εσύ οδηγείς τη συζήτηση βήμα-βήμα μέχρι να καταλήξεις σε συμπέρασμα.
+ΠΑΡΕ ΕΣΥ ΤΟΝ ΕΛΕΓΧΟ της συνομιλίας: ΜΗΝ ρωτήσεις ποτέ τον πελάτη "τι θέλεις να μάθεις" ή κάτι αντίστοιχο ανοιχτό. Στο ΞΕΚΙΝΗΜΑ της συνομιλίας, πριν από οποιαδήποτε ερώτηση, κάνε ΠΡΩΤΑ μια πολύ σύντομη (1 πρόταση) παρουσίαση του προγράμματος: το βασικό οικονομικό χαρακτηριστικό (επιτόκιο ή ποσοστό επιχορήγησης) ΜΑΖΙ με το ύψος του ${isLoan ? 'δανείου' : 'προϋπολογισμού/επένδυσης'} — π.χ. "Το πρόγραμμα ${isLoan ? 'είναι δάνειο με επιτόκιο X% για ποσά από Α έως Β€' : 'καλύπτει επενδύσεις από Α έως Β€ με επιχορήγηση X%'}." Μετά αυτή την παρουσίαση, λέγοντας ευθέως τι ήδη γνωρίζεις (τα "ήδη επιβεβαιωμένα"), προχώρα αμέσως στην επόμενη συγκεκριμένη ερώτηση που λείπει για τον έλεγχο επιλεξιμότητας. Εσύ οδηγείς τη συζήτηση βήμα-βήμα μέχρι να καταλήξεις σε συμπέρασμα.
+
+${isLoan ? 'ΣΗΜΑΝΤΙΚΟ: Αυτό το πρόγραμμα είναι ΔΑΝΕΙΟ, όχι επιχορήγηση επένδυσης — μίλα πάντα για "ύψος δανείου", ποτέ για "ύψος επένδυσης".' : ''}
+
+Μην επαναλαμβάνεις τη λέξη "επιλέξιμος/επιλέξιμη" μπροστά από κάθε κριτήριο όταν παραθέτεις τα "ήδη επιβεβαιωμένα" (π.χ. γράψε "ΚΑΔ: ..., Περιφέρεια: ..." όχι "Επιλέξιμος ΚΑΔ: ..., Επιλέξιμη περιφέρεια: ...") — η λέξη "επιλέξιμος" χρησιμοποιείται μόνο για το τελικό συμπέρασμα.
 
 Χρησιμοποίησε **διπλά αστερίσκια** γύρω από λέξεις/φράσεις που θέλεις να εμφανίζονται έντονα (bold) στον πελάτη — π.χ. αριθμούς, ΚΑΔ, ποσά, "επιλέξιμος"/"μη επιλέξιμος". Το frontend τα μετατρέπει αυτόματα σε έντονη γραφή.
 
@@ -171,6 +178,7 @@ export async function runErmisTurn(params: {
   program: {
     title: string
     description: string | null
+    category?: string
     minInvestment: number | null
     maxInvestment: number | null
     minSubsidyPct: number | null

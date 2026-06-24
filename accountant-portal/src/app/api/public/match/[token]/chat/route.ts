@@ -24,7 +24,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     prisma.program.findUnique({
       where: { id: matchToken.programId },
       select: {
-        title: true, description: true,
+        title: true, description: true, category: true,
         minInvestment: true, maxInvestment: true,
         minSubsidyPct: true, maxSubsidyPct: true, subsidyNote: true,
         minInterestRate: true, maxInterestRate: true,
@@ -49,6 +49,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       extraCriteriaLabels,
       minInvestment: program.minInvestment,
       maxInvestment: program.maxInvestment,
+      isLoan: program.category === 'MICROCREDITS',
     },
     questionOverrides,
     customQuestions,
