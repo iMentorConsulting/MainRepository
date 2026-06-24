@@ -46,7 +46,7 @@ export function NewCaseModal({ open, onClose, onCreated, initialBusinessId, init
           .map((m: any) => ({ id: m.program.id, title: m.program.title, category: m.program.category }))
         setMatchedPrograms(programs)
         setForm(f => programs.some((p: any) => p.id === f.programId) ? f : { ...f, programId: '' })
-        setContact({ needsPhone: !b.phone, needsEmail: !b.email, phone: '', email: '' })
+        setContact({ needsPhone: !b.phone && !b.viberPhone, needsEmail: !b.email, phone: '', email: '' })
       })
       .catch(() => setMatchedPrograms([]))
   }, [open, form.businessId])
