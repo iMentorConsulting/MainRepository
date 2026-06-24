@@ -11,9 +11,11 @@ export async function GET(request: NextRequest) {
 
   const { searchParams } = request.nextUrl
   const isAdmin = session.user.role === 'ADMIN'
+  const isConsultant = session.user.role === 'CONSULTANT'
+  const canSeeAll = isAdmin || isConsultant
 
   const where: any = {}
-  if (!isAdmin) {
+  if (!canSeeAll) {
     if (!session.user.accountantId) return NextResponse.json({ cases: [] })
     where.accountantId = session.user.accountantId
   } else {

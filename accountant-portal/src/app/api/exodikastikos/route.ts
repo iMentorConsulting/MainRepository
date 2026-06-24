@@ -10,8 +10,9 @@ export async function GET(request: NextRequest) {
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const isAdmin = session.user.role === 'ADMIN'
+  const canSeeAll = isAdmin || session.user.role === 'CONSULTANT'
   const where: any = {}
-  if (!isAdmin) {
+  if (!canSeeAll) {
     if (!session.user.accountantId) return NextResponse.json({ cases: [] })
     where.accountantId = session.user.accountantId
   } else {

@@ -48,13 +48,15 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
   if (!clientCase) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   const isAdmin = session.user.role === 'ADMIN'
-  if (!isAdmin && clientCase.accountantId !== session.user.accountantId) {
+  const isConsultant = session.user.role === 'CONSULTANT'
+  const isInternalStaff = isAdmin || isConsultant
+  if (!isInternalStaff && clientCase.accountantId !== session.user.accountantId) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
   await reconcileMatchStatuses(clientCase.business.programMatches as any)
 
-  if (!isAdmin) {
+  if (!isInternalStaff) {
     clientCase.activities = clientCase.activities.filter(a => !a.internal)
   }
 

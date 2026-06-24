@@ -19,12 +19,13 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
   if (!conversation) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   const isAdmin = session.user.role === 'ADMIN'
-  if (!isAdmin && conversation.accountantId !== session.user.accountantId) {
+  const canSeeAll = isAdmin || session.user.role === 'CONSULTANT'
+  if (!canSeeAll && conversation.accountantId !== session.user.accountantId) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
   // Mark unread messages as read for the current viewer
-  const viewerRole = isAdmin ? 'ACCOUNTANT' : 'ADMIN'
+  const viewerRole = canSeeAll ? 'ACCOUNTANT' : 'ADMIN'
   await prisma.chatMessage.updateMany({
     where: { conversationId: params.id, senderRole: viewerRole, readAt: null },
     data: { readAt: new Date() },

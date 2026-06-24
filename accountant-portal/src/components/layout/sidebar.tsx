@@ -13,7 +13,7 @@ const navItems = [
   { href: '/businesses', label: 'Επιχειρήσεις μου', icon: Building2, adminOnly: false },
   { href: '/programs', label: 'Επιχορηγούμενα Προγράμματα', icon: Zap, adminOnly: false },
   { href: '/matches', label: 'Matches', icon: Target, adminOnly: false },
-  { href: '/ermis-transcripts', label: 'Συζητήσεις με τον Ερμή', icon: MessageSquare, adminOnly: true },
+  { href: '/ermis-transcripts', label: 'Συζητήσεις με τον Ερμή', icon: MessageSquare, adminOnly: true, consultantOk: true },
   { href: '/cases', label: 'Αναθέσεις Προγραμμάτων', icon: ClipboardList, adminOnly: false },
   { href: '/exodikastikos', label: 'Αναθέσεις Εξωδικαστικού', icon: Scale, adminOnly: false },
   { href: '/chat', label: 'Επικοινωνία με i-Mentor', icon: MessageSquare, adminOnly: false },
@@ -41,7 +41,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
   const isAdmin = role === 'ADMIN'
   const isConsultant = role === 'CONSULTANT'
   const accountantId = (session?.user as any)?.accountantId
-  const visible = navItems.filter(i => (!i.adminOnly || isAdmin) && !i.hideFor?.includes(role as string))
+  const visible = navItems.filter(i => (!i.adminOnly || isAdmin || (isConsultant && i.consultantOk)) && !i.hideFor?.includes(role as string))
   const officeHref = !isAdmin && !isConsultant && accountantId ? `/accountants/${accountantId}` : null
   const [logoUrl, setLogoUrl] = useState<string | null>(null)
   const [accountantLogoUrl, setAccountantLogoUrl] = useState<string | null>(null)

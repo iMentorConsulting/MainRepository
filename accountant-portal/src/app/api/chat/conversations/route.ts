@@ -8,7 +8,8 @@ export async function GET() {
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const isAdmin = session.user.role === 'ADMIN'
-  const where = isAdmin ? {} : { accountantId: session.user.accountantId || '' }
+  const canSeeAll = isAdmin || session.user.role === 'CONSULTANT'
+  const where = canSeeAll ? {} : { accountantId: session.user.accountantId || '' }
 
   const conversations = await prisma.chatConversation.findMany({
     where,

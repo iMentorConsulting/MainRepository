@@ -13,7 +13,9 @@ const PAGE_SIZE = 25
 export async function GET(request: NextRequest) {
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  if (session.user.role !== 'ADMIN') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  if (session.user.role !== 'ADMIN' && session.user.role !== 'CONSULTANT') {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
 
   const { searchParams } = request.nextUrl
   const page = parseInt(searchParams.get('page') || '1')
