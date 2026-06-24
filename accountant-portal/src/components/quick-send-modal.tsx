@@ -54,20 +54,12 @@ export function QuickSendModal({ businesses, onClose, onSent }: QuickSendModalPr
   useEffect(() => {
     const ids = businesses.map(b => b.id).join(',')
     if (!ids) return
+    // Only ever offer programs actually matched (and not rejected) for these
+    // businesses — never fall back to the full program list, which would let
+    // the user reference a program the business isn't eligible for.
     fetch(`/api/quick-send/programs?businessIds=${ids}`)
       .then(r => r.json())
-      .then(d => {
-        if (d.programs?.length) {
-          setMatchedPrograms(d.programs)
-          return
-        }
-        // No recorded matches for these businesses (e.g. a fresh/test business) —
-        // still let the user pick a program manually so {{ermis_link}} etc. can resolve.
-        fetch('/api/programs')
-          .then(r => r.json())
-          .then(d2 => setMatchedPrograms((d2.programs || []).map((p: any) => ({ id: p.id, title: p.title }))))
-          .catch(() => {})
-      })
+      .then(d => setMatchedPrograms(d.programs || []))
       .catch(() => {})
   }, [businesses])
 
