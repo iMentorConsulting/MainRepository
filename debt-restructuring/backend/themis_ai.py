@@ -157,6 +157,48 @@ async def get_reply(lead, questions: list, instructions: str, transcript: list) 
     return text, usage
 
 
+def _build_followup_prompt(lead) -> str:
+    return f"""Είσαι η Θέμις, η ψηφιακή βοηθός της I MENTOR Consulting. Μόλις ολοκλήρωσες τον προκαταρκτικό έλεγχο επιλεξιμότητας του/της {lead.name or "lead"} για τον εξωδικαστικό μηχανισμό ρύθμισης οφειλών — ένας σύμβουλος θα τους καλέσει σύντομα.
+
+Τώρα ο lead μπορεί να σου κάνει μερικές ελεύθερες ερωτήσεις για να καταλάβει καλύτερα πώς δουλεύει το σύστημα, πριν τον καλέσει ο σύμβουλος. Χρησιμοποίησε τη γνώση σου για τον εξωδικαστικό (παρακάτω) για να απαντήσεις με σιγουριά, σε απλά ελληνικά, σύντομα και κατανοητά.
+
+ΚΑΝΟΝΕΣ:
+- Μην δίνεις δεσμευτική νομική συμβουλή ή τελικό ακριβή αριθμό ρύθμισης/διαγραφής — αυτό το κάνει πάντα ο ανθρώπινος σύμβουλος με τα πλήρη στοιχεία. Μπορείς να εξηγείς τη γενική λογική και τυπικά εύρη.
+- Μην ξαναρωτήσεις ερωτήσεις επιλεξιμότητας — αυτή η φάση έχει ολοκληρωθεί.
+- Αν η ερώτηση είναι άσχετη με τον εξωδικαστικό/χρέη, απάντησε ευγενικά ότι αυτό θα το δει με τον σύμβουλο.
+- Κράτα τις απαντήσεις σύντομες (2-4 προτάσεις), με ζεστό επαγγελματικό ύφος."""
+
+
+async def get_followup_reply(lead, transcript: list) -> tuple:
+    """Free-form Q&A after the eligibility verdict — same cached knowledge
+    block, different (much shorter) system prompt, never emits a verdict tag."""
+    import anthropic
+
+    client = anthropic.AsyncAnthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+    system_blocks = [
+        {"type": "text", "text": _KNOWLEDGE_BLOCK, "cache_control": {"type": "ephemeral"}},
+        {"type": "text", "text": _build_followup_prompt(lead)},
+    ]
+    messages = [
+        {"role": "assistant" if t["role"] == "themis" else "user", "content": t["text"]}
+        for t in transcript
+    ]
+    resp = await client.messages.create(
+        model="claude-sonnet-4-5",
+        max_tokens=400,
+        system=system_blocks,
+        messages=messages,
+    )
+    text = "".join(block.text for block in resp.content if block.type == "text")
+    usage = {
+        "input_tokens": resp.usage.input_tokens,
+        "output_tokens": resp.usage.output_tokens,
+        "cache_creation_input_tokens": getattr(resp.usage, "cache_creation_input_tokens", 0) or 0,
+        "cache_read_input_tokens": getattr(resp.usage, "cache_read_input_tokens", 0) or 0,
+    }
+    return text, usage
+
+
 def parse_verdict(reply: str) -> tuple:
     """Returns (clean_reply, verdict) where verdict is 'eligible' / 'ineligible' / None."""
     m = _VERDICT_RE.search(reply)
@@ -177,6 +219,7 @@ _VIBER_TEMPLATE = (
 )
 
 _EMAIL_SUBJECT = "⚖️ Θέμις — Σύντομη προκαταρκτική συζήτηση για την υπόθεσή σας"
+_LOGO_URL = "https://i-mentor.gr/wp-content/uploads/2026/06/logo-white-transparent.png"
 
 _EMAIL_BODY_TEMPLATE = (
     "**Γεια σου {name},** 👋\n\n"
@@ -228,7 +271,7 @@ def send_themis_link(lead) -> dict:
     if email:
         try:
             from routers.leads import _send_gmail
-            ok, err = _send_gmail(email, _EMAIL_SUBJECT, _EMAIL_BODY_TEMPLATE.format(name=name, link=link))
+            ok, err = _send_gmail(email, _EMAIL_SUBJECT, _EMAIL_BODY_TEMPLATE.format(name=name, link=link), logo_url=_LOGO_URL)
             result["email_ok"] = ok
             if not ok:
                 result["email_error"] = err

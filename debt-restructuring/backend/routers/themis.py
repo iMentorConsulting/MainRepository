@@ -9,7 +9,7 @@ from pydantic import BaseModel
 from database import get_db
 from models import Lead, ThemisSession, AppConfig
 from auth_utils import get_current_user
-from themis_ai import themis_enabled, get_reply, parse_verdict
+from themis_ai import themis_enabled, get_reply, get_followup_reply, parse_verdict
 from routers.notifications import create_notification, ADMIN_RECIPIENT
 
 router = APIRouter(prefix="/themis", tags=["themis"])
@@ -126,7 +126,20 @@ async def post_message(lead_token: str, data: ThemisMessageIn, db: Session = Dep
     if not session:
         raise HTTPException(status_code=404, detail="Session not found — call GET first")
     if session.status != "in_progress":
-        return {"reply": "", "status": session.status, "done": True}
+        # Eligibility screening is done — allow a few free-form follow-up
+        # questions about how the εξωδικαστικός system works, instead of
+        # locking the chat entirely.
+        transcript = list(session.transcript or [])
+        transcript.append({"role": "lead", "text": data.text, "at": _now_iso()})
+        reply, usage = await get_followup_reply(lead, transcript)
+        transcript.append({"role": "themis", "text": reply, "at": _now_iso()})
+        session.transcript = transcript
+        session.input_tokens = (session.input_tokens or 0) + usage["input_tokens"]
+        session.output_tokens = (session.output_tokens or 0) + usage["output_tokens"]
+        session.cache_creation_tokens = (session.cache_creation_tokens or 0) + usage["cache_creation_input_tokens"]
+        session.cache_read_tokens = (session.cache_read_tokens or 0) + usage["cache_read_input_tokens"]
+        db.commit()
+        return {"reply": reply, "status": session.status, "done": True}
 
     transcript = list(session.transcript or [])
     transcript.append({"role": "lead", "text": data.text, "at": _now_iso()})
