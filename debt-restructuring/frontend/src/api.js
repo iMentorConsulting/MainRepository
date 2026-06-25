@@ -154,6 +154,7 @@ export const putThemisSettings = (data) => api.put('/config/themis-settings', da
 export const themisGetSession = (token) => api.get(`/themis/${token}`)
 export const themisSendMessage = (token, text) => api.post(`/themis/${token}/message`, { text })
 export const getThemisTranscript = (leadId) => api.get(`/themis/lead/${leadId}/transcript`)
+export const getThemisSessions = () => api.get('/themis/sessions')
 
 // IRIS payments (DIAS Request to Pay)
 export const createIrisPayment = (data) => api.post('/payments/iris/create', data)

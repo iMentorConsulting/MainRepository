@@ -45,6 +45,35 @@ def _get_lead_or_404(db: Session, token: str) -> Lead:
     return lead
 
 
+@router.get("/sessions")
+def list_sessions(_: str = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Staff-only list of all Θέμις conversations, newest first — backs the
+    'Συζητήσεις με Θέμις' menu page. Must be declared before the /{lead_token}
+    catch-all route below, otherwise that route would shadow it."""
+    sessions = db.query(ThemisSession).order_by(ThemisSession.id.desc()).all()
+    leads = {}
+    if sessions:
+        lead_ids = [s.lead_id for s in sessions]
+        leads = {l.id: l for l in db.query(Lead).filter(Lead.id.in_(lead_ids)).all()}
+
+    out = []
+    for s in sessions:
+        lead = leads.get(s.lead_id)
+        transcript = s.transcript or []
+        last = transcript[-1] if transcript else None
+        out.append({
+            "lead_id": s.lead_id,
+            "lead_name": lead.name if lead else "",
+            "assigned_to": lead.assigned_to if lead else "",
+            "status": s.status,
+            "message_count": len(transcript),
+            "last_message": (last or {}).get("text", ""),
+            "last_message_at": (last or {}).get("at"),
+            "created_at": s.created_at.isoformat() if s.created_at else None,
+        })
+    return out
+
+
 @router.get("/{lead_token}")
 def get_session(lead_token: str, db: Session = Depends(get_db)):
     lead = _get_lead_or_404(db, lead_token)

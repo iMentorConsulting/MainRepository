@@ -13,6 +13,7 @@ import {
   XMarkIcon,
   CreditCardIcon,
   ScaleIcon,
+  ChatBubbleLeftEllipsisIcon,
 } from '@heroicons/react/24/outline'
 import { toast } from 'react-hot-toast'
 import { hangupCall } from '../api'
@@ -27,6 +28,7 @@ const nav = [
   { to: '/statistics', label: 'Στατιστικά', Icon: ChartBarIcon },
   { to: '/lead-lists', label: 'Λίστες', Icon: ListBulletIcon },
   { to: '/payments', label: 'Πληρωμές IRIS', Icon: CreditCardIcon },
+  { to: '/themis-conversations', label: 'Συζητήσεις με Θέμις', Icon: ChatBubbleLeftEllipsisIcon },
 ]
 
 const adminNav = [

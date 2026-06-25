@@ -990,7 +990,7 @@ function AppNumberEdit({ lead, onUpdate }) {
 }
 
 // ── Θέμις transcript viewer modal ───────────────────────────────────────────
-function ThemisTranscriptModal({ lead, onClose }) {
+export function ThemisTranscriptModal({ lead, onClose }) {
   const [data, setData] = useState(null)
   const [error, setError] = useState(false)
 

@@ -17,6 +17,7 @@ import LeadLists from './pages/LeadLists'
 import IrisPayments from './pages/IrisPayments'
 import Themis from './pages/Themis'
 import ThemisSettings from './pages/ThemisSettings'
+import ThemisConversations from './pages/ThemisConversations'
 import NotificationListener from './components/NotificationListener'
 import { loginUser } from './api'
 
@@ -98,6 +99,7 @@ export default function App() {
             <Route path="/payments" element={<IrisPayments currentEmployee={auth.employee} />} />
             <Route path="/leads-reporting" element={<LeadsReporting currentEmployee={auth.employee} />} />
             <Route path="/themis-settings" element={<ThemisSettings />} />
+            <Route path="/themis-conversations" element={<ThemisConversations />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         )}
