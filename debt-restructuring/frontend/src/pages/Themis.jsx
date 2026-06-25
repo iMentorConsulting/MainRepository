@@ -61,7 +61,7 @@ export default function Themis() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-950 via-blue-900 to-blue-700 flex flex-col">
       <div className="flex flex-col items-center px-5 py-4 bg-white/5 backdrop-blur-sm border-b border-white/10">
-        <img src="/logo.png" alt="i-Mentor" className="h-12 object-contain" onError={e => { e.target.onerror=null; e.target.src='https://i-mentor.gr/wp-content/uploads/2025/11/transparent-logo.png' }} />
+        <img src="/logo.png" alt="i-Mentor" className="h-12 object-contain" onError={e => { e.target.onerror=null; e.target.src='https://i-mentor.gr/wp-content/uploads/2026/06/logo-white-transparent.png' }} />
         <div className="text-blue-200 text-sm font-bold mt-2">⚖️ Θέμις — i-Mentor Consulting</div>
       </div>
 

@@ -24,7 +24,7 @@ export default function Login({ onLogin }) {
       <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-sm">
         <div className="text-center mb-8">
           <img src="/logo.png" alt="i-Mentor" className="h-20 w-auto object-contain mx-auto mb-4"
-            onError={e => { e.target.onerror=null; e.target.src='https://i-mentor.gr/wp-content/uploads/2025/11/transparent-logo.png' }} />
+            onError={e => { e.target.onerror=null; e.target.src='https://i-mentor.gr/wp-content/uploads/2026/06/logo-white-transparent.png' }} />
           <h1 className="text-2xl font-black text-blue-800">i-Mentor Consulting</h1>
           <p className="text-gray-500 text-sm mt-1">Διαχείριση Υποθέσεων Οφειλών</p>
         </div>
