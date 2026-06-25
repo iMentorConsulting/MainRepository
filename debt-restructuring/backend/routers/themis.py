@@ -45,6 +45,24 @@ def _get_lead_or_404(db: Session, token: str) -> Lead:
     return lead
 
 
+# Rough claude-sonnet-4-5 pricing ($/1M tokens) + USD→EUR — see _session_cost_eur.
+_PRICE_INPUT_PER_M = 3.00
+_PRICE_OUTPUT_PER_M = 15.00
+_PRICE_CACHE_WRITE_PER_M = 3.75   # 1.25x base input (5-min ephemeral cache)
+_PRICE_CACHE_READ_PER_M = 0.30    # 0.1x base input
+_USD_TO_EUR = 0.92                # approximate — adjust if needed
+
+
+def _session_cost_eur(s) -> float:
+    usd = (
+        (s.input_tokens or 0) / 1_000_000 * _PRICE_INPUT_PER_M
+        + (s.output_tokens or 0) / 1_000_000 * _PRICE_OUTPUT_PER_M
+        + (s.cache_creation_tokens or 0) / 1_000_000 * _PRICE_CACHE_WRITE_PER_M
+        + (s.cache_read_tokens or 0) / 1_000_000 * _PRICE_CACHE_READ_PER_M
+    )
+    return round(usd * _USD_TO_EUR, 4)
+
+
 @router.get("/sessions")
 def list_sessions(_: str = Depends(get_current_user), db: Session = Depends(get_db)):
     """Staff-only list of all Θέμις conversations, newest first — backs the
@@ -61,6 +79,7 @@ def list_sessions(_: str = Depends(get_current_user), db: Session = Depends(get_
         lead = leads.get(s.lead_id)
         transcript = s.transcript or []
         last = transcript[-1] if transcript else None
+        total_tokens = (s.input_tokens or 0) + (s.output_tokens or 0) + (s.cache_creation_tokens or 0) + (s.cache_read_tokens or 0)
         out.append({
             "lead_id": s.lead_id,
             "lead_name": lead.name if lead else "",
@@ -70,6 +89,8 @@ def list_sessions(_: str = Depends(get_current_user), db: Session = Depends(get_
             "last_message": (last or {}).get("text", ""),
             "last_message_at": (last or {}).get("at"),
             "created_at": s.created_at.isoformat() if s.created_at else None,
+            "total_tokens": total_tokens,
+            "cost_eur": _session_cost_eur(s),
         })
     return out
 
@@ -111,11 +132,15 @@ async def post_message(lead_token: str, data: ThemisMessageIn, db: Session = Dep
     transcript.append({"role": "lead", "text": data.text, "at": _now_iso()})
 
     questions, instructions = _get_settings(db)
-    raw_reply = await get_reply(lead, questions, instructions, transcript)
+    raw_reply, usage = await get_reply(lead, questions, instructions, transcript)
     clean_reply, verdict = parse_verdict(raw_reply)
 
     transcript.append({"role": "themis", "text": clean_reply, "at": _now_iso()})
     session.transcript = transcript
+    session.input_tokens = (session.input_tokens or 0) + usage["input_tokens"]
+    session.output_tokens = (session.output_tokens or 0) + usage["output_tokens"]
+    session.cache_creation_tokens = (session.cache_creation_tokens or 0) + usage["cache_creation_input_tokens"]
+    session.cache_read_tokens = (session.cache_read_tokens or 0) + usage["cache_read_input_tokens"]
 
     if verdict:
         session.status = verdict
