@@ -32,12 +32,20 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'No client found for this email' }, { status: 404 })
   }
 
+  const program = programTitle
+    ? await prisma.program.findFirst({ where: { title: { equals: programTitle, mode: 'insensitive' } } })
+    : null
+
+  const businessName = business.onomasia || business.afm
+  const phone = business.phone || business.viberPhone || null
+
   const clientCase = await prisma.clientCase.create({
     data: {
       accountantId: business.accountantId,
       businessId: business.id,
+      programId: program?.id,
       requestType: 'OTHER',
-      title: business.onomasia || business.afm,
+      title: programTitle ? `${businessName} — ${programTitle}` : businessName,
       description: note || null,
       status: 'NEW',
       createdById: 'external',
@@ -69,7 +77,7 @@ export async function POST(request: NextRequest) {
     caseNumber: clientCase.caseNumber,
     afm: business.afm,
     onomasia: business.onomasia,
-    phone: business.phone || null,
+    phone,
     email: business.email || null,
     accountantOffice: business.accountant?.officeName || null,
     caseType: null,
