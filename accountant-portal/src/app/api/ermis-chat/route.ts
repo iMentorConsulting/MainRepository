@@ -24,12 +24,14 @@ export async function GET(request: NextRequest) {
 
   const matchToken = await prisma.businessMatchToken.findUnique({
     where: { businessId_programId: { businessId, programId } },
-    select: { chatLog: true, tokenUsage: true, caseCreatedId: true, createdAt: true },
+    select: { chatLog: true, tokenUsage: true, tokenUsageInput: true, tokenUsageOutput: true, caseCreatedId: true, createdAt: true },
   })
 
   return NextResponse.json({
     chatLog: matchToken?.chatLog || [],
     tokenUsage: matchToken?.tokenUsage || 0,
+    tokenUsageInput: matchToken?.tokenUsageInput || 0,
+    tokenUsageOutput: matchToken?.tokenUsageOutput || 0,
     caseCreatedId: matchToken?.caseCreatedId || null,
     startedAt: matchToken?.createdAt || null,
   })

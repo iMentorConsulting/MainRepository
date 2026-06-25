@@ -202,7 +202,7 @@ export async function runErmisTurn(params: {
   // already knows + the first missing question) instead of waiting to be asked.
   isKickoff?: boolean
   tokensUsedSoFar: number
-}): Promise<{ reply: string; caseId: string | null; tokensUsed: number }> {
+}): Promise<{ reply: string; caseId: string | null; tokensUsed: number; tokensUsedInput: number; tokensUsedOutput: number }> {
   const apiKey = process.env.ANTHROPIC_API_KEY
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY δεν έχει οριστεί στο περιβάλλον.')
 
@@ -211,6 +211,8 @@ export async function runErmisTurn(params: {
       reply: 'Έχουμε φτάσει στο όριο αυτής της συζήτησης. Επικοινωνήστε απευθείας με την I-MENTOR (info@i-mentor.gr) για να συνεχίσουμε τον έλεγχο επιλεξιμότητάς σας.',
       caseId: null,
       tokensUsed: 0,
+      tokensUsedInput: 0,
+      tokensUsedOutput: 0,
     }
   }
 
@@ -232,7 +234,8 @@ export async function runErmisTurn(params: {
     messages,
   })
 
-  let tokensUsed = (response.usage?.input_tokens || 0) + (response.usage?.output_tokens || 0)
+  let tokensUsedInput = response.usage?.input_tokens || 0
+  let tokensUsedOutput = response.usage?.output_tokens || 0
 
   const toolUse = response.content.find(b => b.type === 'tool_use')
   let caseId: string | null = null
@@ -264,11 +267,24 @@ export async function runErmisTurn(params: {
         },
       ],
     })
-    tokensUsed += (followUp.usage?.input_tokens || 0) + (followUp.usage?.output_tokens || 0)
+    tokensUsedInput += followUp.usage?.input_tokens || 0
+    tokensUsedOutput += followUp.usage?.output_tokens || 0
     const text = followUp.content.find(b => b.type === 'text')
-    return { reply: text && text.type === 'text' ? text.text : 'Η υπόθεσή σας καταχωρήθηκε — ένας σύμβουλος της I-MENTOR θα επικοινωνήσει μαζί σας σύντομα.', caseId, tokensUsed }
+    return {
+      reply: text && text.type === 'text' ? text.text : 'Η υπόθεσή σας καταχωρήθηκε — ένας σύμβουλος της I-MENTOR θα επικοινωνήσει μαζί σας σύντομα.',
+      caseId,
+      tokensUsed: tokensUsedInput + tokensUsedOutput,
+      tokensUsedInput,
+      tokensUsedOutput,
+    }
   }
 
   const text = response.content.find(b => b.type === 'text')
-  return { reply: text && text.type === 'text' ? text.text : 'Μπορείτε να επαναλάβετε;', caseId: null, tokensUsed }
+  return {
+    reply: text && text.type === 'text' ? text.text : 'Μπορείτε να επαναλάβετε;',
+    caseId: null,
+    tokensUsed: tokensUsedInput + tokensUsedOutput,
+    tokensUsedInput,
+    tokensUsedOutput,
+  }
 }

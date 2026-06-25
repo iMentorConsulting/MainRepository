@@ -84,6 +84,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     data: {
       chatLog: finalHistory as any,
       tokenUsage: { increment: result.tokensUsed },
+      tokenUsageInput: { increment: result.tokensUsedInput },
+      tokenUsageOutput: { increment: result.tokensUsedOutput },
       ...(result.caseId ? { caseCreatedId: result.caseId } : {}),
     },
   })

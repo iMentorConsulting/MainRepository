@@ -171,6 +171,11 @@ model BusinessMatchToken {
   // Running total of Claude input+output tokens spent on this conversation —
   // enforced as a hard budget cap in runErmisTurn to prevent per-case overspend.
   tokenUsage     Int       @default(0)
+  // Same total, split by input/output so cost can be computed exactly per
+  // conversation (Claude Opus bills input and output at different rates)
+  // instead of guessing a blended rate.
+  tokenUsageInput  Int     @default(0)
+  tokenUsageOutput Int     @default(0)
 
   @@unique([businessId, programId])
 }

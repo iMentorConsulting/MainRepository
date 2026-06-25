@@ -6,20 +6,9 @@ import { Table, TableHead, TableBody, TableRow, Th, Td } from '@/components/ui/t
 import { Pagination } from '@/components/ui/pagination'
 import { Badge } from '@/components/ui/badge'
 import { ErmisTranscriptModal } from '@/components/programs/ermis-transcript-modal'
+import { estimateCostEur } from '@/lib/ermis-cost'
 
 const PAGE_SIZE = 25
-
-// Very rough cost estimate, NOT an exact figure: we only store total
-// (input+output) tokens per conversation, not the input/output split, so we
-// blend Claude Opus pricing ($5/1M input, $25/1M output) into a single
-// approximate $/1M-token rate and convert to € — good enough for a sanity
-// check, not for billing.
-const BLENDED_USD_PER_MILLION_TOKENS = 10
-const USD_TO_EUR = 0.92
-function estimateCostEur(tokens: number): string {
-  const eur = (tokens / 1_000_000) * BLENDED_USD_PER_MILLION_TOKENS * USD_TO_EUR
-  return `~${eur < 0.01 && eur > 0 ? eur.toFixed(4) : eur.toFixed(2)}€`
-}
 
 type Transcript = {
   businessId: string
@@ -28,6 +17,8 @@ type Transcript = {
   program: { id: string; title: string }
   createdAt: string
   tokenUsage: number
+  tokenUsageInput: number
+  tokenUsageOutput: number
   caseAssigned: boolean
   messageCount: number
   lastMessage: string | null
@@ -141,7 +132,7 @@ export default function ErmisTranscriptsPage() {
                       </Td>
                       <Td className="text-xs text-gray-500">{t.messageCount}</Td>
                       <Td className="text-xs text-gray-500">{t.tokenUsage?.toLocaleString('el-GR') || 0}</Td>
-                      <Td className="text-xs text-gray-500">{estimateCostEur(t.tokenUsage || 0)}</Td>
+                      <Td className="text-xs text-gray-500">{estimateCostEur(t.tokenUsage || 0, t.tokenUsageInput, t.tokenUsageOutput)}</Td>
                       <Td className="text-xs text-gray-500">
                         {new Date(t.createdAt).toLocaleDateString('el-GR', { day: '2-digit', month: '2-digit', year: '2-digit' })}
                       </Td>
