@@ -148,13 +148,6 @@ export const getPublicCase = (token, vat, notrack = false) => {
 export const markPortalInterested = (token) => api.post(`/public/case/${token}/interested`)
 export const getPublicStats = () => api.get('/public/stats')
 
-// Θέμις — AI lead-screening chat agent
-export const getThemisSettings = () => api.get('/config/themis-settings')
-export const putThemisSettings = (data) => api.put('/config/themis-settings', data)
-export const themisGetSession = (token) => api.get(`/themis/${token}`)
-export const themisSendMessage = (token, text) => api.post(`/themis/${token}/message`, { text })
-export const getThemisTranscript = (leadId) => api.get(`/themis/lead/${leadId}/transcript`)
-
 // IRIS payments (DIAS Request to Pay)
 export const createIrisPayment = (data) => api.post('/payments/iris/create', data)
 export const listIrisPayments = () => api.get('/payments/iris')

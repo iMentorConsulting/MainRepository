@@ -14,11 +14,8 @@ import {
   LinkIcon,
   PencilIcon,
   BriefcaseIcon,
-  ScaleIcon,
 } from '@heroicons/react/24/outline'
 import * as api from '../api'
-import { PORTAL_BASE } from '../api'
-
 
 const EMPLOYEES = ['STELLA', 'VALLIA', 'SOFIA']
 const CASE_EMPLOYEES = ['STELLA', 'VALLIA', 'SOFIA', 'HARIS']
@@ -989,59 +986,11 @@ function AppNumberEdit({ lead, onUpdate }) {
   )
 }
 
-// ── Θέμις transcript viewer modal ───────────────────────────────────────────
-function ThemisTranscriptModal({ lead, onClose }) {
-  const [data, setData] = useState(null)
-  const [error, setError] = useState(false)
-
-  useEffect(() => {
-    api.getThemisTranscript(lead.id)
-      .then(r => setData(r.data))
-      .catch(() => setError(true))
-  }, [lead.id])
-
-  return (
-    <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-xl max-w-lg w-full max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
-        <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
-          <div className="font-bold text-gray-700">⚖️ Συζήτηση Θέμις — {lead.name}</div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none">✕</button>
-        </div>
-        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-2">
-          {error && <p className="text-sm text-gray-400">Δεν υπάρχει συζήτηση Θέμις για αυτό το lead.</p>}
-          {!error && !data && <p className="text-sm text-gray-400">Φόρτωση…</p>}
-          {data?.transcript?.map((m, i) => (
-            <div key={i} className={`flex ${m.role === 'themis' ? 'justify-start' : 'justify-end'}`}>
-              <div className={`max-w-[80%] rounded-xl px-3 py-2 text-xs leading-relaxed whitespace-pre-line ${
-                m.role === 'themis' ? 'bg-gray-100 text-gray-800' : 'bg-blue-600 text-white'
-              }`}>
-                {m.text}
-              </div>
-            </div>
-          ))}
-          {data && !data.transcript?.length && <p className="text-sm text-gray-400">Δεν υπάρχουν μηνύματα ακόμα.</p>}
-        </div>
-      </div>
-    </div>
-  )
-}
-
 // ── Expanded inline row ─────────────────────────────────────────────────────
 function ExpandedRow({ lead, currentEmployee, onUpdate, colCount, templates, taxisnetLinks, allLeads }) {
   const [tab, setTab] = useState('comments')
   const [creatingCase, setCreatingCase] = useState(false)
-  const [showThemisTranscript, setShowThemisTranscript] = useState(false)
   const navigate = useNavigate()
-
-  const copyThemisLink = async () => {
-    const link = `${PORTAL_BASE}/themis/${lead.themis_token}`
-    try {
-      await navigator.clipboard.writeText(link)
-      toast.success('🔗 Ο σύνδεσμος Θέμις αντιγράφηκε')
-    } catch {
-      toast(link, { duration: 5000 })
-    }
-  }
   const commentCount = (lead.app_comments?.length || 0) + (lead.sheet_comments ? 1 : 0)
 
   const handleCreateCase = async () => {
@@ -1125,19 +1074,6 @@ function ExpandedRow({ lead, currentEmployee, onUpdate, colCount, templates, tax
             {lead.service_type && <span className="bg-blue-50 px-2 py-0.5 rounded"><span className="font-semibold">Υπηρεσία:</span> {lead.service_type}</span>}
             {lead.referrer && <span className="bg-gray-50 border border-gray-200 px-2 py-0.5 rounded"><span className="font-semibold">Referrer:</span> {lead.referrer}</span>}
             <AppNumberEdit lead={lead} onUpdate={onUpdate} />
-            {lead.themis_token && (
-              <button onClick={copyThemisLink}
-                className="bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-100 font-semibold px-2 py-0.5 rounded flex items-center gap-1">
-                <ScaleIcon className="w-3.5 h-3.5" /> Θέμις
-              </button>
-            )}
-            <button onClick={() => setShowThemisTranscript(true)}
-              className="bg-gray-50 border border-gray-200 text-gray-600 hover:bg-gray-100 font-semibold px-2 py-0.5 rounded flex items-center gap-1">
-              <ChatBubbleLeftEllipsisIcon className="w-3.5 h-3.5" /> Προβολή συζήτησης
-            </button>
-            {showThemisTranscript && (
-              <ThemisTranscriptModal lead={lead} onClose={() => setShowThemisTranscript(false)} />
-            )}
             <div className="flex-1" />
             {[
               { id: 'comments', label: `💬 Σχόλια${commentCount > 0 ? ` (${commentCount})` : ''}` },

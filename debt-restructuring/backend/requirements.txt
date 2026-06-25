@@ -11,4 +11,3 @@ google-api-python-client==2.126.0
 psycopg2-binary==2.9.9
 apscheduler==3.10.4
 python-jose[cryptography]==3.3.0
-anthropic==0.40.0

@@ -128,9 +128,6 @@ class Lead(Base):
     app_next_call = Column(DateTime, nullable=True)
     linked_case_id = Column(Integer, nullable=True)
 
-    # Public token for the Θέμις AI screening chat link
-    themis_token = Column(String, unique=True, index=True, default=lambda: secrets.token_urlsafe(24))
-
     # Timestamps
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow)
@@ -204,21 +201,3 @@ class Notification(Base):
     case_id = Column(Integer, nullable=True)
     delivered = Column(Boolean, default=False, index=True)
     created_at = Column(DateTime, default=datetime.utcnow)
-
-
-class ThemisSession(Base):
-    """One Θέμις AI screening chat attempt per Lead.
-
-    transcript is a JSON list of {role: "themis"|"lead", text, at}.
-    status: in_progress / eligible / ineligible.
-    """
-
-    __tablename__ = "themis_sessions"
-
-    id = Column(Integer, primary_key=True, index=True)
-    lead_id = Column(Integer, index=True, nullable=False)
-    transcript = Column(JSON, default=list)
-    status = Column(String, default="in_progress")
-    verdict_reason = Column(Text, default="")
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow)

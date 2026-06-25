@@ -47,25 +47,6 @@ def save_lead_templates(data: List[Any] = Body(...), db: Session = Depends(get_d
     return data
 
 
-@router.get("/themis-settings")
-def get_themis_settings(db: Session = Depends(get_db)):
-    row = db.query(AppConfig).filter(AppConfig.key == "themis_settings").first()
-    if row and row.value:
-        return json.loads(row.value)
-    return {"questions": [], "instructions": ""}
-
-
-@router.put("/themis-settings")
-def save_themis_settings(data: dict = Body(...), db: Session = Depends(get_db)):
-    row = db.query(AppConfig).filter(AppConfig.key == "themis_settings").first()
-    if row:
-        row.value = json.dumps(data)
-    else:
-        db.add(AppConfig(key="themis_settings", value=json.dumps(data)))
-    db.commit()
-    return data
-
-
 @router.get("/lead-links")
 def get_lead_links(db: Session = Depends(get_db)):
     row = db.query(AppConfig).filter(AppConfig.key == "lead_links").first()

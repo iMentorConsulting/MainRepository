@@ -12,7 +12,6 @@ import {
   PresentationChartLineIcon,
   XMarkIcon,
   CreditCardIcon,
-  ScaleIcon,
 } from '@heroicons/react/24/outline'
 import { toast } from 'react-hot-toast'
 import { hangupCall } from '../api'
@@ -32,7 +31,6 @@ const nav = [
 const adminNav = [
   { to: '/finances', label: 'Οικονομικά', Icon: BanknotesIcon },
   { to: '/leads-reporting', label: 'Reporting', Icon: PresentationChartLineIcon },
-  { to: '/themis-settings', label: 'Ρυθμίσεις Θέμις', Icon: ScaleIcon },
 ]
 
 export default function Layout({ auth, onLogout }) {
