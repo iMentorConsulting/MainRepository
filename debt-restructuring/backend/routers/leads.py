@@ -356,6 +356,13 @@ def create_lead(data: LeadCreate, db: Session = Depends(get_db)):
     db.add(lead)
     db.commit()
     db.refresh(lead)
+
+    try:
+        from themis_ai import send_themis_link
+        send_themis_link(lead)
+    except Exception:
+        pass
+
     return _lead_to_dict(lead)
 
 
