@@ -226,7 +226,7 @@ export async function runErmisTurn(params: {
   const tools = params.alreadyAssigned ? undefined : [TOOL_SCHEMA]
 
   const response = await anthropic.messages.create({
-    model: 'claude-opus-4-8',
+    model: 'claude-sonnet-4-6',
     max_tokens: MAX_RESPONSE_TOKENS,
     system,
     thinking: { type: 'adaptive' },
@@ -251,7 +251,7 @@ export async function runErmisTurn(params: {
     })
 
     const followUp = await anthropic.messages.create({
-      model: 'claude-opus-4-8',
+      model: 'claude-sonnet-4-6',
       max_tokens: MAX_RESPONSE_TOKENS,
       system,
       messages: [

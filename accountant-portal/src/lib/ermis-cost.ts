@@ -1,12 +1,14 @@
-// Claude Opus 4.8 pricing (the model used in ermis-agent.ts).
-const USD_PER_MILLION_INPUT = 5
-const USD_PER_MILLION_OUTPUT = 25
+// Claude Sonnet 4.6 pricing (the model used in ermis-agent.ts).
+const USD_PER_MILLION_INPUT = 3
+const USD_PER_MILLION_OUTPUT = 15
 const USD_TO_EUR = 0.92
 
 // Exact cost when we know the input/output split (stored as
 // tokenUsageInput/tokenUsageOutput since both fields were added) — each
-// priced at its own Opus rate. Falls back to a blended-rate guess for older
-// rows that only have a combined tokenUsage total.
+// priced at its own rate. Falls back to a blended-rate guess for older rows
+// that only have a combined tokenUsage total (note: rows from before the
+// Opus 4.8 -> Sonnet 4.6 switch will look slightly cheaper here than they
+// actually were).
 export function estimateCostEur(tokens: number, inputTokens?: number, outputTokens?: number): string {
   let usd: number
   if (inputTokens || outputTokens) {
