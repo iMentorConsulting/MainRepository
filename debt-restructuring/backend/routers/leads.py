@@ -210,9 +210,11 @@ def _chatwoot_send_with_retry(client_name: str, phone: str, message: str, max_at
 
 
 def _markup_to_html(text: str) -> str:
-    """Render our lightweight markup (**bold**, ▸ bullets, [c=#hex]color[/c]) as a styled HTML email."""
+    """Render our lightweight markup (**bold**, ▸ bullets, [c=#hex]color[/c], [btn]Label|URL[/btn]) as a styled HTML email."""
     import re as _re
     import html as _html
+    btn_re = _re.compile(r'^\[btn\]([^|]+)\|([^\[]+)\[/btn\]$')
+
     escaped = _html.escape(text)
     escaped = _re.sub(r'\*\*([^*]+)\*\*', r'<strong>\1</strong>', escaped)
     escaped = _re.sub(r'\[c=(#[0-9a-fA-F]{3,6})\]([^\[]+)\[/c\]', r'<span style="color:\1">\2</span>', escaped)
@@ -222,7 +224,16 @@ def _markup_to_html(text: str) -> str:
         lines = [l for l in block.split('\n') if l.strip()]
         if not lines:
             continue
-        if all(l.lstrip().startswith(('▸', '•', '-')) for l in lines):
+        btn_match = btn_re.match(lines[0].strip()) if len(lines) == 1 else None
+        if btn_match:
+            label, url = btn_match.group(1).strip(), btn_match.group(2).strip()
+            blocks.append(
+                f'<div style="text-align:center;margin:24px 0;">'
+                f'<a href="{url}" style="display:inline-block;background:#2563eb;color:#ffffff;'
+                f'text-decoration:none;font-weight:bold;padding:14px 32px;border-radius:10px;font-size:15px;">'
+                f'{label}</a></div>'
+            )
+        elif all(l.lstrip().startswith(('▸', '•', '-')) for l in lines):
             items = ''.join(f'<li style="margin:4px 0;">{l.lstrip()[1:].strip()}</li>' for l in lines)
             blocks.append(f'<ul style="margin:10px 0 16px;padding-left:18px;color:#1e293b;">{items}</ul>')
         else:
@@ -240,6 +251,7 @@ def _markup_strip(text: str) -> str:
     import re as _re
     text = _re.sub(r'\*\*([^*]+)\*\*', r'\1', text)
     text = _re.sub(r'\[c=#[0-9a-fA-F]{3,6}\]([^\[]+)\[/c\]', r'\1', text)
+    text = _re.sub(r'\[btn\]([^|]+)\|([^\[]+)\[/btn\]', r'\1: \2', text)
     return text
 
 
