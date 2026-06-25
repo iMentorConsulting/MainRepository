@@ -174,7 +174,7 @@ export default function CaseForm({ currentEmployee }) {
       const c = res.data
       setDebts(c.debts?.length ? c.debts : [emptyDebt()])
       setAssets(c.assets || [])
-      setIncome(c.income_data || defaultIncome())
+      setIncome({ ...defaultIncome(), ...(c.income_data || {}) })
       setClient({ name: c.client_name, phone: c.client_phone, email: c.client_email, vat: c.client_vat || '' })
       setEmployee(c.employee)
       setNotes(c.notes || '')
