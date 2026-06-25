@@ -53,7 +53,7 @@ export default function Layout({ auth, onLogout }) {
       {/* Sidebar */}
       <aside className="hidden md:flex flex-col w-56 bg-gradient-to-b from-blue-900 to-blue-800 text-white shrink-0">
         <div className="px-5 py-6 border-b border-blue-700">
-          <img src="/logo.png" alt="i-Mentor" className="h-14 w-auto object-contain" onError={e => { e.target.onerror=null; e.target.src='https://i-mentor.gr/wp-content/uploads/2025/11/transparent-logo.png' }} />
+          <img src="/logo.png" alt="i-Mentor" className="h-14 w-auto object-contain" onError={e => { e.target.onerror=null; e.target.src='https://i-mentor.gr/wp-content/uploads/2026/06/logo-white-transparent.png' }} />
           <div className="text-blue-300 text-xs mt-1">Οφειλές &amp; Ρυθμίσεις</div>
         </div>
 
@@ -102,7 +102,7 @@ export default function Layout({ auth, onLogout }) {
 
       {/* Mobile top bar */}
       <div className="md:hidden fixed top-0 inset-x-0 z-30 bg-blue-900 text-white flex items-center justify-between px-4 h-14">
-        <img src="/logo.png" alt="i-Mentor" className="h-10 w-auto object-contain" onError={e => { e.target.onerror=null; e.target.src='https://i-mentor.gr/wp-content/uploads/2025/11/transparent-logo.png' }} />
+        <img src="/logo.png" alt="i-Mentor" className="h-10 w-auto object-contain" onError={e => { e.target.onerror=null; e.target.src='https://i-mentor.gr/wp-content/uploads/2026/06/logo-white-transparent.png' }} />
         <div className="flex items-center gap-3">
           <button onClick={handleHangup} title="Hang up call" className="px-2 py-1 bg-red-600 hover:bg-red-700 text-white text-xs font-bold rounded transition-colors">
             ☎ Hang Up

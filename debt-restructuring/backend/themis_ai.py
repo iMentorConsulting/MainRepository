@@ -144,7 +144,7 @@ def send_themis_link(lead) -> dict:
     if not themis_enabled():
         return {"ok": True, "skipped": "ENABLE_THEMIS is off"}
 
-    portal_base = os.getenv("FRONTEND_URL", "https://mainrepository-production.up.railway.app").rstrip("/")
+    portal_base = os.getenv("FRONTEND_URL", "https://portal.i-mentor.gr").rstrip("/")
     link = f"{portal_base}/themis/{lead.themis_token}"
     name = lead.name or "εκεί"
     result = {"viber_ok": False, "viber_error": None, "email_ok": False, "email_error": None}

@@ -125,7 +125,7 @@ function VatGate({ onSubmit, error, loading }) {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-950 via-blue-900 to-blue-700 flex items-center justify-center p-4">
       <div className="bg-white rounded-3xl shadow-2xl p-8 max-w-sm w-full text-center">
-        <img src="/logo.png" alt="i-Mentor" className="h-16 w-auto object-contain mx-auto mb-4" onError={e => { e.target.onerror=null; e.target.src='https://i-mentor.gr/wp-content/uploads/2025/11/transparent-logo.png' }} />
+        <img src="/logo.png" alt="i-Mentor" className="h-16 w-auto object-contain mx-auto mb-4" onError={e => { e.target.onerror=null; e.target.src='https://i-mentor.gr/wp-content/uploads/2026/06/logo-white-transparent.png' }} />
         <div className="font-black text-2xl text-blue-900 mb-1">i-Mentor Consulting</div>
         <div className="text-gray-500 text-sm mb-6">Εισάγετε τον ΑΦΜ σας για να αποκτήσετε πρόσβαση στην ανάλυσή σας</div>
         <input
@@ -373,7 +373,7 @@ export default function ClientPreview() {
 
       {/* TOP BAR */}
       <div className="flex flex-col items-center px-5 py-5 bg-white/5 backdrop-blur-sm border-b border-white/10">
-        <img src="/logo.png" alt="i-Mentor Consulting" className="h-28 object-contain" onError={e => { e.target.onerror=null; e.target.src='https://i-mentor.gr/wp-content/uploads/2025/11/transparent-logo.png' }} />
+        <img src="/logo.png" alt="i-Mentor Consulting" className="h-28 object-contain" onError={e => { e.target.onerror=null; e.target.src='https://i-mentor.gr/wp-content/uploads/2026/06/logo-white-transparent.png' }} />
         <div className="text-blue-300 text-xs flex gap-5 mt-3">
           <span>2810 363007</span>
           <span>info@i-mentor.gr</span>
@@ -1042,7 +1042,7 @@ export default function ClientPreview() {
 
       {/* Footer */}
       <div className="text-center py-8 px-4 border-t border-white/10 mb-16 md:mb-0">
-        <img src="/logo.png" alt="i-Mentor Consulting" className="h-14 object-contain mx-auto mb-3 opacity-80" onError={e => { e.target.onerror=null; e.target.src='https://i-mentor.gr/wp-content/uploads/2025/11/transparent-logo.png' }} />
+        <img src="/logo.png" alt="i-Mentor Consulting" className="h-14 object-contain mx-auto mb-3 opacity-80" onError={e => { e.target.onerror=null; e.target.src='https://i-mentor.gr/wp-content/uploads/2026/06/logo-white-transparent.png' }} />
         <p className="text-blue-400 text-xs">© i-Mentor Consulting — Εμπιστευτικό έγγραφο, αποκλειστικά για τον αποδέκτη</p>
         <p className="mt-1 text-blue-500 text-xs">Ανάλυση: {data.employee} • {data.created_at ? format(new Date(data.created_at), 'dd/MM/yyyy') : ''}</p>
         <p className="mt-2 text-amber-400 text-xs font-bold">ΕΚΤΙΜΗΣΗ — ΟΧΙ ΑΠΟΤΕΛΕΣΜΑ</p>
