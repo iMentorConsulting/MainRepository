@@ -6,8 +6,8 @@ import os
 from dotenv import load_dotenv
 
 from database import engine, Base
-from models import Case, AppConfig, Lead, IrisPayment
-from routers import cases, statistics, public, config, leads, auth, external, payments, notifications
+from models import Case, AppConfig, Lead, IrisPayment, ThemisSession
+from routers import cases, statistics, public, config, leads, auth, external, payments, notifications, themis
 from auth_utils import get_current_user
 
 load_dotenv()
@@ -113,6 +113,7 @@ def run_migrations():
             "ALTER TABLE leads ADD COLUMN taxisnet_username_2 VARCHAR DEFAULT ''",
             "ALTER TABLE leads ADD COLUMN taxisnet_password_2 VARCHAR DEFAULT ''",
             "ALTER TABLE leads ADD COLUMN phone2 VARCHAR DEFAULT ''",
+            "ALTER TABLE leads ADD COLUMN themis_token VARCHAR",
         ]:
             try:
                 conn.execute(text(col_ddl))
@@ -121,6 +122,25 @@ def run_migrations():
                 pass
 
 run_migrations()
+
+
+def backfill_themis_tokens():
+    """Generate themis_token for leads that pre-date this column."""
+    import secrets as _secrets
+    with engine.connect() as conn:
+        try:
+            rows = conn.execute(text("SELECT id FROM leads WHERE themis_token IS NULL")).fetchall()
+        except Exception:
+            return
+        for (lead_id,) in rows:
+            conn.execute(
+                text("UPDATE leads SET themis_token = :t WHERE id = :id"),
+                {"t": _secrets.token_urlsafe(24), "id": lead_id},
+            )
+        conn.commit()
+
+
+backfill_themis_tokens()
 
 
 def backfill_unicode_comments():
@@ -156,6 +176,7 @@ app.include_router(leads.router)
 app.include_router(external.router)
 app.include_router(payments.router)
 app.include_router(notifications.router)
+app.include_router(themis.router)
 
 
 # ── Daily scheduler: sync then backup at 18:00 Athens (15:00 UTC) ────────────

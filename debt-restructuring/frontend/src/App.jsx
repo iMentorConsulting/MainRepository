@@ -15,6 +15,8 @@ import Leads from './pages/Leads'
 import LeadsReporting from './pages/LeadsReporting'
 import LeadLists from './pages/LeadLists'
 import IrisPayments from './pages/IrisPayments'
+import Themis from './pages/Themis'
+import ThemisSettings from './pages/ThemisSettings'
 import NotificationListener from './components/NotificationListener'
 import { loginUser } from './api'
 
@@ -73,6 +75,8 @@ export default function App() {
       <Routes>
         {/* Public client preview — no auth */}
         <Route path="/preview/:token" element={<ClientPreview />} />
+        {/* Public Θέμις AI screening chat — no auth */}
+        <Route path="/themis/:token" element={<Themis />} />
 
         {/* Auth-protected app */}
         {!auth ? (
@@ -93,6 +97,7 @@ export default function App() {
             <Route path="/lead-lists" element={<LeadLists currentEmployee={auth.employee} />} />
             <Route path="/payments" element={<IrisPayments currentEmployee={auth.employee} />} />
             <Route path="/leads-reporting" element={<LeadsReporting currentEmployee={auth.employee} />} />
+            <Route path="/themis-settings" element={<ThemisSettings />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         )}

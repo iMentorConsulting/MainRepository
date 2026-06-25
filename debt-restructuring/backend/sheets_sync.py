@@ -242,6 +242,7 @@ def sync_leads(db, full: bool = False) -> dict:
     rows = fetch_sheet_rows(from_row=from_row)
     inserted = 0
     skipped = 0
+    new_leads = []
 
     # For full sync build a set of existing row numbers to avoid N+1 queries
     if full:
@@ -263,10 +264,23 @@ def sync_leads(db, full: bool = False) -> dict:
             skipped += 1
             continue
 
-        db.add(Lead(**fields))
+        lead = Lead(**fields)
+        db.add(lead)
+        new_leads.append(lead)
         inserted += 1
 
     db.commit()
+
+    # Auto-send the Θέμις screening link — only for the normal incremental sync,
+    # never for a full backfill/reconciliation pass (would mass-message historical leads).
+    if not full and new_leads:
+        try:
+            from themis_ai import send_themis_link
+            for lead in new_leads:
+                send_themis_link(lead)
+        except Exception:
+            pass
+
     return {
         "ok": True,
         "mode": "full" if full else "incremental",
