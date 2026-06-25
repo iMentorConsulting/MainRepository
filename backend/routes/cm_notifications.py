@@ -5,6 +5,7 @@ import logging
 import threading
 import queue
 import time
+import uuid
 import requests
 
 logger = logging.getLogger(__name__)
@@ -439,6 +440,23 @@ def _build_status_change_html(case, from_status: str, to_status: str, descriptio
     return html
 
 
+def _shorten_url(url: str) -> str:
+    """Shorten a URL via is.gd. Falls back to the original URL on any failure."""
+    if not url:
+        return url
+    try:
+        resp = requests.get(
+            "https://is.gd/create.php",
+            params={"format": "simple", "url": url},
+            timeout=5,
+        )
+        if resp.ok and resp.text.startswith("http"):
+            return resp.text.strip()
+    except Exception:
+        pass
+    return url
+
+
 def _build_viber_status_text(client_name: str, service_type: str,
                               from_status: str, to_status: str,
                               prev_status, next_status,
@@ -473,8 +491,8 @@ def _build_viber_status_text(client_name: str, service_type: str,
     # ── CURRENT: sandwiched between dividers = hero ──
     lines += [
         divider,
-        f"🎯 ΤΡΕΧΟΝ ΣΤΑΔΙΟ:",
-        f"   {to_status}",
+        f"🎯 **ΤΡΕΧΟΝ ΣΤΑΔΙΟ:**",
+        f"   **{to_status}**",
     ]
     if current_desc:
         lines += [f"", f"📌 {current_desc}"]
@@ -497,9 +515,14 @@ def _build_viber_status_text(client_name: str, service_type: str,
     lines += [f""]
 
     if portal_url:
-        lines += [f"🔗 Portal: {portal_url}", f""]
+        short_url = _shorten_url(portal_url)
+        lines += [
+            f"🔗 **Δείτε αναλυτικά την υπόθεσή σας στο προσωπικό σας Portal:**",
+            f"{short_url}",
+            f"",
+        ]
 
-    lines += [f"🤖 Αυτοματοποιημένο μήνυμα iMentor Consulting"]
+    lines += [f"🤖 **Αυτοματοποιημένο μήνυμα** iMentor Consulting"]
 
     return "\n".join(lines)
 
@@ -514,8 +537,16 @@ def _send_status_change_notification(case, from_status: str, to_status: str, db)
         if not config or not config.enabled:
             return
 
+        # Auto-enable the customer portal whenever we notify the client —
+        # there's no point sending them a status update they can't follow up on.
+        if case.email or case.phone:
+            if not case.share_token:
+                case.share_token = str(uuid.uuid4())
+            if not case.portal_active:
+                case.portal_active = True
+
         portal_url = ""
-        if case.share_token and getattr(case, 'portal_active', False):
+        if case.share_token and case.portal_active:
             base_url = os.getenv("PORTAL_BASE_URL", "").rstrip("/")
             if base_url:
                 portal_url = f"{base_url}/portal/{case.share_token}"
