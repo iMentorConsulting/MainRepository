@@ -1,14 +1,35 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { BellAlertIcon, CheckCircleIcon, XMarkIcon } from '@heroicons/react/24/outline'
+import { BellAlertIcon, CheckCircleIcon, XMarkIcon, ClockIcon } from '@heroicons/react/24/outline'
 import { getPendingPortalAssignments, acceptPortalAssignment, dismissPortalAssignment } from '../api'
 import toast from 'react-hot-toast'
 
 const POLL_MS = 30000
+const SNOOZE_MS = 15 * 60 * 1000
+const SNOOZE_KEY = 'cm_portal_assignment_snoozes'
+
+function loadSnoozes() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(SNOOZE_KEY) || '{}')
+    const now = Date.now()
+    const cleaned = {}
+    for (const [id, until] of Object.entries(raw)) {
+      if (until > now) cleaned[id] = until
+    }
+    return cleaned
+  } catch {
+    return {}
+  }
+}
+
+function saveSnoozes(snoozes) {
+  localStorage.setItem(SNOOZE_KEY, JSON.stringify(snoozes))
+}
 
 export default function PortalAssignmentAlert() {
   const [pending, setPending] = useState([])
   const [busyId, setBusyId] = useState(null)
+  const [snoozes, setSnoozes] = useState(loadSnoozes)
   const navigate = useNavigate()
   const seenIds = useRef(new Set())
 
@@ -27,7 +48,9 @@ export default function PortalAssignmentAlert() {
   useEffect(() => {
     refresh()
     const t = setInterval(refresh, POLL_MS)
-    return () => clearInterval(t)
+    // Re-evaluate snoozes on the same cadence so postponed alerts reappear on time.
+    const snoozeTick = setInterval(() => setSnoozes(loadSnoozes), POLL_MS)
+    return () => { clearInterval(t); clearInterval(snoozeTick) }
   }, [])
 
   const handleAccept = async (a) => {
@@ -56,11 +79,22 @@ export default function PortalAssignmentAlert() {
     }
   }
 
-  if (pending.length === 0) return null
+  const handleSnooze = (a) => {
+    setSnoozes(prev => {
+      const next = { ...prev, [a.id]: Date.now() + SNOOZE_MS }
+      saveSnoozes(next)
+      return next
+    })
+    toast.success(`Η ειδοποίηση για την υπόθεση #${a.case_number} θα επανεμφανιστεί σε 15'`)
+  }
+
+  const visible = pending.filter(a => !(snoozes[a.id] && snoozes[a.id] > Date.now()))
+
+  if (visible.length === 0) return null
 
   return (
     <div className="fixed inset-x-0 top-0 z-50 flex flex-col items-center gap-3 p-4 pointer-events-none">
-      {pending.map(a => (
+      {visible.map(a => (
         <div
           key={a.id}
           className="pointer-events-auto w-full max-w-xl bg-amber-50 border-2 border-amber-400 rounded-xl shadow-2xl p-4 ring-4 ring-amber-300/60"
@@ -95,6 +129,14 @@ export default function PortalAssignmentAlert() {
                 >
                   <XMarkIcon className="w-4 h-4" />
                   Απόρριψη
+                </button>
+                <button
+                  onClick={() => handleSnooze(a)}
+                  disabled={busyId === a.id}
+                  className="btn-secondary flex items-center gap-2 text-sm"
+                >
+                  <ClockIcon className="w-4 h-4" />
+                  Αναβολή 15'
                 </button>
               </div>
             </div>
