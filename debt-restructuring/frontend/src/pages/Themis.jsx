@@ -82,7 +82,9 @@ export default function Themis() {
         )}
         {done && (
           <div className="text-center text-blue-200 text-sm pt-4">
-            ✅ Η συζήτηση ολοκληρώθηκε. Ένας σύμβουλός μας θα επικοινωνήσει μαζί σας σύντομα.
+            {status === 'eligible'
+              ? '✅ Η συζήτηση ολοκληρώθηκε. Ένας σύμβουλός μας θα επικοινωνήσει μαζί σας σύντομα.'
+              : 'Η συζήτηση ολοκληρώθηκε.'}
           </div>
         )}
         <div ref={bottomRef} />

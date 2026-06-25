@@ -317,7 +317,7 @@ export function calculateAll(debts, assets, incomeData, params = PARAMS_B) {
     }
     dispYear1 = dispYear24 = dispYear5 = dispAnnual
   } else {
-    const fpSubType = incomeData.fpSubType
+    const fpSubType = incomeData.fpSubType || 'Μισθωτός'
     isFPEpit = fpSubType === 'Επιτηδευματίας'
 
     // Rent cap (ΚΥΑ Παράρτημα παρ. δ) — applied before ratio allocation
