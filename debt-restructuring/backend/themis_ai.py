@@ -105,19 +105,24 @@ def parse_verdict(reply: str) -> tuple:
 # ── Auto-send the Θέμις link on Lead creation ───────────────────────────────
 
 _VIBER_TEMPLATE = (
-    "Γεια σου {name}! Είμαι η Θέμις, η ψηφιακή βοηθός της I MENTOR Consulting. "
-    "Θα ήθελα να σου κάνω μερικές σύντομες ερωτήσεις για την υπόθεσή σου πριν σε καλέσει ο σύμβουλός σου. "
-    "Πάτησε εδώ για να ξεκινήσουμε: {link}"
+    "⚖️ Γεια σου {name}!\n\n"
+    "Είμαι η Θέμις, η ψηφιακή βοηθός της I MENTOR Consulting. 👋\n\n"
+    "Πριν σε καλέσει ο σύμβουλός σου, θα ήθελα να σου κάνω μερικές σύντομες ερωτήσεις για την υπόθεσή σου — δεν θα σου πάρει πάνω από 2 λεπτά. ⏱️\n\n"
+    "👉 Πάτησε εδώ για να ξεκινήσουμε:\n{link}\n\n"
+    "Σε περιμένω! 😊"
 )
 
-_EMAIL_SUBJECT = "I MENTOR Consulting — Σύντομη προκαταρκτική συζήτηση"
+_EMAIL_SUBJECT = "⚖️ Θέμις — Σύντομη προκαταρκτική συζήτηση για την υπόθεσή σας"
 
 _EMAIL_BODY_TEMPLATE = (
-    "Γεια σου {name},\n\n"
-    "Είμαι η Θέμις, η ψηφιακή βοηθός της I MENTOR Consulting. "
-    "Θα ήθελα να σου κάνω μερικές σύντομες ερωτήσεις για την υπόθεσή σου πριν σε καλέσει ο σύμβουλός σου.\n\n"
-    "Πάτησε τον παρακάτω σύνδεσμο για να ξεκινήσουμε:\n{link}\n\n"
-    "Η ομάδα της I MENTOR Consulting."
+    "**Γεια σου {name},** 👋\n\n"
+    "Είμαι η **Θέμις**, η ψηφιακή βοηθός της [c=#2563eb]I MENTOR Consulting[/c]. "
+    "Πριν σε καλέσει ο σύμβουλός σου, θα ήθελα να σου κάνω μερικές σύντομες ερωτήσεις για την υπόθεσή σου.\n\n"
+    "▸ Διαρκεί μόλις λίγα λεπτά\n"
+    "▸ Γίνεται μέσω σύντομης συζήτησης, χωρίς δεσμεύσεις\n"
+    "▸ Βοηθά τον σύμβουλό σου να ετοιμαστεί καλύτερα για την κλήση σας\n\n"
+    "[btn]Ξεκινάμε τη συζήτηση →|{link}[/btn]\n\n"
+    "[c=#64748b]Η ομάδα της I MENTOR Consulting[/c]"
 )
 
 
@@ -139,7 +144,7 @@ def send_themis_link(lead) -> dict:
     if not themis_enabled():
         return {"ok": True, "skipped": "ENABLE_THEMIS is off"}
 
-    portal_base = os.getenv("FRONTEND_URL", "http://localhost:5174").rstrip("/")
+    portal_base = os.getenv("FRONTEND_URL", "https://mainrepository-production.up.railway.app").rstrip("/")
     link = f"{portal_base}/themis/{lead.themis_token}"
     name = lead.name or "εκεί"
     result = {"viber_ok": False, "viber_error": None, "email_ok": False, "email_error": None}
