@@ -209,7 +209,7 @@ def _chatwoot_send_with_retry(client_name: str, phone: str, message: str, max_at
     return False, last_err
 
 
-def _markup_to_html(text: str) -> str:
+def _markup_to_html(text: str, logo_url: str = None) -> str:
     """Render our lightweight markup (**bold**, ▸ bullets, [c=#hex]color[/c], [btn]Label|URL[/btn]) as a styled HTML email."""
     import re as _re
     import html as _html
@@ -239,10 +239,18 @@ def _markup_to_html(text: str) -> str:
         else:
             blocks.append(f'<p style="margin:0 0 14px;line-height:1.65;">{"<br>".join(lines)}</p>')
     body_html = ''.join(blocks)
+    logo_html = (
+        f'<div style="text-align:center;background:#1e3a8a;padding:18px;border-radius:14px 14px 0 0;">'
+        f'<img src="{logo_url}" alt="I MENTOR Consulting" style="max-height:42px;"/></div>'
+    ) if logo_url else ''
+    body_radius = '0 0 14px 14px' if logo_url else '14px'
 
     return f"""<!DOCTYPE html><html><body style="margin:0;padding:24px;background:#f1f5f9;font-family:Arial,Helvetica,sans-serif;">
-<div style="max-width:560px;margin:0 auto;background:#ffffff;border-radius:14px;padding:28px 32px;box-shadow:0 2px 10px rgba(0,0,0,0.06);font-size:15px;color:#1e293b;">
+<div style="max-width:560px;margin:0 auto;border-radius:14px;box-shadow:0 2px 10px rgba(0,0,0,0.06);">
+{logo_html}
+<div style="background:#ffffff;border-radius:{body_radius};padding:28px 32px;font-size:15px;color:#1e293b;">
 {body_html}
+</div>
 </div>
 </body></html>"""
 
@@ -255,7 +263,7 @@ def _markup_strip(text: str) -> str:
     return text
 
 
-def _send_gmail(to: str, subject: str, body: str) -> tuple:
+def _send_gmail(to: str, subject: str, body: str, logo_url: str = None) -> tuple:
     from email.mime.text import MIMEText
     from email.mime.multipart import MIMEMultipart
     sa_json = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON", "").strip()
@@ -275,7 +283,7 @@ def _send_gmail(to: str, subject: str, body: str) -> tuple:
         msg["From"] = sender
         msg["To"] = to
         msg.attach(MIMEText(_markup_strip(body), "plain", "utf-8"))
-        msg.attach(MIMEText(_markup_to_html(body), "html", "utf-8"))
+        msg.attach(MIMEText(_markup_to_html(body, logo_url=logo_url), "html", "utf-8"))
         raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
         svc.users().messages().send(userId="me", body={"raw": raw}).execute()
         return True, ""
@@ -337,6 +345,7 @@ class LeadCreate(BaseModel):
     application_number: Optional[str] = ""
     offer_amount: Optional[str] = ""
     success_fee: Optional[str] = ""
+    send_themis: Optional[bool] = True
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
@@ -369,11 +378,12 @@ def create_lead(data: LeadCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(lead)
 
-    try:
-        from themis_ai import send_themis_link
-        send_themis_link(lead)
-    except Exception:
-        pass
+    if data.send_themis:
+        try:
+            from themis_ai import send_themis_link
+            send_themis_link(lead)
+        except Exception:
+            pass
 
     return _lead_to_dict(lead)
 

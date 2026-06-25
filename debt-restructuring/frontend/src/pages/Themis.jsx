@@ -2,6 +2,20 @@ import { useState, useEffect, useRef } from 'react'
 import { useParams } from 'react-router-dom'
 import * as api from '../api'
 
+function renderFormatted(text) {
+  if (!text) return null
+  const re = /\*\*([^*]+)\*\*/g
+  const parts = []
+  let last = 0, m, key = 0
+  while ((m = re.exec(text)) !== null) {
+    if (m.index > last) parts.push(<span key={key++}>{text.slice(last, m.index)}</span>)
+    parts.push(<strong key={key++}>{m[1]}</strong>)
+    last = m.index + m[0].length
+  }
+  if (last < text.length) parts.push(<span key={key++}>{text.slice(last)}</span>)
+  return parts
+}
+
 export default function Themis() {
   const { token } = useParams()
   const [transcript, setTranscript] = useState([])
@@ -25,7 +39,7 @@ export default function Themis() {
 
   const handleSend = async () => {
     const text = input.trim()
-    if (!text || sending || status !== 'in_progress') return
+    if (!text || sending) return
     setSending(true)
     setInput('')
     setTranscript(t => [...t, { role: 'lead', text }])
@@ -71,7 +85,7 @@ export default function Themis() {
             <div className={`max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-line ${
               m.role === 'themis' ? 'bg-white text-gray-800' : 'bg-blue-600 text-white'
             }`}>
-              {m.text}
+              {renderFormatted(m.text)}
             </div>
           </div>
         ))}
@@ -81,33 +95,44 @@ export default function Themis() {
           </div>
         )}
         {done && (
-          <div className="text-center text-blue-200 text-sm pt-4">
-            {status === 'eligible'
-              ? '✅ Η συζήτηση ολοκληρώθηκε. Ένας σύμβουλός μας θα επικοινωνήσει μαζί σας σύντομα.'
-              : 'Η συζήτηση ολοκληρώθηκε.'}
+          <div className="text-center text-blue-200 text-sm pt-4 space-y-1">
+            <div>
+              {status === 'eligible'
+                ? '✅ Η συζήτηση ολοκληρώθηκε. Ένας σύμβουλός μας θα επικοινωνήσει μαζί σας σύντομα.'
+                : 'Η συζήτηση ολοκληρώθηκε.'}
+            </div>
+            <div className="text-blue-300 text-xs">Έχετε καμιά ερώτηση για το πώς λειτουργεί ο εξωδικαστικός; Ρωτήστε με! 💬</div>
           </div>
         )}
         <div ref={bottomRef} />
       </div>
 
-      <div className="px-4 pb-6 pt-2 max-w-2xl w-full mx-auto">
+      <div className="px-4 pb-3 pt-2 max-w-2xl w-full mx-auto">
         <div className="flex gap-2">
           <input
             className="input flex-1 bg-white"
-            placeholder={done ? 'Η συζήτηση έχει ολοκληρωθεί' : 'Γράψτε το μήνυμά σας…'}
+            placeholder={done ? 'Κάντε μια ερώτηση…' : 'Γράψτε το μήνυμά σας…'}
             value={input}
-            disabled={done || sending}
+            disabled={sending}
             onChange={e => setInput(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && handleSend()}
           />
           <button
             className="btn-primary disabled:opacity-50"
-            disabled={done || sending || !input.trim()}
+            disabled={sending || !input.trim()}
             onClick={handleSend}
           >
             Αποστολή
           </button>
         </div>
+      </div>
+
+      <div className="px-4 pb-5 max-w-2xl w-full mx-auto flex flex-wrap items-center justify-center gap-3 text-blue-200 text-xs border-t border-white/10 pt-3">
+        <span>📞 2810363007</span>
+        <span className="text-blue-400/50">·</span>
+        <span>✉️ info@i-mentor.gr</span>
+        <span className="text-blue-400/50">·</span>
+        <span>🌐 www.i-mentor.gr</span>
       </div>
     </div>
   )

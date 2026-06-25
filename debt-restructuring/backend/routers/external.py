@@ -28,6 +28,27 @@ def _require_portal_key(x_api_key: Optional[str] = Header(default=None)):
         raise HTTPException(status_code=401, detail="Μη έγκυρο API key")
 
 
+def _require_sheets_webhook_key(x_api_key: Optional[str] = Header(default=None)):
+    expected = os.getenv("SHEETS_WEBHOOK_SECRET", "")
+    if not expected or x_api_key != expected:
+        raise HTTPException(status_code=401, detail="Μη έγκυρο API key")
+
+
+@router.post("/leads-sync-now")
+def leads_sync_now(db: Session = Depends(get_db), _=Depends(_require_sheets_webhook_key)):
+    """Fired by Pabbly right after it appends a new Facebook-lead row to the
+    Google Sheet, so the lead (and its Θέμις link) reach the app within
+    seconds instead of waiting for the daily cron. Just the webhook endpoint
+    for now — runs sync_leads() synchronously, same as the existing manual
+    /leads/sync; no BackgroundTasks/concurrency-lock wiring or Pabbly-side
+    trigger yet, those come once this is wired up and tested."""
+    from sheets_sync import sync_leads
+    try:
+        return sync_leads(db, full=False)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 class QuestionnaireExtra(BaseModel):
     id: Optional[str] = None
     label: Optional[str] = None

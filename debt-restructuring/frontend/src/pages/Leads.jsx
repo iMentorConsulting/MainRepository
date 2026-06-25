@@ -31,12 +31,12 @@ const MONTHS_EL = ['Ιαν', 'Φεβ', 'Μαρ', 'Απρ', 'Μαϊ', 'Ιουν',
 
 const STATUS_OPTIONS = ['call', 'hot', 'active', 'deal', 'cancelled']
 const STATUS_CFG = {
-  call:      { cls: 'bg-blue-100 text-blue-800',    label: 'Call',      rowCls: 'bg-blue-50/40' },
-  hot:       { cls: 'bg-red-100 text-red-700',      label: '🔥 Hot',   rowCls: 'bg-red-50/40' },
-  active:    { cls: 'bg-yellow-100 text-yellow-800', label: 'Active',   rowCls: 'bg-yellow-50/30' },
-  deal:      { cls: 'bg-green-100 text-green-800',  label: '✅ Deal',  rowCls: 'bg-green-50/40' },
-  cancelled: { cls: 'bg-gray-100 text-gray-500',    label: 'Cancelled', rowCls: 'bg-gray-50/60' },
-  '':        { cls: 'bg-gray-50 text-gray-400',     label: '—',         rowCls: '' },
+  call:      { cls: 'bg-blue-100 text-blue-800',    label: 'Call',      rowCls: 'bg-blue-50/40',  dot: 'bg-blue-500' },
+  hot:       { cls: 'bg-red-100 text-red-700',      label: '🔥 Hot',   rowCls: 'bg-red-50/40',   dot: 'bg-red-500' },
+  active:    { cls: 'bg-yellow-100 text-yellow-800', label: 'Active',   rowCls: 'bg-yellow-50/30', dot: 'bg-yellow-500' },
+  deal:      { cls: 'bg-green-100 text-green-800',  label: '✅ Deal',  rowCls: 'bg-green-50/40',  dot: 'bg-green-500' },
+  cancelled: { cls: 'bg-gray-100 text-gray-500',    label: 'Cancelled', rowCls: 'bg-gray-50/60',  dot: 'bg-gray-400' },
+  '':        { cls: 'bg-gray-50 text-gray-400',     label: '—',         rowCls: '',                dot: 'bg-gray-300' },
 }
 
 const REMINDER_OPTIONS = [
@@ -267,18 +267,22 @@ function StatusBadge({ value, rawValue, onChange }) {
         {displayLabel || '—'}
       </button>
       {open && (
-        <div className="absolute z-50 top-7 left-0 bg-white border border-gray-200 rounded-xl shadow-lg min-w-[130px] py-1">
-          {[...STATUS_OPTIONS, ''].map(s => (
-            <button
-              key={s}
-              onClick={() => { onChange(s); setOpen(false) }}
-              className={`w-full text-left px-3 py-1.5 text-xs font-semibold hover:bg-gray-50
-                ${statusCfg(s).cls}
-                ${(value || '') === s ? 'ring-1 ring-inset ring-blue-400' : ''}`}
-            >
-              {s === '' ? '— Καθαρισμός' : statusCfg(s).label}
-            </button>
-          ))}
+        <div className="absolute z-50 top-7 left-0 bg-white border border-gray-200 rounded-xl shadow-2xl ring-1 ring-black/5 min-w-[150px] py-1.5">
+          {[...STATUS_OPTIONS, ''].map(s => {
+            const optCfg = statusCfg(s)
+            const selected = (value || '') === s
+            return (
+              <button
+                key={s}
+                onClick={() => { onChange(s); setOpen(false) }}
+                className={`w-full flex items-center gap-2 text-left px-3 py-2 text-xs font-semibold transition-colors
+                  ${selected ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-100'}`}
+              >
+                <span className={`w-2 h-2 rounded-full flex-shrink-0 ${optCfg.dot}`} />
+                {s === '' ? '— Καθαρισμός' : optCfg.label}
+              </button>
+            )
+          })}
         </div>
       )}
     </div>
@@ -1620,6 +1624,17 @@ export default function Leads({ currentEmployee }) {
                 <textarea rows={3} className="input w-full text-sm resize-none"
                   value={newLeadData.sheet_comments || ''}
                   onChange={e => setNewLeadData(d => ({ ...d, sheet_comments: e.target.value }))} />
+              </div>
+              <div className="flex items-center justify-between bg-indigo-50 border border-indigo-100 rounded-lg px-3 py-2.5">
+                <div>
+                  <div className="text-xs font-semibold text-indigo-800">⚖️ Αποστολή συνδέσμου Θέμις</div>
+                  <div className="text-[11px] text-indigo-500">Email/Viber με τον σύνδεσμο για το AI screening chat</div>
+                </div>
+                <button type="button"
+                  onClick={() => setNewLeadData(d => ({ ...d, send_themis: d.send_themis === false ? true : false }))}
+                  className={`relative w-10 h-5 rounded-full transition-colors flex-shrink-0 ${newLeadData.send_themis === false ? 'bg-gray-300' : 'bg-indigo-600'}`}>
+                  <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${newLeadData.send_themis === false ? '' : 'translate-x-5'}`} />
+                </button>
               </div>
             </div>
             <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-3">
