@@ -213,11 +213,11 @@ def _run_daily_reminders_safe():
 
 from apscheduler.schedulers.background import BackgroundScheduler
 _scheduler = BackgroundScheduler()
-_scheduler.add_job(_run_leads_sync_safe,      "cron", hour=4, minute=45)   # 04:45 UTC = 07:45 Athens
+_scheduler.add_job(_run_leads_sync_safe,      "cron", hour=8, minute=45, timezone="Europe/Athens")  # 08:45 Athens (DST-aware)
 _scheduler.add_job(_run_daily_reminders_safe, "cron", hour=5, minute=0)    # 05:00 UTC = 08:00 Athens
 _scheduler.add_job(_run_backup_safe,          "cron", hour=15, minute=0)   # 15:00 UTC = 18:00 Athens
 _scheduler.start()
-print("[Scheduler] Leads sync 04:45 UTC | Daily reminders 05:00 UTC | Backup 15:00 UTC (Athens = UTC+2/3)")
+print("[Scheduler] Leads sync 08:45 Athens | Daily reminders 05:00 UTC | Backup 15:00 UTC (Athens = UTC+2/3)")
 
 
 @app.get("/")
