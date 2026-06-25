@@ -121,6 +121,19 @@ def run_migrations():
             except Exception:
                 pass
 
+        # Θέμις token-usage tracking (for cost accounting on the conversations list)
+        for col_ddl in [
+            "ALTER TABLE themis_sessions ADD COLUMN input_tokens INTEGER DEFAULT 0",
+            "ALTER TABLE themis_sessions ADD COLUMN output_tokens INTEGER DEFAULT 0",
+            "ALTER TABLE themis_sessions ADD COLUMN cache_creation_tokens INTEGER DEFAULT 0",
+            "ALTER TABLE themis_sessions ADD COLUMN cache_read_tokens INTEGER DEFAULT 0",
+        ]:
+            try:
+                conn.execute(text(col_ddl))
+                conn.commit()
+            except Exception:
+                pass
+
 run_migrations()
 
 
