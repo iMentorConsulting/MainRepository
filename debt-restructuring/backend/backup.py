@@ -4,9 +4,11 @@ a failure in one (e.g. the Railway volume running out of space) must never
 block the other.
 
 LOCAL BACKUPS (Railway volume /data):
-  Kept for 90 days, auto-pruned
+  Kept for 3 days, auto-pruned — the volume is disk-constrained and shares
+  space with the live SQLite DB, so Google Drive is the long-term archive.
 
 GOOGLE DRIVE BACKUPS:
+  Permanent archive — never auto-pruned.
   Requires: GOOGLE_DRIVE_BACKUP_FOLDER_ID (shared drive, NOT personal folder)
   Service accounts: Need a Shared Drive (personal Drive has zero quota)
 """
@@ -14,7 +16,7 @@ GOOGLE DRIVE BACKUPS:
 import json
 import os
 import io
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 import pathlib
 
 from sqlalchemy.orm import Session
@@ -168,8 +170,9 @@ def run_backup() -> dict:
         local_path = backup_dir / filename
         local_path.write_text(content, encoding="utf-8")
 
-        # Prune local backups older than 90 days
-        cutoff = datetime.utcnow() - timedelta(days=90)
+        # Prune local backups older than 3 days — Google Drive (below) is the
+        # long-term archive; local only needs to survive a short outage.
+        cutoff = datetime.utcnow() - timedelta(days=3)
         for f in backup_dir.glob("Exodikastikos-backup_*.json"):
             try:
                 if datetime.fromtimestamp(f.stat().st_mtime) < cutoff:
@@ -210,20 +213,7 @@ def run_backup() -> dict:
                 supportsAllDrives=True,
             ).execute()
             result["drive_backup"] = uploaded.get("id")
-
-            # Prune old Drive backups
-            cutoff = (datetime.now(timezone.utc) - timedelta(days=90)).isoformat()
-            old_files = svc.files().list(
-                q=f"'{folder_id}' in parents and createdTime < '{cutoff}' and trashed = false",
-                fields="files(id,name)",
-                supportsAllDrives=True,
-                includeItemsFromAllDrives=True,
-            ).execute().get("files", [])
-            for f in old_files:
-                try:
-                    svc.files().delete(fileId=f["id"]).execute()
-                except Exception:
-                    pass
+            # Drive is the permanent long-term archive — no pruning here.
         except Exception as e:
             result["drive_error"] = str(e)
             # Don't raise — local backup is safe
