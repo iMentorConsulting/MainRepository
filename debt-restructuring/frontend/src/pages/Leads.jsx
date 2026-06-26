@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
 import { format, parseISO, differenceInDays, isPast } from 'date-fns'
@@ -247,27 +248,51 @@ function MultiSelect({ options, selected, onChange, placeholder, cls = '' }) {
 // ── Status badge: shows raw text with group color ──────────────────────────
 function StatusBadge({ value, rawValue, onChange }) {
   const [open, setOpen] = useState(false)
-  const ref = useRef()
+  const [pos, setPos] = useState(null)
+  const btnRef = useRef()
+  const menuRef = useRef()
   const cfg = statusCfg(value)
-  const displayLabel = rawValue && rawValue !== value?.toUpperCase() ? rawValue : cfg.label
+  const displayLabel = cfg.label
 
   useEffect(() => {
-    const h = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    if (!open) return
+    const place = () => {
+      const r = btnRef.current?.getBoundingClientRect()
+      if (!r) return
+      setPos({ top: r.bottom + 4, left: r.left })
+    }
+    place()
+    const h = (e) => {
+      if (btnRef.current?.contains(e.target)) return
+      if (menuRef.current?.contains(e.target)) return
+      setOpen(false)
+    }
     document.addEventListener('mousedown', h)
-    return () => document.removeEventListener('mousedown', h)
-  }, [])
+    window.addEventListener('scroll', place, true)
+    window.addEventListener('resize', place)
+    return () => {
+      document.removeEventListener('mousedown', h)
+      window.removeEventListener('scroll', place, true)
+      window.removeEventListener('resize', place)
+    }
+  }, [open])
 
   return (
-    <div className="relative" ref={ref}>
+    <div className="relative">
       <button
+        ref={btnRef}
         onClick={() => setOpen(o => !o)}
         title={rawValue ? `Raw: ${rawValue}` : undefined}
         className={`text-[11px] font-semibold px-2 py-0.5 rounded-full cursor-pointer hover:opacity-80 max-w-[110px] truncate block ${cfg.cls}`}
       >
         {displayLabel || '—'}
       </button>
-      {open && (
-        <div className="absolute z-50 top-7 left-0 bg-white border border-gray-200 rounded-xl shadow-2xl ring-1 ring-black/5 min-w-[150px] py-1.5">
+      {open && pos && createPortal(
+        <div
+          ref={menuRef}
+          style={{ position: 'fixed', top: pos.top, left: pos.left }}
+          className="z-[1000] bg-white border border-gray-200 rounded-xl shadow-2xl ring-1 ring-black/10 min-w-[150px] py-1.5"
+        >
           {[...STATUS_OPTIONS, ''].map(s => {
             const optCfg = statusCfg(s)
             const selected = (value || '') === s
@@ -283,7 +308,8 @@ function StatusBadge({ value, rawValue, onChange }) {
               </button>
             )
           })}
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   )
@@ -1182,7 +1208,7 @@ function ExpandedRow({ lead, currentEmployee, onUpdate, colCount, templates, tax
                   const cfg = statusCfg(r.status)
                   return (
                     <div key={r.id} className="flex items-center gap-2 text-xs bg-orange-50 border border-orange-100 rounded-lg px-2 py-1">
-                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${cfg.cls}`}>{r.status_raw || r.status || '—'}</span>
+                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${cfg.cls}`}>{cfg.label}</span>
                       <span className="font-semibold text-gray-700">{r.name || '—'}</span>
                       {r.assigned_to && <span className="text-gray-400">({r.assigned_to})</span>}
                       {formatPhone(r.phone) === myPhone && <span className="text-orange-500">📞 ίδιο τηλ</span>}
