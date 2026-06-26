@@ -29,14 +29,14 @@ const THIS_YEAR = new Date().getFullYear()
 const YEARS = [THIS_YEAR, THIS_YEAR - 1, THIS_YEAR - 2]
 const MONTHS_EL = ['Ιαν', 'Φεβ', 'Μαρ', 'Απρ', 'Μαϊ', 'Ιουν', 'Ιουλ', 'Αυγ', 'Σεπ', 'Οκτ', 'Νοε', 'Δεκ']
 
-const STATUS_OPTIONS = ['call', 'hot', 'active', 'deal', 'cancelled']
+const STATUS_OPTIONS = ['CALL', 'HOT', 'ACTIVE', 'DEAL', 'CANCEL']
 const STATUS_CFG = {
-  call:      { cls: 'bg-blue-100 text-blue-800',    label: 'Call',      rowCls: 'bg-blue-50/40',  dot: 'bg-blue-500' },
-  hot:       { cls: 'bg-red-100 text-red-700',      label: '🔥 Hot',   rowCls: 'bg-red-50/40',   dot: 'bg-red-500' },
-  active:    { cls: 'bg-yellow-100 text-yellow-800', label: 'Active',   rowCls: 'bg-yellow-50/30', dot: 'bg-yellow-500' },
-  deal:      { cls: 'bg-green-100 text-green-800',  label: '✅ Deal',  rowCls: 'bg-green-50/40',  dot: 'bg-green-500' },
-  cancelled: { cls: 'bg-gray-100 text-gray-500',    label: 'Cancelled', rowCls: 'bg-gray-50/60',  dot: 'bg-gray-400' },
-  '':        { cls: 'bg-gray-50 text-gray-400',     label: '—',         rowCls: '',                dot: 'bg-gray-300' },
+  CALL:   { cls: 'bg-blue-100 text-blue-800',     label: 'CALL',   rowCls: 'bg-blue-50/40',   dot: 'bg-blue-500' },
+  HOT:    { cls: 'bg-red-100 text-red-700',       label: 'HOT',    rowCls: 'bg-red-50/40',    dot: 'bg-red-500' },
+  ACTIVE: { cls: 'bg-yellow-100 text-yellow-800', label: 'ACTIVE', rowCls: 'bg-yellow-50/30', dot: 'bg-yellow-500' },
+  DEAL:   { cls: 'bg-green-100 text-green-800',   label: 'DEAL',   rowCls: 'bg-green-50/40',  dot: 'bg-green-500' },
+  CANCEL: { cls: 'bg-gray-100 text-gray-500',     label: 'CANCEL', rowCls: 'bg-gray-50/60',   dot: 'bg-gray-400' },
+  '':     { cls: 'bg-gray-50 text-gray-400',      label: '—',      rowCls: '',                dot: 'bg-gray-300' },
 }
 
 const REMINDER_OPTIONS = [
@@ -47,7 +47,7 @@ const REMINDER_OPTIONS = [
 ]
 
 function statusCfg(val) {
-  return STATUS_CFG[(val || '').toLowerCase()] || STATUS_CFG['']
+  return STATUS_CFG[(val || '').toUpperCase()] || STATUS_CFG['']
 }
 
 function formatPhone(p) {
@@ -1230,7 +1230,7 @@ function LeadRow({ lead, currentEmployee, expanded, onToggle, onLeadUpdate, temp
   const nextCallOverdue = parsed ? isPast(parsed) : false
   const commentCount = (lead.app_comments?.length || 0) + (lead.sheet_comments ? 1 : 0)
   const phone = formatPhone(lead.phone)
-  const statusRowCls = (STATUS_CFG[(lead.status || '').toLowerCase()] || STATUS_CFG['']).rowCls
+  const statusRowCls = statusCfg(lead.status).rowCls
 
   const agentShort = (author) => AGENT_SHORT[author?.toUpperCase?.()] ?? AGENT_SHORT[author] ?? author?.[0] ?? '?'
 
@@ -1449,9 +1449,9 @@ export default function Leads({ currentEmployee }) {
 
   let displayed = leads
   if (hideCancelled && filterStatus.length === 0)
-    displayed = displayed.filter(l => l.status !== 'cancelled')
+    displayed = displayed.filter(l => (l.status || '').toUpperCase() !== 'CANCEL')
   if (filterStatus.length > 0)
-    displayed = displayed.filter(l => filterStatus.includes((l.status || '').toLowerCase()))
+    displayed = displayed.filter(l => filterStatus.includes((l.status || '').toUpperCase()))
   if (filterDateFrom || filterDateTo) {
     // Parse filter bounds as LOCAL midnight to match how parseAnyDate builds dates
     const parseLocalDate = s => { const [y,m,d] = s.split('-'); return new Date(+y, +m-1, +d) }
@@ -1520,7 +1520,7 @@ export default function Leads({ currentEmployee }) {
   const paginated = displayed.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
   const statusCounts = leads.reduce((acc, l) => {
-    const k = (l.status || '').toLowerCase()
+    const k = (l.status || '').toUpperCase()
     if (k) acc[k] = (acc[k] || 0) + 1
     return acc
   }, {})

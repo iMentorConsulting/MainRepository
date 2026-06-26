@@ -160,7 +160,7 @@ async def post_message(lead_token: str, data: ThemisMessageIn, db: Session = Dep
         session.verdict_reason = clean_reply
         comments = list(lead.app_comments or [])
         if verdict == "eligible":
-            lead.status = "hot"
+            lead.status = "CALL"
             comments.append({
                 "text": f"🤖 Η Θέμις ολοκλήρωσε τον προκαταρκτικό έλεγχο — ΕΠΙΛΕΞΙΜΟΣ. {clean_reply}",
                 "author": "ΘΕΜΙΣ",
@@ -175,7 +175,7 @@ async def post_message(lead_token: str, data: ThemisMessageIn, db: Session = Dep
                 link="/leads",
             )
         else:
-            lead.status = "cancelled"
+            lead.status = "CANCEL"
             comments.append({
                 "text": f"🤖 Η Θέμις ολοκλήρωσε τον προκαταρκτικό έλεγχο — ΜΗ ΕΠΙΛΕΞΙΜΟΣ. {clean_reply}",
                 "author": "ΘΕΜΙΣ",
