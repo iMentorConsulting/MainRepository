@@ -241,7 +241,7 @@ def _markup_to_html(text: str, logo_url: str = None) -> str:
     body_html = ''.join(blocks)
     logo_html = (
         f'<div style="text-align:center;background:#1e3a8a;padding:18px;border-radius:14px 14px 0 0;">'
-        f'<img src="{logo_url}" alt="I MENTOR Consulting" style="max-height:42px;"/></div>'
+        f'<img src="{logo_url}" alt="I MENTOR Consulting" width="160" height="42" style="max-height:42px;width:160px;height:42px;border:0;display:inline-block;"/></div>'
     ) if logo_url else ''
     body_radius = '0 0 14px 14px' if logo_url else '14px'
 
