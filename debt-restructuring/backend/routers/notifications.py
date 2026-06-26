@@ -84,7 +84,7 @@ def run_daily_reminder_summary() -> dict:
                     Lead.assigned_to == emp,
                     Lead.app_next_call.isnot(None),
                     Lead.app_next_call < due_before,
-                    Lead.status != "cancelled",
+                    Lead.status != "CANCEL",
                 )
                 .scalar()
                 or 0

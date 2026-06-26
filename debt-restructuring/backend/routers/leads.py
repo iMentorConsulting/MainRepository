@@ -353,12 +353,13 @@ class LeadCreate(BaseModel):
 @router.post("/create")
 def create_lead(data: LeadCreate, db: Session = Depends(get_db)):
     """Manually create a new lead (not from Google Sheets)."""
+    from sheets_sync import _normalize_status
     lead = Lead(
         sheet_row_num=None,
         name=data.name or "",
         phone=(data.phone or "").strip(),
         email=data.email or "",
-        status=(data.status or "").lower(),
+        status=_normalize_status(data.status or ""),
         status_raw=data.status or "",
         assigned_to=data.assigned_to or "",
         date=data.date or "",
@@ -419,7 +420,7 @@ def list_leads(
             Lead.application_number.ilike(term),
         ))
     if status:
-        normalized = [s.lower() for s in status]
+        normalized = [s.upper() for s in status]
         q = q.filter(Lead.status.in_(normalized))
     if assigned_to:
         q = q.filter(Lead.assigned_to.in_(assigned_to))
@@ -515,10 +516,10 @@ def get_reporting(db: Session = Depends(get_db)):
         "hourly": [{"hour": f"{h}:00", "count": hourly.get(h, 0)} for h in range(8, 17)],
         "total_comments": len(events),
         "total_leads": len(leads),
-        "deals": sum(1 for l in leads if l.status == "deal"),
-        "active": sum(1 for l in leads if l.status == "active"),
-        "hot": sum(1 for l in leads if l.status == "hot"),
-        "cancelled": sum(1 for l in leads if l.status == "cancelled"),
+        "deals": sum(1 for l in leads if l.status == "DEAL"),
+        "active": sum(1 for l in leads if l.status == "ACTIVE"),
+        "hot": sum(1 for l in leads if l.status == "HOT"),
+        "cancelled": sum(1 for l in leads if l.status == "CANCEL"),
     }
 
 

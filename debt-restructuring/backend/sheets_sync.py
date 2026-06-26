@@ -78,21 +78,22 @@ def _map_header(header: str) -> str | None:
 
 
 def _normalize_status(raw: str) -> str:
-    """Map any sheet status value to a canonical group."""
+    """Map any sheet status value to one of the 5 canonical, uppercase groups:
+    CANCEL, CALL, ACTIVE, HOT, DEAL."""
     r = raw.strip().upper()
     if not r:
         return ""
     if r.startswith("CANCEL"):
-        return "cancelled"
+        return "CANCEL"
     if r == "DEAL":
-        return "deal"
+        return "DEAL"
     if r == "ACTIVE":
-        return "active"
+        return "ACTIVE"
     if r == "CALL":
-        return "call"
+        return "CALL"
     if r == "HOT":
-        return "hot"
-    return r.lower()
+        return "HOT"
+    return r
 
 
 def _get_sheets_service():

@@ -134,6 +134,17 @@ def run_migrations():
             except Exception:
                 pass
 
+        # Normalize all existing Lead.status values to the 5 canonical,
+        # uppercase groups (CALL/HOT/ACTIVE/DEAL/CANCEL) — older rows may
+        # hold lowercase or otherwise inconsistent values. Idempotent, safe
+        # to run on every startup.
+        try:
+            conn.execute(text("UPDATE leads SET status = UPPER(status) WHERE status <> UPPER(status)"))
+            conn.execute(text("UPDATE leads SET status = 'CANCEL' WHERE UPPER(status) IN ('CANCELLED', 'CANCELED')"))
+            conn.commit()
+        except Exception:
+            pass
+
 run_migrations()
 
 
