@@ -994,6 +994,20 @@ function AppNumberEdit({ lead, onUpdate }) {
 }
 
 // ── Θέμις transcript viewer modal ───────────────────────────────────────────
+function renderThemisFormatted(text) {
+  if (!text) return null
+  const re = /\*\*([^*]+)\*\*/g
+  const parts = []
+  let last = 0, m, key = 0
+  while ((m = re.exec(text)) !== null) {
+    if (m.index > last) parts.push(<span key={key++}>{text.slice(last, m.index)}</span>)
+    parts.push(<strong key={key++}>{m[1]}</strong>)
+    last = m.index + m[0].length
+  }
+  if (last < text.length) parts.push(<span key={key++}>{text.slice(last)}</span>)
+  return parts
+}
+
 export function ThemisTranscriptModal({ lead, onClose }) {
   const [data, setData] = useState(null)
   const [error, setError] = useState(false)
@@ -1019,7 +1033,7 @@ export function ThemisTranscriptModal({ lead, onClose }) {
               <div className={`max-w-[80%] rounded-xl px-3 py-2 text-xs leading-relaxed whitespace-pre-line ${
                 m.role === 'themis' ? 'bg-gray-100 text-gray-800' : 'bg-blue-600 text-white'
               }`}>
-                {m.text}
+                {renderThemisFormatted(m.text)}
               </div>
             </div>
           ))}
