@@ -1,8 +1,16 @@
-import NextAuth from 'next-auth'
+import NextAuth, { CredentialsSignin } from 'next-auth'
 import Credentials from 'next-auth/providers/credentials'
 import { prisma } from './prisma'
 import bcrypt from 'bcryptjs'
 import { z } from 'zod'
+
+// Plain `throw new Error(...)` inside authorize() gets swallowed by Auth.js
+// into a generic "Configuration" error on the client — these CredentialsSignin
+// subclasses carry a `code` that survives to `signIn()`'s returned `error`,
+// so the login page can show the real reason instead.
+export class RateLimitedSignin extends CredentialsSignin { code = 'rate_limited' }
+export class EmailNotVerifiedSignin extends CredentialsSignin { code = 'email_not_verified' }
+export class AccountantNotApprovedSignin extends CredentialsSignin { code = 'accountant_not_approved' }
 
 // Simple in-memory login rate limiter: max 5 attempts per email per 15 minutes.
 // Resets on deploy/restart, but stops automated credential-stuffing/brute-force
@@ -73,7 +81,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const email = parsed.data.email.toLowerCase()
 
         if (isRateLimited(email)) {
-          throw new Error('Πολλές αποτυχημένες προσπάθειες σύνδεσης. Δοκιμάστε ξανά σε 15 λεπτά.')
+          throw new RateLimitedSignin()
         }
 
         const user = await prisma.user.findUnique({ where: { email } })
@@ -87,12 +95,12 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           return null
         }
         if (user.role === 'ACCOUNTANT' && user.verifyToken && !user.emailVerified) {
-          throw new Error('Παρακαλούμε επιβεβαιώστε το email σας πριν συνδεθείτε. Ελέγξτε τα εισερχόμενά σας.')
+          throw new EmailNotVerifiedSignin()
         }
         if (user.role === 'ACCOUNTANT' && user.accountantId) {
           const accountant = await prisma.accountant.findUnique({ where: { id: user.accountantId }, select: { approved: true } })
           if (accountant && !accountant.approved) {
-            throw new Error('Ο λογαριασμός του γραφείου σας αναμένει έγκριση από την ομάδα της I-MENTOR. Θα ενημερωθείτε με email μόλις εγκριθεί.')
+            throw new AccountantNotApprovedSignin()
           }
         }
         clearFailedAttempts(email)

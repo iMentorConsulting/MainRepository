@@ -4,6 +4,12 @@ import { signIn } from 'next-auth/react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Shield, Lock, Eye, EyeOff } from 'lucide-react'
 
+const ERROR_MESSAGES: Record<string, string> = {
+  rate_limited: 'Πολλές αποτυχημένες προσπάθειες σύνδεσης. Δοκιμάστε ξανά σε 15 λεπτά.',
+  email_not_verified: 'Παρακαλούμε επιβεβαιώστε το email σας πριν συνδεθείτε. Ελέγξτε τα εισερχόμενά σας.',
+  accountant_not_approved: 'Ο λογαριασμός του γραφείου σας αναμένει έγκριση από την ομάδα της I-MENTOR. Θα λάβετε email ενεργοποίησης μόλις εγκριθεί. Για οποιαδήποτε ερώτηση επικοινωνήστε μαζί μας στο 2810 363007 ή στο info@i-mentor.gr.',
+}
+
 export default function LoginPage() {
   return (
     <Suspense fallback={null}>
@@ -37,8 +43,8 @@ function LoginPageInner() {
     try {
       const res = await signIn('credentials', { email, password, redirect: false })
       if (res && (res as any).error) {
-        const err = (res as any).error
-        setError(err && err !== 'CredentialsSignin' ? err : 'Λάθος email ή κωδικός πρόσβασης, ή ο λογαριασμός σας δεν έχει επιβεβαιωθεί ακόμη (ελέγξτε το email σας).')
+        const code = (res as any).code || (res as any).error
+        setError(ERROR_MESSAGES[code] || 'Λάθος email ή κωδικός πρόσβασης, ή ο λογαριασμός σας δεν έχει επιβεβαιωθεί ακόμη (ελέγξτε το email σας).')
       } else {
         router.push('/')
         router.refresh()
