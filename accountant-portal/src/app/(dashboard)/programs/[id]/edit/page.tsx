@@ -384,6 +384,28 @@ export default function EditProgramPage() {
                   </label>
                 ))}
               </div>
+              {excludedLegalForms.filter(v => !LEGAL_FORMS.some(f => f.value === v)).length > 0 && (
+                <div className="mt-3">
+                  <p className="text-sm text-amber-700 mb-1.5">
+                    Οι παρακάτω τιμές προστέθηκαν αυτόματα (π.χ. από εξαγωγή AI) και δεν αντιστοιχούν σε γνωστή νομική μορφή — πιθανότατα είναι λάθος ταξινόμηση (π.χ. εξαίρεση ΚΑΔ/κλάδου) και επηρεάζουν λανθασμένα το matching. Αφαιρέστε όσες δεν είναι όντως νομικές μορφές.
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {excludedLegalForms.filter(v => !LEGAL_FORMS.some(f => f.value === v)).map(v => (
+                      <span key={v} className="inline-flex items-center gap-1.5 bg-amber-50 border border-amber-200 text-amber-800 text-xs rounded-full pl-2.5 pr-1.5 py-1">
+                        {v}
+                        <button
+                          type="button"
+                          onClick={() => setExcludedLegalForms(excludedLegalForms.filter(x => x !== v))}
+                          className="hover:text-amber-950"
+                          aria-label={`Αφαίρεση ${v}`}
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>

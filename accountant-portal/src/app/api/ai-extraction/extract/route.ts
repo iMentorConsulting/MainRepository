@@ -6,16 +6,41 @@ import { checkAndConsumeRateLimit } from '@/lib/ai-extraction-rate-limit'
 
 export const dynamic = 'force-dynamic'
 
-async function extractPdfText(file: File): Promise<string> {
+async function extractTextFromPdfBuffer(buffer: Buffer): Promise<string> {
   const { PDFParse } = await import('pdf-parse')
   const path = await import('path')
   const { pathToFileURL } = await import('url')
   PDFParse.setWorker(pathToFileURL(path.join(process.cwd(), 'node_modules/pdf-parse/dist/worker/pdf.worker.mjs')).href)
-  const buffer = Buffer.from(await file.arrayBuffer())
-  if (buffer.length === 0) throw new Error('Το αρχείο PDF που ανεβάσατε είναι κενό (0 bytes). Δοκιμάστε να το κατεβάσετε εκ νέου και ανεβάστε το ξανά.')
+  if (buffer.length === 0) throw new Error('Το αρχείο PDF είναι κενό (0 bytes).')
   const parser = new PDFParse({ data: buffer })
   const result = await parser.getText()
   return result.text
+}
+
+async function extractPdfText(file: File): Promise<string> {
+  const buffer = Buffer.from(await file.arrayBuffer())
+  if (buffer.length === 0) throw new Error('Το αρχείο PDF που ανεβάσατε είναι κενό (0 bytes). Δοκιμάστε να το κατεβάσετε εκ νέου και ανεβάστε το ξανά.')
+  return extractTextFromPdfBuffer(buffer)
+}
+
+// The announcement's official PDF attachment(s) carry the real eligibility
+// rules (ΚΑΔ, regions, dates, budgets) — the title+description text alone is
+// far too thin for accurate extraction. Best-effort: a slow/failed download
+// of one attachment shouldn't block the others or the whole extraction.
+async function fetchAttachmentTexts(urls: string[]): Promise<string[]> {
+  const texts: string[] = []
+  for (const url of urls) {
+    try {
+      const res = await fetch(url)
+      if (!res.ok) continue
+      const buffer = Buffer.from(await res.arrayBuffer())
+      const text = await extractTextFromPdfBuffer(buffer)
+      if (text.trim()) texts.push(text)
+    } catch (err) {
+      console.error(`AI extraction: failed to fetch/parse attachment ${url}`, err)
+    }
+  }
+  return texts
 }
 
 export async function POST(request: NextRequest) {
@@ -44,8 +69,12 @@ export async function POST(request: NextRequest) {
         const dypa = espa ? null : await prisma.dypaAnnouncement.findUnique({ where: { id: body.announcementId } })
         const announcement = espa || dypa
         if (!announcement) return NextResponse.json({ error: 'Δεν βρέθηκε ανακοίνωση' }, { status: 404 })
-        sourceText = [announcement.title, announcement.description].filter(Boolean).join('\n\n')
         sourceUrl = announcement.detailUrl
+
+        const attachmentUrls = (announcement as { attachmentUrls?: string[] }).attachmentUrls || []
+        const attachmentTexts = attachmentUrls.length > 0 ? await fetchAttachmentTexts(attachmentUrls) : []
+
+        sourceText = [announcement.title, announcement.description, ...attachmentTexts].filter(Boolean).join('\n\n')
       } else if (typeof body.text === 'string') {
         sourceText = body.text
       } else {

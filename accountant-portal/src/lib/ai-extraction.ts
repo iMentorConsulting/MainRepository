@@ -135,7 +135,7 @@ const TOOL_SCHEMA = {
       kadRules: { type: 'array', items: { type: 'string' }, description: 'Eligible ΚΑΔ codes/prefixes' },
       regionRules: { type: 'array', items: { type: 'string' }, description: 'Eligible Greek regions (περιφέρειες)' },
       zipCodeRules: { type: 'array', items: { type: 'string' }, description: 'Eligible postal code prefixes' },
-      excludedLegalForms: { type: 'array', items: { type: 'string' }, description: 'Legal forms explicitly excluded' },
+      excludedLegalForms: { type: 'array', items: { type: 'string' }, description: 'ONLY corporate/legal forms explicitly excluded (e.g. ΑΤΟΜΙΚΗ, ΟΕ, ΕΕ, ΕΠΕ, ΙΚΕ, ΑΕ). Each entry must be a short legal-form label, NEVER a sentence. Sector/ΚΑΔ exclusions, activity restrictions, or any other eligibility text must NOT go here — put those in otherRequirements or keyPoints instead.' },
       minRegdate: { type: ['string', 'null'], description: 'Earliest allowed business registration date (ISO). Almost always "1900-01-01" unless the text states an actual minimum founding date.' },
       maxRegdate: { type: ['string', 'null'], description: 'Latest allowed business registration date (ISO), derived from the number of required closed fiscal years (see system prompt rule).' },
       minInvestment: { type: ['number', 'null'] },
@@ -327,6 +327,8 @@ export async function extractProgramFields(rawSourceText: string): Promise<Extra
 8. expenseCategories: αν υπάρχει πίνακας "ΕΠΙΛΕΞΙΜΕΣ ΚΑΤΗΓΟΡΙΕΣ ΔΑΠΑΝΩΝ" (κωδικοί ΟΠΣΚΕ όπως 02.20, 04.18 κ.λπ.), μετέγραψε ΚΑΘΕ γραμμή του πίνακα ως ξεχωριστή εγγραφή με code, category, expense, limit.
 
 9. keyPoints: ΜΟΝΟ για πληροφορίες που πραγματικά δεν χωρούν σε κανένα από τα παραπάνω δομημένα πεδία.
+
+10. excludedLegalForms: ΜΟΝΟ συγκεκριμένες νομικές/εταιρικές μορφές που αποκλείονται ρητά (π.χ. ΑΤΟΜΙΚΗ, ΟΕ, ΕΕ, ΕΠΕ, ΙΚΕ, ΑΕ) — κάθε εγγραφή πρέπει να είναι σύντομη ετικέτα μορφής, ΠΟΤΕ ολόκληρη πρόταση. Αποκλεισμοί ΚΑΔ/κλάδου/δραστηριότητας ή οποιοδήποτε άλλο κριτήριο ΔΕΝ μπαίνουν εδώ — πήγαινε τα στο otherRequirements ή στο keyPoints.
 
 Σημείωση: από το πλήρες έγγραφο έχει διατηρηθεί μόνο το κύριο σώμα της προκήρυξης και (αν εντοπίστηκε) το παράρτημα με τις επιλέξιμες δραστηριότητες/ΚΑΔ — τα υπόλοιπα παραρτήματα (υποδείγματα δηλώσεων, νομικό πλαίσιο, βαθμολογικοί πίνακες κ.λπ.) έχουν ήδη αφαιρεθεί, οπότε μην εκπλαγείς αν δεν τα βλέπεις. Το έγγραφο μπορεί να σου έχει σταλεί χωρισμένο σε τμήματα λόγω μεγέθους — εξήγαγε ό,τι βρίσκεις σε ΑΥΤΟ το τμήμα και άφησε null/άδεια λίστα ό,τι δεν αναφέρεται εδώ· τα τμήματα συνδυάζονται αυτόματα μετά.
 
