@@ -68,6 +68,13 @@ model AppSetting {
   dypaIbanPiraeus                  String?
   dypaIbanEurobank                 String?
   dypaIbanAlpha                    String?
+  // Last time the /api/cron/check-espa and /api/cron/check-dypa scrapers ran
+  // (hit by an external scheduler — Railway/cron-job.org, not by this app),
+  // shown to admins so they can see the scrapers are actually still alive.
+  espaCronLastRunAt                DateTime?
+  espaCronLastError                String?
+  dypaCronLastRunAt                DateTime?
+  dypaCronLastError                String?
   updatedAt                        DateTime @updatedAt
 }
 

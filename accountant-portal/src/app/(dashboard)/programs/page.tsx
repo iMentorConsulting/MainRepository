@@ -5,7 +5,7 @@ import { useSession } from 'next-auth/react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Plus, Target, Calendar, Zap, TrendingUp, MapPin, Archive, Megaphone, Check, X, ExternalLink, Clock, Sparkles } from 'lucide-react'
-import { formatDate } from '@/lib/utils'
+import { formatDate, formatDateTime } from '@/lib/utils'
 import { GREEK_REGIONS } from '@/lib/greek-regions'
 import { AiTrainingTab } from '@/components/programs/ai-training-tab'
 
@@ -111,6 +111,35 @@ function ViewModeTabs({ mode, onChange, counts }: { mode: AnnouncementViewMode; 
   )
 }
 
+interface CronStatus {
+  espaCronLastRunAt: string | null
+  espaCronLastError: string | null
+  dypaCronLastRunAt: string | null
+  dypaCronLastError: string | null
+}
+
+function CronStatusLine({ source }: { source: 'espa' | 'dypa' }) {
+  const [status, setStatus] = useState<CronStatus | null>(null)
+
+  useEffect(() => {
+    fetch('/api/settings/cron-status')
+      .then(r => r.ok ? r.json() : null)
+      .then(setStatus)
+      .catch(() => {})
+  }, [])
+
+  if (!status) return null
+  const lastRunAt = source === 'espa' ? status.espaCronLastRunAt : status.dypaCronLastRunAt
+  const lastError = source === 'espa' ? status.espaCronLastError : status.dypaCronLastError
+
+  return (
+    <p className="text-xs text-gray-400">
+      Τελευταίος έλεγχος: {lastRunAt ? formatDateTime(lastRunAt) : 'Δεν έχει τρέξει ακόμη'}
+      {lastError && <span className="text-red-500 ml-2">⚠ {lastError}</span>}
+    </p>
+  )
+}
+
 function EspaAnnouncementsTab() {
   const [items, setItems] = useState<EspaAnnouncement[]>([])
   const [loading, setLoading] = useState(true)
@@ -153,9 +182,12 @@ function EspaAnnouncementsTab() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <p className="text-sm text-gray-500">
-          {counts.new} νέες προκηρύξεις προς έγκριση
-        </p>
+        <div>
+          <p className="text-sm text-gray-500">
+            {counts.new} νέες προκηρύξεις προς έγκριση
+          </p>
+          <CronStatusLine source="espa" />
+        </div>
         <ViewModeTabs mode={viewMode} onChange={setViewMode} counts={counts} />
       </div>
 
@@ -282,9 +314,12 @@ function DypaAnnouncementsTab() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <p className="text-sm text-gray-500">
-          {counts.new} νέα προγράμματα προς έγκριση
-        </p>
+        <div>
+          <p className="text-sm text-gray-500">
+            {counts.new} νέα προγράμματα προς έγκριση
+          </p>
+          <CronStatusLine source="dypa" />
+        </div>
         <ViewModeTabs mode={viewMode} onChange={setViewMode} counts={counts} />
       </div>
 

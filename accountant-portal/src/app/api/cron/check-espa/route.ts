@@ -25,6 +25,14 @@ export async function POST(request: NextRequest) {
   return runCheck()
 }
 
+async function recordRun(error: string | null) {
+  await prisma.appSetting.upsert({
+    where: { id: 'main' },
+    update: { espaCronLastRunAt: new Date(), espaCronLastError: error },
+    create: { id: 'main', espaCronLastRunAt: new Date(), espaCronLastError: error },
+  }).catch(() => {})
+}
+
 async function runCheck() {
 
   let scraped
@@ -32,11 +40,13 @@ async function runCheck() {
     scraped = await fetchEspaAnnouncements(3)
   } catch (err: any) {
     console.error('[ESPA cron] scrape failed:', err?.message)
+    await recordRun(err?.message || 'Scrape failed')
     return NextResponse.json({ error: 'Scrape failed', detail: err.message }, { status: 502 })
   }
 
   if (scraped.length === 0) {
     console.error('[ESPA cron] scrape returned 0 items — page structure may have changed')
+    await recordRun('Zero items parsed — check selectors')
     return NextResponse.json({ ok: true, newCount: 0, warning: 'Zero items parsed — check selectors' })
   }
 
@@ -89,5 +99,6 @@ async function runCheck() {
     }
   }
 
+  await recordRun(null)
   return NextResponse.json({ ok: true, scannedCount: scraped.length, newCount: newItems.length })
 }

@@ -25,6 +25,14 @@ export async function POST(request: NextRequest) {
   return runCheck()
 }
 
+async function recordRun(error: string | null) {
+  await prisma.appSetting.upsert({
+    where: { id: 'main' },
+    update: { dypaCronLastRunAt: new Date(), dypaCronLastError: error },
+    create: { id: 'main', dypaCronLastRunAt: new Date(), dypaCronLastError: error },
+  }).catch(() => {})
+}
+
 async function runCheck() {
 
   let scraped
@@ -32,11 +40,13 @@ async function runCheck() {
     scraped = await fetchDypaAnnouncements()
   } catch (err: any) {
     console.error('[DYPA cron] scrape failed:', err?.message, err?.cause)
+    await recordRun(err?.message || 'Scrape failed')
     return NextResponse.json({ error: 'Scrape failed', detail: err.message, cause: String(err?.cause?.message || err?.cause || '') }, { status: 502 })
   }
 
   if (scraped.length === 0) {
     console.error('[DYPA cron] scrape returned 0 items — page structure may have changed')
+    await recordRun('Zero items parsed — check selectors')
     return NextResponse.json({ ok: true, newCount: 0, warning: 'Zero items parsed — check selectors' })
   }
 
@@ -84,5 +94,6 @@ async function runCheck() {
     }
   }
 
+  await recordRun(null)
   return NextResponse.json({ ok: true, scannedCount: scraped.length, newCount: newItems.length })
 }
