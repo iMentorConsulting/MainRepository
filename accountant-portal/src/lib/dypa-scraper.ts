@@ -2,7 +2,10 @@ import * as cheerio from 'cheerio'
 
 // www.dypa.gov.gr appears to geo-block non-Greek IPs (Railway, r.jina.ai,
 // and allorigins.win — all non-Greek — were all unreachable). Route through
-// ScrapingAnt with a Greek proxy IP and headless-browser rendering.
+// ScrapingAnt with an EU proxy IP and headless-browser rendering. ScrapingAnt
+// doesn't offer a Greek proxy_country, so 'de' is the closest EU option that
+// might still pass the site's geo-block — if it still blocks, try another EU
+// value from the permitted list (see docs.scrapingant.com).
 function sleep(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms))
 }
@@ -17,7 +20,7 @@ async function fetchViaProxy(url: string, attempt = 1): Promise<Response> {
   proxyUrl.searchParams.set('url', url)
   proxyUrl.searchParams.set('x-api-key', apiKey)
   proxyUrl.searchParams.set('browser', 'true')
-  proxyUrl.searchParams.set('proxy_country', 'GR')
+  proxyUrl.searchParams.set('proxy_country', 'DE')
 
   const res = await fetch(proxyUrl.toString())
   if (res.status === 409 && attempt < 5) {
