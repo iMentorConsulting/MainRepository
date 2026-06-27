@@ -198,11 +198,16 @@ async function upsertMatch(programId: string, businessId: string, score: number,
   if (score < 40) return false
   const existing = await prisma.programMatch.findUnique({
     where: { programId_businessId: { programId, businessId } },
-    select: { id: true },
+    select: { id: true, status: true },
   })
+  // A business that newly qualifies again after being REJECTED (e.g. once
+  // criteria that had wrongly disqualified it are fixed) must come back as
+  // POTENTIAL — otherwise it stays REJECTED forever, since the status was
+  // never touched here, only matchScore/matchReason.
+  const revivedStatus = existing?.status === MatchStatus.REJECTED ? MatchStatus.POTENTIAL : undefined
   await prisma.programMatch.upsert({
     where: { programId_businessId: { programId, businessId } },
-    update: { matchScore: score, matchReason: reasons, updatedAt: new Date() },
+    update: { matchScore: score, matchReason: reasons, updatedAt: new Date(), ...(revivedStatus ? { status: revivedStatus } : {}) },
     create: {
       programId,
       businessId,
