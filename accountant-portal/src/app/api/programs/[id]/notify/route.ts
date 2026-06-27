@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { MatchStatus } from '@prisma/client'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { sendEmail } from '@/lib/email'
@@ -15,9 +16,14 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
   })
   if (!program) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  // Find all un-notified matches for this program, grouped by accountant
+  // Find all un-notified matches for this program, grouped by accountant.
+  // Must exclude REJECTED matches — e.g. ones the auto-matcher disqualified
+  // after the admin tightened criteria (resetStaleMatches in matching.ts
+  // flips them to REJECTED but leaves `notified` untouched), otherwise
+  // they'd still show up here as "ready to send" even though they no
+  // longer qualify.
   const unnotifiedMatches = await prisma.programMatch.findMany({
-    where: { programId: params.id, notified: false },
+    where: { programId: params.id, notified: false, status: { not: MatchStatus.REJECTED } },
     include: {
       business: { select: { id: true, accountantId: true, onomasia: true, afm: true } },
     },
@@ -157,7 +163,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
   }
 
   const count = await prisma.programMatch.count({
-    where: { programId: params.id, notified: false },
+    where: { programId: params.id, notified: false, status: { not: MatchStatus.REJECTED } },
   })
 
   return NextResponse.json({ pending: count })
