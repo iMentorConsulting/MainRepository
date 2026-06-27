@@ -240,15 +240,13 @@ def _markup_to_html(text: str, logo_url: str = None) -> str:
             blocks.append(f'<p style="margin:0 0 14px;line-height:1.65;">{"<br>".join(lines)}</p>')
     body_html = ''.join(blocks)
     logo_html = (
-        f'<div style="text-align:center;background:#1e3a8a;padding:18px;border-radius:14px 14px 0 0;">'
-        f'<img src="{logo_url}" alt="I MENTOR Consulting" width="160" height="42" style="max-height:42px;width:160px;height:42px;border:0;display:inline-block;"/></div>'
+        f'<div style="text-align:center;background:#1e3a8a;padding:20px 18px;">'
+        f'<img src="{logo_url}" alt="I MENTOR Consulting" style="max-width:240px;height:auto;border:0;display:inline-block;object-fit:contain;"/></div>'
     ) if logo_url else ''
-    body_radius = '0 0 14px 14px' if logo_url else '14px'
-
     return f"""<!DOCTYPE html><html><body style="margin:0;padding:24px;background:#f1f5f9;font-family:Arial,Helvetica,sans-serif;">
-<div style="max-width:560px;margin:0 auto;border-radius:14px;box-shadow:0 2px 10px rgba(0,0,0,0.06);">
+<div style="max-width:560px;margin:0 auto;border-radius:14px;box-shadow:0 2px 10px rgba(0,0,0,0.06);overflow:hidden;">
 {logo_html}
-<div style="background:#ffffff;border-radius:{body_radius};padding:28px 32px;font-size:15px;color:#1e293b;">
+<div style="background:#ffffff;padding:28px 32px;font-size:15px;color:#1e293b;">
 {body_html}
 </div>
 </div>
