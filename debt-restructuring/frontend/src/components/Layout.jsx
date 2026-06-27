@@ -121,24 +121,21 @@ export default function Layout({ auth, onLogout }) {
         </div>
       </main>
 
-      {/* Mobile bottom nav */}
-      <nav
-        className="md:hidden fixed bottom-0 inset-x-0 z-30 bg-white border-t border-gray-200 flex overflow-x-auto overflow-y-hidden"
-        style={{ WebkitOverflowScrolling: 'touch', scrollBehavior: 'smooth' }}
-      >
+      {/* Mobile bottom nav - icon only to fit all items */}
+      <nav className="md:hidden fixed bottom-0 inset-x-0 z-30 bg-white border-t border-gray-200 flex flex-wrap justify-around">
         {allNav.map(({ to, label, Icon, exact }) => (
           <NavLink key={to} to={to} end={exact}
+            title={label}
             className={({ isActive }) =>
-              `flex flex-col items-center justify-center py-2.5 px-3 text-[10px] font-semibold transition-colors shrink-0 min-w-fit whitespace-nowrap ${
-                isActive ? 'text-blue-700 bg-blue-50' : 'text-gray-600'}`}>
-            <Icon className="w-6 h-6 mb-1" />
-            <span className="text-[9px] leading-tight text-center">{label}</span>
+              `flex items-center justify-center p-3 transition-colors ${
+                isActive ? 'text-blue-700 bg-blue-50' : 'text-gray-500 hover:text-gray-700'}`}>
+            <Icon className="w-6 h-6" />
           </NavLink>
         ))}
         <button onClick={onLogout}
-          className="flex flex-col items-center justify-center py-2.5 px-3 text-[10px] font-semibold text-gray-600 shrink-0 min-w-fit whitespace-nowrap hover:text-red-600 transition-colors">
-          <ArrowRightOnRectangleIcon className="w-6 h-6 mb-1" />
-          <span className="text-[9px] leading-tight text-center">Έξοδος</span>
+          title="Αποσύνδεση"
+          className="flex items-center justify-center p-3 text-gray-500 hover:text-red-600 transition-colors">
+          <ArrowRightOnRectangleIcon className="w-6 h-6" />
         </button>
       </nav>
     </div>
