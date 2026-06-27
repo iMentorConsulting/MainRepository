@@ -122,18 +122,23 @@ export default function Layout({ auth, onLogout }) {
       </main>
 
       {/* Mobile bottom nav */}
-      <nav className="md:hidden fixed bottom-0 inset-x-0 z-30 bg-white border-t border-gray-200 flex overflow-x-auto overflow-y-hidden">
+      <nav
+        className="md:hidden fixed bottom-0 inset-x-0 z-30 bg-white border-t border-gray-200 flex overflow-x-auto overflow-y-hidden"
+        style={{ WebkitOverflowScrolling: 'touch', scrollBehavior: 'smooth' }}
+      >
         {allNav.map(({ to, label, Icon, exact }) => (
           <NavLink key={to} to={to} end={exact}
             className={({ isActive }) =>
-              `flex flex-col items-center py-2 px-2 text-[10px] font-medium transition-colors shrink-0 min-w-max ${
-                isActive ? 'text-blue-700' : 'text-gray-500'}`}>
-            <Icon className="w-5 h-5 mb-0.5" /><span className="line-clamp-2">{label}</span>
+              `flex flex-col items-center justify-center py-2.5 px-3 text-[10px] font-semibold transition-colors shrink-0 min-w-fit whitespace-nowrap ${
+                isActive ? 'text-blue-700 bg-blue-50' : 'text-gray-600'}`}>
+            <Icon className="w-6 h-6 mb-1" />
+            <span className="text-[9px] leading-tight text-center">{label}</span>
           </NavLink>
         ))}
         <button onClick={onLogout}
-          className="flex flex-col items-center py-2 px-2 text-[10px] font-medium text-gray-500 shrink-0 min-w-max">
-          <ArrowRightOnRectangleIcon className="w-5 h-5 mb-0.5" /><span className="line-clamp-2">Έξοδος</span>
+          className="flex flex-col items-center justify-center py-2.5 px-3 text-[10px] font-semibold text-gray-600 shrink-0 min-w-fit whitespace-nowrap hover:text-red-600 transition-colors">
+          <ArrowRightOnRectangleIcon className="w-6 h-6 mb-1" />
+          <span className="text-[9px] leading-tight text-center">Έξοδος</span>
         </button>
       </nav>
     </div>
