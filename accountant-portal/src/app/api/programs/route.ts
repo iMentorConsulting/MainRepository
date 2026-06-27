@@ -56,9 +56,11 @@ export async function POST(request: NextRequest) {
 
   const program = await prisma.program.create({ data })
 
-  if (program.active) {
-    runMatchingForProgram(program.id).catch(err => console.error('[Matching] Auto-match for new program failed:', err?.message))
-  }
+  // Always compute matches on create, even for inactive/draft programs — an
+  // admin previewing matches before flipping the program active otherwise
+  // sees a misleading "0 matched" with no indication why. Computing matches
+  // doesn't notify anyone; that's a separate, explicit step (notify route).
+  runMatchingForProgram(program.id).catch(err => console.error('[Matching] Auto-match for new program failed:', err?.message))
 
   return NextResponse.json(program, { status: 201 })
 }
