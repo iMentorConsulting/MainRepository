@@ -43,6 +43,64 @@ function normalizeKad(code: string): string {
   return /^\d{7}$/.test(code) ? '0' + code : code
 }
 
+export interface MatchDiagnosis {
+  pass: boolean
+  criterion: string
+  detail: string
+}
+
+// Same rules as matchesBusiness() below, but returns a per-criterion
+// breakdown instead of a single score — lets an admin see exactly WHICH
+// rule is rejecting a business that visually looks eligible, instead of
+// guessing from a bare "0 matched".
+export function diagnoseMatch(business: BusinessWithActivities, program: ProgramCriteria): MatchDiagnosis[] {
+  const out: MatchDiagnosis[] = []
+  const legalForm = normalizeLegalForm(business.legalStatusDescr)
+
+  if (program.excludeTags.length > 0) {
+    const hit = business.tags.find(t => program.excludeTags.includes(t))
+    out.push({ pass: !hit, criterion: 'excludeTags', detail: hit ? `Η επιχείρηση έχει το tag "${hit}" που είναι στη λίστα εξαίρεσης` : 'Καμία επικάλυψη με tags εξαίρεσης' })
+  }
+  if (program.requireTags.length > 0) {
+    const hasAny = program.requireTags.some(t => business.tags.includes(t))
+    out.push({ pass: hasAny, criterion: 'requireTags', detail: hasAny ? 'Η επιχείρηση έχει ένα από τα απαιτούμενα tags' : `Η επιχείρηση δεν έχει κανένα από τα απαιτούμενα tags: ${program.requireTags.join(', ')}` })
+  }
+  if (program.excludedLegalForms.length > 0) {
+    const excluded = program.excludedLegalForms.includes(legalForm)
+    out.push({ pass: !excluded, criterion: 'excludedLegalForms', detail: excluded ? `Η νομική μορφή "${legalForm}" είναι στη λίστα εξαιρούμενων μορφών του προγράμματος` : `Η νομική μορφή "${legalForm}" δεν είναι εξαιρούμενη` })
+  }
+
+  if (program.kadRules.length > 0) {
+    const matchedKad = business.activities.find(activity => {
+      const activityCode = normalizeKad(activity.firmActCode)
+      return program.kadRules.some(rule => {
+        const cleanRule = normalizeKad(rule.trim())
+        return cleanRule.includes('.') ? activityCode === cleanRule : activityCode.startsWith(cleanRule)
+      })
+    })
+    out.push({ pass: !!matchedKad, criterion: 'kadRules', detail: matchedKad ? `Ταιριάζει ΚΑΔ ${matchedKad.firmActCode}` : `Κανένα από τα ΚΑΔ της επιχείρησης (${business.activities.map(a => a.firmActCode).join(', ') || '—'}) δεν ταιριάζει με τους κανόνες ΚΑΔ του προγράμματος` })
+  }
+  if (program.regionRules.length > 0) {
+    const businessRegion = resolveRegionFromZip(business.postalZipCode)
+    const matched = !!businessRegion && program.regionRules.includes(businessRegion)
+    out.push({ pass: matched, criterion: 'regionRules', detail: matched ? `Περιφέρεια: ${businessRegion}` : `Η περιφέρεια της επιχείρησης (ΤΚ ${business.postalZipCode || '—'} → ${businessRegion || 'άγνωστη'}) δεν είναι στις επιλεγμένες περιφέρειες` })
+  }
+  if (program.zipCodeRules.length > 0) {
+    const zip = business.postalZipCode || ''
+    const matched = program.zipCodeRules.some(r => zip.startsWith(r) || zip === r)
+    out.push({ pass: matched, criterion: 'zipCodeRules', detail: matched ? `ΤΚ ${zip} ταιριάζει` : `ΤΚ ${zip || '—'} δεν ταιριάζει με κανέναν κανόνα ΤΚ` })
+  }
+  if (program.minRegdate || program.maxRegdate) {
+    const regdate = business.regdate ? new Date(business.regdate) : null
+    let ok = !!regdate
+    if (program.minRegdate && regdate && regdate < new Date(program.minRegdate)) ok = false
+    if (program.maxRegdate && regdate && regdate > new Date(program.maxRegdate)) ok = false
+    out.push({ pass: ok, criterion: 'regdate', detail: regdate ? `Ημ. ίδρυσης ${regdate.toLocaleDateString('el-GR')} έναντι εύρους ${program.minRegdate || '—'} έως ${program.maxRegdate || '—'}` : 'Άγνωστη ημερομηνία ίδρυσης' })
+  }
+
+  return out
+}
+
 function matchesBusiness(
   business: BusinessWithActivities,
   program: ProgramCriteria

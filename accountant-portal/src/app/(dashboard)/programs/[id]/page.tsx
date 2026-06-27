@@ -37,6 +37,10 @@ export default function ProgramDetailPage() {
   const [notifying, setNotifying] = useState(false)
   const [pendingNotifications, setPendingNotifications] = useState<number | null>(null)
   const [criteriaMap, setCriteriaMap] = useState<Record<string, string>>({})
+  const [diagnoseAfm, setDiagnoseAfm] = useState('')
+  const [diagnosing, setDiagnosing] = useState(false)
+  const [diagnoseError, setDiagnoseError] = useState('')
+  const [diagnoseResult, setDiagnoseResult] = useState<any>(null)
   const isAdmin = session?.user?.role === 'ADMIN'
 
   useEffect(() => {
@@ -104,6 +108,23 @@ export default function ProgramDetailPage() {
       : ''
     alert(`Εστάλησαν ειδοποιήσεις για ${data.notified} matches σε ${data.accountants} λογιστές.${directMsg}`)
     setNotifying(false)
+  }
+
+  async function runDiagnosis() {
+    if (!diagnoseAfm.trim()) return
+    setDiagnosing(true)
+    setDiagnoseError('')
+    setDiagnoseResult(null)
+    try {
+      const res = await fetch(`/api/programs/${id}/diagnose?afm=${encodeURIComponent(diagnoseAfm.trim())}`)
+      const data = await res.json()
+      if (!res.ok) setDiagnoseError(data.error || 'Σφάλμα ελέγχου')
+      else setDiagnoseResult(data)
+    } catch {
+      setDiagnoseError('Σφάλμα ελέγχου')
+    } finally {
+      setDiagnosing(false)
+    }
   }
 
   if (loading) return (
@@ -416,6 +437,40 @@ export default function ProgramDetailPage() {
           )}
         </CardContent>
       </Card>
+
+      {isAdmin && (
+        <Card>
+          <CardHeader><CardTitle>Έλεγχος Επιλεξιμότητας Επιχείρησης</CardTitle></CardHeader>
+          <CardContent>
+            <p className="text-sm text-gray-500 mb-2">Δώστε το ΑΦΜ μιας επιχείρησης που δεν εμφανίζεται στα matches, για να δείτε ποιο ακριβώς κριτήριο την αποκλείει.</p>
+            <div className="flex gap-2">
+              <input
+                value={diagnoseAfm}
+                onChange={e => setDiagnoseAfm(e.target.value)}
+                placeholder="ΑΦΜ"
+                className="rounded-lg border border-gray-300 px-3 py-2 text-sm w-48"
+              />
+              <Button variant="outline" loading={diagnosing} onClick={runDiagnosis}>Έλεγχος</Button>
+            </div>
+            {diagnoseError && <p className="text-sm text-red-600 mt-2">{diagnoseError}</p>}
+            {diagnoseResult && (
+              <div className="mt-3 space-y-1.5">
+                <p className="text-sm font-medium text-gray-700">
+                  {diagnoseResult.business.onomasia} (ΑΦΜ {diagnoseResult.business.afm}) —{' '}
+                  <span className={diagnoseResult.overall ? 'text-emerald-700' : 'text-red-700'}>
+                    {diagnoseResult.overall ? 'Πληροί όλα τα κριτήρια' : 'Δεν πληροί κάποιο κριτήριο'}
+                  </span>
+                </p>
+                {diagnoseResult.results.map((r: any, i: number) => (
+                  <div key={i} className={`text-sm rounded-md px-3 py-1.5 ${r.pass ? 'bg-emerald-50 text-emerald-800' : 'bg-red-50 text-red-800'}`}>
+                    <span className="font-medium">{r.criterion}:</span> {r.detail}
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
     </div>
   )
 }
