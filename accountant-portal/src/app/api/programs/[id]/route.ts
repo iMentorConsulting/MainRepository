@@ -55,9 +55,9 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
   // Eligibility criteria (ΚΑΔ, περιφέρεια, ΤΚ, ημ. ίδρυσης, tags κ.λπ.) may have
   // just changed — re-run matching so stale matches that no longer qualify are
   // dropped and newly-qualifying businesses are picked up, same as on create.
-  // Always run, even while inactive/draft — computing matches doesn't notify
-  // anyone, and an admin editing a draft program needs to see real counts.
-  runMatchingForProgram(program.id).catch(err => console.error('[Matching] Re-match after program edit failed:', err?.message))
+  if (program.active) {
+    runMatchingForProgram(program.id).catch(err => console.error('[Matching] Re-match after program edit failed:', err?.message))
+  }
 
   return NextResponse.json(program)
 }
