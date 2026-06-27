@@ -122,18 +122,18 @@ export default function Layout({ auth, onLogout }) {
       </main>
 
       {/* Mobile bottom nav */}
-      <nav className="md:hidden fixed bottom-0 inset-x-0 z-30 bg-white border-t border-gray-200 flex">
+      <nav className="md:hidden fixed bottom-0 inset-x-0 z-30 bg-white border-t border-gray-200 flex overflow-x-auto overflow-y-hidden">
         {allNav.map(({ to, label, Icon, exact }) => (
           <NavLink key={to} to={to} end={exact}
             className={({ isActive }) =>
-              `flex-1 flex flex-col items-center py-2 text-xs font-medium transition-colors ${
+              `flex flex-col items-center py-2 px-2 text-[10px] font-medium transition-colors shrink-0 min-w-max ${
                 isActive ? 'text-blue-700' : 'text-gray-500'}`}>
-            <Icon className="w-6 h-6 mb-0.5" />{label}
+            <Icon className="w-5 h-5 mb-0.5" /><span className="line-clamp-2">{label}</span>
           </NavLink>
         ))}
         <button onClick={onLogout}
-          className="flex-1 flex flex-col items-center py-2 text-xs font-medium text-gray-500">
-          <ArrowRightOnRectangleIcon className="w-6 h-6 mb-0.5" />Έξοδος
+          className="flex flex-col items-center py-2 px-2 text-[10px] font-medium text-gray-500 shrink-0 min-w-max">
+          <ArrowRightOnRectangleIcon className="w-5 h-5 mb-0.5" /><span className="line-clamp-2">Έξοδος</span>
         </button>
       </nav>
     </div>
