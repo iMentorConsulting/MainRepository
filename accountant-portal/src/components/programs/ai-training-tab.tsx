@@ -254,6 +254,29 @@ export function AiTrainingTab() {
   async function applyToProgram() {
     if (!fields || !targetProgramId) return
     setApplyMsg('')
+
+    // This OVERWRITES the target program's ΚΑΔ/περιοχή/ΤΚ/νομικές μορφές κ.λπ.
+    // with whatever this run extracted — if the program already has good,
+    // hand-verified criteria, a re-extraction (e.g. slightly different PDF
+    // read, or an extraction with a misclassified excludedLegalForms entry)
+    // can silently wipe out working matches. Make the admin look at exactly
+    // what's about to replace the existing values before doing it.
+    const programTitle = programs.find(p => p.id === targetProgramId)?.title || ''
+    const summary = [
+      `ΚΑΔ: ${fields.kadRules.join(', ') || '(κανένα)'}`,
+      `Περιφέρειες: ${fields.regionRules.join(', ') || '(καμία)'}`,
+      `ΤΚ: ${fields.zipCodeRules.join(', ') || '(κανένα)'}`,
+      `Εξαιρούμενες Νομικές Μορφές: ${fields.excludedLegalForms.join(', ') || '(καμία)'}`,
+      `Ημ. ίδρυσης: ${fields.minRegdate || '—'} έως ${fields.maxRegdate || '—'}`,
+    ].join('\n')
+    const warning = fields.excludedLegalForms.length > 0
+      ? '\n\n⚠ Υπάρχουν Εξαιρούμενες Νομικές Μορφές — αν κάποια τιμή δεν είναι όντως νομική μορφή (π.χ. πρόταση για ΚΑΔ/κλάδο), θα μηδενίσει λανθασμένα τα matches. Ελέγξτε τις παραπάνω τιμές προσεκτικά.'
+      : ''
+    const confirmed = confirm(
+      `Η εφαρμογή θα ΑΝΤΙΚΑΤΑΣΤΗΣΕΙ τα κριτήρια επιλεξιμότητας του προγράμματος «${programTitle}» με:\n\n${summary}${warning}\n\nΣυνέχεια;`
+    )
+    if (!confirmed) return
+
     const payload = {
       ...fields,
       otherRequirements: fields.otherRequirements.map((r, i) => `${i + 1}. ${r}`).join('\n'),
