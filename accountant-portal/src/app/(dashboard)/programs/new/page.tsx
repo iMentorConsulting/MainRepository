@@ -194,22 +194,86 @@ export default function NewProgramPage() {
   const [attachmentUrls, setAttachmentUrls] = useState<string[]>([])
   const [attachmentNames, setAttachmentNames] = useState<string[]>([])
   const [loadingAnnouncement, setLoadingAnnouncement] = useState(!!fromAnnouncementId || !!fromDypaAnnouncementId)
+  const [aiExtractionStatus, setAiExtractionStatus] = useState<'idle' | 'running' | 'done' | 'failed'>('idle')
 
   const { register, handleSubmit, setValue, formState: { errors, isSubmitting } } = useForm<FormData>({
     resolver: zodResolver(schema),
     defaultValues: { active: true, category: fromDypaAnnouncementId ? 'DYPA' : 'ESPA' }
   })
 
+  // Calls the trained AI extraction tool (the same engine behind the "AI
+  // Εκπαίδευση" tab) on the announcement so this form gets the model's
+  // structured read instead of a fixed regex guess. Returns true if it
+  // produced usable fields, so callers can fall back to the simple parser.
+  async function applyAiExtraction(announcementId: string): Promise<boolean> {
+    setAiExtractionStatus('running')
+    try {
+      const res = await fetch('/api/ai-extraction/extract', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ announcementId }),
+      })
+      if (!res.ok) { setAiExtractionStatus('failed'); return false }
+      const { result } = await res.json()
+      if (!result) { setAiExtractionStatus('failed'); return false }
+
+      if (result.minInvestment != null) setValue('minInvestment', result.minInvestment as any)
+      if (result.maxInvestment != null) setValue('maxInvestment', result.maxInvestment as any)
+      if (result.minSubsidyPct != null) setValue('minSubsidyPct', result.minSubsidyPct as any)
+      if (result.maxSubsidyPct != null) setValue('maxSubsidyPct', result.maxSubsidyPct as any)
+      if (result.minInterestRate != null) setValue('minInterestRate', result.minInterestRate as any)
+      if (result.maxInterestRate != null) setValue('maxInterestRate', result.maxInterestRate as any)
+      if (result.minRegdate) setValue('minRegdate', result.minRegdate)
+      if (result.maxRegdate) setValue('maxRegdate', result.maxRegdate)
+      if (result.startDate) setValue('startDate', result.startDate)
+      if (result.endDate) setValue('endDate', result.endDate)
+      if (result.otherRequirements?.length) setValue('otherRequirements', result.otherRequirements.join('\n'))
+      if (result.kadRules?.length) setKadRules(result.kadRules)
+      if (result.regionRules?.length) setRegionRules(result.regionRules)
+      if (result.zipCodeRules?.length) setZipCodeRules(result.zipCodeRules)
+      if (result.excludedLegalForms?.length) setExcludedLegalForms(result.excludedLegalForms)
+
+      // Fields the AI extracts that don't have a dedicated form input yet —
+      // kept rather than discarded, in the admin-only internal notes.
+      const noteParts: string[] = []
+      if (result.keyPoints?.length) noteParts.push(`Σημαντικά σημεία (AI):\n${result.keyPoints.map((p: string) => `- ${p}`).join('\n')}`)
+      if (result.fundedActions?.length) noteParts.push(`Χρηματοδοτούμενες ενέργειες:\n${result.fundedActions.map((a: any) => `- ${a.title}: ${a.description}`).join('\n')}`)
+      if (result.expenseCategories?.length) noteParts.push(`Κατηγορίες δαπανών:\n${result.expenseCategories.map((c: any) => `- ${c.code} | ${c.category} | ${c.expense} | ${c.limit}`).join('\n')}`)
+      if (result.subsidyNote) noteParts.push(`Σχόλιο επιχορήγησης: ${result.subsidyNote}`)
+      if (result.totalBudgetEur != null) noteParts.push(`Συνολικός προϋπολογισμός προγράμματος: ${result.totalBudgetEur.toLocaleString('el-GR')} €`)
+      if (result.implementationMonths != null) noteParts.push(`Διάρκεια υλοποίησης: ${result.implementationMonths} μήνες`)
+      if (noteParts.length) setValue('internalNotes', noteParts.join('\n\n'))
+
+      setAiExtractionStatus('done')
+      return true
+    } catch {
+      setAiExtractionStatus('failed')
+      return false
+    }
+  }
+
   useEffect(() => {
     if (!fromAnnouncementId) return
-    fetch(`/api/espa-announcements/${fromAnnouncementId}`)
-      .then(res => res.ok ? res.json() : null)
-      .then(a => {
-        if (!a) return
-        setValue('title', a.title || '')
-        setValue('websiteUrl', a.detailUrl || '')
-        if (a.description) setValue('description', a.description)
+    ;(async () => {
+      let a: any = null
+      try {
+        const res = await fetch(`/api/espa-announcements/${fromAnnouncementId}`)
+        a = res.ok ? await res.json() : null
+      } catch {}
+      if (!a) { setLoadingAnnouncement(false); return }
 
+      setValue('title', a.title || '')
+      setValue('websiteUrl', a.detailUrl || '')
+      if (a.description) setValue('description', a.description)
+      if (a.attachmentUrls?.length) {
+        setAttachmentUrls(a.attachmentUrls)
+        setAttachmentNames(a.attachmentNames || [])
+      }
+
+      const aiSucceeded = await applyAiExtraction(fromAnnouncementId)
+      if (!aiSucceeded) {
+        // Fallback to the fixed regex parser if AI extraction errored, hit
+        // its rate limit, or ANTHROPIC_API_KEY isn't configured.
         const { min, max } = parseBudgetRange(a.budget)
         if (min !== undefined) setValue('minInvestment', min as any)
         if (max !== undefined) setValue('maxInvestment', max as any)
@@ -220,34 +284,36 @@ export default function NewProgramPage() {
 
         const regions = parseRegionsFromApplicationArea(a.applicationArea)
         if (regions.length > 0) setRegionRules(regions)
-
-        if (a.attachmentUrls?.length) {
-          setAttachmentUrls(a.attachmentUrls)
-          setAttachmentNames(a.attachmentNames || [])
-        }
-      })
-      .finally(() => setLoadingAnnouncement(false))
+      }
+      setLoadingAnnouncement(false)
+    })()
   }, [fromAnnouncementId, setValue])
 
   useEffect(() => {
     if (!fromDypaAnnouncementId) return
-    fetch(`/api/dypa-announcements/${fromDypaAnnouncementId}`)
-      .then(res => res.ok ? res.json() : null)
-      .then(a => {
-        if (!a) return
-        setValue('title', a.title || '')
-        setValue('websiteUrl', a.detailUrl || '')
-        if (a.description) setValue('description', a.description)
+    ;(async () => {
+      let a: any = null
+      try {
+        const res = await fetch(`/api/dypa-announcements/${fromDypaAnnouncementId}`)
+        a = res.ok ? await res.json() : null
+      } catch {}
+      if (!a) { setLoadingAnnouncement(false); return }
 
+      setValue('title', a.title || '')
+      setValue('websiteUrl', a.detailUrl || '')
+      if (a.description) setValue('description', a.description)
+      if (a.attachmentUrls?.length) {
+        setAttachmentUrls(a.attachmentUrls)
+        setAttachmentNames(a.attachmentNames || [])
+      }
+
+      const aiSucceeded = await applyAiExtraction(fromDypaAnnouncementId)
+      if (!aiSucceeded) {
         const regions = detectRegionsInText(`${a.title || ''} ${a.description || ''}`)
         if (regions.length > 0) setRegionRules(regions)
-
-        if (a.attachmentUrls?.length) {
-          setAttachmentUrls(a.attachmentUrls)
-          setAttachmentNames(a.attachmentNames || [])
-        }
-      })
-      .finally(() => setLoadingAnnouncement(false))
+      }
+      setLoadingAnnouncement(false)
+    })()
   }, [fromDypaAnnouncementId, setValue])
 
   async function onSubmit(data: FormData) {
@@ -291,6 +357,18 @@ export default function NewProgramPage() {
         </Link>
         <h1 className="text-2xl font-bold text-gray-900">Νέο Πρόγραμμα</h1>
       </div>
+
+      {(fromAnnouncementId || fromDypaAnnouncementId) && aiExtractionStatus !== 'idle' && (
+        <div className={`text-sm rounded-lg px-4 py-2.5 ${
+          aiExtractionStatus === 'running' ? 'bg-blue-50 text-blue-700 border border-blue-100' :
+          aiExtractionStatus === 'done' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' :
+          'bg-amber-50 text-amber-700 border border-amber-100'
+        }`}>
+          {aiExtractionStatus === 'running' && '✨ Εξαγωγή στοιχείων με AI σε εξέλιξη...'}
+          {aiExtractionStatus === 'done' && '✨ Τα παρακάτω στοιχεία συμπληρώθηκαν αυτόματα με το εκπαιδευμένο AI. Ελέγξτε τα πριν την αποθήκευση.'}
+          {aiExtractionStatus === 'failed' && '⚠ Η αυτόματη εξαγωγή με AI απέτυχε — χρησιμοποιήθηκε ο απλός βασικός parser. Ελέγξτε προσεκτικά τα πεδία.'}
+        </div>
+      )}
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
         <Card>
