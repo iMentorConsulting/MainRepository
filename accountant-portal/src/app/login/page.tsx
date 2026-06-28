@@ -97,7 +97,7 @@ function LoginPageInner() {
             {[
               'Νέες ευκαιρίες χρηματοδότησης για τους πελάτες σας, εντοπισμένες αυτόματα',
               'Προμήθειες από κάθε επιτυχημένη υπόθεση που θα διεκπεραιωθεί',
-              'Έγκριση γραφείου σε 1-2 εργάσιμες — χωρίς κόστος συμμετοχής',
+              'Δωρεάν πλατφόρμα — καμία χρέωση συμμετοχής για το γραφείο σας',
             ].map((text, i) => (
               <div key={i} className="flex items-center gap-2.5">
                 <svg className="w-4 h-4 text-emerald-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -121,7 +121,7 @@ function LoginPageInner() {
             {[
               { icon: Shield, text: 'Κρυπτογράφηση TLS 1.3: τα δεδομένα σας μεταφέρονται πάντα κρυπτογραφημένα' },
               { icon: Lock, text: 'Τα δεδομένα επιχειρήσεων ανήκουν αποκλειστικά στο λογιστικό σας γραφείο' },
-              { icon: Shield, text: 'Πλήρης συμμόρφωση με τον ΓΚΠΔ (GDPR), σε υποδομή εντός ΕΕ' },
+              { icon: Shield, text: 'Πλήρης συμμόρφωση με τον ΓΚΠΔ (GDPR)' },
             ].map(({ icon: Icon, text }, i) => (
               <div key={i} className="flex items-start gap-3">
                 <div className="w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0 mt-0.5"
