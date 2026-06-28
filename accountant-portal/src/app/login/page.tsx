@@ -92,6 +92,30 @@ function LoginPageInner() {
             </p>
           </div>
 
+          {/* Value props for prospective offices */}
+          <div className="space-y-2.5">
+            {[
+              'Νέες ευκαιρίες χρηματοδότησης για τους πελάτες σας, εντοπισμένες αυτόματα',
+              'Προμήθειες από κάθε επιτυχημένη υπόθεση που θα διεκπεραιωθεί',
+              'Έγκριση γραφείου σε 1-2 εργάσιμες — χωρίς κόστος συμμετοχής',
+            ].map((text, i) => (
+              <div key={i} className="flex items-center gap-2.5">
+                <svg className="w-4 h-4 text-emerald-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                <p className="text-sm text-indigo-100">{text}</p>
+              </div>
+            ))}
+          </div>
+
+          <a href="/register"
+            className="inline-flex items-center gap-2 px-5 py-3 rounded-lg bg-white text-indigo-700 text-sm font-bold shadow-lg hover:bg-indigo-50 transition-colors">
+            Νέο Λογιστικό Γραφείο; Εγγραφή Τώρα
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
+            </svg>
+          </a>
+
           {/* Trust signals */}
           <div className="space-y-3">
             {[
@@ -133,9 +157,24 @@ function LoginPageInner() {
             )}
           </div>
 
+          {/* Prominent registration CTA for new accounting offices */}
+          <a href="/register"
+            className="mb-6 flex items-center justify-between gap-3 px-4 py-3.5 rounded-xl border-2 border-indigo-200 bg-indigo-50 hover:bg-indigo-100 hover:border-indigo-300 transition-colors group">
+            <div>
+              <p className="text-sm font-bold text-indigo-700">Νέο λογιστικό γραφείο;</p>
+              <p className="text-xs text-indigo-500">Εγγραφείτε δωρεάν και αποκτήστε πρόσβαση σε νέες επιδοτήσεις για τους πελάτες σας</p>
+            </div>
+            <span className="flex-shrink-0 flex items-center gap-1 px-3 py-2 rounded-lg bg-indigo-600 text-white text-xs font-semibold group-hover:bg-indigo-700 transition-colors">
+              Εγγραφή
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
+              </svg>
+            </span>
+          </a>
+
           <div className="mb-8">
             <h1 className="text-2xl font-bold text-slate-900 mb-2">Σύνδεση στο Portal</h1>
-            <p className="text-sm text-slate-500">Εισαγάγετε τα στοιχεία πρόσβασής σας για να συνεχίσετε.</p>
+            <p className="text-sm text-slate-500">Έχετε ήδη λογαριασμό; Εισαγάγετε τα στοιχεία πρόσβασής σας για να συνεχίσετε.</p>
           </div>
 
           {verifyStatus === 'success' && !error && (
@@ -205,11 +244,9 @@ function LoginPageInner() {
             </button>
           </form>
 
-          <div className="mt-8 pt-6 border-t border-slate-100">
-            <p className="text-sm text-slate-500 mb-3">Δεν έχετε λογαριασμό συνεργάτη;</p>
-            <a href="/register"
-              className="block w-full text-center py-2.5 rounded-lg text-indigo-600 text-sm font-semibold border border-indigo-200 hover:bg-indigo-50 transition-colors">
-              Αίτηση Εγγραφής Λογιστικού Γραφείου
+          <div className="mt-6 text-center">
+            <a href="/register" className="text-sm text-indigo-600 hover:underline font-medium">
+              Δεν έχετε λογαριασμό; Κάντε αίτηση εγγραφής →
             </a>
           </div>
 
