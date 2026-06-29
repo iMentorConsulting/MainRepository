@@ -31,6 +31,23 @@ export async function notifyCaseManagement(data: {
   // assignment-request from Case Management (see /api/external/assignment-requests),
   // so Case Management can correlate this notification to its own request.
   requestRef?: string | null
+  // Full AADE-derived business profile (see lib/business-profile.ts) — sourced
+  // entirely from Logistis's own cached Business/activities data, never a fresh
+  // AADE call at notify time (repeated lookups for the same ΑΦΜ are avoided
+  // deliberately). Spread in by every call site via buildBusinessProfilePayload().
+  commercialTitle?: string | null
+  legalStatusDescr?: string | null
+  regdate?: string | null
+  doy?: string | null
+  doyDescr?: string | null
+  postalAddress?: string | null
+  postalAddressNo?: string | null
+  postalZipCode?: string | null
+  postalAreaDescription?: string | null
+  perifereia?: string | null
+  klados?: string | null
+  activities?: { firmActCode: string; firmActDescr: string | null; firmActKind: number | null }[]
+  matchedPrograms?: { title: string; status: string }[]
 }) {
   const url = process.env.CASE_MGMT_WEBHOOK_URL
   const apiKey = process.env.CASES_API_KEY

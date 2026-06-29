@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { notifyCaseManagement } from '@/lib/case-management-sync'
+import { buildBusinessProfilePayload, BUSINESS_PROFILE_SELECT } from '@/lib/business-profile'
 
 // Inbound endpoint for Case Management's "request new assignment" feature:
 // a consultant working in Case Management asks us to look up a prospect by
@@ -26,7 +27,7 @@ export async function POST(request: NextRequest) {
 
   const business = await prisma.business.findFirst({
     where: { email },
-    include: { accountant: { select: { officeName: true } } },
+    select: { accountant: { select: { officeName: true } }, ...BUSINESS_PROFILE_SELECT, phone: true, viberPhone: true, email: true, accountantId: true },
   })
   if (!business) {
     return NextResponse.json({ error: 'No client found for this email' }, { status: 404 })
@@ -73,10 +74,9 @@ export async function POST(request: NextRequest) {
     }).catch(() => {})
   }
 
+  const profile = await buildBusinessProfilePayload(business)
   notifyCaseManagement({
     caseNumber: clientCase.caseNumber,
-    afm: business.afm,
-    onomasia: business.onomasia,
     phone,
     email: business.email || null,
     accountantOffice: business.accountant?.officeName || null,
@@ -85,6 +85,7 @@ export async function POST(request: NextRequest) {
     priority: clientCase.priority,
     programTitle: programTitle || null,
     requestRef,
+    ...profile,
   }).catch(err => console.error('[CaseManagement] notify failed:', err?.message || err))
 
   return NextResponse.json({ id: clientCase.id, caseNumber: clientCase.caseNumber }, { status: 201 })

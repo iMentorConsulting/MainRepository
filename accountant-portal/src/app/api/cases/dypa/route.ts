@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { createAuditLog } from '@/lib/audit'
 import { sendEmail } from '@/lib/email'
 import { notifyCaseManagement } from '@/lib/case-management-sync'
+import { buildBusinessProfilePayload, BUSINESS_PROFILE_SELECT } from '@/lib/business-profile'
 
 // Creates a ClientCase (requestType DYPA_HIRING) together with its 1-1
 // DypaAssignment extension, for the ΔΥΠΑ hiring-subsidy assignment workflow.
@@ -15,7 +16,7 @@ export async function POST(request: NextRequest) {
   if (!businessId) return NextResponse.json({ error: 'Η επιχείρηση είναι υποχρεωτική' }, { status: 400 })
   if (!programId) return NextResponse.json({ error: 'Το πρόγραμμα είναι υποχρεωτικό' }, { status: 400 })
 
-  const business = await prisma.business.findUnique({ where: { id: businessId }, select: { id: true, accountantId: true, onomasia: true, afm: true, phone: true, email: true } })
+  const business = await prisma.business.findUnique({ where: { id: businessId }, select: { accountantId: true, phone: true, email: true, ...BUSINESS_PROFILE_SELECT } })
   if (!business) return NextResponse.json({ error: 'Δεν βρέθηκε η επιχείρηση' }, { status: 404 })
 
   const match = await prisma.programMatch.findUnique({
@@ -86,10 +87,9 @@ export async function POST(request: NextRequest) {
     })
   } catch {}
 
+  const profile = await buildBusinessProfilePayload(business)
   notifyCaseManagement({
     caseNumber: clientCase.caseNumber,
-    afm: business.afm,
-    onomasia: business.onomasia,
     phone: business.phone || null,
     email: business.email || null,
     accountantOffice: clientCase.accountant?.officeName || null,
@@ -97,6 +97,7 @@ export async function POST(request: NextRequest) {
     description: null,
     priority: 'NORMAL',
     programTitle: clientCase.program?.title || null,
+    ...profile,
   }).catch(err => console.error('[CaseManagement] notify failed:', err?.message))
 
   return NextResponse.json({ id: clientCase.dypaAssignment!.id, clientCaseId: clientCase.id }, { status: 201 })

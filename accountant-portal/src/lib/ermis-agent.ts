@@ -8,6 +8,7 @@ import { prisma } from './prisma'
 import { sendEmail } from './email'
 import { notifyCaseManagement } from './case-management-sync'
 import { EligibilityQuestion } from './eligibility-questions'
+import { buildBusinessProfilePayload, BUSINESS_PROFILE_SELECT } from './business-profile'
 
 const MAX_RESPONSE_TOKENS = 1_000
 
@@ -119,9 +120,10 @@ async function createPublicClientCase(params: {
 }) {
   const business = await prisma.business.findUnique({
     where: { id: params.businessId },
-    select: { id: true, accountantId: true, onomasia: true, afm: true, phone: true, email: true },
+    select: { accountantId: true, phone: true, email: true, ...BUSINESS_PROFILE_SELECT },
   })
   if (!business) throw new Error('Δεν βρέθηκε η επιχείρηση')
+  const profile = await buildBusinessProfilePayload(business)
 
   const adminUser = await prisma.user.findFirst({ where: { role: 'ADMIN' }, select: { id: true } })
   if (!adminUser) throw new Error('Δεν βρέθηκε χρήστης ADMIN για createdById')
@@ -168,8 +170,6 @@ async function createPublicClientCase(params: {
 
   notifyCaseManagement({
     caseNumber: clientCase.caseNumber,
-    afm: business.afm,
-    onomasia: business.onomasia,
     phone: business.phone || null,
     email: business.email || null,
     accountantOffice: clientCase.accountant?.officeName || null,
@@ -177,6 +177,7 @@ async function createPublicClientCase(params: {
     description: clientCase.description,
     priority: clientCase.priority,
     programTitle: params.programTitle,
+    ...profile,
   }).catch(err => console.error('[CaseManagement] notify failed:', err?.message))
 
   return clientCase.id
