@@ -1032,6 +1032,51 @@ try:
 except Exception as _e:
     print(f"[migration] cm_portal_assignment_requests create skipped: {_e}", flush=True)
 
+try:
+    with engine.connect() as _conn:
+        _conn.execute(_text("""
+            CREATE TABLE IF NOT EXISTS cm_business_profiles (
+                id SERIAL PRIMARY KEY,
+                afm VARCHAR(20) NOT NULL UNIQUE,
+                onomasia VARCHAR(200),
+                commercial_title VARCHAR(200),
+                legal_status_descr VARCHAR(200),
+                regdate DATE,
+                doy VARCHAR(50),
+                doy_descr VARCHAR(200),
+                postal_address VARCHAR(200),
+                postal_address_no VARCHAR(20),
+                postal_zip_code VARCHAR(20),
+                postal_area_description VARCHAR(200),
+                perifereia VARCHAR(100),
+                klados VARCHAR(50),
+                created_at TIMESTAMP DEFAULT NOW(),
+                updated_at TIMESTAMP DEFAULT NOW()
+            )
+        """))
+        _conn.execute(_text("""
+            CREATE TABLE IF NOT EXISTS cm_business_activities (
+                id SERIAL PRIMARY KEY,
+                business_id INTEGER NOT NULL REFERENCES cm_business_profiles(id) ON DELETE CASCADE,
+                firm_act_code VARCHAR(20),
+                firm_act_descr VARCHAR(300),
+                firm_act_kind VARCHAR(50)
+            )
+        """))
+        _conn.execute(_text("CREATE INDEX IF NOT EXISTS ix_cm_business_activities_business_id ON cm_business_activities (business_id)"))
+        _conn.execute(_text("""
+            CREATE TABLE IF NOT EXISTS cm_business_matched_programs (
+                id SERIAL PRIMARY KEY,
+                business_id INTEGER NOT NULL REFERENCES cm_business_profiles(id) ON DELETE CASCADE,
+                title VARCHAR(300),
+                status VARCHAR(50)
+            )
+        """))
+        _conn.execute(_text("CREATE INDEX IF NOT EXISTS ix_cm_business_matched_programs_business_id ON cm_business_matched_programs (business_id)"))
+        _conn.commit()
+except Exception as _e:
+    print(f"[migration] cm_business_profiles create skipped: {_e}", flush=True)
+
 
 @app.on_event("shutdown")
 def _shutdown_scheduler():

@@ -493,3 +493,59 @@ class CMPortalAssignmentRequest(Base):
     cm_assignment_id = Column(Integer, ForeignKey("cm_portal_assignments.id"), nullable=True)
 
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+KLADOS_OPTIONS = ["ΕΜΠΟΡΙΟ", "ΥΠΗΡΕΣΙΕΣ", "ΤΟΥΡΙΣΜΟΣ", "ΜΕΤΑΠΟΙΗΣΗ", "ΕΣΤΙΑΣΗ", "ΑΓΡΟΤΙΚΑ"]
+
+
+class CMBusinessProfile(Base):
+    """Cached LOGISTIS/ΑΑΔΕ business profile for a given AFM. Looked up at
+    most once per AFM (cached here) — case.created webhooks and the outbound
+    POST /api/external/businesses lookup both populate/reuse this record."""
+    __tablename__ = "cm_business_profiles"
+
+    id = Column(Integer, primary_key=True)
+    afm = Column(String(20), nullable=False, unique=True, index=True)
+    onomasia = Column(String(200))
+    commercial_title = Column(String(200))
+    legal_status_descr = Column(String(200))
+    regdate = Column(Date, nullable=True)  # ημ. έναρξης
+    doy = Column(String(50))
+    doy_descr = Column(String(200))
+    postal_address = Column(String(200))
+    postal_address_no = Column(String(20))
+    postal_zip_code = Column(String(20))
+    postal_area_description = Column(String(200))
+    perifereia = Column(String(100))
+    klados = Column(String(50))  # one of KLADOS_OPTIONS
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    activities = relationship("CMBusinessActivity", back_populates="business", cascade="all, delete-orphan")
+    matched_programs = relationship("CMBusinessMatchedProgram", back_populates="business", cascade="all, delete-orphan")
+
+
+class CMBusinessActivity(Base):
+    """One ΚΑΔ row (firmActCode/firmActDescr/firmActKind) for a business profile."""
+    __tablename__ = "cm_business_activities"
+
+    id = Column(Integer, primary_key=True)
+    business_id = Column(Integer, ForeignKey("cm_business_profiles.id"), nullable=False, index=True)
+    firm_act_code = Column(String(20))
+    firm_act_descr = Column(String(300))
+    firm_act_kind = Column(String(50))
+
+    business = relationship("CMBusinessProfile", back_populates="activities")
+
+
+class CMBusinessMatchedProgram(Base):
+    """A program LOGISTIS matched against this business (REJECTED ones excluded upstream)."""
+    __tablename__ = "cm_business_matched_programs"
+
+    id = Column(Integer, primary_key=True)
+    business_id = Column(Integer, ForeignKey("cm_business_profiles.id"), nullable=False, index=True)
+    title = Column(String(300))
+    status = Column(String(50))
+
+    business = relationship("CMBusinessProfile", back_populates="matched_programs")
