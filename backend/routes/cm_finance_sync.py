@@ -137,20 +137,23 @@ def _discover_and_upsert_service_types(records: list[dict], db: Session) -> None
 
 
 def _build_lookup_maps(db: Session):
-    """Return (existing_by_ref, existing_by_afm, existing_by_name) from all cases."""
+    """Return (existing_by_ref, existing_by_afm, existing_by_name, existing_by_afm_program) from all cases."""
     existing_cases = db.query(CMCase).all()
     by_ref  = {c.sheet_import_ref: c for c in existing_cases if c.sheet_import_ref}
     by_afm  = {}
     by_name = {}
+    by_afm_program = {}
     for c in existing_cases:
         if c.afm:
             by_afm[(c.afm, c.service_type or "")] = c
+            program = c.program_category or _detect_program(c.service_type)
+            by_afm_program[(c.afm, program)] = c
         if c.client_name:
             by_name[(_strip_accents(c.client_name), c.service_type or "")] = c
-    return by_ref, by_afm, by_name
+    return by_ref, by_afm, by_name, by_afm_program
 
 
-def _find_existing(r, by_ref, by_afm, by_name):
+def _find_existing(r, by_ref, by_afm, by_name, by_afm_program):
     vat   = (r.get("vat_number") or "").strip()
     name  = (r.get("customer_name") or "").strip()
     svc   = (r.get("service_type") or "").strip()
@@ -158,6 +161,10 @@ def _find_existing(r, by_ref, by_afm, by_name):
     existing = by_ref.get(ref)
     if existing is None and vat:
         existing = by_afm.get((vat, svc))
+    if existing is None and vat:
+        # Same AFM and same program (e.g. ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ) even if the exact
+        # service_type wording differs between LOGISTIS and the finance app.
+        existing = by_afm_program.get((vat, _detect_program(svc)))
     if existing is None:
         existing = by_name.get((_strip_accents(name), svc))
     return existing, ref
@@ -181,7 +188,7 @@ def _do_preview(db: Session) -> dict:
             "warning": "Δεν έχουν επιλεγεί τύποι υπηρεσιών. Ρύθμισε τους τύπους υπηρεσιών πρώτα.",
         }
 
-    by_ref, by_afm, by_name = _build_lookup_maps(db)
+    by_ref, by_afm, by_name, by_afm_program = _build_lookup_maps(db)
 
     new_cases     = []
     paid_updates  = []
@@ -198,7 +205,7 @@ def _do_preview(db: Session) -> dict:
         if work_status and work_status not in VALID_IMPORT_STATUSES:
             continue
         total_paid = _parse_float(r.get("total_paid"))
-        existing, _ = _find_existing(r, by_ref, by_afm, by_name)
+        existing, _ = _find_existing(r, by_ref, by_afm, by_name, by_afm_program)
 
         if existing:
             if abs((existing.total_paid or 0) - total_paid) > 0.01:
@@ -259,7 +266,7 @@ def _do_sync_from_finance(db: Session) -> dict:
     from models_cases import CMUser as CMUserModel
     users = db.query(CMUserModel).filter(CMUserModel.is_active == True).all()
 
-    by_ref, by_afm, by_name = _build_lookup_maps(db)
+    by_ref, by_afm, by_name, by_afm_program = _build_lookup_maps(db)
 
     imported        = 0
     updated_paid    = 0
@@ -279,7 +286,7 @@ def _do_sync_from_finance(db: Session) -> dict:
 
         vat_number = (r.get("vat_number") or "").strip()
         total_paid = _parse_float(r.get("total_paid"))
-        existing, ref = _find_existing(r, by_ref, by_afm, by_name)
+        existing, ref = _find_existing(r, by_ref, by_afm, by_name, by_afm_program)
 
         if existing:
             if not existing.sheet_import_ref:
@@ -345,6 +352,7 @@ def _do_sync_from_finance(db: Session) -> dict:
             by_ref[ref] = case
             if vat_number:
                 by_afm[(vat_number, service_type)] = case
+                by_afm_program[(vat_number, program)] = case
             by_name[(_strip_accents(customer_name), service_type)] = case
             imported += 1
 

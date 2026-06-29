@@ -72,6 +72,17 @@ def _map_program_category(program_title: Optional[str]) -> str:
     return "ΕΣΠΑ"
 
 
+def _map_service_type(program_title: Optional[str]) -> Optional[str]:
+    """Normalize the raw LOGISTIS programTitle to the canonical CM service
+    type so it matches the vocabulary used elsewhere (e.g. the finance app
+    sync), preventing duplicate-case mismatches on the same AFM + service."""
+    if not program_title:
+        return program_title
+    if "ΜΙΚΡΟΠΙΣΤΩΣ" in program_title.upper():
+        return "ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ"
+    return program_title
+
+
 # ── Portal status mapping ────────────────────────────────────────────────────
 _CANCELLED_STATUSES = {"ΑΚΥΡΩΣΗ", "ΠΑΡΑΙΤΗΣΗ", "ΑΠΟΡΡΙΨΗ", "ΜΗ ΕΠΙΛΕΞΙΜΟΣ", "ΟΧΙ ΕΝΔΙΑΦΕΡΟΝ"}
 _COMPLETED_STATUSES = {"ΟΛΟΚΛΗΡΩΜΕΝΗ ΥΠΟΘΕΣΗ"}
@@ -452,7 +463,7 @@ def accept_assignment(
         phone=a.phone,
         email=a.email,
         accountant=a.accountant_office,
-        service_type=a.program_title or a.case_type,
+        service_type=_map_service_type(a.program_title) or a.case_type,
         program_category=_map_program_category(a.program_title),
         status="ΕΛΕΓΧΟΣ ΕΠΙΛΕΞΙΜΟΤΗΤΑΣ",
         notes=a.description,
