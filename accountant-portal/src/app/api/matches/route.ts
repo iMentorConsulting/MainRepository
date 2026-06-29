@@ -33,7 +33,14 @@ export async function GET(request: NextRequest) {
   const sortDir = (searchParams.get('sortDir') || 'desc') === 'asc' ? 'asc' : 'desc'
   const skip = (page - 1) * limit
 
-  const baseWhere: any = {}
+  // REJECTED covers two cases: a manual admin/accountant rejection AND the
+  // auto-matcher's "no longer qualifies" flag (resetStaleMatches in
+  // matching.ts). Neither belongs in the normal matches view, its total, or
+  // the per-program facet counts below — without this, stale auto-rejected
+  // rows (e.g. left over from a since-tightened ΚΑΔ rule) silently inflate
+  // every count on this page while staying invisible in the actual table
+  // (the dashboard's MatchesHero widget already excludes them the same way).
+  const baseWhere: any = { status: { not: 'REJECTED' } }
 
   const businessFilter: any = {}
   if (session.user.role === 'ACCOUNTANT' && session.user.accountantId) {
