@@ -723,6 +723,7 @@ model CaseDocument {
   uploadedByRole String
   requestId      String? // CaseDocumentRequest fulfilled by this upload
   createdAt      DateTime   @default(now())
+  syncedToCaseManagement Boolean @default(false) // true once successfully mirrored to the inhouse Case Management app
 }
 
 model CaseDocumentRequest {

@@ -63,6 +63,12 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
 
   // Mirror the document into the inhouse Case Management app's documents
   // section for this case, so it doesn't have to be re-uploaded there.
+  // If the case hasn't been linked to a Case Management case yet (no
+  // externalRef — e.g. the accountant uploaded a document right after
+  // creating the assignment, before Case Management accepted it), there's
+  // nothing for Case Management to attach this document to: leave it
+  // unsynced and the acceptance handler in /api/external/cases will push
+  // every unsynced document for this case once the link is established.
   notifyCaseManagementDocument({
     caseNumber: existing.caseNumber,
     externalRef: existing.externalRef,
@@ -73,6 +79,10 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     dataUrl,
     uploadedByName: session.user.name || '',
     uploadedByRole: session.user.role,
+  }).then(synced => {
+    if (synced) {
+      return prisma.caseDocument.update({ where: { id: doc.id }, data: { syncedToCaseManagement: true } }).catch(() => {})
+    }
   }).catch(() => {})
 
   // Uploads from the accountant notify the admin team

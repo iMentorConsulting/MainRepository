@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { notifyCaseManagementDocument } from '@/lib/case-management-sync'
 
 // Inbound API for the inhouse case-management system.
 // Auth: header `x-api-key` must match env CASES_API_KEY.
@@ -150,7 +151,8 @@ async function applyExternalUpdate(caseId: string, patch: {
     data.externalStatus = patch.externalStatus || null
     if (patch.externalStatus) notes.push(`Κατάσταση Case Management: ${patch.externalStatus}`)
   }
-  if (patch.externalRef && !existing.externalRef) data.externalRef = patch.externalRef
+  const justLinked = !!(patch.externalRef && !existing.externalRef)
+  if (justLinked) data.externalRef = patch.externalRef
   if (patch.dueDate !== undefined) data.dueDate = patch.dueDate ? new Date(patch.dueDate) : null
   if (patch.outcome !== undefined) data.outcome = patch.outcome || null
   if (patch.resultLink !== undefined && patch.resultLink !== existing.resultLink) {
@@ -159,7 +161,7 @@ async function applyExternalUpdate(caseId: string, patch: {
   }
   if (patch.note) notes.push(patch.note)
 
-  return prisma.clientCase.update({
+  const updated = await prisma.clientCase.update({
     where: { id: caseId },
     data: {
       ...data,
@@ -174,4 +176,39 @@ async function applyExternalUpdate(caseId: string, patch: {
       } : undefined,
     },
   })
+
+  // The case just got its externalRef for the first time (Case Management
+  // linked/accepted it). Any document uploaded earlier — e.g. right after
+  // the accountant created the assignment, before acceptance — had nothing
+  // to attach to and was left unsynced. Flush those now.
+  if (justLinked) {
+    flushUnsyncedDocuments(updated.id, updated.caseNumber, updated.externalRef!).catch(() => {})
+  }
+
+  return updated
+}
+
+async function flushUnsyncedDocuments(caseId: string, caseNumber: number, externalRef: string) {
+  const [docs, business] = await Promise.all([
+    prisma.caseDocument.findMany({ where: { caseId, syncedToCaseManagement: false } }),
+    prisma.clientCase.findUnique({ where: { id: caseId } }).then(c => c && prisma.business.findUnique({ where: { id: c.businessId }, select: { afm: true, onomasia: true } })),
+  ])
+  if (!business) return
+
+  for (const doc of docs) {
+    const synced = await notifyCaseManagementDocument({
+      caseNumber,
+      externalRef,
+      afm: business.afm,
+      onomasia: business.onomasia,
+      category: doc.category,
+      fileName: doc.fileName,
+      dataUrl: doc.dataUrl,
+      uploadedByName: doc.uploadedByName,
+      uploadedByRole: doc.uploadedByRole,
+    })
+    if (synced) {
+      await prisma.caseDocument.update({ where: { id: doc.id }, data: { syncedToCaseManagement: true } }).catch(() => {})
+    }
+  }
 }

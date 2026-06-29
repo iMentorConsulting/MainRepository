@@ -56,6 +56,10 @@ export async function notifyCaseManagement(data: {
 // to the inhouse Case Management app's documents section for the same case, so the
 // accountant doesn't have to upload it twice. Same env vars/auth as notifyCaseManagement;
 // no-op if unset or if the case was never linked to a Case Management case (externalRef).
+// Returns true only on a confirmed successful delivery — callers use this to decide
+// whether to mark the document as synced or leave it queued for retry once the case
+// is linked (see externalRef note above; a doc sent with no externalRef has nothing
+// for Case Management to attach it to and must be treated as not delivered).
 export async function notifyCaseManagementDocument(data: {
   caseNumber: number
   externalRef?: string | null
@@ -66,10 +70,11 @@ export async function notifyCaseManagementDocument(data: {
   dataUrl: string
   uploadedByName: string
   uploadedByRole: string
-}) {
+}): Promise<boolean> {
   const url = process.env.CASE_MGMT_WEBHOOK_URL
   const apiKey = process.env.CASES_API_KEY
-  if (!url || !apiKey) return
+  if (!url || !apiKey) return false
+  if (!data.externalRef) return false
 
   try {
     const res = await fetch(url, {
@@ -79,8 +84,11 @@ export async function notifyCaseManagementDocument(data: {
     })
     if (!res.ok) {
       console.error(`[CaseManagement] Document webhook failed for case ${data.caseNumber}: HTTP ${res.status}`)
+      return false
     }
+    return true
   } catch (err: any) {
     console.error(`[CaseManagement] Document webhook error for case ${data.caseNumber}:`, err?.message || err)
+    return false
   }
 }
