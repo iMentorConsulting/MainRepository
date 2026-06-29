@@ -24,11 +24,12 @@ const IMENTOR_BASICS = `Η I-MENTOR είναι σύμβουλος επιχειρ
 
 const TOOL_SCHEMA = {
   name: 'assign_case',
-  description: 'Καλείται ΜΟΝΟ όταν έχεις κάνει τον βασικό έλεγχο επιλεξιμότητας, η επιχείρηση φαίνεται επιλέξιμη (ή θέλει να προχωρήσει παρά τις επιφυλάξεις) ΚΑΙ έχει ζητήσει να προχωρήσει/ενδιαφέρεται να αναλάβει η I-MENTOR την υπόθεση. Δημιουργεί υπόθεση στο case management και αναθέτει σε σύμβουλο.',
+  description: 'Καλείται όταν έχεις κάνει τον βασικό έλεγχο επιλεξιμότητας και η επιχείρηση φαίνεται επιλέξιμη, ΚΑΙ είτε (α) έχει ζητήσει ξεκάθαρα να προχωρήσει/ενδιαφέρεται να αναλάβει η I-MENTOR την υπόθεση, είτε (β) έχεις ήδη ρωτήσει ΜΙΑ φορά διευκρινιστικά αν θέλει σύμβουλο και η απάντηση παραμένει ασαφής/ελλιπής — σε αυτή την περίπτωση κάλεσε το εργαλείο ΚΑΙ ΠΑΛΙ (μην αφήσεις τη συζήτηση χωρίς ανάθεση) αλλά συμπλήρωσε το πεδίο "pendingItem" με την ακριβή εκκρεμότητα.',
   input_schema: {
     type: 'object' as const,
     properties: {
       summary: { type: 'string', description: 'Σύντομη περίληψη (1-2 προτάσεις, ελληνικά) της συνομιλίας: τι ελέγχθηκε, αν φαίνεται επιλέξιμη η επιχείρηση, οποιαδήποτε επιφύλαξη.' },
+      pendingItem: { type: 'string', description: 'ΜΟΝΟ αν η συζήτηση δεν ολοκληρώθηκε στο 100% (π.χ. ο πελάτης δεν απάντησε ξεκάθαρα αν θέλει να τον καλέσει σύμβουλος, μετά από μία διευκρινιστική ερώτηση). Περιγραφή της ακριβής εκκρεμότητας, ελληνικά. Άδειο/απουσιάζει αν η συζήτηση ολοκληρώθηκε κανονικά.' },
     },
     required: ['summary'],
   },
@@ -95,6 +96,7 @@ ${program.ermisInstructions ? `\nΕΙΔΙΚΕΣ ΟΔΗΓΙΕΣ ΓΙΑ ΑΥΤΟ �
 2. Ενημέρωσε περίπου για το κόστος όταν ζητηθεί ή αφού κλείσει ο έλεγχος επιλεξιμότητας.
 3. Αν η επιχείρηση φαίνεται επιλέξιμη ΚΑΙ θέλει να προχωρήσει, κάλεσε το εργαλείο "assign_case" για να αναλάβει σύμβουλος της I-MENTOR την υπόθεση. Μην το καλέσεις πρόωρα, πριν κάνεις τον βασικό έλεγχο.
 4. Αν δεν φαίνεται επιλέξιμη, πες το ευθέως και ευγενικά, χωρίς να καλέσεις το εργαλείο.
+5. Αν η επιχείρηση φαίνεται επιλέξιμη αλλά η απάντηση του πελάτη στο "θέλετε σύμβουλο;" είναι ασαφής, μη δεσμευτική, ή λείπει (π.χ. άλλαξε θέμα, απάντησε "δεν ξέρω", δεν απάντησε καθόλου): ΜΗΝ καλέσεις αμέσως το εργαλείο και ΜΗΝ αφήσεις τη συζήτηση να "κρεμαστεί" χωρίς ανάθεση. Κάνε ΠΡΩΤΑ ΜΙΑ ξεκάθαρη διευκρινιστική ερώτηση (π.χ. "Θέλετε να επικοινωνήσει μαζί σας σύμβουλος της I-MENTOR για να προχωρήσουμε;"). Αν και μετά από αυτή η απάντηση παραμείνει ασαφής/ελλιπής, κάλεσε ΚΑΙ ΠΑΛΙ το εργαλείο "assign_case" (μην το παραλείψεις) συμπληρώνοντας το πεδίο "pendingItem" με τη συγκεκριμένη εκκρεμότητα (π.χ. "Η επιχείρηση φαίνεται επιλέξιμη και ενημερώθηκε για το κόστος, αλλά δεν απάντησε ξεκάθαρα αν θέλει να την καλέσει σύμβουλος").
 
 ΠΑΡΕ ΕΣΥ ΤΟΝ ΕΛΕΓΧΟ της συνομιλίας: ΜΗΝ ρωτήσεις ποτέ τον πελάτη "τι θέλεις να μάθεις" ή κάτι αντίστοιχο ανοιχτό. Στο ΞΕΚΙΝΗΜΑ της συνομιλίας, πριν από οποιαδήποτε ερώτηση, κάνε ΠΡΩΤΑ μια πολύ σύντομη (1 πρόταση) παρουσίαση του προγράμματος: το βασικό οικονομικό χαρακτηριστικό (επιτόκιο ή ποσοστό επιχορήγησης) ΜΑΖΙ με το ύψος του ${isLoan ? 'δανείου' : 'προϋπολογισμού/επένδυσης'} — π.χ. "Το πρόγραμμα ${isLoan ? 'είναι δάνειο με επιτόκιο X% για ποσά από Α έως Β€' : 'καλύπτει επενδύσεις από Α έως Β€ με επιχορήγηση X%'}." Μετά αυτή την παρουσίαση, λέγοντας ευθέως τι ήδη γνωρίζεις (τα "ήδη επιβεβαιωμένα"), προχώρα αμέσως στην επόμενη συγκεκριμένη ερώτηση που λείπει για τον έλεγχο επιλεξιμότητας. Εσύ οδηγείς τη συζήτηση βήμα-βήμα μέχρι να καταλήξεις σε συμπέρασμα.
 
@@ -113,6 +115,7 @@ async function createPublicClientCase(params: {
   programTitle: string
   businessName: string
   summary: string
+  pendingItem?: string | null
 }) {
   const business = await prisma.business.findUnique({
     where: { id: params.businessId },
@@ -123,6 +126,11 @@ async function createPublicClientCase(params: {
   const adminUser = await prisma.user.findFirst({ where: { role: 'ADMIN' }, select: { id: true } })
   if (!adminUser) throw new Error('Δεν βρέθηκε χρήστης ADMIN για createdById')
 
+  const pendingNote = params.pendingItem?.trim()
+    ? `\n\n⚠️ Η συζήτηση με τον Ερμή ΔΕΝ ολοκληρώθηκε στο 100%. Εκκρεμότητα: ${params.pendingItem.trim()}`
+    : ''
+  const description = `${params.summary}${pendingNote}`
+
   const clientCase = await prisma.clientCase.create({
     data: {
       accountantId: business.accountantId || null,
@@ -130,14 +138,14 @@ async function createPublicClientCase(params: {
       programId: params.programId,
       requestType: 'APPLICATION_SUPPORT',
       title: `${business.onomasia || business.afm} — ${params.programTitle}`,
-      description: params.summary,
+      description,
       priority: 'NORMAL',
       status: 'NEW',
       createdById: adminUser.id,
       activities: {
         create: {
           type: 'CREATED',
-          body: `Η υπόθεση δημιουργήθηκε αυτόματα από τον Ερμής (chat): ${params.summary}`,
+          body: `Η υπόθεση δημιουργήθηκε αυτόματα από τον Ερμής (chat): ${description}`,
           authorId: adminUser.id,
           authorName: 'Ερμής (AI)',
           authorRole: 'ADMIN',
@@ -150,9 +158,10 @@ async function createPublicClientCase(params: {
   try {
     await sendEmail({
       to: process.env.ADMIN_EMAIL || 'info@i-mentor.gr',
-      subject: `🗂️ Νέα Υπόθεση #${clientCase.caseNumber} από Ερμής — ${business.onomasia || business.afm}`,
+      subject: `${pendingNote ? '⚠️' : '🗂️'} Νέα Υπόθεση #${clientCase.caseNumber} από Ερμής — ${business.onomasia || business.afm}`,
       html: `<p>Ο Ερμής δημιούργησε νέα υπόθεση μετά από συνομιλία με τον πελάτη <strong>${business.onomasia || business.afm}</strong> για το πρόγραμμα <strong>${params.programTitle}</strong>:</p>
         <blockquote style="border-left:4px solid #4f46e5;padding-left:12px;color:#374151">${params.summary}</blockquote>
+        ${pendingNote ? `<p style="color:#b45309"><strong>⚠️ Δεν ολοκληρώθηκε στο 100%:</strong> ${params.pendingItem!.trim()}</p>` : ''}
         <p><a href="${process.env.APP_URL || 'https://logistis.i-mentor.gr'}/cases/${clientCase.id}">Δείτε την υπόθεση →</a></p>`,
     })
   } catch {}
@@ -242,12 +251,14 @@ export async function runErmisTurn(params: {
 
   if (toolUse && toolUse.type === 'tool_use' && toolUse.name === 'assign_case') {
     const summary = String((toolUse.input as any)?.summary || 'Ο πελάτης φαίνεται επιλέξιμος.')
+    const pendingItem = (toolUse.input as any)?.pendingItem ? String((toolUse.input as any).pendingItem) : null
     caseId = await createPublicClientCase({
       businessId: params.businessId,
       programId: params.programId,
       programTitle: params.program.title,
       businessName: params.businessName,
       summary,
+      pendingItem,
     })
 
     const followUp = await anthropic.messages.create({
