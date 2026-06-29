@@ -242,7 +242,17 @@ function MatchesPageInner() {
       .catch(() => {})
   }, [])
 
+  // Guards against out-of-order responses: if the user changes filters quickly
+  // (e.g. ticking two checkboxes in the Λογιστής dropdown back to back), two
+  // fetches fire in flight and there's no guarantee the one for the LATER
+  // filter selection resolves last. Without this, a stale response for an
+  // earlier (less-filtered) request can land after the newer one and silently
+  // overwrite the table/total with results that no longer match what's shown
+  // as selected in the filter chips.
+  const requestSeq = useRef(0)
+
   const fetchMatches = useCallback(async () => {
+    const seq = ++requestSeq.current
     setLoading(true)
     const params = new URLSearchParams({ page: String(page), limit: String(PAGE_SIZE), sortBy, sortDir })
     if (accountantFilter.length) params.set('accountantIds', accountantFilter.join(','))
@@ -259,6 +269,7 @@ function MatchesPageInner() {
     try {
       const res = await fetch(`/api/matches?${params}`)
       const data = await res.json()
+      if (seq !== requestSeq.current) return // a newer request was fired meanwhile — discard this stale response
       setMatches(data.matches || [])
       setTotal(data.total || 0)
       setUnsuitableCount(data.unsuitableCount || 0)
@@ -269,7 +280,7 @@ function MatchesPageInner() {
       if (data.categories?.length) setCategoryOptions(data.categories.map((v: string) => ({ value: v, label: v })))
       if (data.perifereies?.length) setPerifereiaOptions([...data.perifereies, 'Άγνωστη'].map((v: string) => ({ value: v, label: v })))
     } finally {
-      setLoading(false)
+      if (seq === requestSeq.current) setLoading(false)
     }
   }, [page, accountantFilter, programFilter, legalStatusFilter, categoryFilter, perifereiaFilter, tagFilter, excludeTagFilter, campaignSentFilter, search, sortBy, sortDir, hideUnsuitable, websiteFormOnly])
 
