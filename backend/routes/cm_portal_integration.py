@@ -1,7 +1,7 @@
 import os
 import logging
 from datetime import datetime
-from typing import Optional
+from typing import List, Optional
 
 import requests
 from fastapi import APIRouter, Depends, HTTPException, Header
@@ -9,7 +9,10 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
 from database import get_db, fmt_dt
-from models_cases import CMCase, CMUser, CMPortalAssignment, CMPortalAssignmentRequest
+from models_cases import (
+    CMCase, CMUser, CMPortalAssignment, CMPortalAssignmentRequest,
+    CMBusinessProfile, CMBusinessActivity, CMBusinessMatchedProgram,
+)
 from auth_cases import get_current_user
 
 log = logging.getLogger(__name__)
@@ -21,6 +24,9 @@ PORTAL_CASES_API_URL = os.getenv(
 )
 PORTAL_ASSIGNMENT_REQUEST_URL = os.getenv(
     "LOGISTIS_ASSIGNMENT_REQUEST_URL", "https://logistis.i-mentor.gr/api/external/assignment-requests"
+)
+BUSINESS_LOOKUP_URL = os.getenv(
+    "LOGISTIS_BUSINESSES_URL", "https://logistis.i-mentor.gr/api/external/businesses"
 )
 
 
@@ -175,6 +181,17 @@ def push_portal_status_update(case: CMCase, note: str = None, outcome: str = Non
 
 
 # ── Inbound webhook (Portal → us) ────────────────────────────────────────────
+class BusinessActivityIn(BaseModel):
+    firmActCode: Optional[str] = None
+    firmActDescr: Optional[str] = None
+    firmActKind: Optional[str] = None
+
+
+class MatchedProgramIn(BaseModel):
+    title: Optional[str] = None
+    status: Optional[str] = None
+
+
 class CaseCreatedWebhook(BaseModel):
     event: str
     caseNumber: int
@@ -188,6 +205,20 @@ class CaseCreatedWebhook(BaseModel):
     priority: Optional[str] = None
     programTitle: Optional[str] = None
     requestRef: Optional[str] = None
+    # Business profile — sourced from the LOGISTIS/ΑΑΔΕ cache, no new lookup
+    commercialTitle: Optional[str] = None
+    legalStatusDescr: Optional[str] = None
+    regdate: Optional[str] = None
+    doy: Optional[str] = None
+    doyDescr: Optional[str] = None
+    postalAddress: Optional[str] = None
+    postalAddressNo: Optional[str] = None
+    postalZipCode: Optional[str] = None
+    postalAreaDescription: Optional[str] = None
+    perifereia: Optional[str] = None
+    klados: Optional[str] = None
+    activities: Optional[List[BusinessActivityIn]] = None
+    matchedPrograms: Optional[List[MatchedProgramIn]] = None
 
 
 class DocumentUploadedWebhook(BaseModel):
@@ -201,6 +232,92 @@ class DocumentUploadedWebhook(BaseModel):
     dataUrl: Optional[str] = None
     uploadedByName: Optional[str] = None
     uploadedByRole: Optional[str] = None
+
+
+# ── Business profile cache (AFM → ΑΑΔΕ data, sourced from LOGISTIS) ─────────
+def _business_profile_to_dict(b: CMBusinessProfile) -> dict:
+    return {
+        "businessId": b.id,
+        "afm": b.afm,
+        "onomasia": b.onomasia,
+        "commercialTitle": b.commercial_title,
+        "legalStatusDescr": b.legal_status_descr,
+        "regdate": b.regdate.isoformat() if b.regdate else None,
+        "doy": b.doy,
+        "doyDescr": b.doy_descr,
+        "postalAddress": b.postal_address,
+        "postalAddressNo": b.postal_address_no,
+        "postalZipCode": b.postal_zip_code,
+        "postalAreaDescription": b.postal_area_description,
+        "perifereia": b.perifereia,
+        "klados": b.klados,
+        "activities": [
+            {"firmActCode": a.firm_act_code, "firmActDescr": a.firm_act_descr, "firmActKind": a.firm_act_kind}
+            for a in b.activities
+        ],
+        "matchedPrograms": [
+            {"title": p.title, "status": p.status} for p in b.matched_programs
+        ],
+    }
+
+
+def _upsert_business_profile(db: Session, data: dict) -> Optional[CMBusinessProfile]:
+    """Create or update the cached CMBusinessProfile (+ activities/matchedPrograms)
+    for an AFM, from either a case.created webhook payload or a
+    POST /api/external/businesses response. Never triggers a new ΑΑΔΕ lookup —
+    that only ever happens on the LOGISTIS side."""
+    afm = (data.get("afm") or "").strip()
+    if not afm:
+        return None
+
+    profile = db.query(CMBusinessProfile).filter(CMBusinessProfile.afm == afm).first()
+    if not profile:
+        profile = CMBusinessProfile(afm=afm)
+        db.add(profile)
+
+    profile.onomasia = data.get("onomasia") or profile.onomasia
+    profile.commercial_title = data.get("commercialTitle") or profile.commercial_title
+    profile.legal_status_descr = data.get("legalStatusDescr") or profile.legal_status_descr
+    regdate = data.get("regdate")
+    if regdate:
+        try:
+            profile.regdate = datetime.strptime(str(regdate)[:10], "%Y-%m-%d").date()
+        except ValueError:
+            pass
+    profile.doy = data.get("doy") or profile.doy
+    profile.doy_descr = data.get("doyDescr") or profile.doy_descr
+    profile.postal_address = data.get("postalAddress") or profile.postal_address
+    profile.postal_address_no = data.get("postalAddressNo") or profile.postal_address_no
+    profile.postal_zip_code = data.get("postalZipCode") or profile.postal_zip_code
+    profile.postal_area_description = data.get("postalAreaDescription") or profile.postal_area_description
+    profile.perifereia = data.get("perifereia") or profile.perifereia
+    profile.klados = data.get("klados") or profile.klados
+    profile.updated_at = datetime.utcnow()
+    db.flush()
+
+    activities = data.get("activities")
+    if activities is not None:
+        profile.activities.clear()
+        for act in activities:
+            kind = act.get("firmActKind")
+            profile.activities.append(CMBusinessActivity(
+                firm_act_code=act.get("firmActCode"),
+                firm_act_descr=act.get("firmActDescr"),
+                firm_act_kind=str(kind) if kind is not None else None,
+            ))
+
+    matched_programs = data.get("matchedPrograms")
+    if matched_programs is not None:
+        profile.matched_programs.clear()
+        for mp in matched_programs:
+            profile.matched_programs.append(CMBusinessMatchedProgram(
+                title=mp.get("title"),
+                status=mp.get("status"),
+            ))
+
+    db.commit()
+    db.refresh(profile)
+    return profile
 
 
 def _handle_case_created(payload: CaseCreatedWebhook, db: Session) -> dict:
@@ -220,6 +337,25 @@ def _handle_case_created(payload: CaseCreatedWebhook, db: Session) -> dict:
     db.add(assignment)
     db.commit()
     db.refresh(assignment)
+
+    if payload.afm:
+        _upsert_business_profile(db, {
+            "afm": payload.afm,
+            "onomasia": payload.onomasia,
+            "commercialTitle": payload.commercialTitle,
+            "legalStatusDescr": payload.legalStatusDescr,
+            "regdate": payload.regdate,
+            "doy": payload.doy,
+            "doyDescr": payload.doyDescr,
+            "postalAddress": payload.postalAddress,
+            "postalAddressNo": payload.postalAddressNo,
+            "postalZipCode": payload.postalZipCode,
+            "postalAreaDescription": payload.postalAreaDescription,
+            "perifereia": payload.perifereia,
+            "klados": payload.klados,
+            "activities": [a.dict() for a in payload.activities] if payload.activities is not None else None,
+            "matchedPrograms": [p.dict() for p in payload.matchedPrograms] if payload.matchedPrograms is not None else None,
+        })
 
     if payload.requestRef:
         try:
@@ -428,6 +564,61 @@ def list_assignment_requests(
         .all()
     )
     return [_assignment_request_to_dict(r) for r in rows]
+
+
+# ── Business profile lookup/creation (us → LOGISTIS) ─────────────────────────
+class BusinessLookupIn(BaseModel):
+    afm: str
+    email: Optional[str] = None
+    phone: Optional[str] = None
+
+
+@router.post("/businesses")
+def lookup_or_create_business(
+    payload: BusinessLookupIn,
+    current_user: CMUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Resolve a business by AFM. Returns the locally cached profile with no
+    remote call if we already have it; otherwise asks LOGISTIS to create/look
+    it up (their endpoint does exactly one ΑΑΔΕ lookup) and caches the result."""
+    afm = payload.afm.strip()
+    if not afm:
+        raise HTTPException(status_code=400, detail="Το ΑΦΜ είναι υποχρεωτικό")
+
+    existing = db.query(CMBusinessProfile).filter(CMBusinessProfile.afm == afm).first()
+    if existing:
+        return {"created": False, **_business_profile_to_dict(existing)}
+
+    secret = _shared_secret()
+    if not secret:
+        raise HTTPException(status_code=500, detail="IMENTOR_PORTAL_API_KEY δεν έχει ρυθμιστεί")
+
+    body = {"afm": afm}
+    if payload.email:
+        body["email"] = payload.email
+    if payload.phone:
+        body["phone"] = payload.phone
+
+    try:
+        resp = requests.post(
+            BUSINESS_LOOKUP_URL,
+            json=body,
+            headers={"x-api-key": secret},
+            timeout=15,
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Σφάλμα επικοινωνίας με LOGISTIS: {exc}")
+
+    if not resp.ok:
+        log.error("LOGISTIS business lookup failed %s: %s", resp.status_code, resp.text[:300])
+        raise HTTPException(status_code=502, detail=f"LOGISTIS HTTP {resp.status_code}: {resp.text[:300]}")
+
+    data = resp.json()
+    profile = _upsert_business_profile(db, data)
+    if not profile:
+        raise HTTPException(status_code=502, detail="Μη έγκυρη απάντηση από LOGISTIS (χωρίς afm)")
+    return {"created": bool(data.get("created", True)), **_business_profile_to_dict(profile)}
 
 
 # ── Agent-facing endpoints ───────────────────────────────────────────────────
