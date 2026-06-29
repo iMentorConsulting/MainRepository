@@ -614,6 +614,64 @@ def delete_case(
     return {"message": "Η υπόθεση διαγράφηκε"}
 
 
+_MERGE_CHILD_TABLES = [
+    "cm_tasks", "cm_payments", "cm_messages", "cm_documents",
+    "cm_notification_logs", "cm_budget_categories", "cm_case_pending_items",
+    "cm_case_modifications", "cm_payment_logs", "cm_case_status_history",
+]
+
+_MERGE_FILL_FIELDS = [
+    "total_paid", "sale_date", "approval_date", "project_deadline",
+    "follow_up_date", "approved_budget", "subsidy_percent",
+    "agreed_fee_application", "agreed_fee_implementation", "sheet_import_ref",
+    "dypa_start_date",
+]
+
+
+class MergeCasesIn(BaseModel):
+    case_id_a: int
+    case_id_b: int
+
+
+@router.post("/merge")
+def merge_cases(
+    payload: MergeCasesIn,
+    current_user: CMUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Merge two duplicate cases (e.g. one created by the LOGISTIS assignment
+    and another created later by the finance sync for the same client/program)
+    into a single case. The LOGISTIS-linked case (portal_case_number set) is
+    kept as the canonical record; the other is merged into it and deleted."""
+    if payload.case_id_a == payload.case_id_b:
+        raise HTTPException(status_code=400, detail="Επίλεξε δύο διαφορετικές υποθέσεις")
+    a = db.query(CMCase).filter(CMCase.id == payload.case_id_a).first()
+    b = db.query(CMCase).filter(CMCase.id == payload.case_id_b).first()
+    if not a or not b:
+        raise HTTPException(status_code=404, detail="Υπόθεση δεν βρέθηκε")
+
+    if a.portal_case_number and not b.portal_case_number:
+        target, dup = a, b
+    elif b.portal_case_number and not a.portal_case_number:
+        target, dup = b, a
+    else:
+        target, dup = (a, b) if a.id < b.id else (b, a)
+
+    for field in _MERGE_FILL_FIELDS:
+        if not getattr(target, field) and getattr(dup, field):
+            setattr(target, field, getattr(dup, field))
+
+    from sqlalchemy import text as _t
+    for table in _MERGE_CHILD_TABLES:
+        db.execute(_t(f"UPDATE {table} SET case_id = :tid WHERE case_id = :did"), {"tid": target.id, "did": dup.id})
+    db.execute(_t("UPDATE cm_portal_assignments SET cm_case_id = :tid WHERE cm_case_id = :did"), {"tid": target.id, "did": dup.id})
+
+    db.delete(dup)
+    db.commit()
+    db.refresh(target)
+    return case_to_dict(target)
+
+
 # ── Tasks ──────────────────────────────────────────────────────────────
 
 class TaskCreate(BaseModel):

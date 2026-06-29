@@ -59,6 +59,7 @@ export const getCase = (id) => api.get(`/api/cm/cases/${id}`).then(r => r.data)
 export const createCase = (data) => api.post('/api/cm/cases/', data).then(r => r.data)
 export const updateCase = (id, data) => api.put(`/api/cm/cases/${id}`, data).then(r => r.data)
 export const deleteCase = (id) => api.delete(`/api/cm/cases/${id}`).then(r => r.data)
+export const mergeCases = (caseIdA, caseIdB) => api.post('/api/cm/cases/merge', { case_id_a: caseIdA, case_id_b: caseIdB }).then(r => r.data)
 
 // Tasks
 export const getTasks = (caseId) => api.get(`/api/cm/cases/${caseId}/tasks`).then(r => r.data)

@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { getCases, getUsers, deleteCase, createCase, updateCase, getPipelines, sendNotification, getCaseFilterOptions, createPortalAssignmentRequest, getPortalAssignmentRequests } from '../api'
+import { getCases, getUsers, deleteCase, createCase, updateCase, getPipelines, sendNotification, getCaseFilterOptions, createPortalAssignmentRequest, getPortalAssignmentRequests, mergeCases } from '../api'
 import { PIPELINES } from '../pipelines'
-import { MagnifyingGlassIcon, PlusIcon, TrashIcon, FolderOpenIcon, BoltIcon, ChevronDownIcon, ChevronUpIcon, CheckIcon } from '@heroicons/react/24/outline'
+import { MagnifyingGlassIcon, PlusIcon, TrashIcon, FolderOpenIcon, BoltIcon, ChevronDownIcon, ChevronUpIcon, CheckIcon, ArrowsRightLeftIcon } from '@heroicons/react/24/outline'
 import toast from 'react-hot-toast'
 
 const FINAL_STATUSES = new Set(['ΟΛΟΚΛΗΡΩΜΕΝΗ ΥΠΟΘΕΣΗ', 'ΠΑΡΑΙΤΗΣΗ', 'ΠΑΓΩΜΕΝΗ ΥΠΟΘΕΣΗ', 'ΑΚΥΡΩΣΗ', 'ΑΠΟΡΡΙΨΗ', 'ΜΗ ΕΠΙΛΕΞΙΜΟΣ', 'ΟΧΙ ΕΝΔΙΑΦΕΡΟΝ'])
@@ -402,6 +402,7 @@ export default function Cases() {
   const [search, setSearch] = useState('')
   const [selectedIds, setSelectedIds] = useState(new Set())
   const [bulkDeleting, setBulkDeleting] = useState(false)
+  const [merging, setMerging] = useState(false)
   const [filters, setFilters] = useState({
     programs: [],
     services: [],
@@ -502,6 +503,23 @@ export default function Cases() {
     if (ok > 0) toast.success(`Διαγράφηκαν ${ok} υποθέσεις`)
     if (fail > 0) toast.error(`${fail} αποτυχίες διαγραφής`)
     load()
+  }
+
+  const handleMerge = async () => {
+    if (selectedIds.size !== 2) return
+    const [idA, idB] = [...selectedIds]
+    if (!confirm('Συγχώνευση των 2 επιλεγμένων υποθέσεων σε μία; Τα οικονομικά στοιχεία (πληρωμές, αμοιβές) θα μεταφερθούν στην υπόθεση που θα παραμείνει. Η ενέργεια δεν αναιρείται.')) return
+    setMerging(true)
+    try {
+      await mergeCases(idA, idB)
+      toast.success('Οι υποθέσεις συγχωνεύθηκαν')
+      setSelectedIds(new Set())
+      load()
+    } catch {
+      toast.error('Σφάλμα συγχώνευσης')
+    } finally {
+      setMerging(false)
+    }
   }
 
   const sortedCases = useMemo(() => sortCases(cases, sortCol, sortDir), [cases, sortCol, sortDir])
@@ -622,6 +640,16 @@ export default function Cases() {
           >
             Αποεπιλογή
           </button>
+          {selectedIds.size === 2 && (
+            <button
+              onClick={handleMerge}
+              disabled={merging}
+              className="flex items-center gap-2 text-sm font-semibold bg-blue-500 hover:bg-blue-600 disabled:opacity-50 px-4 py-2 rounded-lg transition-colors"
+            >
+              <ArrowsRightLeftIcon className="w-4 h-4" />
+              {merging ? 'Συγχώνευση...' : 'Συγχώνευση Διπλοτύπων'}
+            </button>
+          )}
           <button
             onClick={handleBulkDelete}
             disabled={bulkDeleting}
