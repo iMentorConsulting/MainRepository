@@ -83,6 +83,8 @@ def list_sessions(_: str = Depends(get_current_user), db: Session = Depends(get_
         out.append({
             "lead_id": s.lead_id,
             "lead_name": lead.name if lead else "",
+            "phone": lead.phone if lead else "",
+            "email": lead.email if lead else "",
             "assigned_to": lead.assigned_to if lead else "",
             "status": s.status,
             "message_count": len(transcript),
