@@ -332,6 +332,9 @@ export default function CommissionsPage() {
         </div>
         {isAdmin && (
           <div className="flex gap-2">
+            <Link href="/commissions/finance-payments">
+              <Button variant="outline" size="sm">Πληρωμές Finance</Button>
+            </Link>
             <Link href="/commissions/policies">
               <Button variant="outline" size="sm">Πολιτικές Προμηθειών</Button>
             </Link>

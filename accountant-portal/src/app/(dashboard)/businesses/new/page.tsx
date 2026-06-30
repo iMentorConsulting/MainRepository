@@ -42,6 +42,12 @@ export default function NewBusinessPage() {
 
   useEffect(() => {
     if (searchParams.get('mode') === 'excel') setImportMode(true)
+    const afm = searchParams.get('afm')
+    const email = searchParams.get('email')
+    const phone = searchParams.get('phone')
+    if (afm) setValue('afm', afm)
+    if (email) setValue('email', email)
+    if (phone) setValue('phone', phone)
   }, [searchParams])
   const [importFile, setImportFile] = useState<File | null>(null)
   const [importing, setImporting] = useState(false)
@@ -261,7 +267,7 @@ export default function NewBusinessPage() {
         </div>
       ) : (
         <>
-          <AfmLookup onResult={handleAfmResult} onNotFound={handleAfmNotFound} />
+          <AfmLookup onResult={handleAfmResult} onNotFound={handleAfmNotFound} defaultAfm={searchParams.get('afm') || ''} />
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
             <Card>

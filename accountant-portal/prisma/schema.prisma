@@ -75,6 +75,12 @@ model AppSetting {
   espaCronLastError                String?
   dypaCronLastRunAt                DateTime?
   dypaCronLastError                String?
+  // Daily payment-batch ingestion from the Finance app (/api/external/finance-payments).
+  financeCronLastRunAt             DateTime?
+  financeCronLastError             String?
+  // Kill switch: accountant-facing commission-approval emails for the Finance
+  // payment flow stay OFF until an admin verifies the flow end-to-end.
+  financeCommissionEmailsEnabled   Boolean  @default(false)
   updatedAt                        DateTime @updatedAt
 }
 
@@ -153,6 +159,7 @@ model Business {
   chatConversations     ChatConversation[]
   clientCases           ClientCase[]
   exodikastikosCases    ExodikastikosCase[]
+  financePayments       FinancePayment[]
 }
 
 enum ClientType {
@@ -541,6 +548,40 @@ model Commission {
   notes              String?
   createdAt          DateTime         @default(now())
   updatedAt          DateTime         @updatedAt
+  financePayment     FinancePayment?
+}
+
+enum FinancePaymentStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  DEFERRED
+}
+
+// Staging table for the daily payment batch pushed from the Finance app
+// (POST /api/external/finance-payments). Reviewed by an admin on
+// /commissions/finance-payments, approval creates a Commission row.
+model FinancePayment {
+  id                String               @id @default(cuid())
+  externalId        String               @unique // Finance app's own payment id, for idempotent daily upsert
+  afm               String
+  onomasia          String?
+  amount            Int // cents
+  invoiceNumber     String?
+  serviceName       String // free text from Finance, display only
+  category          String // ΑΙΤΗΣΗ | ΥΛΟΠΟΙΗΣΗ | ΠΩΛΗΣΗ ΑΙΤΗΣΗΣ | ΠΩΛΗΣΗ ΥΛΟΠΟΙΗΣΗΣ (raw value from Finance)
+  paymentDate       DateTime
+  financeAccountant String? // accountant name as recorded in Finance, display-only cross-check
+  businessId        String?
+  business          Business?            @relation(fields: [businessId], references: [id])
+  status            FinancePaymentStatus @default(PENDING)
+  commissionId      String?              @unique
+  commission        Commission?          @relation(fields: [commissionId], references: [id])
+  reviewedById      String?
+  reviewedAt        DateTime?
+  reviewNotes       String?
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
 }
 
 model Notification {

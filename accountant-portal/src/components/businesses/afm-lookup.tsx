@@ -32,10 +32,11 @@ interface AfmData {
 interface AfmLookupProps {
   onResult: (data: AfmData) => void
   onNotFound?: (afm: string) => void
+  defaultAfm?: string
 }
 
-export function AfmLookup({ onResult, onNotFound }: AfmLookupProps) {
-  const [afm, setAfm] = useState('')
+export function AfmLookup({ onResult, onNotFound, defaultAfm }: AfmLookupProps) {
+  const [afm, setAfm] = useState(defaultAfm || '')
   const [loading, setLoading] = useState(false)
   const [status, setStatus] = useState<'idle' | 'success' | 'error' | 'not-found' | 'pending-approval'>('idle')
   const [errorMessage, setErrorMessage] = useState('')
