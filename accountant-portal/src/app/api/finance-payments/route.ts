@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { calculateCommission } from '@/lib/commission'
+import { findApplicablePolicy } from '@/lib/finance-policy'
 
 // GET /api/finance-payments?status=PENDING — admin review list for the Finance payment batch.
 export async function GET(request: NextRequest) {
@@ -56,11 +57,3 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({ payments: enriched })
 }
 
-export async function findApplicablePolicy(serviceName: string, stage: 'APPLICATION' | 'IMPLEMENTATION') {
-  const stageFilter = stage === 'APPLICATION' ? { appliesToApplication: true } : { appliesToImplementation: true }
-  const byService = await prisma.commissionPolicy.findFirst({
-    where: { active: true, ...stageFilter, service: { name: { equals: serviceName, mode: 'insensitive' } } },
-  })
-  if (byService) return byService
-  return prisma.commissionPolicy.findFirst({ where: { active: true, ...stageFilter, serviceId: null } })
-}
