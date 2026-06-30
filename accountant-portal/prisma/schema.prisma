@@ -183,6 +183,11 @@ model BusinessMatchToken {
   // instead of guessing a blended rate.
   tokenUsageInput  Int     @default(0)
   tokenUsageOutput Int     @default(0)
+  // Best-effort classification of the conversation so far, refreshed by a cheap
+  // Claude call after each turn — surfaced as compact columns on the Ερμής
+  // transcripts list. Null until at least one assistant turn has happened.
+  eligibilityStatus String?  // ELIGIBLE | NOT_ELIGIBLE | UNCLEAR
+  intentStatus      String?  // INTERESTED | NOT_INTERESTED | UNCLEAR
 
   @@unique([businessId, programId])
 }

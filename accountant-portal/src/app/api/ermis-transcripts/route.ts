@@ -53,6 +53,8 @@ export async function GET(request: NextRequest) {
         tokenUsageOutput: true,
         caseCreatedId: true,
         chatLog: true,
+        eligibilityStatus: true,
+        intentStatus: true,
       },
       orderBy: { createdAt: 'desc' },
       skip,
@@ -88,6 +90,8 @@ export async function GET(request: NextRequest) {
       caseAssigned: Boolean(t.caseCreatedId),
       messageCount: log.length,
       lastMessage: log.length > 0 ? log[log.length - 1].text : null,
+      eligibilityStatus: t.eligibilityStatus,
+      intentStatus: t.intentStatus,
     }
   })
 

@@ -22,6 +22,20 @@ type Transcript = {
   caseAssigned: boolean
   messageCount: number
   lastMessage: string | null
+  eligibilityStatus: string | null
+  intentStatus: string | null
+}
+
+const ELIGIBILITY_LABELS: Record<string, { label: string; variant: 'success' | 'danger' | 'default' }> = {
+  ELIGIBLE: { label: 'Επιλέξιμος', variant: 'success' },
+  NOT_ELIGIBLE: { label: 'Μη επιλέξιμος', variant: 'danger' },
+  UNCLEAR: { label: 'Σε εξέλιξη', variant: 'default' },
+}
+
+const INTENT_LABELS: Record<string, { label: string; variant: 'success' | 'danger' | 'default' }> = {
+  INTERESTED: { label: 'Ενδιαφέρεται', variant: 'success' },
+  NOT_INTERESTED: { label: 'Δεν ενδιαφέρεται', variant: 'danger' },
+  UNCLEAR: { label: 'Άγνωστο', variant: 'default' },
 }
 
 export default function ErmisTranscriptsPage() {
@@ -104,6 +118,8 @@ export default function ErmisTranscriptsPage() {
                   <Th className="text-xs">Tokens</Th>
                   <Th className="text-xs">Κόστος (περίπου)</Th>
                   <Th className="text-xs">Ημερομηνία</Th>
+                  <Th className="text-xs">Επιλεξιμότητα</Th>
+                  <Th className="text-xs">Πρόθεση</Th>
                   <Th className="text-xs">Ανάθεση</Th>
                   <Th />
                 </TableRow>
@@ -111,7 +127,7 @@ export default function ErmisTranscriptsPage() {
               <TableBody>
                 {transcripts.length === 0 ? (
                   <TableRow>
-                    <Td colSpan={10} className="text-center text-gray-400 py-8">Δεν βρέθηκαν συζητήσεις</Td>
+                    <Td colSpan={12} className="text-center text-gray-400 py-8">Δεν βρέθηκαν συζητήσεις</Td>
                   </TableRow>
                 ) : (
                   transcripts.map(t => (
@@ -135,6 +151,24 @@ export default function ErmisTranscriptsPage() {
                       <Td className="text-xs text-gray-500">{estimateCostEur(t.tokenUsage || 0, t.tokenUsageInput, t.tokenUsageOutput)}</Td>
                       <Td className="text-xs text-gray-500">
                         {new Date(t.createdAt).toLocaleDateString('el-GR', { day: '2-digit', month: '2-digit', year: '2-digit' })}
+                      </Td>
+                      <Td>
+                        {t.eligibilityStatus && ELIGIBILITY_LABELS[t.eligibilityStatus] ? (
+                          <Badge variant={ELIGIBILITY_LABELS[t.eligibilityStatus].variant} className="w-fit">
+                            {ELIGIBILITY_LABELS[t.eligibilityStatus].label}
+                          </Badge>
+                        ) : (
+                          <span className="text-xs text-gray-400">—</span>
+                        )}
+                      </Td>
+                      <Td>
+                        {t.intentStatus && INTENT_LABELS[t.intentStatus] ? (
+                          <Badge variant={INTENT_LABELS[t.intentStatus].variant} className="w-fit">
+                            {INTENT_LABELS[t.intentStatus].label}
+                          </Badge>
+                        ) : (
+                          <span className="text-xs text-gray-400">—</span>
+                        )}
                       </Td>
                       <Td>
                         {t.caseAssigned ? (

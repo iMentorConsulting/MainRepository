@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { runErmisTurn, type ChatMessage } from '@/lib/ermis-agent'
+import { runErmisTurn, classifyConversation, type ChatMessage } from '@/lib/ermis-agent'
 import { buildEligibilityQuestions, parseEligibilityStorage } from '@/lib/eligibility-questions'
 
 export const dynamic = 'force-dynamic'
@@ -79,6 +79,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   const finalHistory: ChatMessage[] = [...newHistory, { role: 'assistant', text: result.reply }]
 
+  const classification = await classifyConversation(finalHistory, program.title).catch(err => {
+    console.error('[ErmisChat] classification failed:', err?.message)
+    return null
+  })
+
   await prisma.businessMatchToken.update({
     where: { token },
     data: {
@@ -87,6 +92,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       tokenUsageInput: { increment: result.tokensUsedInput },
       tokenUsageOutput: { increment: result.tokensUsedOutput },
       ...(result.caseId ? { caseCreatedId: result.caseId } : {}),
+      ...(classification ? { eligibilityStatus: classification.eligibility, intentStatus: classification.intent } : {}),
     },
   })
 

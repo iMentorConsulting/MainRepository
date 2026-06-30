@@ -300,3 +300,51 @@ export async function runErmisTurn(params: {
     tokensUsedOutput,
   }
 }
+
+export interface ConversationClassification {
+  eligibility: 'ELIGIBLE' | 'NOT_ELIGIBLE' | 'UNCLEAR'
+  intent: 'INTERESTED' | 'NOT_INTERESTED' | 'UNCLEAR'
+}
+
+const CLASSIFY_TOOL_SCHEMA = {
+  name: 'record_classification',
+  description: 'Καταγράφει μια σύντομη ταξινόμηση της μέχρι τώρα συζήτησης.',
+  input_schema: {
+    type: 'object' as const,
+    properties: {
+      eligibility: { type: 'string', enum: ['ELIGIBLE', 'NOT_ELIGIBLE', 'UNCLEAR'], description: 'Φαίνεται επιλέξιμη η επιχείρηση με βάση όσα ειπώθηκαν μέχρι τώρα; UNCLEAR αν δεν έχει ολοκληρωθεί ο έλεγχος.' },
+      intent: { type: 'string', enum: ['INTERESTED', 'NOT_INTERESTED', 'UNCLEAR'], description: 'Έχει εκφράσει ξεκάθαρα ο πελάτης ότι θέλει να προχωρήσει/συνεργαστεί με την I-MENTOR για το πρόγραμμα αυτό; UNCLEAR αν δεν έχει διευκρινιστεί.' },
+    },
+    required: ['eligibility', 'intent'],
+  },
+}
+
+// Cheap, best-effort classification of a conversation's eligibility/intent
+// signal, run after each turn so the Ερμής transcripts list can show it
+// without re-reading/re-summarizing the whole chat at list time. Failures
+// are swallowed by the caller — this is a nice-to-have, not load-bearing.
+export async function classifyConversation(history: ChatMessage[], programTitle: string): Promise<ConversationClassification | null> {
+  if (!history.length) return null
+  const apiKey = process.env.ANTHROPIC_API_KEY
+  if (!apiKey) return null
+
+  const anthropic = new Anthropic({ apiKey })
+  const transcript = history.map(m => `${m.role === 'user' ? 'ΠΕΛΑΤΗΣ' : 'ΕΡΜΗΣ'}: ${m.text}`).join('\n')
+
+  const response = await anthropic.messages.create({
+    model: 'claude-haiku-4-5',
+    max_tokens: 200,
+    system: `Διαβάζεις μια συνομιλία ανάμεσα σε ψηφιακό σύμβουλο επιλεξιμότητας ("Ερμής") και πελάτη, σχετικά με το πρόγραμμα "${programTitle}". Κάλεσε το εργαλείο "record_classification" με τη σύντομη αξιολόγησή σου.`,
+    tools: [CLASSIFY_TOOL_SCHEMA],
+    tool_choice: { type: 'tool', name: 'record_classification' },
+    messages: [{ role: 'user', content: transcript }],
+  })
+
+  const toolUse = response.content.find(b => b.type === 'tool_use')
+  if (!toolUse || toolUse.type !== 'tool_use') return null
+  const input = toolUse.input as any
+  return {
+    eligibility: input?.eligibility || 'UNCLEAR',
+    intent: input?.intent || 'UNCLEAR',
+  }
+}
