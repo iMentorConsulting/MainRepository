@@ -284,6 +284,106 @@ function BackupPanel() {
   );
 }
 
+function LogistisSyncPanel() {
+  const [preview, setPreview] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [lastResult, setLastResult] = useState(null);
+
+  useEffect(() => {
+    api.get('/logistis-sync/status').then(r => setLastResult(r.data)).catch(() => {});
+  }, []);
+
+  const fmtDate = iso => iso
+    ? new Date(iso).toLocaleString('el-GR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+    : null;
+
+  const handlePreview = async () => {
+    setLoading(true);
+    try {
+      const r = await api.get('/logistis-sync/preview');
+      setPreview(r.data);
+    } catch (e) {
+      toast.error(e.response?.data?.error || 'Σφάλμα preview');
+    } finally { setLoading(false); }
+  };
+
+  const handleSend = async () => {
+    setSending(true);
+    try {
+      const r = await api.post('/logistis-sync/send', { date: preview?.date });
+      setLastResult({ ran_at: new Date().toISOString(), ok: true, ...r.data });
+      toast.success(`Στάλθηκαν ${r.data.sent} πληρωμές (${r.data.result?.matched ?? 0} αντιστοιχίστηκαν)`);
+      setPreview(null);
+    } catch (e) {
+      toast.error(e.response?.data?.error || 'Σφάλμα αποστολής');
+    } finally { setSending(false); }
+  };
+
+  return (
+    <div className="card p-6">
+      <div className="flex items-center gap-3 mb-4">
+        <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center text-xl shrink-0">🧾</div>
+        <div>
+          <h3 className="font-bold text-slate-800">Αποστολή Πληρωμών στο Logistis</h3>
+          <p className="text-xs text-slate-400">Αυτόματη αποστολή κάθε μέρα στις <strong>02:00 Αθήνα</strong> (πληρωμές της προηγούμενης ημέρας)</p>
+        </div>
+      </div>
+
+      <div className={`mb-4 p-3 rounded-xl border text-xs flex items-center gap-3 ${
+        !lastResult?.ran_at ? 'bg-slate-50 border-slate-200 text-slate-500' :
+        lastResult?.ok ? 'bg-emerald-50 border-emerald-200 text-emerald-700' :
+        'bg-rose-50 border-rose-200 text-rose-700'
+      }`}>
+        <span className="text-lg">{!lastResult?.ran_at ? '⏳' : lastResult?.ok ? '✅' : '❌'}</span>
+        <div>
+          <div className="font-semibold">
+            {!lastResult?.ran_at
+              ? 'Δεν έχει τρέξει αποστολή από την τελευταία εκκίνηση'
+              : lastResult?.ok
+              ? `Τελευταία αποστολή: ${fmtDate(lastResult.ran_at)} — ${lastResult.sent ?? 0} πληρωμές`
+              : `Αποτυχία: ${lastResult?.error || 'Άγνωστο σφάλμα'}`}
+          </div>
+          {lastResult?.result && (
+            <div className="opacity-75 mt-0.5">
+              {lastResult.result.matched ?? 0} αντιστοιχίστηκαν · {lastResult.result.unmatched ?? 0} χωρίς αντιστοίχιση
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="flex flex-wrap gap-3">
+        <button onClick={handlePreview} disabled={loading} className="btn-secondary flex items-center gap-2">
+          {loading ? 'Φόρτωση…' : '🔍 Προεπισκόπηση (χθεσινές)'}
+        </button>
+        {preview && (
+          <button onClick={handleSend} disabled={sending || preview.payments.length === 0} className="btn-primary flex items-center gap-2">
+            {sending ? 'Αποστολή…' : `📤 Αποστολή ${preview.payments.length} πληρωμών`}
+          </button>
+        )}
+      </div>
+
+      {preview && (
+        <div className="mt-4 p-3 rounded-xl bg-slate-50 border border-slate-100 text-xs text-slate-600">
+          <div className="font-semibold mb-1 text-slate-700">Προεπισκόπηση για {preview.date}</div>
+          {preview.payments.length === 0 && <div className="text-slate-400">Καμία πληρωμή για αποστολή</div>}
+          {preview.payments.map(p => (
+            <div key={p.externalId} className="flex items-center justify-between py-0.5 border-b border-slate-100 last:border-0">
+              <span>{p.onomasia || p.afm} · {p.category}</span>
+              <span className="font-semibold">{(p.amount / 100).toLocaleString('el-GR')} €</span>
+            </div>
+          ))}
+          {preview.skipped?.length > 0 && (
+            <div className="mt-2 text-amber-600">
+              ⚠️ {preview.skipped.length} εγγραφές παραλείφθηκαν (λείπουν στοιχεία)
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 const LIST_TYPES = [
   { key: 'ΚΑΤΗΓΟΡΙΕΣ_ΕΞΟΔΩΝ',       label: 'Κατηγορίες Εξόδων',       color: 'bg-orange-500' },
   { key: 'ΠΡΟΜΗΘΕΥΤΕΣ',              label: 'Προμηθευτές / Υπάλληλοι', color: 'bg-blue-500' },
@@ -606,6 +706,7 @@ export default function ListManager() {
 
       <TwoFAPanel />
       <BackupPanel />
+      <LogistisSyncPanel />
     </div>
   );
 }
