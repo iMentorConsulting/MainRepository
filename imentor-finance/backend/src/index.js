@@ -60,6 +60,8 @@ app.use('/api/cm-sync',  require('./routes/cmSync'));
 // Pull case data from consult.i-mentor.gr (requires CM_APP_URL + FINANCE_API_KEY env vars)
 app.use('/api/cm-cases', authMiddleware, require('./routes/cmCasesFetch'));
 app.use('/api/backup',  authMiddleware, require('./routes/backup'));
+// Push paid Income rows to Logistis (requires LOGISTIS_BASE_URL + LOGISTIS_API_KEY env vars)
+app.use('/api/logistis-sync', authMiddleware, require('./routes/logistisSync'));
 
 app.get('/health', (_, res) => res.json({ ok: true }));
 
@@ -141,6 +143,26 @@ sequelize.sync({ alter: true }).then(async () => {
     console.log('[backup-cron] Daily backup scheduled at 18:00 Europe/Athens');
   } catch (e) {
     console.warn('[backup-cron] Could not schedule backup:', e.message);
+  }
+
+  // Daily Logistis payments sync at 02:00 Athens time (sends yesterday's Income rows)
+  try {
+    const cron = require('node-cron');
+    const { runDailySync } = require('./services/logistisSync');
+    cron.schedule('0 2 * * *', () => {
+      runDailySync()
+        .then(r => {
+          global._lastLogistisSync = { ran_at: new Date().toISOString(), ok: true, ...r };
+          console.log(`[logistis-sync] Sent ${r.sent} payment(s) for ${r.date}:`, JSON.stringify(r.result));
+        })
+        .catch(e => {
+          global._lastLogistisSync = { ran_at: new Date().toISOString(), ok: false, error: e.message };
+          console.error('[logistis-sync] error:', e.message);
+        });
+    }, { timezone: 'Europe/Athens' });
+    console.log('[logistis-sync] Daily payments sync scheduled at 02:00 Europe/Athens');
+  } catch (e) {
+    console.warn('[logistis-sync] Could not schedule sync:', e.message);
   }
 }).catch(err => {
   console.error('DB sync error:', err.message);
