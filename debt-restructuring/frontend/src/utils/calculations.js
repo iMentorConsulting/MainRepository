@@ -330,18 +330,22 @@ export function calculateAll(debts, assets, incomeData, params = PARAMS_B) {
     )
 
     if (fpSubType === 'Μισθωτός') {
-      // Flat income cap — ΚΥΑ 67360 άρθρο 8Α §5 step-up does NOT apply to Μισθωτός
-      // (art.8A §5 is specific to Επιτηδευματίας; Μισθωτός uses a flat base = income year T)
+      // ΚΥΑ 67360 άρθρο 7, §7.1: average of top-2 income years (exclude lowest)
+      // (No step-up phases unlike Επιτηδευματίας — single flat rate throughout)
       const t1 = incomeData.fp_income_t1 || 0
       const t2 = incomeData.fp_income_t2 || 0
       const t3 = incomeData.fp_income_t3 || 0
-      annualIncome = t1
+
+      // Sort incomes and use average of top 2 (ΚΥΑ 67360 §7.1)
+      const sortedIncomes = [t1, t2, t3].sort((a, b) => b - a)
+      const avg2Income = (sortedIncomes[0] + sortedIncomes[1]) / 2
+      annualIncome = avg2Income
 
       // Ratio allocation of shared expenses (ΚΥΑ 67360 άρθρο 1(κ))
       const spIncome = incomeData.spouseIncome || 0
       fpSpouseIncome = spIncome
-      fpFamilyIncome = t1 + spIncome
-      fpRatio = fpFamilyIncome > 0 ? t1 / fpFamilyIncome : 1
+      fpFamilyIncome = avg2Income + spIncome
+      fpRatio = fpFamilyIncome > 0 ? avg2Income / fpFamilyIncome : 1
 
       const edd = incomeData.householdValue || 0
       // ΕΝΦΙΑ, alimony, student rent: personal obligations — full amount
@@ -351,7 +355,7 @@ export function calculateAll(debts, assets, incomeData, params = PARAMS_B) {
       const savingsAdd = countableSavings / 20
 
       if (t1 > 0 || t2 > 0 || t3 > 0) {
-        const disp = Math.max(0, t1 - totalExpenses) * 0.8 + savingsAdd
+        const disp = Math.max(0, avg2Income - totalExpenses) * 0.8 + savingsAdd
         dispYear1 = dispYear24 = dispYear5 = disp
       } else {
         // Legacy fallback (no 3-year data)
