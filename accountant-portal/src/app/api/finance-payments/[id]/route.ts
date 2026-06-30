@@ -3,7 +3,7 @@ import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { calculateCommission, formatEuros } from '@/lib/commission'
 import { sendEmail } from '@/lib/email'
-import { findApplicablePolicy } from '../route'
+import { findApplicablePolicy } from '@/lib/finance-payments'
 
 // PUT /api/finance-payments/[id] — Body: { action: 'approve' | 'reject' | 'defer', notes? }
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
