@@ -97,23 +97,23 @@ export default function PortalAssignmentAlert() {
       {visible.map(a => (
         <div
           key={a.id}
-          className="pointer-events-auto w-full max-w-xl bg-amber-50 border-2 border-amber-400 rounded-xl shadow-2xl p-4 ring-4 ring-amber-300/60"
+          className="pointer-events-auto w-full max-w-xl max-h-[85vh] flex flex-col bg-amber-50 border-2 border-amber-400 rounded-xl shadow-2xl p-4 ring-4 ring-amber-300/60"
         >
-          <div className="flex items-start gap-3">
+          <div className="flex items-start gap-3 min-h-0">
             <div className="shrink-0 w-10 h-10 rounded-full bg-amber-400 flex items-center justify-center">
               <BellAlertIcon className="w-6 h-6 text-white" />
             </div>
-            <div className="flex-1 min-w-0">
+            <div className="flex-1 min-w-0 flex flex-col min-h-0">
               <div className="font-bold text-amber-900">
                 Νέα Ανάθεση Υπόθεσης #{a.case_number} — απαιτεί αποδοχή
               </div>
-              <div className="text-sm text-amber-800 mt-1 space-y-0.5">
+              <div className="text-sm text-amber-800 mt-1 space-y-0.5 overflow-y-auto min-h-0">
                 <div><span className="font-semibold">Επιχείρηση:</span> {a.onomasia || '—'} {a.afm ? `(ΑΦΜ ${a.afm})` : ''}</div>
                 {a.accountant_office && <div><span className="font-semibold">Λογιστικό Γραφείο:</span> {a.accountant_office}</div>}
                 {(a.program_title || a.case_type) && <div><span className="font-semibold">Πρόγραμμα/Τύπος:</span> {a.program_title || a.case_type}</div>}
-                {a.description && <div className="italic text-amber-700">{a.description}</div>}
+                {a.description && <div className="italic text-amber-700 max-h-32 overflow-y-auto whitespace-pre-wrap break-words">{a.description}</div>}
               </div>
-              <div className="flex gap-2 mt-3">
+              <div className="flex gap-2 mt-3 shrink-0">
                 <button
                   onClick={() => handleAccept(a)}
                   disabled={busyId === a.id}
