@@ -349,7 +349,7 @@ export async function autoNotifyBusinessMatches(businessId: string): Promise<voi
 // Returns true if the business has already received this service via I-MENTOR.
 // Matches on a common stem (first 8 chars) to handle Greek declension
 // differences (e.g. "ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ" received → skip program "ΤΑΜΕΙΟ ΜΙΚΡΟΠΙΣΤΩΣΕΩΝ").
-function businessAlreadyReceivedProgram(iMentorServices: string[], programTitle: string): boolean {
+export function businessAlreadyReceivedProgram(iMentorServices: string[], programTitle: string): boolean {
   const titleUpper = programTitle.toUpperCase()
   return iMentorServices.some(svc => {
     const svcUpper = svc.toUpperCase()
@@ -375,8 +375,13 @@ export async function runMatchingForBusiness(businessId: string): Promise<number
   let matchCount = 0
 
   for (const program of programs) {
-    // Skip programs for services the business has already received from I-MENTOR
-    if (businessAlreadyReceivedProgram(business.iMentorServices, program.title)) continue
+    // Remove stale matches for programs the business has already received from I-MENTOR
+    if (businessAlreadyReceivedProgram(business.iMentorServices, program.title)) {
+      await prisma.programMatch.deleteMany({
+        where: { programId: program.id, businessId, status: MatchStatus.POTENTIAL },
+      })
+      continue
+    }
 
     const { score, reasons } = matchesBusiness(business, program)
     const isNew = await upsertMatch(program.id, business.id, score, reasons)

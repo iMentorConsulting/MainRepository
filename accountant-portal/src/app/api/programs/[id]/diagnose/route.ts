@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { diagnoseMatch } from '@/lib/matching'
+import { diagnoseMatch, businessAlreadyReceivedProgram } from '@/lib/matching'
 
 // Lets an admin check exactly which eligibility criterion is rejecting a
 // specific business for a program, instead of guessing from a bare match
@@ -22,6 +22,16 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
   ])
   if (!program) return NextResponse.json({ error: 'Δεν βρέθηκε πρόγραμμα' }, { status: 404 })
   if (!business) return NextResponse.json({ error: 'Δεν βρέθηκε επιχείρηση με αυτό το ΑΦΜ' }, { status: 404 })
+
+  // Check if the business has already received this service from I-MENTOR
+  if (businessAlreadyReceivedProgram(business.iMentorServices, program.title)) {
+    return NextResponse.json({
+      business: { afm: business.afm, onomasia: business.onomasia, legalStatusDescr: business.legalStatusDescr, postalZipCode: business.postalZipCode, regdate: business.regdate },
+      overall: false,
+      excludedByService: true,
+      results: [{ pass: false, criterion: 'iMentorServices', detail: `Η επιχείρηση έχει ήδη λάβει την υπηρεσία "${business.iMentorServices.join(', ')}" από την I-MENTOR — εξαιρείται από αυτό το πρόγραμμα.` }],
+    })
+  }
 
   const results = diagnoseMatch(business as any, program as any)
   const overall = results.length === 0 || results.every(r => r.pass)
