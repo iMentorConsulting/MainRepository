@@ -36,9 +36,22 @@ export default function PublicMatchPage() {
             body: JSON.stringify({ kickoff: true }),
           })
             .then(async r2 => {
-              const d2 = await r2.json()
-              if (r2.ok) setChatLog([{ role: 'assistant', text: d2.reply }])
+              if (r2.ok) {
+                const d2 = await r2.json()
+                if (d2.reply) setChatLog([{ role: 'assistant', text: d2.reply }])
+              } else if (r2.status === 400) {
+                // Conversation was already started (DB has it but GET returned empty
+                // due to a race — re-fetch to get the existing log).
+                const r3 = await fetch(`/api/public/match/${token}`)
+                if (r3.ok) {
+                  const d3 = await r3.json()
+                  if (d3.chatLog?.length) setChatLog(d3.chatLog)
+                }
+              } else {
+                setError('Ο Ερμής δεν είναι διαθέσιμος αυτή τη στιγμή. Ανανεώστε τη σελίδα για να δοκιμάσετε ξανά.')
+              }
             })
+            .catch(() => setError('Σφάλμα σύνδεσης. Ανανεώστε τη σελίδα για να δοκιμάσετε ξανά.'))
             .finally(() => setKickoffPending(false))
         }
       })
