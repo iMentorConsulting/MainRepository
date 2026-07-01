@@ -71,6 +71,14 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     commissionRate = calc.commissionRate
   }
 
+  // Add service to business's iMentorServices list (deduplicated)
+  await prisma.business.update({
+    where: { id: business.id },
+    data: {
+      iMentorServices: { set: Array.from(new Set([...business.iMentorServices, payment.serviceName])) },
+    },
+  })
+
   const commission = await prisma.commission.create({
     data: {
       accountantId: business.accountantId,

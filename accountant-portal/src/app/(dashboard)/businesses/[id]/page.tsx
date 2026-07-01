@@ -473,6 +473,19 @@ export default function BusinessDetailPage() {
             </Card>
           )}
 
+          {(business.iMentorServices || []).length > 0 && (
+            <Card>
+              <CardHeader><CardTitle>Υπηρεσίες I-MENTOR</CardTitle></CardHeader>
+              <CardContent>
+                <div className="flex flex-wrap gap-1.5">
+                  {(business.iMentorServices || []).map((s: string) => (
+                    <Badge key={s} variant="info">{s}</Badge>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           <Card>
             <CardHeader><CardTitle>Tags / Ιδιαιτερότητες</CardTitle></CardHeader>
             <CardContent className="space-y-2">

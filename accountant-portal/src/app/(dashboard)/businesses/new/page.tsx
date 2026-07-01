@@ -38,6 +38,7 @@ export default function NewBusinessPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [activities, setActivities] = useState<any[]>([])
+  const [iMentorServices, setIMentorServices] = useState<string[]>([])
   const [importMode, setImportMode] = useState(false)
 
   useEffect(() => {
@@ -48,6 +49,8 @@ export default function NewBusinessPage() {
     if (afm) setValue('afm', afm)
     if (email) setValue('email', email)
     if (phone) setValue('phone', phone)
+    const service = searchParams.get('service')
+    if (service) setIMentorServices([service])
   }, [searchParams])
   const [importFile, setImportFile] = useState<File | null>(null)
   const [importing, setImporting] = useState(false)
@@ -94,10 +97,12 @@ export default function NewBusinessPage() {
   }
 
   async function onSubmit(data: FormData) {
+    const autoTag = searchParams.get('autoTag')
+    const tags = autoTag ? [autoTag] : []
     const res = await fetch('/api/businesses', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...data, activities }),
+      body: JSON.stringify({ ...data, activities, iMentorServices, tags }),
     })
     if (res.ok) {
       const created = await res.json()

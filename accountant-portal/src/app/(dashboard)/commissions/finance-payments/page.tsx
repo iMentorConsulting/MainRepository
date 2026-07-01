@@ -6,6 +6,19 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { ArrowLeft, Check, X, Clock3, RefreshCw, UserPlus } from 'lucide-react'
 
+// Services that automatically add a same-name tag when creating a business
+const AUTO_TAG_SERVICES = ['ΕΞΩΔΙΚΑΣΤΙΚΟΣ', 'ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ']
+
+function buildCreateUrl(p: any) {
+  const params = new URLSearchParams({ afm: p.afm })
+  if (p.onomasia) params.set('onomasia', p.onomasia)
+  params.set('service', p.serviceName)
+  if (AUTO_TAG_SERVICES.some(s => p.serviceName?.toUpperCase().includes(s))) {
+    params.set('autoTag', p.serviceName)
+  }
+  return `/businesses/new?${params}`
+}
+
 function formatEur(cents: number) {
   return (cents / 100).toLocaleString('el-GR', { style: 'currency', currency: 'EUR' })
 }
@@ -23,6 +36,7 @@ export default function FinancePaymentsPage() {
   const [loading, setLoading] = useState(true)
   const [emailsEnabled, setEmailsEnabled] = useState(false)
   const [busyId, setBusyId] = useState<string | null>(null)
+  const [syncing, setSyncing] = useState(false)
 
   const fetchPayments = useCallback(async () => {
     setLoading(true)
@@ -36,6 +50,16 @@ export default function FinancePaymentsPage() {
   useEffect(() => {
     fetch('/api/finance-payments/settings').then(r => r.json()).then(d => setEmailsEnabled(!!d.financeCommissionEmailsEnabled))
   }, [])
+
+  async function bulkSync() {
+    if (!confirm('Συγχρονισμός υπηρεσιών I-MENTOR για όλες τις αντιστοιχισμένες επιχειρήσεις;')) return
+    setSyncing(true)
+    const res = await fetch('/api/finance-payments/sync-services', { method: 'POST' })
+    const data = await res.json()
+    setSyncing(false)
+    alert(`Συγχρονίστηκαν ${data.updated} επιχειρήσεις`)
+    fetchPayments()
+  }
 
   async function toggleEmails() {
     const next = !emailsEnabled
@@ -88,7 +112,11 @@ export default function FinancePaymentsPage() {
             <option value="ALL">Όλες</option>
           </select>
         </div>
-        <label className="flex items-center gap-2 text-sm text-gray-700 ml-auto cursor-pointer select-none">
+        <Button variant="outline" size="sm" onClick={bulkSync} disabled={syncing} className="ml-auto">
+          <RefreshCw size={14} className={`mr-1.5 ${syncing ? 'animate-spin' : ''}`} />
+          Συγχρονισμός Υπηρεσιών
+        </Button>
+        <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer select-none">
           <input type="checkbox" checked={emailsEnabled} onChange={toggleEmails} className="rounded border-gray-300" />
           Ενεργοποίηση email προς λογιστές κατά την έγκριση
         </label>
@@ -132,7 +160,7 @@ export default function FinancePaymentsPage() {
                       ) : (
                         <div className="flex items-center gap-2">
                           <span className="text-xs text-amber-600">Δεν βρέθηκε</span>
-                          <Link href={`/businesses/new?afm=${p.afm}${p.onomasia ? '' : ''}`}>
+                          <Link href={buildCreateUrl(p)}>
                             <Button size="sm" variant="outline" className="h-6 px-2 text-xs">
                               <UserPlus size={12} className="mr-1" />Δημιουργία
                             </Button>

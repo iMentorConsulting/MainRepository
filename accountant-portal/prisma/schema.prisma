@@ -146,6 +146,7 @@ model Business {
   viberPhone            String?
   notes                 String?
   tags                  String[]
+  iMentorServices       String[]            // services received from I-MENTOR (e.g. ΕΣΠΑ, ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ)
   excludedFromCampaigns Boolean             @default(false)
   unsubscribeToken      String?             @unique @default(cuid())
   createdAt             DateTime            @default(now())
