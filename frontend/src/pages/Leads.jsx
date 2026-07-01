@@ -232,6 +232,8 @@ function ExpandedRow({ lead, colSpan, onChanged, onConvert, onErmis, onSend }) {
           <button onClick={() => onConvert(lead)} className="flex items-center gap-1 text-sm font-semibold bg-green-100 text-green-700 hover:bg-green-200 px-3 py-1.5 rounded-lg">
             <ArrowRightCircleIcon className="w-4 h-4" />Δημιουργία Υπόθεσης
           </button>
+          <span className="text-sm text-gray-500">ΑΦΜ: <b className={full?.afm ? 'text-gray-700' : 'text-red-500'}>{full?.afm || '— (λείπει)'}</b></span>
+          <span className="text-sm text-gray-500">Πρόγραμμα: <b className="text-gray-700">{full?.program || '—'}</b></span>
           <span className="text-sm text-gray-500">Υπηρεσία: <b className="text-gray-700">{full?.service_type || '—'}</b></span>
           <span className="text-sm text-gray-500">Referrer: <b className="text-gray-700">{full?.source || '—'}</b></span>
           <button onClick={() => onErmis(lead)} className="flex items-center gap-1 text-sm bg-indigo-100 text-indigo-700 hover:bg-indigo-200 px-3 py-1.5 rounded-lg">
@@ -538,7 +540,8 @@ export default function Leads() {
                     </td>
                     <td className="px-2 py-1.5 w-28"><EditableCell value={lead.consultant} onSave={v => patch(lead, 'assigned_name', v)} /></td>
                     <td className="px-2 py-1.5 min-w-[150px]">
-                      <span className="text-blue-600 hover:underline cursor-pointer font-medium" onClick={() => setExpandedId(isOpen ? null : lead.id)}>{lead.name || '—'}</span>
+                      <div className="text-blue-600 hover:underline cursor-pointer font-medium" onClick={() => setExpandedId(isOpen ? null : lead.id)}>{lead.name || '—'}</div>
+                      {lead.afm && <div className="text-[11px] text-gray-400">ΑΦΜ {lead.afm}</div>}
                     </td>
                     <td className="px-2 py-1.5 min-w-[160px]">
                       {lead.phone && <a href={`tel:${lead.phone}`} className="flex items-center gap-1 text-gray-700 hover:text-blue-600"><PhoneIcon className="w-3.5 h-3.5 text-gray-400" />{lead.phone}</a>}
