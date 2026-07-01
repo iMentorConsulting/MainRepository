@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 
 from auth_cases import get_current_user, CMUser
 from database import get_db
-from models_cases import CMLead, CMLeadSheetConfig
+from models_cases import CMLead, CMLeadSheetConfig, LEAD_STATUSES
 from routes.cm_google_sheets import (
     _get_sheets_service, _parse_date, _parse_float, _strip_accents, _match_agent_id,
 )
@@ -31,7 +31,30 @@ _last_sync: dict = {"last_run_at": None, "imported": None, "per_program": None}
 
 # Logical lead fields resolvable from the sheet via column_map
 LOGICAL_FIELDS = ["name", "phone", "phone2", "email", "afm", "service_type",
-                  "total_amount", "source", "notes", "assigned_to", "next_call_date"]
+                  "total_amount", "source", "notes", "assigned_to", "next_call_date",
+                  "status"]
+
+# Common sheet spellings → canonical LEAD_STATUSES value
+_STATUS_SYNONYMS = {
+    "NEWLEAD": "NEW LEAD", "NEW": "NEW LEAD", "ΝΕΟ": "NEW LEAD", "ΝΕΟLEAD": "NEW LEAD",
+    "ΚΛΗΣΗ": "CALL", "CALL": "CALL",
+    "HOT": "HOT", "ΖΕΣΤΟ": "HOT",
+    "ACTIVE": "ACTIVE", "ΕΝΕΡΓΟ": "ACTIVE",
+    "DEAL": "DEAL", "ΣΥΜΦΩΝΙΑ": "DEAL",
+    "CANCEL": "CANCEL", "CANCELLED": "CANCEL", "ΑΚΥΡΟ": "CANCEL", "ΑΚΥΡΩΣΗ": "CANCEL",
+}
+
+
+def _normalize_status(raw: str) -> str:
+    """Map a raw sheet status cell to a canonical LEAD_STATUSES value.
+    Falls back to 'NEW LEAD' when the cell is empty or unrecognized."""
+    if not raw:
+        return "NEW LEAD"
+    up = _strip_accents(str(raw)).strip().upper()
+    if up in LEAD_STATUSES:
+        return up
+    compact = up.replace(" ", "")
+    return _STATUS_SYNONYMS.get(up) or _STATUS_SYNONYMS.get(compact) or "NEW LEAD"
 
 
 # ── Column resolution ───────────────────────────────────────────────────────
@@ -110,6 +133,8 @@ def _map_row(row: List[str], cfg: CMLeadSheetConfig, header: List[str], db: Sess
         "notes": data.get("notes") or None,
         "total_amount": _parse_float(data.get("total_amount")) if data.get("total_amount") else 0,
         "next_call_date": _parse_date(data.get("next_call_date")) if data.get("next_call_date") else None,
+        # Starting status read from the sheet (normalized), default NEW LEAD
+        "status": _normalize_status(data.get("status")),
     }
 
     # Assigned agent by name (optional)
@@ -163,12 +188,14 @@ def _sync_config(db: Session, cfg: CMLeadSheetConfig, dry_run: bool = False) -> 
             continue
 
         kwargs = _map_row(row, cfg, header, db)
+        status = kwargs.pop("status", None) or "NEW LEAD"
         if dry_run:
-            new_preview.append({"row_num": row_num, **{k: v for k, v in kwargs.items() if k != "program_fields"}})
+            new_preview.append({"row_num": row_num, "status": status,
+                                **{k: v for k, v in kwargs.items() if k != "program_fields"}})
         else:
             lead = CMLead(
                 program=cfg.program,
-                status="NEW LEAD",
+                status=status,
                 sheet_config_id=cfg.id,
                 sheet_row_num=row_num,
                 sheet_import_ref=ref,
