@@ -1186,6 +1186,7 @@ try:
         _conn.execute(_text("CREATE INDEX IF NOT EXISTS ix_cm_leads_status ON cm_leads (status)"))
         _conn.execute(_text("CREATE INDEX IF NOT EXISTS ix_cm_leads_ermis_token ON cm_leads (ermis_token)"))
         _conn.execute(_text("CREATE INDEX IF NOT EXISTS ix_cm_leads_sheet_import_ref ON cm_leads (sheet_import_ref)"))
+        _conn.execute(_text("ALTER TABLE cm_leads ADD COLUMN IF NOT EXISTS assigned_name VARCHAR(150)"))
         _conn.execute(_text("""
             CREATE TABLE IF NOT EXISTS cm_lead_comments (
                 id SERIAL PRIMARY KEY,

@@ -579,6 +579,7 @@ class CMLead(Base):
     # Pipeline
     status = Column(String(30), default="NEW LEAD", index=True)  # LEAD_STATUSES
     assigned_agent_id = Column(Integer, ForeignKey("cm_users.id"), nullable=True)
+    assigned_name = Column(String(150))    # raw consultant name from the sheet (free text)
     source = Column(String(200))
     notes = Column(Text)
     next_call_date = Column(Date, nullable=True)

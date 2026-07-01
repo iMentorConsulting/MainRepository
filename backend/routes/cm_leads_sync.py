@@ -155,12 +155,15 @@ def _map_row(row: List[str], cfg: CMLeadSheetConfig, header: List[str], users: l
         if parsed_created:
             lead_kwargs["created_at"] = datetime.combine(parsed_created, datetime.min.time())
 
-    # Assigned agent by name (optional); users preloaded once by the caller
-    if data.get("assigned_to") and users:
-        try:
-            lead_kwargs["assigned_agent_id"] = _match_agent_id(data["assigned_to"], users)
-        except Exception:
-            pass
+    # Assigned consultant: always keep the raw sheet name (free text, e.g. STELLA),
+    # and additionally link to a CM user when the name matches one.
+    if data.get("assigned_to"):
+        lead_kwargs["assigned_name"] = _trunc(data["assigned_to"], 150)
+        if users:
+            try:
+                lead_kwargs["assigned_agent_id"] = _match_agent_id(data["assigned_to"], users)
+            except Exception:
+                pass
 
     # Program-specific columns → program_fields JSON
     pfm = cfg.program_field_map or {}

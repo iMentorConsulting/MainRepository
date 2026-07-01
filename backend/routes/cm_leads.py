@@ -44,13 +44,15 @@ def _comment_to_dict(c: CMLeadComment) -> dict:
     }
 
 
-def lead_to_dict(l: CMLead, include_comments: bool = False) -> dict:
+def lead_to_dict(l: CMLead, include_comments: bool = False, last_comment: dict = None) -> dict:
     transcript = None
     if l.ermis_transcript:
         try:
             transcript = json.loads(l.ermis_transcript)
         except (ValueError, TypeError):
             transcript = l.ermis_transcript
+    # Display name for the consultant: prefer the raw sheet name, else the linked user
+    consultant = l.assigned_name or (l.assigned_agent.full_name if l.assigned_agent else None)
     data = {
         "id": l.id,
         "name": l.name,
@@ -64,6 +66,8 @@ def lead_to_dict(l: CMLead, include_comments: bool = False) -> dict:
         "status": l.status,
         "assigned_agent_id": l.assigned_agent_id,
         "assigned_agent_name": l.assigned_agent.full_name if l.assigned_agent else None,
+        "assigned_name": l.assigned_name,
+        "consultant": consultant,
         "source": l.source,
         "notes": l.notes,
         "next_call_date": l.next_call_date.isoformat() if l.next_call_date else None,
@@ -77,6 +81,7 @@ def lead_to_dict(l: CMLead, include_comments: bool = False) -> dict:
         "program_fields": l.program_fields or {},
         "created_at": l.created_at.isoformat() if l.created_at else None,
         "updated_at": l.updated_at.isoformat() if l.updated_at else None,
+        "last_comment": last_comment,
     }
     if include_comments:
         data["comments"] = [_comment_to_dict(c) for c in sorted(l.comments, key=lambda x: x.created_at or datetime.min)]
@@ -96,6 +101,7 @@ class LeadCreate(BaseModel):
     total_amount: Optional[float] = 0
     status: Optional[str] = "NEW LEAD"
     assigned_agent_id: Optional[int] = None
+    assigned_name: Optional[str] = None
     source: Optional[str] = None
     notes: Optional[str] = None
     next_call_date: Optional[date] = None
@@ -113,6 +119,7 @@ class LeadUpdate(BaseModel):
     total_amount: Optional[float] = None
     status: Optional[str] = None
     assigned_agent_id: Optional[int] = None
+    assigned_name: Optional[str] = None
     source: Optional[str] = None
     notes: Optional[str] = None
     next_call_date: Optional[date] = None
@@ -136,7 +143,9 @@ class SendIn(BaseModel):
 def list_leads(
     status: Optional[str] = None,
     agent_id: Optional[int] = None,
+    consultant: Optional[str] = None,
     program: Optional[str] = None,
+    reminder: Optional[str] = None,   # overdue | today | week | none
     date_from: Optional[date] = None,
     date_to: Optional[date] = None,
     q: Optional[str] = None,
@@ -151,8 +160,21 @@ def list_leads(
         query = query.filter(CMLead.status.in_([s.strip() for s in status.split(",") if s.strip()]))
     if agent_id is not None:
         query = query.filter(CMLead.assigned_agent_id == agent_id)
+    if consultant:
+        query = query.filter(CMLead.assigned_name == consultant)
     if program:
         query = query.filter(CMLead.program == program)
+    if reminder:
+        today = date.today()
+        if reminder == "overdue":
+            query = query.filter(CMLead.next_call_date != None, CMLead.next_call_date < today)  # noqa: E711
+        elif reminder == "today":
+            query = query.filter(CMLead.next_call_date == today)
+        elif reminder == "week":
+            from datetime import timedelta
+            query = query.filter(CMLead.next_call_date >= today, CMLead.next_call_date <= today + timedelta(days=7))
+        elif reminder == "none":
+            query = query.filter(CMLead.next_call_date == None)  # noqa: E711
     if date_from:
         query = query.filter(CMLead.created_at >= datetime.combine(date_from, datetime.min.time()))
     if date_to:
@@ -177,14 +199,34 @@ def list_leads(
         "next_call_date": CMLead.next_call_date,
         "total_amount": CMLead.total_amount,
         "created_at": CMLead.created_at,
+        "consultant": CMLead.assigned_name,
         "assigned_agent_id": CMLead.assigned_agent_id,
     }.get(sort, CMLead.created_at)
     sort_col = sort_col.desc() if (direction or "desc").lower() == "desc" else sort_col.asc()
 
     page = max(1, page)
     rows = query.order_by(sort_col).offset((page - 1) * PAGE_SIZE).limit(PAGE_SIZE).all()
+
+    # Build a last-comment map for the page in one query (avoids N+1).
+    last_map: dict = {}
+    lead_ids = [l.id for l in rows]
+    if lead_ids:
+        comments = (
+            db.query(CMLeadComment)
+            .filter(CMLeadComment.lead_id.in_(lead_ids))
+            .order_by(CMLeadComment.lead_id, CMLeadComment.created_at.desc())
+            .all()
+        )
+        for c in comments:
+            if c.lead_id not in last_map:  # first per lead = newest (desc order)
+                last_map[c.lead_id] = {
+                    "content": c.content,
+                    "author_name": c.author_name,
+                    "created_at": c.created_at.isoformat() if c.created_at else None,
+                }
+
     return {
-        "items": [lead_to_dict(l) for l in rows],
+        "items": [lead_to_dict(l, last_comment=last_map.get(l.id)) for l in rows],
         "total": total,
         "page": page,
         "page_size": PAGE_SIZE,
@@ -199,10 +241,16 @@ def filter_options(
     from models_cases import CMUser as _U
     agents = db.query(_U.id, _U.full_name).all()
     programs = [p[0] for p in db.query(CMLead.program).distinct().all() if p[0]]
+    consultants = [c[0] for c in db.query(CMLead.assigned_name).distinct().all() if c[0]]
+    # Status counts across all leads (for the filter chips)
+    status_counts = {s: c for s, c in db.query(CMLead.status, sa_func.count(CMLead.id)).group_by(CMLead.status).all()}
     return {
         "statuses": LEAD_STATUSES,
         "agents": [{"id": a[0], "name": a[1]} for a in agents],
         "programs": programs,
+        "consultants": sorted(consultants),
+        "status_counts": status_counts,
+        "total": sum(status_counts.values()),
     }
 
 
@@ -287,6 +335,7 @@ def create_lead(
         total_amount=req.total_amount or 0,
         status=req.status or "NEW LEAD",
         assigned_agent_id=req.assigned_agent_id,
+        assigned_name=req.assigned_name,
         source=req.source,
         notes=req.notes,
         next_call_date=req.next_call_date,

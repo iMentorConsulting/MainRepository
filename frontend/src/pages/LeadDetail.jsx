@@ -131,7 +131,10 @@ export default function LeadDetail() {
           <Field label="ΑΦΜ">{lead.afm || '—'}</Field>
           <Field label="Πρόγραμμα">{lead.program || '—'}</Field>
           <Field label="Ποσό">{lead.total_amount ? `${lead.total_amount} €` : '—'}</Field>
-          <Field label="Υπεύθυνος">{lead.assigned_agent_name || '—'}</Field>
+          <Field label="Σύμβουλος">
+            <input value={lead.assigned_name || ''} onChange={e => patch('assigned_name', e.target.value)}
+              placeholder="—" className="text-sm border rounded px-2 py-1 w-full" />
+          </Field>
           <Field label="Πηγή">{lead.source || '—'}</Field>
           <Field label="Επόμενη κλήση">
             <input type="date" value={lead.next_call_date || ''} onChange={e => patch('next_call_date', e.target.value || null)} className="text-sm border rounded px-2 py-1" />
