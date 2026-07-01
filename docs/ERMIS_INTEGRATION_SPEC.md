@@ -30,8 +30,9 @@ Header: x-api-key: <CASES_API_KEY>
   "afm": "123456789",
   "program": "ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ",
   "serviceType": "ΕΞΩΔΙΚΑΣΤΙΚΟΣ",
+  "consultant": "STELLA",
   "callbackUrl": "https://<cm-app>/api/cm/leads/ermis/webhook",
-  "contextSummary": "ΓΝΩΣΤΑ ΣΤΟΙΧΕΙΑ ΠΕΛΑΤΗ (μην τα ξαναρωτήσεις…)\n- Ονοματεπώνυμο: …\n- ΑΦΜ: …\n- ΑΣΦ & ΦΟΡ ΕΝΗΜ: Ναι\n- …",
+  "contextSummary": "ΓΝΩΣΤΑ ΣΤΟΙΧΕΙΑ ΠΕΛΑΤΗ (μην τα ξαναρωτήσεις…)\n- Ονοματεπώνυμο: …\n- ΑΦΜ: …\n- ΑΣΦ & ΦΟΡ ΕΝΗΜ: Ναι\n- Υπεύθυνος σύμβουλος: STELLA (…θα επικοινωνήσει σύντομα)",
   "lead": {
     "id": 3360, "name": "…", "phone": "…", "phone2": "…", "email": "…",
     "afm": "123456789", "program": "ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ", "serviceType": "ΕΞΩΔΙΚΑΣΤΙΚΟΣ",
@@ -59,6 +60,12 @@ Header: x-api-key: <CASES_API_KEY>
 > top-level and inside `lead`) — inject it verbatim into the ΕΡΜΗΣ system prompt as
 > known facts, and have ΕΡΜΗΣ continue from there rather than re-collecting data.
 > In the last test ΕΡΜΗΣ ignored these fields and re-asked everything — that needs fixing.
+
+> 👤 **Consultant callback.** We send the assigned consultant as top-level
+> `consultant` (and inside `lead.consultant` / `contextSummary`). ΕΡΜΗΣ should
+> reassure the client that this specific person will contact them shortly, e.g.
+> «Ο/Η {consultant} από την i-Mentor θα επικοινωνήσει σύντομα μαζί σας.» If
+> `consultant` is empty, use a generic «ένας σύμβουλός μας».
 
 **Response (200):**
 ```json

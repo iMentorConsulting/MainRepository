@@ -87,6 +87,11 @@ def start_ermis(
     for k, v in extra_fields.items():
         if v not in (None, ""):
             summary_lines.append(f"- {k}: {v}")
+    if l.assigned_name:
+        summary_lines.append(
+            f"- Υπεύθυνος σύμβουλος: {l.assigned_name} "
+            f"(ενημέρωσε τον πελάτη ότι ο/η {l.assigned_name} θα επικοινωνήσει μαζί του σύντομα)."
+        )
     context_summary = "\n".join(summary_lines)
 
     # Full lead context so ΕΡΜΗΣ can use it in the conversation; `program`/
@@ -96,6 +101,7 @@ def start_ermis(
         "afm": l.afm,                     # VAT → LOGISTIS runs the ΑΑΔΕ lookup + program matching
         "program": l.program,
         "serviceType": l.service_type,
+        "consultant": l.assigned_name,    # ΕΡΜΗΣ tells the client this person will call shortly
         "callbackUrl": f"{SELF_BASE_URL.rstrip('/')}/api/cm/leads/ermis/webhook",
         "contextSummary": context_summary,
         "lead": {
