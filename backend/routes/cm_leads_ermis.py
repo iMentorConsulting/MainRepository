@@ -60,6 +60,19 @@ def _consultant_article(name: Optional[str]) -> str:
     return "ο/η"
 
 
+# Greek display names for consultants (LOGISTIS/ΕΡΜΗΣ + client messages use these)
+_CONSULTANT_GR = {
+    "ELEFTHERIA": "Ελευθερία", "CHRISTOS": "Χρήστος", "VALLIA": "Βάλλια",
+    "STELLA": "Στέλλα", "SOFIA": "Σοφία", "HARIS": "Χάρης",
+}
+
+
+def _consultant_display(name: Optional[str]) -> Optional[str]:
+    if not name:
+        return name
+    return _CONSULTANT_GR.get(name.strip().upper(), name)
+
+
 class ErmisStartIn(BaseModel):
     send_link: Optional[bool] = True
     channel: Optional[str] = "both"  # viber | email | both | none
@@ -101,11 +114,12 @@ def _build_ermis_body(l: CMLead) -> dict:
         for c in comment_list:
             summary_lines.append(f"  • {c['author'] or 'σύμβουλος'}: {c['text']}")
 
+    consultant_gr = _consultant_display(l.assigned_name)
     if l.assigned_name:
         art = _consultant_article(l.assigned_name)
         summary_lines.append(
-            f"- Υπεύθυνος σύμβουλος: {l.assigned_name} "
-            f"(ενημέρωσε τον πελάτη ότι {art} {l.assigned_name} θα επικοινωνήσει μαζί του σύντομα)."
+            f"- Υπεύθυνος σύμβουλος: {consultant_gr} "
+            f"(ενημέρωσε τον πελάτη ότι {art} {consultant_gr} θα επικοινωνήσει μαζί του σύντομα)."
         )
     context_summary = "\n".join(summary_lines)
 
@@ -114,7 +128,7 @@ def _build_ermis_body(l: CMLead) -> dict:
         "afm": l.afm,                     # VAT → LOGISTIS runs the ΑΑΔΕ lookup + program matching
         "program": l.program,
         "serviceType": l.service_type,
-        "consultant": l.assigned_name,    # ΕΡΜΗΣ tells the client this person will call shortly
+        "consultant": consultant_gr,      # Greek name; ΕΡΜΗΣ tells the client this person will call shortly
         "callbackUrl": f"{SELF_BASE_URL.rstrip('/')}/api/cm/leads/ermis/webhook",
         "contextSummary": context_summary,
         "lead": {
@@ -128,7 +142,7 @@ def _build_ermis_body(l: CMLead) -> dict:
             "serviceType": l.service_type,
             "totalAmount": l.total_amount,
             "status": l.status,
-            "consultant": l.assigned_name,
+            "consultant": consultant_gr,
             "source": l.source,          # Referrer
             "notes": l.notes,
             "extraFields": extra_fields,
@@ -189,7 +203,8 @@ def _process_ermis_session(lead_id: int, send_link: bool, channel: str, actor_na
             prog = l.program or "την υπηρεσία που σας ενδιαφέρει"
             prog_label = f"«{l.program}»" if l.program else "που σας ενδιαφέρει"
             _art = _consultant_article(l.assigned_name).capitalize()  # Ο / Η / Ο/Η
-            consultant_line = (f"📞 {_art} {l.assigned_name} από την i-Mentor θα επικοινωνήσει σύντομα μαζί σας.\n"
+            _consultant_gr = _consultant_display(l.assigned_name)
+            consultant_line = (f"📞 {_art} {_consultant_gr} από την i-Mentor θα επικοινωνήσει σύντομα μαζί σας.\n"
                                if l.assigned_name else "")
 
             # ── Viber (emoji + Unicode dividers; Viber ignores markdown bold) ──
@@ -209,7 +224,7 @@ def _process_ermis_session(lead_id: int, send_link: bool, channel: str, actor_na
             # ── Email (rich HTML: bold, dividers, icons, CTA button) ──
             email_subject = f"i-Mentor Consulting — Προαξιολόγηση για {prog_label} με τον ΕΡΜΗ"
             consultant_html = (
-                f'<p style="margin:0 0 10px;color:#374151;">📞 {_art} <b>{l.assigned_name}</b> '
+                f'<p style="margin:0 0 10px;color:#374151;">📞 {_art} <b>{_consultant_gr}</b> '
                 f'από την i-Mentor θα επικοινωνήσει σύντομα μαζί σας.</p>' if l.assigned_name else ""
             )
             email_html = f"""<html><body style="margin:0;background:#f3f4f6;padding:24px;font-family:Arial,Helvetica,sans-serif;color:#1f2937;">
