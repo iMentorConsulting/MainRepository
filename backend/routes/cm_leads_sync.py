@@ -60,19 +60,21 @@ def _normalize_status(raw: str) -> str:
 # ── Column resolution ───────────────────────────────────────────────────────
 
 def _col_letter_to_index(letter: str) -> Optional[int]:
-    """'A' -> 0, 'B' -> 1, 'AA' -> 26. Returns None if not a pure letter ref."""
-    letter = (letter or "").strip().upper()
-    if not letter or not letter.isalpha():
+    """'A' -> 0, 'B' -> 1, 'AA' -> 26. Only ASCII A-Z (1-3 chars) count as a
+    column-letter reference; anything else (Greek words, longer text) is None."""
+    up = (letter or "").strip().upper()
+    if not (1 <= len(up) <= 3) or not all("A" <= c <= "Z" for c in up):
         return None
     idx = 0
-    for ch in letter:
+    for ch in up:
         idx = idx * 26 + (ord(ch) - ord("A") + 1)
     return idx - 1
 
 
 def _resolve_index(ref, header: List[str]) -> Optional[int]:
-    """A mapping value can be a column letter ('B'), a 0-based int index, or a
-    header name (matched accent-insensitively against the header row)."""
+    """A mapping value can be a header name, a 0-based int index, or a short
+    Latin column letter ('B'). Header names are matched FIRST (accent-insensitive)
+    so single-word headers like 'Email'/'Status' are not mistaken for columns."""
     if ref is None:
         return None
     if isinstance(ref, int):
@@ -80,16 +82,18 @@ def _resolve_index(ref, header: List[str]) -> Optional[int]:
     ref = str(ref).strip()
     if ref == "":
         return None
-    idx = _col_letter_to_index(ref)
-    if idx is not None:
-        return idx
-    if ref.isdigit():
-        return int(ref)
-    # header name match
+    # 1) header-name match (what users normally type)
     target = _strip_accents(ref).lower()
     for i, h in enumerate(header):
         if _strip_accents(str(h)).lower() == target:
             return i
+    # 2) explicit integer index
+    if ref.isdigit():
+        return int(ref)
+    # 3) short Latin column letter (A, B, .. AA), only if not found as a header
+    idx = _col_letter_to_index(ref)
+    if idx is not None:
+        return idx
     return None
 
 
