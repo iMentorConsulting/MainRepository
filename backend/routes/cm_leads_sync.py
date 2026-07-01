@@ -32,7 +32,7 @@ _last_sync: dict = {"last_run_at": None, "imported": None, "per_program": None}
 # Logical lead fields resolvable from the sheet via column_map
 LOGICAL_FIELDS = ["name", "phone", "phone2", "email", "afm", "service_type",
                   "total_amount", "source", "notes", "assigned_to", "next_call_date",
-                  "status"]
+                  "status", "created_date"]
 
 # Common sheet spellings → canonical LEAD_STATUSES value
 _STATUS_SYNONYMS = {
@@ -136,6 +136,12 @@ def _map_row(row: List[str], cfg: CMLeadSheetConfig, header: List[str], db: Sess
         # Starting status read from the sheet (normalized), default NEW LEAD
         "status": _normalize_status(data.get("status")),
     }
+
+    # Creation date read from the sheet (falls back to DB default = import time)
+    if data.get("created_date"):
+        parsed_created = _parse_date(data.get("created_date"))
+        if parsed_created:
+            lead_kwargs["created_at"] = datetime.combine(parsed_created, datetime.min.time())
 
     # Assigned agent by name (optional)
     if data.get("assigned_to"):

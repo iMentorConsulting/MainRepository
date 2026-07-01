@@ -6,7 +6,7 @@ import { ArrowPathIcon, EyeIcon, PlusIcon, TrashIcon } from '@heroicons/react/24
 import toast from 'react-hot-toast'
 
 const PROGRAMS = ['ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ', 'ΔΥΠΑ', 'ΕΣΠΑ', 'ΑΝΑΚΑΙΝΙΖΩ']
-const LOGICAL_FIELDS = ['name', 'phone', 'phone2', 'email', 'afm', 'service_type', 'total_amount', 'source', 'notes', 'assigned_to', 'next_call_date', 'status']
+const LOGICAL_FIELDS = ['name', 'phone', 'phone2', 'email', 'afm', 'service_type', 'total_amount', 'source', 'notes', 'assigned_to', 'next_call_date', 'status', 'created_date']
 
 function ConfigCard({ program, initial, onSaved }) {
   const [cfg, setCfg] = useState(initial || { program, spreadsheet_id: '', sheet_tab: '', header_row: 1, column_map: {}, program_field_map: {}, enabled: true, last_sync_at: null, last_row_num: 0 })
