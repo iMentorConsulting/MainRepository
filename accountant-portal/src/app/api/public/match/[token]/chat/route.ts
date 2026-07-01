@@ -73,6 +73,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       alreadyAssigned: Boolean(matchToken.caseCreatedId),
       isKickoff: Boolean(kickoff),
       tokensUsedSoFar: matchToken.tokenUsage,
+      contextSummary: matchToken.contextSummary ?? null,
+      consultant: matchToken.consultant ?? null,
     })
   } catch (err: any) {
     console.error('[ErmisChat] failed:', err?.message)

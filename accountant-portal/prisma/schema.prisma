@@ -201,6 +201,11 @@ model BusinessMatchToken {
   // to the right URL and tie results to the correct CM lead.
   leadRef           String?
   callbackUrl       String?
+  // Preformatted summary of already-known lead facts injected into Ερμής system
+  // prompt so it never re-asks what CM already collected (ΑΣΦ, ΤΕΙΡΕΣΙΑΣ, etc.)
+  contextSummary    String?
+  // Assigned consultant name from CM — shown to client when eligible.
+  consultant        String?
 
   @@unique([businessId, programId])
 }

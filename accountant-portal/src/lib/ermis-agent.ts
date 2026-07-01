@@ -51,7 +51,8 @@ function buildSystemPrompt(program: {
   pricingNote: string | null
   internalNotes: string | null
   ermisInstructions: string | null
-}, businessName: string, autoConfirmedReasons: string[], qualitativeQuestions: EligibilityQuestion[]) {
+}, businessName: string, autoConfirmedReasons: string[], qualitativeQuestions: EligibilityQuestion[],
+  contextSummary?: string | null, consultant?: string | null) {
   const isLoan = program.category === 'MICROCREDITS'
   const amountLabel = isLoan ? 'Ύψος δανείου' : 'Επένδυση'
   // Prefer the admin-curated/approved checklist (per-question wording overrides,
@@ -86,7 +87,10 @@ ${program.minInterestRate || program.maxInterestRate ? `Επιτόκιο: ${prog
 Λοιπές προϋποθέσεις/όροι (ρώτα ΜΙΑ-ΜΙΑ, σε φυσική γλώσσα, όχι σαν λίστα στον πελάτη):
 ${qualitativeChecklist}
 
-ΗΔΗ ΕΠΙΒΕΒΑΙΩΜΕΝΑ (ΜΗΝ τα ξαναρωτήσεις): ${autoConfirmedReasons.length ? autoConfirmedReasons.join('· ') : '(τίποτα ακόμη)'}
+${contextSummary ? `ΓΝΩΣΤΑ ΣΤΟΙΧΕΙΑ ΠΕΛΑΤΗ — ΕΙΝΑΙ ΗΔΗ ΕΠΙΒΕΒΑΙΩΜΕΝΑ, ΜΗΝ ΤΑ ΞΑΝΑΡΩΤΗΣΕΙΣ ΠΟΤΕ:
+${contextSummary}
+
+` : ''}ΗΔΗ ΕΠΙΒΕΒΑΙΩΜΕΝΑ ΑΠΟ ΑΥΤΟΜΑΤΗ ΑΝΤΙΣΤΟΙΧΙΣΗ (ΜΗΝ τα ξαναρωτήσεις): ${autoConfirmedReasons.length ? autoConfirmedReasons.join('· ') : '(τίποτα ακόμη)'}
 
 ΚΟΣΤΟΣ (ΕΣΩΤΕΡΙΚΗ ΠΛΗΡΟΦΟΡΙΑ, πες το ΜΟΝΟ αν ρωτηθείς ή όταν είναι φυσικό στο τέλος): ${program.pricingNote || 'Δεν υπάρχει σταθερή τιμή για αυτό το πρόγραμμα· πες ότι το κόστος εξαρτάται από την υπηρεσία και ότι ο σύμβουλος θα δώσει ακριβή προσφορά.'}
 ${program.internalNotes ? `\nΕΠΙΠΛΕΟΝ ΕΣΩΤΕΡΙΚΗ ΠΛΗΡΟΦΟΡΙΑ (πες την ΜΟΝΟ αν η επιχείρηση φαίνεται ΕΠΙΛΕΞΙΜΗ — ΠΟΤΕ αν δεν είναι, ή πριν ολοκληρωθεί ο έλεγχος επιλεξιμότητας): ${program.internalNotes}` : ''}
@@ -106,6 +110,10 @@ ${isLoan ? 'ΣΗΜΑΝΤΙΚΟ: Αυτό το πρόγραμμα είναι ΔΑ
 Μην επαναλαμβάνεις τη λέξη "επιλέξιμος/επιλέξιμη" μπροστά από κάθε κριτήριο όταν παραθέτεις τα "ήδη επιβεβαιωμένα" (π.χ. γράψε "ΚΑΔ: ..., Περιφέρεια: ..." όχι "Επιλέξιμος ΚΑΔ: ..., Επιλέξιμη περιφέρεια: ...") — η λέξη "επιλέξιμος" χρησιμοποιείται μόνο για το τελικό συμπέρασμα.
 
 Χρησιμοποίησε **διπλά αστερίσκια** γύρω από λέξεις/φράσεις που θέλεις να εμφανίζονται έντονα (bold) στον πελάτη — π.χ. αριθμούς, ΚΑΔ, ποσά, "επιλέξιμος"/"μη επιλέξιμος". Το frontend τα μετατρέπει αυτόματα σε έντονη γραφή.
+
+ΑΝΑΦΟΡΑ ΣΕ ΣΥΜΒΟΥΛΟ:
+- Αν η επιχείρηση είναι ΕΠΙΛΕΞΙΜΗ και ο πελάτης θέλει να προχωρήσει: αφού καλέσεις το εργαλείο assign_case, ενημέρωσε τον πελάτη ότι ${consultant ? `ο/η **${consultant}** από την I-MENTOR θα επικοινωνήσει σύντομα μαζί του/της` : '**ένας σύμβουλος της I-MENTOR** θα επικοινωνήσει σύντομα μαζί του/της'}.
+- Αν η επιχείρηση ΔΕΝ είναι επιλέξιμη: πες το ευθέως και ευγενικά — ΜΗΝ αναφέρεις σύμβουλο ή επικοινωνία, μην δημιουργείς εσφαλμένες προσδοκίες.
 
 Μην κάνεις ποτέ νομικές δεσμευτικές διαβεβαιώσεις — η τελική έγκριση είναι πάντα του φορέα διαχείρισης του προγράμματος.`
 }
@@ -212,6 +220,9 @@ export async function runErmisTurn(params: {
   // already knows + the first missing question) instead of waiting to be asked.
   isKickoff?: boolean
   tokensUsedSoFar: number
+  // CM-provided context: pre-known lead facts and assigned consultant name
+  contextSummary?: string | null
+  consultant?: string | null
 }): Promise<{ reply: string; caseId: string | null; tokensUsed: number; tokensUsedInput: number; tokensUsedOutput: number }> {
   const apiKey = process.env.ANTHROPIC_API_KEY
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY δεν έχει οριστεί στο περιβάλλον.')
@@ -227,7 +238,7 @@ export async function runErmisTurn(params: {
   }
 
   const anthropic = new Anthropic({ apiKey })
-  const system = buildSystemPrompt(params.program, params.businessName, params.autoConfirmedReasons, params.qualitativeQuestions || [])
+  const system = buildSystemPrompt(params.program, params.businessName, params.autoConfirmedReasons, params.qualitativeQuestions || [], params.contextSummary, params.consultant)
 
   const messages: Anthropic.MessageParam[] = params.isKickoff
     ? [{ role: 'user', content: 'Ξεκίνα εσύ τη συνομιλία.' }]
@@ -283,7 +294,7 @@ export async function runErmisTurn(params: {
     tokensUsedOutput += followUp.usage?.output_tokens || 0
     const text = followUp.content.find(b => b.type === 'text')
     return {
-      reply: text && text.type === 'text' ? text.text : 'Η υπόθεσή σας καταχωρήθηκε — ένας σύμβουλος της I-MENTOR θα επικοινωνήσει μαζί σας σύντομα.',
+      reply: text && text.type === 'text' ? text.text : `Η υπόθεσή σας καταχωρήθηκε — ${params.consultant ? `ο/η **${params.consultant}** από την I-MENTOR` : 'ένας σύμβουλος της I-MENTOR'} θα επικοινωνήσει μαζί σας σύντομα.`,
       caseId,
       tokensUsed: tokensUsedInput + tokensUsedOutput,
       tokensUsedInput,

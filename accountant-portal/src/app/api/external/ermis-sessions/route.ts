@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
   if (!checkApiKey(request)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await request.json()
-  const { leadRef, afm, program: programName, serviceType, callbackUrl, lead } = body
+  const { leadRef, afm, program: programName, serviceType, callbackUrl, consultant, contextSummary, lead } = body
 
   if (!afm || !programName) {
     return NextResponse.json({ error: 'afm and program are required' }, { status: 400 })
@@ -157,6 +157,8 @@ export async function POST(request: NextRequest) {
     update: {
       leadRef: leadRef ? String(leadRef) : null,
       callbackUrl: callbackUrl || null,
+      contextSummary: contextSummary || lead?.contextSummary || null,
+      consultant: consultant || lead?.consultant || null,
       expiresAt,
       // Reset conversation when CM sends a new lead for the same business+program
       chatLog: undefined,
@@ -172,6 +174,8 @@ export async function POST(request: NextRequest) {
       programId: dbProgram.id,
       leadRef: leadRef ? String(leadRef) : null,
       callbackUrl: callbackUrl || null,
+      contextSummary: contextSummary || lead?.contextSummary || null,
+      consultant: consultant || lead?.consultant || null,
       expiresAt,
     },
     select: { token: true },
