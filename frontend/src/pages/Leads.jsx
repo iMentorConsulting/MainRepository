@@ -259,6 +259,14 @@ function ExpandedRow({ lead, colSpan, onChanged, onConvert, onErmis, onSend }) {
           </div>
         )}
 
+        {/* ΕΡΜΗΣ error (session-create failed) */}
+        {full?.ermis_status === 'error' && full?.ermis_error && (
+          <div className="mb-3 flex items-start gap-2 text-sm bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+            <ExclamationTriangleIcon className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
+            <div className="text-red-700"><b>Σφάλμα ΕΡΜΗΣ:</b> {full.ermis_error}</div>
+          </div>
+        )}
+
         {/* AADE business profile + program matching (from LOGISTIS/ΕΡΜΗΣ) */}
         {full?.business && (
           <div className="mb-3 bg-white border rounded-lg p-3">
@@ -541,7 +549,7 @@ export default function Leads() {
                       {commentPreview ? <div className="text-xs text-gray-600 truncate" title={stripMarkup(commentPreview)}>{stripMarkup(commentPreview)}</div> : <span className="text-gray-300 text-xs">—</span>}
                     </td>
                     <td className="px-2 py-1.5">
-                      {lead.ermis_status ? <span className={`text-xs font-semibold rounded-full px-2 py-0.5 ${ERMIS_BADGE[lead.ermis_status] || 'bg-gray-100'}`}>{lead.ermis_status}</span> : <span className="text-gray-300 text-xs">—</span>}
+                      {lead.ermis_status ? <span className={`text-xs font-semibold rounded-full px-2 py-0.5 ${ERMIS_BADGE[lead.ermis_status] || 'bg-gray-100'}`} title={lead.ermis_status === 'error' ? (lead.ermis_error || 'Σφάλμα') : ''}>{lead.ermis_status}</span> : <span className="text-gray-300 text-xs">—</span>}
                     </td>
                     <td className="px-2 py-1.5">
                       <div className="flex items-center justify-end gap-1">

@@ -590,8 +590,9 @@ class CMLead(Base):
     # ΕΡΜΗΣ AI pre-screening
     ermis_token = Column(String(100), index=True)
     ermis_chat_url = Column(String(500))
-    ermis_status = Column(String(30))       # in_progress | eligible | ineligible
+    ermis_status = Column(String(30))       # starting | in_progress | eligible | ineligible | error
     ermis_transcript = Column(Text)         # JSON-encoded list of {role,text,ts}
+    ermis_error = Column(String(500))       # last failure reason (when ermis_status == error)
     ermis_started_at = Column(DateTime, nullable=True)
     ermis_completed_at = Column(DateTime, nullable=True)
 

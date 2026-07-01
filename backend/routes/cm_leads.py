@@ -83,6 +83,7 @@ def lead_to_dict(l: CMLead, include_comments: bool = False, last_comment: dict =
         "ermis_token": l.ermis_token,
         "ermis_chat_url": l.ermis_chat_url,
         "ermis_status": l.ermis_status,
+        "ermis_error": l.ermis_error,
         "ermis_transcript": transcript,
         "ermis_started_at": l.ermis_started_at.isoformat() if l.ermis_started_at else None,
         "ermis_completed_at": l.ermis_completed_at.isoformat() if l.ermis_completed_at else None,

@@ -121,26 +121,37 @@ def _process_ermis_session(lead_id: int, send_link: bool, channel: str, actor_na
         secret = _shared_secret()
         if not secret:
             log.error("ΕΡΜΗΣ: IMENTOR_PORTAL_API_KEY not set")
-            l.ermis_status = "error"; db.commit(); return
+            l.ermis_status = "error"; l.ermis_error = "IMENTOR_PORTAL_API_KEY δεν έχει ρυθμιστεί στο CM"; db.commit(); return
 
         try:
             resp = requests.post(ERMIS_SESSION_URL, json=_build_ermis_body(l),
                                  headers={"x-api-key": secret}, timeout=(6, 60))
-            resp.raise_for_status()
-            data = resp.json()
+        except requests.Timeout:
+            log.error("ΕΡΜΗΣ session create timed out")
+            l.ermis_status = "error"; l.ermis_error = f"Timeout προς LOGISTIS ({ERMIS_SESSION_URL})"; db.commit(); return
         except Exception as exc:
             log.exception("ΕΡΜΗΣ session create failed: %s", exc)
-            l.ermis_status = "error"; db.commit(); return
+            l.ermis_status = "error"; l.ermis_error = f"Σφάλμα σύνδεσης: {exc}"[:500]; db.commit(); return
+
+        if not resp.ok:
+            log.error("ΕΡΜΗΣ session create HTTP %s: %s", resp.status_code, resp.text[:300])
+            l.ermis_status = "error"; l.ermis_error = f"LOGISTIS HTTP {resp.status_code}: {resp.text[:300]}"[:500]; db.commit(); return
+
+        try:
+            data = resp.json()
+        except Exception:
+            l.ermis_status = "error"; l.ermis_error = f"Μη-JSON απάντηση LOGISTIS: {resp.text[:300]}"[:500]; db.commit(); return
 
         token = data.get("token")
         chat_url = data.get("chatUrl") or data.get("chat_url")
         if not token or not chat_url:
             log.error("ΕΡΜΗΣ invalid response (no token/chatUrl): %s", str(data)[:300])
-            l.ermis_status = "error"; db.commit(); return
+            l.ermis_status = "error"; l.ermis_error = f"Λείπει token/chatUrl στην απάντηση: {str(data)[:300]}"[:500]; db.commit(); return
 
         l.ermis_token = token
         l.ermis_chat_url = chat_url
         l.ermis_status = "in_progress"
+        l.ermis_error = None
         l.ermis_started_at = datetime.utcnow()
         db.commit()
 
