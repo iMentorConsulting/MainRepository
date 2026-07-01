@@ -234,7 +234,6 @@ function ExpandedRow({ lead, colSpan, onChanged, onConvert, onErmis, onSend }) {
           </button>
           <span className="text-sm text-gray-500">ΑΦΜ: <b className={full?.afm ? 'text-gray-700' : 'text-red-500'}>{full?.afm || '— (λείπει)'}</b></span>
           <span className="text-sm text-gray-500">Πρόγραμμα: <b className="text-gray-700">{full?.program || '—'}</b></span>
-          <span className="text-sm text-gray-500">Υπηρεσία: <b className="text-gray-700">{full?.service_type || '—'}</b></span>
           <span className="text-sm text-gray-500">Referrer: <b className="text-gray-700">{full?.source || '—'}</b></span>
           <button onClick={() => onErmis(lead)} className="flex items-center gap-1 text-sm bg-indigo-100 text-indigo-700 hover:bg-indigo-200 px-3 py-1.5 rounded-lg">
             <SparklesIcon className="w-4 h-4" />{full?.ermis_status ? 'Προβολή ΕΡΜΗΣ' : 'Έναρξη ΕΡΜΗΣ'}

@@ -44,6 +44,21 @@ ERMIS_SESSION_URL = os.getenv(
 # Public base of THIS app, used to build the webhook callback URL we hand LOGISTIS.
 SELF_BASE_URL = os.getenv("SELF_PUBLIC_BASE_URL", "https://consult.i-mentor.gr")
 
+# Grammatical gender of consultants → correct Greek article (Ο/Η)
+_FEMININE_CONSULTANTS = {"ELEFTHERIA", "STELLA", "VALLIA", "SOFIA", "ΕΛΕΥΘΕΡΙΑ", "ΣΤΕΛΛΑ", "ΒΑΛΙΑ", "ΒΑΛΛΙΑ", "ΣΟΦΙΑ"}
+_MASCULINE_CONSULTANTS = {"HARIS", "CHRISTOS", "ΧΑΡΗΣ", "ΧΡΗΣΤΟΣ"}
+
+
+def _consultant_article(name: Optional[str]) -> str:
+    if not name:
+        return "ο/η"
+    n = name.strip().upper()
+    if n in _FEMININE_CONSULTANTS:
+        return "η"
+    if n in _MASCULINE_CONSULTANTS:
+        return "ο"
+    return "ο/η"
+
 
 class ErmisStartIn(BaseModel):
     send_link: Optional[bool] = True
@@ -67,17 +82,30 @@ def _build_ermis_body(l: CMLead) -> dict:
     if l.phone: summary_lines.append(f"- Τηλέφωνο: {l.phone}")
     if l.email: summary_lines.append(f"- Email: {l.email}")
     if l.program: summary_lines.append(f"- Πρόγραμμα ενδιαφέροντος: {l.program}")
-    if l.service_type: summary_lines.append(f"- Υπηρεσία: {l.service_type}")
     if l.total_amount: summary_lines.append(f"- Ποσό: {l.total_amount}")
-    if l.source: summary_lines.append(f"- Πηγή: {l.source}")
+    if l.source: summary_lines.append(f"- Referrer / Πηγή: {l.source}")
     if l.notes: summary_lines.append(f"- Σχόλια φόρμας: {l.notes}")
     for k, v in extra_fields.items():
         if v not in (None, ""):
             summary_lines.append(f"- {k}: {v}")
+
+    # In-app consultant comments — ΕΡΜΗΣ should read and use these in the conversation.
+    comments = sorted(l.comments, key=lambda c: c.created_at or datetime.min)
+    comment_list = [
+        {"author": c.author_name, "text": c.content,
+         "ts": c.created_at.isoformat() if c.created_at else None}
+        for c in comments if (c.content or "").strip()
+    ]
+    if comment_list:
+        summary_lines.append("ΣΧΟΛΙΑ ΣΥΜΒΟΥΛΩΝ (λάβε τα υπόψη στη συζήτηση):")
+        for c in comment_list:
+            summary_lines.append(f"  • {c['author'] or 'σύμβουλος'}: {c['text']}")
+
     if l.assigned_name:
+        art = _consultant_article(l.assigned_name)
         summary_lines.append(
             f"- Υπεύθυνος σύμβουλος: {l.assigned_name} "
-            f"(ενημέρωσε τον πελάτη ότι ο/η {l.assigned_name} θα επικοινωνήσει μαζί του σύντομα)."
+            f"(ενημέρωσε τον πελάτη ότι {art} {l.assigned_name} θα επικοινωνήσει μαζί του σύντομα)."
         )
     context_summary = "\n".join(summary_lines)
 
@@ -101,9 +129,10 @@ def _build_ermis_body(l: CMLead) -> dict:
             "totalAmount": l.total_amount,
             "status": l.status,
             "consultant": l.assigned_name,
-            "source": l.source,
+            "source": l.source,          # Referrer
             "notes": l.notes,
             "extraFields": extra_fields,
+            "comments": comment_list,    # consultant comments for ΕΡΜΗΣ to use
             "contextSummary": context_summary,
         },
     }
@@ -159,7 +188,8 @@ def _process_ermis_session(lead_id: int, send_link: bool, channel: str, actor_na
             name = l.name or "συνεργάτη"
             prog = l.program or "την υπηρεσία που σας ενδιαφέρει"
             prog_label = f"«{l.program}»" if l.program else "που σας ενδιαφέρει"
-            consultant_line = (f"📞 Ο/Η {l.assigned_name} από την i-Mentor θα επικοινωνήσει σύντομα μαζί σας.\n"
+            _art = _consultant_article(l.assigned_name).capitalize()  # Ο / Η / Ο/Η
+            consultant_line = (f"📞 {_art} {l.assigned_name} από την i-Mentor θα επικοινωνήσει σύντομα μαζί σας.\n"
                                if l.assigned_name else "")
 
             # ── Viber (emoji + Unicode dividers; Viber ignores markdown bold) ──
@@ -179,7 +209,7 @@ def _process_ermis_session(lead_id: int, send_link: bool, channel: str, actor_na
             # ── Email (rich HTML: bold, dividers, icons, CTA button) ──
             email_subject = f"i-Mentor Consulting — Προαξιολόγηση για {prog_label} με τον ΕΡΜΗ"
             consultant_html = (
-                f'<p style="margin:0 0 10px;color:#374151;">📞 Ο/Η <b>{l.assigned_name}</b> '
+                f'<p style="margin:0 0 10px;color:#374151;">📞 {_art} <b>{l.assigned_name}</b> '
                 f'από την i-Mentor θα επικοινωνήσει σύντομα μαζί σας.</p>' if l.assigned_name else ""
             )
             email_html = f"""<html><body style="margin:0;background:#f3f4f6;padding:24px;font-family:Arial,Helvetica,sans-serif;color:#1f2937;">
