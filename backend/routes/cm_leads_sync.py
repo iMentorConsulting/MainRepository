@@ -119,22 +119,30 @@ def _read_config_rows(cfg: CMLeadSheetConfig) -> List[List[str]]:
     return result.get("values", [])
 
 
-def _map_row(row: List[str], cfg: CMLeadSheetConfig, header: List[str], db: Session) -> dict:
+def _trunc(val, n):
+    if val is None:
+        return None
+    s = str(val)
+    return s[:n] if len(s) > n else s
+
+
+def _map_row(row: List[str], cfg: CMLeadSheetConfig, header: List[str], users: list) -> dict:
     cmap = cfg.column_map or {}
     data = {}
     for field in LOGICAL_FIELDS:
         if field in cmap:
             data[field] = _cell(row, _resolve_index(cmap[field], header))
 
+    # Guard against values longer than the DB column limits (VARCHAR sizes).
     lead_kwargs = {
-        "name": data.get("name") or None,
-        "phone": data.get("phone") or None,
-        "phone2": data.get("phone2") or None,
-        "email": data.get("email") or None,
-        "afm": data.get("afm") or None,
-        "service_type": data.get("service_type") or None,
-        "source": data.get("source") or None,
-        "notes": data.get("notes") or None,
+        "name": _trunc(data.get("name") or None, 200),
+        "phone": _trunc(data.get("phone") or None, 50),
+        "phone2": _trunc(data.get("phone2") or None, 50),
+        "email": _trunc(data.get("email") or None, 200),
+        "afm": _trunc(data.get("afm") or None, 20),
+        "service_type": _trunc(data.get("service_type") or None, 150),
+        "source": _trunc(data.get("source") or None, 200),
+        "notes": data.get("notes") or None,  # TEXT, no limit
         "total_amount": _parse_float(data.get("total_amount")) if data.get("total_amount") else 0,
         "next_call_date": _parse_date(data.get("next_call_date")) if data.get("next_call_date") else None,
         # Starting status read from the sheet (normalized), default NEW LEAD
@@ -147,10 +155,9 @@ def _map_row(row: List[str], cfg: CMLeadSheetConfig, header: List[str], db: Sess
         if parsed_created:
             lead_kwargs["created_at"] = datetime.combine(parsed_created, datetime.min.time())
 
-    # Assigned agent by name (optional)
-    if data.get("assigned_to"):
+    # Assigned agent by name (optional); users preloaded once by the caller
+    if data.get("assigned_to") and users:
         try:
-            users = db.query(CMUser).all()
             lead_kwargs["assigned_agent_id"] = _match_agent_id(data["assigned_to"], users)
         except Exception:
             pass
@@ -191,10 +198,19 @@ def _sync_config(db: Session, cfg: CMLeadSheetConfig, dry_run: bool = False) -> 
     header = rows[header_row - 1] if len(rows) >= header_row else []
     diag["total_rows"] = len(rows)
 
+    # Preload once (avoid per-row queries): existing refs for this config + all users.
+    existing_refs = {
+        r[0] for r in db.query(CMLead.sheet_import_ref)
+        .filter(CMLead.sheet_config_id == cfg.id).all() if r[0]
+    }
+    users = db.query(CMUser).all()
+
     imported = 0
+    errors_skipped = 0
     new_preview = []
     max_row = cfg.last_row_num or 0
     watermark = cfg.last_row_num or header_row
+    BATCH = 500
 
     for i, row in enumerate(rows):
         row_num = i + 1  # 1-based
@@ -208,28 +224,35 @@ def _sync_config(db: Session, cfg: CMLeadSheetConfig, dry_run: bool = False) -> 
             continue
 
         ref = f"{cfg.spreadsheet_id}:{row_num}"
-        existing = db.query(CMLead).filter(CMLead.sheet_import_ref == ref).first()
-        if existing:
+        if ref in existing_refs:
             diag["already_imported"] += 1
             max_row = max(max_row, row_num)
             continue
 
-        kwargs = _map_row(row, cfg, header, db)
+        try:
+            kwargs = _map_row(row, cfg, header, users)
+        except Exception:
+            errors_skipped += 1
+            continue
         status = kwargs.pop("status", None) or "NEW LEAD"
         if dry_run:
             new_preview.append({"row_num": row_num, "status": status,
                                 **{k: v for k, v in kwargs.items() if k != "program_fields"}})
         else:
-            lead = CMLead(
+            db.add(CMLead(
                 program=cfg.program,
                 status=status,
                 sheet_config_id=cfg.id,
                 sheet_row_num=row_num,
                 sheet_import_ref=ref,
                 **kwargs,
-            )
-            db.add(lead)
+            ))
             imported += 1
+            existing_refs.add(ref)
+            if imported % BATCH == 0:
+                cfg.last_row_num = max(max_row, row_num)
+                cfg.last_sync_at = datetime.utcnow()
+                db.commit()
         max_row = max(max_row, row_num)
 
     if not dry_run:
@@ -238,6 +261,7 @@ def _sync_config(db: Session, cfg: CMLeadSheetConfig, dry_run: bool = False) -> 
         db.commit()
 
     diag.update({"imported": imported, "scanned_to_row": max_row,
+                 "errors_skipped": errors_skipped,
                  "preview": new_preview if dry_run else None})
     return diag
 

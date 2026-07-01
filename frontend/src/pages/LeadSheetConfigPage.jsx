@@ -47,8 +47,19 @@ function ConfigCard({ program, initial, onSaved }) {
   const doRun = async () => {
     if (!confirm(`Εισαγωγή νέων leads από το sheet του ${program};`)) return
     setBusy(true)
-    try { const res = await runLeadSyncProgram(program); toast.success(`Εισήχθησαν ${res.imported} leads`); onSaved?.() }
-    catch (e) { toast.error(e.response?.data?.detail || 'Σφάλμα sync') } finally { setBusy(false) }
+    try {
+      const res = await runLeadSyncProgram(program)
+      const pp = res.per_program?.[0]
+      if (res.note) { toast.error(res.note); return }
+      if (pp?.error) { toast.error(pp.error); return }
+      const skipped = pp?.errors_skipped ? ` (${pp.errors_skipped} με σφάλμα παραλείφθηκαν)` : ''
+      toast.success(`Εισήχθησαν ${res.imported} leads${skipped}`)
+      onSaved?.()
+    }
+    catch (e) {
+      const msg = e.code === 'ECONNABORTED' ? 'Λήξη χρόνου — δοκιμάστε ξανά (η εισαγωγή ίσως συνεχίζεται στον server)' : (e.response?.data?.detail || 'Σφάλμα sync')
+      toast.error(msg)
+    } finally { setBusy(false) }
   }
 
   return (
