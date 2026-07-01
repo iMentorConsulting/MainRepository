@@ -60,6 +60,12 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   const stage = payment.category.includes('ΥΛΟΠΟΙΗΣΗ') ? 'IMPLEMENTATION' : 'APPLICATION'
   const policy = await findApplicablePolicy(payment.serviceName, stage)
 
+  if (!policy) {
+    return NextResponse.json({
+      error: `Δεν βρέθηκε πολιτική προμηθειών για την υπηρεσία "${payment.serviceName}" (${stage === 'APPLICATION' ? 'ΑΙΤΗΣΗ' : 'ΥΛΟΠΟΙΗΣΗ'}). Ορίστε πρώτα πολιτική στις Πολιτικές Προμηθειών.`,
+    }, { status: 422 })
+  }
+
   let commissionAmount = 0
   let commissionRate: number | null = null
   if (policy) {

@@ -207,7 +207,9 @@ export default function FinancePaymentsPage() {
                       {p.commission ? (
                         <span className="text-emerald-700 font-medium">{formatEur(p.commission.commissionAmount)}</span>
                       ) : p.commissionPreview ? (
-                        <span className="text-gray-600">{formatEur(p.commissionPreview.commissionAmount)} <span className="text-gray-400">(προεπισκόπηση)</span></span>
+                        <span className="text-gray-600">{formatEur(p.commissionPreview.commissionAmount)} <span className="text-gray-400">(εκτίμηση)</span></span>
+                      ) : p.business?.accountantId ? (
+                        <span className="text-amber-600 font-medium" title="Δεν υπάρχει πολιτική προμηθειών για αυτή την υπηρεσία/στάδιο">⚠ Χωρίς πολιτική</span>
                       ) : (
                         <span className="text-gray-400">—</span>
                       )}
@@ -222,9 +224,9 @@ export default function FinancePaymentsPage() {
                       {p.status === 'PENDING' && (
                         <div className="flex items-center gap-1">
                           <button
-                            disabled={busyId === p.id || !p.business?.accountantId}
+                            disabled={busyId === p.id || !p.business?.accountantId || !p.commissionPreview}
                             onClick={() => act(p.id, 'approve')}
-                            title={!p.business?.accountantId ? 'Χρειάζεται επιχείρηση με λογιστή' : 'Έγκριση'}
+                            title={!p.business?.accountantId ? 'Χρειάζεται επιχείρηση με λογιστή' : !p.commissionPreview ? 'Χρειάζεται πολιτική προμηθειών' : 'Έγκριση'}
                             className="p-1.5 rounded-lg text-emerald-600 hover:bg-emerald-50 disabled:opacity-30 transition-colors"
                           >
                             <Check size={16} />

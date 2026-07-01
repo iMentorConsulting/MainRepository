@@ -572,7 +572,7 @@ export default function CommissionsPage() {
                       <div className="text-xs text-gray-400">{c.business?.afm}</div>
                     </Td>
                     <Td className="text-sm text-gray-600">
-                      {c.paymentRequest?.service?.name || '—'}
+                      {c.paymentRequest?.service?.name || c.financePayment?.serviceName || '—'}
                     </Td>
                     <Td>
                       <Badge variant={c.stage === 'APPLICATION' ? 'info' : 'secondary'}>
@@ -619,6 +619,19 @@ export default function CommissionsPage() {
                             title="Έγκριση"
                           >
                             <Check size={14} />
+                          </button>
+                        )}
+                        {isAdmin && c.status === 'CANCELLED' && (
+                          <button
+                            onClick={async () => {
+                              if (!confirm('Οριστική διαγραφή αυτής της ακυρωμένης προμήθειας;')) return
+                              await fetch(`/api/commissions/${c.id}`, { method: 'DELETE' })
+                              load()
+                            }}
+                            className="p-1.5 rounded hover:bg-red-50 text-red-500"
+                            title="Διαγραφή (μόνο ακυρωμένες)"
+                          >
+                            <XCircle size={14} />
                           </button>
                         )}
                         {isAdmin && c.status === 'APPROVED' && (

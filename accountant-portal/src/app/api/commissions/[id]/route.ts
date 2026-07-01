@@ -31,6 +31,20 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   return NextResponse.json(commission)
 }
 
+export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
+  const session = await auth()
+  if (!session || session.user.role !== 'ADMIN') {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+  const commission = await prisma.commission.findUnique({ where: { id: params.id } })
+  if (!commission) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  if (commission.status !== 'CANCELLED') {
+    return NextResponse.json({ error: 'Μόνο ακυρωμένες προμήθειες μπορούν να διαγραφούν' }, { status: 400 })
+  }
+  await prisma.commission.delete({ where: { id: params.id } })
+  return NextResponse.json({ ok: true })
+}
+
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
   const session = await auth()
   if (!session || session.user.role !== 'ADMIN') {
