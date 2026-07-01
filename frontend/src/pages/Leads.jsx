@@ -26,7 +26,7 @@ const STATUS_ROW = {
   'NEW LEAD': 'bg-yellow-50/40', 'CALL': 'bg-blue-50/40', 'HOT': 'bg-red-50/40',
   'ACTIVE': 'bg-amber-50/30', 'DEAL': 'bg-green-50/40', 'CANCEL': 'bg-gray-50/60',
 }
-const ERMIS_BADGE = { in_progress: 'bg-indigo-100 text-indigo-700', eligible: 'bg-green-100 text-green-700', ineligible: 'bg-gray-100 text-gray-500' }
+const ERMIS_BADGE = { starting: 'bg-amber-100 text-amber-700', in_progress: 'bg-indigo-100 text-indigo-700', eligible: 'bg-green-100 text-green-700', ineligible: 'bg-gray-100 text-gray-500', error: 'bg-red-100 text-red-700' }
 const REMINDERS = [
   { key: 'overdue', label: 'Ληξιπρόθεσμα', dot: 'bg-red-500' },
   { key: 'today', label: 'Σήμερα', dot: 'bg-yellow-400' },
@@ -410,10 +410,11 @@ export default function Leads() {
     const tid = toast.loading('Έναρξη ΕΡΜΗΣ…')
     try {
       await startLeadErmis(lead.id, { send_link: true, channel: 'both' })
-      toast.success('Η συνεδρία ΕΡΜΗΣ ξεκίνησε — στάλθηκε Viber & Email', { id: tid })
-      load()
+      toast.success('Η έναρξη ΕΡΜΗΣ ξεκίνησε — το link θα σταλεί σε λίγο (Viber & Email)', { id: tid })
+      // Give the background worker a moment, then refresh to show updated status
+      setTimeout(load, 4000)
     } catch (e) {
-      const msg = e.code === 'ECONNABORTED' ? 'Λήξη χρόνου — ο ΕΡΜΗΣ αργεί, δοκιμάστε ξανά' : (e.response?.data?.detail || 'Σφάλμα ΕΡΜΗΣ')
+      const msg = e.code === 'ECONNABORTED' ? 'Λήξη χρόνου — δοκιμάστε ξανά' : (e.response?.data?.detail || 'Σφάλμα ΕΡΜΗΣ')
       toast.error(msg, { id: tid })
     }
   }

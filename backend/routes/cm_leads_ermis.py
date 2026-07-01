@@ -19,6 +19,7 @@ Contract (LOGISTIS dev implements their side):
 import os
 import json
 import logging
+import threading
 from datetime import datetime
 from typing import Optional, List
 
@@ -28,7 +29,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from auth_cases import get_current_user, CMUser
-from database import get_db
+from database import get_db, SessionLocal
 from models_cases import CMLead, CMLeadNotificationLog
 from routes.cm_portal_integration import _shared_secret, _verify_portal_key, _upsert_business_profile
 from routes.cm_notifications import _send_viber, _send_email
@@ -49,21 +50,7 @@ class ErmisStartIn(BaseModel):
     channel: Optional[str] = "both"  # viber | email | both | none
 
 
-@router.post("/{lead_id}/ermis/start")
-def start_ermis(
-    lead_id: int,
-    req: ErmisStartIn,
-    current_user: CMUser = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    l = db.query(CMLead).filter(CMLead.id == lead_id).first()
-    if not l:
-        raise HTTPException(status_code=404, detail="Το lead δεν βρέθηκε")
-
-    secret = _shared_secret()
-    if not secret:
-        raise HTTPException(status_code=500, detail="IMENTOR_PORTAL_API_KEY δεν έχει ρυθμιστεί")
-
+def _build_ermis_body(l: CMLead) -> dict:
     # Flatten program-specific fields to {label: value} for easy prompt injection
     extra_fields = {}
     for k, v in (l.program_fields or {}).items():
@@ -94,9 +81,7 @@ def start_ermis(
         )
     context_summary = "\n".join(summary_lines)
 
-    # Full lead context so ΕΡΜΗΣ can use it in the conversation; `program`/
-    # `serviceType` let LOGISTIS pick the right ΕΡΜΗΣ profile (prompt + knowledge).
-    body = {
+    return {
         "leadRef": str(l.id),
         "afm": l.afm,                     # VAT → LOGISTIS runs the ΑΑΔΕ lookup + program matching
         "program": l.program,
@@ -122,70 +107,106 @@ def start_ermis(
             "contextSummary": context_summary,
         },
     }
+
+
+def _process_ermis_session(lead_id: int, send_link: bool, channel: str, actor_name: str):
+    """Runs in a background thread (own DB session): call LOGISTIS, store the
+    token/chatUrl, and send the client the link. Kept off the request path so a
+    slow LOGISTIS never causes a gateway timeout / Cloudflare 520."""
+    db = SessionLocal()
     try:
-        # (connect, read) — allow LOGISTIS a bit of time but fail cleanly rather
-        # than let the request hang until an upstream gateway (Cloudflare) 520s.
-        resp = requests.post(ERMIS_SESSION_URL, json=body, headers={"x-api-key": secret}, timeout=(6, 30))
-    except requests.Timeout:
-        raise HTTPException(status_code=504, detail="Ο ΕΡΜΗΣ (LOGISTIS) αργεί να απαντήσει. Δοκιμάστε ξανά σε λίγο.")
-    except Exception as exc:
-        raise HTTPException(status_code=502, detail=f"Σφάλμα επικοινωνίας με ΕΡΜΗΣ (LOGISTIS): {exc}")
-    if not resp.ok:
-        log.error("ΕΡΜΗΣ session create failed %s: %s", resp.status_code, resp.text[:300])
-        raise HTTPException(status_code=502, detail=f"ΕΡΜΗΣ HTTP {resp.status_code}: {resp.text[:300]}")
+        l = db.query(CMLead).filter(CMLead.id == lead_id).first()
+        if not l:
+            return
+        secret = _shared_secret()
+        if not secret:
+            log.error("ΕΡΜΗΣ: IMENTOR_PORTAL_API_KEY not set")
+            l.ermis_status = "error"; db.commit(); return
 
-    data = resp.json()
-    token = data.get("token")
-    chat_url = data.get("chatUrl") or data.get("chat_url")
-    if not token or not chat_url:
-        raise HTTPException(status_code=502, detail="Μη έγκυρη απάντηση ΕΡΜΗΣ (χωρίς token/chatUrl)")
+        try:
+            resp = requests.post(ERMIS_SESSION_URL, json=_build_ermis_body(l),
+                                 headers={"x-api-key": secret}, timeout=(6, 60))
+            resp.raise_for_status()
+            data = resp.json()
+        except Exception as exc:
+            log.exception("ΕΡΜΗΣ session create failed: %s", exc)
+            l.ermis_status = "error"; db.commit(); return
 
-    l.ermis_token = token
-    l.ermis_chat_url = chat_url
-    l.ermis_status = "in_progress"
+        token = data.get("token")
+        chat_url = data.get("chatUrl") or data.get("chat_url")
+        if not token or not chat_url:
+            log.error("ΕΡΜΗΣ invalid response (no token/chatUrl): %s", str(data)[:300])
+            l.ermis_status = "error"; db.commit(); return
+
+        l.ermis_token = token
+        l.ermis_chat_url = chat_url
+        l.ermis_status = "in_progress"
+        l.ermis_started_at = datetime.utcnow()
+        db.commit()
+
+        if send_link and (channel or "both") != "none":
+            greeting = f"Καλησπέρα {l.name}," if l.name else "Καλησπέρα,"
+            viber_msg = (
+                f"{greeting}\n\n"
+                "λάβαμε τη φόρμα ενδιαφέροντος που συμπληρώσατε προς την i-Mentor Consulting. "
+                "Μπορούμε να κάνουμε άμεσα μια σύντομη & δωρεάν προαξιολόγηση και ενημέρωση για το "
+                "πρόγραμμα που σας ενδιαφέρει, μέσω του ψηφιακού μας βοηθού «ΕΡΜΗΣ».\n\n"
+                f"Ξεκινήστε εδώ (2 λεπτά): {chat_url}\n\n"
+                "i-Mentor Consulting"
+            )
+            email_subject = "i-Mentor Consulting — Γρήγορη προαξιολόγηση με τον βοηθό ΕΡΜΗ"
+            email_msg = (
+                f"{greeting}\n\n"
+                "Λάβαμε τη φόρμα ενδιαφέροντος που συμπληρώσατε προς την i-Mentor Consulting. "
+                "Ο ψηφιακός μας βοηθός «ΕΡΜΗΣ» μπορεί να σας κάνει άμεσα μια σύντομη και δωρεάν "
+                "προαξιολόγηση για το πρόγραμμα που σας ενδιαφέρει και να σας ενημερώσει για τα επόμενα βήματα.\n\n"
+                f"Πατήστε εδώ για να ξεκινήσετε (διαρκεί περίπου 2 λεπτά):\n{chat_url}\n\n"
+                "Με εκτίμηση,\ni-Mentor Consulting"
+            )
+            ch = channel or "both"
+            if ch in ("viber", "both") and l.phone:
+                ok, err = _send_viber(l.phone, viber_msg, l.name or "", actor_name, l.service_type or "")
+                db.add(CMLeadNotificationLog(lead_id=l.id, notification_type="ermis_link",
+                                             recipient_name=l.name or "", recipient_contact=l.phone,
+                                             subject="ΕΡΜΗΣ link", content=viber_msg,
+                                             status="sent" if ok else "failed", sent_by=actor_name))
+            if ch in ("email", "both") and l.email:
+                ok, err = _send_email(l.email, email_subject, email_msg)
+                db.add(CMLeadNotificationLog(lead_id=l.id, notification_type="ermis_link",
+                                             recipient_name=l.name or "", recipient_contact=l.email,
+                                             subject=email_subject, content=email_msg,
+                                             status="sent" if ok else "failed", sent_by=actor_name))
+            db.commit()
+    finally:
+        db.close()
+
+
+@router.post("/{lead_id}/ermis/start")
+def start_ermis(
+    lead_id: int,
+    req: ErmisStartIn,
+    current_user: CMUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    l = db.query(CMLead).filter(CMLead.id == lead_id).first()
+    if not l:
+        raise HTTPException(status_code=404, detail="Το lead δεν βρέθηκε")
+    if not _shared_secret():
+        raise HTTPException(status_code=500, detail="IMENTOR_PORTAL_API_KEY δεν έχει ρυθμιστεί")
+
+    # Mark as starting and return immediately; the LOGISTIS call + link send run in
+    # a background thread so the web request never blocks on a slow upstream.
+    l.ermis_status = "starting"
     l.ermis_started_at = datetime.utcnow()
     db.commit()
 
-    sent = []
-    if req.send_link and (req.channel or "both") != "none":
-        greeting = f"Καλησπέρα {l.name}," if l.name else "Καλησπέρα,"
-        # Explains WHERE we got their details and WHAT the link does.
-        viber_msg = (
-            f"{greeting}\n\n"
-            "λάβαμε τη φόρμα ενδιαφέροντος που συμπληρώσατε προς την i-Mentor Consulting. "
-            "Μπορούμε να κάνουμε άμεσα μια σύντομη & δωρεάν προαξιολόγηση και ενημέρωση για το "
-            "πρόγραμμα που σας ενδιαφέρει, μέσω του ψηφιακού μας βοηθού «ΕΡΜΗΣ».\n\n"
-            f"Ξεκινήστε εδώ (2 λεπτά): {chat_url}\n\n"
-            "i-Mentor Consulting"
-        )
-        email_subject = "i-Mentor Consulting — Γρήγορη προαξιολόγηση με τον βοηθό ΕΡΜΗ"
-        email_msg = (
-            f"{greeting}\n\n"
-            "Λάβαμε τη φόρμα ενδιαφέροντος που συμπληρώσατε προς την i-Mentor Consulting. "
-            "Ο ψηφιακός μας βοηθός «ΕΡΜΗΣ» μπορεί να σας κάνει άμεσα μια σύντομη και δωρεάν "
-            "προαξιολόγηση για το πρόγραμμα που σας ενδιαφέρει και να σας ενημερώσει για τα επόμενα βήματα.\n\n"
-            f"Πατήστε εδώ για να ξεκινήσετε (διαρκεί περίπου 2 λεπτά):\n{chat_url}\n\n"
-            "Με εκτίμηση,\ni-Mentor Consulting"
-        )
-        # Default to BOTH channels when available
-        channel = req.channel or "both"
-        if channel in ("viber", "both") and l.phone:
-            ok, err = _send_viber(l.phone, viber_msg, l.name or "", current_user.full_name, l.service_type or "")
-            db.add(CMLeadNotificationLog(lead_id=l.id, notification_type="ermis_link",
-                                         recipient_name=l.name or "", recipient_contact=l.phone,
-                                         subject="ΕΡΜΗΣ link", content=viber_msg,
-                                         status="sent" if ok else "failed", sent_by=current_user.full_name))
-            sent.append({"channel": "viber", "status": "sent" if ok else "failed", "error": err if not ok else None})
-        if channel in ("email", "both") and l.email:
-            ok, err = _send_email(l.email, email_subject, email_msg)
-            db.add(CMLeadNotificationLog(lead_id=l.id, notification_type="ermis_link",
-                                         recipient_name=l.name or "", recipient_contact=l.email,
-                                         subject=email_subject, content=email_msg,
-                                         status="sent" if ok else "failed", sent_by=current_user.full_name))
-            sent.append({"channel": "email", "status": "sent" if ok else "failed", "error": err if not ok else None})
-        db.commit()
+    threading.Thread(
+        target=_process_ermis_session,
+        args=(l.id, bool(req.send_link), req.channel or "both", current_user.full_name),
+        daemon=True,
+    ).start()
 
-    return {"ok": True, "token": token, "chat_url": chat_url, "sent": sent}
+    return {"ok": True, "status": "starting"}
 
 
 @router.get("/{lead_id}/ermis/transcript")
