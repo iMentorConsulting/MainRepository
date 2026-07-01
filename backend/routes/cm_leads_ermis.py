@@ -41,7 +41,7 @@ ERMIS_SESSION_URL = os.getenv(
     "LOGISTIS_ERMIS_SESSION_URL", "https://logistis.i-mentor.gr/api/external/ermis-sessions"
 )
 # Public base of THIS app, used to build the webhook callback URL we hand LOGISTIS.
-SELF_BASE_URL = os.getenv("SELF_PUBLIC_BASE_URL", "https://case.i-mentor.gr")
+SELF_BASE_URL = os.getenv("SELF_PUBLIC_BASE_URL", "https://consult.i-mentor.gr")
 
 
 class ErmisStartIn(BaseModel):
