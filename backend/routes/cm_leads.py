@@ -323,7 +323,16 @@ def get_lead(
     l = db.query(CMLead).filter(CMLead.id == lead_id).first()
     if not l:
         raise HTTPException(status_code=404, detail="Το lead δεν βρέθηκε")
-    return lead_to_dict(l, include_comments=True)
+    data = lead_to_dict(l, include_comments=True)
+    # Attach the cached AADE business profile + program matching (by AFM)
+    data["business"] = None
+    if l.afm:
+        from models_cases import CMBusinessProfile
+        from routes.cm_portal_integration import _business_profile_to_dict
+        b = db.query(CMBusinessProfile).filter(CMBusinessProfile.afm == l.afm.strip()).first()
+        if b:
+            data["business"] = _business_profile_to_dict(b)
+    return data
 
 
 @router.post("/")

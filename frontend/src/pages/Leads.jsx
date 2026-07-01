@@ -258,6 +258,57 @@ function ExpandedRow({ lead, colSpan, onChanged, onConvert, onErmis, onSend }) {
           </div>
         )}
 
+        {/* AADE business profile + program matching (from LOGISTIS/ΕΡΜΗΣ) */}
+        {full?.business && (
+          <div className="mb-3 bg-white border rounded-lg p-3">
+            <div className="text-sm font-semibold text-gray-700 mb-1">Επιχείρηση (ΑΑΔΕ) — ΑΦΜ {full.business.afm}</div>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-1 text-xs text-gray-600">
+              {full.business.onomasia && <div><span className="text-gray-400">Επωνυμία:</span> {full.business.onomasia}</div>}
+              {full.business.regdate && <div><span className="text-gray-400">Ημ. έναρξης:</span> {full.business.regdate}</div>}
+              {full.business.legalStatusDescr && <div><span className="text-gray-400">Μορφή:</span> {full.business.legalStatusDescr}</div>}
+              {(full.business.postalAddress || full.business.postalAreaDescription) && (
+                <div className="col-span-2 md:col-span-3"><span className="text-gray-400">Έδρα:</span> {[full.business.postalAddress, full.business.postalAddressNo, full.business.postalZipCode, full.business.postalAreaDescription].filter(Boolean).join(' ')}</div>
+              )}
+            </div>
+            {full.business.activities?.length > 0 && (
+              <div className="mt-2">
+                <div className="text-xs text-gray-400 mb-0.5">ΚΑΔ:</div>
+                <div className="flex flex-wrap gap-1">
+                  {full.business.activities.map((a, i) => (
+                    <span key={i} className="text-xs bg-gray-100 rounded px-2 py-0.5" title={a.firmActDescr}>{a.firmActCode} {a.firmActKind ? `(${a.firmActKind})` : ''}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+            {full.business.matchedPrograms?.length > 0 && (
+              <div className="mt-2">
+                <div className="text-xs text-gray-400 mb-0.5">Ταιριάζοντα προγράμματα:</div>
+                <div className="flex flex-wrap gap-1">
+                  {full.business.matchedPrograms.map((mp, i) => (
+                    <span key={i} className="text-xs bg-green-100 text-green-700 rounded-full px-2 py-0.5">{mp.title}{mp.status ? ` · ${mp.status}` : ''}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ΕΡΜΗΣ transcript */}
+        {full?.ermis_transcript && (
+          <details className="mb-3 bg-indigo-50/40 border border-indigo-100 rounded-lg p-3">
+            <summary className="text-sm font-semibold text-indigo-700 cursor-pointer flex items-center gap-1"><SparklesIcon className="w-4 h-4" />Συνομιλία ΕΡΜΗΣ {full.ermis_status ? `(${full.ermis_status})` : ''}</summary>
+            <div className="mt-2 space-y-1 max-h-72 overflow-y-auto">
+              {typeof full.ermis_transcript === 'string'
+                ? <div className="text-sm whitespace-pre-wrap text-gray-700">{full.ermis_transcript}</div>
+                : full.ermis_transcript.map((msg, i) => (
+                  <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                    <div className={`max-w-[80%] rounded-2xl px-3 py-1.5 text-sm ${msg.role === 'user' ? 'bg-blue-500 text-white' : 'bg-white border text-gray-800'}`}>{msg.text || msg.content}</div>
+                  </div>
+                ))}
+            </div>
+          </details>
+        )}
+
         {/* Program-specific fields */}
         {pf && (
           <div className="flex flex-wrap gap-2 mb-3">

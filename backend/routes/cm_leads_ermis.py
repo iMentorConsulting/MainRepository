@@ -30,7 +30,7 @@ from sqlalchemy.orm import Session
 from auth_cases import get_current_user, CMUser
 from database import get_db
 from models_cases import CMLead, CMLeadNotificationLog
-from routes.cm_portal_integration import _shared_secret, _verify_portal_key
+from routes.cm_portal_integration import _shared_secret, _verify_portal_key, _upsert_business_profile
 from routes.cm_notifications import _send_viber, _send_email
 
 log = logging.getLogger(__name__)
@@ -76,6 +76,7 @@ def start_ermis(
     # `serviceType` let LOGISTIS pick the right ΕΡΜΗΣ profile (prompt + knowledge).
     body = {
         "leadRef": str(l.id),
+        "afm": l.afm,                     # VAT → LOGISTIS runs the ΑΑΔΕ lookup + program matching
         "program": l.program,
         "serviceType": l.service_type,
         "callbackUrl": f"{SELF_BASE_URL.rstrip('/')}/api/cm/leads/ermis/webhook",
@@ -167,8 +168,13 @@ class ErmisWebhookIn(BaseModel):
     event: str
     token: Optional[str] = None
     leadRef: Optional[str] = None
+    afm: Optional[str] = None
     eligibility: Optional[str] = None       # eligible | ineligible
     transcript: Optional[object] = None     # list[{role,text,ts}] or markdown string
+    # AADE business data LOGISTIS fetched + created (regdate, address, ΚΑΔ list…)
+    business: Optional[dict] = None
+    # Automatic program matching result [{title, status}]
+    matchedPrograms: Optional[list] = None
     completedAt: Optional[str] = None
 
 
@@ -190,6 +196,21 @@ def ermis_webhook(
     if lead is None:
         raise HTTPException(status_code=404, detail="Δεν βρέθηκε lead για αυτό το token/leadRef")
 
+    # Store the AADE business profile + program matching LOGISTIS returned.
+    # Keyed by AFM in the shared CMBusinessProfile cache (reused across the app).
+    afm = (payload.afm or (payload.business or {}).get("afm") or lead.afm or "").strip()
+    if (payload.business is not None or payload.matchedPrograms is not None) and afm:
+        biz = dict(payload.business or {})
+        biz["afm"] = afm
+        if payload.matchedPrograms is not None:
+            biz["matchedPrograms"] = payload.matchedPrograms
+        try:
+            _upsert_business_profile(db, biz)
+        except Exception as exc:
+            log.exception("ΕΡΜΗΣ business upsert failed: %s", exc)
+        if not lead.afm:
+            lead.afm = afm
+
     if payload.transcript is not None:
         if isinstance(payload.transcript, str):
             lead.ermis_transcript = payload.transcript
@@ -203,7 +224,7 @@ def ermis_webhook(
         # Nudge a completed-eligible lead up the pipeline if still fresh
         if lead.ermis_status == "eligible" and lead.status in ("NEW LEAD", "CALL"):
             lead.status = "HOT"
-    elif payload.event == "ermis.progress":
+    elif payload.event in ("ermis.progress", "ermis.business_ready"):
         if not lead.ermis_status:
             lead.ermis_status = "in_progress"
 
