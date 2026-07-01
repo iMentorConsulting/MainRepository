@@ -123,7 +123,11 @@ def start_ermis(
         },
     }
     try:
-        resp = requests.post(ERMIS_SESSION_URL, json=body, headers={"x-api-key": secret}, timeout=15)
+        # (connect, read) — allow LOGISTIS a bit of time but fail cleanly rather
+        # than let the request hang until an upstream gateway (Cloudflare) 520s.
+        resp = requests.post(ERMIS_SESSION_URL, json=body, headers={"x-api-key": secret}, timeout=(6, 30))
+    except requests.Timeout:
+        raise HTTPException(status_code=504, detail="Ο ΕΡΜΗΣ (LOGISTIS) αργεί να απαντήσει. Δοκιμάστε ξανά σε λίγο.")
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Σφάλμα επικοινωνίας με ΕΡΜΗΣ (LOGISTIS): {exc}")
     if not resp.ok:

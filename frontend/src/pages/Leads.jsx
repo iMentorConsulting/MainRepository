@@ -407,8 +407,15 @@ export default function Leads() {
   const handleErmis = async (lead) => {
     if (lead.ermis_chat_url) { window.open(lead.ermis_chat_url, '_blank'); return }
     if (!confirm(`Έναρξη προαξιολόγησης ΕΡΜΗΣ και αποστολή link στον ${lead.name || 'lead'};`)) return
-    try { await startLeadErmis(lead.id, { send_link: true, channel: 'both' }); toast.success('Η συνεδρία ΕΡΜΗΣ ξεκίνησε — στάλθηκε Viber & Email'); load() }
-    catch (e) { toast.error(e.response?.data?.detail || 'Σφάλμα ΕΡΜΗΣ') }
+    const tid = toast.loading('Έναρξη ΕΡΜΗΣ…')
+    try {
+      await startLeadErmis(lead.id, { send_link: true, channel: 'both' })
+      toast.success('Η συνεδρία ΕΡΜΗΣ ξεκίνησε — στάλθηκε Viber & Email', { id: tid })
+      load()
+    } catch (e) {
+      const msg = e.code === 'ECONNABORTED' ? 'Λήξη χρόνου — ο ΕΡΜΗΣ αργεί, δοκιμάστε ξανά' : (e.response?.data?.detail || 'Σφάλμα ΕΡΜΗΣ')
+      toast.error(msg, { id: tid })
+    }
   }
   const handleConvert = async (lead) => {
     if (!confirm(`Δημιουργία υπόθεσης από το lead «${lead.name || ''}»;`)) return

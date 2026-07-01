@@ -73,6 +73,13 @@ Header: x-api-key: <CASES_API_KEY>
 ```
 CM sends `chatUrl` to the client via Viber/Email.
 
+> ⏱️ **Return `token`/`chatUrl` FAST (within a few seconds).** Do the ΑΑΔΕ lookup,
+> business creation, program matching and the conversation **asynchronously** and
+> report them back via the webhook (`ermis.business_ready`, then `ermis.completed`).
+> If session-create blocks on all that heavy work before responding, CM's request
+> can exceed the gateway timeout and the consultant sees a Cloudflare 520/504.
+> CM currently waits up to ~30s and then fails cleanly; keep well under that.
+
 ---
 
 ## 2. Webhook you call — return results to CM
