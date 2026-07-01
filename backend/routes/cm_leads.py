@@ -5,6 +5,7 @@ Prospective clients collected via per-program Google Sheets (see cm_leads_sync.p
 pre-screened by the ΕΡΜΗΣ AI assistant (see cm_leads_ermis.py), and converted into
 CMCase records once they become deals.
 """
+import re
 import json
 import logging
 from datetime import datetime, date
@@ -12,7 +13,7 @@ from typing import Optional, List
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
-from sqlalchemy import or_, func as sa_func
+from sqlalchemy import or_, and_, text as sa_text, func as sa_func
 from sqlalchemy.orm import Session
 
 from auth_cases import get_current_user, CMUser
@@ -29,6 +30,13 @@ log = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/cm/leads", tags=["cm-leads"])
 
 PAGE_SIZE = 50
+
+
+def _phone_key(phone: Optional[str]) -> str:
+    """Digits-only, last 10 (Greek numbers) — for duplicate comparison across
+    formatting variants (+30, spaces, dashes)."""
+    d = re.sub(r"\D", "", phone or "")
+    return d[-10:] if len(d) >= 10 else d
 
 
 # ── Serialization ───────────────────────────────────────────────────────────
@@ -543,3 +551,87 @@ def convert_to_case(
     db.commit()
     db.refresh(case)
     return {"created": True, **case_to_dict(case)}
+
+
+# ── Duplicate detection & merge ─────────────────────────────────────────────
+
+@router.get("/{lead_id}/duplicates")
+def lead_duplicates(
+    lead_id: int,
+    current_user: CMUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Other leads that share this lead's phone (digit-normalized) or email."""
+    lead = db.query(CMLead).filter(CMLead.id == lead_id).first()
+    if not lead:
+        raise HTTPException(status_code=404, detail="Το lead δεν βρέθηκε")
+
+    pkey = _phone_key(lead.phone)
+    email_l = (lead.email or "").strip().lower()
+
+    conds = []
+    if len(pkey) >= 8:
+        # right(regexp_replace(phone,'\D','','g'), 10) == pkey  (Postgres)
+        digits = sa_func.regexp_replace(CMLead.phone, r"[^0-9]", "", "g")
+        conds.append(and_(CMLead.phone.isnot(None), CMLead.phone != "",
+                          sa_func.right(digits, 10) == pkey))
+    if email_l:
+        conds.append(and_(CMLead.email.isnot(None), CMLead.email != "",
+                          sa_func.lower(sa_func.trim(CMLead.email)) == email_l))
+    if not conds:
+        return {"count": 0, "items": []}
+
+    rows = db.query(CMLead).filter(CMLead.id != lead.id, or_(*conds)).limit(50).all()
+    items = []
+    for r in rows:
+        same_phone = len(pkey) >= 8 and _phone_key(r.phone) == pkey
+        same_email = bool(email_l) and (r.email or "").strip().lower() == email_l
+        items.append({
+            "id": r.id,
+            "name": r.name,
+            "consultant": r.assigned_name or (r.assigned_agent.full_name if r.assigned_agent else None),
+            "status": r.status,
+            "phone": r.phone,
+            "email": r.email,
+            "created_at": r.created_at.isoformat() if r.created_at else None,
+            "same_phone": bool(same_phone),
+            "same_email": bool(same_email),
+        })
+    return {"count": len(items), "items": items}
+
+
+@router.post("/{lead_id}/merge/{other_id}")
+def merge_leads(
+    lead_id: int,
+    other_id: int,
+    current_user: CMUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Merge `other_id` into `lead_id`: move its comments, fill empty fields on
+    the primary, then delete the duplicate. Keeps the primary's own data."""
+    if lead_id == other_id:
+        raise HTTPException(status_code=400, detail="Επίλεξε δύο διαφορετικά leads")
+    primary = db.query(CMLead).filter(CMLead.id == lead_id).first()
+    dup = db.query(CMLead).filter(CMLead.id == other_id).first()
+    if not primary or not dup:
+        raise HTTPException(status_code=404, detail="Το lead δεν βρέθηκε")
+
+    # Move the duplicate's comments onto the primary (before delete cascades them)
+    db.execute(sa_text("UPDATE cm_lead_comments SET lead_id = :p WHERE lead_id = :d"),
+               {"p": primary.id, "d": dup.id})
+    db.execute(sa_text("UPDATE cm_lead_notification_logs SET lead_id = :p WHERE lead_id = :d"),
+               {"p": primary.id, "d": dup.id})
+
+    # Fill empty primary fields from the duplicate
+    for f in ["phone", "phone2", "email", "afm", "service_type", "program",
+              "assigned_name", "assigned_agent_id", "source", "notes",
+              "next_call_date", "total_amount", "program_fields",
+              "ermis_token", "ermis_chat_url", "ermis_status", "ermis_transcript",
+              "linked_case_id"]:
+        if not getattr(primary, f) and getattr(dup, f):
+            setattr(primary, f, getattr(dup, f))
+
+    db.delete(dup)
+    db.commit()
+    db.refresh(primary)
+    return lead_to_dict(primary, include_comments=True)

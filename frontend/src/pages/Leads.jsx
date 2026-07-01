@@ -2,12 +2,12 @@ import { useState, useEffect, useCallback, useRef, Fragment } from 'react'
 import {
   getLeads, getLeadFilterOptions, getLead, createLead, updateLead, deleteLead,
   getLeadComments, addLeadComment, editLeadComment, deleteLeadComment,
-  sendLeadMessage, convertLeadToCase, startLeadErmis,
+  sendLeadMessage, convertLeadToCase, startLeadErmis, getLeadDuplicates, mergeLeads,
 } from '../api'
 import {
   MagnifyingGlassIcon, PlusIcon, TrashIcon, ChevronDownIcon, ChevronUpIcon, ChevronRightIcon,
   ChatBubbleLeftRightIcon, SparklesIcon, ArrowRightCircleIcon, PaperAirplaneIcon,
-  PhoneIcon, EnvelopeIcon, PencilIcon, CheckIcon, DocumentTextIcon,
+  PhoneIcon, EnvelopeIcon, PencilIcon, CheckIcon, DocumentTextIcon, ExclamationTriangleIcon,
 } from '@heroicons/react/24/outline'
 import toast from 'react-hot-toast'
 
@@ -198,6 +198,7 @@ function NewLeadModal({ options, onClose, onCreated }) {
 function ExpandedRow({ lead, colSpan, onChanged, onConvert, onErmis, onSend }) {
   const [full, setFull] = useState(null)
   const [comments, setComments] = useState([])
+  const [dups, setDups] = useState([])
   const [editing, setEditing] = useState(false)
   const [form, setForm] = useState({})
 
@@ -207,6 +208,14 @@ function ExpandedRow({ lead, colSpan, onChanged, onConvert, onErmis, onSend }) {
     setForm({ name: l.name || '', afm: l.afm || '', service_type: l.service_type || '', source: l.source || '', total_amount: l.total_amount || '' })
   }, [lead.id])
   useEffect(() => { reload() }, [reload])
+  const loadDups = useCallback(() => { getLeadDuplicates(lead.id).then(d => setDups(d.items || [])).catch(() => {}) }, [lead.id])
+  useEffect(() => { loadDups() }, [loadDups])
+
+  const doMerge = async (otherId) => {
+    if (!confirm('Συγχώνευση αυτού του διπλότυπου στην τρέχουσα εγγραφή;\nΤα σχόλιά του θα μεταφερθούν και η διπλότυπη εγγραφή θα διαγραφεί.')) return
+    try { await mergeLeads(lead.id, otherId); toast.success('Συγχωνεύθηκε'); await reload(); loadDups(); onChanged?.() }
+    catch { toast.error('Σφάλμα συγχώνευσης') }
+  }
 
   const addC = async (txt) => { try { await addLeadComment(lead.id, txt); setComments(await getLeadComments(lead.id)); onChanged?.() } catch { toast.error('Σφάλμα σχολίου') } }
   const delC = async (cid) => { if (!confirm('Διαγραφή σχολίου;')) return; try { await deleteLeadComment(lead.id, cid); setComments(cs => cs.filter(c => c.id !== cid)); onChanged?.() } catch { toast.error('Σφάλμα') } }
@@ -255,6 +264,28 @@ function ExpandedRow({ lead, colSpan, onChanged, onConvert, onErmis, onSend }) {
             {Object.entries(pf).map(([k, v]) => (
               <span key={k} className="text-xs bg-gray-100 rounded-full px-2.5 py-1"><b className="text-gray-600">{v?.label || k}:</b> {v?.value ?? String(v)}</span>
             ))}
+          </div>
+        )}
+
+        {/* Duplicate entries (same phone/email) */}
+        {dups.length > 0 && (
+          <div className="mb-3">
+            <div className="flex items-center gap-1.5 text-sm font-semibold text-amber-700 mb-1">
+              <ExclamationTriangleIcon className="w-4 h-4" />{dups.length} άλλες εγγραφές με ίδιο τηλ/email
+            </div>
+            <div className="border border-amber-200 rounded-lg divide-y bg-amber-50/40">
+              {dups.map(d => (
+                <div key={d.id} className="flex flex-wrap items-center gap-2 px-3 py-1.5 text-sm">
+                  <span className={`text-xs font-semibold rounded-full px-2 py-0.5 ${STATUS_BADGE[d.status] || 'bg-gray-100'}`}>{d.status}</span>
+                  <span className="font-medium text-gray-800">{d.name || '—'}</span>
+                  {d.consultant && <span className="text-xs text-gray-400">({d.consultant})</span>}
+                  {d.same_phone && <span className="flex items-center gap-0.5 text-xs text-gray-600"><PhoneIcon className="w-3 h-3 text-red-500" />ίδιο τηλ</span>}
+                  {d.same_email && <span className="flex items-center gap-0.5 text-xs text-gray-600"><EnvelopeIcon className="w-3 h-3 text-gray-400" />ίδιο email</span>}
+                  <span className="ml-auto text-xs text-gray-400">{fmtDate(d.created_at)}</span>
+                  <button onClick={() => doMerge(d.id)} className="text-xs font-semibold text-orange-700 bg-orange-100 hover:bg-orange-200 px-2 py-0.5 rounded">Συγχώνευση</button>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 
