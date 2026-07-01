@@ -145,11 +145,11 @@ sequelize.sync({ alter: true }).then(async () => {
     console.warn('[backup-cron] Could not schedule backup:', e.message);
   }
 
-  // Daily Logistis payments sync at 02:00 Athens time (sends yesterday's Income rows)
+  // Daily Logistis payments sync at 08:00 Athens time (sends yesterday's Income rows)
   try {
     const cron = require('node-cron');
     const { runDailySync } = require('./services/logistisSync');
-    cron.schedule('0 2 * * *', () => {
+    cron.schedule('0 8 * * *', () => {
       runDailySync()
         .then(r => {
           global._lastLogistisSync = { ran_at: new Date().toISOString(), ok: true, ...r };
@@ -160,7 +160,7 @@ sequelize.sync({ alter: true }).then(async () => {
           console.error('[logistis-sync] error:', e.message);
         });
     }, { timezone: 'Europe/Athens' });
-    console.log('[logistis-sync] Daily payments sync scheduled at 02:00 Europe/Athens');
+    console.log('[logistis-sync] Daily payments sync scheduled at 08:00 Europe/Athens');
   } catch (e) {
     console.warn('[logistis-sync] Could not schedule sync:', e.message);
   }
