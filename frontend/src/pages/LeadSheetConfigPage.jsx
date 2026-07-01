@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import {
-  getLeadSheetConfigs, saveLeadSheetConfig, previewLeadSync, runLeadSyncProgram, runLeadSync, getLeadSyncStatus,
+  getLeadSheetConfigs, saveLeadSheetConfig, previewLeadSync, runLeadSyncProgram, refreshLeadSyncProgram, runLeadSync, getLeadSyncStatus,
 } from '../api'
 import { ArrowPathIcon, EyeIcon, PlusIcon, TrashIcon } from '@heroicons/react/24/outline'
 import toast from 'react-hot-toast'
@@ -61,6 +61,22 @@ function ConfigCard({ program, initial, onSaved }) {
       toast.error(msg)
     } finally { setBusy(false) }
   }
+  const doRefresh = async () => {
+    if (!confirm(`Επανεισαγωγή/ενημέρωση ΟΛΩΝ των υπαρχόντων leads του ${program} από το sheet;\n\nΘα ενημερωθούν: όνομα, τηλ/email, status, σύμβουλος, ημ/νία, ειδικά πεδία.\nΔιατηρούνται: σχόλια, συνομιλία ΕΡΜΗΣ, σύνδεση με υπόθεση.`)) return
+    setBusy(true)
+    try {
+      const res = await refreshLeadSyncProgram(program)
+      const pp = res.per_program?.[0]
+      if (res.note) { toast.error(res.note); return }
+      if (pp?.error) { toast.error(pp.error); return }
+      toast.success(`Ενημερώθηκαν ${res.updated} · νέα ${res.imported}`)
+      onSaved?.()
+    }
+    catch (e) {
+      const msg = e.code === 'ECONNABORTED' ? 'Λήξη χρόνου — η ενημέρωση ίσως συνεχίζεται στον server· ξαναδοκιμάστε' : (e.response?.data?.detail || 'Σφάλμα')
+      toast.error(msg)
+    } finally { setBusy(false) }
+  }
 
   return (
     <div className="bg-white rounded-xl border shadow-sm p-4">
@@ -108,6 +124,7 @@ function ConfigCard({ program, initial, onSaved }) {
         <button onClick={() => save()} disabled={busy} className="btn-primary text-sm">Αποθήκευση</button>
         <button onClick={doPreview} disabled={busy} className="btn-secondary text-sm flex items-center gap-1"><EyeIcon className="w-4 h-4" />Preview</button>
         <button onClick={doRun} disabled={busy} className="btn-secondary text-sm flex items-center gap-1"><ArrowPathIcon className="w-4 h-4" />Sync τώρα</button>
+        <button onClick={doRefresh} disabled={busy} className="text-sm font-semibold text-amber-700 bg-amber-50 border border-amber-300 rounded-lg px-3 py-1.5 hover:bg-amber-100">Επανεισαγωγή υπαρχόντων</button>
         <button onClick={() => save({ reset_watermark: true })} disabled={busy} className="text-sm text-gray-400 hover:text-gray-600">Reset watermark</button>
       </div>
 

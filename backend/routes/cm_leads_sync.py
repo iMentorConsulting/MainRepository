@@ -182,9 +182,9 @@ def _map_row(row: List[str], cfg: CMLeadSheetConfig, header: List[str], users: l
 
 # ── Core sync ───────────────────────────────────────────────────────────────
 
-def _sync_config(db: Session, cfg: CMLeadSheetConfig, dry_run: bool = False) -> dict:
+def _sync_config(db: Session, cfg: CMLeadSheetConfig, dry_run: bool = False, refresh: bool = False) -> dict:
     # Base diagnostics so the UI can explain a "0 rows" result.
-    diag = {"program": cfg.program, "imported": 0, "scanned_to_row": cfg.last_row_num or 0,
+    diag = {"program": cfg.program, "imported": 0, "updated": 0, "scanned_to_row": cfg.last_row_num or 0,
             "total_rows": 0, "data_rows": 0, "already_imported": 0, "skipped_empty": 0,
             "tab": cfg.sheet_tab, "error": None, "preview": [] if dry_run else None}
 
@@ -201,18 +201,34 @@ def _sync_config(db: Session, cfg: CMLeadSheetConfig, dry_run: bool = False) -> 
     header = rows[header_row - 1] if len(rows) >= header_row else []
     diag["total_rows"] = len(rows)
 
-    # Preload once (avoid per-row queries): existing refs for this config + all users.
-    existing_refs = {
-        r[0] for r in db.query(CMLead.sheet_import_ref)
-        .filter(CMLead.sheet_config_id == cfg.id).all() if r[0]
-    }
+    # Preload once (avoid per-row queries). In refresh mode we need the full
+    # objects so we can update them in place; otherwise just the ref set.
     users = db.query(CMUser).all()
+    existing_objs = {}
+    if refresh:
+        existing_objs = {
+            l.sheet_import_ref: l for l in
+            db.query(CMLead).filter(CMLead.sheet_config_id == cfg.id).all() if l.sheet_import_ref
+        }
+        existing_refs = set(existing_objs.keys())
+    else:
+        existing_refs = {
+            r[0] for r in db.query(CMLead.sheet_import_ref)
+            .filter(CMLead.sheet_config_id == cfg.id).all() if r[0]
+        }
+
+    # Fields overwritten on refresh (comments, ΕΡΜΗΣ data and case link are preserved).
+    REFRESH_FIELDS = ["name", "phone", "phone2", "email", "afm", "service_type",
+                      "source", "notes", "total_amount", "next_call_date",
+                      "assigned_name", "assigned_agent_id", "created_at", "program_fields"]
 
     imported = 0
+    updated = 0
     errors_skipped = 0
     new_preview = []
     max_row = cfg.last_row_num or 0
-    watermark = cfg.last_row_num or header_row
+    # In refresh mode we re-scan every row; otherwise honor the watermark.
+    watermark = 0 if refresh else (cfg.last_row_num or header_row)
     BATCH = 500
 
     for i, row in enumerate(rows):
@@ -227,7 +243,8 @@ def _sync_config(db: Session, cfg: CMLeadSheetConfig, dry_run: bool = False) -> 
             continue
 
         ref = f"{cfg.spreadsheet_id}:{row_num}"
-        if ref in existing_refs:
+        exists = ref in existing_refs
+        if exists and not refresh:
             diag["already_imported"] += 1
             max_row = max(max_row, row_num)
             continue
@@ -241,6 +258,15 @@ def _sync_config(db: Session, cfg: CMLeadSheetConfig, dry_run: bool = False) -> 
         if dry_run:
             new_preview.append({"row_num": row_num, "status": status,
                                 **{k: v for k, v in kwargs.items() if k != "program_fields"}})
+        elif exists and refresh:
+            lead = existing_objs[ref]
+            for f in REFRESH_FIELDS:
+                if f in kwargs:
+                    setattr(lead, f, kwargs[f])
+            lead.status = status
+            updated += 1
+            if updated % BATCH == 0:
+                db.commit()
         else:
             db.add(CMLead(
                 program=cfg.program,
@@ -263,13 +289,13 @@ def _sync_config(db: Session, cfg: CMLeadSheetConfig, dry_run: bool = False) -> 
         cfg.last_sync_at = datetime.utcnow()
         db.commit()
 
-    diag.update({"imported": imported, "scanned_to_row": max_row,
+    diag.update({"imported": imported, "updated": updated, "scanned_to_row": max_row,
                  "errors_skipped": errors_skipped,
                  "preview": new_preview if dry_run else None})
     return diag
 
 
-def _do_lead_sync(db: Session, program: Optional[str] = None, dry_run: bool = False) -> dict:
+def _do_lead_sync(db: Session, program: Optional[str] = None, dry_run: bool = False, refresh: bool = False) -> dict:
     q = db.query(CMLeadSheetConfig).filter(CMLeadSheetConfig.enabled == True)  # noqa: E712
     if program:
         q = q.filter(CMLeadSheetConfig.program == program)
@@ -278,14 +304,16 @@ def _do_lead_sync(db: Session, program: Optional[str] = None, dry_run: bool = Fa
         note = (f"Δεν βρέθηκε αποθηκευμένη/ενεργή ρύθμιση για «{program}». "
                 "Συμπληρώστε τα πεδία και πατήστε Αποθήκευση πρώτα.") if program else \
                "Δεν υπάρχουν ενεργές ρυθμίσεις. Πατήστε Αποθήκευση σε ένα πρόγραμμα πρώτα."
-        return {"imported": 0, "per_program": [], "note": note}
+        return {"imported": 0, "updated": 0, "per_program": [], "note": note}
     per_program = []
     total = 0
+    total_updated = 0
     for cfg in configs:
         try:
-            res = _sync_config(db, cfg, dry_run=dry_run)
+            res = _sync_config(db, cfg, dry_run=dry_run, refresh=refresh)
             per_program.append(res)
-            total += res["imported"] or 0
+            total += res.get("imported") or 0
+            total_updated += res.get("updated") or 0
         except Exception as exc:
             log.exception("Lead sync failed for %s: %s", cfg.program, exc)
             per_program.append({"program": cfg.program, "error": str(exc)})
@@ -293,7 +321,7 @@ def _do_lead_sync(db: Session, program: Optional[str] = None, dry_run: bool = Fa
         _last_sync["last_run_at"] = datetime.utcnow().isoformat()
         _last_sync["imported"] = total
         _last_sync["per_program"] = per_program
-    return {"imported": total, "per_program": per_program}
+    return {"imported": total, "updated": total_updated, "per_program": per_program}
 
 
 # ── Config serialization + endpoints ────────────────────────────────────────
@@ -382,6 +410,18 @@ def run_sync_program(
     db: Session = Depends(get_db),
 ):
     return _do_lead_sync(db, program=program, dry_run=False)
+
+
+@router.post("/refresh/{program}")
+def refresh_program(
+    program: str,
+    current_user: CMUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Re-scan the whole sheet and UPDATE already-imported leads in place
+    (name/phone/email/status/consultant/date/program-fields), plus import any
+    new rows. Preserves each lead's comments, ΕΡΜΗΣ data and case link."""
+    return _do_lead_sync(db, program=program, dry_run=False, refresh=True)
 
 
 @router.post("/webhook-trigger")

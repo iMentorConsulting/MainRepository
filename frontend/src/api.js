@@ -264,5 +264,6 @@ export const getLeadSyncStatus = () => api.get('/api/cm/leads-sync/status').then
 export const previewLeadSync = (program) => api.get('/api/cm/leads-sync/preview', { params: program ? { program } : {}, timeout: 180000 }).then(r => r.data)
 export const runLeadSync = () => api.post('/api/cm/leads-sync/run', null, { timeout: 300000 }).then(r => r.data)
 export const runLeadSyncProgram = (program) => api.post(`/api/cm/leads-sync/run/${encodeURIComponent(program)}`, null, { timeout: 300000 }).then(r => r.data)
+export const refreshLeadSyncProgram = (program) => api.post(`/api/cm/leads-sync/refresh/${encodeURIComponent(program)}`, null, { timeout: 300000 }).then(r => r.data)
 
 export default api
