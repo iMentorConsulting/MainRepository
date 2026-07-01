@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { Table, TableHead, TableBody, TableRow, Th, Td } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { ArrowLeft, Check, X, Clock3, RefreshCw, UserPlus } from 'lucide-react'
+import { ArrowLeft, Check, X, Clock3, RefreshCw, UserPlus, RotateCcw } from 'lucide-react'
 
 
 function formatEur(cents: number) {
@@ -59,7 +59,7 @@ export default function FinancePaymentsPage() {
     })
   }
 
-  async function act(id: string, action: 'approve' | 'reject' | 'defer' | 'rematch') {
+  async function act(id: string, action: 'approve' | 'reject' | 'defer' | 'rematch' | 'reset') {
     if (action === 'reject' && !confirm('Απόρριψη πληρωμής;')) return
     setBusyId(id)
     const res = await fetch(`/api/finance-payments/${id}`, {
@@ -221,7 +221,7 @@ export default function FinancePaymentsPage() {
                       <Badge variant={STATUS_LABELS[p.status]?.variant || 'default'}>{STATUS_LABELS[p.status]?.label || p.status}</Badge>
                     </Td>
                     <Td>
-                      {p.status === 'PENDING' && (
+                      {p.status === 'PENDING' ? (
                         <div className="flex items-center gap-1">
                           <button
                             disabled={busyId === p.id || !p.business?.accountantId || !p.commissionPreview}
@@ -248,6 +248,15 @@ export default function FinancePaymentsPage() {
                             <X size={16} />
                           </button>
                         </div>
+                      ) : (
+                        <button
+                          disabled={busyId === p.id}
+                          onClick={() => { if (confirm('Επαναφορά σε Εκκρεμότητα;')) act(p.id, 'reset') }}
+                          title="Επαναφορά σε Εκκρεμότητα"
+                          className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 disabled:opacity-30 transition-colors"
+                        >
+                          <RotateCcw size={16} />
+                        </button>
                       )}
                     </Td>
                   </TableRow>

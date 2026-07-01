@@ -13,8 +13,8 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   }
 
   const { action, notes } = await req.json()
-  if (!['approve', 'reject', 'defer', 'rematch'].includes(action)) {
-    return NextResponse.json({ error: 'action must be approve, reject, defer or rematch' }, { status: 400 })
+  if (!['approve', 'reject', 'defer', 'rematch', 'reset'].includes(action)) {
+    return NextResponse.json({ error: 'action must be approve, reject, defer, rematch or reset' }, { status: 400 })
   }
 
   const payment = await prisma.financePayment.findUnique({
@@ -22,6 +22,20 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     include: { business: { include: { accountant: true } } },
   })
   if (!payment) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  if (action === 'reset') {
+    const updated = await prisma.financePayment.update({
+      where: { id: params.id },
+      data: {
+        status: 'PENDING',
+        commissionId: null,
+        reviewedById: null,
+        reviewedAt: null,
+        reviewNotes: null,
+      },
+    })
+    return NextResponse.json(updated)
+  }
 
   if (action === 'rematch') {
     const business = await prisma.business.findUnique({ where: { afm: payment.afm }, select: { id: true } })
