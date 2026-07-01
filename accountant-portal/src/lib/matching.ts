@@ -243,7 +243,7 @@ export async function runMatchingForProgram(programId: string): Promise<number> 
   if (!program) throw new Error('Program not found')
 
   const businesses = await prisma.business.findMany({
-    include: { activities: true }
+    include: { activities: true },
   })
 
   let matchCount = 0
@@ -251,6 +251,7 @@ export async function runMatchingForProgram(programId: string): Promise<number> 
 
   for (const business of businesses) {
     if (isInactiveBusiness(business)) continue
+    if (businessAlreadyReceivedProgram(business.iMentorServices, program.title)) continue
     const { score, reasons } = matchesBusiness(business, program)
     if (score >= 40) qualifyingBusinessIds.push(business.id)
     const isNew = await upsertMatch(programId, business.id, score, reasons)
@@ -345,6 +346,18 @@ export async function autoNotifyBusinessMatches(businessId: string): Promise<voi
   })
 }
 
+// Returns true if the business has already received this service via I-MENTOR.
+// Matches on a common stem (first 8 chars) to handle Greek declension
+// differences (e.g. "ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ" received → skip program "ΤΑΜΕΙΟ ΜΙΚΡΟΠΙΣΤΩΣΕΩΝ").
+function businessAlreadyReceivedProgram(iMentorServices: string[], programTitle: string): boolean {
+  const titleUpper = programTitle.toUpperCase()
+  return iMentorServices.some(svc => {
+    const svcUpper = svc.toUpperCase()
+    const stem = svcUpper.substring(0, Math.max(6, svcUpper.length - 3))
+    return titleUpper.includes(stem) || svcUpper.includes(programTitle.toUpperCase().substring(0, Math.max(6, programTitle.length - 3)))
+  })
+}
+
 export async function runMatchingForBusiness(businessId: string): Promise<number> {
   const business = await prisma.business.findUnique({
     where: { id: businessId },
@@ -362,6 +375,9 @@ export async function runMatchingForBusiness(businessId: string): Promise<number
   let matchCount = 0
 
   for (const program of programs) {
+    // Skip programs for services the business has already received from I-MENTOR
+    if (businessAlreadyReceivedProgram(business.iMentorServices, program.title)) continue
+
     const { score, reasons } = matchesBusiness(business, program)
     const isNew = await upsertMatch(program.id, business.id, score, reasons)
     if (isNew) matchCount++
