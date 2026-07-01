@@ -150,6 +150,7 @@ class SendIn(BaseModel):
 @router.get("/")
 def list_leads(
     status: Optional[str] = None,
+    exclude_status: Optional[str] = None,
     agent_id: Optional[int] = None,
     consultant: Optional[str] = None,
     program: Optional[str] = None,
@@ -166,6 +167,8 @@ def list_leads(
     query = db.query(CMLead)
     if status:
         query = query.filter(CMLead.status.in_([s.strip() for s in status.split(",") if s.strip()]))
+    if exclude_status:
+        query = query.filter(~CMLead.status.in_([s.strip() for s in exclude_status.split(",") if s.strip()]))
     if agent_id is not None:
         query = query.filter(CMLead.assigned_agent_id == agent_id)
     if consultant:

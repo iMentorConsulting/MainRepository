@@ -8,6 +8,7 @@ import {
   MagnifyingGlassIcon, PlusIcon, TrashIcon, ChevronDownIcon, ChevronUpIcon, ChevronRightIcon,
   ChatBubbleLeftRightIcon, SparklesIcon, ArrowRightCircleIcon, PaperAirplaneIcon,
   PhoneIcon, EnvelopeIcon, PencilIcon, CheckIcon, DocumentTextIcon, ExclamationTriangleIcon,
+  EyeIcon, EyeSlashIcon,
 } from '@heroicons/react/24/outline'
 import toast from 'react-hot-toast'
 
@@ -376,15 +377,18 @@ export default function Leads() {
   const [showNew, setShowNew] = useState(false)
   const [sendLead, setSendLead] = useState(null)
   const [expandedId, setExpandedId] = useState(null)
+  const [hideCancel, setHideCancel] = useState(true)   // CANCEL hidden by default
 
   const load = useCallback(async () => {
     setLoading(true)
     try {
       const params = { ...sort, page }
       Object.entries(filters).forEach(([k, v]) => { if (v) params[k] = v })
+      // Hide CANCEL by default, unless the user explicitly filtered to CANCEL
+      if (hideCancel && filters.status !== 'CANCEL') params.exclude_status = 'CANCEL'
       setData(await getLeads(params))
     } catch { toast.error('Σφάλμα φόρτωσης leads') } finally { setLoading(false) }
-  }, [filters, sort, page])
+  }, [filters, sort, page, hideCancel])
   const loadOptions = useCallback(() => { getLeadFilterOptions().then(setOptions).catch(() => {}) }, [])
 
   useEffect(() => { load() }, [load])
@@ -438,7 +442,13 @@ export default function Leads() {
 
       {/* Status chips */}
       <div className="flex flex-wrap gap-2 mb-2">
-        <button onClick={() => setFilter({ status: '' })} className={`px-3 py-1 rounded-full text-xs font-semibold border ${!filters.status ? 'bg-gray-800 text-white border-gray-800' : 'bg-white text-gray-600 border-gray-300'}`}>Όλα ({options.total || 0})</button>
+        <button onClick={() => { setPage(1); setHideCancel(h => !h) }}
+          className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold border ${hideCancel ? 'bg-gray-800 text-white border-gray-800' : 'bg-white text-gray-500 border-gray-300'}`}
+          title="Εναλλαγή εμφάνισης ακυρωμένων">
+          {hideCancel ? <EyeSlashIcon className="w-3.5 h-3.5" /> : <EyeIcon className="w-3.5 h-3.5" />}
+          Cancelled {hideCancel ? 'κρυφά' : 'ορατά'}
+        </button>
+        <button onClick={() => setFilter({ status: '' })} className={`px-3 py-1 rounded-full text-xs font-semibold border ${!filters.status ? 'bg-gray-800 text-white border-gray-800' : 'bg-white text-gray-600 border-gray-300'}`}>Όλα ({hideCancel ? Math.max(0, (options.total || 0) - (counts.CANCEL || 0)) : (options.total || 0)})</button>
         {LEAD_STATUSES.map(s => (
           <button key={s} onClick={() => setFilter({ status: filters.status === s ? '' : s })} className={`px-3 py-1 rounded-full text-xs font-semibold border ${filters.status === s ? 'ring-2 ring-offset-1 ring-blue-400 ' : ''}${STATUS_BADGE[s]} border-transparent`}>{s} ({counts[s] || 0})</button>
         ))}
