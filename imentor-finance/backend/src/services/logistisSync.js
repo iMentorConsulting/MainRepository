@@ -59,16 +59,24 @@ function buildPayments(rows) {
       accountant: r.accountant || undefined,
     };
 
-    const cat = (r.targeting_category || '').trim().toUpperCase();
-    const app  = parseFloat(r.amount_application) || 0;
-    const impl = parseFloat(r.amount_implementation) || 0;
+    const cat       = (r.targeting_category || '').trim().toUpperCase();
+    const collected = parseFloat(r.amount_collected) || 0;
+    const app       = parseFloat(r.amount_application) || 0;
+    const impl      = parseFloat(r.amount_implementation) || 0;
 
-    // Suppress the opposite amount when category explicitly names one type
-    const sendApp  = app  > 0 && cat !== 'ΠΩΛΗΣΗ ΥΛΟΠΟΙΗΣΗΣ';
-    const sendImpl = impl > 0 && cat !== 'ΠΩΛΗΣΗ ΑΙΤΗΣΗΣ';
-
-    if (sendApp)  payments.push({ ...base, externalId: `income-${r.id}-application`,     amount: Math.round(app  * 100), category: 'ΑΙΤΗΣΗ'    });
-    if (sendImpl) payments.push({ ...base, externalId: `income-${r.id}-implementation`, amount: Math.round(impl * 100), category: 'ΥΛΟΠΟΙΗΣΗ' });
+    if (cat === 'ΠΩΛΗΣΗ ΑΙΤΗΣΗΣ') {
+      // Single payment: collected amount, labelled ΑΙΤΗΣΗ
+      if (collected > 0)
+        payments.push({ ...base, externalId: `income-${r.id}-application`, amount: Math.round(collected * 100), category: 'ΑΙΤΗΣΗ' });
+    } else if (cat === 'ΠΩΛΗΣΗ ΥΛΟΠΟΙΗΣΗΣ') {
+      // Single payment: collected amount, labelled ΥΛΟΠΟΙΗΣΗ
+      if (collected > 0)
+        payments.push({ ...base, externalId: `income-${r.id}-implementation`, amount: Math.round(collected * 100), category: 'ΥΛΟΠΟΙΗΣΗ' });
+    } else {
+      // No specific category: send each breakdown amount that is > 0
+      if (app  > 0) payments.push({ ...base, externalId: `income-${r.id}-application`,    amount: Math.round(app  * 100), category: 'ΑΙΤΗΣΗ'    });
+      if (impl > 0) payments.push({ ...base, externalId: `income-${r.id}-implementation`, amount: Math.round(impl * 100), category: 'ΥΛΟΠΟΙΗΣΗ' });
+    }
   }
   return { payments, skipped };
 }
