@@ -156,24 +156,55 @@ def _process_ermis_session(lead_id: int, send_link: bool, channel: str, actor_na
         db.commit()
 
         if send_link and (channel or "both") != "none":
-            greeting = f"Καλησπέρα {l.name}," if l.name else "Καλησπέρα,"
+            name = l.name or "συνεργάτη"
+            prog = l.program or "την υπηρεσία που σας ενδιαφέρει"
+            prog_label = f"«{l.program}»" if l.program else "που σας ενδιαφέρει"
+            consultant_line = (f"📞 Ο/Η {l.assigned_name} από την i-Mentor θα επικοινωνήσει σύντομα μαζί σας.\n"
+                               if l.assigned_name else "")
+
+            # ── Viber (emoji + Unicode dividers; Viber ignores markdown bold) ──
             viber_msg = (
-                f"{greeting}\n\n"
-                "λάβαμε τη φόρμα ενδιαφέροντος που συμπληρώσατε προς την i-Mentor Consulting. "
-                "Μπορούμε να κάνουμε άμεσα μια σύντομη & δωρεάν προαξιολόγηση και ενημέρωση για το "
-                "πρόγραμμα που σας ενδιαφέρει, μέσω του ψηφιακού μας βοηθού «ΕΡΜΗΣ».\n\n"
-                f"Ξεκινήστε εδώ (2 λεπτά): {chat_url}\n\n"
+                f"Αγαπητέ/ή {name},\n\n"
+                f"📩 Λάβαμε το ενδιαφέρον σας για το πρόγραμμα {prog_label}.\n"
+                "━━━━━━━━━━━━━━━\n"
+                "🤖 Μιλήστε τώρα με τον «ΕΡΜΗ», τον ψηφιακό μας σύμβουλο, που κάνει\n"
+                "✅ ΔΩΡΕΑΝ έλεγχο επιλεξιμότητας\n"
+                "⏱️ σε δευτερόλεπτα (~2 λεπτά)\n"
+                "━━━━━━━━━━━━━━━\n"
+                f"👉 Ξεκινήστε εδώ: {chat_url}\n\n"
+                f"{consultant_line}"
                 "i-Mentor Consulting"
             )
-            email_subject = "i-Mentor Consulting — Γρήγορη προαξιολόγηση με τον βοηθό ΕΡΜΗ"
-            email_msg = (
-                f"{greeting}\n\n"
-                "Λάβαμε τη φόρμα ενδιαφέροντος που συμπληρώσατε προς την i-Mentor Consulting. "
-                "Ο ψηφιακός μας βοηθός «ΕΡΜΗΣ» μπορεί να σας κάνει άμεσα μια σύντομη και δωρεάν "
-                "προαξιολόγηση για το πρόγραμμα που σας ενδιαφέρει και να σας ενημερώσει για τα επόμενα βήματα.\n\n"
-                f"Πατήστε εδώ για να ξεκινήσετε (διαρκεί περίπου 2 λεπτά):\n{chat_url}\n\n"
-                "Με εκτίμηση,\ni-Mentor Consulting"
+
+            # ── Email (rich HTML: bold, dividers, icons, CTA button) ──
+            email_subject = f"i-Mentor Consulting — Προαξιολόγηση για {prog_label} με τον ΕΡΜΗ"
+            consultant_html = (
+                f'<p style="margin:0 0 10px;color:#374151;">📞 Ο/Η <b>{l.assigned_name}</b> '
+                f'από την i-Mentor θα επικοινωνήσει σύντομα μαζί σας.</p>' if l.assigned_name else ""
             )
+            email_html = f"""<html><body style="margin:0;background:#f3f4f6;padding:24px;font-family:Arial,Helvetica,sans-serif;color:#1f2937;">
+<div style="max-width:600px;margin:0 auto;">
+  <div style="background:#1e3a5f;padding:22px 24px;border-radius:10px 10px 0 0;text-align:center;">
+    <h2 style="color:#ffffff;margin:0;">i-Mentor Consulting</h2>
+  </div>
+  <div style="background:#ffffff;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 10px 10px;padding:26px 24px;">
+    <p style="font-size:16px;margin:0 0 14px;">Αγαπητέ/ή <b>{name}</b>,</p>
+    <p style="margin:0 0 16px;font-size:15px;">📩 Λάβαμε το ενδιαφέρον σας για το πρόγραμμα
+       <b style="color:#1e3a5f;">{prog_label}</b>.</p>
+    <hr style="border:none;border-top:2px solid #eef2f7;margin:18px 0;">
+    <div style="background:#f0f7ff;border-radius:8px;padding:16px 18px;">
+      <p style="margin:0 0 8px;font-size:16px;">🤖 <b>Μιλήστε τώρα με τον «ΕΡΜΗ»</b></p>
+      <p style="margin:0;color:#374151;">τον ψηφιακό μας σύμβουλο, που κάνει <b>✅ ΔΩΡΕΑΝ έλεγχο επιλεξιμότητας</b> ⏱️ σε δευτερόλεπτα (περίπου 2 λεπτά).</p>
+    </div>
+    <div style="text-align:center;margin:26px 0;">
+      <a href="{chat_url}" style="background:#2563eb;color:#ffffff;text-decoration:none;padding:14px 30px;border-radius:8px;font-weight:bold;font-size:15px;display:inline-block;">▶️ Ξεκινήστε την προαξιολόγηση</a>
+    </div>
+    {consultant_html}
+    <hr style="border:none;border-top:1px solid #eee;margin:18px 0;">
+    <p style="font-size:12px;color:#9ca3af;margin:0;">i-Mentor Consulting · Λάβατε αυτό το μήνυμα επειδή συμπληρώσατε φόρμα ενδιαφέροντος.</p>
+  </div>
+</div></body></html>"""
+
             ch = channel or "both"
             if ch in ("viber", "both") and l.phone:
                 ok, err = _send_viber(l.phone, viber_msg, l.name or "", actor_name, l.service_type or "")
@@ -182,10 +213,10 @@ def _process_ermis_session(lead_id: int, send_link: bool, channel: str, actor_na
                                              subject="ΕΡΜΗΣ link", content=viber_msg,
                                              status="sent" if ok else "failed", sent_by=actor_name))
             if ch in ("email", "both") and l.email:
-                ok, err = _send_email(l.email, email_subject, email_msg)
+                ok, err = _send_email(l.email, email_subject, viber_msg, html_override=email_html)
                 db.add(CMLeadNotificationLog(lead_id=l.id, notification_type="ermis_link",
                                              recipient_name=l.name or "", recipient_contact=l.email,
-                                             subject=email_subject, content=email_msg,
+                                             subject=email_subject, content=email_subject,
                                              status="sent" if ok else "failed", sent_by=actor_name))
             db.commit()
     finally:
