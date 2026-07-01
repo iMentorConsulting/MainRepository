@@ -104,37 +104,21 @@ async function autoCreateAndSync(newPaymentIds: string[]) {
   }
 }
 
-async function sendAdminNotification(received: number, matched: number, unmatched: number, newCount: number) {
+async function sendAdminNotification(commissionCount: number) {
   const adminEmail = process.env.ADMIN_NOTIFICATION_EMAIL || 'info@i-mentor.gr'
-  if (newCount === 0) return // no new payments — nothing to notify
+  if (commissionCount === 0) return // no commissions to approve — no email
   await sendEmail({
     to: adminEmail,
-    subject: `📋 ${newCount} νέες πληρωμές Finance προς έγκριση — I-MENTOR Portal`,
+    subject: `💶 ${commissionCount} νέες προμήθειες προς έγκριση — I-MENTOR Portal`,
     html: `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
         <div style="background: linear-gradient(135deg, #4f46e5, #4338ca); padding: 24px 32px; border-radius: 12px 12px 0 0;">
           <h1 style="color: white; margin: 0; font-size: 22px;">📋 Νέες Πληρωμές Finance</h1>
         </div>
         <div style="background: white; padding: 32px; border: 1px solid #e5e7eb; border-top: 0; border-radius: 0 0 12px 12px;">
-          <p style="color: #374151; font-size: 16px;">Ελήφθη νέα παρτίδα πληρωμών από το Finance app.</p>
-          <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
-            <tr style="background: #f9fafb;">
-              <td style="padding: 10px 16px; border: 1px solid #e5e7eb; color: #6b7280; font-size: 14px;">Σύνολο εγγραφών</td>
-              <td style="padding: 10px 16px; border: 1px solid #e5e7eb; font-weight: bold; font-size: 14px;">${received}</td>
-            </tr>
-            <tr>
-              <td style="padding: 10px 16px; border: 1px solid #e5e7eb; color: #6b7280; font-size: 14px;">Νέες προς έγκριση</td>
-              <td style="padding: 10px 16px; border: 1px solid #e5e7eb; font-weight: bold; color: #4f46e5; font-size: 14px;">${newCount}</td>
-            </tr>
-            <tr style="background: #f9fafb;">
-              <td style="padding: 10px 16px; border: 1px solid #e5e7eb; color: #6b7280; font-size: 14px;">Με αντιστοίχιση επιχείρησης</td>
-              <td style="padding: 10px 16px; border: 1px solid #e5e7eb; font-weight: bold; color: #059669; font-size: 14px;">${matched}</td>
-            </tr>
-            <tr>
-              <td style="padding: 10px 16px; border: 1px solid #e5e7eb; color: #6b7280; font-size: 14px;">Χωρίς αντιστοίχιση</td>
-              <td style="padding: 10px 16px; border: 1px solid #e5e7eb; font-weight: bold; color: #d97706; font-size: 14px;">${unmatched}</td>
-            </tr>
-          </table>
+          <p style="color: #374151; font-size: 16px;">
+            Υπάρχουν <strong style="color: #4f46e5;">${commissionCount} νέες πληρωμές</strong> με αντιστοιχισμένο λογιστή που περιμένουν έγκριση προμήθειας.
+          </p>
           <div style="text-align: center; margin: 24px 0;">
             <a href="${process.env.APP_URL || 'https://logistis.i-mentor.gr'}/commissions/finance-payments"
                style="background: linear-gradient(135deg, #4f46e5, #6366f1); color: white; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 16px; display: inline-block;">
@@ -220,9 +204,20 @@ export async function POST(request: NextRequest) {
     create: { id: 'main', financeCronLastRunAt: new Date(), financeCronLastError: errors.length ? `${errors.length} σφάλματα` : null },
   }).catch(() => {})
 
-  // Auto-create businesses + sync services + notify admin (fire-and-forget)
-  autoCreateAndSync(newPaymentIds).catch(() => {})
-  sendAdminNotification(received, matched, unmatched, newCount).catch(() => {})
+  // Auto-create businesses + sync services, then notify admin only if commissions are waiting
+  ;(async () => {
+    await autoCreateAndSync(newPaymentIds).catch(() => {})
+    if (newPaymentIds.length === 0) return
+    // Count new PENDING payments that have a business with an accountant = commissions to approve
+    const commissionCount = await prisma.financePayment.count({
+      where: {
+        id: { in: newPaymentIds },
+        status: 'PENDING',
+        business: { accountantId: { not: null } },
+      },
+    })
+    await sendAdminNotification(commissionCount).catch(() => {})
+  })()
 
   return NextResponse.json({ received, matched, unmatched, newCount, errors })
 }
