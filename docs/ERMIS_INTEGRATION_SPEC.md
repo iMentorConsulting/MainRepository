@@ -14,6 +14,14 @@ should, in one automatic flow:
 Auth for everything below: header `x-api-key: <CASES_API_KEY>` (the same shared
 secret already used for cases/businesses; on CM it is `IMENTOR_PORTAL_API_KEY`).
 
+> ℹ️ **`afm` + `program` are required by LOGISTIS.** The session-create currently
+> returns `400 {"error":"afm and program are required"}` when either is missing.
+> CM now blocks the call client-side with a clear message if the lead has no ΑΦΜ
+> or program. **Open question:** many Facebook/form leads arrive without an ΑΦΜ —
+> do you want to support an ΑΦΜ-less ΕΡΜΗΣ session (conversation only, skip the
+> ΑΑΔΕ lookup/matching until an ΑΦΜ is provided)? If yes, relax the requirement so
+> `afm` is optional and simply skip the ΑΑΔΕ step when it's absent.
+
 ---
 
 ## 1. Endpoint you implement — create a ΕΡΜΗΣ session

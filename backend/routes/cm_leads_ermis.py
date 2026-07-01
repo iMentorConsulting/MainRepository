@@ -236,6 +236,19 @@ def start_ermis(
     if not _shared_secret():
         raise HTTPException(status_code=500, detail="IMENTOR_PORTAL_API_KEY δεν έχει ρυθμιστεί")
 
+    # LOGISTIS requires ΑΦΜ (for the ΑΑΔΕ lookup) + program. Fail fast with a clear
+    # message so the consultant can fill them in (Επεξεργασία) and retry.
+    missing = []
+    if not (l.afm or "").strip():
+        missing.append("ΑΦΜ")
+    if not (l.program or "").strip():
+        missing.append("Πρόγραμμα")
+    if missing:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Λείπει {' και '.join(missing)} από το lead. Συμπληρώστε το (Επεξεργασία) πριν την έναρξη ΕΡΜΗΣ.",
+        )
+
     # Mark as starting and return immediately; the LOGISTIS call + link send run in
     # a background thread so the web request never blocks on a slow upstream.
     l.ermis_status = "starting"
