@@ -64,14 +64,37 @@ def start_ermis(
     if not secret:
         raise HTTPException(status_code=500, detail="IMENTOR_PORTAL_API_KEY δεν έχει ρυθμιστεί")
 
+    # Flatten program-specific fields to {label: value} for easy prompt injection
+    extra_fields = {}
+    for k, v in (l.program_fields or {}).items():
+        if isinstance(v, dict):
+            extra_fields[v.get("label") or k] = v.get("value")
+        else:
+            extra_fields[k] = v
+
+    # Full lead context so ΕΡΜΗΣ can use it in the conversation; `program`/
+    # `serviceType` let LOGISTIS pick the right ΕΡΜΗΣ profile (prompt + knowledge).
     body = {
         "leadRef": str(l.id),
-        "name": l.name,
-        "phone": l.phone,
-        "email": l.email,
-        "afm": l.afm,
         "program": l.program,
+        "serviceType": l.service_type,
         "callbackUrl": f"{SELF_BASE_URL.rstrip('/')}/api/cm/leads/ermis/webhook",
+        "lead": {
+            "id": l.id,
+            "name": l.name,
+            "phone": l.phone,
+            "phone2": l.phone2,
+            "email": l.email,
+            "afm": l.afm,
+            "program": l.program,
+            "serviceType": l.service_type,
+            "totalAmount": l.total_amount,
+            "status": l.status,
+            "consultant": l.assigned_name,
+            "source": l.source,
+            "notes": l.notes,
+            "extraFields": extra_fields,
+        },
     }
     try:
         resp = requests.post(ERMIS_SESSION_URL, json=body, headers={"x-api-key": secret}, timeout=15)
