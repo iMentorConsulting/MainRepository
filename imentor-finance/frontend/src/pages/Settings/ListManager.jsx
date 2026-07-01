@@ -285,10 +285,15 @@ function BackupPanel() {
 }
 
 function LogistisSyncPanel() {
+  const todayStr = () => new Date().toISOString().slice(0, 10);
+  const yestStr  = () => { const d = new Date(); d.setDate(d.getDate() - 1); return d.toISOString().slice(0, 10); };
+
   const [preview, setPreview] = useState(null);
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
   const [lastResult, setLastResult] = useState(null);
+  const [dateFrom, setDateFrom] = useState(yestStr);
+  const [dateTo,   setDateTo]   = useState(yestStr);
 
   useEffect(() => {
     api.get('/logistis-sync/status').then(r => setLastResult(r.data)).catch(() => {});
@@ -300,8 +305,9 @@ function LogistisSyncPanel() {
 
   const handlePreview = async () => {
     setLoading(true);
+    setPreview(null);
     try {
-      const r = await api.get('/logistis-sync/preview');
+      const r = await api.get('/logistis-sync/preview', { params: { dateFrom, dateTo } });
       setPreview(r.data);
     } catch (e) {
       toast.error(e.response?.data?.error || 'Σφάλμα preview');
@@ -311,7 +317,7 @@ function LogistisSyncPanel() {
   const handleSend = async () => {
     setSending(true);
     try {
-      const r = await api.post('/logistis-sync/send', { date: preview?.date });
+      const r = await api.post('/logistis-sync/send', { dateFrom: preview.dateFrom, dateTo: preview.dateTo });
       setLastResult({ ran_at: new Date().toISOString(), ok: true, ...r.data });
       toast.success(`Στάλθηκαν ${r.data.sent} πληρωμές (${r.data.result?.matched ?? 0} αντιστοιχίστηκαν)`);
       setPreview(null);
@@ -319,6 +325,10 @@ function LogistisSyncPanel() {
       toast.error(e.response?.data?.error || 'Σφάλμα αποστολής');
     } finally { setSending(false); }
   };
+
+  const rangeLabel = preview
+    ? (preview.dateFrom === preview.dateTo ? preview.dateFrom : `${preview.dateFrom} → ${preview.dateTo}`)
+    : null;
 
   return (
     <div className="card p-6">
@@ -352,9 +362,22 @@ function LogistisSyncPanel() {
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-3">
-        <button onClick={handlePreview} disabled={loading} className="btn-secondary flex items-center gap-2">
-          {loading ? 'Φόρτωση…' : '🔍 Προεπισκόπηση (χθεσινές)'}
+      {/* Date range selector */}
+      <div className="flex flex-wrap items-end gap-3 mb-4">
+        <div className="flex flex-col gap-1">
+          <label className="text-xs text-slate-500 font-medium">Από</label>
+          <input type="date" value={dateFrom} max={todayStr()}
+            onChange={e => { setDateFrom(e.target.value); setPreview(null); }}
+            className="input text-sm" />
+        </div>
+        <div className="flex flex-col gap-1">
+          <label className="text-xs text-slate-500 font-medium">Έως</label>
+          <input type="date" value={dateTo} min={dateFrom} max={todayStr()}
+            onChange={e => { setDateTo(e.target.value); setPreview(null); }}
+            className="input text-sm" />
+        </div>
+        <button onClick={handlePreview} disabled={loading || !dateFrom || !dateTo} className="btn-secondary flex items-center gap-2">
+          {loading ? 'Φόρτωση…' : '🔍 Προεπισκόπηση'}
         </button>
         {preview && (
           <button onClick={handleSend} disabled={sending || preview.payments.length === 0} className="btn-primary flex items-center gap-2">
@@ -364,12 +387,12 @@ function LogistisSyncPanel() {
       </div>
 
       {preview && (
-        <div className="mt-4 p-3 rounded-xl bg-slate-50 border border-slate-100 text-xs text-slate-600">
-          <div className="font-semibold mb-1 text-slate-700">Προεπισκόπηση για {preview.date}</div>
+        <div className="mt-2 p-3 rounded-xl bg-slate-50 border border-slate-100 text-xs text-slate-600">
+          <div className="font-semibold mb-1 text-slate-700">Προεπισκόπηση για {rangeLabel}</div>
           {preview.payments.length === 0 && <div className="text-slate-400">Καμία πληρωμή για αποστολή</div>}
           {preview.payments.map(p => (
             <div key={p.externalId} className="flex items-center justify-between py-0.5 border-b border-slate-100 last:border-0">
-              <span>{p.onomasia || p.afm} · {p.category}</span>
+              <span>{p.onomasia || p.afm} · {p.category} {p.paymentDate !== preview.dateFrom || p.paymentDate !== preview.dateTo ? <span className="text-slate-400 ml-1">({p.paymentDate})</span> : null}</span>
               <span className="font-semibold">{(p.amount / 100).toLocaleString('el-GR')} €</span>
             </div>
           ))}

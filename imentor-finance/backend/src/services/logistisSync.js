@@ -1,9 +1,13 @@
 const axios = require('axios');
+const { Op } = require('sequelize');
 const Income = require('../models/Income');
 
 // Push Income rows as "payments" to Logistis (POST /api/external/finance-payments)
 // Requires LOGISTIS_BASE_URL + LOGISTIS_API_KEY env vars.
-// amount_application -> category ΑΙΤΗΣΗ, amount_implementation -> category ΥΛΟΠΟΙΗΣΗ.
+// targeting_category drives which amounts to send:
+//   'ΠΩΛΗΣΗ ΑΙΤΗΣΗΣ'    → application only
+//   'ΠΩΛΗΣΗ ΥΛΟΠΟΙΗΣΗΣ' → implementation only
+//   anything else        → both (if > 0)
 
 function normalizeBase(url) {
   if (!url) return url;
@@ -33,7 +37,11 @@ async function getIncomeForDate(dateStr) {
   return Income.findAll({ where: { sale_date: dateStr } });
 }
 
-// Splits each Income row into up to 2 payments (application / implementation).
+async function getIncomeForDateRange(dateFrom, dateTo) {
+  return Income.findAll({ where: { sale_date: { [Op.between]: [dateFrom, dateTo] } } });
+}
+
+// Splits each Income row into up to 2 payments based on targeting_category.
 function buildPayments(rows) {
   const payments = [];
   const skipped = [];
@@ -51,15 +59,16 @@ function buildPayments(rows) {
       accountant: r.accountant || undefined,
     };
 
-    const app = parseFloat(r.amount_application) || 0;
+    const cat = (r.targeting_category || '').trim().toUpperCase();
+    const app  = parseFloat(r.amount_application) || 0;
     const impl = parseFloat(r.amount_implementation) || 0;
 
-    if (app > 0) {
-      payments.push({ ...base, externalId: `income-${r.id}-application`, amount: Math.round(app * 100), category: 'ΑΙΤΗΣΗ' });
-    }
-    if (impl > 0) {
-      payments.push({ ...base, externalId: `income-${r.id}-implementation`, amount: Math.round(impl * 100), category: 'ΥΛΟΠΟΙΗΣΗ' });
-    }
+    // Suppress the opposite amount when category explicitly names one type
+    const sendApp  = app  > 0 && cat !== 'ΠΩΛΗΣΗ ΥΛΟΠΟΙΗΣΗΣ';
+    const sendImpl = impl > 0 && cat !== 'ΠΩΛΗΣΗ ΑΙΤΗΣΗΣ';
+
+    if (sendApp)  payments.push({ ...base, externalId: `income-${r.id}-application`,     amount: Math.round(app  * 100), category: 'ΑΙΤΗΣΗ'    });
+    if (sendImpl) payments.push({ ...base, externalId: `income-${r.id}-implementation`, amount: Math.round(impl * 100), category: 'ΥΛΟΠΟΙΗΣΗ' });
   }
   return { payments, skipped };
 }
@@ -76,7 +85,14 @@ async function runDailySync(dateStr) {
   const rows = await getIncomeForDate(date);
   const { payments, skipped } = buildPayments(rows);
   const result = await sendBatch(payments);
-  return { date, sent: payments.length, skipped, result };
+  return { dateFrom: date, dateTo: date, sent: payments.length, skipped, result };
 }
 
-module.exports = { runDailySync, buildPayments, getIncomeForDate, yesterdayStr };
+async function runSyncForRange(dateFrom, dateTo) {
+  const rows = await getIncomeForDateRange(dateFrom, dateTo);
+  const { payments, skipped } = buildPayments(rows);
+  const result = await sendBatch(payments);
+  return { dateFrom, dateTo, sent: payments.length, skipped, result };
+}
+
+module.exports = { runDailySync, runSyncForRange, buildPayments, getIncomeForDate, getIncomeForDateRange, yesterdayStr };
