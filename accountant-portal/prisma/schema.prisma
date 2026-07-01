@@ -161,6 +161,7 @@ model Business {
   clientCases           ClientCase[]
   exodikastikosCases    ExodikastikosCase[]
   financePayments       FinancePayment[]
+  leadInterests         BusinessLeadInterest[]
 }
 
 enum ClientType {
@@ -196,8 +197,26 @@ model BusinessMatchToken {
   // transcripts list. Null until at least one assistant turn has happened.
   eligibilityStatus String?  // ELIGIBLE | NOT_ELIGIBLE | UNCLEAR
   intentStatus      String?  // INTERESTED | NOT_INTERESTED | UNCLEAR
+  // CM integration: stored so the completed-conversation webhook can fire back
+  // to the right URL and tie results to the correct CM lead.
+  leadRef           String?
+  callbackUrl       String?
 
   @@unique([businessId, programId])
+}
+
+// Logs when a business expressed interest in a specific I-MENTOR service/program,
+// e.g. by being submitted as a lead from Case Management via the Ερμής flow.
+// Kept even when a business already existed — records each discrete lead event.
+model BusinessLeadInterest {
+  id          String   @id @default(cuid())
+  businessId  String
+  business    Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  program     String              // program name as sent by CM (e.g. "ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ")
+  serviceType String?             // serviceType as sent by CM (e.g. "ΕΞΩΔΙΚΑΣΤΙΚΟΣ")
+  leadRef     String?             // CM's lead reference ID
+  source      String   @default("ermis-lead")
+  createdAt   DateTime @default(now())
 }
 
 model BusinessActivity {

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { runErmisTurn, classifyConversation, type ChatMessage } from '@/lib/ermis-agent'
 import { buildEligibilityQuestions, parseEligibilityStorage } from '@/lib/eligibility-questions'
+import { sendErmisWebhook } from '@/app/api/external/ermis-sessions/route'
+import { buildBusinessProfilePayload, BUSINESS_PROFILE_SELECT } from '@/lib/business-profile'
 
 export const dynamic = 'force-dynamic'
 
@@ -84,7 +86,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return null
   })
 
-  await prisma.businessMatchToken.update({
+  const updatedToken = await prisma.businessMatchToken.update({
     where: { token },
     data: {
       chatLog: finalHistory as any,
@@ -94,7 +96,31 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       ...(result.caseId ? { caseCreatedId: result.caseId } : {}),
       ...(classification ? { eligibilityStatus: classification.eligibility, intentStatus: classification.intent } : {}),
     },
+    select: { callbackUrl: true, leadRef: true, businessId: true },
   })
+
+  // Fire ermis.completed webhook to CM when a case is assigned (fire-and-forget)
+  if (result.caseId && updatedToken.callbackUrl) {
+    ;(async () => {
+      const biz = await prisma.business.findUnique({
+        where: { id: updatedToken.businessId },
+        select: { ...BUSINESS_PROFILE_SELECT, afm: true, id: true },
+      })
+      if (!biz) return
+      const profile = await buildBusinessProfilePayload(biz)
+      await sendErmisWebhook({
+        callbackUrl: updatedToken.callbackUrl!,
+        event: 'ermis.completed',
+        token,
+        leadRef: updatedToken.leadRef,
+        afm: biz.afm,
+        businessProfile: profile,
+        eligibility: classification?.eligibility === 'ELIGIBLE' ? 'eligible' : 'ineligible',
+        transcript: finalHistory.map(m => ({ role: m.role, text: m.text, ts: new Date().toISOString() })),
+        completedAt: new Date().toISOString(),
+      })
+    })().catch(() => {})
+  }
 
   return NextResponse.json({ reply: result.reply, caseAssigned: Boolean(result.caseId) })
 }
