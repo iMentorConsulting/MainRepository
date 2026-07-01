@@ -24,6 +24,7 @@ from routes.cm_modifications import router as cm_modifications_router
 from routes.cm_portal_files import router as cm_portal_files_router  # portal docs per service type
 from routes.cm_revenue import router as cm_revenue_router
 from routes.finance_api import router as finance_api_router
+from routes.finance_payments import router as finance_payments_router
 
 load_dotenv()
 
@@ -345,7 +346,7 @@ with SessionLocal() as _db:
         print(f"[migration] Fixed program_category / backfilled share_token for {_fixed} cases")
 
 # Import new models so create_all creates their tables
-from models_cases import CMNotificationTemplate, CMStatusSLA, CMCaseModification, CMPortalFile, CMPaymentLog
+from models_cases import CMNotificationTemplate, CMStatusSLA, CMCaseModification, CMPortalFile, CMPaymentLog, FinancePayment
 
 # Seed notification templates (only if table is empty)
 _DEFAULT_TEMPLATES = [
@@ -519,6 +520,7 @@ app.include_router(cm_modifications_router)
 app.include_router(cm_portal_files_router)
 app.include_router(cm_revenue_router)
 app.include_router(finance_api_router)
+app.include_router(finance_payments_router)
 
 
 @app.on_event("shutdown")
