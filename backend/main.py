@@ -29,6 +29,9 @@ from routes.cm_anakainizw import router as cm_anakainizw_router
 from routes.cm_finance_sync import router as cm_finance_sync_router
 from routes.cm_portal_integration import router as cm_portal_integration_router
 from routes.finance_api import router as finance_api_router
+from routes.cm_leads import router as cm_leads_router
+from routes.cm_leads_sync import router as cm_leads_sync_router
+from routes.cm_leads_ermis import router as cm_leads_ermis_router
 
 load_dotenv()
 
@@ -929,10 +932,58 @@ def _scheduled_backup():
         _db.close()
 
 
+def _run_leads_sheet_sync():
+    """Daily import of new leads from each program's Google Sheet."""
+    from routes.cm_leads_sync import _do_lead_sync
+    db = SessionLocal()
+    try:
+        result = _do_lead_sync(db, dry_run=False)
+        print(f"[scheduler] Leads sheet sync OK — imported={result['imported']}")
+    except Exception as e:
+        print(f"[scheduler] Leads sheet sync ERROR: {e}")
+    finally:
+        db.close()
+
+
+def _run_lead_reminder_digest():
+    """Send each agent a daily Viber summary of leads whose next call is due/overdue."""
+    from routes.cm_notifications import _send_viber
+    from models_cases import CMLead as _CMLead, CMUser as _CMUser
+    from datetime import date as _date
+    db = SessionLocal()
+    try:
+        today = _date.today()
+        due = db.query(_CMLead).filter(
+            _CMLead.next_call_date != None,  # noqa: E711
+            _CMLead.next_call_date <= today,
+            ~_CMLead.status.in_(["DEAL", "CANCEL"]),
+        ).all()
+        by_agent: dict = {}
+        for l in due:
+            if l.assigned_agent_id:
+                by_agent.setdefault(l.assigned_agent_id, []).append(l)
+        for agent_id, items in by_agent.items():
+            agent = db.query(_CMUser).filter(_CMUser.id == agent_id).first()
+            if not agent or not agent.phone:
+                continue
+            lines = "\n".join(
+                f"• {l.name or '—'} ({l.phone or 'χωρίς τηλ.'}) — {l.next_call_date.isoformat()}"
+                for l in sorted(items, key=lambda x: x.next_call_date)
+            )
+            msg = f"Καλημέρα {agent.full_name},\nLeads για κλήση σήμερα/εκπρόθεσμα ({len(items)}):\n{lines}"
+            _send_viber(agent.phone, msg, agent.full_name)
+    except Exception as e:
+        print(f"[scheduler] Lead reminder digest ERROR: {e}")
+    finally:
+        db.close()
+
+
 _scheduler = _BGScheduler(timezone=_athens_tz)
 _scheduler.add_job(_run_scheduled_refresh, "cron", hour=12, minute=0, id="refresh_12")
 _scheduler.add_job(_run_scheduled_refresh, "cron", hour=22, minute=0, id="refresh_22")
 _scheduler.add_job(_run_agent_sla_digest, "cron", hour=9, minute=0, id="sla_digest_09")
+_scheduler.add_job(_run_leads_sheet_sync, "cron", hour=7, minute=0, id="leads_sync_07")
+_scheduler.add_job(_run_lead_reminder_digest, "cron", hour=8, minute=30, id="lead_reminders")
 _backup_hour = int(os.getenv("BACKUP_SCHEDULE_HOUR", "2"))
 _scheduler.add_job(_scheduled_backup, "cron", hour=_backup_hour, minute=0, id="drive_backup")
 _scheduler.start()
@@ -971,6 +1022,9 @@ app.include_router(cm_anakainizw_router)
 app.include_router(cm_finance_sync_router)
 app.include_router(finance_api_router)
 app.include_router(cm_portal_integration_router)
+app.include_router(cm_leads_router)
+app.include_router(cm_leads_sync_router)
+app.include_router(cm_leads_ermis_router)
 
 
 try:
@@ -1076,6 +1130,93 @@ try:
         _conn.commit()
 except Exception as _e:
     print(f"[migration] cm_business_profiles create skipped: {_e}", flush=True)
+
+
+# ── Leads tables ────────────────────────────────────────────────────────────
+try:
+    with engine.connect() as _conn:
+        _conn.execute(_text("""
+            CREATE TABLE IF NOT EXISTS cm_lead_sheet_configs (
+                id SERIAL PRIMARY KEY,
+                program VARCHAR(100) NOT NULL UNIQUE,
+                spreadsheet_id VARCHAR(200),
+                sheet_tab VARCHAR(100),
+                header_row INTEGER DEFAULT 1,
+                column_map JSON,
+                program_field_map JSON,
+                enabled BOOLEAN DEFAULT TRUE,
+                last_sync_at TIMESTAMP,
+                last_row_num INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT NOW(),
+                updated_at TIMESTAMP DEFAULT NOW()
+            )
+        """))
+        _conn.execute(_text("""
+            CREATE TABLE IF NOT EXISTS cm_leads (
+                id SERIAL PRIMARY KEY,
+                name VARCHAR(200),
+                phone VARCHAR(50),
+                phone2 VARCHAR(50),
+                email VARCHAR(200),
+                afm VARCHAR(20),
+                program VARCHAR(100),
+                service_type VARCHAR(150),
+                total_amount DOUBLE PRECISION DEFAULT 0,
+                status VARCHAR(30) DEFAULT 'NEW LEAD',
+                assigned_agent_id INTEGER REFERENCES cm_users(id),
+                source VARCHAR(200),
+                notes TEXT,
+                next_call_date DATE,
+                linked_case_id INTEGER REFERENCES cm_cases(id),
+                ermis_token VARCHAR(100),
+                ermis_chat_url VARCHAR(500),
+                ermis_status VARCHAR(30),
+                ermis_transcript TEXT,
+                ermis_started_at TIMESTAMP,
+                ermis_completed_at TIMESTAMP,
+                sheet_config_id INTEGER REFERENCES cm_lead_sheet_configs(id),
+                sheet_row_num INTEGER,
+                sheet_import_ref VARCHAR(200),
+                program_fields JSON,
+                created_at TIMESTAMP DEFAULT NOW(),
+                updated_at TIMESTAMP DEFAULT NOW()
+            )
+        """))
+        _conn.execute(_text("CREATE INDEX IF NOT EXISTS ix_cm_leads_afm ON cm_leads (afm)"))
+        _conn.execute(_text("CREATE INDEX IF NOT EXISTS ix_cm_leads_status ON cm_leads (status)"))
+        _conn.execute(_text("CREATE INDEX IF NOT EXISTS ix_cm_leads_ermis_token ON cm_leads (ermis_token)"))
+        _conn.execute(_text("CREATE INDEX IF NOT EXISTS ix_cm_leads_sheet_import_ref ON cm_leads (sheet_import_ref)"))
+        _conn.execute(_text("""
+            CREATE TABLE IF NOT EXISTS cm_lead_comments (
+                id SERIAL PRIMARY KEY,
+                lead_id INTEGER NOT NULL REFERENCES cm_leads(id) ON DELETE CASCADE,
+                user_id INTEGER REFERENCES cm_users(id),
+                content TEXT NOT NULL,
+                author_name VARCHAR(100),
+                edited BOOLEAN DEFAULT FALSE,
+                created_at TIMESTAMP DEFAULT NOW(),
+                updated_at TIMESTAMP DEFAULT NOW()
+            )
+        """))
+        _conn.execute(_text("CREATE INDEX IF NOT EXISTS ix_cm_lead_comments_lead_id ON cm_lead_comments (lead_id)"))
+        _conn.execute(_text("""
+            CREATE TABLE IF NOT EXISTS cm_lead_notification_logs (
+                id SERIAL PRIMARY KEY,
+                lead_id INTEGER REFERENCES cm_leads(id) ON DELETE CASCADE,
+                notification_type VARCHAR(50),
+                recipient_name VARCHAR(200),
+                recipient_contact VARCHAR(200),
+                subject VARCHAR(300),
+                content TEXT,
+                status VARCHAR(30) DEFAULT 'sent',
+                sent_by VARCHAR(100),
+                created_at TIMESTAMP DEFAULT NOW()
+            )
+        """))
+        _conn.execute(_text("CREATE INDEX IF NOT EXISTS ix_cm_lead_notification_logs_lead_id ON cm_lead_notification_logs (lead_id)"))
+        _conn.commit()
+except Exception as _e:
+    print(f"[migration] cm_leads create skipped: {_e}", flush=True)
 
 
 @app.on_event("shutdown")

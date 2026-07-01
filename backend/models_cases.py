@@ -549,3 +549,121 @@ class CMBusinessMatchedProgram(Base):
     status = Column(String(50))
 
     business = relationship("CMBusinessProfile", back_populates="matched_programs")
+
+
+# ── Leads ──────────────────────────────────────────────────────────────────
+# Prospective clients collected via per-program Google Sheets, screened by the
+# ΕΡΜΗΣ AI assistant (hosted in the LOGISTIS app), and converted into CMCase
+# records once they become deals.
+
+LEAD_STATUSES = ["NEW LEAD", "CALL", "HOT", "ACTIVE", "DEAL", "CANCEL"]
+
+
+class CMLead(Base):
+    __tablename__ = "cm_leads"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    # Contact / business
+    name = Column(String(200))
+    phone = Column(String(50))
+    phone2 = Column(String(50))
+    email = Column(String(200))
+    afm = Column(String(20), index=True)
+
+    # Program / commercial
+    program = Column(String(100))          # ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ | ΔΥΠΑ | ΕΣΠΑ | ΑΝΑΚΑΙΝΙΖΩ
+    service_type = Column(String(150))
+    total_amount = Column(Float, default=0)
+
+    # Pipeline
+    status = Column(String(30), default="NEW LEAD", index=True)  # LEAD_STATUSES
+    assigned_agent_id = Column(Integer, ForeignKey("cm_users.id"), nullable=True)
+    source = Column(String(200))
+    notes = Column(Text)
+    next_call_date = Column(Date, nullable=True)
+
+    # Case linkage (once converted)
+    linked_case_id = Column(Integer, ForeignKey("cm_cases.id"), nullable=True)
+
+    # ΕΡΜΗΣ AI pre-screening
+    ermis_token = Column(String(100), index=True)
+    ermis_chat_url = Column(String(500))
+    ermis_status = Column(String(30))       # in_progress | eligible | ineligible
+    ermis_transcript = Column(Text)         # JSON-encoded list of {role,text,ts}
+    ermis_started_at = Column(DateTime, nullable=True)
+    ermis_completed_at = Column(DateTime, nullable=True)
+
+    # Google Sheets sync
+    sheet_config_id = Column(Integer, ForeignKey("cm_lead_sheet_configs.id"), nullable=True)
+    sheet_row_num = Column(Integer, nullable=True)          # watermark within its sheet
+    sheet_import_ref = Column(String(200), index=True)      # dedup guard, e.g. "<spreadsheet_id>:<row>"
+
+    # Program-specific columns that vary per sheet, kept schema-free
+    program_fields = Column(JSON, nullable=True)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    assigned_agent = relationship("CMUser", foreign_keys=[assigned_agent_id])
+    comments = relationship("CMLeadComment", back_populates="lead", cascade="all, delete-orphan")
+
+
+class CMLeadComment(Base):
+    __tablename__ = "cm_lead_comments"
+
+    id = Column(Integer, primary_key=True, index=True)
+    lead_id = Column(Integer, ForeignKey("cm_leads.id"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("cm_users.id"), nullable=True)
+
+    content = Column(Text, nullable=False)   # raw markup (**bold**, [c=#hex]…[/c]), rendered client-side
+    author_name = Column(String(100))
+    edited = Column(Boolean, default=False)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    lead = relationship("CMLead", back_populates="comments")
+
+
+class CMLeadSheetConfig(Base):
+    """Per-program Google Sheet source config. DB-driven so staff can re-map
+    columns when a sheet layout changes without a redeploy."""
+    __tablename__ = "cm_lead_sheet_configs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    program = Column(String(100), unique=True, nullable=False)  # one config per program
+    spreadsheet_id = Column(String(200))
+    sheet_tab = Column(String(100))
+    header_row = Column(Integer, default=1)
+
+    # logical field -> column letter/index (e.g. {"name": "B", "phone": "C"})
+    column_map = Column(JSON, nullable=True)
+    # program-specific header -> {"key": <program_fields key>, "label": <display>}
+    program_field_map = Column(JSON, nullable=True)
+
+    enabled = Column(Boolean, default=True)
+    last_sync_at = Column(DateTime, nullable=True)
+    last_row_num = Column(Integer, default=0)   # highest row imported so far (watermark)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class CMLeadNotificationLog(Base):
+    """Audit trail of ΕΡΜΗΣ-link / outreach sends to a lead — prevents duplicate
+    sends and mirrors CMNotificationLog (which is case-bound)."""
+    __tablename__ = "cm_lead_notification_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    lead_id = Column(Integer, ForeignKey("cm_leads.id"), nullable=True, index=True)
+
+    notification_type = Column(String(50))   # viber | email | ermis_link
+    recipient_name = Column(String(200))
+    recipient_contact = Column(String(200))
+    subject = Column(String(300))
+    content = Column(Text)
+    status = Column(String(30), default="sent")
+    sent_by = Column(String(100))
+
+    created_at = Column(DateTime, default=datetime.utcnow)
