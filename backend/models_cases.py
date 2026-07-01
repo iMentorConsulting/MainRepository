@@ -344,3 +344,28 @@ class CMPaymentLog(Base):
     source = Column(String(50), default="sheet_import")
 
     case = relationship("CMCase", back_populates="payment_logs")
+
+
+class FinancePayment(Base):
+    """Payments pushed from iMentor Finance app (idempotent via external_id)."""
+    __tablename__ = "finance_payments"
+
+    id = Column(Integer, primary_key=True, index=True)
+    external_id = Column(String(200), unique=True, index=True, nullable=False)
+
+    # Matched case (null if no CMCase found for this AFM)
+    case_id = Column(Integer, ForeignKey("cm_cases.id"), nullable=True)
+
+    # Payment fields as received from Finance app
+    afm = Column(String(20), nullable=False, index=True)
+    onomasia = Column(String(200))
+    amount_cents = Column(Integer, nullable=False)
+    invoice_number = Column(String(100))
+    service = Column(String(200))
+    category = Column(String(50))   # ΑΙΤΗΣΗ | ΥΛΟΠΟΙΗΣΗ
+    payment_date = Column(Date)
+    accountant = Column(String(200))
+
+    received_at = Column(DateTime, default=datetime.utcnow)
+
+    case = relationship("CMCase", foreign_keys=[case_id])
