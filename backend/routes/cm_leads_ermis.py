@@ -46,7 +46,7 @@ SELF_BASE_URL = os.getenv("SELF_PUBLIC_BASE_URL", "https://consult.i-mentor.gr")
 
 class ErmisStartIn(BaseModel):
     send_link: Optional[bool] = True
-    channel: Optional[str] = "viber"  # viber | email | both | none
+    channel: Optional[str] = "both"  # viber | email | both | none
 
 
 @router.post("/{lead_id}/ermis/start")
@@ -72,6 +72,23 @@ def start_ermis(
         else:
             extra_fields[k] = v
 
+    # A ready-to-inject, human-readable summary of everything we already know —
+    # ΕΡΜΗΣ should treat these as ALREADY ANSWERED and never re-ask them.
+    summary_lines = ["ΓΝΩΣΤΑ ΣΤΟΙΧΕΙΑ ΠΕΛΑΤΗ (μην τα ξαναρωτήσεις — θεώρησέ τα δεδομένα):"]
+    if l.name: summary_lines.append(f"- Ονοματεπώνυμο/Επωνυμία: {l.name}")
+    if l.afm: summary_lines.append(f"- ΑΦΜ: {l.afm}")
+    if l.phone: summary_lines.append(f"- Τηλέφωνο: {l.phone}")
+    if l.email: summary_lines.append(f"- Email: {l.email}")
+    if l.program: summary_lines.append(f"- Πρόγραμμα ενδιαφέροντος: {l.program}")
+    if l.service_type: summary_lines.append(f"- Υπηρεσία: {l.service_type}")
+    if l.total_amount: summary_lines.append(f"- Ποσό: {l.total_amount}")
+    if l.source: summary_lines.append(f"- Πηγή: {l.source}")
+    if l.notes: summary_lines.append(f"- Σχόλια φόρμας: {l.notes}")
+    for k, v in extra_fields.items():
+        if v not in (None, ""):
+            summary_lines.append(f"- {k}: {v}")
+    context_summary = "\n".join(summary_lines)
+
     # Full lead context so ΕΡΜΗΣ can use it in the conversation; `program`/
     # `serviceType` let LOGISTIS pick the right ΕΡΜΗΣ profile (prompt + knowledge).
     body = {
@@ -80,6 +97,7 @@ def start_ermis(
         "program": l.program,
         "serviceType": l.service_type,
         "callbackUrl": f"{SELF_BASE_URL.rstrip('/')}/api/cm/leads/ermis/webhook",
+        "contextSummary": context_summary,
         "lead": {
             "id": l.id,
             "name": l.name,
@@ -95,6 +113,7 @@ def start_ermis(
             "source": l.source,
             "notes": l.notes,
             "extraFields": extra_fields,
+            "contextSummary": context_summary,
         },
     }
     try:
@@ -118,20 +137,40 @@ def start_ermis(
     db.commit()
 
     sent = []
-    if req.send_link and (req.channel or "viber") != "none":
-        msg = f"Καλησπέρα! Πατήστε εδώ για μια σύντομη προαξιολόγηση από τον βοηθό μας ΕΡΜΗ: {chat_url}"
-        if req.channel in ("viber", "both") and l.phone:
-            ok, err = _send_viber(l.phone, msg, l.name or "", current_user.full_name, l.service_type or "")
+    if req.send_link and (req.channel or "both") != "none":
+        greeting = f"Καλησπέρα {l.name}," if l.name else "Καλησπέρα,"
+        # Explains WHERE we got their details and WHAT the link does.
+        viber_msg = (
+            f"{greeting}\n\n"
+            "λάβαμε τη φόρμα ενδιαφέροντος που συμπληρώσατε προς την i-Mentor Consulting. "
+            "Μπορούμε να κάνουμε άμεσα μια σύντομη & δωρεάν προαξιολόγηση και ενημέρωση για το "
+            "πρόγραμμα που σας ενδιαφέρει, μέσω του ψηφιακού μας βοηθού «ΕΡΜΗΣ».\n\n"
+            f"Ξεκινήστε εδώ (2 λεπτά): {chat_url}\n\n"
+            "i-Mentor Consulting"
+        )
+        email_subject = "i-Mentor Consulting — Γρήγορη προαξιολόγηση με τον βοηθό ΕΡΜΗ"
+        email_msg = (
+            f"{greeting}\n\n"
+            "Λάβαμε τη φόρμα ενδιαφέροντος που συμπληρώσατε προς την i-Mentor Consulting. "
+            "Ο ψηφιακός μας βοηθός «ΕΡΜΗΣ» μπορεί να σας κάνει άμεσα μια σύντομη και δωρεάν "
+            "προαξιολόγηση για το πρόγραμμα που σας ενδιαφέρει και να σας ενημερώσει για τα επόμενα βήματα.\n\n"
+            f"Πατήστε εδώ για να ξεκινήσετε (διαρκεί περίπου 2 λεπτά):\n{chat_url}\n\n"
+            "Με εκτίμηση,\ni-Mentor Consulting"
+        )
+        # Default to BOTH channels when available
+        channel = req.channel or "both"
+        if channel in ("viber", "both") and l.phone:
+            ok, err = _send_viber(l.phone, viber_msg, l.name or "", current_user.full_name, l.service_type or "")
             db.add(CMLeadNotificationLog(lead_id=l.id, notification_type="ermis_link",
                                          recipient_name=l.name or "", recipient_contact=l.phone,
-                                         subject="ΕΡΜΗΣ link", content=msg,
+                                         subject="ΕΡΜΗΣ link", content=viber_msg,
                                          status="sent" if ok else "failed", sent_by=current_user.full_name))
             sent.append({"channel": "viber", "status": "sent" if ok else "failed", "error": err if not ok else None})
-        if req.channel in ("email", "both") and l.email:
-            ok, err = _send_email(l.email, "Προαξιολόγηση i-Mentor (ΕΡΜΗΣ)", msg)
+        if channel in ("email", "both") and l.email:
+            ok, err = _send_email(l.email, email_subject, email_msg)
             db.add(CMLeadNotificationLog(lead_id=l.id, notification_type="ermis_link",
                                          recipient_name=l.name or "", recipient_contact=l.email,
-                                         subject="ΕΡΜΗΣ link", content=msg,
+                                         subject=email_subject, content=email_msg,
                                          status="sent" if ok else "failed", sent_by=current_user.full_name))
             sent.append({"channel": "email", "status": "sent" if ok else "failed", "error": err if not ok else None})
         db.commit()

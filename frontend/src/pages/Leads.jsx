@@ -275,9 +275,17 @@ function ExpandedRow({ lead, colSpan, onChanged, onConvert, onErmis, onSend }) {
               <div className="mt-2">
                 <div className="text-xs text-gray-400 mb-0.5">ΚΑΔ:</div>
                 <div className="flex flex-wrap gap-1">
-                  {full.business.activities.map((a, i) => (
-                    <span key={i} className="text-xs bg-gray-100 rounded px-2 py-0.5" title={a.firmActDescr}>{a.firmActCode} {a.firmActKind ? `(${a.firmActKind})` : ''}</span>
-                  ))}
+                  {full.business.activities.map((a, i) => {
+                    const descr = a.firmActDescr || ''
+                    const short = descr.length > 30 ? descr.slice(0, 30) + '…' : descr
+                    return (
+                      <span key={i} className="text-[10px] leading-tight tracking-tight bg-gray-100 rounded px-1.5 py-0.5"
+                        style={{ fontStretch: 'condensed', fontFamily: "'Roboto Condensed','Arial Narrow',sans-serif" }}
+                        title={`${a.firmActCode} — ${descr}`}>
+                        <b>{a.firmActCode}</b>{a.firmActKind ? ` (${a.firmActKind})` : ''}{short ? ` · ${short}` : ''}
+                      </span>
+                    )
+                  })}
                 </div>
               </div>
             )}
@@ -407,7 +415,7 @@ export default function Leads() {
   const handleErmis = async (lead) => {
     if (lead.ermis_chat_url) { window.open(lead.ermis_chat_url, '_blank'); return }
     if (!confirm(`Έναρξη προαξιολόγησης ΕΡΜΗΣ και αποστολή link στον ${lead.name || 'lead'};`)) return
-    try { await startLeadErmis(lead.id, { send_link: true, channel: lead.phone ? 'viber' : 'email' }); toast.success('Η συνεδρία ΕΡΜΗΣ ξεκίνησε'); load() }
+    try { await startLeadErmis(lead.id, { send_link: true, channel: 'both' }); toast.success('Η συνεδρία ΕΡΜΗΣ ξεκίνησε — στάλθηκε Viber & Email'); load() }
     catch (e) { toast.error(e.response?.data?.detail || 'Σφάλμα ΕΡΜΗΣ') }
   }
   const handleConvert = async (lead) => {

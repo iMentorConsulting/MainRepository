@@ -31,12 +31,14 @@ Header: x-api-key: <CASES_API_KEY>
   "program": "ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ",
   "serviceType": "ΕΞΩΔΙΚΑΣΤΙΚΟΣ",
   "callbackUrl": "https://<cm-app>/api/cm/leads/ermis/webhook",
+  "contextSummary": "ΓΝΩΣΤΑ ΣΤΟΙΧΕΙΑ ΠΕΛΑΤΗ (μην τα ξαναρωτήσεις…)\n- Ονοματεπώνυμο: …\n- ΑΦΜ: …\n- ΑΣΦ & ΦΟΡ ΕΝΗΜ: Ναι\n- …",
   "lead": {
     "id": 3360, "name": "…", "phone": "…", "phone2": "…", "email": "…",
     "afm": "123456789", "program": "ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ", "serviceType": "ΕΞΩΔΙΚΑΣΤΙΚΟΣ",
     "totalAmount": 0, "status": "NEW LEAD", "consultant": "STELLA",
     "source": "FB", "notes": "<free-text sheet comment>",
-    "extraFields": { "ΑΣΦ & ΦΟΡ ΕΝΗΜ": "Ναι", "ΚΕΡΔΟΦΟΡΙΑ": "…" }
+    "extraFields": { "ΑΣΦ & ΦΟΡ ΕΝΗΜ": "Ναι", "ΤΕΙΡΕΣΙΑΣ & ΤΡΑΠΕΖΕΣ": "Ναι", "ΚΕΡΔΟΦΟΡΙΑ": "Ναι", "ΕΝΕΡΓΗ ΕΠΙΧΕΙΡΗΣΗ": "Ναι" },
+    "contextSummary": "…same preformatted summary…"
   }
 }
 ```
@@ -48,6 +50,15 @@ Header: x-api-key: <CASES_API_KEY>
 - Seed the ΕΡΜΗΣ session with the `lead`, the business data, and the matching so
   ΕΡΜΗΣ can use them in the conversation.
 - Persist `leadRef` and `callbackUrl` against the session/token.
+
+> ⚠️ **IMPORTANT — do not re-ask what we already sent.** ΕΡΜΗΣ must treat every
+> field in `lead` (including `lead.extraFields`, e.g. `ΑΣΦ & ΦΟΡ ΕΝΗΜ: Ναι`,
+> `ΤΕΙΡΕΣΙΑΣ & ΤΡΑΠΕΖΕΣ: Ναι`, `ΚΕΡΔΟΦΟΡΙΑ: Ναι`, `ΕΝΕΡΓΗ ΕΠΙΧΕΙΡΗΣΗ: Ναι`) as
+> **already answered** and must NOT ask the client to fill them in again. To make
+> this trivial we now also send a preformatted **`contextSummary`** string (both
+> top-level and inside `lead`) — inject it verbatim into the ΕΡΜΗΣ system prompt as
+> known facts, and have ΕΡΜΗΣ continue from there rather than re-collecting data.
+> In the last test ΕΡΜΗΣ ignored these fields and re-asked everything — that needs fixing.
 
 **Response (200):**
 ```json
