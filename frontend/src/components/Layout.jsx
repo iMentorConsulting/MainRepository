@@ -21,6 +21,7 @@ import {
   BanknotesIcon,
   CloudArrowUpIcon,
   BellAlertIcon,
+  UserPlusIcon,
 } from '@heroicons/react/24/outline'
 import { changePassword } from '../api'
 import toast from 'react-hot-toast'
@@ -29,12 +30,14 @@ import PortalAssignmentAlert from './PortalAssignmentAlert'
 const nav = [
   { to: '/', label: 'Dashboard', Icon: HomeIcon, exact: true, adminOnly: true },
   { to: '/workview', label: 'Γρήγορη Εργασία', Icon: TableCellsIcon },
+  { to: '/leads', label: 'Leads', Icon: UserPlusIcon },
   { to: '/cases', label: 'Υποθέσεις', Icon: FolderOpenIcon },
   { to: '/kanban', label: 'Pipeline', Icon: ViewColumnsIcon },
   { to: '/analytics', label: 'Αναλυτικά', Icon: ChartBarIcon },
   { to: '/revenue', label: 'Προβλέψεις Εισπράξεων', Icon: BanknotesIcon, adminOnly: true },
   { to: '/calendar', label: 'Ημερολόγιο', Icon: CalendarDaysIcon },
   { to: '/import', label: 'Εισαγωγή Sheet', Icon: ArrowDownTrayIcon, adminOnly: true },
+  { to: '/leads-config', label: 'Leads — Ρυθμίσεις Sheets', Icon: AdjustmentsHorizontalIcon, adminOnly: true },
   { to: '/worklists', label: 'Εκκρεμείς Εργασίες', Icon: ClipboardDocumentListIcon },
   { to: '/portal-broadcast', label: 'Πύλη Πελάτη — Αποστολή', Icon: GlobeAltIcon, adminOnly: true },
   { to: '/portal-documents', label: 'Πύλη Πελάτη — Έγγραφα', Icon: DocumentArrowUpIcon, adminOnly: true },

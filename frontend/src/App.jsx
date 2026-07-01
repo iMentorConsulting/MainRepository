@@ -24,6 +24,9 @@ import Analytics from './pages/Analytics'
 import DeadlineCalendar from './pages/DeadlineCalendar'
 import BackupPage from './pages/BackupPage'
 import StatusNotificationsPage from './pages/StatusNotificationsPage'
+import Leads from './pages/Leads'
+import LeadDetail from './pages/LeadDetail'
+import LeadSheetConfigPage from './pages/LeadSheetConfigPage'
 
 export default function App() {
   const [auth, setAuthState] = useState(() => getAuth())
@@ -53,6 +56,9 @@ export default function App() {
             <Route index element={<ErrorBoundary><Dashboard /></ErrorBoundary>} />
             <Route path="cases" element={<ErrorBoundary><Cases /></ErrorBoundary>} />
             <Route path="cases/:id" element={<ErrorBoundary><CaseDetail /></ErrorBoundary>} />
+            <Route path="leads" element={<ErrorBoundary><Leads /></ErrorBoundary>} />
+            <Route path="leads/:id" element={<ErrorBoundary><LeadDetail /></ErrorBoundary>} />
+            <Route path="leads-config" element={<ErrorBoundary><LeadSheetConfigPage /></ErrorBoundary>} />
             <Route path="kanban" element={<ErrorBoundary><Kanban /></ErrorBoundary>} />
             <Route path="pending" element={<ErrorBoundary><PendingPage /></ErrorBoundary>} />
             <Route path="workview" element={<ErrorBoundary><WorkView /></ErrorBoundary>} />

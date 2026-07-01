@@ -238,4 +238,31 @@ export const syncCaseToPortal = (caseId) => api.post(`/api/cm/portal-integration
 export const createPortalAssignmentRequest = (payload) => api.post('/api/cm/portal-integration/assignment-requests', payload).then(r => r.data)
 export const getPortalAssignmentRequests = () => api.get('/api/cm/portal-integration/assignment-requests').then(r => r.data)
 
+// Leads
+export const getLeads = (params) => api.get('/api/cm/leads/', { params }).then(r => r.data)
+export const getLeadFilterOptions = () => api.get('/api/cm/leads/filter-options').then(r => r.data)
+export const getLead = (id) => api.get(`/api/cm/leads/${id}`).then(r => r.data)
+export const createLead = (data) => api.post('/api/cm/leads/', data).then(r => r.data)
+export const updateLead = (id, data) => api.put(`/api/cm/leads/${id}`, data).then(r => r.data)
+export const deleteLead = (id) => api.delete(`/api/cm/leads/${id}`).then(r => r.data)
+export const getLeadComments = (id) => api.get(`/api/cm/leads/${id}/comments`).then(r => r.data)
+export const addLeadComment = (id, content) => api.post(`/api/cm/leads/${id}/comments`, { content }).then(r => r.data)
+export const editLeadComment = (id, commentId, content) => api.put(`/api/cm/leads/${id}/comments/${commentId}`, { content }).then(r => r.data)
+export const deleteLeadComment = (id, commentId) => api.delete(`/api/cm/leads/${id}/comments/${commentId}`).then(r => r.data)
+export const sendLeadMessage = (id, payload) => api.post(`/api/cm/leads/${id}/send`, payload).then(r => r.data)
+export const convertLeadToCase = (id) => api.post(`/api/cm/leads/${id}/convert-to-case`).then(r => r.data)
+export const startLeadErmis = (id, payload) => api.post(`/api/cm/leads/${id}/ermis/start`, payload || {}).then(r => r.data)
+export const getLeadErmisTranscript = (id) => api.get(`/api/cm/leads/${id}/ermis/transcript`).then(r => r.data)
+export const getLeadReportDailyVolume = (days) => api.get('/api/cm/leads/reports/daily-volume', { params: days ? { days } : {} }).then(r => r.data)
+export const getLeadReportStatusDistribution = () => api.get('/api/cm/leads/reports/status-distribution').then(r => r.data)
+export const getLeadReportEmployeePerformance = () => api.get('/api/cm/leads/reports/employee-performance').then(r => r.data)
+
+// Leads — Google Sheets sync config
+export const getLeadSheetConfigs = () => api.get('/api/cm/leads-sync/configs').then(r => r.data)
+export const saveLeadSheetConfig = (program, data) => api.put(`/api/cm/leads-sync/configs/${encodeURIComponent(program)}`, data).then(r => r.data)
+export const getLeadSyncStatus = () => api.get('/api/cm/leads-sync/status').then(r => r.data)
+export const previewLeadSync = (program) => api.get('/api/cm/leads-sync/preview', { params: program ? { program } : {} }).then(r => r.data)
+export const runLeadSync = () => api.post('/api/cm/leads-sync/run').then(r => r.data)
+export const runLeadSyncProgram = (program) => api.post(`/api/cm/leads-sync/run/${encodeURIComponent(program)}`).then(r => r.data)
+
 export default api
