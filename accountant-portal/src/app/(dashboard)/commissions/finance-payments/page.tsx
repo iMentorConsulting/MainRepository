@@ -6,18 +6,6 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { ArrowLeft, Check, X, Clock3, RefreshCw, UserPlus } from 'lucide-react'
 
-// Services that automatically add a same-name tag when creating a business
-const AUTO_TAG_SERVICES = ['ΕΞΩΔΙΚΑΣΤΙΚΟΣ', 'ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ']
-
-function buildCreateUrl(p: any) {
-  const params = new URLSearchParams({ afm: p.afm })
-  if (p.onomasia) params.set('onomasia', p.onomasia)
-  params.set('service', p.serviceName)
-  if (AUTO_TAG_SERVICES.some(s => p.serviceName?.toUpperCase().includes(s))) {
-    params.set('autoTag', p.serviceName)
-  }
-  return `/businesses/new?${params}`
-}
 
 function formatEur(cents: number) {
   return (cents / 100).toLocaleString('el-GR', { style: 'currency', currency: 'EUR' })
@@ -85,6 +73,30 @@ export default function FinancePaymentsPage() {
     fetchPayments()
   }
 
+  async function createBusiness(id: string) {
+    setBusyId(id)
+    const res = await fetch(`/api/finance-payments/${id}/create-business`, { method: 'POST' })
+    const data = await res.json()
+    if (!res.ok) alert(data.error || 'Σφάλμα δημιουργίας')
+    setBusyId(null)
+    fetchPayments()
+  }
+
+  async function massCreate() {
+    const unmatched = payments.filter(p => !p.business && p.status === 'PENDING')
+    if (unmatched.length === 0) { alert('Δεν υπάρχουν αναντιστοίχιστες πληρωμές'); return }
+    if (!confirm(`Μαζική δημιουργία ${unmatched.length} επιχειρήσεων από ΑΑΔΕ;`)) return
+    setSyncing(true)
+    let created = 0
+    for (const p of unmatched) {
+      const res = await fetch(`/api/finance-payments/${p.id}/create-business`, { method: 'POST' })
+      if (res.ok) created++
+    }
+    setSyncing(false)
+    alert(`Δημιουργήθηκαν ${created} επιχειρήσεις`)
+    fetchPayments()
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
@@ -112,10 +124,16 @@ export default function FinancePaymentsPage() {
             <option value="ALL">Όλες</option>
           </select>
         </div>
-        <Button variant="outline" size="sm" onClick={bulkSync} disabled={syncing} className="ml-auto">
-          <RefreshCw size={14} className={`mr-1.5 ${syncing ? 'animate-spin' : ''}`} />
-          Συγχρονισμός Υπηρεσιών
-        </Button>
+        <div className="ml-auto flex gap-2">
+          <Button variant="outline" size="sm" onClick={massCreate} disabled={syncing}>
+            <UserPlus size={14} className="mr-1.5" />
+            Μαζική Δημιουργία Επιχειρήσεων
+          </Button>
+          <Button variant="outline" size="sm" onClick={bulkSync} disabled={syncing}>
+            <RefreshCw size={14} className={`mr-1.5 ${syncing ? 'animate-spin' : ''}`} />
+            Συγχρονισμός Υπηρεσιών
+          </Button>
+        </div>
         <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer select-none">
           <input type="checkbox" checked={emailsEnabled} onChange={toggleEmails} className="rounded border-gray-300" />
           Ενεργοποίηση email προς λογιστές κατά την έγκριση
@@ -160,11 +178,14 @@ export default function FinancePaymentsPage() {
                       ) : (
                         <div className="flex items-center gap-2">
                           <span className="text-xs text-amber-600">Δεν βρέθηκε</span>
-                          <Link href={buildCreateUrl(p)}>
-                            <Button size="sm" variant="outline" className="h-6 px-2 text-xs">
-                              <UserPlus size={12} className="mr-1" />Δημιουργία
-                            </Button>
-                          </Link>
+                          <Button
+                            size="sm" variant="outline" className="h-6 px-2 text-xs"
+                            disabled={busyId === p.id}
+                            onClick={() => createBusiness(p.id)}
+                          >
+                            <UserPlus size={12} className="mr-1" />
+                            {busyId === p.id ? '...' : 'Δημιουργία'}
+                          </Button>
                           <button onClick={() => act(p.id, 'rematch')} className="text-gray-400 hover:text-gray-600" title="Επανέλεγχος αντιστοίχισης">
                             <RefreshCw size={12} />
                           </button>

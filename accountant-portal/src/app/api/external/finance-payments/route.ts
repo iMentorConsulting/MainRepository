@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
   const errors: { externalId: string; error: string }[] = []
 
   for (const p of payments) {
-    const { externalId, afm, onomasia, amount, invoiceNumber, service, category, paymentDate, accountant } = p || {}
+    const { externalId, afm, onomasia, amount, invoiceNumber, service, category, paymentDate, accountant, email, tel, phone } = p || {}
     if (!externalId || !afm || amount == null || !service || !category || !paymentDate) {
       errors.push({ externalId: externalId || '(missing)', error: 'externalId, afm, amount, service, category, paymentDate are required' })
       continue
@@ -45,6 +45,8 @@ export async function POST(request: NextRequest) {
         category: String(category),
         paymentDate: new Date(paymentDate),
         financeAccountant: accountant || null,
+        email: email || null,
+        phone: tel || phone || null,
         businessId: business?.id || null,
       },
       create: {
@@ -57,6 +59,8 @@ export async function POST(request: NextRequest) {
         category: String(category),
         paymentDate: new Date(paymentDate),
         financeAccountant: accountant || null,
+        email: email || null,
+        phone: tel || phone || null,
         businessId: business?.id || null,
       },
     })

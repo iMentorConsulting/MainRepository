@@ -573,6 +573,8 @@ model FinancePayment {
   category          String // ΑΙΤΗΣΗ | ΥΛΟΠΟΙΗΣΗ | ΠΩΛΗΣΗ ΑΙΤΗΣΗΣ | ΠΩΛΗΣΗ ΥΛΟΠΟΙΗΣΗΣ (raw value from Finance)
   paymentDate       DateTime
   financeAccountant String? // accountant name as recorded in Finance, display-only cross-check
+  email             String?
+  phone             String?
   businessId        String?
   business          Business?            @relation(fields: [businessId], references: [id])
   status            FinancePaymentStatus @default(PENDING)
