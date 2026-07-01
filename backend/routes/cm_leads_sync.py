@@ -10,7 +10,7 @@ import logging
 from datetime import datetime
 from typing import Optional, List
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Header
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -20,7 +20,7 @@ from models_cases import CMLead, CMLeadSheetConfig, LEAD_STATUSES
 from routes.cm_google_sheets import (
     _get_sheets_service, _parse_date, _parse_float, _strip_accents, _match_agent_id,
 )
-from routes.cm_portal_integration import _verify_portal_key
+from routes.cm_portal_integration import _verify_portal_key, _shared_secret
 
 log = logging.getLogger(__name__)
 
@@ -424,10 +424,18 @@ def refresh_program(
     return _do_lead_sync(db, program=program, dry_run=False, refresh=True)
 
 
-@router.post("/webhook-trigger")
+@router.api_route("/webhook-trigger", methods=["GET", "POST"])
 def webhook_trigger(
-    _key: None = Depends(_verify_portal_key),
+    program: Optional[str] = None,
+    key: Optional[str] = None,
+    x_api_key: Optional[str] = Header(None),
     db: Session = Depends(get_db),
 ):
-    """External trigger (e.g. Pabbly on a new sheet row) to force a sync."""
-    return _do_lead_sync(db, dry_run=False)
+    """External trigger (e.g. Pabbly, when a new lead row hits a Google Sheet) to
+    force a sync. Auth via header `x-api-key` OR query param `?key=` (same shared
+    secret). Optional `?program=ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ` syncs just that sheet; omit to sync all."""
+    secret = _shared_secret()
+    provided = x_api_key or key
+    if not secret or provided != secret:
+        raise HTTPException(status_code=401, detail="Μη έγκυρο API key")
+    return _do_lead_sync(db, program=program, dry_run=False)
