@@ -45,6 +45,34 @@ _STATUS_SYNONYMS = {
 }
 
 
+CANONICAL_PROGRAMS = ["ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ", "ΔΥΠΑ", "ΕΣΠΑ", "ΑΝΑΚΑΙΝΙΖΩ"]
+# ASCII aliases so external callers (Pabbly) never need Greek chars in the URL
+PROGRAM_ALIASES = {
+    "MIKRO": "ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ", "MIKROPISTOSEIS": "ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ", "MICROLOANS": "ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ",
+    "DYPA": "ΔΥΠΑ", "ESPA": "ΕΣΠΑ",
+    "ANAKAINIZW": "ΑΝΑΚΑΙΝΙΖΩ", "ANAKAINIZO": "ΑΝΑΚΑΙΝΙΖΩ", "RENOVATE": "ΑΝΑΚΑΙΝΙΖΩ",
+}
+
+
+def _resolve_program(raw: Optional[str]) -> Optional[str]:
+    """Map an incoming program value (Greek, ASCII alias, or partial) to the exact
+    canonical program name used in cm_lead_sheet_configs."""
+    if not raw:
+        return None
+    s = raw.strip()
+    up = _strip_accents(s).upper()
+    for p in CANONICAL_PROGRAMS:
+        if _strip_accents(p).upper() == up:
+            return p
+    if up in PROGRAM_ALIASES:
+        return PROGRAM_ALIASES[up]
+    for p in CANONICAL_PROGRAMS:
+        pu = _strip_accents(p).upper()
+        if pu in up or up in pu:
+            return p
+    return raw
+
+
 def _normalize_status(raw: str) -> str:
     """Map a raw sheet status cell to a canonical LEAD_STATUSES value.
     Falls back to 'NEW LEAD' when the cell is empty or unrecognized."""
@@ -409,7 +437,7 @@ def run_sync_program(
     current_user: CMUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    return _do_lead_sync(db, program=program, dry_run=False)
+    return _do_lead_sync(db, program=_resolve_program(program), dry_run=False)
 
 
 @router.post("/refresh/{program}")
@@ -438,4 +466,4 @@ def webhook_trigger(
     provided = x_api_key or key
     if not secret or provided != secret:
         raise HTTPException(status_code=401, detail="Μη έγκυρο API key")
-    return _do_lead_sync(db, program=program, dry_run=False)
+    return _do_lead_sync(db, program=_resolve_program(program), dry_run=False)
