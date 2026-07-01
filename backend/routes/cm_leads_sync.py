@@ -163,9 +163,23 @@ def _map_row(row: List[str], cfg: CMLeadSheetConfig, header: List[str], db: Sess
 # ── Core sync ───────────────────────────────────────────────────────────────
 
 def _sync_config(db: Session, cfg: CMLeadSheetConfig, dry_run: bool = False) -> dict:
-    rows = _read_config_rows(cfg)
+    # Base diagnostics so the UI can explain a "0 rows" result.
+    diag = {"program": cfg.program, "imported": 0, "scanned_to_row": cfg.last_row_num or 0,
+            "total_rows": 0, "data_rows": 0, "already_imported": 0, "skipped_empty": 0,
+            "tab": cfg.sheet_tab, "error": None, "preview": [] if dry_run else None}
+
+    if not cfg.spreadsheet_id:
+        diag["error"] = "Δεν έχει οριστεί Spreadsheet ID (και Αποθήκευση)."
+        return diag
+    try:
+        rows = _read_config_rows(cfg)
+    except Exception as exc:
+        diag["error"] = f"Αποτυχία ανάγνωσης φύλλου: {exc}. Ελέγξτε το tab «{cfg.sheet_tab}» και ότι το sheet είναι κοινόχρηστο με τον service account."
+        return diag
+
     header_row = max(1, cfg.header_row or 1)
     header = rows[header_row - 1] if len(rows) >= header_row else []
+    diag["total_rows"] = len(rows)
 
     imported = 0
     new_preview = []
@@ -176,14 +190,17 @@ def _sync_config(db: Session, cfg: CMLeadSheetConfig, dry_run: bool = False) -> 
         row_num = i + 1  # 1-based
         if row_num <= header_row:
             continue
-        if row_num <= watermark:
-            continue
         if not any(str(c).strip() for c in row):
+            diag["skipped_empty"] += 1
+            continue
+        diag["data_rows"] += 1
+        if row_num <= watermark:
             continue
 
         ref = f"{cfg.spreadsheet_id}:{row_num}"
         existing = db.query(CMLead).filter(CMLead.sheet_import_ref == ref).first()
         if existing:
+            diag["already_imported"] += 1
             max_row = max(max_row, row_num)
             continue
 
@@ -210,8 +227,9 @@ def _sync_config(db: Session, cfg: CMLeadSheetConfig, dry_run: bool = False) -> 
         cfg.last_sync_at = datetime.utcnow()
         db.commit()
 
-    return {"program": cfg.program, "imported": imported, "scanned_to_row": max_row,
-            "preview": new_preview if dry_run else None}
+    diag.update({"imported": imported, "scanned_to_row": max_row,
+                 "preview": new_preview if dry_run else None})
+    return diag
 
 
 def _do_lead_sync(db: Session, program: Optional[str] = None, dry_run: bool = False) -> dict:
@@ -219,6 +237,11 @@ def _do_lead_sync(db: Session, program: Optional[str] = None, dry_run: bool = Fa
     if program:
         q = q.filter(CMLeadSheetConfig.program == program)
     configs = q.all()
+    if not configs:
+        note = (f"Δεν βρέθηκε αποθηκευμένη/ενεργή ρύθμιση για «{program}». "
+                "Συμπληρώστε τα πεδία και πατήστε Αποθήκευση πρώτα.") if program else \
+               "Δεν υπάρχουν ενεργές ρυθμίσεις. Πατήστε Αποθήκευση σε ένα πρόγραμμα πρώτα."
+        return {"imported": 0, "per_program": [], "note": note}
     per_program = []
     total = 0
     for cfg in configs:

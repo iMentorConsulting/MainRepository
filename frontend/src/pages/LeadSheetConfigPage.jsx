@@ -100,16 +100,28 @@ function ConfigCard({ program, initial, onSaved }) {
         <button onClick={() => save({ reset_watermark: true })} disabled={busy} className="text-sm text-gray-400 hover:text-gray-600">Reset watermark</button>
       </div>
 
-      {preview && (
-        <div className="mt-3 border-t pt-2">
-          <div className="text-xs text-gray-500 mb-1">Preview: {preview.per_program?.[0]?.preview?.length ?? 0} νέες γραμμές</div>
-          <div className="max-h-40 overflow-y-auto text-xs">
-            {(preview.per_program?.[0]?.preview || []).map((row, i) => (
-              <div key={i} className="border-b py-1">γρ.{row.row_num}: {row.name || '—'} · {row.phone || ''} · {row.email || ''}</div>
-            ))}
+      {preview && (() => {
+        const pp = preview.per_program?.[0]
+        const rows = pp?.preview || []
+        return (
+          <div className="mt-3 border-t pt-2">
+            {preview.note && <div className="text-xs text-amber-700 mb-1">⚠ {preview.note}</div>}
+            {pp?.error && <div className="text-xs text-red-600 mb-1">⚠ {pp.error}</div>}
+            {pp && !pp.error && (
+              <div className="text-xs text-gray-500 mb-1">
+                Preview: <b>{rows.length}</b> νέες γραμμές · διαβάστηκαν {pp.total_rows} γραμμές
+                ({pp.data_rows} με δεδομένα, {pp.already_imported} ήδη εισηγμένες, {pp.skipped_empty} κενές) · tab «{pp.tab || '—'}»
+              </div>
+            )}
+            {!pp && !preview.note && <div className="text-xs text-gray-500 mb-1">Preview: 0 νέες γραμμές</div>}
+            <div className="max-h-40 overflow-y-auto text-xs">
+              {rows.map((row, i) => (
+                <div key={i} className="border-b py-1">γρ.{row.row_num} [{row.status}]: {row.name || '—'} · {row.phone || ''} · {row.email || ''}</div>
+              ))}
+            </div>
           </div>
-        </div>
-      )}
+        )
+      })()}
     </div>
   )
 }
