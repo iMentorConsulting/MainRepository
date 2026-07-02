@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { createAuditLog } from '@/lib/audit'
 import { sendEmail } from '@/lib/email'
 import { notifyCaseManagement } from '@/lib/case-management-sync'
+import { sendErmisWebhook } from '@/app/api/external/ermis-sessions/route'
 import { buildBusinessProfilePayload, BUSINESS_PROFILE_SELECT } from '@/lib/business-profile'
 
 export async function GET(request: NextRequest) {
@@ -156,6 +157,33 @@ export async function POST(request: NextRequest) {
     programTitle: clientCase.program?.title || null,
     ...profile,
   }).catch(err => console.error('[CaseManagement] notify failed:', err?.message))
+
+  // For accountant-created cases, also notify CM via the Ermis session's callbackUrl
+  // if one exists for this business+program — CM receives the same ermis.completed
+  // webhook it already handles, ensuring delivery even when CASE_MGMT_WEBHOOK_URL
+  // is not configured.
+  if (programId) {
+    ;(async () => {
+      const session = await prisma.businessMatchToken.findUnique({
+        where: { businessId_programId: { businessId, programId } },
+        select: { token: true, callbackUrl: true, leadRef: true, chatLog: true, eligibilityStatus: true },
+      })
+      if (!session?.callbackUrl) return
+      await sendErmisWebhook({
+        callbackUrl: session.callbackUrl,
+        event: 'ermis.completed',
+        token: session.token,
+        leadRef: session.leadRef,
+        afm: business.afm,
+        businessProfile: profile,
+        eligibility: session.eligibilityStatus === 'ELIGIBLE' ? 'eligible' : 'ineligible',
+        transcript: Array.isArray(session.chatLog)
+          ? (session.chatLog as any[]).map((m: any) => ({ role: m.role, text: m.text, ts: new Date().toISOString() }))
+          : [],
+        completedAt: new Date().toISOString(),
+      })
+    })().catch(err => console.error('[CaseManagement] Ermis webhook failed:', err?.message))
+  }
 
   return NextResponse.json(clientCase, { status: 201 })
 }
