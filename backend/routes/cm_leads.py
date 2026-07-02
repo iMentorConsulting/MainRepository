@@ -336,6 +336,30 @@ def get_lead(
         b = db.query(CMBusinessProfile).filter(CMBusinessProfile.afm == l.afm.strip()).first()
         if b:
             data["business"] = _business_profile_to_dict(b)
+
+    # Program-specific questions for this program (from the sheet config), merged
+    # with the lead's stored answers — so the questions show even when unanswered.
+    data["program_questions"] = []
+    stored = l.program_fields or {}
+    if l.program:
+        from models_cases import CMLeadSheetConfig
+        cfg = db.query(CMLeadSheetConfig).filter(CMLeadSheetConfig.program == l.program).first()
+        if cfg and cfg.program_field_map:
+            for ref, meta in cfg.program_field_map.items():
+                key = (meta.get("key") if isinstance(meta, dict) else None) or ref
+                label = (meta.get("label") if isinstance(meta, dict) else None) or key
+                sv = stored.get(key)
+                if sv is None:
+                    sv = stored.get(ref)
+                ans = sv.get("value") if isinstance(sv, dict) else sv
+                data["program_questions"].append({"key": key, "label": label, "answer": ans})
+    if not data["program_questions"] and stored:
+        for k, v in stored.items():
+            data["program_questions"].append({
+                "key": k,
+                "label": (v.get("label") if isinstance(v, dict) else k),
+                "answer": (v.get("value") if isinstance(v, dict) else v),
+            })
     return data
 
 

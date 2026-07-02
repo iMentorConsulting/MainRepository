@@ -222,7 +222,6 @@ function ExpandedRow({ lead, colSpan, onChanged, onConvert, onErmis, onSend }) {
   const delC = async (cid) => { if (!confirm('Διαγραφή σχολίου;')) return; try { await deleteLeadComment(lead.id, cid); setComments(cs => cs.filter(c => c.id !== cid)); onChanged?.() } catch { toast.error('Σφάλμα') } }
   const saveEdit = async () => { try { const l = await updateLead(lead.id, { ...form, total_amount: parseFloat(form.total_amount) || 0 }); setFull(l); setEditing(false); onChanged?.() } catch { toast.error('Σφάλμα') } }
 
-  const pf = full?.program_fields && Object.keys(full.program_fields).length ? full.program_fields : null
 
   return (
     <tr className={STATUS_ROW[lead.status] || ''}>
@@ -323,11 +322,13 @@ function ExpandedRow({ lead, colSpan, onChanged, onConvert, onErmis, onSend }) {
           </details>
         )}
 
-        {/* Program-specific fields */}
-        {pf && (
+        {/* Program-specific questions (always shown for the program; answer or —) */}
+        {full?.program_questions?.length > 0 && (
           <div className="flex flex-wrap gap-2 mb-3">
-            {Object.entries(pf).map(([k, v]) => (
-              <span key={k} className="text-xs bg-gray-100 rounded-full px-2.5 py-1"><b className="text-gray-600">{v?.label || k}:</b> {v?.value ?? String(v)}</span>
+            {full.program_questions.map((q, i) => (
+              <span key={q.key || i} className="text-xs bg-gray-100 rounded-full px-2.5 py-1">
+                <b className="text-gray-600">{q.label}:</b> {q.answer != null && q.answer !== '' ? q.answer : <span className="text-gray-400">—</span>}
+              </span>
             ))}
           </div>
         )}

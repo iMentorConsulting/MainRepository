@@ -320,6 +320,69 @@ def _build_export(db: Session) -> dict:
     except Exception:
         data["status_notification_configs"] = []
 
+    # ── Leads (list page): leads + comments + sheet configs + notification logs ──
+    try:
+        from models_cases import CMLead as _L
+        data["leads"] = [
+            {
+                "id": l.id, "name": l.name, "phone": l.phone, "phone2": l.phone2,
+                "email": l.email, "afm": l.afm, "program": l.program,
+                "service_type": l.service_type, "total_amount": l.total_amount,
+                "status": l.status, "assigned_agent_id": l.assigned_agent_id,
+                "assigned_name": l.assigned_name, "source": l.source, "notes": l.notes,
+                "next_call_date": _d(getattr(l, "next_call_date", None)),
+                "linked_case_id": l.linked_case_id,
+                "ermis_token": l.ermis_token, "ermis_chat_url": l.ermis_chat_url,
+                "ermis_status": l.ermis_status, "ermis_error": getattr(l, "ermis_error", None),
+                "ermis_transcript": l.ermis_transcript,
+                "ermis_started_at": fmt_dt(getattr(l, "ermis_started_at", None)),
+                "ermis_completed_at": fmt_dt(getattr(l, "ermis_completed_at", None)),
+                "sheet_config_id": l.sheet_config_id, "sheet_row_num": l.sheet_row_num,
+                "sheet_import_ref": l.sheet_import_ref, "program_fields": l.program_fields,
+                "created_at": fmt_dt(l.created_at), "updated_at": fmt_dt(getattr(l, "updated_at", None)),
+            }
+            for l in db.query(_L).all()
+        ]
+    except Exception:
+        data["leads"] = []
+
+    try:
+        from models_cases import CMLeadComment as _LC
+        data["lead_comments"] = [
+            {"id": c.id, "lead_id": c.lead_id, "user_id": c.user_id,
+             "content": c.content, "author_name": c.author_name,
+             "edited": getattr(c, "edited", None),
+             "created_at": fmt_dt(c.created_at), "updated_at": fmt_dt(getattr(c, "updated_at", None))}
+            for c in db.query(_LC).all()
+        ]
+    except Exception:
+        data["lead_comments"] = []
+
+    try:
+        from models_cases import CMLeadSheetConfig as _LSC
+        data["lead_sheet_configs"] = [
+            {"id": s.id, "program": s.program, "spreadsheet_id": s.spreadsheet_id,
+             "sheet_tab": s.sheet_tab, "header_row": s.header_row,
+             "column_map": s.column_map, "program_field_map": s.program_field_map,
+             "enabled": s.enabled, "last_sync_at": fmt_dt(getattr(s, "last_sync_at", None)),
+             "last_row_num": s.last_row_num}
+            for s in db.query(_LSC).all()
+        ]
+    except Exception:
+        data["lead_sheet_configs"] = []
+
+    try:
+        from models_cases import CMLeadNotificationLog as _LNL
+        data["lead_notification_logs"] = [
+            {"id": n.id, "lead_id": n.lead_id, "notification_type": n.notification_type,
+             "recipient_name": n.recipient_name, "recipient_contact": n.recipient_contact,
+             "subject": n.subject, "content": n.content, "status": n.status,
+             "sent_by": n.sent_by, "created_at": fmt_dt(n.created_at)}
+            for n in db.query(_LNL).all()
+        ]
+    except Exception:
+        data["lead_notification_logs"] = []
+
     return data
 
 
