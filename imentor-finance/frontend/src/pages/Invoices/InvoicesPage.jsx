@@ -221,7 +221,7 @@ function InvoiceModal({ record, onClose, onDone }) {
       <AmountBreakdown amount={amount} orgKey={orgKey} kind={kind} vatRate={vatRate} />
       <div className="flex justify-end gap-3 border-t border-slate-100 pt-4">
         <button className="btn-secondary" onClick={onClose}>Ακύρωση</button>
-        <button className="btn-secondary" disabled={!amount || loading === 'create-draft'} onClick={handleDraft}>
+        <button className="btn-secondary" disabled={!amount || !!loading} onClick={handleDraft}>
           {loading === 'create-draft' ? 'Δημιουργία…' : '📝 Δημιουργία Draft'}
         </button>
         <button className="btn-primary" disabled={!amount || !!loading} onClick={handleOneShot}>
