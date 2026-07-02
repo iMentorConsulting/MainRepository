@@ -337,7 +337,7 @@ export default function ElorusActionsButton({ record, onRefresh }) {
         <Item icon="🔍" label="Αναζήτηση ΑΦΜ (τρέχουσα γραμμή)" onClick={() => trigger('afm')} />
         <div className="border-t border-slate-100 my-1" />
         <div className="px-3 pt-1 pb-0.5 text-[10px] font-bold uppercase tracking-widest text-slate-400">Elorus</div>
-        <Item icon="📄" label="Δημιουργία ΤΠΥ/ΑΠΥ (draft) από γραμμή" onClick={() => trigger('draft')} />
+        <Item icon="📄" label="Δημιουργία ΤΠΥ/ΑΠΥ (draft) από γραμμή" onClick={() => trigger('draft')} disabled={hasDraft || hasInvoice} />
         <Item icon="📧" label="Αποστολή draft (ΜΟΝΟ σε εμένα)" onClick={() => trigger('send-self')} disabled={!hasDraft} />
         <div className="border-t border-slate-100 my-1" />
         <Item icon="✅" label="Οριστική έκδοση & αποστολή (από No)" onClick={() => trigger('finalize')} disabled={!hasDraft} />
