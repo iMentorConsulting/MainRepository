@@ -287,6 +287,9 @@ export default function ElorusActionsButton({ record, onRefresh }) {
   const hasDraft = !!record.elorus_invoice_id && !record.invoice_number;
   const hasInvoice = !!record.invoice_number;
 
+  const ORG_LABEL = { DEFAULT: 'ΑΠΟΣΤΟΛΑΚΗΣ', IMENTOR_IKE: 'I MENTOR IKE' };
+  const KIND_LABEL = { TPY: 'ΤΠΥ', APY: 'ΑΠΥ' };
+
   const trigger = m => { setOpen(false); setModal(m); };
 
   const runAction = async (endpoint, orgKey) => {
@@ -330,8 +333,44 @@ export default function ElorusActionsButton({ record, onRefresh }) {
     >
       <div className="px-3 pt-3 pb-2 border-b border-slate-100">
         <div className="text-xs font-bold text-slate-700 truncate">{record.customer_name}</div>
-        {hasInvoice && <div className="text-xs text-emerald-600 font-medium mt-0.5">{record.invoice_number}</div>}
-        {hasDraft && <div className="text-xs text-amber-600 font-medium mt-0.5">Draft ID: {record.elorus_invoice_id}</div>}
+        {hasInvoice && (
+          <>
+            <div className="text-xs text-emerald-600 font-medium mt-0.5">{record.invoice_number}</div>
+            {(record.elorus_org_key || record.elorus_invoice_kind) && (
+              <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                {record.elorus_org_key && (
+                  <span className="text-[10px] font-bold bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded">
+                    {ORG_LABEL[record.elorus_org_key] || record.elorus_org_key}
+                  </span>
+                )}
+                {record.elorus_invoice_kind && (
+                  <span className="text-[10px] font-bold bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded">
+                    {KIND_LABEL[record.elorus_invoice_kind] || record.elorus_invoice_kind}
+                  </span>
+                )}
+              </div>
+            )}
+          </>
+        )}
+        {hasDraft && (
+          <>
+            <div className="text-xs text-amber-600 font-medium mt-0.5">Draft · {record.elorus_invoice_id}</div>
+            {(record.elorus_org_key || record.elorus_invoice_kind) && (
+              <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                {record.elorus_org_key && (
+                  <span className="text-[10px] font-bold bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded">
+                    {ORG_LABEL[record.elorus_org_key] || record.elorus_org_key}
+                  </span>
+                )}
+                {record.elorus_invoice_kind && (
+                  <span className="text-[10px] font-bold bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded">
+                    {KIND_LABEL[record.elorus_invoice_kind] || record.elorus_invoice_kind}
+                  </span>
+                )}
+              </div>
+            )}
+          </>
+        )}
       </div>
       <div className="py-1">
         <Item icon="🔍" label="Αναζήτηση ΑΦΜ (τρέχουσα γραμμή)" onClick={() => trigger('afm')} />

@@ -393,7 +393,7 @@ router.post('/create-draft', async (req, res) => {
     };
     console.log(`[create-draft] kind=${kind} docTypeId=${docType.id} mydata=${body.mydata_document_type} classType=${body.items[0]?.mydata_classification_type}`);
     const inv = await elorusPostInvoice(org_key, body);
-    await income.update({ elorus_invoice_id: String(inv.id), elorus_org_key: org_key });
+    await income.update({ elorus_invoice_id: String(inv.id), elorus_org_key: org_key, elorus_invoice_kind: kind });
     res.json({ success: true, invoice: inv });
   } catch (e) { res.status(500).json({ error: errMsg(e) }); }
 });
@@ -534,7 +534,7 @@ router.post('/one-shot', async (req, res) => {
       });
     } catch (payErr) { console.warn('one-shot payment:', payErr.message); }
 
-    await income.update({ invoice_number: invoiceNumber, elorus_invoice_id: String(inv.id), elorus_org_key: org_key });
+    await income.update({ invoice_number: invoiceNumber, elorus_invoice_id: String(inv.id), elorus_org_key: org_key, elorus_invoice_kind: kind });
     res.json({ success: true, invoice_number: invoiceNumber, invoice: inv });
   } catch (e) { res.status(500).json({ error: errMsg(e) }); }
 });
