@@ -21,6 +21,55 @@ export function unfmt(s) {
   return isNaN(n) ? 0 : n
 }
 
+// VAT Calculation (fixed 24% per Greek law)
+const VAT_RATE = 0.24
+
+export function calculateVAT(netAmount) {
+  if (!netAmount || netAmount <= 0) return 0
+  return Math.round(netAmount * VAT_RATE * 100) / 100
+}
+
+export function getGrossAmount(netAmount) {
+  if (!netAmount || netAmount <= 0) return 0
+  return Math.round((netAmount + calculateVAT(netAmount)) * 100) / 100
+}
+
+export function formatOfferWithVAT(netAmount) {
+  const net = Number(netAmount) || 0
+  const vat = calculateVAT(net)
+  const gross = net + vat
+  return {
+    net: net,
+    vat: Math.round(vat),
+    gross: Math.round(gross),
+    formatted: `${fmt(net)} + ΦΠΑ = ${fmt(Math.round(gross))}`
+  }
+}
+
+// Payment Tracking (1/2 installments)
+export function getPaymentStatus(caseObj) {
+  const contactStage = caseObj.contact_stage || 'Νέα Ανάλυση'
+  const status = caseObj.status || 'draft'
+
+  // 1st payment (Application & Process): made when case is Έκλεισε or beyond
+  const firstPaymentMade = ['Έκλεισε', 'Αποδοχή Ρύθμισης', 'Απόρριψη Ρύθμισης'].includes(contactStage)
+
+  // 2nd payment (Success Fee): made when status is completed
+  const secondPaymentMade = status === 'completed'
+
+  return {
+    total: 2,
+    completed: (firstPaymentMade ? 1 : 0) + (secondPaymentMade ? 1 : 0),
+    firstPaymentMade: firstPaymentMade,
+    secondPaymentMade: secondPaymentMade,
+    formatted: firstPaymentMade ? (secondPaymentMade ? '2/2' : '1/2') : '0/2',
+    stages: {
+      'Αίτηση & Διαδικασία': firstPaymentMade,
+      'Success Fee': secondPaymentMade
+    }
+  }
+}
+
 export function creditorDisplayName(type, creditorName = '') {
   const name = String(creditorName || '').trim()
   if (type === 'Εφορία') return 'ΑΑΔΕ'
