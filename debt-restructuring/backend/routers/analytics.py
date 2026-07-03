@@ -251,6 +251,12 @@ def get_pipeline_stats_by_employee(
         # Settlement stats
         accepted = query.filter(Case.contact_stage == 'Αποδοχή Ρύθμισης').count()
         rejected = query.filter(Case.contact_stage == 'Απόρριψη Ρύθμισης').count()
+
+        # DEBUG: Show what stages exist in database for this employee
+        all_stages_for_emp = db.query(Case.contact_stage).filter(Case.employee == emp).distinct().all()
+        logger.error("DEBUG EMP %s: Total cases=%d, Accepted=%d, Rejected=%d, All stages=%s",
+                     emp, total, accepted, rejected, [s[0] for s in all_stages_for_emp])
+
         settlement_pct = round((accepted / (accepted + rejected) * 100), 1) if (accepted + rejected) > 0 else 0
 
         # Collected revenue for this employee
