@@ -23,13 +23,28 @@ async def startup_event():
     iris_enabled = os.getenv("ENABLE_IRIS_PAYMENTS", "false").lower() == "true"
     logger.info(f"[STARTUP] ENABLE_IRIS_PAYMENTS={os.getenv('ENABLE_IRIS_PAYMENTS', 'NOT SET')} → iris_enabled={iris_enabled}")
     if iris_enabled:
-        has_config = all([
-            os.getenv("DIAS_IRIS_USERNAME"),
-            os.getenv("DIAS_IRIS_PASSWORD"),
-            os.getenv("DIAS_IRIS_INITIATION_URL"),
-            os.getenv("DIAS_IRIS_RETURN_URL"),
-        ])
-        logger.info(f"[STARTUP] IRIS Config present: {has_config}")
+        username = os.getenv("DIAS_IRIS_USERNAME", "")
+        password = os.getenv("DIAS_IRIS_PASSWORD", "")
+        init_url = os.getenv("DIAS_IRIS_INITIATION_URL", "")
+        result_url = os.getenv("DIAS_IRIS_RESULT_URL", "")
+        return_url = os.getenv("DIAS_IRIS_RETURN_URL", "")
+
+        has_all = all([username, password, init_url, return_url])
+        logger.info(f"[STARTUP] IRIS Config complete: {has_all}")
+        if init_url:
+            logger.info(f"[STARTUP] IRIS Initiation URL: {init_url}")
+        if result_url:
+            logger.info(f"[STARTUP] IRIS Result URL: {result_url}")
+        if return_url:
+            logger.info(f"[STARTUP] IRIS Return URL: {return_url}")
+        if not has_all:
+            logger.error("[STARTUP] IRIS incomplete config - missing: " +
+                        ", ".join(k for k, v in {
+                            "username": username,
+                            "password": password,
+                            "initiation_url": init_url,
+                            "return_url": return_url,
+                        }.items() if not v))
     else:
         logger.warning("[STARTUP] IRIS Payments disabled (ENABLE_IRIS_PAYMENTS != true)")
 

@@ -320,6 +320,7 @@ def create_iris_payment(data: CreateIrisPaymentRequest, db: Session = Depends(ge
     if not resp:
         error_code = body.get("errorCode", "")
         error_desc = body.get("errorDescription") or DMSP_ERROR_MESSAGES.get(error_code, "Άγνωστο σφάλμα ΔΙΑΣ.")
+        logger.error("IRIS Initiation returned no 'resp' field. Full body: %s", body)
         record.status = "failed"
         record.error_code = error_code
         record.error_description = error_desc
@@ -328,11 +329,18 @@ def create_iris_payment(data: CreateIrisPaymentRequest, db: Session = Depends(ge
         raise HTTPException(status_code=502, detail={"errorCode": error_code, "errorDescription": error_desc})
 
     order_id = resp.get("orderId", "")
+    bank_url = resp.get("bankSelectionToolUrl", "")
+
+    logger.info("IRIS Initiation response received. orderId=%s, bankUrl=%s, all_fields=%s",
+                order_id, bank_url, list(resp.keys()))
+
     if not order_id:
-        logger.error("IRIS Initiation response MISSING orderId. Full response: %s", resp)
+        logger.error("IRIS Initiation response MISSING orderId")
         logger.error("IRIS request payload was: %s", _redact(payload))
-        # Log all fields in response for debugging
-        logger.error("Response fields: %s", list(resp.keys()) if resp else "None")
+        logger.error("IRIS full response: %s", resp)
+        # Don't fail yet, but warn - orderId will be needed for status checks
+        record.error_code = "MISSING_ORDERID"
+        record.error_description = "DIAS Initiation response missing orderId field"
     else:
         logger.info("IRIS Initiation successful, orderId: %s", order_id)
 
