@@ -12,7 +12,26 @@ from auth_utils import get_current_user
 
 load_dotenv()
 
+import logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 app = FastAPI(title="Debt Restructuring API", version="1.0.0")
+
+@app.on_event("startup")
+async def startup_event():
+    iris_enabled = os.getenv("ENABLE_IRIS_PAYMENTS", "false").lower() == "true"
+    logger.info(f"[STARTUP] ENABLE_IRIS_PAYMENTS={os.getenv('ENABLE_IRIS_PAYMENTS', 'NOT SET')} → iris_enabled={iris_enabled}")
+    if iris_enabled:
+        has_config = all([
+            os.getenv("DIAS_IRIS_USERNAME"),
+            os.getenv("DIAS_IRIS_PASSWORD"),
+            os.getenv("DIAS_IRIS_INITIATION_URL"),
+            os.getenv("DIAS_IRIS_RETURN_URL"),
+        ])
+        logger.info(f"[STARTUP] IRIS Config present: {has_config}")
+    else:
+        logger.warning("[STARTUP] IRIS Payments disabled (ENABLE_IRIS_PAYMENTS != true)")
 
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5174")
 
