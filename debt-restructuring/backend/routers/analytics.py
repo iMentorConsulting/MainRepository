@@ -62,7 +62,8 @@ def get_pipeline_stats(
     ).count()
 
     total_closure = closed_count + not_interested_count
-    closure_percentage = round((total_closure / total_cases * 100), 1) if total_cases > 0 else 0
+    # % Κλεισίματος = success rate within closed cases (Έκλεισε / (Έκλεισε + Δεν Ενδιαφέρεται))
+    closure_percentage = round((closed_count / total_closure * 100), 1) if total_closure > 0 else 0
 
     # ══ Calculate % Αποδοχής Ρύθμισης ══
     # Count cases with settlement decision
@@ -220,10 +221,11 @@ def get_pipeline_stats_by_employee(db: Session = Depends(get_db)):
             }
             continue
 
-        # Closure stats
+        # Closure stats - success rate within closed cases
         closed = query.filter(Case.contact_stage == 'Έκλεισε').count()
         not_interested = query.filter(Case.contact_stage == 'Δεν Ενδιαφέρεται').count()
-        closure_pct = round(((closed + not_interested) / total * 100), 1)
+        total_closed = closed + not_interested
+        closure_pct = round((closed / total_closed * 100), 1) if total_closed > 0 else 0
 
         # Settlement stats
         accepted = query.filter(Case.contact_stage == 'Αποδοχή Ρύθμισης').count()
