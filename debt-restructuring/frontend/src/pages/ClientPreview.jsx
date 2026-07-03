@@ -3,7 +3,7 @@ import { useParams, useSearchParams } from 'react-router-dom'
 import { format } from 'date-fns'
 import { el } from 'date-fns/locale'
 import * as api from '../api'
-import { fmt, creditorDisplayName } from '../utils/calculations'
+import { fmt, creditorDisplayName, formatOfferWithVAT, getPaymentStatus } from '../utils/calculations'
 import {
   PhoneIcon,
   EnvelopeIcon,
@@ -947,24 +947,42 @@ export default function ClientPreview() {
         {(() => {
           const offer = data.commercial_offer || {}
           if (!offer.application_fee && !offer.success_fee) return null
+          const paymentStatus = getPaymentStatus(data)
+
           return (
             <div className="bg-white rounded-2xl shadow-lg p-5">
-              <h2 className="text-base font-black text-blue-800 border-b-2 border-blue-100 pb-2 mb-4 flex items-center gap-2"><BriefcaseIcon className="w-5 h-5 text-blue-600" />Οικονομική Προσφορά</h2>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-base font-black text-blue-800 border-b-2 border-blue-100 pb-2 flex items-center gap-2"><BriefcaseIcon className="w-5 h-5 text-blue-600" />Οικονομική Προσφορά</h2>
+                <div className={`px-3 py-1 rounded-full text-xs font-bold ${paymentStatus.completed === 2 ? 'bg-green-100 text-green-700' : paymentStatus.completed === 1 ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'}`}>
+                  💰 {paymentStatus.formatted} πληρώθηκε
+                </div>
+              </div>
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-5">
-                {offer.application_fee > 0 && (
-                  <div className="bg-blue-50 rounded-xl p-4 text-center">
-                    <div className="text-xs font-semibold text-blue-600 uppercase mb-1">Αίτηση & Διαδικασία</div>
-                    <div className="text-2xl font-black text-blue-800">{Number(offer.application_fee).toLocaleString('el-GR')}€</div>
-                    <div className="text-xs text-gray-500 mt-1">+ ΦΠΑ</div>
-                  </div>
-                )}
-                {offer.success_fee > 0 && (
-                  <div className="bg-green-50 rounded-xl p-4 text-center">
-                    <div className="text-xs font-semibold text-green-600 uppercase mb-1">Success Fee (σε αποδοχή)</div>
-                    <div className="text-2xl font-black text-green-800">{Number(offer.success_fee).toLocaleString('el-GR')}€</div>
-                    <div className="text-xs text-gray-500 mt-1">+ ΦΠΑ</div>
-                  </div>
-                )}
+                {offer.application_fee > 0 && (() => {
+                  const appFee = formatOfferWithVAT(offer.application_fee)
+                  return (
+                    <div className={`rounded-xl p-4 text-center ${paymentStatus.firstPaymentMade ? 'bg-green-50 border-2 border-green-300' : 'bg-blue-50'}`}>
+                      <div className="text-xs font-semibold text-blue-600 uppercase mb-1 flex items-center justify-center gap-1">
+                        {paymentStatus.firstPaymentMade && '✅'} Αίτηση & Διαδικασία
+                      </div>
+                      <div className="text-2xl font-black text-blue-800">{appFee.formatted}</div>
+                      <div className="text-xs text-gray-500 mt-1">Σύνολο με ΦΠΑ</div>
+                    </div>
+                  )
+                })()}
+                {offer.success_fee > 0 && (() => {
+                  const successFee = formatOfferWithVAT(offer.success_fee)
+                  return (
+                    <div className={`rounded-xl p-4 text-center ${paymentStatus.secondPaymentMade ? 'bg-green-50 border-2 border-green-300' : 'bg-green-50'}`}>
+                      <div className="text-xs font-semibold text-green-600 uppercase mb-1 flex items-center justify-center gap-1">
+                        {paymentStatus.secondPaymentMade && '✅'} Success Fee (σε αποδοχή)
+                      </div>
+                      <div className="text-2xl font-black text-green-800">{successFee.formatted}</div>
+                      <div className="text-xs text-gray-500 mt-1">Σύνολο με ΦΠΑ</div>
+                    </div>
+                  )
+                })()}
               </div>
               <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
                 <div className="text-sm font-bold text-gray-700 mb-2 flex items-center gap-1.5"><BuildingLibraryIcon className="w-4 h-4 text-gray-600" />Τραπεζικοί Λογαριασμοί Πληρωμής</div>
