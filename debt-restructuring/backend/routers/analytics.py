@@ -40,19 +40,24 @@ def get_pipeline_stats(
     if employee:
         query = query.filter(Case.employee == employee)
 
-    # Date filtering - use stage_changed_at to match when contact_stage changes occurred
-    if date_from:
-        try:
-            df = datetime.fromisoformat(date_from)
-            query = query.filter(Case.stage_changed_at >= df)
-        except:
-            pass
-    if date_to:
-        try:
-            dt = datetime.fromisoformat(date_to)
-            query = query.filter(Case.stage_changed_at <= dt)
-        except:
-            pass
+    # Date filtering - use stage_changed_at (with updated_at as fallback for NULL values)
+    # stage_changed_at may be NULL for old cases, so use COALESCE to fall back to updated_at
+    if date_from or date_to:
+        from sqlalchemy import func as sql_func
+        date_field = sql_func.coalesce(Case.stage_changed_at, Case.updated_at)
+
+        if date_from:
+            try:
+                df = datetime.fromisoformat(date_from)
+                query = query.filter(date_field >= df)
+            except:
+                pass
+        if date_to:
+            try:
+                dt = datetime.fromisoformat(date_to)
+                query = query.filter(date_field <= dt)
+            except:
+                pass
 
     # Count all non-draft cases
     total_cases = query.count()
@@ -236,19 +241,23 @@ def get_pipeline_stats_by_employee(
             Case.contact_stage != 'Νέα Ανάλυση'
         )
 
-        # Apply date filtering - use stage_changed_at to match when contact_stage changes occurred
-        if date_from:
-            try:
-                df = datetime.fromisoformat(date_from)
-                query = query.filter(Case.stage_changed_at >= df)
-            except:
-                pass
-        if date_to:
-            try:
-                dt = datetime.fromisoformat(date_to)
-                query = query.filter(Case.stage_changed_at <= dt)
-            except:
-                pass
+        # Apply date filtering - use stage_changed_at (with updated_at as fallback for NULL values)
+        if date_from or date_to:
+            from sqlalchemy import func as sql_func
+            date_field = sql_func.coalesce(Case.stage_changed_at, Case.updated_at)
+
+            if date_from:
+                try:
+                    df = datetime.fromisoformat(date_from)
+                    query = query.filter(date_field >= df)
+                except:
+                    pass
+            if date_to:
+                try:
+                    dt = datetime.fromisoformat(date_to)
+                    query = query.filter(date_field <= dt)
+                except:
+                    pass
 
         total = query.count()
 
