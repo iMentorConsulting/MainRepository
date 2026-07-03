@@ -74,6 +74,13 @@ export const getOverview = () => api.get('/statistics/overview')
 export const getEmployeeStats = (employee) => api.get(`/statistics/employee/${employee}`)
 export const getComparison = () => api.get('/statistics/comparison')
 
+// Analytics
+export const getAnalyticsPipelineStats = (employee) => {
+  const params = employee ? { employee } : {}
+  return api.get('/analytics/pipeline-stats', { params })
+}
+export const getAnalyticsPipelineStatsByEmployee = () => api.get('/analytics/pipeline-stats-by-employee')
+
 // Leads
 export const listLeads = (params) => api.get('/leads/', { params, paramsSerializer: p => {
   const sp = new URLSearchParams()
