@@ -40,17 +40,17 @@ def get_pipeline_stats(
     if employee:
         query = query.filter(Case.employee == employee)
 
-    # Date filtering
+    # Date filtering - use stage_changed_at to match when contact_stage changes occurred
     if date_from:
         try:
             df = datetime.fromisoformat(date_from)
-            query = query.filter(Case.created_at >= df)
+            query = query.filter(Case.stage_changed_at >= df)
         except:
             pass
     if date_to:
         try:
             dt = datetime.fromisoformat(date_to)
-            query = query.filter(Case.created_at <= dt)
+            query = query.filter(Case.stage_changed_at <= dt)
         except:
             pass
 
@@ -236,17 +236,17 @@ def get_pipeline_stats_by_employee(
             Case.contact_stage != 'Νέα Ανάλυση'
         )
 
-        # Apply date filtering
+        # Apply date filtering - use stage_changed_at to match when contact_stage changes occurred
         if date_from:
             try:
                 df = datetime.fromisoformat(date_from)
-                query = query.filter(Case.created_at >= df)
+                query = query.filter(Case.stage_changed_at >= df)
             except:
                 pass
         if date_to:
             try:
                 dt = datetime.fromisoformat(date_to)
-                query = query.filter(Case.created_at <= dt)
+                query = query.filter(Case.stage_changed_at <= dt)
             except:
                 pass
 
