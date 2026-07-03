@@ -1,9 +1,12 @@
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from database import get_db
 from models import Case
 from typing import Optional, Dict
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/analytics", tags=["analytics"])
 
@@ -40,23 +43,35 @@ def get_pipeline_stats(
     if employee:
         query = query.filter(Case.employee == employee)
 
-    # Date filtering - use stage_changed_at (with updated_at as fallback for NULL values)
-    # stage_changed_at may be NULL for old cases, so use COALESCE to fall back to updated_at
+    # Date filtering - use stage_changed_at if set, otherwise updated_at
+    # stage_changed_at may be NULL for old cases
     if date_from or date_to:
-        from sqlalchemy import func as sql_func
-        date_field = sql_func.coalesce(Case.stage_changed_at, Case.updated_at)
+        from sqlalchemy import or_
 
         if date_from:
             try:
                 df = datetime.fromisoformat(date_from)
-                query = query.filter(date_field >= df)
-            except:
+                query = query.filter(
+                    or_(
+                        Case.stage_changed_at >= df,
+                        (Case.stage_changed_at == None) & (Case.updated_at >= df)
+                    )
+                )
+            except Exception as e:
+                logger.error("Date from filter error: %s", e)
                 pass
+
         if date_to:
             try:
                 dt = datetime.fromisoformat(date_to)
-                query = query.filter(date_field <= dt)
-            except:
+                query = query.filter(
+                    or_(
+                        Case.stage_changed_at <= dt,
+                        (Case.stage_changed_at == None) & (Case.updated_at <= dt)
+                    )
+                )
+            except Exception as e:
+                logger.error("Date to filter error: %s", e)
                 pass
 
     # Count all non-draft cases
@@ -241,22 +256,34 @@ def get_pipeline_stats_by_employee(
             Case.contact_stage != 'Νέα Ανάλυση'
         )
 
-        # Apply date filtering - use stage_changed_at (with updated_at as fallback for NULL values)
+        # Apply date filtering - use stage_changed_at if set, otherwise updated_at
         if date_from or date_to:
-            from sqlalchemy import func as sql_func
-            date_field = sql_func.coalesce(Case.stage_changed_at, Case.updated_at)
+            from sqlalchemy import or_
 
             if date_from:
                 try:
                     df = datetime.fromisoformat(date_from)
-                    query = query.filter(date_field >= df)
-                except:
+                    query = query.filter(
+                        or_(
+                            Case.stage_changed_at >= df,
+                            (Case.stage_changed_at == None) & (Case.updated_at >= df)
+                        )
+                    )
+                except Exception as e:
+                    logger.error("Per-emp date from filter error: %s", e)
                     pass
+
             if date_to:
                 try:
                     dt = datetime.fromisoformat(date_to)
-                    query = query.filter(date_field <= dt)
-                except:
+                    query = query.filter(
+                        or_(
+                            Case.stage_changed_at <= dt,
+                            (Case.stage_changed_at == None) & (Case.updated_at <= dt)
+                        )
+                    )
+                except Exception as e:
+                    logger.error("Per-emp date to filter error: %s", e)
                     pass
 
         total = query.count()
