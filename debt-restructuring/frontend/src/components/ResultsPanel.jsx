@@ -1,5 +1,18 @@
 import { useState } from 'react'
+import {
+  BanknotesIcon, CurrencyEuroIcon, HomeModernIcon,
+  InformationCircleIcon, BuildingLibraryIcon, CheckCircleIcon
+} from '@heroicons/react/24/outline'
 import { fmt, creditorDisplayName, buildForecastText } from '../utils/calculations'
+
+const FORECAST_ICONS = {
+  debt:   <BanknotesIcon className="w-4 h-4 shrink-0" />,
+  income: <CurrencyEuroIcon className="w-4 h-4 shrink-0" />,
+  asset:  <HomeModernIcon className="w-4 h-4 shrink-0" />,
+  note:   <InformationCircleIcon className="w-4 h-4 shrink-0" />,
+  bank:   <BuildingLibraryIcon className="w-4 h-4 shrink-0" />,
+  result: <CheckCircleIcon className="w-4 h-4 shrink-0" />,
+}
 
 const SCENARIO_COLORS = {
   0: 'border-purple-300 bg-purple-50 text-purple-900',
