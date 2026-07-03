@@ -155,10 +155,10 @@ export default function FinancialDashboard({ currentEmployee }) {
     let dateFrom = null, dateTo = null
     if (selectedMonth) {
       const [year, month] = selectedMonth.split('-')
-      dateFrom = `${year}-${month}-01`
-      // Get last day of month correctly
+      dateFrom = `${year}-${month}-01T00:00:00Z`
+      // Get last day of month correctly, set to end of day (23:59:59)
       const lastDay = new Date(parseInt(year), parseInt(month), 0).getDate()
-      dateTo = `${year}-${month}-${String(lastDay).padStart(2, '0')}`
+      dateTo = `${year}-${month}-${String(lastDay).padStart(2, '0')}T23:59:59Z`
     }
     console.log('Fetching analytics for employee:', employee, 'period:', dateFrom, 'to', dateTo)
     api.getAnalyticsPipelineStats(employee, dateFrom, dateTo)
@@ -176,10 +176,10 @@ export default function FinancialDashboard({ currentEmployee }) {
     let dateFrom = null, dateTo = null
     if (selectedMonth) {
       const [year, month] = selectedMonth.split('-')
-      dateFrom = `${year}-${month}-01`
-      // Get last day of month correctly
+      dateFrom = `${year}-${month}-01T00:00:00Z`
+      // Get last day of month correctly, set to end of day (23:59:59)
       const lastDay = new Date(parseInt(year), parseInt(month), 0).getDate()
-      dateTo = `${year}-${month}-${String(lastDay).padStart(2, '0')}`
+      dateTo = `${year}-${month}-${String(lastDay).padStart(2, '0')}T23:59:59Z`
     }
     api.getAnalyticsPipelineStatsByEmployee(dateFrom, dateTo)
       .then(r => {
