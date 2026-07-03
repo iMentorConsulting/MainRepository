@@ -6,6 +6,7 @@ from typing import List, Optional
 import requests
 from fastapi import APIRouter, Depends, HTTPException, Header
 from sqlalchemy.orm import Session
+from sqlalchemy import func as sa_func
 from pydantic import BaseModel
 
 from database import get_db, fmt_dt
@@ -460,18 +461,25 @@ def receive_portal_webhook(
     _=Depends(_verify_portal_key),
 ):
     event = payload.get("event")
+    log.info("[portal-webhook] received event=%s afm=%s caseNumber=%s",
+             event, payload.get("afm"), payload.get("caseNumber"))
     if event == "case.created":
         try:
             data = CaseCreatedWebhook(**payload)
         except Exception as exc:
+            log.error("[portal-webhook] case.created invalid payload: %s", exc)
             raise HTTPException(status_code=400, detail=f"Μη έγκυρο payload: {exc}")
-        return _handle_case_created(data, db)
+        res = _handle_case_created(data, db)
+        log.info("[portal-webhook] case.created stored assignment id=%s (status=pending)", res.get("id"))
+        return res
     if event == "document.uploaded":
         try:
             data = DocumentUploadedWebhook(**payload)
         except Exception as exc:
+            log.error("[portal-webhook] document.uploaded invalid payload: %s", exc)
             raise HTTPException(status_code=400, detail=f"Μη έγκυρο payload: {exc}")
         return _handle_document_uploaded(data, db)
+    log.warning("[portal-webhook] unsupported event=%s", event)
     raise HTTPException(status_code=400, detail="Μη υποστηριζόμενο event")
 
 
@@ -634,6 +642,27 @@ def list_pending(
         .all()
     )
     return [_assignment_to_dict(a) for a in rows]
+
+
+@router.get("/recent")
+def list_recent(
+    limit: int = 30,
+    current_user: CMUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Diagnostic: recent assignments regardless of status, so you can confirm
+    whether LOGISTIS case.created webhooks are actually arriving."""
+    rows = (
+        db.query(CMPortalAssignment)
+        .order_by(CMPortalAssignment.created_at.desc())
+        .limit(min(max(1, limit), 100))
+        .all()
+    )
+    counts = {}
+    for s, c in db.query(CMPortalAssignment.status, sa_func.count(CMPortalAssignment.id)).group_by(CMPortalAssignment.status).all():
+        counts[s] = c
+    return {"total": sum(counts.values()), "by_status": counts,
+            "items": [_assignment_to_dict(a) for a in rows]}
 
 
 @router.post("/{assignment_id}/accept")
