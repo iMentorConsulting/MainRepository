@@ -373,6 +373,24 @@ export default function FinancialDashboard({ currentEmployee }) {
       {/* ── Win-back Candidates ───────────────────────────────────────────── */}
       <WinbackPanel cases={cases} onCasesUpdate={setCases} />
 
+      {/* ── Date Filter ────────────────────────────────────────────────────── */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <ClockIcon className="w-4 h-4 text-gray-400" />
+        <span className="text-xs text-gray-500 font-semibold">Περίοδος:</span>
+        <input
+          type="month"
+          value={selectedMonth}
+          onChange={e => setSelectedMonth(e.target.value)}
+          className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-300"
+        />
+        <button
+          onClick={() => setSelectedMonth('')}
+          className="text-xs text-gray-500 hover:text-gray-700 px-2 py-1.5 rounded-lg border border-gray-200 transition-colors"
+        >
+          Καθαρισμός
+        </button>
+      </div>
+
       {/* ── Scenario Projector ─────────────────────────────────────────────── */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
         <h2 className="text-sm font-black text-gray-700 mb-4 flex items-center gap-2">
@@ -643,37 +661,17 @@ export default function FinancialDashboard({ currentEmployee }) {
       </div>
 
       {/* ── Financial Filter ───────────────────────────────────────────────── */}
-      <div className="space-y-3">
-        <div className="flex items-center gap-2 flex-wrap">
-          <FunnelIcon className="w-4 h-4 text-gray-400" />
-          <span className="text-xs text-gray-500 font-semibold">Φίλτρο οικονομικών:</span>
-          {['ALL', 'STELLA', 'VALLIA', 'SOFIA', 'HARIS'].map(e => (
-            <button key={e} onClick={() => setEmpFilter(e)}
-              className={`text-xs font-semibold px-3 py-1.5 rounded-lg border transition-colors ${
-                empFilter === e ? 'bg-blue-700 text-white border-blue-700' : 'border-gray-200 text-gray-600 hover:border-blue-300'
-              }`}>
-              {e === 'ALL' ? 'Όλοι' : e}
-            </button>
-          ))}
-        </div>
-
-        {/* Date Filter */}
-        <div className="flex items-center gap-2 flex-wrap">
-          <ClockIcon className="w-4 h-4 text-gray-400" />
-          <span className="text-xs text-gray-500 font-semibold">Περίοδος:</span>
-          <input
-            type="month"
-            value={selectedMonth}
-            onChange={e => setSelectedMonth(e.target.value)}
-            className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-300"
-          />
-          <button
-            onClick={() => setSelectedMonth('')}
-            className="text-xs text-gray-500 hover:text-gray-700 px-2 py-1.5 rounded-lg border border-gray-200 transition-colors"
-          >
-            Καθαρισμός
+      <div className="flex items-center gap-2 flex-wrap">
+        <FunnelIcon className="w-4 h-4 text-gray-400" />
+        <span className="text-xs text-gray-500 font-semibold">Φίλτρο οικονομικών:</span>
+        {['ALL', 'STELLA', 'VALLIA', 'SOFIA', 'HARIS'].map(e => (
+          <button key={e} onClick={() => setEmpFilter(e)}
+            className={`text-xs font-semibold px-3 py-1.5 rounded-lg border transition-colors ${
+              empFilter === e ? 'bg-blue-700 text-white border-blue-700' : 'border-gray-200 text-gray-600 hover:border-blue-300'
+            }`}>
+            {e === 'ALL' ? 'Όλοι' : e}
           </button>
-        </div>
+        ))}
       </div>
 
       {/* ── KPI Cards ──────────────────────────────────────────────────────── */}

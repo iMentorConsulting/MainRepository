@@ -299,7 +299,9 @@ def get_pipeline_stats_by_employee(
         result[emp] = {
             "total_cases": total,
             "closure_percentage": closure_pct,
+            "closure_count": total_closed,
             "settlement_acceptance_percentage": settlement_pct,
+            "settlement_count": accepted + rejected,
             "closed_count": closed,
             "not_interested_count": not_interested,
             "accepted_count": accepted,
