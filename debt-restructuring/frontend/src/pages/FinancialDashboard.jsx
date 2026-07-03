@@ -149,10 +149,14 @@ export default function FinancialDashboard({ currentEmployee }) {
   // Fetch real pipeline statistics
   useEffect(() => {
     const employee = empFilter === 'ALL' ? null : empFilter
+    console.log('Fetching analytics for employee:', employee)
     api.getAnalyticsPipelineStats(employee)
-      .then(r => setRealStats(r.data))
+      .then(r => {
+        console.log('Analytics response:', r.data)
+        setRealStats(r.data)
+      })
       .catch(err => {
-        console.error('Failed to fetch pipeline stats:', err.message)
+        console.error('Failed to fetch pipeline stats:', err.response?.status, err.message)
       })
   }, [empFilter])
 
@@ -351,7 +355,7 @@ export default function FinancialDashboard({ currentEmployee }) {
         </h2>
 
         {/* Real Statistics Display */}
-        {realStats && (
+        {realStats && realStats.total_cases >= 0 && (
           <div className="grid md:grid-cols-2 gap-4 mb-6 p-4 bg-emerald-50 border border-emerald-200 rounded-lg">
             <div>
               <div className="flex justify-between text-sm mb-1">
