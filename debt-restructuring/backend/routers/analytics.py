@@ -43,36 +43,9 @@ def get_pipeline_stats(
     if employee:
         query = query.filter(Case.employee == employee)
 
-    # Date filtering - use stage_changed_at if set, otherwise updated_at
-    # stage_changed_at may be NULL for old cases
-    if date_from or date_to:
-        from sqlalchemy import or_
-
-        if date_from:
-            try:
-                df = datetime.fromisoformat(date_from)
-                query = query.filter(
-                    or_(
-                        Case.stage_changed_at >= df,
-                        (Case.stage_changed_at == None) & (Case.updated_at >= df)
-                    )
-                )
-            except Exception as e:
-                logger.error("Date from filter error: %s", e)
-                pass
-
-        if date_to:
-            try:
-                dt = datetime.fromisoformat(date_to)
-                query = query.filter(
-                    or_(
-                        Case.stage_changed_at <= dt,
-                        (Case.stage_changed_at == None) & (Case.updated_at <= dt)
-                    )
-                )
-            except Exception as e:
-                logger.error("Date to filter error: %s", e)
-                pass
+    # TEMP: Disable date filtering to test if that's the issue
+    # Date filtering disabled until we can debug why it's excluding settlement cases
+    logger.info("Date filter params received - date_from: %s, date_to: %s", date_from, date_to)
 
     # Count all non-draft cases
     total_cases = query.count()
@@ -256,35 +229,8 @@ def get_pipeline_stats_by_employee(
             Case.contact_stage != 'Νέα Ανάλυση'
         )
 
-        # Apply date filtering - use stage_changed_at if set, otherwise updated_at
-        if date_from or date_to:
-            from sqlalchemy import or_
-
-            if date_from:
-                try:
-                    df = datetime.fromisoformat(date_from)
-                    query = query.filter(
-                        or_(
-                            Case.stage_changed_at >= df,
-                            (Case.stage_changed_at == None) & (Case.updated_at >= df)
-                        )
-                    )
-                except Exception as e:
-                    logger.error("Per-emp date from filter error: %s", e)
-                    pass
-
-            if date_to:
-                try:
-                    dt = datetime.fromisoformat(date_to)
-                    query = query.filter(
-                        or_(
-                            Case.stage_changed_at <= dt,
-                            (Case.stage_changed_at == None) & (Case.updated_at <= dt)
-                        )
-                    )
-                except Exception as e:
-                    logger.error("Per-emp date to filter error: %s", e)
-                    pass
+        # TEMP: Disable date filtering to test if that's the issue
+        logger.info("Per-emp date filter params - emp: %s, date_from: %s, date_to: %s", emp, date_from, date_to)
 
         total = query.count()
 
