@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { addDays, subWeeks, startOfWeek, isAfter, format, isSameWeek } from 'date-fns'
+import { addDays, subWeeks, startOfWeek, isAfter, format, isSameWeek, startOfMonth, endOfMonth } from 'date-fns'
 import { el } from 'date-fns/locale'
 import {
   BanknotesIcon,
@@ -104,6 +104,9 @@ export default function FinancialDashboard({ currentEmployee }) {
   const [pricingConfig, setPricingConfig] = useState(() => loadPricingConfig())
   const [showPricingAdmin, setShowPricingAdmin] = useState(false)
   const [backingUp, setBackingUp] = useState(false)
+  const [dateFromFilter, setDateFromFilter] = useState('')
+  const [dateToFilter, setDateToFilter] = useState('')
+  const [selectedMonth, setSelectedMonth] = useState(format(new Date(), 'yyyy-MM'))
 
   const handleBackupNow = async () => {
     setBackingUp(true)
@@ -149,8 +152,14 @@ export default function FinancialDashboard({ currentEmployee }) {
   // Fetch real pipeline statistics
   useEffect(() => {
     const employee = empFilter === 'ALL' ? null : empFilter
-    console.log('Fetching analytics for employee:', employee)
-    api.getAnalyticsPipelineStats(employee)
+    let dateFrom = null, dateTo = null
+    if (selectedMonth) {
+      const [year, month] = selectedMonth.split('-')
+      dateFrom = `${year}-${month}-01`
+      dateTo = `${year}-${month}-31`
+    }
+    console.log('Fetching analytics for employee:', employee, 'period:', dateFrom, 'to', dateTo)
+    api.getAnalyticsPipelineStats(employee, dateFrom, dateTo)
       .then(r => {
         console.log('Analytics response:', r.data)
         setRealStats(r.data)
@@ -158,11 +167,17 @@ export default function FinancialDashboard({ currentEmployee }) {
       .catch(err => {
         console.error('Failed to fetch pipeline stats:', err.response?.status, err.message)
       })
-  }, [empFilter])
+  }, [empFilter, selectedMonth])
 
   const [allEmployeeStats, setAllEmployeeStats] = useState(null)
   useEffect(() => {
-    api.getAnalyticsPipelineStatsByEmployee()
+    let dateFrom = null, dateTo = null
+    if (selectedMonth) {
+      const [year, month] = selectedMonth.split('-')
+      dateFrom = `${year}-${month}-01`
+      dateTo = `${year}-${month}-31`
+    }
+    api.getAnalyticsPipelineStatsByEmployee(dateFrom, dateTo)
       .then(r => {
         console.log('Employee stats:', r.data)
         setAllEmployeeStats(r.data)
@@ -170,7 +185,7 @@ export default function FinancialDashboard({ currentEmployee }) {
       .catch(err => {
         console.error('Failed to fetch employee stats:', err.message)
       })
-  }, [])
+  }, [selectedMonth])
 
   const offerCases = useMemo(() =>
     cases.filter(c => c.commercial_offer && (c.commercial_offer.application_fee || c.commercial_offer.success_fee)),
@@ -390,19 +405,19 @@ export default function FinancialDashboard({ currentEmployee }) {
           </div>
         )}
 
-        {/* Per-Employee Breakdown */}
-        {allEmployeeStats && Object.keys(allEmployeeStats).length > 0 && (
+        {/* Per-Employee Breakdown — EXCLUDING HARIS */}
+        {allEmployeeStats && Object.keys(allEmployeeStats).filter(e => e !== 'HARIS').length > 0 && (
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 mb-6">
             <h3 className="text-sm font-black text-gray-700 mb-4">Ανάλυση ανά Σύμβουλο</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
-              {Object.entries(allEmployeeStats).map(([emp, stats]) => {
+              {Object.entries(allEmployeeStats).filter(([emp]) => emp !== 'HARIS').map(([emp, stats]) => {
                 const revenue = stats.collected_revenue || { first_payment: 0, second_payment: 0, total: 0 }
                 return (
                   <div key={emp} className="p-3 bg-gray-50 rounded-lg border border-gray-200">
                     <div className="font-semibold text-sm text-gray-800 mb-2">{emp}</div>
                     <div className="space-y-1 text-xs">
                       <div><span className="text-gray-600">Σύνολο:</span> <span className="font-bold">{stats.total_cases}</span></div>
-                      <div><span className="text-emerald-600">Κλεισμένες:</span> <span className="font-bold text-emerald-700">{stats.closure_percentage}% ({stats.closure_count}/{stats.total_cases})</span></div>
+                      <div><span className="text-emerald-600">Κλεισμένες:</span> <span className="font-bold text-emerald-700">{stats.closure_percentage}% ({stats.closed_count}/{stats.closure_count})</span></div>
                       <div><span className="text-blue-600">Αποδοχή Ρύθμισης:</span> <span className="font-bold text-blue-700">{stats.settlement_acceptance_percentage}% ({stats.accepted_count}/{stats.settlement_count})</span></div>
                       <div className="pt-1 border-t border-gray-300 mt-1">
                         <div><span className="text-green-600">1η πληρωμή:</span> <span className="font-bold text-green-700">{(revenue.first_payment || 0).toLocaleString('el-GR')}€</span></div>
@@ -628,17 +643,37 @@ export default function FinancialDashboard({ currentEmployee }) {
       </div>
 
       {/* ── Financial Filter ───────────────────────────────────────────────── */}
-      <div className="flex items-center gap-2 flex-wrap">
-        <FunnelIcon className="w-4 h-4 text-gray-400" />
-        <span className="text-xs text-gray-500 font-semibold">Φίλτρο οικονομικών:</span>
-        {['ALL', 'STELLA', 'VALLIA', 'SOFIA', 'HARIS'].map(e => (
-          <button key={e} onClick={() => setEmpFilter(e)}
-            className={`text-xs font-semibold px-3 py-1.5 rounded-lg border transition-colors ${
-              empFilter === e ? 'bg-blue-700 text-white border-blue-700' : 'border-gray-200 text-gray-600 hover:border-blue-300'
-            }`}>
-            {e === 'ALL' ? 'Όλοι' : e}
+      <div className="space-y-3">
+        <div className="flex items-center gap-2 flex-wrap">
+          <FunnelIcon className="w-4 h-4 text-gray-400" />
+          <span className="text-xs text-gray-500 font-semibold">Φίλτρο οικονομικών:</span>
+          {['ALL', 'STELLA', 'VALLIA', 'SOFIA', 'HARIS'].map(e => (
+            <button key={e} onClick={() => setEmpFilter(e)}
+              className={`text-xs font-semibold px-3 py-1.5 rounded-lg border transition-colors ${
+                empFilter === e ? 'bg-blue-700 text-white border-blue-700' : 'border-gray-200 text-gray-600 hover:border-blue-300'
+              }`}>
+              {e === 'ALL' ? 'Όλοι' : e}
+            </button>
+          ))}
+        </div>
+
+        {/* Date Filter */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <ClockIcon className="w-4 h-4 text-gray-400" />
+          <span className="text-xs text-gray-500 font-semibold">Περίοδος:</span>
+          <input
+            type="month"
+            value={selectedMonth}
+            onChange={e => setSelectedMonth(e.target.value)}
+            className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-300"
+          />
+          <button
+            onClick={() => setSelectedMonth('')}
+            className="text-xs text-gray-500 hover:text-gray-700 px-2 py-1.5 rounded-lg border border-gray-200 transition-colors"
+          >
+            Καθαρισμός
           </button>
-        ))}
+        </div>
       </div>
 
       {/* ── KPI Cards ──────────────────────────────────────────────────────── */}

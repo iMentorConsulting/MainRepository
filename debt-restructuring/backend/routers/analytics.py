@@ -16,6 +16,8 @@ DRAFT_STAGES = {'Νέα Ανάλυση'}  # Exclude recent/draft entries
 @router.get("/pipeline-stats")
 def get_pipeline_stats(
     employee: Optional[str] = Query(None),
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
     db: Session = Depends(get_db)
 ):
     """
@@ -26,7 +28,9 @@ def get_pipeline_stats(
     Excludes draft cases (Νέα Ανάλυση).
 
     Per-employee breakdown if employee param provided.
+    Optional date_from and date_to filters (YYYY-MM-DD format).
     """
+    from datetime import datetime
 
     # Build base query: exclude draft cases
     query = db.query(Case).filter(
@@ -35,6 +39,20 @@ def get_pipeline_stats(
 
     if employee:
         query = query.filter(Case.employee == employee)
+
+    # Date filtering
+    if date_from:
+        try:
+            df = datetime.fromisoformat(date_from)
+            query = query.filter(Case.created_at >= df)
+        except:
+            pass
+    if date_to:
+        try:
+            dt = datetime.fromisoformat(date_to)
+            query = query.filter(Case.created_at <= dt)
+        except:
+            pass
 
     # Count all non-draft cases
     total_cases = query.count()
@@ -187,16 +205,23 @@ def get_pipeline_stats_details(
 
 
 @router.get("/pipeline-stats-by-employee")
-def get_pipeline_stats_by_employee(db: Session = Depends(get_db)):
+def get_pipeline_stats_by_employee(
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
+    db: Session = Depends(get_db)
+):
     """
     Get statistics breakdown by each employee.
     Returns dict with employee names as keys.
+    Optional date_from and date_to filters (YYYY-MM-DD format).
     """
+    from datetime import datetime
 
-    # Get all unique employees
+    # Get all unique employees (exclude HARIS as he's admin)
     employees = db.query(Case.employee).distinct().filter(
         Case.employee != None,
-        Case.employee != ''
+        Case.employee != '',
+        Case.employee != 'HARIS'
     ).all()
 
     result = {}
@@ -210,6 +235,20 @@ def get_pipeline_stats_by_employee(db: Session = Depends(get_db)):
             Case.employee == emp,
             Case.contact_stage != 'Νέα Ανάλυση'
         )
+
+        # Apply date filtering
+        if date_from:
+            try:
+                df = datetime.fromisoformat(date_from)
+                query = query.filter(Case.created_at >= df)
+            except:
+                pass
+        if date_to:
+            try:
+                dt = datetime.fromisoformat(date_to)
+                query = query.filter(Case.created_at <= dt)
+            except:
+                pass
 
         total = query.count()
 

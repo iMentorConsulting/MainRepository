@@ -298,7 +298,7 @@ def create_iris_payment(data: CreateIrisPaymentRequest, db: Session = Depends(ge
         "initiatingPartyReturnURL": return_url,
         "instructedAmount": str(instructed_amount_cents),
         "currency": "EUR",
-        "remmittanceInfo": {
+        "remittanceInfo": {
             "unstructured1": payment_reason,
             "unstructured2": ri0_code,
         },
