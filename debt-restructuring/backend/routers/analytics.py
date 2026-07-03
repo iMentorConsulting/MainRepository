@@ -77,6 +77,23 @@ def get_pipeline_stats(
     total_settlement = accepted_count + rejected_count
     settlement_percentage = round((accepted_count / total_settlement * 100), 1) if total_settlement > 0 else 0
 
+    # ══ Calculate collected revenue ══
+    first_payment_collected = 0  # Application fee
+    second_payment_collected = 0  # Success fee
+
+    for case in query:
+        offer = case.commercial_offer or {}
+        app_fee = float(offer.get('application_fee') or 0)
+        suc_fee = float(offer.get('success_fee') or 0)
+
+        # First payment: collected when contact_stage is Έκλεισε or higher
+        if case.contact_stage in ['Έκλεισε', 'Αποδοχή Ρύθμισης', 'Απόρριψη Ρύθμισης']:
+            first_payment_collected += app_fee
+
+        # Second payment: collected when status is completed
+        if case.status == 'completed':
+            second_payment_collected += suc_fee
+
     return {
         "employee": employee or "all",
         "total_cases": total_cases,
@@ -97,6 +114,11 @@ def get_pipeline_stats(
             "δεν_ενδιαφέρεται": not_interested_count,
             "αποδοχή_ρύθμισης": accepted_count,
             "απόρριψη_ρύθμισης": rejected_count
+        },
+        "collected_revenue": {
+            "first_payment": round(first_payment_collected),
+            "second_payment": round(second_payment_collected),
+            "total": round(first_payment_collected + second_payment_collected)
         }
     }
 
@@ -192,6 +214,19 @@ def get_pipeline_stats_by_employee(db: Session = Depends(get_db)):
         rejected = query.filter(Case.contact_stage == 'Απόρριψη Ρύθμισης').count()
         settlement_pct = round((accepted / (accepted + rejected) * 100), 1) if (accepted + rejected) > 0 else 0
 
+        # Collected revenue for this employee
+        first_payment = 0
+        second_payment = 0
+        for case in query:
+            offer = case.commercial_offer or {}
+            app_fee = float(offer.get('application_fee') or 0)
+            suc_fee = float(offer.get('success_fee') or 0)
+
+            if case.contact_stage in ['Έκλεισε', 'Αποδοχή Ρύθμισης', 'Απόρριψη Ρύθμισης']:
+                first_payment += app_fee
+            if case.status == 'completed':
+                second_payment += suc_fee
+
         result[emp] = {
             "total_cases": total,
             "closure_percentage": closure_pct,
@@ -199,7 +234,12 @@ def get_pipeline_stats_by_employee(db: Session = Depends(get_db)):
             "closed_count": closed,
             "not_interested_count": not_interested,
             "accepted_count": accepted,
-            "rejected_count": rejected
+            "rejected_count": rejected,
+            "collected_revenue": {
+                "first_payment": round(first_payment),
+                "second_payment": round(second_payment),
+                "total": round(first_payment + second_payment)
+            }
         }
 
     return result

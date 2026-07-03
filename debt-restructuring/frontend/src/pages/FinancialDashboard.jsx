@@ -395,16 +395,24 @@ export default function FinancialDashboard({ currentEmployee }) {
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 mb-6">
             <h3 className="text-sm font-black text-gray-700 mb-4">Ανάλυση ανά Σύμβουλο</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
-              {Object.entries(allEmployeeStats).map(([emp, stats]) => (
-                <div key={emp} className="p-3 bg-gray-50 rounded-lg border border-gray-200">
-                  <div className="font-semibold text-sm text-gray-800 mb-2">{emp}</div>
-                  <div className="space-y-1 text-xs">
-                    <div><span className="text-gray-600">Σύνολο:</span> <span className="font-bold">{stats.total_cases}</span></div>
-                    <div><span className="text-emerald-600">Κλεισμένες:</span> <span className="font-bold text-emerald-700">{stats.closure_percentage}%</span></div>
-                    <div><span className="text-blue-600">Αποδοχή Ρύθμισης:</span> <span className="font-bold text-blue-700">{stats.settlement_acceptance_percentage}%</span></div>
+              {Object.entries(allEmployeeStats).map(([emp, stats]) => {
+                const revenue = stats.collected_revenue || { first_payment: 0, second_payment: 0, total: 0 }
+                return (
+                  <div key={emp} className="p-3 bg-gray-50 rounded-lg border border-gray-200">
+                    <div className="font-semibold text-sm text-gray-800 mb-2">{emp}</div>
+                    <div className="space-y-1 text-xs">
+                      <div><span className="text-gray-600">Σύνολο:</span> <span className="font-bold">{stats.total_cases}</span></div>
+                      <div><span className="text-emerald-600">Κλεισμένες:</span> <span className="font-bold text-emerald-700">{stats.closure_percentage}%</span></div>
+                      <div><span className="text-blue-600">Αποδοχή Ρύθμισης:</span> <span className="font-bold text-blue-700">{stats.settlement_acceptance_percentage}%</span></div>
+                      <div className="pt-1 border-t border-gray-300 mt-1">
+                        <div><span className="text-green-600">1η πληρωμή:</span> <span className="font-bold text-green-700">{(revenue.first_payment || 0).toLocaleString('el-GR')}€</span></div>
+                        <div><span className="text-purple-600">2η πληρωμή:</span> <span className="font-bold text-purple-700">{(revenue.second_payment || 0).toLocaleString('el-GR')}€</span></div>
+                        <div className="font-bold text-lg"><span className="text-gray-800">Σύνολο:</span> <span className="text-blue-800">{(revenue.total || 0).toLocaleString('el-GR')}€</span></div>
+                      </div>
+                    </div>
                   </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           </div>
         )}
