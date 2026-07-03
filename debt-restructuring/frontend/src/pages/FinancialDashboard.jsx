@@ -151,7 +151,9 @@ export default function FinancialDashboard({ currentEmployee }) {
     const employee = empFilter === 'ALL' ? null : empFilter
     api.getAnalyticsPipelineStats(employee)
       .then(r => setRealStats(r.data))
-      .catch(() => {})
+      .catch(err => {
+        console.error('Failed to fetch pipeline stats:', err.message)
+      })
   }, [empFilter])
 
   const offerCases = useMemo(() =>
