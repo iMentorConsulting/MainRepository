@@ -100,6 +100,7 @@ export default function FinancialDashboard({ currentEmployee }) {
   const [empFilter, setEmpFilter] = useState('ALL')
   const [closurePct, setClosurePct] = useState(40)
   const [acceptancePct, setAcceptancePct] = useState(60)
+  const [realStats, setRealStats] = useState(null)
   const [pricingConfig, setPricingConfig] = useState(() => loadPricingConfig())
   const [showPricingAdmin, setShowPricingAdmin] = useState(false)
   const [backingUp, setBackingUp] = useState(false)
@@ -144,6 +145,20 @@ export default function FinancialDashboard({ currentEmployee }) {
         setPricingConfig({ ...DEFAULT_PRICING_CONFIG, ...res.data })
     }).catch(() => {})
   }, [])
+
+  // Fetch real pipeline statistics
+  useEffect(() => {
+    const employee = empFilter === 'ALL' ? null : empFilter
+    console.log('Fetching analytics for employee:', employee)
+    api.getAnalyticsPipelineStats(employee)
+      .then(r => {
+        console.log('Analytics response:', r.data)
+        setRealStats(r.data)
+      })
+      .catch(err => {
+        console.error('Failed to fetch pipeline stats:', err.response?.status, err.message)
+      })
+  }, [empFilter])
 
   const offerCases = useMemo(() =>
     cases.filter(c => c.commercial_offer && (c.commercial_offer.application_fee || c.commercial_offer.success_fee)),
@@ -338,6 +353,30 @@ export default function FinancialDashboard({ currentEmployee }) {
           Σενάριο Εσόδων
           <span className="ml-1 text-xs font-normal text-gray-400">— {scenario.count} ενεργά pipeline με προσφορά</span>
         </h2>
+
+        {/* Real Statistics Display */}
+        {realStats && realStats.total_cases >= 0 && (
+          <div className="grid md:grid-cols-2 gap-4 mb-6 p-4 bg-emerald-50 border border-emerald-200 rounded-lg">
+            <div>
+              <div className="flex justify-between text-sm mb-1">
+                <span className="font-semibold text-emerald-700">✓ Πραγματική % Κλεισίματος</span>
+                <span className="font-black text-emerald-700">{realStats.closure_percentage}%</span>
+              </div>
+              <div className="text-xs text-emerald-600">
+                {realStats.closure_count} κλειστές υποθέσεις από {realStats.total_cases} σύνολο
+              </div>
+            </div>
+            <div>
+              <div className="flex justify-between text-sm mb-1">
+                <span className="font-semibold text-emerald-700">✓ Πραγματική % Αποδοχής Ρύθμισης</span>
+                <span className="font-black text-emerald-700">{realStats.settlement_acceptance_percentage}%</span>
+              </div>
+              <div className="text-xs text-emerald-600">
+                {realStats.settlement_details.accepted} αποδοχές από {realStats.settlement_count} συνολικές αποφάσεις
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Sliders */}
         <div className="grid md:grid-cols-2 gap-5 mb-6">

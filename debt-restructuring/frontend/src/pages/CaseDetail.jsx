@@ -10,7 +10,7 @@ import {
 } from '@heroicons/react/24/outline'
 import * as api from '../api'
 import { PORTAL_BASE } from '../api'
-import { fmt, creditorDisplayName } from '../utils/calculations'
+import { fmt, creditorDisplayName, formatOfferWithVAT, getPaymentStatus } from '../utils/calculations'
 import { buildEmailHtml, wrapEmailDocument, buildResultsEmailHtml } from '../utils/reportGenerators'
 
 const STATUS_LABELS = {
@@ -35,8 +35,14 @@ const IBANS_TEXT = `\n\n🏦 *Τραπεζικοί Λογαριασμοί:*\nΠ�
 function buildOfferBlock(offer) {
   if (!offer || (!offer.application_fee && !offer.success_fee)) return ''
   const lines = [`\n\n💼 *Οικονομική Προσφορά:*`]
-  if (offer.application_fee) lines.push(`• Αίτηση & Διαδικασία: *${Number(offer.application_fee).toLocaleString('el-GR')}€* + ΦΠΑ`)
-  if (offer.success_fee) lines.push(`• Success Fee (αποδοχή): *${Number(offer.success_fee).toLocaleString('el-GR')}€* + ΦΠΑ`)
+  if (offer.application_fee) {
+    const appFee = formatOfferWithVAT(offer.application_fee)
+    lines.push(`• Αίτηση & Διαδικασία: *${appFee.formatted}*`)
+  }
+  if (offer.success_fee) {
+    const successFee = formatOfferWithVAT(offer.success_fee)
+    lines.push(`• Success Fee (αποδοχή): *${successFee.formatted}*`)
+  }
   return lines.join('\n')
 }
 
@@ -868,43 +874,59 @@ export default function CaseDetail({ currentEmployee }) {
       </div>
 
       {/* Commercial Offer */}
-      {(caseData.commercial_offer?.application_fee > 0 || caseData.commercial_offer?.success_fee > 0) && (
-        <div className="card mb-5 bg-blue-50 border border-blue-200">
-          <div className="text-sm font-black text-blue-800 mb-3 flex items-center gap-1.5"><BanknotesIcon className="w-4 h-4 shrink-0" /> Οικονομική Προσφορά</div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-            {caseData.commercial_offer?.application_fee > 0 && (
-              <div>
-                <div className="label">Αίτηση & Διαδικασία</div>
-                <div className="font-bold text-blue-800 text-base">
-                  {Number(caseData.commercial_offer.application_fee).toLocaleString('el-GR')}€ <span className="text-xs font-normal text-gray-500">+ ΦΠΑ</span>
-                </div>
+      {(caseData.commercial_offer?.application_fee > 0 || caseData.commercial_offer?.success_fee > 0) && (() => {
+        const paymentStatus = getPaymentStatus(caseData)
+        return (
+          <div className="card mb-5 bg-blue-50 border border-blue-200">
+            <div className="flex items-center justify-between mb-4">
+              <div className="text-sm font-black text-blue-800 flex items-center gap-1.5"><BanknotesIcon className="w-4 h-4 shrink-0" /> Οικονομική Προσφορά</div>
+              <div className={`px-3 py-1 rounded-full text-xs font-bold ${paymentStatus.completed === 2 ? 'bg-green-100 text-green-700' : paymentStatus.completed === 1 ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'}`}>
+                💰 {paymentStatus.formatted} πληρώθηκε
               </div>
-            )}
-            {caseData.commercial_offer?.success_fee > 0 && (
-              <div>
-                <div className="label">Success Fee (σε αποδοχή αποτελέσματος)</div>
-                <div className="font-bold text-blue-800 text-base">
-                  {Number(caseData.commercial_offer.success_fee).toLocaleString('el-GR')}€ <span className="text-xs font-normal text-gray-500">+ ΦΠΑ</span>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+              {caseData.commercial_offer?.application_fee > 0 && (() => {
+                const appFee = formatOfferWithVAT(caseData.commercial_offer.application_fee)
+                return (
+                  <div className={`rounded-xl p-3 text-center ${paymentStatus.firstPaymentMade ? 'bg-green-50 border-2 border-green-300' : 'bg-white border border-blue-200'}`}>
+                    <div className="text-xs font-semibold text-blue-600 uppercase mb-1 flex items-center justify-center gap-1">
+                      {paymentStatus.firstPaymentMade && '✅'} Αίτηση & Διαδικασία
+                    </div>
+                    <div className="text-xl font-black text-blue-800">{appFee.formatted}</div>
+                    <div className="text-xs text-gray-500 mt-1">Σύνολο με ΦΠΑ</div>
+                  </div>
+                )
+              })()}
+              {caseData.commercial_offer?.success_fee > 0 && (() => {
+                const successFee = formatOfferWithVAT(caseData.commercial_offer.success_fee)
+                return (
+                  <div className={`rounded-xl p-3 text-center ${paymentStatus.secondPaymentMade ? 'bg-green-50 border-2 border-green-300' : 'bg-white border border-blue-200'}`}>
+                    <div className="text-xs font-semibold text-green-600 uppercase mb-1 flex items-center justify-center gap-1">
+                      {paymentStatus.secondPaymentMade && '✅'} Success Fee (σε αποδοχή)
+                    </div>
+                    <div className="text-xl font-black text-green-800">{successFee.formatted}</div>
+                    <div className="text-xs text-gray-500 mt-1">Σύνολο με ΦΠΑ</div>
+                  </div>
+                )
+              })()}
+            </div>
+            {caseData.commercial_offer?.winback_status === 'sent' && (
+              <div className="mt-3 pt-3 border-t border-blue-200">
+                <div className="flex items-center gap-2 text-xs font-bold text-violet-700 mb-1">
+                  <span>💎 Εστάλη Ειδική Τιμή Win-back</span>
+                </div>
+                <div className="flex gap-6 text-xs text-gray-600">
+                  <span>Αίτηση: <strong className="text-violet-700">{Number(caseData.commercial_offer.winback_app || 0).toLocaleString('el-GR')} €</strong></span>
+                  <span>Success fee: <strong className="text-violet-700">{Number(caseData.commercial_offer.winback_suc || 0).toLocaleString('el-GR')} €</strong></span>
+                  {caseData.commercial_offer.winback_offer_valid_until && (
+                    <span>Ισχύει έως: <strong className="text-violet-700">{format(new Date(caseData.commercial_offer.winback_offer_valid_until), 'dd/MM/yyyy')}</strong></span>
+                  )}
                 </div>
               </div>
             )}
           </div>
-          {caseData.commercial_offer?.winback_status === 'sent' && (
-            <div className="mt-3 pt-3 border-t border-blue-200">
-              <div className="flex items-center gap-2 text-xs font-bold text-violet-700 mb-1">
-                <span>💎 Εστάλη Ειδική Τιμή Win-back</span>
-              </div>
-              <div className="flex gap-6 text-xs text-gray-600">
-                <span>Αίτηση: <strong className="text-violet-700">{Number(caseData.commercial_offer.winback_app || 0).toLocaleString('el-GR')} €</strong></span>
-                <span>Success fee: <strong className="text-violet-700">{Number(caseData.commercial_offer.winback_suc || 0).toLocaleString('el-GR')} €</strong></span>
-                {caseData.commercial_offer.winback_offer_valid_until && (
-                  <span>Ισχύει έως: <strong className="text-violet-700">{format(new Date(caseData.commercial_offer.winback_offer_valid_until), 'dd/MM/yyyy')}</strong></span>
-                )}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
+        )
+      })()}
 
       {/* Emergency win-back request — available for all cases */}
       <div className="card mb-5 bg-blue-50 border border-blue-200">

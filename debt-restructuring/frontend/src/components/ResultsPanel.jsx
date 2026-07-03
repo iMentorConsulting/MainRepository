@@ -259,7 +259,7 @@ export default function ResultsPanel({ calc, incomeData }) {
                   ? 'bg-green-50 border border-green-300 text-green-900'
                   : 'bg-blue-50 border border-blue-200 text-blue-900'
               }`}>
-                <div className="font-bold mb-1">{s.icon} {s.label}</div>
+                <div className="font-bold mb-1 flex items-center gap-1.5">{FORECAST_ICONS[s.icon]}{s.label}</div>
                 <div className="whitespace-pre-line">{s.body}</div>
               </div>
             ))}
