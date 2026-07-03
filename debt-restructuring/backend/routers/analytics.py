@@ -80,11 +80,21 @@ def get_pipeline_stats(
     # ══ Calculate collected revenue ══
     first_payment_collected = 0  # Application fee
     second_payment_collected = 0  # Success fee
+    completed_status_count = 0  # Cases with status='completed' (for 2η πληρωμή)
+    earliest_date = None
+    latest_date = None
 
     for case in query:
         offer = case.commercial_offer or {}
         app_fee = float(offer.get('application_fee') or 0)
         suc_fee = float(offer.get('success_fee') or 0)
+
+        # Track date range
+        if case.created_at:
+            if earliest_date is None or case.created_at < earliest_date:
+                earliest_date = case.created_at
+            if latest_date is None or case.created_at > latest_date:
+                latest_date = case.created_at
 
         # First payment: collected when contact_stage is Έκλεισε or higher
         if case.contact_stage in ['Έκλεισε', 'Αποδοχή Ρύθμισης', 'Απόρριψη Ρύθμισης']:
@@ -93,6 +103,7 @@ def get_pipeline_stats(
         # Second payment: collected when status is completed
         if case.status == 'completed':
             second_payment_collected += suc_fee
+            completed_status_count += 1
 
     return {
         "employee": employee or "all",
@@ -118,7 +129,12 @@ def get_pipeline_stats(
         "collected_revenue": {
             "first_payment": round(first_payment_collected),
             "second_payment": round(second_payment_collected),
+            "second_payment_completed_count": completed_status_count,
             "total": round(first_payment_collected + second_payment_collected)
+        },
+        "date_range": {
+            "earliest": earliest_date.isoformat() if earliest_date else None,
+            "latest": latest_date.isoformat() if latest_date else None
         }
     }
 
@@ -217,15 +233,27 @@ def get_pipeline_stats_by_employee(db: Session = Depends(get_db)):
         # Collected revenue for this employee
         first_payment = 0
         second_payment = 0
+        completed_count = 0
+        earliest = None
+        latest = None
+
         for case in query:
             offer = case.commercial_offer or {}
             app_fee = float(offer.get('application_fee') or 0)
             suc_fee = float(offer.get('success_fee') or 0)
 
+            # Track date range
+            if case.created_at:
+                if earliest is None or case.created_at < earliest:
+                    earliest = case.created_at
+                if latest is None or case.created_at > latest:
+                    latest = case.created_at
+
             if case.contact_stage in ['Έκλεισε', 'Αποδοχή Ρύθμισης', 'Απόρριψη Ρύθμισης']:
                 first_payment += app_fee
             if case.status == 'completed':
                 second_payment += suc_fee
+                completed_count += 1
 
         result[emp] = {
             "total_cases": total,
@@ -238,7 +266,12 @@ def get_pipeline_stats_by_employee(db: Session = Depends(get_db)):
             "collected_revenue": {
                 "first_payment": round(first_payment),
                 "second_payment": round(second_payment),
+                "second_payment_completed_count": completed_count,
                 "total": round(first_payment + second_payment)
+            },
+            "date_range": {
+                "earliest": earliest.isoformat() if earliest else None,
+                "latest": latest.isoformat() if latest else None
             }
         }
 
