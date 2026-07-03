@@ -402,8 +402,8 @@ export default function FinancialDashboard({ currentEmployee }) {
                     <div className="font-semibold text-sm text-gray-800 mb-2">{emp}</div>
                     <div className="space-y-1 text-xs">
                       <div><span className="text-gray-600">Σύνολο:</span> <span className="font-bold">{stats.total_cases}</span></div>
-                      <div><span className="text-emerald-600">Κλεισμένες:</span> <span className="font-bold text-emerald-700">{stats.closure_percentage}% ({stats.closed_count}/{stats.total_cases})</span></div>
-                      <div><span className="text-blue-600">Αποδοχή Ρύθμισης:</span> <span className="font-bold text-blue-700">{stats.settlement_acceptance_percentage}% ({stats.accepted_count}/{stats.accepted_count + stats.rejected_count})</span></div>
+                      <div><span className="text-emerald-600">Κλεισμένες:</span> <span className="font-bold text-emerald-700">{stats.closure_percentage}% ({stats.closure_count}/{stats.total_cases})</span></div>
+                      <div><span className="text-blue-600">Αποδοχή Ρύθμισης:</span> <span className="font-bold text-blue-700">{stats.settlement_acceptance_percentage}% ({stats.accepted_count}/{stats.settlement_count})</span></div>
                       <div className="pt-1 border-t border-gray-300 mt-1">
                         <div><span className="text-green-600">1η πληρωμή:</span> <span className="font-bold text-green-700">{(revenue.first_payment || 0).toLocaleString('el-GR')}€</span></div>
                         <div><span className="text-purple-600">2η πληρωμή:</span> <span className="font-bold text-purple-700">{(revenue.second_payment || 0).toLocaleString('el-GR')}€ ({revenue.second_payment_completed_count || 0})</span></div>
@@ -411,7 +411,14 @@ export default function FinancialDashboard({ currentEmployee }) {
                       </div>
                       {stats.date_range && (
                         <div className="pt-1 border-t border-gray-300 mt-1 text-xs">
-                          <div className="text-gray-500">Περίοδος: {stats.date_range.earliest?.split('T')[0]} → {stats.date_range.latest?.split('T')[0]}</div>
+                          {(() => {
+                            const formatDate = (iso) => {
+                              if (!iso) return '—'
+                              const [y, m, d] = iso.split('T')[0].split('-')
+                              return `${d}/${m}/${y}`
+                            }
+                            return <div className="text-gray-500">Περίοδος: {formatDate(stats.date_range.earliest)} → {formatDate(stats.date_range.latest)}</div>
+                          })()}
                         </div>
                       )}
                     </div>
