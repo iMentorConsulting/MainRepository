@@ -91,7 +91,59 @@ def get_pipeline_stats(
         "settlement_details": {
             "accepted": accepted_count,
             "rejected": rejected_count
+        },
+        "stage_breakdown": {
+            "έκλεισε": closed_count,
+            "δεν_ενδιαφέρεται": not_interested_count,
+            "αποδοχή_ρύθμισης": accepted_count,
+            "απόρριψη_ρύθμισης": rejected_count
         }
+    }
+
+
+@router.get("/pipeline-stats-details")
+def get_pipeline_stats_details(
+    employee: Optional[str] = Query(None),
+    stage: Optional[str] = Query(None),
+    db: Session = Depends(get_db)
+):
+    """
+    Get detailed list of cases for a specific stage/employee combo.
+    Useful for verifying the statistics calculations.
+
+    stage options: 'έκλεισε', 'δεν_ενδιαφέρεται', 'αποδοχή_ρύθμισης', 'απόρριψη_ρύθμισης'
+    """
+    query = db.query(Case).filter(Case.contact_stage != 'Νέα Ανάλυση')
+
+    if employee:
+        query = query.filter(Case.employee == employee)
+
+    stage_map = {
+        'έκλεισε': 'Έκλεισε',
+        'δεν_ενδιαφέρεται': 'Δεν Ενδιαφέρεται',
+        'αποδοχή_ρύθμισης': 'Αποδοχή Ρύθμισης',
+        'απόρριψη_ρύθμισης': 'Απόρριψη Ρύθμισης'
+    }
+
+    if stage and stage in stage_map:
+        query = query.filter(Case.contact_stage == stage_map[stage])
+
+    cases = query.all()
+    return {
+        "stage": stage or "all",
+        "employee": employee or "all",
+        "count": len(cases),
+        "cases": [
+            {
+                "id": c.id,
+                "debtor_name": c.debtor_name,
+                "employee": c.employee,
+                "contact_stage": c.contact_stage,
+                "status": c.status,
+                "created_at": c.created_at.isoformat() if c.created_at else None
+            }
+            for c in cases
+        ]
     }
 
 

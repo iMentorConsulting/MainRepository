@@ -160,6 +160,18 @@ export default function FinancialDashboard({ currentEmployee }) {
       })
   }, [empFilter])
 
+  const [allEmployeeStats, setAllEmployeeStats] = useState(null)
+  useEffect(() => {
+    api.getAnalyticsPipelineStatsByEmployee()
+      .then(r => {
+        console.log('Employee stats:', r.data)
+        setAllEmployeeStats(r.data)
+      })
+      .catch(err => {
+        console.error('Failed to fetch employee stats:', err.message)
+      })
+  }, [])
+
   const offerCases = useMemo(() =>
     cases.filter(c => c.commercial_offer && (c.commercial_offer.application_fee || c.commercial_offer.success_fee)),
   [cases])
@@ -374,6 +386,25 @@ export default function FinancialDashboard({ currentEmployee }) {
               <div className="text-xs text-emerald-600">
                 {realStats.settlement_details.accepted} αποδοχές από {realStats.settlement_count} συνολικές αποφάσεις
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Per-Employee Breakdown */}
+        {allEmployeeStats && Object.keys(allEmployeeStats).length > 0 && (
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 mb-6">
+            <h3 className="text-sm font-black text-gray-700 mb-4">Ανάλυση ανά Σύμβουλο</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+              {Object.entries(allEmployeeStats).map(([emp, stats]) => (
+                <div key={emp} className="p-3 bg-gray-50 rounded-lg border border-gray-200">
+                  <div className="font-semibold text-sm text-gray-800 mb-2">{emp}</div>
+                  <div className="space-y-1 text-xs">
+                    <div><span className="text-gray-600">Σύνολο:</span> <span className="font-bold">{stats.total_cases}</span></div>
+                    <div><span className="text-emerald-600">Κλεισμένες:</span> <span className="font-bold text-emerald-700">{stats.closure_percentage}%</span></div>
+                    <div><span className="text-blue-600">Αποδοχή Ρύθμισης:</span> <span className="font-bold text-blue-700">{stats.settlement_acceptance_percentage}%</span></div>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         )}
