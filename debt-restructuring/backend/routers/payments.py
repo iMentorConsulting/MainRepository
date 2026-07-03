@@ -329,7 +329,12 @@ def create_iris_payment(data: CreateIrisPaymentRequest, db: Session = Depends(ge
 
     order_id = resp.get("orderId", "")
     if not order_id:
-        logger.warning("IRIS Initiation response missing orderId. Full response: %s", resp)
+        logger.error("IRIS Initiation response MISSING orderId. Full response: %s", resp)
+        logger.error("IRIS request payload was: %s", _redact(payload))
+        # Log all fields in response for debugging
+        logger.error("Response fields: %s", list(resp.keys()) if resp else "None")
+    else:
+        logger.info("IRIS Initiation successful, orderId: %s", order_id)
 
     record.dias_order_id = order_id
     record.bank_selection_tool_url = resp.get("bankSelectionToolUrl", "")

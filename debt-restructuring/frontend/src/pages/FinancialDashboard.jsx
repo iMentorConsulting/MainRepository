@@ -106,7 +106,7 @@ export default function FinancialDashboard({ currentEmployee }) {
   const [backingUp, setBackingUp] = useState(false)
   const [dateFromFilter, setDateFromFilter] = useState('')
   const [dateToFilter, setDateToFilter] = useState('')
-  const [selectedMonth, setSelectedMonth] = useState(format(new Date(), 'yyyy-MM'))
+  const [selectedMonth, setSelectedMonth] = useState('')  // Empty = show all data by default
 
   const handleBackupNow = async () => {
     setBackingUp(true)
@@ -156,7 +156,9 @@ export default function FinancialDashboard({ currentEmployee }) {
     if (selectedMonth) {
       const [year, month] = selectedMonth.split('-')
       dateFrom = `${year}-${month}-01`
-      dateTo = `${year}-${month}-31`
+      // Get last day of month correctly
+      const lastDay = new Date(parseInt(year), parseInt(month), 0).getDate()
+      dateTo = `${year}-${month}-${String(lastDay).padStart(2, '0')}`
     }
     console.log('Fetching analytics for employee:', employee, 'period:', dateFrom, 'to', dateTo)
     api.getAnalyticsPipelineStats(employee, dateFrom, dateTo)
@@ -175,7 +177,9 @@ export default function FinancialDashboard({ currentEmployee }) {
     if (selectedMonth) {
       const [year, month] = selectedMonth.split('-')
       dateFrom = `${year}-${month}-01`
-      dateTo = `${year}-${month}-31`
+      // Get last day of month correctly
+      const lastDay = new Date(parseInt(year), parseInt(month), 0).getDate()
+      dateTo = `${year}-${month}-${String(lastDay).padStart(2, '0')}`
     }
     api.getAnalyticsPipelineStatsByEmployee(dateFrom, dateTo)
       .then(r => {
