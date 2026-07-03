@@ -327,7 +327,11 @@ def create_iris_payment(data: CreateIrisPaymentRequest, db: Session = Depends(ge
         db.commit()
         raise HTTPException(status_code=502, detail={"errorCode": error_code, "errorDescription": error_desc})
 
-    record.dias_order_id = resp.get("orderId", "")
+    order_id = resp.get("orderId", "")
+    if not order_id:
+        logger.warning("IRIS Initiation response missing orderId. Full response: %s", resp)
+
+    record.dias_order_id = order_id
     record.bank_selection_tool_url = resp.get("bankSelectionToolUrl", "")
     record.status = "pending"
     record.expires_at = datetime.utcnow() + timedelta(minutes=int(cfg["validity"]))
