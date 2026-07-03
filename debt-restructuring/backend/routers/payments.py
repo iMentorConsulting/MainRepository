@@ -92,7 +92,10 @@ DMSP_ERROR_MESSAGES = {
 
 
 def iris_enabled() -> bool:
-    return os.getenv("ENABLE_IRIS_PAYMENTS", "false").lower() == "true"
+    enabled = os.getenv("ENABLE_IRIS_PAYMENTS", "false").lower() == "true"
+    if enabled:
+        logger.info("IRIS Payments enabled")
+    return enabled
 
 
 def _iris_config():
