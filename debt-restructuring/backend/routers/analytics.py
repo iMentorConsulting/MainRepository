@@ -35,7 +35,7 @@ def get_pipeline_stats(
     Per-employee breakdown if employee param provided.
     Optional date_from and date_to filters (YYYY-MM-DD format).
     """
-    from datetime import datetime
+    from datetime import datetime, timedelta
 
     # Build base query: exclude draft cases
     query = db.query(Case).filter(
@@ -45,9 +45,24 @@ def get_pipeline_stats(
     if employee:
         query = query.filter(Case.employee == employee)
 
-    # TEMP: Disable date filtering to test if that's the issue
-    # Date filtering disabled until we can debug why it's excluding settlement cases
-    logger.info("Date filter params received - date_from: %s, date_to: %s", date_from, date_to)
+    # Apply date filtering if provided (YYYY-MM-DD format)
+    if date_from:
+        try:
+            from_date = datetime.strptime(date_from, '%Y-%m-%d').date()
+            query = query.filter(Case.created_at >= from_date)
+            logger.info(f"Applied date_from filter: {from_date}")
+        except ValueError:
+            logger.warning(f"Invalid date_from format: {date_from}")
+
+    if date_to:
+        try:
+            to_date = datetime.strptime(date_to, '%Y-%m-%d').date()
+            # Include entire end date by filtering up to next day
+            to_date_end = to_date + timedelta(days=1)
+            query = query.filter(Case.created_at < to_date_end)
+            logger.info(f"Applied date_to filter: {to_date}")
+        except ValueError:
+            logger.warning(f"Invalid date_to format: {date_to}")
 
     # Count all non-draft cases
     total_cases = query.count()
@@ -216,7 +231,7 @@ def get_pipeline_stats_by_employee(
     Settlement acceptance based on status field (completed vs cancelled).
     Optional date_from and date_to filters (YYYY-MM-DD format).
     """
-    from datetime import datetime
+    from datetime import datetime, timedelta
 
     # Get all unique employees, excluding HARIS (admin only)
     employees = db.query(Case.employee).distinct().filter(
@@ -237,8 +252,21 @@ def get_pipeline_stats_by_employee(
             Case.contact_stage != 'Νέα Ανάλυση'
         )
 
-        # TEMP: Disable date filtering to test if that's the issue
-        logger.info("Per-emp date filter params - emp: %s, date_from: %s, date_to: %s", emp, date_from, date_to)
+        # Apply date filtering if provided (YYYY-MM-DD format)
+        if date_from:
+            try:
+                from_date = datetime.strptime(date_from, '%Y-%m-%d').date()
+                query = query.filter(Case.created_at >= from_date)
+            except ValueError:
+                logger.warning(f"Invalid date_from format: {date_from}")
+
+        if date_to:
+            try:
+                to_date = datetime.strptime(date_to, '%Y-%m-%d').date()
+                to_date_end = to_date + timedelta(days=1)
+                query = query.filter(Case.created_at < to_date_end)
+            except ValueError:
+                logger.warning(f"Invalid date_to format: {date_to}")
 
         total = query.count()
 

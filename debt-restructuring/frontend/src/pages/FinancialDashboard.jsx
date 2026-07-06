@@ -150,16 +150,11 @@ export default function FinancialDashboard({ currentEmployee }) {
   }, [])
 
   // Fetch real pipeline statistics
-  useEffect(() => {
+  const fetchAnalytics = () => {
     const employee = empFilter === 'ALL' ? null : empFilter
-    let dateFrom = null, dateTo = null
-    if (selectedMonth) {
-      const [year, month] = selectedMonth.split('-')
-      dateFrom = `${year}-${month}-01T00:00:00Z`
-      // Get last day of month correctly, set to end of day (23:59:59)
-      const lastDay = new Date(parseInt(year), parseInt(month), 0).getDate()
-      dateTo = `${year}-${month}-${String(lastDay).padStart(2, '0')}T23:59:59Z`
-    }
+    const dateFrom = dateFromFilter || null
+    const dateTo = dateToFilter || null
+
     console.log('Fetching analytics for employee:', employee, 'period:', dateFrom, 'to', dateTo)
     api.getAnalyticsPipelineStats(employee, dateFrom, dateTo)
       .then(r => {
@@ -169,18 +164,7 @@ export default function FinancialDashboard({ currentEmployee }) {
       .catch(err => {
         console.error('Failed to fetch pipeline stats:', err.response?.status, err.message)
       })
-  }, [empFilter, selectedMonth])
 
-  const [allEmployeeStats, setAllEmployeeStats] = useState(null)
-  useEffect(() => {
-    let dateFrom = null, dateTo = null
-    if (selectedMonth) {
-      const [year, month] = selectedMonth.split('-')
-      dateFrom = `${year}-${month}-01T00:00:00Z`
-      // Get last day of month correctly, set to end of day (23:59:59)
-      const lastDay = new Date(parseInt(year), parseInt(month), 0).getDate()
-      dateTo = `${year}-${month}-${String(lastDay).padStart(2, '0')}T23:59:59Z`
-    }
     api.getAnalyticsPipelineStatsByEmployee(dateFrom, dateTo)
       .then(r => {
         console.log('Employee stats:', r.data)
@@ -189,7 +173,13 @@ export default function FinancialDashboard({ currentEmployee }) {
       .catch(err => {
         console.error('Failed to fetch employee stats:', err.message)
       })
-  }, [selectedMonth])
+  }
+
+  useEffect(() => {
+    fetchAnalytics()
+  }, [empFilter, dateFromFilter, dateToFilter])
+
+  const [allEmployeeStats, setAllEmployeeStats] = useState(null)
 
   const offerCases = useMemo(() =>
     cases.filter(c => c.commercial_offer && (c.commercial_offer.application_fee || c.commercial_offer.success_fee)),
@@ -381,14 +371,34 @@ export default function FinancialDashboard({ currentEmployee }) {
       <div className="flex items-center gap-2 flex-wrap">
         <ClockIcon className="w-4 h-4 text-gray-400" />
         <span className="text-xs text-gray-500 font-semibold">Περίοδος:</span>
-        <input
-          type="month"
-          value={selectedMonth}
-          onChange={e => setSelectedMonth(e.target.value)}
-          className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-300"
-        />
+        <div className="flex items-center gap-1">
+          <input
+            type="date"
+            value={dateFromFilter}
+            onChange={e => {
+              setDateFromFilter(e.target.value)
+              fetchAnalytics()
+            }}
+            className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-300"
+          />
+          <span className="text-xs text-gray-400">→</span>
+          <input
+            type="date"
+            value={dateToFilter}
+            onChange={e => {
+              setDateToFilter(e.target.value)
+              fetchAnalytics()
+            }}
+            className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-300"
+          />
+        </div>
         <button
-          onClick={() => setSelectedMonth('')}
+          onClick={() => {
+            setSelectedMonth('')
+            setDateFromFilter('')
+            setDateToFilter('')
+            fetchAnalytics()
+          }}
           className="text-xs text-gray-500 hover:text-gray-700 px-2 py-1.5 rounded-lg border border-gray-200 transition-colors"
         >
           Καθαρισμός
