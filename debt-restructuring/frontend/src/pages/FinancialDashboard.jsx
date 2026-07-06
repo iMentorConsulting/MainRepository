@@ -245,10 +245,12 @@ export default function FinancialDashboard({ currentEmployee }) {
       const empCases = cases.filter(c => c.employee === emp)
       const total = empCases.length
       const stageCount = s => empCases.filter(c => (c.contact_stage || 'Νέα Ανάλυση') === s).length
-      const closed = ['Έκλεισε', 'Αποδοχή Ρύθμισης', 'Απόρριψη Ρύθμισης'].reduce((s, st) => s + stageCount(st), 0)
+      // Closed = only Έκλεισε (not settlement decisions which are in status field)
+      const closed = stageCount('Έκλεισε')
       const notInterested = stageCount('Δεν Ενδιαφέρεται')
-      const accepted = stageCount('Αποδοχή Ρύθμισης')
-      const rejected = stageCount('Απόρριψη Ρύθμισης')
+      // Settlement decisions are stored in status field, not contact_stage
+      const accepted = empCases.filter(c => c.status === 'completed').length
+      const rejected = empCases.filter(c => c.status === 'cancelled').length
       const active = total - closed - notInterested
       const decided = closed + notInterested
       const postClose = accepted + rejected
