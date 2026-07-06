@@ -5,7 +5,7 @@ import { prisma } from '@/lib/prisma'
 const PAGE_SIZE = 50
 
 // Human-readable source labels
-export const SOURCE_LABELS: Record<string, string> = {
+const SOURCE_LABELS: Record<string, string> = {
   'accountant':       'Λογιστής (Portal)',
   'exodikastikos':    'Εξωδικαστικός',
   'ermis-lead':       'Ερμής / Case Mgmt',
