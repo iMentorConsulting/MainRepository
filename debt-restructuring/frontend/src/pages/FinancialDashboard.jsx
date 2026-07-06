@@ -240,45 +240,6 @@ export default function FinancialDashboard({ currentEmployee }) {
   const maxWeekly = Math.max(...weeklyHistory.map(w => w.total), 1)
 
   // ── Consultant Comparison ─────────────────────────────────────────────────
-  const consultantStats = useMemo(() => {
-    return CONSULTANTS.map(emp => {
-      const empCases = cases.filter(c => c.employee === emp)
-      const total = empCases.length
-      const stageCount = s => empCases.filter(c => (c.contact_stage || 'Νέα Ανάλυση') === s).length
-      // Closed = only Έκλεισε (not settlement decisions which are in status field)
-      const closed = stageCount('Έκλεισε')
-      const notInterested = stageCount('Δεν Ενδιαφέρεται')
-      // Settlement decisions are stored in status field, not contact_stage
-      const accepted = empCases.filter(c => c.status === 'completed').length
-      const rejected = empCases.filter(c => c.status === 'cancelled').length
-      const active = total - closed - notInterested
-      const decided = closed + notInterested
-      const postClose = accepted + rejected
-      const closureRate = pct(closed, decided)
-      const acceptanceRate = pct(accepted, postClose)
-      const rejectionRate = pct(rejected, postClose)
-
-      const empOffer = offerCases.filter(c => c.employee === emp)
-      let collected = 0, expected = 0, pipeline = 0, overdue = 0
-      for (const c of empOffer) {
-        const af = Number(c.commercial_offer?.application_fee || 0)
-        const sf = Number(c.commercial_offer?.success_fee || 0)
-        const as = appFeeStatus(c)
-        const ss = successFeeStatus(c)
-        if (as === 'collected') collected += af
-        else if (as === 'expected') expected += af
-        else if (as === 'pipeline') pipeline += af
-        if (ss === 'collected') collected += sf
-        else if (ss === 'expected') expected += sf
-        else if (ss === 'overdue') overdue += sf
-        else if (ss === 'pipeline') pipeline += sf
-      }
-
-      return { emp, total, active, closed, notInterested, accepted, rejected,
-        closureRate, acceptanceRate, rejectionRate, decided, postClose,
-        collected, expected, overdue, pipeline }
-    })
-  }, [cases, offerCases])
 
   // ── KPIs ──────────────────────────────────────────────────────────────────
   const kpis = useMemo(() => {
@@ -327,9 +288,6 @@ export default function FinancialDashboard({ currentEmployee }) {
   }
 
   if (loading) return <div className="p-8 text-gray-400 text-center animate-pulse">Φόρτωση…</div>
-
-  const maxClosed = Math.max(...consultantStats.map(s => s.closed), 1)
-  const maxTotal = Math.max(...consultantStats.map(s => s.total), 1)
 
   // Timeline positioning helpers (0–100% across 90 days)
   const timelinePct = days => Math.min((days / 90) * 100, 100)
@@ -558,59 +516,57 @@ export default function FinancialDashboard({ currentEmployee }) {
         </div>
       </div>
 
-      {/* ── Consultant Comparison ──────────────────────────────────────────── */}
+      {/* ── Consultant Comparison (using Analytics API data) ──────────────────────────────────────────── */}
+      {allEmployeeStats && (
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
         <h2 className="text-sm font-black text-gray-700 mb-5 flex items-center gap-2">
           <UserGroupIcon className="w-4 h-4 text-blue-600" />Σύγκριση Συμβούλων
         </h2>
 
         <div className="grid md:grid-cols-3 gap-4 mb-6">
-          {consultantStats.map(s => {
-            const c = CC[s.emp]
+          {Object.entries(allEmployeeStats).filter(([emp]) => emp !== 'HARIS').map(([emp, stats]) => {
+            const c = CC[emp]
+            const revenue = stats.collected_revenue || { first_payment: 0, second_payment: 0, total: 0 }
             return (
-              <div key={s.emp} className={`rounded-xl border p-4 ${c.light} ${c.border}`}>
-                <div className={`text-lg font-black mb-3 ${c.text}`}>{s.emp}</div>
+              <div key={emp} className={`rounded-xl border p-4 ${c.light} ${c.border}`}>
+                <div className={`text-lg font-black mb-3 ${c.text}`}>{emp}</div>
 
                 <div className="space-y-1.5 text-sm mb-3">
                   <div className="flex justify-between">
-                    <span className="text-gray-500">Σύνολο υποθέσεων</span>
-                    <span className="font-black">{s.total}</span>
+                    <span className="text-gray-500">Σύνολο</span>
+                    <span className="font-black">{stats.total_cases}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-500">Ενεργά pipeline</span>
-                    <span className="font-bold">{s.active}</span>
+                    <span className="text-gray-500">Έκλεισε</span>
+                    <span className="font-bold text-emerald-700">{stats.closed_count}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-500">Κλειστά (app fee)</span>
-                    <span className="font-bold text-emerald-700">{s.closed}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">Δεν ενδιαφέρεται</span>
-                    <span className="font-bold text-red-500">{s.notInterested}</span>
+                    <span className="text-gray-500">Δεν Ενδιαφέρεται</span>
+                    <span className="font-bold text-red-500">{stats.not_interested_count}</span>
                   </div>
                 </div>
 
                 <div className="mb-3">
                   <div className="flex justify-between text-xs mb-1">
-                    <span className="text-gray-500 font-semibold">Ποσοστό Κλεισίματος</span>
-                    <span className={`font-black ${c.text}`}>{s.closureRate}%</span>
+                    <span className="text-gray-500 font-semibold">% Κλεισίματος</span>
+                    <span className={`font-black ${c.text}`}>{stats.closure_percentage}%</span>
                   </div>
                   <div className="w-full bg-white/60 rounded-full h-2.5 border border-gray-200">
-                    <div className={`h-2.5 rounded-full ${c.bar} transition-all`} style={{ width: `${s.closureRate}%` }} />
+                    <div className={`h-2.5 rounded-full ${c.bar} transition-all`} style={{ width: `${stats.closure_percentage}%` }} />
                   </div>
-                  <div className="text-xs text-gray-400 mt-0.5">{s.closed} κλειστά / {s.decided} αποφασισμένα</div>
+                  <div className="text-xs text-gray-400 mt-0.5">{stats.closed_count} Έκλεισε / {stats.closure_count} αποφασισμένα</div>
                 </div>
 
-                {s.postClose > 0 && (
+                {(stats.accepted_count || stats.rejected_count) > 0 && (
                   <div className="border-t border-black/10 pt-2 mb-3 space-y-1">
-                    <div className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">Αποτέλεσμα ({s.postClose})</div>
+                    <div className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">Αποδοχή Ρύθμισης ({stats.accepted_count})</div>
                     <div className="flex justify-between text-xs">
-                      <span className="text-green-600">Αποδοχή Ρύθμισης</span>
-                      <span className="font-bold text-green-700">{s.accepted} ({s.acceptanceRate}%)</span>
+                      <span className="text-green-600">Αποδοχή</span>
+                      <span className="font-bold text-green-700">{stats.accepted_count} ({stats.settlement_acceptance_percentage}%)</span>
                     </div>
                     <div className="flex justify-between text-xs">
-                      <span className="text-orange-500">Απόρριψη Ρύθμισης</span>
-                      <span className="font-bold text-orange-600">{s.rejected} ({s.rejectionRate}%)</span>
+                      <span className="text-orange-500">Απόρριψη</span>
+                      <span className="font-bold text-orange-600">{stats.rejected_count}</span>
                     </div>
                   </div>
                 )}
@@ -618,22 +574,16 @@ export default function FinancialDashboard({ currentEmployee }) {
                 <div className="border-t border-black/10 pt-2 space-y-1">
                   <div className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">Οικονομικά</div>
                   <div className="flex justify-between text-xs">
-                    <span className="text-gray-500">Εισπράχθηκε</span>
-                    <span className="font-black text-green-700">{fmtEur(s.collected)}</span>
+                    <span className="text-gray-500">1η πληρωμή</span>
+                    <span className="font-black text-green-700">{(revenue.first_payment || 0).toLocaleString('el-GR')}€</span>
                   </div>
                   <div className="flex justify-between text-xs">
-                    <span className="text-gray-500">Αναμένεται</span>
-                    <span className="font-bold text-blue-700">{fmtEur(s.expected)}</span>
+                    <span className="text-gray-500">2η πληρωμή</span>
+                    <span className="font-bold text-purple-700">{(revenue.second_payment || 0).toLocaleString('el-GR')}€</span>
                   </div>
-                  {s.overdue > 0 && (
-                    <div className="flex justify-between text-xs">
-                      <span className="text-red-500">Καθυστέρηση</span>
-                      <span className="font-bold text-red-600">{fmtEur(s.overdue)}</span>
-                    </div>
-                  )}
                   <div className="flex justify-between text-xs">
-                    <span className="text-gray-500">Pipeline</span>
-                    <span className="font-bold text-amber-700">{fmtEur(s.pipeline)}</span>
+                    <span className="text-gray-500">Σύνολο</span>
+                    <span className="font-bold text-blue-700">{(revenue.total || 0).toLocaleString('el-GR')}€</span>
                   </div>
                 </div>
               </div>
@@ -646,20 +596,20 @@ export default function FinancialDashboard({ currentEmployee }) {
           <div className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-4">Οπτική Σύγκριση</div>
           <div className="space-y-5">
             {[
-              { label: 'Σύνολο Υποθέσεων', getValue: s => s.total, max: maxTotal },
-              { label: 'Κλειστά (App Fee Paid)', getValue: s => s.closed, max: maxClosed },
-              { label: 'Ποσοστό Κλεισίματος', getValue: s => s.closureRate, max: 100, suffix: '%' },
+              { label: 'Σύνολο', getValue: s => s.total_cases, max: Math.max(...Object.values(allEmployeeStats).filter(s => s.total_cases).map(s => s.total_cases), 1) },
+              { label: 'Έκλεισε', getValue: s => s.closed_count, max: Math.max(...Object.values(allEmployeeStats).filter(s => s.closed_count).map(s => s.closed_count), 1) },
+              { label: '% Κλεισίματος', getValue: s => s.closure_percentage, max: 100, suffix: '%' },
             ].map(({ label, getValue, max, suffix }) => (
               <div key={label}>
                 <div className="text-xs font-semibold text-gray-500 mb-2">{label}</div>
                 <div className="space-y-2">
-                  {consultantStats.map(s => {
-                    const val = getValue(s)
+                  {Object.entries(allEmployeeStats).filter(([emp]) => emp !== 'HARIS').map(([emp, stats]) => {
+                    const val = getValue(stats)
                     const w = max > 0 ? (val / max) * 100 : 0
-                    const c = CC[s.emp]
+                    const c = CC[emp]
                     return (
-                      <div key={s.emp} className="flex items-center gap-3">
-                        <div className={`text-xs font-black w-14 shrink-0 ${c.text}`}>{s.emp}</div>
+                      <div key={emp} className="flex items-center gap-3">
+                        <div className={`text-xs font-black w-14 shrink-0 ${c.text}`}>{emp}</div>
                         <div className="flex-1 bg-gray-100 rounded-full h-5 overflow-hidden">
                           <div className={`h-5 rounded-full ${c.bar} transition-all duration-300`} style={{ width: `${w}%` }} />
                         </div>
@@ -675,6 +625,7 @@ export default function FinancialDashboard({ currentEmployee }) {
           </div>
         </div>
       </div>
+      )}
 
       {/* ── Financial Filter ───────────────────────────────────────────────── */}
       <div className="flex items-center gap-2 flex-wrap">
