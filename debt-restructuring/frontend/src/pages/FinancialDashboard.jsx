@@ -218,13 +218,28 @@ export default function FinancialDashboard({ currentEmployee }) {
       for (const c of filtered) {
         const af = Number(c.commercial_offer?.application_fee || 0)
         const sf = Number(c.commercial_offer?.success_fee || 0)
-        const dateStr = collectionDate(c)
-        if (!dateStr) continue
-        const date = new Date(dateStr)
-        const inWeek = isSameWeek(date, weekStart, { weekStartsOn: 1 })
-        if (!inWeek) continue
-        if (af > 0 && appFeeStatus(c) === 'collected') appAmt += af
-        if (sf > 0 && successFeeStatus(c) === 'collected') sucAmt += sf
+
+        // App fee: collected when case reaches 'Έκλεισε' stage (regardless of current state)
+        if (af > 0 && c.contact_stage === 'Έκλεισε') {
+          const dateStr = c.stage_changed_at || c.created_at
+          if (dateStr) {
+            const date = new Date(dateStr)
+            if (isSameWeek(date, weekStart, { weekStartsOn: 1 })) {
+              appAmt += af
+            }
+          }
+        }
+
+        // Success fee: collected when status becomes 'completed' (regardless of current state)
+        if (sf > 0 && c.status === 'completed') {
+          const dateStr = c.completed_at || c.stage_changed_at || c.created_at
+          if (dateStr) {
+            const date = new Date(dateStr)
+            if (isSameWeek(date, weekStart, { weekStartsOn: 1 })) {
+              sucAmt += sf
+            }
+          }
+        }
       }
       return {
         weekStart,
