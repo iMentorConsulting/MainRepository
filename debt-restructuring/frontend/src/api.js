@@ -75,11 +75,19 @@ export const getEmployeeStats = (employee) => api.get(`/statistics/employee/${em
 export const getComparison = () => api.get('/statistics/comparison')
 
 // Analytics
-export const getAnalyticsPipelineStats = (employee) => {
-  const params = employee ? { employee } : {}
+export const getAnalyticsPipelineStats = (employee, dateFrom, dateTo) => {
+  const params = {}
+  if (employee) params.employee = employee
+  if (dateFrom) params.date_from = dateFrom
+  if (dateTo) params.date_to = dateTo
   return api.get('/analytics/pipeline-stats', { params })
 }
-export const getAnalyticsPipelineStatsByEmployee = () => api.get('/analytics/pipeline-stats-by-employee')
+export const getAnalyticsPipelineStatsByEmployee = (dateFrom, dateTo) => {
+  const params = {}
+  if (dateFrom) params.date_from = dateFrom
+  if (dateTo) params.date_to = dateTo
+  return api.get('/analytics/pipeline-stats-by-employee', { params })
+}
 
 // Leads
 export const listLeads = (params) => api.get('/leads/', { params, paramsSerializer: p => {

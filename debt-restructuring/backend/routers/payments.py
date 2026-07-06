@@ -92,7 +92,10 @@ DMSP_ERROR_MESSAGES = {
 
 
 def iris_enabled() -> bool:
-    return os.getenv("ENABLE_IRIS_PAYMENTS", "false").lower() == "true"
+    enabled = os.getenv("ENABLE_IRIS_PAYMENTS", "false").lower() == "true"
+    if enabled:
+        logger.info("IRIS Payments enabled")
+    return enabled
 
 
 def _iris_config():
@@ -165,6 +168,8 @@ def _call_dias(url: str, payload: dict, label: str) -> dict:
     if resp.status_code != 200:
         error_code = body.get("errorCode") or body.get("resp", {}).get("errorCode")
         error_desc = body.get("errorDescription") or DMSP_ERROR_MESSAGES.get(error_code, "Σφάλμα ΔΙΑΣ.")
+        logger.error("IRIS %s API returned non-200 status. HTTP Status: %s, Error Code: %s, Description: %s, Full Response: %s",
+                     label, resp.status_code, error_code, error_desc, body)
         raise HTTPException(
             status_code=502,
             detail={"errorCode": error_code, "errorDescription": error_desc, "diasHttpStatus": resp.status_code},
@@ -295,13 +300,15 @@ def create_iris_payment(data: CreateIrisPaymentRequest, db: Session = Depends(ge
         "initiatingPartyReturnURL": return_url,
         "instructedAmount": str(instructed_amount_cents),
         "currency": "EUR",
-        "remmittanceInfo": {
+        "remittanceInfo": {
             "unstructured1": payment_reason,
             "unstructured2": ri0_code,
         },
         "language": cfg["language"],
-        "initiationChannel": str(cfg["channel"]),
+        "initiationChannel": cfg["channel"],
     }
+
+    logger.info("IRIS Initiation payload (for debugging): %s", _redact(payload))
 
     try:
         body = _call_dias(cfg["initiation_url"], payload, "Initiation")
@@ -317,6 +324,7 @@ def create_iris_payment(data: CreateIrisPaymentRequest, db: Session = Depends(ge
     if not resp:
         error_code = body.get("errorCode", "")
         error_desc = body.get("errorDescription") or DMSP_ERROR_MESSAGES.get(error_code, "Άγνωστο σφάλμα ΔΙΑΣ.")
+        logger.error("IRIS Initiation returned no 'resp' field. Full body: %s", body)
         record.status = "failed"
         record.error_code = error_code
         record.error_description = error_desc
@@ -324,7 +332,23 @@ def create_iris_payment(data: CreateIrisPaymentRequest, db: Session = Depends(ge
         db.commit()
         raise HTTPException(status_code=502, detail={"errorCode": error_code, "errorDescription": error_desc})
 
-    record.dias_order_id = resp.get("orderId", "")
+    order_id = resp.get("orderId", "")
+    bank_url = resp.get("bankSelectionToolUrl", "")
+
+    logger.info("IRIS Initiation response received. orderId=%s, bankUrl=%s, all_fields=%s",
+                order_id, bank_url, list(resp.keys()))
+
+    if not order_id:
+        logger.error("IRIS Initiation response MISSING orderId")
+        logger.error("IRIS request payload was: %s", _redact(payload))
+        logger.error("IRIS full response: %s", resp)
+        # Don't fail yet, but warn - orderId will be needed for status checks
+        record.error_code = "MISSING_ORDERID"
+        record.error_description = "DIAS Initiation response missing orderId field"
+    else:
+        logger.info("IRIS Initiation successful, orderId: %s", order_id)
+
+    record.dias_order_id = order_id
     record.bank_selection_tool_url = resp.get("bankSelectionToolUrl", "")
     record.status = "pending"
     record.expires_at = datetime.utcnow() + timedelta(minutes=int(cfg["validity"]))
