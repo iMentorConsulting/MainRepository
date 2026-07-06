@@ -26,6 +26,7 @@ const navItems = [
   { href: '/reports', label: 'Αναφορές', icon: BarChart3, adminOnly: false, hideFor: ['CONSULTANT'] },
   { href: '/analytics', label: 'Αναλυτικά', icon: TrendingUp, adminOnly: true },
   { href: '/audit-log', label: 'Καταγραφή Ενεργειών', icon: History, adminOnly: true },
+  { href: '/businesses-log', label: 'Εισαγωγές Επιχειρήσεων', icon: Building2, adminOnly: true },
   { href: '/settings', label: 'Ρυθμίσεις', icon: Settings, adminOnly: true },
 ]
 
