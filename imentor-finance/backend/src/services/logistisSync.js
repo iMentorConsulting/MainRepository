@@ -103,4 +103,39 @@ async function runSyncForRange(dateFrom, dateTo) {
   return { dateFrom, dateTo, sent: payments.length, skipped, result };
 }
 
-module.exports = { runDailySync, runSyncForRange, buildPayments, getIncomeForDate, getIncomeForDateRange, yesterdayStr };
+// ── CM push helpers ──────────────────────────────────────────────────────────
+// Builds one payment per income row for the CM app (no category split).
+function buildCmPayments(rows) {
+  const payments = [];
+  for (const r of rows) {
+    if (!r.vat_number) continue;
+    const collected = parseFloat(r.amount_collected) || 0;
+    if (collected <= 0) continue;
+    payments.push({
+      externalId:  `income-${r.id}`,
+      afm:         r.vat_number.trim(),
+      onomasia:    r.customer_name || undefined,
+      invoiceNumber: r.invoice_number || undefined,
+      service:     r.service_type || undefined,
+      paymentDate: r.sale_date || undefined,
+      amount:      Math.round(collected * 100),
+    });
+  }
+  return payments;
+}
+
+async function sendBatchToCm(payments) {
+  const base = normalizeBase(process.env.CM_APP_URL);
+  const key  = process.env.FINANCE_APP_API_KEY;
+  if (!base || !key) return null; // silently skip if not configured
+  if (!payments.length) return null;
+  const client = axios.create({
+    baseURL: base,
+    headers: { 'x-api-key': key, 'Content-Type': 'application/json' },
+    timeout: 15000,
+  });
+  const { data } = await client.post('/api/external/finance-payments', { payments });
+  return data;
+}
+
+module.exports = { runDailySync, runSyncForRange, buildPayments, getIncomeForDate, getIncomeForDateRange, yesterdayStr, buildCmPayments, sendBatchToCm };

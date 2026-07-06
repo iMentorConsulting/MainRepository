@@ -2,6 +2,13 @@ const router = require('express').Router();
 const { Op, fn, col } = require('sequelize');
 const Income = require('../models/Income');
 const { checkAndAutoStatus } = require('./serviceAgreements');
+const { buildCmPayments, sendBatchToCm } = require('../services/logistisSync');
+
+function pushToCm(record) {
+  const payments = buildCmPayments([record]);
+  if (!payments.length) return;
+  sendBatchToCm(payments).catch(err => console.warn('[CM push]', err.message));
+}
 
 const ALLOWED_SORT = ['sale_date','customer_name','amount_collected','amount_application','amount_implementation','service_type','sales_agent','work_status','vat_number','bonus','createdAt'];
 
@@ -106,6 +113,7 @@ router.post('/', async (req, res) => {
   try {
     const record = await Income.create(sanitize(req.body));
     if (record.service_agreement_id) checkAndAutoStatus(record.service_agreement_id);
+    pushToCm(record);
     res.status(201).json(record);
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -129,6 +137,7 @@ router.put('/:id', async (req, res) => {
     await record.update(sanitize(req.body));
     const saId = record.service_agreement_id;
     if (saId) checkAndAutoStatus(saId);
+    pushToCm(record);
     res.json(record);
   } catch (e) {
     res.status(500).json({ error: e.message });
