@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { runMatchingForProgram } from '@/lib/matching'
+import { runMatchingForProgram, isProgramOpen, dismissMatchesForProgram } from '@/lib/matching'
 
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   const session = await auth()
@@ -52,10 +52,12 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
 
   const program = await prisma.program.update({ where: { id: params.id }, data })
 
-  // Eligibility criteria (ΚΑΔ, περιφέρεια, ΤΚ, ημ. ίδρυσης, tags κ.λπ.) may have
-  // just changed — re-run matching so stale matches that no longer qualify are
-  // dropped and newly-qualifying businesses are picked up, same as on create.
-  if (program.active) {
+  // If the program is now closed (inactive, archived, or outside its date window),
+  // immediately dismiss all POTENTIAL matches so accountants stop seeing them.
+  // Otherwise re-run matching so stale/newly-qualifying businesses are updated.
+  if (!isProgramOpen(program)) {
+    dismissMatchesForProgram(program.id).catch(err => console.error('[Matching] Dismiss matches failed:', err?.message))
+  } else {
     runMatchingForProgram(program.id).catch(err => console.error('[Matching] Re-match after program edit failed:', err?.message))
   }
 

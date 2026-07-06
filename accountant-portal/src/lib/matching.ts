@@ -193,6 +193,29 @@ function matchesBusiness(
   return { score: allMatched ? 100 : 0, reasons: allMatched ? reasons : [] }
 }
 
+// A program is "open" (eligible to receive/keep matches) only if:
+//  1. active = true
+//  2. archived = false
+//  3. today falls within startDate..endDate (either bound may be null = open-ended)
+export function isProgramOpen(program: { active: boolean; archived: boolean; startDate: Date | null; endDate: Date | null }): boolean {
+  if (!program.active || program.archived) return false
+  const now = new Date()
+  if (program.startDate && now < program.startDate) return false
+  if (program.endDate && now > program.endDate) return false
+  return true
+}
+
+// Dismisses all POTENTIAL matches for a program that is no longer open.
+// Called whenever a program is saved with active=false, archived=true, or
+// date boundaries that exclude today — so stale matches disappear immediately
+// without waiting for the next matching run.
+export async function dismissMatchesForProgram(programId: string): Promise<void> {
+  await prisma.programMatch.updateMany({
+    where: { programId, status: MatchStatus.POTENTIAL },
+    data: { status: MatchStatus.REJECTED, matchScore: 0 },
+  })
+}
+
 // Returns true if a NEW match was created (not an update to an existing one).
 async function upsertMatch(programId: string, businessId: string, score: number, reasons: string[]): Promise<boolean> {
   if (score < 40) return false
@@ -241,6 +264,12 @@ async function resetStaleMatches(programId: string, qualifyingBusinessIds: strin
 export async function runMatchingForProgram(programId: string): Promise<number> {
   const program = await prisma.program.findUnique({ where: { id: programId } })
   if (!program) throw new Error('Program not found')
+
+  // Closed programs must not accumulate new matches — dismiss any that exist.
+  if (!isProgramOpen(program)) {
+    await dismissMatchesForProgram(programId)
+    return 0
+  }
 
   const businesses = await prisma.business.findMany({
     include: { activities: true },
@@ -375,6 +404,15 @@ export async function runMatchingForBusiness(businessId: string): Promise<number
   let matchCount = 0
 
   for (const program of programs) {
+    // Closed programs (inactive, archived, or outside date window) must not match.
+    if (!isProgramOpen(program)) {
+      await prisma.programMatch.updateMany({
+        where: { programId: program.id, businessId, status: MatchStatus.POTENTIAL },
+        data: { status: MatchStatus.REJECTED, matchScore: 0 },
+      })
+      continue
+    }
+
     // Remove stale matches for programs the business has already received from I-MENTOR
     if (businessAlreadyReceivedProgram(business.iMentorServices, program.title)) {
       await prisma.programMatch.deleteMany({
