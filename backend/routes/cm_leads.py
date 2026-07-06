@@ -80,6 +80,8 @@ def lead_to_dict(l: CMLead, include_comments: bool = False, last_comment: dict =
         "notes": l.notes,
         "next_call_date": l.next_call_date.isoformat() if l.next_call_date else None,
         "linked_case_id": l.linked_case_id,
+        "portal_case_number": getattr(l, "portal_case_number", None),
+        "portal_case_link": getattr(l, "portal_case_link", None),
         "ermis_token": l.ermis_token,
         "ermis_chat_url": l.ermis_chat_url,
         "ermis_status": l.ermis_status,

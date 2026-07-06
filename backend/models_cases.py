@@ -471,6 +471,7 @@ class CMPortalAssignment(Base):
 
     status = Column(String(20), default="pending")  # pending | accepted | dismissed
     cm_case_id = Column(Integer, ForeignKey("cm_cases.id"), nullable=True)
+    cm_lead_id = Column(Integer, ForeignKey("cm_leads.id"), nullable=True)
 
     created_at = Column(DateTime, default=datetime.utcnow)
     resolved_at = Column(DateTime, nullable=True)
@@ -586,6 +587,10 @@ class CMLead(Base):
 
     # Case linkage (once converted)
     linked_case_id = Column(Integer, ForeignKey("cm_cases.id"), nullable=True)
+
+    # LOGISTIS portal linkage (when the lead originates from an accepted assignment)
+    portal_case_number = Column(Integer, nullable=True)
+    portal_case_link = Column(String(500))
 
     # ΕΡΜΗΣ AI pre-screening
     ermis_token = Column(String(100), index=True)
