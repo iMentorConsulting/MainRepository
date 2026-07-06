@@ -1,6 +1,6 @@
 import os
 import logging
-from datetime import datetime
+from datetime import datetime, date
 from typing import List, Optional
 
 import requests
@@ -677,40 +677,49 @@ def accept_assignment(
     if a.status != "pending":
         raise HTTPException(status_code=400, detail="Η ανάθεση έχει ήδη διεκπεραιωθεί")
 
-    case = CMCase(
-        client_name=a.onomasia or a.afm or f"Υπόθεση #{a.case_number}",
+    # Accepting a LOGISTIS assignment now creates a LEAD (not a case): status HOT,
+    # assigned to the consultant who accepted, today's date + reminder, with a link
+    # back to the LOGISTIS case.
+    from models_cases import CMLead
+    today = date.today()
+    link_tmpl = os.getenv("LOGISTIS_CASE_LINK_TEMPLATE", "https://logistis.i-mentor.gr/cases/{case_number}")
+    portal_link = link_tmpl.replace("{case_number}", str(a.case_number)) if a.case_number is not None else None
+
+    lead = CMLead(
+        name=a.onomasia or a.afm or f"Ανάθεση #{a.case_number}",
         afm=a.afm,
         phone=a.phone,
         email=a.email,
-        accountant=a.accountant_office,
+        program=_map_program_category(a.program_title),
         service_type=_map_service_type(a.program_title) or a.case_type,
-        program_category=_map_program_category(a.program_title),
-        status="ΕΛΕΓΧΟΣ ΕΠΙΛΕΞΙΜΟΤΗΤΑΣ",
+        status="HOT",
+        assigned_agent_id=current_user.id,
+        assigned_name=current_user.full_name,
+        source="LOGISTIS",
         notes=a.description,
-        status_changed_at=datetime.utcnow(),
+        next_call_date=today,
         portal_case_number=a.case_number,
+        portal_case_link=portal_link,
     )
-    db.add(case)
+    db.add(lead)
     db.commit()
-    db.refresh(case)
+    db.refresh(lead)
 
     a.status = "accepted"
-    a.cm_case_id = case.id
+    a.cm_lead_id = lead.id
     a.resolved_at = datetime.utcnow()
     db.commit()
 
+    # Best-effort: tell LOGISTIS the assignment was accepted (references the lead)
     secret = _shared_secret()
     if secret:
         try:
             payload = {
                 "afm": a.afm,
-                "externalRef": str(case.id),
+                "externalRef": f"lead-{lead.id}",
                 "status": "ACCEPTED",
-                "note": "Η υπόθεση παραλήφθηκε από το Case Management",
+                "note": f"Η ανάθεση παραλήφθηκε ως lead από το Case Management ({current_user.full_name})",
             }
-            result_link = _result_link(case)
-            if result_link:
-                payload["resultLink"] = result_link
             resp = requests.post(
                 PORTAL_CASES_API_URL,
                 json=payload,
@@ -720,9 +729,9 @@ def accept_assignment(
             if not resp.ok:
                 log.error("LOGISTIS Portal accept push failed %s: %s", resp.status_code, resp.text[:300])
         except Exception as exc:
-            log.warning("LOGISTIS Portal accept push error for case %s: %s", case.id, exc)
+            log.warning("LOGISTIS Portal accept push error for lead %s: %s", lead.id, exc)
 
-    return {"message": "OK", "case_id": case.id}
+    return {"message": "OK", "lead_id": lead.id}
 
 
 @router.post("/{assignment_id}/dismiss")

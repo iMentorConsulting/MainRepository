@@ -57,9 +57,10 @@ export default function PortalAssignmentAlert() {
     setBusyId(a.id)
     try {
       const res = await acceptPortalAssignment(a.id)
-      toast.success(`Η υπόθεση #${a.case_number} δημιουργήθηκε`)
+      toast.success(`Δημιουργήθηκε νέο lead από την ανάθεση #${a.case_number}`)
       setPending(p => p.filter(x => x.id !== a.id))
-      if (res?.case_id) navigate(`/cases/${res.case_id}`)
+      if (res?.lead_id) navigate('/leads')
+      else if (res?.case_id) navigate(`/cases/${res.case_id}`)
     } catch {
       toast.error('Σφάλμα αποδοχής ανάθεσης')
     } finally {
@@ -105,7 +106,7 @@ export default function PortalAssignmentAlert() {
             </div>
             <div className="flex-1 min-w-0 flex flex-col min-h-0">
               <div className="font-bold text-amber-900">
-                Νέα Ανάθεση Υπόθεσης #{a.case_number} — απαιτεί αποδοχή
+                Νέα Ανάθεση #{a.case_number} — αποδοχή δημιουργεί lead
               </div>
               <div className="text-sm text-amber-800 mt-1 space-y-0.5 overflow-y-auto min-h-0">
                 <div><span className="font-semibold">Επιχείρηση:</span> {a.onomasia || '—'} {a.afm ? `(ΑΦΜ ${a.afm})` : ''}</div>

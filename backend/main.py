@@ -1188,6 +1188,9 @@ try:
         _conn.execute(_text("CREATE INDEX IF NOT EXISTS ix_cm_leads_sheet_import_ref ON cm_leads (sheet_import_ref)"))
         _conn.execute(_text("ALTER TABLE cm_leads ADD COLUMN IF NOT EXISTS assigned_name VARCHAR(150)"))
         _conn.execute(_text("ALTER TABLE cm_leads ADD COLUMN IF NOT EXISTS ermis_error VARCHAR(500)"))
+        _conn.execute(_text("ALTER TABLE cm_leads ADD COLUMN IF NOT EXISTS portal_case_number INTEGER"))
+        _conn.execute(_text("ALTER TABLE cm_leads ADD COLUMN IF NOT EXISTS portal_case_link VARCHAR(500)"))
+        _conn.execute(_text("ALTER TABLE cm_portal_assignments ADD COLUMN IF NOT EXISTS cm_lead_id INTEGER"))
         _conn.execute(_text("""
             CREATE TABLE IF NOT EXISTS cm_lead_comments (
                 id SERIAL PRIMARY KEY,
