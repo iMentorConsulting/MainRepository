@@ -144,6 +144,7 @@ def get_pipeline_stats(
         "total_cases": total_cases,
         "closure_percentage": closure_percentage,
         "settlement_acceptance_percentage": settlement_percentage,
+        "closed_count": closed_count,
         "closure_count": total_closure,
         "closure_details": {
             "closed": closed_count,
