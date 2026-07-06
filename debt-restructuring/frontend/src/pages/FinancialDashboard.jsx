@@ -412,7 +412,7 @@ export default function FinancialDashboard({ currentEmployee }) {
                 <span className="font-black text-emerald-700">{realStats.closure_percentage}%</span>
               </div>
               <div className="text-xs text-emerald-600">
-                {realStats.closure_count} κλειστές υποθέσεις από {realStats.total_cases} σύνολο
+                {realStats.closed_count} κλειστές υποθέσεις από {realStats.closure_count} σύνολο
               </div>
             </div>
             <div>
