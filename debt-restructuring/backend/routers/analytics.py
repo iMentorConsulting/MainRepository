@@ -93,7 +93,8 @@ def get_pipeline_stats(
     settlement_percentage = round((accepted_count / total_settlement * 100), 1) if total_settlement > 0 else 0
 
     logger.info(f"Pipeline stats - emp: {employee or 'all'}, total: {total_cases}, closed: {closed_count}, "
-                f"not_int: {not_interested_count}, accepted: {accepted_count}, rejected: {rejected_count}")
+                f"not_int: {not_interested_count}, accepted: {accepted_count}, rejected: {rejected_count} | "
+                f"closure_count: {total_closure}")
 
     # ══ Calculate collected revenue ══
     first_payment_collected = 0  # Application fee
