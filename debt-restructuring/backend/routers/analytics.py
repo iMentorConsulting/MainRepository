@@ -11,9 +11,11 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/analytics", tags=["analytics"])
 
 # Stage definitions for calculations
+# Pipeline stages (contact_stage field)
 FINAL_CLOSURE_STAGES = {'Έκλεισε', 'Δεν Ενδιαφέρεται'}
-SETTLEMENT_STAGES = {'Αποδοχή Ρύθμισης', 'Απόρριψη Ρύθμισης'}
-DRAFT_STAGES = {'Νέα Ανάλυση'}  # Exclude recent/draft entries
+# Settlement decision stages (status field)
+SETTLEMENT_ACCEPTED = 'completed'      # Maps to "Αποδοχή Ρύθμισης" in UI
+SETTLEMENT_REJECTED = 'cancelled'      # Maps to "Απορρίψη Ρύθμισης" in UI
 
 
 @router.get("/pipeline-stats")
@@ -25,10 +27,10 @@ def get_pipeline_stats(
 ):
     """
     Get real statistics for Sales Pipeline:
-    - % Κλεισίματος: (Έκλεισε + Δεν Ενδιαφέρεται) / Total finalized
-    - % Αποδοχής Ρύθμισης: Αποδοχή Ρύθμισης / (Αποδοχή + Απόρριψη)
+    - % Κλεισίματος: Έκλεισε / (Έκλεισε + Δεν Ενδιαφέρεται) — success rate within closed cases
+    - % Αποδοχής Ρύθμισης: status='completed' / (status='completed' + status='cancelled') — settlement acceptance rate
 
-    Excludes draft cases (Νέα Ανάλυση).
+    Excludes draft cases (contact_stage = 'Νέα Ανάλυση').
 
     Per-employee breakdown if employee param provided.
     Optional date_from and date_to filters (YYYY-MM-DD format).
@@ -62,8 +64,8 @@ def get_pipeline_stats(
             "settlement_details": {"accepted": 0, "rejected": 0}
         }
 
-    # ══ Calculate % Κλεισίματος ══
-    # Count cases in final closure stages
+    # ══ Calculate % Κλεισίματος (Pipeline success rate) ══
+    # Success rate = Έκλεισε / (Έκλεισε + Δεν Ενδιαφέρεται)
     closed_count = query.filter(
         Case.contact_stage == 'Έκλεισε'
     ).count()
@@ -73,21 +75,25 @@ def get_pipeline_stats(
     ).count()
 
     total_closure = closed_count + not_interested_count
-    # % Κλεισίματος = success rate within closed cases (Έκλεισε / (Έκλεισε + Δεν Ενδιαφέρεται))
+    # Success rate within closed cases only
     closure_percentage = round((closed_count / total_closure * 100), 1) if total_closure > 0 else 0
 
-    # ══ Calculate % Αποδοχής Ρύθμισης ══
-    # Count cases with settlement decision
+    # ══ Calculate % Αποδοχής Ρύθμισης (Settlement acceptance rate) ══
+    # Acceptance rate = status='completed' / (status='completed' + status='cancelled')
+    # Maps to: "Αποδοχή Ρύθμισης" / ("Αποδοχή Ρύθμισης" + "Απόρριψη Ρύθμισης")
     accepted_count = query.filter(
-        Case.contact_stage == 'Αποδοχή Ρύθμισης'
+        Case.status == SETTLEMENT_ACCEPTED
     ).count()
 
     rejected_count = query.filter(
-        Case.contact_stage == 'Απόρριψη Ρύθμισης'
+        Case.status == SETTLEMENT_REJECTED
     ).count()
 
     total_settlement = accepted_count + rejected_count
     settlement_percentage = round((accepted_count / total_settlement * 100), 1) if total_settlement > 0 else 0
+
+    logger.info(f"Pipeline stats - emp: {employee or 'all'}, total: {total_cases}, closed: {closed_count}, "
+                f"not_int: {not_interested_count}, accepted: {accepted_count}, rejected: {rejected_count}")
 
     # ══ Calculate collected revenue ══
     first_payment_collected = 0  # Application fee
@@ -108,12 +114,12 @@ def get_pipeline_stats(
             if latest_date is None or case.created_at > latest_date:
                 latest_date = case.created_at
 
-        # First payment: collected when contact_stage is Έκλεισε or higher
-        if case.contact_stage in ['Έκλεισε', 'Αποδοχή Ρύθμισης', 'Απόρριψη Ρύθμισης']:
+        # First payment: collected when status='completed' (settlement accepted)
+        if case.status == SETTLEMENT_ACCEPTED:
             first_payment_collected += app_fee
 
-        # Second payment: collected only when Αποδοχή Ρύθμισης (settlement accepted)
-        if case.contact_stage == 'Αποδοχή Ρύθμισης':
+        # Second payment: collected only when status='completed' (settlement accepted)
+        if case.status == SETTLEMENT_ACCEPTED:
             second_payment_collected += suc_fee
             completed_status_count += 1
 
@@ -204,13 +210,14 @@ def get_pipeline_stats_by_employee(
     db: Session = Depends(get_db)
 ):
     """
-    Get statistics breakdown by each employee.
+    Get statistics breakdown by each employee (excluding HARIS admin).
     Returns dict with employee names as keys.
+    Settlement acceptance based on status field (completed vs cancelled).
     Optional date_from and date_to filters (YYYY-MM-DD format).
     """
     from datetime import datetime
 
-    # Get all unique employees (exclude HARIS as he's admin)
+    # Get all unique employees, excluding HARIS (admin only)
     employees = db.query(Case.employee).distinct().filter(
         Case.employee != None,
         Case.employee != '',
@@ -223,7 +230,7 @@ def get_pipeline_stats_by_employee(
         if not emp:
             continue
 
-        # Get stats for this employee
+        # Get stats for this employee (exclude draft cases)
         query = db.query(Case).filter(
             Case.employee == emp,
             Case.contact_stage != 'Νέα Ανάλυση'
@@ -242,22 +249,21 @@ def get_pipeline_stats_by_employee(
             }
             continue
 
-        # Closure stats - success rate within closed cases
+        # Closure stats (Pipeline: Έκλεισε vs Δεν Ενδιαφέρεται)
         closed = query.filter(Case.contact_stage == 'Έκλεισε').count()
         not_interested = query.filter(Case.contact_stage == 'Δεν Ενδιαφέρεται').count()
         total_closed = closed + not_interested
+        # Success rate = closed / (closed + not_interested)
         closure_pct = round((closed / total_closed * 100), 1) if total_closed > 0 else 0
 
-        # Settlement stats
-        accepted = query.filter(Case.contact_stage == 'Αποδοχή Ρύθμισης').count()
-        rejected = query.filter(Case.contact_stage == 'Απόρριψη Ρύθμισης').count()
+        # Settlement stats (status: 'completed' = accepted, 'cancelled' = rejected)
+        accepted = query.filter(Case.status == SETTLEMENT_ACCEPTED).count()
+        rejected = query.filter(Case.status == SETTLEMENT_REJECTED).count()
+        total_settlement = accepted + rejected
+        settlement_pct = round((accepted / total_settlement * 100), 1) if total_settlement > 0 else 0
 
-        # DEBUG: Show what stages exist in database for this employee
-        all_stages_for_emp = db.query(Case.contact_stage).filter(Case.employee == emp).distinct().all()
-        logger.error("DEBUG EMP %s: Total cases=%d, Accepted=%d, Rejected=%d, All stages=%s",
-                     emp, total, accepted, rejected, [s[0] for s in all_stages_for_emp])
-
-        settlement_pct = round((accepted / (accepted + rejected) * 100), 1) if (accepted + rejected) > 0 else 0
+        logger.info(f"Per-emp stats - {emp}: total={total}, closed={closed}, not_int={not_interested}, "
+                    f"accepted={accepted}, rejected={rejected}")
 
         # Collected revenue for this employee
         first_payment = 0
@@ -289,7 +295,7 @@ def get_pipeline_stats_by_employee(
             "closure_percentage": closure_pct,
             "closure_count": total_closed,
             "settlement_acceptance_percentage": settlement_pct,
-            "settlement_count": accepted + rejected,
+            "settlement_count": total_settlement,
             "closed_count": closed,
             "not_interested_count": not_interested,
             "accepted_count": accepted,
