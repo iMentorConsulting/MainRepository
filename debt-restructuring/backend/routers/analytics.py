@@ -212,19 +212,12 @@ def get_pipeline_stats_by_employee(
     """
     Get statistics breakdown by each employee (excluding HARIS admin).
     Returns dict with employee names as keys.
-<<<<<<< HEAD
     Settlement acceptance based on status field (completed vs cancelled).
-=======
     Optional date_from and date_to filters (YYYY-MM-DD format).
->>>>>>> origin/claude/new-online-app-T89Sn
     """
     from datetime import datetime
 
-<<<<<<< HEAD
     # Get all unique employees, excluding HARIS (admin only)
-=======
-    # Get all unique employees (exclude HARIS as he's admin)
->>>>>>> origin/claude/new-online-app-T89Sn
     employees = db.query(Case.employee).distinct().filter(
         Case.employee != None,
         Case.employee != '',
@@ -256,7 +249,6 @@ def get_pipeline_stats_by_employee(
             }
             continue
 
-<<<<<<< HEAD
         # Closure stats (Pipeline: Έκλεισε vs Δεν Ενδιαφέρεται)
         closed = query.filter(Case.contact_stage == 'Έκλεισε').count()
         not_interested = query.filter(Case.contact_stage == 'Δεν Ενδιαφέρεται').count()
@@ -272,24 +264,6 @@ def get_pipeline_stats_by_employee(
 
         logger.info(f"Per-emp stats - {emp}: total={total}, closed={closed}, not_int={not_interested}, "
                     f"accepted={accepted}, rejected={rejected}")
-=======
-        # Closure stats - success rate within closed cases
-        closed = query.filter(Case.contact_stage == 'Έκλεισε').count()
-        not_interested = query.filter(Case.contact_stage == 'Δεν Ενδιαφέρεται').count()
-        total_closed = closed + not_interested
-        closure_pct = round((closed / total_closed * 100), 1) if total_closed > 0 else 0
-
-        # Settlement stats
-        accepted = query.filter(Case.contact_stage == 'Αποδοχή Ρύθμισης').count()
-        rejected = query.filter(Case.contact_stage == 'Απόρριψη Ρύθμισης').count()
-
-        # DEBUG: Show what stages exist in database for this employee
-        all_stages_for_emp = db.query(Case.contact_stage).filter(Case.employee == emp).distinct().all()
-        logger.error("DEBUG EMP %s: Total cases=%d, Accepted=%d, Rejected=%d, All stages=%s",
-                     emp, total, accepted, rejected, [s[0] for s in all_stages_for_emp])
-
-        settlement_pct = round((accepted / (accepted + rejected) * 100), 1) if (accepted + rejected) > 0 else 0
->>>>>>> origin/claude/new-online-app-T89Sn
 
         # Collected revenue for this employee
         first_payment = 0
@@ -321,11 +295,7 @@ def get_pipeline_stats_by_employee(
             "closure_percentage": closure_pct,
             "closure_count": total_closed,
             "settlement_acceptance_percentage": settlement_pct,
-<<<<<<< HEAD
             "settlement_count": total_settlement,
-=======
-            "settlement_count": accepted + rejected,
->>>>>>> origin/claude/new-online-app-T89Sn
             "closed_count": closed,
             "not_interested_count": not_interested,
             "accepted_count": accepted,
