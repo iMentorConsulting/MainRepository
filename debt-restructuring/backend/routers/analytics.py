@@ -107,9 +107,14 @@ def get_pipeline_stats(
     total_settlement = accepted_count + rejected_count
     settlement_percentage = round((accepted_count / total_settlement * 100), 1) if total_settlement > 0 else 0
 
+    # Count all pipeline stages
+    nea_analusi_count = query.filter(Case.contact_stage == 'Νέα Ανάλυση').count()
+    thetiki_antapokrosi_count = query.filter(Case.contact_stage == 'Θετική Ανταπόκριση').count()
+    se_diapragmateusi_count = query.filter(Case.contact_stage == 'Σε Διαπραγμάτευση').count()
+
     logger.info(f"Pipeline stats - emp: {employee or 'all'}, total: {total_cases}, closed: {closed_count}, "
                 f"not_int: {not_interested_count}, accepted: {accepted_count}, rejected: {rejected_count} | "
-                f"closure_count: {total_closure}")
+                f"closure_count: {total_closure}, nea: {nea_analusi_count}, thetiki: {thetiki_antapokrosi_count}, se_diaprag: {se_diapragmateusi_count}")
 
     # ══ Calculate collected revenue ══
     first_payment_collected = 0  # Application fee
@@ -156,8 +161,13 @@ def get_pipeline_stats(
             "rejected": rejected_count
         },
         "stage_breakdown": {
+            "νέα_ανάλυση": nea_analusi_count,
+            "θετική_ανταπόκριση": thetiki_antapokrosi_count,
+            "σε_διαπραγμάτευση": se_diapragmateusi_count,
             "έκλεισε": closed_count,
-            "δεν_ενδιαφέρεται": not_interested_count,
+            "δεν_ενδιαφέρεται": not_interested_count
+        },
+        "settlement_breakdown": {
             "αποδοχή_ρύθμισης": accepted_count,
             "απόρριψη_ρύθμισης": rejected_count
         },
@@ -279,6 +289,11 @@ def get_pipeline_stats_by_employee(
             }
             continue
 
+        # Pipeline stage breakdown
+        nea_analusi = query.filter(Case.contact_stage == 'Νέα Ανάλυση').count()
+        thetiki_antapokrosi = query.filter(Case.contact_stage == 'Θετική Ανταπόκριση').count()
+        se_diapragmateusi = query.filter(Case.contact_stage == 'Σε Διαπραγμάτευση').count()
+
         # Closure stats (Pipeline: Έκλεισε vs Δεν Ενδιαφέρεται)
         closed = query.filter(Case.contact_stage == 'Έκλεισε').count()
         not_interested = query.filter(Case.contact_stage == 'Δεν Ενδιαφέρεται').count()
@@ -328,6 +343,17 @@ def get_pipeline_stats_by_employee(
             "closure_count": total_closed,
             "settlement_acceptance_percentage": settlement_pct,
             "settlement_count": total_settlement,
+            "stage_breakdown": {
+                "νέα_ανάλυση": nea_analusi,
+                "θετική_ανταπόκριση": thetiki_antapokrosi,
+                "σε_διαπραγμάτευση": se_diapragmateusi,
+                "έκλεισε": closed,
+                "δεν_ενδιαφέρεται": not_interested
+            },
+            "settlement_breakdown": {
+                "αποδοχή_ρύθμισης": accepted,
+                "απόρριψη_ρύθμισης": rejected
+            },
             "closed_count": closed,
             "not_interested_count": not_interested,
             "accepted_count": accepted,

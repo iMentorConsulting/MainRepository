@@ -409,8 +409,25 @@ export default function FinancialDashboard({ currentEmployee }) {
                     <div className="font-semibold text-sm text-gray-800 mb-2">{emp}</div>
                     <div className="space-y-1 text-xs">
                       <div><span className="text-gray-600">Σύνολο:</span> <span className="font-bold">{stats.total_cases}</span></div>
+                      {stats.stage_breakdown && (
+                        <div className="bg-white rounded p-1.5 border border-gray-200 space-y-0.5">
+                          <div className="text-gray-500 font-semibold text-xs mb-1">Στάδια Pipeline</div>
+                          {stats.stage_breakdown.νέα_ανάλυση > 0 && <div><span className="text-gray-500">Νέα Ανάλυση:</span> <span className="font-bold">{stats.stage_breakdown.νέα_ανάλυση}</span></div>}
+                          {stats.stage_breakdown.θετική_ανταπόκριση > 0 && <div><span className="text-gray-500">Θετική Ανταπόκριση:</span> <span className="font-bold">{stats.stage_breakdown.θετική_ανταπόκριση}</span></div>}
+                          {stats.stage_breakdown.σε_διαπραγμάτευση > 0 && <div><span className="text-gray-500">Σε Διαπραγμάτευση:</span> <span className="font-bold">{stats.stage_breakdown.σε_διαπραγμάτευση}</span></div>}
+                          <div><span className="text-emerald-600">Έκλεισε:</span> <span className="font-bold text-emerald-700">{stats.stage_breakdown.έκλεισε}</span></div>
+                          <div><span className="text-red-600">Δεν Ενδιαφέρεται:</span> <span className="font-bold text-red-700">{stats.stage_breakdown.δεν_ενδιαφέρεται}</span></div>
+                        </div>
+                      )}
                       <div><span className="text-emerald-600">Κλεισμένες:</span> <span className="font-bold text-emerald-700">{stats.closure_percentage}% ({stats.closed_count}/{stats.closure_count})</span></div>
-                      <div><span className="text-blue-600">Αποδοχή Ρύθμισης:</span> <span className="font-bold text-blue-700">{stats.settlement_acceptance_percentage}% ({stats.accepted_count}/{stats.settlement_count})</span></div>
+                      {stats.settlement_breakdown && (
+                        <div className="bg-white rounded p-1.5 border border-blue-200 space-y-0.5">
+                          <div className="text-blue-600 font-semibold text-xs mb-1">Αποδοχή Ρύθμισης</div>
+                          <div><span className="text-green-600">Αποδοχή:</span> <span className="font-bold text-green-700">{stats.settlement_breakdown.αποδοχή_ρύθμισης}</span></div>
+                          <div><span className="text-orange-600">Απόρριψη:</span> <span className="font-bold text-orange-700">{stats.settlement_breakdown.απόρριψη_ρύθμισης}</span></div>
+                        </div>
+                      )}
+                      <div><span className="text-blue-600">% Αποδοχής Ρύθμισης:</span> <span className="font-bold text-blue-700">{stats.settlement_acceptance_percentage}% ({stats.accepted_count}/{stats.settlement_count})</span></div>
                       <div className="pt-1 border-t border-gray-300 mt-1">
                         <div><span className="text-green-600">1η πληρωμή:</span> <span className="font-bold text-green-700">{(revenue.first_payment || 0).toLocaleString('el-GR')}€</span></div>
                         <div><span className="text-purple-600">2η πληρωμή:</span> <span className="font-bold text-purple-700">{(revenue.second_payment || 0).toLocaleString('el-GR')}€ ({revenue.second_payment_completed_count || 0})</span></div>
