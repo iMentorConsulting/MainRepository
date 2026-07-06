@@ -114,11 +114,11 @@ def get_pipeline_stats(
             if latest_date is None or case.created_at > latest_date:
                 latest_date = case.created_at
 
-        # First payment: collected when status='completed' (settlement accepted)
-        if case.status == SETTLEMENT_ACCEPTED:
+        # First payment (1η πληρωμή): collected when contact_stage = Έκλεισε
+        if case.contact_stage == 'Έκλεισε':
             first_payment_collected += app_fee
 
-        # Second payment: collected only when status='completed' (settlement accepted)
+        # Second payment (2η πληρωμή): collected when status = completed (Αποδοχή Ρύθμισης)
         if case.status == SETTLEMENT_ACCEPTED:
             second_payment_collected += suc_fee
             completed_status_count += 1
@@ -284,9 +284,11 @@ def get_pipeline_stats_by_employee(
                 if latest is None or case.created_at > latest:
                     latest = case.created_at
 
-            if case.contact_stage in ['Έκλεισε', 'Αποδοχή Ρύθμισης', 'Απόρριψη Ρύθμισης']:
+            # First payment (1η πληρωμή): only when contact_stage = Έκλεισε
+            if case.contact_stage == 'Έκλεισε':
                 first_payment += app_fee
-            if case.contact_stage == 'Αποδοχή Ρύθμισης':
+            # Second payment (2η πληρωμή): only when status = completed (Αποδοχή Ρύθμισης)
+            if case.status == SETTLEMENT_ACCEPTED:
                 second_payment += suc_fee
                 completed_count += 1
 
