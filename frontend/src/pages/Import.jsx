@@ -587,6 +587,33 @@ export default function Import() {
                 Τα δεδομένα είναι ήδη ενημερωμένα. Δεν υπάρχουν αλλαγές.
               </div>
             )}
+
+            {/* Diagnostics — why records were skipped */}
+            {financePreview.diagnostics && (financePreview.diagnostics.skipped_disabled_service_types_total > 0 || financePreview.diagnostics.skipped_by_status_total > 0) && (
+              <div className="text-sm bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 space-y-2">
+                <div className="font-semibold text-amber-800">⚠ Κάποιες εγγραφές αγνοήθηκαν</div>
+                {financePreview.diagnostics.skipped_disabled_service_types_total > 0 && (
+                  <div className="text-amber-700">
+                    <div><b>{financePreview.diagnostics.skipped_disabled_service_types_total}</b> εγγραφές με μη-ενεργοποιημένο τύπο υπηρεσίας (ενεργοποίησέ τους πιο κάτω στους «Τύπους Υπηρεσιών»):</div>
+                    <ul className="list-disc ml-5 mt-1">
+                      {Object.entries(financePreview.diagnostics.skipped_disabled_service_types).map(([st, n]) => (
+                        <li key={st}><b>{st}</b> — {n} εγγραφές</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {financePreview.diagnostics.skipped_by_status_total > 0 && (
+                  <div className="text-amber-700">
+                    <div><b>{financePreview.diagnostics.skipped_by_status_total}</b> εγγραφές με status εκτός λίστας εισαγωγής:</div>
+                    <ul className="list-disc ml-5 mt-1">
+                      {Object.entries(financePreview.diagnostics.skipped_by_status).map(([s, n]) => (
+                        <li key={s}><b>{s}</b> — {n} εγγραφές</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
 

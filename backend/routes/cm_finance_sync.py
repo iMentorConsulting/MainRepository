@@ -44,6 +44,7 @@ VALID_IMPORT_STATUSES = (
     | set(get_all_statuses_for_program("ΕΣΠΑ"))
     | set(get_all_statuses_for_program("ΔΥΠΑ"))
     | set(get_all_statuses_for_program("ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ"))
+    | set(get_all_statuses_for_program("ΑΝΑΚΑΙΝΙΖΩ"))
 )
 
 
@@ -193,16 +194,24 @@ def _do_preview(db: Session) -> dict:
     new_cases     = []
     paid_updates  = []
     no_change     = 0
+    # Diagnostics — so a "nothing new" result is explainable
+    skipped_no_name = 0
+    skipped_service_types: dict = {}   # disabled service type -> count
+    skipped_statuses: dict = {}        # filtered work_status -> count
 
     for r in records:
         customer_name = (r.get("customer_name") or "").strip()
         if not customer_name:
+            skipped_no_name += 1
             continue
         service_type_raw = (r.get("service_type") or "").strip()
         if service_type_raw not in enabled:
+            key = service_type_raw or "(κενό)"
+            skipped_service_types[key] = skipped_service_types.get(key, 0) + 1
             continue
         work_status = (r.get("work_status") or "").strip()
         if work_status and work_status not in VALID_IMPORT_STATUSES:
+            skipped_statuses[work_status] = skipped_statuses.get(work_status, 0) + 1
             continue
         total_paid = _parse_float(r.get("total_paid"))
         existing, _ = _find_existing(r, by_ref, by_afm, by_name, by_afm_program)
@@ -240,6 +249,15 @@ def _do_preview(db: Session) -> dict:
         "no_change_count": no_change,
         "new_cases": new_cases[:50],
         "paid_updates": paid_updates[:50],
+        "diagnostics": {
+            "skipped_no_name": skipped_no_name,
+            "skipped_disabled_service_types": skipped_service_types,
+            "skipped_disabled_service_types_total": sum(skipped_service_types.values()),
+            "skipped_by_status": skipped_statuses,
+            "skipped_by_status_total": sum(skipped_statuses.values()),
+            "enabled_service_types": sorted(enabled),
+            "matched_existing": no_change + len(paid_updates),
+        },
     }
 
 
