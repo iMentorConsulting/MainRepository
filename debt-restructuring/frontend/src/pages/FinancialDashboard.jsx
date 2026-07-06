@@ -49,14 +49,12 @@ function pct(n, d) {
   return Math.round((n / d) * 100)
 }
 
-// App fee: collected when status = 'submitted' (Οριστικοποίηση Αίτησης) or beyond
+// App fee: collected when contact_stage = 'Έκλεισε' (Pipeline closure)
 function appFeeStatus(c) {
-  const s = c.status || 'draft'
-  if (['submitted', 'in_review', 'completed'].includes(s)) return 'collected'
-  if (s === 'cancelled') return 'lost'
   const stage = c.contact_stage || 'Νέα Ανάλυση'
-  if (stage === 'Θετική Ανταπόκριση' || stage === 'Σε Διαπραγμάτευση' || stage === 'Έκλεισε') return 'expected'
+  if (stage === 'Έκλεισε') return 'collected'
   if (stage === 'Δεν Ενδιαφέρεται') return 'lost'
+  if (stage === 'Θετική Ανταπόκριση' || stage === 'Σε Διαπραγμάτευση') return 'expected'
   return 'pipeline'
 }
 
