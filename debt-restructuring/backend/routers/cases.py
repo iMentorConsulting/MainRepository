@@ -4,7 +4,9 @@ from typing import List, Optional
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 from pydantic import BaseModel
-import os, json, base64, time
+import os, json, base64, time, logging
+
+logger = logging.getLogger(__name__)
 
 _ATHENS = ZoneInfo("Europe/Athens")
 def _now():
@@ -14,7 +16,7 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
 from database import get_db
-from models import Case
+from models import Case, Lead
 from schemas import CaseCreate, CaseUpdate, CaseResponse, CaseListItem, ActualResultsUpdate, ContactUpdate
 from auth_utils import get_current_user
 from routers.notifications import create_notification, ADMIN_RECIPIENT
@@ -683,7 +685,7 @@ class AcceptExternal(BaseModel):
 @router.post("/{id}/accept-external", response_model=CaseResponse)
 def accept_external_case(id: int, data: AcceptExternal, db: Session = Depends(get_db)):
     """Agent accepts a pending referral from the LOGISTIS Accountant Portal:
-    assigns it to themselves, starts the normal pipeline, and notifies the portal."""
+    assigns it to themselves, starts the normal pipeline, creates a HOT lead, and notifies the portal."""
     case = db.query(Case).filter(Case.id == id).first()
     if not case:
         raise HTTPException(status_code=404, detail="Η υπόθεση δεν βρέθηκε")
@@ -707,6 +709,27 @@ def accept_external_case(id: int, data: AcceptExternal, db: Session = Depends(ge
     case.updated_at = _now()
     db.commit()
     db.refresh(case)
+
+    # Create a HOT lead for the assignment
+    lead = Lead(
+        status="HOT",
+        assigned_to=data.employee,
+        name=case.client_name,
+        phone=case.client_phone or "",
+        email=case.client_email or "",
+        taxisnet_username=ext.get("taxisnetUsername", ""),
+        taxisnet_password=ext.get("taxisnetPassword", ""),
+        spouse_name=ext.get("onomasia_spouse", ""),
+        taxisnet_username_2=ext.get("spouseTaxisnetUsername", ""),
+        taxisnet_password_2=ext.get("spouseTaxisnetPassword", ""),
+        linked_case_id=case.id,
+        created_at=_now(),
+        updated_at=_now(),
+    )
+    db.add(lead)
+    db.commit()
+    db.refresh(lead)
+    logger.info(f"Created HOT lead {lead.id} for employee {data.employee} from LOGISTIS assignment {case.id}")
 
     if case.external_ref:
         from routers.external import push_portal_update
