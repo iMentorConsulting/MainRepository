@@ -107,8 +107,7 @@ def get_pipeline_stats(
     total_settlement = accepted_count + rejected_count
     settlement_percentage = round((accepted_count / total_settlement * 100), 1) if total_settlement > 0 else 0
 
-    # Count all pipeline stages
-    nea_analusi_count = query.filter(Case.contact_stage == 'Νέα Ανάλυση').count()
+    # Count pipeline stages (draft cases already excluded from query)
     thetiki_antapokrosi_count = query.filter(Case.contact_stage == 'Θετική Ανταπόκριση').count()
     se_diapragmateusi_count = query.filter(Case.contact_stage == 'Σε Διαπραγμάτευση').count()
 
@@ -144,6 +143,11 @@ def get_pipeline_stats(
             second_payment_collected += suc_fee
             completed_status_count += 1
 
+    # Validation: ensure stage counts sum to total
+    stage_sum = thetiki_antapokrosi_count + se_diapragmateusi_count + closed_count + not_interested_count
+    if stage_sum != total_cases:
+        logger.warning(f"Stage count mismatch for {employee or 'all'}: stages={stage_sum}, total={total_cases}")
+
     return {
         "employee": employee or "all",
         "total_cases": total_cases,
@@ -161,7 +165,6 @@ def get_pipeline_stats(
             "rejected": rejected_count
         },
         "stage_breakdown": {
-            "νέα_ανάλυση": nea_analusi_count,
             "θετική_ανταπόκριση": thetiki_antapokrosi_count,
             "σε_διαπραγμάτευση": se_diapragmateusi_count,
             "έκλεισε": closed_count,
@@ -289,8 +292,7 @@ def get_pipeline_stats_by_employee(
             }
             continue
 
-        # Pipeline stage breakdown
-        nea_analusi = query.filter(Case.contact_stage == 'Νέα Ανάλυση').count()
+        # Pipeline stage breakdown (draft cases already excluded from query)
         thetiki_antapokrosi = query.filter(Case.contact_stage == 'Θετική Ανταπόκριση').count()
         se_diapragmateusi = query.filter(Case.contact_stage == 'Σε Διαπραγμάτευση').count()
 
@@ -344,7 +346,6 @@ def get_pipeline_stats_by_employee(
             "settlement_acceptance_percentage": settlement_pct,
             "settlement_count": total_settlement,
             "stage_breakdown": {
-                "νέα_ανάλυση": nea_analusi,
                 "θετική_ανταπόκριση": thetiki_antapokrosi,
                 "σε_διαπραγμάτευση": se_diapragmateusi,
                 "έκλεισε": closed,
