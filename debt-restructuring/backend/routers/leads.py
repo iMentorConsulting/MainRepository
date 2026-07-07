@@ -746,11 +746,7 @@ def send_email(lead_id: int, data: EmailLeadRequest, db: Session = Depends(get_d
 
 
 @router.get("/count-by-consultant")
-def count_leads_by_consultant(
-    date_from: Optional[str] = Query(None),
-    date_to: Optional[str] = Query(None),
-    db: Session = Depends(get_db)
-):
+def count_leads_by_consultant(db: Session = Depends(get_db)):
     """Count leads assigned to each consultant.
 
     Counts ALL leads by assigned_to value from Google Sheets.
