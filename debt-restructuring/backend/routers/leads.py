@@ -386,6 +386,8 @@ def list_leads(
     assigned_to: Optional[List[str]] = Query(default=None),
     years: Optional[List[str]] = Query(default=None),
     has_next_call: Optional[bool] = None,
+    date_from: Optional[str] = Query(default=None),
+    date_to: Optional[str] = Query(default=None),
     max_years: int = 3,
     db: Session = Depends(get_db),
 ):
@@ -419,6 +421,18 @@ def list_leads(
         q = q.filter(or_(*year_filters))
     if has_next_call is True:
         q = q.filter(Lead.app_next_call != None)
+
+    # Date range filtering
+    if date_from:
+        from_date = parse_any_date(date_from)
+        if from_date:
+            q = q.filter(Lead.created_at >= from_date)
+    if date_to:
+        to_date = parse_any_date(date_to)
+        if to_date:
+            # Include entire end date
+            to_date_end = to_date + timedelta(days=1)
+            q = q.filter(Lead.created_at < to_date_end)
 
     # Newest first (highest sheet row = most recent entry)
     leads = q.order_by(Lead.sheet_row_num.desc().nullslast(), Lead.id.desc()).all()
