@@ -173,7 +173,12 @@ export default function FinancialDashboard({ currentEmployee }) {
 
   useEffect(() => {
     let dateFrom = null, dateTo = null
-    if (selectedMonth) {
+
+    // Use custom date range if set, otherwise use selectedMonth
+    if (dateFromFilter || dateToFilter) {
+      dateFrom = dateFromFilter
+      dateTo = dateToFilter
+    } else if (selectedMonth) {
       const [year, month] = selectedMonth.split('-')
       dateFrom = `${year}-${month}-01`
       // Get last day of month correctly
@@ -199,7 +204,7 @@ export default function FinancialDashboard({ currentEmployee }) {
       .catch(err => {
         console.error('Failed to fetch leads count:', err.message)
       })
-  }, [selectedMonth])
+  }, [selectedMonth, dateFromFilter, dateToFilter])
 
   const offerCases = useMemo(() =>
     cases.filter(c => c.commercial_offer && (c.commercial_offer.application_fee || c.commercial_offer.success_fee)),

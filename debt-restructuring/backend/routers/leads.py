@@ -744,7 +744,7 @@ def count_leads_by_consultant(
     Returns: {"STELLA": count, "VALLIA": count, "SOFIA": count, ...}
     """
     import logging
-    from datetime import datetime, time
+    from datetime import date, datetime
     logger = logging.getLogger(__name__)
 
     CONSULTANTS = ["STELLA", "VALLIA", "SOFIA"]
@@ -754,35 +754,45 @@ def count_leads_by_consultant(
     leads = db.query(Lead).all()
     logger.info(f"[leads/count] Total leads in DB: {len(leads)}, date_from: {date_from}, date_to: {date_to}")
 
+    # Sample some leads to debug
+    if leads:
+        for i, lead in enumerate(leads[:3]):
+            logger.info(f"[leads/count] Sample lead {i}: assigned_to={lead.assigned_to}, created_at={lead.created_at}")
+
     matched_count = 0
+    no_consultant = 0
+    outside_date_range = 0
+
     for lead in leads:
         consultant = (lead.assigned_to or "").strip().upper()
         if not consultant:
+            no_consultant += 1
             continue
 
         # Use created_at for date filtering (when lead entered the system)
         if not lead.created_at:
+            outside_date_range += 1
             continue
 
-        lead_date = lead.created_at.date() if hasattr(lead.created_at, 'date') else lead.created_at
+        lead_date = lead.created_at.date() if isinstance(lead.created_at, datetime) else lead.created_at
 
         # Apply date filters
         if date_from:
             from_date = parse_any_date(date_from)
             if from_date and lead_date < from_date:
+                outside_date_range += 1
                 continue
 
         if date_to:
             to_date = parse_any_date(date_to)
-            if to_date:
-                # Include entire end date
-                if lead_date > to_date:
-                    continue
+            if to_date and lead_date > to_date:
+                outside_date_range += 1
+                continue
 
         # Count if consultant is valid
         if consultant in CONSULTANTS:
             result[consultant] += 1
-            matched_count += 1
+        matched_count += 1
 
-    logger.info(f"[leads/count] Matched {matched_count} leads, result: {result}")
+    logger.info(f"[leads/count] Results - Matched: {matched_count}, No consultant: {no_consultant}, Outside date range: {outside_date_range}, Counts: {result}")
     return result
