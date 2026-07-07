@@ -407,9 +407,9 @@ export function calculateAll(debts, assets, incomeData, params = PARAMS_B) {
         const disp = Math.max(0, avg2Income - totalExpenses) * 0.8 + savingsAdd
         dispYear1 = dispYear24 = dispYear5 = disp
       } else {
-        // Legacy fallback (no 3-year data)
-        annualIncome = incomeData.annualIncome || 0
-        const disp = Math.max(0, annualIncome - totalExpenses) * 0.8 + savingsAdd
+        // Legacy fallback (no 3-year data) — use legacy annualIncome but preserve annualIncome already set from avg2Income
+        const fallbackIncome = incomeData.annualIncome || 0
+        const disp = Math.max(0, fallbackIncome - totalExpenses) * 0.8 + savingsAdd
         dispYear1 = dispYear24 = dispYear5 = disp
       }
       dispAnnual = dispYear1

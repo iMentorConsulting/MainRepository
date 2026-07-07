@@ -1,3 +1,4 @@
+import React, { useState, useEffect } from 'react'
 import { PlusIcon, TrashIcon } from '@heroicons/react/24/outline'
 
 const HOUSEHOLD_OPTIONS = [
@@ -13,7 +14,23 @@ const HOUSEHOLD_OPTIONS = [
 ]
 
 function MoneyField({ label, id, value, onChange, placeholder = '' }) {
-  const display = value > 0 ? value.toLocaleString('el-GR') : ''
+  // State for displaying the input while user types (unformatted)
+  const [displayValue, setDisplayValue] = useState(String(value || ''))
+
+  // When parent prop changes (e.g., from loading data), update our display
+  useEffect(() => {
+    setDisplayValue(String(value || ''))
+  }, [value])
+
+  const handleChange = (e) => {
+    const input = e.target.value
+    setDisplayValue(input)
+
+    // Extract only digits and update parent
+    const raw = input.replace(/[^\d]/g, '')
+    onChange(raw ? parseInt(raw) : 0)
+  }
+
   return (
     <div>
       <label className="label">{label}</label>
@@ -22,11 +39,8 @@ function MoneyField({ label, id, value, onChange, placeholder = '' }) {
         inputMode="numeric"
         className="input"
         placeholder={placeholder || 'π.χ. 1.000'}
-        value={display}
-        onChange={(e) => {
-          const raw = e.target.value.replace(/[^\d]/g, '')
-          onChange(raw ? parseInt(raw) : 0)
-        }}
+        value={displayValue}
+        onChange={handleChange}
       />
     </div>
   )

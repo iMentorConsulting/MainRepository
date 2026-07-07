@@ -746,29 +746,16 @@ def send_email(lead_id: int, data: EmailLeadRequest, db: Session = Depends(get_d
 
 
 @router.get("/count-by-consultant")
-def count_leads_by_consultant(
-    date_from: Optional[str] = None,
-    date_to: Optional[str] = None,
-    db: Session = Depends(get_db)
-):
-    """Count leads assigned to each consultant."""
-    import logging
-    logger = logging.getLogger(__name__)
+def count_leads_by_consultant(db: Session = Depends(get_db)):
+    """Count leads assigned to each consultant - returns all leads count by assigned_to."""
+    all_leads = db.query(Lead).all()
 
-    try:
-        # Query ALL leads (ignore date params for now - just count what exists)
-        all_leads = db.query(Lead).all()
-        logger.info(f"[leads/count] TOTAL leads: {len(all_leads)}")
+    # Count by assigned_to
+    result = {}
+    for lead in all_leads:
+        assigned = (lead.assigned_to or "").strip()
+        if assigned:
+            result[assigned] = result.get(assigned, 0) + 1
 
-        # Count by assigned_to
-        result = {}
-        for lead in all_leads:
-            assigned = (lead.assigned_to or "").strip()
-            if assigned:
-                result[assigned] = result.get(assigned, 0) + 1
-
-        logger.info(f"[leads/count] Result: {result}")
-        return result if result else {"STELLA": 0, "VALLIA": 0, "SOFIA": 0}
-    except Exception as e:
-        logger.error(f"[leads/count] ERROR: {e}", exc_info=True)
-        return {"STELLA": 0, "VALLIA": 0, "SOFIA": 0}
+    # Return with defaults for standard consultants
+    return result if result else {"STELLA": 0, "VALLIA": 0, "SOFIA": 0}
