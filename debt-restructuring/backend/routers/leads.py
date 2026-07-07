@@ -742,16 +742,19 @@ def count_leads_by_consultant(
     Date format: YYYY-MM-DD
     Returns: {"STELLA": count, "VALLIA": count, "SOFIA": count, ...}
     """
+    import logging
+    logger = logging.getLogger(__name__)
+
     CONSULTANTS = ["STELLA", "VALLIA", "SOFIA"]
     result = {c: 0 for c in CONSULTANTS}
 
     # Query all leads
     leads = db.query(Lead).all()
+    logger.info(f"[leads/count] Total leads in DB: {len(leads)}, date_from: {date_from}, date_to: {date_to}")
 
+    matched_count = 0
     for lead in leads:
         consultant = (lead.assigned_to or "").strip().upper()
-        if consultant not in CONSULTANTS:
-            continue
 
         # Parse lead date
         lead_date_str = (lead.date or "").strip()
@@ -776,6 +779,10 @@ def count_leads_by_consultant(
                 if lead_date >= to_date_end:
                     continue
 
-        result[consultant] += 1
+        # Count if consultant is valid, otherwise count as unassigned
+        if consultant in CONSULTANTS:
+            result[consultant] += 1
+        matched_count += 1
 
+    logger.info(f"[leads/count] Matched {matched_count} leads, result: {result}")
     return result
