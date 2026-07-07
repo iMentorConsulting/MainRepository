@@ -108,6 +108,7 @@ def get_pipeline_stats(
     settlement_percentage = round((accepted_count / total_settlement * 100), 1) if total_settlement > 0 else 0
 
     # Count pipeline stages (draft cases already excluded from query)
+    nea_analusi_count = query.filter(Case.contact_stage == 'Νέα Ανάλυση').count()
     thetiki_antapokrosi_count = query.filter(Case.contact_stage == 'Θετική Ανταπόκριση').count()
     se_diapragmateusi_count = query.filter(Case.contact_stage == 'Σε Διαπραγμάτευση').count()
 
