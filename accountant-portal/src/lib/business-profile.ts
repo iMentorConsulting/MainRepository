@@ -69,7 +69,7 @@ export async function buildBusinessProfilePayload(business: BusinessForProfile) 
     activities: business.activities.map(a => ({
       firmActCode: a.firmActCode,
       firmActDescr: a.firmActDescr,
-      firmActKind: a.firmActKind,
+      firmActKind: a.firmActKind != null ? String(a.firmActKind) : null,
     })),
     matchedPrograms: matches.map(m => ({ title: m.program.title, status: m.status })),
   }
