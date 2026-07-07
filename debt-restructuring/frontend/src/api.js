@@ -110,6 +110,9 @@ export const sendLeadViber = (id, message) => api.post(`/leads/${id}/send-viber`
 export const sendLeadEmail = (id, to, subject, body) => api.post(`/leads/${id}/send-email`, { to, subject, body })
 export const getLeadsReporting = () => api.get('/leads/reporting')
 export const getLeadsDailyVolume = () => api.get('/leads/daily-volume')
+export const getLeadsCountByConsultant = (dateFrom, dateTo) => api.get('/leads/count-by-consultant', {
+  params: { date_from: dateFrom, date_to: dateTo }
+})
 
 // Health / diagnostics
 export const getHealth = () => api.get('/health')
