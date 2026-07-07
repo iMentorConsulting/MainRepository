@@ -39,6 +39,19 @@ def _phone_key(phone: Optional[str]) -> str:
     return d[-10:] if len(d) >= 10 else d
 
 
+def normalize_afm(afm):
+    """Greek ΑΦΜ is always 9 digits; users sometimes drop the leading zero.
+    Pad an 8-digit value to 9 (e.g. '56234565' -> '056234565')."""
+    if afm is None:
+        return None
+    s = str(afm).strip()
+    if s == "":
+        return None
+    if s.isdigit() and len(s) == 8:
+        return "0" + s
+    return s
+
+
 # ── Serialization ───────────────────────────────────────────────────────────
 
 def _comment_to_dict(c: CMLeadComment) -> dict:
@@ -376,7 +389,7 @@ def create_lead(
         phone=req.phone,
         phone2=req.phone2,
         email=req.email,
-        afm=req.afm,
+        afm=normalize_afm(req.afm),
         program=req.program,
         service_type=req.service_type,
         total_amount=req.total_amount or 0,
@@ -405,6 +418,8 @@ def update_lead(
     if not l:
         raise HTTPException(status_code=404, detail="Το lead δεν βρέθηκε")
     for field, val in req.dict(exclude_unset=True).items():
+        if field == "afm":
+            val = normalize_afm(val)
         setattr(l, field, val)
     db.commit()
     db.refresh(l)

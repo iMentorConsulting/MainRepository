@@ -154,6 +154,18 @@ def _trunc(val, n):
     return s[:n] if len(s) > n else s
 
 
+def _normalize_afm_local(afm):
+    """Pad an 8-digit ΑΦΜ to 9 with a leading zero (mirror of cm_leads.normalize_afm)."""
+    if afm is None:
+        return None
+    s = str(afm).strip()
+    if s == "":
+        return None
+    if s.isdigit() and len(s) == 8:
+        return "0" + s
+    return s
+
+
 def _map_row(row: List[str], cfg: CMLeadSheetConfig, header: List[str], users: list) -> dict:
     cmap = cfg.column_map or {}
     data = {}
@@ -167,7 +179,7 @@ def _map_row(row: List[str], cfg: CMLeadSheetConfig, header: List[str], users: l
         "phone": _trunc(data.get("phone") or None, 50),
         "phone2": _trunc(data.get("phone2") or None, 50),
         "email": _trunc(data.get("email") or None, 200),
-        "afm": _trunc(data.get("afm") or None, 20),
+        "afm": _normalize_afm_local(_trunc(data.get("afm") or None, 20)),
         "service_type": _trunc(data.get("service_type") or None, 150),
         "source": _trunc(data.get("source") or None, 200),
         "notes": data.get("notes") or None,  # TEXT, no limit
