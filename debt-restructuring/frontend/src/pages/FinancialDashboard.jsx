@@ -887,8 +887,15 @@ function PendingApprovalsPanel({ cases, onCasesUpdate }) {
       approval_status: 'approved',
       approval_comment: ov.comment.trim(),
     }
-    await patchOffer(c.id, updated)
-    onCasesUpdate(prev => prev.map(x => x.id === c.id ? { ...x, commercial_offer: updated } : x))
+    try {
+      await patchOffer(c.id, updated)
+      onCasesUpdate(prev => prev.map(x => x.id === c.id ? { ...x, commercial_offer: updated } : x))
+      const { toast } = await import('react-hot-toast')
+      toast.success(`✓ Έγκριση σώθηκε: ${c.client_name}`)
+    } catch (err) {
+      const { toast } = await import('react-hot-toast')
+      toast.error(`Σφάλμα αποθήκευσης: ${err?.response?.data?.detail || err.message}`)
+    }
   }
 
   const restoreSystem = async (c) => {
@@ -899,8 +906,15 @@ function PendingApprovalsPanel({ cases, onCasesUpdate }) {
       approval_status: 'auto',
       approval_comment: '',
     }
-    await patchOffer(c.id, updated)
-    onCasesUpdate(prev => prev.map(x => x.id === c.id ? { ...x, commercial_offer: updated } : x))
+    try {
+      await patchOffer(c.id, updated)
+      onCasesUpdate(prev => prev.map(x => x.id === c.id ? { ...x, commercial_offer: updated } : x))
+      const { toast } = await import('react-hot-toast')
+      toast.success(`✓ Επαναφορά στο σύστημα: ${c.client_name}`)
+    } catch (err) {
+      const { toast } = await import('react-hot-toast')
+      toast.error(`Σφάλμα αποθήκευσης: ${err?.response?.data?.detail || err.message}`)
+    }
   }
 
   return (
