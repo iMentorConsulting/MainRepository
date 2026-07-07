@@ -1438,13 +1438,13 @@ export default function Leads({ currentEmployee }) {
       if (filterEmployees.length) params.assigned_to = filterEmployees
       // Always send a year scope to avoid loading all-time data
       if (filterDateFrom || filterDateTo) {
-        const fromY = filterDateFrom ? parseInt(filterDateFrom.slice(0, 4)) : THIS_YEAR - 2
-        const toY   = filterDateTo   ? parseInt(filterDateTo.slice(0, 4))   : THIS_YEAR
-        const years = []
-        for (let y = fromY; y <= toY; y++) years.push(String(y))
-        params.years = years
+        // Pass exact date range to backend instead of year range
+        if (filterDateFrom) params.date_from = filterDateFrom
+        if (filterDateTo) params.date_to = filterDateTo
       } else {
-        params.years = [String(THIS_YEAR - 2), String(THIS_YEAR - 1), String(THIS_YEAR)]
+        // Default to last 3 years
+        const years = [String(THIS_YEAR - 2), String(THIS_YEAR - 1), String(THIS_YEAR)]
+        params.years = years
       }
       const res = await api.listLeads(params)
       if (myId !== loadIdRef.current) return  // stale response — discard
