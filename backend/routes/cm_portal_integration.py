@@ -35,6 +35,27 @@ def _shared_secret() -> str:
     return os.getenv("IMENTOR_PORTAL_API_KEY", "")
 
 
+# Map a CM user's full name (e.g. "Στριλιγκά Ελευθερία") to the short consultant
+# code used across the leads page (e.g. "ELEFTHERIA"), for consistency.
+_FULLNAME_TO_SHORT = {
+    "Ελευθερία": "ELEFTHERIA",
+    "Χρήστος": "CHRISTOS",
+    "Βάλλια": "VALLIA", "Βάλια": "VALLIA",
+    "Στέλλα": "STELLA",
+    "Σοφία": "SOFIA",
+    "Χάρης": "HARIS",
+}
+
+
+def _short_consultant(full_name: Optional[str]) -> Optional[str]:
+    if not full_name:
+        return full_name
+    for greek, code in _FULLNAME_TO_SHORT.items():
+        if greek in full_name:
+            return code
+    return full_name
+
+
 def _verify_portal_key(x_api_key: Optional[str] = Header(None)):
     expected = _shared_secret()
     if not expected or x_api_key != expected:
@@ -731,7 +752,7 @@ def accept_assignment(
         service_type=_map_service_type(a.program_title) or a.case_type,
         status="HOT",
         assigned_agent_id=current_user.id,
-        assigned_name=current_user.full_name,
+        assigned_name=_short_consultant(current_user.full_name),
         source="LOGISTIS",
         notes=a.description,
         next_call_date=today,
