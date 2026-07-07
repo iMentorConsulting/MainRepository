@@ -165,10 +165,6 @@ export default function FinancialDashboard({ currentEmployee }) {
 
 <<<<<<< HEAD
     api.getAnalyticsPipelineStatsByEmployee(dateFrom, dateTo)
-=======
-  const [allEmployeeStats, setAllEmployeeStats] = useState(null)
-  const [leadsCountByConsultant, setLeadsCountByConsultant] = useState(null)
-
   const [allEmployeeStats, setAllEmployeeStats] = useState(null)
   const [leadsCountByConsultant, setLeadsCountByConsultant] = useState(null)
 
