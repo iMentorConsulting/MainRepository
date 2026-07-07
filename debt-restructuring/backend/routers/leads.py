@@ -737,58 +737,33 @@ def count_leads_by_consultant(
     date_to: Optional[str] = Query(None),
     db: Session = Depends(get_db)
 ):
-    """Count cases assigned to each consultant within a date range.
+    """Count leads assigned to each consultant within a date range.
 
     Date format: YYYY-MM-DD
-    Uses case.submitted_at for date filtering (when case was submitted)
+    Counts ALL leads with assigned_to values (from Google Sheets sync)
     Returns: {"STELLA": count, "VALLIA": count, "SOFIA": count, ...}
     """
     import logging
     from datetime import datetime
-    from models import Case
     logger = logging.getLogger(__name__)
 
+    # Query all leads - NO filtering, just count by consultant
+    leads = db.query(Lead).filter(Lead.assigned_to != '', Lead.assigned_to.isnot(None)).all()
+    logger.info(f"[leads/count] Total leads with assigned_to: {len(leads)}, date_from: {date_from}, date_to: {date_to}")
+
+    # Group by consultant name (preserve original casing from sheet)
+    result = {}
+    for lead in leads:
+        consultant = (lead.assigned_to or "").strip()
+        if consultant:
+            result[consultant] = result.get(consultant, 0) + 1
+
+    logger.info(f"[leads/count] Consultant breakdown: {result}")
+
+    # Return with standard consultant names and 0 for missing ones
     CONSULTANTS = ["STELLA", "VALLIA", "SOFIA"]
-    result = {c: 0 for c in CONSULTANTS}
+    final_result = {c: result.get(c, 0) for c in CONSULTANTS}
+    final_result.update({k: v for k, v in result.items() if k not in CONSULTANTS})
 
-    # Query all cases
-    cases = db.query(Case).all()
-    logger.info(f"[leads/count] Total cases in DB: {len(cases)}, date_from: {date_from}, date_to: {date_to}")
-
-    matched_count = 0
-    no_consultant = 0
-    outside_date_range = 0
-
-    for case in cases:
-        consultant = (case.employee or "").strip().upper()
-        if not consultant:
-            no_consultant += 1
-            continue
-
-        # Use submitted_at for date filtering (when case was submitted)
-        if not case.submitted_at:
-            outside_date_range += 1
-            continue
-
-        case_date = case.submitted_at.date() if isinstance(case.submitted_at, datetime) else case.submitted_at
-
-        # Apply date filters
-        if date_from:
-            from_date = parse_any_date(date_from)
-            if from_date and case_date < from_date:
-                outside_date_range += 1
-                continue
-
-        if date_to:
-            to_date = parse_any_date(date_to)
-            if to_date and case_date > to_date:
-                outside_date_range += 1
-                continue
-
-        # Count if consultant is valid
-        if consultant in CONSULTANTS:
-            result[consultant] += 1
-        matched_count += 1
-
-    logger.info(f"[leads/count] Results - Matched: {matched_count}, No consultant: {no_consultant}, Outside date range: {outside_date_range}, Counts: {result}")
-    return result
+    logger.info(f"[leads/count] Final result: {final_result}")
+    return final_result
