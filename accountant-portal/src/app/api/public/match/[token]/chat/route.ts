@@ -77,7 +77,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       consultant: matchToken.consultant ?? null,
     })
   } catch (err: any) {
-    console.error('[ErmisChat] failed:', err?.message)
+    console.error('[ErmisChat] failed:', err?.message, err?.status, err?.error)
     return NextResponse.json({ error: 'Ο Ερμής δεν είναι διαθέσιμος αυτή τη στιγμή. Δοκιμάστε ξανά σε λίγο.' }, { status: 502 })
   }
 

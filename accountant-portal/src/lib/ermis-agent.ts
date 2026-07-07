@@ -266,7 +266,6 @@ export async function runErmisTurn(params: {
     model: 'claude-sonnet-4-6',
     max_tokens: MAX_RESPONSE_TOKENS,
     system,
-    thinking: { type: 'adaptive' },
     ...(tools ? { tools, tool_choice: { type: 'auto' } } : {}),
     messages,
   })
