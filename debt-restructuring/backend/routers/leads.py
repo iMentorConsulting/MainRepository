@@ -740,9 +740,11 @@ def count_leads_by_consultant(
     """Count leads assigned to each consultant within a date range.
 
     Date format: YYYY-MM-DD
+    Uses lead.created_at for date filtering (when lead entered the system)
     Returns: {"STELLA": count, "VALLIA": count, "SOFIA": count, ...}
     """
     import logging
+    from datetime import datetime, time
     logger = logging.getLogger(__name__)
 
     CONSULTANTS = ["STELLA", "VALLIA", "SOFIA"]
@@ -755,15 +757,14 @@ def count_leads_by_consultant(
     matched_count = 0
     for lead in leads:
         consultant = (lead.assigned_to or "").strip().upper()
-
-        # Parse lead date
-        lead_date_str = (lead.date or "").strip()
-        if not lead_date_str:
+        if not consultant:
             continue
 
-        lead_date = parse_any_date(lead_date_str)
-        if not lead_date:
+        # Use created_at for date filtering (when lead entered the system)
+        if not lead.created_at:
             continue
+
+        lead_date = lead.created_at.date() if hasattr(lead.created_at, 'date') else lead.created_at
 
         # Apply date filters
         if date_from:
@@ -775,14 +776,13 @@ def count_leads_by_consultant(
             to_date = parse_any_date(date_to)
             if to_date:
                 # Include entire end date
-                to_date_end = to_date + timedelta(days=1)
-                if lead_date >= to_date_end:
+                if lead_date > to_date:
                     continue
 
-        # Count if consultant is valid, otherwise count as unassigned
+        # Count if consultant is valid
         if consultant in CONSULTANTS:
             result[consultant] += 1
-        matched_count += 1
+            matched_count += 1
 
     logger.info(f"[leads/count] Matched {matched_count} leads, result: {result}")
     return result
