@@ -751,33 +751,40 @@ def count_leads_by_consultant(
     date_to: Optional[str] = Query(None),
     db: Session = Depends(get_db)
 ):
-    """Count leads assigned to each consultant within a date range.
+    """Count leads assigned to each consultant.
 
-    Date format: YYYY-MM-DD
-    Counts ALL leads with assigned_to values (from Google Sheets sync)
+    Counts ALL leads by assigned_to value from Google Sheets.
     Returns: {"STELLA": count, "VALLIA": count, "SOFIA": count, ...}
     """
     import logging
-    from datetime import datetime
     logger = logging.getLogger(__name__)
 
-    # Query all leads - NO filtering, just count by consultant
-    leads = db.query(Lead).filter(Lead.assigned_to != '', Lead.assigned_to.isnot(None)).all()
-    logger.info(f"[leads/count] Total leads with assigned_to: {len(leads)}, date_from: {date_from}, date_to: {date_to}")
+    # Query ALL leads first to see total
+    total_leads = db.query(Lead).count()
+    logger.info(f"[leads/count] TOTAL leads in DB: {total_leads}")
+
+    # Query leads with assigned_to
+    leads_with_assigned = db.query(Lead).filter(Lead.assigned_to != '', Lead.assigned_to.isnot(None)).all()
+    logger.info(f"[leads/count] Leads with assigned_to: {len(leads_with_assigned)}")
+
+    # Sample some leads to see what's in database
+    all_leads = db.query(Lead).limit(5).all()
+    for i, lead in enumerate(all_leads):
+        logger.info(f"[leads/count] Sample {i}: name={lead.name}, assigned_to='{lead.assigned_to}'")
 
     # Group by consultant name (preserve original casing from sheet)
     result = {}
-    for lead in leads:
+    for lead in leads_with_assigned:
         consultant = (lead.assigned_to or "").strip()
         if consultant:
             result[consultant] = result.get(consultant, 0) + 1
+            logger.info(f"[leads/count] Found: {consultant}")
 
-    logger.info(f"[leads/count] Consultant breakdown: {result}")
+    logger.info(f"[leads/count] FINAL: {result}")
 
     # Return with standard consultant names and 0 for missing ones
     CONSULTANTS = ["STELLA", "VALLIA", "SOFIA"]
     final_result = {c: result.get(c, 0) for c in CONSULTANTS}
     final_result.update({k: v for k, v in result.items() if k not in CONSULTANTS})
 
-    logger.info(f"[leads/count] Final result: {final_result}")
     return final_result
