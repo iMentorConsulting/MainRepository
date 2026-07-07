@@ -737,55 +737,51 @@ def count_leads_by_consultant(
     date_to: Optional[str] = Query(None),
     db: Session = Depends(get_db)
 ):
-    """Count leads assigned to each consultant within a date range.
+    """Count cases assigned to each consultant within a date range.
 
     Date format: YYYY-MM-DD
-    Uses lead.created_at for date filtering (when lead entered the system)
+    Uses case.submitted_at for date filtering (when case was submitted)
     Returns: {"STELLA": count, "VALLIA": count, "SOFIA": count, ...}
     """
     import logging
-    from datetime import date, datetime
+    from datetime import datetime
+    from models import Case
     logger = logging.getLogger(__name__)
 
     CONSULTANTS = ["STELLA", "VALLIA", "SOFIA"]
     result = {c: 0 for c in CONSULTANTS}
 
-    # Query all leads
-    leads = db.query(Lead).all()
-    logger.info(f"[leads/count] Total leads in DB: {len(leads)}, date_from: {date_from}, date_to: {date_to}")
-
-    # Sample some leads to debug
-    if leads:
-        for i, lead in enumerate(leads[:3]):
-            logger.info(f"[leads/count] Sample lead {i}: assigned_to={lead.assigned_to}, created_at={lead.created_at}")
+    # Query all cases
+    cases = db.query(Case).all()
+    logger.info(f"[leads/count] Total cases in DB: {len(cases)}, date_from: {date_from}, date_to: {date_to}")
 
     matched_count = 0
     no_consultant = 0
     outside_date_range = 0
 
-    for lead in leads:
-        consultant = (lead.assigned_to or "").strip().upper()
+    for case in cases:
+        consultant = (case.employee or "").strip().upper()
         if not consultant:
             no_consultant += 1
             continue
 
-        # Use created_at for date filtering (when lead entered the system)
-        if not lead.created_at:
+        # Use submitted_at for date filtering (when case was submitted)
+        if not case.submitted_at:
             outside_date_range += 1
             continue
 
-        lead_date = lead.created_at.date() if isinstance(lead.created_at, datetime) else lead.created_at
+        case_date = case.submitted_at.date() if isinstance(case.submitted_at, datetime) else case.submitted_at
 
         # Apply date filters
         if date_from:
             from_date = parse_any_date(date_from)
-            if from_date and lead_date < from_date:
+            if from_date and case_date < from_date:
                 outside_date_range += 1
                 continue
 
         if date_to:
             to_date = parse_any_date(date_to)
-            if to_date and lead_date > to_date:
+            if to_date and case_date > to_date:
                 outside_date_range += 1
                 continue
 
