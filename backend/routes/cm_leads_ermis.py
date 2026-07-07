@@ -161,6 +161,11 @@ def _process_ermis_session(lead_id: int, send_link: bool, channel: str, actor_na
         l = db.query(CMLead).filter(CMLead.id == lead_id).first()
         if not l:
             return
+        # Reflect progress immediately in the UI
+        if l.ermis_status not in ("in_progress", "eligible", "ineligible"):
+            l.ermis_status = "starting"
+            l.ermis_started_at = l.ermis_started_at or datetime.utcnow()
+            db.commit()
         secret = _shared_secret()
         if not secret:
             log.error("ΕΡΜΗΣ: IMENTOR_PORTAL_API_KEY not set")

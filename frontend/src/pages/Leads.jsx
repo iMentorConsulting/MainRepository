@@ -75,6 +75,27 @@ function renderMarkup(text) {
 }
 const gmailUrl = (email) => `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(email)}`
 
+// Compact eligibility: green matched-program chips, red if ineligible, else status/—
+function eligibilityCell(lead) {
+  const mp = lead.matched_programs || []
+  if (mp.length > 0) {
+    return (
+      <div className="flex flex-wrap gap-1">
+        {mp.map((p, i) => (
+          <span key={i} className="text-[10px] font-semibold bg-green-100 text-green-700 rounded-full px-2 py-0.5" title={p.status || ''}>{p.title}</span>
+        ))}
+      </div>
+    )
+  }
+  if (lead.ermis_status === 'ineligible') {
+    return <span className="text-xs font-semibold text-red-700 bg-red-100 rounded-full px-2 py-0.5">Μη επιλέξιμος</span>
+  }
+  if (lead.ermis_status === 'starting' || lead.ermis_status === 'in_progress') {
+    return <span className="text-xs text-gray-400">σε εξέλιξη…</span>
+  }
+  return <span className="text-gray-300 text-xs">—</span>
+}
+
 function EditableCell({ value, onSave, type = 'text', className = '', placeholder = '—' }) {
   const [editing, setEditing] = useState(false)
   const [val, setVal] = useState(value ?? '')
@@ -451,7 +472,7 @@ export default function Leads() {
 
   const totalPages = Math.max(1, Math.ceil(data.total / (data.page_size || 50)))
   const counts = options.status_counts || {}
-  const COLS = 10
+  const COLS = 11
 
   return (
     <div className="p-4 md:p-6">
@@ -515,6 +536,7 @@ export default function Leads() {
               <SortTh col="created_at">ΗΜ/ΝΙΑ</SortTh>
               <th className="px-2 py-2 text-left font-semibold text-gray-600">ΤΕΛΕΥΤΑΙΟ ΣΧΟΛΙΟ</th>
               <th className="px-2 py-2 text-left font-semibold text-gray-600">ΕΡΜΗΣ</th>
+              <th className="px-2 py-2 text-left font-semibold text-gray-600">ΕΠΙΛΕΞΙΜΟΤΗΤΑ</th>
               <th className="px-2 py-2 text-right font-semibold text-gray-600">Ενέργειες</th>
             </tr>
           </thead>
@@ -559,9 +581,9 @@ export default function Leads() {
                     <td className="px-2 py-1.5">
                       {lead.ermis_status ? <span className={`text-xs font-semibold rounded-full px-2 py-0.5 ${ERMIS_BADGE[lead.ermis_status] || 'bg-gray-100'}`} title={lead.ermis_status === 'error' ? (lead.ermis_error || 'Σφάλμα') : ''}>{lead.ermis_status}</span> : <span className="text-gray-300 text-xs">—</span>}
                     </td>
+                    <td className="px-2 py-1.5 max-w-[220px]">{eligibilityCell(lead)}</td>
                     <td className="px-2 py-1.5">
                       <div className="flex items-center justify-end gap-1">
-                        <button title="ΕΡΜΗΣ" onClick={() => handleErmis(lead)} className="p-1.5 rounded hover:bg-indigo-100 text-indigo-600"><SparklesIcon className="w-4 h-4" /></button>
                         <button title="Μήνυμα" onClick={() => setSendLead(lead)} className="p-1.5 rounded hover:bg-blue-100 text-blue-600"><ChatBubbleLeftRightIcon className="w-4 h-4" /></button>
                         <button title="Διαγραφή" onClick={() => handleDelete(lead)} className="p-1.5 rounded hover:bg-red-100 text-red-500"><TrashIcon className="w-4 h-4" /></button>
                       </div>

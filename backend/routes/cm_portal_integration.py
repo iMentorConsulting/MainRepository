@@ -681,7 +681,7 @@ def accept_assignment(
     # assigned to the consultant who accepted, today's date + reminder, with a link
     # back to the LOGISTIS case.
     from models_cases import CMLead
-    from routes.cm_leads import normalize_afm
+    from routes.cm_leads import normalize_afm, maybe_autostart_ermis
     today = date.today()
     link_tmpl = os.getenv("LOGISTIS_CASE_LINK_TEMPLATE", "https://logistis.i-mentor.gr/cases/{case_number}")
     portal_link = link_tmpl.replace("{case_number}", str(a.case_number)) if a.case_number is not None else None
@@ -710,6 +710,9 @@ def accept_assignment(
     a.cm_lead_id = lead.id
     a.resolved_at = datetime.utcnow()
     db.commit()
+
+    # New lead with an ΑΦΜ → auto-start ΕΡΜΗΣ immediately
+    maybe_autostart_ermis(lead, actor_name=current_user.full_name)
 
     # Best-effort: tell LOGISTIS the assignment was accepted (references the lead)
     secret = _shared_secret()
