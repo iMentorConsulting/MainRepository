@@ -746,13 +746,17 @@ def send_email(lead_id: int, data: EmailLeadRequest, db: Session = Depends(get_d
 
 
 @router.get("/count-by-consultant")
-def count_leads_by_consultant(db: Session = Depends(get_db)):
+def count_leads_by_consultant(
+    date_from: str = None,
+    date_to: str = None,
+    db: Session = Depends(get_db)
+):
     """Count leads assigned to each consultant."""
     import logging
     logger = logging.getLogger(__name__)
 
     try:
-        # Query ALL leads
+        # Query ALL leads (ignore date params for now - just count what exists)
         all_leads = db.query(Lead).all()
         logger.info(f"[leads/count] TOTAL leads: {len(all_leads)}")
 
