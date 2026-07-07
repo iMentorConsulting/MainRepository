@@ -162,9 +162,8 @@ export default function FinancialDashboard({ currentEmployee }) {
       .catch(err => {
         console.error('Failed to fetch pipeline stats:', err.response?.status, err.message)
       })
+  }
 
-<<<<<<< HEAD
-    api.getAnalyticsPipelineStatsByEmployee(dateFrom, dateTo)
   const [allEmployeeStats, setAllEmployeeStats] = useState(null)
   const [leadsCountByConsultant, setLeadsCountByConsultant] = useState(null)
 
