@@ -155,6 +155,7 @@ class LeadCreate(BaseModel):
     notes: Optional[str] = None
     next_call_date: Optional[date] = None
     program_fields: Optional[dict] = None
+    send_ermis: Optional[bool] = True   # auto-start ΕΡΜΗΣ on create (if ΑΦΜ present)
 
 
 class LeadUpdate(BaseModel):
@@ -446,8 +447,9 @@ def create_lead(
     db.add(lead)
     db.commit()
     db.refresh(lead)
-    # New lead with an ΑΦΜ → auto-start ΕΡΜΗΣ immediately
-    maybe_autostart_ermis(lead, actor_name=current_user.full_name)
+    # New lead with an ΑΦΜ → auto-start ΕΡΜΗΣ immediately (unless toggled off)
+    if req.send_ermis:
+        maybe_autostart_ermis(lead, actor_name=current_user.full_name)
     return lead_to_dict(lead, include_comments=True)
 
 

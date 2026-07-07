@@ -184,11 +184,16 @@ function SendModal({ lead, onClose }) {
 
 function NewLeadModal({ options, onClose, onCreated }) {
   const [form, setForm] = useState({ name: '', phone: '', email: '', afm: '', program: '', total_amount: '', assigned_name: '' })
+  const [sendErmis, setSendErmis] = useState(true)
   const [busy, setBusy] = useState(false)
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
   const submit = async () => {
     setBusy(true)
-    try { await createLead({ ...form, total_amount: parseFloat(form.total_amount) || 0 }); toast.success('Το lead δημιουργήθηκε'); onCreated(); onClose() }
+    try {
+      await createLead({ ...form, total_amount: parseFloat(form.total_amount) || 0, send_ermis: sendErmis })
+      toast.success('Το lead δημιουργήθηκε' + (sendErmis && form.afm ? ' — στάλθηκε στον ΕΡΜΗ' : ''))
+      onCreated(); onClose()
+    }
     catch { toast.error('Σφάλμα δημιουργίας') } finally { setBusy(false) }
   }
   return (
@@ -206,6 +211,13 @@ function NewLeadModal({ options, onClose, onCreated }) {
             {(options.programs || ['ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ', 'ΔΥΠΑ', 'ΕΣΠΑ', 'ΑΝΑΚΑΙΝΙΖΩ']).map(p => <option key={p} value={p}>{p}</option>)}
           </select>
           <input placeholder="Σύμβουλος" value={form.assigned_name} onChange={e => set('assigned_name', e.target.value)} className="px-3 py-2 border rounded-lg text-sm" />
+          <label className="col-span-2 flex items-center gap-2 text-sm text-gray-700 mt-1 cursor-pointer">
+            <button type="button" onClick={() => setSendErmis(v => !v)}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${sendErmis ? 'bg-indigo-500' : 'bg-gray-300'}`}>
+              <span className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${sendErmis ? 'translate-x-5' : 'translate-x-1'}`} />
+            </button>
+            <span className="flex items-center gap-1"><SparklesIcon className="w-4 h-4 text-indigo-500" />Αποστολή στον ΕΡΜΗ {form.afm ? '' : '(χρειάζεται ΑΦΜ)'}</span>
+          </label>
         </div>
         <div className="p-4 border-t flex justify-end gap-2">
           <button onClick={onClose} className="btn-secondary text-sm">Άκυρο</button>
