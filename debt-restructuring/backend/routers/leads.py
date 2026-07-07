@@ -729,3 +729,53 @@ def send_email(lead_id: int, data: EmailLeadRequest, db: Session = Depends(get_d
     lead.updated_at = _now()
     db.commit()
     return {"ok": True}
+
+
+@router.get("/count-by-consultant")
+def count_leads_by_consultant(
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
+    db: Session = Depends(get_db)
+):
+    """Count leads assigned to each consultant within a date range.
+
+    Date format: YYYY-MM-DD
+    Returns: {"STELLA": count, "VALLIA": count, "SOFIA": count, ...}
+    """
+    CONSULTANTS = ["STELLA", "VALLIA", "SOFIA"]
+    result = {c: 0 for c in CONSULTANTS}
+
+    # Query all leads
+    leads = db.query(Lead).all()
+
+    for lead in leads:
+        consultant = (lead.assigned_to or "").strip().upper()
+        if consultant not in CONSULTANTS:
+            continue
+
+        # Parse lead date
+        lead_date_str = (lead.date or "").strip()
+        if not lead_date_str:
+            continue
+
+        lead_date = parse_any_date(lead_date_str)
+        if not lead_date:
+            continue
+
+        # Apply date filters
+        if date_from:
+            from_date = parse_any_date(date_from)
+            if from_date and lead_date < from_date:
+                continue
+
+        if date_to:
+            to_date = parse_any_date(date_to)
+            if to_date:
+                # Include entire end date
+                to_date_end = to_date + timedelta(days=1)
+                if lead_date >= to_date_end:
+                    continue
+
+        result[consultant] += 1
+
+    return result

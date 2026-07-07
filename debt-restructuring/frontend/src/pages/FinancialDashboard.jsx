@@ -163,7 +163,31 @@ export default function FinancialDashboard({ currentEmployee }) {
         console.error('Failed to fetch pipeline stats:', err.response?.status, err.message)
       })
 
+<<<<<<< HEAD
     api.getAnalyticsPipelineStatsByEmployee(dateFrom, dateTo)
+=======
+  const [allEmployeeStats, setAllEmployeeStats] = useState(null)
+  const [leadsCountByConsultant, setLeadsCountByConsultant] = useState(null)
+
+  const [allEmployeeStats, setAllEmployeeStats] = useState(null)
+  const [leadsCountByConsultant, setLeadsCountByConsultant] = useState(null)
+
+  useEffect(() => {
+    fetchAnalytics()
+  }, [empFilter, dateFromFilter, dateToFilter])
+
+  useEffect(() => {
+    let dateFrom = null, dateTo = null
+    if (selectedMonth) {
+      const [year, month] = selectedMonth.split('-')
+      dateFrom = `${year}-${month}-01`
+      // Get last day of month correctly
+      const lastDay = new Date(parseInt(year), parseInt(month), 0).getDate()
+      dateTo = `${year}-${month}-${String(lastDay).padStart(2, '0')}`
+    }
+
+    // Fetch both employee stats and leads count
+    api.getAnalyticsPipelineStatsByEmployee(dateFrom ? `${dateFrom}T00:00:00Z` : null, dateTo ? `${dateTo}T23:59:59Z` : null)
       .then(r => {
         console.log('Employee stats:', r.data)
         setAllEmployeeStats(r.data)
@@ -171,13 +195,16 @@ export default function FinancialDashboard({ currentEmployee }) {
       .catch(err => {
         console.error('Failed to fetch employee stats:', err.message)
       })
-  }
 
-  useEffect(() => {
-    fetchAnalytics()
-  }, [empFilter, dateFromFilter, dateToFilter])
-
-  const [allEmployeeStats, setAllEmployeeStats] = useState(null)
+    api.getLeadsCountByConsultant(dateFrom, dateTo)
+      .then(r => {
+        console.log('Leads count by consultant:', r.data)
+        setLeadsCountByConsultant(r.data)
+      })
+      .catch(err => {
+        console.error('Failed to fetch leads count:', err.message)
+      })
+  }, [selectedMonth])
 
   const offerCases = useMemo(() =>
     cases.filter(c => c.commercial_offer && (c.commercial_offer.application_fee || c.commercial_offer.success_fee)),
@@ -417,10 +444,12 @@ export default function FinancialDashboard({ currentEmployee }) {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
               {Object.entries(allEmployeeStats).filter(([emp]) => emp !== 'HARIS').map(([emp, stats]) => {
                 const revenue = stats.collected_revenue || { first_payment: 0, second_payment: 0, total: 0 }
+                const leadsCount = leadsCountByConsultant?.[emp] || 0
                 return (
                   <div key={emp} className="p-3 bg-gray-50 rounded-lg border border-gray-200">
                     <div className="font-semibold text-sm text-gray-800 mb-2">{emp}</div>
                     <div className="space-y-1 text-xs">
+                      <div><span className="text-gray-600">Leads ανατεθ.:</span> <span className="font-bold text-blue-600">{leadsCount}</span></div>
                       <div><span className="text-gray-600">Σύνολο:</span> <span className="font-bold">{stats.total_cases}</span></div>
                       {stats.stage_breakdown && (
                         <div className="bg-white rounded p-1.5 border border-gray-200 space-y-0.5">
