@@ -454,33 +454,69 @@ def _handle_document_uploaded(payload: DocumentUploadedWebhook, db: Session) -> 
     return {"message": "OK", "matched": True, "saved": True, "case_id": case.id}
 
 
+# In-memory ring buffer of recent inbound webhook hits (diagnostic; lost on restart)
+_recent_webhook_hits: list = []
+
+
+def _record_hit(**kw) -> None:
+    kw["at"] = datetime.utcnow().isoformat() + "Z"
+    _recent_webhook_hits.insert(0, kw)
+    del _recent_webhook_hits[50:]
+
+
+def _norm_event(ev) -> str:
+    return (ev or "").strip().lower().replace("_", ".").replace(" ", ".").replace("-", ".")
+
+
 @router.post("/webhook")
 def receive_portal_webhook(
     payload: dict,
+    x_api_key: Optional[str] = Header(None),
     db: Session = Depends(get_db),
-    _=Depends(_verify_portal_key),
 ):
+    # Auth checked inline (not via Depends) so auth failures are also logged.
     event = payload.get("event")
-    log.info("[portal-webhook] received event=%s afm=%s caseNumber=%s",
-             event, payload.get("afm"), payload.get("caseNumber"))
-    if event == "case.created":
+    log.info("[portal-webhook] INBOUND keys=%s event=%r afm=%s caseNumber=%s hasKey=%s",
+             list(payload.keys()), event, payload.get("afm"), payload.get("caseNumber"), bool(x_api_key))
+    secret = _shared_secret()
+    if not secret or x_api_key != secret:
+        reason = "no IMENTOR_PORTAL_API_KEY set on CM" if not secret else ("no key sent" if not x_api_key else "key mismatch")
+        log.warning("[portal-webhook] AUTH FAILED (%s)", reason)
+        _record_hit(event=event, keys=list(payload.keys()), auth_ok=False, outcome=f"401 {reason}")
+        raise HTTPException(status_code=401, detail="Μη έγκυρο API key")
+
+    ev = _norm_event(event)
+    # Be tolerant of event-name variants; also treat a case-shaped payload with no
+    # event as case.created so a slightly different sender still works.
+    is_case = ev in ("case.created", "case.create", "casecreated", "assignment.created", "new.case") \
+        or (not ev and payload.get("caseNumber") is not None)
+    if is_case:
         try:
-            data = CaseCreatedWebhook(**payload)
+            data = CaseCreatedWebhook(**{**payload, "event": event or "case.created"})
         except Exception as exc:
-            log.error("[portal-webhook] case.created invalid payload: %s", exc)
+            log.error("[portal-webhook] case.created invalid payload: %s | raw=%s", exc, str(payload)[:500])
             raise HTTPException(status_code=400, detail=f"Μη έγκυρο payload: {exc}")
         res = _handle_case_created(data, db)
-        log.info("[portal-webhook] case.created stored assignment id=%s (status=pending)", res.get("id"))
+        log.info("[portal-webhook] case.created → assignment id=%s stored (status=pending)", res.get("id"))
+        _record_hit(event=event, keys=list(payload.keys()), auth_ok=True, outcome=f"assignment #{res.get('id')} pending")
         return res
-    if event == "document.uploaded":
+    if ev in ("document.uploaded", "document.upload", "documentuploaded"):
         try:
-            data = DocumentUploadedWebhook(**payload)
+            data = DocumentUploadedWebhook(**{**payload, "event": event or "document.uploaded"})
         except Exception as exc:
             log.error("[portal-webhook] document.uploaded invalid payload: %s", exc)
             raise HTTPException(status_code=400, detail=f"Μη έγκυρο payload: {exc}")
         return _handle_document_uploaded(data, db)
-    log.warning("[portal-webhook] unsupported event=%s", event)
-    raise HTTPException(status_code=400, detail="Μη υποστηριζόμενο event")
+    log.warning("[portal-webhook] UNSUPPORTED event=%r (keys=%s)", event, list(payload.keys()))
+    _record_hit(event=event, keys=list(payload.keys()), auth_ok=True, outcome="400 unsupported event")
+    raise HTTPException(status_code=400, detail=f"Μη υποστηριζόμενο event: {event!r}")
+
+
+@router.get("/webhook-log")
+def webhook_log(current_user: CMUser = Depends(get_current_user)):
+    """Diagnostic: the last inbound webhook hits (event, keys, auth result, outcome)
+    so you can confirm whether LOGISTIS is actually reaching CM and why it failed."""
+    return {"hits": _recent_webhook_hits}
 
 
 # ── Outbound assignment requests (us → Portal) ───────────────────────────────
