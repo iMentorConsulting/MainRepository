@@ -121,7 +121,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         transcript: finalHistory.map(m => ({ role: m.role, text: m.text, ts: new Date().toISOString() })),
         completedAt: new Date().toISOString(),
       })
-    })().catch(() => {})
+    })().catch(err => console.error('[ErmisWebhook] ermis.completed failed:', err?.message))
   }
 
   return NextResponse.json({ reply: result.reply, caseAssigned: Boolean(result.caseId) })

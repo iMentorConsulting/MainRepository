@@ -56,16 +56,20 @@ export async function notifyCaseManagement(data: {
   const program_category = deriveProgramCategory(data.programTitle)
 
   try {
+    console.log(`[CaseManagement] Sending case.created for case #${data.caseNumber} to ${url}`)
     const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey },
       body: JSON.stringify({ event: 'case.created', ...data, program_category }),
     })
     if (!res.ok) {
-      console.error(`[CaseManagement] Webhook failed for case ${data.caseNumber}: HTTP ${res.status}`)
+      const body = await res.text().catch(() => '')
+      console.error(`[CaseManagement] Webhook failed for case #${data.caseNumber}: HTTP ${res.status} ${body}`)
+    } else {
+      console.log(`[CaseManagement] Webhook OK for case #${data.caseNumber}: HTTP ${res.status}`)
     }
   } catch (err: any) {
-    console.error(`[CaseManagement] Webhook error for case ${data.caseNumber}:`, err?.message || err)
+    console.error(`[CaseManagement] Webhook error for case #${data.caseNumber}:`, err?.message || err)
   }
 }
 

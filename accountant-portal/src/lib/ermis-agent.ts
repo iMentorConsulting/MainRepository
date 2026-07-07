@@ -192,6 +192,9 @@ async function createPublicClientCase(params: {
     })
   } catch {}
 
+  const webhookUrl = process.env.CASE_MGMT_WEBHOOK_URL
+  const webhookKey = process.env.CASES_API_KEY
+  console.log(`[ErmisCase] case #${clientCase.caseNumber} created. CASE_MGMT_WEBHOOK_URL=${webhookUrl ? 'set' : 'MISSING'} CASES_API_KEY=${webhookKey ? 'set' : 'MISSING'}`)
   notifyCaseManagement({
     caseNumber: clientCase.caseNumber,
     phone: business.phone || null,
