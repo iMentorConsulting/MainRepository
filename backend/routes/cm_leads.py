@@ -52,6 +52,29 @@ def normalize_afm(afm):
     return s
 
 
+def maybe_autostart_ermis(lead: CMLead, actor_name: str = "auto") -> bool:
+    """If a lead has an ΑΦΜ, is an open prospect and hasn't been sent yet, kick off
+    a ΕΡΜΗΣ screening in the background (LOGISTIS does the ΑΑΔΕ lookup + matching).
+    Returns True if a session was started."""
+    import threading
+    if not (lead.afm or "").strip():
+        return False
+    if lead.status in ("CANCEL", "DEAL"):
+        return False
+    if lead.ermis_token or lead.ermis_status in ("starting", "in_progress", "eligible", "ineligible"):
+        return False
+    try:
+        from routes.cm_leads_ermis import _process_ermis_session
+    except Exception:
+        return False
+    threading.Thread(
+        target=_process_ermis_session,
+        args=(lead.id, True, "both", actor_name),
+        daemon=True,
+    ).start()
+    return True
+
+
 # ── Serialization ───────────────────────────────────────────────────────────
 
 def _comment_to_dict(c: CMLeadComment) -> dict:
@@ -65,7 +88,8 @@ def _comment_to_dict(c: CMLeadComment) -> dict:
     }
 
 
-def lead_to_dict(l: CMLead, include_comments: bool = False, last_comment: dict = None) -> dict:
+def lead_to_dict(l: CMLead, include_comments: bool = False, last_comment: dict = None,
+                 matched_programs: list = None) -> dict:
     transcript = None
     if l.ermis_transcript:
         try:
@@ -106,6 +130,7 @@ def lead_to_dict(l: CMLead, include_comments: bool = False, last_comment: dict =
         "created_at": l.created_at.isoformat() if l.created_at else None,
         "updated_at": l.updated_at.isoformat() if l.updated_at else None,
         "last_comment": last_comment,
+        "matched_programs": matched_programs or [],
     }
     if include_comments:
         data["comments"] = [_comment_to_dict(c) for c in sorted(l.comments, key=lambda x: x.created_at or datetime.min)]
@@ -252,8 +277,25 @@ def list_leads(
                     "created_at": c.created_at.isoformat() if c.created_at else None,
                 }
 
+    # Matched programs per lead (by ΑΦΜ), from the cached AADE business profiles.
+    prog_map: dict = {}
+    afms = list({(l.afm or "").strip() for l in rows if (l.afm or "").strip()})
+    if afms:
+        from models_cases import CMBusinessProfile, CMBusinessMatchedProgram
+        q = (
+            db.query(CMBusinessProfile.afm, CMBusinessMatchedProgram.title, CMBusinessMatchedProgram.status)
+            .join(CMBusinessMatchedProgram, CMBusinessMatchedProgram.business_id == CMBusinessProfile.id)
+            .filter(CMBusinessProfile.afm.in_(afms))
+        )
+        for afm, title, status in q:
+            prog_map.setdefault(afm, []).append({"title": title, "status": status})
+
     return {
-        "items": [lead_to_dict(l, last_comment=last_map.get(l.id)) for l in rows],
+        "items": [
+            lead_to_dict(l, last_comment=last_map.get(l.id),
+                         matched_programs=prog_map.get((l.afm or "").strip()))
+            for l in rows
+        ],
         "total": total,
         "page": page,
         "page_size": PAGE_SIZE,
@@ -404,6 +446,8 @@ def create_lead(
     db.add(lead)
     db.commit()
     db.refresh(lead)
+    # New lead with an ΑΦΜ → auto-start ΕΡΜΗΣ immediately
+    maybe_autostart_ermis(lead, actor_name=current_user.full_name)
     return lead_to_dict(lead, include_comments=True)
 
 

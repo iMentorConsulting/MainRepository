@@ -266,6 +266,7 @@ def _sync_config(db: Session, cfg: CMLeadSheetConfig, dry_run: bool = False, ref
     updated = 0
     errors_skipped = 0
     new_preview = []
+    created_leads = []   # objects created this run (for optional auto-ΕΡΜΗΣ)
     max_row = cfg.last_row_num or 0
     # In refresh mode we re-scan every row; otherwise honor the watermark.
     watermark = 0 if refresh else (cfg.last_row_num or header_row)
@@ -308,14 +309,16 @@ def _sync_config(db: Session, cfg: CMLeadSheetConfig, dry_run: bool = False, ref
             if updated % BATCH == 0:
                 db.commit()
         else:
-            db.add(CMLead(
+            _new = CMLead(
                 program=cfg.program,
                 status=status,
                 sheet_config_id=cfg.id,
                 sheet_row_num=row_num,
                 sheet_import_ref=ref,
                 **kwargs,
-            ))
+            )
+            db.add(_new)
+            created_leads.append(_new)
             imported += 1
             existing_refs.add(ref)
             if imported % BATCH == 0:
@@ -329,13 +332,25 @@ def _sync_config(db: Session, cfg: CMLeadSheetConfig, dry_run: bool = False, ref
         cfg.last_sync_at = datetime.utcnow()
         db.commit()
 
+    # Ids of brand-new leads that qualify for auto-ΕΡΜΗΣ (have ΑΦΜ, open status)
+    new_ermis_ids = [
+        l.id for l in created_leads
+        if (l.afm or "").strip() and l.status not in ("CANCEL", "DEAL")
+    ]
+
     diag.update({"imported": imported, "updated": updated, "scanned_to_row": max_row,
-                 "errors_skipped": errors_skipped,
+                 "errors_skipped": errors_skipped, "new_ermis_ids": new_ermis_ids,
                  "preview": new_preview if dry_run else None})
     return diag
 
 
-def _do_lead_sync(db: Session, program: Optional[str] = None, dry_run: bool = False, refresh: bool = False) -> dict:
+# Safety cap: never auto-fire ΕΡΜΗΣ for more than this many new leads in one sync
+# (protects against a bulk re-import mass-sending Viber/Email).
+AUTO_ERMIS_MAX = 30
+
+
+def _do_lead_sync(db: Session, program: Optional[str] = None, dry_run: bool = False,
+                  refresh: bool = False, auto_ermis: bool = False) -> dict:
     q = db.query(CMLeadSheetConfig).filter(CMLeadSheetConfig.enabled == True)  # noqa: E712
     if program:
         q = q.filter(CMLeadSheetConfig.program == program)
@@ -348,12 +363,14 @@ def _do_lead_sync(db: Session, program: Optional[str] = None, dry_run: bool = Fa
     per_program = []
     total = 0
     total_updated = 0
+    ermis_ids = []
     for cfg in configs:
         try:
             res = _sync_config(db, cfg, dry_run=dry_run, refresh=refresh)
             per_program.append(res)
             total += res.get("imported") or 0
             total_updated += res.get("updated") or 0
+            ermis_ids.extend(res.get("new_ermis_ids") or [])
         except Exception as exc:
             log.exception("Lead sync failed for %s: %s", cfg.program, exc)
             per_program.append({"program": cfg.program, "error": str(exc)})
@@ -361,7 +378,21 @@ def _do_lead_sync(db: Session, program: Optional[str] = None, dry_run: bool = Fa
         _last_sync["last_run_at"] = datetime.utcnow().isoformat()
         _last_sync["imported"] = total
         _last_sync["per_program"] = per_program
-    return {"imported": total, "updated": total_updated, "per_program": per_program}
+
+    auto_ermis_started = 0
+    if auto_ermis and not dry_run and ermis_ids:
+        if len(ermis_ids) > AUTO_ERMIS_MAX:
+            log.warning("[leads-sync] auto-ΕΡΜΗΣ skipped: %d new leads exceed cap %d (likely bulk import)",
+                        len(ermis_ids), AUTO_ERMIS_MAX)
+        else:
+            from routes.cm_leads import maybe_autostart_ermis
+            for lid in ermis_ids:
+                lead = db.query(CMLead).filter(CMLead.id == lid).first()
+                if lead and maybe_autostart_ermis(lead, actor_name="auto (sheet)"):
+                    auto_ermis_started += 1
+
+    return {"imported": total, "updated": total_updated, "per_program": per_program,
+            "auto_ermis_started": auto_ermis_started}
 
 
 # ── Config serialization + endpoints ────────────────────────────────────────
@@ -478,4 +509,4 @@ def webhook_trigger(
     provided = x_api_key or key
     if not secret or provided != secret:
         raise HTTPException(status_code=401, detail="Μη έγκυρο API key")
-    return _do_lead_sync(db, program=_resolve_program(program), dry_run=False)
+    return _do_lead_sync(db, program=_resolve_program(program), dry_run=False, auto_ermis=True)

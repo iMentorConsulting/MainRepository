@@ -937,8 +937,8 @@ def _run_leads_sheet_sync():
     from routes.cm_leads_sync import _do_lead_sync
     db = SessionLocal()
     try:
-        result = _do_lead_sync(db, dry_run=False)
-        print(f"[scheduler] Leads sheet sync OK — imported={result['imported']}")
+        result = _do_lead_sync(db, dry_run=False, auto_ermis=True)
+        print(f"[scheduler] Leads sheet sync OK — imported={result['imported']} auto_ermis={result.get('auto_ermis_started')}")
     except Exception as e:
         print(f"[scheduler] Leads sheet sync ERROR: {e}")
     finally:
