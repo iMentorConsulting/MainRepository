@@ -46,7 +46,7 @@ export async function notifyCaseManagement(data: {
   postalAreaDescription?: string | null
   perifereia?: string | null
   klados?: string | null
-  activities?: { firmActCode: string; firmActDescr: string | null; firmActKind: number | null }[]
+  activities?: { firmActCode: string; firmActDescr: string | null; firmActKind: string | null }[]
   matchedPrograms?: { title: string; status: string }[]
 }) {
   const url = process.env.CASE_MGMT_WEBHOOK_URL

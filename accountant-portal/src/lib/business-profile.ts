@@ -20,7 +20,7 @@ export interface BusinessForProfile {
   postalZipCode: string | null
   postalAreaDescription: string | null
   tags: string[]
-  activities: { firmActCode: string; firmActDescr: string | null; firmActKind: number | null }[]
+  activities: { firmActCode: string; firmActDescr: string | null; firmActKind: number | null }[] // raw from DB; output converts to string
 }
 
 export const BUSINESS_PROFILE_SELECT = {
