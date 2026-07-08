@@ -751,22 +751,16 @@ def count_leads_by_consultant(
     date_to: Optional[str] = Query(None),
     db: Session = Depends(get_db)
 ):
-    """
-    Count cases by consultant (employee) with optional date filtering.
-    Falls back to counting leads by assigned_to if requested.
-    """
+    """Count leads assigned to each consultant with optional date filtering."""
     from datetime import datetime, timedelta
-    from models import Case
 
-    query = db.query(Case).filter(
-        Case.contact_stage != 'Νέα Ανάλυση'  # Exclude draft cases
-    )
+    query = db.query(Lead)
 
     # Apply date filtering if provided (YYYY-MM-DD format)
     if date_from:
         try:
             from_date = datetime.strptime(date_from, '%Y-%m-%d').date()
-            query = query.filter(Case.created_at >= from_date)
+            query = query.filter(Lead.created_at >= from_date)
         except ValueError:
             pass
 
@@ -774,18 +768,18 @@ def count_leads_by_consultant(
         try:
             to_date = datetime.strptime(date_to, '%Y-%m-%d').date()
             to_date_end = to_date + timedelta(days=1)
-            query = query.filter(Case.created_at < to_date_end)
+            query = query.filter(Lead.created_at < to_date_end)
         except ValueError:
             pass
 
-    all_cases = query.all()
+    all_leads = query.all()
 
-    # Count by employee (consultant)
+    # Count by assigned_to
     result = {}
-    for case in all_cases:
-        emp = (case.employee or "").strip()
-        if emp and emp != 'HARIS':  # Exclude admin
-            result[emp] = result.get(emp, 0) + 1
+    for lead in all_leads:
+        assigned = (lead.assigned_to or "").strip()
+        if assigned:
+            result[assigned] = result.get(assigned, 0) + 1
 
     # Return with defaults for standard consultants
     return result if result else {"STELLA": 0, "VALLIA": 0, "SOFIA": 0}
