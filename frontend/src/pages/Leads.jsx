@@ -239,7 +239,7 @@ function ExpandedRow({ lead, colSpan, onChanged, onConvert, onErmis, onSend }) {
   const reload = useCallback(async () => {
     const l = await getLead(lead.id)
     setFull(l); setComments(l.comments || [])
-    setForm({ name: l.name || '', afm: l.afm || '', program: l.program || '', service_type: l.service_type || '', source: l.source || '', total_amount: l.total_amount || '' })
+    setForm({ name: l.name || '', afm: l.afm || '', program: l.program || '', service_type: l.service_type || '', source: l.source || '', total_amount: l.total_amount || '', email: l.email || '', phone: l.phone || '' })
   }, [lead.id])
   useEffect(() => { reload() }, [reload])
   const loadDups = useCallback(() => { getLeadDuplicates(lead.id).then(d => setDups(d.items || [])).catch(() => {}) }, [lead.id])
@@ -286,6 +286,8 @@ function ExpandedRow({ lead, colSpan, onChanged, onConvert, onErmis, onSend }) {
           <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mb-3 bg-white border rounded-lg p-3">
             <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="Επωνυμία" className="px-2 py-1.5 border rounded text-sm" />
             <input value={form.afm} onChange={e => setForm(f => ({ ...f, afm: e.target.value }))} placeholder="ΑΦΜ" className="px-2 py-1.5 border rounded text-sm" />
+            <input value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} placeholder="Τηλέφωνο" className="px-2 py-1.5 border rounded text-sm" />
+            <input value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} placeholder="Email" className="px-2 py-1.5 border rounded text-sm" />
             <select value={form.program} onChange={e => setForm(f => ({ ...f, program: e.target.value }))} className="px-2 py-1.5 border rounded text-sm">
               <option value="">— Πρόγραμμα —</option>
               {['ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ', 'ΔΥΠΑ', 'ΕΣΠΑ', 'ΑΝΑΚΑΙΝΙΖΩ'].map(p => <option key={p} value={p}>{p}</option>)}
