@@ -21,6 +21,8 @@ COL_MAP = {
     # Core fields
     "Status": "status",
     "Assigned To": "assigned_to",
+    "ΣΥΜΒΟΥΛΟΣ": "assigned_to",
+    "Σύμβουλος": "assigned_to",
     "DATE": "date",
     "Date": "date",
     "ΜΗΝΑΣ": "month_sheet",
