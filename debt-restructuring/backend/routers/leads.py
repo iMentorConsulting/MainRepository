@@ -751,8 +751,10 @@ def count_leads_by_consultant(
     date_to: Optional[str] = Query(None),
     db: Session = Depends(get_db)
 ):
-    """Count leads assigned to each consultant with optional date filtering."""
+    """Count leads assigned to each consultant with optional date filtering.
+    Checks both assigned_to field and extra_fields JSON (for legacy synced data)."""
     from datetime import datetime, timedelta
+    import json
 
     query = db.query(Lead)
 
@@ -774,10 +776,20 @@ def count_leads_by_consultant(
 
     all_leads = query.all()
 
-    # Count by assigned_to
+    # Count by assigned_to (check both assigned_to field and extra_fields JSON)
     result = {}
     for lead in all_leads:
+        # Try assigned_to field first
         assigned = (lead.assigned_to or "").strip()
+
+        # If not in assigned_to, check extra_fields JSON for ΣΥΜΒΟΥΛΟΣ
+        if not assigned and lead.extra_fields:
+            try:
+                extra = lead.extra_fields if isinstance(lead.extra_fields, dict) else json.loads(lead.extra_fields or "{}")
+                assigned = (extra.get("ΣΥΜΒΟΥΛΟΣ") or "").strip()
+            except (json.JSONDecodeError, TypeError):
+                pass
+
         if assigned:
             result[assigned] = result.get(assigned, 0) + 1
 
