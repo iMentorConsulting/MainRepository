@@ -755,6 +755,9 @@ def count_leads_by_consultant(
     Checks both assigned_to field and extra_fields JSON (for legacy synced data)."""
     from datetime import datetime, timedelta
     import json
+    import logging
+
+    logger = logging.getLogger(__name__)
 
     query = db.query(Lead)
 
@@ -775,10 +778,13 @@ def count_leads_by_consultant(
             pass
 
     all_leads = query.all()
+    logger.info(f"[leads/count] Total leads in range: {len(all_leads)}")
 
     # Count by assigned_to (check both assigned_to field and extra_fields JSON)
     result = {}
-    for lead in all_leads:
+    sample_extras = []
+
+    for i, lead in enumerate(all_leads):
         # Try assigned_to field first
         assigned = (lead.assigned_to or "").strip()
 
@@ -786,12 +792,19 @@ def count_leads_by_consultant(
         if not assigned and lead.extra_fields:
             try:
                 extra = lead.extra_fields if isinstance(lead.extra_fields, dict) else json.loads(lead.extra_fields or "{}")
-                assigned = (extra.get("ΣΥΜΒΟΥΛΟΣ") or "").strip()
-            except (json.JSONDecodeError, TypeError):
+                # Try multiple possible keys
+                assigned = (extra.get("ΣΥΜΒΟΥΛΟΣ") or extra.get("Σύμβουλος") or extra.get("Agent") or "").strip()
+                if i < 3:
+                    sample_extras.append((lead.name, extra.get("ΣΥΜΒΟΥΛΟΣ"), assigned))
+            except (json.JSONDecodeError, TypeError) as e:
+                logger.warning(f"[leads/count] JSON parse error for lead {lead.id}: {e}")
                 pass
 
         if assigned:
             result[assigned] = result.get(assigned, 0) + 1
+
+    logger.info(f"[leads/count] Result: {result}")
+    logger.info(f"[leads/count] Sample extra_fields: {sample_extras}")
 
     # Return with defaults for standard consultants
     return result if result else {"STELLA": 0, "VALLIA": 0, "SOFIA": 0}
