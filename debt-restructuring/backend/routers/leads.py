@@ -818,6 +818,9 @@ def count_leads_by_consultant(
     # Count by assigned_to (check both assigned_to field and extra_fields JSON)
     result = {}
     sample_extras = []
+    no_assigned = 0
+    from_assigned_to_field = 0
+    from_extra_fields = 0
 
     for i, lead in enumerate(filtered_leads):
         # Try assigned_to field first
@@ -827,19 +830,36 @@ def count_leads_by_consultant(
         if not assigned and lead.extra_fields:
             try:
                 extra = lead.extra_fields if isinstance(lead.extra_fields, dict) else json.loads(lead.extra_fields or "{}")
-                # Try multiple possible keys
-                assigned = (extra.get("ΣΥΜΒΟΥΛΟΣ") or extra.get("Σύμβουλος") or extra.get("Agent") or "").strip()
-                if i < 3:
-                    sample_extras.append((lead.name, extra.get("ΣΥΜΒΟΥΛΟΣ"), assigned))
+                # Try multiple possible keys and log what we find
+                συμβουλος_val = extra.get("ΣΥΜΒΟΥΛΟΣ", "")
+                συμβουλος_val2 = extra.get("Σύμβουλος", "")
+                agent_val = extra.get("Agent", "")
+
+                assigned = (συμβουλος_val or συμβουλος_val2 or agent_val or "").strip()
+                from_extra_fields += 1
+
+                if i < 5:
+                    sample_extras.append({
+                        'name': lead.name,
+                        'ΣΥΜΒΟΥΛΟΣ': συμβουλος_val,
+                        'Σύμβουλος': συμβουλος_val2,
+                        'Agent': agent_val,
+                        'resolved_as': assigned
+                    })
             except (json.JSONDecodeError, TypeError) as e:
                 logger.warning(f"[leads/count] JSON parse error for lead {lead.id}: {e}")
                 pass
+        elif assigned:
+            from_assigned_to_field += 1
 
         if assigned:
             result[assigned] = result.get(assigned, 0) + 1
+        else:
+            no_assigned += 1
 
-    logger.info(f"[leads/count] Result: {result}")
-    logger.info(f"[leads/count] Sample extra_fields: {sample_extras}")
+    logger.info(f"[leads/count] Breakdown: {from_assigned_to_field} from assigned_to field, {from_extra_fields} checked extra_fields, {no_assigned} with no assigned consultant")
+    logger.info(f"[leads/count] All found consultants: {result}")
+    logger.info(f"[leads/count] Sample leads (first 5): {sample_extras}")
 
-    # Return with defaults for standard consultants
+    # Return with defaults for standard consultants if result is empty
     return result if result else {"STELLA": 0, "VALLIA": 0, "SOFIA": 0}
