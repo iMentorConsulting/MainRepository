@@ -783,51 +783,53 @@ def count_leads_by_consultant(
     filtered_leads = query.all()
     logger.info(f"[leads/count] Total leads matching date range: {len(filtered_leads)}")
 
-    # Count by assigned_to (check both assigned_to field and extra_fields JSON)
+    # Count by assigned consultant
+    # Strategy: Check assigned_to → extra_fields["ΣΥΜΒΟΥΛΟΣ"] → linked case's employee
+    from models import Case
+
     result = {}
-    sample_extras = []
-    no_assigned = 0
-    from_assigned_to_field = 0
-    from_extra_fields = 0
+    sample_leads = []
 
     for i, lead in enumerate(filtered_leads):
-        # Try assigned_to field first
-        assigned = (lead.assigned_to or "").strip()
+        assigned = None
 
-        # If not in assigned_to, check extra_fields JSON for ΣΥΜΒΟΥΛΟΣ
-        if not assigned and lead.extra_fields:
+        # 1. Check assigned_to field
+        if lead.assigned_to and lead.assigned_to.strip():
+            assigned = lead.assigned_to.strip()
+
+        # 2. Check extra_fields for ΣΥΜΒΟΥΛΟΣ
+        elif lead.extra_fields:
             try:
                 extra = lead.extra_fields if isinstance(lead.extra_fields, dict) else json.loads(lead.extra_fields or "{}")
-                # Try multiple possible keys and log what we find
-                συμβουλος_val = extra.get("ΣΥΜΒΟΥΛΟΣ", "")
-                συμβουλος_val2 = extra.get("Σύμβουλος", "")
-                agent_val = extra.get("Agent", "")
+                assigned = (extra.get("ΣΥΜΒΟΥΛΟΣ") or extra.get("Σύμβουλος") or extra.get("Agent") or "").strip()
+                if assigned and not assigned:
+                    assigned = None
+            except (json.JSONDecodeError, TypeError):
+                assigned = None
 
-                assigned = (συμβουλος_val or συμβουλος_val2 or agent_val or "").strip()
-                from_extra_fields += 1
-
-                if i < 5:
-                    sample_extras.append({
-                        'name': lead.name,
-                        'ΣΥΜΒΟΥΛΟΣ': συμβουλος_val,
-                        'Σύμβουλος': συμβουλος_val2,
-                        'Agent': agent_val,
-                        'resolved_as': assigned
-                    })
-            except (json.JSONDecodeError, TypeError) as e:
-                logger.warning(f"[leads/count] JSON parse error for lead {lead.id}: {e}")
-                pass
-        elif assigned:
-            from_assigned_to_field += 1
+        # 3. Check linked case's employee field
+        if not assigned and lead.linked_case_id:
+            try:
+                case = db.query(Case).filter(Case.id == lead.linked_case_id).first()
+                if case and case.employee:
+                    assigned = case.employee
+            except Exception as e:
+                logger.warning(f"[leads/count] Error querying linked case {lead.linked_case_id}: {e}")
 
         if assigned:
             result[assigned] = result.get(assigned, 0) + 1
-        else:
-            no_assigned += 1
+            if i < 5:
+                sample_leads.append({
+                    'id': lead.id,
+                    'name': lead.name,
+                    'assigned_to': lead.assigned_to,
+                    'linked_case_id': lead.linked_case_id,
+                    'resolved_as': assigned
+                })
 
-    logger.info(f"[leads/count] Breakdown: {from_assigned_to_field} from assigned_to field, {from_extra_fields} checked extra_fields, {no_assigned} with no assigned consultant")
-    logger.info(f"[leads/count] All found consultants: {result}")
-    logger.info(f"[leads/count] Sample leads (first 5): {sample_extras}")
+    logger.info(f"[leads/count] Total leads with consultant assignment: {sum(result.values())}")
+    logger.info(f"[leads/count] Consultants found: {result}")
+    logger.info(f"[leads/count] Sample leads (first 5): {sample_leads}")
 
-    # Return with defaults for standard consultants if result is empty
+    # Return result or defaults
     return result if result else {"STELLA": 0, "VALLIA": 0, "SOFIA": 0}
