@@ -752,6 +752,7 @@ def count_leads_by_consultant(
     db: Session = Depends(get_db)
 ):
     """Count leads assigned to each consultant with optional date filtering.
+    Filters by Lead.date (from Google Sheets) not created_at (bulk sync time).
     Checks both assigned_to field and extra_fields JSON (for legacy synced data)."""
     from datetime import datetime, timedelta
     import json
@@ -759,32 +760,44 @@ def count_leads_by_consultant(
 
     logger = logging.getLogger(__name__)
 
-    query = db.query(Lead)
+    all_leads = db.query(Lead).all()
+    logger.info(f"[leads/count] Total leads in DB: {len(all_leads)}")
 
-    # Apply date filtering if provided (YYYY-MM-DD format)
-    if date_from:
-        try:
-            from_date = datetime.strptime(date_from, '%Y-%m-%d').date()
-            query = query.filter(Lead.created_at >= from_date)
-        except ValueError:
-            pass
+    # Filter in-memory by parsed sheet date (not created_at which is sync timestamp)
+    filtered_leads = []
+    for lead in all_leads:
+        # Parse the sheet date if present
+        lead_date = parse_any_date(lead.date)
+        if lead_date:
+            # Apply date range filtering
+            if date_from:
+                try:
+                    from_date = datetime.strptime(date_from, '%Y-%m-%d').date()
+                    if lead_date.date() < from_date:
+                        continue
+                except ValueError:
+                    pass
 
-    if date_to:
-        try:
-            to_date = datetime.strptime(date_to, '%Y-%m-%d').date()
-            to_date_end = to_date + timedelta(days=1)
-            query = query.filter(Lead.created_at < to_date_end)
-        except ValueError:
-            pass
+            if date_to:
+                try:
+                    to_date = datetime.strptime(date_to, '%Y-%m-%d').date()
+                    if lead_date.date() > to_date:
+                        continue
+                except ValueError:
+                    pass
 
-    all_leads = query.all()
-    logger.info(f"[leads/count] Total leads in range: {len(all_leads)}")
+            filtered_leads.append(lead)
+        elif not date_from and not date_to:
+            # If no date filter requested and lead has no parseable date, include it
+            filtered_leads.append(lead)
+
+    logger.info(f"[leads/count] Leads in range (by sheet date): {len(filtered_leads)}")
 
     # Count by assigned_to (check both assigned_to field and extra_fields JSON)
     result = {}
     sample_extras = []
 
-    for i, lead in enumerate(all_leads):
+    for i, lead in enumerate(filtered_leads):
         # Try assigned_to field first
         assigned = (lead.assigned_to or "").strip()
 
