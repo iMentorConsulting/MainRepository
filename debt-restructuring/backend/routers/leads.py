@@ -752,7 +752,7 @@ def count_leads_by_consultant(
     db: Session = Depends(get_db)
 ):
     """Count leads assigned to each consultant with optional date filtering.
-    Filters by Lead.date (from Google Sheets) not created_at (bulk sync time).
+    Uses same date filtering as cases endpoint (by created_at).
     Checks both assigned_to field and extra_fields JSON (for legacy synced data)."""
     from datetime import datetime, timedelta
     import json
@@ -760,60 +760,28 @@ def count_leads_by_consultant(
 
     logger = logging.getLogger(__name__)
 
-    all_leads = db.query(Lead).all()
-    logger.info(f"[leads/count] Total leads in DB: {len(all_leads)}")
+    # Build query with date filtering at DB level (same as cases endpoint)
+    query = db.query(Lead)
 
-    # Filter in-memory by parsed sheet date or created_at if no sheet date
-    filtered_leads = []
-    leads_with_dates = 0
-    leads_without_dates = 0
+    if date_from:
+        try:
+            from_date = datetime.strptime(date_from, '%Y-%m-%d').date()
+            query = query.filter(Lead.created_at >= from_date)
+            logger.info(f"[leads/count] Filtering from: {from_date}")
+        except ValueError:
+            logger.warning(f"Invalid date_from: {date_from}")
 
-    for lead in all_leads:
-        # Try to parse the sheet date first
-        lead_date = parse_any_date(lead.date) if lead.date else None
+    if date_to:
+        try:
+            to_date = datetime.strptime(date_to, '%Y-%m-%d').date()
+            to_date_end = to_date + timedelta(days=1)
+            query = query.filter(Lead.created_at < to_date_end)
+            logger.info(f"[leads/count] Filtering to: {to_date}")
+        except ValueError:
+            logger.warning(f"Invalid date_to: {date_to}")
 
-        if lead_date:
-            leads_with_dates += 1
-            # Apply date range filtering
-            if date_from:
-                try:
-                    from_date = datetime.strptime(date_from, '%Y-%m-%d').date()
-                    if lead_date.date() < from_date:
-                        continue
-                except ValueError:
-                    pass
-
-            if date_to:
-                try:
-                    to_date = datetime.strptime(date_to, '%Y-%m-%d').date()
-                    if lead_date.date() > to_date:
-                        continue
-                except ValueError:
-                    pass
-
-            filtered_leads.append(lead)
-        else:
-            leads_without_dates += 1
-            # If no parseable sheet date, fall back to created_at for date filtering
-            if date_from or date_to:
-                try:
-                    if date_from:
-                        from_date = datetime.strptime(date_from, '%Y-%m-%d').date()
-                        if lead.created_at.date() < from_date:
-                            continue
-                    if date_to:
-                        to_date = datetime.strptime(date_to, '%Y-%m-%d').date()
-                        if lead.created_at.date() > to_date:
-                            continue
-                    filtered_leads.append(lead)
-                except (ValueError, AttributeError):
-                    pass
-            else:
-                # No date filter - include all leads without sheet dates
-                filtered_leads.append(lead)
-
-    logger.info(f"[leads/count] Leads with sheet dates: {leads_with_dates}, without: {leads_without_dates}")
-    logger.info(f"[leads/count] Leads in range after filtering: {len(filtered_leads)}")
+    filtered_leads = query.all()
+    logger.info(f"[leads/count] Total leads matching date range: {len(filtered_leads)}")
 
     # Count by assigned_to (check both assigned_to field and extra_fields JSON)
     result = {}
