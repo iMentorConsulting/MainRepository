@@ -816,35 +816,19 @@ def count_leads_by_consultant(
     parsed = 0
 
     for lead in leads:
-        # Exact same parsing as daily-volume
-        d = parse_any_date(lead.date)
-        if not d:
-            unparsed += 1
-            continue
+        # Get agent FIRST - don't filter by date yet, just count all
+        agent = (lead.assigned_to or "").strip().upper()
+        if not agent:
+            agent = "NO_ASSIGNMENT"
 
-        parsed += 1
-        day_key = d.strftime("%Y-%m-%d")
-
-        # Apply date range filtering EXACTLY like daily-volume
-        if date_from:
-            try:
-                from_date_obj = datetime.strptime(date_from, '%Y-%m-%d').date()
-                if day_key < date_from:  # String comparison works for YYYY-MM-DD
-                    continue
-            except ValueError:
-                pass
-
-        if date_to:
-            try:
-                to_date_obj = datetime.strptime(date_to, '%Y-%m-%d').date()
-                if day_key > date_to:  # String comparison works for YYYY-MM-DD
-                    continue
-            except ValueError:
-                pass
-
-        # Get agent (exact same as daily-volume)
-        agent = (lead.assigned_to or "χωρίς σύμβουλο").strip().upper() or "ΧΩΡΙΣ ΣΥΜΒΟΥΛΟ"
         by_agent[agent] += 1
+
+        # Also log date parsing for debugging
+        d = parse_any_date(lead.date)
+        if d:
+            parsed += 1
+        else:
+            unparsed += 1
 
     logger.info(f"[count] Parsed: {parsed}, Unparsed: {unparsed}")
     logger.info(f"[count] Result by agent: {dict(by_agent)}")
