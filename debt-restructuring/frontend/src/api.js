@@ -116,6 +116,7 @@ export const getLeadsCountByConsultant = (dateFrom, dateTo) => {
   if (dateTo) params.date_to = dateTo
   return api.get('/leads/count-by-consultant', { params })
 }
+export const getLeadsDebugRaw = () => api.get('/leads/debug-raw')
 
 // Health / diagnostics
 export const getHealth = () => api.get('/health')

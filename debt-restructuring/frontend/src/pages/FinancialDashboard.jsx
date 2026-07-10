@@ -166,10 +166,18 @@ export default function FinancialDashboard({ currentEmployee }) {
 
   const [allEmployeeStats, setAllEmployeeStats] = useState(null)
   const [leadsCountByConsultant, setLeadsCountByConsultant] = useState(null)
+  const [debugLeadsRaw, setDebugLeadsRaw] = useState(null)
 
   useEffect(() => {
     fetchAnalytics()
   }, [empFilter, dateFromFilter, dateToFilter])
+
+  // DEBUG: Fetch raw leads data
+  useEffect(() => {
+    api.getLeadsDebugRaw()
+      .then(r => setDebugLeadsRaw(r.data))
+      .catch(err => console.error('Debug fetch failed:', err))
+  }, [])
 
   useEffect(() => {
     let dateFrom = null, dateTo = null
@@ -432,6 +440,35 @@ export default function FinancialDashboard({ currentEmployee }) {
               </div>
               <div className="text-xs text-emerald-600">
                 {realStats.settlement_details.accepted} αποδοχές από {realStats.settlement_count} συνολικές αποφάσεις
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* DEBUG: Raw Leads Data */}
+        {debugLeadsRaw && (
+          <div className="bg-red-50 rounded-2xl shadow-sm border border-red-200 p-5 mb-6">
+            <div className="flex justify-between items-center mb-3">
+              <h3 className="text-sm font-black text-red-700">🔴 DEBUG: RAW LEADS DATA (DELETE ME)</h3>
+              <span className="text-xs text-red-600 font-mono">{debugLeadsRaw.total_leads} total leads in DB</span>
+            </div>
+            <div className="bg-white rounded-lg p-3 space-y-2 text-xs font-mono">
+              <div className="text-red-600 font-bold mb-2">Leads by assigned_to field:</div>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                {Object.entries(debugLeadsRaw.by_assigned_to).map(([agent, count]) => (
+                  <div key={agent} className="bg-red-50 p-2 rounded border border-red-200">
+                    <div className="font-bold text-red-700">{agent}</div>
+                    <div className="text-red-600">{count} leads</div>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-3 text-red-600 font-bold">Sample leads (first 10):</div>
+              <div className="space-y-1 max-h-48 overflow-y-auto bg-gray-900 text-green-400 p-2 rounded text-xs">
+                {debugLeadsRaw.sample_leads.map(lead => (
+                  <div key={lead.id}>
+                    ID {lead.id}: {lead.name} | assigned_to="{lead.assigned_to}" | date={lead.date}
+                  </div>
+                ))}
               </div>
             </div>
           </div>
