@@ -460,24 +460,39 @@ export default function FinancialDashboard({ currentEmployee }) {
           </div>
           {debugLeadsRaw ? (
             <div className="bg-white rounded-lg p-3 space-y-2 text-xs font-mono">
+              {debugLeadsRaw.error && (
+                <div className="bg-orange-100 border border-orange-300 text-orange-700 p-2 rounded mb-2">
+                  ❌ ERROR: {debugLeadsRaw.error}
+                </div>
+              )}
               <div className="text-red-600 font-bold mb-2">✅ Total: {debugLeadsRaw.total_leads} leads in DB</div>
-              <div className="text-red-600 font-bold mb-2">Leads by assigned_to field:</div>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                {Object.entries(debugLeadsRaw.by_assigned_to).map(([agent, count]) => (
-                  <div key={agent} className="bg-red-50 p-2 rounded border border-red-200">
-                    <div className="font-bold text-red-700">{agent}</div>
-                    <div className="text-red-600">{count} leads</div>
+              {Object.keys(debugLeadsRaw.by_assigned_to).length > 0 ? (
+                <>
+                  <div className="text-red-600 font-bold mb-2">Leads by assigned_to field:</div>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                    {Object.entries(debugLeadsRaw.by_assigned_to).map(([agent, count]) => (
+                      <div key={agent} className="bg-red-50 p-2 rounded border border-red-200">
+                        <div className="font-bold text-red-700">{agent}</div>
+                        <div className="text-red-600">{count} leads</div>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-              <div className="mt-3 text-red-600 font-bold">Sample leads (first 10):</div>
-              <div className="space-y-1 max-h-48 overflow-y-auto bg-gray-900 text-green-400 p-2 rounded text-xs">
-                {debugLeadsRaw.sample_leads.map(lead => (
-                  <div key={lead.id}>
-                    ID {lead.id}: {lead.name} | assigned_to="{lead.assigned_to}" | date={lead.date}
+                </>
+              ) : (
+                <div className="text-orange-600 font-bold">⚠️ No leads found OR all have empty assigned_to</div>
+              )}
+              {debugLeadsRaw.sample_leads.length > 0 && (
+                <>
+                  <div className="mt-3 text-red-600 font-bold">Sample leads (first 10):</div>
+                  <div className="space-y-1 max-h-48 overflow-y-auto bg-gray-900 text-green-400 p-2 rounded text-xs">
+                    {debugLeadsRaw.sample_leads.map(lead => (
+                      <div key={lead.id}>
+                        ID {lead.id}: {lead.name} | assigned_to="{lead.assigned_to}" | date={lead.date}
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
+                </>
+              )}
             </div>
           ) : (
             <div className="text-red-600 font-bold">⏳ Loading debug data...</div>

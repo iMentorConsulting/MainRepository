@@ -751,34 +751,44 @@ def debug_raw_leads(db: Session = Depends(get_db)):
     import logging
     logger = logging.getLogger(__name__)
 
-    leads = db.query(Lead).all()
-    logger.info(f"[debug-raw] Total leads in DB: {len(leads)}")
+    try:
+        leads = db.query(Lead).all()
+        logger.info(f"[debug-raw] Total leads in DB: {len(leads)}")
 
-    # Group by assigned_to
-    by_assigned = {}
-    sample_leads = []
+        # Group by assigned_to
+        by_assigned = {}
+        sample_leads = []
 
-    for lead in leads:
-        assigned = (lead.assigned_to or "").strip().upper() or "EMPTY"
-        by_assigned[assigned] = by_assigned.get(assigned, 0) + 1
+        for lead in leads:
+            assigned = (lead.assigned_to or "").strip().upper() or "EMPTY"
+            by_assigned[assigned] = by_assigned.get(assigned, 0) + 1
 
-        if len(sample_leads) < 10:
-            sample_leads.append({
-                'id': lead.id,
-                'name': lead.name,
-                'assigned_to': lead.assigned_to,
-                'date': lead.date,
-                'status': lead.status,
-            })
+            if len(sample_leads) < 10:
+                sample_leads.append({
+                    'id': lead.id,
+                    'name': lead.name or '',
+                    'assigned_to': lead.assigned_to or '',
+                    'date': lead.date or '',
+                    'status': lead.status or '',
+                })
 
-    logger.info(f"[debug-raw] By assigned_to: {by_assigned}")
-    logger.info(f"[debug-raw] Sample leads: {sample_leads}")
+        logger.info(f"[debug-raw] By assigned_to: {by_assigned}")
+        logger.info(f"[debug-raw] Sample leads: {sample_leads}")
 
-    return {
-        'total_leads': len(leads),
-        'by_assigned_to': by_assigned,
-        'sample_leads': sample_leads
-    }
+        return {
+            'total_leads': len(leads),
+            'by_assigned_to': by_assigned,
+            'sample_leads': sample_leads,
+            'error': None
+        }
+    except Exception as e:
+        logger.error(f"[debug-raw] ERROR: {e}", exc_info=True)
+        return {
+            'total_leads': 0,
+            'by_assigned_to': {},
+            'sample_leads': [],
+            'error': str(e)
+        }
 
 
 @router.get("/count-by-consultant")
