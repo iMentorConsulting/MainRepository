@@ -172,29 +172,24 @@ export default function FinancialDashboard({ currentEmployee }) {
     fetchAnalytics()
   }, [empFilter, dateFromFilter, dateToFilter])
 
-  // DEBUG: Test simple endpoint first, then fetch raw leads data
+  // DEBUG: Fetch raw leads data
   useEffect(() => {
-    console.log('[DEBUG] Testing simple endpoint...')
-    api.getLeadsTestSimple()
-      .then(r => {
-        console.log('[DEBUG] Simple test OK:', r.data)
-
-        console.log('[DEBUG] Now fetching raw leads data...')
-        return api.getLeadsDebugRaw()
-      })
+    console.log('[DEBUG] Fetching raw leads data...')
+    api.getLeadsDebugRaw()
       .then(r => {
         console.log('[DEBUG] Raw leads response:', r.data)
-        setDebugLeadsRaw(r.data)
+        setDebugLeadsRaw(r.data || {})
       })
       .catch(err => {
         console.error('[DEBUG] Fetch failed:', err)
         console.error('[DEBUG] Error status:', err?.response?.status)
         console.error('[DEBUG] Error detail:', err?.response?.data)
+        const errorMsg = err?.response?.data?.detail || err?.message || 'Unknown error'
         setDebugLeadsRaw({
           total_leads: 0,
           by_assigned_to: {},
           sample_leads: [],
-          error: err?.response?.data?.detail || err.message || 'Unknown error'
+          error: errorMsg
         })
       })
   }, [])
@@ -474,11 +469,11 @@ export default function FinancialDashboard({ currentEmployee }) {
             <div className="bg-white rounded-lg p-3 space-y-2 text-xs font-mono">
               {debugLeadsRaw.error && (
                 <div className="bg-orange-100 border border-orange-300 text-orange-700 p-2 rounded mb-2">
-                  ❌ ERROR: {debugLeadsRaw.error}
+                  ❌ ERROR: {String(debugLeadsRaw.error)}
                 </div>
               )}
-              <div className="text-red-600 font-bold mb-2">✅ Total: {debugLeadsRaw.total_leads} leads in DB</div>
-              {Object.keys(debugLeadsRaw.by_assigned_to).length > 0 ? (
+              <div className="text-red-600 font-bold mb-2">✅ Total: {debugLeadsRaw.total_leads || 0} leads in DB</div>
+              {debugLeadsRaw.by_assigned_to && Object.keys(debugLeadsRaw.by_assigned_to).length > 0 ? (
                 <>
                   <div className="text-red-600 font-bold mb-2">Leads by assigned_to field:</div>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
@@ -493,13 +488,13 @@ export default function FinancialDashboard({ currentEmployee }) {
               ) : (
                 <div className="text-orange-600 font-bold">⚠️ No leads found OR all have empty assigned_to</div>
               )}
-              {debugLeadsRaw.sample_leads.length > 0 && (
+              {debugLeadsRaw.sample_leads && debugLeadsRaw.sample_leads.length > 0 && (
                 <>
                   <div className="mt-3 text-red-600 font-bold">Sample leads (first 10):</div>
                   <div className="space-y-1 max-h-48 overflow-y-auto bg-gray-900 text-green-400 p-2 rounded text-xs">
-                    {debugLeadsRaw.sample_leads.map(lead => (
-                      <div key={lead.id}>
-                        ID {lead.id}: {lead.name} | assigned_to="{lead.assigned_to}" | date={lead.date}
+                    {debugLeadsRaw.sample_leads.map((lead, idx) => (
+                      <div key={lead?.id || idx}>
+                        ID {lead?.id}: {lead?.name} | assigned_to="{lead?.assigned_to}" | date={lead?.date}
                       </div>
                     ))}
                   </div>
