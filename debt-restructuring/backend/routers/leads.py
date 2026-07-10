@@ -751,71 +751,66 @@ def count_leads_by_consultant(
     date_to: Optional[str] = Query(None),
     db: Session = Depends(get_db)
 ):
-    """Count leads assigned to each consultant with optional date filtering.
-    Uses same date filtering as cases endpoint (by created_at).
-    Checks both assigned_to field and extra_fields JSON (for legacy synced data)."""
-    from datetime import datetime, timedelta
-    import json
+    """Count total leads assigned to each consultant within date range.
+    Uses EXACT same logic as daily-volume endpoint (parse Lead.date, use assigned_to).
+    """
+    from collections import defaultdict
     import logging
 
     logger = logging.getLogger(__name__)
 
-    # For now, get ALL leads (ignore date filtering) because bulk-synced leads
-    # all have same created_at timestamp so date filtering returns 0
-    # TODO: Use Lead.date field for filtering instead
-    all_leads = db.query(Lead).all()
-    logger.info(f"[leads/count] Total leads in DB: {len(all_leads)}")
-    logger.info(f"[leads/count] Date filter requested - from: {date_from}, to: {date_to} (currently ignored)")
+    try:
+        leads = db.query(Lead).all()
+    except Exception as e:
+        logger.error(f"DB error: {e}")
+        return {"STELLA": 0, "VALLIA": 0, "SOFIA": 0}
 
-    filtered_leads = all_leads
+    agent_totals = defaultdict(int)
+    leads_with_date = 0
+    leads_without_date = 0
+    leads_outside_range = 0
 
-    # Count by assigned consultant
-    # Strategy: Check assigned_to → extra_fields["ΣΥΜΒΟΥΛΟΣ"] → linked case's employee
-    from models import Case
+    for lead in leads:
+        # Parse date from lead.date field (same as daily-volume endpoint)
+        d = parse_any_date(lead.date)
+        if not d:
+            leads_without_date += 1
+            continue
 
-    result = {}
-    sample_leads = []
+        leads_with_date += 1
+        day_key = d.strftime("%Y-%m-%d")
 
-    for i, lead in enumerate(filtered_leads):
-        assigned = None
-
-        # 1. Check assigned_to field
-        if lead.assigned_to and lead.assigned_to.strip():
-            assigned = lead.assigned_to.strip()
-
-        # 2. Check extra_fields for ΣΥΜΒΟΥΛΟΣ
-        elif lead.extra_fields:
+        # Apply date filtering if provided
+        if date_from:
             try:
-                extra = lead.extra_fields if isinstance(lead.extra_fields, dict) else json.loads(lead.extra_fields or "{}")
-                assigned = (extra.get("ΣΥΜΒΟΥΛΟΣ") or extra.get("Σύμβουλος") or extra.get("Agent") or "").strip()
-                if assigned and not assigned:
-                    assigned = None
-            except (json.JSONDecodeError, TypeError):
-                assigned = None
+                from_date = datetime.strptime(date_from, '%Y-%m-%d').date()
+                if d.date() < from_date:
+                    leads_outside_range += 1
+                    continue
+            except ValueError:
+                pass
 
-        # 3. Check linked case's employee field
-        if not assigned and lead.linked_case_id:
+        if date_to:
             try:
-                case = db.query(Case).filter(Case.id == lead.linked_case_id).first()
-                if case and case.employee:
-                    assigned = case.employee
-            except Exception as e:
-                logger.warning(f"[leads/count] Error querying linked case {lead.linked_case_id}: {e}")
+                to_date = datetime.strptime(date_to, '%Y-%m-%d').date()
+                if d.date() > to_date:
+                    leads_outside_range += 1
+                    continue
+            except ValueError:
+                pass
 
-        if assigned:
-            result[assigned] = result.get(assigned, 0) + 1
-            if i < 5:
-                sample_leads.append({
-                    'id': lead.id,
-                    'name': lead.name,
-                    'assigned_to': lead.assigned_to,
-                    'linked_case_id': lead.linked_case_id,
-                    'resolved_as': assigned
-                })
+        # Get agent from assigned_to (same as daily-volume)
+        agent = (lead.assigned_to or "").strip().upper()
+        if not agent:
+            agent = "NO_ASSIGNMENT"
 
-    logger.info(f"[leads/count] Total leads with consultant assignment: {sum(result.values())}")
-    logger.info(f"[leads/count] Consultants found: {result}")
-    logger.info(f"[leads/count] Sample leads (first 5): {sample_leads}")
+        agent_totals[agent] += 1
 
-    # Return result or defaults
+    logger.info(f"[count-by-consultant] Total: {len(leads)} leads")
+    logger.info(f"[count-by-consultant] With parseable date: {leads_with_date}, Without: {leads_without_date}")
+    logger.info(f"[count-by-consultant] Outside date range: {leads_outside_range}")
+    logger.info(f"[count-by-consultant] Result: {dict(agent_totals)}")
+
+    # Convert to regular dict and return with defaults
+    result = dict(agent_totals)
     return result if result else {"STELLA": 0, "VALLIA": 0, "SOFIA": 0}
