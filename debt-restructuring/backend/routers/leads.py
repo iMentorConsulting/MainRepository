@@ -582,6 +582,51 @@ def get_daily_volume(db: Session = Depends(get_db)):
     }
 
 
+@router.get("/debug-raw")
+def debug_raw_leads(db: Session = Depends(get_db)):
+    """DEBUG ONLY: Return raw leads data to verify fetching works."""
+    import logging
+    logger = logging.getLogger(__name__)
+
+    logger.info(f"[debug-raw] Starting query...")
+    logger.info(f"[debug-raw] Database session: {db}")
+
+    leads = db.query(Lead).all()
+    logger.info(f"[debug-raw] Query completed. Total leads in DB: {len(leads)}")
+
+    if len(leads) == 0:
+        logger.warning(f"[debug-raw] WARNING: No leads found in database!")
+    else:
+        logger.info(f"[debug-raw] Found leads. First 3: {[{'id': l.id, 'name': l.name, 'assigned_to': l.assigned_to} for l in leads[:3]]}")
+
+    # Group by assigned_to
+    by_assigned = {}
+    sample_leads = []
+
+    for lead in leads:
+        assigned = (lead.assigned_to or "").strip().upper() or "EMPTY"
+        by_assigned[assigned] = by_assigned.get(assigned, 0) + 1
+
+        if len(sample_leads) < 10:
+            sample_leads.append({
+                'id': lead.id,
+                'name': lead.name or '',
+                'assigned_to': lead.assigned_to or '',
+                'date': lead.date or '',
+                'status': lead.status or '',
+            })
+
+    logger.info(f"[debug-raw] By assigned_to: {by_assigned}")
+    logger.info(f"[debug-raw] Sample leads: {sample_leads}")
+
+    return {
+        'total_leads': len(leads),
+        'by_assigned_to': by_assigned,
+        'sample_leads': sample_leads,
+        'error': None
+    }
+
+
 @router.get("/{lead_id}")
 def get_lead(lead_id: int, db: Session = Depends(get_db)):
     lead = db.query(Lead).filter(Lead.id == lead_id).first()
@@ -749,51 +794,6 @@ def send_email(lead_id: int, data: EmailLeadRequest, db: Session = Depends(get_d
 def test_simple():
     """Simple test endpoint."""
     return {"status": "OK", "message": "Test endpoint works"}
-
-
-@router.get("/debug-raw")
-def debug_raw_leads(db: Session = Depends(get_db)):
-    """DEBUG ONLY: Return raw leads data to verify fetching works."""
-    import logging
-    logger = logging.getLogger(__name__)
-
-    logger.info(f"[debug-raw] Starting query...")
-    logger.info(f"[debug-raw] Database session: {db}")
-
-    leads = db.query(Lead).all()
-    logger.info(f"[debug-raw] Query completed. Total leads in DB: {len(leads)}")
-
-    if len(leads) == 0:
-        logger.warning(f"[debug-raw] WARNING: No leads found in database!")
-    else:
-        logger.info(f"[debug-raw] Found leads. First 3: {[{'id': l.id, 'name': l.name, 'assigned_to': l.assigned_to} for l in leads[:3]]}")
-
-    # Group by assigned_to
-    by_assigned = {}
-    sample_leads = []
-
-    for lead in leads:
-        assigned = (lead.assigned_to or "").strip().upper() or "EMPTY"
-        by_assigned[assigned] = by_assigned.get(assigned, 0) + 1
-
-        if len(sample_leads) < 10:
-            sample_leads.append({
-                'id': lead.id,
-                'name': lead.name or '',
-                'assigned_to': lead.assigned_to or '',
-                'date': lead.date or '',
-                'status': lead.status or '',
-            })
-
-    logger.info(f"[debug-raw] By assigned_to: {by_assigned}")
-    logger.info(f"[debug-raw] Sample leads: {sample_leads}")
-
-    return {
-        'total_leads': len(leads),
-        'by_assigned_to': by_assigned,
-        'sample_leads': sample_leads,
-        'error': None
-    }
 
 
 @router.get("/count-by-consultant")
