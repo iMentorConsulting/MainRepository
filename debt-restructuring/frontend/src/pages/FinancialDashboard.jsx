@@ -174,9 +174,17 @@ export default function FinancialDashboard({ currentEmployee }) {
 
   // DEBUG: Fetch raw leads data
   useEffect(() => {
+    console.log('[DEBUG] Fetching raw leads data...')
     api.getLeadsDebugRaw()
-      .then(r => setDebugLeadsRaw(r.data))
-      .catch(err => console.error('Debug fetch failed:', err))
+      .then(r => {
+        console.log('[DEBUG] Raw leads response:', r.data)
+        setDebugLeadsRaw(r.data)
+      })
+      .catch(err => {
+        console.error('[DEBUG] Fetch failed:', err)
+        console.error('[DEBUG] Error status:', err?.response?.status)
+        console.error('[DEBUG] Error detail:', err?.response?.data)
+      })
   }, [])
 
   useEffect(() => {
@@ -445,14 +453,14 @@ export default function FinancialDashboard({ currentEmployee }) {
           </div>
         )}
 
-        {/* DEBUG: Raw Leads Data */}
-        {debugLeadsRaw && (
-          <div className="bg-red-50 rounded-2xl shadow-sm border border-red-200 p-5 mb-6">
-            <div className="flex justify-between items-center mb-3">
-              <h3 className="text-sm font-black text-red-700">🔴 DEBUG: RAW LEADS DATA (DELETE ME)</h3>
-              <span className="text-xs text-red-600 font-mono">{debugLeadsRaw.total_leads} total leads in DB</span>
-            </div>
+        {/* DEBUG: Raw Leads Data - ALWAYS SHOW FOR DEBUGGING */}
+        <div className="bg-red-50 rounded-2xl shadow-sm border border-red-200 p-5 mb-6">
+          <div className="flex justify-between items-center mb-3">
+            <h3 className="text-sm font-black text-red-700">🔴 DEBUG: RAW LEADS DATA (DELETE ME)</h3>
+          </div>
+          {debugLeadsRaw ? (
             <div className="bg-white rounded-lg p-3 space-y-2 text-xs font-mono">
+              <div className="text-red-600 font-bold mb-2">✅ Total: {debugLeadsRaw.total_leads} leads in DB</div>
               <div className="text-red-600 font-bold mb-2">Leads by assigned_to field:</div>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                 {Object.entries(debugLeadsRaw.by_assigned_to).map(([agent, count]) => (
@@ -471,8 +479,10 @@ export default function FinancialDashboard({ currentEmployee }) {
                 ))}
               </div>
             </div>
-          </div>
-        )}
+          ) : (
+            <div className="text-red-600 font-bold">⏳ Loading debug data...</div>
+          )}
+        </div>
 
         {/* Per-Employee Breakdown — EXCLUDING HARIS */}
         {allEmployeeStats && Object.keys(allEmployeeStats).filter(e => e !== 'HARIS').length > 0 && (
