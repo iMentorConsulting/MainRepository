@@ -172,10 +172,16 @@ export default function FinancialDashboard({ currentEmployee }) {
     fetchAnalytics()
   }, [empFilter, dateFromFilter, dateToFilter])
 
-  // DEBUG: Fetch raw leads data
+  // DEBUG: Test simple endpoint first, then fetch raw leads data
   useEffect(() => {
-    console.log('[DEBUG] Fetching raw leads data...')
-    api.getLeadsDebugRaw()
+    console.log('[DEBUG] Testing simple endpoint...')
+    api.getLeadsTestSimple()
+      .then(r => {
+        console.log('[DEBUG] Simple test OK:', r.data)
+
+        console.log('[DEBUG] Now fetching raw leads data...')
+        return api.getLeadsDebugRaw()
+      })
       .then(r => {
         console.log('[DEBUG] Raw leads response:', r.data)
         setDebugLeadsRaw(r.data)
@@ -184,6 +190,12 @@ export default function FinancialDashboard({ currentEmployee }) {
         console.error('[DEBUG] Fetch failed:', err)
         console.error('[DEBUG] Error status:', err?.response?.status)
         console.error('[DEBUG] Error detail:', err?.response?.data)
+        setDebugLeadsRaw({
+          total_leads: 0,
+          by_assigned_to: {},
+          sample_leads: [],
+          error: err?.response?.data?.detail || err.message || 'Unknown error'
+        })
       })
   }, [])
 

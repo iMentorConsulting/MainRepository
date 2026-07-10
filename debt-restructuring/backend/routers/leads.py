@@ -745,6 +745,12 @@ def send_email(lead_id: int, data: EmailLeadRequest, db: Session = Depends(get_d
     return {"ok": True}
 
 
+@router.get("/test-simple")
+def test_simple():
+    """Simple test endpoint."""
+    return {"status": "OK", "message": "Test endpoint works"}
+
+
 @router.get("/debug-raw")
 def debug_raw_leads(db: Session = Depends(get_db)):
     """DEBUG ONLY: Return raw leads data to verify fetching works."""

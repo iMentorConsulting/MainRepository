@@ -117,6 +117,7 @@ export const getLeadsCountByConsultant = (dateFrom, dateTo) => {
   return api.get('/leads/count-by-consultant', { params })
 }
 export const getLeadsDebugRaw = () => api.get('/leads/debug-raw')
+export const getLeadsTestSimple = () => api.get('/leads/test-simple')
 
 // Health / diagnostics
 export const getHealth = () => api.get('/health')
