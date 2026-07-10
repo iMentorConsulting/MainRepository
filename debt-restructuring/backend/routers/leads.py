@@ -763,12 +763,17 @@ def count_leads_by_consultant(
     all_leads = db.query(Lead).all()
     logger.info(f"[leads/count] Total leads in DB: {len(all_leads)}")
 
-    # Filter in-memory by parsed sheet date (not created_at which is sync timestamp)
+    # Filter in-memory by parsed sheet date or created_at if no sheet date
     filtered_leads = []
+    leads_with_dates = 0
+    leads_without_dates = 0
+
     for lead in all_leads:
-        # Parse the sheet date if present
-        lead_date = parse_any_date(lead.date)
+        # Try to parse the sheet date first
+        lead_date = parse_any_date(lead.date) if lead.date else None
+
         if lead_date:
+            leads_with_dates += 1
             # Apply date range filtering
             if date_from:
                 try:
@@ -787,11 +792,28 @@ def count_leads_by_consultant(
                     pass
 
             filtered_leads.append(lead)
-        elif not date_from and not date_to:
-            # If no date filter requested and lead has no parseable date, include it
-            filtered_leads.append(lead)
+        else:
+            leads_without_dates += 1
+            # If no parseable sheet date, fall back to created_at for date filtering
+            if date_from or date_to:
+                try:
+                    if date_from:
+                        from_date = datetime.strptime(date_from, '%Y-%m-%d').date()
+                        if lead.created_at.date() < from_date:
+                            continue
+                    if date_to:
+                        to_date = datetime.strptime(date_to, '%Y-%m-%d').date()
+                        if lead.created_at.date() > to_date:
+                            continue
+                    filtered_leads.append(lead)
+                except (ValueError, AttributeError):
+                    pass
+            else:
+                # No date filter - include all leads without sheet dates
+                filtered_leads.append(lead)
 
-    logger.info(f"[leads/count] Leads in range (by sheet date): {len(filtered_leads)}")
+    logger.info(f"[leads/count] Leads with sheet dates: {leads_with_dates}, without: {leads_without_dates}")
+    logger.info(f"[leads/count] Leads in range after filtering: {len(filtered_leads)}")
 
     # Count by assigned_to (check both assigned_to field and extra_fields JSON)
     result = {}
