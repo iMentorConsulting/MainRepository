@@ -757,50 +757,43 @@ def debug_raw_leads(db: Session = Depends(get_db)):
     import logging
     logger = logging.getLogger(__name__)
 
-    try:
-        logger.info(f"[debug-raw] Starting query...")
-        leads = db.query(Lead).all()
-        logger.info(f"[debug-raw] Query completed. Total leads in DB: {len(leads)}")
+    logger.info(f"[debug-raw] Starting query...")
+    logger.info(f"[debug-raw] Database session: {db}")
 
-        if len(leads) == 0:
-            logger.warning(f"[debug-raw] WARNING: No leads found in database!")
-        else:
-            logger.info(f"[debug-raw] Found leads. First 3: {[{'id': l.id, 'name': l.name, 'assigned_to': l.assigned_to} for l in leads[:3]]}")
+    leads = db.query(Lead).all()
+    logger.info(f"[debug-raw] Query completed. Total leads in DB: {len(leads)}")
 
-        # Group by assigned_to
-        by_assigned = {}
-        sample_leads = []
+    if len(leads) == 0:
+        logger.warning(f"[debug-raw] WARNING: No leads found in database!")
+    else:
+        logger.info(f"[debug-raw] Found leads. First 3: {[{'id': l.id, 'name': l.name, 'assigned_to': l.assigned_to} for l in leads[:3]]}")
 
-        for lead in leads:
-            assigned = (lead.assigned_to or "").strip().upper() or "EMPTY"
-            by_assigned[assigned] = by_assigned.get(assigned, 0) + 1
+    # Group by assigned_to
+    by_assigned = {}
+    sample_leads = []
 
-            if len(sample_leads) < 10:
-                sample_leads.append({
-                    'id': lead.id,
-                    'name': lead.name or '',
-                    'assigned_to': lead.assigned_to or '',
-                    'date': lead.date or '',
-                    'status': lead.status or '',
-                })
+    for lead in leads:
+        assigned = (lead.assigned_to or "").strip().upper() or "EMPTY"
+        by_assigned[assigned] = by_assigned.get(assigned, 0) + 1
 
-        logger.info(f"[debug-raw] By assigned_to: {by_assigned}")
-        logger.info(f"[debug-raw] Sample leads: {sample_leads}")
+        if len(sample_leads) < 10:
+            sample_leads.append({
+                'id': lead.id,
+                'name': lead.name or '',
+                'assigned_to': lead.assigned_to or '',
+                'date': lead.date or '',
+                'status': lead.status or '',
+            })
 
-        return {
-            'total_leads': len(leads),
-            'by_assigned_to': by_assigned,
-            'sample_leads': sample_leads,
-            'error': None
-        }
-    except Exception as e:
-        logger.error(f"[debug-raw] ERROR: {e}", exc_info=True)
-        return {
-            'total_leads': 0,
-            'by_assigned_to': {},
-            'sample_leads': [],
-            'error': str(e)
-        }
+    logger.info(f"[debug-raw] By assigned_to: {by_assigned}")
+    logger.info(f"[debug-raw] Sample leads: {sample_leads}")
+
+    return {
+        'total_leads': len(leads),
+        'by_assigned_to': by_assigned,
+        'sample_leads': sample_leads,
+        'error': None
+    }
 
 
 @router.get("/count-by-consultant")
