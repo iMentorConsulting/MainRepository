@@ -802,66 +802,51 @@ def count_leads_by_consultant(
     date_to: Optional[str] = Query(None),
     db: Session = Depends(get_db)
 ):
-    """Count total leads assigned to each consultant within date range.
-    Uses EXACT same logic as daily-volume endpoint (parse Lead.date, use assigned_to).
-    """
+    """Count leads by consultant, copied from working daily-volume logic."""
     from collections import defaultdict
     import logging
 
     logger = logging.getLogger(__name__)
 
-    try:
-        leads = db.query(Lead).all()
-    except Exception as e:
-        logger.error(f"DB error: {e}")
-        return {"STELLA": 0, "VALLIA": 0, "SOFIA": 0}
+    leads = db.query(Lead).all()
+    logger.info(f"[count] Queried {len(leads)} total leads from DB")
 
-    agent_totals = defaultdict(int)
-    leads_with_date = 0
-    leads_without_date = 0
-    leads_outside_range = 0
+    by_agent = defaultdict(int)
+    unparsed = 0
+    parsed = 0
 
     for lead in leads:
-        # Parse date from lead.date field (same as daily-volume endpoint)
+        # Exact same parsing as daily-volume
         d = parse_any_date(lead.date)
         if not d:
-            leads_without_date += 1
+            unparsed += 1
             continue
 
-        leads_with_date += 1
+        parsed += 1
         day_key = d.strftime("%Y-%m-%d")
 
-        # Apply date filtering if provided
+        # Apply date range filtering EXACTLY like daily-volume
         if date_from:
             try:
-                from_date = datetime.strptime(date_from, '%Y-%m-%d').date()
-                if d.date() < from_date:
-                    leads_outside_range += 1
+                from_date_obj = datetime.strptime(date_from, '%Y-%m-%d').date()
+                if day_key < date_from:  # String comparison works for YYYY-MM-DD
                     continue
             except ValueError:
                 pass
 
         if date_to:
             try:
-                to_date = datetime.strptime(date_to, '%Y-%m-%d').date()
-                if d.date() > to_date:
-                    leads_outside_range += 1
+                to_date_obj = datetime.strptime(date_to, '%Y-%m-%d').date()
+                if day_key > date_to:  # String comparison works for YYYY-MM-DD
                     continue
             except ValueError:
                 pass
 
-        # Get agent from assigned_to (same as daily-volume)
-        agent = (lead.assigned_to or "").strip().upper()
-        if not agent:
-            agent = "NO_ASSIGNMENT"
+        # Get agent (exact same as daily-volume)
+        agent = (lead.assigned_to or "χωρίς σύμβουλο").strip().upper() or "ΧΩΡΙΣ ΣΥΜΒΟΥΛΟ"
+        by_agent[agent] += 1
 
-        agent_totals[agent] += 1
+    logger.info(f"[count] Parsed: {parsed}, Unparsed: {unparsed}")
+    logger.info(f"[count] Result by agent: {dict(by_agent)}")
 
-    logger.info(f"[count-by-consultant] Total: {len(leads)} leads")
-    logger.info(f"[count-by-consultant] With parseable date: {leads_with_date}, Without: {leads_without_date}")
-    logger.info(f"[count-by-consultant] Outside date range: {leads_outside_range}")
-    logger.info(f"[count-by-consultant] Result: {dict(agent_totals)}")
-
-    # Convert to regular dict and return with defaults
-    result = dict(agent_totals)
-    return result if result else {"STELLA": 0, "VALLIA": 0, "SOFIA": 0}
+    return dict(by_agent) if by_agent else {}
