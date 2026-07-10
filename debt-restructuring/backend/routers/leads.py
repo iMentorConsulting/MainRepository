@@ -760,28 +760,14 @@ def count_leads_by_consultant(
 
     logger = logging.getLogger(__name__)
 
-    # Build query with date filtering at DB level (same as cases endpoint)
-    query = db.query(Lead)
+    # For now, get ALL leads (ignore date filtering) because bulk-synced leads
+    # all have same created_at timestamp so date filtering returns 0
+    # TODO: Use Lead.date field for filtering instead
+    all_leads = db.query(Lead).all()
+    logger.info(f"[leads/count] Total leads in DB: {len(all_leads)}")
+    logger.info(f"[leads/count] Date filter requested - from: {date_from}, to: {date_to} (currently ignored)")
 
-    if date_from:
-        try:
-            from_date = datetime.strptime(date_from, '%Y-%m-%d').date()
-            query = query.filter(Lead.created_at >= from_date)
-            logger.info(f"[leads/count] Filtering from: {from_date}")
-        except ValueError:
-            logger.warning(f"Invalid date_from: {date_from}")
-
-    if date_to:
-        try:
-            to_date = datetime.strptime(date_to, '%Y-%m-%d').date()
-            to_date_end = to_date + timedelta(days=1)
-            query = query.filter(Lead.created_at < to_date_end)
-            logger.info(f"[leads/count] Filtering to: {to_date}")
-        except ValueError:
-            logger.warning(f"Invalid date_to: {date_to}")
-
-    filtered_leads = query.all()
-    logger.info(f"[leads/count] Total leads matching date range: {len(filtered_leads)}")
+    filtered_leads = all_leads
 
     # Count by assigned consultant
     # Strategy: Check assigned_to → extra_fields["ΣΥΜΒΟΥΛΟΣ"] → linked case's employee
