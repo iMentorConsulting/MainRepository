@@ -758,8 +758,14 @@ def debug_raw_leads(db: Session = Depends(get_db)):
     logger = logging.getLogger(__name__)
 
     try:
+        logger.info(f"[debug-raw] Starting query...")
         leads = db.query(Lead).all()
-        logger.info(f"[debug-raw] Total leads in DB: {len(leads)}")
+        logger.info(f"[debug-raw] Query completed. Total leads in DB: {len(leads)}")
+
+        if len(leads) == 0:
+            logger.warning(f"[debug-raw] WARNING: No leads found in database!")
+        else:
+            logger.info(f"[debug-raw] Found leads. First 3: {[{'id': l.id, 'name': l.name, 'assigned_to': l.assigned_to} for l in leads[:3]]}")
 
         # Group by assigned_to
         by_assigned = {}

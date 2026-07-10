@@ -469,7 +469,7 @@ export default function FinancialDashboard({ currentEmployee }) {
             <div className="bg-white rounded-lg p-3 space-y-2 text-xs font-mono">
               {debugLeadsRaw.error && (
                 <div className="bg-orange-100 border border-orange-300 text-orange-700 p-2 rounded mb-2">
-                  ❌ ERROR: {String(debugLeadsRaw.error)}
+                  ❌ ERROR: {typeof debugLeadsRaw.error === 'string' ? debugLeadsRaw.error : JSON.stringify(debugLeadsRaw.error)}
                 </div>
               )}
               <div className="text-red-600 font-bold mb-2">✅ Total: {debugLeadsRaw.total_leads || 0} leads in DB</div>
