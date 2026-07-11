@@ -127,6 +127,28 @@ class CallAttemptLog(BaseModel):
     notes: str = ""
 
 
+class BulkImportCall(BaseModel):
+    lead_id: int
+    consultant: str
+    date: Optional[str] = None  # YYYY-MM-DD or timestamp
+    answered: Optional[bool] = None
+    duration_seconds: Optional[int] = None
+    notes: str = ""
+
+
+class BulkImportViber(BaseModel):
+    lead_id: int
+    consultant: str
+    date: Optional[str] = None  # YYYY-MM-DD or timestamp
+    message: str
+    success: bool = True
+
+
+class BulkImportRequest(BaseModel):
+    calls: Optional[List[BulkImportCall]] = None
+    vibers: Optional[List[BulkImportViber]] = None
+
+
 # ── Helpers (copied from cases router) ───────────────────────────────────────
 
 def _chatwoot_send(client_name: str, phone: str, message: str) -> tuple:
@@ -1169,3 +1191,92 @@ def get_consultant_performance_metrics(
         }
 
     return result
+
+
+@router.post("/admin/import-bulk")
+def bulk_import_calls_and_vibers(
+    data: BulkImportRequest,
+    db: Session = Depends(get_db)
+):
+    """Bulk import historical call attempts and viber messages for backfilling data."""
+    from datetime import datetime as dt
+
+    stats = {
+        "calls_imported": 0,
+        "calls_failed": 0,
+        "vibers_imported": 0,
+        "vibers_failed": 0,
+        "errors": []
+    }
+
+    # Import calls
+    if data.calls:
+        for i, call_data in enumerate(data.calls):
+            try:
+                # Parse date if provided
+                call_date = None
+                if call_data.date:
+                    try:
+                        # Try YYYY-MM-DD first
+                        if len(call_data.date) == 10:
+                            call_date = dt.strptime(call_data.date, "%Y-%m-%d").replace(tzinfo=None)
+                        else:
+                            # Try ISO format
+                            call_date = dt.fromisoformat(call_data.date.replace('Z', '+00:00')).replace(tzinfo=None)
+                    except:
+                        call_date = _now()
+                else:
+                    call_date = _now()
+
+                call = CallAttempt(
+                    lead_id=call_data.lead_id,
+                    consultant=call_data.consultant.strip().upper(),
+                    answered=call_data.answered,
+                    duration_seconds=call_data.duration_seconds,
+                    notes=call_data.notes,
+                    created_at=call_date
+                )
+                db.add(call)
+                stats["calls_imported"] += 1
+            except Exception as e:
+                stats["calls_failed"] += 1
+                stats["errors"].append(f"Call {i}: {str(e)}")
+
+    # Import vibers
+    if data.vibers:
+        for i, viber_data in enumerate(data.vibers):
+            try:
+                # Parse date if provided
+                viber_date = None
+                if viber_data.date:
+                    try:
+                        if len(viber_data.date) == 10:
+                            viber_date = dt.strptime(viber_data.date, "%Y-%m-%d").replace(tzinfo=None)
+                        else:
+                            viber_date = dt.fromisoformat(viber_data.date.replace('Z', '+00:00')).replace(tzinfo=None)
+                    except:
+                        viber_date = _now()
+                else:
+                    viber_date = _now()
+
+                viber = ViberMessage(
+                    lead_id=viber_data.lead_id,
+                    consultant=viber_data.consultant.strip().upper(),
+                    message=viber_data.message,
+                    success=viber_data.success,
+                    created_at=viber_date
+                )
+                db.add(viber)
+                stats["vibers_imported"] += 1
+            except Exception as e:
+                stats["vibers_failed"] += 1
+                stats["errors"].append(f"Viber {i}: {str(e)}")
+
+    try:
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        stats["errors"].append(f"Database commit failed: {str(e)}")
+        return {"ok": False, "stats": stats}
+
+    return {"ok": True, "stats": stats}
