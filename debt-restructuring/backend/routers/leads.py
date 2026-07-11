@@ -966,6 +966,33 @@ def get_calls_by_consultant(
     return result
 
 
+@router.get("/debug/case-linking")
+def debug_case_linking(db: Session = Depends(get_db)):
+    """Debug endpoint to check case linking issues."""
+    from collections import Counter
+
+    leads = db.query(Lead).all()
+    cases = db.query(Case).all()
+
+    # Count leads by linked_case_id
+    linked_case_ids = [lead.linked_case_id for lead in leads if lead.linked_case_id]
+    case_ids = set(c.id for c in cases)
+
+    orphaned = [cid for cid in linked_case_ids if cid not in case_ids]
+    valid = [cid for cid in linked_case_ids if cid in case_ids]
+
+    return {
+        "total_leads": len(leads),
+        "leads_with_linked_case_id": len(linked_case_ids),
+        "total_cases": len(cases),
+        "case_ids": list(case_ids)[:20],  # First 20 case IDs
+        "valid_linked_cases": len(valid),
+        "orphaned_linked_cases": len(orphaned),
+        "orphaned_case_ids": orphaned[:20],  # First 20 orphaned IDs
+        "case_id_frequency": dict(Counter(linked_case_ids).most_common(10))  # Which cases have most leads
+    }
+
+
 @router.get("/viber/stats-by-consultant")
 def get_viber_stats_by_consultant(
     date_from: Optional[str] = Query(None),
