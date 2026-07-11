@@ -18,6 +18,7 @@ import {
 import * as api from '../api'
 import { patchOffer, approveWinback, sendWinback } from '../api'
 import { toast } from 'react-hot-toast'
+import PerformanceAnalysisDashboard from '../components/PerformanceAnalysisDashboard'
 import {
   DEFAULT_PRICING_CONFIG,
   loadPricingConfig,
@@ -498,6 +499,9 @@ export default function FinancialDashboard({ currentEmployee }) {
             </div>
           </div>
         )}
+
+        {/* Performance Analysis Dashboard */}
+        <PerformanceAnalysisDashboard dateFromFilter={dateFromFilter} dateToFilter={dateToFilter} />
 
         {/* Sliders */}
         <div className="grid md:grid-cols-2 gap-5 mb-6">
