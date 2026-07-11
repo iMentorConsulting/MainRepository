@@ -115,6 +115,12 @@ export const getCallStatsByConsultant = (dateFrom, dateTo) => {
   if (dateTo) params.date_to = dateTo
   return api.get('/leads/calls/stats-by-consultant', { params })
 }
+export const getViberStatsByConsultant = (dateFrom, dateTo) => {
+  const params = {}
+  if (dateFrom) params.date_from = dateFrom
+  if (dateTo) params.date_to = dateTo
+  return api.get('/leads/viber/stats-by-consultant', { params })
+}
 export const getLeadsReporting = () => api.get('/leads/reporting')
 export const getLeadsDailyVolume = () => api.get('/leads/daily-volume')
 export const getLeadsCountByConsultant = (dateFrom, dateTo) => {

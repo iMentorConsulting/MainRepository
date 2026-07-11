@@ -68,7 +68,7 @@ def parse_any_date(value):
     return None
 
 from database import get_db
-from models import Lead, CallAttempt
+from models import Lead, CallAttempt, ViberMessage
 from auth_utils import get_current_user
 
 router = APIRouter(prefix="/leads", tags=["leads"], dependencies=[Depends(get_current_user)])
@@ -796,6 +796,16 @@ def send_viber(lead_id: int, data: ViberLeadRequest, db: Session = Depends(get_d
     comments.append({"text": f"📱 Viber εστάλη: {data.message[:80]}…" if len(data.message) > 80 else f"📱 Viber εστάλη: {data.message}", "author": "system", "at": _now().isoformat()})
     lead.app_comments = comments
     lead.updated_at = _now()
+
+    # Log in viber_messages table for analytics
+    viber = ViberMessage(
+        lead_id=lead_id,
+        consultant=(lead.assigned_to or "").strip().upper(),
+        message=data.message,
+        success=True,
+        error=""
+    )
+    db.add(viber)
     db.commit()
     return {"ok": True}
 
@@ -969,3 +979,57 @@ def get_calls_by_consultant(
         }
 
     return result
+
+
+@router.get("/viber/stats-by-consultant")
+def get_viber_stats_by_consultant(
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
+    db: Session = Depends(get_db)
+):
+    """Get Viber message statistics by consultant with optional date filtering."""
+    from collections import defaultdict
+    from datetime import datetime as dt
+
+    messages = db.query(ViberMessage).all()
+
+    # Parse date boundaries
+    from_boundary = None
+    to_boundary = None
+    if date_from:
+        try:
+            from_boundary = dt.strptime(date_from, "%Y-%m-%d")
+        except (ValueError, TypeError):
+            pass
+
+    if date_to:
+        try:
+            to_boundary = dt.strptime(date_to, "%Y-%m-%d")
+        except (ValueError, TypeError):
+            pass
+
+    # Aggregate by consultant
+    stats = defaultdict(lambda: {
+        "total_sent": 0,
+        "successful": 0,
+        "failed": 0,
+    })
+
+    for msg in messages:
+        # Filter by date range
+        if from_boundary and msg.created_at.date() < from_boundary.date():
+            continue
+        if to_boundary:
+            to_end = to_boundary.replace(hour=23, minute=59, second=59)
+            if msg.created_at > to_end:
+                continue
+
+        consultant = msg.consultant or "UNKNOWN"
+        stats[consultant]["total_sent"] += 1
+
+        if msg.success:
+            stats[consultant]["successful"] += 1
+        else:
+            stats[consultant]["failed"] += 1
+
+    return dict(stats)

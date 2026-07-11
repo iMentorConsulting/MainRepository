@@ -241,3 +241,17 @@ class CallAttempt(Base):
     duration_seconds = Column(Integer, nullable=True)
     notes = Column(Text, default="")
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
+
+
+class ViberMessage(Base):
+    """Track Viber messages sent to leads."""
+
+    __tablename__ = "viber_messages"
+
+    id = Column(Integer, primary_key=True, index=True)
+    lead_id = Column(Integer, nullable=False, index=True)
+    consultant = Column(String, default="")  # assigned_to field value
+    message = Column(Text, default="")
+    success = Column(Boolean, default=False)
+    error = Column(Text, default="")
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
