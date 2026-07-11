@@ -802,35 +802,64 @@ def count_leads_by_consultant(
     date_to: Optional[str] = Query(None),
     db: Session = Depends(get_db)
 ):
-    """Count leads by consultant, copied from working daily-volume logic."""
+    """Count leads by consultant with optional date range filtering."""
     from collections import defaultdict
+    from datetime import datetime
     import logging
 
     logger = logging.getLogger(__name__)
 
     leads = db.query(Lead).all()
     logger.info(f"[count] Queried {len(leads)} total leads from DB")
+    logger.info(f"[count] Date range: {date_from} to {date_to}")
+
+    # Parse date boundaries
+    from_boundary = None
+    to_boundary = None
+    if date_from:
+        try:
+            from_boundary = datetime.strptime(date_from, "%Y-%m-%d")
+        except (ValueError, TypeError):
+            logger.warning(f"[count] Could not parse date_from: {date_from}")
+
+    if date_to:
+        try:
+            to_boundary = datetime.strptime(date_to, "%Y-%m-%d")
+        except (ValueError, TypeError):
+            logger.warning(f"[count] Could not parse date_to: {date_to}")
 
     by_agent = defaultdict(int)
     unparsed = 0
     parsed = 0
+    in_range = 0
 
     for lead in leads:
-        # Get agent FIRST - don't filter by date yet, just count all
+        # Parse lead date
+        d = parse_any_date(lead.date)
+        if not d:
+            unparsed += 1
+            continue
+        parsed += 1
+
+        # Check if date is in range (if range specified)
+        if from_boundary and d < from_boundary:
+            continue
+        if to_boundary:
+            # Include entire day - check against end of date_to day
+            to_end = to_boundary.replace(hour=23, minute=59, second=59)
+            if d > to_end:
+                continue
+
+        in_range += 1
+
+        # Get agent name
         agent = (lead.assigned_to or "").strip().upper()
         if not agent:
             agent = "NO_ASSIGNMENT"
 
         by_agent[agent] += 1
 
-        # Also log date parsing for debugging
-        d = parse_any_date(lead.date)
-        if d:
-            parsed += 1
-        else:
-            unparsed += 1
-
-    logger.info(f"[count] Parsed: {parsed}, Unparsed: {unparsed}")
+    logger.info(f"[count] Parsed: {parsed}, Unparsed: {unparsed}, In range: {in_range}")
     logger.info(f"[count] Result by agent: {dict(by_agent)}")
 
     return dict(by_agent) if by_agent else {}
