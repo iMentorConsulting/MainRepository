@@ -41,9 +41,11 @@ export default function PerformanceAnalysisDashboard({ dateFromFilter, dateToFil
     )
   }
 
+  const FOCUS_CONSULTANTS = ['STELLA', 'VALLIA', 'SOFIA']
+
   const consultants = Object.values(metrics)
-    .filter(m => m.total_leads > 0)
-    .sort((a, b) => b.total_leads - a.total_leads)
+    .filter(m => m.total_leads > 0 && FOCUS_CONSULTANTS.includes(m.consultant))
+    .sort((a, b) => FOCUS_CONSULTANTS.indexOf(a.consultant) - FOCUS_CONSULTANTS.indexOf(b.consultant))
 
   const handleCopyReport = async () => {
     const report = consultants.map(m => {
