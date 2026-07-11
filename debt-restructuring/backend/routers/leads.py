@@ -68,7 +68,7 @@ def parse_any_date(value):
     return None
 
 from database import get_db
-from models import Lead, CallAttempt, ViberMessage
+from models import Lead, CallAttempt, ViberMessage, Case
 from auth_utils import get_current_user
 
 router = APIRouter(prefix="/leads", tags=["leads"], dependencies=[Depends(get_current_user)])
@@ -1033,3 +1033,139 @@ def get_viber_stats_by_consultant(
             stats[consultant]["failed"] += 1
 
     return dict(stats)
+
+
+@router.get("/performance/consultant-metrics")
+def get_consultant_performance_metrics(
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
+    db: Session = Depends(get_db)
+):
+    """
+    Comprehensive performance metrics for each consultant including:
+    - Lead counts by status
+    - Conversion rates (CALL→HOT, HOT→CASE, CALL→CASE)
+    - Effort metrics (calls, viber messages)
+    - Case conversion metrics
+    """
+    from collections import defaultdict
+    from datetime import datetime as dt
+
+    leads = db.query(Lead).all()
+    cases = db.query(Case).all()
+    calls = db.query(CallAttempt).all()
+    vibersall = db.query(ViberMessage).all()
+
+    # Parse date boundaries
+    from_boundary = None
+    to_boundary = None
+    if date_from:
+        try:
+            from_boundary = dt.strptime(date_from, "%Y-%m-%d")
+        except (ValueError, TypeError):
+            pass
+
+    if date_to:
+        try:
+            to_boundary = dt.strptime(date_to, "%Y-%m-%d")
+        except (ValueError, TypeError):
+            pass
+
+    # Initialize metrics per consultant
+    metrics = defaultdict(lambda: {
+        "consultant": "",
+        "total_leads": 0,
+        "leads_by_status": defaultdict(int),
+        "cases_total": 0,
+        "cases_paying": 0,
+        "calls_total": 0,
+        "calls_answered": 0,
+        "vibers_total": 0,
+        "leads_with_cases": 0,  # HOT or CASE status
+        "conversion_rate_to_case": 0,  # leads that became cases
+    })
+
+    # Process leads
+    for lead in leads:
+        d = parse_any_date(lead.date)
+        if not d:
+            continue
+
+        # Filter by date range
+        if from_boundary and d.date() < from_boundary.date():
+            continue
+        if to_boundary and d.date() > to_boundary.date():
+            continue
+
+        consultant = (lead.assigned_to or "").strip().upper() or "UNKNOWN"
+        m = metrics[consultant]
+        m["consultant"] = consultant
+        m["total_leads"] += 1
+        status = (lead.status or "").upper() or "UNKNOWN"
+        m["leads_by_status"][status] += 1
+
+        # If lead has a linked case, it became a case
+        if lead.linked_case_id:
+            m["leads_with_cases"] += 1
+
+    # Process cases
+    for case in cases:
+        consultant = (case.employee or "").strip().upper() or "UNKNOWN"
+        if consultant not in metrics:
+            metrics[consultant] = defaultdict(int)
+        metrics[consultant]["cases_total"] += 1
+        if case.status == "completed":
+            metrics[consultant]["cases_paying"] += 1
+
+    # Process calls
+    for call in calls:
+        if from_boundary and call.created_at.date() < from_boundary.date():
+            continue
+        if to_boundary and call.created_at.date() > to_boundary.date():
+            continue
+
+        consultant = call.consultant or "UNKNOWN"
+        if consultant not in metrics:
+            metrics[consultant] = defaultdict(int)
+        metrics[consultant]["calls_total"] += 1
+        if call.answered is True:
+            metrics[consultant]["calls_answered"] += 1
+
+    # Process vibersall
+    for viber in vibersall:
+        if from_boundary and viber.created_at.date() < from_boundary.date():
+            continue
+        if to_boundary and viber.created_at.date() > to_boundary.date():
+            continue
+
+        consultant = viber.consultant or "UNKNOWN"
+        if consultant not in metrics:
+            metrics[consultant] = defaultdict(int)
+        metrics[consultant]["vibers_total"] += 1
+
+    # Calculate conversion rates
+    result = {}
+    for consultant, m in metrics.items():
+        total = m["total_leads"]
+        leads_to_hot = m["leads_by_status"].get("HOT", 0)
+        leads_to_case = m["leads_by_status"].get("DEAL", 0) + m["leads_with_cases"]
+        leads_to_cancel = m["leads_by_status"].get("CANCEL", 0)
+
+        result[consultant] = {
+            "consultant": consultant,
+            "total_leads": total,
+            "by_status": dict(m["leads_by_status"]),
+            "cases_total": m["cases_total"],
+            "cases_paying": m["cases_paying"],
+            "conversion_rate_to_case": round(leads_to_case / total * 100, 1) if total > 0 else 0,
+            "conversion_rate_to_hot": round(leads_to_hot / total * 100, 1) if total > 0 else 0,
+            "conversion_hot_to_case": round(leads_to_case / leads_to_hot * 100, 1) if leads_to_hot > 0 else 0,
+            "cancel_rate": round(leads_to_cancel / total * 100, 1) if total > 0 else 0,
+            "calls_total": m["calls_total"],
+            "calls_answered": m["calls_answered"],
+            "calls_per_lead": round(m["calls_total"] / total, 2) if total > 0 else 0,
+            "vibers_total": m["vibers_total"],
+            "vibers_per_lead": round(m["vibers_total"] / total, 2) if total > 0 else 0,
+        }
+
+    return result
