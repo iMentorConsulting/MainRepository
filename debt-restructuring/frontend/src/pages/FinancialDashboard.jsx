@@ -168,6 +168,55 @@ export default function FinancialDashboard({ currentEmployee }) {
   const [allEmployeeStats, setAllEmployeeStats] = useState(null)
   const [leadsCountByConsultant, setLeadsCountByConsultant] = useState(null)
 
+  // Helper to format dates for input
+  const formatDateForInput = (date) => date.toISOString().split('T')[0]
+
+  // Helper to apply date filters
+  const applyDateFilter = (from, to) => {
+    setDateFromFilter(from)
+    setDateToFilter(to)
+  }
+
+  // Quick filter functions
+  const setFilterYesterday = () => {
+    const yesterday = new Date()
+    yesterday.setDate(yesterday.getDate() - 1)
+    applyDateFilter(formatDateForInput(yesterday), formatDateForInput(yesterday))
+  }
+
+  const setFilterToday = () => {
+    const today = new Date()
+    applyDateFilter(formatDateForInput(today), formatDateForInput(today))
+  }
+
+  const setFilterLast7Days = () => {
+    const to = new Date()
+    const from = new Date()
+    from.setDate(from.getDate() - 6)
+    applyDateFilter(formatDateForInput(from), formatDateForInput(to))
+  }
+
+  const setFilterLastMonth = () => {
+    const to = new Date()
+    const from = new Date()
+    from.setMonth(from.getMonth() - 1)
+    applyDateFilter(formatDateForInput(from), formatDateForInput(to))
+  }
+
+  const setFilterLast3Months = () => {
+    const to = new Date()
+    const from = new Date()
+    from.setMonth(from.getMonth() - 3)
+    applyDateFilter(formatDateForInput(from), formatDateForInput(to))
+  }
+
+  const setFilterLast6Months = () => {
+    const to = new Date()
+    const from = new Date()
+    from.setMonth(from.getMonth() - 6)
+    applyDateFilter(formatDateForInput(from), formatDateForInput(to))
+  }
+
   useEffect(() => {
     fetchAnalytics()
   }, [empFilter, dateFromFilter, dateToFilter])
@@ -373,41 +422,52 @@ export default function FinancialDashboard({ currentEmployee }) {
       <WinbackPanel cases={cases} onCasesUpdate={setCases} />
 
       {/* ── Date Filter ────────────────────────────────────────────────────── */}
-      <div className="flex items-center gap-2 flex-wrap">
-        <ClockIcon className="w-4 h-4 text-gray-400" />
-        <span className="text-xs text-gray-500 font-semibold">Περίοδος:</span>
-        <div className="flex items-center gap-1">
-          <input
-            type="date"
-            value={dateFromFilter}
-            onChange={e => {
-              setDateFromFilter(e.target.value)
-              fetchAnalytics()
-            }}
-            className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-300"
-          />
-          <span className="text-xs text-gray-400">→</span>
-          <input
-            type="date"
-            value={dateToFilter}
-            onChange={e => {
-              setDateToFilter(e.target.value)
-              fetchAnalytics()
-            }}
-            className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-300"
-          />
+      <div className="space-y-3">
+        <div className="flex items-center gap-2 flex-wrap">
+          <ClockIcon className="w-4 h-4 text-gray-400" />
+          <span className="text-xs text-gray-500 font-semibold">Γρήγορη Επιλογή:</span>
+          <button onClick={setFilterToday} className="text-xs px-2 py-1 rounded bg-blue-100 text-blue-700 hover:bg-blue-200 font-semibold">Σήμερα</button>
+          <button onClick={setFilterYesterday} className="text-xs px-2 py-1 rounded bg-blue-100 text-blue-700 hover:bg-blue-200 font-semibold">Χθες</button>
+          <button onClick={setFilterLast7Days} className="text-xs px-2 py-1 rounded bg-blue-100 text-blue-700 hover:bg-blue-200 font-semibold">Τελ. 7 ημέρες</button>
+          <button onClick={setFilterLastMonth} className="text-xs px-2 py-1 rounded bg-blue-100 text-blue-700 hover:bg-blue-200 font-semibold">Τελ. μήνα</button>
+          <button onClick={setFilterLast3Months} className="text-xs px-2 py-1 rounded bg-blue-100 text-blue-700 hover:bg-blue-200 font-semibold">Τελ. 3M</button>
+          <button onClick={setFilterLast6Months} className="text-xs px-2 py-1 rounded bg-blue-100 text-blue-700 hover:bg-blue-200 font-semibold">Τελ. 6M</button>
         </div>
-        <button
-          onClick={() => {
-            setSelectedMonth('')
-            setDateFromFilter('')
-            setDateToFilter('')
-            fetchAnalytics()
-          }}
-          className="text-xs text-gray-500 hover:text-gray-700 px-2 py-1.5 rounded-lg border border-gray-200 transition-colors"
-        >
-          Καθαρισμός
-        </button>
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-xs text-gray-500 font-semibold">Προσαρμ. Εύρος:</span>
+          <div className="flex items-center gap-1">
+            <input
+              type="date"
+              value={dateFromFilter}
+              onChange={e => {
+                setDateFromFilter(e.target.value)
+                fetchAnalytics()
+              }}
+              className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-300"
+            />
+            <span className="text-xs text-gray-400">→</span>
+            <input
+              type="date"
+              value={dateToFilter}
+              onChange={e => {
+                setDateToFilter(e.target.value)
+                fetchAnalytics()
+              }}
+              className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-300"
+            />
+          </div>
+          <button
+            onClick={() => {
+              setSelectedMonth('')
+              setDateFromFilter('')
+              setDateToFilter('')
+              fetchAnalytics()
+            }}
+            className="text-xs text-gray-500 hover:text-gray-700 px-2 py-1.5 rounded-lg border border-gray-200 transition-colors"
+          >
+            Καθαρισμός
+          </button>
+        </div>
       </div>
 
       {/* ── Scenario Projector ─────────────────────────────────────────────── */}
