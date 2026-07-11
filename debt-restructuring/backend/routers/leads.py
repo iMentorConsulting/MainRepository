@@ -68,7 +68,7 @@ def parse_any_date(value):
     return None
 
 from database import get_db
-from models import Lead
+from models import Lead, CallAttempt
 from auth_utils import get_current_user
 
 router = APIRouter(prefix="/leads", tags=["leads"], dependencies=[Depends(get_current_user)])
@@ -119,6 +119,12 @@ class EmailLeadRequest(BaseModel):
     to: str
     subject: str
     body: str
+
+
+class CallAttemptLog(BaseModel):
+    answered: Optional[bool] = None
+    duration_seconds: Optional[int] = None
+    notes: str = ""
 
 
 # ── Helpers (copied from cases router) ───────────────────────────────────────
@@ -745,6 +751,32 @@ def delete_comment(lead_id: int, idx: int, db: Session = Depends(get_db)):
     return _lead_to_dict(lead)
 
 
+@router.post("/{lead_id}/call-attempt")
+def log_call_attempt(lead_id: int, data: CallAttemptLog, db: Session = Depends(get_db)):
+    """Log a phone call attempt on a lead."""
+    lead = db.query(Lead).filter(Lead.id == lead_id).first()
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead not found")
+
+    # Create CallAttempt record
+    call = CallAttempt(
+        lead_id=lead_id,
+        consultant=(lead.assigned_to or "").strip().upper(),
+        answered=data.answered,
+        duration_seconds=data.duration_seconds,
+        notes=data.notes,
+    )
+    db.add(call)
+    db.commit()
+    db.refresh(call)
+
+    return {
+        "ok": True,
+        "call_id": call.id,
+        "created_at": call.created_at.isoformat(),
+    }
+
+
 @router.post("/{lead_id}/send-viber")
 def send_viber(lead_id: int, data: ViberLeadRequest, db: Session = Depends(get_db)):
     lead = db.query(Lead).filter(Lead.id == lead_id).first()
@@ -863,3 +895,77 @@ def count_leads_by_consultant(
     logger.info(f"[count] Result by agent: {dict(by_agent)}")
 
     return dict(by_agent) if by_agent else {}
+
+
+@router.get("/calls/stats-by-consultant")
+def get_calls_by_consultant(
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
+    db: Session = Depends(get_db)
+):
+    """Get call attempt statistics by consultant with optional date filtering."""
+    from collections import defaultdict
+    from datetime import datetime as dt
+
+    calls = db.query(CallAttempt).all()
+
+    # Parse date boundaries
+    from_boundary = None
+    to_boundary = None
+    if date_from:
+        try:
+            from_boundary = dt.strptime(date_from, "%Y-%m-%d")
+        except (ValueError, TypeError):
+            pass
+
+    if date_to:
+        try:
+            to_boundary = dt.strptime(date_to, "%Y-%m-%d")
+        except (ValueError, TypeError):
+            pass
+
+    # Aggregate by consultant
+    stats = defaultdict(lambda: {
+        "total_calls": 0,
+        "answered": 0,
+        "unanswered": 0,
+        "unknown": 0,
+        "total_duration": 0,
+    })
+
+    for call in calls:
+        # Filter by date range
+        if from_boundary and call.created_at.date() < from_boundary.date():
+            continue
+        if to_boundary:
+            to_end = to_boundary.replace(hour=23, minute=59, second=59)
+            if call.created_at > to_end:
+                continue
+
+        consultant = call.consultant or "UNKNOWN"
+        stats[consultant]["total_calls"] += 1
+
+        if call.answered is True:
+            stats[consultant]["answered"] += 1
+        elif call.answered is False:
+            stats[consultant]["unanswered"] += 1
+        else:
+            stats[consultant]["unknown"] += 1
+
+        if call.duration_seconds:
+            stats[consultant]["total_duration"] += call.duration_seconds
+
+    # Add calculated fields
+    result = {}
+    for consultant, data in stats.items():
+        avg_duration = (
+            data["total_duration"] / data["total_calls"]
+            if data["total_calls"] > 0
+            else 0
+        )
+        result[consultant] = {
+            **data,
+            "avg_duration_seconds": round(avg_duration, 1),
+        }
+
+    return result
