@@ -68,7 +68,7 @@ def parse_any_date(value):
     return None
 
 from database import get_db
-from models import Lead
+from models import Lead, CallAttempt, ViberMessage, Case
 from auth_utils import get_current_user
 
 router = APIRouter(prefix="/leads", tags=["leads"], dependencies=[Depends(get_current_user)])
@@ -119,6 +119,12 @@ class EmailLeadRequest(BaseModel):
     to: str
     subject: str
     body: str
+
+
+class CallAttemptLog(BaseModel):
+    answered: Optional[bool] = None
+    duration_seconds: Optional[int] = None
+    notes: str = ""
 
 
 # ── Helpers (copied from cases router) ───────────────────────────────────────
@@ -745,6 +751,32 @@ def delete_comment(lead_id: int, idx: int, db: Session = Depends(get_db)):
     return _lead_to_dict(lead)
 
 
+@router.post("/{lead_id}/call-attempt")
+def log_call_attempt(lead_id: int, data: CallAttemptLog, db: Session = Depends(get_db)):
+    """Log a phone call attempt on a lead."""
+    lead = db.query(Lead).filter(Lead.id == lead_id).first()
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead not found")
+
+    # Create CallAttempt record
+    call = CallAttempt(
+        lead_id=lead_id,
+        consultant=(lead.assigned_to or "").strip().upper(),
+        answered=data.answered,
+        duration_seconds=data.duration_seconds,
+        notes=data.notes,
+    )
+    db.add(call)
+    db.commit()
+    db.refresh(call)
+
+    return {
+        "ok": True,
+        "call_id": call.id,
+        "created_at": call.created_at.isoformat(),
+    }
+
+
 @router.post("/{lead_id}/send-viber")
 def send_viber(lead_id: int, data: ViberLeadRequest, db: Session = Depends(get_db)):
     lead = db.query(Lead).filter(Lead.id == lead_id).first()
@@ -764,6 +796,16 @@ def send_viber(lead_id: int, data: ViberLeadRequest, db: Session = Depends(get_d
     comments.append({"text": f"📱 Viber εστάλη: {data.message[:80]}…" if len(data.message) > 80 else f"📱 Viber εστάλη: {data.message}", "author": "system", "at": _now().isoformat()})
     lead.app_comments = comments
     lead.updated_at = _now()
+
+    # Log in viber_messages table for analytics
+    viber = ViberMessage(
+        lead_id=lead_id,
+        consultant=(lead.assigned_to or "").strip().upper(),
+        message=data.message,
+        success=True,
+        error=""
+    )
+    db.add(viber)
     db.commit()
     return {"ok": True}
 
@@ -802,35 +844,328 @@ def count_leads_by_consultant(
     date_to: Optional[str] = Query(None),
     db: Session = Depends(get_db)
 ):
-    """Count leads by consultant, copied from working daily-volume logic."""
+    """Count leads by consultant with optional date range filtering."""
     from collections import defaultdict
+    from datetime import datetime
     import logging
 
     logger = logging.getLogger(__name__)
 
     leads = db.query(Lead).all()
     logger.info(f"[count] Queried {len(leads)} total leads from DB")
+    logger.info(f"[count] Date range: {date_from} to {date_to}")
+
+    # Parse date boundaries
+    from_boundary = None
+    to_boundary = None
+    if date_from:
+        try:
+            from_boundary = datetime.strptime(date_from, "%Y-%m-%d")
+        except (ValueError, TypeError):
+            logger.warning(f"[count] Could not parse date_from: {date_from}")
+
+    if date_to:
+        try:
+            to_boundary = datetime.strptime(date_to, "%Y-%m-%d")
+        except (ValueError, TypeError):
+            logger.warning(f"[count] Could not parse date_to: {date_to}")
 
     by_agent = defaultdict(int)
     unparsed = 0
     parsed = 0
+    in_range = 0
 
     for lead in leads:
-        # Get agent FIRST - don't filter by date yet, just count all
+        # Parse lead date
+        d = parse_any_date(lead.date)
+        if not d:
+            unparsed += 1
+            continue
+        parsed += 1
+
+        # Check if date is in range (if range specified)
+        if from_boundary and d < from_boundary:
+            continue
+        if to_boundary:
+            # Include entire day - check against end of date_to day
+            to_end = to_boundary.replace(hour=23, minute=59, second=59)
+            if d > to_end:
+                continue
+
+        in_range += 1
+
+        # Get agent name
         agent = (lead.assigned_to or "").strip().upper()
         if not agent:
             agent = "NO_ASSIGNMENT"
 
         by_agent[agent] += 1
 
-        # Also log date parsing for debugging
-        d = parse_any_date(lead.date)
-        if d:
-            parsed += 1
-        else:
-            unparsed += 1
-
-    logger.info(f"[count] Parsed: {parsed}, Unparsed: {unparsed}")
+    logger.info(f"[count] Parsed: {parsed}, Unparsed: {unparsed}, In range: {in_range}")
     logger.info(f"[count] Result by agent: {dict(by_agent)}")
 
     return dict(by_agent) if by_agent else {}
+
+
+@router.get("/calls/stats-by-consultant")
+def get_calls_by_consultant(
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
+    db: Session = Depends(get_db)
+):
+    """Get call attempt statistics by consultant with optional date filtering."""
+    from collections import defaultdict
+    from datetime import datetime as dt
+
+    calls = db.query(CallAttempt).all()
+
+    # Parse date boundaries
+    from_boundary = None
+    to_boundary = None
+    if date_from:
+        try:
+            from_boundary = dt.strptime(date_from, "%Y-%m-%d")
+        except (ValueError, TypeError):
+            pass
+
+    if date_to:
+        try:
+            to_boundary = dt.strptime(date_to, "%Y-%m-%d")
+        except (ValueError, TypeError):
+            pass
+
+    # Aggregate by consultant
+    stats = defaultdict(lambda: {
+        "total_calls": 0,
+        "answered": 0,
+        "unanswered": 0,
+        "unknown": 0,
+        "total_duration": 0,
+    })
+
+    for call in calls:
+        # Filter by date range
+        if from_boundary and call.created_at.date() < from_boundary.date():
+            continue
+        if to_boundary:
+            to_end = to_boundary.replace(hour=23, minute=59, second=59)
+            if call.created_at > to_end:
+                continue
+
+        consultant = call.consultant or "UNKNOWN"
+        stats[consultant]["total_calls"] += 1
+
+        if call.answered is True:
+            stats[consultant]["answered"] += 1
+        elif call.answered is False:
+            stats[consultant]["unanswered"] += 1
+        else:
+            stats[consultant]["unknown"] += 1
+
+        if call.duration_seconds:
+            stats[consultant]["total_duration"] += call.duration_seconds
+
+    # Add calculated fields
+    result = {}
+    for consultant, data in stats.items():
+        avg_duration = (
+            data["total_duration"] / data["total_calls"]
+            if data["total_calls"] > 0
+            else 0
+        )
+        result[consultant] = {
+            **data,
+            "avg_duration_seconds": round(avg_duration, 1),
+        }
+
+    return result
+
+
+@router.get("/viber/stats-by-consultant")
+def get_viber_stats_by_consultant(
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
+    db: Session = Depends(get_db)
+):
+    """Get Viber message statistics by consultant with optional date filtering."""
+    from collections import defaultdict
+    from datetime import datetime as dt
+
+    messages = db.query(ViberMessage).all()
+
+    # Parse date boundaries
+    from_boundary = None
+    to_boundary = None
+    if date_from:
+        try:
+            from_boundary = dt.strptime(date_from, "%Y-%m-%d")
+        except (ValueError, TypeError):
+            pass
+
+    if date_to:
+        try:
+            to_boundary = dt.strptime(date_to, "%Y-%m-%d")
+        except (ValueError, TypeError):
+            pass
+
+    # Aggregate by consultant
+    stats = defaultdict(lambda: {
+        "total_sent": 0,
+        "successful": 0,
+        "failed": 0,
+    })
+
+    for msg in messages:
+        # Filter by date range
+        if from_boundary and msg.created_at.date() < from_boundary.date():
+            continue
+        if to_boundary:
+            to_end = to_boundary.replace(hour=23, minute=59, second=59)
+            if msg.created_at > to_end:
+                continue
+
+        consultant = msg.consultant or "UNKNOWN"
+        stats[consultant]["total_sent"] += 1
+
+        if msg.success:
+            stats[consultant]["successful"] += 1
+        else:
+            stats[consultant]["failed"] += 1
+
+    return dict(stats)
+
+
+@router.get("/performance/consultant-metrics")
+def get_consultant_performance_metrics(
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
+    db: Session = Depends(get_db)
+):
+    """
+    Comprehensive performance metrics for each consultant including:
+    - Lead counts by status
+    - Conversion rates (CALL→HOT, HOT→CASE, CALL→CASE)
+    - Effort metrics (calls, viber messages)
+    - Case conversion metrics
+    """
+    from collections import defaultdict
+    from datetime import datetime as dt
+
+    leads = db.query(Lead).all()
+    cases = db.query(Case).all()
+    calls = db.query(CallAttempt).all()
+    vibersall = db.query(ViberMessage).all()
+
+    # Parse date boundaries
+    from_boundary = None
+    to_boundary = None
+    if date_from:
+        try:
+            from_boundary = dt.strptime(date_from, "%Y-%m-%d")
+        except (ValueError, TypeError):
+            pass
+
+    if date_to:
+        try:
+            to_boundary = dt.strptime(date_to, "%Y-%m-%d")
+        except (ValueError, TypeError):
+            pass
+
+    # Initialize metrics per consultant
+    metrics = defaultdict(lambda: {
+        "consultant": "",
+        "total_leads": 0,
+        "leads_by_status": defaultdict(int),
+        "cases_total": 0,
+        "cases_paying": 0,
+        "calls_total": 0,
+        "calls_answered": 0,
+        "vibers_total": 0,
+        "leads_with_cases": 0,  # HOT or CASE status
+        "conversion_rate_to_case": 0,  # leads that became cases
+    })
+
+    # Process leads
+    for lead in leads:
+        d = parse_any_date(lead.date)
+        if not d:
+            continue
+
+        # Filter by date range
+        if from_boundary and d.date() < from_boundary.date():
+            continue
+        if to_boundary and d.date() > to_boundary.date():
+            continue
+
+        consultant = (lead.assigned_to or "").strip().upper() or "UNKNOWN"
+        m = metrics[consultant]
+        m["consultant"] = consultant
+        m["total_leads"] += 1
+        status = (lead.status or "").upper() or "UNKNOWN"
+        m["leads_by_status"][status] += 1
+
+        # If lead has a linked case, it became a case
+        if lead.linked_case_id:
+            m["leads_with_cases"] += 1
+
+    # Process cases
+    for case in cases:
+        consultant = (case.employee or "").strip().upper() or "UNKNOWN"
+        if consultant not in metrics:
+            metrics[consultant] = defaultdict(int)
+        metrics[consultant]["cases_total"] += 1
+        if case.status == "completed":
+            metrics[consultant]["cases_paying"] += 1
+
+    # Process calls
+    for call in calls:
+        if from_boundary and call.created_at.date() < from_boundary.date():
+            continue
+        if to_boundary and call.created_at.date() > to_boundary.date():
+            continue
+
+        consultant = call.consultant or "UNKNOWN"
+        if consultant not in metrics:
+            metrics[consultant] = defaultdict(int)
+        metrics[consultant]["calls_total"] += 1
+        if call.answered is True:
+            metrics[consultant]["calls_answered"] += 1
+
+    # Process vibersall
+    for viber in vibersall:
+        if from_boundary and viber.created_at.date() < from_boundary.date():
+            continue
+        if to_boundary and viber.created_at.date() > to_boundary.date():
+            continue
+
+        consultant = viber.consultant or "UNKNOWN"
+        if consultant not in metrics:
+            metrics[consultant] = defaultdict(int)
+        metrics[consultant]["vibers_total"] += 1
+
+    # Calculate conversion rates
+    result = {}
+    for consultant, m in metrics.items():
+        total = m["total_leads"]
+        leads_to_hot = m["leads_by_status"].get("HOT", 0)
+        leads_to_case = m["leads_by_status"].get("DEAL", 0) + m["leads_with_cases"]
+        leads_to_cancel = m["leads_by_status"].get("CANCEL", 0)
+
+        result[consultant] = {
+            "consultant": consultant,
+            "total_leads": total,
+            "by_status": dict(m["leads_by_status"]),
+            "cases_total": m["cases_total"],
+            "cases_paying": m["cases_paying"],
+            "conversion_rate_to_case": round(leads_to_case / total * 100, 1) if total > 0 else 0,
+            "conversion_rate_to_hot": round(leads_to_hot / total * 100, 1) if total > 0 else 0,
+            "conversion_hot_to_case": round(leads_to_case / leads_to_hot * 100, 1) if leads_to_hot > 0 else 0,
+            "cancel_rate": round(leads_to_cancel / total * 100, 1) if total > 0 else 0,
+            "calls_total": m["calls_total"],
+            "calls_answered": m["calls_answered"],
+            "calls_per_lead": round(m["calls_total"] / total, 2) if total > 0 else 0,
+            "vibers_total": m["vibers_total"],
+            "vibers_per_lead": round(m["vibers_total"] / total, 2) if total > 0 else 0,
+        }
+
+    return result

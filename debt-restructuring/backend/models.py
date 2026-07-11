@@ -226,3 +226,32 @@ class ThemisSession(Base):
     cache_read_tokens = Column(Integer, default=0)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow)
+
+
+class CallAttempt(Base):
+    """Track phone call attempts made by consultants on leads."""
+
+    __tablename__ = "call_attempts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    lead_id = Column(Integer, nullable=False, index=True)
+    consultant = Column(String, default="")  # assigned_to field value (e.g. "STELLA")
+    call_type = Column(String, default="outbound")  # outbound / inbound
+    answered = Column(Boolean, nullable=True)  # True/False/None if unknown
+    duration_seconds = Column(Integer, nullable=True)
+    notes = Column(Text, default="")
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+
+
+class ViberMessage(Base):
+    """Track Viber messages sent to leads."""
+
+    __tablename__ = "viber_messages"
+
+    id = Column(Integer, primary_key=True, index=True)
+    lead_id = Column(Integer, nullable=False, index=True)
+    consultant = Column(String, default="")  # assigned_to field value
+    message = Column(Text, default="")
+    success = Column(Boolean, default=False)
+    error = Column(Text, default="")
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)

@@ -108,6 +108,25 @@ export const getLeadSheetHeaders = () => api.get('/leads/sheet-headers')
 export const normalizeLeadStatuses = () => api.post('/leads/normalize-statuses')
 export const sendLeadViber = (id, message) => api.post(`/leads/${id}/send-viber`, { message })
 export const sendLeadEmail = (id, to, subject, body) => api.post(`/leads/${id}/send-email`, { to, subject, body })
+export const logCallAttempt = (id, answered, durationSeconds, notes) => api.post(`/leads/${id}/call-attempt`, { answered, duration_seconds: durationSeconds, notes })
+export const getCallStatsByConsultant = (dateFrom, dateTo) => {
+  const params = {}
+  if (dateFrom) params.date_from = dateFrom
+  if (dateTo) params.date_to = dateTo
+  return api.get('/leads/calls/stats-by-consultant', { params })
+}
+export const getViberStatsByConsultant = (dateFrom, dateTo) => {
+  const params = {}
+  if (dateFrom) params.date_from = dateFrom
+  if (dateTo) params.date_to = dateTo
+  return api.get('/leads/viber/stats-by-consultant', { params })
+}
+export const getConsultantPerformanceMetrics = (dateFrom, dateTo) => {
+  const params = {}
+  if (dateFrom) params.date_from = dateFrom
+  if (dateTo) params.date_to = dateTo
+  return api.get('/leads/performance/consultant-metrics', { params })
+}
 export const getLeadsReporting = () => api.get('/leads/reporting')
 export const getLeadsDailyVolume = () => api.get('/leads/daily-volume')
 export const getLeadsCountByConsultant = (dateFrom, dateTo) => {

@@ -1299,6 +1299,7 @@ function LeadRow({ lead, currentEmployee, expanded, onToggle, onLeadUpdate, temp
         <td className="td w-[105px]" onClick={e => e.stopPropagation()}>
           {lead.phone
             ? <a href={`tel:${phone}`}
+                onClick={e => handlePhoneClick(e, lead)}
                 className="text-blue-600 hover:underline font-mono text-[11px] flex items-center gap-0.5 leading-tight">
                 <PhoneIcon className="w-3 h-3 shrink-0" />
                 <span className="truncate">{phone}</span>
@@ -1306,6 +1307,11 @@ function LeadRow({ lead, currentEmployee, expanded, onToggle, onLeadUpdate, temp
             : <span className="text-gray-300 text-xs">—</span>}
           {lead.phone2 && (
             <a href={`tel:${formatPhone(lead.phone2)}`}
+              onClick={e => {
+                e.preventDefault()
+                api.logCallAttempt(lead.id, null, null, '').catch(err => console.error('Failed to log call:', err))
+                window.location.href = `tel:${formatPhone(lead.phone2)}`
+              }}
               className="text-blue-400 hover:underline font-mono text-[10px] flex items-center gap-0.5 leading-tight mt-0.5"
               title="Τηλέφωνο 2">
               <PhoneIcon className="w-2.5 h-2.5 shrink-0" />
@@ -1360,7 +1366,9 @@ function LeadRow({ lead, currentEmployee, expanded, onToggle, onLeadUpdate, temp
         <td className="td w-[60px]" onClick={e => e.stopPropagation()}>
           <div className="flex items-center gap-0.5 justify-center">
             {lead.phone && (
-              <a href={`tel:${phone}`} title="Κλήση"
+              <a href={`tel:${phone}`}
+                onClick={e => handlePhoneClick(e, lead)}
+                title="Κλήση"
                 className="p-1 rounded hover:bg-blue-100 text-blue-700">
                 <PhoneIcon className="w-3.5 h-3.5" />
               </a>
@@ -1588,6 +1596,17 @@ export default function Leads({ currentEmployee }) {
     setMassEmailOpen(false)
     setSelectedIds(new Set())
     setMassSending(false)
+  }
+
+  const handlePhoneClick = async (e, lead) => {
+    e.preventDefault()
+    try {
+      await api.logCallAttempt(lead.id, null, null, '')
+    } catch (err) {
+      console.error('Failed to log call attempt:', err)
+    }
+    // Trigger the phone dialing after logging
+    window.location.href = `tel:${lead.phone}`
   }
 
   return (

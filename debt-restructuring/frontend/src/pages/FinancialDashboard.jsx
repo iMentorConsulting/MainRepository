@@ -18,6 +18,7 @@ import {
 import * as api from '../api'
 import { patchOffer, approveWinback, sendWinback } from '../api'
 import { toast } from 'react-hot-toast'
+import PerformanceAnalysisDashboard from '../components/PerformanceAnalysisDashboard'
 import {
   DEFAULT_PRICING_CONFIG,
   loadPricingConfig,
@@ -166,33 +167,10 @@ export default function FinancialDashboard({ currentEmployee }) {
 
   const [allEmployeeStats, setAllEmployeeStats] = useState(null)
   const [leadsCountByConsultant, setLeadsCountByConsultant] = useState(null)
-  const [debugLeadsRaw, setDebugLeadsRaw] = useState(null)
 
   useEffect(() => {
     fetchAnalytics()
   }, [empFilter, dateFromFilter, dateToFilter])
-
-  // DEBUG: Fetch raw leads data
-  useEffect(() => {
-    console.log('[DEBUG] Fetching raw leads data...')
-    api.getLeadsDebugRaw()
-      .then(r => {
-        console.log('[DEBUG] Raw leads response:', r.data)
-        setDebugLeadsRaw(r.data || {})
-      })
-      .catch(err => {
-        console.error('[DEBUG] Fetch failed:', err)
-        console.error('[DEBUG] Error status:', err?.response?.status)
-        console.error('[DEBUG] Error detail:', err?.response?.data)
-        const errorMsg = err?.response?.data?.detail || err?.message || 'Unknown error'
-        setDebugLeadsRaw({
-          total_leads: 0,
-          by_assigned_to: {},
-          sample_leads: [],
-          error: errorMsg
-        })
-      })
-  }, [])
 
   useEffect(() => {
     let dateFrom = null, dateTo = null
@@ -464,52 +442,6 @@ export default function FinancialDashboard({ currentEmployee }) {
           </div>
         )}
 
-        {/* DEBUG: Raw Leads Data - ALWAYS SHOW FOR DEBUGGING */}
-        <div className="bg-red-50 rounded-2xl shadow-sm border border-red-200 p-5 mb-6">
-          <div className="flex justify-between items-center mb-3">
-            <h3 className="text-sm font-black text-red-700">🔴 DEBUG: RAW LEADS DATA (DELETE ME)</h3>
-          </div>
-          {debugLeadsRaw ? (
-            <div className="bg-white rounded-lg p-3 space-y-2 text-xs font-mono">
-              {debugLeadsRaw.error && (
-                <div className="bg-orange-100 border border-orange-300 text-orange-700 p-2 rounded mb-2">
-                  ❌ ERROR: {typeof debugLeadsRaw.error === 'string' ? debugLeadsRaw.error : JSON.stringify(debugLeadsRaw.error)}
-                </div>
-              )}
-              <div className="text-red-600 font-bold mb-2">✅ Total: {debugLeadsRaw.total_leads || 0} leads in DB</div>
-              {debugLeadsRaw.by_assigned_to && Object.keys(debugLeadsRaw.by_assigned_to).length > 0 ? (
-                <>
-                  <div className="text-red-600 font-bold mb-2">Leads by assigned_to field:</div>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                    {Object.entries(debugLeadsRaw.by_assigned_to).map(([agent, count]) => (
-                      <div key={agent} className="bg-red-50 p-2 rounded border border-red-200">
-                        <div className="font-bold text-red-700">{agent}</div>
-                        <div className="text-red-600">{count} leads</div>
-                      </div>
-                    ))}
-                  </div>
-                </>
-              ) : (
-                <div className="text-orange-600 font-bold">⚠️ No leads found OR all have empty assigned_to</div>
-              )}
-              {debugLeadsRaw.sample_leads && debugLeadsRaw.sample_leads.length > 0 && (
-                <>
-                  <div className="mt-3 text-red-600 font-bold">Sample leads (first 10):</div>
-                  <div className="space-y-1 max-h-48 overflow-y-auto bg-gray-900 text-green-400 p-2 rounded text-xs">
-                    {debugLeadsRaw.sample_leads.map((lead, idx) => (
-                      <div key={lead?.id || idx}>
-                        ID {lead?.id}: {lead?.name} | assigned_to="{lead?.assigned_to}" | date={lead?.date}
-                      </div>
-                    ))}
-                  </div>
-                </>
-              )}
-            </div>
-          ) : (
-            <div className="text-red-600 font-bold">⏳ Loading debug data...</div>
-          )}
-        </div>
-
         {/* Per-Employee Breakdown — EXCLUDING HARIS */}
         {allEmployeeStats && Object.keys(allEmployeeStats).filter(e => e !== 'HARIS').length > 0 && (
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 mb-6">
@@ -567,6 +499,9 @@ export default function FinancialDashboard({ currentEmployee }) {
             </div>
           </div>
         )}
+
+        {/* Performance Analysis Dashboard */}
+        <PerformanceAnalysisDashboard dateFromFilter={dateFromFilter} dateToFilter={dateToFilter} />
 
         {/* Sliders */}
         <div className="grid md:grid-cols-2 gap-5 mb-6">
