@@ -1170,7 +1170,7 @@ def get_consultant_performance_metrics(
     for consultant, m in metrics.items():
         total = m["total_leads"]
         leads_to_hot = m["leads_by_status"].get("HOT", 0)
-        leads_to_case = m["leads_by_status"].get("DEAL", 0) + m["leads_with_cases"]
+        leads_to_case = m["leads_with_cases"]  # Only count leads with linked case_id, not DEAL status
         leads_to_cancel = m["leads_by_status"].get("CANCEL", 0)
 
         result[consultant] = {
