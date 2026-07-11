@@ -1107,6 +1107,9 @@ def get_consultant_performance_metrics(
         "conversion_rate_to_case": 0,  # leads that became cases
     })
 
+    # Get existing case IDs to avoid counting orphaned lead->case links
+    existing_case_ids = set(c.id for c in cases)
+
     # Process leads
     for lead in leads:
         d = parse_any_date(lead.date)
@@ -1126,8 +1129,8 @@ def get_consultant_performance_metrics(
         status = (lead.status or "").upper() or "UNKNOWN"
         m["leads_by_status"][status] += 1
 
-        # If lead has a linked case, it became a case
-        if lead.linked_case_id:
+        # If lead has a linked case that actually exists, it became a case
+        if lead.linked_case_id and lead.linked_case_id in existing_case_ids:
             m["leads_with_cases"] += 1
 
     # Process cases
