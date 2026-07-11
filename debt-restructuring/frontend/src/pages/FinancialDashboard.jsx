@@ -221,11 +221,15 @@ export default function FinancialDashboard({ currentEmployee }) {
 
     api.getLeadsCountByConsultant(dateFrom, dateTo)
       .then(r => {
-        console.log('Leads count by consultant:', r.data)
+        console.log('Leads count by consultant response:', r.data)
+        console.log('Type:', typeof r.data)
+        console.log('Keys:', Object.keys(r.data || {}))
         setLeadsCountByConsultant(r.data)
       })
       .catch(err => {
-        console.error('Failed to fetch leads count:', err.message)
+        console.error('Failed to fetch leads count:', err)
+        console.error('Status:', err?.response?.status)
+        console.error('Data:', err?.response?.data)
       })
   }, [selectedMonth, dateFromFilter, dateToFilter])
 
