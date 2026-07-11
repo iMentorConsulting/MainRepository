@@ -19,6 +19,7 @@ import * as api from '../api'
 import { patchOffer, approveWinback, sendWinback } from '../api'
 import { toast } from 'react-hot-toast'
 import PerformanceAnalysisDashboard from '../components/PerformanceAnalysisDashboard'
+import BulkImportForm from '../components/BulkImportForm'
 import {
   DEFAULT_PRICING_CONFIG,
   loadPricingConfig,
@@ -106,6 +107,7 @@ export default function FinancialDashboard({ currentEmployee }) {
   const [dateFromFilter, setDateFromFilter] = useState('')
   const [dateToFilter, setDateToFilter] = useState('')
   const [selectedMonth, setSelectedMonth] = useState('')  // Empty = show all data by default
+  const [showBulkImport, setShowBulkImport] = useState(false)
 
   const handleBackupNow = async () => {
     setBackingUp(true)
@@ -168,8 +170,13 @@ export default function FinancialDashboard({ currentEmployee }) {
   const [allEmployeeStats, setAllEmployeeStats] = useState(null)
   const [leadsCountByConsultant, setLeadsCountByConsultant] = useState(null)
 
-  // Helper to format dates for input
-  const formatDateForInput = (date) => date.toISOString().split('T')[0]
+  // Helper to format dates for input (local timezone, not UTC)
+  const formatDateForInput = (date) => {
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
+  }
 
   // Helper to apply date filters
   const applyDateFilter = (from, to) => {
@@ -412,8 +419,19 @@ export default function FinancialDashboard({ currentEmployee }) {
             <CloudArrowUpIcon className="w-4 h-4" />
             {backingUp ? 'Backup...' : 'Backup Drive'}
           </button>
+          <button
+            onClick={() => setShowBulkImport(true)}
+            className="btn-secondary gap-2 text-sm flex items-center"
+            title="Εισαγωγή ιστορικών κλήσεων και viber"
+          >
+            <CloudArrowUpIcon className="w-4 h-4" />
+            Εισαγωγή Δεδομένων
+          </button>
         </div>
       </div>
+
+      {/* Bulk Import Modal */}
+      {showBulkImport && <BulkImportForm onClose={() => setShowBulkImport(false)} />}
 
       {/* ── Pending Approvals ─────────────────────────────────────────────── */}
       <PendingApprovalsPanel cases={cases} onCasesUpdate={setCases} />

@@ -127,6 +127,7 @@ export const getConsultantPerformanceMetrics = (dateFrom, dateTo) => {
   if (dateTo) params.date_to = dateTo
   return api.get('/leads/performance/consultant-metrics', { params })
 }
+export const bulkImportCallsAndVibers = (data) => api.post('/leads/admin/import-bulk', data)
 export const getLeadsReporting = () => api.get('/leads/reporting')
 export const getLeadsDailyVolume = () => api.get('/leads/daily-volume')
 export const getLeadsCountByConsultant = (dateFrom, dateTo) => {
