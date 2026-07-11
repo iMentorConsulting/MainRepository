@@ -45,11 +45,63 @@ export default function PerformanceAnalysisDashboard({ dateFromFilter, dateToFil
     .filter(m => m.total_leads > 0)
     .sort((a, b) => b.total_leads - a.total_leads)
 
+  const handleCopyReport = async () => {
+    const report = consultants.map(m => {
+      const lines = [
+        `📊 ${m.consultant}`,
+        `━━━━━━━━━━━━━━━━━━━━━━━━━━`,
+        `Leads: ${m.total_leads}`,
+        `Μετατροπή → Case: ${m.conversion_rate_to_case}%`,
+        `Μετατροπή → Hot: ${m.conversion_rate_to_hot}%`,
+        `Hot → Case: ${m.conversion_hot_to_case}%`,
+        `Cancel Rate: ${m.cancel_rate}%`,
+        ``,
+        `⚡ Προσπάθεια:`,
+        `  Κλήσεις: ${m.calls_total} (${m.calls_per_lead} avg/lead, ${m.calls_answered} απάντησαν)`,
+        `  Viber: ${m.vibers_total} (${m.vibers_per_lead} avg/lead)`,
+        ``,
+        `Cases: ${m.cases_total} (${m.cases_paying} paying)`,
+        ``,
+      ]
+      return lines.join('\n')
+    }).join('\n')
+
+    const fullReport = `ΑΝΆΛΥΣΗ ΑΠΌΔΟΣΗΣ ΣΥΜΒΟΎΛΩΝ
+════════════════════════════════════════════════════════════
+${new Date().toLocaleDateString('el-GR')}
+════════════════════════════════════════════════════════════
+
+${report}
+
+════════════════════════════════════════════════════════════
+Παρατηρήσεις:
+- Ο στόχος μετατροπής → Case είναι 30%+
+- Κάθε lead χρειάζεται τουλάχιστον 3-4 κλήσεις
+- Τουλάχιστον 2 Viber μηνύματα ανά lead
+════════════════════════════════════════════════════════════`
+
+    try {
+      await navigator.clipboard.writeText(fullReport)
+      toast.success('Έκθεση αντιγράφηκε στο Clipboard')
+    } catch (err) {
+      console.error('Failed to copy:', err)
+      toast.error('Αποτυχία αντιγραφής')
+    }
+  }
+
   return (
     <div className="space-y-6 mb-6">
       {/* Header */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
-        <h3 className="text-sm font-black text-gray-700 mb-4">📊 Ανάλυση Απόδοσης Συμβούλων</h3>
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-sm font-black text-gray-700">📊 Ανάλυση Απόδοσης Συμβούλων</h3>
+          <button
+            onClick={handleCopyReport}
+            className="text-xs px-3 py-1.5 bg-blue-100 text-blue-700 rounded font-semibold hover:bg-blue-200"
+          >
+            📋 Αντιγραφή Έκθεσης
+          </button>
+        </div>
 
         {/* Main Comparison Table */}
         <div className="overflow-x-auto">
