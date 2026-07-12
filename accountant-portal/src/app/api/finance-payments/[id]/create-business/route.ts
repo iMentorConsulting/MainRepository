@@ -38,6 +38,15 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
   const existing = await prisma.business.findUnique({ where: { afm: payment.afm } })
   if (existing) {
     await prisma.financePayment.update({ where: { id: params.id }, data: { businessId: existing.id } })
+    if ((!existing.email && payment.email) || (!existing.phone && payment.phone)) {
+      await prisma.business.update({
+        where: { id: existing.id },
+        data: {
+          ...(!existing.email && payment.email ? { email: payment.email } : {}),
+          ...(!existing.phone && payment.phone ? { phone: payment.phone } : {}),
+        },
+      })
+    }
     return NextResponse.json({ businessId: existing.id, created: false })
   }
 

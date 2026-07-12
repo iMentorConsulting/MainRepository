@@ -37,9 +37,19 @@ async function autoCreateAndSync(newPaymentIds: string[]) {
   })
 
   for (const payment of unmatched) {
-    const existing = await prisma.business.findUnique({ where: { afm: payment.afm }, select: { id: true } })
+    const existing = await prisma.business.findUnique({ where: { afm: payment.afm }, select: { id: true, email: true, phone: true } })
     if (existing) {
       await prisma.financePayment.update({ where: { id: payment.id }, data: { businessId: existing.id } })
+      // Fill in missing email/phone from the payment if the business doesn't have them
+      if ((!existing.email && payment.email) || (!existing.phone && payment.phone)) {
+        await prisma.business.update({
+          where: { id: existing.id },
+          data: {
+            ...(!existing.email && payment.email ? { email: payment.email } : {}),
+            ...(!existing.phone && payment.phone ? { phone: payment.phone } : {}),
+          },
+        })
+      }
       continue
     }
 
