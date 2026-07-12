@@ -88,6 +88,43 @@ export async function ensureTagSuggestionsSeeded() {
   await prisma.appSetting.update({ where: { id: 'main' }, data: { tagSuggestionsSeeded: true } })
 }
 
+export async function ensureErmisTagsBackfilled() {
+  const settings = await getSettings()
+  if (settings.ermisTagsBackfilled) return
+
+  const interests = await prisma.businessLeadInterest.findMany({
+    select: { businessId: true, program: true },
+  })
+
+  const allTags = Array.from(new Set(interests.map(i => i.program.trim()).filter(Boolean)))
+  for (const tag of allTags) {
+    const exists = await prisma.tagOption.findFirst({ where: { label: tag } })
+    if (!exists) {
+      const count = await prisma.tagOption.count()
+      await prisma.tagOption.create({ data: { label: tag, order: count } })
+    }
+  }
+
+  const byBusiness = new Map<string, Set<string>>()
+  for (const { businessId, program } of interests) {
+    const tag = program.trim()
+    if (!tag) continue
+    if (!byBusiness.has(businessId)) byBusiness.set(businessId, new Set())
+    byBusiness.get(businessId)!.add(tag)
+  }
+
+  for (const [businessId, newTags] of Array.from(byBusiness)) {
+    const biz = await prisma.business.findUnique({ where: { id: businessId }, select: { tags: true } })
+    if (!biz) continue
+    const merged = Array.from(new Set([...biz.tags, ...Array.from(newTags)]))
+    if (merged.length !== biz.tags.length) {
+      await prisma.business.update({ where: { id: businessId }, data: { tags: merged } })
+    }
+  }
+
+  await prisma.appSetting.update({ where: { id: 'main' }, data: { ermisTagsBackfilled: true } })
+}
+
 export async function ensureRejectionReasonSuggestionsSeeded() {
   const settings = await getSettings()
   if (settings.rejectionReasonSuggestionsSeeded) return
