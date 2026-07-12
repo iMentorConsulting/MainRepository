@@ -1,14 +1,19 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 
 // POST /api/admin/backfill-ermis-tags
 // One-time backfill: for every BusinessLeadInterest row, ensure the program name
 // is a TagOption and is present on Business.tags.
-export async function POST() {
-  const session = await auth()
-  if (!session || session.user.role !== 'ADMIN') {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+export async function POST(request: NextRequest) {
+  const cronSecret = process.env.CRON_SECRET
+  const authHeader = request.headers.get('authorization')
+  const isCron = cronSecret && authHeader === `Bearer ${cronSecret}`
+  if (!isCron) {
+    const session = await auth()
+    if (!session || session.user.role !== 'ADMIN') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
   }
 
   const interests = await prisma.businessLeadInterest.findMany({
