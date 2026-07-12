@@ -105,11 +105,26 @@ async function autoCreateAndSync(newPaymentIds: string[]) {
   }
 
   for (const [businessId, newServices] of Array.from(servicesByBusiness)) {
-    const biz = await prisma.business.findUnique({ where: { id: businessId }, select: { iMentorServices: true } })
+    const biz = await prisma.business.findUnique({ where: { id: businessId }, select: { iMentorServices: true, tags: true } })
     if (!biz) continue
-    const merged = Array.from(new Set([...biz.iMentorServices, ...Array.from(newServices)]))
-    if (merged.length !== biz.iMentorServices.length) {
-      await prisma.business.update({ where: { id: businessId }, data: { iMentorServices: merged } })
+
+    // Sync iMentorServices
+    const mergedServices = Array.from(new Set([...biz.iMentorServices, ...Array.from(newServices)]))
+    if (mergedServices.length !== biz.iMentorServices.length) {
+      await prisma.business.update({ where: { id: businessId }, data: { iMentorServices: mergedServices } })
+    }
+
+    // Sync tags — add service name as a tag so admins can filter by it in matches
+    const missingTags = Array.from(newServices).filter(s => !biz.tags.includes(s))
+    if (missingTags.length > 0) {
+      for (const tag of missingTags) {
+        const exists = await prisma.tagOption.findFirst({ where: { label: tag } })
+        if (!exists) {
+          const count = await prisma.tagOption.count()
+          await prisma.tagOption.create({ data: { label: tag, order: count } })
+        }
+      }
+      await prisma.business.update({ where: { id: businessId }, data: { tags: [...biz.tags, ...missingTags] } })
     }
   }
 }

@@ -434,7 +434,7 @@ function MatchesPageInner() {
                 placeholder="Όλες οι περιφέρειες"
               />
             )}
-            {tagOptions.length > 0 && (
+            {isAdmin && tagOptions.length > 0 && (
               <MultiSelect
                 label="Tags"
                 options={tagOptions}
@@ -443,7 +443,7 @@ function MatchesPageInner() {
                 placeholder="Όλα τα tags"
               />
             )}
-            {tagOptions.length > 0 && (
+            {isAdmin && tagOptions.length > 0 && (
               <MultiSelect
                 label="Εξαίρεση Tags"
                 options={tagOptions}
