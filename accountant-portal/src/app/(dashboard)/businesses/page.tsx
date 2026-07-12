@@ -251,6 +251,10 @@ export default function BusinessesPage() {
             <Download size={16} className="mr-1" />
             Export Excel
           </Button>
+          <Button variant="outline" onClick={() => setEnrichOpen(true)} size="sm" className="border-violet-300 text-violet-700 hover:bg-violet-50">
+            <Smartphone size={16} className="mr-1" />
+            Εμπλουτισμός
+          </Button>
           <Link href="/businesses/new">
             <Button size={isAdmin ? 'sm' : 'md'} className={!isAdmin ? 'bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-6 py-2.5 text-base shadow-lg' : ''}>
               <Plus size={isAdmin ? 16 : 20} className="mr-2" />
