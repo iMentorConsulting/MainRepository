@@ -157,6 +157,13 @@ export async function POST(request: NextRequest) {
   const newPaymentIds: string[] = []
   const errors: { externalId: string; error: string }[] = []
 
+  // Log first payment's keys to diagnose field naming from Finance app
+  if (payments.length > 0) {
+    const sample = payments[0] || {}
+    console.log('[FinancePayments] sample payload keys:', Object.keys(sample).join(', '))
+    console.log('[FinancePayments] sample email/tel/phone:', JSON.stringify({ email: sample.email, tel: sample.tel, phone: sample.phone, telephone: sample.telephone, mobile: sample.mobile, clientEmail: sample.clientEmail, clientPhone: sample.clientPhone }))
+  }
+
   for (const p of payments) {
     const { externalId, afm, onomasia, amount, invoiceNumber, service, category, paymentDate, accountant, email, tel, phone } = p || {}
     if (!externalId || !afm || amount == null || !service || !category || !paymentDate) {
