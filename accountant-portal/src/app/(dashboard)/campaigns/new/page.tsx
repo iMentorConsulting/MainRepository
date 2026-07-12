@@ -435,7 +435,7 @@ export default function NewCampaignPage() {
   const [savingDraft, setSavingDraft] = useState(false)
 
   useEffect(() => {
-    fetch('/api/programs').then(r => r.json()).then(d => setPrograms(d.programs || []))
+    fetch('/api/programs').then(r => r.json()).then(d => setPrograms((d.programs || []).filter((p: any) => (p._count?.matches ?? 0) > 0)))
   }, [])
 
   async function saveCampaign(status: 'DRAFT' | 'SENT', selectedIds?: string[]) {
