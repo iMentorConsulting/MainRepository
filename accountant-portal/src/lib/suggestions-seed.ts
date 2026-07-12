@@ -89,14 +89,16 @@ export async function ensureTagSuggestionsSeeded() {
 }
 
 export async function ensureErmisTagsBackfilled() {
-  const settings = await getSettings()
-  if (settings.ermisTagsBackfilled) return
-
+  // Find businesses that have lead interests but are missing those program tags.
+  // Self-detecting: no schema flag needed — stops naturally once all are backfilled.
   const interests = await prisma.businessLeadInterest.findMany({
     select: { businessId: true, program: true },
   })
+  if (interests.length === 0) return
 
   const allTags = Array.from(new Set(interests.map(i => i.program.trim()).filter(Boolean)))
+
+  // Ensure TagOptions exist for all program names
   for (const tag of allTags) {
     const exists = await prisma.tagOption.findFirst({ where: { label: tag } })
     if (!exists) {
@@ -105,6 +107,7 @@ export async function ensureErmisTagsBackfilled() {
     }
   }
 
+  // Group interests by business
   const byBusiness = new Map<string, Set<string>>()
   for (const { businessId, program } of interests) {
     const tag = program.trim()
@@ -113,16 +116,20 @@ export async function ensureErmisTagsBackfilled() {
     byBusiness.get(businessId)!.add(tag)
   }
 
-  for (const [businessId, newTags] of Array.from(byBusiness)) {
-    const biz = await prisma.business.findUnique({ where: { id: businessId }, select: { tags: true } })
-    if (!biz) continue
-    const merged = Array.from(new Set([...biz.tags, ...Array.from(newTags)]))
-    if (merged.length !== biz.tags.length) {
-      await prisma.business.update({ where: { id: businessId }, data: { tags: merged } })
+  // Only update businesses that are actually missing tags (avoids unnecessary writes)
+  const businessIds = Array.from(byBusiness.keys())
+  const businesses = await prisma.business.findMany({
+    where: { id: { in: businessIds } },
+    select: { id: true, tags: true },
+  })
+
+  for (const biz of businesses) {
+    const needed = Array.from(byBusiness.get(biz.id) ?? [])
+    const missing = needed.filter(t => !biz.tags.includes(t))
+    if (missing.length > 0) {
+      await prisma.business.update({ where: { id: biz.id }, data: { tags: [...biz.tags, ...missing] } })
     }
   }
-
-  await prisma.appSetting.update({ where: { id: 'main' }, data: { ermisTagsBackfilled: true } })
 }
 
 export async function ensureRejectionReasonSuggestionsSeeded() {

@@ -81,7 +81,6 @@ model AppSetting {
   // Kill switch: accountant-facing commission-approval emails for the Finance
   // payment flow stay OFF until an admin verifies the flow end-to-end.
   financeCommissionEmailsEnabled   Boolean  @default(false)
-  ermisTagsBackfilled              Boolean  @default(false)
   updatedAt                        DateTime @updatedAt
 }
 
