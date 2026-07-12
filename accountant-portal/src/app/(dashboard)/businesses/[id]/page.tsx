@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { KadTable } from '@/components/businesses/kad-table'
 import { MatchCard } from '@/components/matching/match-card'
 import { QuickSendModal } from '@/components/quick-send-modal'
-import { ArrowLeft, Mail, Phone, MapPin, Calendar, Edit, Send, Trash2, X as XIcon, Plus, Printer, ClipboardList, Scale } from 'lucide-react'
+import { ArrowLeft, Mail, Phone, MapPin, Calendar, Edit, Send, Trash2, X as XIcon, Plus, Printer, ClipboardList, Scale, Database } from 'lucide-react'
 import { NewCaseModal } from '@/components/cases/new-case-modal'
 import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
@@ -16,6 +16,26 @@ import { formatDate } from '@/lib/utils'
 import { ALL_CATEGORIES, getEffectiveCategory, categoryTag, CATEGORY_TAG_PREFIX } from '@/lib/business-categories'
 import { CategoryBadge } from '@/components/businesses/category-badge'
 import { resolveRegionFromZip } from '@/lib/greek-regions'
+
+const SOURCE_LABELS: Record<string, { label: string; color: string }> = {
+  'accountant':      { label: 'Logistis (Λογιστής)', color: 'bg-indigo-100 text-indigo-800' },
+  'finance-import':  { label: 'Finance Import', color: 'bg-amber-100 text-amber-800' },
+  'ermis-lead':      { label: 'Ερμής (AI)', color: 'bg-purple-100 text-purple-800' },
+  'case-management': { label: 'Case Management', color: 'bg-cyan-100 text-cyan-800' },
+  'website-form':    { label: 'Φόρμα Ιστοσελίδας', color: 'bg-green-100 text-green-800' },
+  'lead-form':       { label: 'Lead Form', color: 'bg-teal-100 text-teal-800' },
+  'exodikastikos':   { label: 'Εξωδικαστικός', color: 'bg-rose-100 text-rose-800' },
+}
+function SourceBadge({ source }: { source?: string }) {
+  if (!source) return null
+  const meta = SOURCE_LABELS[source] ?? { label: source, color: 'bg-slate-100 text-slate-700' }
+  return (
+    <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${meta.color}`}>
+      <Database size={10} />
+      {meta.label}
+    </span>
+  )
+}
 
 const CASE_STATUS_LABELS: Record<string, string> = {
   NEW: 'Νέο', ACCEPTED: 'Αποδεκτό', IN_PROGRESS: 'Σε Εξέλιξη',
@@ -158,6 +178,7 @@ export default function BusinessDetailPage() {
             {(business.deactivationFlag === 'Y' || business.stopDate) && (
               <Badge variant="danger">Ανενεργή</Badge>
             )}
+            <SourceBadge source={business.source} />
             <CategoryBadge category={getEffectiveCategory(business)} size="lg" />
             <select
               value={getEffectiveCategory(business) || ''}

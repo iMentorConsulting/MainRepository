@@ -134,6 +134,25 @@ ${isLoan ? 'ΣΗΜΑΝΤΙΚΟ: Αυτό το πρόγραμμα είναι ΔΑ
 Μην κάνεις ποτέ νομικές δεσμευτικές διαβεβαιώσεις — η τελική έγκριση είναι πάντα του φορέα διαχείρισης του προγράμματος.`
 }
 
+async function autoTagBusinessFromErmis(businessId: string, programTitle: string): Promise<void> {
+  const tag = programTitle.trim()
+  if (!tag) return
+
+  // Ensure a TagOption exists for this program so it appears in filter dropdowns
+  const existing = await prisma.tagOption.findFirst({ where: { label: tag } })
+  if (!existing) {
+    const count = await prisma.tagOption.count()
+    await prisma.tagOption.create({ data: { label: tag, order: count } })
+  }
+
+  // Add the tag to the business if not already present
+  const business = await prisma.business.findUnique({ where: { id: businessId }, select: { tags: true } })
+  if (!business) return
+  if (!business.tags.includes(tag)) {
+    await prisma.business.update({ where: { id: businessId }, data: { tags: [...business.tags, tag] } })
+  }
+}
+
 async function createPublicClientCase(params: {
   businessId: string
   programId: string
@@ -180,6 +199,9 @@ async function createPublicClientCase(params: {
     },
     include: { accountant: { select: { officeName: true } } },
   })
+
+  // Auto-tag the business with the program title so it's filterable in matches
+  autoTagBusinessFromErmis(params.businessId, params.programTitle).catch(() => {})
 
   try {
     await sendEmail({
