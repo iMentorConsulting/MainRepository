@@ -149,6 +149,21 @@ export async function POST(request: NextRequest) {
     },
   })
 
+  // 3b. Auto-tag the business with the program name (fire-and-forget)
+  ;(async () => {
+    const tag = programName.trim()
+    if (!tag) return
+    const existing = await prisma.tagOption.findFirst({ where: { label: tag } })
+    if (!existing) {
+      const count = await prisma.tagOption.count()
+      await prisma.tagOption.create({ data: { label: tag, order: count } })
+    }
+    const biz = await prisma.business.findUnique({ where: { id: business!.id }, select: { tags: true } })
+    if (biz && !biz.tags.includes(tag)) {
+      await prisma.business.update({ where: { id: business!.id }, data: { tags: [...biz.tags, tag] } })
+    }
+  })().catch(() => {})
+
   // 4. Create or update the Ερμής session token for this business+program
   const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30 days
 

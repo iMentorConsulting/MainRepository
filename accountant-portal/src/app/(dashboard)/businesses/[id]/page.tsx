@@ -20,7 +20,7 @@ import { resolveRegionFromZip } from '@/lib/greek-regions'
 const SOURCE_LABELS: Record<string, { label: string; color: string }> = {
   'accountant':      { label: 'Logistis (Λογιστής)', color: 'bg-indigo-100 text-indigo-800' },
   'finance-import':  { label: 'Finance Import', color: 'bg-amber-100 text-amber-800' },
-  'ermis-lead':      { label: 'Ερμής (AI)', color: 'bg-purple-100 text-purple-800' },
+  'ermis-lead':      { label: 'Ερμής / Case Mgmt', color: 'bg-purple-100 text-purple-800' },
   'case-management': { label: 'Case Management', color: 'bg-cyan-100 text-cyan-800' },
   'website-form':    { label: 'Φόρμα Ιστοσελίδας', color: 'bg-green-100 text-green-800' },
   'lead-form':       { label: 'Lead Form', color: 'bg-teal-100 text-teal-800' },
