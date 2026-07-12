@@ -162,9 +162,47 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  const count = await prisma.programMatch.count({
+  const preview = request.nextUrl.searchParams.get('preview') === 'true'
+
+  if (!preview) {
+    const count = await prisma.programMatch.count({
+      where: { programId: params.id, notified: false, status: { not: MatchStatus.REJECTED } },
+    })
+    return NextResponse.json({ pending: count })
+  }
+
+  // Full preview: return accountants + their matched businesses
+  const matches = await prisma.programMatch.findMany({
     where: { programId: params.id, notified: false, status: { not: MatchStatus.REJECTED } },
+    include: {
+      business: {
+        select: {
+          id: true, afm: true, onomasia: true, accountantId: true,
+          accountant: { select: { id: true, officeName: true, contactPerson: true, email: true } },
+        },
+      },
+    },
+    orderBy: { business: { onomasia: 'asc' } },
   })
 
-  return NextResponse.json({ pending: count })
+  const accountantMap: Record<string, { id: string; officeName: string; contactPerson: string; email: string; businesses: { id: string; afm: string; onomasia: string | null }[] }> = {}
+  const directBusinesses: { id: string; afm: string; onomasia: string | null }[] = []
+
+  for (const m of matches) {
+    const acct = m.business.accountant
+    if (!acct) {
+      directBusinesses.push({ id: m.business.id, afm: m.business.afm, onomasia: m.business.onomasia })
+    } else {
+      if (!accountantMap[acct.id]) {
+        accountantMap[acct.id] = { id: acct.id, officeName: acct.officeName, contactPerson: acct.contactPerson, email: acct.email, businesses: [] }
+      }
+      accountantMap[acct.id].businesses.push({ id: m.business.id, afm: m.business.afm, onomasia: m.business.onomasia })
+    }
+  }
+
+  return NextResponse.json({
+    pending: matches.length,
+    accountants: Object.values(accountantMap).sort((a, b) => a.officeName.localeCompare(b.officeName, 'el')),
+    directBusinesses,
+  })
 }

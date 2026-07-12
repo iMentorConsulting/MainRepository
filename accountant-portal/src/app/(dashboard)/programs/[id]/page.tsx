@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { getYoutubeId } from '@/components/programs/video-urls-input'
 import { MatchCard } from '@/components/matching/match-card'
-import { ArrowLeft, Zap, Calendar, Tag, ExternalLink, Archive, Trash2, Bell, Paperclip } from 'lucide-react'
+import { ArrowLeft, Zap, Calendar, Tag, ExternalLink, Archive, Trash2, Bell, Paperclip, X, Users, Building2 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { formatDate } from '@/lib/utils'
 import { GREEK_REGIONS } from '@/lib/greek-regions'
@@ -36,6 +36,9 @@ export default function ProgramDetailPage() {
   const [deleting, setDeleting] = useState(false)
   const [notifying, setNotifying] = useState(false)
   const [pendingNotifications, setPendingNotifications] = useState<number | null>(null)
+  const [showPreview, setShowPreview] = useState(false)
+  const [previewData, setPreviewData] = useState<any>(null)
+  const [previewLoading, setPreviewLoading] = useState(false)
   const [criteriaMap, setCriteriaMap] = useState<Record<string, string>>({})
   const [diagnoseAfm, setDiagnoseAfm] = useState('')
   const [diagnosing, setDiagnosing] = useState(false)
@@ -97,14 +100,25 @@ export default function ProgramDetailPage() {
     setRunning(false)
   }
 
+  async function openNotifyPreview() {
+    setPreviewLoading(true)
+    setShowPreview(true)
+    setPreviewData(null)
+    const res = await fetch(`/api/programs/${id}/notify?preview=true`)
+    const data = await res.json()
+    setPreviewData(data)
+    setPreviewLoading(false)
+  }
+
   async function sendNotifications() {
-    if (!confirm(`Αποστολή ειδοποιήσεων για ${pendingNotifications} matches σε λογιστές;\n\nΟι λογιστές θα λάβουν email και notification στην πλατφόρμα.`)) return
     setNotifying(true)
     const res = await fetch(`/api/programs/${id}/notify`, { method: 'POST' })
     const data = await res.json()
     setPendingNotifications(0)
+    setShowPreview(false)
+    setPreviewData(null)
     const directMsg = data.directNotified > 0
-      ? `\n\n${data.directNotified} match${data.directNotified === 1 ? '' : 'es'} αφορ${data.directNotified === 1 ? 'ά' : 'ούν'} επιχειρήσεις χωρίς ανάθεση λογιστή — εστάλη εσωτερικό email στην ομάδα I-MENTOR για απευθείας επικοινωνία.`
+      ? ` (${data.directNotified} απευθείας πελάτες I-MENTOR — εσωτερικό email)`
       : ''
     alert(`Εστάλησαν ειδοποιήσεις για ${data.notified} matches σε ${data.accountants} λογιστές.${directMsg}`)
     setNotifying(false)
@@ -155,7 +169,7 @@ export default function ProgramDetailPage() {
               Matching
             </Button>
             {pendingNotifications !== null && pendingNotifications > 0 && (
-              <Button onClick={sendNotifications} loading={notifying} variant="outline" className="text-green-700 border-green-300 hover:bg-green-50 relative">
+              <Button onClick={openNotifyPreview} loading={previewLoading} variant="outline" className="text-green-700 border-green-300 hover:bg-green-50 relative">
                 <Bell size={15} className="mr-1" />
                 Αποστολή Ειδοποιήσεων
                 <span className="ml-1.5 bg-green-600 text-white text-xs rounded-full px-1.5 py-0.5 font-bold">{pendingNotifications}</span>
@@ -470,6 +484,109 @@ export default function ProgramDetailPage() {
             )}
           </CardContent>
         </Card>
+      )}
+
+      {/* Notify preview modal */}
+      {showPreview && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[80vh] flex flex-col">
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
+                  <Bell size={18} className="text-green-600" />
+                  Προεπισκόπηση Ειδοποιήσεων
+                </h2>
+                {previewData && (
+                  <p className="text-sm text-slate-500 mt-0.5">
+                    {previewData.pending} matches → {previewData.accountants?.length ?? 0} λογιστές
+                    {previewData.directBusinesses?.length > 0 && ` + ${previewData.directBusinesses.length} απευθείας πελάτες`}
+                  </p>
+                )}
+              </div>
+              <button onClick={() => { setShowPreview(false); setPreviewData(null) }} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600">
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="overflow-y-auto flex-1 px-6 py-4 space-y-4">
+              {previewLoading ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="animate-spin w-6 h-6 border-2 border-indigo-600 border-t-transparent rounded-full" />
+                </div>
+              ) : previewData ? (
+                <>
+                  {previewData.accountants?.length > 0 && (
+                    <div className="space-y-3">
+                      <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                        <Users size={13} /> Λογιστές που θα λάβουν email
+                      </h3>
+                      {previewData.accountants.map((acct: any) => (
+                        <div key={acct.id} className="border border-slate-200 rounded-xl p-3">
+                          <div className="flex items-start justify-between gap-2">
+                            <div>
+                              <p className="font-medium text-slate-800 text-sm">{acct.officeName}</p>
+                              <p className="text-xs text-slate-500">{acct.contactPerson} · {acct.email}</p>
+                            </div>
+                            <span className="text-xs bg-indigo-100 text-indigo-700 font-semibold px-2 py-0.5 rounded-full whitespace-nowrap">
+                              {acct.businesses.length} πελάτ{acct.businesses.length === 1 ? 'ης' : 'ες'}
+                            </span>
+                          </div>
+                          <ul className="mt-2 space-y-0.5">
+                            {acct.businesses.map((b: any) => (
+                              <li key={b.id} className="text-xs text-slate-600 flex items-center gap-1.5">
+                                <Building2 size={11} className="text-slate-400 flex-shrink-0" />
+                                {b.onomasia || '—'} <span className="text-slate-400 font-mono">({b.afm})</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {previewData.directBusinesses?.length > 0 && (
+                    <div className="space-y-2">
+                      <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                        <Building2 size={13} /> Απευθείας πελάτες I-MENTOR (χωρίς λογιστή)
+                      </h3>
+                      <div className="border border-amber-200 bg-amber-50 rounded-xl p-3">
+                        <p className="text-xs text-amber-700 mb-2">Θα σταλεί εσωτερικό email στην ομάδα I-MENTOR.</p>
+                        <ul className="space-y-0.5">
+                          {previewData.directBusinesses.map((b: any) => (
+                            <li key={b.id} className="text-xs text-amber-800 flex items-center gap-1.5">
+                              <Building2 size={11} className="flex-shrink-0" />
+                              {b.onomasia || '—'} <span className="font-mono">({b.afm})</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    </div>
+                  )}
+
+                  {previewData.pending === 0 && (
+                    <p className="text-center text-slate-400 py-8 text-sm">Δεν υπάρχουν εκκρεμείς ειδοποιήσεις.</p>
+                  )}
+                </>
+              ) : null}
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-4 border-t border-slate-200 flex items-center justify-end gap-3">
+              <Button variant="ghost" onClick={() => { setShowPreview(false); setPreviewData(null) }}>Ακύρωση</Button>
+              <Button
+                onClick={sendNotifications}
+                loading={notifying}
+                disabled={!previewData || previewData.pending === 0}
+                className="bg-green-600 hover:bg-green-700 text-white"
+              >
+                <Bell size={14} className="mr-1.5" />
+                Αποστολή σε {previewData?.pending ?? '…'} matches
+              </Button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
