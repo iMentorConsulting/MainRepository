@@ -216,6 +216,31 @@ export async function dismissMatchesForProgram(programId: string): Promise<void>
   })
 }
 
+// Sends an immediate internal email to I-MENTOR for a direct (no-accountant) match.
+async function autoNotifyDirectMatch(businessId: string, programId: string): Promise<void> {
+  const [business, program] = await Promise.all([
+    prisma.business.findUnique({ where: { id: businessId }, select: { afm: true, onomasia: true, accountantId: true } }),
+    prisma.program.findUnique({ where: { id: programId }, select: { title: true } }),
+  ])
+  if (!business || !program || business.accountantId) return // only for direct clients
+  const adminEmail = process.env.ADMIN_EMAIL || 'info@i-mentor.gr'
+  const appUrl = process.env.APP_URL || 'https://logistis.i-mentor.gr'
+  const name = business.onomasia || business.afm
+  await sendEmail({
+    to: adminEmail,
+    subject: `🎯 Νέο match: ${name} — ${program.title}`,
+    html: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">
+      <p>Νέο αυτόματο match για απευθείας πελάτη I-MENTOR:</p>
+      <p><strong>${name}</strong> (ΑΦΜ: ${business.afm}) ↔ <strong>${program.title}</strong></p>
+      <p><a href="${appUrl}/businesses/${businessId}">Δείτε την επιχείρηση →</a></p>
+    </div>`,
+  }).catch(err => console.error('[DirectMatch] email failed:', err?.message))
+  await prisma.programMatch.updateMany({
+    where: { programId, businessId, notified: false },
+    data: { notified: true },
+  })
+}
+
 // Returns true if a NEW match was created (not an update to an existing one).
 async function upsertMatch(programId: string, businessId: string, score: number, reasons: string[]): Promise<boolean> {
   if (score < 40) return false
@@ -284,7 +309,12 @@ export async function runMatchingForProgram(programId: string): Promise<number> 
     const { score, reasons } = matchesBusiness(business, program)
     if (score >= 40) qualifyingBusinessIds.push(business.id)
     const isNew = await upsertMatch(programId, business.id, score, reasons)
-    if (isNew) matchCount++
+    if (isNew) {
+      matchCount++
+      if (!business.accountantId) {
+        autoNotifyDirectMatch(business.id, programId).catch(() => {})
+      }
+    }
   }
 
   await resetStaleMatches(programId, qualifyingBusinessIds)
@@ -423,7 +453,12 @@ export async function runMatchingForBusiness(businessId: string): Promise<number
 
     const { score, reasons } = matchesBusiness(business, program)
     const isNew = await upsertMatch(program.id, business.id, score, reasons)
-    if (isNew) matchCount++
+    if (isNew) {
+      matchCount++
+      if (!business.accountantId) {
+        autoNotifyDirectMatch(business.id, program.id).catch(() => {})
+      }
+    }
     if (score < 40) {
       await prisma.programMatch.deleteMany({
         where: { programId: program.id, businessId, status: MatchStatus.POTENTIAL, notified: false }
