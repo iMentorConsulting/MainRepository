@@ -39,6 +39,7 @@ export default function ProgramDetailPage() {
   const [showPreview, setShowPreview] = useState(false)
   const [previewData, setPreviewData] = useState<any>(null)
   const [previewLoading, setPreviewLoading] = useState(false)
+  const [selectedMatchIds, setSelectedMatchIds] = useState<Set<string>>(new Set())
   const [criteriaMap, setCriteriaMap] = useState<Record<string, string>>({})
   const [diagnoseAfm, setDiagnoseAfm] = useState('')
   const [diagnosing, setDiagnosing] = useState(false)
@@ -107,12 +108,40 @@ export default function ProgramDetailPage() {
     const res = await fetch(`/api/programs/${id}/notify?preview=true`)
     const data = await res.json()
     setPreviewData(data)
+    // Pre-select all match IDs
+    const allIds = new Set<string>([
+      ...(data.accountants ?? []).flatMap((a: any) => a.businesses.map((b: any) => b.matchId)),
+      ...(data.directBusinesses ?? []).map((b: any) => b.matchId),
+    ])
+    setSelectedMatchIds(allIds)
     setPreviewLoading(false)
+  }
+
+  function toggleMatch(matchId: string) {
+    setSelectedMatchIds(prev => {
+      const next = new Set(prev)
+      next.has(matchId) ? next.delete(matchId) : next.add(matchId)
+      return next
+    })
+  }
+
+  function toggleAccountant(acct: any) {
+    const ids = acct.businesses.map((b: any) => b.matchId)
+    const allSelected = ids.every((id: string) => selectedMatchIds.has(id))
+    setSelectedMatchIds(prev => {
+      const next = new Set(prev)
+      ids.forEach((id: string) => allSelected ? next.delete(id) : next.add(id))
+      return next
+    })
   }
 
   async function sendNotifications() {
     setNotifying(true)
-    const res = await fetch(`/api/programs/${id}/notify`, { method: 'POST' })
+    const res = await fetch(`/api/programs/${id}/notify`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ matchIds: Array.from(selectedMatchIds) }),
+    })
     const data = await res.json()
     setPendingNotifications(0)
     setShowPreview(false)
@@ -520,29 +549,55 @@ export default function ProgramDetailPage() {
                   {previewData.accountants?.length > 0 && (
                     <div className="space-y-3">
                       <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
-                        <Users size={13} /> Λογιστές που θα λάβουν email
+                        <Users size={13} /> Λογιστές
                       </h3>
-                      {previewData.accountants.map((acct: any) => (
-                        <div key={acct.id} className="border border-slate-200 rounded-xl p-3">
-                          <div className="flex items-start justify-between gap-2">
-                            <div>
-                              <p className="font-medium text-slate-800 text-sm">{acct.officeName}</p>
-                              <p className="text-xs text-slate-500">{acct.contactPerson} · {acct.email}</p>
+                      {previewData.accountants.map((acct: any) => {
+                        const acctMatchIds = acct.businesses.map((b: any) => b.matchId)
+                        const allChecked = acctMatchIds.every((mid: string) => selectedMatchIds.has(mid))
+                        const someChecked = acctMatchIds.some((mid: string) => selectedMatchIds.has(mid))
+                        const selectedCount = acctMatchIds.filter((mid: string) => selectedMatchIds.has(mid)).length
+                        return (
+                          <div key={acct.id} className="border border-slate-200 rounded-xl p-3">
+                            <div className="flex items-start gap-3">
+                              <input
+                                type="checkbox"
+                                checked={allChecked}
+                                ref={el => { if (el) el.indeterminate = someChecked && !allChecked }}
+                                onChange={() => toggleAccountant(acct)}
+                                className="mt-0.5 cursor-pointer accent-indigo-600"
+                              />
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center justify-between gap-2">
+                                  <p className="font-medium text-slate-800 text-sm">{acct.officeName}</p>
+                                  <span className="text-xs bg-indigo-100 text-indigo-700 font-semibold px-2 py-0.5 rounded-full whitespace-nowrap">
+                                    {selectedCount}/{acct.businesses.length} πελάτ{acct.businesses.length === 1 ? 'ης' : 'ες'}
+                                  </span>
+                                </div>
+                                <p className="text-xs text-slate-500">{acct.contactPerson} · {acct.email}</p>
+                                <ul className="mt-2 space-y-1">
+                                  {acct.businesses.map((b: any) => (
+                                    <li key={b.id} className="flex items-center gap-2">
+                                      <input
+                                        type="checkbox"
+                                        checked={selectedMatchIds.has(b.matchId)}
+                                        onChange={() => toggleMatch(b.matchId)}
+                                        className="cursor-pointer accent-indigo-600 flex-shrink-0"
+                                      />
+                                      <Link href={`/businesses/${b.id}`} target="_blank"
+                                        className="text-xs text-indigo-600 hover:underline flex items-center gap-1 min-w-0">
+                                        <Building2 size={11} className="flex-shrink-0" />
+                                        <span className="truncate">{b.onomasia || '—'}</span>
+                                        <span className="text-slate-400 font-mono flex-shrink-0">({b.afm})</span>
+                                        <ExternalLink size={10} className="flex-shrink-0 text-slate-400" />
+                                      </Link>
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
                             </div>
-                            <span className="text-xs bg-indigo-100 text-indigo-700 font-semibold px-2 py-0.5 rounded-full whitespace-nowrap">
-                              {acct.businesses.length} πελάτ{acct.businesses.length === 1 ? 'ης' : 'ες'}
-                            </span>
                           </div>
-                          <ul className="mt-2 space-y-0.5">
-                            {acct.businesses.map((b: any) => (
-                              <li key={b.id} className="text-xs text-slate-600 flex items-center gap-1.5">
-                                <Building2 size={11} className="text-slate-400 flex-shrink-0" />
-                                {b.onomasia || '—'} <span className="text-slate-400 font-mono">({b.afm})</span>
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      ))}
+                        )
+                      })}
                     </div>
                   )}
 
@@ -551,16 +606,25 @@ export default function ProgramDetailPage() {
                       <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
                         <Building2 size={13} /> Απευθείας πελάτες I-MENTOR (χωρίς λογιστή)
                       </h3>
-                      <div className="border border-amber-200 bg-amber-50 rounded-xl p-3">
+                      <div className="border border-amber-200 bg-amber-50 rounded-xl p-3 space-y-1">
                         <p className="text-xs text-amber-700 mb-2">Θα σταλεί εσωτερικό email στην ομάδα I-MENTOR.</p>
-                        <ul className="space-y-0.5">
-                          {previewData.directBusinesses.map((b: any) => (
-                            <li key={b.id} className="text-xs text-amber-800 flex items-center gap-1.5">
+                        {previewData.directBusinesses.map((b: any) => (
+                          <div key={b.id} className="flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              checked={selectedMatchIds.has(b.matchId)}
+                              onChange={() => toggleMatch(b.matchId)}
+                              className="cursor-pointer accent-amber-600 flex-shrink-0"
+                            />
+                            <Link href={`/businesses/${b.id}`} target="_blank"
+                              className="text-xs text-amber-800 hover:underline flex items-center gap-1 min-w-0">
                               <Building2 size={11} className="flex-shrink-0" />
-                              {b.onomasia || '—'} <span className="font-mono">({b.afm})</span>
-                            </li>
-                          ))}
-                        </ul>
+                              <span className="truncate">{b.onomasia || '—'}</span>
+                              <span className="font-mono flex-shrink-0">({b.afm})</span>
+                              <ExternalLink size={10} className="flex-shrink-0 opacity-60" />
+                            </Link>
+                          </div>
+                        ))}
                       </div>
                     </div>
                   )}
@@ -573,17 +637,22 @@ export default function ProgramDetailPage() {
             </div>
 
             {/* Footer */}
-            <div className="px-6 py-4 border-t border-slate-200 flex items-center justify-end gap-3">
-              <Button variant="ghost" onClick={() => { setShowPreview(false); setPreviewData(null) }}>Ακύρωση</Button>
-              <Button
-                onClick={sendNotifications}
-                loading={notifying}
-                disabled={!previewData || previewData.pending === 0}
-                className="bg-green-600 hover:bg-green-700 text-white"
-              >
-                <Bell size={14} className="mr-1.5" />
-                Αποστολή σε {previewData?.pending ?? '…'} matches
-              </Button>
+            <div className="px-6 py-4 border-t border-slate-200 flex items-center justify-between gap-3">
+              <p className="text-xs text-slate-500">
+                {selectedMatchIds.size} από {previewData?.pending ?? 0} επιλεγμένα
+              </p>
+              <div className="flex items-center gap-3">
+                <Button variant="ghost" onClick={() => { setShowPreview(false); setPreviewData(null) }}>Ακύρωση</Button>
+                <Button
+                  onClick={sendNotifications}
+                  loading={notifying}
+                  disabled={!previewData || selectedMatchIds.size === 0}
+                  className="bg-green-600 hover:bg-green-700 text-white"
+                >
+                  <Bell size={14} className="mr-1.5" />
+                  Αποστολή σε {selectedMatchIds.size} matches
+                </Button>
+              </div>
             </div>
           </div>
         </div>

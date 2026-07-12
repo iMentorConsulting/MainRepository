@@ -16,14 +16,17 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
   })
   if (!program) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  // Find all un-notified matches for this program, grouped by accountant.
-  // Must exclude REJECTED matches — e.g. ones the auto-matcher disqualified
-  // after the admin tightened criteria (resetStaleMatches in matching.ts
-  // flips them to REJECTED but leaves `notified` untouched), otherwise
-  // they'd still show up here as "ready to send" even though they no
-  // longer qualify.
+  // Optional selective send: if matchIds provided, only send those; otherwise send all pending.
+  const body = await request.json().catch(() => ({}))
+  const selectedMatchIds: string[] | undefined = Array.isArray(body.matchIds) && body.matchIds.length > 0 ? body.matchIds : undefined
+
   const unnotifiedMatches = await prisma.programMatch.findMany({
-    where: { programId: params.id, notified: false, status: { not: MatchStatus.REJECTED } },
+    where: {
+      programId: params.id,
+      notified: false,
+      status: { not: MatchStatus.REJECTED },
+      ...(selectedMatchIds ? { id: { in: selectedMatchIds } } : {}),
+    },
     include: {
       business: { select: { id: true, accountantId: true, onomasia: true, afm: true } },
     },
@@ -185,18 +188,18 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     orderBy: { business: { onomasia: 'asc' } },
   })
 
-  const accountantMap: Record<string, { id: string; officeName: string; contactPerson: string; email: string; businesses: { id: string; afm: string; onomasia: string | null }[] }> = {}
-  const directBusinesses: { id: string; afm: string; onomasia: string | null }[] = []
+  const accountantMap: Record<string, { id: string; officeName: string; contactPerson: string; email: string; businesses: { matchId: string; id: string; afm: string; onomasia: string | null }[] }> = {}
+  const directBusinesses: { matchId: string; id: string; afm: string; onomasia: string | null }[] = []
 
   for (const m of matches) {
     const acct = m.business.accountant
     if (!acct) {
-      directBusinesses.push({ id: m.business.id, afm: m.business.afm, onomasia: m.business.onomasia })
+      directBusinesses.push({ matchId: m.id, id: m.business.id, afm: m.business.afm, onomasia: m.business.onomasia })
     } else {
       if (!accountantMap[acct.id]) {
         accountantMap[acct.id] = { id: acct.id, officeName: acct.officeName, contactPerson: acct.contactPerson, email: acct.email, businesses: [] }
       }
-      accountantMap[acct.id].businesses.push({ id: m.business.id, afm: m.business.afm, onomasia: m.business.onomasia })
+      accountantMap[acct.id].businesses.push({ matchId: m.id, id: m.business.id, afm: m.business.afm, onomasia: m.business.onomasia })
     }
   }
 
