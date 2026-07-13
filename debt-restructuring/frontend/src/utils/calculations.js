@@ -46,6 +46,51 @@ export function formatOfferWithVAT(netAmount) {
   }
 }
 
+// Banking details - Apostolakis Charalampos (Individual Business / Ατομική Επιχείρηση)
+export const COMPANY_BANKING_DETAILS = {
+  beneficiary: 'Αποστολάκης Χαράλαμπος',
+  banks: [
+    { name: 'Πειραιώς', iban: 'GR9401727540005754096471354' },
+    { name: 'Alpha Bank', iban: 'GR0901407750775002002010585' },
+    { name: 'Eurobank', iban: 'GR8102601680000070200668063' },
+  ]
+}
+
+export function getBankingDetailsText() {
+  const bankLines = COMPANY_BANKING_DETAILS.banks
+    .map(b => `${b.name}: ${b.iban}`)
+    .join('\n')
+  return `\n\n🏦 *Τραπεζικοί Λογαριασμοί:*\n${bankLines}\nΔικαιούχος: *${COMPANY_BANKING_DETAILS.beneficiary}*`
+}
+
+// Withholding tax calculation (20% for amounts > €305 net value, only for business entities)
+// εξαιρούνται: μισθωτός, συνταξιούχος (ΑΠΥ - no withholding)
+export function calculateOfferWithWithholding(netAmount, debtorType) {
+  const net = Number(netAmount) || 0
+  const vat = calculateVAT(net)
+  const grossBeforeTax = net + vat
+
+  // Check if withholding applies: NO for μισθωτός/συνταξιούχος, YES for νομικό πρόσωπο/επιτηδευματίας
+  const isEmployeeOrPensioner = debtorType === 'Μισθωτός'
+  const hasWithholding = !isEmployeeOrPensioner && net > 305
+
+  // Calculate withholding tax if applicable (20% of gross before withholding tax)
+  const withholding = hasWithholding ? Math.round(grossBeforeTax * 0.20 * 100) / 100 : 0
+  const finalPayable = Math.round((grossBeforeTax - withholding) * 100) / 100
+
+  return {
+    net: Math.round(net * 100) / 100,
+    vat: Math.round(vat * 100) / 100,
+    grossBeforeTax: Math.round(grossBeforeTax * 100) / 100,
+    withholding: Math.round(withholding * 100) / 100,
+    finalPayable: Math.round(finalPayable * 100) / 100,
+    hasWithholding,
+    formatted: hasWithholding
+      ? `${fmt(net)} + ΦΠΑ 24% = ${fmt(grossBeforeTax)} - Παρακράτηση 20% = ${fmt(finalPayable)}`
+      : `${fmt(net)} + ΦΠΑ 24% = ${fmt(finalPayable)}` // No withholding for employees
+  }
+}
+
 // Payment Tracking (1/2 installments)
 export function getPaymentStatus(caseObj) {
   const contactStage = caseObj.contact_stage || 'Νέα Ανάλυση'

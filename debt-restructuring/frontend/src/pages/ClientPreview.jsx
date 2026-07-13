@@ -987,10 +987,10 @@ export default function ClientPreview() {
               <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
                 <div className="text-sm font-bold text-gray-700 mb-2 flex items-center gap-1.5"><BuildingLibraryIcon className="w-4 h-4 text-gray-600" />Τραπεζικοί Λογαριασμοί Πληρωμής</div>
                 <div className="space-y-1 text-sm font-mono">
-                  <div><span className="text-gray-500">Πειραιώς:</span> GR4501714330006433164381388</div>
-                  <div><span className="text-gray-500">Eurobank:</span> GR5802601680000060201330648</div>
-                  <div><span className="text-gray-500">Alpha Bank:</span> GR2401407750775002330002138</div>
-                  <div className="mt-1"><span className="text-gray-500">Δικαιούχος:</span> <b>I MENTOR IKE</b></div>
+                  <div><span className="text-gray-500">Πειραιώς:</span> GR9401727540005754096471354</div>
+                  <div><span className="text-gray-500">Alpha Bank:</span> GR0901407750775002002010585</div>
+                  <div><span className="text-gray-500">Eurobank:</span> GR8102601680000070200668063</div>
+                  <div className="mt-1"><span className="text-gray-500">Δικαιούχος:</span> <b>Αποστολάκης Χαράλαμπος</b></div>
                 </div>
               </div>
             </div>
