@@ -16,11 +16,16 @@ const HOUSEHOLD_OPTIONS = [
 function MoneyField({ label, id, value, onChange, placeholder = '' }) {
   // State for displaying the input while user types (unformatted)
   const [displayValue, setDisplayValue] = useState(String(value || ''))
+  // Track if this input is currently being edited to avoid prop-driven updates interfering
+  const [isEditing, setIsEditing] = useState(false)
 
   // When parent prop changes (e.g., from loading data), update our display
+  // BUT: only if we're not actively editing (to preserve user input mid-typing)
   useEffect(() => {
-    setDisplayValue(String(value || ''))
-  }, [value])
+    if (!isEditing) {
+      setDisplayValue(String(value || ''))
+    }
+  }, [value, isEditing])
 
   const handleChange = (e) => {
     const input = e.target.value
@@ -28,7 +33,18 @@ function MoneyField({ label, id, value, onChange, placeholder = '' }) {
 
     // Extract only digits and update parent
     const raw = input.replace(/[^\d]/g, '')
-    onChange(raw ? parseInt(raw) : 0)
+    const numVal = raw ? parseInt(raw) : 0
+    onChange(numVal)
+  }
+
+  const handleFocus = () => setIsEditing(true)
+  const handleBlur = (e) => {
+    setIsEditing(false)
+    // Ensure parent value is synced when user leaves field
+    const input = e.target.value
+    const raw = input.replace(/[^\d]/g, '')
+    const numVal = raw ? parseInt(raw) : 0
+    onChange(numVal)
   }
 
   return (
@@ -41,6 +57,8 @@ function MoneyField({ label, id, value, onChange, placeholder = '' }) {
         placeholder={placeholder || 'π.χ. 1.000'}
         value={displayValue}
         onChange={handleChange}
+        onFocus={handleFocus}
+        onBlur={handleBlur}
       />
     </div>
   )

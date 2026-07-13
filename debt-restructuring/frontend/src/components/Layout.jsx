@@ -29,12 +29,12 @@ const nav = [
   { to: '/lead-lists', label: 'Λίστες', Icon: ListBulletIcon },
   { to: '/payments', label: 'Πληρωμές IRIS', Icon: CreditCardIcon },
   { to: '/themis-conversations', label: 'Συζητήσεις με Θέμις', Icon: ChatBubbleLeftEllipsisIcon },
+  { to: '/themis-settings', label: 'Ρυθμίσεις Θέμις', Icon: ScaleIcon },
 ]
 
 const adminNav = [
   { to: '/finances', label: 'Οικονομικά', Icon: BanknotesIcon },
   { to: '/leads-reporting', label: 'Reporting', Icon: PresentationChartLineIcon },
-  { to: '/themis-settings', label: 'Ρυθμίσεις Θέμις', Icon: ScaleIcon },
 ]
 
 export default function Layout({ auth, onLogout }) {
