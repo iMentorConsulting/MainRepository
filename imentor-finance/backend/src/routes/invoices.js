@@ -175,8 +175,11 @@ async function getVatTaxRateId(orgKey) {
 
 // Matches the working GAS script: category1_3 + E3_561_003 for ΑΠΥ, E3_561_001 for ΤΠΥ
 // mydata_document_type is set at invoice level: "2.1" for ΤΠΥ, nothing for ΑΠΥ
-function lines(net, desc, serviceType, taxRateId, kind) {
-  const taxes = taxRateId ? [taxRateId] : [];
+// withholdingTaxId (optional): adds the παρακράτηση tax alongside VAT on the line item
+function lines(net, desc, serviceType, taxRateId, kind, withholdingTaxId = null) {
+  const taxes = [];
+  if (taxRateId) taxes.push(taxRateId);
+  if (withholdingTaxId) taxes.push(withholdingTaxId);
   const isApy = kind === 'APY';
   return [{
     title: desc || serviceType || 'Παροχή Υπηρεσιών',
@@ -192,22 +195,32 @@ function lines(net, desc, serviceType, taxRateId, kind) {
 const docTypeCache = {};
 const withholdingTaxCache = {};
 
-// Returns the Elorus withholding tax ID for the 20% service-fee withholding.
+// Finds the Παρακράτηση ΦΕΕ tax in the Elorus taxes/ endpoint (same endpoint as VAT).
+// Identifies it by operand='-' (deduction) or title containing "παρακράτ".
 async function getWithholdingTaxId(orgKey) {
   if (withholdingTaxCache[orgKey]) return withholdingTaxCache[orgKey];
-  for (const ep of ['withholdingtaxes/?active=true', 'withholdingtaxes/']) {
+  for (const ep of ['taxes/', 'taxes/?active=true', 'itemtaxes/', 'itemtaxes/?active=true']) {
     try {
       const r = await api(orgKey).get(ep);
       const items = r.data.results || (Array.isArray(r.data) ? r.data : []);
       if (!items.length) continue;
-      console.log(`[withholdingtaxes] ${ep}:`, JSON.stringify(items).slice(0, 300));
-      const wh20 = items.find(t => parseFloat(t.percentage || t.rate || 0) === 20) || items[0];
-      if (wh20?.id) { withholdingTaxCache[orgKey] = String(wh20.id); return withholdingTaxCache[orgKey]; }
+      console.log(`[withholdingTax] ${ep}:`, JSON.stringify(items).slice(0, 400));
+      const wh = items.find(t =>
+        t.operand === '-' ||
+        t.tax_type === 'withholding' ||
+        t.tax_type === 'retention' ||
+        (t.title || t.name || '').toLowerCase().includes('παρακράτ')
+      );
+      if (wh?.id) {
+        withholdingTaxCache[orgKey] = String(wh.id);
+        console.log('[withholdingTax found]', wh.id, wh.title || wh.name || '');
+        return withholdingTaxCache[orgKey];
+      }
     } catch (e) {
-      if (e.response?.status !== 404) console.warn(`[withholdingtaxes] ${ep}:`, e.message);
+      if (e.response?.status !== 404) console.warn(`[withholdingTax] ${ep}:`, e.message);
     }
   }
-  console.warn('[withholdingtaxes] no withholding tax found for', orgKey);
+  console.warn('[withholdingTax] not found for', orgKey);
   return null;
 }
 
@@ -245,10 +258,8 @@ async function elorusPostInvoice(orgKey, body) {
     'X-Elorus-Organization': orgId,
   };
   // GAS script sends documenttype (no underscore) as string — match that exactly.
-  // Large integer IDs must be integers (not strings) in some Elorus fields.
-  const jsonStr = JSON.stringify(body)
-    .replace(/"client":"(\d{10,})"/g, '"client":$1')
-    .replace(/"withholding_taxes":\["(\d{10,})"\]/g, '"withholding_taxes":[$1]');
+  // Only client ID needs integer conversion for precision.
+  const jsonStr = JSON.stringify(body).replace(/"client":"(\d{10,})"/g, '"client":$1');
   console.log('[elorus-post] sending JSON:', jsonStr.slice(0, 600));
   try {
     return (await axios.post(`${BASE}invoices/`, jsonStr, { headers })).data;
@@ -407,9 +418,8 @@ router.post('/create-draft', async (req, res) => {
       draft: true,
       currency: 'EUR',
       ...(zip ? { billing_address: { address_line: income.address || '-', city: income.city || '-', zip, country: 'GR' } } : {}),
-      items: lines(net, description, income.service_type, taxRateId, kind),
+      items: lines(net, description, income.service_type, taxRateId, kind, applyWh ? whTaxId : null),
       ...(docType.mydataDocType ? { mydata_document_type: docType.mydataDocType } : {}),
-      ...(applyWh && whTaxId ? { withholding_taxes: [whTaxId] } : {}),
     };
     console.log(`[create-draft] kind=${kind} docTypeId=${docType.id} mydata=${body.mydata_document_type} classType=${body.items[0]?.mydata_classification_type} wh=${whTaxId || 'none'}`);
     const inv = await elorusPostInvoice(org_key, body);
@@ -511,9 +521,8 @@ router.post('/one-shot', async (req, res) => {
       draft: false,   // one-shot must produce a finalized invoice, not a draft
       currency: 'EUR',
       ...(zip ? { billing_address: { address_line: income.address || '-', city: income.city || '-', zip, country: 'GR' } } : {}),
-      items: lines(net, description, income.service_type, taxRateId, kind),
+      items: lines(net, description, income.service_type, taxRateId, kind, applyWh ? whTaxId : null),
       ...(docType.mydataDocType ? { mydata_document_type: docType.mydataDocType } : {}),
-      ...(applyWh && whTaxId ? { withholding_taxes: [whTaxId] } : {}),
     };
     console.log(`[one-shot] kind=${kind} docTypeId=${docType.id} mydata=${body.mydata_document_type} classType=${body.items[0]?.mydata_classification_type} wh=${whTaxId || 'none'}`);
     const inv = await elorusPostInvoice(org_key, body);
