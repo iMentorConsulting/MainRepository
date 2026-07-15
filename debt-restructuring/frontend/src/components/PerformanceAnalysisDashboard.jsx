@@ -10,10 +10,25 @@ export default function PerformanceAnalysisDashboard({ dateFromFilter, dateToFil
     const loadMetrics = async () => {
       setLoading(true)
       try {
-        // Use pipeline stats endpoint which has consistent case counts with the first table
-        // Send dates in YYYY-MM-DD format (backend expects this format)
-        const res = await api.getAnalyticsPipelineStatsByEmployee(dateFromFilter, dateToFilter)
-        setMetrics(res.data || {})
+        // Fetch both pipeline stats (case metrics) and performance metrics (lead metrics)
+        const [pipelineRes, performanceRes] = await Promise.all([
+          api.getAnalyticsPipelineStatsByEmployee(dateFromFilter, dateToFilter),
+          api.getConsultantPerformanceMetrics(dateFromFilter, dateToFilter)
+        ])
+
+        const pipelineData = pipelineRes.data || {}
+        const performanceData = performanceRes.data || {}
+
+        // Merge both datasets
+        const merged = {}
+        Object.keys(pipelineData).forEach(emp => {
+          merged[emp] = {
+            ...pipelineData[emp],
+            ...performanceData[emp]
+          }
+        })
+
+        setMetrics(merged)
       } catch (err) {
         console.error('Failed to load performance metrics:', err)
         toast.error('Αποτυχία φόρτωσης μετρικών απόδοσης')
@@ -45,30 +60,35 @@ export default function PerformanceAnalysisDashboard({ dateFromFilter, dateToFil
 
   const FOCUS_CONSULTANTS = ['STELLA', 'VALLIA', 'SOFIA']
 
-  // Transform pipeline stats data to match expected format
+  // Transform merged data
   const consultants = Object.entries(metrics)
     .filter(([emp]) => FOCUS_CONSULTANTS.includes(emp) && emp !== 'HARIS')
     .map(([emp, stats]) => ({
       consultant: emp,
-      total_leads: stats.total_cases || 0, // Use total cases as "leads" for compatibility
+      total_leads: stats.total_leads || stats.total_cases || 0,
       total_cases: stats.total_cases || 0,
-      cases_paying: stats.settled_accepted_count || stats.accepted_count || 0,
+      cases_paying: stats.accepted_count || 0,
       cases_total: stats.total_cases || 0,
       closure_percentage: stats.closure_percentage || 0,
       settlement_acceptance_percentage: stats.settlement_acceptance_percentage || 0,
+      closed_count: stats.closed_count || 0,
+      closure_count: stats.closure_count || 0,
+      accepted_count: stats.accepted_count || 0,
+      settlement_count: stats.settlement_count || 0,
+      not_interested_count: stats.not_interested_count || 0,
       stage_breakdown: stats.stage_breakdown || {},
       settlement_breakdown: stats.settlement_breakdown || {},
       collected_revenue: stats.collected_revenue || { first_payment: 0, second_payment: 0, total: 0 },
-      calls_total: 0,
-      calls_answered: 0,
-      calls_per_lead: 0,
-      vibers_total: 0,
-      vibers_per_lead: 0,
-      conversion_rate_to_case: 0,
-      conversion_rate_to_hot: 0,
-      conversion_hot_to_case: 0,
-      cancel_rate: 0,
-      by_status: {}
+      calls_total: stats.calls_total || 0,
+      calls_answered: stats.calls_answered || 0,
+      calls_per_lead: stats.calls_per_lead || 0,
+      vibers_total: stats.vibers_total || 0,
+      vibers_per_lead: stats.vibers_per_lead || 0,
+      conversion_rate_to_case: stats.conversion_rate_to_case || 0,
+      conversion_rate_to_hot: stats.conversion_rate_to_hot || 0,
+      conversion_hot_to_case: stats.conversion_hot_to_case || 0,
+      cancel_rate: stats.cancel_rate || 0,
+      by_status: stats.by_status || {}
     }))
     .sort((a, b) => FOCUS_CONSULTANTS.indexOf(a.consultant) - FOCUS_CONSULTANTS.indexOf(b.consultant))
 
