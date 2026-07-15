@@ -868,7 +868,6 @@ def count_leads_by_consultant(
 ):
     """Count leads by consultant with optional date range filtering."""
     from collections import defaultdict
-    from datetime import datetime
     import logging
 
     logger = logging.getLogger(__name__)
