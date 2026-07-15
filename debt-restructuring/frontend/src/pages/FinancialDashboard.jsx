@@ -244,7 +244,8 @@ export default function FinancialDashboard({ currentEmployee }) {
     }
 
     // Fetch both employee stats and leads count
-    api.getAnalyticsPipelineStatsByEmployee(dateFrom ? `${dateFrom}T00:00:00Z` : null, dateTo ? `${dateTo}T23:59:59Z` : null)
+    // Send dates in YYYY-MM-DD format (backend expects this format, not ISO with timestamps)
+    api.getAnalyticsPipelineStatsByEmployee(dateFrom || null, dateTo || null)
       .then(r => {
         console.log('Employee stats:', r.data)
         setAllEmployeeStats(r.data)
