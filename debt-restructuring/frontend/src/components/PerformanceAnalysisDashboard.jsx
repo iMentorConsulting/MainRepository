@@ -11,9 +11,8 @@ export default function PerformanceAnalysisDashboard({ dateFromFilter, dateToFil
       setLoading(true)
       try {
         // Use pipeline stats endpoint which has consistent case counts with the first table
-        const dateFromISO = dateFromFilter ? `${dateFromFilter}T00:00:00Z` : null
-        const dateToISO = dateToFilter ? `${dateToFilter}T23:59:59Z` : null
-        const res = await api.getAnalyticsPipelineStatsByEmployee(dateFromISO, dateToISO)
+        // Send dates in YYYY-MM-DD format (backend expects this format)
+        const res = await api.getAnalyticsPipelineStatsByEmployee(dateFromFilter, dateToFilter)
         setMetrics(res.data || {})
       } catch (err) {
         console.error('Failed to load performance metrics:', err)
