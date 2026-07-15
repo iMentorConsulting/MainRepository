@@ -475,6 +475,31 @@ export default function FinancialDashboard({ currentEmployee }) {
               className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-300"
             />
           </div>
+          <select
+            value={selectedMonth}
+            onChange={e => {
+              if (e.target.value) {
+                const [year, month] = e.target.value.split('-')
+                const from = `${year}-${month}-01`
+                const lastDay = new Date(parseInt(year), parseInt(month), 0).getDate()
+                const to = `${year}-${month}-${String(lastDay).padStart(2, '0')}`
+                setDateFromFilter(from)
+                setDateToFilter(to)
+                setSelectedMonth(e.target.value)
+              }
+            }}
+            className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-300"
+          >
+            <option value="">Μήνας/Έτος</option>
+            {[...Array(12)].map((_, i) => {
+              const date = new Date()
+              date.setMonth(date.getMonth() - i)
+              const year = date.getFullYear()
+              const month = String(date.getMonth() + 1).padStart(2, '0')
+              const monthName = new Intl.DateTimeFormat('el-GR', { month: 'long', year: 'numeric' }).format(date)
+              return <option key={`${year}-${month}`} value={`${year}-${month}`}>{monthName}</option>
+            })}
+          </select>
           <button
             onClick={() => {
               setSelectedMonth('')
