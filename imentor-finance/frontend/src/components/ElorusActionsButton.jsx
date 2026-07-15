@@ -246,6 +246,7 @@ export default function ElorusActionsButton({ record, onRefresh }) {
   const [finalizeOrgKey, setFinalizeOrgKey] = useState('DEFAULT');
   const [sendSelfOrgKey, setSendSelfOrgKey] = useState('DEFAULT');
   const [actionLoading, setActionLoading] = useState(false);
+  const [saOutstanding, setSaOutstanding] = useState(null);
   const btnRef = useRef();
   const dropRef = useRef();
 
@@ -280,6 +281,13 @@ export default function ElorusActionsButton({ record, onRefresh }) {
       setDropPos(openUp
         ? { left, bottom: window.innerHeight - rect.top + 6, maxHeight }
         : { left, top: rect.bottom + 6, maxHeight });
+      // Fetch SA outstanding when invoice has been issued
+      if (record.invoice_number && record.service_agreement_id) {
+        setSaOutstanding(null);
+        api.get(`/service-agreements/${record.service_agreement_id}/outstanding`)
+          .then(r => setSaOutstanding(r.data.outstanding))
+          .catch(() => setSaOutstanding(null));
+      }
     }
     setOpen(v => !v);
   };
@@ -290,9 +298,6 @@ export default function ElorusActionsButton({ record, onRefresh }) {
   const ORG_LABEL = { DEFAULT: 'ΑΠΟΣΤΟΛΑΚΗΣ', IMENTOR_IKE: 'I MENTOR IKE' };
   const KIND_LABEL = { TPY: 'ΤΠΥ', APY: 'ΑΠΥ' };
 
-  const totalFee = (parseFloat(record.amount_application) || 0) + (parseFloat(record.amount_implementation) || 0);
-  const collected = parseFloat(record.amount_collected) || 0;
-  const outstanding = totalFee > 0 ? Math.max(0, totalFee - collected) : 0;
   const fmtMoney = n => n.toLocaleString('el-GR', { minimumFractionDigits: 0, maximumFractionDigits: 2 }) + ' €';
 
   const trigger = m => { setOpen(false); setModal(m); };
@@ -354,10 +359,10 @@ export default function ElorusActionsButton({ record, onRefresh }) {
             )}
           </div>
         )}
-        {outstanding > 0 && (
+        {hasInvoice && saOutstanding != null && saOutstanding > 0 && (
           <div className="flex items-center gap-1 mt-1">
-            <span className="text-[10px] font-bold text-rose-500 uppercase tracking-wide">Ανεξόφλητο</span>
-            <span className="text-xs font-black text-rose-600">{fmtMoney(outstanding)}</span>
+            <span className="text-[10px] font-bold text-rose-500 uppercase tracking-wide">Ανεξόφλητο Συμφωνίας</span>
+            <span className="text-xs font-black text-rose-600">{fmtMoney(saOutstanding)}</span>
           </div>
         )}
       </div>
