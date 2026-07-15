@@ -195,32 +195,39 @@ function lines(net, desc, serviceType, taxRateId, kind, withholdingTaxId = null)
 const docTypeCache = {};
 const withholdingTaxCache = {};
 
-// Finds the Παρακράτηση ΦΕΕ tax in the Elorus taxes/ endpoint (same endpoint as VAT).
-// Identifies it by operand='-' (deduction) or title containing "παρακράτ".
+// Returns the Παρακράτηση ΦΕΕ tax ID.
+// Primary: ELORUS_WITHHOLDING_TAX_ID env var (set in Railway — copy ID from
+//   imentor.elorus.com/taxes/<ID>/ in the Elorus UI under Φόροι).
+// Fallback: auto-discover from Elorus taxes/ endpoint.
 async function getWithholdingTaxId(orgKey) {
+  const envId = process.env.ELORUS_WITHHOLDING_TAX_ID;
+  if (envId) { console.log('[withholdingTax] using env id:', envId); return envId; }
+
   if (withholdingTaxCache[orgKey]) return withholdingTaxCache[orgKey];
   for (const ep of ['taxes/', 'taxes/?active=true', 'itemtaxes/', 'itemtaxes/?active=true']) {
     try {
       const r = await api(orgKey).get(ep);
       const items = r.data.results || (Array.isArray(r.data) ? r.data : []);
       if (!items.length) continue;
-      console.log(`[withholdingTax] ${ep}:`, JSON.stringify(items).slice(0, 400));
+      console.log(`[withholdingTax] ${ep} (${items.length} items):`, JSON.stringify(items).slice(0, 600));
       const wh = items.find(t =>
         t.operand === '-' ||
         t.tax_type === 'withholding' ||
         t.tax_type === 'retention' ||
-        (t.title || t.name || '').toLowerCase().includes('παρακράτ')
+        (String(t.title || t.name || '')).toLowerCase().includes('παρακράτ') ||
+        (String(t.title || t.name || '')).toLowerCase().includes('withhold')
       );
       if (wh?.id) {
         withholdingTaxCache[orgKey] = String(wh.id);
-        console.log('[withholdingTax found]', wh.id, wh.title || wh.name || '');
+        console.log('[withholdingTax found via API]', wh.id, wh.title || wh.name || '');
         return withholdingTaxCache[orgKey];
       }
+      console.log('[withholdingTax] none matched in', ep, '— keys on first item:', Object.keys(items[0] || {}).join(', '));
     } catch (e) {
       if (e.response?.status !== 404) console.warn(`[withholdingTax] ${ep}:`, e.message);
     }
   }
-  console.warn('[withholdingTax] not found for', orgKey);
+  console.warn('[withholdingTax] not found — set ELORUS_WITHHOLDING_TAX_ID in Railway env vars');
   return null;
 }
 
