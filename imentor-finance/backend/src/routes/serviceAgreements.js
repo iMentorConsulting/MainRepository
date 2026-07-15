@@ -416,6 +416,21 @@ router.post('/bulk-dates', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+router.get('/:id/outstanding', async (req, res) => {
+  try {
+    const sa = await ServiceAgreement.findByPk(req.params.id);
+    if (!sa) return res.status(404).json({ error: 'Δεν βρέθηκε' });
+    const [row] = await sequelize.query(
+      `SELECT COALESCE(SUM(amount_collected),0) AS total FROM income WHERE service_agreement_id = :id`,
+      { replacements: { id: sa.id }, type: QueryTypes.SELECT }
+    );
+    const collected = parseFloat(row?.total || 0);
+    const saTotal = (parseFloat(sa.amount_application) || 0) + (parseFloat(sa.amount_implementation) || 0);
+    const outstanding = Math.max(0, saTotal - collected);
+    res.json({ outstanding, sa_total: saTotal, collected });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 router.post('/', async (req, res) => {
   try {
     const sa = await ServiceAgreement.create(req.body);
