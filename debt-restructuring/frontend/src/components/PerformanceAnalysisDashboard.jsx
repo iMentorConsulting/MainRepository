@@ -136,7 +136,10 @@ ${report}
                 <th className="text-center py-2 px-3 font-bold text-gray-700">Σύνολο Υποθέσεων</th>
                 <th className="text-center py-2 px-3 font-bold text-blue-700">Κλείσιμο %</th>
                 <th className="text-center py-2 px-3 font-bold text-green-700">Αποδοχή %</th>
-                <th className="text-center py-2 px-3 font-bold text-cyan-700">Σύνολο Εισπράχθη</th>
+                <th className="text-center py-2 px-3 font-bold text-emerald-700">Κλειστές</th>
+                <th className="text-center py-2 px-3 font-bold text-amber-700">Απορ. / Αδιαφ.</th>
+                <th className="text-center py-2 px-3 font-bold text-purple-700">Εισπρακτέα</th>
+                <th className="text-center py-2 px-3 font-bold text-cyan-700">Εισπράχθη</th>
               </tr>
             </thead>
             <tbody>
@@ -148,14 +151,29 @@ ${report}
                     <div className={`font-bold ${m.closure_percentage >= 40 ? 'text-green-700' : 'text-orange-700'}`}>
                       {m.closure_percentage}%
                     </div>
+                    <div className="text-xs text-gray-500">({m.closed_count || 0}/{m.closure_count || 0})</div>
                   </td>
                   <td className="text-center py-2 px-3">
                     <div className={`font-bold ${m.settlement_acceptance_percentage >= 50 ? 'text-green-700' : 'text-orange-700'}`}>
                       {m.settlement_acceptance_percentage}%
                     </div>
+                    <div className="text-xs text-gray-500">({m.accepted_count || 0}/{m.settlement_count || 0})</div>
                   </td>
                   <td className="text-center py-2 px-3">
-                    <div className="font-bold text-cyan-700">{(m.collected_revenue?.total || 0).toLocaleString('el-GR')}€</div>
+                    <div className="font-bold text-emerald-700">{m.closed_count || 0}</div>
+                    <div className="text-xs text-gray-500">κλειστές</div>
+                  </td>
+                  <td className="text-center py-2 px-3">
+                    <div className="font-bold text-amber-700">{m.not_interested_count || 0}</div>
+                    <div className="text-xs text-gray-500">αδιαφορ.</div>
+                  </td>
+                  <td className="text-center py-2 px-3">
+                    <div className="font-bold text-purple-700">{(m.collected_revenue?.first_payment || 0).toLocaleString('el-GR')}€</div>
+                    <div className="text-xs text-gray-500">1η πληρ.</div>
+                  </td>
+                  <td className="text-center py-2 px-3">
+                    <div className="font-bold text-cyan-700">{(m.collected_revenue?.second_payment || 0).toLocaleString('el-GR')}€</div>
+                    <div className="text-xs text-gray-500">2η πληρ.</div>
                   </td>
                 </tr>
               ))}
@@ -164,7 +182,7 @@ ${report}
         </div>
       </div>
 
-      {/* Detailed Analysis Cards */}
+      {/* Detailed Analysis Cards - Only show if pipeline stage breakdown is available */}
       {consultants.map(m => {
         const hasStageBreakdown = m.stage_breakdown && Object.keys(m.stage_breakdown).length > 0
         if (!hasStageBreakdown) return null
@@ -172,55 +190,98 @@ ${report}
         return (
         <div key={m.consultant} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
           <div className="mb-4">
-            <h4 className="text-sm font-black text-gray-800">{m.consultant} — Κατανομή</h4>
+            <h4 className="text-sm font-black text-gray-800">{m.consultant} — Λεπτομέρειες</h4>
             <p className="text-xs text-gray-500 mt-0.5">{m.total_cases} υποθέσεις σε αυτήν την περίοδο</p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Pipeline Stage Breakdown */}
+            {/* Conversion Funnel */}
             <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-4">
-              <div className="text-xs font-bold text-blue-800 mb-3">Pipeline Στάδια</div>
+              <div className="text-xs font-bold text-blue-800 mb-3">漏斗 Μετατροπή Leads</div>
               <div className="space-y-2 text-xs">
                 <div className="flex justify-between items-center">
-                  <span className="text-gray-700">Θετική Ανταπόκριση:</span>
-                  <span className="font-bold text-gray-800">{m.stage_breakdown?.θετική_ανταπόκριση || 0}</span>
+                  <span className="text-gray-700">Σύνολο Leads (CALL):</span>
+                  <span className="font-bold text-gray-800">{m.total_leads}</span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-gray-700">Σε Διαπραγμάτευση:</span>
-                  <span className="font-bold text-gray-800">{m.stage_breakdown?.σε_διαπραγμάτευση || 0}</span>
+                  <span className="text-gray-700">→ Γίνονται HOT:</span>
+                  <span className="font-bold text-red-700">{m.by_status.HOT || 0} ({m.conversion_rate_to_hot}%)</span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-gray-700">Έκλεισε:</span>
-                  <span className="font-bold text-green-700">{m.stage_breakdown?.έκλεισε || 0}</span>
+                  <span className="text-gray-700">  → Γίνονται Case:</span>
+                  <span className="font-bold text-green-700">{m.by_status.DEAL || 0} ({m.conversion_hot_to_case}%)</span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-gray-700">Δεν Ενδιαφέρεται:</span>
-                  <span className="font-bold text-orange-700">{m.stage_breakdown?.δεν_ενδιαφέρεται || 0}</span>
+                  <span className="text-gray-700">Συνολικές Υποθέσεις:</span>
+                  <span className="font-bold text-green-700">{m.cases_total}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-700">  Πληρωτές:</span>
+                  <span className="font-bold text-green-600">{m.cases_paying}</span>
                 </div>
               </div>
             </div>
 
-            {/* Settlement Breakdown */}
-            <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-lg p-4">
-              <div className="text-xs font-bold text-green-800 mb-3">Ρύθμιση Κατάστασης</div>
+            {/* Effort Metrics */}
+            <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg p-4">
+              <div className="text-xs font-bold text-purple-800 mb-3">⚡ Δείκτης Προσπάθειας</div>
               <div className="space-y-2 text-xs">
                 <div className="flex justify-between items-center">
-                  <span className="text-gray-700">Αποδοχή Ρύθμισης:</span>
-                  <span className="font-bold text-green-700">{m.settlement_breakdown?.αποδοχή_ρύθμισης || 0}</span>
+                  <span className="text-gray-700">Σύνολο Κλήσεων:</span>
+                  <span className="font-bold text-green-700">{m.calls_total}</span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-gray-700">Απόρριψη Ρύθμισης:</span>
-                  <span className="font-bold text-red-700">{m.settlement_breakdown?.απόρριψη_ρύθμισης || 0}</span>
+                  <span className="text-gray-700">  Απάντησαν:</span>
+                  <span className="font-bold text-green-600">{m.calls_answered}</span>
                 </div>
-                <div className="mt-3 pt-3 border-t border-green-200">
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-700 font-bold">Σύνολο Εισπράχθη:</span>
-                    <span className="font-bold text-green-700">{(m.collected_revenue?.total || 0).toLocaleString('el-GR')}€</span>
-                  </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-700">Κλήσεις / Lead:</span>
+                  <span className="font-bold text-orange-700">{m.calls_per_lead}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-700">Σύνολο Viber:</span>
+                  <span className="font-bold text-purple-700">{m.vibers_total}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-700">Viber / Lead:</span>
+                  <span className="font-bold text-purple-700">{m.vibers_per_lead}</span>
                 </div>
               </div>
             </div>
           </div>
+
+          {/* Status Breakdown */}
+          <div className="mt-4 p-3 bg-gray-50 rounded-lg">
+            <div className="text-xs font-bold text-gray-700 mb-2">Κατανομή Κατάστασης</div>
+            <div className="grid grid-cols-3 md:grid-cols-5 gap-2 text-xs">
+              {Object.entries({
+                CALL: 'CALL',
+                HOT: 'HOT',
+                DEAL: 'CASE',
+                CANCEL: 'CANCEL',
+                ACTIVE: 'ACTIVE',
+              }).map(([status, label]) => {
+                const count = m.by_status[status] || 0
+                return (
+                  <div key={status} className="bg-white p-2 rounded border border-gray-200">
+                    <div className="text-gray-500">{label}</div>
+                    <div className="font-bold text-gray-800">{count}</div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* Bottleneck Analysis */}
+          {m.conversion_hot_to_case < 50 && m.by_status.HOT > 0 && (
+            <div className="mt-4 p-3 bg-orange-50 border border-orange-200 rounded-lg">
+              <div className="text-xs font-bold text-orange-800">⚠️ Δυσλειτουργία Εντοπίστηκε</div>
+              <p className="text-xs text-orange-700 mt-1">
+                Το 45,4% από HOT γίνονται Case (κάτω από το 50%).
+                Συνιστάται: Αυξήστε τις κλήσεις προσπάθειας και τα Viber μηνύματα.
+              </p>
+            </div>
+          )}
         </div>
         )
       })}
