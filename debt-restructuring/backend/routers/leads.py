@@ -873,8 +873,42 @@ def count_leads_by_consultant(
 
     logger = logging.getLogger(__name__)
 
-    leads = db.query(Lead).all()
-    logger.info(f"[count] Total leads: {len(leads)}")
+    # Parse date filters if provided (expect YYYY-MM-DD format or ISO format)
+    from_boundary = None
+    to_boundary = None
+    if date_from:
+        try:
+            # Try ISO format first (with Z)
+            if 'T' in date_from:
+                from_boundary = datetime.fromisoformat(date_from.replace('Z', '+00:00')).replace(tzinfo=None)
+            else:
+                # YYYY-MM-DD format
+                from_boundary = datetime.strptime(date_from, "%Y-%m-%d")
+        except (ValueError, TypeError):
+            logger.warning(f"Failed to parse date_from: {date_from}")
+
+    if date_to:
+        try:
+            # Try ISO format first (with Z)
+            if 'T' in date_to:
+                to_boundary = datetime.fromisoformat(date_to.replace('Z', '+00:00')).replace(tzinfo=None)
+            else:
+                # YYYY-MM-DD format
+                to_boundary = datetime.strptime(date_to, "%Y-%m-%d")
+        except (ValueError, TypeError):
+            logger.warning(f"Failed to parse date_to: {date_to}")
+
+    # Build query with optional date filtering
+    query = db.query(Lead)
+    if from_boundary:
+        query = query.filter(Lead.created_at >= from_boundary)
+    if to_boundary:
+        # Add 1 day to include the entire end date
+        to_boundary_plus_one = to_boundary + timedelta(days=1)
+        query = query.filter(Lead.created_at < to_boundary_plus_one)
+
+    leads = query.all()
+    logger.info(f"[count] Total leads (filtered): {len(leads)}, from={from_boundary}, to={to_boundary}")
 
     by_agent = defaultdict(int)
 
