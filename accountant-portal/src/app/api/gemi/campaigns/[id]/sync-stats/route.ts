@@ -1,0 +1,55 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { auth } from '@/lib/auth'
+import { prisma } from '@/lib/prisma'
+import { getCampaignStats } from '@/lib/moosend'
+
+export async function POST(
+  _req: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const session = await auth()
+  if (!session || session.user.role !== 'ADMIN') {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
+  const { id } = await params
+
+  const campaign = await prisma.gemiCampaign.findUnique({ where: { id } })
+  if (!campaign) {
+    return NextResponse.json({ error: 'Campaign not found' }, { status: 404 })
+  }
+  if (campaign.channel !== 'EMAIL') {
+    return NextResponse.json({ error: 'Stats sync is only available for EMAIL campaigns' }, { status: 400 })
+  }
+  if (!campaign.moosendCampaignId) {
+    return NextResponse.json({ error: 'No moosendCampaignId on this campaign' }, { status: 400 })
+  }
+
+  try {
+    const stats = await getCampaignStats(campaign.moosendCampaignId)
+
+    const updated = await prisma.gemiCampaign.update({
+      where: { id },
+      data: {
+        totalDelivered: stats.delivered,
+        totalOpened: stats.opened,
+        totalClicked: stats.clicked,
+        totalBounced: stats.bounced,
+        totalUnsubscribed: stats.unsubscribed,
+        statsLastFetchedAt: new Date(),
+      },
+    })
+
+    return NextResponse.json({
+      totalDelivered: updated.totalDelivered,
+      totalOpened: updated.totalOpened,
+      totalClicked: updated.totalClicked,
+      totalBounced: updated.totalBounced,
+      totalUnsubscribed: updated.totalUnsubscribed,
+      statsLastFetchedAt: updated.statsLastFetchedAt,
+    })
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    return NextResponse.json({ error: message }, { status: 500 })
+  }
+}

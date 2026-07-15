@@ -4,7 +4,7 @@ import { usePathname } from 'next/navigation'
 import { useSession, signOut } from 'next-auth/react'
 import { useEffect, useState } from 'react'
 import { cn } from '@/lib/utils'
-import { LayoutDashboard, Users, Building2, Zap, Target, Send, CreditCard, Percent, Inbox, BarChart3, Settings, LogOut, Globe, Mail, Phone, TrendingUp, X, MessageSquare, ListChecks, FileText, BellRing, History, ClipboardList, Scale } from 'lucide-react'
+import { LayoutDashboard, Users, Building2, Zap, Target, Send, CreditCard, Percent, Inbox, BarChart3, Settings, LogOut, Globe, Mail, Phone, TrendingUp, X, MessageSquare, ListChecks, FileText, BellRing, History, ClipboardList, Scale, Megaphone } from 'lucide-react'
 
 const navItems = [
   { href: '/', label: 'Dashboard', icon: LayoutDashboard, adminOnly: false },
@@ -28,6 +28,12 @@ const navItems = [
   { href: '/audit-log', label: 'Καταγραφή Ενεργειών', icon: History, adminOnly: true },
   { href: '/businesses-log', label: 'Εισαγωγές Επιχειρήσεων', icon: Building2, adminOnly: true },
   { href: '/settings', label: 'Ρυθμίσεις', icon: Settings, adminOnly: true },
+]
+
+const gemiNavItems = [
+  { href: '/gemi/businesses', label: 'Επιχειρήσεις', icon: Building2 },
+  { href: '/gemi/matches', label: 'Ταιριάσματα', icon: Target },
+  { href: '/gemi/campaigns', label: 'Καμπάνιες', icon: Megaphone },
 ]
 
 interface SidebarProps {
@@ -170,6 +176,31 @@ export function Sidebar({ open, onClose }: SidebarProps) {
               </Link>
             )
           })}
+          {isAdmin && (
+            <>
+              <div className="pt-3 pb-1 px-3 flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-amber-400 flex-shrink-0" />
+                <span className="text-[10px] font-semibold uppercase tracking-widest text-amber-400/80">ΓΕΜΗ Αγορά</span>
+              </div>
+              {gemiNavItems.map(item => {
+                const Icon = item.icon
+                const isActive = pathname === item.href || pathname.startsWith(item.href + '/')
+                return (
+                  <Link key={item.href} href={item.href}
+                    className={cn(
+                      'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150',
+                      isActive
+                        ? 'bg-indigo-500/15 text-indigo-300'
+                        : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                    )}>
+                    <Icon className={cn('w-4 h-4 flex-shrink-0', isActive ? 'text-indigo-300' : 'text-slate-500')} />
+                    {item.label}
+                    {isActive && <div className="ml-auto w-1.5 h-1.5 rounded-full bg-indigo-500" />}
+                  </Link>
+                )
+              })}
+            </>
+          )}
           {officeHref && (
             <Link href={officeHref}
               className={cn(

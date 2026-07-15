@@ -307,7 +307,9 @@ model Program {
   createdAt          DateTime           @default(now())
   updatedAt          DateTime           @updatedAt
   matches            ProgramMatch[]
+  gemiMatches        GemiProgramMatch[]
   campaigns          Campaign[]
+  gemiCampaigns      GemiCampaign[]
   requests           ImentorRequest[]
   paymentRequests    PaymentRequest[]
   commissionPolicies CommissionPolicy[]
@@ -1010,6 +1012,110 @@ model ExodikastikosActivity {
   authorId   String
   authorName String
   createdAt  DateTime          @default(now())
+}
+
+// ─── ΓΕΜΗ Prospect Pool ──────────────────────────────────────────────────────
+
+// One row per business imported from the ΓΕΜΗ Open Data CSV.
+// Never mixed with the accountant-owned Business table.
+model GemiLookup {
+  id                    String    @id @default(cuid())
+  afm                   String    @unique
+  email                 String?
+  phone                 String?
+  // Populated after AADE enrichment
+  onomasia              String?
+  legalStatusDescr      String?
+  postalAddress         String?
+  postalAddressNo       String?
+  postalZipCode         String?
+  postalAreaDescription String?
+  doy                   String?
+  doyDescr              String?
+  regdate               String?
+  deactivationFlag      String?
+  stopDate              String?
+  // KAD activities stored as JSON [{firmActCode, firmActDescr, firmActKind, firmActKindDescr}]
+  activities            Json      @default("[]")
+  tags                  String[]  @default([])
+  // Enrichment status
+  aadeEnriched          Boolean   @default(false)
+  aadeEnrichedAt        DateTime?
+  aadeError             String?
+  // Matching status
+  matchingDone          Boolean   @default(false)
+  matchingDoneAt        DateTime?
+  // Import tracking
+  importBatch           String?
+  // Unsubscribe
+  unsubscribeToken      String?   @unique @default(cuid())
+  unsubscribedAt        DateTime?
+  // Claim: when an accountant registers this AFM, it links here
+  claimedBusinessId     String?   @unique
+  claimedAccountantId   String?
+  claimedAt             DateTime?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  programMatches        GemiProgramMatch[]
+  campaignRecipients    GemiCampaignRecipient[]
+}
+
+model GemiProgramMatch {
+  id          String     @id @default(cuid())
+  gemiId      String
+  gemi        GemiLookup @relation(fields: [gemiId], references: [id], onDelete: Cascade)
+  programId   String
+  program     Program    @relation(fields: [programId], references: [id])
+  matchScore  Float      @default(0)
+  matchReason String[]
+  status      MatchStatus @default(POTENTIAL)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@unique([gemiId, programId])
+}
+
+model GemiCampaign {
+  id                  String                  @id @default(cuid())
+  title               String
+  channel             CampaignChannel
+  subject             String?
+  htmlContent         String?                 @db.Text
+  messageTemplate     String?                 @db.Text
+  programId           String?
+  program             Program?                @relation(fields: [programId], references: [id])
+  status              CampaignStatus          @default(DRAFT)
+  moosendCampaignId   String?
+  moosendListId       String?
+  sentAt              DateTime?
+  totalSent           Int                     @default(0)
+  totalDelivered      Int                     @default(0)
+  totalOpened         Int                     @default(0)
+  totalClicked        Int                     @default(0)
+  totalBounced        Int                     @default(0)
+  totalUnsubscribed   Int                     @default(0)
+  statsLastFetchedAt  DateTime?
+  createdBy           String
+  createdAt           DateTime                @default(now())
+  updatedAt           DateTime                @updatedAt
+  recipients          GemiCampaignRecipient[]
+}
+
+model GemiCampaignRecipient {
+  id                     String       @id @default(cuid())
+  campaignId             String
+  campaign               GemiCampaign @relation(fields: [campaignId], references: [id])
+  gemiId                 String
+  gemi                   GemiLookup   @relation(fields: [gemiId], references: [id], onDelete: Cascade)
+  channel                String
+  recipient              String
+  status                 String       @default("pending")
+  sentAt                 DateTime?
+  openedAt               DateTime?
+  clickedAt              DateTime?
+  errorMessage           String?
+  chatwootConversationId Int?
+  createdAt              DateTime     @default(now())
 }
 
 model EspaAnnouncement {
