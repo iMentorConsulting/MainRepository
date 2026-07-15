@@ -152,9 +152,12 @@ function InvoiceForm({ action, record, onClose, onDone }) {
 }
 
 function PaymentForm({ record, onClose, onDone }) {
-  const [orgKey, setOrgKey] = useState('DEFAULT');
-  const defaultAmt = parseFloat(record.amount_collected || 0);
-  const [amount, setAmount] = useState(defaultAmt > 0 ? (defaultAmt * 1.24).toFixed(2) : '');
+  const storedOrg = record.elorus_org_key || 'DEFAULT';
+  const [orgKey, setOrgKey] = useState(storedOrg);
+  const net = parseFloat(record.amount_collected || 0);
+  const kind = record.elorus_invoice_kind || 'TPY';
+  const applyWh = kind !== 'APY' && storedOrg !== 'IMENTOR_IKE' && net > 301;
+  const [amount, setAmount] = useState(net > 0 ? (net * 1.24 - (applyWh ? net * 0.20 : 0)).toFixed(2) : '');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [loading, setLoading] = useState(false);
 
