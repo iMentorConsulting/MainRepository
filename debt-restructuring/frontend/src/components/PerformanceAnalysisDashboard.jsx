@@ -126,19 +126,25 @@ ${report}
                   <td className="py-2 px-3 font-bold text-gray-800">{m.consultant}</td>
                   <td className="text-center py-2 px-3 text-gray-700">{m.total_leads}</td>
                   <td className="text-center py-2 px-3">
-                    <span className={`font-bold ${m.conversion_rate_to_case >= 30 ? 'text-green-700' : m.conversion_rate_to_case >= 20 ? 'text-yellow-700' : 'text-red-700'}`}>
+                    <div className={`font-bold ${m.conversion_rate_to_case >= 30 ? 'text-green-700' : m.conversion_rate_to_case >= 20 ? 'text-yellow-700' : 'text-red-700'}`}>
                       {m.conversion_rate_to_case}%
-                    </span>
+                    </div>
+                    <div className="text-xs text-gray-500">({m.conversion_to_case_count || 0})</div>
                   </td>
                   <td className="text-center py-2 px-3">
-                    <span className="font-bold text-red-700">{m.conversion_rate_to_hot}%</span>
+                    <div className="font-bold text-red-700">{m.conversion_rate_to_hot}%</div>
+                    <div className="text-xs text-gray-500">({m.conversion_to_hot_count || 0})</div>
                   </td>
                   <td className="text-center py-2 px-3">
-                    <span className={`font-bold ${m.conversion_hot_to_case >= 50 ? 'text-green-700' : 'text-orange-700'}`}>
+                    <div className={`font-bold ${m.conversion_hot_to_case >= 50 ? 'text-green-700' : 'text-orange-700'}`}>
                       {m.conversion_hot_to_case}%
-                    </span>
+                    </div>
+                    <div className="text-xs text-gray-500">({m.conversion_hot_to_case_count || 0})</div>
                   </td>
-                  <td className="text-center py-2 px-3 text-gray-700">{m.cancel_rate}%</td>
+                  <td className="text-center py-2 px-3">
+                    <div className="font-bold text-gray-700">{m.cancel_rate}%</div>
+                    <div className="text-xs text-gray-500">({m.cancel_rate_count || 0})</div>
+                  </td>
                   <td className="text-center py-2 px-3">
                     <div className="font-bold text-green-700">{m.calls_total}</div>
                     <div className="text-xs text-gray-500">{m.calls_per_lead} avg</div>
