@@ -558,16 +558,9 @@ export default function FinancialDashboard({ currentEmployee }) {
                         <div><span className="text-purple-600">2η πληρωμή:</span> <span className="font-bold text-purple-700">{(revenue.second_payment || 0).toLocaleString('el-GR')}€ ({revenue.second_payment_completed_count || 0})</span></div>
                         <div className="font-bold text-lg"><span className="text-gray-800">Σύνολο:</span> <span className="text-blue-800">{(revenue.total || 0).toLocaleString('el-GR')}€</span></div>
                       </div>
-                      {stats.date_range && (
+                      {(dateFromFilter || dateToFilter) && (
                         <div className="pt-1 border-t border-gray-300 mt-1 text-xs">
-                          {(() => {
-                            const formatDate = (iso) => {
-                              if (!iso) return '—'
-                              const [y, m, d] = iso.split('T')[0].split('-')
-                              return `${d}/${m}/${y}`
-                            }
-                            return <div className="text-gray-500">Περίοδος: {formatDate(stats.date_range.earliest)} → {formatDate(stats.date_range.latest)}</div>
-                          })()}
+                          <div className="text-gray-500">Περίοδος: {dateFromFilter || '—'} — {dateToFilter || '—'}</div>
                         </div>
                       )}
                     </div>
