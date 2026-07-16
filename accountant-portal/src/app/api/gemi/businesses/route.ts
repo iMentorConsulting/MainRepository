@@ -141,7 +141,7 @@ export async function GET(request: NextRequest) {
   ])
 
   // Resolve accountant names for claimed records
-  const accountantIds = [...new Set(businesses.map(b => b.claimedAccountantId).filter(Boolean))] as string[]
+  const accountantIds = Array.from(new Set(businesses.map(b => b.claimedAccountantId).filter((x): x is string => !!x)))
   const accountants = accountantIds.length > 0
     ? await prisma.accountant.findMany({
         where: { id: { in: accountantIds } },
