@@ -27,8 +27,27 @@ export async function POST(
   if (!testEmail) return NextResponse.json({ error: 'testEmail required' }, { status: 400 })
   if (!htmlContent) return NextResponse.json({ error: 'htmlContent required' }, { status: 400 })
 
+  // Replace template variables with sample data for preview
+  const sampleVars: Record<string, string> = {
+    business_name: 'ΔΟΚΙΜΑΣΤΙΚΗ ΕΠΕ',
+    afm: '123456789',
+    accountant_name: 'Γιώργος Παπαδόπουλος',
+    accountant_office: 'Λογιστικό Γραφείο Παπαδόπουλος',
+    program_title: subject || 'Πρόγραμμα ΕΣΠΑ',
+    program_description: 'Χρηματοδότηση για αναβάθμιση εξοπλισμού και ψηφιακό μετασχηματισμό μικρομεσαίων επιχειρήσεων.',
+    program_url: 'https://www.espa.gr',
+    program_deadline: '31/12/2025',
+    extra_criteria: '• Να μην εκκρεμεί φορολογική οφειλή\n• Να είναι σε λειτουργία τουλάχιστον 3 χρόνια',
+    kad_description: '47.11 - Λιανικό εμπόριο σε μη εξειδικευμένα καταστήματα',
+    match_reason: '• Ο ΚΑΔ σας ανήκει στους επιλέξιμους κλάδους\n• Ο αριθμός εργαζομένων σας εντός ορίων',
+    ermis_link: '#',
+    unsubscribe_link: '#',
+    exodikastikos_link: '#',
+  }
+  const substituted = htmlContent.replace(/\{\{(\w+)\}\}/g, (_: string, key: string) => sampleVars[key] ?? `{{${key}}}`)
+
   const htmlWithDisclaimer =
-    htmlContent +
+    substituted +
     `\n<p style="font-size:11px;color:#888;margin-top:24px;border-top:1px solid #eee;padding-top:12px;">${GEMI_DISCLAIMER}</p>` +
     `\n<p style="font-size:10px;color:#aaa;">⚠️ ΔΟΚΙΜΑΣΤΙΚΟ EMAIL — campaign id: ${id}</p>`
 

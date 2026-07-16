@@ -16,10 +16,12 @@ function renderWithBold(text: string) {
 
 export function ErmisChat({
   token,
+  apiPath,
   initialMessages,
   initialCaseAssigned,
 }: {
   token: string
+  apiPath?: string
   initialMessages: ErmisChatMessage[]
   initialCaseAssigned: boolean
 }) {
@@ -42,7 +44,7 @@ export function ErmisChat({
     setMessages(prev => [...prev, { role: 'user', text }])
     setSending(true)
     try {
-      const res = await fetch(`/api/public/match/${token}/chat`, {
+      const res = await fetch(apiPath ?? `/api/public/match/${token}/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: text }),

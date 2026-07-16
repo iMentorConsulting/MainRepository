@@ -260,7 +260,8 @@ export default function GemiTemplatesPage() {
             ['{{kad_description}}', 'ΚΑΔ'],
             ['{{match_reason}}', 'Λόγοι Επιλεξιμότητας'],
             ['{{ermis_link}}', 'Σύνδεσμος Ερμή'],
-            ['{{unsubscribe_link}}', 'Αποδοχή'],
+            ['{{exodikastikos_link}}', 'Σύνδεσμος Εξωδικαστικού (ΘΕΜΙΣ)'],
+            ['{{unsubscribe_link}}', 'Κατάργηση εγγραφής'],
           ].map(([key, lbl]) => (
             <span key={key} className="inline-flex items-center gap-1 text-xs bg-white border border-amber-300 text-amber-900 rounded px-2 py-1 font-mono">
               <span className="text-amber-500">{key}</span>
