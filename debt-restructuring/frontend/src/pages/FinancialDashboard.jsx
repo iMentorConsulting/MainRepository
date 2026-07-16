@@ -107,7 +107,26 @@ export default function FinancialDashboard({ currentEmployee }) {
   const [dateFromFilter, setDateFromFilter] = useState('')
   const [dateToFilter, setDateToFilter] = useState('')
   const [selectedMonth, setSelectedMonth] = useState('')  // Empty = show all data by default
+  const [selectedWeek, setSelectedWeek] = useState('')
   const [showBulkImport, setShowBulkImport] = useState(false)
+
+  // Generate last 12 weeks for week selector
+  const generateWeeks = () => {
+    const weeks = []
+    const today = new Date()
+    for (let i = 11; i >= 0; i--) {
+      const date = new Date(today)
+      date.setDate(date.getDate() - (date.getDay() === 0 ? 6 : date.getDay() - 1) - (i * 7))
+      const weekStart = new Date(date)
+      const weekEnd = new Date(weekStart)
+      weekEnd.setDate(weekEnd.getDate() + 6)
+      const weekStartStr = weekStart.toISOString().split('T')[0]
+      const weekEndStr = weekEnd.toISOString().split('T')[0]
+      const weekLabel = `Εβδ. ${weekStart.toLocaleDateString('el-GR', { day: 'numeric', month: 'short' })} - ${weekEnd.toLocaleDateString('el-GR', { day: 'numeric', month: 'short' })}`
+      weeks.push({ start: weekStartStr, end: weekEndStr, label: weekLabel })
+    }
+    return weeks
+  }
 
   const handleBackupNow = async () => {
     setBackingUp(true)
@@ -486,6 +505,7 @@ export default function FinancialDashboard({ currentEmployee }) {
                 setDateFromFilter(from)
                 setDateToFilter(to)
                 setSelectedMonth(e.target.value)
+                setSelectedWeek('')
               }
             }}
             className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-300"
@@ -500,9 +520,32 @@ export default function FinancialDashboard({ currentEmployee }) {
               return <option key={`${year}-${month}`} value={`${year}-${month}`}>{monthName}</option>
             })}
           </select>
+
+          <select
+            value={selectedWeek}
+            onChange={e => {
+              if (e.target.value) {
+                const weeks = generateWeeks()
+                const week = weeks.find(w => w.start === e.target.value)
+                if (week) {
+                  setDateFromFilter(week.start)
+                  setDateToFilter(week.end)
+                  setSelectedWeek(week.start)
+                  setSelectedMonth('')
+                }
+              }
+            }}
+            className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-300"
+          >
+            <option value="">Εβδομάδα</option>
+            {generateWeeks().map(week => (
+              <option key={week.start} value={week.start}>{week.label}</option>
+            ))}
+          </select>
           <button
             onClick={() => {
               setSelectedMonth('')
+              setSelectedWeek('')
               setDateFromFilter('')
               setDateToFilter('')
               fetchAnalytics()
