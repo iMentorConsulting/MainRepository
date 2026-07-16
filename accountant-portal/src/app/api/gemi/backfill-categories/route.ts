@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
     if (records.length === 0) break
 
     for (const r of records) {
-      const activities = Array.isArray(r.activities) ? r.activities : []
+      const activities = (Array.isArray(r.activities) ? r.activities : []) as { firmActCode?: string | null; firmActKind?: number | null }[]
       const cat = getEffectiveCategory({ tags: r.tags, activities }) ?? null
       if (cat) {
         await prisma.gemiLookup.update({ where: { id: r.id }, data: { category: cat } })
