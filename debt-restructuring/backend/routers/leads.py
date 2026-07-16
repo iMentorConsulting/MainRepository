@@ -1168,7 +1168,17 @@ def get_consultant_performance_metrics(
 
         consultant = (case.employee or "").strip().upper() or "UNKNOWN"
         if consultant not in metrics:
-            metrics[consultant] = defaultdict(int)
+            metrics[consultant] = {
+                "consultant": consultant,
+                "total_leads": 0,
+                "leads_by_status": defaultdict(int),
+                "cases_total": 0,
+                "cases_paying": 0,
+                "calls_total": 0,
+                "calls_answered": 0,
+                "vibers_total": 0,
+                "leads_with_cases": 0,
+            }
         metrics[consultant]["cases_total"] += 1
         if case.status == "completed":
             metrics[consultant]["cases_paying"] += 1
@@ -1180,9 +1190,19 @@ def get_consultant_performance_metrics(
         if to_boundary and call.created_at.date() > to_boundary.date():
             continue
 
-        consultant = call.consultant or "UNKNOWN"
+        consultant = (call.consultant or "").strip().upper() or "UNKNOWN"
         if consultant not in metrics:
-            metrics[consultant] = defaultdict(int)
+            metrics[consultant] = {
+                "consultant": consultant,
+                "total_leads": 0,
+                "leads_by_status": defaultdict(int),
+                "cases_total": 0,
+                "cases_paying": 0,
+                "calls_total": 0,
+                "calls_answered": 0,
+                "vibers_total": 0,
+                "leads_with_cases": 0,
+            }
         metrics[consultant]["calls_total"] += 1
         if call.answered is True:
             metrics[consultant]["calls_answered"] += 1
@@ -1194,9 +1214,19 @@ def get_consultant_performance_metrics(
         if to_boundary and viber.created_at.date() > to_boundary.date():
             continue
 
-        consultant = viber.consultant or "UNKNOWN"
+        consultant = (viber.consultant or "").strip().upper() or "UNKNOWN"
         if consultant not in metrics:
-            metrics[consultant] = defaultdict(int)
+            metrics[consultant] = {
+                "consultant": consultant,
+                "total_leads": 0,
+                "leads_by_status": defaultdict(int),
+                "cases_total": 0,
+                "cases_paying": 0,
+                "calls_total": 0,
+                "calls_answered": 0,
+                "vibers_total": 0,
+                "leads_with_cases": 0,
+            }
         metrics[consultant]["vibers_total"] += 1
 
     # Calculate conversion rates
