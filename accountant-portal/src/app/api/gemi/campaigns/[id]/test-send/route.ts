@@ -41,16 +41,17 @@ export async function POST(
     body: JSON.stringify({ Name: listName }),
   })
   const listData = await listRes.json().catch(() => ({}))
+  console.log('[GemiTestSend] Moosend list create response:', JSON.stringify(listData))
   if (!listRes.ok || listData.Code !== 0) {
-    console.error('[GemiTestSend] Moosend list create error:', JSON.stringify(listData))
     return NextResponse.json({
       error: listData.Error ?? listData.Message ?? 'Failed to create Moosend test list',
       detail: listData,
     }, { status: 500 })
   }
-  const listId: string | undefined = listData.Context?.ID
+  // Context may be the ID string directly, or an object with .ID
+  const listId: string | undefined =
+    typeof listData.Context === 'string' ? listData.Context : listData.Context?.ID
   if (!listId) {
-    console.error('[GemiTestSend] Moosend no list ID:', JSON.stringify(listData))
     return NextResponse.json({ error: 'No list ID returned from Moosend', detail: listData }, { status: 500 })
   }
 

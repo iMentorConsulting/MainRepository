@@ -10,7 +10,7 @@ function baseUrl(): string {
 function authHeaders(): Record<string, string> {
   return {
     'Content-Type': 'application/json',
-    Authorization: `Bearer ${CHATWOOT_API_TOKEN}`,
+    'api_access_token': CHATWOOT_API_TOKEN,
   };
 }
 
