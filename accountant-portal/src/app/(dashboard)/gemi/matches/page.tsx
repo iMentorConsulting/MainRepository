@@ -181,29 +181,24 @@ function GemiMatchesPageInner() {
                 ) : (
                   matches.map((m: any) => (
                     <TableRow key={m.id}>
-                      <Td className="text-sm font-mono">{m.business?.afm || m.afm || '—'}</Td>
+                      <Td className="text-sm font-mono">{m.gemi?.afm || '—'}</Td>
                       <Td>
-                        {m.businessId ? (
-                          <Link href={`/businesses/${m.businessId}`} className="text-blue-800 hover:underline font-medium">
-                            {m.business?.onomasia || m.onomasia || '—'}
-                          </Link>
-                        ) : (
-                          <span className="text-sm">{m.business?.onomasia || m.onomasia || '—'}</span>
+                        <Link href={`/gemi/businesses/${m.gemiId}`} className="text-blue-800 hover:underline font-medium text-sm">
+                          {m.gemi?.onomasia || m.gemi?.afm || '—'}
+                        </Link>
+                        {m.gemi?.claimedAt && (
+                          <span className="ml-2 text-xs px-1.5 py-0.5 rounded bg-purple-100 text-purple-700">Ανακτήθηκε</span>
                         )}
                       </Td>
                       <Td>
-                        {m.programId ? (
-                          <Link href={`/programs/${m.programId}`} className="text-blue-600 hover:underline text-sm">
-                            {m.program?.title || m.programTitle || '—'}
-                          </Link>
-                        ) : (
-                          <span className="text-sm">{m.program?.title || m.programTitle || '—'}</span>
-                        )}
+                        <Link href={`/programs/${m.programId}`} className="text-blue-600 hover:underline text-sm">
+                          {m.program?.title || '—'}
+                        </Link>
                       </Td>
-                      <Td className="text-sm tabular-nums">{m.matchScore ?? m.score ?? '—'}</Td>
+                      <Td className="text-sm tabular-nums font-semibold text-green-700">{m.matchScore ?? '—'}</Td>
                       <Td className="text-sm text-gray-600 max-w-xs">
-                        {Array.isArray(m.matchReasons) && m.matchReasons.length > 0
-                          ? m.matchReasons.join(', ')
+                        {Array.isArray(m.matchReason) && m.matchReason.length > 0
+                          ? m.matchReason.slice(0, 2).join(' · ')
                           : '—'}
                       </Td>
                       <Td>

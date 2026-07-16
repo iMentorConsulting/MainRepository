@@ -22,7 +22,7 @@ async function sendEmail(campaignId: string) {
     `\n<p style="font-size:11px;color:#888;margin-top:24px;border-top:1px solid #eee;padding-top:12px;">${GEMI_DISCLAIMER}</p>`
 
   const emailRecipients = await prisma.gemiCampaignRecipient.findMany({
-    where: { campaignId, channel: 'email', status: 'pending' },
+    where: { campaignId, channel: 'EMAIL', status: 'pending' },
   })
 
   const listId = await createMoosendList(campaign.title)
@@ -70,7 +70,7 @@ async function sendViber(campaignId: string) {
   const message = (campaign.messageTemplate ?? '') + '\n\n' + GEMI_DISCLAIMER
 
   const phoneRecipients = await prisma.gemiCampaignRecipient.findMany({
-    where: { campaignId, channel: 'phone', status: 'pending' },
+    where: { campaignId, channel: 'VIBER', status: 'pending' },
   })
 
   let sent = 0

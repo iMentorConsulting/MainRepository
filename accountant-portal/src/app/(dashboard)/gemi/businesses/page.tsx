@@ -462,15 +462,17 @@ function GemiBusinessesPageInner() {
                   businesses.map(b => (
                     <TableRow key={b.id} className="hover:bg-amber-50/40 transition-colors">
                       <Td>
-                        <button
-                          onClick={() => setDetail(b)}
+                        <a
+                          href={`/gemi/businesses/${b.id}`}
                           className="font-mono text-amber-800 hover:text-amber-600 hover:underline font-medium"
                         >
                           {b.afm}
-                        </button>
+                        </a>
                       </Td>
                       <Td className="max-w-[220px] truncate font-medium text-gray-800">
-                        {b.onomasia || <span className="text-gray-400">—</span>}
+                        <a href={`/gemi/businesses/${b.id}`} className="hover:text-amber-700 hover:underline">
+                          {b.onomasia || <span className="text-gray-400">—</span>}
+                        </a>
                       </Td>
                       <Td className="text-sm text-gray-600 max-w-[180px] truncate">
                         {b.email || <span className="text-gray-400">—</span>}

@@ -66,36 +66,36 @@ export async function POST(request: NextRequest) {
       }
     }
   } else {
-    const whereEmail =
-      channel === 'EMAIL' || channel === 'EMAIL_AND_VIBER'
-        ? { email: { not: null }, unsubscribedAt: null }
-        : null
-    const whereViber =
-      channel === 'VIBER' || channel === 'EMAIL_AND_VIBER'
-        ? { phone: { not: null }, unsubscribedAt: null }
-        : null
+    // If programId provided, restrict to GemiLookups with a non-rejected match for that program
+    let programMatchedIds: string[] | null = null
+    if (programId) {
+      const matches = await prisma.gemiProgramMatch.findMany({
+        where: { programId, status: { not: 'REJECTED' } },
+        select: { gemiId: true },
+      })
+      programMatchedIds = matches.map(m => m.gemiId)
+    }
 
-    if (whereEmail) {
+    const baseWhere: Record<string, unknown> = { unsubscribedAt: null }
+    if (programMatchedIds) baseWhere.id = { in: programMatchedIds }
+
+    if (channel === 'EMAIL' || channel === 'EMAIL_AND_VIBER') {
       const gemis = await prisma.gemiLookup.findMany({
-        where: whereEmail,
+        where: { ...baseWhere, email: { not: null } },
         select: { id: true, email: true },
       })
       for (const gemi of gemis) {
-        if (gemi.email) {
-          recipientRows.push({ campaignId: campaign.id, gemiId: gemi.id, channel: 'EMAIL', recipient: gemi.email })
-        }
+        if (gemi.email) recipientRows.push({ campaignId: campaign.id, gemiId: gemi.id, channel: 'EMAIL', recipient: gemi.email })
       }
     }
 
-    if (whereViber) {
+    if (channel === 'VIBER' || channel === 'EMAIL_AND_VIBER') {
       const gemis = await prisma.gemiLookup.findMany({
-        where: whereViber,
+        where: { ...baseWhere, phone: { not: null } },
         select: { id: true, phone: true },
       })
       for (const gemi of gemis) {
-        if (gemi.phone) {
-          recipientRows.push({ campaignId: campaign.id, gemiId: gemi.id, channel: 'VIBER', recipient: gemi.phone })
-        }
+        if (gemi.phone) recipientRows.push({ campaignId: campaign.id, gemiId: gemi.id, channel: 'VIBER', recipient: gemi.phone })
       }
     }
   }
