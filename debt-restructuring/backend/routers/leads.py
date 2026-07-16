@@ -1096,12 +1096,7 @@ def get_consultant_performance_metrics(
     from collections import defaultdict
     from datetime import datetime as dt
 
-    leads = db.query(Lead).all()
-    cases = db.query(Case).all()
-    calls = db.query(CallAttempt).all()
-    vibersall = db.query(ViberMessage).all()
-
-    # Parse date boundaries
+    # Parse date boundaries first
     from_boundary = None
     to_boundary = None
     if date_from:
@@ -1113,8 +1108,33 @@ def get_consultant_performance_metrics(
     if date_to:
         try:
             to_boundary = dt.strptime(date_to, "%Y-%m-%d")
+            # Extend to_boundary to end of day
+            to_boundary = to_boundary.replace(hour=23, minute=59, second=59)
         except (ValueError, TypeError):
             pass
+
+    # Build queries with date filtering at database level (for DateTime fields only)
+    # Leads use string dates in mixed formats, so we'll filter those in the loop
+    leads = db.query(Lead).all()
+
+    cases_query = db.query(Case)
+    calls_query = db.query(CallAttempt)
+    vibersall_query = db.query(ViberMessage)
+
+    # Apply date filtering to DateTime-based queries
+    if from_boundary:
+        cases_query = cases_query.filter(Case.created_at >= from_boundary)
+        calls_query = calls_query.filter(CallAttempt.created_at >= from_boundary)
+        vibersall_query = vibersall_query.filter(ViberMessage.created_at >= from_boundary)
+
+    if to_boundary:
+        cases_query = cases_query.filter(Case.created_at <= to_boundary)
+        calls_query = calls_query.filter(CallAttempt.created_at <= to_boundary)
+        vibersall_query = vibersall_query.filter(ViberMessage.created_at <= to_boundary)
+
+    cases = cases_query.all()
+    calls = calls_query.all()
+    vibersall = vibersall_query.all()
 
     # Initialize metrics per consultant
     metrics = defaultdict(lambda: {
@@ -1133,7 +1153,7 @@ def get_consultant_performance_metrics(
     # Get existing case IDs to avoid counting orphaned lead->case links
     existing_case_ids = set(c.id for c in cases)
 
-    # Process leads
+    # Process leads (with date filtering for string date field)
     for lead in leads:
         d = parse_any_date(lead.date)
         if not d:
@@ -1156,16 +1176,8 @@ def get_consultant_performance_metrics(
         if lead.linked_case_id and lead.linked_case_id in existing_case_ids:
             m["leads_with_cases"] += 1
 
-    # Process cases (with date filtering)
+    # Process cases
     for case in cases:
-        # Apply date filtering to cases as well
-        if case.created_at:
-            case_date = case.created_at.date() if hasattr(case.created_at, 'date') else case.created_at
-            if from_boundary and case_date < from_boundary.date():
-                continue
-            if to_boundary and case_date > to_boundary.date():
-                continue
-
         consultant = (case.employee or "").strip().upper() or "UNKNOWN"
         if consultant not in metrics:
             metrics[consultant] = {
@@ -1185,11 +1197,6 @@ def get_consultant_performance_metrics(
 
     # Process calls
     for call in calls:
-        if from_boundary and call.created_at.date() < from_boundary.date():
-            continue
-        if to_boundary and call.created_at.date() > to_boundary.date():
-            continue
-
         consultant = (call.consultant or "").strip().upper() or "UNKNOWN"
         if consultant not in metrics:
             metrics[consultant] = {
@@ -1209,11 +1216,6 @@ def get_consultant_performance_metrics(
 
     # Process vibersall
     for viber in vibersall:
-        if from_boundary and viber.created_at.date() < from_boundary.date():
-            continue
-        if to_boundary and viber.created_at.date() > to_boundary.date():
-            continue
-
         consultant = (viber.consultant or "").strip().upper() or "UNKNOWN"
         if consultant not in metrics:
             metrics[consultant] = {
