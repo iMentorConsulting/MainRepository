@@ -9,6 +9,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
+  if (!process.env.CHATWOOT_API_TOKEN) {
+    return NextResponse.json({ error: 'CHATWOOT_API_TOKEN environment variable is not configured in Railway' }, { status: 500 })
+  }
+
   const { testPhone, message } = await request.json()
   if (!testPhone?.trim()) return NextResponse.json({ error: 'testPhone required' }, { status: 400 })
   if (!message?.trim()) return NextResponse.json({ error: 'message required' }, { status: 400 })

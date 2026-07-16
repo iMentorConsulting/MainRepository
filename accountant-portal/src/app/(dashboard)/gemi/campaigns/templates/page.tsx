@@ -226,6 +226,22 @@ export default function GemiTemplatesPage() {
             Χρησιμοποιήστε μεταβλητές για εξατομίκευση.
           </p>
         </div>
+        <Button
+          loading={seeding}
+          variant="secondary"
+          size="sm"
+          onClick={async () => {
+            setSeeding(true)
+            const res = await fetch('/api/gemi/templates/seed-default', { method: 'POST' })
+            if (res.ok) {
+              const t = await res.json()
+              setTemplates(prev => [t, ...prev])
+            }
+            setSeeding(false)
+          }}
+        >
+          <Download size={15} className="mr-2" />Φόρτωση Προεπιλεγμένου Προτύπου
+        </Button>
       </div>
 
       <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
@@ -257,23 +273,8 @@ export default function GemiTemplatesPage() {
       <NewTemplateForm onCreated={t => setTemplates(prev => [t, ...prev])} />
 
       {templates.length === 0 ? (
-        <div className="text-center py-16 space-y-4">
-          <p className="text-gray-400">Δεν υπάρχουν πρότυπα ακόμα.</p>
-          <Button
-            loading={seeding}
-            onClick={async () => {
-              setSeeding(true)
-              const res = await fetch('/api/gemi/templates/seed-default', { method: 'POST' })
-              if (res.ok) {
-                const t = await res.json()
-                setTemplates([t])
-              }
-              setSeeding(false)
-            }}
-            className="bg-amber-600 hover:bg-amber-700 text-white"
-          >
-            <Download size={15} className="mr-2" />Φόρτωση Προεπιλεγμένου Προτύπου
-          </Button>
+        <div className="text-center py-16">
+          <p className="text-gray-400">Δεν υπάρχουν πρότυπα ακόμα. Χρησιμοποιήστε το κουμπί &quot;Φόρτωση Προεπιλεγμένου Προτύπου&quot; παραπάνω.</p>
         </div>
       ) : (
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 space-y-3">

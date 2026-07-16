@@ -16,6 +16,10 @@ export async function POST(
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
+  if (!MOOSEND_API_KEY) {
+    return NextResponse.json({ error: 'MOOSEND_API_KEY environment variable is not configured in Railway' }, { status: 500 })
+  }
+
   const { id } = await params
   const body = await req.json()
   const { testEmail, subject, htmlContent } = body

@@ -62,7 +62,9 @@ function getPrimaryKad(activities: any[] | undefined): { code: string; descr: st
 
 function deriveCategoryFromKad(code: string | null | undefined): string | null {
   if (!code) return null
-  const n = parseInt(code.replace(/\D.*/, ''), 10)
+  const digits = code.replace(/\D/g, '')
+  if (digits.length < 2) return null
+  const n = parseInt(digits.slice(0, 2), 10)
   if (isNaN(n)) return null
   if (n === 55) return 'ΤΟΥΡΙΣΜΟΣ'
   if (n === 56) return 'ΕΣΤΙΑΣΗ'
