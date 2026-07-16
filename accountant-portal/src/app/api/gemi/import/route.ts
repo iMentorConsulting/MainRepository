@@ -48,15 +48,11 @@ export async function POST(request: NextRequest) {
       text = body.csv
     } else if (body.fileData) {
       // base64 data URL: data:text/csv;base64,...
-      const dataUrl = body.fileData as string
-      if (/application\/vnd\.openxmlformats|application\/vnd\.ms-excel|\.xlsx|\.xls/i.test(dataUrl.substring(0, 80))) {
-        return NextResponse.json({ error: 'Excel files (.xlsx/.xls) are not supported. Please save as CSV (UTF-8) from Excel first: File → Save As → CSV UTF-8.' }, { status: 400 })
-      }
-      const base64 = dataUrl.replace(/^data:[^;]+;base64,/, '')
+      const base64 = (body.fileData as string).replace(/^data:[^;]+;base64,/, '')
       const buf = Buffer.from(base64, 'base64')
-      // Detect xlsx magic bytes (PK zip header)
-      if (buf[0] === 0x50 && buf[1] === 0x4B) {
-        return NextResponse.json({ error: 'Excel files (.xlsx/.xls) are not supported. Please save as CSV (UTF-8) from Excel: File → Save As → CSV UTF-8.' }, { status: 400 })
+      // Detect xlsx/xls magic bytes: xlsx=PK zip (50 4B), xls=D0 CF
+      if ((buf[0] === 0x50 && buf[1] === 0x4B) || (buf[0] === 0xD0 && buf[1] === 0xCF)) {
+        return NextResponse.json({ error: 'Excel files (.xlsx/.xls) are not supported. Please save as CSV UTF-8 from Excel: File → Save As → CSV UTF-8 (comma delimited).' }, { status: 400 })
       }
       text = buf.toString('utf8')
     } else {
