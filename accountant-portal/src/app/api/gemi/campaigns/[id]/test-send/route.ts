@@ -84,7 +84,8 @@ export async function POST(
       detail: campaignData,
     }, { status: 500 })
   }
-  const moosendCampaignId: string | undefined = campaignData.Context?.ID
+  const moosendCampaignId: string | undefined =
+    typeof campaignData.Context === 'string' ? campaignData.Context : campaignData.Context?.ID
   if (!moosendCampaignId) {
     return NextResponse.json({ error: 'No campaign ID returned from Moosend', detail: campaignData }, { status: 500 })
   }

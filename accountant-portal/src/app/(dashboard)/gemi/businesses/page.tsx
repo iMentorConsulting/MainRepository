@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableHead, TableBody, TableRow, Th, Td } from '@/components/ui/table'
 import { Pagination } from '@/components/ui/pagination'
-import { Search, Upload, X, RefreshCw, Link2 } from 'lucide-react'
+import { Search, Upload, X, RefreshCw, Link2, Trash2 } from 'lucide-react'
 
 const PAGE_SIZE = 50
 
@@ -241,6 +241,8 @@ function GemiBusinessesPageInner() {
   const [enriching, setEnriching] = useState(false)
   const [matching, setMatching] = useState(false)
   const [backfilling, setBackfilling] = useState(false)
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [deleting, setDeleting] = useState(false)
 
   const requestSeq = useRef(0)
 
@@ -277,7 +279,7 @@ function GemiBusinessesPageInner() {
   }, [page, search, aadeEnriched, matchingDone, claimed, importBatch, region, category, hasCampaign, active])
 
   useEffect(() => { fetchData() }, [fetchData])
-  useEffect(() => { setPage(1) }, [search, aadeEnriched, matchingDone, claimed, importBatch, region, category, hasCampaign, active])
+  useEffect(() => { setPage(1); setSelected(new Set()) }, [search, aadeEnriched, matchingDone, claimed, importBatch, region, category, hasCampaign, active])
 
   function handleSearch() { setSearch(searchInput) }
 
@@ -337,6 +339,47 @@ function GemiBusinessesPageInner() {
     }
   }
 
+  function toggleSelect(id: string) {
+    setSelected(prev => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+  }
+
+  function toggleSelectAll() {
+    if (selected.size === businesses.length && businesses.length > 0) {
+      setSelected(new Set())
+    } else {
+      setSelected(new Set(businesses.map(b => b.id)))
+    }
+  }
+
+  async function handleBulkDelete() {
+    if (selected.size === 0) return
+    if (!confirm(`Διαγραφή ${selected.size} επιχειρήσεων; Η ενέργεια δεν αναιρείται.`)) return
+    setDeleting(true)
+    try {
+      const res = await fetch('/api/gemi/businesses/bulk-delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: Array.from(selected) }),
+      })
+      const data = await res.json()
+      if (res.ok) {
+        setToast(`Διαγράφηκαν ${data.deleted} επιχειρήσεις`)
+        setSelected(new Set())
+        fetchData()
+      } else {
+        setToast(data.error || 'Σφάλμα διαγραφής')
+      }
+    } catch {
+      setToast('Σφάλμα δικτύου')
+    } finally {
+      setDeleting(false)
+    }
+  }
+
   const hasFilters = !!(search || aadeEnriched || matchingDone || claimed || importBatch || region || category || hasCampaign || active)
 
   function clearFilters() {
@@ -376,6 +419,11 @@ function GemiBusinessesPageInner() {
           <Button variant="outline" size="sm" onClick={handleMatch} loading={matching} className="border-indigo-300 text-indigo-700 hover:bg-indigo-50">
             <Link2 size={14} className="mr-1.5" />Εκτέλεση Ταιριάσματος
           </Button>
+          {selected.size > 0 && (
+            <Button size="sm" onClick={handleBulkDelete} loading={deleting} className="bg-red-600 hover:bg-red-700 text-white">
+              <Trash2 size={14} className="mr-1.5" />Διαγραφή ({selected.size})
+            </Button>
+          )}
           <Button size="sm" onClick={() => setImportOpen(true)} className="bg-amber-600 hover:bg-amber-700 text-white">
             <Upload size={14} className="mr-1.5" />Εισαγωγή CSV
           </Button>
@@ -500,6 +548,15 @@ function GemiBusinessesPageInner() {
               <Table>
                 <TableHead>
                   <TableRow>
+                    <Th className="w-8">
+                      <input
+                        type="checkbox"
+                        checked={businesses.length > 0 && selected.size === businesses.length}
+                        ref={el => { if (el) el.indeterminate = selected.size > 0 && selected.size < businesses.length }}
+                        onChange={toggleSelectAll}
+                        className="rounded border-gray-300 text-amber-600 focus:ring-amber-500"
+                      />
+                    </Th>
                     <Th>ΑΦΜ</Th>
                     <Th>Επωνυμία</Th>
                     <Th>Κλάδος</Th>
@@ -514,7 +571,7 @@ function GemiBusinessesPageInner() {
                 <TableBody>
                   {businesses.length === 0 ? (
                     <TableRow>
-                      <Td colSpan={9} className="text-center text-gray-400 py-10">
+                      <Td colSpan={10} className="text-center text-gray-400 py-10">
                         Δεν βρέθηκαν επιχειρήσεις ΓΕΜΗ
                       </Td>
                     </TableRow>
@@ -523,7 +580,15 @@ function GemiBusinessesPageInner() {
                       const kad = getPrimaryKad(b.activities)
                       const regn = getRegionFromZip(b.postalZipCode)
                       return (
-                        <TableRow key={b.id} className="hover:bg-amber-50/40 transition-colors">
+                        <TableRow key={b.id} className={`hover:bg-amber-50/40 transition-colors ${selected.has(b.id) ? 'bg-amber-50' : ''}`}>
+                          <Td>
+                            <input
+                              type="checkbox"
+                              checked={selected.has(b.id)}
+                              onChange={() => toggleSelect(b.id)}
+                              className="rounded border-gray-300 text-amber-600 focus:ring-amber-500"
+                            />
+                          </Td>
                           <Td>
                             <a href={`/gemi/businesses/${b.id}`} className="font-mono text-amber-800 hover:text-amber-600 hover:underline font-medium text-xs">
                               {b.afm}
