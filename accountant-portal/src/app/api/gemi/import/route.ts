@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma'
 
 const MAX_ROWS = 25000
 
-function parseCSVLine(line: string): string[] {
+function parseCSVLine(line: string, delimiter: string): string[] {
   const fields: string[] = []
   let current = ''
   let inQuotes = false
@@ -13,7 +13,7 @@ function parseCSVLine(line: string): string[] {
     const ch = line[i]
     if (ch === '"') {
       inQuotes = !inQuotes
-    } else if (ch === ',' && !inQuotes) {
+    } else if (ch === delimiter && !inQuotes) {
       fields.push(current.trim())
       current = ''
     } else {
@@ -22,6 +22,12 @@ function parseCSVLine(line: string): string[] {
   }
   fields.push(current.trim())
   return fields
+}
+
+function detectDelimiter(headerLine: string): string {
+  const commas = (headerLine.match(/,/g) || []).length
+  const semis = (headerLine.match(/;/g) || []).length
+  return semis > commas ? ';' : ','
 }
 
 export async function POST(request: NextRequest) {
@@ -42,8 +48,17 @@ export async function POST(request: NextRequest) {
       text = body.csv
     } else if (body.fileData) {
       // base64 data URL: data:text/csv;base64,...
-      const base64 = (body.fileData as string).replace(/^data:[^;]+;base64,/, '')
-      text = Buffer.from(base64, 'base64').toString('utf8')
+      const dataUrl = body.fileData as string
+      if (/application\/vnd\.openxmlformats|application\/vnd\.ms-excel|\.xlsx|\.xls/i.test(dataUrl.substring(0, 80))) {
+        return NextResponse.json({ error: 'Excel files (.xlsx/.xls) are not supported. Please save as CSV (UTF-8) from Excel first: File → Save As → CSV UTF-8.' }, { status: 400 })
+      }
+      const base64 = dataUrl.replace(/^data:[^;]+;base64,/, '')
+      const buf = Buffer.from(base64, 'base64')
+      // Detect xlsx magic bytes (PK zip header)
+      if (buf[0] === 0x50 && buf[1] === 0x4B) {
+        return NextResponse.json({ error: 'Excel files (.xlsx/.xls) are not supported. Please save as CSV (UTF-8) from Excel: File → Save As → CSV UTF-8.' }, { status: 400 })
+      }
+      text = buf.toString('utf8')
     } else {
       return NextResponse.json({ error: 'No csv or fileData in JSON body' }, { status: 400 })
     }
@@ -54,20 +69,26 @@ export async function POST(request: NextRequest) {
     batch = (formData.get('batch') as string | null) || null
     text = await file.text()
   }
+  // Strip UTF-8 BOM (Excel adds this to CSV exports)
+  text = text.replace(/^﻿/, '')
+
   const lines = text.split(/\r?\n/).filter(line => line.trim() !== '')
 
   if (lines.length < 2) {
     return NextResponse.json({ imported: 0, updated: 0, skipped: 0, errors: [] })
   }
 
-  const headers = parseCSVLine(lines[0]).map(h => h.replace(/^"|"$/g, '').trim().toLowerCase())
+  const delimiter = detectDelimiter(lines[0])
+  const headers = parseCSVLine(lines[0], delimiter).map(h => h.replace(/^"|"$/g, '').trim().toLowerCase())
 
   const afmIdx = headers.indexOf('afm')
   const emailIdx = headers.indexOf('email')
   const phoneIdx = headers.indexOf('phone')
 
   if (afmIdx === -1) {
-    return NextResponse.json({ error: 'CSV must have an afm column' }, { status: 400 })
+    return NextResponse.json({
+      error: `CSV must have an "afm" column. Found columns: ${headers.join(', ')}. If using Excel, save as CSV UTF-8 first (File → Save As → CSV UTF-8).`,
+    }, { status: 400 })
   }
 
   const dataLines = lines.slice(1)
@@ -86,7 +107,7 @@ export async function POST(request: NextRequest) {
 
   for (let i = 0; i < dataLines.length; i++) {
     const line = dataLines[i]
-    const fields = parseCSVLine(line)
+    const fields = parseCSVLine(line, delimiter)
 
     const rawAfm = (fields[afmIdx] ?? '').replace(/^"|"$/g, '').trim()
     const afm = rawAfm.replace(/\D/g, '')

@@ -119,13 +119,14 @@ function ImportModal({ onClose, onDone }: { onClose: () => void; onDone: () => v
             <>
               <div className="space-y-3">
                 <label className="block">
-                  <span className="text-sm font-medium text-gray-700 block mb-1">Αρχείο (CSV / Excel)</span>
+                  <span className="text-sm font-medium text-gray-700 block mb-1">Αρχείο CSV</span>
                   <input
                     type="file"
-                    accept=".csv,.xlsx,.xls"
+                    accept=".csv,text/csv"
                     onChange={e => setFile(e.target.files?.[0] || null)}
                     className="block w-full text-sm text-gray-500 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-amber-100 file:text-amber-700 file:font-semibold hover:file:bg-amber-200"
                   />
+                  <p className="text-xs text-gray-400 mt-1">Αν έχετε Excel: File → Save As → CSV UTF-8. Columns: afm, email, phone</p>
                 </label>
                 <label className="block">
                   <span className="text-sm font-medium text-gray-700 block mb-1">Όνομα Παρτίδας (προαιρετικό)</span>
