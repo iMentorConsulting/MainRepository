@@ -156,6 +156,21 @@ export async function POST(request: NextRequest) {
       .then(() => isAccountant ? autoNotifyBusinessMatches(business.id) : Promise.resolve())
       .catch(err => console.error('[Matching] Auto-match/notify for new business failed:', err?.message))
 
+    // Auto-claim matching GemiLookup record
+    if (business.afm) {
+      prisma.gemiLookup.findUnique({ where: { afm: business.afm } })
+        .then(gemi => {
+          if (gemi && !gemi.claimedBusinessId) {
+            const accountantId = businessData.accountantId ?? null
+            return prisma.gemiLookup.update({
+              where: { id: gemi.id },
+              data: { claimedBusinessId: business.id, claimedAccountantId: accountantId, claimedAt: new Date() },
+            })
+          }
+        })
+        .catch(err => console.error('[GemiClaim] Auto-claim failed:', err?.message))
+    }
+
     return NextResponse.json(business, { status: 201 })
   } catch (error: any) {
     if (error.code === 'P2002') {

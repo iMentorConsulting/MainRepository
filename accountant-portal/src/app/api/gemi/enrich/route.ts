@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { lookupAfm } from '@/lib/gsis'
+import { getEffectiveCategory } from '@/lib/business-categories'
 
 export async function POST(request: NextRequest) {
   // Auth: ADMIN session OR Bearer CRON_SECRET
@@ -75,6 +76,7 @@ export async function POST(request: NextRequest) {
               firmActKind: a.firmActKind,
               firmActKindDescr: a.firmActKindDescr,
             })),
+            category: getEffectiveCategory({ tags: record.tags, activities: data.activities }) ?? null,
             aadeEnriched: true,
             aadeEnrichedAt: new Date(),
             aadeError: null,

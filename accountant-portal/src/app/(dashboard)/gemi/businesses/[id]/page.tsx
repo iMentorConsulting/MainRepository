@@ -27,11 +27,11 @@ function formatGreekDate(dateStr: string | null | undefined): string | null {
   return d.toLocaleDateString('el-GR', { day: '2-digit', month: '2-digit', year: 'numeric' })
 }
 
-const isDeactivated = (flag: string | null | undefined) => flag === 'Y' || flag === '1'
+const isDeactivated = (b: any) => !!b.stopDate
 
 export default function GemiBusinessDetailPage() {
   const { id } = useParams<{ id: string }>()
-  const { data: session } = useSession()
+  const { data: session, status } = useSession()
   const router = useRouter()
   const [business, setBusiness] = useState<any>(null)
   const [loading, setLoading] = useState(true)
@@ -41,12 +41,13 @@ export default function GemiBusinessDetailPage() {
   const isAdmin = (session?.user as any)?.role === 'ADMIN'
 
   useEffect(() => {
+    if (status === 'loading') return
     if (!isAdmin) { router.push('/'); return }
     fetch(`/api/gemi/businesses/${id}`)
       .then(r => r.json())
       .then(d => setBusiness(d))
       .finally(() => setLoading(false))
-  }, [id, isAdmin, router])
+  }, [id, isAdmin, router, status])
 
   async function handleClaim() {
     if (!window.confirm('Ανάκτηση αυτής της επιχείρησης; Θα δημιουργηθεί ή θα συνδεθεί με πραγματική εγγραφή Business.')) return
@@ -67,7 +68,7 @@ export default function GemiBusinessDetailPage() {
   if (!business || business.error) return <div className="text-center py-16 text-gray-400">Δεν βρέθηκε η εγγραφή.</div>
 
   const activities = Array.isArray(business.activities) ? business.activities : []
-  const deactivated = isDeactivated(business.deactivationFlag)
+  const deactivated = isDeactivated(business)
   const category = getEffectiveCategory({ tags: business.tags, activities })
   const region = resolveRegionFromZip(business.postalZipCode)
 

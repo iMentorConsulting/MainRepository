@@ -34,6 +34,7 @@ const gemiNavItems = [
   { href: '/gemi/businesses', label: 'Επιχειρήσεις', icon: Building2 },
   { href: '/gemi/matches', label: 'Ταιριάσματα', icon: Target },
   { href: '/gemi/campaigns', label: 'Καμπάνιες', icon: Megaphone },
+  { href: '/gemi/campaigns/templates', label: 'Πρότυπα Email', icon: Mail },
 ]
 
 interface SidebarProps {

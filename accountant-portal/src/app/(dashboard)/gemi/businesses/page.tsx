@@ -210,6 +210,10 @@ function GemiBusinessesPageInner() {
   const [claimed, setClaimed] = useState('')
   const [importBatchInput, setImportBatchInput] = useState('')
   const [importBatch, setImportBatch] = useState('')
+  const [region, setRegion] = useState('')
+  const [category, setCategory] = useState('')
+  const [hasCampaign, setHasCampaign] = useState('')
+  const [active, setActive] = useState('')
 
   // Modals / panel
   const [importOpen, setImportOpen] = useState(false)
@@ -231,6 +235,10 @@ function GemiBusinessesPageInner() {
     if (matchingDone) params.set('matchingDone', matchingDone)
     if (claimed) params.set('claimed', claimed)
     if (importBatch) params.set('importBatch', importBatch)
+    if (region) params.set('region', region)
+    if (category) params.set('category', category)
+    if (hasCampaign) params.set('hasCampaign', hasCampaign)
+    if (active) params.set('active', active)
     try {
       const res = await fetch(`/api/gemi/businesses?${params}`)
       const data = await res.json()
@@ -240,10 +248,10 @@ function GemiBusinessesPageInner() {
     } finally {
       if (seq === requestSeq.current) setLoading(false)
     }
-  }, [page, search, aadeEnriched, matchingDone, claimed, importBatch])
+  }, [page, search, aadeEnriched, matchingDone, claimed, importBatch, region, category, hasCampaign, active])
 
   useEffect(() => { fetchData() }, [fetchData])
-  useEffect(() => { setPage(1) }, [search, aadeEnriched, matchingDone, claimed, importBatch])
+  useEffect(() => { setPage(1) }, [search, aadeEnriched, matchingDone, claimed, importBatch, region, category, hasCampaign, active])
 
   function handleSearch() { setSearch(searchInput) }
   function handleImportBatchSearch() { setImportBatch(importBatchInput) }
@@ -284,7 +292,7 @@ function GemiBusinessesPageInner() {
     }
   }
 
-  const hasFilters = !!(search || aadeEnriched || matchingDone || claimed || importBatch)
+  const hasFilters = !!(search || aadeEnriched || matchingDone || claimed || importBatch || region || category || hasCampaign || active)
 
   if (status === 'loading' || (status === 'authenticated' && (session?.user as any)?.role !== 'ADMIN')) {
     return (
@@ -417,12 +425,67 @@ function GemiBusinessesPageInner() {
               />
             </div>
 
+            <div>
+              <label className="text-xs font-medium text-gray-500 block mb-1">Περιφέρεια</label>
+              <select
+                value={region}
+                onChange={e => setRegion(e.target.value)}
+                className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-amber-500 bg-white"
+              >
+                <option value="">Όλες</option>
+                {['Αττική','Κεντρική Μακεδονία','Θεσσαλία','Ανατολική Μακεδονία και Θράκη','Ήπειρος','Δυτική Μακεδονία','Ιόνια Νησιά','Δυτική Ελλάδα','Στερεά Ελλάδα','Πελοπόννησος','Βόρειο Αιγαίο','Νότιο Αιγαίο','Κρήτη'].map(r => (
+                  <option key={r} value={r}>{r}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="text-xs font-medium text-gray-500 block mb-1">Κλάδος</label>
+              <select
+                value={category}
+                onChange={e => setCategory(e.target.value)}
+                className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-amber-500 bg-white"
+              >
+                <option value="">Όλοι</option>
+                {['ΥΠΗΡΕΣΙΕΣ','ΕΜΠΟΡΙΟ','ΜΕΤΑΠΟΙΗΣΗ','ΤΟΥΡΙΣΜΟΣ','ΕΣΤΙΑΣΗ','ΑΓΡΟΤΙΚΑ'].map(c => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="text-xs font-medium text-gray-500 block mb-1">Ενημέρωση</label>
+              <select
+                value={hasCampaign}
+                onChange={e => setHasCampaign(e.target.value)}
+                className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-amber-500 bg-white"
+              >
+                <option value="">Όλες</option>
+                <option value="yes">Έλαβαν ενημέρωση</option>
+                <option value="no">Δεν έλαβαν</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="text-xs font-medium text-gray-500 block mb-1">Κατάσταση</label>
+              <select
+                value={active}
+                onChange={e => setActive(e.target.value)}
+                className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-amber-500 bg-white"
+              >
+                <option value="">Όλες</option>
+                <option value="yes">Ενεργές</option>
+                <option value="no">Ανενεργές</option>
+              </select>
+            </div>
+
             {hasFilters && (
               <button
                 onClick={() => {
                   setSearch(''); setSearchInput('')
                   setAadeEnriched(''); setMatchingDone(''); setClaimed('')
                   setImportBatch(''); setImportBatchInput('')
+                  setRegion(''); setCategory(''); setHasCampaign(''); setActive('')
                 }}
                 className="text-xs text-gray-500 hover:text-gray-700 underline self-end pb-2"
               >

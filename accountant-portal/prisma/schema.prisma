@@ -1038,6 +1038,7 @@ model GemiLookup {
   // KAD activities stored as JSON [{firmActCode, firmActDescr, firmActKind, firmActKindDescr}]
   activities            Json      @default("[]")
   tags                  String[]  @default([])
+  category              String?
   // Enrichment status
   aadeEnriched          Boolean   @default(false)
   aadeEnrichedAt        DateTime?
@@ -1116,6 +1117,17 @@ model GemiCampaignRecipient {
   errorMessage           String?
   chatwootConversationId Int?
   createdAt              DateTime     @default(now())
+}
+
+model GemiEmailTemplate {
+  id          String   @id @default(cuid())
+  label       String
+  description String?
+  subject     String
+  htmlContent String   @db.Text
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
 
 model EspaAnnouncement {
