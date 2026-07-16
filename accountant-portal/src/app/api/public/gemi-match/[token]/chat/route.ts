@@ -24,7 +24,7 @@ async function createGemiLead(params: {
   // Mark the GemiProgramMatch as confirmed
   await prisma.gemiProgramMatch.updateMany({
     where: { gemiId: params.gemiId, programId: params.programId },
-    data: { status: 'CONFIRMED' },
+    data: { status: 'INTERESTED' },
   }).catch(() => {})
 
   try {

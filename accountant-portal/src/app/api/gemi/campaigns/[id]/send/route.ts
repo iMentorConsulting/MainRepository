@@ -2,76 +2,99 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { GEMI_DISCLAIMER } from '@/lib/moosend'
-import { sendEmail } from '@/lib/email'
 import { sendViberMessage } from '@/lib/chatwoot'
 import { getOrCreateGemiErmisLink } from '@/lib/gemi-ermis'
 
-const SENDER_EMAIL = process.env.MOOSEND_SENDER_EMAIL ?? 'noreply@i-mentor.gr'
+const MOOSEND_API_KEY = process.env.MOOSEND_API_KEY ?? ''
+const SENDER_EMAIL = process.env.MOOSEND_SENDER_EMAIL ?? 'info@i-mentor.gr'
+const REPLY_TO_EMAIL = process.env.MOOSEND_REPLY_TO_EMAIL ?? 'info@i-mentor.gr'
 const APP_URL = process.env.APP_URL ?? 'https://logistis.i-mentor.gr'
 const EXODIKASTIKOS_URL = process.env.EXODIKASTIKOS_URL ?? ''
+const BASE_URL = 'https://api.moosend.com/v3'
 
-function substituteVariables(template: string, vars: Record<string, string>): string {
-  return template.replace(/\{\{(\w+)\}\}/g, (_, key) => vars[key] ?? '')
+// Variable names used in templates — {{variable}} in HTML gets converted to [variable] for Moosend merge tags
+const MERGE_FIELDS = [
+  'business_name', 'afm', 'accountant_name', 'accountant_office',
+  'program_title', 'program_description', 'program_url', 'program_deadline',
+  'extra_criteria', 'kad_description', 'match_reason',
+  'ermis_link', 'unsubscribe_link', 'exodikastikos_link',
+]
+
+// Convert {{variable}} placeholders to Moosend [variable] merge tags
+function toMoosendTemplate(html: string): string {
+  return html.replace(/\{\{(\w+)\}\}/g, (_: string, key: string) => `[${key}]`)
 }
 
-async function buildVariables(opts: {
-  gemiId: string
-  programId: string
-  campaign: { programId: string | null }
-}): Promise<Record<string, string>> {
+async function moosendPost(path: string, body: unknown) {
+  const res = await fetch(`${BASE_URL}${path}?apikey=${MOOSEND_API_KEY}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok || (data.Code !== undefined && data.Code !== 0)) {
+    throw new Error(`Moosend error at ${path}: ${data.Error ?? data.Message ?? JSON.stringify(data)}`)
+  }
+  return data
+}
+
+async function createListWithCustomFields(name: string): Promise<string> {
+  const data = await moosendPost('/lists/create.json', { Name: name })
+  const listId = typeof data.Context === 'string' ? data.Context : data.Context?.ID
+  if (!listId) throw new Error('No list ID from Moosend')
+
+  // Define all merge fields as custom fields on this list
+  for (const field of MERGE_FIELDS) {
+    await moosendPost(`/lists/${listId}/customfields/create.json`, {
+      Name: field,
+      CustomFieldType: 'Text',
+      IsRequired: false,
+    }).catch(() => {}) // ignore if field already exists
+  }
+
+  return listId
+}
+
+async function buildRecipientVariables(gemiId: string, programId: string): Promise<Record<string, string>> {
   const [gemi, program, match] = await Promise.all([
     prisma.gemiLookup.findUnique({
-      where: { id: opts.gemiId },
-      select: {
-        onomasia: true, afm: true, activities: true,
-        postalAreaDescription: true, unsubscribeToken: true,
-        claimedAccountantId: true,
-      },
+      where: { id: gemiId },
+      select: { onomasia: true, afm: true, activities: true, unsubscribeToken: true, claimedAccountantId: true },
     }),
-    opts.programId ? prisma.program.findUnique({
-      where: { id: opts.programId },
+    programId ? prisma.program.findUnique({
+      where: { id: programId },
       select: { title: true, description: true, websiteUrl: true, endDate: true, extraCriteriaIds: true },
     }) : null,
-    opts.programId ? prisma.gemiProgramMatch.findUnique({
-      where: { gemiId_programId: { gemiId: opts.gemiId, programId: opts.programId } },
+    programId ? prisma.gemiProgramMatch.findUnique({
+      where: { gemiId_programId: { gemiId, programId } },
       select: { matchReason: true },
     }) : null,
   ])
-
   if (!gemi) return {}
 
   const accountant = gemi.claimedAccountantId
-    ? await prisma.accountant.findUnique({
-        where: { id: gemi.claimedAccountantId },
-        select: { contactPerson: true, officeName: true },
-      })
+    ? await prisma.accountant.findUnique({ where: { id: gemi.claimedAccountantId }, select: { contactPerson: true, officeName: true } })
     : null
 
   const activities = (Array.isArray(gemi.activities) ? gemi.activities : []) as any[]
   const primaryKad = activities.find((a: any) => a.firmActKind === 1) ?? activities[0]
-  const kadDescription = primaryKad?.firmActDescr ?? ''
 
   const extraCriteriaText = program?.extraCriteriaIds?.length
-    ? (await prisma.eligibilityCriterion.findMany({
-        where: { id: { in: program.extraCriteriaIds } },
-        select: { label: true },
-      })).map(c => `• ${c.label}`).join('\n')
+    ? (await prisma.eligibilityCriterion.findMany({ where: { id: { in: program.extraCriteriaIds } }, select: { label: true } }))
+        .map(c => `• ${c.label}`).join(' | ')
     : ''
 
   const programDeadline = program?.endDate
     ? new Date(program.endDate).toLocaleDateString('el-GR', { day: '2-digit', month: '2-digit', year: 'numeric' })
     : ''
 
-  const ermisLink = program && opts.programId
-    ? await getOrCreateGemiErmisLink(opts.gemiId, opts.programId).catch(() => '')
-    : ''
-
-  const unsubscribeLink = gemi.unsubscribeToken
-    ? `${APP_URL}/api/gemi/unsubscribe/${gemi.unsubscribeToken}`
+  const ermisLink = programId
+    ? await getOrCreateGemiErmisLink(gemiId, programId).catch(() => '')
     : ''
 
   const afm = gemi.afm ?? ''
   const onomasia = gemi.onomasia ?? afm
+  const unsubscribeLink = gemi.unsubscribeToken ? `${APP_URL}/api/gemi/unsubscribe/${gemi.unsubscribeToken}` : ''
   const exodikastikosLink = EXODIKASTIKOS_URL
     ? `${EXODIKASTIKOS_URL}?afm=${encodeURIComponent(afm)}&name=${encodeURIComponent(onomasia)}`
     : '#'
@@ -79,15 +102,15 @@ async function buildVariables(opts: {
   return {
     business_name: onomasia,
     afm,
-    accountant_name: accountant?.contactPerson ?? '',
-    accountant_office: accountant?.officeName ?? '',
+    accountant_name: accountant?.contactPerson ?? 'i-MENTOR',
+    accountant_office: accountant?.officeName ?? 'i-MENTOR',
     program_title: program?.title ?? '',
     program_description: program?.description ?? '',
     program_url: program?.websiteUrl ?? '',
     program_deadline: programDeadline,
     extra_criteria: extraCriteriaText,
-    kad_description: kadDescription,
-    match_reason: (match?.matchReason ?? []).map((r: string) => `• ${r}`).join('\n'),
+    kad_description: primaryKad?.firmActDescr ?? '',
+    match_reason: (match?.matchReason ?? []).map((r: string) => `• ${r}`).join(' | '),
     ermis_link: ermisLink,
     unsubscribe_link: unsubscribeLink,
     exodikastikos_link: exodikastikosLink,
@@ -99,45 +122,61 @@ async function sendEmailCampaign(campaignId: string) {
 
   const emailRecipients = await prisma.gemiCampaignRecipient.findMany({
     where: { campaignId, channel: 'EMAIL', status: 'pending' },
+    select: { id: true, gemiId: true, recipient: true },
   })
+  if (emailRecipients.length === 0) return { sent: 0, errors: 0 }
 
-  const htmlTemplate = (campaign.htmlContent ?? '') +
-    `\n<p style="font-size:11px;color:#888;margin-top:24px;border-top:1px solid #eee;padding-top:12px;">${GEMI_DISCLAIMER}</p>`
-  const subjectTemplate = campaign.subject ?? campaign.title
+  // Create Moosend list with custom fields for merge tags
+  const listId = await createListWithCustomFields(`GEMI-${campaignId}-${Date.now()}`)
 
-  let sent = 0
-  const now = new Date()
-
-  for (const r of emailRecipients) {
-    try {
-      const vars = await buildVariables({
-        gemiId: r.gemiId,
-        programId: campaign.programId ?? '',
-        campaign,
+  // Add subscribers in batches of 500 with their personalized custom field values
+  const BATCH = 500
+  for (let i = 0; i < emailRecipients.length; i += BATCH) {
+    const batch = emailRecipients.slice(i, i + BATCH)
+    const subscribers = await Promise.all(
+      batch.map(async (r) => {
+        const vars = await buildRecipientVariables(r.gemiId, campaign.programId ?? '')
+        const customFields = MERGE_FIELDS.map(f => `${f}=${vars[f] ?? ''}`)
+        return { Email: r.recipient, CustomFields: customFields }
       })
-      const html = substituteVariables(htmlTemplate, vars)
-      const subject = substituteVariables(subjectTemplate, vars)
-
-      const ok = await sendEmail({ to: r.recipient, subject, html })
-      await prisma.gemiCampaignRecipient.update({
-        where: { id: r.id },
-        data: { status: ok ? 'sent' : 'error', sentAt: ok ? now : null, errorMessage: ok ? null : 'Email delivery failed' },
-      })
-      if (ok) sent++
-    } catch (err: any) {
-      await prisma.gemiCampaignRecipient.update({
-        where: { id: r.id },
-        data: { status: 'error', errorMessage: err?.message ?? 'Unknown error' },
-      })
-    }
+    )
+    await moosendPost(`/subscribers/${listId}/subscribe_many.json`, { Subscribers: subscribers })
   }
 
-  await prisma.gemiCampaign.update({
-    where: { id: campaignId },
-    data: { status: 'SENT', sentAt: now, totalSent: sent },
+  // Build HTML with Moosend merge tags and disclaimer
+  const htmlTemplate = toMoosendTemplate(campaign.htmlContent ?? '')
+  const htmlWithDisclaimer = htmlTemplate +
+    `\n<p style="font-size:11px;color:#888;margin-top:24px;border-top:1px solid #eee;padding-top:12px;">${GEMI_DISCLAIMER}</p>`
+
+  // Create and send campaign
+  const campaignData = await moosendPost('/campaigns/create.json', {
+    Name: campaign.title,
+    Subject: toMoosendTemplate(campaign.subject ?? campaign.title),
+    SenderEmail: SENDER_EMAIL,
+    ReplyToEmail: REPLY_TO_EMAIL,
+    MailingLists: [{ MailingListID: listId, SegmentID: null }],
+    HTMLContent: htmlWithDisclaimer,
+    Type: 'Regular',
+  })
+  const moosendCampaignId = typeof campaignData.Context === 'string' ? campaignData.Context : campaignData.Context?.ID
+  if (!moosendCampaignId) throw new Error('No campaign ID from Moosend')
+
+  await moosendPost(`/campaigns/${moosendCampaignId}/send.json`, {
+    ScheduledDateTime: new Date().toISOString(),
+    TimezoneID: 53,
   })
 
-  return { sent, errors: emailRecipients.length - sent }
+  const now = new Date()
+  await prisma.gemiCampaign.update({
+    where: { id: campaignId },
+    data: { status: 'SENT', sentAt: now, moosendCampaignId, moosendListId: listId, totalSent: emailRecipients.length },
+  })
+  await prisma.gemiCampaignRecipient.updateMany({
+    where: { id: { in: emailRecipients.map(r => r.id) } },
+    data: { status: 'sent', sentAt: now },
+  })
+
+  return { sent: emailRecipients.length, errors: 0 }
 }
 
 async function sendViberCampaign(campaignId: string) {
@@ -155,8 +194,8 @@ async function sendViberCampaign(campaignId: string) {
   await Promise.all(
     phoneRecipients.map(async (r) => {
       try {
-        const vars = await buildVariables({ gemiId: r.gemiId, programId: campaign.programId ?? '', campaign })
-        const message = substituteVariables(messageTemplate, vars)
+        const vars = await buildRecipientVariables(r.gemiId, campaign.programId ?? '')
+        const message = messageTemplate.replace(/\{\{(\w+)\}\}/g, (_: string, k: string) => vars[k] ?? '')
         const { conversationId } = await sendViberMessage(r.recipient, message)
         await prisma.gemiCampaignRecipient.update({
           where: { id: r.id },
@@ -165,20 +204,13 @@ async function sendViberCampaign(campaignId: string) {
         sent++
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : String(err)
-        await prisma.gemiCampaignRecipient.update({
-          where: { id: r.id },
-          data: { status: 'error', errorMessage },
-        })
+        await prisma.gemiCampaignRecipient.update({ where: { id: r.id }, data: { status: 'error', errorMessage } })
         errors++
       }
     }),
   )
 
-  await prisma.gemiCampaign.update({
-    where: { id: campaignId },
-    data: { status: 'SENT', sentAt: now, totalSent: sent },
-  })
-
+  await prisma.gemiCampaign.update({ where: { id: campaignId }, data: { status: 'SENT', sentAt: now, totalSent: sent } })
   return { sent, errors }
 }
 
