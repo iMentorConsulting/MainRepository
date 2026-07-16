@@ -121,8 +121,9 @@ export async function createAndSendCampaign(
       SenderEmail: opts.senderEmail,
       ReplyToEmail: opts.replyToEmail,
       HTMLContent: opts.htmlContent,
-      MailingListID: opts.listId,
+      MailingLists: [{ MailingListID: opts.listId, SegmentID: null }],
       ConfirmationToEmail: opts.replyToEmail,
+      Type: 'Regular',
     }),
   });
 
