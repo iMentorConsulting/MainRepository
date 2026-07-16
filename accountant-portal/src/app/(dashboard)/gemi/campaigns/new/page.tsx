@@ -12,6 +12,53 @@ const GEMI_DISCLAIMER = `Τα στοιχεία επικοινωνίας σας �
 
 type Channel = 'EMAIL' | 'VIBER' | 'EMAIL_AND_VIBER'
 
+function ViberTestSend({ message, showToast }: { message: string; showToast: (msg: string, ok: boolean) => void }) {
+  const [testPhone, setTestPhone] = useState('')
+  const [sending, setSending] = useState(false)
+  const [result, setResult] = useState('')
+
+  async function send() {
+    if (!testPhone.trim()) { showToast('Εισάγετε αριθμό τηλεφώνου.', false); return }
+    if (!message.trim()) { showToast('Απαιτείται κείμενο Viber.', false); return }
+    setSending(true); setResult('')
+    const res = await fetch('/api/gemi/campaigns/viber-test', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ testPhone: testPhone.trim(), message }),
+    })
+    if (res.ok) {
+      setResult(`✓ Εστάλη στο ${testPhone}`)
+      showToast(`Δοκιμαστικό Viber εστάλη στο ${testPhone}`, true)
+    } else {
+      const err = await res.json().catch(() => ({}))
+      setResult(`✗ ${err.error || 'Σφάλμα'}`)
+      showToast(err.error || 'Σφάλμα αποστολής Viber.', false)
+    }
+    setSending(false)
+  }
+
+  return (
+    <div className="border-t border-gray-100 pt-4 space-y-2">
+      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide flex items-center gap-1">
+        <FlaskConical size={12} />Δοκιμαστική Αποστολή Viber
+      </p>
+      <div className="flex gap-2">
+        <input
+          type="tel"
+          placeholder="+30 69XXXXXXXX"
+          value={testPhone}
+          onChange={e => setTestPhone(e.target.value)}
+          className="flex-1 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-400"
+        />
+        <Button variant="outline" size="sm" loading={sending} onClick={send}>
+          <FlaskConical size={14} className="mr-1" />Αποστολή Viber
+        </Button>
+      </div>
+      {result && <p className="text-xs text-gray-500">{result}</p>}
+    </div>
+  )
+}
+
 export default function NewGemiCampaignPage() {
   return (
     <Suspense fallback={null}>
@@ -322,7 +369,7 @@ function NewGemiCampaignPageInner() {
         <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm space-y-4">
           <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Κείμενο Viber</h2>
           <div>
-            <label className="text-sm font-medium text-slate-700 block mb-1">Μήνυμα * (έως 1000 χαρακτήρες)</label>
+            <label className="text-sm font-medium text-slate-700 block mb-1">Μήνυμα * (έως 900 χαρακτήρες)</label>
             <textarea
               value={viberMessage}
               onChange={e => setViberMessage(e.target.value)}
@@ -336,6 +383,9 @@ function NewGemiCampaignPageInner() {
               <span className="text-xs text-gray-400 mt-1">{viberMessage.length}/900</span>
             </div>
           </div>
+
+          {/* Viber test send */}
+          <ViberTestSend message={viberMessage} showToast={showToast} />
         </div>
       )}
 

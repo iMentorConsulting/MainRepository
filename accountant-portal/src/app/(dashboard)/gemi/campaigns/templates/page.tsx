@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { TemplateEditor } from '@/components/campaigns/template-editor'
-import { ChevronDown, ChevronUp, Plus, Trash2 } from 'lucide-react'
+import { ChevronDown, ChevronUp, Plus, Trash2, Download } from 'lucide-react'
 
 interface GemiTemplate {
   id: string
@@ -196,6 +196,7 @@ export default function GemiTemplatesPage() {
   const router = useRouter()
   const [templates, setTemplates] = useState<GemiTemplate[]>([])
   const [loading, setLoading] = useState(true)
+  const [seeding, setSeeding] = useState(false)
 
   useEffect(() => {
     if (status === 'loading') return
@@ -256,7 +257,24 @@ export default function GemiTemplatesPage() {
       <NewTemplateForm onCreated={t => setTemplates(prev => [t, ...prev])} />
 
       {templates.length === 0 ? (
-        <div className="text-center py-16 text-gray-400">Δεν υπάρχουν πρότυπα ακόμα.</div>
+        <div className="text-center py-16 space-y-4">
+          <p className="text-gray-400">Δεν υπάρχουν πρότυπα ακόμα.</p>
+          <Button
+            loading={seeding}
+            onClick={async () => {
+              setSeeding(true)
+              const res = await fetch('/api/gemi/templates/seed-default', { method: 'POST' })
+              if (res.ok) {
+                const t = await res.json()
+                setTemplates([t])
+              }
+              setSeeding(false)
+            }}
+            className="bg-amber-600 hover:bg-amber-700 text-white"
+          >
+            <Download size={15} className="mr-2" />Φόρτωση Προεπιλεγμένου Προτύπου
+          </Button>
+        </div>
       ) : (
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 space-y-3">
           {templates.map(t => (

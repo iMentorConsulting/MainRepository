@@ -36,12 +36,19 @@ export async function POST(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ Name: listName }),
   })
-  if (!listRes.ok) {
-    return NextResponse.json({ error: 'Failed to create Moosend test list' }, { status: 500 })
+  const listData = await listRes.json().catch(() => ({}))
+  if (!listRes.ok || listData.Code !== 0) {
+    console.error('[GemiTestSend] Moosend list create error:', JSON.stringify(listData))
+    return NextResponse.json({
+      error: listData.Error ?? listData.Message ?? 'Failed to create Moosend test list',
+      detail: listData,
+    }, { status: 500 })
   }
-  const listData = await listRes.json()
-  const listId: string = listData.Context?.ID
-  if (!listId) return NextResponse.json({ error: 'No list ID returned' }, { status: 500 })
+  const listId: string | undefined = listData.Context?.ID
+  if (!listId) {
+    console.error('[GemiTestSend] Moosend no list ID:', JSON.stringify(listData))
+    return NextResponse.json({ error: 'No list ID returned from Moosend', detail: listData }, { status: 500 })
+  }
 
   // Add test subscriber
   await fetch(`${BASE_URL}/subscribers/${listId}/subscribe.json?apikey=${MOOSEND_API_KEY}`, {
@@ -63,12 +70,18 @@ export async function POST(
       HTMLContent: htmlWithDisclaimer,
     }),
   })
-  if (!campaignRes.ok) {
-    return NextResponse.json({ error: 'Failed to create Moosend test campaign' }, { status: 500 })
+  const campaignData = await campaignRes.json().catch(() => ({}))
+  if (!campaignRes.ok || campaignData.Code !== 0) {
+    console.error('[GemiTestSend] Moosend campaign create error:', JSON.stringify(campaignData))
+    return NextResponse.json({
+      error: campaignData.Error ?? campaignData.Message ?? 'Failed to create Moosend test campaign',
+      detail: campaignData,
+    }, { status: 500 })
   }
-  const campaignData = await campaignRes.json()
-  const moosendCampaignId: string = campaignData.Context?.ID
-  if (!moosendCampaignId) return NextResponse.json({ error: 'No campaign ID returned' }, { status: 500 })
+  const moosendCampaignId: string | undefined = campaignData.Context?.ID
+  if (!moosendCampaignId) {
+    return NextResponse.json({ error: 'No campaign ID returned from Moosend', detail: campaignData }, { status: 500 })
+  }
 
   // Send immediately
   const sendRes = await fetch(`${BASE_URL}/campaigns/${moosendCampaignId}/send.json?apikey=${MOOSEND_API_KEY}`, {

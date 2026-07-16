@@ -60,6 +60,24 @@ function getPrimaryKad(activities: any[] | undefined): { code: string; descr: st
   return { code: primary.firmActCode ?? '', descr: primary.firmActDescr ?? '' }
 }
 
+function deriveCategoryFromKad(code: string | null | undefined): string | null {
+  if (!code) return null
+  const n = parseInt(code.replace(/\D.*/, ''), 10)
+  if (isNaN(n)) return null
+  if (n === 55) return 'ΤΟΥΡΙΣΜΟΣ'
+  if (n === 56) return 'ΕΣΤΙΑΣΗ'
+  if (n >= 45 && n <= 47) return 'ΕΜΠΟΡΙΟ'
+  if (n >= 1 && n <= 3) return 'ΑΓΡΟΤΙΚΑ'
+  if (n >= 10 && n <= 33) return 'ΜΕΤΑΠΟΙΗΣΗ'
+  return 'ΥΠΗΡΕΣΙΕΣ'
+}
+
+function getCategory(b: GemiBusiness): string | null {
+  if (b.category) return b.category
+  const kad = getPrimaryKad(b.activities)
+  return deriveCategoryFromKad(kad?.code ?? null)
+}
+
 const CATEGORY_COLORS: Record<string, string> = {
   ΤΟΥΡΙΣΜΟΣ: 'bg-sky-100 text-sky-800',
   ΕΜΠΟΡΙΟ: 'bg-blue-100 text-blue-800',
@@ -220,6 +238,7 @@ function GemiBusinessesPageInner() {
   const [toast, setToast] = useState<string | null>(null)
   const [enriching, setEnriching] = useState(false)
   const [matching, setMatching] = useState(false)
+  const [backfilling, setBackfilling] = useState(false)
 
   const requestSeq = useRef(0)
 
@@ -280,6 +299,24 @@ function GemiBusinessesPageInner() {
     }
   }
 
+  async function handleBackfillCategories() {
+    setBackfilling(true)
+    try {
+      const res = await fetch('/api/gemi/backfill-categories', { method: 'POST' })
+      const data = await res.json()
+      if (res.ok) {
+        setToast(`Κλάδος: ${data.updated ?? 0} εγγραφές ενημερώθηκαν`)
+        fetchData()
+      } else {
+        setToast(data.error || 'Σφάλμα')
+      }
+    } catch {
+      setToast('Σφάλμα δικτύου')
+    } finally {
+      setBackfilling(false)
+    }
+  }
+
   async function handleMatch() {
     setMatching(true)
     try {
@@ -330,6 +367,9 @@ function GemiBusinessesPageInner() {
         <div className="flex items-center gap-2 flex-wrap">
           <Button variant="outline" size="sm" onClick={handleEnrich} loading={enriching} className="border-blue-300 text-blue-700 hover:bg-blue-50">
             <RefreshCw size={14} className="mr-1.5" />Εμπλουτισμός ΑΑΔΕ
+          </Button>
+          <Button variant="outline" size="sm" onClick={handleBackfillCategories} loading={backfilling} className="border-amber-300 text-amber-700 hover:bg-amber-50">
+            <RefreshCw size={14} className="mr-1.5" />Συμπλήρωση Κλάδου
           </Button>
           <Button variant="outline" size="sm" onClick={handleMatch} loading={matching} className="border-indigo-300 text-indigo-700 hover:bg-indigo-50">
             <Link2 size={14} className="mr-1.5" />Εκτέλεση Ταιριάσματος
@@ -493,7 +533,7 @@ function GemiBusinessesPageInner() {
                             </a>
                           </Td>
                           <Td>
-                            <CategoryChip cat={b.category} />
+                            <CategoryChip cat={getCategory(b)} />
                           </Td>
                           <Td className="max-w-[200px]">
                             {kad ? (
