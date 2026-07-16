@@ -67,11 +67,12 @@ export async function sendViberMessage(
   const contactId = await createOrFindContact(phone, name);
 
   const conversation = await apiFetch<{ id: number }>(
-    `${baseUrl()}/contacts/${contactId}/conversations`,
+    `${baseUrl()}/conversations`,
     {
       method: 'POST',
       body: JSON.stringify({
         inbox_id: Number(CHATWOOT_INBOX_ID),
+        contact_id: contactId,
       }),
     },
   );

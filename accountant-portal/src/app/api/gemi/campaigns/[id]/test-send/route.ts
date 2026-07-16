@@ -73,13 +73,14 @@ export async function POST(
       ReplyToEmail: REPLY_TO_EMAIL,
       MailingLists: [{ MailingListID: listId, SegmentID: null }],
       HTMLContent: htmlWithDisclaimer,
+      Type: 'Regular',
     }),
   })
   const campaignData = await campaignRes.json().catch(() => ({}))
+  console.log('[GemiTestSend] Moosend campaign create response:', JSON.stringify(campaignData))
   if (!campaignRes.ok || campaignData.Code !== 0) {
-    console.error('[GemiTestSend] Moosend campaign create error:', JSON.stringify(campaignData))
     return NextResponse.json({
-      error: campaignData.Error ?? campaignData.Message ?? 'Failed to create Moosend test campaign',
+      error: `Moosend campaign error: ${campaignData.Error ?? campaignData.Message ?? JSON.stringify(campaignData)}`,
       detail: campaignData,
     }, { status: 500 })
   }
