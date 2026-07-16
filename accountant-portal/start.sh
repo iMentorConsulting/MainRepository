@@ -10,5 +10,8 @@ npx prisma db push --accept-data-loss
 echo ">>> Resetting admin credentials..."
 node scripts/reset-admin.js || echo "Admin reset failed (non-fatal)"
 
+echo ">>> Seeding GEMI email templates..."
+node scripts/seed-gemi-templates.js || echo "GEMI template seed skipped (non-fatal)"
+
 echo ">>> Starting Next.js server on port ${PORT:-3000}..."
 exec npx next start -p ${PORT:-3000}

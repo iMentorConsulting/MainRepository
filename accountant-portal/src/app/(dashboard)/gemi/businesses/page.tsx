@@ -22,51 +22,57 @@ interface GemiBusiness {
   matchingDone: boolean
   claimed: boolean
   claimedBy?: string | null
+  claimedAt?: string | null
+  category?: string | null
+  activities?: any[]
+  postalAreaDescription?: string | null
+  postalZipCode?: string | null
+  stopDate?: string | null
 }
 
-function DetailPanel({ business, onClose }: { business: GemiBusiness; onClose: () => void }) {
-  return (
-    <div className="fixed inset-0 z-50 flex items-start justify-end bg-black/30 backdrop-blur-sm" onClick={onClose}>
-      <div
-        className="bg-white h-full w-full max-w-md shadow-2xl overflow-y-auto"
-        onClick={e => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-slate-100 sticky top-0 bg-white z-10">
-          <div>
-            <h2 className="text-base font-semibold text-slate-900">{business.onomasia || business.afm}</h2>
-            <p className="text-xs text-slate-500 font-mono mt-0.5">ΑΦΜ: {business.afm}</p>
-          </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
-            <X size={20} />
-          </button>
-        </div>
-        <div className="px-6 py-5 space-y-4">
-          <dl className="space-y-3 text-sm">
-            {(
-              [
-                ['ΑΦΜ', business.afm],
-                ['Επωνυμία', business.onomasia],
-                ['Email', business.email],
-                ['Τηλέφωνο', business.phone],
-                ['Παρτίδα Εισαγωγής', business.importBatch],
-                ['Ημ. Εισαγωγής', business.importedAt ? new Date(business.importedAt).toLocaleDateString('el-GR') : null],
-                ['Εμπλουτισμός ΑΑΔΕ', business.aadeEnriched ? '✓ Εμπλουτισμένη' : '⏳ Σε αναμονή'],
-                ['Ταίριασμα', business.matchingDone ? '✓ Έγινε' : '⏳ Σε αναμονή'],
-                ['Ανάθεση', business.claimed ? `Ανατεθειμένη${business.claimedBy ? ` σε ${business.claimedBy}` : ''}` : 'Μη ανατεθειμένη'],
-              ] as [string, string | null | undefined][]
-            ).map(([label, value]) =>
-              value != null ? (
-                <div key={label} className="flex gap-3">
-                  <dt className="w-40 shrink-0 font-medium text-gray-500">{label}</dt>
-                  <dd className="text-gray-900 break-all">{value}</dd>
-                </div>
-              ) : null
-            )}
-          </dl>
-        </div>
-      </div>
-    </div>
-  )
+const ZIP_PREFIX_TO_REGION: Record<string, string> = {
+  '10':'Αττική','11':'Αττική','12':'Αττική','13':'Αττική','14':'Αττική','15':'Αττική','16':'Αττική','17':'Αττική','18':'Αττική','19':'Αττική',
+  '20':'Πελοπόννησος','21':'Πελοπόννησος','22':'Πελοπόννησος','23':'Πελοπόννησος','24':'Πελοπόννησος',
+  '25':'Δυτική Ελλάδα','26':'Δυτική Ελλάδα','27':'Δυτική Ελλάδα',
+  '28':'Ιόνια Νησιά','29':'Ιόνια Νησιά','49':'Ιόνια Νησιά',
+  '30':'Στερεά Ελλάδα','31':'Στερεά Ελλάδα','32':'Στερεά Ελλάδα','33':'Στερεά Ελλάδα','34':'Στερεά Ελλάδα','35':'Στερεά Ελλάδα','36':'Στερεά Ελλάδα',
+  '37':'Θεσσαλία','38':'Θεσσαλία','39':'Θεσσαλία','40':'Θεσσαλία','41':'Θεσσαλία','42':'Θεσσαλία','43':'Θεσσαλία',
+  '44':'Ήπειρος','45':'Ήπειρος','46':'Ήπειρος','47':'Ήπειρος','48':'Ήπειρος',
+  '50':'Δυτική Μακεδονία','51':'Δυτική Μακεδονία','52':'Δυτική Μακεδονία','53':'Δυτική Μακεδονία',
+  '54':'Κεντρική Μακεδονία','55':'Κεντρική Μακεδονία','56':'Κεντρική Μακεδονία','57':'Κεντρική Μακεδονία','58':'Κεντρική Μακεδονία','59':'Κεντρική Μακεδονία',
+  '60':'Κεντρική Μακεδονία','61':'Κεντρική Μακεδονία','62':'Κεντρική Μακεδονία','63':'Κεντρική Μακεδονία',
+  '64':'Αν. Μακεδονία & Θράκη','65':'Αν. Μακεδονία & Θράκη','66':'Αν. Μακεδονία & Θράκη','67':'Αν. Μακεδονία & Θράκη','68':'Αν. Μακεδονία & Θράκη','69':'Αν. Μακεδονία & Θράκη',
+  '70':'Κρήτη','71':'Κρήτη','72':'Κρήτη','73':'Κρήτη','74':'Κρήτη',
+  '81':'Βόρειο Αιγαίο','82':'Βόρειο Αιγαίο','83':'Βόρειο Αιγαίο',
+  '84':'Νότιο Αιγαίο','85':'Νότιο Αιγαίο',
+}
+
+function getRegionFromZip(zip: string | null | undefined): string | null {
+  if (!zip) return null
+  const prefix = zip.replace(/\s/g, '').slice(0, 2)
+  return ZIP_PREFIX_TO_REGION[prefix] ?? null
+}
+
+function getPrimaryKad(activities: any[] | undefined): { code: string; descr: string } | null {
+  if (!activities?.length) return null
+  const primary = activities.find(a => a.firmActKind === 1) || activities[0]
+  if (!primary) return null
+  return { code: primary.firmActCode ?? '', descr: primary.firmActDescr ?? '' }
+}
+
+const CATEGORY_COLORS: Record<string, string> = {
+  ΤΟΥΡΙΣΜΟΣ: 'bg-sky-100 text-sky-800',
+  ΕΜΠΟΡΙΟ: 'bg-blue-100 text-blue-800',
+  ΜΕΤΑΠΟΙΗΣΗ: 'bg-orange-100 text-orange-800',
+  ΕΣΤΙΑΣΗ: 'bg-rose-100 text-rose-800',
+  ΥΠΗΡΕΣΙΕΣ: 'bg-indigo-100 text-indigo-800',
+  ΑΓΡΟΤΙΚΑ: 'bg-green-100 text-green-800',
+}
+
+function CategoryChip({ cat }: { cat: string | null | undefined }) {
+  if (!cat) return <span className="text-gray-300">—</span>
+  const cls = CATEGORY_COLORS[cat] ?? 'bg-gray-100 text-gray-700'
+  return <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold ${cls}`}>{cat}</span>
 }
 
 function ImportModal({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
@@ -110,9 +116,7 @@ function ImportModal({ onClose, onDone }: { onClose: () => void; onDone: () => v
             <h2 className="text-base font-semibold text-slate-900">Εισαγωγή CSV</h2>
             <p className="text-xs text-slate-500 mt-0.5">Νέες επιχειρήσεις από ΓΕΜΗ</p>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
-            <X size={20} />
-          </button>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={20} /></button>
         </div>
         <div className="px-6 py-5 space-y-4">
           {!result ? (
@@ -142,8 +146,7 @@ function ImportModal({ onClose, onDone }: { onClose: () => void; onDone: () => v
               {error && <p className="text-sm text-red-600">{error}</p>}
               <div className="flex gap-3">
                 <Button onClick={handleImport} loading={uploading} disabled={!file} className="bg-amber-600 hover:bg-amber-700 text-white">
-                  <Upload size={15} className="mr-2" />
-                  Εισαγωγή
+                  <Upload size={15} className="mr-2" />Εισαγωγή
                 </Button>
                 <Button variant="outline" onClick={onClose}>Ακύρωση</Button>
               </div>
@@ -171,9 +174,7 @@ function Toast({ message, onClose }: { message: string; onClose: () => void }) {
   return (
     <div className="fixed bottom-6 right-6 z-50 bg-gray-900 text-white text-sm rounded-xl px-5 py-3 shadow-2xl flex items-center gap-3 max-w-sm">
       <span className="flex-1">{message}</span>
-      <button onClick={onClose} className="text-gray-400 hover:text-white shrink-0">
-        <X size={15} />
-      </button>
+      <button onClick={onClose} className="text-gray-400 hover:text-white shrink-0"><X size={15} /></button>
     </div>
   )
 }
@@ -201,6 +202,7 @@ function GemiBusinessesPageInner() {
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
   const [loading, setLoading] = useState(true)
+  const [batches, setBatches] = useState<string[]>([])
 
   // Filters
   const [searchInput, setSearchInput] = useState('')
@@ -208,23 +210,26 @@ function GemiBusinessesPageInner() {
   const [aadeEnriched, setAadeEnriched] = useState('')
   const [matchingDone, setMatchingDone] = useState('')
   const [claimed, setClaimed] = useState('')
-  const [importBatchInput, setImportBatchInput] = useState('')
   const [importBatch, setImportBatch] = useState('')
   const [region, setRegion] = useState('')
   const [category, setCategory] = useState('')
   const [hasCampaign, setHasCampaign] = useState('')
   const [active, setActive] = useState('')
 
-  // Modals / panel
   const [importOpen, setImportOpen] = useState(false)
-  const [detail, setDetail] = useState<GemiBusiness | null>(null)
   const [toast, setToast] = useState<string | null>(null)
-
-  // Action loading
   const [enriching, setEnriching] = useState(false)
   const [matching, setMatching] = useState(false)
 
   const requestSeq = useRef(0)
+
+  // Fetch distinct import batches for dropdown
+  useEffect(() => {
+    fetch('/api/gemi/businesses/batches')
+      .then(r => r.json())
+      .then(d => Array.isArray(d) && setBatches(d))
+      .catch(() => {})
+  }, [])
 
   const fetchData = useCallback(async () => {
     const seq = ++requestSeq.current
@@ -254,7 +259,6 @@ function GemiBusinessesPageInner() {
   useEffect(() => { setPage(1) }, [search, aadeEnriched, matchingDone, claimed, importBatch, region, category, hasCampaign, active])
 
   function handleSearch() { setSearch(searchInput) }
-  function handleImportBatchSearch() { setImportBatch(importBatchInput) }
 
   async function handleEnrich() {
     setEnriching(true)
@@ -262,8 +266,10 @@ function GemiBusinessesPageInner() {
       const res = await fetch('/api/gemi/enrich', { method: 'POST' })
       const data = await res.json()
       if (res.ok) {
-        setToast(`Εμπλουτισμός ΑΑΔΕ: ${data.enriched ?? 0} εμπλουτίστηκαν, ${data.skipped ?? 0} παραλείφθηκαν`)
+        setToast(`Εμπλουτισμός ΑΑΔΕ: ${data.enriched ?? 0} εμπλουτίστηκαν`)
         fetchData()
+        // Refresh batches too
+        fetch('/api/gemi/businesses/batches').then(r => r.json()).then(d => Array.isArray(d) && setBatches(d)).catch(() => {})
       } else {
         setToast(data.error || 'Σφάλμα εμπλουτισμού')
       }
@@ -280,7 +286,7 @@ function GemiBusinessesPageInner() {
       const res = await fetch('/api/gemi/match', { method: 'POST' })
       const data = await res.json()
       if (res.ok) {
-        setToast(`Ταίριασμα: ${data.matched ?? 0} ταιριάστηκαν, ${data.skipped ?? 0} παραλείφθηκαν`)
+        setToast(`Ταίριασμα: ${data.matched ?? 0} ταιριάστηκαν`)
         fetchData()
       } else {
         setToast(data.error || 'Σφάλμα ταιριάσματος')
@@ -294,6 +300,12 @@ function GemiBusinessesPageInner() {
 
   const hasFilters = !!(search || aadeEnriched || matchingDone || claimed || importBatch || region || category || hasCampaign || active)
 
+  function clearFilters() {
+    setSearch(''); setSearchInput('')
+    setAadeEnriched(''); setMatchingDone(''); setClaimed('')
+    setImportBatch(''); setRegion(''); setCategory(''); setHasCampaign(''); setActive('')
+  }
+
   if (status === 'loading' || (status === 'authenticated' && (session?.user as any)?.role !== 'ADMIN')) {
     return (
       <div className="flex items-center justify-center h-48">
@@ -302,6 +314,8 @@ function GemiBusinessesPageInner() {
     )
   }
 
+  const selectCls = 'rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-amber-500 bg-white'
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -309,40 +323,19 @@ function GemiBusinessesPageInner() {
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-2xl font-bold text-gray-900">ΓΕΜΗ — Επιχειρήσεις</h1>
-            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-300">
-              ΓΕΜΗ
-            </span>
+            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-300">ΓΕΜΗ</span>
           </div>
           <p className="text-gray-500 mt-1 text-sm">{total} επιχειρήσεις στη δεξαμενή ΓΕΜΗ</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleEnrich}
-            loading={enriching}
-            className="border-blue-300 text-blue-700 hover:bg-blue-50"
-          >
-            <RefreshCw size={14} className="mr-1.5" />
-            Εμπλουτισμός ΑΑΔΕ
+          <Button variant="outline" size="sm" onClick={handleEnrich} loading={enriching} className="border-blue-300 text-blue-700 hover:bg-blue-50">
+            <RefreshCw size={14} className="mr-1.5" />Εμπλουτισμός ΑΑΔΕ
           </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleMatch}
-            loading={matching}
-            className="border-indigo-300 text-indigo-700 hover:bg-indigo-50"
-          >
-            <Link2 size={14} className="mr-1.5" />
-            Εκτέλεση Ταιριάσματος
+          <Button variant="outline" size="sm" onClick={handleMatch} loading={matching} className="border-indigo-300 text-indigo-700 hover:bg-indigo-50">
+            <Link2 size={14} className="mr-1.5" />Εκτέλεση Ταιριάσματος
           </Button>
-          <Button
-            size="sm"
-            onClick={() => setImportOpen(true)}
-            className="bg-amber-600 hover:bg-amber-700 text-white"
-          >
-            <Upload size={14} className="mr-1.5" />
-            Εισαγωγή CSV
+          <Button size="sm" onClick={() => setImportOpen(true)} className="bg-amber-600 hover:bg-amber-700 text-white">
+            <Upload size={14} className="mr-1.5" />Εισαγωγή CSV
           </Button>
         </div>
       </div>
@@ -357,6 +350,7 @@ function GemiBusinessesPageInner() {
             </span>
           </div>
           <div className="flex flex-wrap gap-2 items-end">
+            {/* Search */}
             <div>
               <label className="text-xs font-medium text-gray-500 block mb-1">Αναζήτηση</label>
               <div className="relative">
@@ -374,64 +368,16 @@ function GemiBusinessesPageInner() {
             </div>
 
             <div>
-              <label className="text-xs font-medium text-gray-500 block mb-1">Εμπλουτισμός</label>
-              <select
-                value={aadeEnriched}
-                onChange={e => setAadeEnriched(e.target.value)}
-                className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-amber-500 bg-white"
-              >
-                <option value="">Όλες</option>
-                <option value="yes">Εμπλουτισμένες</option>
-                <option value="no">Ανεμπλούτιστες</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="text-xs font-medium text-gray-500 block mb-1">Ταίριασμα</label>
-              <select
-                value={matchingDone}
-                onChange={e => setMatchingDone(e.target.value)}
-                className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-amber-500 bg-white"
-              >
-                <option value="">Όλες</option>
-                <option value="yes">Ταιριασμένες</option>
-                <option value="no">Αταίριαστες</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="text-xs font-medium text-gray-500 block mb-1">Ανάθεση</label>
-              <select
-                value={claimed}
-                onChange={e => setClaimed(e.target.value)}
-                className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-amber-500 bg-white"
-              >
-                <option value="">Όλες</option>
-                <option value="yes">Ανατεθειμένες</option>
-                <option value="no">Μη ανατεθειμένες</option>
-              </select>
-            </div>
-
-            <div>
               <label className="text-xs font-medium text-gray-500 block mb-1">Παρτίδα</label>
-              <input
-                type="text"
-                placeholder="π.χ. ΓΕΜΗ-2026-07"
-                value={importBatchInput}
-                onChange={e => setImportBatchInput(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && handleImportBatchSearch()}
-                onBlur={handleImportBatchSearch}
-                className="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-amber-500 w-40"
-              />
+              <select value={importBatch} onChange={e => setImportBatch(e.target.value)} className={selectCls}>
+                <option value="">Όλες</option>
+                {batches.map(b => <option key={b} value={b}>{b}</option>)}
+              </select>
             </div>
 
             <div>
               <label className="text-xs font-medium text-gray-500 block mb-1">Περιφέρεια</label>
-              <select
-                value={region}
-                onChange={e => setRegion(e.target.value)}
-                className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-amber-500 bg-white"
-              >
+              <select value={region} onChange={e => setRegion(e.target.value)} className={selectCls}>
                 <option value="">Όλες</option>
                 {['Αττική','Κεντρική Μακεδονία','Θεσσαλία','Ανατολική Μακεδονία και Θράκη','Ήπειρος','Δυτική Μακεδονία','Ιόνια Νησιά','Δυτική Ελλάδα','Στερεά Ελλάδα','Πελοπόννησος','Βόρειο Αιγαίο','Νότιο Αιγαίο','Κρήτη'].map(r => (
                   <option key={r} value={r}>{r}</option>
@@ -441,11 +387,7 @@ function GemiBusinessesPageInner() {
 
             <div>
               <label className="text-xs font-medium text-gray-500 block mb-1">Κλάδος</label>
-              <select
-                value={category}
-                onChange={e => setCategory(e.target.value)}
-                className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-amber-500 bg-white"
-              >
+              <select value={category} onChange={e => setCategory(e.target.value)} className={selectCls}>
                 <option value="">Όλοι</option>
                 {['ΥΠΗΡΕΣΙΕΣ','ΕΜΠΟΡΙΟ','ΜΕΤΑΠΟΙΗΣΗ','ΤΟΥΡΙΣΜΟΣ','ΕΣΤΙΑΣΗ','ΑΓΡΟΤΙΚΑ'].map(c => (
                   <option key={c} value={c}>{c}</option>
@@ -454,25 +396,44 @@ function GemiBusinessesPageInner() {
             </div>
 
             <div>
-              <label className="text-xs font-medium text-gray-500 block mb-1">Ενημέρωση</label>
-              <select
-                value={hasCampaign}
-                onChange={e => setHasCampaign(e.target.value)}
-                className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-amber-500 bg-white"
-              >
+              <label className="text-xs font-medium text-gray-500 block mb-1">Εμπλουτισμός</label>
+              <select value={aadeEnriched} onChange={e => setAadeEnriched(e.target.value)} className={selectCls}>
                 <option value="">Όλες</option>
-                <option value="yes">Έλαβαν ενημέρωση</option>
+                <option value="yes">Εμπλουτισμένες</option>
+                <option value="no">Ανεμπλούτιστες</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="text-xs font-medium text-gray-500 block mb-1">Ταίριασμα</label>
+              <select value={matchingDone} onChange={e => setMatchingDone(e.target.value)} className={selectCls}>
+                <option value="">Όλες</option>
+                <option value="yes">Ταιριασμένες</option>
+                <option value="no">Αταίριαστες</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="text-xs font-medium text-gray-500 block mb-1">Ανάθεση</label>
+              <select value={claimed} onChange={e => setClaimed(e.target.value)} className={selectCls}>
+                <option value="">Όλες</option>
+                <option value="yes">Ανατεθειμένες</option>
+                <option value="no">Μη ανατεθειμένες</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="text-xs font-medium text-gray-500 block mb-1">Ενημέρωση</label>
+              <select value={hasCampaign} onChange={e => setHasCampaign(e.target.value)} className={selectCls}>
+                <option value="">Όλες</option>
+                <option value="yes">Έλαβαν</option>
                 <option value="no">Δεν έλαβαν</option>
               </select>
             </div>
 
             <div>
               <label className="text-xs font-medium text-gray-500 block mb-1">Κατάσταση</label>
-              <select
-                value={active}
-                onChange={e => setActive(e.target.value)}
-                className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-amber-500 bg-white"
-              >
+              <select value={active} onChange={e => setActive(e.target.value)} className={selectCls}>
                 <option value="">Όλες</option>
                 <option value="yes">Ενεργές</option>
                 <option value="no">Ανενεργές</option>
@@ -480,16 +441,8 @@ function GemiBusinessesPageInner() {
             </div>
 
             {hasFilters && (
-              <button
-                onClick={() => {
-                  setSearch(''); setSearchInput('')
-                  setAadeEnriched(''); setMatchingDone(''); setClaimed('')
-                  setImportBatch(''); setImportBatchInput('')
-                  setRegion(''); setCategory(''); setHasCampaign(''); setActive('')
-                }}
-                className="text-xs text-gray-500 hover:text-gray-700 underline self-end pb-2"
-              >
-                Καθαρισμός φίλτρων
+              <button onClick={clearFilters} className="text-xs text-gray-500 hover:text-gray-700 underline self-end pb-2">
+                Καθαρισμός
               </button>
             )}
           </div>
@@ -501,90 +454,105 @@ function GemiBusinessesPageInner() {
           </div>
         ) : (
           <>
-            <Table>
-              <TableHead>
-                <TableRow>
-                  <Th>ΑΦΜ</Th>
-                  <Th>Επωνυμία</Th>
-                  <Th>Email</Th>
-                  <Th>Τηλέφωνο</Th>
-                  <Th>Ημ. Εισαγωγής</Th>
-                  <Th>Εμπλουτισμός</Th>
-                  <Th>Ταίριασμα</Th>
-                  <Th>Ανάθεση</Th>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {businesses.length === 0 ? (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHead>
                   <TableRow>
-                    <Td colSpan={8} className="text-center text-gray-400 py-10">
-                      Δεν βρέθηκαν επιχειρήσεις ΓΕΜΗ
-                    </Td>
+                    <Th>ΑΦΜ</Th>
+                    <Th>Επωνυμία</Th>
+                    <Th>Κλάδος</Th>
+                    <Th>ΚΑΔ Περιγραφή</Th>
+                    <Th>Περιοχή</Th>
+                    <Th>Περιφέρεια</Th>
+                    <Th>Εμπλουτισμός</Th>
+                    <Th>Ταίριασμα</Th>
+                    <Th>Ανάθεση</Th>
                   </TableRow>
-                ) : (
-                  businesses.map(b => (
-                    <TableRow key={b.id} className="hover:bg-amber-50/40 transition-colors">
-                      <Td>
-                        <a
-                          href={`/gemi/businesses/${b.id}`}
-                          className="font-mono text-amber-800 hover:text-amber-600 hover:underline font-medium"
-                        >
-                          {b.afm}
-                        </a>
-                      </Td>
-                      <Td className="max-w-[220px] truncate font-medium text-gray-800">
-                        <a href={`/gemi/businesses/${b.id}`} className="hover:text-amber-700 hover:underline">
-                          {b.onomasia || <span className="text-gray-400">—</span>}
-                        </a>
-                      </Td>
-                      <Td className="text-sm text-gray-600 max-w-[180px] truncate">
-                        {b.email || <span className="text-gray-400">—</span>}
-                      </Td>
-                      <Td className="text-sm text-gray-600 font-mono">
-                        {b.phone || <span className="text-gray-400">—</span>}
-                      </Td>
-                      <Td className="text-xs text-gray-500 whitespace-nowrap">
-                        {b.importedAt
-                          ? new Date(b.importedAt).toLocaleDateString('el-GR', { day: '2-digit', month: '2-digit', year: '2-digit' })
-                          : '—'}
-                      </Td>
-                      <Td>
-                        {b.aadeEnriched ? (
-                          <Badge variant="success" className="text-xs">✓ Εμπλουτισμένη</Badge>
-                        ) : (
-                          <Badge variant="secondary" className="text-xs">⏳ Αναμονή</Badge>
-                        )}
-                      </Td>
-                      <Td>
-                        {b.matchingDone ? (
-                          <Badge variant="success" className="text-xs">✓ Έγινε</Badge>
-                        ) : (
-                          <Badge variant="secondary" className="text-xs">⏳ Αναμονή</Badge>
-                        )}
-                      </Td>
-                      <Td>
-                        {b.claimed ? (
-                          <Badge variant="purple" className="text-xs">Ανατεθειμένη</Badge>
-                        ) : (
-                          <span className="text-xs text-gray-400">—</span>
-                        )}
+                </TableHead>
+                <TableBody>
+                  {businesses.length === 0 ? (
+                    <TableRow>
+                      <Td colSpan={9} className="text-center text-gray-400 py-10">
+                        Δεν βρέθηκαν επιχειρήσεις ΓΕΜΗ
                       </Td>
                     </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
+                  ) : (
+                    businesses.map(b => {
+                      const kad = getPrimaryKad(b.activities)
+                      const regn = getRegionFromZip(b.postalZipCode)
+                      return (
+                        <TableRow key={b.id} className="hover:bg-amber-50/40 transition-colors">
+                          <Td>
+                            <a href={`/gemi/businesses/${b.id}`} className="font-mono text-amber-800 hover:text-amber-600 hover:underline font-medium text-xs">
+                              {b.afm}
+                            </a>
+                          </Td>
+                          <Td className="max-w-[200px]">
+                            <a href={`/gemi/businesses/${b.id}`} className="hover:text-amber-700 hover:underline font-medium text-gray-800 text-sm leading-tight block truncate">
+                              {b.onomasia || <span className="text-gray-400">—</span>}
+                            </a>
+                          </Td>
+                          <Td>
+                            <CategoryChip cat={b.category} />
+                          </Td>
+                          <Td className="max-w-[200px]">
+                            {kad ? (
+                              <span className="text-xs text-gray-600 block truncate" title={kad.descr}>
+                                <span className="font-mono text-gray-400 mr-1">{kad.code}</span>
+                                {kad.descr}
+                              </span>
+                            ) : <span className="text-gray-300">—</span>}
+                          </Td>
+                          <Td className="text-xs text-gray-600 max-w-[130px] truncate">
+                            {b.postalAreaDescription || <span className="text-gray-300">—</span>}
+                          </Td>
+                          <Td className="text-xs text-gray-600 whitespace-nowrap">
+                            {regn || <span className="text-gray-300">—</span>}
+                          </Td>
+                          <Td>
+                            {b.aadeEnriched ? (
+                              <Badge variant="success" className="text-xs">✓</Badge>
+                            ) : (
+                              <Badge variant="secondary" className="text-xs">⏳</Badge>
+                            )}
+                          </Td>
+                          <Td>
+                            {b.matchingDone ? (
+                              <Badge variant="success" className="text-xs">✓</Badge>
+                            ) : (
+                              <Badge variant="secondary" className="text-xs">⏳</Badge>
+                            )}
+                          </Td>
+                          <Td>
+                            {b.claimed ? (
+                              <div>
+                                <Badge variant="purple" className="text-xs">Ανατεθειμένη</Badge>
+                                {b.claimedBy && <p className="text-xs text-gray-500 mt-0.5 truncate max-w-[120px]">{b.claimedBy}</p>}
+                              </div>
+                            ) : (
+                              <span className="text-xs text-gray-400">—</span>
+                            )}
+                          </Td>
+                        </TableRow>
+                      )
+                    })
+                  )}
+                </TableBody>
+              </Table>
+            </div>
             <Pagination page={page} totalPages={Math.ceil(total / PAGE_SIZE)} onPageChange={setPage} />
           </>
         )}
       </div>
 
-      {detail && <DetailPanel business={detail} onClose={() => setDetail(null)} />}
-
       {importOpen && (
         <ImportModal
           onClose={() => setImportOpen(false)}
-          onDone={() => { setImportOpen(false); fetchData() }}
+          onDone={() => {
+            setImportOpen(false)
+            fetchData()
+            fetch('/api/gemi/businesses/batches').then(r => r.json()).then(d => Array.isArray(d) && setBatches(d)).catch(() => {})
+          }}
         />
       )}
 
