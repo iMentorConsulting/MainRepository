@@ -244,20 +244,8 @@ ${report}
 
             {/* Effort Metrics */}
             <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg p-4">
-              <div className="text-xs font-bold text-purple-800 mb-3">⚡ Δείκτης Προσπάθειας</div>
+              <div className="text-xs font-bold text-purple-800 mb-3">⚡ Προσπάθεια Επικοινωνίας</div>
               <div className="space-y-2 text-xs">
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-700">Σύνολο Κλήσεων:</span>
-                  <span className="font-bold text-green-700">{m.calls_total}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-700">  Απάντησαν:</span>
-                  <span className="font-bold text-green-600">{m.calls_answered}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-700">Κλήσεις / Lead:</span>
-                  <span className="font-bold text-orange-700">{m.calls_per_lead}</span>
-                </div>
                 <div className="flex justify-between items-center">
                   <span className="text-gray-700">Σύνολο Viber:</span>
                   <span className="font-bold text-purple-700">{m.vibers_total}</span>

@@ -1236,12 +1236,8 @@ def get_consultant_performance_metrics(
     for consultant, m in metrics.items():
         total = m["total_leads"]
         leads_to_hot = m["leads_by_status"].get("HOT", 0)
-        leads_to_case = m["leads_with_cases"]  # Only count leads with linked case_id, not DEAL status
+        leads_to_deal = m["leads_by_status"].get("DEAL", 0)  # Use actual DEAL status count
         leads_to_cancel = m["leads_by_status"].get("CANCEL", 0)
-
-        # Calculate case conversion count and percentage
-        cases_total = m["cases_total"]
-        case_conversion_pct = round(cases_total / total * 100, 1) if total > 0 else 0
 
         result[consultant] = {
             "consultant": consultant,
@@ -1249,25 +1245,15 @@ def get_consultant_performance_metrics(
             "by_status": dict(m["leads_by_status"]),
             "cases_total": m["cases_total"],
             "cases_paying": m["cases_paying"],
-            # Lead to case conversion (with count)
-            "conversion_rate_to_case": round(leads_to_case / total * 100, 1) if total > 0 else 0,
-            "conversion_to_case_count": leads_to_case,
-            # Lead to hot conversion (with count)
+            # Lead to hot conversion (% of total)
             "conversion_rate_to_hot": round(leads_to_hot / total * 100, 1) if total > 0 else 0,
-            "conversion_to_hot_count": leads_to_hot,
-            # Hot to case conversion (with count)
-            "conversion_hot_to_case": round(leads_to_case / leads_to_hot * 100, 1) if leads_to_hot > 0 else 0,
-            "conversion_hot_to_case_count": leads_to_case,
-            # Cancel rate (with count)
+            # Lead to deal conversion (% of total)
+            "conversion_rate_to_case": round(leads_to_deal / total * 100, 1) if total > 0 else 0,
+            # Hot to deal conversion (% of HOT)
+            "conversion_hot_to_case": round(leads_to_deal / leads_to_hot * 100, 1) if leads_to_hot > 0 else 0,
+            # Cancel rate
             "cancel_rate": round(leads_to_cancel / total * 100, 1) if total > 0 else 0,
-            "cancel_rate_count": leads_to_cancel,
-            # Case conversion from total leads
-            "case_conversion_pct": case_conversion_pct,
-            "case_conversion_count": cases_total,
             # Effort metrics
-            "calls_total": m["calls_total"],
-            "calls_answered": m["calls_answered"],
-            "calls_per_lead": round(m["calls_total"] / total, 2) if total > 0 else 0,
             "vibers_total": m["vibers_total"],
             "vibers_per_lead": round(m["vibers_total"] / total, 2) if total > 0 else 0,
         }
