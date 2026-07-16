@@ -5,7 +5,10 @@ import { useSession } from 'next-auth/react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { ArrowLeft, Building2, Mail, Phone, MapPin, Calendar, Briefcase, Target, Send, Link2 } from 'lucide-react'
+import { CategoryBadge } from '@/components/businesses/category-badge'
+import { ArrowLeft, Building2, Mail, Phone, MapPin, Briefcase, Target, Send, Link2 } from 'lucide-react'
+import { getEffectiveCategory } from '@/lib/business-categories'
+import { resolveRegionFromZip } from '@/lib/greek-regions'
 
 const STATUS_LABELS: Record<string, string> = {
   POTENTIAL: 'Πιθανό', REVIEWED: 'Ελέγχθηκε', REJECTED: 'Απορρίφθηκε',
@@ -15,6 +18,16 @@ const STATUS_VARIANT: Record<string, any> = {
   POTENTIAL: 'secondary', REVIEWED: 'info', REJECTED: 'danger',
   INTERESTED: 'success', SUBMITTED: 'success',
 }
+
+function formatGreekDate(dateStr: string | null | undefined): string | null {
+  if (!dateStr) return null
+  // AADE returns 'YYYY-MM-DD' or 'DD/MM/YYYY' — normalise to el-GR
+  const d = new Date(dateStr)
+  if (isNaN(d.getTime())) return dateStr
+  return d.toLocaleDateString('el-GR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+}
+
+const isDeactivated = (flag: string | null | undefined) => flag === 'Y' || flag === '1'
 
 export default function GemiBusinessDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -54,6 +67,9 @@ export default function GemiBusinessDetailPage() {
   if (!business || business.error) return <div className="text-center py-16 text-gray-400">Δεν βρέθηκε η εγγραφή.</div>
 
   const activities = Array.isArray(business.activities) ? business.activities : []
+  const deactivated = isDeactivated(business.deactivationFlag)
+  const category = getEffectiveCategory({ tags: business.tags, activities })
+  const region = resolveRegionFromZip(business.postalZipCode)
 
   return (
     <div className="max-w-4xl space-y-6">
@@ -63,28 +79,39 @@ export default function GemiBusinessDetailPage() {
             <Button variant="ghost" size="sm"><ArrowLeft size={16} className="mr-1" />Επιστροφή</Button>
           </Link>
           <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-xl font-bold text-gray-900">{business.onomasia || business.afm}</h1>
+            <h1 className="text-xl font-bold text-gray-900">{business.onomasia || business.afm}</h1>
+            <div className="flex flex-wrap items-center gap-2 mt-1">
+              <span className="text-sm text-gray-500 font-mono">ΑΦΜ: {business.afm}</span>
+              {business.legalStatusDescr && <Badge variant="secondary">{business.legalStatusDescr}</Badge>}
               <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 border border-amber-300">ΓΕΜΗ</span>
+              {deactivated && <Badge variant="danger">Ανενεργή</Badge>}
+              {!deactivated && business.aadeEnriched && <Badge variant="success">Ενεργή</Badge>}
+              {category && <CategoryBadge category={category} size="lg" />}
+              {region && (
+                <Badge variant="info" className="flex items-center gap-1">
+                  <MapPin size={11} />{region}
+                </Badge>
+              )}
               {business.claimedAt && (
                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-purple-100 text-purple-800 border border-purple-300">
                   <Link2 size={10} /> Ανακτήθηκε
                 </span>
               )}
             </div>
-            <p className="text-sm text-gray-500 font-mono mt-0.5">ΑΦΜ: {business.afm}</p>
           </div>
         </div>
-        {!business.claimedAt && (
-          <Button onClick={handleClaim} loading={claiming} className="bg-purple-600 hover:bg-purple-700 text-white">
-            <Link2 size={15} className="mr-2" />Ανάκτηση από Λογιστή
-          </Button>
-        )}
-        {business.claimedAt && business.claimedBusinessId && (
-          <Link href={`/businesses/${business.claimedBusinessId}`}>
-            <Button variant="outline"><Link2 size={15} className="mr-2" />Προβολή στους Λογιστές</Button>
-          </Link>
-        )}
+        <div className="flex gap-2 shrink-0">
+          {!business.claimedAt && (
+            <Button onClick={handleClaim} loading={claiming} className="bg-purple-600 hover:bg-purple-700 text-white">
+              <Link2 size={15} className="mr-2" />Ανάκτηση από Λογιστή
+            </Button>
+          )}
+          {business.claimedAt && business.claimedBusinessId && (
+            <Link href={`/businesses/${business.claimedBusinessId}`}>
+              <Button variant="outline"><Link2 size={15} className="mr-2" />Προβολή στους Λογιστές</Button>
+            </Link>
+          )}
+        </div>
       </div>
 
       {claimMsg && <div className={`px-4 py-3 rounded-lg text-sm ${claimMsg.startsWith('✓') ? 'bg-green-50 text-green-800 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>{claimMsg}</div>}
@@ -94,25 +121,20 @@ export default function GemiBusinessDetailPage() {
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 space-y-4">
           <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide flex items-center gap-2"><Building2 size={14} />Στοιχεία Επιχείρησης</h2>
           <dl className="space-y-3 text-sm">
-            {[
+            {([
               ['Επωνυμία', business.onomasia],
               ['Νομική Μορφή', business.legalStatusDescr],
               ['ΑΦΜ', business.afm],
               ['ΔΟΥ', business.doyDescr || business.doy],
-              ['Ημ. Ίδρυσης', business.regdate],
+              ['Ημ. Ίδρυσης', formatGreekDate(business.regdate)],
+              ['Κατάσταση', business.aadeEnriched ? (deactivated ? 'Ανενεργή' + (business.stopDate ? ` (Παύση ${formatGreekDate(business.stopDate)})` : '') : 'Ενεργή') : null],
               ['Παρτίδα Εισαγωγής', business.importBatch],
-            ].map(([label, val]) => val ? (
-              <div key={label as string} className="flex gap-3">
+            ] as [string, string | null][]).map(([label, val]) => val ? (
+              <div key={label} className="flex gap-3">
                 <dt className="w-36 shrink-0 text-gray-500">{label}</dt>
-                <dd className="text-gray-900 font-medium">{val as string}</dd>
+                <dd className={`font-medium ${label === 'Κατάσταση' ? (deactivated ? 'text-red-600' : 'text-green-700') : 'text-gray-900'}`}>{val}</dd>
               </div>
             ) : null)}
-            {business.deactivationFlag && (
-              <div className="flex gap-3">
-                <dt className="w-36 shrink-0 text-gray-500">Κατάσταση</dt>
-                <dd><Badge variant="danger">ΑΝΕΝΕΡΓΗ</Badge></dd>
-              </div>
-            )}
           </dl>
         </div>
 
@@ -145,7 +167,7 @@ export default function GemiBusinessDetailPage() {
           </dl>
         </div>
 
-        {/* Enrichment & status */}
+        {/* Processing status */}
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 space-y-4">
           <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Κατάσταση Επεξεργασίας</h2>
           <div className="space-y-2 text-sm">
@@ -163,7 +185,7 @@ export default function GemiBusinessDetailPage() {
                 : <Badge variant="secondary">Σε αναμονή</Badge>}
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-gray-500">Κατάσταση</span>
+              <span className="text-gray-500">Ανάκτηση</span>
               {business.claimedAt
                 ? <Badge variant="info">Ανακτήθηκε {new Date(business.claimedAt).toLocaleDateString('el-GR')}</Badge>
                 : <Badge variant="secondary">Διαθέσιμη</Badge>}
@@ -190,8 +212,9 @@ export default function GemiBusinessDetailPage() {
             <ul className="space-y-2">
               {activities.map((act: any, i: number) => (
                 <li key={i} className="text-sm flex gap-2">
-                  <span className="font-mono text-xs bg-gray-100 px-2 py-0.5 rounded shrink-0 self-start">{act.firmActCode}</span>
-                  <span className="text-gray-700">{act.firmActDescr || act.firmActKindDescr || '—'}</span>
+                  <span className="font-mono text-xs bg-gray-100 px-2 py-0.5 rounded shrink-0 self-start mt-0.5">{act.firmActCode}</span>
+                  <span className="text-gray-700">{act.firmActDescr || '—'}</span>
+                  {act.firmActKind === 1 && <span className="text-xs text-amber-600 font-medium shrink-0">(κύρια)</span>}
                 </li>
               ))}
             </ul>
