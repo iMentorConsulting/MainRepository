@@ -17,7 +17,7 @@ interface GemiBusiness {
   email: string | null
   phone: string | null
   importBatch: string | null
-  importedAt: string
+  createdAt: string
   aadeEnriched: boolean
   matchingDone: boolean
   claimed: boolean

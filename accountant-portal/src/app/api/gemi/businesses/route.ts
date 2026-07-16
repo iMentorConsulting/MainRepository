@@ -124,7 +124,7 @@ export async function GET(request: NextRequest) {
         email: true,
         phone: true,
         importBatch: true,
-        importedAt: true,
+        createdAt: true,
         aadeEnriched: true,
         matchingDone: true,
         claimedAt: true,
