@@ -95,9 +95,7 @@ async function buildRecipientVariables(gemiId: string, programId: string): Promi
   const afm = gemi.afm ?? ''
   const onomasia = gemi.onomasia ?? afm
   const unsubscribeLink = gemi.unsubscribeToken ? `${APP_URL}/api/gemi/unsubscribe/${gemi.unsubscribeToken}` : ''
-  const exodikastikosLink = EXODIKASTIKOS_URL
-    ? `${EXODIKASTIKOS_URL}?afm=${encodeURIComponent(afm)}&name=${encodeURIComponent(onomasia)}`
-    : '#'
+  const exodikastikosLink = ermisLink ? `${ermisLink}?type=themis` : '#'
 
   return {
     business_name: onomasia,

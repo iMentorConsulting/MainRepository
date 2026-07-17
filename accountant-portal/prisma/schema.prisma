@@ -1024,6 +1024,7 @@ model GemiLookup {
   afm                   String    @unique
   email                 String?
   phone                 String?
+  mobilePhone           String?
   // Populated after AADE enrichment
   onomasia              String?
   legalStatusDescr      String?
