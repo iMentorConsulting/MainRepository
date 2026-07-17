@@ -138,21 +138,6 @@ const DEFAULT_HTML = `<!DOCTYPE html>
       </td>
     </tr>
 
-    <!-- EXODIKASTIKOS BANNER -->
-    <tr>
-      <td style="padding:16px 40px 0;">
-        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f8faff;border-radius:12px;border:1px solid #c7d2fe;">
-          <tr>
-            <td style="padding:16px 22px;">
-              <p style="margin:0 0 4px;font-size:13px;font-weight:700;color:#3730a3;">⚖️ Έχετε οφειλές; Ρυθμίστε τες μέσω Εξωδικαστικού</p>
-              <p style="margin:0 0 12px;font-size:12px;color:#4338ca;line-height:1.5;">Η ΘΕΜΙΣ, ο ψηφιακός μας σύμβουλος εξωδικαστικού, αναλύει την περίπτωσή σας και σας καθοδηγεί δωρεάν.</p>
-              <a href="{{exodikastikos_link}}" style="display:inline-block;background:#4f46e5;color:#ffffff;font-size:12px;font-weight:700;text-decoration:none;padding:9px 20px;border-radius:7px;">Μάθετε αν είστε επιλέξιμοι →</a>
-            </td>
-          </tr>
-        </table>
-      </td>
-    </tr>
-
     <!-- DIVIDER -->
     <tr><td style="padding:28px 40px 0;"><div style="height:1px;background:linear-gradient(90deg,transparent,#e5e7eb,transparent);"></div></td></tr>
 
