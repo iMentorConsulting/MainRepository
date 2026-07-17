@@ -39,8 +39,12 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
     await prisma.gemiMatchToken.update({ where: { token }, data: { usedAt: new Date() } })
   }
 
+  const baseUrl = process.env.APP_URL || 'https://logistis.i-mentor.gr'
+  const themisLink = `${baseUrl}/ge/${token}?type=themis`
+
   return NextResponse.json({
     business: { name: gemi.onomasia || gemi.afm },
+    themisLink,
     program: {
       title: program.title,
       description: program.description,

@@ -304,14 +304,19 @@ export async function runErmisTurn(params: {
   if (toolUse && toolUse.type === 'tool_use' && toolUse.name === 'assign_case') {
     const summary = String((toolUse.input as any)?.summary || 'Ο πελάτης φαίνεται επιλέξιμος.')
     const pendingItem = (toolUse.input as any)?.pendingItem ? String((toolUse.input as any).pendingItem) : null
-    caseId = await createPublicClientCase({
-      businessId: params.businessId,
-      programId: params.programId,
-      programTitle: params.program.title,
-      businessName: params.businessName,
-      summary,
-      pendingItem,
-    })
+    try {
+      caseId = await createPublicClientCase({
+        businessId: params.businessId,
+        programId: params.programId,
+        programTitle: params.program.title,
+        businessName: params.businessName,
+        summary,
+        pendingItem,
+      })
+    } catch {
+      // GEMI prospects have no Business record — caller handles lead creation
+      caseId = `gemi-${params.businessId}`
+    }
 
     const followUp = await anthropic.messages.create({
       model: 'claude-sonnet-4-6',
