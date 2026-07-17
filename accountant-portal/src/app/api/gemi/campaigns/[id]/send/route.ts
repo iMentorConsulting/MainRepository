@@ -4,55 +4,12 @@ import { prisma } from '@/lib/prisma'
 import { GEMI_DISCLAIMER } from '@/lib/moosend'
 import { sendViberMessage } from '@/lib/chatwoot'
 import { getOrCreateGemiErmisLink } from '@/lib/gemi-ermis'
+import { sendEmail } from '@/lib/email'
 
-const MOOSEND_API_KEY = process.env.MOOSEND_API_KEY ?? ''
-const SENDER_EMAIL = process.env.MOOSEND_SENDER_EMAIL ?? 'info@i-mentor.gr'
-const REPLY_TO_EMAIL = process.env.MOOSEND_REPLY_TO_EMAIL ?? 'info@i-mentor.gr'
 const APP_URL = process.env.APP_URL ?? 'https://logistis.i-mentor.gr'
-const EXODIKASTIKOS_URL = process.env.EXODIKASTIKOS_URL ?? ''
-const BASE_URL = 'https://api.moosend.com/v3'
 
-// Variable names used in templates — {{variable}} in HTML gets converted to [variable] for Moosend merge tags
-const MERGE_FIELDS = [
-  'business_name', 'afm', 'accountant_name', 'accountant_office',
-  'program_title', 'program_description', 'program_url', 'program_deadline',
-  'extra_criteria', 'kad_description', 'match_reason',
-  'ermis_link', 'unsubscribe_link', 'exodikastikos_link',
-]
-
-// Convert {{variable}} placeholders to Moosend [variable] merge tags
-function toMoosendTemplate(html: string): string {
-  return html.replace(/\{\{(\w+)\}\}/g, (_: string, key: string) => `[${key}]`)
-}
-
-async function moosendPost(path: string, body: unknown) {
-  const res = await fetch(`${BASE_URL}${path}?apikey=${MOOSEND_API_KEY}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  })
-  const data = await res.json().catch(() => ({}))
-  if (!res.ok || (data.Code !== undefined && data.Code !== 0)) {
-    throw new Error(`Moosend error at ${path}: ${data.Error ?? data.Message ?? JSON.stringify(data)}`)
-  }
-  return data
-}
-
-async function createListWithCustomFields(name: string): Promise<string> {
-  const data = await moosendPost('/lists/create.json', { Name: name })
-  const listId = typeof data.Context === 'string' ? data.Context : data.Context?.ID
-  if (!listId) throw new Error('No list ID from Moosend')
-
-  // Define all merge fields as custom fields on this list
-  for (const field of MERGE_FIELDS) {
-    await moosendPost(`/lists/${listId}/customfields/create.json`, {
-      Name: field,
-      CustomFieldType: 'Text',
-      IsRequired: false,
-    }).catch(() => {}) // ignore if field already exists
-  }
-
-  return listId
+function substituteVars(template: string, vars: Record<string, string>): string {
+  return template.replace(/\{\{(\w+)\}\}/g, (_: string, key: string) => vars[key] ?? '')
 }
 
 async function buildRecipientVariables(gemiId: string, programId: string): Promise<Record<string, string>> {
@@ -124,57 +81,45 @@ async function sendEmailCampaign(campaignId: string) {
   })
   if (emailRecipients.length === 0) return { sent: 0, errors: 0 }
 
-  // Create Moosend list with custom fields for merge tags
-  const listId = await createListWithCustomFields(`GEMI-${campaignId}-${Date.now()}`)
+  const htmlBase = campaign.htmlContent ?? ''
+  const subjectBase = campaign.subject ?? campaign.title
+  const disclaimer = `\n<p style="font-size:11px;color:#888;margin-top:24px;border-top:1px solid #eee;padding-top:12px;">${GEMI_DISCLAIMER}</p>`
 
-  // Add subscribers in batches of 500 with their personalized custom field values
-  const BATCH = 500
+  let sent = 0
+  let errors = 0
+  const now = new Date()
+
+  // Send in batches of 10 concurrent to avoid overwhelming SMTP
+  const BATCH = 10
   for (let i = 0; i < emailRecipients.length; i += BATCH) {
     const batch = emailRecipients.slice(i, i + BATCH)
-    const subscribers = await Promise.all(
-      batch.map(async (r) => {
+    await Promise.all(batch.map(async (r) => {
+      try {
         const vars = await buildRecipientVariables(r.gemiId, campaign.programId ?? '')
-        const customFields = MERGE_FIELDS.map(f => `${f}=${vars[f] ?? ''}`)
-        return { Email: r.recipient, CustomFields: customFields }
-      })
-    )
-    await moosendPost(`/subscribers/${listId}/subscribe_many.json`, { Subscribers: subscribers })
+        const subject = substituteVars(subjectBase, vars)
+        const html = substituteVars(htmlBase, vars) + disclaimer
+
+        const ok = await sendEmail({ to: r.recipient, subject, html })
+        if (ok) {
+          await prisma.gemiCampaignRecipient.update({ where: { id: r.id }, data: { status: 'sent', sentAt: now } })
+          sent++
+        } else {
+          await prisma.gemiCampaignRecipient.update({ where: { id: r.id }, data: { status: 'error', errorMessage: 'Email send failed' } })
+          errors++
+        }
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : String(err)
+        await prisma.gemiCampaignRecipient.update({ where: { id: r.id }, data: { status: 'error', errorMessage } })
+        errors++
+      }
+    }))
   }
 
-  // Build HTML with Moosend merge tags and disclaimer
-  const htmlTemplate = toMoosendTemplate(campaign.htmlContent ?? '')
-  const htmlWithDisclaimer = htmlTemplate +
-    `\n<p style="font-size:11px;color:#888;margin-top:24px;border-top:1px solid #eee;padding-top:12px;">${GEMI_DISCLAIMER}</p>`
-
-  // Create and send campaign
-  const campaignData = await moosendPost('/campaigns/create.json', {
-    Name: campaign.title,
-    Subject: toMoosendTemplate(campaign.subject ?? campaign.title),
-    SenderEmail: SENDER_EMAIL,
-    ReplyToEmail: REPLY_TO_EMAIL,
-    MailingLists: [{ MailingListID: listId, SegmentID: null }],
-    HTMLContent: htmlWithDisclaimer,
-    Type: 'Regular',
-  })
-  const moosendCampaignId = typeof campaignData.Context === 'string' ? campaignData.Context : campaignData.Context?.ID
-  if (!moosendCampaignId) throw new Error('No campaign ID from Moosend')
-
-  await moosendPost(`/campaigns/${moosendCampaignId}/send.json`, {
-    ScheduledDateTime: new Date().toISOString(),
-    TimezoneID: 53,
-  })
-
-  const now = new Date()
   await prisma.gemiCampaign.update({
     where: { id: campaignId },
-    data: { status: 'SENT', sentAt: now, moosendCampaignId, moosendListId: listId, totalSent: emailRecipients.length },
+    data: { status: 'SENT', sentAt: now, totalSent: sent },
   })
-  await prisma.gemiCampaignRecipient.updateMany({
-    where: { id: { in: emailRecipients.map(r => r.id) } },
-    data: { status: 'sent', sentAt: now },
-  })
-
-  return { sent: emailRecipients.length, errors: 0 }
+  return { sent, errors }
 }
 
 async function sendViberCampaign(campaignId: string) {
