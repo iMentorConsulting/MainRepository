@@ -2,11 +2,15 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 
-// Trims sole-proprietor names from "SURNAME FIRSTNAME PATRONYMIC" → "SURNAME FIRSTNAME"
-function cleanName(onomasia: string): string {
-  const words = onomasia.split(/\s+/).filter(Boolean)
-  if (words.length >= 3) return words.slice(0, 2).join(' ')
-  return words.join(' ')
+// AADE sometimes doesn't return legalStatusDescr for individuals — detect by both
+// legalStatusDescr containing ΑΤΟΜΙΚ OR onomasia looking like "SURNAME FIRSTNAME PATRONYMIC"
+function isSoleProprietorName(onomasia: string, legalStatusDescr: string | null | undefined): boolean {
+  if (legalStatusDescr?.toUpperCase().includes('ΑΤΟΜΙΚ')) return true
+  // AADE returns individual names as 3 ALL-CAPS Greek words (surname firstname patronymic)
+  const words = onomasia.trim().split(/\s+/).filter(Boolean)
+  if (words.length < 3) return false
+  // All words should be uppercase Greek letters only (no digits, no Latin)
+  return words.every(w => /^[ΑΒΓΔΕΖΗΘΙΚΛΜΝΞΟΠΡΣΤΥΦΧΨΩΆΈΉΊΌΎΏ]+$/.test(w))
 }
 
 export async function POST(request: NextRequest) {
@@ -20,24 +24,25 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // Find all enriched sole proprietors where onomasia still has 3+ words
   const records = await prisma.gemiLookup.findMany({
-    where: {
-      aadeEnriched: true,
-      legalStatusDescr: { contains: 'ΑΤΟΜΙΚ' },
-    },
-    select: { id: true, onomasia: true },
+    where: { aadeEnriched: true },
+    select: { id: true, onomasia: true, legalStatusDescr: true },
   })
 
   let fixed = 0
+  const samples: string[] = []
+
   for (const r of records) {
     if (!r.onomasia) continue
     const words = r.onomasia.trim().split(/\s+/).filter(Boolean)
-    if (words.length < 3) continue // already clean
-    const cleaned = cleanName(r.onomasia)
+    if (words.length < 3) continue
+    if (!isSoleProprietorName(r.onomasia, r.legalStatusDescr)) continue
+
+    const cleaned = words.slice(0, 2).join(' ')
+    if (samples.length < 5) samples.push(`${r.onomasia} → ${cleaned}`)
     await prisma.gemiLookup.update({ where: { id: r.id }, data: { onomasia: cleaned } })
     fixed++
   }
 
-  return NextResponse.json({ checked: records.length, fixed })
+  return NextResponse.json({ checked: records.length, fixed, samples })
 }

@@ -68,8 +68,8 @@ export async function POST(request: NextRequest) {
         await prisma.gemiLookup.update({
           where: { id: record.id },
           data: {
-            onomasia: cleanOnomasiaIfSoleProprietor(data.onomasia, data.legalStatusDescr),
-            legalStatusDescr: data.legalStatusDescr,
+            onomasia: cleanOnomasiaIfSoleProprietor(data.onomasia, data.legalStatusDescr ?? record.legalStatusDescr),
+            legalStatusDescr: data.legalStatusDescr || record.legalStatusDescr,
             postalAddress: data.postalAddress,
             postalAddressNo: data.postalAddressNo,
             postalZipCode: data.postalZipCode,
