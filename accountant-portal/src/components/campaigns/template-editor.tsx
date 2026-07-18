@@ -21,6 +21,7 @@ const PLACEHOLDERS = [
   { key: '{{program_deadline}}', label: 'Προθεσμία Προγράμματος' },
   { key: '{{extra_criteria}}', label: 'Πρόσθετες Προϋποθέσεις' },
   { key: '{{kad_description}}', label: 'ΚΑΔ' },
+  { key: '{{address}}', label: 'Διεύθυνση' },
   { key: '{{match_reason}}', label: 'Λόγοι Επιλεξιμότητας' },
   { key: '{{ermis_link}}', label: 'Σύνδεσμος Ερμή' },
   { key: '{{unsubscribe_link}}', label: 'Αποδοχή' },

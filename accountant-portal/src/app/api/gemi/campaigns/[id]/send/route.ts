@@ -18,6 +18,7 @@ export async function buildRecipientVariables(gemiId: string, programId: string)
       select: {
         onomasia: true, afm: true, activities: true, unsubscribeToken: true,
         claimedAccountantId: true, postalAreaDescription: true, regdate: true,
+        postalAddress: true, postalAddressNo: true, postalZipCode: true,
       },
     }),
     programId ? prisma.program.findUnique({
@@ -75,6 +76,7 @@ export async function buildRecipientVariables(gemiId: string, programId: string)
     program_deadline: programDeadline,
     program_amount: programAmount,
     region: gemi.postalAreaDescription ?? '',
+    address: [gemi.postalAddress, gemi.postalAddressNo, gemi.postalZipCode, gemi.postalAreaDescription].filter(Boolean).join(' '),
     founding_date: gemi.regdate
       ? new Date(gemi.regdate).toLocaleDateString('el-GR', { day: '2-digit', month: '2-digit', year: 'numeric' })
       : '',
