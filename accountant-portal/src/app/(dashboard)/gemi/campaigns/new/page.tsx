@@ -5,8 +5,15 @@ import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
-import { ArrowLeft, Send, Users, Mail, MessageCircle, FlaskConical } from 'lucide-react'
+import { ArrowLeft, Send, Users, Mail, MessageCircle, FlaskConical, FileText } from 'lucide-react'
 import { Suspense } from 'react'
+
+interface GemiTemplate {
+  id: string
+  label: string
+  subject: string
+  htmlContent: string
+}
 
 const GEMI_DISCLAIMER = `Τα στοιχεία επικοινωνίας σας αντλήθηκαν από το Γενικό Εμπορικό Μητρώο (ΓΕΜΗ) μέσω του επίσημου Open Data API του Ελληνικού Δημοσίου, υπό την άδεια ανοιχτών δεδομένων ODC-BY-1.0, η οποία επιτρέπει ρητά την εμπορική χρήση. Πρόκειται για δημόσια διαθέσιμα εταιρικά στοιχεία (gemi.gov.gr).`
 
@@ -75,6 +82,8 @@ function NewGemiCampaignPageInner() {
   const [channel, setChannel] = useState<Channel>('EMAIL')
   const [programId, setProgramId] = useState(searchParams.get('programId') || '')
   const [programs, setPrograms] = useState<any[]>([])
+  const [templates, setTemplates] = useState<GemiTemplate[]>([])
+  const [selectedTemplateId, setSelectedTemplateId] = useState('')
   const [subject, setSubject] = useState('')
   const [htmlContent, setHtmlContent] = useState('')
   const [viberMessage, setViberMessage] = useState('')
@@ -107,6 +116,10 @@ function NewGemiCampaignPageInner() {
     fetch('/api/gemi/campaigns/filter-options')
       .then(r => r.json())
       .then(d => setFilterOptions(d))
+      .catch(() => {})
+    fetch('/api/gemi/templates')
+      .then(r => r.json())
+      .then(d => setTemplates(Array.isArray(d) ? d : []))
       .catch(() => {})
   }, [])
 
@@ -353,6 +366,37 @@ function NewGemiCampaignPageInner() {
       {showEmail && (
         <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm space-y-4">
           <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Περιεχόμενο Email</h2>
+
+          {/* Template selector */}
+          <div>
+            <label className="text-sm font-medium text-slate-700 block mb-1 flex items-center gap-1">
+              <FileText size={14} />Πρότυπο Email
+            </label>
+            <select
+              value={selectedTemplateId}
+              onChange={e => {
+                const id = e.target.value
+                setSelectedTemplateId(id)
+                if (id) {
+                  const tpl = templates.find(t => t.id === id)
+                  if (tpl) {
+                    setSubject(tpl.subject)
+                    setHtmlContent(tpl.htmlContent)
+                  }
+                }
+              }}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white"
+            >
+              <option value="">— Επιλέξτε πρότυπο —</option>
+              {templates.map(t => (
+                <option key={t.id} value={t.id}>{t.label}</option>
+              ))}
+            </select>
+            {templates.length === 0 && (
+              <p className="text-xs text-gray-400 mt-1">Δεν υπάρχουν πρότυπα. <a href="/gemi/templates" className="underline text-indigo-500">Δημιουργήστε ένα εδώ.</a></p>
+            )}
+          </div>
+
           <Input
             label="Θέμα (Subject) *"
             placeholder="π.χ. Ευκαιρία χρηματοδότησης για την επιχείρησή σας"

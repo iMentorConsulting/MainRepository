@@ -6,7 +6,14 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableHead, TableBody, TableRow, Th, Td } from '@/components/ui/table'
 import { Pagination } from '@/components/ui/pagination'
-import { Search, Upload, X, RefreshCw, Link2, Trash2 } from 'lucide-react'
+import { Search, Upload, X, RefreshCw, Link2, Trash2, Send, Zap } from 'lucide-react'
+
+interface GemiTemplate {
+  id: string
+  label: string
+  subject: string
+  htmlContent: string
+}
 
 const PAGE_SIZE = 50
 
@@ -244,6 +251,13 @@ function GemiBusinessesPageInner() {
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [deleting, setDeleting] = useState(false)
 
+  // Quick Send state
+  const [programs, setPrograms] = useState<any[]>([])
+  const [templates, setTemplates] = useState<GemiTemplate[]>([])
+  const [quickProgramId, setQuickProgramId] = useState('')
+  const [quickTemplateId, setQuickTemplateId] = useState('')
+  const [quickSending, setQuickSending] = useState(false)
+
   const requestSeq = useRef(0)
 
   // Fetch distinct import batches for dropdown
@@ -251,6 +265,14 @@ function GemiBusinessesPageInner() {
     fetch('/api/gemi/businesses/batches')
       .then(r => r.json())
       .then(d => Array.isArray(d) && setBatches(d))
+      .catch(() => {})
+    fetch('/api/programs')
+      .then(r => r.json())
+      .then(d => setPrograms(Array.isArray(d) ? d : (d.programs || [])))
+      .catch(() => {})
+    fetch('/api/gemi/templates')
+      .then(r => r.json())
+      .then(d => setTemplates(Array.isArray(d) ? d : []))
       .catch(() => {})
   }, [])
 
@@ -377,6 +399,47 @@ function GemiBusinessesPageInner() {
       setToast('Σφάλμα δικτύου')
     } finally {
       setDeleting(false)
+    }
+  }
+
+  async function handleQuickSend() {
+    if (selected.size === 0) return
+    if (!quickTemplateId) { setToast('Επιλέξτε πρότυπο email.'); return }
+    const tpl = templates.find(t => t.id === quickTemplateId)
+    if (!tpl) return
+    if (!window.confirm(`Γρήγορη Αποστολή email σε ${selected.size} επιλεγμένες επιχειρήσεις;`)) return
+    setQuickSending(true)
+    try {
+      const createRes = await fetch('/api/gemi/campaigns', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: `Γρήγορη Αποστολή — ${tpl.label} (${new Date().toLocaleDateString('el-GR')})`,
+          channel: 'EMAIL',
+          programId: quickProgramId || undefined,
+          subject: tpl.subject,
+          htmlContent: tpl.htmlContent,
+          status: 'DRAFT',
+          targetGemiIds: Array.from(selected),
+        }),
+      })
+      if (!createRes.ok) {
+        const err = await createRes.json().catch(() => ({}))
+        setToast(err.error || 'Σφάλμα δημιουργίας καμπάνιας'); return
+      }
+      const campaign = await createRes.json()
+      const sendRes = await fetch(`/api/gemi/campaigns/${campaign.id}/send`, { method: 'POST' })
+      if (sendRes.ok) {
+        setToast(`Η αποστολή σε ${selected.size} επιχειρήσεις ξεκίνησε.`)
+        setSelected(new Set())
+      } else {
+        const err = await sendRes.json().catch(() => ({}))
+        setToast(err.error || 'Σφάλμα αποστολής')
+      }
+    } catch {
+      setToast('Σφάλμα δικτύου')
+    } finally {
+      setQuickSending(false)
     }
   }
 
@@ -651,6 +714,48 @@ function GemiBusinessesPageInner() {
           </>
         )}
       </div>
+
+      {/* Quick Send floating bar */}
+      {selected.size > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-white border border-indigo-200 shadow-2xl rounded-2xl px-5 py-4 flex flex-wrap items-center gap-3 max-w-2xl w-full">
+          <div className="flex items-center gap-2 text-sm font-semibold text-indigo-800 shrink-0">
+            <Zap size={16} className="text-indigo-600" />
+            Γρήγορη Αποστολή — {selected.size} επιλεγμένες
+          </div>
+          <select
+            value={quickProgramId}
+            onChange={e => setQuickProgramId(e.target.value)}
+            className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white flex-1 min-w-[150px]"
+          >
+            <option value="">— Χωρίς πρόγραμμα —</option>
+            {programs.map((p: any) => (
+              <option key={p.id} value={p.id}>{p.title}</option>
+            ))}
+          </select>
+          <select
+            value={quickTemplateId}
+            onChange={e => setQuickTemplateId(e.target.value)}
+            className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white flex-1 min-w-[150px]"
+          >
+            <option value="">— Επιλέξτε πρότυπο —</option>
+            {templates.map(t => (
+              <option key={t.id} value={t.id}>{t.label}</option>
+            ))}
+          </select>
+          <Button
+            size="sm"
+            loading={quickSending}
+            disabled={!quickTemplateId}
+            onClick={handleQuickSend}
+            className="bg-indigo-600 hover:bg-indigo-700 text-white shrink-0"
+          >
+            <Send size={14} className="mr-1.5" />Αποστολή
+          </Button>
+          <button onClick={() => setSelected(new Set())} className="text-gray-400 hover:text-gray-600 shrink-0">
+            <X size={18} />
+          </button>
+        </div>
+      )}
 
       {importOpen && (
         <ImportModal
