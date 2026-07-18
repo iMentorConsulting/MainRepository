@@ -10,8 +10,8 @@ export async function GET() {
 
   const errors = await prisma.gemiCampaignRecipient.findMany({
     where: { status: 'error' },
-    select: { id: true, campaignId: true, recipient: true, errorMessage: true, updatedAt: true },
-    orderBy: { updatedAt: 'desc' },
+    select: { id: true, campaignId: true, recipient: true, errorMessage: true, createdAt: true },
+    orderBy: { createdAt: 'desc' },
     take: 50,
   })
 
