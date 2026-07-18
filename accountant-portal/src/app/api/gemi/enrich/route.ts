@@ -4,13 +4,17 @@ import { prisma } from '@/lib/prisma'
 import { lookupAfm } from '@/lib/gsis'
 import { getEffectiveCategory } from '@/lib/business-categories'
 
-// For sole proprietors (ΑΤΟΜΙΚΗ ΕΠΙΧΕΙΡΗΣΗ) the AADE onomasia is
-// "SURNAME  FIRSTNAME  PATRONYMIC" with extra spaces. Clean to "SURNAME FIRSTNAME".
-function cleanOnomasiaIfSoleProprietor(onomasia: string, legalStatusDescr: string | null | undefined): string {
-  if (!legalStatusDescr?.toUpperCase().includes('ΑΤΟΜΙΚ')) return onomasia
-  const words = onomasia.split(/\s+/).filter(Boolean)
-  if (words.length >= 3) return words.slice(0, 2).join(' ')
-  return words.join(' ')
+// Same logic as applySoleProprietorFix in businesses/import/route.ts:
+// AADE returns no legalStatusDescr for natural persons — detect by empty status + 3-word name.
+function applySoleProprietorFix(onomasia: string, legalStatusDescr: string | null | undefined): { onomasia: string; legalStatusDescr: string | null | undefined } {
+  if (!legalStatusDescr) {
+    const parts = onomasia.trim().split(/\s+/).filter(Boolean)
+    if (parts.length >= 3) {
+      return { onomasia: parts.slice(0, 2).join(' '), legalStatusDescr: 'ΑΤΟΜΙΚΗ' }
+    }
+    return { onomasia, legalStatusDescr: 'ΑΤΟΜΙΚΗ' }
+  }
+  return { onomasia, legalStatusDescr }
 }
 
 export async function POST(request: NextRequest) {
@@ -68,8 +72,7 @@ export async function POST(request: NextRequest) {
         await prisma.gemiLookup.update({
           where: { id: record.id },
           data: {
-            onomasia: cleanOnomasiaIfSoleProprietor(data.onomasia, data.legalStatusDescr ?? record.legalStatusDescr),
-            legalStatusDescr: data.legalStatusDescr || record.legalStatusDescr,
+            ...applySoleProprietorFix(data.onomasia, data.legalStatusDescr),
             postalAddress: data.postalAddress,
             postalAddressNo: data.postalAddressNo,
             postalZipCode: data.postalZipCode,
