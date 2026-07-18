@@ -48,8 +48,17 @@ export async function buildRecipientVariables(gemiId: string, programId: string)
     ? new Date(program.endDate).toLocaleDateString('el-GR', { day: '2-digit', month: '2-digit', year: 'numeric' })
     : ''
 
-  const ermisLink = programId
-    ? await getOrCreateGemiErmisLink(gemiId, programId).catch(() => '')
+  let resolvedProgramId = programId
+  if (!resolvedProgramId) {
+    const firstMatch = await prisma.gemiProgramMatch.findFirst({
+      where: { gemiId, status: { not: 'REJECTED' } },
+      select: { programId: true },
+      orderBy: { matchScore: 'desc' },
+    })
+    resolvedProgramId = firstMatch?.programId ?? ''
+  }
+  const ermisLink = resolvedProgramId
+    ? await getOrCreateGemiErmisLink(gemiId, resolvedProgramId).catch(() => '')
     : ''
 
   const afm = gemi.afm ?? ''
