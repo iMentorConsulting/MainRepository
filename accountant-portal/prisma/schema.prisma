@@ -383,7 +383,9 @@ enum CampaignChannel {
 enum CampaignStatus {
   DRAFT
   SCHEDULED
+  SENDING
   SENT
+  FAILED
 }
 
 model CampaignRecipient {
