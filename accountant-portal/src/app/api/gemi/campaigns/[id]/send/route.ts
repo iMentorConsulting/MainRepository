@@ -4,19 +4,21 @@ import { prisma } from '@/lib/prisma'
 import { GEMI_DISCLAIMER } from '@/lib/moosend'
 import { sendViberMessage } from '@/lib/chatwoot'
 import { getOrCreateGemiErmisLink } from '@/lib/gemi-ermis'
-import { sendMoosendEmail } from '@/lib/moosend'
 
 const APP_URL = process.env.APP_URL ?? 'https://logistis.i-mentor.gr'
 
-function substituteVars(template: string, vars: Record<string, string>): string {
+export function substituteVars(template: string, vars: Record<string, string>): string {
   return template.replace(/\{\{(\w+)\}\}/g, (_: string, key: string) => vars[key] ?? '')
 }
 
-async function buildRecipientVariables(gemiId: string, programId: string): Promise<Record<string, string>> {
+export async function buildRecipientVariables(gemiId: string, programId: string): Promise<Record<string, string>> {
   const [gemi, program, match] = await Promise.all([
     prisma.gemiLookup.findUnique({
       where: { id: gemiId },
-      select: { onomasia: true, afm: true, activities: true, unsubscribeToken: true, claimedAccountantId: true, postalAreaDescription: true, regdate: true },
+      select: {
+        onomasia: true, afm: true, activities: true, unsubscribeToken: true,
+        claimedAccountantId: true, postalAreaDescription: true, regdate: true,
+      },
     }),
     programId ? prisma.program.findUnique({
       where: { id: programId },
@@ -72,63 +74,18 @@ async function buildRecipientVariables(gemiId: string, programId: string): Promi
     program_url: program?.websiteUrl ?? '',
     program_deadline: programDeadline,
     program_amount: programAmount,
-    extra_criteria: extraCriteriaText,
     region: gemi.postalAreaDescription ?? '',
     founding_date: gemi.regdate
       ? new Date(gemi.regdate).toLocaleDateString('el-GR', { day: '2-digit', month: '2-digit', year: 'numeric' })
       : '',
     kad_code: primaryKad?.firmActCode ?? '',
     kad_description: primaryKad?.firmActDescr ?? '',
+    extra_criteria: extraCriteriaText,
     match_reason: (match?.matchReason ?? []).map((r: string) => `• ${r}`).join(' | '),
     ermis_link: ermisLink,
     unsubscribe_link: unsubscribeLink,
     exodikastikos_link: exodikastikosLink,
   }
-}
-
-async function sendEmailCampaign(campaignId: string) {
-  const campaign = await prisma.gemiCampaign.findUniqueOrThrow({ where: { id: campaignId } })
-
-  const emailRecipients = await prisma.gemiCampaignRecipient.findMany({
-    where: { campaignId, channel: 'EMAIL', status: 'pending' },
-    select: { id: true, gemiId: true, recipient: true },
-  })
-  if (emailRecipients.length === 0) return { sent: 0, errors: 0 }
-
-  const htmlBase = campaign.htmlContent ?? ''
-  const subjectBase = campaign.subject ?? campaign.title
-  const disclaimer = `\n<p style="font-size:11px;color:#888;margin-top:24px;border-top:1px solid #eee;padding-top:12px;">${GEMI_DISCLAIMER}</p>`
-
-  let sent = 0
-  let errors = 0
-  const now = new Date()
-
-  // Send in batches of 10 concurrent to avoid overwhelming SMTP
-  const BATCH = 10
-  for (let i = 0; i < emailRecipients.length; i += BATCH) {
-    const batch = emailRecipients.slice(i, i + BATCH)
-    await Promise.all(batch.map(async (r) => {
-      try {
-        const vars = await buildRecipientVariables(r.gemiId, campaign.programId ?? '')
-        const subject = substituteVars(subjectBase, vars)
-        const html = substituteVars(htmlBase, vars) + disclaimer
-
-        await sendMoosendEmail({ to: r.recipient, subject, html })
-        await prisma.gemiCampaignRecipient.update({ where: { id: r.id }, data: { status: 'sent', sentAt: now } })
-        sent++
-      } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : String(err)
-        await prisma.gemiCampaignRecipient.update({ where: { id: r.id }, data: { status: 'error', errorMessage } })
-        errors++
-      }
-    }))
-  }
-
-  await prisma.gemiCampaign.update({
-    where: { id: campaignId },
-    data: { status: 'SENT', sentAt: now, totalSent: sent },
-  })
-  return { sent, errors }
 }
 
 async function sendViberCampaign(campaignId: string) {
@@ -181,19 +138,36 @@ export async function POST(
   if (campaign.status !== 'DRAFT') return NextResponse.json({ error: 'Campaign is not in DRAFT status' }, { status: 400 })
 
   try {
-    if (campaign.channel === 'EMAIL') {
-      const result = await sendEmailCampaign(id)
-      return NextResponse.json(result)
+    // EMAIL: enqueue for background processing via cron — returns immediately
+    if (campaign.channel === 'EMAIL' || campaign.channel === 'EMAIL_AND_VIBER') {
+      await prisma.gemiCampaign.update({
+        where: { id },
+        data: { status: 'SENDING', sentAt: new Date() },
+      })
+
+      // Viber part sends inline (fast, per-message API)
+      if (campaign.channel === 'EMAIL_AND_VIBER') {
+        const viberResult = await sendViberCampaign(id)
+        return NextResponse.json({
+          queued: true,
+          viber: viberResult,
+          message: `Το email τέθηκε σε ουρά αποστολής. Τα ${viberResult.sent} Viber μηνύματα εστάλησαν.`,
+        })
+      }
+
+      const pending = await prisma.gemiCampaignRecipient.count({ where: { campaignId: id, channel: 'EMAIL', status: 'pending' } })
+      return NextResponse.json({
+        queued: true,
+        pending,
+        message: `${pending} email τέθηκαν σε ουρά. Η αποστολή θα ολοκληρωθεί αυτόματα σε λίγα λεπτά.`,
+      })
     }
+
     if (campaign.channel === 'VIBER') {
       const result = await sendViberCampaign(id)
       return NextResponse.json(result)
     }
-    if (campaign.channel === 'EMAIL_AND_VIBER') {
-      const [emailResult, viberResult] = await Promise.all([sendEmailCampaign(id), sendViberCampaign(id)])
-      await prisma.gemiCampaign.update({ where: { id }, data: { totalSent: emailResult.sent + viberResult.sent } })
-      return NextResponse.json({ sent: emailResult.sent + viberResult.sent, errors: emailResult.errors + viberResult.errors })
-    }
+
     return NextResponse.json({ error: 'Unknown channel' }, { status: 400 })
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
