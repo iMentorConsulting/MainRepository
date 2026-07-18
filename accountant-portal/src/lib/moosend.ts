@@ -1,36 +1,20 @@
-import nodemailer from 'nodemailer'
-
 const API_KEY = process.env.MOOSEND_API_KEY;
 const BASE_URL = "https://api.moosend.com/v3";
 const SENDER_EMAIL = process.env.MOOSEND_SENDER_EMAIL ?? 'info@i-mentor.gr'
 const REPLY_TO_EMAIL = process.env.MOOSEND_REPLY_TO_EMAIL ?? 'info@i-mentor.gr'
 
-// Nodemailer transporter using Moosend SMTP relay.
-// Host: smtp.moosend.com  Port: 465 (SSL)  User: sender email  Pass: API key
-// Railway blocks port 587 (STARTTLS) so we use 465 (implicit SSL).
-function getMoosendTransporter() {
-  const apiKey = API_KEY
-  if (!apiKey) throw new Error('MOOSEND_API_KEY is not set')
-  return nodemailer.createTransport({
-    host: 'smtp.moosend.com',
-    port: 465,
-    secure: true,
-    auth: { user: SENDER_EMAIL, pass: apiKey },
-    family: 4,
-    connectionTimeout: 15000,
-    greetingTimeout: 15000,
-    socketTimeout: 20000,
-  } as any)
-}
-
+// Send via Moosend Campaign API (HTTP) — avoids SMTP which is blocked by Railway.
+// Each call: create temp list → add recipient → create campaign with pre-substituted HTML → send.
 export async function sendMoosendEmail(opts: { to: string; subject: string; html: string }): Promise<void> {
-  const transporter = getMoosendTransporter()
-  await transporter.sendMail({
-    from: `iMentor Consulting <${SENDER_EMAIL}>`,
-    replyTo: REPLY_TO_EMAIL,
-    to: opts.to,
+  const listId = await createMoosendList(`gemi-${Date.now()}`)
+  await addSubscribersToList(listId, [{ Email: opts.to }])
+  await createAndSendCampaign({
+    name: `gemi-${Date.now()}`,
     subject: opts.subject,
-    html: opts.html,
+    senderEmail: SENDER_EMAIL,
+    replyToEmail: REPLY_TO_EMAIL,
+    htmlContent: opts.html,
+    listId,
   })
 }
 
