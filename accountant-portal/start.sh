@@ -1,6 +1,13 @@
 #!/bin/sh
 set -e
 
+# If CRON_MODE=1, just call the email processing endpoint and exit
+if [ "$CRON_MODE" = "1" ]; then
+  echo ">>> CRON MODE: calling process-gemi-emails..."
+  exec curl -sf -X POST https://logistis.i-mentor.gr/api/cron/process-gemi-emails \
+    -H "Authorization: Bearer $CRON_SECRET"
+fi
+
 echo ">>> Running pre-migration script (enum/data fixes)..."
 node scripts/pre-migrate.js || echo "Pre-migration skipped (non-fatal)"
 
