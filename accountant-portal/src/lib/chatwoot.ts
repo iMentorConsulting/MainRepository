@@ -33,15 +33,24 @@ async function apiFetch<T>(url: string, init?: RequestInit): Promise<T> {
   return response.json() as Promise<T>;
 }
 
+function toE164Greek(phone: string): string {
+  const digits = phone.replace(/\D/g, '')
+  if (digits.startsWith('30') && digits.length === 12) return `+${digits}`
+  if (digits.length === 10 && digits.startsWith('6')) return `+30${digits}`
+  if (digits.length === 10 && digits.startsWith('2')) return `+30${digits}`
+  return `+${digits}`
+}
+
 export async function createOrFindContact(phone: string, name?: string): Promise<number> {
-  const searchUrl = `${baseUrl()}/contacts/search?q=${encodeURIComponent(phone)}`;
+  const normalized = toE164Greek(phone)
+  const searchUrl = `${baseUrl()}/contacts/search?q=${encodeURIComponent(normalized)}`;
 
   const searchResult = await apiFetch<{ payload: Array<{ id: number; phone_number?: string }> }>(
     searchUrl,
   );
 
   const existing = searchResult.payload?.find(
-    (c) => c.phone_number === phone,
+    (c) => c.phone_number === normalized,
   );
 
   if (existing) {
@@ -51,8 +60,8 @@ export async function createOrFindContact(phone: string, name?: string): Promise
   const created = await apiFetch<{ id: number }>(`${baseUrl()}/contacts`, {
     method: 'POST',
     body: JSON.stringify({
-      name: name ?? phone,
-      phone_number: phone,
+      name: name ?? normalized,
+      phone_number: normalized,
     }),
   });
 
@@ -64,7 +73,7 @@ export async function sendViberMessage(
   message: string,
   name?: string,
 ): Promise<{ contactId: number; conversationId: number }> {
-  const contactId = await createOrFindContact(phone, name);
+  const contactId = await createOrFindContact(toE164Greek(phone), name);
 
   const conversation = await apiFetch<{ id: number }>(
     `${baseUrl()}/conversations`,

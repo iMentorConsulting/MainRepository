@@ -6,14 +6,15 @@ const SENDER_EMAIL = process.env.MOOSEND_SENDER_EMAIL ?? 'info@i-mentor.gr'
 const REPLY_TO_EMAIL = process.env.MOOSEND_REPLY_TO_EMAIL ?? 'info@i-mentor.gr'
 
 // Nodemailer transporter using Moosend SMTP relay.
-// Host: smtp.moosend.com  Port: 587  User: sender email  Pass: API key
+// Host: smtp.moosend.com  Port: 465 (SSL)  User: sender email  Pass: API key
+// Railway blocks port 587 (STARTTLS) so we use 465 (implicit SSL).
 function getMoosendTransporter() {
   const apiKey = API_KEY
   if (!apiKey) throw new Error('MOOSEND_API_KEY is not set')
   return nodemailer.createTransport({
     host: 'smtp.moosend.com',
-    port: 587,
-    secure: false,
+    port: 465,
+    secure: true,
     auth: { user: SENDER_EMAIL, pass: apiKey },
     family: 4,
     connectionTimeout: 15000,
