@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { GEMI_DISCLAIMER } from '@/lib/moosend'
+import { GEMI_DISCLAIMER, sendMoosendEmail } from '@/lib/moosend'
 import { sendViberMessage } from '@/lib/chatwoot'
 import { getOrCreateGemiErmisLink } from '@/lib/gemi-ermis'
+
+export const maxDuration = 270
 
 const APP_URL = process.env.APP_URL ?? 'https://logistis.i-mentor.gr'
 
@@ -140,7 +142,6 @@ export async function POST(
   if (campaign.status !== 'DRAFT') return NextResponse.json({ error: 'Campaign is not in DRAFT status' }, { status: 400 })
 
   try {
-    // EMAIL: enqueue for background processing via cron — returns immediately
     if (campaign.channel === 'EMAIL' || campaign.channel === 'EMAIL_AND_VIBER') {
       await prisma.gemiCampaign.update({
         where: { id },
@@ -148,20 +149,60 @@ export async function POST(
       })
 
       // Viber part sends inline (fast, per-message API)
+      let viberResult: { sent: number; errors: number } | null = null
       if (campaign.channel === 'EMAIL_AND_VIBER') {
-        const viberResult = await sendViberCampaign(id)
-        return NextResponse.json({
-          queued: true,
-          viber: viberResult,
-          message: `Το email τέθηκε σε ουρά αποστολής. Τα ${viberResult.sent} Viber μηνύματα εστάλησαν.`,
-        })
+        viberResult = await sendViberCampaign(id)
       }
 
-      const pending = await prisma.gemiCampaignRecipient.count({ where: { campaignId: id, channel: 'EMAIL', status: 'pending' } })
+      // Send emails inline — process all pending recipients now
+      const disclaimer = `\n<p style="font-size:11px;color:#888;margin-top:24px;border-top:1px solid #eee;padding-top:12px;">${GEMI_DISCLAIMER}</p>`
+      const htmlBase = campaign.htmlContent ?? ''
+      const subjectBase = campaign.subject ?? campaign.title
+
+      const emailRecipients = await prisma.gemiCampaignRecipient.findMany({
+        where: { campaignId: id, channel: 'EMAIL', status: 'pending' },
+        select: { id: true, gemiId: true, recipient: true },
+        orderBy: { createdAt: 'asc' },
+      })
+
+      let sent = 0
+      let errors = 0
+      const now = new Date()
+
+      const CONCURRENT = 5
+      for (let i = 0; i < emailRecipients.length; i += CONCURRENT) {
+        const chunk = emailRecipients.slice(i, i + CONCURRENT)
+        await Promise.all(chunk.map(async (r) => {
+          try {
+            const vars = await buildRecipientVariables(r.gemiId, campaign.programId ?? '')
+            const subject = substituteVars(subjectBase, vars)
+            const html = substituteVars(htmlBase, vars) + disclaimer
+            await sendMoosendEmail({ to: r.recipient, subject, html })
+            await prisma.gemiCampaignRecipient.update({ where: { id: r.id }, data: { status: 'sent', sentAt: now } })
+            sent++
+          } catch (err) {
+            const errorMessage = err instanceof Error ? err.message : String(err)
+            await prisma.gemiCampaignRecipient.update({ where: { id: r.id }, data: { status: 'error', errorMessage } })
+            errors++
+          }
+        }))
+      }
+
+      const remaining = await prisma.gemiCampaignRecipient.count({
+        where: { campaignId: id, channel: 'EMAIL', status: 'pending' },
+      })
+
+      await prisma.gemiCampaign.update({
+        where: { id },
+        data: { totalSent: sent, ...(remaining === 0 ? { status: 'SENT' } : {}) },
+      })
+
       return NextResponse.json({
-        queued: true,
-        pending,
-        message: `${pending} email τέθηκαν σε ουρά. Η αποστολή θα ολοκληρωθεί αυτόματα σε λίγα λεπτά.`,
+        sent,
+        errors,
+        remaining,
+        viber: viberResult,
+        message: `Εστάλησαν ${sent} email${errors > 0 ? `, ${errors} σφάλματα` : ''}.`,
       })
     }
 
