@@ -19,15 +19,20 @@ async function main() {
   } catch (e) { console.log('  DYPA_OAED skip:', e.message) }
 
   // Migrate existing data so no rows use the old values
-  const microloan = await prisma.$executeRawUnsafe(
-    `UPDATE "Program" SET category = 'MICROCREDITS' WHERE category = 'MICROLOANS'`
-  )
-  console.log(`  Migrated ${microloan} MICROLOANS → MICROCREDITS`)
+  // Wrapped in try-catch: if the old enum value no longer exists, skip silently
+  try {
+    const microloan = await prisma.$executeRawUnsafe(
+      `UPDATE "Program" SET category = 'MICROCREDITS' WHERE category = 'MICROLOANS'`
+    )
+    console.log(`  Migrated ${microloan} MICROLOANS → MICROCREDITS`)
+  } catch (e) { console.log('  MICROLOANS migration skip (already done):', e.message) }
 
-  const loan = await prisma.$executeRawUnsafe(
-    `UPDATE "Program" SET category = 'OTHER' WHERE category = 'LOAN'`
-  )
-  console.log(`  Migrated ${loan} LOAN → OTHER`)
+  try {
+    const loan = await prisma.$executeRawUnsafe(
+      `UPDATE "Program" SET category = 'OTHER' WHERE category = 'LOAN'`
+    )
+    console.log(`  Migrated ${loan} LOAN → OTHER`)
+  } catch (e) { console.log('  LOAN migration skip (already done):', e.message) }
 
   console.log('>>> Pre-migration done.')
 }
