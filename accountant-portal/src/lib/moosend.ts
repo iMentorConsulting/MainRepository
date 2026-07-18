@@ -1,5 +1,37 @@
+import nodemailer from 'nodemailer'
+
 const API_KEY = process.env.MOOSEND_API_KEY;
 const BASE_URL = "https://api.moosend.com/v3";
+const SENDER_EMAIL = process.env.MOOSEND_SENDER_EMAIL ?? 'info@i-mentor.gr'
+const REPLY_TO_EMAIL = process.env.MOOSEND_REPLY_TO_EMAIL ?? 'info@i-mentor.gr'
+
+// Nodemailer transporter using Moosend SMTP relay.
+// Host: smtp.moosend.com  Port: 587  User: sender email  Pass: API key
+function getMoosendTransporter() {
+  const apiKey = API_KEY
+  if (!apiKey) throw new Error('MOOSEND_API_KEY is not set')
+  return nodemailer.createTransport({
+    host: 'smtp.moosend.com',
+    port: 587,
+    secure: false,
+    auth: { user: SENDER_EMAIL, pass: apiKey },
+    family: 4,
+    connectionTimeout: 15000,
+    greetingTimeout: 15000,
+    socketTimeout: 20000,
+  } as any)
+}
+
+export async function sendMoosendEmail(opts: { to: string; subject: string; html: string }): Promise<void> {
+  const transporter = getMoosendTransporter()
+  await transporter.sendMail({
+    from: `iMentor Consulting <${SENDER_EMAIL}>`,
+    replyTo: REPLY_TO_EMAIL,
+    to: opts.to,
+    subject: opts.subject,
+    html: opts.html,
+  })
+}
 
 export const GEMI_DISCLAIMER =
   "Τα στοιχεία επικοινωνίας σας αντλήθηκαν από το Γενικό Εμπορικό Μητρώο (ΓΕΜΗ) μέσω του επίσημου Open Data API του Ελληνικού Δημοσίου, υπό την άδεια ανοιχτών δεδομένων ODC-BY-1.0, η οποία επιτρέπει ρητά την εμπορική χρήση. Πρόκειται για δημόσια διαθέσιμα εταιρικά στοιχεία (gemi.gov.gr).";

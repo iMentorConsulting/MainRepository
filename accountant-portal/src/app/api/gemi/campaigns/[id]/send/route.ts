@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { GEMI_DISCLAIMER } from '@/lib/moosend'
 import { sendViberMessage } from '@/lib/chatwoot'
 import { getOrCreateGemiErmisLink } from '@/lib/gemi-ermis'
-import { sendEmail } from '@/lib/email'
+import { sendMoosendEmail } from '@/lib/moosend'
 
 const APP_URL = process.env.APP_URL ?? 'https://logistis.i-mentor.gr'
 
@@ -108,14 +108,9 @@ async function sendEmailCampaign(campaignId: string) {
         const subject = substituteVars(subjectBase, vars)
         const html = substituteVars(htmlBase, vars) + disclaimer
 
-        const ok = await sendEmail({ to: r.recipient, subject, html })
-        if (ok) {
-          await prisma.gemiCampaignRecipient.update({ where: { id: r.id }, data: { status: 'sent', sentAt: now } })
-          sent++
-        } else {
-          await prisma.gemiCampaignRecipient.update({ where: { id: r.id }, data: { status: 'error', errorMessage: 'Email send failed' } })
-          errors++
-        }
+        await sendMoosendEmail({ to: r.recipient, subject, html })
+        await prisma.gemiCampaignRecipient.update({ where: { id: r.id }, data: { status: 'sent', sentAt: now } })
+        sent++
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : String(err)
         await prisma.gemiCampaignRecipient.update({ where: { id: r.id }, data: { status: 'error', errorMessage } })
