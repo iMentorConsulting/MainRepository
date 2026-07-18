@@ -3,6 +3,7 @@ const nextConfig = {
   experimental: {
     serverActions: {
       allowedOrigins: ['logistis.i-mentor.gr', 'localhost:3000'],
+      bodySizeLimit: '10mb',
     },
   },
   async headers() {

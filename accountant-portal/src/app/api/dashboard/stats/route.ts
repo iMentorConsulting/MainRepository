@@ -24,7 +24,10 @@ export async function GET(request: NextRequest) {
 
   const businessWhere = effectiveAccountantId ? { accountantId: effectiveAccountantId } : {}
   const realBusinessWhere = { ...businessWhere, ...notIndividualWhere }
-  const matchAccountantWhere = effectiveAccountantId ? { business: { accountantId: effectiveAccountantId } } : {}
+  const matchAccountantWhere = {
+    status: { not: 'REJECTED' as const },
+    ...(effectiveAccountantId ? { business: { accountantId: effectiveAccountantId } } : {}),
+  }
 
   const [
     totalAccountants,

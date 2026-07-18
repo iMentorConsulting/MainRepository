@@ -24,20 +24,29 @@ function TemplateCard({ template, onSaved, onDeleted }: { template: GemiTemplate
   const [htmlContent, setHtmlContent] = useState(template.htmlContent)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
 
   const dirty = label !== template.label || description !== (template.description ?? '') || subject !== template.subject || htmlContent !== template.htmlContent
 
   async function save() {
     setSaving(true)
-    const res = await fetch(`/api/gemi/templates/${template.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ label, description, subject, htmlContent }),
-    })
-    if (res.ok) {
-      onSaved(await res.json())
-      setSaved(true)
-      setTimeout(() => setSaved(false), 2000)
+    setSaveError(null)
+    try {
+      const res = await fetch(`/api/gemi/templates/${template.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ label, description, subject, htmlContent }),
+      })
+      if (res.ok) {
+        onSaved(await res.json())
+        setSaved(true)
+        setTimeout(() => setSaved(false), 2000)
+      } else {
+        const err = await res.json().catch(() => ({}))
+        setSaveError(err.error ?? `Σφάλμα ${res.status}`)
+      }
+    } catch (e) {
+      setSaveError(e instanceof Error ? e.message : 'Σφάλμα δικτύου')
     }
     setSaving(false)
   }
@@ -117,6 +126,7 @@ function TemplateCard({ template, onSaved, onDeleted }: { template: GemiTemplate
               {saving ? 'Αποθήκευση...' : 'Αποθήκευση'}
             </Button>
             {saved && <span className="text-xs text-green-600">Αποθηκεύτηκε!</span>}
+            {saveError && <span className="text-xs text-red-600">{saveError}</span>}
             <Button size="sm" variant="ghost" className="text-red-600 hover:bg-red-50 ml-auto" onClick={remove}>
               <Trash2 size={14} className="mr-1.5" />
               Διαγραφή
