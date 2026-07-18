@@ -5,8 +5,9 @@ import { useSession } from 'next-auth/react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { Input } from '@/components/ui/input'
 import { CategoryBadge } from '@/components/businesses/category-badge'
-import { ArrowLeft, Building2, Mail, Phone, MapPin, Briefcase, Target, Send, Link2 } from 'lucide-react'
+import { ArrowLeft, Building2, Mail, Phone, MapPin, Briefcase, Target, Send, Link2, Pencil } from 'lucide-react'
 import { getEffectiveCategory } from '@/lib/business-categories'
 import { resolveRegionFromZip } from '@/lib/greek-regions'
 
@@ -37,6 +38,10 @@ export default function GemiBusinessDetailPage() {
   const [loading, setLoading] = useState(true)
   const [claiming, setClaiming] = useState(false)
   const [claimMsg, setClaimMsg] = useState('')
+  const [editing, setEditing] = useState(false)
+  const [editForm, setEditForm] = useState<Record<string, string>>({})
+  const [saving, setSaving] = useState(false)
+  const [editMsg, setEditMsg] = useState('')
 
   const isAdmin = (session?.user as any)?.role === 'ADMIN'
 
@@ -48,6 +53,40 @@ export default function GemiBusinessDetailPage() {
       .then(d => setBusiness(d))
       .finally(() => setLoading(false))
   }, [id, isAdmin, router, status])
+
+  function startEdit() {
+    setEditForm({
+      onomasia: business.onomasia || '',
+      email: business.email || '',
+      phone: business.phone || '',
+      postalAddress: business.postalAddress || '',
+      postalAddressNo: business.postalAddressNo || '',
+      postalZipCode: business.postalZipCode || '',
+      postalAreaDescription: business.postalAreaDescription || '',
+    })
+    setEditMsg('')
+    setEditing(true)
+  }
+
+  async function handleSaveEdit() {
+    setSaving(true)
+    setEditMsg('')
+    const res = await fetch(`/api/gemi/businesses/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(editForm),
+    })
+    if (res.ok) {
+      const updated = await fetch(`/api/gemi/businesses/${id}`).then(r => r.json())
+      setBusiness(updated)
+      setEditing(false)
+      setEditMsg('Αποθηκεύτηκε.')
+    } else {
+      const err = await res.json().catch(() => ({}))
+      setEditMsg(`Σφάλμα: ${err.error || 'Αδυναμία αποθήκευσης'}`)
+    }
+    setSaving(false)
+  }
 
   async function handleClaim() {
     if (!window.confirm('Ανάκτηση αυτής της επιχείρησης; Θα δημιουργηθεί ή θα συνδεθεί με πραγματική εγγραφή Business.')) return
@@ -102,6 +141,9 @@ export default function GemiBusinessDetailPage() {
           </div>
         </div>
         <div className="flex gap-2 shrink-0">
+          <Button variant="outline" onClick={startEdit}>
+            <Pencil size={14} className="mr-1" />Επεξεργασία
+          </Button>
           {!business.claimedAt && (
             <Button onClick={handleClaim} loading={claiming} className="bg-purple-600 hover:bg-purple-700 text-white">
               <Link2 size={15} className="mr-2" />Ανάκτηση από Λογιστή
@@ -116,6 +158,47 @@ export default function GemiBusinessDetailPage() {
       </div>
 
       {claimMsg && <div className={`px-4 py-3 rounded-lg text-sm ${claimMsg.startsWith('✓') ? 'bg-green-50 text-green-800 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>{claimMsg}</div>}
+
+      {editing && (
+        <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-5 space-y-4">
+          <h2 className="text-sm font-semibold text-gray-700 flex items-center gap-2"><Pencil size={14} />Επεξεργασία Στοιχείων</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="text-xs text-gray-500 mb-1 block">Επωνυμία</label>
+              <Input value={editForm.onomasia} onChange={e => setEditForm(f => ({ ...f, onomasia: e.target.value }))} />
+            </div>
+            <div>
+              <label className="text-xs text-gray-500 mb-1 block">Email</label>
+              <Input type="email" value={editForm.email} onChange={e => setEditForm(f => ({ ...f, email: e.target.value }))} />
+            </div>
+            <div>
+              <label className="text-xs text-gray-500 mb-1 block">Τηλέφωνο</label>
+              <Input value={editForm.phone} onChange={e => setEditForm(f => ({ ...f, phone: e.target.value }))} />
+            </div>
+            <div>
+              <label className="text-xs text-gray-500 mb-1 block">Οδός</label>
+              <Input value={editForm.postalAddress} onChange={e => setEditForm(f => ({ ...f, postalAddress: e.target.value }))} />
+            </div>
+            <div>
+              <label className="text-xs text-gray-500 mb-1 block">Αριθμός</label>
+              <Input value={editForm.postalAddressNo} onChange={e => setEditForm(f => ({ ...f, postalAddressNo: e.target.value }))} />
+            </div>
+            <div>
+              <label className="text-xs text-gray-500 mb-1 block">ΤΚ</label>
+              <Input value={editForm.postalZipCode} onChange={e => setEditForm(f => ({ ...f, postalZipCode: e.target.value }))} />
+            </div>
+            <div className="md:col-span-2">
+              <label className="text-xs text-gray-500 mb-1 block">Πόλη/Περιοχή</label>
+              <Input value={editForm.postalAreaDescription} onChange={e => setEditForm(f => ({ ...f, postalAreaDescription: e.target.value }))} />
+            </div>
+          </div>
+          {editMsg && <p className="text-sm text-red-600">{editMsg}</p>}
+          <div className="flex gap-2">
+            <Button onClick={handleSaveEdit} loading={saving}>Αποθήκευση</Button>
+            <Button variant="outline" onClick={() => setEditing(false)}>Ακύρωση</Button>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
         {/* Basic info */}

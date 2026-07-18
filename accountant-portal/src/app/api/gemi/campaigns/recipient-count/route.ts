@@ -12,12 +12,19 @@ export async function GET(req: NextRequest) {
   const channel = searchParams.get('channel') ?? 'EMAIL'
   const programId = searchParams.get('programId') || null
   const importBatch = searchParams.get('importBatch') || null
+  const region = searchParams.get('region') || null
+  const category = searchParams.get('category') || null
+  const hasReceivedCampaign = searchParams.get('hasReceivedCampaign') || null
 
   let emailCount = 0
   let viberCount = 0
 
   const baseWhere: Record<string, unknown> = { unsubscribedAt: null }
   if (importBatch) baseWhere.importBatch = importBatch
+  if (region) baseWhere.postalAreaDescription = region
+  if (category) baseWhere.category = category
+  if (hasReceivedCampaign === 'true') baseWhere.campaignRecipients = { some: { status: 'sent' } }
+  if (hasReceivedCampaign === 'false') baseWhere.campaignRecipients = { none: { status: 'sent' } }
 
   if (programId) {
     // Count only GemiLookups that have a match for this program

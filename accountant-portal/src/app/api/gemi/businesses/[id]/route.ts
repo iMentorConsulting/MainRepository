@@ -41,3 +41,29 @@ export async function GET(
 
   return NextResponse.json({ ...business, claimedAccountant })
 }
+
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const session = await auth()
+  if (!session || session.user.role !== 'ADMIN') {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
+  const { id } = await params
+  const body = await req.json()
+
+  const ALLOWED = ['onomasia', 'email', 'phone', 'postalAddress', 'postalAddressNo', 'postalZipCode', 'postalAreaDescription', 'category', 'tags'] as const
+  const data: Record<string, unknown> = {}
+  for (const key of ALLOWED) {
+    if (key in body) data[key] = body[key]
+  }
+
+  if (Object.keys(data).length === 0) {
+    return NextResponse.json({ error: 'No editable fields provided' }, { status: 400 })
+  }
+
+  const updated = await prisma.gemiLookup.update({ where: { id }, data })
+  return NextResponse.json(updated)
+}

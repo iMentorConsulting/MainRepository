@@ -79,6 +79,13 @@ function NewGemiCampaignPageInner() {
   const [htmlContent, setHtmlContent] = useState('')
   const [viberMessage, setViberMessage] = useState('')
 
+  // Filters
+  const [region, setRegion] = useState('')
+  const [category, setCategory] = useState('')
+  const [importBatch, setImportBatch] = useState('')
+  const [hasReceivedCampaign, setHasReceivedCampaign] = useState<'' | 'true' | 'false'>('')
+  const [filterOptions, setFilterOptions] = useState<{ regions: string[]; categories: string[]; importBatches: string[] }>({ regions: [], categories: [], importBatches: [] })
+
   // Recipients
   const [recipientCount, setRecipientCount] = useState<{ emailCount: number; viberCount: number; total: number } | null>(null)
   const [countLoading, setCountLoading] = useState(false)
@@ -97,16 +104,24 @@ function NewGemiCampaignPageInner() {
       .then(r => r.json())
       .then(d => setPrograms(Array.isArray(d) ? d : (d.programs || [])))
       .catch(() => {})
+    fetch('/api/gemi/campaigns/filter-options')
+      .then(r => r.json())
+      .then(d => setFilterOptions(d))
+      .catch(() => {})
   }, [])
 
   const fetchCount = useCallback(async () => {
     setCountLoading(true)
     const params = new URLSearchParams({ channel })
     if (programId) params.set('programId', programId)
+    if (region) params.set('region', region)
+    if (category) params.set('category', category)
+    if (importBatch) params.set('importBatch', importBatch)
+    if (hasReceivedCampaign) params.set('hasReceivedCampaign', hasReceivedCampaign)
     const res = await fetch(`/api/gemi/campaigns/recipient-count?${params}`)
     if (res.ok) setRecipientCount(await res.json())
     setCountLoading(false)
-  }, [channel, programId])
+  }, [channel, programId, region, category, importBatch, hasReceivedCampaign])
 
   useEffect(() => { fetchCount() }, [fetchCount])
 
@@ -138,6 +153,10 @@ function NewGemiCampaignPageInner() {
         htmlContent: htmlContent.trim() || undefined,
         messageTemplate: viberMessage.trim() || undefined,
         status: 'DRAFT',
+        region: region || undefined,
+        category: category || undefined,
+        importBatch: importBatch || undefined,
+        hasReceivedCampaign: hasReceivedCampaign || undefined,
       }),
     })
     if (!res.ok) {
@@ -261,6 +280,53 @@ function NewGemiCampaignPageInner() {
             <option key={p.id} value={p.id}>{p.title}</option>
           ))}
         </Select>
+
+        {/* Additional filters */}
+        <div className="space-y-3">
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Φίλτρα</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <Select
+              label="Περιφέρεια"
+              value={region}
+              onChange={e => setRegion(e.target.value)}
+            >
+              <option value="">— Όλες —</option>
+              {filterOptions.regions.map(r => (
+                <option key={r} value={r}>{r}</option>
+              ))}
+            </Select>
+            <Select
+              label="Κλάδος"
+              value={category}
+              onChange={e => setCategory(e.target.value)}
+            >
+              <option value="">— Όλοι —</option>
+              {filterOptions.categories.map(c => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </Select>
+            <Select
+              label="Παρτίδα ΓΕΜΗ"
+              value={importBatch}
+              onChange={e => setImportBatch(e.target.value)}
+            >
+              <option value="">— Όλες —</option>
+              {filterOptions.importBatches.map(b => (
+                <option key={b} value={b}>{b}</option>
+              ))}
+            </Select>
+            <Select
+              label="Έχουν λάβει καμπάνια"
+              value={hasReceivedCampaign}
+              onChange={e => setHasReceivedCampaign(e.target.value as '' | 'true' | 'false')}
+              options={[
+                { value: '', label: '— Όλοι —' },
+                { value: 'true', label: 'Ναι' },
+                { value: 'false', label: 'Όχι' },
+              ]}
+            />
+          </div>
+        </div>
 
         <div className={`flex items-center gap-3 rounded-xl px-4 py-3 border ${recipientCount && recipientCount.total > 0 ? 'bg-blue-50 border-blue-200' : 'bg-gray-50 border-gray-200'}`}>
           <Users size={16} className="text-blue-600 shrink-0" />

@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
   }
 
   const data = await request.json()
-  const { title, channel, subject, htmlContent, messageTemplate, programId, targetGemiIds } = data
+  const { title, channel, subject, htmlContent, messageTemplate, programId, targetGemiIds, region, category, importBatch, hasReceivedCampaign } = data
 
   if (!title || !channel) {
     return NextResponse.json({ error: 'title and channel are required' }, { status: 400 })
@@ -78,6 +78,11 @@ export async function POST(request: NextRequest) {
 
     const baseWhere: Record<string, unknown> = { unsubscribedAt: null }
     if (programMatchedIds) baseWhere.id = { in: programMatchedIds }
+    if (importBatch) baseWhere.importBatch = importBatch
+    if (region) baseWhere.postalAreaDescription = region
+    if (category) baseWhere.category = category
+    if (hasReceivedCampaign === 'true') baseWhere.campaignRecipients = { some: { status: 'sent' } }
+    if (hasReceivedCampaign === 'false') baseWhere.campaignRecipients = { none: { status: 'sent' } }
 
     if (channel === 'EMAIL' || channel === 'EMAIL_AND_VIBER') {
       const gemis = await prisma.gemiLookup.findMany({
