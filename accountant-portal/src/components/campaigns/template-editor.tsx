@@ -65,7 +65,7 @@ export function TemplateEditor({ value, onChange, label, error }: TemplateEditor
         ref={textareaRef}
         value={value}
         onChange={e => onChange(e.target.value)}
-        rows={10}
+        rows={24}
         className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-vertical font-mono"
         placeholder="Γράψτε το μήνυμά σας εδώ... Χρησιμοποιήστε τα κουμπιά παραπάνω για placeholders."
       />
