@@ -16,7 +16,7 @@ async function buildRecipientVariables(gemiId: string, programId: string): Promi
   const [gemi, program, match] = await Promise.all([
     prisma.gemiLookup.findUnique({
       where: { id: gemiId },
-      select: { onomasia: true, afm: true, activities: true, unsubscribeToken: true, claimedAccountantId: true },
+      select: { onomasia: true, afm: true, activities: true, unsubscribeToken: true, claimedAccountantId: true, postalAreaDescription: true, regdate: true },
     }),
     programId ? prisma.program.findUnique({
       where: { id: programId },
@@ -73,6 +73,11 @@ async function buildRecipientVariables(gemiId: string, programId: string): Promi
     program_deadline: programDeadline,
     program_amount: programAmount,
     extra_criteria: extraCriteriaText,
+    region: gemi.postalAreaDescription ?? '',
+    founding_date: gemi.regdate
+      ? new Date(gemi.regdate).toLocaleDateString('el-GR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+      : '',
+    kad_code: primaryKad?.firmActCode ?? '',
     kad_description: primaryKad?.firmActDescr ?? '',
     match_reason: (match?.matchReason ?? []).map((r: string) => `• ${r}`).join(' | '),
     ermis_link: ermisLink,
