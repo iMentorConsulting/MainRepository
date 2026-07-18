@@ -154,15 +154,17 @@ export default function GemiCampaignsPage() {
                     <Td className="text-sm">{c.clickCount ?? '—'}</Td>
                     <Td>
                       <div className="flex items-center gap-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          loading={syncing === c.id}
-                          onClick={() => syncStats(c.id)}
-                        >
-                          <RefreshCw size={12} className="mr-1" />
-                          Sync Stats
-                        </Button>
+                        {c.moosendCampaignId && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            loading={syncing === c.id}
+                            onClick={() => syncStats(c.id)}
+                          >
+                            <RefreshCw size={12} className="mr-1" />
+                            Sync Stats
+                          </Button>
+                        )}
                         <Link href={`/gemi/campaigns/${c.id}`}>
                           <Button size="sm" variant="ghost">Λεπτομέρειες</Button>
                         </Link>

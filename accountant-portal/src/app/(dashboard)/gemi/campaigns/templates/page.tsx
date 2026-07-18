@@ -256,6 +256,7 @@ export default function GemiTemplatesPage() {
             ['{{program_description}}', 'Περιγραφή Προγράμματος'],
             ['{{program_url}}', 'Σελίδα Προγράμματος'],
             ['{{program_deadline}}', 'Προθεσμία Προγράμματος'],
+            ['{{program_amount}}', 'Ποσό Επένδυσης'],
             ['{{extra_criteria}}', 'Πρόσθετες Προϋποθέσεις'],
             ['{{kad_description}}', 'ΚΑΔ'],
             ['{{match_reason}}', 'Λόγοι Επιλεξιμότητας'],

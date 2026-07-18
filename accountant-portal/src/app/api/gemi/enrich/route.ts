@@ -4,6 +4,15 @@ import { prisma } from '@/lib/prisma'
 import { lookupAfm } from '@/lib/gsis'
 import { getEffectiveCategory } from '@/lib/business-categories'
 
+// For sole proprietors (ΑΤΟΜΙΚΗ ΕΠΙΧΕΙΡΗΣΗ) the AADE onomasia is
+// "SURNAME  FIRSTNAME  PATRONYMIC" with extra spaces. Clean to "SURNAME FIRSTNAME".
+function cleanOnomasiaIfSoleProprietor(onomasia: string, legalStatusDescr: string | null | undefined): string {
+  if (!legalStatusDescr?.toUpperCase().includes('ΑΤΟΜΙΚ')) return onomasia
+  const words = onomasia.split(/\s+/).filter(Boolean)
+  if (words.length >= 3) return words.slice(0, 2).join(' ')
+  return words.join(' ')
+}
+
 export async function POST(request: NextRequest) {
   // Auth: ADMIN session OR Bearer CRON_SECRET
   const cronSecret = process.env.CRON_SECRET
@@ -59,7 +68,7 @@ export async function POST(request: NextRequest) {
         await prisma.gemiLookup.update({
           where: { id: record.id },
           data: {
-            onomasia: data.onomasia,
+            onomasia: cleanOnomasiaIfSoleProprietor(data.onomasia, data.legalStatusDescr),
             legalStatusDescr: data.legalStatusDescr,
             postalAddress: data.postalAddress,
             postalAddressNo: data.postalAddressNo,

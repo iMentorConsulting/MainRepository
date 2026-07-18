@@ -20,7 +20,7 @@ async function buildRecipientVariables(gemiId: string, programId: string): Promi
     }),
     programId ? prisma.program.findUnique({
       where: { id: programId },
-      select: { title: true, description: true, websiteUrl: true, endDate: true, extraCriteriaIds: true },
+      select: { title: true, description: true, websiteUrl: true, endDate: true, extraCriteriaIds: true, minInvestment: true, maxInvestment: true },
     }) : null,
     programId ? prisma.gemiProgramMatch.findUnique({
       where: { gemiId_programId: { gemiId, programId } },
@@ -54,6 +54,14 @@ async function buildRecipientVariables(gemiId: string, programId: string): Promi
   const unsubscribeLink = gemi.unsubscribeToken ? `${APP_URL}/api/gemi/unsubscribe/${gemi.unsubscribeToken}` : ''
   const exodikastikosLink = ermisLink ? `${ermisLink}?type=themis` : '#'
 
+  const formatAmount = (val: number | null | undefined) =>
+    val != null ? new Intl.NumberFormat('el-GR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(val) : ''
+  const min = program?.minInvestment ?? null
+  const max = program?.maxInvestment ?? null
+  const programAmount = min && max && min !== max
+    ? `${formatAmount(min)} – ${formatAmount(max)}`
+    : formatAmount(max ?? min)
+
   return {
     business_name: onomasia,
     afm,
@@ -63,6 +71,7 @@ async function buildRecipientVariables(gemiId: string, programId: string): Promi
     program_description: program?.description ?? '',
     program_url: program?.websiteUrl ?? '',
     program_deadline: programDeadline,
+    program_amount: programAmount,
     extra_criteria: extraCriteriaText,
     kad_description: primaryKad?.firmActDescr ?? '',
     match_reason: (match?.matchReason ?? []).map((r: string) => `• ${r}`).join(' | '),
