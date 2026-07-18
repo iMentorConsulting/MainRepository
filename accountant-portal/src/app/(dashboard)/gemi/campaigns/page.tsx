@@ -94,9 +94,23 @@ export default function GemiCampaignsPage() {
           <h1 className="text-2xl font-bold text-gray-900">ΓΕΜΗ — Καμπάνιες</h1>
           <p className="text-gray-500 mt-1">{campaigns.length} καμπάνιες</p>
         </div>
-        <Link href="/gemi/campaigns/new">
-          <Button><Plus size={16} className="mr-2" />Νέα Καμπάνια</Button>
-        </Link>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={async () => {
+              const res = await fetch('/api/gemi/test-merge-tag', { method: 'POST' })
+              const d = await res.json()
+              showToast(d.ok ? `✓ Test email sent — ελέγξτε το Haris.Apostolakis@gmail.com` : `✗ ${d.error}`, d.ok)
+              if (d.log) console.log('[MergeTagTest]', d.log)
+            }}
+          >
+            🧪 Test Moosend Merge Tags
+          </Button>
+          <Link href="/gemi/campaigns/new">
+            <Button><Plus size={16} className="mr-2" />Νέα Καμπάνια</Button>
+          </Link>
+        </div>
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
