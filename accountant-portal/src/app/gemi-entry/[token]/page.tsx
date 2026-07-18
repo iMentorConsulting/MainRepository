@@ -45,15 +45,22 @@ export default function GemiEntryPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phone, type }),
       })
-      const data = await res.json()
+      let data: any = {}
+      try { data = await res.json() } catch { /* non-JSON response */ }
       if (!res.ok) {
-        setPhoneError(data.error ?? 'Σφάλμα. Παρακαλώ δοκιμάστε ξανά.')
+        setPhoneError(data.error ?? `Σφάλμα ${res.status}. Παρακαλώ δοκιμάστε ξανά.`)
+        setLoading(false)
+        return
+      }
+      if (!data.redirect) {
+        setPhoneError('Δεν ελήφθη σύνδεσμος. Παρακαλώ δοκιμάστε ξανά.')
         setLoading(false)
         return
       }
       window.location.href = data.redirect
-    } catch {
+    } catch (err) {
       setPhoneError('Σφάλμα σύνδεσης. Παρακαλώ δοκιμάστε ξανά.')
+      console.error('save-phone error:', err)
       setLoading(false)
     }
   }
@@ -67,10 +74,12 @@ export default function GemiEntryPage() {
     <div style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #1a3a6b 0%, #2563eb 60%, #1e40af 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
       <div style={{ background: '#fff', borderRadius: '16px', boxShadow: '0 8px 32px rgba(0,0,0,0.18)', maxWidth: '480px', width: '100%', overflow: 'hidden' }}>
         {/* Header */}
-        <div style={{ background: 'linear-gradient(135deg, #1a3a6b 0%, #2563eb 100%)', padding: '32px 24px 24px', textAlign: 'center' }}>
-          <div style={{ color: '#fff', fontSize: '22px', fontWeight: 700, letterSpacing: '-0.5px', marginBottom: '4px' }}>
-            i-MENTOR
-          </div>
+        <div style={{ background: 'linear-gradient(135deg, #1a3a6b 0%, #2563eb 100%)', padding: '28px 24px 20px', textAlign: 'center' }}>
+          <img
+            src="https://i-mentor.gr/wp-content/uploads/2026/06/logo-white-transparent.png"
+            alt="i-Mentor Consulting"
+            style={{ height: '48px', maxWidth: '180px', objectFit: 'contain', display: 'block', margin: '0 auto 8px' }}
+          />
           <div style={{ color: 'rgba(255,255,255,0.8)', fontSize: '13px' }}>
             Σύμβουλοι Επιχειρήσεων
           </div>
