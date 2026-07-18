@@ -4,8 +4,10 @@ set -e
 # If CRON_MODE=1, just call the email processing endpoint and exit
 if [ "$CRON_MODE" = "1" ]; then
   echo ">>> CRON MODE: calling process-gemi-emails..."
-  exec curl -sf -X POST https://logistis.i-mentor.gr/api/cron/process-gemi-emails \
+  echo ">>> CRON_SECRET set: $([ -n "$CRON_SECRET" ] && echo YES || echo NO)"
+  curl -sv -X POST https://logistis.i-mentor.gr/api/cron/process-gemi-emails \
     -H "Authorization: Bearer $CRON_SECRET"
+  echo ">>> curl exit: $?"
 fi
 
 echo ">>> Running pre-migration script (enum/data fixes)..."
