@@ -18,10 +18,15 @@ async function mp(path: string, body?: unknown) {
   return data
 }
 
-export async function POST() {
-  const session = await auth()
-  if (!session || session.user.role !== 'ADMIN') {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+export async function POST(req: Request) {
+  const cronSecret = process.env.CRON_SECRET
+  const authHeader = req.headers.get('authorization')
+  const isCron = cronSecret && authHeader === `Bearer ${cronSecret}`
+  if (!isCron) {
+    const session = await auth()
+    if (!session || session.user.role !== 'ADMIN') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
   }
 
   const TEST_EMAIL = 'Haris.Apostolakis@gmail.com'
