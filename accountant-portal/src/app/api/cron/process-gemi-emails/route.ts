@@ -4,9 +4,9 @@ import { GEMI_DISCLAIMER, sendMoosendEmail } from '@/lib/moosend'
 import { buildRecipientVariables, substituteVars } from '@/app/api/gemi/campaigns/[id]/send/route'
 
 export const dynamic = 'force-dynamic'
-export const maxDuration = 55 // seconds — just under Railway's 60s cron timeout
+export const maxDuration = 270 // seconds — Railway allows up to 5min for cron services
 
-const BATCH_PER_RUN = 300 // emails per cron invocation
+const BATCH_PER_RUN = 2000 // emails per cron invocation (runs every 5 min)
 
 export async function POST(req: NextRequest) {
   const cronSecret = process.env.CRON_SECRET
