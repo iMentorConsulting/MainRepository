@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { runErmisTurn, type ChatMessage } from '@/lib/ermis-agent'
+import { runErmisTurn, classifyConversation, type ChatMessage } from '@/lib/ermis-agent'
 import { buildEligibilityQuestions, parseEligibilityStorage } from '@/lib/eligibility-questions'
 import { sendEmail } from '@/lib/email'
 import { notifyCaseManagement } from '@/lib/case-management-sync'
+import { sendErmisWebhook } from '@/app/api/external/ermis-sessions/route'
 import { buildBusinessProfilePayload, BUSINESS_PROFILE_SELECT } from '@/lib/business-profile'
 
 export const dynamic = 'force-dynamic'
@@ -15,6 +16,7 @@ async function createGemiCase(params: {
   businessName: string
   afm: string
   summary: string
+  transcript?: ChatMessage[]
   pendingItem?: string | null
 }) {
   const adminUser = await prisma.user.findFirst({ where: { role: 'ADMIN' }, select: { id: true } })
@@ -32,10 +34,12 @@ async function createGemiCase(params: {
     select: {
       claimedBusinessId: true, afm: true, onomasia: true, email: true, mobilePhone: true,
       postalAddress: true, postalAddressNo: true, postalZipCode: true, postalAreaDescription: true,
-      regdate: true,
+      regdate: true, activities: true, legalStatusDescr: true,
     },
   })
   if (!gemi) throw new Error('ΓΕΜΗ εγγραφή δεν βρέθηκε')
+
+  const gemiActivities = (Array.isArray(gemi.activities) ? gemi.activities : []) as any[]
 
   let businessId = gemi.claimedBusinessId ?? null
 
@@ -59,8 +63,21 @@ async function createGemiCase(params: {
           postalZipCode: gemi.postalZipCode ?? undefined,
           postalAreaDescription: gemi.postalAreaDescription ?? undefined,
           regdate: gemi.regdate ?? undefined,
+          legalStatusDescr: (gemi as any).legalStatusDescr ?? undefined,
           source: 'gemi',
           tags: ['ΓΕΜΗ'],
+          // Copy ΚΑΔ activities from the GEMI record so the case-management
+          // profile (ΚΑΔ, κλάδος, περιφέρεια) is complete like normal businesses
+          activities: gemiActivities.length ? {
+            create: gemiActivities
+              .filter((a: any) => a?.firmActCode)
+              .map((a: any) => ({
+                firmActCode: String(a.firmActCode),
+                firmActDescr: a.firmActDescr ?? null,
+                firmActKind: a.firmActKind != null ? parseInt(String(a.firmActKind)) : null,
+                firmActKindDescr: a.firmActKindDescr ?? null,
+              })),
+          } : undefined,
         },
         select: { id: true },
       })
@@ -132,6 +149,29 @@ async function createGemiCase(params: {
       programTitle: params.programTitle,
       ...profile,
     }).catch(err => console.error('[GemiCase] case mgmt notify failed:', err?.message))
+
+    // Send the ermis.completed webhook with the full transcript + business
+    // profile + eligibility — exactly like the normal-business Ερμής flow
+    // (there sendErmisWebhook posts to the CM-provided callbackUrl; for GEMI
+    // leads Logistis initiates, so we use the standing CM webhook URL).
+    const cmWebhookUrl = process.env.CASE_MGMT_WEBHOOK_URL
+    if (cmWebhookUrl && params.transcript?.length) {
+      const eligibility = await classifyConversation(params.transcript, params.programTitle)
+        .then(c => (c?.eligibility === 'ELIGIBLE' ? 'eligible' : 'ineligible'))
+        .catch(() => null)
+      const now = new Date().toISOString()
+      sendErmisWebhook({
+        callbackUrl: cmWebhookUrl,
+        event: 'ermis.completed',
+        token: `gemi-${params.gemiId}`,
+        leadRef: null,
+        afm: params.afm,
+        businessProfile: profile,
+        eligibility,
+        transcript: params.transcript.map(m => ({ role: m.role, text: m.text, ts: now })),
+        completedAt: now,
+      }).catch(err => console.error('[GemiCase] ermis.completed webhook failed:', err?.message))
+    }
   }
 }
 
@@ -232,6 +272,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       businessName: gemi.onomasia || gemi.afm,
       afm: gemi.afm,
       summary: 'Ο πελάτης εκδήλωσε ενδιαφέρον μέσω του Ερμή.',
+      transcript: finalHistory,
     }).catch(e => console.error('[GemiErmisChat] createGemiCase failed:', e))
     caseAssigned = true
   }
