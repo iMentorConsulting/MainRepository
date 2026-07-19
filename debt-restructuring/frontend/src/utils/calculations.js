@@ -196,6 +196,53 @@ export function maxMonthsByType(type, amount) {
 }
 
 // ============================================================
+// Income computation (independent of debts — for preview display)
+// ============================================================
+export function computeIncomeFromData(incomeData) {
+  const isLE = incomeData.debtorType === 'Νομικό Πρόσωπο'
+
+  if (isLE) {
+    // Legal entity: use KE/profits data
+    const ke_t1 = incomeData.ke_t1 || 0
+    const ke_t2 = incomeData.ke_t2 || 0
+    const ke_t3 = incomeData.ke_t3 || 0
+    const use3Year = ke_t1 > 0 || ke_t2 > 0 || ke_t3 > 0
+
+    if (use3Year) {
+      const kerdh_t1 = incomeData.kerdh_t1 ?? 0
+      const kerdh_t2 = incomeData.kerdh_t2 ?? 0
+      const kerdh_t3 = incomeData.kerdh_t3 ?? 0
+      const leEnfia = incomeData.leEnfia || 0
+      const diathArr = [
+        Math.max(0, kerdh_t1 - leEnfia),
+        Math.max(0, kerdh_t2 - leEnfia),
+        Math.max(0, kerdh_t3 - leEnfia),
+      ].sort((a, b) => b - a)
+      return (diathArr[0] + diathArr[1]) / 2
+    } else {
+      const netProfits = incomeData.netProfits != null ? incomeData.netProfits : (incomeData.ebitda || 0)
+      const leEnfia = incomeData.leEnfia || 0
+      return Math.max(0, netProfits - leEnfia)
+    }
+  } else {
+    // FP: use 3-year income data
+    const fpSubType = incomeData.fpSubType || 'Μισθωτός'
+    const t1 = incomeData.fp_income_t1 || 0
+    const t2 = incomeData.fp_income_t2 || 0
+    const t3 = incomeData.fp_income_t3 || 0
+
+    if (fpSubType === 'Μισθωτός') {
+      // Average of top-2 income years
+      const sortedIncomes = [t1, t2, t3].sort((a, b) => b - a)
+      return (sortedIncomes[0] + sortedIncomes[1]) / 2
+    } else {
+      // Επιτηδευματίας: use year T income
+      return t1
+    }
+  }
+}
+
+// ============================================================
 // Main calculation
 // ============================================================
 export function calculateAll(debts, assets, incomeData, params = PARAMS_B) {

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Header
+from fastapi import APIRouter, Depends, HTTPException, Header, Query
 from sqlalchemy.orm import Session
 from typing import Optional, Any
 from pydantic import BaseModel
@@ -6,9 +6,10 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 import os
 import requests as http_requests
+import uuid
 
 from database import get_db
-from models import Case
+from models import Case, Lead
 
 _ATHENS = ZoneInfo("Europe/Athens")
 
@@ -152,3 +153,105 @@ def push_portal_update(callbackRef: str, status: str, externalStatus: str = None
         return True, "ok"
     except Exception as e:
         return False, str(e)
+
+
+class CreateLeadRequest(BaseModel):
+    name: str
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    total_debt: Optional[str] = None
+    service_type: Optional[str] = None
+    referrer: Optional[str] = None
+    sheet_comments: Optional[str] = None
+    application_number: Optional[str] = None
+    send_themis: Optional[bool] = False
+
+
+# Get next consultant in round-robin order
+def _get_next_consultant(db: Session) -> str:
+    """Auto-allocate to next consultant in rotation: STELLA → VALLIA → SOFIA"""
+    from sqlalchemy import func
+    consultants = ["STELLA", "VALLIA", "SOFIA"]
+
+    # Count leads assigned to each consultant
+    counts = {}
+    for consultant in consultants:
+        count = db.query(Lead).filter(Lead.assigned_to == consultant).count()
+        counts[consultant] = count
+
+    # Return consultant with fewest leads
+    return min(consultants, key=lambda c: counts[c])
+
+
+@router.post("/create-lead", status_code=201)
+def create_lead_external(
+    data: CreateLeadRequest,
+    db: Session = Depends(get_db),
+    x_api_key: Optional[str] = Header(default=None)
+):
+    """
+    Public endpoint for ΛΟΓΙΣΤΗΣ Portal to create leads and get Θέμις chat link.
+
+    Authentication: X-API-Key header (optional, but recommended)
+
+    Returns: {
+        "id": lead_id,
+        "name": "...",
+        "assigned_to": "STELLA|VALLIA|SOFIA",
+        "themis_token": "...",
+        "themis_url": "https://portal.i-mentor.gr/themis/{token}",
+        "status": "CALL"
+    }
+    """
+    from sheets_sync import _normalize_status
+
+    # Optional API key validation (can be toggled via env var)
+    if os.getenv("EXTERNAL_API_KEY_REQUIRED", "false").lower() == "true":
+        expected = os.getenv("EXODIKASTIKOS_API_KEY", "")
+        if not expected or x_api_key != expected:
+            raise HTTPException(status_code=401, detail="Μη έγκυρο API key")
+
+    # Auto-allocate to next consultant in round-robin
+    assigned_to = _get_next_consultant(db)
+
+    # Generate Θέμις token
+    themis_token = str(uuid.uuid4())
+
+    # Create lead
+    lead = Lead(
+        sheet_row_num=None,
+        name=data.name or "",
+        phone=(data.phone or "").strip(),
+        email=(data.email or "").strip(),
+        status=_normalize_status("CALL"),
+        status_raw="CALL",
+        assigned_to=assigned_to,
+        date=_now().isoformat(),
+        total_debt=data.total_debt or "",
+        sheet_comments=data.sheet_comments or "",
+        service_type=data.service_type or "",
+        referrer=data.referrer or "LOGISTIS",
+        application_number=data.application_number or "",
+        themis_token=themis_token,
+        created_at=_now(),
+        updated_at=_now(),
+    )
+    db.add(lead)
+    db.commit()
+    db.refresh(lead)
+
+    # Build Themis URL
+    frontend_url = os.getenv("FRONTEND_URL", "https://portal.i-mentor.gr").rstrip("/")
+    themis_url = f"{frontend_url}/themis/{themis_token}"
+
+    return {
+        "id": lead.id,
+        "name": lead.name,
+        "phone": lead.phone,
+        "email": lead.email,
+        "assigned_to": assigned_to,
+        "status": "CALL",
+        "themis_token": themis_token,
+        "themis_url": themis_url,
+        "created_at": lead.created_at.isoformat() if lead.created_at else None,
+    }
