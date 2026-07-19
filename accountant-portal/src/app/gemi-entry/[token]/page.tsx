@@ -14,6 +14,7 @@ export default function GemiEntryPage() {
   const [phoneError, setPhoneError] = useState('')
   const [loading, setLoading] = useState(false)
   const [fetchError, setFetchError] = useState('')
+  const [successMessage, setSuccessMessage] = useState('')
 
   useEffect(() => {
     fetch(`/api/public/gemi-match/${token}`)
@@ -52,12 +53,17 @@ export default function GemiEntryPage() {
         setLoading(false)
         return
       }
-      if (!data.redirect) {
-        setPhoneError('Δεν ελήφθη σύνδεσμος. Παρακαλώ δοκιμάστε ξανά.')
+      if (data.redirect) {
+        window.location.href = data.redirect
+        return
+      }
+      if (data.message) {
+        setSuccessMessage(data.message)
         setLoading(false)
         return
       }
-      window.location.href = data.redirect
+      setPhoneError('Δεν ελήφθη σύνδεσμος. Παρακαλώ δοκιμάστε ξανά.')
+      setLoading(false)
     } catch (err) {
       setPhoneError('Σφάλμα σύνδεσης. Παρακαλώ δοκιμάστε ξανά.')
       console.error('save-phone error:', err)
@@ -68,7 +74,7 @@ export default function GemiEntryPage() {
   const isErmis = type === 'ermis'
   const chatLabel = isErmis
     ? 'Συνδεθείτε με τον Ερμή — Δωρεάν έλεγχος επιλεξιμότητας'
-    : 'Συνδεθείτε με τη Θέμις — Εξωδικαστικός Μηχανισμός'
+    : 'Συνδεθείτε με τη Θέμις — Εξωδικαστικός Μηχανισμός Ρύθμισης Οφειλών'
 
   return (
     <div style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #1a3a6b 0%, #2563eb 60%, #1e40af 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
@@ -89,6 +95,11 @@ export default function GemiEntryPage() {
         <div style={{ padding: '32px 28px' }}>
           {fetchError ? (
             <div style={{ textAlign: 'center', color: '#dc2626', fontSize: '15px' }}>{fetchError}</div>
+          ) : successMessage ? (
+            <div style={{ textAlign: 'center', padding: '12px 0' }}>
+              <div style={{ fontSize: '40px', marginBottom: '12px' }}>✅</div>
+              <div style={{ fontSize: '16px', fontWeight: 600, color: '#166534', lineHeight: 1.5 }}>{successMessage}</div>
+            </div>
           ) : (
             <>
               {businessName && (

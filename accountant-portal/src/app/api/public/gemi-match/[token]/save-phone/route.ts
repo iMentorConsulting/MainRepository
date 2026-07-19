@@ -82,7 +82,7 @@ export async function POST(
           email: gemi.email ?? '',
           referrer: 'LOGISTIS Portal',
           application_number: `GEMI-${gemi.afm}`,
-          send_themis: false,
+          send_themis: true,
         }),
       })
     } catch (fetchErr) {
@@ -98,14 +98,22 @@ export async function POST(
 
     const themisData = await themisRes.json().catch(() => null)
     console.log('[ΘΕΜΙΣ] API response:', JSON.stringify(themisData))
-    // Try common field names for the redirect URL
-    const themisUrl: string = themisData?.themis_url ?? themisData?.url ?? themisData?.redirect_url ?? themisData?.redirect ?? ''
-    if (!themisUrl) {
-      console.error('[ΘΕΜΙΣ] No URL in response. Keys:', themisData ? Object.keys(themisData) : 'null')
-      return NextResponse.json({ error: 'Δεν ελήφθη σύνδεσμος από τη Θέμις' }, { status: 502 })
+    // Try common field names for the redirect URL (top-level or nested)
+    const themisUrl: string =
+      themisData?.themis_url ?? themisData?.themisUrl ?? themisData?.url ??
+      themisData?.redirect_url ?? themisData?.redirect ?? themisData?.link ??
+      themisData?.data?.themis_url ?? themisData?.data?.url ?? themisData?.lead?.themis_url ?? ''
+
+    if (themisUrl) {
+      return NextResponse.json({ redirect: themisUrl })
     }
 
-    return NextResponse.json({ redirect: themisUrl })
+    // Lead was registered but no direct link came back — Θέμις will reach
+    // out to the client via the phone they provided.
+    console.log('[ΘΕΜΙΣ] Lead registered without direct URL. Keys:', themisData ? Object.keys(themisData) : 'null')
+    return NextResponse.json({
+      message: 'Η αίτησή σας καταχωρήθηκε! Η Θέμις θα σας στείλει σύνδεσμο στο κινητό σας σύντομα.',
+    })
   }
 
   // 7. ΕΡΜΗΣ flow
