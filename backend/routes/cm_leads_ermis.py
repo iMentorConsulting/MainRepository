@@ -388,6 +388,9 @@ def ermis_webhook(
             raise HTTPException(status_code=404, detail="Δεν βρέθηκε lead και λείπει ΑΦΜ για δημιουργία")
         # Auto-create a HOT lead from the ΓΕΜΗ prospect. No Viber/Email/link is sent
         # (the ΕΡΜΗΣ conversation is already done) — only a consultant call is needed.
+        # ΓΕΜΗ leads are auto-assigned to ELEFTHERIA.
+        from models_cases import CMUser as _CMUser
+        _agent = db.query(_CMUser).filter(_CMUser.full_name.ilike("%Ελευθερία%")).first()
         lead = CMLead(
             name=payload.name or biz_data.get("onomasia") or f"ΓΕΜΗ {afm}",
             afm=afm,
@@ -397,6 +400,8 @@ def ermis_webhook(
             service_type=payload.serviceType or None,
             status="HOT",
             source="LOGISTIS ΓΕΜΗ",
+            assigned_agent_id=_agent.id if _agent else None,
+            assigned_name="ELEFTHERIA",
             ermis_token=payload.token or None,
             next_call_date=date.today(),
         )
