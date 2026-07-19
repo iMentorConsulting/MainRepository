@@ -5,7 +5,7 @@ const REPLY_TO_EMAIL = process.env.MOOSEND_REPLY_TO_EMAIL ?? 'info@i-mentor.gr'
 
 // Send ONE Moosend campaign for all recipients using custom-field merge tags.
 // This creates exactly 1 Moosend list + 1 Moosend campaign per GEMI campaign,
-// regardless of recipient count. Personalization is done via [subscription.var] tags.
+// regardless of recipient count. Personalization is done via #recipient:var# tags.
 export async function sendMoosendBulkPersonalized(opts: {
   recipients: Array<{ email: string; variables: Record<string, string> }>
   subject: string   // may contain {{var}} placeholders
@@ -52,7 +52,7 @@ export async function sendMoosendBulkPersonalized(opts: {
   const listId = await createMoosendList(opts.campaignName)
 
   // 2. Create a custom field per per-recipient variable — failures here are
-  // fatal, because a campaign whose [subscription.x] tags reference
+  // fatal, because a campaign whose #recipient:x# tags reference
   // non-existent fields will fail to send and stay in Draft.
   for (const varName of perRecipientVars) {
     try {
@@ -85,8 +85,9 @@ export async function sendMoosendBulkPersonalized(opts: {
   // Short grace period for Moosend to index the new subscribers before sending
   await new Promise(res => setTimeout(res, 5000))
 
-  // 5. Convert remaining per-recipient {{var}} → [subscription.var]
-  const toMoosendTag = (s: string) => s.replace(/\{\{(\w+)\}\}/g, '[subscription.$1]')
+  // 5. Convert remaining per-recipient {{var}} → #recipient:var# (Moosend
+  // personalization tag syntax for custom fields)
+  const toMoosendTag = (s: string) => s.replace(/\{\{(\w+)\}\}/g, '#recipient:$1#')
 
   // 6. ONE campaign, ONE send
   const moosendCampaignId = await createAndSendCampaign({
