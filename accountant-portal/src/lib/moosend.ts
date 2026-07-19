@@ -215,6 +215,7 @@ export async function createAndSendCampaign(
       MailingLists: [{ MailingListID: opts.listId, SegmentID: null }],
       ConfirmationToEmail: opts.replyToEmail,
       Type: 'Regular',
+      TrackInGoogleAnalytics: true,
     }),
   });
 

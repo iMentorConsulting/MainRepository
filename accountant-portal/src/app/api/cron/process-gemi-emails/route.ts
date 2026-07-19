@@ -95,7 +95,7 @@ export async function POST(req: NextRequest) {
           recipients: valid.map(r => ({ email: r.email, variables: r.variables })),
           subject: subjectBase,
           html: htmlFull,
-          campaignName: `gemi-${campaign.id.slice(-8)}-${Date.now()}`,
+          campaignName: campaign.title,
         })
         await prisma.gemiCampaignRecipient.updateMany({
           where: { id: { in: valid.map(r => r.id) } },
