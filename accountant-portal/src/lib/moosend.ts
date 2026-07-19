@@ -27,7 +27,8 @@ export async function sendMoosendBulkPersonalized(opts: {
   const listId = await createMoosendList(opts.campaignName)
 
   // 2. Create a custom field per variable (ignore duplicates / errors)
-  for (const varName of usedVars) {
+  const varList = Array.from(usedVars)
+  for (const varName of varList) {
     await moosendFetch(`/lists/${listId}/customfields/create.json`, {
       method: 'POST',
       body: JSON.stringify({ Name: varName, CustomFieldType: 'Text', IsRequired: false }),
@@ -35,7 +36,6 @@ export async function sendMoosendBulkPersonalized(opts: {
   }
 
   // 3. Add all subscribers with their personalized variable values
-  const varList = [...usedVars]
   const subscribers = opts.recipients.map(r => ({
     Email: r.email,
     CustomFields: varList.map(v => `${v}=${r.variables[v] ?? ''}`),
