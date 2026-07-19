@@ -12,6 +12,7 @@ interface GemiTemplate {
   label: string
   description: string | null
   subject: string
+  previewText: string | null
   htmlContent: string
   active: boolean
 }
@@ -21,12 +22,13 @@ function TemplateCard({ template, onSaved, onDeleted }: { template: GemiTemplate
   const [label, setLabel] = useState(template.label)
   const [description, setDescription] = useState(template.description ?? '')
   const [subject, setSubject] = useState(template.subject)
+  const [previewText, setPreviewText] = useState(template.previewText ?? '')
   const [htmlContent, setHtmlContent] = useState(template.htmlContent)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
 
-  const dirty = label !== template.label || description !== (template.description ?? '') || subject !== template.subject || htmlContent !== template.htmlContent
+  const dirty = label !== template.label || description !== (template.description ?? '') || subject !== template.subject || previewText !== (template.previewText ?? '') || htmlContent !== template.htmlContent
 
   async function save() {
     setSaving(true)
@@ -35,7 +37,7 @@ function TemplateCard({ template, onSaved, onDeleted }: { template: GemiTemplate
       const res = await fetch(`/api/gemi/templates/${template.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ label, description, subject, htmlContent }),
+        body: JSON.stringify({ label, description, subject, previewText: previewText || null, htmlContent }),
       })
       if (res.ok) {
         onSaved(await res.json())
@@ -116,6 +118,20 @@ function TemplateCard({ template, onSaved, onDeleted }: { template: GemiTemplate
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-amber-500"
             />
           </div>
+          <div>
+            <label className="text-sm font-medium text-gray-700 mb-1 block">
+              Preview Text <span className="font-normal text-gray-400">(εμφανίζεται στα εισερχόμενα μετά το θέμα)</span>
+            </label>
+            <input
+              type="text"
+              value={previewText}
+              onChange={e => setPreviewText(e.target.value)}
+              maxLength={200}
+              placeholder="π.χ. Μάθετε αν η επιχείρησή σας είναι επιλέξιμη για επιδότηση..."
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-amber-500"
+            />
+            <p className="text-xs text-gray-400 mt-1">Υποστηρίζει μεταβλητές {{business_name}} κ.λπ. · {previewText.length}/200</p>
+          </div>
           <TemplateEditor
             label="Περιεχόμενο Email (HTML)"
             value={htmlContent}
@@ -143,6 +159,7 @@ function NewTemplateForm({ onCreated }: { onCreated: (t: GemiTemplate) => void }
   const [label, setLabel] = useState('')
   const [description, setDescription] = useState('')
   const [subject, setSubject] = useState('')
+  const [previewText, setPreviewText] = useState('')
   const [saving, setSaving] = useState(false)
 
   async function create() {
@@ -151,12 +168,12 @@ function NewTemplateForm({ onCreated }: { onCreated: (t: GemiTemplate) => void }
     const res = await fetch('/api/gemi/templates', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ label, description, subject, htmlContent: '' }),
+      body: JSON.stringify({ label, description, subject, previewText: previewText || null, htmlContent: '' }),
     })
     if (res.ok) {
       onCreated(await res.json())
       setOpen(false)
-      setLabel(''); setDescription(''); setSubject('')
+      setLabel(''); setDescription(''); setSubject(''); setPreviewText('')
     }
     setSaving(false)
   }
@@ -188,6 +205,15 @@ function NewTemplateForm({ onCreated }: { onCreated: (t: GemiTemplate) => void }
         <div className="md:col-span-2">
           <label className="text-sm font-medium text-gray-700 mb-1 block">Περιγραφή</label>
           <input type="text" value={description} onChange={e => setDescription(e.target.value)}
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-amber-500" />
+        </div>
+        <div className="md:col-span-2">
+          <label className="text-sm font-medium text-gray-700 mb-1 block">
+            Preview Text <span className="font-normal text-gray-400">(εισερχόμενα — μετά το θέμα)</span>
+          </label>
+          <input type="text" value={previewText} onChange={e => setPreviewText(e.target.value)}
+            maxLength={200}
+            placeholder="π.χ. Μάθετε αν η επιχείρησή σας είναι επιλέξιμη για επιδότηση..."
             className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-amber-500" />
         </div>
       </div>
