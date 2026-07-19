@@ -151,10 +151,10 @@ async function createGemiCase(params: {
     }).catch(err => console.error('[GemiCase] case mgmt notify failed:', err?.message))
 
     // Send the ermis.completed webhook with the full transcript + business
-    // profile + eligibility — exactly like the normal-business Ερμής flow
-    // (there sendErmisWebhook posts to the CM-provided callbackUrl; for GEMI
-    // leads Logistis initiates, so we use the standing CM webhook URL).
-    const cmWebhookUrl = process.env.CASE_MGMT_WEBHOOK_URL
+    // profile + eligibility — exactly like the normal-business Ερμής flow.
+    // CM only accepts ermis.* events on its dedicated Ερμής webhook endpoint
+    // (the portal-integration webhook rejects them with "Μη υποστηριζόμενο event").
+    const cmWebhookUrl = process.env.ERMIS_CALLBACK_URL || 'https://consult.i-mentor.gr/api/cm/leads/ermis/webhook'
     if (cmWebhookUrl && params.transcript?.length) {
       const eligibility = await classifyConversation(params.transcript, params.programTitle)
         .then(c => (c?.eligibility === 'ELIGIBLE' ? 'eligible' : 'ineligible'))
