@@ -47,11 +47,17 @@ export async function sendMoosendBulkPersonalized(opts: {
     Email: r.email,
     CustomFields: varList.map(v => `${v}=${r.variables[v] ?? ''}`),
   }))
-  await addSubscribersToList(listId, subscribers)
+  const addedCount = await addSubscribersToList(listId, subscribers)
+  if (addedCount === 0) {
+    throw new Error(
+      `Moosend: 0/${opts.recipients.length} subscribers could be added to list ${listId} — ` +
+      `check Railway logs for the subscribe_many/subscribe.json responses. Aborting send.`
+    )
+  }
+  console.log(`[Moosend] list ${listId}: ${addedCount}/${opts.recipients.length} subscribers confirmed added`)
 
-  // 4. Wait until Moosend has finished importing the subscribers into the list.
-  // Sending while the list is empty makes the send fail and stay Draft.
-  await waitForImport(listId, opts.recipients[0].email, opts.recipients.length)
+  // Short grace period for Moosend to index the new subscribers before sending
+  await new Promise(res => setTimeout(res, 5000))
 
   // 5. Convert {{var}} → [subscription.var]
   const toMoosendTag = (s: string) => s.replace(/\{\{(\w+)\}\}/g, '[subscription.$1]')
@@ -67,44 +73,6 @@ export async function sendMoosendBulkPersonalized(opts: {
     listId,
   })
   return { moosendCampaignId, moosendListId: listId }
-}
-
-// Waits until the subscriber import has landed in the list. The list's
-// ActiveMemberCount stat updates lazily in Moosend, so it can read 0 even
-// after a successful import — we therefore ALSO check that a sample
-// subscriber is actually retrievable by email, which is authoritative.
-async function waitForImport(listId: string, sampleEmail: string, expected: number): Promise<void> {
-  const MAX_ATTEMPTS = 20
-  const DELAY_MS = 3000
-  let lastCount = 0
-  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-    // Authoritative check: is the sample subscriber in the list?
-    try {
-      const sub = await moosendFetch(`/subscribers/${listId}/view.json?Email=${encodeURIComponent(sampleEmail)}`)
-      const ctx = (sub as Record<string, any>).Context
-      if (ctx?.ID) {
-        console.log(`[Moosend] list ${listId}: sample subscriber ${sampleEmail} found (status ${ctx?.SubscribeType ?? '?'}) — import OK`)
-        return
-      }
-    } catch (err) {
-      console.log(`[Moosend] sample subscriber not found yet:`, err instanceof Error ? err.message : err)
-    }
-    // Secondary signal: list count stat
-    try {
-      const result = await moosendFetch(`/lists/${listId}/details.json`)
-      const ctx = (result as Record<string, any>).Context
-      lastCount = Number(ctx?.ActiveMemberCount ?? 0)
-      if (lastCount >= expected) return
-      console.log(`[Moosend] list ${listId}: count ${lastCount}/${expected}, waiting...`)
-    } catch (err) {
-      console.error('[Moosend] list details check failed:', err instanceof Error ? err.message : err)
-    }
-    await new Promise(res => setTimeout(res, DELAY_MS))
-  }
-  throw new Error(
-    `Moosend list ${listId}: subscriber ${sampleEmail} not retrievable and count is ${lastCount}/${expected} after 1 minute — ` +
-    `the subscriber import appears to have failed; aborting send to avoid a Draft campaign.`
-  )
 }
 
 export const GEMI_DISCLAIMER =
@@ -205,8 +173,10 @@ export async function createMoosendList(name: string): Promise<string> {
 export async function addSubscribersToList(
   listId: string,
   subscribers: MoosendSubscriber[]
-): Promise<void> {
+): Promise<number> {
   const BATCH_SIZE = 500;
+
+  let totalAdded = 0;
 
   for (let i = 0; i < subscribers.length; i += BATCH_SIZE) {
     const batch = subscribers.slice(i, i + BATCH_SIZE);
@@ -216,12 +186,31 @@ export async function addSubscribersToList(
       body: JSON.stringify({ Subscribers: batch }),
     });
     const added = (result as Record<string, any>).Context
-    const addedCount = Array.isArray(added) ? added.length : 'unknown'
-    console.log(`[Moosend] subscribe_many list ${listId}: sent ${batch.length}, response count ${addedCount}`)
-    if (Array.isArray(added) && added.length < batch.length) {
-      console.warn(`[Moosend] subscribe_many: ${batch.length - added.length} subscribers were NOT added. Response: ${JSON.stringify(result).slice(0, 2000)}`)
+    const addedCount = Array.isArray(added) ? added.length : 0
+    totalAdded += addedCount
+    console.log(`[Moosend] subscribe_many list ${listId}: sent ${batch.length}, added ${addedCount}. Response: ${JSON.stringify(result).slice(0, 1500)}`)
+
+    // Bulk import silently added fewer than expected — retry the whole batch
+    // one-by-one via subscribe.json, which reports errors per subscriber.
+    if (addedCount < batch.length) {
+      console.warn(`[Moosend] subscribe_many under-added (${addedCount}/${batch.length}) — falling back to individual subscribes`)
+      for (const sub of batch) {
+        try {
+          const single = await moosendFetch(`/subscribers/${listId}/subscribe.json`, {
+            method: "POST",
+            body: JSON.stringify(sub),
+          });
+          const sctx = (single as Record<string, any>).Context
+          if (sctx?.ID) totalAdded++
+          else console.warn(`[Moosend] subscribe.json for ${sub.Email}: unexpected response ${JSON.stringify(single).slice(0, 500)}`)
+        } catch (err) {
+          console.error(`[Moosend] subscribe.json failed for ${sub.Email}:`, err instanceof Error ? err.message : err)
+        }
+      }
     }
   }
+
+  return totalAdded;
 }
 
 export async function createAndSendCampaign(
