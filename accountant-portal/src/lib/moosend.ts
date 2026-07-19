@@ -311,10 +311,11 @@ export async function createAndSendCampaign(
 export async function getCampaignStats(
   campaignId: string
 ): Promise<CampaignStats> {
-  const result = await moosendFetch(`/campaigns/${campaignId}/stats.json`);
+  // Moosend's campaign summary endpoint (recipients/opens/clicks/bounces)
+  const result = await moosendFetch(`/campaigns/${campaignId}/view_summary.json`);
 
   const data = result as Record<string, unknown>;
-  const context = data.Context as Record<string, unknown> | undefined;
+  const context = data.Context as Record<string, any> | undefined;
 
   if (!context) {
     throw new Error(
@@ -322,12 +323,22 @@ export async function getCampaignStats(
     );
   }
 
+  console.log(`[Moosend] view_summary for ${campaignId}:`, JSON.stringify(context).slice(0, 1000));
+
+  const num = (...candidates: unknown[]) => {
+    for (const c of candidates) {
+      const n = Number(c);
+      if (!Number.isNaN(n) && c != null) return n;
+    }
+    return 0;
+  };
+
   return {
-    sent: Number(context.TotalSent ?? 0),
-    delivered: Number(context.TotalDelivered ?? 0),
-    opened: Number(context.UniqueOpens ?? 0),
-    clicked: Number(context.UniqueClicks ?? 0),
-    bounced: Number(context.TotalBounced ?? 0),
-    unsubscribed: Number(context.TotalUnsubscribed ?? 0),
+    sent: num(context.TotalSent, context.RecipientsCount, context.TotalRecipients),
+    delivered: num(context.TotalDelivered, context.TotalSent),
+    opened: num(context.UniqueOpens, context.TotalOpens, context.Opens),
+    clicked: num(context.UniqueLinkClicks, context.UniqueClicks, context.TotalLinkClicks, context.Clicks),
+    bounced: num(context.TotalBounces, context.TotalBounced, context.Bounces),
+    unsubscribed: num(context.TotalUnsubscribes, context.TotalUnsubscribed, context.Unsubscribes),
   };
 }
