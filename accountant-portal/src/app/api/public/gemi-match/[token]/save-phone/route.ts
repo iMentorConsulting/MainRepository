@@ -68,9 +68,10 @@ export async function POST(
       return NextResponse.json({ error: 'Η υπηρεσία δεν είναι διαθέσιμη αυτή τη στιγμή' }, { status: 503 })
     }
 
+    const themisApiUrl = process.env.THEMIS_API_URL || 'https://portal.i-mentor.gr/api/leads/create'
     let themisRes: Response
     try {
-      themisRes = await fetch('https://portal.i-mentor.gr/api/leads/create', {
+      themisRes = await fetch(themisApiUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -96,8 +97,10 @@ export async function POST(
       return NextResponse.json({ error: 'Σφάλμα σύνδεσης με τη Θέμις' }, { status: 502 })
     }
 
-    const themisData = await themisRes.json().catch(() => null)
-    console.log('[ΘΕΜΙΣ] API response:', JSON.stringify(themisData))
+    const themisRaw = await themisRes.text().catch(() => '')
+    let themisData: any = null
+    try { themisData = JSON.parse(themisRaw) } catch {}
+    console.log(`[ΘΕΜΙΣ] ${themisApiUrl} → HTTP ${themisRes.status}, content-type: ${themisRes.headers.get('content-type')}, body (first 500 chars): ${themisRaw.slice(0, 500)}`)
     // Try common field names for the redirect URL (top-level or nested)
     const themisUrl: string =
       themisData?.themis_url ?? themisData?.themisUrl ?? themisData?.url ??
@@ -108,9 +111,15 @@ export async function POST(
       return NextResponse.json({ redirect: themisUrl })
     }
 
-    // Lead was registered but no direct link came back — Θέμις will reach
-    // out to the client via the phone they provided.
-    console.log('[ΘΕΜΙΣ] Lead registered without direct URL. Keys:', themisData ? Object.keys(themisData) : 'null')
+    // Non-JSON 200 (e.g. an HTML page) means the endpoint is wrong and NO
+    // lead was actually registered — do not show a false success.
+    if (!themisData) {
+      console.error('[ΘΕΜΙΣ] Endpoint returned non-JSON — lead NOT registered. Fix THEMIS_API_URL.')
+      return NextResponse.json({ error: 'Η υπηρεσία Θέμις δεν είναι διαθέσιμη αυτή τη στιγμή. Παρακαλώ δοκιμάστε αργότερα.' }, { status: 502 })
+    }
+
+    // Valid JSON without a direct link — the lead exists; Θέμις follows up.
+    console.log('[ΘΕΜΙΣ] Lead registered without direct URL. Keys:', Object.keys(themisData))
     return NextResponse.json({
       message: 'Η αίτησή σας καταχωρήθηκε! Η Θέμις θα σας στείλει σύνδεσμο στο κινητό σας σύντομα.',
     })
