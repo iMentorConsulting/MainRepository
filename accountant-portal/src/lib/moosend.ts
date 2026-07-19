@@ -15,6 +15,9 @@ export async function sendMoosendBulkPersonalized(opts: {
 }): Promise<{ moosendCampaignId: string; moosendListId: string } | null> {
   if (opts.recipients.length === 0) return null
 
+  // Moosend custom field values are hard-capped at 365 characters
+  const MAX_FIELD_LEN = 365
+
   // Collect all {{var}} placeholders used in subject + preview + html
   const usedVars = new Set<string>()
   for (const text of [opts.subject, opts.previewText ?? '', opts.html]) {
@@ -23,14 +26,35 @@ export async function sendMoosendBulkPersonalized(opts: {
     while ((m = re.exec(text)) !== null) usedVars.add(m[1])
   }
 
+  // Split variables: those whose value is IDENTICAL for every recipient
+  // (e.g. program_description — often longer than the 365-char custom field
+  // limit) are substituted directly into the content; only per-recipient
+  // variables become Moosend custom fields.
+  const commonVars: Record<string, string> = {}
+  const perRecipientVars: string[] = []
+  for (const varName of Array.from(usedVars)) {
+    const firstVal = opts.recipients[0].variables[varName] ?? ''
+    const identical = opts.recipients.every(r => (r.variables[varName] ?? '') === firstVal)
+    if (identical) commonVars[varName] = firstVal
+    else perRecipientVars.push(varName)
+  }
+
+  const substituteCommon = (s: string) =>
+    s.replace(/\{\{(\w+)\}\}/g, (full, key) => (key in commonVars ? commonVars[key] : full))
+
+  const subjectResolved = substituteCommon(opts.subject)
+  const previewResolved = opts.previewText ? substituteCommon(opts.previewText) : undefined
+  const htmlResolved = substituteCommon(opts.html)
+
+  console.log(`[Moosend] variables: ${Object.keys(commonVars).length} common (inlined), ${perRecipientVars.length} per-recipient (custom fields): ${perRecipientVars.join(', ')}`)
+
   // 1. One list for this campaign send
   const listId = await createMoosendList(opts.campaignName)
 
-  // 2. Create a custom field per variable — failures here are fatal, because a
-  // campaign whose [subscription.x] tags reference non-existent fields will
-  // fail to send and stay in Draft.
-  const varList = Array.from(usedVars)
-  for (const varName of varList) {
+  // 2. Create a custom field per per-recipient variable — failures here are
+  // fatal, because a campaign whose [subscription.x] tags reference
+  // non-existent fields will fail to send and stay in Draft.
+  for (const varName of perRecipientVars) {
     try {
       await moosendFetch(`/lists/${listId}/customfields/create.json`, {
         method: 'POST',
@@ -42,10 +66,12 @@ export async function sendMoosendBulkPersonalized(opts: {
     }
   }
 
-  // 3. Add all subscribers with their personalized variable values
+  // 3. Add all subscribers with their personalized variable values,
+  // truncated to Moosend's 365-char custom field limit.
+  const truncate = (v: string) => (v.length > MAX_FIELD_LEN ? v.slice(0, MAX_FIELD_LEN - 1) + '…' : v)
   const subscribers = opts.recipients.map(r => ({
     Email: r.email,
-    CustomFields: varList.map(v => `${v}=${r.variables[v] ?? ''}`),
+    CustomFields: perRecipientVars.map(v => `${v}=${truncate(r.variables[v] ?? '')}`),
   }))
   const addedCount = await addSubscribersToList(listId, subscribers)
   if (addedCount === 0) {
@@ -59,17 +85,17 @@ export async function sendMoosendBulkPersonalized(opts: {
   // Short grace period for Moosend to index the new subscribers before sending
   await new Promise(res => setTimeout(res, 5000))
 
-  // 5. Convert {{var}} → [subscription.var]
+  // 5. Convert remaining per-recipient {{var}} → [subscription.var]
   const toMoosendTag = (s: string) => s.replace(/\{\{(\w+)\}\}/g, '[subscription.$1]')
 
   // 6. ONE campaign, ONE send
   const moosendCampaignId = await createAndSendCampaign({
     name: opts.campaignName,
-    subject: toMoosendTag(opts.subject),
-    previewText: opts.previewText ? toMoosendTag(opts.previewText) : undefined,
+    subject: toMoosendTag(subjectResolved),
+    previewText: previewResolved ? toMoosendTag(previewResolved) : undefined,
     senderEmail: SENDER_EMAIL,
     replyToEmail: REPLY_TO_EMAIL,
-    htmlContent: toMoosendTag(opts.html),
+    htmlContent: toMoosendTag(htmlResolved),
     listId,
   })
   return { moosendCampaignId, moosendListId: listId }
