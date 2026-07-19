@@ -42,10 +42,15 @@ export async function sendMoosendBulkPersonalized(opts: {
   }))
   await addSubscribersToList(listId, subscribers)
 
-  // 4. Convert {{var}} → [subscription.var] in subject + html
+  // 4. Wait until Moosend has finished importing the subscribers into the list.
+  // Sending while the import is still processing leaves the campaign as Draft
+  // with a "not sent successfully" notification.
+  await waitForListCount(listId, opts.recipients.length)
+
+  // 5. Convert {{var}} → [subscription.var] in subject + html
   const toMoosendTag = (s: string) => s.replace(/\{\{(\w+)\}\}/g, '[subscription.$1]')
 
-  // 5. ONE campaign, ONE send
+  // 6. ONE campaign, ONE send
   await createAndSendCampaign({
     name: opts.campaignName,
     subject: toMoosendTag(opts.subject),
@@ -54,6 +59,27 @@ export async function sendMoosendBulkPersonalized(opts: {
     htmlContent: toMoosendTag(opts.html),
     listId,
   })
+}
+
+// Polls the list until ActiveMemberCount >= expected (or timeout ~60s).
+// Moosend processes subscribe_many asynchronously; sending a campaign before
+// the list is populated makes the send fail silently (campaign stays Draft).
+async function waitForListCount(listId: string, expected: number): Promise<void> {
+  const MAX_ATTEMPTS = 20
+  const DELAY_MS = 3000
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+    try {
+      const result = await moosendFetch(`/lists/${listId}/details.json`)
+      const ctx = (result as Record<string, any>).Context
+      const count = Number(ctx?.ActiveMemberCount ?? 0)
+      if (count >= expected) return
+      console.log(`[Moosend] list ${listId}: ${count}/${expected} subscribers ready, waiting...`)
+    } catch (err) {
+      console.error('[Moosend] list details check failed:', err instanceof Error ? err.message : err)
+    }
+    await new Promise(res => setTimeout(res, DELAY_MS))
+  }
+  console.warn(`[Moosend] list ${listId} never reached ${expected} subscribers — sending anyway`)
 }
 
 export const GEMI_DISCLAIMER =
@@ -169,6 +195,14 @@ export async function addSubscribersToList(
 export async function createAndSendCampaign(
   opts: CampaignOptions
 ): Promise<string> {
+  // Plain-text fallback derived from the HTML — some Moosend configurations
+  // refuse to send campaigns that have no plain-text body.
+  const plainContent = opts.htmlContent
+    .replace(/<style[\s\S]*?<\/style>/gi, '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
   const createResult = await moosendFetch("/campaigns/create.json", {
     method: "POST",
     body: JSON.stringify({
@@ -177,6 +211,7 @@ export async function createAndSendCampaign(
       SenderEmail: opts.senderEmail,
       ReplyToEmail: opts.replyToEmail,
       HTMLContent: opts.htmlContent,
+      PlainContent: plainContent,
       MailingLists: [{ MailingListID: opts.listId, SegmentID: null }],
       ConfirmationToEmail: opts.replyToEmail,
       Type: 'Regular',
@@ -192,9 +227,10 @@ export async function createAndSendCampaign(
     );
   }
 
-  await moosendFetch(`/campaigns/${campaignId}/send.json`, {
+  const sendResult = await moosendFetch(`/campaigns/${campaignId}/send.json`, {
     method: "POST",
   });
+  console.log(`[Moosend] send.json response for campaign ${campaignId}:`, JSON.stringify(sendResult));
 
   return campaignId;
 }
