@@ -130,7 +130,7 @@ function TemplateCard({ template, onSaved, onDeleted }: { template: GemiTemplate
               placeholder="π.χ. Μάθετε αν η επιχείρησή σας είναι επιλέξιμη για επιδότηση..."
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-amber-500"
             />
-            <p className="text-xs text-gray-400 mt-1">Υποστηρίζει μεταβλητές {{business_name}} κ.λπ. · {previewText.length}/200</p>
+            <p className="text-xs text-gray-400 mt-1">Υποστηρίζει μεταβλητές {'{{business_name}}'} κ.λπ. · {previewText.length}/200</p>
           </div>
           <TemplateEditor
             label="Περιεχόμενο Email (HTML)"
