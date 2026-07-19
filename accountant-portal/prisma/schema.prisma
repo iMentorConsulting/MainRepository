@@ -1086,6 +1086,7 @@ model GemiCampaign {
   title               String
   channel             CampaignChannel
   subject             String?
+  previewText         String?                 @db.Text
   htmlContent         String?                 @db.Text
   messageTemplate     String?                 @db.Text
   programId           String?
@@ -1129,6 +1130,7 @@ model GemiEmailTemplate {
   label       String
   description String?
   subject     String
+  previewText String?  @db.Text
   htmlContent String   @db.Text
   active      Boolean  @default(true)
   createdAt   DateTime @default(now())

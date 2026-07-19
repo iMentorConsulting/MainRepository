@@ -18,6 +18,7 @@ export async function PATCH(
   if ('label' in body) data.label = body.label
   if ('description' in body) data.description = body.description
   if ('subject' in body) data.subject = body.subject
+  if ('previewText' in body) data.previewText = body.previewText
   if ('htmlContent' in body) data.htmlContent = body.htmlContent
   if ('active' in body) data.active = body.active
   const template = await prisma.gemiEmailTemplate.update({ where: { id }, data })

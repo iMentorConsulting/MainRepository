@@ -19,12 +19,12 @@ export async function POST(request: NextRequest) {
   if (!session || session.user.role !== 'ADMIN') {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
-  const { label, description, subject, htmlContent } = await request.json()
+  const { label, description, subject, previewText, htmlContent } = await request.json()
   if (!label?.trim() || !subject?.trim()) {
     return NextResponse.json({ error: 'label and subject are required' }, { status: 400 })
   }
   const template = await prisma.gemiEmailTemplate.create({
-    data: { label: label.trim(), description: description?.trim() ?? null, subject: subject.trim(), htmlContent: htmlContent ?? '' },
+    data: { label: label.trim(), description: description?.trim() ?? null, subject: subject.trim(), previewText: previewText?.trim() ?? null, htmlContent: htmlContent ?? '' },
   })
   return NextResponse.json(template, { status: 201 })
 }

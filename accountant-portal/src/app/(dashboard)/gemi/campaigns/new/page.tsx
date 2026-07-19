@@ -12,6 +12,7 @@ interface GemiTemplate {
   id: string
   label: string
   subject: string
+  previewText: string | null
   htmlContent: string
 }
 
@@ -85,6 +86,7 @@ function NewGemiCampaignPageInner() {
   const [templates, setTemplates] = useState<GemiTemplate[]>([])
   const [selectedTemplateId, setSelectedTemplateId] = useState('')
   const [subject, setSubject] = useState('')
+  const [previewText, setPreviewText] = useState('')
   const [htmlContent, setHtmlContent] = useState('')
   const [viberMessage, setViberMessage] = useState('')
 
@@ -163,6 +165,7 @@ function NewGemiCampaignPageInner() {
         channel,
         programId: programId || undefined,
         subject: subject.trim() || undefined,
+        previewText: previewText.trim() || undefined,
         htmlContent: htmlContent.trim() || undefined,
         messageTemplate: viberMessage.trim() || undefined,
         status: 'DRAFT',
@@ -381,6 +384,7 @@ function NewGemiCampaignPageInner() {
                   const tpl = templates.find(t => t.id === id)
                   if (tpl) {
                     setSubject(tpl.subject)
+                    setPreviewText(tpl.previewText ?? '')
                     setHtmlContent(tpl.htmlContent)
                   }
                 }
@@ -403,6 +407,23 @@ function NewGemiCampaignPageInner() {
             value={subject}
             onChange={e => setSubject(e.target.value)}
           />
+          <div>
+            <label className="text-sm font-medium text-slate-700 block mb-1">
+              Preview Text <span className="text-gray-400 font-normal">(εμφανίζεται μετά το θέμα στα εισερχόμενα)</span>
+            </label>
+            <input
+              type="text"
+              value={previewText}
+              onChange={e => setPreviewText(e.target.value)}
+              placeholder="π.χ. Μάθετε αν η επιχείρησή σας είναι επιλέξιμη για επιδότηση έως 50%..."
+              maxLength={200}
+              className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-white text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+            />
+            <div className="flex justify-between mt-1">
+              <p className="text-xs text-slate-400">Συμπληρώνεται αυτόματα από το πρότυπο. Υποστηρίζει μεταβλητές {'{{business_name}}'} κ.λπ.</p>
+              <span className="text-xs text-gray-400">{previewText.length}/200</span>
+            </div>
+          </div>
           <div>
             <label className="text-sm font-medium text-slate-700 block mb-1">HTML Περιεχόμενο *</label>
             <textarea

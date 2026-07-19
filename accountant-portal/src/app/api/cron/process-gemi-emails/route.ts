@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
   // Find all campaigns currently in SENDING state
   const sendingCampaigns = await prisma.gemiCampaign.findMany({
     where: { status: 'SENDING', channel: { in: ['EMAIL', 'EMAIL_AND_VIBER'] } },
-    select: { id: true, htmlContent: true, subject: true, title: true, programId: true },
+    select: { id: true, htmlContent: true, subject: true, title: true, programId: true, previewText: true },
   })
 
   if (sendingCampaigns.length === 0) {
@@ -29,8 +29,18 @@ export async function POST(req: NextRequest) {
 
   const results: Record<string, { sent: number; errors: number; remaining: number; completed: boolean }> = {}
 
+  function injectPreviewText(html: string, preview: string): string {
+    if (!preview) return html
+    const hidden = `<span style="display:none;font-size:1px;color:#ffffff;max-height:0;overflow:hidden;">${preview}</span>`
+    const bodyIdx = html.indexOf('<body')
+    if (bodyIdx === -1) return hidden + html
+    const closeTag = html.indexOf('>', bodyIdx)
+    return html.slice(0, closeTag + 1) + hidden + html.slice(closeTag + 1)
+  }
+
   for (const campaign of sendingCampaigns) {
     const htmlBase = campaign.htmlContent ?? ''
+    const previewBase = campaign.previewText ?? ''
     const subjectBase = campaign.subject ?? campaign.title
 
     // Take the next batch of pending recipients
@@ -53,7 +63,8 @@ export async function POST(req: NextRequest) {
         try {
           const vars = await buildRecipientVariables(r.gemiId, campaign.programId ?? '')
           const subject = substituteVars(subjectBase, vars)
-          const html = substituteVars(htmlBase, vars) + disclaimer
+          const preview = substituteVars(previewBase, vars)
+          const html = injectPreviewText(substituteVars(htmlBase, vars), preview) + disclaimer
           await sendMoosendEmail({ to: r.recipient, subject, html })
           await prisma.gemiCampaignRecipient.update({ where: { id: r.id }, data: { status: 'sent', sentAt: now } })
           sent++
