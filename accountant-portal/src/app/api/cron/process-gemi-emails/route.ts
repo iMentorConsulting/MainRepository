@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { GEMI_DISCLAIMER, sendMoosendBulkPersonalized } from '@/lib/moosend'
-import { buildRecipientVariables } from '@/app/api/gemi/campaigns/[id]/send/route'
+import { buildRecipientVariables } from '@/lib/gemi-campaign-vars'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 270 // seconds — Railway allows up to 5min for cron services
