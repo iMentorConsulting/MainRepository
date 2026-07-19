@@ -222,18 +222,17 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   // If assign_case was triggered, create a GEMI lead notification instead of ImentorRequest
   let caseAssigned = Boolean(matchToken.caseCreatedAt)
   if (result.caseId && !matchToken.caseCreatedAt) {
-    try {
-      await createGemiCase({
-        gemiId: matchToken.gemiId,
-        programId: matchToken.programId,
-        programTitle: program.title,
-        businessName: gemi.onomasia || gemi.afm,
-        afm: gemi.afm,
-        summary: 'Ο πελάτης εκδήλωσε ενδιαφέρον μέσω του Ερμή.',
-      })
-    } catch (e) {
-      console.error('[GemiErmisChat] createGemiCase failed:', e)
-    }
+    // Fire-and-forget: case creation involves email + case-management webhook
+    // calls that can take tens of seconds — never block the chat reply on them
+    // (the client shows "Σφάλμα σύνδεσης" if the response takes too long).
+    createGemiCase({
+      gemiId: matchToken.gemiId,
+      programId: matchToken.programId,
+      programTitle: program.title,
+      businessName: gemi.onomasia || gemi.afm,
+      afm: gemi.afm,
+      summary: 'Ο πελάτης εκδήλωσε ενδιαφέρον μέσω του Ερμή.',
+    }).catch(e => console.error('[GemiErmisChat] createGemiCase failed:', e))
     caseAssigned = true
   }
 
