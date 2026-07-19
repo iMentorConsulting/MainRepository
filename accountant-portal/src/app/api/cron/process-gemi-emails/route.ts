@@ -1,12 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { GEMI_DISCLAIMER, sendMoosendEmail } from '@/lib/moosend'
-import { buildRecipientVariables, substituteVars } from '@/app/api/gemi/campaigns/[id]/send/route'
+import { GEMI_DISCLAIMER, sendMoosendBulkPersonalized } from '@/lib/moosend'
+import { buildRecipientVariables } from '@/app/api/gemi/campaigns/[id]/send/route'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 270 // seconds — Railway allows up to 5min for cron services
 
-const BATCH_PER_RUN = 2000 // emails per cron invocation (runs every 5 min)
+const BATCH_PER_RUN = 2000 // recipients per cron invocation
+
+function injectPreviewText(html: string, preview: string): string {
+  if (!preview) return html
+  const hidden = `<span style="display:none;font-size:1px;color:#ffffff;max-height:0;overflow:hidden;">${preview}</span>`
+  const bodyIdx = html.indexOf('<body')
+  if (bodyIdx === -1) return hidden + html
+  const closeTag = html.indexOf('>', bodyIdx)
+  return html.slice(0, closeTag + 1) + hidden + html.slice(closeTag + 1)
+}
 
 export async function POST(req: NextRequest) {
   const cronSecret = process.env.CRON_SECRET
@@ -17,10 +26,9 @@ export async function POST(req: NextRequest) {
 
   const disclaimer = `\n<p style="font-size:11px;color:#888;margin-top:24px;border-top:1px solid #eee;padding-top:12px;">${GEMI_DISCLAIMER}</p>`
 
-  // Find all campaigns currently in SENDING state
   const sendingCampaigns = await prisma.gemiCampaign.findMany({
     where: { status: 'SENDING', channel: { in: ['EMAIL', 'EMAIL_AND_VIBER'] } },
-    select: { id: true, htmlContent: true, subject: true, title: true, programId: true, previewText: true },
+    select: { id: true, title: true, subject: true, previewText: true, htmlContent: true, programId: true },
   })
 
   if (sendingCampaigns.length === 0) {
@@ -29,21 +37,12 @@ export async function POST(req: NextRequest) {
 
   const results: Record<string, { sent: number; errors: number; remaining: number; completed: boolean }> = {}
 
-  function injectPreviewText(html: string, preview: string): string {
-    if (!preview) return html
-    const hidden = `<span style="display:none;font-size:1px;color:#ffffff;max-height:0;overflow:hidden;">${preview}</span>`
-    const bodyIdx = html.indexOf('<body')
-    if (bodyIdx === -1) return hidden + html
-    const closeTag = html.indexOf('>', bodyIdx)
-    return html.slice(0, closeTag + 1) + hidden + html.slice(closeTag + 1)
-  }
-
   for (const campaign of sendingCampaigns) {
     const htmlBase = campaign.htmlContent ?? ''
     const previewBase = campaign.previewText ?? ''
     const subjectBase = campaign.subject ?? campaign.title
+    const now = new Date()
 
-    // Take the next batch of pending recipients
     const batch = await prisma.gemiCampaignRecipient.findMany({
       where: { campaignId: campaign.id, channel: 'EMAIL', status: 'pending' },
       select: { id: true, gemiId: true, recipient: true },
@@ -51,48 +50,80 @@ export async function POST(req: NextRequest) {
       orderBy: { createdAt: 'asc' },
     })
 
-    let sent = 0
-    let errors = 0
-    const now = new Date()
-
-    // Process 10 concurrently within the batch
-    const CONCURRENT = 10
-    for (let i = 0; i < batch.length; i += CONCURRENT) {
-      const chunk = batch.slice(i, i + CONCURRENT)
-      await Promise.all(chunk.map(async (r) => {
-        try {
-          const vars = await buildRecipientVariables(r.gemiId, campaign.programId ?? '')
-          const subject = substituteVars(subjectBase, vars)
-          const preview = substituteVars(previewBase, vars)
-          const html = injectPreviewText(substituteVars(htmlBase, vars), preview) + disclaimer
-          await sendMoosendEmail({ to: r.recipient, subject, html })
-          await prisma.gemiCampaignRecipient.update({ where: { id: r.id }, data: { status: 'sent', sentAt: now } })
-          sent++
-        } catch (err) {
-          const errorMessage = err instanceof Error ? err.message : String(err)
-          await prisma.gemiCampaignRecipient.update({ where: { id: r.id }, data: { status: 'error', errorMessage } })
-          errors++
-        }
-      }))
+    if (batch.length === 0) {
+      await prisma.gemiCampaign.update({ where: { id: campaign.id }, data: { status: 'SENT' } })
+      results[campaign.id] = { sent: 0, errors: 0, remaining: 0, completed: true }
+      continue
     }
 
-    // Check if any pending remain
+    // Build variables for all recipients concurrently (10 at a time)
+    const CONCURRENT = 10
+    const recipientData: Array<{ id: string; email: string; variables: Record<string, string> } | { id: string; error: string }> = []
+    for (let i = 0; i < batch.length; i += CONCURRENT) {
+      const chunk = batch.slice(i, i + CONCURRENT)
+      const results2 = await Promise.all(chunk.map(async r => {
+        try {
+          const variables = await buildRecipientVariables(r.gemiId, campaign.programId ?? '')
+          return { id: r.id, email: r.recipient, variables }
+        } catch (err) {
+          return { id: r.id, error: err instanceof Error ? err.message : String(err) }
+        }
+      }))
+      recipientData.push(...results2)
+    }
+
+    // Separate failures
+    const failed = recipientData.filter((r): r is { id: string; error: string } => 'error' in r)
+    const valid = recipientData.filter((r): r is { id: string; email: string; variables: Record<string, string> } => 'email' in r)
+
+    let errors = failed.length
+    let sent = 0
+
+    if (failed.length > 0) {
+      await Promise.all(failed.map(r =>
+        prisma.gemiCampaignRecipient.update({ where: { id: r.id }, data: { status: 'error', errorMessage: r.error } })
+      ))
+    }
+
+    if (valid.length > 0) {
+      // Build the full HTML once (preview injected, disclaimer appended) — still using {{var}} placeholders;
+      // sendMoosendBulkPersonalized will convert them to [subscription.var] merge tags.
+      const htmlFull = injectPreviewText(htmlBase, previewBase) + disclaimer
+
+      try {
+        await sendMoosendBulkPersonalized({
+          recipients: valid.map(r => ({ email: r.email, variables: r.variables })),
+          subject: subjectBase,
+          html: htmlFull,
+          campaignName: `gemi-${campaign.id.slice(-8)}-${Date.now()}`,
+        })
+        await prisma.gemiCampaignRecipient.updateMany({
+          where: { id: { in: valid.map(r => r.id) } },
+          data: { status: 'sent', sentAt: now },
+        })
+        sent = valid.length
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : String(err)
+        console.error(`[GemiEmail] bulk send failed for campaign ${campaign.id}:`, errorMessage)
+        await prisma.gemiCampaignRecipient.updateMany({
+          where: { id: { in: valid.map(r => r.id) } },
+          data: { status: 'error', errorMessage },
+        })
+        errors += valid.length
+      }
+    }
+
     const remaining = await prisma.gemiCampaignRecipient.count({
       where: { campaignId: campaign.id, channel: 'EMAIL', status: 'pending' },
     })
-
     const totalSentSoFar = await prisma.gemiCampaignRecipient.count({
       where: { campaignId: campaign.id, channel: 'EMAIL', status: 'sent' },
     })
-
     const completed = remaining === 0
 
     await prisma.gemiCampaign.update({
       where: { id: campaign.id },
-      data: {
-        totalSent: totalSentSoFar,
-        ...(completed ? { status: 'SENT' } : {}),
-      },
+      data: { totalSent: totalSentSoFar, ...(completed ? { status: 'SENT' } : {}) },
     })
 
     results[campaign.id] = { sent, errors, remaining, completed }

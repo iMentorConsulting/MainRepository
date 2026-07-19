@@ -3,34 +3,55 @@ const BASE_URL = "https://api.moosend.com/v3";
 const SENDER_EMAIL = process.env.MOOSEND_SENDER_EMAIL ?? 'info@i-mentor.gr'
 const REPLY_TO_EMAIL = process.env.MOOSEND_REPLY_TO_EMAIL ?? 'info@i-mentor.gr'
 
-// Send a single transactional email via Moosend — no campaign created in the dashboard.
-// Falls back to campaign-per-recipient if transactional API is unavailable (non-2xx).
-export async function sendMoosendEmail(opts: { to: string; subject: string; html: string }): Promise<void> {
-  const apiKey = getApiKey()
-  const url = `${BASE_URL}/transactional/sendemail.json?apikey=${apiKey}`
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      Subject: opts.subject,
-      Body: opts.html,
-      FromEmail: SENDER_EMAIL,
-      ReplyTo: REPLY_TO_EMAIL,
-      ToEmails: [opts.to],
-      IsBodyHtml: true,
-    }),
-  })
-  if (res.ok) return
+// Send ONE Moosend campaign for all recipients using custom-field merge tags.
+// This creates exactly 1 Moosend list + 1 Moosend campaign per GEMI campaign,
+// regardless of recipient count. Personalization is done via [subscription.var] tags.
+export async function sendMoosendBulkPersonalized(opts: {
+  recipients: Array<{ email: string; variables: Record<string, string> }>
+  subject: string   // may contain {{var}} placeholders
+  html: string      // may contain {{var}} placeholders
+  campaignName: string
+}): Promise<void> {
+  if (opts.recipients.length === 0) return
 
-  // Transactional not available on this plan — fall back to campaign-per-recipient
-  const listId = await createMoosendList(`gemi-tx-${Date.now()}`)
-  await addSubscribersToList(listId, [{ Email: opts.to }])
+  // Collect all {{var}} placeholders used in subject + html
+  const usedVars = new Set<string>()
+  const pattern = /\{\{(\w+)\}\}/g
+  for (const text of [opts.subject, opts.html]) {
+    let m: RegExpExecArray | null
+    const re = new RegExp(pattern.source, 'g')
+    while ((m = re.exec(text)) !== null) usedVars.add(m[1])
+  }
+
+  // 1. One list for this campaign send
+  const listId = await createMoosendList(opts.campaignName)
+
+  // 2. Create a custom field per variable (ignore duplicates / errors)
+  for (const varName of usedVars) {
+    await moosendFetch(`/lists/${listId}/customfields/create.json`, {
+      method: 'POST',
+      body: JSON.stringify({ Name: varName, CustomFieldType: 'Text', IsRequired: false }),
+    }).catch(() => {})
+  }
+
+  // 3. Add all subscribers with their personalized variable values
+  const varList = [...usedVars]
+  const subscribers = opts.recipients.map(r => ({
+    Email: r.email,
+    CustomFields: varList.map(v => `${v}=${r.variables[v] ?? ''}`),
+  }))
+  await addSubscribersToList(listId, subscribers)
+
+  // 4. Convert {{var}} → [subscription.var] in subject + html
+  const toMoosendTag = (s: string) => s.replace(/\{\{(\w+)\}\}/g, '[subscription.$1]')
+
+  // 5. ONE campaign, ONE send
   await createAndSendCampaign({
-    name: `gemi-tx-${Date.now()}`,
-    subject: opts.subject,
+    name: opts.campaignName,
+    subject: toMoosendTag(opts.subject),
     senderEmail: SENDER_EMAIL,
     replyToEmail: REPLY_TO_EMAIL,
-    htmlContent: opts.html,
+    htmlContent: toMoosendTag(opts.html),
     listId,
   })
 }
@@ -41,6 +62,7 @@ export const GEMI_DISCLAIMER =
 export interface MoosendSubscriber {
   Email: string;
   Name?: string;
+  CustomFields?: string[]; // ["field_name=value", ...]
 }
 
 export interface CampaignOptions {
