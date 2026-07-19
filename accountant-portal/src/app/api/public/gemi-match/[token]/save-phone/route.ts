@@ -61,68 +61,23 @@ export async function POST(
     }
   }
 
-  // 6. ΘΕΜΙΣ flow
+  // 6. ΘΕΜΙΣ flow — direct redirect per the Eksodikastikos integration guide
+  // (Option A): https://portal.i-mentor.gr/themis/create?... creates the lead,
+  // assigns a consultant via round-robin, and drops the client straight into
+  // the Θέμις chat. Seamless — no API round-trip, no Viber/Email interruption.
   if (type === 'themis') {
-    const apiKey = process.env.EXODIKASTIKOS_API_KEY
-    if (!apiKey) {
-      return NextResponse.json({ error: 'Η υπηρεσία δεν είναι διαθέσιμη αυτή τη στιγμή' }, { status: 503 })
-    }
-
-    const themisApiUrl = process.env.THEMIS_API_URL || 'https://portal.i-mentor.gr/api/leads/create'
-    let themisRes: Response
-    try {
-      themisRes = await fetch(themisApiUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-API-Key': apiKey,
-        },
-        body: JSON.stringify({
-          name: gemi.onomasia ?? gemi.afm,
-          phone: normalizedPhone,
-          email: gemi.email ?? '',
-          referrer: 'LOGISTIS Portal',
-          application_number: `GEMI-${gemi.afm}`,
-          send_themis: true,
-        }),
-      })
-    } catch (fetchErr) {
-      console.error('ΘΕΜΙΣ API network error:', fetchErr)
-      return NextResponse.json({ error: 'Σφάλμα σύνδεσης με τη Θέμις. Δοκιμάστε ξανά.' }, { status: 502 })
-    }
-
-    if (!themisRes.ok) {
-      const errText = await themisRes.text().catch(() => '')
-      console.error('ΘΕΜΙΣ API error:', themisRes.status, errText)
-      return NextResponse.json({ error: 'Σφάλμα σύνδεσης με τη Θέμις' }, { status: 502 })
-    }
-
-    const themisRaw = await themisRes.text().catch(() => '')
-    let themisData: any = null
-    try { themisData = JSON.parse(themisRaw) } catch {}
-    console.log(`[ΘΕΜΙΣ] ${themisApiUrl} → HTTP ${themisRes.status}, content-type: ${themisRes.headers.get('content-type')}, body (first 500 chars): ${themisRaw.slice(0, 500)}`)
-    // Try common field names for the redirect URL (top-level or nested)
-    const themisUrl: string =
-      themisData?.themis_url ?? themisData?.themisUrl ?? themisData?.url ??
-      themisData?.redirect_url ?? themisData?.redirect ?? themisData?.link ??
-      themisData?.data?.themis_url ?? themisData?.data?.url ?? themisData?.lead?.themis_url ?? ''
-
-    if (themisUrl) {
-      return NextResponse.json({ redirect: themisUrl })
-    }
-
-    // Non-JSON 200 (e.g. an HTML page) means the endpoint is wrong and NO
-    // lead was actually registered — do not show a false success.
-    if (!themisData) {
-      console.error('[ΘΕΜΙΣ] Endpoint returned non-JSON — lead NOT registered. Fix THEMIS_API_URL.')
-      return NextResponse.json({ error: 'Η υπηρεσία Θέμις δεν είναι διαθέσιμη αυτή τη στιγμή. Παρακαλώ δοκιμάστε αργότερα.' }, { status: 502 })
-    }
-
-    // Valid JSON without a direct link — the lead exists; Θέμις follows up.
-    console.log('[ΘΕΜΙΣ] Lead registered without direct URL. Keys:', Object.keys(themisData))
-    return NextResponse.json({
-      message: 'Η αίτησή σας καταχωρήθηκε! Η Θέμις θα σας στείλει σύνδεσμο στο κινητό σας σύντομα.',
+    const themisBase = process.env.THEMIS_CREATE_URL || 'https://portal.i-mentor.gr/themis/create'
+    const qs = new URLSearchParams({
+      name: gemi.onomasia ?? gemi.afm,
+      phone: normalizedPhone,
+      referrer: 'LOGISTIS',
+      application_number: `GEMI-${gemi.afm}`,
     })
+    if (gemi.email) qs.set('email', gemi.email)
+
+    const themisUrl = `${themisBase}?${qs.toString()}`
+    console.log(`[ΘΕΜΙΣ] Redirecting to: ${themisUrl}`)
+    return NextResponse.json({ redirect: themisUrl })
   }
 
   // 7. ΕΡΜΗΣ flow
