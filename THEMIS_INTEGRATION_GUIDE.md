@@ -9,63 +9,84 @@ The Eksodikastikos app provides a **direct integration** that allows external sy
 
 ---
 
-## 1. URL ENDPOINT
+## 1. URL ENDPOINTS
 
-### Primary Endpoint (POST)
+### Option A: Direct Redirect (Frontend - RECOMMENDED)
 ```
-https://portal.i-mentor.gr/api/leads/create
+https://portal.i-mentor.gr/themis/create?name=COMPANY_NAME&phone=+30210123456&email=contact@company.gr&total_debt=50000&referrer=LOGISTIS&application_number=YOUR_ID
 ```
 
-This is a **public endpoint** (no auth required for initial lead creation, but API key validation recommended).
+**Recommended for seamless UX.** The frontend accepts query parameters, auto-creates a lead on the backend via auto round-robin allocation, and redirects the customer directly to Themis chat without separate Viber/Email messages.
 
-### Alternative: Frontend Themis Link
+### Option B: Backend API (POST - Backend-to-Backend)
+```
+https://portal.i-mentor.gr/api/external/create-lead
+```
+
+**For server-side integration.** POST JSON data and receive `themis_url` in response to redirect customers programmatically.
+
+### Customer Themis Chat (After lead creation)
 ```
 https://portal.i-mentor.gr/themis/{lead_themis_token}
 ```
-This is where the **customer** lands when they click the Viber/Email link.
+This is where customers are redirected after lead creation.
 
 ---
 
 ## 2. REQUEST FORMAT & PARAMETERS
 
-### Method: `POST /api/leads/create`
+### Option A: Method: `GET /themis/create?...` (with Query Parameters)
 
-### Headers
+#### Query Parameters
+```
+?name=COMPANY_NAME                              // Required
+&phone=+30210123456                             // Optional
+&email=contact@company.gr                       // Optional
+&total_debt=50000                               // Optional (just the number)
+&service_type=εξωδικαστικός                    // Optional
+&referrer=LOGISTIS                              // Optional (source system)
+&application_number=LOGISTIS-2026-001234       // Optional (your system ID)
+&sheet_comments=Additional+notes                // Optional
+```
+
+No authentication required. The frontend creates the lead via backend API and redirects to Themis chat.
+
+### Option B: Method: `POST /api/external/create-lead` (JSON Body)
+
+#### Headers
 ```
 Content-Type: application/json
-X-API-Key: {EXODIKASTIKOS_API_KEY}  # Optional but recommended
+X-API-Key: {EXODIKASTIKOS_API_KEY}  # Optional (not validated in production yet)
 ```
 
-### Body (JSON)
+#### Body (JSON)
 ```json
 {
   "name": "COMPANY NAME or PERSON NAME",           // Required
   "phone": "+30 2XX XXX XXXX or local number",     // Optional but recommended
   "email": "contact@company.gr",                    // Optional but recommended
-  "total_debt": "€50,000 or just 50000",            // Optional
+  "total_debt": "50000",                            // Optional (just the number, e.g., "50000")
   "service_type": "εξωδικαστικός",                 // Optional
-  "referrer": "ΓΕΜΗ Portal",                        // Optional (source system name)
+  "referrer": "LOGISTIS",                           // Optional (source system name)
   "sheet_comments": "Any extra notes here",         // Optional
-  "assigned_to": "STELLA",                          // Required: must be STELLA, VALLIA, or SOFIA
-  "application_number": "GEMH-2026-001234",        // Optional (external system ID)
-  "send_themis": true                               // Default: true (sends Viber + Email with Themis link)
+  "application_number": "LOGISTIS-2026-001234",   // Optional (external system ID)
+  "send_themis": false                              // Default: false (skip Viber+Email since user redirects directly)
 }
 ```
 
-### Field Details
+#### Field Details (same for both Option A query params and Option B JSON body)
 
 | Field | Type | Required | Notes |
 |-------|------|----------|-------|
 | `name` | string | ✓ | Company/person name — shown in all communications |
 | `phone` | string | — | Any format; system normalizes to Greek format (+30) |
 | `email` | string | — | Used for email template; Themis link sent here if provided |
-| `total_debt` | string | — | Debt amount (any format: "€50k", "50000", "50000€") |
-| `service_type` | string | — | Type of service (e.g., "εξωδικαστικός ρύθμιση", "arbitration") |
+| `total_debt` | string | — | Debt amount (just the number: "50000", not "€50k") |
+| `service_type` | string | — | Type of service (e.g., "εξωδικαστικός", "arbitration") |
 | `referrer` | string | — | Name of referring system or partner (logged for tracking) |
 | `sheet_comments` | string | — | Internal notes; passed to Themis AI as context |
-| `assigned_to` | string | — | **STELLA** / **VALLIA** / **SOFIA** (exact case) OR omit for **auto round-robin** allocation |
 | `application_number` | string | — | Your system's lead ID (for audit trail) |
-| `send_themis` | boolean | — | Default: `true`; set `false` to skip Viber+Email |
+| `send_themis` | boolean | — | Default: `false`; for direct redirect flow, set to `false` (customer already in redirect) |
 
 ---
 
@@ -143,7 +164,13 @@ if (data.themis_token) {
 
 ## 5. RESPONSE FORMAT
 
-### Success (HTTP 200)
+### Option A: Direct Redirect Response
+```
+HTTP 302 Redirect to: https://portal.i-mentor.gr/themis/{themis_token}
+```
+The frontend automatically redirects customers to the Themis chat. No JSON response to handle.
+
+### Option B: API Response (HTTP 201 Created)
 ```json
 {
   "id": 12345,
@@ -153,15 +180,17 @@ if (data.themis_token) {
   "assigned_to": "STELLA",
   "status": "CALL",
   "themis_token": "abc123def456xyz...",
-  "created_at": "2026-07-16T14:32:00Z",
-  "themis_url": "https://portal.i-mentor.gr/themis/abc123def456xyz..."
+  "themis_url": "https://portal.i-mentor.gr/themis/abc123def456xyz...",
+  "created_at": "2026-07-16T14:32:00Z"
 }
 ```
 
-### Error (HTTP 400/500)
+**Extract `themis_url` from response and redirect your frontend to it.**
+
+### Error Response (HTTP 400/422/500)
 ```json
 {
-  "detail": "assigned_to must be one of: STELLA, VALLIA, SOFIA"
+  "detail": "name field is required"
 }
 ```
 
@@ -234,23 +263,26 @@ CHATWOOT_INBOX_ID=...
 
 ## 8. EXAMPLE INTEGRATIONS
 
-### Example 1: Direct Redirect URL (from ΛΟΓΙΣΤΗΣ Portal)
+### Example 1: Option A — Direct Redirect (RECOMMENDED)
 
+```html
+<!-- ΛΟΓΙΣΤΗΣ Portal: User clicks this link -->
+<a href="https://portal.i-mentor.gr/themis/create?name=ΑΒΓΔ+ΑΕ&phone=%2B30210123456&email=contact%40company.gr&total_debt=50000&referrer=LOGISTIS&application_number=LOGISTIS-2026-001234">
+  Ελέγξτε εξωδικαστική ρύθμιση
+</a>
 ```
-https://portal.i-mentor.gr/themis/create?name=ΑΒΓΔ+ΑΕ&phone=%2B30210123456&total_debt=50000&referrer=LOGISTIS&application_number=LOGISTIS-001234
-```
 
-The backend creates the lead and redirects directly to the Themis chat (no separate Viber/Email).
+Frontend creates lead with auto round-robin allocation and redirects directly to Themis chat. No separate Viber/Email messages.
 
-### Example 2: Backend API Call (from ΛΟΓΙΣΤΗΣ backend)
+### Example 2: Option B — Backend API Call
 
 ```bash
-curl -X POST https://portal.i-mentor.gr/api/leads/create \
+curl -X POST https://portal.i-mentor.gr/api/external/create-lead \
   -H "Content-Type: application/json" \
-  -H "X-API-Key: your_api_key_here" \
   -d '{
     "name": "ΑΒΓΔ ΑΕ",
     "phone": "+30 210 123 4567",
+    "email": "contact@company.gr",
     "total_debt": "50000",
     "service_type": "εξωδικαστικός",
     "referrer": "LOGISTIS Portal",
@@ -259,23 +291,22 @@ curl -X POST https://portal.i-mentor.gr/api/leads/create \
   }'
 ```
 
-Response includes `themis_url` — redirect user there directly.
-
-### Example 3: With Manual Consultant Assignment (Override Round-Robin)
-
-```bash
-curl -X POST https://portal.i-mentor.gr/api/leads/create \
-  -H "Content-Type: application/json" \
-  -H "X-API-Key: your_api_key_here" \
-  -d '{
-    "name": "ΑΒΓΔ ΑΕ",
-    "phone": "+30 210 123 4567",
-    "total_debt": "50000",
-    "assigned_to": "SOPHIA",
-    "referrer": "LOGISTIS Portal",
-    "send_themis": false
-  }'
+**Response (HTTP 201):**
+```json
+{
+  "id": 12345,
+  "name": "ΑΒΓΔ ΑΕ",
+  "phone": "+30 210 123 4567",
+  "email": "contact@company.gr",
+  "assigned_to": "STELLA",
+  "status": "CALL",
+  "themis_token": "abc123def456xyz...",
+  "themis_url": "https://portal.i-mentor.gr/themis/abc123def456xyz...",
+  "created_at": "2026-07-16T14:32:00Z"
+}
 ```
+
+Extract `themis_url` and redirect customer there: `window.location.href = data.themis_url`
 
 ---
 
@@ -305,17 +336,23 @@ curl -X POST https://portal.i-mentor.gr/api/leads/create \
 
 ---
 
-## 10. SUPPORT & NEXT STEPS
+## 10. TESTING CHECKLIST
 
-1. **Implement the POST request** in ΓΕΜΗ portal
-2. **Test with a sample company** (use a test phone/email)
-3. **Verify Viber + Email delivery** to your test number
-4. **Open the Themis link** and test the eligibility chat
-5. **Confirm consultant assignment** in the Eksodikastikos UI
-6. If issues, check:
-   - API response for error messages
-   - Backend logs on Railway (`railway logs`)
-   - Viber/Email delivery status
+### For Option A (Direct Redirect):
+1. Test the redirect URL in your browser: `https://portal.i-mentor.gr/themis/create?name=TEST+AE&phone=%2B306912345678&referrer=LOGISTIS`
+2. Verify you're redirected to the Themis chat (no errors)
+3. Check in Eksodikastikos UI that a lead was created with auto-assigned consultant
+
+### For Option B (Backend API):
+1. Test the API call:
+   ```bash
+   curl -X POST https://portal.i-mentor.gr/api/external/create-lead \
+     -H "Content-Type: application/json" \
+     -d '{"name":"TEST AE","phone":"+306912345678","referrer":"LOGISTIS","send_themis":false}'
+   ```
+2. Verify HTTP 201 response with `themis_url`
+3. Use returned URL to redirect customer
+4. Check lead was created in Eksodikastikos UI
 
 ---
 
@@ -331,17 +368,25 @@ curl -X POST https://portal.i-mentor.gr/api/leads/create \
 
 ## Summary for ΛΟΓΙΣΤΗΣ Developer
 
-### Option A: Simple Frontend Redirect (Recommended)
-1. User clicks "Check Eligibility" link in ΛΟΓΙΣΤΗΣ app
-2. Redirect to: `https://portal.i-mentor.gr/themis/create?name=...&phone=...&total_debt=...&referrer=LOGISTIS`
-3. **That's it!** Lead is created, consultant assigned (auto round-robin), customer enters Themis chat directly
-4. No separate Viber/Email interruption
+### Option A: Frontend Redirect (RECOMMENDED)
+**Endpoint:** `https://portal.i-mentor.gr/themis/create?name=...&phone=...&email=...&referrer=LOGISTIS`
 
-### Option B: Backend API Call
-1. Backend POSTs to `https://portal.i-mentor.gr/api/leads/create` with lead data
-2. Receives `themis_url` in response
-3. Redirect frontend to that URL
+Flow:
+1. User clicks eligibility link in ΛΟΓΙΣΤΗΣ
+2. ΛΟΓΙΣΤΗΣ redirects to `/themis/create` with query parameters
+3. Frontend auto-creates lead (auto round-robin consultant assignment)
+4. Frontend redirects customer directly to Themis chat (no separate Viber/Email)
+5. Seamless, fast, and best UX
+
+### Option B: Backend-to-Backend API
+**Endpoint:** `https://portal.i-mentor.gr/api/external/create-lead` (POST JSON)
+
+Flow:
+1. ΛΟΓΙΣΤΗΣ backend POSTs lead data to our API
+2. Our API returns HTTP 201 with `themis_url`
+3. ΛΟΓΙΣΤΗΣ frontend receives response and redirects to `themis_url`
 4. Customer enters Themis chat directly
+5. For server-side integration
 
 ### Key Points:
 ✅ **Round-robin allocation** — consultants get leads automatically in rotation (Stella → Vallia → Sophia)  

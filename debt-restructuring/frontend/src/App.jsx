@@ -16,6 +16,7 @@ import LeadsReporting from './pages/LeadsReporting'
 import LeadLists from './pages/LeadLists'
 import IrisPayments from './pages/IrisPayments'
 import Themis from './pages/Themis'
+import ThemisCreate from './pages/ThemisCreate'
 import ThemisSettings from './pages/ThemisSettings'
 import ThemisConversations from './pages/ThemisConversations'
 import NotificationListener from './components/NotificationListener'
@@ -78,6 +79,8 @@ export default function App() {
         <Route path="/preview/:token" element={<ClientPreview />} />
         {/* Public Θέμις AI screening chat — no auth */}
         <Route path="/themis/:token" element={<Themis />} />
+        {/* Public ΛΟΓΙΣΤΗΣ direct integration — creates lead + redirects to Θέμις chat */}
+        <Route path="/themis/create" element={<ThemisCreate />} />
 
         {/* Auth-protected app */}
         {!auth ? (

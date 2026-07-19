@@ -205,4 +205,16 @@ export const listIrisPayments = () => api.get('/payments/iris')
 export const getIrisPayment = (paymentId) => api.get(`/payments/iris/${paymentId}`)
 export const recheckIrisPayment = (paymentId) => api.post(`/payments/iris/${paymentId}/recheck`)
 
+// ΛΟΓΙΣΤΗΣ Integration — External Lead Creation
+// Direct redirect flow: creates a lead and returns themis_url for immediate redirect
+// No authentication required (public endpoint for external systems)
+export const createLeadExternal = (data) => {
+  // Create a special axios instance without Bearer token for this external endpoint
+  const externalApi = axios.create({
+    baseURL: import.meta.env.VITE_API_URL || '/api',
+    headers: { 'Content-Type': 'application/json' },
+  })
+  return externalApi.post('/external/create-lead', data)
+}
+
 export default api
