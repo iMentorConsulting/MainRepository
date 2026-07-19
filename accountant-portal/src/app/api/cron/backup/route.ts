@@ -11,10 +11,13 @@ export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300
 
-const KEEP_BACKUPS = 20 // nights to keep (each night = 1 DB file + 1 code file)
+const KEEP_BACKUPS = 20 // days to keep (each night = 1 DB file + 1 code file)
 const BACKUP_PREFIX = 'logistis-backup-'
 const CODE_PREFIX = 'logistis-code-'
 const MIN_HOURS_BETWEEN = 20 // auto mode: skip if the newest backup is fresher than this
+// Auto mode only fires inside this night window (Athens time)
+const NIGHT_WINDOW_START = 3 // 03:00
+const NIGHT_WINDOW_END = 6 // 06:00
 
 function getDrive() {
   const serviceAccountKey = process.env.GOOGLE_SERVICE_ACCOUNT_KEY
@@ -64,10 +67,17 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Missing GDRIVE_BACKUP_FOLDER_ID or GOOGLE_SERVICE_ACCOUNT_KEY' }, { status: 500 })
   }
 
-  // Auto mode (called from the 5-minute cron): only actually run once per
-  // night — skip if the newest backup in Drive is fresher than 20 hours.
+  // Auto mode (called from the 5-minute cron): run once per night, only
+  // inside the night window (Athens time), and only if the newest backup
+  // in Drive is older than MIN_HOURS_BETWEEN hours.
   const auto = request.nextUrl.searchParams.get('auto') === '1'
   if (auto) {
+    const athensHour = Number(
+      new Intl.DateTimeFormat('en-GB', { hour: 'numeric', hour12: false, timeZone: 'Europe/Athens' }).format(new Date())
+    )
+    if (athensHour < NIGHT_WINDOW_START || athensHour >= NIGHT_WINDOW_END) {
+      return NextResponse.json({ ok: true, skipped: true, reason: `outside night window (Athens hour: ${athensHour})` })
+    }
     const newest = await drive.files.list({
       q: `'${folderId}' in parents and name contains '${BACKUP_PREFIX}' and trashed = false`,
       orderBy: 'createdTime desc',
@@ -94,7 +104,7 @@ export async function POST(request: NextRequest) {
   try {
     dbFileName = `${BACKUP_PREFIX}${timestamp}.sql.gz`
     dbFilePath = path.join(os.tmpdir(), dbFileName)
-    execSync(`pg_dump "${dbUrl}" | gzip > "${dbFilePath}"`, { stdio: 'pipe', timeout: 180_000 })
+    execSync(`pg_dump \"${dbUrl}\" | gzip > \"${dbFilePath}\"`, { stdio: 'pipe', timeout: 180_000 })
     const size = fs.statSync(dbFilePath).size
     if (size < 1024) throw new Error(`pg_dump output suspiciously small (${size} bytes)`)
     results.dbMethod = 'pg_dump'
@@ -134,7 +144,7 @@ export async function POST(request: NextRequest) {
   try {
     const appDir = process.cwd()
     execSync(
-      `tar -czf "${codeFilePath}" --exclude=node_modules --exclude=.next/cache --exclude=.git -C "${appDir}" .`,
+      `tar -czf \"${codeFilePath}\" --exclude=node_modules --exclude=.next/cache --exclude=.git -C \"${appDir}\" .`,
       { stdio: 'pipe', timeout: 180_000 },
     )
     const upload = await drive.files.create({
