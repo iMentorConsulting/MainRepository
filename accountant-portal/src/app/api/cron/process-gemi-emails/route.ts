@@ -83,13 +83,19 @@ export async function POST(req: NextRequest) {
       const htmlFull = htmlBase + disclaimer
 
       try {
-        await sendMoosendBulkPersonalized({
+        const sendResult = await sendMoosendBulkPersonalized({
           recipients: valid.map(r => ({ email: r.email, variables: r.variables })),
           subject: subjectBase,
           previewText: previewBase || undefined,
           html: htmlFull,
           campaignName: campaign.title,
         })
+        if (sendResult) {
+          await prisma.gemiCampaign.update({
+            where: { id: campaign.id },
+            data: { moosendCampaignId: sendResult.moosendCampaignId, moosendListId: sendResult.moosendListId },
+          })
+        }
         await prisma.gemiCampaignRecipient.updateMany({
           where: { id: { in: valid.map(r => r.id) } },
           data: { status: 'sent', sentAt: now },

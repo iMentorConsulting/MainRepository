@@ -18,8 +18,8 @@ export async function POST(
   if (!campaign) {
     return NextResponse.json({ error: 'Campaign not found' }, { status: 404 })
   }
-  if (campaign.channel !== 'EMAIL') {
-    return NextResponse.json({ error: 'Stats sync is only available for EMAIL campaigns' }, { status: 400 })
+  if (campaign.channel !== 'EMAIL' && campaign.channel !== 'EMAIL_AND_VIBER') {
+    return NextResponse.json({ error: 'Stats sync is only available for email campaigns' }, { status: 400 })
   }
   if (!campaign.moosendCampaignId) {
     return NextResponse.json({ error: 'No moosendCampaignId on this campaign' }, { status: 400 })

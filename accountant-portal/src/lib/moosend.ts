@@ -12,8 +12,8 @@ export async function sendMoosendBulkPersonalized(opts: {
   html: string      // may contain {{var}} placeholders
   previewText?: string // may contain {{var}} placeholders
   campaignName: string
-}): Promise<void> {
-  if (opts.recipients.length === 0) return
+}): Promise<{ moosendCampaignId: string; moosendListId: string } | null> {
+  if (opts.recipients.length === 0) return null
 
   // Collect all {{var}} placeholders used in subject + preview + html
   const usedVars = new Set<string>()
@@ -57,7 +57,7 @@ export async function sendMoosendBulkPersonalized(opts: {
   const toMoosendTag = (s: string) => s.replace(/\{\{(\w+)\}\}/g, '[subscription.$1]')
 
   // 6. ONE campaign, ONE send
-  await createAndSendCampaign({
+  const moosendCampaignId = await createAndSendCampaign({
     name: opts.campaignName,
     subject: toMoosendTag(opts.subject),
     previewText: opts.previewText ? toMoosendTag(opts.previewText) : undefined,
@@ -66,6 +66,7 @@ export async function sendMoosendBulkPersonalized(opts: {
     htmlContent: toMoosendTag(opts.html),
     listId,
   })
+  return { moosendCampaignId, moosendListId: listId }
 }
 
 // Polls the list until ActiveMemberCount >= expected (or timeout ~2min).

@@ -163,9 +163,9 @@ export default function GemiCampaignsPage() {
                     <Td className="text-sm text-gray-500">
                       {c.sentAt ? formatDateTime(c.sentAt) : '—'}
                     </Td>
-                    <Td className="text-sm">{c.sentCount ?? c._count?.recipients ?? '—'}</Td>
-                    <Td className="text-sm">{c.openCount ?? '—'}</Td>
-                    <Td className="text-sm">{c.clickCount ?? '—'}</Td>
+                    <Td className="text-sm">{c.totalSent || c._count?.recipients || '—'}</Td>
+                    <Td className="text-sm">{c.totalOpened || '—'}</Td>
+                    <Td className="text-sm">{c.totalClicked || '—'}</Td>
                     <Td>
                       <div className="flex items-center gap-2">
                         {c.moosendCampaignId && (
