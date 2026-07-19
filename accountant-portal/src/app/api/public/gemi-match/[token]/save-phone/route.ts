@@ -72,6 +72,8 @@ export async function POST(
       phone: normalizedPhone,
       referrer: 'LOGISTIS',
       application_number: `GEMI-${gemi.afm}`,
+      // Client is being redirected straight into the chat — no separate Viber/Email
+      send_themis: 'false',
     })
     if (gemi.email) qs.set('email', gemi.email)
 
