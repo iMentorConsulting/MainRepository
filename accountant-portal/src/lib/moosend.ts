@@ -51,7 +51,7 @@ export async function sendMoosendBulkPersonalized(opts: {
 
   // 4. Wait until Moosend has finished importing the subscribers into the list.
   // Sending while the list is empty makes the send fail and stay Draft.
-  await waitForListCount(listId, opts.recipients.length)
+  await waitForImport(listId, opts.recipients[0].email, opts.recipients.length)
 
   // 5. Convert {{var}} → [subscription.var]
   const toMoosendTag = (s: string) => s.replace(/\{\{(\w+)\}\}/g, '[subscription.$1]')
@@ -69,28 +69,41 @@ export async function sendMoosendBulkPersonalized(opts: {
   return { moosendCampaignId, moosendListId: listId }
 }
 
-// Polls the list until ActiveMemberCount >= expected (or timeout ~2min).
-// Moosend processes subscribe_many asynchronously; sending a campaign before
-// the list is populated makes the send fail (campaign stays Draft).
-async function waitForListCount(listId: string, expected: number): Promise<void> {
-  const MAX_ATTEMPTS = 40
+// Waits until the subscriber import has landed in the list. The list's
+// ActiveMemberCount stat updates lazily in Moosend, so it can read 0 even
+// after a successful import — we therefore ALSO check that a sample
+// subscriber is actually retrievable by email, which is authoritative.
+async function waitForImport(listId: string, sampleEmail: string, expected: number): Promise<void> {
+  const MAX_ATTEMPTS = 20
   const DELAY_MS = 3000
   let lastCount = 0
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+    // Authoritative check: is the sample subscriber in the list?
+    try {
+      const sub = await moosendFetch(`/subscribers/${listId}/view.json?Email=${encodeURIComponent(sampleEmail)}`)
+      const ctx = (sub as Record<string, any>).Context
+      if (ctx?.ID) {
+        console.log(`[Moosend] list ${listId}: sample subscriber ${sampleEmail} found (status ${ctx?.SubscribeType ?? '?'}) — import OK`)
+        return
+      }
+    } catch (err) {
+      console.log(`[Moosend] sample subscriber not found yet:`, err instanceof Error ? err.message : err)
+    }
+    // Secondary signal: list count stat
     try {
       const result = await moosendFetch(`/lists/${listId}/details.json`)
       const ctx = (result as Record<string, any>).Context
       lastCount = Number(ctx?.ActiveMemberCount ?? 0)
       if (lastCount >= expected) return
-      console.log(`[Moosend] list ${listId}: ${lastCount}/${expected} subscribers ready, waiting...`)
+      console.log(`[Moosend] list ${listId}: count ${lastCount}/${expected}, waiting...`)
     } catch (err) {
       console.error('[Moosend] list details check failed:', err instanceof Error ? err.message : err)
     }
     await new Promise(res => setTimeout(res, DELAY_MS))
   }
   throw new Error(
-    `Moosend list ${listId} has only ${lastCount}/${expected} subscribers after 2 minutes — ` +
-    `the subscriber import failed or is stuck; aborting send to avoid a Draft campaign.`
+    `Moosend list ${listId}: subscriber ${sampleEmail} not retrievable and count is ${lastCount}/${expected} after 1 minute — ` +
+    `the subscriber import appears to have failed; aborting send to avoid a Draft campaign.`
   )
 }
 
@@ -198,10 +211,16 @@ export async function addSubscribersToList(
   for (let i = 0; i < subscribers.length; i += BATCH_SIZE) {
     const batch = subscribers.slice(i, i + BATCH_SIZE);
 
-    await moosendFetch(`/subscribers/${listId}/subscribe_many.json`, {
+    const result = await moosendFetch(`/subscribers/${listId}/subscribe_many.json`, {
       method: "POST",
       body: JSON.stringify({ Subscribers: batch }),
     });
+    const added = (result as Record<string, any>).Context
+    const addedCount = Array.isArray(added) ? added.length : 'unknown'
+    console.log(`[Moosend] subscribe_many list ${listId}: sent ${batch.length}, response count ${addedCount}`)
+    if (Array.isArray(added) && added.length < batch.length) {
+      console.warn(`[Moosend] subscribe_many: ${batch.length - added.length} subscribers were NOT added. Response: ${JSON.stringify(result).slice(0, 2000)}`)
+    }
   }
 }
 
