@@ -52,6 +52,35 @@ def normalize_afm(afm):
     return s
 
 
+# Common email domain typos → correction. 'f' is next to 'g' on the keyboard, so
+# Greek webmail .gr addresses are often mistyped as .fr.
+_EMAIL_DOMAIN_FIXES = {
+    "yahoo.fr": "yahoo.gr",
+    "yaho.gr": "yahoo.gr",
+    "yahoo.gr.com": "yahoo.gr",
+    "gmail.con": "gmail.com",
+    "gmail.gr": "gmail.com",
+    "gmial.com": "gmail.com",
+    "gmai.com": "gmail.com",
+    "hotmail.con": "hotmail.com",
+}
+
+
+def clean_email(email):
+    """Trim/spaces, lowercase the domain, and fix common typos (e.g. yahoo.fr→yahoo.gr)."""
+    if not email:
+        return None
+    s = str(email).strip().replace(" ", "")
+    if s == "":
+        return None
+    if "@" not in s:
+        return s
+    local, _, domain = s.rpartition("@")
+    domain = domain.lower()
+    domain = _EMAIL_DOMAIN_FIXES.get(domain, domain)
+    return f"{local}@{domain}" if local else None
+
+
 def maybe_autostart_ermis(lead: CMLead, actor_name: str = "auto") -> bool:
     """If a lead has an ΑΦΜ, is an open prospect and hasn't been sent yet, kick off
     a ΕΡΜΗΣ screening in the background (LOGISTIS does the ΑΑΔΕ lookup + matching).
@@ -431,7 +460,7 @@ def create_lead(
         name=req.name,
         phone=req.phone,
         phone2=req.phone2,
-        email=req.email,
+        email=clean_email(req.email),
         afm=normalize_afm(req.afm),
         program=req.program,
         service_type=req.service_type,
@@ -466,6 +495,8 @@ def update_lead(
     for field, val in req.dict(exclude_unset=True).items():
         if field == "afm":
             val = normalize_afm(val)
+        elif field == "email":
+            val = clean_email(val)
         setattr(l, field, val)
     db.commit()
     db.refresh(l)
