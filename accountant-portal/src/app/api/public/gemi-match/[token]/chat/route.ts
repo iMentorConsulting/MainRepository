@@ -2,11 +2,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { runErmisTurn, type ChatMessage } from '@/lib/ermis-agent'
 import { buildEligibilityQuestions, parseEligibilityStorage } from '@/lib/eligibility-questions'
-import { sendEmail } from '@/lib/email'
 
 export const dynamic = 'force-dynamic'
 
-async function createGemiLead(params: {
+async function createGemiCase(params: {
   gemiId: string
   programId: string
   programTitle: string
@@ -16,29 +15,82 @@ async function createGemiLead(params: {
   pendingItem?: string | null
 }) {
   const adminUser = await prisma.user.findFirst({ where: { role: 'ADMIN' }, select: { id: true } })
+  if (!adminUser) throw new Error('Δεν βρέθηκε χρήστης ADMIN')
 
-  const pendingNote = params.pendingItem?.trim()
-    ? `\n\n⚠️ Εκκρεμότητα: ${params.pendingItem.trim()}`
-    : ''
-
-  // Mark the GemiProgramMatch as confirmed
+  // Mark the GemiProgramMatch as INTERESTED
   await prisma.gemiProgramMatch.updateMany({
     where: { gemiId: params.gemiId, programId: params.programId },
     data: { status: 'INTERESTED' },
   }).catch(() => {})
 
-  try {
-    await sendEmail({
-      to: process.env.ADMIN_EMAIL || 'info@i-mentor.gr',
-      subject: `🗂️ Νέο Ενδιαφέρον ΓΕΜΗ από Ερμής — ${params.businessName} (${params.afm})`,
-      html: `<p>Ο Ερμής ολοκλήρωσε συνομιλία με επιχείρηση ΓΕΜΗ <strong>${params.businessName}</strong> (ΑΦΜ: ${params.afm}) για το πρόγραμμα <strong>${params.programTitle}</strong>:</p>
-        <blockquote style="border-left:4px solid #4f46e5;padding-left:12px;color:#374151">${params.summary}</blockquote>
-        ${pendingNote ? `<p style="color:#b45309"><strong>⚠️ Εκκρεμότητα:</strong> ${params.pendingItem!.trim()}</p>` : ''}
-        <p>Η επιχείρηση δεν είναι ακόμα πελάτης. Επικοινωνήστε μαζί της για να προχωρήσετε.</p>`,
-    })
-  } catch {}
+  // Find or create a Business record for this GEMI entity
+  const gemi = await prisma.gemiLookup.findUnique({
+    where: { id: params.gemiId },
+    select: {
+      claimedBusinessId: true, afm: true, onomasia: true, email: true, mobilePhone: true,
+      postalAddress: true, postalAddressNo: true, postalZipCode: true, postalAreaDescription: true,
+      regdate: true,
+    },
+  })
+  if (!gemi) throw new Error('ΓΕΜΗ εγγραφή δεν βρέθηκε')
 
-  return `gemi-${params.gemiId}`
+  let businessId = gemi.claimedBusinessId ?? null
+
+  if (!businessId) {
+    const existing = await prisma.business.findUnique({ where: { afm: params.afm }, select: { id: true } })
+    if (existing) {
+      businessId = existing.id
+    } else {
+      const created = await prisma.business.create({
+        data: {
+          afm: params.afm,
+          onomasia: gemi.onomasia ?? undefined,
+          email: gemi.email ?? undefined,
+          viberPhone: gemi.mobilePhone ?? undefined,
+          postalAddress: gemi.postalAddress ?? undefined,
+          postalAddressNo: gemi.postalAddressNo ?? undefined,
+          postalZipCode: gemi.postalZipCode ?? undefined,
+          postalAreaDescription: gemi.postalAreaDescription ?? undefined,
+          regdate: gemi.regdate ?? undefined,
+          source: 'gemi',
+          tags: ['ΓΕΜΗ'],
+        },
+        select: { id: true },
+      })
+      businessId = created.id
+      await prisma.gemiLookup.update({
+        where: { id: params.gemiId },
+        data: { claimedBusinessId: businessId } as any,
+      }).catch(() => {})
+    }
+  }
+
+  const pendingNote = params.pendingItem?.trim()
+    ? `\n\n⚠️ Εκκρεμότητα: ${params.pendingItem.trim()}`
+    : ''
+  const description = `[ΓΕΜΗ επιχείρηση] ${params.summary}${pendingNote}`
+
+  await prisma.clientCase.create({
+    data: {
+      businessId,
+      programId: params.programId,
+      requestType: 'APPLICATION_SUPPORT',
+      title: `${params.businessName} — ${params.programTitle}`,
+      description,
+      priority: 'NORMAL',
+      status: 'NEW',
+      createdById: adminUser.id,
+      activities: {
+        create: {
+          type: 'CREATED',
+          body: `Η υπόθεση δημιουργήθηκε αυτόματα από τον Ερμή (ΓΕΜΗ prospect): ${description}`,
+          authorId: adminUser.id,
+          authorName: 'Ερμής (AI)',
+          authorRole: 'ADMIN',
+        },
+      },
+    },
+  })
 }
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ token: string }> }) {
@@ -129,7 +181,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   let caseAssigned = Boolean(matchToken.caseCreatedAt)
   if (result.caseId && !matchToken.caseCreatedAt) {
     try {
-      await createGemiLead({
+      await createGemiCase({
         gemiId: matchToken.gemiId,
         programId: matchToken.programId,
         programTitle: program.title,
@@ -137,7 +189,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         afm: gemi.afm,
         summary: 'Ο πελάτης εκδήλωσε ενδιαφέρον μέσω του Ερμή.',
       })
-    } catch {}
+    } catch (e) {
+      console.error('[GemiErmisChat] createGemiCase failed:', e)
+    }
     caseAssigned = true
   }
 

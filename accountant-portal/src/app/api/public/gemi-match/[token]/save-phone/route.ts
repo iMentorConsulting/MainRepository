@@ -68,21 +68,27 @@ export async function POST(
       return NextResponse.json({ error: 'Η υπηρεσία δεν είναι διαθέσιμη αυτή τη στιγμή' }, { status: 503 })
     }
 
-    const themisRes = await fetch('https://portal.i-mentor.gr/api/leads/create', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-API-Key': apiKey,
-      },
-      body: JSON.stringify({
-        name: gemi.onomasia ?? gemi.afm,
-        phone: normalizedPhone,
-        email: gemi.email ?? '',
-        referrer: 'LOGISTIS Portal',
-        application_number: `GEMI-${gemi.afm}`,
-        send_themis: false,
-      }),
-    })
+    let themisRes: Response
+    try {
+      themisRes = await fetch('https://portal.i-mentor.gr/api/leads/create', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-API-Key': apiKey,
+        },
+        body: JSON.stringify({
+          name: gemi.onomasia ?? gemi.afm,
+          phone: normalizedPhone,
+          email: gemi.email ?? '',
+          referrer: 'LOGISTIS Portal',
+          application_number: `GEMI-${gemi.afm}`,
+          send_themis: false,
+        }),
+      })
+    } catch (fetchErr) {
+      console.error('ΘΕΜΙΣ API network error:', fetchErr)
+      return NextResponse.json({ error: 'Σφάλμα σύνδεσης με τη Θέμις. Δοκιμάστε ξανά.' }, { status: 502 })
+    }
 
     if (!themisRes.ok) {
       const errText = await themisRes.text().catch(() => '')
@@ -90,8 +96,8 @@ export async function POST(
       return NextResponse.json({ error: 'Σφάλμα σύνδεσης με τη Θέμις' }, { status: 502 })
     }
 
-    const themisData = await themisRes.json()
-    const themisUrl: string = themisData.themis_url
+    const themisData = await themisRes.json().catch(() => null)
+    const themisUrl: string = themisData?.themis_url
     if (!themisUrl) {
       return NextResponse.json({ error: 'Δεν ελήφθη σύνδεσμος από τη Θέμις' }, { status: 502 })
     }

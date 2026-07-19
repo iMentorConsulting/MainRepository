@@ -9,7 +9,6 @@ export default function GemiMatchPage() {
   const [program, setProgram] = useState<{ title: string; description: string | null } | null>(null)
   const [chatLog, setChatLog] = useState<ErmisChatMessage[]>([])
   const [caseAssigned, setCaseAssigned] = useState(false)
-  const [themisLink, setThemisLink] = useState('')
   const [kickoffPending, setKickoffPending] = useState(false)
   const [error, setError] = useState('')
 
@@ -21,7 +20,6 @@ export default function GemiMatchPage() {
         setBusiness(data.business)
         setProgram(data.program)
         setCaseAssigned(Boolean(data.caseAssigned))
-        if (data.themisLink) setThemisLink(data.themisLink)
         if (data.chatLog?.length) {
           setChatLog(data.chatLog)
         } else {
@@ -78,33 +76,6 @@ export default function GemiMatchPage() {
           />
         )}
 
-        {themisLink && (
-          <div style={{ marginTop: '28px', borderTop: '1px solid #e2e8f0', paddingTop: '20px' }}>
-            <div style={{ background: '#f5f3ff', border: '1px solid #c4b5fd', borderRadius: '12px', padding: '16px 18px' }}>
-              <p style={{ margin: '0 0 4px', fontSize: '13px', fontWeight: 700, color: '#4c1d95' }}>
-                ⚖️ Έχετε οφειλές; Ρυθμίστε μέσω Εξωδικαστικού
-              </p>
-              <p style={{ margin: '0 0 12px', fontSize: '12px', color: '#5b21b6', lineHeight: 1.5 }}>
-                Η ΘΕΜΙΣ αναλύει την περίπτωσή σας και σας καθοδηγεί δωρεάν στον εξωδικαστικό μηχανισμό.
-              </p>
-              <a
-                href={themisLink}
-                style={{
-                  display: 'inline-block',
-                  background: '#7c3aed',
-                  color: '#fff',
-                  fontSize: '13px',
-                  fontWeight: 700,
-                  textDecoration: 'none',
-                  padding: '9px 18px',
-                  borderRadius: '7px',
-                }}
-              >
-                Μάθετε αν είστε επιλέξιμοι →
-              </a>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   )
