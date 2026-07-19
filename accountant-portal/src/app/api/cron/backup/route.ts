@@ -27,7 +27,7 @@ function getDrive(): { drive: ReturnType<typeof google.drive> } | { error: strin
   let credentials: any = null
   const candidates = [
     raw,
-    raw.trim().replace(/^['\"]|['\"]$/g, ''),
+    raw.trim().replace(/^['"]|['"]$/g, ''),
     (() => { try { return Buffer.from(raw, 'base64').toString('utf-8') } catch { return '' } })(),
   ]
   for (const c of candidates) {
@@ -55,7 +55,7 @@ async function dumpDatabaseJson(): Promise<Buffer> {
   for (const { tablename } of tables) {
     if (tablename.startsWith('_prisma')) continue
     try {
-      const rows = await prisma.$queryRawUnsafe<unknown[]>(`SELECT * FROM \"${tablename}\"`)
+      const rows = await prisma.$queryRawUnsafe<unknown[]>(`SELECT * FROM "${tablename}"`)
       dump[tablename] = rows
     } catch (err) {
       dump[tablename] = [{ __error: err instanceof Error ? err.message : String(err) }]
@@ -115,7 +115,7 @@ export async function POST(request: NextRequest) {
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
   const results: Record<string, unknown> = {}
 
-  // ── 1. DATABASE BACKUP ────────────────────────────────────
+  // ── 1. DATABASE BACKUP ────────────────────────────────────────────────
   // Try pg_dump first (full fidelity restore); fall back to a JSON export
   // of every table via Prisma if pg_dump is unavailable in the image.
   const dbUrl = process.env.DATABASE_URL
@@ -124,7 +124,7 @@ export async function POST(request: NextRequest) {
   try {
     dbFileName = `${BACKUP_PREFIX}${timestamp}.sql.gz`
     dbFilePath = path.join(os.tmpdir(), dbFileName)
-    execSync(`pg_dump \"${dbUrl}\" | gzip > \"${dbFilePath}\"`, { stdio: 'pipe', timeout: 180_000 })
+    execSync(`pg_dump "${dbUrl}" | gzip > "${dbFilePath}"`, { stdio: 'pipe', timeout: 180_000 })
     const size = fs.statSync(dbFilePath).size
     if (size < 1024) throw new Error(`pg_dump output suspiciously small (${size} bytes)`)
     results.dbMethod = 'pg_dump'
@@ -156,7 +156,7 @@ export async function POST(request: NextRequest) {
   }
   fs.unlinkSync(dbFilePath)
 
-  // ── 2. CODE + BUILD BACKUP ────────────────────────────────
+  // ── 2. CODE + BUILD BACKUP ────────────────────────────────────────────
   // Archive the deployed application directory (source + built .next output),
   // excluding node_modules (reinstallable) and caches.
   const codeFileName = `${CODE_PREFIX}${timestamp}.tar.gz`
@@ -164,7 +164,7 @@ export async function POST(request: NextRequest) {
   try {
     const appDir = process.cwd()
     execSync(
-      `tar -czf \"${codeFilePath}\" --exclude=node_modules --exclude=.next/cache --exclude=.git -C \"${appDir}\" .`,
+      `tar -czf "${codeFilePath}" --exclude=node_modules --exclude=.next/cache --exclude=.git -C "${appDir}" .`,
       { stdio: 'pipe', timeout: 180_000 },
     )
     const upload = await drive.files.create({
@@ -185,7 +185,7 @@ export async function POST(request: NextRequest) {
     results.codeError = detail.slice(0, 300)
   }
 
-  // ── 3. PRUNE — keep the newest KEEP_BACKUPS nights ────────────────
+  // ── 3. PRUNE — keep the newest KEEP_BACKUPS nights ────────────────────
   const pruned: string[] = []
   try {
     for (const prefix of [BACKUP_PREFIX, CODE_PREFIX]) {
