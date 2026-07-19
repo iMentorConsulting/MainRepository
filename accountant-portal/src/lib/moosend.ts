@@ -10,29 +10,36 @@ export async function sendMoosendBulkPersonalized(opts: {
   recipients: Array<{ email: string; variables: Record<string, string> }>
   subject: string   // may contain {{var}} placeholders
   html: string      // may contain {{var}} placeholders
+  previewText?: string // may contain {{var}} placeholders
   campaignName: string
 }): Promise<void> {
   if (opts.recipients.length === 0) return
 
-  // Collect all {{var}} placeholders used in subject + html
+  // Collect all {{var}} placeholders used in subject + preview + html
   const usedVars = new Set<string>()
-  const pattern = /\{\{(\w+)\}\}/g
-  for (const text of [opts.subject, opts.html]) {
+  for (const text of [opts.subject, opts.previewText ?? '', opts.html]) {
+    const re = /\{\{(\w+)\}\}/g
     let m: RegExpExecArray | null
-    const re = new RegExp(pattern.source, 'g')
     while ((m = re.exec(text)) !== null) usedVars.add(m[1])
   }
 
   // 1. One list for this campaign send
   const listId = await createMoosendList(opts.campaignName)
 
-  // 2. Create a custom field per variable (ignore duplicates / errors)
+  // 2. Create a custom field per variable — failures here are fatal, because a
+  // campaign whose [subscription.x] tags reference non-existent fields will
+  // fail to send and stay in Draft.
   const varList = Array.from(usedVars)
   for (const varName of varList) {
-    await moosendFetch(`/lists/${listId}/customfields/create.json`, {
-      method: 'POST',
-      body: JSON.stringify({ Name: varName, CustomFieldType: 'Text', IsRequired: false }),
-    }).catch(() => {})
+    try {
+      await moosendFetch(`/lists/${listId}/customfields/create.json`, {
+        method: 'POST',
+        body: JSON.stringify({ Name: varName, CustomFieldType: 'Text', IsRequired: false }),
+      })
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      throw new Error(`Moosend custom field '${varName}' creation failed: ${msg}`)
+    }
   }
 
   // 3. Add all subscribers with their personalized variable values
@@ -43,17 +50,17 @@ export async function sendMoosendBulkPersonalized(opts: {
   await addSubscribersToList(listId, subscribers)
 
   // 4. Wait until Moosend has finished importing the subscribers into the list.
-  // Sending while the import is still processing leaves the campaign as Draft
-  // with a "not sent successfully" notification.
+  // Sending while the list is empty makes the send fail and stay Draft.
   await waitForListCount(listId, opts.recipients.length)
 
-  // 5. Convert {{var}} → [subscription.var] in subject + html
+  // 5. Convert {{var}} → [subscription.var]
   const toMoosendTag = (s: string) => s.replace(/\{\{(\w+)\}\}/g, '[subscription.$1]')
 
   // 6. ONE campaign, ONE send
   await createAndSendCampaign({
     name: opts.campaignName,
     subject: toMoosendTag(opts.subject),
+    previewText: opts.previewText ? toMoosendTag(opts.previewText) : undefined,
     senderEmail: SENDER_EMAIL,
     replyToEmail: REPLY_TO_EMAIL,
     htmlContent: toMoosendTag(opts.html),
@@ -61,25 +68,29 @@ export async function sendMoosendBulkPersonalized(opts: {
   })
 }
 
-// Polls the list until ActiveMemberCount >= expected (or timeout ~60s).
+// Polls the list until ActiveMemberCount >= expected (or timeout ~2min).
 // Moosend processes subscribe_many asynchronously; sending a campaign before
-// the list is populated makes the send fail silently (campaign stays Draft).
+// the list is populated makes the send fail (campaign stays Draft).
 async function waitForListCount(listId: string, expected: number): Promise<void> {
-  const MAX_ATTEMPTS = 20
+  const MAX_ATTEMPTS = 40
   const DELAY_MS = 3000
+  let lastCount = 0
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
     try {
       const result = await moosendFetch(`/lists/${listId}/details.json`)
       const ctx = (result as Record<string, any>).Context
-      const count = Number(ctx?.ActiveMemberCount ?? 0)
-      if (count >= expected) return
-      console.log(`[Moosend] list ${listId}: ${count}/${expected} subscribers ready, waiting...`)
+      lastCount = Number(ctx?.ActiveMemberCount ?? 0)
+      if (lastCount >= expected) return
+      console.log(`[Moosend] list ${listId}: ${lastCount}/${expected} subscribers ready, waiting...`)
     } catch (err) {
       console.error('[Moosend] list details check failed:', err instanceof Error ? err.message : err)
     }
     await new Promise(res => setTimeout(res, DELAY_MS))
   }
-  console.warn(`[Moosend] list ${listId} never reached ${expected} subscribers — sending anyway`)
+  throw new Error(
+    `Moosend list ${listId} has only ${lastCount}/${expected} subscribers after 2 minutes — ` +
+    `the subscriber import failed or is stuck; aborting send to avoid a Draft campaign.`
+  )
 }
 
 export const GEMI_DISCLAIMER =
@@ -94,6 +105,7 @@ export interface MoosendSubscriber {
 export interface CampaignOptions {
   name: string;
   subject: string;
+  previewText?: string;
   senderEmail: string;
   replyToEmail: string;
   htmlContent: string;
@@ -208,6 +220,7 @@ export async function createAndSendCampaign(
     body: JSON.stringify({
       Name: opts.name,
       Subject: opts.subject,
+      ...(opts.previewText ? { PreviewText: opts.previewText } : {}),
       SenderEmail: opts.senderEmail,
       ReplyToEmail: opts.replyToEmail,
       HTMLContent: opts.htmlContent,
@@ -232,6 +245,29 @@ export async function createAndSendCampaign(
     method: "POST",
   });
   console.log(`[Moosend] send.json response for campaign ${campaignId}:`, JSON.stringify(sendResult));
+
+  // Verify the campaign actually left Draft state. Moosend's send.json can
+  // return success while the campaign silently stays in Draft (e.g. failed
+  // personalization tags, empty list). Surface that as an error instead of
+  // reporting a phantom success.
+  await new Promise(res => setTimeout(res, 5000));
+  try {
+    const view = await moosendFetch(`/campaigns/${campaignId}/view.json`);
+    const ctx = (view as Record<string, any>).Context;
+    const status = ctx?.Status;
+    console.log(`[Moosend] campaign ${campaignId} status after send: ${JSON.stringify(status)}`);
+    // Status 0 = Draft in Moosend's enum; also guard against the string form
+    if (status === 0 || status === 'Draft') {
+      throw new Error(
+        `Moosend campaign '${opts.name}' (${campaignId}) is still in Draft after send — ` +
+        `the send was rejected by Moosend. Check the campaign in the Moosend dashboard for the reason.`
+      );
+    }
+  } catch (err) {
+    if (err instanceof Error && err.message.includes('still in Draft')) throw err;
+    // view.json itself failed — log but don't fail the send on a status-check error
+    console.error('[Moosend] post-send status check failed:', err instanceof Error ? err.message : err);
+  }
 
   return campaignId;
 }

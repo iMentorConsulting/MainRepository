@@ -8,15 +8,6 @@ export const maxDuration = 270 // seconds — Railway allows up to 5min for cron
 
 const BATCH_PER_RUN = 2000 // recipients per cron invocation
 
-function injectPreviewText(html: string, preview: string): string {
-  if (!preview) return html
-  const hidden = `<span style="display:none;font-size:1px;color:#ffffff;max-height:0;overflow:hidden;">${preview}</span>`
-  const bodyIdx = html.indexOf('<body')
-  if (bodyIdx === -1) return hidden + html
-  const closeTag = html.indexOf('>', bodyIdx)
-  return html.slice(0, closeTag + 1) + hidden + html.slice(closeTag + 1)
-}
-
 export async function POST(req: NextRequest) {
   const cronSecret = process.env.CRON_SECRET
   const authHeader = req.headers.get('authorization')
@@ -88,12 +79,14 @@ export async function POST(req: NextRequest) {
     if (valid.length > 0) {
       // Build the full HTML once (preview injected, disclaimer appended) — still using {{var}} placeholders;
       // sendMoosendBulkPersonalized will convert them to [subscription.var] merge tags.
-      const htmlFull = injectPreviewText(htmlBase, previewBase) + disclaimer
+      // Preview text is passed natively to Moosend (PreviewText field) — no HTML injection needed.
+      const htmlFull = htmlBase + disclaimer
 
       try {
         await sendMoosendBulkPersonalized({
           recipients: valid.map(r => ({ email: r.email, variables: r.variables })),
           subject: subjectBase,
+          previewText: previewBase || undefined,
           html: htmlFull,
           campaignName: campaign.title,
         })
