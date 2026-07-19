@@ -20,7 +20,7 @@ import os
 import json
 import logging
 import threading
-from datetime import datetime
+from datetime import datetime, date
 from typing import Optional, List
 
 import requests
@@ -344,6 +344,12 @@ class ErmisWebhookIn(BaseModel):
     token: Optional[str] = None
     leadRef: Optional[str] = None
     afm: Optional[str] = None
+    # Optional contact fields (ΓΕΜΗ prospects that we auto-create)
+    name: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    program: Optional[str] = None
+    serviceType: Optional[str] = None
     eligibility: Optional[str] = None       # eligible | ineligible
     transcript: Optional[object] = None     # list[{role,text,ts}] or markdown string
     # AADE business data LOGISTIS fetched + created (regdate, address, ΚΑΔ list…)
@@ -359,7 +365,12 @@ def ermis_webhook(
     _key: None = Depends(_verify_portal_key),
     db: Session = Depends(get_db),
 ):
-    # Resolve lead by token first, then leadRef
+    from routes.cm_leads import normalize_afm
+    biz_data = payload.business or {}
+    afm = normalize_afm(payload.afm or biz_data.get("afm"))
+
+    # Resolve lead: token → leadRef → ΑΦΜ. If none, auto-create (ΓΕΜΗ prospect that
+    # completed ΕΡΜΗΣ via email campaign — no leadRef of ours).
     lead = None
     if payload.token:
         lead = db.query(CMLead).filter(CMLead.ermis_token == payload.token).first()
@@ -368,12 +379,34 @@ def ermis_webhook(
             lead = db.query(CMLead).filter(CMLead.id == int(payload.leadRef)).first()
         except (ValueError, TypeError):
             lead = None
+    if lead is None and afm:
+        lead = db.query(CMLead).filter(CMLead.afm == afm).first()
+
+    created = False
     if lead is None:
-        raise HTTPException(status_code=404, detail="Δεν βρέθηκε lead για αυτό το token/leadRef")
+        if not afm:
+            raise HTTPException(status_code=404, detail="Δεν βρέθηκε lead και λείπει ΑΦΜ για δημιουργία")
+        # Auto-create a HOT lead from the ΓΕΜΗ prospect. No Viber/Email/link is sent
+        # (the ΕΡΜΗΣ conversation is already done) — only a consultant call is needed.
+        lead = CMLead(
+            name=payload.name or biz_data.get("onomasia") or f"ΓΕΜΗ {afm}",
+            afm=afm,
+            phone=payload.phone or None,
+            email=payload.email or None,
+            program=payload.program or None,
+            service_type=payload.serviceType or None,
+            status="HOT",
+            source="LOGISTIS ΓΕΜΗ",
+            ermis_token=payload.token or None,
+            next_call_date=date.today(),
+        )
+        db.add(lead)
+        db.flush()
+        created = True
 
     # Store the AADE business profile + program matching LOGISTIS returned.
     # Keyed by AFM in the shared CMBusinessProfile cache (reused across the app).
-    afm = (payload.afm or (payload.business or {}).get("afm") or lead.afm or "").strip()
+    afm = afm or (lead.afm or "").strip()
     if (payload.business is not None or payload.matchedPrograms is not None) and afm:
         biz = dict(payload.business or {})
         biz["afm"] = afm
@@ -404,4 +437,4 @@ def ermis_webhook(
             lead.ermis_status = "in_progress"
 
     db.commit()
-    return {"ok": True, "lead_id": lead.id, "ermis_status": lead.ermis_status}
+    return {"ok": True, "lead_id": lead.id, "ermis_status": lead.ermis_status, "created": created}
