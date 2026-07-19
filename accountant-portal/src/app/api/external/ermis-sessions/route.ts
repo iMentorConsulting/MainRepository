@@ -37,9 +37,12 @@ export async function sendErmisWebhook(params: {
   completedAt?: string | null
 }) {
   const apiKey = process.env.CASES_API_KEY
-  if (!apiKey) return
+  if (!apiKey) {
+    console.error(`[ErmisWebhook] ${params.event} NOT sent for ΑΦΜ ${params.afm} — CASES_API_KEY is missing`)
+    return
+  }
   try {
-    await fetch(params.callbackUrl, {
+    const res = await fetch(params.callbackUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey },
       body: JSON.stringify({
@@ -54,8 +57,10 @@ export async function sendErmisWebhook(params: {
         ...(params.completedAt !== undefined ? { completedAt: params.completedAt } : {}),
       }),
     })
+    const bodyText = await res.text().catch(() => '')
+    console.log(`[ErmisWebhook] ${params.event} for ΑΦΜ ${params.afm} → ${params.callbackUrl} → HTTP ${res.status}${params.transcript ? ` (transcript: ${params.transcript.length} messages)` : ''} — response: ${bodyText.slice(0, 300)}`)
   } catch (err: any) {
-    console.error('[ErmisWebhook] failed:', err?.message)
+    console.error(`[ErmisWebhook] ${params.event} failed for ΑΦΜ ${params.afm}:`, err?.message)
   }
 }
 

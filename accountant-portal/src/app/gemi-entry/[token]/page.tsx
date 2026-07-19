@@ -74,7 +74,7 @@ export default function GemiEntryPage() {
   const isErmis = type === 'ermis'
   const chatLabel = isErmis
     ? 'Συνδεθείτε με τον Ερμή — Δωρεάν έλεγχος επιλεξιμότητας'
-    : 'Συνδεθείτε με τη Θέμις — Εξωδικαστικός Μηχανισμός Ρύθμισης Οφειλών'
+    : 'Συνδεθείτε με τη Θέμιδα — Εξωδικαστικός Μηχανισμός Ρύθμισης Οφειλών'
 
   return (
     <div style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #1a3a6b 0%, #2563eb 60%, #1e40af 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
