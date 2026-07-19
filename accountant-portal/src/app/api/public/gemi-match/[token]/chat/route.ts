@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { runErmisTurn, type ChatMessage } from '@/lib/ermis-agent'
 import { buildEligibilityQuestions, parseEligibilityStorage } from '@/lib/eligibility-questions'
+import { sendEmail } from '@/lib/email'
+import { notifyCaseManagement } from '@/lib/case-management-sync'
+import { buildBusinessProfilePayload, BUSINESS_PROFILE_SELECT } from '@/lib/business-profile'
 
 export const dynamic = 'force-dynamic'
 
@@ -40,6 +43,10 @@ async function createGemiCase(params: {
     const existing = await prisma.business.findUnique({ where: { afm: params.afm }, select: { id: true } })
     if (existing) {
       businessId = existing.id
+      // Sync phone to existing Business if we now have one
+      if (gemi.mobilePhone) {
+        await prisma.business.update({ where: { id: businessId }, data: { viberPhone: gemi.mobilePhone } }).catch(() => {})
+      }
     } else {
       const created = await prisma.business.create({
         data: {
@@ -70,7 +77,13 @@ async function createGemiCase(params: {
     : ''
   const description = `[ΓΕΜΗ επιχείρηση] ${params.summary}${pendingNote}`
 
-  await prisma.clientCase.create({
+  // Fetch Business profile for case management notification
+  const business = await prisma.business.findUnique({
+    where: { id: businessId },
+    select: { phone: true, email: true, ...BUSINESS_PROFILE_SELECT },
+  })
+
+  const clientCase = await prisma.clientCase.create({
     data: {
       businessId,
       programId: params.programId,
@@ -90,7 +103,36 @@ async function createGemiCase(params: {
         },
       },
     },
+    include: { accountant: { select: { officeName: true } } },
   })
+
+  // Send admin email notification (same as normal businesses)
+  try {
+    await sendEmail({
+      to: process.env.ADMIN_EMAIL || 'info@i-mentor.gr',
+      subject: `🗂️ Νέα Υπόθεση #${clientCase.caseNumber} από Ερμή (ΓΕΜΗ) — ${params.businessName}`,
+      html: `<p>Ο Ερμής δημιούργησε νέα υπόθεση μετά από συνομιλία με ΓΕΜΗ επιχείρηση <strong>${params.businessName}</strong> (ΑΦΜ: ${params.afm}) για το πρόγραμμα <strong>${params.programTitle}</strong>:</p>
+        <blockquote style="border-left:4px solid #4f46e5;padding-left:12px;color:#374151">${params.summary}</blockquote>
+        ${pendingNote ? `<p style="color:#b45309"><strong>⚠️ Εκκρεμότητα:</strong> ${params.pendingItem!.trim()}</p>` : ''}
+        <p><a href="${process.env.APP_URL || 'https://logistis.i-mentor.gr'}/cases/${clientCase.id}">Δείτε την υπόθεση →</a></p>`,
+    })
+  } catch {}
+
+  // Notify external case management system (same as normal businesses)
+  if (business) {
+    const profile = await buildBusinessProfilePayload(business)
+    notifyCaseManagement({
+      caseNumber: clientCase.caseNumber,
+      phone: gemi.mobilePhone || business.phone || null,
+      email: business.email || null,
+      accountantOffice: clientCase.accountant?.officeName || null,
+      caseType: clientCase.caseType,
+      description: clientCase.description,
+      priority: clientCase.priority,
+      programTitle: params.programTitle,
+      ...profile,
+    }).catch(err => console.error('[GemiCase] case mgmt notify failed:', err?.message))
+  }
 }
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ token: string }> }) {

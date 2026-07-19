@@ -3,13 +3,30 @@ const BASE_URL = "https://api.moosend.com/v3";
 const SENDER_EMAIL = process.env.MOOSEND_SENDER_EMAIL ?? 'info@i-mentor.gr'
 const REPLY_TO_EMAIL = process.env.MOOSEND_REPLY_TO_EMAIL ?? 'info@i-mentor.gr'
 
-// Send via Moosend Campaign API (HTTP) — avoids SMTP which is blocked by Railway.
-// Each call: create temp list → add recipient → create campaign with pre-substituted HTML → send.
+// Send a single transactional email via Moosend — no campaign created in the dashboard.
+// Falls back to campaign-per-recipient if transactional API is unavailable (non-2xx).
 export async function sendMoosendEmail(opts: { to: string; subject: string; html: string }): Promise<void> {
-  const listId = await createMoosendList(`gemi-${Date.now()}`)
+  const apiKey = getApiKey()
+  const url = `${BASE_URL}/transactional/sendemail.json?apikey=${apiKey}`
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      Subject: opts.subject,
+      Body: opts.html,
+      FromEmail: SENDER_EMAIL,
+      ReplyTo: REPLY_TO_EMAIL,
+      ToEmails: [opts.to],
+      IsBodyHtml: true,
+    }),
+  })
+  if (res.ok) return
+
+  // Transactional not available on this plan — fall back to campaign-per-recipient
+  const listId = await createMoosendList(`gemi-tx-${Date.now()}`)
   await addSubscribersToList(listId, [{ Email: opts.to }])
   await createAndSendCampaign({
-    name: `gemi-${Date.now()}`,
+    name: `gemi-tx-${Date.now()}`,
     subject: opts.subject,
     senderEmail: SENDER_EMAIL,
     replyToEmail: REPLY_TO_EMAIL,

@@ -97,8 +97,11 @@ export async function POST(
     }
 
     const themisData = await themisRes.json().catch(() => null)
-    const themisUrl: string = themisData?.themis_url
+    console.log('[ΘΕΜΙΣ] API response:', JSON.stringify(themisData))
+    // Try common field names for the redirect URL
+    const themisUrl: string = themisData?.themis_url ?? themisData?.url ?? themisData?.redirect_url ?? themisData?.redirect ?? ''
     if (!themisUrl) {
+      console.error('[ΘΕΜΙΣ] No URL in response. Keys:', themisData ? Object.keys(themisData) : 'null')
       return NextResponse.json({ error: 'Δεν ελήφθη σύνδεσμος από τη Θέμις' }, { status: 502 })
     }
 
