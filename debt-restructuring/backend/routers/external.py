@@ -168,20 +168,32 @@ class CreateLeadRequest(BaseModel):
 
 
 def _normalize_email(email: str) -> str:
-    """Normalize email addresses — auto-correct common Greek domain typos."""
+    """Normalize email addresses — auto-correct common typos and domain mistakes."""
     if not email:
         return email
 
     email = email.lower().strip()
 
-    # Common typos: .fr (France) → .gr (Greece), etc.
+    # Common email typos: domain mistakes, country code errors, etc.
     corrections = {
+        # Country code typos: .fr → .gr, .con → .com
         '@yahoo.fr': '@yahoo.gr',
         '@gmail.fr': '@gmail.gr',
         '@hotmail.fr': '@hotmail.gr',
         '@outlook.fr': '@outlook.gr',
         '@ionline.fr': '@ionline.gr',
         '@in.fr': '@in.gr',
+        '@mail.fr': '@mail.gr',
+        '@live.fr': '@live.gr',
+        '@gmail.con': '@gmail.com',
+        '@hotmail.con': '@hotmail.com',
+        '@outlook.con': '@outlook.com',
+        '@yahoo.con': '@yahoo.com',
+        # Domain name typos: gmial/gmai → gmail, yaho → yahoo
+        '@gmial.com': '@gmail.com',
+        '@gmai.com': '@gmail.com',
+        '@yaho.gr': '@yahoo.gr',
+        '@yaho.com': '@yahoo.com',
     }
 
     for typo, correct in corrections.items():
