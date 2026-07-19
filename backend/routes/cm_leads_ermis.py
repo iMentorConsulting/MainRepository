@@ -365,7 +365,7 @@ def ermis_webhook(
     _key: None = Depends(_verify_portal_key),
     db: Session = Depends(get_db),
 ):
-    from routes.cm_leads import normalize_afm
+    from routes.cm_leads import normalize_afm, clean_email
     biz_data = payload.business or {}
     afm = normalize_afm(payload.afm or biz_data.get("afm"))
 
@@ -395,7 +395,7 @@ def ermis_webhook(
             name=payload.name or biz_data.get("onomasia") or f"ΓΕΜΗ {afm}",
             afm=afm,
             phone=payload.phone or None,
-            email=payload.email or None,
+            email=clean_email(payload.email),
             program=payload.program or None,
             service_type=payload.serviceType or None,
             status="HOT",

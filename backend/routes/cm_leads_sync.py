@@ -166,6 +166,15 @@ def _normalize_afm_local(afm):
     return s
 
 
+def _clean_email_local(email):
+    """Fix common email typos (e.g. yahoo.fr→yahoo.gr). Delegates to cm_leads."""
+    try:
+        from routes.cm_leads import clean_email
+        return clean_email(email)
+    except Exception:
+        return email
+
+
 def _map_row(row: List[str], cfg: CMLeadSheetConfig, header: List[str], users: list) -> dict:
     cmap = cfg.column_map or {}
     data = {}
@@ -178,7 +187,7 @@ def _map_row(row: List[str], cfg: CMLeadSheetConfig, header: List[str], users: l
         "name": _trunc(data.get("name") or None, 200),
         "phone": _trunc(data.get("phone") or None, 50),
         "phone2": _trunc(data.get("phone2") or None, 50),
-        "email": _trunc(data.get("email") or None, 200),
+        "email": _clean_email_local(_trunc(data.get("email") or None, 200)),
         "afm": _normalize_afm_local(_trunc(data.get("afm") or None, 20)),
         "service_type": _trunc(data.get("service_type") or None, 150),
         "source": _trunc(data.get("source") or None, 200),

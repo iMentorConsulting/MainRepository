@@ -1193,6 +1193,8 @@ try:
         _conn.execute(_text("ALTER TABLE cm_portal_assignments ADD COLUMN IF NOT EXISTS cm_lead_id INTEGER"))
         # Backfill: pad existing 8-digit ΑΦΜ to 9 with a leading zero
         _conn.execute(_text("UPDATE cm_leads SET afm = '0' || afm WHERE afm ~ '^[0-9]{8}$'"))
+        # Backfill: fix the common yahoo.fr → yahoo.gr email typo
+        _conn.execute(_text("UPDATE cm_leads SET email = regexp_replace(email, '@yahoo\\.fr$', '@yahoo.gr', 'i') WHERE email ~* '@yahoo\\.fr$'"))
         _conn.execute(_text("""
             CREATE TABLE IF NOT EXISTS cm_lead_comments (
                 id SERIAL PRIMARY KEY,
