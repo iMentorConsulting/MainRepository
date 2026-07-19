@@ -167,6 +167,30 @@ class CreateLeadRequest(BaseModel):
     send_themis: Optional[bool] = False
 
 
+def _normalize_email(email: str) -> str:
+    """Normalize email addresses — auto-correct common Greek domain typos."""
+    if not email:
+        return email
+
+    email = email.lower().strip()
+
+    # Common typos: .fr (France) → .gr (Greece), etc.
+    corrections = {
+        '@yahoo.fr': '@yahoo.gr',
+        '@gmail.fr': '@gmail.gr',
+        '@hotmail.fr': '@hotmail.gr',
+        '@outlook.fr': '@outlook.gr',
+        '@ionline.fr': '@ionline.gr',
+        '@in.fr': '@in.gr',
+    }
+
+    for typo, correct in corrections.items():
+        if typo in email:
+            email = email.replace(typo, correct)
+
+    return email
+
+
 # Get next consultant in round-robin order
 def _get_next_consultant(db: Session) -> str:
     """Auto-allocate to next consultant in rotation: STELLA → VALLIA → SOFIA"""
@@ -194,6 +218,8 @@ def create_lead_external(
 
     Authentication: X-API-Key header (optional, but recommended)
 
+    Auto-normalizes email addresses (corrects .fr → .gr typos, etc.)
+
     Returns: {
         "id": lead_id,
         "name": "...",
@@ -211,6 +237,9 @@ def create_lead_external(
         if not expected or x_api_key != expected:
             raise HTTPException(status_code=401, detail="Μη έγκυρο API key")
 
+    # Normalize email — auto-correct common typos (.fr → .gr, etc.)
+    normalized_email = _normalize_email(data.email) if data.email else ""
+
     # Auto-allocate to next consultant in round-robin
     assigned_to = _get_next_consultant(db)
 
@@ -222,7 +251,7 @@ def create_lead_external(
         sheet_row_num=None,
         name=data.name or "",
         phone=(data.phone or "").strip(),
-        email=(data.email or "").strip(),
+        email=normalized_email.strip(),
         status=_normalize_status("CALL"),
         status_raw="CALL",
         assigned_to=assigned_to,

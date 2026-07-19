@@ -1,12 +1,15 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import * as api from '../api'
+import { normalizeEmail } from '../utils/emailNormalization'
 
 /**
  * Direct redirect flow for ΛΟΓΙΣΤΗΣ portal integration.
  *
  * Accepts query parameters: name, phone, email, total_debt, referrer, application_number, service_type
  * Creates a lead via the backend API and redirects directly to Themis chat.
+ *
+ * Auto-corrects common email domain typos (e.g., .fr → .gr for Greek emails)
  *
  * Example URL:
  * https://portal.i-mentor.gr/themis/create?name=ΑΒΓΔ+ΑΕ&phone=%2B30210123456&total_debt=50000&referrer=LOGISTIS
@@ -23,7 +26,7 @@ export default function ThemisCreate() {
         // Extract query parameters
         const name = searchParams.get('name') || ''
         const phone = searchParams.get('phone') || ''
-        const email = searchParams.get('email') || ''
+        let email = searchParams.get('email') || ''
         const total_debt = searchParams.get('total_debt') || ''
         const referrer = searchParams.get('referrer') || 'LOGISTIS'
         const application_number = searchParams.get('application_number') || ''
@@ -32,6 +35,11 @@ export default function ThemisCreate() {
 
         if (!name) {
           throw new Error('Απαιτείται το πεδίο "name" (όνομα πελάτη)')
+        }
+
+        // Normalize email — auto-correct common typos (.fr → .gr, etc.)
+        if (email) {
+          email = normalizeEmail(email)
         }
 
         // Call the backend API to create lead
