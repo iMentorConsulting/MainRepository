@@ -19,15 +19,30 @@ const MIN_HOURS_BETWEEN = 20 // auto mode: skip if the newest backup is fresher 
 const NIGHT_WINDOW_START = 3 // 03:00
 const NIGHT_WINDOW_END = 6 // 06:00
 
-function getDrive() {
-  const serviceAccountKey = process.env.GOOGLE_SERVICE_ACCOUNT_KEY
-  if (!serviceAccountKey) return null
-  const credentials = JSON.parse(serviceAccountKey)
+function getDrive(): { drive: ReturnType<typeof google.drive> } | { error: string } {
+  const raw = process.env.GOOGLE_SERVICE_ACCOUNT_KEY || process.env.GOOGLE_SERVICE_ACCOUNT_JSON
+  if (!raw) return { error: 'GOOGLE_SERVICE_ACCOUNT_KEY is not set' }
+
+  // Accept plain JSON or base64-encoded JSON; tolerate stray wrapping quotes
+  let credentials: any = null
+  const candidates = [
+    raw,
+    raw.trim().replace(/^['\"]|['\"]$/g, ''),
+    (() => { try { return Buffer.from(raw, 'base64').toString('utf-8') } catch { return '' } })(),
+  ]
+  for (const c of candidates) {
+    if (!c) continue
+    try { credentials = JSON.parse(c); break } catch {}
+  }
+  if (!credentials?.client_email || !credentials?.private_key) {
+    return { error: `GOOGLE_SERVICE_ACCOUNT_KEY is not valid JSON (starts with: ${raw.slice(0, 30)}...). Paste the service-account JSON as a single line, or base64-encode it.` }
+  }
+
   const auth = new google.auth.GoogleAuth({
     credentials,
     scopes: ['https://www.googleapis.com/auth/drive'],
   })
-  return google.drive({ version: 'v3', auth })
+  return { drive: google.drive({ version: 'v3', auth }) }
 }
 
 // Dump every table in the public schema to JSON via Prisma — works without
@@ -62,10 +77,15 @@ export async function POST(request: NextRequest) {
   }
 
   const folderId = process.env.GDRIVE_BACKUP_FOLDER_ID || process.env.GOOGLE_DRIVE_FOLDER_ID
-  const drive = getDrive()
-  if (!folderId || !drive) {
-    return NextResponse.json({ error: 'Missing GDRIVE_BACKUP_FOLDER_ID or GOOGLE_SERVICE_ACCOUNT_KEY' }, { status: 500 })
+  if (!folderId) {
+    return NextResponse.json({ error: 'Missing GDRIVE_BACKUP_FOLDER_ID' }, { status: 500 })
   }
+  const driveResult = getDrive()
+  if ('error' in driveResult) {
+    console.error('[Backup]', driveResult.error)
+    return NextResponse.json({ error: driveResult.error }, { status: 500 })
+  }
+  const drive = driveResult.drive
 
   // Auto mode (called from the 5-minute cron): run once per night, only
   // inside the night window (Athens time), and only if the newest backup
