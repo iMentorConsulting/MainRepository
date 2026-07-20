@@ -252,14 +252,14 @@ router.get('/payroll', async (req, res) => {
       ORDER BY TRIM(supplier), month
     `, { replacements: params, type: QueryTypes.SELECT });
 
-    // Sales per agent per month — use amount_application only (Ποσό Αίτησης).
-    // amount_implementation is future project delivery spread over months/years;
-    // crediting it entirely to the sale month inflates that month's figure unrealistically.
+    // Sales per agent per month — use amount_collected (Ποσό Είσπραξης).
+    // This is the same field the income page shows as "ΣΥΝΟΛΟ ΦΙΛΤΡΩΝ",
+    // so the payroll report matches what the user sees on the income list.
     const salesRows = await sequelize.query(`
       SELECT
         UPPER(TRIM(sales_agent)) AS agent_key,
         TO_CHAR(sale_date, 'MM') AS month,
-        COALESCE(SUM(COALESCE(amount_application,0)), 0) AS sales
+        COALESCE(SUM(COALESCE(amount_collected,0)), 0) AS sales
       FROM income
       WHERE sale_date BETWEEN :start AND :end
         AND sales_agent IS NOT NULL AND TRIM(sales_agent) <> ''
