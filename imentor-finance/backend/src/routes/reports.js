@@ -227,14 +227,18 @@ router.get('/bonus', async (req, res) => {
   }
 });
 
-// Payroll report: expenses with category ΜΙΣΘΟΔΟΣΙΑ-ΕΡΓΑΤΙΚΑ grouped by supplier per month
+const SALES_TARGET_MULTIPLIER = 4.2;
+
+// Payroll report: payroll cost + sales target (cost × 4.2) vs actual sales per employee/month
 router.get('/payroll', async (req, res) => {
   try {
     const { year } = req.query;
     if (!year) return res.status(400).json({ error: 'Απαιτείται year' });
 
-    // Use LIKE to catch category variants (spaces around dash, different dash type, etc.)
-    const rows = await sequelize.query(`
+    const params = { start: `${year}-01-01`, end: `${year}-12-31` };
+
+    // Payroll costs per employee per month
+    const payrollRows = await sequelize.query(`
       SELECT
         TRIM(supplier) AS employee,
         TO_CHAR(date, 'MM') AS month,
@@ -246,20 +250,49 @@ router.get('/payroll', async (req, res) => {
         AND supplier IS NOT NULL AND TRIM(supplier) <> ''
       GROUP BY TRIM(supplier), month
       ORDER BY TRIM(supplier), month
-    `, { replacements: { start: `${year}-01-01`, end: `${year}-12-31` }, type: QueryTypes.SELECT });
+    `, { replacements: params, type: QueryTypes.SELECT });
 
-    const employees = [...new Set(rows.map(r => r.employee))].sort((a, b) => a.localeCompare(b, 'el'));
+    // Sales per agent per month (application + implementation fees, by sale_date)
+    const salesRows = await sequelize.query(`
+      SELECT
+        UPPER(TRIM(sales_agent)) AS agent_key,
+        TO_CHAR(sale_date, 'MM') AS month,
+        COALESCE(SUM(COALESCE(amount_application,0) + COALESCE(amount_implementation,0)), 0) AS sales
+      FROM income
+      WHERE sale_date BETWEEN :start AND :end
+        AND sales_agent IS NOT NULL AND TRIM(sales_agent) <> ''
+      GROUP BY agent_key, month
+      ORDER BY agent_key, month
+    `, { replacements: params, type: QueryTypes.SELECT });
+
     const months = ['01','02','03','04','05','06','07','08','09','10','11','12'];
     const monthNames = ['Ιαν','Φεβ','Μαρ','Απρ','Μαι','Ιουν','Ιουλ','Αυγ','Σεπ','Οκτ','Νοε','Δεκ'];
+    const employees = [...new Set(payrollRows.map(r => r.employee))].sort((a, b) => a.localeCompare(b, 'el'));
 
     const data = employees.map(employee => {
-      const empRows = rows.filter(r => r.employee === employee);
+      const empRows = payrollRows.filter(r => r.employee === employee);
+      const empKey = employee.toUpperCase().trim();
+
       const monthly = months.map((m, i) => {
-        const r = empRows.find(x => x.month === m);
-        return { month: m, month_name: monthNames[i], amount: parseFloat(r?.amount || 0), count: parseInt(r?.count || 0) };
+        const pr = empRows.find(x => x.month === m);
+        const sr = salesRows.find(x => x.agent_key === empKey && x.month === m);
+        const amount = parseFloat(pr?.amount || 0);
+        const sales = parseFloat(sr?.sales || 0);
+        const target = parseFloat((amount * SALES_TARGET_MULTIPLIER).toFixed(2));
+        return {
+          month: m,
+          month_name: monthNames[i],
+          amount,
+          target,
+          sales,
+          count: parseInt(pr?.count || 0)
+        };
       });
+
       const total = monthly.reduce((s, m) => s + m.amount, 0);
-      return { agent: employee, monthly, total };
+      const total_target = parseFloat((total * SALES_TARGET_MULTIPLIER).toFixed(2));
+      const total_sales = monthly.reduce((s, m) => s + m.sales, 0);
+      return { agent: employee, monthly, total, total_target, total_sales };
     });
 
     res.json(data);

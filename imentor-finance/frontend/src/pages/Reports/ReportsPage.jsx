@@ -908,6 +908,23 @@ function TabServiceTrend() {
   );
 }
 
+const MULTIPLIER = 4.2;
+
+function AchievementBar({ pct }) {
+  const capped = Math.min(pct, 100);
+  const color = pct >= 100 ? 'bg-emerald-500' : pct >= 75 ? 'bg-amber-400' : 'bg-rose-500';
+  return (
+    <div className="flex items-center gap-2">
+      <div className="flex-1 bg-slate-100 rounded-full h-1.5 min-w-[40px]">
+        <div className={`h-1.5 rounded-full ${color}`} style={{ width: `${capped}%` }} />
+      </div>
+      <span className={`text-xs font-bold w-10 text-right ${pct >= 100 ? 'text-emerald-600' : pct >= 75 ? 'text-amber-600' : 'text-rose-600'}`}>
+        {pct > 0 ? `${Math.round(pct)}%` : '—'}
+      </span>
+    </div>
+  );
+}
+
 function TabPayroll() {
   const [payrollYears, setPayrollYears] = useState([]);
   const [year, setYear] = useState(new Date().getFullYear());
@@ -934,17 +951,10 @@ function TabPayroll() {
   const MONTH_NAMES = ['Ιαν','Φεβ','Μαρ','Απρ','Μαι','Ιουν','Ιουλ','Αυγ','Σεπ','Οκτ','Νοε','Δεκ'];
   const BORDER_COLORS = ['border-indigo-400','border-emerald-400','border-amber-400','border-rose-400','border-cyan-400','border-purple-400'];
 
-  const allChartData = MONTH_NAMES.map((name, i) => {
-    const monthNum = String(i + 1).padStart(2, '0');
-    const entry = { month: name };
-    for (const d of data) {
-      const m = d.monthly.find(x => x.month === monthNum);
-      entry[d.agent] = m?.amount || 0;
-    }
-    return entry;
-  });
-
-  const grandTotal = data.reduce((s, d) => s + d.total, 0);
+  const grandPayroll = data.reduce((s, d) => s + d.total, 0);
+  const grandTarget = data.reduce((s, d) => s + d.total_target, 0);
+  const grandSales = data.reduce((s, d) => s + d.total_sales, 0);
+  const grandPct = grandTarget > 0 ? (grandSales / grandTarget) * 100 : 0;
 
   return (
     <div className="space-y-6">
@@ -958,85 +968,122 @@ function TabPayroll() {
 
       {!loading && data.length > 0 && (
         <>
+          {/* Overview stat cards */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            {data.map((d, i) => (
-              <StatCard key={d.agent} label={d.agent} value={fmt(d.total)} color={BORDER_COLORS[i % BORDER_COLORS.length]} />
-            ))}
-            {data.length > 1 && (
-              <StatCard label="Σύνολο Μισθοδοσίας" value={fmt(grandTotal)} color="border-slate-400" />
-            )}
-          </div>
-
-          <div className="card p-6">
-            <h2 className="section-title">Μηνιαία Μισθοδοσία Υπαλλήλων — {year}</h2>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={allChartData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-                <YAxis tickFormatter={v => `${Math.round(v/1000)}k`} tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-                <Tooltip content={<CustomTooltip />} />
-                <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 12, paddingTop: 16 }} />
-                {data.map((d, i) => (
-                  <Bar key={d.agent} dataKey={d.agent} name={d.agent} fill={PALETTE[i % PALETTE.length]} radius={[4, 4, 0, 0]} maxBarSize={40} />
-                ))}
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-
-          <div className="card overflow-hidden">
-            <div className="px-6 py-4 border-b border-slate-100">
-              <h2 className="section-title mb-0">Αναλυτική Μισθοδοσία-Εργατικά ανά Μήνα — {year}</h2>
+            <StatCard label="Σύνολο Μισθοδοσίας" value={fmt(grandPayroll)} color="border-slate-400" />
+            <StatCard label={`Στόχος Πωλήσεων (×${MULTIPLIER})`} value={fmt(grandTarget)} color="border-amber-400" />
+            <StatCard label="Πραγματικές Πωλήσεις" value={fmt(grandSales)} color={grandSales >= grandTarget ? 'border-emerald-400' : 'border-rose-400'} />
+            <div className="card p-5 border-l-4 border-indigo-400">
+              <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Επίτευξη Στόχου</div>
+              <div className={`text-2xl font-black ${grandPct >= 100 ? 'text-emerald-600' : grandPct >= 75 ? 'text-amber-600' : 'text-rose-600'}`}>
+                {grandTarget > 0 ? `${Math.round(grandPct)}%` : '—'}
+              </div>
             </div>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr>
-                    <th className="th">Μήνας</th>
-                    {data.map(d => <th key={d.agent} className="th text-right">{d.agent}</th>)}
-                    <th className="th text-right">Σύνολο</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {MONTH_NAMES.map((name, i) => {
-                    const monthNum = String(i + 1).padStart(2, '0');
-                    const amounts = data.map(d => {
-                      const m = d.monthly.find(x => x.month === monthNum);
-                      return m?.amount || 0;
-                    });
-                    const rowTotal = amounts.reduce((s, v) => s + v, 0);
-                    return (
-                      <tr key={name} className={`tr ${rowTotal === 0 ? 'opacity-40' : ''}`}>
-                        <td className="td font-semibold text-slate-700">{name} {year}</td>
-                        {amounts.map((amt, ai) => (
-                          <td key={ai} className="td text-right">
-                            {amt > 0
-                              ? <span className="font-bold text-indigo-600">{fmt(amt)}</span>
-                              : amt < 0
-                                ? <span className="font-bold text-rose-600">{fmt(amt)}</span>
+          </div>
+
+          {/* Per-employee target vs sales tables */}
+          {data.map((d, di) => {
+            const pct = d.total_target > 0 ? (d.total_sales / d.total_target) * 100 : 0;
+            const achieved = d.total_sales >= d.total_target;
+            return (
+              <div key={d.agent} className="card overflow-hidden">
+                {/* Employee header */}
+                <div className={`px-6 py-4 border-b border-slate-100 flex flex-wrap items-center gap-4 border-l-4 ${BORDER_COLORS[di % BORDER_COLORS.length]}`}>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-black text-slate-800 text-base">{d.agent}</h3>
+                    <div className="flex flex-wrap gap-4 mt-1 text-xs text-slate-500">
+                      <span>Κόστος: <strong className="text-slate-700">{fmt(d.total)}</strong></span>
+                      <span>Στόχος: <strong className="text-amber-600">{fmt(d.total_target)}</strong></span>
+                      <span>Πωλήσεις: <strong className={achieved ? 'text-emerald-600' : 'text-rose-600'}>{fmt(d.total_sales)}</strong></span>
+                      <span>Διαφορά: <strong className={d.total_sales - d.total_target >= 0 ? 'text-emerald-600' : 'text-rose-600'}>{fmt(d.total_sales - d.total_target)}</strong></span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="w-32">
+                      <AchievementBar pct={pct} />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Monthly breakdown table */}
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr>
+                        <th className="th">Μήνας</th>
+                        <th className="th text-right">Κόστος Μισθοδοσίας</th>
+                        <th className="th text-right">Στόχος ×{MULTIPLIER}</th>
+                        <th className="th text-right">Πωλήσεις</th>
+                        <th className="th text-right min-w-[120px]">Επίτευξη</th>
+                        <th className="th text-right">Διαφορά</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {d.monthly.map((m, i) => {
+                        if (m.amount === 0 && m.sales === 0) return (
+                          <tr key={m.month} className="tr opacity-30">
+                            <td className="td text-slate-500">{MONTH_NAMES[i]} {year}</td>
+                            <td className="td text-right text-slate-300">—</td>
+                            <td className="td text-right text-slate-300">—</td>
+                            <td className="td text-right text-slate-300">—</td>
+                            <td className="td text-right text-slate-300">—</td>
+                            <td className="td text-right text-slate-300">—</td>
+                          </tr>
+                        );
+                        const monthPct = m.target > 0 ? (m.sales / m.target) * 100 : 0;
+                        const diff = m.sales - m.target;
+                        return (
+                          <tr key={m.month} className="tr">
+                            <td className="td font-semibold text-slate-700">{MONTH_NAMES[i]} {year}</td>
+                            <td className="td text-right">
+                              {m.amount !== 0
+                                ? <span className={`font-bold ${m.amount < 0 ? 'text-rose-600' : 'text-indigo-600'}`}>{fmt(m.amount)}</span>
                                 : <span className="text-slate-300">—</span>}
-                          </td>
-                        ))}
+                            </td>
+                            <td className="td text-right">
+                              {m.target > 0
+                                ? <span className="font-semibold text-amber-600">{fmt(m.target)}</span>
+                                : <span className="text-slate-300">—</span>}
+                            </td>
+                            <td className="td text-right">
+                              {m.sales > 0
+                                ? <span className={`font-bold ${m.sales >= m.target ? 'text-emerald-600' : 'text-slate-700'}`}>{fmt(m.sales)}</span>
+                                : <span className="text-slate-300">—</span>}
+                            </td>
+                            <td className="td text-right">
+                              {m.target > 0 ? <AchievementBar pct={monthPct} /> : <span className="text-slate-300">—</span>}
+                            </td>
+                            <td className="td text-right">
+                              {m.target > 0
+                                ? <span className={`font-bold text-sm ${diff >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>{diff >= 0 ? '+' : ''}{fmt(diff)}</span>
+                                : <span className="text-slate-300">—</span>}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                      {/* Totals row */}
+                      <tr className="bg-slate-50 border-t-2 border-slate-200">
+                        <td className="td font-black text-slate-800 uppercase text-xs tracking-wide">ΣΥΝΟΛΟ {year}</td>
+                        <td className="td text-right font-black text-indigo-700">{fmt(d.total)}</td>
+                        <td className="td text-right font-black text-amber-600">{fmt(d.total_target)}</td>
                         <td className="td text-right font-black">
-                          {rowTotal > 0
-                            ? <span className="text-emerald-600">{fmt(rowTotal)}</span>
-                            : rowTotal < 0
-                              ? <span className="text-rose-600">{fmt(rowTotal)}</span>
-                              : <span className="text-slate-300">—</span>}
+                          <span className={d.total_sales >= d.total_target ? 'text-emerald-700' : 'text-slate-700'}>{fmt(d.total_sales)}</span>
+                        </td>
+                        <td className="td text-right">
+                          {d.total_target > 0 ? <AchievementBar pct={pct} /> : '—'}
+                        </td>
+                        <td className="td text-right font-black">
+                          <span className={d.total_sales - d.total_target >= 0 ? 'text-emerald-600' : 'text-rose-600'}>
+                            {d.total_sales - d.total_target >= 0 ? '+' : ''}{fmt(d.total_sales - d.total_target)}
+                          </span>
                         </td>
                       </tr>
-                    );
-                  })}
-                  <tr className="bg-indigo-50 border-t-2 border-indigo-200">
-                    <td className="td font-black text-slate-800 uppercase text-xs tracking-wide">ΣΥΝΟΛΟ {year}</td>
-                    {data.map(d => (
-                      <td key={d.agent} className="td text-right font-black text-indigo-700">{fmt(d.total)}</td>
-                    ))}
-                    <td className="td text-right font-black text-emerald-700 text-base">{fmt(grandTotal)}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            );
+          })}
         </>
       )}
 
