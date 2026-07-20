@@ -227,6 +227,44 @@ router.get('/bonus', async (req, res) => {
   }
 });
 
+// Payroll report: expenses with category ΜΙΣΘΟΔΟΣΙΑ-ΕΡΓΑΤΙΚΑ grouped by supplier per month
+router.get('/payroll', async (req, res) => {
+  try {
+    const { year } = req.query;
+    if (!year) return res.status(400).json({ error: 'Απαιτείται year' });
+
+    const rows = await sequelize.query(`
+      SELECT
+        TRIM(supplier) AS employee,
+        TO_CHAR(date, 'MM') AS month,
+        COALESCE(SUM(amount), 0) AS amount,
+        COUNT(*) AS count
+      FROM expenses
+      WHERE date BETWEEN :start AND :end
+        AND UPPER(TRIM(category)) = 'ΜΙΣΘΟΔΟΣΙΑ-ΕΡΓΑΤΙΚΑ'
+        AND supplier IS NOT NULL AND TRIM(supplier) <> ''
+      GROUP BY TRIM(supplier), month
+      ORDER BY TRIM(supplier), month
+    `, { replacements: { start: `${year}-01-01`, end: `${year}-12-31` }, type: QueryTypes.SELECT });
+
+    const employees = [...new Set(rows.map(r => r.employee))].sort((a, b) => a.localeCompare(b, 'el'));
+    const months = ['01','02','03','04','05','06','07','08','09','10','11','12'];
+    const monthNames = ['Ιαν','Φεβ','Μαρ','Απρ','Μαι','Ιουν','Ιουλ','Αυγ','Σεπ','Οκτ','Νοε','Δεκ'];
+
+    const data = employees.map(employee => {
+      const empRows = rows.filter(r => r.employee === employee);
+      const monthly = months.map((m, i) => {
+        const r = empRows.find(x => x.month === m);
+        return { month: m, month_name: monthNames[i], amount: parseFloat(r?.amount || 0), count: parseInt(r?.count || 0) };
+      });
+      const total = monthly.reduce((s, m) => s + m.amount, 0);
+      return { agent: employee, monthly, total };
+    });
+
+    res.json(data);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // Expense breakdown by category
 router.get('/expenses-by-category', async (req, res) => {
   try {
