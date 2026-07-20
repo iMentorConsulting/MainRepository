@@ -920,7 +920,7 @@ function TabPayroll({ years }) {
   useEffect(() => {
     if (!year) return;
     setLoading(true);
-    api.get(`/reports/bonus?year=${year}`)
+    api.get(`/reports/payroll?year=${year}`)
       .then(r => setData(r.data || []))
       .catch(() => setData([]))
       .finally(() => setLoading(false));
@@ -934,7 +934,7 @@ function TabPayroll({ years }) {
     const entry = { month: name };
     for (const d of data) {
       const m = d.monthly.find(x => x.month === monthNum);
-      entry[d.agent] = m?.bonus || 0;
+      entry[d.agent] = m?.amount || 0;
     }
     return entry;
   });
@@ -963,7 +963,7 @@ function TabPayroll({ years }) {
           </div>
 
           <div className="card p-6">
-            <h2 className="section-title">Μηνιαία Αμοιβή Συμβούλων — {year}</h2>
+            <h2 className="section-title">Μηνιαία Μισθοδοσία Υπαλλήλων — {year}</h2>
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={allChartData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
@@ -980,7 +980,7 @@ function TabPayroll({ years }) {
 
           <div className="card overflow-hidden">
             <div className="px-6 py-4 border-b border-slate-100">
-              <h2 className="section-title mb-0">Αναλυτική Μισθοδοσία ανά Μήνα — {year}</h2>
+              <h2 className="section-title mb-0">Αναλυτική Μισθοδοσία-Εργατικά ανά Μήνα — {year}</h2>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full">
@@ -996,7 +996,7 @@ function TabPayroll({ years }) {
                     const monthNum = String(i + 1).padStart(2, '0');
                     const amounts = data.map(d => {
                       const m = d.monthly.find(x => x.month === monthNum);
-                      return m?.bonus || 0;
+                      return m?.amount || 0;
                     });
                     const rowTotal = amounts.reduce((s, v) => s + v, 0);
                     return (
@@ -1032,8 +1032,8 @@ function TabPayroll({ years }) {
       {!loading && data.length === 0 && (
         <div className="card p-12 text-center text-slate-400">
           <div className="text-3xl mb-2">💰</div>
-          <div className="font-medium text-slate-500 mb-1">Δεν υπάρχουν δεδομένα μισθοδοσίας για {year}.</div>
-          <div className="text-sm">Οι εγγραφές εισοδήματος με συμπληρωμένο πεδίο bonus θα εμφανίζονται εδώ.</div>
+          <div className="font-medium text-slate-500 mb-1">Δεν υπάρχουν εγγραφές ΜΙΣΘΟΔΟΣΙΑ-ΕΡΓΑΤΙΚΑ για {year}.</div>
+          <div className="text-sm">Προσθέστε έξοδα με κατηγορία «ΜΙΣΘΟΔΟΣΙΑ-ΕΡΓΑΤΙΚΑ» και ονομασία υπαλλήλου στο πεδίο Προμηθευτής.</div>
         </div>
       )}
     </div>
