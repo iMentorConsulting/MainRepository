@@ -101,6 +101,12 @@ function NewGemiCampaignPageInner() {
   const [recipientCount, setRecipientCount] = useState<{ emailCount: number; viberCount: number; total: number } | null>(null)
   const [countLoading, setCountLoading] = useState(false)
 
+  // Specific recipients (targeted test on real businesses) — overrides filters
+  const [testRecipients, setTestRecipients] = useState<{ id: string; onomasia: string | null; afm: string; email: string | null }[]>([])
+  const [recipientSearch, setRecipientSearch] = useState('')
+  const [recipientResults, setRecipientResults] = useState<{ id: string; onomasia: string | null; afm: string; email: string | null }[]>([])
+  const [recipientSearching, setRecipientSearching] = useState(false)
+
   // Test send
   const [testEmail, setTestEmail] = useState('')
   const [testSending, setTestSending] = useState(false)
@@ -145,6 +151,24 @@ function NewGemiCampaignPageInner() {
     setTimeout(() => setToast(null), 4000)
   }
 
+  async function searchRecipients(q: string) {
+    setRecipientSearch(q)
+    if (q.trim().length < 2) { setRecipientResults([]); return }
+    setRecipientSearching(true)
+    try {
+      const res = await fetch(`/api/gemi/businesses?search=${encodeURIComponent(q.trim())}&limit=8`)
+      const data = await res.json()
+      setRecipientResults((data.businesses || []).map((b: any) => ({ id: b.id, onomasia: b.onomasia, afm: b.afm, email: b.email })))
+    } catch {
+      setRecipientResults([])
+    } finally {
+      setRecipientSearching(false)
+    }
+  }
+
+  // When specific recipients are selected they fully override the filters
+  const effectiveTotal = testRecipients.length > 0 ? testRecipients.length : (recipientCount?.total ?? 0)
+
   function validate() {
     if (!title.trim()) { showToast('Ο τίτλος είναι υποχρεωτικός.', false); return false }
     if ((channel === 'EMAIL' || channel === 'EMAIL_AND_VIBER') && !htmlContent.trim()) {
@@ -169,10 +193,14 @@ function NewGemiCampaignPageInner() {
         htmlContent: htmlContent.trim() || undefined,
         messageTemplate: viberMessage.trim() || undefined,
         status: 'DRAFT',
-        region: region || undefined,
-        category: category || undefined,
-        importBatch: importBatch || undefined,
-        hasReceivedCampaign: hasReceivedCampaign || undefined,
+        ...(testRecipients.length > 0
+          ? { targetGemiIds: testRecipients.map(r => r.id) }
+          : {
+              region: region || undefined,
+              category: category || undefined,
+              importBatch: importBatch || undefined,
+              hasReceivedCampaign: hasReceivedCampaign || undefined,
+            }),
       }),
     })
     if (!res.ok) {
@@ -206,7 +234,7 @@ function NewGemiCampaignPageInner() {
 
   async function handleSend() {
     if (!validate()) return
-    if (!window.confirm(`Αποστολή σε ${recipientCount?.total ?? '?'} παραλήπτες; Δεν υπάρχει αναίρεση.`)) return
+    if (!window.confirm(`Αποστολή σε ${effectiveTotal} παραλήπτες; Δεν υπάρχει αναίρεση.`)) return
     setSending(true)
     try {
       await createCampaign(true)
@@ -286,6 +314,68 @@ function NewGemiCampaignPageInner() {
       {/* Recipients */}
       <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm space-y-4">
         <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Παραλήπτες</h2>
+
+        {/* Targeted test on specific real businesses — overrides the filters below */}
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-4 space-y-2">
+          <p className="text-xs font-semibold text-emerald-700 uppercase tracking-wide">
+            🎯 Δοκιμή σε συγκεκριμένες επιχειρήσεις (προαιρετικό)
+          </p>
+          <p className="text-xs text-gray-500">
+            Επιλέξτε 1-2 πραγματικές επιχειρήσεις για πλήρη δοκιμή (πραγματικά δεδομένα, Ερμής & Θέμιδα).
+            Όσο υπάρχουν επιλεγμένες, τα παρακάτω φίλτρα αγνοούνται.
+          </p>
+          {testRecipients.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {testRecipients.map(r => (
+                <span key={r.id} className="inline-flex items-center gap-1.5 bg-emerald-100 border border-emerald-300 text-emerald-900 rounded-full pl-3 pr-1.5 py-1 text-xs font-medium">
+                  {r.onomasia || r.afm}
+                  <span className="text-emerald-600 font-normal">{r.email || 'χωρίς email'}</span>
+                  <button
+                    onClick={() => setTestRecipients(prev => prev.filter(x => x.id !== r.id))}
+                    className="w-4 h-4 rounded-full bg-emerald-200 hover:bg-emerald-300 flex items-center justify-center text-emerald-800"
+                  >
+                    ×
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+          <div className="relative">
+            <input
+              type="text"
+              value={recipientSearch}
+              onChange={e => searchRecipients(e.target.value)}
+              placeholder="Αναζήτηση με ΑΦΜ, επωνυμία ή email..."
+              className="w-full border border-emerald-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-emerald-400"
+            />
+            {recipientSearch.trim().length >= 2 && (
+              <div className="absolute z-20 left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-56 overflow-y-auto">
+                {recipientSearching ? (
+                  <p className="px-3 py-2 text-xs text-gray-400">Αναζήτηση...</p>
+                ) : recipientResults.length === 0 ? (
+                  <p className="px-3 py-2 text-xs text-gray-400">Δεν βρέθηκαν επιχειρήσεις</p>
+                ) : (
+                  recipientResults.map(b => (
+                    <button
+                      key={b.id}
+                      disabled={!b.email || testRecipients.some(x => x.id === b.id)}
+                      onClick={() => {
+                        setTestRecipients(prev => [...prev, b])
+                        setRecipientSearch('')
+                        setRecipientResults([])
+                      }}
+                      className="w-full text-left px-3 py-2 text-sm hover:bg-emerald-50 disabled:opacity-40 disabled:cursor-not-allowed border-b border-gray-50 last:border-0"
+                    >
+                      <span className="font-medium">{b.onomasia || b.afm}</span>
+                      <span className="text-xs text-gray-500 ml-2">ΑΦΜ {b.afm} · {b.email || 'χωρίς email'}</span>
+                    </button>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
         <Select
           label="Πρόγραμμα (φιλτράρει στις ταυτισμένες επιχειρήσεις)"
           value={programId}
@@ -344,9 +434,13 @@ function NewGemiCampaignPageInner() {
           </div>
         </div>
 
-        <div className={`flex items-center gap-3 rounded-xl px-4 py-3 border ${recipientCount && recipientCount.total > 0 ? 'bg-blue-50 border-blue-200' : 'bg-gray-50 border-gray-200'}`}>
+        <div className={`flex items-center gap-3 rounded-xl px-4 py-3 border ${effectiveTotal > 0 ? 'bg-blue-50 border-blue-200' : 'bg-gray-50 border-gray-200'}`}>
           <Users size={16} className="text-blue-600 shrink-0" />
-          {countLoading ? (
+          {testRecipients.length > 0 ? (
+            <span className="text-sm font-semibold text-emerald-700">
+              🎯 {testRecipients.length} επιλεγμένες επιχειρήσεις (τα φίλτρα αγνοούνται)
+            </span>
+          ) : countLoading ? (
             <span className="text-sm text-gray-400">Υπολογισμός…</span>
           ) : recipientCount ? (
             <div className="text-sm">
@@ -531,9 +625,9 @@ function NewGemiCampaignPageInner() {
         <Button variant="outline" loading={savingDraft} disabled={sending} onClick={handleSaveDraft}>
           Αποθήκευση Πρόχειρου
         </Button>
-        <Button loading={sending} disabled={savingDraft || !recipientCount || recipientCount.total === 0} onClick={handleSend} className="bg-indigo-600 hover:bg-indigo-700">
+        <Button loading={sending} disabled={savingDraft || effectiveTotal === 0} onClick={handleSend} className="bg-indigo-600 hover:bg-indigo-700">
           <Send size={15} className="mr-2" />
-          Αποστολή σε {recipientCount?.total?.toLocaleString('el-GR') ?? '…'} παραλήπτες
+          Αποστολή σε {effectiveTotal.toLocaleString('el-GR')} παραλήπτες
         </Button>
       </div>
     </div>
