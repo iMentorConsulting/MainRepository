@@ -972,7 +972,7 @@ function TabPayroll() {
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <StatCard label="Σύνολο Μισθοδοσίας" value={fmt(grandPayroll)} color="border-slate-400" />
             <StatCard label={`Στόχος Πωλήσεων (×${MULTIPLIER})`} value={fmt(grandTarget)} color="border-amber-400" />
-            <StatCard label="Πραγματικές Πωλήσεις" value={fmt(grandSales)} color={grandSales >= grandTarget ? 'border-emerald-400' : 'border-rose-400'} />
+            <StatCard label="Πωλήσεις Αίτησης" value={fmt(grandSales)} color={grandSales >= grandTarget ? 'border-emerald-400' : 'border-rose-400'} />
             <div className="card p-5 border-l-4 border-indigo-400">
               <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Επίτευξη Στόχου</div>
               <div className={`text-2xl font-black ${grandPct >= 100 ? 'text-emerald-600' : grandPct >= 75 ? 'text-amber-600' : 'text-rose-600'}`}>
@@ -1013,7 +1013,7 @@ function TabPayroll() {
                         <th className="th">Μήνας</th>
                         <th className="th text-right">Κόστος Μισθοδοσίας</th>
                         <th className="th text-right">Στόχος ×{MULTIPLIER}</th>
-                        <th className="th text-right">Πωλήσεις</th>
+                        <th className="th text-right">Πωλήσεις (Αίτηση)</th>
                         <th className="th text-right min-w-[120px]">Επίτευξη</th>
                         <th className="th text-right">Διαφορά</th>
                       </tr>
