@@ -1011,11 +1011,17 @@ function TabPayroll() {
                           <td key={ai} className="td text-right">
                             {amt > 0
                               ? <span className="font-bold text-indigo-600">{fmt(amt)}</span>
-                              : <span className="text-slate-300">—</span>}
+                              : amt < 0
+                                ? <span className="font-bold text-rose-600">{fmt(amt)}</span>
+                                : <span className="text-slate-300">—</span>}
                           </td>
                         ))}
-                        <td className="td text-right font-black text-emerald-600">
-                          {rowTotal > 0 ? fmt(rowTotal) : <span className="text-slate-300">—</span>}
+                        <td className="td text-right font-black">
+                          {rowTotal > 0
+                            ? <span className="text-emerald-600">{fmt(rowTotal)}</span>
+                            : rowTotal < 0
+                              ? <span className="text-rose-600">{fmt(rowTotal)}</span>
+                              : <span className="text-slate-300">—</span>}
                         </td>
                       </tr>
                     );
