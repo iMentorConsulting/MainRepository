@@ -233,6 +233,7 @@ router.get('/payroll', async (req, res) => {
     const { year } = req.query;
     if (!year) return res.status(400).json({ error: 'Απαιτείται year' });
 
+    // Use LIKE to catch category variants (spaces around dash, different dash type, etc.)
     const rows = await sequelize.query(`
       SELECT
         TRIM(supplier) AS employee,
@@ -241,7 +242,7 @@ router.get('/payroll', async (req, res) => {
         COUNT(*) AS count
       FROM expenses
       WHERE date BETWEEN :start AND :end
-        AND UPPER(TRIM(category)) = 'ΜΙΣΘΟΔΟΣΙΑ-ΕΡΓΑΤΙΚΑ'
+        AND UPPER(TRIM(category)) LIKE '%ΜΙΣΘΟΔΟΣΙΑ%ΕΡΓΑΤΙΚΑ%'
         AND supplier IS NOT NULL AND TRIM(supplier) <> ''
       GROUP BY TRIM(supplier), month
       ORDER BY TRIM(supplier), month
@@ -262,6 +263,22 @@ router.get('/payroll', async (req, res) => {
     });
 
     res.json(data);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Debug: show distinct category values that contain ΜΙΣΘΟΔΟΣΙΑ or ΕΡΓΑΤΙΚΑ
+router.get('/payroll-categories', async (req, res) => {
+  try {
+    const rows = await sequelize.query(`
+      SELECT category, UPPER(TRIM(category)) AS upper_cat,
+             octet_length(category) AS byte_len, COUNT(*) AS cnt, SUM(amount) AS total
+      FROM expenses
+      WHERE UPPER(category) LIKE '%ΜΙΣΘΟΔΟΣΙΑ%'
+         OR UPPER(category) LIKE '%ΕΡΓΑΤΙΚΑ%'
+      GROUP BY category
+      ORDER BY cnt DESC
+    `, { type: QueryTypes.SELECT });
+    res.json(rows);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
