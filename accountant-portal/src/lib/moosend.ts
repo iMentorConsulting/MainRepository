@@ -283,29 +283,30 @@ export async function createAndSendCampaign(
   console.log(`[Moosend] send.json response for campaign ${campaignId}:`, JSON.stringify(sendResult));
 
   // Verify the campaign actually left Draft state. Moosend's send.json can
-  // return success while the campaign silently stays in Draft (e.g. failed
-  // personalization tags, empty list). Surface that as an error instead of
-  // reporting a phantom success.
-  await new Promise(res => setTimeout(res, 5000));
-  try {
-    const view = await moosendFetch(`/campaigns/${campaignId}/view.json`);
-    const ctx = (view as Record<string, any>).Context;
-    const status = ctx?.Status;
-    console.log(`[Moosend] campaign ${campaignId} status after send: ${JSON.stringify(status)}`);
-    // Status 0 = Draft in Moosend's enum; also guard against the string form
-    if (status === 0 || status === 'Draft') {
-      throw new Error(
-        `Moosend campaign '${opts.name}' (${campaignId}) is still in Draft after send — ` +
-        `the send was rejected by Moosend. Check the campaign in the Moosend dashboard for the reason.`
-      );
+  // return success (Code 0) while the campaign silently stays in Draft —
+  // the failure happens asynchronously (credits, sender verification,
+  // content checks). Poll for up to ~90s; Draft status = 1 in Moosend's enum.
+  let lastStatus: unknown = null;
+  for (let attempt = 0; attempt < 9; attempt++) {
+    await new Promise(res => setTimeout(res, 10_000));
+    try {
+      const view = await moosendFetch(`/campaigns/${campaignId}/view.json`);
+      const ctx = (view as Record<string, any>).Context;
+      lastStatus = ctx?.Status;
+      console.log(`[Moosend] campaign ${campaignId} status ${(attempt + 1) * 10}s after send: ${JSON.stringify(lastStatus)}`);
+      if (lastStatus !== 1 && lastStatus !== 0 && lastStatus !== 'Draft') {
+        return campaignId; // left Draft — send is progressing/complete
+      }
+    } catch (err) {
+      console.error('[Moosend] post-send status check failed:', err instanceof Error ? err.message : err);
+      return campaignId; // can't verify — don't fail the send on a check error
     }
-  } catch (err) {
-    if (err instanceof Error && err.message.includes('still in Draft')) throw err;
-    // view.json itself failed — log but don't fail the send on a status-check error
-    console.error('[Moosend] post-send status check failed:', err instanceof Error ? err.message : err);
   }
-
-  return campaignId;
+  throw new Error(
+    `Moosend campaign '${opts.name}' (${campaignId}) is still in Draft 90s after send — ` +
+    `Moosend rejected it asynchronously. Open the Draft campaign in the Moosend dashboard and press Send ` +
+    `manually to see the reason (συνήθως: credits, μη επιβεβαιωμένος αποστολέας, ή έλεγχος περιεχομένου).`
+  );
 }
 
 export async function getCampaignStats(
