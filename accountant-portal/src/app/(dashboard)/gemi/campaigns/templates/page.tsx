@@ -293,6 +293,7 @@ export default function GemiTemplatesPage() {
             ['{{program_url}}', 'Σελίδα Προγράμματος'],
             ['{{program_deadline}}', 'Προθεσμία Προγράμματος'],
             ['{{program_amount}}', 'Ποσό Επένδυσης'],
+            ['{{program_subsidy}}', '% Επιχορήγησης'],
             ['{{extra_criteria}}', 'Πρόσθετες Προϋποθέσεις'],
             ['{{region}}', 'Περιφέρεια Έδρας'],
             ['{{founding_date}}', 'Ημερομηνία Ίδρυσης'],
