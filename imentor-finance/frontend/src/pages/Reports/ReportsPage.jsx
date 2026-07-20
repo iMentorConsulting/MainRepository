@@ -938,6 +938,7 @@ function PayrollSettingsModal({ employees, onClose, onSaved }) {
         visible: s ? s.visible : true,
         target_type: s?.target_type ?? 'multiplier',
         target_value: s?.target_value ?? 4.2,
+        overachievement_rate: s?.overachievement_rate ?? 10,
       };
     }
     setSettings(init);
@@ -950,7 +951,7 @@ function PayrollSettingsModal({ employees, onClose, onSaved }) {
         const next = { ...prev };
         for (const s of r.data) {
           if (!next[s.employee_name]) {
-            next[s.employee_name] = { id: s.id, visible: s.visible, target_type: s.target_type, target_value: parseFloat(s.target_value) };
+            next[s.employee_name] = { id: s.id, visible: s.visible, target_type: s.target_type, target_value: parseFloat(s.target_value), overachievement_rate: parseFloat(s.overachievement_rate ?? 10) };
           }
         }
         return next;
@@ -986,6 +987,7 @@ function PayrollSettingsModal({ employees, onClose, onSaved }) {
           visible: settings[agent].visible,
           target_type: settings[agent].target_type,
           target_value: parseFloat(settings[agent].target_value) || 4.2,
+          overachievement_rate: parseFloat(settings[agent].overachievement_rate) || 0,
         })
       ));
       onSaved();
@@ -1039,6 +1041,14 @@ function PayrollSettingsModal({ employees, onClose, onSaved }) {
                       <span className="text-xs text-slate-400">
                         {s.target_type === 'multiplier' ? `× κόστος μισθοδοσίας` : `€ / μήνα`}
                       </span>
+
+                      {/* Over-achievement commission rate */}
+                      <span className="text-xs text-slate-400 ml-2">|</span>
+                      <input type="number" step="0.5" min="0" max="50"
+                        className="input text-xs py-1 px-2 h-7 w-16"
+                        value={s.overachievement_rate ?? 10}
+                        onChange={e => update(agent, { overachievement_rate: e.target.value })} />
+                      <span className="text-xs text-slate-400">% μπόνους υπέρβασης</span>
                     </>
                   )}
                 </div>
@@ -1183,9 +1193,11 @@ function TabPayroll() {
             const achieved = d.total_sales >= d.total_target;
             const streak = d.streak || { max: 0, current: 0 };
             const s = d.settings;
-            const targetLabel = s?.target_type === 'fixed'
-              ? `Σταθερός στόχος: ${fmt(s.target_value)}/μήνα`
-              : `×${s?.target_value ?? 4.2} × Μισθοδοσία`;
+            const commRate = parseFloat(d.settings?.overachievement_rate ?? 0);
+            const targetLabel = (s?.target_type === 'fixed'
+              ? `Σταθερός στόχος: ${Math.round(s.target_value)}€/μήνα`
+              : `×${s?.target_value ?? 4.2} × Μισθοδοσία`) +
+              (commRate > 0 ? ` · ${commRate}% μπόνους υπέρβασης` : '');
 
             return (
               <div key={d.agent} className="card overflow-hidden">
@@ -1217,6 +1229,9 @@ function TabPayroll() {
                       <span>Στόχος: <strong className="text-amber-600">{fmt(d.total_target)}</strong></span>
                       <span>Είσπραξη: <strong className={achieved ? 'text-emerald-600' : 'text-rose-600'}>{fmt(d.total_sales)}</strong></span>
                       <span>Διαφορά: <strong className={d.total_sales - d.total_target >= 0 ? 'text-emerald-600' : 'text-rose-600'}>{d.total_sales - d.total_target >= 0 ? '+' : ''}{fmt(d.total_sales - d.total_target)}</strong></span>
+                      {d.total_commission > 0 && (
+                        <span>Μπόνους Υπέρβασης: <strong className="text-violet-600">{fmt(d.total_commission)}</strong></span>
+                      )}
                     </div>
                   </div>
                   <div className="w-32 mt-1">
@@ -1236,6 +1251,7 @@ function TabPayroll() {
                         <th className="th text-right">Είσπραξη</th>
                         <th className="th text-right min-w-[120px]">Επίτευξη</th>
                         <th className="th text-right">Διαφορά</th>
+                        {commRate > 0 && <th className="th text-right text-violet-600">Μπόνους {commRate}%</th>}
                       </tr>
                     </thead>
                     <tbody>
@@ -1250,7 +1266,6 @@ function TabPayroll() {
                             <td className="td text-slate-400">{MONTH_NAMES[i]} {year}</td>
                             <td className="td text-right text-slate-300">—</td>
                             <td className="td text-right">
-                              {/* Editable target even when 0 — allow setting a manual target */}
                               {editTarget?.agent === d.agent && editTarget?.monthKey === monthKey ? (
                                 <input autoFocus type="number" className="w-24 text-right text-sm border border-amber-400 rounded px-2 py-0.5 outline-none"
                                   value={editTarget.value}
@@ -1266,6 +1281,7 @@ function TabPayroll() {
                             <td className="td text-right text-slate-300">—</td>
                             <td className="td text-right text-slate-300">—</td>
                             <td className="td text-right text-slate-300">—</td>
+                            {commRate > 0 && <td className="td text-right text-slate-300">—</td>}
                           </tr>
                         );
                         const monthPct = m.target > 0 ? (m.sales / m.target) * 100 : 0;
@@ -1323,6 +1339,13 @@ function TabPayroll() {
                                 ? <span className={`font-bold text-sm ${diff >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>{diff >= 0 ? '+' : ''}{fmt(diff)}</span>
                                 : <span className="text-slate-300">—</span>}
                             </td>
+                            {commRate > 0 && (
+                              <td className="td text-right">
+                                {m.commission > 0
+                                  ? <span className="font-bold text-violet-600">{fmt(m.commission)}</span>
+                                  : <span className="text-slate-300">—</span>}
+                              </td>
+                            )}
                           </tr>
                         );
                       })}
@@ -1342,6 +1365,11 @@ function TabPayroll() {
                             {d.total_sales - d.total_target >= 0 ? '+' : ''}{fmt(d.total_sales - d.total_target)}
                           </span>
                         </td>
+                        {commRate > 0 && (
+                          <td className="td text-right font-black">
+                            <span className="text-violet-700">{d.total_commission > 0 ? fmt(d.total_commission) : '—'}</span>
+                          </td>
+                        )}
                       </tr>
                     </tbody>
                   </table>
