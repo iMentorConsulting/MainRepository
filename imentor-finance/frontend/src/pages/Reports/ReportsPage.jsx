@@ -908,8 +908,6 @@ function TabServiceTrend() {
   );
 }
 
-const MULTIPLIER = 4.2;
-
 function AchievementBar({ pct }) {
   const capped = Math.min(pct, 100);
   const color = pct >= 100 ? 'bg-emerald-500' : pct >= 75 ? 'bg-amber-400' : 'bg-rose-500';
@@ -925,31 +923,189 @@ function AchievementBar({ pct }) {
   );
 }
 
+// Settings modal — per-employee target config + visibility toggle
+function PayrollSettingsModal({ employees, onClose, onSaved }) {
+  const [settings, setSettings] = useState({});
+  const [saving, setSaving] = useState(null);
+
+  // Initialise: pre-populate from existing settings on each employee record
+  useEffect(() => {
+    const init = {};
+    for (const d of employees) {
+      const s = d.settings;
+      init[d.agent] = {
+        id: s?.id ?? null,
+        visible: s ? s.visible : true,
+        target_type: s?.target_type ?? 'multiplier',
+        target_value: s?.target_value ?? 4.2,
+      };
+    }
+    setSettings(init);
+  }, [employees]);
+
+  // Also load hidden employees that don't appear in data (they're filtered out)
+  useEffect(() => {
+    api.get('/payroll-settings').then(r => {
+      setSettings(prev => {
+        const next = { ...prev };
+        for (const s of r.data) {
+          if (!next[s.employee_name]) {
+            next[s.employee_name] = { id: s.id, visible: s.visible, target_type: s.target_type, target_value: parseFloat(s.target_value) };
+          }
+        }
+        return next;
+      });
+    }).catch(() => {});
+  }, []);
+
+  const update = (agent, patch) => setSettings(prev => ({ ...prev, [agent]: { ...prev[agent], ...patch } }));
+
+  const save = async (agent) => {
+    setSaving(agent);
+    try {
+      const s = settings[agent];
+      await api.post('/payroll-settings', {
+        employee_name: agent,
+        visible: s.visible,
+        target_type: s.target_type,
+        target_value: parseFloat(s.target_value) || 4.2,
+      });
+    } catch (e) {
+      alert('Σφάλμα αποθήκευσης: ' + (e.response?.data?.error || e.message));
+    } finally {
+      setSaving(null);
+    }
+  };
+
+  const saveAll = async () => {
+    setSaving('__all__');
+    try {
+      await Promise.all(Object.keys(settings).map(agent =>
+        api.post('/payroll-settings', {
+          employee_name: agent,
+          visible: settings[agent].visible,
+          target_type: settings[agent].target_type,
+          target_value: parseFloat(settings[agent].target_value) || 4.2,
+        })
+      ));
+      onSaved();
+      onClose();
+    } catch (e) {
+      alert('Σφάλμα αποθήκευσης');
+    } finally {
+      setSaving(null);
+    }
+  };
+
+  const agents = Object.keys(settings).sort((a, b) => a.localeCompare(b, 'el'));
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+          <h2 className="font-black text-slate-800 text-lg">Ρυθμίσεις Στόχων Μισθοδοσίας</h2>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 text-xl font-bold">✕</button>
+        </div>
+        <div className="overflow-y-auto flex-1 p-4 space-y-2">
+          {agents.map(agent => {
+            const s = settings[agent] || { visible: true, target_type: 'multiplier', target_value: 4.2 };
+            return (
+              <div key={agent} className={`border rounded-xl p-3 transition-colors ${s.visible ? 'border-slate-200 bg-white' : 'border-slate-100 bg-slate-50 opacity-60'}`}>
+                <div className="flex flex-wrap items-center gap-3">
+                  {/* Visible toggle */}
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" checked={s.visible}
+                      onChange={e => update(agent, { visible: e.target.checked })}
+                      className="w-4 h-4 rounded border-slate-300 text-primary-600" />
+                    <span className="font-semibold text-slate-700 text-sm">{agent}</span>
+                  </label>
+
+                  {s.visible && (
+                    <>
+                      {/* Target type */}
+                      <select className="input text-xs py-1 px-2 h-7 w-36"
+                        value={s.target_type}
+                        onChange={e => update(agent, { target_type: e.target.value })}>
+                        <option value="multiplier">×Πολλαπλασιαστής</option>
+                        <option value="fixed">Σταθερό Ποσό €</option>
+                      </select>
+
+                      {/* Target value */}
+                      <input type="number" step={s.target_type === 'multiplier' ? '0.1' : '50'}
+                        min="0" className="input text-xs py-1 px-2 h-7 w-24"
+                        value={s.target_value}
+                        onChange={e => update(agent, { target_value: e.target.value })} />
+
+                      <span className="text-xs text-slate-400">
+                        {s.target_type === 'multiplier' ? `× κόστος μισθοδοσίας` : `€ / μήνα`}
+                      </span>
+                    </>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        <div className="px-6 py-4 border-t border-slate-100 flex justify-end gap-3">
+          <button className="btn-secondary" onClick={onClose}>Ακύρωση</button>
+          <button className="btn-primary" onClick={saveAll} disabled={saving === '__all__'}>
+            {saving === '__all__' ? 'Αποθήκευση...' : 'Αποθήκευση Ρυθμίσεων'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function TabPayroll() {
   const [payrollYears, setPayrollYears] = useState([]);
   const [year, setYear] = useState(new Date().getFullYear());
   const [data, setData] = useState([]);
+  const [allEmployees, setAllEmployees] = useState([]); // all incl. hidden, for settings modal
   const [loading, setLoading] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+
+  const MONTH_NAMES = ['Ιαν','Φεβ','Μαρ','Απρ','Μαι','Ιουν','Ιουλ','Αυγ','Σεπ','Οκτ','Νοε','Δεκ'];
+  const BORDER_COLORS = ['border-indigo-400','border-emerald-400','border-amber-400','border-rose-400','border-cyan-400','border-purple-400'];
+
+  const loadData = (y) => {
+    if (!y) return;
+    setLoading(true);
+    // Fetch visible data + all settings (for modal)
+    Promise.all([
+      api.get(`/reports/payroll?year=${y}`),
+      api.get('/payroll-settings'),
+    ]).then(([r, sr]) => {
+      const visible = r.data || [];
+      setData(visible);
+      // Build allEmployees: visible employees + hidden ones from settings
+      const hiddenSettings = (sr.data || []).filter(s => !s.visible);
+      const hiddenRecords = hiddenSettings
+        .filter(s => !visible.find(d => d.agent.toUpperCase() === s.employee_name.toUpperCase()))
+        .map(s => ({
+          agent: s.employee_name,
+          monthly: [],
+          total: 0, total_target: 0, total_sales: 0,
+          settings: { id: s.id, visible: false, target_type: s.target_type, target_value: parseFloat(s.target_value) },
+          streak: { max: 0, current: 0 }
+        }));
+      setAllEmployees([...visible, ...hiddenRecords]);
+    })
+    .catch(() => { setData([]); setAllEmployees([]); })
+    .finally(() => setLoading(false));
+  };
 
   useEffect(() => {
     api.get('/reports/payroll-years').then(r => {
       const ys = r.data || [];
       setPayrollYears(ys);
-      if (ys.length > 0) setYear(ys[0]);
+      if (ys.length > 0) { setYear(ys[0]); loadData(ys[0]); }
     }).catch(() => {});
   }, []);
 
   useEffect(() => {
-    if (!year) return;
-    setLoading(true);
-    api.get(`/reports/payroll?year=${year}`)
-      .then(r => setData(r.data || []))
-      .catch(() => setData([]))
-      .finally(() => setLoading(false));
+    if (year && payrollYears.includes(year)) loadData(year);
   }, [year]);
-
-  const MONTH_NAMES = ['Ιαν','Φεβ','Μαρ','Απρ','Μαι','Ιουν','Ιουλ','Αυγ','Σεπ','Οκτ','Νοε','Δεκ'];
-  const BORDER_COLORS = ['border-indigo-400','border-emerald-400','border-amber-400','border-rose-400','border-cyan-400','border-purple-400'];
 
   const grandPayroll = data.reduce((s, d) => s + d.total, 0);
   const grandTarget = data.reduce((s, d) => s + d.total_target, 0);
@@ -958,10 +1114,24 @@ function TabPayroll() {
 
   return (
     <div className="space-y-6">
+      {showSettings && (
+        <PayrollSettingsModal
+          employees={allEmployees}
+          onClose={() => setShowSettings(false)}
+          onSaved={() => loadData(year)}
+        />
+      )}
+
       <div className="filter-bar">
         <select className="input w-28" value={year} onChange={e => setYear(+e.target.value)}>
           {(payrollYears.length > 0 ? payrollYears : [year]).map(y => <option key={y}>{y}</option>)}
         </select>
+        <button className="btn-ghost btn-sm flex items-center gap-1.5" onClick={() => setShowSettings(true)}>
+          <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 text-slate-500">
+            <path fillRule="evenodd" d="M7.84 1.804A1 1 0 0 1 8.82 1h2.36a1 1 0 0 1 .98.804l.331 1.652a6.993 6.993 0 0 1 1.929 1.115l1.598-.54a1 1 0 0 1 1.186.447l1.18 2.044a1 1 0 0 1-.205 1.251l-1.267 1.113a7.047 7.047 0 0 1 0 2.228l1.267 1.113a1 1 0 0 1 .206 1.25l-1.18 2.045a1 1 0 0 1-1.187.447l-1.598-.54a6.993 6.993 0 0 1-1.929 1.115l-.33 1.652a1 1 0 0 1-.98.804H8.82a1 1 0 0 1-.98-.804l-.331-1.652a6.993 6.993 0 0 1-1.929-1.115l-1.598.54a1 1 0 0 1-1.186-.447l-1.18-2.044a1 1 0 0 1 .205-1.251l1.267-1.114a7.05 7.05 0 0 1 0-2.227L1.821 7.773a1 1 0 0 1-.206-1.25l1.18-2.045a1 1 0 0 1 1.187-.447l1.598.54A6.993 6.993 0 0 1 7.51 3.456l.33-1.652ZM10 13a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" clipRule="evenodd"/>
+          </svg>
+          Ρυθμίσεις Στόχων
+        </button>
       </div>
 
       {loading && <div className="card p-12 text-center text-slate-400">Φόρτωση...</div>}
@@ -971,7 +1141,7 @@ function TabPayroll() {
           {/* Overview stat cards */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <StatCard label="Σύνολο Μισθοδοσίας" value={fmt(grandPayroll)} color="border-slate-400" />
-            <StatCard label={`Στόχος Πωλήσεων (×${MULTIPLIER})`} value={fmt(grandTarget)} color="border-amber-400" />
+            <StatCard label="Σύνολο Στόχων" value={fmt(grandTarget)} color="border-amber-400" />
             <StatCard label="Είσπραξη" value={fmt(grandSales)} color={grandSales >= grandTarget ? 'border-emerald-400' : 'border-rose-400'} />
             <div className="card p-5 border-l-4 border-indigo-400">
               <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Επίτευξη Στόχου</div>
@@ -981,48 +1151,74 @@ function TabPayroll() {
             </div>
           </div>
 
-          {/* Per-employee target vs sales tables */}
+          {/* Per-employee cards */}
           {data.map((d, di) => {
             const pct = d.total_target > 0 ? (d.total_sales / d.total_target) * 100 : 0;
             const achieved = d.total_sales >= d.total_target;
+            const streak = d.streak || { max: 0, current: 0 };
+            const s = d.settings;
+            const targetLabel = s?.target_type === 'fixed'
+              ? `Σταθερός στόχος: ${fmt(s.target_value)}/μήνα`
+              : `×${s?.target_value ?? 4.2} × Μισθοδοσία`;
+
             return (
               <div key={d.agent} className="card overflow-hidden">
-                {/* Employee header */}
-                <div className={`px-6 py-4 border-b border-slate-100 flex flex-wrap items-center gap-4 border-l-4 ${BORDER_COLORS[di % BORDER_COLORS.length]}`}>
+                {/* Header */}
+                <div className={`px-6 py-4 border-b border-slate-100 flex flex-wrap items-start gap-4 border-l-4 ${BORDER_COLORS[di % BORDER_COLORS.length]}`}>
                   <div className="flex-1 min-w-0">
-                    <h3 className="font-black text-slate-800 text-base">{d.agent}</h3>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="font-black text-slate-800 text-base">{d.agent}</h3>
+                      {/* Streak badges */}
+                      {streak.current >= 3 && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-700 border border-amber-300">
+                          🏆 {streak.current} μήνες σερί
+                        </span>
+                      )}
+                      {streak.current === 1 && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          ⭐ Τελευταίος μήνας στόχος
+                        </span>
+                      )}
+                      {streak.current === 2 && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700 border border-emerald-300">
+                          ⭐⭐ 2 μήνες σερί
+                        </span>
+                      )}
+                      <span className="text-xs text-slate-400 italic">{targetLabel}</span>
+                    </div>
                     <div className="flex flex-wrap gap-4 mt-1 text-xs text-slate-500">
                       <span>Κόστος: <strong className="text-slate-700">{fmt(d.total)}</strong></span>
                       <span>Στόχος: <strong className="text-amber-600">{fmt(d.total_target)}</strong></span>
-                      <span>Πωλήσεις: <strong className={achieved ? 'text-emerald-600' : 'text-rose-600'}>{fmt(d.total_sales)}</strong></span>
-                      <span>Διαφορά: <strong className={d.total_sales - d.total_target >= 0 ? 'text-emerald-600' : 'text-rose-600'}>{fmt(d.total_sales - d.total_target)}</strong></span>
+                      <span>Είσπραξη: <strong className={achieved ? 'text-emerald-600' : 'text-rose-600'}>{fmt(d.total_sales)}</strong></span>
+                      <span>Διαφορά: <strong className={d.total_sales - d.total_target >= 0 ? 'text-emerald-600' : 'text-rose-600'}>{d.total_sales - d.total_target >= 0 ? '+' : ''}{fmt(d.total_sales - d.total_target)}</strong></span>
                     </div>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <div className="w-32">
-                      <AchievementBar pct={pct} />
-                    </div>
+                  <div className="w-32 mt-1">
+                    <AchievementBar pct={pct} />
                   </div>
                 </div>
 
-                {/* Monthly breakdown table */}
+                {/* Monthly table */}
                 <div className="overflow-x-auto">
                   <table className="w-full">
                     <thead>
                       <tr>
+                        <th className="th w-8"></th>
                         <th className="th">Μήνας</th>
                         <th className="th text-right">Κόστος Μισθοδοσίας</th>
-                        <th className="th text-right">Στόχος ×{MULTIPLIER}</th>
-                        <th className="th text-right">Πωλήσεις (Είσπραξη)</th>
+                        <th className="th text-right">Στόχος</th>
+                        <th className="th text-right">Είσπραξη</th>
                         <th className="th text-right min-w-[120px]">Επίτευξη</th>
                         <th className="th text-right">Διαφορά</th>
                       </tr>
                     </thead>
                     <tbody>
                       {d.monthly.map((m, i) => {
-                        if (m.amount === 0 && m.sales === 0) return (
-                          <tr key={m.month} className="tr opacity-30">
-                            <td className="td text-slate-500">{MONTH_NAMES[i]} {year}</td>
+                        const hasData = m.amount !== 0 || m.sales !== 0 || m.target !== 0;
+                        if (!hasData) return (
+                          <tr key={m.month} className="tr opacity-25">
+                            <td className="td"></td>
+                            <td className="td text-slate-400">{MONTH_NAMES[i]} {year}</td>
                             <td className="td text-right text-slate-300">—</td>
                             <td className="td text-right text-slate-300">—</td>
                             <td className="td text-right text-slate-300">—</td>
@@ -1032,8 +1228,12 @@ function TabPayroll() {
                         );
                         const monthPct = m.target > 0 ? (m.sales / m.target) * 100 : 0;
                         const diff = m.sales - m.target;
+                        const hit = m.target > 0 && m.sales >= m.target;
                         return (
-                          <tr key={m.month} className="tr">
+                          <tr key={m.month} className={`tr ${hit ? 'bg-emerald-50/40' : ''}`}>
+                            <td className="td text-center text-base leading-none">
+                              {hit ? '⭐' : ''}
+                            </td>
                             <td className="td font-semibold text-slate-700">{MONTH_NAMES[i]} {year}</td>
                             <td className="td text-right">
                               {m.amount !== 0
@@ -1047,7 +1247,7 @@ function TabPayroll() {
                             </td>
                             <td className="td text-right">
                               {m.sales > 0
-                                ? <span className={`font-bold ${m.sales >= m.target ? 'text-emerald-600' : 'text-slate-700'}`}>{fmt(m.sales)}</span>
+                                ? <span className={`font-bold ${hit ? 'text-emerald-600' : 'text-slate-700'}`}>{fmt(m.sales)}</span>
                                 : <span className="text-slate-300">—</span>}
                             </td>
                             <td className="td text-right">
@@ -1061,8 +1261,8 @@ function TabPayroll() {
                           </tr>
                         );
                       })}
-                      {/* Totals row */}
                       <tr className="bg-slate-50 border-t-2 border-slate-200">
+                        <td className="td"></td>
                         <td className="td font-black text-slate-800 uppercase text-xs tracking-wide">ΣΥΝΟΛΟ {year}</td>
                         <td className="td text-right font-black text-indigo-700">{fmt(d.total)}</td>
                         <td className="td text-right font-black text-amber-600">{fmt(d.total_target)}</td>

@@ -3,6 +3,7 @@ const { Op, fn, col, literal, QueryTypes } = require('sequelize');
 const sequelize = require('../config/db');
 const Income = require('../models/Income');
 const Expense = require('../models/Expense');
+const PayrollEmployeeSetting = require('../models/PayrollEmployeeSetting');
 
 // Build Sequelize WHERE for a date field supporting single or multi year/month
 function dateWhere(query, field) {
@@ -227,9 +228,9 @@ router.get('/bonus', async (req, res) => {
   }
 });
 
-const SALES_TARGET_MULTIPLIER = 4.2;
+const DEFAULT_MULTIPLIER = 4.2;
 
-// Payroll report: payroll cost + sales target (cost × 4.2) vs actual sales per employee/month
+// Payroll report: payroll cost + per-employee target vs amount_collected per month
 router.get('/payroll', async (req, res) => {
   try {
     const { year } = req.query;
@@ -237,65 +238,97 @@ router.get('/payroll', async (req, res) => {
 
     const params = { start: `${year}-01-01`, end: `${year}-12-31` };
 
-    // Payroll costs per employee per month
-    const payrollRows = await sequelize.query(`
-      SELECT
-        TRIM(supplier) AS employee,
-        TO_CHAR(date, 'MM') AS month,
-        COALESCE(SUM(amount), 0) AS amount,
-        COUNT(*) AS count
-      FROM expenses
-      WHERE date BETWEEN :start AND :end
-        AND UPPER(TRIM(category)) LIKE '%ΜΙΣΘΟΔΟΣΙΑ%ΕΡΓΑΤΙΚΑ%'
-        AND supplier IS NOT NULL AND TRIM(supplier) <> ''
-      GROUP BY TRIM(supplier), month
-      ORDER BY TRIM(supplier), month
-    `, { replacements: params, type: QueryTypes.SELECT });
+    const [payrollRows, salesRows, allSettings] = await Promise.all([
+      sequelize.query(`
+        SELECT TRIM(supplier) AS employee, TO_CHAR(date, 'MM') AS month,
+               COALESCE(SUM(amount), 0) AS amount, COUNT(*) AS count
+        FROM expenses
+        WHERE date BETWEEN :start AND :end
+          AND UPPER(TRIM(category)) LIKE '%ΜΙΣΘΟΔΟΣΙΑ%ΕΡΓΑΤΙΚΑ%'
+          AND supplier IS NOT NULL AND TRIM(supplier) <> ''
+        GROUP BY TRIM(supplier), month
+        ORDER BY TRIM(supplier), month
+      `, { replacements: params, type: QueryTypes.SELECT }),
 
-    // Sales per agent per month — use amount_collected (Ποσό Είσπραξης).
-    // This is the same field the income page shows as "ΣΥΝΟΛΟ ΦΙΛΤΡΩΝ",
-    // so the payroll report matches what the user sees on the income list.
-    const salesRows = await sequelize.query(`
-      SELECT
-        UPPER(TRIM(sales_agent)) AS agent_key,
-        TO_CHAR(sale_date, 'MM') AS month,
-        COALESCE(SUM(COALESCE(amount_collected,0)), 0) AS sales
-      FROM income
-      WHERE sale_date BETWEEN :start AND :end
-        AND sales_agent IS NOT NULL AND TRIM(sales_agent) <> ''
-      GROUP BY agent_key, month
-      ORDER BY agent_key, month
-    `, { replacements: params, type: QueryTypes.SELECT });
+      sequelize.query(`
+        SELECT UPPER(TRIM(sales_agent)) AS agent_key, TO_CHAR(sale_date, 'MM') AS month,
+               COALESCE(SUM(COALESCE(amount_collected,0)), 0) AS sales
+        FROM income
+        WHERE sale_date BETWEEN :start AND :end
+          AND sales_agent IS NOT NULL AND TRIM(sales_agent) <> ''
+        GROUP BY agent_key, month
+        ORDER BY agent_key, month
+      `, { replacements: params, type: QueryTypes.SELECT }),
+
+      PayrollEmployeeSetting.findAll({ raw: true })
+    ]);
+
+    // Build settings map keyed by UPPER(employee_name)
+    const settingsMap = {};
+    for (const s of allSettings) {
+      settingsMap[s.employee_name.trim().toUpperCase()] = s;
+    }
 
     const months = ['01','02','03','04','05','06','07','08','09','10','11','12'];
     const monthNames = ['Ιαν','Φεβ','Μαρ','Απρ','Μαι','Ιουν','Ιουλ','Αυγ','Σεπ','Οκτ','Νοε','Δεκ'];
     const employees = [...new Set(payrollRows.map(r => r.employee))].sort((a, b) => a.localeCompare(b, 'el'));
 
     const data = employees.map(employee => {
-      const empRows = payrollRows.filter(r => r.employee === employee);
       const empKey = employee.toUpperCase().trim();
+      const settings = settingsMap[empKey] || null;
+
+      // Skip hidden employees
+      if (settings && !settings.visible) return null;
+
+      const empRows = payrollRows.filter(r => r.employee === employee);
 
       const monthly = months.map((m, i) => {
         const pr = empRows.find(x => x.month === m);
         const sr = salesRows.find(x => x.agent_key === empKey && x.month === m);
         const amount = parseFloat(pr?.amount || 0);
         const sales = parseFloat(sr?.sales || 0);
-        const target = parseFloat((amount * SALES_TARGET_MULTIPLIER).toFixed(2));
-        return {
-          month: m,
-          month_name: monthNames[i],
-          amount,
-          target,
-          sales,
-          count: parseInt(pr?.count || 0)
-        };
+
+        let target = 0;
+        if (settings?.target_type === 'fixed') {
+          target = parseFloat(settings.target_value || 0);
+        } else {
+          const mult = settings ? parseFloat(settings.target_value || DEFAULT_MULTIPLIER) : DEFAULT_MULTIPLIER;
+          target = amount > 0 ? parseFloat((amount * mult).toFixed(2)) : 0;
+        }
+
+        return { month: m, month_name: monthNames[i], amount, target, sales, count: parseInt(pr?.count || 0) };
       });
 
       const total = monthly.reduce((s, m) => s + m.amount, 0);
-      const total_target = parseFloat((total * SALES_TARGET_MULTIPLIER).toFixed(2));
+      const total_target = monthly.reduce((s, m) => s + m.target, 0);
       const total_sales = monthly.reduce((s, m) => s + m.sales, 0);
-      return { agent: employee, monthly, total, total_target, total_sales };
-    });
+
+      // Incentive streaks: only count months where target > 0
+      const activeMonths = monthly.filter(m => m.target > 0);
+      let maxStreak = 0, curStreak = 0;
+      for (const m of activeMonths) {
+        curStreak = m.sales >= m.target ? curStreak + 1 : 0;
+        if (curStreak > maxStreak) maxStreak = curStreak;
+      }
+      // Current (most recent) streak
+      let latestStreak = 0;
+      for (let i = activeMonths.length - 1; i >= 0; i--) {
+        if (activeMonths[i].sales >= activeMonths[i].target) latestStreak++;
+        else break;
+      }
+
+      return {
+        agent: employee,
+        monthly,
+        total,
+        total_target,
+        total_sales,
+        settings: settings
+          ? { id: settings.id, visible: settings.visible, target_type: settings.target_type, target_value: parseFloat(settings.target_value) }
+          : null,
+        streak: { max: maxStreak, current: latestStreak }
+      };
+    }).filter(Boolean);
 
     res.json(data);
   } catch (e) { res.status(500).json({ error: e.message }); }
