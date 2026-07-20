@@ -11,6 +11,7 @@ require('./models/Customer');
 require('./models/ServiceAgreement');
 require('./models/RecurringExpense');
 require('./models/AppSetting');
+require('./models/PayrollEmployeeSetting');
 
 const authMiddleware = require('./middleware/auth');
 
@@ -50,7 +51,8 @@ app.use('/api/expenses',   authMiddleware, require('./routes/expenses'));
 app.use('/api/lists',      authMiddleware, require('./routes/listItems'));
 app.use('/api/invoices',   authMiddleware, require('./routes/invoices'));
 app.use('/api/emails',     authMiddleware, require('./routes/emails'));
-app.use('/api/reports',    authMiddleware, require('./routes/reports'));
+app.use('/api/reports',           authMiddleware, require('./routes/reports'));
+app.use('/api/payroll-settings',  authMiddleware, require('./routes/payrollSettings'));
 app.use('/api/import',     authMiddleware, require('./routes/importData'));
 app.use('/api/customers',          authMiddleware, require('./routes/customers'));
 app.use('/api/service-agreements', authMiddleware, require('./routes/serviceAgreements'));
