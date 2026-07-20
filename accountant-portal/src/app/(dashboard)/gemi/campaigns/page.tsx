@@ -128,6 +128,8 @@ export default function GemiCampaignsPage() {
                 <Th>Κατάσταση</Th>
                 <Th>Ημ. Αποστολής</Th>
                 <Th>Αποστολές</Th>
+                <Th>Παραδόθηκαν</Th>
+                <Th>Bounced</Th>
                 <Th>Ανοίγματα</Th>
                 <Th>Κλικ</Th>
                 <Th></Th>
@@ -136,7 +138,7 @@ export default function GemiCampaignsPage() {
             <TableBody>
               {campaigns.length === 0 ? (
                 <TableRow>
-                  <Td colSpan={9} className="text-center text-gray-400 py-8">
+                  <Td colSpan={11} className="text-center text-gray-400 py-8">
                     Δεν υπάρχουν καμπάνιες ΓΕΜΗ
                   </Td>
                 </TableRow>
@@ -163,9 +165,23 @@ export default function GemiCampaignsPage() {
                     <Td className="text-sm text-gray-500">
                       {c.sentAt ? formatDateTime(c.sentAt) : '—'}
                     </Td>
-                    <Td className="text-sm">{c.totalSent || c._count?.recipients || '—'}</Td>
-                    <Td className="text-sm">{c.totalOpened || '—'}</Td>
-                    <Td className="text-sm">{c.totalClicked || '—'}</Td>
+                    <Td className="text-sm font-medium">{c.totalSent ?? c._count?.recipients ?? 0}</Td>
+                    <Td className="text-sm">{c.totalDelivered ?? 0}</Td>
+                    <Td className="text-sm">
+                      <span className={c.totalBounced > 0 ? 'text-red-600 font-medium' : ''}>{c.totalBounced ?? 0}</span>
+                    </Td>
+                    <Td className="text-sm">
+                      {c.totalOpened ?? 0}
+                      {c.totalSent > 0 && (
+                        <span className="text-xs text-gray-400 ml-1">({Math.round((c.totalOpened / c.totalSent) * 100)}%)</span>
+                      )}
+                    </Td>
+                    <Td className="text-sm">
+                      {c.totalClicked ?? 0}
+                      {c.totalSent > 0 && (
+                        <span className="text-xs text-gray-400 ml-1">({Math.round((c.totalClicked / c.totalSent) * 100)}%)</span>
+                      )}
+                    </Td>
                     <Td>
                       <div className="flex items-center gap-2">
                         {c.moosendCampaignId && (

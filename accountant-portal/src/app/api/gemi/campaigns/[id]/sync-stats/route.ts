@@ -28,12 +28,19 @@ export async function POST(
   try {
     const stats = await getCampaignStats(campaign.moosendCampaignId)
 
+    // Moosend cannot track clicks on per-recipient merge-tag URLs, but we
+    // record those clicks ourselves at the /ge/{token} redirect — use
+    // whichever count is higher.
+    const ownClicks = await prisma.gemiCampaignRecipient.count({
+      where: { campaignId: id, channel: 'EMAIL', clickedAt: { not: null } },
+    })
+
     const updated = await prisma.gemiCampaign.update({
       where: { id },
       data: {
         totalDelivered: stats.delivered,
         totalOpened: stats.opened,
-        totalClicked: stats.clicked,
+        totalClicked: Math.max(stats.clicked, ownClicks),
         totalBounced: stats.bounced,
         totalUnsubscribed: stats.unsubscribed,
         statsLastFetchedAt: new Date(),
