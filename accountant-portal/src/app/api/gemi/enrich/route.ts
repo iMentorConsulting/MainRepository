@@ -110,5 +110,16 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  return NextResponse.json({ processed, enriched, errors })
+  // How many still await enrichment (for client-side progress/looping)
+  const remaining = await prisma.gemiLookup.count({
+    where: {
+      aadeEnriched: false,
+      OR: [
+        { aadeError: null },
+        { aadeError: { not: null }, updatedAt: { lt: retryThreshold } },
+      ],
+    },
+  })
+
+  return NextResponse.json({ processed, enriched, errors, remaining })
 }

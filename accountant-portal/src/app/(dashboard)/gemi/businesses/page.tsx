@@ -307,19 +307,35 @@ function GemiBusinessesPageInner() {
 
   async function handleEnrich() {
     setEnriching(true)
+    let totalEnriched = 0
+    let totalErrors = 0
     try {
-      const res = await fetch('/api/gemi/enrich', { method: 'POST' })
-      const data = await res.json()
-      if (res.ok) {
-        setToast(`Εμπλουτισμός ΑΑΔΕ: ${data.enriched ?? 0} εμπλουτίστηκαν`)
-        fetchData()
-        // Refresh batches too
-        fetch('/api/gemi/businesses/batches').then(r => r.json()).then(d => Array.isArray(d) && setBatches(d)).catch(() => {})
-      } else {
-        setToast(data.error || 'Σφάλμα εμπλουτισμού')
+      // Loop batches of 100 until nothing is left pending. Only records with
+      // aadeEnriched=false are processed — already-enriched ones are never
+      // re-queried, so this is safe to run any time after importing new CSVs.
+      for (let round = 0; round < 200; round++) {
+        const res = await fetch('/api/gemi/enrich', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ limit: 100 }),
+        })
+        const data = await res.json()
+        if (!res.ok) {
+          setToast(data.error || 'Σφάλμα εμπλουτισμού')
+          return
+        }
+        totalEnriched += data.enriched ?? 0
+        totalErrors += data.errors ?? 0
+        const remaining = data.remaining ?? 0
+        setToast(`Εμπλουτισμός ΑΑΔΕ: ${totalEnriched} εμπλουτίστηκαν${totalErrors ? `, ${totalErrors} σφάλματα` : ''} — απομένουν ${remaining}...`)
+        if (remaining === 0 || (data.processed ?? 0) === 0) break
       }
+      setToast(`Εμπλουτισμός ΑΑΔΕ ολοκληρώθηκε: ${totalEnriched} εμπλουτίστηκαν${totalErrors ? `, ${totalErrors} σφάλματα` : ''}`)
+      fetchData()
+      // Refresh batches too
+      fetch('/api/gemi/businesses/batches').then(r => r.json()).then(d => Array.isArray(d) && setBatches(d)).catch(() => {})
     } catch {
-      setToast('Σφάλμα δικτύου')
+      setToast(`Σφάλμα δικτύου — εμπλουτίστηκαν ${totalEnriched} μέχρι τώρα. Πατήστε ξανά για συνέχεια.`)
     } finally {
       setEnriching(false)
     }
