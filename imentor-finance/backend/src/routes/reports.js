@@ -430,6 +430,21 @@ router.get('/available-years', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// Years that have ΜΙΣΘΟΔΟΣΙΑ-ΕΡΓΑΤΙΚΑ expenses (for payroll tab year picker)
+router.get('/payroll-years', async (req, res) => {
+  try {
+    const rows = await sequelize.query(
+      `SELECT DISTINCT EXTRACT(YEAR FROM date)::int AS year
+       FROM expenses
+       WHERE UPPER(category) LIKE '%ΜΙΣΘΟΔΟΣΙΑ%ΕΡΓΑΤΙΚΑ%'
+         AND date IS NOT NULL
+       ORDER BY year DESC`,
+      { type: QueryTypes.SELECT }
+    );
+    res.json(rows.map(r => r.year).filter(Boolean));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 router.get('/available-case-years', async (req, res) => {
   try {
     const rows = await sequelize.query(
