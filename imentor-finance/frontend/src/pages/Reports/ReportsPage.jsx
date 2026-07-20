@@ -908,14 +908,19 @@ function TabServiceTrend() {
   );
 }
 
-function TabPayroll({ years }) {
-  const [year, setYear] = useState(years[0] || new Date().getFullYear());
+function TabPayroll() {
+  const [payrollYears, setPayrollYears] = useState([]);
+  const [year, setYear] = useState(new Date().getFullYear());
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (years.length > 0 && !years.includes(year)) setYear(years[0]);
-  }, [years]);
+    api.get('/reports/payroll-years').then(r => {
+      const ys = r.data || [];
+      setPayrollYears(ys);
+      if (ys.length > 0) setYear(ys[0]);
+    }).catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (!year) return;
@@ -945,7 +950,7 @@ function TabPayroll({ years }) {
     <div className="space-y-6">
       <div className="filter-bar">
         <select className="input w-28" value={year} onChange={e => setYear(+e.target.value)}>
-          {years.map(y => <option key={y}>{y}</option>)}
+          {(payrollYears.length > 0 ? payrollYears : [year]).map(y => <option key={y}>{y}</option>)}
         </select>
       </div>
 
@@ -1153,7 +1158,7 @@ export default function ReportsPage() {
       {activeTab === 'top-customers' && <TabTopCustomers years={years} />}
       {activeTab === 'accountants' && <TabAccountants years={years} />}
       {activeTab === 'service-trend' && <TabServiceTrend />}
-      {activeTab === 'payroll' && <TabPayroll years={years} />}
+      {activeTab === 'payroll' && <TabPayroll />}
     </div>
   );
 }
