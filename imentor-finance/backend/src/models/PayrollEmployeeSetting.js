@@ -6,7 +6,8 @@ const PayrollEmployeeSetting = sequelize.define('PayrollEmployeeSetting', {
   employee_name: { type: DataTypes.STRING, allowNull: false, unique: true },
   visible:       { type: DataTypes.BOOLEAN, defaultValue: true },
   target_type:   { type: DataTypes.ENUM('multiplier', 'fixed'), defaultValue: 'multiplier' },
-  target_value:  { type: DataTypes.DECIMAL(10, 2), defaultValue: 4.2 },
+  target_value:      { type: DataTypes.DECIMAL(10, 2), defaultValue: 4.2 },
+  monthly_overrides: { type: DataTypes.JSONB, defaultValue: {} },
 }, {
   tableName: 'payroll_employee_settings',
   timestamps: true

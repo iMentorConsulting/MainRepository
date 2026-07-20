@@ -1064,6 +1064,32 @@ function TabPayroll() {
   const [allEmployees, setAllEmployees] = useState([]); // all incl. hidden, for settings modal
   const [loading, setLoading] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [editTarget, setEditTarget] = useState(null); // { agent, monthKey, value }
+
+  const today = new Date();
+  const currentYear = today.getFullYear();
+  const currentMonthIdx = today.getMonth(); // 0-based: July = 6
+
+  const saveTargetOverride = async () => {
+    if (!editTarget) return;
+    const { agent, monthKey, value } = editTarget;
+    setEditTarget(null);
+    try {
+      await api.patch('/payroll-settings/override', {
+        employee_name: agent,
+        year_month: monthKey,
+        value: value === '' ? null : parseFloat(value),
+      });
+      loadData(year);
+    } catch (e) { console.error('Override save failed:', e); }
+  };
+
+  const clearOverride = async (agent, monthKey) => {
+    try {
+      await api.patch('/payroll-settings/override', { employee_name: agent, year_month: monthKey, value: null });
+      loadData(year);
+    } catch (e) { console.error('Override clear failed:', e); }
+  };
 
   const MONTH_NAMES = ['Ιαν','Φεβ','Μαρ','Απρ','Μαι','Ιουν','Ιουλ','Αυγ','Σεπ','Οκτ','Νοε','Δεκ'];
   const BORDER_COLORS = ['border-indigo-400','border-emerald-400','border-amber-400','border-rose-400','border-cyan-400','border-purple-400'];
@@ -1214,13 +1240,29 @@ function TabPayroll() {
                     </thead>
                     <tbody>
                       {d.monthly.map((m, i) => {
+                        const isFuture = year === currentYear && i > currentMonthIdx;
+                        const monthKey = `${year}-${m.month}`;
+                        const hasOverride = d.settings?.monthly_overrides?.[monthKey] != null;
                         const hasData = m.amount !== 0 || m.sales !== 0 || m.target !== 0;
-                        if (!hasData) return (
+                        if (!hasData && !isFuture) return (
                           <tr key={m.month} className="tr opacity-25">
                             <td className="td"></td>
                             <td className="td text-slate-400">{MONTH_NAMES[i]} {year}</td>
                             <td className="td text-right text-slate-300">—</td>
-                            <td className="td text-right text-slate-300">—</td>
+                            <td className="td text-right">
+                              {/* Editable target even when 0 — allow setting a manual target */}
+                              {editTarget?.agent === d.agent && editTarget?.monthKey === monthKey ? (
+                                <input autoFocus type="number" className="w-24 text-right text-sm border border-amber-400 rounded px-2 py-0.5 outline-none"
+                                  value={editTarget.value}
+                                  onChange={e => setEditTarget(prev => ({ ...prev, value: e.target.value }))}
+                                  onBlur={saveTargetOverride}
+                                  onKeyDown={e => { if (e.key === 'Enter') e.target.blur(); if (e.key === 'Escape') setEditTarget(null); }} />
+                              ) : (
+                                <span className="text-slate-300 cursor-pointer hover:text-amber-400 text-sm"
+                                  title="Κλικ για ορισμό στόχου"
+                                  onClick={() => setEditTarget({ agent: d.agent, monthKey, value: '' })}>—</span>
+                              )}
+                            </td>
                             <td className="td text-right text-slate-300">—</td>
                             <td className="td text-right text-slate-300">—</td>
                             <td className="td text-right text-slate-300">—</td>
@@ -1230,7 +1272,7 @@ function TabPayroll() {
                         const diff = m.sales - m.target;
                         const hit = m.target > 0 && m.sales >= m.target;
                         return (
-                          <tr key={m.month} className={`tr ${hit ? 'bg-emerald-50/40' : ''}`}>
+                          <tr key={m.month} className={`tr ${hit ? 'bg-emerald-50/40' : ''} ${isFuture ? 'opacity-40' : ''}`}>
                             <td className="td text-center text-base leading-none">
                               {hit ? '⭐' : ''}
                             </td>
@@ -1241,9 +1283,32 @@ function TabPayroll() {
                                 : <span className="text-slate-300">—</span>}
                             </td>
                             <td className="td text-right">
-                              {m.target > 0
-                                ? <span className="font-semibold text-amber-600">{fmt(m.target)}</span>
-                                : <span className="text-slate-300">—</span>}
+                              {isFuture ? (
+                                <span className="text-slate-300">—</span>
+                              ) : editTarget?.agent === d.agent && editTarget?.monthKey === monthKey ? (
+                                <input autoFocus type="number" className="w-24 text-right text-sm border border-amber-400 rounded px-2 py-0.5 outline-none"
+                                  value={editTarget.value}
+                                  onChange={e => setEditTarget(prev => ({ ...prev, value: e.target.value }))}
+                                  onBlur={saveTargetOverride}
+                                  onKeyDown={e => { if (e.key === 'Enter') e.target.blur(); if (e.key === 'Escape') setEditTarget(null); }} />
+                              ) : m.target > 0 ? (
+                                <span className="flex items-center justify-end gap-1 group">
+                                  {hasOverride && (
+                                    <button className="opacity-0 group-hover:opacity-100 text-slate-300 hover:text-rose-500 text-xs leading-none px-0.5"
+                                      title="Επαναφορά σε υπολογισμένο στόχο"
+                                      onClick={() => clearOverride(d.agent, monthKey)}>×</button>
+                                  )}
+                                  <span className={`cursor-pointer font-semibold ${hasOverride ? 'text-purple-600 underline decoration-dotted underline-offset-2' : 'text-amber-600'} hover:opacity-75`}
+                                    title={hasOverride ? 'Προσαρμοσμένος στόχος — κλικ για αλλαγή' : 'Κλικ για προσαρμοσμένο στόχο'}
+                                    onClick={() => setEditTarget({ agent: d.agent, monthKey, value: Math.round(m.target) })}>
+                                    {fmt(m.target)}
+                                  </span>
+                                </span>
+                              ) : (
+                                <span className="text-slate-300 cursor-pointer hover:text-amber-400 text-sm"
+                                  title="Κλικ για ορισμό στόχου"
+                                  onClick={() => setEditTarget({ agent: d.agent, monthKey, value: '' })}>—</span>
+                              )}
                             </td>
                             <td className="td text-right">
                               {m.sales > 0
@@ -1251,10 +1316,10 @@ function TabPayroll() {
                                 : <span className="text-slate-300">—</span>}
                             </td>
                             <td className="td text-right">
-                              {m.target > 0 ? <AchievementBar pct={monthPct} /> : <span className="text-slate-300">—</span>}
+                              {m.target > 0 && !isFuture ? <AchievementBar pct={monthPct} /> : <span className="text-slate-300">—</span>}
                             </td>
                             <td className="td text-right">
-                              {m.target > 0
+                              {m.target > 0 && !isFuture
                                 ? <span className={`font-bold text-sm ${diff >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>{diff >= 0 ? '+' : ''}{fmt(diff)}</span>
                                 : <span className="text-slate-300">—</span>}
                             </td>
