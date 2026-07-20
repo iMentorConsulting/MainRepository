@@ -38,5 +38,10 @@ export async function POST(request: NextRequest) {
     totalMatches += count
   }
 
-  return NextResponse.json({ processed: records.length, totalMatches })
+  // How many still await matching (for client-side progress/looping)
+  const remaining = await prisma.gemiLookup.count({
+    where: { aadeEnriched: true, matchingDone: false },
+  })
+
+  return NextResponse.json({ processed: records.length, totalMatches, remaining })
 }

@@ -361,17 +361,33 @@ function GemiBusinessesPageInner() {
 
   async function handleMatch() {
     setMatching(true)
+    let totalProcessed = 0
+    let totalMatches = 0
     try {
-      const res = await fetch('/api/gemi/match', { method: 'POST' })
-      const data = await res.json()
-      if (res.ok) {
-        setToast(`Ταίριασμα: ${data.matched ?? 0} ταιριάστηκαν`)
-        fetchData()
-      } else {
-        setToast(data.error || 'Σφάλμα ταιριάσματος')
+      // Loop batches of 200 until every enriched business has been matched.
+      // Only aadeEnriched && !matchingDone records are processed, so this is
+      // safe to re-run any time — already-matched businesses are skipped.
+      for (let round = 0; round < 200; round++) {
+        const res = await fetch('/api/gemi/match', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ limit: 200 }),
+        })
+        const data = await res.json()
+        if (!res.ok) {
+          setToast(data.error || 'Σφάλμα ταιριάσματος')
+          return
+        }
+        totalProcessed += data.processed ?? 0
+        totalMatches += data.totalMatches ?? 0
+        const remaining = data.remaining ?? 0
+        setToast(`Ταίριασμα: ${totalProcessed} επιχειρήσεις, ${totalMatches} ταιριάσματα — απομένουν ${remaining}...`)
+        if (remaining === 0 || (data.processed ?? 0) === 0) break
       }
+      setToast(`Ταίριασμα ολοκληρώθηκε: ${totalProcessed} επιχειρήσεις, ${totalMatches} ταιριάσματα`)
+      fetchData()
     } catch {
-      setToast('Σφάλμα δικτύου')
+      setToast(`Σφάλμα δικτύου — ${totalProcessed} επιχειρήσεις ταιριάστηκαν μέχρι τώρα. Πατήστε ξανά για συνέχεια.`)
     } finally {
       setMatching(false)
     }
