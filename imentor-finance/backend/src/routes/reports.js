@@ -269,6 +269,10 @@ router.get('/payroll', async (req, res) => {
       settingsMap[s.employee_name.trim().toUpperCase()] = s;
     }
 
+    const today = new Date();
+    const todayYear = today.getFullYear();
+    const todayMonthNum = today.getMonth() + 1; // 1-based
+
     const months = ['01','02','03','04','05','06','07','08','09','10','11','12'];
     const monthNames = ['Ιαν','Φεβ','Μαρ','Απρ','Μαι','Ιουν','Ιουλ','Αυγ','Σεπ','Οκτ','Νοε','Δεκ'];
     const employees = [...new Set(payrollRows.map(r => r.employee))].sort((a, b) => a.localeCompare(b, 'el'));
@@ -288,15 +292,24 @@ router.get('/payroll', async (req, res) => {
         const amount = parseFloat(pr?.amount || 0);
         const sales = parseFloat(sr?.sales || 0);
 
+        const mNum = parseInt(m);
+        const isFuture = parseInt(year) === todayYear && mNum > todayMonthNum;
+
         let target = 0;
-        if (settings?.target_type === 'fixed') {
-          target = parseFloat(settings.target_value || 0);
-        } else {
-          const mult = settings ? parseFloat(settings.target_value || DEFAULT_MULTIPLIER) : DEFAULT_MULTIPLIER;
-          target = amount > 0 ? parseFloat((amount * mult).toFixed(2)) : 0;
+        if (!isFuture) {
+          const overrideKey = `${year}-${m}`;
+          const override = settings?.monthly_overrides?.[overrideKey];
+          if (override != null) {
+            target = parseFloat(override);
+          } else if (settings?.target_type === 'fixed') {
+            target = parseFloat(settings.target_value || 0);
+          } else {
+            const mult = settings ? parseFloat(settings.target_value || DEFAULT_MULTIPLIER) : DEFAULT_MULTIPLIER;
+            target = amount > 0 ? parseFloat((amount * mult).toFixed(2)) : 0;
+          }
         }
 
-        return { month: m, month_name: monthNames[i], amount, target, sales, count: parseInt(pr?.count || 0) };
+        return { month: m, month_name: monthNames[i], amount, target, sales, count: parseInt(pr?.count || 0), is_future: isFuture };
       });
 
       const total = monthly.reduce((s, m) => s + m.amount, 0);
@@ -324,7 +337,7 @@ router.get('/payroll', async (req, res) => {
         total_target,
         total_sales,
         settings: settings
-          ? { id: settings.id, visible: settings.visible, target_type: settings.target_type, target_value: parseFloat(settings.target_value) }
+          ? { id: settings.id, visible: settings.visible, target_type: settings.target_type, target_value: parseFloat(settings.target_value), monthly_overrides: settings.monthly_overrides || {} }
           : null,
         streak: { max: maxStreak, current: latestStreak }
       };
