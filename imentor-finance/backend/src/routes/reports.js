@@ -309,12 +309,18 @@ router.get('/payroll', async (req, res) => {
           }
         }
 
-        return { month: m, month_name: monthNames[i], amount, target, sales, count: parseInt(pr?.count || 0), is_future: isFuture };
+        const rate = parseFloat(settings?.overachievement_rate ?? 0) / 100;
+        const commission = !isFuture && target > 0 && sales > target
+          ? parseFloat(((sales - target) * rate).toFixed(2))
+          : 0;
+
+        return { month: m, month_name: monthNames[i], amount, target, sales, commission, count: parseInt(pr?.count || 0), is_future: isFuture };
       });
 
       const total = monthly.reduce((s, m) => s + m.amount, 0);
       const total_target = monthly.reduce((s, m) => s + m.target, 0);
       const total_sales = monthly.reduce((s, m) => s + m.sales, 0);
+      const total_commission = monthly.reduce((s, m) => s + m.commission, 0);
 
       // Incentive streaks: only count months where target > 0
       const activeMonths = monthly.filter(m => m.target > 0);
@@ -337,8 +343,9 @@ router.get('/payroll', async (req, res) => {
         total_target,
         total_sales,
         settings: settings
-          ? { id: settings.id, visible: settings.visible, target_type: settings.target_type, target_value: parseFloat(settings.target_value), monthly_overrides: settings.monthly_overrides || {} }
+          ? { id: settings.id, visible: settings.visible, target_type: settings.target_type, target_value: parseFloat(settings.target_value), monthly_overrides: settings.monthly_overrides || {}, overachievement_rate: parseFloat(settings.overachievement_rate ?? 10) }
           : null,
+        total_commission,
         streak: { max: maxStreak, current: latestStreak }
       };
     }).filter(Boolean);
