@@ -89,14 +89,28 @@ export async function sendMoosendBulkPersonalized(opts: {
   // personalization tag syntax for custom fields)
   const toMoosendTag = (s: string) => s.replace(/\{\{(\w+)\}\}/g, '#recipient:$1#')
 
+  // Moosend's campaigns/create.json API has NO preview-text parameter — inject
+  // the preview as a hidden preheader span at the top of the body instead.
+  // Inbox clients (Gmail/Outlook/Apple Mail) render it after the subject.
+  let htmlFinal = toMoosendTag(htmlResolved)
+  if (previewResolved) {
+    const hidden = `<span style="display:none!important;visibility:hidden;mso-hide:all;font-size:1px;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;">${toMoosendTag(previewResolved)}</span>`
+    const bodyIdx = htmlFinal.indexOf('<body')
+    if (bodyIdx === -1) {
+      htmlFinal = hidden + htmlFinal
+    } else {
+      const closeTag = htmlFinal.indexOf('>', bodyIdx)
+      htmlFinal = htmlFinal.slice(0, closeTag + 1) + hidden + htmlFinal.slice(closeTag + 1)
+    }
+  }
+
   // 6. ONE campaign, ONE send
   const moosendCampaignId = await createAndSendCampaign({
     name: opts.campaignName,
     subject: toMoosendTag(subjectResolved),
-    previewText: previewResolved ? toMoosendTag(previewResolved) : undefined,
     senderEmail: SENDER_EMAIL,
     replyToEmail: REPLY_TO_EMAIL,
-    htmlContent: toMoosendTag(htmlResolved),
+    htmlContent: htmlFinal,
     listId,
   })
   return { moosendCampaignId, moosendListId: listId }
@@ -256,7 +270,6 @@ export async function createAndSendCampaign(
     body: JSON.stringify({
       Name: opts.name,
       Subject: opts.subject,
-      ...(opts.previewText ? { PreviewText: opts.previewText } : {}),
       SenderEmail: opts.senderEmail,
       ReplyToEmail: opts.replyToEmail,
       HTMLContent: opts.htmlContent,
