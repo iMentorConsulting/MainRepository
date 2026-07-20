@@ -47,6 +47,15 @@ export async function POST(req: NextRequest) {
       continue
     }
 
+    // Campaigns larger than one batch span multiple cron runs — number the
+    // Moosend campaign parts so the dashboard stays readable (title, title
+    // — μέρος 2, — μέρος 3, ...).
+    const alreadyProcessed = await prisma.gemiCampaignRecipient.count({
+      where: { campaignId: campaign.id, channel: 'EMAIL', status: { in: ['sent', 'error'] } },
+    })
+    const partNumber = Math.floor(alreadyProcessed / BATCH_PER_RUN) + 1
+    const moosendName = partNumber > 1 ? `${campaign.title} — μέρος ${partNumber}` : campaign.title
+
     // Build variables for all recipients concurrently (10 at a time)
     const CONCURRENT = 10
     const recipientData: Array<{ id: string; email: string; variables: Record<string, string> } | { id: string; error: string }> = []
@@ -88,7 +97,7 @@ export async function POST(req: NextRequest) {
           subject: subjectBase,
           previewText: previewBase || undefined,
           html: htmlFull,
-          campaignName: campaign.title,
+          campaignName: moosendName,
         })
         if (sendResult) {
           await prisma.gemiCampaign.update({
