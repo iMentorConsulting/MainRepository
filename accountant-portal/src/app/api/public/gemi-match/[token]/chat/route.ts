@@ -147,6 +147,10 @@ async function createGemiCase(params: {
       description: clientCase.description,
       priority: clientCase.priority,
       programTitle: params.programTitle,
+      // The Ερμής conversation already happened — CM must not auto-start a
+      // new screening (Viber/session) for this lead.
+      ermis_completed: true,
+      program_exact_title: params.programTitle,
       ...profile,
     }).catch(err => console.error('[GemiCase] case mgmt notify failed:', err?.message))
 

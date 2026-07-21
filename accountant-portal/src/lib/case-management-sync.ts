@@ -31,6 +31,14 @@ export async function notifyCaseManagement(data: {
   // assignment-request from Case Management (see /api/external/assignment-requests),
   // so Case Management can correlate this notification to its own request.
   requestRef?: string | null
+  // True when the Ερμής screening ALREADY happened before this case was
+  // created (GEMI prospect flow) — CM must NOT auto-start a new Ερμής
+  // session/Viber for it; the transcript arrives via the ermis.completed
+  // webhook for the same ΑΦΜ.
+  ermis_completed?: boolean
+  // The exact program title in Logistis (in addition to the coarse
+  // program_category) so CM can reference the real program.
+  program_exact_title?: string | null
   // Full AADE-derived business profile (see lib/business-profile.ts) — sourced
   // entirely from Logistis's own cached Business/activities data, never a fresh
   // AADE call at notify time (repeated lookups for the same ΑΦΜ are avoided
