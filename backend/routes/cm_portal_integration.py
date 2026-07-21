@@ -743,17 +743,20 @@ def accept_assignment(
     # assigned to the consultant who accepted, today's date + reminder, with a link
     # back to the LOGISTIS case.
     from models_cases import CMLead
-    from routes.cm_leads import normalize_afm, maybe_autostart_ermis, clean_email, find_lead_by_afm
+    from routes.cm_leads import (normalize_afm, maybe_autostart_ermis, clean_email,
+                                 find_gemi_lead, program_category_from_title)
     today = date.today()
     link_tmpl = os.getenv("LOGISTIS_CASE_LINK_TEMPLATE", "https://logistis.i-mentor.gr/cases/{case_number}")
     portal_link = link_tmpl.replace("{case_number}", str(a.case_number)) if a.case_number is not None else None
     afm = normalize_afm(a.afm)
     consultant = _short_consultant(current_user.full_name)
+    prog_title = (a.program_exact_title or "").strip() or None
 
     # ΓΕΜΗ (ΕΡΜΗΣ already done upstream): reuse the lead that carries the transcript
-    # (auto-created by the ermis.completed webhook for the same ΑΦΜ) so the case and
-    # the conversation live on ONE lead. Never re-run ΕΡΜΗΣ / re-send Viber.
-    existing = find_lead_by_afm(db, afm) if a.ermis_completed else None
+    # for this ΑΦΜ + program (auto-created by the ermis.completed webhook) so the case
+    # and conversation live on ONE lead. Match on ΑΦΜ + program title, not ΑΦΜ alone —
+    # the same client may have one lead per program. Never re-run ΕΡΜΗΣ / re-send Viber.
+    existing = find_gemi_lead(db, afm, program_title=prog_title) if a.ermis_completed else None
     if existing:
         lead = existing
         lead.status = "HOT"
@@ -762,9 +765,9 @@ def accept_assignment(
         lead.name = lead.name or a.onomasia or f"ΓΕΜΗ {afm}"
         lead.phone = lead.phone or a.phone
         lead.email = lead.email or clean_email(a.email)
-        if not lead.program:
-            lead.program = _map_program_category(a.program_title)
-        lead.service_type = lead.service_type or a.program_exact_title or _map_service_type(a.program_title) or a.case_type
+        lead.program = lead.program or program_category_from_title(prog_title) or _map_program_category(a.program_title)
+        lead.program_title = lead.program_title or prog_title
+        lead.service_type = lead.service_type or prog_title or _map_service_type(a.program_title) or a.case_type
         lead.source = lead.source or "LOGISTIS ΓΕΜΗ"
         lead.notes = lead.notes or a.description
         lead.next_call_date = lead.next_call_date or today
@@ -776,8 +779,9 @@ def accept_assignment(
             afm=afm,
             phone=a.phone,
             email=clean_email(a.email),
-            program=_map_program_category(a.program_title),
-            service_type=(a.program_exact_title if a.ermis_completed else None) or _map_service_type(a.program_title) or a.case_type,
+            program=(program_category_from_title(prog_title) if a.ermis_completed else None) or _map_program_category(a.program_title),
+            program_title=prog_title if a.ermis_completed else None,
+            service_type=(prog_title if a.ermis_completed else None) or _map_service_type(a.program_title) or a.case_type,
             status="HOT",
             assigned_agent_id=current_user.id,
             assigned_name=consultant,

@@ -81,19 +81,40 @@ def clean_email(email):
     return f"{local}@{domain}" if local else None
 
 
-def find_lead_by_afm(db: Session, afm, prefer_logistis: bool = True):
-    """Find an existing lead by (normalized) ΑΦΜ. Prefers a LOGISTIS/ΕΡΜΗΣ lead
-    (the one that carries the ΓΕΜΗ transcript) so both flows converge on one lead."""
+def program_category_from_title(title):
+    """Map an exact program title to one of the 4 CM categories (for filter/display)."""
+    t = (title or "").upper()
+    if "ΜΙΚΡΟ" in t:
+        return "ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ"
+    if "ΔΥΠΑ" in t or "ΟΑΕΔ" in t or "DYPA" in t:
+        return "ΔΥΠΑ"
+    if "ΑΝΑΚΑΙΝ" in t:
+        return "ΑΝΑΚΑΙΝΙΖΩ"
+    if "ΕΣΠΑ" in t:
+        return "ΕΣΠΑ"
+    return None
+
+
+def find_gemi_lead(db: Session, afm, program_title=None, token=None):
+    """Resolve a ΓΕΜΗ lead by token first, else by ΑΦΜ + program title. The same
+    ΑΦΜ can have several leads (one per program), so ΑΦΜ alone is NOT the key.
+    Prefers a LOGISTIS/ΕΡΜΗΣ lead (the one carrying the transcript)."""
+    if token:
+        l = db.query(CMLead).filter(CMLead.ermis_token == token).first()
+        if l:
+            return l
     afm = normalize_afm(afm)
     if not afm:
         return None
-    leads = db.query(CMLead).filter(CMLead.afm == afm).order_by(CMLead.id.asc()).all()
+    q = db.query(CMLead).filter(CMLead.afm == afm)
+    if program_title:
+        q = q.filter(sa_func.lower(sa_func.coalesce(CMLead.program_title, "")) == program_title.strip().lower())
+    leads = q.order_by(CMLead.id.asc()).all()
     if not leads:
         return None
-    if prefer_logistis:
-        for l in leads:
-            if (l.source or "").upper().startswith("LOGISTIS") or l.ermis_transcript or l.ermis_token:
-                return l
+    for l in leads:
+        if (l.source or "").upper().startswith("LOGISTIS") or l.ermis_transcript or l.ermis_token:
+            return l
     return leads[0]
 
 
@@ -151,6 +172,7 @@ def lead_to_dict(l: CMLead, include_comments: bool = False, last_comment: dict =
         "email": l.email,
         "afm": l.afm,
         "program": l.program,
+        "program_title": getattr(l, "program_title", None),
         "service_type": l.service_type,
         "total_amount": l.total_amount or 0,
         "status": l.status,
