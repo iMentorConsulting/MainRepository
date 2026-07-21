@@ -301,6 +301,15 @@ def sync_leads(db, full: bool = False) -> dict:
                 skipped += 1
                 continue
 
+            # Data validation: ensure sheet_row_num makes sense
+            # If multiple rows have the same name/phone but different sheet_row_num,
+            # that's OK (legitimate duplicates). But if name is empty while phone exists,
+            # or other corruption indicators, warn and skip.
+            if fields["sheet_row_num"] and not fields["name"]:
+                print(f"[WARN] Row {fields['sheet_row_num']}: has phone but no name — skipping to avoid corruption")
+                skipped += 1
+                continue
+
             lead = Lead(**fields)
             db.add(lead)
             new_leads.append(lead)
