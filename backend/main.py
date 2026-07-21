@@ -1191,6 +1191,8 @@ try:
         _conn.execute(_text("ALTER TABLE cm_leads ADD COLUMN IF NOT EXISTS portal_case_number INTEGER"))
         _conn.execute(_text("ALTER TABLE cm_leads ADD COLUMN IF NOT EXISTS portal_case_link VARCHAR(500)"))
         _conn.execute(_text("ALTER TABLE cm_portal_assignments ADD COLUMN IF NOT EXISTS cm_lead_id INTEGER"))
+        _conn.execute(_text("ALTER TABLE cm_portal_assignments ADD COLUMN IF NOT EXISTS ermis_completed BOOLEAN DEFAULT FALSE"))
+        _conn.execute(_text("ALTER TABLE cm_portal_assignments ADD COLUMN IF NOT EXISTS program_exact_title VARCHAR(300)"))
         # Backfill: pad existing 8-digit ΑΦΜ to 9 with a leading zero
         _conn.execute(_text("UPDATE cm_leads SET afm = '0' || afm WHERE afm ~ '^[0-9]{8}$'"))
         # Backfill: fix the common yahoo.fr → yahoo.gr email typo

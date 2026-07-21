@@ -81,6 +81,22 @@ def clean_email(email):
     return f"{local}@{domain}" if local else None
 
 
+def find_lead_by_afm(db: Session, afm, prefer_logistis: bool = True):
+    """Find an existing lead by (normalized) ΑΦΜ. Prefers a LOGISTIS/ΕΡΜΗΣ lead
+    (the one that carries the ΓΕΜΗ transcript) so both flows converge on one lead."""
+    afm = normalize_afm(afm)
+    if not afm:
+        return None
+    leads = db.query(CMLead).filter(CMLead.afm == afm).order_by(CMLead.id.asc()).all()
+    if not leads:
+        return None
+    if prefer_logistis:
+        for l in leads:
+            if (l.source or "").upper().startswith("LOGISTIS") or l.ermis_transcript or l.ermis_token:
+                return l
+    return leads[0]
+
+
 def maybe_autostart_ermis(lead: CMLead, actor_name: str = "auto") -> bool:
     """If a lead has an ΑΦΜ, is an open prospect and hasn't been sent yet, kick off
     a ΕΡΜΗΣ screening in the background (LOGISTIS does the ΑΑΔΕ lookup + matching).

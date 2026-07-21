@@ -473,6 +473,10 @@ class CMPortalAssignment(Base):
     cm_case_id = Column(Integer, ForeignKey("cm_cases.id"), nullable=True)
     cm_lead_id = Column(Integer, ForeignKey("cm_leads.id"), nullable=True)
 
+    # ΓΕΜΗ: ΕΡΜΗΣ conversation already completed upstream → don't re-run/re-Viber
+    ermis_completed = Column(Boolean, default=False)
+    program_exact_title = Column(String(300))
+
     created_at = Column(DateTime, default=datetime.utcnow)
     resolved_at = Column(DateTime, nullable=True)
 
