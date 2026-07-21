@@ -365,7 +365,7 @@ def ermis_webhook(
     _key: None = Depends(_verify_portal_key),
     db: Session = Depends(get_db),
 ):
-    from routes.cm_leads import normalize_afm, clean_email
+    from routes.cm_leads import normalize_afm, clean_email, find_lead_by_afm
     biz_data = payload.business or {}
     afm = normalize_afm(payload.afm or biz_data.get("afm"))
 
@@ -380,7 +380,7 @@ def ermis_webhook(
         except (ValueError, TypeError):
             lead = None
     if lead is None and afm:
-        lead = db.query(CMLead).filter(CMLead.afm == afm).first()
+        lead = find_lead_by_afm(db, afm)
 
     created = False
     if lead is None:

@@ -227,6 +227,9 @@ class CaseCreatedWebhook(BaseModel):
     priority: Optional[str] = None
     programTitle: Optional[str] = None
     requestRef: Optional[str] = None
+    # ΓΕΜΗ: ΕΡΜΗΣ already completed upstream + the exact program title
+    ermis_completed: Optional[bool] = False
+    program_exact_title: Optional[str] = None
     # Business profile — sourced from the LOGISTIS/ΑΑΔΕ cache, no new lookup
     commercialTitle: Optional[str] = None
     legalStatusDescr: Optional[str] = None
@@ -354,6 +357,8 @@ def _handle_case_created(payload: CaseCreatedWebhook, db: Session) -> dict:
         description=payload.description,
         priority=payload.priority,
         program_title=payload.programTitle,
+        ermis_completed=bool(payload.ermis_completed),
+        program_exact_title=payload.program_exact_title,
         status="pending",
     )
     db.add(assignment)
@@ -734,32 +739,55 @@ def accept_assignment(
     if a.status != "pending":
         raise HTTPException(status_code=400, detail="Η ανάθεση έχει ήδη διεκπεραιωθεί")
 
-    # Accepting a LOGISTIS assignment now creates a LEAD (not a case): status HOT,
+    # Accepting a LOGISTIS assignment creates (or reuses) a LEAD: status HOT,
     # assigned to the consultant who accepted, today's date + reminder, with a link
     # back to the LOGISTIS case.
     from models_cases import CMLead
-    from routes.cm_leads import normalize_afm, maybe_autostart_ermis, clean_email
+    from routes.cm_leads import normalize_afm, maybe_autostart_ermis, clean_email, find_lead_by_afm
     today = date.today()
     link_tmpl = os.getenv("LOGISTIS_CASE_LINK_TEMPLATE", "https://logistis.i-mentor.gr/cases/{case_number}")
     portal_link = link_tmpl.replace("{case_number}", str(a.case_number)) if a.case_number is not None else None
+    afm = normalize_afm(a.afm)
+    consultant = _short_consultant(current_user.full_name)
 
-    lead = CMLead(
-        name=a.onomasia or a.afm or f"Ανάθεση #{a.case_number}",
-        afm=normalize_afm(a.afm),
-        phone=a.phone,
-        email=clean_email(a.email),
-        program=_map_program_category(a.program_title),
-        service_type=_map_service_type(a.program_title) or a.case_type,
-        status="HOT",
-        assigned_agent_id=current_user.id,
-        assigned_name=_short_consultant(current_user.full_name),
-        source="LOGISTIS",
-        notes=a.description,
-        next_call_date=today,
-        portal_case_number=a.case_number,
-        portal_case_link=portal_link,
-    )
-    db.add(lead)
+    # ΓΕΜΗ (ΕΡΜΗΣ already done upstream): reuse the lead that carries the transcript
+    # (auto-created by the ermis.completed webhook for the same ΑΦΜ) so the case and
+    # the conversation live on ONE lead. Never re-run ΕΡΜΗΣ / re-send Viber.
+    existing = find_lead_by_afm(db, afm) if a.ermis_completed else None
+    if existing:
+        lead = existing
+        lead.status = "HOT"
+        lead.assigned_agent_id = current_user.id
+        lead.assigned_name = consultant
+        lead.name = lead.name or a.onomasia or f"ΓΕΜΗ {afm}"
+        lead.phone = lead.phone or a.phone
+        lead.email = lead.email or clean_email(a.email)
+        if not lead.program:
+            lead.program = _map_program_category(a.program_title)
+        lead.service_type = lead.service_type or a.program_exact_title or _map_service_type(a.program_title) or a.case_type
+        lead.source = lead.source or "LOGISTIS ΓΕΜΗ"
+        lead.notes = lead.notes or a.description
+        lead.next_call_date = lead.next_call_date or today
+        lead.portal_case_number = a.case_number
+        lead.portal_case_link = portal_link
+    else:
+        lead = CMLead(
+            name=a.onomasia or a.afm or f"Ανάθεση #{a.case_number}",
+            afm=afm,
+            phone=a.phone,
+            email=clean_email(a.email),
+            program=_map_program_category(a.program_title),
+            service_type=(a.program_exact_title if a.ermis_completed else None) or _map_service_type(a.program_title) or a.case_type,
+            status="HOT",
+            assigned_agent_id=current_user.id,
+            assigned_name=consultant,
+            source="LOGISTIS ΓΕΜΗ" if a.ermis_completed else "LOGISTIS",
+            notes=a.description,
+            next_call_date=today,
+            portal_case_number=a.case_number,
+            portal_case_link=portal_link,
+        )
+        db.add(lead)
     db.commit()
     db.refresh(lead)
 
@@ -768,8 +796,10 @@ def accept_assignment(
     a.resolved_at = datetime.utcnow()
     db.commit()
 
-    # New lead with an ΑΦΜ → auto-start ΕΡΜΗΣ immediately
-    maybe_autostart_ermis(lead, actor_name=current_user.full_name)
+    # Auto-start ΕΡΜΗΣ only for NON-ΓΕΜΗ assignments. For ΓΕΜΗ the conversation is
+    # already done — starting it again would 422 and double-Viber the client.
+    if not a.ermis_completed:
+        maybe_autostart_ermis(lead, actor_name=current_user.full_name)
 
     # Best-effort: tell LOGISTIS the assignment was accepted (references the lead)
     secret = _shared_secret()
