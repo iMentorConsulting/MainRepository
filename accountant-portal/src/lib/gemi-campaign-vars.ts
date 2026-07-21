@@ -32,7 +32,7 @@ export async function buildRecipientVariables(gemiId: string, programId: string)
     resolvedProgramId = firstMatch?.programId ?? ''
   }
 
-  const [program, match, accountant] = await Promise.all([
+  const [program, match, accountant, allMatches] = await Promise.all([
     resolvedProgramId ? prisma.program.findUnique({
       where: { id: resolvedProgramId },
       select: {
@@ -47,6 +47,13 @@ export async function buildRecipientVariables(gemiId: string, programId: string)
     gemi.claimedAccountantId
       ? prisma.accountant.findUnique({ where: { id: gemi.claimedAccountantId }, select: { contactPerson: true, officeName: true } })
       : null,
+    // ALL of the business's non-rejected program matches (for cross-selling:
+    // "Είστε επιλέξιμοι και για ...")
+    prisma.gemiProgramMatch.findMany({
+      where: { gemiId, status: { not: 'REJECTED' }, program: { active: true } },
+      select: { programId: true, program: { select: { title: true } } },
+      orderBy: { matchScore: 'desc' },
+    }),
   ])
 
   const activities = (Array.isArray(gemi.activities) ? gemi.activities : []) as any[]
@@ -85,6 +92,13 @@ export async function buildRecipientVariables(gemiId: string, programId: string)
     ? `${minPct}% – ${maxPct}%`
     : (maxPct ?? minPct) != null ? `${maxPct ?? minPct}%` : ''
 
+  // Cross-selling: the business's OTHER matched programs (beyond the one
+  // this campaign is about). Values are per-recipient custom fields in
+  // Moosend, capped at 365 chars — keep titles only.
+  const otherPrograms = allMatches.filter(m => m.programId !== resolvedProgramId)
+  const matchedProgramsCount = allMatches.length
+  const otherProgramsList = otherPrograms.map(m => `• ${m.program.title}`).join('  ')
+
   return {
     business_name: onomasia,
     afm,
@@ -108,5 +122,8 @@ export async function buildRecipientVariables(gemiId: string, programId: string)
     ermis_link: ermisLink,
     unsubscribe_link: unsubscribeLink,
     exodikastikos_link: exodikastikosLink,
+    matched_programs_count: String(matchedProgramsCount),
+    other_programs_count: String(otherPrograms.length),
+    other_programs: otherProgramsList,
   }
 }
