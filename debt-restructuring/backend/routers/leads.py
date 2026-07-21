@@ -503,10 +503,65 @@ def normalize_statuses(db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/debug-duplicates")
+def debug_duplicates(db: Session = Depends(get_db)):
+    """AUDIT ONLY - List duplicate leads without deleting.
+    Shows which leads are duplicated and what differs between them."""
+    from sqlalchemy import func
+
+    duplicates_info = []
+
+    # Find all sheet_row_num values that appear more than once
+    dup_rows = db.query(
+        Lead.sheet_row_num,
+        func.count().label('cnt')
+    ).filter(
+        Lead.sheet_row_num != None
+    ).group_by(Lead.sheet_row_num).having(
+        func.count() > 1
+    ).all()
+
+    for sheet_row_num, cnt in dup_rows:
+        leads = db.query(Lead).filter(
+            Lead.sheet_row_num == sheet_row_num
+        ).order_by(Lead.id.asc()).all()
+
+        # Check what differs between duplicates
+        differences = []
+        first = leads[0]
+        for i, lead in enumerate(leads[1:], start=1):
+            diffs = {}
+            if lead.status != first.status:
+                diffs['status'] = f"{first.status} vs {lead.status}"
+            if lead.assigned_to != first.assigned_to:
+                diffs['assigned_to'] = f"{first.assigned_to} vs {lead.assigned_to}"
+            if lead.app_comments != first.app_comments:
+                diffs['app_comments'] = "differs"
+            if lead.app_next_call != first.app_next_call:
+                diffs['app_next_call'] = "differs"
+            differences.append({'duplicate_id': lead.id, 'differences': diffs})
+
+        duplicates_info.append({
+            'sheet_row_num': sheet_row_num,
+            'lead_name': first.name,
+            'count': cnt,
+            'ids': [l.id for l in leads],
+            'duplicates_with_changes': differences
+        })
+
+    return {
+        'ok': True,
+        'total_duplicate_groups': len(duplicates_info),
+        'details': duplicates_info
+    }
+
+
 @router.post("/cleanup-duplicates")
 def cleanup_duplicates(db: Session = Depends(get_db)):
     """Remove duplicate leads created by concurrent webhook syncs.
-    Keeps the first occurrence of each sheet_row_num, deletes duplicates."""
+    Keeps the first occurrence of each sheet_row_num, deletes duplicates.
+
+    WARNING: This is irreversible. Run /debug-duplicates first to audit."""
     try:
         from sheets_sync import cleanup_duplicate_leads
         return cleanup_duplicate_leads(db)
