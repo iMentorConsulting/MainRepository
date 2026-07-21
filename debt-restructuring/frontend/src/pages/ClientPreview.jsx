@@ -3,7 +3,7 @@ import { useParams, useSearchParams } from 'react-router-dom'
 import { format } from 'date-fns'
 import { el } from 'date-fns/locale'
 import * as api from '../api'
-import { fmt, creditorDisplayName, formatOfferWithVAT, getPaymentStatus } from '../utils/calculations'
+import { fmt, creditorDisplayName, formatOfferWithVAT, getPaymentStatus, calculateOfferWithWithholding } from '../utils/calculations'
 import {
   PhoneIcon,
   EnvelopeIcon,
@@ -960,26 +960,26 @@ export default function ClientPreview() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-5">
                 {offer.application_fee > 0 && (() => {
-                  const appFee = formatOfferWithVAT(offer.application_fee)
+                  const appFee = calculateOfferWithWithholding(offer.application_fee, data.debtor_type)
                   return (
                     <div className={`rounded-xl p-4 text-center ${paymentStatus.firstPaymentMade ? 'bg-green-50 border-2 border-green-300' : 'bg-blue-50'}`}>
                       <div className="text-xs font-semibold text-blue-600 uppercase mb-1 flex items-center justify-center gap-1">
                         {paymentStatus.firstPaymentMade && '✅'} Αίτηση & Διαδικασία
                       </div>
-                      <div className="text-2xl font-black text-blue-800">{appFee.formatted}</div>
-                      <div className="text-xs text-gray-500 mt-1">Σύνολο με ΦΠΑ</div>
+                      <div className="text-xl font-black text-blue-800">{fmt(appFee.net)}</div>
+                      <div className="text-xs text-gray-600 mt-1">+ ΦΠΑ 24% = {fmt(appFee.grossBeforeTax)}{appFee.hasWithholding && ` - Παρακράτηση 20% = ${fmt(appFee.finalPayable)}`}</div>
                     </div>
                   )
                 })()}
                 {offer.success_fee > 0 && (() => {
-                  const successFee = formatOfferWithVAT(offer.success_fee)
+                  const successFee = calculateOfferWithWithholding(offer.success_fee, data.debtor_type)
                   return (
                     <div className={`rounded-xl p-4 text-center ${paymentStatus.secondPaymentMade ? 'bg-green-50 border-2 border-green-300' : 'bg-green-50'}`}>
                       <div className="text-xs font-semibold text-green-600 uppercase mb-1 flex items-center justify-center gap-1">
                         {paymentStatus.secondPaymentMade && '✅'} Success Fee (σε αποδοχή)
                       </div>
-                      <div className="text-2xl font-black text-green-800">{successFee.formatted}</div>
-                      <div className="text-xs text-gray-500 mt-1">Σύνολο με ΦΠΑ</div>
+                      <div className="text-xl font-black text-green-800">{fmt(successFee.net)}</div>
+                      <div className="text-xs text-gray-600 mt-1">+ ΦΠΑ 24% = {fmt(successFee.grossBeforeTax)}{successFee.hasWithholding && ` - Παρακράτηση 20% = ${fmt(successFee.finalPayable)}`}</div>
                     </div>
                   )
                 })()}
