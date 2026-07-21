@@ -365,22 +365,22 @@ def ermis_webhook(
     _key: None = Depends(_verify_portal_key),
     db: Session = Depends(get_db),
 ):
-    from routes.cm_leads import normalize_afm, clean_email, find_lead_by_afm
+    from routes.cm_leads import normalize_afm, clean_email, find_gemi_lead, program_category_from_title
     biz_data = payload.business or {}
     afm = normalize_afm(payload.afm or biz_data.get("afm"))
 
     # Resolve lead: token → leadRef → ΑΦΜ. If none, auto-create (ΓΕΜΗ prospect that
     # completed ΕΡΜΗΣ via email campaign — no leadRef of ours).
     lead = None
-    if payload.token:
-        lead = db.query(CMLead).filter(CMLead.ermis_token == payload.token).first()
-    if lead is None and payload.leadRef:
+    if payload.leadRef:
         try:
             lead = db.query(CMLead).filter(CMLead.id == int(payload.leadRef)).first()
         except (ValueError, TypeError):
             lead = None
-    if lead is None and afm:
-        lead = find_lead_by_afm(db, afm)
+    # ΓΕΜΗ: resolve by token, else by ΑΦΜ + program title (NOT ΑΦΜ alone — the same
+    # client can have one lead per program).
+    if lead is None:
+        lead = find_gemi_lead(db, afm, program_title=payload.program, token=payload.token)
 
     created = False
     if lead is None:
@@ -396,7 +396,8 @@ def ermis_webhook(
             afm=afm,
             phone=payload.phone or None,
             email=clean_email(payload.email),
-            program=payload.program or None,
+            program=program_category_from_title(payload.program),
+            program_title=(payload.program or "").strip() or None,
             service_type=payload.serviceType or None,
             status="HOT",
             source="LOGISTIS ΓΕΜΗ",
@@ -408,6 +409,12 @@ def ermis_webhook(
         db.add(lead)
         db.flush()
         created = True
+    else:
+        # Backfill program_title/token on an existing lead so future events match it.
+        if payload.program and not lead.program_title:
+            lead.program_title = payload.program.strip()
+        if payload.token and not lead.ermis_token:
+            lead.ermis_token = payload.token
 
     # Store the AADE business profile + program matching LOGISTIS returned.
     # Keyed by AFM in the shared CMBusinessProfile cache (reused across the app).

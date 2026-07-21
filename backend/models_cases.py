@@ -577,7 +577,8 @@ class CMLead(Base):
     afm = Column(String(20), index=True)
 
     # Program / commercial
-    program = Column(String(100))          # ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ | ΔΥΠΑ | ΕΣΠΑ | ΑΝΑΚΑΙΝΙΖΩ
+    program = Column(String(100))          # ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ | ΔΥΠΑ | ΕΣΠΑ | ΑΝΑΚΑΙΝΙΖΩ (category)
+    program_title = Column(String(300))    # exact program title (ΓΕΜΗ: dedup key ΑΦΜ+program)
     service_type = Column(String(150))
     total_amount = Column(Float, default=0)
 
