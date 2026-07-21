@@ -82,6 +82,7 @@ function NewGemiCampaignPageInner() {
   const [title, setTitle] = useState('')
   const [channel, setChannel] = useState<Channel>('EMAIL')
   const [programId, setProgramId] = useState(searchParams.get('programId') || '')
+  const [programId2, setProgramId2] = useState('')
   const [programs, setPrograms] = useState<any[]>([])
   const [templates, setTemplates] = useState<GemiTemplate[]>([])
   const [selectedTemplateId, setSelectedTemplateId] = useState('')
@@ -188,6 +189,7 @@ function NewGemiCampaignPageInner() {
         title: title.trim(),
         channel,
         programId: programId || undefined,
+        programId2: programId2 || undefined,
         subject: subject.trim() || undefined,
         previewText: previewText.trim() || undefined,
         htmlContent: htmlContent.trim() || undefined,
@@ -384,6 +386,17 @@ function NewGemiCampaignPageInner() {
         >
           <option value="">— Όλη η λίστα ΓΕΜΗ (χωρίς φίλτρο) —</option>
           {programs.map((p: any) => (
+            <option key={p.id} value={p.id}>{p.title}</option>
+          ))}
+        </Select>
+
+        <Select
+          label="Πρόγραμμα Β (προαιρετικό — για διπλές προσφορές, μεταβλητές {{program2_*}})"
+          value={programId2}
+          onChange={e => setProgramId2(e.target.value)}
+        >
+          <option value="">— Αυτόματο: το καλύτερο άλλο ταίριασμα κάθε παραλήπτη —</option>
+          {programs.filter((p: any) => p.id !== programId).map((p: any) => (
             <option key={p.id} value={p.id}>{p.title}</option>
           ))}
         </Select>

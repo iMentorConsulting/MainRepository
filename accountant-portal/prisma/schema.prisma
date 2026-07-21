@@ -1091,6 +1091,8 @@ model GemiCampaign {
   messageTemplate     String?                 @db.Text
   programId           String?
   program             Program?                @relation(fields: [programId], references: [id])
+  // Optional secondary program for dual-offer campaigns ({{program2_*}} vars)
+  programId2          String?
   status              CampaignStatus          @default(DRAFT)
   moosendCampaignId   String?
   moosendListId       String?
