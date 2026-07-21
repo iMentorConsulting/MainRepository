@@ -409,6 +409,34 @@ function GemiBusinessesPageInner() {
     }
   }
 
+  async function handleDeleteBatch() {
+    if (!importBatch) return
+    if (!confirm(`Διαγραφή ΟΛΟΚΛΗΡΗΣ της παρτίδας «${importBatch}»;\n\nΘα διαγραφούν ΟΛΕΣ οι επιχειρήσεις της παρτίδας (μαζί με ταιριάσματα και ιστορικό καμπανιών τους). Η ενέργεια ΔΕΝ αναιρείται.`)) return
+    if (!confirm(`Τελική επιβεβαίωση: διαγραφή παρτίδας «${importBatch}»;`)) return
+    setDeleting(true)
+    try {
+      const res = await fetch('/api/gemi/businesses/bulk-delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ importBatch }),
+      })
+      const data = await res.json()
+      if (res.ok) {
+        setToast(`Διαγράφηκε η παρτίδα «${importBatch}» — ${data.deleted} επιχειρήσεις`)
+        setImportBatch('')
+        setSelected(new Set())
+        fetchData()
+        fetch('/api/gemi/businesses/batches').then(r => r.json()).then(d => Array.isArray(d) && setBatches(d)).catch(() => {})
+      } else {
+        setToast(data.error || 'Σφάλμα διαγραφής παρτίδας')
+      }
+    } catch {
+      setToast('Σφάλμα δικτύου')
+    } finally {
+      setDeleting(false)
+    }
+  }
+
   async function handleBulkDelete() {
     if (selected.size === 0) return
     if (!confirm(`Διαγραφή ${selected.size} επιχειρήσεων; Η ενέργεια δεν αναιρείται.`)) return
@@ -517,6 +545,11 @@ function GemiBusinessesPageInner() {
           {selected.size > 0 && (
             <Button size="sm" onClick={handleBulkDelete} loading={deleting} className="bg-red-600 hover:bg-red-700 text-white">
               <Trash2 size={14} className="mr-1.5" />Διαγραφή ({selected.size})
+            </Button>
+          )}
+          {importBatch && (
+            <Button size="sm" onClick={handleDeleteBatch} loading={deleting} className="bg-red-700 hover:bg-red-800 text-white">
+              <Trash2 size={14} className="mr-1.5" />Διαγραφή Παρτίδας «{importBatch}» ({total})
             </Button>
           )}
           <Button size="sm" onClick={() => setImportOpen(true)} className="bg-amber-600 hover:bg-amber-700 text-white">
