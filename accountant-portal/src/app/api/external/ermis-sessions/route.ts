@@ -32,6 +32,9 @@ export async function sendErmisWebhook(params: {
   leadRef: string | null
   afm: string
   businessProfile: any
+  // The program this Ερμής session is about — CM keys leads on ΑΦΜ+program,
+  // so two programs for the same ΑΦΜ are two distinct leads.
+  program?: string | null
   eligibility?: string | null
   transcript?: any[] | null
   completedAt?: string | null
@@ -52,6 +55,7 @@ export async function sendErmisWebhook(params: {
         afm: params.afm,
         business: params.businessProfile,
         matchedPrograms: params.businessProfile?.matchedPrograms ?? [],
+        ...(params.program !== undefined ? { program: params.program } : {}),
         ...(params.eligibility !== undefined ? { eligibility: params.eligibility } : {}),
         ...(params.transcript !== undefined ? { transcript: params.transcript } : {}),
         ...(params.completedAt !== undefined ? { completedAt: params.completedAt } : {}),

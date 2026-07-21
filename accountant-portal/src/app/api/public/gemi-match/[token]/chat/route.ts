@@ -167,10 +167,13 @@ async function createGemiCase(params: {
       sendErmisWebhook({
         callbackUrl: cmWebhookUrl,
         event: 'ermis.completed',
-        token: `gemi-${params.gemiId}`,
+        // Token is per business+program: two Ερμής conversations for the same
+        // ΑΦΜ (e.g. ΕΣΠΑ and ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ) are two distinct leads in CM.
+        token: `gemi-${params.gemiId}-${params.programId}`,
         leadRef: null,
         afm: params.afm,
         businessProfile: profile,
+        program: params.programTitle,
         eligibility,
         transcript: params.transcript.map(m => ({ role: m.role, text: m.text, ts: now })),
         completedAt: now,

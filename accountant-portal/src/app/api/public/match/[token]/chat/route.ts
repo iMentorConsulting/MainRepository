@@ -117,6 +117,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         leadRef: updatedToken.leadRef,
         afm: biz.afm,
         businessProfile: profile,
+        program: program.title,
         eligibility: classification?.eligibility === 'ELIGIBLE' ? 'eligible' : 'ineligible',
         transcript: finalHistory.map(m => ({ role: m.role, text: m.text, ts: new Date().toISOString() })),
         completedAt: new Date().toISOString(),
