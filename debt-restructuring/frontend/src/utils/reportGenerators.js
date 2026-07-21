@@ -3,7 +3,7 @@
 // Ported from the original HTML spec v22.0
 // ============================================================
 
-import { fmt, stepUpPMT } from './calculations'
+import { fmt, stepUpPMT, calculateOfferWithWithholding } from './calculations'
 import { PARAMS_B } from './calculationParams'
 
 function escHtml(v) {
@@ -414,12 +414,15 @@ export function buildEmailHtml(data) {
   const badge = (symbol, color, bg) =>
     `<span style="display:inline-block;background:${bg};border:1px solid ${color}33;border-radius:6px;padding:1px 8px;color:${color};font-size:13px;font-weight:700;vertical-align:middle;margin-right:6px;">${symbol}</span>`
 
-  // VAT offer helper
+  // VAT offer helper with withholding
   const fmtOffer = (net) => {
     if (!net) return '<span style="color:#6b7280;">..... €</span> <span style="font-size:12px;color:#9ca3af;">+ ΦΠΑ 24%</span>'
     const n = Number(net)
-    const gross = Math.round(n * 1.24)
-    return `<b>${n.toLocaleString('el-GR')}€</b> <span style="font-size:12px;color:#6b7280;">+ ΦΠΑ 24% = ${gross.toLocaleString('el-GR')}€</span>`
+    const calc = calculateOfferWithWithholding(n, debtorType)
+    if (calc.hasWithholding) {
+      return `<b>${n.toLocaleString('el-GR')}€</b> <span style="font-size:12px;color:#6b7280;">+ ΦΠΑ 24% = ${calc.grossBeforeTax.toLocaleString('el-GR')}€ - Παρακράτηση 20% = <b style="color:#c2410c;">${calc.finalPayable.toLocaleString('el-GR')}€</b></span>`
+    }
+    return `<b>${n.toLocaleString('el-GR')}€</b> <span style="font-size:12px;color:#6b7280;">+ ΦΠΑ 24% = ${calc.finalPayable.toLocaleString('el-GR')}€</span>`
   }
 
   const hasOffer = commercialOffer && (commercialOffer.application_fee || commercialOffer.success_fee)

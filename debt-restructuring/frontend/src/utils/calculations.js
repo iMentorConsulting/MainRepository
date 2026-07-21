@@ -74,8 +74,8 @@ export function calculateOfferWithWithholding(netAmount, debtorType) {
   const isEmployeeOrPensioner = debtorType === 'Μισθωτός'
   const hasWithholding = !isEmployeeOrPensioner && net > 305
 
-  // Calculate withholding tax if applicable (20% of gross before withholding tax)
-  const withholding = hasWithholding ? Math.round(grossBeforeTax * 0.20 * 100) / 100 : 0
+  // Calculate withholding tax if applicable (20% of NET amount, not gross)
+  const withholding = hasWithholding ? Math.round(net * 0.20 * 100) / 100 : 0
   const finalPayable = Math.round((grossBeforeTax - withholding) * 100) / 100
 
   return {
