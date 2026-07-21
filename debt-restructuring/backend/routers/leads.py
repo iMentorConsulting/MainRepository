@@ -503,6 +503,17 @@ def normalize_statuses(db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.post("/cleanup-duplicates")
+def cleanup_duplicates(db: Session = Depends(get_db)):
+    """Remove duplicate leads created by concurrent webhook syncs.
+    Keeps the first occurrence of each sheet_row_num, deletes duplicates."""
+    try:
+        from sheets_sync import cleanup_duplicate_leads
+        return cleanup_duplicate_leads(db)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/reporting")
 def get_reporting(db: Session = Depends(get_db)):
     from collections import defaultdict

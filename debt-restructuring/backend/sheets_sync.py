@@ -12,6 +12,8 @@ Tab read: ΔΙΑΧΕΙΡΙΣΗ
 import os
 import json
 from datetime import datetime
+import fcntl
+import time
 
 
 TAB_NAME = "ΔΙΑΧΕΙΡΙΣΗ"
@@ -225,6 +227,31 @@ def _build_sheet_fields(row: dict) -> dict:
     )
 
 
+def _acquire_sync_lock(timeout: int = 60):
+    """
+    Acquire a file-based lock to serialize concurrent syncs.
+    Prevents race condition where multiple webhooks sync simultaneously
+    and create duplicate leads.
+
+    Returns file handle; caller must close it to release the lock.
+    """
+    lock_file = "/tmp/sheets_sync.lock"
+    try:
+        f = open(lock_file, "w")
+        # Try to acquire exclusive lock, timeout if held by another process
+        start = time.time()
+        while True:
+            try:
+                fcntl.flock(f.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                return f  # Lock acquired
+            except OSError:
+                if time.time() - start > timeout:
+                    raise TimeoutError(f"Could not acquire sync lock after {timeout}s")
+                time.sleep(0.1)
+    except Exception as e:
+        raise RuntimeError(f"Failed to acquire sync lock: {e}")
+
+
 def sync_leads(db, full: bool = False) -> dict:
     """
     full=False → incremental: only new rows beyond max sheet_row_num in DB.
@@ -233,66 +260,80 @@ def sync_leads(db, full: bool = False) -> dict:
                  app_next_call, assigned_to) is always preserved.
     Matching is by sheet_row_num only. Phone is NOT used for matching because
     multiple sheet rows can share the same phone number (different family members).
+
+    Uses file-based lock to serialize concurrent syncs and prevent duplicate leads.
     """
     from models import Lead
     from sqlalchemy import func
 
-    from_row = 0
-    if not full:
-        max_row = db.query(func.max(Lead.sheet_row_num)).scalar()
-        from_row = max_row or 0
+    lock_file = None
+    try:
+        # Acquire lock to prevent concurrent syncs (race condition protection)
+        lock_file = _acquire_sync_lock(timeout=60)
 
-    rows = fetch_sheet_rows(from_row=from_row)
-    inserted = 0
-    skipped = 0
-    new_leads = []
+        from_row = 0
+        if not full:
+            max_row = db.query(func.max(Lead.sheet_row_num)).scalar()
+            from_row = max_row or 0
 
-    # For full sync build a set of existing row numbers to avoid N+1 queries
-    if full:
-        existing_row_nums = set(
-            r[0] for r in db.query(Lead.sheet_row_num).filter(Lead.sheet_row_num != None).all()
-        )
+        rows = fetch_sheet_rows(from_row=from_row)
+        inserted = 0
+        skipped = 0
+        new_leads = []
 
-    for row in rows:
-        fields = _build_sheet_fields(row)
-        phone = fields["phone"]
-        name = fields["name"]
+        # For full sync build a set of existing row numbers to avoid N+1 queries
+        if full:
+            existing_row_nums = set(
+                r[0] for r in db.query(Lead.sheet_row_num).filter(Lead.sheet_row_num != None).all()
+            )
 
-        if not phone and not name:
-            skipped += 1
-            continue
+        for row in rows:
+            fields = _build_sheet_fields(row)
+            phone = fields["phone"]
+            name = fields["name"]
 
-        if full and row["_row_num"] in existing_row_nums:
-            # Already in DB — never overwrite existing records
-            skipped += 1
-            continue
+            if not phone and not name:
+                skipped += 1
+                continue
 
-        lead = Lead(**fields)
-        db.add(lead)
-        new_leads.append(lead)
-        inserted += 1
+            if full and row["_row_num"] in existing_row_nums:
+                # Already in DB — never overwrite existing records
+                skipped += 1
+                continue
 
-    db.commit()
+            lead = Lead(**fields)
+            db.add(lead)
+            new_leads.append(lead)
+            inserted += 1
 
-    # Auto-send the Θέμις screening link — only for the normal incremental sync,
-    # never for a full backfill/reconciliation pass (would mass-message historical leads).
-    if not full and new_leads:
-        try:
-            from themis_ai import send_themis_link
-            for lead in new_leads:
-                send_themis_link(lead)
-        except Exception:
-            pass
+        db.commit()
 
-    return {
-        "ok": True,
-        "mode": "full" if full else "incremental",
-        "from_row": from_row,
-        "inserted": inserted,
-        "updated": 0,
-        "skipped": skipped,
-        "new_rows_processed": len(rows),
-    }
+        # Auto-send the Θέμις screening link — only for the normal incremental sync,
+        # never for a full backfill/reconciliation pass (would mass-message historical leads).
+        if not full and new_leads:
+            try:
+                from themis_ai import send_themis_link
+                for lead in new_leads:
+                    send_themis_link(lead)
+            except Exception:
+                pass
+
+        return {
+            "ok": True,
+            "mode": "full" if full else "incremental",
+            "from_row": from_row,
+            "inserted": inserted,
+            "updated": 0,
+            "skipped": skipped,
+            "new_rows_processed": len(rows),
+        }
+    finally:
+        if lock_file:
+            try:
+                fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+                lock_file.close()
+            except Exception:
+                pass
 
 
 def normalize_all_statuses(db) -> dict:
@@ -310,3 +351,43 @@ def normalize_all_statuses(db) -> dict:
             fixed += 1
     db.commit()
     return {"ok": True, "fixed": fixed, "total": len(leads)}
+
+
+def cleanup_duplicate_leads(db) -> dict:
+    """
+    Remove duplicate leads created by concurrent webhook syncs.
+    Keeps the first (oldest) lead for each sheet_row_num, deletes newer duplicates.
+    Only affects leads with sheet_row_num (Google Sheet rows), never touches
+    external/LOGISTIS leads (sheet_row_num=NULL).
+    """
+    from models import Lead
+    from sqlalchemy import func, and_
+
+    # Find all sheet_row_num values that appear more than once
+    duplicates = db.query(
+        Lead.sheet_row_num,
+        func.count().label('cnt')
+    ).filter(
+        Lead.sheet_row_num != None
+    ).group_by(Lead.sheet_row_num).having(
+        func.count() > 1
+    ).all()
+
+    total_removed = 0
+    for sheet_row_num, cnt in duplicates:
+        # Get all leads with this sheet_row_num, ordered by ID (keep first)
+        leads = db.query(Lead).filter(
+            Lead.sheet_row_num == sheet_row_num
+        ).order_by(Lead.id.asc()).all()
+
+        # Keep first, delete rest
+        for lead in leads[1:]:
+            db.delete(lead)
+            total_removed += 1
+
+    db.commit()
+    return {
+        "ok": True,
+        "duplicate_groups_found": len(duplicates),
+        "total_duplicates_removed": total_removed,
+    }
