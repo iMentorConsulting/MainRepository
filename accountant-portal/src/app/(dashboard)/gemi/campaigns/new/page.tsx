@@ -83,6 +83,7 @@ function NewGemiCampaignPageInner() {
   const [channel, setChannel] = useState<Channel>('EMAIL')
   const [programId, setProgramId] = useState(searchParams.get('programId') || '')
   const [programId2, setProgramId2] = useState('')
+  const [requireBothPrograms, setRequireBothPrograms] = useState(false)
   const [programs, setPrograms] = useState<any[]>([])
   const [templates, setTemplates] = useState<GemiTemplate[]>([])
   const [selectedTemplateId, setSelectedTemplateId] = useState('')
@@ -136,6 +137,7 @@ function NewGemiCampaignPageInner() {
     setCountLoading(true)
     const params = new URLSearchParams({ channel })
     if (programId) params.set('programId', programId)
+    if (requireBothPrograms && programId && programId2) params.set('requireProgramId2', programId2)
     if (region) params.set('region', region)
     if (category) params.set('category', category)
     if (importBatch) params.set('importBatch', importBatch)
@@ -143,7 +145,7 @@ function NewGemiCampaignPageInner() {
     const res = await fetch(`/api/gemi/campaigns/recipient-count?${params}`)
     if (res.ok) setRecipientCount(await res.json())
     setCountLoading(false)
-  }, [channel, programId, region, category, importBatch, hasReceivedCampaign])
+  }, [channel, programId, programId2, requireBothPrograms, region, category, importBatch, hasReceivedCampaign])
 
   useEffect(() => { fetchCount() }, [fetchCount])
 
@@ -190,6 +192,7 @@ function NewGemiCampaignPageInner() {
         channel,
         programId: programId || undefined,
         programId2: programId2 || undefined,
+        requireBothPrograms: requireBothPrograms && !!programId && !!programId2 ? true : undefined,
         subject: subject.trim() || undefined,
         previewText: previewText.trim() || undefined,
         htmlContent: htmlContent.trim() || undefined,
@@ -400,6 +403,21 @@ function NewGemiCampaignPageInner() {
             <option key={p.id} value={p.id}>{p.title}</option>
           ))}
         </Select>
+
+        {programId && programId2 && (
+          <label className="flex items-center gap-2 text-sm text-gray-700 bg-indigo-50 border border-indigo-200 rounded-lg px-3 py-2.5 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={requireBothPrograms}
+              onChange={e => setRequireBothPrograms(e.target.checked)}
+              className="w-4 h-4 accent-indigo-600"
+            />
+            <span>
+              <strong>Μόνο επιχειρήσεις που ταιριάζουν ΚΑΙ στα δύο προγράμματα</strong>
+              <span className="block text-xs text-gray-500">Όσες δεν έχουν ταίριασμα και με τα δύο εξαιρούνται από τους παραλήπτες.</span>
+            </span>
+          </label>
+        )}
 
         {/* Additional filters */}
         <div className="space-y-3">

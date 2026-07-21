@@ -11,6 +11,8 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const channel = searchParams.get('channel') ?? 'EMAIL'
   const programId = searchParams.get('programId') || null
+  // When set, recipients must match BOTH programId AND this program
+  const requireProgramId2 = searchParams.get('requireProgramId2') || null
   const importBatch = searchParams.get('importBatch') || null
   const region = searchParams.get('region') || null
   const category = searchParams.get('category') || null
@@ -32,7 +34,17 @@ export async function GET(req: NextRequest) {
       where: { programId, status: { not: 'REJECTED' } },
       select: { gemiId: true },
     })
-    const ids = matchedGemiIds.map(m => m.gemiId)
+    let ids = matchedGemiIds.map(m => m.gemiId)
+
+    // Dual-offer targeting: keep only businesses that ALSO match program B
+    if (requireProgramId2) {
+      const matched2 = await prisma.gemiProgramMatch.findMany({
+        where: { programId: requireProgramId2, status: { not: 'REJECTED' }, gemiId: { in: ids } },
+        select: { gemiId: true },
+      })
+      const ids2 = new Set(matched2.map(m => m.gemiId))
+      ids = ids.filter(id => ids2.has(id))
+    }
 
     if (channel === 'EMAIL' || channel === 'EMAIL_AND_VIBER') {
       emailCount = await prisma.gemiLookup.count({

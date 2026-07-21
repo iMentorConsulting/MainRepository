@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
   }
 
   const data = await request.json()
-  const { title, channel, subject, previewText, htmlContent, messageTemplate, programId, programId2, targetGemiIds, region, category, importBatch, hasReceivedCampaign } = data
+  const { title, channel, subject, previewText, htmlContent, messageTemplate, programId, programId2, requireBothPrograms, targetGemiIds, region, category, importBatch, hasReceivedCampaign } = data
 
   if (!title || !channel) {
     return NextResponse.json({ error: 'title and channel are required' }, { status: 400 })
@@ -76,6 +76,16 @@ export async function POST(request: NextRequest) {
         select: { gemiId: true },
       })
       programMatchedIds = matches.map(m => m.gemiId)
+
+      // Dual-offer targeting: keep only businesses that ALSO match program B
+      if (requireBothPrograms && programId2) {
+        const matches2 = await prisma.gemiProgramMatch.findMany({
+          where: { programId: programId2, status: { not: 'REJECTED' }, gemiId: { in: programMatchedIds } },
+          select: { gemiId: true },
+        })
+        const ids2 = new Set(matches2.map(m => m.gemiId))
+        programMatchedIds = programMatchedIds.filter(id => ids2.has(id))
+      }
     }
 
     const baseWhere: Record<string, unknown> = { unsubscribedAt: null }
