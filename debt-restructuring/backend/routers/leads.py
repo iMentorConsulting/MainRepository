@@ -450,20 +450,32 @@ def list_leads(
     if has_next_call is True:
         q = q.filter(Lead.app_next_call != None)
 
-    # Date range filtering
-    if date_from:
-        from_date = parse_any_date(date_from)
-        if from_date:
-            q = q.filter(Lead.created_at >= from_date)
-    if date_to:
-        to_date = parse_any_date(date_to)
-        if to_date:
-            # Include entire end date
-            to_date_end = to_date + timedelta(days=1)
-            q = q.filter(Lead.created_at < to_date_end)
-
     # Newest first (highest sheet row = most recent entry)
     leads = q.order_by(Lead.sheet_row_num.desc().nullslast(), Lead.id.desc()).all()
+
+    # Date range filtering (on Lead.date sheet field, not created_at)
+    if date_from or date_to:
+        from_date = parse_any_date(date_from) if date_from else None
+        to_date = parse_any_date(date_to) if date_to else None
+
+        filtered = []
+        for lead in leads:
+            if lead.date:
+                lead_date = parse_any_date(lead.date)
+                if lead_date:
+                    if from_date and lead_date < from_date:
+                        continue
+                    if to_date:
+                        # Include entire end date
+                        to_date_end = to_date + timedelta(days=1)
+                        if lead_date >= to_date_end:
+                            continue
+                    filtered.append(lead)
+            elif not (from_date or to_date):
+                # Keep leads with no date only if no date filter
+                filtered.append(lead)
+        leads = filtered
+
     return [_lead_to_dict(l) for l in leads]
 
 
