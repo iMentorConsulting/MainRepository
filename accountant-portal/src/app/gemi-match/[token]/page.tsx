@@ -55,7 +55,7 @@ export default function GemiMatchPage() {
           <img
             src="https://i-mentor.gr/wp-content/uploads/2026/06/logo-white-transparent.png"
             alt="i-Mentor Consulting"
-            className="h-10 mx-auto object-contain"
+            className="h-16 mx-auto object-contain"
           />
           <p className="text-xs mt-1" style={{ color: 'rgba(255,255,255,0.75)' }}>Σύμβουλοι Επιχειρήσεων</p>
         </div>
