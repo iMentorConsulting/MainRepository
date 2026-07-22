@@ -298,8 +298,11 @@ def get_pipeline_stats_by_employee(
         se_diapragmateusi = query.filter(Case.contact_stage == 'Σε Διαπραγμάτευση').count()
 
         # Active cases (Εν Εξελίξει): status = draft, submitted, in_review
-        # (maps to UI labels: Άντληση Στοιχείων, Οριστικοποίηση Αίτησης, Πρόταση Ρύθμισης)
-        active_cases = query.filter(Case.status.in_(['draft', 'submitted', 'in_review'])).count()
+        # BUT exclude if contact_stage = 'Δεν Ενδιαφέρεται' (lost even though still in process)
+        active_cases = query.filter(
+            Case.status.in_(['draft', 'submitted', 'in_review']),
+            Case.contact_stage != 'Δεν Ενδιαφέρεται'
+        ).count()
 
         # Closure stats (Pipeline: Έκλεισε vs Δεν Ενδιαφέρεται)
         closed = query.filter(Case.contact_stage == 'Έκλεισε').count()
