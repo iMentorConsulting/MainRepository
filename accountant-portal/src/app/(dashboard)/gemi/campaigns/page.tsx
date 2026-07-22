@@ -45,6 +45,7 @@ export default function GemiCampaignsPage() {
   const [campaigns, setCampaigns] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [syncing, setSyncing] = useState<string | null>(null)
+  const [syncingAll, setSyncingAll] = useState(false)
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null)
 
   function showToast(msg: string, ok: boolean) {
@@ -62,6 +63,26 @@ export default function GemiCampaignsPage() {
   }
 
   useEffect(() => { loadCampaigns() }, [])
+
+  async function syncAllStats() {
+    const syncable = campaigns.filter((c: any) => c.moosendCampaignId)
+    if (syncable.length === 0) { showToast('Καμία καμπάνια με στατιστικά Moosend.', false); return }
+    setSyncingAll(true)
+    let ok = 0
+    let failed = 0
+    for (const c of syncable) {
+      try {
+        const res = await fetch(`/api/gemi/campaigns/${c.id}/sync-stats`, { method: 'POST' })
+        if (res.ok) ok++
+        else failed++
+      } catch {
+        failed++
+      }
+    }
+    setSyncingAll(false)
+    showToast(`Sync στατιστικών: ${ok} καμπάνιες ενημερώθηκαν${failed ? `, ${failed} απέτυχαν` : ''}`, failed === 0)
+    loadCampaigns()
+  }
 
   async function syncStats(id: string) {
     setSyncing(id)
@@ -95,17 +116,8 @@ export default function GemiCampaignsPage() {
           <p className="text-gray-500 mt-1">{campaigns.length} καμπάνιες</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={async () => {
-              const res = await fetch('/api/gemi/test-merge-tag', { method: 'POST' })
-              const d = await res.json()
-              showToast(d.ok ? `✓ Test email sent — ελέγξτε το Haris.Apostolakis@gmail.com` : `✗ ${d.error}`, d.ok)
-              if (d.log) console.log('[MergeTagTest]', d.log)
-            }}
-          >
-            🧪 Test Moosend Merge Tags
+          <Button variant="outline" size="sm" onClick={syncAllStats} loading={syncingAll}>
+            <RefreshCw size={14} className="mr-1.5" />Sync Όλων
           </Button>
           <Link href="/gemi/campaigns/new">
             <Button><Plus size={16} className="mr-2" />Νέα Καμπάνια</Button>
