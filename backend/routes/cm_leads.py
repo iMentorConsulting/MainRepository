@@ -780,6 +780,23 @@ def lead_duplicates(
     return {"count": len(items), "items": items}
 
 
+def _merge_lead_into(db: Session, primary: CMLead, dup: CMLead) -> None:
+    """Move dup's comments/logs onto primary, fill empty primary fields, delete dup.
+    Caller commits."""
+    db.execute(sa_text("UPDATE cm_lead_comments SET lead_id = :p WHERE lead_id = :d"),
+               {"p": primary.id, "d": dup.id})
+    db.execute(sa_text("UPDATE cm_lead_notification_logs SET lead_id = :p WHERE lead_id = :d"),
+               {"p": primary.id, "d": dup.id})
+    for f in ["phone", "phone2", "email", "afm", "service_type", "program", "program_title",
+              "assigned_name", "assigned_agent_id", "source", "notes",
+              "next_call_date", "total_amount", "program_fields",
+              "ermis_token", "ermis_chat_url", "ermis_status", "ermis_transcript",
+              "portal_case_number", "portal_case_link", "linked_case_id"]:
+        if not getattr(primary, f) and getattr(dup, f):
+            setattr(primary, f, getattr(dup, f))
+    db.delete(dup)
+
+
 @router.post("/{lead_id}/merge/{other_id}")
 def merge_leads(
     lead_id: int,
@@ -795,23 +812,69 @@ def merge_leads(
     dup = db.query(CMLead).filter(CMLead.id == other_id).first()
     if not primary or not dup:
         raise HTTPException(status_code=404, detail="Το lead δεν βρέθηκε")
-
-    # Move the duplicate's comments onto the primary (before delete cascades them)
-    db.execute(sa_text("UPDATE cm_lead_comments SET lead_id = :p WHERE lead_id = :d"),
-               {"p": primary.id, "d": dup.id})
-    db.execute(sa_text("UPDATE cm_lead_notification_logs SET lead_id = :p WHERE lead_id = :d"),
-               {"p": primary.id, "d": dup.id})
-
-    # Fill empty primary fields from the duplicate
-    for f in ["phone", "phone2", "email", "afm", "service_type", "program",
-              "assigned_name", "assigned_agent_id", "source", "notes",
-              "next_call_date", "total_amount", "program_fields",
-              "ermis_token", "ermis_chat_url", "ermis_status", "ermis_transcript",
-              "linked_case_id"]:
-        if not getattr(primary, f) and getattr(dup, f):
-            setattr(primary, f, getattr(dup, f))
-
-    db.delete(dup)
+    _merge_lead_into(db, primary, dup)
     db.commit()
     db.refresh(primary)
     return lead_to_dict(primary, include_comments=True)
+
+
+def _merge_priority(l: CMLead):
+    """Sort key to choose the primary within a duplicate set: keep the one with a
+    transcript, then most contact info, then the oldest (lowest id)."""
+    return (
+        1 if l.ermis_transcript else 0,
+        1 if (l.phone or "").strip() else 0,
+        1 if (l.email or "").strip() else 0,
+        -l.id,  # older (lower id) wins ties
+    )
+
+
+@router.post("/merge-duplicates")
+def merge_duplicate_gemi_leads(
+    dry_run: bool = False,
+    current_user: CMUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """One-off cleanup: merge duplicate LOGISTIS/ΕΡΜΗΣ leads for the same ΑΦΜ +
+    program. Within a category, if there's ≤1 distinct program title, the whole
+    group is one program → merge; otherwise merge only exact-title duplicates.
+    Keeps the lead carrying the transcript. Normal sheet/manual leads are untouched."""
+    if getattr(current_user, "role", None) != "admin":
+        raise HTTPException(status_code=403, detail="Μόνο διαχειριστές")
+
+    leads = [l for l in db.query(CMLead).all() if _is_logistis_lead(l) and (l.afm or "").strip()]
+    # group by (afm, category)
+    groups: dict = {}
+    for l in leads:
+        groups.setdefault((l.afm.strip(), l.program or ""), []).append(l)
+
+    merged = 0
+    report = []
+    for (afm, cat), members in groups.items():
+        if len(members) < 2:
+            continue
+        titles = {(l.program_title or "").strip().lower() for l in members if (l.program_title or "").strip()}
+        # decide merge-sets
+        merge_sets = []
+        if len(titles) <= 1:
+            merge_sets.append(members)                      # same program → merge all
+        else:
+            by_title = {}
+            for l in members:
+                by_title.setdefault((l.program_title or "").strip().lower(), []).append(l)
+            merge_sets = [g for g in by_title.values() if len(g) > 1]
+        for mset in merge_sets:
+            if len(mset) < 2:
+                continue
+            mset.sort(key=_merge_priority, reverse=True)
+            primary, dups = mset[0], mset[1:]
+            report.append({"afm": afm, "category": cat, "kept": primary.id,
+                           "merged": [d.id for d in dups]})
+            if not dry_run:
+                for d in dups:
+                    _merge_lead_into(db, primary, d)
+                    merged += 1
+    if not dry_run:
+        db.commit()
+    return {"merged": merged if not dry_run else sum(len(r["merged"]) for r in report),
+            "groups_affected": len(report), "dry_run": dry_run, "report": report[:200]}

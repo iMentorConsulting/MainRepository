@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import {
-  getLeadSheetConfigs, saveLeadSheetConfig, previewLeadSync, runLeadSyncProgram, refreshLeadSyncProgram, runLeadSync, getLeadSyncStatus,
+  getLeadSheetConfigs, saveLeadSheetConfig, previewLeadSync, runLeadSyncProgram, refreshLeadSyncProgram, runLeadSync, getLeadSyncStatus, mergeDuplicateLeads,
 } from '../api'
 import { ArrowPathIcon, EyeIcon, PlusIcon, TrashIcon } from '@heroicons/react/24/outline'
 import toast from 'react-hot-toast'
@@ -163,17 +163,32 @@ export default function LeadSheetConfigPage() {
 
   const byProgram = Object.fromEntries(configs.map(c => [c.program, c]))
 
+  const [merging, setMerging] = useState(false)
   const runAll = async () => {
     if (!confirm('Sync όλων των προγραμμάτων;')) return
     try { const res = await runLeadSync(); toast.success(`Εισήχθησαν ${res.imported} leads συνολικά`); load() }
     catch { toast.error('Σφάλμα sync') }
   }
 
+  const runMergeDuplicates = async () => {
+    if (!confirm('Συγχώνευση διπλών LOGISTIS/ΓΕΜΗ leads (ίδιο ΑΦΜ + πρόγραμμα);\n\nΚρατά αυτό με τη συνομιλία ΕΡΜΗΣ, μεταφέρει σχόλια, διαγράφει τα διπλά. Τα κανονικά leads δεν πειράζονται.')) return
+    setMerging(true)
+    try {
+      const res = await mergeDuplicateLeads()
+      toast.success(`Συγχωνεύθηκαν ${res.merged} διπλά leads σε ${res.groups_affected} ομάδες`)
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Σφάλμα συγχώνευσης')
+    } finally { setMerging(false) }
+  }
+
   return (
     <div className="p-4 md:p-6 max-w-4xl mx-auto">
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-2xl font-bold">Leads — Ρυθμίσεις Google Sheets</h1>
-        <button onClick={runAll} className="btn-primary text-sm flex items-center gap-1"><ArrowPathIcon className="w-4 h-4" />Sync όλων</button>
+        <div className="flex gap-2">
+          <button onClick={runMergeDuplicates} disabled={merging} className="text-sm font-semibold text-amber-700 bg-amber-50 border border-amber-300 rounded-lg px-3 py-1.5 hover:bg-amber-100">{merging ? 'Συγχώνευση…' : 'Συγχώνευση διπλών ΓΕΜΗ'}</button>
+          <button onClick={runAll} className="btn-primary text-sm flex items-center gap-1"><ArrowPathIcon className="w-4 h-4" />Sync όλων</button>
+        </div>
       </div>
       {status?.last_run_at && (
         <div className="text-sm text-gray-500 mb-3">Τελευταίο sync: {new Date(status.last_run_at).toLocaleString('el-GR')} · imported {status.imported}</div>
