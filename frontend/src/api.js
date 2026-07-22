@@ -253,6 +253,7 @@ export const sendLeadMessage = (id, payload) => api.post(`/api/cm/leads/${id}/se
 export const convertLeadToCase = (id) => api.post(`/api/cm/leads/${id}/convert-to-case`).then(r => r.data)
 export const getLeadDuplicates = (id) => api.get(`/api/cm/leads/${id}/duplicates`).then(r => r.data)
 export const mergeLeads = (id, otherId) => api.post(`/api/cm/leads/${id}/merge/${otherId}`).then(r => r.data)
+export const mergeDuplicateLeads = (dryRun) => api.post('/api/cm/leads/merge-duplicates', null, { params: dryRun ? { dry_run: true } : {}, timeout: 120000 }).then(r => r.data)
 export const startLeadErmis = (id, payload) => api.post(`/api/cm/leads/${id}/ermis/start`, payload || {}, { timeout: 45000 }).then(r => r.data)
 export const getLeadErmisTranscript = (id) => api.get(`/api/cm/leads/${id}/ermis/transcript`).then(r => r.data)
 export const getLeadReportDailyVolume = (days) => api.get('/api/cm/leads/reports/daily-volume', { params: days ? { days } : {} }).then(r => r.data)
