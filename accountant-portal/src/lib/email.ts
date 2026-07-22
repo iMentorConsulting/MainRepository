@@ -10,11 +10,33 @@ const fromAddress = process.env.SMTP_FROM || smtpUser || 'noreply@i-mentor.gr'
 // (25/465/587), which surfaces as ETIMEDOUT connecting to smtp.gmail.com.
 // When a Google service-account key is provided, we send via the Gmail API
 // over HTTPS instead — using domain-wide delegation to send "as" SMTP_USER.
-const googleServiceAccountJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON || ''
+const googleServiceAccountJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON || process.env.GOOGLE_SERVICE_ACCOUNT_KEY || ''
+
+// Accepts plain JSON or base64-encoded JSON (Railway multi-line paste mangles
+// raw JSON, so the variable is commonly stored base64-encoded).
+function parseServiceAccount(raw: string): any | null {
+  const candidates = [
+    raw,
+    raw.trim().replace(/^['"]|['"]$/g, ''),
+    (() => { try { return Buffer.from(raw, 'base64').toString('utf-8') } catch { return '' } })(),
+  ]
+  for (const c of candidates) {
+    if (!c) continue
+    try {
+      const parsed = JSON.parse(c)
+      if (parsed?.client_email && parsed?.private_key) return parsed
+    } catch {}
+  }
+  return null
+}
 
 function getGmailAuth() {
   if (!googleServiceAccountJson || !smtpUser) return null
-  const credentials = JSON.parse(googleServiceAccountJson)
+  const credentials = parseServiceAccount(googleServiceAccountJson)
+  if (!credentials) {
+    console.error('[Email] GOOGLE_SERVICE_ACCOUNT_JSON/KEY is not valid JSON or base64 JSON')
+    return null
+  }
   return new google.auth.JWT({
     email: credentials.client_email,
     key: credentials.private_key,
