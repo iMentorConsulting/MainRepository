@@ -743,7 +743,7 @@ def accept_assignment(
     # assigned to the consultant who accepted, today's date + reminder, with a link
     # back to the LOGISTIS case.
     from models_cases import CMLead
-    from routes.cm_leads import (normalize_afm, maybe_autostart_ermis, clean_email,
+    from routes.cm_leads import (normalize_afm, clean_email,
                                  find_gemi_lead, program_category_from_title)
     today = date.today()
     link_tmpl = os.getenv("LOGISTIS_CASE_LINK_TEMPLATE", "https://logistis.i-mentor.gr/cases/{case_number}")
@@ -751,12 +751,13 @@ def accept_assignment(
     afm = normalize_afm(a.afm)
     consultant = _short_consultant(current_user.full_name)
     prog_title = (a.program_exact_title or "").strip() or None
+    prog_cat = program_category_from_title(prog_title) or _map_program_category(a.program_title)
 
-    # ΓΕΜΗ (ΕΡΜΗΣ already done upstream): reuse the lead that carries the transcript
-    # for this ΑΦΜ + program (auto-created by the ermis.completed webhook) so the case
-    # and conversation live on ONE lead. Match on ΑΦΜ + program title, not ΑΦΜ alone —
-    # the same client may have one lead per program. Never re-run ΕΡΜΗΣ / re-send Viber.
-    existing = find_gemi_lead(db, afm, program_title=prog_title) if a.ermis_completed else None
+    # Always try to reuse an existing LOGISTIS/ΕΡΜΗΣ lead for this ΑΦΜ + program (the
+    # one auto-created by the ermis.completed webhook, carrying the transcript) so the
+    # case and conversation live on ONE lead. find_gemi_lead only ever matches
+    # LOGISTIS/ΕΡΜΗΣ leads, never a normal sheet/manual lead.
+    existing = find_gemi_lead(db, afm, program_title=prog_title, program_category=prog_cat)
     if existing:
         lead = existing
         lead.status = "HOT"
@@ -765,10 +766,10 @@ def accept_assignment(
         lead.name = lead.name or a.onomasia or f"ΓΕΜΗ {afm}"
         lead.phone = lead.phone or a.phone
         lead.email = lead.email or clean_email(a.email)
-        lead.program = lead.program or program_category_from_title(prog_title) or _map_program_category(a.program_title)
+        lead.program = lead.program or prog_cat
         lead.program_title = lead.program_title or prog_title
         lead.service_type = lead.service_type or prog_title or _map_service_type(a.program_title) or a.case_type
-        lead.source = lead.source or "LOGISTIS ΓΕΜΗ"
+        lead.source = lead.source or ("LOGISTIS ΓΕΜΗ" if a.ermis_completed else "LOGISTIS")
         lead.notes = lead.notes or a.description
         lead.next_call_date = lead.next_call_date or today
         lead.portal_case_number = a.case_number
@@ -779,9 +780,9 @@ def accept_assignment(
             afm=afm,
             phone=a.phone,
             email=clean_email(a.email),
-            program=(program_category_from_title(prog_title) if a.ermis_completed else None) or _map_program_category(a.program_title),
-            program_title=prog_title if a.ermis_completed else None,
-            service_type=(prog_title if a.ermis_completed else None) or _map_service_type(a.program_title) or a.case_type,
+            program=prog_cat,
+            program_title=prog_title,
+            service_type=prog_title or _map_service_type(a.program_title) or a.case_type,
             status="HOT",
             assigned_agent_id=current_user.id,
             assigned_name=consultant,
@@ -800,10 +801,9 @@ def accept_assignment(
     a.resolved_at = datetime.utcnow()
     db.commit()
 
-    # Auto-start ΕΡΜΗΣ only for NON-ΓΕΜΗ assignments. For ΓΕΜΗ the conversation is
-    # already done — starting it again would 422 and double-Viber the client.
-    if not a.ermis_completed:
-        maybe_autostart_ermis(lead, actor_name=current_user.full_name)
+    # Do NOT auto-start ΕΡΜΗΣ / send Viber-Email for LOGISTIS assignments: for ΓΕΜΗ
+    # the conversation is already done, and for normal assignments the consultant
+    # decides. (ΕΡΜΗΣ can still be started manually from the lead's expanded row.)
 
     # Best-effort: tell LOGISTIS the assignment was accepted (references the lead)
     secret = _shared_secret()
