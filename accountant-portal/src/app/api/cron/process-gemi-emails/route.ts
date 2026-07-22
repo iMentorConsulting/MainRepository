@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { GEMI_DISCLAIMER, sendMoosendBulkPersonalized } from '@/lib/moosend'
-import { buildRecipientVariables } from '@/lib/gemi-campaign-vars'
+import { buildRecipientVariables, substituteVars } from '@/lib/gemi-campaign-vars'
+import { sendEmail } from '@/lib/email'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 270 // seconds — Railway allows up to 5min for cron services
@@ -110,6 +111,26 @@ export async function POST(req: NextRequest) {
           data: { status: 'sent', sentAt: now },
         })
         sent = valid.length
+
+        // ── Gmail archive copy: ONE email per campaign send with the actual
+        // newsletter content + all recipient addresses as a compact
+        // comma-separated string (small visible text at the very bottom so
+        // Gmail reliably indexes it — searching a client email finds this).
+        ;(async () => {
+          const sampleVars = valid[0].variables
+          const archiveSubject = `[ΑΡΧΕΙΟ ΚΑΜΠΑΝΙΑΣ] ${substituteVars(subjectBase, sampleVars)} — ${valid.length} παραλήπτες`
+          const recipientsCompact = valid.map(r => r.email).join(',')
+          const archiveHtml =
+            substituteVars(htmlFull, sampleVars) +
+            `<div style="margin-top:28px;border-top:1px solid #ddd;padding-top:8px;font-size:8px;line-height:1.3;color:#aaa;word-break:break-all;">` +
+            `Καμπάνια: ${moosendName} · ${valid.length} παραλήπτες: ${recipientsCompact}</div>`
+          await sendEmail({
+            to: process.env.ADMIN_EMAIL || 'info@i-mentor.gr',
+            subject: archiveSubject,
+            html: archiveHtml,
+          })
+          console.log(`[GemiEmail] archive copy sent for campaign ${campaign.id} (${valid.length} recipients, html ${Math.round(archiveHtml.length / 1024)}KB)`)
+        })().catch(err => console.error('[GemiEmail] archive copy failed:', err instanceof Error ? err.message : err))
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : String(err)
         console.error(`[GemiEmail] bulk send failed for campaign ${campaign.id}:`, errorMessage)
