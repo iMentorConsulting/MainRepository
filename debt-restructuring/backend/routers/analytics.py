@@ -94,13 +94,13 @@ def get_pipeline_stats(
     closure_percentage = round((closed_count / total_closure * 100), 1) if total_closure > 0 else 0
 
     # ══ Calculate % Αποδοχής Ρύθμισης (Settlement acceptance rate) ══
-    # Acceptance rate based on contact_stage field
+    # status='completed' = Αποδοχή Ρύθμισης, status='cancelled' = Απόρριψη Ρύθμισης
     accepted_count = query.filter(
-        Case.contact_stage == 'Αποδοχή Ρύθμισης'
+        Case.status == SETTLEMENT_ACCEPTED
     ).count()
 
     rejected_count = query.filter(
-        Case.contact_stage == 'Απόρριψη Ρύθμισης'
+        Case.status == SETTLEMENT_REJECTED
     ).count()
 
     total_settlement = accepted_count + rejected_count
@@ -138,8 +138,9 @@ def get_pipeline_stats(
         if case.contact_stage == 'Έκλεισε':
             first_payment_collected += app_fee
 
-        # Second payment (2η πληρωμή): collected ONLY at Αποδοχή Ρύθμισης (not at Πρόταση Ρύθμισης)
-        if case.contact_stage == 'Αποδοχή Ρύθμισης':
+        # Second payment (2η πληρωμή): ONLY when status = 'completed' (Αποδοχή Ρύθμισης)
+        # NOT at 'in_review' (Πρόταση Ρύθμισης)
+        if case.status == SETTLEMENT_ACCEPTED:
             second_payment_collected += suc_fee
             completed_status_count += 1
 
@@ -296,9 +297,9 @@ def get_pipeline_stats_by_employee(
         thetiki_antapokrosi = query.filter(Case.contact_stage == 'Θετική Ανταπόκριση').count()
         se_diapragmateusi = query.filter(Case.contact_stage == 'Σε Διαπραγμάτευση').count()
 
-        # Active cases (Εν Εξελίξει): Άντληση Στοιχείων + Οριστικοποίηση Αίτησης + Πρόταση Ρύθμισης
-        active_stages = ['Άντληση Στοιχείων', 'Οριστικοποίηση Αίτησης', 'Πρόταση Ρύθμισης']
-        active_cases = query.filter(Case.contact_stage.in_(active_stages)).count()
+        # Active cases (Εν Εξελίξει): status = draft, submitted, in_review
+        # (maps to UI labels: Άντληση Στοιχείων, Οριστικοποίηση Αίτησης, Πρόταση Ρύθμισης)
+        active_cases = query.filter(Case.status.in_(['draft', 'submitted', 'in_review'])).count()
 
         # Closure stats (Pipeline: Έκλεισε vs Δεν Ενδιαφέρεται)
         closed = query.filter(Case.contact_stage == 'Έκλεισε').count()
@@ -307,9 +308,9 @@ def get_pipeline_stats_by_employee(
         # Success rate = closed / (closed + not_interested)
         closure_pct = round((closed / total_closed * 100), 1) if total_closed > 0 else 0
 
-        # Settlement stats (contact_stage: Αποδοχή Ρύθμισης = accepted, Απόρριψη Ρύθμισης = rejected)
-        accepted = query.filter(Case.contact_stage == 'Αποδοχή Ρύθμισης').count()
-        rejected = query.filter(Case.contact_stage == 'Απόρριψη Ρύθμισης').count()
+        # Settlement stats: status = 'completed' = Αποδοχή Ρύθμισης, 'cancelled' = Απόρριψη Ρύθμισης
+        accepted = query.filter(Case.status == SETTLEMENT_ACCEPTED).count()
+        rejected = query.filter(Case.status == SETTLEMENT_REJECTED).count()
         total_settlement = accepted + rejected
         settlement_pct = round((accepted / total_settlement * 100), 1) if total_settlement > 0 else 0
 
@@ -338,8 +339,9 @@ def get_pipeline_stats_by_employee(
             # First payment (1η πληρωμή): collected when contact_stage = Έκλεισε
             if case.contact_stage == 'Έκλεισε':
                 first_payment += app_fee
-            # Second payment (2η πληρωμή): collected ONLY at Αποδοχή Ρύθμισης (not at Πρόταση Ρύθμισης)
-            if case.contact_stage == 'Αποδοχή Ρύθμισης':
+            # Second payment (2η πληρωμή): ONLY when status = 'completed' (Αποδοχή Ρύθμισης)
+            # NOT at 'in_review' (Πρόταση Ρύθμισης)
+            if case.status == SETTLEMENT_ACCEPTED:
                 second_payment += suc_fee
                 completed_count += 1
 

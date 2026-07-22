@@ -601,11 +601,9 @@ export default function FinancialDashboard({ currentEmployee }) {
                     <div className="font-semibold text-sm text-gray-800 mb-2">{emp}</div>
                     <div className="space-y-1 text-xs">
                       <div><span className="text-gray-600">Σύνολο:</span> <span className="font-bold">{stats.total_cases}</span></div>
-                      {stats.active_cases_count > 0 && (
-                        <div className="bg-blue-50 rounded p-1.5 border border-blue-200">
-                          <span className="text-blue-700 font-semibold">⚙️ Εν Εξελίξει Υποθέσεις:</span> <span className="font-bold text-blue-800">{stats.active_cases_count}</span>
-                        </div>
-                      )}
+                      <div className="bg-blue-50 rounded p-1.5 border border-blue-200">
+                        <span className="text-blue-700 font-semibold">⚙️ Εν Εξελίξει Υποθέσεις:</span> <span className="font-bold text-blue-800">{stats.active_cases_count ?? 0}</span>
+                      </div>
                       {stats.stage_breakdown && (
                         <div className="bg-white rounded p-1.5 border border-gray-200 space-y-0.5">
                           <div className="text-gray-500 font-semibold text-xs mb-1">Στάδια Pipeline</div>
