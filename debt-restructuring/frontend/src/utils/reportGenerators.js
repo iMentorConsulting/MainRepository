@@ -415,10 +415,11 @@ export function buildEmailHtml(data) {
     `<span style="display:inline-block;background:${bg};border:1px solid ${color}33;border-radius:6px;padding:1px 8px;color:${color};font-size:13px;font-weight:700;vertical-align:middle;margin-right:6px;">${symbol}</span>`
 
   // VAT offer helper with withholding
+  const incomeSubType = incomeData.fpSubType || (debtorType === 'Φυσικό Πρόσωπο' ? 'Επιτηδευματίας' : 'Επιτηδευματίας')
   const fmtOffer = (net) => {
     if (!net) return '<span style="color:#6b7280;">..... €</span> <span style="font-size:12px;color:#9ca3af;">+ ΦΠΑ 24%</span>'
     const n = Number(net)
-    const calc = calculateOfferWithWithholding(n, debtorType)
+    const calc = calculateOfferWithWithholding(n, incomeSubType)
     if (calc.hasWithholding) {
       return `<b>${n.toLocaleString('el-GR')}€</b> <span style="font-size:12px;color:#6b7280;">+ ΦΠΑ 24% = ${calc.grossBeforeTax.toLocaleString('el-GR')}€ - Παρακράτηση 20% = <b style="color:#c2410c;">${calc.finalPayable.toLocaleString('el-GR')}€</b></span>`
     }

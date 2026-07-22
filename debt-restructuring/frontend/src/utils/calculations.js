@@ -65,13 +65,16 @@ export function getBankingDetailsText() {
 
 // Withholding tax calculation (20% for amounts > €305 net value, only for business entities)
 // εξαιρούνται: μισθωτός, συνταξιούχος (ΑΠΥ - no withholding)
-export function calculateOfferWithWithholding(netAmount, debtorType) {
+// Note: incomeSubType is passed when available (from income_data); debtorType is fallback for legacy calls
+export function calculateOfferWithWithholding(netAmount, debtorTypeOrIncomeSubType) {
   const net = Number(netAmount) || 0
   const vat = calculateVAT(net)
   const grossBeforeTax = net + vat
 
   // Check if withholding applies: NO for μισθωτός/συνταξιούχος, YES for νομικό πρόσωπο/επιτηδευματίας
-  const isEmployeeOrPensioner = debtorType === 'Μισθωτός'
+  // incomeSubType='Μισθωτός' or 'Επιτηδευματίας' takes precedence (from income_data)
+  // Fall back to checking if debtorType === 'Μισθωτός' for legacy calls
+  const isEmployeeOrPensioner = debtorTypeOrIncomeSubType === 'Μισθωτός'
   const hasWithholding = !isEmployeeOrPensioner && net > 305
 
   // Calculate withholding tax if applicable (20% of NET amount, not gross)

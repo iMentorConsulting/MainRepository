@@ -960,7 +960,8 @@ export default function ClientPreview() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-5">
                 {offer.application_fee > 0 && (() => {
-                  const appFee = calculateOfferWithWithholding(offer.application_fee, data.debtor_type)
+                  const incomeSubType = data.income_data?.fpSubType || (data.debtor_type === 'Φυσικό Πρόσωπο' ? 'Επιτηδευματίας' : 'Επιτηδευματίας')
+                  const appFee = calculateOfferWithWithholding(offer.application_fee, incomeSubType)
                   return (
                     <div className={`rounded-xl p-4 text-center ${paymentStatus.firstPaymentMade ? 'bg-green-50 border-2 border-green-300' : 'bg-blue-50'}`}>
                       <div className="text-xs font-semibold text-blue-600 uppercase mb-1 flex items-center justify-center gap-1">
@@ -972,7 +973,8 @@ export default function ClientPreview() {
                   )
                 })()}
                 {offer.success_fee > 0 && (() => {
-                  const successFee = calculateOfferWithWithholding(offer.success_fee, data.debtor_type)
+                  const incomeSubType = data.income_data?.fpSubType || (data.debtor_type === 'Φυσικό Πρόσωπο' ? 'Επιτηδευματίας' : 'Επιτηδευματίας')
+                  const successFee = calculateOfferWithWithholding(offer.success_fee, incomeSubType)
                   return (
                     <div className={`rounded-xl p-4 text-center ${paymentStatus.secondPaymentMade ? 'bg-green-50 border-2 border-green-300' : 'bg-green-50'}`}>
                       <div className="text-xs font-semibold text-green-600 uppercase mb-1 flex items-center justify-center gap-1">

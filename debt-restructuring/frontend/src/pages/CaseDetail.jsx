@@ -31,23 +31,23 @@ const CONTACT_STAGES = [
 ]
 
 
-function buildOfferBlock(offer, debtorType) {
+function buildOfferBlock(offer, incomeSubType) {
   if (!offer || (!offer.application_fee && !offer.success_fee)) return ''
   const lines = [`\n\n💼 *Οικονομική Προσφορά:*`]
   if (offer.application_fee) {
-    const appFee = calculateOfferWithWithholding(offer.application_fee, debtorType)
+    const appFee = calculateOfferWithWithholding(offer.application_fee, incomeSubType)
     lines.push(`• Αίτηση & Διαδικασία: *${appFee.formatted}*`)
   }
   if (offer.success_fee) {
-    const successFee = calculateOfferWithWithholding(offer.success_fee, debtorType)
+    const successFee = calculateOfferWithWithholding(offer.success_fee, incomeSubType)
     lines.push(`• Success Fee (αποδοχή): *${successFee.formatted}*`)
   }
   lines.push(getBankingDetailsText())
   return lines.join('\n')
 }
 
-function buildViberMessage(type, name, url, offer = null, includeOffer = false, debtorType = '') {
-  const offerSection = includeOffer ? buildOfferBlock(offer, debtorType) : ''
+function buildViberMessage(type, name, url, offer = null, includeOffer = false, incomeSubType = '') {
+  const offerSection = includeOffer ? buildOfferBlock(offer, incomeSubType) : ''
   switch (type) {
     case 'initial':
       return `Αγαπητέ/ή *${name}*,\n\nΗ ανάλυση των στοιχείων σας στον *Εξωδικαστικό Μηχανισμό Ρύθμισης Οφειλών* ολοκληρώθηκε.\n\nΜπορείτε να δείτε την πλήρη ανάλυσή μας στον παρακάτω σύνδεσμο, χρησιμοποιώντας τον *ΑΦΜ* σας ως κωδικό πρόσβασης:\n\n${url}${offerSection}\n\nΓια οποιαδήποτε ερώτηση είμαστε στη διάθεσή σας.\n\n*i-Mentor Consulting*\nΤ: *2810 363007*`
@@ -246,13 +246,14 @@ function buildEmailTextPreview(caseData, { includeTable, includeDisclaimer, incl
   lines.push('Στόχος μας: Η πρόταση που καταθέτουμε στους πιστωτές στοχεύει να είναι καλύτερη από το θεωρητικό αποτέλεσμα — διεκδικώντας ευνοϊκότερες διαγραφές και χαμηλότερες δόσεις για εσάς.')
   lines.push('')
   if (includeOffer && (offer.application_fee || offer.success_fee)) {
+    const incomeSubType = caseData.income_data?.fpSubType || (caseData.debtor_type === 'Φυσικό Πρόσωπο' ? 'Επιτηδευματίας' : 'Επιτηδευματίας')
     lines.push('─── ΟΙΚΟΝΟΜΙΚΗ ΠΡΟΣΦΟΡΑ ───')
     if (offer.application_fee) {
-      const appFee = calculateOfferWithWithholding(Number(offer.application_fee), caseData.debtor_type)
+      const appFee = calculateOfferWithWithholding(Number(offer.application_fee), incomeSubType)
       lines.push(`• Αίτηση & Διαδικασία: ${appFee.formatted}`)
     }
     if (offer.success_fee) {
-      const successFee = calculateOfferWithWithholding(Number(offer.success_fee), caseData.debtor_type)
+      const successFee = calculateOfferWithWithholding(Number(offer.success_fee), incomeSubType)
       lines.push(`• Success Fee (αποδοχή): ${successFee.formatted}`)
     }
     lines.push('')
@@ -312,11 +313,12 @@ function EmailOptionsModal({ caseData, onClose }) {
     const insDebt = finalPlan.filter(p => p.type === 'Ασφαλιστικά Ταμεία').reduce((s, p) => s + (p.amount || 0), 0)
     const isVulnerable = !!(caseData.income_data?.isVulnerable) && !caseData.debtor_type?.includes('Νομικό')
     const sumWrC = est.sumWrC ?? finalPlan.reduce((s, p) => s + (p.writeoffC || 0), 0)
+    const incomeSubType = caseData.income_data?.fpSubType || (caseData.debtor_type === 'Φυσικό Πρόσωπο' ? 'Επιτηδευματίας' : 'Επιτηδευματίας')
     const data = {
       clientName: caseData.client_name,
       clientPhone: caseData.client_phone,
       clientEmail: caseData.client_email,
-      debtorType: caseData.debtor_type,
+      debtorType: incomeSubType,
       totalDebt: est.sumDebt || 0,
       totalWriteOff: est.sumWr || 0,
       totalRemaining: est.totalRemaining || 0,
@@ -795,19 +797,22 @@ export default function CaseDetail({ currentEmployee }) {
       )}
 
       {/* Viber preview modal */}
-      {viberModal && caseData && (
-        <ViberPreviewModal
-          msgType={viberModal.msgType}
-          msgLabel={viberModal.msgLabel}
-          caseName={caseData.client_name}
-          url={`${PORTAL_BASE}/preview/${caseData.share_token}`}
-          offer={caseData.commercial_offer || {}}
-          debtorType={caseData.debtor_type}
-          onSend={handleViberSend}
-          onClose={() => setViberModal(null)}
-          sending={viberSending}
-        />
-      )}
+      {viberModal && caseData && (() => {
+        const incomeSubType = caseData.income_data?.fpSubType || (caseData.debtor_type === 'Φυσικό Πρόσωπο' ? 'Επιτηδευματίας' : 'Επιτηδευματίας')
+        return (
+          <ViberPreviewModal
+            msgType={viberModal.msgType}
+            msgLabel={viberModal.msgLabel}
+            caseName={caseData.client_name}
+            url={`${PORTAL_BASE}/preview/${caseData.share_token}`}
+            offer={caseData.commercial_offer || {}}
+            debtorType={incomeSubType}
+            onSend={handleViberSend}
+            onClose={() => setViberModal(null)}
+            sending={viberSending}
+          />
+        )
+      })()}
 
       {/* Email options modal */}
       {emailModalOpen && caseData && (
