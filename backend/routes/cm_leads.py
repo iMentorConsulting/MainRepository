@@ -95,10 +95,15 @@ def program_category_from_title(title):
     return None
 
 
-def find_gemi_lead(db: Session, afm, program_title=None, token=None):
-    """Resolve a ΓΕΜΗ lead by token first, else by ΑΦΜ + program title. The same
-    ΑΦΜ can have several leads (one per program), so ΑΦΜ alone is NOT the key.
-    Prefers a LOGISTIS/ΕΡΜΗΣ lead (the one carrying the transcript)."""
+def _is_logistis_lead(l) -> bool:
+    return (l.source or "").upper().startswith("LOGISTIS") or bool(l.ermis_transcript) or bool(l.ermis_token)
+
+
+def find_gemi_lead(db: Session, afm, program_title=None, program_category=None, token=None):
+    """Resolve a ΓΕΜΗ/LOGISTIS lead so the case + conversation converge on ONE lead.
+    Key = token → (ΑΦΜ + exact program title) → (ΑΦΜ + program category). ΑΦΜ alone is
+    NOT the key (a client can have one lead per program). Only ever reuses a
+    LOGISTIS/ΕΡΜΗΣ lead — never merges with a normal sheet/manual lead."""
     if token:
         l = db.query(CMLead).filter(CMLead.ermis_token == token).first()
         if l:
@@ -106,16 +111,22 @@ def find_gemi_lead(db: Session, afm, program_title=None, token=None):
     afm = normalize_afm(afm)
     if not afm:
         return None
-    q = db.query(CMLead).filter(CMLead.afm == afm)
-    if program_title:
-        q = q.filter(sa_func.lower(sa_func.coalesce(CMLead.program_title, "")) == program_title.strip().lower())
-    leads = q.order_by(CMLead.id.asc()).all()
-    if not leads:
+    cands = db.query(CMLead).filter(CMLead.afm == afm).order_by(CMLead.id.asc()).all()
+    if not cands:
         return None
-    for l in leads:
-        if (l.source or "").upper().startswith("LOGISTIS") or l.ermis_transcript or l.ermis_token:
-            return l
-    return leads[0]
+    # 1) exact program title
+    if program_title:
+        pt = program_title.strip().lower()
+        matches = [l for l in cands if (l.program_title or "").strip().lower() == pt]
+        if matches:
+            return next((l for l in matches if _is_logistis_lead(l)), matches[0])
+    # 2) same program category, restricted to LOGISTIS/ΕΡΜΗΣ leads (robust to title
+    #    string differences between case.created and ermis.completed)
+    if program_category:
+        matches = [l for l in cands if _is_logistis_lead(l) and (l.program or "") == program_category]
+        if matches:
+            return matches[0]
+    return None
 
 
 def maybe_autostart_ermis(lead: CMLead, actor_name: str = "auto") -> bool:

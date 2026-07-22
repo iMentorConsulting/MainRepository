@@ -377,10 +377,12 @@ def ermis_webhook(
             lead = db.query(CMLead).filter(CMLead.id == int(payload.leadRef)).first()
         except (ValueError, TypeError):
             lead = None
-    # ΓΕΜΗ: resolve by token, else by ΑΦΜ + program title (NOT ΑΦΜ alone — the same
-    # client can have one lead per program).
+    # ΓΕΜΗ: resolve by token, else by ΑΦΜ + program (NOT ΑΦΜ alone — the same client
+    # can have one lead per program).
     if lead is None:
-        lead = find_gemi_lead(db, afm, program_title=payload.program, token=payload.token)
+        lead = find_gemi_lead(db, afm, program_title=payload.program,
+                              program_category=program_category_from_title(payload.program),
+                              token=payload.token)
 
     created = False
     if lead is None:
