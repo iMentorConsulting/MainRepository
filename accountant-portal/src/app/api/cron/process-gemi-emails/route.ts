@@ -117,7 +117,34 @@ export async function POST(req: NextRequest) {
         // comma-separated string (small visible text at the very bottom so
         // Gmail reliably indexes it — searching a client email finds this).
         ;(async () => {
-          const sampleVars = valid[0].variables
+          // Program-level variables render with real values; business-specific
+          // ones render as neutral [ΠΛΑΪΝΕΣ] labels so employees don't mistake
+          // the archive for one specific client's email.
+          const sampleVars = { ...valid[0].variables }
+          const placeholderLabels: Record<string, string> = {
+            business_name: '[ΕΠΩΝΥΜΙΑ ΕΠΙΧΕΙΡΗΣΗΣ]',
+            afm: '[ΑΦΜ]',
+            address: '[ΔΙΕΥΘΥΝΣΗ]',
+            region: '[ΠΕΡΙΟΧΗ]',
+            founding_date: '[ΗΜ. ΙΔΡΥΣΗΣ]',
+            kad_code: '[ΚΑΔ]',
+            kad_description: '[ΠΕΡΙΓΡΑΦΗ ΚΑΔ]',
+            match_reason: '[ΛΟΓΟΙ ΕΠΙΛΕΞΙΜΟΤΗΤΑΣ]',
+            program_match_reason: '[ΛΟΓΟΙ ΕΠΙΛΕΞΙΜΟΤΗΤΑΣ]',
+            program2_match_reason: '[ΛΟΓΟΙ ΕΠΙΛΕΞΙΜΟΤΗΤΑΣ Β]',
+            other_programs: '[ΑΛΛΑ ΠΡΟΓΡΑΜΜΑΤΑ]',
+            other_programs_count: '#',
+            matched_programs_count: '#',
+            accountant_name: '[ΛΟΓΙΣΤΗΣ]',
+            accountant_office: '[ΓΡΑΦΕΙΟ]',
+            ermis_link: '#',
+            ermis_link_2: '#',
+            exodikastikos_link: '#',
+            unsubscribe_link: '#',
+          }
+          for (const [key, label] of Object.entries(placeholderLabels)) {
+            if (key in sampleVars) sampleVars[key] = label
+          }
           const archiveSubject = `[ΑΡΧΕΙΟ ΚΑΜΠΑΝΙΑΣ] ${substituteVars(subjectBase, sampleVars)} — ${valid.length} παραλήπτες`
           const recipientsCompact = valid.map(r => r.email).join(',')
           const archiveHtml =
