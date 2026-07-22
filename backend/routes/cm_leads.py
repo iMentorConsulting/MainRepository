@@ -818,14 +818,18 @@ def merge_leads(
     return lead_to_dict(primary, include_comments=True)
 
 
+_STATUS_RANK = {"HOT": 5, "ACTIVE": 4, "DEAL": 3, "CALL": 2, "NEW LEAD": 1, "CANCEL": 0}
+
+
 def _merge_priority(l: CMLead):
-    """Sort key to choose the primary within a duplicate set: keep the one with a
-    transcript, then most contact info, then the oldest (lowest id)."""
+    """Sort key to choose the primary within a duplicate set: prefer a non-CANCEL
+    lead, then one with a transcript, then most contact info, then the oldest."""
     return (
+        0 if (l.status or "") == "CANCEL" else 1,
         1 if l.ermis_transcript else 0,
         1 if (l.phone or "").strip() else 0,
         1 if (l.email or "").strip() else 0,
-        -l.id,  # older (lower id) wins ties
+        -l.id,
     )
 
 
@@ -868,9 +872,14 @@ def merge_duplicate_gemi_leads(
                 continue
             mset.sort(key=_merge_priority, reverse=True)
             primary, dups = mset[0], mset[1:]
+            # Keep the most-active status of the whole set (never leave it CANCEL
+            # when a HOT/active member existed).
+            best_status = max((m.status or "" for m in mset), key=lambda s: _STATUS_RANK.get(s, 0))
             report.append({"afm": afm, "category": cat, "kept": primary.id,
-                           "merged": [d.id for d in dups]})
+                           "status": best_status, "merged": [d.id for d in dups]})
             if not dry_run:
+                if _STATUS_RANK.get(best_status, 0) > _STATUS_RANK.get(primary.status or "", 0):
+                    primary.status = best_status
                 for d in dups:
                     _merge_lead_into(db, primary, d)
                     merged += 1
