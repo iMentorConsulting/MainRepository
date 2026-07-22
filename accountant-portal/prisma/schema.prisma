@@ -304,6 +304,8 @@ model Program {
   // this flag only matters for older/misconfigured forms. If multiple
   // programs are flagged, the most recently created active one is used.
   leadIntake         Boolean            @default(false)
+  wpPageId           Int?
+  wpPageUrl          String?
   createdAt          DateTime           @default(now())
   updatedAt          DateTime           @updatedAt
   matches            ProgramMatch[]
@@ -1198,4 +1200,20 @@ enum EspaAnnouncementStatus {
   IGNORED
   CONVERTED
   SNOOZED
+}
+
+// ─── WordPress Integration ────────────────────────────────────────────────────
+
+model WordpressTemplate {
+  id           String   @id @default(cuid())
+  name         String
+  wpPageId     Int
+  // Which program categories this template is suitable for (empty = any)
+  categories   String[]
+  // JSON mapping of placeholder tokens to program fields
+  // e.g. {"{{TITLE}}": "title", "{{DESCRIPTION}}": "description"}
+  placeholders Json     @default("{}")
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }

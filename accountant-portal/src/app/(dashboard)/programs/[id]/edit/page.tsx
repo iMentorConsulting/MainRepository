@@ -12,7 +12,7 @@ import { RegionMultiSelect } from '@/components/programs/region-multi-select'
 import { HeroImageUpload } from '@/components/programs/hero-image-upload'
 import { VideoUrlsInput } from '@/components/programs/video-urls-input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { ArrowLeft, Plus, X, FileUp } from 'lucide-react'
+import { ArrowLeft, Plus, X, FileUp, Globe, ExternalLink } from 'lucide-react'
 import Link from 'next/link'
 import { LEGAL_FORMS } from '@/lib/legal-forms'
 
@@ -202,10 +202,18 @@ export default function EditProgramPage() {
   const [excludeTags, setExcludeTags] = useState<string[]>([])
   const [requireTags, setRequireTags] = useState<string[]>([])
   const [tagOptions, setTagOptions] = useState<{ label: string }[]>([])
+  // WordPress integration
+  const [wpTemplates, setWpTemplates] = useState<{ id: string; name: string; categories: string[] }[]>([])
+  const [wpPageId, setWpPageId] = useState<number | null>(null)
+  const [wpPageUrl, setWpPageUrl] = useState<string | null>(null)
+  const [selectedTemplateId, setSelectedTemplateId] = useState('')
+  const [wpCreating, setWpCreating] = useState(false)
+  const [wpToast, setWpToast] = useState<{ msg: string; ok: boolean } | null>(null)
 
-  const { register, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm<FormData>({
+  const { register, handleSubmit, reset, watch, formState: { errors, isSubmitting } } = useForm<FormData>({
     resolver: zodResolver(schema),
   })
+  const watchedCategory = watch('category')
 
   useEffect(() => {
     fetch('/api/admin/criteria')
@@ -215,6 +223,10 @@ export default function EditProgramPage() {
     fetch('/api/admin/tags')
       .then(r => r.json())
       .then(data => setTagOptions(Array.isArray(data) ? data : []))
+      .catch(() => {})
+    fetch('/api/wordpress/templates')
+      .then(r => r.json())
+      .then(data => setWpTemplates(Array.isArray(data) ? data : []))
       .catch(() => {})
   }, [])
 
@@ -231,6 +243,8 @@ export default function EditProgramPage() {
         setRequireTags(program.requireTags || [])
         setHeroImage(program.heroImageUrl || '')
         setVideoUrls(program.videoUrls || [])
+        setWpPageId(program.wpPageId ?? null)
+        setWpPageUrl(program.wpPageUrl ?? null)
         reset({
           title: program.title || '',
           category: program.category || 'ESPA',
@@ -269,6 +283,35 @@ export default function EditProgramPage() {
     } else {
       const err = await res.json()
       alert(err.error || 'Σφάλμα ενημέρωσης')
+    }
+  }
+
+  async function createWpPage() {
+    if (!selectedTemplateId) {
+      setWpToast({ msg: 'Επίλεξε template πρώτα', ok: false })
+      setTimeout(() => setWpToast(null), 3000)
+      return
+    }
+    setWpCreating(true)
+    try {
+      const res = await fetch(`/api/programs/${id}/create-wp-page`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ templateId: selectedTemplateId }),
+      })
+      const data = await res.json()
+      if (res.ok) {
+        setWpPageId(data.wpPageId)
+        setWpPageUrl(data.wpPageUrl)
+        setWpToast({ msg: 'Η σελίδα δημιουργήθηκε στο WordPress ως Draft!', ok: true })
+      } else {
+        setWpToast({ msg: data.error ?? 'Σφάλμα δημιουργίας', ok: false })
+      }
+    } catch {
+      setWpToast({ msg: 'Σφάλμα δικτύου', ok: false })
+    } finally {
+      setWpCreating(false)
+      setTimeout(() => setWpToast(null), 4000)
     }
   }
 
@@ -509,6 +552,87 @@ export default function EditProgramPage() {
               </p>
               <Textarea {...register('ermisInstructions')} rows={3} placeholder="π.χ. Δώσε έμφαση στην ταχύτητα έγκρισης. Μην αναφέρεις το πρόγραμμα Χ ως εναλλακτική." />
             </div>
+          </CardContent>
+        </Card>
+
+        {/* WordPress Integration */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Globe size={18} className="text-blue-700" />
+              Δημιουργία Σελίδας WordPress
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {wpToast && (
+              <div className={`px-4 py-2.5 rounded-lg text-sm font-medium text-white ${wpToast.ok ? 'bg-emerald-600' : 'bg-red-600'}`}>
+                {wpToast.msg}
+              </div>
+            )}
+            {wpPageId ? (
+              <div className="flex items-center gap-3 p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
+                <Globe size={16} className="text-emerald-700 flex-shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-emerald-800">Σελίδα δημιουργήθηκε (ID: {wpPageId})</p>
+                  {wpPageUrl && (
+                    <a href={wpPageUrl} target="_blank" rel="noreferrer"
+                      className="text-xs text-emerald-700 hover:underline flex items-center gap-1 mt-0.5">
+                      {wpPageUrl} <ExternalLink size={10} />
+                    </a>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-gray-500">Δεν έχει δημιουργηθεί σελίδα WordPress για αυτό το πρόγραμμα.</p>
+            )}
+
+            {wpTemplates.length === 0 ? (
+              <p className="text-sm text-amber-700 bg-amber-50 rounded-lg px-3 py-2">
+                Δεν υπάρχουν templates.{' '}
+                <Link href="/wordpress" className="underline">Δημιούργησε ένα εδώ</Link>.
+              </p>
+            ) : (
+              <div className="flex items-end gap-3">
+                <div className="flex-1">
+                  <label className="text-sm font-medium text-gray-700 mb-1 block">
+                    Template Elementor
+                  </label>
+                  <select
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                    value={selectedTemplateId}
+                    onChange={e => setSelectedTemplateId(e.target.value)}
+                  >
+                    <option value="">— Επιλογή template —</option>
+                    {wpTemplates
+                      .filter(t => t.categories.length === 0 || t.categories.includes(watchedCategory))
+                      .map(t => (
+                        <option key={t.id} value={t.id}>{t.name}</option>
+                      ))}
+                    {wpTemplates.some(t => t.categories.length > 0 && !t.categories.includes(watchedCategory)) && (
+                      <optgroup label="Άλλες κατηγορίες">
+                        {wpTemplates
+                          .filter(t => t.categories.length > 0 && !t.categories.includes(watchedCategory))
+                          .map(t => (
+                            <option key={t.id} value={t.id}>{t.name}</option>
+                          ))}
+                      </optgroup>
+                    )}
+                  </select>
+                </div>
+                <Button
+                  type="button"
+                  onClick={createWpPage}
+                  loading={wpCreating}
+                  variant={wpPageId ? 'outline' : 'default'}
+                >
+                  <Globe size={15} className="mr-2" />
+                  {wpPageId ? 'Αντικατάσταση Σελίδας' : 'Δημιουργία Σελίδας'}
+                </Button>
+              </div>
+            )}
+            <p className="text-xs text-gray-400">
+              Δημιουργείται ως Draft στο i-mentor.gr. Το Elementor layout κλωνοποιείται από το template και τα πεδία αντικαθίστανται αυτόματα.
+            </p>
           </CardContent>
         </Card>
 
