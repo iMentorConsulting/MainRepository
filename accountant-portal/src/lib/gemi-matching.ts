@@ -155,12 +155,14 @@ export async function runMatchingForGemi(gemiId: string): Promise<number> {
   const programs = await prisma.program.findMany({ where: { active: true } })
 
   let matchCount = 0
+  const qualifiedProgramIds: string[] = []
 
   for (const program of programs) {
     if (!isProgramOpen(program)) continue
 
     const { score, reasons } = matchesBusiness(business, program)
     if (score <= 0) continue
+    qualifiedProgramIds.push(program.id)
 
     const existing = await prisma.gemiProgramMatch.findUnique({
       where: { gemiId_programId: { gemiId, programId: program.id } },
@@ -181,6 +183,16 @@ export async function runMatchingForGemi(gemiId: string): Promise<number> {
 
     if (!existing) matchCount++
   }
+
+  // Remove stale matches: programs that no longer qualify after criteria
+  // changes. Preserve non-POTENTIAL statuses (INTERESTED etc. carry history).
+  await prisma.gemiProgramMatch.deleteMany({
+    where: {
+      gemiId,
+      status: MatchStatus.POTENTIAL,
+      ...(qualifiedProgramIds.length ? { programId: { notIn: qualifiedProgramIds } } : {}),
+    },
+  })
 
   await prisma.gemiLookup.update({
     where: { id: gemiId },

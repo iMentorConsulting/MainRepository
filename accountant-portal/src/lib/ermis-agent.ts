@@ -51,6 +51,8 @@ function buildSystemPrompt(program: {
   pricingNote: string | null
   internalNotes: string | null
   ermisInstructions: string | null
+  minRegdate?: string | null
+  maxRegdate?: string | null
 }, businessName: string, autoConfirmedReasons: string[], qualitativeQuestions: EligibilityQuestion[],
   contextSummary?: string | null, consultant?: string | null) {
   const isLoan = program.category === 'MICROCREDITS'
@@ -84,6 +86,7 @@ ${program.description || '(χωρίς περιγραφή)'}
 ${program.minInvestment || program.maxInvestment ? `${amountLabel}: ${program.minInvestment ?? '?'}–${program.maxInvestment ?? '?'}€` : ''}
 ${program.minSubsidyPct || program.maxSubsidyPct ? `Ποσοστό επιχορήγησης: ${program.minSubsidyPct ?? '?'}–${program.maxSubsidyPct ?? '?'}%${program.subsidyNote ? ` (${program.subsidyNote})` : ''}` : ''}
 ${program.minInterestRate || program.maxInterestRate ? `Επιτόκιο: ${program.minInterestRate ?? '?'}–${program.maxInterestRate ?? '?'}%` : ''}
+${program.minRegdate || program.maxRegdate ? `ΚΡΙΣΙΜΟ ΚΡΙΤΗΡΙΟ — Ημερομηνία έναρξης επιχείρησης: ${program.minRegdate ? `από ${program.minRegdate}` : ''}${program.minRegdate && program.maxRegdate ? ' ' : ''}${program.maxRegdate ? `έως ${program.maxRegdate}` : ''}. Αν η έναρξη της επιχείρησης είναι εκτός αυτού του ορίου, η επιχείρηση ΔΕΝ είναι επιλέξιμη.` : ''}
 Λοιπές προϋποθέσεις/όροι (ρώτα ΜΙΑ-ΜΙΑ, σε φυσική γλώσσα, όχι σαν λίστα στον πελάτη):
 ${qualitativeChecklist}
 
@@ -99,6 +102,7 @@ ${program.internalNotes ? `\nΕΠΙΠΛΕΟΝ ΕΣΩΤΕΡΙΚΗ ΠΛΗΡΟΦΟ�
 ${program.ermisInstructions ? `\nΕΙΔΙΚΕΣ ΟΔΗΓΙΕΣ ΓΙΑ ΑΥΤΟ ΤΟ ΠΡΟΓΡΑΜΜΑ (τήρησέ τις αυστηρά, υπερισχύουν των γενικών οδηγιών παρακάτω όπου υπάρχει αντίφαση): ${program.ermisInstructions}` : ''}
 
 ΣΚΟΠΟΣ ΣΟΥ, με αυτή σειρά:
+0. ΠΡΙΝ ΑΠΟ ΟΛΑ — ΕΛΕΓΧΟΣ ΑΠΟΚΛΕΙΣΜΟΥ: Αν από τα ΗΔΗ ΓΝΩΣΤΑ στοιχεία (γνωστά στοιχεία πελάτη, ημερομηνία έναρξης, όρια προγράμματος) προκύπτει ότι παραβιάζεται ΚΡΙΣΙΜΟ κριτήριο του προγράμματος, ενημέρωσε τον πελάτη ΑΜΕΣΩΣ, από το ΠΡΩΤΟ σου μήνυμα, ευθέως και ευγενικά ότι **δεν είναι επιλέξιμος** και εξήγησε ποιο κριτήριο δεν πληροίται — ΜΗΝ κάνεις ΚΑΜΙΑ από τις υπόλοιπες ερωτήσεις (είναι άσκοπες και κουράζουν τον πελάτη). Το ίδιο ισχύει και στη διάρκεια της συζήτησης: μόλις ΟΠΟΙΑΔΗΠΟΤΕ απάντηση του πελάτη αποτύχει σε κρίσιμο κριτήριο, σταμάτα εκεί τον έλεγχο και πες το συμπέρασμα — μην συνεχίσεις τις υπόλοιπες ερωτήσεις.
 1. Κάνε τον βασικό έλεγχο επιλεξιμότητας — ρώτα ΜΟΝΟ ό,τι λείπει από τα "ήδη επιβεβαιωμένα" και είναι κρίσιμο, ΜΙΑ ερώτηση τη φορά, όχι λίστα ερωτήσεων μαζί.
 2. Ενημέρωσε περίπου για το κόστος όταν ζητηθεί ή αφού κλείσει ο έλεγχος επιλεξιμότητας.
 3. Αν η επιχείρηση φαίνεται επιλέξιμη ΚΑΙ θέλει να προχωρήσει, κάλεσε το εργαλείο "assign_case" για να αναλάβει σύμβουλος της I-MENTOR την υπόθεση. Μην το καλέσεις πρόωρα, πριν κάνεις τον βασικό έλεγχο.

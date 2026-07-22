@@ -17,13 +17,25 @@ export async function POST(request: NextRequest) {
   }
 
   let limit = 200
+  let reset = false
   try {
     const body = await request.json()
     if (typeof body?.limit === 'number') {
       limit = Math.min(Math.max(1, body.limit), 1000)
     }
+    reset = body?.reset === true
   } catch {
     // no body or invalid JSON — use default
+  }
+
+  // Force re-matching: flag every enriched business as not-yet-matched so the
+  // normal batch loop re-processes all of them (used after program changes).
+  if (reset) {
+    const { count } = await prisma.gemiLookup.updateMany({
+      where: { aadeEnriched: true },
+      data: { matchingDone: false },
+    })
+    console.log(`[GemiMatch] reset matchingDone for ${count} businesses (force re-match)`)
   }
 
   const records = await prisma.gemiLookup.findMany({

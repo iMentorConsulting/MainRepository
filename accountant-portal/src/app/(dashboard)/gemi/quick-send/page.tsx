@@ -39,7 +39,11 @@ export default function QuickSendPage() {
   const router = useRouter()
   const isAdmin = (session?.user as any)?.role === 'ADMIN'
 
-  const [query, setQuery] = useState('')
+  // Prefill the search (e.g. arriving from a business detail page with ?afm=...)
+  const initialAfm = typeof window !== 'undefined'
+    ? new URLSearchParams(window.location.search).get('afm') ?? ''
+    : ''
+  const [query, setQuery] = useState(initialAfm)
   const [results, setResults] = useState<GemiBusiness[]>([])
   const [searching, setSearching] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(new Set())

@@ -359,7 +359,8 @@ function GemiBusinessesPageInner() {
     }
   }
 
-  async function handleMatch() {
+  async function handleMatch(rematchAll = false) {
+    if (rematchAll && !confirm('Επανα-ταίριασμα ΟΛΩΝ των εμπλουτισμένων επιχειρήσεων με τα τρέχοντα κριτήρια προγραμμάτων; Τα ξεπερασμένα ταιριάσματα θα αφαιρεθούν.')) return
     setMatching(true)
     let totalProcessed = 0
     let totalMatches = 0
@@ -367,11 +368,12 @@ function GemiBusinessesPageInner() {
       // Loop batches of 200 until every enriched business has been matched.
       // Only aadeEnriched && !matchingDone records are processed, so this is
       // safe to re-run any time — already-matched businesses are skipped.
+      // With rematchAll, the first call resets matchingDone on everything.
       for (let round = 0; round < 200; round++) {
         const res = await fetch('/api/gemi/match', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ limit: 200 }),
+          body: JSON.stringify({ limit: 200, reset: rematchAll && round === 0 }),
         })
         const data = await res.json()
         if (!res.ok) {
@@ -539,8 +541,11 @@ function GemiBusinessesPageInner() {
           <Button variant="outline" size="sm" onClick={handleBackfillCategories} loading={backfilling} className="border-amber-300 text-amber-700 hover:bg-amber-50">
             <RefreshCw size={14} className="mr-1.5" />Συμπλήρωση Κλάδου
           </Button>
-          <Button variant="outline" size="sm" onClick={handleMatch} loading={matching} className="border-indigo-300 text-indigo-700 hover:bg-indigo-50">
+          <Button variant="outline" size="sm" onClick={() => handleMatch(false)} loading={matching} className="border-indigo-300 text-indigo-700 hover:bg-indigo-50">
             <Link2 size={14} className="mr-1.5" />Εκτέλεση Ταιριάσματος
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => handleMatch(true)} loading={matching} className="border-purple-300 text-purple-700 hover:bg-purple-50">
+            <RefreshCw size={14} className="mr-1.5" />Επανα-ταίριασμα Όλων
           </Button>
           {selected.size > 0 && (
             <Button size="sm" onClick={handleBulkDelete} loading={deleting} className="bg-red-600 hover:bg-red-700 text-white">

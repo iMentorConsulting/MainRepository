@@ -42,7 +42,7 @@ function GemiMatchesPageInner() {
   const { data: session } = useSession()
   const searchParams = useSearchParams()
 
-  const isAdmin = session?.user?.role === 'ADMIN'
+  const isAdmin = ['ADMIN', 'CONSULTANT'].includes(session?.user?.role ?? '')
 
   const [matches, setMatches] = useState<any[]>([])
   const [total, setTotal] = useState(0)

@@ -178,13 +178,13 @@ export function Sidebar({ open, onClose }: SidebarProps) {
               </Link>
             )
           })}
-          {isAdmin && (
+          {(isAdmin || isConsultant) && (
             <>
               <div className="pt-3 pb-1 px-3 flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-amber-400 flex-shrink-0" />
                 <span className="text-[10px] font-semibold uppercase tracking-widest text-amber-400/80">ΓΕΜΗ Αγορά</span>
               </div>
-              {gemiNavItems.map(item => {
+              {(isAdmin ? gemiNavItems : gemiNavItems.filter(i => ['/gemi/businesses', '/gemi/matches'].includes(i.href))).map(item => {
                 const Icon = item.icon
                 const isActive = pathname === item.href || pathname.startsWith(item.href + '/')
                 return (

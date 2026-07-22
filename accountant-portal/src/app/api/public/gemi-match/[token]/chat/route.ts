@@ -199,7 +199,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const [gemi, program, match] = await Promise.all([
     prisma.gemiLookup.findUnique({
       where: { id: matchToken.gemiId },
-      select: { onomasia: true, afm: true },
+      select: { onomasia: true, afm: true, regdate: true },
     }),
     prisma.program.findUnique({
       where: { id: matchToken.programId },
@@ -210,6 +210,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         minInterestRate: true, maxInterestRate: true,
         otherRequirements: true, pricingNote: true, internalNotes: true, ermisInstructions: true,
         extraCriteriaIds: true, eligibilityQuestions: true,
+        minRegdate: true, maxRegdate: true,
       },
     }),
     prisma.gemiProgramMatch.findUnique({
@@ -256,7 +257,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       alreadyAssigned: Boolean(matchToken.caseCreatedAt),
       isKickoff: Boolean(kickoff),
       tokensUsedSoFar: matchToken.tokenUsage,
-      contextSummary: matchToken.contextSummary ?? null,
+      contextSummary: [
+        matchToken.contextSummary,
+        gemi.regdate ? `Ημερομηνία έναρξης επιχείρησης: ${gemi.regdate}` : null,
+      ].filter(Boolean).join('\n') || null,
       consultant: null,
     })
   } catch (err: any) {

@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { Prisma } from '@prisma/client'
 import { sendEmail } from '@/lib/email'
+import { runMatchingForBusiness } from '@/lib/matching'
 import type { GsisBusinessData } from '@/lib/gsis'
 
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
@@ -116,6 +117,14 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
             })),
           })
         }
+        // Match the office's own ΑΦΜ against active programs right away — the
+        // office IS a business and its owners expect to see their own matches.
+        runMatchingForBusiness(business.id).catch(err =>
+          console.error('[AccountantApprove] matching failed:', err instanceof Error ? err.message : err))
+      } else {
+        // Business already existed (e.g. imported earlier) — ensure it has matches
+        runMatchingForBusiness(alreadyExists.id).catch(err =>
+          console.error('[AccountantApprove] matching failed:', err instanceof Error ? err.message : err))
       }
     }
     await prisma.accountant.update({ where: { id: params.id }, data: { pendingBusinessData: Prisma.JsonNull } })

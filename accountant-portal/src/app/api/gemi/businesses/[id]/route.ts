@@ -7,7 +7,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const session = await auth()
-  if (!session || session.user.role !== 'ADMIN') {
+  if (!session || !['ADMIN', 'CONSULTANT'].includes(session.user.role)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
@@ -47,7 +47,7 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const session = await auth()
-  if (!session || session.user.role !== 'ADMIN') {
+  if (!session || !['ADMIN', 'CONSULTANT'].includes(session.user.role)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 

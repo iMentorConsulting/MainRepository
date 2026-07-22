@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { CategoryBadge } from '@/components/businesses/category-badge'
-import { ArrowLeft, Building2, Mail, Phone, MapPin, Briefcase, Target, Send, Link2, Pencil } from 'lucide-react'
+import { ArrowLeft, Building2, Mail, Phone, MapPin, Briefcase, Target, Send, Link2, Pencil, Printer, ClipboardList, Scale } from 'lucide-react'
 import { getEffectiveCategory } from '@/lib/business-categories'
 import { resolveRegionFromZip } from '@/lib/greek-regions'
 
@@ -43,7 +43,7 @@ export default function GemiBusinessDetailPage() {
   const [saving, setSaving] = useState(false)
   const [editMsg, setEditMsg] = useState('')
 
-  const isAdmin = (session?.user as any)?.role === 'ADMIN'
+  const isAdmin = ['ADMIN', 'CONSULTANT'].includes((session?.user as any)?.role ?? '')
 
   useEffect(() => {
     if (status === 'loading') return
@@ -86,6 +86,34 @@ export default function GemiBusinessDetailPage() {
       setEditMsg(`Σφάλμα: ${err.error || 'Αδυναμία αποθήκευσης'}`)
     }
     setSaving(false)
+  }
+
+  // Ensures a real Business record exists (claims if needed) and returns its id.
+  async function ensureBusinessId(): Promise<string | null> {
+    if (business.claimedBusinessId) return business.claimedBusinessId
+    const res = await fetch(`/api/gemi/businesses/${id}/claim`, { method: 'POST' })
+    const data = await res.json()
+    if (!res.ok) {
+      setClaimMsg(`✗ ${data.error || 'Σφάλμα ανάκτησης'}`)
+      return null
+    }
+    const updated = await fetch(`/api/gemi/businesses/${id}`).then(r => r.json())
+    setBusiness(updated)
+    return data.business?.id ?? null
+  }
+
+  async function handleAssignGrant() {
+    setClaiming(true)
+    const bizId = await ensureBusinessId()
+    setClaiming(false)
+    if (bizId) router.push(`/businesses/${bizId}?newCase=1`)
+  }
+
+  async function handleAssignExodikastikos() {
+    setClaiming(true)
+    const bizId = await ensureBusinessId()
+    setClaiming(false)
+    if (bizId) router.push(`/exodikastikos/new?businessId=${bizId}`)
   }
 
   async function handleClaim() {
@@ -140,7 +168,21 @@ export default function GemiBusinessDetailPage() {
             </div>
           </div>
         </div>
-        <div className="flex gap-2 shrink-0">
+        <div className="flex gap-2 shrink-0 flex-wrap justify-end">
+          <Button variant="outline" onClick={() => window.print()}>
+            <Printer size={14} className="mr-1" />Εκτύπωση / PDF
+          </Button>
+          <Link href={`/gemi/quick-send?afm=${business.afm}`}>
+            <Button className="bg-indigo-600 hover:bg-indigo-700 text-white">
+              <Send size={14} className="mr-1" />Γρήγορη Αποστολή
+            </Button>
+          </Link>
+          <Button variant="outline" onClick={handleAssignGrant} loading={claiming}>
+            <ClipboardList size={14} className="mr-1" />Ανάθεση Επιχορήγησης
+          </Button>
+          <Button variant="outline" onClick={handleAssignExodikastikos} loading={claiming}>
+            <Scale size={14} className="mr-1" />Ανάθεση Εξωδικαστικού
+          </Button>
           <Button variant="outline" onClick={startEdit}>
             <Pencil size={14} className="mr-1" />Επεξεργασία
           </Button>

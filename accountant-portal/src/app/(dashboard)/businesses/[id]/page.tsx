@@ -64,7 +64,10 @@ export default function BusinessDetailPage() {
   const [editNotes, setEditNotes] = useState(false)
   const [notes, setNotes] = useState('')
   const [quickSend, setQuickSend] = useState(false)
-  const [newCase, setNewCase] = useState(false)
+  // ?newCase=1 opens the assignment dialog immediately (e.g. arriving from a GEMI business)
+  const [newCase, setNewCase] = useState(
+    typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('newCase') === '1'
+  )
   const [deleting, setDeleting] = useState(false)
   const { data: session } = useSession()
   const isAdmin = session?.user?.role === 'ADMIN'

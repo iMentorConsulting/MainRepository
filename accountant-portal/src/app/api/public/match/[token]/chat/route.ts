@@ -22,7 +22,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   }
 
   const [business, program, match] = await Promise.all([
-    prisma.business.findUnique({ where: { id: matchToken.businessId }, select: { onomasia: true, afm: true } }),
+    prisma.business.findUnique({ where: { id: matchToken.businessId }, select: { onomasia: true, afm: true, regdate: true } }),
     prisma.program.findUnique({
       where: { id: matchToken.programId },
       select: {
@@ -32,6 +32,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         minInterestRate: true, maxInterestRate: true,
         otherRequirements: true, pricingNote: true, internalNotes: true, ermisInstructions: true,
         extraCriteriaIds: true, eligibilityQuestions: true,
+        minRegdate: true, maxRegdate: true,
       },
     }),
     prisma.programMatch.findUnique({
@@ -73,7 +74,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       alreadyAssigned: Boolean(matchToken.caseCreatedId),
       isKickoff: Boolean(kickoff),
       tokensUsedSoFar: matchToken.tokenUsage,
-      contextSummary: matchToken.contextSummary ?? null,
+      contextSummary: [
+        matchToken.contextSummary,
+        business.regdate ? `Ημερομηνία έναρξης επιχείρησης: ${business.regdate}` : null,
+      ].filter(Boolean).join('\n') || null,
       consultant: matchToken.consultant ?? null,
     })
   } catch (err: any) {

@@ -86,7 +86,7 @@ export async function POST(request: NextRequest) {
   const title = `${business.onomasia || business.afm}${programTitle ? ` — ${programTitle}` : ''}`
 
   let accountantId: string | null
-  if (session.user.role === 'ADMIN') {
+  if (session.user.role === 'ADMIN' || session.user.role === 'CONSULTANT') {
     // Businesses with no accountant are direct I-MENTOR clients — allow creating
     // a case for them without an accounting office attached.
     accountantId = business.accountantId || null
