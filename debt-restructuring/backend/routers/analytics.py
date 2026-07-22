@@ -94,14 +94,13 @@ def get_pipeline_stats(
     closure_percentage = round((closed_count / total_closure * 100), 1) if total_closure > 0 else 0
 
     # ══ Calculate % Αποδοχής Ρύθμισης (Settlement acceptance rate) ══
-    # Acceptance rate = status='completed' / (status='completed' + status='cancelled')
-    # Maps to: "Αποδοχή Ρύθμισης" / ("Αποδοχή Ρύθμισης" + "Απόρριψη Ρύθμισης")
+    # Acceptance rate based on contact_stage field
     accepted_count = query.filter(
-        Case.status == SETTLEMENT_ACCEPTED
+        Case.contact_stage == 'Αποδοχή Ρύθμισης'
     ).count()
 
     rejected_count = query.filter(
-        Case.status == SETTLEMENT_REJECTED
+        Case.contact_stage == 'Απόρριψη Ρύθμισης'
     ).count()
 
     total_settlement = accepted_count + rejected_count
@@ -139,8 +138,8 @@ def get_pipeline_stats(
         if case.contact_stage == 'Έκλεισε':
             first_payment_collected += app_fee
 
-        # Second payment (2η πληρωμή): collected when status = completed (Αποδοχή Ρύθμισης)
-        if case.status == SETTLEMENT_ACCEPTED:
+        # Second payment (2η πληρωμή): collected ONLY at Αποδοχή Ρύθμισης (not at Πρόταση Ρύθμισης)
+        if case.contact_stage == 'Αποδοχή Ρύθμισης':
             second_payment_collected += suc_fee
             completed_status_count += 1
 
@@ -297,6 +296,10 @@ def get_pipeline_stats_by_employee(
         thetiki_antapokrosi = query.filter(Case.contact_stage == 'Θετική Ανταπόκριση').count()
         se_diapragmateusi = query.filter(Case.contact_stage == 'Σε Διαπραγμάτευση').count()
 
+        # Active cases (Εν Εξελίξει): Άντληση Στοιχείων + Οριστικοποίηση Αίτησης + Πρόταση Ρύθμισης
+        active_stages = ['Άντληση Στοιχείων', 'Οριστικοποίηση Αίτησης', 'Πρόταση Ρύθμισης']
+        active_cases = query.filter(Case.contact_stage.in_(active_stages)).count()
+
         # Closure stats (Pipeline: Έκλεισε vs Δεν Ενδιαφέρεται)
         closed = query.filter(Case.contact_stage == 'Έκλεισε').count()
         not_interested = query.filter(Case.contact_stage == 'Δεν Ενδιαφέρεται').count()
@@ -304,13 +307,13 @@ def get_pipeline_stats_by_employee(
         # Success rate = closed / (closed + not_interested)
         closure_pct = round((closed / total_closed * 100), 1) if total_closed > 0 else 0
 
-        # Settlement stats (status: 'completed' = accepted, 'cancelled' = rejected)
-        accepted = query.filter(Case.status == SETTLEMENT_ACCEPTED).count()
-        rejected = query.filter(Case.status == SETTLEMENT_REJECTED).count()
+        # Settlement stats (contact_stage: Αποδοχή Ρύθμισης = accepted, Απόρριψη Ρύθμισης = rejected)
+        accepted = query.filter(Case.contact_stage == 'Αποδοχή Ρύθμισης').count()
+        rejected = query.filter(Case.contact_stage == 'Απόρριψη Ρύθμισης').count()
         total_settlement = accepted + rejected
         settlement_pct = round((accepted / total_settlement * 100), 1) if total_settlement > 0 else 0
 
-        logger.info(f"Per-emp stats - {emp}: total={total}, closed={closed}, not_int={not_interested}, "
+        logger.info(f"Per-emp stats - {emp}: total={total}, active={active_cases}, closed={closed}, not_int={not_interested}, "
                     f"accepted={accepted}, rejected={rejected}")
 
         # Collected revenue for this employee
@@ -332,16 +335,17 @@ def get_pipeline_stats_by_employee(
                 if latest is None or case.created_at > latest:
                     latest = case.created_at
 
-            # First payment (1η πληρωμή): only when contact_stage = Έκλεισε
+            # First payment (1η πληρωμή): collected when contact_stage = Έκλεισε
             if case.contact_stage == 'Έκλεισε':
                 first_payment += app_fee
-            # Second payment (2η πληρωμή): only when status = completed (Αποδοχή Ρύθμισης)
-            if case.status == SETTLEMENT_ACCEPTED:
+            # Second payment (2η πληρωμή): collected ONLY at Αποδοχή Ρύθμισης (not at Πρόταση Ρύθμισης)
+            if case.contact_stage == 'Αποδοχή Ρύθμισης':
                 second_payment += suc_fee
                 completed_count += 1
 
         result[emp] = {
             "total_cases": total,
+            "active_cases_count": active_cases,
             "closure_percentage": closure_pct,
             "closure_count": total_closed,
             "settlement_acceptance_percentage": settlement_pct,
