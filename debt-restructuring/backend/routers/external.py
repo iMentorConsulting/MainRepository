@@ -231,6 +231,8 @@ def create_lead_external(
     Authentication: X-API-Key header (optional, but recommended)
 
     Auto-normalizes email addresses (corrects .fr → .gr typos, etc.)
+    Prevents duplicate leads by checking for existing leads with same phone
+    created within the last 60 seconds.
 
     Returns: {
         "id": lead_id,
@@ -242,6 +244,7 @@ def create_lead_external(
     }
     """
     from sheets_sync import _normalize_status
+    from sqlalchemy import and_
 
     # Optional API key validation (can be toggled via env var)
     if os.getenv("EXTERNAL_API_KEY_REQUIRED", "false").lower() == "true":
@@ -251,6 +254,35 @@ def create_lead_external(
 
     # Normalize email — auto-correct common typos (.fr → .gr, etc.)
     normalized_email = _normalize_email(data.email) if data.email else ""
+    phone = (data.phone or "").strip()
+
+    # Idempotency check: if a lead with the same phone was created in the last 60 seconds,
+    # return the existing lead instead of creating a duplicate
+    if phone:
+        recent_cutoff = _now() - __import__('datetime').timedelta(seconds=60)
+        existing_lead = db.query(Lead).filter(
+            and_(
+                Lead.phone == phone,
+                Lead.created_at >= recent_cutoff,
+                Lead.sheet_row_num.is_(None),  # Only check externally-created leads
+            )
+        ).order_by(Lead.created_at.desc()).first()
+
+        if existing_lead:
+            frontend_url = os.getenv("FRONTEND_URL", "https://portal.i-mentor.gr").rstrip("/")
+            themis_url = f"{frontend_url}/themis/{existing_lead.themis_token}"
+            return {
+                "id": existing_lead.id,
+                "name": existing_lead.name,
+                "phone": existing_lead.phone,
+                "email": existing_lead.email,
+                "assigned_to": existing_lead.assigned_to,
+                "status": "CALL",
+                "themis_token": existing_lead.themis_token,
+                "themis_url": themis_url,
+                "created_at": existing_lead.created_at.isoformat() if existing_lead.created_at else None,
+                "duplicate": True,
+            }
 
     # Auto-allocate to next consultant in round-robin
     assigned_to = _get_next_consultant(db)
@@ -262,7 +294,7 @@ def create_lead_external(
     lead = Lead(
         sheet_row_num=None,
         name=data.name or "",
-        phone=(data.phone or "").strip(),
+        phone=phone,
         email=normalized_email.strip(),
         status=_normalize_status("CALL"),
         status_raw="CALL",

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import * as api from '../api'
 import { normalizeEmail } from '../utils/emailNormalization'
@@ -19,8 +19,12 @@ export default function ThemisCreate() {
   const [searchParams] = useSearchParams()
   const [error, setError] = useState(null)
   const [loading, setLoading] = useState(true)
+  const hasRunRef = useRef(false)
 
   useEffect(() => {
+    if (hasRunRef.current) return
+    hasRunRef.current = true
+
     const createLeadAndRedirect = async () => {
       try {
         // Extract query parameters
@@ -73,7 +77,7 @@ export default function ThemisCreate() {
     }
 
     createLeadAndRedirect()
-  }, [searchParams, navigate])
+  }, [])
 
   if (loading && !error) {
     return (
