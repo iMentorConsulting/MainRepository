@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { getCampaignStats } from '@/lib/moosend'
+import { getCampaignStats, getCampaignUnsubscribers } from '@/lib/moosend'
 
 export async function POST(
   _req: NextRequest,
@@ -35,6 +35,19 @@ export async function POST(
       where: { campaignId: id, channel: 'EMAIL', clickedAt: { not: null } },
     })
 
+    // Pull Moosend-side unsubscribers back into the ΓΕΜΗ pool so they are
+    // permanently excluded from all future Logistis campaigns.
+    let unsubscribedMarked = 0
+    const unsubEmails = await getCampaignUnsubscribers(campaign.moosendCampaignId)
+    if (unsubEmails.length > 0) {
+      const { count } = await prisma.gemiLookup.updateMany({
+        where: { email: { in: unsubEmails, mode: 'insensitive' }, unsubscribedAt: null },
+        data: { unsubscribedAt: new Date() },
+      })
+      unsubscribedMarked = count
+      if (count > 0) console.log(`[SyncStats] marked ${count} Moosend unsubscribers in GEMI pool:`, unsubEmails.join(','))
+    }
+
     const updated = await prisma.gemiCampaign.update({
       where: { id },
       data: {
@@ -54,6 +67,7 @@ export async function POST(
       totalBounced: updated.totalBounced,
       totalUnsubscribed: updated.totalUnsubscribed,
       statsLastFetchedAt: updated.statsLastFetchedAt,
+      unsubscribedMarked,
     })
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)

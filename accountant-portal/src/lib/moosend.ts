@@ -322,6 +322,30 @@ export async function createAndSendCampaign(
   );
 }
 
+// Returns the email addresses that unsubscribed from a campaign, via
+// Moosend's per-activity stats endpoint. Response shape varies between
+// accounts, so extract defensively: collect every email-looking string.
+export async function getCampaignUnsubscribers(campaignId: string): Promise<string[]> {
+  try {
+    const result = await moosendFetch(`/campaigns/${campaignId}/stats/Unsubscribed.json?pageSize=1000`)
+    const emails = new Set<string>()
+    const scan = (v: unknown) => {
+      if (typeof v === 'string') {
+        if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) emails.add(v.toLowerCase())
+      } else if (Array.isArray(v)) {
+        v.forEach(scan)
+      } else if (v && typeof v === 'object') {
+        Object.values(v).forEach(scan)
+      }
+    }
+    scan((result as Record<string, unknown>).Context)
+    return Array.from(emails)
+  } catch (err) {
+    console.error(`[Moosend] getCampaignUnsubscribers(${campaignId}) failed:`, err instanceof Error ? err.message : err)
+    return []
+  }
+}
+
 export async function getCampaignStats(
   campaignId: string
 ): Promise<CampaignStats> {

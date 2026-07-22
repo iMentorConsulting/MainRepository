@@ -50,8 +50,10 @@ export async function POST(request: NextRequest) {
   let recipientRows: { campaignId: string; gemiId: string; channel: string; recipient: string }[] = []
 
   if (targetGemiIds && Array.isArray(targetGemiIds) && targetGemiIds.length > 0) {
+    // unsubscribedAt filter applies to hand-picked recipients too — an
+    // unsubscribed business must never receive another campaign.
     const gemis = await prisma.gemiLookup.findMany({
-      where: { id: { in: targetGemiIds } },
+      where: { id: { in: targetGemiIds }, unsubscribedAt: null },
       select: { id: true, email: true, phone: true },
     })
 
