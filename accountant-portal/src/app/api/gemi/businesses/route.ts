@@ -48,6 +48,8 @@ export async function GET(request: NextRequest) {
   const categoryParam = searchParams.get('category')?.trim() ?? ''
   const hasCampaignParam = searchParams.get('hasCampaign')     // yes | no
   const activeParam = searchParams.get('active')               // yes | no
+  // Email engagement filter: opened | not_opened | clicked | bounced | unsubscribed
+  const emailEngagementParam = searchParams.get('emailEngagement')?.trim() ?? ''
 
   // Build AND array so filters compose correctly
   const andClauses: object[] = []
@@ -106,6 +108,19 @@ export async function GET(request: NextRequest) {
 
   if (activeParam === 'yes') andClauses.push({ stopDate: null })
   else if (activeParam === 'no') andClauses.push({ stopDate: { not: null } })
+
+  if (emailEngagementParam === 'opened') {
+    andClauses.push({ campaignRecipients: { some: { channel: 'EMAIL', openedAt: { not: null } } } })
+  } else if (emailEngagementParam === 'not_opened') {
+    // Has at least one sent EMAIL that was not opened and not bounced
+    andClauses.push({ campaignRecipients: { some: { channel: 'EMAIL', status: 'sent', openedAt: null, bouncedAt: null } } })
+  } else if (emailEngagementParam === 'clicked') {
+    andClauses.push({ campaignRecipients: { some: { channel: 'EMAIL', clickedAt: { not: null } } } })
+  } else if (emailEngagementParam === 'bounced') {
+    andClauses.push({ campaignRecipients: { some: { channel: 'EMAIL', bouncedAt: { not: null } } } })
+  } else if (emailEngagementParam === 'unsubscribed') {
+    andClauses.push({ campaignRecipients: { some: { channel: 'EMAIL', unsubscribedAt: { not: null } } } })
+  }
 
   const where = andClauses.length > 0 ? { AND: andClauses } : {}
 

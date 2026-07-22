@@ -384,16 +384,49 @@ export default function GemiBusinessDetailPage() {
           <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide flex items-center gap-2"><Send size={14} />Ιστορικό Καμπανιών</h2>
           <div className="divide-y text-sm">
             {business.campaignRecipients.map((r: any) => (
-              <div key={r.id} className="py-2.5 flex items-center justify-between gap-4">
-                <div>
-                  <span className="font-medium">{r.campaign?.title}</span>
-                  <span className="ml-2 text-xs text-gray-400">{r.channel}</span>
+              <div key={r.id} className="py-3 flex items-start justify-between gap-4">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-medium text-gray-900 truncate">{r.campaign?.title}</span>
+                    <span className="text-xs text-gray-400 shrink-0">{r.channel}</span>
+                  </div>
+                  {r.recipient && (
+                    <p className="text-xs text-gray-400 mt-0.5 truncate">{r.recipient}</p>
+                  )}
                 </div>
-                <div className="flex items-center gap-3 text-xs text-gray-500">
-                  <span>{r.status}</span>
-                  {r.sentAt && <span>{new Date(r.sentAt).toLocaleDateString('el-GR')}</span>}
-                  {r.openedAt && <span className="text-green-600">✓ Άνοιξε</span>}
-                  {r.clickedAt && <span className="text-blue-600">✓ Κλικ</span>}
+                <div className="flex flex-wrap items-center gap-2 text-xs shrink-0">
+                  {r.sentAt && (
+                    <span className="text-gray-500">{new Date(r.sentAt).toLocaleDateString('el-GR')}</span>
+                  )}
+                  {r.bouncedAt ? (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-100 text-red-700 font-medium">
+                      ✗ Bounce
+                    </span>
+                  ) : r.unsubscribedAt ? (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-orange-100 text-orange-700 font-medium">
+                      Διαγραφή
+                    </span>
+                  ) : r.openedAt ? (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-medium">
+                      ✓ Άνοιξε{r.openCount > 1 ? ` (${r.openCount}×)` : ''}
+                    </span>
+                  ) : r.status === 'sent' ? (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">
+                      Εστάλη / Δεν άνοιξε
+                    </span>
+                  ) : (
+                    <span className="text-gray-400">{r.status}</span>
+                  )}
+                  {r.clickedAt && (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 font-medium">
+                      ✓ Κλικ{r.clickCount > 1 ? ` (${r.clickCount}×)` : ''}
+                    </span>
+                  )}
+                  {r.errorMessage && (
+                    <span className="text-red-500 max-w-[180px] truncate" title={r.errorMessage}>
+                      ✗ {r.errorMessage}
+                    </span>
+                  )}
                 </div>
               </div>
             ))}

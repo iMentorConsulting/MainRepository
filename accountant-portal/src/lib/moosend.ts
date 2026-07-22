@@ -380,3 +380,141 @@ export async function getCampaignStats(
     unsubscribed: num(context.TotalUnsubscribes, context.TotalUnsubscribed, context.Unsubscribes),
   };
 }
+
+// Per-subscriber engagement data returned by getCampaignSubscriberEngagement.
+export interface SubscriberEngagement {
+  openCount: number
+  openedAt: Date | null
+  clickCount: number
+  clickedAt: Date | null
+  bounced: boolean
+  bouncedAt: Date | null
+  unsubscribed: boolean
+  unsubscribedAt: Date | null
+}
+
+// Parse a Moosend .NET-style date string like "/Date(1234567890000)/" to a Date, or
+// try ISO strings. Returns null if the input can't be parsed.
+function parseMoosendDate(v: unknown): Date | null {
+  if (!v) return null
+  if (v instanceof Date) return v
+  if (typeof v === 'number') return new Date(v)
+  if (typeof v === 'string') {
+    const netMatch = v.match(/\/Date\((\d+)\)\//)
+    if (netMatch) return new Date(parseInt(netMatch[1], 10))
+    const d = new Date(v)
+    if (!isNaN(d.getTime())) return d
+  }
+  return null
+}
+
+// Fetch all subscribers for one activity type from Moosend, handling pagination.
+// Returns an array of the raw subscriber objects from Moosend's Context.Subscribers.
+async function fetchActivitySubscribers(campaignId: string, activityType: string): Promise<Array<Record<string, unknown>>> {
+  const allSubscribers: Array<Record<string, unknown>> = []
+  let pageIndex = 1
+  const pageSize = 1000
+
+  while (true) {
+    let result: unknown
+    try {
+      result = await moosendFetch(
+        `/campaigns/${campaignId}/stats/${activityType}.json?pageSize=${pageSize}&pageIndex=${pageIndex}`
+      )
+    } catch (err) {
+      console.error(`[Moosend] fetchActivitySubscribers(${campaignId}, ${activityType}) page ${pageIndex} failed:`, err instanceof Error ? err.message : err)
+      break
+    }
+
+    const ctx = (result as Record<string, any>)?.Context
+    if (!ctx) break
+
+    const subs = Array.isArray(ctx.Subscribers) ? ctx.Subscribers : []
+    allSubscribers.push(...subs)
+
+    // Stop if we got fewer than a full page
+    const paging = ctx.Paging as Record<string, any> | undefined
+    const totalPages = paging?.TotalPageCount ?? paging?.TotalPages ?? 1
+    if (pageIndex >= totalPages || subs.length < pageSize) break
+    pageIndex++
+  }
+
+  return allSubscribers
+}
+
+// Fetches per-subscriber engagement (opens, clicks, bounces, unsubscribes) for a
+// campaign and returns a map of lowercase email → SubscriberEngagement.
+export async function getCampaignSubscriberEngagement(
+  campaignId: string
+): Promise<Map<string, SubscriberEngagement>> {
+  const map = new Map<string, SubscriberEngagement>()
+
+  const getOrCreate = (email: string): SubscriberEngagement => {
+    const key = email.toLowerCase()
+    if (!map.has(key)) {
+      map.set(key, { openCount: 0, openedAt: null, clickCount: 0, clickedAt: null, bounced: false, bouncedAt: null, unsubscribed: false, unsubscribedAt: null })
+    }
+    return map.get(key)!
+  }
+
+  // Opened — Moosend returns OpenedCount + LastOpenDate (or similar field names)
+  try {
+    const openers = await fetchActivitySubscribers(campaignId, 'Opened')
+    for (const sub of openers) {
+      const email = typeof sub.Email === 'string' ? sub.Email : ''
+      if (!email) continue
+      const eng = getOrCreate(email)
+      const count = Number(sub.OpenedCount ?? sub.UniqueOpens ?? sub.Opens ?? 1)
+      eng.openCount = isNaN(count) ? 1 : count
+      eng.openedAt = parseMoosendDate(sub.LastOpenDate ?? sub.OpenDate ?? sub.Date)
+    }
+  } catch (err) {
+    console.error(`[Moosend] getCampaignSubscriberEngagement Opened failed for ${campaignId}:`, err instanceof Error ? err.message : err)
+  }
+
+  // Clicked — Moosend returns LinkClicks / ClickedCount + LastClickDate
+  try {
+    const clickers = await fetchActivitySubscribers(campaignId, 'Clicked')
+    for (const sub of clickers) {
+      const email = typeof sub.Email === 'string' ? sub.Email : ''
+      if (!email) continue
+      const eng = getOrCreate(email)
+      const count = Number(sub.LinkClicks ?? sub.ClickedCount ?? sub.UniqueClicks ?? sub.Clicks ?? 1)
+      eng.clickCount = isNaN(count) ? 1 : count
+      eng.clickedAt = parseMoosendDate(sub.LastClickDate ?? sub.ClickDate ?? sub.Date)
+    }
+  } catch (err) {
+    console.error(`[Moosend] getCampaignSubscriberEngagement Clicked failed for ${campaignId}:`, err instanceof Error ? err.message : err)
+  }
+
+  // Bounced — Moosend returns BounceDate / LastBounceDate
+  try {
+    const bounced = await fetchActivitySubscribers(campaignId, 'Bounced')
+    for (const sub of bounced) {
+      const email = typeof sub.Email === 'string' ? sub.Email : ''
+      if (!email) continue
+      const eng = getOrCreate(email)
+      eng.bounced = true
+      eng.bouncedAt = parseMoosendDate(sub.LastBounceDate ?? sub.BounceDate ?? sub.Date)
+    }
+  } catch (err) {
+    console.error(`[Moosend] getCampaignSubscriberEngagement Bounced failed for ${campaignId}:`, err instanceof Error ? err.message : err)
+  }
+
+  // Unsubscribed — reuse the existing endpoint pattern but capture dates too
+  try {
+    const unsubs = await fetchActivitySubscribers(campaignId, 'Unsubscribed')
+    for (const sub of unsubs) {
+      const email = typeof sub.Email === 'string' ? sub.Email : ''
+      if (!email) continue
+      const eng = getOrCreate(email)
+      eng.unsubscribed = true
+      eng.unsubscribedAt = parseMoosendDate(sub.UnsubscribedDate ?? sub.UnsubscribeDate ?? sub.Date)
+    }
+  } catch (err) {
+    console.error(`[Moosend] getCampaignSubscriberEngagement Unsubscribed failed for ${campaignId}:`, err instanceof Error ? err.message : err)
+  }
+
+  console.log(`[Moosend] getCampaignSubscriberEngagement(${campaignId}): ${map.size} subscribers with engagement data`)
+  return map
+}

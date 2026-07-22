@@ -242,6 +242,7 @@ function GemiBusinessesPageInner() {
   const [category, setCategory] = useState('')
   const [hasCampaign, setHasCampaign] = useState('')
   const [active, setActive] = useState('')
+  const [emailEngagement, setEmailEngagement] = useState('')
 
   const [importOpen, setImportOpen] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
@@ -289,6 +290,7 @@ function GemiBusinessesPageInner() {
     if (category) params.set('category', category)
     if (hasCampaign) params.set('hasCampaign', hasCampaign)
     if (active) params.set('active', active)
+    if (emailEngagement) params.set('emailEngagement', emailEngagement)
     try {
       const res = await fetch(`/api/gemi/businesses?${params}`)
       const data = await res.json()
@@ -298,10 +300,10 @@ function GemiBusinessesPageInner() {
     } finally {
       if (seq === requestSeq.current) setLoading(false)
     }
-  }, [page, search, aadeEnriched, matchingDone, claimed, importBatch, region, category, hasCampaign, active])
+  }, [page, search, aadeEnriched, matchingDone, claimed, importBatch, region, category, hasCampaign, active, emailEngagement])
 
   useEffect(() => { fetchData() }, [fetchData])
-  useEffect(() => { setPage(1); setSelected(new Set()) }, [search, aadeEnriched, matchingDone, claimed, importBatch, region, category, hasCampaign, active])
+  useEffect(() => { setPage(1); setSelected(new Set()) }, [search, aadeEnriched, matchingDone, claimed, importBatch, region, category, hasCampaign, active, emailEngagement])
 
   function handleSearch() { setSearch(searchInput) }
 
@@ -505,12 +507,13 @@ function GemiBusinessesPageInner() {
     }
   }
 
-  const hasFilters = !!(search || aadeEnriched || matchingDone || claimed || importBatch || region || category || hasCampaign || active)
+  const hasFilters = !!(search || aadeEnriched || matchingDone || claimed || importBatch || region || category || hasCampaign || active || emailEngagement)
 
   function clearFilters() {
     setSearch(''); setSearchInput('')
     setAadeEnriched(''); setMatchingDone(''); setClaimed('')
     setImportBatch(''); setRegion(''); setCategory(''); setHasCampaign(''); setActive('')
+    setEmailEngagement('')
   }
 
   if (status === 'loading' || (status === 'authenticated' && (session?.user as any)?.role !== 'ADMIN')) {
@@ -660,6 +663,18 @@ function GemiBusinessesPageInner() {
                 <option value="">Όλες</option>
                 <option value="yes">Ενεργές</option>
                 <option value="no">Ανενεργές</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="text-xs font-medium text-gray-500 block mb-1">Email Engagement</label>
+              <select value={emailEngagement} onChange={e => setEmailEngagement(e.target.value)} className={selectCls}>
+                <option value="">Όλες</option>
+                <option value="opened">Άνοιξε email</option>
+                <option value="not_opened">Δεν άνοιξε (εστάλη)</option>
+                <option value="clicked">Έκανε κλικ</option>
+                <option value="bounced">Bounce</option>
+                <option value="unsubscribed">Διαγράφηκε</option>
               </select>
             </div>
 

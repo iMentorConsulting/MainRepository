@@ -1123,7 +1123,11 @@ model GemiCampaignRecipient {
   status                 String       @default("pending")
   sentAt                 DateTime?
   openedAt               DateTime?
+  openCount              Int          @default(0)
   clickedAt              DateTime?
+  clickCount             Int          @default(0)
+  bouncedAt              DateTime?
+  unsubscribedAt         DateTime?
   errorMessage           String?
   chatwootConversationId Int?
   createdAt              DateTime     @default(now())
