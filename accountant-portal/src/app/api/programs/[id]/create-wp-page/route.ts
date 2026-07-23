@@ -110,6 +110,7 @@ export async function POST(
     if (parentTitle) {
       try {
         const parent = await findWpMenuParentItem(parentTitle)
+        console.log(`[WP] menu parent lookup for "${parentTitle}":`, parent)
         if (parent) {
           await addWpMenuItemForPage({
             menuId: parent.menuId,
@@ -119,7 +120,8 @@ export async function POST(
             url: link,
           })
         } else {
-          menuWarning = `Δεν βρέθηκε το μενού "${parentTitle}" — η σελίδα δημοσιεύτηκε αλλά δεν προστέθηκε στο μενού.`
+          menuWarning = `Δεν βρέθηκε το στοιχείο μενού "${parentTitle}" — ελέγξτε τον ακριβή τίτλο στο WP admin.`
+          console.warn('[WP] menu parent not found for title:', parentTitle)
         }
       } catch (menuErr) {
         const msg = menuErr instanceof Error ? menuErr.message : String(menuErr)

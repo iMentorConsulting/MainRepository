@@ -212,24 +212,28 @@ export async function setWpPageStatus(pageId: number, status: 'publish' | 'draft
   })
 }
 
-// Find a nav menu item by its title text across all menus.
+// Find a nav menu item by its title text using the WP menu-items search endpoint.
 // Returns { menuId, itemId } so a child can be added under it.
 export async function findWpMenuParentItem(
   parentTitle: string,
 ): Promise<{ menuId: number; itemId: number } | null> {
-  const menus = await wpFetch('/menus?per_page=50') as any[]
-  if (!Array.isArray(menus) || menus.length === 0) return null
+  // Search across all menu items by title
+  const items = await wpFetch(
+    `/menu-items?search=${encodeURIComponent(parentTitle)}&per_page=50&status=publish`
+  ) as any[]
+  if (!Array.isArray(items) || items.length === 0) return null
 
-  for (const menu of menus) {
-    const items = await wpFetch(`/menu-items?menus=${menu.id}&per_page=100`) as any[]
-    if (!Array.isArray(items)) continue
-    const match = items.find((item: any) => {
-      const rendered = item.title?.rendered ?? item.title ?? ''
-      return rendered.toLowerCase().trim() === parentTitle.toLowerCase().trim()
-    })
-    if (match) return { menuId: menu.id, itemId: match.id }
-  }
-  return null
+  // Find the best match (case-insensitive exact match on rendered title)
+  const match = items.find((item: any) => {
+    const rendered = (item.title?.rendered ?? item.title ?? '').replace(/<[^>]+>/g, '').trim()
+    return rendered.toLowerCase() === parentTitle.toLowerCase()
+  }) ?? items[0]
+
+  if (!match) return null
+
+  // item.menus is either a number (single menu) or array
+  const menuId = Array.isArray(match.menus) ? match.menus[0] : match.menus
+  return { menuId: Number(menuId), itemId: Number(match.id) }
 }
 
 // Add a WP page as a menu item under a given parent item.
