@@ -126,6 +126,7 @@ export async function POST(
           pageId: wpId,
           pageTitle: program.title,
         })
+        console.log(`[WP] menu item added successfully under "${parentTitle}"`)
       } catch (menuErr) {
         const msg = menuErr instanceof Error ? menuErr.message : String(menuErr)
         console.error('[WP] menu placement failed:', msg)
