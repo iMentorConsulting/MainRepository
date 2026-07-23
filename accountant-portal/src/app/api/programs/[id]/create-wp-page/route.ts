@@ -1,7 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { cloneElementorPage, buildProgramReplacements } from '@/lib/wordpress'
+import { cloneElementorPage, createWpPageFromHtmlTemplate, buildProgramReplacements } from '@/lib/wordpress'
+
+function applyTokens(text: string, replacements: Record<string, string>): string {
+  let result = text
+  for (const [token, value] of Object.entries(replacements)) {
+    const escaped = token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    result = result.replace(new RegExp(escaped, 'g'), value)
+  }
+  return result
+}
 
 export async function POST(
   request: NextRequest,
@@ -44,13 +53,45 @@ export async function POST(
     .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 100)
 
   try {
-    const { id: wpId, link } = await cloneElementorPage({
-      templatePageId: template.wpPageId,
-      newTitle: program.title,
-      slug,
-      replacements,
-      status: 'draft',
-    })
+    let wpId: number
+    let link: string
+
+    if (template.htmlTemplate) {
+      // HTML template mode: build a fresh WP page with a single Elementor HTML widget
+      const htmlContent = applyTokens(template.htmlTemplate, replacements)
+      const seoTitleRaw = template.seoTitlePattern || '{{TITLE}} | i-Mentor Consulting'
+      const metaDescRaw = template.metaDescPattern || '{{DESCRIPTION}}'
+      const seoTitle = applyTokens(seoTitleRaw, replacements)
+      const metaDesc = applyTokens(metaDescRaw, replacements).slice(0, 160)
+      const focusKeyword = program.title
+
+      const result = await createWpPageFromHtmlTemplate({
+        title: program.title,
+        slug,
+        htmlContent,
+        seoTitle,
+        metaDesc,
+        focusKeyword,
+        ogImageUrl: (program.heroImageUrl as string | null) ?? undefined,
+        status: 'draft',
+      })
+      wpId = result.id
+      link = result.link
+    } else {
+      // Clone mode: clone an existing WP page's Elementor layout
+      if (!template.wpPageId) {
+        return NextResponse.json({ error: 'Template has neither htmlTemplate nor wpPageId' }, { status: 400 })
+      }
+      const result = await cloneElementorPage({
+        templatePageId: template.wpPageId,
+        newTitle: program.title,
+        slug,
+        replacements,
+        status: 'draft',
+      })
+      wpId = result.id
+      link = result.link
+    }
 
     await prisma.program.update({
       where: { id },

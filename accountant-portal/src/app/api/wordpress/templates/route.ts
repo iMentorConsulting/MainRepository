@@ -20,14 +20,20 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
   const data = await request.json()
-  const { name, wpPageId, categories, placeholders } = data
-  if (!name || !wpPageId) {
-    return NextResponse.json({ error: 'name and wpPageId are required' }, { status: 400 })
+  const { name, wpPageId, htmlTemplate, seoTitlePattern, metaDescPattern, categories, placeholders } = data
+  if (!name) {
+    return NextResponse.json({ error: 'name is required' }, { status: 400 })
+  }
+  if (!wpPageId && !htmlTemplate) {
+    return NextResponse.json({ error: 'Either wpPageId or htmlTemplate is required' }, { status: 400 })
   }
   const template = await prisma.wordpressTemplate.create({
     data: {
       name,
-      wpPageId: Number(wpPageId),
+      wpPageId: wpPageId ? Number(wpPageId) : null,
+      htmlTemplate: htmlTemplate ?? null,
+      seoTitlePattern: seoTitlePattern ?? null,
+      metaDescPattern: metaDescPattern ?? null,
       categories: categories ?? [],
       placeholders: placeholders ?? {},
     },

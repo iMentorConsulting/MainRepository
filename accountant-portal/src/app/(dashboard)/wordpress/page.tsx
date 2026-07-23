@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
-import { Plus, Trash2, ExternalLink, RefreshCw, Globe } from 'lucide-react'
+import { Plus, Trash2, ExternalLink, RefreshCw, Globe, Code2, Copy } from 'lucide-react'
 
 const CATEGORY_LABELS: Record<string, string> = {
   ESPA: 'ΕΣΠΑ',
@@ -36,7 +36,10 @@ const BUILTIN_TOKENS: { token: string; field: string; description: string }[] = 
 interface WpTemplate {
   id: string
   name: string
-  wpPageId: number
+  wpPageId: number | null
+  htmlTemplate: string | null
+  seoTitlePattern: string | null
+  metaDescPattern: string | null
   categories: string[]
   placeholders: Record<string, string>
   active: boolean
@@ -57,8 +60,12 @@ export default function WordpressTemplatesPage() {
 
   // New template form
   const [showForm, setShowForm] = useState(false)
+  const [formMode, setFormMode] = useState<'clone' | 'html'>('html')
   const [formName, setFormName] = useState('')
   const [formWpPageId, setFormWpPageId] = useState('')
+  const [formHtmlTemplate, setFormHtmlTemplate] = useState('')
+  const [formSeoTitlePattern, setFormSeoTitlePattern] = useState('{{TITLE}} | i-Mentor Consulting')
+  const [formMetaDescPattern, setFormMetaDescPattern] = useState('{{DESCRIPTION}}')
   const [formCategories, setFormCategories] = useState<string[]>([])
   const [formPlaceholders, setFormPlaceholders] = useState<{ token: string; field: string }[]>(
     BUILTIN_TOKENS.map(t => ({ token: t.token, field: t.field }))
@@ -94,13 +101,25 @@ export default function WordpressTemplatesPage() {
   function resetForm() {
     setFormName('')
     setFormWpPageId('')
+    setFormHtmlTemplate('')
+    setFormSeoTitlePattern('{{TITLE}} | i-Mentor Consulting')
+    setFormMetaDescPattern('{{DESCRIPTION}}')
     setFormCategories([])
     setFormPlaceholders(BUILTIN_TOKENS.map(t => ({ token: t.token, field: t.field })))
+    setFormMode('html')
   }
 
   async function saveTemplate() {
-    if (!formName.trim() || !formWpPageId.trim()) {
-      showToast('Συμπλήρωσε όνομα και WP Page ID', false)
+    if (!formName.trim()) {
+      showToast('Συμπλήρωσε όνομα template', false)
+      return
+    }
+    if (formMode === 'clone' && !formWpPageId.trim()) {
+      showToast('Συμπλήρωσε WP Page ID', false)
+      return
+    }
+    if (formMode === 'html' && !formHtmlTemplate.trim()) {
+      showToast('Συμπλήρωσε το HTML template', false)
       return
     }
     const placeholders: Record<string, string> = {}
@@ -109,10 +128,22 @@ export default function WordpressTemplatesPage() {
     }
     setSaving(true)
     try {
+      const body: Record<string, unknown> = {
+        name: formName,
+        categories: formCategories,
+        placeholders,
+      }
+      if (formMode === 'clone') {
+        body.wpPageId = Number(formWpPageId)
+      } else {
+        body.htmlTemplate = formHtmlTemplate
+        body.seoTitlePattern = formSeoTitlePattern
+        body.metaDescPattern = formMetaDescPattern
+      }
       const res = await fetch('/api/wordpress/templates', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: formName, wpPageId: Number(formWpPageId), categories: formCategories, placeholders }),
+        body: JSON.stringify(body),
       })
       if (res.ok) {
         showToast('Template αποθηκεύτηκε', true)
@@ -203,34 +234,96 @@ export default function WordpressTemplatesPage() {
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 space-y-5">
           <h2 className="font-semibold text-gray-800">Νέο Template</h2>
 
+          {/* Mode toggle */}
+          <div>
+            <label className="text-sm font-medium text-gray-700 mb-2 block">Τύπος template</label>
+            <div className="flex rounded-lg border border-gray-200 overflow-hidden w-fit">
+              <button
+                type="button"
+                onClick={() => setFormMode('html')}
+                className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors ${formMode === 'html' ? 'bg-blue-700 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+              >
+                <Code2 size={14} />HTML Template (SEO)
+              </button>
+              <button
+                type="button"
+                onClick={() => setFormMode('clone')}
+                className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors border-l border-gray-200 ${formMode === 'clone' ? 'bg-blue-700 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+              >
+                <Copy size={14} />Κλωνοποίηση WP Σελίδας
+              </button>
+            </div>
+          </div>
+
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="text-sm font-medium text-gray-700 mb-1 block">Όνομα template</label>
               <Input value={formName} onChange={e => setFormName(e.target.value)} placeholder="π.χ. ΕΣΠΑ Standard" />
             </div>
-            <div>
-              <label className="text-sm font-medium text-gray-700 mb-1 block">WP Page ID (σελίδα-πρότυπο)</label>
-              {wpPages.length > 0 ? (
-                <select
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
-                  value={formWpPageId}
-                  onChange={e => setFormWpPageId(e.target.value)}
-                >
-                  <option value="">— Επιλογή σελίδας —</option>
-                  {wpPages.map(p => (
-                    <option key={p.id} value={String(p.id)}>{p.id} — {p.title}</option>
-                  ))}
-                </select>
-              ) : (
-                <Input
-                  value={formWpPageId}
-                  onChange={e => setFormWpPageId(e.target.value)}
-                  placeholder="π.χ. 1234 (πάτα Φόρτωση WP Σελίδων για dropdown)"
-                  type="number"
-                />
-              )}
-            </div>
+            {formMode === 'clone' && (
+              <div>
+                <label className="text-sm font-medium text-gray-700 mb-1 block">WP Page ID (σελίδα-πρότυπο)</label>
+                {wpPages.length > 0 ? (
+                  <select
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                    value={formWpPageId}
+                    onChange={e => setFormWpPageId(e.target.value)}
+                  >
+                    <option value="">— Επιλογή σελίδας —</option>
+                    {wpPages.map(p => (
+                      <option key={p.id} value={String(p.id)}>{p.id} — {p.title}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <Input
+                    value={formWpPageId}
+                    onChange={e => setFormWpPageId(e.target.value)}
+                    placeholder="π.χ. 1234 (πάτα Φόρτωση WP Σελίδων για dropdown)"
+                    type="number"
+                  />
+                )}
+              </div>
+            )}
           </div>
+
+          {/* HTML template fields */}
+          {formMode === 'html' && (
+            <div className="space-y-4">
+              <div>
+                <label className="text-sm font-medium text-gray-700 mb-1 block">HTML Template</label>
+                <p className="text-xs text-gray-500 mb-2">
+                  Γράψε το πλήρες HTML. Χρησιμοποίησε tokens όπως <code className="bg-gray-100 px-1 rounded">{'{{TITLE}}'}</code>, <code className="bg-gray-100 px-1 rounded">{'{{DESCRIPTION}}'}</code> κλπ. που αντικαθίστανται αυτόματα.
+                </p>
+                <textarea
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono min-h-[240px] focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  value={formHtmlTemplate}
+                  onChange={e => setFormHtmlTemplate(e.target.value)}
+                  placeholder="<div class=&quot;program-page&quot;>&#10;  <h1>{{TITLE}}</h1>&#10;  <p>{{DESCRIPTION}}</p>&#10;</div>"
+                  spellCheck={false}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-1 block">SEO Title Pattern</label>
+                  <Input
+                    value={formSeoTitlePattern}
+                    onChange={e => setFormSeoTitlePattern(e.target.value)}
+                    placeholder="{{TITLE}} | i-Mentor Consulting"
+                  />
+                  <p className="text-xs text-gray-400 mt-1">Χρησιμοποιείται για Yoast/RankMath title</p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-1 block">Meta Description Pattern</label>
+                  <Input
+                    value={formMetaDescPattern}
+                    onChange={e => setFormMetaDescPattern(e.target.value)}
+                    placeholder="{{DESCRIPTION}}"
+                  />
+                  <p className="text-xs text-gray-400 mt-1">Μέχρι 160 χαρακτήρες (κόβεται αυτόματα)</p>
+                </div>
+              </div>
+            </div>
+          )}
 
           <div>
             <label className="text-sm font-medium text-gray-700 mb-2 block">Κατηγορίες προγραμμάτων (προαιρετικά — για φιλτράρισμα)</label>
@@ -316,7 +409,13 @@ export default function WordpressTemplatesPage() {
                 <div className="space-y-1.5 flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <span className="font-semibold text-gray-900">{t.name}</span>
-                    <code className="text-xs bg-gray-100 px-2 py-0.5 rounded text-gray-600">WP ID: {t.wpPageId}</code>
+                    {t.htmlTemplate ? (
+                      <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded font-medium flex items-center gap-1">
+                        <Code2 size={10} />HTML
+                      </span>
+                    ) : (
+                      <code className="text-xs bg-gray-100 px-2 py-0.5 rounded text-gray-600">WP ID: {t.wpPageId}</code>
+                    )}
                   </div>
                   {t.categories.length > 0 && (
                     <div className="flex flex-wrap gap-1">

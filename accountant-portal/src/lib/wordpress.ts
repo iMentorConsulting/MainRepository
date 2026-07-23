@@ -138,6 +138,72 @@ export async function cloneElementorPage(opts: {
   return { id: data.id, link: data.link }
 }
 
+// Builds the minimal Elementor JSON for a single HTML widget containing all content.
+function buildElementorHtmlPage(htmlContent: string): string {
+  const rnd = () => Math.random().toString(36).substr(2, 7)
+  return JSON.stringify([{
+    id: rnd(), elType: 'section', isInner: false, settings: {},
+    elements: [{
+      id: rnd(), elType: 'column', isInner: false,
+      settings: { _column_size: 100, _inline_size: null },
+      elements: [{
+        id: rnd(), elType: 'widget', widgetType: 'html',
+        settings: { html: htmlContent },
+        elements: [],
+      }],
+    }],
+  }])
+}
+
+// Creates a WP page from scratch with a single Elementor HTML widget and full SEO meta.
+// Supports both Yoast SEO and RankMath (sets both; whichever plugin is active wins).
+export async function createWpPageFromHtmlTemplate(opts: {
+  title: string
+  slug: string
+  htmlContent: string
+  seoTitle: string
+  metaDesc: string
+  focusKeyword: string
+  ogImageUrl?: string
+  status?: 'draft' | 'publish'
+}): Promise<{ id: number; link: string }> {
+  const elementorData = buildElementorHtmlPage(opts.htmlContent)
+  const meta: Record<string, unknown> = {
+    // Elementor builder markers
+    _elementor_edit_mode: 'builder',
+    _elementor_template_type: 'wp-page',
+    _elementor_version: '3.0.0',
+    _elementor_data: elementorData,
+    // Yoast SEO
+    _yoast_wpseo_title: opts.seoTitle,
+    _yoast_wpseo_metadesc: opts.metaDesc,
+    _yoast_wpseo_focuskw: opts.focusKeyword,
+    '_yoast_wpseo_opengraph-title': opts.seoTitle,
+    '_yoast_wpseo_opengraph-description': opts.metaDesc,
+    // RankMath SEO
+    rank_math_title: opts.seoTitle,
+    rank_math_description: opts.metaDesc,
+    rank_math_focus_keyword: opts.focusKeyword,
+  }
+  if (opts.ogImageUrl && !opts.ogImageUrl.startsWith('data:')) {
+    meta['_yoast_wpseo_opengraph-image'] = opts.ogImageUrl
+    meta.rank_math_og_content_image = opts.ogImageUrl
+  }
+
+  const data = await wpFetch('/pages', {
+    method: 'POST',
+    body: JSON.stringify({
+      title: opts.title,
+      slug: opts.slug,
+      status: opts.status ?? 'draft',
+      content: '',
+      excerpt: opts.metaDesc,
+      meta,
+    }),
+  }) as any
+  return { id: data.id, link: data.link }
+}
+
 // Build replacement map from program fields
 export function buildProgramReplacements(
   program: Record<string, unknown>,
@@ -169,6 +235,7 @@ export function buildProgramReplacements(
     implementationMonths: program.implementationMonths != null ? `${program.implementationMonths} μήνες` : '',
     endDate: program.endDate ? new Date(program.endDate as string).toLocaleDateString('el-GR') : '',
     heroImageUrl: String(program.heroImageUrl ?? ''),
+    metaDescription: String(program.description ?? '').slice(0, 155),
   }
 
   // Map each placeholder token to its resolved value

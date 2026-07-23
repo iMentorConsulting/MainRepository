@@ -1213,15 +1213,24 @@ enum EspaAnnouncementStatus {
 // ─── WordPress Integration ────────────────────────────────────────────────────
 
 model WordpressTemplate {
-  id           String   @id @default(cuid())
-  name         String
-  wpPageId     Int
+  id               String   @id @default(cuid())
+  name             String
+  // Clone mode: ID of an existing WP page whose Elementor layout is cloned.
+  // Null when htmlTemplate mode is used instead.
+  wpPageId         Int?
+  // HTML template mode: raw HTML with {{TOKEN}} placeholders. When set,
+  // a new WP page is created from scratch with a single Elementor HTML widget.
+  htmlTemplate     String?
+  // SEO patterns (support the same {{TOKEN}} replacements as htmlTemplate).
+  // Defaults applied at create-time: "{{TITLE}} | i-Mentor Consulting" and "{{DESCRIPTION}}".
+  seoTitlePattern  String?
+  metaDescPattern  String?
   // Which program categories this template is suitable for (empty = any)
-  categories   String[]
+  categories       String[]
   // JSON mapping of placeholder tokens to program fields
   // e.g. {"{{TITLE}}": "title", "{{DESCRIPTION}}": "description"}
-  placeholders Json     @default("{}")
-  active       Boolean  @default(true)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  placeholders     Json     @default("{}")
+  active           Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 }
