@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
   const data = await request.json()
-  const { name, wpPageId, htmlTemplate, seoTitlePattern, metaDescPattern, categories, placeholders } = data
+  const { name, wpPageId, htmlTemplate, seoTitlePattern, metaDescPattern, wpMenuParentTitle, categories, placeholders } = data
   if (!name) {
     return NextResponse.json({ error: 'name is required' }, { status: 400 })
   }
@@ -34,6 +34,7 @@ export async function POST(request: NextRequest) {
       htmlTemplate: htmlTemplate ?? null,
       seoTitlePattern: seoTitlePattern ?? null,
       metaDescPattern: metaDescPattern ?? null,
+      wpMenuParentTitle: wpMenuParentTitle ?? null,
       categories: categories ?? [],
       placeholders: placeholders ?? {},
     },

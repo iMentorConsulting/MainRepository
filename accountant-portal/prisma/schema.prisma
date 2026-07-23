@@ -1230,6 +1230,8 @@ model WordpressTemplate {
   // JSON mapping of placeholder tokens to program fields
   // e.g. {"{{TITLE}}": "title", "{{DESCRIPTION}}": "description"}
   placeholders     Json     @default("{}")
+  // Optional: title of the WP nav menu item to add the page under (e.g. "Επιχορηγήσεις")
+  wpMenuParentTitle String?
   active           Boolean  @default(true)
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt

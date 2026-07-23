@@ -40,6 +40,7 @@ interface WpTemplate {
   htmlTemplate: string | null
   seoTitlePattern: string | null
   metaDescPattern: string | null
+  wpMenuParentTitle: string | null
   categories: string[]
   placeholders: Record<string, string>
   active: boolean
@@ -66,6 +67,7 @@ export default function WordpressTemplatesPage() {
   const [formHtmlTemplate, setFormHtmlTemplate] = useState('')
   const [formSeoTitlePattern, setFormSeoTitlePattern] = useState('{{TITLE}} | i-Mentor Consulting')
   const [formMetaDescPattern, setFormMetaDescPattern] = useState('{{DESCRIPTION}}')
+  const [formWpMenuParentTitle, setFormWpMenuParentTitle] = useState('Επιχορηγήσεις')
   const [formCategories, setFormCategories] = useState<string[]>([])
   const [formPlaceholders, setFormPlaceholders] = useState<{ token: string; field: string }[]>(
     BUILTIN_TOKENS.map(t => ({ token: t.token, field: t.field }))
@@ -104,6 +106,7 @@ export default function WordpressTemplatesPage() {
     setFormHtmlTemplate('')
     setFormSeoTitlePattern('{{TITLE}} | i-Mentor Consulting')
     setFormMetaDescPattern('{{DESCRIPTION}}')
+    setFormWpMenuParentTitle('Επιχορηγήσεις')
     setFormCategories([])
     setFormPlaceholders(BUILTIN_TOKENS.map(t => ({ token: t.token, field: t.field })))
     setFormMode('html')
@@ -140,6 +143,7 @@ export default function WordpressTemplatesPage() {
         body.seoTitlePattern = formSeoTitlePattern
         body.metaDescPattern = formMetaDescPattern
       }
+      if (formWpMenuParentTitle.trim()) body.wpMenuParentTitle = formWpMenuParentTitle.trim()
       const res = await fetch('/api/wordpress/templates', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -324,6 +328,18 @@ export default function WordpressTemplatesPage() {
               </div>
             </div>
           )}
+
+          <div>
+            <label className="text-sm font-medium text-gray-700 mb-1 block">Γονικό στοιχείο μενού WordPress</label>
+            <Input
+              value={formWpMenuParentTitle}
+              onChange={e => setFormWpMenuParentTitle(e.target.value)}
+              placeholder="π.χ. Επιχορηγήσεις (αφήστε κενό για χωρίς αυτόματη τοποθέτηση στο μενού)"
+            />
+            <p className="text-xs text-gray-400 mt-1">
+              Μετά τη δημιουργία σελίδας, αυτόματη τοποθέτηση ως υποσελίδα του συγκεκριμένου στοιχείου μενού.
+            </p>
+          </div>
 
           <div>
             <label className="text-sm font-medium text-gray-700 mb-2 block">Κατηγορίες προγραμμάτων (προαιρετικά — για φιλτράρισμα)</label>

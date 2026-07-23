@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { cloneElementorPage, createWpPageFromHtmlTemplate, buildProgramReplacements } from '@/lib/wordpress'
+import {
+  cloneElementorPage,
+  createWpPageFromHtmlTemplate,
+  buildProgramReplacements,
+  findWpMenuParentItem,
+  addWpMenuItemForPage,
+} from '@/lib/wordpress'
 
 function applyTokens(text: string, replacements: Record<string, string>): string {
   let result = text
@@ -73,7 +79,7 @@ export async function POST(
         metaDesc,
         focusKeyword,
         ogImageUrl: (program.heroImageUrl as string | null) ?? undefined,
-        status: 'draft',
+        status: 'publish',
       })
       wpId = result.id
       link = result.link
@@ -87,7 +93,7 @@ export async function POST(
         newTitle: program.title,
         slug,
         replacements,
-        status: 'draft',
+        status: 'publish',
       })
       wpId = result.id
       link = result.link
@@ -98,7 +104,31 @@ export async function POST(
       data: { wpPageId: wpId, wpPageUrl: link },
     })
 
-    return NextResponse.json({ wpPageId: wpId, wpPageUrl: link })
+    // Add to WP nav menu if template specifies a parent menu item
+    let menuWarning: string | undefined
+    const parentTitle = (template as any).wpMenuParentTitle as string | null
+    if (parentTitle) {
+      try {
+        const parent = await findWpMenuParentItem(parentTitle)
+        if (parent) {
+          await addWpMenuItemForPage({
+            menuId: parent.menuId,
+            parentItemId: parent.itemId,
+            title: program.title,
+            objectId: wpId,
+            url: link,
+          })
+        } else {
+          menuWarning = `Δεν βρέθηκε το μενού "${parentTitle}" — η σελίδα δημοσιεύτηκε αλλά δεν προστέθηκε στο μενού.`
+        }
+      } catch (menuErr) {
+        const msg = menuErr instanceof Error ? menuErr.message : String(menuErr)
+        console.error('[WP] menu placement failed:', msg)
+        menuWarning = `Σελίδα δημοσιεύτηκε αλλά αποτυχία προσθήκης στο μενού: ${msg}`
+      }
+    }
+
+    return NextResponse.json({ wpPageId: wpId, wpPageUrl: link, menuWarning })
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
     console.error('[WP] create-wp-page failed:', msg)

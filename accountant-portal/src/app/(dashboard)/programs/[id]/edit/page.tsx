@@ -399,9 +399,34 @@ export default function EditProgramPage() {
       if (res.ok) {
         setWpPageId(data.wpPageId)
         setWpPageUrl(data.wpPageUrl)
-        setWpToast({ msg: 'Η σελίδα δημιουργήθηκε στο WordPress ως Draft!', ok: true })
+        const msg = data.menuWarning
+          ? `Σελίδα δημοσιεύτηκε! ⚠️ ${data.menuWarning}`
+          : 'Η σελίδα δημοσιεύτηκε στο WordPress και προστέθηκε στο μενού!'
+        setWpToast({ msg, ok: !data.menuWarning })
       } else {
         setWpToast({ msg: data.error ?? 'Σφάλμα δημιουργίας', ok: false })
+      }
+    } catch {
+      setWpToast({ msg: 'Σφάλμα δικτύου', ok: false })
+    } finally {
+      setWpCreating(false)
+      setTimeout(() => setWpToast(null), 5000)
+    }
+  }
+
+  async function setWpStatus(status: 'publish' | 'private') {
+    setWpCreating(true)
+    try {
+      const res = await fetch(`/api/programs/${id}/wp-status`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status }),
+      })
+      const data = await res.json()
+      if (res.ok) {
+        setWpToast({ msg: status === 'private' ? 'Η σελίδα απενεργοποιήθηκε (private).' : 'Η σελίδα επανενεργοποιήθηκε (published).', ok: true })
+      } else {
+        setWpToast({ msg: data.error ?? 'Σφάλμα', ok: false })
       }
     } catch {
       setWpToast({ msg: 'Σφάλμα δικτύου', ok: false })
@@ -740,16 +765,28 @@ export default function EditProgramPage() {
               </div>
             )}
             {wpPageId ? (
-              <div className="flex items-center gap-3 p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
-                <Globe size={16} className="text-emerald-700 flex-shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-emerald-800">Σελίδα δημιουργήθηκε (ID: {wpPageId})</p>
-                  {wpPageUrl && (
-                    <a href={wpPageUrl} target="_blank" rel="noreferrer"
-                      className="text-xs text-emerald-700 hover:underline flex items-center gap-1 mt-0.5">
-                      {wpPageUrl} <ExternalLink size={10} />
-                    </a>
-                  )}
+              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg space-y-2">
+                <div className="flex items-center gap-3">
+                  <Globe size={16} className="text-emerald-700 flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-emerald-800">Σελίδα δημοσιεύτηκε (ID: {wpPageId})</p>
+                    {wpPageUrl && (
+                      <a href={wpPageUrl} target="_blank" rel="noreferrer"
+                        className="text-xs text-emerald-700 hover:underline flex items-center gap-1 mt-0.5">
+                        {wpPageUrl} <ExternalLink size={10} />
+                      </a>
+                    )}
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <Button type="button" size="sm" variant="outline" className="text-red-600 border-red-200 hover:bg-red-50"
+                    loading={wpCreating} onClick={() => setWpStatus('private')}>
+                    Απενεργοποίηση (Private)
+                  </Button>
+                  <Button type="button" size="sm" variant="outline" className="text-emerald-700 border-emerald-200 hover:bg-emerald-50"
+                    loading={wpCreating} onClick={() => setWpStatus('publish')}>
+                    Επανενεργοποίηση
+                  </Button>
                 </div>
               </div>
             ) : (
@@ -801,7 +838,7 @@ export default function EditProgramPage() {
               </div>
             )}
             <p className="text-xs text-gray-400">
-              Δημιουργείται ως Draft στο i-mentor.gr. Το Elementor layout κλωνοποιείται από το template και τα πεδία αντικαθίστανται αυτόματα.
+              Δημοσιεύεται αμέσως στο i-mentor.gr και προστίθεται αυτόματα στο μενού που έχεις ορίσει στο template.
             </p>
           </CardContent>
         </Card>

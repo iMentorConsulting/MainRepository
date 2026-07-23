@@ -204,6 +204,57 @@ export async function createWpPageFromHtmlTemplate(opts: {
   return { id: data.id, link: data.link }
 }
 
+// Update the status of an existing WP page (publish / draft / private)
+export async function setWpPageStatus(pageId: number, status: 'publish' | 'draft' | 'private'): Promise<void> {
+  await wpFetch(`/pages/${pageId}`, {
+    method: 'POST',
+    body: JSON.stringify({ status }),
+  })
+}
+
+// Find a nav menu item by its title text across all menus.
+// Returns { menuId, itemId } so a child can be added under it.
+export async function findWpMenuParentItem(
+  parentTitle: string,
+): Promise<{ menuId: number; itemId: number } | null> {
+  const menus = await wpFetch('/menus?per_page=50') as any[]
+  if (!Array.isArray(menus) || menus.length === 0) return null
+
+  for (const menu of menus) {
+    const items = await wpFetch(`/menu-items?menus=${menu.id}&per_page=100`) as any[]
+    if (!Array.isArray(items)) continue
+    const match = items.find((item: any) => {
+      const rendered = item.title?.rendered ?? item.title ?? ''
+      return rendered.toLowerCase().trim() === parentTitle.toLowerCase().trim()
+    })
+    if (match) return { menuId: menu.id, itemId: match.id }
+  }
+  return null
+}
+
+// Add a WP page as a menu item under a given parent item.
+export async function addWpMenuItemForPage(opts: {
+  menuId: number
+  parentItemId: number
+  title: string
+  objectId: number
+  url: string
+}): Promise<void> {
+  await wpFetch('/menu-items', {
+    method: 'POST',
+    body: JSON.stringify({
+      title: opts.title,
+      url: opts.url,
+      status: 'publish',
+      menus: opts.menuId,
+      type: 'post_type',
+      object: 'page',
+      object_id: opts.objectId,
+      parent: opts.parentItemId,
+    }),
+  })
+}
+
 // Build replacement map from program fields
 export function buildProgramReplacements(
   program: Record<string, unknown>,
