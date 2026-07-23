@@ -406,7 +406,8 @@ export default function GemiBusinessDetailPage() {
                     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-orange-100 text-orange-700 font-medium">
                       Διαγραφή
                     </span>
-                  ) : r.openedAt ? (
+                  ) : (r.openedAt || r.clickedAt) ? (
+                    // A click implies an open even if Moosend's tracking pixel was blocked
                     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-medium">
                       ✓ Άνοιξε{r.openCount > 1 ? ` (${r.openCount}×)` : ''}
                     </span>

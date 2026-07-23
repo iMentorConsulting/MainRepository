@@ -112,8 +112,9 @@ export async function GET(request: NextRequest) {
   if (emailEngagementParam === 'opened') {
     andClauses.push({ campaignRecipients: { some: { channel: 'EMAIL', openedAt: { not: null } } } })
   } else if (emailEngagementParam === 'not_opened') {
-    // Has at least one sent EMAIL that was not opened and not bounced
-    andClauses.push({ campaignRecipients: { some: { channel: 'EMAIL', status: 'sent', openedAt: null, bouncedAt: null } } })
+    // Sent but no open AND no click (a click implies the email was read even if the
+    // tracking pixel was blocked by the recipient's email client), and not bounced
+    andClauses.push({ campaignRecipients: { some: { channel: 'EMAIL', status: 'sent', openedAt: null, clickedAt: null, bouncedAt: null } } })
   } else if (emailEngagementParam === 'clicked') {
     andClauses.push({ campaignRecipients: { some: { channel: 'EMAIL', clickedAt: { not: null } } } })
   } else if (emailEngagementParam === 'bounced') {
