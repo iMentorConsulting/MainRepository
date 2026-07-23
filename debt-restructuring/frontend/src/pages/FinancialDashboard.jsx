@@ -604,14 +604,44 @@ export default function FinancialDashboard({ currentEmployee }) {
                       <div className="bg-blue-50 rounded p-1.5 border border-blue-200">
                         <span className="text-blue-700 font-semibold">⚙️ Εν Εξελίξει Υποθέσεις:</span> <span className="font-bold text-blue-800">{stats.active_cases_count ?? 0}</span>
                       </div>
-                      {stats.stage_breakdown && (
-                        <div className="bg-white rounded p-1.5 border border-gray-200 space-y-0.5">
-                          <div className="text-gray-500 font-semibold text-xs mb-1">Στάδια Pipeline</div>
-                          {stats.stage_breakdown.νέα_ανάλυση > 0 && <div><span className="text-gray-500">Νέα Ανάλυση:</span> <span className="font-bold">{stats.stage_breakdown.νέα_ανάλυση}</span></div>}
-                          {stats.stage_breakdown.θετική_ανταπόκριση > 0 && <div><span className="text-gray-500">Θετική Ανταπόκριση:</span> <span className="font-bold">{stats.stage_breakdown.θετική_ανταπόκριση}</span></div>}
-                          {stats.stage_breakdown.σε_διαπραγμάτευση > 0 && <div><span className="text-gray-500">Σε Διαπραγμάτευση:</span> <span className="font-bold">{stats.stage_breakdown.σε_διαπραγμάτευση}</span></div>}
-                          <div><span className="text-emerald-600">Έκλεισε:</span> <span className="font-bold text-emerald-700">{stats.stage_breakdown.έκλεισε}</span></div>
-                          <div><span className="text-red-600">Δεν Ενδιαφέρεται:</span> <span className="font-bold text-red-700">{stats.stage_breakdown.δεν_ενδιαφέρεται}</span></div>
+                      {stats.active_pipeline && (
+                        <div className="bg-white rounded p-1.5 border border-indigo-200 space-y-1.5">
+                          <div className="text-indigo-700 font-bold text-xs mb-1">📊 Pipeline Υποθέσεων</div>
+                          {/* Άντληση Στοιχείων (draft) */}
+                          {stats.active_pipeline.draft.count > 0 && (
+                            <div className="text-xs space-y-0.5 border-b border-gray-100 pb-1">
+                              <div className="font-semibold text-gray-700">Άντληση Στοιχείων <span className="text-gray-500 font-normal">({stats.active_pipeline.draft.count})</span></div>
+                              <div className="pl-2 text-gray-500">Αναμ. 1η πληρ. <span className="font-bold text-green-700">({stats.closure_percentage}%): {(stats.active_pipeline.draft.expected_1st || 0).toLocaleString('el-GR')}€</span></div>
+                              <div className="pl-2 text-gray-500">Αναμ. 2η πληρ. <span className="font-bold text-purple-700">({stats.closure_percentage}%×{stats.settlement_acceptance_percentage}%): {(stats.active_pipeline.draft.expected_2nd || 0).toLocaleString('el-GR')}€</span></div>
+                            </div>
+                          )}
+                          {/* Οριστικοποίηση Αίτησης (submitted) */}
+                          {stats.active_pipeline.submitted.count > 0 && (
+                            <div className="text-xs space-y-0.5 border-b border-gray-100 pb-1">
+                              <div className="font-semibold text-gray-700">Οριστικοποίηση Αίτησης <span className="text-gray-500 font-normal">({stats.active_pipeline.submitted.count})</span></div>
+                              <div className="pl-2 text-gray-400 italic text-xs">1η πληρωμή ✓ εισπράχθηκε</div>
+                              <div className="pl-2 text-gray-500">Αναμ. 2η πληρ. <span className="font-bold text-purple-700">({stats.settlement_acceptance_percentage}%): {(stats.active_pipeline.submitted.expected_2nd || 0).toLocaleString('el-GR')}€</span></div>
+                            </div>
+                          )}
+                          {/* Πρόταση Ρύθμισης (in_review) */}
+                          {stats.active_pipeline.in_review.count > 0 && (
+                            <div className="text-xs space-y-0.5">
+                              <div className="font-semibold text-gray-700">Πρόταση Ρύθμισης <span className="text-gray-500 font-normal">({stats.active_pipeline.in_review.count})</span></div>
+                              <div className="pl-2 text-gray-400 italic text-xs">1η πληρωμή ✓ εισπράχθηκε</div>
+                              <div className="pl-2 text-gray-500">Αναμ. 2η πληρ. <span className="font-bold text-purple-700">({stats.settlement_acceptance_percentage}%): {(stats.active_pipeline.in_review.expected_2nd || 0).toLocaleString('el-GR')}€</span></div>
+                            </div>
+                          )}
+                          {/* Total expected */}
+                          {(() => {
+                            const p = stats.active_pipeline
+                            const total1 = p.draft.expected_1st || 0
+                            const total2 = (p.draft.expected_2nd || 0) + (p.submitted.expected_2nd || 0) + (p.in_review.expected_2nd || 0)
+                            return (total1 + total2 > 0) && (
+                              <div className="text-xs font-bold border-t border-indigo-100 pt-1 mt-1">
+                                <span className="text-indigo-700">Σύνολο αναμενόμενο:</span> <span className="text-indigo-800">{(total1 + total2).toLocaleString('el-GR')}€</span>
+                              </div>
+                            )
+                          })()}
                         </div>
                       )}
                       <div><span className="text-emerald-600">Κλεισμένες:</span> <span className="font-bold text-emerald-700">{stats.closure_percentage}% ({stats.closed_count}/{stats.closure_count})</span></div>
