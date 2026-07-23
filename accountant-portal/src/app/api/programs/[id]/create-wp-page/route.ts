@@ -5,8 +5,7 @@ import {
   cloneElementorPage,
   createWpPageFromHtmlTemplate,
   buildProgramReplacements,
-  findWpMenuParentItem,
-  addWpMenuItemForPage,
+  addWpMenuItemAsChild,
 } from '@/lib/wordpress'
 
 function applyTokens(text: string, replacements: Record<string, string>): string {
@@ -109,20 +108,11 @@ export async function POST(
     const parentTitle = (template as any).wpMenuParentTitle as string | null
     if (parentTitle) {
       try {
-        const parent = await findWpMenuParentItem(parentTitle)
-        console.log(`[WP] menu parent lookup for "${parentTitle}":`, parent)
-        if (parent) {
-          await addWpMenuItemForPage({
-            menuId: parent.menuId,
-            parentItemId: parent.itemId,
-            title: program.title,
-            objectId: wpId,
-            url: link,
-          })
-        } else {
-          menuWarning = `Δεν βρέθηκε το στοιχείο μενού "${parentTitle}" — ελέγξτε τον ακριβή τίτλο στο WP admin.`
-          console.warn('[WP] menu parent not found for title:', parentTitle)
-        }
+        await addWpMenuItemAsChild({
+          parentTitle,
+          pageId: wpId,
+          pageTitle: program.title,
+        })
       } catch (menuErr) {
         const msg = menuErr instanceof Error ? menuErr.message : String(menuErr)
         console.error('[WP] menu placement failed:', msg)

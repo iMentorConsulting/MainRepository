@@ -212,51 +212,27 @@ export async function setWpPageStatus(pageId: number, status: 'publish' | 'draft
   })
 }
 
-// Find a nav menu item by its title text using the WP menu-items search endpoint.
-// Returns { menuId, itemId } so a child can be added under it.
-export async function findWpMenuParentItem(
-  parentTitle: string,
-): Promise<{ menuId: number; itemId: number } | null> {
-  // Search across all menu items by title
-  const items = await wpFetch(
-    `/menu-items?search=${encodeURIComponent(parentTitle)}&per_page=50&status=publish`
-  ) as any[]
-  if (!Array.isArray(items) || items.length === 0) return null
-
-  // Find the best match (case-insensitive exact match on rendered title)
-  const match = items.find((item: any) => {
-    const rendered = (item.title?.rendered ?? item.title ?? '').replace(/<[^>]+>/g, '').trim()
-    return rendered.toLowerCase() === parentTitle.toLowerCase()
-  }) ?? items[0]
-
-  if (!match) return null
-
-  // item.menus is either a number (single menu) or array
-  const menuId = Array.isArray(match.menus) ? match.menus[0] : match.menus
-  return { menuId: Number(menuId), itemId: Number(match.id) }
-}
-
-// Add a WP page as a menu item under a given parent item.
-export async function addWpMenuItemForPage(opts: {
-  menuId: number
-  parentItemId: number
-  title: string
-  objectId: number
-  url: string
+// Add a WP page as a child of a named menu item using our custom Logistis REST endpoint.
+// Requires the Code Snippet "logistis/v1/add-menu-item" to be active on the WP site.
+export async function addWpMenuItemAsChild(opts: {
+  parentTitle: string
+  pageId: number
+  pageTitle: string
 }): Promise<void> {
-  await wpFetch('/menu-items', {
+  if (!WP_URL || !WP_USER || !WP_PASS) {
+    throw new Error('WordPress env vars not configured')
+  }
+  const url = `${WP_URL}/wp-json/logistis/v1/add-menu-item`
+  const res = await fetch(url, {
     method: 'POST',
-    body: JSON.stringify({
-      title: opts.title,
-      url: opts.url,
-      status: 'publish',
-      menus: opts.menuId,
-      type: 'post_type',
-      object: 'page',
-      object_id: opts.objectId,
-      parent: opts.parentItemId,
-    }),
+    headers: {
+      Authorization: wpAuth(),
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(opts),
   })
+  const text = await res.text()
+  if (!res.ok) throw new Error(`WP menu API ${res.status}: ${text.slice(0, 400)}`)
 }
 
 // Build replacement map from program fields
