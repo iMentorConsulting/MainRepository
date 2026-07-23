@@ -263,6 +263,10 @@ model Program {
   regionRules        String[]
   zipCodeRules       String[]
   kadRules           String[]
+  // KAD codes explicitly excluded from matching even if they match a kadRules prefix.
+  // e.g. kadRules=["1521"] but excludedKadRules=["15212345"] means all 1521* children
+  // match EXCEPT 15212345.
+  excludedKadRules   String[]
   minRegdate         String?
   maxRegdate         String?
   // Businesses whose legal form (see src/lib/legal-forms.ts) is in this list

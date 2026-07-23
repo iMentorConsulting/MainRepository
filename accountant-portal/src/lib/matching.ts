@@ -26,6 +26,7 @@ interface ProgramCriteria {
   id: string
   title: string
   kadRules: string[]
+  excludedKadRules: string[]
   regionRules: string[]
   zipCodeRules: string[]
   minRegdate: string | null
@@ -73,12 +74,19 @@ export function diagnoseMatch(business: BusinessWithActivities, program: Program
   if (program.kadRules.length > 0) {
     const matchedKad = business.activities.find(activity => {
       const activityCode = normalizeKad(activity.firmActCode)
-      return program.kadRules.some(rule => {
+      const matchesRule = program.kadRules.some(rule => {
         const cleanRule = normalizeKad(rule.trim())
         return cleanRule.includes('.') ? activityCode === cleanRule : activityCode.startsWith(cleanRule)
       })
+      if (!matchesRule) return false
+      const isExcluded = program.excludedKadRules.some(rule => {
+        const cleanRule = normalizeKad(rule.trim())
+        return cleanRule.includes('.') ? activityCode === cleanRule : activityCode.startsWith(cleanRule)
+      })
+      return !isExcluded
     })
-    out.push({ pass: !!matchedKad, criterion: 'kadRules', detail: matchedKad ? `Ταιριάζει ΚΑΔ ${matchedKad.firmActCode}` : `Κανένα από τα ΚΑΔ της επιχείρησης (${business.activities.map(a => a.firmActCode).join(', ') || '—'}) δεν ταιριάζει με τους κανόνες ΚΑΔ του προγράμματος` })
+    const excludedDetail = program.excludedKadRules.length > 0 ? ` (εξαιρούνται: ${program.excludedKadRules.join(', ')})` : ''
+    out.push({ pass: !!matchedKad, criterion: 'kadRules', detail: matchedKad ? `Ταιριάζει ΚΑΔ ${matchedKad.firmActCode}` : `Κανένα από τα ΚΑΔ της επιχείρησης (${business.activities.map(a => a.firmActCode).join(', ') || '—'}) δεν ταιριάζει με τους κανόνες ΚΑΔ του προγράμματος${excludedDetail}` })
   }
   if (program.regionRules.length > 0) {
     const businessRegion = resolveRegionFromZip(business.postalZipCode)
@@ -133,13 +141,16 @@ function matchesBusiness(
   if (program.kadRules.length > 0) {
     const matchedKad = business.activities.find(activity => {
       const activityCode = normalizeKad(activity.firmActCode)
-      return program.kadRules.some(rule => {
+      const matchesRule = program.kadRules.some(rule => {
         const cleanRule = normalizeKad(rule.trim())
-        if (cleanRule.includes('.')) {
-          return activityCode === cleanRule
-        }
-        return activityCode.startsWith(cleanRule)
+        return cleanRule.includes('.') ? activityCode === cleanRule : activityCode.startsWith(cleanRule)
       })
+      if (!matchesRule) return false
+      const isExcluded = program.excludedKadRules.some(rule => {
+        const cleanRule = normalizeKad(rule.trim())
+        return cleanRule.includes('.') ? activityCode === cleanRule : activityCode.startsWith(cleanRule)
+      })
+      return !isExcluded
     })
     if (matchedKad) {
       reasons.push(`ΚΑΔ: ${matchedKad.firmActCode} - ${matchedKad.firmActDescr || ''}`)

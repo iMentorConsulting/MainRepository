@@ -25,6 +25,7 @@ interface ProgramCriteria {
   id: string
   title: string
   kadRules: string[]
+  excludedKadRules: string[]
   regionRules: string[]
   zipCodeRules: string[]
   minRegdate: string | null
@@ -69,13 +70,16 @@ function matchesBusiness(
   if (program.kadRules.length > 0) {
     const matchedKad = business.activities.find(activity => {
       const activityCode = normalizeKad(activity.firmActCode)
-      return program.kadRules.some(rule => {
+      const matchesRule = program.kadRules.some(rule => {
         const cleanRule = normalizeKad(rule.trim())
-        if (cleanRule.includes('.')) {
-          return activityCode === cleanRule
-        }
-        return activityCode.startsWith(cleanRule)
+        return cleanRule.includes('.') ? activityCode === cleanRule : activityCode.startsWith(cleanRule)
       })
+      if (!matchesRule) return false
+      const isExcluded = program.excludedKadRules.some(rule => {
+        const cleanRule = normalizeKad(rule.trim())
+        return cleanRule.includes('.') ? activityCode === cleanRule : activityCode.startsWith(cleanRule)
+      })
+      return !isExcluded
     })
     if (matchedKad) {
       reasons.push(`ΚΑΔ: ${matchedKad.firmActCode} - ${matchedKad.firmActDescr || ''}`)

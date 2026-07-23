@@ -12,7 +12,7 @@ import { RegionMultiSelect } from '@/components/programs/region-multi-select'
 import { HeroImageUpload } from '@/components/programs/hero-image-upload'
 import { VideoUrlsInput } from '@/components/programs/video-urls-input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { ArrowLeft, Plus, X, FileUp, Globe, ExternalLink } from 'lucide-react'
+import { ArrowLeft, Plus, X, FileUp, Globe, ExternalLink, Paperclip, Link2 } from 'lucide-react'
 import Link from 'next/link'
 import { LEGAL_FORMS } from '@/lib/legal-forms'
 
@@ -180,6 +180,96 @@ function TagInput({ label, values, onChange, placeholder, bulkImport, pdfImport 
   )
 }
 
+function AddLinkOrPdf({ onAddLink, onAddPdf }: {
+  onAddLink: (title: string, url: string) => void
+  onAddPdf: (title: string, dataUrl: string) => void
+}) {
+  const [mode, setMode] = useState<'link' | 'pdf'>('link')
+  const [title, setTitle] = useState('')
+  const [url, setUrl] = useState('')
+  const [uploading, setUploading] = useState(false)
+  const fileRef = useRef<HTMLInputElement>(null)
+
+  function addLink() {
+    const t = title.trim()
+    const u = url.trim()
+    if (!t || !u) return
+    onAddLink(t, u)
+    setTitle('')
+    setUrl('')
+  }
+
+  async function handlePdf(file: File | null) {
+    if (!file) return
+    if (!file.type.includes('pdf')) { alert('Παρακαλώ επιλέξτε αρχείο PDF.'); return }
+    if (file.size > 20 * 1024 * 1024) { alert('Μέγιστο μέγεθος PDF: 20 MB.'); return }
+    const t = title.trim() || file.name.replace(/\.pdf$/i, '')
+    setUploading(true)
+    const reader = new FileReader()
+    reader.onload = e => {
+      onAddPdf(t, e.target?.result as string)
+      setTitle('')
+      setUploading(false)
+      if (fileRef.current) fileRef.current.value = ''
+    }
+    reader.onerror = () => { alert('Σφάλμα ανάγνωσης αρχείου.'); setUploading(false) }
+    reader.readAsDataURL(file)
+  }
+
+  return (
+    <div className="space-y-3 border border-gray-200 rounded-lg p-3 bg-gray-50">
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={() => setMode('link')}
+          className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${mode === 'link' ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 border border-gray-300 hover:bg-gray-100'}`}
+        >
+          <Link2 size={13} className="inline mr-1.5" />Σύνδεσμος
+        </button>
+        <button
+          type="button"
+          onClick={() => setMode('pdf')}
+          className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${mode === 'pdf' ? 'bg-red-600 text-white' : 'bg-white text-gray-600 border border-gray-300 hover:bg-gray-100'}`}
+        >
+          <Paperclip size={13} className="inline mr-1.5" />Αρχείο PDF
+        </button>
+      </div>
+
+      <div className="space-y-2">
+        <input
+          value={title}
+          onChange={e => setTitle(e.target.value)}
+          placeholder={mode === 'pdf' ? 'Τίτλος αρχείου (π.χ. Πρόσκληση ΕΣΠΑ 2024)' : 'Τίτλος συνδέσμου (π.χ. Επίσημη σελίδα προγράμματος)'}
+          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+        />
+        {mode === 'link' ? (
+          <div className="flex gap-2">
+            <input
+              value={url}
+              onChange={e => setUrl(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addLink())}
+              placeholder="https://..."
+              type="url"
+              className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+            />
+            <Button type="button" size="sm" onClick={addLink} disabled={!title.trim() || !url.trim()}>
+              <Plus size={14} className="mr-1" />Προσθήκη
+            </Button>
+          </div>
+        ) : (
+          <div className="flex gap-2 items-center">
+            <input ref={fileRef} type="file" accept="application/pdf" className="hidden" onChange={e => handlePdf(e.target.files?.[0] || null)} />
+            <Button type="button" size="sm" variant="outline" loading={uploading} onClick={() => fileRef.current?.click()}>
+              <FileUp size={14} className="mr-1" />Επιλογή PDF
+            </Button>
+            <span className="text-xs text-gray-400">Μέγιστο 20 MB</span>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function toDateInputValue(value: any): string {
   if (!value) return ''
   const d = new Date(value)
@@ -192,11 +282,14 @@ export default function EditProgramPage() {
   const router = useRouter()
   const [loading, setLoading] = useState(true)
   const [kadRules, setKadRules] = useState<string[]>([])
+  const [excludedKadRules, setExcludedKadRules] = useState<string[]>([])
   const [excludedLegalForms, setExcludedLegalForms] = useState<string[]>([])
   const [regionRules, setRegionRules] = useState<string[]>([])
   const [zipCodeRules, setZipCodeRules] = useState<string[]>([])
   const [heroImage, setHeroImage] = useState('')
   const [videoUrls, setVideoUrls] = useState<string[]>([])
+  const [attachmentUrls, setAttachmentUrls] = useState<string[]>([])
+  const [attachmentNames, setAttachmentNames] = useState<string[]>([])
   const [extraCriteriaIds, setExtraCriteriaIds] = useState<string[]>([])
   const [criteriaOptions, setCriteriaOptions] = useState<{ id: string; label: string; active: boolean }[]>([])
   const [excludeTags, setExcludeTags] = useState<string[]>([])
@@ -235,6 +328,7 @@ export default function EditProgramPage() {
       .then(r => r.json())
       .then(program => {
         setKadRules(program.kadRules || [])
+        setExcludedKadRules(program.excludedKadRules || [])
         setExcludedLegalForms(program.excludedLegalForms || [])
         setRegionRules(program.regionRules || [])
         setZipCodeRules(program.zipCodeRules || [])
@@ -243,6 +337,8 @@ export default function EditProgramPage() {
         setRequireTags(program.requireTags || [])
         setHeroImage(program.heroImageUrl || '')
         setVideoUrls(program.videoUrls || [])
+        setAttachmentUrls(program.attachmentUrls || [])
+        setAttachmentNames(program.attachmentNames || [])
         setWpPageId(program.wpPageId ?? null)
         setWpPageUrl(program.wpPageUrl ?? null)
         reset({
@@ -276,7 +372,7 @@ export default function EditProgramPage() {
     const res = await fetch(`/api/programs/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...data, heroImageUrl: heroImage || data.heroImageUrl, kadRules, regionRules, zipCodeRules, excludedLegalForms, extraCriteriaIds, excludeTags, requireTags, videoUrls }),
+      body: JSON.stringify({ ...data, heroImageUrl: heroImage || data.heroImageUrl, kadRules, excludedKadRules, regionRules, zipCodeRules, excludedLegalForms, extraCriteriaIds, excludeTags, requireTags, videoUrls, attachmentUrls, attachmentNames }),
     })
     if (res.ok) {
       router.push(`/programs/${id}`)
@@ -390,6 +486,18 @@ export default function EditProgramPage() {
               bulkImport
               pdfImport
             />
+            <TagInput
+              label="Εξαιρούμενοι ΚΑΔ (exceptions)"
+              values={excludedKadRules}
+              onChange={setExcludedKadRules}
+              placeholder="π.χ. 15212345"
+              bulkImport
+            />
+            {excludedKadRules.length > 0 && (
+              <p className="text-xs text-amber-600 bg-amber-50 rounded-md px-3 py-1.5">
+                Οι παραπάνω ΚΑΔ αποκλείονται από το matching ακόμα κι αν ταιριάζουν με τους κανόνες ΚΑΔ παραπάνω.
+              </p>
+            )}
             <RegionMultiSelect
               label="Κανόνες Περιοχής (Περιφέρειες)"
               values={regionRules}
@@ -552,6 +660,68 @@ export default function EditProgramPage() {
               </p>
               <Textarea {...register('ermisInstructions')} rows={3} placeholder="π.χ. Δώσε έμφαση στην ταχύτητα έγκρισης. Μην αναφέρεις το πρόγραμμα Χ ως εναλλακτική." />
             </div>
+          </CardContent>
+        </Card>
+
+        {/* Attachments & Links */}
+        <Card>
+          <CardHeader><CardTitle className="flex items-center gap-2"><Paperclip size={17} />Αρχεία PDF & Σύνδεσμοι</CardTitle></CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-gray-500">
+              Προσθέστε αρχεία PDF (ανέβασμα) ή εξωτερικούς συνδέσμους με τίτλο. Εμφανίζονται στη σελίδα του προγράμματος.
+            </p>
+
+            {/* Existing list */}
+            {attachmentUrls.length > 0 && (
+              <ul className="space-y-2">
+                {attachmentUrls.map((url, i) => (
+                  <li key={i} className="flex items-center gap-2 p-2 rounded-lg border border-gray-200 bg-gray-50">
+                    {url.startsWith('data:') ? (
+                      <Paperclip size={14} className="text-red-500 flex-shrink-0" />
+                    ) : (
+                      <Link2 size={14} className="text-blue-500 flex-shrink-0" />
+                    )}
+                    <span className="flex-1 min-w-0 text-sm text-gray-700 truncate">
+                      {attachmentNames[i] || url}
+                    </span>
+                    {!url.startsWith('data:') && (
+                      <a href={url} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:text-blue-700 flex-shrink-0">
+                        <ExternalLink size={13} />
+                      </a>
+                    )}
+                    {url.startsWith('data:') && (
+                      <a href={url} download={attachmentNames[i] || 'document.pdf'} className="text-gray-500 hover:text-gray-700 flex-shrink-0 text-xs">
+                        Λήψη
+                      </a>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const newUrls = attachmentUrls.filter((_, j) => j !== i)
+                        const newNames = attachmentNames.filter((_, j) => j !== i)
+                        setAttachmentUrls(newUrls)
+                        setAttachmentNames(newNames)
+                      }}
+                      className="text-red-400 hover:text-red-600 flex-shrink-0"
+                    >
+                      <X size={14} />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            {/* Add link */}
+            <AddLinkOrPdf
+              onAddLink={(title, url) => {
+                setAttachmentNames([...attachmentNames, title])
+                setAttachmentUrls([...attachmentUrls, url])
+              }}
+              onAddPdf={(title, dataUrl) => {
+                setAttachmentNames([...attachmentNames, title])
+                setAttachmentUrls([...attachmentUrls, dataUrl])
+              }}
+            />
           </CardContent>
         </Card>
 
