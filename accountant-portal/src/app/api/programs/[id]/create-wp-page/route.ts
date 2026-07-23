@@ -35,7 +35,19 @@ export async function POST(
 
   const [program, template] = await Promise.all([
     prisma.program.findUnique({ where: { id } }),
-    prisma.wordpressTemplate.findUnique({ where: { id: templateId } }),
+    prisma.wordpressTemplate.findUnique({
+      where: { id: templateId },
+      select: {
+        id: true,
+        name: true,
+        wpPageId: true,
+        htmlTemplate: true,
+        seoTitlePattern: true,
+        metaDescPattern: true,
+        placeholders: true,
+        wpMenuParentTitle: true,
+      },
+    }),
   ])
 
   if (!program) return NextResponse.json({ error: 'Program not found' }, { status: 404 })
@@ -105,7 +117,8 @@ export async function POST(
 
     // Add to WP nav menu if template specifies a parent menu item
     let menuWarning: string | undefined
-    const parentTitle = (template as any).wpMenuParentTitle as string | null
+    const parentTitle = template.wpMenuParentTitle ?? null
+    console.log(`[WP] wpMenuParentTitle="${parentTitle}" templateId=${templateId}`)
     if (parentTitle) {
       try {
         await addWpMenuItemAsChild({
