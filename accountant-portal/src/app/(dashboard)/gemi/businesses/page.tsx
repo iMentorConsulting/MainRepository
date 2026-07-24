@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableHead, TableBody, TableRow, Th, Td } from '@/components/ui/table'
 import { Pagination } from '@/components/ui/pagination'
-import { Search, Upload, X, RefreshCw, Link2, Trash2, Send, Zap } from 'lucide-react'
+import { Search, Upload, X, RefreshCw, Link2, Trash2, Send, Zap, CheckSquare } from 'lucide-react'
 
 interface GemiTemplate {
   id: string
@@ -248,6 +248,7 @@ function GemiBusinessesPageInner() {
   const [toast, setToast] = useState<string | null>(null)
   const [enriching, setEnriching] = useState(false)
   const [matching, setMatching] = useState(false)
+  const [rematchingSelected, setRematchingSelected] = useState(false)
   const [backfilling, setBackfilling] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [deleting, setDeleting] = useState(false)
@@ -394,6 +395,29 @@ function GemiBusinessesPageInner() {
       setToast(`Σφάλμα δικτύου — ${totalProcessed} επιχειρήσεις ταιριάστηκαν μέχρι τώρα. Πατήστε ξανά για συνέχεια.`)
     } finally {
       setMatching(false)
+    }
+  }
+
+  async function handleRematchSelected() {
+    if (selected.size === 0) return
+    setRematchingSelected(true)
+    try {
+      const res = await fetch('/api/gemi/match', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: Array.from(selected) }),
+      })
+      const data = await res.json()
+      if (res.ok) {
+        setToast(`Ταίριασμα ${data.processed} επιχειρήσεων: ${data.totalMatches} ταιριάσματα`)
+        fetchData()
+      } else {
+        setToast(data.error || 'Σφάλμα ταιριάσματος')
+      }
+    } catch {
+      setToast('Σφάλμα δικτύου')
+    } finally {
+      setRematchingSelected(false)
     }
   }
 
@@ -551,9 +575,14 @@ function GemiBusinessesPageInner() {
             <RefreshCw size={14} className="mr-1.5" />Επανα-ταίριασμα Όλων
           </Button>
           {selected.size > 0 && (
-            <Button size="sm" onClick={handleBulkDelete} loading={deleting} className="bg-red-600 hover:bg-red-700 text-white">
-              <Trash2 size={14} className="mr-1.5" />Διαγραφή ({selected.size})
-            </Button>
+            <>
+              <Button size="sm" onClick={handleRematchSelected} loading={rematchingSelected} className="bg-indigo-600 hover:bg-indigo-700 text-white">
+                <Zap size={14} className="mr-1.5" />Ταίριασμα Επιλεγμένων ({selected.size})
+              </Button>
+              <Button size="sm" onClick={handleBulkDelete} loading={deleting} className="bg-red-600 hover:bg-red-700 text-white">
+                <Trash2 size={14} className="mr-1.5" />Διαγραφή ({selected.size})
+              </Button>
+            </>
           )}
           {importBatch && (
             <Button size="sm" onClick={handleDeleteBatch} loading={deleting} className="bg-red-700 hover:bg-red-800 text-white">

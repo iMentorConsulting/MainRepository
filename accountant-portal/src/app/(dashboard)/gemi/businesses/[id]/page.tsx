@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { CategoryBadge } from '@/components/businesses/category-badge'
-import { ArrowLeft, Building2, Mail, Phone, MapPin, Briefcase, Target, Send, Link2, Pencil, Printer, ClipboardList, Scale } from 'lucide-react'
+import { ArrowLeft, Building2, Mail, Phone, MapPin, Briefcase, Target, Send, Link2, Pencil, Printer, ClipboardList, Scale, Plus, Trash2, Zap } from 'lucide-react'
 import { getEffectiveCategory } from '@/lib/business-categories'
 import { resolveRegionFromZip } from '@/lib/greek-regions'
 
@@ -40,8 +40,12 @@ export default function GemiBusinessDetailPage() {
   const [claimMsg, setClaimMsg] = useState('')
   const [editing, setEditing] = useState(false)
   const [editForm, setEditForm] = useState<Record<string, string>>({})
+  const [editActivities, setEditActivities] = useState<{ firmActCode: string; firmActDescr: string; firmActKind: number }[]>([])
+  const [newKadCode, setNewKadCode] = useState('')
+  const [newKadDescr, setNewKadDescr] = useState('')
   const [saving, setSaving] = useState(false)
   const [editMsg, setEditMsg] = useState('')
+  const [rematching, setRematching] = useState(false)
 
   const isAdmin = ['ADMIN', 'CONSULTANT'].includes((session?.user as any)?.role ?? '')
 
@@ -64,6 +68,14 @@ export default function GemiBusinessDetailPage() {
       postalZipCode: business.postalZipCode || '',
       postalAreaDescription: business.postalAreaDescription || '',
     })
+    const acts = Array.isArray(business.activities) ? business.activities : []
+    setEditActivities(acts.map((a: any) => ({
+      firmActCode: a.firmActCode ?? '',
+      firmActDescr: a.firmActDescr ?? '',
+      firmActKind: a.firmActKind ?? 2,
+    })))
+    setNewKadCode('')
+    setNewKadDescr('')
     setEditMsg('')
     setEditing(true)
   }
@@ -74,18 +86,61 @@ export default function GemiBusinessDetailPage() {
     const res = await fetch(`/api/gemi/businesses/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(editForm),
+      body: JSON.stringify({ ...editForm, activities: editActivities }),
     })
     if (res.ok) {
       const updated = await fetch(`/api/gemi/businesses/${id}`).then(r => r.json())
       setBusiness(updated)
       setEditing(false)
-      setEditMsg('Αποθηκεύτηκε.')
     } else {
       const err = await res.json().catch(() => ({}))
       setEditMsg(`Σφάλμα: ${err.error || 'Αδυναμία αποθήκευσης'}`)
     }
     setSaving(false)
+  }
+
+  async function handleRematch() {
+    setRematching(true)
+    const res = await fetch('/api/gemi/match', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids: [id] }),
+    })
+    const data = await res.json()
+    if (res.ok) {
+      const updated = await fetch(`/api/gemi/businesses/${id}`).then(r => r.json())
+      setBusiness(updated)
+    } else {
+      alert(data.error || 'Σφάλμα ταιριάσματος')
+    }
+    setRematching(false)
+  }
+
+  function addKad() {
+    if (!newKadCode.trim()) return
+    const isFirst = editActivities.length === 0
+    setEditActivities(prev => [...prev, {
+      firmActCode: newKadCode.trim(),
+      firmActDescr: newKadDescr.trim(),
+      firmActKind: isFirst ? 1 : 2,
+    }])
+    setNewKadCode('')
+    setNewKadDescr('')
+  }
+
+  function removeKad(idx: number) {
+    setEditActivities(prev => {
+      const next = prev.filter((_, i) => i !== idx)
+      // Ensure first remaining entry is primary
+      if (next.length > 0 && next[0].firmActKind !== 1) {
+        next[0] = { ...next[0], firmActKind: 1 }
+      }
+      return next
+    })
+  }
+
+  function setKadPrimary(idx: number) {
+    setEditActivities(prev => prev.map((a, i) => ({ ...a, firmActKind: i === idx ? 1 : 2 })))
   }
 
   // Ensures a real Business record exists (claims if needed) and returns its id.
@@ -183,6 +238,9 @@ export default function GemiBusinessDetailPage() {
           <Button variant="outline" onClick={handleAssignExodikastikos} loading={claiming}>
             <Scale size={14} className="mr-1" />Ανάθεση Εξωδικαστικού
           </Button>
+          <Button variant="outline" onClick={handleRematch} loading={rematching} className="border-indigo-300 text-indigo-700 hover:bg-indigo-50">
+            <Zap size={14} className="mr-1" />Ταίριασμα
+          </Button>
           <Button variant="outline" onClick={startEdit}>
             <Pencil size={14} className="mr-1" />Επεξεργασία
           </Button>
@@ -234,6 +292,59 @@ export default function GemiBusinessDetailPage() {
               <Input value={editForm.postalAreaDescription} onChange={e => setEditForm(f => ({ ...f, postalAreaDescription: e.target.value }))} />
             </div>
           </div>
+          {/* KAD editor */}
+          <div>
+            <label className="text-xs text-gray-500 mb-2 block font-medium">ΚΑΔ Δραστηριότητες</label>
+            <div className="space-y-1.5 mb-3">
+              {editActivities.length === 0 && (
+                <p className="text-xs text-gray-400 italic">Δεν υπάρχουν ΚΑΔ. Προσθέστε παρακάτω.</p>
+              )}
+              {editActivities.map((act, idx) => (
+                <div key={idx} className="flex items-center gap-2 bg-gray-50 rounded-lg px-3 py-2">
+                  <span className="font-mono text-xs bg-white border border-gray-200 px-2 py-0.5 rounded w-28 shrink-0">{act.firmActCode}</span>
+                  <span className="text-xs text-gray-700 flex-1 truncate">{act.firmActDescr || '—'}</span>
+                  <button
+                    type="button"
+                    onClick={() => setKadPrimary(idx)}
+                    className={`text-xs px-2 py-0.5 rounded-full font-medium shrink-0 ${act.firmActKind === 1 ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-500 hover:bg-amber-50 hover:text-amber-600'}`}
+                    title="Ορισμός ως κύρια δραστηριότητα"
+                  >
+                    {act.firmActKind === 1 ? 'κύρια' : 'δευτ.'}
+                  </button>
+                  <button type="button" onClick={() => removeKad(idx)} className="text-gray-400 hover:text-red-500 shrink-0">
+                    <Trash2 size={13} />
+                  </button>
+                </div>
+              ))}
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                value={newKadCode}
+                onChange={e => setNewKadCode(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && addKad()}
+                placeholder="Κωδικός ΚΑΔ"
+                className="border border-gray-300 rounded-lg px-2.5 py-1.5 text-xs font-mono w-32 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              />
+              <input
+                type="text"
+                value={newKadDescr}
+                onChange={e => setNewKadDescr(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && addKad()}
+                placeholder="Περιγραφή (προαιρετικό)"
+                className="border border-gray-300 rounded-lg px-2.5 py-1.5 text-xs flex-1 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              />
+              <button
+                type="button"
+                onClick={addKad}
+                disabled={!newKadCode.trim()}
+                className="flex items-center gap-1 text-xs px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-40 shrink-0"
+              >
+                <Plus size={12} />Προσθήκη
+              </button>
+            </div>
+          </div>
+
           {editMsg && <p className="text-sm text-red-600">{editMsg}</p>}
           <div className="flex gap-2">
             <Button onClick={handleSaveEdit} loading={saving}>Αποθήκευση</Button>

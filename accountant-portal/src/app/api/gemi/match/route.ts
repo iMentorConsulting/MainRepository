@@ -18,14 +18,36 @@ export async function POST(request: NextRequest) {
 
   let limit = 200
   let reset = false
+  let ids: string[] | null = null
   try {
     const body = await request.json()
     if (typeof body?.limit === 'number') {
       limit = Math.min(Math.max(1, body.limit), 1000)
     }
     reset = body?.reset === true
+    if (Array.isArray(body?.ids) && body.ids.length > 0) {
+      ids = body.ids as string[]
+    }
   } catch {
     // no body or invalid JSON — use default
+  }
+
+  // Targeted re-match for specific IDs (e.g. after editing a single business)
+  if (ids) {
+    await prisma.gemiLookup.updateMany({
+      where: { id: { in: ids } },
+      data: { matchingDone: false },
+    })
+    const records = await prisma.gemiLookup.findMany({
+      where: { id: { in: ids }, matchingDone: false },
+      select: { id: true },
+    })
+    let totalMatches = 0
+    for (const record of records) {
+      const count = await runMatchingForGemi(record.id)
+      totalMatches += count
+    }
+    return NextResponse.json({ processed: records.length, totalMatches, remaining: 0 })
   }
 
   // Force re-matching: flag every enriched business as not-yet-matched so the

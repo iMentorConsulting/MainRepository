@@ -59,6 +59,11 @@ export async function PATCH(
   for (const key of ALLOWED) {
     if (key in body) data[key] = body[key]
   }
+  if ('activities' in body && Array.isArray(body.activities)) {
+    data.activities = body.activities
+    // When KAD changes, reset matchingDone so the business gets re-matched
+    data.matchingDone = false
+  }
 
   if (Object.keys(data).length === 0) {
     return NextResponse.json({ error: 'No editable fields provided' }, { status: 400 })
