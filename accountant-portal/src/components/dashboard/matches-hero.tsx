@@ -40,7 +40,7 @@ function OpportunityCard({ opp }: { opp: ProgramOpportunity }) {
       <div className="flex items-start justify-between gap-2">
         <Link href={`/programs/${opp.programId}`} className="group flex-1 min-w-0">
           <h3 className="text-sm font-bold text-slate-900 leading-snug group-hover:text-indigo-700 flex items-center gap-1">
-            <span className="truncate">{opp.programTitle}</span>
+            <span>{opp.programTitle}</span>
             <ExternalLink size={11} className="flex-shrink-0 text-slate-300 group-hover:text-indigo-500" />
           </h3>
         </Link>
