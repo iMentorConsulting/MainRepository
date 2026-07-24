@@ -99,11 +99,16 @@ def _is_logistis_lead(l) -> bool:
     return (l.source or "").upper().startswith("LOGISTIS") or bool(l.ermis_transcript) or bool(l.ermis_token)
 
 
+_GEMI_STATUS_RANK = {"HOT": 5, "ACTIVE": 4, "DEAL": 3, "CALL": 2, "NEW LEAD": 1, "CANCEL": 0}
+
+
 def find_gemi_lead(db: Session, afm, program_title=None, program_category=None, token=None):
     """Resolve a ΓΕΜΗ/LOGISTIS lead so the case + conversation converge on ONE lead.
     Key = token → (ΑΦΜ + exact program title) → (ΑΦΜ + program category). ΑΦΜ alone is
     NOT the key (a client can have one lead per program). Only ever reuses a
-    LOGISTIS/ΕΡΜΗΣ lead — never merges with a normal sheet/manual lead."""
+    LOGISTIS/ΕΡΜΗΣ lead — never merges with a normal sheet/manual lead.
+    When multiple candidates match, the highest-status one wins (HOT > ACTIVE > … > CANCEL)
+    so the transcript always lands on the live lead, not on an old CANCEL duplicate."""
     if token:
         l = db.query(CMLead).filter(CMLead.ermis_token == token).first()
         if l:
@@ -114,18 +119,20 @@ def find_gemi_lead(db: Session, afm, program_title=None, program_category=None, 
     cands = db.query(CMLead).filter(CMLead.afm == afm).order_by(CMLead.id.asc()).all()
     if not cands:
         return None
-    # 1) exact program title
+    # 1) exact program title — prefer logistis leads; among them, highest status wins
     if program_title:
         pt = program_title.strip().lower()
         matches = [l for l in cands if (l.program_title or "").strip().lower() == pt]
         if matches:
-            return next((l for l in matches if _is_logistis_lead(l)), matches[0])
+            logistis = [l for l in matches if _is_logistis_lead(l)]
+            pool = logistis if logistis else matches
+            return max(pool, key=lambda l: _GEMI_STATUS_RANK.get(l.status or "", 0))
     # 2) same program category, restricted to LOGISTIS/ΕΡΜΗΣ leads (robust to title
-    #    string differences between case.created and ermis.completed)
+    #    string differences between case.created and ermis.completed); highest status wins
     if program_category:
         matches = [l for l in cands if _is_logistis_lead(l) and (l.program or "") == program_category]
         if matches:
-            return matches[0]
+            return max(matches, key=lambda l: _GEMI_STATUS_RANK.get(l.status or "", 0))
     return None
 
 
