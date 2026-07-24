@@ -446,6 +446,37 @@ def ermis_webhook(
         # Nudge a completed-eligible lead up the pipeline if still fresh
         if lead.ermis_status == "eligible" and lead.status in ("NEW LEAD", "CALL"):
             lead.status = "HOT"
+
+        # Rescue: if the transcript landed on a CANCEL/low-status lead but there is a
+        # higher-ranked lead for the same AFM+program, copy it there too — handles the
+        # race where accept_assignment creates a HOT lead AFTER ermis.completed fires
+        # (or find_gemi_lead returned an old CANCEL dup before we fixed the ranking).
+        if lead.status in ("CANCEL", "NEW LEAD", "CALL") and lead.ermis_transcript and afm:
+            _prog_cat = (lead.program or "").strip()
+            from routes.cm_leads import _GEMI_STATUS_RANK, _is_logistis_lead
+            rival_cands = db.query(CMLead).filter(
+                CMLead.afm == afm, CMLead.id != lead.id,
+            ).all()
+            better = [
+                l for l in rival_cands
+                if _is_logistis_lead(l)
+                and (l.program or "") == _prog_cat
+                and _GEMI_STATUS_RANK.get(l.status or "", 0) > _GEMI_STATUS_RANK.get(lead.status or "", 0)
+                and not l.ermis_transcript
+            ]
+            if better:
+                # Pick the highest-status rival (in a tie, newest wins)
+                target = max(better, key=lambda l: (_GEMI_STATUS_RANK.get(l.status or "", 0), l.id))
+                target.ermis_transcript = lead.ermis_transcript
+                target.ermis_status = lead.ermis_status
+                target.ermis_completed_at = lead.ermis_completed_at
+                if payload.token and not target.ermis_token:
+                    target.ermis_token = payload.token
+                log.info(
+                    "ΕΡΜΗΣ rescue: transcript from lead %s (status=%s) → lead %s (status=%s)",
+                    lead.id, lead.status, target.id, target.status,
+                )
+
     elif payload.event in ("ermis.progress", "ermis.business_ready"):
         if not lead.ermis_status:
             lead.ermis_status = "in_progress"
