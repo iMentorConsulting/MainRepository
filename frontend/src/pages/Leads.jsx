@@ -268,9 +268,17 @@ function ExpandedRow({ lead, colSpan, onChanged, onConvert, onErmis, onSend }) {
           <span className="text-sm text-gray-500">Πρόγραμμα: <b className="text-gray-700">{full?.program || '—'}</b></span>
           <span className="text-sm text-gray-500">Referrer: <b className="text-gray-700">{full?.source || '—'}</b></span>
           {full?.portal_case_link && <a href={full.portal_case_link} target="_blank" rel="noreferrer" className="text-sm font-semibold text-blue-600 hover:underline">↗ Υπόθεση LOGISTIS #{full.portal_case_number}</a>}
-          <button onClick={() => onErmis(lead)} className="flex items-center gap-1 text-sm bg-indigo-100 text-indigo-700 hover:bg-indigo-200 px-3 py-1.5 rounded-lg">
-            <SparklesIcon className="w-4 h-4" />{full?.ermis_status ? 'Προβολή ΕΡΜΗΣ' : 'Έναρξη ΕΡΜΗΣ'}
-          </button>
+          {/* ΕΡΜΗΣ action: only show when not yet started or on error; never allow re-start when done */}
+          {(!full?.ermis_status || full?.ermis_status === 'error') && (
+            <button onClick={() => onErmis(lead)} className="flex items-center gap-1 text-sm bg-indigo-100 text-indigo-700 hover:bg-indigo-200 px-3 py-1.5 rounded-lg">
+              <SparklesIcon className="w-4 h-4" />Έναρξη ΕΡΜΗΣ
+            </button>
+          )}
+          {(full?.ermis_status === 'starting' || full?.ermis_status === 'in_progress') && (
+            <span className="flex items-center gap-1 text-sm bg-indigo-50 text-indigo-400 px-3 py-1.5 rounded-lg cursor-default">
+              <SparklesIcon className="w-4 h-4 animate-spin" />ΕΡΜΗΣ σε εξέλιξη…
+            </span>
+          )}
           <span className="flex items-center gap-1 text-sm bg-blue-600 text-white px-3 py-1.5 rounded-lg">
             <ChatBubbleLeftRightIcon className="w-4 h-4" />Σχόλια ({comments.length})
           </span>
@@ -455,7 +463,7 @@ export default function Leads() {
   const setFilter = (patchObj) => { setPage(1); setFilters(f => ({ ...f, ...patchObj })) }
 
   const handleErmis = async (lead) => {
-    if (lead.ermis_chat_url) { window.open(lead.ermis_chat_url, '_blank'); return }
+    if (['eligible', 'ineligible', 'in_progress', 'starting'].includes(lead.ermis_status)) return
     if (!confirm(`Έναρξη προαξιολόγησης ΕΡΜΗΣ και αποστολή link στον ${lead.name || 'lead'};`)) return
     const tid = toast.loading('Έναρξη ΕΡΜΗΣ…')
     try {
