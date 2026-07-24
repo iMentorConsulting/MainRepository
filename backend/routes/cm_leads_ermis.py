@@ -359,6 +359,23 @@ class ErmisWebhookIn(BaseModel):
     completedAt: Optional[str] = None
 
 
+# ── In-memory ring buffer for ΕΡΜΗΣ webhook hits (diagnostic; lost on restart) ──
+_recent_ermis_hits: list = []
+
+
+def _record_ermis_hit(**kw) -> None:
+    from datetime import datetime as _dt
+    kw["at"] = _dt.utcnow().isoformat() + "Z"
+    _recent_ermis_hits.insert(0, kw)
+    del _recent_ermis_hits[100:]
+
+
+@router.get("/ermis/webhook-log")
+def ermis_webhook_log(current_user: CMUser = Depends(get_current_user)):
+    """Last 100 inbound ermis webhook hits — event, token, afm, leadRef, resolved lead_id, outcome."""
+    return {"hits": _recent_ermis_hits}
+
+
 @router.post("/ermis/webhook")
 def ermis_webhook(
     payload: ErmisWebhookIn,
@@ -482,4 +499,76 @@ def ermis_webhook(
             lead.ermis_status = "in_progress"
 
     db.commit()
+    _record_ermis_hit(
+        event=payload.event,
+        token=payload.token,
+        afm=afm,
+        leadRef=payload.leadRef,
+        program=payload.program,
+        eligibility=payload.eligibility,
+        resolved_lead_id=lead.id,
+        created=created,
+        outcome=f"lead #{lead.id} ermis_status={lead.ermis_status}",
+    )
     return {"ok": True, "lead_id": lead.id, "ermis_status": lead.ermis_status, "created": created}
+
+
+@router.get("/{lead_id}/ermis/debug")
+def ermis_debug(
+    lead_id: int,
+    current_user: CMUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Diagnostic: show all ΕΡΜΗΣ-related fields on this lead plus any same-AFM leads
+    that have a transcript (to find where a missing conversation ended up)."""
+    from routes.cm_leads import _is_logistis_lead
+    l = db.query(CMLead).filter(CMLead.id == lead_id).first()
+    if not l:
+        raise HTTPException(status_code=404, detail="Το lead δεν βρέθηκε")
+
+    siblings = []
+    if l.afm:
+        others = db.query(CMLead).filter(CMLead.afm == l.afm, CMLead.id != l.id).all()
+        for o in others:
+            siblings.append({
+                "id": o.id,
+                "name": o.name,
+                "status": o.status,
+                "source": o.source,
+                "program": o.program,
+                "program_title": o.program_title,
+                "ermis_token": o.ermis_token,
+                "ermis_status": o.ermis_status,
+                "ermis_transcript_len": len(o.ermis_transcript or ""),
+                "is_logistis_lead": _is_logistis_lead(o),
+                "created_at": o.created_at.isoformat() if o.created_at else None,
+            })
+
+    # Last 20 hits from the ring buffer that mention this lead or its AFM
+    related_hits = [
+        h for h in _recent_ermis_hits
+        if str(lead_id) in str(h.get("resolved_lead_id", ""))
+        or (l.afm and h.get("afm") == l.afm)
+    ][:20]
+
+    return {
+        "lead": {
+            "id": l.id,
+            "name": l.name,
+            "afm": l.afm,
+            "status": l.status,
+            "source": l.source,
+            "program": l.program,
+            "program_title": l.program_title,
+            "ermis_token": l.ermis_token,
+            "ermis_chat_url": l.ermis_chat_url,
+            "ermis_status": l.ermis_status,
+            "ermis_error": l.ermis_error,
+            "ermis_started_at": l.ermis_started_at.isoformat() if l.ermis_started_at else None,
+            "ermis_completed_at": l.ermis_completed_at.isoformat() if l.ermis_completed_at else None,
+            "ermis_transcript_len": len(l.ermis_transcript or ""),
+            "ermis_transcript_preview": (l.ermis_transcript or "")[:300] or None,
+        },
+        "same_afm_leads": siblings,
+        "recent_ermis_hits_for_afm": related_hits,
+    }
