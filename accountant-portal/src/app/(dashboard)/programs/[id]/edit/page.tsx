@@ -48,6 +48,11 @@ const schema = z.object({
   internalNotes: z.string().optional(),
   pricingNote: z.string().optional(),
   ermisInstructions: z.string().optional(),
+  monthlyAmount: z.string().optional(),
+  subsidyMonths: z.string().optional(),
+  totalBenefit: z.string().optional(),
+  beneficiaries: z.string().optional(),
+  regions: z.string().optional(),
 })
 type FormData = z.infer<typeof schema>
 
@@ -363,6 +368,11 @@ export default function EditProgramPage() {
           internalNotes: program.internalNotes || '',
           pricingNote: program.pricingNote || '',
           ermisInstructions: program.ermisInstructions || '',
+          monthlyAmount: program.monthlyAmount || '',
+          subsidyMonths: program.subsidyMonths || '',
+          totalBenefit: program.totalBenefit || '',
+          beneficiaries: program.beneficiaries || '',
+          regions: program.regions || '',
         })
       })
       .finally(() => setLoading(false))
@@ -497,6 +507,42 @@ export default function EditProgramPage() {
                 Εφεδρικό πρόγραμμα υποδοχής leads — χρησιμοποιείται μόνο όταν η φόρμα Bitform δεν στέλνει (ή δεν ταιριάζει) το όνομα προγράμματος. Κανονικά κάθε φόρμα δηλώνει το πρόγραμμά της ρητά.
               </label>
             </div>
+          </CardContent>
+        </Card>
+
+        {/* ΔΥΠΑ hiring fields — shown for all categories so they can be filled for DYPA programs */}
+        <Card>
+          <CardHeader><CardTitle>Στοιχεία Επιχορήγησης Πρόσληψης (ΔΥΠΑ)</CardTitle></CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-gray-500">Συμπληρώστε για προγράμματα ΔΥΠΑ πρόσληψης. Τα πεδία αυτά χρησιμοποιούνται ως tokens στα WordPress templates.</p>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <Input
+                label="Μηνιαία Επιχορήγηση"
+                {...register('monthlyAmount')}
+                placeholder="π.χ. 875€ ή έως 800€/μήνα"
+              />
+              <Input
+                label="Μήνες Επιχορήγησης"
+                {...register('subsidyMonths')}
+                placeholder="π.χ. 12 ή 12+3 ή 12+12"
+              />
+              <Input
+                label="Συνολικό Όφελος ανά Πρόσληψη"
+                {...register('totalBenefit')}
+                placeholder="π.χ. έως 10.500€"
+              />
+            </div>
+            <Textarea
+              label="Ωφελούμενοι Άνεργοι (ποιους μπορείτε να προσλάβετε)"
+              {...register('beneficiaries')}
+              rows={3}
+              placeholder="π.χ. Άνεργοι 30-49 ετών εγγεγραμμένοι στον ΔΥΠΑ, μακροχρόνια άνεργοι κ.λπ."
+            />
+            <Input
+              label="Περιοχή Ισχύος"
+              {...register('regions')}
+              placeholder="π.χ. Όλη η Ελλάδα ή Ανατολική Μακεδονία και Θράκη"
+            />
           </CardContent>
         </Card>
 

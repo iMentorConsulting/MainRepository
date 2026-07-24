@@ -31,6 +31,11 @@ const BUILTIN_TOKENS: { token: string; field: string; description: string }[] = 
   { token: '{{IMPLEMENTATION_MONTHS}}', field: 'implementationMonths', description: 'Μήνες υλοποίησης' },
   { token: '{{END_DATE}}', field: 'endDate', description: 'Ημερομηνία λήξης' },
   { token: '{{HERO_IMAGE}}', field: 'heroImageUrl', description: 'URL εικόνας hero' },
+  { token: '{{MONTHLY_AMOUNT}}', field: 'monthlyAmount', description: 'Μηνιαία επιχορήγηση (ΔΥΠΑ)' },
+  { token: '{{SUBSIDY_MONTHS}}', field: 'subsidyMonths', description: 'Μήνες επιχορήγησης (ΔΥΠΑ)' },
+  { token: '{{TOTAL_BENEFIT}}', field: 'totalBenefit', description: 'Συνολικό όφελος ανά πρόσληψη (ΔΥΠΑ)' },
+  { token: '{{BENEFICIARIES}}', field: 'beneficiaries', description: 'Ωφελούμενοι άνεργοι (ΔΥΠΑ)' },
+  { token: '{{REGIONS}}', field: 'regions', description: 'Περιοχή ισχύος' },
 ]
 
 interface WpTemplate {

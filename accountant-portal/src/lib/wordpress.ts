@@ -268,6 +268,12 @@ export function buildProgramReplacements(
     endDate: program.endDate ? new Date(program.endDate as string).toLocaleDateString('el-GR') : '',
     heroImageUrl: String(program.heroImageUrl ?? ''),
     metaDescription: String(program.description ?? '').slice(0, 155),
+    // ΔΥΠΑ hiring subsidy fields
+    monthlyAmount: String(program.monthlyAmount ?? ''),
+    subsidyMonths: String(program.subsidyMonths ?? ''),
+    totalBenefit: String(program.totalBenefit ?? ''),
+    beneficiaries: String(program.beneficiaries ?? ''),
+    regions: String(program.regions ?? ''),
   }
 
   // Map each placeholder token to its resolved value
