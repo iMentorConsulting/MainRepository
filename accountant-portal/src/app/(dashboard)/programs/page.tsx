@@ -549,8 +549,10 @@ export default function ProgramsPage() {
                       className="w-full h-full object-cover opacity-80"
                     />
                   ) : (
-                    <div className="absolute inset-0 flex items-center justify-center opacity-10">
-                      <Target size={80} className="text-white" />
+                    <div className="absolute inset-0 flex items-center justify-center px-4">
+                      <span className="text-white text-center font-bold text-lg leading-tight drop-shadow-md line-clamp-3" style={{ textShadow: '0 2px 8px rgba(0,0,0,0.35)' }}>
+                        {program.title}
+                      </span>
                     </div>
                   )}
                   {/* Category badge */}

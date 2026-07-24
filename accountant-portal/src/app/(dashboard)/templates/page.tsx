@@ -278,6 +278,55 @@ export default function TemplatesPage() {
 
       <NewTemplateForm onCreated={items => setTemplates(prev => [...prev, ...items])} />
 
+      <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+        <p className="text-sm font-semibold text-amber-800 mb-2">Διαθέσιμες μεταβλητές:</p>
+        <div className="flex flex-wrap gap-2">
+          {[
+            ['{{business_name}}', 'Επωνυμία'],
+            ['{{afm}}', 'ΑΦΜ'],
+            ['{{accountant_name}}', 'Λογιστής'],
+            ['{{accountant_office}}', 'Γραφείο'],
+            ['{{program_title}}', 'Πρόγραμμα'],
+            ['{{program_description}}', 'Περιγραφή Προγράμματος'],
+            ['{{program_url}}', 'Σελίδα Προγράμματος'],
+            ['{{program_deadline}}', 'Προθεσμία Προγράμματος'],
+            ['{{program_amount}}', 'Ποσό Επένδυσης'],
+            ['{{program_subsidy}}', '% Επιχορήγησης'],
+            ['{{program_monthly_amount}}', 'Μηνιαία Επιχορήγηση (ΔΥΠΑ)'],
+            ['{{program_subsidy_months}}', 'Μήνες Επιχορήγησης (ΔΥΠΑ)'],
+            ['{{program_total_benefit}}', 'Συνολικό Όφελος/Πρόσληψη (ΔΥΠΑ)'],
+            ['{{program_beneficiaries}}', 'Ωφελούμενοι (ΔΥΠΑ)'],
+            ['{{program_regions}}', 'Περιοχή Ισχύος'],
+            ['{{extra_criteria}}', 'Πρόσθετες Προϋποθέσεις'],
+            ['{{region}}', 'Περιφέρεια Έδρας'],
+            ['{{founding_date}}', 'Ημερομηνία Ίδρυσης'],
+            ['{{kad_code}}', 'Κωδικός ΚΑΔ'],
+            ['{{kad_description}}', 'Περιγραφή ΚΑΔ'],
+            ['{{match_reason}}', 'Λόγοι Επιλεξιμότητας'],
+            ['{{matched_programs_count}}', 'Σύνολο Ταιριασμένων Προγραμμάτων'],
+            ['{{other_programs_count}}', 'Πλήθος Άλλων Προγραμμάτων'],
+            ['{{other_programs}}', 'Λίστα Άλλων Προγραμμάτων'],
+            ['{{program2_title}}', '2ο Πρόγραμμα'],
+            ['{{program2_description}}', 'Περιγραφή 2ου Προγράμματος'],
+            ['{{program2_url}}', 'Σελίδα 2ου Προγράμματος'],
+            ['{{program2_deadline}}', 'Προθεσμία 2ου Προγράμματος'],
+            ['{{program2_amount}}', 'Ποσό Επένδυσης 2ου Προγράμματος'],
+            ['{{program2_subsidy}}', '% Επιχορήγησης 2ου Προγράμματος'],
+            ['{{program2_extra_criteria}}', 'Πρόσθετες Προϋποθέσεις 2ου Προγράμματος'],
+            ['{{program2_match_reason}}', 'Λόγοι Επιλεξιμότητας 2ου Προγράμματος'],
+            ['{{ermis_link_2}}', 'Σύνδεσμος Ερμή 2ου Προγράμματος'],
+            ['{{ermis_link}}', 'Σύνδεσμος Ερμή'],
+            ['{{exodikastikos_link}}', 'Σύνδεσμος Εξωδικαστικού (ΘΕΜΙΣ)'],
+            ['{{unsubscribe_link}}', 'Κατάργηση εγγραφής'],
+          ].map(([key, lbl]) => (
+            <span key={key} className="inline-flex items-center gap-1 text-xs bg-white border border-amber-300 text-amber-900 rounded px-2 py-1 font-mono">
+              <span className="text-amber-500">{key}</span>
+              <span className="text-gray-500 font-sans">— {lbl}</span>
+            </span>
+          ))}
+        </div>
+      </div>
+
       {channels.map(ch => {
         const chTemplates = templates.filter(t => t.channel === ch.key)
         if (chTemplates.length === 0) return null

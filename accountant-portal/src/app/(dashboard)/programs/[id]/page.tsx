@@ -228,6 +228,48 @@ export default function ProgramDetailPage() {
             </Card>
           )}
 
+          {(program.monthlyAmount || program.subsidyMonths || program.totalBenefit || program.beneficiaries || program.regions) && (
+            <Card>
+              <CardHeader><CardTitle>Στοιχεία Επιχορήγησης Πρόσληψης (ΔΥΠΑ)</CardTitle></CardHeader>
+              <CardContent className="space-y-4">
+                {(program.monthlyAmount || program.subsidyMonths || program.totalBenefit) && (
+                  <div className="grid grid-cols-3 gap-4">
+                    {program.monthlyAmount && (
+                      <div>
+                        <div className="text-xs font-semibold text-gray-500 uppercase mb-1">Μηνιαία Επιχορήγηση</div>
+                        <span className="text-sm font-semibold text-emerald-700">{program.monthlyAmount}</span>
+                      </div>
+                    )}
+                    {program.subsidyMonths && (
+                      <div>
+                        <div className="text-xs font-semibold text-gray-500 uppercase mb-1">Μήνες Επιχορήγησης</div>
+                        <span className="text-sm font-semibold text-blue-700">{program.subsidyMonths}</span>
+                      </div>
+                    )}
+                    {program.totalBenefit && (
+                      <div>
+                        <div className="text-xs font-semibold text-gray-500 uppercase mb-1">Συνολικό Όφελος</div>
+                        <span className="text-sm font-semibold text-indigo-700">{program.totalBenefit}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+                {program.beneficiaries && (
+                  <div>
+                    <div className="text-xs font-semibold text-gray-500 uppercase mb-1">Ωφελούμενοι Άνεργοι</div>
+                    <p className="text-sm text-gray-700 leading-relaxed">{program.beneficiaries}</p>
+                  </div>
+                )}
+                {program.regions && (
+                  <div>
+                    <div className="text-xs font-semibold text-gray-500 uppercase mb-1">Περιοχή Ισχύος</div>
+                    <span className="text-sm text-gray-700">{program.regions}</span>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
           {(program.minInvestment != null || program.maxInvestment != null || program.minSubsidyPct != null || program.maxSubsidyPct != null || program.minInterestRate != null || program.maxInterestRate != null || program.otherRequirements || program.websiteUrl || program.regionRules?.length > 0 || program.minRegdate || program.maxRegdate) && (
             <Card>
               <CardHeader><CardTitle>Στοιχεία Προγράμματος</CardTitle></CardHeader>
