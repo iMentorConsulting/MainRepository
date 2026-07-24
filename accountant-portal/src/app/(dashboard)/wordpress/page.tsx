@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
-import { Plus, Trash2, ExternalLink, RefreshCw, Globe, Code2, Copy } from 'lucide-react'
+import { Plus, Trash2, ExternalLink, RefreshCw, Globe, Code2, Copy, Pencil } from 'lucide-react'
 
 const CATEGORY_LABELS: Record<string, string> = {
   ESPA: 'ΕΣΠΑ',
@@ -81,6 +81,8 @@ export default function WordpressTemplatesPage() {
   )
   const [saving, setSaving] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [duplicatingId, setDuplicatingId] = useState<string | null>(null)
 
   function showToast(msg: string, ok: boolean) {
     setToast({ msg, ok })
@@ -120,6 +122,56 @@ export default function WordpressTemplatesPage() {
     setFormMode('html')
   }
 
+  function openEditForm(t: WpTemplate) {
+    setEditingId(t.id)
+    setFormName(t.name)
+    setFormMode(t.htmlTemplate ? 'html' : 'clone')
+    setFormWpPageId(t.wpPageId ? String(t.wpPageId) : '')
+    setFormHtmlTemplate(t.htmlTemplate ?? '')
+    setFormSeoTitlePattern(t.seoTitlePattern ?? '{{TITLE}} | i-Mentor Consulting')
+    setFormMetaDescPattern(t.metaDescPattern ?? '{{DESCRIPTION}}')
+    setFormWpMenuParentTitle(t.wpMenuParentTitle ?? 'ΕΠΙΧΟΡΗΓΗΣΕΙΣ')
+    setFormWpMenuName(t.wpMenuName ?? 'Primary Navigation (Demo)')
+    setFormCategories(t.categories)
+    setFormPlaceholders(
+      Object.entries(t.placeholders).map(([token, field]) => ({ token, field }))
+    )
+    setShowForm(true)
+  }
+
+  async function duplicateTemplate(t: WpTemplate) {
+    setDuplicatingId(t.id)
+    try {
+      const body: Record<string, unknown> = {
+        name: `${t.name} (αντίγραφο)`,
+        categories: t.categories,
+        placeholders: t.placeholders,
+        wpMenuParentTitle: t.wpMenuParentTitle,
+        wpMenuName: t.wpMenuName,
+      }
+      if (t.htmlTemplate) {
+        body.htmlTemplate = t.htmlTemplate
+        body.seoTitlePattern = t.seoTitlePattern
+        body.metaDescPattern = t.metaDescPattern
+      } else {
+        body.wpPageId = t.wpPageId
+      }
+      const res = await fetch('/api/wordpress/templates', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      if (res.ok) {
+        showToast('Αντίγραφο δημιουργήθηκε', true)
+        load()
+      } else {
+        showToast('Σφάλμα δημιουργίας αντιγράφου', false)
+      }
+    } finally {
+      setDuplicatingId(null)
+    }
+  }
+
   async function saveTemplate() {
     if (!formName.trim()) {
       showToast('Συμπλήρωσε όνομα template', false)
@@ -143,24 +195,32 @@ export default function WordpressTemplatesPage() {
         name: formName,
         categories: formCategories,
         placeholders,
+        wpMenuParentTitle: formWpMenuParentTitle.trim() || null,
+        wpMenuName: formWpMenuName.trim() || null,
       }
       if (formMode === 'clone') {
         body.wpPageId = Number(formWpPageId)
+        body.htmlTemplate = null
+        body.seoTitlePattern = null
+        body.metaDescPattern = null
       } else {
         body.htmlTemplate = formHtmlTemplate
         body.seoTitlePattern = formSeoTitlePattern
         body.metaDescPattern = formMetaDescPattern
+        body.wpPageId = null
       }
-      if (formWpMenuParentTitle.trim()) body.wpMenuParentTitle = formWpMenuParentTitle.trim()
-      if (formWpMenuName.trim()) body.wpMenuName = formWpMenuName.trim()
-      const res = await fetch('/api/wordpress/templates', {
-        method: 'POST',
+
+      const url = editingId ? `/api/wordpress/templates/${editingId}` : '/api/wordpress/templates'
+      const method = editingId ? 'PUT' : 'POST'
+      const res = await fetch(url, {
+        method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       })
       if (res.ok) {
-        showToast('Template αποθηκεύτηκε', true)
+        showToast(editingId ? 'Template ενημερώθηκε' : 'Template αποθηκεύτηκε', true)
         setShowForm(false)
+        setEditingId(null)
         resetForm()
         load()
       } else {
@@ -220,7 +280,7 @@ export default function WordpressTemplatesPage() {
           <Button variant="outline" size="sm" onClick={loadWpPages} loading={wpPagesLoading}>
             <RefreshCw size={14} className="mr-1.5" />Φόρτωση WP Σελίδων
           </Button>
-          <Button onClick={() => { setShowForm(true); if (wpPages.length === 0) loadWpPages() }}>
+          <Button onClick={() => { setEditingId(null); resetForm(); setShowForm(true); if (wpPages.length === 0) loadWpPages() }}>
             <Plus size={16} className="mr-2" />Νέο Template
           </Button>
         </div>
@@ -245,7 +305,7 @@ export default function WordpressTemplatesPage() {
       {/* New Template Form */}
       {showForm && (
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 space-y-5">
-          <h2 className="font-semibold text-gray-800">Νέο Template</h2>
+          <h2 className="font-semibold text-gray-800">{editingId ? 'Επεξεργασία Template' : 'Νέο Template'}</h2>
 
           {/* Mode toggle */}
           <div>
@@ -423,8 +483,8 @@ export default function WordpressTemplatesPage() {
           </div>
 
           <div className="flex items-center gap-3 pt-2">
-            <Button onClick={saveTemplate} loading={saving}>Αποθήκευση</Button>
-            <Button variant="ghost" onClick={() => { setShowForm(false); resetForm() }}>Άκυρο</Button>
+            <Button onClick={saveTemplate} loading={saving}>{editingId ? 'Ενημέρωση' : 'Αποθήκευση'}</Button>
+            <Button variant="ghost" onClick={() => { setShowForm(false); setEditingId(null); resetForm() }}>Άκυρο</Button>
           </div>
         </div>
       )}
@@ -470,13 +530,33 @@ export default function WordpressTemplatesPage() {
                     </div>
                   )}
                 </div>
-                <div className="flex items-center gap-2 flex-shrink-0">
+                <div className="flex items-center gap-1.5 flex-shrink-0">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="text-blue-600 hover:bg-blue-50"
+                    onClick={() => { openEditForm(t); window.scrollTo({ top: 0, behavior: 'smooth' }) }}
+                    title="Επεξεργασία"
+                  >
+                    <Pencil size={14} />
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="text-gray-500 hover:bg-gray-100"
+                    loading={duplicatingId === t.id}
+                    onClick={() => duplicateTemplate(t)}
+                    title="Δημιουργία αντιγράφου"
+                  >
+                    <Copy size={14} />
+                  </Button>
                   <Button
                     size="sm"
                     variant="ghost"
                     className="text-red-500 hover:bg-red-50"
                     loading={deletingId === t.id}
                     onClick={() => deleteTemplate(t.id)}
+                    title="Διαγραφή"
                   >
                     <Trash2 size={14} />
                   </Button>
