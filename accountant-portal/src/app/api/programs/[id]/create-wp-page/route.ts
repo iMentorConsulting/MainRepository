@@ -46,6 +46,7 @@ export async function POST(
         metaDescPattern: true,
         placeholders: true,
         wpMenuParentTitle: true,
+        wpMenuName: true,
       },
     }),
   ])
@@ -118,15 +119,17 @@ export async function POST(
     // Add to WP nav menu if template specifies a parent menu item
     let menuWarning: string | undefined
     const parentTitle = template.wpMenuParentTitle ?? null
-    console.log(`[WP] wpMenuParentTitle="${parentTitle}" templateId=${templateId}`)
+    const menuName = template.wpMenuName ?? null
+    console.log(`[WP] wpMenuParentTitle="${parentTitle}" wpMenuName="${menuName}" templateId=${templateId}`)
     if (parentTitle) {
       try {
         await addWpMenuItemAsChild({
           parentTitle,
           pageId: wpId,
           pageTitle: program.title,
+          ...(menuName ? { menuName } : {}),
         })
-        console.log(`[WP] menu item added successfully under "${parentTitle}"`)
+        console.log(`[WP] menu item added successfully under "${parentTitle}"${menuName ? ` in menu "${menuName}"` : ''}`)
       } catch (menuErr) {
         const msg = menuErr instanceof Error ? menuErr.message : String(menuErr)
         console.error('[WP] menu placement failed:', msg)

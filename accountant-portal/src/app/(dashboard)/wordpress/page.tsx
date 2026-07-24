@@ -41,6 +41,7 @@ interface WpTemplate {
   seoTitlePattern: string | null
   metaDescPattern: string | null
   wpMenuParentTitle: string | null
+  wpMenuName: string | null
   categories: string[]
   placeholders: Record<string, string>
   active: boolean
@@ -67,7 +68,8 @@ export default function WordpressTemplatesPage() {
   const [formHtmlTemplate, setFormHtmlTemplate] = useState('')
   const [formSeoTitlePattern, setFormSeoTitlePattern] = useState('{{TITLE}} | i-Mentor Consulting')
   const [formMetaDescPattern, setFormMetaDescPattern] = useState('{{DESCRIPTION}}')
-  const [formWpMenuParentTitle, setFormWpMenuParentTitle] = useState('Επιχορηγήσεις')
+  const [formWpMenuParentTitle, setFormWpMenuParentTitle] = useState('ΕΠΙΧΟΡΗΓΗΣΕΙΣ')
+  const [formWpMenuName, setFormWpMenuName] = useState('Primary Navigation (Demo)')
   const [formCategories, setFormCategories] = useState<string[]>([])
   const [formPlaceholders, setFormPlaceholders] = useState<{ token: string; field: string }[]>(
     BUILTIN_TOKENS.map(t => ({ token: t.token, field: t.field }))
@@ -106,7 +108,8 @@ export default function WordpressTemplatesPage() {
     setFormHtmlTemplate('')
     setFormSeoTitlePattern('{{TITLE}} | i-Mentor Consulting')
     setFormMetaDescPattern('{{DESCRIPTION}}')
-    setFormWpMenuParentTitle('Επιχορηγήσεις')
+    setFormWpMenuParentTitle('ΕΠΙΧΟΡΗΓΗΣΕΙΣ')
+    setFormWpMenuName('Primary Navigation (Demo)')
     setFormCategories([])
     setFormPlaceholders(BUILTIN_TOKENS.map(t => ({ token: t.token, field: t.field })))
     setFormMode('html')
@@ -144,6 +147,7 @@ export default function WordpressTemplatesPage() {
         body.metaDescPattern = formMetaDescPattern
       }
       if (formWpMenuParentTitle.trim()) body.wpMenuParentTitle = formWpMenuParentTitle.trim()
+      if (formWpMenuName.trim()) body.wpMenuName = formWpMenuName.trim()
       const res = await fetch('/api/wordpress/templates', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -329,16 +333,29 @@ export default function WordpressTemplatesPage() {
             </div>
           )}
 
-          <div>
-            <label className="text-sm font-medium text-gray-700 mb-1 block">Γονικό στοιχείο μενού WordPress</label>
-            <Input
-              value={formWpMenuParentTitle}
-              onChange={e => setFormWpMenuParentTitle(e.target.value)}
-              placeholder="π.χ. Επιχορηγήσεις (αφήστε κενό για χωρίς αυτόματη τοποθέτηση στο μενού)"
-            />
-            <p className="text-xs text-gray-400 mt-1">
-              Μετά τη δημιουργία σελίδας, αυτόματη τοποθέτηση ως υποσελίδα του συγκεκριμένου στοιχείου μενού.
-            </p>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-sm font-medium text-gray-700 mb-1 block">Γονικό στοιχείο μενού (τίτλος)</label>
+              <Input
+                value={formWpMenuParentTitle}
+                onChange={e => setFormWpMenuParentTitle(e.target.value)}
+                placeholder="π.χ. ΕΠΙΧΟΡΗΓΗΣΕΙΣ"
+              />
+              <p className="text-xs text-gray-400 mt-1">
+                Ακριβής τίτλος του στοιχείου μενού όπως εμφανίζεται στο WP admin.
+              </p>
+            </div>
+            <div>
+              <label className="text-sm font-medium text-gray-700 mb-1 block">Όνομα μενού WordPress</label>
+              <Input
+                value={formWpMenuName}
+                onChange={e => setFormWpMenuName(e.target.value)}
+                placeholder="π.χ. Primary Navigation (Demo)"
+              />
+              <p className="text-xs text-gray-400 mt-1">
+                Ακριβές όνομα του μενού (π.χ. "Primary Navigation (Demo)"). Αφήστε κενό για αναζήτηση σε όλα τα μενού.
+              </p>
+            </div>
           </div>
 
           <div>

@@ -218,6 +218,7 @@ export async function addWpMenuItemAsChild(opts: {
   parentTitle: string
   pageId: number
   pageTitle: string
+  menuName?: string
 }): Promise<void> {
   if (!WP_URL || !WP_USER || !WP_PASS) {
     throw new Error('WordPress env vars not configured')
