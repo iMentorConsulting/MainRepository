@@ -429,12 +429,35 @@ async function fetchActivitySubscribers(campaignId: string, activityType: string
     const ctx = (result as Record<string, any>)?.Context
     if (!ctx) break
 
-    const subs = Array.isArray(ctx.Subscribers) ? ctx.Subscribers : []
+    // Moosend may return Context as a direct array or as { Subscribers: [...], Paging: {...} }
+    // Log the shape on the first page so we can diagnose mismatches from Railway logs.
+    if (pageIndex === 1) {
+      const shape = Array.isArray(ctx)
+        ? `direct array[${ctx.length}]`
+        : `object keys: ${Object.keys(ctx).slice(0, 10).join(', ')}`
+      console.log(`[Moosend] fetchActivitySubscribers(${activityType}) page 1 ctx shape: ${shape}`)
+    }
+
+    let subs: Array<Record<string, unknown>>
+    let totalPages = 1
+
+    if (Array.isArray(ctx)) {
+      subs = ctx as Array<Record<string, unknown>>
+    } else if (Array.isArray(ctx.Subscribers)) {
+      subs = ctx.Subscribers as Array<Record<string, unknown>>
+      const paging = ctx.Paging as Record<string, any> | undefined
+      totalPages = paging?.TotalPageCount ?? paging?.TotalPages ?? 1
+    } else if (Array.isArray(ctx.Activity)) {
+      subs = ctx.Activity as Array<Record<string, unknown>>
+    } else if (Array.isArray(ctx.Members)) {
+      subs = ctx.Members as Array<Record<string, unknown>>
+    } else {
+      console.warn(`[Moosend] fetchActivitySubscribers(${activityType}): unrecognised ctx shape, raw: ${JSON.stringify(ctx).slice(0, 500)}`)
+      subs = []
+    }
+
     allSubscribers.push(...subs)
 
-    // Stop if we got fewer than a full page
-    const paging = ctx.Paging as Record<string, any> | undefined
-    const totalPages = paging?.TotalPageCount ?? paging?.TotalPages ?? 1
     if (pageIndex >= totalPages || subs.length < pageSize) break
     pageIndex++
   }
@@ -457,16 +480,23 @@ export async function getCampaignSubscriberEngagement(
     return map.get(key)!
   }
 
+  const extractEmail = (sub: Record<string, unknown>): string => {
+    const v = sub.Email ?? sub.EmailAddress ?? sub.email ?? sub.emailAddress ?? ''
+    return typeof v === 'string' ? v.trim() : ''
+  }
+
   // Opened — Moosend returns OpenedCount + LastOpenDate (or similar field names)
   try {
     const openers = await fetchActivitySubscribers(campaignId, 'Opened')
+    console.log(`[Moosend] Opened subscribers fetched: ${openers.length}`)
+    if (openers.length > 0) console.log(`[Moosend] Opened[0] sample: ${JSON.stringify(openers[0]).slice(0, 300)}`)
     for (const sub of openers) {
-      const email = typeof sub.Email === 'string' ? sub.Email : ''
+      const email = extractEmail(sub)
       if (!email) continue
       const eng = getOrCreate(email)
       const count = Number(sub.OpenedCount ?? sub.UniqueOpens ?? sub.Opens ?? 1)
-      eng.openCount = isNaN(count) ? 1 : count
-      eng.openedAt = parseMoosendDate(sub.LastOpenDate ?? sub.OpenDate ?? sub.Date)
+      eng.openCount = Math.max(eng.openCount, isNaN(count) ? 1 : count)
+      if (!eng.openedAt) eng.openedAt = parseMoosendDate(sub.LastOpenDate ?? sub.OpenDate ?? sub.Date)
     }
   } catch (err) {
     console.error(`[Moosend] getCampaignSubscriberEngagement Opened failed for ${campaignId}:`, err instanceof Error ? err.message : err)
@@ -476,12 +506,12 @@ export async function getCampaignSubscriberEngagement(
   try {
     const clickers = await fetchActivitySubscribers(campaignId, 'Clicked')
     for (const sub of clickers) {
-      const email = typeof sub.Email === 'string' ? sub.Email : ''
+      const email = extractEmail(sub)
       if (!email) continue
       const eng = getOrCreate(email)
       const count = Number(sub.LinkClicks ?? sub.ClickedCount ?? sub.UniqueClicks ?? sub.Clicks ?? 1)
-      eng.clickCount = isNaN(count) ? 1 : count
-      eng.clickedAt = parseMoosendDate(sub.LastClickDate ?? sub.ClickDate ?? sub.Date)
+      eng.clickCount = Math.max(eng.clickCount, isNaN(count) ? 1 : count)
+      if (!eng.clickedAt) eng.clickedAt = parseMoosendDate(sub.LastClickDate ?? sub.ClickDate ?? sub.Date)
     }
   } catch (err) {
     console.error(`[Moosend] getCampaignSubscriberEngagement Clicked failed for ${campaignId}:`, err instanceof Error ? err.message : err)
@@ -491,7 +521,7 @@ export async function getCampaignSubscriberEngagement(
   try {
     const bounced = await fetchActivitySubscribers(campaignId, 'Bounced')
     for (const sub of bounced) {
-      const email = typeof sub.Email === 'string' ? sub.Email : ''
+      const email = extractEmail(sub)
       if (!email) continue
       const eng = getOrCreate(email)
       eng.bounced = true
@@ -505,7 +535,7 @@ export async function getCampaignSubscriberEngagement(
   try {
     const unsubs = await fetchActivitySubscribers(campaignId, 'Unsubscribed')
     for (const sub of unsubs) {
-      const email = typeof sub.Email === 'string' ? sub.Email : ''
+      const email = extractEmail(sub)
       if (!email) continue
       const eng = getOrCreate(email)
       eng.unsubscribed = true
