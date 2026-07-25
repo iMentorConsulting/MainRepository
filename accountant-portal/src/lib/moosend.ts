@@ -447,6 +447,15 @@ async function fetchActivitySubscribers(campaignId: string, activityType: string
       subs = ctx.Subscribers as Array<Record<string, unknown>>
       const paging = ctx.Paging as Record<string, any> | undefined
       totalPages = paging?.TotalPageCount ?? paging?.TotalPages ?? 1
+    } else if (Array.isArray(ctx.Analytics)) {
+      // Moosend returns { Paging: {...}, Analytics: [{Context: "email", ...}] }
+      // Map to a normalised shape the rest of the code can consume.
+      const paging = ctx.Paging as Record<string, any> | undefined
+      totalPages = paging?.TotalPageCount ?? paging?.TotalPages ?? 1
+      subs = (ctx.Analytics as Array<Record<string, unknown>>).map(item => ({
+        Email: item.Context, // Context holds the email address in this schema
+        ...item,
+      }))
     } else if (Array.isArray(ctx.Activity)) {
       subs = ctx.Activity as Array<Record<string, unknown>>
     } else if (Array.isArray(ctx.Members)) {
@@ -529,9 +538,9 @@ export async function getCampaignSubscriberEngagement(
     }
   }
 
-  // Clicked — Moosend returns LinkClicks / ClickedCount + LastClickDate
+  // Clicked — Moosend's stats endpoint requires 'LinkClicked', not 'Clicked'
   try {
-    const clickers = await fetchActivitySubscribers(campaignId, 'Clicked')
+    const clickers = await fetchActivitySubscribers(campaignId, 'LinkClicked')
     for (const sub of clickers) {
       const email = extractEmail(sub)
       if (!email) continue
