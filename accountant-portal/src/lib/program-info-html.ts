@@ -51,7 +51,7 @@ export function buildProgramInfoHtml(program: ProgramInfoInput): string {
       const min = program.minInvestment != null ? eur(program.minInvestment) : null
       const max = program.maxInvestment != null ? eur(program.maxInvestment) : null
       const range = [min, max].filter(Boolean).join(' — ')
-      if (range) cells.push(cell('Ποσό Επένδυσης', range))
+      if (range) cells.push(cell('Ποσό Δανείου', range))
     }
     if (program.minInterestRate != null || program.maxInterestRate != null) {
       const min = program.minInterestRate != null ? pct(program.minInterestRate) : null
