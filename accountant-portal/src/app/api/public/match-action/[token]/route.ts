@@ -98,7 +98,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       programId: row.programId,
       accountantId: row.accountantId,
       requestType: 'CONTACT_CLIENT',
-      businessId: { in: [...validIds] },
+      businessId: { in: Array.from(validIds) },
     },
     select: { businessId: true },
   })
