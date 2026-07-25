@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableHead, TableBody, TableRow, Th, Td } from '@/components/ui/table'
-import { Plus, Mail, MessageCircle, Send, RefreshCw } from 'lucide-react'
+import { Plus, Mail, MessageCircle, Send, RefreshCw, Trash2 } from 'lucide-react'
 import { formatDateTime } from '@/lib/utils'
 
 const statusVariant: Record<string, any> = {
@@ -46,6 +46,7 @@ export default function GemiCampaignsPage() {
   const [loading, setLoading] = useState(true)
   const [syncing, setSyncing] = useState<string | null>(null)
   const [syncingAll, setSyncingAll] = useState(false)
+  const [deleting, setDeleting] = useState<string | null>(null)
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null)
 
   function showToast(msg: string, ok: boolean) {
@@ -82,6 +83,25 @@ export default function GemiCampaignsPage() {
     setSyncingAll(false)
     showToast(`Sync στατιστικών: ${ok} καμπάνιες ενημερώθηκαν${failed ? `, ${failed} απέτυχαν` : ''}`, failed === 0)
     loadCampaigns()
+  }
+
+  async function deleteCampaign(id: string, title: string) {
+    if (!confirm(`Διαγραφή καμπάνιας «${title}»; Η ενέργεια δεν αναιρείται.`)) return
+    setDeleting(id)
+    try {
+      const res = await fetch(`/api/gemi/campaigns/${id}`, { method: 'DELETE' })
+      if (res.ok) {
+        showToast('Η καμπάνια διαγράφηκε.', true)
+        loadCampaigns()
+      } else {
+        const data = await res.json().catch(() => ({}))
+        showToast(data.error || 'Σφάλμα διαγραφής.', false)
+      }
+    } catch {
+      showToast('Σφάλμα δικτύου.', false)
+    } finally {
+      setDeleting(null)
+    }
   }
 
   async function syncStats(id: string) {
@@ -212,11 +232,44 @@ export default function GemiCampaignsPage() {
                         <Link href={`/gemi/campaigns/${c.id}`}>
                           <Button size="sm" variant="ghost">Λεπτομέρειες</Button>
                         </Link>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          loading={deleting === c.id}
+                          onClick={() => deleteCampaign(c.id, c.title)}
+                          className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                        >
+                          <Trash2 size={13} />
+                        </Button>
                       </div>
                     </Td>
                   </TableRow>
                 ))
               )}
+              {campaigns.length > 0 && (() => {
+                const totalSent = campaigns.reduce((s, c) => s + (c.totalSent ?? c._count?.recipients ?? 0), 0)
+                const totalDelivered = campaigns.reduce((s, c) => s + (c.totalDelivered ?? 0), 0)
+                const totalBounced = campaigns.reduce((s, c) => s + (c.totalBounced ?? 0), 0)
+                const totalOpened = campaigns.reduce((s, c) => s + (c.totalOpened ?? 0), 0)
+                const totalClicked = campaigns.reduce((s, c) => s + (c.totalClicked ?? 0), 0)
+                return (
+                  <TableRow className="bg-gray-50 font-semibold text-gray-700 border-t-2 border-gray-200">
+                    <Td colSpan={5} className="text-right text-xs uppercase tracking-wide text-gray-500">Σύνολα</Td>
+                    <Td className="text-sm">{totalSent}</Td>
+                    <Td className="text-sm">{totalDelivered}</Td>
+                    <Td className="text-sm"><span className={totalBounced > 0 ? 'text-red-600' : ''}>{totalBounced}</span></Td>
+                    <Td className="text-sm">
+                      {totalOpened}
+                      {totalSent > 0 && <span className="text-xs text-gray-400 ml-1">({Math.round((totalOpened / totalSent) * 100)}%)</span>}
+                    </Td>
+                    <Td className="text-sm">
+                      {totalClicked}
+                      {totalSent > 0 && <span className="text-xs text-gray-400 ml-1">({Math.round((totalClicked / totalSent) * 100)}%)</span>}
+                    </Td>
+                    <Td />
+                  </TableRow>
+                )
+              })()}
             </TableBody>
           </Table>
         )}

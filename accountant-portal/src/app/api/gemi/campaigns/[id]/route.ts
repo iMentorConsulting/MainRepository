@@ -60,3 +60,20 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
   return NextResponse.json(campaign)
 }
+
+export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const session = await auth()
+  if (!session || session.user.role !== 'ADMIN') {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
+  const { id } = await params
+
+  const campaign = await prisma.gemiCampaign.findUnique({ where: { id }, select: { id: true } })
+  if (!campaign) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  await prisma.gemiCampaignRecipient.deleteMany({ where: { campaignId: id } })
+  await prisma.gemiCampaign.delete({ where: { id } })
+
+  return NextResponse.json({ ok: true })
+}
