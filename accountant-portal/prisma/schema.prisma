@@ -117,6 +117,7 @@ model Accountant {
   chatConversations   ChatConversation[]
   clientCases         ClientCase[]
   exodikastikosCases  ExodikastikosCase[]
+  matchActionTokens   MatchActionToken[]
 }
 
 model Business {
@@ -327,6 +328,7 @@ model Program {
   paymentRequests    PaymentRequest[]
   commissionPolicies CommissionPolicy[]
   clientCases        ClientCase[]
+  matchActionTokens  MatchActionToken[]
 }
 
 enum ProgramCategory {
@@ -1244,4 +1246,22 @@ model WordpressTemplate {
   active           Boolean  @default(true)
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
+}
+
+// ─── Match Action Token ────────────────────────────────────────────────────────
+// Magic-link token sent in match notification emails. Lets an accountant open
+// a no-login action page to select which matched clients they want I-MENTOR to
+// contact on their behalf, and to fill in missing contact details inline.
+
+model MatchActionToken {
+  id           String     @id @default(cuid())
+  token        String     @unique
+  accountantId String
+  accountant   Accountant @relation(fields: [accountantId], references: [id], onDelete: Cascade)
+  programId    String
+  program      Program    @relation(fields: [programId], references: [id], onDelete: Cascade)
+  expiresAt    DateTime
+  createdAt    DateTime   @default(now())
+
+  @@unique([accountantId, programId])
 }
