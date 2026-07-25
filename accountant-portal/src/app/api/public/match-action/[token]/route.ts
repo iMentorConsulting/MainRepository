@@ -149,6 +149,15 @@ export async function POST(req: NextRequest, { params }: Params) {
         title: caseTitle,
         status: 'NEW',
         createdById: row.accountantId,
+        activities: {
+          create: {
+            type: 'CREATED',
+            body: `Ανάθεση από λογιστή μέσω action page — ${row.program.title}`,
+            authorId: row.accountantId,
+            authorName: row.accountant.officeName || row.accountant.contactPerson || 'Λογιστής',
+            authorRole: 'ACCOUNTANT',
+          },
+        },
       },
       select: { id: true, caseNumber: true },
     })

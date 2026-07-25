@@ -71,15 +71,20 @@ export default function MatchActionPage() {
 
   function handleContinue() {
     if (!data) return
-    // Which selected businesses are missing contact info?
-    const needsContact = data.businesses.filter(b => selected.has(b.id) && !b.hasContactInfo)
+    // Missing = no server-side contact info AND nothing provided via Excel/manual entry
+    const needsContact = data.businesses.filter(b =>
+      selected.has(b.id) &&
+      !b.hasContactInfo &&
+      !contacts[b.id]?.email?.trim() &&
+      !contacts[b.id]?.phone?.trim()
+    )
     if (needsContact.length === 0) {
       submitSelections()
     } else {
-      // Init contact state for those that need it
+      // Init contact state for those that still need it (preserve any already filled)
       const init: Record<string, { email: string; phone: string }> = {}
-      for (const b of needsContact) init[b.id] = { email: '', phone: '' }
-      setContacts(init)
+      for (const b of needsContact) init[b.id] = contacts[b.id] || { email: '', phone: '' }
+      setContacts(prev => ({ ...prev, ...init }))
       setStep('fill-contacts')
     }
   }
@@ -286,20 +291,26 @@ export default function MatchActionPage() {
 
                 {/* Download buttons */}
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
-                  <a
-                    href={`/api/public/match-action/${token}/enrich-template?scope=matches`}
-                    download
-                    style={{ display: 'inline-block', background: '#f59e0b', color: 'white', borderRadius: 7, padding: '8px 14px', textDecoration: 'none', fontSize: 13, fontWeight: 'bold' }}
-                  >
-                    ⬇ Template — Matches ({withoutContactCount})
-                  </a>
-                  <a
-                    href={`/api/public/match-action/${token}/enrich-template?scope=all`}
-                    download
-                    style={{ display: 'inline-block', background: 'white', color: '#92400e', border: '1px solid #fcd34d', borderRadius: 7, padding: '8px 14px', textDecoration: 'none', fontSize: 13, fontWeight: 600 }}
-                  >
-                    ⬇ Template — Όλοι οι πελάτες χωρίς στοιχεία
-                  </a>
+                  <div style={{ flex: 1, minWidth: 200 }}>
+                    <p style={{ margin: '0 0 4px', fontSize: 11, fontWeight: 700, color: '#92400e', textTransform: 'uppercase', letterSpacing: '0.04em' }}>α) Μόνο τα matches αυτού του προγράμματος</p>
+                    <a
+                      href={`/api/public/match-action/${token}/enrich-template?scope=matches`}
+                      download
+                      style={{ display: 'inline-block', background: '#f59e0b', color: 'white', borderRadius: 7, padding: '8px 14px', textDecoration: 'none', fontSize: 13, fontWeight: 'bold' }}
+                    >
+                      ⬇ Excel Matches ({withoutContactCount})
+                    </a>
+                  </div>
+                  <div style={{ flex: 1, minWidth: 200 }}>
+                    <p style={{ margin: '0 0 4px', fontSize: 11, fontWeight: 700, color: '#92400e', textTransform: 'uppercase', letterSpacing: '0.04em' }}>β) Όλοι οι πελάτες του γραφείου χωρίς στοιχεία</p>
+                    <a
+                      href={`/api/public/match-action/${token}/enrich-template?scope=all`}
+                      download
+                      style={{ display: 'inline-block', background: 'white', color: '#92400e', border: '1px solid #fcd34d', borderRadius: 7, padding: '8px 14px', textDecoration: 'none', fontSize: 13, fontWeight: 700 }}
+                    >
+                      ⬇ Excel Όλοι οι Πελάτες
+                    </a>
+                  </div>
                 </div>
 
                 {/* Upload area */}
