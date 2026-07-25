@@ -544,7 +544,8 @@ export async function getCampaignSubscriberEngagement(
     console.error(`[Moosend] getCampaignSubscriberEngagement Clicked failed for ${campaignId}:`, err instanceof Error ? err.message : err)
   }
 
-  // Bounced — Moosend returns BounceDate / LastBounceDate
+  // Bounced — try structured parse, then fallback to recursive email scan
+  const bouncedBeforeCount = map.size
   try {
     const bounced = await fetchActivitySubscribers(campaignId, 'Bounced')
     for (const sub of bounced) {
@@ -557,8 +558,34 @@ export async function getCampaignSubscriberEngagement(
   } catch (err) {
     console.error(`[Moosend] getCampaignSubscriberEngagement Bounced failed for ${campaignId}:`, err instanceof Error ? err.message : err)
   }
+  // Fallback scan for Bounced — runs when structured parse returned nothing new
+  if (map.size === bouncedBeforeCount) {
+    try {
+      const raw = await moosendFetch(`/campaigns/${campaignId}/stats/Bounced.json?pageSize=1000`)
+      const scanEmails = new Set<string>()
+      const scan = (v: unknown) => {
+        if (typeof v === 'string') {
+          if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) scanEmails.add(v.toLowerCase().trim())
+        } else if (Array.isArray(v)) {
+          v.forEach(scan)
+        } else if (v && typeof v === 'object') {
+          Object.values(v as Record<string, unknown>).forEach(scan)
+        }
+      }
+      scan((raw as Record<string, unknown>).Context)
+      console.log(`[Moosend] Bounced fallback email scan: ${scanEmails.size} emails found`)
+      for (const email of Array.from(scanEmails)) {
+        const eng = getOrCreate(email)
+        eng.bounced = true
+        if (!eng.bouncedAt) eng.bouncedAt = new Date()
+      }
+    } catch (err) {
+      console.error(`[Moosend] Bounced fallback scan failed for ${campaignId}:`, err instanceof Error ? err.message : err)
+    }
+  }
 
-  // Unsubscribed — reuse the existing endpoint pattern but capture dates too
+  // Unsubscribed — try structured parse, then fallback scan
+  const unsubBeforeCount = map.size
   try {
     const unsubs = await fetchActivitySubscribers(campaignId, 'Unsubscribed')
     for (const sub of unsubs) {
@@ -570,6 +597,31 @@ export async function getCampaignSubscriberEngagement(
     }
   } catch (err) {
     console.error(`[Moosend] getCampaignSubscriberEngagement Unsubscribed failed for ${campaignId}:`, err instanceof Error ? err.message : err)
+  }
+  // Fallback scan for Unsubscribed
+  if (map.size === unsubBeforeCount) {
+    try {
+      const raw = await moosendFetch(`/campaigns/${campaignId}/stats/Unsubscribed.json?pageSize=1000`)
+      const scanEmails = new Set<string>()
+      const scan = (v: unknown) => {
+        if (typeof v === 'string') {
+          if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) scanEmails.add(v.toLowerCase().trim())
+        } else if (Array.isArray(v)) {
+          v.forEach(scan)
+        } else if (v && typeof v === 'object') {
+          Object.values(v as Record<string, unknown>).forEach(scan)
+        }
+      }
+      scan((raw as Record<string, unknown>).Context)
+      console.log(`[Moosend] Unsubscribed fallback email scan: ${scanEmails.size} emails found`)
+      for (const email of Array.from(scanEmails)) {
+        const eng = getOrCreate(email)
+        eng.unsubscribed = true
+        if (!eng.unsubscribedAt) eng.unsubscribedAt = new Date()
+      }
+    } catch (err) {
+      console.error(`[Moosend] Unsubscribed fallback scan failed for ${campaignId}:`, err instanceof Error ? err.message : err)
+    }
   }
 
   console.log(`[Moosend] getCampaignSubscriberEngagement(${campaignId}): ${map.size} subscribers with engagement data`)
