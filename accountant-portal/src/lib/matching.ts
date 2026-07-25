@@ -5,6 +5,7 @@ import { sendEmail } from './email'
 import { isInactiveBusiness } from './business-filters'
 import { normalizeLegalForm } from './legal-forms'
 import { getOrCreateMatchActionToken } from './match-action-token'
+import { buildProgramInfoHtml } from './program-info-html'
 
 interface BusinessWithActivities {
   id: string
@@ -339,7 +340,13 @@ export async function autoNotifyBusinessMatches(businessId: string): Promise<voi
   const matches = await prisma.programMatch.findMany({
     where: { businessId, notified: false, matchScore: { gte: 40 } },
     include: {
-      program: { select: { id: true, title: true, otherRequirements: true } },
+      program: { select: {
+        id: true, title: true, otherRequirements: true, category: true,
+        monthlyAmount: true, subsidyMonths: true, totalBenefit: true,
+        minInvestment: true, maxInvestment: true,
+        minSubsidyPct: true, maxSubsidyPct: true,
+        minInterestRate: true, maxInterestRate: true,
+      } },
       business: { select: { accountantId: true, onomasia: true, afm: true, email: true, phone: true } },
     },
   })
@@ -373,11 +380,13 @@ export async function autoNotifyBusinessMatches(businessId: string): Promise<voi
   const programSectionsHtml = await Promise.all(matches.map(async m => {
     const token = await getOrCreateMatchActionToken(accountantId, m.program.id)
     const actionUrl = `${appUrl}/match-action/${token}`
+    const infoHtml = buildProgramInfoHtml(m.program)
     const req = m.program.otherRequirements
       ? `<p style="margin: 8px 0 0; color: #374151; font-size: 13px; font-style: italic;">${m.program.otherRequirements}</p>`
       : ''
     return `<div style="border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; margin-bottom: 12px;">
       <p style="margin: 0 0 8px; font-size: 15px; font-weight: bold; color: #4f46e5;">🎯 ${m.program.title}</p>
+      ${infoHtml}
       ${req}
       <a href="${actionUrl}" style="display: inline-block; margin-top: 12px; background: linear-gradient(135deg, #059669, #047857); color: white; padding: 8px 20px; border-radius: 6px; text-decoration: none; font-size: 13px; font-weight: bold;">
         Ανάθεση σε I-MENTOR &rarr;
@@ -502,7 +511,13 @@ export async function notifyBatchMatchesForBusinesses(businessIds: string[]): Pr
   const matches = await prisma.programMatch.findMany({
     where: { businessId: { in: businessIds }, notified: false, matchScore: { gte: 40 } },
     include: {
-      program: { select: { id: true, title: true, extraCriteriaIds: true } },
+      program: { select: {
+        id: true, title: true, extraCriteriaIds: true, category: true,
+        monthlyAmount: true, subsidyMonths: true, totalBenefit: true,
+        minInvestment: true, maxInvestment: true,
+        minSubsidyPct: true, maxSubsidyPct: true,
+        minInterestRate: true, maxInterestRate: true,
+      } },
       business: { select: { id: true, accountantId: true, onomasia: true, afm: true, email: true, phone: true } },
     },
   })
@@ -575,6 +590,8 @@ export async function notifyBatchMatchesForBusinesses(businessIds: string[]): Pr
            </div>`
         : ''
 
+      const programInfoHtml = buildProgramInfoHtml(program)
+
       const criteriaLabels = (program.extraCriteriaIds || []).map(id => criteriaMap.get(id)).filter(Boolean) as string[]
       const requirementsHtml = criteriaLabels.length
         ? `<div style="background: #f3f4f6; border-left: 4px solid #6b7280; padding: 16px; border-radius: 6px; margin: 20px 0;">
@@ -620,6 +637,7 @@ export async function notifyBatchMatchesForBusinesses(businessIds: string[]): Pr
               </table>
 
               ${missingContactHtml}
+              ${programInfoHtml}
               ${requirementsHtml}
 
               <div style="text-align: center; margin: 28px 0 8px;">

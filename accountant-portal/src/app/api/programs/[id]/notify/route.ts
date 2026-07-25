@@ -4,6 +4,7 @@ import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { sendEmail } from '@/lib/email'
 import { getOrCreateMatchActionToken } from '@/lib/match-action-token'
+import { buildProgramInfoHtml } from '@/lib/program-info-html'
 
 export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
   const session = await auth()
@@ -13,7 +14,13 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
 
   const program = await prisma.program.findUnique({
     where: { id: params.id },
-    select: { id: true, title: true, otherRequirements: true },
+    select: {
+      id: true, title: true, otherRequirements: true, category: true,
+      monthlyAmount: true, subsidyMonths: true, totalBenefit: true,
+      minInvestment: true, maxInvestment: true,
+      minSubsidyPct: true, maxSubsidyPct: true,
+      minInterestRate: true, maxInterestRate: true,
+    },
   })
   if (!program) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
@@ -91,6 +98,8 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
          </div>`
       : ''
 
+    const programInfoHtml = buildProgramInfoHtml(program)
+
     const requirementsHtml = program.otherRequirements
       ? `<div style="background: #f3f4f6; border-left: 4px solid #6b7280; padding: 16px; border-radius: 6px; margin: 20px 0;">
            <p style="margin: 0; color: #374151; font-size: 14px; font-weight: bold;">Πρόσθετες Προϋποθέσεις Προγράμματος:</p>
@@ -133,6 +142,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
             </table>
 
             ${missingContactHtml}
+            ${programInfoHtml}
             ${requirementsHtml}
 
             <div style="text-align: center; margin: 28px 0 8px;">
