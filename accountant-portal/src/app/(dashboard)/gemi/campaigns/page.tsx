@@ -89,7 +89,9 @@ export default function GemiCampaignsPage() {
     try {
       const res = await fetch(`/api/gemi/campaigns/${id}/sync-stats`, { method: 'POST' })
       if (res.ok) {
-        showToast('Τα στατιστικά ενημερώθηκαν.', true)
+        const data = await res.json().catch(() => ({}))
+        const recMsg = typeof data.recipientsUpdated === 'number' ? ` (${data.recipientsUpdated} παραλήπτες ενημερώθηκαν)` : ''
+        showToast(`Στατιστικά ενημερώθηκαν${recMsg}`, true)
         loadCampaigns()
       } else {
         showToast('Σφάλμα συγχρονισμού.', false)

@@ -485,10 +485,11 @@ export async function getCampaignSubscriberEngagement(
     return typeof v === 'string' ? v.trim() : ''
   }
 
-  // Opened — Moosend returns OpenedCount + LastOpenDate (or similar field names)
+  // Opened — try structured parse first, fall back to recursive email scan
+  // (same technique as getCampaignUnsubscribers which is proven to work).
   try {
     const openers = await fetchActivitySubscribers(campaignId, 'Opened')
-    console.log(`[Moosend] Opened subscribers fetched: ${openers.length}`)
+    console.log(`[Moosend] Opened subscribers fetched via structured parse: ${openers.length}`)
     if (openers.length > 0) console.log(`[Moosend] Opened[0] sample: ${JSON.stringify(openers[0]).slice(0, 300)}`)
     for (const sub of openers) {
       const email = extractEmail(sub)
@@ -499,7 +500,33 @@ export async function getCampaignSubscriberEngagement(
       if (!eng.openedAt) eng.openedAt = parseMoosendDate(sub.LastOpenDate ?? sub.OpenDate ?? sub.Date)
     }
   } catch (err) {
-    console.error(`[Moosend] getCampaignSubscriberEngagement Opened failed for ${campaignId}:`, err instanceof Error ? err.message : err)
+    console.error(`[Moosend] getCampaignSubscriberEngagement Opened structured parse failed for ${campaignId}:`, err instanceof Error ? err.message : err)
+  }
+
+  // Fallback: if structured parse found nothing, do a raw recursive email scan
+  // on the same endpoint — identical to getCampaignUnsubscribers, which always works.
+  if (map.size === 0) {
+    try {
+      const raw = await moosendFetch(`/campaigns/${campaignId}/stats/Opened.json?pageSize=1000`)
+      const scanEmails = new Set<string>()
+      const scan = (v: unknown) => {
+        if (typeof v === 'string') {
+          if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) scanEmails.add(v.toLowerCase().trim())
+        } else if (Array.isArray(v)) {
+          v.forEach(scan)
+        } else if (v && typeof v === 'object') {
+          Object.values(v as Record<string, unknown>).forEach(scan)
+        }
+      }
+      scan((raw as Record<string, unknown>).Context)
+      console.log(`[Moosend] Opened fallback email scan: ${scanEmails.size} emails found`)
+      for (const email of scanEmails) {
+        const eng = getOrCreate(email)
+        if (eng.openCount === 0) { eng.openCount = 1; eng.openedAt = new Date() }
+      }
+    } catch (err) {
+      console.error(`[Moosend] Opened fallback scan failed for ${campaignId}:`, err instanceof Error ? err.message : err)
+    }
   }
 
   // Clicked — Moosend returns LinkClicks / ClickedCount + LastClickDate
