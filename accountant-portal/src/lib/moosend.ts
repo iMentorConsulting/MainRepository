@@ -520,7 +520,7 @@ export async function getCampaignSubscriberEngagement(
       }
       scan((raw as Record<string, unknown>).Context)
       console.log(`[Moosend] Opened fallback email scan: ${scanEmails.size} emails found`)
-      for (const email of scanEmails) {
+      for (const email of Array.from(scanEmails)) {
         const eng = getOrCreate(email)
         if (eng.openCount === 0) { eng.openCount = 1; eng.openedAt = new Date() }
       }
