@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { sendEmail } from '@/lib/email'
+import { notifyCaseManagement } from '@/lib/case-management-sync'
+import { buildBusinessProfilePayload, BUSINESS_PROFILE_SELECT } from '@/lib/business-profile'
 
 type Params = { params: Promise<{ token: string }> }
 
@@ -68,7 +71,10 @@ export async function POST(req: NextRequest, { params }: Params) {
 
   const row = await prisma.matchActionToken.findUnique({
     where: { token },
-    select: { accountantId: true, programId: true, expiresAt: true },
+    include: {
+      accountant: { select: { id: true, officeName: true, contactPerson: true } },
+      program: { select: { id: true, title: true } },
+    },
   })
 
   if (!row) return NextResponse.json({ error: 'Ο σύνδεσμος δεν ισχύει.' }, { status: 404 })
@@ -106,6 +112,7 @@ export async function POST(req: NextRequest, { params }: Params) {
 
   let created = 0
   let contactsUpdated = 0
+  const createdCases: Array<{ caseNumber: number; businessName: string; caseId: string }> = []
 
   for (const sel of selections) {
     if (!validIds.has(sel.businessId)) continue
@@ -125,25 +132,59 @@ export async function POST(req: NextRequest, { params }: Params) {
       contactsUpdated++
     }
 
-    // Verify the business now has at least one contact method
+    // Fetch full business profile (needed for contact check + CM notification)
     const biz = await prisma.business.findUnique({
       where: { id: sel.businessId },
-      select: { email: true, phone: true, onomasia: true, afm: true },
+      select: { email: true, phone: true, ...BUSINESS_PROFILE_SELECT },
     })
     if (!biz?.email && !biz?.phone) continue // still no contact info — skip
 
-    await prisma.clientCase.create({
+    const caseTitle = `Ενημέρωση πελάτη — ${biz.onomasia || biz.afm}`
+    const clientCase = await prisma.clientCase.create({
       data: {
         accountantId: row.accountantId,
         businessId: sel.businessId,
         programId: row.programId,
         requestType: 'CONTACT_CLIENT',
-        title: `Ενημέρωση πελάτη — ${biz.onomasia || biz.afm}`,
+        title: caseTitle,
         status: 'NEW',
         createdById: row.accountantId,
       },
+      select: { id: true, caseNumber: true },
     })
     created++
+    createdCases.push({ caseNumber: clientCase.caseNumber, businessName: biz.onomasia || biz.afm, caseId: clientCase.id })
+
+    // Notify case management system per case (same as /api/cases POST)
+    const profile = await buildBusinessProfilePayload(biz)
+    notifyCaseManagement({
+      caseNumber: clientCase.caseNumber,
+      phone: biz.phone || null,
+      email: biz.email || null,
+      accountantOffice: row.accountant.officeName || null,
+      caseType: null,
+      description: `Ανάθεση από λογιστή μέσω action page — ${row.program.title}`,
+      priority: 'NORMAL',
+      programTitle: row.program.title,
+      ...profile,
+    }).catch(err => console.error('[MatchAction] notifyCaseManagement failed:', err?.message))
+  }
+
+  // Send one summary email to admin covering all created cases
+  if (createdCases.length > 0) {
+    const appUrl = process.env.APP_URL || 'https://logistis.i-mentor.gr'
+    const rowListHtml = createdCases.map(c =>
+      `<li><a href="${appUrl}/cases/${c.caseId}">#${c.caseNumber} — ${c.businessName}</a></li>`
+    ).join('')
+    sendEmail({
+      to: process.env.ADMIN_EMAIL || 'info@i-mentor.gr',
+      subject: `🤝 ${createdCases.length} νέες αναθέσεις από ${row.accountant.officeName || row.accountant.contactPerson} — ${row.program.title}`,
+      html: `<div style="font-family:Arial,sans-serif;max-width:600px;">
+        <p>Ο λογιστής <strong>${row.accountant.officeName || row.accountant.contactPerson}</strong> ανέθεσε <strong>${createdCases.length} πελάτ${createdCases.length === 1 ? 'η' : 'ες'}</strong> για το πρόγραμμα <strong>«${row.program.title}»</strong> μέσω της σελίδας ανάθεσης.</p>
+        <ul>${rowListHtml}</ul>
+        <p><a href="${appUrl}/cases">Δείτε όλες τις υποθέσεις →</a></p>
+      </div>`,
+    }).catch(err => console.error('[MatchAction] admin email failed:', err?.message))
   }
 
   return NextResponse.json({ created, contactsUpdated })

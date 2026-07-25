@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useParams } from 'next/navigation'
 
 interface Business {
@@ -32,6 +32,10 @@ export default function MatchActionPage() {
   const [contacts, setContacts] = useState<Record<string, { email: string; phone: string }>>({})
   const [submitting, setSubmitting] = useState(false)
   const [result, setResult] = useState<{ created: number; contactsUpdated: number } | null>(null)
+
+  const [enrichUploading, setEnrichUploading] = useState(false)
+  const [enrichCount, setEnrichCount] = useState<number | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     fetch(`/api/public/match-action/${token}`)
@@ -77,6 +81,45 @@ export default function MatchActionPage() {
       for (const b of needsContact) init[b.id] = { email: '', phone: '' }
       setContacts(init)
       setStep('fill-contacts')
+    }
+  }
+
+  async function handleEnrichUpload(file: File) {
+    if (!data) return
+    setEnrichUploading(true)
+    setEnrichCount(null)
+    try {
+      const fd = new FormData()
+      fd.append('file', file)
+      const res = await fetch(`/api/public/match-action/${token}/enrich-template`, {
+        method: 'POST',
+        body: fd,
+      })
+      const json = await res.json()
+      if (!json.updates?.length) { setEnrichCount(0); return }
+      // Build AFM → business id map
+      const afmToId: Record<string, string> = {}
+      for (const b of data.businesses) afmToId[b.afm] = b.id
+      // Apply updates to contacts state and auto-select those businesses
+      let matched = 0
+      const newContacts: Record<string, { email: string; phone: string }> = { ...contacts }
+      const newSelected = new Set(selected)
+      for (const u of json.updates as Array<{ afm: string; email: string; phone: string }>) {
+        const id = afmToId[u.afm]
+        if (!id) continue
+        const biz = data.businesses.find(b => b.id === id)
+        if (!biz || biz.alreadyAssigned) continue
+        newContacts[id] = { email: u.email || newContacts[id]?.email || '', phone: u.phone || newContacts[id]?.phone || '' }
+        if (u.email || u.phone) { newSelected.add(id); matched++ }
+      }
+      setContacts(newContacts)
+      setSelected(newSelected)
+      setEnrichCount(matched)
+    } catch {
+      setEnrichCount(0)
+    } finally {
+      setEnrichUploading(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
     }
   }
 
@@ -231,21 +274,65 @@ export default function MatchActionPage() {
               ))}
             </div>
 
-            {/* Missing contacts nudge */}
+            {/* Missing contacts nudge with inline Excel download/upload */}
             {withoutContactCount > 0 && (
               <div style={{ background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: 10, padding: '14px 18px', margin: '14px 0 0' }}>
                 <p style={{ margin: '0 0 6px', fontWeight: 'bold', color: '#92400e', fontSize: 14 }}>
                   ⚠️ {withoutContactCount} πελάτ{withoutContactCount === 1 ? 'ης' : 'ες'} χωρίς στοιχεία επικοινωνίας
                 </p>
-                <p style={{ margin: '0 0 8px', color: '#78350f', fontSize: 13, lineHeight: 1.5 }}>
-                  Αν τους επιλέξετε, θα σας ζητηθεί στο επόμενο βήμα να προσθέσετε email ή τηλέφωνο. Εναλλακτικά, μπορείτε να ανεβάσετε Excel με τα στοιχεία μαζικά:
+                <p style={{ margin: '0 0 12px', color: '#78350f', fontSize: 13, lineHeight: 1.5 }}>
+                  Μπορείτε να συμπληρώσετε στοιχεία χειροκίνητα στο επόμενο βήμα, ή να κατεβάσετε το παρακάτω Excel, να το συμπληρώσετε και να το ανεβάσετε για μαζική εισαγωγή.
                 </p>
-                <a
-                  href="/businesses"
-                  style={{ display: 'inline-block', background: '#f59e0b', color: 'white', borderRadius: 7, padding: '8px 16px', textDecoration: 'none', fontSize: 13, fontWeight: 'bold' }}
+
+                {/* Download buttons */}
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
+                  <a
+                    href={`/api/public/match-action/${token}/enrich-template?scope=matches`}
+                    download
+                    style={{ display: 'inline-block', background: '#f59e0b', color: 'white', borderRadius: 7, padding: '8px 14px', textDecoration: 'none', fontSize: 13, fontWeight: 'bold' }}
+                  >
+                    ⬇ Template — Matches ({withoutContactCount})
+                  </a>
+                  <a
+                    href={`/api/public/match-action/${token}/enrich-template?scope=all`}
+                    download
+                    style={{ display: 'inline-block', background: 'white', color: '#92400e', border: '1px solid #fcd34d', borderRadius: 7, padding: '8px 14px', textDecoration: 'none', fontSize: 13, fontWeight: 600 }}
+                  >
+                    ⬇ Template — Όλοι οι πελάτες χωρίς στοιχεία
+                  </a>
+                </div>
+
+                {/* Upload area */}
+                <div
+                  style={{ border: '2px dashed #fbbf24', borderRadius: 8, padding: '12px 14px', background: 'white', cursor: 'pointer' }}
+                  onClick={() => fileInputRef.current?.click()}
+                  onDragOver={e => e.preventDefault()}
+                  onDrop={e => {
+                    e.preventDefault()
+                    const f = e.dataTransfer.files[0]
+                    if (f) handleEnrichUpload(f)
+                  }}
                 >
-                  Εμπλουτισμός επαφών (Excel) →
-                </a>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".xlsx,.xls"
+                    style={{ display: 'none' }}
+                    onChange={e => { const f = e.target.files?.[0]; if (f) handleEnrichUpload(f) }}
+                  />
+                  {enrichUploading
+                    ? <p style={{ margin: 0, color: '#92400e', fontSize: 13, textAlign: 'center' }}>Επεξεργασία αρχείου...</p>
+                    : enrichCount !== null
+                      ? <p style={{ margin: 0, fontSize: 13, textAlign: 'center', color: enrichCount > 0 ? '#065f46' : '#92400e', fontWeight: 600 }}>
+                          {enrichCount > 0
+                            ? `✓ ${enrichCount} επαφ${enrichCount === 1 ? 'ή' : 'ές'} συμπληρώθηκ${enrichCount === 1 ? 'ε' : 'αν'} — ανεβάστε ξανά για να αλλάξετε`
+                            : 'Δεν βρέθηκαν αντιστοιχίσεις. Ελέγξτε ότι η στήλη ΑΦΜ είναι σωστή.'}
+                        </p>
+                      : <p style={{ margin: 0, color: '#92400e', fontSize: 13, textAlign: 'center' }}>
+                          📎 Σύρτε το συμπληρωμένο Excel εδώ ή <span style={{ textDecoration: 'underline' }}>κάντε κλικ για επιλογή</span>
+                        </p>
+                  }
+                </div>
               </div>
             )}
 
