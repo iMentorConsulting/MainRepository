@@ -382,7 +382,7 @@ export async function autoNotifyBusinessMatches(businessId: string): Promise<voi
     const actionUrl = `${appUrl}/match-action/${token}`
     const infoHtml = buildProgramInfoHtml(m.program)
     const req = m.program.otherRequirements
-      ? `<p style="margin: 8px 0 0; color: #374151; font-size: 13px; font-style: italic;">${m.program.otherRequirements}</p>`
+      ? `<p style="margin: 8px 0 0; color: #374151; font-size: 13px;">${m.program.otherRequirements.replace(/\n/g, '<br>')}</p>`
       : ''
     return `<div style="border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; margin-bottom: 12px;">
       <p style="margin: 0 0 8px; font-size: 15px; font-weight: bold; color: #4f46e5;">🎯 ${m.program.title}</p>

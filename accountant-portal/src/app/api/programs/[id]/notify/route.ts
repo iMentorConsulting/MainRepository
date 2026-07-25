@@ -103,7 +103,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     const requirementsHtml = program.otherRequirements
       ? `<div style="background: #f3f4f6; border-left: 4px solid #6b7280; padding: 16px; border-radius: 6px; margin: 20px 0;">
            <p style="margin: 0; color: #374151; font-size: 14px; font-weight: bold;">Πρόσθετες Προϋποθέσεις Προγράμματος:</p>
-           <p style="margin: 8px 0 0; color: #374151; font-size: 14px; white-space: pre-line;">${program.otherRequirements}</p>
+           <p style="margin: 8px 0 0; color: #374151; font-size: 14px;">${program.otherRequirements.replace(/\n/g, '<br>')}</p>
          </div>`
       : ''
 
