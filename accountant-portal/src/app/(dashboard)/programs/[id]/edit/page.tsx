@@ -409,10 +409,15 @@ export default function EditProgramPage() {
       if (res.ok) {
         setWpPageId(data.wpPageId)
         setWpPageUrl(data.wpPageUrl)
-        const msg = data.menuWarning
+        let msg = data.menuWarning
           ? `Σελίδα δημοσιεύτηκε! ⚠️ ${data.menuWarning}`
           : 'Η σελίδα δημοσιεύτηκε στο WordPress και προστέθηκε στο μενού!'
-        setWpToast({ msg, ok: !data.menuWarning })
+        if (data.tokenCount === 0) {
+          msg = '⚠️ Σελίδα δημιουργήθηκε αλλά κανένα token δεν αντικαταστάθηκε — το template δεν έχει placeholders!'
+        } else if (data.emptyValueTokens?.length > 0) {
+          msg += ` ⚠️ Tokens με κενή τιμή: ${data.emptyValueTokens.join(', ')}`
+        }
+        setWpToast({ msg, ok: data.tokenCount > 0 && !data.menuWarning })
       } else {
         setWpToast({ msg: data.error ?? 'Σφάλμα δημιουργίας', ok: false })
       }

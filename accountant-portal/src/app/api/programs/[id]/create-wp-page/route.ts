@@ -57,6 +57,14 @@ export async function POST(
   const placeholderMap = (template.placeholders ?? {}) as Record<string, string>
   const replacements = buildProgramReplacements(program as unknown as Record<string, unknown>, placeholderMap)
 
+  const tokenCount = Object.keys(replacements).length
+  const emptyValueTokens = Object.entries(replacements).filter(([, v]) => !v).map(([k]) => k)
+  console.log(`[WP] template "${template.name}" placeholderMap keys: ${Object.keys(placeholderMap).join(', ') || '(none)'}`)
+  console.log(`[WP] replacements built: ${tokenCount} tokens. Empty values: ${emptyValueTokens.join(', ') || 'none'}`)
+  if (tokenCount === 0) {
+    console.warn(`[WP] WARNING: zero replacements for templateId=${templateId} — placeholders may be empty in DB`)
+  }
+
   // Slug: slugify the title (Greek-safe — keep only alphanumeric + hyphens)
   const slug = program.title
     .toLowerCase()
@@ -137,7 +145,7 @@ export async function POST(
       }
     }
 
-    return NextResponse.json({ wpPageId: wpId, wpPageUrl: link, menuWarning })
+    return NextResponse.json({ wpPageId: wpId, wpPageUrl: link, menuWarning, tokenCount, emptyValueTokens })
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
     console.error('[WP] create-wp-page failed:', msg)
