@@ -292,7 +292,7 @@ export default function MatchActionPage() {
                 {/* Download buttons */}
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
                   <div style={{ flex: 1, minWidth: 200 }}>
-                    <p style={{ margin: '0 0 4px', fontSize: 11, fontWeight: 700, color: '#92400e', textTransform: 'uppercase', letterSpacing: '0.04em' }}>α) Μόνο τα matches αυτού του προγράμματος</p>
+                    <p style={{ margin: '0 0 4px', fontSize: 11, fontWeight: 700, color: '#92400e', textTransform: 'uppercase', letterSpacing: '0.04em' }}>α) Μόνο τα επιλεγμένα matches αυτού του προγράμματος</p>
                     <a
                       href={`/api/public/match-action/${token}/enrich-template?scope=matches`}
                       download
