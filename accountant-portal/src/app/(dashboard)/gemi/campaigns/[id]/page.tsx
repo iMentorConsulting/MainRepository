@@ -4,8 +4,9 @@ import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { formatDateTime } from '@/lib/utils'
-import { ArrowLeft, Send, Mail, MessageCircle } from 'lucide-react'
+import { ArrowLeft, Send, Mail, MessageCircle, RefreshCw } from 'lucide-react'
 
 const statusVariant: Record<string, any> = { DRAFT: 'secondary', SENT: 'success', SENDING: 'info', FAILED: 'danger', SCHEDULED: 'warning' }
 const statusLabel: Record<string, string> = { DRAFT: 'Πρόχειρο', SENT: 'Απεστάλη', SENDING: 'Αποστολή...', FAILED: 'Αποτυχία', SCHEDULED: 'Προγρ/νο' }
@@ -20,19 +21,28 @@ export default function GemiCampaignDetailPage() {
   const [sending, setSending] = useState(false)
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null)
 
+  // Resend non-openers modal state
+  const [resendModal, setResendModal] = useState(false)
+  const [resendSubject, setResendSubject] = useState('')
+  const [resending, setResending] = useState(false)
+  const [resendResult, setResendResult] = useState<any>(null)
+
   function showToast(msg: string, ok: boolean) {
     setToast({ msg, ok })
-    setTimeout(() => setToast(null), 4000)
+    setTimeout(() => setToast(null), 5000)
+  }
+
+  async function loadData() {
+    const [c, r] = await Promise.all([
+      fetch(`/api/gemi/campaigns/${id}`).then(res => res.json()),
+      fetch(`/api/gemi/campaigns/${id}/recipients`).then(res => res.json()).catch(() => []),
+    ])
+    setCampaign(c)
+    setRecipients(Array.isArray(r) ? r : r.recipients || [])
   }
 
   useEffect(() => {
-    Promise.all([
-      fetch(`/api/gemi/campaigns/${id}`).then(r => r.json()),
-      fetch(`/api/gemi/campaigns/${id}/recipients`).then(r => r.json()).catch(() => []),
-    ]).then(([c, r]) => {
-      setCampaign(c)
-      setRecipients(Array.isArray(r) ? r : r.recipients || [])
-    }).finally(() => setLoading(false))
+    loadData().finally(() => setLoading(false))
   }, [id])
 
   async function sendCampaign() {
@@ -43,8 +53,7 @@ export default function GemiCampaignDetailPage() {
       const data = await res.json()
       if (res.ok) {
         showToast(`Εστάλησαν ${data.sent} μηνύματα${data.errors ? ` (${data.errors} σφάλματα)` : ''}.`, true)
-        const updated = await fetch(`/api/gemi/campaigns/${id}`).then(r => r.json())
-        setCampaign(updated)
+        await loadData()
       } else {
         showToast(data.error || 'Σφάλμα αποστολής', false)
       }
@@ -52,6 +61,39 @@ export default function GemiCampaignDetailPage() {
       showToast('Σφάλμα δικτύου', false)
     } finally {
       setSending(false)
+    }
+  }
+
+  function openResendModal() {
+    setResendSubject(campaign?.subject || '')
+    setResendResult(null)
+    setResendModal(true)
+  }
+
+  async function handleResend() {
+    setResending(true)
+    setResendResult(null)
+    try {
+      const res = await fetch(`/api/gemi/campaigns/${id}/resend-non-openers`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subject: resendSubject }),
+      })
+      const data = await res.json()
+      if (res.ok) {
+        setResendResult(data)
+        if (data.recipientCount > 0) {
+          await loadData()
+        }
+      } else {
+        showToast(data.error || 'Σφάλμα επαναποστολής', false)
+        setResendModal(false)
+      }
+    } catch {
+      showToast('Σφάλμα δικτύου', false)
+      setResendModal(false)
+    } finally {
+      setResending(false)
     }
   }
 
@@ -68,12 +110,104 @@ export default function GemiCampaignDetailPage() {
   const sentCount = recipients.filter((r: any) => r.status === 'sent').length
   const errorCount = recipients.filter((r: any) => r.status === 'error').length
   const pendingCount = recipients.filter((r: any) => r.status === 'pending').length
+  const isEmailCampaign = campaign.channel === 'EMAIL' || campaign.channel === 'EMAIL_AND_VIBER'
 
   return (
     <div className="space-y-6">
       {toast && (
         <div className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-xl shadow-lg text-sm font-medium text-white ${toast.ok ? 'bg-emerald-600' : 'bg-red-600'}`}>
           {toast.msg}
+        </div>
+      )}
+
+      {/* Resend non-openers modal */}
+      {resendModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6 space-y-5">
+            <div>
+              <h2 className="text-lg font-bold text-gray-900">Επαναποστολή σε Μη Αναγνώστες</h2>
+              <p className="text-sm text-gray-500 mt-1">
+                Γίνεται fresh sync με Moosend, μετά η καμπάνια αποστέλλεται μόνο σε όσους δεν άνοιξαν το προηγούμενο email.
+              </p>
+            </div>
+
+            {!resendResult ? (
+              <>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Θέμα email</label>
+                  <Input
+                    value={resendSubject}
+                    onChange={e => setResendSubject(e.target.value)}
+                    placeholder="Θέμα email..."
+                  />
+                  <p className="text-xs text-gray-400 mt-1">Μπορείς να αλλάξεις το θέμα (π.χ. να προσθέσεις «Υπενθύμιση:»)</p>
+                </div>
+
+                {/* Safety info box */}
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800 space-y-1">
+                  <p className="font-semibold">Αυτόματες εξαιρέσεις — δεν θα λάβουν email:</p>
+                  <ul className="list-disc list-inside space-y-0.5">
+                    <li>Όσοι άνοιξαν ή έκαναν κλικ στο αρχικό email</li>
+                    <li>Emails που αναπήδησαν (bounced)</li>
+                    <li>Όσοι διαγράφηκαν από αυτή την καμπάνια</li>
+                    <li>Όσοι είναι στη λίστα αποδεσμευμένων (global unsubscribers)</li>
+                  </ul>
+                </div>
+
+                <div className="flex gap-2 justify-end">
+                  <Button variant="ghost" onClick={() => setResendModal(false)} disabled={resending}>Ακύρωση</Button>
+                  <Button onClick={handleResend} loading={resending} disabled={!resendSubject.trim()}>
+                    {resending ? 'Sync & αποστολή...' : 'Επαναποστολή'}
+                  </Button>
+                </div>
+              </>
+            ) : (
+              /* Results view */
+              <div className="space-y-4">
+                {resendResult.recipientCount > 0 ? (
+                  <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4">
+                    <p className="text-emerald-800 font-semibold text-base">
+                      ✓ Νέα καμπάνια δημιουργήθηκε για {resendResult.recipientCount} παραλήπτες
+                    </p>
+                    <p className="text-emerald-700 text-sm mt-1">Η αποστολή θα ολοκληρωθεί αυτόματα σε λίγα λεπτά.</p>
+                  </div>
+                ) : (
+                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-gray-600 text-sm">
+                    Δεν βρέθηκαν μη αναγνώστες για επαναποστολή.
+                  </div>
+                )}
+
+                {/* Exclusion breakdown */}
+                <div className="text-sm space-y-1">
+                  <p className="font-medium text-gray-700">Ανάλυση εξαιρέσεων:</p>
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-gray-600">
+                    <span>✓ Άνοιξαν / έκαναν κλικ</span>
+                    <span className="font-medium text-emerald-700">{resendResult.excluded.alreadyOpened}</span>
+                    <span>⚠ Αναπήδηση (bounce)</span>
+                    <span className="font-medium text-red-600">{resendResult.excluded.bounced}</span>
+                    <span>⚠ Διαγραφή από καμπάνια</span>
+                    <span className="font-medium text-red-600">{resendResult.excluded.campaignUnsub}</span>
+                    <span>⚠ Global unsubscribe</span>
+                    <span className="font-medium text-red-600">{resendResult.excluded.globalUnsub}</span>
+                  </div>
+                  {resendResult.synced && (
+                    <p className="text-xs text-gray-400 pt-1">
+                      Fresh sync: {resendResult.syncedRecipients} παραλήπτες ενημερώθηκαν από Moosend πριν την αποστολή.
+                    </p>
+                  )}
+                </div>
+
+                <div className="flex gap-2 justify-end">
+                  <Button variant="ghost" onClick={() => setResendModal(false)}>Κλείσιμο</Button>
+                  {resendResult.newCampaignId && (
+                    <Link href={`/gemi/campaigns/${resendResult.newCampaignId}`}>
+                      <Button onClick={() => setResendModal(false)}>Δες νέα καμπάνια →</Button>
+                    </Link>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
@@ -90,6 +224,11 @@ export default function GemiCampaignDetailPage() {
         {campaign.status === 'DRAFT' && (
           <Button loading={sending} onClick={sendCampaign}>
             <Send size={14} className="mr-2" />Αποστολή
+          </Button>
+        )}
+        {campaign.status === 'SENT' && isEmailCampaign && (
+          <Button variant="outline" onClick={openResendModal}>
+            <RefreshCw size={14} className="mr-2" />Επαναποστολή σε Μη Αναγνώστες
           </Button>
         )}
       </div>
