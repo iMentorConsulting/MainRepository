@@ -84,7 +84,7 @@ export default function MatchActionPage() {
     if (!data) return
     setSubmitting(true)
     try {
-      const selections = [...selected].map(businessId => ({
+      const selections = Array.from(selected).map(businessId => ({
         businessId,
         ...(contacts[businessId] || {}),
       }))
