@@ -18,6 +18,35 @@ import time
 
 TAB_NAME = "ΔΙΑΧΕΙΡΙΣΗ"
 
+_EMAIL_CORRECTIONS = {
+    '@yahoo.fr': '@yahoo.gr',
+    '@gmail.fr': '@gmail.gr',
+    '@hotmail.fr': '@hotmail.gr',
+    '@outlook.fr': '@outlook.gr',
+    '@ionline.fr': '@ionline.gr',
+    '@in.fr': '@in.gr',
+    '@mail.fr': '@mail.gr',
+    '@live.fr': '@live.gr',
+    '@gmail.con': '@gmail.com',
+    '@hotmail.con': '@hotmail.com',
+    '@outlook.con': '@outlook.com',
+    '@yahoo.con': '@yahoo.com',
+    '@gmial.com': '@gmail.com',
+    '@gmai.com': '@gmail.com',
+    '@yaho.gr': '@yahoo.gr',
+    '@yaho.com': '@yahoo.com',
+}
+
+
+def _normalize_email(email: str) -> str:
+    if not email:
+        return email
+    email = email.lower().strip()
+    for typo, correct in _EMAIL_CORRECTIONS.items():
+        if typo in email:
+            email = email.replace(typo, correct)
+    return email
+
 # Sheet header → Lead field name (exact match, first occurrence wins on duplicates)
 COL_MAP = {
     # Core fields
@@ -212,7 +241,7 @@ def _build_sheet_fields(row: dict) -> dict:
         next_call_sheet=row.get("next_call_sheet", ""),
         total_debt=row.get("total_debt", ""),
         phone=row.get("phone", "").strip(),
-        email=row.get("email", ""),
+        email=_normalize_email(row.get("email", "")),
         offer_sent=_parse_bool(row.get("offer_sent", "")),
         offer_sent_date=row.get("offer_sent_date", ""),
         offer_amount=row.get("offer_amount", ""),
