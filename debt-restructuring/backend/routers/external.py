@@ -93,7 +93,7 @@ def receive_portal_case(data: PortalCaseIn, db: Session = Depends(get_db), _=Dep
         client_name=data.onomasia,
         client_phone=data.phone or "",
         client_email=data.email or "",
-        client_vat=data.afm,
+        client_vat=_pad_afm(data.afm),
         employee="",
         status="pending_external",
         debtor_type=debtor_type,
@@ -165,6 +165,16 @@ class CreateLeadRequest(BaseModel):
     sheet_comments: Optional[str] = None
     application_number: Optional[str] = None
     send_themis: Optional[bool] = False
+
+
+def _pad_afm(afm: str) -> str:
+    """Pad ΑΦΜ to 9 digits with leading zeros (Excel strips leading zeros on open)."""
+    if not afm:
+        return afm
+    afm = afm.strip()
+    if afm.isdigit() and len(afm) < 9:
+        afm = afm.zfill(9)
+    return afm
 
 
 def _normalize_email(email: str) -> str:
