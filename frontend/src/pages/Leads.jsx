@@ -82,7 +82,9 @@ function eligibilityCell(lead) {
     return (
       <div className="flex flex-wrap gap-1">
         {mp.map((p, i) => (
-          <span key={i} className="text-[10px] font-semibold bg-green-100 text-green-700 rounded-full px-2 py-0.5" title={p.status || ''}>{p.title}</span>
+          <span key={i} className="text-[10px] font-semibold bg-green-100 text-green-700 rounded-full px-2 py-0.5 max-w-[200px] truncate block" title={p.title + (p.status ? ` · ${p.status}` : '')}>
+            {p.title}
+          </span>
         ))}
       </div>
     )
@@ -266,11 +268,17 @@ function ExpandedRow({ lead, colSpan, onChanged, onConvert, onErmis, onSend }) {
           </button>
           <span className="text-sm text-gray-500">ΑΦΜ: <b className={full?.afm ? 'text-gray-700' : 'text-red-500'}>{full?.afm || '— (λείπει)'}</b></span>
           <span className="text-sm text-gray-500">Πρόγραμμα: <b className="text-gray-700">{full?.program || '—'}</b></span>
-          {full?.program_title && full.program_title !== full.program && (
-            <span className="text-sm font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-lg px-3 py-1">
-              🎯 {full.program_title}
-            </span>
-          )}
+          {(() => {
+            // program_title from DB, or extracted from notes for LOGISTIS assignments
+            // Notes format: "Ανάθεση … — PROGRAM TITLE"
+            const pt = full?.program_title ||
+              (full?.notes?.includes('—') ? full.notes.split('—').slice(1).join('—').trim() : null)
+            return pt && pt !== full?.program ? (
+              <span className="text-sm font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-lg px-3 py-1 max-w-xs truncate" title={pt}>
+                🎯 {pt}
+              </span>
+            ) : null
+          })()}
           <span className="text-sm text-gray-500">Referrer: <b className="text-gray-700">{full?.source || '—'}</b></span>
           {full?.portal_case_link && <a href={full.portal_case_link} target="_blank" rel="noreferrer" className="text-sm font-semibold text-blue-600 hover:underline">↗ Υπόθεση LOGISTIS #{full.portal_case_number}</a>}
           {/* ΕΡΜΗΣ action: only show when not yet started or on error; never allow re-start when done */}
