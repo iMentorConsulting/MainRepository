@@ -33,6 +33,7 @@ _EMAIL_CORRECTIONS = {
     '@yahoo.con': '@yahoo.com',
     '@gmial.com': '@gmail.com',
     '@gmai.com': '@gmail.com',
+    '@mail.com': '@gmail.com',
     '@yaho.gr': '@yahoo.gr',
     '@yaho.com': '@yahoo.com',
 }

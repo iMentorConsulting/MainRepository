@@ -192,6 +192,7 @@ def _normalize_email(email: str) -> str:
         # Domain name typos: gmial/gmai → gmail, yaho → yahoo
         '@gmial.com': '@gmail.com',
         '@gmai.com': '@gmail.com',
+        '@mail.com': '@gmail.com',
         '@yaho.gr': '@yahoo.gr',
         '@yaho.com': '@yahoo.com',
     }

@@ -17,15 +17,16 @@ export function normalizeEmail(email) {
     '@outlook.fr': '@outlook.gr',
     '@ionline.fr': '@ionline.gr',
     '@in.fr': '@in.gr',
-    '@mail.fr': '@mail.fr',
+    '@mail.fr': '@mail.gr',
     '@live.fr': '@live.gr',
     '@gmail.con': '@gmail.com',
     '@hotmail.con': '@hotmail.com',
     '@outlook.con': '@outlook.com',
     '@yahoo.con': '@yahoo.com',
-    // Domain name typos: gmial/gmai → gmail, yaho → yahoo
+    // Domain name typos: gmial/gmai → gmail, yaho → yahoo, mail.com → gmail.com
     '@gmial.com': '@gmail.com',
     '@gmai.com': '@gmail.com',
+    '@mail.com': '@gmail.com',
     '@yaho.gr': '@yahoo.gr',
     '@yaho.com': '@yahoo.com',
   }
@@ -66,6 +67,7 @@ export function hasEmailTypo(email) {
     // Domain name typos
     lowerEmail.includes('@gmial.com') ||
     lowerEmail.includes('@gmai.com') ||
+    lowerEmail.includes('@mail.com') ||
     lowerEmail.includes('@yaho.gr') ||
     lowerEmail.includes('@yaho.com')
   )
