@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState, useCallback } from 'react'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -60,6 +61,7 @@ const PAGE_SIZE = 20
 export default function BusinessesPage() {
   const { data: session } = useSession()
   const isAdmin = session?.user?.role === 'ADMIN'
+  const searchParams = useSearchParams()
   const [businesses, setBusinesses] = useState<Business[]>([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
@@ -134,6 +136,10 @@ export default function BusinessesPage() {
         setRegionOptions(data.regions || [])
       })
   }, [])
+
+  useEffect(() => {
+    if (searchParams.get('action') === 'enrich') setEnrichOpen(true)
+  }, [searchParams])
 
   function handleSearch() {
     setSearch(searchInput)

@@ -586,7 +586,7 @@ export async function notifyBatchMatchesForBusinesses(businessIds: string[]): Pr
       const missingContactHtml = withoutContact > 0
         ? `<div style="background: #fef3c7; border-left: 4px solid #f59e0b; padding: 16px; border-radius: 6px; margin: 20px 0;">
              <p style="margin: 0 0 6px; color: #92400e; font-size: 14px; font-weight: bold;">⚠️ ${withoutContact} πελάτ${withoutContact === 1 ? 'ης' : 'ες'} χωρίς στοιχεία επικοινωνίας</p>
-             <p style="margin: 0; color: #92400e; font-size: 14px;">Για να τους ενημερώσει η I-MENTOR χρειάζεται email ή κινητό τηλέφωνο. Μπορείτε να τα προσθέσετε <strong>μαζικά με Excel</strong> μέσω της <a href="${appUrl}/businesses/enrich" style="color: #92400e; font-weight: bold;">σελίδας εμπλουτισμού επαφών</a> — ή ένα-ένα απευθείας στη σελίδα ανάθεσης.</p>
+             <p style="margin: 0; color: #92400e; font-size: 14px;">Για να τους ενημερώσει η I-MENTOR χρειάζεται email ή κινητό τηλέφωνο. Μπορείτε να τα προσθέσετε <strong>μαζικά με Excel</strong> μέσω της <a href="${appUrl}/businesses?action=enrich" style="color: #92400e; font-weight: bold;">σελίδας εμπλουτισμού επαφών</a> — ή ένα-ένα απευθείας στη σελίδα ανάθεσης.</p>
            </div>`
         : ''
 

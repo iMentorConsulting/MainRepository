@@ -28,14 +28,7 @@ export async function GET(req: NextRequest, { params }: Params) {
 
   if (scope === 'all') {
     businesses = await prisma.business.findMany({
-      where: {
-        accountantId: row.accountantId,
-        OR: [{ email: null }, { email: '' }, { phone: null }, { phone: '' }],
-        AND: [
-          { OR: [{ email: null }, { email: '' }] },
-          { OR: [{ phone: null }, { phone: '' }] },
-        ],
-      },
+      where: { accountantId: row.accountantId },
       select: { onomasia: true, afm: true },
       orderBy: { onomasia: 'asc' },
     })
