@@ -115,10 +115,10 @@ export async function POST(req: NextRequest, { params }: Params) {
   const updates: Array<{ afm: string; email: string; phone: string }> = []
 
   for (const row of rows) {
-    const afm = String(row['ΑΦΜ'] ?? row['afm'] ?? '').trim()
+    const afm = String(row['ΑΦΜ'] ?? row['afm'] ?? '').trim().replace(/\D/g, '').padStart(9, '0')
     const email = String(row['Email'] ?? row['email'] ?? '').trim()
     const phone = String(row['Κινητό'] ?? row['phone'] ?? row['Κινητό'] ?? '').trim()
-    if (!afm) continue
+    if (!afm || afm === '000000000') continue
     if (!email && !phone) continue
     updates.push({ afm, email, phone })
   }

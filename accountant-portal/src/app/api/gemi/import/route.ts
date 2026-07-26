@@ -106,9 +106,9 @@ export async function POST(request: NextRequest) {
     const fields = parseCSVLine(line, delimiter)
 
     const rawAfm = (fields[afmIdx] ?? '').replace(/^"|"$/g, '').trim()
-    const afm = rawAfm.replace(/\D/g, '')
+    const afm = rawAfm.replace(/\D/g, '').padStart(9, '0')
 
-    if (!afm || !/^\d{9}$/.test(afm)) {
+    if (!afm || afm === '000000000' || !/^\d{9}$/.test(afm)) {
       skipped++
       continue
     }
