@@ -343,9 +343,6 @@ def save_actual_results(id: int, data: ActualResultsUpdate, db: Session = Depend
         raise HTTPException(status_code=404, detail="Η υπόθεση δεν βρέθηκε")
     case.actual_results = data.actual_results
     case.updated_at = _now()
-    if case.status not in ("completed", "cancelled"):
-        case.status = "completed"
-        case.completed_at = _now()
     db.commit()
     db.refresh(case)
     return case
