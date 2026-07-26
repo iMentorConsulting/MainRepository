@@ -751,6 +751,12 @@ def accept_assignment(
     afm = normalize_afm(a.afm)
     consultant = _short_consultant(current_user.full_name)
     prog_title = (a.program_exact_title or "").strip() or None
+    # Fallback: LOGISTIS embeds the exact program name in the description after an em-dash,
+    # e.g. "Ανάθεση από λογιστή μέσω action page — Πρόγραμμα επιχορήγησης…"
+    if not prog_title and a.description and "—" in a.description:
+        extracted = a.description.split("—", 1)[-1].strip()
+        if len(extracted) > 5:
+            prog_title = extracted
     prog_cat = program_category_from_title(prog_title) or _map_program_category(a.program_title)
 
     # Always try to reuse an existing LOGISTIS/ΕΡΜΗΣ lead for this ΑΦΜ + program (the
