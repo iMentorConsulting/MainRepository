@@ -26,7 +26,7 @@ interface ExclusionCache {
 let _exclusionCache: ExclusionCache | null = null
 const EXCLUSION_TTL = 90_000 // 90 seconds
 
-export function invalidateExclusionCache() {
+function invalidateExclusionCache() {
   _exclusionCache = null
 }
 
