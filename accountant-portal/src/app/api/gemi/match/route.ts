@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { runMatchingForGemi } from '@/lib/gemi-matching'
+import { runMatchingForGemi, loadActivePrograms } from '@/lib/gemi-matching'
 
 export async function POST(request: NextRequest) {
   const session = await auth()
@@ -42,9 +42,10 @@ export async function POST(request: NextRequest) {
       where: { id: { in: ids }, matchingDone: false },
       select: { id: true },
     })
+    const programs = await loadActivePrograms()
     let totalMatches = 0
     for (const record of records) {
-      const count = await runMatchingForGemi(record.id)
+      const count = await runMatchingForGemi(record.id, programs)
       totalMatches += count
     }
     return NextResponse.json({ processed: records.length, totalMatches, remaining: 0 })
@@ -66,9 +67,10 @@ export async function POST(request: NextRequest) {
     take: limit,
   })
 
+  const programs = await loadActivePrograms()
   let totalMatches = 0
   for (const record of records) {
-    const count = await runMatchingForGemi(record.id)
+    const count = await runMatchingForGemi(record.id, programs)
     totalMatches += count
   }
 

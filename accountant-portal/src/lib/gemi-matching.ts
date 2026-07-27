@@ -129,7 +129,11 @@ function matchesBusiness(
   return { score: allMatched ? 100 : 0, reasons: allMatched ? reasons : [] }
 }
 
-export async function runMatchingForGemi(gemiId: string): Promise<number> {
+export async function loadActivePrograms() {
+  return prisma.program.findMany({ where: { active: true } })
+}
+
+export async function runMatchingForGemi(gemiId: string, programs: Awaited<ReturnType<typeof loadActivePrograms>>): Promise<number> {
   const gemi = await prisma.gemiLookup.findUnique({ where: { id: gemiId } })
   if (!gemi) throw new Error('GemiLookup not found')
 
@@ -155,8 +159,6 @@ export async function runMatchingForGemi(gemiId: string): Promise<number> {
     tags: gemi.tags,
     activities,
   }
-
-  const programs = await prisma.program.findMany({ where: { active: true } })
 
   let matchCount = 0
   const qualifiedProgramIds: string[] = []
