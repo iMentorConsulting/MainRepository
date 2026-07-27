@@ -42,6 +42,11 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
         orderBy: { createdAt: 'desc' },
       },
       documentRequests: { orderBy: { createdAt: 'desc' } },
+      dypaAssignment: {
+        include: {
+          formTokens: { orderBy: { createdAt: 'desc' }, take: 1 },
+        },
+      },
     },
   })
 

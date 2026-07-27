@@ -12,6 +12,7 @@ import { formatDateTime } from '@/lib/utils'
 import {
   ClipboardList, User, Building2, CheckCircle2, MessageSquare, Lock, Send,
   Mail, Phone, MapPin, Calendar, Target, FileDown, Paperclip, Plus, Trash2, ListChecks, Server, X, ExternalLink,
+  Rocket, Link2, Copy, AlertTriangle,
 } from 'lucide-react'
 
 const STATUS_LABELS: Record<string, string> = {
@@ -51,6 +52,14 @@ export default function CaseDetailPage() {
   const [accountantMsg, setAccountantMsg] = useState('')
   const [sendingAccountantMsg, setSendingAccountantMsg] = useState(false)
 
+  // DYPA link panel
+  const [dypaContactEmail, setDypaContactEmail] = useState('')
+  const [dypaContactPhone, setDypaContactPhone] = useState('')
+  const [dypaLink, setDypaLink] = useState('')
+  const [dypaLinkLoading, setDypaLinkLoading] = useState(false)
+  const [dypaLinkNotice, setDypaLinkNotice] = useState('')
+  const [dypaLinkCopied, setDypaLinkCopied] = useState(false)
+
   // Tasks
   const [newTask, setNewTask] = useState('')
   // Document request (admin)
@@ -66,7 +75,12 @@ export default function CaseDetailPage() {
 
   async function load() {
     const res = await fetch(`/api/cases/${id}`)
-    if (res.ok) setData(await res.json())
+    if (res.ok) {
+      const d = await res.json()
+      setData(d)
+      setDypaContactEmail((e: string) => e || d.case?.business?.email || '')
+      setDypaContactPhone((p: string) => p || d.case?.business?.phone || '')
+    }
     setLoading(false)
   }
 
@@ -206,6 +220,32 @@ export default function CaseDetailPage() {
       }
     } finally {
       setSendingAccountantMsg(false)
+    }
+  }
+
+  async function generateDypaLink(assignmentId: string) {
+    setDypaLinkLoading(true)
+    setDypaLinkNotice('')
+    try {
+      const res = await fetch(`/api/cases/dypa/${assignmentId}/link`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contactEmail: dypaContactEmail, contactPhone: dypaContactPhone }),
+      })
+      const result = await res.json().catch(() => ({}))
+      if (res.ok) {
+        setDypaLink(result.url)
+        setDypaLinkNotice(dypaContactEmail || dypaContactPhone
+          ? 'Ο σύνδεσμος δημιουργήθηκε. Η πρόσκληση αποστέλλεται στην επιχείρηση.'
+          : 'Ο σύνδεσμος δημιουργήθηκε. Συμπληρώστε email/κινητό για αποστολή πρόσκλησης.')
+        load()
+      } else {
+        setDypaLinkNotice(result.error || 'Σφάλμα κατά τη δημιουργία του συνδέσμου.')
+      }
+    } catch {
+      setDypaLinkNotice('Σφάλμα δικτύου.')
+    } finally {
+      setDypaLinkLoading(false)
     }
   }
 
@@ -380,6 +420,108 @@ export default function CaseDetailPage() {
               )}
             </CardContent>
           </Card>
+
+          {/* DYPA Assignment Panel */}
+          {c.dypaAssignment && (() => {
+            const da = c.dypaAssignment
+            const latestToken = da.formTokens?.[0]
+            const linkSentAt = latestToken?.emailSentAt || latestToken?.viberSentAt ? new Date(latestToken.createdAt) : null
+            const daysSinceLink = linkSentAt ? Math.floor((Date.now() - linkSentAt.getTime()) / 86400000) : null
+            const termsAccepted = !!da.termsAcceptedAt
+            const submitted = !!da.finalAcceptedAt
+
+            const steps = [
+              { label: 'Σύνδεσμος εστάλη', done: !!linkSentAt },
+              { label: 'Αποδοχή Όρων', done: termsAccepted },
+              { label: 'Υποβολή Φόρμας', done: submitted },
+            ]
+
+            return (
+              <Card className="border-indigo-200 bg-indigo-50/30">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Rocket size={16} className="text-indigo-600" />
+                    ΔΥΠΑ — Πρόσληψη Ανέργου
+                    <Link href={`/cases/dypa/${da.id}`} className="ml-auto text-xs text-indigo-600 hover:underline flex items-center gap-1 font-normal">
+                      Πλήρης φόρμα <ExternalLink size={12} />
+                    </Link>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {/* Progress steps */}
+                  <div className="flex items-center gap-0">
+                    {steps.map((step, i) => (
+                      <div key={i} className="flex items-center flex-1">
+                        <div className="flex flex-col items-center flex-1">
+                          <div className={`w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold mb-1 ${step.done ? 'bg-emerald-500' : 'bg-gray-200 text-gray-400'}`}>
+                            {step.done ? <CheckCircle2 size={14} /> : i + 1}
+                          </div>
+                          <span className={`text-xs text-center leading-tight ${step.done ? 'text-emerald-700 font-medium' : 'text-gray-400'}`}>{step.label}</span>
+                        </div>
+                        {i < steps.length - 1 && (
+                          <div className={`h-0.5 w-8 mb-5 flex-shrink-0 ${steps[i + 1].done ? 'bg-emerald-400' : 'bg-gray-200'}`} />
+                        )}
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Delay warning */}
+                  {linkSentAt && !submitted && daysSinceLink !== null && daysSinceLink > 7 && (
+                    <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-start gap-2 text-sm text-amber-800">
+                      <AlertTriangle size={16} className="mt-0.5 flex-shrink-0 text-amber-600" />
+                      <span>Ο σύνδεσμος εστάλη πριν από <strong>{daysSinceLink} ημέρες</strong> και η φόρμα δεν έχει υποβληθεί ακόμα. Στείλτε υπενθύμιση παρακάτω.</span>
+                    </div>
+                  )}
+
+                  {/* Send / Resend link */}
+                  {!submitted && (
+                    <div className="space-y-2 pt-1">
+                      <div className="text-xs font-semibold text-indigo-700 uppercase flex items-center gap-1">
+                        <Link2 size={12} />
+                        {linkSentAt ? 'Αποστολή Υπενθύμισης' : 'Αποστολή Συνδέσμου στην Επιχείρηση'}
+                      </div>
+                      <div className="grid sm:grid-cols-2 gap-2">
+                        <input
+                          className="rounded-lg border border-indigo-200 px-3 py-2 text-sm bg-white"
+                          placeholder="Email επιχείρησης"
+                          value={dypaContactEmail}
+                          onChange={e => setDypaContactEmail(e.target.value)}
+                        />
+                        <input
+                          className="rounded-lg border border-indigo-200 px-3 py-2 text-sm bg-white"
+                          placeholder="Κινητό επιχείρησης"
+                          value={dypaContactPhone}
+                          onChange={e => setDypaContactPhone(e.target.value)}
+                        />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button size="sm" variant="outline" onClick={() => generateDypaLink(da.id)} loading={dypaLinkLoading}>
+                          <Send size={13} className="mr-1" />
+                          {linkSentAt ? 'Αποστολή Υπενθύμισης' : 'Δημιουργία & Αποστολή Συνδέσμου'}
+                        </Button>
+                      </div>
+                      {dypaLinkNotice && <p className="text-xs text-indigo-700">{dypaLinkNotice}</p>}
+                      {dypaLink && (
+                        <div className="flex items-center gap-2 bg-white rounded-lg border border-indigo-200 px-3 py-2">
+                          <input readOnly value={dypaLink} className="flex-1 text-xs text-slate-700 outline-none" />
+                          <button onClick={() => { navigator.clipboard.writeText(dypaLink); setDypaLinkCopied(true); setTimeout(() => setDypaLinkCopied(false), 2000) }} className="text-indigo-600 hover:text-indigo-800">
+                            {dypaLinkCopied ? <CheckCircle2 size={16} /> : <Copy size={16} />}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {submitted && (
+                    <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 text-sm text-emerald-800 flex items-center gap-2">
+                      <CheckCircle2 size={16} className="text-emerald-600 flex-shrink-0" />
+                      Η φόρμα υποβλήθηκε στις {new Date(da.finalAcceptedAt).toLocaleDateString('el-GR')}. Ελέγξτε τη φόρμα για τα πλήρη στοιχεία.
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )
+          })()}
 
           <Card>
             <CardHeader>
