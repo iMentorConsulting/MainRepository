@@ -269,10 +269,13 @@ function ExpandedRow({ lead, colSpan, onChanged, onConvert, onErmis, onSend }) {
           <span className="text-sm text-gray-500">ΑΦΜ: <b className={full?.afm ? 'text-gray-700' : 'text-red-500'}>{full?.afm || '— (λείπει)'}</b></span>
           <span className="text-sm text-gray-500">Πρόγραμμα: <b className="text-gray-700">{full?.program || '—'}</b></span>
           {(() => {
-            // program_title from DB, or extracted from notes for LOGISTIS assignments
-            // Notes format: "Ανάθεση … — PROGRAM TITLE"
+            // 1) program_title stored in DB
+            // 2) extracted from notes when LOGISTIS uses "Ανάθεση … — PROGRAM TITLE" format
+            // 3) first matched_program title from the business profile (ΕΡΜΗΣ result)
+            const mp0 = (full?.matched_programs || [])[0]?.title
             const pt = full?.program_title ||
-              (full?.notes?.includes('—') ? full.notes.split('—').slice(1).join('—').trim() : null)
+              (full?.notes?.includes('—') ? full.notes.split('—').slice(1).join('—').trim() : null) ||
+              mp0 || null
             return pt && pt !== full?.program ? (
               <span className="text-sm font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-lg px-3 py-1 max-w-xs truncate" title={pt}>
                 🎯 {pt}
