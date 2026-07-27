@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableHead, TableBody, TableRow, Th, Td } from '@/components/ui/table'
 import { Pagination } from '@/components/ui/pagination'
-import { Send } from 'lucide-react'
+import { Send, FlaskConical, CheckCircle, XCircle, AlertCircle } from 'lucide-react'
 
 const STATUS_OPTIONS = [
   { value: '', label: 'Όλες οι καταστάσεις' },
@@ -53,6 +53,12 @@ function GemiMatchesPageInner() {
   const [statusFilter, setStatusFilter] = useState('')
   const [programOptions, setProgramOptions] = useState<{ value: string; label: string }[]>([])
 
+  const [diagnoseAfm, setDiagnoseAfm] = useState('')
+  const [diagnoseProgramId, setDiagnoseProgramId] = useState('')
+  const [diagnosing, setDiagnosing] = useState(false)
+  const [diagnoseResult, setDiagnoseResult] = useState<any>(null)
+  const [diagnoseError, setDiagnoseError] = useState('')
+
   useEffect(() => {
     fetch('/api/programs')
       .then(r => r.json())
@@ -81,6 +87,23 @@ function GemiMatchesPageInner() {
   useEffect(() => { fetchMatches() }, [fetchMatches])
   useEffect(() => { setPage(1) }, [programFilter, statusFilter])
 
+  async function runDiagnosis() {
+    if (!diagnoseAfm.trim() || !diagnoseProgramId) return
+    setDiagnosing(true)
+    setDiagnoseError('')
+    setDiagnoseResult(null)
+    try {
+      const res = await fetch(`/api/gemi/diagnose?afm=${encodeURIComponent(diagnoseAfm.trim())}&programId=${encodeURIComponent(diagnoseProgramId)}`)
+      const data = await res.json()
+      if (!res.ok) setDiagnoseError(data.error || 'Σφάλμα ελέγχου')
+      else setDiagnoseResult(data)
+    } catch {
+      setDiagnoseError('Σφάλμα ελέγχου')
+    } finally {
+      setDiagnosing(false)
+    }
+  }
+
   if (!isAdmin) {
     return (
       <div className="flex items-center justify-center h-48 text-gray-400">
@@ -106,6 +129,86 @@ function GemiMatchesPageInner() {
             Αποστολή Καμπάνιας
           </Button>
         </Link>
+      </div>
+
+      {/* Eligibility checker */}
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
+        <div className="p-4 border-b border-gray-100 flex items-center gap-2">
+          <FlaskConical size={16} className="text-indigo-500" />
+          <span className="text-sm font-semibold text-gray-700">Έλεγχος Επιλεξιμότητας ΓΕΜΗ</span>
+        </div>
+        <div className="p-4 space-y-3">
+          <div className="flex flex-wrap gap-3 items-end">
+            <div>
+              <label className="text-xs font-medium text-gray-500 block mb-1">ΑΦΜ Επιχείρησης ΓΕΜΗ</label>
+              <input
+                value={diagnoseAfm}
+                onChange={e => setDiagnoseAfm(e.target.value)}
+                placeholder="π.χ. 123456789"
+                className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 w-44"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-gray-500 block mb-1">Πρόγραμμα</label>
+              <select
+                value={diagnoseProgramId}
+                onChange={e => setDiagnoseProgramId(e.target.value)}
+                className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white min-w-[260px]"
+              >
+                <option value="">Επιλέξτε πρόγραμμα…</option>
+                {programOptions.map(o => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+            </div>
+            <Button
+              onClick={runDiagnosis}
+              loading={diagnosing}
+              disabled={!diagnoseAfm.trim() || !diagnoseProgramId}
+              variant="outline"
+            >
+              Έλεγχος
+            </Button>
+          </div>
+
+          {diagnoseError && (
+            <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+              <AlertCircle size={15} />
+              {diagnoseError}
+            </div>
+          )}
+
+          {diagnoseResult && (
+            <div className="space-y-3 pt-1">
+              <div className="flex items-center gap-2">
+                {diagnoseResult.overall ? (
+                  <span className="flex items-center gap-1.5 text-sm font-semibold text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-1.5">
+                    <CheckCircle size={15} /> Η επιχείρηση πληροί τις προϋποθέσεις
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-1.5 text-sm font-semibold text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-1.5">
+                    <XCircle size={15} /> Η επιχείρηση δεν πληροί όλες τις προϋποθέσεις
+                  </span>
+                )}
+                <span className="text-xs text-gray-500">
+                  {diagnoseResult.business?.onomasia || diagnoseResult.business?.afm} ·{' '}
+                  {diagnoseResult.business?.aadeEnriched ? 'ΑΑΑΔΕ ✓' : 'ΑΑΑΔΕ —'}
+                </span>
+              </div>
+              {diagnoseResult.results?.length === 0 && (
+                <p className="text-sm text-gray-500">Δεν υπάρχουν ειδικά κριτήρια για αυτό το πρόγραμμα — γενική επιλεξιμότητα.</p>
+              )}
+              <div className="space-y-1.5">
+                {diagnoseResult.results?.map((r: any, i: number) => (
+                  <div key={i} className={`flex items-start gap-2 text-sm rounded-lg px-3 py-2 border ${r.pass ? 'bg-green-50 border-green-200 text-green-800' : 'bg-red-50 border-red-200 text-red-800'}`}>
+                    {r.pass ? <CheckCircle size={14} className="mt-0.5 shrink-0 text-green-600" /> : <XCircle size={14} className="mt-0.5 shrink-0 text-red-600" />}
+                    <span>{r.detail}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm">

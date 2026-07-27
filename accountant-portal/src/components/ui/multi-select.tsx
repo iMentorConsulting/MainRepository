@@ -54,7 +54,7 @@ export function MultiSelect({ label, options, selected, onChange, placeholder }:
         </div>
       )}
       {open && (
-        <div className="absolute z-20 mt-1 w-full min-w-[220px] max-h-64 overflow-auto bg-white border border-gray-200 rounded-lg shadow-lg py-1">
+        <div className="absolute z-20 mt-1 w-full min-w-[320px] max-h-64 overflow-auto bg-white border border-gray-200 rounded-lg shadow-lg py-1">
           {options.length === 0 && <div className="px-3 py-2 text-xs text-gray-400">Καμία επιλογή διαθέσιμη</div>}
           <div className="px-3 py-1.5 text-[11px] text-gray-400 border-b border-gray-100">Επιλέξτε όσες θέλετε — η λίστα παραμένει ανοιχτή</div>
           {options.length > 1 && (
@@ -67,9 +67,9 @@ export function MultiSelect({ label, options, selected, onChange, placeholder }:
             </button>
           )}
           {options.map(opt => (
-            <label key={opt.value} className="flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-gray-50 cursor-pointer">
-              <input type="checkbox" checked={selected.includes(opt.value)} onChange={() => toggle(opt.value)} className="rounded" />
-              <span className="truncate">{opt.label}</span>
+            <label key={opt.value} className="flex items-start gap-2 px-3 py-1.5 text-sm hover:bg-gray-50 cursor-pointer">
+              <input type="checkbox" checked={selected.includes(opt.value)} onChange={() => toggle(opt.value)} className="rounded mt-0.5 shrink-0" />
+              <span className="whitespace-normal">{opt.label}</span>
             </label>
           ))}
           {selected.length > 0 && (
