@@ -225,7 +225,17 @@ export function renderCampaignEmailHtml(options: CampaignEmailOptions): string {
   const brandRight = accountantLogoUrl
     ? `<img src="${accountantLogoUrl}" alt="${accountantOfficeName || ''}" height="90" style="display:block;height:90px;width:auto;max-width:300px;object-fit:contain;margin-left:auto;" />`
     : (accountantOfficeName
-        ? `<span style="color:#cbd5e1;font-size:14px;font-weight:600;">${accountantOfficeName}</span>`
+        ? (() => {
+            const words = accountantOfficeName.trim().split(/\s+/)
+            const mid = Math.ceil(words.length / 2)
+            const line1 = words.slice(0, mid).join(' ')
+            const line2 = words.length > 1 ? words.slice(mid).join(' ') : ''
+            return `<div style="text-align:right;">
+              <div style="font-family:'Arial Narrow','Arial Black',Arial,sans-serif;font-weight:900;font-size:20px;letter-spacing:-0.5px;color:#ffffff;line-height:1.1;">${line1}</div>
+              ${line2 ? `<div style="font-family:'Arial Narrow','Arial Black',Arial,sans-serif;font-weight:900;font-size:17px;letter-spacing:-0.5px;color:rgba(255,255,255,0.88);line-height:1.1;margin-top:3px;">${line2}</div>` : ''}
+              <div style="margin-top:6px;margin-left:auto;height:2px;width:36px;background:linear-gradient(90deg,#4f46e5,#7c3aed);border-radius:2px;"></div>
+            </div>`
+          })()
         : '')
 
   const ermisButton = ermisLink

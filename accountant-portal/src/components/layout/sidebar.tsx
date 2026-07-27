@@ -39,6 +39,36 @@ const gemiNavItems = [
   { href: '/gemi/quick-send', label: 'Γρήγορη Αποστολή', icon: Bolt },
 ]
 
+function splitLogoName(name: string): [string, string] {
+  const words = name.trim().split(/\s+/)
+  if (words.length <= 1) return [words[0] || '', '']
+  const mid = Math.ceil(words.length / 2)
+  return [words.slice(0, mid).join(' '), words.slice(mid).join(' ')]
+}
+
+function TextLogo({ name }: { name: string }) {
+  const [line1, line2] = splitLogoName(name)
+  return (
+    <div className="text-center py-1 w-full">
+      <div
+        className="text-white leading-none"
+        style={{ fontFamily: '"Arial Narrow", "Arial Black", Arial, sans-serif', fontWeight: 900, fontSize: '22px', letterSpacing: '-0.5px', fontStretch: 'condensed' }}
+      >
+        {line1}
+      </div>
+      {line2 && (
+        <div
+          className="text-white leading-none mt-1"
+          style={{ fontFamily: '"Arial Narrow", "Arial Black", Arial, sans-serif', fontWeight: 900, fontSize: '18px', letterSpacing: '-0.5px', fontStretch: 'condensed', opacity: 0.88 }}
+        >
+          {line2}
+        </div>
+      )}
+      <div className="mt-2.5 mx-auto h-0.5 w-10 rounded-full" style={{ background: 'linear-gradient(90deg, #4f46e5, #7c3aed)' }} />
+    </div>
+  )
+}
+
 interface SidebarProps {
   open: boolean
   onClose: () => void
@@ -55,6 +85,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
   const officeHref = !isAdmin && !isConsultant && accountantId ? `/accountants/${accountantId}` : null
   const [logoUrl, setLogoUrl] = useState<string | null>(null)
   const [accountantLogoUrl, setAccountantLogoUrl] = useState<string | null>(null)
+  const [accountantOfficeName, setAccountantOfficeName] = useState<string | null>(null)
 
   useEffect(() => {
     fetch('/api/settings/logo')
@@ -67,7 +98,10 @@ export function Sidebar({ open, onClose }: SidebarProps) {
     if (!accountantId) return
     fetch(`/api/accountants/${accountantId}`)
       .then(r => r.json())
-      .then(d => setAccountantLogoUrl(d.logoUrl || null))
+      .then(d => {
+        setAccountantLogoUrl(d.logoUrl || null)
+        setAccountantOfficeName(d.officeName || null)
+      })
       .catch(() => {})
   }, [accountantId])
 
@@ -112,6 +146,8 @@ export function Sidebar({ open, onClose }: SidebarProps) {
               {accountantLogoUrl ? (
                 /* eslint-disable-next-line @next/next/no-img-element */
                 <img src={accountantLogoUrl} alt="Accountant" className="max-h-32 max-w-[200px] w-auto object-contain drop-shadow-lg" />
+              ) : accountantOfficeName ? (
+                <TextLogo name={accountantOfficeName} />
               ) : logoUrl ? (
                 /* eslint-disable-next-line @next/next/no-img-element */
                 <img src={logoUrl} alt="I-MENTOR" className="max-h-24 max-w-[180px] w-auto object-contain drop-shadow-lg" />
