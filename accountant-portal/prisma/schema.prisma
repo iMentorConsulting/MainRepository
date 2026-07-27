@@ -118,6 +118,7 @@ model Accountant {
   clientCases         ClientCase[]
   exodikastikosCases  ExodikastikosCase[]
   matchActionTokens   MatchActionToken[]
+  onboardingEmails    OnboardingEmail[]
 }
 
 model Business {
@@ -877,6 +878,24 @@ model Invitation {
   expiresAt  DateTime
   acceptedAt DateTime?
   createdAt  DateTime  @default(now())
+}
+
+// Onboarding email sequence for newly approved accountants.
+// One row per step (1-4); the cron sends them when scheduledFor <= now and sentAt is null.
+// Sequence is scheduled at approval time only when ONBOARDING_EMAILS_ENABLED=true, or
+// can be triggered manually for a test account via /api/admin/onboarding/trigger.
+model OnboardingEmail {
+  id           String     @id @default(cuid())
+  accountantId String
+  accountant   Accountant @relation(fields: [accountantId], references: [id], onDelete: Cascade)
+  step         Int        // 1 = welcome, 2 = commissions, 3 = matches, 4 = anydesk invite
+  scheduledFor DateTime
+  sentAt       DateTime?
+  error        String?
+  createdAt    DateTime   @default(now())
+
+  @@unique([accountantId, step])
+  @@index([scheduledFor, sentAt])
 }
 
 // ΔΥΠΑ — ανάθεση προγράμματος επιδότησης νέας θέσης εργασίας ανέργου από

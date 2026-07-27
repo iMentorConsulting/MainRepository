@@ -10,7 +10,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { LogoUploader } from '@/components/shared/logo-uploader'
-import { ArrowLeft, Building2, Trash2 } from 'lucide-react'
+import { ArrowLeft, Building2, Trash2, Mail, Send, RotateCcw, CheckCircle, Clock } from 'lucide-react'
 import { DeleteRequestForm } from '@/components/shared/delete-request-form'
 import Link from 'next/link'
 import { useSession } from 'next-auth/react'
@@ -34,6 +34,9 @@ export default function AccountantDetailPage() {
   const [accountant, setAccountant] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [logoUrl, setLogoUrl] = useState<string | null>(null)
+  const [onboarding, setOnboarding] = useState<any[]>([])
+  const [onboardingLoading, setOnboardingLoading] = useState(false)
+  const [onboardingMsg, setOnboardingMsg] = useState('')
   const { register, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm<FormData>({
     resolver: zodResolver(schema)
   })
@@ -60,6 +63,39 @@ export default function AccountantDetailPage() {
       })
       .finally(() => setLoading(false))
   }, [id])
+
+  useEffect(() => {
+    if (!isAdmin || !id) return
+    fetch(`/api/admin/onboarding/trigger?accountantId=${id}`)
+      .then(r => r.json())
+      .then(data => { if (data.scheduled) setOnboarding(data.scheduled) })
+      .catch(() => {})
+  }, [id, isAdmin])
+
+  async function triggerOnboarding(step?: number) {
+    setOnboardingLoading(true)
+    setOnboardingMsg('')
+    const body: any = { accountantId: id }
+    if (typeof step === 'number') body.step = step
+    try {
+      const res = await fetch('/api/admin/onboarding/trigger', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      const data = await res.json()
+      if (data.scheduled) setOnboarding(data.scheduled)
+      setOnboardingMsg(
+        typeof step === 'number'
+          ? `Email ${step} ${data.sent ? 'εστάλη!' : 'απέτυχε — ' + (data.error || 'άγνωστο σφάλμα')}`
+          : `Η σειρά ενεργοποιήθηκε για ${data.accountant} — Email 1 εστάλη άμεσα.`
+      )
+    } catch {
+      setOnboardingMsg('Σφάλμα αποστολής')
+    } finally {
+      setOnboardingLoading(false)
+    }
+  }
 
   async function onSubmit(data: FormData) {
     const res = await fetch(`/api/accountants/${id}`, {
@@ -184,6 +220,75 @@ export default function AccountantDetailPage() {
               </div>
             </CardContent>
           </Card>
+
+          {isAdmin && (
+            <Card className="border-indigo-100">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-indigo-700">
+                  <Mail size={18} />
+                  Onboarding Emails
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <p className="text-xs text-gray-500 leading-relaxed">
+                  Χρησιμοποιήστε αυτά τα κουμπιά για να δοκιμάσετε τη σειρά email πριν την ενεργοποιήσετε globally με <code className="bg-gray-100 px-1 rounded text-xs">ONBOARDING_EMAILS_ENABLED=true</code>.
+                </p>
+
+                {/* Send individual steps */}
+                <div className="space-y-1.5">
+                  {[
+                    { step: 1, label: 'Email 1 — Καλωσόρισμα & import' },
+                    { step: 2, label: 'Email 2 — Προμήθειες & υπηρεσίες' },
+                    { step: 3, label: 'Email 3 — Ταιριάσματα & υπενθύμιση' },
+                    { step: 4, label: 'Email 4 — Ραντεβού AnyDesk' },
+                  ].map(({ step, label }) => (
+                    <button
+                      key={step}
+                      onClick={() => triggerOnboarding(step)}
+                      disabled={onboardingLoading}
+                      className="w-full flex items-center justify-between text-left px-3 py-2 text-xs rounded-lg border border-indigo-200 hover:bg-indigo-50 disabled:opacity-50"
+                    >
+                      <span className="text-gray-700">{label}</span>
+                      <Send size={12} className="text-indigo-500 shrink-0" />
+                    </button>
+                  ))}
+                </div>
+
+                <hr className="border-gray-100" />
+
+                <button
+                  onClick={() => triggerOnboarding()}
+                  disabled={onboardingLoading}
+                  className="w-full flex items-center justify-center gap-2 px-3 py-2 text-xs font-semibold rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50"
+                >
+                  <RotateCcw size={13} />
+                  Ενεργοποίηση σειράς + άμεση αποστολή Email 1
+                </button>
+
+                {onboardingMsg && (
+                  <p className={`text-xs rounded-lg px-3 py-2 ${onboardingMsg.includes('απέτυχε') || onboardingMsg.includes('Σφάλμα') ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'}`}>
+                    {onboardingMsg}
+                  </p>
+                )}
+
+                {onboarding.length > 0 && (
+                  <div className="space-y-1 pt-1">
+                    {onboarding.map((e: any) => (
+                      <div key={e.step} className="flex items-center justify-between text-xs text-gray-500">
+                        <span>Email {e.step}</span>
+                        <span className="flex items-center gap-1">
+                          {e.sentAt
+                            ? <><CheckCircle size={11} className="text-green-500" /> Εστάλη</>
+                            : <><Clock size={11} className="text-amber-500" /> {new Date(e.scheduledFor).toLocaleDateString('el-GR')}</>
+                          }
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
           {!isAdmin && (
             <Card className="border-red-100">

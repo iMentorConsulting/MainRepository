@@ -5,6 +5,7 @@ import { Prisma } from '@prisma/client'
 import { sendEmail } from '@/lib/email'
 import { runMatchingForBusiness } from '@/lib/matching'
 import type { GsisBusinessData } from '@/lib/gsis'
+import { scheduleOnboardingEmails, sendOnboardingEmailStep } from '@/lib/onboarding-emails'
 
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   const session = await auth()
@@ -77,6 +78,20 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
         <a href="${process.env.APP_URL || 'https://logistis.i-mentor.gr'}/login">I-MENTOR Portal</a>.</p>
         <p>Με εκτίμηση,<br>Η ομάδα της I-MENTOR</p>`,
     })
+
+    // Schedule the onboarding email sequence when ONBOARDING_EMAILS_ENABLED=true.
+    // Leave it off until the sequence has been reviewed on a test account.
+    if (process.env.ONBOARDING_EMAILS_ENABLED === 'true') {
+      scheduleOnboardingEmails(params.id)
+        .then(async () => {
+          // Send Email 1 immediately (welcome email)
+          const step1 = await prisma.onboardingEmail.findUnique({
+            where: { accountantId_step: { accountantId: params.id, step: 1 } },
+          })
+          if (step1) return sendOnboardingEmailStep(step1.id)
+        })
+        .catch(err => console.error('[Onboarding] schedule failed:', err?.message))
+    }
 
     // Auto-create the office's own business record (its first "client") from
     // the GSIS data captured at registration time.
