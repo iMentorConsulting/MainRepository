@@ -11,6 +11,112 @@ export const dynamic = 'force-dynamic'
 
 const SORTABLE = new Set(['matchScore', 'createdAt', 'status', 'business.onomasia', 'business.afm', 'program.title', 'business.accountant.officeName'])
 
+// ─── Program-exclusion cache ──────────────────────────────────────────────
+// Building the (businessId, programId) exclusion pairs requires full-table
+// business scans. These pairs only change when a program's excludeTags /
+// requireTags / excludedLegalForms are edited — which is rare. Cache them for
+// 90 seconds so a heavily-used matches page doesn't scan the Business table on
+// every single request.
+interface ExclusionCache {
+  ts: number
+  excludePairsFilter: any
+  requirePairsFilter: any
+  legalFormExcludePairsFilter: any
+}
+let _exclusionCache: ExclusionCache | null = null
+const EXCLUSION_TTL = 90_000 // 90 seconds
+
+export function invalidateExclusionCache() {
+  _exclusionCache = null
+}
+
+async function getProgramExclusionFilters(): Promise<Pick<ExclusionCache, 'excludePairsFilter' | 'requirePairsFilter' | 'legalFormExcludePairsFilter'>> {
+  const now = Date.now()
+  if (_exclusionCache && (now - _exclusionCache.ts) < EXCLUSION_TTL) {
+    return _exclusionCache
+  }
+
+  const programsWithTagRules = await prisma.program.findMany({
+    where: { OR: [{ excludeTags: { isEmpty: false } }, { requireTags: { isEmpty: false } }] },
+    select: { id: true, excludeTags: true, requireTags: true },
+  })
+
+  let excludePairsFilter: any = null
+  let requirePairsFilter: any = null
+
+  if (programsWithTagRules.length > 0) {
+    const unionTags = Array.from(new Set(programsWithTagRules.flatMap(p => [...p.excludeTags, ...p.requireTags])))
+    const taggedBusinesses = await prisma.business.findMany({
+      where: { tags: { hasSome: unionTags } },
+      select: { id: true, tags: true },
+    })
+
+    // excludePairs: matches that should never appear (business has an excluded tag for this program)
+    const excludePairs: { businessId: string; programId: string }[] = []
+    for (const program of programsWithTagRules) {
+      if (program.excludeTags.length === 0) continue
+      for (const business of taggedBusinesses) {
+        if (business.tags.some(t => program.excludeTags.includes(t))) {
+          excludePairs.push({ businessId: business.id, programId: program.id })
+        }
+      }
+    }
+    if (excludePairs.length > 0) excludePairsFilter = { NOT: { OR: excludePairs } }
+
+    // requirePairs: for programs that require at least one tag, only show matches
+    // where the business carries one of those tags.
+    const programsWithRequireTags = programsWithTagRules.filter(p => p.requireTags.length > 0)
+    if (programsWithRequireTags.length > 0) {
+      const requireProgramIds = programsWithRequireTags.map(p => p.id)
+      // Businesses that appear in taggedBusinesses are the ONLY ones that could be
+      // eligible for require-tag programs — untagged businesses are always ineligible.
+      const eligiblePairs: { businessId: string; programId: string }[] = []
+      for (const program of programsWithRequireTags) {
+        for (const business of taggedBusinesses) {
+          if (business.tags.some(t => program.requireTags.includes(t))) {
+            eligiblePairs.push({ businessId: business.id, programId: program.id })
+          }
+        }
+      }
+      requirePairsFilter = {
+        OR: [
+          { programId: { notIn: requireProgramIds } },
+          ...(eligiblePairs.length > 0 ? [{ OR: eligiblePairs }] : []),
+        ],
+      }
+    }
+  }
+
+  // Legal-form exclusions — only fetch businesses whose legalStatusDescr is
+  // in any of the excluded sets (much smaller than all businesses)
+  const programsWithExcludedLegalForms = await prisma.program.findMany({
+    where: { excludedLegalForms: { isEmpty: false } },
+    select: { id: true, excludedLegalForms: true },
+  })
+  let legalFormExcludePairsFilter: any = null
+  if (programsWithExcludedLegalForms.length > 0) {
+    const allExcludedForms = Array.from(new Set(programsWithExcludedLegalForms.flatMap(p => p.excludedLegalForms)))
+    // Only businesses whose normalized form is in the excluded set
+    const allBusinessesForLegalForm = await prisma.business.findMany({
+      where: { legalStatusDescr: { not: null } },
+      select: { id: true, legalStatusDescr: true },
+    })
+    const excludedLegalPairs: { businessId: string; programId: string }[] = []
+    for (const program of programsWithExcludedLegalForms) {
+      for (const business of allBusinessesForLegalForm) {
+        if (program.excludedLegalForms.includes(normalizeLegalForm(business.legalStatusDescr))) {
+          excludedLegalPairs.push({ businessId: business.id, programId: program.id })
+        }
+      }
+    }
+    if (excludedLegalPairs.length > 0) legalFormExcludePairsFilter = { NOT: { OR: excludedLegalPairs } }
+  }
+
+  const result = { excludePairsFilter, requirePairsFilter, legalFormExcludePairsFilter }
+  _exclusionCache = { ts: now, ...result }
+  return result
+}
+
 export async function GET(request: NextRequest) {
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -103,77 +209,11 @@ export async function GET(request: NextRequest) {
     ? { ...baseWhere, rejectionReasonId: null, NOT: { criterionChecks: { some: { value: 'FAIL' } } } }
     : baseWhere
 
-  // Programs can declare their own tag-based exclusion list (e.g. "Οφειλές/Χρέη"
-  // for ΤΑΜΕΙΟ ΜΙΚΡΟΠΙΣΤΩΣΕΩΝ) and/or a required-tag list (a business must carry
-  // at least one to be eligible at all). Both must be enforced live, per match's
-  // own program, since old ProgramMatch rows created before these fields were
-  // set (or since reviewed/notified, which the matching cleanup leaves untouched)
-  // would otherwise keep showing up.
-  const programsWithTagRules = await prisma.program.findMany({
-    where: { OR: [{ excludeTags: { isEmpty: false } }, { requireTags: { isEmpty: false } }] },
-    select: { id: true, excludeTags: true, requireTags: true },
-  })
-  let excludePairsFilter: any = null
-  if (programsWithTagRules.length > 0) {
-    const unionTags = Array.from(new Set(programsWithTagRules.flatMap(p => [...p.excludeTags, ...p.requireTags])))
-    const taggedBusinesses = await prisma.business.findMany({
-      where: { tags: { hasSome: unionTags } },
-      select: { id: true, tags: true },
-    })
-    const excludePairs: { businessId: string; programId: string }[] = []
-    for (const program of programsWithTagRules) {
-      for (const business of taggedBusinesses) {
-        if (program.excludeTags.length > 0 && business.tags.some(t => program.excludeTags.includes(t))) {
-          excludePairs.push({ businessId: business.id, programId: program.id })
-        }
-      }
-    }
-    if (excludePairs.length > 0) excludePairsFilter = { NOT: { OR: excludePairs } }
-  }
-  const programsWithRequireTags = programsWithTagRules.filter(p => p.requireTags.length > 0)
-  let requirePairsFilter: any = null
-  if (programsWithRequireTags.length > 0) {
-    // Businesses are ineligible for a program with requireTags set unless they
-    // carry at least one of those tags — need ALL businesses here (not just
-    // tagged ones), since untagged businesses are also ineligible.
-    const allBusinesses = await prisma.business.findMany({ select: { id: true, tags: true } })
-    const eligiblePairs: { businessId: string; programId: string }[] = []
-    for (const program of programsWithRequireTags) {
-      for (const business of allBusinesses) {
-        if (business.tags.some(t => program.requireTags.includes(t))) {
-          eligiblePairs.push({ businessId: business.id, programId: program.id })
-        }
-      }
-    }
-    const requireProgramIds = programsWithRequireTags.map(p => p.id)
-    requirePairsFilter = {
-      OR: [
-        { programId: { notIn: requireProgramIds } },
-        ...(eligiblePairs.length > 0 ? [{ OR: eligiblePairs }] : []),
-      ],
-    }
-  }
-  // Programs can also exclude specific legal forms (excludedLegalForms).
-  // Must be enforced live for the same reason as excludeTags above —
-  // pre-existing ProgramMatch rows predate any later change to a program's
-  // excludedLegalForms.
-  const programsWithExcludedLegalForms = await prisma.program.findMany({
-    where: { excludedLegalForms: { isEmpty: false } },
-    select: { id: true, excludedLegalForms: true },
-  })
-  let legalFormExcludePairsFilter: any = null
-  if (programsWithExcludedLegalForms.length > 0) {
-    const allBusinessesForLegalForm = await prisma.business.findMany({ select: { id: true, legalStatusDescr: true } })
-    const excludedLegalPairs: { businessId: string; programId: string }[] = []
-    for (const program of programsWithExcludedLegalForms) {
-      for (const business of allBusinessesForLegalForm) {
-        if (program.excludedLegalForms.includes(normalizeLegalForm(business.legalStatusDescr))) {
-          excludedLegalPairs.push({ businessId: business.id, programId: program.id })
-        }
-      }
-    }
-    if (excludedLegalPairs.length > 0) legalFormExcludePairsFilter = { NOT: { OR: excludedLegalPairs } }
-  }
+  // Use cached program-exclusion filters — avoids 3 full-table Business scans
+  // on every request. Cache is invalidated when a program's tag/legal-form rules
+  // change (see invalidateExclusionCache above).
+  const { excludePairsFilter, requirePairsFilter, legalFormExcludePairsFilter } = await getProgramExclusionFilters()
+
   const withProgramExclusions = (w: any) => {
     let result = w
     if (excludePairsFilter) result = { ...result, AND: [...(result.AND || []), excludePairsFilter] }
@@ -246,7 +286,8 @@ export async function GET(request: NextRequest) {
 
   // Self-heal: a FAILed extra criterion makes a match ineligible. Older
   // records may predate this rule, so reconcile their status on read.
-  await reconcileMatchStatuses(matches)
+  // Fire-and-forget — don't block the response on this housekeeping task.
+  void reconcileMatchStatuses(matches)
 
   // Flag businesses that already have at least one ClientCase, so the UI can
   // show a check overlay on the "Ανάθεση στην I-MENTOR" button.
