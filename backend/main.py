@@ -1208,6 +1208,17 @@ try:
               AND notes ~ '[—– -]'
               AND LENGTH(TRIM(REGEXP_REPLACE(notes, '^.*?[—– -]\s*', '', 'i'))) > 5
         """))
+        # Backfill: copy program_title from the linked portal assignment (programTitle field)
+        # for LOGISTIS leads that still have no program_title after the notes extraction.
+        _conn.execute(_text("""
+            UPDATE cm_leads l
+            SET program_title = TRIM(a.program_title)
+            FROM cm_portal_assignments a
+            WHERE a.cm_lead_id = l.id
+              AND l.program_title IS NULL
+              AND a.program_title IS NOT NULL
+              AND LENGTH(TRIM(a.program_title)) > 10
+        """))
         _conn.execute(_text("""
             CREATE TABLE IF NOT EXISTS cm_lead_comments (
                 id SERIAL PRIMARY KEY,
