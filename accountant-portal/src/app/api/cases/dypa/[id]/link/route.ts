@@ -54,18 +54,74 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     if (contactEmail) {
       emailSent = await sendEmail({
         to: contactEmail,
-        subject: 'Πρόσκληση συμπλήρωσης αίτησης ΔΥΠΑ',
-        html: `<p>Αγαπητέ/ή ${businessName || 'συνεργάτη'},</p>
-          <p>Η I-MENTOR Consulting, σε συνεργασία με το λογιστικό σας γραφείο${officeName ? ` <strong>${officeName}</strong>` : ''}, σας προσκαλεί να συμπληρώσετε την αίτηση για πρόσληψη ανέργου με επιδότηση ΔΥΠΑ.</p>
-          <p><a href="${url}">${url}</a></p>
-          <p>Με εκτίμηση,<br/>I-MENTOR Consulting${officeName ? ` &amp; ${officeName}` : ''}</p>`,
+        subject: `Επόμενο βήμα για την επιδότηση ΔΥΠΑ πρόσληψης — συμπλήρωση αίτησης`,
+        html: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#374151;">
+          <div style="background:linear-gradient(135deg,#4f46e5,#4338ca);padding:28px 32px;border-radius:12px 12px 0 0;">
+            <h1 style="color:white;margin:0;font-size:20px;line-height:1.4;">Επόμενο βήμα για την επιδότηση πρόσληψης ΔΥΠΑ</h1>
+          </div>
+          <div style="background:white;padding:32px;border:1px solid #e5e7eb;border-top:0;border-radius:0 0 12px 12px;">
+            <p style="font-size:16px;margin:0 0 20px;">Αγαπητέ/ή <strong>${businessName || 'συνεργάτη'}</strong>,</p>
+
+            <p style="font-size:15px;margin:0 0 16px;line-height:1.7;">
+              Σε συνέχεια του ενδιαφέροντός σας για την <strong>επιδότηση πρόσληψης ανέργου μέσω ΔΥΠΑ</strong>, η
+              <strong>I-MENTOR Consulting</strong>${officeName ? `, σε συνεργασία με το λογιστικό γραφείο <strong>${officeName}</strong>,` : ''} είναι έτοιμη να προχωρήσει με την υποβολή της αίτησής σας.
+            </p>
+
+            <p style="font-size:15px;margin:0 0 24px;line-height:1.7;">
+              Το επόμενο βήμα είναι να συμπληρώσετε μερικά απαραίτητα στοιχεία που χρειαζόμαστε για να καταθέσουμε την αίτηση στη ΔΥΠΑ.
+              Η διαδικασία είναι <strong>απλή και γρήγορη</strong> — ακολουθήστε τον παρακάτω σύνδεσμο:
+            </p>
+
+            <div style="text-align:center;margin:0 0 28px;">
+              <a href="${url}" style="display:inline-block;background:linear-gradient(135deg,#4f46e5,#6366f1);color:white;padding:16px 40px;border-radius:10px;text-decoration:none;font-weight:bold;font-size:17px;">
+                Συμπλήρωση Αίτησης ΔΥΠΑ &rarr;
+              </a>
+              <p style="color:#9ca3af;font-size:12px;margin:10px 0 0;">Ο σύνδεσμος ισχύει για 30 ημέρες &middot; Δεν απαιτείται εγγραφή</p>
+            </div>
+
+            <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:18px 20px;margin:0 0 24px;">
+              <p style="margin:0 0 10px;font-weight:bold;color:#166534;font-size:14px;">Τι θα χρειαστείτε:</p>
+              <ul style="margin:0;padding-left:20px;color:#166534;font-size:14px;line-height:1.8;">
+                <li>Στοιχεία της θέσης εργασίας που θέλετε να καλύψετε</li>
+                <li>Πληροφορίες για το υφιστάμενο προσωπικό σας</li>
+                <li>Κωδικοί TAXISnet της επιχείρησής σας (καταχωρούνται κρυπτογραφημένα)</li>
+              </ul>
+            </div>
+
+            <p style="font-size:14px;color:#6b7280;margin:0 0 8px;line-height:1.7;">
+              Μόλις υποβάλετε τα στοιχεία, η ομάδα μας αναλαμβάνει την υποβολή της αίτησης στη ΔΥΠΑ.
+              Εσείς δεν χρειάζεται να κάνετε τίποτα άλλο.
+            </p>
+
+            <p style="font-size:14px;color:#6b7280;margin:0 0 24px;">
+              Για οποιαπήποτε απορία, επικοινωνήστε μαζί μας στο <a href="mailto:info@i-mentor.gr" style="color:#4f46e5;">info@i-mentor.gr</a> ή στο <a href="tel:+302810363007" style="color:#4f46e5;">2810 363007</a>.
+            </p>
+
+            <p style="font-size:15px;margin:0;">Με εκτίμηση,<br/>
+            <strong>Η ομάδα της I-MENTOR Consulting</strong>${officeName ? `<br/><span style="color:#6b7280;font-size:14px;">σε συνεργασία με ${officeName}</span>` : ''}</p>
+          </div>
+          <div style="padding:16px 32px;text-align:center;">
+            <p style="color:#9ca3af;font-size:12px;margin:0;">I-MENTOR Consulting &middot; <a href="https://www.i-mentor.gr" style="color:#9ca3af;text-decoration:none;">www.i-mentor.gr</a></p>
+          </div>
+        </div>`,
       }).catch(() => false)
     }
 
     if (contactPhone) {
+      const viberText = [
+        `Αγαπητέ/ή ${businessName || 'συνεργάτη'},`,
+        ``,
+        `Σε συνέχεια του ενδιαφέροντός σας για την επιδότηση πρόσληψης ΔΥΠΑ, σας στέλνουμε τον σύνδεσμο για να συμπληρώσετε τα απαραίτητα στοιχεία της αίτησης.`,
+        ``,
+        `Η διαδικασία είναι απλή — ακολουθήστε τον σύνδεσμο και συμπληρώστε τα στοιχεία. Αναλαμβάνουμε εμείς τα υπόλοιπα.`,
+        ``,
+        url,
+        ``,
+        `I-MENTOR Consulting${officeName ? ` & ${officeName}` : ''}`,
+      ].join('\n')
       const result = await sendViberMessage({
         to: contactPhone,
-        text: `Αγαπητέ/ή ${businessName || 'συνεργάτη'}, η I-MENTOR Consulting${officeName ? ` & ${officeName}` : ''} σας προσκαλεί να συμπληρώσετε την αίτηση πρόσληψης ανέργου με επιδότηση ΔΥΠΑ: ${url}`,
+        text: viberText,
         senderName: 'I-MENTOR',
       }).catch(() => ({ ok: false, reason: '' }))
       viberSent = result.ok
