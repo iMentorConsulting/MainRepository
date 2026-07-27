@@ -5,116 +5,71 @@ import { prisma } from '@/lib/prisma'
 import { categoryWhereClause, ALL_CATEGORIES, BusinessCategory } from '@/lib/business-categories'
 import { regionWhereClause, GREEK_REGIONS } from '@/lib/greek-regions'
 import { reconcileMatchStatuses } from '@/lib/matching'
-import { normalizeLegalForm } from '@/lib/legal-forms'
 
 export const dynamic = 'force-dynamic'
 
 const SORTABLE = new Set(['matchScore', 'createdAt', 'status', 'business.onomasia', 'business.afm', 'program.title', 'business.accountant.officeName'])
 
-// ─── Program-exclusion cache ──────────────────────────────────────────────
-// Building the (businessId, programId) exclusion pairs requires full-table
-// business scans. These pairs only change when a program's excludeTags /
-// requireTags / excludedLegalForms are edited — which is rare. Cache them for
-// 90 seconds so a heavily-used matches page doesn't scan the Business table on
-// every single request.
-interface ExclusionCache {
-  ts: number
-  excludePairsFilter: any
-  requirePairsFilter: any
-  legalFormExcludePairsFilter: any
-}
-let _exclusionCache: ExclusionCache | null = null
-const EXCLUSION_TTL = 90_000 // 90 seconds
+// ─── Program-exclusion filters (join-based, no Business table scan) ──────────
+// Instead of materialising (businessId, programId) pairs — which creates
+// enormous WHERE clauses as the business table grows — we express exclusions
+// as nested Prisma relations (programId = X AND business.tags hasSome [...]).
+// PostgreSQL turns these into efficient EXISTS sub-selects.
+async function getProgramExclusionFilters() {
+  const [programsWithTagRules, programsWithExcludedLegalForms] = await Promise.all([
+    prisma.program.findMany({
+      where: { OR: [{ excludeTags: { isEmpty: false } }, { requireTags: { isEmpty: false } }] },
+      select: { id: true, excludeTags: true, requireTags: true },
+    }),
+    prisma.program.findMany({
+      where: { excludedLegalForms: { isEmpty: false } },
+      select: { id: true, excludedLegalForms: true },
+    }),
+  ])
 
-function invalidateExclusionCache() {
-  _exclusionCache = null
-}
+  let excludeTagsFilter: any = null
+  let requireTagsFilter: any = null
 
-async function getProgramExclusionFilters(): Promise<Pick<ExclusionCache, 'excludePairsFilter' | 'requirePairsFilter' | 'legalFormExcludePairsFilter'>> {
-  const now = Date.now()
-  if (_exclusionCache && (now - _exclusionCache.ts) < EXCLUSION_TTL) {
-    return _exclusionCache
-  }
-
-  const programsWithTagRules = await prisma.program.findMany({
-    where: { OR: [{ excludeTags: { isEmpty: false } }, { requireTags: { isEmpty: false } }] },
-    select: { id: true, excludeTags: true, requireTags: true },
-  })
-
-  let excludePairsFilter: any = null
-  let requirePairsFilter: any = null
-
-  if (programsWithTagRules.length > 0) {
-    const unionTags = Array.from(new Set(programsWithTagRules.flatMap(p => [...p.excludeTags, ...p.requireTags])))
-    const taggedBusinesses = await prisma.business.findMany({
-      where: { tags: { hasSome: unionTags } },
-      select: { id: true, tags: true },
-    })
-
-    // excludePairs: matches that should never appear (business has an excluded tag for this program)
-    const excludePairs: { businessId: string; programId: string }[] = []
-    for (const program of programsWithTagRules) {
-      if (program.excludeTags.length === 0) continue
-      for (const business of taggedBusinesses) {
-        if (business.tags.some(t => program.excludeTags.includes(t))) {
-          excludePairs.push({ businessId: business.id, programId: program.id })
-        }
-      }
-    }
-    if (excludePairs.length > 0) excludePairsFilter = { NOT: { OR: excludePairs } }
-
-    // requirePairs: for programs that require at least one tag, only show matches
-    // where the business carries one of those tags.
-    const programsWithRequireTags = programsWithTagRules.filter(p => p.requireTags.length > 0)
-    if (programsWithRequireTags.length > 0) {
-      const requireProgramIds = programsWithRequireTags.map(p => p.id)
-      // Businesses that appear in taggedBusinesses are the ONLY ones that could be
-      // eligible for require-tag programs — untagged businesses are always ineligible.
-      const eligiblePairs: { businessId: string; programId: string }[] = []
-      for (const program of programsWithRequireTags) {
-        for (const business of taggedBusinesses) {
-          if (business.tags.some(t => program.requireTags.includes(t))) {
-            eligiblePairs.push({ businessId: business.id, programId: program.id })
-          }
-        }
-      }
-      requirePairsFilter = {
-        OR: [
-          { programId: { notIn: requireProgramIds } },
-          ...(eligiblePairs.length > 0 ? [{ OR: eligiblePairs }] : []),
-        ],
-      }
+  const excludePrograms = programsWithTagRules.filter(p => p.excludeTags.length > 0)
+  if (excludePrograms.length > 0) {
+    excludeTagsFilter = {
+      NOT: {
+        OR: excludePrograms.map(p => ({
+          programId: p.id,
+          business: { tags: { hasSome: p.excludeTags } },
+        })),
+      },
     }
   }
 
-  // Legal-form exclusions — only fetch businesses whose legalStatusDescr is
-  // in any of the excluded sets (much smaller than all businesses)
-  const programsWithExcludedLegalForms = await prisma.program.findMany({
-    where: { excludedLegalForms: { isEmpty: false } },
-    select: { id: true, excludedLegalForms: true },
-  })
-  let legalFormExcludePairsFilter: any = null
+  const requirePrograms = programsWithTagRules.filter(p => p.requireTags.length > 0)
+  if (requirePrograms.length > 0) {
+    requireTagsFilter = {
+      OR: [
+        { programId: { notIn: requirePrograms.map(p => p.id) } },
+        ...requirePrograms.map(p => ({
+          programId: p.id,
+          business: { tags: { hasSome: p.requireTags } },
+        })),
+      ],
+    }
+  }
+
+  // normalizeLegalForm is identity for non-null trimmed strings; 'ΙΔΙΩΤΗΣ' maps
+  // to null/empty. Express this via a nested relation instead of pairs.
+  let legalFormExcludeFilter: any = null
   if (programsWithExcludedLegalForms.length > 0) {
-    const allExcludedForms = Array.from(new Set(programsWithExcludedLegalForms.flatMap(p => p.excludedLegalForms)))
-    // Only businesses whose normalized form is in the excluded set
-    const allBusinessesForLegalForm = await prisma.business.findMany({
-      where: { legalStatusDescr: { not: null } },
-      select: { id: true, legalStatusDescr: true },
-    })
-    const excludedLegalPairs: { businessId: string; programId: string }[] = []
-    for (const program of programsWithExcludedLegalForms) {
-      for (const business of allBusinessesForLegalForm) {
-        if (program.excludedLegalForms.includes(normalizeLegalForm(business.legalStatusDescr))) {
-          excludedLegalPairs.push({ businessId: business.id, programId: program.id })
-        }
-      }
-    }
-    if (excludedLegalPairs.length > 0) legalFormExcludePairsFilter = { NOT: { OR: excludedLegalPairs } }
+    const conditions = programsWithExcludedLegalForms.flatMap(p =>
+      p.excludedLegalForms.map(form =>
+        form === 'ΙΔΙΩΤΗΣ'
+          ? { programId: p.id, business: { OR: [{ legalStatusDescr: null }, { legalStatusDescr: '' }, { legalStatusDescr: 'ΙΔΙΩΤΗΣ' }] } }
+          : { programId: p.id, business: { legalStatusDescr: form } }
+      )
+    )
+    if (conditions.length > 0) legalFormExcludeFilter = { NOT: { OR: conditions } }
   }
 
-  const result = { excludePairsFilter, requirePairsFilter, legalFormExcludePairsFilter }
-  _exclusionCache = { ts: now, ...result }
-  return result
+  return { excludeTagsFilter, requireTagsFilter, legalFormExcludeFilter }
 }
 
 export async function GET(request: NextRequest) {
@@ -209,16 +164,13 @@ export async function GET(request: NextRequest) {
     ? { ...baseWhere, rejectionReasonId: null, NOT: { criterionChecks: { some: { value: 'FAIL' } } } }
     : baseWhere
 
-  // Use cached program-exclusion filters — avoids 3 full-table Business scans
-  // on every request. Cache is invalidated when a program's tag/legal-form rules
-  // change (see invalidateExclusionCache above).
-  const { excludePairsFilter, requirePairsFilter, legalFormExcludePairsFilter } = await getProgramExclusionFilters()
+  const { excludeTagsFilter, requireTagsFilter, legalFormExcludeFilter } = await getProgramExclusionFilters()
 
   const withProgramExclusions = (w: any) => {
     let result = w
-    if (excludePairsFilter) result = { ...result, AND: [...(result.AND || []), excludePairsFilter] }
-    if (requirePairsFilter) result = { ...result, AND: [...(result.AND || []), requirePairsFilter] }
-    if (legalFormExcludePairsFilter) result = { ...result, AND: [...(result.AND || []), legalFormExcludePairsFilter] }
+    if (excludeTagsFilter) result = { ...result, AND: [...(result.AND || []), excludeTagsFilter] }
+    if (requireTagsFilter) result = { ...result, AND: [...(result.AND || []), requireTagsFilter] }
+    if (legalFormExcludeFilter) result = { ...result, AND: [...(result.AND || []), legalFormExcludeFilter] }
     return result
   }
 
@@ -306,11 +258,12 @@ export async function GET(request: NextRequest) {
     accountants = await prisma.accountant.findMany({ select: { id: true, officeName: true }, orderBy: { officeName: 'asc' } })
   }
 
-  // Program facet: only programs with at least one match under the other active
-  // filters, with a live count, so the dropdown narrows as the user filters.
+  // Program facet: counts are based on baseWhereWithHidden (other active filters)
+  // but WITHOUT the program-exclusion joins — adding them to a groupBy full-table
+  // scan is extremely slow and the slight over-count on edge cases is acceptable.
   const programCounts = await prisma.programMatch.groupBy({
     by: ['programId'],
-    where: withProgramExclusions(baseWhereWithHidden),
+    where: baseWhereWithHidden,
     _count: { _all: true },
   })
   const programTitles = await prisma.program.findMany({
