@@ -11,6 +11,7 @@ Tab read: ΔΙΑΧΕΙΡΙΣΗ
 
 import os
 import json
+import re
 from datetime import datetime
 import fcntl
 import time
@@ -39,10 +40,17 @@ _EMAIL_CORRECTIONS = {
 }
 
 
+_DOUBLE_TLD_RE = re.compile(r'\.(com|gr|net|org|edu|co)\.\1$')
+_STACKED_TLD_RE = re.compile(r'\.co\.(com|gr|net|org)$')
+
+
 def _normalize_email(email: str) -> str:
     if not email:
         return email
     email = email.lower().strip()
+    # Fix double/stacked TLDs: gmail.co.com → gmail.com, yahoo.com.com → yahoo.com
+    email = _STACKED_TLD_RE.sub(r'.\1', email)
+    email = _DOUBLE_TLD_RE.sub(r'.\1', email)
     for typo, correct in _EMAIL_CORRECTIONS.items():
         if typo in email:
             email = email.replace(typo, correct)

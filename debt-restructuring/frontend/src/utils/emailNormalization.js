@@ -3,10 +3,17 @@
  * Common mistake: Greek users typing .fr (France) instead of .gr (Greece)
  */
 
+const DOUBLE_TLD_RE = /\.(com|gr|net|org|edu|co)\.\1$/
+const STACKED_TLD_RE = /\.co\.(com|gr|net|org)$/
+
 export function normalizeEmail(email) {
   if (!email) return email
 
   let normalized = email.toLowerCase().trim()
+
+  // Fix double/stacked TLDs: gmail.co.com → gmail.com, yahoo.com.com → yahoo.com
+  normalized = normalized.replace(STACKED_TLD_RE, '.$1')
+  normalized = normalized.replace(DOUBLE_TLD_RE, '.$1')
 
   // Common email typos: domain mistakes, country code errors, etc.
   const corrections = {

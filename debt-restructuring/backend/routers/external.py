@@ -5,6 +5,7 @@ from pydantic import BaseModel
 from datetime import datetime
 from zoneinfo import ZoneInfo
 import os
+import re
 import requests as http_requests
 import uuid
 
@@ -177,12 +178,20 @@ def _pad_afm(afm: str) -> str:
     return afm
 
 
+_DOUBLE_TLD_RE = re.compile(r'\.(com|gr|net|org|edu|co)\.\1$')
+_STACKED_TLD_RE = re.compile(r'\.co\.(com|gr|net|org)$')
+
+
 def _normalize_email(email: str) -> str:
     """Normalize email addresses — auto-correct common typos and domain mistakes."""
     if not email:
         return email
 
     email = email.lower().strip()
+
+    # Fix double/stacked TLDs: gmail.co.com → gmail.com, yahoo.com.com → yahoo.com
+    email = _STACKED_TLD_RE.sub(r'.\1', email)
+    email = _DOUBLE_TLD_RE.sub(r'.\1', email)
 
     # Common email typos: domain mistakes, country code errors, etc.
     corrections = {
