@@ -464,34 +464,50 @@ def ermis_webhook(
         if lead.ermis_status == "eligible" and lead.status in ("NEW LEAD", "CALL"):
             lead.status = "HOT"
 
-        # Rescue: if the transcript landed on a CANCEL/low-status lead but there is a
-        # higher-ranked lead for the same AFM+program, copy it there too — handles the
-        # race where accept_assignment creates a HOT lead AFTER ermis.completed fires
-        # (or find_gemi_lead returned an old CANCEL dup before we fixed the ranking).
-        if lead.status in ("CANCEL", "NEW LEAD", "CALL") and lead.ermis_transcript and afm:
+        # Rescue: if the transcript landed on the wrong lead, copy it to a better one.
+        # Cases covered:
+        # 1. Landed on low-status (CANCEL/CALL/NEW LEAD) but a HOT lead exists → copy up
+        # 2. Landed on auto-created ΓΕΜΗ lead (no portal link, ELEFTHERIA) but the real
+        #    accepted lead (has portal_case_number, different consultant) also exists for
+        #    same AFM+program — handles the race where accept_assignment fires AFTER webhook
+        if lead.ermis_transcript and afm:
             _prog_cat = (lead.program or "").strip()
             from routes.cm_leads import _GEMI_STATUS_RANK, _is_logistis_lead
             rival_cands = db.query(CMLead).filter(
                 CMLead.afm == afm, CMLead.id != lead.id,
             ).all()
+            _my_rank = _GEMI_STATUS_RANK.get(lead.status or "", 0)
             better = [
                 l for l in rival_cands
                 if _is_logistis_lead(l)
                 and (l.program or "") == _prog_cat
-                and _GEMI_STATUS_RANK.get(l.status or "", 0) > _GEMI_STATUS_RANK.get(lead.status or "", 0)
                 and not l.ermis_transcript
+                and (
+                    # higher status → always prefer
+                    _GEMI_STATUS_RANK.get(l.status or "", 0) > _my_rank
+                    # same status but has a portal case link (was accepted) and we don't
+                    or (
+                        _GEMI_STATUS_RANK.get(l.status or "", 0) == _my_rank
+                        and l.portal_case_number
+                        and not lead.portal_case_number
+                    )
+                )
             ]
             if better:
-                # Pick the highest-status rival (in a tie, newest wins)
-                target = max(better, key=lambda l: (_GEMI_STATUS_RANK.get(l.status or "", 0), l.id))
+                target = max(better, key=lambda l: (
+                    _GEMI_STATUS_RANK.get(l.status or "", 0),
+                    1 if l.portal_case_number else 0,
+                    l.id,
+                ))
                 target.ermis_transcript = lead.ermis_transcript
                 target.ermis_status = lead.ermis_status
                 target.ermis_completed_at = lead.ermis_completed_at
                 if payload.token and not target.ermis_token:
                     target.ermis_token = payload.token
                 log.info(
-                    "ΕΡΜΗΣ rescue: transcript from lead %s (status=%s) → lead %s (status=%s)",
-                    lead.id, lead.status, target.id, target.status,
+                    "ΕΡΜΗΣ rescue: transcript from lead %s (status=%s, portal=%s) → lead %s (status=%s, portal=%s)",
+                    lead.id, lead.status, lead.portal_case_number,
+                    target.id, target.status, target.portal_case_number,
                 )
 
     elif payload.event in ("ermis.progress", "ermis.business_ready"):
