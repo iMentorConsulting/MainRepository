@@ -5,6 +5,7 @@ import { createAuditLog } from '@/lib/audit'
 import { sendEmail } from '@/lib/email'
 import { notifyCaseManagement } from '@/lib/case-management-sync'
 import { buildBusinessProfilePayload, BUSINESS_PROFILE_SELECT } from '@/lib/business-profile'
+import { createAndSendDypaLink, sendMissingContactNotification } from '@/lib/dypa-link'
 
 // Creates a ClientCase (requestType DYPA_HIRING) together with its 1-1
 // DypaAssignment extension, for the ΔΥΠΑ hiring-subsidy assignment workflow.
@@ -78,14 +79,38 @@ export async function POST(request: NextRequest) {
     details: `Νέα ανάθεση ΔΥΠΑ #${clientCase.caseNumber} — ${business.onomasia || business.afm}`,
   })
 
+  const appUrl = process.env.APP_URL || 'https://logistis.i-mentor.gr'
+  const dypaAssignmentId = clientCase.dypaAssignment!.id
+  const businessName = business.onomasia || business.afm || ''
+  const officeName = clientCase.accountant?.officeName || ''
+  const contactEmail = (business.email || '').trim()
+  const contactPhone = (business.phone || '').trim()
+
   try {
     await sendEmail({
       to: process.env.ADMIN_EMAIL || 'info@i-mentor.gr',
-      subject: `🧑‍💼 Νέα Ανάθεση ΔΥΠΑ #${clientCase.caseNumber} — ${clientCase.accountant?.officeName || 'I-MENTOR (Direct)'}`,
-      html: `<p>Νέα ανάθεση επιδότησης πρόσληψης ανέργου ΔΥΠΑ από <strong>${clientCase.accountant?.officeName || 'I-MENTOR (Direct)'}</strong> για τον πελάτη <strong>${business.onomasia || business.afm}</strong>:</p>
-        <p><a href="${process.env.APP_URL || 'https://logistis.i-mentor.gr'}/cases/dypa/${clientCase.dypaAssignment!.id}">Δείτε την ανάθεση →</a></p>`,
+      subject: `🧑‍💼 Νέα Ανάθεση ΔΥΠΑ #${clientCase.caseNumber} — ${officeName || 'I-MENTOR (Direct)'}`,
+      html: `<p>Νέα ανάθεση επιδότησης πρόσληψης ανέργου ΔΥΠΑ από <strong>${officeName || 'I-MENTOR (Direct)'}</strong> για τον πελάτη <strong>${businessName}</strong>:</p>
+        <p><a href="${appUrl}/cases/dypa/${dypaAssignmentId}">Δείτε την ανάθεση →</a></p>`,
     })
   } catch {}
+
+  // Auto-send the questionnaire link to the business immediately on assignment creation.
+  // If contact info is missing, notify info@i-mentor.gr so someone can follow up.
+  if (contactEmail || contactPhone) {
+    void createAndSendDypaLink({
+      assignmentId: dypaAssignmentId,
+      businessName,
+      officeName,
+      contactEmail,
+      contactPhone,
+    }).catch(err => console.error('[DYPA] auto-link send failed:', err?.message))
+  } else {
+    void sendMissingContactNotification({
+      businessName,
+      caseUrl: `${appUrl}/cases/${clientCase.id}`,
+    }).catch(err => console.error('[DYPA] missing-contact notify failed:', err?.message))
+  }
 
   const profile = await buildBusinessProfilePayload(business)
   notifyCaseManagement({
