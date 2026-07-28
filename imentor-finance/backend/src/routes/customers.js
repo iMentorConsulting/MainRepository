@@ -8,15 +8,14 @@ function xmlEscape(s) {
   return (s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c]));
 }
 
-async function aadeSearchAfm(vat, orgKey) {
-  const isIke = orgKey === 'IMENTOR_IKE';
-  const username = (isIke ? (process.env.AADE_USER_IMENTOR || '') : (process.env.AADE_USER || '')).trim();
-  const password = (isIke ? (process.env.AADE_PASS_IMENTOR || '') : (process.env.AADE_PASS || '')).trim();
-  const myAfm   = (isIke ? (process.env.MY_AFM_IMENTOR  || '') : (process.env.MY_AFM  || '')).trim();
+async function aadeSearchAfm(vat) {
+  const username = (process.env.AADE_USER || '').trim();
+  const password = (process.env.AADE_PASS || '').trim();
+  const myAfm   = (process.env.MY_AFM    || '').trim();
 
-  console.log(`AADE call: orgKey=${orgKey} user=${username||'EMPTY'} myAfm=${myAfm||'EMPTY'} vat=${vat}`);
-  if (!myAfm) throw new Error(`MY_AFM${isIke ? '_IMENTOR' : ''} env var is not set in Railway`);
-  if (!username) throw new Error(`AADE_USER${isIke ? '_IMENTOR' : ''} env var is not set in Railway`);
+  console.log(`AADE call: user=${username||'EMPTY'} myAfm=${myAfm||'EMPTY'} vat=${vat}`);
+  if (!myAfm)    throw new Error('MY_AFM env var is not set in Railway');
+  if (!username) throw new Error('AADE_USER env var is not set in Railway');
 
   // GSIS requires WS-Security UsernameToken in SOAP Header — NOT HTTP Basic Auth
   const soapBody = `<?xml version="1.0" encoding="UTF-8"?><env:Envelope xmlns:env="http://www.w3.org/2003/05/soap-envelope" xmlns:ns1="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd" xmlns:ns2="http://rgwspublic2/RgWsPublic2Service" xmlns:ns3="http://rgwspublic2/RgWsPublic2"><env:Header><ns1:Security><ns1:UsernameToken><ns1:Username>${xmlEscape(username)}</ns1:Username><ns1:Password>${xmlEscape(password)}</ns1:Password></ns1:UsernameToken></ns1:Security></env:Header><env:Body><ns2:rgWsPublic2AfmMethod><ns2:INPUT_REC><ns3:afm_called_by>${xmlEscape(myAfm)}</ns3:afm_called_by><ns3:afm_called_for>${xmlEscape(vat)}</ns3:afm_called_for></ns2:INPUT_REC></ns2:rgWsPublic2AfmMethod></env:Body></env:Envelope>`;
@@ -99,9 +98,9 @@ router.get('/', async (req, res) => {
 
 router.get('/search-afm', async (req, res) => {
   try {
-    const { vat, org_key = 'DEFAULT' } = req.query;
+    const { vat } = req.query;
     if (!vat) return res.status(400).json({ error: 'ΑΦΜ απαιτείται' });
-    const result = await aadeSearchAfm(vat.trim(), org_key);
+    const result = await aadeSearchAfm(vat.trim());
     res.json(result);
   } catch (e) {
     const detail = e.response?.data
