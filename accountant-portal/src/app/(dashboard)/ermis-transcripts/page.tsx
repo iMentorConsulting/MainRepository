@@ -11,10 +11,14 @@ import { estimateCostEur } from '@/lib/ermis-cost'
 const PAGE_SIZE = 25
 
 type Transcript = {
-  businessId: string
+  source: 'business' | 'gemi'
+  businessId: string | null
+  gemiId: string | null
   programId: string
-  business: { id: string; onomasia: string; afm: string; accountant: { officeName: string } | null }
-  program: { id: string; title: string }
+  onomasia: string | null
+  afm: string | null
+  accountantOffice: string | null
+  program: { id: string; title: string } | null
   createdAt: string
   tokenUsage: number
   tokenUsageInput: number
@@ -45,6 +49,7 @@ export default function ErmisTranscriptsPage() {
   const [search, setSearch] = useState('')
   const [searchInput, setSearchInput] = useState('')
   const [caseAssignedFilter, setCaseAssignedFilter] = useState('')
+  const [sourceFilter, setSourceFilter] = useState('')
   const [loading, setLoading] = useState(true)
   const [open, setOpen] = useState<{ businessId: string; programId: string } | null>(null)
 
@@ -53,15 +58,21 @@ export default function ErmisTranscriptsPage() {
     const params = new URLSearchParams({ page: String(page) })
     if (search) params.set('search', search)
     if (caseAssignedFilter) params.set('caseAssigned', caseAssignedFilter)
+    if (sourceFilter) params.set('source', sourceFilter)
     const res = await fetch(`/api/ermis-transcripts?${params}`)
     const data = await res.json()
     setTranscripts(data.transcripts || [])
     setTotal(data.total || 0)
     setLoading(false)
-  }, [page, search, caseAssignedFilter])
+  }, [page, search, caseAssignedFilter, sourceFilter])
 
   useEffect(() => { fetchTranscripts() }, [fetchTranscripts])
-  useEffect(() => { setPage(1) }, [search, caseAssignedFilter])
+  useEffect(() => { setPage(1) }, [search, caseAssignedFilter, sourceFilter])
+
+  function openTranscript(t: Transcript) {
+    if (!t.businessId) return
+    setOpen({ businessId: t.businessId, programId: t.programId })
+  }
 
   return (
     <div className="space-y-6">
@@ -88,6 +99,18 @@ export default function ErmisTranscriptsPage() {
             </div>
           </div>
           <div>
+            <label className="text-xs font-medium text-gray-500 block mb-1">Πηγή</label>
+            <select
+              value={sourceFilter}
+              onChange={e => setSourceFilter(e.target.value)}
+              className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white"
+            >
+              <option value="">Όλες</option>
+              <option value="business">Πελάτες λογιστών</option>
+              <option value="gemi">ΓΕΜΗ επιχειρήσεις</option>
+            </select>
+          </div>
+          <div>
             <label className="text-xs font-medium text-gray-500 block mb-1">Ανάθεση</label>
             <select
               value={caseAssignedFilter}
@@ -111,12 +134,13 @@ export default function ErmisTranscriptsPage() {
               <TableHead>
                 <TableRow>
                   <Th>Επιχείρηση</Th>
+                  <Th>Πηγή</Th>
                   <Th>Πρόγραμμα</Th>
                   <Th>Λογιστής</Th>
                   <Th>Τελευταίο Μήνυμα</Th>
                   <Th className="text-xs">Μηνύματα</Th>
                   <Th className="text-xs">Tokens</Th>
-                  <Th className="text-xs">Κόστος (περίπου)</Th>
+                  <Th className="text-xs">Κόστος</Th>
                   <Th className="text-xs">Ημερομηνία</Th>
                   <Th className="text-xs">Επιλεξιμότητα</Th>
                   <Th className="text-xs">Πρόθεση</Th>
@@ -127,29 +151,47 @@ export default function ErmisTranscriptsPage() {
               <TableBody>
                 {transcripts.length === 0 ? (
                   <TableRow>
-                    <Td colSpan={12} className="text-center text-gray-400 py-8">Δεν βρέθηκαν συζητήσεις</Td>
+                    <Td colSpan={13} className="text-center text-gray-400 py-8">Δεν βρέθηκαν συζητήσεις</Td>
                   </TableRow>
                 ) : (
-                  transcripts.map(t => (
-                    <TableRow key={`${t.businessId}-${t.programId}`}>
-                      <Td className="max-w-[220px]">
-                        <Link href={`/businesses/${t.businessId}`} className="text-blue-800 hover:underline font-medium truncate block">
-                          {t.business?.onomasia || '-'}
-                        </Link>
+                  transcripts.map((t, i) => (
+                    <TableRow key={`${t.source}-${t.gemiId ?? t.businessId}-${t.programId}-${i}`}>
+                      <Td className="max-w-[200px]">
+                        {t.source === 'business' && t.businessId ? (
+                          <Link href={`/businesses/${t.businessId}`} className="text-blue-800 hover:underline font-medium truncate block">
+                            {t.onomasia || t.afm || '-'}
+                          </Link>
+                        ) : t.gemiId ? (
+                          <Link href={`/gemi/businesses/${t.gemiId}`} className="text-blue-800 hover:underline font-medium truncate block">
+                            {t.onomasia || t.afm || '-'}
+                          </Link>
+                        ) : (
+                          <span className="font-medium text-sm truncate block">{t.onomasia || t.afm || '-'}</span>
+                        )}
+                        {t.afm && <span className="text-xs text-gray-400 font-mono">{t.afm}</span>}
                       </Td>
-                      <Td className="max-w-[220px]">
-                        <Link href={`/programs/${t.programId}`} className="text-blue-600 hover:underline text-sm truncate block">
-                          {t.program?.title}
-                        </Link>
+                      <Td>
+                        {t.source === 'gemi' ? (
+                          <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 font-medium">ΓΕΜΗ</span>
+                        ) : (
+                          <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 font-medium">Πελάτης</span>
+                        )}
                       </Td>
-                      <Td className="text-xs text-gray-500 max-w-[120px] truncate">{t.business?.accountant?.officeName || '-'}</Td>
-                      <Td className="text-xs text-gray-500 max-w-[280px] truncate" title={t.lastMessage || ''}>
+                      <Td className="max-w-[200px]">
+                        {t.program ? (
+                          <Link href={`/programs/${t.programId}`} className="text-blue-600 hover:underline text-sm truncate block">
+                            {t.program.title}
+                          </Link>
+                        ) : '—'}
+                      </Td>
+                      <Td className="text-xs text-gray-500 max-w-[120px] truncate">{t.accountantOffice || '—'}</Td>
+                      <Td className="text-xs text-gray-500 max-w-[260px] truncate" title={t.lastMessage || ''}>
                         {t.lastMessage || '—'}
                       </Td>
                       <Td className="text-xs text-gray-500">{t.messageCount}</Td>
                       <Td className="text-xs text-gray-500">{t.tokenUsage?.toLocaleString('el-GR') || 0}</Td>
                       <Td className="text-xs text-gray-500">{estimateCostEur(t.tokenUsage || 0, t.tokenUsageInput, t.tokenUsageOutput)}</Td>
-                      <Td className="text-xs text-gray-500">
+                      <Td className="text-xs text-gray-500 whitespace-nowrap">
                         {new Date(t.createdAt).toLocaleDateString('el-GR', { day: '2-digit', month: '2-digit', year: '2-digit' })}
                       </Td>
                       <Td>
@@ -157,36 +199,32 @@ export default function ErmisTranscriptsPage() {
                           <Badge variant={ELIGIBILITY_LABELS[t.eligibilityStatus].variant} className="w-fit">
                             {ELIGIBILITY_LABELS[t.eligibilityStatus].label}
                           </Badge>
-                        ) : (
-                          <span className="text-xs text-gray-400">—</span>
-                        )}
+                        ) : <span className="text-xs text-gray-400">—</span>}
                       </Td>
                       <Td>
                         {t.intentStatus && INTENT_LABELS[t.intentStatus] ? (
                           <Badge variant={INTENT_LABELS[t.intentStatus].variant} className="w-fit">
                             {INTENT_LABELS[t.intentStatus].label}
                           </Badge>
-                        ) : (
-                          <span className="text-xs text-gray-400">—</span>
-                        )}
+                        ) : <span className="text-xs text-gray-400">—</span>}
                       </Td>
                       <Td>
                         {t.caseAssigned ? (
                           <Badge variant="success" className="flex items-center gap-1 w-fit">
                             <CheckCircle2 size={11} /> Ναι
                           </Badge>
-                        ) : (
-                          <span className="text-xs text-gray-400">—</span>
-                        )}
+                        ) : <span className="text-xs text-gray-400">—</span>}
                       </Td>
                       <Td>
-                        <button
-                          onClick={() => setOpen({ businessId: t.businessId, programId: t.programId })}
-                          className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 transition-colors"
-                          title="Δείτε τη συζήτηση με τον Ερμή"
-                        >
-                          <MessageSquare size={16} />
-                        </button>
+                        {t.businessId ? (
+                          <button
+                            onClick={() => openTranscript(t)}
+                            className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 transition-colors"
+                            title="Δείτε τη συζήτηση με τον Ερμή"
+                          >
+                            <MessageSquare size={16} />
+                          </button>
+                        ) : <span className="text-xs text-gray-300">—</span>}
                       </Td>
                     </TableRow>
                   ))
