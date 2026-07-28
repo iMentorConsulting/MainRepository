@@ -128,6 +128,44 @@ export async function GET(request: NextRequest) {
     }
   }
 
+  // South Aegean specific breakdown: businesses with 84/85 zip prefix
+  const saTotal = businesses.filter(b => {
+    const pfx = b.postalZipCode?.trim().slice(0, 2) || ''
+    return pfx === '84' || pfx === '85'
+  }).length
+
+  // KAD code distribution for South Aegean businesses that fail KAD
+  const saKadFailDist: Record<string, number> = {}
+  for (const b of businesses) {
+    const pfx = b.postalZipCode?.trim().slice(0, 2) || ''
+    if (pfx !== '84' && pfx !== '85') continue
+    const rawActivities = Array.isArray(b.activities)
+      ? b.activities
+      : (typeof b.activities === 'string' ? JSON.parse(b.activities as string) : [])
+    const activities = (rawActivities as { firmActCode: string }[]).map(a => ({ firmActCode: a.firmActCode }))
+    if ((program as any).kadRules?.length > 0) {
+      const ok = activities.some(a => {
+        const code = normalizeKad(a.firmActCode)
+        const matches = (program as any).kadRules.some((r: string) => {
+          const clean = normalizeKad(r.trim())
+          return clean.includes('.') ? code === clean : code.startsWith(clean)
+        })
+        if (!matches) return false
+        const excluded = ((program as any).excludedKadRules || []).some((r: string) => {
+          const clean = normalizeKad(r.trim())
+          return clean.includes('.') ? code === clean : code.startsWith(clean)
+        })
+        return !excluded
+      })
+      if (!ok) {
+        // Count their primary KAD code
+        const primaryKad = activities[0]?.firmActCode || 'none'
+        const prefix4 = primaryKad.slice(0, 4)
+        saKadFailDist[prefix4] = (saKadFailDist[prefix4] || 0) + 1
+      }
+    }
+  }
+
   return NextResponse.json({
     program: { id: program.id, title: (program as any).title, kadRules: (program as any).kadRules, regionRules: (program as any).regionRules },
     total,
@@ -135,5 +173,11 @@ export async function GET(request: NextRequest) {
     failures,
     regionFailSample,
     zipPrefixDistribution: Object.entries(zipPrefixDist).sort((a, b) => b[1] - a[1]).slice(0, 20),
+    southAegean: {
+      total: saTotal,
+      passing: matched + failures.date,
+      failingKAD: Object.values(saKadFailDist).reduce((s, v) => s + v, 0),
+      topKADsOfFailingBusinesses: Object.entries(saKadFailDist).sort((a, b) => b[1] - a[1]).slice(0, 30),
+    },
   })
 }
