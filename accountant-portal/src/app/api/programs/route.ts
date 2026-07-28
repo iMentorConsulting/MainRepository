@@ -58,6 +58,9 @@ export async function POST(request: NextRequest) {
 
   if (program.active) {
     runMatchingForProgram(program.id).catch(err => console.error('[Matching] Auto-match for new program failed:', err?.message))
+    // Reset GEMI businesses so the next batch run picks up the new program
+    prisma.gemiLookup.updateMany({ where: { aadeEnriched: true }, data: { matchingDone: false } })
+      .catch(err => console.error('[GemiMatch] Reset after new program failed:', err?.message))
   }
 
   return NextResponse.json(program, { status: 201 })

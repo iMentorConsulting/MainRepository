@@ -59,6 +59,9 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     dismissMatchesForProgram(program.id).catch(err => console.error('[Matching] Dismiss matches failed:', err?.message))
   } else {
     runMatchingForProgram(program.id).catch(err => console.error('[Matching] Re-match after program edit failed:', err?.message))
+    // Reset GEMI businesses so the next batch run re-evaluates against updated criteria
+    prisma.gemiLookup.updateMany({ where: { aadeEnriched: true }, data: { matchingDone: false } })
+      .catch(err => console.error('[GemiMatch] Reset after program edit failed:', err?.message))
   }
 
   return NextResponse.json(program)

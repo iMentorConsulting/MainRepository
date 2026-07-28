@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableHead, TableBody, TableRow, Th, Td } from '@/components/ui/table'
 import { Pagination } from '@/components/ui/pagination'
-import { Send, FlaskConical, CheckCircle, XCircle, AlertCircle } from 'lucide-react'
+import { Send, FlaskConical, CheckCircle, XCircle, AlertCircle, RefreshCw } from 'lucide-react'
 
 const STATUS_OPTIONS = [
   { value: '', label: 'Όλες οι καταστάσεις' },
@@ -59,6 +59,9 @@ function GemiMatchesPageInner() {
   const [diagnoseResult, setDiagnoseResult] = useState<any>(null)
   const [diagnoseError, setDiagnoseError] = useState('')
 
+  const [rematchRunning, setRematchRunning] = useState(false)
+  const [rematchStatus, setRematchStatus] = useState<{ processed: number; remaining: number } | null>(null)
+
   useEffect(() => {
     fetch('/api/programs')
       .then(r => r.json())
@@ -86,6 +89,29 @@ function GemiMatchesPageInner() {
 
   useEffect(() => { fetchMatches() }, [fetchMatches])
   useEffect(() => { setPage(1) }, [programFilter, statusFilter])
+
+  async function runRematch() {
+    setRematchRunning(true)
+    setRematchStatus(null)
+    try {
+      // Step 1: reset all matchingDone flags
+      await fetch('/api/gemi/match', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reset: true, limit: 0 }) })
+      // Step 2: process batches until done
+      let remaining = Infinity
+      let totalProcessed = 0
+      while (remaining > 0) {
+        const res = await fetch('/api/gemi/match', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ limit: 500 }) })
+        const data = await res.json()
+        totalProcessed += data.processed || 0
+        remaining = data.remaining ?? 0
+        setRematchStatus({ processed: totalProcessed, remaining })
+        if ((data.processed || 0) === 0) break
+      }
+      await fetchMatches()
+    } finally {
+      setRematchRunning(false)
+    }
+  }
 
   async function runDiagnosis() {
     if (!diagnoseAfm.trim() || !diagnoseProgramId) return
@@ -123,12 +149,31 @@ function GemiMatchesPageInner() {
           <h1 className="text-2xl font-bold text-gray-900">ΓΕΜΗ — Ταιριάσματα Προγραμμάτων</h1>
           <p className="text-gray-500 mt-1">{total} ταιριάσματα συνολικά</p>
         </div>
-        <Link href={campaignHref}>
-          <Button className="bg-indigo-600 hover:bg-indigo-700 text-white flex items-center gap-2">
-            <Send size={15} />
-            Αποστολή Καμπάνιας
+        <div className="flex items-center gap-3">
+          <Button
+            onClick={runRematch}
+            loading={rematchRunning}
+            variant="outline"
+            className="flex items-center gap-2 text-amber-700 border-amber-300 hover:bg-amber-50"
+            title="Επαναξιολογεί όλες τις ΓΕΜΗ επιχειρήσεις έναντι των ενεργών προγραμμάτων"
+          >
+            <RefreshCw size={14} className={rematchRunning ? 'animate-spin' : ''} />
+            {rematchRunning
+              ? rematchStatus ? `${rematchStatus.processed} / ~${rematchStatus.processed + rematchStatus.remaining}` : 'Εκκίνηση…'
+              : 'Re-match All'}
           </Button>
-        </Link>
+          <Link href={campaignHref}>
+            <Button className="bg-indigo-600 hover:bg-indigo-700 text-white flex items-center gap-2">
+              <Send size={15} />
+              Αποστολή Καμπάνιας
+            </Button>
+          </Link>
+        </div>
+        {rematchStatus && !rematchRunning && (
+          <p className="text-xs text-green-700 mt-1 text-right">
+            Ολοκληρώθηκε — {rematchStatus.processed} επιχειρήσεις επαναξιολογήθηκαν
+          </p>
+        )}
       </div>
 
       {/* Eligibility checker */}
