@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
 
   const sendingCampaigns = await prisma.gemiCampaign.findMany({
     where: { status: 'SENDING', channel: { in: ['EMAIL', 'EMAIL_AND_VIBER'] } },
-    select: { id: true, title: true, subject: true, previewText: true, htmlContent: true, programId: true, programId2: true },
+    select: { id: true, title: true, subject: true, previewText: true, htmlContent: true, programId: true, programId2: true, moosendCampaignId: true },
   })
 
   if (sendingCampaigns.length === 0) {
@@ -101,9 +101,12 @@ export async function POST(req: NextRequest) {
           campaignName: moosendName,
         })
         if (sendResult) {
+          // Accumulate all part IDs (comma-separated) so sync-stats can aggregate across all batches
+          const existingIds = new Set((campaign.moosendCampaignId || '').split(',').filter(Boolean))
+          existingIds.add(sendResult.moosendCampaignId)
           await prisma.gemiCampaign.update({
             where: { id: campaign.id },
-            data: { moosendCampaignId: sendResult.moosendCampaignId, moosendListId: sendResult.moosendListId },
+            data: { moosendCampaignId: Array.from(existingIds).join(','), moosendListId: sendResult.moosendListId },
           })
         }
         await prisma.gemiCampaignRecipient.updateMany({

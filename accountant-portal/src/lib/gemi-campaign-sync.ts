@@ -13,10 +13,48 @@ export interface SyncResult {
 }
 
 export async function syncCampaignStats(campaignId: string, moosendCampaignId: string): Promise<SyncResult> {
-  const [stats, engagement] = await Promise.all([
-    getCampaignStats(moosendCampaignId),
-    getCampaignSubscriberEngagement(moosendCampaignId),
+  const ids = moosendCampaignId.split(',').filter(Boolean)
+
+  const [allStats, allEngagement, allUnsubEmails] = await Promise.all([
+    Promise.all(ids.map(id => getCampaignStats(id))),
+    Promise.all(ids.map(id => getCampaignSubscriberEngagement(id))),
+    Promise.all(ids.map(id => getCampaignUnsubscribers(id))),
   ])
+
+  const stats = allStats.reduce(
+    (acc, s) => ({
+      delivered: acc.delivered + (s.delivered || 0),
+      opened: acc.opened + (s.opened || 0),
+      clicked: acc.clicked + (s.clicked || 0),
+      bounced: acc.bounced + (s.bounced || 0),
+      unsubscribed: acc.unsubscribed + (s.unsubscribed || 0),
+    }),
+    { delivered: 0, opened: 0, clicked: 0, bounced: 0, unsubscribed: 0 },
+  )
+
+  // Merge per-recipient engagement maps from all parts (last write wins per email)
+  const engagement = new Map<string, any>()
+  for (const engMap of allEngagement) {
+    for (const [email, eng] of Array.from(engMap.entries())) {
+      const existing = engagement.get(email)
+      if (!existing) {
+        engagement.set(email, eng)
+      } else {
+        engagement.set(email, {
+          openCount: Math.max(existing.openCount, eng.openCount),
+          openedAt: existing.openedAt ?? eng.openedAt,
+          clickCount: Math.max(existing.clickCount, eng.clickCount),
+          clickedAt: existing.clickedAt ?? eng.clickedAt,
+          bounced: existing.bounced || eng.bounced,
+          bouncedAt: existing.bouncedAt ?? eng.bouncedAt,
+          unsubscribed: existing.unsubscribed || eng.unsubscribed,
+          unsubscribedAt: existing.unsubscribedAt ?? eng.unsubscribedAt,
+        })
+      }
+    }
+  }
+
+  const unsubEmails = Array.from(new Set(allUnsubEmails.flat()))
 
   const ownClicks = await prisma.gemiCampaignRecipient.count({
     where: { campaignId, channel: 'EMAIL', clickedAt: { not: null } },
@@ -25,7 +63,6 @@ export async function syncCampaignStats(campaignId: string, moosendCampaignId: s
   // Pull Moosend-side unsubscribers into the GEMI pool so they are
   // permanently excluded from all future Logistis campaigns.
   let unsubscribedMarked = 0
-  const unsubEmails = await getCampaignUnsubscribers(moosendCampaignId)
   if (unsubEmails.length > 0) {
     const { count } = await prisma.gemiLookup.updateMany({
       where: { email: { in: unsubEmails, mode: 'insensitive' }, unsubscribedAt: null },
