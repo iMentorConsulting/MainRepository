@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
   const apiKey = process.env.MOOSEND_API_KEY
   if (!apiKey) return NextResponse.json({ error: 'No MOOSEND_API_KEY' }, { status: 500 })
 
-  const url = `https://api.moosend.com/v3/campaigns/find_all.json?pageSize=50&sortBy=CreatedOn&sortMethod=DESC&apikey=${apiKey}`
+  const url = `https://api.moosend.com/v3/campaigns/1.json?pageSize=50&sortBy=CreatedOn&sortMethod=DESC&apikey=${apiKey}`
   const res = await fetch(url, { headers: { 'Content-Type': 'application/json' } })
   const raw = await res.json()
 

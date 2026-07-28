@@ -327,8 +327,10 @@ export async function createAndSendCampaign(
 export async function findMoosendCampaignIdsByNamePrefix(namePrefix: string): Promise<string[]> {
   try {
     // Moosend v3: GET /campaigns/find_all.json returns all campaigns
-    const result = await moosendFetch('/campaigns/find_all.json?pageSize=200&sortBy=CreatedOn&sortMethod=DESC') as any
-    const campaigns: any[] = result?.Context?.Campaigns ?? result?.Context ?? []
+    const result = await moosendFetch('/campaigns/1.json?pageSize=200&sortBy=CreatedOn&sortMethod=DESC') as any
+    const campaigns: any[] = Array.isArray(result?.Context)
+      ? result.Context
+      : result?.Context?.Campaigns ?? result?.Context?.campaigns ?? []
     if (!Array.isArray(campaigns)) return []
     const lower = namePrefix.toLowerCase()
     return campaigns
