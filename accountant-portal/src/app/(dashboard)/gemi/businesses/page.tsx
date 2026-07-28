@@ -220,7 +220,7 @@ function GemiBusinessesPageInner() {
 
   useEffect(() => {
     if (status === 'loading') return
-    if (!session || (session.user as any)?.role !== 'ADMIN') {
+    if (!session || !['ADMIN', 'CONSULTANT'].includes((session.user as any)?.role)) {
       router.replace('/')
     }
   }, [session, status, router])
@@ -540,7 +540,7 @@ function GemiBusinessesPageInner() {
     setEmailEngagement('')
   }
 
-  if (status === 'loading' || (status === 'authenticated' && (session?.user as any)?.role !== 'ADMIN')) {
+  if (status === 'loading' || (status === 'authenticated' && !['ADMIN', 'CONSULTANT'].includes((session?.user as any)?.role))) {
     return (
       <div className="flex items-center justify-center h-48">
         <div className="animate-spin w-8 h-8 border-4 border-amber-500 border-t-transparent rounded-full" />
