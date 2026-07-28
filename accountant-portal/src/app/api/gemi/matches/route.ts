@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
       take: limit,
       include: {
         gemi: {
-          select: { id: true, afm: true, onomasia: true, email: true, phone: true, claimedAt: true, postalAreaDescription: true },
+          select: { id: true, afm: true, onomasia: true, email: true, phone: true, claimedAt: true, postalAreaDescription: true, claimedBusinessId: true },
         },
         program: {
           select: { id: true, title: true },

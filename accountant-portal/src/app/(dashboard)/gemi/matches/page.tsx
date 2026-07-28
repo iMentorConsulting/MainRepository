@@ -7,7 +7,8 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableHead, TableBody, TableRow, Th, Td } from '@/components/ui/table'
 import { Pagination } from '@/components/ui/pagination'
-import { Send, FlaskConical, CheckCircle, XCircle, AlertCircle, RefreshCw } from 'lucide-react'
+import { Send, FlaskConical, CheckCircle, XCircle, AlertCircle, RefreshCw, MessageSquare } from 'lucide-react'
+import { ErmisTranscriptModal } from '@/components/programs/ermis-transcript-modal'
 
 const STATUS_OPTIONS = [
   { value: '', label: 'Όλες οι καταστάσεις' },
@@ -61,6 +62,8 @@ function GemiMatchesPageInner() {
 
   const [rematchRunning, setRematchRunning] = useState(false)
   const [rematchStatus, setRematchStatus] = useState<{ processed: number; remaining: number } | null>(null)
+
+  const [transcriptMatch, setTranscriptMatch] = useState<{ businessId: string; programId: string } | null>(null)
 
   useEffect(() => {
     fetch('/api/programs')
@@ -361,6 +364,17 @@ function GemiMatchesPageInner() {
                           ? new Date(m.createdAt).toLocaleDateString('el-GR', { day: '2-digit', month: '2-digit', year: '2-digit' })
                           : '—'}
                       </Td>
+                      <Td>
+                        {(m.status === 'INTERESTED' || m.status === 'SUBMITTED') && m.gemi?.claimedBusinessId && (
+                          <button
+                            onClick={() => setTranscriptMatch({ businessId: m.gemi.claimedBusinessId, programId: m.programId })}
+                            className="text-indigo-600 hover:text-indigo-800 transition-colors"
+                            title="Συζήτηση Ερμή"
+                          >
+                            <MessageSquare size={16} />
+                          </button>
+                        )}
+                      </Td>
                     </TableRow>
                   ))
                 )}
@@ -370,6 +384,14 @@ function GemiMatchesPageInner() {
           </>
         )}
       </div>
+
+      {transcriptMatch && (
+        <ErmisTranscriptModal
+          businessId={transcriptMatch.businessId}
+          programId={transcriptMatch.programId}
+          onClose={() => setTranscriptMatch(null)}
+        />
+      )}
     </div>
   )
 }
