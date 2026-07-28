@@ -55,6 +55,7 @@ export async function POST(request: NextRequest) {
   let processed = 0
   let enriched = 0
   let errors = 0
+  let monthlyLimitExceeded = false
 
   for (const record of records) {
     processed++
@@ -98,6 +99,13 @@ export async function POST(request: NextRequest) {
       }
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e)
+      if (message === 'RG_WS_PUBLIC_MONTHLY_LIMIT_EXCEEDED') {
+        // Don't mark the record as errored — just stop. It will be picked up
+        // next month when the GSIS quota resets.
+        monthlyLimitExceeded = true
+        processed-- // don't count this one as processed
+        break
+      }
       await prisma.gemiLookup.update({
         where: { id: record.id },
         data: { aadeError: message },
@@ -121,5 +129,5 @@ export async function POST(request: NextRequest) {
     },
   })
 
-  return NextResponse.json({ processed, enriched, errors, remaining })
+  return NextResponse.json({ processed, enriched, errors, remaining, monthlyLimitExceeded })
 }

@@ -123,7 +123,11 @@ function parseGsisResponse(text: string, afm: string): GsisBusinessData | null {
 
   const errorCode = extractTag(text, 'error_code')
   if (errorCode && errorCode !== 'RET_CODE_OK') {
-    console.log(`[GSIS] GSIS returned error_code: ${errorCode}, error_descr: ${extractTag(text, 'error_descr')}`)
+    const errorDescr = extractTag(text, 'error_descr')
+    console.log(`[GSIS] GSIS returned error_code: ${errorCode}, error_descr: ${errorDescr}`)
+    if (errorCode === 'RG_WS_PUBLIC_MONTHLY_LIMIT_EXCEEDED') {
+      throw new Error('RG_WS_PUBLIC_MONTHLY_LIMIT_EXCEEDED')
+    }
     return null
   }
 
@@ -190,6 +194,7 @@ export async function lookupAfm(afm: string): Promise<GsisBusinessData | null> {
     const text = await fetchFromGsis(afm)
     return parseGsisResponse(text, afm)
   } catch (e: any) {
+    if (e?.message === 'RG_WS_PUBLIC_MONTHLY_LIMIT_EXCEEDED') throw e
     console.error('[GSIS] lookupAfm error:', e?.message)
     return null
   }
