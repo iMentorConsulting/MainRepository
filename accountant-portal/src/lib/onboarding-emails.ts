@@ -53,10 +53,9 @@ function infoBox(emoji: string, text: string, bg = '#f0fdf4', border = '#bbf7d0'
 </div>`
 }
 
-function screenshotPlaceholder(label: string, height = 180): string {
-  // Replace these with real hosted screenshots, e.g. ${APP_URL}/email-assets/[name].png
-  return `<div style="background:#e0e7ff;border:2px dashed #a5b4fc;border-radius:10px;height:${height}px;display:flex;align-items:center;justify-content:center;margin:12px 0;">
-  <span style="color:#6366f1;font-size:13px;font-weight:600;">📸 ${label}</span>
+function screenshotImg(filename: string, alt: string): string {
+  return `<div style="margin:16px 0;text-align:center;">
+  <img src="${APP_URL}/email-assets/${filename}" alt="${alt}" width="540" style="max-width:100%;border-radius:10px;border:1px solid #e5e7eb;box-shadow:0 2px 8px rgba(0,0,0,0.08);" />
 </div>`
 }
 
@@ -104,7 +103,7 @@ ${emailHeader('Καλωσορίσατε στο I-MENTOR Logistis! 🎉', `Χαρ
     Το σύστημα αναζητά <strong>αυτόματα</strong> τα στοιχεία κάθε επιχείρησης από την ΑΑΔΕ και εντοπίζει ποια ταιριάζουν με τα ενεργά προγράμματα.
   `)}
 
-  ${screenshotPlaceholder('Οθόνη import Excel — εισαγωγή ΑΦΜ', 160)}
+  ${screenshotImg('email_1_maziki_eisagogi_pelatwn.png', 'Μαζική Εισαγωγή Πελατών — 3 βήματα')}
 
   ${ctaButton('Εισαγωγή Πελατών →', `${APP_URL}/businesses/import`)}
 
@@ -116,7 +115,7 @@ ${emailHeader('Καλωσορίσατε στο I-MENTOR Logistis! 🎉', `Χαρ
     Κάθε επιχείρηση που πληροί τα κριτήρια εμφανίζεται στη λίστα matches σας με <strong>αναλυτική αιτιολόγηση</strong>.
   `)}
 
-  ${screenshotPlaceholder('Λίστα matches — πρόγραμμα, βαθμολογία, λόγοι', 160)}
+  ${screenshotImg('email_1_matches.jpg', 'Matches Επιχειρήσεων & Προγραμμάτων')}
 
   ${ctaButton('Δείτε τα Matches σας →', `${APP_URL}/matches`)}
 
@@ -195,7 +194,7 @@ ${emailHeader('Ο πελάτης σας ευχαριστημένος — αυτ�
     Τα ποσά εμφανίζονται αναλυτικά στη σελίδα "Προμήθειες" — ανά πελάτη, ανά αίτηση.
   `)}
 
-  ${screenshotPlaceholder('Σελίδα Προμηθειών — ανάλυση ανά πελάτη και αίτηση', 140)}
+  ${screenshotImg('email_2_commissions_table.png', 'Σελίδα Προμηθειών — ανά πελάτη και αίτηση')}
 
   ${ctaButton('Δείτε τις Προμήθειές σας →', `${APP_URL}/commissions`)}
 
@@ -245,7 +244,7 @@ ${emailHeader(
       Από τη σελίδα "Matches" μπορείτε να στείλετε <strong>μαζική ειδοποίηση</strong> στους πελάτες σας που πληρούν τα κριτήρια ενός προγράμματος — με ένα κλικ, μέσω email και Viber.
     `)}
 
-    ${screenshotPlaceholder('Λίστα matches — επιλογή και αποστολή ειδοποίησης', 160)}
+    ${screenshotImg('email_3_enimerwsh_pelatwn.png', 'Γρήγορη Αποστολή — ενημέρωση πελατών')}
 
     ${ctaButton('Δείτε τα Matches σας →', `${APP_URL}/matches`)}
   ` : `
@@ -261,7 +260,7 @@ ${emailHeader(
       </ol>
     `)}
 
-    ${screenshotPlaceholder('Οθόνη import — πρότυπο Excel και επιλογή αρχείου', 160)}
+    ${screenshotImg('email_1_maziki_eisagogi_pelatwn.png', 'Μαζική Εισαγωγή Πελατών — πρότυπο Excel')}
 
     ${ctaButton('Εισαγωγή Πελατών Τώρα →', `${APP_URL}/businesses/import`)}
   `}
