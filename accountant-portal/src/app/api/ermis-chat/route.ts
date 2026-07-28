@@ -27,12 +27,45 @@ export async function GET(request: NextRequest) {
     select: { chatLog: true, tokenUsage: true, tokenUsageInput: true, tokenUsageOutput: true, caseCreatedId: true, createdAt: true },
   })
 
+  if (matchToken) {
+    return NextResponse.json({
+      chatLog: matchToken.chatLog || [],
+      tokenUsage: matchToken.tokenUsage || 0,
+      tokenUsageInput: matchToken.tokenUsageInput || 0,
+      tokenUsageOutput: matchToken.tokenUsageOutput || 0,
+      caseCreatedId: matchToken.caseCreatedId || null,
+      startedAt: matchToken.createdAt || null,
+    })
+  }
+
+  // Fall back to GemiMatchToken — GEMI-originated cases store the transcript there
+  const gemiRecord = await prisma.gemiLookup.findFirst({
+    where: { claimedBusinessId: businessId },
+    select: { id: true },
+  })
+  if (gemiRecord) {
+    const gemiToken = await prisma.gemiMatchToken.findUnique({
+      where: { gemiId_programId: { gemiId: gemiRecord.id, programId } },
+      select: { chatLog: true, tokenUsage: true, caseCreatedAt: true, createdAt: true },
+    })
+    if (gemiToken) {
+      return NextResponse.json({
+        chatLog: gemiToken.chatLog || [],
+        tokenUsage: gemiToken.tokenUsage || 0,
+        tokenUsageInput: 0,
+        tokenUsageOutput: 0,
+        caseCreatedId: gemiToken.caseCreatedAt ? 'gemi' : null,
+        startedAt: gemiToken.createdAt || null,
+      })
+    }
+  }
+
   return NextResponse.json({
-    chatLog: matchToken?.chatLog || [],
-    tokenUsage: matchToken?.tokenUsage || 0,
-    tokenUsageInput: matchToken?.tokenUsageInput || 0,
-    tokenUsageOutput: matchToken?.tokenUsageOutput || 0,
-    caseCreatedId: matchToken?.caseCreatedId || null,
-    startedAt: matchToken?.createdAt || null,
+    chatLog: [],
+    tokenUsage: 0,
+    tokenUsageInput: 0,
+    tokenUsageOutput: 0,
+    caseCreatedId: null,
+    startedAt: null,
   })
 }
