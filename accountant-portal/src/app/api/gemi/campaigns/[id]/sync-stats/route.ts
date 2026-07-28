@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { syncCampaignStats } from '@/lib/gemi-campaign-sync'
+import { findMoosendCampaignIdsByNamePrefix } from '@/lib/moosend'
 
 export async function POST(
   _req: NextRequest,
@@ -26,7 +27,19 @@ export async function POST(
   }
 
   try {
-    const result = await syncCampaignStats(id, campaign.moosendCampaignId)
+    // Auto-discover all Moosend campaign parts (μέρος 2, μέρος 3, …) by name prefix
+    const discoveredIds = await findMoosendCampaignIdsByNamePrefix(campaign.title)
+    const storedIds = new Set(campaign.moosendCampaignId.split(',').filter(Boolean))
+    for (const did of discoveredIds) storedIds.add(did)
+    const allIds = Array.from(storedIds).join(',')
+
+    // Persist newly discovered IDs so future syncs are faster
+    if (allIds !== campaign.moosendCampaignId) {
+      await prisma.gemiCampaign.update({ where: { id }, data: { moosendCampaignId: allIds } })
+      console.log(`[SyncStats] discovered ${discoveredIds.length} Moosend campaign parts for "${campaign.title}": ${allIds}`)
+    }
+
+    const result = await syncCampaignStats(id, allIds)
     return NextResponse.json(result)
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)

@@ -322,6 +322,25 @@ export async function createAndSendCampaign(
   );
 }
 
+// Finds all Moosend campaign IDs whose name starts with the given prefix.
+// Used by sync-stats to automatically discover all batch parts of a multi-part campaign.
+export async function findMoosendCampaignIdsByNamePrefix(namePrefix: string): Promise<string[]> {
+  try {
+    // Moosend v3: GET /campaigns/find_all.json returns all campaigns
+    const result = await moosendFetch('/campaigns/find_all.json?pageSize=200&sortBy=CreatedOn&sortMethod=DESC') as any
+    const campaigns: any[] = result?.Context?.Campaigns ?? result?.Context ?? []
+    if (!Array.isArray(campaigns)) return []
+    const lower = namePrefix.toLowerCase()
+    return campaigns
+      .filter((c: any) => typeof c.Name === 'string' && c.Name.toLowerCase().startsWith(lower))
+      .map((c: any) => c.ID as string)
+      .filter(Boolean)
+  } catch (e) {
+    console.error('[Moosend] findMoosendCampaignIdsByNamePrefix error:', e)
+    return []
+  }
+}
+
 // Returns the email addresses that unsubscribed from a campaign, via
 // Moosend's per-activity stats endpoint. Response shape varies between
 // accounts, so extract defensively: collect every email-looking string.
