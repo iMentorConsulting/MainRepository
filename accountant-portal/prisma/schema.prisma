@@ -1186,10 +1186,12 @@ model GemiMatchToken {
   expiresAt      DateTime
   usedAt         DateTime?
   chatLog        Json       @default("[]")
-  tokenUsage     Int        @default(0)
-  contextSummary String?
-  caseCreatedAt  DateTime?
-  createdAt      DateTime   @default(now())
+  tokenUsage         Int        @default(0)
+  contextSummary     String?
+  caseCreatedAt      DateTime?
+  eligibilityStatus  String?
+  intentStatus       String?
+  createdAt          DateTime   @default(now())
 
   @@unique([gemiId, programId])
 }

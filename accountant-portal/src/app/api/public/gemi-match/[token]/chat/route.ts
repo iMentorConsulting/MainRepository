@@ -272,6 +272,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   // If assign_case was triggered, create a GEMI lead notification instead of ImentorRequest
   let caseAssigned = Boolean(matchToken.caseCreatedAt)
+  let eligibilityStatus: string | null = null
+  let intentStatus: string | null = null
+
   if (result.caseId && !matchToken.caseCreatedAt) {
     // Fire-and-forget: case creation involves email + case-management webhook
     // calls that can take tens of seconds — never block the chat reply on them
@@ -286,6 +289,20 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       transcript: finalHistory,
     }).catch(e => console.error('[GemiErmisChat] createGemiCase failed:', e))
     caseAssigned = true
+
+    // Classify eligibility + intent in the background so the transcripts page
+    // shows the same fields as normal-business conversations.
+    classifyConversation(finalHistory, program.title)
+      .then(c => {
+        if (!c) return
+        const elig = c.eligibility === 'ELIGIBLE' ? 'ELIGIBLE' : c.eligibility === 'NOT_ELIGIBLE' ? 'NOT_ELIGIBLE' : 'UNCLEAR'
+        const intent = c.intent === 'INTERESTED' ? 'INTERESTED' : c.intent === 'NOT_INTERESTED' ? 'NOT_INTERESTED' : 'UNCLEAR'
+        return prisma.gemiMatchToken.update({
+          where: { token },
+          data: { eligibilityStatus: elig, intentStatus: intent },
+        })
+      })
+      .catch(e => console.error('[GemiErmisChat] classify failed:', e))
   }
 
   await prisma.gemiMatchToken.update({
@@ -294,6 +311,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       chatLog: finalHistory as any,
       tokenUsage: { increment: result.tokensUsed },
       ...(caseAssigned && !matchToken.caseCreatedAt ? { caseCreatedAt: new Date() } : {}),
+      ...(eligibilityStatus ? { eligibilityStatus } : {}),
+      ...(intentStatus ? { intentStatus } : {}),
     },
   })
 

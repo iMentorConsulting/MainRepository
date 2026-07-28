@@ -67,6 +67,7 @@ export async function GET(request: NextRequest) {
           select: {
             gemiId: true, programId: true, createdAt: true,
             tokenUsage: true, chatLog: true, caseCreatedAt: true,
+            eligibilityStatus: true, intentStatus: true,
             gemi: { select: { id: true, onomasia: true, afm: true, claimedBusinessId: true } },
           },
           orderBy: { createdAt: 'desc' },
@@ -155,8 +156,8 @@ export async function GET(request: NextRequest) {
         caseAssigned: Boolean(t.caseCreatedAt),
         messageCount: log.length,
         lastMessage: log.length > 0 ? log[log.length - 1].text : null,
-        eligibilityStatus: null,
-        intentStatus: null,
+        eligibilityStatus: t.eligibilityStatus ?? null,
+        intentStatus: t.intentStatus ?? null,
       }
     })
 
