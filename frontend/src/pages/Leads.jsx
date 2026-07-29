@@ -363,18 +363,33 @@ function ExpandedRow({ lead, colSpan, onChanged, onConvert, onErmis, onSend }) {
           </div>
         )}
 
-        {/* ΕΡΜΗΣ transcript */}
-        {full?.ermis_transcript && (
-          <details className="mb-3 bg-indigo-50/40 border border-indigo-100 rounded-lg p-3">
-            <summary className="text-sm font-semibold text-indigo-700 cursor-pointer flex items-center gap-1"><SparklesIcon className="w-4 h-4" />Συνομιλία ΕΡΜΗΣ {full.ermis_status ? `(${full.ermis_status})` : ''}</summary>
+        {/* ΕΡΜΗΣ transcript — structured (from webhook) or fallback summary from LOGISTIS notes */}
+        {(full?.ermis_transcript || (!full?.ermis_status && (full?.source || '').toUpperCase().startsWith('LOGISTIS') && full?.notes)) && (
+          <details className="mb-3 bg-indigo-50/40 border border-indigo-100 rounded-lg p-3" open={!full?.ermis_transcript}>
+            <summary className="text-sm font-semibold text-indigo-700 cursor-pointer flex items-center gap-2">
+              <SparklesIcon className="w-4 h-4" />
+              {full?.ermis_transcript ? `Συνομιλία ΕΡΜΗΣ${full.ermis_status ? ` (${full.ermis_status})` : ''}` : 'Σύνοψη ΕΡΜΗΣ (από LOGISTIS)'}
+              {/* Manual status buttons when no structured transcript and no status set */}
+              {!full?.ermis_transcript && !full?.ermis_status && (
+                <span className="flex gap-1 ml-auto" onClick={e => e.stopPropagation()}>
+                  <button onClick={async () => { await updateLead(lead.id, { ermis_status: 'eligible' }); onChanged() }}
+                    className="text-xs bg-green-100 text-green-700 hover:bg-green-200 rounded-full px-2 py-0.5 font-semibold">✓ Επιλέξιμο</button>
+                  <button onClick={async () => { await updateLead(lead.id, { ermis_status: 'ineligible' }); onChanged() }}
+                    className="text-xs bg-red-100 text-red-700 hover:bg-red-200 rounded-full px-2 py-0.5 font-semibold">✗ Μη επιλέξιμο</button>
+                </span>
+              )}
+            </summary>
             <div className="mt-2 space-y-1 max-h-72 overflow-y-auto">
-              {typeof full.ermis_transcript === 'string'
-                ? <div className="text-sm whitespace-pre-wrap text-gray-700">{full.ermis_transcript}</div>
-                : full.ermis_transcript.map((msg, i) => (
-                  <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`max-w-[80%] rounded-2xl px-3 py-1.5 text-sm ${msg.role === 'user' ? 'bg-blue-500 text-white' : 'bg-white border text-gray-800'}`}>{msg.text || msg.content}</div>
-                  </div>
-                ))}
+              {full?.ermis_transcript
+                ? (typeof full.ermis_transcript === 'string'
+                    ? <div className="text-sm whitespace-pre-wrap text-gray-700">{full.ermis_transcript}</div>
+                    : full.ermis_transcript.map((msg, i) => (
+                        <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                          <div className={`max-w-[80%] rounded-2xl px-3 py-1.5 text-sm ${msg.role === 'user' ? 'bg-blue-500 text-white' : 'bg-white border text-gray-800'}`}>{msg.text || msg.content}</div>
+                        </div>
+                      )))
+                : <div className="text-sm whitespace-pre-wrap text-gray-700">{full.notes}</div>
+              }
             </div>
           </details>
         )}
