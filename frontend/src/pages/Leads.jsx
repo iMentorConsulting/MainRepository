@@ -370,14 +370,6 @@ function ExpandedRow({ lead, colSpan, onChanged, onConvert, onErmis, onSend }) {
               <SparklesIcon className="w-4 h-4" />
               {full?.ermis_transcript ? `Συνομιλία ΕΡΜΗΣ${full.ermis_status ? ` (${full.ermis_status})` : ''}` : 'Σύνοψη ΕΡΜΗΣ (από LOGISTIS)'}
               {/* Manual status buttons when no structured transcript and no status set */}
-              {!full?.ermis_transcript && !full?.ermis_status && (
-                <span className="flex gap-1 ml-auto" onClick={e => e.stopPropagation()}>
-                  <button onClick={async () => { await updateLead(lead.id, { ermis_status: 'eligible' }); onChanged() }}
-                    className="text-xs bg-green-100 text-green-700 hover:bg-green-200 rounded-full px-2 py-0.5 font-semibold">✓ Επιλέξιμο</button>
-                  <button onClick={async () => { await updateLead(lead.id, { ermis_status: 'ineligible' }); onChanged() }}
-                    className="text-xs bg-red-100 text-red-700 hover:bg-red-200 rounded-full px-2 py-0.5 font-semibold">✗ Μη επιλέξιμο</button>
-                </span>
-              )}
             </summary>
             <div className="mt-2 space-y-1 max-h-72 overflow-y-auto">
               {full?.ermis_transcript
