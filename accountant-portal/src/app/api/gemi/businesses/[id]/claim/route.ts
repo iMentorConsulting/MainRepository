@@ -82,6 +82,8 @@ export async function POST(
         doy: gemiLookup.doy ?? undefined,
         doyDescr: gemiLookup.doyDescr ?? undefined,
         regdate: gemiLookup.regdate ?? undefined,
+        deactivationFlag: gemiLookup.deactivationFlag ?? undefined,
+        stopDate: gemiLookup.stopDate ?? undefined,
         source: 'gemi-claim',
         accountantId: accountantId ?? undefined,
       },

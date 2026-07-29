@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { lookupAfm } from '@/lib/gsis'
+import { MatchStatus } from '@prisma/client'
 
 // Re-checks businesses against ΑΑΔΕ to refresh deactivationFlag/deactivationFlagDescr/stopDate
 // (needed for businesses imported before these fields were persisted).
@@ -36,7 +37,14 @@ export async function POST(request: NextRequest) {
         },
       })
       updated++
-      if (data.deactivationFlag === 'Y' || data.stopDate) nowInactive++
+      if (data.deactivationFlag === 'Y' || data.stopDate) {
+        nowInactive++
+        // Dismiss all POTENTIAL matches for newly inactive businesses
+        await prisma.programMatch.updateMany({
+          where: { businessId: business.id, status: MatchStatus.POTENTIAL },
+          data: { status: MatchStatus.REJECTED, matchScore: 0 },
+        })
+      }
     } catch {
       failed++
     }
