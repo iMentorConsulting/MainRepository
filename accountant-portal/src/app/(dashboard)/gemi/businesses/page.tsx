@@ -308,7 +308,7 @@ function GemiBusinessesPageInner() {
 
   function handleSearch() { setSearch(searchInput) }
 
-  async function handleEnrich() {
+  async function handleEnrich(forceRetry = false) {
     setEnriching(true)
     let totalEnriched = 0
     let totalErrors = 0
@@ -320,7 +320,7 @@ function GemiBusinessesPageInner() {
         const res = await fetch('/api/gemi/enrich', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ limit: 100 }),
+          body: JSON.stringify({ limit: 100, ...(forceRetry ? { forceRetry: true } : {}) }),
         })
         const data = await res.json()
         if (!res.ok) {
@@ -567,8 +567,11 @@ function GemiBusinessesPageInner() {
           <p className="text-gray-500 mt-1 text-sm">{total} επιχειρήσεις στη δεξαμενή ΓΕΜΗ</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          <Button variant="outline" size="sm" onClick={handleEnrich} loading={enriching} className="border-blue-300 text-blue-700 hover:bg-blue-50">
+          <Button variant="outline" size="sm" onClick={() => handleEnrich(false)} loading={enriching} className="border-blue-300 text-blue-700 hover:bg-blue-50">
             <RefreshCw size={14} className="mr-1.5" />Εμπλουτισμός ΑΑΔΕ
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => handleEnrich(true)} loading={enriching} className="border-orange-300 text-orange-700 hover:bg-orange-50" title="Επαναπροσπάθεια και για εγγραφές που απέτυχαν πρόσφατα (π.χ. μετά από αλλαγή κωδικών ΑΑΔΕ)">
+            <RefreshCw size={14} className="mr-1.5" />Εμπλουτισμός (Force)
           </Button>
           <Button variant="outline" size="sm" onClick={handleBackfillCategories} loading={backfilling} className="border-amber-300 text-amber-700 hover:bg-amber-50">
             <RefreshCw size={14} className="mr-1.5" />Συμπλήρωση Κλάδου

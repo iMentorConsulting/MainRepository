@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  let body: { limit?: number } = {}
+  let body: { limit?: number; forceRetry?: boolean } = {}
   try {
     body = await request.json()
   } catch {
@@ -37,16 +37,19 @@ export async function POST(request: NextRequest) {
   }
 
   const limit = Math.min(body.limit ?? 100, 500)
+  const forceRetry = !!body.forceRetry
 
   const retryThreshold = new Date(Date.now() - 24 * 60 * 60 * 1000)
 
   const records = await prisma.gemiLookup.findMany({
     where: {
       aadeEnriched: false,
-      OR: [
-        { aadeError: null },
-        { aadeError: { not: null }, updatedAt: { lt: retryThreshold } },
-      ],
+      ...(forceRetry ? {} : {
+        OR: [
+          { aadeError: null },
+          { aadeError: { not: null }, updatedAt: { lt: retryThreshold } },
+        ],
+      }),
     },
     take: limit,
     orderBy: { updatedAt: 'asc' },
