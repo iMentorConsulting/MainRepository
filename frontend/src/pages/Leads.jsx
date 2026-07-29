@@ -231,7 +231,7 @@ function NewLeadModal({ options, onClose, onCreated }) {
 }
 
 // ── Inline expanded detail (no separate page) ───────────────────────────────
-function ExpandedRow({ lead, colSpan, onChanged, onConvert, onErmis, onSend }) {
+function ExpandedRow({ lead, colSpan, onChanged, onConvert, onErmis, onSend, programTitles = [] }) {
   const [full, setFull] = useState(null)
   const [comments, setComments] = useState([])
   const [dups, setDups] = useState([])
@@ -241,7 +241,7 @@ function ExpandedRow({ lead, colSpan, onChanged, onConvert, onErmis, onSend }) {
   const reload = useCallback(async () => {
     const l = await getLead(lead.id)
     setFull(l); setComments(l.comments || [])
-    setForm({ name: l.name || '', afm: l.afm || '', program: l.program || '', service_type: l.service_type || '', source: l.source || '', total_amount: l.total_amount || '', email: l.email || '', phone: l.phone || '' })
+    setForm({ name: l.name || '', afm: l.afm || '', program: l.program || '', program_title: l.program_title || '', service_type: l.service_type || '', source: l.source || '', total_amount: l.total_amount || '', email: l.email || '', phone: l.phone || '' })
   }, [lead.id])
   useEffect(() => { reload() }, [reload])
   const loadDups = useCallback(() => { getLeadDuplicates(lead.id).then(d => setDups(d.items || [])).catch(() => {}) }, [lead.id])
@@ -313,6 +313,18 @@ function ExpandedRow({ lead, colSpan, onChanged, onConvert, onErmis, onSend }) {
               <option value="">— Πρόγραμμα —</option>
               {['ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ', 'ΔΥΠΑ', 'ΕΣΠΑ', 'ΑΝΑΚΑΙΝΙΖΩ'].map(p => <option key={p} value={p}>{p}</option>)}
             </select>
+            <>
+              <input
+                list="program-titles-list"
+                value={form.program_title}
+                onChange={e => setForm(f => ({ ...f, program_title: e.target.value }))}
+                placeholder="Τίτλος προγράμματος…"
+                className="px-2 py-1.5 border rounded text-sm col-span-2 md:col-span-2"
+              />
+              <datalist id="program-titles-list">
+                {programTitles.map(t => <option key={t} value={t} />)}
+              </datalist>
+            </>
             <input value={form.service_type} onChange={e => setForm(f => ({ ...f, service_type: e.target.value }))} placeholder="Υπηρεσία" className="px-2 py-1.5 border rounded text-sm" />
             <input value={form.source} onChange={e => setForm(f => ({ ...f, source: e.target.value }))} placeholder="Referrer / Πηγή" className="px-2 py-1.5 border rounded text-sm" />
             <input value={form.total_amount} onChange={e => setForm(f => ({ ...f, total_amount: e.target.value }))} placeholder="Ποσό" className="px-2 py-1.5 border rounded text-sm" />
@@ -447,9 +459,9 @@ function ExpandedRow({ lead, colSpan, onChanged, onConvert, onErmis, onSend }) {
 
 export default function Leads() {
   const [data, setData] = useState({ items: [], total: 0, page: 1, page_size: 50 })
-  const [options, setOptions] = useState({ statuses: LEAD_STATUSES, agents: [], programs: [], consultants: [], status_counts: {}, total: 0 })
+  const [options, setOptions] = useState({ statuses: LEAD_STATUSES, agents: [], programs: [], program_titles: [], consultants: [], status_counts: {}, total: 0 })
   const [loading, setLoading] = useState(true)
-  const [filters, setFilters] = useState({ status: '', consultant: '', program: '', q: '', reminder: '', date_from: '', date_to: '' })
+  const [filters, setFilters] = useState({ status: '', consultant: '', program: '', program_title: '', q: '', reminder: '', date_from: '', date_to: '' })
   const [sort, setSort] = useState({ sort: 'created_at', direction: 'desc' })
   const [page, setPage] = useState(1)
   const [showNew, setShowNew] = useState(false)
@@ -557,6 +569,9 @@ export default function Leads() {
         <select value={filters.program} onChange={e => setFilter({ program: e.target.value })} className="px-3 py-2 border rounded-lg text-sm">
           <option value="">Όλα τα προγράμματα</option>{(options.programs || []).map(p => <option key={p} value={p}>{p}</option>)}
         </select>
+        <select value={filters.program_title} onChange={e => setFilter({ program_title: e.target.value })} className="px-3 py-2 border rounded-lg text-sm max-w-xs" title={filters.program_title || ''}>
+          <option value="">Τίτλος προγράμματος (όλα)</option>{(options.program_titles || []).map(p => <option key={p} value={p}>{p}</option>)}
+        </select>
         <select value={filters.consultant} onChange={e => setFilter({ consultant: e.target.value })} className="px-3 py-2 border rounded-lg text-sm">
           <option value="">Σύμβουλος (όλοι)</option>{(options.consultants || []).map(c => <option key={c} value={c}>{c}</option>)}
         </select>
@@ -633,7 +648,7 @@ export default function Leads() {
                       </div>
                     </td>
                   </tr>
-                  {isOpen && <ExpandedRow lead={lead} colSpan={COLS} onChanged={load} onConvert={handleConvert} onErmis={handleErmis} onSend={setSendLead} />}
+                  {isOpen && <ExpandedRow lead={lead} colSpan={COLS} onChanged={load} onConvert={handleConvert} onErmis={handleErmis} onSend={setSendLead} programTitles={options.program_titles || []} />}
                 </Fragment>
               )
             })}
