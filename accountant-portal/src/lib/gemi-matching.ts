@@ -160,6 +160,18 @@ export async function runMatchingForGemi(gemiId: string, programs: Awaited<Retur
     activities,
   }
 
+  // Inactive businesses must never be matched — delete any stale POTENTIAL matches and bail.
+  if (business.deactivationFlag === 'Y' || !!business.stopDate) {
+    await prisma.gemiProgramMatch.deleteMany({
+      where: { gemiId, status: MatchStatus.POTENTIAL },
+    })
+    await prisma.gemiLookup.update({
+      where: { id: gemiId },
+      data: { matchingDone: true, matchingDoneAt: new Date() },
+    })
+    return 0
+  }
+
   let matchCount = 0
   const qualifiedProgramIds: string[] = []
 
