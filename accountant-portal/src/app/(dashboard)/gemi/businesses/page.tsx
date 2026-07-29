@@ -330,6 +330,11 @@ function GemiBusinessesPageInner() {
         totalEnriched += data.enriched ?? 0
         totalErrors += data.errors ?? 0
         const remaining = data.remaining ?? 0
+        if (data.monthlyLimitExceeded) {
+          setToast(`⚠️ Μηνιαίο όριο ΑΑΔΕ εξαντλήθηκε — εμπλουτίστηκαν ${totalEnriched}. Το όριο ανανεώνεται την 1η του μήνα.`)
+          fetchData()
+          return
+        }
         setToast(`Εμπλουτισμός ΑΑΔΕ: ${totalEnriched} εμπλουτίστηκαν${totalErrors ? `, ${totalErrors} σφάλματα` : ''} — απομένουν ${remaining}...`)
         if (remaining === 0 || (data.processed ?? 0) === 0) break
       }
