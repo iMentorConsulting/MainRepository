@@ -1196,6 +1196,11 @@ try:
         _conn.execute(_text("ALTER TABLE cm_portal_assignments ADD COLUMN IF NOT EXISTS program_exact_title VARCHAR(300)"))
         # Backfill: pad existing 8-digit ΑΦΜ to 9 with a leading zero
         _conn.execute(_text("UPDATE cm_leads SET afm = '0' || afm WHERE afm ~ '^[0-9]{8}$'"))
+        # Backfill: strip Greek country code (+30 / 0030) from stored phone numbers
+        _conn.execute(_text("UPDATE cm_leads SET phone = REGEXP_REPLACE(phone, '^\\+30', '') WHERE phone ~ '^\\+30'"))
+        _conn.execute(_text("UPDATE cm_leads SET phone = REGEXP_REPLACE(phone, '^0030', '') WHERE phone ~ '^0030'"))
+        _conn.execute(_text("UPDATE cm_leads SET phone2 = REGEXP_REPLACE(phone2, '^\\+30', '') WHERE phone2 ~ '^\\+30'"))
+        _conn.execute(_text("UPDATE cm_leads SET phone2 = REGEXP_REPLACE(phone2, '^0030', '') WHERE phone2 ~ '^0030'"))
         # Backfill: fix the common yahoo.fr → yahoo.gr email typo
         _conn.execute(_text("UPDATE cm_leads SET email = regexp_replace(email, '@yahoo\\.fr$', '@yahoo.gr', 'i') WHERE email ~* '@yahoo\\.fr$'"))
         # Backfill: extract program_title from notes for LOGISTIS leads that have none.
