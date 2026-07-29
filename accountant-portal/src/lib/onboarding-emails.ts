@@ -84,7 +84,7 @@ function emailFooter(): string {
 function step1(name: string, officeName: string): { subject: string; html: string } {
   const subject = `Καλωσορίσατε στο I-MENTOR Logistis — Ξεκινήστε σε 5 λεπτά`
   const html = emailWrap(`
-${emailHeader('Καλωσορίσατε στο I-MENTOR Logistis! 🎉', `Χαρούμαστε που συνεργαζόμαστε με το γραφείο ${officeName}. Δείτε πώς ξεκινάτε.`)}
+${emailHeader('Καλωσορίσατε στο I-MENTOR Logistis! 🎉', `Χαιρόμαστε που συνεργαζόμαστε με το γραφείο ${officeName}. Δείτε πώς ξεκινάτε.`)}
 <div style="background:white;padding:32px 40px;">
   <p style="font-size:15px;margin:0 0 24px;color:#374151;">Αγαπητέ/ή <strong>${name}</strong>,</p>
   <p style="font-size:14px;margin:0 0 24px;color:#374151;line-height:1.7;">
