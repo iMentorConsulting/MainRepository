@@ -262,6 +262,7 @@ class LeadUpdate(BaseModel):
     email: Optional[str] = None
     afm: Optional[str] = None
     program: Optional[str] = None
+    program_title: Optional[str] = None
     service_type: Optional[str] = None
     total_amount: Optional[float] = None
     status: Optional[str] = None
@@ -293,6 +294,7 @@ def list_leads(
     agent_id: Optional[int] = None,
     consultant: Optional[str] = None,
     program: Optional[str] = None,
+    program_title: Optional[str] = None,
     reminder: Optional[str] = None,   # overdue | today | week | none
     date_from: Optional[date] = None,
     date_to: Optional[date] = None,
@@ -314,6 +316,8 @@ def list_leads(
         query = query.filter(CMLead.assigned_name == consultant)
     if program:
         query = query.filter(CMLead.program == program)
+    if program_title:
+        query = query.filter(CMLead.program_title == program_title)
     if reminder:
         today = date.today()
         if reminder == "overdue":
@@ -408,6 +412,10 @@ def filter_options(
     from models_cases import CMUser as _U
     agents = db.query(_U.id, _U.full_name).all()
     programs = [p[0] for p in db.query(CMLead.program).distinct().all() if p[0]]
+    program_titles = sorted([
+        p[0] for p in db.query(CMLead.program_title).distinct().filter(CMLead.program_title.isnot(None)).all()
+        if p[0]
+    ])
     consultants = [c[0] for c in db.query(CMLead.assigned_name).distinct().all() if c[0]]
     # Status counts across all leads (for the filter chips)
     status_counts = {s: c for s, c in db.query(CMLead.status, sa_func.count(CMLead.id)).group_by(CMLead.status).all()}
@@ -415,6 +423,7 @@ def filter_options(
         "statuses": LEAD_STATUSES,
         "agents": [{"id": a[0], "name": a[1]} for a in agents],
         "programs": programs,
+        "program_titles": program_titles,
         "consultants": sorted(consultants),
         "status_counts": status_counts,
         "total": sum(status_counts.values()),
