@@ -175,6 +175,15 @@ def _clean_email_local(email):
         return email
 
 
+def _clean_phone_local(phone):
+    """Strip Greek country code (+30/0030). Delegates to cm_leads."""
+    try:
+        from routes.cm_leads import clean_phone
+        return clean_phone(phone)
+    except Exception:
+        return phone
+
+
 def _map_row(row: List[str], cfg: CMLeadSheetConfig, header: List[str], users: list) -> dict:
     cmap = cfg.column_map or {}
     data = {}
@@ -185,8 +194,8 @@ def _map_row(row: List[str], cfg: CMLeadSheetConfig, header: List[str], users: l
     # Guard against values longer than the DB column limits (VARCHAR sizes).
     lead_kwargs = {
         "name": _trunc(data.get("name") or None, 200),
-        "phone": _trunc(data.get("phone") or None, 50),
-        "phone2": _trunc(data.get("phone2") or None, 50),
+        "phone": _clean_phone_local(_trunc(data.get("phone") or None, 50)),
+        "phone2": _clean_phone_local(_trunc(data.get("phone2") or None, 50)),
         "email": _clean_email_local(_trunc(data.get("email") or None, 200)),
         "afm": _normalize_afm_local(_trunc(data.get("afm") or None, 20)),
         "service_type": _trunc(data.get("service_type") or None, 150),

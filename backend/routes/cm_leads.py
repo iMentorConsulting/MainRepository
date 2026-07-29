@@ -81,6 +81,18 @@ def clean_email(email):
     return f"{local}@{domain}" if local else None
 
 
+def clean_phone(phone):
+    """Strip Greek country code (+30 / 0030) so numbers are stored in local format."""
+    if not phone:
+        return None
+    p = str(phone).strip().replace(" ", "").replace("-", "")
+    if p.startswith("+30"):
+        p = p[3:]
+    elif p.startswith("0030"):
+        p = p[4:]
+    return p or None
+
+
 def program_category_from_title(title):
     """Map an exact program title to one of the 4 CM categories (for filter/display)."""
     t = (title or "").upper()
@@ -514,8 +526,8 @@ def create_lead(
 ):
     lead = CMLead(
         name=req.name,
-        phone=req.phone,
-        phone2=req.phone2,
+        phone=clean_phone(req.phone),
+        phone2=clean_phone(req.phone2),
         email=clean_email(req.email),
         afm=normalize_afm(req.afm),
         program=req.program,
@@ -553,6 +565,8 @@ def update_lead(
             val = normalize_afm(val)
         elif field == "email":
             val = clean_email(val)
+        elif field in ("phone", "phone2"):
+            val = clean_phone(val)
         setattr(l, field, val)
     db.commit()
     db.refresh(l)

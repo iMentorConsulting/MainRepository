@@ -743,7 +743,7 @@ def accept_assignment(
     # assigned to the consultant who accepted, today's date + reminder, with a link
     # back to the LOGISTIS case.
     from models_cases import CMLead
-    from routes.cm_leads import (normalize_afm, clean_email,
+    from routes.cm_leads import (normalize_afm, clean_email, clean_phone,
                                  find_gemi_lead, program_category_from_title)
     today = date.today()
     link_tmpl = os.getenv("LOGISTIS_CASE_LINK_TEMPLATE", "https://logistis.i-mentor.gr/cases/{case_number}")
@@ -773,7 +773,7 @@ def accept_assignment(
         lead.assigned_agent_id = current_user.id
         lead.assigned_name = consultant
         lead.name = lead.name or a.onomasia or f"ΓΕΜΗ {afm}"
-        lead.phone = lead.phone or a.phone
+        lead.phone = lead.phone or clean_phone(a.phone)
         lead.email = lead.email or clean_email(a.email)
         lead.program = lead.program or prog_cat
         lead.program_title = lead.program_title or prog_title
@@ -787,7 +787,7 @@ def accept_assignment(
         lead = CMLead(
             name=a.onomasia or a.afm or f"Ανάθεση #{a.case_number}",
             afm=afm,
-            phone=a.phone,
+            phone=clean_phone(a.phone),
             email=clean_email(a.email),
             program=prog_cat,
             program_title=prog_title,
