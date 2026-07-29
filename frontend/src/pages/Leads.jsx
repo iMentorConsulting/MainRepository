@@ -427,8 +427,8 @@ function ExpandedRow({ lead, colSpan, onChanged, onConvert, onErmis, onSend }) {
           </div>
         )}
 
-        {/* Sheet comment (Comments column) */}
-        {full?.notes && (
+        {/* Sheet comment — hidden when already shown as ΕΡΜΗΣ fallback summary */}
+        {full?.notes && !(!full?.ermis_status && (full?.source || '').toUpperCase().startsWith('LOGISTIS') && !full?.ermis_transcript) && (
           <div className="flex items-start gap-2 text-sm bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-2">
             <DocumentTextIcon className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
             <div className="whitespace-pre-wrap break-words text-gray-700">{renderMarkup(full.notes)}</div>
