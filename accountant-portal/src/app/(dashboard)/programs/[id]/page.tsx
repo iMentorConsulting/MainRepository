@@ -15,6 +15,7 @@ import { GREEK_REGIONS } from '@/lib/greek-regions'
 import { LEGAL_FORMS } from '@/lib/legal-forms'
 import { parseRequirementsList } from '@/lib/requirements-list'
 import { EligibilityQuestionsEditor } from '@/components/programs/eligibility-questions-editor'
+import type { ExpenseCategory } from '@/components/programs/expense-categories-editor'
 
 function formatEuro(value: number | null | undefined) {
   if (value === null || value === undefined) return null
@@ -360,6 +361,36 @@ export default function ProgramDetailPage() {
                     </a>
                   </div>
                 )}
+              </CardContent>
+            </Card>
+          )}
+
+          {Array.isArray(program.expenseCategories) && program.expenseCategories.length > 0 && (
+            <Card>
+              <CardHeader><CardTitle>Επιλέξιμες Κατηγορίες Δαπανών</CardTitle></CardHeader>
+              <CardContent>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm border border-gray-200 rounded-lg">
+                    <thead>
+                      <tr className="bg-gray-50">
+                        <th className="px-3 py-2 text-left font-medium text-gray-600">Κωδικός</th>
+                        <th className="px-3 py-2 text-left font-medium text-gray-600">Κατηγορία</th>
+                        <th className="px-3 py-2 text-left font-medium text-gray-600">Δαπάνη</th>
+                        <th className="px-3 py-2 text-left font-medium text-gray-600">Όριο</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(program.expenseCategories as ExpenseCategory[]).map((c, i) => (
+                        <tr key={i} className="border-t border-gray-200">
+                          <td className="px-3 py-2 font-mono text-xs text-gray-700">{c.code}</td>
+                          <td className="px-3 py-2 text-gray-700">{c.category}</td>
+                          <td className="px-3 py-2 text-gray-700">{c.expense}</td>
+                          <td className="px-3 py-2 text-gray-700">{c.limit}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </CardContent>
             </Card>
           )}
