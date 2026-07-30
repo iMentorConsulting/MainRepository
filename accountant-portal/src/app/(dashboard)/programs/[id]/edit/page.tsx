@@ -15,6 +15,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ArrowLeft, Plus, X, FileUp, Globe, ExternalLink, Paperclip, Link2 } from 'lucide-react'
 import Link from 'next/link'
 import { LEGAL_FORMS } from '@/lib/legal-forms'
+import { ExpenseCategoriesEditor, type ExpenseCategory } from '@/components/programs/expense-categories-editor'
 
 // Empty-string number inputs (e.g. an untouched/cleared "Επιτόκιο Από" field)
 // must become undefined before z.coerce.number() runs — otherwise Number('')
@@ -300,6 +301,7 @@ export default function EditProgramPage() {
   const [excludeTags, setExcludeTags] = useState<string[]>([])
   const [requireTags, setRequireTags] = useState<string[]>([])
   const [tagOptions, setTagOptions] = useState<{ label: string }[]>([])
+  const [expenseCategories, setExpenseCategories] = useState<ExpenseCategory[]>([])
   // WordPress integration
   const [wpTemplates, setWpTemplates] = useState<{ id: string; name: string; categories: string[] }[]>([])
   const [wpPageId, setWpPageId] = useState<number | null>(null)
@@ -344,6 +346,7 @@ export default function EditProgramPage() {
         setVideoUrls(program.videoUrls || [])
         setAttachmentUrls(program.attachmentUrls || [])
         setAttachmentNames(program.attachmentNames || [])
+        setExpenseCategories(Array.isArray(program.expenseCategories) ? program.expenseCategories : [])
         setWpPageId(program.wpPageId ?? null)
         setWpPageUrl(program.wpPageUrl ?? null)
         reset({
@@ -382,7 +385,7 @@ export default function EditProgramPage() {
     const res = await fetch(`/api/programs/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...data, heroImageUrl: heroImage || data.heroImageUrl, kadRules, excludedKadRules, regionRules, zipCodeRules, excludedLegalForms, extraCriteriaIds, excludeTags, requireTags, videoUrls, attachmentUrls, attachmentNames }),
+      body: JSON.stringify({ ...data, heroImageUrl: heroImage || data.heroImageUrl, kadRules, excludedKadRules, regionRules, zipCodeRules, excludedLegalForms, extraCriteriaIds, excludeTags, requireTags, videoUrls, attachmentUrls, attachmentNames, expenseCategories }),
     })
     if (res.ok) {
       router.push(`/programs/${id}`)
@@ -891,6 +894,13 @@ export default function EditProgramPage() {
             <p className="text-xs text-gray-400">
               Δημοσιεύεται αμέσως στο i-mentor.gr και προστίθεται αυτόματα στο μενού που έχεις ορίσει στο template.
             </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader><CardTitle>Επιλέξιμες Κατηγορίες Δαπανών</CardTitle></CardHeader>
+          <CardContent>
+            <ExpenseCategoriesEditor value={expenseCategories} onChange={setExpenseCategories} />
           </CardContent>
         </Card>
 
