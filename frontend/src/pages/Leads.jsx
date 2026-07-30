@@ -649,8 +649,8 @@ export default function Leads() {
                       <input type="date" value={lead.next_call_date || ''} onChange={e => patch(lead, 'next_call_date', e.target.value || null)} className={`text-xs rounded px-1.5 py-1 border ${nextCallClass(lead.next_call_date)}`} />
                     </td>
                     <td className="px-2 py-1.5 whitespace-nowrap text-gray-500 text-xs">{fmtDate(lead.created_at)}</td>
-                    <td className="px-2 py-1.5 max-w-[220px]">
-                      {commentPreview ? <div className="text-xs text-gray-600 truncate" title={stripMarkup(commentPreview)}>{stripMarkup(commentPreview)}</div> : <span className="text-gray-300 text-xs">—</span>}
+                    <td className="px-2 py-1.5 min-w-[200px] max-w-[320px]">
+                      {commentPreview ? <div className="text-xs text-gray-600 break-words leading-relaxed line-clamp-4">{stripMarkup(commentPreview)}</div> : <span className="text-gray-300 text-xs">—</span>}
                     </td>
                     <td className="px-2 py-1.5">
                       {lead.ermis_status ? <span className={`text-xs font-semibold rounded-full px-2 py-0.5 ${ERMIS_BADGE[lead.ermis_status] || 'bg-gray-100'}`} title={lead.ermis_status === 'error' ? (lead.ermis_error || 'Σφάλμα') : ''}>{lead.ermis_status}</span> : <span className="text-gray-300 text-xs">—</span>}
