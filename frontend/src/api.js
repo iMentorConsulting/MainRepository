@@ -232,7 +232,7 @@ export const updateFinanceSyncServiceTypes = (items) => api.put('/api/cm/finance
 
 // LOGISTIS Portal integration
 export const getPendingPortalAssignments = () => api.get('/api/cm/portal-integration/pending').then(r => r.data)
-export const acceptPortalAssignment = (id) => api.post(`/api/cm/portal-integration/${id}/accept`).then(r => r.data)
+export const acceptPortalAssignment = (id, assigned_to_id = null) => api.post(`/api/cm/portal-integration/${id}/accept`, { assigned_to_id }).then(r => r.data)
 export const dismissPortalAssignment = (id) => api.post(`/api/cm/portal-integration/${id}/dismiss`).then(r => r.data)
 export const syncCaseToPortal = (caseId) => api.post(`/api/cm/portal-integration/cases/${caseId}/sync`).then(r => r.data)
 export const createPortalAssignmentRequest = (payload) => api.post('/api/cm/portal-integration/assignment-requests', payload).then(r => r.data)

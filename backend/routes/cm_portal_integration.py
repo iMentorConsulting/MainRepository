@@ -727,9 +727,14 @@ def list_recent(
             "items": [_assignment_to_dict(a) for a in rows]}
 
 
+class AcceptAssignmentIn(BaseModel):
+    assigned_to_id: Optional[int] = None   # if set, assign to this user instead of caller
+
+
 @router.post("/{assignment_id}/accept")
 def accept_assignment(
     assignment_id: int,
+    req: AcceptAssignmentIn = AcceptAssignmentIn(),
     current_user: CMUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -740,8 +745,8 @@ def accept_assignment(
         raise HTTPException(status_code=400, detail="Η ανάθεση έχει ήδη διεκπεραιωθεί")
 
     # Accepting a LOGISTIS assignment creates (or reuses) a LEAD: status NEW LEAD,
-    # assigned to the consultant who accepted, today's date + reminder, with a link
-    # back to the LOGISTIS case.
+    # assigned to the chosen consultant (caller by default), today's date + reminder,
+    # with a link back to the LOGISTIS case.
     from models_cases import CMLead
     from routes.cm_leads import (normalize_afm, clean_email, clean_phone,
                                  find_gemi_lead, program_category_from_title)
@@ -749,7 +754,16 @@ def accept_assignment(
     link_tmpl = os.getenv("LOGISTIS_CASE_LINK_TEMPLATE", "https://logistis.i-mentor.gr/cases/{case_number}")
     portal_link = link_tmpl.replace("{case_number}", str(a.case_number)) if a.case_number is not None else None
     afm = normalize_afm(a.afm)
-    consultant = _short_consultant(current_user.full_name)
+
+    # Resolve the target consultant (may differ from the logged-in user).
+    if req.assigned_to_id and req.assigned_to_id != current_user.id:
+        target_user = db.query(CMUser).filter(CMUser.id == req.assigned_to_id).first()
+        if not target_user:
+            raise HTTPException(status_code=404, detail="Ο επιλεγμένος σύμβουλος δεν βρέθηκε")
+    else:
+        target_user = current_user
+    consultant = _short_consultant(target_user.full_name)
+
     prog_title = (a.program_exact_title or "").strip() or None
     # Fallback 1: LOGISTIS embeds the exact program name in the description after an em-dash,
     # e.g. "Ανάθεση από λογιστή μέσω action page — Πρόγραμμα επιχορήγησης…"
@@ -770,7 +784,7 @@ def accept_assignment(
     if existing:
         lead = existing
         lead.status = "NEW LEAD"
-        lead.assigned_agent_id = current_user.id
+        lead.assigned_agent_id = target_user.id
         lead.assigned_name = consultant
         lead.name = lead.name or a.onomasia or f"ΓΕΜΗ {afm}"
         lead.phone = lead.phone or clean_phone(a.phone)
@@ -793,7 +807,7 @@ def accept_assignment(
             program_title=prog_title,
             service_type=prog_title or _map_service_type(a.program_title) or a.case_type,
             status="NEW LEAD",
-            assigned_agent_id=current_user.id,
+            assigned_agent_id=target_user.id,
             assigned_name=consultant,
             source="LOGISTIS ΓΕΜΗ" if a.ermis_completed else "LOGISTIS",
             notes=a.description,
