@@ -23,10 +23,19 @@ export async function POST(
   }
 
   if (gemiLookup.claimedBusinessId !== null) {
-    return NextResponse.json(
-      { error: 'Αυτή η επιχείρηση έχει ήδη ανατεθεί' },
-      { status: 409 }
-    )
+    // Check if the existing claimed business has no accountant (auto-created by
+    // Ερμής GEMI chat). In that case allow re-claiming so it can be assigned.
+    const existingBusiness = await prisma.business.findUnique({
+      where: { id: gemiLookup.claimedBusinessId },
+      select: { accountantId: true },
+    })
+    if (!existingBusiness || existingBusiness.accountantId !== null) {
+      return NextResponse.json(
+        { error: 'Αυτή η επιχείρηση έχει ήδη ανατεθεί' },
+        { status: 409 }
+      )
+    }
+    // existingBusiness has no accountant — fall through to assign it
   }
 
   let accountantId: string | null = null
@@ -55,10 +64,11 @@ export async function POST(
   })
 
   if (business) {
-    // Link existing business — fill in missing email/phone from GemiLookup
-    const updateData: Record<string, string> = {}
+    // Link existing business — fill in missing email/phone/accountantId from GemiLookup
+    const updateData: Record<string, string | null> = {}
     if (!business.email && gemiLookup.email) updateData.email = gemiLookup.email
     if (!business.phone && gemiLookup.phone) updateData.phone = gemiLookup.phone
+    if (!business.accountantId && accountantId) updateData.accountantId = accountantId
 
     if (Object.keys(updateData).length > 0) {
       business = await prisma.business.update({
