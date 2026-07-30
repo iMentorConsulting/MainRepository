@@ -6,6 +6,7 @@ import { sendEmail } from '@/lib/email'
 import { notifyCaseManagement } from '@/lib/case-management-sync'
 import { sendErmisWebhook } from '@/app/api/external/ermis-sessions/route'
 import { buildBusinessProfilePayload, BUSINESS_PROFILE_SELECT } from '@/lib/business-profile'
+import { runMatchingForBusiness } from '@/lib/matching'
 
 export const dynamic = 'force-dynamic'
 
@@ -86,6 +87,10 @@ async function createGemiCase(params: {
         where: { id: params.gemiId },
         data: { claimedBusinessId: businessId } as any,
       }).catch(() => {})
+      // Auto-run matching so program matches are visible in the case detail immediately
+      runMatchingForBusiness(businessId).catch(err =>
+        console.error('[GemiCase] auto-matching failed:', err instanceof Error ? err.message : err)
+      )
     }
   }
 
