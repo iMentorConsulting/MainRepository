@@ -241,7 +241,7 @@ function ExpandedRow({ lead, colSpan, onChanged, onConvert, onErmis, onSend, pro
   const reload = useCallback(async () => {
     const l = await getLead(lead.id)
     setFull(l); setComments(l.comments || [])
-    setForm({ name: l.name || '', afm: l.afm || '', program: l.program || '', program_title: l.program_title || '', service_type: l.service_type || '', source: l.source || '', total_amount: l.total_amount || '', email: l.email || '', phone: l.phone || '' })
+    setForm({ name: l.name || '', afm: l.afm || '', program: l.program || '', program_title: l.program_title || '', service_type: l.service_type || '', source: l.source || '', total_amount: l.total_amount || '', email: l.email || '', phone: l.phone || '', ermis_status: l.ermis_status || '' })
   }, [lead.id])
   useEffect(() => { reload() }, [reload])
   const loadDups = useCallback(() => { getLeadDuplicates(lead.id).then(d => setDups(d.items || [])).catch(() => {}) }, [lead.id])
@@ -328,6 +328,15 @@ function ExpandedRow({ lead, colSpan, onChanged, onConvert, onErmis, onSend, pro
             <input value={form.service_type} onChange={e => setForm(f => ({ ...f, service_type: e.target.value }))} placeholder="Υπηρεσία" className="px-2 py-1.5 border rounded text-sm" />
             <input value={form.source} onChange={e => setForm(f => ({ ...f, source: e.target.value }))} placeholder="Referrer / Πηγή" className="px-2 py-1.5 border rounded text-sm" />
             <input value={form.total_amount} onChange={e => setForm(f => ({ ...f, total_amount: e.target.value }))} placeholder="Ποσό" className="px-2 py-1.5 border rounded text-sm" />
+            {full?.ermis_status && (
+              <select value={form.ermis_status} onChange={e => setForm(f => ({ ...f, ermis_status: e.target.value }))} className="px-2 py-1.5 border rounded text-sm" title="Διόρθωση αποτελέσματος ΕΡΜΗΣ">
+                <option value="">— ΕΡΜΗΣ κατάσταση —</option>
+                <option value="eligible">eligible (επιλέξιμος)</option>
+                <option value="ineligible">ineligible (μη επιλέξιμος)</option>
+                <option value="in_progress">in_progress</option>
+                <option value="error">error</option>
+              </select>
+            )}
             <button onClick={saveEdit} className="btn-primary text-sm flex items-center gap-1"><CheckIcon className="w-4 h-4" />Αποθήκευση</button>
           </div>
         )}
