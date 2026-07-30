@@ -184,30 +184,38 @@ export async function POST(request: NextRequest) {
           where: { afm },
           include: { activities: true },
         })
-        if (existing && !existing.accountantId) {
+        if (existing) {
           const accountantId = session.user.role === 'ACCOUNTANT' ? (session.user.accountantId ?? null) : (businessData.accountantId ?? null)
-          const claimed = await prisma.business.update({
-            where: { afm },
-            data: {
-              accountantId: accountantId || undefined,
-              // Merge any extra fields the user supplied that are not yet set
-              email: existing.email ?? businessData.email ?? undefined,
-              phone: existing.phone ?? businessData.phone ?? undefined,
-              viberPhone: existing.viberPhone ?? businessData.viberPhone ?? undefined,
-            },
-            include: { activities: true },
-          })
-          await createAuditLog({
-            userId: session.user.id,
-            action: 'UPDATE',
-            entity: 'Business',
-            entityId: claimed.id,
-            details: `Claimed unassigned GEMI business ${claimed.afm} during manual creation`,
-          })
-          runMatchingForBusiness(claimed.id)
-            .then(() => session.user.role === 'ACCOUNTANT' ? autoNotifyBusinessMatches(claimed.id) : Promise.resolve())
-            .catch(err => console.error('[Matching] Auto-match for claimed business failed:', err?.message))
-          return NextResponse.json(claimed, { status: 201 })
+
+          // If already assigned to the same accountant, just return it (hidden by list filters)
+          if (existing.accountantId && existing.accountantId === accountantId) {
+            return NextResponse.json(existing, { status: 201 })
+          }
+
+          // If unassigned, claim it for the current accountant
+          if (!existing.accountantId) {
+            const claimed = await prisma.business.update({
+              where: { afm },
+              data: {
+                accountantId: accountantId || undefined,
+                email: existing.email ?? businessData.email ?? undefined,
+                phone: existing.phone ?? businessData.phone ?? undefined,
+                viberPhone: existing.viberPhone ?? businessData.viberPhone ?? undefined,
+              },
+              include: { activities: true },
+            })
+            await createAuditLog({
+              userId: session.user.id,
+              action: 'UPDATE',
+              entity: 'Business',
+              entityId: claimed.id,
+              details: `Claimed unassigned GEMI business ${claimed.afm} during manual creation`,
+            })
+            runMatchingForBusiness(claimed.id)
+              .then(() => session.user.role === 'ACCOUNTANT' ? autoNotifyBusinessMatches(claimed.id) : Promise.resolve())
+              .catch(err => console.error('[Matching] Auto-match for claimed business failed:', err?.message))
+            return NextResponse.json(claimed, { status: 201 })
+          }
         }
       }
       return NextResponse.json({ error: 'ΑΦΜ ήδη υπάρχει στο σύστημα' }, { status: 409 })
