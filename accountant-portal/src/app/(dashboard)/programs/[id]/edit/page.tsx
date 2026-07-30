@@ -385,7 +385,7 @@ export default function EditProgramPage() {
     const res = await fetch(`/api/programs/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...data, heroImageUrl: heroImage || data.heroImageUrl, kadRules, excludedKadRules, regionRules, zipCodeRules, excludedLegalForms, extraCriteriaIds, excludeTags, requireTags, videoUrls, attachmentUrls, attachmentNames, expenseCategories }),
+      body: JSON.stringify({ ...data, heroImageUrl: heroImage || null, kadRules, excludedKadRules, regionRules, zipCodeRules, excludedLegalForms, extraCriteriaIds, excludeTags, requireTags, videoUrls, attachmentUrls, attachmentNames, expenseCategories }),
     })
     if (res.ok) {
       router.push(`/programs/${id}`)
