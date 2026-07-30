@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { BellAlertIcon, CheckCircleIcon, XMarkIcon, ClockIcon } from '@heroicons/react/24/outline'
-import { getPendingPortalAssignments, acceptPortalAssignment, dismissPortalAssignment } from '../api'
+import { getPendingPortalAssignments, acceptPortalAssignment, dismissPortalAssignment, getUsers } from '../api'
 import toast from 'react-hot-toast'
 
 const POLL_MS = 30000
@@ -30,6 +30,9 @@ export default function PortalAssignmentAlert() {
   const [pending, setPending] = useState([])
   const [busyId, setBusyId] = useState(null)
   const [snoozes, setSnoozes] = useState(loadSnoozes)
+  const [users, setUsers] = useState([])
+  // Per-card selected consultant: { [assignmentId]: userId }
+  const [selectedConsultant, setSelectedConsultant] = useState({})
   const navigate = useNavigate()
   const seenIds = useRef(new Set())
 
@@ -47,8 +50,8 @@ export default function PortalAssignmentAlert() {
 
   useEffect(() => {
     refresh()
+    getUsers().then(u => setUsers(Array.isArray(u) ? u : (u.items || []))).catch(() => {})
     const t = setInterval(refresh, POLL_MS)
-    // Re-evaluate snoozes on the same cadence so postponed alerts reappear on time.
     const snoozeTick = setInterval(() => setSnoozes(loadSnoozes), POLL_MS)
     return () => { clearInterval(t); clearInterval(snoozeTick) }
   }, [])
@@ -56,8 +59,12 @@ export default function PortalAssignmentAlert() {
   const handleAccept = async (a) => {
     setBusyId(a.id)
     try {
-      const res = await acceptPortalAssignment(a.id)
-      toast.success(`Δημιουργήθηκε νέο lead από την ανάθεση #${a.case_number}`)
+      const assignedToId = selectedConsultant[a.id] ? parseInt(selectedConsultant[a.id]) : null
+      const res = await acceptPortalAssignment(a.id, assignedToId)
+      const assignedName = assignedToId
+        ? (users.find(u => u.id === assignedToId)?.full_name || 'σύμβουλο')
+        : 'εσάς'
+      toast.success(`Δημιουργήθηκε νέο lead από την ανάθεση #${a.case_number} → ${assignedName}`)
       setPending(p => p.filter(x => x.id !== a.id))
       if (res?.lead_id) navigate('/leads')
       else if (res?.case_id) navigate(`/cases/${res.case_id}`)
@@ -114,6 +121,24 @@ export default function PortalAssignmentAlert() {
                 {(a.program_title || a.case_type) && <div><span className="font-semibold">Πρόγραμμα/Τύπος:</span> {a.program_title || a.case_type}</div>}
                 {a.description && <div className="italic text-amber-700 max-h-32 overflow-y-auto whitespace-pre-wrap break-words">{a.description}</div>}
               </div>
+
+              {/* Consultant picker */}
+              {users.length > 0 && (
+                <div className="mt-2">
+                  <label className="text-xs font-semibold text-amber-800">Ανάθεση σε σύμβουλο:</label>
+                  <select
+                    value={selectedConsultant[a.id] || ''}
+                    onChange={e => setSelectedConsultant(prev => ({ ...prev, [a.id]: e.target.value }))}
+                    className="mt-1 w-full px-2 py-1.5 text-sm border border-amber-300 rounded-lg bg-white focus:ring-2 focus:ring-amber-400"
+                  >
+                    <option value="">— Εμένα (προεπιλογή) —</option>
+                    {users.map(u => (
+                      <option key={u.id} value={u.id}>{u.full_name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               <div className="flex gap-2 mt-3 shrink-0">
                 <button
                   onClick={() => handleAccept(a)}
