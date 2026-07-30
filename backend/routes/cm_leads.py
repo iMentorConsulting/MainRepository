@@ -266,6 +266,7 @@ class LeadUpdate(BaseModel):
     service_type: Optional[str] = None
     total_amount: Optional[float] = None
     status: Optional[str] = None
+    ermis_status: Optional[str] = None
     assigned_agent_id: Optional[int] = None
     assigned_name: Optional[str] = None
     source: Optional[str] = None
