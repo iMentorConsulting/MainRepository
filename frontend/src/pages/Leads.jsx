@@ -596,7 +596,7 @@ export default function Leads() {
               <th className="w-8"></th>
               <SortTh col="status">STATUS</SortTh>
               <SortTh col="consultant">ΣΥΜΒΟΥΛΟΣ</SortTh>
-              <th className="px-2 py-2 text-left font-semibold text-gray-600">ΠΡΟΓΡΑΜΜΑ</th>
+              <th className="px-2 py-2 text-left font-semibold text-gray-600">ΤΙΤΛΟΣ ΠΡΟΓΡΑΜΜΑΤΟΣ</th>
               <SortTh col="name">ΕΠΩΝΥΜΙΑ</SortTh>
               <th className="px-2 py-2 text-left font-semibold text-gray-600">ΤΗΛ / EMAIL</th>
               <SortTh col="next_call_date">REMINDER</SortTh>
@@ -629,7 +629,13 @@ export default function Leads() {
                       </select>
                     </td>
                     <td className="px-2 py-1.5 w-28"><EditableCell value={lead.consultant} onSave={v => patch(lead, 'assigned_name', v)} /></td>
-                    <td className="px-2 py-1.5 whitespace-nowrap text-xs text-gray-600" title={lead.program_title || ''}>{lead.program || lead.program_title || <span className="text-gray-300">—</span>}</td>
+                    <td className="px-2 py-1.5 text-xs text-gray-600 max-w-[220px]">
+                      {lead.program_title
+                        ? <span className="block truncate" title={lead.program_title}>{lead.program_title}</span>
+                        : lead.program
+                          ? <span className="font-semibold text-gray-500">{lead.program}</span>
+                          : <span className="text-gray-300">—</span>}
+                    </td>
                     <td className="px-2 py-1.5 min-w-[150px]">
                       <div className="text-blue-600 hover:underline cursor-pointer font-medium" onClick={() => setExpandedId(isOpen ? null : lead.id)}>{lead.name || '—'}</div>
                       {lead.afm && <div className="text-[11px] text-gray-400">ΑΦΜ {lead.afm}</div>}
