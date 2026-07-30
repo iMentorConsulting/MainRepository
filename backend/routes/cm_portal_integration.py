@@ -739,7 +739,7 @@ def accept_assignment(
     if a.status != "pending":
         raise HTTPException(status_code=400, detail="Η ανάθεση έχει ήδη διεκπεραιωθεί")
 
-    # Accepting a LOGISTIS assignment creates (or reuses) a LEAD: status HOT,
+    # Accepting a LOGISTIS assignment creates (or reuses) a LEAD: status NEW LEAD,
     # assigned to the consultant who accepted, today's date + reminder, with a link
     # back to the LOGISTIS case.
     from models_cases import CMLead
@@ -769,7 +769,7 @@ def accept_assignment(
     existing = find_gemi_lead(db, afm, program_title=prog_title, program_category=prog_cat)
     if existing:
         lead = existing
-        lead.status = "HOT"
+        lead.status = "NEW LEAD"
         lead.assigned_agent_id = current_user.id
         lead.assigned_name = consultant
         lead.name = lead.name or a.onomasia or f"ΓΕΜΗ {afm}"
@@ -792,7 +792,7 @@ def accept_assignment(
             program=prog_cat,
             program_title=prog_title,
             service_type=prog_title or _map_service_type(a.program_title) or a.case_type,
-            status="HOT",
+            status="NEW LEAD",
             assigned_agent_id=current_user.id,
             assigned_name=consultant,
             source="LOGISTIS ΓΕΜΗ" if a.ermis_completed else "LOGISTIS",
