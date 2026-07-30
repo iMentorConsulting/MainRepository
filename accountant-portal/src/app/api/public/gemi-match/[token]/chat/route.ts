@@ -19,6 +19,7 @@ async function createGemiCase(params: {
   summary: string
   transcript?: ChatMessage[]
   pendingItem?: string | null
+  eligibility?: string | null
 }) {
   const adminUser = await prisma.user.findFirst({ where: { role: 'ADMIN' }, select: { id: true } })
   if (!adminUser) throw new Error('Δεν βρέθηκε χρήστης ADMIN')
@@ -165,9 +166,7 @@ async function createGemiCase(params: {
     // (the portal-integration webhook rejects them with "Μη υποστηριζόμενο event").
     const cmWebhookUrl = process.env.ERMIS_CALLBACK_URL || 'https://consult.i-mentor.gr/api/cm/leads/ermis/webhook'
     if (cmWebhookUrl && params.transcript?.length) {
-      const eligibility = await classifyConversation(params.transcript, params.programTitle)
-        .then(c => (c?.eligibility === 'ELIGIBLE' ? 'eligible' : 'ineligible'))
-        .catch(() => null)
+      const eligibility = params.eligibility ?? null
       const now = new Date().toISOString()
       sendErmisWebhook({
         callbackUrl: cmWebhookUrl,
@@ -281,33 +280,34 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   let intentStatus: string | null = null
 
   if (result.caseId && !matchToken.caseCreatedAt) {
-    // Fire-and-forget: case creation involves email + case-management webhook
-    // calls that can take tens of seconds — never block the chat reply on them
-    // (the client shows "Σφάλμα σύνδεσης" if the response takes too long).
-    createGemiCase({
-      gemiId: matchToken.gemiId,
-      programId: matchToken.programId,
-      programTitle: program.title,
-      businessName: gemi.onomasia || gemi.afm,
-      afm: gemi.afm,
-      summary: 'Ο πελάτης εκδήλωσε ενδιαφέρον μέσω του Ερμή.',
-      transcript: finalHistory,
-    }).catch(e => console.error('[GemiErmisChat] createGemiCase failed:', e))
-    caseAssigned = true
-
-    // Classify eligibility + intent in the background so the transcripts page
-    // shows the same fields as normal-business conversations.
+    // Classify once — result is shared between the ermis.completed webhook and
+    // the DB update so both always agree on eligibility.
     classifyConversation(finalHistory, program.title)
       .then(c => {
-        if (!c) return
-        const elig = c.eligibility === 'ELIGIBLE' ? 'ELIGIBLE' : c.eligibility === 'NOT_ELIGIBLE' ? 'NOT_ELIGIBLE' : 'UNCLEAR'
-        const intent = c.intent === 'INTERESTED' ? 'INTERESTED' : c.intent === 'NOT_INTERESTED' ? 'NOT_INTERESTED' : 'UNCLEAR'
+        const elig = c?.eligibility === 'ELIGIBLE' ? 'ELIGIBLE' : c?.eligibility === 'NOT_ELIGIBLE' ? 'NOT_ELIGIBLE' : 'UNCLEAR'
+        const intent = c?.intent === 'INTERESTED' ? 'INTERESTED' : c?.intent === 'NOT_INTERESTED' ? 'NOT_INTERESTED' : 'UNCLEAR'
+        const eligibilityForWebhook = c?.eligibility === 'ELIGIBLE' ? 'eligible' : c?.eligibility === 'NOT_ELIGIBLE' ? 'ineligible' : null
+
+        // Fire-and-forget: case creation involves email + case-management webhook
+        // calls that can take tens of seconds — never block the chat reply on them.
+        createGemiCase({
+          gemiId: matchToken.gemiId,
+          programId: matchToken.programId,
+          programTitle: program.title,
+          businessName: gemi.onomasia || gemi.afm,
+          afm: gemi.afm,
+          summary: 'Ο πελάτης εκδήλωσε ενδιαφέρον μέσω του Ερμή.',
+          transcript: finalHistory,
+          eligibility: eligibilityForWebhook,
+        }).catch(e => console.error('[GemiErmisChat] createGemiCase failed:', e))
+
         return prisma.gemiMatchToken.update({
           where: { token },
           data: { eligibilityStatus: elig, intentStatus: intent },
         })
       })
       .catch(e => console.error('[GemiErmisChat] classify failed:', e))
+    caseAssigned = true
   }
 
   await prisma.gemiMatchToken.update({
