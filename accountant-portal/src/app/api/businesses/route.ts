@@ -174,6 +174,42 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(business, { status: 201 })
   } catch (error: any) {
     if (error.code === 'P2002') {
+      // The AFM may already exist as an unclaimed GEMI-originated business
+      // (source='gemi', accountantId=null) created automatically by the Ερμής
+      // chat flow. In that case, claim it for the current accountant instead of
+      // returning an error.
+      const afm = businessData.afm
+      if (afm) {
+        const existing = await prisma.business.findUnique({
+          where: { afm },
+          include: { activities: true },
+        })
+        if (existing && !existing.accountantId) {
+          const accountantId = session.user.role === 'ACCOUNTANT' ? (session.user.accountantId ?? null) : (businessData.accountantId ?? null)
+          const claimed = await prisma.business.update({
+            where: { afm },
+            data: {
+              accountantId: accountantId || undefined,
+              // Merge any extra fields the user supplied that are not yet set
+              email: existing.email ?? businessData.email ?? undefined,
+              phone: existing.phone ?? businessData.phone ?? undefined,
+              viberPhone: existing.viberPhone ?? businessData.viberPhone ?? undefined,
+            },
+            include: { activities: true },
+          })
+          await createAuditLog({
+            userId: session.user.id,
+            action: 'UPDATE',
+            entity: 'Business',
+            entityId: claimed.id,
+            details: `Claimed unassigned GEMI business ${claimed.afm} during manual creation`,
+          })
+          runMatchingForBusiness(claimed.id)
+            .then(() => session.user.role === 'ACCOUNTANT' ? autoNotifyBusinessMatches(claimed.id) : Promise.resolve())
+            .catch(err => console.error('[Matching] Auto-match for claimed business failed:', err?.message))
+          return NextResponse.json(claimed, { status: 201 })
+        }
+      }
       return NextResponse.json({ error: 'ΑΦΜ ήδη υπάρχει στο σύστημα' }, { status: 409 })
     }
     return NextResponse.json({ error: 'Σφάλμα δημιουργίας' }, { status: 500 })
