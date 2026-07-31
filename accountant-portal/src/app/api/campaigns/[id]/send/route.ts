@@ -22,8 +22,15 @@ async function processCampaignSend(
   const extraCriteriaList = extraCriteriaIds.length
     ? await prisma.eligibilityCriterion.findMany({ where: { id: { in: extraCriteriaIds } }, select: { label: true } })
     : []
-  const extraCriteriaText = extraCriteriaList.length
-    ? `\n📋 *Πρόσθετες Προϋποθέσεις:*\n${extraCriteriaList.map(c => `• ${c.label}`).join('\n')}`
+  const otherReqLines = campaign.program?.otherRequirements
+    ? (campaign.program.otherRequirements as string).split('\n').map((l: string) => l.trim()).filter(Boolean).map((l: string) => `• ${l}`)
+    : []
+  const allCriteriaLines = [
+    ...extraCriteriaList.map(c => `• ${c.label}`),
+    ...otherReqLines,
+  ]
+  const extraCriteriaText = allCriteriaLines.length
+    ? allCriteriaLines.join('\n')
     : ''
   const programDeadlineText = campaign.program?.endDate
     ? new Date(campaign.program.endDate).toLocaleDateString('el-GR', { day: '2-digit', month: '2-digit', year: 'numeric' })
