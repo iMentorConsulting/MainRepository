@@ -181,8 +181,9 @@ export function QuickSendModal({ businesses, onClose, onSent }: QuickSendModalPr
             </div>
           </div>
 
-          {/* Mode toggle — hidden when all selected businesses are direct (no accountant) */}
-          {!allDirect && (
+          {/* Mode toggle — hidden for ACCOUNTANTs (always "with accountant") and when
+              all businesses have no accountant (always "direct") */}
+          {!allDirect && isAdmin && (
             <div className="flex gap-2">
               {(['withAccountant', 'direct'] as const).map(m => (
                 <button

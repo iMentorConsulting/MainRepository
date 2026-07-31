@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
         })
       : Promise.resolve([]),
     programId
-      ? prisma.program.findUnique({ where: { id: programId }, select: { title: true, description: true, endDate: true, extraCriteriaIds: true, websiteUrl: true } })
+      ? prisma.program.findUnique({ where: { id: programId }, select: { title: true, description: true, endDate: true, extraCriteriaIds: true, websiteUrl: true, otherRequirements: true } })
       : Promise.resolve(null),
   ])
 
@@ -46,8 +46,18 @@ export async function POST(request: NextRequest) {
   const extraCriteriaList = program?.extraCriteriaIds?.length
     ? await prisma.eligibilityCriterion.findMany({ where: { id: { in: program.extraCriteriaIds } }, select: { label: true } })
     : []
-  const extraCriteriaText = extraCriteriaList.length
-    ? `\n📋 *Πρόσθετες Προϋποθέσεις:*\n${extraCriteriaList.map(c => `• ${c.label}`).join('\n')}`
+  // Build extra_criteria from both the linked EligibilityCriteria records AND the
+  // program's "Άλλες Προϋποθέσεις" free-text (otherRequirements). Most programs
+  // only use otherRequirements, so without this the variable was always empty.
+  const otherReqLines = program?.otherRequirements
+    ? program.otherRequirements.split('\n').map(l => l.trim()).filter(Boolean).map(l => `• ${l}`)
+    : []
+  const allCriteriaLines = [
+    ...extraCriteriaList.map(c => `• ${c.label}`),
+    ...otherReqLines,
+  ]
+  const extraCriteriaText = allCriteriaLines.length
+    ? allCriteriaLines.join('\n')
     : ''
   const programDeadlineText = program?.endDate
     ? new Date(program.endDate).toLocaleDateString('el-GR', { day: '2-digit', month: '2-digit', year: 'numeric' })
