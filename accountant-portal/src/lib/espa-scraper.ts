@@ -1,4 +1,5 @@
 import * as cheerio from 'cheerio'
+import { chromium } from 'playwright-core'
 
 export interface EspaScrapedItem {
   externalItemId: string
@@ -20,12 +21,6 @@ export interface EspaDetailInfo {
 
 export const ESPA_LISTING_URL =
   'https://www.espa.gr/el/pages/Proclamations.aspx?k=*&ipb=False&ib=True&state=%ce%95%ce%bd%ce%b5%cf%81%ce%b3%ce%ae%7C%ce%91%ce%bd%ce%b1%ce%bc%ce%ad%ce%bd%ce%b5%cf%84%ce%b1%ce%b9%7C&fs=False'
-
-const REQUEST_HEADERS = {
-  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-  Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-  'Accept-Language': 'el-GR,el;q=0.9,en;q=0.8',
-}
 
 function parseItems($: cheerio.CheerioAPI): EspaScrapedItem[] {
   const items: EspaScrapedItem[] = []
@@ -86,11 +81,47 @@ function extractHiddenFields($: cheerio.CheerioAPI): Record<string, string> {
   return fields
 }
 
+// Resolve the Chromium executable: prefer CHROMIUM_PATH env var (set on Railway),
+// then the pre-installed path in the dev/CI container, then let playwright find it.
+function getChromiumExecutablePath(): string | undefined {
+  if (process.env.CHROMIUM_PATH) return process.env.CHROMIUM_PATH
+  const preinstalled = '/opt/pw-browsers/chromium-1194/chrome-linux/chrome'
+  try {
+    require('fs').accessSync(preinstalled)
+    return preinstalled
+  } catch {
+    return undefined
+  }
+}
+
+async function fetchHtmlWithBrowser(url: string): Promise<string> {
+  const executablePath = getChromiumExecutablePath()
+  const browser = await chromium.launch({
+    headless: true,
+    ...(executablePath ? { executablePath } : {}),
+    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+  })
+  try {
+    const page = await browser.newPage()
+    await page.setExtraHTTPHeaders({ 'Accept-Language': 'el-GR,el;q=0.9,en;q=0.8' })
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 })
+    await page.waitForSelector('div.item, .error, #ctl00_PlaceHolderMain_lblMessage', { timeout: 15000 }).catch(() => {})
+    return await page.content()
+  } finally {
+    await browser.close()
+  }
+}
+
 async function postEspaPage(fields: Record<string, string>): Promise<string> {
   const body = new URLSearchParams(fields)
   const res = await fetch(ESPA_LISTING_URL, {
     method: 'POST',
-    headers: { ...REQUEST_HEADERS, 'Content-Type': 'application/x-www-form-urlencoded' },
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+      Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      'Accept-Language': 'el-GR,el;q=0.9,en;q=0.8',
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
     body: body.toString(),
   })
   if (!res.ok) {
@@ -100,12 +131,10 @@ async function postEspaPage(fields: Record<string, string>): Promise<string> {
 }
 
 export async function fetchEspaAnnouncements(maxPages = 3): Promise<EspaScrapedItem[]> {
-  const res = await fetch(ESPA_LISTING_URL, { headers: REQUEST_HEADERS })
-  if (!res.ok) {
-    throw new Error(`ESPA fetch failed: HTTP ${res.status}`)
-  }
-
-  let html = await res.text()
+  // Use a real browser for the first page to bypass Cloudflare bot detection.
+  // Subsequent pagination uses POST (ASP.NET viewstate) which reuses the same session
+  // and is less likely to be blocked since the cookie is set after the initial page load.
+  const html = await fetchHtmlWithBrowser(ESPA_LISTING_URL)
   let $ = cheerio.load(html)
   const items: EspaScrapedItem[] = parseItems($)
 
@@ -121,8 +150,8 @@ export async function fetchEspaAnnouncements(maxPages = 3): Promise<EspaScrapedI
     fields['__EVENTARGUMENT'] = ''
 
     try {
-      html = await postEspaPage(fields)
-      $ = cheerio.load(html)
+      const pageHtml = await postEspaPage(fields)
+      $ = cheerio.load(pageHtml)
       items.push(...parseItems($))
     } catch (err: any) {
       console.error(`[ESPA scraper] failed to fetch page ${page}:`, err?.message)
@@ -134,12 +163,8 @@ export async function fetchEspaAnnouncements(maxPages = 3): Promise<EspaScrapedI
 }
 
 export async function fetchEspaDetail(detailUrl: string): Promise<EspaDetailInfo> {
-  const res = await fetch(detailUrl, { headers: REQUEST_HEADERS })
-  if (!res.ok) {
-    throw new Error(`ESPA detail fetch failed: HTTP ${res.status}`)
-  }
-
-  const html = await res.text()
+  // Detail pages are linked directly; fetch with browser to avoid Cloudflare.
+  const html = await fetchHtmlWithBrowser(detailUrl)
   const $ = cheerio.load(html)
 
   const storyClone = $('.story').first().clone()

@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev -p 3001",
-    "build": "prisma generate && next build",
+    "build": "prisma generate && npx playwright install chromium --with-deps && next build",
     "start": "next start -p 3001",
     "prisma:migrate": "prisma migrate deploy",
     "prisma:generate": "prisma generate",
@@ -31,6 +31,7 @@
     "next-auth": "^5.0.0-beta.19",
     "nodemailer": "^7.0.13",
     "pdf-parse": "^2.4.5",
+    "playwright-core": "^1.62.1",
     "react": "^18",
     "react-dom": "^18",
     "react-hook-form": "^7.52.0",
