@@ -315,6 +315,90 @@ def start_ermis(
     return {"ok": True, "status": "starting"}
 
 
+@router.post("/{lead_id}/ermis/resend-link")
+def resend_ermis_link(
+    lead_id: int,
+    req: ErmisStartIn,
+    current_user: CMUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Re-send the existing ΕΡΜΗΣ chat link (Viber + Email) without creating a new session.
+    For leads with ermis_status = starting | in_progress that haven't replied yet."""
+    l = db.query(CMLead).filter(CMLead.id == lead_id).first()
+    if not l:
+        raise HTTPException(status_code=404, detail="Το lead δεν βρέθηκε")
+    if not l.ermis_chat_url:
+        raise HTTPException(status_code=400, detail="Δεν υπάρχει ενεργός σύνδεσμος ΕΡΜΗΣ για αυτό το lead")
+
+    chat_url = l.ermis_chat_url
+    name = l.name or "συνεργάτη"
+    prog_display = l.program_title or l.service_type or l.program
+    prog_label = f"«{prog_display}»" if prog_display else "που σας ενδιαφέρει"
+    _art = _consultant_article(l.assigned_name).capitalize()
+    _consultant_gr = _consultant_display(l.assigned_name)
+    consultant_line = (f"📞 {_art} {_consultant_gr} από την i-Mentor θα επικοινωνήσει σύντομα μαζί σας.\n"
+                       if l.assigned_name else "")
+
+    viber_msg = (
+        f"Αγαπητέ/ή {name},\n\n"
+        f"📩 Λάβαμε το ενδιαφέρον σας για το πρόγραμμα {prog_label}.\n"
+        "━━━━━━━━━━━━━━━\n"
+        "🤖 Μιλήστε τώρα με τον «ΕΡΜΗ», τον ψηφιακό μας σύμβουλο, που κάνει\n"
+        "✅ ΔΩΡΕΑΝ έλεγχο επιλεξιμότητας\n"
+        "⏱️ σε δευτερόλεπτα (~2 λεπτά)\n"
+        "━━━━━━━━━━━━━━━\n"
+        f"👉 Ξεκινήστε εδώ: {chat_url}\n\n"
+        f"{consultant_line}"
+        "i-Mentor Consulting"
+    )
+    email_subject = f"i-Mentor Consulting — Προαξιολόγηση για {prog_label} με τον ΕΡΜΗ"
+    consultant_html = (
+        f'<p style="margin:0 0 10px;color:#374151;">📞 {_art} <b>{_consultant_gr}</b> '
+        f'από την i-Mentor θα επικοινωνήσει σύντομα μαζί σας.</p>' if l.assigned_name else ""
+    )
+    email_html = f"""<html><body style="margin:0;background:#f3f4f6;padding:24px;font-family:Arial,Helvetica,sans-serif;color:#1f2937;">
+<div style="max-width:600px;margin:0 auto;">
+  <div style="background:#1e3a5f;padding:22px 24px;border-radius:10px 10px 0 0;text-align:center;">
+    <h2 style="color:#ffffff;margin:0;">i-Mentor Consulting</h2>
+  </div>
+  <div style="background:#ffffff;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 10px 10px;padding:26px 24px;">
+    <p style="font-size:16px;margin:0 0 14px;">Αγαπητέ/ή <b>{name}</b>,</p>
+    <p style="margin:0 0 16px;font-size:15px;">📩 Λάβαμε το ενδιαφέρον σας για το πρόγραμμα
+       <b style="color:#1e3a5f;">{prog_label}</b>.</p>
+    <hr style="border:none;border-top:2px solid #eef2f7;margin:18px 0;">
+    <div style="background:#f0f7ff;border-radius:8px;padding:16px 18px;">
+      <p style="margin:0 0 8px;font-size:16px;">🤖 <b>Μιλήστε τώρα με τον «ΕΡΜΗ»</b></p>
+      <p style="margin:0;color:#374151;">τον ψηφιακό μας σύμβουλο, που κάνει <b>✅ ΔΩΡΕΑΝ έλεγχο επιλεξιμότητας</b> ⏱️ σε δευτερόλεπτα (περίπου 2 λεπτά).</p>
+    </div>
+    <div style="text-align:center;margin:26px 0;">
+      <a href="{chat_url}" style="background:#2563eb;color:#ffffff;text-decoration:none;padding:14px 30px;border-radius:8px;font-weight:bold;font-size:15px;display:inline-block;">▶️ Ξεκινήστε την προαξιολόγηση</a>
+    </div>
+    {consultant_html}
+    <hr style="border:none;border-top:1px solid #eee;margin:18px 0;">
+    <p style="font-size:12px;color:#9ca3af;margin:0;">i-Mentor Consulting · Λάβατε αυτό το μήνυμα επειδή συμπληρώσατε φόρμα ενδιαφέροντος.</p>
+  </div>
+</div></body></html>"""
+
+    ch = (req.channel or "both")
+    sent = []
+    if ch in ("viber", "both") and l.phone:
+        ok, _ = _send_viber(l.phone, viber_msg, l.name or "", current_user.full_name, l.service_type or "")
+        db.add(CMLeadNotificationLog(lead_id=l.id, notification_type="ermis_link",
+                                     recipient_name=l.name or "", recipient_contact=l.phone,
+                                     subject="ΕΡΜΗΣ link (resend)", content=viber_msg,
+                                     status="sent" if ok else "failed", sent_by=current_user.full_name))
+        if ok: sent.append("Viber")
+    if ch in ("email", "both") and l.email:
+        ok, _ = _send_email(l.email, email_subject, viber_msg, html_override=email_html)
+        db.add(CMLeadNotificationLog(lead_id=l.id, notification_type="ermis_link",
+                                     recipient_name=l.name or "", recipient_contact=l.email,
+                                     subject=email_subject, content=email_subject,
+                                     status="sent" if ok else "failed", sent_by=current_user.full_name))
+        if ok: sent.append("Email")
+    db.commit()
+    return {"ok": True, "sent": sent}
+
+
 @router.get("/{lead_id}/ermis/transcript")
 def get_transcript(
     lead_id: int,
