@@ -254,6 +254,10 @@ function GemiBusinessesPageInner() {
   const [kadCodes, setKadCodes] = useState<string[]>([])
   const [tagsFilter, setTagsFilter] = useState<string[]>([])
 
+  const [city, setCity] = useState('')
+  const [cityInput, setCityInput] = useState('')
+  const [cityOptions, setCityOptions] = useState<string[]>([])
+
   const [kadOptions, setKadOptions] = useState<{ code: string; descr: string }[]>([])
   const [tagOptions, setTagOptions] = useState<TagOption[]>([])
 
@@ -293,6 +297,10 @@ function GemiBusinessesPageInner() {
       .then(r => r.json())
       .then(d => setTemplates(Array.isArray(d) ? d : []))
       .catch(() => {})
+    fetch('/api/gemi/businesses/city-options')
+      .then(r => r.json())
+      .then(d => Array.isArray(d) && setCityOptions(d))
+      .catch(() => {})
     fetch('/api/gemi/businesses/kad-options')
       .then(r => r.json())
       .then(d => Array.isArray(d) && setKadOptions(d))
@@ -312,6 +320,7 @@ function GemiBusinessesPageInner() {
     if (matchingDone) params.set('matchingDone', matchingDone)
     if (claimed) params.set('claimed', claimed)
     if (importBatch) params.set('importBatch', importBatch)
+    if (city) params.set('city', city)
     if (region) params.set('region', region)
     if (category) params.set('category', category)
     if (hasCampaign) params.set('hasCampaign', hasCampaign)
@@ -328,10 +337,10 @@ function GemiBusinessesPageInner() {
     } finally {
       if (seq === requestSeq.current) setLoading(false)
     }
-  }, [page, search, aadeEnriched, matchingDone, claimed, importBatch, region, category, hasCampaign, active, emailEngagement, kadCodes, tagsFilter])
+  }, [page, search, aadeEnriched, matchingDone, claimed, importBatch, city, region, category, hasCampaign, active, emailEngagement, kadCodes, tagsFilter])
 
   useEffect(() => { fetchData() }, [fetchData])
-  useEffect(() => { setPage(1); setSelected(new Set()) }, [search, aadeEnriched, matchingDone, claimed, importBatch, region, category, hasCampaign, active, emailEngagement, kadCodes, tagsFilter])
+  useEffect(() => { setPage(1); setSelected(new Set()) }, [search, aadeEnriched, matchingDone, claimed, importBatch, city, region, category, hasCampaign, active, emailEngagement, kadCodes, tagsFilter])
 
   function handleSearch() { setSearch(searchInput) }
 
@@ -586,12 +595,12 @@ function GemiBusinessesPageInner() {
     }
   }
 
-  const hasFilters = !!(search || aadeEnriched || matchingDone || claimed || importBatch || region || category || hasCampaign || active || emailEngagement || kadCodes.length || tagsFilter.length)
+  const hasFilters = !!(search || aadeEnriched || matchingDone || claimed || importBatch || city || region || category || hasCampaign || active || emailEngagement || kadCodes.length || tagsFilter.length)
 
   function clearFilters() {
     setSearch(''); setSearchInput('')
     setAadeEnriched(''); setMatchingDone(''); setClaimed('')
-    setImportBatch(''); setRegion(''); setCategory(''); setHasCampaign(''); setActive('')
+    setImportBatch(''); setCity(''); setCityInput(''); setRegion(''); setCategory(''); setHasCampaign(''); setActive('')
     setEmailEngagement(''); setKadCodes([]); setTagsFilter([])
   }
 
@@ -696,6 +705,34 @@ function GemiBusinessesPageInner() {
                   <option key={r} value={r}>{r}</option>
                 ))}
               </select>
+            </div>
+
+            <div>
+              <label className="text-xs font-medium text-gray-500 block mb-1">Περιοχή / Πόλη</label>
+              <div className="relative">
+                <input
+                  type="text"
+                  list="city-options-list"
+                  value={cityInput}
+                  onChange={e => setCityInput(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') setCity(cityInput.trim()) }}
+                  onBlur={() => setCity(cityInput.trim())}
+                  placeholder="π.χ. ΑΘΗΝΑ, ΘΕΣΣΑΛΟΝΙΚΗ..."
+                  className={`pr-7 ${selectCls} w-44`}
+                />
+                {cityInput && (
+                  <button
+                    type="button"
+                    onClick={() => { setCityInput(''); setCity('') }}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    <X size={12} />
+                  </button>
+                )}
+                <datalist id="city-options-list">
+                  {cityOptions.map(c => <option key={c} value={c} />)}
+                </datalist>
+              </div>
             </div>
 
             <div>

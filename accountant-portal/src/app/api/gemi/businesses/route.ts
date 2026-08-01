@@ -46,6 +46,7 @@ export async function GET(request: NextRequest) {
   const claimedParam = searchParams.get('claimed')             // yes | no
   const importBatch = searchParams.get('importBatch')?.trim() ?? ''
   const regionParam = searchParams.get('region')?.trim() ?? ''
+  const cityParam = searchParams.get('city')?.trim() ?? ''
   const categoryParam = searchParams.get('category')?.trim() ?? ''
   const hasCampaignParam = searchParams.get('hasCampaign')     // yes | no
   const activeParam = searchParams.get('active')               // yes | no
@@ -104,6 +105,10 @@ export async function GET(request: NextRequest) {
   else if (claimedParam === 'no') andClauses.push({ claimedBusinessId: null })
 
   if (importBatch) andClauses.push({ importBatch })
+
+  if (cityParam) {
+    andClauses.push({ postalAreaDescription: { contains: cityParam, mode: 'insensitive' } })
+  }
 
   if (regionParam && REGION_ZIP_PREFIXES[regionParam]) {
     const prefixes = REGION_ZIP_PREFIXES[regionParam]
