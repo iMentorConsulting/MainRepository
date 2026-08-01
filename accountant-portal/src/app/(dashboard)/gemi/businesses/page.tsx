@@ -254,6 +254,7 @@ function GemiBusinessesPageInner() {
   const [emailEngagement, setEmailEngagement] = useState('')
   const [kadCodes, setKadCodes] = useState<string[]>([])
   const [tagsFilter, setTagsFilter] = useState<string[]>([])
+  const [tagsExclude, setTagsExclude] = useState<string[]>([])
 
   const [cities, setCities] = useState<string[]>([])
   const [cityOptions, setCityOptions] = useState<string[]>([])
@@ -330,6 +331,7 @@ function GemiBusinessesPageInner() {
     if (emailEngagement) params.set('emailEngagement', emailEngagement)
     kadCodes.forEach(code => params.append('kadCodes', code))
     tagsFilter.forEach(tag => params.append('tags', tag))
+    tagsExclude.forEach(tag => params.append('tagsExclude', tag))
     try {
       const res = await fetch(`/api/gemi/businesses?${params}`)
       const data = await res.json()
@@ -339,10 +341,10 @@ function GemiBusinessesPageInner() {
     } finally {
       if (seq === requestSeq.current) setLoading(false)
     }
-  }, [page, search, aadeEnriched, matchingDone, claimed, importBatch, cities, region, nomos, category, hasCampaign, active, emailEngagement, kadCodes, tagsFilter])
+  }, [page, search, aadeEnriched, matchingDone, claimed, importBatch, cities, region, nomos, category, hasCampaign, active, emailEngagement, kadCodes, tagsFilter, tagsExclude])
 
   useEffect(() => { fetchData() }, [fetchData])
-  useEffect(() => { setPage(1); setSelected(new Set()) }, [search, aadeEnriched, matchingDone, claimed, importBatch, cities, region, nomos, category, hasCampaign, active, emailEngagement, kadCodes, tagsFilter])
+  useEffect(() => { setPage(1); setSelected(new Set()) }, [search, aadeEnriched, matchingDone, claimed, importBatch, cities, region, nomos, category, hasCampaign, active, emailEngagement, kadCodes, tagsFilter, tagsExclude])
 
   function handleSearch() { setSearch(searchInput) }
 
@@ -597,13 +599,13 @@ function GemiBusinessesPageInner() {
     }
   }
 
-  const hasFilters = !!(search || aadeEnriched || matchingDone || claimed || importBatch || cities.length || region || nomos || category || hasCampaign || active || emailEngagement || kadCodes.length || tagsFilter.length)
+  const hasFilters = !!(search || aadeEnriched || matchingDone || claimed || importBatch || cities.length || region || nomos || category || hasCampaign || active || emailEngagement || kadCodes.length || tagsFilter.length || tagsExclude.length)
 
   function clearFilters() {
     setSearch(''); setSearchInput('')
     setAadeEnriched(''); setMatchingDone(''); setClaimed('')
     setImportBatch(''); setCities([]); setRegion(''); setNomos(''); setCategory(''); setHasCampaign(''); setActive('')
-    setEmailEngagement(''); setKadCodes([]); setTagsFilter([])
+    setEmailEngagement(''); setKadCodes([]); setTagsFilter([]); setTagsExclude([])
   }
 
   async function handleSelectAllMatching() {
@@ -624,6 +626,7 @@ function GemiBusinessesPageInner() {
       if (emailEngagement) params.set('emailEngagement', emailEngagement)
       kadCodes.forEach(code => params.append('kadCodes', code))
       tagsFilter.forEach(tag => params.append('tags', tag))
+      tagsExclude.forEach(tag => params.append('tagsExclude', tag))
       const res = await fetch(`/api/gemi/businesses/ids?${params}`)
       const data = await res.json()
       if (res.ok && Array.isArray(data.ids)) {
@@ -873,11 +876,21 @@ function GemiBusinessesPageInner() {
 
             {tagOptions.length > 0 && (
               <MultiSelect
-                label="Ετικέτα"
+                label="Ετικέτα (εμπεριέχει)"
                 options={tagOptions.map(t => ({ value: t.label, label: t.label }))}
                 selected={tagsFilter}
                 onChange={setTagsFilter}
                 placeholder="Όλες"
+              />
+            )}
+
+            {tagOptions.length > 0 && (
+              <MultiSelect
+                label="Ετικέτα (εξαίρεση)"
+                options={tagOptions.map(t => ({ value: t.label, label: t.label }))}
+                selected={tagsExclude}
+                onChange={setTagsExclude}
+                placeholder="Καμία εξαίρεση"
               />
             )}
 

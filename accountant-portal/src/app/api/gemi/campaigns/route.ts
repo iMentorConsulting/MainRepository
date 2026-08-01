@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
   }
 
   const data = await request.json()
-  const { title, channel, subject, previewText, htmlContent, messageTemplate, programId, programId2, requireBothPrograms, targetGemiIds, region, category, importBatch, hasReceivedCampaign, tags } = data
+  const { title, channel, subject, previewText, htmlContent, messageTemplate, programId, programId2, requireBothPrograms, targetGemiIds, region, category, importBatch, hasReceivedCampaign, tags, excludeTags } = data
 
   if (!title || !channel) {
     return NextResponse.json({ error: 'title and channel are required' }, { status: 400 })
@@ -96,6 +96,7 @@ export async function POST(request: NextRequest) {
     if (region) baseWhere.postalAreaDescription = region
     if (category) baseWhere.category = category
     if (Array.isArray(tags) && tags.length > 0) baseWhere.tags = { hasSome: tags }
+    if (Array.isArray(excludeTags) && excludeTags.length > 0) baseWhere.NOT = { tags: { hasSome: excludeTags } }
     if (hasReceivedCampaign === 'true') baseWhere.campaignRecipients = { some: { status: 'sent' } }
     if (hasReceivedCampaign === 'false') baseWhere.campaignRecipients = { none: { status: 'sent' } }
 

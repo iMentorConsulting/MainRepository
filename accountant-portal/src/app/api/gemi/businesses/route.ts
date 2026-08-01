@@ -114,6 +114,8 @@ export async function GET(request: NextRequest) {
   const kadCodes = searchParams.getAll('kadCodes').filter(Boolean)
   // Tag multi-filter: one or more tag values
   const tagsFilter = searchParams.getAll('tags').filter(Boolean)
+  // Tag exclude filter: businesses that have ANY of these tags are excluded
+  const tagsExclude = searchParams.getAll('tagsExclude').filter(Boolean)
 
   // Build AND array so filters compose correctly
   const andClauses: object[] = []
@@ -151,6 +153,10 @@ export async function GET(request: NextRequest) {
 
   if (tagsFilter.length > 0) {
     andClauses.push({ tags: { hasSome: tagsFilter } })
+  }
+
+  if (tagsExclude.length > 0) {
+    andClauses.push({ NOT: { tags: { hasSome: tagsExclude } } })
   }
 
   if (aadeEnrichedParam === 'yes') andClauses.push({ aadeEnriched: true })

@@ -4,7 +4,7 @@ import { usePathname } from 'next/navigation'
 import { useSession, signOut } from 'next-auth/react'
 import { useEffect, useState } from 'react'
 import { cn } from '@/lib/utils'
-import { LayoutDashboard, Users, Building2, Zap, Target, Send, CreditCard, Percent, Inbox, BarChart3, Settings, LogOut, Globe, Mail, Phone, TrendingUp, X, MessageSquare, ListChecks, FileText, BellRing, History, ClipboardList, Scale, Megaphone, Bolt } from 'lucide-react'
+import { LayoutDashboard, Users, Building2, Zap, Target, Send, CreditCard, Percent, Inbox, BarChart3, Settings, LogOut, Globe, Mail, Phone, TrendingUp, X, MessageSquare, ListChecks, FileText, BellRing, History, ClipboardList, Scale, Megaphone } from 'lucide-react'
 
 const navItems = [
   { href: '/', label: 'Dashboard', icon: LayoutDashboard, adminOnly: false },
@@ -36,7 +36,6 @@ const gemiNavItems = [
   { href: '/gemi/matches', label: 'Ταιριάσματα', icon: Target },
   { href: '/gemi/campaigns', label: 'Καμπάνιες', icon: Megaphone },
   { href: '/gemi/campaigns/templates', label: 'Πρότυπα Email', icon: Mail },
-  { href: '/gemi/quick-send', label: 'Γρήγορη Αποστολή', icon: Bolt },
 ]
 
 function splitLogoName(name: string): [string, string] {

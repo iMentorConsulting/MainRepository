@@ -105,6 +105,7 @@ export async function GET(request: NextRequest) {
   const emailEngagementParam = searchParams.get('emailEngagement')?.trim() ?? ''
   const kadCodes = searchParams.getAll('kadCodes').filter(Boolean)
   const tagsFilter = searchParams.getAll('tags').filter(Boolean)
+  const tagsExclude = searchParams.getAll('tagsExclude').filter(Boolean)
 
   const andClauses: object[] = []
 
@@ -139,6 +140,7 @@ export async function GET(request: NextRequest) {
   }
 
   if (tagsFilter.length > 0) andClauses.push({ tags: { hasSome: tagsFilter } })
+  if (tagsExclude.length > 0) andClauses.push({ NOT: { tags: { hasSome: tagsExclude } } })
   if (aadeEnrichedParam === 'yes') andClauses.push({ aadeEnriched: true })
   else if (aadeEnrichedParam === 'no') andClauses.push({ aadeEnriched: false })
   if (matchingDoneParam === 'yes') andClauses.push({ matchingDone: true })

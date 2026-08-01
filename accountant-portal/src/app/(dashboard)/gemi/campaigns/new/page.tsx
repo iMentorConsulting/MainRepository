@@ -98,6 +98,7 @@ function NewGemiCampaignPageInner() {
   const [importBatch, setImportBatch] = useState('')
   const [hasReceivedCampaign, setHasReceivedCampaign] = useState<'' | 'true' | 'false'>('')
   const [selectedTags, setSelectedTags] = useState<string[]>([])
+  const [excludeTags, setExcludeTags] = useState<string[]>([])
   const [filterOptions, setFilterOptions] = useState<{ regions: string[]; categories: string[]; importBatches: string[]; tags: string[] }>({ regions: [], categories: [], importBatches: [], tags: [] })
 
   // Recipients
@@ -144,10 +145,11 @@ function NewGemiCampaignPageInner() {
     if (importBatch) params.set('importBatch', importBatch)
     if (hasReceivedCampaign) params.set('hasReceivedCampaign', hasReceivedCampaign)
     selectedTags.forEach(t => params.append('tags', t))
+    excludeTags.forEach(t => params.append('excludeTags', t))
     const res = await fetch(`/api/gemi/campaigns/recipient-count?${params}`)
     if (res.ok) setRecipientCount(await res.json())
     setCountLoading(false)
-  }, [channel, programId, programId2, requireBothPrograms, region, category, importBatch, hasReceivedCampaign, selectedTags])
+  }, [channel, programId, programId2, requireBothPrograms, region, category, importBatch, hasReceivedCampaign, selectedTags, excludeTags])
 
   useEffect(() => { fetchCount() }, [fetchCount])
 
@@ -208,6 +210,7 @@ function NewGemiCampaignPageInner() {
               importBatch: importBatch || undefined,
               hasReceivedCampaign: hasReceivedCampaign || undefined,
               tags: selectedTags.length > 0 ? selectedTags : undefined,
+              excludeTags: excludeTags.length > 0 ? excludeTags : undefined,
             }),
       }),
     })
@@ -499,8 +502,44 @@ function NewGemiCampaignPageInner() {
               </div>
               {selectedTags.length > 0 && (
                 <p className="text-xs text-violet-600 mt-1.5">
-                  Φίλτρο: επιχειρήσεις με <strong>έστω μία</strong> από τις επιλεγμένες ετικέτες.
+                  Συμπεριλαμβάνει επιχειρήσεις με <strong>έστω μία</strong> από τις επιλεγμένες ετικέτες.
                   <button onClick={() => setSelectedTags([])} className="ml-2 underline text-gray-400 hover:text-gray-600">Καθαρισμός</button>
+                </p>
+              )}
+            </div>
+
+            {/* Tag exclude filter */}
+            <div>
+              <label className="text-sm font-medium text-slate-700 block mb-1.5 flex items-center gap-1.5">
+                <Tag size={13} className="text-red-500" />
+                Εξαίρεση Ετικέτας
+              </label>
+              <div className="flex flex-wrap gap-2">
+                {filterOptions.tags.map(tag => {
+                  const active = excludeTags.includes(tag)
+                  return (
+                    <button
+                      key={tag}
+                      type="button"
+                      onClick={() => setExcludeTags(prev =>
+                        active ? prev.filter(t => t !== tag) : [...prev, tag]
+                      )}
+                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border transition-colors ${
+                        active
+                          ? 'bg-red-600 text-white border-red-600'
+                          : 'bg-white text-red-700 border-red-300 hover:bg-red-50'
+                      }`}
+                    >
+                      {active && <span className="text-red-200 text-xs leading-none">✕</span>}
+                      {tag}
+                    </button>
+                  )
+                })}
+              </div>
+              {excludeTags.length > 0 && (
+                <p className="text-xs text-red-600 mt-1.5">
+                  Εξαιρεί επιχειρήσεις με <strong>έστω μία</strong> από τις επιλεγμένες ετικέτες.
+                  <button onClick={() => setExcludeTags([])} className="ml-2 underline text-gray-400 hover:text-gray-600">Καθαρισμός</button>
                 </p>
               )}
             </div>
