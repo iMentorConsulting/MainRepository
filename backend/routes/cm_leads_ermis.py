@@ -882,3 +882,63 @@ def ermis_pull_from_sibling(
         source.id, prog_label, l.id, l.program or l.program_title,
     )
     return {"ok": True, "source_lead_id": source.id, "source_program": prog_label}
+
+
+@router.post("/ermis/backfill-all-siblings")
+def ermis_backfill_all_siblings(
+    current_user: CMUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """One-time backfill: for every lead that has an ΕΡΜΗΣ transcript, propagate it to
+    same-AFM sibling leads that don't have one yet. Safe to run multiple times."""
+    sources = db.query(CMLead).filter(
+        CMLead.ermis_transcript.isnot(None),
+        CMLead.afm.isnot(None),
+    ).all()
+
+    total_updated = []
+    for source in sources:
+        prog_label = source.program_title or source.program or ""
+        try:
+            raw = json.loads(source.ermis_transcript) if source.ermis_transcript.startswith("[") else None
+        except Exception:
+            raw = None
+
+        if raw is not None:
+            filtered = [m for m in raw if not (m.get("role") == "system" and "αφορά το πρόγραμμα" in (m.get("text") or ""))]
+            header_msg = {
+                "role": "system",
+                "text": f"[Η παρακάτω συνομιλία ΕΡΜΗΣ αφορά το πρόγραμμα «{prog_label}» του ίδιου πελάτη.]",
+                "ts": None,
+            }
+            annotated = json.dumps([header_msg] + filtered, ensure_ascii=False)
+        else:
+            annotated = (
+                f"[Η παρακάτω συνομιλία ΕΡΜΗΣ αφορά το πρόγραμμα «{prog_label}» του ίδιου πελάτη.]\n\n"
+                + source.ermis_transcript
+            )
+
+        siblings = db.query(CMLead).filter(
+            CMLead.afm == source.afm,
+            CMLead.id != source.id,
+            CMLead.ermis_transcript.is_(None),
+        ).all()
+
+        for sib in siblings:
+            sib.ermis_transcript = annotated
+            sib.ermis_status = source.ermis_status
+            sib.ermis_completed_at = source.ermis_completed_at
+            total_updated.append({
+                "source_lead_id": source.id,
+                "source_program": prog_label,
+                "target_lead_id": sib.id,
+                "target_program": sib.program or sib.program_title,
+                "afm": source.afm,
+            })
+            log.info(
+                "ΕΡΜΗΣ backfill: transcript from lead %s (%s) → lead %s (%s), AFM %s",
+                source.id, prog_label, sib.id, sib.program or sib.program_title, source.afm,
+            )
+
+    db.commit()
+    return {"ok": True, "total_updated": len(total_updated), "details": total_updated}
