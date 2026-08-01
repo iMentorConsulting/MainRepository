@@ -962,42 +962,43 @@ function GemiBusinessesPageInner() {
             </button>
           </div>
           {/* Row 2: bulk tag */}
-          {tagOptions.length > 0 && (
-            <div className="flex flex-wrap items-center gap-2 border-t border-gray-100 pt-3">
-              <div className="flex items-center gap-1.5 text-xs font-semibold text-gray-500 shrink-0">
-                <Tag size={13} />
-                Ετικέτα:
-              </div>
-              <select
+          <div className="flex flex-wrap items-center gap-2 border-t border-gray-100 pt-3">
+            <div className="flex items-center gap-1.5 text-xs font-semibold text-gray-500 shrink-0">
+              <Tag size={13} />
+              Ετικέτα:
+            </div>
+            <div className="relative flex-1 min-w-[180px]">
+              <input
+                type="text"
+                list="bulk-tag-options"
                 value={bulkTag}
                 onChange={e => setBulkTag(e.target.value)}
-                className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500 bg-white flex-1 min-w-[140px]"
-              >
-                <option value="">— Επιλέξτε ετικέτα —</option>
-                {tagOptions.map(t => (
-                  <option key={t.id} value={t.label}>{t.label}</option>
-                ))}
-              </select>
-              <Button
-                size="sm"
-                loading={bulkTagging}
-                disabled={!bulkTag}
-                onClick={() => handleBulkTag('add')}
-                className="bg-violet-600 hover:bg-violet-700 text-white shrink-0"
-              >
-                + Προσθήκη
-              </Button>
-              <Button
-                size="sm"
-                loading={bulkTagging}
-                disabled={!bulkTag}
-                onClick={() => handleBulkTag('remove')}
-                className="bg-orange-500 hover:bg-orange-600 text-white shrink-0"
-              >
-                − Αφαίρεση
-              </Button>
+                placeholder="Πληκτρολογήστε ή επιλέξτε ετικέτα..."
+                className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500 bg-white"
+              />
+              <datalist id="bulk-tag-options">
+                {tagOptions.map(t => <option key={t.id} value={t.label} />)}
+              </datalist>
             </div>
-          )}
+            <Button
+              size="sm"
+              loading={bulkTagging}
+              disabled={!bulkTag.trim()}
+              onClick={() => handleBulkTag('add')}
+              className="bg-violet-600 hover:bg-violet-700 text-white shrink-0"
+            >
+              + Προσθήκη
+            </Button>
+            <Button
+              size="sm"
+              loading={bulkTagging}
+              disabled={!bulkTag.trim()}
+              onClick={() => handleBulkTag('remove')}
+              className="bg-orange-500 hover:bg-orange-600 text-white shrink-0"
+            >
+              − Αφαίρεση
+            </Button>
+          </div>
         </div>
       )}
 

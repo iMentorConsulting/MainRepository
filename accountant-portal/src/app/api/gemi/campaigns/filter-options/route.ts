@@ -8,7 +8,7 @@ export async function GET(_req: NextRequest) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  const [regionRows, categoryRows, importBatchRows] = await Promise.all([
+  const [regionRows, categoryRows, importBatchRows, tagRows] = await Promise.all([
     prisma.gemiLookup.findMany({
       where: { postalAreaDescription: { not: null } },
       select: { postalAreaDescription: true },
@@ -27,11 +27,18 @@ export async function GET(_req: NextRequest) {
       distinct: ['importBatch'],
       orderBy: { importBatch: 'desc' },
     }),
+    prisma.$queryRaw<{ tag: string }[]>`
+      SELECT DISTINCT unnest(tags) AS tag
+      FROM "GemiLookup"
+      WHERE cardinality(tags) > 0
+      ORDER BY tag
+    `,
   ])
 
   return NextResponse.json({
     regions: regionRows.map(r => r.postalAreaDescription as string),
     categories: categoryRows.map(r => r.category as string),
     importBatches: importBatchRows.map(r => r.importBatch as string),
+    tags: tagRows.map(r => r.tag),
   })
 }

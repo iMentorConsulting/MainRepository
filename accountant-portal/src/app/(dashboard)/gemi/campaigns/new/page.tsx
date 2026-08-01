@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
-import { ArrowLeft, Send, Users, Mail, MessageCircle, FlaskConical, FileText } from 'lucide-react'
+import { ArrowLeft, Send, Users, Mail, MessageCircle, FlaskConical, FileText, Tag } from 'lucide-react'
 import { Suspense } from 'react'
 
 interface GemiTemplate {
@@ -97,7 +97,8 @@ function NewGemiCampaignPageInner() {
   const [category, setCategory] = useState('')
   const [importBatch, setImportBatch] = useState('')
   const [hasReceivedCampaign, setHasReceivedCampaign] = useState<'' | 'true' | 'false'>('')
-  const [filterOptions, setFilterOptions] = useState<{ regions: string[]; categories: string[]; importBatches: string[] }>({ regions: [], categories: [], importBatches: [] })
+  const [selectedTags, setSelectedTags] = useState<string[]>([])
+  const [filterOptions, setFilterOptions] = useState<{ regions: string[]; categories: string[]; importBatches: string[]; tags: string[] }>({ regions: [], categories: [], importBatches: [], tags: [] })
 
   // Recipients
   const [recipientCount, setRecipientCount] = useState<{ emailCount: number; viberCount: number; total: number } | null>(null)
@@ -142,10 +143,11 @@ function NewGemiCampaignPageInner() {
     if (category) params.set('category', category)
     if (importBatch) params.set('importBatch', importBatch)
     if (hasReceivedCampaign) params.set('hasReceivedCampaign', hasReceivedCampaign)
+    selectedTags.forEach(t => params.append('tags', t))
     const res = await fetch(`/api/gemi/campaigns/recipient-count?${params}`)
     if (res.ok) setRecipientCount(await res.json())
     setCountLoading(false)
-  }, [channel, programId, programId2, requireBothPrograms, region, category, importBatch, hasReceivedCampaign])
+  }, [channel, programId, programId2, requireBothPrograms, region, category, importBatch, hasReceivedCampaign, selectedTags])
 
   useEffect(() => { fetchCount() }, [fetchCount])
 
@@ -205,6 +207,7 @@ function NewGemiCampaignPageInner() {
               category: category || undefined,
               importBatch: importBatch || undefined,
               hasReceivedCampaign: hasReceivedCampaign || undefined,
+              tags: selectedTags.length > 0 ? selectedTags : undefined,
             }),
       }),
     })
@@ -464,6 +467,44 @@ function NewGemiCampaignPageInner() {
               ]}
             />
           </div>
+
+          {/* Tag filter */}
+          {filterOptions.tags.length > 0 && (
+            <div>
+              <label className="text-sm font-medium text-slate-700 block mb-1.5 flex items-center gap-1.5">
+                <Tag size={13} className="text-violet-500" />
+                Ετικέτες (φίλτρο)
+              </label>
+              <div className="flex flex-wrap gap-2">
+                {filterOptions.tags.map(tag => {
+                  const active = selectedTags.includes(tag)
+                  return (
+                    <button
+                      key={tag}
+                      type="button"
+                      onClick={() => setSelectedTags(prev =>
+                        active ? prev.filter(t => t !== tag) : [...prev, tag]
+                      )}
+                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border transition-colors ${
+                        active
+                          ? 'bg-violet-600 text-white border-violet-600'
+                          : 'bg-white text-violet-700 border-violet-300 hover:bg-violet-50'
+                      }`}
+                    >
+                      {tag}
+                      {active && <span className="text-violet-200 text-xs leading-none">×</span>}
+                    </button>
+                  )
+                })}
+              </div>
+              {selectedTags.length > 0 && (
+                <p className="text-xs text-violet-600 mt-1.5">
+                  Φίλτρο: επιχειρήσεις με <strong>έστω μία</strong> από τις επιλεγμένες ετικέτες.
+                  <button onClick={() => setSelectedTags([])} className="ml-2 underline text-gray-400 hover:text-gray-600">Καθαρισμός</button>
+                </p>
+              )}
+            </div>
+          )}
         </div>
 
         <div className={`flex items-center gap-3 rounded-xl px-4 py-3 border ${effectiveTotal > 0 ? 'bg-blue-50 border-blue-200' : 'bg-gray-50 border-gray-200'}`}>

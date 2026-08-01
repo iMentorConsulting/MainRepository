@@ -17,6 +17,7 @@ export async function GET(req: NextRequest) {
   const region = searchParams.get('region') || null
   const category = searchParams.get('category') || null
   const hasReceivedCampaign = searchParams.get('hasReceivedCampaign') || null
+  const tags = searchParams.getAll('tags').filter(Boolean)
 
   let emailCount = 0
   let viberCount = 0
@@ -25,6 +26,7 @@ export async function GET(req: NextRequest) {
   if (importBatch) baseWhere.importBatch = importBatch
   if (region) baseWhere.postalAreaDescription = region
   if (category) baseWhere.category = category
+  if (tags.length > 0) baseWhere.tags = { hasSome: tags }
   if (hasReceivedCampaign === 'true') baseWhere.campaignRecipients = { some: { status: 'sent' } }
   if (hasReceivedCampaign === 'false') baseWhere.campaignRecipients = { none: { status: 'sent' } }
 
