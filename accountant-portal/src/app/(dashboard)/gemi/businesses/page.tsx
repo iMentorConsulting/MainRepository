@@ -254,8 +254,7 @@ function GemiBusinessesPageInner() {
   const [kadCodes, setKadCodes] = useState<string[]>([])
   const [tagsFilter, setTagsFilter] = useState<string[]>([])
 
-  const [city, setCity] = useState('')
-  const [cityInput, setCityInput] = useState('')
+  const [cities, setCities] = useState<string[]>([])
   const [cityOptions, setCityOptions] = useState<string[]>([])
 
   const [kadOptions, setKadOptions] = useState<{ code: string; descr: string }[]>([])
@@ -280,6 +279,7 @@ function GemiBusinessesPageInner() {
   // Bulk tag state
   const [bulkTag, setBulkTag] = useState('')
   const [bulkTagging, setBulkTagging] = useState(false)
+  const [selectAllMatchingLoading, setSelectAllMatchingLoading] = useState(false)
 
   const requestSeq = useRef(0)
 
@@ -320,7 +320,7 @@ function GemiBusinessesPageInner() {
     if (matchingDone) params.set('matchingDone', matchingDone)
     if (claimed) params.set('claimed', claimed)
     if (importBatch) params.set('importBatch', importBatch)
-    if (city) params.set('city', city)
+    cities.forEach(c => params.append('cities', c))
     if (region) params.set('region', region)
     if (category) params.set('category', category)
     if (hasCampaign) params.set('hasCampaign', hasCampaign)
@@ -337,10 +337,10 @@ function GemiBusinessesPageInner() {
     } finally {
       if (seq === requestSeq.current) setLoading(false)
     }
-  }, [page, search, aadeEnriched, matchingDone, claimed, importBatch, city, region, category, hasCampaign, active, emailEngagement, kadCodes, tagsFilter])
+  }, [page, search, aadeEnriched, matchingDone, claimed, importBatch, cities, region, category, hasCampaign, active, emailEngagement, kadCodes, tagsFilter])
 
   useEffect(() => { fetchData() }, [fetchData])
-  useEffect(() => { setPage(1); setSelected(new Set()) }, [search, aadeEnriched, matchingDone, claimed, importBatch, city, region, category, hasCampaign, active, emailEngagement, kadCodes, tagsFilter])
+  useEffect(() => { setPage(1); setSelected(new Set()) }, [search, aadeEnriched, matchingDone, claimed, importBatch, cities, region, category, hasCampaign, active, emailEngagement, kadCodes, tagsFilter])
 
   function handleSearch() { setSearch(searchInput) }
 
@@ -595,13 +595,42 @@ function GemiBusinessesPageInner() {
     }
   }
 
-  const hasFilters = !!(search || aadeEnriched || matchingDone || claimed || importBatch || city || region || category || hasCampaign || active || emailEngagement || kadCodes.length || tagsFilter.length)
+  const hasFilters = !!(search || aadeEnriched || matchingDone || claimed || importBatch || cities.length || region || category || hasCampaign || active || emailEngagement || kadCodes.length || tagsFilter.length)
 
   function clearFilters() {
     setSearch(''); setSearchInput('')
     setAadeEnriched(''); setMatchingDone(''); setClaimed('')
-    setImportBatch(''); setCity(''); setCityInput(''); setRegion(''); setCategory(''); setHasCampaign(''); setActive('')
+    setImportBatch(''); setCities([]); setRegion(''); setCategory(''); setHasCampaign(''); setActive('')
     setEmailEngagement(''); setKadCodes([]); setTagsFilter([])
+  }
+
+  async function handleSelectAllMatching() {
+    setSelectAllMatchingLoading(true)
+    try {
+      const params = new URLSearchParams()
+      if (search) params.set('search', search)
+      if (aadeEnriched) params.set('aadeEnriched', aadeEnriched)
+      if (matchingDone) params.set('matchingDone', matchingDone)
+      if (claimed) params.set('claimed', claimed)
+      if (importBatch) params.set('importBatch', importBatch)
+      cities.forEach(c => params.append('cities', c))
+      if (region) params.set('region', region)
+      if (category) params.set('category', category)
+      if (hasCampaign) params.set('hasCampaign', hasCampaign)
+      if (active) params.set('active', active)
+      if (emailEngagement) params.set('emailEngagement', emailEngagement)
+      kadCodes.forEach(code => params.append('kadCodes', code))
+      tagsFilter.forEach(tag => params.append('tags', tag))
+      const res = await fetch(`/api/gemi/businesses/ids?${params}`)
+      const data = await res.json()
+      if (res.ok && Array.isArray(data.ids)) {
+        setSelected(new Set(data.ids))
+      }
+    } catch {
+      // ignore
+    } finally {
+      setSelectAllMatchingLoading(false)
+    }
   }
 
   if (status === 'loading' || (status === 'authenticated' && !['ADMIN', 'CONSULTANT'].includes((session?.user as any)?.role))) {
@@ -707,33 +736,16 @@ function GemiBusinessesPageInner() {
               </select>
             </div>
 
-            <div>
-              <label className="text-xs font-medium text-gray-500 block mb-1">Περιοχή / Πόλη</label>
-              <div className="relative">
-                <input
-                  type="text"
-                  list="city-options-list"
-                  value={cityInput}
-                  onChange={e => setCityInput(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter') setCity(cityInput.trim()) }}
-                  onBlur={() => setCity(cityInput.trim())}
-                  placeholder="π.χ. ΑΘΗΝΑ, ΘΕΣΣΑΛΟΝΙΚΗ..."
-                  className={`pr-7 ${selectCls} w-44`}
-                />
-                {cityInput && (
-                  <button
-                    type="button"
-                    onClick={() => { setCityInput(''); setCity('') }}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                  >
-                    <X size={12} />
-                  </button>
-                )}
-                <datalist id="city-options-list">
-                  {cityOptions.map(c => <option key={c} value={c} />)}
-                </datalist>
-              </div>
-            </div>
+            {cityOptions.length > 0 && (
+              <MultiSelect
+                label="Περιοχή / Πόλη"
+                options={cityOptions.map(c => ({ value: c, label: c }))}
+                selected={cities}
+                onChange={setCities}
+                placeholder="Όλες"
+                searchable
+              />
+            )}
 
             <div>
               <label className="text-xs font-medium text-gray-500 block mb-1">Κλάδος</label>
@@ -827,6 +839,25 @@ function GemiBusinessesPageInner() {
             )}
           </div>
         </div>
+
+        {/* Select-all-matching banner */}
+        {!loading && businesses.length > 0 && selected.size === businesses.length && total > businesses.length && (
+          <div className="mx-4 my-2 flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-lg px-4 py-2.5 text-sm text-amber-800">
+            <span>Επιλέξατε τα <strong>{businesses.length}</strong> αποτελέσματα αυτής της σελίδας.</span>
+            {selected.size < total ? (
+              <button
+                type="button"
+                onClick={handleSelectAllMatching}
+                disabled={selectAllMatchingLoading}
+                className="font-semibold underline hover:text-amber-900 disabled:opacity-50"
+              >
+                {selectAllMatchingLoading ? 'Φόρτωση...' : `Επιλέξτε και τις ${total} επιχειρήσεις που ταιριάζουν με τα φίλτρα`}
+              </button>
+            ) : (
+              <span className="font-semibold text-green-700">Επιλεγμένες όλες οι {selected.size} επιχειρήσεις.</span>
+            )}
+          </div>
+        )}
 
         {loading ? (
           <div className="flex items-center justify-center h-48">

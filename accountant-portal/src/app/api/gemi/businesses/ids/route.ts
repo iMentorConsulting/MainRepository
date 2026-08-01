@@ -3,7 +3,6 @@ import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { Prisma } from '@prisma/client'
 
-// Maps each Greek region to its 2-digit postal zip prefixes
 const REGION_ZIP_PREFIXES: Record<string, string[]> = {
   'Αττική': ['10','11','12','13','14','15','16','17','18','19'],
   'Πελοπόννησος': ['20','21','22','23','24'],
@@ -20,8 +19,6 @@ const REGION_ZIP_PREFIXES: Record<string, string[]> = {
   'Νότιο Αιγαίο': ['84','85'],
 }
 
-// KAD code prefix ranges by category (first 2 digits of firmActCode)
-// These are broad approximations used when category field is not yet populated
 const CATEGORY_KAD_PREFIXES: Record<string, string[]> = {
   'ΤΟΥΡΙΣΜΟΣ': ['55'],
   'ΕΣΤΙΑΣΗ': ['56'],
@@ -38,30 +35,23 @@ export async function GET(request: NextRequest) {
 
   const { searchParams } = new URL(request.url)
 
-  const page = Math.max(1, parseInt(searchParams.get('page') ?? '1', 10) || 1)
-  const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') ?? '50', 10) || 50))
   const search = searchParams.get('search')?.trim() ?? ''
-  const aadeEnrichedParam = searchParams.get('aadeEnriched')   // yes | no
-  const matchingDoneParam = searchParams.get('matchingDone')   // yes | no
-  const claimedParam = searchParams.get('claimed')             // yes | no
+  const aadeEnrichedParam = searchParams.get('aadeEnriched')
+  const matchingDoneParam = searchParams.get('matchingDone')
+  const claimedParam = searchParams.get('claimed')
   const importBatch = searchParams.get('importBatch')?.trim() ?? ''
   const regionParam = searchParams.get('region')?.trim() ?? ''
   const citiesParam = searchParams.getAll('cities').filter(Boolean)
   const categoryParam = searchParams.get('category')?.trim() ?? ''
-  const hasCampaignParam = searchParams.get('hasCampaign')     // yes | no
-  const activeParam = searchParams.get('active')               // yes | no
-  // Email engagement filter: opened | not_opened | clicked | bounced | unsubscribed
+  const hasCampaignParam = searchParams.get('hasCampaign')
+  const activeParam = searchParams.get('active')
   const emailEngagementParam = searchParams.get('emailEngagement')?.trim() ?? ''
-  // KAD code multi-filter: one or more firmActCode values (repeating params)
   const kadCodes = searchParams.getAll('kadCodes').filter(Boolean)
-  // Tag multi-filter: one or more tag values
   const tagsFilter = searchParams.getAll('tags').filter(Boolean)
 
-  // Build AND array so filters compose correctly
   const andClauses: object[] = []
 
   if (search) {
-    // Also search KAD descriptions via raw SQL (Prisma can't do case-insensitive on Json)
     const kadRows = await prisma.$queryRaw<{ id: string }[]>`
       SELECT DISTINCT id FROM "GemiLookup",
       jsonb_array_elements(activities::jsonb) AS elem
@@ -91,19 +81,13 @@ export async function GET(request: NextRequest) {
     andClauses.push({ id: { in: rows.map(r => r.id) } })
   }
 
-  if (tagsFilter.length > 0) {
-    andClauses.push({ tags: { hasSome: tagsFilter } })
-  }
-
+  if (tagsFilter.length > 0) andClauses.push({ tags: { hasSome: tagsFilter } })
   if (aadeEnrichedParam === 'yes') andClauses.push({ aadeEnriched: true })
   else if (aadeEnrichedParam === 'no') andClauses.push({ aadeEnriched: false })
-
   if (matchingDoneParam === 'yes') andClauses.push({ matchingDone: true })
   else if (matchingDoneParam === 'no') andClauses.push({ matchingDone: false })
-
   if (claimedParam === 'yes') andClauses.push({ claimedBusinessId: { not: null } })
   else if (claimedParam === 'no') andClauses.push({ claimedBusinessId: null })
-
   if (importBatch) andClauses.push({ importBatch })
 
   if (citiesParam.length > 0) {
@@ -116,38 +100,29 @@ export async function GET(request: NextRequest) {
   }
 
   if (categoryParam) {
-    // Try exact match on stored category field first; also fall back to KAD prefix scan
     const kadPrefixes = CATEGORY_KAD_PREFIXES[categoryParam]
     if (kadPrefixes) {
       andClauses.push({
         OR: [
           { category: categoryParam },
-          // Fallback: match primary KAD code prefix for records not yet enriched with category
           ...kadPrefixes.map(p => ({
-            activities: {
-              path: ['$[0]', 'firmActCode'],
-              string_starts_with: p,
-            },
+            activities: { path: ['$[0]', 'firmActCode'], string_starts_with: p },
           })),
         ],
       })
     } else {
-      // ΥΠΗΡΕΣΙΕΣ = everything else — only match by stored field
       andClauses.push({ category: categoryParam })
     }
   }
 
   if (hasCampaignParam === 'yes') andClauses.push({ campaignRecipients: { some: {} } })
   else if (hasCampaignParam === 'no') andClauses.push({ campaignRecipients: { none: {} } })
-
   if (activeParam === 'yes') andClauses.push({ stopDate: null })
   else if (activeParam === 'no') andClauses.push({ stopDate: { not: null } })
 
   if (emailEngagementParam === 'opened') {
     andClauses.push({ campaignRecipients: { some: { channel: 'EMAIL', openedAt: { not: null } } } })
   } else if (emailEngagementParam === 'not_opened') {
-    // Sent but no open AND no click (a click implies the email was read even if the
-    // tracking pixel was blocked by the recipient's email client), and not bounced
     andClauses.push({ campaignRecipients: { some: { channel: 'EMAIL', status: 'sent', openedAt: null, clickedAt: null, bouncedAt: null } } })
   } else if (emailEngagementParam === 'clicked') {
     andClauses.push({ campaignRecipients: { some: { channel: 'EMAIL', clickedAt: { not: null } } } })
@@ -159,61 +134,11 @@ export async function GET(request: NextRequest) {
 
   const where = andClauses.length > 0 ? { AND: andClauses } : {}
 
-  const skip = (page - 1) * limit
-
-  const [businesses, total] = await Promise.all([
-    prisma.gemiLookup.findMany({
-      where,
-      skip,
-      take: limit,
-      orderBy: { createdAt: 'desc' },
-      select: {
-        id: true,
-        afm: true,
-        onomasia: true,
-        email: true,
-        phone: true,
-        importBatch: true,
-        createdAt: true,
-        aadeEnriched: true,
-        matchingDone: true,
-        claimedAt: true,
-        claimedBusinessId: true,
-        claimedAccountantId: true,
-        category: true,
-        activities: true,
-        tags: true,
-        postalAreaDescription: true,
-        postalZipCode: true,
-        stopDate: true,
-      },
-    }),
-    prisma.gemiLookup.count({ where }),
-  ])
-
-  // Resolve accountant names for claimed records
-  const accountantIds = Array.from(new Set(businesses.map(b => b.claimedAccountantId).filter((x): x is string => !!x)))
-  const accountants = accountantIds.length > 0
-    ? await prisma.accountant.findMany({
-        where: { id: { in: accountantIds } },
-        select: { id: true, officeName: true, contactPerson: true },
-      })
-    : []
-  const accountantMap = Object.fromEntries(accountants.map(a => [a.id, a.officeName || a.contactPerson || '']))
-
-  const enriched = businesses.map(b => ({
-    ...b,
-    claimed: !!b.claimedBusinessId,
-    claimedBy: b.claimedAccountantId ? (accountantMap[b.claimedAccountantId] ?? null) : null,
-  }))
-
-  const pages = Math.ceil(total / limit)
-
-  return NextResponse.json({
-    businesses: enriched,
-    total,
-    page,
-    pages,
-    meta: { total, page, pageSize: limit, totalPages: pages },
+  const records = await prisma.gemiLookup.findMany({
+    where,
+    select: { id: true },
+    take: 10000,
   })
+
+  return NextResponse.json({ ids: records.map(r => r.id), total: records.length })
 }
