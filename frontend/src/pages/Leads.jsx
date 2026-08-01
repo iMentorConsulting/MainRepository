@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef, Fragment } from 'react'
 import {
   getLeads, getLeadFilterOptions, getLead, createLead, updateLead, deleteLead,
   getLeadComments, addLeadComment, editLeadComment, deleteLeadComment,
-  sendLeadMessage, convertLeadToCase, startLeadErmis, resendLeadErmisLink, bulkStartErmis, getLeadDuplicates, mergeLeads,
+  sendLeadMessage, convertLeadToCase, startLeadErmis, resendLeadErmisLink, bulkStartErmis, pullErmisFromSibling, getLeadDuplicates, mergeLeads,
 } from '../api'
 import {
   MagnifyingGlassIcon, PlusIcon, TrashIcon, ChevronDownIcon, ChevronUpIcon, ChevronRightIcon,
@@ -238,6 +238,7 @@ function ExpandedRow({ lead, colSpan, onChanged, onConvert, onErmis, onSend, pro
   const [editing, setEditing] = useState(false)
   const [form, setForm] = useState({})
   const [resending, setResending] = useState(false)
+  const [syncing, setSyncing] = useState(false)
 
   const reload = useCallback(async () => {
     const l = await getLead(lead.id)
@@ -268,6 +269,18 @@ function ExpandedRow({ lead, colSpan, onChanged, onConvert, onErmis, onSend, pro
     } finally { setResending(false) }
   }
 
+  const handlePullErmis = async () => {
+    if (!confirm(`Ανάκτηση συνομιλίας ΕΡΜΗΣ από άλλο πρόγραμμα του ίδιου πελάτη;`)) return
+    setSyncing(true)
+    try {
+      const res = await pullErmisFromSibling(lead.id)
+      toast.success(`Συνομιλία ΕΡΜΗΣ αντιγράφηκε από το πρόγραμμα «${res.source_program || '—'}»`)
+      await reload()
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Σφάλμα συγχρονισμού ΕΡΜΗΣ')
+    } finally { setSyncing(false) }
+  }
+
 
   return (
     <tr className={STATUS_ROW[lead.status] || ''}>
@@ -296,6 +309,12 @@ function ExpandedRow({ lead, colSpan, onChanged, onConvert, onErmis, onSend, pro
           {(!full?.ermis_status || full?.ermis_status === 'error') && (
             <button onClick={() => onErmis(lead)} className="flex items-center gap-1 text-sm bg-indigo-100 text-indigo-700 hover:bg-indigo-200 px-3 py-1.5 rounded-lg">
               <SparklesIcon className="w-4 h-4" />Έναρξη ΕΡΜΗΣ
+            </button>
+          )}
+          {/* Pull ΕΡΜΗΣ transcript from another program lead of the same client */}
+          {!full?.ermis_transcript && full?.afm && (
+            <button onClick={handlePullErmis} disabled={syncing} className="flex items-center gap-1 text-sm bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200 px-3 py-1.5 rounded-lg disabled:opacity-50" title="Ανάκτηση συνομιλίας ΕΡΜΗΣ από άλλο πρόγραμμα του ίδιου πελάτη">
+              <SparklesIcon className="w-4 h-4" />{syncing ? '…' : '↓ ΕΡΜΗΣ από άλλο πρόγραμμα'}
             </button>
           )}
           {(full?.ermis_status === 'starting' || full?.ermis_status === 'in_progress') && (

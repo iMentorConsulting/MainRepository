@@ -650,6 +650,44 @@ def ermis_webhook(
                     target.id, target.status, target.portal_case_number,
                 )
 
+            # Cross-program share: the same client may have leads for OTHER programs.
+            # Copy the transcript to those sibling LOGISTIS leads so every consultant
+            # handling this client can see the ΕΡΜΗΣ screening result.
+            # We add a header note so it's clear the conversation was for a different program.
+            prog_label = lead.program_title or lead.program or ""
+            annotated_transcript = lead.ermis_transcript
+            if prog_label:
+                try:
+                    raw = json.loads(lead.ermis_transcript) if lead.ermis_transcript.startswith("[") else None
+                except Exception:
+                    raw = None
+                if raw is not None:
+                    header_msg = {
+                        "role": "system",
+                        "text": f"[Η παρακάτω συνομιλία ΕΡΜΗΣ αφορά το πρόγραμμα «{prog_label}» του ίδιου πελάτη.]",
+                        "ts": None,
+                    }
+                    annotated_transcript = json.dumps([header_msg] + raw, ensure_ascii=False)
+                else:
+                    annotated_transcript = (
+                        f"[Η παρακάτω συνομιλία ΕΡΜΗΣ αφορά το πρόγραμμα «{prog_label}» του ίδιου πελάτη.]\n\n"
+                        + lead.ermis_transcript
+                    )
+            siblings = [
+                l for l in rival_cands
+                if _is_logistis_lead(l)
+                and (l.program or "") != _prog_cat
+                and not l.ermis_transcript
+            ]
+            for sib in siblings:
+                sib.ermis_transcript = annotated_transcript
+                sib.ermis_status = lead.ermis_status
+                sib.ermis_completed_at = lead.ermis_completed_at
+                log.info(
+                    "ΕΡΜΗΣ cross-program share: transcript from lead %s (%s) → lead %s (%s), same AFM %s",
+                    lead.id, prog_label, sib.id, sib.program or sib.program_title, afm,
+                )
+
     elif payload.event in ("ermis.progress", "ermis.business_ready"):
         if not lead.ermis_status:
             lead.ermis_status = "in_progress"
@@ -728,3 +766,119 @@ def ermis_debug(
         "same_afm_leads": siblings,
         "recent_ermis_hits_for_afm": related_hits,
     }
+
+
+@router.post("/{lead_id}/ermis/sync-siblings")
+def ermis_sync_siblings(
+    lead_id: int,
+    current_user: CMUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Copy this lead's ΕΡΜΗΣ transcript to sibling leads (same AFM, different program)
+    that don't yet have a transcript. Used to backfill when a client has multiple program
+    leads and the webhook only updated one of them."""
+    from routes.cm_leads import _is_logistis_lead
+    l = db.query(CMLead).filter(CMLead.id == lead_id).first()
+    if not l:
+        raise HTTPException(status_code=404, detail="Το lead δεν βρέθηκε")
+    if not l.ermis_transcript:
+        raise HTTPException(status_code=400, detail="Αυτό το lead δεν έχει συνομιλία ΕΡΜΗΣ")
+    if not l.afm:
+        raise HTTPException(status_code=400, detail="Αυτό το lead δεν έχει ΑΦΜ")
+
+    prog_label = l.program_title or l.program or ""
+    try:
+        raw = json.loads(l.ermis_transcript) if l.ermis_transcript.startswith("[") else None
+    except Exception:
+        raw = None
+    if raw is not None:
+        header_msg = {
+            "role": "system",
+            "text": f"[Η παρακάτω συνομιλία ΕΡΜΗΣ αφορά το πρόγραμμα «{prog_label}» του ίδιου πελάτη.]",
+            "ts": None,
+        }
+        annotated_transcript = json.dumps([header_msg] + raw, ensure_ascii=False)
+    else:
+        annotated_transcript = (
+            f"[Η παρακάτω συνομιλία ΕΡΜΗΣ αφορά το πρόγραμμα «{prog_label}» του ίδιου πελάτη.]\n\n"
+            + l.ermis_transcript
+        )
+
+    _prog_cat = (l.program or "").strip()
+    others = db.query(CMLead).filter(CMLead.afm == l.afm, CMLead.id != l.id).all()
+    updated = []
+    for sib in others:
+        if not sib.ermis_transcript:
+            sib.ermis_transcript = annotated_transcript
+            sib.ermis_status = l.ermis_status
+            sib.ermis_completed_at = l.ermis_completed_at
+            updated.append({"id": sib.id, "program": sib.program, "program_title": sib.program_title})
+            log.info(
+                "ΕΡΜΗΣ sync-siblings: transcript from lead %s (%s) → lead %s (%s)",
+                l.id, prog_label, sib.id, sib.program or sib.program_title,
+            )
+
+    db.commit()
+    return {"ok": True, "source_lead_id": lead_id, "updated_siblings": updated}
+
+
+@router.post("/{lead_id}/ermis/pull-from-sibling")
+def ermis_pull_from_sibling(
+    lead_id: int,
+    current_user: CMUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Pull ΕΡΜΗΣ transcript from a sibling lead (same AFM, any program) that already has one.
+    Useful when a client has multiple leads and the transcript landed on one of them."""
+    l = db.query(CMLead).filter(CMLead.id == lead_id).first()
+    if not l:
+        raise HTTPException(status_code=404, detail="Το lead δεν βρέθηκε")
+    if l.ermis_transcript:
+        raise HTTPException(status_code=400, detail="Αυτό το lead έχει ήδη συνομιλία ΕΡΜΗΣ")
+    if not l.afm:
+        raise HTTPException(status_code=400, detail="Αυτό το lead δεν έχει ΑΦΜ")
+
+    siblings_with_transcript = db.query(CMLead).filter(
+        CMLead.afm == l.afm,
+        CMLead.id != l.id,
+        CMLead.ermis_transcript.isnot(None),
+    ).all()
+
+    if not siblings_with_transcript:
+        raise HTTPException(status_code=404, detail="Δεν βρέθηκε άλλο lead με ΕΡΜΗΣ για αυτόν τον ΑΦΜ")
+
+    # Pick the most recently completed sibling
+    source = max(
+        siblings_with_transcript,
+        key=lambda s: (s.ermis_completed_at or datetime.min, s.id),
+    )
+    prog_label = source.program_title or source.program or ""
+    try:
+        raw = json.loads(source.ermis_transcript) if source.ermis_transcript.startswith("[") else None
+    except Exception:
+        raw = None
+
+    if raw is not None:
+        # Strip any existing system header to avoid double-wrapping on re-pull
+        filtered = [m for m in raw if not (m.get("role") == "system" and "αφορά το πρόγραμμα" in (m.get("text") or ""))]
+        header_msg = {
+            "role": "system",
+            "text": f"[Η παρακάτω συνομιλία ΕΡΜΗΣ αφορά το πρόγραμμα «{prog_label}» του ίδιου πελάτη.]",
+            "ts": None,
+        }
+        annotated = json.dumps([header_msg] + filtered, ensure_ascii=False)
+    else:
+        annotated = (
+            f"[Η παρακάτω συνομιλία ΕΡΜΗΣ αφορά το πρόγραμμα «{prog_label}» του ίδιου πελάτη.]\n\n"
+            + source.ermis_transcript
+        )
+
+    l.ermis_transcript = annotated
+    l.ermis_status = source.ermis_status
+    l.ermis_completed_at = source.ermis_completed_at
+    db.commit()
+    log.info(
+        "ΕΡΜΗΣ pull-from-sibling: transcript from lead %s (%s) → lead %s (%s)",
+        source.id, prog_label, l.id, l.program or l.program_title,
+    )
+    return {"ok": True, "source_lead_id": source.id, "source_program": prog_label}
