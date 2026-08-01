@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { Table, TableHead, TableBody, TableRow, Th, Td } from '@/components/ui/table'
 import { Pagination } from '@/components/ui/pagination'
 import { MultiSelect } from '@/components/ui/multi-select'
+import { KadFilterButton } from '@/components/ui/kad-filter-modal'
 import { Search, Upload, X, RefreshCw, Link2, Trash2, Send, Zap, Tag } from 'lucide-react'
 
 interface GemiTemplate {
@@ -765,13 +766,10 @@ function GemiBusinessesPageInner() {
             </div>
 
             {kadOptions.length > 0 && (
-              <MultiSelect
-                label="ΚΑΔ"
-                options={kadOptions.map(k => ({ value: k.code, label: `${k.code} — ${k.descr}` }))}
+              <KadFilterButton
+                options={kadOptions}
                 selected={kadCodes}
                 onChange={setKadCodes}
-                placeholder="Όλοι οι ΚΑΔ"
-                searchable
               />
             )}
 
