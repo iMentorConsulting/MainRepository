@@ -126,8 +126,8 @@ def _build_ermis_body(l: CMLead) -> dict:
     return {
         "leadRef": str(l.id),
         "afm": l.afm,                     # VAT → LOGISTIS runs the ΑΑΔΕ lookup + program matching
-        "program": l.program,
-        "serviceType": l.service_type,
+        "program": l.program_title or l.service_type or l.program,
+        "serviceType": l.service_type or l.program_title,
         "consultant": consultant_gr,      # Greek name; ΕΡΜΗΣ tells the client this person will call shortly
         "callbackUrl": f"{SELF_BASE_URL.rstrip('/')}/api/cm/leads/ermis/webhook",
         "contextSummary": context_summary,
@@ -286,12 +286,12 @@ def start_ermis(
     if not _shared_secret():
         raise HTTPException(status_code=500, detail="IMENTOR_PORTAL_API_KEY δεν έχει ρυθμιστεί")
 
-    # LOGISTIS requires ΑΦΜ (for the ΑΑΔΕ lookup) + program. Fail fast with a clear
-    # message so the consultant can fill them in (Επεξεργασία) and retry.
+    # LOGISTIS requires ΑΦΜ (for the ΑΑΔΕ lookup) + a program identifier.
+    # program_title (exact name) is preferred; program (category) is the fallback.
     missing = []
     if not (l.afm or "").strip():
         missing.append("ΑΦΜ")
-    if not (l.program or "").strip():
+    if not (l.program_title or l.service_type or l.program or "").strip():
         missing.append("Πρόγραμμα")
     if missing:
         raise HTTPException(
