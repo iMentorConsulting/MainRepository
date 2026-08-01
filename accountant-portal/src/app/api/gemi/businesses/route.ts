@@ -20,6 +20,63 @@ const REGION_ZIP_PREFIXES: Record<string, string[]> = {
   'Νότιο Αιγαίο': ['84','85'],
 }
 
+// Maps each Greek νομός to its 2-digit postal zip prefixes
+const NOMOS_ZIP_PREFIXES: Record<string, string[]> = {
+  'Ν. Αθηνών':                ['10','11','12','14','15','16','17'],
+  'Ν. Πειραιώς':              ['18'],
+  'Ν. Ανατολικής Αττικής':    ['19'],
+  'Ν. Δυτικής Αττικής':       ['13'],
+  'Ν. Κορινθίας':             ['20'],
+  'Ν. Αργολίδας':             ['21'],
+  'Ν. Αρκαδίας':              ['22'],
+  'Ν. Λακωνίας':              ['23'],
+  'Ν. Μεσσηνίας':             ['24'],
+  'Ν. Αχαΐας':                ['25','26'],
+  'Ν. Ηλείας':                ['27'],
+  'Ν. Κεφαλληνίας':           ['28'],
+  'Ν. Ζακύνθου':              ['29'],
+  'Ν. Αιτωλοακαρνανίας':      ['30','31'],
+  'Ν. Βοιωτίας':              ['32'],
+  'Ν. Φωκίδας':               ['33'],
+  'Ν. Εύβοιας':               ['34'],
+  'Ν. Φθιώτιδας':             ['35'],
+  'Ν. Ευρυτανίας':            ['36'],
+  'Ν. Μαγνησίας':             ['37','38','39'],
+  'Ν. Λάρισας':               ['40','41'],
+  'Ν. Τρικάλων':              ['42'],
+  'Ν. Καρδίτσας':             ['43'],
+  'Ν. Ιωαννίνων':             ['44','45'],
+  'Ν. Θεσπρωτίας':            ['46'],
+  'Ν. Άρτας':                 ['47'],
+  'Ν. Πρέβεζας':              ['48'],
+  'Ν. Κερκύρας':              ['49'],
+  'Ν. Κοζάνης':               ['50'],
+  'Ν. Γρεβενών':              ['51'],
+  'Ν. Καστοριάς':             ['52'],
+  'Ν. Φλώρινας':              ['53'],
+  'Ν. Θεσσαλονίκης':          ['54','55','56','57'],
+  'Ν. Πέλλας':                ['58'],
+  'Ν. Ημαθίας':               ['59'],
+  'Ν. Πιερίας':               ['60'],
+  'Ν. Κιλκίς':                ['61'],
+  'Ν. Σερρών':                ['62','64'],
+  'Ν. Χαλκιδικής':            ['63'],
+  'Ν. Καβάλας':               ['65'],
+  'Ν. Δράμας':                ['66'],
+  'Ν. Ξάνθης':                ['67'],
+  'Ν. Ροδόπης':               ['68'],
+  'Ν. Έβρου':                 ['69'],
+  'Ν. Ηρακλείου':             ['70','71'],
+  'Ν. Λασιθίου':              ['72'],
+  'Ν. Χανίων':                ['73'],
+  'Ν. Ρεθύμνου':              ['74'],
+  'Ν. Λέσβου':                ['81'],
+  'Ν. Χίου':                  ['82'],
+  'Ν. Σάμου':                 ['83'],
+  'Ν. Κυκλάδων':              ['84'],
+  'Ν. Δωδεκανήσου':           ['85'],
+}
+
 // KAD code prefix ranges by category (first 2 digits of firmActCode)
 // These are broad approximations used when category field is not yet populated
 const CATEGORY_KAD_PREFIXES: Record<string, string[]> = {
@@ -46,6 +103,7 @@ export async function GET(request: NextRequest) {
   const claimedParam = searchParams.get('claimed')             // yes | no
   const importBatch = searchParams.get('importBatch')?.trim() ?? ''
   const regionParam = searchParams.get('region')?.trim() ?? ''
+  const nomosParam = searchParams.get('nomos')?.trim() ?? ''
   const citiesParam = searchParams.getAll('cities').filter(Boolean)
   const categoryParam = searchParams.get('category')?.trim() ?? ''
   const hasCampaignParam = searchParams.get('hasCampaign')     // yes | no
@@ -112,6 +170,11 @@ export async function GET(request: NextRequest) {
 
   if (regionParam && REGION_ZIP_PREFIXES[regionParam]) {
     const prefixes = REGION_ZIP_PREFIXES[regionParam]
+    andClauses.push({ OR: prefixes.map(p => ({ postalZipCode: { startsWith: p } })) })
+  }
+
+  if (nomosParam && NOMOS_ZIP_PREFIXES[nomosParam]) {
+    const prefixes = NOMOS_ZIP_PREFIXES[nomosParam]
     andClauses.push({ OR: prefixes.map(p => ({ postalZipCode: { startsWith: p } })) })
   }
 

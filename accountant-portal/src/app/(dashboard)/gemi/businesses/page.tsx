@@ -247,6 +247,7 @@ function GemiBusinessesPageInner() {
   const [claimed, setClaimed] = useState('')
   const [importBatch, setImportBatch] = useState('')
   const [region, setRegion] = useState('')
+  const [nomos, setNomos] = useState('')
   const [category, setCategory] = useState('')
   const [hasCampaign, setHasCampaign] = useState('')
   const [active, setActive] = useState('')
@@ -322,6 +323,7 @@ function GemiBusinessesPageInner() {
     if (importBatch) params.set('importBatch', importBatch)
     cities.forEach(c => params.append('cities', c))
     if (region) params.set('region', region)
+    if (nomos) params.set('nomos', nomos)
     if (category) params.set('category', category)
     if (hasCampaign) params.set('hasCampaign', hasCampaign)
     if (active) params.set('active', active)
@@ -337,10 +339,10 @@ function GemiBusinessesPageInner() {
     } finally {
       if (seq === requestSeq.current) setLoading(false)
     }
-  }, [page, search, aadeEnriched, matchingDone, claimed, importBatch, cities, region, category, hasCampaign, active, emailEngagement, kadCodes, tagsFilter])
+  }, [page, search, aadeEnriched, matchingDone, claimed, importBatch, cities, region, nomos, category, hasCampaign, active, emailEngagement, kadCodes, tagsFilter])
 
   useEffect(() => { fetchData() }, [fetchData])
-  useEffect(() => { setPage(1); setSelected(new Set()) }, [search, aadeEnriched, matchingDone, claimed, importBatch, cities, region, category, hasCampaign, active, emailEngagement, kadCodes, tagsFilter])
+  useEffect(() => { setPage(1); setSelected(new Set()) }, [search, aadeEnriched, matchingDone, claimed, importBatch, cities, region, nomos, category, hasCampaign, active, emailEngagement, kadCodes, tagsFilter])
 
   function handleSearch() { setSearch(searchInput) }
 
@@ -595,12 +597,12 @@ function GemiBusinessesPageInner() {
     }
   }
 
-  const hasFilters = !!(search || aadeEnriched || matchingDone || claimed || importBatch || cities.length || region || category || hasCampaign || active || emailEngagement || kadCodes.length || tagsFilter.length)
+  const hasFilters = !!(search || aadeEnriched || matchingDone || claimed || importBatch || cities.length || region || nomos || category || hasCampaign || active || emailEngagement || kadCodes.length || tagsFilter.length)
 
   function clearFilters() {
     setSearch(''); setSearchInput('')
     setAadeEnriched(''); setMatchingDone(''); setClaimed('')
-    setImportBatch(''); setCities([]); setRegion(''); setCategory(''); setHasCampaign(''); setActive('')
+    setImportBatch(''); setCities([]); setRegion(''); setNomos(''); setCategory(''); setHasCampaign(''); setActive('')
     setEmailEngagement(''); setKadCodes([]); setTagsFilter([])
   }
 
@@ -615,6 +617,7 @@ function GemiBusinessesPageInner() {
       if (importBatch) params.set('importBatch', importBatch)
       cities.forEach(c => params.append('cities', c))
       if (region) params.set('region', region)
+      if (nomos) params.set('nomos', nomos)
       if (category) params.set('category', category)
       if (hasCampaign) params.set('hasCampaign', hasCampaign)
       if (active) params.set('active', active)
@@ -728,11 +731,57 @@ function GemiBusinessesPageInner() {
 
             <div>
               <label className="text-xs font-medium text-gray-500 block mb-1">Περιφέρεια</label>
-              <select value={region} onChange={e => setRegion(e.target.value)} className={selectCls}>
+              <select value={region} onChange={e => { setRegion(e.target.value); setNomos('') }} className={selectCls}>
                 <option value="">Όλες</option>
                 {['Αττική','Κεντρική Μακεδονία','Θεσσαλία','Ανατολική Μακεδονία και Θράκη','Ήπειρος','Δυτική Μακεδονία','Ιόνια Νησιά','Δυτική Ελλάδα','Στερεά Ελλάδα','Πελοπόννησος','Βόρειο Αιγαίο','Νότιο Αιγαίο','Κρήτη'].map(r => (
                   <option key={r} value={r}>{r}</option>
                 ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="text-xs font-medium text-gray-500 block mb-1">Νομός</label>
+              <select value={nomos} onChange={e => { setNomos(e.target.value); setRegion('') }} className={selectCls}>
+                <option value="">Όλοι</option>
+                <optgroup label="Αττική">
+                  {['Ν. Αθηνών','Ν. Πειραιώς','Ν. Ανατολικής Αττικής','Ν. Δυτικής Αττικής'].map(n => <option key={n} value={n}>{n}</option>)}
+                </optgroup>
+                <optgroup label="Πελοπόννησος">
+                  {['Ν. Κορινθίας','Ν. Αργολίδας','Ν. Αρκαδίας','Ν. Λακωνίας','Ν. Μεσσηνίας'].map(n => <option key={n} value={n}>{n}</option>)}
+                </optgroup>
+                <optgroup label="Δυτική Ελλάδα">
+                  {['Ν. Αχαΐας','Ν. Ηλείας','Ν. Αιτωλοακαρνανίας'].map(n => <option key={n} value={n}>{n}</option>)}
+                </optgroup>
+                <optgroup label="Ιόνια Νησιά">
+                  {['Ν. Κερκύρας','Ν. Κεφαλληνίας','Ν. Ζακύνθου'].map(n => <option key={n} value={n}>{n}</option>)}
+                </optgroup>
+                <optgroup label="Στερεά Ελλάδα">
+                  {['Ν. Βοιωτίας','Ν. Εύβοιας','Ν. Ευρυτανίας','Ν. Φθιώτιδας','Ν. Φωκίδας'].map(n => <option key={n} value={n}>{n}</option>)}
+                </optgroup>
+                <optgroup label="Θεσσαλία">
+                  {['Ν. Μαγνησίας','Ν. Λάρισας','Ν. Τρικάλων','Ν. Καρδίτσας'].map(n => <option key={n} value={n}>{n}</option>)}
+                </optgroup>
+                <optgroup label="Ήπειρος">
+                  {['Ν. Ιωαννίνων','Ν. Θεσπρωτίας','Ν. Άρτας','Ν. Πρέβεζας'].map(n => <option key={n} value={n}>{n}</option>)}
+                </optgroup>
+                <optgroup label="Δυτική Μακεδονία">
+                  {['Ν. Κοζάνης','Ν. Γρεβενών','Ν. Καστοριάς','Ν. Φλώρινας'].map(n => <option key={n} value={n}>{n}</option>)}
+                </optgroup>
+                <optgroup label="Κεντρική Μακεδονία">
+                  {['Ν. Θεσσαλονίκης','Ν. Πέλλας','Ν. Ημαθίας','Ν. Πιερίας','Ν. Κιλκίς','Ν. Χαλκιδικής','Ν. Σερρών'].map(n => <option key={n} value={n}>{n}</option>)}
+                </optgroup>
+                <optgroup label="Ανατολική Μακεδονία & Θράκη">
+                  {['Ν. Καβάλας','Ν. Δράμας','Ν. Ξάνθης','Ν. Ροδόπης','Ν. Έβρου'].map(n => <option key={n} value={n}>{n}</option>)}
+                </optgroup>
+                <optgroup label="Κρήτη">
+                  {['Ν. Ηρακλείου','Ν. Λασιθίου','Ν. Χανίων','Ν. Ρεθύμνου'].map(n => <option key={n} value={n}>{n}</option>)}
+                </optgroup>
+                <optgroup label="Βόρειο Αιγαίο">
+                  {['Ν. Λέσβου','Ν. Χίου','Ν. Σάμου'].map(n => <option key={n} value={n}>{n}</option>)}
+                </optgroup>
+                <optgroup label="Νότιο Αιγαίο">
+                  {['Ν. Κυκλάδων','Ν. Δωδεκανήσου'].map(n => <option key={n} value={n}>{n}</option>)}
+                </optgroup>
               </select>
             </div>
 
