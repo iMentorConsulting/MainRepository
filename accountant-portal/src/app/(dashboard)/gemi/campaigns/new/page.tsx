@@ -473,6 +473,7 @@ function NewGemiCampaignPageInner() {
 
           {/* Tag filter */}
           {filterOptions.tags.length > 0 && (
+            <>
             <div>
               <label className="text-sm font-medium text-slate-700 block mb-1.5 flex items-center gap-1.5">
                 <Tag size={13} className="text-violet-500" />
@@ -543,6 +544,7 @@ function NewGemiCampaignPageInner() {
                 </p>
               )}
             </div>
+            </>
           )}
         </div>
 
