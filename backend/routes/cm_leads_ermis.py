@@ -205,8 +205,9 @@ def _process_ermis_session(lead_id: int, send_link: bool, channel: str, actor_na
 
         if send_link and (channel or "both") != "none":
             name = l.name or "συνεργάτη"
-            prog = l.program or "την υπηρεσία που σας ενδιαφέρει"
-            prog_label = f"«{l.program}»" if l.program else "που σας ενδιαφέρει"
+            prog_display = l.program_title or l.service_type or l.program
+            prog = prog_display or "την υπηρεσία που σας ενδιαφέρει"
+            prog_label = f"«{prog_display}»" if prog_display else "που σας ενδιαφέρει"
             _art = _consultant_article(l.assigned_name).capitalize()  # Ο / Η / Ο/Η
             _consultant_gr = _consultant_display(l.assigned_name)
             consultant_line = (f"📞 {_art} {_consultant_gr} από την i-Mentor θα επικοινωνήσει σύντομα μαζί σας.\n"
