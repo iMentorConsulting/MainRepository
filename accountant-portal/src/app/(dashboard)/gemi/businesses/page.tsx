@@ -6,13 +6,19 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableHead, TableBody, TableRow, Th, Td } from '@/components/ui/table'
 import { Pagination } from '@/components/ui/pagination'
-import { Search, Upload, X, RefreshCw, Link2, Trash2, Send, Zap, CheckSquare } from 'lucide-react'
+import { MultiSelect } from '@/components/ui/multi-select'
+import { Search, Upload, X, RefreshCw, Link2, Trash2, Send, Zap, Tag } from 'lucide-react'
 
 interface GemiTemplate {
   id: string
   label: string
   subject: string
   htmlContent: string
+}
+
+interface TagOption {
+  id: string
+  label: string
 }
 
 const PAGE_SIZE = 50
@@ -32,6 +38,7 @@ interface GemiBusiness {
   claimedAt?: string | null
   category?: string | null
   activities?: any[]
+  tags?: string[]
   postalAreaDescription?: string | null
   postalZipCode?: string | null
   stopDate?: string | null
@@ -243,6 +250,11 @@ function GemiBusinessesPageInner() {
   const [hasCampaign, setHasCampaign] = useState('')
   const [active, setActive] = useState('')
   const [emailEngagement, setEmailEngagement] = useState('')
+  const [kadCodes, setKadCodes] = useState<string[]>([])
+  const [tagsFilter, setTagsFilter] = useState<string[]>([])
+
+  const [kadOptions, setKadOptions] = useState<{ code: string; descr: string }[]>([])
+  const [tagOptions, setTagOptions] = useState<TagOption[]>([])
 
   const [importOpen, setImportOpen] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
@@ -260,9 +272,13 @@ function GemiBusinessesPageInner() {
   const [quickTemplateId, setQuickTemplateId] = useState('')
   const [quickSending, setQuickSending] = useState(false)
 
+  // Bulk tag state
+  const [bulkTag, setBulkTag] = useState('')
+  const [bulkTagging, setBulkTagging] = useState(false)
+
   const requestSeq = useRef(0)
 
-  // Fetch distinct import batches for dropdown
+  // Fetch static options on mount
   useEffect(() => {
     fetch('/api/gemi/businesses/batches')
       .then(r => r.json())
@@ -275,6 +291,14 @@ function GemiBusinessesPageInner() {
     fetch('/api/gemi/templates')
       .then(r => r.json())
       .then(d => setTemplates(Array.isArray(d) ? d : []))
+      .catch(() => {})
+    fetch('/api/gemi/businesses/kad-options')
+      .then(r => r.json())
+      .then(d => Array.isArray(d) && setKadOptions(d))
+      .catch(() => {})
+    fetch('/api/admin/tags')
+      .then(r => r.json())
+      .then(d => Array.isArray(d) && setTagOptions(d))
       .catch(() => {})
   }, [])
 
@@ -292,6 +316,8 @@ function GemiBusinessesPageInner() {
     if (hasCampaign) params.set('hasCampaign', hasCampaign)
     if (active) params.set('active', active)
     if (emailEngagement) params.set('emailEngagement', emailEngagement)
+    kadCodes.forEach(code => params.append('kadCodes', code))
+    tagsFilter.forEach(tag => params.append('tags', tag))
     try {
       const res = await fetch(`/api/gemi/businesses?${params}`)
       const data = await res.json()
@@ -301,10 +327,10 @@ function GemiBusinessesPageInner() {
     } finally {
       if (seq === requestSeq.current) setLoading(false)
     }
-  }, [page, search, aadeEnriched, matchingDone, claimed, importBatch, region, category, hasCampaign, active, emailEngagement])
+  }, [page, search, aadeEnriched, matchingDone, claimed, importBatch, region, category, hasCampaign, active, emailEngagement, kadCodes, tagsFilter])
 
   useEffect(() => { fetchData() }, [fetchData])
-  useEffect(() => { setPage(1); setSelected(new Set()) }, [search, aadeEnriched, matchingDone, claimed, importBatch, region, category, hasCampaign, active, emailEngagement])
+  useEffect(() => { setPage(1); setSelected(new Set()) }, [search, aadeEnriched, matchingDone, claimed, importBatch, region, category, hasCampaign, active, emailEngagement, kadCodes, tagsFilter])
 
   function handleSearch() { setSearch(searchInput) }
 
@@ -495,6 +521,29 @@ function GemiBusinessesPageInner() {
     }
   }
 
+  async function handleBulkTag(action: 'add' | 'remove') {
+    if (!bulkTag || selected.size === 0) return
+    setBulkTagging(true)
+    try {
+      const res = await fetch('/api/gemi/businesses/bulk-tag', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: Array.from(selected), tag: bulkTag, action }),
+      })
+      if (res.ok) {
+        setToast(`${action === 'add' ? 'Προστέθηκε' : 'Αφαιρέθηκε'} ετικέτα "${bulkTag}" σε ${selected.size} επιχειρήσεις`)
+        fetchData()
+      } else {
+        const err = await res.json().catch(() => ({}))
+        setToast(err.error || 'Σφάλμα')
+      }
+    } catch {
+      setToast('Σφάλμα δικτύου')
+    } finally {
+      setBulkTagging(false)
+    }
+  }
+
   async function handleQuickSend() {
     if (selected.size === 0) return
     if (!quickTemplateId) { setToast('Επιλέξτε πρότυπο email.'); return }
@@ -536,13 +585,13 @@ function GemiBusinessesPageInner() {
     }
   }
 
-  const hasFilters = !!(search || aadeEnriched || matchingDone || claimed || importBatch || region || category || hasCampaign || active || emailEngagement)
+  const hasFilters = !!(search || aadeEnriched || matchingDone || claimed || importBatch || region || category || hasCampaign || active || emailEngagement || kadCodes.length || tagsFilter.length)
 
   function clearFilters() {
     setSearch(''); setSearchInput('')
     setAadeEnriched(''); setMatchingDone(''); setClaimed('')
     setImportBatch(''); setRegion(''); setCategory(''); setHasCampaign(''); setActive('')
-    setEmailEngagement('')
+    setEmailEngagement(''); setKadCodes([]); setTagsFilter([])
   }
 
   if (status === 'loading' || (status === 'authenticated' && !['ADMIN', 'CONSULTANT'].includes((session?.user as any)?.role))) {
@@ -715,6 +764,27 @@ function GemiBusinessesPageInner() {
               </select>
             </div>
 
+            {kadOptions.length > 0 && (
+              <MultiSelect
+                label="ΚΑΔ"
+                options={kadOptions.map(k => ({ value: k.code, label: `${k.code} — ${k.descr}` }))}
+                selected={kadCodes}
+                onChange={setKadCodes}
+                placeholder="Όλοι οι ΚΑΔ"
+                searchable
+              />
+            )}
+
+            {tagOptions.length > 0 && (
+              <MultiSelect
+                label="Ετικέτα"
+                options={tagOptions.map(t => ({ value: t.label, label: t.label }))}
+                selected={tagsFilter}
+                onChange={setTagsFilter}
+                placeholder="Όλες"
+              />
+            )}
+
             {hasFilters && (
               <button onClick={clearFilters} className="text-xs text-gray-500 hover:text-gray-700 underline self-end pb-2">
                 Καθαρισμός
@@ -751,12 +821,13 @@ function GemiBusinessesPageInner() {
                     <Th>Εμπλουτισμός</Th>
                     <Th>Ταίριασμα</Th>
                     <Th>Ανάθεση</Th>
+                    <Th>Ετικέτες</Th>
                   </TableRow>
                 </TableHead>
                 <TableBody>
                   {businesses.length === 0 ? (
                     <TableRow>
-                      <Td colSpan={10} className="text-center text-gray-400 py-10">
+                      <Td colSpan={11} className="text-center text-gray-400 py-10">
                         Δεν βρέθηκαν επιχειρήσεις ΓΕΜΗ
                       </Td>
                     </TableRow>
@@ -825,6 +896,19 @@ function GemiBusinessesPageInner() {
                               <span className="text-xs text-gray-400">—</span>
                             )}
                           </Td>
+                          <Td className="max-w-[160px]">
+                            {b.tags && b.tags.length > 0 ? (
+                              <div className="flex flex-wrap gap-1">
+                                {b.tags.map(tag => (
+                                  <span key={tag} className="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-medium bg-violet-100 text-violet-800 whitespace-nowrap">
+                                    {tag}
+                                  </span>
+                                ))}
+                              </div>
+                            ) : (
+                              <span className="text-gray-300 text-xs">—</span>
+                            )}
+                          </Td>
                         </TableRow>
                       )
                     })
@@ -837,45 +921,85 @@ function GemiBusinessesPageInner() {
         )}
       </div>
 
-      {/* Quick Send floating bar */}
+      {/* Floating bulk-action bar */}
       {selected.size > 0 && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-white border border-indigo-200 shadow-2xl rounded-2xl px-5 py-4 flex flex-wrap items-center gap-3 max-w-2xl w-full">
-          <div className="flex items-center gap-2 text-sm font-semibold text-indigo-800 shrink-0">
-            <Zap size={16} className="text-indigo-600" />
-            Γρήγορη Αποστολή — {selected.size} επιλεγμένες
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-white border border-indigo-200 shadow-2xl rounded-2xl px-5 py-4 flex flex-col gap-3 max-w-3xl w-full">
+          {/* Row 1: header + quick send */}
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2 text-sm font-semibold text-indigo-800 shrink-0">
+              <Zap size={16} className="text-indigo-600" />
+              {selected.size} επιλεγμένες
+            </div>
+            <select
+              value={quickProgramId}
+              onChange={e => setQuickProgramId(e.target.value)}
+              className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white flex-1 min-w-[140px]"
+            >
+              <option value="">— Χωρίς πρόγραμμα —</option>
+              {programs.map((p: any) => (
+                <option key={p.id} value={p.id}>{p.title}</option>
+              ))}
+            </select>
+            <select
+              value={quickTemplateId}
+              onChange={e => setQuickTemplateId(e.target.value)}
+              className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white flex-1 min-w-[140px]"
+            >
+              <option value="">— Επιλέξτε πρότυπο —</option>
+              {templates.map(t => (
+                <option key={t.id} value={t.id}>{t.label}</option>
+              ))}
+            </select>
+            <Button
+              size="sm"
+              loading={quickSending}
+              disabled={!quickTemplateId}
+              onClick={handleQuickSend}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white shrink-0"
+            >
+              <Send size={14} className="mr-1.5" />Αποστολή
+            </Button>
+            <button onClick={() => setSelected(new Set())} className="text-gray-400 hover:text-gray-600 shrink-0 ml-auto">
+              <X size={18} />
+            </button>
           </div>
-          <select
-            value={quickProgramId}
-            onChange={e => setQuickProgramId(e.target.value)}
-            className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white flex-1 min-w-[150px]"
-          >
-            <option value="">— Χωρίς πρόγραμμα —</option>
-            {programs.map((p: any) => (
-              <option key={p.id} value={p.id}>{p.title}</option>
-            ))}
-          </select>
-          <select
-            value={quickTemplateId}
-            onChange={e => setQuickTemplateId(e.target.value)}
-            className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white flex-1 min-w-[150px]"
-          >
-            <option value="">— Επιλέξτε πρότυπο —</option>
-            {templates.map(t => (
-              <option key={t.id} value={t.id}>{t.label}</option>
-            ))}
-          </select>
-          <Button
-            size="sm"
-            loading={quickSending}
-            disabled={!quickTemplateId}
-            onClick={handleQuickSend}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white shrink-0"
-          >
-            <Send size={14} className="mr-1.5" />Αποστολή
-          </Button>
-          <button onClick={() => setSelected(new Set())} className="text-gray-400 hover:text-gray-600 shrink-0">
-            <X size={18} />
-          </button>
+          {/* Row 2: bulk tag */}
+          {tagOptions.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2 border-t border-gray-100 pt-3">
+              <div className="flex items-center gap-1.5 text-xs font-semibold text-gray-500 shrink-0">
+                <Tag size={13} />
+                Ετικέτα:
+              </div>
+              <select
+                value={bulkTag}
+                onChange={e => setBulkTag(e.target.value)}
+                className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-violet-500 bg-white flex-1 min-w-[140px]"
+              >
+                <option value="">— Επιλέξτε ετικέτα —</option>
+                {tagOptions.map(t => (
+                  <option key={t.id} value={t.label}>{t.label}</option>
+                ))}
+              </select>
+              <Button
+                size="sm"
+                loading={bulkTagging}
+                disabled={!bulkTag}
+                onClick={() => handleBulkTag('add')}
+                className="bg-violet-600 hover:bg-violet-700 text-white shrink-0"
+              >
+                + Προσθήκη
+              </Button>
+              <Button
+                size="sm"
+                loading={bulkTagging}
+                disabled={!bulkTag}
+                onClick={() => handleBulkTag('remove')}
+                className="bg-orange-500 hover:bg-orange-600 text-white shrink-0"
+              >
+                − Αφαίρεση
+              </Button>
+            </div>
+          )}
         </div>
       )}
 

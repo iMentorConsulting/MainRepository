@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { Prisma } from '@prisma/client'
 
 // Maps each Greek region to its 2-digit postal zip prefixes
 const REGION_ZIP_PREFIXES: Record<string, string[]> = {
@@ -50,19 +51,47 @@ export async function GET(request: NextRequest) {
   const activeParam = searchParams.get('active')               // yes | no
   // Email engagement filter: opened | not_opened | clicked | bounced | unsubscribed
   const emailEngagementParam = searchParams.get('emailEngagement')?.trim() ?? ''
+  // KAD code multi-filter: one or more firmActCode values (repeating params)
+  const kadCodes = searchParams.getAll('kadCodes').filter(Boolean)
+  // Tag multi-filter: one or more tag values
+  const tagsFilter = searchParams.getAll('tags').filter(Boolean)
 
   // Build AND array so filters compose correctly
   const andClauses: object[] = []
 
   if (search) {
+    // Also search KAD descriptions via raw SQL (Prisma can't do case-insensitive on Json)
+    const kadRows = await prisma.$queryRaw<{ id: string }[]>`
+      SELECT DISTINCT id FROM "GemiLookup",
+      jsonb_array_elements(activities::jsonb) AS elem
+      WHERE LOWER(elem->>'firmActDescr') LIKE LOWER(${`%${search}%`})
+        OR LOWER(elem->>'firmActCode') LIKE LOWER(${`%${search}%`})
+    `
+    const kadMatchIds = kadRows.map(r => r.id)
     andClauses.push({
       OR: [
         { afm: { contains: search, mode: 'insensitive' } },
         { onomasia: { contains: search, mode: 'insensitive' } },
         { email: { contains: search, mode: 'insensitive' } },
         { phone: { contains: search, mode: 'insensitive' } },
+        ...(kadMatchIds.length > 0 ? [{ id: { in: kadMatchIds } }] : []),
       ],
     })
+  }
+
+  if (kadCodes.length > 0) {
+    const idList = kadCodes.map(code => Prisma.sql`${code}`)
+    const rows = await prisma.$queryRaw<{ id: string }[]>`
+      SELECT DISTINCT gl.id
+      FROM "GemiLookup" gl,
+      jsonb_array_elements(gl.activities::jsonb) AS elem
+      WHERE elem->>'firmActCode' = ANY(ARRAY[${Prisma.join(idList)}])
+    `
+    andClauses.push({ id: { in: rows.map(r => r.id) } })
+  }
+
+  if (tagsFilter.length > 0) {
+    andClauses.push({ tags: { hasSome: tagsFilter } })
   }
 
   if (aadeEnrichedParam === 'yes') andClauses.push({ aadeEnriched: true })
@@ -148,6 +177,7 @@ export async function GET(request: NextRequest) {
         claimedAccountantId: true,
         category: true,
         activities: true,
+        tags: true,
         postalAreaDescription: true,
         postalZipCode: true,
         stopDate: true,
