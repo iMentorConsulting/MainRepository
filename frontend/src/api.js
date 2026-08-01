@@ -257,6 +257,8 @@ export const mergeDuplicateLeads = (dryRun) => api.post('/api/cm/leads/merge-dup
 export const startLeadErmis = (id, payload) => api.post(`/api/cm/leads/${id}/ermis/start`, payload || {}, { timeout: 45000 }).then(r => r.data)
 export const resendLeadErmisLink = (id, payload) => api.post(`/api/cm/leads/${id}/ermis/resend-link`, payload || {}).then(r => r.data)
 export const bulkStartErmis = (lead_ids, channel = 'both') => api.post('/api/cm/leads/ermis/bulk-start', { lead_ids, channel }).then(r => r.data)
+export const syncErmisToSiblings = (id) => api.post(`/api/cm/leads/${id}/ermis/sync-siblings`).then(r => r.data)
+export const pullErmisFromSibling = (id) => api.post(`/api/cm/leads/${id}/ermis/pull-from-sibling`).then(r => r.data)
 export const getLeadErmisTranscript = (id) => api.get(`/api/cm/leads/${id}/ermis/transcript`).then(r => r.data)
 export const getLeadReportDailyVolume = (days) => api.get('/api/cm/leads/reports/daily-volume', { params: days ? { days } : {} }).then(r => r.data)
 export const getLeadReportStatusDistribution = () => api.get('/api/cm/leads/reports/status-distribution').then(r => r.data)
