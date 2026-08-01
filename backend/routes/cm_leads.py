@@ -296,6 +296,7 @@ def list_leads(
     consultant: Optional[str] = None,
     program: Optional[str] = None,
     program_title: Optional[str] = None,
+    ermis_filter: Optional[str] = None,  # not_sent | pending | completed
     reminder: Optional[str] = None,   # overdue | today | week | none
     date_from: Optional[date] = None,
     date_to: Optional[date] = None,
@@ -319,6 +320,18 @@ def list_leads(
         query = query.filter(CMLead.program == program)
     if program_title:
         query = query.filter(CMLead.program_title == program_title)
+    if ermis_filter == "not_sent":
+        # Ready to send: no ermis attempt yet (or previous attempt errored), has AFM and a program
+        query = query.filter(
+            or_(CMLead.ermis_status == None, CMLead.ermis_status == "error"),  # noqa: E711
+            CMLead.afm != None,  # noqa: E711
+            or_(CMLead.program_title != None, CMLead.service_type != None, CMLead.program != None),  # noqa: E711
+        )
+    elif ermis_filter == "pending":
+        # Sent but client hasn't finished yet
+        query = query.filter(CMLead.ermis_status.in_(["starting", "in_progress"]))
+    elif ermis_filter == "completed":
+        query = query.filter(CMLead.ermis_status.in_(["eligible", "ineligible"]))
     if reminder:
         today = date.today()
         if reminder == "overdue":

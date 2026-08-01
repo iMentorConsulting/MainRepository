@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef, Fragment } from 'react'
 import {
   getLeads, getLeadFilterOptions, getLead, createLead, updateLead, deleteLead,
   getLeadComments, addLeadComment, editLeadComment, deleteLeadComment,
-  sendLeadMessage, convertLeadToCase, startLeadErmis, getLeadDuplicates, mergeLeads,
+  sendLeadMessage, convertLeadToCase, startLeadErmis, resendLeadErmisLink, getLeadDuplicates, mergeLeads,
 } from '../api'
 import {
   MagnifyingGlassIcon, PlusIcon, TrashIcon, ChevronDownIcon, ChevronUpIcon, ChevronRightIcon,
@@ -237,6 +237,7 @@ function ExpandedRow({ lead, colSpan, onChanged, onConvert, onErmis, onSend, pro
   const [dups, setDups] = useState([])
   const [editing, setEditing] = useState(false)
   const [form, setForm] = useState({})
+  const [resending, setResending] = useState(false)
 
   const reload = useCallback(async () => {
     const l = await getLead(lead.id)
@@ -256,6 +257,16 @@ function ExpandedRow({ lead, colSpan, onChanged, onConvert, onErmis, onSend, pro
   const addC = async (txt) => { try { await addLeadComment(lead.id, txt); setComments(await getLeadComments(lead.id)); onChanged?.() } catch { toast.error('Σφάλμα σχολίου') } }
   const delC = async (cid) => { if (!confirm('Διαγραφή σχολίου;')) return; try { await deleteLeadComment(lead.id, cid); setComments(cs => cs.filter(c => c.id !== cid)); onChanged?.() } catch { toast.error('Σφάλμα') } }
   const saveEdit = async () => { try { const l = await updateLead(lead.id, { ...form, total_amount: parseFloat(form.total_amount) || 0 }); setFull(l); setEditing(false); onChanged?.() } catch { toast.error('Σφάλμα') } }
+  const handleResend = async () => {
+    if (!confirm(`Αποστολή link ΕΡΜΗΣ ξανά στον ${full?.name || 'πελάτη'};`)) return
+    setResending(true)
+    try {
+      const res = await resendLeadErmisLink(lead.id, { send_link: true, channel: 'both' })
+      toast.success(`Link ΕΡΜΗΣ εστάλη ξανά (${(res.sent || []).join(' & ') || 'κανάλι άγνωστο'})`)
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Σφάλμα αποστολής')
+    } finally { setResending(false) }
+  }
 
 
   return (
@@ -288,8 +299,11 @@ function ExpandedRow({ lead, colSpan, onChanged, onConvert, onErmis, onSend, pro
             </button>
           )}
           {(full?.ermis_status === 'starting' || full?.ermis_status === 'in_progress') && (
-            <span className="flex items-center gap-1 text-sm bg-indigo-50 text-indigo-400 px-3 py-1.5 rounded-lg cursor-default">
-              <SparklesIcon className="w-4 h-4 animate-spin" />ΕΡΜΗΣ σε εξέλιξη…
+            <span className="flex items-center gap-2 text-sm bg-indigo-50 text-indigo-500 px-3 py-1.5 rounded-lg">
+              <SparklesIcon className="w-4 h-4 animate-spin" />ΕΡΜΗΣ εστάλη — αναμονή απάντησης
+              <button onClick={handleResend} disabled={resending} className="ml-1 text-xs font-semibold bg-indigo-100 hover:bg-indigo-200 text-indigo-700 px-2 py-0.5 rounded-md disabled:opacity-50">
+                {resending ? '…' : '↺ Αποστολή ξανά'}
+              </button>
             </span>
           )}
           <span className="flex items-center gap-1 text-sm bg-blue-600 text-white px-3 py-1.5 rounded-lg">
@@ -470,7 +484,7 @@ export default function Leads() {
   const [data, setData] = useState({ items: [], total: 0, page: 1, page_size: 50 })
   const [options, setOptions] = useState({ statuses: LEAD_STATUSES, agents: [], programs: [], program_titles: [], consultants: [], status_counts: {}, total: 0 })
   const [loading, setLoading] = useState(true)
-  const [filters, setFilters] = useState({ status: '', consultant: '', program: '', program_title: '', q: '', reminder: '', date_from: '', date_to: '' })
+  const [filters, setFilters] = useState({ status: '', consultant: '', program: '', program_title: '', q: '', reminder: '', ermis_filter: '', date_from: '', date_to: '' })
   const [sort, setSort] = useState({ sort: 'created_at', direction: 'desc' })
   const [page, setPage] = useState(1)
   const [showNew, setShowNew] = useState(false)
@@ -561,10 +575,23 @@ export default function Leads() {
         ))}
       </div>
       {/* Reminder chips */}
-      <div className="flex flex-wrap items-center gap-2 mb-3">
+      <div className="flex flex-wrap items-center gap-2 mb-2">
         <span className="text-xs text-gray-400">Reminder:</span>
         {REMINDERS.map(r => (
           <button key={r.key} onClick={() => setFilter({ reminder: filters.reminder === r.key ? '' : r.key })} className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs border ${filters.reminder === r.key ? 'bg-blue-50 border-blue-400 text-blue-700' : 'bg-white border-gray-300 text-gray-600'}`}>
+            <span className={`w-2 h-2 rounded-full ${r.dot}`} />{r.label}
+          </button>
+        ))}
+      </div>
+      {/* ΕΡΜΗΣ filter chips */}
+      <div className="flex flex-wrap items-center gap-2 mb-3">
+        <span className="text-xs text-gray-400 flex items-center gap-1"><SparklesIcon className="w-3.5 h-3.5" />ΕΡΜΗΣ:</span>
+        {[
+          { key: 'not_sent', label: 'Δεν έχουν σταλεί', dot: 'bg-gray-400' },
+          { key: 'pending',  label: 'Σε αναμονή απάντησης', dot: 'bg-amber-400' },
+          { key: 'completed', label: 'Ολοκληρωμένο', dot: 'bg-green-500' },
+        ].map(r => (
+          <button key={r.key} onClick={() => setFilter({ ermis_filter: filters.ermis_filter === r.key ? '' : r.key })} className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs border ${filters.ermis_filter === r.key ? 'bg-indigo-50 border-indigo-400 text-indigo-700' : 'bg-white border-gray-300 text-gray-600'}`}>
             <span className={`w-2 h-2 rounded-full ${r.dot}`} />{r.label}
           </button>
         ))}
