@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef, Fragment } from 'react'
 import {
   getLeads, getLeadFilterOptions, getLead, createLead, updateLead, deleteLead,
   getLeadComments, addLeadComment, editLeadComment, deleteLeadComment,
-  sendLeadMessage, convertLeadToCase, startLeadErmis, resendLeadErmisLink, getLeadDuplicates, mergeLeads,
+  sendLeadMessage, convertLeadToCase, startLeadErmis, resendLeadErmisLink, bulkStartErmis, getLeadDuplicates, mergeLeads,
 } from '../api'
 import {
   MagnifyingGlassIcon, PlusIcon, TrashIcon, ChevronDownIcon, ChevronUpIcon, ChevronRightIcon,
@@ -491,6 +491,8 @@ export default function Leads() {
   const [sendLead, setSendLead] = useState(null)
   const [expandedId, setExpandedId] = useState(null)
   const [hideCancel, setHideCancel] = useState(true)   // CANCEL hidden by default
+  const [selectedIds, setSelectedIds] = useState(new Set())
+  const [bulkBusy, setBulkBusy] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -541,6 +543,31 @@ export default function Leads() {
     try { await deleteLead(lead.id); toast.success('Διαγράφηκε'); load(); loadOptions() } catch { toast.error('Σφάλμα διαγραφής') }
   }
 
+  const toggleSelect = (id) => setSelectedIds(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n })
+  const allPageIds = data.items.map(l => l.id)
+  const allSelected = allPageIds.length > 0 && allPageIds.every(id => selectedIds.has(id))
+  const toggleSelectAll = () => setSelectedIds(s => allSelected ? new Set() : new Set(allPageIds))
+
+  const handleBulkErmis = async () => {
+    const ids = [...selectedIds]
+    if (!confirm(`Αποστολή ΕΡΜΗΣ σε ${ids.length} leads; Κάθε πελάτης θα λάβει Viber + Email με το link για το δικό του πρόγραμμα.`)) return
+    setBulkBusy(true)
+    const tid = toast.loading(`Εκκίνηση ΕΡΜΗΣ για ${ids.length} leads…`)
+    try {
+      const res = await bulkStartErmis(ids)
+      const sk = res.skipped?.length || 0
+      toast.success(
+        `ΕΡΜΗΣ ξεκίνησε για ${res.queued} leads${sk ? ` · ${sk} παραλείφθηκαν` : ''}`,
+        { id: tid, duration: 6000 }
+      )
+      if (sk) console.info('Bulk ΕΡΜΗΣ skipped:', res.skipped)
+      setSelectedIds(new Set())
+      setTimeout(load, 3000)
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Σφάλμα μαζικής αποστολής ΕΡΜΗΣ', { id: tid })
+    } finally { setBulkBusy(false) }
+  }
+
   const SortTh = ({ col, children, className = '' }) => (
     <th onClick={() => toggleSort(col)} className={`px-2 py-2 text-left font-semibold text-gray-600 cursor-pointer select-none whitespace-nowrap ${className}`}>
       <span className="inline-flex items-center gap-1">{children}{sort.sort === col && (sort.direction === 'asc' ? <ChevronUpIcon className="w-3 h-3" /> : <ChevronDownIcon className="w-3 h-3" />)}</span>
@@ -549,7 +576,7 @@ export default function Leads() {
 
   const totalPages = Math.max(1, Math.ceil(data.total / (data.page_size || 50)))
   const counts = options.status_counts || {}
-  const COLS = 12
+  const COLS = 13
 
   return (
     <div className="p-4 md:p-6">
@@ -620,6 +647,9 @@ export default function Leads() {
         <table className="w-full text-sm">
           <thead className="bg-gray-50 border-b">
             <tr>
+              <th className="w-8 pl-2">
+                <input type="checkbox" checked={allSelected} onChange={toggleSelectAll} className="w-3.5 h-3.5 accent-indigo-600 cursor-pointer" title="Επιλογή όλων" />
+              </th>
               <th className="w-8"></th>
               <SortTh col="status">STATUS</SortTh>
               <SortTh col="consultant">ΣΥΜΒΟΥΛΟΣ</SortTh>
@@ -644,8 +674,11 @@ export default function Leads() {
               const commentPreview = lead.last_comment?.content || lead.notes
               return (
                 <Fragment key={lead.id}>
-                  <tr className={`border-b hover:bg-blue-50/30 align-top ${STATUS_ROW[lead.status] || ''}`}>
+                  <tr className={`border-b hover:bg-blue-50/30 align-top ${STATUS_ROW[lead.status] || ''} ${selectedIds.has(lead.id) ? 'ring-1 ring-inset ring-indigo-300 bg-indigo-50/30' : ''}`}>
                     <td className="pl-2 py-1.5">
+                      <input type="checkbox" checked={selectedIds.has(lead.id)} onChange={() => toggleSelect(lead.id)} className="w-3.5 h-3.5 accent-indigo-600 cursor-pointer" />
+                    </td>
+                    <td className="pl-1 py-1.5">
                       <button onClick={() => setExpandedId(isOpen ? null : lead.id)} className="p-1 text-gray-400 hover:text-gray-700">
                         {isOpen ? <ChevronDownIcon className="w-4 h-4" /> : <ChevronRightIcon className="w-4 h-4" />}
                       </button>
@@ -709,6 +742,24 @@ export default function Leads() {
 
       {showNew && <NewLeadModal options={options} onClose={() => setShowNew(false)} onCreated={() => { load(); loadOptions() }} />}
       {sendLead && <SendModal lead={sendLead} onClose={() => setSendLead(null)} />}
+
+      {/* Floating bulk action bar */}
+      {selectedIds.size > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-gray-900 text-white px-5 py-3 rounded-2xl shadow-2xl border border-gray-700">
+          <span className="text-sm font-semibold">{selectedIds.size} επιλεγμένα leads</span>
+          <button
+            onClick={handleBulkErmis}
+            disabled={bulkBusy}
+            className="flex items-center gap-2 bg-indigo-500 hover:bg-indigo-400 disabled:opacity-50 text-white text-sm font-semibold px-4 py-1.5 rounded-xl transition-colors"
+          >
+            <SparklesIcon className="w-4 h-4" />
+            {bulkBusy ? 'Αποστολή…' : `Έναρξη ΕΡΜΗΣ (${selectedIds.size})`}
+          </button>
+          <button onClick={() => setSelectedIds(new Set())} className="text-gray-400 hover:text-white text-sm px-2 py-1 rounded-lg">
+            ✕ Αποεπιλογή
+          </button>
+        </div>
+      )}
     </div>
   )
 }

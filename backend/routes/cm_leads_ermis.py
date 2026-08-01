@@ -78,6 +78,11 @@ class ErmisStartIn(BaseModel):
     channel: Optional[str] = "both"  # viber | email | both | none
 
 
+class BulkErmisStartIn(BaseModel):
+    lead_ids: List[int]
+    channel: Optional[str] = "both"
+
+
 def _build_ermis_body(l: CMLead) -> dict:
     # Flatten program-specific fields to {label: value} for easy prompt injection
     extra_fields = {}
@@ -272,6 +277,56 @@ def _process_ermis_session(lead_id: int, send_link: bool, channel: str, actor_na
             db.commit()
     finally:
         db.close()
+
+
+@router.post("/ermis/bulk-start")
+def bulk_start_ermis(
+    req: BulkErmisStartIn,
+    current_user: CMUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Start ΕΡΜΗΣ sessions for multiple leads at once.
+    Leads without AFM/program or already in progress/done are skipped.
+    Processing runs in a single background thread (sequential) to avoid
+    overwhelming LOGISTIS with concurrent requests."""
+    if not _shared_secret():
+        raise HTTPException(status_code=500, detail="IMENTOR_PORTAL_API_KEY δεν έχει ρυθμιστεί")
+
+    leads = db.query(CMLead).filter(CMLead.id.in_(req.lead_ids)).all()
+    to_process: list[int] = []
+    skipped: list[dict] = []
+
+    for l in leads:
+        if not (l.afm or "").strip():
+            skipped.append({"id": l.id, "name": l.name, "reason": "Λείπει ΑΦΜ"})
+            continue
+        if not (l.program_title or l.service_type or l.program or "").strip():
+            skipped.append({"id": l.id, "name": l.name, "reason": "Λείπει πρόγραμμα"})
+            continue
+        if l.ermis_status in ("in_progress", "starting", "eligible", "ineligible"):
+            skipped.append({"id": l.id, "name": l.name, "reason": f"Ήδη: {l.ermis_status}"})
+            continue
+        # Mark as starting now so duplicate clicks don't re-queue
+        l.ermis_status = "starting"
+        l.ermis_started_at = datetime.utcnow()
+        to_process.append(l.id)
+
+    db.commit()
+
+    actor = current_user.full_name
+    channel = req.channel or "both"
+
+    def _bulk_worker():
+        for lid in to_process:
+            try:
+                _process_ermis_session(lid, True, channel, actor)
+            except Exception as exc:
+                log.exception("Bulk ΕΡΜΗΣ: lead %s failed: %s", lid, exc)
+
+    if to_process:
+        threading.Thread(target=_bulk_worker, daemon=True).start()
+
+    return {"ok": True, "queued": len(to_process), "skipped": skipped}
 
 
 @router.post("/{lead_id}/ermis/start")
