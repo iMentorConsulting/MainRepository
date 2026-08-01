@@ -1,7 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  serverExternalPackages: ['playwright-core'],
   experimental: {
+    serverComponentsExternalPackages: ['playwright-core'],
     serverActions: {
       allowedOrigins: ['logistis.i-mentor.gr', 'localhost:3000'],
       bodySizeLimit: '10mb',
