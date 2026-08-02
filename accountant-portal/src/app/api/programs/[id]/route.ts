@@ -28,6 +28,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
         ? { where: { accountantId }, select: { id: true, title: true, status: true, sentAt: true } }
         : { select: { id: true, title: true, status: true, sentAt: true } },
       _count: { select: { matches: { where: matchWhere } } },
+      requiredDocuments: { orderBy: [{ order: 'asc' }, { createdAt: 'asc' }] },
     }
   })
 
@@ -45,12 +46,24 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
   delete data.id; delete data.matches; delete data.campaigns; delete data.requests
   delete data.createdAt; delete data.updatedAt; delete data._count
 
+  const requiredDocumentIds: string[] | undefined = data.requiredDocumentIds
+  delete data.requiredDocumentIds
+  delete data.requiredDocuments
+
   if (data.startDate) data.startDate = new Date(data.startDate)
   else data.startDate = null
   if (data.endDate) data.endDate = new Date(data.endDate)
   else data.endDate = null
 
-  const program = await prisma.program.update({ where: { id: params.id }, data })
+  const program = await prisma.program.update({
+    where: { id: params.id },
+    data: {
+      ...data,
+      ...(requiredDocumentIds != null
+        ? { requiredDocuments: { set: requiredDocumentIds.map(id => ({ id })) } }
+        : {}),
+    },
+  })
 
   // If the program is now closed (inactive, archived, or outside its date window),
   // immediately dismiss all POTENTIAL matches so accountants stop seeing them.

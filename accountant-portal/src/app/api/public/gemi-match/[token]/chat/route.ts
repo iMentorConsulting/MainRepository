@@ -215,6 +215,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         otherRequirements: true, pricingNote: true, internalNotes: true, ermisInstructions: true,
         extraCriteriaIds: true, eligibilityQuestions: true,
         minRegdate: true, maxRegdate: true,
+        requiredDocuments: { select: { name: true, category: true, instructions: true }, orderBy: [{ order: 'asc' }, { createdAt: 'asc' }] },
       },
     }),
     prisma.gemiProgramMatch.findUnique({

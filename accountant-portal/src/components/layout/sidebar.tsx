@@ -20,6 +20,7 @@ const navItems = [
   { href: '/notify-matches', label: 'Custom Ειδοποιήσεις', icon: BellRing, adminOnly: true },
   { href: '/campaigns', label: 'Ενημερώσεις προς Πελάτες', icon: Send, adminOnly: false, hideFor: ['CONSULTANT'] },
   { href: '/templates', label: 'Πρότυπα Μηνυμάτων', icon: FileText, adminOnly: true },
+  { href: '/program-documents', label: 'Λεξικό Εγγράφων', icon: FileText, adminOnly: true },
   { href: '/criteria', label: 'Πρόσθετα Κριτήρια', icon: ListChecks, adminOnly: true },
   { href: '/payments', label: 'Πληρωμές', icon: CreditCard, adminOnly: true },
   { href: '/commissions', label: 'Προμήθειες', icon: Percent, adminOnly: false, hideFor: ['CONSULTANT'] },

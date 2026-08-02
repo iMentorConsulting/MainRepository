@@ -302,6 +302,8 @@ export default function EditProgramPage() {
   const [requireTags, setRequireTags] = useState<string[]>([])
   const [tagOptions, setTagOptions] = useState<{ label: string }[]>([])
   const [expenseCategories, setExpenseCategories] = useState<ExpenseCategory[]>([])
+  const [requiredDocumentIds, setRequiredDocumentIds] = useState<string[]>([])
+  const [allDocuments, setAllDocuments] = useState<{ id: string; name: string; category: string; instructions: string | null }[]>([])
   // WordPress integration
   const [wpTemplates, setWpTemplates] = useState<{ id: string; name: string; categories: string[] }[]>([])
   const [wpPageId, setWpPageId] = useState<number | null>(null)
@@ -328,6 +330,10 @@ export default function EditProgramPage() {
       .then(r => r.json())
       .then(data => setWpTemplates(Array.isArray(data) ? data : []))
       .catch(() => {})
+    fetch('/api/admin/program-documents')
+      .then(r => r.json())
+      .then(data => setAllDocuments(Array.isArray(data) ? data : []))
+      .catch(() => {})
   }, [])
 
   useEffect(() => {
@@ -347,6 +353,7 @@ export default function EditProgramPage() {
         setAttachmentUrls(program.attachmentUrls || [])
         setAttachmentNames(program.attachmentNames || [])
         setExpenseCategories(Array.isArray(program.expenseCategories) ? program.expenseCategories : [])
+        setRequiredDocumentIds((program.requiredDocuments || []).map((d: { id: string }) => d.id))
         setWpPageId(program.wpPageId ?? null)
         setWpPageUrl(program.wpPageUrl ?? null)
         reset({
@@ -385,7 +392,7 @@ export default function EditProgramPage() {
     const res = await fetch(`/api/programs/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...data, heroImageUrl: heroImage || null, kadRules, excludedKadRules, regionRules, zipCodeRules, excludedLegalForms, extraCriteriaIds, excludeTags, requireTags, videoUrls, attachmentUrls, attachmentNames, expenseCategories }),
+      body: JSON.stringify({ ...data, heroImageUrl: heroImage || null, kadRules, excludedKadRules, regionRules, zipCodeRules, excludedLegalForms, extraCriteriaIds, excludeTags, requireTags, videoUrls, attachmentUrls, attachmentNames, expenseCategories, requiredDocumentIds }),
     })
     if (res.ok) {
       router.push(`/programs/${id}`)
@@ -738,6 +745,39 @@ export default function EditProgramPage() {
                 Οδηγίες συμπεριφοράς ειδικά για αυτό το πρόγραμμα (π.χ. τόνος, τι να τονίσει/αποφύγει). Προστίθενται απευθείας στις οδηγίες του Ερμή, δεν εμφανίζονται πουθενά δημόσια.
               </p>
               <Textarea {...register('ermisInstructions')} rows={3} placeholder="π.χ. Δώσε έμφαση στην ταχύτητα έγκρισης. Μην αναφέρεις το πρόγραμμα Χ ως εναλλακτική." />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Απαιτούμενα Έγγραφα (Ερμής)</label>
+              <p className="text-sm text-gray-500 mb-3">
+                Ο Ερμής θα ζητήσει αυτά τα έγγραφα αφού επιβεβαιωθεί η επιλεξιμότητα. Διαχείριση λεξικού:{' '}
+                <a href="/program-documents" target="_blank" className="text-indigo-600 underline hover:text-indigo-800">Λεξικό Εγγράφων</a>.
+              </p>
+              {allDocuments.length === 0 ? (
+                <p className="text-sm text-slate-400 italic">Δεν υπάρχουν έγγραφα στο λεξικό ακόμη.</p>
+              ) : (
+                <div className="space-y-2">
+                  {allDocuments.map(doc => (
+                    <label key={doc.id} className="flex items-start gap-2.5 cursor-pointer group">
+                      <input
+                        type="checkbox"
+                        className="mt-0.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                        checked={requiredDocumentIds.includes(doc.id)}
+                        onChange={e => {
+                          if (e.target.checked) setRequiredDocumentIds(prev => [...prev, doc.id])
+                          else setRequiredDocumentIds(prev => prev.filter(id => id !== doc.id))
+                        }}
+                      />
+                      <div>
+                        <span className="text-sm font-medium text-slate-800 group-hover:text-indigo-700 transition-colors">{doc.name}</span>
+                        <span className={`ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium ${doc.category === 'SELF_SERVICE' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                          {doc.category === 'SELF_SERVICE' ? 'Αυτοεξυπηρέτηση' : 'Μέσω Λογιστή'}
+                        </span>
+                        {doc.instructions && <p className="text-xs text-slate-400 mt-0.5">{doc.instructions}</p>}
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>

@@ -330,6 +330,7 @@ model Program {
   commissionPolicies CommissionPolicy[]
   clientCases        ClientCase[]
   matchActionTokens  MatchActionToken[]
+  requiredDocuments  ProgramDocument[]
 }
 
 enum ProgramCategory {
@@ -1285,4 +1286,22 @@ model MatchActionToken {
   createdAt    DateTime   @default(now())
 
   @@unique([accountantId, programId])
+}
+
+// ─── Program Document Dictionary ──────────────────────────────────────────────
+
+model ProgramDocument {
+  id           String                  @id @default(cuid())
+  name         String
+  category     ProgramDocumentCategory
+  instructions String?
+  order        Int                     @default(0)
+  programs     Program[]
+  createdAt    DateTime                @default(now())
+  updatedAt    DateTime                @updatedAt
+}
+
+enum ProgramDocumentCategory {
+  SELF_SERVICE
+  VIA_ACCOUNTANT
 }

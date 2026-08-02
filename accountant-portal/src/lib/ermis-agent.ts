@@ -53,6 +53,7 @@ function buildSystemPrompt(program: {
   ermisInstructions: string | null
   minRegdate?: string | null
   maxRegdate?: string | null
+  requiredDocuments?: { name: string; category: string; instructions: string | null }[]
 }, businessName: string, autoConfirmedReasons: string[], qualitativeQuestions: EligibilityQuestion[],
   contextSummary?: string | null, consultant?: string | null) {
   const isLoan = program.category === 'MICROCREDITS'
@@ -136,7 +137,32 @@ ${isLoan ? 'ΣΗΜΑΝΤΙΚΟ: Αυτό το πρόγραμμα είναι ΔΑ
 ΩΡΑΡΙΟ ΕΞΥΠΗΡΕΤΗΣΗΣ:
 Οι σύμβουλοι της I-MENTOR είναι διαθέσιμοι **Δευτέρα έως Παρασκευή, 08:00–16:30**. Αν ο πελάτης ζητήσει επικοινωνία εκτός αυτών των ωρών (απόγευμα μετά τις 16:30, Σαββατοκύριακο ή αργία), ενημέρωσέ τον ευγενικά ότι η επικοινωνία γίνεται εντός ωραρίου και ότι θα επικοινωνήσουμε μαζί του την επόμενη εργάσιμη μέρα.
 
-Μην κάνεις ποτέ νομικές δεσμευτικές διαβεβαιώσεις — η τελική έγκριση είναι πάντα του φορέα διαχείρισης του προγράμματος.`
+Μην κάνεις ποτέ νομικές δεσμευτικές διαβεβαιώσεις — η τελική έγκριση είναι πάντα του φορέα διαχείρισης του προγράμματος.
+${buildRequiredDocsSection(program.requiredDocuments)}`
+}
+
+function buildRequiredDocsSection(docs?: { name: string; category: string; instructions: string | null }[]): string {
+  if (!docs || docs.length === 0) return ''
+  const selfService = docs.filter(d => d.category === 'SELF_SERVICE')
+  const viaAccountant = docs.filter(d => d.category === 'VIA_ACCOUNTANT')
+  const lines: string[] = ['\nΑΠΑΙΤΟΥΜΕΝΑ ΕΓΓΡΑΦΑ (ενεργοποιείται μόνο όταν η επιχείρηση φανεί επιλέξιμη):']
+  lines.push('Όταν ο πελάτης επιβεβαιώσει ότι θέλει να προχωρήσει, ΑΜΕΣΩΣ ΜΕΤΑ το assign_case ενημέρωσέ τον για τα απαιτούμενα έγγραφα, χωρισμένα σε δύο ομάδες:')
+  if (selfService.length > 0) {
+    lines.push('\n**Έγγραφα που μπορείτε να βγάλετε μόνοι σας:**')
+    for (const d of selfService) {
+      lines.push(`- **${d.name}**${d.instructions ? ` — ${d.instructions}` : ''}`)
+    }
+  }
+  if (viaAccountant.length > 0) {
+    lines.push('\n**Έγγραφα που χρειάζεστε από τον λογιστή σας:**')
+    for (const d of viaAccountant) {
+      lines.push(`- **${d.name}**${d.instructions ? ` — ${d.instructions}` : ''}`)
+    }
+  }
+  lines.push('\nΖητάς να τα στείλουν στο **info@i-mentor.gr** με θέμα: **ΕΓΓΡΑΦΑ - [Επωνυμία επιχείρησης]**.')
+  lines.push('Πρόσθεσε: "Χωρίς αυτά τα έγγραφα ο σύμβουλος δεν μπορεί να κάνει το επόμενο βήμα — η υπόθεσή σας εκκρεμεί μέχρι τότε."')
+  lines.push('Κλείσε με: "Θα μπορέσετε να τα στείλετε σήμερα;"')
+  return lines.join('\n')
 }
 
 async function autoTagBusinessFromErmis(businessId: string, programTitle: string): Promise<void> {
@@ -256,6 +282,7 @@ export async function runErmisTurn(params: {
     pricingNote: string | null
     internalNotes: string | null
     ermisInstructions: string | null
+    requiredDocuments?: { name: string; category: string; instructions: string | null }[]
   }
   autoConfirmedReasons: string[]
   qualitativeQuestions?: EligibilityQuestion[]
