@@ -89,7 +89,7 @@ export default function BusinessesPage() {
       return `${col}:asc`
     })
   }
-  const [includeIndividuals, setIncludeIndividuals] = useState(false)
+  const [includeIndividuals, setIncludeIndividuals] = useState(true)
   const [inactiveOnly, setInactiveOnly] = useState(false)
   const [websiteFormOnly, setWebsiteFormOnly] = useState(false)
 
