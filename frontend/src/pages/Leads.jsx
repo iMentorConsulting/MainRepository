@@ -259,11 +259,23 @@ function ExpandedRow({ lead, colSpan, onChanged, onConvert, onErmis, onSend, pro
   const delC = async (cid) => { if (!confirm('Διαγραφή σχολίου;')) return; try { await deleteLeadComment(lead.id, cid); setComments(cs => cs.filter(c => c.id !== cid)); onChanged?.() } catch { toast.error('Σφάλμα') } }
   const saveEdit = async () => { try { const l = await updateLead(lead.id, { ...form, total_amount: parseFloat(form.total_amount) || 0 }); setFull(l); setEditing(false); onChanged?.() } catch { toast.error('Σφάλμα') } }
   const handleResend = async () => {
-    if (!confirm(`Αποστολή link ΕΡΜΗΣ ξανά στον ${full?.name || 'πελάτη'};`)) return
+    const log = full?.ermis_send_log || []
+    const lastSent = log[0]
+    let warning = ''
+    if (lastSent) {
+      const ago = Date.now() - new Date(lastSent.created_at).getTime()
+      const hoursAgo = Math.round(ago / 3600000)
+      const timeLabel = hoursAgo < 1 ? 'πριν από λιγότερο από 1 ώρα' : `πριν από ${hoursAgo} ώρ${hoursAgo === 1 ? 'α' : 'ες'}`
+      warning = `\n\nΤελευταία αποστολή: ${timeLabel} (από ${lastSent.sent_by || '—'})\nΣύνολο αποστολών: ${log.length}`
+    }
+    if (!confirm(`Αποστολή link ΕΡΜΗΣ ξανά στον ${full?.name || 'πελάτη'};${warning}`)) return
     setResending(true)
     try {
       const res = await resendLeadErmisLink(lead.id, { send_link: true, channel: 'both' })
-      toast.success(`Link ΕΡΜΗΣ εστάλη ξανά (${(res.sent || []).join(' & ') || 'κανάλι άγνωστο'})`)
+      const sent = res.sent || []
+      if (sent.length === 0) toast.error('Δεν εστάλη τίποτα — ελέγξτε αν υπάρχει τηλ/email')
+      else toast.success(`Link ΕΡΜΗΣ εστάλη ξανά: ${sent.join(' & ')}`)
+      await reload()
     } catch (e) {
       toast.error(e.response?.data?.detail || 'Σφάλμα αποστολής')
     } finally { setResending(false) }
@@ -317,14 +329,32 @@ function ExpandedRow({ lead, colSpan, onChanged, onConvert, onErmis, onSend, pro
               <SparklesIcon className="w-4 h-4" />{syncing ? '…' : '↓ ΕΡΜΗΣ από άλλο πρόγραμμα'}
             </button>
           )}
-          {(full?.ermis_status === 'starting' || full?.ermis_status === 'in_progress') && (
-            <span className="flex items-center gap-2 text-sm bg-indigo-50 text-indigo-500 px-3 py-1.5 rounded-lg">
-              <SparklesIcon className="w-4 h-4 animate-spin" />ΕΡΜΗΣ εστάλη — αναμονή απάντησης
-              <button onClick={handleResend} disabled={resending} className="ml-1 text-xs font-semibold bg-indigo-100 hover:bg-indigo-200 text-indigo-700 px-2 py-0.5 rounded-md disabled:opacity-50">
-                {resending ? '…' : '↺ Αποστολή ξανά'}
-              </button>
-            </span>
-          )}
+          {(full?.ermis_status === 'starting' || full?.ermis_status === 'in_progress') && (() => {
+            const sendLog = full?.ermis_send_log || []
+            const lastSent = sendLog[0]
+            const lastTime = lastSent ? new Date(lastSent.created_at) : null
+            const hoursAgo = lastTime ? Math.round((Date.now() - lastTime.getTime()) / 3600000) : null
+            const timeLabel = hoursAgo == null ? null : hoursAgo < 1 ? 'μόλις τώρα' : `${hoursAgo}ω πριν`
+            const viberEntries = sendLog.filter(e => !e.contact?.includes('@'))
+            const emailEntries = sendLog.filter(e => e.contact?.includes('@'))
+            const lastViber = viberEntries[0]
+            const lastEmail = emailEntries[0]
+            return (
+              <span className="flex items-center gap-2 text-sm bg-indigo-50 text-indigo-500 px-3 py-1.5 rounded-lg">
+                <SparklesIcon className="w-4 h-4 animate-spin" />ΕΡΜΗΣ εστάλη — αναμονή απάντησης
+                {timeLabel && (
+                  <span className="text-xs text-indigo-400 border-l border-indigo-200 pl-2">
+                    {sendLog.length}x · τελ. {timeLabel}
+                    {lastViber && <span className={`ml-1 ${lastViber.status === 'sent' ? 'text-green-600' : 'text-red-400'}`} title={`Viber: ${lastViber.status}`}>{lastViber.status === 'sent' ? '📱✓' : '📱✗'}</span>}
+                    {lastEmail && <span className={`ml-1 ${lastEmail.status === 'sent' ? 'text-green-600' : 'text-red-400'}`} title={`Email: ${lastEmail.status}`}>{lastEmail.status === 'sent' ? '✉✓' : '✉✗'}</span>}
+                  </span>
+                )}
+                <button onClick={handleResend} disabled={resending} className="ml-1 text-xs font-semibold bg-indigo-100 hover:bg-indigo-200 text-indigo-700 px-2 py-0.5 rounded-md disabled:opacity-50">
+                  {resending ? '…' : '↺ Αποστολή ξανά'}
+                </button>
+              </span>
+            )
+          })()}
           <span className="flex items-center gap-1 text-sm bg-blue-600 text-white px-3 py-1.5 rounded-lg">
             <ChatBubbleLeftRightIcon className="w-4 h-4" />Σχόλια ({comments.length})
           </span>
