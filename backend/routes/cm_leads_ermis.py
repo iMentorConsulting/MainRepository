@@ -241,7 +241,7 @@ def _process_ermis_session(lead_id: int, send_link: bool, channel: str, actor_na
             email_html = f"""<html><body style="margin:0;background:#f3f4f6;padding:24px;font-family:Arial,Helvetica,sans-serif;color:#1f2937;">
 <div style="max-width:600px;margin:0 auto;">
   <div style="background:#1e3a5f;padding:22px 24px;border-radius:10px 10px 0 0;text-align:center;">
-    <h2 style="color:#ffffff;margin:0;">i-Mentor Consulting</h2>
+    <img src="https://i-mentor.gr/wp-content/uploads/2026/06/logo-white-transparent.png" alt="i-Mentor Consulting" style="max-height:56px;max-width:220px;width:auto;display:block;margin:0 auto;" />
   </div>
   <div style="background:#ffffff;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 10px 10px;padding:26px 24px;">
     <p style="font-size:16px;margin:0 0 14px;">Αγαπητέ/ή <b>{name}</b>,</p>
@@ -257,7 +257,13 @@ def _process_ermis_session(lead_id: int, send_link: bool, channel: str, actor_na
     </div>
     {consultant_html}
     <hr style="border:none;border-top:1px solid #eee;margin:18px 0;">
-    <p style="font-size:12px;color:#9ca3af;margin:0;">i-Mentor Consulting · Λάβατε αυτό το μήνυμα επειδή συμπληρώσατε φόρμα ενδιαφέροντος.</p>
+    <p style="font-size:12px;color:#9ca3af;margin:0;">
+      i-Mentor Consulting ·
+      <a href="https://www.i-mentor.gr" style="color:#6b7280;text-decoration:none;">www.i-mentor.gr</a> ·
+      <a href="mailto:info@i-mentor.gr" style="color:#6b7280;text-decoration:none;">info@i-mentor.gr</a> ·
+      2810 363007<br>
+      Λάβατε αυτό το μήνυμα επειδή συμπληρώσατε φόρμα ενδιαφέροντος.
+    </p>
   </div>
 </div></body></html>"""
 
@@ -379,7 +385,7 @@ def bulk_resend_ermis(
         email_html = f"""<html><body style="margin:0;background:#f3f4f6;padding:24px;font-family:Arial,Helvetica,sans-serif;color:#1f2937;">
 <div style="max-width:600px;margin:0 auto;">
   <div style="background:#1e3a5f;padding:22px 24px;border-radius:10px 10px 0 0;text-align:center;">
-    <h2 style="color:#ffffff;margin:0;">i-Mentor Consulting</h2>
+    <img src="https://i-mentor.gr/wp-content/uploads/2026/06/logo-white-transparent.png" alt="i-Mentor Consulting" style="max-height:56px;max-width:220px;width:auto;display:block;margin:0 auto;" />
   </div>
   <div style="background:#ffffff;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 10px 10px;padding:26px 24px;">
     <p style="font-size:16px;margin:0 0 14px;">Αγαπητέ/ή <b>{name}</b>,</p>
@@ -394,7 +400,13 @@ def bulk_resend_ermis(
     </div>
     {consultant_html}
     <hr style="border:none;border-top:1px solid #eee;margin:18px 0;">
-    <p style="font-size:12px;color:#9ca3af;margin:0;">i-Mentor Consulting · Λάβατε αυτό το μήνυμα επειδή συμπληρώσατε φόρμα ενδιαφέροντος.</p>
+    <p style="font-size:12px;color:#9ca3af;margin:0;">
+      i-Mentor Consulting ·
+      <a href="https://www.i-mentor.gr" style="color:#6b7280;text-decoration:none;">www.i-mentor.gr</a> ·
+      <a href="mailto:info@i-mentor.gr" style="color:#6b7280;text-decoration:none;">info@i-mentor.gr</a> ·
+      2810 363007<br>
+      Λάβατε αυτό το μήνυμα επειδή συμπληρώσατε φόρμα ενδιαφέροντος.
+    </p>
   </div>
 </div></body></html>"""
 
@@ -508,7 +520,7 @@ def resend_ermis_link(
     email_html = f"""<html><body style="margin:0;background:#f3f4f6;padding:24px;font-family:Arial,Helvetica,sans-serif;color:#1f2937;">
 <div style="max-width:600px;margin:0 auto;">
   <div style="background:#1e3a5f;padding:22px 24px;border-radius:10px 10px 0 0;text-align:center;">
-    <h2 style="color:#ffffff;margin:0;">i-Mentor Consulting</h2>
+    <img src="https://i-mentor.gr/wp-content/uploads/2026/06/logo-white-transparent.png" alt="i-Mentor Consulting" style="max-height:56px;max-width:220px;width:auto;display:block;margin:0 auto;" />
   </div>
   <div style="background:#ffffff;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 10px 10px;padding:26px 24px;">
     <p style="font-size:16px;margin:0 0 14px;">Αγαπητέ/ή <b>{name}</b>,</p>
@@ -524,7 +536,13 @@ def resend_ermis_link(
     </div>
     {consultant_html}
     <hr style="border:none;border-top:1px solid #eee;margin:18px 0;">
-    <p style="font-size:12px;color:#9ca3af;margin:0;">i-Mentor Consulting · Λάβατε αυτό το μήνυμα επειδή συμπληρώσατε φόρμα ενδιαφέροντος.</p>
+    <p style="font-size:12px;color:#9ca3af;margin:0;">
+      i-Mentor Consulting ·
+      <a href="https://www.i-mentor.gr" style="color:#6b7280;text-decoration:none;">www.i-mentor.gr</a> ·
+      <a href="mailto:info@i-mentor.gr" style="color:#6b7280;text-decoration:none;">info@i-mentor.gr</a> ·
+      2810 363007<br>
+      Λάβατε αυτό το μήνυμα επειδή συμπληρώσατε φόρμα ενδιαφέροντος.
+    </p>
   </div>
 </div></body></html>"""
 
