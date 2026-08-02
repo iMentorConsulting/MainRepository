@@ -26,7 +26,7 @@ const STATUS_ROW = {
   'NEW LEAD': 'bg-yellow-50/40', 'CALL': 'bg-blue-50/40', 'HOT': 'bg-red-50/40',
   'ACTIVE': 'bg-amber-50/30', 'DEAL': 'bg-green-50/40', 'CANCEL': 'bg-gray-50/60',
 }
-const ERMIS_BADGE = { starting: 'bg-amber-100 text-amber-700', in_progress: 'bg-indigo-100 text-indigo-700', eligible: 'bg-green-100 text-green-700', ineligible: 'bg-gray-100 text-gray-500', error: 'bg-red-100 text-red-700' }
+const ERMIS_BADGE = { starting: 'bg-amber-100 text-amber-700', in_progress: 'bg-indigo-100 text-indigo-700', reminded: 'bg-orange-100 text-orange-700', eligible: 'bg-green-100 text-green-700', ineligible: 'bg-gray-100 text-gray-500', error: 'bg-red-100 text-red-700' }
 const REMINDERS = [
   { key: 'overdue', label: 'Ληξιπρόθεσμα', dot: 'bg-red-500' },
   { key: 'today', label: 'Σήμερα', dot: 'bg-yellow-400' },
@@ -94,6 +94,9 @@ function eligibilityCell(lead) {
   }
   if (lead.ermis_status === 'starting' || lead.ermis_status === 'in_progress') {
     return <span className="text-xs text-gray-400">σε εξέλιξη…</span>
+  }
+  if (lead.ermis_status === 'reminded') {
+    return <span className="text-xs text-orange-600">υπενθύμιση εστάλη</span>
   }
   return <span className="text-gray-300 text-xs">—</span>
 }
@@ -258,15 +261,23 @@ function ExpandedRow({ lead, colSpan, onChanged, onConvert, onErmis, onSend, pro
   const addC = async (txt) => { try { await addLeadComment(lead.id, txt); setComments(await getLeadComments(lead.id)); onChanged?.() } catch { toast.error('Σφάλμα σχολίου') } }
   const delC = async (cid) => { if (!confirm('Διαγραφή σχολίου;')) return; try { await deleteLeadComment(lead.id, cid); setComments(cs => cs.filter(c => c.id !== cid)); onChanged?.() } catch { toast.error('Σφάλμα') } }
   const saveEdit = async () => { try { const l = await updateLead(lead.id, { ...form, total_amount: parseFloat(form.total_amount) || 0 }); setFull(l); setEditing(false); onChanged?.() } catch { toast.error('Σφάλμα') } }
+  const fmtGrDate = (isoStr) => {
+    if (!isoStr) return ''
+    const dt = new Date(isoStr.endsWith('Z') || isoStr.includes('+') ? isoStr : isoStr + 'Z')
+    const d = dt.getDate(), m = dt.getMonth() + 1, yy = String(dt.getFullYear()).slice(-2)
+    const hh = String(dt.getHours()).padStart(2, '0'), mm = String(dt.getMinutes()).padStart(2, '0')
+    return `${d}/${m}/${yy} ${hh}:${mm}`
+  }
   const handleResend = async () => {
     const log = full?.ermis_send_log || []
     const lastSent = log[0]
+    const sendCount = Math.max(
+      log.filter(e => !e.contact?.includes('@')).length,
+      log.filter(e => e.contact?.includes('@')).length
+    ) || log.length
     let warning = ''
     if (lastSent) {
-      const ago = Date.now() - new Date(lastSent.created_at).getTime()
-      const hoursAgo = Math.round(ago / 3600000)
-      const timeLabel = hoursAgo < 1 ? 'πριν από λιγότερο από 1 ώρα' : `πριν από ${hoursAgo} ώρ${hoursAgo === 1 ? 'α' : 'ες'}`
-      warning = `\n\nΤελευταία αποστολή: ${timeLabel} (από ${lastSent.sent_by || '—'})\nΣύνολο αποστολών: ${log.length}`
+      warning = `\n\nΤελευταία αποστολή: ${fmtGrDate(lastSent.created_at)} (από ${lastSent.sent_by || '—'})\nΣύνολο αποστολών: ${sendCount}`
     }
     if (!confirm(`Αποστολή link ΕΡΜΗΣ ξανά στον ${full?.name || 'πελάτη'};${warning}`)) return
     setResending(true)
@@ -329,27 +340,27 @@ function ExpandedRow({ lead, colSpan, onChanged, onConvert, onErmis, onSend, pro
               <SparklesIcon className="w-4 h-4" />{syncing ? '…' : '↓ ΕΡΜΗΣ από άλλο πρόγραμμα'}
             </button>
           )}
-          {(full?.ermis_status === 'starting' || full?.ermis_status === 'in_progress') && (() => {
+          {['starting', 'in_progress', 'reminded'].includes(full?.ermis_status) && (() => {
             const sendLog = full?.ermis_send_log || []
             const lastSent = sendLog[0]
-            const lastTime = lastSent ? new Date(lastSent.created_at) : null
-            const hoursAgo = lastTime ? Math.round((Date.now() - lastTime.getTime()) / 3600000) : null
-            const timeLabel = hoursAgo == null ? null : hoursAgo < 1 ? 'μόλις τώρα' : `${hoursAgo}ω πριν`
             const viberEntries = sendLog.filter(e => !e.contact?.includes('@'))
             const emailEntries = sendLog.filter(e => e.contact?.includes('@'))
+            const sendCount = Math.max(viberEntries.length, emailEntries.length) || sendLog.length
             const lastViber = viberEntries[0]
             const lastEmail = emailEntries[0]
+            const isReminded = full?.ermis_status === 'reminded'
             return (
-              <span className="flex items-center gap-2 text-sm bg-indigo-50 text-indigo-500 px-3 py-1.5 rounded-lg">
-                <SparklesIcon className="w-4 h-4 animate-spin" />ΕΡΜΗΣ εστάλη — αναμονή απάντησης
-                {timeLabel && (
-                  <span className="text-xs text-indigo-400 border-l border-indigo-200 pl-2">
-                    {sendLog.length}x · τελ. {timeLabel}
+              <span className={`flex items-center gap-2 text-sm px-3 py-1.5 rounded-lg ${isReminded ? 'bg-amber-50 text-amber-600' : 'bg-indigo-50 text-indigo-500'}`}>
+                <SparklesIcon className="w-4 h-4 animate-spin" />
+                {isReminded ? 'ΕΡΜΗΣ — υπενθύμιση εστάλη' : 'ΕΡΜΗΣ εστάλη — αναμονή απάντησης'}
+                {lastSent && (
+                  <span className={`text-xs border-l pl-2 ${isReminded ? 'text-amber-400 border-amber-200' : 'text-indigo-400 border-indigo-200'}`}>
+                    {sendCount}x · τελ {fmtGrDate(lastSent.created_at)}
                     {lastViber && <span className={`ml-1 ${lastViber.status === 'sent' ? 'text-green-600' : 'text-red-400'}`} title={`Viber: ${lastViber.status}`}>{lastViber.status === 'sent' ? '📱✓' : '📱✗'}</span>}
                     {lastEmail && <span className={`ml-1 ${lastEmail.status === 'sent' ? 'text-green-600' : 'text-red-400'}`} title={`Email: ${lastEmail.status}`}>{lastEmail.status === 'sent' ? '✉✓' : '✉✗'}</span>}
                   </span>
                 )}
-                <button onClick={handleResend} disabled={resending} className="ml-1 text-xs font-semibold bg-indigo-100 hover:bg-indigo-200 text-indigo-700 px-2 py-0.5 rounded-md disabled:opacity-50">
+                <button onClick={handleResend} disabled={resending} className={`ml-1 text-xs font-semibold px-2 py-0.5 rounded-md disabled:opacity-50 ${isReminded ? 'bg-amber-100 hover:bg-amber-200 text-amber-700' : 'bg-indigo-100 hover:bg-indigo-200 text-indigo-700'}`}>
                   {resending ? '…' : '↺ Αποστολή ξανά'}
                 </button>
               </span>
@@ -397,6 +408,7 @@ function ExpandedRow({ lead, colSpan, onChanged, onConvert, onErmis, onSend, pro
                 <option value="eligible">eligible (επιλέξιμος)</option>
                 <option value="ineligible">ineligible (μη επιλέξιμος)</option>
                 <option value="in_progress">in_progress</option>
+                <option value="reminded">reminded</option>
                 <option value="error">error</option>
               </select>
             )}
@@ -569,7 +581,7 @@ export default function Leads() {
   const setFilter = (patchObj) => { setPage(1); setFilters(f => ({ ...f, ...patchObj })) }
 
   const handleErmis = async (lead) => {
-    if (['eligible', 'ineligible', 'in_progress', 'starting'].includes(lead.ermis_status)) return
+    if (['eligible', 'ineligible', 'in_progress', 'starting', 'reminded'].includes(lead.ermis_status)) return
     if (!confirm(`Έναρξη προαξιολόγησης ΕΡΜΗΣ και αποστολή link στον ${lead.name || 'lead'};`)) return
     const tid = toast.loading('Έναρξη ΕΡΜΗΣ…')
     try {
@@ -681,15 +693,24 @@ export default function Leads() {
       {/* ΕΡΜΗΣ filter chips */}
       <div className="flex flex-wrap items-center gap-2 mb-3">
         <span className="text-xs text-gray-400 flex items-center gap-1"><SparklesIcon className="w-3.5 h-3.5" />ΕΡΜΗΣ:</span>
-        {[
-          { key: 'not_sent', label: 'Δεν έχουν σταλεί', dot: 'bg-gray-400' },
-          { key: 'pending',  label: 'Σε αναμονή απάντησης', dot: 'bg-amber-400' },
-          { key: 'completed', label: 'Ολοκληρωμένο', dot: 'bg-green-500' },
-        ].map(r => (
-          <button key={r.key} onClick={() => setFilter({ ermis_filter: filters.ermis_filter === r.key ? '' : r.key })} className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs border ${filters.ermis_filter === r.key ? 'bg-indigo-50 border-indigo-400 text-indigo-700' : 'bg-white border-gray-300 text-gray-600'}`}>
-            <span className={`w-2 h-2 rounded-full ${r.dot}`} />{r.label}
-          </button>
-        ))}
+        {(() => {
+          const ec = options.ermis_status_counts || {}
+          const notSentCount = (ec[''] || 0) + (ec['error'] || 0) + (ec[null] || 0)
+          const pendingCount = (ec['starting'] || 0) + (ec['in_progress'] || 0) + (ec['reminded'] || 0)
+          const remindedCount = ec['reminded'] || 0
+          const completedCount = (ec['eligible'] || 0) + (ec['ineligible'] || 0)
+          return [
+            { key: 'not_sent',  label: 'Δεν έχουν σταλεί',       dot: 'bg-gray-400',   count: pendingCount + completedCount > 0 ? null : null },
+            { key: 'pending',   label: 'Σε αναμονή',              dot: 'bg-amber-400',  count: pendingCount },
+            { key: 'reminded',  label: 'Υπενθύμιση εστάλη',      dot: 'bg-orange-400', count: remindedCount },
+            { key: 'completed', label: 'Ολοκληρωμένο',            dot: 'bg-green-500',  count: completedCount },
+          ].map(r => (
+            <button key={r.key} onClick={() => setFilter({ ermis_filter: filters.ermis_filter === r.key ? '' : r.key })} className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs border ${filters.ermis_filter === r.key ? 'bg-indigo-50 border-indigo-400 text-indigo-700' : 'bg-white border-gray-300 text-gray-600'}`}>
+              <span className={`w-2 h-2 rounded-full ${r.dot}`} />{r.label}
+              {r.count > 0 && <span className="bg-gray-200 text-gray-700 rounded-full px-1.5 py-0 text-[10px] font-semibold ml-0.5">{r.count}</span>}
+            </button>
+          ))
+        })()}
       </div>
       {/* Filters */}
       <div className="flex flex-wrap gap-2 mb-3">

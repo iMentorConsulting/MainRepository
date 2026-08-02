@@ -414,6 +414,8 @@ def bulk_resend_ermis(
                                          status="sent" if ok else "failed", sent_by=actor))
             if ok: ch_sent.append("Email")
 
+        if ch_sent:
+            l.ermis_status = "reminded"
         sent.append({"id": l.id, "name": l.name, "sent": ch_sent})
         log.info("Bulk ΕΡΜΗΣ resend: lead %s → %s", l.id, ch_sent)
 
@@ -542,6 +544,8 @@ def resend_ermis_link(
                                      subject=email_subject, content=email_subject,
                                      status="sent" if ok else "failed", sent_by=current_user.full_name))
         if ok: sent.append("Email")
+    if sent:
+        l.ermis_status = "reminded"
     db.commit()
     return {"ok": True, "sent": sent}
 
