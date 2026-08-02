@@ -538,6 +538,29 @@ def get_lead(
                 "label": (v.get("label") if isinstance(v, dict) else k),
                 "answer": (v.get("value") if isinstance(v, dict) else v),
             })
+
+    # Last 10 ΕΡΜΗΣ link send attempts (for resend history / Viber vs email status)
+    ermis_logs = (
+        db.query(CMLeadNotificationLog)
+        .filter(
+            CMLeadNotificationLog.lead_id == l.id,
+            CMLeadNotificationLog.notification_type == "ermis_link",
+        )
+        .order_by(CMLeadNotificationLog.created_at.desc())
+        .limit(10)
+        .all()
+    )
+    data["ermis_send_log"] = [
+        {
+            "id": lg.id,
+            "contact": lg.recipient_contact,
+            "subject": lg.subject,
+            "status": lg.status,
+            "sent_by": lg.sent_by,
+            "created_at": lg.created_at.isoformat() if lg.created_at else None,
+        }
+        for lg in ermis_logs
+    ]
     return data
 
 
