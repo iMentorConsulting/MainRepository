@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef, Fragment } from 'react'
 import {
   getLeads, getLeadFilterOptions, getLead, createLead, updateLead, deleteLead,
   getLeadComments, addLeadComment, editLeadComment, deleteLeadComment,
-  sendLeadMessage, convertLeadToCase, startLeadErmis, resendLeadErmisLink, bulkStartErmis, pullErmisFromSibling, getLeadDuplicates, mergeLeads,
+  sendLeadMessage, convertLeadToCase, startLeadErmis, resendLeadErmisLink, bulkStartErmis, bulkResendErmis, pullErmisFromSibling, getLeadDuplicates, mergeLeads,
 } from '../api'
 import {
   MagnifyingGlassIcon, PlusIcon, TrashIcon, ChevronDownIcon, ChevronUpIcon, ChevronRightIcon,
@@ -599,7 +599,7 @@ export default function Leads() {
 
   const handleBulkErmis = async () => {
     const ids = [...selectedIds]
-    if (!confirm(`Αποστολή ΕΡΜΗΣ σε ${ids.length} leads; Κάθε πελάτης θα λάβει Viber + Email με το link για το δικό του πρόγραμμα.`)) return
+    if (!confirm(`Έναρξη ΕΡΜΗΣ σε ${ids.length} leads; Κάθε πελάτης θα λάβει Viber + Email με το link για το δικό του πρόγραμμα.`)) return
     setBulkBusy(true)
     const tid = toast.loading(`Εκκίνηση ΕΡΜΗΣ για ${ids.length} leads…`)
     try {
@@ -614,6 +614,25 @@ export default function Leads() {
       setTimeout(load, 3000)
     } catch (e) {
       toast.error(e.response?.data?.detail || 'Σφάλμα μαζικής αποστολής ΕΡΜΗΣ', { id: tid })
+    } finally { setBulkBusy(false) }
+  }
+
+  const handleBulkResend = async () => {
+    const ids = [...selectedIds]
+    if (!confirm(`Επαναποστολή link ΕΡΜΗΣ σε ${ids.length} leads; Θα σταλεί ξανά το υπάρχον link (χωρίς νέα συνεδρία).`)) return
+    setBulkBusy(true)
+    const tid = toast.loading(`Επαναποστολή ΕΡΜΗΣ για ${ids.length} leads…`)
+    try {
+      const res = await bulkResendErmis(ids)
+      const sk = res.skipped?.length || 0
+      toast.success(
+        `Εστάλη ξανά σε ${res.sent} leads${sk ? ` · ${sk} παραλείφθηκαν` : ''}`,
+        { id: tid, duration: 6000 }
+      )
+      setSelectedIds(new Set())
+      setTimeout(load, 2000)
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Σφάλμα επαναποστολής ΕΡΜΗΣ', { id: tid })
     } finally { setBulkBusy(false) }
   }
 
@@ -803,6 +822,13 @@ export default function Leads() {
           >
             <SparklesIcon className="w-4 h-4" />
             {bulkBusy ? 'Αποστολή…' : `Έναρξη ΕΡΜΗΣ (${selectedIds.size})`}
+          </button>
+          <button
+            onClick={handleBulkResend}
+            disabled={bulkBusy}
+            className="flex items-center gap-2 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-white text-sm font-semibold px-4 py-1.5 rounded-xl transition-colors"
+          >
+            ↺ {bulkBusy ? 'Αποστολή…' : `Επαναποστολή ΕΡΜΗΣ (${selectedIds.size})`}
           </button>
           <button onClick={() => setSelectedIds(new Set())} className="text-gray-400 hover:text-white text-sm px-2 py-1 rounded-lg">
             ✕ Αποεπιλογή
