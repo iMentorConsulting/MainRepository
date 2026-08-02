@@ -328,8 +328,10 @@ def list_leads(
             or_(CMLead.program_title != None, CMLead.service_type != None, CMLead.program != None),  # noqa: E711
         )
     elif ermis_filter == "pending":
-        # Sent but client hasn't finished yet
-        query = query.filter(CMLead.ermis_status.in_(["starting", "in_progress"]))
+        # Sent but client hasn't finished yet (includes reminder resends)
+        query = query.filter(CMLead.ermis_status.in_(["starting", "in_progress", "reminded"]))
+    elif ermis_filter == "reminded":
+        query = query.filter(CMLead.ermis_status == "reminded")
     elif ermis_filter == "completed":
         query = query.filter(CMLead.ermis_status.in_(["eligible", "ineligible"]))
     if reminder:
@@ -433,6 +435,10 @@ def filter_options(
     consultants = [c[0] for c in db.query(CMLead.assigned_name).distinct().all() if c[0]]
     # Status counts across all leads (for the filter chips)
     status_counts = {s: c for s, c in db.query(CMLead.status, sa_func.count(CMLead.id)).group_by(CMLead.status).all()}
+    # ΕΡΜΗΣ status counts for filter chip badges
+    ermis_status_counts = {s: c for s, c in db.query(CMLead.ermis_status, sa_func.count(CMLead.id))
+                           .filter(CMLead.ermis_status.isnot(None))
+                           .group_by(CMLead.ermis_status).all()}
     return {
         "statuses": LEAD_STATUSES,
         "agents": [{"id": a[0], "name": a[1]} for a in agents],
@@ -441,6 +447,7 @@ def filter_options(
         "consultants": sorted(consultants),
         "status_counts": status_counts,
         "total": sum(status_counts.values()),
+        "ermis_status_counts": ermis_status_counts,
     }
 
 
@@ -557,7 +564,7 @@ def get_lead(
             "subject": lg.subject,
             "status": lg.status,
             "sent_by": lg.sent_by,
-            "created_at": lg.created_at.isoformat() if lg.created_at else None,
+            "created_at": (lg.created_at.isoformat() + "Z") if lg.created_at else None,
         }
         for lg in ermis_logs
     ]
