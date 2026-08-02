@@ -328,8 +328,8 @@ def list_leads(
             or_(CMLead.program_title != None, CMLead.service_type != None, CMLead.program != None),  # noqa: E711
         )
     elif ermis_filter == "pending":
-        # Sent but client hasn't finished yet (includes reminder resends)
-        query = query.filter(CMLead.ermis_status.in_(["starting", "in_progress", "reminded"]))
+        # Sent but client hasn't finished yet, no reminder sent yet
+        query = query.filter(CMLead.ermis_status.in_(["starting", "in_progress"]))
     elif ermis_filter == "reminded":
         query = query.filter(CMLead.ermis_status == "reminded")
     elif ermis_filter == "completed":

@@ -696,7 +696,7 @@ export default function Leads() {
         {(() => {
           const ec = options.ermis_status_counts || {}
           const notSentCount = (ec[''] || 0) + (ec['error'] || 0) + (ec[null] || 0)
-          const pendingCount = (ec['starting'] || 0) + (ec['in_progress'] || 0) + (ec['reminded'] || 0)
+          const pendingCount = (ec['starting'] || 0) + (ec['in_progress'] || 0)
           const remindedCount = ec['reminded'] || 0
           const completedCount = (ec['eligible'] || 0) + (ec['ineligible'] || 0)
           return [
