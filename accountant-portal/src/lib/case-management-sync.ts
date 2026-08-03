@@ -16,6 +16,8 @@ function deriveProgramCategory(programTitle: string | null | undefined): string 
   return 'ΕΣΠΑ'
 }
 
+// Returns the CM lead reference ID if CM sends one back in the response body,
+// or null if missing/unavailable. Callers that need to store this should await.
 export async function notifyCaseManagement(data: {
   caseNumber: number
   afm: string
@@ -56,10 +58,10 @@ export async function notifyCaseManagement(data: {
   klados?: string | null
   activities?: { firmActCode: string; firmActDescr: string | null; firmActKind: string | null }[]
   matchedPrograms?: { title: string; status: string }[]
-}) {
+}): Promise<string | null> {
   const url = process.env.CASE_MGMT_WEBHOOK_URL
   const apiKey = process.env.CASES_API_KEY
-  if (!url || !apiKey) return
+  if (!url || !apiKey) return null
 
   const program_category = deriveProgramCategory(data.programTitle)
 
@@ -70,14 +72,23 @@ export async function notifyCaseManagement(data: {
       headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey },
       body: JSON.stringify({ event: 'case.created', ...data, program_category }),
     })
+    const responseText = await res.text().catch(() => '')
     if (!res.ok) {
-      const body = await res.text().catch(() => '')
-      console.error(`[CaseManagement] Webhook failed for case #${data.caseNumber}: HTTP ${res.status} ${body}`)
-    } else {
-      console.log(`[CaseManagement] Webhook OK for case #${data.caseNumber}: HTTP ${res.status}`)
+      console.error(`[CaseManagement] Webhook failed for case #${data.caseNumber}: HTTP ${res.status} ${responseText}`)
+      return null
     }
+    // Try to extract the CM lead ID from the response so callers can store it as externalRef
+    let cmLeadRef: string | null = null
+    try {
+      const responseBody = JSON.parse(responseText)
+      const raw = responseBody?.leadRef ?? responseBody?.leadId ?? responseBody?.id ?? responseBody?.ref ?? null
+      if (raw) cmLeadRef = String(raw)
+    } catch { /* non-JSON response, ignore */ }
+    console.log(`[CaseManagement] Webhook OK for case #${data.caseNumber}: HTTP ${res.status}${cmLeadRef ? ` cmLeadRef=${cmLeadRef}` : ''}`)
+    return cmLeadRef
   } catch (err: any) {
     console.error(`[CaseManagement] Webhook error for case #${data.caseNumber}:`, err?.message || err)
+    return null
   }
 }
 

@@ -130,5 +130,40 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     })().catch(err => console.error('[ErmisWebhook] ermis.completed failed:', err?.message))
   }
 
+  // Portal-initiated Ermis (no callbackUrl): fire ermis.completed to the fixed CM endpoint
+  if (result.caseId && !updatedToken.callbackUrl) {
+    ;(async () => {
+      const portalApiKey = process.env.IMENTOR_PORTAL_API_KEY
+      const portalWebhookUrl = 'https://consult.i-mentor.gr/api/cm/leads/ermis/webhook'
+      if (!portalApiKey) {
+        console.warn('[ErmisWebhook] portal ermis.completed NOT sent — IMENTOR_PORTAL_API_KEY is missing')
+        return
+      }
+      const [biz, caseRecord] = await Promise.all([
+        prisma.business.findUnique({ where: { id: updatedToken.businessId }, select: { afm: true } }),
+        prisma.clientCase.findUnique({ where: { id: result.caseId! }, select: { externalRef: true } }),
+      ])
+      const payload = {
+        event: 'ermis.completed',
+        token,
+        leadRef: caseRecord?.externalRef ?? null,
+        eligibility: classification?.eligibility === 'ELIGIBLE' ? 'eligible' : 'ineligible',
+        transcript: finalHistory.map(m => ({ role: m.role, text: m.text, ts: new Date().toISOString() })),
+        completedAt: new Date().toISOString(),
+      }
+      try {
+        const res = await fetch(portalWebhookUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-api-key': portalApiKey },
+          body: JSON.stringify(payload),
+        })
+        const bodyText = await res.text().catch(() => '')
+        console.log(`[ErmisWebhook] portal ermis.completed for ΑΦΜ ${biz?.afm} → HTTP ${res.status} leadRef=${caseRecord?.externalRef ?? 'null'} — ${bodyText.slice(0, 200)}`)
+      } catch (err: any) {
+        console.error(`[ErmisWebhook] portal ermis.completed failed for ΑΦΜ ${biz?.afm}:`, err?.message)
+      }
+    })().catch(err => console.error('[ErmisWebhook] portal ermis.completed unexpected error:', err?.message))
+  }
+
   return NextResponse.json({ reply: result.reply, caseAssigned: Boolean(result.caseId) })
 }

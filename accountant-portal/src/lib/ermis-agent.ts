@@ -257,7 +257,7 @@ async function createPublicClientCase(params: {
   const webhookUrl = process.env.CASE_MGMT_WEBHOOK_URL
   const webhookKey = process.env.CASES_API_KEY
   console.log(`[ErmisCase] case #${clientCase.caseNumber} created. CASE_MGMT_WEBHOOK_URL=${webhookUrl ? 'set' : 'MISSING'} CASES_API_KEY=${webhookKey ? 'set' : 'MISSING'}`)
-  notifyCaseManagement({
+  const cmLeadRef = await notifyCaseManagement({
     caseNumber: clientCase.caseNumber,
     phone: business.phone || null,
     email: business.email || null,
@@ -266,8 +266,20 @@ async function createPublicClientCase(params: {
     description: clientCase.description,
     priority: clientCase.priority,
     programTitle: params.programTitle,
+    ermis_completed: true,
     ...profile,
-  }).catch(err => console.error('[CaseManagement] notify failed:', err?.message))
+  }).catch(err => {
+    console.error('[CaseManagement] notify failed:', err?.message)
+    return null
+  })
+
+  // Store the CM lead ref so ermis.completed can reference it later
+  if (cmLeadRef) {
+    await prisma.clientCase.update({
+      where: { id: clientCase.id },
+      data: { externalRef: cmLeadRef },
+    }).catch(err => console.error('[ErmisCase] failed to store cmLeadRef:', err?.message))
+  }
 
   return clientCase.id
 }
