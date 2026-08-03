@@ -757,6 +757,8 @@ def send_to_lead(
     )
 
     results = []
+    sent_channels = []
+
     if req.notification_type in ("viber", "both"):
         if l.phone and req.message:
             full_viber = req.message.rstrip() + viber_footer
@@ -765,13 +767,15 @@ def send_to_lead(
                                    "sent" if ok else "failed", current_user.full_name)
             results.append({"type": "viber", "to": l.phone, "status": "sent" if ok else "failed",
                             "error": err if not ok else None})
+            if ok:
+                sent_channels.append("Viber")
         else:
             results.append({"type": "viber", "status": "skipped", "error": "Λείπει τηλέφωνο ή μήνυμα"})
+
     if req.notification_type in ("email", "both"):
         if l.email and (req.body or req.message):
             body_text = (req.body or req.message or "").replace("\n", "<br>")
             subject = req.subject or f"i-Mentor Consulting{' — ' + prog_display if prog_display else ''}"
-            # Consultant signature line
             consultant_html = (
                 f'<p style="margin:0 0 10px;color:#374151;">Ο/Η σύμβουλός σας <b>{consultant}</b> '
                 f'από την i-Mentor θα επικοινωνήσει σύντομα μαζί σας.</p>'
@@ -805,8 +809,28 @@ def send_to_lead(
                                    "sent" if ok else "failed", current_user.full_name)
             results.append({"type": "email", "to": l.email, "status": "sent" if ok else "failed",
                             "error": err if not ok else None})
+            if ok:
+                sent_channels.append("Email")
         else:
             results.append({"type": "email", "status": "skipped", "error": "Λείπει email ή περιεχόμενο"})
+
+    # Auto-comment so the send appears in the lead's comment history
+    if sent_channels:
+        msg_preview = (req.message or req.body or "")[:200]
+        channels_label = " & ".join(sent_channels)
+        prog_note = f" [{prog_display}]" if prog_display else ""
+        comment_body = (
+            f"📤 Εστάλη μήνυμα μέσω {channels_label}{prog_note}:\n{msg_preview}"
+            + ("…" if len(req.message or req.body or "") > 200 else "")
+        )
+        db.add(CMLeadComment(
+            lead_id=l.id,
+            user_id=current_user.id,
+            content=comment_body,
+            author_name=current_user.full_name,
+        ))
+
+    db.commit()
     return {"results": results}
 
 
