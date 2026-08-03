@@ -533,30 +533,31 @@ export async function getCampaignSubscriberEngagement(
     console.error(`[Moosend] getCampaignSubscriberEngagement Opened structured parse failed for ${campaignId}:`, err instanceof Error ? err.message : err)
   }
 
-  // Fallback: if structured parse found nothing, do a raw recursive email scan
-  // on the same endpoint — identical to getCampaignUnsubscribers, which always works.
-  if (map.size === 0) {
-    try {
-      const raw = await moosendFetch(`/campaigns/${campaignId}/stats/Opened.json?pageSize=1000`)
-      const scanEmails = new Set<string>()
-      const scan = (v: unknown) => {
-        if (typeof v === 'string') {
-          if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) scanEmails.add(v.toLowerCase().trim())
-        } else if (Array.isArray(v)) {
-          v.forEach(scan)
-        } else if (v && typeof v === 'object') {
-          Object.values(v as Record<string, unknown>).forEach(scan)
-        }
+  // Always run a raw recursive email scan as a belt-and-suspenders supplement:
+  // the structured parse above may miss subscribers if the Moosend response shape
+  // doesn't match one of the expected schemas (seen with multi-part campaigns where
+  // some parts return a different shape). Only fills in entries not already in the map.
+  try {
+    const raw = await moosendFetch(`/campaigns/${campaignId}/stats/Opened.json?pageSize=1000`)
+    const scanEmails = new Set<string>()
+    const scan = (v: unknown) => {
+      if (typeof v === 'string') {
+        if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) scanEmails.add(v.toLowerCase().trim())
+      } else if (Array.isArray(v)) {
+        v.forEach(scan)
+      } else if (v && typeof v === 'object') {
+        Object.values(v as Record<string, unknown>).forEach(scan)
       }
-      scan((raw as Record<string, unknown>).Context)
-      console.log(`[Moosend] Opened fallback email scan: ${scanEmails.size} emails found`)
-      for (const email of Array.from(scanEmails)) {
-        const eng = getOrCreate(email)
-        if (eng.openCount === 0) { eng.openCount = 1; eng.openedAt = new Date() }
-      }
-    } catch (err) {
-      console.error(`[Moosend] Opened fallback scan failed for ${campaignId}:`, err instanceof Error ? err.message : err)
     }
+    scan((raw as Record<string, unknown>).Context)
+    let newFromScan = 0
+    for (const email of Array.from(scanEmails)) {
+      const eng = getOrCreate(email)
+      if (eng.openCount === 0) { eng.openCount = 1; eng.openedAt = new Date(); newFromScan++ }
+    }
+    console.log(`[Moosend] Opened fallback email scan: ${scanEmails.size} emails found, ${newFromScan} new (not in structured parse)`)
+  } catch (err) {
+    console.error(`[Moosend] Opened fallback scan failed for ${campaignId}:`, err instanceof Error ? err.message : err)
   }
 
   // Clicked — Moosend's stats endpoint requires 'LinkClicked', not 'Clicked'
