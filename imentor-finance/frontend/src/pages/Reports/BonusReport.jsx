@@ -101,7 +101,7 @@ function DrilldownModal({ agent, month, monthName, year, onClose }) {
                   <td className="td text-right text-xs whitespace-nowrap">
                     {r.bonus > 0 && r.amount_application > 0
                       ? (() => {
-                          const pct = (parseFloat(r.bonus) / parseFloat(r.amount_application)) * 100;
+                          const pct = (parseFloat(r.bonus) / parseFloat(r.amount_collected)) * 100;
                           const ok = Math.abs(pct - 5) < 0.1;
                           return <span className={`font-bold ${ok ? 'text-emerald-600' : 'text-rose-600'}`}>{pct.toFixed(2)}%</span>;
                         })()
@@ -122,9 +122,9 @@ function DrilldownModal({ agent, month, monthName, year, onClose }) {
                   <td className="td text-right font-bold text-emerald-700 text-xs whitespace-nowrap">{fmtFull(totalCollected)}</td>
                   <td className="td text-right font-black text-indigo-700 whitespace-nowrap">{fmtFull(totalBonus)}</td>
                   <td className="td text-right text-xs">
-                    {totalBonus > 0 && totalApp > 0
+                    {totalBonus > 0 && totalCollected > 0
                       ? (() => {
-                          const pct = (totalBonus / totalApp) * 100;
+                          const pct = (totalBonus / totalCollected) * 100;
                           const ok = Math.abs(pct - 5) < 0.1;
                           return <span className={`font-bold ${ok ? 'text-emerald-600' : 'text-rose-600'}`}>{pct.toFixed(2)}%</span>;
                         })()
