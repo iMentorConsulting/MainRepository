@@ -328,15 +328,26 @@ export async function findMoosendCampaignIdsByNamePrefix(namePrefix: string): Pr
   try {
     // Moosend v3: GET /campaigns/find_all.json returns all campaigns
     const result = await moosendFetch('/campaigns/1.json?pageSize=200&sortBy=CreatedOn&sortMethod=DESC') as any
-    const campaigns: any[] = Array.isArray(result?.Context)
-      ? result.Context
-      : result?.Context?.Campaigns ?? result?.Context?.campaigns ?? []
-    if (!Array.isArray(campaigns)) return []
+    const ctx = result?.Context
+    const ctxShape = Array.isArray(ctx)
+      ? `direct array[${ctx.length}]`
+      : ctx && typeof ctx === 'object'
+        ? `object keys: ${Object.keys(ctx).slice(0, 15).join(', ')}`
+        : String(ctx)
+    console.log(`[Moosend] findMoosendCampaignIdsByNamePrefix ctx shape: ${ctxShape}`)
+
+    const campaigns: any[] = Array.isArray(ctx)
+      ? ctx
+      : ctx?.Campaigns ?? ctx?.campaigns ?? ctx?.Context ?? []
+    if (!Array.isArray(campaigns)) {
+      console.warn(`[Moosend] findMoosendCampaignIdsByNamePrefix: could not extract campaigns array, raw ctx: ${JSON.stringify(ctx).slice(0, 500)}`)
+      return []
+    }
     const lower = namePrefix.toLowerCase()
-    return campaigns
+    const matched = campaigns
       .filter((c: any) => typeof c.Name === 'string' && c.Name.toLowerCase().startsWith(lower))
-      .map((c: any) => c.ID as string)
-      .filter(Boolean)
+    console.log(`[Moosend] findMoosendCampaignIdsByNamePrefix prefix="${namePrefix}" → ${campaigns.length} total campaigns, ${matched.length} matching: ${matched.map((c: any) => `"${c.Name}" (${c.ID})`).join(', ')}`)
+    return matched.map((c: any) => c.ID as string).filter(Boolean)
   } catch (e) {
     console.error('[Moosend] findMoosendCampaignIdsByNamePrefix error:', e)
     return []

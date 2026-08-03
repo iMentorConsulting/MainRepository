@@ -38,15 +38,16 @@ export async function POST(
   try {
     // Auto-discover all Moosend campaign parts (μέρος 2, μέρος 3, …) by name prefix
     const discoveredIds = await findMoosendCampaignIdsByNamePrefix(campaign.title)
-    const storedIds = new Set(campaign.moosendCampaignId.split(',').filter(Boolean))
-    for (const did of discoveredIds) storedIds.add(did)
-    for (const mid of additionalMoosendIds) storedIds.add(mid)
-    const allIds = Array.from(storedIds).join(',')
+    const storedIdSet = new Set(campaign.moosendCampaignId.split(',').filter(Boolean))
+    console.log(`[SyncStats] stored IDs: ${Array.from(storedIdSet).join(', ')} | discovered: ${discoveredIds.join(', ')} | manual: ${additionalMoosendIds.join(', ')}`)
+    for (const did of discoveredIds) storedIdSet.add(did)
+    for (const mid of additionalMoosendIds) storedIdSet.add(mid)
+    const allIds = Array.from(storedIdSet).join(',')
 
     // Persist newly discovered IDs so future syncs are faster
     if (allIds !== campaign.moosendCampaignId) {
       await prisma.gemiCampaign.update({ where: { id }, data: { moosendCampaignId: allIds } })
-      console.log(`[SyncStats] discovered/added Moosend campaign parts for "${campaign.title}": ${allIds}`)
+      console.log(`[SyncStats] updated stored Moosend IDs for "${campaign.title}": ${allIds}`)
     }
 
     const result = await syncCampaignStats(id, allIds)
