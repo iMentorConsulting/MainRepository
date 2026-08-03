@@ -6,19 +6,33 @@ const ALLOWED_SORT = ['date','amount','category','supplier','description'];
 
 router.get('/', async (req, res) => {
   try {
-    const { year, month, date_from, date_to, category, supplier, search, page = 1, limit = 50, sort_field, sort_dir, hide_no_amount } = req.query;
+    const { year, years, month, months, date_from, date_to, category, supplier, search, page = 1, limit = 50, sort_field, sort_dir, hide_no_amount } = req.query;
     const where = {};
+
+    // Resolve multi-select year/month lists
+    const yearList  = years  ? years.split(',').map(s => s.trim()).filter(Boolean)  : year  ? [year.trim()]  : [];
+    const monthList = months ? months.split(',').map(s => s.trim()).filter(Boolean) : month ? [month.trim()] : [];
+
     if (date_from && date_to) {
       where.date = { [Op.between]: [date_from, date_to] };
     } else if (date_from) {
       where.date = { [Op.gte]: date_from };
     } else if (date_to) {
       where.date = { [Op.lte]: date_to };
-    } else if (year && month) {
-      const lastDay = new Date(parseInt(year), parseInt(month), 0).getDate();
-      where.date = { [Op.between]: [`${year}-${month.padStart(2,'0')}-01`, `${year}-${month.padStart(2,'0')}-${String(lastDay).padStart(2,'0')}`] };
-    } else if (year) {
-      where.date = { [Op.between]: [`${year}-01-01`, `${year}-12-31`] };
+    } else if (yearList.length) {
+      const ranges = [];
+      for (const y of yearList) {
+        if (monthList.length) {
+          for (const m of monthList) {
+            const mm = m.padStart(2, '0');
+            const lastDay = new Date(parseInt(y), parseInt(m), 0).getDate();
+            ranges.push({ [Op.between]: [`${y}-${mm}-01`, `${y}-${mm}-${String(lastDay).padStart(2, '0')}`] });
+          }
+        } else {
+          ranges.push({ [Op.between]: [`${y}-01-01`, `${y}-12-31`] });
+        }
+      }
+      where.date = ranges.length === 1 ? ranges[0] : { [Op.or]: ranges };
     }
     if (category) where.category = category;
     if (supplier) where.supplier = supplier;
