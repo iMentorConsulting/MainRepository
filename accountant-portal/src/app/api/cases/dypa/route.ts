@@ -5,7 +5,6 @@ import { createAuditLog } from '@/lib/audit'
 import { sendEmail } from '@/lib/email'
 import { notifyCaseManagement } from '@/lib/case-management-sync'
 import { buildBusinessProfilePayload, BUSINESS_PROFILE_SELECT } from '@/lib/business-profile'
-import { createAndSendDypaLink, sendMissingContactNotification } from '@/lib/dypa-link'
 
 // Creates a ClientCase (requestType DYPA_HIRING) together with its 1-1
 // DypaAssignment extension, for the ΔΥΠΑ hiring-subsidy assignment workflow.
@@ -83,8 +82,6 @@ export async function POST(request: NextRequest) {
   const dypaAssignmentId = clientCase.dypaAssignment!.id
   const businessName = business.onomasia || business.afm || ''
   const officeName = clientCase.accountant?.officeName || ''
-  const contactEmail = (business.email || '').trim()
-  const contactPhone = (business.phone || '').trim()
 
   try {
     await sendEmail({
@@ -95,22 +92,9 @@ export async function POST(request: NextRequest) {
     })
   } catch {}
 
-  // Auto-send the questionnaire link to the business immediately on assignment creation.
-  // If contact info is missing, notify info@i-mentor.gr so someone can follow up.
-  if (contactEmail || contactPhone) {
-    void createAndSendDypaLink({
-      assignmentId: dypaAssignmentId,
-      businessName,
-      officeName,
-      contactEmail,
-      contactPhone,
-    }).catch(err => console.error('[DYPA] auto-link send failed:', err?.message))
-  } else {
-    void sendMissingContactNotification({
-      businessName,
-      caseUrl: `${appUrl}/cases/${clientCase.id}`,
-    }).catch(err => console.error('[DYPA] missing-contact notify failed:', err?.message))
-  }
+  // Note: the questionnaire link is sent manually via the case detail page
+  // ("Δημιουργία & Αποστολή Συνδέσμου"). Auto-sending here caused duplicate
+  // emails whenever the user also clicked that button after creation.
 
   const profile = await buildBusinessProfilePayload(business)
   notifyCaseManagement({
