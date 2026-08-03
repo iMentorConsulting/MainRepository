@@ -149,7 +149,10 @@ function CommentComposer({ onSubmit }) {
 function SendModal({ lead, onClose }) {
   const [channel, setChannel] = useState('viber')
   const [message, setMessage] = useState('')
-  const [subject, setSubject] = useState('i-Mentor Consulting')
+  const prog = lead.program_title || lead.service_type || lead.program || ''
+  const consultant = lead.assigned_name || ''
+  const defaultSubject = prog ? `i-Mentor Consulting — ${prog}` : 'i-Mentor Consulting'
+  const [subject, setSubject] = useState(defaultSubject)
   const [busy, setBusy] = useState(false)
   const submit = async () => {
     setBusy(true)
@@ -166,7 +169,15 @@ function SendModal({ lead, onClose }) {
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={onClose}>
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg" onClick={e => e.stopPropagation()}>
-        <div className="p-4 border-b font-bold">Αποστολή σε {lead.name || 'lead'}</div>
+        <div className="p-4 border-b">
+          <div className="font-bold">Αποστολή σε {lead.name || 'lead'}</div>
+          {(prog || consultant) && (
+            <div className="text-xs text-gray-400 mt-0.5 flex flex-wrap gap-x-3">
+              {prog && <span>📋 {prog}</span>}
+              {consultant && <span>👤 {consultant}</span>}
+            </div>
+          )}
+        </div>
         <div className="p-4 space-y-3">
           <div className="flex gap-2">
             {['viber', 'email', 'both'].map(c => (
@@ -176,7 +187,11 @@ function SendModal({ lead, onClose }) {
             ))}
           </div>
           {channel !== 'viber' && <input value={subject} onChange={e => setSubject(e.target.value)} placeholder="Θέμα (email)" className="w-full px-3 py-2 border rounded-lg text-sm" />}
-          <textarea value={message} onChange={e => setMessage(e.target.value)} rows={5} placeholder="Μήνυμα…" className="w-full px-3 py-2 border rounded-lg text-sm" />
+          <textarea value={message} onChange={e => setMessage(e.target.value)} rows={5} placeholder="Γράψτε το μήνυμά σας…" className="w-full px-3 py-2 border rounded-lg text-sm" />
+          <p className="text-[11px] text-gray-400">
+            {channel !== 'email' && '📱 Στο Viber προστίθεται αυτόματα η υπογραφή i-Mentor (τηλ, site, email). '}
+            {channel !== 'viber' && '✉️ Το email αποστέλλεται με branded πρότυπο (λογότυπο, πρόγραμμα, στοιχεία επικοινωνίας).'}
+          </p>
         </div>
         <div className="p-4 border-t flex justify-end gap-2">
           <button onClick={onClose} className="btn-secondary text-sm">Άκυρο</button>
