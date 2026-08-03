@@ -39,6 +39,7 @@ function DrilldownModal({ agent, month, monthName, year, onClose }) {
 
   const totalBonus = records.reduce((s, r) => s + parseFloat(r.bonus || 0), 0);
   const totalApp = records.reduce((s, r) => s + parseFloat(r.amount_application || 0), 0);
+  const totalImpl = records.reduce((s, r) => s + parseFloat(r.amount_implementation || 0), 0);
   const totalCollected = records.reduce((s, r) => s + parseFloat(r.amount_collected || 0), 0);
 
   return (
@@ -57,7 +58,7 @@ function DrilldownModal({ agent, month, monthName, year, onClose }) {
           <span className="font-black text-indigo-600">{fmtFull(totalBonus)}</span>
         </div>
         <div className="text-xs text-slate-400">
-          Bonus = 5% × Ποσό Αίτησης · Σύνολο Αιτήσεων: {fmtFull(totalApp)} · Είσπραξη: {fmtFull(totalCollected)}
+          Bonus = 5% × Ποσό Αίτησης · Σύνολο Αιτήσεων: {fmtFull(totalApp)} · Υλοποίηση: {fmtFull(totalImpl)} · Είσπραξη: {fmtFull(totalCollected)}
         </div>
       </div>
 
@@ -68,7 +69,7 @@ function DrilldownModal({ agent, month, monthName, year, onClose }) {
           <table className="w-full text-sm">
             <thead>
               <tr>
-                {['Ημ/νία','Πελάτης','Υπηρεσία','Ποσό Αίτησης','Είσπραξη','Bonus'].map(h => (
+                {['Ημ/νία','Πελάτης','Υπηρεσία','Ποσό Αίτησης','Υλοποίηση','Είσπραξη','Bonus','%'].map(h => (
                   <th key={h} className="th text-xs">{h}</th>
                 ))}
               </tr>
@@ -86,12 +87,24 @@ function DrilldownModal({ agent, month, monthName, year, onClose }) {
                   <td className="td text-right text-xs font-medium text-slate-700 whitespace-nowrap">
                     {fmtFull(r.amount_application)}
                   </td>
+                  <td className="td text-right text-xs font-medium text-slate-700 whitespace-nowrap">
+                    {fmtFull(r.amount_implementation)}
+                  </td>
                   <td className="td text-right font-semibold text-emerald-600 whitespace-nowrap">
                     {fmtFull(r.amount_collected)}
                   </td>
                   <td className="td text-right">
                     {r.bonus > 0
                       ? <span className="font-black text-indigo-600 whitespace-nowrap">{fmtFull(r.bonus)}</span>
+                      : <span className="text-slate-300">—</span>}
+                  </td>
+                  <td className="td text-right text-xs whitespace-nowrap">
+                    {r.bonus > 0 && r.amount_application > 0
+                      ? (() => {
+                          const pct = (parseFloat(r.bonus) / parseFloat(r.amount_application)) * 100;
+                          const ok = Math.abs(pct - 5) < 0.1;
+                          return <span className={`font-bold ${ok ? 'text-emerald-600' : 'text-rose-600'}`}>{pct.toFixed(2)}%</span>;
+                        })()
                       : <span className="text-slate-300">—</span>}
                   </td>
                 </tr>
@@ -105,8 +118,18 @@ function DrilldownModal({ agent, month, monthName, year, onClose }) {
                 <tr className="bg-indigo-50">
                   <td colSpan={3} className="td font-bold text-slate-700 text-xs">Σύνολο ({records.length} εγγραφές)</td>
                   <td className="td text-right font-bold text-slate-700 text-xs whitespace-nowrap">{fmtFull(totalApp)}</td>
+                  <td className="td text-right font-bold text-slate-700 text-xs whitespace-nowrap">{fmtFull(totalImpl)}</td>
                   <td className="td text-right font-bold text-emerald-700 text-xs whitespace-nowrap">{fmtFull(totalCollected)}</td>
                   <td className="td text-right font-black text-indigo-700 whitespace-nowrap">{fmtFull(totalBonus)}</td>
+                  <td className="td text-right text-xs">
+                    {totalBonus > 0 && totalApp > 0
+                      ? (() => {
+                          const pct = (totalBonus / totalApp) * 100;
+                          const ok = Math.abs(pct - 5) < 0.1;
+                          return <span className={`font-bold ${ok ? 'text-emerald-600' : 'text-rose-600'}`}>{pct.toFixed(2)}%</span>;
+                        })()
+                      : '—'}
+                  </td>
                 </tr>
               </tfoot>
             )}
