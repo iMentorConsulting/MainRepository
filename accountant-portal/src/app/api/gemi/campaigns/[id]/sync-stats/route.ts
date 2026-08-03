@@ -5,7 +5,7 @@ import { syncCampaignStats } from '@/lib/gemi-campaign-sync'
 import { findMoosendCampaignIdsByNamePrefix } from '@/lib/moosend'
 
 export async function POST(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const session = await auth()
@@ -14,6 +14,15 @@ export async function POST(
   }
 
   const { id } = await params
+
+  // Optional body: { additionalMoosendIds: string } — comma-separated extra Moosend campaign IDs
+  let additionalMoosendIds: string[] = []
+  try {
+    const body = await req.json().catch(() => ({}))
+    if (body?.additionalMoosendIds) {
+      additionalMoosendIds = String(body.additionalMoosendIds).split(',').map((s: string) => s.trim()).filter(Boolean)
+    }
+  } catch { /* no body */ }
 
   const campaign = await prisma.gemiCampaign.findUnique({ where: { id } })
   if (!campaign) {
@@ -31,12 +40,13 @@ export async function POST(
     const discoveredIds = await findMoosendCampaignIdsByNamePrefix(campaign.title)
     const storedIds = new Set(campaign.moosendCampaignId.split(',').filter(Boolean))
     for (const did of discoveredIds) storedIds.add(did)
+    for (const mid of additionalMoosendIds) storedIds.add(mid)
     const allIds = Array.from(storedIds).join(',')
 
     // Persist newly discovered IDs so future syncs are faster
     if (allIds !== campaign.moosendCampaignId) {
       await prisma.gemiCampaign.update({ where: { id }, data: { moosendCampaignId: allIds } })
-      console.log(`[SyncStats] discovered ${discoveredIds.length} Moosend campaign parts for "${campaign.title}": ${allIds}`)
+      console.log(`[SyncStats] discovered/added Moosend campaign parts for "${campaign.title}": ${allIds}`)
     }
 
     const result = await syncCampaignStats(id, allIds)

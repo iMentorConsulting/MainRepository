@@ -10,6 +10,14 @@ export interface SyncResult {
   totalBounced: number
   totalUnsubscribed: number
   statsLastFetchedAt: Date | null
+  debug: {
+    moosendIds: string[]
+    engagementPerPart: { id: string; openers: number }[]
+    totalEngagementEmails: number
+    recipientsInDb: number
+    recipientsMatched: number
+    recipientsNotInEngagement: string[]
+  }
 }
 
 export async function syncCampaignStats(campaignId: string, moosendCampaignId: string): Promise<SyncResult> {
@@ -32,6 +40,10 @@ export async function syncCampaignStats(campaignId: string, moosendCampaignId: s
     { delivered: 0, opened: 0, clicked: 0, bounced: 0, unsubscribed: 0 },
   )
 
+  // Track per-part opener counts for debug
+  const engagementPerPart = ids.map((id, i) => ({ id, openers: allEngagement[i].size }))
+  console.log(`[SyncStats] engagement per Moosend part:`, engagementPerPart.map(p => `${p.id}:${p.openers}`).join(', '))
+
   // Merge per-recipient engagement maps from all parts (last write wins per email)
   const engagement = new Map<string, any>()
   for (const engMap of allEngagement) {
@@ -53,6 +65,7 @@ export async function syncCampaignStats(campaignId: string, moosendCampaignId: s
       }
     }
   }
+  console.log(`[SyncStats] total unique emails in merged engagement map: ${engagement.size}`)
 
   const unsubEmails = Array.from(new Set(allUnsubEmails.flat()))
 
@@ -74,14 +87,23 @@ export async function syncCampaignStats(campaignId: string, moosendCampaignId: s
 
   // Update per-recipient engagement.
   let recipientsUpdated = 0
+  let recipientsInDb = 0
+  let recipientsMatched = 0
+  const recipientsNotInEngagement: string[] = []
+
   if (engagement.size > 0) {
     const emailRecipients = await prisma.gemiCampaignRecipient.findMany({
       where: { campaignId, channel: 'EMAIL' },
       select: { id: true, recipient: true, clickedAt: true, clickCount: true },
     })
+    recipientsInDb = emailRecipients.length
     for (const rec of emailRecipients) {
       const eng = engagement.get(rec.recipient.toLowerCase())
-      if (!eng) continue
+      if (!eng) {
+        if (recipientsNotInEngagement.length < 20) recipientsNotInEngagement.push(rec.recipient)
+        continue
+      }
+      recipientsMatched++
       const mergedClickCount = Math.max(rec.clickCount, eng.clickCount)
       const mergedClickedAt = rec.clickedAt ?? (eng.clickCount > 0 ? (eng.clickedAt ?? new Date()) : null)
       await prisma.gemiCampaignRecipient.update({
@@ -97,7 +119,14 @@ export async function syncCampaignStats(campaignId: string, moosendCampaignId: s
       })
       recipientsUpdated++
     }
-    console.log(`[SyncStats] updated per-recipient engagement for ${recipientsUpdated}/${emailRecipients.length} EMAIL recipients`)
+    console.log(`[SyncStats] updated per-recipient engagement for ${recipientsUpdated}/${emailRecipients.length} EMAIL recipients (matched: ${recipientsMatched}, unmatched: ${recipientsNotInEngagement.length})`)
+  } else {
+    const emailRecipients = await prisma.gemiCampaignRecipient.findMany({
+      where: { campaignId, channel: 'EMAIL' },
+      select: { id: true },
+    })
+    recipientsInDb = emailRecipients.length
+    console.log(`[SyncStats] engagement map is empty — skipping per-recipient update (${recipientsInDb} recipients in DB)`)
   }
 
   const updated = await prisma.gemiCampaign.update({
@@ -121,5 +150,13 @@ export async function syncCampaignStats(campaignId: string, moosendCampaignId: s
     totalBounced: updated.totalBounced,
     totalUnsubscribed: updated.totalUnsubscribed,
     statsLastFetchedAt: updated.statsLastFetchedAt,
+    debug: {
+      moosendIds: ids,
+      engagementPerPart,
+      totalEngagementEmails: engagement.size,
+      recipientsInDb,
+      recipientsMatched,
+      recipientsNotInEngagement,
+    },
   }
 }
