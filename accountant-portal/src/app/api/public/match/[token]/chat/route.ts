@@ -133,10 +133,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   // Portal-initiated Ermis (no callbackUrl): fire ermis.completed to the fixed CM endpoint
   if (result.caseId && !updatedToken.callbackUrl) {
     ;(async () => {
-      const portalApiKey = process.env.IMENTOR_PORTAL_API_KEY
+      const portalApiKey = process.env.CASES_API_KEY
       const portalWebhookUrl = 'https://consult.i-mentor.gr/api/cm/leads/ermis/webhook'
       if (!portalApiKey) {
-        console.warn('[ErmisWebhook] portal ermis.completed NOT sent — IMENTOR_PORTAL_API_KEY is missing')
+        console.warn('[ErmisWebhook] portal ermis.completed NOT sent — CASES_API_KEY is missing')
         return
       }
       const [biz, caseRecord] = await Promise.all([
