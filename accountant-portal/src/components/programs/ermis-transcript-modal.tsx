@@ -21,7 +21,9 @@ export function ErmisTranscriptModal({ businessId, programId, onClose }: ErmisTr
   const [tokenUsage, setTokenUsage] = useState(0)
   const [tokenUsageInput, setTokenUsageInput] = useState(0)
   const [tokenUsageOutput, setTokenUsageOutput] = useState(0)
+  const [contextSummary, setContextSummary] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [showContext, setShowContext] = useState(false)
 
   useEffect(() => {
     fetch(`/api/ermis-chat?businessId=${businessId}&programId=${programId}`)
@@ -31,6 +33,7 @@ export function ErmisTranscriptModal({ businessId, programId, onClose }: ErmisTr
         setTokenUsage(d.tokenUsage || 0)
         setTokenUsageInput(d.tokenUsageInput || 0)
         setTokenUsageOutput(d.tokenUsageOutput || 0)
+        setContextSummary(d.contextSummary || null)
       })
       .finally(() => setLoading(false))
   }, [businessId, programId])
@@ -69,9 +72,28 @@ export function ErmisTranscriptModal({ businessId, programId, onClose }: ErmisTr
           )}
         </div>
 
-        {tokenUsage > 0 && (
-          <div className="px-6 pb-4 pt-2 border-t border-slate-100 text-xs text-slate-400 flex-shrink-0">
-            Tokens χρησιμοποιημένα σε αυτή τη συζήτηση: {tokenUsage.toLocaleString('el-GR')} · Κόστος (περίπου): {estimateCostEur(tokenUsage, tokenUsageInput, tokenUsageOutput)}
+        {(contextSummary || tokenUsage > 0) && (
+          <div className="px-6 pb-4 pt-2 border-t border-slate-100 flex-shrink-0 space-y-2">
+            {contextSummary && (
+              <div>
+                <button
+                  onClick={() => setShowContext(v => !v)}
+                  className="text-xs text-indigo-500 hover:text-indigo-700 font-medium"
+                >
+                  {showContext ? '▲ Κρύψε' : '▼ Δες'} στοιχεία CM που στάλθηκαν στον Ερμή
+                </button>
+                {showContext && (
+                  <pre className="mt-1.5 text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 whitespace-pre-wrap font-mono leading-relaxed">
+                    {contextSummary}
+                  </pre>
+                )}
+              </div>
+            )}
+            {tokenUsage > 0 && (
+              <p className="text-xs text-slate-400">
+                Tokens χρησιμοποιημένα σε αυτή τη συζήτηση: {tokenUsage.toLocaleString('el-GR')} · Κόστος (περίπου): {estimateCostEur(tokenUsage, tokenUsageInput, tokenUsageOutput)}
+              </p>
+            )}
           </div>
         )}
       </div>

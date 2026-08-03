@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
 
   const matchToken = await prisma.businessMatchToken.findUnique({
     where: { businessId_programId: { businessId, programId } },
-    select: { chatLog: true, tokenUsage: true, tokenUsageInput: true, tokenUsageOutput: true, caseCreatedId: true, createdAt: true },
+    select: { chatLog: true, tokenUsage: true, tokenUsageInput: true, tokenUsageOutput: true, caseCreatedId: true, createdAt: true, contextSummary: true },
   })
 
   if (matchToken) {
@@ -35,6 +35,7 @@ export async function GET(request: NextRequest) {
       tokenUsageOutput: matchToken.tokenUsageOutput || 0,
       caseCreatedId: matchToken.caseCreatedId || null,
       startedAt: matchToken.createdAt || null,
+      contextSummary: matchToken.contextSummary || null,
     })
   }
 
