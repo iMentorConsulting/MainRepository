@@ -531,7 +531,7 @@ function ExpandedRow({ lead, colSpan, onChanged, onConvert, onErmis, onSend, pro
 
         {/* ΕΡΜΗΣ transcript — structured (from webhook) or fallback summary from LOGISTIS notes */}
         {(full?.ermis_transcript || (!full?.ermis_status && (full?.source || '').toUpperCase().startsWith('LOGISTIS') && full?.notes)) && (
-          <details className="mb-3 bg-indigo-50/40 border border-indigo-100 rounded-lg p-3" open={!full?.ermis_transcript}>
+          <details className="mb-3 bg-indigo-50/40 border border-indigo-100 rounded-lg p-3" open={['eligible','ineligible'].includes(full?.ermis_status) || !full?.ermis_transcript}>
             <summary className="text-sm font-semibold text-indigo-700 cursor-pointer flex items-center gap-2">
               <SparklesIcon className="w-4 h-4" />
               {full?.ermis_transcript ? `Συνομιλία ΕΡΜΗΣ${full.ermis_status ? ` (${full.ermis_status})` : ''}` : 'Σύνοψη ΕΡΜΗΣ (από LOGISTIS)'}
