@@ -474,7 +474,7 @@ function ExpandedRow({ lead, colSpan, onChanged, onConvert, onErmis, onSend, pro
             <input value={form.total_amount} onChange={e => setForm(f => ({ ...f, total_amount: e.target.value }))} placeholder="Ποσό" className="px-2 py-1.5 border rounded text-sm" />
             {full?.ermis_status && (
               <select value={form.ermis_status} onChange={e => setForm(f => ({ ...f, ermis_status: e.target.value }))} className="px-2 py-1.5 border rounded text-sm" title="Διόρθωση αποτελέσματος ΕΡΜΗΣ">
-                <option value="">— ΕΡΜΗΣ κατάσταση —</option>
+                <option value="">— Καθαρισμός / χωρίς κατάσταση —</option>
                 <option value="eligible">eligible (επιλέξιμος)</option>
                 <option value="ineligible">ineligible (μη επιλέξιμος)</option>
                 <option value="in_progress">in_progress</option>

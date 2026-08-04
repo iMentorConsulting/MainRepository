@@ -797,8 +797,8 @@ def ermis_webhook(
             ]
             for sib in siblings:
                 sib.ermis_transcript = annotated_transcript
-                sib.ermis_status = lead.ermis_status
-                sib.ermis_completed_at = lead.ermis_completed_at
+                # Do NOT copy ermis_status — eligibility is program-specific.
+                # The sibling gets the transcript for reference only and will run its own ΕΡΜΗΣ session.
                 log.info(
                     "ΕΡΜΗΣ cross-program share: transcript from lead %s (%s) → lead %s (%s), same AFM %s",
                     lead.id, prog_label, sib.id, sib.program or sib.program_title, afm,
@@ -926,8 +926,7 @@ def ermis_sync_siblings(
     for sib in others:
         if not sib.ermis_transcript:
             sib.ermis_transcript = annotated_transcript
-            sib.ermis_status = l.ermis_status
-            sib.ermis_completed_at = l.ermis_completed_at
+            # Do NOT copy ermis_status — eligibility is program-specific
             updated.append({"id": sib.id, "program": sib.program, "program_title": sib.program_title})
             log.info(
                 "ΕΡΜΗΣ sync-siblings: transcript from lead %s (%s) → lead %s (%s)",
@@ -990,8 +989,7 @@ def ermis_pull_from_sibling(
         )
 
     l.ermis_transcript = annotated
-    l.ermis_status = source.ermis_status
-    l.ermis_completed_at = source.ermis_completed_at
+    # Do NOT copy ermis_status — eligibility is program-specific
     db.commit()
     log.info(
         "ΕΡΜΗΣ pull-from-sibling: transcript from lead %s (%s) → lead %s (%s)",
@@ -1044,8 +1042,7 @@ def ermis_backfill_all_siblings(
 
         for sib in siblings:
             sib.ermis_transcript = annotated
-            sib.ermis_status = source.ermis_status
-            sib.ermis_completed_at = source.ermis_completed_at
+            # Do NOT copy ermis_status — eligibility is program-specific
             total_updated.append({
                 "source_lead_id": source.id,
                 "source_program": prog_label,
