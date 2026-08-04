@@ -1753,6 +1753,33 @@ function WinbackPanel({ cases, onCasesUpdate }) {
   const [openComposer, setOpenComposer] = useState(null)
   const [showSent, setShowSent] = useState(false)
   const [edits, setEdits] = useState({})  // { [caseId]: { app, suc } }
+  const [copyConsultant, setCopyConsultant] = useState('')
+
+  const allList = [...candidates, ...approved, ...sent]
+  const CONSULTANTS = [...new Set(allList.map(c => c.employee).filter(Boolean))].sort()
+
+  const handleCopyForConsultant = async (consultant) => {
+    const list = allList.filter(c => !consultant || c.employee === consultant)
+    if (!list.length) { toast.error('Δεν υπάρχουν υποθέσεις για αυτόν τον σύμβουλο'); return }
+
+    const lines = list.map(c => {
+      const ref = c.stage_changed_at || c.updated_at
+      const days = ref ? Math.floor((now - new Date(ref)) / (1000 * 60 * 60 * 24)) : '?'
+      const wbApp = c.commercial_offer?.winback_app || Math.round((c.commercial_offer?.application_fee || 0) * 0.7 / 10) * 10
+      const wbSuc = c.commercial_offer?.winback_suc || Math.round((c.commercial_offer?.success_fee || 0) * 0.7 / 10) * 10
+      const status = c.commercial_offer?.winback_status === 'sent' ? '✅ Εστάλη' : c.commercial_offer?.winback_status === 'approved' ? '⏳ Εγκρίθηκε' : '🔔 Εκκρεμεί'
+      return `• ${c.client_name} | ${days} ημέρες | Αίτηση: ${wbApp}€ | Success: ${wbSuc}€ | ${status}`
+    })
+
+    const header = consultant
+      ? `📋 Win-back — ${consultant} (${list.length} υποθέσεις)\n${'─'.repeat(40)}`
+      : `📋 Win-back — Όλοι οι σύμβουλοι (${list.length} υποθέσεις)\n${'─'.repeat(40)}`
+
+    try {
+      await navigator.clipboard.writeText(`${header}\n${lines.join('\n')}`)
+      toast.success(`Αντιγράφηκε${consultant ? ` — ${consultant}` : ''}`)
+    } catch { toast.error('Αποτυχία αντιγραφής') }
+  }
 
   const handleApprove = async (c, approve, overrides = {}) => {
     try {
@@ -1778,16 +1805,32 @@ function WinbackPanel({ cases, onCasesUpdate }) {
 
   return (
     <div className="bg-violet-50 border border-violet-200 rounded-2xl p-5 space-y-4">
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-2">
         <h2 className="text-sm font-black text-violet-800 flex items-center gap-2">
           <SparklesIcon className="w-4 h-4" />
           Επαναφορά Πελατών (Win-back)
         </h2>
         {totalSaving > 0 && (
-          <span className="ml-auto bg-green-100 text-green-800 text-xs font-bold px-3 py-1 rounded-full">
+          <span className="bg-green-100 text-green-800 text-xs font-bold px-3 py-1 rounded-full">
             Εκτιμώμενο saving: {totalSaving.toLocaleString('el-GR')} €
           </span>
         )}
+        <div className="ml-auto flex items-center gap-2">
+          <select
+            value={copyConsultant}
+            onChange={e => setCopyConsultant(e.target.value)}
+            className="text-xs border border-violet-300 rounded px-2 py-1 bg-white text-violet-700 focus:outline-none"
+          >
+            <option value="">Όλοι οι σύμβουλοι</option>
+            {CONSULTANTS.map(emp => <option key={emp} value={emp}>{emp}</option>)}
+          </select>
+          <button
+            onClick={() => handleCopyForConsultant(copyConsultant)}
+            className="text-xs px-3 py-1 bg-violet-600 hover:bg-violet-700 text-white font-bold rounded-lg transition-colors"
+          >
+            📋 Copy
+          </button>
+        </div>
       </div>
 
       {/* Candidates awaiting approval */}
