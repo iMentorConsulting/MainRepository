@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { useSession } from 'next-auth/react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Plus, Target, Calendar, Zap, TrendingUp, MapPin, Archive, Megaphone, Check, X, ExternalLink, Clock, Sparkles } from 'lucide-react'
+import { Plus, Target, Calendar, Zap, TrendingUp, MapPin, Archive, Megaphone, Check, X, ExternalLink, Clock, Sparkles, AlertTriangle } from 'lucide-react'
 import { formatDate, formatDateTime } from '@/lib/utils'
 import { GREEK_REGIONS } from '@/lib/greek-regions'
 import { AiTrainingTab } from '@/components/programs/ai-training-tab'
@@ -60,6 +60,43 @@ const categoryVariant: Record<string, any> = {
 
 function formatEuro(value: number) {
   return value.toLocaleString('el-GR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })
+}
+
+function daysUntil(dateStr: string): number {
+  return Math.ceil((new Date(dateStr).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+}
+
+function DeadlineChip({ endDate }: { endDate: string | null }) {
+  if (!endDate) return null
+  const days = daysUntil(endDate)
+  if (days < 0) return null
+  const formatted = new Date(endDate).toLocaleDateString('el-GR', { day: 'numeric', month: 'short', year: 'numeric' })
+  if (days <= 14) {
+    return (
+      <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-red-50 border border-red-200 w-fit">
+        <AlertTriangle size={11} className="text-red-600 flex-shrink-0" />
+        <span className="text-xs font-bold text-red-700">
+          Λήξη {formatted} · {days === 0 ? 'σήμερα!' : `σε ${days} ${days === 1 ? 'ημέρα' : 'ημέρες'}`}
+        </span>
+      </div>
+    )
+  }
+  if (days <= 45) {
+    return (
+      <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-50 border border-amber-200 w-fit">
+        <AlertTriangle size={11} className="text-amber-600 flex-shrink-0" />
+        <span className="text-xs font-semibold text-amber-700">
+          Λήξη {formatted} · σε {days} ημέρες
+        </span>
+      </div>
+    )
+  }
+  return (
+    <div className="flex items-center gap-1.5 text-xs text-gray-500">
+      <Calendar size={11} className="flex-shrink-0" />
+      <span>Λήξη {formatted}</span>
+    </div>
+  )
 }
 
 interface EspaAnnouncement {
@@ -585,6 +622,7 @@ export default function ProgramsPage() {
 
                   {/* Details grid */}
                   <div className="mt-auto space-y-1.5 pt-3 border-t border-gray-100">
+                    <DeadlineChip endDate={program.endDate} />
                     {(program.minInvestment || program.maxInvestment) && (
                       <div className="flex items-center gap-1.5 text-xs text-gray-600">
                         <TrendingUp size={11} className="text-green-600 flex-shrink-0" />
@@ -632,12 +670,6 @@ export default function ProgramsPage() {
                             ? 'Όλη η Ελλάδα'
                             : `${program.regionRules.slice(0, 2).join(', ')}${program.regionRules.length > 2 ? ` +${program.regionRules.length - 2}` : ''}`}
                         </span>
-                      </div>
-                    )}
-                    {program.endDate && (
-                      <div className="flex items-center gap-1.5 text-xs text-gray-500">
-                        <Calendar size={11} className="flex-shrink-0" />
-                        <span>Λήξη {formatDate(program.endDate)}</span>
                       </div>
                     )}
                     {program.extraCriteriaIds?.length > 0 && (

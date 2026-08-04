@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { Sparkles, ChevronDown, ArrowRight, Users, ExternalLink, AlertTriangle } from 'lucide-react'
+import { Sparkles, ChevronDown, ArrowRight, Users, ExternalLink, AlertTriangle, Calendar } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 
 interface MatchBusiness {
@@ -27,13 +27,45 @@ function daysUntil(dateStr: string): number {
   return Math.ceil(diff / (1000 * 60 * 60 * 24))
 }
 
+function formatDeadline(dateStr: string) {
+  return new Date(dateStr).toLocaleDateString('el-GR', { day: 'numeric', month: 'short', year: 'numeric' })
+}
+
+function DeadlineChip({ endDate }: { endDate: string | null }) {
+  if (!endDate) return null
+  const days = daysUntil(endDate)
+  if (days < 0) return null
+  const formatted = formatDeadline(endDate)
+  if (days <= 14) {
+    return (
+      <span className="inline-flex items-center gap-1 text-[10px] font-bold text-red-700 bg-red-50 border border-red-200 px-2 py-0.5 rounded-full mt-1.5 w-fit">
+        <AlertTriangle size={9} />
+        Λήξη {formatted} · {days === 0 ? 'σήμερα!' : `σε ${days} ${days === 1 ? 'ημέρα' : 'ημέρες'}`}
+      </span>
+    )
+  }
+  if (days <= 45) {
+    return (
+      <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full mt-1.5 w-fit">
+        <AlertTriangle size={9} />
+        Λήξη {formatted} · σε {days} ημέρες
+      </span>
+    )
+  }
+  return (
+    <span className="inline-flex items-center gap-1 text-[10px] text-slate-400 mt-1.5 w-fit">
+      <Calendar size={9} />
+      Λήξη {formatted}
+    </span>
+  )
+}
+
 const VISIBLE_BUSINESSES = 6
 
 function OpportunityCard({ opp }: { opp: ProgramOpportunity }) {
   const [expanded, setExpanded] = useState(false)
   const visible = expanded ? opp.businesses : opp.businesses.slice(0, VISIBLE_BUSINESSES)
   const hiddenCount = opp.businesses.length - visible.length
-  const remainingDays = opp.endDate ? daysUntil(opp.endDate) : null
 
   return (
     <div className="bg-white rounded-xl border border-slate-100 p-4 flex flex-col">
@@ -49,11 +81,7 @@ function OpportunityCard({ opp }: { opp: ProgramOpportunity }) {
         </Badge>
       </div>
 
-      {remainingDays !== null && remainingDays >= 0 && remainingDays <= 30 && (
-        <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-red-600 bg-red-50 px-2 py-0.5 rounded-full mt-1.5 w-fit">
-          <AlertTriangle size={10} /> Λήξη σε {remainingDays} {remainingDays === 1 ? 'ημέρα' : 'ημέρες'}
-        </span>
-      )}
+      <DeadlineChip endDate={opp.endDate} />
 
       {opp.programDescription && (
         <p className="text-xs text-slate-500 mt-1.5 leading-relaxed line-clamp-2">{opp.programDescription}</p>
