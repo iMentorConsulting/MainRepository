@@ -147,11 +147,13 @@ export async function ensureErmisTagsBackfilled() {
 
 export async function ensureGemiTagsBackfilled() {
   // Self-detecting backfill: add "ΓΕΜΗ" to all gemi-claim businesses that don't have it yet.
+  const gemiTag = 'ΓΕΜΗ'
+  const gemiSource = 'gemi-claim'
   await prisma.$executeRaw`
     UPDATE "Business"
-    SET tags = array_append(tags, 'ΓΕΜΗ')
-    WHERE source = 'gemi-claim'
-      AND NOT ('ΓΕΜΗ' = ANY(tags))
+    SET tags = array_append(tags, ${gemiTag})
+    WHERE source = ${gemiSource}
+      AND NOT (${gemiTag} = ANY(tags))
   `
 }
 

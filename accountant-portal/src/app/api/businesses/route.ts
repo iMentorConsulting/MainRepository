@@ -6,13 +6,15 @@ import { runMatchingForBusiness, autoNotifyBusinessMatches } from '@/lib/matchin
 import { categoryWhereClause, BusinessCategory } from '@/lib/business-categories'
 import { regionWhereClause } from '@/lib/greek-regions'
 import { notIndividualWhere, FARMER_SPECIAL_REGIME_CODE, inactiveBusinessWhere } from '@/lib/business-filters'
-import { ensureFirmActCodesNormalized } from '@/lib/suggestions-seed'
+import { ensureFirmActCodesNormalized, ensureGemiTagsBackfilled, ensureTagAliasesResolved } from '@/lib/suggestions-seed'
 
 export async function GET(request: NextRequest) {
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   ensureFirmActCodesNormalized().catch(err => console.error('[Businesses] ΚΑΔ normalization failed:', err?.message))
+  ensureGemiTagsBackfilled().catch(() => {})
+  ensureTagAliasesResolved().catch(() => {})
 
   const { searchParams } = request.nextUrl
   const page = parseInt(searchParams.get('page') || '1')
