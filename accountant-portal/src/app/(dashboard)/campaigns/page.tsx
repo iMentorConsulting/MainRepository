@@ -1,35 +1,88 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableHead, TableBody, TableRow, Th, Td } from '@/components/ui/table'
-import { Plus, Mail, MessageCircle, Send, Users, FileText, CheckCircle2, Sparkles, ArrowRight, AlertTriangle, Eye, MousePointerClick } from 'lucide-react'
+import { Plus, Mail, MessageCircle, Send, Users, FileText, CheckCircle2, Sparkles, ArrowRight, AlertTriangle, Eye, MousePointerClick, Filter, X } from 'lucide-react'
 import { formatDateTime } from '@/lib/utils'
 
 const statusVariant: Record<string, any> = { DRAFT: 'secondary', SCHEDULED: 'warning', SENT: 'success' }
 const statusLabel: Record<string, string> = { DRAFT: 'Πρόχειρο', SCHEDULED: 'Προγρ/νο', SENT: 'Απεστάλη' }
+const channelLabel: Record<string, string> = { EMAIL: 'Email', VIBER: 'Viber', EMAIL_AND_VIBER: 'Email & Viber' }
+
+const CHANNEL_OPTIONS = ['EMAIL', 'VIBER', 'EMAIL_AND_VIBER']
+const STATUS_OPTIONS = ['DRAFT', 'SENT', 'SCHEDULED']
 
 export default function CampaignsPage() {
-  const [campaigns, setCampaigns] = useState<any[]>([])
+  const [allCampaigns, setAllCampaigns] = useState<any[]>([])
   const [analytics, setAnalytics] = useState<any>(null)
+  const [accountants, setAccountants] = useState<any[]>([])
+  const [programs, setPrograms] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [showFilters, setShowFilters] = useState(false)
+
+  // Filter state
+  const [selAccountants, setSelAccountants] = useState<string[]>([])
+  const [selChannels, setSelChannels] = useState<string[]>([])
+  const [selStatuses, setSelStatuses] = useState<string[]>([])
+  const [selPrograms, setSelPrograms] = useState<string[]>([])
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
+
+  const buildQuery = useCallback(() => {
+    const p = new URLSearchParams()
+    if (selAccountants.length) p.set('accountantIds', selAccountants.join(','))
+    if (selChannels.length) p.set('channels', selChannels.join(','))
+    if (selStatuses.length) p.set('statuses', selStatuses.join(','))
+    if (selPrograms.length) p.set('programIds', selPrograms.join(','))
+    if (dateFrom) p.set('dateFrom', dateFrom)
+    if (dateTo) p.set('dateTo', dateTo)
+    return p.toString()
+  }, [selAccountants, selChannels, selStatuses, selPrograms, dateFrom, dateTo])
+
+  const fetchCampaigns = useCallback(() => {
+    setLoading(true)
+    const qs = buildQuery()
+    fetch(`/api/campaigns${qs ? `?${qs}` : ''}`)
+      .then(r => r.json())
+      .then(d => {
+        const all = d.campaigns || []
+        setAllCampaigns(all.filter((c: any) => c.status !== 'SENT' || (c._count?.recipients ?? 0) > 0))
+        if (d.accountants?.length) setAccountants(d.accountants)
+        if (d.programs?.length) setPrograms(d.programs)
+      })
+      .finally(() => setLoading(false))
+  }, [buildQuery])
 
   useEffect(() => {
-    fetch('/api/campaigns')
-      .then(r => r.json())
-      .then(d => setCampaigns((d.campaigns || []).filter((c: any) => c.status !== 'SENT' || (c._count?.recipients ?? 0) > 0)))
-      .finally(() => setLoading(false))
+    fetchCampaigns()
     fetch('/api/campaigns/analytics')
       .then(r => r.json())
       .then(setAnalytics)
       .catch(() => {})
-  }, [])
+  }, [fetchCampaigns])
 
-  const sent      = campaigns.filter(c => c.status === 'SENT')
-  const drafts    = campaigns.filter(c => c.status === 'DRAFT')
+  const campaigns = allCampaigns
+  const sent = campaigns.filter(c => c.status === 'SENT')
+  const drafts = campaigns.filter(c => c.status === 'DRAFT')
   const totalReach = sent.reduce((s, c) => s + (c._count?.recipients ?? 0), 0)
-  const channelLabel: Record<string, string> = { EMAIL: 'Email', VIBER: 'Viber' }
+  const isAdmin = accountants.length > 0
+
+  const activeFilterCount = selAccountants.length + selChannels.length + selStatuses.length + selPrograms.length + (dateFrom ? 1 : 0) + (dateTo ? 1 : 0)
+
+  function clearFilters() {
+    setSelAccountants([])
+    setSelChannels([])
+    setSelStatuses([])
+    setSelPrograms([])
+    setDateFrom('')
+    setDateTo('')
+  }
+
+  function toggleItem(arr: string[], set: (v: string[]) => void, val: string) {
+    set(arr.includes(val) ? arr.filter(x => x !== val) : [...arr, val])
+  }
 
   return (
     <div className="space-y-6">
@@ -39,6 +92,13 @@ export default function CampaignsPage() {
           <p className="text-gray-500 mt-1">{campaigns.length} καμπάνιες</p>
         </div>
         <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setShowFilters(v => !v)} className="relative">
+            <Filter size={16} className="mr-2" />
+            Φίλτρα
+            {activeFilterCount > 0 && (
+              <span className="ml-2 inline-flex items-center justify-center w-5 h-5 text-xs font-bold rounded-full bg-blue-800 text-white">{activeFilterCount}</span>
+            )}
+          </Button>
           <Link href="/campaigns/new">
             <Button><Plus size={16} className="mr-2" />Νέα Καμπάνια</Button>
           </Link>
@@ -81,6 +141,110 @@ export default function CampaignsPage() {
           </div>
         </Link>
       </div>
+
+      {/* ── Filter panel ───────────────────────────────────────────────── */}
+      {showFilters && (
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-gray-700">Φίλτρα</h2>
+            {activeFilterCount > 0 && (
+              <button onClick={clearFilters} className="text-xs text-gray-400 hover:text-gray-600 flex items-center gap-1">
+                <X size={12} />Καθαρισμός
+              </button>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {/* Accountant filter — admin only */}
+            {isAdmin && (
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1.5">Λογιστής</label>
+                <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto">
+                  {accountants.map(a => (
+                    <button
+                      key={a.id}
+                      onClick={() => toggleItem(selAccountants, setSelAccountants, a.id)}
+                      className={`px-2.5 py-1 text-xs rounded-full border transition-colors ${selAccountants.includes(a.id) ? 'bg-blue-800 text-white border-blue-800' : 'bg-white text-gray-600 border-gray-300 hover:border-blue-400'}`}
+                    >
+                      {a.officeName}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Channel filter */}
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1.5">Κανάλι</label>
+              <div className="flex flex-wrap gap-1.5">
+                {CHANNEL_OPTIONS.map(ch => (
+                  <button
+                    key={ch}
+                    onClick={() => toggleItem(selChannels, setSelChannels, ch)}
+                    className={`px-2.5 py-1 text-xs rounded-full border transition-colors ${selChannels.includes(ch) ? 'bg-blue-800 text-white border-blue-800' : 'bg-white text-gray-600 border-gray-300 hover:border-blue-400'}`}
+                  >
+                    {channelLabel[ch]}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Status filter */}
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1.5">Κατάσταση</label>
+              <div className="flex flex-wrap gap-1.5">
+                {STATUS_OPTIONS.map(st => (
+                  <button
+                    key={st}
+                    onClick={() => toggleItem(selStatuses, setSelStatuses, st)}
+                    className={`px-2.5 py-1 text-xs rounded-full border transition-colors ${selStatuses.includes(st) ? 'bg-blue-800 text-white border-blue-800' : 'bg-white text-gray-600 border-gray-300 hover:border-blue-400'}`}
+                  >
+                    {statusLabel[st] || st}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Program filter */}
+            {programs.length > 0 && (
+              <div className="sm:col-span-2 lg:col-span-2">
+                <label className="block text-xs font-medium text-gray-500 mb-1.5">Πρόγραμμα</label>
+                <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
+                  {programs.map(p => (
+                    <button
+                      key={p.id}
+                      onClick={() => toggleItem(selPrograms, setSelPrograms, p.id)}
+                      className={`px-2.5 py-1 text-xs rounded-full border transition-colors ${selPrograms.includes(p.id) ? 'bg-blue-800 text-white border-blue-800' : 'bg-white text-gray-600 border-gray-300 hover:border-blue-400'}`}
+                    >
+                      {p.title}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Date range */}
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1.5">Περίοδος δημιουργίας</label>
+              <div className="flex gap-2 items-center">
+                <input
+                  type="date"
+                  value={dateFrom}
+                  onChange={e => setDateFrom(e.target.value)}
+                  className="flex-1 text-xs border border-gray-300 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
+                <span className="text-gray-400 text-xs">—</span>
+                <input
+                  type="date"
+                  value={dateTo}
+                  onChange={e => setDateTo(e.target.value)}
+                  className="flex-1 text-xs border border-gray-300 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Stat cards ─────────────────────────────────────────────────── */}
       {!loading && (
@@ -180,6 +344,7 @@ export default function CampaignsPage() {
             <TableHead>
               <TableRow>
                 <Th>Τίτλος</Th>
+                {isAdmin && <Th>Λογιστής</Th>}
                 <Th>Κανάλι</Th>
                 <Th>Πρόγραμμα</Th>
                 <Th>Παραλήπτες</Th>
@@ -190,7 +355,7 @@ export default function CampaignsPage() {
             <TableBody>
               {campaigns.length === 0 ? (
                 <TableRow>
-                  <Td colSpan={6} className="text-center text-gray-400 py-8">Δεν υπάρχουν καμπάνιες</Td>
+                  <Td colSpan={isAdmin ? 7 : 6} className="text-center text-gray-400 py-8">Δεν υπάρχουν καμπάνιες</Td>
                 </TableRow>
               ) : (
                 campaigns.map(c => (
@@ -198,14 +363,28 @@ export default function CampaignsPage() {
                     <Td>
                       <Link href={`/campaigns/${c.id}`} className="font-medium text-blue-800 hover:underline">{c.title}</Link>
                     </Td>
+                    {isAdmin && (
+                      <Td className="text-sm text-gray-600">
+                        {c.accountant?.officeName || <span className="text-gray-300">—</span>}
+                      </Td>
+                    )}
                     <Td>
                       <span className="flex items-center gap-1 text-sm">
-                        {c.channel === 'EMAIL' ? <Mail size={14} className="text-blue-500" /> : <MessageCircle size={14} className="text-purple-500" />}
-                        {c.channel}
+                        {c.channel === 'EMAIL'
+                          ? <Mail size={14} className="text-blue-500" />
+                          : c.channel === 'VIBER'
+                          ? <MessageCircle size={14} className="text-purple-500" />
+                          : <><Mail size={14} className="text-blue-500" /><MessageCircle size={14} className="text-purple-500" /></>}
+                        {channelLabel[c.channel] || c.channel}
                       </span>
                     </Td>
                     <Td className="text-sm text-gray-500">{c.program?.title || '-'}</Td>
-                    <Td>{c._count?.recipients || 0}</Td>
+                    <Td>
+                      <span className="flex items-center gap-1">
+                        <Users size={13} className="text-gray-400" />
+                        {c._count?.recipients || 0}
+                      </span>
+                    </Td>
                     <Td><Badge variant={statusVariant[c.status]}>{statusLabel[c.status]}</Badge></Td>
                     <Td className="text-sm text-gray-500">{formatDateTime(c.sentAt || c.createdAt)}</Td>
                   </TableRow>
