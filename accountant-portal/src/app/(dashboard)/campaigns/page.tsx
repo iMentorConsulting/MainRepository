@@ -1,10 +1,10 @@
 'use client'
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableHead, TableBody, TableRow, Th, Td } from '@/components/ui/table'
-import { Plus, Mail, MessageCircle, Send, Users, FileText, CheckCircle2, Sparkles, ArrowRight, AlertTriangle, Eye, MousePointerClick, Filter, X } from 'lucide-react'
+import { Plus, Mail, MessageCircle, Send, Users, FileText, CheckCircle2, Sparkles, ArrowRight, AlertTriangle, Eye, MousePointerClick, Filter, X, Search } from 'lucide-react'
 import { formatDateTime } from '@/lib/utils'
 
 const statusVariant: Record<string, any> = { DRAFT: 'secondary', SCHEDULED: 'warning', SENT: 'success' }
@@ -13,6 +13,103 @@ const channelLabel: Record<string, string> = { EMAIL: 'Email', VIBER: 'Viber', E
 
 const CHANNEL_OPTIONS = ['EMAIL', 'VIBER', 'EMAIL_AND_VIBER']
 const STATUS_OPTIONS = ['DRAFT', 'SENT', 'SCHEDULED']
+
+// ── Reusable chip-group with optional search + select-all ──────────────────
+interface ChipGroupProps {
+  label: string
+  options: { id: string; label: string }[]
+  selected: string[]
+  onChange: (ids: string[]) => void
+  searchable?: boolean
+}
+
+function ChipGroup({ label, options, selected, onChange, searchable = false }: ChipGroupProps) {
+  const [q, setQ] = useState('')
+
+  const visible = useMemo(
+    () => q.trim() ? options.filter(o => o.label.toLowerCase().includes(q.toLowerCase())) : options,
+    [options, q]
+  )
+
+  const allVisibleSelected = visible.length > 0 && visible.every(o => selected.includes(o.id))
+  const someSelected = selected.length > 0
+
+  function toggleOne(id: string) {
+    onChange(selected.includes(id) ? selected.filter(x => x !== id) : [...selected, id])
+  }
+
+  function toggleAll() {
+    if (allVisibleSelected) {
+      // deselect only the visible ones
+      const visibleIds = new Set(visible.map(o => o.id))
+      onChange(selected.filter(id => !visibleIds.has(id)))
+    } else {
+      // add all visible that aren't yet selected
+      const visibleIds = visible.map(o => o.id)
+      onChange(Array.from(new Set([...selected, ...visibleIds])))
+    }
+  }
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-1.5">
+        <label className="text-xs font-medium text-gray-500">{label}</label>
+        <div className="flex items-center gap-2">
+          {someSelected && (
+            <button onClick={() => onChange([])} className="text-[11px] text-gray-400 hover:text-gray-600">
+              Καθαρισμός
+            </button>
+          )}
+          {options.length > 1 && (
+            <button onClick={toggleAll} className="text-[11px] text-blue-700 hover:text-blue-900 font-medium">
+              {allVisibleSelected ? 'Αποεπιλογή όλων' : 'Επιλογή όλων'}
+            </button>
+          )}
+        </div>
+      </div>
+
+      {searchable && options.length > 5 && (
+        <div className="relative mb-2">
+          <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400" />
+          <input
+            type="text"
+            value={q}
+            onChange={e => setQ(e.target.value)}
+            placeholder="Αναζήτηση…"
+            className="w-full text-xs pl-6 pr-2 py-1.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
+          />
+          {q && (
+            <button onClick={() => setQ('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+              <X size={11} />
+            </button>
+          )}
+        </div>
+      )}
+
+      <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto pr-1">
+        {visible.length === 0 ? (
+          <span className="text-xs text-gray-400 italic">Δεν βρέθηκαν αποτελέσματα</span>
+        ) : (
+          visible.map(o => (
+            <button
+              key={o.id}
+              onClick={() => toggleOne(o.id)}
+              className={`px-2.5 py-1 text-xs rounded-full border transition-colors ${
+                selected.includes(o.id)
+                  ? 'bg-blue-800 text-white border-blue-800'
+                  : 'bg-white text-gray-600 border-gray-300 hover:border-blue-400'
+              }`}
+            >
+              {o.label}
+            </button>
+          ))
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ──────────────────────────────────────────────────────────────────────────
 
 export default function CampaignsPage() {
   const [allCampaigns, setAllCampaigns] = useState<any[]>([])
@@ -69,9 +166,11 @@ export default function CampaignsPage() {
   const totalReach = sent.reduce((s, c) => s + (c._count?.recipients ?? 0), 0)
   const isAdmin = accountants.length > 0
 
-  const activeFilterCount = selAccountants.length + selChannels.length + selStatuses.length + selPrograms.length + (dateFrom ? 1 : 0) + (dateTo ? 1 : 0)
+  const activeFilterCount =
+    selAccountants.length + selChannels.length + selStatuses.length + selPrograms.length +
+    (dateFrom ? 1 : 0) + (dateTo ? 1 : 0)
 
-  function clearFilters() {
+  function clearAllFilters() {
     setSelAccountants([])
     setSelChannels([])
     setSelStatuses([])
@@ -80,9 +179,11 @@ export default function CampaignsPage() {
     setDateTo('')
   }
 
-  function toggleItem(arr: string[], set: (v: string[]) => void, val: string) {
-    set(arr.includes(val) ? arr.filter(x => x !== val) : [...arr, val])
-  }
+  // Option shapes for ChipGroup
+  const accountantOptions = accountants.map(a => ({ id: a.id, label: a.officeName }))
+  const channelOptions = CHANNEL_OPTIONS.map(ch => ({ id: ch, label: channelLabel[ch] }))
+  const statusOptions = STATUS_OPTIONS.map(st => ({ id: st, label: statusLabel[st] || st }))
+  const programOptions = programs.map(p => ({ id: p.id, label: p.title }))
 
   return (
     <div className="space-y-6">
@@ -92,11 +193,13 @@ export default function CampaignsPage() {
           <p className="text-gray-500 mt-1">{campaigns.length} καμπάνιες</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={() => setShowFilters(v => !v)} className="relative">
+          <Button variant="outline" onClick={() => setShowFilters(v => !v)}>
             <Filter size={16} className="mr-2" />
             Φίλτρα
             {activeFilterCount > 0 && (
-              <span className="ml-2 inline-flex items-center justify-center w-5 h-5 text-xs font-bold rounded-full bg-blue-800 text-white">{activeFilterCount}</span>
+              <span className="ml-2 inline-flex items-center justify-center w-5 h-5 text-xs font-bold rounded-full bg-blue-800 text-white">
+                {activeFilterCount}
+              </span>
             )}
           </Button>
           <Link href="/campaigns/new">
@@ -148,78 +251,50 @@ export default function CampaignsPage() {
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-semibold text-gray-700">Φίλτρα</h2>
             {activeFilterCount > 0 && (
-              <button onClick={clearFilters} className="text-xs text-gray-400 hover:text-gray-600 flex items-center gap-1">
-                <X size={12} />Καθαρισμός
+              <button onClick={clearAllFilters} className="text-xs text-gray-400 hover:text-gray-600 flex items-center gap-1">
+                <X size={12} />Καθαρισμός όλων
               </button>
             )}
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {/* Accountant filter — admin only */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {/* Accountant — admin only, searchable */}
             {isAdmin && (
-              <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1.5">Λογιστής</label>
-                <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto">
-                  {accountants.map(a => (
-                    <button
-                      key={a.id}
-                      onClick={() => toggleItem(selAccountants, setSelAccountants, a.id)}
-                      className={`px-2.5 py-1 text-xs rounded-full border transition-colors ${selAccountants.includes(a.id) ? 'bg-blue-800 text-white border-blue-800' : 'bg-white text-gray-600 border-gray-300 hover:border-blue-400'}`}
-                    >
-                      {a.officeName}
-                    </button>
-                  ))}
-                </div>
-              </div>
+              <ChipGroup
+                label="Λογιστής"
+                options={accountantOptions}
+                selected={selAccountants}
+                onChange={setSelAccountants}
+                searchable
+              />
             )}
 
-            {/* Channel filter */}
-            <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1.5">Κανάλι</label>
-              <div className="flex flex-wrap gap-1.5">
-                {CHANNEL_OPTIONS.map(ch => (
-                  <button
-                    key={ch}
-                    onClick={() => toggleItem(selChannels, setSelChannels, ch)}
-                    className={`px-2.5 py-1 text-xs rounded-full border transition-colors ${selChannels.includes(ch) ? 'bg-blue-800 text-white border-blue-800' : 'bg-white text-gray-600 border-gray-300 hover:border-blue-400'}`}
-                  >
-                    {channelLabel[ch]}
-                  </button>
-                ))}
-              </div>
-            </div>
+            {/* Channel */}
+            <ChipGroup
+              label="Κανάλι"
+              options={channelOptions}
+              selected={selChannels}
+              onChange={setSelChannels}
+            />
 
-            {/* Status filter */}
-            <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1.5">Κατάσταση</label>
-              <div className="flex flex-wrap gap-1.5">
-                {STATUS_OPTIONS.map(st => (
-                  <button
-                    key={st}
-                    onClick={() => toggleItem(selStatuses, setSelStatuses, st)}
-                    className={`px-2.5 py-1 text-xs rounded-full border transition-colors ${selStatuses.includes(st) ? 'bg-blue-800 text-white border-blue-800' : 'bg-white text-gray-600 border-gray-300 hover:border-blue-400'}`}
-                  >
-                    {statusLabel[st] || st}
-                  </button>
-                ))}
-              </div>
-            </div>
+            {/* Status */}
+            <ChipGroup
+              label="Κατάσταση"
+              options={statusOptions}
+              selected={selStatuses}
+              onChange={setSelStatuses}
+            />
 
-            {/* Program filter */}
+            {/* Program — searchable, spans 2 cols when present */}
             {programs.length > 0 && (
               <div className="sm:col-span-2 lg:col-span-2">
-                <label className="block text-xs font-medium text-gray-500 mb-1.5">Πρόγραμμα</label>
-                <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
-                  {programs.map(p => (
-                    <button
-                      key={p.id}
-                      onClick={() => toggleItem(selPrograms, setSelPrograms, p.id)}
-                      className={`px-2.5 py-1 text-xs rounded-full border transition-colors ${selPrograms.includes(p.id) ? 'bg-blue-800 text-white border-blue-800' : 'bg-white text-gray-600 border-gray-300 hover:border-blue-400'}`}
-                    >
-                      {p.title}
-                    </button>
-                  ))}
-                </div>
+                <ChipGroup
+                  label="Πρόγραμμα"
+                  options={programOptions}
+                  selected={selPrograms}
+                  onChange={setSelPrograms}
+                  searchable
+                />
               </div>
             )}
 
@@ -233,7 +308,7 @@ export default function CampaignsPage() {
                   onChange={e => setDateFrom(e.target.value)}
                   className="flex-1 text-xs border border-gray-300 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
                 />
-                <span className="text-gray-400 text-xs">—</span>
+                <span className="text-gray-400 text-xs shrink-0">—</span>
                 <input
                   type="date"
                   value={dateTo}
