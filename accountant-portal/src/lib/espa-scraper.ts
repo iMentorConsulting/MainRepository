@@ -94,7 +94,7 @@ function getChromiumExecutablePath(): string | undefined {
   }
 }
 
-async function fetchHtmlWithBrowser(url: string): Promise<string> {
+async function fetchHtmlWithBrowser(url: string, attempt = 1): Promise<string> {
   const executablePath = getChromiumExecutablePath()
   const browser = await chromium.launch({
     headless: true,
@@ -104,11 +104,19 @@ async function fetchHtmlWithBrowser(url: string): Promise<string> {
   try {
     const page = await browser.newPage()
     await page.setExtraHTTPHeaders({ 'Accept-Language': 'el-GR,el;q=0.9,en;q=0.8' })
-    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 })
-    await page.waitForSelector('div.item, .error, #ctl00_PlaceHolderMain_lblMessage', { timeout: 15000 }).catch(() => {})
-    return await page.content()
-  } finally {
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 })
+    await page.waitForSelector('div.item, .error, #ctl00_PlaceHolderMain_lblMessage', { timeout: 20000 }).catch(() => {})
+    const html = await page.content()
     await browser.close()
+    return html
+  } catch (err: any) {
+    await browser.close().catch(() => {})
+    if (attempt < 3) {
+      console.warn(`[ESPA scraper] attempt ${attempt} failed (${err?.message}), retrying in ${5 * attempt}s…`)
+      await new Promise(r => setTimeout(r, 5000 * attempt))
+      return fetchHtmlWithBrowser(url, attempt + 1)
+    }
+    throw err
   }
 }
 
