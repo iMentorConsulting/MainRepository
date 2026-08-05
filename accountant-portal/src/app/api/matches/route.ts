@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma'
 import { categoryWhereClause, ALL_CATEGORIES, BusinessCategory } from '@/lib/business-categories'
 import { regionWhereClause, GREEK_REGIONS } from '@/lib/greek-regions'
 import { reconcileMatchStatuses } from '@/lib/matching'
+import { ensureGemiTagsBackfilled, ensureTagAliasesResolved } from '@/lib/suggestions-seed'
 
 export const dynamic = 'force-dynamic'
 
@@ -75,6 +76,11 @@ async function getProgramExclusionFilters() {
 export async function GET(request: NextRequest) {
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  // Fire-and-forget maintenance: backfill ΓΕΜΗ tags and resolve tag aliases.
+  // Both are self-detecting no-ops once all records are up to date.
+  ensureGemiTagsBackfilled().catch(() => {})
+  ensureTagAliasesResolved().catch(() => {})
 
   const { searchParams } = request.nextUrl
   const page = parseInt(searchParams.get('page') || '1')

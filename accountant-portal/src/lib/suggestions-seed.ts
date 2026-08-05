@@ -36,6 +36,13 @@ const REJECTION_REASON_SUGGESTIONS = [
   'Ήδη Εξυπηρετείται από Άλλο Λογιστή/Σύμβουλο',
 ]
 
+// Canonical tag names: any alias key is silently rewritten to its canonical value.
+// Used in ERMIS backfill and in a one-time cleanup of existing data.
+export const TAG_ALIASES: Record<string, string> = {
+  'Μικροπιστώσεις': 'ΤΑΜΕΙΟ ΜΙΚΡΟΠΙΣΤΩΣΕΩΝ',
+  'ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ': 'ΤΑΜΕΙΟ ΜΙΚΡΟΠΙΣΤΩΣΕΩΝ',
+}
+
 // Program-specific reasons: maps a substring of the program title to extra reasons
 // that should only apply to matching programs.
 const PROGRAM_SPECIFIC_REASONS: { match: string; labels: string[] }[] = [
@@ -88,6 +95,11 @@ export async function ensureTagSuggestionsSeeded() {
   await prisma.appSetting.update({ where: { id: 'main' }, data: { tagSuggestionsSeeded: true } })
 }
 
+function normalizeTag(raw: string): string {
+  const trimmed = raw.trim()
+  return TAG_ALIASES[trimmed] ?? trimmed
+}
+
 export async function ensureErmisTagsBackfilled() {
   // Find businesses that have lead interests but are missing those program tags.
   // Self-detecting: no schema flag needed — stops naturally once all are backfilled.
@@ -96,9 +108,10 @@ export async function ensureErmisTagsBackfilled() {
   })
   if (interests.length === 0) return
 
-  const allTags = Array.from(new Set(interests.map(i => i.program.trim()).filter(Boolean)))
+  // Normalize aliases → canonical names before creating TagOptions
+  const allTags = Array.from(new Set(interests.map(i => normalizeTag(i.program)).filter(Boolean)))
 
-  // Ensure TagOptions exist for all program names
+  // Ensure TagOptions exist for all canonical program names
   for (const tag of allTags) {
     const exists = await prisma.tagOption.findFirst({ where: { label: tag } })
     if (!exists) {
@@ -107,10 +120,10 @@ export async function ensureErmisTagsBackfilled() {
     }
   }
 
-  // Group interests by business
+  // Group interests by business (using canonical tag names)
   const byBusiness = new Map<string, Set<string>>()
   for (const { businessId, program } of interests) {
-    const tag = program.trim()
+    const tag = normalizeTag(program)
     if (!tag) continue
     if (!byBusiness.has(businessId)) byBusiness.set(businessId, new Set())
     byBusiness.get(businessId)!.add(tag)
@@ -140,6 +153,52 @@ export async function ensureGemiTagsBackfilled() {
     WHERE source = 'gemi-claim'
       AND NOT ('ΓΕΜΗ' = ANY(tags))
   `
+}
+
+export async function ensureTagAliasesResolved() {
+  // One-time cleanup: replace alias tag names with their canonical equivalents in
+  // Business.tags[], Program.requireTags, Program.excludeTags, then delete the
+  // stale alias TagOption records. Self-detecting — a no-op once aliases are gone.
+  const aliasEntries = Object.entries(TAG_ALIASES)
+  if (aliasEntries.length === 0) return
+
+  for (const [alias, canonical] of aliasEntries) {
+    // Business.tags[]: replace alias with canonical (add canonical if missing, remove alias)
+    await prisma.$executeRaw`
+      UPDATE "Business"
+      SET tags = array_append(
+        array_remove(tags, ${alias}),
+        ${canonical}
+      )
+      WHERE ${alias} = ANY(tags)
+        AND NOT (${canonical} = ANY(tags))
+    `
+    // Also remove alias from businesses that already have the canonical tag
+    await prisma.$executeRaw`
+      UPDATE "Business"
+      SET tags = array_remove(tags, ${alias})
+      WHERE ${alias} = ANY(tags)
+        AND ${canonical} = ANY(tags)
+    `
+
+    // Program.requireTags and Program.excludeTags
+    const programs = await prisma.program.findMany({
+      where: { OR: [{ requireTags: { has: alias } }, { excludeTags: { has: alias } }] },
+      select: { id: true, requireTags: true, excludeTags: true },
+    })
+    for (const prog of programs) {
+      const requireTags = prog.requireTags.includes(alias)
+        ? Array.from(new Set(prog.requireTags.map(t => (t === alias ? canonical : t))))
+        : prog.requireTags
+      const excludeTags = prog.excludeTags.includes(alias)
+        ? Array.from(new Set(prog.excludeTags.map(t => (t === alias ? canonical : t))))
+        : prog.excludeTags
+      await prisma.program.update({ where: { id: prog.id }, data: { requireTags, excludeTags } })
+    }
+
+    // Delete the stale alias TagOption (if it exists)
+    await prisma.tagOption.deleteMany({ where: { label: alias } })
+  }
 }
 
 export async function ensureRejectionReasonSuggestionsSeeded() {
