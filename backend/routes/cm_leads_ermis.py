@@ -792,8 +792,10 @@ def ermis_webhook(
                 if _is_logistis_lead(l)
                 and (l.program or "") != _prog_cat
                 and not l.ermis_transcript
-                # Skip leads with an active ΕΡΜΗΣ session — they will receive their own webhook
+                # Skip leads with an active CM-initiated ΕΡΜΗΣ session
                 and not l.ermis_chat_url
+                # Skip leads that have their own LOGISTIS case — LOGISTIS will send their webhook separately
+                and not getattr(l, "portal_case_number", None)
             ]
             for sib in siblings:
                 sib.ermis_transcript = annotated_transcript
@@ -1040,6 +1042,8 @@ def ermis_backfill_all_siblings(
             CMLead.ermis_transcript.is_(None),
             # Skip leads with an active session — they will receive their own webhook
             CMLead.ermis_chat_url.is_(None),
+            # Skip leads with their own LOGISTIS case — LOGISTIS will send their webhook separately
+            CMLead.portal_case_number.is_(None),
         ).all()
 
         for sib in siblings:
