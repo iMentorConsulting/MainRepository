@@ -107,7 +107,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
          </div>`
       : ''
 
-    const beneficiariesHtml = (program.category === 'DYPA' || program.category === 'DYPA_HIRING') && program.subsidyNote
+    const beneficiariesHtml = program.category === 'DYPA' && program.subsidyNote
       ? `<div style="background: #f0fdf4; border-left: 4px solid #22c55e; padding: 16px; border-radius: 6px; margin: 20px 0;">
            <p style="margin: 0 0 8px; color: #15803d; font-size: 14px; font-weight: bold;">ΩΦΕΛΟΥΜΕΝΟΙ ΑΝΕΡΓΟΙ</p>
            <p style="margin: 0; color: #166534; font-size: 14px; line-height: 1.6;">${program.subsidyNote.replace(/\n/g, '<br>')}</p>
