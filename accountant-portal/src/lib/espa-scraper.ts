@@ -1,5 +1,4 @@
 import * as cheerio from 'cheerio'
-import { chromium } from 'playwright-core'
 
 export interface EspaScrapedItem {
   externalItemId: string
@@ -21,6 +20,81 @@ export interface EspaDetailInfo {
 
 export const ESPA_LISTING_URL =
   'https://www.espa.gr/el/pages/Proclamations.aspx?k=*&ipb=False&ib=True&state=%ce%95%ce%bd%ce%b5%cf%81%ce%b3%ce%ae%7C%ce%91%ce%bd%ce%b1%ce%bc%ce%ad%ce%bd%ce%b5%cf%84%ce%b1%ce%b9%7C&fs=False'
+
+function sleep(ms: number) {
+  return new Promise(resolve => setTimeout(resolve, ms))
+}
+
+// Route through ScrapingAnt (same approach as dypa-scraper). espa.gr sits behind
+// Cloudflare which consistently times out Playwright from Railway's non-Greek IPs.
+async function fetchViaScrapingAnt(url: string, attempt = 1): Promise<string> {
+  const apiKey = process.env.SCRAPINGANT_API_KEY
+  if (!apiKey) throw new Error('SCRAPINGANT_API_KEY is not configured')
+
+  const proxyUrl = new URL('https://api.scrapingant.com/v2/general')
+  proxyUrl.searchParams.set('url', url)
+  proxyUrl.searchParams.set('x-api-key', apiKey)
+  proxyUrl.searchParams.set('browser', 'true')
+  proxyUrl.searchParams.set('proxy_country', 'GR')
+
+  const res = await fetch(proxyUrl.toString())
+
+  // 409 = concurrency cap on free plan — retry with backoff
+  if (res.status === 409 && attempt < 5) {
+    await sleep(attempt * 2000)
+    return fetchViaScrapingAnt(url, attempt + 1)
+  }
+
+  if (!res.ok) {
+    const body = await res.text().catch(() => '')
+    throw new Error(`ScrapingAnt fetch failed: HTTP ${res.status} ${body.slice(0, 200)}`)
+  }
+
+  return res.text()
+}
+
+// Playwright fallback: used only when SCRAPINGANT_API_KEY is absent (local dev).
+async function fetchViaPlaywright(url: string, attempt = 1): Promise<string> {
+  const { chromium } = await import('playwright-core')
+
+  function getChromiumExecutablePath(): string | undefined {
+    if (process.env.CHROMIUM_PATH) return process.env.CHROMIUM_PATH
+    const preinstalled = '/opt/pw-browsers/chromium-1194/chrome-linux/chrome'
+    try { require('fs').accessSync(preinstalled); return preinstalled } catch { return undefined }
+  }
+
+  const executablePath = getChromiumExecutablePath()
+  const browser = await chromium.launch({
+    headless: true,
+    ...(executablePath ? { executablePath } : {}),
+    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+  })
+  try {
+    const page = await browser.newPage()
+    await page.setExtraHTTPHeaders({ 'Accept-Language': 'el-GR,el;q=0.9,en;q=0.8' })
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 })
+    await page.waitForSelector('div.item, .error, #ctl00_PlaceHolderMain_lblMessage', { timeout: 20000 }).catch(() => {})
+    const html = await page.content()
+    await browser.close()
+    return html
+  } catch (err: any) {
+    await browser.close().catch(() => {})
+    if (attempt < 3) {
+      console.warn(`[ESPA scraper] Playwright attempt ${attempt} failed (${err?.message}), retrying in ${5 * attempt}s…`)
+      await sleep(5000 * attempt)
+      return fetchViaPlaywright(url, attempt + 1)
+    }
+    throw err
+  }
+}
+
+async function fetchHtml(url: string): Promise<string> {
+  if (process.env.SCRAPINGANT_API_KEY) {
+    return fetchViaScrapingAnt(url)
+  }
+  console.warn('[ESPA scraper] SCRAPINGANT_API_KEY not set — falling back to Playwright')
+  return fetchViaPlaywright(url)
+}
 
 function parseItems($: cheerio.CheerioAPI): EspaScrapedItem[] {
   const items: EspaScrapedItem[] = []
@@ -58,15 +132,7 @@ function parseItems($: cheerio.CheerioAPI): EspaScrapedItem[] {
     const applicationArea = fieldAfterLabel('Περιοχή εφαρμογής')
     const submissionPeriod = fieldAfterLabel('Περίοδος υποβολής')
 
-    items.push({
-      externalItemId,
-      title,
-      detailUrl,
-      status,
-      operationalProgram,
-      applicationArea,
-      submissionPeriod,
-    })
+    items.push({ externalItemId, title, detailUrl, status, operationalProgram, applicationArea, submissionPeriod })
   })
 
   return items
@@ -81,45 +147,6 @@ function extractHiddenFields($: cheerio.CheerioAPI): Record<string, string> {
   return fields
 }
 
-// Resolve the Chromium executable: prefer CHROMIUM_PATH env var (set on Railway),
-// then the pre-installed path in the dev/CI container, then let playwright find it.
-function getChromiumExecutablePath(): string | undefined {
-  if (process.env.CHROMIUM_PATH) return process.env.CHROMIUM_PATH
-  const preinstalled = '/opt/pw-browsers/chromium-1194/chrome-linux/chrome'
-  try {
-    require('fs').accessSync(preinstalled)
-    return preinstalled
-  } catch {
-    return undefined
-  }
-}
-
-async function fetchHtmlWithBrowser(url: string, attempt = 1): Promise<string> {
-  const executablePath = getChromiumExecutablePath()
-  const browser = await chromium.launch({
-    headless: true,
-    ...(executablePath ? { executablePath } : {}),
-    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
-  })
-  try {
-    const page = await browser.newPage()
-    await page.setExtraHTTPHeaders({ 'Accept-Language': 'el-GR,el;q=0.9,en;q=0.8' })
-    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 })
-    await page.waitForSelector('div.item, .error, #ctl00_PlaceHolderMain_lblMessage', { timeout: 20000 }).catch(() => {})
-    const html = await page.content()
-    await browser.close()
-    return html
-  } catch (err: any) {
-    await browser.close().catch(() => {})
-    if (attempt < 3) {
-      console.warn(`[ESPA scraper] attempt ${attempt} failed (${err?.message}), retrying in ${5 * attempt}s…`)
-      await new Promise(r => setTimeout(r, 5000 * attempt))
-      return fetchHtmlWithBrowser(url, attempt + 1)
-    }
-    throw err
-  }
-}
-
 async function postEspaPage(fields: Record<string, string>): Promise<string> {
   const body = new URLSearchParams(fields)
   const res = await fetch(ESPA_LISTING_URL, {
@@ -132,17 +159,12 @@ async function postEspaPage(fields: Record<string, string>): Promise<string> {
     },
     body: body.toString(),
   })
-  if (!res.ok) {
-    throw new Error(`ESPA page fetch failed: HTTP ${res.status}`)
-  }
+  if (!res.ok) throw new Error(`ESPA pagination POST failed: HTTP ${res.status}`)
   return res.text()
 }
 
 export async function fetchEspaAnnouncements(maxPages = 3): Promise<EspaScrapedItem[]> {
-  // Use a real browser for the first page to bypass Cloudflare bot detection.
-  // Subsequent pagination uses POST (ASP.NET viewstate) which reuses the same session
-  // and is less likely to be blocked since the cookie is set after the initial page load.
-  const html = await fetchHtmlWithBrowser(ESPA_LISTING_URL)
+  const html = await fetchHtml(ESPA_LISTING_URL)
   let $ = cheerio.load(html)
   const items: EspaScrapedItem[] = parseItems($)
 
@@ -171,8 +193,7 @@ export async function fetchEspaAnnouncements(maxPages = 3): Promise<EspaScrapedI
 }
 
 export async function fetchEspaDetail(detailUrl: string): Promise<EspaDetailInfo> {
-  // Detail pages are linked directly; fetch with browser to avoid Cloudflare.
-  const html = await fetchHtmlWithBrowser(detailUrl)
+  const html = await fetchHtml(detailUrl)
   const $ = cheerio.load(html)
 
   const storyClone = $('.story').first().clone()
