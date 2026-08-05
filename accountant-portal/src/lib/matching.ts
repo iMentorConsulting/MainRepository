@@ -229,29 +229,11 @@ export async function dismissMatchesForProgram(programId: string): Promise<void>
   })
 }
 
-// Sends an immediate internal email to I-MENTOR for a direct (no-accountant) match.
-async function autoNotifyDirectMatch(businessId: string, programId: string): Promise<void> {
-  const [business, program] = await Promise.all([
-    prisma.business.findUnique({ where: { id: businessId }, select: { afm: true, onomasia: true, accountantId: true } }),
-    prisma.program.findUnique({ where: { id: programId }, select: { title: true } }),
-  ])
-  if (!business || !program || business.accountantId) return // only for direct clients
-  const adminEmail = process.env.ADMIN_EMAIL || 'info@i-mentor.gr'
-  const appUrl = process.env.APP_URL || 'https://logistis.i-mentor.gr'
-  const name = business.onomasia || business.afm
-  await sendEmail({
-    to: adminEmail,
-    subject: `🎯 Νέο match: ${name} — ${program.title}`,
-    html: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">
-      <p>Νέο αυτόματο match για απευθείας πελάτη I-MENTOR:</p>
-      <p><strong>${name}</strong> (ΑΦΜ: ${business.afm}) ↔ <strong>${program.title}</strong></p>
-      <p><a href="${appUrl}/businesses/${businessId}">Δείτε την επιχείρηση →</a></p>
-    </div>`,
-  }).catch(err => console.error('[DirectMatch] email failed:', err?.message))
-  await prisma.programMatch.updateMany({
-    where: { programId, businessId, notified: false },
-    data: { notified: true },
-  })
+// Direct-client matches are no longer notified individually — they are
+// collected and sent as a daily digest by the /api/cron/direct-match-digest
+// endpoint (runs at 15:00 every day). Matches stay notified=false until then.
+async function autoNotifyDirectMatch(_businessId: string, _programId: string): Promise<void> {
+  // no-op: digest cron handles notification
 }
 
 // Returns true if a NEW match was created (not an update to an existing one).
