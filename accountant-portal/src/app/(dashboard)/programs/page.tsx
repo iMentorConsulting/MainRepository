@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { useSession } from 'next-auth/react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Plus, Target, Calendar, Zap, TrendingUp, MapPin, Archive, Megaphone, Check, X, ExternalLink, Clock, Sparkles, AlertTriangle } from 'lucide-react'
+import { Plus, Target, Calendar, Zap, TrendingUp, MapPin, Archive, Megaphone, Check, X, ExternalLink, Clock, Sparkles, AlertTriangle, RefreshCw } from 'lucide-react'
 import { formatDate, formatDateTime } from '@/lib/utils'
 import { GREEK_REGIONS } from '@/lib/greek-regions'
 import { AiTrainingTab } from '@/components/programs/ai-training-tab'
@@ -180,6 +180,8 @@ function CronStatusLine({ source }: { source: 'espa' | 'dypa' }) {
 function EspaAnnouncementsTab() {
   const [items, setItems] = useState<EspaAnnouncement[]>([])
   const [loading, setLoading] = useState(true)
+  const [scraping, setScraping] = useState(false)
+  const [scrapeResult, setScrapeResult] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<AnnouncementViewMode>('new')
 
   function load() {
@@ -191,6 +193,25 @@ function EspaAnnouncementsTab() {
   }
 
   useEffect(() => { load() }, [])
+
+  async function scrapeNow() {
+    setScraping(true)
+    setScrapeResult(null)
+    try {
+      const res = await fetch('/api/cron/check-espa', { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) {
+        setScrapeResult(`Σφάλμα: ${data.detail || data.error || 'Άγνωστο σφάλμα'}`)
+      } else {
+        setScrapeResult(data.newCount > 0 ? `Βρέθηκαν ${data.newCount} νέες προκηρύξεις!` : 'Δεν βρέθηκαν νέες προκηρύξεις.')
+        load()
+      }
+    } catch {
+      setScrapeResult('Σφάλμα σύνδεσης.')
+    } finally {
+      setScraping(false)
+    }
+  }
 
   async function updateStatus(id: string, reviewStatus: string) {
     await fetch(`/api/espa-announcements/${id}`, {
@@ -224,8 +245,19 @@ function EspaAnnouncementsTab() {
             {counts.new} νέες προκηρύξεις προς έγκριση
           </p>
           <CronStatusLine source="espa" />
+          {scrapeResult && (
+            <p className={`text-xs mt-0.5 ${scrapeResult.startsWith('Σφάλμα') ? 'text-red-600' : 'text-green-700'}`}>
+              {scrapeResult}
+            </p>
+          )}
         </div>
-        <ViewModeTabs mode={viewMode} onChange={setViewMode} counts={counts} />
+        <div className="flex items-center gap-3">
+          <Button size="sm" variant="outline" onClick={scrapeNow} disabled={scraping} className="gap-1.5">
+            <RefreshCw size={13} className={scraping ? 'animate-spin' : ''} />
+            {scraping ? 'Αναζήτηση…' : 'Ψάξε τώρα'}
+          </Button>
+          <ViewModeTabs mode={viewMode} onChange={setViewMode} counts={counts} />
+        </div>
       </div>
 
       {visible.length === 0 && (
@@ -312,6 +344,8 @@ interface DypaAnnouncement {
 function DypaAnnouncementsTab() {
   const [items, setItems] = useState<DypaAnnouncement[]>([])
   const [loading, setLoading] = useState(true)
+  const [scraping, setScraping] = useState(false)
+  const [scrapeResult, setScrapeResult] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<AnnouncementViewMode>('new')
 
   function load() {
@@ -323,6 +357,25 @@ function DypaAnnouncementsTab() {
   }
 
   useEffect(() => { load() }, [])
+
+  async function scrapeNow() {
+    setScraping(true)
+    setScrapeResult(null)
+    try {
+      const res = await fetch('/api/cron/check-dypa', { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) {
+        setScrapeResult(`Σφάλμα: ${data.detail || data.error || 'Άγνωστο σφάλμα'}`)
+      } else {
+        setScrapeResult(data.newCount > 0 ? `Βρέθηκαν ${data.newCount} νέα προγράμματα!` : 'Δεν βρέθηκαν νέα προγράμματα.')
+        load()
+      }
+    } catch {
+      setScrapeResult('Σφάλμα σύνδεσης.')
+    } finally {
+      setScraping(false)
+    }
+  }
 
   async function updateStatus(id: string, reviewStatus: string) {
     await fetch(`/api/dypa-announcements/${id}`, {
@@ -356,8 +409,19 @@ function DypaAnnouncementsTab() {
             {counts.new} νέα προγράμματα προς έγκριση
           </p>
           <CronStatusLine source="dypa" />
+          {scrapeResult && (
+            <p className={`text-xs mt-0.5 ${scrapeResult.startsWith('Σφάλμα') ? 'text-red-600' : 'text-green-700'}`}>
+              {scrapeResult}
+            </p>
+          )}
         </div>
-        <ViewModeTabs mode={viewMode} onChange={setViewMode} counts={counts} />
+        <div className="flex items-center gap-3">
+          <Button size="sm" variant="outline" onClick={scrapeNow} disabled={scraping} className="gap-1.5">
+            <RefreshCw size={13} className={scraping ? 'animate-spin' : ''} />
+            {scraping ? 'Αναζήτηση…' : 'Ψάξε τώρα'}
+          </Button>
+          <ViewModeTabs mode={viewMode} onChange={setViewMode} counts={counts} />
+        </div>
       </div>
 
       {visible.length === 0 && (

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { sendEmail } from '@/lib/email'
 import { fetchEspaAnnouncements, fetchEspaDetail } from '@/lib/espa-scraper'
+import { auth } from '@/lib/auth'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
@@ -19,10 +20,10 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   const secret = request.headers.get('x-cron-secret')
-  if (secret !== process.env.CRON_SECRET) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-  return runCheck()
+  if (secret === process.env.CRON_SECRET) return runCheck()
+  const session = await auth()
+  if (session?.user?.role === 'ADMIN') return runCheck()
+  return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 }
 
 async function recordRun(error: string | null) {
