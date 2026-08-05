@@ -282,7 +282,13 @@ export async function GET(request: NextRequest) {
   })
   const legalStatusOptions = legalStatusFacet.map(l => l.legalStatusDescr).filter((v): v is string => !!v).sort()
 
-  const tagOptions = await prisma.tagOption.findMany({ select: { label: true }, orderBy: [{ order: 'asc' }, { createdAt: 'asc' }] })
+  const [tagOptions, freeTextTagRows] = await Promise.all([
+    prisma.tagOption.findMany({ select: { label: true }, orderBy: [{ order: 'asc' }, { createdAt: 'asc' }] }),
+    prisma.$queryRaw<{ tag: string }[]>`SELECT DISTINCT unnest(tags) AS tag FROM "Business" WHERE array_length(tags, 1) > 0 ORDER BY tag`,
+  ])
+  const structuredLabels = tagOptions.map(t => t.label)
+  const freeTextLabels = freeTextTagRows.map(r => r.tag).filter(t => !structuredLabels.includes(t))
+  const allTags = [...structuredLabels, ...freeTextLabels]
 
-  return NextResponse.json({ matches, total, unsuitableCount, page, limit, accountants, programs, legalStatuses: legalStatusOptions, categories: ALL_CATEGORIES, perifereies: GREEK_REGIONS, tags: tagOptions.map(t => t.label) })
+  return NextResponse.json({ matches, total, unsuitableCount, page, limit, accountants, programs, legalStatuses: legalStatusOptions, categories: ALL_CATEGORIES, perifereies: GREEK_REGIONS, tags: allTags })
 }
