@@ -15,10 +15,10 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
   const program = await prisma.program.findUnique({
     where: { id: params.id },
     select: {
-      id: true, title: true, otherRequirements: true, category: true,
+      id: true, title: true, description: true, otherRequirements: true, category: true,
       monthlyAmount: true, subsidyMonths: true, totalBenefit: true,
       minInvestment: true, maxInvestment: true,
-      minSubsidyPct: true, maxSubsidyPct: true,
+      minSubsidyPct: true, maxSubsidyPct: true, subsidyNote: true,
       minInterestRate: true, maxInterestRate: true,
     },
   })
@@ -100,6 +100,20 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
 
     const programInfoHtml = buildProgramInfoHtml(program)
 
+    const programDescriptionHtml = program.description
+      ? `<div style="background: #eff6ff; border-left: 4px solid #3b82f6; padding: 16px; border-radius: 6px; margin: 20px 0;">
+           <p style="margin: 0 0 8px; color: #1e40af; font-size: 14px; font-weight: bold;">ΠΕΡΙΓΡΑΦΗ ΠΡΟΓΡΑΜΜΑΤΟΣ</p>
+           <p style="margin: 0; color: #1e3a8a; font-size: 14px; line-height: 1.6;">${program.description.replace(/\n/g, '<br>')}</p>
+         </div>`
+      : ''
+
+    const beneficiariesHtml = (program.category === 'DYPA' || program.category === 'DYPA_HIRING') && program.subsidyNote
+      ? `<div style="background: #f0fdf4; border-left: 4px solid #22c55e; padding: 16px; border-radius: 6px; margin: 20px 0;">
+           <p style="margin: 0 0 8px; color: #15803d; font-size: 14px; font-weight: bold;">ΩΦΕΛΟΥΜΕΝΟΙ ΑΝΕΡΓΟΙ</p>
+           <p style="margin: 0; color: #166534; font-size: 14px; line-height: 1.6;">${program.subsidyNote.replace(/\n/g, '<br>')}</p>
+         </div>`
+      : ''
+
     const requirementsHtml = program.otherRequirements
       ? `<div style="background: #f3f4f6; border-left: 4px solid #6b7280; padding: 16px; border-radius: 6px; margin: 20px 0;">
            <p style="margin: 0; color: #374151; font-size: 14px; font-weight: bold;">Πρόσθετες Προϋποθέσεις Προγράμματος:</p>
@@ -143,6 +157,8 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
 
             ${missingContactHtml}
             ${programInfoHtml}
+            ${programDescriptionHtml}
+            ${beneficiariesHtml}
             ${requirementsHtml}
 
             <div style="text-align: center; margin: 28px 0 8px;">
