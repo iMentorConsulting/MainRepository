@@ -69,8 +69,17 @@ function daysUntil(dateStr: string): number {
 function DeadlineChip({ endDate }: { endDate: string | null }) {
   if (!endDate) return null
   const days = daysUntil(endDate)
-  if (days < 0) return null
   const formatted = new Date(endDate).toLocaleDateString('el-GR', { day: 'numeric', month: 'short', year: 'numeric' })
+  if (days < 0) {
+    return (
+      <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-red-100 border border-red-300 w-fit">
+        <AlertTriangle size={11} className="text-red-700 flex-shrink-0" />
+        <span className="text-xs font-bold text-red-800">
+          ΕΛΗΞΕ {formatted}
+        </span>
+      </div>
+    )
+  }
   if (days <= 14) {
     return (
       <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-red-50 border border-red-200 w-fit">

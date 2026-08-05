@@ -34,8 +34,15 @@ function formatDeadline(dateStr: string) {
 function DeadlineChip({ endDate }: { endDate: string | null }) {
   if (!endDate) return null
   const days = daysUntil(endDate)
-  if (days < 0) return null
   const formatted = formatDeadline(endDate)
+  if (days < 0) {
+    return (
+      <span className="inline-flex items-center gap-1 text-[10px] font-bold text-red-800 bg-red-100 border border-red-300 px-2 py-0.5 rounded-full mt-1.5 w-fit">
+        <AlertTriangle size={9} />
+        ΕΛΗΞΕ {formatted}
+      </span>
+    )
+  }
   if (days <= 14) {
     return (
       <span className="inline-flex items-center gap-1 text-[10px] font-bold text-red-700 bg-red-50 border border-red-200 px-2 py-0.5 rounded-full mt-1.5 w-fit">
