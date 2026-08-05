@@ -31,8 +31,21 @@ function formatDeadline(dateStr: string) {
   return new Date(dateStr).toLocaleDateString('el-GR', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
-function DeadlineChip({ endDate }: { endDate: string | null }) {
-  if (!endDate) return null
+function DeadlineChip({ endDate, category }: { endDate: string | null; category?: string }) {
+  if (!endDate) {
+    const noDateLabel = category === 'DYPA'
+      ? 'Έως κάλυψης των θέσεων'
+      : category === 'ESPA'
+      ? 'Έως εξάντλησης του προϋπολογισμού'
+      : null
+    if (!noDateLabel) return null
+    return (
+      <span className="inline-flex items-center gap-1 text-[10px] text-slate-400 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded-full mt-1.5 w-fit">
+        <Calendar size={9} />
+        {noDateLabel}
+      </span>
+    )
+  }
   const days = daysUntil(endDate)
   const formatted = formatDeadline(endDate)
   if (days < 0) {
@@ -60,9 +73,9 @@ function DeadlineChip({ endDate }: { endDate: string | null }) {
     )
   }
   return (
-    <span className="inline-flex items-center gap-1 text-[10px] text-slate-400 mt-1.5 w-fit">
+    <span className="inline-flex items-center gap-1 text-[10px] font-medium text-yellow-700 bg-yellow-50 border border-yellow-200 px-2 py-0.5 rounded-full mt-1.5 w-fit">
       <Calendar size={9} />
-      Λήξη {formatted}
+      Λήξη {formatted} · σε {days} ημέρες
     </span>
   )
 }
@@ -88,7 +101,7 @@ function OpportunityCard({ opp }: { opp: ProgramOpportunity }) {
         </Badge>
       </div>
 
-      <DeadlineChip endDate={opp.endDate} />
+      <DeadlineChip endDate={opp.endDate} category={opp.programCategory} />
 
       {opp.programDescription && (
         <p className="text-xs text-slate-500 mt-1.5 leading-relaxed line-clamp-2">{opp.programDescription}</p>

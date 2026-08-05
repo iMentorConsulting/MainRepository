@@ -66,17 +66,28 @@ function daysUntil(dateStr: string): number {
   return Math.ceil((new Date(dateStr).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
 }
 
-function DeadlineChip({ endDate }: { endDate: string | null }) {
-  if (!endDate) return null
+function DeadlineChip({ endDate, category }: { endDate: string | null; category?: string }) {
+  if (!endDate) {
+    const noDateLabel = category === 'DYPA'
+      ? 'Έως κάλυψης των θέσεων'
+      : category === 'ESPA'
+      ? 'Έως εξάντλησης του προϋπολογισμού'
+      : null
+    if (!noDateLabel) return null
+    return (
+      <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-50 border border-slate-200 w-fit">
+        <Calendar size={11} className="text-slate-400 flex-shrink-0" />
+        <span className="text-xs text-slate-500">{noDateLabel}</span>
+      </div>
+    )
+  }
   const days = daysUntil(endDate)
   const formatted = new Date(endDate).toLocaleDateString('el-GR', { day: 'numeric', month: 'short', year: 'numeric' })
   if (days < 0) {
     return (
       <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-red-100 border border-red-300 w-fit">
         <AlertTriangle size={11} className="text-red-700 flex-shrink-0" />
-        <span className="text-xs font-bold text-red-800">
-          ΕΛΗΞΕ {formatted}
-        </span>
+        <span className="text-xs font-bold text-red-800">ΕΛΗΞΕ {formatted}</span>
       </div>
     )
   }
@@ -101,9 +112,9 @@ function DeadlineChip({ endDate }: { endDate: string | null }) {
     )
   }
   return (
-    <div className="flex items-center gap-1.5 text-xs text-gray-500">
-      <Calendar size={11} className="flex-shrink-0" />
-      <span>Λήξη {formatted}</span>
+    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-yellow-50 border border-yellow-200 w-fit">
+      <Calendar size={11} className="text-yellow-600 flex-shrink-0" />
+      <span className="text-xs font-medium text-yellow-700">Λήξη {formatted} · σε {days} ημέρες</span>
     </div>
   )
 }
@@ -695,7 +706,7 @@ export default function ProgramsPage() {
 
                   {/* Details grid */}
                   <div className="mt-auto space-y-1.5 pt-3 border-t border-gray-100">
-                    <DeadlineChip endDate={program.endDate} />
+                    <DeadlineChip endDate={program.endDate} category={program.category} />
                     {(program.minInvestment || program.maxInvestment) && (
                       <div className="flex items-center gap-1.5 text-xs text-gray-600">
                         <TrendingUp size={11} className="text-green-600 flex-shrink-0" />
