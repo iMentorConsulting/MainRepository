@@ -35,7 +35,7 @@ async function fetchViaScrapingAnt(url: string, attempt = 1): Promise<string> {
   proxyUrl.searchParams.set('url', url)
   proxyUrl.searchParams.set('x-api-key', apiKey)
   proxyUrl.searchParams.set('browser', 'true')
-  proxyUrl.searchParams.set('proxy_country', 'GR')
+  proxyUrl.searchParams.set('proxy_country', 'DE')
 
   const res = await fetch(proxyUrl.toString())
 
