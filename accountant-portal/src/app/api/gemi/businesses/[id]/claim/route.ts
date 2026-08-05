@@ -65,10 +65,11 @@ export async function POST(
 
   if (business) {
     // Link existing business — fill in missing email/phone/accountantId from GemiLookup
-    const updateData: Record<string, string | null> = {}
+    const updateData: Record<string, any> = {}
     if (!business.email && gemiLookup.email) updateData.email = gemiLookup.email
     if (!business.phone && gemiLookup.phone) updateData.phone = gemiLookup.phone
     if (!business.accountantId && accountantId) updateData.accountantId = accountantId
+    if (!business.tags.includes('ΓΕΜΗ')) updateData.tags = { push: 'ΓΕΜΗ' }
 
     if (Object.keys(updateData).length > 0) {
       business = await prisma.business.update({
@@ -95,6 +96,7 @@ export async function POST(
         deactivationFlag: gemiLookup.deactivationFlag ?? undefined,
         stopDate: gemiLookup.stopDate ?? undefined,
         source: 'gemi-claim',
+        tags: ['ΓΕΜΗ'],
         accountantId: accountantId ?? undefined,
       },
     })

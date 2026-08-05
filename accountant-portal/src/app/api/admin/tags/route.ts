@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { ensureTagSuggestionsSeeded, ensureErmisTagsBackfilled } from '@/lib/suggestions-seed'
+import { ensureTagSuggestionsSeeded, ensureErmisTagsBackfilled, ensureGemiTagsBackfilled } from '@/lib/suggestions-seed'
 
 export async function GET(request: NextRequest) {
   const session = await auth()
@@ -9,6 +9,7 @@ export async function GET(request: NextRequest) {
 
   await ensureTagSuggestionsSeeded().catch(() => {})
   ensureErmisTagsBackfilled().catch(() => {})
+  ensureGemiTagsBackfilled().catch(() => {})
   const items = await prisma.tagOption.findMany({ orderBy: [{ order: 'asc' }, { createdAt: 'asc' }] })
   return NextResponse.json(items)
 }
