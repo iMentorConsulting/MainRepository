@@ -748,12 +748,13 @@ def send_to_lead(
     name = l.name or "συνεργάτη"
 
     # Viber footer appended to every outbound message
+    consultant_line = f"\n👤 {consultant}" if consultant else ""
     viber_footer = (
-        "\n━━━━━━━━━━━━━━━\n"
+        f"{consultant_line}\n"
+        "━━━━━━━━━━━━━━━\n"
         "i-Mentor Consulting\n"
         "📞 2810 363007\n"
-        "🌐 www.i-mentor.gr\n"
-        "📧 info@i-mentor.gr"
+        "🌐 www.i-mentor.gr · 📧 info@i-mentor.gr"
     )
 
     results = []
@@ -777,8 +778,7 @@ def send_to_lead(
             body_text = (req.body or req.message or "").replace("\n", "<br>")
             subject = req.subject or f"i-Mentor Consulting{' — ' + prog_display if prog_display else ''}"
             consultant_html = (
-                f'<p style="margin:0 0 10px;color:#374151;">Ο/Η σύμβουλός σας <b>{consultant}</b> '
-                f'από την i-Mentor θα επικοινωνήσει σύντομα μαζί σας.</p>'
+                f'<p style="margin:0 0 10px;color:#6b7280;font-size:13px;">Σύμβουλος: <b style="color:#1e3a5f;">{consultant}</b></p>'
             ) if consultant else ""
             prog_header = (
                 f'<p style="margin:0 0 16px;font-size:14px;color:#6b7280;">Αφορά το πρόγραμμα: '
@@ -796,12 +796,14 @@ def send_to_lead(
     <div style="font-size:15px;line-height:1.7;margin:0 0 20px;">{body_text}</div>
     <hr style="border:none;border-top:1px solid #eef2f7;margin:16px 0;">
     {consultant_html}
-    <p style="font-size:12px;color:#9ca3af;margin:0;">
-      i-Mentor Consulting ·
-      <a href="https://www.i-mentor.gr" style="color:#6b7280;text-decoration:none;">www.i-mentor.gr</a> ·
-      <a href="mailto:info@i-mentor.gr" style="color:#6b7280;text-decoration:none;">info@i-mentor.gr</a> ·
-      2810 363007
-    </p>
+    <div style="background:#f0f4f8;border-radius:8px;padding:14px 16px;margin-top:4px;">
+      <p style="margin:0 0 4px;font-size:15px;font-weight:bold;color:#1e3a5f;">📞 2810 363007</p>
+      <p style="margin:0;font-size:12px;color:#6b7280;">
+        i-Mentor Consulting ·
+        <a href="https://www.i-mentor.gr" style="color:#6b7280;text-decoration:none;">www.i-mentor.gr</a> ·
+        <a href="mailto:info@i-mentor.gr" style="color:#6b7280;text-decoration:none;">info@i-mentor.gr</a>
+      </p>
+    </div>
   </div>
 </div></body></html>"""
             ok, err = _send_email(l.email, subject, req.body or req.message, html_override=email_html)
