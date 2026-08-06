@@ -33,6 +33,8 @@ export default function ChatPage() {
   const { data: session } = useSession()
   const router = useRouter()
   const isAdmin = session?.user?.role === 'ADMIN'
+  // CONSULTANT is on the I-MENTOR side — same unread logic as ADMIN
+  const isAdminSide = isAdmin || session?.user?.role === 'CONSULTANT'
   const [conversations, setConversations] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [showNew, setShowNew] = useState(false)
@@ -49,8 +51,8 @@ export default function ChatPage() {
   const unreadCount = conversations.filter(conv => {
     const lastMsg = conv.messages?.[0]
     return lastMsg && !lastMsg.readAt &&
-      ((isAdmin && lastMsg.senderRole === 'ACCOUNTANT') ||
-       (!isAdmin && lastMsg.senderRole === 'ADMIN'))
+      ((isAdminSide && lastMsg.senderRole === 'ACCOUNTANT') ||
+       (!isAdminSide && lastMsg.senderRole === 'ADMIN'))
   }).length
 
   function onCreated(conv: any) {
@@ -144,6 +146,7 @@ export default function ChatPage() {
                 const lastMsg = conv.messages?.[0]
                 return lastMsg && !lastMsg.readAt && lastMsg.senderRole === 'ACCOUNTANT'
               }).length
+              // (always admin-side here since this branch renders only when isAdmin)
               return (
                 <details key={key} className="group/office border-b border-gray-100 last:border-b-0" open>
                   <summary className="flex items-center justify-between px-5 py-3 bg-gray-50 cursor-pointer select-none hover:bg-gray-100">
@@ -162,7 +165,7 @@ export default function ChatPage() {
                   </summary>
                   <ul className="divide-y divide-gray-100">
                     {group.convs.map(conv => (
-                      <ConversationRow key={conv.id} conv={conv} isAdmin={isAdmin} />
+                      <ConversationRow key={conv.id} conv={conv} isAdmin={isAdmin} isAdminSide={isAdminSide} />
                     ))}
                   </ul>
                 </details>
@@ -172,7 +175,7 @@ export default function ChatPage() {
         ) : (
           <ul className="divide-y divide-gray-100">
             {visibleConversations.map(conv => (
-              <ConversationRow key={conv.id} conv={conv} isAdmin={isAdmin} />
+              <ConversationRow key={conv.id} conv={conv} isAdmin={isAdmin} isAdminSide={isAdminSide} />
             ))}
           </ul>
         )}
@@ -181,11 +184,11 @@ export default function ChatPage() {
   )
 }
 
-function ConversationRow({ conv, isAdmin }: { conv: any; isAdmin: boolean }) {
+function ConversationRow({ conv, isAdmin, isAdminSide }: { conv: any; isAdmin: boolean; isAdminSide: boolean }) {
   const lastMsg = conv.messages?.[0]
   const unread = lastMsg && !lastMsg.readAt &&
-    ((isAdmin && lastMsg.senderRole === 'ACCOUNTANT') ||
-     (!isAdmin && lastMsg.senderRole === 'ADMIN'))
+    ((isAdminSide && lastMsg.senderRole === 'ACCOUNTANT') ||
+     (!isAdminSide && lastMsg.senderRole === 'ADMIN'))
   return (
     <li>
       <Link href={`/chat/${conv.id}`}
