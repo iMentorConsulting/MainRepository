@@ -703,7 +703,8 @@ def _chatwoot_log_outbound_viber(phone_normalized: str, message: str = "", conta
         r = requests.get(f"{api}/contacts/{contact_id}/conversations",
                          headers=headers, timeout=15)
         if r.ok:
-            payload = r.json().get("payload", [])
+            resp_json = r.json()
+            payload = resp_json if isinstance(resp_json, list) else resp_json.get("payload", [])
             for conv in payload:
                 if str(conv.get("inbox_id")) == str(inbox_id):
                     conv_id = conv["id"]
