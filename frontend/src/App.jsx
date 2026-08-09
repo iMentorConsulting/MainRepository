@@ -27,6 +27,7 @@ import StatusNotificationsPage from './pages/StatusNotificationsPage'
 import Leads from './pages/Leads'
 import LeadDetail from './pages/LeadDetail'
 import LeadSheetConfigPage from './pages/LeadSheetConfigPage'
+import LeadsStats from './pages/LeadsStats'
 
 export default function App() {
   const [auth, setAuthState] = useState(() => getAuth())
@@ -58,6 +59,7 @@ export default function App() {
             <Route path="cases/:id" element={<ErrorBoundary><CaseDetail /></ErrorBoundary>} />
             <Route path="leads" element={<ErrorBoundary><Leads /></ErrorBoundary>} />
             <Route path="leads/:id" element={<ErrorBoundary><LeadDetail /></ErrorBoundary>} />
+            <Route path="leads-stats" element={<ErrorBoundary><LeadsStats /></ErrorBoundary>} />
             <Route path="leads-config" element={<ErrorBoundary><LeadSheetConfigPage /></ErrorBoundary>} />
             <Route path="kanban" element={<ErrorBoundary><Kanban /></ErrorBoundary>} />
             <Route path="pending" element={<ErrorBoundary><PendingPage /></ErrorBoundary>} />

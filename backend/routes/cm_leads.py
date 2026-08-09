@@ -442,6 +442,129 @@ def list_leads(
     }
 
 
+@router.get("/stats")
+def lead_stats(
+    current_user: CMUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    from datetime import timedelta
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Μόνο για διαχειριστές")
+
+    now = datetime.utcnow()
+    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    last_month_start = (month_start - timedelta(seconds=1)).replace(
+        day=1, hour=0, minute=0, second=0, microsecond=0
+    )
+
+    total   = db.query(sa_func.count(CMLead.id)).scalar() or 0
+    deals   = db.query(sa_func.count(CMLead.id)).filter(CMLead.status == "DEAL").scalar() or 0
+    active  = db.query(sa_func.count(CMLead.id)).filter(
+        CMLead.status.in_(["HOT", "ACTIVE", "CALL"])
+    ).scalar() or 0
+    this_month = db.query(sa_func.count(CMLead.id)).filter(
+        CMLead.created_at >= month_start
+    ).scalar() or 0
+    last_month = db.query(sa_func.count(CMLead.id)).filter(
+        CMLead.created_at >= last_month_start,
+        CMLead.created_at < month_start,
+    ).scalar() or 0
+
+    by_day = db.execute(sa_text("""
+        SELECT DATE(created_at) AS period, COUNT(*) AS count
+        FROM cm_leads
+        WHERE created_at >= NOW() - INTERVAL '60 days'
+        GROUP BY 1 ORDER BY 1
+    """)).fetchall()
+
+    by_week = db.execute(sa_text("""
+        SELECT DATE_TRUNC('week', created_at)::date AS period, COUNT(*) AS count
+        FROM cm_leads
+        WHERE created_at >= NOW() - INTERVAL '26 weeks'
+        GROUP BY 1 ORDER BY 1
+    """)).fetchall()
+
+    by_month = db.execute(sa_text("""
+        SELECT TO_CHAR(created_at, 'YYYY-MM') AS period, COUNT(*) AS count
+        FROM cm_leads
+        WHERE created_at >= NOW() - INTERVAL '24 months'
+        GROUP BY 1 ORDER BY 1
+    """)).fetchall()
+
+    by_quarter = db.execute(sa_text("""
+        SELECT
+            EXTRACT(YEAR FROM created_at)::int::text || '-Q' ||
+            EXTRACT(QUARTER FROM created_at)::int::text AS period,
+            COUNT(*) AS count
+        FROM cm_leads
+        WHERE created_at >= NOW() - INTERVAL '3 years'
+        GROUP BY 1 ORDER BY 1
+    """)).fetchall()
+
+    by_semester = db.execute(sa_text("""
+        SELECT
+            EXTRACT(YEAR FROM created_at)::int::text || '-H' ||
+            CASE WHEN EXTRACT(MONTH FROM created_at) <= 6 THEN '1' ELSE '2' END AS period,
+            COUNT(*) AS count
+        FROM cm_leads
+        WHERE created_at >= NOW() - INTERVAL '3 years'
+        GROUP BY 1 ORDER BY 1
+    """)).fetchall()
+
+    by_program = db.execute(sa_text("""
+        SELECT COALESCE(program, '—') AS program,
+               COUNT(*) AS count,
+               SUM(CASE WHEN status = 'DEAL' THEN 1 ELSE 0 END) AS deals
+        FROM cm_leads
+        GROUP BY 1 ORDER BY 2 DESC
+    """)).fetchall()
+
+    by_program_title = db.execute(sa_text("""
+        SELECT program_title AS title,
+               COUNT(*) AS count,
+               SUM(CASE WHEN status = 'DEAL' THEN 1 ELSE 0 END) AS deals
+        FROM cm_leads
+        WHERE program_title IS NOT NULL AND program_title <> ''
+        GROUP BY 1 ORDER BY 2 DESC
+        LIMIT 20
+    """)).fetchall()
+
+    by_status = db.execute(sa_text("""
+        SELECT COALESCE(status, '—') AS status, COUNT(*) AS count
+        FROM cm_leads
+        GROUP BY 1 ORDER BY 2 DESC
+    """)).fetchall()
+
+    by_consultant = db.execute(sa_text("""
+        SELECT assigned_name AS name,
+               COUNT(*) AS count,
+               SUM(CASE WHEN status = 'DEAL' THEN 1 ELSE 0 END) AS deals
+        FROM cm_leads
+        WHERE assigned_name IS NOT NULL AND assigned_name <> ''
+        GROUP BY 1 ORDER BY 2 DESC
+    """)).fetchall()
+
+    return {
+        "summary": {
+            "total": total,
+            "deals": deals,
+            "deal_rate": round(deals / total * 100, 1) if total else 0,
+            "active": active,
+            "this_month": this_month,
+            "last_month": last_month,
+        },
+        "by_day":      [{"period": str(r.period), "count": r.count} for r in by_day],
+        "by_week":     [{"period": str(r.period), "count": r.count} for r in by_week],
+        "by_month":    [{"period": r.period,       "count": r.count} for r in by_month],
+        "by_quarter":  [{"period": r.period,       "count": r.count} for r in by_quarter],
+        "by_semester": [{"period": r.period,       "count": r.count} for r in by_semester],
+        "by_program":       [{"program": r.program, "count": r.count, "deals": r.deals} for r in by_program],
+        "by_program_title": [{"title": r.title,    "count": r.count, "deals": r.deals} for r in by_program_title],
+        "by_status":        [{"status": r.status,  "count": r.count} for r in by_status],
+        "by_consultant":    [{"name": r.name,       "count": r.count, "deals": r.deals} for r in by_consultant],
+    }
+
+
 @router.get("/filter-options")
 def filter_options(
     current_user: CMUser = Depends(get_current_user),
