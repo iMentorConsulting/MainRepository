@@ -261,14 +261,7 @@ function NewLeadModal({ options, onClose, onCreated }) {
           <input placeholder="Επωνυμία / Όνομα" value={form.name} onChange={e => set('name', e.target.value)} className="px-3 py-2 border rounded-lg text-sm col-span-2" />
           <input placeholder="Τηλέφωνο" value={form.phone} onChange={e => set('phone', e.target.value)} className="px-3 py-2 border rounded-lg text-sm" />
           <div className="flex flex-col gap-0.5">
-            <input placeholder="Email" value={form.email} onChange={e => set('email', e.target.value)} className={`px-3 py-2 border rounded-lg text-sm ${suggestEmailFix(form.email) ? 'border-amber-400 bg-amber-50' : ''}`} />
-            {suggestEmailFix(form.email) && (
-              <div className="flex items-center gap-1 text-[11px] text-amber-700">
-                <ExclamationTriangleIcon className="w-3 h-3 shrink-0" />
-                Εννοείς <b>{suggestEmailFix(form.email)}</b>?
-                <button type="button" onClick={() => set('email', suggestEmailFix(form.email))} className="underline font-semibold ml-0.5">Διόρθωση</button>
-              </div>
-            )}
+            <input placeholder="Email" value={form.email} onChange={e => set('email', e.target.value)} onBlur={e => { const fix = suggestEmailFix(e.target.value); if (fix) set('email', fix) }} className="px-3 py-2 border rounded-lg text-sm" />
           </div>
           <input placeholder="ΑΦΜ" value={form.afm} onChange={e => set('afm', e.target.value)} className="px-3 py-2 border rounded-lg text-sm" />
           <input placeholder="Ποσό (€)" value={form.total_amount} onChange={e => set('total_amount', e.target.value)} className="px-3 py-2 border rounded-lg text-sm" />
@@ -444,14 +437,7 @@ function ExpandedRow({ lead, colSpan, onChanged, onConvert, onErmis, onSend, pro
             <input value={form.afm} onChange={e => setForm(f => ({ ...f, afm: e.target.value }))} placeholder="ΑΦΜ" className="px-2 py-1.5 border rounded text-sm" />
             <input value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} placeholder="Τηλέφωνο" className="px-2 py-1.5 border rounded text-sm" />
             <div className="flex flex-col gap-0.5">
-              <input value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} placeholder="Email" className={`px-2 py-1.5 border rounded text-sm ${suggestEmailFix(form.email) ? 'border-amber-400 bg-amber-50' : ''}`} />
-              {suggestEmailFix(form.email) && (
-                <div className="flex items-center gap-1 text-[11px] text-amber-700">
-                  <ExclamationTriangleIcon className="w-3 h-3 shrink-0" />
-                  Εννοείς <b>{suggestEmailFix(form.email)}</b>?
-                  <button type="button" onClick={() => setForm(f => ({ ...f, email: suggestEmailFix(f.email) }))} className="underline font-semibold ml-0.5">Διόρθωση</button>
-                </div>
-              )}
+              <input value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} onBlur={e => { const fix = suggestEmailFix(e.target.value); if (fix) setForm(f => ({ ...f, email: fix })) }} placeholder="Email" className="px-2 py-1.5 border rounded text-sm" />
             </div>
             <select value={form.program} onChange={e => setForm(f => ({ ...f, program: e.target.value }))} className="px-2 py-1.5 border rounded text-sm">
               <option value="">— Πρόγραμμα —</option>
