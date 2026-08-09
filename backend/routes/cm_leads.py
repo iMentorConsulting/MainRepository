@@ -52,17 +52,39 @@ def normalize_afm(afm):
     return s
 
 
-# Common email domain typos → correction. 'f' is next to 'g' on the keyboard, so
-# Greek webmail .gr addresses are often mistyped as .fr.
+# Common email domain typos → correction applied at create/update time.
 _EMAIL_DOMAIN_FIXES = {
+    "hotmail.fr": "hotmail.gr",
+    "hotmail.com.gr": "hotmail.gr",
+    "hotmail.co": "hotmail.com",
+    "hotmai.com": "hotmail.com",
+    "hotmali.com": "hotmail.com",
+    "homail.com": "hotmail.com",
+    "hotmil.com": "hotmail.com",
+    "hotmail.con": "hotmail.com",
+    "gmail.gr": "gmail.com",
+    "gmail.com.gr": "gmail.com",
+    "gamil.com": "gmail.com",
+    "gmial.com": "gmail.com",
+    "gmai.com": "gmail.com",
+    "gmal.com": "gmail.com",
+    "gnail.com": "gmail.com",
+    "gmaill.com": "gmail.com",
+    "gmail.con": "gmail.com",
+    "yahoo.gr": "yahoo.com",
+    "yahoo.com.gr": "yahoo.com",
     "yahoo.fr": "yahoo.gr",
     "yaho.gr": "yahoo.gr",
     "yahoo.gr.com": "yahoo.gr",
-    "gmail.con": "gmail.com",
-    "gmail.gr": "gmail.com",
-    "gmial.com": "gmail.com",
-    "gmai.com": "gmail.com",
-    "hotmail.con": "hotmail.com",
+    "yahooo.com": "yahoo.com",
+    "yaho.com": "yahoo.com",
+    "yhoo.com": "yahoo.com",
+    "outlook.gr": "outlook.com",
+    "outlok.com": "outlook.com",
+    "outook.com": "outlook.com",
+    "windowslive.com": "live.com",
+    "iclould.com": "icloud.com",
+    "icloud.gr": "icloud.com",
 }
 
 
