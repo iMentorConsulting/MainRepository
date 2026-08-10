@@ -13,26 +13,34 @@ export async function GET(request: NextRequest) {
 
   const { searchParams } = new URL(request.url)
   const programId = searchParams.get('programId') || null
-  const accountantId = session.user.role === 'ADMIN'
-    ? searchParams.get('accountantId') || null
-    : (session.user as any).accountantId || null
+  const isAdmin = session.user.role === 'ADMIN'
+  const sessionAccountantId = isAdmin ? null : ((session.user as any).accountantId || null)
 
-  let businesses = await prisma.business.findMany({
-    where: {
-      ...(accountantId ? { accountantId } : {}),
-      excludedFromCampaigns: false,
-    },
-    select: {
-      id: true,
-      afm: true,
-      onomasia: true,
-      email: true,
-      phone: true,
-      viberPhone: true,
-      postalAreaDescription: true,
-    },
-    orderBy: { onomasia: 'asc' },
-  })
+  const [businesses, accountants] = await Promise.all([
+    prisma.business.findMany({
+      where: {
+        ...(sessionAccountantId ? { accountantId: sessionAccountantId } : {}),
+        excludedFromCampaigns: false,
+      },
+      select: {
+        id: true,
+        afm: true,
+        onomasia: true,
+        email: true,
+        phone: true,
+        viberPhone: true,
+        postalAreaDescription: true,
+        accountantId: true,
+        accountant: { select: { id: true, officeName: true } },
+      },
+      orderBy: { onomasia: 'asc' },
+    }),
+    isAdmin
+      ? prisma.accountant.findMany({ select: { id: true, officeName: true }, orderBy: { officeName: 'asc' } })
+      : Promise.resolve([]),
+  ])
+
+  let filtered = businesses
 
   if (programId) {
     const matches = await prisma.programMatch.findMany({
@@ -40,8 +48,27 @@ export async function GET(request: NextRequest) {
       select: { businessId: true, status: true },
     })
     const matchedIds = new Set(matches.filter(m => m.status !== 'REJECTED').map(m => m.businessId))
-    businesses = businesses.filter(b => matchedIds.has(b.id))
+    filtered = filtered.filter(b => matchedIds.has(b.id))
   }
 
-  return NextResponse.json(businesses)
+  // Mark businesses that have already received a sent campaign for this specific program
+  let sentBusinessIds = new Set<string>()
+  if (programId && filtered.length > 0) {
+    const sentRecipients = await prisma.campaignRecipient.findMany({
+      where: {
+        businessId: { in: filtered.map(b => b.id) },
+        sentAt: { not: null },
+        campaign: { programId },
+      },
+      select: { businessId: true },
+    })
+    sentBusinessIds = new Set(sentRecipients.map(r => r.businessId))
+  }
+
+  const result = filtered.map(b => ({
+    ...b,
+    sentCampaign: sentBusinessIds.has(b.id),
+  }))
+
+  return NextResponse.json({ businesses: result, accountants })
 }

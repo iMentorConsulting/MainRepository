@@ -1,10 +1,10 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import { Button } from '@/components/ui/button'
 import { Select } from '@/components/ui/select'
-import { ArrowLeft, ArrowRight, Mail, Users, Send, Sparkles, MessageCircle, CheckCircle2 } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Mail, Users, Send, Sparkles, MessageCircle, CheckCircle2, Search, X } from 'lucide-react'
 import Link from 'next/link'
 
 // ── Step tracker ──────────────────────────────────────────────────────────────
@@ -180,13 +180,15 @@ function StepSend({ template, messageBody, onMessageChange, programId, programs,
   onSaveDraft: () => void; savingDraft: boolean;
 }) {
   const program = programs.find(p => p.id === programId)
-  const [recipients, setRecipients] = useState<any[]>([])
+  const [allRecipients, setAllRecipients] = useState<any[]>([])
+  const [accountants, setAccountants] = useState<any[]>([])
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [loadingRecipients, setLoadingRecipients] = useState(true)
 
-  const selectedList = recipients.filter(b => selected.has(b.id))
-  const noContactCount = selectedList.filter(b => !b.email && !b.phone).length
-  const canSend = selected.size > 0 && noContactCount < selected.size
+  // Filter state
+  const [search, setSearch] = useState('')
+  const [selAccountants, setSelAccountants] = useState<string[]>([])
+  const [campaignFilter, setCampaignFilter] = useState<'all' | 'sent' | 'not-sent'>('all')
 
   useEffect(() => {
     const url = programId
@@ -195,15 +197,39 @@ function StepSend({ template, messageBody, onMessageChange, programId, programs,
     fetch(url)
       .then(r => r.json())
       .then(data => {
-        setRecipients(data)
-        setSelected(new Set(data.map((b: any) => b.id)))
+        const businesses = data.businesses ?? data // backwards compat
+        setAllRecipients(businesses)
+        setAccountants(data.accountants ?? [])
+        setSelected(new Set(businesses.map((b: any) => b.id)))
       })
       .finally(() => setLoadingRecipients(false))
   }, [programId])
 
-  function toggleAll() {
-    if (selected.size === recipients.length) setSelected(new Set())
-    else setSelected(new Set(recipients.map(b => b.id)))
+  // Client-side filtered view
+  const visible = useMemo(() => {
+    let list = allRecipients
+    if (search.trim()) {
+      const q = search.toLowerCase()
+      list = list.filter(b => (b.onomasia || '').toLowerCase().includes(q) || (b.afm || '').includes(q))
+    }
+    if (selAccountants.length > 0) {
+      list = list.filter(b => b.accountantId && selAccountants.includes(b.accountantId))
+    }
+    if (campaignFilter === 'sent') list = list.filter(b => b.sentCampaign)
+    if (campaignFilter === 'not-sent') list = list.filter(b => !b.sentCampaign)
+    return list
+  }, [allRecipients, search, selAccountants, campaignFilter])
+
+  const visibleIds = useMemo(() => new Set(visible.map(b => b.id)), [visible])
+  const allVisibleSelected = visible.length > 0 && visible.every(b => selected.has(b.id))
+
+  function toggleVisible() {
+    setSelected(prev => {
+      const next = new Set(prev)
+      if (allVisibleSelected) visible.forEach(b => next.delete(b.id))
+      else visible.forEach(b => next.add(b.id))
+      return next
+    })
   }
 
   function toggle(id: string) {
@@ -213,6 +239,16 @@ function StepSend({ template, messageBody, onMessageChange, programId, programs,
       return next
     })
   }
+
+  function toggleAccountant(id: string) {
+    setSelAccountants(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
+  }
+
+  const selectedList = allRecipients.filter(b => selected.has(b.id))
+  const noContactCount = selectedList.filter(b => !b.email && !b.phone).length
+  const canSend = selected.size > 0 && noContactCount < selected.size
+
+  const activeFilterCount = (search.trim() ? 1 : 0) + selAccountants.length + (campaignFilter !== 'all' ? 1 : 0)
 
   const preview = (messageBody || '')
     .replace(/\{\{business_name\}\}/g, 'ΠΑΡΑΔΕΙΓΜΑ ΑΕ')
@@ -228,25 +264,92 @@ function StepSend({ template, messageBody, onMessageChange, programId, programs,
     <div className="space-y-5">
       <div>
         <h2 className="text-xl font-bold text-gray-900">Σε ποιους να σταλεί;</h2>
-        <p className="text-sm text-gray-500 mt-1">Ελέγξτε τη λίστα και αποεπιλέξτε όποιους <strong>δεν</strong> θέλετε να λάβουν το μήνυμα.</p>
+        <p className="text-sm text-gray-500 mt-1">Φιλτράρετε και επιλέξτε τους παραλήπτες που θέλετε.</p>
       </div>
 
-      {/* Recipients list */}
+      {/* ── Filter bar ── */}
+      {!loadingRecipients && allRecipients.length > 0 && (
+        <div className="border border-gray-200 rounded-xl p-3 space-y-3 bg-gray-50">
+          {/* Search */}
+          <div className="relative">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Αναζήτηση επιχείρησης (όνομα ή ΑΦΜ)…"
+              className="w-full text-sm pl-8 pr-8 py-2 border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+            />
+            {search && (
+              <button onClick={() => setSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                <X size={13} />
+              </button>
+            )}
+          </div>
+
+          {/* Campaign-received filter */}
+          {programId && (
+            <div>
+              <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Έχει λάβει καμπάνια για αυτό το πρόγραμμα;</p>
+              <div className="flex gap-1.5">
+                {[
+                  { value: 'all', label: 'Όλοι' },
+                  { value: 'not-sent', label: 'Όχι' },
+                  { value: 'sent', label: 'Ναι' },
+                ].map(o => (
+                  <button key={o.value} onClick={() => setCampaignFilter(o.value as any)}
+                    className={`px-3 py-1 text-xs rounded-full border transition-colors ${campaignFilter === o.value ? 'bg-indigo-700 text-white border-indigo-700' : 'bg-white text-gray-600 border-gray-300 hover:border-indigo-400'}`}>
+                    {o.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Accountant filter — admin only */}
+          {accountants.length > 0 && (
+            <div>
+              <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Λογιστής</p>
+              <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
+                {accountants.map(a => (
+                  <button key={a.id} onClick={() => toggleAccountant(a.id)}
+                    className={`px-2.5 py-1 text-xs rounded-full border transition-colors ${selAccountants.includes(a.id) ? 'bg-indigo-700 text-white border-indigo-700' : 'bg-white text-gray-600 border-gray-300 hover:border-indigo-400'}`}>
+                    {a.officeName}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {activeFilterCount > 0 && (
+            <button onClick={() => { setSearch(''); setSelAccountants([]); setCampaignFilter('all') }}
+              className="text-xs text-gray-400 hover:text-gray-600 flex items-center gap-1">
+              <X size={11} />Καθαρισμός φίλτρων ({activeFilterCount})
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* ── Recipients list ── */}
       <div className="border border-gray-200 rounded-xl overflow-hidden">
         <div className="flex items-center justify-between px-4 py-3 bg-gray-50 border-b border-gray-200">
           <label className="flex items-center gap-2 cursor-pointer select-none">
             <input
               type="checkbox"
-              checked={selected.size === recipients.length && recipients.length > 0}
-              onChange={toggleAll}
+              checked={allVisibleSelected}
+              onChange={toggleVisible}
               className="w-4 h-4 rounded accent-indigo-600"
             />
             <span className="text-sm font-semibold text-gray-700">
-              {loadingRecipients ? 'Φόρτωση...' : `${selected.size} από ${recipients.length} παραλήπτες επιλεγμένοι`}
+              {loadingRecipients
+                ? 'Φόρτωση...'
+                : activeFilterCount > 0
+                  ? `${visible.filter(b => selected.has(b.id)).length} από ${visible.length} εμφανιζόμενους επιλεγμένοι (σύνολο: ${selected.size})`
+                  : `${selected.size} από ${allRecipients.length} παραλήπτες επιλεγμένοι`}
             </span>
           </label>
           {program && (
-            <span className="text-xs text-indigo-600 bg-indigo-50 px-2 py-1 rounded-full font-medium">
+            <span className="text-xs text-indigo-600 bg-indigo-50 px-2 py-1 rounded-full font-medium truncate max-w-[160px]" title={program.title}>
               {program.title}
             </span>
           )}
@@ -256,13 +359,13 @@ function StepSend({ template, messageBody, onMessageChange, programId, programs,
           <div className="flex items-center justify-center py-10">
             <div className="animate-spin w-6 h-6 border-4 border-indigo-600 border-t-transparent rounded-full" />
           </div>
-        ) : recipients.length === 0 ? (
+        ) : visible.length === 0 ? (
           <div className="text-center py-10 text-gray-400 text-sm">
-            Δεν βρέθηκαν επιλέξιμοι παραλήπτες.{programId ? ' Τρέξτε ξανά το matching για αυτό το πρόγραμμα.' : ''}
+            {activeFilterCount > 0 ? 'Κανένας παραλήπτης δεν ταιριάζει με τα φίλτρα.' : `Δεν βρέθηκαν επιλέξιμοι παραλήπτες.${programId ? ' Τρέξτε ξανά το matching για αυτό το πρόγραμμα.' : ''}`}
           </div>
         ) : (
-          <div className="max-h-64 overflow-y-auto divide-y divide-gray-50">
-            {recipients.map(b => (
+          <div className="max-h-72 overflow-y-auto divide-y divide-gray-50">
+            {visible.map(b => (
               <label key={b.id} className={`flex items-center gap-3 px-4 py-2.5 cursor-pointer hover:bg-gray-50 transition-colors ${!selected.has(b.id) ? 'opacity-50' : ''}`}>
                 <input
                   type="checkbox"
@@ -272,16 +375,27 @@ function StepSend({ template, messageBody, onMessageChange, programId, programs,
                 />
                 <div className="flex-1 min-w-0">
                   <span className="text-sm font-medium text-gray-900 truncate block">{b.onomasia || b.afm}</span>
-                  <span className="text-xs text-gray-400">{b.email || b.phone || '—'} {b.postalAreaDescription ? `· ${b.postalAreaDescription}` : ''}</span>
+                  <span className="text-xs text-gray-400">
+                    {b.email || b.phone || '—'}
+                    {b.postalAreaDescription ? ` · ${b.postalAreaDescription}` : ''}
+                    {b.accountant?.officeName ? ` · ${b.accountant.officeName}` : ''}
+                  </span>
                 </div>
-                {!b.email && !b.phone && <span className="text-xs text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">χωρίς email</span>}
+                <div className="flex items-center gap-1.5 flex-shrink-0">
+                  {b.sentCampaign && programId && (
+                    <span className="text-[10px] text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">ήδη λήφθηκε</span>
+                  )}
+                  {!b.email && !b.phone && (
+                    <span className="text-[10px] text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">χωρίς email</span>
+                  )}
+                </div>
               </label>
             ))}
           </div>
         )}
       </div>
 
-      {selected.size === 0 && recipients.length > 0 && (
+      {selected.size === 0 && allRecipients.length > 0 && (
         <div className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-4 py-2.5">
           Δεν έχετε επιλέξει κανέναν παραλήπτη. Επιλέξτε τουλάχιστον έναν για να αποστείλετε.
         </div>
