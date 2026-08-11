@@ -22,7 +22,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   }
 
   const [business, program, match] = await Promise.all([
-    prisma.business.findUnique({ where: { id: matchToken.businessId }, select: { onomasia: true, afm: true, regdate: true } }),
+    prisma.business.findUnique({ where: { id: matchToken.businessId }, select: { onomasia: true, afm: true, regdate: true, legalStatusDescr: true } }),
     prisma.program.findUnique({
       where: { id: matchToken.programId },
       select: {
@@ -80,6 +80,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         business.regdate ? `Ημερομηνία έναρξης επιχείρησης: ${business.regdate}` : null,
       ].filter(Boolean).join('\n') || null,
       consultant: matchToken.consultant ?? null,
+      legalStatusDescr: business.legalStatusDescr ?? null,
     })
   } catch (err: any) {
     console.error('[ErmisChat] failed:', err?.message, err?.status, err?.error)

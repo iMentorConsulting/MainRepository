@@ -55,7 +55,7 @@ function buildSystemPrompt(program: {
   maxRegdate?: string | null
   requiredDocuments?: { name: string; category: string; instructions: string | null }[]
 }, businessName: string, autoConfirmedReasons: string[], qualitativeQuestions: EligibilityQuestion[],
-  contextSummary?: string | null, consultant?: string | null) {
+  contextSummary?: string | null, consultant?: string | null, legalStatusDescr?: string | null) {
   const isLoan = program.category === 'MICROCREDITS'
   const amountLabel = isLoan ? 'Ύψος δανείου' : 'Επένδυση'
   const now = new Date()
@@ -81,13 +81,16 @@ function buildSystemPrompt(program: {
         return `${idx + 1}. ${q.label}${q.expectedAnswer ? '' : ' (η αναμενόμενη/επιλέξιμη απάντηση είναι ΟΧΙ)'}`
       }).join('\n')
     : program.otherRequirements || '(καμία επιπλέον)'
+  const legalFormLine = legalStatusDescr
+    ? `ΝΟΜΙΚΗ ΜΟΡΦΗ ΕΠΙΧΕΙΡΗΣΗΣ: **${legalStatusDescr}**\nΑν κάποιο έγγραφο ή οδηγία έχει διαφορετική έκδοση για "ατομική επιχείρηση" έναντι "νομικού προσώπου" (ΟΕ/ΕΕ/ΙΚΕ/ΑΕ/ΕΠΕ κ.λπ.), χρησιμοποίησε ΑΠΟΚΛΕΙΣΤΙΚΑ την έκδοση που αντιστοιχεί στη νομική μορφή αυτής της επιχείρησης — ΜΗΝ παρουσιάζεις και τις δύο εκδόσεις.`
+    : ''
   return `Είσαι ο "Ερμής", ο ψηφιακός σύμβουλος επιλεξιμότητας της I-MENTOR. Μιλάς απευθείας με τον ιδιοκτήτη της επιχείρησης "${businessName}" σχετικά με ΕΝΑ συγκεκριμένο πρόγραμμα. Μίλα φυσικά, στα ελληνικά, σαν να μιλάει κανείς με το Claude — αλλά ΕΞΥΠΝΑ ΚΑΙ ΛΑΚΩΝΙΚΑ: σύντομες απαντήσεις (1-4 προτάσεις συνήθως), ΧΩΡΙΣ πλατειασμό, χωρίς να επαναλαμβάνεις πράγματα που ήδη ειπώθηκαν.
 
 ΣΗΜΕΡΙΝΗ ΗΜΕΡΟΜΗΝΙΑ: ${currentDateStr} (τρέχον έτος: ${currentYear}). Χρησιμοποίησέ την για οποιονδήποτε υπολογισμό χρόνων/χρήσεων — π.χ. "κλεισμένες χρήσεις" = πλήρη ημερολογιακά έτη που έχουν λήξει πριν το ${currentYear} (δηλ. έως και ${currentYear - 1}).
 
 ΓΙΑ ΤΗΝ I-MENTOR:
 ${IMENTOR_BASICS}
-
+${legalFormLine ? `\n${legalFormLine}\n` : ''}
 ΣΤΟΙΧΕΙΑ ΠΡΟΓΡΑΜΜΑΤΟΣ "${program.title}":
 ${program.description || '(χωρίς περιγραφή)'}
 ${program.minInvestment || program.maxInvestment ? `${amountLabel}: ${program.minInvestment ?? '?'}–${program.maxInvestment ?? '?'}€` : ''}
@@ -317,6 +320,7 @@ export async function runErmisTurn(params: {
   // CM-provided context: pre-known lead facts and assigned consultant name
   contextSummary?: string | null
   consultant?: string | null
+  legalStatusDescr?: string | null
 }): Promise<{ reply: string; caseId: string | null; tokensUsed: number; tokensUsedInput: number; tokensUsedOutput: number }> {
   const apiKey = process.env.ANTHROPIC_API_KEY
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY δεν έχει οριστεί στο περιβάλλον.')
@@ -332,7 +336,7 @@ export async function runErmisTurn(params: {
   }
 
   const anthropic = new Anthropic({ apiKey })
-  const system = buildSystemPrompt(params.program, params.businessName, params.autoConfirmedReasons, params.qualitativeQuestions || [], params.contextSummary, params.consultant)
+  const system = buildSystemPrompt(params.program, params.businessName, params.autoConfirmedReasons, params.qualitativeQuestions || [], params.contextSummary, params.consultant, params.legalStatusDescr)
 
   const messages: Anthropic.MessageParam[] = params.isKickoff
     ? [{ role: 'user', content: 'Ξεκίνα εσύ τη συνομιλία.' }]
