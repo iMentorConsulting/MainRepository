@@ -203,7 +203,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const [gemi, program, match] = await Promise.all([
     prisma.gemiLookup.findUnique({
       where: { id: matchToken.gemiId },
-      select: { onomasia: true, afm: true, regdate: true },
+      select: { onomasia: true, afm: true, regdate: true, legalStatusDescr: true, claimedBusinessId: true },
     }),
     prisma.program.findUnique({
       where: { id: matchToken.programId },
@@ -224,6 +224,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }),
   ])
   if (!gemi || !program) return NextResponse.json({ error: 'Δεν βρέθηκαν στοιχεία' }, { status: 404 })
+
+  // Prefer AADE legal name from the linked Business record when available
+  const claimedBusiness = gemi.claimedBusinessId
+    ? await prisma.business.findUnique({ where: { id: gemi.claimedBusinessId }, select: { onomasia: true, legalStatusDescr: true } })
+    : null
+  const businessDisplayName = claimedBusiness?.onomasia || gemi.onomasia || gemi.afm
+  const businessLegalStatus = (claimedBusiness?.legalStatusDescr || (gemi as any).legalStatusDescr) ?? null
 
   const extraCriteriaLabels = program.extraCriteriaIds.length
     ? await prisma.eligibilityCriterion.findMany({ where: { id: { in: program.extraCriteriaIds } }, select: { id: true, label: true } })
@@ -254,7 +261,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     result = await runErmisTurn({
       businessId: matchToken.gemiId,
       programId: matchToken.programId,
-      businessName: gemi.onomasia || gemi.afm,
+      businessName: businessDisplayName,
       program,
       autoConfirmedReasons: match?.matchReason || [],
       qualitativeQuestions,
@@ -267,7 +274,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         gemi.regdate ? `Ημερομηνία έναρξης επιχείρησης: ${gemi.regdate}` : null,
       ].filter(Boolean).join('\n') || null,
       consultant: null,
-      legalStatusDescr: (gemi as any).legalStatusDescr ?? null,
+      legalStatusDescr: businessLegalStatus,
     })
   } catch (err: any) {
     console.error('[GemiErmisChat] failed:', err?.message)
@@ -296,7 +303,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           gemiId: matchToken.gemiId,
           programId: matchToken.programId,
           programTitle: program.title,
-          businessName: gemi.onomasia || gemi.afm,
+          businessName: businessDisplayName,
           afm: gemi.afm,
           summary: 'Ο πελάτης εκδήλωσε ενδιαφέρον μέσω του Ερμή.',
           transcript: finalHistory,
