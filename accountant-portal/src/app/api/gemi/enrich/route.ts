@@ -42,17 +42,19 @@ export async function POST(request: NextRequest) {
   const retryThreshold = new Date(Date.now() - 24 * 60 * 60 * 1000)
 
   // Terminal errors (GSIS confirmed "not found", "inactive", etc.) are never retried.
+  // NOTE: NOT { aadeError: { in: [...] } } silently drops NULL rows in SQL, so we
+  // express the condition as an explicit OR to correctly include pending (null) records.
   const terminalErrors = Array.from(GSIS_TERMINAL_ERRORS)
   const records = await prisma.gemiLookup.findMany({
     where: {
       aadeEnriched: false,
-      NOT: { aadeError: { in: terminalErrors } },
-      ...(forceRetry ? {} : {
-        OR: [
-          { aadeError: null },
-          { aadeError: { not: null }, updatedAt: { lt: retryThreshold } },
-        ],
-      }),
+      OR: [
+        { aadeError: null },
+        {
+          aadeError: { notIn: terminalErrors },
+          ...(forceRetry ? {} : { updatedAt: { lt: retryThreshold } }),
+        },
+      ],
     },
     take: limit,
     orderBy: { updatedAt: 'asc' },
@@ -137,14 +139,15 @@ export async function POST(request: NextRequest) {
   }
 
   // How many still await enrichment (for client-side progress/looping)
-  // Exclude terminal errors (GSIS confirmed these AFMs have no data — no point retrying)
   const remaining = await prisma.gemiLookup.count({
     where: {
       aadeEnriched: false,
-      NOT: { aadeError: { in: Array.from(GSIS_TERMINAL_ERRORS) } },
       OR: [
         { aadeError: null },
-        { aadeError: { not: null }, updatedAt: { lt: retryThreshold } },
+        {
+          aadeError: { notIn: Array.from(GSIS_TERMINAL_ERRORS) },
+          updatedAt: { lt: retryThreshold },
+        },
       ],
     },
   })
