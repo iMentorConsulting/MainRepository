@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
   const retryThreshold = new Date(Date.now() - 24 * 60 * 60 * 1000)
 
   // Terminal errors (GSIS confirmed "not found", "inactive", etc.) are never retried.
-  const terminalErrors = [...GSIS_TERMINAL_ERRORS]
+  const terminalErrors = Array.from(GSIS_TERMINAL_ERRORS)
   const records = await prisma.gemiLookup.findMany({
     where: {
       aadeEnriched: false,
@@ -141,7 +141,7 @@ export async function POST(request: NextRequest) {
   const remaining = await prisma.gemiLookup.count({
     where: {
       aadeEnriched: false,
-      NOT: { aadeError: { in: [...GSIS_TERMINAL_ERRORS] } },
+      NOT: { aadeError: { in: Array.from(GSIS_TERMINAL_ERRORS) } },
       OR: [
         { aadeError: null },
         { aadeError: { not: null }, updatedAt: { lt: retryThreshold } },
@@ -150,7 +150,7 @@ export async function POST(request: NextRequest) {
   })
 
   const terminalCount = await prisma.gemiLookup.count({
-    where: { aadeEnriched: false, aadeError: { in: [...GSIS_TERMINAL_ERRORS] } },
+    where: { aadeEnriched: false, aadeError: { in: Array.from(GSIS_TERMINAL_ERRORS) } },
   })
 
   return NextResponse.json({ processed, enriched, errors, remaining, monthlyLimitExceeded, terminalCount })
