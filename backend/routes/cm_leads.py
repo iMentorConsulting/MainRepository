@@ -444,6 +444,12 @@ def list_leads(
 
 @router.get("/stats")
 def lead_stats(
+    programs:       Optional[str] = Query(None),  # comma-separated program categories
+    program_title:  Optional[str] = Query(None),
+    statuses:       Optional[str] = Query(None),  # comma-separated statuses
+    consultant:     Optional[str] = Query(None),
+    date_from:      Optional[date] = Query(None),
+    date_to:        Optional[date] = Query(None),
     current_user: CMUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -451,98 +457,107 @@ def lead_stats(
     if current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Μόνο για διαχειριστές")
 
+    program_list = [p.strip() for p in programs.split(",") if p.strip()] if programs else []
+    status_list  = [s.strip() for s in statuses.split(",") if s.strip()] if statuses else []
+    dt_end = (date_to + timedelta(days=1)) if date_to else None
+
+    # ── ORM base filters (for KPI counts) ───────────────────────────────────
+    orm_f = []
+    if program_list:    orm_f.append(CMLead.program.in_(program_list))
+    if program_title:   orm_f.append(CMLead.program_title == program_title)
+    if status_list:     orm_f.append(CMLead.status.in_(status_list))
+    if consultant:      orm_f.append(CMLead.assigned_name == consultant)
+    if date_from:       orm_f.append(CMLead.created_at >= date_from)
+    if dt_end:          orm_f.append(CMLead.created_at < dt_end)
+
+    def _count(*extra):
+        return (db.query(sa_func.count(CMLead.id)).filter(*orm_f, *extra).scalar() or 0)
+
     now = datetime.utcnow()
-    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    month_start      = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     last_month_start = (month_start - timedelta(seconds=1)).replace(
-        day=1, hour=0, minute=0, second=0, microsecond=0
+        day=1, hour=0, minute=0, second=0, microsecond=0)
+
+    total      = _count()
+    deals      = _count(CMLead.status == "DEAL")
+    active     = _count(CMLead.status.in_(["HOT", "ACTIVE", "CALL"]))
+    this_month = _count(CMLead.created_at >= month_start)
+    last_month = _count(CMLead.created_at >= last_month_start,
+                        CMLead.created_at < month_start)
+
+    # ── SQL dimension WHERE clause (dimension filters only) ──────────────────
+    dim_parts, dim_params = [], {}
+    if program_list:
+        ph = ", ".join(f":prog{i}" for i in range(len(program_list)))
+        dim_parts.append(f"program IN ({ph})")
+        for i, v in enumerate(program_list): dim_params[f"prog{i}"] = v
+    if program_title:
+        dim_parts.append("program_title = :program_title")
+        dim_params["program_title"] = program_title
+    if status_list:
+        ph = ", ".join(f":stat{i}" for i in range(len(status_list)))
+        dim_parts.append(f"status IN ({ph})")
+        for i, v in enumerate(status_list): dim_params[f"stat{i}"] = v
+    if consultant:
+        dim_parts.append("assigned_name = :consultant")
+        dim_params["consultant"] = consultant
+
+    # Date WHERE parts (for time-series: override default INTERVAL when supplied)
+    date_parts, date_params = [], {}
+    if date_from:
+        date_parts.append("created_at >= :date_from")
+        date_params["date_from"] = date_from
+    if dt_end:
+        date_parts.append("created_at < :date_to_end")
+        date_params["date_to_end"] = dt_end
+
+    def _ts(select_expr, default_interval, extra_where=""):
+        """Run a time-series GROUP BY query with dimension + date filters."""
+        all_parts = list(dim_parts)
+        all_params = dict(dim_params)
+        if date_from or dt_end:
+            all_parts += date_parts
+            all_params.update(date_params)
+        else:
+            all_parts.append(f"created_at >= NOW() - INTERVAL '{default_interval}'")
+        where = "WHERE " + " AND ".join(all_parts) if all_parts else ""
+        sql = f"SELECT {select_expr}, COUNT(*) AS count FROM cm_leads {where} {extra_where} GROUP BY 1 ORDER BY 1"
+        return db.execute(sa_text(sql), all_params).fetchall()
+
+    def _breakdown(select_expr, extra_conds=None, limit=None):
+        """Run a breakdown GROUP BY query with all filters + extra conditions."""
+        all_parts = list(dim_parts) + date_parts + (extra_conds or [])
+        all_params = {**dim_params, **date_params}
+        where_clause = ("WHERE " + " AND ".join(all_parts)) if all_parts else ""
+        limit_clause = f"LIMIT {int(limit)}" if limit else ""
+        sql = (
+            f"SELECT {select_expr}, COUNT(*) AS count, "
+            f"SUM(CASE WHEN status='DEAL' THEN 1 ELSE 0 END) AS deals "
+            f"FROM cm_leads {where_clause} GROUP BY 1 ORDER BY 2 DESC {limit_clause}"
+        )
+        return db.execute(sa_text(sql), all_params).fetchall()
+
+    by_day      = _ts("DATE(created_at) AS period", "60 days")
+    by_week     = _ts("DATE_TRUNC('week', created_at)::date AS period", "26 weeks")
+    by_month    = _ts("TO_CHAR(created_at,'YYYY-MM') AS period", "24 months")
+    by_quarter  = _ts(
+        "EXTRACT(YEAR FROM created_at)::int::text || '-Q' || EXTRACT(QUARTER FROM created_at)::int::text AS period",
+        "3 years")
+    by_semester = _ts(
+        "EXTRACT(YEAR FROM created_at)::int::text || '-H' || CASE WHEN EXTRACT(MONTH FROM created_at)<=6 THEN '1' ELSE '2' END AS period",
+        "3 years")
+
+    by_program       = _breakdown("COALESCE(program,'—') AS grp")
+    by_program_title = _breakdown(
+        "program_title AS grp",
+        extra_conds=["program_title IS NOT NULL", "program_title <> ''"],
+        limit=20,
     )
-
-    total   = db.query(sa_func.count(CMLead.id)).scalar() or 0
-    deals   = db.query(sa_func.count(CMLead.id)).filter(CMLead.status == "DEAL").scalar() or 0
-    active  = db.query(sa_func.count(CMLead.id)).filter(
-        CMLead.status.in_(["HOT", "ACTIVE", "CALL"])
-    ).scalar() or 0
-    this_month = db.query(sa_func.count(CMLead.id)).filter(
-        CMLead.created_at >= month_start
-    ).scalar() or 0
-    last_month = db.query(sa_func.count(CMLead.id)).filter(
-        CMLead.created_at >= last_month_start,
-        CMLead.created_at < month_start,
-    ).scalar() or 0
-
-    by_day = db.execute(sa_text("""
-        SELECT DATE(created_at) AS period, COUNT(*) AS count
-        FROM cm_leads
-        WHERE created_at >= NOW() - INTERVAL '60 days'
-        GROUP BY 1 ORDER BY 1
-    """)).fetchall()
-
-    by_week = db.execute(sa_text("""
-        SELECT DATE_TRUNC('week', created_at)::date AS period, COUNT(*) AS count
-        FROM cm_leads
-        WHERE created_at >= NOW() - INTERVAL '26 weeks'
-        GROUP BY 1 ORDER BY 1
-    """)).fetchall()
-
-    by_month = db.execute(sa_text("""
-        SELECT TO_CHAR(created_at, 'YYYY-MM') AS period, COUNT(*) AS count
-        FROM cm_leads
-        WHERE created_at >= NOW() - INTERVAL '24 months'
-        GROUP BY 1 ORDER BY 1
-    """)).fetchall()
-
-    by_quarter = db.execute(sa_text("""
-        SELECT
-            EXTRACT(YEAR FROM created_at)::int::text || '-Q' ||
-            EXTRACT(QUARTER FROM created_at)::int::text AS period,
-            COUNT(*) AS count
-        FROM cm_leads
-        WHERE created_at >= NOW() - INTERVAL '3 years'
-        GROUP BY 1 ORDER BY 1
-    """)).fetchall()
-
-    by_semester = db.execute(sa_text("""
-        SELECT
-            EXTRACT(YEAR FROM created_at)::int::text || '-H' ||
-            CASE WHEN EXTRACT(MONTH FROM created_at) <= 6 THEN '1' ELSE '2' END AS period,
-            COUNT(*) AS count
-        FROM cm_leads
-        WHERE created_at >= NOW() - INTERVAL '3 years'
-        GROUP BY 1 ORDER BY 1
-    """)).fetchall()
-
-    by_program = db.execute(sa_text("""
-        SELECT COALESCE(program, '—') AS program,
-               COUNT(*) AS count,
-               SUM(CASE WHEN status = 'DEAL' THEN 1 ELSE 0 END) AS deals
-        FROM cm_leads
-        GROUP BY 1 ORDER BY 2 DESC
-    """)).fetchall()
-
-    by_program_title = db.execute(sa_text("""
-        SELECT program_title AS title,
-               COUNT(*) AS count,
-               SUM(CASE WHEN status = 'DEAL' THEN 1 ELSE 0 END) AS deals
-        FROM cm_leads
-        WHERE program_title IS NOT NULL AND program_title <> ''
-        GROUP BY 1 ORDER BY 2 DESC
-        LIMIT 20
-    """)).fetchall()
-
-    by_status = db.execute(sa_text("""
-        SELECT COALESCE(status, '—') AS status, COUNT(*) AS count
-        FROM cm_leads
-        GROUP BY 1 ORDER BY 2 DESC
-    """)).fetchall()
-
-    by_consultant = db.execute(sa_text("""
-        SELECT assigned_name AS name,
-               COUNT(*) AS count,
-               SUM(CASE WHEN status = 'DEAL' THEN 1 ELSE 0 END) AS deals
-        FROM cm_leads
-        WHERE assigned_name IS NOT NULL AND assigned_name <> ''
-        GROUP BY 1 ORDER BY 2 DESC
-    """)).fetchall()
+    by_status     = _breakdown("COALESCE(status,'—') AS grp")
+    by_consultant = _breakdown(
+        "assigned_name AS grp",
+        extra_conds=["assigned_name IS NOT NULL", "assigned_name <> ''"],
+    )
 
     return {
         "summary": {
@@ -558,10 +573,10 @@ def lead_stats(
         "by_month":    [{"period": r.period,       "count": r.count} for r in by_month],
         "by_quarter":  [{"period": r.period,       "count": r.count} for r in by_quarter],
         "by_semester": [{"period": r.period,       "count": r.count} for r in by_semester],
-        "by_program":       [{"program": r.program, "count": r.count, "deals": r.deals} for r in by_program],
-        "by_program_title": [{"title": r.title,    "count": r.count, "deals": r.deals} for r in by_program_title],
-        "by_status":        [{"status": r.status,  "count": r.count} for r in by_status],
-        "by_consultant":    [{"name": r.name,       "count": r.count, "deals": r.deals} for r in by_consultant],
+        "by_program":       [{"program": r.grp,   "count": r.count, "deals": r.deals} for r in by_program],
+        "by_program_title": [{"title": r.grp,     "count": r.count, "deals": r.deals} for r in by_program_title],
+        "by_status":        [{"status": r.grp,    "count": r.count, "deals": r.deals} for r in by_status],
+        "by_consultant":    [{"name": r.grp,       "count": r.count, "deals": r.deals} for r in by_consultant],
     }
 
 
