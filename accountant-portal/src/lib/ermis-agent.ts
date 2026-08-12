@@ -14,7 +14,7 @@ const MAX_RESPONSE_TOKENS = 1_000
 
 // Hard per-conversation token budget (input+output, cumulative across turns)
 // to prevent runaway/abusive Claude spend on a single business+program chat.
-export const MAX_CONVERSATION_TOKENS = 100_000
+export const MAX_CONVERSATION_TOKENS = 200_000
 
 export interface ChatMessage {
   role: 'user' | 'assistant'
