@@ -48,6 +48,16 @@ function stripBullets(text: string): string {
   return text.replace(/^[•-]\s+/gm, '')
 }
 
+// Infobip silently drops Viber messages over ~1000 chars (source_id stays null).
+// Truncate at the last newline before the limit and append a note.
+const VIBER_MAX_CHARS = 1000
+function truncateForViber(text: string): string {
+  if (text.length <= VIBER_MAX_CHARS) return text
+  const cut = text.lastIndexOf('\n', VIBER_MAX_CHARS - 40)
+  const base = cut > 0 ? text.slice(0, cut) : text.slice(0, VIBER_MAX_CHARS - 40)
+  return base + '\n\n📧 Αναλυτικά στο email σας.'
+}
+
 async function chatwootSend(clientName: string, phone: string, message: string): Promise<{ ok: boolean; reason: string }> {
   const cwUrl = (process.env.CHATWOOT_URL || '').trim().replace(/\/$/, '')
   const cwToken = (process.env.CHATWOOT_API_TOKEN || '').trim()
@@ -173,7 +183,7 @@ async function chatwootSend(clientName: string, phone: string, message: string):
     const r = await fetchJson(`${base}/conversations/${convId}/messages`, {
       method: 'POST',
       headers,
-      body: JSON.stringify({ content: deLinkifyDigitRuns(stripBullets(message)), message_type: 'outgoing', private: false }),
+      body: JSON.stringify({ content: truncateForViber(deLinkifyDigitRuns(stripBullets(message))), message_type: 'outgoing', private: false }),
     })
     // Full body, not just status — Chatwoot reports per-channel delivery
     // problems (e.g. Infobip rejecting the send) via fields on the message
