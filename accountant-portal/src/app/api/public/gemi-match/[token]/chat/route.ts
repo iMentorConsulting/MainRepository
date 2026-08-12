@@ -275,6 +275,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       ].filter(Boolean).join('\n') || null,
       consultant: null,
       legalStatusDescr: businessLegalStatus,
+      businessRegdate: gemi.regdate ?? null,
     })
   } catch (err: any) {
     console.error('[GemiErmisChat] failed:', err?.message)

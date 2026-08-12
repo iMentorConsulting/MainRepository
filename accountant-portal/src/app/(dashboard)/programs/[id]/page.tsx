@@ -293,7 +293,17 @@ export default function ProgramDetailPage() {
                   <div>
                     <div className="text-xs font-semibold text-gray-500 uppercase mb-1.5">Ημερομηνία Έναρξης Επιχείρησης</div>
                     <span className="text-sm text-gray-700">
-                      {program.minRegdate ? formatDate(program.minRegdate) : '...'} — {program.maxRegdate ? formatDate(program.maxRegdate) : '...'}
+                      {program.minRegdate ? formatDate(program.minRegdate) : '...'} — {(() => {
+                        if (!program.maxRegdate) return '...'
+                        const m = program.maxRegdate.match(/^TODAY-(\d+)Y$/i)
+                        if (m) {
+                          const n = parseInt(m[1])
+                          const cutoff = new Date()
+                          cutoff.setFullYear(cutoff.getFullYear() - n)
+                          return `Τουλάχιστον ${n} ${n === 1 ? 'έτος' : 'έτη'} (έως ${cutoff.toLocaleDateString('el-GR')})`
+                        }
+                        return formatDate(program.maxRegdate)
+                      })()}
                     </span>
                   </div>
                 )}

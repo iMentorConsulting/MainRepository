@@ -285,6 +285,8 @@ function AddLinkOrPdf({ onAddLink, onAddPdf }: {
 
 function toDateInputValue(value: any): string {
   if (!value) return ''
+  // Preserve sentinel values — they are managed separately, not via the date picker
+  if (typeof value === 'string' && /^TODAY-/i.test(value)) return ''
   const d = new Date(value)
   if (isNaN(d.getTime())) return ''
   return d.toISOString().slice(0, 10)
@@ -319,7 +321,10 @@ export default function EditProgramPage() {
   const [wpCreating, setWpCreating] = useState(false)
   const [wpToast, setWpToast] = useState<{ msg: string; ok: boolean } | null>(null)
 
-  const { register, handleSubmit, reset, watch, formState: { errors, isSubmitting } } = useForm<FormData>({
+  const [maxRegdateMode, setMaxRegdateMode] = useState<'fixed' | 'relative'>('fixed')
+  const [relativeMaxYears, setRelativeMaxYears] = useState<number>(1)
+
+  const { register, handleSubmit, reset, watch, setValue, formState: { errors, isSubmitting } } = useForm<FormData>({
     resolver: zodResolver(schema),
   })
   const watchedCategory = watch('category')
@@ -363,6 +368,14 @@ export default function EditProgramPage() {
         setRequiredDocumentIds((program.requiredDocuments || []).map((d: { id: string }) => d.id))
         setWpPageId(program.wpPageId ?? null)
         setWpPageUrl(program.wpPageUrl ?? null)
+        // Detect relative sentinel in maxRegdate (e.g. "TODAY-1Y")
+        const sentinelMatch = typeof program.maxRegdate === 'string' ? program.maxRegdate.match(/^TODAY-(\d+)Y$/i) : null
+        if (sentinelMatch) {
+          setMaxRegdateMode('relative')
+          setRelativeMaxYears(parseInt(sentinelMatch[1]))
+        } else {
+          setMaxRegdateMode('fixed')
+        }
         reset({
           title: program.title || '',
           category: program.category || 'ESPA',
@@ -377,7 +390,7 @@ export default function EditProgramPage() {
           websiteUrl: program.websiteUrl || '',
           heroImageUrl: program.heroImageUrl || '',
           minRegdate: toDateInputValue(program.minRegdate),
-          maxRegdate: toDateInputValue(program.maxRegdate),
+          maxRegdate: toDateInputValue(program.maxRegdate), // empty for sentinels — managed by state below
           startDate: toDateInputValue(program.startDate),
           endDate: toDateInputValue(program.endDate),
           active: program.active ?? true,
@@ -396,10 +409,11 @@ export default function EditProgramPage() {
   }, [id, reset])
 
   async function onSubmit(data: FormData) {
+    const maxRegdateFinal = maxRegdateMode === 'relative' ? `TODAY-${relativeMaxYears}Y` : (data.maxRegdate || undefined)
     const res = await fetch(`/api/programs/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...data, heroImageUrl: heroImage || null, kadRules, excludedKadRules, regionRules, zipCodeRules, excludedLegalForms, extraCriteriaIds, excludeTags, requireTags, videoUrls, attachmentUrls, attachmentNames, expenseCategories, requiredDocumentIds }),
+      body: JSON.stringify({ ...data, maxRegdate: maxRegdateFinal, heroImageUrl: heroImage || null, kadRules, excludedKadRules, regionRules, zipCodeRules, excludedLegalForms, extraCriteriaIds, excludeTags, requireTags, videoUrls, attachmentUrls, attachmentNames, expenseCategories, requiredDocumentIds }),
     })
     if (res.ok) {
       router.push(`/programs/${id}`)
@@ -623,7 +637,36 @@ export default function EditProgramPage() {
             />
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Input label="Ελάχιστη Ημ. Ίδρυσης" type="date" {...register('minRegdate')} />
-              <Input label="Μέγιστη Ημ. Ίδρυσης" type="date" {...register('maxRegdate')} />
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Μέγιστη Ημ. Ίδρυσης</label>
+                <div className="flex gap-2 mb-2">
+                  <button type="button"
+                    onClick={() => setMaxRegdateMode('fixed')}
+                    className={`px-3 py-1 rounded text-xs font-medium border ${maxRegdateMode === 'fixed' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-600 border-gray-300'}`}>
+                    Συγκεκριμένη ημερομηνία
+                  </button>
+                  <button type="button"
+                    onClick={() => setMaxRegdateMode('relative')}
+                    className={`px-3 py-1 rounded text-xs font-medium border ${maxRegdateMode === 'relative' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-600 border-gray-300'}`}>
+                    Ελάχιστη ηλικία επιχείρησης
+                  </button>
+                </div>
+                {maxRegdateMode === 'fixed' ? (
+                  <input type="date" {...register('maxRegdate')} className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      min={1}
+                      max={10}
+                      value={relativeMaxYears}
+                      onChange={e => setRelativeMaxYears(Math.max(1, parseInt(e.target.value) || 1))}
+                      className="w-20 border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                    <span className="text-sm text-gray-600">έτη (τρέχον max: {new Date(new Date().setFullYear(new Date().getFullYear() - relativeMaxYears)).toLocaleDateString('el-GR')})</span>
+                  </div>
+                )}
+              </div>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Εξαιρούμενες Νομικές Μορφές</label>

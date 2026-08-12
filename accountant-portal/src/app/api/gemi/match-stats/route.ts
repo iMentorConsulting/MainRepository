@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { resolveRegionFromZip } from '@/lib/greek-regions'
 import { normalizeLegalForm } from '@/lib/legal-forms'
+import { resolveRegdate } from '@/lib/matching'
 
 function normalizeKad(code: string): string {
   return /^\d{7}$/.test(code) ? '0' + code : code
@@ -115,9 +116,11 @@ export async function GET(request: NextRequest) {
 
     if (!failedCriterion && ((program as any).minRegdate || (program as any).maxRegdate)) {
       const regdate = b.regdate ? new Date(b.regdate) : null
+      const resolvedMin = resolveRegdate((program as any).minRegdate)
+      const resolvedMax = resolveRegdate((program as any).maxRegdate)
       let ok = !!regdate
-      if (ok && (program as any).minRegdate && regdate! < new Date((program as any).minRegdate)) ok = false
-      if (ok && (program as any).maxRegdate && regdate! > new Date((program as any).maxRegdate)) ok = false
+      if (ok && resolvedMin && regdate! < resolvedMin) ok = false
+      if (ok && resolvedMax && regdate! > resolvedMax) ok = false
       if (!ok) failedCriterion = 'date'
     }
 

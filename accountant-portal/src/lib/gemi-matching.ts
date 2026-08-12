@@ -2,7 +2,7 @@ import { prisma } from './prisma'
 import { MatchStatus } from '@prisma/client'
 import { resolveRegionFromZip } from './greek-regions'
 import { normalizeLegalForm } from './legal-forms'
-import { isProgramOpen } from './matching'
+import { isProgramOpen, resolveRegdate } from './matching'
 
 interface GemiBusinessView {
   id: string
@@ -113,13 +113,11 @@ function matchesBusiness(
 
   if (program.minRegdate || program.maxRegdate) {
     const regdate = business.regdate ? new Date(business.regdate) : null
+    const resolvedMin = resolveRegdate(program.minRegdate)
+    const resolvedMax = resolveRegdate(program.maxRegdate)
     let dateOk = !!regdate
-    if (program.minRegdate && regdate) {
-      if (regdate < new Date(program.minRegdate)) dateOk = false
-    }
-    if (program.maxRegdate && regdate) {
-      if (regdate > new Date(program.maxRegdate)) dateOk = false
-    }
+    if (resolvedMin && regdate && regdate < resolvedMin) dateOk = false
+    if (resolvedMax && regdate && regdate > resolvedMax) dateOk = false
     if (dateOk && regdate) {
       reasons.push(`Ημερομηνία ίδρυσης: ${regdate.toLocaleDateString('el-GR', { day: '2-digit', month: '2-digit', year: 'numeric' })}`)
     } else {

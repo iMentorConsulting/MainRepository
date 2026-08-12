@@ -46,6 +46,32 @@ function normalizeKad(code: string): string {
   return /^\d{7}$/.test(code) ? '0' + code : code
 }
 
+// Resolves a regdate value which may be an ISO date string OR a sentinel like
+// "TODAY-1Y" meaning "today minus 1 year". Sentinels let programs express
+// "business must be at least N years old" without hard-coding a fixed cutoff date.
+export function resolveRegdate(value: string | null | undefined): Date | null {
+  if (!value) return null
+  const m = value.match(/^TODAY-(\d+)Y$/i)
+  if (m) {
+    const d = new Date()
+    d.setFullYear(d.getFullYear() - parseInt(m[1]))
+    return d
+  }
+  const d = new Date(value)
+  return isNaN(d.getTime()) ? null : d
+}
+
+export function formatRegdateDisplay(value: string | null | undefined): string {
+  if (!value) return '...'
+  const m = value.match(/^TODAY-(\d+)Y$/i)
+  if (m) {
+    const n = parseInt(m[1])
+    return `Τουλάχιστον ${n} ${n === 1 ? 'έτος' : 'έτη'} λειτουργίας`
+  }
+  const d = new Date(value)
+  return isNaN(d.getTime()) ? value : d.toLocaleDateString('el-GR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+}
+
 export interface MatchDiagnosis {
   pass: boolean
   criterion: string
@@ -104,10 +130,12 @@ export function diagnoseMatch(business: BusinessWithActivities, program: Program
   }
   if (program.minRegdate || program.maxRegdate) {
     const regdate = business.regdate ? new Date(business.regdate) : null
+    const resolvedMin = resolveRegdate(program.minRegdate)
+    const resolvedMax = resolveRegdate(program.maxRegdate)
     let ok = !!regdate
-    if (program.minRegdate && regdate && regdate < new Date(program.minRegdate)) ok = false
-    if (program.maxRegdate && regdate && regdate > new Date(program.maxRegdate)) ok = false
-    out.push({ pass: ok, criterion: 'regdate', detail: regdate ? `Ημ. ίδρυσης ${regdate.toLocaleDateString('el-GR')} έναντι εύρους ${program.minRegdate || '—'} έως ${program.maxRegdate || '—'}` : 'Άγνωστη ημερομηνία ίδρυσης' })
+    if (resolvedMin && regdate && regdate < resolvedMin) ok = false
+    if (resolvedMax && regdate && regdate > resolvedMax) ok = false
+    out.push({ pass: ok, criterion: 'regdate', detail: regdate ? `Ημ. ίδρυσης ${regdate.toLocaleDateString('el-GR')} έναντι εύρους ${formatRegdateDisplay(program.minRegdate)} έως ${formatRegdateDisplay(program.maxRegdate)}` : 'Άγνωστη ημερομηνία ίδρυσης' })
   }
 
   return out
@@ -192,13 +220,11 @@ function matchesBusiness(
   // Date matching
   if (program.minRegdate || program.maxRegdate) {
     const regdate = business.regdate ? new Date(business.regdate) : null
+    const resolvedMin = resolveRegdate(program.minRegdate)
+    const resolvedMax = resolveRegdate(program.maxRegdate)
     let dateOk = !!regdate
-    if (program.minRegdate && regdate) {
-      if (regdate < new Date(program.minRegdate)) dateOk = false
-    }
-    if (program.maxRegdate && regdate) {
-      if (regdate > new Date(program.maxRegdate)) dateOk = false
-    }
+    if (resolvedMin && regdate && regdate < resolvedMin) dateOk = false
+    if (resolvedMax && regdate && regdate > resolvedMax) dateOk = false
     if (dateOk && regdate) {
       reasons.push(`Ημερομηνία ίδρυσης: ${regdate.toLocaleDateString('el-GR', { day: '2-digit', month: '2-digit', year: 'numeric' })}`)
     } else {

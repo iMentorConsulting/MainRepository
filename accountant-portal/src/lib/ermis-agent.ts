@@ -9,6 +9,20 @@ import { sendEmail } from './email'
 import { notifyCaseManagement } from './case-management-sync'
 import { EligibilityQuestion } from './eligibility-questions'
 import { buildBusinessProfilePayload, BUSINESS_PROFILE_SELECT } from './business-profile'
+import { resolveRegdate } from './matching'
+
+// Human-readable label for a regdate value — resolves sentinels like "TODAY-1Y"
+// to a string like "Τουλάχιστον 1 έτος λειτουργίας (έως 12/08/2025)".
+function _regdateLabel(value: string): string {
+  const m = value.match(/^TODAY-(\d+)Y$/i)
+  if (m) {
+    const n = parseInt(m[1])
+    const cutoff = resolveRegdate(value)!
+    const cutoffStr = cutoff.toLocaleDateString('el-GR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+    return `Τουλάχιστον ${n} ${n === 1 ? 'έτος' : 'έτη'} λειτουργίας (δηλ. έναρξη έως ${cutoffStr})`
+  }
+  return value
+}
 
 const MAX_RESPONSE_TOKENS = 1_000
 
@@ -55,7 +69,8 @@ function buildSystemPrompt(program: {
   maxRegdate?: string | null
   requiredDocuments?: { name: string; category: string; instructions: string | null }[]
 }, businessName: string, autoConfirmedReasons: string[], qualitativeQuestions: EligibilityQuestion[],
-  contextSummary?: string | null, consultant?: string | null, legalStatusDescr?: string | null) {
+  contextSummary?: string | null, consultant?: string | null, legalStatusDescr?: string | null,
+  businessRegdate?: string | null) {
   const isLoan = program.category === 'MICROCREDITS'
   const amountLabel = isLoan ? 'Ύψος δανείου' : 'Επένδυση'
   const now = new Date()
@@ -84,6 +99,45 @@ function buildSystemPrompt(program: {
   const legalFormLine = legalStatusDescr
     ? `ΝΟΜΙΚΗ ΜΟΡΦΗ ΕΠΙΧΕΙΡΗΣΗΣ: **${legalStatusDescr}**\nΑν κάποιο έγγραφο ή οδηγία έχει διαφορετική έκδοση για "ατομική επιχείρηση" έναντι "νομικού προσώπου" (ΟΕ/ΕΕ/ΙΚΕ/ΑΕ/ΕΠΕ κ.λπ.), χρησιμοποίησε ΑΠΟΚΛΕΙΣΤΙΚΑ την έκδοση που αντιστοιχεί στη νομική μορφή αυτής της επιχείρησης — ΜΗΝ παρουσιάζεις και τις δύο εκδόσεις.`
     : ''
+
+  // Build the regdate instruction line, resolving any relative sentinel (e.g. "TODAY-1Y")
+  // to a human-readable requirement plus a concrete cutoff date in parentheses.
+  let regdateLine = ''
+  let nearEligibleNote = ''
+  if (program.minRegdate || program.maxRegdate) {
+    const minLabel = program.minRegdate ? _regdateLabel(program.minRegdate) : null
+    const maxLabel = program.maxRegdate ? _regdateLabel(program.maxRegdate) : null
+    const fromPart = minLabel ? `από ${minLabel}` : ''
+    const toPart = maxLabel ? `έως ${maxLabel}` : ''
+    regdateLine = `ΚΡΙΣΙΜΟ ΚΡΙΤΗΡΙΟ — Ημερομηνία έναρξης επιχείρησης: ${[fromPart, toPart].filter(Boolean).join(' ')}. Αν η έναρξη της επιχείρησης είναι εκτός αυτού του ορίου, η επιχείρηση ΔΕΝ είναι επιλέξιμη.`
+
+    // For ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ with a relative maxRegdate: if the business's start date is
+    // known and the business is not yet eligible but will be soon, do NOT reject — instead
+    // tell the client when they'll qualify and whether to start preparations now.
+    if (isLoan && program.maxRegdate && businessRegdate) {
+      const relMatch = program.maxRegdate.match(/^TODAY-(\d+)Y$/i)
+      if (relMatch) {
+        const yearsRequired = parseInt(relMatch[1])
+        const bizStart = new Date(businessRegdate)
+        const resolvedMax = new Date()
+        resolvedMax.setFullYear(resolvedMax.getFullYear() - yearsRequired)
+        if (bizStart > resolvedMax) {
+          // Business started too recently — compute exact eligibility date
+          const eligibleAt = new Date(bizStart)
+          eligibleAt.setFullYear(eligibleAt.getFullYear() + yearsRequired)
+          const msUntil = eligibleAt.getTime() - now.getTime()
+          const monthsUntil = Math.ceil(msUntil / (1000 * 60 * 60 * 24 * 30.44))
+          const eligibleStr = eligibleAt.toLocaleDateString('el-GR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+          if (monthsUntil <= 2) {
+            nearEligibleNote = `\nΕΙΔΙΚΗ ΟΔΗΓΙΑ ΓΙΑ ΑΥΤΗ ΤΗΝ ΕΠΙΧΕΙΡΗΣΗ — ΜΗΝ αρνηθείς: Η επιχείρηση δεν έχει συμπληρώσει ακόμα ${yearsRequired} χρόνο/α λειτουργίας, ΑΛΛΑ θα γίνει επιλέξιμη στις ${eligibleStr} (~${monthsUntil} μήνας/ες). Ενημέρωσέ την ευγενικά ότι μπορούμε να ξεκινήσουμε τις προετοιμασίες τώρα (συγκέντρωση δικαιολογητικών, φάκελος) και να υποβάλουμε μόλις συμπληρωθεί ο ένας χρόνος. Κάλεσε το εργαλείο assign_case για να αναλάβει σύμβουλος.`
+          } else {
+            nearEligibleNote = `\nΕΙΔΙΚΗ ΟΔΗΓΙΑ ΓΙΑ ΑΥΤΗ ΤΗΝ ΕΠΙΧΕΙΡΗΣΗ: Η επιχείρηση δεν έχει ακόμα συμπληρώσει ${yearsRequired} χρόνο/α λειτουργίας. Θα γίνει επιλέξιμη στις ${eligibleStr} (~${monthsUntil} μήνες). Ενημέρωσέ την ευγενικά να επιστρέψει τότε — μην αναλάβεις υπόθεση τώρα.`
+          }
+        }
+      }
+    }
+  }
+
   return `Είσαι ο "Ερμής", ο ψηφιακός σύμβουλος επιλεξιμότητας της I-MENTOR. Μιλάς απευθείας με τον ιδιοκτήτη της επιχείρησης "${businessName}" σχετικά με ΕΝΑ συγκεκριμένο πρόγραμμα. Μίλα φυσικά, στα ελληνικά, σαν να μιλάει κανείς με το Claude — αλλά ΕΞΥΠΝΑ ΚΑΙ ΛΑΚΩΝΙΚΑ: σύντομες απαντήσεις (1-4 προτάσεις συνήθως), ΧΩΡΙΣ πλατειασμό, χωρίς να επαναλαμβάνεις πράγματα που ήδη ειπώθηκαν.
 
 ΣΗΜΕΡΙΝΗ ΗΜΕΡΟΜΗΝΙΑ: ${currentDateStr} (τρέχον έτος: ${currentYear}). Χρησιμοποίησέ την για οποιονδήποτε υπολογισμό χρόνων/χρήσεων — π.χ. "κλεισμένες χρήσεις" = πλήρη ημερολογιακά έτη που έχουν λήξει πριν το ${currentYear} (δηλ. έως και ${currentYear - 1}).
@@ -96,7 +150,7 @@ ${program.description || '(χωρίς περιγραφή)'}
 ${program.minInvestment || program.maxInvestment ? `${amountLabel}: ${program.minInvestment ?? '?'}–${program.maxInvestment ?? '?'}€` : ''}
 ${program.minSubsidyPct || program.maxSubsidyPct ? `Ποσοστό επιχορήγησης: ${program.minSubsidyPct ?? '?'}–${program.maxSubsidyPct ?? '?'}%${program.subsidyNote ? ` (${program.subsidyNote})` : ''}` : ''}
 ${program.minInterestRate || program.maxInterestRate ? `Επιτόκιο: ${program.minInterestRate ?? '?'}–${program.maxInterestRate ?? '?'}%` : ''}
-${program.minRegdate || program.maxRegdate ? `ΚΡΙΣΙΜΟ ΚΡΙΤΗΡΙΟ — Ημερομηνία έναρξης επιχείρησης: ${program.minRegdate ? `από ${program.minRegdate}` : ''}${program.minRegdate && program.maxRegdate ? ' ' : ''}${program.maxRegdate ? `έως ${program.maxRegdate}` : ''}. Αν η έναρξη της επιχείρησης είναι εκτός αυτού του ορίου, η επιχείρηση ΔΕΝ είναι επιλέξιμη.` : ''}
+${regdateLine}${nearEligibleNote}
 Λοιπές προϋποθέσεις/όροι — ΥΠΟΧΡΕΩΤΙΚΗ ΛΙΣΤΑ: πρέπει να ρωτήσεις ΚΑΘΕ ΜΙΑ από τις παρακάτω ${qualitativeQuestionCount > 0 ? `(${qualitativeQuestionCount} ερωτήσεις συνολικά)` : ''}, ΜΙΑ τη φορά, σε φυσική γλώσσα, ΜΕ ΤΗΝ ΠΑΡΑΠΑΝΩ ΣΕΙΡΑ:
 ${qualitativeChecklist}
 
@@ -306,6 +360,8 @@ export async function runErmisTurn(params: {
     pricingNote: string | null
     internalNotes: string | null
     ermisInstructions: string | null
+    minRegdate?: string | null
+    maxRegdate?: string | null
     requiredDocuments?: { name: string; category: string; instructions: string | null }[]
   }
   autoConfirmedReasons: string[]
@@ -321,6 +377,8 @@ export async function runErmisTurn(params: {
   contextSummary?: string | null
   consultant?: string | null
   legalStatusDescr?: string | null
+  // Business start date (ISO string) — used to compute near-eligibility for ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ
+  businessRegdate?: string | null
 }): Promise<{ reply: string; caseId: string | null; tokensUsed: number; tokensUsedInput: number; tokensUsedOutput: number }> {
   const apiKey = process.env.ANTHROPIC_API_KEY
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY δεν έχει οριστεί στο περιβάλλον.')
@@ -336,7 +394,7 @@ export async function runErmisTurn(params: {
   }
 
   const anthropic = new Anthropic({ apiKey })
-  const system = buildSystemPrompt(params.program, params.businessName, params.autoConfirmedReasons, params.qualitativeQuestions || [], params.contextSummary, params.consultant, params.legalStatusDescr)
+  const system = buildSystemPrompt(params.program, params.businessName, params.autoConfirmedReasons, params.qualitativeQuestions || [], params.contextSummary, params.consultant, params.legalStatusDescr, params.businessRegdate)
 
   const messages: Anthropic.MessageParam[] = params.isKickoff
     ? [{ role: 'user', content: 'Ξεκίνα εσύ τη συνομιλία.' }]

@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { resolveRegionFromZip } from '@/lib/greek-regions'
 import { normalizeLegalForm } from '@/lib/legal-forms'
+import { resolveRegdate, formatRegdateDisplay } from '@/lib/matching'
 
 interface DiagnosisResult {
   pass: boolean
@@ -100,14 +101,16 @@ function diagnoseGemiMatch(
 
   if (program.minRegdate || program.maxRegdate) {
     const regdate = business.regdate ? new Date(business.regdate) : null
+    const resolvedMin = resolveRegdate(program.minRegdate)
+    const resolvedMax = resolveRegdate(program.maxRegdate)
     let ok = !!regdate
-    if (program.minRegdate && regdate && regdate < new Date(program.minRegdate)) ok = false
-    if (program.maxRegdate && regdate && regdate > new Date(program.maxRegdate)) ok = false
+    if (resolvedMin && regdate && regdate < resolvedMin) ok = false
+    if (resolvedMax && regdate && regdate > resolvedMax) ok = false
     out.push({
       pass: ok,
       criterion: 'regdate',
       detail: regdate
-        ? `Ημ. ίδρυσης ${regdate.toLocaleDateString('el-GR')} έναντι εύρους ${program.minRegdate || '—'} έως ${program.maxRegdate || '—'}`
+        ? `Ημ. ίδρυσης ${regdate.toLocaleDateString('el-GR')} έναντι εύρους ${formatRegdateDisplay(program.minRegdate)} έως ${formatRegdateDisplay(program.maxRegdate)}`
         : 'Άγνωστη ημερομηνία ίδρυσης',
     })
   }

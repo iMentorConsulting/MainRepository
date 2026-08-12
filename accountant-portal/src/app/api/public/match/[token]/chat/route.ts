@@ -81,6 +81,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       ].filter(Boolean).join('\n') || null,
       consultant: matchToken.consultant ?? null,
       legalStatusDescr: business.legalStatusDescr ?? null,
+      businessRegdate: business.regdate ?? null,
     })
   } catch (err: any) {
     console.error('[ErmisChat] failed:', err?.message, err?.status, err?.error)
