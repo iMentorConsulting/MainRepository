@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
         })
       : Promise.resolve([]),
     programId
-      ? prisma.program.findUnique({ where: { id: programId }, select: { title: true, description: true, endDate: true, extraCriteriaIds: true, websiteUrl: true, otherRequirements: true } })
+      ? prisma.program.findUnique({ where: { id: programId }, select: { title: true, description: true, endDate: true, category: true, extraCriteriaIds: true, websiteUrl: true, otherRequirements: true } })
       : Promise.resolve(null),
   ])
 
@@ -61,6 +61,10 @@ export async function POST(request: NextRequest) {
     : ''
   const programDeadlineText = program?.endDate
     ? new Date(program.endDate).toLocaleDateString('el-GR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+    : program?.category === 'DYPA'
+    ? 'Έως κάλυψης των θέσεων'
+    : program?.category === 'ESPA' || program?.category === 'MICROCREDITS'
+    ? 'Έως εξάντλησης των κονδυλίων'
     : ''
 
   const appSetting = await prisma.appSetting.findUnique({ where: { id: 'main' } })

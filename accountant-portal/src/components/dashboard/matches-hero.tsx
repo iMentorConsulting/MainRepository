@@ -35,8 +35,8 @@ function DeadlineChip({ endDate, category }: { endDate: string | null; category?
   if (!endDate) {
     const noDateLabel = category === 'DYPA'
       ? 'Έως κάλυψης των θέσεων'
-      : category === 'ESPA'
-      ? 'Έως εξάντλησης του προϋπολογισμού'
+      : category === 'ESPA' || category === 'MICROCREDITS'
+      ? 'Έως εξάντλησης των κονδυλίων'
       : null
     if (!noDateLabel) return null
     return (

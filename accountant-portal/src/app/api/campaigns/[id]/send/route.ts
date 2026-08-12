@@ -34,6 +34,10 @@ async function processCampaignSend(
     : ''
   const programDeadlineText = campaign.program?.endDate
     ? new Date(campaign.program.endDate).toLocaleDateString('el-GR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+    : campaign.program?.category === 'DYPA'
+    ? 'Έως κάλυψης των θέσεων'
+    : campaign.program?.category === 'ESPA' || campaign.program?.category === 'MICROCREDITS'
+    ? 'Έως εξάντλησης των κονδυλίων'
     : ''
 
   const useEmail = campaign.channel === 'EMAIL' || campaign.channel === 'EMAIL_AND_VIBER'
