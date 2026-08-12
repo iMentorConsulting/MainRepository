@@ -198,14 +198,14 @@ export default function LeadsStats() {
   const [err,     setErr]     = useState(null)
 
   useEffect(() => {
-    if (!auth || auth.role !== 'admin') return
+    if (!auth || auth.user?.role !== 'admin') return
     getLeadStats()
       .then(setStats)
       .catch(e => setErr(e?.response?.data?.detail || e.message))
       .finally(() => setLoading(false))
   }, [])
 
-  if (!auth || auth.role !== 'admin') return (
+  if (!auth || auth.user?.role !== 'admin') return (
     <div className="p-10 text-center text-red-600 font-semibold">Πρόσβαση μόνο για διαχειριστές.</div>
   )
   if (loading) return (
