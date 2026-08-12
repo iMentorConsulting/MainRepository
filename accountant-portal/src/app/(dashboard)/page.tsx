@@ -327,31 +327,27 @@ export default function DashboardPage() {
 
       {stats?.matchesByProgram && stats.matchesByProgram.length > 0 && (
         <ChartCard title="Matches ανά Πρόγραμμα">
-          <ResponsiveContainer width="100%" height={420}>
-            <BarChart data={stats.matchesByProgram} margin={{ top: 24, right: 10, left: -20, bottom: 10 }}>
+          <ResponsiveContainer width="100%" height={500}>
+            <BarChart data={stats.matchesByProgram} margin={{ top: 24, right: 16, left: -20, bottom: 180 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
               <XAxis
                 dataKey="name"
                 interval={0}
-                height={130}
                 tick={(props: any) => {
                   const { x, y, payload } = props
-                  const words: string[] = payload.value.split(' ')
-                  const lines: string[] = []
-                  let cur = ''
-                  for (const w of words) {
-                    const candidate = cur ? `${cur} ${w}` : w
-                    if (candidate.length <= 22) { cur = candidate }
-                    else { if (cur) lines.push(cur); cur = w }
-                  }
-                  if (cur) lines.push(cur)
+                  const label: string = payload.value
                   return (
-                    <g transform={`translate(${x},${y + 8})`}>
-                      {lines.map((line, i) => (
-                        <text key={i} x={0} y={i * 14} textAnchor="middle" fill="#64748b" fontSize={10}>
-                          {line}
-                        </text>
-                      ))}
+                    <g transform={`translate(${x},${y})`}>
+                      <text
+                        transform="rotate(-45)"
+                        textAnchor="end"
+                        fill="#475569"
+                        fontSize={11}
+                        dx={-4}
+                        dy={4}
+                      >
+                        {label}
+                      </text>
                     </g>
                   )
                 }}
@@ -363,8 +359,8 @@ export default function DashboardPage() {
                 content={({ active, payload, label }: any) => {
                   if (!active || !payload?.length) return null
                   return (
-                    <div style={{ ...customTooltipStyle, padding: '10px 14px', maxWidth: 300 }}>
-                      <p style={{ fontWeight: 600, marginBottom: 6, fontSize: 12, wordBreak: 'break-word', lineHeight: 1.4 }}>{label}</p>
+                    <div style={{ ...customTooltipStyle, padding: '10px 14px', maxWidth: 320 }}>
+                      <p style={{ fontWeight: 600, marginBottom: 6, fontSize: 12, wordBreak: 'break-word', lineHeight: 1.5 }}>{label}</p>
                       <p style={{ color: '#4f46e5', fontSize: 13 }}>Matches: <strong>{payload[0].value}</strong></p>
                     </div>
                   )

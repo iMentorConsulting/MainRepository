@@ -107,7 +107,7 @@ export async function GET(request: NextRequest) {
   })
   const programMap = Object.fromEntries(programs.map(p => [p.id, p.title]))
   const matchesByProgramFormatted = matchesByProgram.map(m => ({
-    name: programMap[m.programId]?.slice(0, 30) || m.programId,
+    name: programMap[m.programId] || m.programId,
     count: m._count,
   }))
 
