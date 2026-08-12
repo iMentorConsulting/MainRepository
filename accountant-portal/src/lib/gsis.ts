@@ -115,25 +115,48 @@ export interface GsisBusinessData {
   _source: 'gsis'
 }
 
+// Known GSIS error codes that mean the AFM will never yield data — no point retrying.
+export const GSIS_TERMINAL_ERRORS = new Set([
+  'RG_WS_PUBLIC_AFM_SUBJECT_IS_NOT_ACTIVE',
+  'RG_WS_PUBLIC_AFM_SUBJECT_IS_BLANK_COMPANY',
+  'RG_WS_PUBLIC_AFM_NOT_FOUND',
+  'RG_WS_PUBLIC_ELENXOS_EKSO_AXIONOS',
+])
+
+// Quota errors that should stop the current batch without marking the record as permanently failed.
+const GSIS_QUOTA_ERRORS = new Set([
+  'RG_WS_PUBLIC_MONTHLY_LIMIT_EXCEEDED',
+  'RG_WS_PUBLIC_DAILY_LIMIT_EXCEEDED',
+  'RG_WS_PUBLIC_LIMIT_EXCEEDED',
+])
+
 function parseGsisResponse(text: string, afm: string): GsisBusinessData | null {
   const extractTag = (xml: string, tag: string): string => {
     const m = xml.match(new RegExp(`<[^:>]*:?${tag}>([^<]*)<`, 'i'))
     return m ? m[1].trim() : ''
   }
 
+  // SOAP fault detection — entire response is a fault, not a business record
+  if (/<(?:[^:>]*:)?[Ff]ault\b/.test(text)) {
+    const faultString = extractTag(text, 'faultstring') || extractTag(text, 'Reason') || extractTag(text, 'Text')
+    console.log(`[GSIS] SOAP Fault for AFM ${afm}: ${faultString || text.slice(0, 200)}`)
+    throw new Error(`GSIS_SOAP_FAULT: ${faultString || 'unknown fault'}`)
+  }
+
   const errorCode = extractTag(text, 'error_code')
   if (errorCode && errorCode !== 'RET_CODE_OK') {
     const errorDescr = extractTag(text, 'error_descr')
-    console.log(`[GSIS] GSIS returned error_code: ${errorCode}, error_descr: ${errorDescr}`)
-    if (errorCode === 'RG_WS_PUBLIC_MONTHLY_LIMIT_EXCEEDED') {
-      throw new Error('RG_WS_PUBLIC_MONTHLY_LIMIT_EXCEEDED')
+    console.log(`[GSIS] AFM ${afm} — error_code: ${errorCode}, error_descr: ${errorDescr}`)
+    if (GSIS_QUOTA_ERRORS.has(errorCode)) {
+      throw new Error(errorCode)
     }
-    return null
+    // Terminal error: throw so caller can store the specific code
+    throw new Error(errorCode)
   }
 
   const onomasia = extractTag(text, 'onomasia')
   if (!onomasia) {
-    console.log('[GSIS] Could not find onomasia in GSIS response')
+    console.log(`[GSIS] AFM ${afm} — no onomasia in response (first 300 chars): ${text.slice(0, 300)}`)
     return null
   }
 
@@ -194,8 +217,11 @@ export async function lookupAfm(afm: string): Promise<GsisBusinessData | null> {
     const text = await fetchFromGsis(afm)
     return parseGsisResponse(text, afm)
   } catch (e: any) {
-    if (e?.message === 'RG_WS_PUBLIC_MONTHLY_LIMIT_EXCEEDED') throw e
-    console.error('[GSIS] lookupAfm error:', e?.message)
-    return null
+    const msg: string = e?.message || String(e)
+    // Quota errors must bubble up so the batch stops without marking the record as failed
+    if (GSIS_QUOTA_ERRORS.has(msg) || msg === 'RG_WS_PUBLIC_MONTHLY_LIMIT_EXCEEDED') throw e
+    // For all other errors (GSIS error codes, SOAP faults, timeouts, network errors),
+    // re-throw so the enrich route can store the specific error in aadeError
+    throw e
   }
 }

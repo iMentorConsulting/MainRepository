@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { lookupAfm } from '@/lib/gsis'
+import { lookupAfm, GSIS_TERMINAL_ERRORS } from '@/lib/gsis'
 import { getEffectiveCategory } from '@/lib/business-categories'
 
 // Same logic as applySoleProprietorFix in businesses/import/route.ts:
@@ -41,9 +41,12 @@ export async function POST(request: NextRequest) {
 
   const retryThreshold = new Date(Date.now() - 24 * 60 * 60 * 1000)
 
+  // Terminal errors (GSIS confirmed "not found", "inactive", etc.) are never retried.
+  const terminalErrors = [...GSIS_TERMINAL_ERRORS]
   const records = await prisma.gemiLookup.findMany({
     where: {
       aadeEnriched: false,
+      NOT: { aadeError: { in: terminalErrors } },
       ...(forceRetry ? {} : {
         OR: [
           { aadeError: null },
@@ -60,6 +63,12 @@ export async function POST(request: NextRequest) {
   let errors = 0
   let monthlyLimitExceeded = false
 
+  const QUOTA_ERRORS = new Set([
+    'RG_WS_PUBLIC_MONTHLY_LIMIT_EXCEEDED',
+    'RG_WS_PUBLIC_DAILY_LIMIT_EXCEEDED',
+    'RG_WS_PUBLIC_LIMIT_EXCEEDED',
+  ])
+
   for (const record of records) {
     processed++
 
@@ -67,12 +76,15 @@ export async function POST(request: NextRequest) {
       const data = await lookupAfm(record.afm)
 
       if (!data) {
+        // GSIS returned OK but no onomasia — store descriptive error
+        console.log(`[Enrich] AFM ${record.afm}: no onomasia returned, marking as no-data`)
         await prisma.gemiLookup.update({
           where: { id: record.id },
-          data: { aadeError: 'No data returned from AADE' },
+          data: { aadeError: 'GSIS_NO_ONOMASIA' },
         })
         errors++
       } else {
+        console.log(`[Enrich] AFM ${record.afm}: enriched OK (${data.onomasia})`)
         await prisma.gemiLookup.update({
           where: { id: record.id },
           data: {
@@ -102,13 +114,16 @@ export async function POST(request: NextRequest) {
       }
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e)
-      if (message === 'RG_WS_PUBLIC_MONTHLY_LIMIT_EXCEEDED') {
-        // Don't mark the record as errored — just stop. It will be picked up
-        // next month when the GSIS quota resets.
+      if (QUOTA_ERRORS.has(message)) {
+        // Don't mark the record as errored — quota resets, will be picked up next time.
         monthlyLimitExceeded = true
-        processed-- // don't count this one as processed
+        processed--
+        console.log(`[Enrich] Quota limit hit (${message}), stopping batch after ${processed} records`)
         break
       }
+      // Store the specific GSIS error code (e.g. RG_WS_PUBLIC_AFM_SUBJECT_IS_NOT_ACTIVE)
+      // so we know exactly why it failed and whether to retry.
+      console.log(`[Enrich] AFM ${record.afm}: error — ${message}`)
       await prisma.gemiLookup.update({
         where: { id: record.id },
         data: { aadeError: message },
@@ -122,9 +137,11 @@ export async function POST(request: NextRequest) {
   }
 
   // How many still await enrichment (for client-side progress/looping)
+  // Exclude terminal errors (GSIS confirmed these AFMs have no data — no point retrying)
   const remaining = await prisma.gemiLookup.count({
     where: {
       aadeEnriched: false,
+      NOT: { aadeError: { in: [...GSIS_TERMINAL_ERRORS] } },
       OR: [
         { aadeError: null },
         { aadeError: { not: null }, updatedAt: { lt: retryThreshold } },
@@ -132,5 +149,9 @@ export async function POST(request: NextRequest) {
     },
   })
 
-  return NextResponse.json({ processed, enriched, errors, remaining, monthlyLimitExceeded })
+  const terminalCount = await prisma.gemiLookup.count({
+    where: { aadeEnriched: false, aadeError: { in: [...GSIS_TERMINAL_ERRORS] } },
+  })
+
+  return NextResponse.json({ processed, enriched, errors, remaining, monthlyLimitExceeded, terminalCount })
 }
