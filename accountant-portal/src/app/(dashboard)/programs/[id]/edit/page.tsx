@@ -564,14 +564,29 @@ export default function EditProgramPage() {
         <Card>
           <CardHeader><CardTitle>Κριτήρια Επιλεξιμότητας</CardTitle></CardHeader>
           <CardContent className="space-y-5">
-            <TagInput
-              label="Κανόνες ΚΑΔ"
-              values={kadRules}
-              onChange={setKadRules}
-              placeholder="π.χ. 47 ή 47.11.10.01"
-              bulkImport
-              pdfImport
-            />
+            <div className="space-y-3">
+              <label className="block text-sm font-medium text-gray-700">Κανόνες ΚΑΔ</label>
+              <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  className="rounded"
+                  checked={kadRules.includes('*')}
+                  onChange={e => setKadRules(e.target.checked ? ['*'] : [])}
+                />
+                <span className="font-medium">Όλοι οι ΚΑΔ επιλέξιμοι</span>
+                <span className="text-gray-500 text-xs">(χρησιμοποίησε τους Εξαιρούμενους ΚΑΔ παρακάτω για εξαιρέσεις)</span>
+              </label>
+              {!kadRules.includes('*') && (
+                <TagInput
+                  label=""
+                  values={kadRules}
+                  onChange={setKadRules}
+                  placeholder="π.χ. 47 ή 47.11.10.01"
+                  bulkImport
+                  pdfImport
+                />
+              )}
+            </div>
             <TagInput
               label="Εξαιρούμενοι ΚΑΔ (exceptions)"
               values={excludedKadRules}
@@ -581,7 +596,9 @@ export default function EditProgramPage() {
             />
             {excludedKadRules.length > 0 && (
               <p className="text-xs text-amber-600 bg-amber-50 rounded-md px-3 py-1.5">
-                Οι παραπάνω ΚΑΔ αποκλείονται από το matching ακόμα κι αν ταιριάζουν με τους κανόνες ΚΑΔ παραπάνω.
+                {kadRules.includes('*')
+                  ? 'Όλοι οι ΚΑΔ είναι επιλέξιμοι εκτός από τους παραπάνω.'
+                  : 'Οι παραπάνω ΚΑΔ αποκλείονται από το matching ακόμα κι αν ταιριάζουν με τους κανόνες ΚΑΔ παραπάνω.'}
               </p>
             )}
             <RegionMultiSelect

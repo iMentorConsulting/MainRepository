@@ -68,9 +68,10 @@ function matchesBusiness(
   let allMatched = true
 
   if (program.kadRules.length > 0) {
+    const allKad = program.kadRules.includes('*')
     const matchedKad = business.activities.find(activity => {
       const activityCode = normalizeKad(activity.firmActCode)
-      const matchesRule = program.kadRules.some(rule => {
+      const matchesRule = allKad || program.kadRules.some(rule => {
         const cleanRule = normalizeKad(rule.trim())
         return cleanRule.includes('.') ? activityCode === cleanRule : activityCode.startsWith(cleanRule)
       })

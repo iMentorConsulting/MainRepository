@@ -74,9 +74,10 @@ export function diagnoseMatch(business: BusinessWithActivities, program: Program
   }
 
   if (program.kadRules.length > 0) {
+    const allKad = program.kadRules.includes('*')
     const matchedKad = business.activities.find(activity => {
       const activityCode = normalizeKad(activity.firmActCode)
-      const matchesRule = program.kadRules.some(rule => {
+      const matchesRule = allKad || program.kadRules.some(rule => {
         const cleanRule = normalizeKad(rule.trim())
         return cleanRule.includes('.') ? activityCode === cleanRule : activityCode.startsWith(cleanRule)
       })
@@ -88,7 +89,8 @@ export function diagnoseMatch(business: BusinessWithActivities, program: Program
       return !isExcluded
     })
     const excludedDetail = program.excludedKadRules.length > 0 ? ` (εξαιρούνται: ${program.excludedKadRules.join(', ')})` : ''
-    out.push({ pass: !!matchedKad, criterion: 'kadRules', detail: matchedKad ? `Ταιριάζει ΚΑΔ ${matchedKad.firmActCode}` : `Κανένα από τα ΚΑΔ της επιχείρησης (${business.activities.map(a => a.firmActCode).join(', ') || '—'}) δεν ταιριάζει με τους κανόνες ΚΑΔ του προγράμματος${excludedDetail}` })
+    const ruleLabel = allKad ? 'Όλοι οι ΚΑΔ' : `κανόνες ΚΑΔ του προγράμματος`
+    out.push({ pass: !!matchedKad, criterion: 'kadRules', detail: matchedKad ? `Ταιριάζει ΚΑΔ ${matchedKad.firmActCode}` : `Κανένα από τα ΚΑΔ της επιχείρησης (${business.activities.map(a => a.firmActCode).join(', ') || '—'}) δεν ταιριάζει με τους ${ruleLabel}${excludedDetail}` })
   }
   if (program.regionRules.length > 0) {
     const businessRegion = resolveRegionFromZip(business.postalZipCode)
