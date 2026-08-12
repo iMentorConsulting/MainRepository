@@ -241,7 +241,7 @@ export const getPortalAssignmentRequests = () => api.get('/api/cm/portal-integra
 // Leads
 export const getLeads = (params) => api.get('/api/cm/leads/', { params }).then(r => r.data)
 export const getLeadFilterOptions = () => api.get('/api/cm/leads/filter-options').then(r => r.data)
-export const getLeadStats = () => api.get('/api/cm/leads/stats').then(r => r.data)
+export const getLeadStats = (params) => api.get('/api/cm/leads/stats', { params }).then(r => r.data)
 export const getLead = (id) => api.get(`/api/cm/leads/${id}`).then(r => r.data)
 export const createLead = (data) => api.post('/api/cm/leads/', data).then(r => r.data)
 export const updateLead = (id, data) => api.put(`/api/cm/leads/${id}`, data).then(r => r.data)
