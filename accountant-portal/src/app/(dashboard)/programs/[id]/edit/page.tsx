@@ -57,13 +57,14 @@ const schema = z.object({
 })
 type FormData = z.infer<typeof schema>
 
-function TagInput({ label, values, onChange, placeholder, bulkImport, pdfImport }: {
+function TagInput({ label, values, onChange, placeholder, bulkImport, pdfImport, clearAll }: {
   label: string
   values: string[]
   onChange: (v: string[]) => void
   placeholder?: string
   bulkImport?: boolean
   pdfImport?: boolean
+  clearAll?: boolean
 }) {
   const [input, setInput] = useState('')
   const [bulkOpen, setBulkOpen] = useState(false)
@@ -119,6 +120,12 @@ function TagInput({ label, values, onChange, placeholder, bulkImport, pdfImport 
       <div className="flex items-center justify-between">
         <label className="text-sm font-medium text-gray-700">{label}</label>
         <div className="flex gap-1.5">
+          {clearAll && values.length > 0 && (
+            <Button type="button" variant="outline" size="sm" onClick={() => onChange([])}>
+              <X size={12} className="mr-1" />
+              Διαγραφή όλων
+            </Button>
+          )}
           {pdfImport && (
             <>
               <input
@@ -584,6 +591,7 @@ export default function EditProgramPage() {
                   placeholder="π.χ. 47 ή 47.11.10.01"
                   bulkImport
                   pdfImport
+                  clearAll
                 />
               )}
             </div>
