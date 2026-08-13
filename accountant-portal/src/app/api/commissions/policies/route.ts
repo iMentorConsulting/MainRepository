@@ -17,11 +17,11 @@ export async function GET(req: NextRequest) {
   if (programId) where.programId = programId
   if (active !== null) where.active = active !== 'false'
 
-  const policies = await prisma.commissionPolicy.findMany({
+  const policies = await (prisma.commissionPolicy as any).findMany({
     where,
     include: {
       service: { select: { id: true, name: true } },
-      program: { select: { id: true, title: true } },
+      programs: { select: { id: true, title: true } },
     },
     orderBy: { createdAt: 'desc' },
   })
@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
     appliesToApplication,
     appliesToImplementation,
     serviceId,
-    programId,
+    programIds,
     active,
   } = body
 
@@ -55,7 +55,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'name and commissionType are required' }, { status: 400 })
   }
 
-  const policy = await prisma.commissionPolicy.create({
+  const ids: string[] = Array.isArray(programIds) ? programIds : []
+
+  const policy = await (prisma.commissionPolicy as any).create({
     data: {
       name,
       description: description || null,
@@ -67,12 +69,12 @@ export async function POST(req: NextRequest) {
       appliesToApplication: appliesToApplication ?? true,
       appliesToImplementation: appliesToImplementation ?? false,
       serviceId: serviceId || null,
-      programId: programId || null,
+      programs: ids.length ? { connect: ids.map((id: string) => ({ id })) } : undefined,
       active: active ?? true,
     },
     include: {
       service: { select: { id: true, name: true } },
-      program: { select: { id: true, title: true } },
+      programs: { select: { id: true, title: true } },
     },
   })
 

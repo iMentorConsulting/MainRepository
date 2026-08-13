@@ -12,12 +12,12 @@ export async function findApplicablePolicy(serviceName: string, stage: 'APPLICAT
   // 2. Match by policy name or linked program title containing the service name stem
   // (handles cases like serviceName="ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ" matching policy "ΤΑΜΕΙΟ ΜΙΚΡΟΠΙΣΤΩΣΕΩΝ")
   const stem = serviceName.substring(0, Math.max(6, serviceName.length - 3))
-  const byName = await prisma.commissionPolicy.findFirst({
+  const byName = await (prisma.commissionPolicy as any).findFirst({
     where: {
       active: true, ...stageFilter,
       OR: [
         { name: { contains: stem, mode: 'insensitive' } },
-        { program: { title: { contains: stem, mode: 'insensitive' } } },
+        { programs: { some: { title: { contains: stem, mode: 'insensitive' } } } },
       ],
     },
   })

@@ -537,11 +537,10 @@ model CommissionPolicy {
   // Which stages this applies to
   appliesToApplication    Boolean                        @default(true)
   appliesToImplementation Boolean                        @default(false)
-  // Link to service or program
+  // Link to service or programs (many-to-many)
   serviceId               String?
   service                 Service?                       @relation(fields: [serviceId], references: [id])
-  programId               String?
-  program                 Program?                       @relation(fields: [programId], references: [id])
+  programs                Program[]
   active                  Boolean                        @default(true)
   createdAt               DateTime                       @default(now())
   updatedAt               DateTime                       @updatedAt

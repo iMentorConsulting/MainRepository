@@ -5,7 +5,7 @@ import { redirect } from 'next/navigation'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Table, TableHead, TableBody, TableRow, Th, Td } from '@/components/ui/table'
-import { Plus, Pencil, Trash2, Copy, X } from 'lucide-react'
+import { Plus, Pencil, Trash2, Copy, X, Search } from 'lucide-react'
 
 function formatEur(cents: number) {
   return (cents / 100).toLocaleString('el-GR', { style: 'currency', currency: 'EUR' })
@@ -32,7 +32,7 @@ interface PolicyForm {
   appliesToApplication: boolean
   appliesToImplementation: boolean
   serviceId: string
-  programId: string
+  programIds: string[]
   active: boolean
 }
 
@@ -47,7 +47,7 @@ const emptyForm: PolicyForm = {
   appliesToApplication: true,
   appliesToImplementation: false,
   serviceId: '',
-  programId: '',
+  programIds: [],
   active: true,
 }
 
@@ -78,13 +78,14 @@ function PolicyModal({
           appliesToApplication: initial.appliesToApplication,
           appliesToImplementation: initial.appliesToImplementation,
           serviceId: initial.serviceId || '',
-          programId: initial.programId || '',
+          programIds: Array.isArray(initial.programs) ? initial.programs.map((p: any) => p.id) : [],
           active: initial.active,
         }
       : emptyForm
   )
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [programSearch, setProgramSearch] = useState('')
 
   function set(key: keyof PolicyForm, value: any) {
     setForm(f => ({ ...f, [key]: value }))
@@ -103,7 +104,7 @@ function PolicyModal({
       appliesToApplication: form.appliesToApplication,
       appliesToImplementation: form.appliesToImplementation,
       serviceId: form.serviceId || null,
-      programId: form.programId || null,
+      programIds: form.programIds,
       active: form.active,
     }
 
@@ -269,7 +270,7 @@ function PolicyModal({
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="space-y-3">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Σύνδεση με Υπηρεσία</label>
               <select
@@ -284,17 +285,59 @@ function PolicyModal({
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Σύνδεση με Πρόγραμμα</label>
-              <select
-                value={form.programId}
-                onChange={e => set('programId', e.target.value)}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-              >
-                <option value="">Χωρίς σύνδεση</option>
-                {programs.map((p: any) => (
-                  <option key={p.id} value={p.id}>{p.title}</option>
-                ))}
-              </select>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Σύνδεση με Προγράμματα
+                {form.programIds.length > 0 && (
+                  <span className="ml-2 text-xs font-normal text-indigo-600">({form.programIds.length} επιλεγμένα)</span>
+                )}
+              </label>
+              {/* Search box */}
+              <div className="relative mb-1">
+                <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                <input
+                  type="text"
+                  value={programSearch}
+                  onChange={e => setProgramSearch(e.target.value)}
+                  placeholder="Αναζήτηση προγράμματος..."
+                  className="w-full pl-7 pr-3 py-1.5 border border-gray-300 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
+              </div>
+              {/* Checklist */}
+              <div className="border border-gray-200 rounded-lg max-h-44 overflow-y-auto divide-y divide-gray-100">
+                {programs
+                  .filter((p: any) => !programSearch || p.title.toLowerCase().includes(programSearch.toLowerCase()))
+                  .map((p: any) => {
+                    const checked = form.programIds.includes(p.id)
+                    return (
+                      <label key={p.id} className={`flex items-center gap-2.5 px-3 py-2 cursor-pointer hover:bg-indigo-50/60 transition-colors text-sm ${checked ? 'bg-indigo-50' : ''}`}>
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => {
+                            set('programIds', checked
+                              ? form.programIds.filter(id => id !== p.id)
+                              : [...form.programIds, p.id]
+                            )
+                          }}
+                          className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 flex-shrink-0"
+                        />
+                        <span className={`leading-tight ${checked ? 'text-indigo-700 font-medium' : 'text-gray-700'}`}>{p.title}</span>
+                      </label>
+                    )
+                  })}
+                {programs.filter((p: any) => !programSearch || p.title.toLowerCase().includes(programSearch.toLowerCase())).length === 0 && (
+                  <div className="px-3 py-4 text-center text-xs text-gray-400">Δεν βρέθηκαν προγράμματα</div>
+                )}
+              </div>
+              {form.programIds.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => set('programIds', [])}
+                  className="mt-1 text-xs text-gray-400 hover:text-gray-600 underline"
+                >
+                  Αποεπιλογή όλων
+                </button>
+              )}
             </div>
           </div>
 
@@ -452,10 +495,18 @@ export default function CommissionPoliciesPage() {
                     <Td>
                       <Badge variant="secondary">{appliesTo(p)}</Badge>
                     </Td>
-                    <Td className="text-sm text-gray-600">
-                      {p.service?.name && <div>{p.service.name}</div>}
-                      {p.program?.title && <div className="text-xs text-gray-400">{p.program.title}</div>}
-                      {!p.service && !p.program && '—'}
+                    <Td className="text-sm text-gray-600 max-w-[220px]">
+                      {p.service?.name && <div className="font-medium">{p.service.name}</div>}
+                      {Array.isArray(p.programs) && p.programs.length > 0 ? (
+                        <div className="flex flex-wrap gap-1 mt-0.5">
+                          {p.programs.slice(0, 3).map((pg: any) => (
+                            <span key={pg.id} className="inline-block text-[10px] bg-indigo-50 text-indigo-700 rounded px-1.5 py-0.5 leading-tight">{pg.title}</span>
+                          ))}
+                          {p.programs.length > 3 && (
+                            <span className="inline-block text-[10px] bg-gray-100 text-gray-500 rounded px-1.5 py-0.5 leading-tight">+{p.programs.length - 3}</span>
+                          )}
+                        </div>
+                      ) : !p.service ? '—' : null}
                     </Td>
                     <Td>
                       <Badge variant={p.active ? 'success' : 'secondary'}>

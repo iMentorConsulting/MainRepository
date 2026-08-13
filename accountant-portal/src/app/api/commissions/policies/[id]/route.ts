@@ -7,11 +7,11 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   if (session.user.role === 'CONSULTANT') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  const policy = await prisma.commissionPolicy.findUnique({
+  const policy = await (prisma.commissionPolicy as any).findUnique({
     where: { id: params.id },
     include: {
       service: { select: { id: true, name: true } },
-      program: { select: { id: true, title: true } },
+      programs: { select: { id: true, title: true } },
       ...(session.user.role === 'ADMIN' ? {
         accountantOverrides: {
           include: {
@@ -44,11 +44,11 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     appliesToApplication,
     appliesToImplementation,
     serviceId,
-    programId,
+    programIds,
     active,
   } = body
 
-  const policy = await prisma.commissionPolicy.update({
+  const policy = await (prisma.commissionPolicy as any).update({
     where: { id: params.id },
     data: {
       ...(name !== undefined && { name }),
@@ -61,12 +61,12 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
       ...(appliesToApplication !== undefined && { appliesToApplication }),
       ...(appliesToImplementation !== undefined && { appliesToImplementation }),
       ...(serviceId !== undefined && { serviceId: serviceId || null }),
-      ...(programId !== undefined && { programId: programId || null }),
+      ...(programIds !== undefined && { programs: { set: (programIds as string[]).map((id: string) => ({ id })) } }),
       ...(active !== undefined && { active }),
     },
     include: {
       service: { select: { id: true, name: true } },
-      program: { select: { id: true, title: true } },
+      programs: { select: { id: true, title: true } },
     },
   })
 
