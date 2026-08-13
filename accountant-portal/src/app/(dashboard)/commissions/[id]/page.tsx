@@ -11,8 +11,6 @@ import {
   CheckCircle,
   Banknote,
   XCircle,
-  RefreshCw,
-  ExternalLink,
   Building2,
   User,
   CreditCard,
@@ -59,7 +57,6 @@ export default function CommissionDetailPage() {
   const [commission, setCommission] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [processing, setProcessing] = useState(false)
-  const [syncing, setSyncing] = useState(false)
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null)
 
   function showToast(msg: string, type: 'success' | 'error' = 'success') {
@@ -123,21 +120,6 @@ export default function CommissionDetailPage() {
       showToast('Σφάλμα ακύρωσης', 'error')
     }
     setProcessing(false)
-  }
-
-  async function syncInvoice() {
-    setSyncing(true)
-    const res = await fetch(`/api/commissions/${params.id}/sync-invoice`, { method: 'POST' })
-    if (res.ok) {
-      showToast('Τιμολόγιο δημιουργήθηκε!')
-      // Refresh commission data
-      const refreshed = await fetch(`/api/commissions/${params.id}`).then(r => r.json())
-      setCommission(refreshed)
-    } else {
-      const data = await res.json()
-      showToast(data.error || 'Σφάλμα συγχρονισμού', 'error')
-    }
-    setSyncing(false)
   }
 
   if (loading) {
@@ -300,44 +282,17 @@ export default function CommissionDetailPage() {
         </div>
       </div>
 
-      {/* Invoicing */}
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
-        <h3 className="font-semibold text-gray-800 text-sm mb-4">Τιμολόγηση</h3>
-        {commission.externalInvoiceId ? (
-          <div className="space-y-3">
-            <dl className="grid grid-cols-2 gap-4">
-              <Field label="Αρ. Τιμολογίου" value={commission.externalInvoiceNo} />
-              <Field label="Ημ. Συγχρονισμού" value={commission.externalSyncedAt ? formatDate(commission.externalSyncedAt) : '—'} />
-            </dl>
-            {commission.externalInvoiceUrl && (
-              <a
-                href={commission.externalInvoiceUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-2 text-sm text-blue-600 hover:underline"
-              >
-                Άνοιγμα Τιμολογίου
-                <ExternalLink size={14} />
-              </a>
-            )}
-          </div>
-        ) : (
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-gray-500">Δεν έχει συγχρονιστεί με σύστημα τιμολόγησης.</span>
-            {isAdmin && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={syncInvoice}
-                disabled={syncing}
-              >
-                <RefreshCw size={14} className={`mr-2 ${syncing ? 'animate-spin' : ''}`} />
-                {syncing ? 'Συγχρονισμός...' : 'Δημιουργία Τιμολογίου'}
-              </Button>
-            )}
-          </div>
-        )}
-      </div>
+      {/* Invoice instructions (accountants only) */}
+      {!isAdmin && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-5">
+          <h3 className="font-semibold text-amber-800 text-sm mb-2">Πώς να λάβετε την προμήθειά σας</h3>
+          <p className="text-sm text-amber-900">
+            Εκδώστε τιμολόγιο παροχής υπηρεσιών στα στοιχεία:{' '}
+            <strong>I MENTOR IKE, ΑΦΜ 802100033</strong>. Αποστείλτε το τιμολόγιο μαζί με τον αριθμό IBAN
+            και το όνομα της τράπεζάς σας στο <strong>info@i-mentor.gr</strong>.
+          </p>
+        </div>
+      )}
 
       {/* Admin Actions */}
       {isAdmin && (

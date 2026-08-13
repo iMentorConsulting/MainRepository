@@ -346,6 +346,18 @@ export default function CommissionsPage() {
         )}
       </div>
 
+      {/* Invoice instructions banner (accountants only) */}
+      {!isAdmin && (
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4">
+          <p className="text-xs font-bold text-amber-800 uppercase tracking-wide mb-1">Οδηγίες Λήψης Προμήθειας</p>
+          <p className="text-sm text-amber-900">
+            Για να λάβετε την προμήθειά σας, παρακαλούμε εκδώστε τιμολόγιο παροχής υπηρεσιών στα ακόλουθα στοιχεία:{' '}
+            <strong>I MENTOR IKE, ΑΦΜ 802100033</strong>. Αποστείλτε το τιμολόγιο μαζί με τον αριθμό IBAN και το
+            όνομα της τράπεζάς σας στο <strong>info@i-mentor.gr</strong>.
+          </p>
+        </div>
+      )}
+
       {/* Commission Policies compact panel */}
       {policies.length > 0 && (
         <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-4">
@@ -535,14 +547,13 @@ export default function CommissionsPage() {
                 <Th>Προμήθεια</Th>
                 <Th>Κατάσταση</Th>
                 <Th>Ημερομηνία</Th>
-                {!isAdmin && <Th>Τιμολόγιο</Th>}
                 <Th>Ενέργειες</Th>
               </TableRow>
             </TableHead>
             <TableBody>
               {commissions.length === 0 ? (
                 <TableRow>
-                  <Td colSpan={isAdmin ? 10 : 9} className="text-center text-gray-400 py-8">
+                  <Td colSpan={isAdmin ? 10 : 8} className="text-center text-gray-400 py-8">
                     Δεν βρέθηκαν προμήθειες
                   </Td>
                 </TableRow>
@@ -585,25 +596,6 @@ export default function CommissionsPage() {
                       <Badge variant={statusVariant[c.status]}>{statusLabel[c.status]}</Badge>
                     </Td>
                     <Td className="text-sm text-gray-500">{formatDate(c.createdAt)}</Td>
-                    {!isAdmin && (
-                      <Td>
-                        {c.externalInvoiceUrl ? (
-                          <a
-                            href={c.externalInvoiceUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-center gap-1 text-blue-600 hover:underline text-xs"
-                          >
-                            {c.externalInvoiceNo || 'Τιμολόγιο'}
-                            <ExternalLink size={12} />
-                          </a>
-                        ) : c.externalInvoiceNo ? (
-                          <span className="text-xs text-gray-600">{c.externalInvoiceNo}</span>
-                        ) : (
-                          <span className="text-xs text-gray-400">—</span>
-                        )}
-                      </Td>
-                    )}
                     <Td>
                       <div className="flex items-center gap-1">
                         <Link href={`/commissions/${c.id}`}>
