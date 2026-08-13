@@ -32,6 +32,8 @@ function LoginPageInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const verifyStatus = searchParams.get('verify')
+  const rawCallbackUrl = searchParams.get('callbackUrl') || '/'
+  const callbackUrl = rawCallbackUrl.startsWith('/') && !rawCallbackUrl.startsWith('//') ? rawCallbackUrl : '/'
 
   useEffect(() => {
     fetch('/api/settings/logo')
@@ -74,7 +76,7 @@ function LoginPageInner() {
         const code = (res as any).code || (res as any).error
         setError(ERROR_MESSAGES[code] || 'Λάθος email ή κωδικός πρόσβασης, ή ο λογαριασμός σας δεν έχει επιβεβαιωθεί ακόμη (ελέγξτε το email σας).')
       } else {
-        router.push('/')
+        router.push(callbackUrl)
         router.refresh()
       }
     } catch {
