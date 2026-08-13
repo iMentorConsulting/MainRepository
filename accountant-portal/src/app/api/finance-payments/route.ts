@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
   // to I-MENTOR, and compute a commission preview from the applicable policy.
   const enriched = await Promise.all(payments.map(async p => {
     let hasCase = false
-    let preview: { commissionAmount: number; commissionRate: number | null; breakdown: string; policyId: string | null } | null = null
+    let preview: { commissionAmount: number; commissionRate: number | null; breakdown: string; policyId: string | null; policyName: string | null; isManual: boolean } | null = null
 
     if (p.business?.id) {
       hasCase = !!(await prisma.clientCase.findFirst({ where: { businessId: p.business.id }, select: { id: true } }))
@@ -41,13 +41,17 @@ export async function GET(request: NextRequest) {
 
     if (p.business?.accountantId && p.status === 'PENDING') {
       const stage = p.category.includes('ΥΛΟΠΟΙΗΣΗ') ? 'IMPLEMENTATION' : 'APPLICATION'
-      const policy = await findApplicablePolicy(p.serviceName, stage)
+      const manualPolicyId = (p as any).manualPolicyId as string | null
+      let policy = manualPolicyId
+        ? await prisma.commissionPolicy.findUnique({ where: { id: manualPolicyId } })
+        : await findApplicablePolicy(p.serviceName, stage)
+      const isManual = !!manualPolicyId
       if (policy) {
         const override = await prisma.accountantCommissionOverride.findUnique({
           where: { accountantId_commissionPolicyId: { accountantId: p.business.accountantId, commissionPolicyId: policy.id } },
         })
         const calc = calculateCommission(p.amount, policy, override)
-        preview = { ...calc, policyId: policy.id }
+        preview = { ...calc, policyId: policy.id, policyName: policy.name, isManual }
       }
     }
 

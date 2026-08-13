@@ -6,6 +6,8 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { ArrowLeft, Check, X, Clock3, RefreshCw, UserPlus, RotateCcw, ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react'
 
+type Policy = { id: string; name: string; commissionType: string; percentage: number | null; fixedAmount: number | null }
+
 function formatEur(cents: number) {
   return (cents / 100).toLocaleString('el-GR', { style: 'currency', currency: 'EUR' })
 }
@@ -29,6 +31,8 @@ function SortIcon({ col, sortKey, sortDir }: { col: SortKey; sortKey: SortKey; s
 
 export default function FinancePaymentsPage() {
   const [payments, setPayments] = useState<any[]>([])
+  const [policies, setPolicies] = useState<Policy[]>([])
+  const [policyBusy, setPolicyBusy] = useState<string | null>(null)
   const [statusFilter, setStatusFilter] = useState('PENDING')
   const [serviceFilter, setServiceFilter] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('')
@@ -55,6 +59,7 @@ export default function FinancePaymentsPage() {
   useEffect(() => { fetchPayments() }, [fetchPayments])
   useEffect(() => {
     fetch('/api/finance-payments/settings').then(r => r.json()).then(d => setEmailsEnabled(!!d.financeCommissionEmailsEnabled))
+    fetch('/api/commissions/policies?active=true').then(r => r.json()).then(d => Array.isArray(d) && setPolicies(d))
   }, [])
 
   // Derived filter options
@@ -181,6 +186,23 @@ export default function FinancePaymentsPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ enabled: next }),
     })
+  }
+
+  async function setPolicy(paymentId: string, policyId: string | null) {
+    setPolicyBusy(paymentId)
+    const res = await fetch(`/api/finance-payments/${paymentId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'set-policy', policyId }),
+    })
+    const data = await res.json()
+    if (!res.ok) { alert(data.error || 'Σφάλμα'); setPolicyBusy(null); return }
+    // Update local state: patch the specific payment's commissionPreview
+    setPayments(prev => prev.map(p => p.id === paymentId
+      ? { ...p, manualPolicyId: policyId, commissionPreview: data.preview ?? null }
+      : p
+    ))
+    setPolicyBusy(null)
   }
 
   async function createBusiness(id: string) {
@@ -387,13 +409,47 @@ export default function FinancePaymentsPage() {
                       <Td className="text-xs text-gray-500">{p.serviceName}</Td>
                       <Td className="text-xs text-gray-500">{p.category}</Td>
                       <Td className="text-xs font-medium text-gray-900">{formatEur(p.amount)}</Td>
-                      <Td className="text-xs">
+                      <Td className="text-xs min-w-[160px]">
                         {p.commission ? (
-                          <span className="text-emerald-700 font-medium">{formatEur(p.commission.commissionAmount)}</span>
-                        ) : p.commissionPreview ? (
-                          <span className="text-gray-600">{formatEur(p.commissionPreview.commissionAmount)} <span className="text-gray-400">(εκτίμηση)</span></span>
-                        ) : p.business?.accountantId ? (
-                          <span className="text-amber-600 font-medium" title="Δεν υπάρχει πολιτική προμηθειών για αυτή την υπηρεσία/στάδιο">⚠ Χωρίς πολιτική</span>
+                          <div>
+                            <span className="text-emerald-700 font-medium">{formatEur(p.commission.commissionAmount)}</span>
+                            {p.commissionPreview?.policyName && (
+                              <div className="text-gray-400 text-[10px] mt-0.5 truncate max-w-[140px]" title={p.commissionPreview.policyName}>{p.commissionPreview.policyName}</div>
+                            )}
+                          </div>
+                        ) : p.status === 'PENDING' && p.business?.accountantId ? (
+                          <div className="space-y-1">
+                            {p.commissionPreview ? (
+                              <div>
+                                <span className={p.commissionPreview.isManual ? 'text-indigo-700 font-medium' : 'text-gray-600'}>
+                                  {formatEur(p.commissionPreview.commissionAmount)}
+                                </span>
+                                <span className="text-gray-400 ml-1">(εκτίμηση)</span>
+                              </div>
+                            ) : (
+                              <span className="text-amber-600" title="Δεν υπάρχει πολιτική προμηθειών για αυτή την υπηρεσία/στάδιο">⚠ Χωρίς πολιτική</span>
+                            )}
+                            <div className="relative">
+                              <select
+                                value={p.commissionPreview?.policyId || ''}
+                                disabled={policyBusy === p.id}
+                                onChange={e => setPolicy(p.id, e.target.value || null)}
+                                className="w-full text-[11px] rounded border border-gray-200 bg-white px-2 py-1 pr-5 text-gray-700 focus:outline-none focus:ring-1 focus:ring-indigo-400 cursor-pointer disabled:opacity-50 appearance-none"
+                                title="Επιλογή πολιτικής προμήθειας"
+                              >
+                                <option value="">— Αυτόματη επιλογή —</option>
+                                {policies.map(pol => (
+                                  <option key={pol.id} value={pol.id}>{pol.name}</option>
+                                ))}
+                              </select>
+                              <ChevronDown size={10} className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                            </div>
+                            {p.commissionPreview?.isManual && (
+                              <button onClick={() => setPolicy(p.id, null)} className="text-[10px] text-gray-400 hover:text-gray-600 underline">
+                                Επαναφορά αυτόματης
+                              </button>
+                            )}
+                          </div>
                         ) : (
                           <span className="text-gray-400">—</span>
                         )}

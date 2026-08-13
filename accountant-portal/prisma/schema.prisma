@@ -625,6 +625,7 @@ model FinancePayment {
   status            FinancePaymentStatus @default(PENDING)
   commissionId      String?              @unique
   commission        Commission?          @relation(fields: [commissionId], references: [id])
+  manualPolicyId    String?              // admin override: use this policy instead of auto-detected
   reviewedById      String?
   reviewedAt        DateTime?
   reviewNotes       String?

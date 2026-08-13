@@ -12,9 +12,9 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  const { action, notes } = await req.json()
-  if (!['approve', 'reject', 'defer', 'rematch', 'reset'].includes(action)) {
-    return NextResponse.json({ error: 'action must be approve, reject, defer, rematch or reset' }, { status: 400 })
+  const { action, notes, policyId } = await req.json()
+  if (!['approve', 'reject', 'defer', 'rematch', 'reset', 'set-policy'].includes(action)) {
+    return NextResponse.json({ error: 'action must be approve, reject, defer, rematch, reset or set-policy' }, { status: 400 })
   }
 
   const payment = await prisma.financePayment.findUnique({
@@ -35,6 +35,33 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
       },
     })
     return NextResponse.json(updated)
+  }
+
+  if (action === 'set-policy') {
+    const newPolicyId: string | null = policyId || null
+    if (newPolicyId) {
+      const policy = await prisma.commissionPolicy.findUnique({ where: { id: newPolicyId } })
+      if (!policy) return NextResponse.json({ error: 'Η πολιτική δεν βρέθηκε' }, { status: 404 })
+    }
+    await prisma.financePayment.update({
+      where: { id: params.id },
+      data: { manualPolicyId: newPolicyId } as any,
+    })
+    // Return the new preview so the client can update the row immediately
+    const fp = await prisma.financePayment.findUnique({
+      where: { id: params.id },
+      include: { business: { select: { accountantId: true } } },
+    })
+    if (!fp?.business?.accountantId || !newPolicyId) {
+      return NextResponse.json({ preview: null })
+    }
+    const policy = await prisma.commissionPolicy.findUnique({ where: { id: newPolicyId } })
+    if (!policy) return NextResponse.json({ preview: null })
+    const override = await prisma.accountantCommissionOverride.findUnique({
+      where: { accountantId_commissionPolicyId: { accountantId: fp.business.accountantId, commissionPolicyId: policy.id } },
+    })
+    const calc = calculateCommission(fp.amount, policy, override)
+    return NextResponse.json({ preview: { ...calc, policyId: policy.id, policyName: policy.name, isManual: true } })
   }
 
   if (action === 'rematch') {
@@ -72,7 +99,9 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   }
 
   const stage = payment.category.includes('ΥΛΟΠΟΙΗΣΗ') ? 'IMPLEMENTATION' : 'APPLICATION'
-  const policy = await findApplicablePolicy(payment.serviceName, stage)
+  const policy = (payment as any).manualPolicyId
+    ? await prisma.commissionPolicy.findUnique({ where: { id: (payment as any).manualPolicyId } })
+    : await findApplicablePolicy(payment.serviceName, stage)
 
   if (!policy) {
     return NextResponse.json({
