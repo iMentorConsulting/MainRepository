@@ -87,11 +87,11 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
   }
 
   // Delete dependent records before the program (no cascade set on these relations)
+  // CommissionPolicy links are many-to-many — Prisma cascades the join table automatically
   await prisma.$transaction([
     prisma.programMatch.deleteMany({ where: { programId: params.id } }),
     prisma.imentorRequest.deleteMany({ where: { programId: params.id } }),
     prisma.paymentRequest.deleteMany({ where: { programId: params.id } }),
-    prisma.commissionPolicy.deleteMany({ where: { programId: params.id } }),
     prisma.program.delete({ where: { id: params.id } }),
   ])
   return NextResponse.json({ success: true })
