@@ -15,6 +15,49 @@ import {
   Rocket, Link2, Copy, AlertTriangle,
 } from 'lucide-react'
 
+function renderWithBold(text: string) {
+  const parts = text.split(/\*\*(.+?)\*\*/g)
+  return parts.map((part, i) => (i % 2 === 1 ? <strong key={i}>{part}</strong> : part))
+}
+
+function ErmisTranscriptPanel({ chatLog, program }: { chatLog: { role: string; text: string }[]; program: string | null }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle
+          className="flex items-center justify-between cursor-pointer"
+          onClick={() => setOpen(v => !v)}
+        >
+          <span className="flex items-center gap-2">
+            <MessageSquare size={16} />
+            Συζήτηση Ερμή{program ? ` — ${program}` : ''}
+          </span>
+          <span className="text-xs font-normal text-gray-400">{open ? '▲ Σύμπτυξη' : '▼ Ανάπτυξη'} ({chatLog.length} μηνύματα)</span>
+        </CardTitle>
+      </CardHeader>
+      {open && (
+        <CardContent>
+          <div className="flex flex-col gap-2 max-h-[500px] overflow-y-auto pr-1">
+            {chatLog.map((m, i) => (
+              <div
+                key={i}
+                className={
+                  m.role === 'user'
+                    ? 'self-end bg-indigo-600 text-white rounded-2xl rounded-br-sm px-4 py-2 text-sm max-w-[85%] ml-auto'
+                    : 'self-start bg-slate-100 text-slate-700 rounded-2xl rounded-bl-sm px-4 py-2 text-sm max-w-[85%] whitespace-pre-wrap'
+                }
+              >
+                {m.role === 'assistant' ? renderWithBold(m.text) : m.text}
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      )}
+    </Card>
+  )
+}
+
 const STATUS_LABELS: Record<string, string> = {
   NEW: 'Νέο', ACCEPTED: 'Αποδεκτό', IN_PROGRESS: 'Σε Εξέλιξη',
   WAITING_CLIENT: 'Αναμονή Πελάτη', WAITING_ACCOUNTANT: 'Αναμονή Λογιστή',
@@ -837,6 +880,10 @@ export default function CaseDetailPage() {
                 )}
               </CardContent>
             </Card>
+          )}
+
+          {data.ermisChatLog && data.ermisChatLog.length > 0 && (
+            <ErmisTranscriptPanel chatLog={data.ermisChatLog} program={data.ermisProgram} />
           )}
         </div>
       </div>

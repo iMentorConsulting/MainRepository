@@ -70,7 +70,22 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     assignees = await prisma.user.findMany({ where: { role: 'ADMIN' }, select: { id: true, name: true }, orderBy: { name: 'asc' } })
   }
 
-  return NextResponse.json({ case: clientCase, assignees })
+  // Fetch the Ermis chatLog that led to this case being created
+  const ermisChatLog: { role: string; text: string }[] = []
+  let ermisProgram: string | null = null
+  const ermisBizToken = await prisma.businessMatchToken.findFirst({
+    where: { caseCreatedId: params.id },
+    select: { chatLog: true, programId: true },
+  })
+  if (ermisBizToken && Array.isArray(ermisBizToken.chatLog)) {
+    ermisChatLog.push(...(ermisBizToken.chatLog as any[]))
+    if (ermisBizToken.programId) {
+      const prog = await prisma.program.findUnique({ where: { id: ermisBizToken.programId }, select: { title: true } })
+      ermisProgram = prog?.title ?? null
+    }
+  }
+
+  return NextResponse.json({ case: clientCase, assignees, ermisChatLog, ermisProgram })
 }
 
 export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
