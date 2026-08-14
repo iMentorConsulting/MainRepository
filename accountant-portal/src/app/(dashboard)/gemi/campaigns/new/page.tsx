@@ -432,8 +432,8 @@ function NewGemiCampaignPageInner() {
               className="w-4 h-4 accent-indigo-600"
             />
             <span>
-              <strong>Μόνο επιχειρήσεις που ταιριάζουν ΚΑΙ στα δύο προγράμματα</strong>
-              <span className="block text-xs text-gray-500">Όσες δεν έχουν ταίριασμα και με τα δύο εξαιρούνται από τους παραλήπτες.</span>
+              <strong>Μόνο επιχειρήσεις που ταιριάζουν ΚΑΙ {programId3 ? 'στα τρία' : 'στα δύο'} προγράμματα</strong>
+              <span className="block text-xs text-gray-500">Όσες δεν έχουν ταίριασμα {programId3 ? 'και με τα τρία' : 'και με τα δύο'} εξαιρούνται από τους παραλήπτες.</span>
             </span>
           </label>
         )}

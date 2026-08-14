@@ -307,10 +307,16 @@ function GemiBusinessesPageInner() {
       .then(r => r.json())
       .then(d => Array.isArray(d) && setKadOptions(d))
       .catch(() => {})
-    fetch('/api/admin/tags')
-      .then(r => r.json())
-      .then(d => Array.isArray(d) && setTagOptions(d))
-      .catch(() => {})
+    // Merge predefined TagOption labels with distinct tags already on GemiLookup records
+    Promise.all([
+      fetch('/api/admin/tags').then(r => r.json()).catch(() => []),
+      fetch('/api/gemi/businesses/tag-options').then(r => r.json()).catch(() => []),
+    ]).then(([adminTags, gemiTags]) => {
+      const adminLabels: string[] = Array.isArray(adminTags) ? adminTags.map((t: TagOption) => t.label) : []
+      const gemiLabels: string[] = Array.isArray(gemiTags) ? gemiTags : []
+      const merged = Array.from(new Set([...adminLabels, ...gemiLabels])).sort()
+      setTagOptions(merged.map((label, i) => ({ id: String(i), label })))
+    })
   }, [])
 
   const fetchData = useCallback(async () => {

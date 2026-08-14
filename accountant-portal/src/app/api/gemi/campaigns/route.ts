@@ -80,7 +80,7 @@ export async function POST(request: NextRequest) {
       })
       programMatchedIds = matches.map(m => m.gemiId)
 
-      // Dual-offer targeting: keep only businesses that ALSO match program B
+      // Dual/triple-offer targeting: keep only businesses that ALSO match program B (and C if set)
       if (requireBothPrograms && programId2) {
         const matches2 = await prisma.gemiProgramMatch.findMany({
           where: { programId: programId2, status: { not: 'REJECTED' }, gemiId: { in: programMatchedIds } },
@@ -88,6 +88,14 @@ export async function POST(request: NextRequest) {
         })
         const ids2 = new Set(matches2.map(m => m.gemiId))
         programMatchedIds = programMatchedIds.filter(id => ids2.has(id))
+      }
+      if (requireBothPrograms && programId3) {
+        const matches3 = await prisma.gemiProgramMatch.findMany({
+          where: { programId: programId3, status: { not: 'REJECTED' }, gemiId: { in: programMatchedIds } },
+          select: { gemiId: true },
+        })
+        const ids3 = new Set(matches3.map(m => m.gemiId))
+        programMatchedIds = programMatchedIds.filter(id => ids3.has(id))
       }
     }
 

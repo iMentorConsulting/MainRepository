@@ -220,6 +220,11 @@ export default function GemiBusinessDetailPage() {
                   <Link2 size={10} /> Ανακτήθηκε
                 </span>
               )}
+              {Array.isArray(business.tags) && business.tags.map((tag: string) => (
+                <span key={tag} className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-violet-100 text-violet-800 border border-violet-300">
+                  {tag}
+                </span>
+              ))}
             </div>
           </div>
         </div>
