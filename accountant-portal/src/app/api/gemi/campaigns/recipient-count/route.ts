@@ -11,7 +11,6 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const channel = searchParams.get('channel') ?? 'EMAIL'
   const programId = searchParams.get('programId') || null
-  // When set, recipients must match BOTH programId AND this program
   const requireProgramId2 = searchParams.get('requireProgramId2') || null
   const importBatch = searchParams.get('importBatch') || null
   const region = searchParams.get('region') || null
@@ -20,10 +19,23 @@ export async function GET(req: NextRequest) {
   const tags = searchParams.getAll('tags').filter(Boolean)
   const excludeTags = searchParams.getAll('excludeTags').filter(Boolean)
 
-  let emailCount = 0
-  let viberCount = 0
-
+  // Use relation filters (EXISTS subqueries) instead of id IN (...) to avoid
+  // PostgreSQL's 32767 bind-variable limit when the match list is large.
   const baseWhere: Record<string, unknown> = { unsubscribedAt: null }
+
+  if (programId) {
+    const mustMatch: string[] = [programId]
+    if (requireProgramId2) mustMatch.push(requireProgramId2)
+    const programFilters = mustMatch.map(pid => ({
+      programMatches: { some: { programId: pid, status: { not: 'REJECTED' } } },
+    }))
+    if (programFilters.length === 1) {
+      baseWhere.programMatches = programFilters[0].programMatches
+    } else {
+      baseWhere.AND = programFilters
+    }
+  }
+
   if (importBatch) baseWhere.importBatch = importBatch
   if (region) baseWhere.postalAreaDescription = region
   if (category) baseWhere.category = category
@@ -32,45 +44,18 @@ export async function GET(req: NextRequest) {
   if (hasReceivedCampaign === 'true') baseWhere.campaignRecipients = { some: { status: 'sent' } }
   if (hasReceivedCampaign === 'false') baseWhere.campaignRecipients = { none: { status: 'sent' } }
 
-  if (programId) {
-    // Count only GemiLookups that have a match for this program
-    const matchedGemiIds = await prisma.gemiProgramMatch.findMany({
-      where: { programId, status: { not: 'REJECTED' } },
-      select: { gemiId: true },
+  let emailCount = 0
+  let viberCount = 0
+
+  if (channel === 'EMAIL' || channel === 'EMAIL_AND_VIBER') {
+    emailCount = await prisma.gemiLookup.count({
+      where: { ...baseWhere, email: { not: null } },
     })
-    let ids = matchedGemiIds.map(m => m.gemiId)
-
-    // Dual-offer targeting: keep only businesses that ALSO match program B
-    if (requireProgramId2) {
-      const matched2 = await prisma.gemiProgramMatch.findMany({
-        where: { programId: requireProgramId2, status: { not: 'REJECTED' }, gemiId: { in: ids } },
-        select: { gemiId: true },
-      })
-      const ids2 = new Set(matched2.map(m => m.gemiId))
-      ids = ids.filter(id => ids2.has(id))
-    }
-
-    if (channel === 'EMAIL' || channel === 'EMAIL_AND_VIBER') {
-      emailCount = await prisma.gemiLookup.count({
-        where: { ...baseWhere, id: { in: ids }, email: { not: null } },
-      })
-    }
-    if (channel === 'VIBER' || channel === 'EMAIL_AND_VIBER') {
-      viberCount = await prisma.gemiLookup.count({
-        where: { ...baseWhere, id: { in: ids }, phone: { not: null } },
-      })
-    }
-  } else {
-    if (channel === 'EMAIL' || channel === 'EMAIL_AND_VIBER') {
-      emailCount = await prisma.gemiLookup.count({
-        where: { ...baseWhere, email: { not: null } },
-      })
-    }
-    if (channel === 'VIBER' || channel === 'EMAIL_AND_VIBER') {
-      viberCount = await prisma.gemiLookup.count({
-        where: { ...baseWhere, phone: { not: null } },
-      })
-    }
+  }
+  if (channel === 'VIBER' || channel === 'EMAIL_AND_VIBER') {
+    viberCount = await prisma.gemiLookup.count({
+      where: { ...baseWhere, phone: { not: null } },
+    })
   }
 
   return NextResponse.json({ emailCount, viberCount, total: emailCount + viberCount })

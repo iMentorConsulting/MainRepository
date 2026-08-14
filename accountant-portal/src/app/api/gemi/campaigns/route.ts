@@ -71,36 +71,22 @@ export async function POST(request: NextRequest) {
       }
     }
   } else {
-    // If programId provided, restrict to GemiLookups with a non-rejected match for that program
-    let programMatchedIds: string[] | null = null
+    // Use relation filters (EXISTS subqueries) instead of id IN (...) to avoid
+    // PostgreSQL's 32767 bind-variable limit when the match list is large.
+    const baseWhere: Record<string, unknown> = { unsubscribedAt: null }
     if (programId) {
-      const matches = await prisma.gemiProgramMatch.findMany({
-        where: { programId, status: { not: 'REJECTED' } },
-        select: { gemiId: true },
-      })
-      programMatchedIds = matches.map(m => m.gemiId)
-
-      // Dual/triple-offer targeting: keep only businesses that ALSO match program B (and C if set)
-      if (requireBothPrograms && programId2) {
-        const matches2 = await prisma.gemiProgramMatch.findMany({
-          where: { programId: programId2, status: { not: 'REJECTED' }, gemiId: { in: programMatchedIds } },
-          select: { gemiId: true },
-        })
-        const ids2 = new Set(matches2.map(m => m.gemiId))
-        programMatchedIds = programMatchedIds.filter(id => ids2.has(id))
-      }
-      if (requireBothPrograms && programId3) {
-        const matches3 = await prisma.gemiProgramMatch.findMany({
-          where: { programId: programId3, status: { not: 'REJECTED' }, gemiId: { in: programMatchedIds } },
-          select: { gemiId: true },
-        })
-        const ids3 = new Set(matches3.map(m => m.gemiId))
-        programMatchedIds = programMatchedIds.filter(id => ids3.has(id))
+      const mustMatch: string[] = [programId]
+      if (requireBothPrograms && programId2) mustMatch.push(programId2)
+      if (requireBothPrograms && programId3) mustMatch.push(programId3)
+      const programFilters = mustMatch.map((pid: string) => ({
+        programMatches: { some: { programId: pid, status: { not: 'REJECTED' } } },
+      }))
+      if (programFilters.length === 1) {
+        baseWhere.programMatches = programFilters[0].programMatches
+      } else {
+        baseWhere.AND = programFilters
       }
     }
-
-    const baseWhere: Record<string, unknown> = { unsubscribedAt: null }
-    if (programMatchedIds) baseWhere.id = { in: programMatchedIds }
     if (importBatch) baseWhere.importBatch = importBatch
     if (region) baseWhere.postalAreaDescription = region
     if (category) baseWhere.category = category
