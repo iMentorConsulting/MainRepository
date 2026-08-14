@@ -250,7 +250,7 @@ def _process_ermis_session(lead_id: int, send_link: bool, channel: str, actor_na
     <hr style="border:none;border-top:2px solid #eef2f7;margin:18px 0;">
     <div style="background:#f0f7ff;border-radius:8px;padding:16px 18px;">
       <p style="margin:0 0 8px;font-size:16px;">🤖 <b>Μιλήστε τώρα με τον «ΕΡΜΗ»</b></p>
-      <p style="margin:0;color:#374151;">τον ψηφιακό μας σύμβουλο, που κάνει <b>✅ ΔΩΡΕΑΝ έλεγχο επιλεξιμότητας</b> ⏱️ σε δευτερόλεπτα (περίπου 2 λεπτά).</p>
+      <p style="margin:0;color:#374151;">τον ψηφιακό μας σύμβουλο, που κάνει <b>✅ ΔΩΡΕΑΝ έλεγχο επιλεξιμότητας</b> ⏱️ σε δευτερόλεπτα.</p>
     </div>
     <div style="text-align:center;margin:26px 0;">
       <a href="{chat_url}" style="background:#2563eb;color:#ffffff;text-decoration:none;padding:14px 30px;border-radius:8px;font-weight:bold;font-size:15px;display:inline-block;">▶️ Ξεκινήστε την προαξιολόγηση</a>
@@ -393,7 +393,7 @@ def bulk_resend_ermis(
     <hr style="border:none;border-top:2px solid #eef2f7;margin:18px 0;">
     <div style="background:#f0f7ff;border-radius:8px;padding:16px 18px;">
       <p style="margin:0 0 8px;font-size:16px;">🤖 <b>Μιλήστε τώρα με τον «ΕΡΜΗ»</b></p>
-      <p style="margin:0;color:#374151;">τον ψηφιακό μας σύμβουλο, που κάνει <b>✅ ΔΩΡΕΑΝ έλεγχο επιλεξιμότητας</b> ⏱️ σε δευτερόλεπτα (περίπου 2 λεπτά).</p>
+      <p style="margin:0;color:#374151;">τον ψηφιακό μας σύμβουλο, που κάνει <b>✅ ΔΩΡΕΑΝ έλεγχο επιλεξιμότητας</b> ⏱️ σε δευτερόλεπτα.</p>
     </div>
     <div style="text-align:center;margin:26px 0;">
       <a href="{chat_url}" style="background:#2563eb;color:#ffffff;text-decoration:none;padding:14px 30px;border-radius:8px;font-weight:bold;font-size:15px;display:inline-block;">▶️ Ξεκινήστε την προαξιολόγηση</a>
@@ -529,7 +529,7 @@ def resend_ermis_link(
     <hr style="border:none;border-top:2px solid #eef2f7;margin:18px 0;">
     <div style="background:#f0f7ff;border-radius:8px;padding:16px 18px;">
       <p style="margin:0 0 8px;font-size:16px;">🤖 <b>Μιλήστε τώρα με τον «ΕΡΜΗ»</b></p>
-      <p style="margin:0;color:#374151;">τον ψηφιακό μας σύμβουλο, που κάνει <b>✅ ΔΩΡΕΑΝ έλεγχο επιλεξιμότητας</b> ⏱️ σε δευτερόλεπτα (περίπου 2 λεπτά).</p>
+      <p style="margin:0;color:#374151;">τον ψηφιακό μας σύμβουλο, που κάνει <b>✅ ΔΩΡΕΑΝ έλεγχο επιλεξιμότητας</b> ⏱️ σε δευτερόλεπτα.</p>
     </div>
     <div style="text-align:center;margin:26px 0;">
       <a href="{chat_url}" style="background:#2563eb;color:#ffffff;text-decoration:none;padding:14px 30px;border-radius:8px;font-weight:bold;font-size:15px;display:inline-block;">▶️ Ξεκινήστε την προαξιολόγηση</a>
