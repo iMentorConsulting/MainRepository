@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
   }
 
   const data = await request.json()
-  const { title, channel, subject, previewText, htmlContent, messageTemplate, programId, programId2, requireBothPrograms, targetGemiIds, region, category, importBatch, hasReceivedCampaign, tags, excludeTags } = data
+  const { title, channel, subject, previewText, htmlContent, messageTemplate, programId, programId2, programId3, requireBothPrograms, targetGemiIds, region, category, importBatch, hasReceivedCampaign, tags, excludeTags } = data
 
   if (!title || !channel) {
     return NextResponse.json({ error: 'title and channel are required' }, { status: 400 })
@@ -42,6 +42,7 @@ export async function POST(request: NextRequest) {
       messageTemplate: messageTemplate || null,
       programId: programId || null,
       programId2: programId2 || null,
+      programId3: programId3 || null,
       status: 'DRAFT',
       createdBy: session.user.id,
     },

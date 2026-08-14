@@ -83,6 +83,7 @@ function NewGemiCampaignPageInner() {
   const [channel, setChannel] = useState<Channel>('EMAIL')
   const [programId, setProgramId] = useState(searchParams.get('programId') || '')
   const [programId2, setProgramId2] = useState('')
+  const [programId3, setProgramId3] = useState('')
   const [requireBothPrograms, setRequireBothPrograms] = useState(false)
   const [programs, setPrograms] = useState<any[]>([])
   const [templates, setTemplates] = useState<GemiTemplate[]>([])
@@ -196,6 +197,7 @@ function NewGemiCampaignPageInner() {
         channel,
         programId: programId || undefined,
         programId2: programId2 || undefined,
+        programId3: programId3 || undefined,
         requireBothPrograms: requireBothPrograms && !!programId && !!programId2 ? true : undefined,
         subject: subject.trim() || undefined,
         previewText: previewText.trim() || undefined,
@@ -400,12 +402,23 @@ function NewGemiCampaignPageInner() {
         </Select>
 
         <Select
-          label="Πρόγραμμα Β (προαιρετικό — για διπλές προσφορές, μεταβλητές {{program2_*}})"
+          label="Πρόγραμμα Β (προαιρετικό — μεταβλητές {{program2_*}})"
           value={programId2}
           onChange={e => setProgramId2(e.target.value)}
         >
           <option value="">— Αυτόματο: το καλύτερο άλλο ταίριασμα κάθε παραλήπτη —</option>
           {programs.filter((p: any) => p.id !== programId).map((p: any) => (
+            <option key={p.id} value={p.id}>{p.title}</option>
+          ))}
+        </Select>
+
+        <Select
+          label="Πρόγραμμα Γ (προαιρετικό — μεταβλητές {{program3_*}})"
+          value={programId3}
+          onChange={e => setProgramId3(e.target.value)}
+        >
+          <option value="">— Αυτόματο: το τρίτο καλύτερο ταίριασμα κάθε παραλήπτη —</option>
+          {programs.filter((p: any) => p.id !== programId && p.id !== programId2).map((p: any) => (
             <option key={p.id} value={p.id}>{p.title}</option>
           ))}
         </Select>

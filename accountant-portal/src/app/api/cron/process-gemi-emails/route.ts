@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
 
   const sendingCampaigns = await prisma.gemiCampaign.findMany({
     where: { status: 'SENDING', channel: { in: ['EMAIL', 'EMAIL_AND_VIBER'] } },
-    select: { id: true, title: true, subject: true, previewText: true, htmlContent: true, programId: true, programId2: true, moosendCampaignId: true },
+    select: { id: true, title: true, subject: true, previewText: true, htmlContent: true, programId: true, programId2: true, programId3: true, moosendCampaignId: true },
   })
 
   if (sendingCampaigns.length === 0) {
@@ -64,7 +64,7 @@ export async function POST(req: NextRequest) {
       const chunk = batch.slice(i, i + CONCURRENT)
       const results2 = await Promise.all(chunk.map(async r => {
         try {
-          const variables = await buildRecipientVariables(r.gemiId, campaign.programId ?? '', campaign.programId2 ?? '')
+          const variables = await buildRecipientVariables(r.gemiId, campaign.programId ?? '', campaign.programId2 ?? '', (campaign as any).programId3 ?? '')
           return { id: r.id, email: r.recipient, variables }
         } catch (err) {
           return { id: r.id, error: err instanceof Error ? err.message : String(err) }

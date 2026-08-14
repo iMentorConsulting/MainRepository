@@ -20,7 +20,7 @@ async function sendViberCampaign(campaignId: string) {
   await Promise.all(
     phoneRecipients.map(async (r) => {
       try {
-        const vars = await buildRecipientVariables(r.gemiId, campaign.programId ?? '')
+        const vars = await buildRecipientVariables(r.gemiId, campaign.programId ?? '', campaign.programId2 ?? '', (campaign as any).programId3 ?? '')
         const message = messageTemplate.replace(/\{\{(\w+)\}\}/g, (_: string, k: string) => vars[k] ?? '')
         const { conversationId } = await sendViberMessage(r.recipient, message)
         await prisma.gemiCampaignRecipient.update({

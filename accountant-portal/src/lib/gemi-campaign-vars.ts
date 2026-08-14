@@ -10,25 +10,24 @@ export function substituteVars(template: string, vars: Record<string, string>): 
 const PROGRAM_SELECT = {
   title: true, description: true, websiteUrl: true, endDate: true, extraCriteriaIds: true,
   minInvestment: true, maxInvestment: true, minSubsidyPct: true, maxSubsidyPct: true,
+  // ΔΥΠΑ hiring subsidy fields
+  monthlyAmount: true, subsidyMonths: true, totalBenefit: true, beneficiaries: true, regions: true,
 } as const
 
 const formatAmount = (val: number | null | undefined) =>
   val != null ? new Intl.NumberFormat('el-GR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(val) : ''
 
-// Builds the variable block for one program (title/description/amount/subsidy/
-// deadline/criteria/match_reason/ermis link). `suffix` is '' for the primary
-// program and '2' for the secondary ({{program2_*}}, {{ermis_link_2}}).
-async function buildProgramVars(gemiId: string, programId: string, suffix: '' | '2'): Promise<Record<string, string>> {
-  const empty = {
-    [`program${suffix}_title`]: '',
-    [`program${suffix}_description`]: '',
-    [`program${suffix}_url`]: '',
-    [`program${suffix}_deadline`]: '',
-    [`program${suffix}_amount`]: '',
-    [`program${suffix}_subsidy`]: '',
-    [`program${suffix}_extra_criteria`]: '',
-    [`program${suffix}_match_reason`]: '',
-    [suffix ? `ermis_link_${suffix}` : 'ermis_link']: '',
+// Builds the variable block for one program slot. `suffix` is '' / '2' / '3'.
+async function buildProgramVars(gemiId: string, programId: string, suffix: '' | '2' | '3'): Promise<Record<string, string>> {
+  const pfx = suffix ? `program${suffix}` : 'program'
+  const ermisKey = suffix ? `ermis_link_${suffix}` : 'ermis_link'
+  const empty: Record<string, string> = {
+    [`${pfx}_title`]: '', [`${pfx}_description`]: '', [`${pfx}_url`]: '',
+    [`${pfx}_deadline`]: '', [`${pfx}_amount`]: '', [`${pfx}_subsidy`]: '',
+    [`${pfx}_extra_criteria`]: '', [`${pfx}_match_reason`]: '',
+    [`${pfx}_monthly_amount`]: '', [`${pfx}_subsidy_months`]: '',
+    [`${pfx}_total_benefit`]: '', [`${pfx}_beneficiaries`]: '', [`${pfx}_regions`]: '',
+    [ermisKey]: '',
   }
   if (!programId) return empty
 
@@ -41,23 +40,23 @@ async function buildProgramVars(gemiId: string, programId: string, suffix: '' | 
   ])
   if (!program) return empty
 
-  const extraCriteriaText = program.extraCriteriaIds?.length
-    ? (await prisma.eligibilityCriterion.findMany({ where: { id: { in: program.extraCriteriaIds } }, select: { label: true } }))
+  const extraCriteriaText = (program as any).extraCriteriaIds?.length
+    ? (await prisma.eligibilityCriterion.findMany({ where: { id: { in: (program as any).extraCriteriaIds } }, select: { label: true } }))
         .map(c => `• ${c.label}`).join(' | ')
     : ''
 
-  const deadline = program.endDate
-    ? new Date(program.endDate).toLocaleDateString('el-GR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+  const deadline = (program as any).endDate
+    ? new Date((program as any).endDate).toLocaleDateString('el-GR', { day: '2-digit', month: '2-digit', year: 'numeric' })
     : ''
 
-  const min = program.minInvestment ?? null
-  const max = program.maxInvestment ?? null
+  const min = (program as any).minInvestment ?? null
+  const max = (program as any).maxInvestment ?? null
   const amount = min && max && min !== max
     ? `${formatAmount(min)} – ${formatAmount(max)}`
     : formatAmount(max ?? min)
 
-  const minPct = program.minSubsidyPct ?? null
-  const maxPct = program.maxSubsidyPct ?? null
+  const minPct = (program as any).minSubsidyPct ?? null
+  const maxPct = (program as any).maxSubsidyPct ?? null
   const subsidy = minPct != null && maxPct != null && minPct !== maxPct
     ? `${minPct}% – ${maxPct}%`
     : (maxPct ?? minPct) != null ? `${maxPct ?? minPct}%` : ''
@@ -65,19 +64,24 @@ async function buildProgramVars(gemiId: string, programId: string, suffix: '' | 
   const ermisLink = await getOrCreateGemiErmisLink(gemiId, programId).catch(() => '')
 
   return {
-    [`program${suffix}_title`]: program.title,
-    [`program${suffix}_description`]: program.description ?? '',
-    [`program${suffix}_url`]: program.websiteUrl ?? '',
-    [`program${suffix}_deadline`]: deadline,
-    [`program${suffix}_amount`]: amount,
-    [`program${suffix}_subsidy`]: subsidy,
-    [`program${suffix}_extra_criteria`]: extraCriteriaText,
-    [`program${suffix}_match_reason`]: (match?.matchReason ?? []).map((r: string) => `• ${r}`).join(' | '),
-    [suffix ? `ermis_link_${suffix}` : 'ermis_link']: ermisLink,
+    [`${pfx}_title`]: (program as any).title,
+    [`${pfx}_description`]: (program as any).description ?? '',
+    [`${pfx}_url`]: (program as any).websiteUrl ?? '',
+    [`${pfx}_deadline`]: deadline,
+    [`${pfx}_amount`]: amount,
+    [`${pfx}_subsidy`]: subsidy,
+    [`${pfx}_extra_criteria`]: extraCriteriaText,
+    [`${pfx}_match_reason`]: (match?.matchReason ?? []).map((r: string) => `• ${r}`).join(' | '),
+    [`${pfx}_monthly_amount`]: (program as any).monthlyAmount ?? '',
+    [`${pfx}_subsidy_months`]: (program as any).subsidyMonths ?? '',
+    [`${pfx}_total_benefit`]: (program as any).totalBenefit ?? '',
+    [`${pfx}_beneficiaries`]: (program as any).beneficiaries ?? '',
+    [`${pfx}_regions`]: (program as any).regions ?? '',
+    [ermisKey]: ermisLink,
   }
 }
 
-export async function buildRecipientVariables(gemiId: string, programId: string, programId2?: string): Promise<Record<string, string>> {
+export async function buildRecipientVariables(gemiId: string, programId: string, programId2?: string, programId3?: string): Promise<Record<string, string>> {
   const gemi = await prisma.gemiLookup.findUnique({
     where: { id: gemiId },
     select: {
@@ -109,9 +113,18 @@ export async function buildRecipientVariables(gemiId: string, programId: string,
   }
   if (resolvedProgramId2 === resolvedProgramId) resolvedProgramId2 = ''
 
-  const [programVars, program2Vars, accountant] = await Promise.all([
+  // Tertiary program: campaign's explicit programId3, else the recipient's
+  // best match that isn't already used by slots 1 or 2.
+  let resolvedProgramId3 = programId3 ?? ''
+  if (!resolvedProgramId3) {
+    resolvedProgramId3 = allMatches.find(m => m.programId !== resolvedProgramId && m.programId !== resolvedProgramId2)?.programId ?? ''
+  }
+  if (resolvedProgramId3 === resolvedProgramId || resolvedProgramId3 === resolvedProgramId2) resolvedProgramId3 = ''
+
+  const [programVars, program2Vars, program3Vars, accountant] = await Promise.all([
     buildProgramVars(gemiId, resolvedProgramId, ''),
     buildProgramVars(gemiId, resolvedProgramId2, '2'),
+    buildProgramVars(gemiId, resolvedProgramId3, '3'),
     gemi.claimedAccountantId
       ? prisma.accountant.findUnique({ where: { id: gemi.claimedAccountantId }, select: { contactPerson: true, officeName: true } })
       : null,
@@ -136,6 +149,7 @@ export async function buildRecipientVariables(gemiId: string, programId: string,
     accountant_office: accountant?.officeName ?? 'i-MENTOR',
     ...programVars,
     ...program2Vars,
+    ...program3Vars,
     // Back-compat aliases for the primary program's original variable names
     extra_criteria: programVars['program_extra_criteria'] ?? '',
     match_reason: programVars['program_match_reason'] ?? '',

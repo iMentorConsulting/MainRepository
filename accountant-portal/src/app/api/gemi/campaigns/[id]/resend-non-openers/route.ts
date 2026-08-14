@@ -16,7 +16,7 @@ export async function POST(
   const body = await req.json().catch(() => ({}))
   const subjectOverride: string | null = typeof body.subject === 'string' ? body.subject.trim() || null : null
 
-  const campaign = await prisma.gemiCampaign.findUnique({ where: { id } })
+  const campaign = await (prisma.gemiCampaign as any).findUnique({ where: { id } })
   if (!campaign) return NextResponse.json({ error: 'Not found' }, { status: 404 })
   if (campaign.channel !== 'EMAIL' && campaign.channel !== 'EMAIL_AND_VIBER') {
     return NextResponse.json({ error: 'Only EMAIL campaigns can be resent' }, { status: 400 })
@@ -95,6 +95,7 @@ export async function POST(
       messageTemplate: campaign.messageTemplate,
       programId: campaign.programId,
       programId2: campaign.programId2,
+      programId3: (campaign as any).programId3 ?? null,
       status: 'SENDING',
       sentAt: new Date(),
       createdBy: session.user.id,
