@@ -250,8 +250,13 @@ function NewGemiCampaignPageInner() {
     if (!window.confirm(`Αποστολή σε ${effectiveTotal} παραλήπτες; Δεν υπάρχει αναίρεση.`)) return
     setSending(true)
     try {
-      await createCampaign(true)
-      showToast('Η καμπάνια απεστάλη!', true)
+      const c = await createCampaign(true)
+      const count = c?._count?.recipients ?? 0
+      if (count === 0) {
+        showToast('Προσοχή: η καμπάνια δεν έχει παραλήπτες (ελέγξτε τα φίλτρα ή αν ο παραλήπτης έχει αποσυνδεθεί).', false)
+      } else {
+        showToast(`Η καμπάνια απεστάλη σε ${count} παραλήπτ${count === 1 ? 'η' : 'ες'}!`, true)
+      }
       router.push('/gemi/campaigns')
     } catch (e: any) {
       showToast(e.message, false)
@@ -265,21 +270,15 @@ function NewGemiCampaignPageInner() {
     if (!htmlContent.trim()) { showToast('Απαιτείται HTML περιεχόμενο για δοκιμαστική αποστολή.', false); return }
     setTestSending(true)
     setTestResult('')
-    const res = await fetch('/api/gemi/campaigns/test-send/route', {
+    const res = await fetch('/api/gemi/campaigns/_/test-send', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ testEmail: testEmail.trim(), subject: subject || title || 'ΓΕΜΗ Test', htmlContent }),
     })
-    // For test send we don't need a saved campaign, use a dedicated endpoint
-    const res2 = await fetch('/api/gemi/campaigns/_/test-send', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ testEmail: testEmail.trim(), subject: subject || title || 'ΓΕΜΗ Test', htmlContent }),
-    })
-    if (res2.ok) {
+    if (res.ok) {
       setTestResult(`✓ Δοκιμαστικό email εστάλη στο ${testEmail}`)
     } else {
-      const err = await res2.json().catch(() => ({}))
+      const err = await res.json().catch(() => ({}))
       setTestResult(`✗ ${err.error || 'Σφάλμα αποστολής'}`)
     }
     setTestSending(false)

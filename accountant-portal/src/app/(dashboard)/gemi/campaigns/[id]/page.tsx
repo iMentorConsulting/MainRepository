@@ -19,6 +19,7 @@ export default function GemiCampaignDetailPage() {
   const [recipients, setRecipients] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [sending, setSending] = useState(false)
+  const [processing, setProcessing] = useState(false)
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null)
 
   // Resend non-openers modal state
@@ -44,6 +45,28 @@ export default function GemiCampaignDetailPage() {
   useEffect(() => {
     loadData().finally(() => setLoading(false))
   }, [id])
+
+  async function forceProcess() {
+    setProcessing(true)
+    try {
+      const res = await fetch(`/api/gemi/campaigns/${id}/force-process`, { method: 'POST' })
+      const data = await res.json()
+      if (res.ok) {
+        if (data.completed) {
+          showToast(`Ολοκληρώθηκε! Εστάλησαν ${data.sent} emails${data.errors ? `, ${data.errors} σφάλματα` : ''}.`, true)
+        } else {
+          showToast(`Εστάλησαν ${data.sent} emails. Απομένουν ${data.remaining} εκκρεμή — πατήστε ξανά.`, data.errors === 0)
+        }
+        await loadData()
+      } else {
+        showToast(data.error || 'Σφάλμα επεξεργασίας', false)
+      }
+    } catch {
+      showToast('Σφάλμα δικτύου', false)
+    } finally {
+      setProcessing(false)
+    }
+  }
 
   async function sendCampaign() {
     if (!confirm('Αποστολή καμπάνιας τώρα; Η ενέργεια δεν αναιρείται.')) return
@@ -224,6 +247,11 @@ export default function GemiCampaignDetailPage() {
         {campaign.status === 'DRAFT' && (
           <Button loading={sending} onClick={sendCampaign}>
             <Send size={14} className="mr-2" />Αποστολή
+          </Button>
+        )}
+        {campaign.status === 'SENDING' && isEmailCampaign && (
+          <Button variant="outline" loading={processing} onClick={forceProcess}>
+            <RefreshCw size={14} className="mr-2" />Επεξεργασία τώρα
           </Button>
         )}
         {campaign.status === 'SENT' && isEmailCampaign && (
