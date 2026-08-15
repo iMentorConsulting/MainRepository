@@ -173,12 +173,12 @@ export async function GET(request: NextRequest) {
 
   if (regionParam && REGION_ZIP_PREFIXES[regionParam]) {
     const orParts = REGION_ZIP_PREFIXES[regionParam].map(p => Prisma.sql`gl."postalZipCode" LIKE ${p + '%'}`)
-    rawConds.push(Prisma.sql`(${Prisma.join(orParts, Prisma.sql` OR `)})`)
+    rawConds.push(Prisma.sql`(${Prisma.join(orParts, ' OR ')})`)
   }
 
   if (nomosParam && NOMOS_ZIP_PREFIXES[nomosParam]) {
     const orParts = NOMOS_ZIP_PREFIXES[nomosParam].map(p => Prisma.sql`gl."postalZipCode" LIKE ${p + '%'}`)
-    rawConds.push(Prisma.sql`(${Prisma.join(orParts, Prisma.sql` OR `)})`)
+    rawConds.push(Prisma.sql`(${Prisma.join(orParts, ' OR ')})`)
   }
 
   if (categoryParam) {
@@ -191,7 +191,7 @@ export async function GET(request: NextRequest) {
           WHERE elem2->>'firmActCode' LIKE ${p + '%'} LIMIT 1
         )`),
       ]
-      rawConds.push(Prisma.sql`(${Prisma.join(orParts, Prisma.sql` OR `)})`)
+      rawConds.push(Prisma.sql`(${Prisma.join(orParts, ' OR ')})`)
     } else {
       rawConds.push(Prisma.sql`gl.category = ${categoryParam}`)
     }
@@ -219,7 +219,7 @@ export async function GET(request: NextRequest) {
   }
 
   const whereClause = rawConds.length > 0
-    ? Prisma.sql`WHERE ${Prisma.join(rawConds, Prisma.sql` AND `)}`
+    ? Prisma.sql`WHERE ${Prisma.join(rawConds, ' AND ')}`
     : Prisma.sql``
 
   const skip = (page - 1) * limit

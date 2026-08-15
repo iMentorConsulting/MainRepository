@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'title and channel are required' }, { status: 400 })
   }
 
-  const campaign = await prisma.gemiCampaign.create({
+  const campaign = await (prisma.gemiCampaign as any).create({
     data: {
       title,
       channel,

@@ -85,7 +85,7 @@ export async function POST(
 
   // ── Step 4: Create the resend campaign ─────────────────────────────────────
   const newSubject = subjectOverride ?? campaign.subject ?? ''
-  const newCampaign = await prisma.gemiCampaign.create({
+  const newCampaign = await (prisma.gemiCampaign as any).create({
     data: {
       title: `${campaign.title} — Επαναποστολή`,
       channel: 'EMAIL',

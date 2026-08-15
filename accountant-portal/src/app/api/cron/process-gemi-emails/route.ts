@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
 
   const disclaimer = `\n<p style="font-size:11px;color:#888;margin-top:24px;border-top:1px solid #eee;padding-top:12px;">${GEMI_DISCLAIMER}</p>`
 
-  const sendingCampaigns = await prisma.gemiCampaign.findMany({
+  const sendingCampaigns = await (prisma.gemiCampaign as any).findMany({
     where: { status: 'SENDING', channel: { in: ['EMAIL', 'EMAIL_AND_VIBER'] } },
     select: { id: true, title: true, subject: true, previewText: true, htmlContent: true, programId: true, programId2: true, programId3: true, moosendCampaignId: true },
   })
