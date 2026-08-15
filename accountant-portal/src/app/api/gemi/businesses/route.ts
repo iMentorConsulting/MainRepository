@@ -117,147 +117,150 @@ export async function GET(request: NextRequest) {
   // Tag exclude filter: businesses that have ANY of these tags are excluded
   const tagsExclude = searchParams.getAll('tagsExclude').filter(Boolean)
 
-  // Build AND array so filters compose correctly
-  const andClauses: object[] = []
+  // ── Raw-SQL WHERE builder ───────────────────────────────────────────────────
+  // We always use the raw-SQL path to avoid Prisma's id IN ([N ids]) pattern
+  // which crashes with P2035 when N > 32767 bind variables.
+  const rawConds: Prisma.Sql[] = []
 
   if (search) {
-    // Also search KAD descriptions via raw SQL (Prisma can't do case-insensitive on Json)
-    const kadRows = await prisma.$queryRaw<{ id: string }[]>`
-      SELECT DISTINCT id FROM "GemiLookup",
-      jsonb_array_elements(activities::jsonb) AS elem
-      WHERE LOWER(elem->>'firmActDescr') LIKE LOWER(${`%${search}%`})
-        OR LOWER(elem->>'firmActCode') LIKE LOWER(${`%${search}%`})
-    `
-    const kadMatchIds = kadRows.map(r => r.id)
-    andClauses.push({
-      OR: [
-        { afm: { contains: search, mode: 'insensitive' } },
-        { onomasia: { contains: search, mode: 'insensitive' } },
-        { email: { contains: search, mode: 'insensitive' } },
-        { phone: { contains: search, mode: 'insensitive' } },
-        ...(kadMatchIds.length > 0 ? [{ id: { in: kadMatchIds } }] : []),
-      ],
-    })
+    const s = `%${search}%`
+    rawConds.push(Prisma.sql`(
+      gl.afm ILIKE ${s}
+      OR gl.onomasia ILIKE ${s}
+      OR gl.email ILIKE ${s}
+      OR gl.phone ILIKE ${s}
+      OR EXISTS (
+        SELECT 1 FROM jsonb_array_elements(gl.activities::jsonb) AS elem
+        WHERE LOWER(elem->>'firmActDescr') LIKE LOWER(${s})
+           OR LOWER(elem->>'firmActCode') LIKE LOWER(${s})
+      )
+    )`)
   }
 
   if (kadCodes.length > 0) {
-    const idList = kadCodes.map(code => Prisma.sql`${code}`)
-    const rows = await prisma.$queryRaw<{ id: string }[]>`
-      SELECT DISTINCT gl.id
-      FROM "GemiLookup" gl,
-      jsonb_array_elements(gl.activities::jsonb) AS elem
-      WHERE elem->>'firmActCode' = ANY(ARRAY[${Prisma.join(idList)}])
-    `
-    andClauses.push({ id: { in: rows.map(r => r.id) } })
+    const codeList = kadCodes.map(c => Prisma.sql`${c}`)
+    rawConds.push(Prisma.sql`EXISTS (
+      SELECT 1 FROM jsonb_array_elements(gl.activities::jsonb) AS elem
+      WHERE elem->>'firmActCode' = ANY(ARRAY[${Prisma.join(codeList)}])
+    )`)
   }
 
   if (tagsFilter.length > 0) {
-    andClauses.push({ tags: { hasSome: tagsFilter } })
+    const tList = tagsFilter.map(t => Prisma.sql`${t}`)
+    rawConds.push(Prisma.sql`gl.tags && ARRAY[${Prisma.join(tList)}]::text[]`)
   }
 
   if (tagsExclude.length > 0) {
-    andClauses.push({ NOT: { tags: { hasSome: tagsExclude } } })
+    const tList = tagsExclude.map(t => Prisma.sql`${t}`)
+    rawConds.push(Prisma.sql`NOT (gl.tags && ARRAY[${Prisma.join(tList)}]::text[])`)
   }
 
-  if (aadeEnrichedParam === 'yes') andClauses.push({ aadeEnriched: true })
-  else if (aadeEnrichedParam === 'no') andClauses.push({ aadeEnriched: false })
+  if (aadeEnrichedParam === 'yes') rawConds.push(Prisma.sql`gl."aadeEnriched" = true`)
+  else if (aadeEnrichedParam === 'no') rawConds.push(Prisma.sql`gl."aadeEnriched" = false`)
 
-  if (matchingDoneParam === 'yes') andClauses.push({ matchingDone: true })
-  else if (matchingDoneParam === 'no') andClauses.push({ matchingDone: false })
+  if (matchingDoneParam === 'yes') rawConds.push(Prisma.sql`gl."matchingDone" = true`)
+  else if (matchingDoneParam === 'no') rawConds.push(Prisma.sql`gl."matchingDone" = false`)
 
-  if (claimedParam === 'yes') andClauses.push({ claimedBusinessId: { not: null } })
-  else if (claimedParam === 'no') andClauses.push({ claimedBusinessId: null })
+  if (claimedParam === 'yes') rawConds.push(Prisma.sql`gl."claimedBusinessId" IS NOT NULL`)
+  else if (claimedParam === 'no') rawConds.push(Prisma.sql`gl."claimedBusinessId" IS NULL`)
 
-  if (importBatch) andClauses.push({ importBatch })
+  if (importBatch) rawConds.push(Prisma.sql`gl."importBatch" = ${importBatch}`)
 
   if (citiesParam.length > 0) {
-    andClauses.push({ postalAreaDescription: { in: citiesParam } })
+    const cList = citiesParam.map(c => Prisma.sql`${c}`)
+    rawConds.push(Prisma.sql`gl."postalAreaDescription" = ANY(ARRAY[${Prisma.join(cList)}])`)
   }
 
   if (regionParam && REGION_ZIP_PREFIXES[regionParam]) {
-    const prefixes = REGION_ZIP_PREFIXES[regionParam]
-    andClauses.push({ OR: prefixes.map(p => ({ postalZipCode: { startsWith: p } })) })
+    const orParts = REGION_ZIP_PREFIXES[regionParam].map(p => Prisma.sql`gl."postalZipCode" LIKE ${p + '%'}`)
+    rawConds.push(Prisma.sql`(${Prisma.join(orParts, Prisma.sql` OR `)})`)
   }
 
   if (nomosParam && NOMOS_ZIP_PREFIXES[nomosParam]) {
-    const prefixes = NOMOS_ZIP_PREFIXES[nomosParam]
-    andClauses.push({ OR: prefixes.map(p => ({ postalZipCode: { startsWith: p } })) })
+    const orParts = NOMOS_ZIP_PREFIXES[nomosParam].map(p => Prisma.sql`gl."postalZipCode" LIKE ${p + '%'}`)
+    rawConds.push(Prisma.sql`(${Prisma.join(orParts, Prisma.sql` OR `)})`)
   }
 
   if (categoryParam) {
-    // Try exact match on stored category field first; also fall back to KAD prefix scan
     const kadPrefixes = CATEGORY_KAD_PREFIXES[categoryParam]
     if (kadPrefixes) {
-      andClauses.push({
-        OR: [
-          { category: categoryParam },
-          // Fallback: match primary KAD code prefix for records not yet enriched with category
-          ...kadPrefixes.map(p => ({
-            activities: {
-              path: ['$[0]', 'firmActCode'],
-              string_starts_with: p,
-            },
-          })),
-        ],
-      })
+      const orParts: Prisma.Sql[] = [
+        Prisma.sql`gl.category = ${categoryParam}`,
+        ...kadPrefixes.map(p => Prisma.sql`EXISTS (
+          SELECT 1 FROM jsonb_array_elements(gl.activities::jsonb) AS elem2
+          WHERE elem2->>'firmActCode' LIKE ${p + '%'} LIMIT 1
+        )`),
+      ]
+      rawConds.push(Prisma.sql`(${Prisma.join(orParts, Prisma.sql` OR `)})`)
     } else {
-      // ΥΠΗΡΕΣΙΕΣ = everything else — only match by stored field
-      andClauses.push({ category: categoryParam })
+      rawConds.push(Prisma.sql`gl.category = ${categoryParam}`)
     }
   }
 
-  if (hasCampaignParam === 'yes') andClauses.push({ campaignRecipients: { some: {} } })
-  else if (hasCampaignParam === 'no') andClauses.push({ campaignRecipients: { none: {} } })
-
-  if (activeParam === 'yes') andClauses.push({ stopDate: null })
-  else if (activeParam === 'no') andClauses.push({ stopDate: { not: null } })
-
-  if (emailEngagementParam === 'opened') {
-    andClauses.push({ campaignRecipients: { some: { channel: 'EMAIL', openedAt: { not: null } } } })
-  } else if (emailEngagementParam === 'not_opened') {
-    // Sent but no open AND no click (a click implies the email was read even if the
-    // tracking pixel was blocked by the recipient's email client), and not bounced
-    andClauses.push({ campaignRecipients: { some: { channel: 'EMAIL', status: 'sent', openedAt: null, clickedAt: null, bouncedAt: null } } })
-  } else if (emailEngagementParam === 'clicked') {
-    andClauses.push({ campaignRecipients: { some: { channel: 'EMAIL', clickedAt: { not: null } } } })
-  } else if (emailEngagementParam === 'bounced') {
-    andClauses.push({ campaignRecipients: { some: { channel: 'EMAIL', bouncedAt: { not: null } } } })
-  } else if (emailEngagementParam === 'unsubscribed') {
-    andClauses.push({ campaignRecipients: { some: { channel: 'EMAIL', unsubscribedAt: { not: null } } } })
+  if (hasCampaignParam === 'yes') {
+    rawConds.push(Prisma.sql`EXISTS (SELECT 1 FROM "GemiCampaignRecipient" r WHERE r."gemiId" = gl.id)`)
+  } else if (hasCampaignParam === 'no') {
+    rawConds.push(Prisma.sql`NOT EXISTS (SELECT 1 FROM "GemiCampaignRecipient" r WHERE r."gemiId" = gl.id)`)
   }
 
-  const where = andClauses.length > 0 ? { AND: andClauses } : {}
+  if (activeParam === 'yes') rawConds.push(Prisma.sql`gl."stopDate" IS NULL`)
+  else if (activeParam === 'no') rawConds.push(Prisma.sql`gl."stopDate" IS NOT NULL`)
+
+  if (emailEngagementParam === 'opened') {
+    rawConds.push(Prisma.sql`EXISTS (SELECT 1 FROM "GemiCampaignRecipient" r WHERE r."gemiId" = gl.id AND r.channel = 'EMAIL' AND r."openedAt" IS NOT NULL)`)
+  } else if (emailEngagementParam === 'not_opened') {
+    rawConds.push(Prisma.sql`EXISTS (SELECT 1 FROM "GemiCampaignRecipient" r WHERE r."gemiId" = gl.id AND r.channel = 'EMAIL' AND r.status = 'sent' AND r."openedAt" IS NULL AND r."clickedAt" IS NULL AND r."bouncedAt" IS NULL)`)
+  } else if (emailEngagementParam === 'clicked') {
+    rawConds.push(Prisma.sql`EXISTS (SELECT 1 FROM "GemiCampaignRecipient" r WHERE r."gemiId" = gl.id AND r.channel = 'EMAIL' AND r."clickedAt" IS NOT NULL)`)
+  } else if (emailEngagementParam === 'bounced') {
+    rawConds.push(Prisma.sql`EXISTS (SELECT 1 FROM "GemiCampaignRecipient" r WHERE r."gemiId" = gl.id AND r.channel = 'EMAIL' AND r."bouncedAt" IS NOT NULL)`)
+  } else if (emailEngagementParam === 'unsubscribed') {
+    rawConds.push(Prisma.sql`EXISTS (SELECT 1 FROM "GemiCampaignRecipient" r WHERE r."gemiId" = gl.id AND r.channel = 'EMAIL' AND r."unsubscribedAt" IS NOT NULL)`)
+  }
+
+  const whereClause = rawConds.length > 0
+    ? Prisma.sql`WHERE ${Prisma.join(rawConds, Prisma.sql` AND `)}`
+    : Prisma.sql``
 
   const skip = (page - 1) * limit
 
-  const [businesses, total] = await Promise.all([
-    prisma.gemiLookup.findMany({
-      where,
-      skip,
-      take: limit,
-      orderBy: { createdAt: 'desc' },
-      select: {
-        id: true,
-        afm: true,
-        onomasia: true,
-        email: true,
-        phone: true,
-        importBatch: true,
-        createdAt: true,
-        aadeEnriched: true,
-        matchingDone: true,
-        claimedAt: true,
-        claimedBusinessId: true,
-        claimedAccountantId: true,
-        category: true,
-        activities: true,
-        tags: true,
-        postalAreaDescription: true,
-        postalZipCode: true,
-        stopDate: true,
-      },
-    }),
-    prisma.gemiLookup.count({ where }),
+  // Count and paginated IDs via raw SQL (no IN-array bind-variable overflow)
+  const [countRows, pageIdRows] = await Promise.all([
+    prisma.$queryRaw<{ count: bigint }[]>`SELECT COUNT(*) AS count FROM "GemiLookup" gl ${whereClause}`,
+    prisma.$queryRaw<{ id: string }[]>`SELECT gl.id FROM "GemiLookup" gl ${whereClause} ORDER BY gl."createdAt" DESC LIMIT ${limit} OFFSET ${skip}`,
+  ])
+
+  const total = Number(countRows[0]?.count ?? 0)
+  const pageIds = pageIdRows.map(r => r.id)
+
+  // Fetch full records for this page (at most `limit` IDs — well under 32767)
+  const [businesses] = await Promise.all([
+    pageIds.length > 0
+      ? prisma.gemiLookup.findMany({
+          where: { id: { in: pageIds } },
+          orderBy: { createdAt: 'desc' },
+          select: {
+            id: true,
+            afm: true,
+            onomasia: true,
+            email: true,
+            phone: true,
+            importBatch: true,
+            createdAt: true,
+            aadeEnriched: true,
+            matchingDone: true,
+            claimedAt: true,
+            claimedBusinessId: true,
+            claimedAccountantId: true,
+            category: true,
+            activities: true,
+            tags: true,
+            postalAreaDescription: true,
+            postalZipCode: true,
+            stopDate: true,
+          },
+        })
+      : Promise.resolve([]),
   ])
 
   // Resolve accountant names for claimed records
