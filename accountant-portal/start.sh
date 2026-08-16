@@ -23,4 +23,4 @@ echo ">>> Seeding GEMI email templates..."
 node scripts/seed-gemi-templates.js || echo "GEMI template seed skipped (non-fatal)"
 
 echo ">>> Starting Next.js server on port ${PORT:-3000}..."
-exec npx next start -p ${PORT:-3000}
+exec node --max-old-space-size=512 node_modules/.bin/next start -p ${PORT:-3000}
