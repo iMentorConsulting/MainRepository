@@ -7,7 +7,7 @@ import { sendEmail } from '@/lib/email'
 export const dynamic = 'force-dynamic'
 export const maxDuration = 270 // seconds — Railway allows up to 5min for cron services
 
-const BATCH_PER_RUN = 2000 // recipients per cron invocation
+const BATCH_PER_RUN = 500 // recipients per cron invocation
 
 export async function POST(req: NextRequest) {
   const cronSecret = process.env.CRON_SECRET
@@ -57,8 +57,8 @@ export async function POST(req: NextRequest) {
     const partNumber = Math.floor(alreadyProcessed / BATCH_PER_RUN) + 1
     const moosendName = partNumber > 1 ? `${campaign.title} — μέρος ${partNumber}` : campaign.title
 
-    // Build variables for all recipients concurrently (10 at a time)
-    const CONCURRENT = 10
+    // Build variables for all recipients concurrently (5 at a time)
+    const CONCURRENT = 5
     const recipientData: Array<{ id: string; email: string; variables: Record<string, string> } | { id: string; error: string }> = []
     for (let i = 0; i < batch.length; i += CONCURRENT) {
       const chunk = batch.slice(i, i + CONCURRENT)
