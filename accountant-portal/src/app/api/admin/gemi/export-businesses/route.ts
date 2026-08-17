@@ -11,10 +11,14 @@ function escCsv(v: unknown): string {
   return s
 }
 
-function primaryKad(activities: unknown): { code: string; descr: string } {
-  if (!Array.isArray(activities) || activities.length === 0) return { code: '', descr: '' }
-  const primary = (activities as any[]).find(a => a.firmActKind === 'ΚΥΡΙΑ') ?? activities[0]
-  return { code: primary?.firmActCode ?? '', descr: primary?.firmActDescr ?? '' }
+function allKads(activities: unknown): { codes: string; descrs: string; kinds: string } {
+  if (!Array.isArray(activities) || activities.length === 0) return { codes: '', descrs: '', kinds: '' }
+  const acts = activities as any[]
+  return {
+    codes: acts.map(a => a.firmActCode ?? '').join('|'),
+    descrs: acts.map(a => a.firmActDescr ?? '').join('|'),
+    kinds: acts.map(a => a.firmActKind ?? '').join('|'),
+  }
 }
 
 export async function GET(_req: NextRequest) {
@@ -31,7 +35,7 @@ export async function GET(_req: NextRequest) {
     'id', 'afm', 'onomasia', 'email', 'phone', 'mobilePhone',
     'postalAddress', 'postalZipCode', 'postalAreaDescription',
     'legalStatus', 'regdate', 'stopDate',
-    'primaryKadCode', 'primaryKadDescr',
+    'kadCodes', 'kadDescriptions', 'kadKinds',
     'category', 'importBatch', 'tags',
     'aadeEnriched', 'matchingDone',
     'unsubscribedAt', 'createdAt',
@@ -54,13 +58,13 @@ export async function GET(_req: NextRequest) {
     })
 
     for (const r of batch) {
-      const { code, descr } = primaryKad(r.activities)
+      const { codes, descrs, kinds } = allKads(r.activities)
       rows.push([
         r.id, r.afm, r.onomasia, r.email, r.phone, r.mobilePhone,
         r.postalAddress, r.postalZipCode, r.postalAreaDescription,
         r.legalStatusDescr, r.regdate, r.stopDate,
-        code, descr,
-        r.category, r.importBatch, (r.tags ?? []).join(';'),
+        codes, descrs, kinds,
+        r.category, r.importBatch, (r.tags ?? []).join('|'),
         r.aadeEnriched, r.matchingDone,
         r.unsubscribedAt?.toISOString() ?? '', r.createdAt.toISOString(),
       ].map(escCsv).join(','))
