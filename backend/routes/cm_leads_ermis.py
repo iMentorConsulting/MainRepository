@@ -335,6 +335,57 @@ def bulk_start_ermis(
     return {"ok": True, "queued": len(to_process), "skipped": skipped}
 
 
+@router.post("/ermis/retry-errors")
+def retry_ermis_errors(
+    current_user: CMUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Bulk-retry ΕΡΜΗΣ sessions for leads that errored during the LOGISTIS outage (15–17/8/2026).
+    Safe to call multiple times — LOGISTIS uses upsert (AFM + program key)."""
+    if not _shared_secret():
+        raise HTTPException(status_code=500, detail="IMENTOR_PORTAL_API_KEY δεν έχει ρυθμιστεί")
+
+    from datetime import date as _date
+    window_start = datetime(2026, 8, 15, 0, 0, 0)
+    window_end   = datetime(2026, 8, 18, 0, 0, 0)
+
+    leads = db.query(CMLead).filter(
+        CMLead.ermis_status == "error",
+        CMLead.created_at >= window_start,
+        CMLead.created_at < window_end,
+    ).all()
+
+    to_process: list[int] = []
+    skipped: list[dict] = []
+
+    for l in leads:
+        if not (l.afm or "").strip():
+            skipped.append({"id": l.id, "name": l.name, "reason": "Λείπει ΑΦΜ"})
+            continue
+        if not (l.program_title or l.service_type or l.program or "").strip():
+            skipped.append({"id": l.id, "name": l.name, "reason": "Λείπει πρόγραμμα"})
+            continue
+        l.ermis_status = "starting"
+        l.ermis_started_at = datetime.utcnow()
+        to_process.append(l.id)
+
+    db.commit()
+
+    actor = current_user.full_name
+
+    def _retry_worker():
+        for lid in to_process:
+            try:
+                _process_ermis_session(lid, True, "both", actor)
+            except Exception as exc:
+                log.exception("Retry ΕΡΜΗΣ: lead %s failed: %s", lid, exc)
+
+    if to_process:
+        threading.Thread(target=_retry_worker, daemon=True).start()
+
+    return {"ok": True, "queued": len(to_process), "skipped": skipped}
+
+
 @router.post("/ermis/bulk-resend")
 def bulk_resend_ermis(
     req: BulkErmisStartIn,
