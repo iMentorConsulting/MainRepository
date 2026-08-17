@@ -3,6 +3,7 @@ import {
   getLeads, getLeadFilterOptions, getLead, createLead, updateLead, deleteLead,
   getLeadComments, addLeadComment, editLeadComment, deleteLeadComment,
   sendLeadMessage, convertLeadToCase, startLeadErmis, resendLeadErmisLink, bulkStartErmis, bulkResendErmis, pullErmisFromSibling, getLeadDuplicates, mergeLeads,
+  retryErmisErrors, getAuth,
 } from '../api'
 import {
   MagnifyingGlassIcon, PlusIcon, TrashIcon, ChevronDownIcon, ChevronUpIcon, ChevronRightIcon,
@@ -610,6 +611,8 @@ export default function Leads() {
   const [hideCancel, setHideCancel] = useState(true)   // CANCEL hidden by default
   const [selectedIds, setSelectedIds] = useState(new Set())
   const [bulkBusy, setBulkBusy] = useState(false)
+  const [retryBusy, setRetryBusy] = useState(false)
+  const isAdmin = getAuth()?.user?.role === 'admin'
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -664,6 +667,19 @@ export default function Leads() {
   const allPageIds = data.items.map(l => l.id)
   const allSelected = allPageIds.length > 0 && allPageIds.every(id => selectedIds.has(id))
   const toggleSelectAll = () => setSelectedIds(s => allSelected ? new Set() : new Set(allPageIds))
+
+  const handleRetryErmisErrors = async () => {
+    if (!confirm('Επανεκκίνηση ΕΡΜΗΣ για όλα τα leads με σφάλμα 15–17/8/2026; Κάθε πελάτης θα λάβει νέο Viber + Email.')) return
+    setRetryBusy(true)
+    const tid = toast.loading('Επανεκκίνηση ΕΡΜΗΣ για leads με σφάλμα…')
+    try {
+      const res = await retryErmisErrors()
+      toast.success(`Queued ${res.queued} leads για ΕΡΜΗΣ${res.skipped?.length ? ` (${res.skipped.length} παραλείφθηκαν)` : ''}`, { id: tid })
+      setTimeout(load, 3000)
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Σφάλμα επανεκκίνησης ΕΡΜΗΣ', { id: tid })
+    } finally { setRetryBusy(false) }
+  }
 
   const handleBulkErmis = async () => {
     const ids = [...selectedIds]
@@ -721,7 +737,19 @@ export default function Leads() {
           <h1 className="text-2xl font-bold text-gray-900">Leads</h1>
           <div className="text-sm text-gray-500">{data.total} εγγραφές {options.total ? `(από ${options.total})` : ''}</div>
         </div>
-        <button onClick={() => setShowNew(true)} className="btn-primary text-sm flex items-center gap-1"><PlusIcon className="w-4 h-4" />Νέο Lead</button>
+        <div className="flex items-center gap-2">
+          {isAdmin && (
+            <button
+              onClick={handleRetryErmisErrors}
+              disabled={retryBusy}
+              className="flex items-center gap-1.5 text-sm bg-orange-100 text-orange-700 hover:bg-orange-200 disabled:opacity-50 border border-orange-300 px-3 py-1.5 rounded-lg font-medium"
+              title="Επανεκκίνηση ΕΡΜΗΣ για leads με σφάλμα 15–17/8"
+            >
+              🔁 {retryBusy ? 'Επανεκκίνηση…' : 'Retry ΕΡΜΗΣ (15–17/8)'}
+            </button>
+          )}
+          <button onClick={() => setShowNew(true)} className="btn-primary text-sm flex items-center gap-1"><PlusIcon className="w-4 h-4" />Νέο Lead</button>
+        </div>
       </div>
 
       {/* Status chips */}
