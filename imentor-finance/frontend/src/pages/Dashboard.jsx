@@ -609,79 +609,101 @@ export default function Dashboard() {
                   <tr>
                     <th className="th">Μήνας</th>
                     <th className="th text-right">Στόχος Εσόδων</th>
+                    <th className="th text-right text-slate-400 text-[11px]">Αθρ. Στόχος</th>
                     <th className="th text-right">Πραγματικά Έσοδα</th>
+                    <th className="th text-right text-slate-400 text-[11px]">Αθρ. Έσοδα</th>
                     <th className="th text-center">Επίτευξη %</th>
                     <th className="th text-center">Ρυθμός (Pace)</th>
                     <th className="th text-right">Στόχος Κέρδους</th>
+                    <th className="th text-right text-slate-400 text-[11px]">Αθρ. Στόχος</th>
                     <th className="th text-right">Κέρδος</th>
+                    <th className="th text-right text-slate-400 text-[11px]">Αθρ. Κέρδος</th>
                     <th className="th text-center">Επίτευξη %</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {[1,2,3,4,5,6,7,8,9,10,11,12].map(m => {
-                    const actual = monthly?.find(d => d.month === m) || { income: 0, expenses: 0 };
-                    const actualIncome = parseFloat(actual.income || actual.total_income || 0);
-                    const actualProfit = actualIncome - parseFloat(actual.expenses || actual.total_expenses || 0);
-                    const target = getMonthTarget(displayYr, m);
-                    const incomeAch = target.income > 0 ? Math.round(actualIncome / target.income * 100) : null;
-                    const profitAch = target.profit > 0 ? Math.round(actualProfit / target.profit * 100) : null;
-                    const isCurrentMonth = isCurrentDisplayYear && m === currentMonthNum;
-                    let paceCell = null;
-                    if (isCurrentMonth && daysElapsed > 0 && target.income > 0) {
-                      const dailyRate = actualIncome / daysElapsed;
-                      const projected = dailyRate * daysInMonth;
-                      const pacePct = Math.round(projected / target.income * 100);
-                      paceCell = (
-                        <td className={`td text-center ${paceColor(pacePct)}`}>
-                          <div className="font-bold">{pacePct}%</div>
-                          <div className="text-[10px] text-slate-400 font-normal leading-tight">
-                            {projected.toLocaleString('el-GR', {maximumFractionDigits:0})} € / {Math.round(dailyRate).toLocaleString('el-GR')} €/ημ
-                          </div>
-                        </td>
+                  {(() => {
+                    let cumIncTarget = 0, cumActInc = 0, cumProfTarget = 0, cumActProfit = 0;
+                    return [1,2,3,4,5,6,7,8,9,10,11,12].map(m => {
+                      const actual = monthly?.find(d => d.month === m) || { income: 0, expenses: 0 };
+                      const actualIncome = parseFloat(actual.income || actual.total_income || 0);
+                      const actualProfit = actualIncome - parseFloat(actual.expenses || actual.total_expenses || 0);
+                      const target = getMonthTarget(displayYr, m);
+                      cumIncTarget += target.income;
+                      cumActInc += actualIncome;
+                      cumProfTarget += target.profit;
+                      cumActProfit += actualProfit;
+                      const incomeAch = target.income > 0 ? Math.round(actualIncome / target.income * 100) : null;
+                      const profitAch = target.profit > 0 ? Math.round(actualProfit / target.profit * 100) : null;
+                      const isCurrentMonth = isCurrentDisplayYear && m === currentMonthNum;
+                      const isPast = isCurrentDisplayYear ? m < currentMonthNum : true;
+                      const showCumActual = isPast || isCurrentMonth;
+                      let paceCell = null;
+                      if (isCurrentMonth && daysElapsed > 0 && target.income > 0) {
+                        const dailyRate = actualIncome / daysElapsed;
+                        const projected = dailyRate * daysInMonth;
+                        const pacePct = Math.round(projected / target.income * 100);
+                        paceCell = (
+                          <td className={`td text-center ${paceColor(pacePct)}`}>
+                            <div className="font-bold">{pacePct}%</div>
+                            <div className="text-[10px] text-slate-400 font-normal leading-tight">
+                              {projected.toLocaleString('el-GR', {maximumFractionDigits:0})} € / {Math.round(dailyRate).toLocaleString('el-GR')} €/ημ
+                            </div>
+                          </td>
+                        );
+                      } else {
+                        paceCell = <td className="td text-center text-slate-300">—</td>;
+                      }
+                      const fmtC = n => n.toLocaleString('el-GR', {maximumFractionDigits:0}) + ' €';
+                      return (
+                        <tr key={m} className={`tr ${isCurrentMonth ? 'bg-indigo-50/40' : ''}`}>
+                          <td className="td font-medium">
+                            {MONTHS[m-1]}
+                            {isCurrentMonth && <span className="ml-1 text-[9px] font-bold text-indigo-400 uppercase tracking-wide">τρέχων</span>}
+                          </td>
+                          <td className="td text-right">
+                            <input
+                              type="number"
+                              className="input w-24 text-right py-1 text-xs"
+                              value={target.income}
+                              onChange={e => setMonthTarget(displayYr, m, 'income', e.target.value)}
+                            />
+                          </td>
+                          <td className="td text-right text-xs text-slate-500">{fmtC(cumIncTarget)}</td>
+                          <td className="td text-right">{fmtC(actualIncome)}</td>
+                          <td className="td text-right text-xs font-semibold text-emerald-700">{showCumActual ? fmtC(cumActInc) : <span className="text-slate-300">—</span>}</td>
+                          <td className={`td text-center ${achColor(incomeAch)}`}>{incomeAch !== null ? `${incomeAch}%` : '—'}</td>
+                          {paceCell}
+                          <td className="td text-right">
+                            <input
+                              type="number"
+                              className="input w-24 text-right py-1 text-xs"
+                              value={target.profit}
+                              onChange={e => setMonthTarget(displayYr, m, 'profit', e.target.value)}
+                            />
+                          </td>
+                          <td className="td text-right text-xs text-slate-500">{fmtC(cumProfTarget)}</td>
+                          <td className="td text-right">{fmtC(actualProfit)}</td>
+                          <td className="td text-right text-xs font-semibold text-indigo-700">{showCumActual ? fmtC(cumActProfit) : <span className="text-slate-300">—</span>}</td>
+                          <td className={`td text-center ${achColor(profitAch)}`}>{profitAch !== null ? `${profitAch}%` : '—'}</td>
+                        </tr>
                       );
-                    } else {
-                      paceCell = <td className="td text-center text-slate-300">—</td>;
-                    }
-                    return (
-                      <tr key={m} className={`tr ${isCurrentMonth ? 'bg-indigo-50/40' : ''}`}>
-                        <td className="td font-medium">
-                          {MONTHS[m-1]}
-                          {isCurrentMonth && <span className="ml-1 text-[9px] font-bold text-indigo-400 uppercase tracking-wide">τρέχων</span>}
-                        </td>
-                        <td className="td text-right">
-                          <input
-                            type="number"
-                            className="input w-24 text-right py-1 text-xs"
-                            value={target.income}
-                            onChange={e => setMonthTarget(displayYr, m, 'income', e.target.value)}
-                          />
-                        </td>
-                        <td className="td text-right">{actualIncome.toLocaleString('el-GR', {maximumFractionDigits:0})} €</td>
-                        <td className={`td text-center ${achColor(incomeAch)}`}>{incomeAch !== null ? `${incomeAch}%` : '—'}</td>
-                        {paceCell}
-                        <td className="td text-right">
-                          <input
-                            type="number"
-                            className="input w-24 text-right py-1 text-xs"
-                            value={target.profit}
-                            onChange={e => setMonthTarget(displayYr, m, 'profit', e.target.value)}
-                          />
-                        </td>
-                        <td className="td text-right">{actualProfit.toLocaleString('el-GR', {maximumFractionDigits:0})} €</td>
-                        <td className={`td text-center ${achColor(profitAch)}`}>{profitAch !== null ? `${profitAch}%` : '—'}</td>
-                      </tr>
-                    );
-                  })}
+                    });
+                  })()}
                 </tbody>
                 <tfoot>
                   <tr className="bg-slate-100 font-bold">
                     <td className="td font-bold text-slate-800">Σύνολο</td>
                     <td className="td text-right text-slate-700">{totalTargetIncome.toLocaleString('el-GR', {maximumFractionDigits:0})} €</td>
+                    <td className="td text-right text-slate-500 text-xs">{totalTargetIncome.toLocaleString('el-GR', {maximumFractionDigits:0})} €</td>
                     <td className="td text-right text-emerald-700">{totalActualIncome.toLocaleString('el-GR', {maximumFractionDigits:0})} €</td>
+                    <td className="td text-right text-emerald-700 text-xs">{totalActualIncome.toLocaleString('el-GR', {maximumFractionDigits:0})} €</td>
                     <td className={`td text-center ${achColor(totalIncomeAch)}`}>{totalIncomeAch !== null ? `${totalIncomeAch}%` : '—'}</td>
                     <td className="td text-center text-slate-300">—</td>
                     <td className="td text-right text-slate-700">{totalTargetProfit.toLocaleString('el-GR', {maximumFractionDigits:0})} €</td>
+                    <td className="td text-right text-slate-500 text-xs">{totalTargetProfit.toLocaleString('el-GR', {maximumFractionDigits:0})} €</td>
                     <td className="td text-right text-indigo-700">{totalActualProfit.toLocaleString('el-GR', {maximumFractionDigits:0})} €</td>
+                    <td className="td text-right text-indigo-700 text-xs">{totalActualProfit.toLocaleString('el-GR', {maximumFractionDigits:0})} €</td>
                     <td className={`td text-center ${achColor(totalProfitAch)}`}>{totalProfitAch !== null ? `${totalProfitAch}%` : '—'}</td>
                   </tr>
                 </tfoot>
