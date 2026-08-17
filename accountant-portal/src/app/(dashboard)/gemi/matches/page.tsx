@@ -52,7 +52,11 @@ function GemiMatchesPageInner() {
 
   const [programFilter, setProgramFilter] = useState(() => searchParams.get('programId') || '')
   const [statusFilter, setStatusFilter] = useState('')
+  const [emailEngagementFilter, setEmailEngagementFilter] = useState('')
+  const [enrichedFilter, setEnrichedFilter] = useState('')
+  const [importBatchFilter, setImportBatchFilter] = useState('')
   const [programOptions, setProgramOptions] = useState<{ value: string; label: string }[]>([])
+  const [importBatchOptions, setImportBatchOptions] = useState<string[]>([])
 
   const [diagnoseAfm, setDiagnoseAfm] = useState('')
   const [diagnoseProgramId, setDiagnoseProgramId] = useState('')
@@ -73,6 +77,10 @@ function GemiMatchesPageInner() {
         setProgramOptions(list.map((p: any) => ({ value: p.id, label: p.title })))
       })
       .catch(() => {})
+    fetch('/api/gemi/matches/filter-options')
+      .then(r => r.json())
+      .then(data => setImportBatchOptions(data.importBatches || []))
+      .catch(() => {})
   }, [])
 
   const fetchMatches = useCallback(async () => {
@@ -81,6 +89,9 @@ function GemiMatchesPageInner() {
       const params = new URLSearchParams({ page: String(page), limit: String(PAGE_SIZE) })
       if (programFilter) params.set('programId', programFilter)
       if (statusFilter) params.set('status', statusFilter)
+      if (emailEngagementFilter) params.set('emailEngagement', emailEngagementFilter)
+      if (enrichedFilter !== '') params.set('enriched', enrichedFilter)
+      if (importBatchFilter) params.set('importBatch', importBatchFilter)
       const res = await fetch(`/api/gemi/matches?${params}`)
       const data = await res.json()
       setMatches(data.matches || [])
@@ -88,10 +99,10 @@ function GemiMatchesPageInner() {
     } finally {
       setLoading(false)
     }
-  }, [page, programFilter, statusFilter])
+  }, [page, programFilter, statusFilter, emailEngagementFilter, enrichedFilter, importBatchFilter])
 
   useEffect(() => { fetchMatches() }, [fetchMatches])
-  useEffect(() => { setPage(1) }, [programFilter, statusFilter])
+  useEffect(() => { setPage(1) }, [programFilter, statusFilter, emailEngagementFilter, enrichedFilter, importBatchFilter])
 
   async function runRematch() {
     setRematchRunning(true)
@@ -293,9 +304,58 @@ function GemiMatchesPageInner() {
                 ))}
               </select>
             </div>
-            {(programFilter || statusFilter) && (
+            <div>
+              <label className="text-xs font-medium text-gray-500 block mb-1">Email Engagement</label>
+              <select
+                value={emailEngagementFilter}
+                onChange={e => setEmailEngagementFilter(e.target.value)}
+                className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white"
+              >
+                <option value="">Όλες</option>
+                <option value="sent">Εστάλη</option>
+                <option value="opened">Άνοιξε</option>
+                <option value="not_opened">Δεν άνοιξε</option>
+                <option value="clicked">Έκανε κλικ</option>
+                <option value="bounced">Bounce</option>
+                <option value="unsubscribed">Διαγράφηκε</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-xs font-medium text-gray-500 block mb-1">Ενημέρωση</label>
+              <select
+                value={enrichedFilter}
+                onChange={e => setEnrichedFilter(e.target.value)}
+                className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white"
+              >
+                <option value="">Όλες</option>
+                <option value="true">Ενημερωμένες</option>
+                <option value="false">Μη ενημερωμένες</option>
+              </select>
+            </div>
+            {importBatchOptions.length > 0 && (
+              <div>
+                <label className="text-xs font-medium text-gray-500 block mb-1">Παρτίδα</label>
+                <select
+                  value={importBatchFilter}
+                  onChange={e => setImportBatchFilter(e.target.value)}
+                  className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white"
+                >
+                  <option value="">Όλες</option>
+                  {importBatchOptions.map(b => (
+                    <option key={b} value={b}>{b}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+            {(programFilter || statusFilter || emailEngagementFilter || enrichedFilter || importBatchFilter) && (
               <button
-                onClick={() => { setProgramFilter(''); setStatusFilter('') }}
+                onClick={() => {
+                  setProgramFilter('')
+                  setStatusFilter('')
+                  setEmailEngagementFilter('')
+                  setEnrichedFilter('')
+                  setImportBatchFilter('')
+                }}
                 className="text-xs text-gray-500 hover:text-gray-700 underline mt-4"
               >
                 Καθαρισμός φίλτρων

@@ -12,6 +12,9 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const programId = searchParams.get('programId') || undefined
   const status = searchParams.get('status') || undefined
+  const emailEngagement = searchParams.get('emailEngagement') || ''
+  const enriched = searchParams.get('enriched') || ''
+  const importBatch = searchParams.get('importBatch') || ''
   const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10))
   const limit = Math.max(1, parseInt(searchParams.get('limit') || '50', 10))
   const skip = (page - 1) * limit
@@ -19,6 +22,24 @@ export async function GET(request: NextRequest) {
   const where: Record<string, unknown> = {}
   if (programId) where.programId = programId
   if (status) where.status = status
+
+  const gemiWhere: Record<string, unknown> = {}
+  if (emailEngagement === 'sent') {
+    gemiWhere.campaignRecipients = { some: { sentAt: { not: null } } }
+  } else if (emailEngagement === 'opened') {
+    gemiWhere.campaignRecipients = { some: { openedAt: { not: null } } }
+  } else if (emailEngagement === 'not_opened') {
+    gemiWhere.campaignRecipients = { some: { sentAt: { not: null }, openedAt: null } }
+  } else if (emailEngagement === 'clicked') {
+    gemiWhere.campaignRecipients = { some: { clickedAt: { not: null } } }
+  } else if (emailEngagement === 'bounced') {
+    gemiWhere.campaignRecipients = { some: { bouncedAt: { not: null } } }
+  } else if (emailEngagement === 'unsubscribed') {
+    gemiWhere.unsubscribedAt = { not: null }
+  }
+  if (enriched !== '') gemiWhere.aadeEnriched = enriched === 'true'
+  if (importBatch) gemiWhere.importBatch = importBatch
+  if (Object.keys(gemiWhere).length > 0) where.gemi = gemiWhere
 
   const [matches, total] = await Promise.all([
     prisma.gemiProgramMatch.findMany({
