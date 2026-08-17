@@ -8,7 +8,7 @@ import { Table, TableHead, TableBody, TableRow, Th, Td } from '@/components/ui/t
 import { Pagination } from '@/components/ui/pagination'
 import { MultiSelect } from '@/components/ui/multi-select'
 import { KadFilterButton } from '@/components/ui/kad-filter-modal'
-import { Search, Upload, X, RefreshCw, Link2, Trash2, Send, Zap, Tag } from 'lucide-react'
+import { Search, Upload, Download, X, RefreshCw, Link2, Trash2, Send, Zap, Tag } from 'lucide-react'
 
 interface GemiTemplate {
   id: string
@@ -697,6 +697,11 @@ function GemiBusinessesPageInner() {
               <Trash2 size={14} className="mr-1.5" />Διαγραφή Παρτίδας «{importBatch}» ({total})
             </Button>
           )}
+          <a href="/api/admin/gemi/export-businesses" download>
+            <Button size="sm" variant="outline">
+              <Download size={14} className="mr-1.5" />Εξαγωγή CSV
+            </Button>
+          </a>
           <Button size="sm" onClick={() => setImportOpen(true)} className="bg-amber-600 hover:bg-amber-700 text-white">
             <Upload size={14} className="mr-1.5" />Εισαγωγή CSV
           </Button>

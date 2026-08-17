@@ -45,36 +45,27 @@ function getDrive(): { drive: ReturnType<typeof google.drive> } | { error: strin
   return { drive: google.drive({ version: 'v3', auth }) }
 }
 
-// Tables excluded from JSON fallback backup: too large to hold in memory.
-// GemiLookup/GemiProgramMatch/GemiCampaignRecipient can be re-imported from
-// the GEMI API; they are not critical for a Point-in-time restore of app state.
-const LARGE_TABLES_SKIP = new Set(['GemiLookup', 'GemiProgramMatch', 'GemiCampaignRecipient'])
-
-// Dump every table in the public schema to JSON via Prisma — works without
-// pg_dump (not installed in the Railway nixpacks image). BigInt-safe.
-// Large tables are skipped to avoid OOM (the JSON fallback is best-effort;
-// pg_dump is the real backup path).
-async function dumpDatabaseJson(): Promise<Buffer> {
-  const tables = await prisma.$queryRawUnsafe<{ tablename: string }[]>(
-    `SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY tablename`
-  )
-  const dump: Record<string, unknown[]> = {}
-  const skipped: string[] = []
-  for (const { tablename } of tables) {
-    if (tablename.startsWith('_prisma')) continue
-    if (LARGE_TABLES_SKIP.has(tablename)) { skipped.push(tablename); continue }
-    try {
-      const rows = await prisma.$queryRawUnsafe<unknown[]>(`SELECT * FROM "${tablename}"`)
-      dump[tablename] = rows
-    } catch (err) {
-      dump[tablename] = [{ __error: err instanceof Error ? err.message : String(err) }]
-    }
-  }
-  const json = JSON.stringify(
-    { exportedAt: new Date().toISOString(), tables: Object.keys(dump).length, skippedLargeTables: skipped, data: dump },
-    (_k, v) => (typeof v === 'bigint' ? v.toString() : v),
-  )
-  return zlib.gzipSync(Buffer.from(json, 'utf-8'))
+// pg_dump is unavailable in the Railway nixpacks image. The JSON-dump-of-all-
+// tables fallback caused OOM crashes (GemiLookup alone is hundreds of MB).
+//
+// Instead we export only the unsubscriber list — the one piece of data that
+// is legally/ethically critical and cannot be reconstructed from the GEMI API.
+// GemiLookup business records are re-importable via the admin CSV export.
+async function dumpUnsubscribersGz(): Promise<Buffer> {
+  const rows = await prisma.gemiLookup.findMany({
+    where: { unsubscribedAt: { not: null } },
+    select: { id: true, afm: true, email: true, phone: true, unsubscribedAt: true },
+    orderBy: { unsubscribedAt: 'asc' },
+  })
+  const lines = [
+    'id,afm,email,phone,unsubscribedAt',
+    ...rows.map(r =>
+      [r.id, r.afm, r.email ?? '', r.phone ?? '', r.unsubscribedAt!.toISOString()]
+        .map(v => (v.includes(',') || v.includes('"') ? `"${v.replace(/"/g, '""')}"` : v))
+        .join(',')
+    ),
+  ]
+  return zlib.gzipSync(Buffer.from(lines.join('\n'), 'utf-8'))
 }
 
 export async function POST(request: NextRequest) {
@@ -124,46 +115,43 @@ export async function POST(request: NextRequest) {
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
   const results: Record<string, unknown> = {}
 
-  // ── 1. DATABASE BACKUP ────────────────────────────────────────────────
-  // Try pg_dump first (full fidelity restore); fall back to a JSON export
-  // of every table via Prisma if pg_dump is unavailable in the image.
-  const dbUrl = process.env.DATABASE_URL
-  let dbFilePath: string | null = null
-  let dbFileName = ''
+  // ── 1. UNSUBSCRIBER LIST (critical safety backup) ────────────────────
+  // pg_dump is not available in the Railway nixpacks image. A full JSON dump
+  // of all tables caused OOM crashes. We back up only the unsubscriber list —
+  // the one dataset that is legally critical and cannot be reconstructed.
+  // GemiLookup business records are re-importable via the admin CSV export.
+  const dbFileName = `${BACKUP_PREFIX}${timestamp}-unsubscribers.csv.gz`
+  const dbFilePath = path.join(os.tmpdir(), dbFileName)
+  let dbExported = false
   try {
-    dbFileName = `${BACKUP_PREFIX}${timestamp}.sql.gz`
-    dbFilePath = path.join(os.tmpdir(), dbFileName)
-    execSync(`pg_dump "${dbUrl}" | gzip > "${dbFilePath}"`, { stdio: 'pipe', timeout: 180_000 })
-    const size = fs.statSync(dbFilePath).size
-    if (size < 1024) throw new Error(`pg_dump output suspiciously small (${size} bytes)`)
-    results.dbMethod = 'pg_dump'
-  } catch (err) {
-    console.log('[Backup] pg_dump unavailable/failed, using JSON export:', err instanceof Error ? err.message.slice(0, 200) : err)
-    if (dbFilePath && fs.existsSync(dbFilePath)) fs.unlinkSync(dbFilePath)
-    dbFileName = `${BACKUP_PREFIX}${timestamp}.json.gz`
-    dbFilePath = path.join(os.tmpdir(), dbFileName)
-    const gz = await dumpDatabaseJson()
+    const gz = await dumpUnsubscribersGz()
     fs.writeFileSync(dbFilePath, gz)
-    results.dbMethod = 'json-export'
+    results.dbMethod = 'unsubscribers-csv'
+    dbExported = true
+  } catch (err) {
+    console.error('[Backup] unsubscriber export failed:', err instanceof Error ? err.message : err)
+    results.dbError = err instanceof Error ? err.message : String(err)
   }
 
-  try {
-    const upload = await drive.files.create({
-      requestBody: { name: dbFileName, parents: [folderId] },
-      media: { mimeType: 'application/gzip', body: fs.createReadStream(dbFilePath) },
-      supportsAllDrives: true,
-      fields: 'id',
-    })
-    results.dbFile = dbFileName
-    results.dbFileId = upload.data.id
-    results.dbSizeMB = Math.round(fs.statSync(dbFilePath).size / 1024 / 102.4) / 10
-  } catch (err) {
-    const detail = err instanceof Error ? err.message : String(err)
-    console.error('[Backup] DB upload failed:', detail)
-    if (fs.existsSync(dbFilePath)) fs.unlinkSync(dbFilePath)
-    return NextResponse.json({ error: 'Drive upload failed', detail }, { status: 500 })
+  if (dbExported) {
+    try {
+      const upload = await drive.files.create({
+        requestBody: { name: dbFileName, parents: [folderId] },
+        media: { mimeType: 'application/gzip', body: fs.createReadStream(dbFilePath) },
+        supportsAllDrives: true,
+        fields: 'id',
+      })
+      results.dbFile = dbFileName
+      results.dbFileId = upload.data.id
+      results.dbSizeMB = Math.round(fs.statSync(dbFilePath).size / 1024 / 102.4) / 10
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : String(err)
+      console.error('[Backup] DB upload failed:', detail)
+      if (fs.existsSync(dbFilePath)) fs.unlinkSync(dbFilePath)
+      return NextResponse.json({ error: 'Drive upload failed', detail }, { status: 500 })
+    }
+    fs.unlinkSync(dbFilePath)
   }
-  fs.unlinkSync(dbFilePath)
 
   // ── 2. CODE + BUILD BACKUP ────────────────────────────────────────────
   // Archive the deployed application directory (source + built .next output),
