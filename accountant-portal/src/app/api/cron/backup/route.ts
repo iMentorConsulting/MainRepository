@@ -45,15 +45,24 @@ function getDrive(): { drive: ReturnType<typeof google.drive> } | { error: strin
   return { drive: google.drive({ version: 'v3', auth }) }
 }
 
+// Tables excluded from JSON fallback backup: too large to hold in memory.
+// GemiLookup/GemiProgramMatch/GemiCampaignRecipient can be re-imported from
+// the GEMI API; they are not critical for a Point-in-time restore of app state.
+const LARGE_TABLES_SKIP = new Set(['GemiLookup', 'GemiProgramMatch', 'GemiCampaignRecipient'])
+
 // Dump every table in the public schema to JSON via Prisma — works without
 // pg_dump (not installed in the Railway nixpacks image). BigInt-safe.
+// Large tables are skipped to avoid OOM (the JSON fallback is best-effort;
+// pg_dump is the real backup path).
 async function dumpDatabaseJson(): Promise<Buffer> {
   const tables = await prisma.$queryRawUnsafe<{ tablename: string }[]>(
     `SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY tablename`
   )
   const dump: Record<string, unknown[]> = {}
+  const skipped: string[] = []
   for (const { tablename } of tables) {
     if (tablename.startsWith('_prisma')) continue
+    if (LARGE_TABLES_SKIP.has(tablename)) { skipped.push(tablename); continue }
     try {
       const rows = await prisma.$queryRawUnsafe<unknown[]>(`SELECT * FROM "${tablename}"`)
       dump[tablename] = rows
@@ -62,7 +71,7 @@ async function dumpDatabaseJson(): Promise<Buffer> {
     }
   }
   const json = JSON.stringify(
-    { exportedAt: new Date().toISOString(), tables: Object.keys(dump).length, data: dump },
+    { exportedAt: new Date().toISOString(), tables: Object.keys(dump).length, skippedLargeTables: skipped, data: dump },
     (_k, v) => (typeof v === 'bigint' ? v.toString() : v),
   )
   return zlib.gzipSync(Buffer.from(json, 'utf-8'))
