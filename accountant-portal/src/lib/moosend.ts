@@ -233,6 +233,7 @@ export async function addSubscribersToList(
 
     // Bulk import silently added fewer than expected — retry the whole batch
     // one-by-one via subscribe.json, which reports errors per subscriber.
+    // Throttle to avoid Moosend 429 rate-limiting (≤5 req/s).
     if (addedCount < batch.length) {
       console.warn(`[Moosend] subscribe_many under-added (${addedCount}/${batch.length}) — falling back to individual subscribes`)
       for (const sub of batch) {
@@ -247,8 +248,11 @@ export async function addSubscribersToList(
         } catch (err) {
           console.error(`[Moosend] subscribe.json failed for ${sub.Email}:`, err instanceof Error ? err.message : err)
         }
+        await new Promise(r => setTimeout(r, 250))
       }
     }
+    // Pause between batches to stay within Moosend rate limits
+    if (i + BATCH_SIZE < subscribers.length) await new Promise(r => setTimeout(r, 500))
   }
 
   return totalAdded;
