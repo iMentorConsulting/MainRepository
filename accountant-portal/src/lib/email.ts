@@ -10,11 +10,33 @@ const fromAddress = process.env.SMTP_FROM || smtpUser || 'noreply@i-mentor.gr'
 // (25/465/587), which surfaces as ETIMEDOUT connecting to smtp.gmail.com.
 // When a Google service-account key is provided, we send via the Gmail API
 // over HTTPS instead — using domain-wide delegation to send "as" SMTP_USER.
-const googleServiceAccountJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON || ''
+const googleServiceAccountJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON || process.env.GOOGLE_SERVICE_ACCOUNT_KEY || ''
+
+// Accepts plain JSON or base64-encoded JSON (Railway multi-line paste mangles
+// raw JSON, so the variable is commonly stored base64-encoded).
+function parseServiceAccount(raw: string): any | null {
+  const candidates = [
+    raw,
+    raw.trim().replace(/^['"]|['"]$/g, ''),
+    (() => { try { return Buffer.from(raw, 'base64').toString('utf-8') } catch { return '' } })(),
+  ]
+  for (const c of candidates) {
+    if (!c) continue
+    try {
+      const parsed = JSON.parse(c)
+      if (parsed?.client_email && parsed?.private_key) return parsed
+    } catch {}
+  }
+  return null
+}
 
 function getGmailAuth() {
   if (!googleServiceAccountJson || !smtpUser) return null
-  const credentials = JSON.parse(googleServiceAccountJson)
+  const credentials = parseServiceAccount(googleServiceAccountJson)
+  if (!credentials) {
+    console.error('[Email] GOOGLE_SERVICE_ACCOUNT_JSON/KEY is not valid JSON or base64 JSON')
+    return null
+  }
   return new google.auth.JWT({
     email: credentials.client_email,
     key: credentials.private_key,
@@ -117,6 +139,8 @@ interface CampaignEmailOptions {
   accountantOfficeName?: string
   accountantLogoUrl?: string
   unsubscribeUrl?: string
+  ermisLink?: string
+  programUrl?: string
 }
 
 // Renders a polished, branded HTML email: a dark blue header banner with the
@@ -132,9 +156,32 @@ export function renderCampaignEmailHtml(options: CampaignEmailOptions): string {
     accountantOfficeName,
     accountantLogoUrl,
     unsubscribeUrl,
+    ermisLink,
+    programUrl,
   } = options
 
   const paragraphs = bodyText
+    // Convert Viber *bold* markdown to HTML <strong> tags; drop empty ** pairs
+    .replace(/\*([^*]*)\*/g, (_, inner) => inner.trim() ? `<strong>${inner}</strong>` : '')
+    // Remove common emoji ranges that don't render well in email clients
+    // eslint-disable-next-line no-misleading-character-class
+    .replace(/[☀-➿]|[\uD83C-\uDBFF][\uDC00-\uDFFF]/g, '')
+    // Drop any greeting line ("Γειά σας, ...", "Αγαπητοί συνεργάτες της ...",
+    // or "Αγαπητέ/ή ...") wherever it appears — the wrapper already renders
+    // "Αγαπητέ/ή ..." itself, and a Viber-sourced body may repeat it after
+    // its own ALL-CAPS section header rather than as the very first line.
+    .replace(/^\s*(Γειά σας|Αγαπητο[ίοι] συνεργάτ[ηε]ς?|Αγαπητ[έό]\/?ή?)[^\n]*\n*/gm, '')
+    // The Ερμής link, the CTA line introducing it, and the unsubscribe link
+    // are all rendered separately (CTA button / footer) — drop any raw text
+    // line that duplicates them.
+    .split('\n')
+    .filter(line =>
+      !(ermisLink && line.includes(ermisLink))
+      && !(unsubscribeUrl && line.includes(unsubscribeUrl))
+      && !line.includes('Μίλα τώρα με τον Ερμή')
+      && !line.includes('Αυτοματοποιημένο μήνυμα')
+    )
+    .join('\n')
     .split(/\n{2,}/)
     .map(block => block.trim())
     .filter(Boolean)
@@ -148,19 +195,64 @@ export function renderCampaignEmailHtml(options: CampaignEmailOptions): string {
           </li>`).join('')}
         </ul>`
       }
-      return `<p style="margin:0 0 16px;color:#334155;font-size:14px;line-height:1.7;">${lines.join('<br>')}</p>`
+      const bold = (l: string) => (/&\s*I-MENTOR\s*$/.test(l) ? `<strong>${l}</strong>` : l)
+      const asParagraph = (ls: string[]) =>
+        ls.length ? `<p style="margin:0 0 16px;color:#334155;font-size:14px;line-height:1.7;">${ls.map(bold).join('<br>')}</p>` : ''
+
+      // A Viber "─────" separator line is just a handful of characters —
+      // rendered as plain text it's a stubby little dash, not the full-width
+      // divider it reads as in Viber. Split it into its own <hr> so it spans
+      // the email's full width regardless of how many dashes are in the source.
+      if (lines.some(l => /^─{3,}$/.test(l))) {
+        const segments: string[][] = [[]]
+        for (const l of lines) {
+          if (/^─{3,}$/.test(l)) segments.push([])
+          else segments[segments.length - 1].push(l)
+        }
+        return segments
+          .map((seg, i) => asParagraph(seg) + (i < segments.length - 1 ? '<hr style="border:none;border-top:1px solid #e2e8f0;margin:4px 0 16px;" />' : ''))
+          .join('')
+      }
+
+      return asParagraph(lines)
     })
     .join('')
 
   const brandLeft = imentorLogoUrl
-    ? `<img src="${imentorLogoUrl}" alt="I-MENTOR" height="44" style="display:block;height:44px;width:auto;max-width:180px;object-fit:contain;" />`
+    ? `<img src="${imentorLogoUrl}" alt="I-MENTOR" height="72" style="display:block;height:72px;width:auto;max-width:260px;object-fit:contain;" />`
     : '<span style="font-weight:800;letter-spacing:.5px;color:#ffffff;font-size:20px;">iMENTOR <span style="font-weight:400;opacity:.8;">CONSULTING</span></span>'
 
   const brandRight = accountantLogoUrl
-    ? `<img src="${accountantLogoUrl}" alt="${accountantOfficeName || ''}" height="44" style="display:block;height:44px;width:auto;max-width:180px;object-fit:contain;margin-left:auto;background:#ffffff;border-radius:8px;padding:4px 10px;" />`
+    ? `<img src="${accountantLogoUrl}" alt="${accountantOfficeName || ''}" height="90" style="display:block;height:90px;width:auto;max-width:300px;object-fit:contain;margin-left:auto;" />`
     : (accountantOfficeName
-        ? `<span style="color:#cbd5e1;font-size:14px;font-weight:600;">${accountantOfficeName}</span>`
+        ? (() => {
+            const words = accountantOfficeName.trim().split(/\s+/)
+            const mid = Math.ceil(words.length / 2)
+            const line1 = words.slice(0, mid).join(' ')
+            const line2 = words.length > 1 ? words.slice(mid).join(' ') : ''
+            return `<div style="text-align:right;">
+              <div style="font-family:'Arial Narrow','Arial Black',Arial,sans-serif;font-weight:900;font-size:20px;letter-spacing:-0.5px;color:#ffffff;line-height:1.1;">${line1}</div>
+              ${line2 ? `<div style="font-family:'Arial Narrow','Arial Black',Arial,sans-serif;font-weight:900;font-size:17px;letter-spacing:-0.5px;color:rgba(255,255,255,0.88);line-height:1.1;margin-top:3px;">${line2}</div>` : ''}
+              <div style="margin-top:6px;margin-left:auto;height:2px;width:36px;background:linear-gradient(90deg,#4f46e5,#7c3aed);border-radius:2px;"></div>
+            </div>`
+          })()
         : '')
+
+  const ermisButton = ermisLink
+    ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:4px 0 8px;">
+        <tr><td align="center">
+          <a href="${ermisLink}" target="_blank" style="display:inline-block;background:linear-gradient(135deg,#4f46e5,#7c3aed);color:#ffffff;font-size:14px;font-weight:700;text-decoration:none;padding:13px 28px;border-radius:10px;box-shadow:0 2px 6px rgba(79,70,229,.35);">
+            🪽 Μίλα τώρα με τον Ερμή, τον ψηφιακό σύμβουλο που κάνει τον έλεγχο επιλεξιμότητας σε δευτερόλεπτα
+          </a>
+        </td></tr>
+      </table>`
+    : ''
+
+  const programLinkRow = programUrl
+    ? `<p style="margin:0 0 16px;text-align:center;">
+        <a href="${programUrl}" target="_blank" style="color:#1e3a8a;font-size:12px;text-decoration:underline;">Δείτε περισσότερα στην σελίδα της i-mentor.gr</a>
+      </p>`
+    : ''
 
   const unsubscribeRow = unsubscribeUrl
     ? `<p style="margin:12px 0 0;color:#94a3b8;font-size:11px;">
@@ -187,10 +279,15 @@ export function renderCampaignEmailHtml(options: CampaignEmailOptions): string {
           ${paragraphs}
         </td></tr>
 
+        ${ermisButton ? `<tr><td style="padding:0 28px 0;">${ermisButton}${programLinkRow}</td></tr>` : ''}
+
         <tr><td style="padding:0 28px 28px;">
           <table width="100%" cellpadding="0" cellspacing="0" style="border-top:1px solid #e2e8f0;padding-top:18px;">
             <tr><td style="color:#94a3b8;font-size:11px;line-height:1.6;">
-              🔒 Αυτό είναι ένα αυτοματοποιημένο μήνυμα ενημέρωσης από το λογιστικό σας γραφείο σε συνεργασία με την I-MENTOR Consulting. Για οποιαδήποτε ερώτηση, επικοινωνήστε απευθείας με το λογιστικό σας γραφείο.
+              🔒 ${accountantOfficeName
+                ? `Αυτό είναι ένα αυτοματοποιημένο μήνυμα ενημέρωσης από το λογιστικό σας γραφείο σε συνεργασία με την I-MENTOR Consulting. Για οποιαδήποτε ερώτηση, επικοινωνήστε απευθείας με το λογιστικό σας γραφείο.`
+                : `Αυτό είναι ένα αυτοματοποιημένο μήνυμα ενημέρωσης από την I-MENTOR Consulting. Για οποιαδήποτε ερώτηση, απαντήστε σε αυτό το μήνυμα.`
+              }
               ${unsubscribeRow}
             </td></tr>
           </table>

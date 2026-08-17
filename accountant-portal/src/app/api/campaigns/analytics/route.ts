@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma'
 export async function GET() {
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (session.user.role === 'CONSULTANT') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const where = session.user.role === 'ACCOUNTANT'
     ? { campaign: { accountantId: session.user.accountantId || undefined } }

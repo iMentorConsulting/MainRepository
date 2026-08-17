@@ -3,10 +3,11 @@ import { useEffect, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { StatCard } from '@/components/dashboard/stat-card'
 import { ChartCard } from '@/components/dashboard/chart-card'
+import { MatchesHero } from '@/components/dashboard/matches-hero'
 import { Users, Building2, Target, Zap, Send, Inbox, Upload, Mail, ChevronRight, CheckCircle2 } from 'lucide-react'
 import Link from 'next/link'
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LabelList
 } from 'recharts'
 
 interface DashboardStats {
@@ -17,6 +18,7 @@ interface DashboardStats {
   campaignsSent: number
   pendingRequests: number
   businessesByLegalStatus: Array<{ name: string; count: number }>
+  businessesByCategory: Array<{ name: string; count: number }>
   businessesByRegion: Array<{ name: string; count: number }>
   matchesByProgram: Array<{ name: string; count: number }>
 }
@@ -38,32 +40,32 @@ function OnboardingGuide({ stats }: { stats: DashboardStats }) {
   const steps = [
     {
       done: hasBusinesses,
-      title: 'Βήμα 1 — Προσθέστε τους πελάτες σας',
+      title: 'Βήμα 1: Καταχωρήστε τους πελάτες σας',
       desc: hasBusinesses
-        ? `Έχετε ${stats.totalBusinesses} επιχειρήσεις. Προσθέστε κι άλλες για περισσότερες ευκαιρίες!`
-        : 'Εισάγετε τους πελάτες σας μαζικά από αρχείο Excel/GSIS.',
+        ? `Έχετε ${stats.totalBusinesses} επιχειρήσεις. Προσθέστε κι άλλες, τα προγράμματα έχουν σύντομες προθεσμίες!`
+        : 'Εισάγετε τους πελάτες σας ώστε να ελεγχθεί ποιοι είναι επιλέξιμοι πριν λήξουν τα προγράμματα.',
       action: '/businesses',
       actionLabel: hasBusinesses ? 'Προσθήκη επιχειρήσεων →' : 'Ξεκινήστε εδώ →',
       icon: Building2,
     },
     {
       done: hasMatches,
-      title: 'Βήμα 2 — Δείτε τα Matches',
+      title: 'Βήμα 2: Ελέγξτε ποιοι επιλέγονται',
       desc: hasMatches
-        ? `${stats.totalMatches} επιχειρήσεις έχουν matches με ενεργά προγράμματα. Ελέγξτε τα!`
-        : 'Το σύστημα βρίσκει αυτόματα ποιοι πελάτες σας μπορούν να χρηματοδοτηθούν.',
+        ? `${stats.totalMatches} πελάτες σας είναι επιλέξιμοι για ενεργά προγράμματα. Μην τους αφήσετε να χάσουν την ευκαιρία!`
+        : 'Το σύστημα εντοπίζει αυτόματα ποιοι πελάτες σας πληρούν τα κριτήρια κάθε προγράμματος.',
       action: '/matches',
-      actionLabel: hasMatches ? 'Δείτε τα matches →' : 'Προσθέστε πρώτα πελάτες',
+      actionLabel: hasMatches ? 'Δείτε ποιοι επιλέγονται →' : 'Προσθέστε πρώτα πελάτες',
       icon: Target,
     },
     {
       done: hasCampaigns,
-      title: 'Βήμα 3 — Στείλτε Καμπάνια',
+      title: 'Βήμα 3: Ενημερώστε τους πελάτες σας',
       desc: hasCampaigns
-        ? `Έχετε στείλει ${stats.campaignsSent} καμπάνι${stats.campaignsSent === 1 ? 'α' : 'ες'}. Συνεχίστε — κάθε email = πιθανή προμήθεια!`
-        : 'Στείλτε email/Viber στους πελάτες σας για προγράμματα που τους αφορούν.',
+        ? `Έχετε στείλει ${stats.campaignsSent} καμπάνι${stats.campaignsSent === 1 ? 'α' : 'ες'}. Συνεχίστε, οι πελάτες σας πρέπει να γνωρίζουν τις ευκαιρίες τους εγκαίρως.`
+        : 'Ενημερώστε τους πελάτες σας για τα προγράμματα που τους αφορούν, πριν λήξουν οι προθεσμίες υποβολής.',
       action: '/campaigns/new',
-      actionLabel: hasCampaigns ? 'Νέα καμπάνια →' : hasMatches ? 'Στείλτε καμπάνια τώρα →' : 'Αναμένετε matches',
+      actionLabel: hasCampaigns ? 'Νέα καμπάνια →' : hasMatches ? 'Στείλτε ενημέρωση τώρα →' : 'Αναμένετε matches',
       icon: Mail,
     },
   ]
@@ -78,12 +80,12 @@ function OnboardingGuide({ stats }: { stats: DashboardStats }) {
         </div>
         <div>
           <h2 className="text-base font-bold text-indigo-900">
-            {allDone ? '🎉 Είστε σε πλήρη λειτουργία!' : 'Ξεκινήστε σε 3 απλά βήματα'}
+            {allDone ? '✅ Οι πελάτες σας είναι ενημερωμένοι!' : 'Ξεκινήστε σε 3 βήματα'}
           </h2>
           <p className="text-xs text-indigo-600 mt-0.5">
             {allDone
-              ? 'Κάθε καμπάνια που στέλνετε αυξάνει τις πιθανότητες κέρδους προμήθειας.'
-              : 'Ακολουθήστε τα βήματα για να αρχίσετε να κερδίζετε προμήθειες για τους πελάτες σας.'}
+              ? 'Συνεχίστε να ελέγχετε νέα προγράμματα, οι προθεσμίες μπορεί να αλλάξουν οποιαδήποτε στιγμή.'
+              : 'Τα ενεργά προγράμματα έχουν σύντομες προθεσμίες. Ενημερώστε τους πελάτες σας εγκαίρως.'}
           </p>
         </div>
       </div>
@@ -113,21 +115,21 @@ function BusinessNudge({ stats }: { stats: DashboardStats }) {
   if (stats.totalBusinesses >= 50) return null
 
   return (
-    <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-2xl p-5 flex flex-col md:flex-row items-start md:items-center gap-4">
-      <div className="w-10 h-10 bg-amber-500 rounded-xl flex items-center justify-center flex-shrink-0">
+    <div className="bg-gradient-to-r from-amber-50 to-yellow-50 border border-amber-200 rounded-2xl p-5 flex flex-col md:flex-row items-start md:items-center gap-4">
+      <div className="w-10 h-10 bg-amber-400 rounded-xl flex items-center justify-center flex-shrink-0">
         <Upload size={18} className="text-white" />
       </div>
       <div className="flex-1">
         <h3 className="text-sm font-bold text-amber-900">
-          💡 Έχετε {stats.totalBusinesses} πελάτες — κάθε πελάτης που λείπει = χαμένη προμήθεια!
+          ⏰ Τα προγράμματα έχουν σύντομη λήξη, και πελάτες που δεν είναι καταχωρημένοι θα τα χάσουν!
         </h3>
         <p className="text-xs text-amber-700 mt-1 leading-relaxed">
-          Εξαγάγετε τη λίστα πελατών σας από το λογιστικό σας πρόγραμμα σε Excel, και εισάγετε τη μαζικά εδώ.
-          Το σύστημα βρίσκει αυτόματα ποιοι πελάτες επιλέγονται για χρηματοδότηση — και σας ειδοποιεί!
+          Μπορείτε να προσθέσετε πελάτες εύκολα, είτε έναν-έναν μέσω ΑΦΜ, είτε μαζικά από αρχείο Excel.
+          Το σύστημα αναλαμβάνει τα υπόλοιπα και σας ενημερώνει για ποιους επιλέγονται.
         </p>
         <div className="flex flex-wrap gap-3 mt-3">
-          <Link href="/businesses" className="text-xs font-semibold bg-amber-600 text-white px-4 py-2 rounded-lg hover:bg-amber-700 transition-colors">
-            Εισαγωγή Επιχειρήσεων →
+          <Link href="/businesses" className="text-xs font-semibold bg-amber-500 text-white px-4 py-2 rounded-lg hover:bg-amber-600 transition-colors">
+            Προσθήκη Επιχειρήσεων →
           </Link>
           <Link href="/businesses" className="text-xs font-medium text-amber-700 hover:text-amber-900 flex items-center gap-1">
             Αναζήτηση μέσω ΑΦΜ <ChevronRight size={12} />
@@ -135,7 +137,7 @@ function BusinessNudge({ stats }: { stats: DashboardStats }) {
         </div>
       </div>
       <div className="hidden md:flex flex-col items-center bg-white rounded-xl px-4 py-3 border border-amber-100 text-center">
-        <span className="text-2xl font-bold text-amber-600">{stats.activePrograms}</span>
+        <span className="text-2xl font-bold text-amber-500">{stats.activePrograms}</span>
         <span className="text-xs text-amber-700 mt-0.5">ενεργά<br/>προγράμματα</span>
       </div>
     </div>
@@ -146,15 +148,27 @@ export default function DashboardPage() {
   const { data: session } = useSession()
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [loading, setLoading] = useState(true)
+  const [accountants, setAccountants] = useState<{ id: string; officeName: string }[]>([])
+  const [accountantFilter, setAccountantFilter] = useState('')
+
+  const isAdmin = session?.user?.role === 'ADMIN'
 
   useEffect(() => {
-    fetch('/api/dashboard/stats')
+    setLoading(true)
+    const params = accountantFilter ? `?accountantId=${accountantFilter}` : ''
+    fetch(`/api/dashboard/stats${params}`)
       .then(r => r.json())
       .then(setStats)
       .finally(() => setLoading(false))
-  }, [])
+  }, [accountantFilter])
 
-  const isAdmin = session?.user?.role === 'ADMIN'
+  useEffect(() => {
+    if (!isAdmin) return
+    fetch('/api/accountants')
+      .then(r => r.json())
+      .then(data => setAccountants(data.accountants || []))
+      .catch(() => {})
+  }, [isAdmin])
 
   if (loading) {
     return (
@@ -179,11 +193,26 @@ export default function DashboardPage() {
             {isAdmin ? 'Επισκόπηση συστήματος I-MENTOR Portal' : 'Επισκόπηση του λογιστικού σας γραφείου'}
           </p>
         </div>
-        <div className="text-right hidden md:block">
-          <p className="text-xs text-slate-400 uppercase tracking-wider">Overview</p>
-          <p className="text-xs text-slate-400 mt-0.5">{new Date().toLocaleDateString('el-GR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
+        <div className="flex items-center gap-3">
+          {isAdmin && accountants.length > 0 && (
+            <select
+              value={accountantFilter}
+              onChange={e => setAccountantFilter(e.target.value)}
+              className="text-sm border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white"
+            >
+              <option value="">Όλοι οι λογιστές</option>
+              {accountants.map(a => <option key={a.id} value={a.id}>{a.officeName}</option>)}
+            </select>
+          )}
+          <div className="text-right hidden md:block">
+            <p className="text-xs text-slate-400 uppercase tracking-wider">Overview</p>
+            <p className="text-xs text-slate-400 mt-0.5">{new Date().toLocaleDateString('el-GR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
+          </div>
         </div>
       </div>
+
+      {/* Matches hero — the core value of the app */}
+      <MatchesHero accountantId={accountantFilter || undefined} />
 
       {/* Accountant onboarding guide */}
       {!isAdmin && stats && <OnboardingGuide stats={stats} />}
@@ -238,12 +267,14 @@ export default function DashboardPage() {
         <ChartCard title="Επιχειρήσεις ανά Νομική Μορφή">
           {stats?.businessesByLegalStatus && stats.businessesByLegalStatus.length > 0 ? (
             <ResponsiveContainer width="100%" height={250}>
-              <BarChart data={stats.businessesByLegalStatus} margin={{ top: 5, right: 10, left: -20, bottom: 60 }}>
+              <BarChart data={stats.businessesByLegalStatus} margin={{ top: 24, right: 10, left: -20, bottom: 60 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
                 <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#64748b' }} angle={-20} textAnchor="end" interval={0} />
-                <YAxis tick={{ fontSize: 11, fill: '#64748b' }} allowDecimals={false} />
+                <YAxis tick={{ fontSize: 11, fill: '#64748b' }} allowDecimals={false} domain={[0, (max: number) => Math.ceil(max * 1.15)]} />
                 <Tooltip contentStyle={customTooltipStyle} cursor={{fill: 'rgba(99,102,241,0.05)'}} />
-                <Bar dataKey="count" fill="#6366f1" radius={[4, 4, 0, 0]} name="Επιχειρήσεις" />
+                <Bar dataKey="count" fill="#6366f1" radius={[4, 4, 0, 0]} name="Επιχειρήσεις">
+                  <LabelList dataKey="count" position="top" style={{ fontSize: 11, fill: '#475569' }} />
+                </Bar>
               </BarChart>
             </ResponsiveContainer>
           ) : (
@@ -256,12 +287,34 @@ export default function DashboardPage() {
         <ChartCard title="Επιχειρήσεις ανά Περιφέρεια">
           {stats?.businessesByRegion && stats.businessesByRegion.length > 0 ? (
             <ResponsiveContainer width="100%" height={250}>
-              <BarChart data={stats.businessesByRegion} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
+              <BarChart data={stats.businessesByRegion} margin={{ top: 24, right: 10, left: -20, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
                 <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#64748b' }} />
-                <YAxis tick={{ fontSize: 11, fill: '#64748b' }} />
+                <YAxis tick={{ fontSize: 11, fill: '#64748b' }} domain={[0, (max: number) => Math.ceil(max * 1.15)]} />
                 <Tooltip contentStyle={customTooltipStyle} cursor={{fill: 'rgba(5,150,105,0.05)'}} />
-                <Bar dataKey="count" fill="#059669" radius={[4, 4, 0, 0]} name="Επιχειρήσεις" />
+                <Bar dataKey="count" fill="#059669" radius={[4, 4, 0, 0]} name="Επιχειρήσεις">
+                  <LabelList dataKey="count" position="top" style={{ fontSize: 11, fill: '#475569' }} />
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="h-[250px] flex items-center justify-center text-slate-400 text-sm">
+              Δεν υπάρχουν δεδομένα ακόμη
+            </div>
+          )}
+        </ChartCard>
+
+        <ChartCard title="Επιχειρήσεις ανά Κλάδο">
+          {stats?.businessesByCategory && stats.businessesByCategory.length > 0 ? (
+            <ResponsiveContainer width="100%" height={250}>
+              <BarChart data={stats.businessesByCategory} margin={{ top: 24, right: 10, left: -20, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#64748b' }} />
+                <YAxis tick={{ fontSize: 11, fill: '#64748b' }} allowDecimals={false} domain={[0, (max: number) => Math.ceil(max * 1.15)]} />
+                <Tooltip contentStyle={customTooltipStyle} cursor={{fill: 'rgba(217,119,6,0.05)'}} />
+                <Bar dataKey="count" fill="#d97706" radius={[4, 4, 0, 0]} name="Επιχειρήσεις">
+                  <LabelList dataKey="count" position="top" style={{ fontSize: 11, fill: '#475569' }} />
+                </Bar>
               </BarChart>
             </ResponsiveContainer>
           ) : (
@@ -274,13 +327,48 @@ export default function DashboardPage() {
 
       {stats?.matchesByProgram && stats.matchesByProgram.length > 0 && (
         <ChartCard title="Matches ανά Πρόγραμμα">
-          <ResponsiveContainer width="100%" height={250}>
-            <BarChart data={stats.matchesByProgram} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
+          <ResponsiveContainer width="100%" height={500}>
+            <BarChart data={stats.matchesByProgram} margin={{ top: 24, right: 16, left: -20, bottom: 180 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-              <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#64748b' }} />
-              <YAxis tick={{ fontSize: 11, fill: '#64748b' }} />
-              <Tooltip contentStyle={customTooltipStyle} cursor={{fill: 'rgba(99,102,241,0.05)'}} />
-              <Bar dataKey="count" fill="#4f46e5" radius={[4, 4, 0, 0]} name="Matches" />
+              <XAxis
+                dataKey="name"
+                interval={0}
+                tick={(props: any) => {
+                  const { x, y, payload } = props
+                  const label: string = payload.value
+                  return (
+                    <g transform={`translate(${x},${y})`}>
+                      <text
+                        transform="rotate(-45)"
+                        textAnchor="end"
+                        fill="#475569"
+                        fontSize={11}
+                        dx={-4}
+                        dy={4}
+                      >
+                        {label}
+                      </text>
+                    </g>
+                  )
+                }}
+              />
+              <YAxis tick={{ fontSize: 11, fill: '#64748b' }} domain={[0, (max: number) => Math.ceil(max * 1.15)]} />
+              <Tooltip
+                contentStyle={customTooltipStyle}
+                cursor={{ fill: 'rgba(99,102,241,0.05)' }}
+                content={({ active, payload, label }: any) => {
+                  if (!active || !payload?.length) return null
+                  return (
+                    <div style={{ ...customTooltipStyle, padding: '10px 14px', maxWidth: 320 }}>
+                      <p style={{ fontWeight: 600, marginBottom: 6, fontSize: 12, wordBreak: 'break-word', lineHeight: 1.5 }}>{label}</p>
+                      <p style={{ color: '#4f46e5', fontSize: 13 }}>Matches: <strong>{payload[0].value}</strong></p>
+                    </div>
+                  )
+                }}
+              />
+              <Bar dataKey="count" fill="#4f46e5" radius={[4, 4, 0, 0]} name="Matches">
+                <LabelList dataKey="count" position="top" style={{ fontSize: 11, fill: '#475569' }} />
+              </Bar>
             </BarChart>
           </ResponsiveContainer>
         </ChartCard>

@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { Prisma } from '@prisma/client'
 import { sendEmail } from '@/lib/email'
+import { runMatchingForBusiness } from '@/lib/matching'
+import type { GsisBusinessData } from '@/lib/gsis'
+import { scheduleOnboardingEmails, sendOnboardingEmailStep } from '@/lib/onboarding-emails'
 
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   const session = await auth()
@@ -17,7 +21,12 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     include: {
       users: { select: { id: true, name: true, email: true, role: true } },
       businesses: {
-        select: { id: true, afm: true, onomasia: true, postalAreaDescription: true, postalZipCode: true }
+        select: {
+          id: true, afm: true, onomasia: true, postalAreaDescription: true, postalZipCode: true,
+          commercialTitle: true, legalStatusDescr: true, firmFlagDescr: true, deactivationFlagDescr: true,
+          regdate: true, stopDate: true, postalAddress: true, postalAddressNo: true, doyDescr: true,
+          activities: { select: { firmActCode: true, firmActDescr: true, firmActKindDescr: true } },
+        }
       },
     }
   })
@@ -36,16 +45,24 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
   }
 
   const body = await request.json()
-  // Accountants may only self-manage their own logo — every other field
-  // (office name, contacts, status, etc.) stays admin-managed.
-  const data = isOwnAccountant ? { logoUrl: body.logoUrl } : body
+  // Accountants can self-manage their own profile fields; only admins can
+  // touch approval/active/notes and other sensitive flags.
+  const data = isOwnAccountant
+    ? {
+        officeName: body.officeName,
+        contactPerson: body.contactPerson,
+        phone: body.phone,
+        address: body.address,
+        logoUrl: body.logoUrl,
+      }
+    : body
   delete data.id
   delete data.createdAt
   delete data.updatedAt
   delete data.users
   delete data.businesses
 
-  const existing = await prisma.accountant.findUnique({ where: { id: params.id }, select: { approved: true, email: true, contactPerson: true, officeName: true } })
+  const existing = await prisma.accountant.findUnique({ where: { id: params.id }, select: { approved: true, email: true, contactPerson: true, officeName: true, afm: true, pendingBusinessData: true } })
 
   const accountant = await prisma.accountant.update({
     where: { id: params.id },
@@ -55,12 +72,77 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
   if (existing && !existing.approved && data.approved === true) {
     await sendEmail({
       to: existing.email,
-      subject: 'Η πρόσβαση ΑΑΔΕ στο I-MENTOR Portal εγκρίθηκε',
+      subject: 'Ο λογαριασμός σας στο I-MENTOR Portal εγκρίθηκε',
       html: `<p>Αγαπητέ/ή ${existing.contactPerson},</p>
-        <p>Ο λογαριασμός του γραφείου <strong>${existing.officeName}</strong> εγκρίθηκε από την ομάδα της I-MENTOR. Μπορείτε πλέον να αναζητάτε και να εισάγετε επιχειρήσεις μέσω ΑΑΔΕ/ΓΓΠΣ στο
-        <a href="${process.env.NEXTAUTH_URL || ''}/login">I-MENTOR Portal</a>.</p>
+        <p>Ο λογαριασμός του γραφείου <strong>${existing.officeName}</strong> εγκρίθηκε από την ομάδα της I-MENTOR. Μπορείτε πλέον να συνδεθείτε στο
+        <a href="${process.env.APP_URL || 'https://logistis.i-mentor.gr'}/login">I-MENTOR Portal</a>.</p>
         <p>Με εκτίμηση,<br>Η ομάδα της I-MENTOR</p>`,
     })
+
+    // Schedule the onboarding email sequence when ONBOARDING_EMAILS_ENABLED=true.
+    // Leave it off until the sequence has been reviewed on a test account.
+    if (process.env.ONBOARDING_EMAILS_ENABLED === 'true') {
+      scheduleOnboardingEmails(params.id)
+        .then(async () => {
+          // Send Email 1 immediately (welcome email)
+          const step1 = await prisma.onboardingEmail.findUnique({
+            where: { accountantId_step: { accountantId: params.id, step: 1 } },
+          })
+          if (step1) return sendOnboardingEmailStep(step1.id)
+        })
+        .catch(err => console.error('[Onboarding] schedule failed:', err?.message))
+    }
+
+    // Auto-create the office's own business record (its first "client") from
+    // the GSIS data captured at registration time.
+    if (existing.pendingBusinessData && existing.afm) {
+      const gsisData = existing.pendingBusinessData as unknown as GsisBusinessData
+      const alreadyExists = await prisma.business.findUnique({ where: { afm: existing.afm } })
+      if (!alreadyExists) {
+        const business = await prisma.business.create({
+          data: {
+            accountantId: params.id,
+            afm: existing.afm,
+            onomasia: gsisData.onomasia,
+            commercialTitle: gsisData.commercialTitle,
+            legalStatusDescr: gsisData.legalStatusDescr,
+            firmFlagDescr: gsisData.firmFlagDescr,
+            iNiFlagDescr: gsisData.iNiFlagDescr,
+            deactivationFlag: gsisData.deactivationFlag,
+            deactivationFlagDescr: gsisData.deactivationFlagDescr,
+            regdate: gsisData.regdate,
+            stopDate: gsisData.stopDate,
+            postalAddress: gsisData.postalAddress,
+            postalAddressNo: gsisData.postalAddressNo,
+            postalZipCode: gsisData.postalZipCode,
+            postalAreaDescription: gsisData.postalAreaDescription,
+            doy: gsisData.doy,
+            doyDescr: gsisData.doyDescr,
+            email: existing.email,
+          },
+        })
+        if (gsisData.activities?.length) {
+          await prisma.businessActivity.createMany({
+            data: gsisData.activities.map(a => ({
+              businessId: business.id,
+              firmActCode: a.firmActCode,
+              firmActDescr: a.firmActDescr,
+              firmActKind: a.firmActKind,
+              firmActKindDescr: a.firmActKindDescr,
+            })),
+          })
+        }
+        // Match the office's own ΑΦΜ against active programs right away — the
+        // office IS a business and its owners expect to see their own matches.
+        runMatchingForBusiness(business.id).catch(err =>
+          console.error('[AccountantApprove] matching failed:', err instanceof Error ? err.message : err))
+      } else {
+        // Business already existed (e.g. imported earlier) — ensure it has matches
+        runMatchingForBusiness(alreadyExists.id).catch(err =>
+          console.error('[AccountantApprove] matching failed:', err instanceof Error ? err.message : err))
+      }
+    }
+    await prisma.accountant.update({ where: { id: params.id }, data: { pendingBusinessData: Prisma.JsonNull } })
   }
 
   return NextResponse.json(accountant)
@@ -72,6 +154,30 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  await prisma.accountant.delete({ where: { id: params.id } })
+  // Delete all dependent records before removing the accountant
+  // (no onDelete: Cascade on most of these relations)
+  const businesses = await prisma.business.findMany({
+    where: { accountantId: params.id },
+    select: { id: true },
+  })
+  const businessIds = businesses.map(b => b.id)
+
+  await prisma.$transaction([
+    // Business-level dependents
+    prisma.campaignRecipient.deleteMany({ where: { businessId: { in: businessIds } } }),
+    prisma.programMatch.deleteMany({ where: { businessId: { in: businessIds } } }),
+    prisma.imentorRequest.deleteMany({ where: { businessId: { in: businessIds } } }),
+    prisma.commission.deleteMany({ where: { businessId: { in: businessIds } } }),
+    prisma.paymentRequest.deleteMany({ where: { businessId: { in: businessIds } } }),
+    // Accountant-level dependents
+    prisma.notification.deleteMany({ where: { accountantId: params.id } }),
+    prisma.campaign.deleteMany({ where: { accountantId: params.id } }),
+    prisma.chatConversation.deleteMany({ where: { accountantId: params.id } }), // messages cascade
+    prisma.accountantCommissionOverride.deleteMany({ where: { accountantId: params.id } }),
+    prisma.business.deleteMany({ where: { accountantId: params.id } }),
+    prisma.user.deleteMany({ where: { accountantId: params.id } }),
+    prisma.accountant.delete({ where: { id: params.id } }),
+  ])
+
   return NextResponse.json({ success: true })
 }

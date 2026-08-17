@@ -1,6 +1,6 @@
 'use client'
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useEffect } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -24,6 +24,9 @@ const schema = z.object({
   postalZipCode: z.string().optional(),
   postalAreaDescription: z.string().optional(),
   doyDescr: z.string().optional(),
+  deactivationFlag: z.string().optional(),
+  deactivationFlagDescr: z.string().optional(),
+  stopDate: z.string().optional(),
   email: z.string().email().optional().or(z.literal('')),
   phone: z.string().optional(),
   viberPhone: z.string().optional(),
@@ -33,8 +36,22 @@ type FormData = z.infer<typeof schema>
 
 export default function NewBusinessPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [activities, setActivities] = useState<any[]>([])
+  const [iMentorServices, setIMentorServices] = useState<string[]>([])
   const [importMode, setImportMode] = useState(false)
+
+  useEffect(() => {
+    if (searchParams.get('mode') === 'excel') setImportMode(true)
+    const afm = searchParams.get('afm')
+    const email = searchParams.get('email')
+    const phone = searchParams.get('phone')
+    if (afm) setValue('afm', afm)
+    if (email) setValue('email', email)
+    if (phone) setValue('phone', phone)
+    const service = searchParams.get('service')
+    if (service) setIMentorServices([service])
+  }, [searchParams])
   const [importFile, setImportFile] = useState<File | null>(null)
   const [importing, setImporting] = useState(false)
 
@@ -67,6 +84,9 @@ export default function NewBusinessPage() {
     setValue('postalZipCode', data.postalZipCode)
     setValue('postalAreaDescription', data.postalAreaDescription)
     setValue('doyDescr', data.doyDescr)
+    setValue('deactivationFlag', data.deactivationFlag)
+    setValue('deactivationFlagDescr', data.deactivationFlagDescr)
+    setValue('stopDate', data.stopDate || undefined)
     setActivities(data.activities || [])
   }
 
@@ -77,10 +97,12 @@ export default function NewBusinessPage() {
   }
 
   async function onSubmit(data: FormData) {
+    const autoTag = searchParams.get('autoTag')
+    const tags = autoTag ? [autoTag] : []
     const res = await fetch('/api/businesses', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...data, activities }),
+      body: JSON.stringify({ ...data, activities, iMentorServices, tags }),
     })
     if (res.ok) {
       const created = await res.json()
@@ -130,7 +152,7 @@ export default function NewBusinessPage() {
         <div className="space-y-5">
           {/* Big guide card */}
           <div className="bg-gradient-to-br from-emerald-600 to-teal-700 rounded-2xl p-6 text-white">
-            <h2 className="text-xl font-bold mb-1">📊 Μαζική Εισαγωγή Πελατών — Βήμα προς Βήμα</h2>
+            <h2 className="text-xl font-bold mb-1">📊 Μαζική Εισαγωγή Πελατών: Βήμα προς Βήμα</h2>
             <p className="text-emerald-100 text-sm">Εισάγετε εκατοντάδες πελάτες μέσα σε δευτερόλεπτα. Ακολουθήστε τα 3 βήματα:</p>
           </div>
 
@@ -163,28 +185,30 @@ export default function NewBusinessPage() {
                   </table>
                 </div>
                 <div className="text-xs text-gray-500 mb-3 space-y-0.5">
-                  <p>✅ <strong>afm</strong> — Μόνο αυτό είναι υποχρεωτικό! 9-ψήφιος ΑΦΜ του πελάτη</p>
-                  <p>📧 <strong>email</strong> — Email επικοινωνίας (προαιρετικό)</p>
-                  <p>📞 <strong>phone</strong> — Τηλέφωνο (προαιρετικό)</p>
-                  <p>💬 <strong>viber_phone</strong> — Viber (προαιρετικό, για Viber καμπάνιες)</p>
+                  <p>✅ <strong>afm</strong>: Μόνο αυτό είναι υποχρεωτικό! 9-ψήφιος ΑΦΜ του πελάτη</p>
+                  <p>📧 <strong>email</strong>: Email επικοινωνίας (προαιρετικό)</p>
+                  <p>📞 <strong>phone</strong>: Τηλέφωνο (προαιρετικό)</p>
+                  <p>💬 <strong>viber_phone</strong>: Viber (προαιρετικό, για Viber καμπάνιες)</p>
                   <p className="mt-2 text-indigo-600 font-medium">⚡ Τα υπόλοιπα στοιχεία (επωνυμία, ΚΑΔ, διεύθυνση κ.λπ.) αντλούνται αυτόματα από την ΑΑΔΕ!</p>
                 </div>
                 <button
                   type="button"
-                  onClick={() => {
-                    const csv = 'afm,email,phone,viber_phone\n123456789,info@example.gr,2810123456,6972123456\n'
-                    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' })
-                    const url = URL.createObjectURL(blob)
-                    const a = document.createElement('a')
-                    a.href = url
-                    a.download = 'protupo-eisagogi-pelaton.csv'
-                    a.click()
-                    URL.revokeObjectURL(url)
+                  onClick={async () => {
+                    const XLSX = await import('xlsx')
+                    const ws = XLSX.utils.aoa_to_sheet([
+                      ['afm', 'email', 'phone', 'viber_phone'],
+                      ['123456789', 'info@example.gr', '2810123456', '6972123456'],
+                    ])
+                    // Column widths
+                    ws['!cols'] = [{ wch: 14 }, { wch: 28 }, { wch: 16 }, { wch: 16 }]
+                    const wb = XLSX.utils.book_new()
+                    XLSX.utils.book_append_sheet(wb, ws, 'Πελάτες')
+                    XLSX.writeFile(wb, 'protupo-eisagogi-pelaton.xlsx')
                   }}
                   className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-5 py-2.5 rounded-xl text-sm transition-colors"
                 >
                   <Upload size={16} />
-                  ⬇️ Κατεβάστε Πρότυπο Excel (CSV)
+                  ⬇️ Κατεβάστε Πρότυπο Excel (.xlsx)
                 </button>
               </div>
             </div>
@@ -248,13 +272,13 @@ export default function NewBusinessPage() {
         </div>
       ) : (
         <>
-          <AfmLookup onResult={handleAfmResult} onNotFound={handleAfmNotFound} />
+          <AfmLookup onResult={handleAfmResult} onNotFound={handleAfmNotFound} defaultAfm={searchParams.get('afm') || ''} />
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
             <Card>
               <CardHeader><CardTitle>Βασικά Στοιχεία</CardTitle></CardHeader>
               <CardContent className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <Input
                     label="ΑΦΜ *"
                     {...register('afm')}
@@ -279,7 +303,7 @@ export default function NewBusinessPage() {
                   </div>
                   <Input label="Αριθμός" {...register('postalAddressNo')} />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <Input label="ΤΚ" {...register('postalZipCode')} />
                   <Input label="Πόλη/Περιοχή" {...register('postalAreaDescription')} />
                 </div>

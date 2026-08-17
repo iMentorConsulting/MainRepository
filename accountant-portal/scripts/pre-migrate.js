@@ -4,30 +4,35 @@ const { PrismaClient } = require('@prisma/client')
 const prisma = new PrismaClient()
 
 async function main() {
-  console.log('>>> Pre-migration: adding new ProgramCategory enum values...')
+  console.log('>>> Pre-migration: checking enum values...')
 
-  // ADD VALUE cannot run inside a transaction in PostgreSQL.
-  // Using $executeRawUnsafe with autocommit (Prisma does not wrap these in a tx by default).
+  // MICROCREDITS is in the Prisma schema — add it before db push in case it's missing
   try {
     await prisma.$executeRawUnsafe(`ALTER TYPE "ProgramCategory" ADD VALUE IF NOT EXISTS 'MICROCREDITS'`)
-    console.log('  Added MICROCREDITS')
+    console.log('  MICROCREDITS ok')
   } catch (e) { console.log('  MICROCREDITS skip:', e.message) }
 
+  // Migrate any rows using old enum values that no longer exist in the schema
   try {
-    await prisma.$executeRawUnsafe(`ALTER TYPE "ProgramCategory" ADD VALUE IF NOT EXISTS 'DYPA_OAED'`)
-    console.log('  Added DYPA_OAED')
-  } catch (e) { console.log('  DYPA_OAED skip:', e.message) }
+    const microloan = await prisma.$executeRawUnsafe(
+      `UPDATE "Program" SET category = 'MICROCREDITS' WHERE category::text = 'MICROLOANS'`
+    )
+    console.log(`  Migrated ${microloan} MICROLOANS → MICROCREDITS`)
+  } catch (e) { console.log('  MICROLOANS migration skip:', e.message) }
 
-  // Migrate existing data so no rows use the old values
-  const microloan = await prisma.$executeRawUnsafe(
-    `UPDATE "Program" SET category = 'MICROCREDITS' WHERE category = 'MICROLOANS'`
-  )
-  console.log(`  Migrated ${microloan} MICROLOANS → MICROCREDITS`)
+  try {
+    const loan = await prisma.$executeRawUnsafe(
+      `UPDATE "Program" SET category = 'OTHER' WHERE category::text = 'LOAN'`
+    )
+    console.log(`  Migrated ${loan} LOAN → OTHER`)
+  } catch (e) { console.log('  LOAN migration skip:', e.message) }
 
-  const loan = await prisma.$executeRawUnsafe(
-    `UPDATE "Program" SET category = 'OTHER' WHERE category = 'LOAN'`
-  )
-  console.log(`  Migrated ${loan} LOAN → OTHER`)
+  try {
+    const dypa = await prisma.$executeRawUnsafe(
+      `UPDATE "Program" SET category = 'DYPA' WHERE category::text = 'DYPA_OAED'`
+    )
+    console.log(`  Migrated ${dypa} DYPA_OAED → DYPA`)
+  } catch (e) { console.log('  DYPA_OAED migration skip:', e.message) }
 
   console.log('>>> Pre-migration done.')
 }

@@ -10,6 +10,7 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
+  LabelList,
 } from 'recharts'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -198,6 +199,7 @@ export default function CommissionsPage() {
 
   const [commissions, setCommissions] = useState<any[]>([])
   const [summary, setSummary] = useState<any>(null)
+  const [policies, setPolicies] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState('')
   const [stageFilter, setStageFilter] = useState('')
@@ -237,6 +239,9 @@ export default function CommissionsPage() {
         setAccountants(Array.isArray(d) ? d : d.accountants || [])
       })
     }
+    fetch('/api/commissions/policies?active=true').then(r => r.json()).then(d => {
+      setPolicies(Array.isArray(d) ? d : [])
+    })
   }, [isAdmin])
 
   async function approveOne(id: string) {
@@ -327,6 +332,9 @@ export default function CommissionsPage() {
         </div>
         {isAdmin && (
           <div className="flex gap-2">
+            <Link href="/commissions/finance-payments">
+              <Button variant="outline" size="sm">Πληρωμές Finance</Button>
+            </Link>
             <Link href="/commissions/policies">
               <Button variant="outline" size="sm">Πολιτικές Προμηθειών</Button>
             </Link>
@@ -337,6 +345,48 @@ export default function CommissionsPage() {
           </div>
         )}
       </div>
+
+      {/* Invoice instructions banner (accountants only) */}
+      {!isAdmin && (
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4">
+          <p className="text-xs font-bold text-amber-800 uppercase tracking-wide mb-1">Οδηγίες Λήψης Προμήθειας</p>
+          <p className="text-sm text-amber-900">
+            Για να λάβετε την προμήθειά σας, παρακαλούμε εκδώστε τιμολόγιο παροχής υπηρεσιών στα ακόλουθα στοιχεία:{' '}
+            <strong>I MENTOR IKE, ΑΦΜ 802100033</strong>. Αποστείλτε το τιμολόγιο μαζί με τον αριθμό IBAN και το
+            όνομα της τράπεζάς σας στο <strong>info@i-mentor.gr</strong>.
+          </p>
+        </div>
+      )}
+
+      {/* Commission Policies compact panel */}
+      {policies.length > 0 && (
+        <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-4">
+          <p className="text-xs font-bold text-indigo-700 uppercase tracking-wide mb-3">Ισχύουσες Πολιτικές Προμηθειών</p>
+          <div className="flex flex-wrap gap-2">
+            {policies.map((p: any) => {
+              const stage = p.appliesToApplication && p.appliesToImplementation
+                ? 'αίτηση & υλοποίηση'
+                : p.appliesToApplication ? 'αίτηση' : 'υλοποίηση'
+              const pct = p.percentage ?? p.commissionPercentage
+              const fixed = p.fixedAmount ?? p.commissionFixed
+              const rateLabel = pct != null
+                ? p.description ? `${pct}% ${p.description.replace(/^%\s*/, '')}` : `${pct}% × ${stage}`
+                : fixed != null
+                  ? `${(fixed / 100).toFixed(0)}€ / ${stage}`
+                  : stage
+              const scope = p.program?.title ?? p.service?.name ?? p.name
+              const showName = p.name && p.name !== scope
+              return (
+                <div key={p.id} className="bg-white border border-indigo-100 rounded-xl px-3 py-2 text-xs shadow-sm flex items-center gap-2">
+                  <span className="font-semibold text-gray-700">{scope}</span>
+                  <span className="text-indigo-600 font-bold">{rateLabel}</span>
+                  {showName && <><span className="text-gray-300">·</span><span className="text-gray-400">{p.name}</span></>}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Stats */}
       {summary && (
@@ -399,12 +449,14 @@ export default function CommissionsPage() {
             <BarChart data={summary.monthly.map((m: any) => ({
               name: m.month.slice(5) + '/' + m.month.slice(0, 4),
               amount: m.amount / 100,
-            }))}>
+            }))} margin={{ top: 24, right: 5, left: 5, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-              <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `€${v}`} />
+              <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `€${v}`} domain={[0, (max: number) => Math.ceil(max * 1.15)]} />
               <Tooltip formatter={(v: any) => [`€${Number(v).toFixed(2)}`, 'Αμοιβή']} />
-              <Bar dataKey="amount" fill="#2563eb" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="amount" fill="#2563eb" radius={[4, 4, 0, 0]}>
+                <LabelList dataKey="amount" position="top" formatter={(v: any) => `€${Number(v).toFixed(0)}`} style={{ fontSize: 10, fill: '#475569' }} />
+              </Bar>
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -495,14 +547,13 @@ export default function CommissionsPage() {
                 <Th>Προμήθεια</Th>
                 <Th>Κατάσταση</Th>
                 <Th>Ημερομηνία</Th>
-                {!isAdmin && <Th>Τιμολόγιο</Th>}
                 <Th>Ενέργειες</Th>
               </TableRow>
             </TableHead>
             <TableBody>
               {commissions.length === 0 ? (
                 <TableRow>
-                  <Td colSpan={isAdmin ? 10 : 9} className="text-center text-gray-400 py-8">
+                  <Td colSpan={isAdmin ? 10 : 8} className="text-center text-gray-400 py-8">
                     Δεν βρέθηκαν προμήθειες
                   </Td>
                 </TableRow>
@@ -532,7 +583,7 @@ export default function CommissionsPage() {
                       <div className="text-xs text-gray-400">{c.business?.afm}</div>
                     </Td>
                     <Td className="text-sm text-gray-600">
-                      {c.paymentRequest?.service?.name || '—'}
+                      {c.paymentRequest?.service?.name || c.financePayment?.serviceName || '—'}
                     </Td>
                     <Td>
                       <Badge variant={c.stage === 'APPLICATION' ? 'info' : 'secondary'}>
@@ -545,25 +596,6 @@ export default function CommissionsPage() {
                       <Badge variant={statusVariant[c.status]}>{statusLabel[c.status]}</Badge>
                     </Td>
                     <Td className="text-sm text-gray-500">{formatDate(c.createdAt)}</Td>
-                    {!isAdmin && (
-                      <Td>
-                        {c.externalInvoiceUrl ? (
-                          <a
-                            href={c.externalInvoiceUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-center gap-1 text-blue-600 hover:underline text-xs"
-                          >
-                            {c.externalInvoiceNo || 'Τιμολόγιο'}
-                            <ExternalLink size={12} />
-                          </a>
-                        ) : c.externalInvoiceNo ? (
-                          <span className="text-xs text-gray-600">{c.externalInvoiceNo}</span>
-                        ) : (
-                          <span className="text-xs text-gray-400">—</span>
-                        )}
-                      </Td>
-                    )}
                     <Td>
                       <div className="flex items-center gap-1">
                         <Link href={`/commissions/${c.id}`}>
@@ -579,6 +611,19 @@ export default function CommissionsPage() {
                             title="Έγκριση"
                           >
                             <Check size={14} />
+                          </button>
+                        )}
+                        {isAdmin && c.status === 'CANCELLED' && (
+                          <button
+                            onClick={async () => {
+                              if (!confirm('Οριστική διαγραφή αυτής της ακυρωμένης προμήθειας;')) return
+                              await fetch(`/api/commissions/${c.id}`, { method: 'DELETE' })
+                              load()
+                            }}
+                            className="p-1.5 rounded hover:bg-red-50 text-red-500"
+                            title="Διαγραφή (μόνο ακυρωμένες)"
+                          >
+                            <XCircle size={14} />
                           </button>
                         )}
                         {isAdmin && c.status === 'APPROVED' && (

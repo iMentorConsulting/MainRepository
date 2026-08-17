@@ -1,20 +1,34 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { runMatchingForProgram, isProgramOpen, dismissMatchesForProgram } from '@/lib/matching'
 
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
+  const isAccountant = session.user.role === 'ACCOUNTANT'
+  const accountantId = (session.user as any).accountantId as string | null
+
+  const matchWhere = isAccountant && accountantId
+    ? { programId: params.id, business: { accountantId }, status: { not: 'REJECTED' as const } }
+    : { programId: params.id, status: { not: 'REJECTED' as const } }
+
   const program = await prisma.program.findUnique({
     where: { id: params.id },
     include: {
       matches: {
-        include: { business: { select: { id: true, afm: true, onomasia: true } } },
+        where: matchWhere,
+        include: { business: { select: { id: true, afm: true, onomasia: true, accountantId: true, accountant: { select: { officeName: true } } } } },
         orderBy: { matchScore: 'desc' },
-        take: 50,
+        take: 500,
       },
-      campaigns: { select: { id: true, title: true, status: true, sentAt: true } },
+      // ACCOUNTANTs should not see other accountants' campaigns for this program
+      campaigns: isAccountant && accountantId
+        ? { where: { accountantId }, select: { id: true, title: true, status: true, sentAt: true } }
+        : { select: { id: true, title: true, status: true, sentAt: true } },
+      _count: { select: { matches: { where: matchWhere } } },
+      requiredDocuments: { orderBy: [{ order: 'asc' }, { createdAt: 'asc' }] },
     }
   })
 
@@ -32,10 +46,37 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
   delete data.id; delete data.matches; delete data.campaigns; delete data.requests
   delete data.createdAt; delete data.updatedAt; delete data._count
 
-  if (data.startDate) data.startDate = new Date(data.startDate)
-  if (data.endDate) data.endDate = new Date(data.endDate)
+  const requiredDocumentIds: string[] | undefined = data.requiredDocumentIds
+  delete data.requiredDocumentIds
+  delete data.requiredDocuments
 
-  const program = await prisma.program.update({ where: { id: params.id }, data })
+  if (data.startDate) data.startDate = new Date(data.startDate)
+  else data.startDate = null
+  if (data.endDate) data.endDate = new Date(data.endDate)
+  else data.endDate = null
+
+  const program = await prisma.program.update({
+    where: { id: params.id },
+    data: {
+      ...data,
+      ...(requiredDocumentIds != null
+        ? { requiredDocuments: { set: requiredDocumentIds.map(id => ({ id })) } }
+        : {}),
+    },
+  })
+
+  // If the program is now closed (inactive, archived, or outside its date window),
+  // immediately dismiss all POTENTIAL matches so accountants stop seeing them.
+  // Otherwise re-run matching so stale/newly-qualifying businesses are updated.
+  if (!isProgramOpen(program)) {
+    dismissMatchesForProgram(program.id).catch(err => console.error('[Matching] Dismiss matches failed:', err?.message))
+  } else {
+    runMatchingForProgram(program.id).catch(err => console.error('[Matching] Re-match after program edit failed:', err?.message))
+    // Reset GEMI businesses so the next batch run re-evaluates against updated criteria
+    prisma.gemiLookup.updateMany({ where: { aadeEnriched: true }, data: { matchingDone: false } })
+      .catch(err => console.error('[GemiMatch] Reset after program edit failed:', err?.message))
+  }
+
   return NextResponse.json(program)
 }
 
@@ -45,6 +86,13 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  await prisma.program.delete({ where: { id: params.id } })
+  // Delete dependent records before the program (no cascade set on these relations)
+  // CommissionPolicy links are many-to-many — Prisma cascades the join table automatically
+  await prisma.$transaction([
+    prisma.programMatch.deleteMany({ where: { programId: params.id } }),
+    prisma.imentorRequest.deleteMany({ where: { programId: params.id } }),
+    prisma.paymentRequest.deleteMany({ where: { programId: params.id } }),
+    prisma.program.delete({ where: { id: params.id } }),
+  ])
   return NextResponse.json({ success: true })
 }

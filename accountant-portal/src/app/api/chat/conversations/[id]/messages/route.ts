@@ -19,12 +19,13 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
   if (!conversation) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   const isAdmin = session.user.role === 'ADMIN'
-  if (!isAdmin && conversation.accountantId !== session.user.accountantId) {
+  const canSeeAll = isAdmin || session.user.role === 'CONSULTANT'
+  if (!canSeeAll && conversation.accountantId !== session.user.accountantId) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
   // Mark unread messages as read for the current viewer
-  const viewerRole = isAdmin ? 'ACCOUNTANT' : 'ADMIN'
+  const viewerRole = canSeeAll ? 'ACCOUNTANT' : 'ADMIN'
   await prisma.chatMessage.updateMany({
     where: { conversationId: params.id, senderRole: viewerRole, readAt: null },
     data: { readAt: new Date() },
@@ -62,34 +63,42 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     },
   })
 
+  const newStatus = conversation.status === 'ARCHIVED' || conversation.status === 'COMPLETED'
+    ? conversation.status
+    : (isAdmin ? 'ANSWERED' : 'PENDING')
+
   await prisma.chatConversation.update({
     where: { id: params.id },
-    data: { updatedAt: new Date() },
+    data: { updatedAt: new Date(), status: newStatus },
   })
 
   // Notify by email
   try {
     if (isAdmin) {
-      // Admin replied → notify accountant
+      // Admin replied → notify accountant (only if conversation has an accountant)
+      if (conversation.accountant) {
       await sendEmail({
         to: conversation.accountant.email,
-        subject: `💬 Νέο μήνυμα από την I-MENTOR — ${conversation.accountantId}`,
+        subject: `💬 Νέο μήνυμα από την I-MENTOR — ${conversation.subject}`,
         html: `<p>Αγαπητέ/ή <strong>${conversation.accountant.contactPerson}</strong>,</p>
           <p>Λάβατε νέο μήνυμα από την I-MENTOR:</p>
           <blockquote style="border-left:4px solid #4f46e5;padding-left:12px;color:#374151">${body}</blockquote>
-          <p><a href="${process.env.NEXTAUTH_URL || 'https://logistis.i-mentor.gr'}/chat/${params.id}">Απαντήστε εδώ →</a></p>`,
+          <p><a href="${process.env.APP_URL || 'https://logistis.i-mentor.gr'}/chat/${params.id}">Απαντήστε εδώ →</a></p>`,
       })
-    } else {
+      }
+    } else if (conversation.accountant) {
       // Accountant replied → notify admin via email
       await sendEmail({
         to: process.env.ADMIN_EMAIL || 'info@i-mentor.gr',
         subject: `💬 Νέο μήνυμα από λογιστή — ${conversation.accountant.officeName}`,
         html: `<p>Νέο μήνυμα από <strong>${conversation.accountant.officeName}</strong> (${conversation.accountant.contactPerson}):</p>
           <blockquote style="border-left:4px solid #4f46e5;padding-left:12px;color:#374151">${body}</blockquote>
-          <p><a href="${process.env.NEXTAUTH_URL || 'https://logistis.i-mentor.gr'}/chat/${params.id}">Απαντήστε εδώ →</a></p>`,
+          <p><a href="${process.env.APP_URL || 'https://logistis.i-mentor.gr'}/chat/${params.id}">Απαντήστε εδώ →</a></p>`,
       })
     }
-  } catch {}
+  } catch (err: any) {
+    console.error('[Chat] Reply email notification failed:', err?.message)
+  }
 
   return NextResponse.json(message, { status: 201 })
 }

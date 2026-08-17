@@ -1,14 +1,14 @@
 'use client'
 import { usePathname } from 'next/navigation'
 import { useEffect, useState, useRef } from 'react'
-import { Bell } from 'lucide-react'
+import { Bell, Menu } from 'lucide-react'
 import Link from 'next/link'
 
 const breadcrumbMap: Record<string, string> = {
   '/': 'Dashboard', '/accountants': 'Λογιστές', '/businesses': 'Επιχειρήσεις',
-  '/programs': 'Προγράμματα', '/matches': 'Matches', '/campaigns': 'Καμπάνιες',
+  '/programs': 'Προγράμματα', '/matches': 'Matches', '/campaigns': 'Ενημερώσεις',
   '/payments': 'Πληρωμές', '/commissions': 'Προμήθειες', '/requests': 'Αιτήματα', '/chat': 'Επικοινωνία',
-  '/reports': 'Αναφορές', '/settings': 'Ρυθμίσεις',
+  '/reports': 'Αναφορές', '/settings': 'Ρυθμίσεις', '/notify-matches': 'Custom Ειδοποιήσεις', '/audit-log': 'Καταγραφή Ενεργειών', '/invitations': 'Προσκλήσεις', '/cases': 'Υποθέσεις',
 }
 
 function NotificationBell() {
@@ -66,7 +66,7 @@ function NotificationBell() {
       </button>
 
       {open && (
-        <div className="absolute right-0 top-10 w-80 bg-white rounded-xl shadow-xl border border-slate-200 z-50 overflow-hidden">
+        <div className="absolute right-0 top-10 w-80 max-w-[calc(100vw-1rem)] bg-white rounded-xl shadow-xl border border-slate-200 z-50 overflow-hidden">
           <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
             <span className="text-sm font-semibold text-slate-900">Ειδοποιήσεις</span>
             {notifications.length > 0 && (
@@ -105,24 +105,38 @@ function NotificationBell() {
   )
 }
 
-export function Header() {
+interface HeaderProps {
+  onMenuClick: () => void
+}
+
+export function Header({ onMenuClick }: HeaderProps) {
   const pathname = usePathname()
   const base = '/' + pathname.split('/')[1]
   const title = breadcrumbMap[base] || 'Portal'
 
   return (
-    <header className="fixed top-0 right-0 left-64 h-16 z-40 flex items-center px-6 gap-4 bg-white/90 backdrop-blur-xl border-b border-slate-200 shadow-sm">
+    <header className="fixed top-0 right-0 left-0 md:left-64 h-16 z-40 flex items-center px-4 md:px-6 gap-3 bg-white/90 backdrop-blur-xl border-b border-slate-200 shadow-sm">
       {/* Left accent bar matching sidebar */}
-      <div className="absolute left-0 top-0 bottom-0 w-0.5" style={{background: 'linear-gradient(180deg, #4f46e5, #7c3aed)'}} />
-      <div className="flex-1">
+      <div className="absolute left-0 top-0 bottom-0 w-0.5 md:hidden" style={{background: 'linear-gradient(180deg, #4f46e5, #7c3aed)'}} />
+
+      {/* Hamburger - mobile only */}
+      <button
+        onClick={onMenuClick}
+        className="md:hidden p-2 rounded-lg hover:bg-slate-100 transition-colors flex-shrink-0"
+        aria-label="Άνοιγμα μενού"
+      >
+        <Menu size={20} className="text-slate-600" />
+      </button>
+
+      <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5 text-xs mb-0.5">
-          <span className="font-semibold text-indigo-600 tracking-wide">I-MENTOR</span>
-          <span className="text-slate-300">›</span>
-          <span className="text-slate-500">{title}</span>
+          <span className="font-semibold text-indigo-600 tracking-wide hidden sm:inline">I-MENTOR</span>
+          <span className="text-slate-300 hidden sm:inline">›</span>
+          <span className="text-slate-500 truncate">{title}</span>
         </div>
-        <h1 className="text-base font-bold text-slate-900">{title}</h1>
+        <h1 className="text-base font-bold text-slate-900 truncate">{title}</h1>
       </div>
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2">
         <NotificationBell />
         <span className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-50 text-emerald-700 text-xs font-semibold border border-emerald-100">
           <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />

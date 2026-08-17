@@ -46,6 +46,10 @@ export async function POST(req: NextRequest) {
   const business = await prisma.business.findUnique({ where: { id: businessId } })
   if (!business) return NextResponse.json({ error: 'Business not found' }, { status: 404 })
 
+  if (session.user.role === 'ACCOUNTANT' && business.accountantId !== session.user.accountantId) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
   const accountantId =
     session.user.role === 'ACCOUNTANT'
       ? session.user.accountantId!

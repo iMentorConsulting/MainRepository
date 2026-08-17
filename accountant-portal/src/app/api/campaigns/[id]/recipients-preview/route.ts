@@ -5,9 +5,14 @@ import { prisma } from '@/lib/prisma'
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (session.user.role === 'CONSULTANT') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const campaign = await prisma.campaign.findUnique({ where: { id: params.id } })
   if (!campaign) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  if (session.user.role === 'ACCOUNTANT' && campaign.accountantId !== session.user.accountantId) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
 
   let businesses = await prisma.business.findMany({
     select: {
@@ -26,9 +31,9 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
   if (campaign.programId) {
     const matches = await prisma.programMatch.findMany({
       where: { programId: campaign.programId },
-      select: { businessId: true },
+      select: { businessId: true, status: true },
     })
-    const matchedIds = new Set(matches.map(m => m.businessId))
+    const matchedIds = new Set(matches.filter(m => m.status !== 'REJECTED').map(m => m.businessId))
     businesses = businesses.filter(b => matchedIds.has(b.id))
   }
 

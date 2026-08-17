@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { reconcileMatchStatuses } from '@/lib/matching'
 import { createAuditLog } from '@/lib/audit'
 
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
@@ -13,11 +14,34 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
       accountant: true,
       activities: true,
       programMatches: {
-        include: { program: { select: { id: true, title: true, category: true } } },
+        include: {
+          program: { select: { id: true, title: true, category: true, otherRequirements: true } },
+          criterionChecks: true,
+        },
         orderBy: { matchScore: 'desc' },
       },
       requests: {
         include: { program: { select: { id: true, title: true } } },
+        orderBy: { createdAt: 'desc' },
+      },
+      clientCases: {
+        select: {
+          id: true,
+          caseNumber: true,
+          createdAt: true,
+          status: true,
+          program: { select: { id: true, title: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+      },
+      exodikastikosCases: {
+        select: {
+          id: true,
+          caseNumber: true,
+          createdAt: true,
+          status: true,
+          resultLink: true,
+        },
         orderBy: { createdAt: 'desc' },
       },
       campaignRecipients: {
@@ -28,6 +52,8 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
   })
 
   if (!business) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  await reconcileMatchStatuses(business.programMatches)
 
   // Accountant can only see their own businesses
   if (session.user.role === 'ACCOUNTANT' && business.accountantId !== session.user.accountantId) {
@@ -41,7 +67,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const existing = await prisma.business.findUnique({ where: { id: params.id }, select: { accountantId: true } })
+  const existing = await prisma.business.findUnique({ where: { id: params.id } })
   if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   // Accountants may only edit their own businesses, and may not reassign ownership
@@ -82,11 +108,25 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     }
   }
 
+  // Record which fields actually changed (old → new) so the admin audit
+  // page can show what the edit was.
+  const changes: string[] = []
+  for (const key of Object.keys(updateData)) {
+    const before = (existing as any)[key]
+    const after = (business as any)[key]
+    if (JSON.stringify(before) !== JSON.stringify(after)) {
+      const fmt = (v: any) => v == null || v === '' ? '—' : Array.isArray(v) ? v.join(', ') : String(v)
+      changes.push(`${key}: «${fmt(before)}» → «${fmt(after)}»`)
+    }
+  }
+  if (Array.isArray(activities)) changes.push('ΚΑΔ δραστηριότητες ενημερώθηκαν')
+
   await createAuditLog({
     userId: session.user.id,
     action: 'UPDATE',
     entity: 'Business',
     entityId: business.id,
+    details: `${business.onomasia || business.afm}${changes.length ? ` — ${changes.join(' | ')}` : ''}`,
   })
 
   return NextResponse.json(business)
@@ -94,7 +134,15 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
 
 export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
   const session = await auth()
-  if (!session || session.user.role !== 'ADMIN') {
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  // Check ownership before deletion
+  const existing = await prisma.business.findUnique({ where: { id: params.id }, select: { accountantId: true } })
+  if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  const isAdmin = session.user.role === 'ADMIN'
+  const accountantId = (session.user as any).accountantId as string | null
+  if (!isAdmin && existing.accountantId !== accountantId) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { runMatchingForBusiness } from '@/lib/matching'
+import { runMatchingForBusiness, notifyBatchMatchesForBusinesses } from '@/lib/matching'
 import * as XLSX from 'xlsx'
 
 function applySoleProprietorFix(businessData: any) {
@@ -69,19 +69,26 @@ export async function POST(request: NextRequest) {
   let created = 0
   let skipped = 0
   const accountantId = session.user.role === 'ACCOUNTANT' ? session.user.accountantId : null
+  const importedBusinessIds: string[] = []
 
   for (const row of rows) {
-    const afm = String(row.afm || row.ΑΦΜ || row.AFM || '').trim().replace(/\D/g, '')
-    if (!afm || afm.length !== 9) { skipped++; continue }
+    const afm = String(row.afm || row.ΑΦΜ || row.AFM || '').trim().replace(/\D/g, '').padStart(9, '0')
+    if (!afm || afm === '000000000' || afm.length !== 9) { skipped++; continue }
 
     const phone = normalizePhone(row.tel ?? row.phone ?? row.τηλ ?? row.τηλέφωνο ?? row.ΤΗΛ ?? row.ΤΗΛΕΦΩΝΟ)
     const email = String(row.email || row.mail || row.Email || row.EMAIL || '').trim() || null
+
+    // Accountants must not be able to overwrite a business already owned by another accountant
+    if (accountantId) {
+      const existing = await prisma.business.findUnique({ where: { afm }, select: { accountantId: true } })
+      if (existing && existing.accountantId && existing.accountantId !== accountantId) { skipped++; continue }
+    }
 
     try {
       // Try to fetch real data from GSIS
       let businessData: any = { afm }
       try {
-        const res = await fetch(`${process.env.NEXTAUTH_URL || 'http://localhost:3001'}/api/afm?afm=${afm}`, {
+        const res = await fetch(`${process.env.APP_URL || 'https://logistis.i-mentor.gr'}/api/afm?afm=${afm}`, {
           headers: { Cookie: request.headers.get('cookie') || '' }
         })
         if (res.ok) {
@@ -100,6 +107,9 @@ export async function POST(request: NextRequest) {
         update: {
           ...(phone ? { phone } : {}),
           ...(email ? { email } : {}),
+          ...(businessData.deactivationFlag !== undefined ? { deactivationFlag: businessData.deactivationFlag || null } : {}),
+          ...(businessData.deactivationFlagDescr !== undefined ? { deactivationFlagDescr: businessData.deactivationFlagDescr || null } : {}),
+          ...(businessData.stopDate !== undefined ? { stopDate: businessData.stopDate || null } : {}),
         },
         create: {
           afm,
@@ -113,6 +123,9 @@ export async function POST(request: NextRequest) {
           postalAreaDescription: businessData.postalAreaDescription || null,
           doy: businessData.doy || null,
           doyDescr: businessData.doyDescr || null,
+          deactivationFlag: businessData.deactivationFlag || null,
+          deactivationFlagDescr: businessData.deactivationFlagDescr || null,
+          stopDate: businessData.stopDate || null,
           phone,
           email,
           accountantId,
@@ -127,12 +140,19 @@ export async function POST(request: NextRequest) {
         }
       })
 
-      runMatchingForBusiness(business.id).catch(err => console.error('[Matching] Auto-match for imported business failed:', err?.message))
-
+      importedBusinessIds.push(business.id)
       created++
     } catch {
       skipped++
     }
+  }
+
+  // Run matching for all imported businesses, then send ONE batched email
+  // per program (not one per business) summarizing all newly-eligible clients.
+  if (importedBusinessIds.length > 0) {
+    Promise.all(importedBusinessIds.map(id => runMatchingForBusiness(id)))
+      .then(() => notifyBatchMatchesForBusinesses(importedBusinessIds))
+      .catch(err => console.error('[Matching] Batch match/notify for import failed:', err?.message))
   }
 
   return NextResponse.json({ created, skipped, total: rows.length })

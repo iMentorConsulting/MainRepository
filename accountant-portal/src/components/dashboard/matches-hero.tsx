@@ -1,0 +1,186 @@
+'use client'
+import { useEffect, useState } from 'react'
+import Link from 'next/link'
+import { Sparkles, ChevronDown, ArrowRight, Users, ExternalLink, AlertTriangle, Calendar } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
+
+interface MatchBusiness {
+  id: string
+  name: string
+  afm: string
+  activityDescr: string | null
+}
+
+interface ProgramOpportunity {
+  programId: string
+  programTitle: string
+  programDescription: string | null
+  programCategory: string
+  extraCriteriaLabels: string[]
+  endDate: string | null
+  matchCount: number
+  businesses: MatchBusiness[]
+}
+
+function daysUntil(dateStr: string): number {
+  const diff = new Date(dateStr).getTime() - Date.now()
+  return Math.ceil(diff / (1000 * 60 * 60 * 24))
+}
+
+function formatDeadline(dateStr: string) {
+  return new Date(dateStr).toLocaleDateString('el-GR', { day: 'numeric', month: 'short', year: 'numeric' })
+}
+
+function DeadlineChip({ endDate, category }: { endDate: string | null; category?: string }) {
+  if (!endDate) {
+    const noDateLabel = category === 'DYPA'
+      ? 'Έως κάλυψης των θέσεων'
+      : category === 'ESPA' || category === 'MICROCREDITS'
+      ? 'Έως εξάντλησης των κονδυλίων'
+      : null
+    if (!noDateLabel) return null
+    return (
+      <span className="inline-flex items-center gap-1 text-[10px] text-slate-400 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded-full mt-1.5 w-fit">
+        <Calendar size={9} />
+        {noDateLabel}
+      </span>
+    )
+  }
+  const days = daysUntil(endDate)
+  const formatted = formatDeadline(endDate)
+  if (days < 0) {
+    return (
+      <span className="inline-flex items-center gap-1 text-[10px] font-bold text-red-800 bg-red-100 border border-red-300 px-2 py-0.5 rounded-full mt-1.5 w-fit">
+        <AlertTriangle size={9} />
+        ΕΛΗΞΕ {formatted}
+      </span>
+    )
+  }
+  if (days <= 14) {
+    return (
+      <span className="inline-flex items-center gap-1 text-[10px] font-bold text-red-700 bg-red-50 border border-red-200 px-2 py-0.5 rounded-full mt-1.5 w-fit">
+        <AlertTriangle size={9} />
+        Λήξη {formatted} · {days === 0 ? 'σήμερα!' : `σε ${days} ${days === 1 ? 'ημέρα' : 'ημέρες'}`}
+      </span>
+    )
+  }
+  if (days <= 45) {
+    return (
+      <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full mt-1.5 w-fit">
+        <AlertTriangle size={9} />
+        Λήξη {formatted} · σε {days} ημέρες
+      </span>
+    )
+  }
+  return (
+    <span className="inline-flex items-center gap-1 text-[10px] font-medium text-yellow-700 bg-yellow-50 border border-yellow-200 px-2 py-0.5 rounded-full mt-1.5 w-fit">
+      <Calendar size={9} />
+      Λήξη {formatted} · σε {days} ημέρες
+    </span>
+  )
+}
+
+const VISIBLE_BUSINESSES = 6
+
+function OpportunityCard({ opp }: { opp: ProgramOpportunity }) {
+  const [expanded, setExpanded] = useState(false)
+  const visible = expanded ? opp.businesses : opp.businesses.slice(0, VISIBLE_BUSINESSES)
+  const hiddenCount = opp.businesses.length - visible.length
+
+  return (
+    <div className="bg-white rounded-xl border border-slate-100 p-4 flex flex-col">
+      <div className="flex items-start justify-between gap-2">
+        <Link href={`/programs/${opp.programId}`} className="group flex-1 min-w-0">
+          <h3 className="text-sm font-bold text-slate-900 leading-snug group-hover:text-indigo-700 flex items-center gap-1">
+            <span>{opp.programTitle}</span>
+            <ExternalLink size={11} className="flex-shrink-0 text-slate-300 group-hover:text-indigo-500" />
+          </h3>
+        </Link>
+        <Badge variant="purple" className="flex-shrink-0">
+          <Users size={11} /> {opp.matchCount}
+        </Badge>
+      </div>
+
+      <DeadlineChip endDate={opp.endDate} category={opp.programCategory} />
+
+      {opp.programDescription && (
+        <p className="text-xs text-slate-500 mt-1.5 leading-relaxed line-clamp-2">{opp.programDescription}</p>
+      )}
+      {opp.extraCriteriaLabels.length > 0 && (
+        <div className="mt-1.5">
+          <span className="text-xs font-medium text-slate-600">Πρόσθετες Προϋποθέσεις:</span>
+          <div className="flex flex-wrap gap-1 mt-1">
+            {opp.extraCriteriaLabels.map((label, i) => (
+              <Badge key={i} variant="secondary" className="text-[10px]">{label}</Badge>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <button
+        onClick={() => setExpanded(v => !v)}
+        className="flex items-center gap-1 text-xs font-medium text-indigo-600 hover:text-indigo-700 mt-3"
+      >
+        {expanded ? 'Απόκρυψη επαφών' : 'Δείτε τις επιχειρήσεις'}
+        <ChevronDown size={13} className={`transition-transform ${expanded ? 'rotate-180' : ''}`} />
+      </button>
+
+      {expanded && (
+        <div className="mt-2 space-y-1.5 max-h-64 overflow-y-auto pr-1">
+          {visible.map(b => (
+            <div key={b.id} className="bg-slate-50 rounded-lg px-2.5 py-1.5">
+              <p className="text-xs font-medium text-slate-800 truncate">{b.name}</p>
+              <p className="text-[11px] text-slate-500 truncate">{b.activityDescr || 'Χωρίς καταχωρημένη δραστηριότητα'}</p>
+            </div>
+          ))}
+          {hiddenCount > 0 && (
+            <p className="text-[11px] text-slate-400 text-center pt-0.5">+{hiddenCount} ακόμη</p>
+          )}
+        </div>
+      )}
+
+      <Link
+        href={`/matches?programIds=${opp.programId}`}
+        className="flex items-center gap-1 text-xs font-semibold text-slate-700 hover:text-indigo-700 mt-3 pt-3 border-t border-slate-100"
+      >
+        Δείτε στα Matches <ArrowRight size={12} />
+      </Link>
+    </div>
+  )
+}
+
+export function MatchesHero({ accountantId }: { accountantId?: string }) {
+  const [programs, setPrograms] = useState<ProgramOpportunity[] | null>(null)
+
+  useEffect(() => {
+    const params = accountantId ? `?accountantId=${accountantId}` : ''
+    fetch(`/api/dashboard/match-hero${params}`)
+      .then(r => r.json())
+      .then(data => setPrograms(data.programs || []))
+      .catch(() => setPrograms([]))
+  }, [accountantId])
+
+  return (
+    <div className="bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 rounded-2xl p-6 text-white relative overflow-hidden">
+      <div className="absolute -top-20 -right-20 w-64 h-64 bg-indigo-500/20 rounded-full blur-3xl" />
+      <div className="absolute -bottom-20 -left-10 w-64 h-64 bg-fuchsia-500/10 rounded-full blur-3xl" />
+
+      <div className="relative flex items-center gap-2 mb-4">
+        <Sparkles size={18} className="text-amber-300" />
+        <h2 className="text-base font-bold">Matches Επιχειρήσεων &amp; Προγραμμάτων</h2>
+      </div>
+
+      <div className="relative">
+        {!programs ? (
+          <div className="h-40 flex items-center justify-center text-white/60 text-sm">Φόρτωση...</div>
+        ) : programs.length === 0 ? (
+          <div className="h-40 flex items-center justify-center text-white/60 text-sm">Δεν υπάρχουν matches ακόμη</div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {programs.map(opp => <OpportunityCard key={opp.programId} opp={opp} />)}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}

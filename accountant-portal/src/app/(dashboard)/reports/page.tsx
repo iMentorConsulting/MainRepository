@@ -1,113 +1,285 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { ChartCard } from '@/components/dashboard/chart-card'
+import Link from 'next/link'
+import { Badge } from '@/components/ui/badge'
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, Legend
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts'
+import { Mail, MessageCircle, Trophy, TrendingUp, Send, Star } from 'lucide-react'
+import { formatDateTime } from '@/lib/utils'
 
-const COLORS = ['#1e40af', '#059669', '#d97706', '#7c3aed', '#dc2626', '#0891b2', '#65a30d', '#db2777']
+const LEVELS = [
+  { min: 0,   label: 'Αρχάριος',       color: 'text-gray-500',   bg: 'bg-gray-100',   emoji: '🌱' },
+  { min: 50,  label: 'Αναπτυσσόμενος', color: 'text-blue-600',   bg: 'bg-blue-50',    emoji: '🚀' },
+  { min: 150, label: 'Ενεργός',         color: 'text-indigo-600', bg: 'bg-indigo-50',  emoji: '⚡' },
+  { min: 350, label: 'Εξπέρ',           color: 'text-purple-600', bg: 'bg-purple-50',  emoji: '🎯' },
+  { min: 700, label: 'Πρωταθλητής',     color: 'text-amber-600',  bg: 'bg-amber-50',   emoji: '🏆' },
+]
+
+function getLevel(score: number) {
+  return [...LEVELS].reverse().find(l => score >= l.min) ?? LEVELS[0]
+}
+
+function fmtMonth(key: string) {
+  const [y, m] = key.split('-')
+  return new Date(Number(y), Number(m) - 1).toLocaleDateString('el-GR', { month: 'short', year: '2-digit' })
+}
+
+const statusVariant: Record<string, any> = { DRAFT: 'secondary', SCHEDULED: 'warning', SENT: 'success' }
+const statusLabel: Record<string, string>  = { DRAFT: 'Πρόχειρο', SCHEDULED: 'Προγρ/νο', SENT: 'Απεστάλη' }
 
 export default function ReportsPage() {
-  const [stats, setStats] = useState<any>(null)
+  const [data, setData] = useState<any>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    fetch('/api/dashboard/stats')
+    fetch('/api/reports')
       .then(r => r.json())
-      .then(setStats)
+      .then(setData)
       .finally(() => setLoading(false))
   }, [])
 
   if (loading) return (
     <div className="flex items-center justify-center h-64">
-      <div className="animate-spin w-8 h-8 border-4 border-blue-800 border-t-transparent rounded-full" />
+      <div className="animate-spin w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full" />
     </div>
   )
+
+  const score   = data?.score?.total ?? 0
+  const level   = getLevel(score)
+  const nextLvl = LEVELS.find(l => l.min > score)
+  const bd      = data?.score?.breakdown ?? {}
+  const maxScore = Math.max(score, nextLvl ? nextLvl.min : score, 1)
+  const growth: any[] = data?.growth ?? []
+  const campaigns: any[] = data?.campaigns ?? []
+
+  const growthChart = growth.map(g => ({ ...g, month: fmtMonth(g.month) }))
+  const recentAdded = growth.slice(-3).reduce((s: number, g: any) => s + g.added, 0)
+  const totalBiz    = growth.length > 0 ? growth[growth.length - 1].total : 0
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Αναφορές & Στατιστικά</h1>
-        <p className="text-gray-500 mt-1">Γραφήματα και στατιστικά συστήματος</p>
+        <h1 className="text-2xl font-bold text-gray-900">Αναφορές</h1>
+        <p className="text-gray-500 mt-1">Στατιστικά & Ιστορικό Δραστηριότητας</p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <ChartCard title="Επιχειρήσεις ανά Νομική Μορφή">
-          {stats?.businessesByLegalStatus?.length > 0 ? (
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={stats.businessesByLegalStatus}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                <XAxis dataKey="name" tick={{ fontSize: 10 }} angle={-20} textAnchor="end" height={70} interval={0} />
-                <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
-                <Tooltip />
-                <Bar dataKey="count" fill="#1e40af" radius={[4, 4, 0, 0]} name="Επιχειρήσεις" />
-              </BarChart>
-            </ResponsiveContainer>
-          ) : <NoData />}
-        </ChartCard>
+      {/* ── Score Card ─────────────────────────────────────────────────── */}
+      <div className={`rounded-2xl border-2 p-6 ${level.bg} border-opacity-50`}
+        style={{ borderColor: level.bg.replace('bg-', '').replace('-50', '') }}>
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6">
 
-        <ChartCard title="Επιχειρήσεις ανά Περιφέρεια">
-          {stats?.businessesByRegion?.length > 0 ? (
-            <ResponsiveContainer width="100%" height={300}>
-              <PieChart>
-                <Pie
-                  data={stats.businessesByRegion}
-                  dataKey="count"
-                  nameKey="name"
-                  cx="50%"
-                  cy="50%"
-                  outerRadius={100}
-                  label={({ name, count }) => `${name} (${count})`}
-                >
-                  {stats.businessesByRegion.map((_: any, index: number) => (
-                    <Cell key={index} fill={COLORS[index % COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
-          ) : <NoData />}
-        </ChartCard>
-
-        <ChartCard title="Matches ανά Πρόγραμμα">
-          {stats?.matchesByProgram?.length > 0 ? (
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={stats.matchesByProgram} layout="vertical">
-                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                <XAxis type="number" tick={{ fontSize: 11 }} />
-                <YAxis type="category" dataKey="name" tick={{ fontSize: 10 }} width={120} />
-                <Tooltip />
-                <Bar dataKey="count" fill="#d97706" radius={[0, 4, 4, 0]} name="Matches" />
-              </BarChart>
-            </ResponsiveContainer>
-          ) : <NoData />}
-        </ChartCard>
-
-        <ChartCard title="Στατιστικά">
-          <div className="grid grid-cols-2 gap-4">
-            {[
-              { label: 'Συνολικές Επιχειρήσεις', value: stats?.totalBusinesses ?? 0 },
-              { label: 'Ενεργά Προγράμματα', value: stats?.activePrograms ?? 0 },
-              { label: 'Συνολικά Matches', value: stats?.totalMatches ?? 0 },
-              { label: 'Εκκρεμή Αιτήματα', value: stats?.pendingRequests ?? 0 },
-            ].map(s => (
-              <div key={s.label} className="bg-gray-50 rounded-xl p-4 text-center">
-                <div className="text-3xl font-bold text-blue-900">{s.value}</div>
-                <div className="text-xs text-gray-500 mt-1">{s.label}</div>
-              </div>
-            ))}
+          {/* Big score circle */}
+          <div className="flex-shrink-0 relative">
+            <div className="w-28 h-28 rounded-full bg-white shadow-md flex flex-col items-center justify-center border-4"
+              style={{ borderColor: '#6366f1' }}>
+              <span className="text-3xl font-black text-indigo-700">{score}</span>
+              <span className="text-xs text-gray-400 font-medium">πόντοι</span>
+            </div>
+            <span className="absolute -top-2 -right-2 text-2xl">{level.emoji}</span>
           </div>
-        </ChartCard>
-      </div>
-    </div>
-  )
-}
 
-function NoData() {
-  return (
-    <div className="h-[300px] flex items-center justify-center text-gray-400 text-sm">
-      Δεν υπάρχουν δεδομένα ακόμη
+          {/* Level & breakdown */}
+          <div className="flex-1 space-y-3">
+            <div>
+              <span className={`text-xl font-bold ${level.color}`}>{level.label}</span>
+              {nextLvl && (
+                <span className="ml-2 text-xs text-gray-400">
+                  +{nextLvl.min - score} πόντοι για {nextLvl.emoji} {nextLvl.label}
+                </span>
+              )}
+            </div>
+
+            {/* Progress bar toward next level */}
+            <div className="w-full bg-white/70 rounded-full h-3 overflow-hidden shadow-inner">
+              <div
+                className="h-3 rounded-full transition-all duration-700"
+                style={{ width: `${Math.min(100, Math.round((score / maxScore) * 100))}%`, background: 'linear-gradient(90deg,#6366f1,#a855f7)' }}
+              />
+            </div>
+
+            {/* Breakdown pills */}
+            <div className="flex flex-wrap gap-2">
+              {Object.entries(bd).map(([key, v]: [string, any]) => (
+                <div key={key} className="bg-white/80 rounded-xl px-3 py-1.5 text-xs shadow-sm">
+                  <span className="font-semibold text-gray-700">{v.label}</span>
+                  <span className="ml-1.5 text-indigo-600 font-bold">+{v.score} pts</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Trophy */}
+          <div className="hidden lg:flex flex-col items-center gap-1">
+            <Trophy size={36} className={level.color} />
+            <span className="text-xs text-gray-400 font-medium">Βαθμολογία</span>
+          </div>
+        </div>
+
+        {/* Tips */}
+        <div className="mt-4 pt-4 border-t border-white/50 grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+          <div className="bg-white/70 rounded-xl p-3 flex gap-2 items-start">
+            <TrendingUp size={14} className="text-indigo-500 flex-shrink-0 mt-0.5" />
+            <span className="text-gray-600">Κάθε νέα επιχείρηση = <strong>+1 πόντος</strong></span>
+          </div>
+          <div className="bg-white/70 rounded-xl p-3 flex gap-2 items-start">
+            <Star size={14} className="text-purple-500 flex-shrink-0 mt-0.5" />
+            <span className="text-gray-600">Κάθε επιχείρηση με email/τηλ. = <strong>+1 πόντος</strong></span>
+          </div>
+          <div className="bg-white/70 rounded-xl p-3 flex gap-2 items-start">
+            <Send size={14} className="text-green-600 flex-shrink-0 mt-0.5" />
+            <span className="text-gray-600">Κάθε καμπάνια που φτάνει σε πελάτη = <strong>+1 πόντος</strong></span>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Business Growth ─────────────────────────────────────────────── */}
+      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-base font-bold text-gray-900">Ανάπτυξη Βάσης Πελατών</h2>
+            <p className="text-xs text-gray-400 mt-0.5">Πώς μεγαλώνει το χαρτοφυλάκιό σας</p>
+          </div>
+          <div className="flex gap-3 text-right">
+            <div>
+              <p className="text-2xl font-black text-indigo-700">{totalBiz}</p>
+              <p className="text-xs text-gray-400">Συνολικά</p>
+            </div>
+            {recentAdded > 0 && (
+              <div>
+                <p className="text-2xl font-black text-green-600">+{recentAdded}</p>
+                <p className="text-xs text-gray-400">Τελ. 3 μήνες</p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {growthChart.length > 0 ? (
+          <ResponsiveContainer width="100%" height={220}>
+            <AreaChart data={growthChart} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
+              <defs>
+                <linearGradient id="grad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#6366f1" stopOpacity={0.18} />
+                  <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+              <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+              <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
+              <Tooltip
+                formatter={(v: any, name: string) => [v, name === 'total' ? 'Σύνολο' : 'Νέες']}
+              />
+              <Area type="monotone" dataKey="total" stroke="#6366f1" strokeWidth={2.5}
+                fill="url(#grad)" name="total" dot={{ r: 3, fill: '#6366f1' }} />
+              <Area type="monotone" dataKey="added" stroke="#10b981" strokeWidth={1.5}
+                fill="none" name="added" strokeDasharray="4 3" dot={false} />
+            </AreaChart>
+          </ResponsiveContainer>
+        ) : (
+          <div className="h-40 flex items-center justify-center text-gray-300 text-sm">
+            Προσθέστε επιχειρήσεις για να δείτε την ανάπτυξή σας
+          </div>
+        )}
+
+        {/* Milestone badges */}
+        {totalBiz > 0 && (() => {
+          const TIER1 = [5, 10, 15, 20, 25, 30, 40, 50, 75, 100]
+          const TIER2 = [100, 125, 150, 175, 200, 225, 250, 265, 275, 300]
+          const TIER3 = [300, 325, 350, 400, 450, 500, 600, 700, 800, 1000]
+          const tierMilestones =
+            totalBiz <= 100 ? TIER1 :
+            totalBiz <= 300 ? [...TIER1, ...TIER2] :
+                               [...TIER1, ...TIER2, ...TIER3]
+          const milestones = Array.from(new Set(tierMilestones)).sort((a, b) => a - b)
+          return (
+            <div className="mt-4 flex flex-wrap gap-2">
+              {milestones.map(n => (
+                <span key={n}
+                  className={`text-xs px-2.5 py-1 rounded-full font-semibold border transition-all ${
+                    totalBiz >= n
+                      ? 'bg-indigo-600 text-white border-indigo-600'
+                      : 'bg-gray-50 text-gray-300 border-gray-200'
+                  }`}>
+                  {totalBiz >= n ? '✓' : '🔒'} {n} επιχ.
+                </span>
+              ))}
+            </div>
+          )
+        })()}
+      </div>
+
+      {/* ── Campaign History ─────────────────────────────────────────────── */}
+      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm">
+        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+          <div>
+            <h2 className="text-base font-bold text-gray-900">Ιστορικό Καμπανιών</h2>
+            <p className="text-xs text-gray-400 mt-0.5">Τι έχει σταλεί, πότε και σε ποιους</p>
+          </div>
+          <Link href="/campaigns/new">
+            <button className="text-xs bg-indigo-600 text-white px-3 py-1.5 rounded-lg hover:bg-indigo-700 transition-colors font-medium">
+              + Νέα Καμπάνια
+            </button>
+          </Link>
+        </div>
+
+        {campaigns.length === 0 ? (
+          <div className="py-16 text-center">
+            <Send size={32} className="text-gray-200 mx-auto mb-3" />
+            <p className="text-gray-400 text-sm">Δεν έχετε στείλει καμπάνια ακόμη.</p>
+            <Link href="/campaigns/new">
+              <button className="mt-3 text-sm text-indigo-600 font-medium hover:underline">
+                Στείλτε την πρώτη σας τώρα →
+              </button>
+            </Link>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-100 bg-gray-50 text-xs text-gray-500 uppercase font-semibold">
+                  <th className="px-6 py-3 text-left">Τίτλος</th>
+                  <th className="px-4 py-3 text-left">Κανάλι</th>
+                  <th className="px-4 py-3 text-left">Πρόγραμμα</th>
+                  <th className="px-4 py-3 text-right">Παραλήπτες</th>
+                  <th className="px-4 py-3 text-left">Κατάσταση</th>
+                  <th className="px-4 py-3 text-left">Ημερομηνία</th>
+                </tr>
+              </thead>
+              <tbody>
+                {campaigns.map((c, i) => (
+                  <tr key={c.id} className={`border-b border-gray-50 hover:bg-gray-50 transition-colors ${i % 2 === 0 ? '' : 'bg-gray-50/40'}`}>
+                    <td className="px-6 py-3">
+                      <Link href={`/campaigns/${c.id}`} className="font-medium text-indigo-700 hover:underline">
+                        {c.title}
+                      </Link>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="flex items-center gap-1.5 text-gray-600">
+                        {c.channel === 'EMAIL'
+                          ? <Mail size={13} className="text-blue-500" />
+                          : <MessageCircle size={13} className="text-purple-500" />}
+                        {c.channel}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-gray-500">{c.program || '—'}</td>
+                    <td className="px-4 py-3 text-right">
+                      {c.recipients > 0
+                        ? <span className="font-semibold text-gray-800">{c.recipients}</span>
+                        : <span className="text-gray-300">—</span>}
+                    </td>
+                    <td className="px-4 py-3">
+                      <Badge variant={statusVariant[c.status]}>{statusLabel[c.status]}</Badge>
+                    </td>
+                    <td className="px-4 py-3 text-gray-400 whitespace-nowrap text-xs">
+                      {formatDateTime(c.sentAt || c.createdAt)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     </div>
   )
 }

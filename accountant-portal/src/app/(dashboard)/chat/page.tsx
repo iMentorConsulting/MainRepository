@@ -7,6 +7,18 @@ import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import NewConversationModal from './new-conversation-modal'
 
+const STATUS_OPTIONS = [
+  { value: 'PENDING', label: 'Εκκρεμεί', color: 'bg-amber-100 text-amber-700' },
+  { value: 'ANSWERED', label: 'Απαντήθηκε', color: 'bg-blue-100 text-blue-700' },
+  { value: 'COMPLETED', label: 'Ολοκληρώθηκε', color: 'bg-green-100 text-green-700' },
+  { value: 'ARCHIVED', label: 'Αρχειοθετήθηκε', color: 'bg-gray-100 text-gray-600' },
+]
+
+function StatusBadge({ status }: { status: string }) {
+  const opt = STATUS_OPTIONS.find(s => s.value === status) || STATUS_OPTIONS[0]
+  return <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded flex-shrink-0 ${opt.color}`}>{opt.label}</span>
+}
+
 function timeAgo(dateStr: string) {
   const diff = Date.now() - new Date(dateStr).getTime()
   const mins = Math.floor(diff / 60000)
@@ -21,9 +33,12 @@ export default function ChatPage() {
   const { data: session } = useSession()
   const router = useRouter()
   const isAdmin = session?.user?.role === 'ADMIN'
+  // CONSULTANT is on the I-MENTOR side — same unread logic as ADMIN
+  const isAdminSide = isAdmin || session?.user?.role === 'CONSULTANT'
   const [conversations, setConversations] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [showNew, setShowNew] = useState(false)
+  const [statusFilter, setStatusFilter] = useState<string>('')
 
   async function load() {
     const res = await fetch('/api/chat/conversations')
@@ -33,16 +48,34 @@ export default function ChatPage() {
 
   useEffect(() => { load() }, [])
 
+  const unreadCount = conversations.filter(conv => {
+    const lastMsg = conv.messages?.[0]
+    return lastMsg && !lastMsg.readAt &&
+      ((isAdminSide && lastMsg.senderRole === 'ACCOUNTANT') ||
+       (!isAdminSide && lastMsg.senderRole === 'ADMIN'))
+  }).length
+
   function onCreated(conv: any) {
     setShowNew(false)
     router.push(`/chat/${conv.id}`)
   }
 
+  const visibleConversations = statusFilter
+    ? conversations.filter(c => (c.status || 'PENDING') === statusFilter)
+    : conversations
+
   return (
     <div className="space-y-4 max-w-3xl">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Επικοινωνία</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-bold text-gray-900">Επικοινωνία με i-Mentor</h1>
+            {unreadCount > 0 && (
+              <span className="text-xs font-bold text-white bg-red-500 rounded-full px-2.5 py-1">
+                {unreadCount} νέα
+              </span>
+            )}
+          </div>
           <p className="text-gray-500 mt-1 text-sm">Άμεση επικοινωνία με την ομάδα I-MENTOR</p>
         </div>
         <Button onClick={() => setShowNew(true)}>
@@ -59,12 +92,32 @@ export default function ChatPage() {
         />
       )}
 
+      {isAdmin && (
+        <div className="flex flex-wrap gap-2 items-center">
+          <button
+            onClick={() => setStatusFilter('')}
+            className={`text-xs font-medium px-3 py-1.5 rounded-lg border transition-colors ${statusFilter === '' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}
+          >
+            Όλες
+          </button>
+          {STATUS_OPTIONS.map(s => (
+            <button
+              key={s.value}
+              onClick={() => setStatusFilter(s.value)}
+              className={`text-xs font-medium px-3 py-1.5 rounded-lg border transition-colors ${statusFilter === s.value ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}
+            >
+              {s.label}
+            </button>
+          ))}
+        </div>
+      )}
+
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         {loading ? (
           <div className="flex items-center justify-center h-40">
             <div className="animate-spin w-7 h-7 border-4 border-indigo-600 border-t-transparent rounded-full" />
           </div>
-        ) : conversations.length === 0 ? (
+        ) : visibleConversations.length === 0 ? (
           <div className="py-16 text-center">
             <MessageSquare size={40} className="mx-auto text-gray-300 mb-4" />
             <p className="text-gray-500 font-medium">Δεν υπάρχουν συνομιλίες</p>
@@ -74,55 +127,110 @@ export default function ChatPage() {
               + Νέο μήνυμα
             </button>
           </div>
+        ) : isAdmin ? (
+          (() => {
+            const groups = new Map<string, { office: string; contact: string; convs: any[] }>()
+            for (const conv of visibleConversations) {
+              const key = conv.accountant?.id || 'unknown'
+              if (!groups.has(key)) {
+                groups.set(key, {
+                  office: conv.accountant?.officeName || 'Άγνωστο γραφείο',
+                  contact: conv.accountant?.contactPerson || '',
+                  convs: [],
+                })
+              }
+              groups.get(key)!.convs.push(conv)
+            }
+            return Array.from(groups.entries()).map(([key, group]) => {
+              const unreadCount = group.convs.filter(conv => {
+                const lastMsg = conv.messages?.[0]
+                return lastMsg && !lastMsg.readAt && lastMsg.senderRole === 'ACCOUNTANT'
+              }).length
+              // (always admin-side here since this branch renders only when isAdmin)
+              return (
+                <details key={key} className="group/office border-b border-gray-100 last:border-b-0" open>
+                  <summary className="flex items-center justify-between px-5 py-3 bg-gray-50 cursor-pointer select-none hover:bg-gray-100">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="text-sm font-bold text-gray-900 truncate">{group.office}</span>
+                      {group.contact && <span className="text-xs text-gray-500 truncate">— {group.contact}</span>}
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      {unreadCount > 0 && (
+                        <span className="text-[11px] font-semibold bg-indigo-600 text-white rounded-full px-2 py-0.5">
+                          {unreadCount}
+                        </span>
+                      )}
+                      <span className="text-xs text-gray-400">{group.convs.length} συνομιλίες</span>
+                    </div>
+                  </summary>
+                  <ul className="divide-y divide-gray-100">
+                    {group.convs.map(conv => (
+                      <ConversationRow key={conv.id} conv={conv} isAdmin={isAdmin} isAdminSide={isAdminSide} />
+                    ))}
+                  </ul>
+                </details>
+              )
+            })
+          })()
         ) : (
           <ul className="divide-y divide-gray-100">
-            {conversations.map(conv => {
-              const lastMsg = conv.messages?.[0]
-              const unread = lastMsg && !lastMsg.readAt &&
-                ((isAdmin && lastMsg.senderRole === 'ACCOUNTANT') ||
-                 (!isAdmin && lastMsg.senderRole === 'ADMIN'))
-              return (
-                <li key={conv.id}>
-                  <Link href={`/chat/${conv.id}`}
-                    className="flex items-start gap-3 px-5 py-4 hover:bg-gray-50 transition-colors">
-                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5 ${unread ? 'bg-indigo-600' : 'bg-indigo-100'}`}>
-                      <MessageSquare size={16} className={unread ? 'text-white' : 'text-indigo-600'} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className={`text-sm font-semibold truncate ${unread ? 'text-gray-900' : 'text-gray-700'}`}>
-                          {conv.subject}
-                        </span>
-                        {unread && <span className="w-2 h-2 bg-indigo-500 rounded-full flex-shrink-0" />}
-                      </div>
-                      {isAdmin && (
-                        <p className="text-xs text-indigo-600 font-medium truncate">
-                          {conv.accountant?.officeName} — {conv.accountant?.contactPerson}
-                        </p>
-                      )}
-                      {conv.business && (
-                        <p className="text-xs text-gray-400 flex items-center gap-1 truncate">
-                          <Building2 size={10} />
-                          {conv.business.onomasia || conv.business.afm}
-                        </p>
-                      )}
-                      {lastMsg && (
-                        <p className="text-xs text-gray-400 truncate mt-0.5">{lastMsg.body}</p>
-                      )}
-                    </div>
-                    {lastMsg && (
-                      <span className="text-[11px] text-gray-400 flex-shrink-0 mt-0.5 flex items-center gap-1">
-                        <Clock size={10} />
-                        {timeAgo(lastMsg.createdAt)}
-                      </span>
-                    )}
-                  </Link>
-                </li>
-              )
-            })}
+            {visibleConversations.map(conv => (
+              <ConversationRow key={conv.id} conv={conv} isAdmin={isAdmin} isAdminSide={isAdminSide} />
+            ))}
           </ul>
         )}
       </div>
     </div>
+  )
+}
+
+function ConversationRow({ conv, isAdmin, isAdminSide }: { conv: any; isAdmin: boolean; isAdminSide: boolean }) {
+  const lastMsg = conv.messages?.[0]
+  const unread = lastMsg && !lastMsg.readAt &&
+    ((isAdminSide && lastMsg.senderRole === 'ACCOUNTANT') ||
+     (!isAdminSide && lastMsg.senderRole === 'ADMIN'))
+  return (
+    <li>
+      <Link href={`/chat/${conv.id}`}
+        className={`flex items-start gap-3 px-5 py-4 transition-colors border-l-4 ${unread ? 'bg-indigo-50 hover:bg-indigo-100 border-indigo-600' : 'hover:bg-gray-50 border-transparent'}`}>
+        <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5 ${unread ? 'bg-indigo-600' : 'bg-indigo-100'}`}>
+          <MessageSquare size={16} className={unread ? 'text-white' : 'text-indigo-600'} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <span className={`text-sm truncate ${unread ? 'font-bold text-gray-900' : 'font-semibold text-gray-700'}`}>
+              {conv.subject}
+            </span>
+            {unread && (
+              <span className="flex items-center gap-1 text-[10px] font-bold text-white bg-indigo-600 rounded-full px-2 py-0.5 flex-shrink-0">
+                <span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" />
+                ΝΕΟ
+              </span>
+            )}
+            <StatusBadge status={conv.status || 'PENDING'} />
+          </div>
+          {isAdmin && (
+            <p className="text-xs text-indigo-600 font-medium truncate">
+              {conv.accountant?.officeName} — {conv.accountant?.contactPerson}
+            </p>
+          )}
+          {conv.business && (
+            <p className="text-xs text-gray-400 flex items-center gap-1 truncate">
+              <Building2 size={10} />
+              {conv.business.onomasia || conv.business.afm}
+            </p>
+          )}
+          {lastMsg && (
+            <p className={`text-xs truncate mt-0.5 ${unread ? 'text-gray-700 font-medium' : 'text-gray-400'}`}>{lastMsg.body}</p>
+          )}
+        </div>
+        {lastMsg && (
+          <span className={`text-[11px] flex-shrink-0 mt-0.5 flex items-center gap-1 ${unread ? 'text-indigo-600 font-semibold' : 'text-gray-400'}`}>
+            <Clock size={10} />
+            {timeAgo(lastMsg.createdAt)}
+          </span>
+        )}
+      </Link>
+    </li>
   )
 }

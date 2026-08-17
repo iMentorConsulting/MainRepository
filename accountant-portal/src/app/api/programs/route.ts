@@ -7,10 +7,35 @@ export async function GET(request: NextRequest) {
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
+  const isAccountant = session.user.role === 'ACCOUNTANT'
+  const accountantId = (session.user as any).accountantId as string | null
+
   const programs = await prisma.program.findMany({
-    include: { _count: { select: { matches: true, campaigns: true } } },
+    include: {
+      _count: {
+        select: {
+          // For ACCOUNTANTs, Prisma doesn't natively support filtered _count in findMany.
+          // We include full count here and patch it below for accountants.
+          matches: { where: { status: { not: 'REJECTED' } } },
+          campaigns: true,
+        },
+      },
+    },
     orderBy: { createdAt: 'desc' },
   })
+
+  // Patch match counts so ACCOUNTANTs only see matches for their own businesses
+  if (isAccountant && accountantId) {
+    const myCounts = await prisma.programMatch.groupBy({
+      by: ['programId'],
+      where: { business: { accountantId }, status: { not: 'REJECTED' } },
+      _count: { _all: true },
+    })
+    const countMap = new Map(myCounts.map(r => [r.programId, r._count._all]))
+    for (const p of programs) {
+      (p._count as any).matches = countMap.get(p.id) ?? 0
+    }
+  }
 
   return NextResponse.json({ programs })
 }
@@ -33,6 +58,9 @@ export async function POST(request: NextRequest) {
 
   if (program.active) {
     runMatchingForProgram(program.id).catch(err => console.error('[Matching] Auto-match for new program failed:', err?.message))
+    // Reset GEMI businesses so the next batch run picks up the new program
+    prisma.gemiLookup.updateMany({ where: { aadeEnriched: true }, data: { matchingDone: false } })
+      .catch(err => console.error('[GemiMatch] Reset after new program failed:', err?.message))
   }
 
   return NextResponse.json(program, { status: 201 })

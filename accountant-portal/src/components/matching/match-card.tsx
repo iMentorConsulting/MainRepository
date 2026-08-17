@@ -10,6 +10,8 @@ interface MatchCardProps {
   matchScore: number
   matchReason: string[]
   status: MatchStatus
+  accountantName?: string | null
+  extraCriteria?: string[]
   onStatusChange?: (status: MatchStatus) => void
 }
 
@@ -21,19 +23,7 @@ const statusConfig: Record<MatchStatus, { label: string; variant: any; icon: any
   SUBMITTED: { label: 'Υποβλήθηκε', variant: 'warning', icon: Send },
 }
 
-function ScoreBar({ score }: { score: number }) {
-  const color = score >= 80 ? 'bg-green-500' : score >= 60 ? 'bg-yellow-500' : 'bg-orange-500'
-  return (
-    <div className="flex items-center gap-2">
-      <div className="flex-1 h-2 bg-gray-200 rounded-full">
-        <div className={`h-2 rounded-full ${color}`} style={{ width: `${score}%` }} />
-      </div>
-      <span className="text-sm font-semibold text-gray-700">{score}%</span>
-    </div>
-  )
-}
-
-export function MatchCard({ businessName, afm, programTitle, matchScore, matchReason, status }: MatchCardProps) {
+export function MatchCard({ businessName, afm, programTitle, matchScore, matchReason, status, accountantName, extraCriteria }: MatchCardProps) {
   const conf = statusConfig[status]
   const Icon = conf.icon
   return (
@@ -43,15 +33,12 @@ export function MatchCard({ businessName, afm, programTitle, matchScore, matchRe
           <div className="font-semibold text-gray-900">{businessName || '-'}</div>
           <div className="text-xs text-gray-500">ΑΦΜ: {afm}</div>
           <div className="text-xs text-blue-700 mt-0.5">{programTitle}</div>
+          <div className="text-xs text-gray-500 mt-0.5">{accountantName || 'I-MENTOR'}</div>
         </div>
         <Badge variant={conf.variant} className="flex items-center gap-1">
           <Icon size={11} />
           {conf.label}
         </Badge>
-      </div>
-      <div className="mb-3">
-        <div className="text-xs text-gray-500 mb-1">Σκορ Match</div>
-        <ScoreBar score={Math.round(matchScore)} />
       </div>
       {matchReason.length > 0 && (
         <div>
@@ -64,6 +51,16 @@ export function MatchCard({ businessName, afm, programTitle, matchScore, matchRe
               </li>
             ))}
           </ul>
+        </div>
+      )}
+      {extraCriteria && extraCriteria.length > 0 && (
+        <div className="mt-2 pt-2 border-t border-gray-100">
+          <div className="text-xs text-gray-500 mb-1">Πρόσθετες Προϋποθέσεις</div>
+          <div className="flex flex-wrap gap-1">
+            {extraCriteria.map((label, i) => (
+              <Badge key={i} variant="secondary" className="text-[10px]">{label}</Badge>
+            ))}
+          </div>
         </div>
       )}
     </div>

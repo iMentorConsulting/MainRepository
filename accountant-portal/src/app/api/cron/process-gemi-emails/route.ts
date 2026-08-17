@@ -1,0 +1,192 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { prisma } from '@/lib/prisma'
+import { GEMI_DISCLAIMER, sendMoosendBulkPersonalized } from '@/lib/moosend'
+import { buildRecipientVariables, substituteVars } from '@/lib/gemi-campaign-vars'
+import { sendEmail } from '@/lib/email'
+
+export const dynamic = 'force-dynamic'
+export const maxDuration = 270 // seconds — Railway allows up to 5min for cron services
+
+const BATCH_PER_RUN = 500 // recipients per cron invocation
+
+export async function POST(req: NextRequest) {
+  const cronSecret = process.env.CRON_SECRET
+  const authHeader = req.headers.get('authorization')
+  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
+  const disclaimer = `\n<p style="font-size:11px;color:#888;margin-top:24px;border-top:1px solid #eee;padding-top:12px;">${GEMI_DISCLAIMER}</p>`
+
+  const sendingCampaigns = await (prisma.gemiCampaign as any).findMany({
+    where: { status: 'SENDING', channel: { in: ['EMAIL', 'EMAIL_AND_VIBER'] } },
+    select: { id: true, title: true, subject: true, previewText: true, htmlContent: true, programId: true, programId2: true, programId3: true, moosendCampaignId: true },
+  })
+
+  if (sendingCampaigns.length === 0) {
+    return NextResponse.json({ ok: true, message: 'No campaigns in SENDING state' })
+  }
+
+  const results: Record<string, { sent: number; errors: number; remaining: number; completed: boolean }> = {}
+
+  for (const campaign of sendingCampaigns) {
+    const htmlBase = campaign.htmlContent ?? ''
+    const previewBase = campaign.previewText ?? ''
+    const subjectBase = campaign.subject ?? campaign.title
+    const now = new Date()
+
+    const batch = await prisma.gemiCampaignRecipient.findMany({
+      where: { campaignId: campaign.id, channel: 'EMAIL', status: 'pending' },
+      select: { id: true, gemiId: true, recipient: true },
+      take: BATCH_PER_RUN,
+      orderBy: { createdAt: 'asc' },
+    })
+
+    if (batch.length === 0) {
+      await prisma.gemiCampaign.update({ where: { id: campaign.id }, data: { status: 'SENT' } })
+      results[campaign.id] = { sent: 0, errors: 0, remaining: 0, completed: true }
+      continue
+    }
+
+    // Campaigns larger than one batch span multiple cron runs — number the
+    // Moosend campaign parts so the dashboard stays readable (title, title
+    // — μέρος 2, — μέρος 3, ...).
+    const alreadyProcessed = await prisma.gemiCampaignRecipient.count({
+      where: { campaignId: campaign.id, channel: 'EMAIL', status: { in: ['sent', 'error'] } },
+    })
+    const partNumber = Math.floor(alreadyProcessed / BATCH_PER_RUN) + 1
+    const moosendName = partNumber > 1 ? `${campaign.title} — μέρος ${partNumber}` : campaign.title
+
+    // Build variables for all recipients concurrently (5 at a time)
+    const CONCURRENT = 5
+    const recipientData: Array<{ id: string; email: string; variables: Record<string, string> } | { id: string; error: string }> = []
+    for (let i = 0; i < batch.length; i += CONCURRENT) {
+      const chunk = batch.slice(i, i + CONCURRENT)
+      const results2 = await Promise.all(chunk.map(async r => {
+        try {
+          const variables = await buildRecipientVariables(r.gemiId, campaign.programId ?? '', campaign.programId2 ?? '', (campaign as any).programId3 ?? '')
+          return { id: r.id, email: r.recipient, variables }
+        } catch (err) {
+          return { id: r.id, error: err instanceof Error ? err.message : String(err) }
+        }
+      }))
+      recipientData.push(...results2)
+    }
+
+    // Separate failures
+    const failed = recipientData.filter((r): r is { id: string; error: string } => 'error' in r)
+    const valid = recipientData.filter((r): r is { id: string; email: string; variables: Record<string, string> } => 'email' in r)
+
+    let errors = failed.length
+    let sent = 0
+
+    if (failed.length > 0) {
+      await Promise.all(failed.map(r =>
+        prisma.gemiCampaignRecipient.update({ where: { id: r.id }, data: { status: 'error', errorMessage: r.error } })
+      ))
+    }
+
+    if (valid.length > 0) {
+      // Build the full HTML once (preview injected, disclaimer appended) — still using {{var}} placeholders;
+      // sendMoosendBulkPersonalized will convert them to [subscription.var] merge tags.
+      // Preview text is passed natively to Moosend (PreviewText field) — no HTML injection needed.
+      const htmlFull = htmlBase + disclaimer
+
+      try {
+        const sendResult = await sendMoosendBulkPersonalized({
+          recipients: valid.map(r => ({ email: r.email, variables: r.variables })),
+          subject: subjectBase,
+          previewText: previewBase || undefined,
+          html: htmlFull,
+          campaignName: moosendName,
+        })
+        if (sendResult) {
+          // Accumulate all part IDs (comma-separated) so sync-stats can aggregate across all batches
+          const existingIds = new Set((campaign.moosendCampaignId || '').split(',').filter(Boolean))
+          existingIds.add(sendResult.moosendCampaignId)
+          await prisma.gemiCampaign.update({
+            where: { id: campaign.id },
+            data: { moosendCampaignId: Array.from(existingIds).join(','), moosendListId: sendResult.moosendListId },
+          })
+        }
+        await prisma.gemiCampaignRecipient.updateMany({
+          where: { id: { in: valid.map(r => r.id) } },
+          data: { status: 'sent', sentAt: now },
+        })
+        sent = valid.length
+
+        // ── Gmail archive copy: ONE email per campaign send with the actual
+        // newsletter content + all recipient addresses as a compact
+        // comma-separated string (small visible text at the very bottom so
+        // Gmail reliably indexes it — searching a client email finds this).
+        ;(async () => {
+          // Program-level variables render with real values; business-specific
+          // ones render as neutral [ΠΛΑΪΝΕΣ] labels so employees don't mistake
+          // the archive for one specific client's email.
+          const sampleVars = { ...valid[0].variables }
+          const placeholderLabels: Record<string, string> = {
+            business_name: '[ΕΠΩΝΥΜΙΑ ΕΠΙΧΕΙΡΗΣΗΣ]',
+            afm: '[ΑΦΜ]',
+            address: '[ΔΙΕΥΘΥΝΣΗ]',
+            region: '[ΠΕΡΙΟΧΗ]',
+            founding_date: '[ΗΜ. ΙΔΡΥΣΗΣ]',
+            kad_code: '[ΚΑΔ]',
+            kad_description: '[ΠΕΡΙΓΡΑΦΗ ΚΑΔ]',
+            match_reason: '[ΛΟΓΟΙ ΕΠΙΛΕΞΙΜΟΤΗΤΑΣ]',
+            program_match_reason: '[ΛΟΓΟΙ ΕΠΙΛΕΞΙΜΟΤΗΤΑΣ]',
+            program2_match_reason: '[ΛΟΓΟΙ ΕΠΙΛΕΞΙΜΟΤΗΤΑΣ Β]',
+            other_programs: '[ΑΛΛΑ ΠΡΟΓΡΑΜΜΑΤΑ]',
+            other_programs_count: '#',
+            matched_programs_count: '#',
+            accountant_name: '[ΛΟΓΙΣΤΗΣ]',
+            accountant_office: '[ΓΡΑΦΕΙΟ]',
+            ermis_link: '#',
+            ermis_link_2: '#',
+            exodikastikos_link: '#',
+            unsubscribe_link: '#',
+          }
+          for (const [key, label] of Object.entries(placeholderLabels)) {
+            if (key in sampleVars) sampleVars[key] = label
+          }
+          const archiveSubject = `[ΑΡΧΕΙΟ ΚΑΜΠΑΝΙΑΣ] ${substituteVars(subjectBase, sampleVars)} — ${valid.length} παραλήπτες`
+          const recipientsCompact = valid.map(r => r.email).join(',')
+          const archiveHtml =
+            substituteVars(htmlFull, sampleVars) +
+            `<div style="margin-top:28px;border-top:1px solid #ddd;padding-top:8px;font-size:8px;line-height:1.3;color:#aaa;word-break:break-all;">` +
+            `Καμπάνια: ${moosendName} · ${valid.length} παραλήπτες: ${recipientsCompact}</div>`
+          await sendEmail({
+            to: process.env.ADMIN_EMAIL || 'info@i-mentor.gr',
+            subject: archiveSubject,
+            html: archiveHtml,
+          })
+          console.log(`[GemiEmail] archive copy sent for campaign ${campaign.id} (${valid.length} recipients, html ${Math.round(archiveHtml.length / 1024)}KB)`)
+        })().catch(err => console.error('[GemiEmail] archive copy failed:', err instanceof Error ? err.message : err))
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : String(err)
+        console.error(`[GemiEmail] bulk send failed for campaign ${campaign.id}:`, errorMessage)
+        await prisma.gemiCampaignRecipient.updateMany({
+          where: { id: { in: valid.map(r => r.id) } },
+          data: { status: 'error', errorMessage },
+        })
+        errors += valid.length
+      }
+    }
+
+    const remaining = await prisma.gemiCampaignRecipient.count({
+      where: { campaignId: campaign.id, channel: 'EMAIL', status: 'pending' },
+    })
+    const totalSentSoFar = await prisma.gemiCampaignRecipient.count({
+      where: { campaignId: campaign.id, channel: 'EMAIL', status: 'sent' },
+    })
+    const completed = remaining === 0
+
+    await prisma.gemiCampaign.update({
+      where: { id: campaign.id },
+      data: { totalSent: totalSentSoFar, ...(completed ? { status: 'SENT' } : {}) },
+    })
+
+    results[campaign.id] = { sent, errors, remaining, completed }
+  }
+
+  return NextResponse.json({ ok: true, results })
+}

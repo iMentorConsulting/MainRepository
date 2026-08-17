@@ -1,12 +1,12 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableHead, TableBody, TableRow, Th, Td } from '@/components/ui/table'
-import { Plus, Search, Edit, Trash2, Building2, ShieldCheck } from 'lucide-react'
+import { Plus, Search, Edit, Trash2, Building2, ShieldCheck, Target, ImagePlus, X } from 'lucide-react'
 
 interface Accountant {
   id: string
@@ -16,7 +16,9 @@ interface Accountant {
   phone: string | null
   active: boolean
   approved: boolean
+  logoUrl?: string | null
   _count: { businesses: number; users: number }
+  eligibleMatches?: number
 }
 
 export default function AccountantsPage() {
@@ -25,6 +27,9 @@ export default function AccountantsPage() {
   const [accountants, setAccountants] = useState<Accountant[]>([])
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
+  const [uploadingId, setUploadingId] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const uploadTargetRef = useRef<string | null>(null)
 
   useEffect(() => {
     if (status === 'loading') return
@@ -49,8 +54,60 @@ export default function AccountantsPage() {
 
   async function handleDelete(id: string) {
     if (!confirm('Διαγραφή λογιστή; Αυτή η ενέργεια είναι μη αναστρέψιμη.')) return
-    await fetch(`/api/accountants/${id}`, { method: 'DELETE' })
+    const res = await fetch(`/api/accountants/${id}`, { method: 'DELETE' })
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      alert(`Σφάλμα διαγραφής: ${data.error || res.status}`)
+      return
+    }
     setAccountants(prev => prev.filter(a => a.id !== id))
+  }
+
+  function handleLogoClick(id: string) {
+    uploadTargetRef.current = id
+    fileInputRef.current?.click()
+  }
+
+  async function handleLogoFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    const id = uploadTargetRef.current
+    if (!file || !id) return
+    e.target.value = ''
+
+    const reader = new FileReader()
+    reader.onload = async () => {
+      const dataUrl = reader.result as string
+      setUploadingId(id)
+      try {
+        const res = await fetch(`/api/accountants/${id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ logoUrl: dataUrl }),
+        })
+        if (res.ok) {
+          setAccountants(prev => prev.map(a => a.id === id ? { ...a, logoUrl: dataUrl } : a))
+        }
+      } finally {
+        setUploadingId(null)
+      }
+    }
+    reader.readAsDataURL(file)
+  }
+
+  async function handleLogoRemove(id: string) {
+    setUploadingId(id)
+    try {
+      const res = await fetch(`/api/accountants/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ logoUrl: null }),
+      })
+      if (res.ok) {
+        setAccountants(prev => prev.map(a => a.id === id ? { ...a, logoUrl: null } : a))
+      }
+    } finally {
+      setUploadingId(null)
+    }
   }
 
   async function handleApprove(id: string) {
@@ -80,6 +137,14 @@ export default function AccountantsPage() {
         </Link>
       </div>
 
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={handleLogoFile}
+      />
+
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
         <div className="p-4 border-b border-gray-100">
           <div className="relative max-w-sm">
@@ -107,6 +172,8 @@ export default function AccountantsPage() {
                 <Th>Email</Th>
                 <Th>Τηλέφωνο</Th>
                 <Th>Επιχειρήσεις</Th>
+                <Th>Matches (επιλέξιμα)</Th>
+                <Th>Λογότυπο</Th>
                 <Th>Κατάσταση</Th>
                 <Th>Ενέργειες</Th>
               </TableRow>
@@ -114,7 +181,7 @@ export default function AccountantsPage() {
             <TableBody>
               {filtered.length === 0 ? (
                 <TableRow>
-                  <Td colSpan={7} className="text-center text-gray-400 py-8">
+                  <Td colSpan={9} className="text-center text-gray-400 py-8">
                     Δεν βρέθηκαν λογιστές
                   </Td>
                 </TableRow>
@@ -134,6 +201,41 @@ export default function AccountantsPage() {
                         <Building2 size={14} className="text-gray-400" />
                         {a._count.businesses}
                       </span>
+                    </Td>
+                    <Td>
+                      <span className="flex items-center gap-1">
+                        <Target size={14} className="text-gray-400" />
+                        {a.eligibleMatches ?? 0}
+                      </span>
+                    </Td>
+                    <Td>
+                      <div className="flex items-center gap-1.5">
+                        {a.logoUrl ? (
+                          <>
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={a.logoUrl} alt="logo" className="h-8 w-8 object-contain rounded border border-slate-700 bg-slate-900 p-0.5 cursor-pointer" onClick={() => handleLogoClick(a.id)} title="Αντικατάσταση λογότυπου" />
+                            <button
+                              onClick={() => handleLogoRemove(a.id)}
+                              disabled={uploadingId === a.id}
+                              className="text-gray-300 hover:text-red-400 transition-colors"
+                              title="Αφαίρεση λογότυπου"
+                            >
+                              <X size={12} />
+                            </button>
+                          </>
+                        ) : (
+                          <button
+                            onClick={() => handleLogoClick(a.id)}
+                            disabled={uploadingId === a.id}
+                            className="flex items-center gap-1 text-xs text-gray-400 hover:text-indigo-600 transition-colors"
+                            title="Ανέβασμα λογότυπου"
+                          >
+                            <ImagePlus size={14} />
+                            <span>Ανέβασμα</span>
+                          </button>
+                        )}
+                        {uploadingId === a.id && <span className="text-xs text-gray-400">...</span>}
+                      </div>
                     </Td>
                     <Td>
                       <div className="flex flex-col gap-1 items-start">

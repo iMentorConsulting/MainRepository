@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma'
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (session.user.role === 'CONSULTANT') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const campaign = await prisma.campaign.findUnique({
     where: { id: params.id },
@@ -30,6 +31,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
 export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (session.user.role === 'CONSULTANT') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const existing = await prisma.campaign.findUnique({ where: { id: params.id }, select: { accountantId: true } })
   if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
@@ -54,6 +56,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
 export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (session.user.role === 'CONSULTANT') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const campaign = await prisma.campaign.findUnique({ where: { id: params.id } })
   if (!campaign) return NextResponse.json({ error: 'Not found' }, { status: 404 })

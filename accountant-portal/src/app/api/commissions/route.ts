@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma'
 export async function GET(req: NextRequest) {
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (session.user.role === 'CONSULTANT') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const { searchParams } = new URL(req.url)
   const status = searchParams.get('status')
@@ -17,6 +18,8 @@ export async function GET(req: NextRequest) {
 
   if (session.user.role === 'ACCOUNTANT') {
     where.accountantId = session.user.accountantId
+    // Accountants never see CANCELLED commissions — those are admin-only corrections
+    where.status = { not: 'CANCELLED' }
   } else if (accountantId) {
     where.accountantId = accountantId
   }
@@ -45,6 +48,7 @@ export async function GET(req: NextRequest) {
           program: { select: { id: true, title: true } },
         },
       },
+      financePayment: { select: { serviceName: true, category: true } },
     },
     orderBy: { createdAt: 'desc' },
   })

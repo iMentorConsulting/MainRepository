@@ -27,6 +27,37 @@ async function fetchJson(url: string, init: RequestInit): Promise<{ status: numb
   return { status: res.status, body, text }
 }
 
+// Viber clients auto-linkify any run of 6+ digits (KAD codes, AFM, etc.),
+// rendering them as blue/underlined tappable text that looks like a stray
+// link. Breaking the run with invisible zero-width spaces keeps the digits
+// readable but stops the auto-linker from matching. Real links are left
+// untouched — inserting zero-width spaces into a URL (e.g. a digit run in
+// the Ermis token) breaks the link itself.
+function deLinkifyDigitRuns(text: string): string {
+  return text
+    .split(/(https?:\/\/\S+)/g)
+    .map((part, i) => (i % 2 === 1 ? part : part.replace(/\d{6,}/g, digits => digits.split('').join('​'))))
+    .join('')
+}
+
+// Viber's plain-text rendering has no hanging indent, so a "• " bullet only
+// lines up on the first line of a wrapped item — every following line starts
+// flush left, making the list look broken. Dropping the bullet (the section
+// header already announces it's a list) keeps long, wrapping lines tidy.
+function stripBullets(text: string): string {
+  return text.replace(/^[•-]\s+/gm, '')
+}
+
+// Infobip silently drops Viber messages over ~1000 chars (source_id stays null).
+// Truncate at the last newline before the limit and append a note.
+const VIBER_MAX_CHARS = 1000
+function truncateForViber(text: string): string {
+  if (text.length <= VIBER_MAX_CHARS) return text
+  const cut = text.lastIndexOf('\n', VIBER_MAX_CHARS - 40)
+  const base = cut > 0 ? text.slice(0, cut) : text.slice(0, VIBER_MAX_CHARS - 40)
+  return base + '\n\n📧 Αναλυτικά στο email σας.'
+}
+
 async function chatwootSend(clientName: string, phone: string, message: string): Promise<{ ok: boolean; reason: string }> {
   const cwUrl = (process.env.CHATWOOT_URL || '').trim().replace(/\/$/, '')
   const cwToken = (process.env.CHATWOOT_API_TOKEN || '').trim()
@@ -54,7 +85,9 @@ async function chatwootSend(clientName: string, phone: string, message: string):
   } catch {}
 
   // 2. Create contact if not found
+  let isNewContact = false
   if (!contactId) {
+    isNewContact = true
     try {
       const r = await fetchJson(`${base}/contacts`, {
         method: 'POST',
@@ -62,8 +95,21 @@ async function chatwootSend(clientName: string, phone: string, message: string):
         body: JSON.stringify({ name: clientName, phone_number: phone }),
       })
       if (r.status === 200 || r.status === 201) {
-        contactId = r.body?.id ?? null
+        contactId = r.body?.id ?? r.body?.data?.id ?? null
+        if (!contactId) {
+          // Body structure unknown — search immediately since we know the contact exists
+          console.warn(`[Viber] create_contact 2xx but no id in body for ${phone}:`, JSON.stringify(r.body).slice(0, 400))
+          try {
+            const r2 = await fetchJson(`${base}/contacts/search?q=${encodeURIComponent(phone)}&include_contacts=true`, { headers })
+            if (r2.status === 200) {
+              const payload = r2.body?.payload
+              const contacts = Array.isArray(payload) ? payload : (payload?.contacts || [])
+              if (contacts.length > 0) contactId = contacts[0].id
+            }
+          } catch {}
+        }
       } else {
+        console.warn(`[Viber] create_contact HTTP ${r.status} for ${phone}:`, JSON.stringify(r.body).slice(0, 400))
         contactId = r.body?.id
           ?? r.body?.data?.id
           ?? (Array.isArray(r.body?.errors) ? r.body.errors[0]?.id : null)
@@ -87,18 +133,47 @@ async function chatwootSend(clientName: string, phone: string, message: string):
 
   if (!contactId) return { ok: false, reason: `Could not create/find contact for ${phone}` }
 
-  // 3. Create conversation on the Viber inbox
+  // Newly created contacts need a moment to register with the Viber provider
+  // before a conversation/message against them will actually be delivered.
+  if (isNewContact) await new Promise(resolve => setTimeout(resolve, 3000))
+
+  // 3. Reuse an existing conversation on the Viber inbox if one exists,
+  // reopening it if it was resolved/closed, instead of always starting a new one.
   let convId: number | null = null
   try {
-    const r = await fetchJson(`${base}/conversations`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({ inbox_id: parseInt(cwInbox), contact_id: contactId }),
-    })
-    if (r.status === 200 || r.status === 201) convId = r.body?.id ?? null
-    else return { ok: false, reason: `create_conv HTTP ${r.status}: ${r.text.slice(0, 200)}` }
-  } catch (e: any) {
-    return { ok: false, reason: `create_conv exception: ${e?.message || e}` }
+    const r = await fetchJson(`${base}/contacts/${contactId}/conversations`, { headers })
+    if (r.status === 200) {
+      const conversations = Array.isArray(r.body?.payload) ? r.body.payload : []
+      const existing = conversations
+        .filter((c: any) => c.inbox_id === parseInt(cwInbox))
+        .sort((a: any, b: any) => (b.last_activity_at || 0) - (a.last_activity_at || 0))[0]
+      if (existing) {
+        convId = existing.id
+        if (existing.status !== 'open') {
+          try {
+            await fetchJson(`${base}/conversations/${convId}/toggle_status`, {
+              method: 'POST',
+              headers,
+              body: JSON.stringify({ status: 'open' }),
+            })
+          } catch {}
+        }
+      }
+    }
+  } catch {}
+
+  if (!convId) {
+    try {
+      const r = await fetchJson(`${base}/conversations`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ inbox_id: parseInt(cwInbox), contact_id: contactId }),
+      })
+      if (r.status === 200 || r.status === 201) convId = r.body?.id ?? null
+      else return { ok: false, reason: `create_conv HTTP ${r.status}: ${r.text.slice(0, 200)}` }
+    } catch (e: any) {
+      return { ok: false, reason: `create_conv exception: ${e?.message || e}` }
+    }
   }
 
   if (!convId) return { ok: false, reason: 'Could not create conversation' }
@@ -108,9 +183,24 @@ async function chatwootSend(clientName: string, phone: string, message: string):
     const r = await fetchJson(`${base}/conversations/${convId}/messages`, {
       method: 'POST',
       headers,
-      body: JSON.stringify({ content: message, message_type: 'outgoing', private: false }),
+      body: JSON.stringify({ content: truncateForViber(deLinkifyDigitRuns(stripBullets(message))), message_type: 'outgoing', private: false }),
     })
-    if (r.status === 200 || r.status === 201) return { ok: true, reason: '' }
+    // Full body, not just status — Chatwoot reports per-channel delivery
+    // problems (e.g. Infobip rejecting the send) via fields on the message
+    // object itself (status/source_id/external_error) even on a 200/201,
+    // since the HTTP call only confirms Chatwoot *accepted* the message into
+    // the conversation, not that the Viber/Infobip channel delivered it.
+    console.log(`[Viber] send_msg HTTP ${r.status} convId=${convId} contactId=${contactId} raw body:`, r.text.slice(0, 2000))
+    if (r.status === 200 || r.status === 201) {
+      const msgStatus = r.body?.status ?? r.body?.message?.status ?? null
+      const sourceId = r.body?.source_id ?? r.body?.message?.source_id ?? null
+      const externalError = r.body?.external_error ?? r.body?.message?.external_error ?? r.body?.content_attributes?.external_error ?? null
+      console.log(`[Viber] message accepted by Chatwoot — status=${msgStatus} source_id=${sourceId} external_error=${externalError ?? '(none)'}`)
+      if (msgStatus === 'failed' || externalError) {
+        return { ok: false, reason: `Chatwoot accepted but channel reported failure — status=${msgStatus} external_error=${externalError}` }
+      }
+      return { ok: true, reason: '' }
+    }
     return { ok: false, reason: `send_msg HTTP ${r.status}: ${r.text.slice(0, 200)}` }
   } catch (e: any) {
     return { ok: false, reason: `send_msg exception: ${e?.message || e}` }
@@ -131,9 +221,12 @@ async function chatwootSendWithRetry(clientName: string, phone: string, message:
   return { ok: false, reason: lastErr }
 }
 
-export async function sendViberMessage(message: ViberMessage): Promise<boolean> {
+export async function sendViberMessage(message: ViberMessage): Promise<{ ok: boolean; reason: string }> {
   const phone = normalizeGreekPhone(message.to)
-  const { ok, reason } = await chatwootSendWithRetry(message.senderName || 'I-MENTOR', phone, message.text)
-  if (!ok) console.error(`[Viber] Send to ${phone} failed:`, reason)
-  return ok
+  if (!phone) return { ok: false, reason: `Empty phone number (raw: "${message.to}")` }
+  console.log(`[Viber] Attempting send to ${phone} (raw: "${message.to}")`)
+  const result = await chatwootSendWithRetry(message.senderName || 'I-MENTOR', phone, message.text)
+  if (!result.ok) console.error(`[Viber] Send to ${phone} failed: ${result.reason}`)
+  else console.log(`[Viber] Send to ${phone} succeeded`)
+  return result
 }

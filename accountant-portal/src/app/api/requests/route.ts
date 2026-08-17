@@ -34,7 +34,23 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'No accountant profile' }, { status: 400 })
   }
 
-  const { businessId, programId, subject, message } = await request.json()
+  const { businessId, programId, subject, message, attachmentUrl, attachmentName } = await request.json()
+
+  if (businessId) {
+    const business = await prisma.business.findUnique({ where: { id: businessId }, select: { accountantId: true } })
+    if (!business || business.accountantId !== session.user.accountantId) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+  }
+
+  const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024 // 10MB
+  if (attachmentUrl && typeof attachmentUrl === 'string') {
+    // Base64 data URLs are ~33% larger than the raw bytes they encode.
+    const approxBytes = attachmentUrl.length * 0.75
+    if (approxBytes > MAX_ATTACHMENT_BYTES) {
+      return NextResponse.json({ error: 'Το συνημμένο αρχείο υπερβαίνει το όριο των 10MB' }, { status: 413 })
+    }
+  }
 
   const req = await prisma.imentorRequest.create({
     data: {
@@ -43,6 +59,8 @@ export async function POST(request: NextRequest) {
       programId: programId || null,
       subject,
       message,
+      attachmentUrl: attachmentUrl || null,
+      attachmentName: attachmentName || null,
       status: 'NEW',
     },
     include: {

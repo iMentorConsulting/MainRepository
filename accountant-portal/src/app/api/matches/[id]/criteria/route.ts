@@ -1,0 +1,63 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { auth } from '@/lib/auth'
+import { prisma } from '@/lib/prisma'
+
+export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
+  const session = await auth()
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const existing = await prisma.programMatch.findUnique({
+    where: { id: params.id },
+    select: { business: { select: { accountantId: true } }, rejectionReason: true },
+  })
+  if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  if (session.user.role === 'ACCOUNTANT' && existing.business.accountantId !== session.user.accountantId) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
+  const { criterionId, value } = await request.json()
+  if (!criterionId) {
+    return NextResponse.json({ error: 'Invalid payload' }, { status: 400 })
+  }
+
+  if (value === null) {
+    await prisma.matchCriterionCheck.deleteMany({
+      where: { matchId: params.id, criterionId },
+    })
+  } else if (['PASS', 'FAIL'].includes(value)) {
+    await prisma.matchCriterionCheck.upsert({
+      where: { matchId_criterionId: { matchId: params.id, criterionId } },
+      update: { value },
+      create: { matchId: params.id, criterionId, value },
+    })
+  } else {
+    return NextResponse.json({ error: 'Invalid payload' }, { status: 400 })
+  }
+
+  const match = await prisma.programMatch.findUnique({
+    where: { id: params.id },
+    include: { criterionChecks: { include: { criterion: true } }, rejectionReason: true },
+  })
+  if (!match) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  // Keep status in sync with criterion checks: a FAILed criterion makes the
+  // match ineligible (REJECTED), regardless of the rejectionReason field.
+  const hasFail = match.criterionChecks.some(c => c.value === 'FAIL')
+  let updatedMatch = match
+  if (hasFail && match.status !== 'REJECTED') {
+    updatedMatch = await prisma.programMatch.update({
+      where: { id: params.id },
+      data: { status: 'REJECTED' },
+      include: { criterionChecks: { include: { criterion: true } }, rejectionReason: true },
+    })
+  } else if (!hasFail && match.status === 'REJECTED' && !match.rejectionReasonId) {
+    updatedMatch = await prisma.programMatch.update({
+      where: { id: params.id },
+      data: { status: 'POTENTIAL' },
+      include: { criterionChecks: { include: { criterion: true } }, rejectionReason: true },
+    })
+  }
+
+  return NextResponse.json(updatedMatch)
+}

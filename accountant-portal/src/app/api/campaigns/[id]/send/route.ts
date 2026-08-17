@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { sendEmail, renderTemplate, renderCampaignEmailHtml } from '@/lib/email'
 import { sendViberMessage } from '@/lib/viber'
 import { createAuditLog } from '@/lib/audit'
+import { getOrCreateErmisLink } from '@/lib/ermis'
 
 async function processCampaignSend(
   campaign: any,
@@ -17,6 +18,28 @@ async function processCampaignSend(
   const appSetting = await prisma.appSetting.findUnique({ where: { id: 'main' } })
   const imentorLogoUrl = appSetting?.imentorLogoUrl || ''
 
+  const extraCriteriaIds: string[] = campaign.program?.extraCriteriaIds || []
+  const extraCriteriaList = extraCriteriaIds.length
+    ? await prisma.eligibilityCriterion.findMany({ where: { id: { in: extraCriteriaIds } }, select: { label: true } })
+    : []
+  const otherReqLines = campaign.program?.otherRequirements
+    ? (campaign.program.otherRequirements as string).split('\n').map((l: string) => l.trim()).filter(Boolean).map((l: string) => `• ${l}`)
+    : []
+  const allCriteriaLines = [
+    ...extraCriteriaList.map(c => `• ${c.label}`),
+    ...otherReqLines,
+  ]
+  const extraCriteriaText = allCriteriaLines.length
+    ? allCriteriaLines.join('\n')
+    : ''
+  const programDeadlineText = campaign.program?.endDate
+    ? new Date(campaign.program.endDate).toLocaleDateString('el-GR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+    : campaign.program?.category === 'DYPA'
+    ? 'Έως κάλυψης των θέσεων'
+    : campaign.program?.category === 'ESPA' || campaign.program?.category === 'MICROCREDITS'
+    ? 'Έως εξάντλησης των κονδυλίων'
+    : ''
+
   const useEmail = campaign.channel === 'EMAIL' || campaign.channel === 'EMAIL_AND_VIBER'
   const useViber = campaign.channel === 'VIBER' || campaign.channel === 'EMAIL_AND_VIBER'
 
@@ -24,26 +47,49 @@ async function processCampaignSend(
     const emailRecipient = business.email
     const viberRecipient = business.viberPhone || business.phone
 
-    if (useEmail && !emailRecipient && !useViber) { failed++; continue }
-    if (useViber && !viberRecipient && !useEmail) { failed++; continue }
-    if (!emailRecipient && !viberRecipient) { failed++; continue }
+    if (useEmail && !emailRecipient && !useViber) {
+      failed++
+      await prisma.campaignRecipient.create({ data: { campaignId: campaign.id, businessId: business.id, channel: campaign.channel, recipient: '', status: 'failed', errorMessage: 'Δεν υπάρχει email' } })
+      continue
+    }
+    if (useViber && !viberRecipient && !useEmail) {
+      failed++
+      await prisma.campaignRecipient.create({ data: { campaignId: campaign.id, businessId: business.id, channel: campaign.channel, recipient: '', status: 'failed', errorMessage: 'Δεν υπάρχει αριθμός τηλεφώνου' } })
+      continue
+    }
+    if (!emailRecipient && !viberRecipient) {
+      failed++
+      await prisma.campaignRecipient.create({ data: { campaignId: campaign.id, businessId: business.id, channel: campaign.channel, recipient: '', status: 'failed', errorMessage: 'Δεν υπάρχει email ούτε τηλέφωνο' } })
+      continue
+    }
 
     const matchReasons = matchReasonByBusiness.get(business.id) || []
     const bullet = '•'
+    const ermisLink = campaign.programId ? await getOrCreateErmisLink(business.id, campaign.programId) : ''
     const variables: Record<string, string> = {
       business_name: business.onomasia || business.afm,
       afm: business.afm,
       accountant_name: business.accountant?.contactPerson || '',
       accountant_office: business.accountant?.officeName || '',
       program_title: campaign.program?.title || '',
+      program_description: campaign.program?.description || '',
+      program_url: campaign.program?.websiteUrl || '',
+      program_deadline: programDeadlineText,
+      extra_criteria: extraCriteriaText,
       kad_description: business.activities[0]?.firmActCode || '',
       match_reason: matchReasons.map(r => `${bullet} ${r}`).join('\n'),
-      unsubscribe_link: `${process.env.NEXTAUTH_URL || 'http://localhost:3001'}/api/unsubscribe/${business.unsubscribeToken}`,
+      unsubscribe_link: `${process.env.APP_URL || 'https://logistis.i-mentor.gr'}/api/unsubscribe/${business.unsubscribeToken}`,
+      ermis_link: ermisLink,
     }
 
-    const message = renderTemplate(campaign.messageTemplate, variables)
-    const emailSubject = renderTemplate(campaign.subject || campaign.title, variables)
+    const rawMessage = renderTemplate(campaign.messageTemplate, variables)
+    // Viber natively renders *text* as bold; collapse any **double** to single *
+    const message = rawMessage
+      .replace(/\*\*([^*]*)\*\*/g, (_, inner) => inner.trim() ? `*${inner.trim()}*` : '')
+    let emailSubject = renderTemplate(campaign.subject || campaign.title, variables)
+    if (!variables.accountant_office) emailSubject = emailSubject.replace(/^\s*&\s*/, '')
     let success = false
+    const errors: string[] = []
 
     try {
       if (useEmail && emailRecipient) {
@@ -71,17 +117,23 @@ async function processCampaignSend(
             accountantOfficeName: business.accountant?.officeName || '',
             accountantLogoUrl: business.accountant?.logoUrl || '',
             unsubscribeUrl: variables.unsubscribe_link,
+            ermisLink: variables.ermis_link,
+            programUrl: variables.program_url,
           }),
         })
         if (emailOk) success = true
+        else errors.push('Email: αποτυχία αποστολής')
       }
 
       if (useViber && viberRecipient) {
-        const viberOk = await sendViberMessage({ to: viberRecipient, text: message, senderName: business.onomasia || business.afm })
-        if (viberOk) success = true
+        const viberResult = await sendViberMessage({ to: viberRecipient, text: message, senderName: business.onomasia || business.afm })
+        if (viberResult.ok) success = true
+        else errors.push(`Viber: ${viberResult.reason}`)
       }
     } catch (err: any) {
-      console.error(`[Campaign ${campaign.id}] Send error for ${business.afm}:`, err?.message || err)
+      const msg = err?.message || String(err)
+      errors.push(`exception: ${msg}`)
+      console.error(`[Campaign ${campaign.id}] Send error for ${business.afm}:`, msg)
     }
 
     const primaryRecipient = emailRecipient || viberRecipient || ''
@@ -93,6 +145,7 @@ async function processCampaignSend(
         recipient: primaryRecipient,
         status: success ? 'sent' : 'failed',
         sentAt: success ? new Date() : null,
+        errorMessage: errors.length > 0 ? errors.join(' | ') : null,
       }
     })
 
@@ -119,6 +172,7 @@ async function processCampaignSend(
 export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (session.user.role === 'CONSULTANT') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const campaign = await prisma.campaign.findUnique({
     where: { id: params.id },
@@ -129,6 +183,11 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
   })
 
   if (!campaign) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  // ACCOUNTANT can only send their own campaigns
+  if (session.user.role === 'ACCOUNTANT' && campaign.accountantId !== (session.user as any).accountantId) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
 
   let selectedBusinessIds: string[] | null = null
   try {
@@ -156,11 +215,15 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
   let matchReasonByBusiness = new Map<string, string[]>()
   if (campaign.programId) {
     const matches = await prisma.programMatch.findMany({
-      where: { programId: campaign.programId },
+      where: { programId: campaign.programId, status: { not: 'REJECTED' } },
       select: { businessId: true, matchReason: true }
     })
     matchReasonByBusiness = new Map(matches.map(m => [m.businessId, m.matchReason]))
     businesses = businesses.filter(b => matchReasonByBusiness.has(b.id))
+  }
+
+  if (businesses.length === 0) {
+    return NextResponse.json({ error: 'Δεν υπάρχουν επιλέξιμοι παραλήπτες για αυτή την καμπάνια' }, { status: 400 })
   }
 
   processCampaignSend(campaign, businesses, matchReasonByBusiness, session.user.id)

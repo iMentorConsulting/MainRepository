@@ -249,7 +249,7 @@ export default function NewPaymentPage() {
               <Banknote size={16} />
               Προεπισκόπηση Αιτήματος IRIS
             </div>
-            <div className="grid grid-cols-2 gap-2 text-sm">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
               <div className="text-gray-500">Επιχείρηση:</div>
               <div className="font-medium">{selectedBusiness?.onomasia || '—'}</div>
               <div className="text-gray-500">Υπηρεσία:</div>
