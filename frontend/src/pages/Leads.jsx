@@ -737,19 +737,7 @@ export default function Leads() {
           <h1 className="text-2xl font-bold text-gray-900">Leads</h1>
           <div className="text-sm text-gray-500">{data.total} εγγραφές {options.total ? `(από ${options.total})` : ''}</div>
         </div>
-        <div className="flex items-center gap-2">
-          {isAdmin && (
-            <button
-              onClick={handleRetryErmisErrors}
-              disabled={retryBusy}
-              className="flex items-center gap-1.5 text-sm bg-orange-100 text-orange-700 hover:bg-orange-200 disabled:opacity-50 border border-orange-300 px-3 py-1.5 rounded-lg font-medium"
-              title="Επανεκκίνηση ΕΡΜΗΣ για leads με σφάλμα 15–17/8"
-            >
-              🔁 {retryBusy ? 'Επανεκκίνηση…' : 'Retry ΕΡΜΗΣ (15–17/8)'}
-            </button>
-          )}
-          <button onClick={() => setShowNew(true)} className="btn-primary text-sm flex items-center gap-1"><PlusIcon className="w-4 h-4" />Νέο Lead</button>
-        </div>
+        <button onClick={() => setShowNew(true)} className="btn-primary text-sm flex items-center gap-1"><PlusIcon className="w-4 h-4" />Νέο Lead</button>
       </div>
 
       {/* Status chips */}
