@@ -15,7 +15,7 @@ function timeAgo(dateStr: string) {
 
 export function FloatingChat() {
   const { data: session } = useSession()
-  const isAdmin = session?.user?.role === 'ADMIN'
+  const isAdmin = ['ADMIN', 'CONSULTANT'].includes(session?.user?.role ?? '')
   const [open, setOpen] = useState(false)
   const [view, setView] = useState<'list' | 'thread' | 'new'>('list')
   const [conversations, setConversations] = useState<any[]>([])
