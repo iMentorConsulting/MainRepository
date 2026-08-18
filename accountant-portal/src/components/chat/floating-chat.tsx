@@ -38,8 +38,14 @@ export function FloatingChat() {
   const bottomRef = useRef<HTMLDivElement>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
+  const convPollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
   const loadConversations = useCallback(async () => {
     const res = await fetch('/api/chat/conversations')
+    if (res.status === 401) {
+      if (convPollRef.current) { clearInterval(convPollRef.current); convPollRef.current = null }
+      return
+    }
     if (res.ok) {
       const list = await res.json()
       setConversations(list)
@@ -54,8 +60,8 @@ export function FloatingChat() {
 
   useEffect(() => {
     loadConversations()
-    const iv = setInterval(loadConversations, 30_000)
-    return () => clearInterval(iv)
+    convPollRef.current = setInterval(loadConversations, 30_000)
+    return () => { if (convPollRef.current) clearInterval(convPollRef.current) }
   }, [loadConversations])
 
   useEffect(() => {

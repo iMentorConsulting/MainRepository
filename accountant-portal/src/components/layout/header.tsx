@@ -15,19 +15,21 @@ function NotificationBell() {
   const [notifications, setNotifications] = useState<any[]>([])
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    fetchNotifications()
-    const iv = setInterval(fetchNotifications, 60_000)
-    return () => clearInterval(iv)
-  }, [])
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   async function fetchNotifications() {
     try {
       const res = await fetch('/api/notifications')
+      if (res.status === 401) { if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null }; return }
       if (res.ok) setNotifications(await res.json())
     } catch {}
   }
+
+  useEffect(() => {
+    fetchNotifications()
+    pollRef.current = setInterval(fetchNotifications, 60_000)
+    return () => { if (pollRef.current) clearInterval(pollRef.current) }
+  }, [])
 
   useEffect(() => {
     function onClick(e: MouseEvent) {
