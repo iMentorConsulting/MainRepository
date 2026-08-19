@@ -11,7 +11,7 @@ import { estimateCostEur } from '@/lib/ermis-cost'
 const PAGE_SIZE = 25
 
 type Transcript = {
-  source: 'business' | 'gemi'
+  source: 'business' | 'gemi' | 'cm'
   businessId: string | null
   gemiId: string | null
   programId: string
@@ -108,6 +108,7 @@ export default function ErmisTranscriptsPage() {
               <option value="">Όλες</option>
               <option value="business">Πελάτες λογιστών</option>
               <option value="gemi">ΓΕΜΗ επιχειρήσεις</option>
+              <option value="cm">Case Management</option>
             </select>
           </div>
           <div>
@@ -173,6 +174,8 @@ export default function ErmisTranscriptsPage() {
                       <Td>
                         {t.source === 'gemi' ? (
                           <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 font-medium">ΓΕΜΗ</span>
+                        ) : t.source === 'cm' ? (
+                          <span className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 font-medium">CM</span>
                         ) : (
                           <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 font-medium">Πελάτης</span>
                         )}

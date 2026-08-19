@@ -61,10 +61,10 @@ export async function GET(request: NextRequest) {
   let viber2Failed = 0
 
   // ── Reminder 1: email, 6h after last activity ─────────────────────────────
-  // Exclude CM-initiated sessions (callbackUrl set) — CM manages its own follow-up
+  // Includes CM-initiated sessions — contactEmail stores what CM provided,
+  // falling back to Business.email for portal-initiated sessions.
   const reminder1Candidates = await prisma.businessMatchToken.findMany({
     where: {
-      callbackUrl: null,
       clientRepliedAt: { not: null },
       caseCreatedId: null,
       lastActivityAt: { lt: sixHoursAgo },
@@ -87,9 +87,10 @@ export async function GET(request: NextRequest) {
     for (const t of reminder1Candidates) {
       const biz = bizById.get(t.businessId)
       const prog = progById.get(t.programId)
-      const email = biz?.email
+      // CM sessions provide contactEmail at session creation; portal sessions use Business.email
+      const email = (t as any).contactEmail || biz?.email
 
-      // Always mark reminder1SentAt to avoid retrying indefinitely for no-email cases
+      // Always mark to avoid infinite retries
       if (!email) {
         await prisma.businessMatchToken.update({ where: { id: t.id }, data: { reminder1SentAt: now } })
         console.log(`[ErmisReminders] reminder1 skipped (no email): token ${t.token}`)
@@ -98,7 +99,7 @@ export async function GET(request: NextRequest) {
       }
 
       const isEligible = t.eligibilityStatus === 'ELIGIBLE'
-      const businessName = biz.onomasia || biz.afm
+      const businessName = biz?.onomasia || biz?.afm || t.token
       const ermisLink = `${appUrl}/e/${t.token}`
       const programTitle = prog?.title || ''
 
@@ -124,10 +125,9 @@ export async function GET(request: NextRequest) {
   }
 
   // ── Reminder 2: Viber, 24h after reminder 1 ───────────────────────────────
-  // Exclude CM-initiated sessions — same reasoning as reminder 1
+  // contactPhone (from CM) takes priority over Business.viberPhone / Business.phone
   const reminder2Candidates = await prisma.businessMatchToken.findMany({
     where: {
-      callbackUrl: null,
       caseCreatedId: null,
       reminder1SentAt: { not: null, lt: twentyFourHoursAgo },
       reminder2SentAt: null,
@@ -149,9 +149,10 @@ export async function GET(request: NextRequest) {
     for (const t of reminder2Candidates) {
       const biz = bizById.get(t.businessId)
       const prog = progById.get(t.programId)
-      const phone = biz?.viberPhone || biz?.phone
+      // CM sessions: contactPhone; portal sessions: viberPhone fallback to phone
+      const phone = (t as any).contactPhone || biz?.viberPhone || biz?.phone
 
-      // Always mark reminder2SentAt to avoid infinite retries
+      // Always mark to avoid infinite retries
       if (!phone) {
         await prisma.businessMatchToken.update({ where: { id: t.id }, data: { reminder2SentAt: now } })
         console.log(`[ErmisReminders] reminder2 skipped (no phone): token ${t.token}`)
@@ -160,7 +161,7 @@ export async function GET(request: NextRequest) {
       }
 
       const isEligible = t.eligibilityStatus === 'ELIGIBLE'
-      const businessName = biz!.onomasia || biz!.afm
+      const businessName = biz?.onomasia || biz?.afm || t.token
       const ermisLink = `${appUrl}/e/${t.token}`
       const programTitle = prog?.title || ''
 

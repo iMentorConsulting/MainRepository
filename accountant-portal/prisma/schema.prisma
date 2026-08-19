@@ -208,6 +208,10 @@ model BusinessMatchToken {
   contextSummary    String?
   // Assigned consultant name from CM — shown to client when eligible.
   consultant        String?
+  // Contact info from CM lead payload — stored so reminders work even when
+  // the Business record has no email/phone (e.g. GEMI-sourced business).
+  contactEmail      String?
+  contactPhone      String?
   // Re-engagement reminders: track last activity and when reminders were sent.
   lastActivityAt    DateTime?
   clientRepliedAt   DateTime?  // first time a user (not kickoff) message was stored

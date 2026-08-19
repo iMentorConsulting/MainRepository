@@ -45,8 +45,12 @@ export async function GET(request: NextRequest) {
   if (caseAssignedFilter === 'yes') gemiWhere.caseCreatedAt = { not: null }
   if (caseAssignedFilter === 'no') gemiWhere.caseCreatedAt = null
 
+  // 'cm' is a sub-filter of 'business' tokens (callbackUrl set)
+  if (sourceFilter === 'cm') bizWhere.callbackUrl = { not: null }
+  if (sourceFilter === 'business') bizWhere.callbackUrl = null
+
   const includeBiz = sourceFilter !== 'gemi'
-  const includeGemi = sourceFilter !== 'business'
+  const includeGemi = sourceFilter !== 'business' && sourceFilter !== 'cm'
 
   const [bizTokens, bizTotal, gemiTokens, gemiTotal] = await Promise.all([
     includeBiz
@@ -56,6 +60,7 @@ export async function GET(request: NextRequest) {
             businessId: true, programId: true, createdAt: true,
             tokenUsage: true, tokenUsageInput: true, tokenUsageOutput: true,
             caseCreatedId: true, chatLog: true, eligibilityStatus: true, intentStatus: true,
+            callbackUrl: true,
           },
           orderBy: { createdAt: 'desc' },
         })
@@ -93,7 +98,7 @@ export async function GET(request: NextRequest) {
   const programMap = new Map(programs.map(p => [p.id, p]))
 
   type TranscriptRow = {
-    source: 'business' | 'gemi'
+    source: 'business' | 'gemi' | 'cm'
     businessId: string | null
     gemiId: string | null
     programId: string
@@ -116,7 +121,7 @@ export async function GET(request: NextRequest) {
     const biz = businessMap.get(t.businessId)
     const log = Array.isArray(t.chatLog) ? (t.chatLog as any[]) : []
     return {
-      source: 'business',
+      source: t.callbackUrl ? 'cm' : 'business',
       businessId: t.businessId,
       gemiId: null,
       programId: t.programId,
