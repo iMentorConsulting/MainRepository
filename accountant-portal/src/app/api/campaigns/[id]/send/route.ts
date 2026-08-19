@@ -197,20 +197,21 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     // no body provided — send to all eligible recipients
   }
 
+  // Build a targeted where clause to avoid loading all businesses into memory
+  const businessWhere: Record<string, unknown> = { excludedFromCampaigns: false }
+  if (selectedBusinessIds) {
+    businessWhere.id = { in: selectedBusinessIds }
+  } else if (campaign.accountantId) {
+    businessWhere.accountantId = campaign.accountantId
+  }
+
   let businesses = await prisma.business.findMany({
+    where: businessWhere,
     include: {
       accountant: true,
       activities: { where: { firmActKind: 1 }, take: 1 },
     },
-    ...(campaign.accountantId ? { where: { accountantId: campaign.accountantId } } : {}),
   })
-
-  businesses = businesses.filter(b => !b.excludedFromCampaigns)
-
-  if (selectedBusinessIds) {
-    const selectedSet = new Set(selectedBusinessIds)
-    businesses = businesses.filter(b => selectedSet.has(b.id))
-  }
 
   let matchReasonByBusiness = new Map<string, string[]>()
   if (campaign.programId) {
