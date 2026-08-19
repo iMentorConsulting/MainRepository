@@ -18,11 +18,6 @@ class CaseCreate(BaseModel):
     client_phone: str = ""
     client_email: str = ""
     client_vat: Optional[str] = None
-
-    @field_validator('client_vat', mode='before')
-    @classmethod
-    def normalize_afm(cls, v):
-        return _pad_afm(v)
     employee: str
     status: str = "draft"
     debtor_type: str = "Φυσικό Πρόσωπο"
@@ -35,17 +30,17 @@ class CaseCreate(BaseModel):
     contact_stage: str = "Νέα Ανάλυση"
     commercial_offer: Optional[dict] = None
 
+    @field_validator('client_vat', mode='before')
+    @classmethod
+    def normalize_afm(cls, v):
+        return _pad_afm(v)
+
 
 class CaseUpdate(BaseModel):
     client_name: Optional[str] = None
     client_phone: Optional[str] = None
     client_email: Optional[str] = None
     client_vat: Optional[str] = None
-
-    @field_validator('client_vat', mode='before')
-    @classmethod
-    def normalize_afm(cls, v):
-        return _pad_afm(v)
     employee: Optional[str] = None
     status: Optional[str] = None
     debtor_type: Optional[str] = None
@@ -58,6 +53,11 @@ class CaseUpdate(BaseModel):
     portal_active: Optional[bool] = None
     contact_stage: Optional[str] = None
     commercial_offer: Optional[dict] = None
+
+    @field_validator('client_vat', mode='before')
+    @classmethod
+    def normalize_afm(cls, v):
+        return _pad_afm(v)
 
 
 class ContactUpdate(BaseModel):
