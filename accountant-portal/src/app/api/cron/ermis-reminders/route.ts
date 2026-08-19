@@ -61,8 +61,10 @@ export async function GET(request: NextRequest) {
   let viber2Failed = 0
 
   // ── Reminder 1: email, 6h after last activity ─────────────────────────────
+  // Exclude CM-initiated sessions (callbackUrl set) — CM manages its own follow-up
   const reminder1Candidates = await prisma.businessMatchToken.findMany({
     where: {
+      callbackUrl: null,
       clientRepliedAt: { not: null },
       caseCreatedId: null,
       lastActivityAt: { lt: sixHoursAgo },
@@ -122,8 +124,10 @@ export async function GET(request: NextRequest) {
   }
 
   // ── Reminder 2: Viber, 24h after reminder 1 ───────────────────────────────
+  // Exclude CM-initiated sessions — same reasoning as reminder 1
   const reminder2Candidates = await prisma.businessMatchToken.findMany({
     where: {
+      callbackUrl: null,
       caseCreatedId: null,
       reminder1SentAt: { not: null, lt: twentyFourHoursAgo },
       reminder2SentAt: null,
