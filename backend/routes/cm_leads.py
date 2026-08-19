@@ -922,7 +922,9 @@ def send_to_lead(
 
     if req.notification_type in ("viber", "both"):
         if l.phone and req.message:
-            full_viber = req.message.rstrip() + viber_footer
+            prog_display = l.program_title or l.service_type or l.program or ""
+            prog_header = f"📋 {prog_display}\n\n" if prog_display else ""
+            full_viber = prog_header + req.message.rstrip() + viber_footer
             ok, err = _send_viber(l.phone, full_viber, l.name or "", current_user.full_name, l.service_type or "")
             _log_lead_notification(db, l.id, "viber", l.name or "", l.phone, "", full_viber,
                                    "sent" if ok else "failed", current_user.full_name)
