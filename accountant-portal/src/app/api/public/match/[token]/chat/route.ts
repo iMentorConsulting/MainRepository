@@ -95,6 +95,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return null
   })
 
+  const now = new Date()
+  const hadClientReply = Boolean(matchToken.clientRepliedAt)
+  const isUserTurn = !kickoff && Boolean(message?.trim())
+
   const updatedToken = await prisma.businessMatchToken.update({
     where: { token },
     data: {
@@ -102,6 +106,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       tokenUsage: { increment: result.tokensUsed },
       tokenUsageInput: { increment: result.tokensUsedInput },
       tokenUsageOutput: { increment: result.tokensUsedOutput },
+      lastActivityAt: now,
+      ...(!hadClientReply && isUserTurn ? { clientRepliedAt: now } : {}),
       ...(result.caseId ? { caseCreatedId: result.caseId } : {}),
       ...(classification ? { eligibilityStatus: classification.eligibility, intentStatus: classification.intent } : {}),
     },

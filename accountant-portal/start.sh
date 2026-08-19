@@ -10,6 +10,15 @@ if [ "$CRON_MODE" = "1" ]; then
   exit 0
 fi
 
+# If CRON_MODE=ermis-reminders, send re-engagement reminders and exit
+if [ "$CRON_MODE" = "ermis-reminders" ]; then
+  echo ">>> CRON MODE: calling ermis-reminders..."
+  curl -s https://logistis.i-mentor.gr/api/cron/ermis-reminders \
+    -H "Authorization: Bearer $CRON_SECRET"
+  echo ""
+  exit 0
+fi
+
 echo ">>> Running pre-migration script (enum/data fixes)..."
 node scripts/pre-migrate.js || echo "Pre-migration skipped (non-fatal)"
 

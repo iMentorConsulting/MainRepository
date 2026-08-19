@@ -208,6 +208,11 @@ model BusinessMatchToken {
   contextSummary    String?
   // Assigned consultant name from CM — shown to client when eligible.
   consultant        String?
+  // Re-engagement reminders: track last activity and when reminders were sent.
+  lastActivityAt    DateTime?
+  clientRepliedAt   DateTime?  // first time a user (not kickoff) message was stored
+  reminder1SentAt   DateTime?  // 6h email
+  reminder2SentAt   DateTime?  // 24h-after-reminder1 Viber
 
   @@unique([businessId, programId])
 }
