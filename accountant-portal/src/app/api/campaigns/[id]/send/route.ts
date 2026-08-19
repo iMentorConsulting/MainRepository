@@ -65,33 +65,33 @@ async function processCampaignSend(
 
     const matchReasons = matchReasonByBusiness.get(business.id) || []
     const bullet = '•'
-    const ermisLink = campaign.programId ? await getOrCreateErmisLink(business.id, campaign.programId) : ''
-    const variables: Record<string, string> = {
-      business_name: business.onomasia || business.afm,
-      afm: business.afm,
-      accountant_name: business.accountant?.contactPerson || '',
-      accountant_office: business.accountant?.officeName || '',
-      program_title: campaign.program?.title || '',
-      program_description: campaign.program?.description || '',
-      program_url: campaign.program?.websiteUrl || '',
-      program_deadline: programDeadlineText,
-      extra_criteria: extraCriteriaText,
-      kad_description: business.activities[0]?.firmActCode || '',
-      match_reason: matchReasons.map(r => `${bullet} ${r}`).join('\n'),
-      unsubscribe_link: `${process.env.APP_URL || 'https://logistis.i-mentor.gr'}/api/unsubscribe/${business.unsubscribeToken}`,
-      ermis_link: ermisLink,
-    }
-
-    const rawMessage = renderTemplate(campaign.messageTemplate, variables)
-    // Viber natively renders *text* as bold; collapse any **double** to single *
-    const message = rawMessage
-      .replace(/\*\*([^*]*)\*\*/g, (_, inner) => inner.trim() ? `*${inner.trim()}*` : '')
-    let emailSubject = renderTemplate(campaign.subject || campaign.title, variables)
-    if (!variables.accountant_office) emailSubject = emailSubject.replace(/^\s*&\s*/, '')
     let success = false
     const errors: string[] = []
 
     try {
+      const ermisLink = campaign.programId ? await getOrCreateErmisLink(business.id, campaign.programId) : ''
+      const variables: Record<string, string> = {
+        business_name: business.onomasia || business.afm,
+        afm: business.afm,
+        accountant_name: business.accountant?.contactPerson || '',
+        accountant_office: business.accountant?.officeName || '',
+        program_title: campaign.program?.title || '',
+        program_description: campaign.program?.description || '',
+        program_url: campaign.program?.websiteUrl || '',
+        program_deadline: programDeadlineText,
+        extra_criteria: extraCriteriaText,
+        kad_description: business.activities[0]?.firmActCode || '',
+        match_reason: matchReasons.map(r => `${bullet} ${r}`).join('\n'),
+        unsubscribe_link: `${process.env.APP_URL || 'https://logistis.i-mentor.gr'}/api/unsubscribe/${business.unsubscribeToken}`,
+        ermis_link: ermisLink,
+      }
+
+      const rawMessage = renderTemplate(campaign.messageTemplate, variables)
+      // Viber natively renders *text* as bold; collapse any **double** to single *
+      const message = rawMessage
+        .replace(/\*\*([^*]*)\*\*/g, (_, inner) => inner.trim() ? `*${inner.trim()}*` : '')
+      let emailSubject = renderTemplate(campaign.subject || campaign.title, variables)
+      if (!variables.accountant_office) emailSubject = emailSubject.replace(/^\s*&\s*/, '')
       if (useEmail && emailRecipient) {
         const emailVariables: Record<string, string> = {
           ...variables,

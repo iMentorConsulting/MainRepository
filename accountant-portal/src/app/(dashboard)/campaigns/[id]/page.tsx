@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { useParams } from 'next/navigation'
+import { useParams, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -11,6 +11,7 @@ import { formatDateTime } from '@/lib/utils'
 
 export default function CampaignDetailPage() {
   const { id } = useParams()
+  const searchParams = useSearchParams()
   const [campaign, setCampaign] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [sending, setSending] = useState(false)
@@ -23,7 +24,10 @@ export default function CampaignDetailPage() {
   useEffect(() => {
     fetch(`/api/campaigns/${id}`)
       .then(r => r.json())
-      .then(setCampaign)
+      .then(data => {
+        setCampaign(data)
+        if (searchParams.get('sending') === '1') pollCampaign()
+      })
       .finally(() => setLoading(false))
   }, [id])
 

@@ -564,26 +564,34 @@ export default function NewCampaignPage() {
         subject: selectedTemplate.subject,
         programId: programId || undefined,
         messageTemplate: messageBody,
-        status,
+        status: 'DRAFT',
       }
       const res = await fetch('/api/campaigns', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       })
-      if (res.ok) {
-        const created = await res.json()
-        if (status === 'SENT') {
-          fetch(`/api/campaigns/${created.id}/send`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ businessIds: selectedIds }),
-          }).catch(() => {})
+      if (!res.ok) { alert('Σφάλμα αποθήκευσης'); return }
+
+      const created = await res.json()
+
+      if (status === 'SENT') {
+        const sendRes = await fetch(`/api/campaigns/${created.id}/send`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ businessIds: selectedIds }),
+        })
+        if (!sendRes.ok) {
+          const err = await sendRes.json().catch(() => ({}))
+          alert(err.error || 'Σφάλμα κατά την έναρξη αποστολής')
+          router.push(`/campaigns/${created.id}`)
+          return
         }
-        router.push(`/campaigns/${created.id}`)
-      } else {
-        alert('Σφάλμα αποθήκευσης')
+        router.push(`/campaigns/${created.id}?sending=1`)
+        return
       }
+
+      router.push(`/campaigns/${created.id}`)
     } finally {
       setSavingDraft(false)
       setSending(false)
