@@ -219,7 +219,12 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       select: { businessId: true, matchReason: true }
     })
     matchReasonByBusiness = new Map(matches.map(m => [m.businessId, m.matchReason]))
-    businesses = businesses.filter(b => matchReasonByBusiness.has(b.id))
+    // Only filter by matches when no explicit list was provided (send-to-all mode).
+    // When the caller explicitly selected businesses (wizard), they've already
+    // verified eligibility — the match filter can drop them if matches are stale.
+    if (!selectedBusinessIds) {
+      businesses = businesses.filter(b => matchReasonByBusiness.has(b.id))
+    }
   }
 
   if (businesses.length === 0) {
