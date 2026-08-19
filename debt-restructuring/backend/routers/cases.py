@@ -239,20 +239,52 @@ def _chatwoot_send(client_name: str, phone: str, message: str) -> tuple[bool, st
     if not contact_id:
         return False, f"Αδυναμία δημιουργίας/εύρεσης contact για αριθμό {phone}"
 
-    # 3. Create new conversation
+    # 3. Find existing conversation for this contact on this inbox, or create one
     conv_id = None
     try:
-        conv_url = f"{base}/conversations"
-        conv_body = {"inbox_id": int(cw_inbox), "contact_id": contact_id}
-        print(f"[Chatwoot] create_conv POST {conv_url} body={conv_body}")
-        r = http_requests.post(conv_url, json=conv_body, headers=headers, timeout=8)
-        print(f"[Chatwoot] create_conv status={r.status_code} body={r.text[:300]}")
-        if r.status_code in (200, 201):
-            conv_id = r.json().get("id")
-        else:
-            return False, f"create_conv HTTP {r.status_code}: {r.text[:200]}"
+        r = http_requests.get(
+            f"{base}/contacts/{contact_id}/conversations",
+            headers=headers, timeout=8,
+        )
+        print(f"[Chatwoot] contact_convs status={r.status_code} body={r.text[:400]}")
+        if r.status_code == 200:
+            payload = r.json().get("payload", [])
+            inbox_id_int = int(cw_inbox)
+            # Pick the most recent conversation on this inbox
+            inbox_convs = [
+                c for c in payload
+                if c.get("inbox_id") == inbox_id_int
+            ]
+            if inbox_convs:
+                inbox_convs.sort(key=lambda c: c.get("id", 0), reverse=True)
+                existing = inbox_convs[0]
+                conv_id = existing["id"]
+                print(f"[Chatwoot] reusing conversation id={conv_id} status={existing.get('status')}")
+                # Reopen if resolved/pending so the message surfaces to agents
+                if existing.get("status") in ("resolved", "pending"):
+                    r2 = http_requests.patch(
+                        f"{base}/conversations/{conv_id}/toggle_status",
+                        json={"status": "open"},
+                        headers=headers, timeout=8,
+                    )
+                    print(f"[Chatwoot] reopen_conv status={r2.status_code} body={r2.text[:200]}")
     except Exception as e:
-        return False, f"create_conv exception: {e}"
+        print(f"[Chatwoot] contact_convs exception: {e}")
+
+    # Create new conversation only if none exists
+    if not conv_id:
+        try:
+            conv_url = f"{base}/conversations"
+            conv_body = {"inbox_id": int(cw_inbox), "contact_id": contact_id}
+            print(f"[Chatwoot] create_conv POST {conv_url} body={conv_body}")
+            r = http_requests.post(conv_url, json=conv_body, headers=headers, timeout=8)
+            print(f"[Chatwoot] create_conv status={r.status_code} body={r.text[:300]}")
+            if r.status_code in (200, 201):
+                conv_id = r.json().get("id")
+            else:
+                return False, f"create_conv HTTP {r.status_code}: {r.text[:200]}"
+        except Exception as e:
+            return False, f"create_conv exception: {e}"
 
     if not conv_id:
         return False, "Αδυναμία δημιουργίας conversation"
