@@ -114,7 +114,7 @@ function ImportModal({ onClose, onDone }: { onClose: () => void; onDone: () => v
   const [file, setFile] = useState<File | null>(null)
   const [batchName, setBatchName] = useState('')
   const [uploading, setUploading] = useState(false)
-  const [result, setResult] = useState<{ imported: number; skipped: number } | null>(null)
+  const [result, setResult] = useState<{ imported: number; updated: number; skipped: number } | null>(null)
   const [error, setError] = useState('')
 
   async function handleImport() {
@@ -131,7 +131,7 @@ function ImportModal({ onClose, onDone }: { onClose: () => void; onDone: () => v
         })
         const data = await res.json()
         if (res.ok) {
-          setResult({ imported: data.imported ?? 0, skipped: data.skipped ?? 0 })
+          setResult({ imported: data.imported ?? 0, updated: data.updated ?? 0, skipped: data.skipped ?? 0 })
         } else {
           setError(data.error || 'Σφάλμα εισαγωγής')
         }
@@ -189,8 +189,9 @@ function ImportModal({ onClose, onDone }: { onClose: () => void; onDone: () => v
           ) : (
             <div className="space-y-3">
               <div className="bg-green-50 border border-green-200 rounded-lg px-4 py-3 text-sm text-green-800">
-                Εισήχθησαν <strong>{result.imported}</strong> επιχειρήσεις
-                {result.skipped > 0 && ` · ${result.skipped} παραλείφθηκαν (υπάρχουν ήδη)`}
+                Εισήχθησαν <strong>{result.imported}</strong> νέες επιχειρήσεις
+                {result.updated > 0 && ` · ${result.updated} ενημερώθηκαν`}
+                {result.skipped > 0 && ` · ${result.skipped} παραλείφθηκαν (μη έγκυρο ΑΦΜ)`}
               </div>
               <Button onClick={onDone}>Κλείσιμο</Button>
             </div>

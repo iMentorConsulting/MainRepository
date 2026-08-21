@@ -2,7 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 
+export const dynamic = 'force-dynamic'
+export const maxDuration = 300
+
 const MAX_ROWS = 25000
+const BATCH_SIZE = 500
 
 function parseCSVLine(line: string, delimiter: string): string[] {
   const fields: string[] = []
@@ -96,17 +100,18 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  let imported = 0
-  let updated = 0
+  // ── Parse all rows first ────────────────────────────────────────────────────
+  type ParsedRow = { afm: string; email: string | null; phone: string | null; rowNum: number }
+  const validRows: ParsedRow[] = []
   let skipped = 0
   const errors: string[] = []
 
   for (let i = 0; i < dataLines.length; i++) {
-    const line = dataLines[i]
-    const fields = parseCSVLine(line, delimiter)
-
+    const fields = parseCSVLine(dataLines[i], delimiter)
     const rawAfm = (fields[afmIdx] ?? '').replace(/^"|"$/g, '').trim()
-    const afm = rawAfm.replace(/\D/g, '').padStart(9, '0')
+    // Strip non-digits, pad to 9, truncate to 9 to handle country-code prefixes
+    const digits = rawAfm.replace(/\D/g, '')
+    const afm = digits.length > 9 ? digits.slice(-9) : digits.padStart(9, '0')
 
     if (!afm || afm === '000000000' || !/^\d{9}$/.test(afm)) {
       skipped++
@@ -116,38 +121,66 @@ export async function POST(request: NextRequest) {
     const email = emailIdx !== -1
       ? (fields[emailIdx] ?? '').replace(/^"|"$/g, '').trim() || null
       : null
-
     const phone = phoneIdx !== -1
       ? (fields[phoneIdx] ?? '').replace(/^"|"$/g, '').trim() || null
       : null
 
-    try {
-      const existing = await prisma.gemiLookup.findUnique({ where: { afm } })
+    validRows.push({ afm, email, phone, rowNum: i + 2 })
+  }
 
-      if (existing) {
+  // ── Upsert in batches of BATCH_SIZE ────────────────────────────────────────
+  let imported = 0
+  let updated = 0
+
+  for (let i = 0; i < validRows.length; i += BATCH_SIZE) {
+    const chunk = validRows.slice(i, i + BATCH_SIZE)
+    const afms = chunk.map(r => r.afm)
+
+    // Find which AFMs already exist in one query per batch
+    const existing = await prisma.gemiLookup.findMany({
+      where: { afm: { in: afms } },
+      select: { afm: true },
+    })
+    const existingSet = new Set(existing.map(e => e.afm))
+
+    const toCreate = chunk.filter(r => !existingSet.has(r.afm))
+    const toUpdate = chunk.filter(r => existingSet.has(r.afm))
+
+    // Bulk-create new rows
+    if (toCreate.length > 0) {
+      try {
+        const result = await prisma.gemiLookup.createMany({
+          data: toCreate.map(r => ({
+            afm: r.afm,
+            email: r.email,
+            phone: r.phone,
+            importBatch: batch,
+          })),
+          skipDuplicates: true,
+        })
+        imported += result.count
+      } catch (err: any) {
+        errors.push(`Batch create error (rows ${i + 2}–${i + toCreate.length + 1}): ${err?.message ?? 'Unknown error'}`)
+        skipped += toCreate.length
+      }
+    }
+
+    // Update existing rows individually (only when email/phone/batch provided)
+    for (const r of toUpdate) {
+      try {
         await prisma.gemiLookup.update({
-          where: { afm },
+          where: { afm: r.afm },
           data: {
-            ...(email !== null ? { email } : {}),
-            ...(phone !== null ? { phone } : {}),
+            ...(r.email !== null ? { email: r.email } : {}),
+            ...(r.phone !== null ? { phone: r.phone } : {}),
             ...(batch !== null ? { importBatch: batch } : {}),
           },
         })
         updated++
-      } else {
-        await prisma.gemiLookup.create({
-          data: {
-            afm,
-            email,
-            phone,
-            importBatch: batch,
-          },
-        })
-        imported++
+      } catch (err: any) {
+        errors.push(`Row ${r.rowNum} (AFM ${r.afm}): ${err?.message ?? 'Unknown error'}`)
+        skipped++
       }
-    } catch (err: any) {
-      errors.push(`Row ${i + 2} (AFM ${afm}): ${err?.message ?? 'Unknown error'}`)
-      skipped++
     }
   }
 
