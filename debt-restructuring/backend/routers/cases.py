@@ -154,26 +154,36 @@ def _chatwoot_send(client_name: str, phone: str, message: str) -> tuple[bool, st
 
     headers = {"api_access_token": cw_token, "Content-Type": "application/json"}
     base = f"{cw_url}/api/v1/accounts/{cw_account}"
+
+    # Normalize phone: strip double country code (+3030... → +30...) before anything
+    import re as _re
+    phone = _re.sub(r'^\+?(30){2}', '+30', phone)
     print(f"[Chatwoot] base={base} inbox={cw_inbox} phone={phone}")
 
-    # 1. Search for existing contact by phone
+    # Build search variants: full number + local digits only (catches malformed existing contacts)
+    digits_only = _re.sub(r'^\+30', '', phone)  # e.g. "6947659866"
+    search_variants = [phone, digits_only] if digits_only != phone else [phone]
+
+    # 1. Search for existing contact by phone (try each variant)
     contact_id = None
-    try:
-        r = http_requests.get(
-            f"{base}/contacts/search",
-            params={"q": phone, "include_contacts": "true"},
-            headers=headers, timeout=8,
-        )
-        print(f"[Chatwoot] search status={r.status_code} body={r.text[:300]}")
-        if r.status_code == 200:
-            # payload is a list of contacts directly (not a dict with "contacts" key)
-            payload = r.json().get("payload", [])
-            contacts = payload if isinstance(payload, list) else payload.get("contacts", [])
-            if contacts:
-                contact_id = contacts[0]["id"]
-                print(f"[Chatwoot] found existing contact id={contact_id}")
-    except Exception as e:
-        print(f"[Chatwoot] search exception: {e}")
+    for variant in search_variants:
+        if contact_id:
+            break
+        try:
+            r = http_requests.get(
+                f"{base}/contacts/search",
+                params={"q": variant, "include_contacts": "true"},
+                headers=headers, timeout=8,
+            )
+            print(f"[Chatwoot] search q={variant} status={r.status_code} body={r.text[:300]}")
+            if r.status_code == 200:
+                payload = r.json().get("payload", [])
+                contacts = payload if isinstance(payload, list) else payload.get("contacts", [])
+                if contacts:
+                    contact_id = contacts[0]["id"]
+                    print(f"[Chatwoot] found existing contact id={contact_id} via q={variant}")
+        except Exception as e:
+            print(f"[Chatwoot] search exception (q={variant}): {e}")
 
     # 2. Create contact if not found
     if not contact_id:
