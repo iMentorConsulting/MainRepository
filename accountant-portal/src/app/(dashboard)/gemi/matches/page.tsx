@@ -54,6 +54,7 @@ function GemiMatchesPageInner() {
   const [statusFilter, setStatusFilter] = useState('')
   const [emailEngagementFilter, setEmailEngagementFilter] = useState('')
   const [enrichedFilter, setEnrichedFilter] = useState('')
+  const [notifiedFilter, setNotifiedFilter] = useState('')
   const [importBatchFilter, setImportBatchFilter] = useState('')
   const [programOptions, setProgramOptions] = useState<{ value: string; label: string }[]>([])
   const [importBatchOptions, setImportBatchOptions] = useState<string[]>([])
@@ -91,6 +92,7 @@ function GemiMatchesPageInner() {
       if (statusFilter) params.set('status', statusFilter)
       if (emailEngagementFilter) params.set('emailEngagement', emailEngagementFilter)
       if (enrichedFilter !== '') params.set('enriched', enrichedFilter)
+      if (notifiedFilter !== '') params.set('notified', notifiedFilter)
       if (importBatchFilter) params.set('importBatch', importBatchFilter)
       const res = await fetch(`/api/gemi/matches?${params}`)
       const data = await res.json()
@@ -99,10 +101,10 @@ function GemiMatchesPageInner() {
     } finally {
       setLoading(false)
     }
-  }, [page, programFilter, statusFilter, emailEngagementFilter, enrichedFilter, importBatchFilter])
+  }, [page, programFilter, statusFilter, emailEngagementFilter, enrichedFilter, notifiedFilter, importBatchFilter])
 
   useEffect(() => { fetchMatches() }, [fetchMatches])
-  useEffect(() => { setPage(1) }, [programFilter, statusFilter, emailEngagementFilter, enrichedFilter, importBatchFilter])
+  useEffect(() => { setPage(1) }, [programFilter, statusFilter, emailEngagementFilter, enrichedFilter, notifiedFilter, importBatchFilter])
 
   async function runRematch() {
     setRematchRunning(true)
@@ -321,7 +323,7 @@ function GemiMatchesPageInner() {
               </select>
             </div>
             <div>
-              <label className="text-xs font-medium text-gray-500 block mb-1">Ενημέρωση</label>
+              <label className="text-xs font-medium text-gray-500 block mb-1">Εμπλουτισμός ΑΑΑΔΕ</label>
               <select
                 value={enrichedFilter}
                 onChange={e => setEnrichedFilter(e.target.value)}
@@ -330,6 +332,18 @@ function GemiMatchesPageInner() {
                 <option value="">Όλες</option>
                 <option value="true">Ενημερωμένες</option>
                 <option value="false">Μη ενημερωμένες</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-xs font-medium text-gray-500 block mb-1">Ενημέρωση</label>
+              <select
+                value={notifiedFilter}
+                onChange={e => setNotifiedFilter(e.target.value)}
+                className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white"
+              >
+                <option value="">Όλες</option>
+                <option value="true">Έλαβαν</option>
+                <option value="false">Δεν Έλαβαν</option>
               </select>
             </div>
             {importBatchOptions.length > 0 && (
@@ -347,13 +361,14 @@ function GemiMatchesPageInner() {
                 </select>
               </div>
             )}
-            {(programFilter || statusFilter || emailEngagementFilter || enrichedFilter || importBatchFilter) && (
+            {(programFilter || statusFilter || emailEngagementFilter || enrichedFilter || notifiedFilter || importBatchFilter) && (
               <button
                 onClick={() => {
                   setProgramFilter('')
                   setStatusFilter('')
                   setEmailEngagementFilter('')
                   setEnrichedFilter('')
+                  setNotifiedFilter('')
                   setImportBatchFilter('')
                 }}
                 className="text-xs text-gray-500 hover:text-gray-700 underline mt-4"
