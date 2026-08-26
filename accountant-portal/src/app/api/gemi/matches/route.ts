@@ -14,6 +14,7 @@ export async function GET(request: NextRequest) {
   const status = searchParams.get('status') || undefined
   const emailEngagement = searchParams.get('emailEngagement') || ''
   const enriched = searchParams.get('enriched') || ''
+  const notified = searchParams.get('notified') || ''
   const importBatch = searchParams.get('importBatch') || ''
   const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10))
   const limit = Math.max(1, parseInt(searchParams.get('limit') || '50', 10))
@@ -38,6 +39,11 @@ export async function GET(request: NextRequest) {
     gemiWhere.unsubscribedAt = { not: null }
   }
   if (enriched !== '') gemiWhere.aadeEnriched = enriched === 'true'
+  if (notified === 'true') {
+    gemiWhere.campaignRecipients = { some: { sentAt: { not: null } } }
+  } else if (notified === 'false') {
+    gemiWhere.campaignRecipients = { none: { sentAt: { not: null } } }
+  }
   if (importBatch) gemiWhere.importBatch = importBatch
   if (Object.keys(gemiWhere).length > 0) where.gemi = gemiWhere
 
