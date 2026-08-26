@@ -39,10 +39,22 @@ export async function GET(request: NextRequest) {
     gemiWhere.unsubscribedAt = { not: null }
   }
   if (enriched !== '') gemiWhere.aadeEnriched = enriched === 'true'
-  if (notified === 'true') {
-    gemiWhere.campaignRecipients = { some: { sentAt: { not: null } } }
-  } else if (notified === 'false') {
-    gemiWhere.campaignRecipients = { none: { sentAt: { not: null } } }
+  if (notified === 'true' || notified === 'false') {
+    const campaignFilter = programId
+      ? {
+          sentAt: { not: null },
+          campaign: {
+            OR: [
+              { programId },
+              { programId2: programId },
+              { programId3: programId },
+            ],
+          },
+        }
+      : { sentAt: { not: null } }
+    gemiWhere.campaignRecipients = notified === 'true'
+      ? { some: campaignFilter }
+      : { none: campaignFilter }
   }
   if (importBatch) gemiWhere.importBatch = importBatch
   if (Object.keys(gemiWhere).length > 0) where.gemi = gemiWhere
