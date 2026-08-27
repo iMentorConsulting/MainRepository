@@ -781,6 +781,14 @@ def update_lead(
         elif field in ("phone", "phone2"):
             val = clean_phone(val)
         setattr(l, field, val)
+    # Auto-set source from notes keyword if source is still empty
+    updated_fields = req.dict(exclude_unset=True)
+    if "notes" in updated_fields and not (l.source or "").strip():
+        upper = (l.notes or "").upper()
+        if re.search(r'\bFB\b', upper):
+            l.source = "Facebook"
+        elif re.search(r'\bTIKTOK\b', upper):
+            l.source = "TikTok"
     db.commit()
     db.refresh(l)
     return lead_to_dict(l, include_comments=True)
@@ -855,19 +863,15 @@ def backfill_source_keywords(
     if current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Μόνο για διαχειριστές")
 
-    leads = (db.query(CMLead)
-             .filter(or_(CMLead.source.is_(None), CMLead.source == ""))
-             .join(CMLeadComment, CMLeadComment.lead_id == CMLead.id)
-             .all())
+    leads = db.query(CMLead).filter(
+        or_(CMLead.source.is_(None), CMLead.source == "")
+    ).all()
 
     updated = 0
-    seen: set = set()
     for lead in leads:
-        if lead.id in seen:
-            continue
-        seen.add(lead.id)
-        for c in lead.comments:
-            upper = (c.content or "").upper()
+        texts = [(lead.notes or "")] + [c.content or "" for c in lead.comments]
+        for text in texts:
+            upper = text.upper()
             if re.search(r'\bFB\b', upper):
                 lead.source = "Facebook"; updated += 1; break
             elif re.search(r'\bTIKTOK\b', upper):
