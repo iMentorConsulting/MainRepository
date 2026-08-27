@@ -20,7 +20,11 @@ export function middleware(request: NextRequest) {
   // (sent by all browsers on cross-site fetch/form submissions) must match the
   // request's own Host. Same-origin requests pass; cross-site requests are
   // rejected before they reach any route handler.
-  if (request.nextUrl.pathname.startsWith('/api/') && MUTATING_METHODS.has(request.method)) {
+  if (
+    request.nextUrl.pathname.startsWith('/api/') &&
+    !request.nextUrl.pathname.startsWith('/api/public/') &&
+    MUTATING_METHODS.has(request.method)
+  ) {
     const origin = request.headers.get('origin')
     if (origin) {
       let originHost: string | null = null
