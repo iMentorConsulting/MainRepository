@@ -6,18 +6,23 @@ import { getOrCreateGemiErmisLink } from '@/lib/gemi-ermis'
 
 export const dynamic = 'force-dynamic'
 
-const CORS_ORIGIN = process.env.ELIGIBILITY_CORS_ORIGIN || 'https://www.i-mentor.gr'
+const ALLOWED_ORIGINS = (process.env.ELIGIBILITY_CORS_ORIGIN || 'https://www.i-mentor.gr,https://i-mentor.gr')
+  .split(',')
+  .map(o => o.trim())
 
-function cors() {
+function cors(origin?: string | null) {
+  const allowed = origin && ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0]
   return {
-    'Access-Control-Allow-Origin': CORS_ORIGIN,
+    'Access-Control-Allow-Origin': allowed,
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type',
+    'Vary': 'Origin',
   }
 }
 
-export async function OPTIONS() {
-  return new NextResponse(null, { status: 204, headers: cors() })
+export async function OPTIONS(request: NextRequest) {
+  const origin = request.headers.get('origin')
+  return new NextResponse(null, { status: 204, headers: cors(origin) })
 }
 
 async function verifyRecaptcha(token: string): Promise<boolean> {
@@ -37,24 +42,25 @@ async function verifyRecaptcha(token: string): Promise<boolean> {
 }
 
 export async function POST(request: NextRequest) {
+  const origin = request.headers.get('origin')
   let body: any
   try {
     body = await request.json()
   } catch {
-    return NextResponse.json({ error: 'Μη έγκυρη αίτηση' }, { status: 400, headers: cors() })
+    return NextResponse.json({ error: 'Μη έγκυρη αίτηση' }, { status: 400, headers: cors(origin) })
   }
 
   const { afm, email, phone, recaptchaToken } = body || {}
 
   // reCAPTCHA
   if (!recaptchaToken || !(await verifyRecaptcha(String(recaptchaToken)))) {
-    return NextResponse.json({ error: 'Επαλήθευση reCAPTCHA απέτυχε. Παρακαλώ δοκιμάστε ξανά.' }, { status: 400, headers: cors() })
+    return NextResponse.json({ error: 'Επαλήθευση reCAPTCHA απέτυχε. Παρακαλώ δοκιμάστε ξανά.' }, { status: 400, headers: cors(origin) })
   }
 
   // AFM validation
   const cleanAfm = String(afm || '').replace(/\D/g, '').replace(/^0+/, '').padStart(9, '0')
   if (!/^\d{9}$/.test(cleanAfm)) {
-    return NextResponse.json({ error: 'Μη έγκυρο ΑΦΜ. Εισάγετε ακριβώς 9 ψηφία.' }, { status: 400, headers: cors() })
+    return NextResponse.json({ error: 'Μη έγκυρο ΑΦΜ. Εισάγετε ακριβώς 9 ψηφία.' }, { status: 400, headers: cors(origin) })
   }
 
   // Find or create GemiLookup record
@@ -71,7 +77,7 @@ export async function POST(request: NextRequest) {
     if (!aadeData && !gemi) {
       return NextResponse.json(
         { error: 'Δεν βρέθηκαν στοιχεία για το ΑΦΜ που καταχωρήσατε. Ελέγξτε ότι το ΑΦΜ είναι σωστό.' },
-        { status: 404, headers: cors() }
+        { status: 404, headers: cors(origin) }
       )
     }
 
@@ -130,7 +136,7 @@ export async function POST(request: NextRequest) {
   if (gemi!.deactivationFlag === 'Y' || !!gemi!.stopDate) {
     return NextResponse.json(
       { business: { name: gemi!.onomasia || gemi!.afm }, programs: [], inactive: true },
-      { headers: cors() }
+      { headers: cors(origin) }
     )
   }
 
@@ -169,7 +175,7 @@ export async function POST(request: NextRequest) {
   if (activeMatches.length === 0) {
     return NextResponse.json(
       { business: { name: gemi!.onomasia || gemi!.afm }, programs: [] },
-      { headers: cors() }
+      { headers: cors(origin) }
     )
   }
 
@@ -197,6 +203,6 @@ export async function POST(request: NextRequest) {
 
   return NextResponse.json(
     { business: { name: gemi!.onomasia || gemi!.afm }, programs: programsWithLinks },
-    { headers: cors() }
+    { headers: cors(origin) }
   )
 }
