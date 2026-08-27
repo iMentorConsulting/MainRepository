@@ -3,7 +3,34 @@ var IM_API = "https://logistis.i-mentor.gr/api/public/eligibility-check";
 
 function imFmt(n) {
   if (n == null) return "";
-  return n.toLocaleString("el-GR");
+  return Number(n).toLocaleString("el-GR");
+}
+
+function imRow(label, value) {
+  if (!value) return "";
+  return (
+    "<div class='imd-row'>" +
+      "<div class='imd-label'>" + label + "</div>" +
+      "<div class='imd-value'>" + value + "</div>" +
+    "</div>"
+  );
+}
+
+function imRowHighlight(label, value) {
+  if (!value) return "";
+  return (
+    "<div class='imd-row'>" +
+      "<div class='imd-label'>" + label + "</div>" +
+      "<div class='imd-value imd-blue'>" + value + "</div>" +
+    "</div>"
+  );
+}
+
+function imRange(min, max, suffix) {
+  suffix = suffix || "";
+  if (!min && !max) return "";
+  if (min && max && min !== max) return imFmt(min) + suffix + " — " + imFmt(max) + suffix;
+  return imFmt(min || max) + suffix;
 }
 
 function imCategoryDetails(p) {
@@ -11,68 +38,53 @@ function imCategoryDetails(p) {
   var cat = p.category || "";
 
   if (cat === "DYPA") {
-    html += "<div class='im-details-grid'>";
-    if (p.monthlyAmount) {
-      html += "<div class='im-detail-cell'><div class='im-detail-label'>ΜΗΝΙΑΙΑ ΕΠΙΧΟΡΗΓΗΣΗ</div><div class='im-detail-value'>" + p.monthlyAmount + "</div></div>";
-    }
-    if (p.subsidyMonths) {
-      html += "<div class='im-detail-cell'><div class='im-detail-label'>ΜΗΝΕΣ ΕΠΙΧΟΡΗΓΗΣΗΣ</div><div class='im-detail-value'>" + p.subsidyMonths + "</div></div>";
-    }
-    if (p.totalBenefit) {
-      html += "<div class='im-detail-cell'><div class='im-detail-label'>ΣΥΝΟΛΙΚΟ ΟΦΕΛΟΣ</div><div class='im-detail-value im-detail-highlight'>" + p.totalBenefit + "</div></div>";
-    }
+    html += "<div class='imd-grid'>";
+    html += imRowHighlight("ΜΗΝΙΑΙΑ ΕΠΙΧΟΡΗΓΗΣΗ", p.monthlyAmount);
+    html += imRowHighlight("ΜΗΝΕΣ ΕΠΙΧΟΡΗΓΗΣΗΣ", p.subsidyMonths);
+    html += imRowHighlight("ΣΥΝΟΛΙΚΟ ΟΦΕΛΟΣ", p.totalBenefit);
+    html += imRow("ΠΕΡΙΟΧΗ ΙΣΧΥΟΣ", p.regions);
     html += "</div>";
     if (p.beneficiaries) {
-      html += "<div class='im-detail-block'><div class='im-detail-label'>ΩΦΕΛΟΥΜΕΝΟΙ ΑΝΕΡΓΟΙ</div><div class='im-detail-text'>" + p.beneficiaries + "</div></div>";
-    }
-    if (p.regions) {
-      html += "<div class='im-detail-block'><div class='im-detail-label'>ΠΕΡΙΟΧΗ ΙΣΧΥΟΣ</div><div class='im-detail-text'>" + p.regions + "</div></div>";
+      html += "<div class='imd-block'><div class='imd-label'>ΩΦΕΛΟΥΜΕΝΟΙ ΑΝΕΡΓΟΙ</div><div class='imd-text'>" + p.beneficiaries + "</div></div>";
     }
   }
 
   if (cat === "ESPA" || cat === "RENOVATION") {
-    html += "<div class='im-details-grid'>";
-    if (p.minInvestment || p.maxInvestment) {
-      var inv = (p.minInvestment ? imFmt(p.minInvestment) + " €" : "") + (p.minInvestment && p.maxInvestment ? " — " : "") + (p.maxInvestment ? imFmt(p.maxInvestment) + " €" : "");
-      html += "<div class='im-detail-cell'><div class='im-detail-label'>ΠΟΣΟ ΕΠΕΝΔΥΣΗΣ</div><div class='im-detail-value'>" + inv + "</div></div>";
-    }
-    if (p.minSubsidyPct || p.maxSubsidyPct) {
-      var sub = (p.minSubsidyPct ? p.minSubsidyPct + "%" : "") + (p.minSubsidyPct && p.maxSubsidyPct && p.minSubsidyPct !== p.maxSubsidyPct ? " — " + p.maxSubsidyPct + "%" : (!p.minSubsidyPct && p.maxSubsidyPct ? p.maxSubsidyPct + "%" : ""));
-      html += "<div class='im-detail-cell'><div class='im-detail-label'>% ΕΠΙΧΟΡΗΓΗΣΗΣ</div><div class='im-detail-value im-detail-highlight'>" + sub + "</div></div>";
-    }
+    var inv = imRange(p.minInvestment, p.maxInvestment, " €");
+    var sub = imRange(p.minSubsidyPct, p.maxSubsidyPct, "%");
+    html += "<div class='imd-grid'>";
+    html += imRow("ΠΟΣΟ ΕΠΕΝΔΥΣΗΣ", inv);
+    html += imRowHighlight("% ΕΠΙΧΟΡΗΓΗΣΗΣ", sub);
     html += "</div>";
     if (p.subsidyNote) {
-      html += "<div class='im-detail-block'><div class='im-detail-text im-detail-note'>" + p.subsidyNote + "</div></div>";
+      html += "<div class='imd-block'><div class='imd-text imd-note'>" + p.subsidyNote + "</div></div>";
     }
     if (p.otherRequirements) {
-      html += "<div class='im-detail-block'><div class='im-detail-label'>ΑΛΛΕΣ ΠΡΟΫΠΟΘΕΣΕΙΣ</div><div class='im-detail-text'>" + p.otherRequirements + "</div></div>";
+      var reqs = p.otherRequirements.trim();
+      html += "<div class='imd-block'><div class='imd-label'>ΑΛΛΕΣ ΠΡΟΫΠΟΘΕΣΕΙΣ</div><div class='imd-text'>" + reqs + "</div></div>";
     }
   }
 
   if (cat === "MICROCREDITS") {
-    html += "<div class='im-details-grid'>";
-    if (p.minInterestRate || p.maxInterestRate) {
-      var rate = (p.minInterestRate ? p.minInterestRate + "%" : "") + (p.minInterestRate && p.maxInterestRate ? " — " : "") + (p.maxInterestRate ? p.maxInterestRate + "%" : "");
-      html += "<div class='im-detail-cell'><div class='im-detail-label'>ΕΠΙΤΟΚΙΟ</div><div class='im-detail-value im-detail-highlight'>" + rate + "</div></div>";
-    }
-    if (p.minInvestment || p.maxInvestment) {
-      var inv2 = (p.minInvestment ? imFmt(p.minInvestment) + " €" : "") + (p.minInvestment && p.maxInvestment ? " — " : "") + (p.maxInvestment ? imFmt(p.maxInvestment) + " €" : "");
-      html += "<div class='im-detail-cell'><div class='im-detail-label'>ΠΟΣΟ ΔΑΝΕΙΟΥ</div><div class='im-detail-value'>" + inv2 + "</div></div>";
-    }
+    var rate = imRange(p.minInterestRate, p.maxInterestRate, "%");
+    var loan = imRange(p.minInvestment, p.maxInvestment, " €");
+    html += "<div class='imd-grid'>";
+    html += imRowHighlight("ΕΠΙΤΟΚΙΟ", rate);
+    html += imRow("ΠΟΣΟ ΔΑΝΕΙΟΥ", loan);
     html += "</div>";
     if (p.keyPoints && p.keyPoints.length > 0) {
-      html += "<div class='im-detail-block'><div class='im-detail-label'>ΠΡΟΣΘΕΤΕΣ ΠΡΟΫΠΟΘΕΣΕΙΣ</div><div class='im-tags'>";
+      html += "<div class='imd-block'><div class='imd-label'>ΠΡΟΣΘΕΤΕΣ ΠΡΟΫΠΟΘΕΣΕΙΣ</div><div class='imd-tags'>";
       for (var k = 0; k < p.keyPoints.length; k++) {
-        html += "<span class='im-tag'>" + p.keyPoints[k] + "</span>";
+        html += "<span class='imd-tag'>" + p.keyPoints[k] + "</span>";
       }
       html += "</div></div>";
     }
     if (p.otherRequirements) {
-      html += "<div class='im-detail-block'><div class='im-detail-text'>" + p.otherRequirements + "</div></div>";
+      html += "<div class='imd-block'><div class='imd-text'>" + p.otherRequirements + "</div></div>";
     }
   }
 
-  return html;
+  return html ? "<div class='imd-section'>" + html + "</div>" : "";
 }
 
 function imCheck() {
@@ -125,83 +137,80 @@ function imCheck() {
           return;
         }
 
-        var bizName = r.data.business ? r.data.business.name : "";
+        var bizName = (r.data.business && r.data.business.name) ? r.data.business.name : "";
         var programs = r.data.programs || [];
 
         if (programs.length === 0) {
           out.innerHTML =
-            "<div class='im-no-match'>" +
-              "<div class='im-no-match-icon'>🔍</div>" +
-              "<h3>Δεν βρέθηκαν ενεργά προγράμματα</h3>" +
-              "<p>Αυτή τη στιγμή δεν υπάρχουν διαθέσιμα χρηματοδοτικά προγράμματα για <strong>" + bizName + "</strong>.<br>Ελέγξτε ξανά σύντομα ή επικοινωνήστε μαζί μας.</p>" +
+            "<div class='im-nomatch'>" +
+              "<div class='im-nomatch-icon'>🔍</div>" +
+              "<div class='im-nomatch-title'>Δεν βρέθηκαν ενεργά προγράμματα</div>" +
+              "<div class='im-nomatch-text'>Αυτή τη στιγμή δεν υπάρχουν διαθέσιμα χρηματοδοτικά προγράμματα για <strong>" + bizName + "</strong>. Επικοινωνήστε μαζί μας για εξατομικευμένη αξιολόγηση.</div>" +
             "</div>";
           return;
         }
 
+        var catLabels = { DYPA:"ΔΥΠΑ", ESPA:"ΕΣΠΑ", MICROCREDITS:"ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ", EXTRAJUDICIAL:"ΕΞΩΔΙΚΑΣΤΙΚΟΣ", RENOVATION:"ΑΝΑΚΑΙΝΙΣΗ", OTHER:"ΑΛΛΟ" };
+
         var html =
-          "<div class='im-jackpot'>" +
-            "<div class='im-jackpot-trophy'>🏆</div>" +
-            "<div class='im-jackpot-congrats'>Συγχαρητήρια!</div>" +
-            "<div class='im-jackpot-biz'>" + bizName + "</div>" +
-            "<div class='im-jackpot-msg'>Βρέθηκαν <span class='im-jackpot-count'>" + programs.length + " χρηματοδοτικά προγράμματα</span><br>για τα οποία η επιχείρησή σας είναι αρχικά επιλέξιμη</div>" +
+          "<div class='im-banner'>" +
+            "<div class='im-banner-trophy'>🏆</div>" +
+            "<div class='im-banner-congrats'>Συγχαρητήρια!</div>" +
+            "<div class='im-banner-biz'>" + bizName + "</div>" +
+            "<div class='im-banner-msg'>Βρέθηκαν <strong class='im-banner-n'>" + programs.length + " χρηματοδοτικά προγράμματα</strong><br>για τα οποία η επιχείρησή σας είναι αρχικά επιλέξιμη</div>" +
           "</div>" +
-          "<div class='im-cards'>";
+          "<div class='im-list'>";
 
         for (var i = 0; i < programs.length; i++) {
           var p = programs[i];
-
-          var catLabel = "";
-          if (p.category === "DYPA") catLabel = "ΔΥΠΑ";
-          else if (p.category === "ESPA") catLabel = "ΕΣΠΑ";
-          else if (p.category === "MICROCREDITS") catLabel = "ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ";
-          else if (p.category === "EXTRAJUDICIAL") catLabel = "ΕΞΩΔΙΚΑΣΤΙΚΟΣ";
-          else if (p.category === "RENOVATION") catLabel = "ΑΝΑΚΑΙΝΙΣΗ";
+          var catLabel = catLabels[p.category] || "";
 
           var subBadge = "";
           if (p.minSubsidyPct || p.maxSubsidyPct) {
-            var lo = p.minSubsidyPct ? p.minSubsidyPct + "%" : "";
-            var hi = (p.maxSubsidyPct && p.minSubsidyPct !== p.maxSubsidyPct) ? p.maxSubsidyPct + "%" : "";
-            subBadge = lo + (lo && hi ? " – " : "") + hi;
+            subBadge = imRange(p.minSubsidyPct, p.maxSubsidyPct, "%");
           }
 
-          html += "<div class='im-card' style='animation-delay:" + (i * 0.08) + "s'>";
-          html += "<div class='im-card-header'>";
-          if (catLabel) html += "<span class='im-cat-badge im-cat-" + p.category + "'>" + catLabel + "</span>";
-          html += "<h3 class='im-card-title'>" + p.title + "</h3>";
-          if (subBadge) html += "<div class='im-sub-badge'>💰 Επιδότηση " + subBadge + "</div>";
+          html += "<div class='im-card' style='animation-delay:" + (i * 0.07) + "s'>";
+
+          // Header
+          html += "<div class='im-card-top'>";
+          if (catLabel) html += "<span class='im-cat im-cat-" + p.category + "'>" + catLabel + "</span>";
+          html += "<div class='im-card-title'>" + p.title + "</div>";
+          if (subBadge) html += "<div class='im-subsidy'>💰 Επιδότηση " + subBadge + "</div>";
           html += "</div>";
 
+          // Body
           html += "<div class='im-card-body'>";
-          if (p.description) html += "<p class='im-card-desc'>" + p.description + "</p>";
+          if (p.description) html += "<div class='im-card-desc'>" + p.description + "</div>";
 
           html += imCategoryDetails(p);
 
           if (p.matchReasons && p.matchReasons.length > 0) {
-            html += "<div class='im-reasons'><div class='im-reasons-label'>✓ Γιατί ταιριάζει η επιχείρησή σας</div><ul class='im-reasons-list'>";
+            html += "<div class='im-reasons'><div class='im-reasons-hd'>✓ Γιατί ταιριάζει η επιχείρησή σας</div><ul class='im-reasons-ul'>";
             for (var j = 0; j < p.matchReasons.length; j++) {
               html += "<li>" + p.matchReasons[j] + "</li>";
             }
             html += "</ul></div>";
           }
 
-          html += "<a href='" + p.ermisUrl + "' class='im-cta' target='_blank' rel='noopener'>Ενδιαφέρομαι — Ξεκινήστε τη διαδικασία &rarr;</a>";
+          html += "<a href='" + p.ermisUrl + "' class='im-btn-cta' target='_blank' rel='noopener'>Ενδιαφέρομαι — Ξεκινήστε τη διαδικασία &rarr;</a>";
           html += "</div></div>";
         }
 
         html += "</div>";
 
-        // Εξωδικαστικός promo card — shown to all
+        // Εξωδικαστικός promo
         html +=
-          "<div class='im-extra-card'>" +
-            "<div class='im-extra-card-header'>" +
-              "<span class='im-extra-icon'>⚖️</span>" +
+          "<div class='im-promo'>" +
+            "<div class='im-promo-hd'>" +
+              "<span class='im-promo-ico'>⚖️</span>" +
               "<div>" +
-                "<div class='im-extra-title'>Εξωδικαστικός Μηχανισμός</div>" +
-                "<div class='im-extra-sub'>Αν έχετε οφειλές — αυτό αφορά εσάς</div>" +
+                "<div class='im-promo-title'>Εξωδικαστικός Μηχανισμός</div>" +
+                "<div class='im-promo-sub'>Αν έχετε οφειλές — διαβάστε αυτό</div>" +
               "</div>" +
             "</div>" +
-            "<p class='im-extra-desc'>Κρατική ηλεκτρονική πλατφόρμα όπου με <strong>μία αίτηση</strong> μπορείτε να ρυθμίσετε συνολικά όλες τις οφειλές σας — από δάνεια και κάρτες μέχρι ΑΑΔΕ, ΕΦΚΑ και Δήμους. Μακροχρόνιες δόσεις, σταθερό επιτόκιο, δυνατότητα σημαντικής <strong>διαγραφής</strong>.</p>" +
-            "<a href='https://www.i-mentor.gr/exodikastikos' class='im-extra-cta' target='_blank' rel='noopener'>Μάθετε περισσότερα &rarr;</a>" +
+            "<div class='im-promo-body'>Κρατική πλατφόρμα για συνολική ρύθμιση οφειλών σε ΑΑΔΕ, ΕΦΚΑ, Δήμους και τράπεζες με <strong>μία αίτηση</strong>. Μακροχρόνιες δόσεις, σταθερό επιτόκιο 3%, δυνατότητα σημαντικής <strong>διαγραφής χρέους</strong>.</div>" +
+            "<a href='https://www.i-mentor.gr/exodikastikos' class='im-promo-btn' target='_blank' rel='noopener'>Μάθετε περισσότερα &rarr;</a>" +
           "</div>";
 
         out.innerHTML = html;
