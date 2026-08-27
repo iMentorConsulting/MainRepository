@@ -65,6 +65,18 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Μη έγκυρο ΑΦΜ. Εισάγετε ακριβώς 9 ψηφία.' }, { status: 400, headers: cors(origin) })
   }
 
+  // Email validation (required)
+  const cleanEmail = String(email || '').trim()
+  if (!cleanEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+    return NextResponse.json({ error: 'Παρακαλώ εισάγετε έγκυρο email.' }, { status: 400, headers: cors(origin) })
+  }
+
+  // Phone validation (required)
+  const cleanPhone = String(phone || '').replace(/\s/g, '')
+  if (!cleanPhone || !/^\+?[\d\-]{8,}$/.test(cleanPhone)) {
+    return NextResponse.json({ error: 'Παρακαλώ εισάγετε έγκυρο τηλέφωνο.' }, { status: 400, headers: cors(origin) })
+  }
+
   // Find or create GemiLookup record
   let gemi = await prisma.gemiLookup.findUnique({ where: { afm: cleanAfm } })
 
@@ -106,8 +118,8 @@ export async function POST(request: NextRequest) {
           data: {
             ...aadeFields,
             afm: cleanAfm,
-            email: email || null,
-            phone: phone || null,
+            email: cleanEmail,
+            phone: cleanPhone,
           },
         })
       } else {
@@ -115,20 +127,20 @@ export async function POST(request: NextRequest) {
           where: { id: gemi.id },
           data: {
             ...aadeFields,
-            ...(email && !gemi.email ? { email } : {}),
-            ...(phone && !gemi.phone ? { phone } : {}),
+            ...(cleanEmail && !gemi.email ? { email: cleanEmail } : {}),
+            ...(cleanPhone && !gemi.phone ? { phone: cleanPhone } : {}),
           },
         })
       }
     }
   } else {
     // Update contact info if newly provided
-    if ((email && !gemi.email) || (phone && !gemi.phone)) {
+    if ((cleanEmail && !gemi.email) || (cleanPhone && !gemi.phone)) {
       gemi = await prisma.gemiLookup.update({
         where: { id: gemi.id },
         data: {
-          ...(email && !gemi.email ? { email } : {}),
-          ...(phone && !gemi.phone ? { phone } : {}),
+          ...(cleanEmail && !gemi.email ? { email: cleanEmail } : {}),
+          ...(cleanPhone && !gemi.phone ? { phone: cleanPhone } : {}),
         },
       })
     }
@@ -156,11 +168,22 @@ export async function POST(request: NextRequest) {
         select: {
           id: true,
           title: true,
+          category: true,
           description: true,
           minSubsidyPct: true,
           maxSubsidyPct: true,
+          subsidyNote: true,
           minInvestment: true,
           maxInvestment: true,
+          minInterestRate: true,
+          maxInterestRate: true,
+          otherRequirements: true,
+          keyPoints: true,
+          monthlyAmount: true,
+          subsidyMonths: true,
+          totalBenefit: true,
+          beneficiaries: true,
+          regions: true,
           heroImageUrl: true,
           websiteUrl: true,
           active: true,
@@ -188,12 +211,23 @@ export async function POST(request: NextRequest) {
       const ermisUrl = await getOrCreateGemiErmisLink(gemiId, m.programId)
       return {
         programId: m.programId,
+        category: m.program.category,
         title: m.program.title,
         description: m.program.description,
         minSubsidyPct: m.program.minSubsidyPct,
         maxSubsidyPct: m.program.maxSubsidyPct,
+        subsidyNote: m.program.subsidyNote,
         minInvestment: m.program.minInvestment,
         maxInvestment: m.program.maxInvestment,
+        minInterestRate: m.program.minInterestRate,
+        maxInterestRate: m.program.maxInterestRate,
+        otherRequirements: m.program.otherRequirements,
+        keyPoints: m.program.keyPoints,
+        monthlyAmount: m.program.monthlyAmount,
+        subsidyMonths: m.program.subsidyMonths,
+        totalBenefit: m.program.totalBenefit,
+        beneficiaries: m.program.beneficiaries,
+        regions: m.program.regions,
         heroImageUrl: m.program.heroImageUrl,
         websiteUrl: m.program.websiteUrl,
         matchScore: m.matchScore,
