@@ -831,6 +831,15 @@ def add_comment(
         author_name=current_user.full_name,
     )
     db.add(c)
+    # Auto-set source from comment keywords if not already set
+    content_upper = req.content.upper()
+    keyword_source = None
+    if re.search(r'\bFB\b', content_upper):
+        keyword_source = "Facebook"
+    elif re.search(r'\bTIKTOK\b', content_upper):
+        keyword_source = "TikTok"
+    if keyword_source and not (l.source or "").strip():
+        l.source = keyword_source
     db.commit()
     db.refresh(c)
     return _comment_to_dict(c)
