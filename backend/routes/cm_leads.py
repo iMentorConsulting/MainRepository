@@ -845,6 +845,38 @@ def add_comment(
     return _comment_to_dict(c)
 
 
+@router.post("/backfill-source-keywords")
+def backfill_source_keywords(
+    current_user: CMUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """One-time backfill: set source=Facebook/TikTok for leads whose comments
+    contain FB/TIKTOK but whose source field is currently empty."""
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Μόνο για διαχειριστές")
+
+    leads = (db.query(CMLead)
+             .filter(or_(CMLead.source.is_(None), CMLead.source == ""))
+             .join(CMLeadComment, CMLeadComment.lead_id == CMLead.id)
+             .all())
+
+    updated = 0
+    seen: set = set()
+    for lead in leads:
+        if lead.id in seen:
+            continue
+        seen.add(lead.id)
+        for c in lead.comments:
+            upper = (c.content or "").upper()
+            if re.search(r'\bFB\b', upper):
+                lead.source = "Facebook"; updated += 1; break
+            elif re.search(r'\bTIKTOK\b', upper):
+                lead.source = "TikTok"; updated += 1; break
+
+    db.commit()
+    return {"ok": True, "updated": updated}
+
+
 @router.put("/{lead_id}/comments/{comment_id}")
 def edit_comment(
     lead_id: int,
