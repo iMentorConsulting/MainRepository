@@ -6,12 +6,14 @@ import { getOrCreateGemiErmisLink } from '@/lib/gemi-ermis'
 
 export const dynamic = 'force-dynamic'
 
-const ALLOWED_ORIGINS = (process.env.ELIGIBILITY_CORS_ORIGIN || 'https://www.i-mentor.gr,https://i-mentor.gr')
-  .split(',')
-  .map(o => o.trim())
+const ALLOWED_ORIGINS = new Set([
+  'https://www.i-mentor.gr',
+  'https://i-mentor.gr',
+  ...(process.env.ELIGIBILITY_CORS_ORIGIN || '').split(',').map(o => o.trim()).filter(Boolean),
+])
 
 function cors(origin?: string | null) {
-  const allowed = origin && ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0]
+  const allowed = origin && ALLOWED_ORIGINS.has(origin) ? origin : 'https://www.i-mentor.gr'
   return {
     'Access-Control-Allow-Origin': allowed,
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
