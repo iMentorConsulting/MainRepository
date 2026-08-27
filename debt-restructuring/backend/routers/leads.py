@@ -633,6 +633,100 @@ def get_reporting(db: Session = Depends(get_db)):
     }
 
 
+@router.get("/conversion")
+def get_conversion(db: Session = Depends(get_db)):
+    """Conversion stats: leads → DEAL per month, per referrer, and per consultant.
+    Uses Lead.date (the sheet date field) as the lead creation date.
+    Only leads with a parseable date are included in time-bucketed stats.
+    """
+    from collections import defaultdict
+
+    try:
+        leads = db.query(Lead).all()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"DB error: {e}")
+
+    def _month(lead):
+        d = parse_any_date(lead.date) if lead.date else None
+        if not d:
+            d = lead.created_at
+        if not d:
+            return None
+        return d.strftime("%Y-%m")
+
+    def _is_deal(lead):
+        return (lead.status or "").upper() == "DEAL"
+
+    # ---------- per month ----------
+    month_total: dict = defaultdict(int)
+    month_deal: dict = defaultdict(int)
+    for l in leads:
+        m = _month(l)
+        if not m:
+            continue
+        month_total[m] += 1
+        if _is_deal(l):
+            month_deal[m] += 1
+
+    by_month = []
+    for m in sorted(month_total):
+        total = month_total[m]
+        deals = month_deal[m]
+        by_month.append({
+            "month": m,
+            "total": total,
+            "deals": deals,
+            "rate": round(deals / total * 100, 1) if total else 0,
+        })
+
+    # ---------- per referrer ----------
+    ref_total: dict = defaultdict(int)
+    ref_deal: dict = defaultdict(int)
+    for l in leads:
+        ref = (l.referrer or "").strip() or "—"
+        ref_total[ref] += 1
+        if _is_deal(l):
+            ref_deal[ref] += 1
+
+    by_referrer = sorted(
+        [
+            {"referrer": r, "total": ref_total[r], "deals": ref_deal[r],
+             "rate": round(ref_deal[r] / ref_total[r] * 100, 1) if ref_total[r] else 0}
+            for r in ref_total
+        ],
+        key=lambda x: -x["total"],
+    )
+
+    # ---------- per consultant ----------
+    cons_total: dict = defaultdict(int)
+    cons_deal: dict = defaultdict(int)
+    for l in leads:
+        c = (l.assigned_to or "").strip().upper() or "—"
+        cons_total[c] += 1
+        if _is_deal(l):
+            cons_deal[c] += 1
+
+    by_consultant = sorted(
+        [
+            {"consultant": c, "total": cons_total[c], "deals": cons_deal[c],
+             "rate": round(cons_deal[c] / cons_total[c] * 100, 1) if cons_total[c] else 0}
+            for c in cons_total
+        ],
+        key=lambda x: -x["total"],
+    )
+
+    total_all = len(leads)
+    deal_all = sum(1 for l in leads if _is_deal(l))
+    return {
+        "total": total_all,
+        "deals": deal_all,
+        "overall_rate": round(deal_all / total_all * 100, 1) if total_all else 0,
+        "by_month": by_month,
+        "by_referrer": by_referrer,
+        "by_consultant": by_consultant,
+    }
+
+
 @router.get("/daily-volume")
 def get_daily_volume(db: Session = Depends(get_db)):
     """Αριθμός leads ανά ημέρα (βάσει του πεδίου date/ΗΜΕΡΟΜΗΝΙΑ), με ανάλυση

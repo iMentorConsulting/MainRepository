@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { toast } from 'react-hot-toast'
 import {
   BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LabelList,
+  Cell,
 } from 'recharts'
 import * as api from '../api'
 
@@ -168,6 +169,162 @@ function DailyVolumeReport() {
   )
 }
 
+function ConversionReport() {
+  const [data, setData] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [view, setView] = useState('month') // 'month' | 'referrer' | 'consultant'
+
+  useEffect(() => {
+    setLoading(true)
+    api.getLeadsConversion()
+      .then(r => setData(r.data))
+      .catch(() => toast.error('Σφάλμα φόρτωσης conversion stats'))
+      .finally(() => setLoading(false))
+  }, [])
+
+  if (loading) return <div className="card p-6 text-center text-gray-400">Φόρτωση…</div>
+  if (!data) return null
+
+  const TABS = [
+    { id: 'month', label: 'Ανά Μήνα' },
+    { id: 'referrer', label: 'Ανά Referrer' },
+    { id: 'consultant', label: 'Ανά Σύμβουλο' },
+  ]
+
+  const rateColor = r => r >= 20 ? '#10b981' : r >= 10 ? '#f59e0b' : '#ef4444'
+
+  const renderTable = (rows, labelKey, labelHeader) => (
+    <div className="overflow-x-auto">
+      <table className="w-full text-xs">
+        <thead>
+          <tr className="border-b-2 border-blue-100 text-left">
+            <th className="th">{labelHeader}</th>
+            <th className="th text-right">Leads</th>
+            <th className="th text-right">Deals</th>
+            <th className="th text-right">Ποσοστό</th>
+            <th className="th">
+              <span className="invisible">bar</span>
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row, i) => (
+            <tr key={i} className="border-b border-gray-100 hover:bg-green-50">
+              <td className="td font-medium text-gray-700">{row[labelKey]}</td>
+              <td className="td text-right text-gray-500">{row.total}</td>
+              <td className="td text-right font-bold text-green-700">{row.deals}</td>
+              <td className="td text-right font-black" style={{ color: rateColor(row.rate) }}>
+                {row.rate}%
+              </td>
+              <td className="td w-32">
+                <div className="bg-gray-100 rounded-full h-2 overflow-hidden">
+                  <div className="h-2 rounded-full transition-all"
+                    style={{ width: `${Math.min(row.rate, 100)}%`, backgroundColor: rateColor(row.rate) }} />
+                </div>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+
+  return (
+    <div className="card p-4 space-y-4">
+      {/* header */}
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div>
+          <h2 className="text-base font-bold text-gray-700">Conversion Rate Leads → Deal</h2>
+          <p className="text-xs text-gray-400">
+            Σύνολο: {data.total} leads · {data.deals} Deals ·{' '}
+            <span className="font-bold" style={{ color: rateColor(data.overall_rate) }}>
+              {data.overall_rate}% overall
+            </span>
+          </p>
+        </div>
+        <div className="flex gap-2">
+          {TABS.map(t => (
+            <button key={t.id} onClick={() => setView(t.id)}
+              className={`text-xs px-3 py-1 rounded-full font-semibold transition-colors
+                ${view === t.id ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+              {t.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Monthly view: line chart + table */}
+      {view === 'month' && (
+        <>
+          <ResponsiveContainer width="100%" height={260}>
+            <BarChart data={data.by_month} margin={{ top: 20, right: 16, left: 0, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+              <XAxis dataKey="month" tick={{ fontSize: 10 }} tickLine={false} />
+              <YAxis yAxisId="left" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} allowDecimals={false} />
+              <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10 }} tickLine={false} axisLine={false}
+                unit="%" domain={[0, 100]} />
+              <Tooltip contentStyle={{ fontSize: 12 }}
+                formatter={(v, name) => name === 'rate' ? [`${v}%`, 'Conversion %'] : [v, name === 'deals' ? 'Deals' : 'Leads']} />
+              <Legend wrapperStyle={{ fontSize: 12 }} formatter={n => n === 'rate' ? 'Conversion %' : n === 'deals' ? 'Deals' : 'Leads'} />
+              <Bar yAxisId="left" dataKey="total" fill="#93c5fd" name="total" radius={[3, 3, 0, 0]}>
+                <LabelList dataKey="total" position="top" style={{ fontSize: 9, fill: '#374151' }} formatter={_hideZero} />
+              </Bar>
+              <Bar yAxisId="left" dataKey="deals" fill="#10b981" name="deals" radius={[3, 3, 0, 0]}>
+                <LabelList dataKey="deals" position="top" style={{ fontSize: 9, fill: '#065f46' }} formatter={_hideZero} />
+              </Bar>
+              <Line yAxisId="right" type="monotone" dataKey="rate" stroke="#f59e0b" strokeWidth={2.5}
+                dot={{ r: 3 }} name="rate" />
+            </BarChart>
+          </ResponsiveContainer>
+          {renderTable(data.by_month, 'month', 'Μήνας')}
+        </>
+      )}
+
+      {/* Referrer view */}
+      {view === 'referrer' && (
+        <>
+          <ResponsiveContainer width="100%" height={Math.max(180, data.by_referrer.length * 32 + 40)}>
+            <BarChart data={data.by_referrer} layout="vertical" margin={{ top: 4, right: 60, left: 4, bottom: 4 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" horizontal={false} />
+              <XAxis type="number" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} allowDecimals={false} />
+              <YAxis type="category" dataKey="referrer" tick={{ fontSize: 10 }} width={100} />
+              <Tooltip contentStyle={{ fontSize: 12 }}
+                formatter={(v, name) => name === 'rate' ? [`${v}%`, 'Conv %'] : [v, name === 'deals' ? 'Deals' : 'Leads']} />
+              <Legend wrapperStyle={{ fontSize: 12 }} formatter={n => n === 'rate' ? 'Conv %' : n === 'deals' ? 'Deals' : 'Leads'} />
+              <Bar dataKey="total" fill="#93c5fd" name="total" radius={[0, 3, 3, 0]}>
+                <LabelList dataKey="total" position="right" style={{ fontSize: 9 }} formatter={_hideZero} />
+              </Bar>
+              <Bar dataKey="deals" fill="#10b981" name="deals" radius={[0, 3, 3, 0]}>
+                <LabelList dataKey="deals" position="right" style={{ fontSize: 9, fill: '#065f46' }} formatter={_hideZero} />
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+          {renderTable(data.by_referrer, 'referrer', 'Referrer')}
+        </>
+      )}
+
+      {/* Consultant view */}
+      {view === 'consultant' && (
+        <>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+            {data.by_consultant.map((c, i) => (
+              <div key={i} className="rounded-xl border border-gray-100 bg-gray-50 p-3 text-center">
+                <div className="text-xs font-bold text-gray-500 mb-1">{c.consultant}</div>
+                <div className="text-2xl font-black" style={{ color: rateColor(c.rate) }}>{c.rate}%</div>
+                <div className="text-xs text-gray-400 mt-0.5">conversion</div>
+                <div className="mt-1.5 text-xs text-gray-500">
+                  <span className="text-green-700 font-bold">{c.deals}</span> / {c.total} leads
+                </div>
+              </div>
+            ))}
+          </div>
+          {renderTable(data.by_consultant, 'consultant', 'Σύμβουλος')}
+        </>
+      )}
+    </div>
+  )
+}
+
 const PERIODS = [
   { id: 'daily', label: 'Ημερήσια', dateKey: 'date' },
   { id: 'weekly', label: 'Εβδομαδιαία', dateKey: 'week' },
@@ -222,6 +379,9 @@ export default function LeadsReporting({ currentEmployee }) {
           </div>
         ))}
       </div>
+
+      {/* Conversion rate panel */}
+      <ConversionReport />
 
       {/* Daily lead volume report */}
       <DailyVolumeReport />
