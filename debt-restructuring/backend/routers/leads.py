@@ -697,23 +697,44 @@ def get_conversion(db: Session = Depends(get_db)):
         key=lambda x: -x["total"],
     )
 
-    # ---------- per consultant ----------
+    # ---------- per consultant (global + per-month for filtering) ----------
     cons_total: dict = defaultdict(int)
     cons_deal: dict = defaultdict(int)
+    # month → consultant → {total, deals}
+    mc_total: dict = defaultdict(lambda: defaultdict(int))
+    mc_deal: dict = defaultdict(lambda: defaultdict(int))
     for l in leads:
         c = (l.assigned_to or "").strip().upper() or "—"
+        m = _month(l)
         cons_total[c] += 1
         if _is_deal(l):
             cons_deal[c] += 1
+        if m:
+            mc_total[m][c] += 1
+            if _is_deal(l):
+                mc_deal[m][c] += 1
 
-    by_consultant = sorted(
-        [
-            {"consultant": c, "total": cons_total[c], "deals": cons_deal[c],
-             "rate": round(cons_deal[c] / cons_total[c] * 100, 1) if cons_total[c] else 0}
-            for c in cons_total
-        ],
-        key=lambda x: -x["total"],
-    )
+    all_consultants = sorted(cons_total.keys(), key=lambda c: -cons_total[c])
+
+    by_consultant = [
+        {"consultant": c, "total": cons_total[c], "deals": cons_deal[c],
+         "rate": round(cons_deal[c] / cons_total[c] * 100, 1) if cons_total[c] else 0}
+        for c in all_consultants
+    ]
+
+    # Granular: list of {month, consultant, total, deals} for frontend filtering
+    by_month_consultant = []
+    for m in sorted(mc_total.keys()):
+        for c in mc_total[m]:
+            t = mc_total[m][c]
+            d = mc_deal[m][c]
+            by_month_consultant.append({
+                "month": m,
+                "consultant": c,
+                "total": t,
+                "deals": d,
+                "rate": round(d / t * 100, 1) if t else 0,
+            })
 
     total_all = len(leads)
     deal_all = sum(1 for l in leads if _is_deal(l))
@@ -724,6 +745,7 @@ def get_conversion(db: Session = Depends(get_db)):
         "by_month": by_month,
         "by_referrer": by_referrer,
         "by_consultant": by_consultant,
+        "by_month_consultant": by_month_consultant,
     }
 
 

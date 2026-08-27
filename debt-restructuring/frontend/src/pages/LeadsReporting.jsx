@@ -173,8 +173,8 @@ function ConversionReport() {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [view, setView] = useState('month')
-  // filters
-  const [filterYear, setFilterYear] = useState('')
+  // multi-year selection (Set of year strings), single month, single referrer
+  const [selYears, setSelYears] = useState(new Set())
   const [filterMonth, setFilterMonth] = useState('')
   const [filterReferrer, setFilterReferrer] = useState('')
 
@@ -197,9 +197,8 @@ function ConversionReport() {
 
   const rateColor = r => r >= 20 ? '#10b981' : r >= 10 ? '#f59e0b' : '#ef4444'
 
-  // derive filter options from data
   const allYears = [...new Set(data.by_month.map(r => r.month.slice(0, 4)))].sort().reverse()
-  const allMonths = [
+  const allMonthOpts = [
     { v: '01', l: 'Ιαν' }, { v: '02', l: 'Φεβ' }, { v: '03', l: 'Μαρ' },
     { v: '04', l: 'Απρ' }, { v: '05', l: 'Μάι' }, { v: '06', l: 'Ιουν' },
     { v: '07', l: 'Ιουλ' }, { v: '08', l: 'Αύγ' }, { v: '09', l: 'Σεπ' },
@@ -207,29 +206,50 @@ function ConversionReport() {
   ]
   const allReferrers = data.by_referrer.map(r => r.referrer)
 
-  // apply filters to monthly rows
+  const toggleYear = y => {
+    setSelYears(prev => {
+      const next = new Set(prev)
+      next.has(y) ? next.delete(y) : next.add(y)
+      return next
+    })
+  }
+  const clearAll = () => { setSelYears(new Set()); setFilterMonth(''); setFilterReferrer('') }
+  const hasFilter = selYears.size > 0 || filterMonth || filterReferrer
+
+  // monthly rows filtered by selected years + month
   const filteredMonths = data.by_month.filter(r => {
     const [y, m] = r.month.split('-')
-    if (filterYear && y !== filterYear) return false
+    if (selYears.size > 0 && !selYears.has(y)) return false
     if (filterMonth && m !== filterMonth) return false
     return true
   })
 
-  // apply year/month filter to referrer rows by re-summing from by_month-level data
-  // (backend sends aggregated totals; we filter monthly rows and use those totals
-  //  if a year/month filter is active — otherwise use the pre-aggregated referrer data)
-  const hasTimeFilter = filterYear || filterMonth
-  // top-5 referrers by volume (pre-filter)
-  const top5Referrers = data.by_referrer.slice(0, 5).map(r => r.referrer)
-  const filteredReferrers = (() => {
-    let rows = filterReferrer
-      ? data.by_referrer.filter(r => r.referrer === filterReferrer)
-      : data.by_referrer.slice(0, 5)
-    return rows
+  // consultant rows re-aggregated from by_month_consultant using the same filters
+  const filteredConsultants = (() => {
+    const hasTimeFilter = selYears.size > 0 || filterMonth
+    if (!hasTimeFilter) return data.by_consultant
+    const rows = (data.by_month_consultant || []).filter(r => {
+      const [y, m] = r.month.split('-')
+      if (selYears.size > 0 && !selYears.has(y)) return false
+      if (filterMonth && m !== filterMonth) return false
+      return true
+    })
+    const totals = {}
+    for (const r of rows) {
+      if (!totals[r.consultant]) totals[r.consultant] = { total: 0, deals: 0 }
+      totals[r.consultant].total += r.total
+      totals[r.consultant].deals += r.deals
+    }
+    return Object.entries(totals)
+      .map(([c, v]) => ({ consultant: c, total: v.total, deals: v.deals,
+        rate: v.total ? Math.round(v.deals / v.total * 1000) / 10 : 0 }))
+      .sort((a, b) => b.total - a.total)
   })()
 
-  // consultant rows (no time breakdown available without per-lead data — show global)
-  const filteredConsultants = data.by_consultant
+  // referrer rows — top-5 or specific selection (no time breakdown at backend yet)
+  const filteredReferrers = filterReferrer
+    ? data.by_referrer.filter(r => r.referrer === filterReferrer)
+    : data.by_referrer.slice(0, 5)
 
   const renderTable = (rows, labelKey, labelHeader, compact = false) => (
     <div className="overflow-x-auto">
@@ -266,6 +286,13 @@ function ConversionReport() {
   )
 
   const selectCls = "text-xs border border-gray-200 rounded-lg px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-green-400"
+  const pillCls = (active) => `text-xs px-2.5 py-1 rounded-full font-semibold cursor-pointer transition-colors select-none
+    ${active ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`
+
+  // summary for filtered period
+  const filtTotal = filteredMonths.reduce((s, r) => s + r.total, 0)
+  const filtDeals = filteredMonths.reduce((s, r) => s + r.deals, 0)
+  const filtRate = filtTotal ? Math.round(filtDeals / filtTotal * 1000) / 10 : 0
 
   return (
     <div className="card p-4 space-y-4">
@@ -274,10 +301,13 @@ function ConversionReport() {
         <div>
           <h2 className="text-base font-bold text-gray-700">Conversion Rate Leads → Deal</h2>
           <p className="text-xs text-gray-400">
-            Σύνολο: {data.total} leads · {data.deals} Deals ·{' '}
-            <span className="font-bold" style={{ color: rateColor(data.overall_rate) }}>
-              {data.overall_rate}% overall
-            </span>
+            {hasFilter
+              ? <>Φιλτραρισμένο: <b>{filtTotal}</b> leads · <b>{filtDeals}</b> Deals ·{' '}
+                  <span className="font-bold" style={{ color: rateColor(filtRate) }}>{filtRate}%</span>
+                  {' '}· Σύνολο: {data.total} leads ({data.overall_rate}% overall)</>
+              : <>Σύνολο: {data.total} leads · {data.deals} Deals ·{' '}
+                  <span className="font-bold" style={{ color: rateColor(data.overall_rate) }}>{data.overall_rate}% overall</span></>
+            }
           </p>
         </div>
         <div className="flex gap-2 flex-wrap">
@@ -291,53 +321,65 @@ function ConversionReport() {
         </div>
       </div>
 
-      {/* Filters row */}
-      <div className="flex items-center gap-2 flex-wrap bg-gray-50 rounded-xl px-3 py-2">
-        <span className="text-xs text-gray-400 font-semibold mr-1">Φίλτρα:</span>
-        <select value={filterYear} onChange={e => setFilterYear(e.target.value)} className={selectCls}>
-          <option value="">Όλα τα έτη</option>
-          {allYears.map(y => <option key={y} value={y}>{y}</option>)}
-        </select>
-        <select value={filterMonth} onChange={e => setFilterMonth(e.target.value)} className={selectCls}>
-          <option value="">Όλοι οι μήνες</option>
-          {allMonths.map(m => <option key={m.v} value={m.v}>{m.l}</option>)}
-        </select>
-        <select value={filterReferrer} onChange={e => setFilterReferrer(e.target.value)} className={selectCls}>
-          <option value="">Top 5 Referrers</option>
-          {allReferrers.map(r => <option key={r} value={r}>{r}</option>)}
-        </select>
-        {(filterYear || filterMonth || filterReferrer) && (
-          <button onClick={() => { setFilterYear(''); setFilterMonth(''); setFilterReferrer('') }}
-            className="text-xs px-2 py-1 rounded-lg bg-red-50 text-red-500 hover:bg-red-100 font-semibold">
-            ✕ Καθαρισμός
-          </button>
-        )}
+      {/* Filters */}
+      <div className="bg-gray-50 rounded-xl px-3 py-2 space-y-2">
+        {/* Year pills (multi-select) */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-xs text-gray-400 font-semibold w-10">Έτος:</span>
+          {allYears.map(y => (
+            <span key={y} className={pillCls(selYears.has(y))} onClick={() => toggleYear(y)}>{y}</span>
+          ))}
+        </div>
+        {/* Month + Referrer dropdowns */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-xs text-gray-400 font-semibold w-10">Μήνας:</span>
+          <select value={filterMonth} onChange={e => setFilterMonth(e.target.value)} className={selectCls}>
+            <option value="">Όλοι</option>
+            {allMonthOpts.map(m => <option key={m.v} value={m.v}>{m.l}</option>)}
+          </select>
+          <span className="text-xs text-gray-400 font-semibold ml-3">Referrer:</span>
+          <select value={filterReferrer} onChange={e => setFilterReferrer(e.target.value)} className={selectCls}>
+            <option value="">Top 5</option>
+            {allReferrers.map(r => <option key={r} value={r}>{r}</option>)}
+          </select>
+          {hasFilter && (
+            <button onClick={clearAll}
+              className="text-xs px-2 py-1 rounded-lg bg-red-50 text-red-500 hover:bg-red-100 font-semibold ml-2">
+              ✕ Καθαρισμός
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Monthly view */}
       {view === 'month' && (
         <>
-          <ResponsiveContainer width="100%" height={260}>
-            <BarChart data={filteredMonths} margin={{ top: 20, right: 16, left: 0, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-              <XAxis dataKey="month" tick={{ fontSize: 10 }} tickLine={false} />
-              <YAxis yAxisId="left" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} allowDecimals={false} />
-              <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10 }} tickLine={false} axisLine={false}
-                unit="%" domain={[0, 100]} />
-              <Tooltip contentStyle={{ fontSize: 12 }}
-                formatter={(v, name) => name === 'rate' ? [`${v}%`, 'Conv %'] : [v, name === 'deals' ? 'Deals' : 'Leads']} />
-              <Legend wrapperStyle={{ fontSize: 12 }} formatter={n => n === 'rate' ? 'Conv %' : n === 'deals' ? 'Deals' : 'Leads'} />
-              <Bar yAxisId="left" dataKey="total" fill="#93c5fd" name="total" radius={[3, 3, 0, 0]}>
-                <LabelList dataKey="total" position="top" style={{ fontSize: 9, fill: '#374151' }} formatter={_hideZero} />
-              </Bar>
-              <Bar yAxisId="left" dataKey="deals" fill="#10b981" name="deals" radius={[3, 3, 0, 0]}>
-                <LabelList dataKey="deals" position="top" style={{ fontSize: 9, fill: '#065f46' }} formatter={_hideZero} />
-              </Bar>
-              <Line yAxisId="right" type="monotone" dataKey="rate" stroke="#f59e0b" strokeWidth={2.5}
-                dot={{ r: 3 }} name="rate" />
-            </BarChart>
-          </ResponsiveContainer>
-          {renderTable(filteredMonths, 'month', 'Μήνας')}
+          {filteredMonths.length === 0
+            ? <p className="text-xs text-gray-400 text-center py-6">Δεν υπάρχουν δεδομένα για τα επιλεγμένα φίλτρα</p>
+            : <>
+                <ResponsiveContainer width="100%" height={260}>
+                  <BarChart data={filteredMonths} margin={{ top: 20, right: 16, left: 0, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                    <XAxis dataKey="month" tick={{ fontSize: 10 }} tickLine={false} />
+                    <YAxis yAxisId="left" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} allowDecimals={false} />
+                    <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10 }} tickLine={false} axisLine={false}
+                      unit="%" domain={[0, 100]} />
+                    <Tooltip contentStyle={{ fontSize: 12 }}
+                      formatter={(v, name) => name === 'rate' ? [`${v}%`, 'Conv %'] : [v, name === 'deals' ? 'Deals' : 'Leads']} />
+                    <Legend wrapperStyle={{ fontSize: 12 }} formatter={n => n === 'rate' ? 'Conv %' : n === 'deals' ? 'Deals' : 'Leads'} />
+                    <Bar yAxisId="left" dataKey="total" fill="#93c5fd" name="total" radius={[3, 3, 0, 0]}>
+                      <LabelList dataKey="total" position="top" style={{ fontSize: 9, fill: '#374151' }} formatter={_hideZero} />
+                    </Bar>
+                    <Bar yAxisId="left" dataKey="deals" fill="#10b981" name="deals" radius={[3, 3, 0, 0]}>
+                      <LabelList dataKey="deals" position="top" style={{ fontSize: 9, fill: '#065f46' }} formatter={_hideZero} />
+                    </Bar>
+                    <Line yAxisId="right" type="monotone" dataKey="rate" stroke="#f59e0b" strokeWidth={2.5}
+                      dot={{ r: 3 }} name="rate" />
+                  </BarChart>
+                </ResponsiveContainer>
+                {renderTable(filteredMonths, 'month', 'Μήνας')}
+              </>
+          }
         </>
       )}
 
@@ -345,29 +387,33 @@ function ConversionReport() {
       {view === 'referrer' && (
         <div className="space-y-1">
           <p className="text-xs text-gray-400">
-            {filterReferrer ? `Referrer: ${filterReferrer}` : 'Top 5 referrers ανά όγκο leads'}
-            {hasTimeFilter ? ` · Φίλτρο ημερομηνίας δεν επηρεάζει αυτή την καρτέλα (aggregated data)` : ''}
+            {filterReferrer ? `Referrer: ${filterReferrer}` : 'Top 5 referrers ανά όγκο leads (αδιαφόρως ημερομηνίας)'}
           </p>
           {renderTable(filteredReferrers, 'referrer', 'Referrer', true)}
         </div>
       )}
 
-      {/* Consultant view */}
+      {/* Consultant view — filtered by year/month */}
       {view === 'consultant' && (
         <>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-            {filteredConsultants.map((c, i) => (
-              <div key={i} className="rounded-xl border border-gray-100 bg-gray-50 p-3 text-center">
-                <div className="text-xs font-bold text-gray-500 mb-1">{c.consultant}</div>
-                <div className="text-2xl font-black" style={{ color: rateColor(c.rate) }}>{c.rate}%</div>
-                <div className="text-xs text-gray-400 mt-0.5">conversion</div>
-                <div className="mt-1.5 text-xs text-gray-500">
-                  <span className="text-green-700 font-bold">{c.deals}</span> / {c.total} leads
+          {filteredConsultants.length === 0
+            ? <p className="text-xs text-gray-400 text-center py-6">Δεν υπάρχουν δεδομένα για τα επιλεγμένα φίλτρα</p>
+            : <>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                  {filteredConsultants.map((c, i) => (
+                    <div key={i} className="rounded-xl border border-gray-100 bg-gray-50 p-3 text-center">
+                      <div className="text-xs font-bold text-gray-500 mb-1">{c.consultant}</div>
+                      <div className="text-2xl font-black" style={{ color: rateColor(c.rate) }}>{c.rate}%</div>
+                      <div className="text-xs text-gray-400 mt-0.5">conversion</div>
+                      <div className="mt-1.5 text-xs text-gray-500">
+                        <span className="text-green-700 font-bold">{c.deals}</span> / {c.total} leads
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              </div>
-            ))}
-          </div>
-          {renderTable(filteredConsultants, 'consultant', 'Σύμβουλος')}
+                {renderTable(filteredConsultants, 'consultant', 'Σύμβουλος')}
+              </>
+          }
         </>
       )}
     </div>
