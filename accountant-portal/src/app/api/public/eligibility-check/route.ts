@@ -94,8 +94,13 @@ export async function POST(request: NextRequest) {
       // generate a personalized Θέμις link for the Εξωδικαστικός promo.
       let themisUrl: string | null = null
       try {
-        const stub = await prisma.gemiLookup.create({
-          data: { afm: cleanAfm, email: cleanEmail, phone: cleanPhone, matchingDone: false },
+        const stub = await prisma.gemiLookup.upsert({
+          where: { afm: cleanAfm },
+          create: { afm: cleanAfm, email: cleanEmail, phone: cleanPhone, matchingDone: false },
+          update: {
+            ...(cleanEmail ? { email: cleanEmail } : {}),
+            ...(cleanPhone ? { phone: cleanPhone } : {}),
+          },
         })
         const extrajudicialProgram = await prisma.program.findFirst({
           where: { category: 'EXTRAJUDICIAL', active: true },
