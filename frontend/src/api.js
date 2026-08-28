@@ -260,7 +260,6 @@ export const resendLeadErmisLink = (id, payload) => api.post(`/api/cm/leads/${id
 export const bulkStartErmis = (lead_ids, channel = 'both') => api.post('/api/cm/leads/ermis/bulk-start', { lead_ids, channel }).then(r => r.data)
 export const bulkResendErmis = (lead_ids, channel = 'both') => api.post('/api/cm/leads/ermis/bulk-resend', { lead_ids, channel }).then(r => r.data)
 export const retryErmisErrors = () => api.post('/api/cm/leads/ermis/retry-errors').then(r => r.data)
-export const backfillPrograms = () => api.post('/api/cm/leads/backfill-programs').then(r => r.data)
 export const syncErmisToSiblings = (id) => api.post(`/api/cm/leads/${id}/ermis/sync-siblings`).then(r => r.data)
 export const pullErmisFromSibling = (id) => api.post(`/api/cm/leads/${id}/ermis/pull-from-sibling`).then(r => r.data)
 export const getLeadErmisTranscript = (id) => api.get(`/api/cm/leads/${id}/ermis/transcript`).then(r => r.data)
