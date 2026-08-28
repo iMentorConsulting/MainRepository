@@ -8,47 +8,54 @@ import { getOrCreateGemiErmisLink } from '@/lib/gemi-ermis'
 export const dynamic = 'force-dynamic'
 
 // ---------------------------------------------------------------------------
-// IP-based rate limiting — protects against bulk scraping by competitors
+// IP-based rate limiting — 5 searches per IP per 24 hours
+// State lives on globalThis so it survives across requests without
+// module-level side-effects that break Next.js build analysis.
 // ---------------------------------------------------------------------------
-const RATE_LIMIT_WINDOW_MS = 24 * 60 * 60 * 1000  // 24-hour rolling window
-const RATE_LIMIT_MAX       = 5                      // max searches per IP per day
+declare global {
+  // eslint-disable-next-line no-var
+  var _rlStore: Map<string, { count: number; windowStart: number }> | undefined
+}
 
-// Whitelists loaded from env vars (comma-separated)
-// Set RATE_LIMIT_WHITELIST_IPS  and/or RATE_LIMIT_WHITELIST_EMAILS in Railway
-const WHITELIST_IPS = new Set(
-  (process.env.RATE_LIMIT_WHITELIST_IPS || '').split(',').map(s => s.trim()).filter(Boolean)
-)
-const WHITELIST_EMAILS = new Set(
-  (process.env.RATE_LIMIT_WHITELIST_EMAILS || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean)
-)
+const RL_WINDOW = 24 * 60 * 60 * 1000
+const RL_MAX = 5
 
-interface RateEntry { count: number; windowStart: number }
-const rateLimitStore = new Map<string, RateEntry>()
+function getRlStore() {
+  if (!globalThis._rlStore) globalThis._rlStore = new Map()
+  return globalThis._rlStore
+}
 
-function getClientIp(request: NextRequest): string {
+function splitEnv(key: string) {
+  return (process.env[key] || '').split(',').map(s => s.trim()).filter(s => s.length > 0)
+}
+
+function getClientIp(req: NextRequest): string {
   return (
-    request.headers.get('x-forwarded-for')?.split(',')[0].trim() ||
-    request.headers.get('x-real-ip') ||
+    req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+    req.headers.get('x-real-ip') ||
     'unknown'
   )
 }
 
+function isWhitelisted(ip: string, email: string): boolean {
+  const ips = splitEnv('RATE_LIMIT_WHITELIST_IPS')
+  const emails = splitEnv('RATE_LIMIT_WHITELIST_EMAILS').map(e => e.toLowerCase())
+  return ips.includes(ip) || emails.includes(email.toLowerCase())
+}
+
 function checkRateLimit(ip: string): boolean {
-  if (WHITELIST_IPS.has(ip)) return true
+  const store = getRlStore()
   const now = Date.now()
-  // Lazy cleanup: sweep stale entries once the store gets large
-  if (rateLimitStore.size > 500) {
-    const cutoff = now - RATE_LIMIT_WINDOW_MS
-    for (const [k, v] of rateLimitStore) {
-      if (v.windowStart < cutoff) rateLimitStore.delete(k)
-    }
+  if (store.size > 500) {
+    const cutoff = now - RL_WINDOW
+    store.forEach((v, k) => { if (v.windowStart < cutoff) store.delete(k) })
   }
-  const entry = rateLimitStore.get(ip)
-  if (!entry || now - entry.windowStart >= RATE_LIMIT_WINDOW_MS) {
-    rateLimitStore.set(ip, { count: 1, windowStart: now })
+  const entry = store.get(ip)
+  if (!entry || now - entry.windowStart >= RL_WINDOW) {
+    store.set(ip, { count: 1, windowStart: now })
     return true
   }
-  if (entry.count >= RATE_LIMIT_MAX) return false
+  if (entry.count >= RL_MAX) return false
   entry.count++
   return true
 }
@@ -105,9 +112,8 @@ export async function POST(request: NextRequest) {
   const { afm, email, phone, recaptchaToken } = body || {}
 
   // Rate limit — whitelisted IPs and emails bypass the limit
-  const cleanEmailForWhitelist = String(email || '').trim().toLowerCase()
-  const isWhitelisted = WHITELIST_EMAILS.has(cleanEmailForWhitelist)
-  if (!isWhitelisted && !checkRateLimit(clientIp)) {
+  const emailStr = String(email || '').trim()
+  if (!isWhitelisted(clientIp, emailStr) && !checkRateLimit(clientIp)) {
     return NextResponse.json(
       { error: 'Έχετε πραγματοποιήσει τον μέγιστο αριθμό αναζητήσεων για σήμερα (5). Παρακαλώ επικοινωνήστε μαζί μας ή δοκιμάστε ξανά αύριο.' },
       { status: 429, headers: { ...cors(origin), 'Retry-After': '86400' } }
