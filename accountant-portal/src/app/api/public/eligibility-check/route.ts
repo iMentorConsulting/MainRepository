@@ -167,14 +167,8 @@ export async function POST(request: NextRequest) {
             ...(cleanPhone ? { phone: cleanPhone } : {}),
           },
         })
-        const extrajudicialProgram = await prisma.program.findFirst({
-          where: { category: 'EXTRAJUDICIAL', active: true },
-          select: { id: true },
-        })
-        if (extrajudicialProgram) {
-          const baseLink = await getOrCreateGemiErmisLink(stub.id, extrajudicialProgram.id)
-          themisUrl = `${baseLink}?type=themis`
-        }
+        const appUrl = process.env.APP_URL || 'https://logistis.i-mentor.gr'
+        themisUrl = `${appUrl}/gemi-entry/g/${stub.id}?type=themis`
       } catch {
         // Non-fatal — fall back to generic URL in the widget
       }
@@ -339,20 +333,9 @@ export async function POST(request: NextRequest) {
   const gemiId = gemi!.id
 
   if (activeMatches.length === 0) {
-    // Still generate a Θέμις link for the promo card even when no programs matched
-    let themisUrl: string | null = null
-    try {
-      const extrajudicialProgram = await prisma.program.findFirst({
-        where: { category: 'EXTRAJUDICIAL', active: true },
-        select: { id: true },
-      })
-      if (extrajudicialProgram) {
-        const baseLink = await getOrCreateGemiErmisLink(gemiId, extrajudicialProgram.id)
-        themisUrl = `${baseLink}?type=themis`
-      }
-    } catch (e: any) {
-      console.error('[Θέμις] themisUrl generation failed (no-match path):', e?.message)
-    }
+    // Direct URL — no DB write needed, always works
+    const appUrl = process.env.APP_URL || 'https://logistis.i-mentor.gr'
+    const themisUrl = `${appUrl}/gemi-entry/g/${gemiId}?type=themis`
     return NextResponse.json(
       { business: { name: gemi!.onomasia || gemi!.afm }, programs: [], themisUrl },
       { headers: cors(origin) }
@@ -391,26 +374,13 @@ export async function POST(request: NextRequest) {
     })
   )
 
-  // Build Θέμις URL from already-generated ermisUrl — reuse if extrajudicial matched,
-  // otherwise call once for the promo card (single DB call, no double-call race).
-  let themisUrl: string | null = null
+  // Build Θέμις URL: reuse the ermisUrl if extrajudicial was matched (has GemiMatchToken),
+  // otherwise use the direct gemiId route which needs no DB write and never fails.
+  const appUrl = process.env.APP_URL || 'https://logistis.i-mentor.gr'
   const exMatch = programsWithLinks.find(p => p.category === 'EXTRAJUDICIAL')
-  if (exMatch) {
-    themisUrl = `${exMatch.ermisUrl}?type=themis`
-  } else {
-    try {
-      const extrajudicialProgram = await prisma.program.findFirst({
-        where: { category: 'EXTRAJUDICIAL', active: true },
-        select: { id: true },
-      })
-      if (extrajudicialProgram) {
-        const baseLink = await getOrCreateGemiErmisLink(gemiId, extrajudicialProgram.id)
-        themisUrl = `${baseLink}?type=themis`
-      }
-    } catch (e: any) {
-      console.error('[Θέμις] themisUrl generation failed (match path):', e?.message)
-    }
-  }
+  const themisUrl = exMatch
+    ? `${exMatch.ermisUrl}?type=themis`
+    : `${appUrl}/gemi-entry/g/${gemiId}?type=themis`
 
   return NextResponse.json(
     { business: { name: gemi!.onomasia || gemi!.afm }, programs: programsWithLinks, themisUrl },
