@@ -54,6 +54,8 @@ interface Business {
   tags?: string[]
   hasCase?: boolean
   _count?: { programMatches: number }
+  source?: string | null
+  createdAt?: string | null
 }
 
 const PAGE_SIZE = 20
@@ -509,12 +511,17 @@ export default function BusinessesPage() {
                     </button>
                   </Th>
                   <Th>Matches</Th>
+                  <Th>
+                    <button onClick={() => toggleSort('createdAt')} className="flex items-center hover:text-indigo-700 transition-colors">
+                      Καταχώρηση <SortIcon col="createdAt" sortBy={sortBy} sortDir={sortDir} />
+                    </button>
+                  </Th>
                 </TableRow>
               </TableHead>
               <TableBody>
                 {businesses.length === 0 ? (
                   <TableRow>
-                    <Td colSpan={10} className="text-center text-gray-400 py-8">
+                    <Td colSpan={11} className="text-center text-gray-400 py-8">
                       Δεν βρέθηκαν επιχειρήσεις
                     </Td>
                   </TableRow>
@@ -545,6 +552,9 @@ export default function BusinessesPage() {
                             {!b.accountantId && (
                               <Badge variant="purple" className="text-[10px] shrink-0">I-MENTOR</Badge>
                             )}
+                            {b.source === 'website-form' && (
+                              <Badge variant="secondary" className="text-[10px] shrink-0 bg-blue-100 text-blue-700">Website</Badge>
+                            )}
                           </span>
                         </Td>
                         <Td>
@@ -573,6 +583,9 @@ export default function BusinessesPage() {
                           ) : (
                             <span className="text-gray-300 text-xs">—</span>
                           )}
+                        </Td>
+                        <Td className="text-xs text-gray-500 whitespace-nowrap">
+                          {b.createdAt ? new Date(b.createdAt).toLocaleDateString('el-GR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—'}
                         </Td>
                       </TableRow>
                     )
