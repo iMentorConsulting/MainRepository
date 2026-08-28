@@ -283,8 +283,8 @@ export async function POST(request: NextRequest) {
       const baseLink = await getOrCreateGemiErmisLink(gemiId, extrajudicialProgram.id)
       themisUrl = `${baseLink}?type=themis`
     }
-  } catch {
-    // Non-fatal — promo card will fall back to website URL
+  } catch (e: any) {
+    console.error('[Θέμις] themisUrl generation failed:', e?.message)
   }
 
   if (activeMatches.length === 0) {
