@@ -8,6 +8,7 @@ CMCase records once they become deals.
 import re
 import json
 import logging
+import unicodedata
 from datetime import datetime, date
 from typing import Optional, List
 
@@ -911,8 +912,11 @@ def normalize_consultants(
             code = lead.assigned_name.strip().upper()
             first_name = _CONSULTANT_GR.get(code)
             if first_name:
+                def _no_accent(s):
+                    return ''.join(c for c in unicodedata.normalize('NFD', s) if unicodedata.category(c) != 'Mn').lower()
+                fn_stripped = _no_accent(first_name)
                 matched = next(
-                    (u for u in all_users if first_name in (u.full_name or "")),
+                    (u for u in all_users if fn_stripped in _no_accent(u.full_name or "")),
                     None
                 )
                 if matched:
