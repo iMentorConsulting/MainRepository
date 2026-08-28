@@ -5,8 +5,8 @@ var IM_API = "https://logistis.i-mentor.gr/api/public/eligibility-check";
 (function() {
   var s = document.createElement("style");
   s.textContent = [
-    // reCAPTCHA badge — some WP themes hide it
-    ".grecaptcha-badge{visibility:visible!important;opacity:1!important;display:block!important;}",
+    // reCAPTCHA badge — injected CSS here; MutationObserver below handles runtime show
+    ".grecaptcha-badge{visibility:visible!important;opacity:1!important;display:block!important;position:fixed!important;bottom:14px!important;right:14px!important;z-index:999999!important;}",
     // Not-found card
     "#imWidget .im-notfound{padding:8px 0 4px;}",
     "#imWidget .im-notfound-top{display:flex!important;gap:14px!important;align-items:flex-start!important;background:#fff8e1!important;border:1px solid #ffe082!important;border-radius:12px!important;padding:18px!important;margin-bottom:16px!important;}",
@@ -27,6 +27,34 @@ var IM_API = "https://logistis.i-mentor.gr/api/public/eligibility-check";
     "#imWidget .im-promo-btn-outline:hover{background:#fef3c7!important;}",
   ].join("");
   document.head.appendChild(s);
+})();
+
+// reCAPTCHA badge: force visible whenever it appears or changes
+(function() {
+  function showBadge() {
+    var badge = document.querySelector(".grecaptcha-badge");
+    if (!badge) return;
+    badge.style.setProperty("visibility", "visible", "important");
+    badge.style.setProperty("opacity", "1", "important");
+    badge.style.setProperty("display", "block", "important");
+    badge.style.setProperty("position", "fixed", "important");
+    badge.style.setProperty("bottom", "14px", "important");
+    badge.style.setProperty("right", "14px", "important");
+    badge.style.setProperty("z-index", "999999", "important");
+    // Also un-hide any ancestor that may be display:none
+    var el = badge.parentElement;
+    for (var i = 0; i < 5 && el && el !== document.body; i++, el = el.parentElement) {
+      if (getComputedStyle(el).display === "none") el.style.setProperty("display", "block", "important");
+    }
+  }
+  var obs = new MutationObserver(showBadge);
+  obs.observe(document.documentElement, { childList: true, subtree: true, attributes: true });
+  // Also run on load in case badge already exists
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", showBadge);
+  } else {
+    showBadge();
+  }
 })();
 
 function imFmt(n) {
