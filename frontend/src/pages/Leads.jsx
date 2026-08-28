@@ -3,7 +3,7 @@ import {
   getLeads, getLeadFilterOptions, getLead, createLead, updateLead, deleteLead,
   getLeadComments, addLeadComment, editLeadComment, deleteLeadComment,
   sendLeadMessage, convertLeadToCase, startLeadErmis, resendLeadErmisLink, bulkStartErmis, bulkResendErmis, pullErmisFromSibling, getLeadDuplicates, mergeLeads,
-  retryErmisErrors, backfillSourceKeywords, getAuth,
+  retryErmisErrors, backfillSourceKeywords, normalizeConsultants, getAuth,
 } from '../api'
 import {
   MagnifyingGlassIcon, PlusIcon, TrashIcon, ChevronDownIcon, ChevronUpIcon, ChevronRightIcon,
@@ -613,6 +613,7 @@ export default function Leads() {
   const [bulkBusy, setBulkBusy] = useState(false)
   const [retryBusy, setRetryBusy] = useState(false)
   const [backfillBusy, setBackfillBusy] = useState(false)
+  const [normalizeBusy, setNormalizeBusy] = useState(false)
   const isAdmin = getAuth()?.user?.role === 'admin'
 
   const load = useCallback(async () => {
@@ -668,6 +669,19 @@ export default function Leads() {
   const allPageIds = data.items.map(l => l.id)
   const allSelected = allPageIds.length > 0 && allPageIds.every(id => selectedIds.has(id))
   const toggleSelectAll = () => setSelectedIds(s => allSelected ? new Set() : new Set(allPageIds))
+
+  const handleNormalizeConsultants = async () => {
+    if (!confirm('Κανονικοποίηση ονομάτων συμβούλων σε όλα τα leads (ELEFTHERIA → πλήρες ελληνικό όνομα);')) return
+    setNormalizeBusy(true)
+    const tid = toast.loading('Κανονικοποίηση συμβούλων…')
+    try {
+      const res = await normalizeConsultants()
+      toast.success(`Ενημερώθηκαν ${res.updated} leads`, { id: tid })
+      setTimeout(load, 1500)
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Σφάλμα', { id: tid })
+    } finally { setNormalizeBusy(false) }
+  }
 
   const handleBackfillSource = async () => {
     if (!confirm('Αναδρομική ενημέρωση Referrer από σχόλια (FB → Facebook, TIKTOK → TikTok) για όλα τα leads χωρίς Referrer;')) return
@@ -752,6 +766,16 @@ export default function Leads() {
           <div className="text-sm text-gray-500">{data.total} εγγραφές {options.total ? `(από ${options.total})` : ''}</div>
         </div>
         <div className="flex items-center gap-2">
+          {isAdmin && (
+            <button
+              onClick={handleNormalizeConsultants}
+              disabled={normalizeBusy}
+              className="flex items-center gap-1.5 text-sm bg-purple-100 text-purple-700 hover:bg-purple-200 disabled:opacity-50 border border-purple-300 px-3 py-1.5 rounded-lg font-medium"
+              title="Κανονικοποίηση ονομάτων συμβούλων"
+            >
+              👤 {normalizeBusy ? 'Ενημέρωση…' : 'Normalize Consultants'}
+            </button>
+          )}
           {isAdmin && (
             <button
               onClick={handleBackfillSource}

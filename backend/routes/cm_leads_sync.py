@@ -219,7 +219,12 @@ def _map_row(row: List[str], cfg: CMLeadSheetConfig, header: List[str], users: l
         lead_kwargs["assigned_name"] = _trunc(data["assigned_to"], 150)
         if users:
             try:
-                lead_kwargs["assigned_agent_id"] = _match_agent_id(data["assigned_to"], users)
+                agent_id = _match_agent_id(data["assigned_to"], users)
+                if agent_id:
+                    lead_kwargs["assigned_agent_id"] = agent_id
+                    matched_user = next((u for u in users if u.id == agent_id), None)
+                    if matched_user:
+                        lead_kwargs["assigned_name"] = matched_user.full_name
             except Exception:
                 pass
 
