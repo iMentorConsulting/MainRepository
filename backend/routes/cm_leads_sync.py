@@ -49,9 +49,17 @@ CANONICAL_PROGRAMS = ["ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ", "ΔΥΠΑ", "ΕΣΠΑ", "�
 # ASCII aliases so external callers (Pabbly) never need Greek chars in the URL
 PROGRAM_ALIASES = {
     "MIKRO": "ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ", "MIKROPISTOSEIS": "ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ", "MICROLOANS": "ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ",
-    "ΤΑΜΕΙΟ ΜΙΚΡΟΠΙΣΤΩΣΕΩΝ": "ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ", "ΤΑΜΕΙΟ ΜΙΚΡΟΔΑΝΕΙΩΝ": "ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ",
     "DYPA": "ΔΥΠΑ", "ESPA": "ΕΣΠΑ",
     "ANAKAINIZW": "ΑΝΑΚΑΙΝΙΖΩ", "ANAKAINIZO": "ΑΝΑΚΑΙΝΙΖΩ", "RENOVATE": "ΑΝΑΚΑΙΝΙΖΩ",
+}
+# Keyword fragments (accent-stripped) that uniquely identify a canonical program.
+# Used when exact/substring matching fails (e.g. "ΤΑΜΕΙΟ ΜΙΚΡΟΠΙΣΤΩΣΕΩΝ" shares no
+# common substring with "ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ" due to different suffixes -ΩΝ vs -ΕΙΣ).
+_PROGRAM_KEYWORDS = {
+    "ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ": ["ΜΙΚΡΟ"],
+    "ΔΥΠΑ":            ["ΔΥΠΑ", "ΟΑΕΔ"],
+    "ΕΣΠΑ":            ["ΕΣΠΑ"],
+    "ΑΝΑΚΑΙΝΙΖΩ":      ["ΑΝΑΚΑΙΝ"],
 }
 
 
@@ -71,6 +79,11 @@ def _resolve_program(raw: Optional[str]) -> Optional[str]:
         pu = _strip_accents(p).upper()
         if pu in up or up in pu:
             return p
+    # Keyword-based fallback: handles variants like "ΤΑΜΕΙΟ ΜΙΚΡΟΠΙΣΤΩΣΕΩΝ"
+    for canonical, keywords in _PROGRAM_KEYWORDS.items():
+        for kw in keywords:
+            if _strip_accents(kw) in up:
+                return canonical
     return raw
 
 
