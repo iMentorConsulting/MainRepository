@@ -457,7 +457,7 @@ def list_cases(
         ns = notif_map.get(c.id)
         if ns:
             d["total_msgs_sent"] = ns["total"]
-            d["last_msg_at"] = ns["last_at"].isoformat() if ns["last_at"] else None
+            d["last_msg_at"] = fmt_dt(ns["last_at"])
 
         result.append(d)
     return result
