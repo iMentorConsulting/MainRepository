@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { lookupAfm } from '@/lib/gsis'
 import { runMatchingForGemi, loadActivePrograms } from '@/lib/gemi-matching'
+import { runMatchingForBusiness } from '@/lib/matching'
 import { getOrCreateGemiErmisLink } from '@/lib/gemi-ermis'
 
 export const dynamic = 'force-dynamic'
@@ -143,6 +144,56 @@ export async function POST(request: NextRequest) {
           ...(cleanPhone && !gemi.phone ? { phone: cleanPhone } : {}),
         },
       })
+    }
+  }
+
+  // Sync to Business table so the record appears in the normal businesses dashboard
+  if (!gemi!.claimedBusinessId) {
+    try {
+      const existingBusiness = await prisma.business.findUnique({ where: { afm: cleanAfm } })
+      if (!existingBusiness) {
+        const activities = Array.isArray(gemi!.activities) ? (gemi!.activities as any[]) : []
+        const business = await prisma.business.create({
+          data: {
+            afm: cleanAfm,
+            source: 'website-form',
+            onomasia: gemi!.onomasia,
+            legalStatusDescr: gemi!.legalStatusDescr,
+            postalAddress: gemi!.postalAddress,
+            postalAddressNo: gemi!.postalAddressNo,
+            postalZipCode: gemi!.postalZipCode,
+            postalAreaDescription: gemi!.postalAreaDescription,
+            doy: gemi!.doy,
+            doyDescr: gemi!.doyDescr,
+            regdate: gemi!.regdate,
+            deactivationFlag: gemi!.deactivationFlag,
+            stopDate: gemi!.stopDate,
+            email: cleanEmail || undefined,
+            phone: cleanPhone || undefined,
+            activities: activities.length > 0 ? {
+              create: activities.map((a: any) => ({
+                firmActCode: a.firmActCode,
+                firmActDescr: a.firmActDescr,
+                firmActKind: a.firmActKind != null ? parseInt(String(a.firmActKind)) : null,
+                firmActKindDescr: a.firmActKindDescr,
+              }))
+            } : undefined,
+          },
+        })
+        await prisma.gemiLookup.update({
+          where: { id: gemi!.id },
+          data: { claimedBusinessId: business.id, claimedAt: new Date() },
+        })
+        runMatchingForBusiness(business.id).catch(err => console.error('[WebsiteWidget] Business matching failed:', err?.message))
+      } else {
+        await prisma.gemiLookup.update({
+          where: { id: gemi!.id },
+          data: { claimedBusinessId: existingBusiness.id, claimedAt: new Date() },
+        })
+      }
+    } catch (err: any) {
+      // Non-fatal — widget result still shown, business sync failed silently
+      console.error('[WebsiteWidget] Business sync failed:', err?.message)
     }
   }
 
