@@ -261,11 +261,28 @@ function imCheck() {
         var programs = r.data.programs || [];
 
         if (programs.length === 0) {
+          var noMatchThemisUrl = r.data.themisUrl || "https://www.i-mentor.gr/exodikastikos";
           out.innerHTML =
             "<div class='im-nomatch'>" +
               "<div class='im-nomatch-icon'>🔍</div>" +
               "<div class='im-nomatch-title'>Δεν βρέθηκαν ενεργά προγράμματα</div>" +
               "<div class='im-nomatch-text'>Αυτή τη στιγμή δεν υπάρχουν διαθέσιμα χρηματοδοτικά προγράμματα για <strong>" + bizName + "</strong>. Επικοινωνήστε μαζί μας για εξατομικευμένη αξιολόγηση.</div>" +
+            "</div>" +
+            "<div class='im-promo'>" +
+              "<div class='im-promo-hd'>" +
+                "<span class='im-promo-ico'>⚖️</span>" +
+                "<div>" +
+                  "<div class='im-promo-title'>Εξωδικαστικός Μηχανισμός Ρύθμισης Οφειλών</div>" +
+                  "<div class='im-promo-sub'>Έχετε οφειλές σε εφορία, ΕΦΚΑ ή τράπεζες; Αυτό αφορά εσάς</div>" +
+                "</div>" +
+              "</div>" +
+              "<div class='im-promo-body'>" +
+                "Ο Εξωδικαστικός Μηχανισμός (Ν.&nbsp;4738/2020) αφορά τόσο <strong>επιχειρήσεις</strong> όσο και <strong>ιδιώτες</strong>. " +
+                "Επιτρέπει τη ρύθμιση όλων των χρεών μαζί — εφορία, ΕΦΚΑ, τράπεζες — μέσω μίας αίτησης, " +
+                "με <strong>δόσεις έως 240 μήνες προς το Δημόσιο</strong> και <strong>έως 420 μήνες προς τράπεζες &amp; funds</strong>, " +
+                "με δυνατότητα <strong>διαγραφής τόκων και κεφαλαίου έως 80%</strong> ανάλογα με την περιουσιακή και οικονομική κατάσταση." +
+              "</div>" +
+              "<a href='" + noMatchThemisUrl + "' class='im-promo-btn' target='_blank' rel='noopener'>Μιλήστε με τη Θέμις — Ψηφιακή Σύμβουλος &rarr;</a>" +
             "</div>";
           return;
         }
