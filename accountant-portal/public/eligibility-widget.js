@@ -1,6 +1,31 @@
 var IM_KEY = "6LdqX5stAAAAAKHh4l7Fe89p255lJf9pMPP2gDCW";
 var IM_API = "https://logistis.i-mentor.gr/api/public/eligibility-check";
 
+// Inject widget styles that aren't in the WP HTML block
+(function() {
+  var s = document.createElement("style");
+  s.textContent = [
+    // reCAPTCHA badge — some WP themes hide it
+    ".grecaptcha-badge{visibility:visible!important;opacity:1!important;display:block!important;}",
+    // Not-found card
+    "#imWidget .im-notfound{padding:8px 0 4px;}",
+    "#imWidget .im-notfound-top{display:flex!important;gap:14px!important;align-items:flex-start!important;background:#fff8e1!important;border:1px solid #ffe082!important;border-radius:12px!important;padding:18px!important;margin-bottom:16px!important;}",
+    "#imWidget .im-notfound-icon{font-size:2rem!important;flex-shrink:0!important;line-height:1!important;}",
+    "#imWidget .im-notfound-title{font-size:1rem!important;font-weight:700!important;color:#795548!important;margin-bottom:6px!important;line-height:1.35!important;}",
+    "#imWidget .im-notfound-sub{font-size:0.85rem!important;color:#8d6e63!important;line-height:1.5!important;}",
+    // DYPA tip card
+    "#imWidget .im-notfound-dypa{background:linear-gradient(135deg,#e8f5e9 0%,#f1f8e9 100%)!important;border:1px solid #a5d6a7!important;border-radius:12px!important;padding:20px!important;margin-bottom:16px!important;}",
+    "#imWidget .im-notfound-dypa-hd{display:flex!important;gap:12px!important;align-items:flex-start!important;margin-bottom:12px!important;}",
+    "#imWidget .im-notfound-dypa-ico{font-size:1.7rem!important;flex-shrink:0!important;line-height:1!important;}",
+    "#imWidget .im-notfound-dypa-title{font-size:0.98rem!important;font-weight:700!important;color:#2e7d32!important;margin-bottom:4px!important;line-height:1.3!important;}",
+    "#imWidget .im-notfound-dypa-sub{font-size:0.83rem!important;color:#388e3c!important;line-height:1.4!important;}",
+    "#imWidget .im-notfound-dypa-body{font-size:0.88rem!important;color:#33691e!important;line-height:1.6!important;margin-bottom:14px!important;}",
+    "#imWidget .im-notfound-dypa-btn{display:inline-block!important;background:#2e7d32!important;color:#fff!important;font-size:0.87rem!important;font-weight:600!important;padding:10px 20px!important;border-radius:8px!important;text-decoration:none!important;}",
+    "#imWidget .im-notfound-dypa-btn:hover{background:#1b5e20!important;}",
+  ].join("");
+  document.head.appendChild(s);
+})();
+
 function imFmt(n) {
   if (n == null) return "";
   return Number(n).toLocaleString("el-GR");
@@ -87,6 +112,50 @@ function imCategoryDetails(p) {
   return html ? "<div class='imd-section'>" + html + "</div>" : "";
 }
 
+function imNotFoundCard() {
+  return (
+    "<div class='im-notfound'>" +
+      "<div class='im-notfound-top'>" +
+        "<div class='im-notfound-icon'>🔎</div>" +
+        "<div>" +
+          "<div class='im-notfound-title'>Δεν βρέθηκαν στοιχεία για το ΑΦΜ που καταχωρήσατε</div>" +
+          "<div class='im-notfound-sub'>Ελέγξτε ότι το ΑΦΜ είναι σωστό. Αν μόλις ξεκινήσατε δραστηριότητα, τα στοιχεία μπορεί να μην έχουν ακόμα ενημερωθεί στη ΑΑΔΕ.</div>" +
+        "</div>" +
+      "</div>" +
+      "<div class='im-notfound-dypa'>" +
+        "<div class='im-notfound-dypa-hd'>" +
+          "<span class='im-notfound-dypa-ico'>🚀</span>" +
+          "<div>" +
+            "<div class='im-notfound-dypa-title'>Σκέφτεστε να ξεκινήσετε δική σας επιχείρηση;</div>" +
+            "<div class='im-notfound-dypa-sub'>Αν είστε ιδιώτης ή άνεργος, υπάρχουν ειδικά προγράμματα ΔΥΠΑ για εσάς</div>" +
+          "</div>" +
+        "</div>" +
+        "<div class='im-notfound-dypa-body'>" +
+          "Τα προγράμματα <strong>ΔΥΠΑ για νέες επιχειρήσεις</strong> απευθύνονται σε άνεργους που θέλουν να κάνουν έναρξη και " +
+          "προσφέρουν <strong>μηνιαία επιχορήγηση</strong> για την αμοιβή νέων εργαζομένων — χωρίς να χρειαστεί να έχετε ήδη ενεργό ΑΦΜ επιχείρησης. " +
+          "Επικοινωνήστε μαζί μας για να δείτε αν πληροίτε τις προϋποθέσεις και να ξεκινήσετε τη διαδικασία." +
+        "</div>" +
+        "<a href='https://www.i-mentor.gr/epikoinonia' class='im-notfound-dypa-btn' target='_blank' rel='noopener'>Επικοινωνήστε μαζί μας &rarr;</a>" +
+      "</div>" +
+      "<div class='im-promo'>" +
+        "<div class='im-promo-hd'>" +
+          "<span class='im-promo-ico'>⚖️</span>" +
+          "<div>" +
+            "<div class='im-promo-title'>Εξωδικαστικός Μηχανισμός Ρύθμισης Οφειλών</div>" +
+            "<div class='im-promo-sub'>Έχετε οφειλές σε εφορία, ΕΦΚΑ, τράπεζες ή Δήμους; Αυτό αφορά εσάς</div>" +
+          "</div>" +
+        "</div>" +
+        "<div class='im-promo-body'>" +
+          "Ο Εξωδικαστικός Μηχανισμός (Ν.&nbsp;4738/2020) αφορά τόσο <strong>επιχειρήσεις</strong> όσο και <strong>ιδιώτες</strong>. " +
+          "Επιτρέπει τη ρύθμιση όλων των χρεών μαζί — εφορία, ΕΦΚΑ, τράπεζες, Δήμοι — μέσω μίας αίτησης, " +
+          "με <strong>δόσεις έως 240 μήνες</strong>, επιτόκιο 3% και δυνατότητα <strong>διαγραφής έως 75–85%</strong> της βασικής οφειλής." +
+        "</div>" +
+        "<a href='https://www.i-mentor.gr/exodikastikos' class='im-promo-btn' target='_blank' rel='noopener'>Μάθετε περισσότερα για τον Εξωδικαστικό &rarr;</a>" +
+      "</div>" +
+    "</div>"
+  );
+}
+
 function imCheck() {
   var afm = document.getElementById("imAfm").value.replace(/\D/g, "");
   var email = document.getElementById("imEmail").value.trim();
@@ -124,18 +193,25 @@ function imCheck() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ afm: afm, email: email, phone: phone, recaptchaToken: token })
       })
-      .then(function(res) { return res.json().then(function(d) { return { ok: res.ok, data: d }; }); })
+      .then(function(res) { return res.json().then(function(d) { return { ok: res.ok, status: res.status, data: d }; }); })
       .then(function(r) {
         btn.disabled = false;
         btn.innerHTML = "Έλεγχος Επιλεξιμότητας";
-        out.style.display = "block";
 
         if (!r.ok) {
+          if (r.status === 404) {
+            // AFM not found — show a rich card with alternatives
+            out.style.display = "block";
+            out.innerHTML = imNotFoundCard();
+            return;
+          }
           err.textContent = r.data.error || "Παρουσιάστηκε σφάλμα. Δοκιμάστε ξανά.";
           err.style.display = "block";
           out.style.display = "none";
           return;
         }
+
+        out.style.display = "block";
 
         var bizName = (r.data.business && r.data.business.name) ? r.data.business.name : "";
         var programs = r.data.programs || [];
