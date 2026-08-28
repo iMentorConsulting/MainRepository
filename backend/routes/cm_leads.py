@@ -928,6 +928,28 @@ def normalize_consultants(
     return {"ok": True, "updated": updated}
 
 
+@router.post("/backfill-programs")
+def backfill_programs(
+    current_user: CMUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Retroactive backfill: normalize program field to canonical value for all leads."""
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Μόνο για διαχειριστές")
+
+    from routes.cm_leads_sync import _resolve_program
+    updated = 0
+    for lead in db.query(CMLead).all():
+        if not lead.program:
+            continue
+        canonical = _resolve_program(lead.program)
+        if canonical and canonical != lead.program:
+            lead.program = canonical
+            updated += 1
+    db.commit()
+    return {"ok": True, "updated": updated}
+
+
 @router.put("/{lead_id}/comments/{comment_id}")
 def edit_comment(
     lead_id: int,
