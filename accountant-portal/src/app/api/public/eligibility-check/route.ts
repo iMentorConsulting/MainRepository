@@ -197,15 +197,30 @@ export async function POST(request: NextRequest) {
   type Match = typeof matches[0]
   const activeMatches = matches.filter((m: Match) => m.program.active)
 
+  // Generate Θέμις link — always, so the promo card always has a personalized link
+  const gemiId = gemi!.id
+  let themisUrl: string | null = null
+  try {
+    const extrajudicialProgram = await prisma.program.findFirst({
+      where: { category: 'EXTRAJUDICIAL', active: true },
+      select: { id: true },
+    })
+    if (extrajudicialProgram) {
+      const baseLink = await getOrCreateGemiErmisLink(gemiId, extrajudicialProgram.id)
+      themisUrl = `${baseLink}?type=themis`
+    }
+  } catch {
+    // Non-fatal — promo card will fall back to website URL
+  }
+
   if (activeMatches.length === 0) {
     return NextResponse.json(
-      { business: { name: gemi!.onomasia || gemi!.afm }, programs: [] },
+      { business: { name: gemi!.onomasia || gemi!.afm }, programs: [], themisUrl },
       { headers: cors(origin) }
     )
   }
 
   // Create Ermis links for each matching program
-  const gemiId = gemi!.id
   const programsWithLinks = await Promise.all(
     activeMatches.map(async (m: Match) => {
       const ermisUrl = await getOrCreateGemiErmisLink(gemiId, m.programId)
@@ -238,7 +253,7 @@ export async function POST(request: NextRequest) {
   )
 
   return NextResponse.json(
-    { business: { name: gemi!.onomasia || gemi!.afm }, programs: programsWithLinks },
+    { business: { name: gemi!.onomasia || gemi!.afm }, programs: programsWithLinks, themisUrl },
     { headers: cors(origin) }
   )
 }
