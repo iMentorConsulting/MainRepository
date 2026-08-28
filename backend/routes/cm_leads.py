@@ -940,11 +940,21 @@ def backfill_programs(
     from routes.cm_leads_sync import _resolve_program
     updated = 0
     for lead in db.query(CMLead).all():
-        if not lead.program:
-            continue
-        canonical = _resolve_program(lead.program)
-        if canonical and canonical != lead.program:
-            lead.program = canonical
+        changed = False
+        # Normalize program (short category field)
+        if lead.program:
+            canonical = _resolve_program(lead.program)
+            if canonical and canonical != lead.program:
+                lead.program = canonical
+                changed = True
+        # Normalize program_title when it holds a short alias (e.g. "ΤΑΜΕΙΟ ΜΙΚΡΟΠΙΣΤΩΣΕΩΝ")
+        # rather than a real descriptive title — clear it so the UI falls back to program.
+        if lead.program_title:
+            resolved_title = _resolve_program(lead.program_title)
+            if resolved_title and resolved_title != lead.program_title:
+                lead.program_title = None
+                changed = True
+        if changed:
             updated += 1
     db.commit()
     return {"ok": True, "updated": updated}
