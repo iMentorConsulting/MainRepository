@@ -7,6 +7,44 @@ import { getOrCreateGemiErmisLink } from '@/lib/gemi-ermis'
 
 export const dynamic = 'force-dynamic'
 
+// ---------------------------------------------------------------------------
+// IP-based rate limiting — protects against bulk scraping by competitors
+// ---------------------------------------------------------------------------
+const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000  // 1 hour rolling window
+const RATE_LIMIT_MAX       = 10               // max searches per IP per window
+
+interface RateEntry { count: number; windowStart: number }
+const rateLimitStore = new Map<string, RateEntry>()
+
+// Purge stale entries every 30 minutes so the Map doesn't grow unbounded
+setInterval(() => {
+  const cutoff = Date.now() - RATE_LIMIT_WINDOW_MS
+  for (const [ip, entry] of rateLimitStore) {
+    if (entry.windowStart < cutoff) rateLimitStore.delete(ip)
+  }
+}, 30 * 60 * 1000)
+
+function getClientIp(request: NextRequest): string {
+  return (
+    request.headers.get('x-forwarded-for')?.split(',')[0].trim() ||
+    request.headers.get('x-real-ip') ||
+    'unknown'
+  )
+}
+
+function checkRateLimit(ip: string): boolean {
+  const now = Date.now()
+  const entry = rateLimitStore.get(ip)
+  if (!entry || now - entry.windowStart >= RATE_LIMIT_WINDOW_MS) {
+    rateLimitStore.set(ip, { count: 1, windowStart: now })
+    return true
+  }
+  if (entry.count >= RATE_LIMIT_MAX) return false
+  entry.count++
+  return true
+}
+// ---------------------------------------------------------------------------
+
 const ALLOWED_ORIGINS = new Set([
   'https://www.i-mentor.gr',
   'https://i-mentor.gr',
@@ -46,6 +84,16 @@ async function verifyRecaptcha(token: string): Promise<boolean> {
 
 export async function POST(request: NextRequest) {
   const origin = request.headers.get('origin')
+
+  // Rate limit check — must pass before any processing
+  const clientIp = getClientIp(request)
+  if (!checkRateLimit(clientIp)) {
+    return NextResponse.json(
+      { error: 'Πολλές αναζητήσεις από την ίδια σύνδεση. Παρακαλώ δοκιμάστε ξανά σε μία ώρα.' },
+      { status: 429, headers: { ...cors(origin), 'Retry-After': '3600' } }
+    )
+  }
+
   let body: any
   try {
     body = await request.json()
