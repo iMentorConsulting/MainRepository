@@ -11,16 +11,16 @@ var IM_API = "https://logistis.i-mentor.gr/api/public/eligibility-check";
     "#imWidget .im-notfound{padding:8px 0 4px;}",
     "#imWidget .im-notfound-top{display:flex!important;gap:14px!important;align-items:flex-start!important;background:#fff8e1!important;border:1px solid #ffe082!important;border-radius:12px!important;padding:18px!important;margin-bottom:16px!important;}",
     "#imWidget .im-notfound-icon{font-size:2rem!important;flex-shrink:0!important;line-height:1!important;}",
-    "#imWidget .im-notfound-title{font-size:1rem!important;font-weight:700!important;color:#795548!important;margin-bottom:6px!important;line-height:1.35!important;}",
-    "#imWidget .im-notfound-sub{font-size:0.85rem!important;color:#8d6e63!important;line-height:1.5!important;}",
+    "#imWidget .im-notfound-title{font-size:1.05rem!important;font-weight:700!important;color:#795548!important;margin-bottom:6px!important;line-height:1.35!important;}",
+    "#imWidget .im-notfound-sub{font-size:0.95rem!important;color:#8d6e63!important;line-height:1.5!important;}",
     // DYPA tip card
     "#imWidget .im-notfound-dypa{background:linear-gradient(135deg,#e8f5e9 0%,#f1f8e9 100%)!important;border:1px solid #a5d6a7!important;border-radius:12px!important;padding:20px!important;margin-bottom:16px!important;}",
     "#imWidget .im-notfound-dypa-hd{display:flex!important;gap:12px!important;align-items:flex-start!important;margin-bottom:12px!important;}",
     "#imWidget .im-notfound-dypa-ico{font-size:1.7rem!important;flex-shrink:0!important;line-height:1!important;}",
-    "#imWidget .im-notfound-dypa-title{font-size:0.98rem!important;font-weight:700!important;color:#2e7d32!important;margin-bottom:4px!important;line-height:1.3!important;}",
-    "#imWidget .im-notfound-dypa-sub{font-size:0.83rem!important;color:#388e3c!important;line-height:1.4!important;}",
-    "#imWidget .im-notfound-dypa-body{font-size:0.88rem!important;color:#33691e!important;line-height:1.6!important;margin-bottom:14px!important;}",
-    "#imWidget .im-notfound-dypa-btn{display:inline-block!important;background:#2e7d32!important;color:#fff!important;font-size:0.87rem!important;font-weight:600!important;padding:10px 20px!important;border-radius:8px!important;text-decoration:none!important;}",
+    "#imWidget .im-notfound-dypa-title{font-size:1.05rem!important;font-weight:700!important;color:#2e7d32!important;margin-bottom:4px!important;line-height:1.3!important;}",
+    "#imWidget .im-notfound-dypa-sub{font-size:0.95rem!important;color:#388e3c!important;line-height:1.4!important;}",
+    "#imWidget .im-notfound-dypa-body{font-size:0.95rem!important;color:#33691e!important;line-height:1.6!important;margin-bottom:14px!important;}",
+    "#imWidget .im-notfound-dypa-btn{display:inline-block!important;background:#2e7d32!important;color:#fff!important;font-size:0.95rem!important;font-weight:600!important;padding:10px 20px!important;border-radius:8px!important;text-decoration:none!important;}",
     "#imWidget .im-notfound-dypa-btn:hover{background:#1b5e20!important;}",
   ].join("");
   document.head.appendChild(s);
@@ -143,7 +143,7 @@ function imNotFoundCard() {
           "<span class='im-promo-ico'>⚖️</span>" +
           "<div>" +
             "<div class='im-promo-title'>Εξωδικαστικός Μηχανισμός Ρύθμισης Οφειλών</div>" +
-            "<div class='im-promo-sub'>Έχετε οφειλές σε εφορία, ΕΦΚΑ, τράπεζες ή Δήμους; Αυτό αφορά εσάς</div>" +
+            "<div class='im-promo-sub'>Έχετε οφειλές σε εφορία, ΕΦΚΑ ή τράπεζες; Αυτό αφορά εσάς</div>" +
           "</div>" +
         "</div>" +
         "<div class='im-promo-body'>" +
@@ -152,7 +152,7 @@ function imNotFoundCard() {
           "με <strong>δόσεις έως 240 μήνες προς το Δημόσιο</strong> και <strong>έως 420 μήνες προς τράπεζες &amp; funds</strong>, " +
           "με δυνατότητα <strong>διαγραφής τόκων και κεφαλαίου έως 80%</strong> ανάλογα με την περιουσιακή και οικονομική κατάσταση." +
         "</div>" +
-        "<a href='https://www.i-mentor.gr/exodikastikos' class='im-promo-btn' target='_blank' rel='noopener'>Μάθετε περισσότερα για τον Εξωδικαστικό &rarr;</a>" +
+        "<a href='https://www.i-mentor.gr/exodikastikos' class='im-promo-btn' target='_blank' rel='noopener'>Έλεγχος επιλεξιμότητας με τη Θέμις — Ψηφιακή Σύμβουλος &rarr;</a>" +
       "</div>" +
     "</div>"
   );
@@ -285,7 +285,7 @@ function imCheck() {
               "<span class='im-promo-ico'>⚖️</span>" +
               "<div>" +
                 "<div class='im-promo-title'>Εξωδικαστικός Μηχανισμός Ρύθμισης Οφειλών</div>" +
-                "<div class='im-promo-sub'>Έχετε οφειλές σε εφορία, ΕΦΚΑ, τράπεζες ή Δήμους; Αυτό αφορά εσάς</div>" +
+                "<div class='im-promo-sub'>Έχετε οφειλές σε εφορία, ΕΦΚΑ ή τράπεζες; Αυτό αφορά εσάς</div>" +
               "</div>" +
             "</div>" +
             "<div class='im-promo-body'>" +
