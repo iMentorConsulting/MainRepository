@@ -10,19 +10,20 @@ export const dynamic = 'force-dynamic'
 // ---------------------------------------------------------------------------
 // IP-based rate limiting — protects against bulk scraping by competitors
 // ---------------------------------------------------------------------------
-const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000  // 1 hour rolling window
-const RATE_LIMIT_MAX       = 10               // max searches per IP per window
+const RATE_LIMIT_WINDOW_MS = 24 * 60 * 60 * 1000  // 24-hour rolling window
+const RATE_LIMIT_MAX       = 5                      // max searches per IP per day
+
+// Whitelists loaded from env vars (comma-separated)
+// Set RATE_LIMIT_WHITELIST_IPS  and/or RATE_LIMIT_WHITELIST_EMAILS in Railway
+const WHITELIST_IPS = new Set(
+  (process.env.RATE_LIMIT_WHITELIST_IPS || '').split(',').map(s => s.trim()).filter(Boolean)
+)
+const WHITELIST_EMAILS = new Set(
+  (process.env.RATE_LIMIT_WHITELIST_EMAILS || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean)
+)
 
 interface RateEntry { count: number; windowStart: number }
 const rateLimitStore = new Map<string, RateEntry>()
-
-// Purge stale entries every 30 minutes so the Map doesn't grow unbounded
-setInterval(() => {
-  const cutoff = Date.now() - RATE_LIMIT_WINDOW_MS
-  for (const [ip, entry] of rateLimitStore) {
-    if (entry.windowStart < cutoff) rateLimitStore.delete(ip)
-  }
-}, 30 * 60 * 1000)
 
 function getClientIp(request: NextRequest): string {
   return (
@@ -33,7 +34,15 @@ function getClientIp(request: NextRequest): string {
 }
 
 function checkRateLimit(ip: string): boolean {
+  if (WHITELIST_IPS.has(ip)) return true
   const now = Date.now()
+  // Lazy cleanup: sweep stale entries once the store gets large
+  if (rateLimitStore.size > 500) {
+    const cutoff = now - RATE_LIMIT_WINDOW_MS
+    for (const [k, v] of rateLimitStore) {
+      if (v.windowStart < cutoff) rateLimitStore.delete(k)
+    }
+  }
   const entry = rateLimitStore.get(ip)
   if (!entry || now - entry.windowStart >= RATE_LIMIT_WINDOW_MS) {
     rateLimitStore.set(ip, { count: 1, windowStart: now })
@@ -84,15 +93,7 @@ async function verifyRecaptcha(token: string): Promise<boolean> {
 
 export async function POST(request: NextRequest) {
   const origin = request.headers.get('origin')
-
-  // Rate limit check — must pass before any processing
   const clientIp = getClientIp(request)
-  if (!checkRateLimit(clientIp)) {
-    return NextResponse.json(
-      { error: 'Πολλές αναζητήσεις από την ίδια σύνδεση. Παρακαλώ δοκιμάστε ξανά σε μία ώρα.' },
-      { status: 429, headers: { ...cors(origin), 'Retry-After': '3600' } }
-    )
-  }
 
   let body: any
   try {
@@ -102,6 +103,16 @@ export async function POST(request: NextRequest) {
   }
 
   const { afm, email, phone, recaptchaToken } = body || {}
+
+  // Rate limit — whitelisted IPs and emails bypass the limit
+  const cleanEmailForWhitelist = String(email || '').trim().toLowerCase()
+  const isWhitelisted = WHITELIST_EMAILS.has(cleanEmailForWhitelist)
+  if (!isWhitelisted && !checkRateLimit(clientIp)) {
+    return NextResponse.json(
+      { error: 'Έχετε πραγματοποιήσει τον μέγιστο αριθμό αναζητήσεων για σήμερα (5). Παρακαλώ επικοινωνήστε μαζί μας ή δοκιμάστε ξανά αύριο.' },
+      { status: 429, headers: { ...cors(origin), 'Retry-After': '86400' } }
+    )
+  }
 
   // reCAPTCHA
   if (!recaptchaToken || !(await verifyRecaptcha(String(recaptchaToken)))) {
