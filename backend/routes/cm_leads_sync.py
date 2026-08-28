@@ -49,6 +49,7 @@ CANONICAL_PROGRAMS = ["ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ", "ΔΥΠΑ", "ΕΣΠΑ", "�
 # ASCII aliases so external callers (Pabbly) never need Greek chars in the URL
 PROGRAM_ALIASES = {
     "MIKRO": "ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ", "MIKROPISTOSEIS": "ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ", "MICROLOANS": "ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ",
+    "ΤΑΜΕΙΟ ΜΙΚΡΟΠΙΣΤΩΣΕΩΝ": "ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ", "ΤΑΜΕΙΟ ΜΙΚΡΟΔΑΝΕΙΩΝ": "ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ",
     "DYPA": "ΔΥΠΑ", "ESPA": "ΕΣΠΑ",
     "ANAKAINIZW": "ΑΝΑΚΑΙΝΙΖΩ", "ANAKAINIZO": "ΑΝΑΚΑΙΝΙΖΩ", "RENOVATE": "ΑΝΑΚΑΙΝΙΖΩ",
 }
@@ -333,7 +334,7 @@ def _sync_config(db: Session, cfg: CMLeadSheetConfig, dry_run: bool = False, ref
                 db.commit()
         else:
             _new = CMLead(
-                program=cfg.program,
+                program=_resolve_program(cfg.program) or cfg.program,
                 status=status,
                 sheet_config_id=cfg.id,
                 sheet_row_num=row_num,
