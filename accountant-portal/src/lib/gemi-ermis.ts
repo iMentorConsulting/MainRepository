@@ -16,7 +16,7 @@ export async function getOrCreateGemiErmisLink(gemiId: string, programId: string
       const record = await prisma.gemiMatchToken.upsert({
         where: { gemiId_programId: { gemiId, programId } },
         create: { gemiId, programId, token: generateToken(), expiresAt },
-        update: { expiresAt, token: generateToken() },
+        update: { expiresAt },
         select: { token: true },
       })
       return `${baseUrl}/ge/${record.token}`

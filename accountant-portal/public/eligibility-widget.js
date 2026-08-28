@@ -25,6 +25,12 @@ var IM_API = "https://logistis.i-mentor.gr/api/public/eligibility-check";
     "#imWidget .im-promo-btns{display:flex!important;gap:10px!important;flex-wrap:wrap!important;}",
     "#imWidget .im-promo-btn-outline{display:inline-block!important;border:2px solid #f59e0b!important;color:#92400e!important;background:transparent!important;font-size:15px!important;font-weight:600!important;padding:10px 18px!important;border-radius:8px!important;text-decoration:none!important;}",
     "#imWidget .im-promo-btn-outline:hover{background:#fef3c7!important;}",
+    // imd detail section (keyPoints tags etc.)
+    "#imWidget .imd-section{margin-top:12px!important;}",
+    "#imWidget .imd-block{margin-bottom:10px!important;}",
+    "#imWidget .imd-label{font-size:11px!important;font-weight:700!important;letter-spacing:.6px!important;color:#6b7280!important;margin-bottom:4px!important;text-transform:uppercase!important;}",
+    "#imWidget .imd-tags{display:flex!important;flex-wrap:wrap!important;gap:6px!important;}",
+    "#imWidget .imd-tag{display:inline-block!important;background:#ede9fe!important;color:#5b21b6!important;font-size:13px!important;font-weight:500!important;padding:4px 10px!important;border-radius:20px!important;line-height:1.3!important;}",
   ].join("");
   document.head.appendChild(s);
 })();
