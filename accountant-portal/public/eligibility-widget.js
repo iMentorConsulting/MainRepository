@@ -115,7 +115,8 @@ function imCategoryDetails(p) {
   return html ? "<div class='imd-section'>" + html + "</div>" : "";
 }
 
-function imNotFoundCard() {
+function imNotFoundCard(themisUrl) {
+  var themisLink = themisUrl || "https://www.i-mentor.gr/exodikastikos";
   return (
     "<div class='im-notfound'>" +
       "<div class='im-notfound-top'>" +
@@ -157,7 +158,7 @@ function imNotFoundCard() {
         "</div>" +
         "<div class='im-promo-btns'>" +
           "<a href='https://www.i-mentor.gr/exodikastikos' class='im-promo-btn-outline' target='_blank' rel='noopener'>Μάθετε περισσότερα &rarr;</a>" +
-          "<a href='https://www.i-mentor.gr/exodikastikos' class='im-promo-btn' target='_blank' rel='noopener'>Έλεγχος επιλεξιμότητας με τη Θέμις — Ψηφιακή Σύμβουλος &rarr;</a>" +
+          "<a href='" + themisLink + "' class='im-promo-btn' target='_blank' rel='noopener'>Έλεγχος επιλεξιμότητας με τη Θέμις — Ψηφιακή Σύμβουλος &rarr;</a>" +
         "</div>" +
       "</div>" +
     "</div>"
@@ -206,13 +207,14 @@ function imCheck() {
         btn.disabled = false;
         btn.innerHTML = "Έλεγχος Επιλεξιμότητας";
 
+        if (r.data.notFound) {
+          // AFM unknown to AADE — show rich card with personalized Θέμις link
+          out.style.display = "block";
+          out.innerHTML = imNotFoundCard(r.data.themisUrl);
+          return;
+        }
+
         if (!r.ok) {
-          if (r.status === 404) {
-            // AFM not found — show a rich card with alternatives
-            out.style.display = "block";
-            out.innerHTML = imNotFoundCard();
-            return;
-          }
           err.textContent = r.data.error || "Παρουσιάστηκε σφάλμα. Δοκιμάστε ξανά.";
           err.style.display = "block";
           out.style.display = "none";

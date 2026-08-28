@@ -90,9 +90,27 @@ export async function POST(request: NextRequest) {
     }
 
     if (!aadeData && !gemi) {
+      // AFM unknown to AADE — create a stub record to capture the lead and
+      // generate a personalized Θέμις link for the Εξωδικαστικός promo.
+      let themisUrl: string | null = null
+      try {
+        const stub = await prisma.gemiLookup.create({
+          data: { afm: cleanAfm, email: cleanEmail, phone: cleanPhone, matchingDone: false },
+        })
+        const extrajudicialProgram = await prisma.program.findFirst({
+          where: { category: 'EXTRAJUDICIAL', active: true },
+          select: { id: true },
+        })
+        if (extrajudicialProgram) {
+          const baseLink = await getOrCreateGemiErmisLink(stub.id, extrajudicialProgram.id)
+          themisUrl = `${baseLink}?type=themis`
+        }
+      } catch {
+        // Non-fatal — fall back to generic URL in the widget
+      }
       return NextResponse.json(
-        { error: 'Δεν βρέθηκαν στοιχεία για το ΑΦΜ που καταχωρήσατε. Ελέγξτε ότι το ΑΦΜ είναι σωστό.' },
-        { status: 404, headers: cors(origin) }
+        { notFound: true, themisUrl },
+        { headers: cors(origin) }
       )
     }
 
