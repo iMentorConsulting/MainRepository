@@ -11,17 +11,20 @@ var IM_API = "https://logistis.i-mentor.gr/api/public/eligibility-check";
     "#imWidget .im-notfound{padding:8px 0 4px;}",
     "#imWidget .im-notfound-top{display:flex!important;gap:14px!important;align-items:flex-start!important;background:#fff8e1!important;border:1px solid #ffe082!important;border-radius:12px!important;padding:18px!important;margin-bottom:16px!important;}",
     "#imWidget .im-notfound-icon{font-size:2rem!important;flex-shrink:0!important;line-height:1!important;}",
-    "#imWidget .im-notfound-title{font-size:1rem!important;font-weight:700!important;color:#795548!important;margin-bottom:6px!important;line-height:1.35!important;}",
-    "#imWidget .im-notfound-sub{font-size:0.85rem!important;color:#8d6e63!important;line-height:1.5!important;}",
+    "#imWidget .im-notfound-title{font-size:16px!important;font-weight:700!important;color:#795548!important;margin-bottom:6px!important;line-height:1.35!important;}",
+    "#imWidget .im-notfound-sub{font-size:15px!important;color:#8d6e63!important;line-height:1.5!important;}",
     // DYPA tip card
     "#imWidget .im-notfound-dypa{background:linear-gradient(135deg,#e8f5e9 0%,#f1f8e9 100%)!important;border:1px solid #a5d6a7!important;border-radius:12px!important;padding:20px!important;margin-bottom:16px!important;}",
     "#imWidget .im-notfound-dypa-hd{display:flex!important;gap:12px!important;align-items:flex-start!important;margin-bottom:12px!important;}",
-    "#imWidget .im-notfound-dypa-ico{font-size:1.7rem!important;flex-shrink:0!important;line-height:1!important;}",
-    "#imWidget .im-notfound-dypa-title{font-size:0.98rem!important;font-weight:700!important;color:#2e7d32!important;margin-bottom:4px!important;line-height:1.3!important;}",
-    "#imWidget .im-notfound-dypa-sub{font-size:0.83rem!important;color:#388e3c!important;line-height:1.4!important;}",
-    "#imWidget .im-notfound-dypa-body{font-size:0.88rem!important;color:#33691e!important;line-height:1.6!important;margin-bottom:14px!important;}",
-    "#imWidget .im-notfound-dypa-btn{display:inline-block!important;background:#2e7d32!important;color:#fff!important;font-size:0.87rem!important;font-weight:600!important;padding:10px 20px!important;border-radius:8px!important;text-decoration:none!important;}",
+    "#imWidget .im-notfound-dypa-ico{font-size:28px!important;flex-shrink:0!important;line-height:1!important;}",
+    "#imWidget .im-notfound-dypa-title{font-size:16px!important;font-weight:700!important;color:#2e7d32!important;margin-bottom:4px!important;line-height:1.3!important;}",
+    "#imWidget .im-notfound-dypa-sub{font-size:15px!important;color:#388e3c!important;line-height:1.4!important;}",
+    "#imWidget .im-notfound-dypa-body{font-size:15px!important;color:#33691e!important;line-height:1.6!important;margin-bottom:14px!important;}",
+    "#imWidget .im-notfound-dypa-btn{display:inline-block!important;background:#2e7d32!important;color:#fff!important;font-size:15px!important;font-weight:600!important;padding:10px 20px!important;border-radius:8px!important;text-decoration:none!important;}",
     "#imWidget .im-notfound-dypa-btn:hover{background:#1b5e20!important;}",
+    "#imWidget .im-promo-btns{display:flex!important;gap:10px!important;flex-wrap:wrap!important;}",
+    "#imWidget .im-promo-btn-outline{display:inline-block!important;border:2px solid #f59e0b!important;color:#92400e!important;background:transparent!important;font-size:15px!important;font-weight:600!important;padding:10px 18px!important;border-radius:8px!important;text-decoration:none!important;}",
+    "#imWidget .im-promo-btn-outline:hover{background:#fef3c7!important;}",
   ].join("");
   document.head.appendChild(s);
 })();
@@ -112,7 +115,8 @@ function imCategoryDetails(p) {
   return html ? "<div class='imd-section'>" + html + "</div>" : "";
 }
 
-function imNotFoundCard() {
+function imNotFoundCard(themisUrl) {
+  var themisLink = themisUrl || "https://www.i-mentor.gr/exodikastikos";
   return (
     "<div class='im-notfound'>" +
       "<div class='im-notfound-top'>" +
@@ -131,9 +135,10 @@ function imNotFoundCard() {
           "</div>" +
         "</div>" +
         "<div class='im-notfound-dypa-body'>" +
-          "Τα προγράμματα <strong>ΔΥΠΑ για νέες επιχειρήσεις</strong> απευθύνονται σε άνεργους που θέλουν να κάνουν έναρξη και " +
-          "προσφέρουν <strong>μηνιαία επιχορήγηση</strong> για την αμοιβή νέων εργαζομένων — χωρίς να χρειαστεί να έχετε ήδη ενεργό ΑΦΜ επιχείρησης. " +
-          "Επικοινωνήστε μαζί μας για να δείτε αν πληροίτε τις προϋποθέσεις και να ξεκινήσετε τη διαδικασία." +
+          "Τα προγράμματα <strong>ΔΥΠΑ για Νέες Επιχειρήσεις</strong> απευθύνονται σε εγγεγραμμένους άνεργους που θέλουν να ξεκινήσουν τη δική τους επιχείρηση. " +
+          "Προσφέρουν <strong>εφάπαξ επιχορήγηση από 14.000€ έως 17.500€</strong> για την κάλυψη λειτουργικών εξόδων της νέας επιχείρησης — " +
+          "χωρίς να χρειάζεται να έχετε ήδη ενεργό ΑΦΜ. " +
+          "Επικοινωνήστε μαζί μας για να ελέγξουμε αν πληροίτε τις προϋποθέσεις και να σας καθοδηγήσουμε στη διαδικασία." +
         "</div>" +
         "<a href='https://www.i-mentor.gr/epikoinonia' class='im-notfound-dypa-btn' target='_blank' rel='noopener'>Επικοινωνήστε μαζί μας &rarr;</a>" +
       "</div>" +
@@ -142,15 +147,19 @@ function imNotFoundCard() {
           "<span class='im-promo-ico'>⚖️</span>" +
           "<div>" +
             "<div class='im-promo-title'>Εξωδικαστικός Μηχανισμός Ρύθμισης Οφειλών</div>" +
-            "<div class='im-promo-sub'>Έχετε οφειλές σε εφορία, ΕΦΚΑ, τράπεζες ή Δήμους; Αυτό αφορά εσάς</div>" +
+            "<div class='im-promo-sub'>Έχετε οφειλές σε εφορία, ΕΦΚΑ ή τράπεζες; Αυτό αφορά εσάς</div>" +
           "</div>" +
         "</div>" +
         "<div class='im-promo-body'>" +
           "Ο Εξωδικαστικός Μηχανισμός (Ν.&nbsp;4738/2020) αφορά τόσο <strong>επιχειρήσεις</strong> όσο και <strong>ιδιώτες</strong>. " +
-          "Επιτρέπει τη ρύθμιση όλων των χρεών μαζί — εφορία, ΕΦΚΑ, τράπεζες, Δήμοι — μέσω μίας αίτησης, " +
-          "με <strong>δόσεις έως 240 μήνες</strong>, επιτόκιο 3% και δυνατότητα <strong>διαγραφής έως 75–85%</strong> της βασικής οφειλής." +
+          "Επιτρέπει τη ρύθμιση όλων των χρεών μαζί — εφορία, ΕΦΚΑ, τράπεζες — μέσω μίας αίτησης, " +
+          "με <strong>δόσεις έως 240 μήνες προς το Δημόσιο</strong> και <strong>έως 420 μήνες προς τράπεζες &amp; funds</strong>, " +
+          "με δυνατότητα <strong>διαγραφής τόκων και κεφαλαίου έως 80%</strong> ανάλογα με την περιουσιακή και οικονομική κατάσταση." +
         "</div>" +
-        "<a href='https://www.i-mentor.gr/exodikastikos' class='im-promo-btn' target='_blank' rel='noopener'>Μάθετε περισσότερα για τον Εξωδικαστικό &rarr;</a>" +
+        "<div class='im-promo-btns'>" +
+          "<a href='https://www.i-mentor.gr/exodikastikos' class='im-promo-btn-outline' target='_blank' rel='noopener'>Μάθετε περισσότερα &rarr;</a>" +
+          "<a href='" + themisLink + "' class='im-promo-btn' target='_blank' rel='noopener'>Έλεγχος επιλεξιμότητας με τη Θέμις — Ψηφιακή Σύμβουλος &rarr;</a>" +
+        "</div>" +
       "</div>" +
     "</div>"
   );
@@ -198,13 +207,14 @@ function imCheck() {
         btn.disabled = false;
         btn.innerHTML = "Έλεγχος Επιλεξιμότητας";
 
+        if (r.data.notFound) {
+          // AFM unknown to AADE — show rich card with personalized Θέμις link
+          out.style.display = "block";
+          out.innerHTML = imNotFoundCard(r.data.themisUrl);
+          return;
+        }
+
         if (!r.ok) {
-          if (r.status === 404) {
-            // AFM not found — show a rich card with alternatives
-            out.style.display = "block";
-            out.innerHTML = imNotFoundCard();
-            return;
-          }
           err.textContent = r.data.error || "Παρουσιάστηκε σφάλμα. Δοκιμάστε ξανά.";
           err.style.display = "block";
           out.style.display = "none";
@@ -283,15 +293,15 @@ function imCheck() {
               "<span class='im-promo-ico'>⚖️</span>" +
               "<div>" +
                 "<div class='im-promo-title'>Εξωδικαστικός Μηχανισμός Ρύθμισης Οφειλών</div>" +
-                "<div class='im-promo-sub'>Έχετε οφειλές σε εφορία, ΕΦΚΑ, τράπεζες ή Δήμους; Αυτό αφορά εσάς</div>" +
+                "<div class='im-promo-sub'>Έχετε οφειλές σε εφορία, ΕΦΚΑ ή τράπεζες; Αυτό αφορά εσάς</div>" +
               "</div>" +
             "</div>" +
             "<div class='im-promo-body'>" +
               "Ο Εξωδικαστικός Μηχανισμός (Ν.&nbsp;4738/2020) είναι κρατική ηλεκτρονική πλατφόρμα που επιτρέπει " +
               "σε ιδιώτες και επιχειρήσεις να ρυθμίσουν <strong>συνολικά</strong> όλα τους τα χρέη μέσω μίας μόνο αίτησης. " +
               "Αντί να διαπραγματεύεστε με κάθε πιστωτή ξεχωριστά, ένας αλγόριθμος δημιουργεί πρόταση για όλους μαζί — " +
-              "με <strong>μακροχρόνιες δόσεις έως 240 μήνες</strong>, σταθερό επιτόκιο 3%, " +
-              "και δυνατότητα <strong>διαγραφής έως 75–85%</strong> της βασικής οφειλής." +
+              "με <strong>δόσεις έως 240 μήνες προς το Δημόσιο</strong> και <strong>έως 420 μήνες προς τράπεζες &amp; funds</strong>, " +
+              "και δυνατότητα <strong>διαγραφής τόκων και κεφαλαίου έως 80%</strong> ανάλογα με την περιουσιακή και οικονομική κατάσταση." +
               "<br><br>" +
               "Η i-Mentor Consulting αναλαμβάνει ολόκληρη τη διαδικασία — από την αξιολόγηση υπαγωγής " +
               "και τη σύνταξη του φακέλου μέχρι την τελική συμφωνία — με χαμηλό και διαφανές κόστος." +
