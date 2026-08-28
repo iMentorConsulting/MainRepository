@@ -726,7 +726,7 @@ def ermis_webhook(
             status="HOT",
             source="LOGISTIS ΓΕΜΗ",
             assigned_agent_id=_agent.id if _agent else None,
-            assigned_name="ELEFTHERIA",
+            assigned_name=_agent.full_name if _agent else "ELEFTHERIA",
             ermis_token=payload.token or None,
             next_call_date=date.today(),
         )

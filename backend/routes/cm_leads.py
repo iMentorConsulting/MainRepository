@@ -881,6 +881,49 @@ def backfill_source_keywords(
     return {"ok": True, "updated": updated}
 
 
+@router.post("/normalize-consultants")
+def normalize_consultants(
+    current_user: CMUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Retroactive backfill: set assigned_name = CMUser.full_name for all leads.
+    - Leads with assigned_agent_id: fix name to user.full_name.
+    - Leads with code-name (ELEFTHERIA, HARIS etc.): lookup via _CONSULTANT_GR, link user."""
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Μόνο για διαχειριστές")
+
+    from routes.cm_leads_ermis import _CONSULTANT_GR
+    all_users = db.query(CMUser).all()
+    users_by_id = {u.id: u for u in all_users}
+
+    updated = 0
+    for lead in db.query(CMLead).all():
+        # Case 1: already linked — just ensure name matches full_name
+        if lead.assigned_agent_id:
+            user = users_by_id.get(lead.assigned_agent_id)
+            if user and lead.assigned_name != user.full_name:
+                lead.assigned_name = user.full_name
+                updated += 1
+            continue
+
+        # Case 2: known code name (e.g. "ELEFTHERIA") → lookup by first name
+        if lead.assigned_name:
+            code = lead.assigned_name.strip().upper()
+            first_name = _CONSULTANT_GR.get(code)
+            if first_name:
+                matched = next(
+                    (u for u in all_users if first_name in (u.full_name or "")),
+                    None
+                )
+                if matched:
+                    lead.assigned_name = matched.full_name
+                    lead.assigned_agent_id = matched.id
+                    updated += 1
+
+    db.commit()
+    return {"ok": True, "updated": updated}
+
+
 @router.put("/{lead_id}/comments/{comment_id}")
 def edit_comment(
     lead_id: int,
