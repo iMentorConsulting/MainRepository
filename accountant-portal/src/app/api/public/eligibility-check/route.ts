@@ -336,23 +336,23 @@ export async function POST(request: NextRequest) {
   type Match = typeof matches[0]
   const activeMatches = matches.filter((m: Match) => m.program.active)
 
-  // Generate Θέμις link — always, so the promo card always has a personalized link
   const gemiId = gemi!.id
-  let themisUrl: string | null = null
-  try {
-    const extrajudicialProgram = await prisma.program.findFirst({
-      where: { category: 'EXTRAJUDICIAL', active: true },
-      select: { id: true },
-    })
-    if (extrajudicialProgram) {
-      const baseLink = await getOrCreateGemiErmisLink(gemiId, extrajudicialProgram.id)
-      themisUrl = `${baseLink}?type=themis`
-    }
-  } catch (e: any) {
-    console.error('[Θέμις] themisUrl generation failed:', e?.message)
-  }
 
   if (activeMatches.length === 0) {
+    // Still generate a Θέμις link for the promo card even when no programs matched
+    let themisUrl: string | null = null
+    try {
+      const extrajudicialProgram = await prisma.program.findFirst({
+        where: { category: 'EXTRAJUDICIAL', active: true },
+        select: { id: true },
+      })
+      if (extrajudicialProgram) {
+        const baseLink = await getOrCreateGemiErmisLink(gemiId, extrajudicialProgram.id)
+        themisUrl = `${baseLink}?type=themis`
+      }
+    } catch (e: any) {
+      console.error('[Θέμις] themisUrl generation failed (no-match path):', e?.message)
+    }
     return NextResponse.json(
       { business: { name: gemi!.onomasia || gemi!.afm }, programs: [], themisUrl },
       { headers: cors(origin) }
@@ -390,6 +390,27 @@ export async function POST(request: NextRequest) {
       }
     })
   )
+
+  // Build Θέμις URL from already-generated ermisUrl — reuse if extrajudicial matched,
+  // otherwise call once for the promo card (single DB call, no double-call race).
+  let themisUrl: string | null = null
+  const exMatch = programsWithLinks.find(p => p.category === 'EXTRAJUDICIAL')
+  if (exMatch) {
+    themisUrl = `${exMatch.ermisUrl}?type=themis`
+  } else {
+    try {
+      const extrajudicialProgram = await prisma.program.findFirst({
+        where: { category: 'EXTRAJUDICIAL', active: true },
+        select: { id: true },
+      })
+      if (extrajudicialProgram) {
+        const baseLink = await getOrCreateGemiErmisLink(gemiId, extrajudicialProgram.id)
+        themisUrl = `${baseLink}?type=themis`
+      }
+    } catch (e: any) {
+      console.error('[Θέμις] themisUrl generation failed (match path):', e?.message)
+    }
+  }
 
   return NextResponse.json(
     { business: { name: gemi!.onomasia || gemi!.afm }, programs: programsWithLinks, themisUrl },
