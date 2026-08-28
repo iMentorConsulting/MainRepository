@@ -199,18 +199,28 @@ function imCheck() {
 
         html += "</div>";
 
-        // Εξωδικαστικός promo
+        // Εξωδικαστικός promo — button goes to Θέμις if available
+        var themisUrl = r.data.themisUrl || "https://www.i-mentor.gr/exodikastikos";
         html +=
           "<div class='im-promo'>" +
             "<div class='im-promo-hd'>" +
               "<span class='im-promo-ico'>⚖️</span>" +
               "<div>" +
-                "<div class='im-promo-title'>Εξωδικαστικός Μηχανισμός</div>" +
-                "<div class='im-promo-sub'>Αν έχετε οφειλές — διαβάστε αυτό</div>" +
+                "<div class='im-promo-title'>Εξωδικαστικός Μηχανισμός Ρύθμισης Οφειλών</div>" +
+                "<div class='im-promo-sub'>Έχετε οφειλές σε εφορία, ΕΦΚΑ, τράπεζες ή Δήμους; Αυτό αφορά εσάς</div>" +
               "</div>" +
             "</div>" +
-            "<div class='im-promo-body'>Κρατική πλατφόρμα για συνολική ρύθμιση οφειλών σε ΑΑΔΕ, ΕΦΚΑ, Δήμους και τράπεζες με <strong>μία αίτηση</strong>. Μακροχρόνιες δόσεις, σταθερό επιτόκιο 3%, δυνατότητα σημαντικής <strong>διαγραφής χρέους</strong>.</div>" +
-            "<a href='https://www.i-mentor.gr/exodikastikos' class='im-promo-btn' target='_blank' rel='noopener'>Μάθετε περισσότερα &rarr;</a>" +
+            "<div class='im-promo-body'>" +
+              "Ο Εξωδικαστικός Μηχανισμός (Ν.&nbsp;4738/2020) είναι κρατική ηλεκτρονική πλατφόρμα που επιτρέπει " +
+              "σε ιδιώτες και επιχειρήσεις να ρυθμίσουν <strong>συνολικά</strong> όλα τους τα χρέη μέσω μίας μόνο αίτησης. " +
+              "Αντί να διαπραγματεύεστε με κάθε πιστωτή ξεχωριστά, ένας αλγόριθμος δημιουργεί πρόταση για όλους μαζί — " +
+              "με <strong>μακροχρόνιες δόσεις έως 240 μήνες</strong>, σταθερό επιτόκιο 3%, " +
+              "και δυνατότητα <strong>διαγραφής έως 75–85%</strong> της βασικής οφειλής." +
+              "<br><br>" +
+              "Η i-Mentor Consulting αναλαμβάνει ολόκληρη τη διαδικασία — από την αξιολόγηση υπαγωγής " +
+              "και τη σύνταξη του φακέλου μέχρι την τελική συμφωνία — με χαμηλό και διαφανές κόστος." +
+            "</div>" +
+            "<a href='" + themisUrl + "' class='im-promo-btn' target='_blank' rel='noopener'>Μιλήστε με τη Θέμις — Ψηφιακή Σύμβουλος &rarr;</a>" +
           "</div>";
 
         out.innerHTML = html;
