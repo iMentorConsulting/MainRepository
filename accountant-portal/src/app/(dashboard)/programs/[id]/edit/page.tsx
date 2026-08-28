@@ -311,7 +311,6 @@ export default function EditProgramPage() {
   const [requireTags, setRequireTags] = useState<string[]>([])
   const [tagOptions, setTagOptions] = useState<{ label: string }[]>([])
   const [expenseCategories, setExpenseCategories] = useState<ExpenseCategory[]>([])
-  const [keyPoints, setKeyPoints] = useState<string[]>([])
   const [requiredDocumentIds, setRequiredDocumentIds] = useState<string[]>([])
   const [allDocuments, setAllDocuments] = useState<{ id: string; name: string; category: string; instructions: string | null }[]>([])
   // WordPress integration
@@ -366,7 +365,6 @@ export default function EditProgramPage() {
         setAttachmentUrls(program.attachmentUrls || [])
         setAttachmentNames(program.attachmentNames || [])
         setExpenseCategories(Array.isArray(program.expenseCategories) ? program.expenseCategories : [])
-        setKeyPoints(program.keyPoints || [])
         setRequiredDocumentIds((program.requiredDocuments || []).map((d: { id: string }) => d.id))
         setWpPageId(program.wpPageId ?? null)
         setWpPageUrl(program.wpPageUrl ?? null)
@@ -415,7 +413,7 @@ export default function EditProgramPage() {
     const res = await fetch(`/api/programs/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...data, maxRegdate: maxRegdateFinal, heroImageUrl: heroImage || null, kadRules, excludedKadRules, regionRules, zipCodeRules, excludedLegalForms, extraCriteriaIds, excludeTags, requireTags, videoUrls, attachmentUrls, attachmentNames, expenseCategories, keyPoints, requiredDocumentIds }),
+      body: JSON.stringify({ ...data, maxRegdate: maxRegdateFinal, heroImageUrl: heroImage || null, kadRules, excludedKadRules, regionRules, zipCodeRules, excludedLegalForms, extraCriteriaIds, excludeTags, requireTags, videoUrls, attachmentUrls, attachmentNames, expenseCategories, requiredDocumentIds }),
     })
     if (res.ok) {
       router.push(`/programs/${id}`)
@@ -528,12 +526,6 @@ export default function EditProgramPage() {
               <Input label="Επιτόκιο Έως (%)" type="number" step="0.01" {...register('maxInterestRate')} placeholder="π.χ. 6.0" />
             </div>
             <Textarea label="Άλλες Προϋποθέσεις Προγράμματος" {...register('otherRequirements')} rows={3} placeholder="π.χ. ελάχιστος κύκλος εργασιών, υποχρεωτική απασχόληση προσωπικού κ.λπ." />
-            <TagInput
-              label="Πρόσθετες Προϋποθέσεις / Βασικά Σημεία (widget tags)"
-              values={keyPoints}
-              onChange={setKeyPoints}
-              placeholder="π.χ. Χωρίς ληξιπρόθεσμες οφειλές"
-            />
             <Input label="Σελίδα Προγράμματος στο Website μας (URL)" {...register('websiteUrl')} placeholder="https://www.i-mentor.gr/programs/..." />
             <HeroImageUpload value={heroImage} onChange={setHeroImage} />
             <VideoUrlsInput values={videoUrls} onChange={setVideoUrls} />
