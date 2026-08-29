@@ -131,15 +131,15 @@ function imCategoryDetails(p) {
     html += imRowHighlight("ΕΠΙΤΟΚΙΟ", rate);
     html += imRow("ΠΟΣΟ ΔΑΝΕΙΟΥ", loan);
     html += "</div>";
-    if (p.keyPoints && p.keyPoints.length > 0) {
+    var reqTags = (p.keyPoints && p.keyPoints.length > 0)
+      ? p.keyPoints
+      : (p.otherRequirements ? p.otherRequirements.split('\n').map(function(l) { return l.replace(/^\s*\d+\.\s*/, '').trim(); }).filter(Boolean) : []);
+    if (reqTags.length > 0) {
       html += "<div class='imd-block'><div class='imd-label'>ΠΡΟΣΘΕΤΕΣ ΠΡΟΫΠΟΘΕΣΕΙΣ</div><div class='imd-tags'>";
-      for (var k = 0; k < p.keyPoints.length; k++) {
-        html += "<span class='imd-tag'>" + p.keyPoints[k] + "</span>";
+      for (var k = 0; k < reqTags.length; k++) {
+        html += "<span class='imd-tag'>" + reqTags[k] + "</span>";
       }
       html += "</div></div>";
-    }
-    if (p.otherRequirements) {
-      html += "<div class='imd-block'><div class='imd-text'>" + p.otherRequirements + "</div></div>";
     }
   }
 
