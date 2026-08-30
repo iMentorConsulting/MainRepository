@@ -61,6 +61,7 @@ app.use('/api/recurring-expenses', authMiddleware, require('./routes/recurringEx
 app.use('/api/cm-sync',  require('./routes/cmSync'));
 // Pull case data from consult.i-mentor.gr (requires CM_APP_URL + FINANCE_API_KEY env vars)
 app.use('/api/cm-cases', authMiddleware, require('./routes/cmCasesFetch'));
+app.use('/api/settings', authMiddleware, require('./routes/settings'));
 app.use('/api/backup',  authMiddleware, require('./routes/backup'));
 // Push paid Income rows to Logistis (requires LOGISTIS_BASE_URL + LOGISTIS_API_KEY env vars)
 app.use('/api/logistis-sync', authMiddleware, require('./routes/logistisSync'));

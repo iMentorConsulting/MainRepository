@@ -122,12 +122,11 @@ export default function Dashboard() {
   const [byService, setByService] = useState([]);
   const [byAgent, setByAgent] = useState([]);
   const [serviceTypes, setServiceTypes] = useState([]);
-  const [monthlyTargets, setMonthlyTargets] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('imf_monthly_targets') || '{}'); }
-    catch { return {}; }
-  });
-  const [defaultIncomeTarget, setDefaultIncomeTarget] = useState(() => parseFloat(localStorage.getItem('income_target') || '20000'));
-  const [defaultProfitTarget, setDefaultProfitTarget] = useState(() => parseFloat(localStorage.getItem('profit_target') || '10000'));
+  const [monthlyTargets, setMonthlyTargets] = useState({});
+  const [defaultIncomeTarget, setDefaultIncomeTarget] = useState(20000);
+  const [defaultProfitTarget, setDefaultProfitTarget] = useState(10000);
+  const [isDirty, setIsDirty] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [allIncome, setAllIncome] = useState([]);
   const [allExpenses, setAllExpenses] = useState([]);
   const [expandedYears, setExpandedYears] = useState(new Set());
@@ -159,6 +158,24 @@ export default function Dashboard() {
 
   useEffect(() => {
     api.get('/lists?list_type=ΕΙΔΟΣ_ΥΠΗΡΕΣΙΑΣ&active_only=true').then(r => setServiceTypes(r.data)).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    api.get('/settings/dashboard_targets').then(r => {
+      if (r.data) {
+        if (r.data.targets) setMonthlyTargets(r.data.targets);
+        if (r.data.defaultIncome != null) setDefaultIncomeTarget(r.data.defaultIncome);
+        if (r.data.defaultProfit != null) setDefaultProfitTarget(r.data.defaultProfit);
+      } else {
+        try { setMonthlyTargets(JSON.parse(localStorage.getItem('imf_monthly_targets') || '{}')); } catch {}
+        setDefaultIncomeTarget(parseFloat(localStorage.getItem('income_target') || '20000'));
+        setDefaultProfitTarget(parseFloat(localStorage.getItem('profit_target') || '10000'));
+      }
+    }).catch(() => {
+      try { setMonthlyTargets(JSON.parse(localStorage.getItem('imf_monthly_targets') || '{}')); } catch {}
+      setDefaultIncomeTarget(parseFloat(localStorage.getItem('income_target') || '20000'));
+      setDefaultProfitTarget(parseFloat(localStorage.getItem('profit_target') || '10000'));
+    });
   }, []);
 
   useEffect(() => {
@@ -529,7 +546,7 @@ export default function Dashboard() {
           const key = `${yr}-${String(month).padStart(2, '0')}`;
           const updated = { ...monthlyTargets, [key]: { ...getMonthTarget(yr, month), [field]: parseFloat(value) || 0 } };
           setMonthlyTargets(updated);
-          localStorage.setItem('imf_monthly_targets', JSON.stringify(updated));
+          setIsDirty(true);
         };
         const applyToAll = () => {
           const yr = selectedYears.length === 1 ? parseInt(selectedYears[0]) : new Date().getFullYear();
@@ -539,9 +556,21 @@ export default function Dashboard() {
             updated[key] = { income: defaultIncomeTarget, profit: defaultProfitTarget };
           }
           setMonthlyTargets(updated);
-          localStorage.setItem('imf_monthly_targets', JSON.stringify(updated));
-          localStorage.setItem('income_target', String(defaultIncomeTarget));
-          localStorage.setItem('profit_target', String(defaultProfitTarget));
+          setIsDirty(true);
+        };
+        const saveTargets = async () => {
+          setSaving(true);
+          try {
+            await api.put('/settings/dashboard_targets', { targets: monthlyTargets, defaultIncome: defaultIncomeTarget, defaultProfit: defaultProfitTarget });
+            localStorage.setItem('imf_monthly_targets', JSON.stringify(monthlyTargets));
+            localStorage.setItem('income_target', String(defaultIncomeTarget));
+            localStorage.setItem('profit_target', String(defaultProfitTarget));
+            setIsDirty(false);
+          } catch (e) {
+            alert('Σφάλμα αποθήκευσης: ' + (e?.response?.data?.error || e.message));
+          } finally {
+            setSaving(false);
+          }
         };
         const achColor = pct => pct === null ? 'text-slate-400' : pct >= 100 ? 'text-emerald-600 font-bold' : pct >= 70 ? 'text-amber-600 font-semibold' : 'text-rose-600 font-semibold';
         const paceColor = pct => pct === null ? 'text-slate-400' : pct >= 120 ? 'text-emerald-600 font-bold' : pct >= 100 ? 'text-emerald-500 font-semibold' : pct >= 70 ? 'text-amber-600 font-semibold' : 'text-rose-600 font-semibold';
@@ -578,9 +607,8 @@ export default function Dashboard() {
                   className="input w-40"
                   value={defaultIncomeTarget}
                   onChange={e => {
-                    const v = parseFloat(e.target.value) || 0;
-                    setDefaultIncomeTarget(v);
-                    localStorage.setItem('income_target', String(v));
+                    setDefaultIncomeTarget(parseFloat(e.target.value) || 0);
+                    setIsDirty(true);
                   }}
                 />
               </div>
@@ -591,16 +619,42 @@ export default function Dashboard() {
                   className="input w-40"
                   value={defaultProfitTarget}
                   onChange={e => {
-                    const v = parseFloat(e.target.value) || 0;
-                    setDefaultProfitTarget(v);
-                    localStorage.setItem('profit_target', String(v));
+                    setDefaultProfitTarget(parseFloat(e.target.value) || 0);
+                    setIsDirty(true);
                   }}
                 />
               </div>
-              <div className="flex items-end">
+              <div className="flex items-end gap-2">
                 <button className="btn-primary btn-sm" onClick={applyToAll}>
                   Εφαρμογή σε Όλους τους Μήνες
                 </button>
+                <button
+                  className={`btn-sm flex items-center gap-1.5 font-semibold rounded-lg px-4 py-2 text-sm transition-all ${
+                    isDirty
+                      ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-md shadow-emerald-200'
+                      : 'bg-slate-100 text-slate-400 cursor-default'
+                  }`}
+                  onClick={isDirty ? saveTargets : undefined}
+                  disabled={saving}
+                >
+                  {saving ? (
+                    <>
+                      <svg className="animate-spin w-3.5 h-3.5" viewBox="0 0 24 24" fill="none">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+                      </svg>
+                      Αποθήκευση…
+                    </>
+                  ) : (
+                    <>
+                      <svg viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5">
+                        <path d="M2.75 1h8.69l1.81 1.81V13.25A1.75 1.75 0 0 1 11.5 15h-7A1.75 1.75 0 0 1 2.75 13.25V2.75Zm.5 12.25c0 .69.56 1.25 1.25 1.25h7c.69 0 1.25-.56 1.25-1.25V3.31L11.19 2H3.25v11.25ZM8 13a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5Zm0-1a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3ZM5 2.75h4.5V5H5V2.75Z"/>
+                      </svg>
+                      {isDirty ? 'Αποθήκευση' : 'Αποθηκεύτηκε'}
+                    </>
+                  )}
+                </button>
+                {isDirty && <span className="text-xs text-amber-500 font-medium self-center">● Μη αποθηκευμένες αλλαγές</span>}
               </div>
             </div>
             <div className="overflow-x-auto">
