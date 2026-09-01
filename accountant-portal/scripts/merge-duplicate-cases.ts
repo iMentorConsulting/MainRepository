@@ -45,7 +45,7 @@ async function main() {
 
   const pairs: Array<{ primary: typeof cases[0]; generic: typeof cases[0] }> = []
 
-  for (const [, group] of byBusiness) {
+  for (const [, group] of Array.from(byBusiness)) {
     if (group.length < 2) continue
 
     // Look for pairs: one with programId, one without, created within 48h of each other
