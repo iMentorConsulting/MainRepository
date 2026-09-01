@@ -38,13 +38,31 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ id: updated.id, caseNumber: updated.caseNumber, created: false })
   }
 
-  // Link to the most recent unlinked case for this business (created by the portal, awaiting external ref)
+  // 1. Link to the most recent unlinked case for this business (created by the portal, awaiting external ref)
   const unlinked = await prisma.clientCase.findFirst({
     where: { businessId: business.id, externalRef: null },
     orderBy: { createdAt: 'desc' },
   })
   if (unlinked) {
     const updated = await applyExternalUpdate(unlinked.id, { status, externalStatus, note, dueDate, externalRef })
+    return NextResponse.json({ id: updated.id, caseNumber: updated.caseNumber, created: false })
+  }
+
+  // 2. Fallback: link to the most recent case for this business created in the last 48 hours,
+  //    even if it already has a different externalRef (CM sends a second ref on acceptance).
+  //    This prevents a duplicate generic "Ανάληψη Πελάτη" case from being created when
+  //    the CM sends a follow-up call after the original Ermis case already received its ref.
+  const recentCutoff = new Date(Date.now() - 48 * 60 * 60 * 1000)
+  const recent = await prisma.clientCase.findFirst({
+    where: {
+      businessId: business.id,
+      createdAt: { gte: recentCutoff },
+      status: { notIn: ['COMPLETED', 'CANCELLED'] },
+    },
+    orderBy: { createdAt: 'desc' },
+  })
+  if (recent) {
+    const updated = await applyExternalUpdate(recent.id, { status, externalStatus, note, dueDate, externalRef: recent.externalRef ? undefined : externalRef })
     return NextResponse.json({ id: updated.id, caseNumber: updated.caseNumber, created: false })
   }
 
