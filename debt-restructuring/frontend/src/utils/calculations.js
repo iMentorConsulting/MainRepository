@@ -373,12 +373,12 @@ export function calculateAll(debts, assets, incomeData, params = PARAMS_B) {
       const capInt  = isPub ? params.recovery.publicInterestWriteoffMax : params.recovery.bankInterestWriteoffMax
       legalMax = r.prinAmt * capPrin + r.intAmt * capInt
     }
-    // partially-secured rule
+    // Άρθρο 8Δ collateral floor: secured creditor recovers at least min(debt, netColl),
+    // so max write-off = max(0, debt − netColl). Cap legalMax to that ceiling.
     if (r.mort && r.prop > 0) {
       const netColl = r.prop * params.collateralFactor
-      if (netColl > r.amount * params.partiallySecuredThreshold) {
-        legalMax = Math.max(legalMax, Math.max(0, r.amount - netColl))
-      }
+      const collateralFloorMax = Math.max(0, r.amount - netColl)
+      legalMax = Math.min(legalMax, collateralFloorMax)
     }
     const calc = Math.min(uncov, legalMax)
     const capPct = params.writeoffCapPct > 0 && params.writeoffCapPct < 100 ? params.writeoffCapPct : null
