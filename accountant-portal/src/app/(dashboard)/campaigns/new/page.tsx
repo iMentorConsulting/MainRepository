@@ -174,16 +174,25 @@ function StepTemplate({ channel, onSelect, onBack }: { channel: 'EMAIL' | 'VIBER
 }
 
 // ── Step 3: Preview & send ────────────────────────────────────────────────────
-function StepSend({ template, messageBody, onMessageChange, programId, programs, onBack, onSend, sending, onSaveDraft, savingDraft }: {
+function StepSend({ template, messageBody, onMessageChange, programId, programs, onBack, onSend, sending, onSaveDraft, savingDraft, isAdmin }: {
   template: any; messageBody: string; onMessageChange: (v: string) => void; programId: string; programs: any[];
   onBack: () => void; onSend: (ids: string[]) => void; sending: boolean;
-  onSaveDraft: () => void; savingDraft: boolean;
+  onSaveDraft: () => void; savingDraft: boolean; isAdmin: boolean;
 }) {
   const program = programs.find(p => p.id === programId)
   const [allRecipients, setAllRecipients] = useState<any[]>([])
   const [accountants, setAccountants] = useState<any[]>([])
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [loadingRecipients, setLoadingRecipients] = useState(true)
+
+  // Direct-from-I-MENTOR mode (admin only)
+  const [directMode, setDirectMode] = useState(false)
+
+  function toggleDirectMode() {
+    const next = !directMode
+    setDirectMode(next)
+    onMessageChange(next ? (template?.bodyDirect || messageBody) : (template?.bodyWithAccountant || messageBody))
+  }
 
   // Filter state
   const [search, setSearch] = useState('')
@@ -275,6 +284,24 @@ function StepSend({ template, messageBody, onMessageChange, programId, programs,
         <h2 className="text-xl font-bold text-gray-900">Σε ποιους να σταλεί;</h2>
         <p className="text-sm text-gray-500 mt-1">Φιλτράρετε και επιλέξτε τους παραλήπτες που θέλετε.</p>
       </div>
+
+      {/* ── Direct-from-I-MENTOR toggle (admin only) ── */}
+      {isAdmin && template?.bodyDirect && (
+        <div className={`flex items-center justify-between px-4 py-3 rounded-xl border-2 transition-all cursor-pointer ${directMode ? 'border-purple-500 bg-purple-50' : 'border-gray-200 bg-white hover:border-purple-200'}`}
+          onClick={toggleDirectMode}>
+          <div>
+            <p className={`text-sm font-semibold ${directMode ? 'text-purple-800' : 'text-gray-700'}`}>
+              Απευθείας από I-MENTOR
+            </p>
+            <p className={`text-xs mt-0.5 ${directMode ? 'text-purple-600' : 'text-gray-400'}`}>
+              {directMode ? 'Το μήνυμα δεν αναφέρει λογιστικό γραφείο' : 'Κανονικά το μήνυμα αποστέλλεται «από κοινού με το λογιστικό γραφείο»'}
+            </p>
+          </div>
+          <div className={`w-10 h-6 rounded-full transition-colors relative flex-shrink-0 ${directMode ? 'bg-purple-600' : 'bg-gray-300'}`}>
+            <div className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${directMode ? 'translate-x-5' : 'translate-x-1'}`} />
+          </div>
+        </div>
+      )}
 
       {/* ── Filter bar ── */}
       {!loadingRecipients && allRecipients.length > 0 && (
@@ -668,6 +695,7 @@ export default function NewCampaignPage() {
             sending={sending}
             onSaveDraft={() => saveCampaign('DRAFT')}
             savingDraft={savingDraft}
+            isAdmin={(session?.user as any)?.role === 'ADMIN'}
           />
         )}
       </div>
