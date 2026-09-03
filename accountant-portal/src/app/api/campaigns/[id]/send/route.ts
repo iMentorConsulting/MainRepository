@@ -6,6 +6,13 @@ import { sendViberMessage } from '@/lib/viber'
 import { createAuditLog } from '@/lib/audit'
 import { getOrCreateErmisLink } from '@/lib/ermis'
 
+function sleep(ms: number) { return new Promise(resolve => setTimeout(resolve, ms)) }
+
+// Delay between each outbound email to stay well below Gmail Workspace's
+// per-minute sending rate. 500 ms ≈ 120 emails/minute, ~1 800/day on a
+// 15-minute window — safely under the 2 000/day workspace limit.
+const EMAIL_SEND_DELAY_MS = parseInt(process.env.EMAIL_SEND_DELAY_MS || '500', 10)
+
 async function processCampaignSend(
   campaign: any,
   businesses: any[],
@@ -14,6 +21,7 @@ async function processCampaignSend(
 ) {
   let sent = 0
   let failed = 0
+  let emailsSentThisBatch = 0
 
   const appSetting = await prisma.appSetting.findUnique({ where: { id: 'main' } })
   const imentorLogoUrl = appSetting?.imentorLogoUrl || ''
@@ -106,6 +114,7 @@ async function processCampaignSend(
           .join('\n')
           .trim()
 
+        if (emailsSentThisBatch > 0) await sleep(EMAIL_SEND_DELAY_MS)
         const emailOk = await sendEmail({
           to: emailRecipient,
           subject: emailSubject,
@@ -121,6 +130,7 @@ async function processCampaignSend(
             programUrl: variables.program_url,
           }),
         })
+        emailsSentThisBatch++
         if (emailOk) success = true
         else errors.push('Email: αποτυχία αποστολής')
       }
@@ -190,9 +200,13 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
   }
 
   let selectedBusinessIds: string[] | null = null
+  let maxRecipients: number | null = null
   try {
     const body = await request.json()
     if (Array.isArray(body?.businessIds)) selectedBusinessIds = body.businessIds
+    if (body?.maxRecipients && Number.isInteger(body.maxRecipients) && body.maxRecipients > 0) {
+      maxRecipients = body.maxRecipients
+    }
   } catch {
     // no body provided — send to all eligible recipients
   }
@@ -232,8 +246,12 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     return NextResponse.json({ error: 'Δεν υπάρχουν επιλέξιμοι παραλήπτες για αυτή την καμπάνια' }, { status: 400 })
   }
 
+  if (maxRecipients && businesses.length > maxRecipients) {
+    businesses = businesses.slice(0, maxRecipients)
+  }
+
   processCampaignSend(campaign, businesses, matchReasonByBusiness, session.user.id)
     .catch(err => console.error(`[Campaign ${campaign.id}] Background send failed:`, err?.message || err))
 
-  return NextResponse.json({ started: true, total: businesses.length })
+  return NextResponse.json({ started: true, total: businesses.length, capped: maxRecipients !== null && maxRecipients < (selectedBusinessIds?.length ?? businesses.length) })
 }

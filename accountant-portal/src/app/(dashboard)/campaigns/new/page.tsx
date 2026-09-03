@@ -176,7 +176,7 @@ function StepTemplate({ channel, onSelect, onBack }: { channel: 'EMAIL' | 'VIBER
 // ── Step 3: Preview & send ────────────────────────────────────────────────────
 function StepSend({ template, messageBody, onMessageChange, programId, programs, onBack, onSend, sending, onSaveDraft, savingDraft, isAdmin }: {
   template: any; messageBody: string; onMessageChange: (v: string) => void; programId: string; programs: any[];
-  onBack: () => void; onSend: (ids: string[]) => void; sending: boolean;
+  onBack: () => void; onSend: (ids: string[], maxRecipients?: number) => void; sending: boolean;
   onSaveDraft: () => void; savingDraft: boolean; isAdmin: boolean;
 }) {
   const program = programs.find(p => p.id === programId)
@@ -262,8 +262,12 @@ function StepSend({ template, messageBody, onMessageChange, programId, programs,
     setNoAccountantFilter(prev => !prev)
   }
 
+  const [batchLimit, setBatchLimit] = useState('')
+
   const selectedList = allRecipients.filter(b => selected.has(b.id))
   const noContactCount = selectedList.filter(b => !b.email && !b.phone).length
+  const parsedLimit = batchLimit.trim() ? parseInt(batchLimit, 10) : null
+  const effectiveSendCount = parsedLimit && parsedLimit > 0 ? Math.min(parsedLimit, selected.size - noContactCount) : selected.size - noContactCount
   const canSend = selected.size > 0 && noContactCount < selected.size
 
   const activeFilterCount = (search.trim() ? 1 : 0) + selAccountants.length + (noAccountantFilter ? 1 : 0) + (campaignFilter !== 'all' ? 1 : 0)
@@ -492,6 +496,23 @@ function StepSend({ template, messageBody, onMessageChange, programId, programs,
         </div>
       </details>
 
+      {/* Batch limit */}
+      <div className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+        <div className="flex-1">
+          <p className="text-xs font-semibold text-amber-800">Αποστολή σε Batches (Gmail)</p>
+          <p className="text-xs text-amber-600 mt-0.5">Αφήστε κενό για αποστολή σε όλους. Ορίστε μέγιστο αριθμό για να μη ξεπεραστούν τα όρια Gmail (π.χ. 500).</p>
+        </div>
+        <input
+          type="number"
+          min={1}
+          max={selected.size}
+          value={batchLimit}
+          onChange={e => setBatchLimit(e.target.value)}
+          placeholder="Χωρίς όριο"
+          className="w-28 text-sm border border-amber-300 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-amber-500 bg-white text-center"
+        />
+      </div>
+
       <div className="flex flex-wrap gap-3 pt-2">
         <Button variant="outline" onClick={onBack}><ArrowLeft size={15} className="mr-1" />Πίσω</Button>
         <Button variant="outline" loading={savingDraft} onClick={onSaveDraft}>
@@ -500,10 +521,11 @@ function StepSend({ template, messageBody, onMessageChange, programId, programs,
         <Button
           loading={sending}
           disabled={!canSend}
-          onClick={() => onSend(Array.from(selected))}
+          onClick={() => onSend(Array.from(selected), parsedLimit && parsedLimit > 0 ? parsedLimit : undefined)}
         >
           <Send size={15} className="mr-2" />
-          Αποστολή σε {selected.size - noContactCount} παραλήπτ{(selected.size - noContactCount) === 1 ? 'η' : 'ες'}
+          Αποστολή σε {effectiveSendCount} παραλήπτ{effectiveSendCount === 1 ? 'η' : 'ες'}
+          {parsedLimit && parsedLimit > 0 && selected.size - noContactCount > parsedLimit ? ` (batch ${parsedLimit} από ${selected.size - noContactCount})` : ''}
           {noContactCount > 0 && ` (${noContactCount} χωρίς στοιχεία)`}
         </Button>
       </div>
@@ -592,7 +614,7 @@ export default function NewCampaignPage() {
     fetch('/api/programs').then(r => r.json()).then(d => setPrograms((d.programs || []).filter((p: any) => (p._count?.matches ?? 0) > 0)))
   }, [])
 
-  async function saveCampaign(status: 'DRAFT' | 'SENT', selectedIds?: string[]) {
+  async function saveCampaign(status: 'DRAFT' | 'SENT', selectedIds?: string[], maxRecipients?: number) {
     if (!selectedTemplate) return
     if (status === 'DRAFT') setSavingDraft(true)
     else setSending(true)
@@ -619,7 +641,7 @@ export default function NewCampaignPage() {
         const sendRes = await fetch(`/api/campaigns/${created.id}/send`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ businessIds: selectedIds }),
+          body: JSON.stringify({ businessIds: selectedIds, ...(maxRecipients ? { maxRecipients } : {}) }),
         })
         if (!sendRes.ok) {
           const err = await sendRes.json().catch(() => ({}))
@@ -691,7 +713,7 @@ export default function NewCampaignPage() {
             programId={programId}
             programs={programs}
             onBack={() => setStep(2)}
-            onSend={(ids) => saveCampaign('SENT', ids)}
+            onSend={(ids, max) => saveCampaign('SENT', ids, max)}
             sending={sending}
             onSaveDraft={() => saveCampaign('DRAFT')}
             savingDraft={savingDraft}
