@@ -729,6 +729,21 @@ export function calculateAll(debts, assets, incomeData, params = PARAMS_B) {
     return { ...p, writeoff: wr, newAmt: Math.max(0, p.amount - wr), months: n }
   })
 
+  // --- Global asset-coverage cap ---
+  // Total remaining debt after write-offs cannot fall below total gross asset value.
+  // If it does, creditors would recover more by liquidating than by accepting the proposal.
+  // Maximum total write-off = max(0, totalDebt − (mortgagedProps + freeAssets)).
+  const totalGrossAssets = sumMortRaw + propsTotal  // gross, before ×0.97
+  const globalMaxWriteoff = Math.max(0, sumDebt - totalGrossAssets)
+  const wfTotalWriteoff = waterfallPlan.reduce((s, p) => s + (p.writeoff || 0), 0)
+  if (wfTotalWriteoff > globalMaxWriteoff) {
+    const capScale = globalMaxWriteoff > 0 ? globalMaxWriteoff / wfTotalWriteoff : 0
+    waterfallPlan.forEach((p) => {
+      p.writeoff = Math.max(0, Math.round(p.writeoff * capScale))
+      p.newAmt = Math.max(0, p.amount - p.writeoff)
+    })
+  }
+
   let best = { plan: waterfallPlan }
   if (!best?.plan?.length) best = { plan: planA }
 
