@@ -650,7 +650,12 @@ export default function Leads() {
     return null
   }
   const visibleTitles = filters.program
-    ? (options.program_titles || []).filter(t => categoryFromTitle(t) === filters.program)
+    ? (options.program_titles || []).filter(t => {
+        const cat = categoryFromTitle(t)
+        // ΕΣΠΑ is the catch-all: show titles that explicitly match ΕΣΠΑ OR
+        // don't match any other recognised category.
+        return cat === filters.program || (filters.program === 'ΕΣΠΑ' && cat === null)
+      })
     : (options.program_titles || [])
 
   const handleErmis = async (lead) => {
