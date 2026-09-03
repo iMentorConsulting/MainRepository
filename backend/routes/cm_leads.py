@@ -967,11 +967,13 @@ def backfill_programs(
             if canonical and canonical != lead.program:
                 lead.program = canonical
                 changed = True
-        # Override program from program_title when program_title gives a definitive
-        # canonical (e.g. "...ανέργων..." → ΔΥΠΑ) that differs from what is stored.
-        # Handles cases where program was set by old code that lacked ΔΥΠΑ keywords.
-        if lead.program_title:
-            derived = program_category_from_title(lead.program_title)
+        # Override program from program_title or service_type when either gives a
+        # definitive canonical (e.g. "...ανέργων..." → ΔΥΠΑ) that differs from stored.
+        # Handles cases where program was set by old code that lacked ΔΥΠΑ keywords,
+        # and cases where the descriptive title is in service_type (not program_title).
+        title_to_check = lead.program_title or lead.service_type
+        if title_to_check:
+            derived = program_category_from_title(title_to_check)
             if derived and derived != (lead.program or ""):
                 lead.program = derived
                 changed = True
