@@ -640,6 +640,19 @@ export default function Leads() {
   const toggleSort = (col) => setSort(s => s.sort === col ? { sort: col, direction: s.direction === 'asc' ? 'desc' : 'asc' } : { sort: col, direction: 'asc' })
   const setFilter = (patchObj) => { setPage(1); setFilters(f => ({ ...f, ...patchObj })) }
 
+  const _stripAccents = s => (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase()
+  const categoryFromTitle = title => {
+    const t = _stripAccents(title)
+    if (t.includes('ΜΙΚΡΟ')) return 'ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ'
+    if (t.includes('ΔΥΠΑ') || t.includes('ΟΑΕΔ') || t.includes('DYPA') || t.includes('ΑΝΕΡΓ') || t.includes('ΠΡΟΣΛΗΨ')) return 'ΔΥΠΑ'
+    if (t.includes('ΑΝΑΚΑΙΝ')) return 'ΑΝΑΚΑΙΝΙΖΩ'
+    if (t.includes('ΕΣΠΑ')) return 'ΕΣΠΑ'
+    return null
+  }
+  const visibleTitles = filters.program
+    ? (options.program_titles || []).filter(t => categoryFromTitle(t) === filters.program)
+    : (options.program_titles || [])
+
   const handleErmis = async (lead) => {
     if (['eligible', 'ineligible', 'in_progress', 'starting', 'reminded'].includes(lead.ermis_status)) return
     if (!confirm(`Έναρξη προαξιολόγησης ΕΡΜΗΣ και αποστολή link στον ${lead.name || 'lead'};`)) return
@@ -818,11 +831,11 @@ export default function Leads() {
           <MagnifyingGlassIcon className="w-4 h-4 text-gray-400 absolute left-2.5 top-2.5" />
           <input value={filters.q} onChange={e => setFilter({ q: e.target.value })} placeholder="Αναζήτηση…" className="pl-8 pr-3 py-2 border rounded-lg text-sm" />
         </div>
-        <select value={filters.program} onChange={e => setFilter({ program: e.target.value })} className="px-3 py-2 border rounded-lg text-sm">
+        <select value={filters.program} onChange={e => setFilter({ program: e.target.value, program_title: '' })} className="px-3 py-2 border rounded-lg text-sm">
           <option value="">Όλα τα προγράμματα</option>{(options.programs || []).map(p => <option key={p} value={p}>{p}</option>)}
         </select>
         <select value={filters.program_title} onChange={e => setFilter({ program_title: e.target.value })} className="px-3 py-2 border rounded-lg text-sm max-w-xs" title={filters.program_title || ''}>
-          <option value="">Τίτλος προγράμματος (όλα)</option>{(options.program_titles || []).map(p => <option key={p} value={p}>{p}</option>)}
+          <option value="">Τίτλος προγράμματος (όλα)</option>{visibleTitles.map(p => <option key={p} value={p}>{p}</option>)}
         </select>
         <select value={filters.consultant} onChange={e => setFilter({ consultant: e.target.value })} className="px-3 py-2 border rounded-lg text-sm">
           <option value="">Σύμβουλος (όλοι)</option>{(options.consultants || []).map(c => <option key={c} value={c}>{c}</option>)}
