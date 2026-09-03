@@ -215,8 +215,8 @@ def lead_to_dict(l: CMLead, include_comments: bool = False, last_comment: dict =
             transcript = json.loads(l.ermis_transcript)
         except (ValueError, TypeError):
             transcript = l.ermis_transcript
-    # Display name for the consultant: prefer the raw sheet name, else the linked user
-    consultant = l.assigned_name or (l.assigned_agent.full_name if l.assigned_agent else None)
+    # Display name: prefer canonical agent full_name when agent is linked, else stored text
+    consultant = (l.assigned_agent.full_name if l.assigned_agent else None) or l.assigned_name
     data = {
         "id": l.id,
         "name": l.name,
@@ -338,7 +338,14 @@ def list_leads(
     if agent_id is not None:
         query = query.filter(CMLead.assigned_agent_id == agent_id)
     if consultant:
-        query = query.filter(CMLead.assigned_name == consultant)
+        matching_agent = db.query(CMUser).filter(CMUser.full_name == consultant).first()
+        if matching_agent:
+            query = query.filter(or_(
+                CMLead.assigned_name == consultant,
+                CMLead.assigned_agent_id == matching_agent.id,
+            ))
+        else:
+            query = query.filter(CMLead.assigned_name == consultant)
     if program:
         query = query.filter(CMLead.program == program)
     if program_title:
@@ -593,7 +600,20 @@ def filter_options(
         p[0] for p in db.query(CMLead.program_title).distinct().filter(CMLead.program_title.isnot(None)).all()
         if p[0]
     ])
-    consultants = [c[0] for c in db.query(CMLead.assigned_name).distinct().all() if c[0]]
+    # Build canonical consultant list: use agent full_name when agent_id is set,
+    # fall back to assigned_name. This de-duplicates code names (HARIS) with the
+    # canonical Greek name (Αποστολάκης Χάρης) when they refer to the same person.
+    _users_map = {u.id: u.full_name for u in db.query(_U).all()}
+    _rows = db.query(CMLead.assigned_agent_id, CMLead.assigned_name).filter(
+        or_(CMLead.assigned_agent_id.isnot(None), CMLead.assigned_name.isnot(None))
+    ).distinct().all()
+    _seen: set = set()
+    consultants = []
+    for agent_id, name in _rows:
+        canonical = (_users_map.get(agent_id) if agent_id else None) or (name or "")
+        if canonical and canonical not in _seen:
+            _seen.add(canonical)
+            consultants.append(canonical)
     # Status counts across all leads (for the filter chips)
     status_counts = {s: c for s, c in db.query(CMLead.status, sa_func.count(CMLead.id)).group_by(CMLead.status).all()}
     # ΕΡΜΗΣ status counts for filter chip badges
