@@ -967,10 +967,12 @@ def backfill_programs(
             if canonical and canonical != lead.program:
                 lead.program = canonical
                 changed = True
-        # Derive program from program_title when program is missing
-        if not lead.program and lead.program_title:
+        # Override program from program_title when program_title gives a definitive
+        # canonical (e.g. "...ανέργων..." → ΔΥΠΑ) that differs from what is stored.
+        # Handles cases where program was set by old code that lacked ΔΥΠΑ keywords.
+        if lead.program_title:
             derived = program_category_from_title(lead.program_title)
-            if derived:
+            if derived and derived != (lead.program or ""):
                 lead.program = derived
                 changed = True
         # Normalize program_title when it holds a short alias (e.g. "ΤΑΜΕΙΟ ΜΙΚΡΟΠΙΣΤΩΣΕΩΝ")
