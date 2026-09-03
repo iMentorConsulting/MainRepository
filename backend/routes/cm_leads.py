@@ -354,7 +354,9 @@ def list_leads(
     if program:
         query = query.filter(CMLead.program == program)
     if program_title:
-        query = query.filter(CMLead.program_title == program_title)
+        query = query.filter(
+            or_(CMLead.program_title == program_title, CMLead.service_type == program_title)
+        )
     if ermis_filter == "not_sent":
         # Ready to send: no ermis attempt yet (or previous attempt errored), has AFM and a program
         query = query.filter(
@@ -477,7 +479,7 @@ def lead_stats(
     # ── ORM base filters (for KPI counts) ───────────────────────────────────
     orm_f = []
     if program_list:    orm_f.append(CMLead.program.in_(program_list))
-    if program_title:   orm_f.append(CMLead.program_title == program_title)
+    if program_title:   orm_f.append(or_(CMLead.program_title == program_title, CMLead.service_type == program_title))
     if status_list:     orm_f.append(CMLead.status.in_(status_list))
     if consultant:      orm_f.append(CMLead.assigned_name == consultant)
     if date_from:       orm_f.append(CMLead.created_at >= date_from)
@@ -601,10 +603,9 @@ def filter_options(
     from models_cases import CMUser as _U
     agents = db.query(_U.id, _U.full_name).all()
     programs = [p[0] for p in db.query(CMLead.program).distinct().all() if p[0]]
-    program_titles = sorted([
-        p[0] for p in db.query(CMLead.program_title).distinct().filter(CMLead.program_title.isnot(None)).all()
-        if p[0]
-    ])
+    _pt_rows = db.query(CMLead.program_title).filter(CMLead.program_title.isnot(None)).distinct().all()
+    _st_rows = db.query(CMLead.service_type).filter(CMLead.service_type.isnot(None)).distinct().all()
+    program_titles = sorted({p[0] for p in _pt_rows if p[0]} | {p[0] for p in _st_rows if p[0]})
     # Build canonical consultant list: use agent full_name when agent_id is set,
     # fall back to assigned_name. This de-duplicates code names (HARIS) with the
     # canonical Greek name (Αποστολάκης Χάρης) when they refer to the same person.
