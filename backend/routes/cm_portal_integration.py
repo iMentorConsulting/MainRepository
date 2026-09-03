@@ -762,7 +762,7 @@ def accept_assignment(
             raise HTTPException(status_code=404, detail="Ο επιλεγμένος σύμβουλος δεν βρέθηκε")
     else:
         target_user = current_user
-    consultant = _short_consultant(target_user.full_name)
+    consultant = target_user.full_name
 
     prog_title = (a.program_exact_title or "").strip() or None
     # Fallback 1: LOGISTIS embeds the exact program name in the description after an em-dash,
