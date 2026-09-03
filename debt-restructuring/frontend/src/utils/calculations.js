@@ -733,7 +733,8 @@ export function calculateAll(debts, assets, incomeData, params = PARAMS_B) {
   // Total remaining debt after write-offs cannot fall below total gross asset value.
   // If it does, creditors would recover more by liquidating than by accepting the proposal.
   // Maximum total write-off = max(0, totalDebt − (mortgagedProps + freeAssets)).
-  const totalGrossAssets = sumMortRaw + propsTotal  // gross, before ×0.97
+  // Mortgaged properties are sold at auction (net ×0.97); free assets count at gross.
+  const totalGrossAssets = sumMortNet + propsTotal
   const globalMaxWriteoff = Math.max(0, sumDebt - totalGrossAssets)
   const wfTotalWriteoff = waterfallPlan.reduce((s, p) => s + (p.writeoff || 0), 0)
   if (wfTotalWriteoff > globalMaxWriteoff) {
