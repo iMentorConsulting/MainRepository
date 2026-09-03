@@ -116,9 +116,14 @@ def clean_phone(phone):
     return p or None
 
 
+def _strip_title_accents(s: str) -> str:
+    import unicodedata
+    return ''.join(c for c in unicodedata.normalize('NFD', s) if unicodedata.category(c) != 'Mn').upper()
+
+
 def program_category_from_title(title):
-    """Map an exact program title to one of the 4 CM categories (for filter/display)."""
-    t = (title or "").upper()
+    """Map a program title to one of the 4 CM categories. Accent-insensitive."""
+    t = _strip_title_accents(title or "")
     if "ΜΙΚΡΟ" in t:
         return "ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ"
     if "ΔΥΠΑ" in t or "ΟΑΕΔ" in t or "DYPA" in t or "ΑΝΕΡΓ" in t or "ΠΡΟΣΛΗΨ" in t:
