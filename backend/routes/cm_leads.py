@@ -121,7 +121,7 @@ def program_category_from_title(title):
     t = (title or "").upper()
     if "ΜΙΚΡΟ" in t:
         return "ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ"
-    if "ΔΥΠΑ" in t or "ΟΑΕΔ" in t or "DYPA" in t:
+    if "ΔΥΠΑ" in t or "ΟΑΕΔ" in t or "DYPA" in t or "ΑΝΕΡΓ" in t or "ΠΡΟΣΛΗΨ" in t:
         return "ΔΥΠΑ"
     if "ΑΝΑΚΑΙΝ" in t:
         return "ΑΝΑΚΑΙΝΙΖΩ"
@@ -966,6 +966,12 @@ def backfill_programs(
             canonical = _resolve_program(lead.program)
             if canonical and canonical != lead.program:
                 lead.program = canonical
+                changed = True
+        # Derive program from program_title when program is missing
+        if not lead.program and lead.program_title:
+            derived = program_category_from_title(lead.program_title)
+            if derived:
+                lead.program = derived
                 changed = True
         # Normalize program_title when it holds a short alias (e.g. "ΤΑΜΕΙΟ ΜΙΚΡΟΠΙΣΤΩΣΕΩΝ")
         # rather than a real descriptive title — clear it so the UI falls back to program.
