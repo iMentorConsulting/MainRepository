@@ -188,6 +188,7 @@ function StepSend({ template, messageBody, onMessageChange, programId, programs,
   // Filter state
   const [search, setSearch] = useState('')
   const [selAccountants, setSelAccountants] = useState<string[]>([])
+  const [noAccountantFilter, setNoAccountantFilter] = useState(false)
   const [campaignFilter, setCampaignFilter] = useState<'all' | 'sent' | 'not-sent'>('all')
 
   useEffect(() => {
@@ -212,13 +213,15 @@ function StepSend({ template, messageBody, onMessageChange, programId, programs,
       const q = search.toLowerCase()
       list = list.filter(b => (b.onomasia || '').toLowerCase().includes(q) || (b.afm || '').includes(q))
     }
-    if (selAccountants.length > 0) {
+    if (noAccountantFilter) {
+      list = list.filter(b => !b.accountantId)
+    } else if (selAccountants.length > 0) {
       list = list.filter(b => b.accountantId && selAccountants.includes(b.accountantId))
     }
     if (campaignFilter === 'sent') list = list.filter(b => b.sentCampaign)
     if (campaignFilter === 'not-sent') list = list.filter(b => !b.sentCampaign)
     return list
-  }, [allRecipients, search, selAccountants, campaignFilter])
+  }, [allRecipients, search, selAccountants, noAccountantFilter, campaignFilter])
 
   const visibleIds = useMemo(() => new Set(visible.map(b => b.id)), [visible])
   const allVisibleSelected = visible.length > 0 && visible.every(b => selected.has(b.id))
@@ -241,14 +244,20 @@ function StepSend({ template, messageBody, onMessageChange, programId, programs,
   }
 
   function toggleAccountant(id: string) {
+    setNoAccountantFilter(false)
     setSelAccountants(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
+  }
+
+  function toggleNoAccountant() {
+    setSelAccountants([])
+    setNoAccountantFilter(prev => !prev)
   }
 
   const selectedList = allRecipients.filter(b => selected.has(b.id))
   const noContactCount = selectedList.filter(b => !b.email && !b.phone).length
   const canSend = selected.size > 0 && noContactCount < selected.size
 
-  const activeFilterCount = (search.trim() ? 1 : 0) + selAccountants.length + (campaignFilter !== 'all' ? 1 : 0)
+  const activeFilterCount = (search.trim() ? 1 : 0) + selAccountants.length + (noAccountantFilter ? 1 : 0) + (campaignFilter !== 'all' ? 1 : 0)
 
   const preview = (messageBody || '')
     .replace(/\{\{business_name\}\}/g, 'ΠΑΡΑΔΕΙΓΜΑ ΑΕ')
@@ -311,6 +320,10 @@ function StepSend({ template, messageBody, onMessageChange, programId, programs,
             <div>
               <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Λογιστής</p>
               <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
+                <button onClick={toggleNoAccountant}
+                  className={`px-2.5 py-1 text-xs rounded-full border transition-colors ${noAccountantFilter ? 'bg-amber-600 text-white border-amber-600' : 'bg-white text-gray-600 border-gray-300 hover:border-amber-400'}`}>
+                  Χωρίς λογιστή
+                </button>
                 {accountants.map(a => (
                   <button key={a.id} onClick={() => toggleAccountant(a.id)}
                     className={`px-2.5 py-1 text-xs rounded-full border transition-colors ${selAccountants.includes(a.id) ? 'bg-indigo-700 text-white border-indigo-700' : 'bg-white text-gray-600 border-gray-300 hover:border-indigo-400'}`}>
@@ -322,7 +335,7 @@ function StepSend({ template, messageBody, onMessageChange, programId, programs,
           )}
 
           {activeFilterCount > 0 && (
-            <button onClick={() => { setSearch(''); setSelAccountants([]); setCampaignFilter('all') }}
+            <button onClick={() => { setSearch(''); setSelAccountants([]); setNoAccountantFilter(false); setCampaignFilter('all') }}
               className="text-xs text-gray-400 hover:text-gray-600 flex items-center gap-1">
               <X size={11} />Καθαρισμός φίλτρων ({activeFilterCount})
             </button>
