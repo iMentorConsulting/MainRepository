@@ -745,8 +745,19 @@ export function calculateAll(debts, assets, incomeData, params = PARAMS_B) {
     })
   }
 
-  let best = { plan: waterfallPlan }
-  if (!best?.plan?.length) best = { plan: planA }
+  // If planA (greedy month extension, zero write-offs) already fits within income,
+  // use it directly — no write-offs needed, shorter term is correct.
+  const _planAc1 = sumFn(planA, debtC1)
+  const _planAc2 = sumFn(planA, debtC2)
+  const _planAFeasible = (monthlyDisp1 <= 0 || _planAc1 <= monthlyDisp1)
+                      && (monthlyDisp24 <= 0 || _planAc2 <= monthlyDisp24)
+
+  let best
+  if (_planAFeasible) {
+    best = { plan: planA }
+  } else {
+    best = { plan: waterfallPlan.length ? waterfallPlan : planA }
+  }
 
   // --- post-process: enforce rules, compute c1/c2 ---
   const finalPlan = best.plan.map((p) => {
