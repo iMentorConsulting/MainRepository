@@ -19,6 +19,7 @@ export async function GET(request: NextRequest) {
   const search = searchParams.get('search') || ''
   const caseAssignedFilter = searchParams.get('caseAssigned') || ''
   const sourceFilter = searchParams.get('source') || '' // 'business' | 'gemi' | ''
+  const programIdFilter = searchParams.get('programId') || ''
   const skip = (page - 1) * PAGE_SIZE
 
   // ── Business match tokens ────────────────────────────────────────────────
@@ -32,6 +33,7 @@ export async function GET(request: NextRequest) {
   }
   if (caseAssignedFilter === 'yes') bizWhere.caseCreatedId = { not: null }
   if (caseAssignedFilter === 'no') bizWhere.caseCreatedId = null
+  if (programIdFilter) bizWhere.programId = programIdFilter
 
   // ── GEMI match tokens ────────────────────────────────────────────────────
   const gemiWhere: any = {}
@@ -44,6 +46,7 @@ export async function GET(request: NextRequest) {
   }
   if (caseAssignedFilter === 'yes') gemiWhere.caseCreatedAt = { not: null }
   if (caseAssignedFilter === 'no') gemiWhere.caseCreatedAt = null
+  if (programIdFilter) gemiWhere.programId = programIdFilter
 
   // 'cm' is a sub-filter of 'business' tokens (callbackUrl set)
   if (sourceFilter === 'cm') bizWhere.callbackUrl = { not: null }

@@ -10,6 +10,8 @@ import { estimateCostEur } from '@/lib/ermis-cost'
 
 const PAGE_SIZE = 25
 
+type ProgramOption = { id: string; title: string }
+
 type Transcript = {
   source: 'business' | 'gemi' | 'cm'
   businessId: string | null
@@ -50,8 +52,17 @@ export default function ErmisTranscriptsPage() {
   const [searchInput, setSearchInput] = useState('')
   const [caseAssignedFilter, setCaseAssignedFilter] = useState('')
   const [sourceFilter, setSourceFilter] = useState('')
+  const [programFilter, setProgramFilter] = useState('')
+  const [programs, setPrograms] = useState<ProgramOption[]>([])
   const [loading, setLoading] = useState(true)
   const [open, setOpen] = useState<{ businessId: string; programId: string } | null>(null)
+
+  useEffect(() => {
+    fetch('/api/programs')
+      .then(r => r.json())
+      .then(d => setPrograms((d.programs || []).map((p: any) => ({ id: p.id, title: p.title }))))
+      .catch(() => {})
+  }, [])
 
   const fetchTranscripts = useCallback(async () => {
     setLoading(true)
@@ -59,15 +70,16 @@ export default function ErmisTranscriptsPage() {
     if (search) params.set('search', search)
     if (caseAssignedFilter) params.set('caseAssigned', caseAssignedFilter)
     if (sourceFilter) params.set('source', sourceFilter)
+    if (programFilter) params.set('programId', programFilter)
     const res = await fetch(`/api/ermis-transcripts?${params}`)
     const data = await res.json()
     setTranscripts(data.transcripts || [])
     setTotal(data.total || 0)
     setLoading(false)
-  }, [page, search, caseAssignedFilter, sourceFilter])
+  }, [page, search, caseAssignedFilter, sourceFilter, programFilter])
 
   useEffect(() => { fetchTranscripts() }, [fetchTranscripts])
-  useEffect(() => { setPage(1) }, [search, caseAssignedFilter, sourceFilter])
+  useEffect(() => { setPage(1) }, [search, caseAssignedFilter, sourceFilter, programFilter])
 
   function openTranscript(t: Transcript) {
     if (!t.businessId) return
@@ -109,6 +121,19 @@ export default function ErmisTranscriptsPage() {
               <option value="business">Πελάτες λογιστών</option>
               <option value="gemi">ΓΕΜΗ επιχειρήσεις</option>
               <option value="cm">Case Management</option>
+            </select>
+          </div>
+          <div>
+            <label className="text-xs font-medium text-gray-500 block mb-1">Πρόγραμμα</label>
+            <select
+              value={programFilter}
+              onChange={e => setProgramFilter(e.target.value)}
+              className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white max-w-[220px]"
+            >
+              <option value="">Όλα</option>
+              {programs.map(p => (
+                <option key={p.id} value={p.id}>{p.title}</option>
+              ))}
             </select>
           </div>
           <div>
