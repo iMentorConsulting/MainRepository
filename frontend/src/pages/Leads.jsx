@@ -2,8 +2,8 @@ import { useState, useEffect, useCallback, useRef, Fragment } from 'react'
 import {
   getLeads, getLeadFilterOptions, getLead, createLead, updateLead, deleteLead,
   getLeadComments, addLeadComment, editLeadComment, deleteLeadComment,
-  sendLeadMessage, convertLeadToCase, startLeadErmis, resendLeadErmisLink, bulkStartErmis, bulkResendErmis, pullErmisFromSibling, getLeadDuplicates, mergeLeads,
-  retryErmisErrors, backfillPrograms, getAuth,
+  sendLeadMessage, convertLeadToCase, startLeadErmis, resendLeadErmisLink, bulkStartErmis, bulkResendErmis, getLeadDuplicates, mergeLeads,
+  retryErmisErrors, getAuth,
 } from '../api'
 import {
   MagnifyingGlassIcon, PlusIcon, TrashIcon, ChevronDownIcon, ChevronUpIcon, ChevronRightIcon,
@@ -347,19 +347,6 @@ function ExpandedRow({ lead, colSpan, onChanged, onConvert, onErmis, onSend, pro
     } finally { setResending(false) }
   }
 
-  const handlePullErmis = async () => {
-    if (!confirm(`Ανάκτηση συνομιλίας ΕΡΜΗΣ από άλλο πρόγραμμα του ίδιου πελάτη;`)) return
-    setSyncing(true)
-    try {
-      const res = await pullErmisFromSibling(lead.id)
-      toast.success(`Συνομιλία ΕΡΜΗΣ αντιγράφηκε από το πρόγραμμα «${res.source_program || '—'}»`)
-      await reload()
-    } catch (e) {
-      toast.error(e.response?.data?.detail || 'Σφάλμα συγχρονισμού ΕΡΜΗΣ')
-    } finally { setSyncing(false) }
-  }
-
-
   return (
     <tr className={STATUS_ROW[lead.status] || ''}>
       <td colSpan={colSpan} className="px-4 py-3 border-b">
@@ -387,12 +374,6 @@ function ExpandedRow({ lead, colSpan, onChanged, onConvert, onErmis, onSend, pro
           {(!full?.ermis_status || full?.ermis_status === 'error') && (
             <button onClick={() => onErmis(lead)} className="flex items-center gap-1 text-sm bg-indigo-100 text-indigo-700 hover:bg-indigo-200 px-3 py-1.5 rounded-lg">
               <SparklesIcon className="w-4 h-4" />Έναρξη ΕΡΜΗΣ
-            </button>
-          )}
-          {/* Pull ΕΡΜΗΣ transcript from another program lead of the same client */}
-          {!full?.ermis_transcript && full?.afm && (
-            <button onClick={handlePullErmis} disabled={syncing} className="flex items-center gap-1 text-sm bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200 px-3 py-1.5 rounded-lg disabled:opacity-50" title="Ανάκτηση συνομιλίας ΕΡΜΗΣ από άλλο πρόγραμμα του ίδιου πελάτη">
-              <SparklesIcon className="w-4 h-4" />{syncing ? '…' : '↓ ΕΡΜΗΣ από άλλο πρόγραμμα'}
             </button>
           )}
           {['starting', 'in_progress', 'reminded'].includes(full?.ermis_status) && (() => {
@@ -612,7 +593,6 @@ export default function Leads() {
   const [selectedIds, setSelectedIds] = useState(new Set())
   const [bulkBusy, setBulkBusy] = useState(false)
   const [retryBusy, setRetryBusy] = useState(false)
-  const [backfillProgBusy, setBackfillProgBusy] = useState(false)
   const isAdmin = getAuth()?.user?.role === 'admin'
 
   const load = useCallback(async () => {
@@ -689,19 +669,6 @@ export default function Leads() {
 
 
 
-  const handleBackfillPrograms = async () => {
-    if (!confirm('Κανονικοποίηση πεδίου Πρόγραμμα σε όλα τα leads (ΑΝΕΡΓ/ΠΡΟΣΛΗΨ → ΔΥΠΑ, ΤΑΜΕΙΟ ΜΙΚΡΟΠΙΣΤΩΣΕΩΝ → ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ κ.λπ.);')) return
-    setBackfillProgBusy(true)
-    const tid = toast.loading('Κανονικοποίηση προγραμμάτων…')
-    try {
-      const res = await backfillPrograms()
-      toast.success(`Ενημερώθηκαν ${res.updated} leads`, { id: tid })
-      setTimeout(load, 1500)
-    } catch (e) {
-      toast.error(e.response?.data?.detail || 'Σφάλμα', { id: tid })
-    } finally { setBackfillProgBusy(false) }
-  }
-
   const handleRetryErmisErrors = async () => {
     if (!confirm('Επανεκκίνηση ΕΡΜΗΣ για όλα τα leads με σφάλμα 15–17/8/2026; Κάθε πελάτης θα λάβει νέο Viber + Email.')) return
     setRetryBusy(true)
@@ -772,16 +739,6 @@ export default function Leads() {
           <div className="text-sm text-gray-500">{data.total} εγγραφές {options.total ? `(από ${options.total})` : ''}</div>
         </div>
         <div className="flex items-center gap-2">
-          {isAdmin && (
-            <button
-              onClick={handleBackfillPrograms}
-              disabled={backfillProgBusy}
-              className="flex items-center gap-1.5 text-sm bg-teal-100 text-teal-700 hover:bg-teal-200 disabled:opacity-50 border border-teal-300 px-3 py-1.5 rounded-lg font-medium"
-              title="Κανονικοποίηση πεδίου Πρόγραμμα (ΔΥΠΑ/ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ κ.λπ.)"
-            >
-              🔧 {backfillProgBusy ? 'Ενημέρωση…' : 'Backfill Programs'}
-            </button>
-          )}
           <button onClick={() => setShowNew(true)} className="btn-primary text-sm flex items-center gap-1"><PlusIcon className="w-4 h-4" />Νέο Lead</button>
         </div>
       </div>
