@@ -334,6 +334,7 @@ async function createPublicClientCase(params: {
     description: clientCase.description,
     priority: clientCase.priority,
     programTitle: params.programTitle,
+    program_exact_title: params.programTitle,
     ermis_completed: true,
     ermis_transcript: ermisTranscript || undefined,
     ...profile,

@@ -84,6 +84,7 @@ export async function POST(request: NextRequest) {
     description: clientCase.description,
     priority: clientCase.priority,
     programTitle: programTitle || null,
+    program_exact_title: programTitle || null,
     requestRef,
     ...profile,
   }).catch(err => console.error('[CaseManagement] notify failed:', err?.message || err))

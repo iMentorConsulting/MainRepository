@@ -106,6 +106,7 @@ export async function POST(request: NextRequest) {
     description: null,
     priority: 'NORMAL',
     programTitle: clientCase.program?.title || null,
+    program_exact_title: clientCase.program?.title || null,
     ...profile,
   }).catch(err => console.error('[CaseManagement] notify failed:', err?.message))
 
