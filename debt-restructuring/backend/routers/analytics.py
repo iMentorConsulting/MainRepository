@@ -94,8 +94,7 @@ def get_pipeline_stats(
     closure_percentage = round((closed_count / total_closure * 100), 1) if total_closure > 0 else 0
 
     # ══ Calculate % Αποδοχής Ρύθμισης (Settlement acceptance rate) ══
-    # Acceptance rate = status='completed' / (status='completed' + status='cancelled')
-    # Maps to: "Αποδοχή Ρύθμισης" / ("Αποδοχή Ρύθμισης" + "Απόρριψη Ρύθμισης")
+    # status='completed' = Αποδοχή Ρύθμισης, status='cancelled' = Απόρριψη Ρύθμισης
     accepted_count = query.filter(
         Case.status == SETTLEMENT_ACCEPTED
     ).count()
@@ -139,7 +138,8 @@ def get_pipeline_stats(
         if case.contact_stage == 'Έκλεισε':
             first_payment_collected += app_fee
 
-        # Second payment (2η πληρωμή): collected when status = completed (Αποδοχή Ρύθμισης)
+        # Second payment (2η πληρωμή): ONLY when status = 'completed' (Αποδοχή Ρύθμισης)
+        # NOT at 'in_review' (Πρόταση Ρύθμισης)
         if case.status == SETTLEMENT_ACCEPTED:
             second_payment_collected += suc_fee
             completed_status_count += 1
@@ -297,6 +297,13 @@ def get_pipeline_stats_by_employee(
         thetiki_antapokrosi = query.filter(Case.contact_stage == 'Θετική Ανταπόκριση').count()
         se_diapragmateusi = query.filter(Case.contact_stage == 'Σε Διαπραγμάτευση').count()
 
+        # Active cases (Εν Εξελίξει): status = draft, submitted, in_review
+        # BUT exclude if contact_stage = 'Δεν Ενδιαφέρεται' (lost even though still in process)
+        active_cases = query.filter(
+            Case.status.in_(['draft', 'submitted', 'in_review']),
+            Case.contact_stage != 'Δεν Ενδιαφέρεται'
+        ).count()
+
         # Closure stats (Pipeline: Έκλεισε vs Δεν Ενδιαφέρεται)
         closed = query.filter(Case.contact_stage == 'Έκλεισε').count()
         not_interested = query.filter(Case.contact_stage == 'Δεν Ενδιαφέρεται').count()
@@ -304,21 +311,28 @@ def get_pipeline_stats_by_employee(
         # Success rate = closed / (closed + not_interested)
         closure_pct = round((closed / total_closed * 100), 1) if total_closed > 0 else 0
 
-        # Settlement stats (status: 'completed' = accepted, 'cancelled' = rejected)
+        # Settlement stats: status = 'completed' = Αποδοχή Ρύθμισης, 'cancelled' = Απόρριψη Ρύθμισης
         accepted = query.filter(Case.status == SETTLEMENT_ACCEPTED).count()
         rejected = query.filter(Case.status == SETTLEMENT_REJECTED).count()
         total_settlement = accepted + rejected
         settlement_pct = round((accepted / total_settlement * 100), 1) if total_settlement > 0 else 0
 
-        logger.info(f"Per-emp stats - {emp}: total={total}, closed={closed}, not_int={not_interested}, "
+        logger.info(f"Per-emp stats - {emp}: total={total}, active={active_cases}, closed={closed}, not_int={not_interested}, "
                     f"accepted={accepted}, rejected={rejected}")
 
-        # Collected revenue for this employee
+        # Collected revenue + pipeline breakdown per active status
         first_payment = 0
         second_payment = 0
         completed_count = 0
         earliest = None
         latest = None
+
+        # Pipeline Υποθέσεων: per-status counts and pending fees (active only, excl. Δεν Ενδιαφέρεται)
+        pipeline = {
+            'draft':     {'count': 0, 'app_fees': 0.0, 'suc_fees': 0.0},  # Άντληση Στοιχείων
+            'submitted': {'count': 0, 'app_fees': 0.0, 'suc_fees': 0.0},  # Οριστικοποίηση Αίτησης
+            'in_review': {'count': 0, 'app_fees': 0.0, 'suc_fees': 0.0},  # Πρόταση Ρύθμισης
+        }
 
         for case in query:
             offer = case.commercial_offer or {}
@@ -332,16 +346,35 @@ def get_pipeline_stats_by_employee(
                 if latest is None or case.created_at > latest:
                     latest = case.created_at
 
-            # First payment (1η πληρωμή): only when contact_stage = Έκλεισε
+            # First payment (1η πληρωμή): collected when contact_stage = Έκλεισε
             if case.contact_stage == 'Έκλεισε':
                 first_payment += app_fee
-            # Second payment (2η πληρωμή): only when status = completed (Αποδοχή Ρύθμισης)
+            # Second payment (2η πληρωμή): ONLY when status = 'completed' (Αποδοχή Ρύθμισης)
             if case.status == SETTLEMENT_ACCEPTED:
                 second_payment += suc_fee
                 completed_count += 1
 
+            # Pipeline Υποθέσεων: accumulate fees for active cases (excl. Δεν Ενδιαφέρεται)
+            if case.status in pipeline and case.contact_stage != 'Δεν Ενδιαφέρεται':
+                pipeline[case.status]['count'] += 1
+                pipeline[case.status]['app_fees'] += app_fee
+                pipeline[case.status]['suc_fees'] += suc_fee
+
+        # Build expected revenue using real percentages
+        cp = closure_pct / 100
+        sp = settlement_pct / 100
+
+        # draft (Άντληση Στοιχείων): expect closure_pct to close (1st payment) then settlement_pct of those (2nd)
+        draft_exp_1st = round(pipeline['draft']['app_fees'] * cp)
+        draft_exp_2nd = round(pipeline['draft']['suc_fees'] * cp * sp)
+
+        # submitted + in_review: 1st payment already collected; only 2nd is pending
+        submitted_exp_2nd = round(pipeline['submitted']['suc_fees'] * sp)
+        in_review_exp_2nd = round(pipeline['in_review']['suc_fees'] * sp)
+
         result[emp] = {
             "total_cases": total,
+            "active_cases_count": active_cases,
             "closure_percentage": closure_pct,
             "closure_count": total_closed,
             "settlement_acceptance_percentage": settlement_pct,
@@ -365,6 +398,25 @@ def get_pipeline_stats_by_employee(
                 "second_payment": round(second_payment),
                 "second_payment_completed_count": completed_count,
                 "total": round(first_payment + second_payment)
+            },
+            "active_pipeline": {
+                "draft": {
+                    "count": pipeline['draft']['count'],
+                    "pending_app_fees": round(pipeline['draft']['app_fees']),
+                    "pending_suc_fees": round(pipeline['draft']['suc_fees']),
+                    "expected_1st": draft_exp_1st,
+                    "expected_2nd": draft_exp_2nd,
+                },
+                "submitted": {
+                    "count": pipeline['submitted']['count'],
+                    "pending_suc_fees": round(pipeline['submitted']['suc_fees']),
+                    "expected_2nd": submitted_exp_2nd,
+                },
+                "in_review": {
+                    "count": pipeline['in_review']['count'],
+                    "pending_suc_fees": round(pipeline['in_review']['suc_fees']),
+                    "expected_2nd": in_review_exp_2nd,
+                },
             },
             "date_range": {
                 "earliest": earliest.isoformat() if earliest else None,

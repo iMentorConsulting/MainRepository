@@ -9,7 +9,7 @@ import IncomePanel from '../components/IncomePanel'
 import ResultsPanel from '../components/ResultsPanel'
 import PlanParamsModal from '../components/PlanParamsModal'
 import * as api from '../api'
-import { calculateAll, creditorDisplayName, fmt, buildForecastText } from '../utils/calculations'
+import { calculateAll, creditorDisplayName, fmt, buildForecastText, computeIncomeFromData } from '../utils/calculations'
 import { PARAMS_B } from '../utils/calculationParams'
 import { buildPlanHtml, wrapPlanDocument } from '../utils/reportGenerators'
 
@@ -371,100 +371,114 @@ export default function CaseForm({ currentEmployee }) {
       </div>
 
       {/* Income analysis block — FP only, shows ratio + 3-phase caps */}
-      {calc && income.debtorType !== 'Νομικό Πρόσωπο' && calc.monthlyDisp1 !== undefined && (
-        <div className="mb-5 rounded-xl border border-indigo-200 bg-indigo-50 p-4">
-          <p className="font-bold text-indigo-800 mb-3 text-sm flex items-center gap-1.5"><ChartBarIcon className="w-4 h-4 shrink-0" /> ΑΝΑΛΥΣΗ ΕΙΣΟΔΗΜΑΤΟΣ — ΚΥΑ 67360 άρθρο 8Α §5</p>
-          <div className="text-sm text-indigo-900 space-y-1 font-mono">
-            <div className="flex justify-between">
-              <span>Εισόδημα οφειλέτη (έτος Τ):</span>
-              <span className="font-semibold">{fmt(calc.annualIncome)}/έτος</span>
-            </div>
-            {(income.spouseIncome || 0) > 0 && (
-              <>
-                <div className="flex justify-between">
-                  <span>Εισόδημα συζύγου:</span>
-                  <span className="font-semibold">{fmt(income.spouseIncome)}/έτος</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Οικογενειακό εισόδημα:</span>
-                  <span className="font-semibold">{fmt(calc.fpFamilyIncome)}/έτος</span>
-                </div>
-                <div className="flex justify-between text-indigo-600">
-                  <span>Αναλογία οφειλέτη:</span>
-                  <span>{((calc.fpRatio || 1) * 100).toFixed(1)}%</span>
-                </div>
-              </>
-            )}
-            <div className="border-t border-indigo-200 pt-1 mt-1">
-              <div className="flex justify-between text-gray-600">
-                <span>Σύνολο δαπανών (επιμερ. ΕΔΔ + λοιπά):</span>
-                <span>{fmt(calc.totalExpenses)}/έτος</span>
+      {income.debtorType !== 'Νομικό Πρόσωπο' && (() => {
+        const previewAnnualIncome = computeIncomeFromData(income)
+        const hasIncomeData = previewAnnualIncome > 0
+        const showFullAnalysis = calc && calc.monthlyDisp1 !== undefined
+
+        return (hasIncomeData || showFullAnalysis) ? (
+          <div className="mb-5 rounded-xl border border-indigo-200 bg-indigo-50 p-4">
+            <p className="font-bold text-indigo-800 mb-3 text-sm flex items-center gap-1.5"><ChartBarIcon className="w-4 h-4 shrink-0" /> ΑΝΑΛΥΣΗ ΕΙΣΟΔΗΜΑΤΟΣ — ΚΥΑ 67360 άρθρο 8Α §5</p>
+            <div className="text-sm text-indigo-900 space-y-1 font-mono">
+              <div className="flex justify-between">
+                <span>Εισόδημα οφειλέτη (έτος Τ):</span>
+                <span className="font-semibold">{fmt(showFullAnalysis ? calc.annualIncome : previewAnnualIncome)}/έτος</span>
               </div>
-            </div>
-            <div className="border-t border-indigo-200 pt-1 mt-1 space-y-0.5">
-              <div className="flex justify-between font-semibold text-green-800">
-                <span>Μηνιαίο διαθέσιμο — Έτος 1 (T×80%):</span>
-                <span>{fmt(calc.monthlyDisp1)}/μήνα</span>
-              </div>
-              {income.fpSubType === 'Επιτηδευματίας' ? (
+              {(income.spouseIncome || 0) > 0 && (
                 <>
-                  <div className="flex justify-between text-green-700">
-                    <span>
-                      Μηνιαίο διαθέσιμο — Έτη 2–4 (avg×65%):
-                      {calc.monthlyDisp24 <= calc.monthlyDisp1 + 1 && (
-                        <span className="ml-1 text-xs text-amber-600">→ ισχύει Έτος 1 (Year T &gt; avg2)</span>
-                      )}
-                    </span>
-                    <span>
-                      {calc.monthlyDisp24 <= calc.monthlyDisp1 + 1
-                        ? <span className="text-amber-700">{fmt(calc.fpDispFromAvg * 0.65 / 12)} <span className="text-xs font-normal">(raw)</span> → {fmt(calc.monthlyDisp24)}</span>
-                        : fmt(calc.monthlyDisp24)
-                      }
-                      /μήνα
-                    </span>
+                  <div className="flex justify-between">
+                    <span>Εισόδημα συζύγου:</span>
+                    <span className="font-semibold">{fmt(income.spouseIncome)}/έτος</span>
                   </div>
-                  <div className="flex justify-between text-green-600">
-                    <span>
-                      Μηνιαίο διαθέσιμο — Έτη 5+ (avg×100%):
-                      {calc.monthlyDisp5 <= calc.monthlyDisp1 + 1 && (
-                        <span className="ml-1 text-xs text-amber-600">→ ισχύει Έτος 1</span>
-                      )}
-                    </span>
-                    <span>
-                      {calc.monthlyDisp5 <= calc.monthlyDisp1 + 1
-                        ? <span className="text-amber-700">{fmt(calc.fpDispFromAvg / 12)} <span className="text-xs font-normal">(raw)</span> → {fmt(calc.monthlyDisp5)}</span>
-                        : fmt(calc.monthlyDisp5)
-                      }
-                      /μήνα
-                    </span>
-                  </div>
-                  {calc.fpAvg2Income > 0 && (
-                    <div className="flex justify-between text-xs text-indigo-500 pt-0.5">
-                      <span>avg2_kpa — ΚΠΑ μέσος 2 υψηλ. ετών:</span>
-                      <span>{fmt(calc.fpAvg2Income)}/έτος</span>
-                    </div>
+                  {showFullAnalysis && (
+                    <>
+                      <div className="flex justify-between">
+                        <span>Οικογενειακό εισόδημα:</span>
+                        <span className="font-semibold">{fmt(calc.fpFamilyIncome)}/έτος</span>
+                      </div>
+                      <div className="flex justify-between text-indigo-600">
+                        <span>Αναλογία οφειλέτη:</span>
+                        <span>{((calc.fpRatio || 1) * 100).toFixed(1)}%</span>
+                      </div>
+                    </>
                   )}
                 </>
-              ) : (
+              )}
+              {showFullAnalysis && (
                 <>
-                  {calc.monthlyDisp24 > calc.monthlyDisp1 + 1 && (
-                    <div className="flex justify-between text-green-700">
-                      <span>Μηνιαίο διαθέσιμο — Έτη 2–4 (avg×65%):</span>
-                      <span>{fmt(calc.monthlyDisp24)}/μήνα</span>
+                  <div className="border-t border-indigo-200 pt-1 mt-1">
+                    <div className="flex justify-between text-gray-600">
+                      <span>Σύνολο δαπανών (επιμερ. ΕΔΔ + λοιπά):</span>
+                      <span>{fmt(calc.totalExpenses)}/έτος</span>
                     </div>
-                  )}
-                  {calc.monthlyDisp5 > calc.monthlyDisp1 + 1 && (
-                    <div className="flex justify-between text-green-600">
-                      <span>Μηνιαίο διαθέσιμο — Έτη 5+ (avg×100%):</span>
-                      <span>{fmt(calc.monthlyDisp5)}/μήνα</span>
+                  </div>
+                  <div className="border-t border-indigo-200 pt-1 mt-1 space-y-0.5">
+                    <div className="flex justify-between font-semibold text-green-800">
+                      <span>Μηνιαίο διαθέσιμο — Έτος 1 (T×80%):</span>
+                      <span>{fmt(calc.monthlyDisp1)}/μήνα</span>
                     </div>
-                  )}
+                    {income.fpSubType === 'Επιτηδευματίας' ? (
+                      <>
+                        <div className="flex justify-between text-green-700">
+                          <span>
+                            Μηνιαίο διαθέσιμο — Έτη 2–4 (avg×65%):
+                            {calc.monthlyDisp24 <= calc.monthlyDisp1 + 1 && (
+                              <span className="ml-1 text-xs text-amber-600">→ ισχύει Έτος 1 (Year T &gt; avg2)</span>
+                            )}
+                          </span>
+                          <span>
+                            {calc.monthlyDisp24 <= calc.monthlyDisp1 + 1
+                              ? <span className="text-amber-700">{fmt(calc.fpDispFromAvg * 0.65 / 12)} <span className="text-xs font-normal">(raw)</span> → {fmt(calc.monthlyDisp24)}</span>
+                              : fmt(calc.monthlyDisp24)
+                            }
+                            /μήνα
+                          </span>
+                        </div>
+                        <div className="flex justify-between text-green-600">
+                          <span>
+                            Μηνιαίο διαθέσιμο — Έτη 5+ (avg×100%):
+                            {calc.monthlyDisp5 <= calc.monthlyDisp1 + 1 && (
+                              <span className="ml-1 text-xs text-amber-600">→ ισχύει Έτος 1</span>
+                            )}
+                          </span>
+                          <span>
+                            {calc.monthlyDisp5 <= calc.monthlyDisp1 + 1
+                              ? <span className="text-amber-700">{fmt(calc.fpDispFromAvg / 12)} <span className="text-xs font-normal">(raw)</span> → {fmt(calc.monthlyDisp5)}</span>
+                              : fmt(calc.monthlyDisp5)
+                            }
+                            /μήνα
+                          </span>
+                        </div>
+                        {calc.fpAvg2Income > 0 && (
+                          <div className="flex justify-between text-xs text-indigo-500 pt-0.5">
+                            <span>avg2_kpa — ΚΠΑ μέσος 2 υψηλ. ετών:</span>
+                            <span>{fmt(calc.fpAvg2Income)}/έτος</span>
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        {calc.monthlyDisp24 > calc.monthlyDisp1 + 1 && (
+                          <div className="flex justify-between text-green-700">
+                            <span>Μηνιαίο διαθέσιμο — Έτη 2–4 (avg×65%):</span>
+                            <span>{fmt(calc.monthlyDisp24)}/μήνα</span>
+                          </div>
+                        )}
+                        {calc.monthlyDisp5 > calc.monthlyDisp1 + 1 && (
+                          <div className="flex justify-between text-green-600">
+                            <span>Μηνιαίο διαθέσιμο — Έτη 5+ (avg×100%):</span>
+                            <span>{fmt(calc.monthlyDisp5)}/μήνα</span>
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
                 </>
               )}
             </div>
           </div>
-        </div>
-      )}
+        ) : null
+      })()}
 
       {/* flag_MAX_DOSES warning banner — ΦΕΚ Β' 2896/2021 §7.1/4 + ΚΥΑ 7712925/2025 */}
       {calc?.flagMaxDoses && (() => {

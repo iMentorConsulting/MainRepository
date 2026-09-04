@@ -450,20 +450,32 @@ def list_leads(
     if has_next_call is True:
         q = q.filter(Lead.app_next_call != None)
 
-    # Date range filtering
-    if date_from:
-        from_date = parse_any_date(date_from)
-        if from_date:
-            q = q.filter(Lead.created_at >= from_date)
-    if date_to:
-        to_date = parse_any_date(date_to)
-        if to_date:
-            # Include entire end date
-            to_date_end = to_date + timedelta(days=1)
-            q = q.filter(Lead.created_at < to_date_end)
-
     # Newest first (highest sheet row = most recent entry)
     leads = q.order_by(Lead.sheet_row_num.desc().nullslast(), Lead.id.desc()).all()
+
+    # Date range filtering (on Lead.date sheet field, not created_at)
+    if date_from or date_to:
+        from_date = parse_any_date(date_from) if date_from else None
+        to_date = parse_any_date(date_to) if date_to else None
+
+        filtered = []
+        for lead in leads:
+            if lead.date:
+                lead_date = parse_any_date(lead.date)
+                if lead_date:
+                    if from_date and lead_date < from_date:
+                        continue
+                    if to_date:
+                        # Include entire end date
+                        to_date_end = to_date + timedelta(days=1)
+                        if lead_date >= to_date_end:
+                            continue
+                    filtered.append(lead)
+            elif not (from_date or to_date):
+                # Keep leads with no date only if no date filter
+                filtered.append(lead)
+        leads = filtered
+
     return [_lead_to_dict(l) for l in leads]
 
 
@@ -499,6 +511,72 @@ def normalize_statuses(db: Session = Depends(get_db)):
     try:
         from sheets_sync import normalize_all_statuses
         return normalize_all_statuses(db)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/debug-duplicates")
+def debug_duplicates(db: Session = Depends(get_db)):
+    """AUDIT ONLY - List duplicate leads without deleting.
+    Shows which leads are duplicated and what differs between them."""
+    from sqlalchemy import func
+
+    duplicates_info = []
+
+    # Find all sheet_row_num values that appear more than once
+    dup_rows = db.query(
+        Lead.sheet_row_num,
+        func.count().label('cnt')
+    ).filter(
+        Lead.sheet_row_num != None
+    ).group_by(Lead.sheet_row_num).having(
+        func.count() > 1
+    ).all()
+
+    for sheet_row_num, cnt in dup_rows:
+        leads = db.query(Lead).filter(
+            Lead.sheet_row_num == sheet_row_num
+        ).order_by(Lead.id.asc()).all()
+
+        # Check what differs between duplicates
+        differences = []
+        first = leads[0]
+        for i, lead in enumerate(leads[1:], start=1):
+            diffs = {}
+            if lead.status != first.status:
+                diffs['status'] = f"{first.status} vs {lead.status}"
+            if lead.assigned_to != first.assigned_to:
+                diffs['assigned_to'] = f"{first.assigned_to} vs {lead.assigned_to}"
+            if lead.app_comments != first.app_comments:
+                diffs['app_comments'] = "differs"
+            if lead.app_next_call != first.app_next_call:
+                diffs['app_next_call'] = "differs"
+            differences.append({'duplicate_id': lead.id, 'differences': diffs})
+
+        duplicates_info.append({
+            'sheet_row_num': sheet_row_num,
+            'lead_name': first.name,
+            'count': cnt,
+            'ids': [l.id for l in leads],
+            'duplicates_with_changes': differences
+        })
+
+    return {
+        'ok': True,
+        'total_duplicate_groups': len(duplicates_info),
+        'details': duplicates_info
+    }
+
+
+@router.post("/cleanup-duplicates")
+def cleanup_duplicates(db: Session = Depends(get_db)):
+    """Remove duplicate leads created by concurrent webhook syncs.
+    Keeps the first occurrence of each sheet_row_num, deletes duplicates.
+
+    WARNING: This is irreversible. Run /debug-duplicates first to audit."""
+    try:
+        from sheets_sync import cleanup_duplicate_leads
+        return cleanup_duplicate_leads(db)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -552,6 +630,122 @@ def get_reporting(db: Session = Depends(get_db)):
         "active": sum(1 for l in leads if l.status == "ACTIVE"),
         "hot": sum(1 for l in leads if l.status == "HOT"),
         "cancelled": sum(1 for l in leads if l.status == "CANCEL"),
+    }
+
+
+@router.get("/conversion")
+def get_conversion(db: Session = Depends(get_db)):
+    """Conversion stats: leads → DEAL per month, per referrer, and per consultant.
+    Uses Lead.date (the sheet date field) as the lead creation date.
+    Only leads with a parseable date are included in time-bucketed stats.
+    """
+    from collections import defaultdict
+
+    try:
+        leads = db.query(Lead).all()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"DB error: {e}")
+
+    def _month(lead):
+        d = parse_any_date(lead.date) if lead.date else None
+        if not d:
+            d = lead.created_at
+        if not d:
+            return None
+        return d.strftime("%Y-%m")
+
+    def _is_deal(lead):
+        return (lead.status or "").upper() == "DEAL"
+
+    # ---------- per month ----------
+    month_total: dict = defaultdict(int)
+    month_deal: dict = defaultdict(int)
+    for l in leads:
+        m = _month(l)
+        if not m:
+            continue
+        month_total[m] += 1
+        if _is_deal(l):
+            month_deal[m] += 1
+
+    by_month = []
+    for m in sorted(month_total):
+        total = month_total[m]
+        deals = month_deal[m]
+        by_month.append({
+            "month": m,
+            "total": total,
+            "deals": deals,
+            "rate": round(deals / total * 100, 1) if total else 0,
+        })
+
+    # ---------- per referrer ----------
+    ref_total: dict = defaultdict(int)
+    ref_deal: dict = defaultdict(int)
+    for l in leads:
+        ref = (l.referrer or "").strip() or "—"
+        ref_total[ref] += 1
+        if _is_deal(l):
+            ref_deal[ref] += 1
+
+    by_referrer = sorted(
+        [
+            {"referrer": r, "total": ref_total[r], "deals": ref_deal[r],
+             "rate": round(ref_deal[r] / ref_total[r] * 100, 1) if ref_total[r] else 0}
+            for r in ref_total
+        ],
+        key=lambda x: -x["total"],
+    )
+
+    # ---------- per consultant (global + per-month for filtering) ----------
+    cons_total: dict = defaultdict(int)
+    cons_deal: dict = defaultdict(int)
+    # month → consultant → {total, deals}
+    mc_total: dict = defaultdict(lambda: defaultdict(int))
+    mc_deal: dict = defaultdict(lambda: defaultdict(int))
+    for l in leads:
+        c = (l.assigned_to or "").strip().upper() or "—"
+        m = _month(l)
+        cons_total[c] += 1
+        if _is_deal(l):
+            cons_deal[c] += 1
+        if m:
+            mc_total[m][c] += 1
+            if _is_deal(l):
+                mc_deal[m][c] += 1
+
+    all_consultants = sorted(cons_total.keys(), key=lambda c: -cons_total[c])
+
+    by_consultant = [
+        {"consultant": c, "total": cons_total[c], "deals": cons_deal[c],
+         "rate": round(cons_deal[c] / cons_total[c] * 100, 1) if cons_total[c] else 0}
+        for c in all_consultants
+    ]
+
+    # Granular: list of {month, consultant, total, deals} for frontend filtering
+    by_month_consultant = []
+    for m in sorted(mc_total.keys()):
+        for c in mc_total[m]:
+            t = mc_total[m][c]
+            d = mc_deal[m][c]
+            by_month_consultant.append({
+                "month": m,
+                "consultant": c,
+                "total": t,
+                "deals": d,
+                "rate": round(d / t * 100, 1) if t else 0,
+            })
+
+    total_all = len(leads)
+    deal_all = sum(1 for l in leads if _is_deal(l))
+    return {
+        "total": total_all,
+        "deals": deal_all,
+        "overall_rate": round(deal_all / total_all * 100, 1) if total_all else 0,
+        "by_month": by_month,
+        "by_referrer": by_referrer,
+        "by_consultant": by_consultant,
+        "by_month_consultant": by_month_consultant,
     }
 
 
@@ -868,13 +1062,46 @@ def count_leads_by_consultant(
 ):
     """Count leads by consultant with optional date range filtering."""
     from collections import defaultdict
-    from datetime import datetime
     import logging
 
     logger = logging.getLogger(__name__)
 
-    leads = db.query(Lead).all()
-    logger.info(f"[count] Total leads: {len(leads)}")
+    # Parse date filters if provided (expect YYYY-MM-DD format or ISO format)
+    from_boundary = None
+    to_boundary = None
+    if date_from:
+        try:
+            # Try ISO format first (with Z)
+            if 'T' in date_from:
+                from_boundary = datetime.fromisoformat(date_from.replace('Z', '+00:00')).replace(tzinfo=None)
+            else:
+                # YYYY-MM-DD format
+                from_boundary = datetime.strptime(date_from, "%Y-%m-%d")
+        except (ValueError, TypeError):
+            logger.warning(f"Failed to parse date_from: {date_from}")
+
+    if date_to:
+        try:
+            # Try ISO format first (with Z)
+            if 'T' in date_to:
+                to_boundary = datetime.fromisoformat(date_to.replace('Z', '+00:00')).replace(tzinfo=None)
+            else:
+                # YYYY-MM-DD format
+                to_boundary = datetime.strptime(date_to, "%Y-%m-%d")
+        except (ValueError, TypeError):
+            logger.warning(f"Failed to parse date_to: {date_to}")
+
+    # Build query with optional date filtering
+    query = db.query(Lead)
+    if from_boundary:
+        query = query.filter(Lead.created_at >= from_boundary)
+    if to_boundary:
+        # Add 1 day to include the entire end date
+        to_boundary_plus_one = to_boundary + timedelta(days=1)
+        query = query.filter(Lead.created_at < to_boundary_plus_one)
+
+    leads = query.all()
+    logger.info(f"[count] Total leads (filtered): {len(leads)}, from={from_boundary}, to={to_boundary}")
 
     by_agent = defaultdict(int)
 
@@ -1063,12 +1290,7 @@ def get_consultant_performance_metrics(
     from collections import defaultdict
     from datetime import datetime as dt
 
-    leads = db.query(Lead).all()
-    cases = db.query(Case).all()
-    calls = db.query(CallAttempt).all()
-    vibersall = db.query(ViberMessage).all()
-
-    # Parse date boundaries
+    # Parse date boundaries first
     from_boundary = None
     to_boundary = None
     if date_from:
@@ -1080,8 +1302,33 @@ def get_consultant_performance_metrics(
     if date_to:
         try:
             to_boundary = dt.strptime(date_to, "%Y-%m-%d")
+            # Extend to_boundary to end of day
+            to_boundary = to_boundary.replace(hour=23, minute=59, second=59)
         except (ValueError, TypeError):
             pass
+
+    # Build queries with date filtering at database level (for DateTime fields only)
+    # Leads use string dates in mixed formats, so we'll filter those in the loop
+    leads = db.query(Lead).all()
+
+    cases_query = db.query(Case)
+    calls_query = db.query(CallAttempt)
+    vibersall_query = db.query(ViberMessage)
+
+    # Apply date filtering to DateTime-based queries
+    if from_boundary:
+        cases_query = cases_query.filter(Case.created_at >= from_boundary)
+        calls_query = calls_query.filter(CallAttempt.created_at >= from_boundary)
+        vibersall_query = vibersall_query.filter(ViberMessage.created_at >= from_boundary)
+
+    if to_boundary:
+        cases_query = cases_query.filter(Case.created_at <= to_boundary)
+        calls_query = calls_query.filter(CallAttempt.created_at <= to_boundary)
+        vibersall_query = vibersall_query.filter(ViberMessage.created_at <= to_boundary)
+
+    cases = cases_query.all()
+    calls = calls_query.all()
+    vibersall = vibersall_query.all()
 
     # Initialize metrics per consultant
     metrics = defaultdict(lambda: {
@@ -1100,7 +1347,7 @@ def get_consultant_performance_metrics(
     # Get existing case IDs to avoid counting orphaned lead->case links
     existing_case_ids = set(c.id for c in cases)
 
-    # Process leads
+    # Process leads (with date filtering for string date field)
     for lead in leads:
         d = parse_any_date(lead.date)
         if not d:
@@ -1127,35 +1374,55 @@ def get_consultant_performance_metrics(
     for case in cases:
         consultant = (case.employee or "").strip().upper() or "UNKNOWN"
         if consultant not in metrics:
-            metrics[consultant] = defaultdict(int)
+            metrics[consultant] = {
+                "consultant": consultant,
+                "total_leads": 0,
+                "leads_by_status": defaultdict(int),
+                "cases_total": 0,
+                "cases_paying": 0,
+                "calls_total": 0,
+                "calls_answered": 0,
+                "vibers_total": 0,
+                "leads_with_cases": 0,
+            }
         metrics[consultant]["cases_total"] += 1
         if case.status == "completed":
             metrics[consultant]["cases_paying"] += 1
 
     # Process calls
     for call in calls:
-        if from_boundary and call.created_at.date() < from_boundary.date():
-            continue
-        if to_boundary and call.created_at.date() > to_boundary.date():
-            continue
-
-        consultant = call.consultant or "UNKNOWN"
+        consultant = (call.consultant or "").strip().upper() or "UNKNOWN"
         if consultant not in metrics:
-            metrics[consultant] = defaultdict(int)
+            metrics[consultant] = {
+                "consultant": consultant,
+                "total_leads": 0,
+                "leads_by_status": defaultdict(int),
+                "cases_total": 0,
+                "cases_paying": 0,
+                "calls_total": 0,
+                "calls_answered": 0,
+                "vibers_total": 0,
+                "leads_with_cases": 0,
+            }
         metrics[consultant]["calls_total"] += 1
         if call.answered is True:
             metrics[consultant]["calls_answered"] += 1
 
     # Process vibersall
     for viber in vibersall:
-        if from_boundary and viber.created_at.date() < from_boundary.date():
-            continue
-        if to_boundary and viber.created_at.date() > to_boundary.date():
-            continue
-
-        consultant = viber.consultant or "UNKNOWN"
+        consultant = (viber.consultant or "").strip().upper() or "UNKNOWN"
         if consultant not in metrics:
-            metrics[consultant] = defaultdict(int)
+            metrics[consultant] = {
+                "consultant": consultant,
+                "total_leads": 0,
+                "leads_by_status": defaultdict(int),
+                "cases_total": 0,
+                "cases_paying": 0,
+                "calls_total": 0,
+                "calls_answered": 0,
+                "vibers_total": 0,
+                "leads_with_cases": 0,
+            }
         metrics[consultant]["vibers_total"] += 1
 
     # Calculate conversion rates
@@ -1163,7 +1430,7 @@ def get_consultant_performance_metrics(
     for consultant, m in metrics.items():
         total = m["total_leads"]
         leads_to_hot = m["leads_by_status"].get("HOT", 0)
-        leads_to_case = m["leads_with_cases"]  # Only count leads with linked case_id, not DEAL status
+        leads_to_deal = m["leads_by_status"].get("DEAL", 0)  # Use actual DEAL status count
         leads_to_cancel = m["leads_by_status"].get("CANCEL", 0)
 
         result[consultant] = {
@@ -1172,13 +1439,15 @@ def get_consultant_performance_metrics(
             "by_status": dict(m["leads_by_status"]),
             "cases_total": m["cases_total"],
             "cases_paying": m["cases_paying"],
-            "conversion_rate_to_case": round(leads_to_case / total * 100, 1) if total > 0 else 0,
+            # Lead to hot conversion (% of total)
             "conversion_rate_to_hot": round(leads_to_hot / total * 100, 1) if total > 0 else 0,
-            "conversion_hot_to_case": round(leads_to_case / leads_to_hot * 100, 1) if leads_to_hot > 0 else 0,
+            # Lead to deal conversion (% of total)
+            "conversion_rate_to_case": round(leads_to_deal / total * 100, 1) if total > 0 else 0,
+            # Hot to deal conversion (% of HOT)
+            "conversion_hot_to_case": round(leads_to_deal / leads_to_hot * 100, 1) if leads_to_hot > 0 else 0,
+            # Cancel rate
             "cancel_rate": round(leads_to_cancel / total * 100, 1) if total > 0 else 0,
-            "calls_total": m["calls_total"],
-            "calls_answered": m["calls_answered"],
-            "calls_per_lead": round(m["calls_total"] / total, 2) if total > 0 else 0,
+            # Effort metrics
             "vibers_total": m["vibers_total"],
             "vibers_per_lead": round(m["vibers_total"] / total, 2) if total > 0 else 0,
         }

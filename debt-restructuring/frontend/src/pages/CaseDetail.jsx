@@ -10,7 +10,7 @@ import {
 } from '@heroicons/react/24/outline'
 import * as api from '../api'
 import { PORTAL_BASE } from '../api'
-import { fmt, creditorDisplayName, formatOfferWithVAT, getPaymentStatus } from '../utils/calculations'
+import { fmt, creditorDisplayName, formatOfferWithVAT, getPaymentStatus, calculateOfferWithWithholding, getBankingDetailsText } from '../utils/calculations'
 import { buildEmailHtml, wrapEmailDocument, buildResultsEmailHtml } from '../utils/reportGenerators'
 
 const STATUS_LABELS = {
@@ -30,24 +30,24 @@ const CONTACT_STAGES = [
   { key: 'Δεν Ενδιαφέρεται', icon: '❌', cls: 'bg-red-100 text-red-700' },
 ]
 
-const IBANS_TEXT = `\n\n🏦 *Τραπεζικοί Λογαριασμοί:*\nΠειραιώς: GR4501714330006433164381388\nEurobank: GR5802601680000060201330648\nAlpha Bank: GR2401407750775002330002138\nΔικαιούχος: *I MENTOR IKE*`
 
-function buildOfferBlock(offer) {
+function buildOfferBlock(offer, incomeSubType) {
   if (!offer || (!offer.application_fee && !offer.success_fee)) return ''
   const lines = [`\n\n💼 *Οικονομική Προσφορά:*`]
   if (offer.application_fee) {
-    const appFee = formatOfferWithVAT(offer.application_fee)
+    const appFee = calculateOfferWithWithholding(offer.application_fee, incomeSubType)
     lines.push(`• Αίτηση & Διαδικασία: *${appFee.formatted}*`)
   }
   if (offer.success_fee) {
-    const successFee = formatOfferWithVAT(offer.success_fee)
+    const successFee = calculateOfferWithWithholding(offer.success_fee, incomeSubType)
     lines.push(`• Success Fee (αποδοχή): *${successFee.formatted}*`)
   }
+  lines.push(getBankingDetailsText())
   return lines.join('\n')
 }
 
-function buildViberMessage(type, name, url, offer = null, includeOffer = false) {
-  const offerSection = includeOffer ? buildOfferBlock(offer) + IBANS_TEXT : ''
+function buildViberMessage(type, name, url, offer = null, includeOffer = false, incomeSubType = '') {
+  const offerSection = includeOffer ? buildOfferBlock(offer, incomeSubType) : ''
   switch (type) {
     case 'initial':
       return `Αγαπητέ/ή *${name}*,\n\nΗ ανάλυση των στοιχείων σας στον *Εξωδικαστικό Μηχανισμό Ρύθμισης Οφειλών* ολοκληρώθηκε.\n\nΜπορείτε να δείτε την πλήρη ανάλυσή μας στον παρακάτω σύνδεσμο, χρησιμοποιώντας τον *ΑΦΜ* σας ως κωδικό πρόσβασης:\n\n${url}${offerSection}\n\nΓια οποιαδήποτε ερώτηση είμαστε στη διάθεσή σας.\n\n*i-Mentor Consulting*\nΤ: *2810 363007*`
@@ -154,13 +154,13 @@ function renderStepLabel(stepRows, idx) {
   return `${sy}ο–${ey}ο έτος`
 }
 
-function ViberPreviewModal({ msgType, msgLabel, caseName, url, offer, onSend, onClose, sending }) {
+function ViberPreviewModal({ msgType, msgLabel, caseName, url, offer, debtorType, onSend, onClose, sending }) {
   const [includeOffer, setIncludeOffer] = useState(false)
-  const [message, setMessage] = useState(() => buildViberMessage(msgType, caseName, url, offer, false))
+  const [message, setMessage] = useState(() => buildViberMessage(msgType, caseName, url, offer, false, debtorType))
 
   const toggleOffer = (checked) => {
     setIncludeOffer(checked)
-    setMessage(buildViberMessage(msgType, caseName, url, offer, checked))
+    setMessage(buildViberMessage(msgType, caseName, url, offer, checked, debtorType))
   }
 
   return (
@@ -246,21 +246,22 @@ function buildEmailTextPreview(caseData, { includeTable, includeDisclaimer, incl
   lines.push('Στόχος μας: Η πρόταση που καταθέτουμε στους πιστωτές στοχεύει να είναι καλύτερη από το θεωρητικό αποτέλεσμα — διεκδικώντας ευνοϊκότερες διαγραφές και χαμηλότερες δόσεις για εσάς.')
   lines.push('')
   if (includeOffer && (offer.application_fee || offer.success_fee)) {
+    const incomeSubType = caseData.income_data?.fpSubType || (caseData.debtor_type === 'Φυσικό Πρόσωπο' ? 'Επιτηδευματίας' : 'Επιτηδευματίας')
     lines.push('─── ΟΙΚΟΝΟΜΙΚΗ ΠΡΟΣΦΟΡΑ ───')
     if (offer.application_fee) {
-      const g = Math.round(Number(offer.application_fee) * 1.24)
-      lines.push(`• Αίτηση & Διαδικασία: ${Number(offer.application_fee).toLocaleString('el-GR')}€ + ΦΠΑ 24% = ${g.toLocaleString('el-GR')}€`)
+      const appFee = calculateOfferWithWithholding(Number(offer.application_fee), incomeSubType)
+      lines.push(`• Αίτηση & Διαδικασία: ${appFee.formatted}`)
     }
     if (offer.success_fee) {
-      const g = Math.round(Number(offer.success_fee) * 1.24)
-      lines.push(`• Success Fee (αποδοχή): ${Number(offer.success_fee).toLocaleString('el-GR')}€ + ΦΠΑ 24% = ${g.toLocaleString('el-GR')}€`)
+      const successFee = calculateOfferWithWithholding(Number(offer.success_fee), incomeSubType)
+      lines.push(`• Success Fee (αποδοχή): ${successFee.formatted}`)
     }
     lines.push('')
     lines.push('Τραπεζικοί Λογαριασμοί:')
-    lines.push('  Πειραιώς:   GR45 0171 4330 0064 3316 4381 388')
-    lines.push('  Eurobank:   GR58 0260 1680 0000 6020 1330 648')
-    lines.push('  Alpha Bank: GR24 0140 7750 7750 0233 0002 138')
-    lines.push('  Δικαιούχος: I MENTOR IKE')
+    lines.push('  Πειραιώς:   GR9401727540005754096471354')
+    lines.push('  Alpha Bank: GR0901407750775002002010585')
+    lines.push('  Eurobank:   GR8102601680000070200668063')
+    lines.push('  Δικαιούχος: Αποστολάκης Χαράλαμπος')
     lines.push('')
   }
   lines.push('Με εκτίμηση,')
@@ -312,11 +313,12 @@ function EmailOptionsModal({ caseData, onClose }) {
     const insDebt = finalPlan.filter(p => p.type === 'Ασφαλιστικά Ταμεία').reduce((s, p) => s + (p.amount || 0), 0)
     const isVulnerable = !!(caseData.income_data?.isVulnerable) && !caseData.debtor_type?.includes('Νομικό')
     const sumWrC = est.sumWrC ?? finalPlan.reduce((s, p) => s + (p.writeoffC || 0), 0)
+    const incomeSubType = caseData.income_data?.fpSubType || (caseData.debtor_type === 'Φυσικό Πρόσωπο' ? 'Επιτηδευματίας' : 'Επιτηδευματίας')
     const data = {
       clientName: caseData.client_name,
       clientPhone: caseData.client_phone,
       clientEmail: caseData.client_email,
-      debtorType: caseData.debtor_type,
+      debtorType: incomeSubType,
       totalDebt: est.sumDebt || 0,
       totalWriteOff: est.sumWr || 0,
       totalRemaining: est.totalRemaining || 0,
@@ -795,18 +797,22 @@ export default function CaseDetail({ currentEmployee }) {
       )}
 
       {/* Viber preview modal */}
-      {viberModal && caseData && (
-        <ViberPreviewModal
-          msgType={viberModal.msgType}
-          msgLabel={viberModal.msgLabel}
-          caseName={caseData.client_name}
-          url={`${PORTAL_BASE}/preview/${caseData.share_token}`}
-          offer={caseData.commercial_offer || {}}
-          onSend={handleViberSend}
-          onClose={() => setViberModal(null)}
-          sending={viberSending}
-        />
-      )}
+      {viberModal && caseData && (() => {
+        const incomeSubType = caseData.income_data?.fpSubType || (caseData.debtor_type === 'Φυσικό Πρόσωπο' ? 'Επιτηδευματίας' : 'Επιτηδευματίας')
+        return (
+          <ViberPreviewModal
+            msgType={viberModal.msgType}
+            msgLabel={viberModal.msgLabel}
+            caseName={caseData.client_name}
+            url={`${PORTAL_BASE}/preview/${caseData.share_token}`}
+            offer={caseData.commercial_offer || {}}
+            debtorType={incomeSubType}
+            onSend={handleViberSend}
+            onClose={() => setViberModal(null)}
+            sending={viberSending}
+          />
+        )
+      })()}
 
       {/* Email options modal */}
       {emailModalOpen && caseData && (
