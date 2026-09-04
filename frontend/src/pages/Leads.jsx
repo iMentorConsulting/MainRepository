@@ -854,11 +854,19 @@ export default function Leads() {
                     </td>
                     <td className="px-2 py-1.5 w-28"><EditableCell value={lead.consultant} onSave={v => patch(lead, 'assigned_name', v)} /></td>
                     <td className="px-2 py-1.5 text-xs text-gray-600 max-w-[220px]">
-                      {lead.program_title
-                        ? <span className="block truncate" title={lead.program_title}>{lead.program_title}</span>
-                        : lead.program
-                          ? <span className="font-semibold text-gray-500">{lead.program}</span>
-                          : <span className="text-gray-300">—</span>}
+                      {(() => {
+                        // Only show program_title if it looks like an actual program title
+                        // (resolves to a known category OR is short enough). Long free-text
+                        // ERMIS summaries stored in program_title should not appear here.
+                        const pt = lead.program_title && (categoryFromTitle(lead.program_title) || lead.program_title.length < 120) ? lead.program_title : null
+                        const st = !pt && lead.service_type && categoryFromTitle(lead.service_type) ? lead.service_type : null
+                        const display = pt || st
+                        return display
+                          ? <span className="block truncate" title={display}>{display}</span>
+                          : lead.program
+                            ? <span className="font-semibold text-gray-500">{lead.program}</span>
+                            : <span className="text-gray-300">—</span>
+                      })()}
                     </td>
                     <td className="px-2 py-1.5 min-w-[150px]">
                       <div className="text-blue-600 hover:underline cursor-pointer font-medium" onClick={() => setExpandedId(isOpen ? null : lead.id)}>{lead.name || '—'}</div>
