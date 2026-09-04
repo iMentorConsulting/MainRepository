@@ -119,7 +119,7 @@ async function createGemiCase(params: {
       activities: {
         create: {
           type: 'CREATED',
-          body: `Η υπόθεση δημιουργήθηκε αυτόματα από τον Ερμή (ΓΕΜΗ prospect): ${description}`,
+          body: `Η υπόθεση δημιουργήθηκε αυτόματα από τον Ερμή (ΓΕΜΗ prospect): ${description}${params.transcript && params.transcript.length > 0 ? `\n\n--- ΠΛΗΡΗΣ ΣΥΝΟΜΙΛΙΑ ΕΡΜΗ ---\n${params.transcript.map(m => `${m.role === 'user' ? 'ΠΕΛΑΤΗΣ' : 'ΕΡΜΗΣ'}: ${m.text}`).join('\n\n')}` : ''}`,
           authorId: adminUser.id,
           authorName: 'Ερμής (AI)',
           authorRole: 'ADMIN',
@@ -144,6 +144,9 @@ async function createGemiCase(params: {
   // Notify external case management system (same as normal businesses)
   if (business) {
     const profile = await buildBusinessProfilePayload(business)
+    const ermisTranscript = params.transcript && params.transcript.length > 0
+      ? params.transcript.map(m => `${m.role === 'user' ? 'ΠΕΛΑΤΗΣ' : 'ΕΡΜΗΣ'}: ${m.text}`).join('\n\n')
+      : undefined
     notifyCaseManagement({
       caseNumber: clientCase.caseNumber,
       phone: gemi.mobilePhone || business.phone || null,
@@ -156,6 +159,7 @@ async function createGemiCase(params: {
       // The Ερμής conversation already happened — CM must not auto-start a
       // new screening (Viber/session) for this lead.
       ermis_completed: true,
+      ermis_transcript: ermisTranscript,
       program_exact_title: params.programTitle,
       ...profile,
     }).catch(err => console.error('[GemiCase] case mgmt notify failed:', err?.message))
