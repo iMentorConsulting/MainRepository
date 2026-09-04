@@ -604,8 +604,15 @@ def filter_options(
     agents = db.query(_U.id, _U.full_name).all()
     programs = [p[0] for p in db.query(CMLead.program).distinct().all() if p[0]]
     _pt_rows = db.query(CMLead.program_title).filter(CMLead.program_title.isnot(None)).distinct().all()
-    _st_rows = db.query(CMLead.service_type).filter(CMLead.service_type.isnot(None)).distinct().all()
-    program_titles = sorted({p[0] for p in _pt_rows if p[0]} | {p[0] for p in _st_rows if p[0]})
+    # Include service_type only when it resolves to a known program category —
+    # this excludes ERMIS summaries, free-text notes, and other non-title values.
+    _st_rows = db.query(CMLead.service_type).filter(
+        CMLead.service_type.isnot(None), CMLead.program_title.is_(None)
+    ).distinct().all()
+    program_titles = sorted(
+        {p[0] for p in _pt_rows if p[0]} |
+        {p[0] for p in _st_rows if p[0] and program_category_from_title(p[0])}
+    )
     # Build canonical consultant list: use agent full_name when agent_id is set,
     # fall back to assigned_name. This de-duplicates code names (HARIS) with the
     # canonical Greek name (Αποστολάκης Χάρης) when they refer to the same person.
