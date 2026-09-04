@@ -152,12 +152,10 @@ export default function FinancialDashboard({ currentEmployee }) {
   const handleDownloadExport = () => api.exportData().catch(() => toast.error('Σφάλμα export'))
 
   const handleSavePricing = async (cfg) => {
+    savePricingConfig(cfg)   // always sync to localStorage so CaseForm reads updated values
     try {
       await api.putPricingConfig(cfg)
-    } catch {
-      // persist locally as fallback if API unreachable
-      savePricingConfig(cfg)
-    }
+    } catch { /* ignore — localStorage is the source of truth for the calculator */ }
     setPricingConfig(cfg)
   }
 
