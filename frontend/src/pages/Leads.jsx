@@ -241,7 +241,8 @@ function SendModal({ lead, onClose }) {
 }
 
 function NewLeadModal({ options, onClose, onCreated }) {
-  const [form, setForm] = useState({ name: '', phone: '', email: '', afm: '', program: '', total_amount: '', assigned_name: '' })
+  const currentUserFullName = getAuth()?.user?.full_name || ''
+  const [form, setForm] = useState({ name: '', phone: '', email: '', afm: '', program: '', total_amount: '', assigned_name: currentUserFullName })
   const [sendErmis, setSendErmis] = useState(true)
   const [busy, setBusy] = useState(false)
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
@@ -270,7 +271,10 @@ function NewLeadModal({ options, onClose, onCreated }) {
             <option value="">— Πρόγραμμα —</option>
             {(options.programs || ['ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ', 'ΔΥΠΑ', 'ΕΣΠΑ', 'ΑΝΑΚΑΙΝΙΖΩ']).map(p => <option key={p} value={p}>{p}</option>)}
           </select>
-          <input placeholder="Σύμβουλος" value={form.assigned_name} onChange={e => set('assigned_name', e.target.value)} className="px-3 py-2 border rounded-lg text-sm" />
+          <select value={form.assigned_name} onChange={e => set('assigned_name', e.target.value)} className="px-3 py-2 border rounded-lg text-sm">
+            <option value="">— Σύμβουλος —</option>
+            {(options.consultants || []).map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
           <label className="col-span-2 flex items-center gap-2 text-sm text-gray-700 mt-1 cursor-pointer">
             <button type="button" onClick={() => setSendErmis(v => !v)}
               className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${sendErmis ? 'bg-indigo-500' : 'bg-gray-300'}`}>
