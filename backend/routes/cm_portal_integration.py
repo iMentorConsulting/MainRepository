@@ -764,7 +764,9 @@ def accept_assignment(
         target_user = current_user
     consultant = target_user.full_name
 
-    prog_title = (a.program_exact_title or "").strip() or None
+    from routes.cm_leads import is_valid_program_title
+    _raw_prog_title = (a.program_exact_title or "").strip()
+    prog_title = _raw_prog_title if is_valid_program_title(_raw_prog_title) else None
     # Fallback 1: LOGISTIS embeds the exact program name in the description after an em-dash,
     # e.g. "Ανάθεση από λογιστή μέσω action page — Πρόγραμμα επιχορήγησης…"
     if not prog_title and a.description and "—" in a.description:
