@@ -749,7 +749,8 @@ export function calculateAll(debts, assets, incomeData, params = PARAMS_B) {
   // use it directly — no write-offs needed, shorter term is correct.
   const _planAc1 = sumFn(planA, debtC1)
   const _planAc2 = sumFn(planA, debtC2)
-  const _planAFeasible = (monthlyDisp1 <= 0 || _planAc1 <= monthlyDisp1)
+  const _planAFeasible = monthlyDisp1 > 0
+                      && _planAc1 <= monthlyDisp1
                       && (monthlyDisp24 <= 0 || _planAc2 <= monthlyDisp24)
 
   let best
