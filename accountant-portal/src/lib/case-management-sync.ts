@@ -38,6 +38,9 @@ export async function notifyCaseManagement(data: {
   // session/Viber for it; the transcript arrives via the ermis.completed
   // webhook for the same ΑΦΜ.
   ermis_completed?: boolean
+  // Full Ερμής conversation transcript (ΠΕΛΑΤΗΣ/ΕΡΜΗΣ turns, newline-separated).
+  // Sent on case.created events that originated from an Ερμής chat session.
+  ermis_transcript?: string
   // The exact program title in Logistis (in addition to the coarse
   // program_category) so CM can reference the real program.
   program_exact_title?: string | null

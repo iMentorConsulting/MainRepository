@@ -263,6 +263,7 @@ async function createPublicClientCase(params: {
   businessName: string
   summary: string
   pendingItem?: string | null
+  history?: ChatMessage[]
 }) {
   const business = await prisma.business.findUnique({
     where: { id: params.businessId },
@@ -279,6 +280,10 @@ async function createPublicClientCase(params: {
     : ''
   const description = `${params.summary}${pendingNote}`
 
+  const ermisTranscript = params.history && params.history.length > 0
+    ? params.history.map(m => `${m.role === 'user' ? 'ΠΕΛΑΤΗΣ' : 'ΕΡΜΗΣ'}: ${m.text}`).join('\n\n')
+    : null
+
   const clientCase = await prisma.clientCase.create({
     data: {
       accountantId: business.accountantId || null,
@@ -293,7 +298,7 @@ async function createPublicClientCase(params: {
       activities: {
         create: {
           type: 'CREATED',
-          body: `Η υπόθεση δημιουργήθηκε αυτόματα από τον Ερμής (chat): ${description}`,
+          body: `Η υπόθεση δημιουργήθηκε αυτόματα από τον Ερμής (chat): ${description}${ermisTranscript ? `\n\n--- ΠΛΗΡΗΣ ΣΥΝΟΜΙΛΙΑ ΕΡΜΗ ---\n${ermisTranscript}` : ''}`,
           authorId: adminUser.id,
           authorName: 'Ερμής (AI)',
           authorRole: 'ADMIN',
@@ -330,6 +335,7 @@ async function createPublicClientCase(params: {
     priority: clientCase.priority,
     programTitle: params.programTitle,
     ermis_completed: true,
+    ermis_transcript: ermisTranscript || undefined,
     ...profile,
   }).catch(err => {
     console.error('[CaseManagement] notify failed:', err?.message)
@@ -433,6 +439,7 @@ export async function runErmisTurn(params: {
         businessName: params.businessName,
         summary,
         pendingItem,
+        history: params.history,
       })
     } catch {
       // GEMI prospects have no Business record — caller handles lead creation
