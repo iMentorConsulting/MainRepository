@@ -625,6 +625,13 @@ export default function Leads() {
   const setFilter = (patchObj) => { setPage(1); setFilters(f => ({ ...f, ...patchObj })) }
 
   const _stripAccents = s => (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase()
+  // Mirrors backend is_valid_program_title: uppercase start, no sentence boundary
+  const isValidProgramTitle = title => {
+    if (!title) return false
+    if (title[0] !== title[0].toUpperCase() || title[0] === title[0].toLowerCase()) return false
+    if (/\.\s+[Α-ΩA-Z]/.test(title)) return false
+    return true
+  }
   const categoryFromTitle = title => {
     const t = _stripAccents(title)
     if (t.includes('ΜΙΚΡΟ')) return 'ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ'
@@ -859,10 +866,9 @@ export default function Leads() {
                     <td className="px-2 py-1.5 w-28"><EditableCell value={lead.consultant} onSave={v => patch(lead, 'assigned_name', v)} /></td>
                     <td className="px-2 py-1.5 text-xs text-gray-600 max-w-[220px]">
                       {(() => {
-                        // Only show program_title if it looks like an actual program title
-                        // (resolves to a known category OR is short enough). Long free-text
-                        // ERMIS summaries stored in program_title should not appear here.
-                        const pt = lead.program_title && (categoryFromTitle(lead.program_title) || lead.program_title.length < 120) ? lead.program_title : null
+                        // Only show program_title if it passes the same validity check as
+                        // the backend: starts with uppercase, no sentence boundary.
+                        const pt = lead.program_title && isValidProgramTitle(lead.program_title) ? lead.program_title : null
                         const st = !pt && lead.service_type && categoryFromTitle(lead.service_type) ? lead.service_type : null
                         const display = pt || st
                         return display

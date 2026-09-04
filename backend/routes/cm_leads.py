@@ -135,6 +135,23 @@ def program_category_from_title(title):
     return None
 
 
+_SENTENCE_RE = __import__('re').compile(r'\.\s+[Α-ΩA-Z]')
+
+def is_valid_program_title(title: str) -> bool:
+    """Return True only if the string looks like an actual program title.
+    Rejects ERMIS conversation summaries stored in program_title by mistake:
+    - Must start with an uppercase letter (summaries start with lowercase)
+    - Must not contain a sentence boundary ('. Capital') suggesting multi-sentence text
+    """
+    if not title:
+        return False
+    if not title[0].isupper():
+        return False
+    if _SENTENCE_RE.search(title):
+        return False
+    return True
+
+
 def _is_logistis_lead(l) -> bool:
     return (l.source or "").upper().startswith("LOGISTIS") or bool(l.ermis_transcript) or bool(l.ermis_token)
 
@@ -610,7 +627,7 @@ def filter_options(
         CMLead.service_type.isnot(None), CMLead.program_title.is_(None)
     ).distinct().all()
     program_titles = sorted(
-        {p[0] for p in _pt_rows if p[0]} |
+        {p[0] for p in _pt_rows if p[0] and is_valid_program_title(p[0])} |
         {p[0] for p in _st_rows if p[0] and program_category_from_title(p[0])}
     )
     # Build canonical consultant list: use agent full_name when agent_id is set,
