@@ -284,7 +284,7 @@ async function createPublicClientCase(params: {
 
   const ermisTranscript = params.history && params.history.length > 0
     ? params.history.map(m => `${m.role === 'user' ? 'ΠΕΛΑΤΗΣ' : 'ΕΡΜΗΣ'}: ${m.text}`).join('\n\n')
-    : null
+    : undefined
 
   const clientCase = await prisma.clientCase.create({
     data: {
@@ -338,7 +338,7 @@ async function createPublicClientCase(params: {
     programTitle: params.programTitle,
     program_exact_title: params.programTitle,
     ermis_completed: true,
-    ermis_transcript: ermisTranscript || undefined,
+    ermis_transcript: ermisTranscript,
     ...profile,
   }).catch(err => {
     console.error('[CaseManagement] notify failed:', err?.message)
