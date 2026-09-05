@@ -340,17 +340,17 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Booking system
-app.include_router(auth_router)
-app.include_router(units_router)
-app.include_router(customers_router)
-app.include_router(bookings_router)
-app.include_router(reports_router)
-app.include_router(ai_router)
-app.include_router(cleaning_router)
-app.include_router(guest_router)
-app.include_router(ical_router)
-app.include_router(portal_admin_router)
+# Booking system (prefix /api to match frontend baseURL '/api')
+app.include_router(auth_router, prefix="/api")
+app.include_router(units_router, prefix="/api")
+app.include_router(customers_router, prefix="/api")
+app.include_router(bookings_router, prefix="/api")
+app.include_router(reports_router, prefix="/api")
+app.include_router(ai_router, prefix="/api")
+app.include_router(cleaning_router, prefix="/api")
+app.include_router(guest_router, prefix="/api")
+app.include_router(ical_router, prefix="/api")
+app.include_router(portal_admin_router, prefix="/api")
 
 # Case management
 app.include_router(cm_auth_router)
