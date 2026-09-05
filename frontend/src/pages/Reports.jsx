@@ -105,7 +105,7 @@ export default function Reports() {
       {loading && <div className="text-center py-8 text-gray-400">Φόρτωση...</div>}
 
       {/* OCCUPANCY */}
-      {!loading && tab === 'occupancy' && occData && (
+      {!loading && tab === 'occupancy' && occData && occData.summary && (
         <div className="space-y-4">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <div className="bg-white rounded-xl border border-gray-200 p-4"><p className="text-xs text-gray-500 mb-1">Μ.Ο. Πληρότητας</p><p className="text-2xl font-bold text-blue-700">{occData.summary.avg_occupancy_rate}%</p></div>
