@@ -239,6 +239,15 @@ def lead_to_dict(l: CMLead, include_comments: bool = False, last_comment: dict =
             transcript = l.ermis_transcript
     # Display name: prefer canonical agent full_name when agent is linked, else stored text
     consultant = (l.assigned_agent.full_name if l.assigned_agent else None) or l.assigned_name
+    # Sanitize program_title: if it's just a short alias for the program category
+    # (e.g. "ΤΑΜΕΙΟ ΜΙΚΡΟΠΙΣΤΩΣΕΩΝ" → "ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ"), null it so the UI falls
+    # back to the canonical program field instead of showing the alias.
+    from routes.cm_leads_sync import _resolve_program as _rp
+    _raw_pt = getattr(l, "program_title", None)
+    if _raw_pt:
+        _resolved = _rp(_raw_pt)
+        if _resolved and _resolved != _raw_pt:
+            _raw_pt = None
     data = {
         "id": l.id,
         "name": l.name,
@@ -247,7 +256,7 @@ def lead_to_dict(l: CMLead, include_comments: bool = False, last_comment: dict =
         "email": l.email,
         "afm": l.afm,
         "program": l.program,
-        "program_title": getattr(l, "program_title", None),
+        "program_title": _raw_pt,
         "service_type": l.service_type,
         "total_amount": l.total_amount or 0,
         "status": l.status,
@@ -626,8 +635,14 @@ def filter_options(
     _st_rows = db.query(CMLead.service_type).filter(
         CMLead.service_type.isnot(None), CMLead.program_title.is_(None)
     ).distinct().all()
+    from routes.cm_leads_sync import _resolve_program as _rp2
+    def _pt_ok(v):
+        if not v or not is_valid_program_title(v):
+            return False
+        resolved = _rp2(v)
+        return not (resolved and resolved != v)  # exclude aliases like "ΤΑΜΕΙΟ ΜΙΚΡΟΠΙΣΤΩΣΕΩΝ"
     program_titles = sorted(
-        {p[0] for p in _pt_rows if p[0] and is_valid_program_title(p[0])} |
+        {p[0] for p in _pt_rows if _pt_ok(p[0])} |
         {p[0] for p in _st_rows if p[0] and program_category_from_title(p[0])}
     )
     # Build canonical consultant list: use agent full_name when agent_id is set,
