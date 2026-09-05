@@ -69,6 +69,7 @@ export async function GET(request: NextRequest) {
       caseCreatedId: null,
       lastActivityAt: { lt: sixHoursAgo },
       reminder1SentAt: null,
+      eligibilityStatus: { not: 'NOT_ELIGIBLE' },
     },
   })
 
@@ -131,6 +132,7 @@ export async function GET(request: NextRequest) {
       caseCreatedId: null,
       reminder1SentAt: { not: null, lt: twentyFourHoursAgo },
       reminder2SentAt: null,
+      eligibilityStatus: { not: 'NOT_ELIGIBLE' },
     },
   })
 
