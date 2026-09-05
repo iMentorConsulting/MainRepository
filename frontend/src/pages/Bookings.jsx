@@ -425,7 +425,6 @@ export default function Bookings() {
 
   useEffect(() => { load() }, [load])
 
-  // Open edit modal from URL param ?edit=ID or from calendar navigation
   useEffect(() => {
     const params = new URLSearchParams(location.search)
     const editId = params.get('edit')
@@ -617,8 +616,8 @@ export default function Bookings() {
                     </span>
                   </td>
                   <td className="px-4 py-3 text-right hidden lg:table-cell">
-                    <p className="font-medium text-gray-800">€{b.total_price.toLocaleString('el-GR')}</p>
-                    {b.commission > 0 && <p className="text-xs text-gray-400">-€{b.commission.toFixed(2)} προμ.</p>}
+                    <p className="font-medium text-gray-800">€{(b.total_price ?? 0).toLocaleString('el-GR')}</p>
+                    {b.commission > 0 && <p className="text-xs text-gray-400">-€{(b.commission ?? 0).toFixed(2)} προμ.</p>}
                   </td>
                   <td className="px-4 py-3 hidden lg:table-cell">
                     <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${ST[b.status]?.color}`}>
