@@ -1,79 +1,81 @@
-import { useState, useEffect } from 'react'
-import { getTenants, login as apiLogin } from '../api'
+import { useEffect, useState } from 'react'
+import { getTenants, login } from '../api'
+import toast from 'react-hot-toast'
 
 export default function Login({ onLogin }) {
   const [tenants, setTenants] = useState([])
-  const [tenantId, setTenantId] = useState('')
-  const [password, setPassword] = useState('')
+  const [form, setForm] = useState({ tenant_id: '', password: '' })
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
 
   useEffect(() => {
-    getTenants().then((r) => setTenants(r.data)).catch(() => {})
+    getTenants().then(r => {
+      setTenants(r.data)
+      if (r.data.length > 0) setForm(f => ({ ...f, tenant_id: r.data[0].id }))
+    })
   }, [])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
     setLoading(true)
-    setError('')
     try {
-      const r = await apiLogin({ tenant_id: tenantId, password })
-      localStorage.setItem('auth', JSON.stringify(r.data))
-      onLogin(r.data)
-    } catch {
-      setError('Λάθος επιχείρηση ή κωδικός. Δοκιμάστε ξανά.')
+      const r = await login({ tenant_id: form.tenant_id, password: form.password })
+      const auth = r.data
+      localStorage.setItem('auth', JSON.stringify(auth))
+      onLogin(auth)
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Λάθος επιχείρηση ή κωδικός')
     } finally {
       setLoading(false)
     }
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-8">
+    <div className="min-h-screen bg-gradient-to-br from-[#1e3a5f] to-[#2d5986] flex items-center justify-center p-4">
+      <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <div className="text-5xl mb-4">🏨</div>
-          <h1 className="text-2xl font-bold text-gray-800">Διαχείριση Κρατήσεων</h1>
-          <p className="text-sm text-gray-500 mt-1">Επιλέξτε επιχείρηση και εισάγετε κωδικό</p>
+          <img src="/logo-white.png" alt="iMentor Consulting" className="h-44 w-auto object-contain mx-auto mb-3" />
+          <p className="text-blue-200 mt-1">Σύστημα Διαχείρισης Κρατήσεων</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="label">Επιχείρηση</label>
-            <select
-              className="input"
-              value={tenantId}
-              onChange={(e) => setTenantId(e.target.value)}
-              required
-            >
-              <option value="">-- Επιλέξτε --</option>
-              {tenants.map((t) => (
-                <option key={t.id} value={t.id}>{t.name}</option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="label">Κωδικός</label>
-            <input
-              className="input"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              autoComplete="current-password"
-            />
-          </div>
-
-          {error && (
-            <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700">
-              {error}
+        <div className="bg-white rounded-2xl shadow-2xl p-8">
+          <form onSubmit={handleSubmit} className="space-y-5">
+            <div>
+              <label className="label">Επιχείρηση</label>
+              <select
+                className="input"
+                value={form.tenant_id}
+                onChange={e => setForm(f => ({ ...f, tenant_id: e.target.value }))}
+                required
+              >
+                {tenants.map(t => (
+                  <option key={t.id} value={t.id}>{t.name}</option>
+                ))}
+              </select>
             </div>
-          )}
-
-          <button type="submit" disabled={loading} className="btn-primary w-full py-3 text-base">
-            {loading ? 'Σύνδεση...' : 'Σύνδεση'}
-          </button>
-        </form>
+            <div>
+              <label className="label">Κωδικός</label>
+              <input
+                type="password"
+                className="input"
+                placeholder="••••••••"
+                value={form.password}
+                onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
+                required
+                autoFocus
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={loading || !form.tenant_id}
+              className="w-full bg-[#1e3a5f] hover:bg-[#2d5986] text-white font-semibold py-3 rounded-lg transition-colors disabled:opacity-60"
+            >
+              {loading ? 'Σύνδεση...' : 'Σύνδεση'}
+            </button>
+          </form>
+        </div>
+        <p className="text-center text-blue-200/60 text-xs mt-6">
+          © {new Date().getFullYear()} iMentor Consulting
+        </p>
       </div>
     </div>
   )

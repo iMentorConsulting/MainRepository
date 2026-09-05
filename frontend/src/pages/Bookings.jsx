@@ -3,12 +3,14 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import {
   getBookings, getUnits, getCustomers, createBooking, updateBooking, deleteBooking,
   createCustomer, recommendUnit, exportBookings, downloadTemplate, importBookings,
+  getPortalLink, sendPortalEmail,
 } from '../api'
 import toast from 'react-hot-toast'
 import { format } from 'date-fns'
 import {
   PlusIcon, XMarkIcon, TrashIcon, PencilSquareIcon,
   SparklesIcon, FunnelIcon, ArrowDownTrayIcon, ArrowUpTrayIcon,
+  LinkIcon, EnvelopeIcon,
 } from '@heroicons/react/24/outline'
 
 const CHANNELS = [
@@ -46,8 +48,43 @@ function BookingModal({ booking, units, customers: initCustomers, onClose, onSav
   const [showNewCust, setShowNewCust] = useState(false)
   const [newCust, setNewCust] = useState({ fullName: '', email: '', phone: '', nationality: '', id_number: '' })
   const [savingCust, setSavingCust] = useState(false)
+  const [portalLink, setPortalLink] = useState(null)
+  const [portalLinkError, setPortalLinkError] = useState(false)
+  const [sendingEmail, setSendingEmail] = useState(false)
 
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }))
+
+  useEffect(() => {
+    if (booking?.id) {
+      setPortalLink(null)
+      setPortalLinkError(false)
+      getPortalLink(booking.id)
+        .then((r) => setPortalLink(r.data))
+        .catch(() => setPortalLinkError(true))
+    }
+  }, [booking?.id])
+
+  const portalFullUrl = portalLink?.portal_url
+    ? `${window.location.origin}${portalLink.portal_url}`
+    : null
+
+  const handleCopyLink = () => {
+    if (!portalFullUrl) return
+    navigator.clipboard.writeText(portalFullUrl)
+    toast.success('Ο σύνδεσμος αντιγράφηκε!')
+  }
+
+  const handleSendEmail = async () => {
+    setSendingEmail(true)
+    try {
+      await sendPortalEmail(booking.id, {})
+      toast.success('Email στάλθηκε στον πελάτη!')
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Σφάλμα αποστολής email')
+    } finally {
+      setSendingEmail(false)
+    }
+  }
 
   const handleCustSearch = async (e) => {
     const v = e.target.value
@@ -295,6 +332,59 @@ function BookingModal({ booking, units, customers: initCustomers, onClose, onSav
             <textarea className="input" rows={2} value={form.notes || ''} onChange={(e) => set('notes', e.target.value)} />
           </div>
 
+          {/* Guest Portal Link — only for saved bookings */}
+          {booking?.id && (
+            <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-semibold text-indigo-800 flex items-center gap-1.5">
+                  <LinkIcon className="h-4 w-4" /> Guest Portal
+                </span>
+                {portalLink && (
+                  portalLink.is_verified
+                    ? <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">✓ Επαληθευμένος</span>
+                    : <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">Αναμένει επαλήθευση</span>
+                )}
+              </div>
+
+              {portalLinkError && (
+                <p className="text-xs text-red-500">Σφάλμα φόρτωσης συνδέσμου — ελέγξτε αν οι πίνακες guest portal έχουν δημιουργηθεί.</p>
+              )}
+
+              {!portalLink && !portalLinkError && (
+                <p className="text-xs text-indigo-400 animate-pulse">Φόρτωση συνδέσμου...</p>
+              )}
+
+              {portalLink && (
+                <>
+                  <div className="flex gap-2">
+                    <input
+                      readOnly
+                      value={portalFullUrl || ''}
+                      className="input text-xs flex-1 bg-white font-mono select-all cursor-pointer"
+                      onClick={(e) => e.target.select()}
+                    />
+                    <button
+                      type="button"
+                      onClick={handleCopyLink}
+                      className="btn-secondary text-xs whitespace-nowrap px-3"
+                    >
+                      Αντιγραφή
+                    </button>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleSendEmail}
+                    disabled={sendingEmail}
+                    className="w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium py-2 rounded-lg transition disabled:opacity-60"
+                  >
+                    <EnvelopeIcon className="h-4 w-4" />
+                    {sendingEmail ? 'Αποστολή...' : 'Αποστολή email στον πελάτη'}
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+
           <div className="flex gap-2 pt-2">
             <button type="button" onClick={onClose} className="btn-secondary flex-1">Ακύρωση</button>
             <button type="submit" disabled={saving} className="btn-primary flex-1">{saving ? 'Αποθήκευση...' : 'Αποθήκευση'}</button>
@@ -335,7 +425,6 @@ export default function Bookings() {
 
   useEffect(() => { load() }, [load])
 
-  // Open edit modal from URL param ?edit=ID or from calendar navigation
   useEffect(() => {
     const params = new URLSearchParams(location.search)
     const editId = params.get('edit')
@@ -527,8 +616,8 @@ export default function Bookings() {
                     </span>
                   </td>
                   <td className="px-4 py-3 text-right hidden lg:table-cell">
-                    <p className="font-medium text-gray-800">€{b.total_price.toLocaleString('el-GR')}</p>
-                    {b.commission > 0 && <p className="text-xs text-gray-400">-€{b.commission.toFixed(2)} προμ.</p>}
+                    <p className="font-medium text-gray-800">€{(b.total_price ?? 0).toLocaleString('el-GR')}</p>
+                    {b.commission > 0 && <p className="text-xs text-gray-400">-€{(b.commission ?? 0).toFixed(2)} προμ.</p>}
                   </td>
                   <td className="px-4 py-3 hidden lg:table-cell">
                     <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${ST[b.status]?.color}`}>
