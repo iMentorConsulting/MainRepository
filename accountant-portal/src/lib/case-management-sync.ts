@@ -68,12 +68,18 @@ export async function notifyCaseManagement(data: {
 
   const program_category = deriveProgramCategory(data.programTitle)
 
+  // Append the full Ερμής transcript to description so CM receives it in the
+  // field it already reads, in the same format shown in the portal case history.
+  const descriptionWithTranscript = data.ermis_transcript
+    ? `${data.description || ''}\n\n--- ΠΛΗΡΗΣ ΣΥΝΟΜΙΛΙΑ ΕΡΜΗ ---\n${data.ermis_transcript}`.trim()
+    : data.description
+
   try {
     console.log(`[CaseManagement] Sending case.created for case #${data.caseNumber} to ${url}`)
     const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey },
-      body: JSON.stringify({ event: 'case.created', ...data, program_category }),
+      body: JSON.stringify({ event: 'case.created', ...data, description: descriptionWithTranscript, program_category }),
     })
     const responseText = await res.text().catch(() => '')
     if (!res.ok) {
