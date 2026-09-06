@@ -76,17 +76,18 @@ def send_portal_email(
 
 
 def send_notification_email(
-    event_type: str,      # 'message' | 'service_request' | 'photo'
+    event_type: str,      # 'message' | 'service_request' | 'photo' | 'maintenance'
     guest_name: str,
     unit_name: str,
     content: str,
     portal_admin_url: str,
     settings=None,
+    to_email: str = None,
 ) -> bool:
-    """Notify the manager when a guest sends a message or service request."""
+    """Notify the manager (or owner) when a guest sends a message or service request."""
     if not settings:
         return False
-    notify_to = settings.notification_email or settings.manager_email
+    notify_to = to_email or settings.notification_email or settings.manager_email
     if not notify_to:
         return False
 
@@ -94,8 +95,8 @@ def send_notification_email(
     if not all([host, user, pwd]):
         return False
 
-    icons = {'message': '💬', 'service_request': '🛎️', 'photo': '📷'}
-    labels = {'message': 'New Message', 'service_request': 'Service Request', 'photo': 'Photo Report'}
+    icons = {'message': '💬', 'service_request': '🛎️', 'photo': '📷', 'maintenance': '🔧'}
+    labels = {'message': 'New Message', 'service_request': 'Service Request', 'photo': 'Photo Report', 'maintenance': 'Maintenance Issue'}
     icon  = icons.get(event_type, '📩')
     label = labels.get(event_type, 'Notification')
     sender_name = (settings and settings.from_name) or 'Guest Portal'

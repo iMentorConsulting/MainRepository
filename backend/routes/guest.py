@@ -17,6 +17,27 @@ router = APIRouter(prefix="/guest", tags=["guest"])
 UPLOAD_DIR = os.getenv("UPLOAD_DIR", "/data/uploads")
 
 
+def _notify_owner(booking, db, event_type, guest_name, unit_name, content, s):
+    """Send the same notification email to the unit owner if one is assigned."""
+    try:
+        from models import Owner as _Owner
+        if booking.unit and booking.unit.owner_id:
+            owner = db.query(_Owner).filter(_Owner.id == booking.unit.owner_id).first()
+            if owner and owner.email:
+                from email_utils import send_notification_email
+                send_notification_email(
+                    event_type=event_type,
+                    guest_name=guest_name,
+                    unit_name=unit_name,
+                    content=content,
+                    portal_admin_url="/portal",
+                    settings=s,
+                    to_email=owner.email,
+                )
+    except Exception:
+        pass
+
+
 def _resolve(token_str: str, db: Session, need_verified: bool = True):
     gt = db.query(GuestToken).filter(
         GuestToken.token == token_str,
@@ -220,7 +241,7 @@ def create_request(token: str, body: dict, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(req)
 
-    # Notify manager
+    # Notify manager + owner
     try:
         from email_utils import send_notification_email
         s = _settings(db, booking.tenant)
@@ -238,6 +259,7 @@ def create_request(token: str, body: dict, db: Session = Depends(get_db)):
             portal_admin_url="/portal",
             settings=s,
         )
+        _notify_owner(booking, db, "service_request", guest_name, unit_name, content, s)
     except Exception:
         pass
 
@@ -412,21 +434,23 @@ async def upload_photo_message(
 
     db.commit()
 
-    # Notify manager
+    # Notify manager + owner
     try:
         from email_utils import send_notification_email
         s = _settings(db, booking.tenant)
         cust = booking.customer
         guest_name = f"{cust.first_name} {cust.last_name}".strip() if cust else "Guest"
         unit_name = booking.unit.name if booking.unit else ""
+        photo_content = description or "Guest submitted a photo report."
         send_notification_email(
             event_type="photo",
             guest_name=guest_name,
             unit_name=unit_name,
-            content=description or "Guest submitted a photo report.",
+            content=photo_content,
             portal_admin_url="/portal",
             settings=s,
         )
+        _notify_owner(booking, db, "photo", guest_name, unit_name, photo_content, s)
     except Exception:
         pass
 
@@ -480,6 +504,7 @@ def report_issue(token: str, body: dict, db: Session = Depends(get_db)):
             portal_admin_url="/portal",
             settings=s,
         )
+        _notify_owner(booking, db, "maintenance", guest_name, unit_name, content, s)
     except Exception:
         pass
 
