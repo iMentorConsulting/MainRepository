@@ -74,6 +74,15 @@ export const getDailyTasks = (params) => api.get('/cleaning/daily', { params })
 export const getCleaningSettings = () => api.get('/cleaning/settings')
 export const saveCleaningSettings = (data) => api.put('/cleaning/settings', data)
 
+// Expenses
+export const getExpenses = (params) => api.get('/expenses/', { params })
+export const createExpense = (data) => api.post('/expenses/', data)
+export const updateExpense = (id, data) => api.put(`/expenses/${id}`, data)
+export const deleteExpense = (id) => api.delete(`/expenses/${id}`)
+export const getExpenseCategories = () => api.get('/expenses/categories')
+export const getExpenseUnitTypes = () => api.get('/expenses/unit-types')
+export const getExpenseSummary = (params) => api.get('/expenses/summary', { params })
+
 // iCal sync
 export const syncIcalAll = () => api.post('/ical/sync')
 export const syncIcalUnit = (unitId) => api.post(`/ical/sync/${unitId}`)

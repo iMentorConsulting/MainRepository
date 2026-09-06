@@ -187,6 +187,22 @@ class GuestPortalSettings(Base):
     notification_email = Column(String(200))
 
 
+class Expense(Base):
+    __tablename__ = "expenses"
+
+    id = Column(Integer, primary_key=True, index=True)
+    tenant = Column(String(50), nullable=False, index=True)
+    date = Column(Date, nullable=False)
+    category = Column(String(100), nullable=False)
+    item = Column(String(300), nullable=False)
+    vendor = Column(String(200))
+    amount = Column(Float, nullable=False, default=0.0)
+    unit_id = Column(Integer, ForeignKey("units.id"), nullable=True)
+    unit_type = Column(String(50), nullable=True)
+    notes = Column(Text)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 class InstallationLicense(Base):
     __tablename__ = 'installation_licenses'
 
