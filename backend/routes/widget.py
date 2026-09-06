@@ -3,7 +3,7 @@ from datetime import date, timedelta
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from database import get_db
-from auth import get_tenant
+from auth_utils import get_tenant
 from models import Unit, Booking, BookingInquiry, GuestPortalSettings
 
 router = APIRouter()
@@ -52,9 +52,9 @@ def widget_info(token: str, db: Session = Depends(get_db)):
         "capacity": unit.capacity,
         "description": unit.description or "",
         "base_price": unit.base_price,
-        "property_name": (s and s.property_name) or unit.name,
-        "primary_color": (s and s.primary_color) or "#1e3a5f",
-        "logo_url": (s and s.logo_url) or "",
+        "property_name": unit.name,
+        "primary_color": "#1e3a5f",
+        "logo_url": "",
         "booked_dates": _booked_dates(unit.id, db),
     }
 
