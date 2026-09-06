@@ -527,6 +527,27 @@ def start_ermis(
     return {"ok": True, "status": "starting"}
 
 
+@router.post("/{lead_id}/ermis/fetch-transcript")
+def fetch_ermis_transcript(
+    lead_id: int,
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Pull the ERMIS transcript from LOGISTIS for a single lead."""
+    from routes.cm_leads import _fetch_logistis_transcript
+    l = db.query(CMLead).filter(CMLead.id == lead_id).first()
+    if not l:
+        raise HTTPException(status_code=404, detail="Lead δεν βρέθηκε")
+    if not l.portal_case_number:
+        raise HTTPException(status_code=400, detail="Δεν υπάρχει portal_case_number για αυτό το lead")
+    transcript = _fetch_logistis_transcript(l.portal_case_number)
+    if not transcript:
+        raise HTTPException(status_code=404, detail="Δεν βρέθηκε transcript από LOGISTIS")
+    l.ermis_transcript = transcript
+    db.commit()
+    return {"ok": True}
+
+
 @router.post("/{lead_id}/ermis/resend-link")
 def resend_ermis_link(
     lead_id: int,

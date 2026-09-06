@@ -3,7 +3,7 @@ import {
   getLeads, getLeadFilterOptions, getLead, createLead, updateLead, deleteLead,
   getLeadComments, addLeadComment, editLeadComment, deleteLeadComment,
   sendLeadMessage, convertLeadToCase, startLeadErmis, resendLeadErmisLink, bulkStartErmis, bulkResendErmis, getLeadDuplicates, mergeLeads,
-  retryErmisErrors, backfillErmisTranscripts, getAuth,
+  retryErmisErrors, backfillErmisTranscripts, fetchLeadErmisTranscript, getAuth,
 } from '../api'
 import {
   MagnifyingGlassIcon, PlusIcon, TrashIcon, ChevronDownIcon, ChevronUpIcon, ChevronRightIcon,
@@ -374,6 +374,19 @@ function ExpandedRow({ lead, colSpan, onChanged, onConvert, onErmis, onSend, pro
           })()}
           <span className="text-sm text-gray-500">Referrer: <b className="text-gray-700">{full?.source || '—'}</b></span>
           {full?.portal_case_link && <a href={full.portal_case_link} target="_blank" rel="noreferrer" className="text-sm font-semibold text-blue-600 hover:underline">↗ Υπόθεση LOGISTIS #{full.portal_case_number}</a>}
+          {full?.portal_case_number && !full?.ermis_transcript && (
+            <button onClick={async () => {
+              setSyncing(true)
+              try {
+                await fetchLeadErmisTranscript(lead.id)
+                toast.success('Transcript αποθηκεύτηκε')
+                await reload()
+              } catch (e) { toast.error(e.response?.data?.detail || 'Δεν βρέθηκε transcript από LOGISTIS') }
+              finally { setSyncing(false) }
+            }} disabled={syncing} className="flex items-center gap-1 text-sm bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200 px-3 py-1.5 rounded-lg disabled:opacity-50">
+              <SparklesIcon className="w-4 h-4" />{syncing ? '…' : '↓ Transcript ΕΡΜΗΣ'}
+            </button>
+          )}
           {/* ΕΡΜΗΣ action: only show when not yet started or on error; never allow re-start when done */}
           {(!full?.ermis_status || full?.ermis_status === 'error') && (
             <button onClick={() => onErmis(lead)} className="flex items-center gap-1 text-sm bg-indigo-100 text-indigo-700 hover:bg-indigo-200 px-3 py-1.5 rounded-lg">
