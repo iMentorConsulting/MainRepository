@@ -2,9 +2,11 @@ import { useEffect, useState, useMemo } from 'react'
 import {
   getExpenses, createExpense, updateExpense, deleteExpense,
   getExpenseCategories, getExpenseUnitTypes, getUnits,
+  downloadExpensesTemplate, importExpenses,
 } from '../api'
-import { PlusIcon, PencilSquareIcon, TrashIcon, XMarkIcon, FunnelIcon } from '@heroicons/react/24/outline'
+import { PlusIcon, PencilSquareIcon, TrashIcon, XMarkIcon, FunnelIcon, ArrowDownTrayIcon, ArrowUpTrayIcon } from '@heroicons/react/24/outline'
 import toast from 'react-hot-toast'
+import { useRef } from 'react'
 
 const EMPTY = {
   date: new Date().toISOString().split('T')[0],
@@ -166,6 +168,9 @@ export default function Expenses() {
 
   const [modal, setModal] = useState(null) // null | {} (new) | expense obj (edit)
   const [deleting, setDeleting] = useState(null)
+  const [importing, setImporting] = useState(false)
+  const [showBreakdown, setShowBreakdown] = useState(true)
+  const importRef = useRef()
 
   const load = async () => {
     setLoading(true)
@@ -198,6 +203,31 @@ export default function Expenses() {
 
   useEffect(() => { load() }, [filterMonth, filterCat, filterUnit, showAll])
 
+  const handleDownloadTemplate = async () => {
+    try {
+      const r = await downloadExpensesTemplate()
+      const url = URL.createObjectURL(new Blob([r.data]))
+      const a = document.createElement('a'); a.href = url; a.download = 'expenses_template.xlsx'; a.click()
+      URL.revokeObjectURL(url)
+    } catch { toast.error('Σφάλμα λήψης template') }
+  }
+
+  const handleImport = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setImporting(true)
+    try {
+      const r = await importExpenses(file)
+      const { imported, errors } = r.data
+      toast.success(`Εισάγθηκαν ${imported} εγγραφές`)
+      if (errors.length) toast.error(`${errors.length} σφάλματα:\n${errors.slice(0, 3).join('\n')}`, { duration: 6000 })
+      load()
+    } catch { toast.error('Σφάλμα εισαγωγής') } finally {
+      setImporting(false)
+      e.target.value = ''
+    }
+  }
+
   const handleDelete = async (e) => {
     try {
       await deleteExpense(e.id)
@@ -208,6 +238,13 @@ export default function Expenses() {
       toast.error('Σφάλμα διαγραφής')
     }
   }
+
+  // Category breakdown
+  const catBreakdown = useMemo(() => {
+    const map = {}
+    expenses.forEach(e => { map[e.category] = (map[e.category] || 0) + e.amount })
+    return Object.entries(map).sort((a, b) => b[1] - a[1]).map(([cat, amt]) => ({ cat, amt }))
+  }, [expenses])
 
   // Group by month for subtotals
   const grouped = useMemo(() => {
@@ -239,9 +276,18 @@ export default function Expenses() {
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-2">
         <h2 className="text-xl font-bold text-gray-800">💶 Έξοδα</h2>
-        <button onClick={() => setModal({})} className="btn-primary flex items-center gap-1">
-          <PlusIcon className="h-4 w-4" /> Νέο Έξοδο
-        </button>
+        <div className="flex items-center gap-2 flex-wrap">
+          <button onClick={handleDownloadTemplate} className="btn-secondary flex items-center gap-1 text-sm">
+            <ArrowDownTrayIcon className="h-4 w-4" /> Template
+          </button>
+          <button onClick={() => importRef.current?.click()} disabled={importing} className="btn-secondary flex items-center gap-1 text-sm">
+            <ArrowUpTrayIcon className="h-4 w-4" /> {importing ? 'Εισαγωγή...' : 'Εισαγωγή Excel'}
+          </button>
+          <input ref={importRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleImport} />
+          <button onClick={() => setModal({})} className="btn-primary flex items-center gap-1">
+            <PlusIcon className="h-4 w-4" /> Νέο Έξοδο
+          </button>
+        </div>
       </div>
 
       {/* Filters */}
@@ -277,6 +323,38 @@ export default function Expenses() {
         </span>
         <span className="text-2xl font-bold text-red-700">€{fmt(total)}</span>
       </div>
+
+      {/* Category breakdown */}
+      {!loading && expenses.length > 0 && (
+        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <button
+            onClick={() => setShowBreakdown(s => !s)}
+            className="w-full flex items-center justify-between px-4 py-3 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors"
+          >
+            <span>📊 Ανάλυση ανά Κατηγορία</span>
+            <span className="text-gray-400 text-xs">{showBreakdown ? '▲ Απόκρυψη' : '▼ Εμφάνιση'}</span>
+          </button>
+          {showBreakdown && (
+            <div className="px-4 pb-4 space-y-2 border-t border-gray-100 pt-3">
+              {catBreakdown.map(({ cat, amt }) => (
+                <div key={cat} className="flex items-center gap-3">
+                  <span className="text-xs text-gray-600 w-44 truncate flex-shrink-0">{cat}</span>
+                  <div className="flex-1 bg-gray-100 rounded-full h-2.5 overflow-hidden">
+                    <div
+                      className="bg-red-400 h-2.5 rounded-full transition-all"
+                      style={{ width: `${total > 0 ? Math.max(3, (amt / total) * 100) : 0}%` }}
+                    />
+                  </div>
+                  <span className="text-xs font-semibold text-gray-700 w-24 text-right flex-shrink-0">
+                    €{fmt(amt)}
+                    <span className="text-gray-400 font-normal ml-1">({total > 0 ? ((amt / total) * 100).toFixed(0) : 0}%)</span>
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {loading && <div className="text-center py-10 text-gray-400">Φόρτωση...</div>}
 

@@ -19,6 +19,7 @@ from routes.guest import router as guest_router
 from routes.ical import router as ical_router
 from routes.portal_admin import router as portal_admin_router
 from routes.expenses import router as expenses_router
+from routes.maintenance import router as maintenance_router
 
 # Case management routes
 from routes.cm_auth import router as cm_auth_router
@@ -52,6 +53,30 @@ try:
         _bc.execute(_text_b("ALTER TABLE guest_portal_settings ADD COLUMN smtp_user VARCHAR(200)"))
         _bc.execute(_text_b("ALTER TABLE guest_portal_settings ADD COLUMN smtp_pass VARCHAR(200)"))
         _bc.execute(_text_b("ALTER TABLE guest_portal_settings ADD COLUMN notification_email VARCHAR(200)"))
+        _bc.commit()
+except Exception:
+    pass
+
+try:
+    with engine.connect() as _bc:
+        _bc.execute(_text_b("""
+            CREATE TABLE IF NOT EXISTS maintenance_issues (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                tenant VARCHAR(50) NOT NULL,
+                unit_id INTEGER NOT NULL REFERENCES units(id),
+                title VARCHAR(200) NOT NULL,
+                description TEXT,
+                category VARCHAR(50) NOT NULL,
+                priority VARCHAR(20) NOT NULL DEFAULT 'medium',
+                status VARCHAR(20) NOT NULL DEFAULT 'open',
+                reported_by VARCHAR(20) DEFAULT 'manager',
+                reporter_name VARCHAR(100),
+                notes TEXT,
+                booking_id INTEGER REFERENCES bookings(id),
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                resolved_at DATETIME
+            )
+        """))
         _bc.commit()
 except Exception:
     pass
@@ -374,6 +399,7 @@ app.include_router(guest_router, prefix="/api")
 app.include_router(ical_router, prefix="/api")
 app.include_router(portal_admin_router, prefix="/api")
 app.include_router(expenses_router, prefix="/api")
+app.include_router(maintenance_router, prefix="/api")
 
 # Case management
 app.include_router(cm_auth_router)

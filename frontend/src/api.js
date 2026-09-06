@@ -82,6 +82,20 @@ export const deleteExpense = (id) => api.delete(`/expenses/${id}`)
 export const getExpenseCategories = () => api.get('/expenses/categories')
 export const getExpenseUnitTypes = () => api.get('/expenses/unit-types')
 export const getExpenseSummary = (params) => api.get('/expenses/summary', { params })
+export const downloadExpensesTemplate = () => api.get('/expenses/template/excel', { responseType: 'blob' })
+export const importExpenses = (file) => {
+  const fd = new FormData(); fd.append('file', file)
+  return api.post('/expenses/import/excel', fd, { headers: { 'Content-Type': 'multipart/form-data' } })
+}
+
+// Maintenance
+export const getMaintenanceIssues = (params) => api.get('/maintenance/', { params })
+export const createMaintenanceIssue = (data) => api.post('/maintenance/', data)
+export const updateMaintenanceIssue = (id, data) => api.put(`/maintenance/${id}`, data)
+export const updateMaintenanceStatus = (id, data) => api.patch(`/maintenance/${id}/status`, data)
+export const deleteMaintenanceIssue = (id) => api.delete(`/maintenance/${id}`)
+export const getMaintenanceCategories = () => api.get('/maintenance/categories')
+export const getMaintenanceStats = () => api.get('/maintenance/stats')
 
 // iCal sync
 export const syncIcalAll = () => api.post('/ical/sync')

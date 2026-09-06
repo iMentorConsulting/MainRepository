@@ -203,6 +203,27 @@ class Expense(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
+class MaintenanceIssue(Base):
+    __tablename__ = "maintenance_issues"
+
+    id = Column(Integer, primary_key=True, index=True)
+    tenant = Column(String(50), nullable=False, index=True)
+    unit_id = Column(Integer, ForeignKey("units.id"), nullable=False)
+    title = Column(String(200), nullable=False)
+    description = Column(Text)
+    category = Column(String(50), nullable=False)
+    priority = Column(String(20), nullable=False, default="medium")  # low/medium/high/urgent
+    status = Column(String(20), nullable=False, default="open")      # open/in_progress/resolved
+    reported_by = Column(String(20), default="manager")              # manager/guest/cleaner
+    reporter_name = Column(String(100))
+    notes = Column(Text)
+    booking_id = Column(Integer, ForeignKey("bookings.id"), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    resolved_at = Column(DateTime, nullable=True)
+
+    unit = relationship("Unit")
+
+
 class InstallationLicense(Base):
     __tablename__ = 'installation_licenses'
 

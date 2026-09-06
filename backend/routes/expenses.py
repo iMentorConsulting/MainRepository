@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends, Query, HTTPException
+from fastapi import APIRouter, Depends, Query, HTTPException, UploadFile, File
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from database import get_db
 from models import Expense, Unit
@@ -6,6 +7,9 @@ from auth_utils import get_tenant
 from pydantic import BaseModel
 from typing import Optional
 from datetime import date
+from io import BytesIO
+import openpyxl
+from openpyxl.styles import Font, PatternFill, Alignment
 
 router = APIRouter(prefix="/expenses", tags=["expenses"])
 
@@ -112,6 +116,92 @@ def delete_expense(expense_id: int, db: Session = Depends(get_db), tenant: str =
     db.delete(e)
     db.commit()
     return {"ok": True}
+
+
+@router.get("/template/excel")
+def download_template():
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Έξοδα"
+    headers = ["Ημερομηνία (ΕΕΕΕ-ΜΜ-ΗΗ)", "Κατηγορία", "Περιγραφή", "Προμηθευτής", "Ποσό €", "Μονάδα (προαιρετικό)"]
+    ws.append(headers)
+    ws.append(["2025-01-15", "ΡΕΥΜΑ", "Λογαριασμός ΔΕΗ Ιανουαρίου", "ΔΕΗ", 150.00, ""])
+    ws.append(["2025-01-21", "ΝΕΡΟ", "Λογαριασμός ΔΕΥΑ", "ΔΕΥΑ", 80.00, ""])
+    ws.append(["2025-01-28", "ΚΑΘΑΡΙΣΜΟΙ", "Καθαρισμός μετά αναχώρηση", "ΚΑΘΑΡΙΣΤΡΙΑ", 60.00, "VILLA VERDE"])
+    hdr_fill = PatternFill("solid", fgColor="1e3a5f")
+    hdr_font = Font(bold=True, color="FFFFFF")
+    for cell in ws[1]:
+        cell.font = hdr_font
+        cell.fill = hdr_fill
+        cell.alignment = Alignment(horizontal="center")
+    ws.column_dimensions["A"].width = 22
+    ws.column_dimensions["B"].width = 26
+    ws.column_dimensions["C"].width = 40
+    ws.column_dimensions["D"].width = 22
+    ws.column_dimensions["E"].width = 12
+    ws.column_dimensions["F"].width = 22
+    ws2 = wb.create_sheet("Κατηγορίες")
+    ws2.append(["Διαθέσιμες Κατηγορίες"])
+    ws2["A1"].font = Font(bold=True)
+    for cat in DEFAULT_CATEGORIES:
+        ws2.append([cat])
+    buf = BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=expenses_template.xlsx"},
+    )
+
+
+@router.post("/import/excel")
+async def import_expenses(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    tenant: str = Depends(get_tenant),
+):
+    content = await file.read()
+    wb = openpyxl.load_workbook(BytesIO(content), data_only=True)
+    ws = wb.active
+    imported, errors = 0, []
+    units = {u.name.upper(): u.id for u in db.query(Unit).filter(Unit.tenant == tenant).all()}
+
+    for i, row in enumerate(ws.iter_rows(min_row=2, values_only=True), start=2):
+        padded = (list(row) + [None] * 6)[:6]
+        date_val, category, item, vendor, amount, unit_ref = padded
+        if not any(padded):
+            continue
+        if not date_val or not category or not item or not amount:
+            errors.append(f"Γραμμή {i}: Λείπουν υποχρεωτικά πεδία (Ημ/νία, Κατηγορία, Περιγραφή, Ποσό)")
+            continue
+        try:
+            if isinstance(date_val, str):
+                from datetime import date as _d
+                parsed_date = _d.fromisoformat(date_val.strip())
+            elif hasattr(date_val, "date"):
+                parsed_date = date_val.date()
+            else:
+                parsed_date = date_val
+            unit_id = None
+            if unit_ref:
+                unit_id = units.get(str(unit_ref).upper().strip())
+            e = Expense(
+                tenant=tenant,
+                date=parsed_date,
+                category=str(category).upper().strip(),
+                item=str(item).strip(),
+                vendor=str(vendor).strip() if vendor else None,
+                amount=float(amount),
+                unit_id=unit_id,
+            )
+            db.add(e)
+            imported += 1
+        except Exception as ex:
+            errors.append(f"Γραμμή {i}: {ex}")
+
+    db.commit()
+    return {"imported": imported, "errors": errors}
 
 
 @router.get("/summary")
