@@ -298,12 +298,8 @@ DEFAULT_TEMPLATE_GR = """Κενό {{gap_days}} νύχτ. — {{unit_name}}
 Εναλλακτικά: Επικοινωνήστε με υπάρχοντες πελάτες για early/late checkout."""
 
 
-class TemplateIn(BaseModel):
-    template_en: str
-    template_gr: str
-
-
 from pydantic import BaseModel as _BM
+
 class TemplateIn(_BM):
     template_en: str
     template_gr: str

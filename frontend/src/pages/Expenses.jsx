@@ -4,7 +4,7 @@ import {
   getExpenseCategories, getExpenseUnitTypes, getUnits,
   downloadExpensesTemplate, importExpenses,
 } from '../api'
-import { PlusIcon, PencilSquareIcon, TrashIcon, XMarkIcon, FunnelIcon, ArrowDownTrayIcon, ArrowUpTrayIcon } from '@heroicons/react/24/outline'
+import { PlusIcon, PencilSquareIcon, TrashIcon, XMarkIcon, FunnelIcon, ArrowDownTrayIcon, ArrowUpTrayIcon, DocumentDuplicateIcon } from '@heroicons/react/24/outline'
 import toast from 'react-hot-toast'
 import { useRef } from 'react'
 
@@ -411,10 +411,13 @@ export default function Expenses() {
                         <td className="px-4 py-3 text-right font-semibold text-gray-800">€{fmt(e.amount)}</td>
                         <td className="px-3 py-3">
                           <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button onClick={() => setModal(e)} className="p-1 rounded hover:bg-blue-50 text-gray-400 hover:text-blue-600">
+                            <button onClick={() => setModal(e)} title="Επεξεργασία" className="p-1 rounded hover:bg-blue-50 text-gray-400 hover:text-blue-600">
                               <PencilSquareIcon className="h-4 w-4" />
                             </button>
-                            <button onClick={() => setDeleting(e)} className="p-1 rounded hover:bg-red-50 text-gray-400 hover:text-red-500">
+                            <button onClick={() => setModal({ ...e, id: undefined })} title="Αντιγραφή" className="p-1 rounded hover:bg-green-50 text-gray-400 hover:text-green-600">
+                              <DocumentDuplicateIcon className="h-4 w-4" />
+                            </button>
+                            <button onClick={() => setDeleting(e)} title="Διαγραφή" className="p-1 rounded hover:bg-red-50 text-gray-400 hover:text-red-500">
                               <TrashIcon className="h-4 w-4" />
                             </button>
                           </div>
