@@ -20,6 +20,7 @@ class Unit(Base):
     base_price = Column(Float, nullable=False, default=0.0)
     is_active = Column(Boolean, default=True)
     ical_url = Column(String(500), nullable=True)
+    owner_id = Column(Integer, ForeignKey("owners.id"), nullable=True)
     tenant = Column(String(50), nullable=False, default='evaivoni', index=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
@@ -236,6 +237,22 @@ class MaintenanceIssue(Base):
     resolved_at = Column(DateTime, nullable=True)
 
     unit = relationship("Unit")
+
+
+class SeasonalRate(Base):
+    __tablename__ = "seasonal_rates"
+
+    id = Column(Integer, primary_key=True, index=True)
+    tenant = Column(String(50), nullable=False, index=True)
+    name = Column(String(200), nullable=False)
+    unit_id = Column(Integer, ForeignKey("units.id"), nullable=True)
+    unit_type = Column(String(50), nullable=True)
+    date_from = Column(Date, nullable=False)
+    date_to = Column(Date, nullable=False)
+    price_per_night = Column(Float, nullable=False)
+    min_stay = Column(Integer, default=1)
+    notes = Column(Text)
+    created_at = Column(DateTime, default=datetime.utcnow)
 
 
 class InstallationLicense(Base):

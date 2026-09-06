@@ -106,6 +106,13 @@ export const assignOwnerUnits = (id, unitIds) => api.put(`/owners/${id}/units`, 
 export const getOwnerReport = (id, year, month) => api.get(`/owners/${id}/report`, { params: { year, month } })
 export const sendOwnerReport = (id, year, month) => api.post(`/owners/${id}/send-report`, null, { params: { year, month } })
 
+// Pricing
+export const getPricingRates = (params) => api.get('/pricing/rates', { params })
+export const createPricingRate = (data) => api.post('/pricing/rates', data)
+export const updatePricingRate = (id, data) => api.put(`/pricing/rates/${id}`, data)
+export const deletePricingRate = (id) => api.delete(`/pricing/rates/${id}`)
+export const checkPrice = (params) => api.get('/pricing/check', { params })
+
 // iCal sync
 export const syncIcalAll = () => api.post('/ical/sync')
 export const syncIcalUnit = (unitId) => api.post(`/ical/sync/${unitId}`)

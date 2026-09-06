@@ -15,6 +15,7 @@ import PortalAdmin from './pages/PortalAdmin'
 import Expenses from './pages/Expenses'
 import Maintenance from './pages/Maintenance'
 import Owners from './pages/Owners'
+import Pricing from './pages/Pricing'
 
 const GuestPortal = lazy(() => import('./pages/GuestPortal'))
 
@@ -78,6 +79,7 @@ export default function App() {
               <Route path="expenses" element={<Expenses />} />
               <Route path="maintenance" element={<Maintenance />} />
               <Route path="owners" element={<Owners />} />
+              <Route path="pricing" element={<Pricing />} />
               <Route path="portal" element={<PortalAdmin />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Route>
