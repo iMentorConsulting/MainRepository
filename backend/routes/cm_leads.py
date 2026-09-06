@@ -1035,6 +1035,30 @@ def backfill_programs(
     return {"ok": True, "updated": updated}
 
 
+@router.post("/backfill-ermis-transcripts")
+def backfill_ermis_transcripts(
+    current_user: CMUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Extract embedded ERMIS transcripts from notes field into ermis_transcript."""
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Μόνο για διαχειριστές")
+    _SEP = "--- ΠΛΗΡΗΣ ΣΥΝΟΜΙΛΙΑ ΕΡΜΗ ---"
+    updated = 0
+    for lead in db.query(CMLead).filter(CMLead.notes.contains(_SEP)).all():
+        if lead.ermis_transcript:
+            continue  # already has a real transcript
+        parts = lead.notes.split(_SEP, 1)
+        summary = parts[0].strip()
+        transcript = parts[1].strip() if len(parts) > 1 else None
+        if transcript:
+            lead.notes = summary or None
+            lead.ermis_transcript = transcript
+            updated += 1
+    db.commit()
+    return {"ok": True, "updated": updated}
+
+
 @router.put("/{lead_id}/comments/{comment_id}")
 def edit_comment(
     lead_id: int,
