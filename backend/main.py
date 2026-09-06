@@ -20,6 +20,7 @@ from routes.ical import router as ical_router
 from routes.portal_admin import router as portal_admin_router
 from routes.expenses import router as expenses_router
 from routes.maintenance import router as maintenance_router
+from routes.owners import router as owners_router
 
 # Case management routes
 from routes.cm_auth import router as cm_auth_router
@@ -53,6 +54,32 @@ try:
         _bc.execute(_text_b("ALTER TABLE guest_portal_settings ADD COLUMN smtp_user VARCHAR(200)"))
         _bc.execute(_text_b("ALTER TABLE guest_portal_settings ADD COLUMN smtp_pass VARCHAR(200)"))
         _bc.execute(_text_b("ALTER TABLE guest_portal_settings ADD COLUMN notification_email VARCHAR(200)"))
+        _bc.commit()
+except Exception:
+    pass
+
+try:
+    with engine.connect() as _bc:
+        _bc.execute(_text_b("""
+            CREATE TABLE IF NOT EXISTS owners (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                tenant VARCHAR(50) NOT NULL,
+                name VARCHAR(200) NOT NULL,
+                email VARCHAR(200),
+                phone VARCHAR(50),
+                management_fee_percent FLOAT DEFAULT 20.0,
+                auto_send_report BOOLEAN DEFAULT 0,
+                notes TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        """))
+        _bc.commit()
+except Exception:
+    pass
+
+try:
+    with engine.connect() as _bc:
+        _bc.execute(_text_b("ALTER TABLE units ADD COLUMN owner_id INTEGER REFERENCES owners(id)"))
         _bc.commit()
 except Exception:
     pass
@@ -367,10 +394,36 @@ def _run_agent_sla_digest():
         db.close()
 
 
+def _run_owner_reports():
+    """Send monthly owner reports on the 1st of each month."""
+    from routes.owners import owner_report as _owner_report, _send_report_email
+    from models import Owner as _Owner
+    from datetime import date as _d
+    db = SessionLocal()
+    try:
+        today = _d.today()
+        prev_month = today.month - 1 if today.month > 1 else 12
+        prev_year = today.year if today.month > 1 else today.year - 1
+        owners = db.query(_Owner).filter(_Owner.auto_send_report == True).all()
+        for o in owners:
+            if not o.email:
+                continue
+            try:
+                report = _owner_report(o.id, prev_year, prev_month, db, o.tenant)
+                _send_report_email(report, o.tenant, db)
+            except Exception as e:
+                print(f"[owner_reports] error for owner {o.id}: {e}")
+    except Exception as e:
+        print(f"[owner_reports] ERROR: {e}")
+    finally:
+        db.close()
+
+
 _scheduler = _BGScheduler(timezone=_athens_tz)
 _scheduler.add_job(_run_scheduled_refresh, "cron", hour=8, minute=0, id="refresh_08")
 _scheduler.add_job(_run_scheduled_refresh, "cron", hour=14, minute=0, id="refresh_14")
 _scheduler.add_job(_run_agent_sla_digest, "cron", hour=9, minute=0, id="sla_digest_09")
+_scheduler.add_job(_run_owner_reports, "cron", day=1, hour=9, minute=30, id="owner_reports_monthly")
 _scheduler.start()
 
 app = FastAPI(
@@ -400,6 +453,7 @@ app.include_router(ical_router, prefix="/api")
 app.include_router(portal_admin_router, prefix="/api")
 app.include_router(expenses_router, prefix="/api")
 app.include_router(maintenance_router, prefix="/api")
+app.include_router(owners_router, prefix="/api")
 
 # Case management
 app.include_router(cm_auth_router)

@@ -97,6 +97,15 @@ export const deleteMaintenanceIssue = (id) => api.delete(`/maintenance/${id}`)
 export const getMaintenanceCategories = () => api.get('/maintenance/categories')
 export const getMaintenanceStats = () => api.get('/maintenance/stats')
 
+// Owners
+export const getOwners = () => api.get('/owners/')
+export const createOwner = (data) => api.post('/owners/', data)
+export const updateOwner = (id, data) => api.put(`/owners/${id}`, data)
+export const deleteOwner = (id) => api.delete(`/owners/${id}`)
+export const assignOwnerUnits = (id, unitIds) => api.put(`/owners/${id}/units`, unitIds)
+export const getOwnerReport = (id, year, month) => api.get(`/owners/${id}/report`, { params: { year, month } })
+export const sendOwnerReport = (id, year, month) => api.post(`/owners/${id}/send-report`, null, { params: { year, month } })
+
 // iCal sync
 export const syncIcalAll = () => api.post('/ical/sync')
 export const syncIcalUnit = (unitId) => api.post(`/ical/sync/${unitId}`)

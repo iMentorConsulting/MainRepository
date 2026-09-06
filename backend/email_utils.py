@@ -123,3 +123,12 @@ def send_notification_email(
   </div>
 </body></html>"""
     return _send(host, port, user, pwd, sender_name, notify_to, subject, html)
+
+
+def send_raw_email(to_email: str, subject: str, html: str, settings=None) -> bool:
+    """Generic email sender for custom HTML content (reports, notifications)."""
+    host, port, user, pwd = _smtp_cfg(settings)
+    if not all([host, user, pwd, to_email]):
+        return False
+    sender_name = (settings and settings.from_name) or "iMentor Consulting"
+    return _send(host, port, user, pwd, sender_name, to_email, subject, html)

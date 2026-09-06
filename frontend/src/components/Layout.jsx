@@ -3,6 +3,7 @@ import {
   HomeIcon, CalendarDaysIcon, BookmarkSquareIcon, BuildingOfficeIcon,
   UsersIcon, ChartBarIcon, SparklesIcon, ArrowRightOnRectangleIcon,
   ClipboardDocumentCheckIcon, GlobeAltIcon, BanknotesIcon, WrenchScrewdriverIcon,
+  HomeModernIcon,
 } from '@heroicons/react/24/outline'
 
 const nav = [
@@ -14,6 +15,7 @@ const nav = [
   { to: '/reports', label: 'Αναφορές', Icon: ChartBarIcon },
   { to: '/expenses', label: 'Έξοδα', Icon: BanknotesIcon },
   { to: '/maintenance', label: 'Συντήρηση', Icon: WrenchScrewdriverIcon },
+  { to: '/owners', label: 'Ιδιοκτήτες', Icon: HomeModernIcon },
   { to: '/smart-advisor', label: 'AI Σύμβουλος', Icon: SparklesIcon },
   { to: '/cleaning', label: 'Καθαριότητα', Icon: ClipboardDocumentCheckIcon },
   { to: '/portal', label: 'Guest Portal', Icon: GlobeAltIcon },
@@ -99,7 +101,7 @@ export default function Layout({ auth, onLogout }) {
 
         {/* Mobile bottom nav */}
         <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-10" aria-label="Κύρια πλοήγηση">
-          <div className="grid grid-cols-6 divide-x divide-gray-100" role="list">
+          <div className="grid grid-cols-6" role="list">
             {nav.map(({ to, label, Icon, exact }) => (
               <NavLink
                 key={to}

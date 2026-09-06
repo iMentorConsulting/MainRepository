@@ -8,7 +8,7 @@ from database import get_db
 from models import (
     GuestToken, Booking, Unit, Customer,
     WelcomeGuideItem, LocalRecommendation, MarketplaceItem,
-    ServiceRequest, GuestMessage, GuestPortalSettings,
+    ServiceRequest, GuestMessage, GuestPortalSettings, MaintenanceIssue,
 )
 from auth_utils import TENANTS
 
@@ -391,6 +391,25 @@ async def upload_photo_message(
         photo_path=rel_path, message_type="issue_report",
     )
     db.add(msg)
+
+    # Auto-create MaintenanceIssue from guest photo report
+    try:
+        issue = MaintenanceIssue(
+            tenant=booking.tenant,
+            unit_id=booking.unit_id,
+            title=description[:200] if description else "Αναφορά προβλήματος από πελάτη",
+            description=description or "Ο πελάτης ανέφερε πρόβλημα (με φωτογραφία).",
+            category="Γενικά",
+            priority="medium",
+            status="open",
+            reported_by="guest",
+            reporter_name=f"{booking.customer.first_name} {booking.customer.last_name}" if booking.customer else "",
+            booking_id=booking.id,
+        )
+        db.add(issue)
+    except Exception:
+        pass
+
     db.commit()
 
     # Notify manager

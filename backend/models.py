@@ -203,6 +203,20 @@ class Expense(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
+class Owner(Base):
+    __tablename__ = "owners"
+
+    id = Column(Integer, primary_key=True, index=True)
+    tenant = Column(String(50), nullable=False, index=True)
+    name = Column(String(200), nullable=False)
+    email = Column(String(200))
+    phone = Column(String(50))
+    management_fee_percent = Column(Float, default=20.0)
+    auto_send_report = Column(Boolean, default=False)
+    notes = Column(Text)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 class MaintenanceIssue(Base):
     __tablename__ = "maintenance_issues"
 
