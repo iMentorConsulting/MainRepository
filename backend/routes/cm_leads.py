@@ -1035,28 +1035,62 @@ def backfill_programs(
     return {"ok": True, "updated": updated}
 
 
+def _fetch_logistis_transcript(case_number: int) -> Optional[str]:
+    """Pull the ERMIS chat transcript from LOGISTIS for a given case number.
+    Returns the transcript text, or None if unavailable."""
+    import requests as _req
+    import os as _os
+    secret = _os.getenv("IMENTOR_PORTAL_API_KEY", "")
+    base = _os.getenv("LOGISTIS_PORTAL_CASES_URL", "https://logistis.i-mentor.gr/api/external/cases")
+    if not secret:
+        return None
+    try:
+        url = f"{base}/{case_number}/transcript"
+        resp = _req.get(url, headers={"x-api-key": secret}, timeout=15)
+        if resp.status_code == 200:
+            data = resp.json()
+            # Accept either a plain string or a list of {role, text} messages
+            if isinstance(data, str):
+                return data
+            if isinstance(data, list):
+                lines = []
+                for msg in data:
+                    role = (msg.get("role") or "").upper()
+                    text = msg.get("text") or msg.get("content") or ""
+                    lines.append(f"{role}: {text}")
+                return "\n".join(lines) if lines else None
+            # Fall back: try "transcript" key
+            if isinstance(data, dict):
+                return data.get("transcript") or data.get("chatLog") or None
+    except Exception:
+        pass
+    return None
+
+
 @router.post("/backfill-ermis-transcripts")
 def backfill_ermis_transcripts(
     current_user: CMUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Extract embedded ERMIS transcripts from notes field into ermis_transcript."""
+    """Pull ERMIS transcripts from LOGISTIS for all leads that have a portal_case_number
+    but no ermis_transcript yet. Calls GET /api/external/cases/{n}/transcript for each."""
     if current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Μόνο για διαχειριστές")
-    _SEP = "--- ΠΛΗΡΗΣ ΣΥΝΟΜΙΛΙΑ ΕΡΜΗ ---"
+    candidates = db.query(CMLead).filter(
+        CMLead.portal_case_number.isnot(None),
+        CMLead.ermis_transcript.is_(None),
+    ).all()
     updated = 0
-    for lead in db.query(CMLead).filter(CMLead.notes.contains(_SEP)).all():
-        if lead.ermis_transcript:
-            continue  # already has a real transcript
-        parts = lead.notes.split(_SEP, 1)
-        summary = parts[0].strip()
-        transcript = parts[1].strip() if len(parts) > 1 else None
+    failed = 0
+    for lead in candidates:
+        transcript = _fetch_logistis_transcript(lead.portal_case_number)
         if transcript:
-            lead.notes = summary or None
             lead.ermis_transcript = transcript
             updated += 1
+        else:
+            failed += 1
     db.commit()
-    return {"ok": True, "updated": updated}
+    return {"ok": True, "updated": updated, "failed": failed, "total": len(candidates)}
 
 
 @router.put("/{lead_id}/comments/{comment_id}")
