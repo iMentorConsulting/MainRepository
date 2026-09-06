@@ -764,7 +764,7 @@ export default function Leads() {
         </div>
         <div className="flex items-center gap-2">
           {isAdmin && (
-            <button onClick={async () => { const r = await backfillErmisTranscripts(); toast.success(`Μεταφέρθηκαν ${r.updated} transcript(s)`) }}
+            <button onClick={async () => { const r = await backfillErmisTranscripts(); toast.success(`Μεταφέρθηκαν ${r.updated}/${r.total} transcript(s) — αποτυχίες: ${r.failed}`) }}
               className="flex items-center gap-1.5 text-sm bg-purple-100 text-purple-700 hover:bg-purple-200 border border-purple-300 px-3 py-1.5 rounded-lg font-medium">
               💬 Backfill ΕΡΜΗΣ
             </button>
