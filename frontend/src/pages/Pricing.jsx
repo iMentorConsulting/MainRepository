@@ -39,10 +39,15 @@ function nightsDiff(from, to) {
 // ── Rate Modal ────────────────────────────────────────────────────────────────
 function RateModal({ rate, units, onClose, onSaved }) {
   const [form, setForm] = useState(rate ? { ...rate } : { ...EMPTY_RATE })
+  const [scope, setScope] = useState(rate?.unit_id ? 'unit' : rate?.unit_type ? 'type' : 'all')
   const [saving, setSaving] = useState(false)
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
 
-  const scope = form.unit_id ? 'unit' : form.unit_type ? 'type' : 'all'
+  const handleScopeChange = (v) => {
+    setScope(v)
+    if (v !== 'unit') setForm(f => ({ ...f, unit_id: null }))
+    if (v !== 'type') setForm(f => ({ ...f, unit_type: '' }))
+  }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -111,11 +116,7 @@ function RateModal({ rate, units, onClose, onSaved }) {
               {[['all', 'Όλες τις μονάδες'], ['type', 'Τύπο μονάδας'], ['unit', 'Συγκεκριμένη μονάδα']].map(([v, l]) => (
                 <button key={v} type="button"
                   className={`flex-1 py-1.5 rounded-lg border text-sm font-medium transition-colors ${scope === v ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-200 hover:border-blue-400'}`}
-                  onClick={() => {
-                    if (v === 'all') setForm(f => ({ ...f, unit_id: null, unit_type: '' }))
-                    else if (v === 'type') setForm(f => ({ ...f, unit_id: null }))
-                    else setForm(f => ({ ...f, unit_type: '' }))
-                  }}>{l}</button>
+                  onClick={() => handleScopeChange(v)}>{l}</button>
               ))}
             </div>
           </div>

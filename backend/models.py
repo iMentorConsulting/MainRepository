@@ -239,6 +239,15 @@ class MaintenanceIssue(Base):
     unit = relationship("Unit")
 
 
+class GapAlertTemplate(Base):
+    __tablename__ = "gap_alert_templates"
+
+    id = Column(Integer, primary_key=True)
+    tenant = Column(String(50), nullable=False, unique=True, index=True)
+    template_en = Column(Text)
+    template_gr = Column(Text)
+
+
 class SeasonalRate(Base):
     __tablename__ = "seasonal_rates"
 

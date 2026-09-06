@@ -112,6 +112,20 @@ except Exception:
 try:
     with engine.connect() as _bc:
         _bc.execute(_text_b("""
+            CREATE TABLE IF NOT EXISTS gap_alert_templates (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                tenant VARCHAR(50) NOT NULL UNIQUE,
+                template_en TEXT,
+                template_gr TEXT
+            )
+        """))
+        _bc.commit()
+except Exception:
+    pass
+
+try:
+    with engine.connect() as _bc:
+        _bc.execute(_text_b("""
             CREATE TABLE IF NOT EXISTS seasonal_rates (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 tenant VARCHAR(50) NOT NULL,

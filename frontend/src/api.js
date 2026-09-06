@@ -68,6 +68,8 @@ export const getPriceAnalytics = (params) => api.get('/reports/price-analytics',
 export const recommendUnit = (data) => api.post('/ai/recommend-unit', data)
 export const getGapAlerts = (params) => api.get('/ai/gap-alerts', { params })
 export const getBookingAlerts = () => api.get('/ai/booking-alerts')
+export const getGapTemplates = () => api.get('/ai/gap-templates')
+export const saveGapTemplates = (data) => api.put('/ai/gap-templates', data)
 
 // Cleaning
 export const getDailyTasks = (params) => api.get('/cleaning/daily', { params })
