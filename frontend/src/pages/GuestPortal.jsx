@@ -741,8 +741,8 @@ function ChatTab({ token, lang }) {
   const isGuest = (msg) => msg.sender === 'guest'
 
   return (
-    <div className="flex flex-col h-[calc(100vh-12rem)]">
-      <div className="flex-1 overflow-y-auto space-y-3 pb-2">
+    <div className="flex flex-col flex-1 pt-4 min-h-0">
+      <div className="flex-1 overflow-y-auto space-y-3 pb-2 min-h-0">
         {messages.length === 0 && (
           <div className="text-center py-10 text-gray-400 text-sm">{tr.no_messages}</div>
         )}
@@ -763,7 +763,7 @@ function ChatTab({ token, lang }) {
         })}
         <div ref={bottomRef} />
       </div>
-      <div className="bg-white border-t border-gray-100 pt-3 pb-safe">
+      <div className="bg-white border-t border-gray-100 pt-3 pb-3">
         <div className="flex items-end gap-2">
           <button onClick={() => fileRef.current?.click()} className="flex-shrink-0 w-10 h-10 bg-gray-100 rounded-xl flex items-center justify-center hover:bg-gray-200">
             <CameraIcon className="w-5 h-5 text-gray-600" />
@@ -863,12 +863,12 @@ export default function GuestPortal() {
   const tr = TRANSLATIONS[lang]
 
   const TABS = [
-    { id: 'home',      label: tr.tab_home,      emoji: '🏠', Icon: HomeIcon },
-    { id: 'guide',     label: tr.tab_guide,     emoji: '📖', Icon: BookOpenIcon },
-    { id: 'local',     label: tr.tab_local,     emoji: '📍', Icon: MapPinIcon },
-    { id: 'services',  label: tr.tab_services,  emoji: '🛎️', Icon: BellIcon },
-    { id: 'chat',      label: tr.tab_chat,      emoji: '💬', Icon: ChatBubbleLeftRightIcon },
-    { id: 'emergency', label: tr.tab_emergency, emoji: '🚨', Icon: ExclamationTriangleIcon },
+    { id: 'home',      emoji: '🏠', short: 'Home',  label: tr.tab_home,      Icon: HomeIcon },
+    { id: 'guide',     emoji: '📖', short: 'Guide', label: tr.tab_guide,     Icon: BookOpenIcon },
+    { id: 'local',     emoji: '📍', short: 'Local', label: tr.tab_local,     Icon: MapPinIcon },
+    { id: 'services',  emoji: '🛎️', short: 'Serv.', label: tr.tab_services,  Icon: BellIcon },
+    { id: 'chat',      emoji: '💬', short: 'Chat',  label: tr.tab_chat,      Icon: ChatBubbleLeftRightIcon },
+    { id: 'emergency', emoji: '🚨', short: 'SOS',   label: tr.tab_emergency, Icon: ExclamationTriangleIcon },
   ]
 
   if (loading) return <Spinner />
@@ -901,7 +901,8 @@ export default function GuestPortal() {
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col max-w-lg mx-auto">
       {/* Top bar */}
-      <header className="bg-[#1e3a5f] text-white sticky top-0 z-30 shadow-sm">
+      <header className="bg-[#1e3a5f] text-white sticky top-0 z-30 shadow-sm"
+        style={{ paddingTop: 'env(safe-area-inset-top)' }}>
         <div className="px-4 py-3 flex items-center gap-3">
           <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center flex-shrink-0">
             <span className="text-sm">🏡</span>
@@ -910,19 +911,29 @@ export default function GuestPortal() {
             <p className="font-semibold text-sm truncate">{info.property_name || 'Guest Portal'}</p>
             {info.booking?.unit_name && <p className="text-blue-200 text-xs truncate">{info.booking.unit_name}</p>}
           </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <div className="text-right hidden sm:block">
-              <p className="text-blue-200 text-xs">{tr.checkout_label}</p>
-              <p className="text-white text-xs font-semibold">{fmtDate(info.booking?.check_out, lang)}</p>
-            </div>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {info.booking?.check_out && (
+              <div className="text-right">
+                <p className="text-blue-200 text-[10px] leading-none">{tr.checkout_label}</p>
+                <p className="text-white text-xs font-semibold mt-0.5">{fmtDate(info.booking.check_out, lang)}</p>
+              </div>
+            )}
             <LangPicker lang={lang} setLang={setLang} />
           </div>
         </div>
       </header>
 
       {/* Content */}
-      <main id="portal-main" className="flex-1 overflow-y-auto px-4 pt-4" role="main" aria-label="Περιεχόμενο Portal"
+      <main
+        id="portal-main"
+        role="main"
+        aria-label="Περιεχόμενο Portal"
         tabIndex="-1"
+        className={`flex-1 px-4 ${
+          activeTab === 'chat'
+            ? 'overflow-hidden flex flex-col'
+            : 'overflow-y-auto pt-4 pb-28'
+        }`}
       >
         {activeTab === 'home'      && <HomeTab info={homeInfo} token={token} lang={lang} />}
         {activeTab === 'guide'     && <GuideTab token={token} lang={lang} />}
@@ -933,28 +944,42 @@ export default function GuestPortal() {
       </main>
 
       {/* Bottom nav */}
-      <nav className="bg-white border-t border-gray-200 sticky bottom-0 z-30" aria-label="Πλοήγηση Portal">
+      <nav
+        className="bg-white border-t border-gray-200 sticky bottom-0 z-30"
+        style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+        aria-label="Πλοήγηση Portal"
+      >
         <div className="grid grid-cols-6" role="tablist">
-          {TABS.map(tab => (
-            <button
-              key={tab.id}
-              role="tab"
-              aria-selected={activeTab === tab.id}
-              aria-controls="portal-main"
-              aria-label={tab.label}
-              onClick={() => setActiveTab(tab.id)}
-              className={`flex flex-col items-center gap-0.5 py-2.5 transition-colors ${
-                activeTab === tab.id
-                  ? tab.id === 'emergency' ? 'text-red-600' : 'text-[#1e3a5f]'
-                  : 'text-gray-400'
-              }`}
-            >
-              <span className={`text-lg leading-none ${activeTab === tab.id && tab.id === 'emergency' ? 'animate-pulse' : ''}`}>
-                {tab.emoji}
-              </span>
-              <span className="text-[10px] font-medium leading-none">{tab.label}</span>
-            </button>
-          ))}
+          {TABS.map(tab => {
+            const active = activeTab === tab.id
+            const isEmergency = tab.id === 'emergency'
+            return (
+              <button
+                key={tab.id}
+                role="tab"
+                aria-selected={active}
+                aria-controls="portal-main"
+                aria-label={tab.label}
+                onClick={() => setActiveTab(tab.id)}
+                className={`relative flex flex-col items-center justify-center gap-0.5 py-2 min-h-[52px] transition-colors ${
+                  active
+                    ? isEmergency ? 'text-red-600' : 'text-[#1e3a5f]'
+                    : 'text-gray-400 active:text-gray-600'
+                }`}
+              >
+                {/* Active top indicator */}
+                {active && (
+                  <span className={`absolute top-0 left-2 right-2 h-[3px] rounded-full ${isEmergency ? 'bg-red-500' : 'bg-[#1e3a5f]'}`} />
+                )}
+                <span className={`text-xl leading-none ${active && isEmergency ? 'animate-pulse' : ''}`}>
+                  {tab.emoji}
+                </span>
+                <span className={`text-[9px] font-semibold leading-none tracking-tight ${active ? '' : 'opacity-70'}`}>
+                  {tab.short}
+                </span>
+              </button>
+            )
+          })}
         </div>
       </nav>
     </div>
