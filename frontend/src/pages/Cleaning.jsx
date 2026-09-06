@@ -202,11 +202,19 @@ export default function Cleaning() {
                       <p className="text-sm mt-2 text-gray-600"><strong>Αναχώρηση:</strong> {t.booking_info.departing.join(', ')}</p>
                     )}
                     {t.booking_info?.arriving && (
-                      <p className="text-sm mt-1 text-gray-600"><strong>Άφιξη:</strong> {t.booking_info.arriving.join(', ')}</p>
+                      <p className="text-sm mt-1 text-gray-600">
+                        <strong>Άφιξη:</strong> {t.booking_info.arriving.join(', ')}
+                        {t.booking_info.arriving_guests > 0 && (
+                          <span className="ml-2 font-semibold">· 👥 {t.booking_info.arriving_guests} άτομα</span>
+                        )}
+                      </p>
                     )}
                     {t.booking_info?.guest && (
                       <p className="text-sm mt-2 text-gray-600">
                         <strong>Πελάτης:</strong> {t.booking_info.guest}
+                        {t.booking_info.guests > 0 && (
+                          <span className="ml-2 font-semibold">· 👥 {t.booking_info.guests} άτομα</span>
+                        )}
                         {t.booking_info.check_out && (
                           <span className="ml-2">· Αναχωρεί: {new Date(t.booking_info.check_out + 'T00:00:00').toLocaleDateString('el-GR')}</span>
                         )}

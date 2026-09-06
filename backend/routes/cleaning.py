@@ -90,19 +90,25 @@ def daily_tasks(
             booking_info = {
                 "departing": [f"{b.customer.first_name} {b.customer.last_name}" for b in departures],
                 "arriving": [f"{b.customer.first_name} {b.customer.last_name}" for b in arrivals],
+                "arriving_guests": sum(b.guests or 0 for b in arrivals),
             }
         elif has_dep:
             task_type = "departure"
             task_label = "ΑΝΑΧΩΡΗΣΗ — ΠΛΗΡΗΣ ΚΑΘΑΡΙΣΜΟΣ"
             task_desc = "Πλήρης καθαρισμός. Αλλαγή όλων σεντόνια & πετσέτες. Πλυντήριο."
             priority = 2
-            booking_info = {"departing": [f"{b.customer.first_name} {b.customer.last_name}" for b in departures]}
+            booking_info = {
+                "departing": [f"{b.customer.first_name} {b.customer.last_name}" for b in departures],
+            }
         elif has_arr:
             task_type = "arrival"
             task_label = "ΑΦΙΞΗ — ΕΤΟΙΜΑΣΙΑ ΔΩΜΑΤΙΟΥ"
             task_desc = "Έλεγχος καθαριότητας, φρέσκα σεντόνια & πετσέτες, έλεγχος ότι λειτουργεί σωστά."
             priority = 3
-            booking_info = {"arriving": [f"{b.customer.first_name} {b.customer.last_name}" for b in arrivals]}
+            booking_info = {
+                "arriving": [f"{b.customer.first_name} {b.customer.last_name}" for b in arrivals],
+                "arriving_guests": sum(b.guests or 0 for b in arrivals),
+            }
         elif midstay:
             total_nights = (midstay.check_out - midstay.check_in).days
             day_of_stay = (date - midstay.check_in).days + 1
@@ -137,6 +143,7 @@ def daily_tasks(
             booking_info = {
                 "guest": f"{midstay.customer.first_name} {midstay.customer.last_name}",
                 "check_out": midstay.check_out.isoformat(),
+                "guests": midstay.guests or 0,
             }
         else:
             task_type = "empty"

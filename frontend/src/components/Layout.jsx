@@ -97,7 +97,7 @@ export default function Layout({ auth, onLogout }) {
 
         {/* Mobile bottom nav */}
         <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-10" aria-label="Κύρια πλοήγηση">
-          <div className="flex justify-around" role="list">
+          <div className="flex overflow-x-auto scrollbar-hide" role="list">
             {nav.map(({ to, label, Icon, exact }) => (
               <NavLink
                 key={to}
@@ -106,13 +106,13 @@ export default function Layout({ auth, onLogout }) {
                 role="listitem"
                 aria-label={label}
                 className={({ isActive }) =>
-                  `flex flex-col items-center py-2 px-1 text-xs transition-colors flex-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-inset ${
+                  `flex flex-col items-center py-2 px-3 text-xs transition-colors flex-shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-inset ${
                     isActive ? 'text-blue-600' : 'text-gray-500'
                   }`
                 }
               >
                 <Icon className="h-5 w-5 mb-0.5" aria-hidden="true" />
-                <span className="truncate w-full text-center" style={{ fontSize: '10px' }}>{label}</span>
+                <span className="whitespace-nowrap" style={{ fontSize: '10px' }}>{label}</span>
               </NavLink>
             ))}
           </div>
