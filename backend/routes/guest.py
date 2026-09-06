@@ -433,6 +433,59 @@ async def upload_photo_message(
     return {"photo_path": rel_path}
 
 
+# ── Report Issue (text-based) ─────────────────────────────────────────────────
+
+@router.post("/{token}/report-issue")
+def report_issue(token: str, body: dict, db: Session = Depends(get_db)):
+    gt, booking = _resolve(token, db)
+    title = (body.get("title") or "").strip() or "Αναφορά προβλήματος από πελάτη"
+    description = (body.get("description") or "").strip()
+    category = (body.get("category") or "other").strip()
+
+    issue = MaintenanceIssue(
+        tenant=booking.tenant,
+        unit_id=booking.unit_id,
+        title=title[:200],
+        description=description,
+        category=category,
+        priority="medium",
+        status="open",
+        reported_by="guest",
+        reporter_name=f"{booking.customer.first_name} {booking.customer.last_name}" if booking.customer else "",
+        booking_id=booking.id,
+    )
+    db.add(issue)
+
+    msg = GuestMessage(
+        booking_id=booking.id, tenant=booking.tenant,
+        sender="guest",
+        message=f"🔧 {title}" + (f"\n{description}" if description else ""),
+        message_type="issue_report",
+    )
+    db.add(msg)
+    db.commit()
+
+    try:
+        from email_utils import send_notification_email
+        s = _settings(db, booking.tenant)
+        cust = booking.customer
+        guest_name = f"{cust.first_name} {cust.last_name}".strip() if cust else "Guest"
+        unit_name = booking.unit.name if booking.unit else ""
+        content = f"{title}\n{description}" if description else title
+        send_notification_email(
+            event_type="maintenance",
+            guest_name=guest_name,
+            unit_name=unit_name,
+            content=content,
+            portal_admin_url="/portal",
+            settings=s,
+        )
+    except Exception:
+        pass
+
+    return {"id": issue.id, "status": "open"}
+
+
 # ── Timeline ───────────────────────────────────────────────────────────────────
 
 @router.get("/{token}/timeline")

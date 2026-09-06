@@ -1,12 +1,10 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { getGapAlerts, recommendUnit, getUnits, getBookingAlerts, getGapTemplates, saveGapTemplates } from '../api'
+import { getGapAlerts, recommendUnit, getUnits, getBookingAlerts } from '../api'
 import {
   SparklesIcon, ExclamationTriangleIcon, CheckCircleIcon,
   XCircleIcon, ArrowPathIcon, ClockIcon, CreditCardIcon,
-  ClipboardDocumentIcon, PencilSquareIcon, CheckIcon, ChevronDownIcon, ChevronUpIcon,
 } from '@heroicons/react/24/outline'
-import toast from 'react-hot-toast'
 
 const UNIT_TYPES = [
   { value: '', label: 'Οποιοσδήποτε' },
@@ -40,18 +38,10 @@ export default function SmartAdvisor() {
   const [alerts, setAlerts] = useState(null)
   const [alertsLoading, setAlertsLoading] = useState(false)
 
-  const [templates, setTemplates] = useState({ template_en: '', template_gr: '' })
-  const [editingTemplates, setEditingTemplates] = useState(false)
-  const [draftTemplates, setDraftTemplates] = useState(null)
-  const [savingTemplates, setSavingTemplates] = useState(false)
-  const [expandedGap, setExpandedGap] = useState(null)
-  const [copiedKey, setCopiedKey] = useState(null)
-
   useEffect(() => {
     getUnits({ active_only: true })
     loadGaps()
     loadAlerts()
-    getGapTemplates().then(r => setTemplates(r.data)).catch(() => {})
   }, [])
 
   const loadGaps = async (mg = maxGap) => {
@@ -104,38 +94,6 @@ export default function SmartAdvisor() {
     : 0
 
   const totalAlerts = (alerts?.past_pending?.length || 0) + (alerts?.unbilled_platform?.length || 0)
-
-  const fillTemplate = (tpl, gap) => {
-    const fmtDate = (iso) => {
-      const [y, m, d] = iso.split('-')
-      return `${d}/${m}/${y}`
-    }
-    return tpl
-      .replace(/\{\{unit_name\}\}/g, gap.unit_name)
-      .replace(/\{\{gap_start\}\}/g, fmtDate(gap.gap_start))
-      .replace(/\{\{gap_end\}\}/g, fmtDate(gap.gap_end))
-      .replace(/\{\{gap_days\}\}/g, gap.gap_days)
-      .replace(/\{\{guest_name\}\}/g, 'there')
-  }
-
-  const copyToClipboard = async (text, key) => {
-    try {
-      await navigator.clipboard.writeText(text)
-      setCopiedKey(key)
-      setTimeout(() => setCopiedKey(null), 2000)
-      toast.success('Αντιγράφηκε!')
-    } catch { toast.error('Αποτυχία αντιγραφής') }
-  }
-
-  const handleSaveTemplates = async () => {
-    setSavingTemplates(true)
-    try {
-      await saveGapTemplates(draftTemplates)
-      setTemplates(draftTemplates)
-      setEditingTemplates(false)
-      toast.success('Πρότυπα αποθηκεύτηκαν')
-    } catch { toast.error('Σφάλμα') } finally { setSavingTemplates(false) }
-  }
 
   return (
     <div className="p-4 md:p-6 space-y-6">
@@ -375,117 +333,21 @@ export default function SmartAdvisor() {
               <p className="text-sm">Δεν υπάρχουν μικρά κενά! Εξαιρετική οργάνωση κρατήσεων.</p>
             </div>
           )}
-          {!gapsLoading && gaps?.alerts?.map((g, i) => {
-            const key = `${g.unit_id}-${g.gap_start}`
-            const isExpanded = expandedGap === key
-            const msgEN = fillTemplate(templates.template_en || '', g)
-            const msgGR = fillTemplate(templates.template_gr || '', g)
-            return (
-              <div key={i} className="rounded-lg transition-colors border border-transparent hover:border-amber-100 mb-1">
-                <div
-                  className="flex items-start gap-3 px-4 py-3 cursor-pointer"
-                  onClick={() => setExpandedGap(isExpanded ? null : key)}
-                >
-                  <GapBadge days={g.gap_days} />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <p className="font-semibold text-gray-800 text-sm">{g.unit_name}</p>
-                      <span className="text-xs text-gray-500">
-                        {new Date(g.gap_start + 'T00:00:00').toLocaleDateString('el-GR')} –{' '}
-                        {new Date(g.gap_end + 'T00:00:00').toLocaleDateString('el-GR')}
-                      </span>
-                    </div>
-                    <p className="text-sm text-amber-700 mt-0.5 leading-relaxed">{g.recommendation}</p>
-                  </div>
-                  <div className="flex-shrink-0 text-gray-400 mt-1">
-                    {isExpanded ? <ChevronUpIcon className="h-4 w-4" /> : <ChevronDownIcon className="h-4 w-4" />}
-                  </div>
+          {!gapsLoading && gaps?.alerts?.map((g, i) => (
+            <div key={i} className="flex items-start gap-3 px-4 py-3 hover:bg-amber-50/50 rounded-lg transition-colors">
+              <GapBadge days={g.gap_days} />
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <p className="font-semibold text-gray-800 text-sm">{g.unit_name}</p>
+                  <span className="text-xs text-gray-500">
+                    {new Date(g.gap_start + 'T00:00:00').toLocaleDateString('el-GR')} –{' '}
+                    {new Date(g.gap_end + 'T00:00:00').toLocaleDateString('el-GR')}
+                  </span>
                 </div>
-
-                {isExpanded && (
-                  <div className="px-4 pb-4 space-y-3">
-                    {/* English template */}
-                    <div className="bg-blue-50 border border-blue-100 rounded-xl p-3">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-xs font-semibold text-blue-700">🇬🇧 Μήνυμα Επικοινωνίας (English)</span>
-                        <button
-                          onClick={() => copyToClipboard(msgEN, key + '-en')}
-                          className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-medium px-2 py-1 rounded-lg hover:bg-blue-100 transition-colors"
-                        >
-                          {copiedKey === key + '-en'
-                            ? <><CheckIcon className="h-3.5 w-3.5 text-green-600" /> Αντιγράφηκε!</>
-                            : <><ClipboardDocumentIcon className="h-3.5 w-3.5" /> Αντιγραφή</>}
-                        </button>
-                      </div>
-                      <pre className="text-sm text-blue-900 whitespace-pre-wrap font-sans leading-relaxed">{msgEN}</pre>
-                    </div>
-
-                    {/* Greek internal template */}
-                    <div className="bg-amber-50 border border-amber-100 rounded-xl p-3">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-xs font-semibold text-amber-700">🇬🇷 Εσωτερική Σημείωση</span>
-                        <button
-                          onClick={() => copyToClipboard(msgGR, key + '-gr')}
-                          className="flex items-center gap-1 text-xs text-amber-600 hover:text-amber-800 font-medium px-2 py-1 rounded-lg hover:bg-amber-100 transition-colors"
-                        >
-                          {copiedKey === key + '-gr'
-                            ? <><CheckIcon className="h-3.5 w-3.5 text-green-600" /> Αντιγράφηκε!</>
-                            : <><ClipboardDocumentIcon className="h-3.5 w-3.5" /> Αντιγραφή</>}
-                        </button>
-                      </div>
-                      <pre className="text-sm text-amber-900 whitespace-pre-wrap font-sans leading-relaxed">{msgGR}</pre>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )
-          })}
-        </div>
-
-        {/* Template editor */}
-        <div className="border-t border-gray-100 px-5 py-3">
-          {!editingTemplates ? (
-            <button
-              onClick={() => { setDraftTemplates({ ...templates }); setEditingTemplates(true) }}
-              className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-blue-600 font-medium transition-colors"
-            >
-              <PencilSquareIcon className="h-3.5 w-3.5" />
-              Επεξεργασία προτύπων μηνυμάτων
-            </button>
-          ) : (
-            <div className="space-y-3">
-              <p className="text-xs font-semibold text-gray-700">
-                Επεξεργασία Προτύπων — Διαθέσιμες μεταβλητές:{' '}
-                <code className="bg-gray-100 px-1 rounded">{'{{unit_name}}'}</code>{' '}
-                <code className="bg-gray-100 px-1 rounded">{'{{gap_start}}'}</code>{' '}
-                <code className="bg-gray-100 px-1 rounded">{'{{gap_end}}'}</code>{' '}
-                <code className="bg-gray-100 px-1 rounded">{'{{gap_days}}'}</code>{' '}
-                <code className="bg-gray-100 px-1 rounded">{'{{guest_name}}'}</code>
-              </p>
-              <div>
-                <label className="label text-xs">🇬🇧 Πρότυπο Αγγλικά (για επικοινωνία με επισκέπτη)</label>
-                <textarea className="input text-sm font-mono" rows={6}
-                  value={draftTemplates?.template_en || ''}
-                  onChange={e => setDraftTemplates(d => ({ ...d, template_en: e.target.value }))} />
-              </div>
-              <div>
-                <label className="label text-xs">🇬🇷 Πρότυπο Ελληνικά (εσωτερική σημείωση)</label>
-                <textarea className="input text-sm font-mono" rows={4}
-                  value={draftTemplates?.template_gr || ''}
-                  onChange={e => setDraftTemplates(d => ({ ...d, template_gr: e.target.value }))} />
-              </div>
-              <div className="flex gap-2">
-                <button onClick={() => setEditingTemplates(false)}
-                  className="px-3 py-1.5 rounded-lg border border-gray-200 text-sm text-gray-600 hover:bg-gray-50">
-                  Ακύρωση
-                </button>
-                <button onClick={handleSaveTemplates} disabled={savingTemplates}
-                  className="px-3 py-1.5 rounded-lg bg-blue-600 text-white text-sm hover:bg-blue-700 disabled:opacity-50">
-                  {savingTemplates ? 'Αποθήκευση…' : 'Αποθήκευση'}
-                </button>
+                <p className="text-sm text-amber-700 mt-0.5 leading-relaxed">{g.recommendation}</p>
               </div>
             </div>
-          )}
+          ))}
         </div>
       </div>
 

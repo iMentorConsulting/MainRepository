@@ -3,7 +3,7 @@ import {
   HomeIcon, CalendarDaysIcon, BookmarkSquareIcon, BuildingOfficeIcon,
   UsersIcon, ChartBarIcon, SparklesIcon, ArrowRightOnRectangleIcon,
   ClipboardDocumentCheckIcon, GlobeAltIcon, BanknotesIcon, WrenchScrewdriverIcon,
-  HomeModernIcon, TagIcon,
+  HomeModernIcon, TagIcon, ArrowsRightLeftIcon,
 } from '@heroicons/react/24/outline'
 
 const nav = [
@@ -17,6 +17,7 @@ const nav = [
   { to: '/maintenance', label: 'Συντήρηση', Icon: WrenchScrewdriverIcon },
   { to: '/owners', label: 'Ιδιοκτήτες', Icon: HomeModernIcon },
   { to: '/pricing', label: 'Τιμολόγηση', Icon: TagIcon, desktopOnly: true },
+  { to: '/sync', label: 'Sync Πλατφορμών', Icon: ArrowsRightLeftIcon, desktopOnly: true },
   { to: '/smart-advisor', label: 'AI Σύμβουλος', Icon: SparklesIcon },
   { to: '/cleaning', label: 'Καθαριότητα', Icon: ClipboardDocumentCheckIcon },
   { to: '/portal', label: 'Guest Portal', Icon: GlobeAltIcon },

@@ -470,11 +470,95 @@ function RequestModal({ title, onClose, onSubmit, tr }) {
   )
 }
 
+function ReportIssueModal({ token, lang, onClose }) {
+  const [title, setTitle] = useState('')
+  const [description, setDescription] = useState('')
+  const [category, setCategory] = useState('other')
+  const [loading, setLoading] = useState(false)
+  const [done, setDone] = useState(false)
+  const tr = TRANSLATIONS[lang]
+
+  const CATS = [
+    { value: 'other', label: tr.issue_cat_other || 'General' },
+    { value: 'electrical', label: tr.issue_cat_electrical || 'Electrical' },
+    { value: 'plumbing', label: tr.issue_cat_plumbing || 'Plumbing' },
+    { value: 'appliances', label: tr.issue_cat_appliances || 'Appliances' },
+    { value: 'heating_cooling', label: tr.issue_cat_hvac || 'Heating / A/C' },
+    { value: 'furniture', label: tr.issue_cat_furniture || 'Furniture' },
+    { value: 'cleaning', label: tr.issue_cat_cleaning || 'Cleanliness' },
+  ]
+
+  const submit = async () => {
+    if (!title.trim()) return
+    setLoading(true)
+    try {
+      await axios.post(`/api/guest/${token}/report-issue`, { title: title.trim(), description: description.trim(), category })
+      setDone(true)
+    } catch {
+      toast.error(tr.error_generic || 'Something went wrong. Please try again.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/60 z-50 flex items-end">
+      <div className="bg-white w-full rounded-t-3xl p-5 space-y-4 max-h-[85vh] overflow-y-auto">
+        <div className="flex items-center justify-between">
+          <h3 className="font-bold text-gray-900 text-lg">🔧 {tr.report_issue || 'Report a Problem'}</h3>
+          <button onClick={onClose} className="p-2 rounded-full hover:bg-gray-100"><XMarkIcon className="h-5 w-5" /></button>
+        </div>
+        {done ? (
+          <div className="text-center py-8 space-y-2">
+            <p className="text-4xl">✅</p>
+            <p className="font-semibold text-gray-800">{tr.issue_reported || 'Issue reported!'}</p>
+            <p className="text-sm text-gray-500">{tr.issue_reported_desc || 'Our team has been notified and will look into it.'}</p>
+            <button onClick={onClose} className="mt-4 bg-[#1e3a5f] text-white px-6 py-2.5 rounded-xl font-semibold text-sm">
+              {tr.close || 'Close'}
+            </button>
+          </div>
+        ) : (
+          <>
+            <div>
+              <label className="block text-xs font-semibold text-gray-600 mb-1">{tr.issue_category || 'Category'}</label>
+              <div className="grid grid-cols-2 gap-2">
+                {CATS.map(c => (
+                  <button key={c.value} onClick={() => setCategory(c.value)}
+                    className={`text-sm py-2 px-3 rounded-xl border font-medium transition-colors ${category === c.value ? 'bg-[#1e3a5f] text-white border-[#1e3a5f]' : 'border-gray-200 text-gray-700 hover:border-gray-400'}`}>
+                    {c.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-600 mb-1">{tr.issue_title || 'Brief description *'}</label>
+              <input type="text" value={title} onChange={e => setTitle(e.target.value)}
+                placeholder={tr.issue_title_placeholder || 'e.g. AC not working, broken faucet…'}
+                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-blue-400" />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-600 mb-1">{tr.issue_details || 'Details (optional)'}</label>
+              <textarea rows={3} value={description} onChange={e => setDescription(e.target.value)}
+                placeholder={tr.issue_details_placeholder || 'Any additional information…'}
+                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-blue-400 resize-none" />
+            </div>
+            <button onClick={submit} disabled={loading || !title.trim()}
+              className="w-full bg-[#1e3a5f] text-white py-3 rounded-xl font-semibold text-sm disabled:opacity-50">
+              {loading ? '…' : (tr.submit_issue || 'Submit Report')}
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function ServicesTab({ token, lang }) {
   const [marketplace, setMarketplace] = useState([])
   const [requests, setRequests] = useState([])
   const [loading, setLoading] = useState(true)
   const [modal, setModal] = useState(null)
+  const [showReportIssue, setShowReportIssue] = useState(false)
   const tr = TRANSLATIONS[lang]
 
   const loadData = useCallback(() => {
@@ -567,6 +651,23 @@ function ServicesTab({ token, lang }) {
         </div>
       )}
 
+      {/* Report a Problem */}
+      <div>
+        <button
+          onClick={() => setShowReportIssue(true)}
+          className="w-full flex items-center justify-between bg-red-50 border border-red-100 rounded-2xl p-4 shadow-sm hover:bg-red-100 transition-colors"
+        >
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">🔧</span>
+            <div className="text-left">
+              <p className="font-semibold text-gray-900 text-sm">{tr.report_issue || 'Report a Problem'}</p>
+              <p className="text-xs text-gray-500">{tr.report_issue_desc || 'Something broken? Let us know.'}</p>
+            </div>
+          </div>
+          <span className="text-red-400 text-lg">→</span>
+        </button>
+      </div>
+
       {modal && (
         <RequestModal
           title={modal.type === 'marketplace' ? `${tr.request_btn}: ${modal.item.title}` : `${modal.emoji} ${modal.label}`}
@@ -578,6 +679,7 @@ function ServicesTab({ token, lang }) {
           }
         />
       )}
+      {showReportIssue && <ReportIssueModal token={token} lang={lang} onClose={() => setShowReportIssue(false)} />}
     </div>
   )
 }

@@ -20,6 +20,7 @@ class Unit(Base):
     base_price = Column(Float, nullable=False, default=0.0)
     is_active = Column(Boolean, default=True)
     ical_url = Column(String(500), nullable=True)
+    ical_export_token = Column(String(64), unique=True, nullable=True, index=True)
     owner_id = Column(Integer, ForeignKey("owners.id"), nullable=True)
     tenant = Column(String(50), nullable=False, default='evaivoni', index=True)
     created_at = Column(DateTime, default=datetime.utcnow)

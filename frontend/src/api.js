@@ -118,6 +118,10 @@ export const checkPrice = (params) => api.get('/pricing/check', { params })
 // iCal sync
 export const syncIcalAll = () => api.post('/ical/sync')
 export const syncIcalUnit = (unitId) => api.post(`/ical/sync/${unitId}`)
+export const getIcalUnits = () => api.get('/ical/units')
+export const getIcalExportUrl = (unitId) => api.get(`/ical/export-url/${unitId}`)
+export const regenerateIcalToken = (unitId) => api.post(`/ical/regenerate-token/${unitId}`)
+export const updateIcalImportUrl = (unitId, icalUrl) => api.put(`/ical/import-url/${unitId}`, { ical_url: icalUrl })
 
 // Guest Portal — admin side
 export const getPortalSettings = () => api.get('/portal/settings')

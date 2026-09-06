@@ -87,6 +87,13 @@ except Exception:
 
 try:
     with engine.connect() as _bc:
+        _bc.execute(_text_b("ALTER TABLE units ADD COLUMN ical_export_token VARCHAR(64) UNIQUE"))
+        _bc.commit()
+except Exception:
+    pass
+
+try:
+    with engine.connect() as _bc:
         _bc.execute(_text_b("""
             CREATE TABLE IF NOT EXISTS maintenance_issues (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -455,11 +462,33 @@ def _run_owner_reports():
         db.close()
 
 
+def _run_ical_sync():
+    db = SessionLocal()
+    try:
+        from routes.ical import _sync_unit
+        from models import Unit as _Unit
+        units = db.query(_Unit).filter(_Unit.is_active == True, _Unit.ical_url != None).all()
+        total_added = total_updated = 0
+        for u in units:
+            try:
+                r = _sync_unit(u, db, u.tenant)
+                total_added += r.get("added", 0)
+                total_updated += r.get("updated", 0)
+            except Exception:
+                pass
+        print(f"[scheduler] iCal auto-sync: +{total_added} added, ~{total_updated} updated across {len(units)} units")
+    except Exception as e:
+        print(f"[scheduler] iCal auto-sync ERROR: {e}")
+    finally:
+        db.close()
+
+
 _scheduler = _BGScheduler(timezone=_athens_tz)
 _scheduler.add_job(_run_scheduled_refresh, "cron", hour=8, minute=0, id="refresh_08")
 _scheduler.add_job(_run_scheduled_refresh, "cron", hour=14, minute=0, id="refresh_14")
 _scheduler.add_job(_run_agent_sla_digest, "cron", hour=9, minute=0, id="sla_digest_09")
 _scheduler.add_job(_run_owner_reports, "cron", day=1, hour=9, minute=30, id="owner_reports_monthly")
+_scheduler.add_job(_run_ical_sync, "interval", hours=6, id="ical_sync_6h")
 _scheduler.start()
 
 app = FastAPI(

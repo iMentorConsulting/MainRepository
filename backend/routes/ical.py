@@ -1,4 +1,7 @@
+import secrets
+from datetime import date
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import PlainTextResponse
 from sqlalchemy.orm import Session
 from database import get_db
 from models import Booking, Unit, Customer
@@ -121,3 +124,106 @@ def sync_unit(unit_id: int, db: Session = Depends(get_db), tenant: str = Depends
     if not unit:
         raise HTTPException(status_code=404, detail="Μονάδα δεν βρέθηκε")
     return _sync_unit(unit, db, tenant)
+
+
+# ── iCal Export (public feed) ─────────────────────────────────────────────────
+
+def _build_ical(unit: Unit, bookings) -> str:
+    lines = [
+        "BEGIN:VCALENDAR",
+        "VERSION:2.0",
+        "PRODID:-//VillaBooking//EN",
+        "CALSCALE:GREGORIAN",
+        "METHOD:PUBLISH",
+        f"X-WR-CALNAME:{unit.name}",
+        "X-WR-CALDESC:Booking calendar exported by VillaBooking",
+    ]
+    for b in bookings:
+        dtstart = b.check_in.strftime("%Y%m%d")
+        dtend = b.check_out.strftime("%Y%m%d")
+        uid = b.ical_uid or f"booking-{b.id}@villabooking"
+        summary = f"RESERVED - {unit.name}"
+        lines += [
+            "BEGIN:VEVENT",
+            f"UID:{uid}",
+            f"DTSTART;VALUE=DATE:{dtstart}",
+            f"DTEND;VALUE=DATE:{dtend}",
+            f"SUMMARY:{summary}",
+            f"STATUS:CONFIRMED",
+            "END:VEVENT",
+        ]
+    lines.append("END:VCALENDAR")
+    return "\r\n".join(lines)
+
+
+@router.get("/feed/{token}", response_class=PlainTextResponse, include_in_schema=False)
+def ical_feed(token: str, db: Session = Depends(get_db)):
+    unit = db.query(Unit).filter(Unit.ical_export_token == token).first()
+    if not unit:
+        raise HTTPException(status_code=404, detail="Feed not found")
+    today = date.today()
+    bookings = (
+        db.query(Booking)
+        .filter(
+            Booking.unit_id == unit.id,
+            Booking.tenant == unit.tenant,
+            Booking.status.in_(["confirmed", "pending"]),
+            Booking.check_out >= today,
+        )
+        .order_by(Booking.check_in)
+        .all()
+    )
+    ical_text = _build_ical(unit, bookings)
+    return PlainTextResponse(content=ical_text, media_type="text/calendar; charset=utf-8",
+                             headers={"Content-Disposition": f'attachment; filename="{unit.name}.ics"'})
+
+
+@router.get("/export-url/{unit_id}")
+def get_export_url(unit_id: int, db: Session = Depends(get_db), tenant: str = Depends(get_tenant)):
+    unit = db.query(Unit).filter(Unit.id == unit_id, Unit.tenant == tenant).first()
+    if not unit:
+        raise HTTPException(status_code=404, detail="Μονάδα δεν βρέθηκε")
+    if not unit.ical_export_token:
+        unit.ical_export_token = secrets.token_urlsafe(32)
+        db.commit()
+    return {
+        "unit_id": unit.id,
+        "unit_name": unit.name,
+        "ical_export_token": unit.ical_export_token,
+        "import_url": unit.ical_url or "",
+    }
+
+
+@router.post("/regenerate-token/{unit_id}")
+def regenerate_token(unit_id: int, db: Session = Depends(get_db), tenant: str = Depends(get_tenant)):
+    unit = db.query(Unit).filter(Unit.id == unit_id, Unit.tenant == tenant).first()
+    if not unit:
+        raise HTTPException(status_code=404, detail="Μονάδα δεν βρέθηκε")
+    unit.ical_export_token = secrets.token_urlsafe(32)
+    db.commit()
+    return {"ical_export_token": unit.ical_export_token}
+
+
+@router.put("/import-url/{unit_id}")
+def update_import_url(unit_id: int, body: dict, db: Session = Depends(get_db), tenant: str = Depends(get_tenant)):
+    unit = db.query(Unit).filter(Unit.id == unit_id, Unit.tenant == tenant).first()
+    if not unit:
+        raise HTTPException(status_code=404, detail="Μονάδα δεν βρέθηκε")
+    unit.ical_url = (body.get("ical_url") or "").strip() or None
+    db.commit()
+    return {"ok": True, "ical_url": unit.ical_url}
+
+
+@router.get("/units")
+def ical_units(db: Session = Depends(get_db), tenant: str = Depends(get_tenant)):
+    units = db.query(Unit).filter(Unit.is_active == True, Unit.tenant == tenant).order_by(Unit.name).all()
+    return [
+        {
+            "id": u.id,
+            "name": u.name,
+            "type": u.type,
+            "ical_url": u.ical_url or "",
+            "ical_export_token": u.ical_export_token or "",
+        }
+        for u in units
+    ]
