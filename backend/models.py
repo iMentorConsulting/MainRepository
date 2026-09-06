@@ -193,6 +193,11 @@ class GuestPortalSettings(Base):
     pre_arrival_days_2 = Column(Integer, default=1)
     post_departure_enabled = Column(Boolean, default=True)
     review_url = Column(String(500))
+    # Email templates (custom text — overrides defaults when set)
+    pre_arrival_subject = Column(String(300))
+    pre_arrival_message = Column(Text)
+    post_departure_subject = Column(String(300))
+    post_departure_message = Column(Text)
 
 
 class Expense(Base):

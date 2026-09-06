@@ -145,13 +145,18 @@ def send_pre_arrival_email(
         return False
     sender_name = from_name or (settings and settings.from_name) or property_name or user
     if days_until == 1:
-        subject = f"🗝️ See you tomorrow! Your stay at {property_name}"
+        default_subject = f"🗝️ See you tomorrow! Your stay at {property_name}"
         headline = "Your stay starts tomorrow!"
         sub = f"Check-in time is <strong>{checkin_time}</strong>. We can't wait to welcome you!"
     else:
-        subject = f"🏠 Your stay at {property_name} starts in {days_until} days!"
+        default_subject = f"🏠 Your stay at {property_name} starts in {days_until} days!"
         headline = f"Only {days_until} days to go!"
         sub = f"We're preparing everything for your arrival. Check-in time is <strong>{checkin_time}</strong>."
+    subject = (settings and settings.pre_arrival_subject) or default_subject
+    subject = subject.replace("{property_name}", property_name).replace("{days_until}", str(days_until))
+    custom_msg = (settings and settings.pre_arrival_message) or ""
+    if custom_msg:
+        custom_msg = custom_msg.replace("{guest_name}", guest_name).replace("{property_name}", property_name).replace("{unit_name}", unit_name).replace("{check_in}", check_in).replace("{check_out}", check_out).replace("{checkin_time}", checkin_time)
     phone_row = f'<tr><td style="padding:6px 0;color:#666;">Manager</td><td style="padding:6px 0;font-weight:600;">{manager_phone}</td></tr>' if manager_phone else ''
     html = f"""<!DOCTYPE html>
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
@@ -171,7 +176,7 @@ def send_pre_arrival_email(
           {phone_row}
         </table>
       </div>
-      <p style="color:#555;margin-bottom:20px;">Your personal guest portal has everything you need — check-in instructions, WiFi details, house rules, local tips, and a way to request services.</p>
+      {'<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:16px;margin-bottom:20px;"><p style="margin:0;color:#444;font-size:15px;white-space:pre-wrap;">' + custom_msg + '</p></div>' if custom_msg else '<p style="color:#555;margin-bottom:20px;">Your personal guest portal has everything you need — check-in instructions, WiFi details, house rules, local tips, and a way to request services.</p>'}
       <div style="text-align:center;margin-bottom:24px;">
         <a href="{portal_url}" style="display:inline-block;background:#1e3a5f;color:white;text-decoration:none;padding:16px 48px;border-radius:10px;font-size:16px;font-weight:bold;">Open Guest Portal →</a>
       </div>
@@ -195,7 +200,14 @@ def send_post_departure_email(
     if not all([host, user, pwd, to_email]):
         return False
     sender_name = from_name or (settings and settings.from_name) or property_name or user
-    subject = f"⭐ Thank you for staying at {property_name}!"
+    default_subject = f"⭐ Thank you for staying at {property_name}!"
+    subject = (settings and settings.post_departure_subject) or default_subject
+    subject = subject.replace("{property_name}", property_name)
+    custom_msg = (settings and settings.post_departure_message) or ""
+    if custom_msg:
+        custom_msg = custom_msg.replace("{guest_name}", guest_name).replace("{property_name}", property_name).replace("{unit_name}", unit_name)
+    default_body = "We hope you had a wonderful time and that everything met your expectations. It was a pleasure having you with us, and we hope to welcome you back soon!"
+    body_text = custom_msg or default_body
     review_block = ""
     if review_url:
         review_block = f"""
@@ -213,7 +225,7 @@ def send_post_departure_email(
       <p style="color:rgba(255,255,255,0.8);margin:10px 0 0;font-size:14px;">{unit_name} — {property_name}</p>
     </div>
     <div style="padding:24px;">
-      <p style="color:#555;font-size:15px;line-height:1.6;">We hope you had a wonderful time and that everything met your expectations. It was a pleasure having you with us, and we hope to welcome you back soon!</p>
+      <p style="color:#555;font-size:15px;line-height:1.6;white-space:pre-wrap;">{body_text}</p>
       {review_block}
       <p style="color:#999;font-size:12px;text-align:center;border-top:1px solid #eee;padding-top:16px;margin:24px 0 0;">Safe travels! — {property_name}</p>
     </div>

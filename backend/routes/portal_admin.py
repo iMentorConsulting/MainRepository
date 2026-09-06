@@ -67,6 +67,8 @@ def save_settings(body: dict, db: Session = Depends(get_db), tenant: str = Depen
 _AUTO_EMAIL_FIELDS = [
     "auto_email_enabled", "pre_arrival_days_1", "pre_arrival_days_2",
     "post_departure_enabled", "review_url",
+    "pre_arrival_subject", "pre_arrival_message",
+    "post_departure_subject", "post_departure_message",
 ]
 
 
@@ -82,6 +84,10 @@ def get_auto_email_settings(db: Session = Depends(get_db), tenant: str = Depends
         "pre_arrival_days_2": s.pre_arrival_days_2 if s.pre_arrival_days_2 is not None else 1,
         "post_departure_enabled": s.post_departure_enabled if s.post_departure_enabled is not None else True,
         "review_url": s.review_url or "",
+        "pre_arrival_subject": s.pre_arrival_subject or "",
+        "pre_arrival_message": s.pre_arrival_message or "",
+        "post_departure_subject": s.post_departure_subject or "",
+        "post_departure_message": s.post_departure_message or "",
     }
 
 

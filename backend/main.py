@@ -105,6 +105,16 @@ except Exception:
 
 try:
     with engine.connect() as _bc:
+        _bc.execute(_text_b("ALTER TABLE guest_portal_settings ADD COLUMN pre_arrival_subject VARCHAR(300)"))
+        _bc.execute(_text_b("ALTER TABLE guest_portal_settings ADD COLUMN pre_arrival_message TEXT"))
+        _bc.execute(_text_b("ALTER TABLE guest_portal_settings ADD COLUMN post_departure_subject VARCHAR(300)"))
+        _bc.execute(_text_b("ALTER TABLE guest_portal_settings ADD COLUMN post_departure_message TEXT"))
+        _bc.commit()
+except Exception:
+    pass
+
+try:
+    with engine.connect() as _bc:
         _bc.execute(_text_b("""
             CREATE TABLE IF NOT EXISTS email_logs (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,

@@ -1320,6 +1320,71 @@ function AutoEmailTab() {
         </div>
       </div>
 
+      {/* Email templates */}
+      <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-5">
+        <div>
+          <h3 className="font-semibold text-gray-800 flex items-center gap-2">✏️ Templates Email</h3>
+          <p className="text-xs text-gray-500 mt-0.5">
+            Προαιρετικό. Αν αφήσετε κενό, χρησιμοποιείται το default template.
+            Μπορείτε να χρησιμοποιήσετε: <code className="bg-gray-100 px-1 rounded text-xs">{'{guest_name}'}</code>{' '}
+            <code className="bg-gray-100 px-1 rounded text-xs">{'{property_name}'}</code>{' '}
+            <code className="bg-gray-100 px-1 rounded text-xs">{'{unit_name}'}</code>{' '}
+            <code className="bg-gray-100 px-1 rounded text-xs">{'{check_in}'}</code>{' '}
+            <code className="bg-gray-100 px-1 rounded text-xs">{'{check_out}'}</code>{' '}
+            <code className="bg-gray-100 px-1 rounded text-xs">{'{checkin_time}'}</code>{' '}
+            <code className="bg-gray-100 px-1 rounded text-xs">{'{days_until}'}</code>
+          </p>
+        </div>
+
+        <div className="space-y-3 border-t pt-4">
+          <h4 className="text-sm font-semibold text-blue-700">✈️ Email Άφιξης</h4>
+          <div>
+            <label className="text-xs font-medium text-gray-600 block mb-1">Θέμα (Subject)</label>
+            <input
+              type="text"
+              className="input"
+              placeholder={`🏠 Your stay at {property_name} starts in {days_until} days!`}
+              value={cfg.pre_arrival_subject || ''}
+              onChange={e => setCfg(c => ({ ...c, pre_arrival_subject: e.target.value }))}
+            />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-gray-600 block mb-1">Κεντρικό Μήνυμα</label>
+            <textarea
+              rows={4}
+              className="input"
+              placeholder="Αφήστε κενό για default μήνυμα..."
+              value={cfg.pre_arrival_message || ''}
+              onChange={e => setCfg(c => ({ ...c, pre_arrival_message: e.target.value }))}
+            />
+          </div>
+        </div>
+
+        <div className="space-y-3 border-t pt-4">
+          <h4 className="text-sm font-semibold text-amber-700">⭐ Email Αναχώρησης</h4>
+          <div>
+            <label className="text-xs font-medium text-gray-600 block mb-1">Θέμα (Subject)</label>
+            <input
+              type="text"
+              className="input"
+              placeholder={`⭐ Thank you for staying at {property_name}!`}
+              value={cfg.post_departure_subject || ''}
+              onChange={e => setCfg(c => ({ ...c, post_departure_subject: e.target.value }))}
+            />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-gray-600 block mb-1">Κεντρικό Μήνυμα</label>
+            <textarea
+              rows={4}
+              className="input"
+              placeholder="Αφήστε κενό για default μήνυμα..."
+              value={cfg.post_departure_message || ''}
+              onChange={e => setCfg(c => ({ ...c, post_departure_message: e.target.value }))}
+            />
+          </div>
+        </div>
+      </div>
+
       <button onClick={save} disabled={saving}
         className="flex items-center gap-2 bg-[#1e3a5f] text-white px-6 py-2.5 rounded-xl font-semibold text-sm hover:bg-[#162d4a] disabled:opacity-50 transition-colors">
         <PaperAirplaneIcon className="h-4 w-4" />
