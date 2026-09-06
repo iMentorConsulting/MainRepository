@@ -778,6 +778,16 @@ def accept_assignment(
         prog_title = a.program_title.strip()
     prog_cat = program_category_from_title(prog_title) or _map_program_category(a.program_title)
 
+    # Split description into summary + full ERMIS transcript.
+    # LOGISTIS embeds the transcript after "--- ΠΛΗΡΗΣ ΣΥΝΟΜΙΛΙΑ ΕΡΜΗ ---".
+    _TRANSCRIPT_SEP = "--- ΠΛΗΡΗΣ ΣΥΝΟΜΙΛΙΑ ΕΡΜΗ ---"
+    _desc_summary = a.description or ""
+    _desc_transcript = None
+    if a.description and _TRANSCRIPT_SEP in a.description:
+        _parts = a.description.split(_TRANSCRIPT_SEP, 1)
+        _desc_summary = _parts[0].strip()
+        _desc_transcript = _parts[1].strip() if len(_parts) > 1 else None
+
     # Always try to reuse an existing LOGISTIS/ΕΡΜΗΣ lead for this ΑΦΜ + program (the
     # one auto-created by the ermis.completed webhook, carrying the transcript) so the
     # case and conversation live on ONE lead. find_gemi_lead only ever matches
@@ -795,7 +805,8 @@ def accept_assignment(
         lead.program_title = lead.program_title or prog_title
         lead.service_type = lead.service_type or prog_title or _map_service_type(a.program_title) or a.case_type
         lead.source = lead.source or ("LOGISTIS ΓΕΜΗ" if a.ermis_completed else "LOGISTIS")
-        lead.notes = lead.notes or a.description
+        lead.notes = lead.notes or _desc_summary or None
+        lead.ermis_transcript = lead.ermis_transcript or _desc_transcript
         lead.next_call_date = lead.next_call_date or today
         lead.portal_case_number = a.case_number
         lead.portal_case_link = portal_link
@@ -812,7 +823,8 @@ def accept_assignment(
             assigned_agent_id=target_user.id,
             assigned_name=consultant,
             source="LOGISTIS ΓΕΜΗ" if a.ermis_completed else "LOGISTIS",
-            notes=a.description,
+            notes=_desc_summary or None,
+            ermis_transcript=_desc_transcript,
             next_call_date=today,
             portal_case_number=a.case_number,
             portal_case_link=portal_link,
