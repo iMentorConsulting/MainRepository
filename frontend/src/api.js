@@ -147,5 +147,8 @@ export const sendManagerMessage = (bookingId, data) => api.post(`/portal/message
 export const getPortalLink = (bookingId) => api.get(`/portal/bookings/${bookingId}/portal`)
 export const sendPortalEmail = (bookingId, data) => api.post(`/portal/bookings/${bookingId}/send-portal`, data)
 export const getPortalAnalytics = () => api.get('/portal/analytics')
+export const getAutoEmailSettings = () => api.get('/portal/auto-email-settings')
+export const saveAutoEmailSettings = (data) => api.put('/portal/auto-email-settings', data)
+export const getAutoEmailLogs = () => api.get('/portal/auto-email-logs')
 
 export default api

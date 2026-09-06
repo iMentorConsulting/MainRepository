@@ -187,6 +187,12 @@ class GuestPortalSettings(Base):
     smtp_user = Column(String(200))
     smtp_pass = Column(String(200))
     notification_email = Column(String(200))
+    # Automated email settings
+    auto_email_enabled = Column(Boolean, default=True)
+    pre_arrival_days_1 = Column(Integer, default=3)
+    pre_arrival_days_2 = Column(Integer, default=1)
+    post_departure_enabled = Column(Boolean, default=True)
+    review_url = Column(String(500))
 
 
 class Expense(Base):
@@ -263,6 +269,18 @@ class SeasonalRate(Base):
     min_stay = Column(Integer, default=1)
     notes = Column(Text)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class EmailLog(Base):
+    __tablename__ = "email_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    tenant = Column(String(50), nullable=False, index=True)
+    booking_id = Column(Integer, ForeignKey("bookings.id"), nullable=False)
+    email_type = Column(String(50), nullable=False)
+    to_email = Column(String(200))
+    sent_at = Column(DateTime, default=datetime.utcnow)
+    success = Column(Boolean, default=True)
 
 
 class InstallationLicense(Base):

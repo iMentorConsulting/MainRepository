@@ -94,6 +94,34 @@ except Exception:
 
 try:
     with engine.connect() as _bc:
+        _bc.execute(_text_b("ALTER TABLE guest_portal_settings ADD COLUMN auto_email_enabled BOOLEAN DEFAULT 1"))
+        _bc.execute(_text_b("ALTER TABLE guest_portal_settings ADD COLUMN pre_arrival_days_1 INTEGER DEFAULT 3"))
+        _bc.execute(_text_b("ALTER TABLE guest_portal_settings ADD COLUMN pre_arrival_days_2 INTEGER DEFAULT 1"))
+        _bc.execute(_text_b("ALTER TABLE guest_portal_settings ADD COLUMN post_departure_enabled BOOLEAN DEFAULT 1"))
+        _bc.execute(_text_b("ALTER TABLE guest_portal_settings ADD COLUMN review_url VARCHAR(500)"))
+        _bc.commit()
+except Exception:
+    pass
+
+try:
+    with engine.connect() as _bc:
+        _bc.execute(_text_b("""
+            CREATE TABLE IF NOT EXISTS email_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                tenant VARCHAR(50) NOT NULL,
+                booking_id INTEGER NOT NULL REFERENCES bookings(id),
+                email_type VARCHAR(50) NOT NULL,
+                to_email VARCHAR(200),
+                sent_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                success BOOLEAN DEFAULT 1
+            )
+        """))
+        _bc.commit()
+except Exception:
+    pass
+
+try:
+    with engine.connect() as _bc:
         _bc.execute(_text_b("""
             CREATE TABLE IF NOT EXISTS maintenance_issues (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -462,6 +490,101 @@ def _run_owner_reports():
         db.close()
 
 
+def _run_auto_emails():
+    """Daily job: send pre-arrival and post-departure emails to guests."""
+    from models import GuestPortalSettings as _GPS, Booking as _Booking, Customer as _Customer
+    from models import GuestToken as _GT, EmailLog as _EL
+    from email_utils import send_pre_arrival_email, send_post_departure_email
+    from database import SessionLocal as _SL
+    from datetime import date as _dt
+    import secrets as _sec
+    db = _SL()
+    try:
+        today = _dt.today()
+        tenants_cfg = db.query(_GPS).filter(_GPS.auto_email_enabled == True).all()
+        for cfg in tenants_cfg:
+            tenant = cfg.tenant
+            base = os.getenv("BASE_URL", "")
+
+            days_to_check = []
+            if cfg.pre_arrival_days_1 and cfg.pre_arrival_days_1 > 0:
+                days_to_check.append((cfg.pre_arrival_days_1, f"pre_arrival_{cfg.pre_arrival_days_1}d"))
+            if cfg.pre_arrival_days_2 and cfg.pre_arrival_days_2 > 0 and cfg.pre_arrival_days_2 != cfg.pre_arrival_days_1:
+                days_to_check.append((cfg.pre_arrival_days_2, f"pre_arrival_{cfg.pre_arrival_days_2}d"))
+
+            for days_ahead, etype in days_to_check:
+                target_date = today + __import__('datetime').timedelta(days=days_ahead)
+                bookings = db.query(_Booking).filter(
+                    _Booking.tenant == tenant,
+                    _Booking.check_in == target_date,
+                    _Booking.status.in_(["confirmed", "pending"]),
+                ).all()
+                for b in bookings:
+                    if not b.customer or not b.customer.email:
+                        continue
+                    already = db.query(_EL).filter(
+                        _EL.tenant == tenant, _EL.booking_id == b.id, _EL.email_type == etype
+                    ).first()
+                    if already:
+                        continue
+                    # Ensure guest token exists
+                    gt = db.query(_GT).filter(_GT.booking_id == b.id, _GT.is_active == True).first()
+                    if not gt:
+                        gt = _GT(booking_id=b.id, tenant=tenant, token=_sec.token_urlsafe(32))
+                        db.add(gt); db.flush()
+                    portal_url = f"{base}/guest/{gt.token}"
+                    ok = send_pre_arrival_email(
+                        to_email=b.customer.email,
+                        guest_name=f"{b.customer.first_name} {b.customer.last_name}".strip(),
+                        property_name=tenant,
+                        unit_name=b.unit.name if b.unit else "",
+                        check_in=b.check_in.strftime("%d/%m/%Y"),
+                        check_out=b.check_out.strftime("%d/%m/%Y"),
+                        checkin_time=cfg.checkin_time or "14:00",
+                        portal_url=portal_url,
+                        days_until=days_ahead,
+                        manager_phone=cfg.manager_phone or "",
+                        from_name=cfg.from_name,
+                        settings=cfg,
+                    )
+                    db.add(_EL(tenant=tenant, booking_id=b.id, email_type=etype,
+                               to_email=b.customer.email, success=ok))
+                db.commit()
+
+            if cfg.post_departure_enabled:
+                yesterday = today - __import__('datetime').timedelta(days=1)
+                bookings = db.query(_Booking).filter(
+                    _Booking.tenant == tenant,
+                    _Booking.check_out == yesterday,
+                    _Booking.status.in_(["confirmed", "pending"]),
+                ).all()
+                for b in bookings:
+                    if not b.customer or not b.customer.email:
+                        continue
+                    already = db.query(_EL).filter(
+                        _EL.tenant == tenant, _EL.booking_id == b.id, _EL.email_type == "post_departure"
+                    ).first()
+                    if already:
+                        continue
+                    ok = send_post_departure_email(
+                        to_email=b.customer.email,
+                        guest_name=f"{b.customer.first_name} {b.customer.last_name}".strip(),
+                        property_name=tenant,
+                        unit_name=b.unit.name if b.unit else "",
+                        review_url=cfg.review_url or "",
+                        from_name=cfg.from_name,
+                        settings=cfg,
+                    )
+                    db.add(_EL(tenant=tenant, booking_id=b.id, email_type="post_departure",
+                               to_email=b.customer.email, success=ok))
+                db.commit()
+
+    except Exception as e:
+        print(f"[auto_emails] ERROR: {e}")
+    finally:
+        db.close()
+
+
 def _run_ical_sync():
     db = SessionLocal()
     try:
@@ -489,6 +612,7 @@ _scheduler.add_job(_run_scheduled_refresh, "cron", hour=14, minute=0, id="refres
 _scheduler.add_job(_run_agent_sla_digest, "cron", hour=9, minute=0, id="sla_digest_09")
 _scheduler.add_job(_run_owner_reports, "cron", day=1, hour=9, minute=30, id="owner_reports_monthly")
 _scheduler.add_job(_run_ical_sync, "interval", hours=6, id="ical_sync_6h")
+_scheduler.add_job(_run_auto_emails, "cron", hour=9, minute=30, id="auto_emails_daily")
 _scheduler.start()
 
 app = FastAPI(

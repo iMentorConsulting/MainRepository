@@ -126,6 +126,102 @@ def send_notification_email(
     return _send(host, port, user, pwd, sender_name, notify_to, subject, html)
 
 
+def send_pre_arrival_email(
+    to_email: str,
+    guest_name: str,
+    property_name: str,
+    unit_name: str,
+    check_in: str,
+    check_out: str,
+    checkin_time: str,
+    portal_url: str,
+    days_until: int,
+    manager_phone: str = "",
+    from_name: str = None,
+    settings=None,
+) -> bool:
+    host, port, user, pwd = _smtp_cfg(settings)
+    if not all([host, user, pwd, to_email]):
+        return False
+    sender_name = from_name or (settings and settings.from_name) or property_name or user
+    if days_until == 1:
+        subject = f"🗝️ See you tomorrow! Your stay at {property_name}"
+        headline = "Your stay starts tomorrow!"
+        sub = f"Check-in time is <strong>{checkin_time}</strong>. We can't wait to welcome you!"
+    else:
+        subject = f"🏠 Your stay at {property_name} starts in {days_until} days!"
+        headline = f"Only {days_until} days to go!"
+        sub = f"We're preparing everything for your arrival. Check-in time is <strong>{checkin_time}</strong>."
+    phone_row = f'<tr><td style="padding:6px 0;color:#666;">Manager</td><td style="padding:6px 0;font-weight:600;">{manager_phone}</td></tr>' if manager_phone else ''
+    html = f"""<!DOCTYPE html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;color:#333;background:#f8fafc;">
+  <div style="background:white;border-radius:16px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.08);">
+    <div style="background:linear-gradient(135deg,#1e3a5f,#2d5986);padding:32px 24px;text-align:center;">
+      <p style="color:rgba(255,255,255,0.7);margin:0 0 6px;font-size:14px;">Hi {guest_name} 👋</p>
+      <h1 style="color:white;margin:0;font-size:22px;">{headline}</h1>
+      <p style="color:rgba(255,255,255,0.8);margin:10px 0 0;font-size:14px;">{sub}</p>
+    </div>
+    <div style="padding:24px;">
+      <div style="background:#f8fafc;border-radius:10px;padding:16px;margin-bottom:20px;">
+        <table style="width:100%;border-collapse:collapse;">
+          <tr><td style="padding:6px 0;color:#666;">Property</td><td style="padding:6px 0;font-weight:600;">{unit_name}</td></tr>
+          <tr><td style="padding:6px 0;color:#666;">Check-in</td><td style="padding:6px 0;font-weight:600;">{check_in} at {checkin_time}</td></tr>
+          <tr><td style="padding:6px 0;color:#666;">Check-out</td><td style="padding:6px 0;font-weight:600;">{check_out}</td></tr>
+          {phone_row}
+        </table>
+      </div>
+      <p style="color:#555;margin-bottom:20px;">Your personal guest portal has everything you need — check-in instructions, WiFi details, house rules, local tips, and a way to request services.</p>
+      <div style="text-align:center;margin-bottom:24px;">
+        <a href="{portal_url}" style="display:inline-block;background:#1e3a5f;color:white;text-decoration:none;padding:16px 48px;border-radius:10px;font-size:16px;font-weight:bold;">Open Guest Portal →</a>
+      </div>
+      <p style="color:#999;font-size:12px;text-align:center;border-top:1px solid #eee;padding-top:16px;margin:0;">This link is personal and valid only for your stay. Do not share it.</p>
+    </div>
+  </div>
+</body></html>"""
+    return _send(host, port, user, pwd, sender_name, to_email, subject, html)
+
+
+def send_post_departure_email(
+    to_email: str,
+    guest_name: str,
+    property_name: str,
+    unit_name: str,
+    review_url: str = "",
+    from_name: str = None,
+    settings=None,
+) -> bool:
+    host, port, user, pwd = _smtp_cfg(settings)
+    if not all([host, user, pwd, to_email]):
+        return False
+    sender_name = from_name or (settings and settings.from_name) or property_name or user
+    subject = f"⭐ Thank you for staying at {property_name}!"
+    review_block = ""
+    if review_url:
+        review_block = f"""
+      <div style="text-align:center;margin:24px 0;">
+        <p style="color:#555;margin-bottom:12px;">We'd love to hear about your experience. A quick review means a lot to us!</p>
+        <a href="{review_url}" style="display:inline-block;background:#f59e0b;color:white;text-decoration:none;padding:14px 40px;border-radius:10px;font-size:15px;font-weight:bold;">Leave a Review ⭐</a>
+      </div>"""
+    html = f"""<!DOCTYPE html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;color:#333;background:#f8fafc;">
+  <div style="background:white;border-radius:16px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.08);">
+    <div style="background:linear-gradient(135deg,#1e3a5f,#2d5986);padding:32px 24px;text-align:center;">
+      <p style="color:rgba(255,255,255,0.7);margin:0 0 6px;font-size:14px;">Dear {guest_name} 🙏</p>
+      <h1 style="color:white;margin:0;font-size:22px;">Thank you for your stay!</h1>
+      <p style="color:rgba(255,255,255,0.8);margin:10px 0 0;font-size:14px;">{unit_name} — {property_name}</p>
+    </div>
+    <div style="padding:24px;">
+      <p style="color:#555;font-size:15px;line-height:1.6;">We hope you had a wonderful time and that everything met your expectations. It was a pleasure having you with us, and we hope to welcome you back soon!</p>
+      {review_block}
+      <p style="color:#999;font-size:12px;text-align:center;border-top:1px solid #eee;padding-top:16px;margin:24px 0 0;">Safe travels! — {property_name}</p>
+    </div>
+  </div>
+</body></html>"""
+    return _send(host, port, user, pwd, sender_name, to_email, subject, html)
+
+
 def send_raw_email(to_email: str, subject: str, html: str, settings=None) -> bool:
     """Generic email sender for custom HTML content (reports, notifications)."""
     host, port, user, pwd = _smtp_cfg(settings)

@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
-import api, { getLicense } from '../api'
+import api, { getLicense, getAutoEmailSettings, saveAutoEmailSettings, getAutoEmailLogs } from '../api'
 import toast from 'react-hot-toast'
 import {
   PlusIcon,
@@ -1219,6 +1219,164 @@ function AnalyticsTab() {
   )
 }
 
+// ── Auto Email Tab ────────────────────────────────────────────────────────────
+
+const EMAIL_TYPE_LABELS = {
+  pre_arrival_3d: { label: '3-Day Pre-Arrival', icon: '✈️' },
+  pre_arrival_2d: { label: '2-Day Pre-Arrival', icon: '✈️' },
+  pre_arrival_1d: { label: '1-Day Pre-Arrival', icon: '🗝️' },
+  post_departure: { label: 'Post-Departure',    icon: '⭐' },
+}
+
+function AutoEmailTab() {
+  const [cfg, setCfg] = useState(null)
+  const [logs, setLogs] = useState([])
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    getAutoEmailSettings().then(r => setCfg(r.data)).catch(() => {})
+    getAutoEmailLogs().then(r => setLogs(r.data)).catch(() => {})
+  }, [])
+
+  const save = async () => {
+    setSaving(true)
+    try {
+      await saveAutoEmailSettings(cfg)
+      toast.success('Αποθηκεύτηκε')
+    } catch {
+      toast.error('Σφάλμα αποθήκευσης')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (!cfg) return <div className="flex justify-center py-12"><div className="animate-spin w-8 h-8 border-4 border-[#1e3a5f] border-t-transparent rounded-full" /></div>
+
+  return (
+    <div className="max-w-2xl space-y-6">
+      {/* Master switch */}
+      <div className="bg-white rounded-xl border border-gray-200 p-5">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="font-semibold text-gray-800">Αυτόματα Email σε Επισκέπτες</h3>
+            <p className="text-xs text-gray-500 mt-0.5">Αποστέλλονται κάθε μέρα στις 9:30 π.μ. αυτόματα</p>
+          </div>
+          <button
+            onClick={() => setCfg(c => ({ ...c, auto_email_enabled: !c.auto_email_enabled }))}
+            className={`relative w-12 h-6 rounded-full transition-colors ${cfg.auto_email_enabled ? 'bg-green-500' : 'bg-gray-300'}`}
+          >
+            <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${cfg.auto_email_enabled ? 'translate-x-6' : ''}`} />
+          </button>
+        </div>
+      </div>
+
+      {/* Pre-arrival settings */}
+      <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
+        <h3 className="font-semibold text-gray-800 flex items-center gap-2">✈️ Email Άφιξης (Pre-Arrival)</h3>
+        <p className="text-xs text-gray-500">Στέλνονται στον επισκέπτη πριν την άφιξή του με τον σύνδεσμο του Guest Portal.</p>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="text-xs font-medium text-gray-600 block mb-1">1η Υπενθύμιση (μέρες πριν)</label>
+            <select className="input" value={cfg.pre_arrival_days_1}
+              onChange={e => setCfg(c => ({ ...c, pre_arrival_days_1: +e.target.value }))}>
+              {[7,5,4,3,2,1].map(d => <option key={d} value={d}>{d} {d === 1 ? 'μέρα' : 'μέρες'}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="text-xs font-medium text-gray-600 block mb-1">2η Υπενθύμιση (0 = απενεργοποίηση)</label>
+            <select className="input" value={cfg.pre_arrival_days_2}
+              onChange={e => setCfg(c => ({ ...c, pre_arrival_days_2: +e.target.value }))}>
+              {[0,1,2,3].map(d => <option key={d} value={d}>{d === 0 ? 'Ανενεργή' : `${d} ${d === 1 ? 'μέρα' : 'μέρες'}`}</option>)}
+            </select>
+          </div>
+        </div>
+
+        <div className="bg-blue-50 border border-blue-100 rounded-lg p-3 text-xs text-blue-800">
+          Περιλαμβάνει: σύνδεσμο Guest Portal, ώρα check-in, στοιχεία ακινήτου, τηλέφωνο διαχειριστή.
+          Απαιτείται email επισκέπτη στην κράτηση.
+        </div>
+      </div>
+
+      {/* Post-departure settings */}
+      <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="font-semibold text-gray-800 flex items-center gap-2">⭐ Email Αναχώρησης (Post-Departure)</h3>
+          <button
+            onClick={() => setCfg(c => ({ ...c, post_departure_enabled: !c.post_departure_enabled }))}
+            className={`relative w-12 h-6 rounded-full transition-colors ${cfg.post_departure_enabled ? 'bg-green-500' : 'bg-gray-300'}`}
+          >
+            <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${cfg.post_departure_enabled ? 'translate-x-6' : ''}`} />
+          </button>
+        </div>
+        <p className="text-xs text-gray-500">Αποστέλλεται την επόμενη μέρα μετά την αναχώρηση με ευχαριστήριο μήνυμα.</p>
+
+        <div>
+          <label className="text-xs font-medium text-gray-600 block mb-1">URL Αξιολόγησης (προαιρετικό)</label>
+          <input type="url" className="input" placeholder="https://g.page/r/... ή https://www.airbnb.com/..."
+            value={cfg.review_url || ''}
+            onChange={e => setCfg(c => ({ ...c, review_url: e.target.value }))} />
+          <p className="text-xs text-gray-400 mt-1">Google Maps, Airbnb, Booking.com review link — εμφανίζεται ως κουμπί στο email.</p>
+        </div>
+      </div>
+
+      <button onClick={save} disabled={saving}
+        className="flex items-center gap-2 bg-[#1e3a5f] text-white px-6 py-2.5 rounded-xl font-semibold text-sm hover:bg-[#162d4a] disabled:opacity-50 transition-colors">
+        <PaperAirplaneIcon className="h-4 w-4" />
+        {saving ? 'Αποθήκευση...' : 'Αποθήκευση Ρυθμίσεων'}
+      </button>
+
+      {/* Email log */}
+      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <div className="px-5 py-4 border-b border-gray-100">
+          <h3 className="font-semibold text-gray-800">Ιστορικό Αποστολών</h3>
+          <p className="text-xs text-gray-500 mt-0.5">Τελευταία 100 αποστολές</p>
+        </div>
+        {logs.length === 0 ? (
+          <p className="text-center text-gray-400 py-8 text-sm">Δεν υπάρχουν αποστολές ακόμα</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 text-xs text-gray-500">
+                <tr>
+                  <th className="px-4 py-2 text-left">Τύπος</th>
+                  <th className="px-4 py-2 text-left">Επισκέπτης</th>
+                  <th className="px-4 py-2 text-left">Μονάδα</th>
+                  <th className="px-4 py-2 text-left">Email</th>
+                  <th className="px-4 py-2 text-left">Αποστολή</th>
+                  <th className="px-4 py-2 text-left">OK</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {logs.map(l => {
+                  const meta = EMAIL_TYPE_LABELS[l.email_type] || { icon: '📩', label: l.email_type }
+                  return (
+                    <tr key={l.id} className="hover:bg-gray-50">
+                      <td className="px-4 py-2 whitespace-nowrap">
+                        <span className="text-sm">{meta.icon}</span>
+                        <span className="text-xs text-gray-600 ml-1">{meta.label}</span>
+                      </td>
+                      <td className="px-4 py-2 text-gray-800 text-xs">{l.guest_name || '—'}</td>
+                      <td className="px-4 py-2 text-gray-500 text-xs">{l.unit_name || '—'}</td>
+                      <td className="px-4 py-2 text-gray-500 text-xs truncate max-w-[150px]">{l.to_email}</td>
+                      <td className="px-4 py-2 text-gray-400 text-xs whitespace-nowrap">{fmtDateTime(l.sent_at)}</td>
+                      <td className="px-4 py-2">
+                        {l.success
+                          ? <CheckCircleIcon className="h-4 w-4 text-green-500" />
+                          : <ExclamationCircleIcon className="h-4 w-4 text-red-400" />}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ── Top Tab Nav ───────────────────────────────────────────────────────────────
 
 const PORTAL_TABS = [
@@ -1229,6 +1387,7 @@ const PORTAL_TABS = [
   { id: 'requests',    label: 'Requests',       Icon: ClipboardDocumentListIcon },
   { id: 'messages',    label: 'Messages',       Icon: ChatBubbleLeftRightIcon },
   { id: 'analytics',   label: 'Analytics',      Icon: ChartBarIcon },
+  { id: 'auto_email',  label: 'Auto Email',     Icon: PaperAirplaneIcon },
 ]
 
 // ── Main Component ────────────────────────────────────────────────────────────
@@ -1283,6 +1442,7 @@ export default function PortalAdmin() {
         {activeTab === 'requests'    && <RequestsTab />}
         {activeTab === 'messages'    && <MessagesTab />}
         {activeTab === 'analytics'   && <AnalyticsTab />}
+        {activeTab === 'auto_email'  && <AutoEmailTab />}
       </div>
     </div>
   )

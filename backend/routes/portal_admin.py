@@ -7,7 +7,7 @@ from database import get_db
 from models import (
     Booking, Customer, Unit, GuestToken,
     WelcomeGuideItem, LocalRecommendation, MarketplaceItem,
-    ServiceRequest, GuestMessage, GuestPortalSettings, InstallationLicense,
+    ServiceRequest, GuestMessage, GuestPortalSettings, InstallationLicense, EmailLog,
 )
 from auth_utils import get_tenant
 
@@ -62,6 +62,75 @@ def save_settings(body: dict, db: Session = Depends(get_db), tenant: str = Depen
             setattr(s, f, body[f])
     db.commit()
     return {"saved": True}
+
+
+_AUTO_EMAIL_FIELDS = [
+    "auto_email_enabled", "pre_arrival_days_1", "pre_arrival_days_2",
+    "post_departure_enabled", "review_url",
+]
+
+
+@router.get("/auto-email-settings")
+def get_auto_email_settings(db: Session = Depends(get_db), tenant: str = Depends(get_tenant)):
+    s = db.query(GuestPortalSettings).filter(GuestPortalSettings.tenant == tenant).first()
+    if not s:
+        s = GuestPortalSettings(tenant=tenant)
+        db.add(s); db.commit(); db.refresh(s)
+    return {
+        "auto_email_enabled": s.auto_email_enabled if s.auto_email_enabled is not None else True,
+        "pre_arrival_days_1": s.pre_arrival_days_1 or 3,
+        "pre_arrival_days_2": s.pre_arrival_days_2 if s.pre_arrival_days_2 is not None else 1,
+        "post_departure_enabled": s.post_departure_enabled if s.post_departure_enabled is not None else True,
+        "review_url": s.review_url or "",
+    }
+
+
+@router.put("/auto-email-settings")
+def save_auto_email_settings(body: dict, db: Session = Depends(get_db), tenant: str = Depends(get_tenant)):
+    s = db.query(GuestPortalSettings).filter(GuestPortalSettings.tenant == tenant).first()
+    if not s:
+        s = GuestPortalSettings(tenant=tenant)
+        db.add(s)
+    for f in _AUTO_EMAIL_FIELDS:
+        if f in body:
+            setattr(s, f, body[f])
+    db.commit()
+    return {"saved": True}
+
+
+@router.get("/auto-email-logs")
+def get_auto_email_logs(db: Session = Depends(get_db), tenant: str = Depends(get_tenant)):
+    from sqlalchemy.orm import joinedload as _jl
+    logs = (
+        db.query(EmailLog)
+        .filter(EmailLog.tenant == tenant)
+        .order_by(EmailLog.sent_at.desc())
+        .limit(100)
+        .all()
+    )
+    # Gather booking info in one query
+    booking_ids = list({l.booking_id for l in logs})
+    bookings = {
+        b.id: b for b in db.query(Booking)
+        .options(_jl(Booking.unit), _jl(Booking.customer))
+        .filter(Booking.id.in_(booking_ids))
+        .all()
+    } if booking_ids else {}
+    result = []
+    for l in logs:
+        b = bookings.get(l.booking_id)
+        result.append({
+            "id": l.id,
+            "email_type": l.email_type,
+            "to_email": l.to_email,
+            "sent_at": l.sent_at.isoformat() if l.sent_at else None,
+            "success": l.success,
+            "booking_id": l.booking_id,
+            "unit_name": b.unit.name if b and b.unit else "",
+            "guest_name": f"{b.customer.first_name} {b.customer.last_name}".strip() if b and b.customer else "",
+            "check_in": b.check_in.isoformat() if b else "",
+        })
+    return result
 
 
 @router.get("/license")
