@@ -53,8 +53,10 @@ def widget_info(token: str, db: Session = Depends(get_db)):
         "description": unit.description or "",
         "base_price": unit.base_price,
         "property_name": unit.name,
-        "primary_color": "#1e3a5f",
-        "logo_url": "",
+        "checkin_time": (s and s.checkin_time) or "14:00",
+        "checkout_time": (s and s.checkout_time) or "11:00",
+        "manager_phone": (s and s.manager_phone) or "",
+        "welcome_message": (s and s.welcome_message) or "",
         "booked_dates": _booked_dates(unit.id, db),
     }
 

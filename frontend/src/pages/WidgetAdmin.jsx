@@ -112,6 +112,7 @@ function InquiryRow({ inq, onStatusChange }) {
 function UnitWidgetCard({ unit, onTokenGenerated }) {
   const [loading, setLoading] = useState(false)
   const widgetUrl = unit.widget_token ? `${BASE_URL}/widget/${unit.widget_token}` : null
+  const bookingUrl = unit.widget_token ? `${BASE_URL}/book/${unit.widget_token}` : null
   const iframeCode = widgetUrl
     ? `<iframe src="${widgetUrl}" width="100%" height="700" frameborder="0" style="border-radius:16px;overflow:hidden;" allow="clipboard-write"></iframe>`
     : null
@@ -185,11 +186,30 @@ function UnitWidgetCard({ unit, onTokenGenerated }) {
             </p>
           </div>
 
-          {/* Preview link */}
-          <a href={widgetUrl} target="_blank" rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 text-xs text-[#1e3a5f] font-semibold hover:underline">
-            👁️ Προεπισκόπηση Widget →
-          </a>
+          {/* Direct Booking Page */}
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-gray-500">🏠 Direct Booking Page (standalone)</label>
+            <div className="flex items-center gap-2 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2">
+              <a href={bookingUrl} target="_blank" rel="noopener noreferrer"
+                className="text-xs text-blue-700 font-mono truncate flex-1 hover:underline">
+                {bookingUrl}
+              </a>
+              <CopyButton value={bookingUrl} />
+            </div>
+            <p className="text-xs text-gray-400">Μοιραστείτε αυτόν τον σύνδεσμο σε Instagram bio, WhatsApp, email, κ.ά.</p>
+          </div>
+
+          {/* Preview links */}
+          <div className="flex gap-4 flex-wrap">
+            <a href={widgetUrl} target="_blank" rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 text-xs text-[#1e3a5f] font-semibold hover:underline">
+              👁️ Προεπισκόπηση Widget →
+            </a>
+            <a href={bookingUrl} target="_blank" rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 text-xs text-blue-600 font-semibold hover:underline">
+              🏠 Booking Page →
+            </a>
+          </div>
         </>
       )}
     </div>

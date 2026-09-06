@@ -21,6 +21,7 @@ import WidgetAdmin from './pages/WidgetAdmin'
 
 const GuestPortal = lazy(() => import('./pages/GuestPortal'))
 const WidgetPage = lazy(() => import('./pages/WidgetPage'))
+const BookingPage = lazy(() => import('./pages/BookingPage'))
 
 class ErrorBoundary extends React.Component {
   state = { error: null }
@@ -72,6 +73,16 @@ export default function App() {
             element={
               <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600" /></div>}>
                 <WidgetPage />
+              </Suspense>
+            }
+          />
+
+          {/* Public direct booking page — no auth required */}
+          <Route
+            path="/book/:token"
+            element={
+              <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600" /></div>}>
+                <BookingPage />
               </Suspense>
             }
           />
