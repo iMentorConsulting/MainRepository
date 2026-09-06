@@ -87,7 +87,7 @@ except Exception:
 
 try:
     with engine.connect() as _bc:
-        _bc.execute(_text_b("ALTER TABLE units ADD COLUMN ical_export_token VARCHAR(64) UNIQUE"))
+        _bc.execute(_text_b("ALTER TABLE units ADD COLUMN ical_export_token VARCHAR(64)"))
         _bc.commit()
 except Exception:
     pass
