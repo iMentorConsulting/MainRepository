@@ -22,6 +22,7 @@ from routes.expenses import router as expenses_router
 from routes.maintenance import router as maintenance_router
 from routes.owners import router as owners_router
 from routes.pricing import router as pricing_router
+from routes.widget import router as widget_router
 
 # Case management routes
 from routes.cm_auth import router as cm_auth_router
@@ -88,6 +89,35 @@ except Exception:
 try:
     with engine.connect() as _bc:
         _bc.execute(_text_b("ALTER TABLE units ADD COLUMN ical_export_token VARCHAR(64)"))
+        _bc.commit()
+except Exception:
+    pass
+
+try:
+    with engine.connect() as _bc:
+        _bc.execute(_text_b("ALTER TABLE units ADD COLUMN widget_token VARCHAR(64)"))
+        _bc.commit()
+except Exception:
+    pass
+
+try:
+    with engine.connect() as _bc:
+        _bc.execute(_text_b("""
+            CREATE TABLE IF NOT EXISTS booking_inquiries (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                tenant VARCHAR(50) NOT NULL,
+                unit_id INTEGER NOT NULL REFERENCES units(id),
+                guest_name VARCHAR(200) NOT NULL,
+                guest_email VARCHAR(200) NOT NULL,
+                guest_phone VARCHAR(50),
+                check_in DATE NOT NULL,
+                check_out DATE NOT NULL,
+                guests INTEGER DEFAULT 1,
+                message TEXT,
+                status VARCHAR(20) DEFAULT 'pending',
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        """))
         _bc.commit()
 except Exception:
     pass
@@ -654,6 +684,7 @@ app.include_router(expenses_router, prefix="/api")
 app.include_router(maintenance_router, prefix="/api")
 app.include_router(owners_router, prefix="/api")
 app.include_router(pricing_router, prefix="/api")
+app.include_router(widget_router, prefix="/api/widget")
 
 # Case management
 app.include_router(cm_auth_router)

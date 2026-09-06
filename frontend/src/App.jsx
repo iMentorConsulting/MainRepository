@@ -17,8 +17,10 @@ import Maintenance from './pages/Maintenance'
 import Owners from './pages/Owners'
 import Pricing from './pages/Pricing'
 import Sync from './pages/Sync'
+import WidgetAdmin from './pages/WidgetAdmin'
 
 const GuestPortal = lazy(() => import('./pages/GuestPortal'))
+const WidgetPage = lazy(() => import('./pages/WidgetPage'))
 
 class ErrorBoundary extends React.Component {
   state = { error: null }
@@ -64,6 +66,16 @@ export default function App() {
             }
           />
 
+          {/* Public availability widget — no auth required */}
+          <Route
+            path="/widget/:token"
+            element={
+              <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600" /></div>}>
+                <WidgetPage />
+              </Suspense>
+            }
+          />
+
           {/* Authenticated admin app */}
           {!auth ? (
             <Route path="*" element={<Login onLogin={setAuth} />} />
@@ -83,6 +95,7 @@ export default function App() {
               <Route path="pricing" element={<Pricing />} />
               <Route path="sync" element={<Sync />} />
               <Route path="portal" element={<PortalAdmin />} />
+              <Route path="widget-admin" element={<WidgetAdmin />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Route>
           )}

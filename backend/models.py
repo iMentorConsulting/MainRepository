@@ -21,6 +21,7 @@ class Unit(Base):
     is_active = Column(Boolean, default=True)
     ical_url = Column(String(500), nullable=True)
     ical_export_token = Column(String(64), nullable=True, index=True)
+    widget_token = Column(String(64), nullable=True, index=True)
     owner_id = Column(Integer, ForeignKey("owners.id"), nullable=True)
     tenant = Column(String(50), nullable=False, default='evaivoni', index=True)
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -198,6 +199,25 @@ class GuestPortalSettings(Base):
     pre_arrival_message = Column(Text)
     post_departure_subject = Column(String(300))
     post_departure_message = Column(Text)
+
+
+class BookingInquiry(Base):
+    __tablename__ = "booking_inquiries"
+
+    id = Column(Integer, primary_key=True, index=True)
+    tenant = Column(String(50), nullable=False, index=True)
+    unit_id = Column(Integer, ForeignKey("units.id"), nullable=False)
+    guest_name = Column(String(200), nullable=False)
+    guest_email = Column(String(200), nullable=False)
+    guest_phone = Column(String(50))
+    check_in = Column(Date, nullable=False)
+    check_out = Column(Date, nullable=False)
+    guests = Column(Integer, default=1)
+    message = Column(Text)
+    status = Column(String(20), default="pending")  # pending | confirmed | declined
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    unit = relationship("Unit")
 
 
 class Expense(Base):
