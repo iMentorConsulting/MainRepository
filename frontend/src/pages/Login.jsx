@@ -25,7 +25,9 @@ export default function Login({ onLogin }) {
     <div className="min-h-screen bg-gradient-to-br from-[#1e3a5f] to-[#2d5986] flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <img src="/logo-istay.png" alt="iStay" className="h-24 w-auto object-contain mx-auto mb-2" />
+          <div className="bg-white rounded-2xl px-8 py-4 inline-block shadow-md mb-2">
+            <img src="/logo-istay-blue.png" alt="iStay" className="h-12 w-auto object-contain" />
+          </div>
           <p className="text-blue-200 mt-1">Σύστημα Διαχείρισης Κρατήσεων</p>
         </div>
 

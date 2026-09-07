@@ -131,9 +131,7 @@ export default function SuperAdmin({ onLogout }) {
       <div className="bg-[#1e3a5f] text-white">
         <div className="max-w-3xl mx-auto px-4 py-5 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="bg-white rounded-xl px-3 py-1.5">
-              <img src="/logo-istay.png" alt="iStay" className="h-6 w-auto" />
-            </div>
+            <img src="/logo-istay.png" alt="iStay" className="h-8 w-auto object-contain" />
             <div>
               <p className="text-xs text-blue-200 font-medium">Super Admin · Διαχείριση Επιχειρήσεων</p>
             </div>
