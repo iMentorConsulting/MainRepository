@@ -362,10 +362,9 @@ function ExpandedRow({ lead, colSpan, onChanged, onConvert, onErmis, onSend, pro
           <span className="text-sm text-gray-500">ΑΦΜ: <b className={full?.afm ? 'text-gray-700' : 'text-red-500'}>{full?.afm || '— (λείπει)'}</b></span>
           <span className="text-sm text-gray-500">Πρόγραμμα: <b className="text-gray-700">{full?.program || '—'}</b></span>
           {(() => {
-            // 1) program_title stored in DB (from webhook programTitle / program_exact_title)
-            // 2) extracted from notes when LOGISTIS uses "Ανάθεση … — PROGRAM TITLE" format
+            // program_title from DB, or service_type when it looks like a real program title
             const pt = full?.program_title ||
-              (full?.notes?.includes('—') ? full.notes.split('—').slice(1).join('—').trim() : null)
+              (full?.service_type && categoryFromTitle(full.service_type) ? full.service_type : null)
             return pt && pt !== full?.program ? (
               <span className="text-sm font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-lg px-3 py-1 max-w-xs truncate" title={pt}>
                 🎯 {pt}
