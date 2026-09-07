@@ -519,6 +519,35 @@ try:
 except Exception as _e:
     print(f"[migration] Status descriptions seed skipped: {_e}")
 
+# Force-seed ΔΥΠΑ-ΠΡΟΣΛΗΨΗΣ pipeline phases + descriptions (row may exist with empty phases)
+try:
+    from pipelines import PIPELINES as _PL
+    _dypa_phases = _json.dumps(_PL["ΔΥΠΑ-ΠΡΟΣΛΗΨΗΣ"]["phases"], ensure_ascii=False)
+    _dypa_extras = _json.dumps(_PL["ΔΥΠΑ-ΠΡΟΣΛΗΨΗΣ"]["extra_statuses"], ensure_ascii=False)
+    _dypa_descs  = _json.dumps(_PIPELINE_DESCS["ΔΥΠΑ-ΠΡΟΣΛΗΨΗΣ"], ensure_ascii=False)
+    with engine.connect() as _conn:
+        _conn.execute(_text("""
+            INSERT INTO cm_pipeline_configs (program_category, phases_json, extra_statuses_json, status_descriptions_json)
+            VALUES ('ΔΥΠΑ-ΠΡΟΣΛΗΨΗΣ', :phases, :extras, :descs)
+            ON CONFLICT (program_category) DO UPDATE SET
+                phases_json = CASE
+                    WHEN COALESCE(cm_pipeline_configs.phases_json, '[]') IN ('[]', '', 'null')
+                    THEN EXCLUDED.phases_json
+                    ELSE cm_pipeline_configs.phases_json
+                END,
+                extra_statuses_json = CASE
+                    WHEN COALESCE(cm_pipeline_configs.extra_statuses_json, '[]') IN ('[]', '', 'null')
+                    THEN EXCLUDED.extra_statuses_json
+                    ELSE cm_pipeline_configs.extra_statuses_json
+                END,
+                status_descriptions_json = EXCLUDED.status_descriptions_json,
+                updated_at = NOW()
+        """), {"phases": _dypa_phases, "extras": _dypa_extras, "descs": _dypa_descs})
+        _conn.commit()
+        print("[migration] ΔΥΠΑ-ΠΡΟΣΛΗΨΗΣ pipeline phases + descriptions seeded/updated")
+except Exception as _e:
+    print(f"[migration] ΔΥΠΑ-ΠΡΟΣΛΗΨΗΣ pipeline seed skipped: {_e}")
+
 # Force-update ΕΣΠΑ descriptions (previous guard blocked it because row had existing data)
 _ESPA_DESCS = {
     "ΥΠΟΒΟΛΗ ΑΙΤΗΣΗΣ": "Η αίτησή σας για το πρόγραμμα ΕΣΠΑ έχει υποβληθεί. Αναμένουμε τα αποτελέσματα τα οποία θα ανακοινωθούν συνολικά για όλους υποψήφιους.",
