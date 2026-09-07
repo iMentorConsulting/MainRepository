@@ -58,9 +58,9 @@ export default function Layout({ auth, onLogout }) {
         className="hidden md:flex md:flex-col w-56 bg-white border-r border-gray-200 flex-shrink-0"
         aria-label="Κύρια πλοήγηση"
       >
-        <div className="px-4 py-5 border-b border-gray-200" role="banner">
-          <h1 className="text-lg font-bold text-blue-700 leading-tight">🏨 Κρατήσεις</h1>
-          <p className="text-xs text-gray-500 mt-0.5 font-medium truncate" aria-label={`Συνδεδεμένος ως ${auth?.name}`}>
+        <div className="px-4 py-4 border-b border-gray-200" role="banner">
+          <img src="/logo-istay.svg" alt="iStay" className="h-8 w-auto mb-1" />
+          <p className="text-xs text-gray-500 font-medium truncate" aria-label={`Συνδεδεμένος ως ${auth?.name}`}>
             {auth?.name}
           </p>
         </div>
@@ -84,9 +84,8 @@ export default function Layout({ auth, onLogout }) {
         {/* Mobile top bar */}
         <header className="md:hidden flex items-center justify-between px-4 py-3 bg-white border-b border-gray-200" role="banner">
           <div>
-            <span className="text-base font-bold text-blue-700" aria-hidden="true">🏨</span>
-            <span className="text-base font-bold text-blue-700 ml-1">Κρατήσεις</span>
-            <p className="text-xs text-gray-500 leading-none">{auth?.name}</p>
+            <img src="/logo-istay.svg" alt="iStay" className="h-7 w-auto" />
+            <p className="text-xs text-gray-500 leading-none mt-0.5">{auth?.name}</p>
           </div>
           <button
             onClick={onLogout}

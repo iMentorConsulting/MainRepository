@@ -25,7 +25,9 @@ export default function Login({ onLogin }) {
     <div className="min-h-screen bg-gradient-to-br from-[#1e3a5f] to-[#2d5986] flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <img src="/logo-white.png" alt="iMentor Consulting" className="h-44 w-auto object-contain mx-auto mb-3" />
+          <div className="bg-white rounded-2xl px-6 py-4 inline-block mb-3 shadow-lg">
+            <img src="/logo-istay.svg" alt="iStay" className="h-14 w-auto object-contain" />
+          </div>
           <p className="text-blue-200 mt-1">Σύστημα Διαχείρισης Κρατήσεων</p>
         </div>
 
@@ -66,7 +68,7 @@ export default function Login({ onLogin }) {
           </form>
         </div>
         <p className="text-center text-blue-200/60 text-xs mt-6">
-          © {new Date().getFullYear()} iMentor Consulting
+          © {new Date().getFullYear()} iStay by iMentor Consulting
         </p>
       </div>
     </div>

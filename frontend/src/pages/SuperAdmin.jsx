@@ -131,12 +131,11 @@ export default function SuperAdmin({ onLogout }) {
       <div className="bg-[#1e3a5f] text-white">
         <div className="max-w-3xl mx-auto px-4 py-5 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 bg-white/20 rounded-xl flex items-center justify-center">
-              <BuildingOffice2Icon className="h-5 w-5" />
+            <div className="bg-white rounded-xl px-3 py-1.5">
+              <img src="/logo-istay.svg" alt="iStay" className="h-6 w-auto" />
             </div>
             <div>
-              <h1 className="text-lg font-bold">Super Admin</h1>
-              <p className="text-xs text-blue-200">Διαχείριση Επιχειρήσεων</p>
+              <p className="text-xs text-blue-200 font-medium">Super Admin · Διαχείριση Επιχειρήσεων</p>
             </div>
           </div>
           <button

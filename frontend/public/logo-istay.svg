@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 120" fill="none">
+  <!-- House icon -->
+  <g>
+    <!-- Roof -->
+    <path d="M10 58 L58 14 L106 58" fill="#2563EB" stroke="#2563EB" stroke-width="2" stroke-linejoin="round"/>
+    <!-- House body -->
+    <rect x="18" y="54" width="80" height="54" rx="4" fill="#2563EB"/>
+    <!-- i-person: head -->
+    <circle cx="44" cy="67" r="6" fill="white"/>
+    <!-- i-person: body (oval) -->
+    <ellipse cx="44" cy="84" rx="5" ry="10" fill="white"/>
+    <!-- Door -->
+    <rect x="58" y="72" width="24" height="36" rx="3" fill="white" opacity="0.9"/>
+    <!-- Door opening (open door effect) -->
+    <path d="M58 72 Q66 70 70 80 L70 108 L58 108 Z" fill="#2563EB"/>
+    <!-- Door knob -->
+    <circle cx="76" cy="92" r="2.5" fill="#2563EB"/>
+  </g>
+
+  <!-- iStay wordmark -->
+  <!-- i -->
+  <text x="136" y="96" font-family="'Segoe UI', system-ui, -apple-system, sans-serif" font-size="72" font-weight="800" fill="#2563EB" letter-spacing="-2">iStay</text>
+</svg>
