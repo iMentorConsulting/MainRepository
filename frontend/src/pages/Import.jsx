@@ -1047,7 +1047,7 @@ export default function Import() {
               </h2>
               <p className="text-sm text-gray-500">
                 Φορτώστε όλους τους τύπους υπηρεσιών και αναθέστε κάθε έναν στο σωστό pipeline
-                (ΕΣΠΑ / ΔΥΠΑ / Μικροπιστώσεις). Ενημερώνει όλες τις σχετικές υποθέσεις.
+                (ΕΣΠΑ / ΔΥΠΑ / Μικροπιστώσεις / ΔΥΠΑ Προσλήψεων / Ανακαινίζω). Ενημερώνει όλες τις σχετικές υποθέσεις.
               </p>
             </div>
           </div>
@@ -1084,6 +1084,8 @@ export default function Import() {
                       'ΕΣΠΑ': 'bg-blue-100 text-blue-800',
                       'ΔΥΠΑ': 'bg-green-100 text-green-800',
                       'ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ': 'bg-purple-100 text-purple-800',
+                      'ΔΥΠΑ-ΠΡΟΣΛΗΨΗΣ': 'bg-teal-100 text-teal-800',
+                      'ΑΝΑΚΑΙΝΙΖΩ': 'bg-orange-100 text-orange-800',
                     }
                     return (
                       <tr key={i} className={changed ? 'bg-amber-50' : 'hover:bg-gray-50'}>
@@ -1105,6 +1107,8 @@ export default function Import() {
                             <option value="ΕΣΠΑ">ΕΣΠΑ</option>
                             <option value="ΔΥΠΑ">ΔΥΠΑ / ΟΑΕΔ</option>
                             <option value="ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ">Μικροπιστώσεις</option>
+                            <option value="ΔΥΠΑ-ΠΡΟΣΛΗΨΗΣ">ΔΥΠΑ Προσλήψεων</option>
+                            <option value="ΑΝΑΚΑΙΝΙΖΩ">Ανακαινίζω</option>
                           </select>
                         </td>
                       </tr>
