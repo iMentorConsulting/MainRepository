@@ -36,13 +36,18 @@ export async function GET(request: NextRequest) {
 
   const idFilter = searchParams.get('id') || ''
 
-  const where: any = {}
-
-  // Direct ID lookup — bypasses all other filters so the caller always gets the
-  // exact business they asked for (used e.g. to pre-populate form fields).
+  // Direct ID lookup — return immediately, bypassing all scope/type filters.
+  // The caller already has the ID (e.g. from a business profile URL), so they
+  // clearly have access; no need to re-apply accountant/individual filters.
   if (idFilter) {
-    where.id = idFilter
+    const business = await prisma.business.findUnique({
+      where: { id: idFilter },
+      select: { id: true, afm: true, onomasia: true, commercialTitle: true, clientType: true, accountantId: true },
+    })
+    return NextResponse.json({ businesses: business ? [business] : [], total: business ? 1 : 0 })
   }
+
+  const where: any = {}
 
   if (session.user.role === 'ACCOUNTANT' && session.user.accountantId) {
     where.accountantId = session.user.accountantId
