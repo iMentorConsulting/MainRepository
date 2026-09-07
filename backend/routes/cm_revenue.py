@@ -12,7 +12,7 @@ from pipelines import PIPELINES
 router = APIRouter(prefix="/api/cm/revenue", tags=["revenue"])
 
 # Months from now to assume as deadline when none is set
-FALLBACK_MONTHS = {"ΕΣΠΑ": 18, "ΔΥΠΑ": 18, "ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ": 2}
+FALLBACK_MONTHS = {"ΕΣΠΑ": 18, "ΔΥΠΑ": 18, "ΔΥΠΑ-ΠΡΟΣΛΗΨΗΣ": 18, "ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ": 2}
 DEFAULT_FALLBACK = 18
 FORECAST_HORIZON_MONTHS = 24
 HISTORY_MONTHS = 12

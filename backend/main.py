@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from dotenv import load_dotenv
 from database import Base, engine
-from models_cases import CMUser, CMCase, CMTask, CMPayment, CMMessage, CMDocument, CMNotificationLog, CMBudgetCategory, CMPendingItemTemplate, CMCasePendingItem, CMPipelineConfig, CMCaseStatusHistory
+from models_cases import CMUser, CMCase, CMTask, CMPayment, CMMessage, CMDocument, CMNotificationLog, CMBudgetCategory, CMPendingItemTemplate, CMCasePendingItem, CMPipelineConfig, CMCaseStatusHistory, CMCaseDypaHiring
 
 # Case management routes
 from routes.cm_auth import router as cm_auth_router
@@ -32,6 +32,7 @@ from routes.finance_api import router as finance_api_router
 from routes.cm_leads import router as cm_leads_router
 from routes.cm_leads_sync import router as cm_leads_sync_router
 from routes.cm_leads_ermis import router as cm_leads_ermis_router
+from routes.cm_dypa_hiring import router as cm_dypa_hiring_router
 
 load_dotenv()
 
@@ -100,6 +101,19 @@ try:
         _conn.execute(_text("ALTER TABLE cm_documents ADD COLUMN IF NOT EXISTS mime_type VARCHAR(100)"))
         _conn.execute(_text("ALTER TABLE cm_documents ADD COLUMN IF NOT EXISTS upload_source VARCHAR(50)"))
         _conn.execute(_text("ALTER TABLE cm_documents ADD COLUMN IF NOT EXISTS portal_visible BOOLEAN DEFAULT FALSE"))
+        _conn.execute(_text("""
+            CREATE TABLE IF NOT EXISTS cm_case_dypa_hiring (
+                id SERIAL PRIMARY KEY,
+                case_id INTEGER REFERENCES cm_cases(id) ON DELETE CASCADE UNIQUE NOT NULL,
+                program_duration_months INTEGER DEFAULT 12,
+                hiring_date DATE,
+                requests_submitted INTEGER DEFAULT 0,
+                periods_paid INTEGER DEFAULT 0,
+                notes TEXT,
+                created_at TIMESTAMP DEFAULT NOW(),
+                updated_at TIMESTAMP DEFAULT NOW()
+            )
+        """))
         _conn.execute(_text("""
             CREATE TABLE IF NOT EXISTS cm_case_status_history (
                 id SERIAL PRIMARY KEY,
@@ -470,6 +484,20 @@ _PIPELINE_DESCS = {
         "ΕΚΚΡΕΜΟΤΗΤΑ ΑΠΟ ΟΠΣΚΕ": "Στο ΟΠΣΚΕ έχουν ζητηθεί συμπληρωματικά στοιχεία ή διευκρινίσεις. Εργαζόμαστε για την επίλυση.",
         "ΠΑΓΩΜΕΝΗ ΥΠΟΘΕΣΗ": "Η υπόθεση βρίσκεται προσωρινά σε αναστολή.",
         "ΑΠΟΡΡΙΨΗ": "Ο φάκελος δεν εγκρίθηκε. Το γραφείο μας θα σας ενημερώσει για τις επόμενες διαθέσιμες επιλογές.",
+        "ΑΚΥΡΩΣΗ": "Η υπόθεση έχει ακυρωθεί. Επικοινωνήστε μαζί μας για οποιαδήποτε διευκρίνιση.",
+    },
+    "ΔΥΠΑ-ΠΡΟΣΛΗΨΗΣ": {
+        "ΑΙΤΗΣΗ ΣΤΗΝ ΔΥΠΑ": "Η αίτηση για το πρόγραμμα επιδότησης πρόσληψης έχει υποβληθεί στη ΔΥΠΑ. Αναμένουμε επεξεργασία.",
+        "ΕΚΚΡΕΜΟΤΗΤΕΣ ΑΠΟ ΔΥΠΑ": "Η ΔΥΠΑ έχει ζητήσει συμπληρωματικά στοιχεία ή διευκρινίσεις. Εργαζόμαστε για την αντιμετώπισή τους.",
+        "ΚΑΛΥΨΗ ΕΚΚΡΕΜΟΤΗΤΩΝ ΔΥΠΑ": "Συγκεντρώνουμε και αποστέλλουμε τα ζητούμενα έγγραφα στη ΔΥΠΑ.",
+        "ΕΓΚΡΙΣΗ ΑΠΟ ΔΥΠΑ": "Η αίτησή σας εγκρίθηκε από τη ΔΥΠΑ! Από αυτό το σημείο ξεκινά η προθεσμία 90 ημερών για την πρόσληψη ανέργου.",
+        "ΥΠΟΔΕΙΞΗ ΑΝΕΡΓΩΝ ΑΠΟ ΔΥΠΑ": "Η ΔΥΠΑ σας υποδεικνύει ανέργους υποψήφιους για πρόσληψη. Βρισκόμαστε στη διαδικασία αξιολόγησης.",
+        "ΠΡΟΣΛΗΨΗ ΑΝΕΡΓΟΥ ΑΠΟ ΕΠΙΧΕΙΡΗΣΗ": "Η επιχείρηση προχωράει στην πρόσληψη του ανέργου. Ετοιμάζονται τα απαραίτητα έγγραφα.",
+        "ΥΛΟΠΟΙΗΣΗ ΠΡΟΓΡΑΜΜΑΤΟΣ": "Το πρόγραμμα βρίσκεται σε φάση υλοποίησης. Ανά δίμηνο υποβάλλονται αιτήματα πληρωμής στη ΔΥΠΑ.",
+        "ΟΛΟΚΛΗΡΩΜΕΝΗ ΥΠΟΘΕΣΗ": "Η επιδότηση πρόσληψης ολοκληρώθηκε επιτυχώς. Συγχαρητήρια!",
+        "ΣΕ ΑΝΑΜΟΝΗ ΠΕΛΑΤΗ": "Αναμένουμε ενέργεια ή έγγραφα από εσάς για να συνεχίσουμε.",
+        "ΠΑΓΩΜΕΝΗ ΥΠΟΘΕΣΗ": "Η υπόθεση βρίσκεται προσωρινά σε αναστολή.",
+        "ΑΠΟΡΡΙΨΗ": "Η αίτηση δεν εγκρίθηκε. Το γραφείο μας θα σας ενημερώσει για τις επόμενες επιλογές.",
         "ΑΚΥΡΩΣΗ": "Η υπόθεση έχει ακυρωθεί. Επικοινωνήστε μαζί μας για οποιαδήποτε διευκρίνιση.",
     },
 }
@@ -1025,6 +1053,7 @@ app.include_router(cm_portal_integration_router)
 app.include_router(cm_leads_router)
 app.include_router(cm_leads_sync_router)
 app.include_router(cm_leads_ermis_router)
+app.include_router(cm_dypa_hiring_router)
 
 
 try:

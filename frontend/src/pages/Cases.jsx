@@ -143,11 +143,12 @@ function QuickActions({ caseRow, allStatuses, onUpdated }) {
 const PROGRAM_OPTIONS = [
   { value: 'ΕΣΠΑ', label: 'ΕΣΠΑ' },
   { value: 'ΔΥΠΑ', label: 'ΔΥΠΑ / ΟΑΕΔ' },
+  { value: 'ΔΥΠΑ-ΠΡΟΣΛΗΨΗΣ', label: 'ΔΥΠΑ Προσλήψεων' },
   { value: 'ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ', label: 'Μικροπιστώσεις' },
   { value: 'ΑΝΑΚΑΙΝΙΖΩ', label: 'Ανακαινίζω' },
 ]
 
-const NON_ANA_PROGRAMS = ['ΕΣΠΑ', 'ΔΥΠΑ', 'ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ']
+const NON_ANA_PROGRAMS = ['ΕΣΠΑ', 'ΔΥΠΑ', 'ΔΥΠΑ-ΠΡΟΣΛΗΨΗΣ', 'ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ']
 
 function SortTh({ label, col, sortCol, sortDir, onSort, className = '' }) {
   const active = sortCol === col

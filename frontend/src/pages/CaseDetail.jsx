@@ -9,6 +9,7 @@ import BudgetTab from '../components/BudgetTab'
 import PendingItemsTab from '../components/PendingItemsTab'
 import ModificationsTab from '../components/ModificationsTab'
 import AnakainizwTab from './AnakainizwTab'
+import DypaHiringTab from './DypaHiringTab'
 import {
   ArrowLeftIcon,
   ExclamationTriangleIcon,
@@ -77,10 +78,13 @@ const BASE_TABS = [
   'Προϋπολογισμός',
   'Portal',
 ]
-const getTabs = (programCategory) =>
-  programCategory === 'ΑΝΑΚΑΙΝΙΖΩ'
-    ? ['Επισκόπηση', 'Ανακαινίζω', 'Εκκρεμότητες', 'Tasks', 'Τροποποιήσεις', 'Μηνύματα', 'Έγγραφα', 'Προϋπολογισμός', 'Portal']
-    : BASE_TABS
+const getTabs = (programCategory) => {
+  if (programCategory === 'ΑΝΑΚΑΙΝΙΖΩ')
+    return ['Επισκόπηση', 'Ανακαινίζω', 'Εκκρεμότητες', 'Tasks', 'Τροποποιήσεις', 'Μηνύματα', 'Έγγραφα', 'Προϋπολογισμός', 'Portal']
+  if (programCategory === 'ΔΥΠΑ-ΠΡΟΣΛΗΨΗΣ')
+    return ['Επισκόπηση', 'ΔΥΠΑ Πρόσληψη', 'Εκκρεμότητες', 'Tasks', 'Τροποποιήσεις', 'Μηνύματα', 'Έγγραφα', 'Προϋπολογισμός', 'Portal']
+  return BASE_TABS
+}
 
 const PRIORITY_COLORS = {
   urgent: 'bg-red-100 text-red-700',
@@ -1246,6 +1250,7 @@ export default function CaseDetail() {
         )}
 
         {activeTab === 'Ανακαινίζω' && <AnakainizwTab caseId={id} />}
+        {activeTab === 'ΔΥΠΑ Πρόσληψη' && <DypaHiringTab caseId={id} />}
         {activeTab === 'Τροποποιήσεις' && <ModificationsTab caseId={id} caseData={caseData} onRefresh={load} />}
         {activeTab === 'Μηνύματα' && <MessagesTab caseId={id} caseData={caseData} onRefresh={load} />}
         {activeTab === 'Έγγραφα' && <DocumentsTab caseId={id} caseData={caseData} onRefresh={load} />}

@@ -104,6 +104,7 @@ class CMCase(Base):
     modifications = relationship("CMCaseModification", back_populates="case", cascade="all, delete-orphan", order_by="CMCaseModification.modification_date")
     payment_logs = relationship("CMPaymentLog", back_populates="case", cascade="all, delete-orphan", order_by="CMPaymentLog.log_date")
     status_history = relationship("CMCaseStatusHistory", back_populates="case", cascade="all, delete-orphan", order_by="CMCaseStatusHistory.changed_at")
+    dypa_hiring = relationship("CMCaseDypaHiring", back_populates="case", uselist=False, cascade="all, delete-orphan")
 
 
 class CMCaseStatusHistory(Base):
@@ -679,3 +680,23 @@ class CMLeadNotificationLog(Base):
     sent_by = Column(String(100))
 
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class CMCaseDypaHiring(Base):
+    """Extra tracking data for ΔΥΠΑ-ΠΡΟΣΛΗΨΗΣ program cases.
+    Tracks bi-monthly payment requests submitted vs periods paid by DYPA."""
+    __tablename__ = "cm_case_dypa_hiring"
+
+    id = Column(Integer, primary_key=True)
+    case_id = Column(Integer, ForeignKey("cm_cases.id"), unique=True, nullable=False)
+
+    program_duration_months = Column(Integer, default=12)   # 12 or 18
+    hiring_date = Column(Date, nullable=True)               # date employee was hired
+    requests_submitted = Column(Integer, default=0)         # how many bi-monthly requests submitted
+    periods_paid = Column(Integer, default=0)               # how many bi-monthly periods paid by DYPA
+    notes = Column(Text, nullable=True)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow)
+
+    case = relationship("CMCase", back_populates="dypa_hiring")

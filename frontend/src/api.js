@@ -117,6 +117,10 @@ export const deleteNonKenoAnakainizw = () => api.post('/api/cm/sheets/delete-non
 export const getAnakainizwData = (caseId) => api.get(`/api/cm/anakainizw/${caseId}`).then(r => r.data)
 export const updateAnakainizwData = (caseId, data) => api.put(`/api/cm/anakainizw/${caseId}`, data).then(r => r.data)
 
+// ΔΥΠΑ-ΠΡΟΣΛΗΨΗΣ hiring tracking
+export const getDypaHiringData = (caseId) => api.get(`/api/cm/dypa-hiring/${caseId}`).then(r => r.data)
+export const updateDypaHiringData = (caseId, data) => api.put(`/api/cm/dypa-hiring/${caseId}`, data).then(r => r.data)
+
 // Notifications
 export const sendNotification = (caseId, data) => api.post(`/api/cm/notifications/send/${caseId}`, data).then(r => r.data)
 export const sendBulkNotification = (data) => api.post('/api/cm/notifications/send-bulk', data).then(r => r.data)

@@ -5,6 +5,7 @@ import { portalLookup, recordPortalVisit } from '../api'
 const PROGRAM_LABELS = {
   'ΕΣΠΑ': { label: 'ΕΣΠΑ', icon: '📋', color: 'bg-blue-50 border-blue-200 text-blue-700' },
   'ΔΥΠΑ': { label: 'ΔΥΠΑ / ΟΑΕΔ', icon: '🎓', color: 'bg-green-50 border-green-200 text-green-700' },
+  'ΔΥΠΑ-ΠΡΟΣΛΗΨΗΣ': { label: 'ΔΥΠΑ Προσλήψεων', icon: '👥', color: 'bg-teal-50 border-teal-200 text-teal-700' },
   'ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ': { label: 'Μικροπιστώσεις', icon: '💶', color: 'bg-purple-50 border-purple-200 text-purple-700' },
   'ΑΝΑΚΑΙΝΙΖΩ': { label: 'Ανακαινίζω', icon: '🏠', color: 'bg-orange-50 border-orange-200 text-orange-700' },
 }

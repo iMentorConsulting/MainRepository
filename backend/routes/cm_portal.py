@@ -276,6 +276,20 @@ def _build_portal_data(case: CMCase, db: Session) -> dict:
         else:
             response["anakainizw"] = None
 
+    # ΔΥΠΑ-ΠΡΟΣΛΗΨΗΣ extra data
+    if prog == "ΔΥΠΑ-ΠΡΟΣΛΗΨΗΣ":
+        from models_cases import CMCaseDypaHiring
+        hiring = db.query(CMCaseDypaHiring).filter(CMCaseDypaHiring.case_id == case.id).first()
+        if hiring:
+            response["dypa_hiring"] = {
+                "program_duration_months": hiring.program_duration_months or 12,
+                "hiring_date": hiring.hiring_date.isoformat() if hiring.hiring_date else None,
+                "requests_submitted": hiring.requests_submitted or 0,
+                "periods_paid": hiring.periods_paid or 0,
+            }
+        else:
+            response["dypa_hiring"] = None
+
     return response
 
 
