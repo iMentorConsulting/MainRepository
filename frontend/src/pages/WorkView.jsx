@@ -15,13 +15,14 @@ import toast from 'react-hot-toast'
 
 const PAGE_SIZE = 100
 
-const PROGRAMS = ['ΕΣΠΑ', 'ΔΥΠΑ', 'ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ', 'ΑΝΑΚΑΙΝΙΖΩ']
+const PROGRAMS = ['ΕΣΠΑ', 'ΔΥΠΑ', 'ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ', 'ΑΝΑΚΑΙΝΙΖΩ', 'ΔΥΠΑ-ΠΡΟΣΛΗΨΗΣ']
 const FINAL_STATUSES = new Set(['ΟΛΟΚΛΗΡΩΜΕΝΗ ΥΠΟΘΕΣΗ', 'ΠΑΡΑΙΤΗΣΗ', 'ΠΑΓΩΜΕΝΗ ΥΠΟΘΕΣΗ', 'ΑΚΥΡΩΣΗ', 'ΑΠΟΡΡΙΨΗ', 'ΜΗ ΕΠΙΛΕΞΙΜΟΣ', 'ΟΧΙ ΕΝΔΙΑΦΕΡΟΝ'])
 const PROG_COLOR = {
   ΕΣΠΑ: 'bg-blue-100 text-blue-700',
   ΔΥΠΑ: 'bg-green-100 text-green-700',
   ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ: 'bg-purple-100 text-purple-700',
   ΑΝΑΚΑΙΝΙΖΩ: 'bg-orange-100 text-orange-700',
+  'ΔΥΠΑ-ΠΡΟΣΛΗΨΗΣ': 'bg-teal-100 text-teal-700',
 }
 
 function followUpCellClass(dateStr) {
@@ -600,7 +601,7 @@ export default function WorkView() {
                 filterProgram === val ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-800'
               }`}
             >
-              {tab === 'ΔΥΠΑ' ? 'ΔΥΠΑ / ΟΑΕΔ' : tab}
+              {tab === 'ΔΥΠΑ' ? 'ΔΥΠΑ / ΟΑΕΔ' : tab === 'ΔΥΠΑ-ΠΡΟΣΛΗΨΗΣ' ? 'ΔΥΠΑ Προσλήψεων' : tab}
             </button>
           )
         })}
