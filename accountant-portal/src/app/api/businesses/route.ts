@@ -34,7 +34,15 @@ export async function GET(request: NextRequest) {
   const sortBy = searchParams.get('sortBy') || 'createdAt'
   const sortDir = searchParams.get('sortDir') === 'asc' ? 'asc' : 'desc'
 
+  const idFilter = searchParams.get('id') || ''
+
   const where: any = {}
+
+  // Direct ID lookup — bypasses all other filters so the caller always gets the
+  // exact business they asked for (used e.g. to pre-populate form fields).
+  if (idFilter) {
+    where.id = idFilter
+  }
 
   if (session.user.role === 'ACCOUNTANT' && session.user.accountantId) {
     where.accountantId = session.user.accountantId

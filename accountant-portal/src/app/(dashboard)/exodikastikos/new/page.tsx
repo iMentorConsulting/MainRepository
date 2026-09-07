@@ -12,6 +12,7 @@ export default function NewExodikastikosPage() {
   const presetBusinessId = searchParams.get('businessId') || ''
   const [mode, setMode] = useState<'existing' | 'new'>('existing')
   const [businesses, setBusinesses] = useState<any[]>([])
+  const [presetBusiness, setPresetBusiness] = useState<any>(null)
   const [search, setSearch] = useState('')
   const [saving, setSaving] = useState(false)
   const [questions, setQuestions] = useState<{ id: string; label: string; active: boolean }[]>([])
@@ -28,11 +29,21 @@ export default function NewExodikastikosPage() {
   })
 
   useEffect(() => {
-    if (mode !== 'existing') return
+    if (!presetBusinessId) return
+    fetch(`/api/businesses?id=${presetBusinessId}&limit=1`)
+      .then(r => r.json())
+      .then(d => {
+        const b = (d.businesses || [])[0]
+        if (b) setPresetBusiness(b)
+      })
+  }, [presetBusinessId])
+
+  useEffect(() => {
+    if (mode !== 'existing' || presetBusinessId) return
     const params = new URLSearchParams({ limit: '50' })
     if (search) params.set('search', search)
     fetch(`/api/businesses?${params.toString()}`).then(r => r.json()).then(d => setBusinesses(d.businesses || []))
-  }, [mode, search])
+  }, [mode, search, presetBusinessId])
 
   useEffect(() => {
     fetch('/api/admin/exodikastikos-questions').then(r => r.json()).then((d: any) => {
@@ -108,21 +119,30 @@ export default function NewExodikastikosPage() {
 
           {mode === 'existing' ? (
             <div>
-              <label className="text-sm font-medium text-gray-700 mb-1 block">Αναζήτηση (ΑΦΜ ή επωνυμία)</label>
-              <input
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm mb-2 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                placeholder="Αναζήτηση..."
-              />
-              <select
-                value={form.businessId}
-                onChange={e => set('businessId', e.target.value)}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-              >
-                <option value="">Επιλέξτε πελάτη...</option>
-                {businesses.map(b => <option key={b.id} value={b.id}>{b.onomasia || b.afm} ({b.afm}) — {b.clientType === 'INDIVIDUAL' ? 'Φυσικό Πρόσωπο' : 'Επιχείρηση'}</option>)}
-              </select>
+              {presetBusinessId ? (
+                <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+                  <span className="font-medium">{presetBusiness ? `${presetBusiness.onomasia || presetBusiness.afm} (${presetBusiness.afm})` : 'Φόρτωση...'}</span>
+                  <span className="ml-2 text-blue-500 text-xs">— προεπιλεγμένος από το προφίλ</span>
+                </div>
+              ) : (
+                <>
+                  <label className="text-sm font-medium text-gray-700 mb-1 block">Αναζήτηση (ΑΦΜ ή επωνυμία)</label>
+                  <input
+                    value={search}
+                    onChange={e => setSearch(e.target.value)}
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm mb-2 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    placeholder="Αναζήτηση..."
+                  />
+                  <select
+                    value={form.businessId}
+                    onChange={e => set('businessId', e.target.value)}
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  >
+                    <option value="">Επιλέξτε πελάτη...</option>
+                    {businesses.map(b => <option key={b.id} value={b.id}>{b.onomasia || b.afm} ({b.afm}) — {b.clientType === 'INDIVIDUAL' ? 'Φυσικό Πρόσωπο' : 'Επιχείρηση'}</option>)}
+                  </select>
+                </>
+              )}
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-3">
