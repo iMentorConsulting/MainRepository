@@ -4,6 +4,7 @@ import { superadminListTenants, superadminCreateTenant, superadminUpdateTenant }
 import {
   BuildingOffice2Icon, PlusIcon, KeyIcon, CheckCircleIcon, XCircleIcon,
 } from '@heroicons/react/24/outline'
+import IStayLogo from '../components/IStayLogo'
 
 function TenantCard({ tenant, onPasswordChange, onToggleActive }) {
   const [showPwForm, setShowPwForm] = useState(false)
@@ -131,7 +132,7 @@ export default function SuperAdmin({ onLogout }) {
       <div className="bg-[#1e3a5f] text-white">
         <div className="max-w-3xl mx-auto px-4 py-5 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <img src="/logo-istay.png" alt="iStay" className="h-8 w-auto object-contain" />
+            <IStayLogo variant="white" className="h-7" />
             <div>
               <p className="text-xs text-blue-200 font-medium">Super Admin · Διαχείριση Επιχειρήσεων</p>
             </div>

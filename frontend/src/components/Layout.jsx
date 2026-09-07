@@ -1,4 +1,5 @@
 import { Outlet, NavLink } from 'react-router-dom'
+import IStayLogo from './IStayLogo'
 import {
   HomeIcon, CalendarDaysIcon, BookmarkSquareIcon, BuildingOfficeIcon,
   UsersIcon, ChartBarIcon, SparklesIcon, ArrowRightOnRectangleIcon,
@@ -59,7 +60,7 @@ export default function Layout({ auth, onLogout }) {
         aria-label="Κύρια πλοήγηση"
       >
         <div className="px-4 py-4 border-b border-gray-200" role="banner">
-          <img src="/logo-istay-blue.png" alt="iStay" className="h-7 w-auto" />
+          <IStayLogo variant="blue" className="h-7" />
           <p className="text-xs text-gray-400 mt-1 font-medium truncate" aria-label={`Συνδεδεμένος ως ${auth?.name}`}>
             {auth?.name}
           </p>
@@ -84,7 +85,7 @@ export default function Layout({ auth, onLogout }) {
         {/* Mobile top bar */}
         <header className="md:hidden flex items-center justify-between px-4 py-3 bg-white border-b border-gray-200" role="banner">
           <div>
-            <img src="/logo-istay-blue.png" alt="iStay" className="h-7 w-auto" />
+            <IStayLogo variant="blue" className="h-7" />
             <p className="text-xs text-gray-500 leading-none mt-0.5">{auth?.name}</p>
           </div>
           <button
