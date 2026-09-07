@@ -27,8 +27,12 @@ api.interceptors.response.use(
 )
 
 // Auth
-export const getTenants = () => api.get('/auth/tenants')
 export const login = (data) => api.post('/auth/login', data)
+
+// Super admin
+export const superadminListTenants = () => api.get('/auth/superadmin/tenants')
+export const superadminCreateTenant = (data) => api.post('/auth/superadmin/tenants', data)
+export const superadminUpdateTenant = (id, data) => api.patch(`/auth/superadmin/tenants/${id}`, data)
 
 // Units
 export const getUnits = (params) => api.get('/units/', { params })

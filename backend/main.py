@@ -432,6 +432,18 @@ from auth_cases import seed_admin
 with SessionLocal() as _db:
     seed_admin(_db)
 
+# Seed hardcoded tenants to DB and load any dynamically created ones into memory
+from models import TenantRecord as _TenantRecord
+from auth_utils import TENANTS as _TENANTS
+with SessionLocal() as _db:
+    for _tid, _tinfo in list(_TENANTS.items()):
+        if not _db.query(_TenantRecord).filter_by(id=_tid).first():
+            _db.add(_TenantRecord(id=_tid, name=_tinfo['name'], password=_tinfo['password']))
+    _db.commit()
+    for _tr in _db.query(_TenantRecord).filter_by(is_active=True).all():
+        if _tr.id not in _TENANTS:
+            _TENANTS[_tr.id] = {'name': _tr.name, 'password': _tr.password, 'is_active': True}
+
 import pytz as _pytz
 from apscheduler.schedulers.background import BackgroundScheduler as _BGScheduler
 

@@ -1,29 +1,21 @@
-import { useEffect, useState } from 'react'
-import { getTenants, login } from '../api'
+import { useState } from 'react'
+import { login } from '../api'
 import toast from 'react-hot-toast'
 
 export default function Login({ onLogin }) {
-  const [tenants, setTenants] = useState([])
-  const [form, setForm] = useState({ tenant_id: '', password: '' })
+  const [form, setForm] = useState({ username: '', password: '' })
   const [loading, setLoading] = useState(false)
-
-  useEffect(() => {
-    getTenants().then(r => {
-      setTenants(r.data)
-      if (r.data.length > 0) setForm(f => ({ ...f, tenant_id: r.data[0].id }))
-    })
-  }, [])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
     setLoading(true)
     try {
-      const r = await login({ tenant_id: form.tenant_id, password: form.password })
+      const r = await login({ username: form.username.trim(), password: form.password })
       const auth = r.data
       localStorage.setItem('auth', JSON.stringify(auth))
       onLogin(auth)
     } catch (err) {
-      toast.error(err.response?.data?.detail || 'Λάθος επιχείρηση ή κωδικός')
+      toast.error(err.response?.data?.detail || 'Λάθος στοιχεία σύνδεσης')
     } finally {
       setLoading(false)
     }
@@ -40,17 +32,17 @@ export default function Login({ onLogin }) {
         <div className="bg-white rounded-2xl shadow-2xl p-8">
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
-              <label className="label">Επιχείρηση</label>
-              <select
+              <label className="label">Όνομα Χρήστη</label>
+              <input
+                type="text"
                 className="input"
-                value={form.tenant_id}
-                onChange={e => setForm(f => ({ ...f, tenant_id: e.target.value }))}
+                placeholder="username"
+                value={form.username}
+                onChange={e => setForm(f => ({ ...f, username: e.target.value }))}
                 required
-              >
-                {tenants.map(t => (
-                  <option key={t.id} value={t.id}>{t.name}</option>
-                ))}
-              </select>
+                autoFocus
+                autoComplete="username"
+              />
             </div>
             <div>
               <label className="label">Κωδικός</label>
@@ -61,12 +53,12 @@ export default function Login({ onLogin }) {
                 value={form.password}
                 onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
                 required
-                autoFocus
+                autoComplete="current-password"
               />
             </div>
             <button
               type="submit"
-              disabled={loading || !form.tenant_id}
+              disabled={loading || !form.username}
               className="w-full bg-[#1e3a5f] hover:bg-[#2d5986] text-white font-semibold py-3 rounded-lg transition-colors disabled:opacity-60"
             >
               {loading ? 'Σύνδεση...' : 'Σύνδεση'}

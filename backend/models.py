@@ -5,6 +5,15 @@ from datetime import datetime
 import secrets
 
 
+class TenantRecord(Base):
+    __tablename__ = 'tenant_records'
+    id = Column(String(64), primary_key=True)
+    name = Column(String(200), nullable=False)
+    password = Column(String(200), nullable=False)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 def _token():
     return secrets.token_urlsafe(32)
 

@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
 import Layout from './components/Layout'
 import Login from './pages/Login'
+import SuperAdmin from './pages/SuperAdmin'
 import Dashboard from './pages/Dashboard'
 import Calendar from './pages/Calendar'
 import Bookings from './pages/Bookings'
@@ -90,6 +91,8 @@ export default function App() {
           {/* Authenticated admin app */}
           {!auth ? (
             <Route path="*" element={<Login onLogin={setAuth} />} />
+          ) : auth.is_superadmin ? (
+            <Route path="*" element={<SuperAdmin onLogout={handleLogout} />} />
           ) : (
             <Route path="/" element={<Layout auth={auth} onLogout={handleLogout} />}>
               <Route index element={<Dashboard />} />
