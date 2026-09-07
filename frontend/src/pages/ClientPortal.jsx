@@ -481,155 +481,120 @@ function MikroSection({ data }) {
 
 const PERIOD_NAMES = ['1ο', '2ο', '3ο', '4ο', '5ο', '6ο', '7ο', '8ο', '9ο']
 
+function addMonths(date, n) {
+  const d = new Date(date)
+  d.setMonth(d.getMonth() + n)
+  return d
+}
+
 function DypaHiringSection({ data }) {
   const { approval_date, status, dypa_hiring } = data
-
-  const approvalDate = approval_date ? new Date(approval_date) : null
   const today = new Date()
-
-  // 90-day countdown from approval
-  let daysLeft90 = null
-  let deadline90 = null
-  if (approvalDate) {
-    deadline90 = new Date(approvalDate)
-    deadline90.setDate(deadline90.getDate() + 90)
-    daysLeft90 = Math.ceil((deadline90 - today) / (1000 * 60 * 60 * 24))
-  }
-
-  const hiringDone = ['ΥΛΟΠΟΙΗΣΗ ΠΡΟΓΡΑΜΜΑΤΟΣ', 'ΟΛΟΚΛΗΡΩΜΕΝΗ ΥΠΟΘΕΣΗ'].includes(status) || !!dypa_hiring?.hiring_date
-  const inApprovalPhase = ['ΕΓΚΡΙΣΗ ΑΠΟ ΔΥΠΑ', 'ΥΠΟΔΕΙΞΗ ΑΝΕΡΓΩΝ ΑΠΟ ΔΥΠΑ', 'ΠΡΟΣΛΗΨΗ ΑΝΕΡΓΟΥ ΑΠΟ ΕΠΙΧΕΙΡΗΣΗ'].includes(status)
 
   const duration = dypa_hiring?.program_duration_months || 12
   const totalSlots = duration / 2
   const submitted = dypa_hiring?.requests_submitted || 0
   const paid = dypa_hiring?.periods_paid || 0
-  const hiringDate = dypa_hiring?.hiring_date || null
+  const hiringDate = dypa_hiring?.hiring_date ? new Date(dypa_hiring.hiring_date) : null
+
+  const hiringDone = ['ΥΛΟΠΟΙΗΣΗ ΠΡΟΓΡΑΜΜΑΤΟΣ', 'ΟΛΟΚΛΗΡΩΜΕΝΗ ΥΠΟΘΕΣΗ'].includes(status) || !!hiringDate
+
+  // Build period schedule from hiring date
+  const periods = hiringDate
+    ? Array.from({ length: totalSlots }, (_, i) => {
+        const start = addMonths(hiringDate, i * 2)
+        const end = addMonths(hiringDate, (i + 1) * 2)
+        const n = i + 1
+        const isPaid = n <= paid
+        const isSubmitted = !isPaid && n <= submitted
+        const isActive = !isPaid && !isSubmitted && today >= start && today < end
+        return { n, start, end, isPaid, isSubmitted, isActive }
+      })
+    : null
 
   return (
-    <>
-      {/* 90-day countdown (shown while in approval phase and not yet hired) */}
-      {(inApprovalPhase || (!hiringDone && approvalDate)) && daysLeft90 !== null && (
-        <div className={`rounded-xl border px-5 py-4 ${
-          daysLeft90 < 14 ? 'bg-red-50 border-red-200' :
-          daysLeft90 < 30 ? 'bg-orange-50 border-orange-200' :
-          'bg-blue-50 border-blue-200'
-        }`}>
-          <div className="flex items-center gap-3">
-            <ClockIcon className={`w-5 h-5 flex-shrink-0 ${
-              daysLeft90 < 14 ? 'text-red-500' : daysLeft90 < 30 ? 'text-orange-500' : 'text-blue-500'
-            }`} />
-            <div>
-              <div className={`text-sm font-semibold ${
-                daysLeft90 < 14 ? 'text-red-700' : daysLeft90 < 30 ? 'text-orange-700' : 'text-blue-700'
-              }`}>
-                {daysLeft90 > 0
-                  ? `${daysLeft90} ημέρες απομένουν για πρόσληψη`
-                  : daysLeft90 === 0 ? 'Σήμερα είναι η καταληκτική ημερομηνία πρόσληψης!'
-                  : `Η προθεσμία πρόσληψης έληξε πριν ${Math.abs(daysLeft90)} ημέρες`}
+    <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+      {/* Header */}
+      <div className="flex items-center gap-2 px-5 py-4 border-b border-gray-100">
+        <BuildingOffice2Icon className="w-5 h-5 text-purple-500 flex-shrink-0" />
+        <h3 className="text-sm font-semibold text-gray-700">Πρόσληψη Ανέργου — ΔΥΠΑ Επιδότηση</h3>
+        <span className="ml-auto text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">{duration} μήνες</span>
+      </div>
+
+      {/* Hiring date row */}
+      <div className="flex items-center gap-3 px-5 py-3 border-b border-gray-50">
+        <span className="text-xs text-gray-500 w-32 shrink-0">Ημερομηνία Πρόσληψης</span>
+        {hiringDate ? (
+          <span className="text-sm font-semibold text-green-700 bg-green-50 px-2.5 py-0.5 rounded-full">
+            ✓ {fmtDate(dypa_hiring.hiring_date)}
+          </span>
+        ) : (
+          <span className="text-sm text-gray-400 italic">Εκκρεμεί</span>
+        )}
+        {paid > 0 && (
+          <span className="ml-auto text-xs text-gray-500">
+            <span className="font-semibold text-green-600">{paid}</span>/{totalSlots} πληρωμένα
+          </span>
+        )}
+      </div>
+
+      {/* Payment schedule list */}
+      {periods ? (
+        <div className="divide-y divide-gray-50">
+          {periods.map(({ n, start, end, isPaid, isSubmitted, isActive }) => (
+            <div key={n} className={`flex items-center gap-3 px-5 py-3 ${isActive ? 'bg-blue-50/40' : ''}`}>
+              {/* Period label */}
+              <div className="w-20 shrink-0">
+                <div className="text-xs font-semibold text-gray-700">{PERIOD_NAMES[n - 1]} Δίμηνο</div>
               </div>
-              <div className={`text-xs mt-0.5 ${
-                daysLeft90 < 14 ? 'text-red-600' : daysLeft90 < 30 ? 'text-orange-600' : 'text-blue-600'
-              }`}>
-                Καταληκτική ημερομηνία πρόσληψης: {fmtDate(deadline90?.toISOString())}
-                {approvalDate && <span className="ml-2 opacity-70">(90 ημέρες από έγκριση {fmtDate(approval_date)})</span>}
+              {/* Date range */}
+              <div className="flex-1 text-xs text-gray-500">
+                {fmtDate(start.toISOString().slice(0, 10))} — {fmtDate(end.toISOString().slice(0, 10))}
               </div>
+              {/* Status badge */}
+              {isPaid ? (
+                <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-green-100 text-green-700 border border-green-200">
+                  ✓ Πληρώθηκε
+                </span>
+              ) : isSubmitted ? (
+                <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-blue-100 text-blue-700 border border-blue-200">
+                  ⏳ Υποβλήθηκε
+                </span>
+              ) : isActive ? (
+                <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-amber-100 text-amber-700 border border-amber-200">
+                  ● Τρέχον
+                </span>
+              ) : today >= end ? (
+                <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-red-50 text-red-600 border border-red-200">
+                  ! Εκκρεμεί
+                </span>
+              ) : (
+                <span className="text-xs px-2.5 py-1 rounded-full bg-gray-100 text-gray-400 border border-gray-200">
+                  Προγραμματισμένο
+                </span>
+              )}
             </div>
-          </div>
-          {daysLeft90 > 0 && (
-            <div className="mt-3">
-              <div className="w-full bg-white bg-opacity-60 rounded-full h-2">
-                <div
-                  className={`h-2 rounded-full transition-all ${
-                    daysLeft90 < 14 ? 'bg-red-400' : daysLeft90 < 30 ? 'bg-orange-400' : 'bg-blue-400'
-                  }`}
-                  style={{ width: `${Math.round(((90 - daysLeft90) / 90) * 100)}%` }}
-                />
-              </div>
-              <div className="flex justify-between text-xs mt-1 opacity-60">
-                <span>Έγκριση</span>
-                <span>{Math.round(((90 - daysLeft90) / 90) * 100)}% του χρόνου πέρασε</span>
-                <span>+90 ημέρες</span>
-              </div>
-            </div>
-          )}
+          ))}
+        </div>
+      ) : (
+        <div className="px-5 py-6 text-center text-sm text-gray-400 italic">
+          Το χρονοδιάγραμμα αιτημάτων θα εμφανιστεί μόλις οριστεί η ημερομηνία πρόσληψης.
         </div>
       )}
 
-      {/* Hiring status card */}
-      <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
-        <div className="flex items-center gap-2 mb-4">
-          <BuildingOffice2Icon className="w-5 h-5 text-purple-500" />
-          <h3 className="text-sm font-semibold text-gray-700">Πρόσληψη Ανέργου — ΔΥΠΑ Επιδότηση</h3>
-          <span className="ml-auto text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">{duration} μήνες</span>
-        </div>
-
-        <div className="grid grid-cols-2 gap-3 mb-4">
-          <div className={`rounded-xl p-3 text-center border ${hiringDone ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200'}`}>
-            <div className={`text-xs font-medium ${hiringDone ? 'text-green-700' : 'text-gray-500'}`}>Πρόσληψη</div>
-            <div className={`text-sm font-bold mt-0.5 ${hiringDone ? 'text-green-700' : 'text-gray-400'}`}>
-              {hiringDate ? fmtDate(hiringDate) : (hiringDone ? 'Ολοκληρώθηκε' : 'Εκκρεμεί')}
-            </div>
-          </div>
-          <div className="bg-purple-50 border border-purple-200 rounded-xl p-3 text-center">
-            <div className="text-xs font-medium text-purple-700">Δίμηνα Προγράμματος</div>
-            <div className="text-sm font-bold mt-0.5 text-purple-700">{totalSlots} σύνολο</div>
+      {/* Footer summary */}
+      {periods && submitted > 0 && (
+        <div className="px-5 py-3 border-t border-gray-100 bg-gray-50">
+          <div className="flex gap-4 text-xs text-gray-600">
+            <span>Υποβληθέντα αιτήματα: <span className="font-semibold text-blue-600">{submitted}/{totalSlots}</span></span>
+            <span>Πληρωμένα: <span className="font-semibold text-green-600">{paid}/{totalSlots}</span></span>
+            {submitted > paid && (
+              <span className="text-orange-600 ml-auto">{submitted - paid} αναμένουν πληρωμή από ΔΥΠΑ</span>
+            )}
           </div>
         </div>
-
-        {/* Bi-monthly grid — only shown once hired */}
-        {hiringDone && (
-          <>
-            <div className="border-t pt-4 mb-3">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-xs font-semibold text-gray-600">Αιτήματα Πληρωμής ΔΥΠΑ</span>
-                <span className="text-xs text-gray-400">{paid}/{totalSlots} πληρωμένα</span>
-              </div>
-              <div className="grid grid-cols-3 gap-2">
-                {Array.from({ length: totalSlots }, (_, i) => {
-                  const n = i + 1
-                  const isPaid = n <= paid
-                  const isSub = !isPaid && n <= submitted
-                  return (
-                    <div key={i} className={`rounded-lg border py-2 px-1 text-center text-xs ${
-                      isPaid ? 'bg-green-100 border-green-300' :
-                      isSub ? 'bg-blue-100 border-blue-300' :
-                      'bg-gray-50 border-gray-200'
-                    }`}>
-                      <div className={`font-bold text-sm ${isPaid ? 'text-green-700' : isSub ? 'text-blue-700' : 'text-gray-400'}`}>
-                        {isPaid ? '✓' : isSub ? '⏳' : PERIOD_NAMES[i]}
-                      </div>
-                      <div className={`leading-tight mt-0.5 ${isPaid ? 'text-green-600' : isSub ? 'text-blue-600' : 'text-gray-400'}`}>
-                        {PERIOD_NAMES[i]} δίμ.<br/>
-                        <span className="font-medium">{isPaid ? 'Πληρώθηκε' : isSub ? 'Υποβλήθηκε' : 'Εκκρεμεί'}</span>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-
-            {/* Summary bar */}
-            <div className="space-y-2">
-              <div>
-                <div className="flex justify-between text-xs text-gray-500 mb-1">
-                  <span>Αιτήματα: <span className="font-semibold text-blue-600">{submitted}/{totalSlots}</span></span>
-                  <span>Πληρωμένα: <span className="font-semibold text-green-600">{paid}/{totalSlots}</span></span>
-                </div>
-                <div className="w-full bg-gray-100 rounded-full h-2.5 relative">
-                  <div className="bg-blue-400 h-2.5 rounded-full absolute" style={{ width: `${Math.round((submitted / totalSlots) * 100)}%` }} />
-                  <div className="bg-green-500 h-2.5 rounded-full absolute" style={{ width: `${Math.round((paid / totalSlots) * 100)}%` }} />
-                </div>
-              </div>
-              {submitted > paid && (
-                <p className="text-xs text-orange-600 bg-orange-50 rounded-lg px-3 py-1.5">
-                  {submitted - paid} {submitted - paid === 1 ? 'αίτημα υποβλήθηκε' : 'αιτήματα υποβλήθηκαν'} και αναμένεται η πληρωμή από τη ΔΥΠΑ.
-                </p>
-              )}
-            </div>
-          </>
-        )}
-      </div>
-    </>
+      )}
+    </div>
   )
 }
 
