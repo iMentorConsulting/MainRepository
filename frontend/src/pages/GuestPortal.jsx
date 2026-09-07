@@ -111,8 +111,8 @@ function VerifyScreen({ token, onVerified, lang, setLang }) {
       </div>
       <div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-sm">
         <div className="text-center mb-6">
-          <div className="w-16 h-16 bg-blue-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-            <span className="text-3xl">🏡</span>
+          <div className="mx-auto mb-4">
+            <img src="/logo-istay.png" alt="iStay" className="h-14 w-auto object-contain mx-auto" />
           </div>
           <h1 className="text-xl font-bold text-gray-900">{tr.verify_title}</h1>
           <p className="text-sm text-gray-500 mt-2">{tr.verify_sub}</p>
@@ -198,8 +198,8 @@ function HomeTab({ info, token, lang }) {
             <h2 className="text-xl font-bold mt-0.5">{info.property_name || 'Your Property'}</h2>
             {info.unit_name && <p className="text-blue-200 text-sm mt-0.5">{info.unit_name}</p>}
           </div>
-          <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center flex-shrink-0">
-            <span className="text-2xl">🏡</span>
+          <div className="bg-white/20 rounded-xl px-2 py-1.5 flex items-center justify-center flex-shrink-0">
+            <img src="/logo-istay.png" alt="iStay" className="h-8 w-auto object-contain" />
           </div>
         </div>
         <div className="mt-4 grid grid-cols-2 gap-3">
@@ -904,8 +904,8 @@ export default function GuestPortal() {
       <header className="bg-[#1e3a5f] text-white sticky top-0 z-30 shadow-sm"
         style={{ paddingTop: 'env(safe-area-inset-top)' }}>
         <div className="px-4 py-3 flex items-center gap-3">
-          <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center flex-shrink-0">
-            <span className="text-sm">🏡</span>
+          <div className="bg-white/10 rounded-lg px-2 py-1 flex-shrink-0">
+            <img src="/logo-istay.png" alt="iStay" className="h-6 w-auto object-contain" />
           </div>
           <div className="flex-1 min-w-0">
             <p className="font-semibold text-sm truncate">{info.property_name || 'Guest Portal'}</p>
