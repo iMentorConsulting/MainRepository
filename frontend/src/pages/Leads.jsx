@@ -292,6 +292,16 @@ function NewLeadModal({ options, onClose, onCreated }) {
   )
 }
 
+const _stripAccents = s => (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase()
+const categoryFromTitle = title => {
+  const t = _stripAccents(title)
+  if (t.includes('ΜΙΚΡΟ')) return 'ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ'
+  if (t.includes('ΔΥΠΑ') || t.includes('ΟΑΕΔ') || t.includes('DYPA') || t.includes('ΑΝΕΡΓ') || t.includes('ΠΡΟΣΛΗΨ')) return 'ΔΥΠΑ'
+  if (t.includes('ΑΝΑΚΑΙΝ')) return 'ΑΝΑΚΑΙΝΙΖΩ'
+  if (t.includes('ΕΣΠΑ')) return 'ΕΣΠΑ'
+  return null
+}
+
 // ── Inline expanded detail (no separate page) ───────────────────────────────
 function ExpandedRow({ lead, colSpan, onChanged, onConvert, onErmis, onSend, programTitles = [] }) {
   const [full, setFull] = useState(null)
@@ -636,21 +646,12 @@ export default function Leads() {
   const toggleSort = (col) => setSort(s => s.sort === col ? { sort: col, direction: s.direction === 'asc' ? 'desc' : 'asc' } : { sort: col, direction: 'asc' })
   const setFilter = (patchObj) => { setPage(1); setFilters(f => ({ ...f, ...patchObj })) }
 
-  const _stripAccents = s => (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase()
   // Mirrors backend is_valid_program_title: uppercase start, no sentence boundary
   const isValidProgramTitle = title => {
     if (!title) return false
     if (title[0] !== title[0].toUpperCase() || title[0] === title[0].toLowerCase()) return false
     if (/\.\s+[Α-ΩA-Z]/.test(title)) return false
     return true
-  }
-  const categoryFromTitle = title => {
-    const t = _stripAccents(title)
-    if (t.includes('ΜΙΚΡΟ')) return 'ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ'
-    if (t.includes('ΔΥΠΑ') || t.includes('ΟΑΕΔ') || t.includes('DYPA') || t.includes('ΑΝΕΡΓ') || t.includes('ΠΡΟΣΛΗΨ')) return 'ΔΥΠΑ'
-    if (t.includes('ΑΝΑΚΑΙΝ')) return 'ΑΝΑΚΑΙΝΙΖΩ'
-    if (t.includes('ΕΣΠΑ')) return 'ΕΣΠΑ'
-    return null
   }
   const visibleTitles = filters.program
     ? (options.program_titles || []).filter(t => {
