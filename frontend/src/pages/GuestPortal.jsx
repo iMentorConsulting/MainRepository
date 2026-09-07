@@ -196,7 +196,6 @@ function HomeTab({ info, token, lang }) {
             <h2 className="text-xl font-bold mt-0.5">{info.property_name || 'Your Property'}</h2>
             {info.unit_name && <p className="text-blue-200 text-sm mt-0.5">{info.unit_name}</p>}
           </div>
-          <img src="/logo-istay.png" alt="iStay" className="h-9 w-auto object-contain flex-shrink-0" />
         </div>
         <div className="mt-4 grid grid-cols-2 gap-3">
           <div className="bg-white/15 rounded-xl p-3">
@@ -900,7 +899,13 @@ export default function GuestPortal() {
       <header className="bg-[#1e3a5f] text-white sticky top-0 z-30 shadow-sm"
         style={{ paddingTop: 'env(safe-area-inset-top)' }}>
         <div className="px-4 py-3 flex items-center gap-3">
-          <img src="/logo-istay.png" alt="iStay" className="h-7 w-auto object-contain flex-shrink-0" />
+          <svg viewBox="0 0 80 24" className="h-6 w-auto flex-shrink-0" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M12 2L21 9.5V22H3V9.5L12 2Z" fill="white" opacity="0.95"/>
+            <circle cx="12" cy="7" r="2.2" fill="#2563EB"/>
+            <rect x="9" y="13" width="6" height="9" rx="1" fill="#1e3a5f" opacity="0.5"/>
+            <rect x="13.5" y="15" width="1.5" height="1.5" rx="0.75" fill="white" opacity="0.8"/>
+            <text x="25" y="18" fontSize="14" fontWeight="800" fontFamily="system-ui,-apple-system,sans-serif" fill="white">iStay</text>
+          </svg>
           <div className="flex-1 min-w-0">
             <p className="font-semibold text-sm truncate">{info.property_name || 'Guest Portal'}</p>
             {info.booking?.unit_name && <p className="text-blue-200 text-xs truncate">{info.booking.unit_name}</p>}
