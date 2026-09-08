@@ -280,7 +280,7 @@ function ResultView({ result }: { result: CheckResult }) {
             <div className="rounded-xl bg-amber-50 border border-amber-200 p-4 mb-3">
               <p className="text-sm font-bold text-amber-900 mb-1">📄 Στείλτε το Ε3 σας — δωρεάν αξιολόγηση σε 24ώρες</p>
               <p className="text-xs text-amber-800 mb-3 leading-relaxed">
-                Για να ελέγξουμε το ακριβές ποσό δανείου που δικαιούστε, στείλτε μας το τελευταίο έντυπο Ε3 σας (αρκεί η εικόνα από το κινητό).
+                Για να ελέγξουμε το ακριβές ποσό δανείου που δικαιούστε, στείλτε μας το τελευταίο έντυπο Ε3 σας.
               </p>
               <a
                 href="mailto:info@i-mentor.gr?subject=Ε3%20για%20Ταμείο%20Μικροπιστώσεων&body=Σας%20στέλνω%20το%20Ε3%20μου%20για%20αξιολόγηση%20στο%20Ταμείο%20Μικροπιστώσεων."
