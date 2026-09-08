@@ -647,12 +647,21 @@ def _chatwoot_log_outbound_viber(phone_normalized: str, message: str = "", conta
                              headers=headers, timeout=15)
             if r.ok:
                 body = r.json()
-                # Chatwoot v3 returns {payload: {contacts: [...]}}
-                # Chatwoot v2/older returns [{...}, ...] directly
+                # Chatwoot can return:
+                #   [{...}, ...]                     — list directly
+                #   {"payload": [{...}, ...]}        — payload is a list
+                #   {"payload": {"contacts": [...]}} — payload is a dict
+                #   {"contacts": [...]}              — top-level contacts key
                 if isinstance(body, list):
                     hits = body
                 else:
-                    hits = body.get("payload", {}).get("contacts", []) or body.get("contacts", [])
+                    payload = body.get("payload")
+                    if isinstance(payload, list):
+                        hits = payload
+                    elif isinstance(payload, dict):
+                        hits = payload.get("contacts", [])
+                    else:
+                        hits = body.get("contacts", [])
                 if hits:
                     contact_id = hits[0]["id"]
                     break
