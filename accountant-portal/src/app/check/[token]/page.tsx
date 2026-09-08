@@ -282,7 +282,7 @@ function ResultView({ result, phone }: { result: CheckResult; phone: string }) {
               <span>💶 Επιδότηση: {p.minSubsidyPct != null && p.maxSubsidyPct != null ? `${p.minSubsidyPct}%–${p.maxSubsidyPct}%` : `${p.minSubsidyPct ?? p.maxSubsidyPct}%`}</span>
             )}
             {(p.minInvestment != null || p.maxInvestment != null) && (
-              <span>📊 Ποσό επένδυσης: {p.minInvestment != null ? `€${fmt(p.minInvestment)}` : ''}{p.minInvestment != null && p.maxInvestment != null ? '–' : ''}{p.maxInvestment != null ? `€${fmt(p.maxInvestment)}` : ''}</span>
+              <span>📊 Ποσό δανείου: {p.minInvestment != null ? `€${fmt(p.minInvestment)}` : ''}{p.minInvestment != null && p.maxInvestment != null ? '–' : ''}{p.maxInvestment != null ? `€${fmt(p.maxInvestment)}` : ''}</span>
             )}
             {(p.minInterestRate != null || p.maxInterestRate != null) && (p.minInterestRate !== 0 || p.maxInterestRate !== 0) && (
               <span className="text-orange-600 font-medium">📈 Επιτόκιο: {p.minInterestRate != null && p.maxInterestRate != null ? `${p.minInterestRate}%–${p.maxInterestRate}%` : `${p.minInterestRate ?? p.maxInterestRate}%`}</span>
