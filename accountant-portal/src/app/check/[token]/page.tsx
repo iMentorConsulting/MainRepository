@@ -196,7 +196,7 @@ export default function CheckPage() {
               </p>
             </div>
           ) : (
-            <ResultView result={result} />
+            <ResultView result={result} phone={phone} />
           )}
 
           <p className="text-center text-xs text-gray-400 mt-6">Powered by <span className="font-semibold">i-Mentor Consulting</span></p>
@@ -211,7 +211,18 @@ function fmt(n: number | null) {
   return n.toLocaleString('el-GR')
 }
 
-function ResultView({ result }: { result: CheckResult }) {
+function withPhone(url: string, phone: string): string {
+  if (!phone) return url
+  try {
+    const u = new URL(url)
+    u.searchParams.set('phone', phone)
+    return u.toString()
+  } catch {
+    return url
+  }
+}
+
+function ResultView({ result, phone }: { result: CheckResult; phone: string }) {
   if (result.notFound) {
     return (
       <div className="bg-white rounded-2xl shadow-sm border border-amber-200 p-6 text-center">
@@ -265,14 +276,14 @@ function ResultView({ result }: { result: CheckResult }) {
           </div>
           {p.description && <p className="text-sm text-gray-600 mb-3 leading-relaxed">{p.description}</p>}
           <div className="flex flex-wrap gap-3 text-xs text-gray-500 mb-4">
-            {(p.minSubsidyPct != null || p.maxSubsidyPct != null) && (
+            {(p.minSubsidyPct != null || p.maxSubsidyPct != null) && (p.minSubsidyPct !== 0 || p.maxSubsidyPct !== 0) && (
               <span>💶 Επιδότηση: {p.minSubsidyPct != null && p.maxSubsidyPct != null ? `${p.minSubsidyPct}%–${p.maxSubsidyPct}%` : `${p.minSubsidyPct ?? p.maxSubsidyPct}%`}</span>
             )}
             {(p.minInvestment != null || p.maxInvestment != null) && (
               <span>📊 Προϋπολογισμός: {p.minInvestment != null ? `€${fmt(p.minInvestment)}` : ''}{p.minInvestment != null && p.maxInvestment != null ? '–' : ''}{p.maxInvestment != null ? `€${fmt(p.maxInvestment)}` : ''}</span>
             )}
-            {p.monthlyAmount != null && <span>💰 €{fmt(p.monthlyAmount)}/μήνα × {p.subsidyMonths ?? '?'} μήνες</span>}
-            {p.totalBenefit != null && <span>✅ Συνολικό όφελος: €{fmt(p.totalBenefit)}</span>}
+            {p.monthlyAmount != null && p.monthlyAmount > 0 && <span>💰 €{fmt(p.monthlyAmount)}/μήνα × {p.subsidyMonths ?? '?'} μήνες</span>}
+            {p.totalBenefit != null && p.totalBenefit > 0 && <span>✅ Συνολικό όφελος: €{fmt(p.totalBenefit)}</span>}
           </div>
 
           {/* MICROCREDITS: prompt to send E3 */}
@@ -299,7 +310,7 @@ function ResultView({ result }: { result: CheckResult }) {
                 Ο Ερμής, ο ψηφιακός σύμβουλος της I-MENTOR, θα σε ρωτήσει 2–3 ερωτήσεις και θα σου πει αν πληροίς τις προϋποθέσεις για αυτό το πρόγραμμα — χωρίς αναμονή, χωρίς γραφειοκρατία.
               </p>
               <a
-                href={p.ermisUrl}
+                href={withPhone(p.ermisUrl, phone)}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-block bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold px-4 py-2.5 rounded-lg transition-colors"
