@@ -22,14 +22,7 @@ export default function Onboard() {
 
   useEffect(() => {
     getOnboardInfo(token)
-      .then(res => {
-        // Lead already has AFM → redirect to LOGISTIS widget immediately
-        if (res.logistis_url) {
-          window.location.href = res.logistis_url
-          return
-        }
-        setInfo(res)
-      })
+      .then(setInfo)
       .catch(() => setError('Ο σύνδεσμος δεν είναι έγκυρος ή έχει λήξει.'))
       .finally(() => setLoading(false))
   }, [token])
@@ -116,7 +109,7 @@ export default function Onboard() {
               <>
                 <p className="text-gray-600 text-sm mb-6 leading-relaxed">
                   Για να ελέγξουμε την επιλεξιμότητά σας
-                  {info.program ? ` για το πρόγραμμα <b>${info.program}</b>` : ''}
+                  {info.program ? <> για το πρόγραμμα <strong className="text-gray-800">{info.program}</strong></> : ''}
                   {' '}και να σας συνδέσουμε με τον <strong>Ψηφιακό Σύμβουλό</strong> μας, παρακαλούμε καταχωρήστε το ΑΦΜ της επιχείρησής σας.
                 </p>
 

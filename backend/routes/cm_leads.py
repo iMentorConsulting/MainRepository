@@ -1486,7 +1486,7 @@ def _create_widget_session(afm: str, name: str = "", email: str = "", phone: str
             headers={"x-api-key": secret},
             timeout=10,
         )
-        if resp.status_code == 200:
+        if resp.status_code in (200, 201):
             return resp.json().get("url")
         log.warning("LOGISTIS widget-session error %s: %s", resp.status_code, resp.text[:200])
     except Exception as exc:
@@ -1513,14 +1513,7 @@ def onboard_get(token: str, db: Session = Depends(get_db)):
         "has_afm": bool((lead.afm or "").strip()),
         "ermis_started": bool(lead.ermis_token or lead.ermis_status),
         "ermis_chat_url": lead.ermis_chat_url or None,
-        # If this lead already has an AFM, pre-generate a LOGISTIS widget URL for them
-        "logistis_url": _create_widget_session(
-            afm=lead.afm or "",
-            name=lead.name or "",
-            email=lead.email or "",
-            phone=lead.phone or "",
-            lead_id=lead.id,
-        ) if (lead.afm or "").strip() else None,
+        "logistis_url": None,
     }
 
 
@@ -1539,8 +1532,6 @@ def onboard_submit(token: str, body: dict, db: Session = Depends(get_db)):
 
     if not lead.afm:
         lead.afm = raw_afm
-        if not lead.ermis_token and lead.status not in ("CANCEL", "DEAL"):
-            lead.ermis_status = None  # reset so maybe_autostart_ermis re-checks
     db.commit()
     db.refresh(lead)
 
@@ -1552,9 +1543,6 @@ def onboard_submit(token: str, body: dict, db: Session = Depends(get_db)):
         phone=lead.phone or "",
         lead_id=lead.id,
     )
-
-    # Also kick off legacy ΕΡΜΗΣ in background as fallback
-    maybe_autostart_ermis(lead, actor_name="onboard")
 
     db.refresh(lead)
     return {
