@@ -736,12 +736,13 @@ def _chatwoot_log_outbound_viber(phone_normalized: str, message: str = "", conta
             else:
                 logger.error("Chatwoot create conversation failed %s: %s", r.status_code, r.text[:300])
 
-        # 5. Post as a visible outgoing message (not private, not resolved)
+        # 5. Post as a private note so agents can see the sent text in context
+        #    without Chatwoot re-delivering it through the Viber channel (double send).
         if conv_id and message:
             r = requests.post(f"{api}/conversations/{conv_id}/messages", json={
-                "content": message,
+                "content": f"📤 Viber sent:\n{message}",
                 "message_type": "outgoing",
-                "private": False,
+                "private": True,
             }, headers=headers, timeout=15)
             if not r.ok:
                 logger.error("Chatwoot post message failed %s: %s", r.status_code, r.text[:300])
