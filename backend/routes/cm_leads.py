@@ -1327,6 +1327,120 @@ def send_to_lead(
     return {"results": results}
 
 
+# ── Bulk message to multiple leads ─────────────────────────────────────────
+
+class BulkNotifyReq(BaseModel):
+    lead_ids: list
+    notification_type: str  # viber | email | both
+    message: str
+    subject: Optional[str] = None
+
+@router.post("/bulk-notify")
+def bulk_notify_leads(
+    req: BulkNotifyReq,
+    current_user: CMUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    if not req.lead_ids or not req.message.strip():
+        raise HTTPException(status_code=400, detail="Απαιτούνται leads και μήνυμα")
+    if len(req.lead_ids) > 500:
+        raise HTTPException(status_code=400, detail="Μέγιστο 500 leads ανά αποστολή")
+
+    consultant = current_user.full_name or ""
+    consultant_line = f"\n👤 {consultant}" if consultant else ""
+    viber_footer = (
+        f"{consultant_line}\n"
+        "━━━━━━━━━━━━━━━\n"
+        "i-Mentor Consulting\n"
+        "📞 2810 363007\n"
+        "🌐 www.i-mentor.gr · 📧 info@i-mentor.gr"
+    )
+
+    sent = 0
+    failed = 0
+    skipped = 0
+
+    for lead_id in req.lead_ids:
+        l = db.query(CMLead).filter(CMLead.id == lead_id).first()
+        if not l:
+            skipped += 1
+            continue
+
+        prog_display = l.program_title or l.service_type or l.program or ""
+        name = l.name or "συνεργάτη"
+        sent_channels = []
+
+        if req.notification_type in ("viber", "both"):
+            if l.phone:
+                prog_header = f"📋 {prog_display}\n\n" if prog_display else ""
+                full_viber = prog_header + req.message.rstrip() + viber_footer
+                ok, err = _send_viber(l.phone, full_viber, l.name or "", consultant, l.service_type or "")
+                _log_lead_notification(db, l.id, "viber", l.name or "", l.phone, "", full_viber,
+                                       "sent" if ok else "failed", consultant)
+                if ok:
+                    sent_channels.append("Viber")
+                else:
+                    failed += 1
+
+        if req.notification_type in ("email", "both"):
+            if l.email:
+                body_text = req.message.replace("\n", "<br>")
+                subject = req.subject or f"i-Mentor Consulting{' — ' + prog_display if prog_display else ''}"
+                prog_label = f"«{prog_display}»" if prog_display else ""
+                consultant_html = (
+                    f'<p style="margin:0 0 10px;color:#6b7280;font-size:13px;">Σύμβουλος: <b style="color:#1e3a5f;">{consultant}</b></p>'
+                ) if consultant else ""
+                prog_header_html = (
+                    f'<p style="margin:0 0 16px;font-size:14px;color:#6b7280;">Αφορά το πρόγραμμα: '
+                    f'<b style="color:#1e3a5f;">{prog_label}</b></p>'
+                ) if prog_label else ""
+                email_html = f"""<html><body style="margin:0;background:#f3f4f6;padding:24px;font-family:Arial,Helvetica,sans-serif;color:#1f2937;">
+<div style="max-width:600px;margin:0 auto;">
+  <div style="background:#1e3a5f;padding:22px 24px;border-radius:10px 10px 0 0;text-align:center;">
+    <img src="https://i-mentor.gr/wp-content/uploads/2026/06/logo-white-transparent.png" alt="i-Mentor Consulting" style="max-height:56px;max-width:220px;width:auto;display:block;margin:0 auto;" />
+  </div>
+  <div style="background:#ffffff;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 10px 10px;padding:26px 24px;">
+    <p style="font-size:16px;margin:0 0 10px;">Αγαπητέ/ή <b>{name}</b>,</p>
+    {prog_header_html}
+    <hr style="border:none;border-top:1px solid #eef2f7;margin:16px 0;">
+    <div style="font-size:15px;line-height:1.7;margin:0 0 20px;">{body_text}</div>
+    <hr style="border:none;border-top:1px solid #eef2f7;margin:16px 0;">
+    {consultant_html}
+    <div style="background:#f0f4f8;border-radius:8px;padding:14px 16px;margin-top:4px;">
+      <p style="margin:0 0 4px;font-size:15px;font-weight:bold;color:#1e3a5f;">📞 2810 363007</p>
+      <p style="margin:0;font-size:12px;color:#6b7280;">
+        i-Mentor Consulting ·
+        <a href="https://www.i-mentor.gr" style="color:#6b7280;text-decoration:none;">www.i-mentor.gr</a> ·
+        <a href="mailto:info@i-mentor.gr" style="color:#6b7280;text-decoration:none;">info@i-mentor.gr</a>
+      </p>
+    </div>
+  </div>
+</div></body></html>"""
+                ok, err = _send_email(l.email, subject, req.message, html_override=email_html)
+                _log_lead_notification(db, l.id, "email", l.name or "", l.email, subject, req.message,
+                                       "sent" if ok else "failed", consultant)
+                if ok:
+                    sent_channels.append("Email")
+                else:
+                    failed += 1
+
+        if sent_channels:
+            sent += 1
+            channels_label = " & ".join(sent_channels)
+            prog_note = f" [{prog_display}]" if prog_display else ""
+            msg_preview = req.message[:200]
+            db.add(CMLeadComment(
+                lead_id=l.id,
+                user_id=current_user.id,
+                content=f"📤 Μαζική αποστολή μέσω {channels_label}{prog_note}:\n{msg_preview}"
+                        + ("…" if len(req.message) > 200 else ""),
+                author_name=consultant,
+            ))
+
+    db.commit()
+    return {"sent": sent, "failed": failed, "skipped": skipped, "total": len(req.lead_ids)}
+
+
 # ── Lead → Case conversion ──────────────────────────────────────────────────
 
 @router.post("/{lead_id}/convert-to-case")

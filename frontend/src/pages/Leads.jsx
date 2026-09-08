@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef, Fragment } from 'react'
 import {
   getLeads, getLeadFilterOptions, getLead, createLead, updateLead, deleteLead,
   getLeadComments, addLeadComment, editLeadComment, deleteLeadComment,
-  sendLeadMessage, convertLeadToCase, startLeadErmis, resendLeadErmisLink, bulkStartErmis, bulkResendErmis, getLeadDuplicates, mergeLeads,
+  sendLeadMessage, bulkSendLeadMessage, convertLeadToCase, startLeadErmis, resendLeadErmisLink, bulkStartErmis, bulkResendErmis, getLeadDuplicates, mergeLeads,
   retryErmisErrors, backfillErmisTranscripts, fetchLeadErmisTranscript, getAuth,
 } from '../api'
 import {
@@ -234,6 +234,53 @@ function SendModal({ lead, onClose }) {
         <div className="p-4 border-t flex justify-end gap-2">
           <button onClick={onClose} className="btn-secondary text-sm">Άκυρο</button>
           <button onClick={submit} disabled={busy || !message} className="btn-primary text-sm flex items-center gap-1"><PaperAirplaneIcon className="w-4 h-4" />{busy ? '…' : 'Αποστολή'}</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function BulkSendModal({ count, onClose, onSend }) {
+  const [channel, setChannel] = useState('viber')
+  const [message, setMessage] = useState('')
+  const [subject, setSubject] = useState('i-Mentor Consulting')
+  const [busy, setBusy] = useState(false)
+  const submit = async () => {
+    if (!message.trim()) return
+    setBusy(true)
+    try {
+      const res = await onSend({ notification_type: channel, message, subject })
+      toast.success(`Εστάλη σε ${res.sent} leads${res.failed ? ` · ${res.failed} αποτυχίες` : ''}${res.skipped ? ` · ${res.skipped} χωρίς στοιχεία` : ''}`, { duration: 6000 })
+      onClose()
+    } catch { toast.error('Σφάλμα μαζικής αποστολής') } finally { setBusy(false) }
+  }
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg" onClick={e => e.stopPropagation()}>
+        <div className="p-4 border-b">
+          <div className="font-bold">Μαζική αποστολή σε {count} leads</div>
+          <div className="text-xs text-gray-400 mt-0.5">Το ίδιο μήνυμα θα σταλεί σε όλους τους επιλεγμένους παραλήπτες.</div>
+        </div>
+        <div className="p-4 space-y-3">
+          <div className="flex gap-2">
+            {['viber', 'email', 'both'].map(c => (
+              <button key={c} onClick={() => setChannel(c)} className={`px-3 py-1.5 rounded-lg text-sm border ${channel === c ? 'bg-blue-500 text-white border-blue-500' : 'bg-white border-gray-300'}`}>
+                {c === 'viber' ? 'Viber' : c === 'email' ? 'Email' : 'Και τα δύο'}
+              </button>
+            ))}
+          </div>
+          {channel !== 'viber' && <input value={subject} onChange={e => setSubject(e.target.value)} placeholder="Θέμα (email)" className="w-full px-3 py-2 border rounded-lg text-sm" />}
+          <textarea value={message} onChange={e => setMessage(e.target.value)} rows={6} placeholder="Γράψτε το κοινό μήνυμα για όλους τους παραλήπτες…" className="w-full px-3 py-2 border rounded-lg text-sm" autoFocus />
+          <p className="text-[11px] text-gray-400">
+            {channel !== 'email' && '📱 Στο Viber προστίθεται αυτόματα η υπογραφή i-Mentor (τηλ, site, email). '}
+            {channel !== 'viber' && '✉️ Το email αποστέλλεται με branded πρότυπο (λογότυπο, πρόγραμμα, στοιχεία επικοινωνίας).'}
+          </p>
+        </div>
+        <div className="p-4 border-t flex justify-end gap-2">
+          <button onClick={onClose} className="btn-secondary text-sm">Άκυρο</button>
+          <button onClick={submit} disabled={busy || !message.trim()} className="btn-primary text-sm flex items-center gap-1.5">
+            <PaperAirplaneIcon className="w-4 h-4" />{busy ? `Αποστολή σε ${count}…` : `Αποστολή σε ${count} leads`}
+          </button>
         </div>
       </div>
     </div>
@@ -614,6 +661,7 @@ export default function Leads() {
   const [page, setPage] = useState(1)
   const [showNew, setShowNew] = useState(false)
   const [sendLead, setSendLead] = useState(null)
+  const [showBulkSend, setShowBulkSend] = useState(false)
   const [expandedId, setExpandedId] = useState(null)
   const [hideCancel, setHideCancel] = useState(true)   // CANCEL hidden by default
   const [selectedIds, setSelectedIds] = useState(new Set())
@@ -943,11 +991,30 @@ export default function Leads() {
 
       {showNew && <NewLeadModal options={options} onClose={() => setShowNew(false)} onCreated={() => { load(); loadOptions() }} />}
       {sendLead && <SendModal lead={sendLead} onClose={() => setSendLead(null)} />}
+      {showBulkSend && (
+        <BulkSendModal
+          count={selectedIds.size}
+          onClose={() => setShowBulkSend(false)}
+          onSend={async (payload) => {
+            const res = await bulkSendLeadMessage({ lead_ids: [...selectedIds], ...payload })
+            setSelectedIds(new Set())
+            setShowBulkSend(false)
+            return res
+          }}
+        />
+      )}
 
       {/* Floating bulk action bar */}
       {selectedIds.size > 0 && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-gray-900 text-white px-5 py-3 rounded-2xl shadow-2xl border border-gray-700">
           <span className="text-sm font-semibold">{selectedIds.size} επιλεγμένα leads</span>
+          <button
+            onClick={() => setShowBulkSend(true)}
+            className="flex items-center gap-2 bg-blue-500 hover:bg-blue-400 text-white text-sm font-semibold px-4 py-1.5 rounded-xl transition-colors"
+          >
+            <ChatBubbleLeftRightIcon className="w-4 h-4" />
+            Μαζικό Μήνυμα ({selectedIds.size})
+          </button>
           <button
             onClick={handleBulkErmis}
             disabled={bulkBusy}
