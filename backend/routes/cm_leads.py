@@ -1463,7 +1463,7 @@ import requests as _req_mod
 
 
 def _create_widget_session(afm: str, name: str = "", email: str = "", phone: str = "",
-                           lead_id: int = None) -> str | None:
+                           lead_id: int = None) -> Optional[str]:
     """Call LOGISTIS to create a per-client eligibility widget session.
     Returns the public check URL or None on failure."""
     import os
