@@ -905,15 +905,12 @@ def add_comment(
         author_name=current_user.full_name,
     )
     db.add(c)
-    # Auto-set source from comment keywords if not already set
+    # Auto-set source from comment keywords — always overrides existing value
     content_upper = req.content.upper()
-    keyword_source = None
     if re.search(r'\bFB\b', content_upper):
-        keyword_source = "Facebook"
+        l.source = "Facebook"
     elif re.search(r'\bTIKTOK\b', content_upper):
-        keyword_source = "TikTok"
-    if keyword_source and not (l.source or "").strip():
-        l.source = keyword_source
+        l.source = "TikTok"
     db.commit()
     db.refresh(c)
     return _comment_to_dict(c)
