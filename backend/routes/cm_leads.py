@@ -1576,9 +1576,18 @@ def bulk_onboard_leads(
     notification_type = req.notification_type
 
     # Generate onboard tokens (for leads without AFM) and snapshot
+    # Deduplicate IDs to avoid sending the same lead twice
+    unique_ids = list(dict.fromkeys(int(i) for i in req.lead_ids))
     leads_snapshot = []
-    for lead in db.query(CMLead).filter(CMLead.id.in_(list(req.lead_ids))).all():
+    seen_phones: set = set()
+    for lead in db.query(CMLead).filter(CMLead.id.in_(unique_ids)).all():
         token = _ensure_onboard_token(lead, db)
+        # Skip duplicate phone numbers — same person selected twice under different records
+        phone_key = _phone_key(lead.phone)
+        if phone_key and phone_key in seen_phones:
+            continue
+        if phone_key:
+            seen_phones.add(phone_key)
         leads_snapshot.append({
             "id": lead.id,
             "name": lead.name or "",
@@ -1619,12 +1628,14 @@ def bulk_onboard_leads(
 
                 if notification_type in ("viber", "both") and snap["phone"]:
                     prog_header = f"📋 {prog}\n\n" if prog else ""
+                    prog_line = f" για το πρόγραμμα {prog}" if prog else ""
                     viber_body = (
                         f"Αγαπητέ/ή {name},\n\n"
-                        f"Για να ελέγξουμε την επιλεξιμότητά σας"
-                        f"{f' για το πρόγραμμα {prog}' if prog else ''},"
-                        f" παρακαλούμε συμπληρώστε τα στοιχεία σας:\n\n"
-                        f"🔗 {link}"
+                        f"Είμαστε η i-Mentor Consulting — η εταιρεία συμβούλων που επικοινωνήσατε μαζί μας{prog_line}.\n\n"
+                        f"Για να ξεκινήσουμε τον έλεγχο επιλεξιμότητας της επιχείρησής σας, "
+                        f"χρειαζόμαστε το ΑΦΜ σας. Πατήστε τον παρακάτω σύνδεσμο για να το καταχωρήσετε με ασφάλεια:\n\n"
+                        f"🔗 {link}\n\n"
+                        f"Η διαδικασία διαρκεί λιγότερο από 1 λεπτό."
                     )
                     full_viber = prog_header + viber_body + viber_footer
                     ok, _ = _send_viber(snap["phone"], full_viber, snap["name"], consultant, snap["service_type"])
