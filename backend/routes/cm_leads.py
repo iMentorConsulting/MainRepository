@@ -8,6 +8,7 @@ CMCase records once they become deals.
 import re
 import json
 import logging
+import threading
 import unicodedata
 from datetime import datetime, date
 from typing import Optional, List
@@ -1346,55 +1347,64 @@ def bulk_notify_leads(
     if len(req.lead_ids) > 500:
         raise HTTPException(status_code=400, detail="Μέγιστο 500 leads ανά αποστολή")
 
+    # Snapshot lead data before the background thread starts (avoids session sharing)
     consultant = current_user.full_name or ""
-    consultant_line = f"\n👤 {consultant}" if consultant else ""
-    viber_footer = (
-        f"{consultant_line}\n"
-        "━━━━━━━━━━━━━━━\n"
-        "i-Mentor Consulting\n"
-        "📞 2810 363007\n"
-        "🌐 www.i-mentor.gr · 📧 info@i-mentor.gr"
-    )
+    user_id = current_user.id
+    notification_type = req.notification_type
+    message = req.message
+    subject_override = req.subject
+    lead_ids = list(req.lead_ids)
 
-    sent = 0
-    failed = 0
-    skipped = 0
+    leads_snapshot = []
+    for l in db.query(CMLead).filter(CMLead.id.in_(lead_ids)).all():
+        leads_snapshot.append({
+            "id": l.id,
+            "name": l.name or "",
+            "phone": l.phone or "",
+            "email": l.email or "",
+            "service_type": l.service_type or "",
+            "program": l.program or "",
+            "program_title": l.program_title or "",
+        })
 
-    for lead_id in req.lead_ids:
-        l = db.query(CMLead).filter(CMLead.id == lead_id).first()
-        if not l:
-            skipped += 1
-            continue
+    def _worker():
+        from database import SessionLocal
+        wdb = SessionLocal()
+        try:
+            consultant_line = f"\n👤 {consultant}" if consultant else ""
+            viber_footer = (
+                f"{consultant_line}\n"
+                "━━━━━━━━━━━━━━━\n"
+                "i-Mentor Consulting\n"
+                "📞 2810 363007\n"
+                "🌐 www.i-mentor.gr · 📧 info@i-mentor.gr"
+            )
+            for snap in leads_snapshot:
+                prog_display = snap["program_title"] or snap["service_type"] or snap["program"]
+                name = snap["name"] or "συνεργάτη"
+                sent_channels = []
 
-        prog_display = l.program_title or l.service_type or l.program or ""
-        name = l.name or "συνεργάτη"
-        sent_channels = []
+                if notification_type in ("viber", "both") and snap["phone"]:
+                    prog_header = f"📋 {prog_display}\n\n" if prog_display else ""
+                    full_viber = prog_header + message.rstrip() + viber_footer
+                    ok, _ = _send_viber(snap["phone"], full_viber, snap["name"], consultant, snap["service_type"])
+                    _log_lead_notification(wdb, snap["id"], "viber", snap["name"], snap["phone"], "",
+                                           full_viber, "sent" if ok else "failed", consultant)
+                    if ok:
+                        sent_channels.append("Viber")
 
-        if req.notification_type in ("viber", "both"):
-            if l.phone:
-                prog_header = f"📋 {prog_display}\n\n" if prog_display else ""
-                full_viber = prog_header + req.message.rstrip() + viber_footer
-                ok, err = _send_viber(l.phone, full_viber, l.name or "", consultant, l.service_type or "")
-                _log_lead_notification(db, l.id, "viber", l.name or "", l.phone, "", full_viber,
-                                       "sent" if ok else "failed", consultant)
-                if ok:
-                    sent_channels.append("Viber")
-                else:
-                    failed += 1
-
-        if req.notification_type in ("email", "both"):
-            if l.email:
-                body_text = req.message.replace("\n", "<br>")
-                subject = req.subject or f"i-Mentor Consulting{' — ' + prog_display if prog_display else ''}"
-                prog_label = f"«{prog_display}»" if prog_display else ""
-                consultant_html = (
-                    f'<p style="margin:0 0 10px;color:#6b7280;font-size:13px;">Σύμβουλος: <b style="color:#1e3a5f;">{consultant}</b></p>'
-                ) if consultant else ""
-                prog_header_html = (
-                    f'<p style="margin:0 0 16px;font-size:14px;color:#6b7280;">Αφορά το πρόγραμμα: '
-                    f'<b style="color:#1e3a5f;">{prog_label}</b></p>'
-                ) if prog_label else ""
-                email_html = f"""<html><body style="margin:0;background:#f3f4f6;padding:24px;font-family:Arial,Helvetica,sans-serif;color:#1f2937;">
+                if notification_type in ("email", "both") and snap["email"]:
+                    body_text = message.replace("\n", "<br>")
+                    prog_label = f"«{prog_display}»" if prog_display else ""
+                    subj = subject_override or f"i-Mentor Consulting{' — ' + prog_display if prog_display else ''}"
+                    consultant_html = (
+                        f'<p style="margin:0 0 10px;color:#6b7280;font-size:13px;">Σύμβουλος: <b style="color:#1e3a5f;">{consultant}</b></p>'
+                    ) if consultant else ""
+                    prog_header_html = (
+                        f'<p style="margin:0 0 16px;font-size:14px;color:#6b7280;">Αφορά το πρόγραμμα: '
+                        f'<b style="color:#1e3a5f;">{prog_label}</b></p>'
+                    ) if prog_label else ""
+                    email_html = f"""<html><body style="margin:0;background:#f3f4f6;padding:24px;font-family:Arial,Helvetica,sans-serif;color:#1f2937;">
 <div style="max-width:600px;margin:0 auto;">
   <div style="background:#1e3a5f;padding:22px 24px;border-radius:10px 10px 0 0;text-align:center;">
     <img src="https://i-mentor.gr/wp-content/uploads/2026/06/logo-white-transparent.png" alt="i-Mentor Consulting" style="max-height:56px;max-width:220px;width:auto;display:block;margin:0 auto;" />
@@ -1416,29 +1426,31 @@ def bulk_notify_leads(
     </div>
   </div>
 </div></body></html>"""
-                ok, err = _send_email(l.email, subject, req.message, html_override=email_html)
-                _log_lead_notification(db, l.id, "email", l.name or "", l.email, subject, req.message,
-                                       "sent" if ok else "failed", consultant)
-                if ok:
-                    sent_channels.append("Email")
-                else:
-                    failed += 1
+                    ok, _ = _send_email(snap["email"], subj, message, html_override=email_html)
+                    _log_lead_notification(wdb, snap["id"], "email", snap["name"], snap["email"],
+                                           subj, message, "sent" if ok else "failed", consultant)
+                    if ok:
+                        sent_channels.append("Email")
 
-        if sent_channels:
-            sent += 1
-            channels_label = " & ".join(sent_channels)
-            prog_note = f" [{prog_display}]" if prog_display else ""
-            msg_preview = req.message[:200]
-            db.add(CMLeadComment(
-                lead_id=l.id,
-                user_id=current_user.id,
-                content=f"📤 Μαζική αποστολή μέσω {channels_label}{prog_note}:\n{msg_preview}"
-                        + ("…" if len(req.message) > 200 else ""),
-                author_name=consultant,
-            ))
+                if sent_channels:
+                    channels_label = " & ".join(sent_channels)
+                    prog_note = f" [{prog_display}]" if prog_display else ""
+                    msg_preview = message[:200]
+                    wdb.add(CMLeadComment(
+                        lead_id=snap["id"],
+                        user_id=user_id,
+                        content=f"📤 Μαζική αποστολή μέσω {channels_label}{prog_note}:\n{msg_preview}"
+                                + ("…" if len(message) > 200 else ""),
+                        author_name=consultant,
+                    ))
+                    wdb.commit()
+        except Exception as exc:
+            log.exception("bulk_notify_leads worker error: %s", exc)
+        finally:
+            wdb.close()
 
-    db.commit()
-    return {"sent": sent, "failed": failed, "skipped": skipped, "total": len(req.lead_ids)}
+    threading.Thread(target=_worker, daemon=True).start()
+    return {"queued": len(leads_snapshot), "total": len(lead_ids)}
 
 
 # ── Lead → Case conversion ──────────────────────────────────────────────────

@@ -258,7 +258,7 @@ function BulkSendModal({ leads, onClose, onSend }) {
     setBusy(true)
     try {
       const res = await onSend({ notification_type: channel, message, subject })
-      toast.success(`Εστάλη σε ${res.sent} leads${res.failed ? ` · ${res.failed} αποτυχίες` : ''}${res.skipped ? ` · ${res.skipped} χωρίς στοιχεία` : ''}`, { duration: 6000 })
+      toast.success(`Αποστολή σε ${res.queued} leads ξεκίνησε στο παρασκήνιο`, { duration: 6000 })
       onClose()
     } catch { toast.error('Σφάλμα μαζικής αποστολής') } finally { setBusy(false) }
   }
