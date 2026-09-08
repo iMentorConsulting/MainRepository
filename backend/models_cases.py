@@ -607,6 +607,9 @@ class CMLead(Base):
     ermis_started_at = Column(DateTime, nullable=True)
     ermis_completed_at = Column(DateTime, nullable=True)
 
+    # Self-service onboarding (AFM collection + ΕΡΜΗΣ trigger via public link)
+    onboard_token = Column(String(36), unique=True, index=True, nullable=True)
+
     # Google Sheets sync
     sheet_config_id = Column(Integer, ForeignKey("cm_lead_sheet_configs.id"), nullable=True)
     sheet_row_num = Column(Integer, nullable=True)          # watermark within its sheet

@@ -28,6 +28,7 @@ import Leads from './pages/Leads'
 import LeadDetail from './pages/LeadDetail'
 import LeadSheetConfigPage from './pages/LeadSheetConfigPage'
 import LeadsStats from './pages/LeadsStats'
+import Onboard from './pages/Onboard'
 
 export default function App() {
   const [auth, setAuthState] = useState(() => getAuth())
@@ -48,6 +49,8 @@ export default function App() {
       <Routes>
         {/* Public portal route — no auth required */}
         <Route path="/portal/:token" element={<ErrorBoundary><ClientPortal /></ErrorBoundary>} />
+        {/* Self-service onboarding — no auth required */}
+        <Route path="/onboard/:token" element={<ErrorBoundary><Onboard /></ErrorBoundary>} />
 
         {/* Auth-protected app */}
         {!auth ? (

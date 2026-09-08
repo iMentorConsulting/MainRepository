@@ -7,6 +7,7 @@ CMCase records once they become deals.
 """
 import re
 import json
+import uuid
 import logging
 import threading
 import unicodedata
@@ -1451,6 +1452,205 @@ def bulk_notify_leads(
 
     threading.Thread(target=_worker, daemon=True).start()
     return {"queued": len(leads_snapshot), "total": len(lead_ids)}
+
+
+# ── Onboarding via public link (no auth) ────────────────────────────────────
+
+FRONTEND_BASE = "https://consult.i-mentor.gr"
+
+def _ensure_onboard_token(lead: CMLead, db: Session) -> str:
+    if not lead.onboard_token:
+        lead.onboard_token = str(uuid.uuid4())
+        db.commit()
+    return lead.onboard_token
+
+
+@router.get("/public/{token}")
+def onboard_get(token: str, db: Session = Depends(get_db)):
+    lead = db.query(CMLead).filter(CMLead.onboard_token == token).first()
+    if not lead:
+        raise HTTPException(status_code=404, detail="Ο σύνδεσμος δεν είναι έγκυρος")
+    prog = lead.program_title or lead.service_type or lead.program or ""
+    return {
+        "name": lead.name or "",
+        "program": prog,
+        "has_afm": bool((lead.afm or "").strip()),
+        "ermis_started": bool(lead.ermis_token or lead.ermis_status),
+        "ermis_chat_url": lead.ermis_chat_url or None,
+    }
+
+
+@router.post("/public/{token}")
+def onboard_submit(token: str, body: dict, db: Session = Depends(get_db)):
+    lead = db.query(CMLead).filter(CMLead.onboard_token == token).first()
+    if not lead:
+        raise HTTPException(status_code=404, detail="Ο σύνδεσμος δεν είναι έγκυρος")
+
+    raw_afm = str(body.get("afm", "")).strip()
+    # Pad 8-digit AFM to 9
+    if re.fullmatch(r"[0-9]{8}", raw_afm):
+        raw_afm = "0" + raw_afm
+    if not re.fullmatch(r"[0-9]{9}", raw_afm):
+        raise HTTPException(status_code=422, detail="Το ΑΦΜ πρέπει να αποτελείται από 9 ψηφία")
+
+    if not lead.afm:
+        lead.afm = raw_afm
+        if not lead.ermis_token and lead.status not in ("CANCEL", "DEAL"):
+            lead.ermis_status = None  # reset so maybe_autostart_ermis re-checks
+    db.commit()
+    db.refresh(lead)
+
+    # Kick off ΕΡΜΗΣ in background if not already running
+    maybe_autostart_ermis(lead, actor_name="onboard")
+
+    db.refresh(lead)
+    return {
+        "success": True,
+        "name": lead.name or "",
+        "ermis_chat_url": lead.ermis_chat_url or None,
+    }
+
+
+# ── Bulk onboarding link dispatch ───────────────────────────────────────────
+
+class BulkOnboardReq(BaseModel):
+    lead_ids: list
+    notification_type: str  # viber | email | both
+
+
+@router.post("/bulk-onboard")
+def bulk_onboard_leads(
+    req: BulkOnboardReq,
+    current_user: CMUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    if not req.lead_ids:
+        raise HTTPException(status_code=400, detail="Απαιτούνται leads")
+    if len(req.lead_ids) > 500:
+        raise HTTPException(status_code=400, detail="Μέγιστο 500 leads ανά αποστολή")
+
+    consultant = current_user.full_name or ""
+    user_id = current_user.id
+    notification_type = req.notification_type
+
+    # Generate tokens now (in request context) and snapshot
+    leads_snapshot = []
+    for lead in db.query(CMLead).filter(CMLead.id.in_(list(req.lead_ids))).all():
+        token = _ensure_onboard_token(lead, db)
+        leads_snapshot.append({
+            "id": lead.id,
+            "name": lead.name or "",
+            "phone": lead.phone or "",
+            "email": lead.email or "",
+            "service_type": lead.service_type or "",
+            "program": lead.program or "",
+            "program_title": lead.program_title or "",
+            "onboard_token": token,
+        })
+
+    def _worker():
+        from database import SessionLocal
+        wdb = SessionLocal()
+        try:
+            consultant_line = f"\n👤 {consultant}" if consultant else ""
+            viber_footer = (
+                f"{consultant_line}\n"
+                "━━━━━━━━━━━━━━━\n"
+                "i-Mentor Consulting\n"
+                "📞 2810 363007\n"
+                "🌐 www.i-mentor.gr · 📧 info@i-mentor.gr"
+            )
+            for snap in leads_snapshot:
+                prog = snap["program_title"] or snap["service_type"] or snap["program"]
+                name = snap["name"] or "συνεργάτη"
+                link = f"{FRONTEND_BASE}/onboard/{snap['onboard_token']}"
+                sent_channels = []
+
+                if notification_type in ("viber", "both") and snap["phone"]:
+                    prog_header = f"📋 {prog}\n\n" if prog else ""
+                    viber_body = (
+                        f"Αγαπητέ/ή {name},\n\n"
+                        f"Για να ελέγξουμε την επιλεξιμότητά σας"
+                        f"{f' για το πρόγραμμα {prog}' if prog else ''},"
+                        f" παρακαλούμε συμπληρώστε τα στοιχεία σας:\n\n"
+                        f"🔗 {link}"
+                    )
+                    full_viber = prog_header + viber_body + viber_footer
+                    ok, _ = _send_viber(snap["phone"], full_viber, snap["name"], consultant, snap["service_type"])
+                    _log_lead_notification(wdb, snap["id"], "viber", snap["name"], snap["phone"],
+                                           "", full_viber, "sent" if ok else "failed", consultant)
+                    if ok:
+                        sent_channels.append("Viber")
+
+                if notification_type in ("email", "both") and snap["email"]:
+                    prog_label = f"«{prog}»" if prog else ""
+                    subj = f"i-Mentor Consulting — Έλεγχος Επιλεξιμότητας{' ' + prog_label if prog_label else ''}"
+                    consultant_html = (
+                        f'<p style="margin:0 0 10px;color:#6b7280;font-size:13px;">Σύμβουλος: '
+                        f'<b style="color:#1e3a5f;">{consultant}</b></p>'
+                    ) if consultant else ""
+                    prog_header_html = (
+                        f'<p style="margin:0 0 16px;font-size:14px;color:#6b7280;">Πρόγραμμα: '
+                        f'<b style="color:#1e3a5f;">{prog_label}</b></p>'
+                    ) if prog_label else ""
+                    email_html = f"""<html><body style="margin:0;background:#f3f4f6;padding:24px;font-family:Arial,Helvetica,sans-serif;color:#1f2937;">
+<div style="max-width:600px;margin:0 auto;">
+  <div style="background:#1e3a5f;padding:22px 24px;border-radius:10px 10px 0 0;text-align:center;">
+    <img src="https://i-mentor.gr/wp-content/uploads/2026/06/logo-white-transparent.png" alt="i-Mentor Consulting" style="max-height:56px;max-width:220px;width:auto;display:block;margin:0 auto;" />
+  </div>
+  <div style="background:#ffffff;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 10px 10px;padding:26px 24px;">
+    <p style="font-size:16px;margin:0 0 10px;">Αγαπητέ/ή <b>{name}</b>,</p>
+    {prog_header_html}
+    <p style="font-size:15px;line-height:1.7;margin:0 0 20px;color:#374151;">
+      Για να ελέγξουμε την επιλεξιμότητά σας{f' για το πρόγραμμα {prog_label}' if prog_label else ''} και να σας συνδέσουμε με τον <b>Ψηφιακό Σύμβουλό</b> μας, παρακαλούμε συμπληρώστε τα στοιχεία σας μέσω του παρακάτω συνδέσμου:
+    </p>
+    <div style="text-align:center;margin:24px 0;">
+      <a href="{link}" style="display:inline-block;background:#1e3a5f;color:#ffffff;text-decoration:none;font-weight:bold;font-size:16px;padding:14px 32px;border-radius:8px;">
+        🔗 Συμπλήρωση Στοιχείων
+      </a>
+    </div>
+    <p style="font-size:13px;color:#9ca3af;margin:0 0 20px;text-align:center;">{link}</p>
+    <hr style="border:none;border-top:1px solid #eef2f7;margin:16px 0;">
+    {consultant_html}
+    <div style="background:#f0f4f8;border-radius:8px;padding:14px 16px;margin-top:4px;">
+      <p style="margin:0 0 4px;font-size:15px;font-weight:bold;color:#1e3a5f;">📞 2810 363007</p>
+      <p style="margin:0;font-size:12px;color:#6b7280;">
+        i-Mentor Consulting ·
+        <a href="https://www.i-mentor.gr" style="color:#6b7280;text-decoration:none;">www.i-mentor.gr</a> ·
+        <a href="mailto:info@i-mentor.gr" style="color:#6b7280;text-decoration:none;">info@i-mentor.gr</a>
+      </p>
+    </div>
+  </div>
+</div></body></html>"""
+                    plain = (
+                        f"Αγαπητέ/ή {name},\n\n"
+                        f"Για τον έλεγχο επιλεξιμότητας{f' για το πρόγραμμα {prog}' if prog else ''}, "
+                        f"παρακαλούμε συμπληρώστε τα στοιχεία σας:\n{link}\n\n"
+                        f"i-Mentor Consulting · 2810 363007 · info@i-mentor.gr"
+                    )
+                    ok, _ = _send_email(snap["email"], subj, plain, html_override=email_html)
+                    _log_lead_notification(wdb, snap["id"], "email", snap["name"], snap["email"],
+                                           subj, plain, "sent" if ok else "failed", consultant)
+                    if ok:
+                        sent_channels.append("Email")
+
+                if sent_channels:
+                    channels_label = " & ".join(sent_channels)
+                    prog_note = f" [{prog}]" if prog else ""
+                    wdb.add(CMLeadComment(
+                        lead_id=snap["id"],
+                        user_id=user_id,
+                        content=f"🔗 Αποστολή link καταχώρησης ΑΦΜ μέσω {channels_label}{prog_note}",
+                        author_name=consultant,
+                    ))
+                    wdb.commit()
+        except Exception as exc:
+            log.exception("bulk_onboard_leads worker error: %s", exc)
+        finally:
+            wdb.close()
+
+    threading.Thread(target=_worker, daemon=True).start()
+    return {"queued": len(leads_snapshot), "total": len(req.lead_ids)}
 
 
 # ── Lead → Case conversion ──────────────────────────────────────────────────

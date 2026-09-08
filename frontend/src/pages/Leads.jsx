@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef, Fragment } from 'react'
 import {
   getLeads, getLeadFilterOptions, getLead, createLead, updateLead, deleteLead,
   getLeadComments, addLeadComment, editLeadComment, deleteLeadComment,
-  sendLeadMessage, bulkSendLeadMessage, convertLeadToCase, startLeadErmis, resendLeadErmisLink, bulkStartErmis, bulkResendErmis, getLeadDuplicates, mergeLeads,
+  sendLeadMessage, bulkSendLeadMessage, bulkOnboardLeads, convertLeadToCase, startLeadErmis, resendLeadErmisLink, bulkStartErmis, bulkResendErmis, getLeadDuplicates, mergeLeads,
   retryErmisErrors, backfillErmisTranscripts, fetchLeadErmisTranscript, getAuth,
 } from '../api'
 import {
@@ -673,6 +673,7 @@ export default function Leads() {
   const [showNew, setShowNew] = useState(false)
   const [sendLead, setSendLead] = useState(null)
   const [showBulkSend, setShowBulkSend] = useState(false)
+  const [onboardBusy, setOnboardBusy] = useState(false)
   const [expandedId, setExpandedId] = useState(null)
   const [hideCancel, setHideCancel] = useState(true)   // CANCEL hidden by default
   const [selectedIds, setSelectedIds] = useState(new Set())
@@ -802,6 +803,21 @@ export default function Leads() {
     } catch (e) {
       toast.error(e.response?.data?.detail || 'Σφάλμα επαναποστολής ΕΡΜΗΣ', { id: tid })
     } finally { setBulkBusy(false) }
+  }
+
+  const handleBulkOnboard = async (channel = 'viber') => {
+    const ids = [...selectedIds]
+    if (!confirm(`Αποστολή link καταχώρησης ΑΦΜ μέσω ${channel === 'viber' ? 'Viber' : channel === 'email' ? 'Email' : 'Viber & Email'} σε ${ids.length} leads;\n\nΚάθε πελάτης θα λάβει προσωπικό link για να συμπληρώσει το ΑΦΜ του και να ξεκινήσει ο Ψηφιακός Σύμβουλος αυτόματα.`)) return
+    setOnboardBusy(true)
+    const tid = toast.loading(`Αποστολή link onboarding σε ${ids.length} leads…`)
+    try {
+      const res = await bulkOnboardLeads({ lead_ids: ids, notification_type: channel })
+      toast.success(`Link ΑΦΜ εστάλη σε ${res.queued} leads`, { id: tid, duration: 6000 })
+      setSelectedIds(new Set())
+      setTimeout(load, 2000)
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Σφάλμα αποστολής link', { id: tid })
+    } finally { setOnboardBusy(false) }
   }
 
   const SortTh = ({ col, children, className = '' }) => (
@@ -1040,6 +1056,13 @@ export default function Leads() {
             className="flex items-center gap-2 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-white text-sm font-semibold px-4 py-1.5 rounded-xl transition-colors"
           >
             ↺ {bulkBusy ? 'Αποστολή…' : `Επαναποστολή ΕΡΜΗΣ (${selectedIds.size})`}
+          </button>
+          <button
+            onClick={() => handleBulkOnboard('both')}
+            disabled={onboardBusy || bulkBusy}
+            className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-white text-sm font-semibold px-4 py-1.5 rounded-xl transition-colors"
+          >
+            🔗 {onboardBusy ? 'Αποστολή…' : `Link ΑΦΜ (${selectedIds.size})`}
           </button>
           <button onClick={() => setSelectedIds(new Set())} className="text-gray-400 hover:text-white text-sm px-2 py-1 rounded-lg">
             ✕ Αποεπιλογή

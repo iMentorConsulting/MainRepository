@@ -256,6 +256,11 @@ export const editLeadComment = (id, commentId, content) => api.put(`/api/cm/lead
 export const deleteLeadComment = (id, commentId) => api.delete(`/api/cm/leads/${id}/comments/${commentId}`).then(r => r.data)
 export const sendLeadMessage = (id, payload) => api.post(`/api/cm/leads/${id}/send`, payload).then(r => r.data)
 export const bulkSendLeadMessage = (payload) => api.post('/api/cm/leads/bulk-notify', payload, { timeout: 300000 }).then(r => r.data)
+export const bulkOnboardLeads = (payload) => api.post('/api/cm/leads/bulk-onboard', payload, { timeout: 300000 }).then(r => r.data)
+
+// Onboarding (public — no auth token)
+export const getOnboardInfo = (token) => axios.get(`${BASE}/api/cm/leads/public/${token}`).then(r => r.data)
+export const submitOnboardAfm = (token, afm) => axios.post(`${BASE}/api/cm/leads/public/${token}`, { afm }).then(r => r.data)
 export const convertLeadToCase = (id) => api.post(`/api/cm/leads/${id}/convert-to-case`).then(r => r.data)
 export const getLeadDuplicates = (id) => api.get(`/api/cm/leads/${id}/duplicates`).then(r => r.data)
 export const mergeLeads = (id, otherId) => api.post(`/api/cm/leads/${id}/merge/${otherId}`).then(r => r.data)

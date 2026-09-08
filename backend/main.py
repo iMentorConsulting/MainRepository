@@ -1362,6 +1362,8 @@ try:
             )
         """))
         _conn.execute(_text("CREATE INDEX IF NOT EXISTS ix_cm_lead_notification_logs_lead_id ON cm_lead_notification_logs (lead_id)"))
+        _conn.execute(_text("ALTER TABLE cm_leads ADD COLUMN IF NOT EXISTS onboard_token VARCHAR(36)"))
+        _conn.execute(_text("CREATE UNIQUE INDEX IF NOT EXISTS ix_cm_leads_onboard_token ON cm_leads (onboard_token) WHERE onboard_token IS NOT NULL"))
         _conn.commit()
 except Exception as _e:
     print(f"[migration] cm_leads create skipped: {_e}", flush=True)
