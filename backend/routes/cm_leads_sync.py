@@ -369,6 +369,13 @@ def _sync_config(db: Session, cfg: CMLeadSheetConfig, dry_run: bool = False, ref
         cfg.last_sync_at = datetime.utcnow()
         db.commit()
 
+    # Auto-cancel ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ leads that fail eligibility
+    if not dry_run:
+        from routes.cm_leads import mikropistoseis_cancel_check
+        for lead in created_leads:
+            mikropistoseis_cancel_check(lead, db)
+        db.commit()
+
     # Ids of brand-new leads that qualify for auto-ΕΡΜΗΣ (have ΑΦΜ, open status)
     new_ermis_ids = [
         l.id for l in created_leads

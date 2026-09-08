@@ -166,6 +166,9 @@ def _process_ermis_session(lead_id: int, send_link: bool, channel: str, actor_na
         l = db.query(CMLead).filter(CMLead.id == lead_id).first()
         if not l:
             return
+        if l.status == "CANCEL":
+            log.info("ΕΡΜΗΣ skipped for lead %s: status is CANCEL", lead_id)
+            return
         # Reflect progress immediately in the UI
         if l.ermis_status not in ("in_progress", "eligible", "ineligible"):
             l.ermis_status = "starting"
@@ -401,6 +404,9 @@ def bulk_resend_ermis(
     channel = req.channel or "both"
 
     for l in leads:
+        if l.status == "CANCEL":
+            skipped.append({"id": l.id, "name": l.name, "reason": "Status CANCEL"})
+            continue
         if not l.ermis_chat_url:
             skipped.append({"id": l.id, "name": l.name, "reason": "Δεν υπάρχει link ΕΡΜΗΣ"})
             continue
@@ -775,6 +781,9 @@ def ermis_webhook(
             log.exception("ΕΡΜΗΣ business upsert failed: %s", exc)
         if not lead.afm:
             lead.afm = afm
+        # Re-run eligibility check now that business profile is populated
+        from routes.cm_leads import mikropistoseis_cancel_check
+        mikropistoseis_cancel_check(lead, db)
 
     if payload.transcript is not None:
         if isinstance(payload.transcript, str):

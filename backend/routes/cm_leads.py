@@ -193,6 +193,62 @@ def find_gemi_lead(db: Session, afm, program_title=None, program_category=None, 
     return None
 
 
+def _ten_months_ago() -> date:
+    """Return the date exactly 10 calendar months before today."""
+    import calendar
+    t = date.today()
+    m, y = t.month - 10, t.year
+    if m <= 0:
+        m += 12
+        y -= 1
+    return date(y, m, min(t.day, calendar.monthrange(y, m)[1]))
+
+
+_MIKRO_DISQUALIFY_LABELS = {"ΑΣΦ & ΦΟΡ ΕΝΗΜ", "ΤΕΙΡΕΣΙΑΣ & ΤΡΑΠΕΖΕΣ", "ΕΝΕΡΓΗ ΕΠΙΧΕΙΡΗΣΗ"}
+_NO_VALUES = {"ΟΧΙ", "OXI", "ΌΧΙ", "NO", "OCHI"}
+
+
+def mikropistoseis_cancel_check(lead: CMLead, db: Session) -> bool:
+    """Auto-cancel a ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ lead that fails eligibility.
+
+    Triggers on:
+      • Any of ΑΣΦ & ΦΟΡ ΕΝΗΜ / ΤΕΙΡΕΣΙΑΣ & ΤΡΑΠΕΖΕΣ / ΕΝΕΡΓΗ ΕΠΙΧΕΙΡΗΣΗ = ΟΧΙ
+      • Business regdate within the last 10 months (< 10 months old)
+
+    Sets lead.status = 'CANCEL' and returns True when a rule fires.
+    Caller is responsible for committing.
+    """
+    if "ΜΙΚΡΟΠΙΣΤΩΣ" not in (lead.program or "").upper():
+        return False
+    if lead.status == "CANCEL":
+        return False
+
+    # ── program_fields eligibility check ─────────────────────────────────────
+    for _key, meta in (lead.program_fields or {}).items():
+        if isinstance(meta, dict):
+            label = (meta.get("label") or _key).strip()
+            value = (meta.get("value") or "").strip().upper()
+        else:
+            label, value = _key, str(meta).strip().upper()
+        if label in _MIKRO_DISQUALIFY_LABELS and value in _NO_VALUES:
+            lead.status = "CANCEL"
+            log.info("[mikro-cancel] lead %s cancelled: %s = %s", lead.id, label, value)
+            return True
+
+    # ── business age check (≥10 months required) ────────────────────────────
+    afm = (lead.afm or "").strip()
+    if afm:
+        from models_cases import CMBusinessProfile
+        biz = db.query(CMBusinessProfile).filter(CMBusinessProfile.afm == afm).first()
+        if biz and biz.regdate:
+            if biz.regdate > _ten_months_ago():
+                lead.status = "CANCEL"
+                log.info("[mikro-cancel] lead %s cancelled: regdate %s < 10 months old", lead.id, biz.regdate)
+                return True
+
+    return False
+
+
 def maybe_autostart_ermis(lead: CMLead, actor_name: str = "auto") -> bool:
     """If a lead has an ΑΦΜ, is an open prospect and hasn't been sent yet, kick off
     a ΕΡΜΗΣ screening in the background (LOGISTIS does the ΑΑΔΕ lookup + matching).
@@ -942,6 +998,25 @@ def backfill_source_keywords(
 
     db.commit()
     return {"ok": True, "updated": updated}
+
+
+@router.post("/backfill-mikropistoseis-cancel")
+def backfill_mikropistoseis_cancel(
+    current_user: CMUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Backfill: auto-cancel ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ leads that fail eligibility rules
+    (ΑΣΦ/ΤΕΙΡΕΣΙΑΣ/ΕΝΕΡΓΗ = ΟΧΙ, or business < 10 months old)."""
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Μόνο για διαχειριστές")
+
+    leads = db.query(CMLead).filter(CMLead.status != "CANCEL").all()
+    cancelled = 0
+    for lead in leads:
+        if mikropistoseis_cancel_check(lead, db):
+            cancelled += 1
+    db.commit()
+    return {"ok": True, "cancelled": cancelled}
 
 
 @router.post("/normalize-consultants")
