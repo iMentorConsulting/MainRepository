@@ -1457,6 +1457,42 @@ def bulk_notify_leads(
 # ── Onboarding via public link (no auth) ────────────────────────────────────
 
 FRONTEND_BASE = "https://consult.i-mentor.gr"
+LOGISTIS_WIDGET_URL = "https://logistis.i-mentor.gr/api/external/widget-sessions"
+
+import requests as _req_mod
+
+
+def _create_widget_session(afm: str, name: str = "", email: str = "", phone: str = "",
+                           lead_id: int = None) -> str | None:
+    """Call LOGISTIS to create a per-client eligibility widget session.
+    Returns the public check URL or None on failure."""
+    import os
+    secret = os.getenv("IMENTOR_PORTAL_API_KEY", "")
+    if not secret or not afm:
+        return None
+    body = {"afm": afm}
+    if name:
+        body["clientName"] = name
+    if email:
+        body["email"] = email
+    if phone:
+        body["phone"] = phone
+    if lead_id:
+        body["leadRef"] = str(lead_id)
+    try:
+        resp = _req_mod.post(
+            LOGISTIS_WIDGET_URL,
+            json=body,
+            headers={"x-api-key": secret},
+            timeout=10,
+        )
+        if resp.status_code == 200:
+            return resp.json().get("url")
+        log.warning("LOGISTIS widget-session error %s: %s", resp.status_code, resp.text[:200])
+    except Exception as exc:
+        log.warning("LOGISTIS widget-session failed: %s", exc)
+    return None
+
 
 def _ensure_onboard_token(lead: CMLead, db: Session) -> str:
     if not lead.onboard_token:
@@ -1477,6 +1513,14 @@ def onboard_get(token: str, db: Session = Depends(get_db)):
         "has_afm": bool((lead.afm or "").strip()),
         "ermis_started": bool(lead.ermis_token or lead.ermis_status),
         "ermis_chat_url": lead.ermis_chat_url or None,
+        # If this lead already has an AFM, pre-generate a LOGISTIS widget URL for them
+        "logistis_url": _create_widget_session(
+            afm=lead.afm or "",
+            name=lead.name or "",
+            email=lead.email or "",
+            phone=lead.phone or "",
+            lead_id=lead.id,
+        ) if (lead.afm or "").strip() else None,
     }
 
 
@@ -1500,13 +1544,23 @@ def onboard_submit(token: str, body: dict, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(lead)
 
-    # Kick off ΕΡΜΗΣ in background if not already running
+    # Try LOGISTIS widget session first (gives instant eligibility + ΕΡΜΗΣ links per program)
+    widget_url = _create_widget_session(
+        afm=lead.afm,
+        name=lead.name or "",
+        email=lead.email or "",
+        phone=lead.phone or "",
+        lead_id=lead.id,
+    )
+
+    # Also kick off legacy ΕΡΜΗΣ in background as fallback
     maybe_autostart_ermis(lead, actor_name="onboard")
 
     db.refresh(lead)
     return {
         "success": True,
         "name": lead.name or "",
+        "logistis_url": widget_url,
         "ermis_chat_url": lead.ermis_chat_url or None,
     }
 
@@ -1533,7 +1587,7 @@ def bulk_onboard_leads(
     user_id = current_user.id
     notification_type = req.notification_type
 
-    # Generate tokens now (in request context) and snapshot
+    # Generate onboard tokens (for leads without AFM) and snapshot
     leads_snapshot = []
     for lead in db.query(CMLead).filter(CMLead.id.in_(list(req.lead_ids))).all():
         token = _ensure_onboard_token(lead, db)
@@ -1542,6 +1596,7 @@ def bulk_onboard_leads(
             "name": lead.name or "",
             "phone": lead.phone or "",
             "email": lead.email or "",
+            "afm": (lead.afm or "").strip(),
             "service_type": lead.service_type or "",
             "program": lead.program or "",
             "program_title": lead.program_title or "",
@@ -1563,7 +1618,15 @@ def bulk_onboard_leads(
             for snap in leads_snapshot:
                 prog = snap["program_title"] or snap["service_type"] or snap["program"]
                 name = snap["name"] or "συνεργάτη"
-                link = f"{FRONTEND_BASE}/onboard/{snap['onboard_token']}"
+                # Leads WITH AFM → LOGISTIS widget (instant eligibility + ΕΡΜΗΣ links)
+                # Leads WITHOUT AFM → our own onboard page (collects AFM first)
+                if snap["afm"]:
+                    link = _create_widget_session(
+                        afm=snap["afm"], name=snap["name"], email=snap["email"],
+                        phone=snap["phone"], lead_id=snap["id"],
+                    ) or f"{FRONTEND_BASE}/onboard/{snap['onboard_token']}"
+                else:
+                    link = f"{FRONTEND_BASE}/onboard/{snap['onboard_token']}"
                 sent_channels = []
 
                 if notification_type in ("viber", "both") and snap["phone"]:

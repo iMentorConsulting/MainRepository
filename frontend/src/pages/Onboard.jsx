@@ -22,7 +22,14 @@ export default function Onboard() {
 
   useEffect(() => {
     getOnboardInfo(token)
-      .then(setInfo)
+      .then(res => {
+        // Lead already has AFM → redirect to LOGISTIS widget immediately
+        if (res.logistis_url) {
+          window.location.href = res.logistis_url
+          return
+        }
+        setInfo(res)
+      })
       .catch(() => setError('Ο σύνδεσμος δεν είναι έγκυρος ή έχει λήξει.'))
       .finally(() => setLoading(false))
   }, [token])
@@ -38,6 +45,11 @@ export default function Onboard() {
     setBusy(true)
     try {
       const res = await submitOnboardAfm(token, clean)
+      if (res.logistis_url) {
+        // Redirect straight to LOGISTIS eligibility widget
+        window.location.href = res.logistis_url
+        return
+      }
       setResult(res)
     } catch (err) {
       const msg = err?.response?.data?.detail || 'Σφάλμα κατά την υποβολή. Παρακαλούμε δοκιμάστε ξανά.'
