@@ -290,13 +290,19 @@ function ResultView({ result, phone }: { result: CheckResult; phone: string }) {
             {p.monthlyAmount != null && p.monthlyAmount > 0 && <span>💰 €{fmt(p.monthlyAmount)}/μήνα × {p.subsidyMonths ?? '?'} μήνες</span>}
             {p.totalBenefit != null && p.totalBenefit > 0 && <span>✅ Συνολικό όφελος: €{fmt(p.totalBenefit)}</span>}
           </div>
-          {/* Requirement tags from otherRequirements or keyPoints */}
+          {/* Requirement tags from otherRequirements (stored as "1. ...\n2. ...") */}
           {(() => {
             const tags: string[] = []
-            if (Array.isArray(p.otherRequirements)) tags.push(...p.otherRequirements.map(String).filter(Boolean))
-            else if (typeof p.otherRequirements === 'string' && p.otherRequirements.trim()) tags.push(...p.otherRequirements.split(/[,\n]/).map((s: string) => s.trim()).filter(Boolean))
+            if (typeof p.otherRequirements === 'string' && p.otherRequirements.trim()) {
+              tags.push(...p.otherRequirements
+                .split('\n')
+                .map((s: string) => s.replace(/^\s*\d+\.\s*/, '').trim())
+                .filter(Boolean))
+            } else if (Array.isArray(p.otherRequirements)) {
+              tags.push(...p.otherRequirements.map(String).filter(Boolean))
+            }
             if (Array.isArray(p.keyPoints)) tags.push(...p.keyPoints.map(String).filter(Boolean))
-            else if (typeof p.keyPoints === 'string' && p.keyPoints.trim()) tags.push(...p.keyPoints.split(/[,\n]/).map((s: string) => s.trim()).filter(Boolean))
+            else if (typeof p.keyPoints === 'string' && p.keyPoints.trim()) tags.push(...p.keyPoints.split(/\n/).map((s: string) => s.replace(/^\s*\d+\.\s*/, '').trim()).filter(Boolean))
             if (tags.length === 0) return null
             return (
               <div className="mb-3">
