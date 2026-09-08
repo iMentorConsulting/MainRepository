@@ -26,6 +26,8 @@ type Program = {
   monthlyAmount: number | null
   subsidyMonths: number | null
   totalBenefit: number | null
+  otherRequirements?: any
+  keyPoints?: any
   ermisUrl?: string | null
 }
 
@@ -275,16 +277,38 @@ function ResultView({ result, phone }: { result: CheckResult; phone: string }) {
             <span className="text-xs bg-blue-100 text-blue-700 rounded-full px-2 py-0.5 whitespace-nowrap font-medium">{p.category}</span>
           </div>
           {p.description && <p className="text-sm text-gray-600 mb-3 leading-relaxed">{p.description}</p>}
-          <div className="flex flex-wrap gap-3 text-xs text-gray-500 mb-4">
+          <div className="flex flex-wrap gap-3 text-xs text-gray-500 mb-3">
             {(p.minSubsidyPct != null || p.maxSubsidyPct != null) && (p.minSubsidyPct !== 0 || p.maxSubsidyPct !== 0) && (
               <span>💶 Επιδότηση: {p.minSubsidyPct != null && p.maxSubsidyPct != null ? `${p.minSubsidyPct}%–${p.maxSubsidyPct}%` : `${p.minSubsidyPct ?? p.maxSubsidyPct}%`}</span>
             )}
             {(p.minInvestment != null || p.maxInvestment != null) && (
-              <span>📊 Προϋπολογισμός: {p.minInvestment != null ? `€${fmt(p.minInvestment)}` : ''}{p.minInvestment != null && p.maxInvestment != null ? '–' : ''}{p.maxInvestment != null ? `€${fmt(p.maxInvestment)}` : ''}</span>
+              <span>📊 Ποσό επένδυσης: {p.minInvestment != null ? `€${fmt(p.minInvestment)}` : ''}{p.minInvestment != null && p.maxInvestment != null ? '–' : ''}{p.maxInvestment != null ? `€${fmt(p.maxInvestment)}` : ''}</span>
+            )}
+            {(p.minInterestRate != null || p.maxInterestRate != null) && (p.minInterestRate !== 0 || p.maxInterestRate !== 0) && (
+              <span className="text-orange-600 font-medium">📈 Επιτόκιο: {p.minInterestRate != null && p.maxInterestRate != null ? `${p.minInterestRate}%–${p.maxInterestRate}%` : `${p.minInterestRate ?? p.maxInterestRate}%`}</span>
             )}
             {p.monthlyAmount != null && p.monthlyAmount > 0 && <span>💰 €{fmt(p.monthlyAmount)}/μήνα × {p.subsidyMonths ?? '?'} μήνες</span>}
             {p.totalBenefit != null && p.totalBenefit > 0 && <span>✅ Συνολικό όφελος: €{fmt(p.totalBenefit)}</span>}
           </div>
+          {/* Requirement tags from otherRequirements or keyPoints */}
+          {(() => {
+            const tags: string[] = []
+            if (Array.isArray(p.otherRequirements)) tags.push(...p.otherRequirements.map(String).filter(Boolean))
+            else if (typeof p.otherRequirements === 'string' && p.otherRequirements.trim()) tags.push(...p.otherRequirements.split(/[,\n]/).map((s: string) => s.trim()).filter(Boolean))
+            if (Array.isArray(p.keyPoints)) tags.push(...p.keyPoints.map(String).filter(Boolean))
+            else if (typeof p.keyPoints === 'string' && p.keyPoints.trim()) tags.push(...p.keyPoints.split(/[,\n]/).map((s: string) => s.trim()).filter(Boolean))
+            if (tags.length === 0) return null
+            return (
+              <div className="mb-3">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Προϋποθέσεις</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {tags.map((tag, i) => (
+                    <span key={i} className="text-xs bg-gray-100 text-gray-700 rounded-full px-2.5 py-1 border border-gray-200">{tag}</span>
+                  ))}
+                </div>
+              </div>
+            )
+          })()}
 
           {/* MICROCREDITS: prompt to send E3 */}
           {p.category === 'MICROCREDITS' && (
