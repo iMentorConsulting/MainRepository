@@ -902,6 +902,58 @@ try:
 except Exception as _e:
     print(f"[startup] seed_admin failed: {_e}")
 
+# ONE-TIME BACKFILL: auto-cancel ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ leads that fail eligibility rules.
+# Runs on every startup but only touches leads not already CANCEL.
+try:
+    import calendar as _cal
+    from models_cases import CMLead as _CMLead, CMBusinessProfile as _CMBizProfile
+    from datetime import date as _date
+
+    def _backfill_ten_months_ago() -> _date:
+        _t = _date.today()
+        _m, _y = _t.month - 10, _t.year
+        if _m <= 0:
+            _m += 12; _y -= 1
+        return _date(_y, _m, min(_t.day, _cal.monthrange(_y, _m)[1]))
+
+    _BF_NO_VALUES = {"ΟΧΙ", "OXI", "ΌΧΙ", "NO", "OCHI"}
+    _BF_DISQUALIFY = {"ΑΣΦ & ΦΟΡ ΕΝΗΜ", "ΤΕΙΡΕΣΙΑΣ & ΤΡΑΠΕΖΕΣ", "ΕΝΕΡΓΗ ΕΠΙΧΕΙΡΗΣΗ"}
+    _cutoff_date = _backfill_ten_months_ago()
+
+    with SessionLocal() as _db:
+        _leads = _db.query(_CMLead).filter(
+            _CMLead.status != "CANCEL",
+            _CMLead.program.ilike("%ΜΙΚΡΟΠΙΣΤΩΣ%")
+        ).all()
+        _bf_cancelled = 0
+        for _lead in _leads:
+            _done = False
+            for _k, _meta in (_lead.program_fields or {}).items():
+                if isinstance(_meta, dict):
+                    _label = (_meta.get("label") or _k).strip()
+                    _val = (_meta.get("value") or "").strip().upper()
+                else:
+                    _label, _val = _k, str(_meta).strip().upper()
+                if _label in _BF_DISQUALIFY and _val in _BF_NO_VALUES:
+                    _lead.status = "CANCEL"
+                    _bf_cancelled += 1
+                    _done = True
+                    print(f"[backfill] CANCEL lead {_lead.id} ({_lead.name}): {_label}={_val}", flush=True)
+                    break
+            if _done:
+                continue
+            _afm = (_lead.afm or "").strip()
+            if _afm:
+                _biz = _db.query(_CMBizProfile).filter(_CMBizProfile.afm == _afm).first()
+                if _biz and _biz.regdate and _biz.regdate > _cutoff_date:
+                    _lead.status = "CANCEL"
+                    _bf_cancelled += 1
+                    print(f"[backfill] CANCEL lead {_lead.id} ({_lead.name}): regdate {_biz.regdate} > {_cutoff_date}", flush=True)
+        if _bf_cancelled:
+            _db.commit()
+        print(f"[backfill] ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ cancel check done — cancelled {_bf_cancelled} leads", flush=True)
+except Exception as _e:
+    print(f"[backfill] ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ cancel check failed: {_e}", flush=True)
 
 
 import pytz as _pytz
