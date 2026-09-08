@@ -240,10 +240,18 @@ function SendModal({ lead, onClose }) {
   )
 }
 
-function BulkSendModal({ count, onClose, onSend }) {
+function BulkSendModal({ leads, onClose, onSend }) {
+  const count = leads.length
+  const consultant = getAuth()?.user?.full_name || ''
+  const uniqueProgs = [...new Set(leads.map(l => l.program_title || l.service_type || l.program).filter(Boolean))]
+  const progLabel = uniqueProgs.length <= 2 ? uniqueProgs.join(', ') : `${uniqueProgs[0]} (+${uniqueProgs.length - 1})`
+  const defaultSubject = uniqueProgs.length === 1
+    ? `i-Mentor Consulting — ${uniqueProgs[0]}`
+    : 'i-Mentor Consulting'
+
   const [channel, setChannel] = useState('viber')
   const [message, setMessage] = useState('')
-  const [subject, setSubject] = useState('i-Mentor Consulting')
+  const [subject, setSubject] = useState(defaultSubject)
   const [busy, setBusy] = useState(false)
   const submit = async () => {
     if (!message.trim()) return
@@ -258,8 +266,11 @@ function BulkSendModal({ count, onClose, onSend }) {
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={onClose}>
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg" onClick={e => e.stopPropagation()}>
         <div className="p-4 border-b">
-          <div className="font-bold">Μαζική αποστολή σε {count} leads</div>
-          <div className="text-xs text-gray-400 mt-0.5">Το ίδιο μήνυμα θα σταλεί σε όλους τους επιλεγμένους παραλήπτες.</div>
+          <div className="font-bold">Αποστολή σε {count} leads</div>
+          <div className="text-xs text-gray-400 mt-0.5 flex flex-wrap gap-x-3">
+            {progLabel && <span>📋 {progLabel}</span>}
+            {consultant && <span>👤 {consultant}</span>}
+          </div>
         </div>
         <div className="p-4 space-y-3">
           <div className="flex gap-2">
@@ -270,7 +281,7 @@ function BulkSendModal({ count, onClose, onSend }) {
             ))}
           </div>
           {channel !== 'viber' && <input value={subject} onChange={e => setSubject(e.target.value)} placeholder="Θέμα (email)" className="w-full px-3 py-2 border rounded-lg text-sm" />}
-          <textarea value={message} onChange={e => setMessage(e.target.value)} rows={6} placeholder="Γράψτε το κοινό μήνυμα για όλους τους παραλήπτες…" className="w-full px-3 py-2 border rounded-lg text-sm" autoFocus />
+          <textarea value={message} onChange={e => setMessage(e.target.value)} rows={5} placeholder="Γράψτε το μήνυμά σας…" className="w-full px-3 py-2 border rounded-lg text-sm" autoFocus />
           <p className="text-[11px] text-gray-400">
             {channel !== 'email' && '📱 Στο Viber προστίθεται αυτόματα η υπογραφή i-Mentor (τηλ, site, email). '}
             {channel !== 'viber' && '✉️ Το email αποστέλλεται με branded πρότυπο (λογότυπο, πρόγραμμα, στοιχεία επικοινωνίας).'}
@@ -279,7 +290,7 @@ function BulkSendModal({ count, onClose, onSend }) {
         <div className="p-4 border-t flex justify-end gap-2">
           <button onClick={onClose} className="btn-secondary text-sm">Άκυρο</button>
           <button onClick={submit} disabled={busy || !message.trim()} className="btn-primary text-sm flex items-center gap-1.5">
-            <PaperAirplaneIcon className="w-4 h-4" />{busy ? `Αποστολή σε ${count}…` : `Αποστολή σε ${count} leads`}
+            <PaperAirplaneIcon className="w-4 h-4" />{busy ? `Αποστολή σε ${count}…` : 'Αποστολή'}
           </button>
         </div>
       </div>
@@ -993,7 +1004,7 @@ export default function Leads() {
       {sendLead && <SendModal lead={sendLead} onClose={() => setSendLead(null)} />}
       {showBulkSend && (
         <BulkSendModal
-          count={selectedIds.size}
+          leads={data.items.filter(l => selectedIds.has(l.id))}
           onClose={() => setShowBulkSend(false)}
           onSend={async (payload) => {
             const res = await bulkSendLeadMessage({ lead_ids: [...selectedIds], ...payload })
