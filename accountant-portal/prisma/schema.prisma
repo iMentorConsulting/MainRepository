@@ -1298,6 +1298,24 @@ model MatchActionToken {
   @@unique([accountantId, programId])
 }
 
+// ─── Widget Session ───────────────────────────────────────────────────────────
+// Per-client tokenized eligibility widget session created by Case Management
+// so that they can email a unique eligibility-check link to each client.
+
+model WidgetSession {
+  id          String    @id @default(cuid())
+  token       String    @unique @default(cuid())
+  afm         String
+  clientName  String?
+  email       String?
+  phone       String?
+  leadRef     String?   // CM's own reference id for this client
+  expiresAt   DateTime?
+  checkedAt   DateTime?
+  result      Json?     // result snapshot from /api/public/eligibility-check
+  createdAt   DateTime  @default(now())
+}
+
 // ─── Program Document Dictionary ──────────────────────────────────────────────
 
 model ProgramDocument {

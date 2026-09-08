@@ -109,7 +109,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Μη έγκυρη αίτηση' }, { status: 400, headers: cors(origin) })
   }
 
-  const { afm, email, phone, recaptchaToken } = body || {}
+  const { afm, email, phone, recaptchaToken, widgetToken } = body || {}
 
   // Rate limit — whitelisted IPs and emails bypass the limit
   const emailStr = String(email || '').trim()
@@ -281,10 +281,9 @@ export async function POST(request: NextRequest) {
 
   // Inactive business → no programs
   if (gemi!.deactivationFlag === 'Y' || !!gemi!.stopDate) {
-    return NextResponse.json(
-      { business: { name: gemi!.onomasia || gemi!.afm }, programs: [], inactive: true },
-      { headers: cors(origin) }
-    )
+    const inactiveResult = { business: { name: gemi!.onomasia || gemi!.afm }, programs: [], inactive: true }
+    if (widgetToken) prisma.widgetSession.updateMany({ where: { token: String(widgetToken) }, data: { checkedAt: new Date(), result: inactiveResult as any } }).catch(() => {})
+    return NextResponse.json(inactiveResult, { headers: cors(origin) })
   }
 
   // Run matching if not yet done
@@ -333,13 +332,11 @@ export async function POST(request: NextRequest) {
   const gemiId = gemi!.id
 
   if (activeMatches.length === 0) {
-    // Direct URL — no DB write needed, always works
     const appUrl = process.env.APP_URL || 'https://logistis.i-mentor.gr'
     const themisUrl = `${appUrl}/gemi-entry/g/${gemiId}?type=themis`
-    return NextResponse.json(
-      { business: { name: gemi!.onomasia || gemi!.afm }, programs: [], themisUrl },
-      { headers: cors(origin) }
-    )
+    const noProgramsResult = { business: { name: gemi!.onomasia || gemi!.afm }, programs: [], themisUrl }
+    if (widgetToken) prisma.widgetSession.updateMany({ where: { token: String(widgetToken) }, data: { checkedAt: new Date(), result: noProgramsResult as any } }).catch(() => {})
+    return NextResponse.json(noProgramsResult, { headers: cors(origin) })
   }
 
   // Create Ermis links for each matching program
@@ -382,8 +379,12 @@ export async function POST(request: NextRequest) {
     ? `${exMatch.ermisUrl}?type=themis`
     : `${appUrl}/gemi-entry/g/${gemiId}?type=themis`
 
-  return NextResponse.json(
-    { business: { name: gemi!.onomasia || gemi!.afm }, programs: programsWithLinks, themisUrl },
-    { headers: cors(origin) }
-  )
+  const finalResult = { business: { name: gemi!.onomasia || gemi!.afm }, programs: programsWithLinks, themisUrl }
+  if (widgetToken) {
+    prisma.widgetSession.updateMany({
+      where: { token: String(widgetToken) },
+      data: { checkedAt: new Date(), result: finalResult as any },
+    }).catch(() => {})
+  }
+  return NextResponse.json(finalResult, { headers: cors(origin) })
 }

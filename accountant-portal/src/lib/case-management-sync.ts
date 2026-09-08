@@ -38,6 +38,8 @@ export async function notifyCaseManagement(data: {
   // session/Viber for it; the transcript arrives via the ermis.completed
   // webhook for the same ΑΦΜ.
   ermis_completed?: boolean
+  // Full Ερμής conversation transcript, appended to description before sending.
+  ermis_transcript?: string
   // The exact program title in Logistis (in addition to the coarse
   // program_category) so CM can reference the real program.
   program_exact_title?: string | null
@@ -64,13 +66,16 @@ export async function notifyCaseManagement(data: {
   if (!url || !apiKey) return null
 
   const program_category = deriveProgramCategory(data.programTitle)
+  const descriptionWithTranscript = data.ermis_transcript
+    ? `${data.description || ''}\n\n--- ΠΛΗΡΗΣ ΣΥΝΟΜΙΛΙΑ ΕΡΜΗ ---\n${data.ermis_transcript}`.trim()
+    : data.description
 
   try {
     console.log(`[CaseManagement] Sending case.created for case #${data.caseNumber} to ${url}`)
     const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey },
-      body: JSON.stringify({ event: 'case.created', ...data, program_category }),
+      body: JSON.stringify({ event: 'case.created', ...data, description: descriptionWithTranscript, program_category }),
     })
     const responseText = await res.text().catch(() => '')
     if (!res.ok) {
