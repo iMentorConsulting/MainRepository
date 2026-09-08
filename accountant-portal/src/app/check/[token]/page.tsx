@@ -264,7 +264,7 @@ function ResultView({ result }: { result: CheckResult }) {
             <span className="text-xs bg-blue-100 text-blue-700 rounded-full px-2 py-0.5 whitespace-nowrap font-medium">{p.category}</span>
           </div>
           {p.description && <p className="text-sm text-gray-600 mb-3 leading-relaxed">{p.description}</p>}
-          <div className="flex flex-wrap gap-3 text-xs text-gray-500">
+          <div className="flex flex-wrap gap-3 text-xs text-gray-500 mb-4">
             {(p.minSubsidyPct != null || p.maxSubsidyPct != null) && (
               <span>💶 Επιδότηση: {p.minSubsidyPct != null && p.maxSubsidyPct != null ? `${p.minSubsidyPct}%–${p.maxSubsidyPct}%` : `${p.minSubsidyPct ?? p.maxSubsidyPct}%`}</span>
             )}
@@ -274,15 +274,39 @@ function ResultView({ result }: { result: CheckResult }) {
             {p.monthlyAmount != null && <span>💰 €{fmt(p.monthlyAmount)}/μήνα × {p.subsidyMonths ?? '?'} μήνες</span>}
             {p.totalBenefit != null && <span>✅ Συνολικό όφελος: €{fmt(p.totalBenefit)}</span>}
           </div>
+
+          {/* MICROCREDITS: prompt to send E3 */}
+          {p.category === 'MICROCREDITS' && (
+            <div className="rounded-xl bg-amber-50 border border-amber-200 p-4 mb-3">
+              <p className="text-sm font-bold text-amber-900 mb-1">📄 Στείλτε το Ε3 σας — δωρεάν αξιολόγηση σε 24ώρες</p>
+              <p className="text-xs text-amber-800 mb-3 leading-relaxed">
+                Για να ελέγξουμε το ακριβές ποσό δανείου που δικαιούστε, στείλτε μας το τελευταίο έντυπο Ε3 σας (αρκεί η εικόνα από το κινητό).
+              </p>
+              <a
+                href="mailto:info@i-mentor.gr?subject=Ε3%20για%20Ταμείο%20Μικροπιστώσεων&body=Σας%20στέλνω%20το%20Ε3%20μου%20για%20αξιολόγηση%20στο%20Ταμείο%20Μικροπιστώσεων."
+                className="inline-block bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold px-4 py-2 rounded-lg transition-colors"
+              >
+                ✉️ Αποστολή Ε3 στο info@i-mentor.gr
+              </a>
+            </div>
+          )}
+
+          {/* Ερμής CTA — for all programs that have a link */}
           {p.ermisUrl && (
-            <a
-              href={p.ermisUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mt-3 inline-block text-sm text-blue-600 font-semibold underline"
-            >
-              Μάθε περισσότερα →
-            </a>
+            <div className="rounded-xl bg-indigo-50 border border-indigo-200 p-4">
+              <p className="text-sm font-bold text-indigo-900 mb-1">💬 Μίλα με τον Ερμή — σε δευτερόλεπτα</p>
+              <p className="text-xs text-indigo-700 mb-3 leading-relaxed">
+                Ο Ερμής, ο ψηφιακός σύμβουλος της I-MENTOR, θα σε ρωτήσει 2–3 ερωτήσεις και θα σου πει αν πληροίς τις προϋποθέσεις για αυτό το πρόγραμμα — χωρίς αναμονή, χωρίς γραφειοκρατία.
+              </p>
+              <a
+                href={p.ermisUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-block bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold px-4 py-2.5 rounded-lg transition-colors"
+              >
+                Ξεκινήστε τώρα →
+              </a>
+            </div>
           )}
         </div>
       ))}
