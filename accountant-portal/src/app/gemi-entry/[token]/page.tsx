@@ -16,6 +16,8 @@ export default function GemiEntryPage() {
   const [fetchError, setFetchError] = useState('')
   const [successMessage, setSuccessMessage] = useState('')
 
+  const prefilledPhone = searchParams.get('phone') || ''
+
   useEffect(() => {
     fetch(`/api/public/gemi-match/${token}`)
       .then((r) => r.json())
@@ -25,6 +27,25 @@ export default function GemiEntryPage() {
       })
       .catch(() => setFetchError('Σφάλμα σύνδεσης. Παρακαλώ δοκιμάστε ξανά.'))
   }, [token])
+
+  // Auto-submit when phone is pre-filled from widget URL
+  useEffect(() => {
+    if (!prefilledPhone || !businessName) return
+    setPhone(prefilledPhone)
+    setLoading(true)
+    fetch(`/api/public/gemi-match/${token}/save-phone`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone: prefilledPhone, type }),
+    })
+      .then(r => r.json())
+      .then(data => {
+        if (data.redirect) { window.location.href = data.redirect; return }
+        if (data.message) { setSuccessMessage(data.message); setLoading(false); return }
+        setLoading(false)
+      })
+      .catch(() => setLoading(false))
+  }, [prefilledPhone, businessName, token, type])
 
   function validatePhone(value: string): boolean {
     const stripped = value.replace(/[\s\-().]/g, '')
