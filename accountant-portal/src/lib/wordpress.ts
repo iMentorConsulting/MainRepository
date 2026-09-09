@@ -212,6 +212,32 @@ export async function setWpPageStatus(pageId: number, status: 'publish' | 'draft
   })
 }
 
+// Set or clear the _logistis_inactive meta flag on a WP page.
+// Requires the "Logistis Inactive Notice" Code Snippet to be active on the WP site
+// (registers the meta for REST and injects the top banner via wp_body_open).
+export async function setWpPageInactiveMeta(pageId: number, inactive: boolean): Promise<void> {
+  await wpFetch(`/pages/${pageId}`, {
+    method: 'POST',
+    body: JSON.stringify({ meta: { _logistis_inactive: inactive ? '1' : '' } }),
+  })
+}
+
+// Remove a page from all WP nav menus via our custom Logistis REST endpoint.
+// Requires the Code Snippet "logistis/v1/remove-menu-item" to be active on the WP site.
+export async function removeWpMenuItem(pageId: number): Promise<void> {
+  if (!WP_URL || !WP_USER || !WP_PASS) {
+    throw new Error('WordPress env vars not configured')
+  }
+  const url = `${WP_URL}/wp-json/logistis/v1/remove-menu-item`
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { Authorization: wpAuth(), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ pageId }),
+  })
+  const text = await res.text()
+  if (!res.ok) throw new Error(`WP remove-menu API ${res.status}: ${text.slice(0, 400)}`)
+}
+
 // Add a WP page as a child of a named menu item using our custom Logistis REST endpoint.
 // Requires the Code Snippet "logistis/v1/add-menu-item" to be active on the WP site.
 export async function addWpMenuItemAsChild(opts: {

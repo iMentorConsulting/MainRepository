@@ -460,7 +460,7 @@ export default function EditProgramPage() {
     }
   }
 
-  async function setWpStatus(status: 'publish' | 'private') {
+  async function setWpStatus(status: 'publish' | 'inactive') {
     setWpCreating(true)
     try {
       const res = await fetch(`/api/programs/${id}/wp-status`, {
@@ -470,7 +470,11 @@ export default function EditProgramPage() {
       })
       const data = await res.json()
       if (res.ok) {
-        setWpToast({ msg: status === 'private' ? 'Η σελίδα απενεργοποιήθηκε (private).' : 'Η σελίδα επανενεργοποιήθηκε (published).', ok: true })
+        const warnings: string[] = data.warnings ?? []
+        const baseMsg = status === 'inactive'
+          ? 'Η σελίδα παραμένει δημόσια (SEO) αλλά αφαιρέθηκε από το μενού και εμφανίζει ειδοποίηση "Ανενεργό πρόγραμμα".'
+          : 'Η ειδοποίηση αφαιρέθηκε. Η σελίδα είναι ενεργή.'
+        setWpToast({ msg: warnings.length ? `${baseMsg} ⚠️ ${warnings[0]}` : baseMsg, ok: warnings.length === 0 })
       } else {
         setWpToast({ msg: data.error ?? 'Σφάλμα', ok: false })
       }
@@ -478,7 +482,7 @@ export default function EditProgramPage() {
       setWpToast({ msg: 'Σφάλμα δικτύου', ok: false })
     } finally {
       setWpCreating(false)
-      setTimeout(() => setWpToast(null), 4000)
+      setTimeout(() => setWpToast(null), 6000)
     }
   }
 
@@ -942,8 +946,8 @@ export default function EditProgramPage() {
                 </div>
                 <div className="flex gap-2">
                   <Button type="button" size="sm" variant="outline" className="text-red-600 border-red-200 hover:bg-red-50"
-                    loading={wpCreating} onClick={() => setWpStatus('private')}>
-                    Απενεργοποίηση (Private)
+                    loading={wpCreating} onClick={() => setWpStatus('inactive')}>
+                    Απενεργοποίηση (Αρχείο)
                   </Button>
                   <Button type="button" size="sm" variant="outline" className="text-emerald-700 border-emerald-200 hover:bg-emerald-50"
                     loading={wpCreating} onClick={() => setWpStatus('publish')}>
