@@ -335,16 +335,23 @@ export default function Expenses() {
     })
   }, [expenses, sortKey, sortDir])
 
-  // Group by month for subtotals
+  // When sorting by date: group by month (respecting sort direction for group order)
+  // When sorting by any other column: flat list (no grouping — preserves sort)
   const grouped = useMemo(() => {
+    if (sortKey !== 'date') {
+      // Single pseudo-group containing the flat sorted list
+      return [{ key: 'flat', label: '', items: sortedExpenses, flat: true }]
+    }
     const map = {}
     sortedExpenses.forEach(e => {
       const key = e.date.slice(0, 7)
       if (!map[key]) map[key] = { key, label: e.month_year, items: [] }
       map[key].items.push(e)
     })
-    return Object.values(map).sort((a, b) => b.key.localeCompare(a.key))
-  }, [expenses])
+    return Object.values(map).sort((a, b) =>
+      sortDir === 'asc' ? a.key.localeCompare(b.key) : b.key.localeCompare(a.key)
+    )
+  }, [sortedExpenses, sortKey, sortDir])
 
   const unitLabel = (e) => {
     if (e.unit_id) {
@@ -485,11 +492,11 @@ export default function Expenses() {
                 {grouped.length === 0 && (
                   <tr><td colSpan={8} className="text-center py-12 text-gray-400">Δεν βρέθηκαν έξοδα</td></tr>
                 )}
-                {grouped.map(({ key, label, items }) => {
+                {grouped.map(({ key, label, items, flat }) => {
                   const monthTotal = items.reduce((s, e) => s + e.amount, 0)
                   return [
                     // Month header row (only when showing all or multiple months)
-                    (filterMode !== 'month' || grouped.length > 1) && (
+                    !flat && (filterMode !== 'month' || grouped.length > 1) && (
                       <tr key={`hdr-${key}`} className="bg-blue-50 border-y border-blue-100">
                         <td colSpan={6} className="px-4 py-2 text-xs font-bold text-blue-700 uppercase tracking-wide">
                           {label}
