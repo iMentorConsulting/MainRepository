@@ -13,6 +13,7 @@ from database import get_db, fmt_dt
 from models_cases import (
     CMCase, CMUser, CMPortalAssignment, CMPortalAssignmentRequest,
     CMBusinessProfile, CMBusinessActivity, CMBusinessMatchedProgram,
+    CMLeadComment,
 )
 from auth_cases import get_current_user
 
@@ -749,7 +750,8 @@ def accept_assignment(
     # with a link back to the LOGISTIS case.
     from models_cases import CMLead
     from routes.cm_leads import (normalize_afm, clean_email, clean_phone,
-                                 find_gemi_lead, program_category_from_title)
+                                 find_gemi_lead, program_category_from_title,
+                                 _GEMI_STATUS_RANK)
     today = date.today()
     link_tmpl = os.getenv("LOGISTIS_CASE_LINK_TEMPLATE", "https://logistis.i-mentor.gr/cases/{case_number}")
     portal_link = link_tmpl.replace("{case_number}", str(a.case_number)) if a.case_number is not None else None
@@ -788,14 +790,41 @@ def accept_assignment(
         _desc_summary = _parts[0].strip()
         _desc_transcript = _parts[1].strip() if len(_parts) > 1 else None
 
-    # Always try to reuse an existing LOGISTIS/ΕΡΜΗΣ lead for this ΑΦΜ + program (the
-    # one auto-created by the ermis.completed webhook, carrying the transcript) so the
-    # case and conversation live on ONE lead. find_gemi_lead only ever matches
-    # LOGISTIS/ΕΡΜΗΣ leads, never a normal sheet/manual lead.
+    # Match priority:
+    # 1. find_gemi_lead — LOGISTIS/ERMIS lead for this AFM + program (existing behaviour)
+    # 2. Any non-CANCEL lead for this AFM + program that we sent our onboarding link to
+    #    (e.g. old sheet lead that clicked the Viber/Email link and went through ERMIS)
+    # 3. Create a brand-new lead if nothing matched
     existing = find_gemi_lead(db, afm, program_title=prog_title, program_category=prog_cat)
+    _matched_existing_lead = False  # track whether we reused an existing sheet/manual lead
+
+    if not existing and afm:
+        # Look for an existing lead for this AFM + program that wasn't a LOGISTIS lead
+        _cands = db.query(CMLead).filter(
+            CMLead.afm == afm,
+            CMLead.status.notin_(["CANCEL", "DEAL"]),
+        ).order_by(CMLead.id.asc()).all()
+        if prog_title:
+            _pt = prog_title.strip().lower()
+            _by_title = [l for l in _cands if (l.program_title or "").strip().lower() == _pt]
+            if _by_title:
+                existing = max(_by_title, key=lambda l: _GEMI_STATUS_RANK.get(l.status or "", 0))
+        if not existing and prog_cat and _cands:
+            _by_cat = [l for l in _cands if (l.program or "") == prog_cat]
+            if _by_cat:
+                existing = max(_by_cat, key=lambda l: _GEMI_STATUS_RANK.get(l.status or "", 0))
+        if existing:
+            _matched_existing_lead = True
+
     if existing:
         lead = existing
-        lead.status = "NEW LEAD"
+        # Upgrade to HOT when the client actually completed the ERMIS conversation,
+        # otherwise bump back to NEW LEAD so it surfaces in the consultant's queue.
+        new_status = "HOT" if a.ermis_completed else "NEW LEAD"
+        if _GEMI_STATUS_RANK.get(lead.status or "", 0) < _GEMI_STATUS_RANK.get(new_status, 0):
+            lead.status = new_status
+        elif _matched_existing_lead:
+            lead.status = new_status  # always upgrade/set for sheet leads
         lead.assigned_agent_id = target_user.id
         lead.assigned_name = consultant
         lead.name = lead.name or a.onomasia or f"ΓΕΜΗ {afm}"
@@ -804,7 +833,10 @@ def accept_assignment(
         lead.program = lead.program or prog_cat
         lead.program_title = lead.program_title or prog_title
         lead.service_type = lead.service_type or prog_title or _map_service_type(a.program_title) or a.case_type
-        lead.source = lead.source or ("LOGISTIS ΓΕΜΗ" if a.ermis_completed else "LOGISTIS")
+        if _matched_existing_lead:
+            lead.source = lead.source  # preserve original source (FB, sheet, etc.)
+        else:
+            lead.source = lead.source or ("LOGISTIS ΓΕΜΗ" if a.ermis_completed else "LOGISTIS")
         lead.notes = lead.notes or _desc_summary or None
         lead.ermis_transcript = lead.ermis_transcript or _desc_transcript
         lead.next_call_date = lead.next_call_date or today
@@ -819,7 +851,7 @@ def accept_assignment(
             program=prog_cat,
             program_title=prog_title,
             service_type=prog_title or _map_service_type(a.program_title) or a.case_type,
-            status="NEW LEAD",
+            status="HOT" if a.ermis_completed else "NEW LEAD",
             assigned_agent_id=target_user.id,
             assigned_name=consultant,
             source="LOGISTIS ΓΕΜΗ" if a.ermis_completed else "LOGISTIS",
@@ -832,6 +864,21 @@ def accept_assignment(
         db.add(lead)
     db.commit()
     db.refresh(lead)
+
+    # Add a timeline comment so the agent can see exactly what happened
+    _prog_note = f" [{prog_title}]" if prog_title else ""
+    _status_note = "ολοκλήρωσε τη συνομιλία με τον ΕΡΜΗ ✅" if a.ermis_completed else "υπέβαλε αίτημα"
+    _comment_text = (
+        f"🔥 Ανάθεση LOGISTIS #{a.case_number}{_prog_note} — ο πελάτης {_status_note}. "
+        f"Lead → {'HOT' if a.ermis_completed else 'NEW LEAD'}."
+        + (f" (συνδέθηκε με υπάρχον lead)" if _matched_existing_lead else "")
+    )
+    db.add(CMLeadComment(
+        lead_id=lead.id,
+        user_id=target_user.id,
+        author_name=consultant or "Σύστημα",
+        content=_comment_text,
+    ))
 
     a.status = "accepted"
     a.cm_lead_id = lead.id
