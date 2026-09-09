@@ -24,6 +24,7 @@ from routes.owners import router as owners_router
 from routes.pricing import router as pricing_router
 from routes.widget import router as widget_router
 from routes.availability import router as availability_router
+from routes.loans import router as loans_router
 
 # Case management routes
 from routes.cm_auth import router as cm_auth_router
@@ -233,6 +234,27 @@ try:
                 date_to DATE NOT NULL,
                 price_per_night FLOAT NOT NULL DEFAULT 0.0,
                 min_stay INTEGER DEFAULT 1,
+                notes TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        """))
+        _bc.commit()
+except Exception:
+    pass
+
+try:
+    with engine.connect() as _bc:
+        _bc.execute(_text_b("""
+            CREATE TABLE IF NOT EXISTS loans (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                tenant VARCHAR(50) NOT NULL,
+                name VARCHAR(200) NOT NULL,
+                lender VARCHAR(200),
+                original_amount FLOAT NOT NULL DEFAULT 0.0,
+                interest_rate FLOAT,
+                monthly_installment FLOAT NOT NULL DEFAULT 0.0,
+                start_date DATE NOT NULL,
+                end_date DATE,
                 notes TEXT,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )
@@ -720,6 +742,7 @@ app.include_router(owners_router, prefix="/api")
 app.include_router(pricing_router, prefix="/api")
 app.include_router(widget_router, prefix="/api/widget")
 app.include_router(availability_router, prefix="/api")
+app.include_router(loans_router, prefix="/api")
 
 # Case management
 app.include_router(cm_auth_router)

@@ -20,6 +20,7 @@ import Pricing from './pages/Pricing'
 import Sync from './pages/Sync'
 import Availability from './pages/Availability'
 import WidgetAdmin from './pages/WidgetAdmin'
+import Loans from './pages/Loans'
 
 const GuestPortal = lazy(() => import('./pages/GuestPortal'))
 const WidgetPage = lazy(() => import('./pages/WidgetPage'))
@@ -105,6 +106,7 @@ export default function App() {
               <Route path="smart-advisor" element={<SmartAdvisor />} />
               <Route path="cleaning" element={<Cleaning />} />
               <Route path="expenses" element={<Expenses />} />
+              <Route path="loans" element={<Loans />} />
               <Route path="maintenance" element={<Maintenance />} />
               <Route path="owners" element={<Owners />} />
               <Route path="pricing" element={<Pricing />} />

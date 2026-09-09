@@ -5,6 +5,7 @@ import {
   UsersIcon, ChartBarIcon, SparklesIcon, ArrowRightOnRectangleIcon,
   ClipboardDocumentCheckIcon, GlobeAltIcon, BanknotesIcon, WrenchScrewdriverIcon,
   HomeModernIcon, TagIcon, ArrowsRightLeftIcon, CodeBracketIcon, CalendarIcon,
+  CreditCardIcon,
 } from '@heroicons/react/24/outline'
 
 const nav = [
@@ -15,6 +16,7 @@ const nav = [
   { to: '/customers', label: 'Πελάτες', Icon: UsersIcon },
   { to: '/reports', label: 'Αναφορές', Icon: ChartBarIcon },
   { to: '/expenses', label: 'Έξοδα', Icon: BanknotesIcon },
+  { to: '/loans', label: 'Δάνεια', Icon: CreditCardIcon },
   { to: '/maintenance', label: 'Συντήρηση', Icon: WrenchScrewdriverIcon },
   { to: '/owners', label: 'Ιδιοκτήτες', Icon: HomeModernIcon },
   { to: '/availability', label: 'Availability', Icon: CalendarIcon, desktopOnly: true },

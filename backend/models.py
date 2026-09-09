@@ -261,6 +261,22 @@ class Expense(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
+class Loan(Base):
+    __tablename__ = "loans"
+
+    id = Column(Integer, primary_key=True, index=True)
+    tenant = Column(String(50), nullable=False, index=True)
+    name = Column(String(200), nullable=False)
+    lender = Column(String(200))
+    original_amount = Column(Float, nullable=False, default=0.0)
+    interest_rate = Column(Float)
+    monthly_installment = Column(Float, nullable=False, default=0.0)
+    start_date = Column(Date, nullable=False)
+    end_date = Column(Date)
+    notes = Column(Text)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 class Owner(Base):
     __tablename__ = "owners"
 

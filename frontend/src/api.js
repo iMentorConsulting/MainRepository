@@ -95,6 +95,13 @@ export const importExpenses = (file) => {
   return api.post('/expenses/import/excel', fd, { headers: { 'Content-Type': 'multipart/form-data' } })
 }
 
+// Loans
+export const getLoans = () => api.get('/loans/')
+export const createLoan = (data) => api.post('/loans/', data)
+export const updateLoan = (id, data) => api.put(`/loans/${id}`, data)
+export const deleteLoan = (id) => api.delete(`/loans/${id}`)
+export const getLoanTotal = (params) => api.get('/loans/total', { params })
+
 // Maintenance
 export const getMaintenanceIssues = (params) => api.get('/maintenance/', { params })
 export const createMaintenanceIssue = (data) => api.post('/maintenance/', data)
