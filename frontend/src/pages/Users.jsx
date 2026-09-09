@@ -71,8 +71,8 @@ function UserModal({ user, onClose, onSaved }) {
           <h2 className="text-lg font-bold text-gray-900">
             {isEdit ? 'Επεξεργασία Χρήστη' : 'Νέος Χρήστης'}
           </h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
-            <XMarkIcon className="w-5 h-5" />
+          <button onClick={onClose} aria-label="Κλείσιμο" className="text-gray-400 hover:text-gray-600 transition-colors">
+            <XMarkIcon className="w-5 h-5" aria-hidden="true" />
           </button>
         </div>
         <form onSubmit={handleSubmit} className="p-5 space-y-4">

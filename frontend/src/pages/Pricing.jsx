@@ -76,7 +76,7 @@ function RateModal({ rate, units, onClose, onSaved }) {
       <div className="bg-white w-full md:max-w-lg rounded-t-2xl md:rounded-2xl shadow-xl max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between px-5 py-4 border-b sticky top-0 bg-white z-10">
           <h3 className="font-bold text-gray-800">{rate?.id ? 'Επεξεργασία Περιόδου' : 'Νέα Τιμολογιακή Περίοδος'}</h3>
-          <button onClick={onClose}><XMarkIcon className="h-5 w-5 text-gray-500" /></button>
+          <button onClick={onClose} aria-label="Κλείσιμο"><XMarkIcon className="h-5 w-5 text-gray-500" aria-hidden="true" /></button>
         </div>
         <form onSubmit={handleSubmit} className="p-5 space-y-4">
 

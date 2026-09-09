@@ -74,8 +74,8 @@ function Modal({ title, onClose, children, wide = false }) {
       <div className={`bg-white rounded-2xl w-full shadow-xl my-4 ${wide ? 'max-w-2xl' : 'max-w-lg'}`}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
           <h3 className="font-semibold text-gray-900 text-lg">{title}</h3>
-          <button onClick={onClose} className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors">
-            <XMarkIcon className="w-5 h-5 text-gray-500" />
+          <button onClick={onClose} aria-label="Κλείσιμο" className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors">
+            <XMarkIcon className="w-5 h-5 text-gray-500" aria-hidden="true" />
           </button>
         </div>
         <div className="p-6">{children}</div>
@@ -431,15 +431,16 @@ function GuideTab() {
                 <ToggleSwitch checked={item.is_active} onChange={() => handleToggle(item)} />
                 <button
                   onClick={() => setModal({ ...item })}
+                  aria-label="Επεξεργασία"
                   className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
                 >
-                  <PencilSquareIcon className="w-4 h-4 text-gray-500" />
+                  <PencilSquareIcon className="w-4 h-4 text-gray-500" aria-hidden="true" />
                 </button>
                 {deletingId === item.id ? (
                   <DeleteConfirm onConfirm={() => handleDelete(item.id)} onCancel={() => setDeletingId(null)} />
                 ) : (
-                  <button onClick={() => setDeletingId(item.id)} className="p-1.5 hover:bg-red-50 rounded-lg transition-colors">
-                    <TrashIcon className="w-4 h-4 text-red-400" />
+                  <button onClick={() => setDeletingId(item.id)} aria-label="Διαγραφή" className="p-1.5 hover:bg-red-50 rounded-lg transition-colors">
+                    <TrashIcon className="w-4 h-4 text-red-400" aria-hidden="true" />
                   </button>
                 )}
               </div>
@@ -577,14 +578,14 @@ function LocalTipsTab() {
                 {item.address && <p className="text-xs text-gray-400 mt-0.5">📍 {item.address}</p>}
               </div>
               <div className="flex items-center gap-1 flex-shrink-0">
-                <button onClick={() => setModal({ ...item })} className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors">
-                  <PencilSquareIcon className="w-4 h-4 text-gray-500" />
+                <button onClick={() => setModal({ ...item })} aria-label="Επεξεργασία" className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors">
+                  <PencilSquareIcon className="w-4 h-4 text-gray-500" aria-hidden="true" />
                 </button>
                 {deletingId === item.id ? (
                   <DeleteConfirm onConfirm={() => handleDelete(item.id)} onCancel={() => setDeletingId(null)} />
                 ) : (
-                  <button onClick={() => setDeletingId(item.id)} className="p-1.5 hover:bg-red-50 rounded-lg transition-colors">
-                    <TrashIcon className="w-4 h-4 text-red-400" />
+                  <button onClick={() => setDeletingId(item.id)} aria-label="Διαγραφή" className="p-1.5 hover:bg-red-50 rounded-lg transition-colors">
+                    <TrashIcon className="w-4 h-4 text-red-400" aria-hidden="true" />
                   </button>
                 )}
               </div>
@@ -732,14 +733,14 @@ function MarketplaceTab() {
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">
               <ToggleSwitch checked={item.is_available} onChange={() => handleToggle(item)} />
-              <button onClick={() => setModal({ ...item })} className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors">
-                <PencilSquareIcon className="w-4 h-4 text-gray-500" />
+              <button onClick={() => setModal({ ...item })} aria-label="Επεξεργασία" className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors">
+                <PencilSquareIcon className="w-4 h-4 text-gray-500" aria-hidden="true" />
               </button>
               {deletingId === item.id ? (
                 <DeleteConfirm onConfirm={() => handleDelete(item.id)} onCancel={() => setDeletingId(null)} />
               ) : (
-                <button onClick={() => setDeletingId(item.id)} className="p-1.5 hover:bg-red-50 rounded-lg transition-colors">
-                  <TrashIcon className="w-4 h-4 text-red-400" />
+                <button onClick={() => setDeletingId(item.id)} aria-label="Διαγραφή" className="p-1.5 hover:bg-red-50 rounded-lg transition-colors">
+                  <TrashIcon className="w-4 h-4 text-red-400" aria-hidden="true" />
                 </button>
               )}
             </div>
@@ -1085,14 +1086,14 @@ function MessagesTab() {
               {loadingMsgs ? (
                 <div className="flex justify-center py-8"><Spinner size={6} /></div>
               ) : messages.length === 0 ? (
-                <div className="text-center py-8 text-gray-400 text-sm">No messages yet.</div>
+                <div className="text-center py-8 text-gray-500 text-sm">No messages yet.</div>
               ) : (
                 messages.map((msg, idx) => {
                   const manager = isManager(msg)
                   const isAI = msg.sender_type === 'ai' || msg.is_ai
                   return (
                     <div key={msg.id || idx} className={`flex flex-col ${manager ? 'items-end' : 'items-start'}`}>
-                      <span className="text-xs text-gray-400 mb-1 px-1">{senderLabel(msg)}</span>
+                      <span className="text-xs text-gray-600 mb-1 px-1">{senderLabel(msg)}</span>
                       <div className={`max-w-[80%] rounded-2xl px-4 py-3 ${
                         manager
                           ? 'bg-[#1e3a5f] text-white rounded-br-sm'
@@ -1102,7 +1103,7 @@ function MessagesTab() {
                       }`}>
                         {msg.photo_path && <img src={msg.photo_path} alt="Shared photo" className="rounded-xl mb-2 max-w-full" />}
                         <p className="text-sm whitespace-pre-line leading-relaxed">{msg.message || msg.content}</p>
-                        <p className={`text-xs mt-1 ${manager ? 'text-blue-200' : 'text-gray-400'}`}>
+                        <p className={`text-xs mt-1 ${manager ? 'text-blue-200' : 'text-gray-600'}`}>
                           {msg.created_at ? new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
                         </p>
                       </div>
@@ -1121,15 +1122,17 @@ function MessagesTab() {
                   onChange={e => setText(e.target.value)}
                   onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() } }}
                   placeholder="Type a message..."
+                  aria-label="Μήνυμα προς επισκέπτη"
                   rows={1}
                   className="flex-1 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f] resize-none max-h-32"
                 />
                 <button
                   onClick={handleSend}
                   disabled={sending || !text.trim()}
+                  aria-label="Αποστολή μηνύματος"
                   className="flex-shrink-0 w-10 h-10 bg-[#1e3a5f] rounded-xl flex items-center justify-center hover:bg-[#16305a] transition-colors disabled:opacity-50"
                 >
-                  <PaperAirplaneIcon className="w-5 h-5 text-white" />
+                  <PaperAirplaneIcon className="w-5 h-5 text-white" aria-hidden="true" />
                 </button>
               </div>
             </div>

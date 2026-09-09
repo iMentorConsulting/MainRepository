@@ -60,7 +60,7 @@ function IssueModal({ issue, units, categories, onClose, onSaved }) {
             <WrenchScrewdriverIcon className="h-5 w-5 text-orange-500" />
             {issue?.id ? 'Επεξεργασία Προβλήματος' : 'Νέο Πρόβλημα Συντήρησης'}
           </h3>
-          <button onClick={onClose}><XMarkIcon className="h-5 w-5 text-gray-500" /></button>
+          <button onClick={onClose} aria-label="Κλείσιμο"><XMarkIcon className="h-5 w-5 text-gray-500" aria-hidden="true" /></button>
         </div>
         <form onSubmit={handleSubmit} className="p-5 space-y-4">
           <div className="grid grid-cols-2 gap-3">
@@ -166,11 +166,11 @@ function IssueCard({ issue, onEdit, onDelete, onStatusChange }) {
           </div>
         </div>
         <div className="flex gap-1 flex-shrink-0">
-          <button onClick={onEdit} className="p-1.5 rounded-lg hover:bg-white/60 text-gray-400 hover:text-blue-600">
-            <PencilSquareIcon className="h-4 w-4" />
+          <button onClick={onEdit} aria-label="Επεξεργασία" className="p-1.5 rounded-lg hover:bg-white/60 text-gray-400 hover:text-blue-600">
+            <PencilSquareIcon className="h-4 w-4" aria-hidden="true" />
           </button>
-          <button onClick={onDelete} className="p-1.5 rounded-lg hover:bg-white/60 text-gray-400 hover:text-red-500">
-            <TrashIcon className="h-4 w-4" />
+          <button onClick={onDelete} aria-label="Διαγραφή" className="p-1.5 rounded-lg hover:bg-white/60 text-gray-400 hover:text-red-500">
+            <TrashIcon className="h-4 w-4" aria-hidden="true" />
           </button>
         </div>
       </div>

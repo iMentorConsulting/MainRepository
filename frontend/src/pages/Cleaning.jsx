@@ -50,7 +50,7 @@ function SettingsModal({ onClose }) {
       <div className="bg-white w-full md:max-w-sm rounded-t-2xl md:rounded-2xl shadow-xl">
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
           <h3 className="font-bold text-gray-800">Ρυθμίσεις Καθαριότητας</h3>
-          <button onClick={onClose}><XMarkIcon className="h-5 w-5 text-gray-500" /></button>
+          <button onClick={onClose} aria-label="Κλείσιμο"><XMarkIcon className="h-5 w-5 text-gray-500" aria-hidden="true" /></button>
         </div>
         <div className="p-5 space-y-4">
           <div>
@@ -122,20 +122,21 @@ export default function Cleaning() {
       <div className="flex items-center justify-between flex-wrap gap-2 print:hidden">
         <h2 className="text-xl font-bold text-gray-800">🧹 Πρόγραμμα Καθαριότητας</h2>
         <div className="flex items-center gap-2">
-          <button onClick={() => changeDate(-1)} className="p-1.5 rounded-lg hover:bg-gray-100">
-            <ChevronLeftIcon className="h-5 w-5" />
+          <button onClick={() => changeDate(-1)} aria-label="Προηγούμενη ημέρα" className="p-1.5 rounded-lg hover:bg-gray-100">
+            <ChevronLeftIcon className="h-5 w-5" aria-hidden="true" />
           </button>
           <input
             type="date"
+            aria-label="Ημερομηνία"
             className="input text-sm"
             value={date}
             onChange={(e) => setDate(e.target.value)}
           />
-          <button onClick={() => changeDate(1)} className="p-1.5 rounded-lg hover:bg-gray-100">
-            <ChevronRightIcon className="h-5 w-5" />
+          <button onClick={() => changeDate(1)} aria-label="Επόμενη ημέρα" className="p-1.5 rounded-lg hover:bg-gray-100">
+            <ChevronRightIcon className="h-5 w-5" aria-hidden="true" />
           </button>
-          <button onClick={() => load()} className="p-1.5 rounded-lg hover:bg-gray-100">
-            <ArrowPathIcon className={`h-5 w-5 text-gray-400 ${loading ? 'animate-spin' : ''}`} />
+          <button onClick={() => load()} aria-label="Ανανέωση" className="p-1.5 rounded-lg hover:bg-gray-100">
+            <ArrowPathIcon className={`h-5 w-5 text-gray-400 ${loading ? 'animate-spin' : ''}`} aria-hidden="true" />
           </button>
           <button onClick={() => setShowSettings(true)} className="p-1.5 rounded-lg hover:bg-gray-100" title="Ρυθμίσεις">
             <Cog6ToothIcon className="h-5 w-5 text-gray-400" />
