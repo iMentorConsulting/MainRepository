@@ -12,7 +12,6 @@ const MONTHS_EL = ['Ιαν', 'Φεβ', 'Μαρ', 'Απρ', 'Μαϊ', 'Ιουν',
 
 function MonthYearPicker({ value, onChange }) {
   const [y, m] = value.split('-').map(Number)
-  const [showYears, setShowYears] = useState(false)
   const currentYear = new Date().getFullYear()
   const years = Array.from({ length: 10 }, (_, i) => currentYear - 4 + i)
 
@@ -24,26 +23,40 @@ function MonthYearPicker({ value, onChange }) {
   }
 
   return (
-    <div className="relative flex items-center gap-1">
+    <div className="flex items-center gap-1">
       <button type="button" onClick={() => shift(-1)}
         className="w-7 h-7 flex items-center justify-center rounded-lg border border-gray-300 hover:bg-gray-100 text-gray-600 font-bold text-sm">‹</button>
-      <button type="button" onClick={() => setShowYears(s => !s)}
-        className="px-3 h-7 rounded-lg border border-gray-300 hover:bg-gray-100 text-sm font-medium text-gray-700 min-w-[110px] text-center">
-        {MONTHS_EL[m - 1]} {y}
-      </button>
+      <select
+        value={m}
+        onChange={e => onChange(`${y}-${String(Number(e.target.value)).padStart(2, '0')}`)}
+        className="h-7 rounded-lg border border-gray-300 text-sm font-medium text-gray-700 px-1 bg-white cursor-pointer">
+        {MONTHS_EL.map((lbl, i) => <option key={i+1} value={i+1}>{lbl}</option>)}
+      </select>
+      <select
+        value={y}
+        onChange={e => onChange(`${e.target.value}-${String(m).padStart(2, '0')}`)}
+        className="h-7 rounded-lg border border-gray-300 text-sm font-medium text-gray-700 px-1 bg-white cursor-pointer">
+        {years.map(yr => <option key={yr} value={yr}>{yr}</option>)}
+      </select>
       <button type="button" onClick={() => shift(1)}
         className="w-7 h-7 flex items-center justify-center rounded-lg border border-gray-300 hover:bg-gray-100 text-gray-600 font-bold text-sm">›</button>
-      {showYears && (
-        <div className="absolute top-9 left-0 z-50 bg-white border border-gray-200 rounded-xl shadow-lg p-2 grid grid-cols-2 gap-1 w-40">
-          {years.map(yr => (
-            <button key={yr} type="button"
-              onClick={() => { onChange(`${yr}-${String(m).padStart(2, '0')}`); setShowYears(false) }}
-              className={`py-1.5 rounded-lg text-sm font-medium transition-colors ${yr === y ? 'bg-blue-600 text-white' : 'hover:bg-gray-100 text-gray-700'}`}>
-              {yr}
-            </button>
-          ))}
-        </div>
-      )}
+    </div>
+  )
+}
+
+function YearPicker({ value, onChange }) {
+  const currentYear = new Date().getFullYear()
+  const years = Array.from({ length: 10 }, (_, i) => currentYear - 4 + i)
+  return (
+    <div className="flex items-center gap-1">
+      <button type="button" onClick={() => onChange(value - 1)}
+        className="w-7 h-7 flex items-center justify-center rounded-lg border border-gray-300 hover:bg-gray-100 text-gray-600 font-bold text-sm">‹</button>
+      <select value={value} onChange={e => onChange(Number(e.target.value))}
+        className="h-7 rounded-lg border border-gray-300 text-sm font-medium text-gray-700 px-2 bg-white cursor-pointer">
+        {years.map(yr => <option key={yr} value={yr}>{yr}</option>)}
+      </select>
+      <button type="button" onClick={() => onChange(value + 1)}
+        className="w-7 h-7 flex items-center justify-center rounded-lg border border-gray-300 hover:bg-gray-100 text-gray-600 font-bold text-sm">›</button>
     </div>
   )
 }
@@ -200,9 +213,10 @@ export default function Expenses() {
   const [units, setUnits] = useState([])
   const [unitTypes, setUnitTypes] = useState([])
   const [loading, setLoading] = useState(true)
-  const [showAll, setShowAll] = useState(false)
+  const [filterMode, setFilterMode] = useState('month') // 'month' | 'year' | 'all'
 
   const [filterMonth, setFilterMonth] = useState(defaultMonth)
+  const [filterYear, setFilterYear] = useState(now.getFullYear())
   const [filterCat, setFilterCat] = useState('')
   const [filterUnit, setFilterUnit] = useState('')
 
@@ -217,10 +231,13 @@ export default function Expenses() {
     setLoading(true)
     try {
       const params = {}
-      if (!showAll) {
+      if (filterMode === 'month') {
         const [from, to] = monthRange(filterMonth)
         params.from_date = from
         params.to_date = to
+      } else if (filterMode === 'year') {
+        params.from_date = `${filterYear}-01-01`
+        params.to_date = `${filterYear}-12-31`
       }
       if (filterCat) params.category = filterCat
       if (filterUnit) {
@@ -242,7 +259,15 @@ export default function Expenses() {
     getUnits({ active_only: false }).then(r => setUnits(r.data))
   }, [])
 
-  useEffect(() => { load() }, [filterMonth, filterCat, filterUnit, showAll])
+  const [sortKey, setSortKey] = useState('date')
+  const [sortDir, setSortDir] = useState('desc')
+
+  const toggleSort = (key) => {
+    if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setSortKey(key); setSortDir('asc') }
+  }
+
+  useEffect(() => { load() }, [filterMonth, filterYear, filterCat, filterUnit, filterMode])
 
   const handleDownloadTemplate = async () => {
     try {
@@ -298,10 +323,22 @@ export default function Expenses() {
     return Object.entries(map).sort((a, b) => b[1] - a[1]).map(([cat, amt]) => ({ cat, amt }))
   }, [expenses])
 
+  // Sorted expenses
+  const sortedExpenses = useMemo(() => {
+    return [...expenses].sort((a, b) => {
+      let av = a[sortKey], bv = b[sortKey]
+      if (sortKey === 'amount') { av = Number(av); bv = Number(bv) }
+      else { av = String(av || '').toLowerCase(); bv = String(bv || '').toLowerCase() }
+      if (av < bv) return sortDir === 'asc' ? -1 : 1
+      if (av > bv) return sortDir === 'asc' ? 1 : -1
+      return 0
+    })
+  }, [expenses, sortKey, sortDir])
+
   // Group by month for subtotals
   const grouped = useMemo(() => {
     const map = {}
-    expenses.forEach(e => {
+    sortedExpenses.forEach(e => {
       const key = e.date.slice(0, 7)
       if (!map[key]) map[key] = { key, label: e.month_year, items: [] }
       map[key].items.push(e)
@@ -349,13 +386,17 @@ export default function Expenses() {
       {/* Filters */}
       <div className="bg-white rounded-xl border border-gray-200 p-3 flex flex-wrap gap-3 items-center">
         <FunnelIcon className="h-4 w-4 text-gray-400 flex-shrink-0" />
-        {!showAll && (
-          <MonthYearPicker value={filterMonth} onChange={setFilterMonth} />
-        )}
-        <button onClick={() => setShowAll(s => !s)}
-          className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${showAll ? 'bg-blue-600 text-white border-blue-600' : 'border-gray-300 text-gray-600 hover:bg-gray-50'}`}>
-          {showAll ? 'Όλα τα έξοδα' : 'Εμφάνιση όλων'}
-        </button>
+        {/* Mode toggle */}
+        <div className="flex rounded-lg border border-gray-300 overflow-hidden text-sm font-medium">
+          {[['month','Μήνας'],['year','Έτος'],['all','Όλα']].map(([mode, label]) => (
+            <button key={mode} type="button" onClick={() => setFilterMode(mode)}
+              className={`px-3 py-1.5 transition-colors ${filterMode === mode ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-50'}`}>
+              {label}
+            </button>
+          ))}
+        </div>
+        {filterMode === 'month' && <MonthYearPicker value={filterMonth} onChange={setFilterMonth} />}
+        {filterMode === 'year' && <YearPicker value={filterYear} onChange={setFilterYear} />}
         <select className="input w-auto text-sm" value={filterCat} onChange={e => setFilterCat(e.target.value)}>
           <option value="">Όλες οι κατηγορίες</option>
           {categories.map(c => <option key={c} value={c}>{c}</option>)}
@@ -373,7 +414,7 @@ export default function Expenses() {
       {/* Total banner */}
       <div className="bg-gradient-to-r from-red-50 to-orange-50 border border-red-200 rounded-xl px-4 py-3 flex items-center justify-between">
         <span className="text-sm font-medium text-gray-600">
-          {showAll ? 'Σύνολο εξόδων' : `Σύνολο ${filterMonth.replace('-', '/')}`}
+          {filterMode === 'all' ? 'Σύνολο εξόδων' : filterMode === 'year' ? `Σύνολο έτους ${filterYear}` : `Σύνολο ${filterMonth.replace('-', '/')}`}
           {filterCat && <span className="ml-2 text-gray-400">· {filterCat}</span>}
         </span>
         <span className="text-2xl font-bold text-red-700">€{fmt(total)}</span>
@@ -419,14 +460,24 @@ export default function Expenses() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b bg-gray-50 text-xs text-gray-500 uppercase">
-                  <th className="text-left px-4 py-3 w-24">Ημ/νία</th>
-                  <th className="text-left px-4 py-3 w-20">Μ-Ε</th>
-                  <th className="text-left px-4 py-3">Περιγραφή</th>
-                  <th className="text-left px-4 py-3 w-40">Κατηγορία</th>
-                  <th className="text-left px-4 py-3 w-32 hidden md:table-cell">Προμηθευτής</th>
-                  <th className="text-left px-4 py-3 w-28 hidden lg:table-cell">Μονάδα</th>
-                  <th className="text-right px-4 py-3 w-28">Ποσό €</th>
+                <tr className="border-b bg-gray-50 text-xs text-gray-500 uppercase select-none">
+                  {[
+                    { key: 'date', label: 'Ημ/νία', cls: 'w-24' },
+                    { key: null,   label: 'Μ-Ε',    cls: 'w-20' },
+                    { key: 'item', label: 'Περιγραφή', cls: '' },
+                    { key: 'category', label: 'Κατηγορία', cls: 'w-40' },
+                    { key: 'vendor',   label: 'Προμηθευτής', cls: 'w-32 hidden md:table-cell' },
+                    { key: null,       label: 'Μονάδα', cls: 'w-28 hidden lg:table-cell' },
+                    { key: 'amount',   label: 'Ποσό €', cls: 'w-28 text-right' },
+                  ].map(({ key, label, cls }) => (
+                    <th key={label}
+                      onClick={() => key && toggleSort(key)}
+                      className={`px-4 py-3 text-left ${cls} ${key ? 'cursor-pointer hover:text-gray-800' : ''}`}>
+                      {label}
+                      {key && sortKey === key && <span className="ml-1">{sortDir === 'asc' ? '▲' : '▼'}</span>}
+                      {key && sortKey !== key && <span className="ml-1 opacity-20">▲</span>}
+                    </th>
+                  ))}
                   <th className="px-3 py-3 w-16"></th>
                 </tr>
               </thead>
@@ -438,7 +489,7 @@ export default function Expenses() {
                   const monthTotal = items.reduce((s, e) => s + e.amount, 0)
                   return [
                     // Month header row (only when showing all or multiple months)
-                    (showAll || grouped.length > 1) && (
+                    (filterMode !== 'month' || grouped.length > 1) && (
                       <tr key={`hdr-${key}`} className="bg-blue-50 border-y border-blue-100">
                         <td colSpan={6} className="px-4 py-2 text-xs font-bold text-blue-700 uppercase tracking-wide">
                           {label}
