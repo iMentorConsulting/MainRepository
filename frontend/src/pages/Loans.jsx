@@ -13,6 +13,12 @@ function isActive(loan) {
   return loan.start_date <= today && (!loan.end_date || loan.end_date >= today)
 }
 
+function fmtDate(iso) {
+  if (!iso) return ''
+  const [y, m, d] = iso.split('-')
+  return `${d}/${m}/${y}`
+}
+
 function formatEur(v) {
   return `€${Number(v).toLocaleString('el-GR', { minimumFractionDigits: 0 })}`
 }
@@ -197,7 +203,7 @@ export default function Loans() {
                       {l.original_amount ? formatEur(l.original_amount) : '—'}
                     </td>
                     <td className="px-4 py-3 text-xs text-gray-500 hidden lg:table-cell">
-                      {l.start_date}{l.end_date ? ` → ${l.end_date}` : ' →'}
+                      {fmtDate(l.start_date)}{l.end_date ? ` → ${fmtDate(l.end_date)}` : ' →'}
                     </td>
                     <td className="px-4 py-3 text-center">
                       <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
