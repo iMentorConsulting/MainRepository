@@ -623,6 +623,7 @@ class CMLead(Base):
 
     assigned_agent = relationship("CMUser", foreign_keys=[assigned_agent_id])
     comments = relationship("CMLeadComment", back_populates="lead", cascade="all, delete-orphan")
+    notification_logs = relationship("CMLeadNotificationLog", backref="lead", cascade="all, delete-orphan", foreign_keys="CMLeadNotificationLog.lead_id")
 
 
 class CMLeadComment(Base):
