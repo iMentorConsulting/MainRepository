@@ -1558,6 +1558,7 @@ def onboard_submit(token: str, body: dict, db: Session = Depends(get_db)):
 class BulkOnboardReq(BaseModel):
     lead_ids: list
     notification_type: str  # viber | email | both
+    custom_message: str = ""  # optional extra line inserted after intro
 
 
 @router.post("/bulk-onboard")
@@ -1574,6 +1575,7 @@ def bulk_onboard_leads(
     consultant = current_user.full_name or ""
     user_id = current_user.id
     notification_type = req.notification_type
+    custom_message = (req.custom_message or "").strip()
 
     # Generate onboard tokens (for leads without AFM) and snapshot
     # Deduplicate IDs to avoid sending the same lead twice
@@ -1607,10 +1609,10 @@ def bulk_onboard_leads(
             consultant_line = f"\n👤 {consultant}" if consultant else ""
             viber_footer = (
                 f"{consultant_line}\n"
-                "━━━━━━━━━━━━━━━\n"
+                "━━━━━━\n"
                 "i-Mentor Consulting\n"
                 "📞 2810 363007\n"
-                "🌐 www.i-mentor.gr · 📧 info@i-mentor.gr"
+                "🌐 www.i-mentor.gr"
             )
             for snap in leads_snapshot:
                 prog = snap["program_title"] or snap["service_type"] or snap["program"]
@@ -1629,13 +1631,13 @@ def bulk_onboard_leads(
                 if notification_type in ("viber", "both") and snap["phone"]:
                     prog_header = f"📋 {prog}\n\n" if prog else ""
                     prog_line = f" για το πρόγραμμα {prog}" if prog else ""
+                    custom_block = f"\n\n{custom_message}" if custom_message else ""
                     viber_body = (
                         f"Αγαπητέ/ή {name},\n\n"
-                        f"Είμαστε η i-Mentor Consulting — η εταιρεία συμβούλων που επικοινωνήσατε μαζί μας{prog_line}.\n\n"
-                        f"Για να ξεκινήσουμε τον έλεγχο επιλεξιμότητας της επιχείρησής σας, "
-                        f"χρειαζόμαστε το ΑΦΜ σας. Πατήστε τον παρακάτω σύνδεσμο για να το καταχωρήσετε με ασφάλεια:\n\n"
-                        f"🔗 {link}\n\n"
-                        f"Η διαδικασία διαρκεί λιγότερο από 1 λεπτό."
+                        f"Είμαστε η i-Mentor Consulting, η εταιρεία συμβουλευτικής για την οποία εκφράσατε ενδιαφέρον{prog_line}."
+                        f"{custom_block}\n\n"
+                        f"Ελέγξτε άμεσα όλα τα επιχορηγούμενα & χρηματοδοτικά προγράμματα που αφορούν την επιχείρησή σας σε λιγότερο από 2 δευτερόλεπτα:\n\n"
+                        f"🔗 {link}"
                     )
                     full_viber = prog_header + viber_body + viber_footer
                     ok, _ = _send_viber(snap["phone"], full_viber, snap["name"], consultant, snap["service_type"])
@@ -1646,35 +1648,43 @@ def bulk_onboard_leads(
 
                 if notification_type in ("email", "both") and snap["email"]:
                     prog_label = f"«{prog}»" if prog else ""
-                    subj = f"i-Mentor Consulting — Έλεγχος Επιλεξιμότητας{' ' + prog_label if prog_label else ''}"
+                    subj = f"i-Mentor Consulting — Επιχορηγούμενα Προγράμματα{' ' + prog_label if prog_label else ''}"
                     consultant_html = (
-                        f'<p style="margin:0 0 10px;color:#6b7280;font-size:13px;">Σύμβουλος: '
+                        f'<p style="margin:0;font-size:13px;color:#6b7280;">Σύμβουλος: '
                         f'<b style="color:#1e3a5f;">{consultant}</b></p>'
                     ) if consultant else ""
-                    prog_header_html = (
-                        f'<p style="margin:0 0 16px;font-size:14px;color:#6b7280;">Πρόγραμμα: '
-                        f'<b style="color:#1e3a5f;">{prog_label}</b></p>'
-                    ) if prog_label else ""
+                    prog_badge_html = (
+                        f'<div style="display:inline-block;background:#eff6ff;border:1px solid #bfdbfe;'
+                        f'border-radius:6px;padding:4px 12px;font-size:13px;color:#1e40af;margin-bottom:20px;">'
+                        f'📋 {prog}</div>'
+                    ) if prog else ""
+                    custom_html = (
+                        f'<p style="font-size:15px;line-height:1.7;margin:0 0 20px;color:#374151;">{custom_message}</p>'
+                    ) if custom_message else ""
+                    prog_line_text = f" για το πρόγραμμα {prog}" if prog else ""
                     email_html = f"""<html><body style="margin:0;background:#f3f4f6;padding:24px;font-family:Arial,Helvetica,sans-serif;color:#1f2937;">
 <div style="max-width:600px;margin:0 auto;">
   <div style="background:#1e3a5f;padding:22px 24px;border-radius:10px 10px 0 0;text-align:center;">
     <img src="https://i-mentor.gr/wp-content/uploads/2026/06/logo-white-transparent.png" alt="i-Mentor Consulting" style="max-height:56px;max-width:220px;width:auto;display:block;margin:0 auto;" />
   </div>
   <div style="background:#ffffff;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 10px 10px;padding:26px 24px;">
-    <p style="font-size:16px;margin:0 0 10px;">Αγαπητέ/ή <b>{name}</b>,</p>
-    {prog_header_html}
-    <p style="font-size:15px;line-height:1.7;margin:0 0 20px;color:#374151;">
-      Για να ελέγξουμε την επιλεξιμότητά σας{f' για το πρόγραμμα {prog_label}' if prog_label else ''} και να σας συνδέσουμε με τον <b>Ψηφιακό Σύμβουλό</b> μας, παρακαλούμε συμπληρώστε τα στοιχεία σας μέσω του παρακάτω συνδέσμου:
+    <p style="font-size:16px;margin:0 0 16px;">Αγαπητέ/ή <b>{name}</b>,</p>
+    {prog_badge_html}
+    <p style="font-size:15px;line-height:1.7;margin:0 0 16px;color:#374151;">
+      Είμαστε η <b>i-Mentor Consulting</b>, η εταιρεία συμβουλευτικής για την οποία εκφράσατε ενδιαφέρον{prog_line_text}.
     </p>
-    <div style="text-align:center;margin:24px 0;">
+    {custom_html}
+    <p style="font-size:15px;line-height:1.7;margin:0 0 24px;color:#374151;">
+      Ελέγξτε άμεσα όλα τα <b>επιχορηγούμενα &amp; χρηματοδοτικά προγράμματα</b> που αφορούν την επιχείρησή σας σε λιγότερο από 2 δευτερόλεπτα:
+    </p>
+    <div style="text-align:center;margin:0 0 24px;">
       <a href="{link}" style="display:inline-block;background:#1e3a5f;color:#ffffff;text-decoration:none;font-weight:bold;font-size:16px;padding:14px 32px;border-radius:8px;">
-        🔗 Συμπλήρωση Στοιχείων
+        Έλεγχος Επιλεξιμότητας →
       </a>
     </div>
-    <p style="font-size:13px;color:#9ca3af;margin:0 0 20px;text-align:center;">{link}</p>
     <hr style="border:none;border-top:1px solid #eef2f7;margin:16px 0;">
     {consultant_html}
-    <div style="background:#f0f4f8;border-radius:8px;padding:14px 16px;margin-top:4px;">
+    <div style="background:#f0f4f8;border-radius:8px;padding:14px 16px;margin-top:8px;">
       <p style="margin:0 0 4px;font-size:15px;font-weight:bold;color:#1e3a5f;">📞 2810 363007</p>
       <p style="margin:0;font-size:12px;color:#6b7280;">
         i-Mentor Consulting ·
@@ -1686,8 +1696,9 @@ def bulk_onboard_leads(
 </div></body></html>"""
                     plain = (
                         f"Αγαπητέ/ή {name},\n\n"
-                        f"Για τον έλεγχο επιλεξιμότητας{f' για το πρόγραμμα {prog}' if prog else ''}, "
-                        f"παρακαλούμε συμπληρώστε τα στοιχεία σας:\n{link}\n\n"
+                        f"Είμαστε η i-Mentor Consulting, η εταιρεία συμβουλευτικής για την οποία εκφράσατε ενδιαφέρον{prog_line_text}.\n\n"
+                        + (f"{custom_message}\n\n" if custom_message else "")
+                        + f"Ελέγξτε άμεσα όλα τα επιχορηγούμενα & χρηματοδοτικά προγράμματα της επιχείρησής σας:\n{link}\n\n"
                         f"i-Mentor Consulting · 2810 363007 · info@i-mentor.gr"
                     )
                     ok, _ = _send_email(snap["email"], subj, plain, html_override=email_html)

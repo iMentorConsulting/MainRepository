@@ -807,11 +807,14 @@ export default function Leads() {
 
   const handleBulkOnboard = async (channel = 'viber') => {
     const ids = [...selectedIds]
-    if (!confirm(`Αποστολή link καταχώρησης ΑΦΜ μέσω ${channel === 'viber' ? 'Viber' : channel === 'email' ? 'Email' : 'Viber & Email'} σε ${ids.length} leads;\n\nΚάθε πελάτης θα λάβει προσωπικό link για να συμπληρώσει το ΑΦΜ του και να ξεκινήσει ο Ψηφιακός Σύμβουλος αυτόματα.`)) return
+    const channelLabel = channel === 'viber' ? 'Viber' : channel === 'email' ? 'Email' : 'Viber & Email'
+    const customMsg = prompt(`Προαιρετικό επιπλέον μήνυμα προς τους ${ids.length} leads (αφήστε κενό για παράλειψη):`, '')
+    if (customMsg === null) return // cancelled
+    if (!confirm(`Αποστολή μέσω ${channelLabel} σε ${ids.length} leads;`)) return
     setOnboardBusy(true)
-    const tid = toast.loading(`Αποστολή link onboarding σε ${ids.length} leads…`)
+    const tid = toast.loading(`Αποστολή σε ${ids.length} leads…`)
     try {
-      const res = await bulkOnboardLeads({ lead_ids: ids, notification_type: channel })
+      const res = await bulkOnboardLeads({ lead_ids: ids, notification_type: channel, custom_message: customMsg.trim() })
       toast.success(`Link ΑΦΜ εστάλη σε ${res.queued} leads`, { id: tid, duration: 6000 })
       setSelectedIds(new Set())
       setTimeout(load, 2000)
