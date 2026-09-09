@@ -235,8 +235,13 @@ export default function WidgetAdmin() {
 
   const handleStatusChange = async (id, status) => {
     try {
-      await updateInquiryStatus(id, status)
+      const res = await updateInquiryStatus(id, status)
       setInquiries(qs => qs.map(q => q.id === id ? { ...q, status } : q))
+      if (status === 'confirmed') {
+        toast.success('Το αίτημα επιβεβαιώθηκε και εισήχθη ως κράτηση')
+      } else if (status === 'declined') {
+        toast.success('Το αίτημα απορρίφθηκε')
+      }
     } catch { toast.error('Σφάλμα') }
   }
 

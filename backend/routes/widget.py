@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from database import get_db
 from auth_utils import get_tenant
-from models import Unit, Booking, BookingInquiry, GuestPortalSettings
+from models import Unit, Booking, BookingInquiry, Customer, GuestPortalSettings
 
 router = APIRouter()
 
@@ -192,7 +192,50 @@ def update_inquiry(inq_id: int, body: dict, db: Session = Depends(get_db), tenan
     inq = db.query(BookingInquiry).filter(BookingInquiry.id == inq_id, BookingInquiry.tenant == tenant).first()
     if not inq:
         raise HTTPException(404, "Not found")
-    if "status" in body:
-        inq.status = body["status"]
+
+    new_status = body.get("status")
+    if new_status:
+        inq.status = new_status
+
+    booking_id = None
+    if new_status == "confirmed":
+        # Find or create a Customer from the inquiry guest data
+        name_parts = inq.guest_name.strip().split(" ", 1)
+        first_name = name_parts[0]
+        last_name = name_parts[1] if len(name_parts) > 1 else ""
+
+        customer = db.query(Customer).filter(
+            Customer.tenant == tenant,
+            Customer.email == inq.guest_email,
+        ).first()
+        if not customer:
+            customer = Customer(
+                tenant=tenant,
+                first_name=first_name,
+                last_name=last_name,
+                email=inq.guest_email,
+                phone=inq.guest_phone or "",
+            )
+            db.add(customer)
+            db.flush()
+
+        booking = Booking(
+            tenant=tenant,
+            unit_id=inq.unit_id,
+            customer_id=customer.id,
+            channel="Direct",
+            check_in=inq.check_in,
+            check_out=inq.check_out,
+            guests=inq.guests or 1,
+            total_price=0.0,
+            commission=0.0,
+            commission_percent=0.0,
+            status="confirmed",
+            notes=inq.message or None,
+        )
+        db.add(booking)
+        db.flush()
+        booking_id = booking.id
+
     db.commit()
-    return {"saved": True}
+    return {"saved": True, "booking_id": booking_id}
