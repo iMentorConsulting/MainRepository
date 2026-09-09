@@ -736,6 +736,15 @@ function ChatTab({ token, lang }) {
   }
   const isGuest = (msg) => msg.sender === 'guest'
 
+  const renderMarkdown = (text) => {
+    if (!text) return ''
+    return text
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+      .replace(/\*(.+?)\*/g, '<em>$1</em>')
+      .replace(/\n/g, '<br/>')
+  }
+
   return (
     <div className="flex flex-col flex-1 pt-4 min-h-0">
       <div className="flex-1 overflow-y-auto space-y-3 pb-2 min-h-0">
@@ -749,7 +758,7 @@ function ChatTab({ token, lang }) {
               <span className="text-xs text-gray-400 mb-1 px-1">{senderName(msg)}</span>
               <div className={`max-w-[80%] rounded-2xl px-4 py-3 ${guest ? 'bg-[#1e3a5f] text-white rounded-br-sm' : 'bg-white border border-gray-100 text-gray-800 rounded-bl-sm shadow-sm'}`}>
                 {msg.photo_path && <img src={msg.photo_path} alt="" className="rounded-xl mb-2 max-w-full" />}
-                <p className="text-sm whitespace-pre-line leading-relaxed">{msg.message}</p>
+                <p className="text-sm leading-relaxed" dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.message) }} />
                 <p className={`text-xs mt-1 ${guest ? 'text-blue-200' : 'text-gray-400'}`}>
                   {msg.created_at ? new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
                 </p>
