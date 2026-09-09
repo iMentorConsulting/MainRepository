@@ -47,7 +47,7 @@ function InquiryRow({ inq, onStatusChange }) {
   )
 
   const handleOpen = () => {
-    if (!open && price === null) {
+    if (!open && price === null && inq.unit_id) {
       api.get('/pricing/check', { params: { unit_id: inq.unit_id, check_in: inq.check_in, check_out: inq.check_out } })
         .then(r => setPrice(r.data.suggested_price))
         .catch(() => setPrice(0))

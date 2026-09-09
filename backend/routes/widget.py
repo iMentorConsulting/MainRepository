@@ -173,6 +173,7 @@ def list_inquiries(db: Session = Depends(get_db), tenant: str = Depends(get_tena
     return [
         {
             "id": r.id,
+            "unit_id": r.unit_id,
             "unit_name": r.unit.name if r.unit else "—",
             "guest_name": r.guest_name,
             "guest_email": r.guest_email,
