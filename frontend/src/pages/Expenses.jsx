@@ -1,10 +1,10 @@
 import { useEffect, useState, useMemo } from 'react'
 import {
-  getExpenses, createExpense, updateExpense, deleteExpense,
+  getExpenses, createExpense, updateExpense, deleteExpense, deleteAllExpenses,
   getExpenseCategories, getExpenseUnitTypes, getUnits,
   downloadExpensesTemplate, importExpenses,
 } from '../api'
-import { PlusIcon, PencilSquareIcon, TrashIcon, XMarkIcon, FunnelIcon, ArrowDownTrayIcon, ArrowUpTrayIcon, DocumentDuplicateIcon } from '@heroicons/react/24/outline'
+import { PlusIcon, PencilSquareIcon, TrashIcon, XMarkIcon, FunnelIcon, ArrowDownTrayIcon, ArrowUpTrayIcon, DocumentDuplicateIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline'
 import toast from 'react-hot-toast'
 import { useRef } from 'react'
 
@@ -208,6 +208,7 @@ export default function Expenses() {
 
   const [modal, setModal] = useState(null) // null | {} (new) | expense obj (edit)
   const [deleting, setDeleting] = useState(null)
+  const [confirmDeleteAll, setConfirmDeleteAll] = useState(false)
   const [importing, setImporting] = useState(false)
   const [showBreakdown, setShowBreakdown] = useState(true)
   const importRef = useRef()
@@ -252,14 +253,25 @@ export default function Expenses() {
     } catch { toast.error('Σφάλμα λήψης template') }
   }
 
+  const handleDeleteAll = async () => {
+    try {
+      const r = await deleteAllExpenses()
+      toast.success(`Διαγράφηκαν ${r.data.deleted} εγγραφές`)
+      setConfirmDeleteAll(false)
+      load()
+    } catch { toast.error('Σφάλμα διαγραφής') }
+  }
+
   const handleImport = async (e) => {
     const file = e.target.files?.[0]
     if (!file) return
     setImporting(true)
     try {
       const r = await importExpenses(file)
-      const { imported, errors } = r.data
-      toast.success(`Εισάγθηκαν ${imported} εγγραφές`)
+      const { imported, skipped = 0, errors } = r.data
+      const parts = [`Εισάγθηκαν ${imported} εγγραφές`]
+      if (skipped > 0) parts.push(`${skipped} παραλείφθηκαν (διπλότυπα)`)
+      toast.success(parts.join(' · '))
       if (errors.length) toast.error(`${errors.length} σφάλματα:\n${errors.slice(0, 3).join('\n')}`, { duration: 6000 })
       load()
     } catch { toast.error('Σφάλμα εισαγωγής') } finally {
@@ -324,6 +336,10 @@ export default function Expenses() {
             <ArrowUpTrayIcon className="h-4 w-4" /> {importing ? 'Εισαγωγή...' : 'Εισαγωγή Excel'}
           </button>
           <input ref={importRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleImport} />
+          <button onClick={() => setConfirmDeleteAll(true)}
+            className="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-red-300 text-red-600 hover:bg-red-50 text-sm font-medium transition-colors">
+            <TrashIcon className="h-4 w-4" /> Διαγραφή όλων
+          </button>
           <button onClick={() => setModal({})} className="btn-primary flex items-center gap-1">
             <PlusIcon className="h-4 w-4" /> Νέο Έξοδο
           </button>
@@ -490,6 +506,25 @@ export default function Expenses() {
           onClose={() => setModal(null)}
           onSaved={() => { setModal(null); load() }}
         />
+      )}
+
+      {/* Delete ALL confirm */}
+      {confirmDeleteAll && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl p-6 max-w-sm w-full space-y-4">
+            <div className="flex items-center gap-3">
+              <ExclamationTriangleIcon className="h-8 w-8 text-red-500 flex-shrink-0" />
+              <h3 className="font-bold text-gray-800 text-lg">Διαγραφή ΟΛΩΝ των εξόδων;</h3>
+            </div>
+            <p className="text-sm text-gray-600">Αυτή η ενέργεια θα διαγράψει <strong>όλες</strong> τις εγγραφές εξόδων μόνιμα. Δεν μπορεί να αναιρεθεί.</p>
+            <div className="flex gap-2">
+              <button onClick={() => setConfirmDeleteAll(false)} className="btn-secondary flex-1">Ακύρωση</button>
+              <button onClick={handleDeleteAll} className="flex-1 bg-red-600 hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors">
+                Διαγραφή όλων
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Delete confirm */}

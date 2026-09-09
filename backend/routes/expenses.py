@@ -108,6 +108,13 @@ def update_expense(expense_id: int, data: ExpenseIn, db: Session = Depends(get_d
     return _serialize(e)
 
 
+@router.delete("/all")
+def delete_all_expenses(db: Session = Depends(get_db), tenant: str = Depends(get_tenant)):
+    count = db.query(Expense).filter(Expense.tenant == tenant).delete()
+    db.commit()
+    return {"deleted": count}
+
+
 @router.delete("/{expense_id}")
 def delete_expense(expense_id: int, db: Session = Depends(get_db), tenant: str = Depends(get_tenant)):
     e = db.query(Expense).filter(Expense.id == expense_id, Expense.tenant == tenant).first()
@@ -191,6 +198,7 @@ async def import_expenses(
     imported, errors = 0, []
     units = {u.name.upper(): u.id for u in db.query(Unit).filter(Unit.tenant == tenant).all()}
 
+    skipped = 0
     for i, row in enumerate(ws.iter_rows(min_row=2, values_only=True), start=2):
         padded = (list(row) + [None] * 6)[:6]
         date_val, category, item, vendor, amount, unit_ref = padded
@@ -202,15 +210,32 @@ async def import_expenses(
         try:
             parsed_date = _parse_date(date_val) if date_val else date.today()
             parsed_amount = _parse_amount(amount)
+            parsed_category = str(category).upper().strip()
+            parsed_item = str(item).strip()
+            parsed_vendor = str(vendor).strip() if vendor else None
+
+            # Duplicate check: same date + category + item + vendor + amount
+            exists = db.query(Expense).filter(
+                Expense.tenant == tenant,
+                Expense.date == parsed_date,
+                Expense.category == parsed_category,
+                Expense.item == parsed_item,
+                Expense.vendor == parsed_vendor,
+                Expense.amount == parsed_amount,
+            ).first()
+            if exists:
+                skipped += 1
+                continue
+
             unit_id = None
             if unit_ref:
                 unit_id = units.get(str(unit_ref).upper().strip())
             e = Expense(
                 tenant=tenant,
                 date=parsed_date,
-                category=str(category).upper().strip(),
-                item=str(item).strip(),
-                vendor=str(vendor).strip() if vendor else None,
+                category=parsed_category,
+                item=parsed_item,
+                vendor=parsed_vendor,
                 amount=parsed_amount,
                 unit_id=unit_id,
             )
@@ -220,7 +245,7 @@ async def import_expenses(
             errors.append(f"Γραμμή {i}: {ex}")
 
     db.commit()
-    return {"imported": imported, "errors": errors}
+    return {"imported": imported, "skipped": skipped, "errors": errors}
 
 
 @router.get("/summary")
