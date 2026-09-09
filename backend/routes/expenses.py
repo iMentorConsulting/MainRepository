@@ -155,6 +155,30 @@ def download_template():
     )
 
 
+def _parse_date(val):
+    from datetime import datetime as _dt, date as _date
+    if val is None:
+        raise ValueError("Κενή ημερομηνία")
+    if isinstance(val, _date) and not isinstance(val, _dt):
+        return val
+    if isinstance(val, _dt):
+        return val.date()
+    s = str(val).strip()
+    for fmt in ('%Y-%m-%d', '%d/%m/%Y', '%d-%m-%Y', '%m/%d/%Y', '%Y/%m/%d', '%d.%m.%Y'):
+        try:
+            return _dt.strptime(s, fmt).date()
+        except ValueError:
+            pass
+    raise ValueError(f"Μη αναγνώσιμη ημερομηνία: {s!r}")
+
+
+def _parse_amount(val):
+    if isinstance(val, (int, float)):
+        return float(val)
+    s = str(val).strip().replace('€', '').replace(' ', '').replace(',', '.')
+    return float(s)
+
+
 @router.post("/import/excel")
 async def import_expenses(
     file: UploadFile = File(...),
@@ -172,17 +196,12 @@ async def import_expenses(
         date_val, category, item, vendor, amount, unit_ref = padded
         if not any(padded):
             continue
-        if not date_val or not category or not item or not amount:
-            errors.append(f"Γραμμή {i}: Λείπουν υποχρεωτικά πεδία (Ημ/νία, Κατηγορία, Περιγραφή, Ποσό)")
+        if not category or not item or not amount:
+            errors.append(f"Γραμμή {i}: Λείπουν υποχρεωτικά πεδία (Κατηγορία, Περιγραφή, Ποσό)")
             continue
         try:
-            if isinstance(date_val, str):
-                from datetime import date as _d
-                parsed_date = _d.fromisoformat(date_val.strip())
-            elif hasattr(date_val, "date"):
-                parsed_date = date_val.date()
-            else:
-                parsed_date = date_val
+            parsed_date = _parse_date(date_val) if date_val else date.today()
+            parsed_amount = _parse_amount(amount)
             unit_id = None
             if unit_ref:
                 unit_id = units.get(str(unit_ref).upper().strip())
@@ -192,7 +211,7 @@ async def import_expenses(
                 category=str(category).upper().strip(),
                 item=str(item).strip(),
                 vendor=str(vendor).strip() if vendor else None,
-                amount=float(amount),
+                amount=parsed_amount,
                 unit_id=unit_id,
             )
             db.add(e)
