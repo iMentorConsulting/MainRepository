@@ -6,6 +6,7 @@ export const dynamic = 'force-dynamic'
 export async function GET(request: NextRequest, { params }: { params: Promise<{ token: string }> }) {
   const { token } = await params
   const type = request.nextUrl.searchParams.get('type') ?? 'ermis'
+  const phone = request.nextUrl.searchParams.get('phone') ?? ''
   const baseUrl = process.env.APP_URL || new URL(request.url).origin
 
   // Own click tracking: Moosend cannot track clicks on merge-tag (per-recipient)
@@ -23,5 +24,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     })
   })().catch(err => console.error('[GeClick] tracking failed:', err instanceof Error ? err.message : err))
 
-  return NextResponse.redirect(`${baseUrl}/gemi-entry/${token}?type=${type}`, 302)
+  const dest = new URL(`${baseUrl}/gemi-entry/${token}`)
+  dest.searchParams.set('type', type)
+  if (phone) dest.searchParams.set('phone', phone)
+  return NextResponse.redirect(dest.toString(), 302)
 }
