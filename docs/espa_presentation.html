@@ -255,25 +255,23 @@
   .check { color: #27ae60; font-weight: bold; font-size: 13pt; }
   .cross { color: #e74c3c; font-weight: bold; font-size: 13pt; }
 
-  /* SCREENSHOT PLACEHOLDER */
+  /* SCREENSHOT */
   .screenshot-box {
-    background: linear-gradient(135deg, #f0f4f8, #e8eff7);
-    border: 2px dashed #5b9bd5;
-    border-radius: 12px;
-    padding: 35px 20px;
-    text-align: center;
     margin: 20px 0;
+    text-align: center;
   }
-  .screenshot-box .label {
-    font-size: 13pt;
-    font-weight: bold;
-    display: block;
-    margin-bottom: 6px;
-    color: #1e6fa5;
+  .screenshot-box img {
+    max-width: 100%;
+    border-radius: 10px;
+    border: 1px solid #d0dce8;
+    box-shadow: 0 4px 18px rgba(0,0,0,0.13);
   }
   .screenshot-box .sublabel {
     font-size: 9pt;
     color: #888;
+    display: block;
+    margin-top: 6px;
+    font-style: italic;
   }
 
   /* STATS */
@@ -518,7 +516,7 @@
 </div>
 
 <div class="screenshot-box">
-  <span class="label">[ΕΙΚΟΝΑ: Αρχική Οθόνη iStay Dashboard]</span>
+  <img src="screenshots/dashboard.png" alt="Αρχική Οθόνη iStay Dashboard" />
   <span class="sublabel">Κεντρικό ταμπλό διαχείρισης με logo iStay, στατιστικά κρατήσεων, έσοδα ημέρας και σύνοψη πληρότητας</span>
 </div>
 
@@ -626,8 +624,8 @@
 </div>
 
 <div class="screenshot-box">
-  <span class="label">[ΕΙΚΟΝΑ: Αρχιτεκτονικό Διάγραμμα Συστήματος]</span>
-  <span class="sublabel">Σχηματικό διάγραμμα: Frontend (React) – Backend (FastAPI) – Database (SQLite) – AI Services (Claude) – iCal Integration</span>
+  <img src="screenshots/sync.png" alt="iCal Συγχρονισμός — Διασύνδεση Πλατφορμών" />
+  <span class="sublabel">Οθόνη iCal συγχρονισμού: σύνδεση Booking.com, Airbnb και λοιπών καναλιών σε ενιαίο σύστημα</span>
 </div>
 
 <!-- ======== SECTION 3 ======== -->
@@ -676,7 +674,7 @@
 </div>
 
 <div class="screenshot-box">
-  <span class="label">[ΕΙΚΟΝΑ: Οθόνη Διαχείρισης Κρατήσεων]</span>
+  <img src="screenshots/bookings.png" alt="Οθόνη Διαχείρισης Κρατήσεων" />
   <span class="sublabel">Λίστα κρατήσεων με φίλτρα, κατάσταση τιμολόγησης, προμήθειες ανά κανάλι και κουμπιά ενεργειών</span>
 </div>
 
@@ -774,7 +772,7 @@
 </table>
 
 <div class="screenshot-box">
-  <span class="label">[ΕΙΚΟΝΑ: Οθόνη Guest Portal – Αρχική Σελίδα Επισκέπτη]</span>
+  <img src="screenshots/portal-admin-welcome.png" alt="Guest Portal — Αρχική Σελίδα Επισκέπτη" />
   <span class="sublabel">Εξατομικευμένη υποδοχή με όνομα επισκέπτη, χρονοδιάγραμμα διαμονής και γρήγορες ενέργειες</span>
 </div>
 
@@ -802,7 +800,7 @@
 </div>
 
 <div class="screenshot-box">
-  <span class="label">[ΕΙΚΟΝΑ: Ημερολόγιο Πληρότητας με iCal Συγχρονισμό]</span>
+  <img src="screenshots/calendar.png" alt="Ημερολόγιο Πληρότητας με iCal Συγχρονισμό" />
   <span class="sublabel">Ενιαίο ημερολόγιο με χρωματική κωδικοποίηση ανά κανάλι κράτησης (Booking.com, Airbnb, Άμεσες)</span>
 </div>
 
@@ -840,13 +838,13 @@
 </div>
 
 <div class="screenshot-box">
-  <span class="label">[ΕΙΚΟΝΑ: Availability Plan — Μηνιαίο Ημερολόγιο Περιορισμών]</span>
+  <img src="screenshots/availabiilty.png" alt="Availability Plan — Μηνιαίο Ημερολόγιο Περιορισμών" />
   <span class="sublabel">Μηνιαία προβολή με χρωματική κωδικοποίηση ανά ημέρα, ένδειξη min stay, stop sales και περιορισμών check-in/out</span>
 </div>
 
 <div class="screenshot-box">
-  <span class="label">[ΕΙΚΟΝΑ: Availability Plan — Modal Bulk Update]</span>
-  <span class="sublabel">Παράθυρο μαζικής εφαρμογής κανόνων με εύρος ημερομηνιών, chips ημέρας εβδομάδας και επιλογές status</span>
+  <img src="screenshots/pricing.png" alt="Availability Plan — Ρυθμίσεις Τιμολόγησης & Περιορισμών" />
+  <span class="sublabel">Ρυθμίσεις τιμολόγησης, min stay και stop sales ανά περίοδο — μαζική εφαρμογή κανόνων</span>
 </div>
 
 <div class="subsection-header">3.5 Ενσωματώσιμο Widget Διαθεσιμότητας (Embeddable Availability Widget)</div>
@@ -873,7 +871,7 @@
 </div>
 
 <div class="screenshot-box">
-  <span class="label">[ΕΙΚΟΝΑ: Embeddable Availability Widget]</span>
+  <img src="screenshots/widget-admin.png" alt="Embeddable Availability Widget" />
   <span class="sublabel">Widget διαθεσιμότητας ενσωματωμένο σε εξωτερικό ιστότοπο — επιλογή ημερομηνιών και φόρμα αιτήματος</span>
 </div>
 
@@ -901,8 +899,8 @@
 </div>
 
 <div class="screenshot-box">
-  <span class="label">[ΕΙΚΟΝΑ: Direct Booking Page — Σελίδα Άμεσης Κράτησης]</span>
-  <span class="sublabel">Δημόσια σελίδα κράτησης με φωτογραφίες καταλύματος, ημερολόγιο διαθεσιμότητας και φόρμα κράτησης</span>
+  <img src="screenshots/portal-admin-requests.png" alt="Direct Booking — Αιτήματα Κράτησης" />
+  <span class="sublabel">Πίνακας αιτημάτων άμεσης κράτησης — εισερχόμενα αιτήματα από widget ή σελίδα κράτησης</span>
 </div>
 
 <div class="subsection-header">3.7 Αυτοματισμός Email — Pre-Arrival &amp; Post-Departure</div>
@@ -929,8 +927,8 @@
 </div>
 
 <div class="screenshot-box">
-  <span class="label">[ΕΙΚΟΝΑ: Email Templates — Πίνακας Ελέγχου Προτύπων]</span>
-  <span class="sublabel">Επεξεργαστής προτύπων email με προεπισκόπηση, μεταβλητές substitution και ρυθμίσεις αποστολής ημερών</span>
+  <img src="screenshots/portal-admin-autoemails.png" alt="Αυτόματα Email — Πίνακας Ελέγχου Προτύπων" />
+  <span class="sublabel">Επεξεργαστής προτύπων email με προεπισκόπηση, μεταβλητές substitution και ρυθμίσεις αυτόματης αποστολής</span>
 </div>
 
 <!-- ======== SECTION 4 ======== -->
@@ -956,7 +954,7 @@
 </div>
 
 <div class="screenshot-box">
-  <span class="label">[ΕΙΚΟΝΑ: AI Unit Recommender – Οθόνη Συστάσεων]</span>
+  <img src="screenshots/smart-advisor - new reservation.png" alt="AI Smart Advisor — Σύσταση Μονάδας" />
   <span class="sublabel">Λίστα συνιστώμενων μονάδων με βαθμολογία καταλληλότητας και αιτιολόγηση από το Claude AI</span>
 </div>
 
@@ -974,7 +972,7 @@
 </div>
 
 <div class="screenshot-box">
-  <span class="label">[ΕΙΚΟΝΑ: AI Cleaning Scheduler – Εβδομαδιαίο Πρόγραμμα Καθαρισμών]</span>
+  <img src="screenshots/cleaning.png" alt="AI Cleaning Scheduler — Εβδομαδιαίο Πρόγραμμα Καθαρισμών" />
   <span class="sublabel">Ημερολογιακή προβολή με ανάθεση καθαρισμών, αλλαγών λινών και πλυσίματος ανά μονάδα</span>
 </div>
 
@@ -992,8 +990,8 @@
 </div>
 
 <div class="screenshot-box">
-  <span class="label">[ΕΙΚΟΝΑ: AI Concierge – Chat Interface Επισκέπτη]</span>
-  <span class="sublabel">Συνομιλία επισκέπτη με AI Concierge στα γερμανικά — απάντηση σχετικά με ωράριο check-out και κοντινές παραλίες</span>
+  <img src="screenshots/portal-admin-messages.png" alt="AI Concierge — Chat Interface Επισκέπτη" />
+  <span class="sublabel">Συνομιλία επισκέπτη με AI Concierge — απαντήσεις σε πραγματικό χρόνο σε ερωτήματα επισκεπτών</span>
 </div>
 
 <div class="subsection-header">4.1 Συγκριτική Ανάλυση: Σύστημα vs Ανταγωνισμός</div>
@@ -1173,8 +1171,8 @@
 </div>
 
 <div class="screenshot-box">
-  <span class="label">[ΕΙΚΟΝΑ: Αποτελέσματα WCAG Accessibility Audit]</span>
-  <span class="sublabel">Αποτελέσματα αξιολόγησης προσβασιμότητας με εργαλείο axe-core ή WAVE — «0 critical errors, Level AA compliance»</span>
+  <img src="screenshots/portal-admin-analytics.png" alt="Analytics & Στατιστικά Guest Portal" />
+  <span class="sublabel">Αναλυτικά στατιστικά χρήσης Guest Portal — επισκέπτες, αιτήματα, επίπεδο αφοσίωσης επισκεπτών</span>
 </div>
 
 <!-- ======== SECTION 6 ======== -->
@@ -1356,8 +1354,8 @@
 </ul>
 
 <div class="screenshot-box">
-  <span class="label">[ΕΙΚΟΝΑ: Οθόνη Ρυθμίσεων Ασφαλείας &amp; Αδειοδότησης]</span>
-  <span class="sublabel">Εμφάνιση μοναδικού serial number άδειας, κατάσταση GDPR compliance, ρυθμίσεις email SMTP ανά κατάλυμα</span>
+  <img src="screenshots/portal-admin-settings.png" alt="Ρυθμίσεις Ασφαλείας & Αδειοδότησης" />
+  <span class="sublabel">Ρυθμίσεις Guest Portal, serial number άδειας, GDPR compliance και παραμετροποίηση email ανά κατάλυμα</span>
 </div>
 
 <!-- ======== SECTION 9 ======== -->
@@ -1538,8 +1536,8 @@
 </div>
 
 <div class="screenshot-box">
-  <span class="label">[ΕΙΚΟΝΑ: Σύνοψη Λειτουργιών — Infographic]</span>
-  <span class="sublabel">Οπτική σύνοψη όλων των ενοτήτων: Κρατήσεις | Guest Portal | AI Features | iCal | WCAG | Πολυγλωσσία</span>
+  <img src="screenshots/reports.png" alt="Αναφορές & Στατιστικά — Σύνοψη Λειτουργιών" />
+  <span class="sublabel">Αναφορές πληρότητας, εσόδων, εξόδων και καθαρού κέρδους — πλήρης εικόνα της επιχείρησης σε ένα ταμπλό</span>
 </div>
 
 <hr class="divider">
