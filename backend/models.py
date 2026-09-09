@@ -5,6 +5,22 @@ from datetime import datetime
 import secrets
 
 
+class AvailabilityRule(Base):
+    __tablename__ = 'availability_rules'
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    tenant = Column(String(50), nullable=False, index=True)
+    unit_id = Column(Integer, ForeignKey('units.id'), nullable=False)
+    date = Column(Date, nullable=False)
+    status = Column(String(20), default='open')          # open | stop_sales
+    availability = Column(Integer, nullable=True)        # None = unlimited
+    min_stay = Column(Integer, nullable=True)
+    max_stay = Column(Integer, nullable=True)
+    checkin_restriction = Column(String(20), default='allowed')  # allowed | no_checkin | no_checkout | no_checkinout | required
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow)
+    unit = relationship('Unit', foreign_keys=[unit_id])
+
+
 class TenantRecord(Base):
     __tablename__ = 'tenant_records'
     id = Column(String(64), primary_key=True)

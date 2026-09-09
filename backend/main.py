@@ -23,6 +23,7 @@ from routes.maintenance import router as maintenance_router
 from routes.owners import router as owners_router
 from routes.pricing import router as pricing_router
 from routes.widget import router as widget_router
+from routes.availability import router as availability_router
 
 # Case management routes
 from routes.cm_auth import router as cm_auth_router
@@ -139,6 +140,27 @@ try:
         _bc.execute(_text_b("ALTER TABLE guest_portal_settings ADD COLUMN pre_arrival_message TEXT"))
         _bc.execute(_text_b("ALTER TABLE guest_portal_settings ADD COLUMN post_departure_subject VARCHAR(300)"))
         _bc.execute(_text_b("ALTER TABLE guest_portal_settings ADD COLUMN post_departure_message TEXT"))
+        _bc.commit()
+except Exception:
+    pass
+
+try:
+    with engine.connect() as _bc:
+        _bc.execute(_text_b("""
+            CREATE TABLE IF NOT EXISTS availability_rules (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                tenant VARCHAR(50) NOT NULL,
+                unit_id INTEGER NOT NULL REFERENCES units(id),
+                date DATE NOT NULL,
+                status VARCHAR(20) DEFAULT 'open',
+                availability INTEGER,
+                min_stay INTEGER,
+                max_stay INTEGER,
+                checkin_restriction VARCHAR(20) DEFAULT 'allowed',
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        """))
         _bc.commit()
 except Exception:
     pass
@@ -697,6 +719,7 @@ app.include_router(maintenance_router, prefix="/api")
 app.include_router(owners_router, prefix="/api")
 app.include_router(pricing_router, prefix="/api")
 app.include_router(widget_router, prefix="/api/widget")
+app.include_router(availability_router, prefix="/api")
 
 # Case management
 app.include_router(cm_auth_router)

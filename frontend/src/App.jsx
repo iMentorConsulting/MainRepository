@@ -18,6 +18,7 @@ import Maintenance from './pages/Maintenance'
 import Owners from './pages/Owners'
 import Pricing from './pages/Pricing'
 import Sync from './pages/Sync'
+import Availability from './pages/Availability'
 import WidgetAdmin from './pages/WidgetAdmin'
 
 const GuestPortal = lazy(() => import('./pages/GuestPortal'))
@@ -108,6 +109,7 @@ export default function App() {
               <Route path="owners" element={<Owners />} />
               <Route path="pricing" element={<Pricing />} />
               <Route path="sync" element={<Sync />} />
+              <Route path="availability" element={<Availability />} />
               <Route path="portal" element={<PortalAdmin />} />
               <Route path="widget-admin" element={<WidgetAdmin />} />
               <Route path="*" element={<Navigate to="/" replace />} />
