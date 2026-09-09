@@ -130,6 +130,7 @@ export default function Customers() {
         <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
         <input
           className="input pl-9"
+          aria-label="Αναζήτηση πελατών"
           placeholder="Αναζήτηση ονόματος, email, τηλεφώνου..."
           value={search}
           onChange={handleSearch}
@@ -140,7 +141,7 @@ export default function Customers() {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-gray-100 bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
+              <tr className="border-b border-gray-100 bg-gray-50 text-xs text-gray-700 uppercase tracking-wide">
                 <th className="text-left px-4 py-3">Ονοματεπώνυμο</th>
                 <th className="text-left px-4 py-3 hidden sm:table-cell">Email</th>
                 <th className="text-left px-4 py-3 hidden md:table-cell">Τηλέφωνο</th>

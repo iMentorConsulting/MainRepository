@@ -162,7 +162,7 @@ export default function Analytics() {
           <p className="text-center text-gray-400 text-sm py-8">Δεν υπάρχουν επερχόμενα ορόσημα</p>
         ) : (
           <table className="w-full text-sm">
-            <thead className="bg-gray-50 text-xs text-gray-500 uppercase tracking-wider">
+            <thead className="bg-gray-50 text-xs text-gray-700 uppercase tracking-wider">
               <tr>
                 <th className="text-left px-4 py-2">Πελάτης</th>
                 <th className="text-left px-4 py-2">Σύμβουλος</th>

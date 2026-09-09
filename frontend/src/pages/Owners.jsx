@@ -191,7 +191,7 @@ function ReportViewer({ owner, onClose }) {
                 { label: `Αμοιβή (${s.management_fee_percent}%)`, value: fmt(s.management_fee), color: 'text-orange-600' },
               ].map(t => (
                 <div key={t.label} className="bg-gray-50 border border-gray-200 rounded-xl p-3">
-                  <p className="text-xs text-gray-500 mb-1">{t.label}</p>
+                  <p className="text-xs text-gray-700 mb-1">{t.label}</p>
                   <p className={`text-lg font-bold ${t.color}`}>{t.value}</p>
                 </div>
               ))}

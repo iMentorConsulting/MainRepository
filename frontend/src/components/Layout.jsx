@@ -62,7 +62,7 @@ export default function Layout({ auth, onLogout }) {
       >
         <div className="px-4 py-4 border-b border-gray-200" role="banner">
           <IStayLogo variant="blue" className="h-7" />
-          <p className="text-xs text-gray-400 mt-1 font-medium truncate" aria-label={`Συνδεδεμένος ως ${auth?.name}`}>
+          <p className="text-xs text-gray-600 mt-1 font-medium truncate" aria-label={`Συνδεδεμένος ως ${auth?.name}`}>
             {auth?.name}
           </p>
         </div>

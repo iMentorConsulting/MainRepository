@@ -256,7 +256,7 @@ function BookingModal({ booking, units, customers: initCustomers, onClose, onSav
               </div>
             ) : (
               <div className="space-y-1">
-                <input className="input" placeholder="Αναζήτηση ονόματος..." value={custSearch} onChange={handleCustSearch} />
+                <input className="input" aria-label="Αναζήτηση πελάτη" placeholder="Αναζήτηση ονόματος..." value={custSearch} onChange={handleCustSearch} />
                 <select
                   className="input"
                   value={form.customer_id}
@@ -585,7 +585,7 @@ export default function Bookings() {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-gray-100 bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
+              <tr className="border-b border-gray-100 bg-gray-50 text-xs text-gray-700 uppercase tracking-wide">
                 <th className="text-left px-4 py-3">#</th>
                 <th className="text-left px-4 py-3">Πελάτης</th>
                 <th className="text-left px-4 py-3 hidden sm:table-cell">Μονάδα</th>

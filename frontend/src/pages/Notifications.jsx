@@ -146,7 +146,7 @@ function TemplatesPanel({ templates, setTemplates }) {
                     <button onClick={() => handleDelete(t.id)} className="text-gray-400 hover:text-red-600 transition-colors"><TrashIcon className="w-4 h-4" /></button>
                   </div>
                 </div>
-                {t.subject && <p className="text-xs text-gray-500 mb-1"><span className="font-medium">Θέμα:</span> {t.subject}</p>}
+                {t.subject && <p className="text-xs text-gray-700 mb-1"><span className="font-medium">Θέμα:</span> {t.subject}</p>}
                 <p className="text-xs text-gray-600 bg-gray-50 rounded p-2 whitespace-pre-wrap line-clamp-3">{t.content}</p>
               </div>
             )}

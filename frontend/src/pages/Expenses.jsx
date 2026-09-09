@@ -467,7 +467,7 @@ export default function Expenses() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b bg-gray-50 text-xs text-gray-500 uppercase select-none">
+                <tr className="border-b bg-gray-50 text-xs text-gray-700 uppercase select-none">
                   {[
                     { key: 'date', label: 'Ημ/νία', cls: 'w-24' },
                     { key: null,   label: 'Μ-Ε',    cls: 'w-20' },

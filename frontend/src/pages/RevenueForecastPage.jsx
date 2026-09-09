@@ -328,7 +328,7 @@ export default function RevenueForecastPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
+                  <tr className="bg-gray-50 text-xs text-gray-700 uppercase tracking-wide">
                     <th className="px-4 py-2.5 text-left">Πελάτης</th>
                     <th className="px-4 py-2.5 text-left">Υπηρεσία</th>
                     <th className="px-4 py-2.5 text-left">Status</th>
