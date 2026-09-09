@@ -11,6 +11,29 @@ from typing import Optional
 router = APIRouter(prefix="/pricing", tags=["pricing"])
 
 
+def get_suggested_price(unit_id: int, check_in: date, check_out: date, tenant: str, db) -> float:
+    """Return suggested total price based on seasonal rates, falling back to unit base_price."""
+    unit = db.query(Unit).filter(Unit.id == unit_id, Unit.tenant == tenant).first()
+    if not unit:
+        return 0.0
+    rates = (
+        db.query(SeasonalRate)
+        .filter(
+            SeasonalRate.tenant == tenant,
+            SeasonalRate.date_from <= check_in,
+            SeasonalRate.date_to >= check_in,
+        )
+        .all()
+    )
+    specific = [r for r in rates if r.unit_id == unit_id]
+    by_type = [r for r in rates if not r.unit_id and r.unit_type == unit.type]
+    general = [r for r in rates if not r.unit_id and not r.unit_type]
+    matched = specific or by_type or general
+    nights = max((check_out - check_in).days, 1)
+    price_per_night = matched[0].price_per_night if matched else unit.base_price
+    return round(price_per_night * nights, 2)
+
+
 class RateIn(BaseModel):
     name: str
     unit_id: Optional[int] = None

@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from database import get_db
 from auth_utils import get_tenant
 from models import Unit, Booking, BookingInquiry, Customer, GuestPortalSettings
+from routes.pricing import get_suggested_price
 
 router = APIRouter()
 
@@ -219,6 +220,8 @@ def update_inquiry(inq_id: int, body: dict, db: Session = Depends(get_db), tenan
             db.add(customer)
             db.flush()
 
+        total_price = get_suggested_price(inq.unit_id, inq.check_in, inq.check_out, tenant, db)
+
         booking = Booking(
             tenant=tenant,
             unit_id=inq.unit_id,
@@ -227,7 +230,7 @@ def update_inquiry(inq_id: int, body: dict, db: Session = Depends(get_db), tenan
             check_in=inq.check_in,
             check_out=inq.check_out,
             guests=inq.guests or 1,
-            total_price=0.0,
+            total_price=total_price,
             commission=0.0,
             commission_percent=0.0,
             status="confirmed",

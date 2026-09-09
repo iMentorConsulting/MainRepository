@@ -41,14 +41,24 @@ const STATUS_LABELS = { pending: 'Εκκρεμεί', confirmed: 'Επιβεβα�
 
 function InquiryRow({ inq, onStatusChange }) {
   const [open, setOpen] = useState(false)
+  const [price, setPrice] = useState(null)
   const nights = Math.round(
     (new Date(inq.check_out+'T00:00') - new Date(inq.check_in+'T00:00')) / 86400000
   )
 
+  const handleOpen = () => {
+    if (!open && price === null) {
+      api.get('/pricing/check', { params: { unit_id: inq.unit_id, check_in: inq.check_in, check_out: inq.check_out } })
+        .then(r => setPrice(r.data.suggested_price))
+        .catch(() => setPrice(0))
+    }
+    setOpen(o => !o)
+  }
+
   return (
     <div className="border border-gray-100 rounded-xl overflow-hidden">
       <div className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 cursor-pointer"
-        onClick={() => setOpen(o => !o)}>
+        onClick={handleOpen}>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="font-semibold text-gray-800 text-sm">{inq.guest_name}</span>
@@ -71,6 +81,12 @@ function InquiryRow({ inq, onStatusChange }) {
           <div className="grid grid-cols-2 gap-3 pt-3 text-sm">
             <div><span className="text-gray-400 text-xs">Email</span><p className="font-medium text-gray-700">{inq.guest_email}</p></div>
             <div><span className="text-gray-400 text-xs">Τηλέφωνο</span><p className="font-medium text-gray-700">{inq.guest_phone || '—'}</p></div>
+          </div>
+          <div className="bg-white border border-emerald-200 rounded-lg px-4 py-2.5 flex items-center justify-between">
+            <span className="text-xs text-gray-500">{nights} νύχτες × τιμολόγηση</span>
+            <span className="text-base font-bold text-emerald-700">
+              {price === null ? '...' : `€${Number(price).toLocaleString('el-GR', { minimumFractionDigits: 2 })}`}
+            </span>
           </div>
           {inq.message && (
             <div className="bg-white border border-gray-200 rounded-lg p-3 text-sm text-gray-600">
