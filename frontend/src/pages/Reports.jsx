@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react'
-import { getOccupancy, getByChannel, getFinancial, getPriceAnalytics } from '../api'
+import { useEffect, useState, useMemo } from 'react'
+import { getOccupancy, getByChannel, getFinancial, getPriceAnalytics, getExpenses, getLoanTotal } from '../api'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
-  LineChart, Line, PieChart, Pie, Cell, ResponsiveContainer,
+  LineChart, Line, PieChart, Pie, Cell, ResponsiveContainer, ReferenceLine,
 } from 'recharts'
 import { format, startOfYear, endOfYear, startOfMonth, endOfMonth } from 'date-fns'
 
@@ -34,6 +34,30 @@ export default function Reports() {
   const [finGroup, setFinGroup] = useState('month')
   const [priceGroup, setPriceGroup] = useState('month')
   const [loading, setLoading] = useState(false)
+  const [expenseList, setExpenseList] = useState([])
+  const [totalExpenses, setTotalExpenses] = useState(0)
+  const [totalLoans, setTotalLoans] = useState(0)
+  const [loanByMonth, setLoanByMonth] = useState({})
+
+  useEffect(() => {
+    getExpenses({ from_date: from, to_date: to }).then(r => {
+      setExpenseList(r.data.expenses || [])
+      setTotalExpenses(r.data.total || 0)
+    }).catch(() => {})
+    getLoanTotal({ from_date: from, to_date: to }).then(r => {
+      setTotalLoans(r.data.total || 0)
+      setLoanByMonth(r.data.by_month || {})
+    }).catch(() => {})
+  }, [from, to])
+
+  const expByMonth = useMemo(() => {
+    const map = {}
+    expenseList.forEach(e => {
+      const key = e.date.slice(0, 7)
+      map[key] = (map[key] || 0) + e.amount
+    })
+    return map
+  }, [expenseList])
 
   const load = async () => {
     setLoading(true)
@@ -72,12 +96,12 @@ export default function Reports() {
       {/* Date range */}
       <div className="bg-white rounded-xl border border-gray-200 p-4 flex flex-wrap gap-3 items-end">
         <div>
-          <label className="label">Από</label>
-          <input className="input" type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
+          <label htmlFor="rep-from" className="label">Από</label>
+          <input id="rep-from" className="input" type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
         </div>
         <div>
-          <label className="label">Έως</label>
-          <input className="input" type="date" value={to} onChange={(e) => setTo(e.target.value)} />
+          <label htmlFor="rep-to" className="label">Έως</label>
+          <input id="rep-to" className="input" type="date" value={to} onChange={(e) => setTo(e.target.value)} />
         </div>
         <div className="flex gap-2">
           {[
@@ -95,7 +119,7 @@ export default function Reports() {
           <button
             key={t.id}
             onClick={() => setTab(t.id)}
-            className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${tab === t.id ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+            className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${tab === t.id ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-700 hover:text-gray-900'}`}
           >
             {t.label}
           </button>
@@ -105,13 +129,19 @@ export default function Reports() {
       {loading && <div className="text-center py-8 text-gray-400">Φόρτωση...</div>}
 
       {/* OCCUPANCY */}
-      {!loading && tab === 'occupancy' && occData && (
+      {!loading && tab === 'occupancy' && occData && occData.summary && (
         <div className="space-y-4">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <div className="bg-white rounded-xl border border-gray-200 p-4"><p className="text-xs text-gray-500 mb-1">Μ.Ο. Πληρότητας</p><p className="text-2xl font-bold text-blue-700">{occData.summary.avg_occupancy_rate}%</p></div>
-            <div className="bg-white rounded-xl border border-gray-200 p-4"><p className="text-xs text-gray-500 mb-1">Μονάδες</p><p className="text-2xl font-bold text-gray-700">{occData.summary.total_units}</p></div>
-            <div className="bg-white rounded-xl border border-gray-200 p-4"><p className="text-xs text-gray-500 mb-1">Συνολικά Έσοδα</p><p className="text-2xl font-bold text-green-700">{formatEur(occData.summary.total_revenue)}</p></div>
-            <div className="bg-white rounded-xl border border-gray-200 p-4"><p className="text-xs text-gray-500 mb-1">Καθαρά Έσοδα</p><p className="text-2xl font-bold text-emerald-700">{formatEur(occData.summary.total_net_revenue)}</p></div>
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
+            <div className="bg-white rounded-xl border border-gray-200 p-4"><p className="text-xs text-gray-700 mb-1">Μ.Ο. Πληρότητας</p><p className="text-2xl font-bold text-blue-700">{occData.summary.avg_occupancy_rate}%</p></div>
+            <div className="bg-white rounded-xl border border-gray-200 p-4"><p className="text-xs text-gray-700 mb-1">Μονάδες</p><p className="text-2xl font-bold text-gray-700">{occData.summary.total_units}</p></div>
+            <div className="bg-white rounded-xl border border-gray-200 p-4"><p className="text-xs text-gray-700 mb-1">Συνολικά Έσοδα</p><p className="text-2xl font-bold text-green-700">{formatEur(occData.summary.total_revenue)}</p></div>
+            <div className="bg-white rounded-xl border border-gray-200 p-4"><p className="text-xs text-gray-700 mb-1">Καθαρά Έσοδα</p><p className="text-2xl font-bold text-emerald-700">{formatEur(occData.summary.total_net_revenue)}</p></div>
+            <div className="bg-white rounded-xl border border-red-100 p-4"><p className="text-xs text-gray-700 mb-1">Σύνολο Εξόδων</p><p className="text-2xl font-bold text-red-600">{formatEur(totalExpenses)}</p></div>
+            <div className="bg-white rounded-xl border border-orange-100 p-4"><p className="text-xs text-gray-700 mb-1">Δανειακές Υποχρ.</p><p className="text-2xl font-bold text-orange-600">{formatEur(totalLoans)}</p></div>
+            <div className={`rounded-xl border p-4 ${occData.summary.total_net_revenue - totalExpenses - totalLoans >= 0 ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-200'}`}>
+              <p className="text-xs text-gray-700 mb-1">Καθαρό Cash Flow</p>
+              <p className={`text-2xl font-bold ${occData.summary.total_net_revenue - totalExpenses - totalLoans >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>{formatEur(occData.summary.total_net_revenue - totalExpenses - totalLoans)}</p>
+            </div>
           </div>
           <div className="bg-white rounded-xl border border-gray-200 p-4">
             <h3 className="text-sm font-semibold text-gray-700 mb-4">Πληρότητα ανά Μονάδα (%)</h3>
@@ -128,26 +158,44 @@ export default function Reports() {
           <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
-                <thead><tr className="border-b bg-gray-50 text-xs text-gray-500 uppercase">
+                <thead><tr className="border-b bg-gray-50 text-xs text-gray-700 uppercase">
                   <th className="text-left px-4 py-3">Μονάδα</th>
                   <th className="text-right px-4 py-3">Πληρ. Μέρες</th>
                   <th className="text-right px-4 py-3">Ελεύθ. Μέρες</th>
                   <th className="text-right px-4 py-3">Πληρότητα</th>
                   <th className="text-right px-4 py-3">Έσοδα</th>
+                  <th className="text-right px-4 py-3">Προμήθειες</th>
                   <th className="text-right px-4 py-3">Καθαρά</th>
+                  <th className="text-right px-4 py-3 text-red-500">Έξοδα*</th>
+                  <th className="text-right px-4 py-3 text-orange-500">Δάνεια*</th>
+                  <th className="text-right px-4 py-3 text-emerald-600">Cash Flow</th>
                 </tr></thead>
                 <tbody className="divide-y divide-gray-50">
-                  {occData.units.map((u) => (
+                  {occData.units.map((u) => {
+                    const expShare = totalExpenses / occData.units.length
+                    const loanShare = totalLoans / occData.units.length
+                    const cashflow = u.net_revenue - expShare - loanShare
+                    return (
                     <tr key={u.unit_id} className="hover:bg-gray-50">
                       <td className="px-4 py-3 font-medium">{u.unit_name}</td>
                       <td className="px-4 py-3 text-right">{u.occupied_days}</td>
                       <td className="px-4 py-3 text-right text-gray-400">{u.free_days}</td>
                       <td className="px-4 py-3 text-right"><span className={`font-semibold ${u.occupancy_rate >= 70 ? 'text-green-600' : u.occupancy_rate >= 40 ? 'text-amber-600' : 'text-red-500'}`}>{u.occupancy_rate}%</span></td>
                       <td className="px-4 py-3 text-right">{formatEur(u.total_revenue)}</td>
+                      <td className="px-4 py-3 text-right text-amber-600">{formatEur(u.total_revenue - u.net_revenue)}</td>
                       <td className="px-4 py-3 text-right text-emerald-600">{formatEur(u.net_revenue)}</td>
+                      <td className="px-4 py-3 text-right text-red-500">{formatEur(expShare)}</td>
+                      <td className="px-4 py-3 text-right text-orange-500">{totalLoans > 0 ? formatEur(loanShare) : '—'}</td>
+                      <td className="px-4 py-3 text-right font-bold"><span className={cashflow >= 0 ? 'text-emerald-700' : 'text-red-600'}>{formatEur(cashflow)}</span></td>
                     </tr>
-                  ))}
+                  )})}
                 </tbody>
+                <tfoot>
+                  <tr className="bg-gray-50 border-t-2 border-gray-300 text-xs text-gray-500">
+                    <td colSpan={9} className="px-4 py-2 italic">* Τα έξοδα και δάνεια κατανέμονται ισόποσα ανά μονάδα. Για ακριβή κατανομή χρησιμοποιήστε τη στήλη Μονάδα στα Έξοδα.</td>
+                    <td />
+                  </tr>
+                </tfoot>
               </table>
             </div>
           </div>
@@ -157,10 +205,16 @@ export default function Reports() {
       {/* BY CHANNEL */}
       {!loading && tab === 'channel' && chData && (
         <div className="space-y-4">
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-            <div className="bg-white rounded-xl border border-gray-200 p-4"><p className="text-xs text-gray-500 mb-1">Σύνολο Κρατήσεων</p><p className="text-2xl font-bold text-gray-700">{chData.total_bookings}</p></div>
-            <div className="bg-white rounded-xl border border-gray-200 p-4"><p className="text-xs text-gray-500 mb-1">Συνολικά Έσοδα</p><p className="text-2xl font-bold text-green-700">{formatEur(chData.total_revenue)}</p></div>
-            <div className="bg-white rounded-xl border border-gray-200 p-4"><p className="text-xs text-gray-500 mb-1">Καθαρά Έσοδα</p><p className="text-2xl font-bold text-emerald-700">{formatEur(chData.total_net_revenue)}</p></div>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+            <div className="bg-white rounded-xl border border-gray-200 p-4"><p className="text-xs text-gray-700 mb-1">Σύνολο Κρατήσεων</p><p className="text-2xl font-bold text-gray-700">{chData.total_bookings}</p></div>
+            <div className="bg-white rounded-xl border border-gray-200 p-4"><p className="text-xs text-gray-700 mb-1">Συνολικά Έσοδα</p><p className="text-2xl font-bold text-green-700">{formatEur(chData.total_revenue)}</p></div>
+            <div className="bg-white rounded-xl border border-gray-200 p-4"><p className="text-xs text-gray-700 mb-1">Καθαρά Έσοδα</p><p className="text-2xl font-bold text-emerald-700">{formatEur(chData.total_net_revenue)}</p></div>
+            <div className="bg-white rounded-xl border border-red-100 p-4"><p className="text-xs text-gray-700 mb-1">Σύνολο Εξόδων</p><p className="text-2xl font-bold text-red-600">{formatEur(totalExpenses)}</p></div>
+            <div className="bg-white rounded-xl border border-orange-100 p-4"><p className="text-xs text-gray-700 mb-1">Δανειακές Υποχρ.</p><p className="text-2xl font-bold text-orange-600">{formatEur(totalLoans)}</p></div>
+            <div className={`rounded-xl border p-4 ${chData.total_net_revenue - totalExpenses - totalLoans >= 0 ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-200'}`}>
+              <p className="text-xs text-gray-700 mb-1">Καθαρό Cash Flow</p>
+              <p className={`text-2xl font-bold ${chData.total_net_revenue - totalExpenses - totalLoans >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>{formatEur(chData.total_net_revenue - totalExpenses - totalLoans)}</p>
+            </div>
           </div>
           <div className="grid md:grid-cols-2 gap-4">
             <div className="bg-white rounded-xl border border-gray-200 p-4">
@@ -191,7 +245,7 @@ export default function Reports() {
           <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
-                <thead><tr className="border-b bg-gray-50 text-xs text-gray-500 uppercase">
+                <thead><tr className="border-b bg-gray-50 text-xs text-gray-700 uppercase">
                   <th className="text-left px-4 py-3">Κανάλι</th>
                   <th className="text-right px-4 py-3">Κρατήσεις</th>
                   <th className="text-right px-4 py-3">Νύχτες</th>
@@ -220,48 +274,99 @@ export default function Reports() {
       {/* FINANCIAL */}
       {!loading && tab === 'financial' && finData && (
         <div className="space-y-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+            <div className="bg-white rounded-xl border border-gray-200 p-4"><p className="text-xs text-gray-700 mb-1">Συνολικά Έσοδα</p><p className="text-2xl font-bold text-green-700">{formatEur(finData.data.reduce((s,d)=>s+d.total_revenue,0))}</p></div>
+            <div className="bg-white rounded-xl border border-gray-200 p-4"><p className="text-xs text-gray-700 mb-1">Καθαρά Έσοδα</p><p className="text-2xl font-bold text-emerald-700">{formatEur(finData.data.reduce((s,d)=>s+d.net_revenue,0))}</p></div>
+            <div className="bg-white rounded-xl border border-red-100 p-4"><p className="text-xs text-gray-700 mb-1">Σύνολο Εξόδων</p><p className="text-2xl font-bold text-red-600">{formatEur(totalExpenses)}</p></div>
+            <div className="bg-white rounded-xl border border-orange-100 p-4"><p className="text-xs text-gray-700 mb-1">Δανειακές Υποχρ.</p><p className="text-2xl font-bold text-orange-600">{formatEur(totalLoans)}</p></div>
+            <div className="bg-white rounded-xl border border-gray-200 p-4"><p className="text-xs text-gray-700 mb-1">Σύνολο Κόστους</p><p className="text-2xl font-bold text-red-700">{formatEur(totalExpenses + totalLoans)}</p></div>
+            <div className={`rounded-xl border p-4 ${finData.data.reduce((s,d)=>s+d.net_revenue,0) - totalExpenses - totalLoans >= 0 ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-200'}`}>
+              <p className="text-xs text-gray-700 mb-1">Καθαρό Cash Flow</p>
+              <p className={`text-2xl font-bold ${finData.data.reduce((s,d)=>s+d.net_revenue,0) - totalExpenses - totalLoans >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>{formatEur(finData.data.reduce((s,d)=>s+d.net_revenue,0) - totalExpenses - totalLoans)}</p>
+            </div>
+          </div>
+
           <div className="flex gap-2">
             {[{ v: 'month', l: 'Ανά Μήνα' }, { v: 'week', l: 'Ανά Εβδομάδα' }, { v: 'channel', l: 'Ανά Κανάλι' }].map((g) => (
               <button key={g.v} onClick={() => setFinGroup(g.v)} className={`btn-secondary text-xs ${finGroup === g.v ? 'bg-blue-600 text-white border-blue-600' : ''}`}>{g.l}</button>
             ))}
           </div>
+
+          {/* Chart: revenue + commissions + expenses + profit */}
           <div className="bg-white rounded-xl border border-gray-200 p-4">
-            <h3 className="text-sm font-semibold text-gray-700 mb-4">Έσοδα (€)</h3>
-            <ResponsiveContainer width="100%" height={250}>
-              <BarChart data={finData.data} margin={{ top: 0, right: 0, left: -10, bottom: 40 }}>
+            <h3 className="text-sm font-semibold text-gray-700 mb-4">Έσοδα, Έξοδα & Κέρδος (€)</h3>
+            <ResponsiveContainer width="100%" height={280}>
+              <BarChart
+                data={finData.data.map(d => ({
+                  ...d,
+                  expenses: expByMonth[d.key] || 0,
+                  loans: loanByMonth[d.key] || 0,
+                  cashflow: d.net_revenue - (expByMonth[d.key] || 0) - (loanByMonth[d.key] || 0),
+                }))}
+                margin={{ top: 10, right: 10, left: -10, bottom: 40 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                 <XAxis dataKey="label" angle={-35} textAnchor="end" tick={{ fontSize: 11 }} />
                 <YAxis tick={{ fontSize: 11 }} />
-                <Tooltip formatter={(v) => formatEur(v)} />
+                <ReferenceLine y={0} stroke="#666" strokeWidth={1} />
+                <Tooltip formatter={(v, name) => [formatEur(Math.abs(v)), name]} />
                 <Legend />
-                <Bar dataKey="net_revenue" fill="#10B981" radius={[4, 4, 0, 0]} name="Καθαρά Έσοδα" />
-                <Bar dataKey="total_commission" fill="#F59E0B" radius={[4, 4, 0, 0]} name="Προμήθειες" />
+                <Bar dataKey="net_revenue" fill="#10B981" radius={[4,4,0,0]} name="Καθαρά Έσοδα" stackId="a" />
+                <Bar dataKey="total_commission" fill="#F59E0B" radius={[0,0,0,0]} name="Προμήθειες" stackId="a" />
+                <Bar dataKey="expenses" fill="#EF4444" radius={[4,4,0,0]} name="Έξοδα" />
+                <Bar dataKey="loans" fill="#F97316" radius={[4,4,0,0]} name="Δάνεια" />
+                <Bar dataKey="cashflow" fill="#059669" radius={[4,4,0,0]} name="Cash Flow" />
               </BarChart>
             </ResponsiveContainer>
           </div>
+
           <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
-                <thead><tr className="border-b bg-gray-50 text-xs text-gray-500 uppercase">
+                <thead><tr className="border-b bg-gray-50 text-xs text-gray-700 uppercase">
                   <th className="text-left px-4 py-3">Περίοδος</th>
                   <th className="text-right px-4 py-3">Κρατήσεις</th>
                   <th className="text-right px-4 py-3">Νύχτες</th>
-                  <th className="text-right px-4 py-3">Μ.Ο. Διαμονής</th>
                   <th className="text-right px-4 py-3">Έσοδα</th>
+                  <th className="text-right px-4 py-3">Προμήθειες</th>
                   <th className="text-right px-4 py-3">Καθαρά</th>
+                  <th className="text-right px-4 py-3 text-red-500">Έξοδα</th>
+                  <th className="text-right px-4 py-3 text-orange-500">Δάνεια</th>
+                  <th className="text-right px-4 py-3 text-emerald-600">Cash Flow</th>
                 </tr></thead>
                 <tbody className="divide-y divide-gray-50">
-                  {finData.data.map((d) => (
+                  {finData.data.map((d) => {
+                    const exp = expByMonth[d.key] || 0
+                    const loan = loanByMonth[d.key] || 0
+                    const cashflow = d.net_revenue - exp - loan
+                    return (
                     <tr key={d.key} className="hover:bg-gray-50">
                       <td className="px-4 py-3 font-medium">{d.label}</td>
                       <td className="px-4 py-3 text-right">{d.bookings_count}</td>
                       <td className="px-4 py-3 text-right">{d.nights}</td>
-                      <td className="px-4 py-3 text-right">{d.avg_stay} νύχτες</td>
                       <td className="px-4 py-3 text-right">{formatEur(d.total_revenue)}</td>
-                      <td className="px-4 py-3 text-right text-emerald-600 font-semibold">{formatEur(d.net_revenue)}</td>
+                      <td className="px-4 py-3 text-right text-amber-600">{formatEur(d.total_commission)}</td>
+                      <td className="px-4 py-3 text-right text-emerald-600">{formatEur(d.net_revenue)}</td>
+                      <td className="px-4 py-3 text-right text-red-500">{exp > 0 ? formatEur(exp) : '—'}</td>
+                      <td className="px-4 py-3 text-right text-orange-500">{loan > 0 ? formatEur(loan) : '—'}</td>
+                      <td className="px-4 py-3 text-right font-bold"><span className={cashflow >= 0 ? 'text-emerald-700' : 'text-red-600'}>{formatEur(cashflow)}</span></td>
                     </tr>
-                  ))}
+                  )})}
                 </tbody>
+                <tfoot>
+                  <tr className="bg-gray-50 border-t-2 border-gray-300 font-semibold text-sm">
+                    <td className="px-4 py-3" colSpan={3}>ΣΥΝΟΛΟ</td>
+                    <td className="px-4 py-3 text-right">{formatEur(finData.data.reduce((s,d)=>s+d.total_revenue,0))}</td>
+                    <td className="px-4 py-3 text-right text-amber-600">{formatEur(finData.data.reduce((s,d)=>s+d.total_commission,0))}</td>
+                    <td className="px-4 py-3 text-right text-emerald-600">{formatEur(finData.data.reduce((s,d)=>s+d.net_revenue,0))}</td>
+                    <td className="px-4 py-3 text-right text-red-500">{formatEur(totalExpenses)}</td>
+                    <td className="px-4 py-3 text-right text-orange-500">{totalLoans > 0 ? formatEur(totalLoans) : '—'}</td>
+                    <td className="px-4 py-3 text-right font-bold">
+                      <span className={finData.data.reduce((s,d)=>s+d.net_revenue,0)-totalExpenses-totalLoans>=0?'text-emerald-700':'text-red-600'}>
+                        {formatEur(finData.data.reduce((s,d)=>s+d.net_revenue,0)-totalExpenses-totalLoans)}
+                      </span>
+                    </td>
+                  </tr>
+                </tfoot>
               </table>
             </div>
           </div>
@@ -317,7 +422,7 @@ export default function Reports() {
           <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
-                <thead><tr className="border-b bg-gray-50 text-xs text-gray-500 uppercase">
+                <thead><tr className="border-b bg-gray-50 text-xs text-gray-700 uppercase">
                   <th className="text-left px-4 py-3">Περίοδος</th>
                   <th className="text-right px-4 py-3">Κρατήσεις</th>
                   <th className="text-right px-4 py-3">Νύχτες</th>

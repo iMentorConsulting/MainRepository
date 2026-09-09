@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
-import { getUnits, createUnit, updateUnit, deleteUnit } from '../api'
+import { getUnits, createUnit, updateUnit, deleteUnit, syncIcalAll, syncIcalUnit } from '../api'
 import toast from 'react-hot-toast'
-import { PlusIcon, PencilSquareIcon, TrashIcon, XMarkIcon } from '@heroicons/react/24/outline'
+import { PlusIcon, PencilSquareIcon, TrashIcon, XMarkIcon, ArrowPathIcon } from '@heroicons/react/24/outline'
 
 const TYPES = [
   { value: 'apartment', label: 'Διαμέρισμα' },
@@ -13,10 +13,10 @@ const TYPES = [
 ]
 const TYPE_LABELS = Object.fromEntries(TYPES.map((t) => [t.value, t.label]))
 
-const empty = { name: '', type: 'apartment', capacity: 2, description: '', base_price: 0, is_active: true }
+const empty = { name: '', type: 'apartment', capacity: 2, description: '', base_price: 0, is_active: true, ical_url: '' }
 
 function UnitModal({ unit, onClose, onSaved }) {
-  const [form, setForm] = useState(unit || empty)
+  const [form, setForm] = useState(unit ? { ...unit, ical_url: unit.ical_url || '' } : empty)
   const [saving, setSaving] = useState(false)
 
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }))
@@ -25,11 +25,12 @@ function UnitModal({ unit, onClose, onSaved }) {
     e.preventDefault()
     setSaving(true)
     try {
+      const payload = { ...form, ical_url: form.ical_url || null }
       if (unit?.id) {
-        await updateUnit(unit.id, form)
+        await updateUnit(unit.id, payload)
         toast.success('Η μονάδα ενημερώθηκε')
       } else {
-        await createUnit(form)
+        await createUnit(payload)
         toast.success('Η μονάδα δημιουργήθηκε')
       }
       onSaved()
@@ -42,7 +43,7 @@ function UnitModal({ unit, onClose, onSaved }) {
 
   return (
     <div className="fixed inset-0 z-50 bg-black/40 flex items-end md:items-center justify-center p-0 md:p-4">
-      <div className="bg-white w-full md:max-w-md rounded-t-2xl md:rounded-2xl shadow-xl">
+      <div className="bg-white w-full md:max-w-md rounded-t-2xl md:rounded-2xl shadow-xl max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
           <h3 className="font-bold text-gray-800">{unit?.id ? 'Επεξεργασία Μονάδας' : 'Νέα Μονάδα'}</h3>
           <button onClick={onClose}><XMarkIcon className="h-5 w-5 text-gray-500" /></button>
@@ -76,6 +77,22 @@ function UnitModal({ unit, onClose, onSaved }) {
             <input type="checkbox" id="active" checked={form.is_active} onChange={(e) => set('is_active', e.target.checked)} className="h-4 w-4" />
             <label htmlFor="active" className="text-sm text-gray-700">Ενεργή μονάδα</label>
           </div>
+
+          {/* iCal section */}
+          <div className="border-t border-gray-100 pt-4">
+            <label className="label">Booking.com iCal URL (προαιρετικό)</label>
+            <input
+              className="input text-xs"
+              type="url"
+              value={form.ical_url}
+              onChange={(e) => set('ical_url', e.target.value)}
+              placeholder="https://admin.booking.com/hotel/hoteladmin/ical.html?..."
+            />
+            <p className="text-xs text-gray-400 mt-1">
+              Booking.com → Κρατήσεις → Εξαγωγή κρατήσεων → Αντιγραφή iCal συνδέσμου
+            </p>
+          </div>
+
           <div className="flex gap-2 pt-2">
             <button type="button" onClick={onClose} className="btn-secondary flex-1">Ακύρωση</button>
             <button type="submit" disabled={saving} className="btn-primary flex-1">{saving ? 'Αποθήκευση...' : 'Αποθήκευση'}</button>
@@ -88,7 +105,9 @@ function UnitModal({ unit, onClose, onSaved }) {
 
 export default function Units() {
   const [units, setUnits] = useState([])
-  const [modal, setModal] = useState(null) // null | 'new' | unit object
+  const [modal, setModal] = useState(null)
+  const [syncing, setSyncing] = useState(false)
+  const [syncingUnit, setSyncingUnit] = useState(null)
 
   const load = () => getUnits().then((r) => setUnits(r.data))
   useEffect(() => { load() }, [])
@@ -104,13 +123,56 @@ export default function Units() {
     }
   }
 
+  const handleSyncAll = async () => {
+    setSyncing(true)
+    try {
+      const r = await syncIcalAll()
+      const { total_added, total_updated } = r.data
+      toast.success(`Sync: +${total_added} νέες, ${total_updated} ενημερώθηκαν`)
+    } catch {
+      toast.error('Σφάλμα συγχρονισμού')
+    } finally {
+      setSyncing(false)
+    }
+  }
+
+  const handleSyncUnit = async (u) => {
+    setSyncingUnit(u.id)
+    try {
+      const r = await syncIcalUnit(u.id)
+      if (r.data.error) {
+        toast.error(`${u.name}: ${r.data.error}`)
+      } else {
+        toast.success(`${u.name}: +${r.data.added} νέες, ${r.data.updated} ενημερώθηκαν`)
+      }
+    } catch {
+      toast.error('Σφάλμα συγχρονισμού')
+    } finally {
+      setSyncingUnit(null)
+    }
+  }
+
+  const hasIcal = units.some(u => u.ical_url)
+
   return (
     <div className="p-4 md:p-6 space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
         <h2 className="text-xl font-bold text-gray-800">Μονάδες</h2>
-        <button onClick={() => setModal('new')} className="btn-primary flex items-center gap-1">
-          <PlusIcon className="h-4 w-4" /> Νέα
-        </button>
+        <div className="flex items-center gap-2">
+          {hasIcal && (
+            <button
+              onClick={handleSyncAll}
+              disabled={syncing}
+              className="btn-secondary flex items-center gap-1 text-sm"
+            >
+              <ArrowPathIcon className={`h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />
+              Sync Booking.com
+            </button>
+          )}
+          <button onClick={() => setModal('new')} className="btn-primary flex items-center gap-1">
+            <PlusIcon className="h-4 w-4" /> Νέα
+          </button>
+        </div>
       </div>
 
       {units.length === 0 ? (
@@ -147,6 +209,19 @@ export default function Units() {
               )}
               {!u.is_active && (
                 <span className="mt-2 inline-block text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">Ανενεργή</span>
+              )}
+              {u.ical_url && (
+                <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between">
+                  <span className="text-xs text-blue-600 font-medium">📅 Booking.com iCal</span>
+                  <button
+                    onClick={() => handleSyncUnit(u)}
+                    disabled={syncingUnit === u.id}
+                    className="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1"
+                  >
+                    <ArrowPathIcon className={`h-3 w-3 ${syncingUnit === u.id ? 'animate-spin' : ''}`} />
+                    Sync
+                  </button>
+                </div>
               )}
             </div>
           ))}

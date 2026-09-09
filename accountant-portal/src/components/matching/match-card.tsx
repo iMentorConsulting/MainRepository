@@ -1,0 +1,71 @@
+import { Badge } from '@/components/ui/badge'
+import { CheckCircle, Clock, XCircle, ThumbsUp, Send } from 'lucide-react'
+
+type MatchStatus = 'POTENTIAL' | 'REVIEWED' | 'REJECTED' | 'INTERESTED' | 'SUBMITTED'
+
+interface MatchCardProps {
+  businessName: string
+  afm: string
+  programTitle: string
+  matchScore: number
+  matchReason: string[]
+  status: MatchStatus
+  onStatusChange?: (status: MatchStatus) => void
+}
+
+const statusConfig: Record<MatchStatus, { label: string; variant: any; icon: any }> = {
+  POTENTIAL: { label: 'Πιθανό', variant: 'default', icon: Clock },
+  REVIEWED: { label: 'Ελέγχθηκε', variant: 'info', icon: CheckCircle },
+  REJECTED: { label: 'Απορρίφθηκε', variant: 'danger', icon: XCircle },
+  INTERESTED: { label: 'Ενδιαφέρον', variant: 'success', icon: ThumbsUp },
+  SUBMITTED: { label: 'Υποβλήθηκε', variant: 'warning', icon: Send },
+}
+
+function ScoreBar({ score }: { score: number }) {
+  const color = score >= 80 ? 'bg-green-500' : score >= 60 ? 'bg-yellow-500' : 'bg-orange-500'
+  return (
+    <div className="flex items-center gap-2">
+      <div className="flex-1 h-2 bg-gray-200 rounded-full">
+        <div className={`h-2 rounded-full ${color}`} style={{ width: `${score}%` }} />
+      </div>
+      <span className="text-sm font-semibold text-gray-700">{score}%</span>
+    </div>
+  )
+}
+
+export function MatchCard({ businessName, afm, programTitle, matchScore, matchReason, status }: MatchCardProps) {
+  const conf = statusConfig[status]
+  const Icon = conf.icon
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+      <div className="flex items-start justify-between mb-3">
+        <div>
+          <div className="font-semibold text-gray-900">{businessName || '-'}</div>
+          <div className="text-xs text-gray-500">ΑΦΜ: {afm}</div>
+          <div className="text-xs text-blue-700 mt-0.5">{programTitle}</div>
+        </div>
+        <Badge variant={conf.variant} className="flex items-center gap-1">
+          <Icon size={11} />
+          {conf.label}
+        </Badge>
+      </div>
+      <div className="mb-3">
+        <div className="text-xs text-gray-500 mb-1">Σκορ Match</div>
+        <ScoreBar score={Math.round(matchScore)} />
+      </div>
+      {matchReason.length > 0 && (
+        <div>
+          <div className="text-xs text-gray-500 mb-1">Λόγοι</div>
+          <ul className="space-y-0.5">
+            {matchReason.map((r, i) => (
+              <li key={i} className="text-xs text-gray-700 flex items-center gap-1">
+                <span className="w-1 h-1 rounded-full bg-blue-500 flex-shrink-0" />
+                {r}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  )
+}

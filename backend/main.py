@@ -1,41 +1,720 @@
 import os
-from fastapi import FastAPI
+import uuid
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from dotenv import load_dotenv
 from database import Base, engine
-from routes import units, bookings, customers, reports, ai_advisor
-from routes import auth, cleaning
+from models_cases import CMUser, CMCase, CMTask, CMPayment, CMMessage, CMDocument, CMNotificationLog, CMBudgetCategory, CMPendingItemTemplate, CMCasePendingItem, CMPipelineConfig, CMCaseStatusHistory
+
+# Booking system routes
+from routes.auth import router as auth_router
+from routes.units import router as units_router
+from routes.customers import router as customers_router
+from routes.bookings import router as bookings_router
+from routes.reports import router as reports_router
+from routes.ai_advisor import router as ai_router
+from routes.cleaning import router as cleaning_router
+from routes.guest import router as guest_router
+from routes.ical import router as ical_router
+from routes.portal_admin import router as portal_admin_router
+from routes.expenses import router as expenses_router
+from routes.maintenance import router as maintenance_router
+from routes.owners import router as owners_router
+from routes.pricing import router as pricing_router
+from routes.widget import router as widget_router
+from routes.availability import router as availability_router
+from routes.loans import router as loans_router
+
+# Case management routes
+from routes.cm_auth import router as cm_auth_router
+from routes.cm_users import router as cm_users_router
+from routes.cases import router as cases_router
+from routes.cm_dashboard import router as cm_dashboard_router
+from routes.cm_google_sheets import router as cm_sheets_router
+from routes.cm_notifications import router as cm_notifications_router
+from routes.cm_admin import router as cm_admin_router
+from routes.cm_pending_items import router as cm_pending_items_router
+from routes.cm_portal import router as cm_portal_router
+from routes.cm_pipeline import router as cm_pipeline_router
+from routes.cm_worklists import router as cm_worklists_router
+from routes.cm_analytics import router as cm_analytics_router
+from routes.cm_modifications import router as cm_modifications_router
+from routes.cm_portal_files import router as cm_portal_files_router
+from routes.cm_revenue import router as cm_revenue_router
+from routes.finance_api import router as finance_api_router
 
 load_dotenv()
 
-# Create all tables
+# Create all DB tables (covers both booking and CRM models)
 Base.metadata.create_all(bind=engine)
 
-# Safe migrations
+# Booking system migrations (idempotent — fail silently on SQLite)
+from sqlalchemy import text as _text_b
+try:
+    with engine.connect() as _bc:
+        _bc.execute(_text_b("ALTER TABLE guest_portal_settings ADD COLUMN smtp_host VARCHAR(200)"))
+        _bc.execute(_text_b("ALTER TABLE guest_portal_settings ADD COLUMN smtp_port INTEGER DEFAULT 587"))
+        _bc.execute(_text_b("ALTER TABLE guest_portal_settings ADD COLUMN smtp_user VARCHAR(200)"))
+        _bc.execute(_text_b("ALTER TABLE guest_portal_settings ADD COLUMN smtp_pass VARCHAR(200)"))
+        _bc.execute(_text_b("ALTER TABLE guest_portal_settings ADD COLUMN notification_email VARCHAR(200)"))
+        _bc.commit()
+except Exception:
+    pass
+
+try:
+    with engine.connect() as _bc:
+        _bc.execute(_text_b("""
+            CREATE TABLE IF NOT EXISTS owners (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                tenant VARCHAR(50) NOT NULL,
+                name VARCHAR(200) NOT NULL,
+                email VARCHAR(200),
+                phone VARCHAR(50),
+                management_fee_percent FLOAT DEFAULT 20.0,
+                auto_send_report BOOLEAN DEFAULT 0,
+                notes TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        """))
+        _bc.commit()
+except Exception:
+    pass
+
+try:
+    with engine.connect() as _bc:
+        _bc.execute(_text_b("ALTER TABLE units ADD COLUMN owner_id INTEGER REFERENCES owners(id)"))
+        _bc.commit()
+except Exception:
+    pass
+
+try:
+    with engine.connect() as _bc:
+        _bc.execute(_text_b("ALTER TABLE units ADD COLUMN ical_export_token VARCHAR(64)"))
+        _bc.commit()
+except Exception:
+    pass
+
+try:
+    with engine.connect() as _bc:
+        _bc.execute(_text_b("ALTER TABLE units ADD COLUMN widget_token VARCHAR(64)"))
+        _bc.commit()
+except Exception:
+    pass
+
+try:
+    with engine.connect() as _bc:
+        _bc.execute(_text_b("""
+            CREATE TABLE IF NOT EXISTS booking_inquiries (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                tenant VARCHAR(50) NOT NULL,
+                unit_id INTEGER NOT NULL REFERENCES units(id),
+                guest_name VARCHAR(200) NOT NULL,
+                guest_email VARCHAR(200) NOT NULL,
+                guest_phone VARCHAR(50),
+                check_in DATE NOT NULL,
+                check_out DATE NOT NULL,
+                guests INTEGER DEFAULT 1,
+                message TEXT,
+                status VARCHAR(20) DEFAULT 'pending',
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        """))
+        _bc.commit()
+except Exception:
+    pass
+
+try:
+    with engine.connect() as _bc:
+        _bc.execute(_text_b("ALTER TABLE guest_portal_settings ADD COLUMN auto_email_enabled BOOLEAN DEFAULT 1"))
+        _bc.execute(_text_b("ALTER TABLE guest_portal_settings ADD COLUMN pre_arrival_days_1 INTEGER DEFAULT 3"))
+        _bc.execute(_text_b("ALTER TABLE guest_portal_settings ADD COLUMN pre_arrival_days_2 INTEGER DEFAULT 1"))
+        _bc.execute(_text_b("ALTER TABLE guest_portal_settings ADD COLUMN post_departure_enabled BOOLEAN DEFAULT 1"))
+        _bc.execute(_text_b("ALTER TABLE guest_portal_settings ADD COLUMN review_url VARCHAR(500)"))
+        _bc.commit()
+except Exception:
+    pass
+
+try:
+    with engine.connect() as _bc:
+        _bc.execute(_text_b("ALTER TABLE guest_portal_settings ADD COLUMN pre_arrival_subject VARCHAR(300)"))
+        _bc.execute(_text_b("ALTER TABLE guest_portal_settings ADD COLUMN pre_arrival_message TEXT"))
+        _bc.execute(_text_b("ALTER TABLE guest_portal_settings ADD COLUMN post_departure_subject VARCHAR(300)"))
+        _bc.execute(_text_b("ALTER TABLE guest_portal_settings ADD COLUMN post_departure_message TEXT"))
+        _bc.commit()
+except Exception:
+    pass
+
+try:
+    with engine.connect() as _bc:
+        _bc.execute(_text_b("""
+            CREATE TABLE IF NOT EXISTS availability_rules (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                tenant VARCHAR(50) NOT NULL,
+                unit_id INTEGER NOT NULL REFERENCES units(id),
+                date DATE NOT NULL,
+                status VARCHAR(20) DEFAULT 'open',
+                availability INTEGER,
+                min_stay INTEGER,
+                max_stay INTEGER,
+                checkin_restriction VARCHAR(20) DEFAULT 'allowed',
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        """))
+        _bc.commit()
+except Exception:
+    pass
+
+try:
+    with engine.connect() as _bc:
+        _bc.execute(_text_b("""
+            CREATE TABLE IF NOT EXISTS email_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                tenant VARCHAR(50) NOT NULL,
+                booking_id INTEGER NOT NULL REFERENCES bookings(id),
+                email_type VARCHAR(50) NOT NULL,
+                to_email VARCHAR(200),
+                sent_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                success BOOLEAN DEFAULT 1
+            )
+        """))
+        _bc.commit()
+except Exception:
+    pass
+
+try:
+    with engine.connect() as _bc:
+        _bc.execute(_text_b("""
+            CREATE TABLE IF NOT EXISTS maintenance_issues (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                tenant VARCHAR(50) NOT NULL,
+                unit_id INTEGER NOT NULL REFERENCES units(id),
+                title VARCHAR(200) NOT NULL,
+                description TEXT,
+                category VARCHAR(50) NOT NULL,
+                priority VARCHAR(20) NOT NULL DEFAULT 'medium',
+                status VARCHAR(20) NOT NULL DEFAULT 'open',
+                reported_by VARCHAR(20) DEFAULT 'manager',
+                reporter_name VARCHAR(100),
+                notes TEXT,
+                booking_id INTEGER REFERENCES bookings(id),
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                resolved_at DATETIME
+            )
+        """))
+        _bc.commit()
+except Exception:
+    pass
+
+try:
+    with engine.connect() as _bc:
+        _bc.execute(_text_b("""
+            CREATE TABLE IF NOT EXISTS gap_alert_templates (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                tenant VARCHAR(50) NOT NULL UNIQUE,
+                template_en TEXT,
+                template_gr TEXT
+            )
+        """))
+        _bc.commit()
+except Exception:
+    pass
+
+try:
+    with engine.connect() as _bc:
+        _bc.execute(_text_b("""
+            CREATE TABLE IF NOT EXISTS seasonal_rates (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                tenant VARCHAR(50) NOT NULL,
+                name VARCHAR(200) NOT NULL,
+                unit_id INTEGER REFERENCES units(id),
+                unit_type VARCHAR(50),
+                date_from DATE NOT NULL,
+                date_to DATE NOT NULL,
+                price_per_night FLOAT NOT NULL DEFAULT 0.0,
+                min_stay INTEGER DEFAULT 1,
+                notes TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        """))
+        _bc.commit()
+except Exception:
+    pass
+
+try:
+    with engine.connect() as _bc:
+        _bc.execute(_text_b("""
+            CREATE TABLE IF NOT EXISTS loans (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                tenant VARCHAR(50) NOT NULL,
+                name VARCHAR(200) NOT NULL,
+                lender VARCHAR(200),
+                original_amount FLOAT NOT NULL DEFAULT 0.0,
+                interest_rate FLOAT,
+                monthly_installment FLOAT NOT NULL DEFAULT 0.0,
+                start_date DATE NOT NULL,
+                end_date DATE,
+                notes TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        """))
+        _bc.commit()
+except Exception:
+    pass
+
+try:
+    with engine.connect() as _bc:
+        _bc.execute(_text_b("""
+            CREATE TABLE IF NOT EXISTS expenses (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                tenant VARCHAR(50) NOT NULL,
+                date DATE NOT NULL,
+                category VARCHAR(100) NOT NULL,
+                item VARCHAR(300) NOT NULL,
+                vendor VARCHAR(200),
+                amount FLOAT NOT NULL DEFAULT 0.0,
+                unit_id INTEGER REFERENCES units(id),
+                unit_type VARCHAR(50),
+                notes TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        """))
+        _bc.commit()
+except Exception:
+    pass
+
+# Startup migration: add new columns and backfill status data
 from sqlalchemy import text as _text
-with engine.connect() as _conn:
-    try:
-        _conn.execute(_text("ALTER TABLE bookings ADD COLUMN is_billed BOOLEAN DEFAULT 0"))
+from pipelines import OLD_STATUS_MAP as _OSM
+from database import SessionLocal
+try:
+    with engine.connect() as _conn:
+        _conn.execute(_text("ALTER TABLE cm_cases ADD COLUMN IF NOT EXISTS program_category VARCHAR(50)"))
+        _conn.execute(_text("ALTER TABLE cm_cases ADD COLUMN IF NOT EXISTS status_changed_at TIMESTAMP"))
+        _conn.execute(_text("ALTER TABLE cm_cases ADD COLUMN IF NOT EXISTS follow_up_date DATE"))
+        _conn.execute(_text("ALTER TABLE cm_status_sla ADD COLUMN IF NOT EXISTS notification_message TEXT"))
+        _conn.execute(_text("ALTER TABLE cm_cases ADD COLUMN IF NOT EXISTS share_token VARCHAR(36)"))
+        _conn.execute(_text("ALTER TABLE cm_cases ADD COLUMN IF NOT EXISTS portal_visit_count INTEGER DEFAULT 0"))
+        _conn.execute(_text("ALTER TABLE cm_cases ADD COLUMN IF NOT EXISTS drive_folder_url VARCHAR(500)"))
+        _conn.execute(_text("ALTER TABLE cm_cases ADD COLUMN IF NOT EXISTS portal_nps_score INTEGER"))
+        _conn.execute(_text("ALTER TABLE cm_cases ADD COLUMN IF NOT EXISTS portal_nps_at TIMESTAMP"))
+        _conn.execute(_text("ALTER TABLE cm_cases ADD COLUMN IF NOT EXISTS portal_review_clicked BOOLEAN DEFAULT FALSE"))
+        _conn.execute(_text("ALTER TABLE cm_cases ADD COLUMN IF NOT EXISTS dypa_start_date DATE"))
+        _conn.execute(_text("""
+            CREATE TABLE IF NOT EXISTS cm_pipeline_configs (
+                id SERIAL PRIMARY KEY,
+                program_category VARCHAR(50) UNIQUE NOT NULL,
+                phases_json TEXT NOT NULL,
+                extra_statuses_json TEXT DEFAULT '[]',
+                updated_at TIMESTAMP
+            )
+        """))
+        _conn.execute(_text("ALTER TABLE cm_cases ADD COLUMN IF NOT EXISTS portal_last_visit_at TIMESTAMP"))
+        _conn.execute(_text("ALTER TABLE cm_cases ADD COLUMN IF NOT EXISTS portal_notified_at TIMESTAMP"))
+        _conn.execute(_text("ALTER TABLE cm_pipeline_configs ADD COLUMN IF NOT EXISTS status_descriptions_json TEXT DEFAULT '{}'"))
+        _conn.execute(_text("ALTER TABLE cm_messages ADD COLUMN IF NOT EXISTS sent_by_client BOOLEAN DEFAULT FALSE"))
+        _conn.execute(_text("ALTER TABLE cm_documents ADD COLUMN IF NOT EXISTS uploaded_by_client BOOLEAN DEFAULT FALSE"))
+        _conn.execute(_text("ALTER TABLE cm_documents ADD COLUMN IF NOT EXISTS file_data BYTEA"))
+        _conn.execute(_text("ALTER TABLE cm_documents ADD COLUMN IF NOT EXISTS mime_type VARCHAR(100)"))
+        _conn.execute(_text("""
+            CREATE TABLE IF NOT EXISTS cm_case_status_history (
+                id SERIAL PRIMARY KEY,
+                case_id INTEGER REFERENCES cm_cases(id) ON DELETE CASCADE,
+                from_status VARCHAR(100),
+                to_status VARCHAR(100) NOT NULL,
+                changed_at TIMESTAMP DEFAULT NOW(),
+                changed_by VARCHAR(100)
+            )
+        """))
+        _conn.execute(_text("UPDATE cm_cases SET portal_visit_count = 0 WHERE portal_last_visit_at IS NULL"))
+        _conn.execute(_text("DROP TABLE IF EXISTS cm_portal_files"))
+        _conn.execute(_text("""
+            CREATE TABLE IF NOT EXISTS cm_portal_files (
+                id SERIAL PRIMARY KEY,
+                service_type VARCHAR(200) NOT NULL,
+                original_filename VARCHAR(300) NOT NULL,
+                mime_type VARCHAR(100) NOT NULL,
+                file_size INTEGER NOT NULL,
+                file_data BYTEA NOT NULL,
+                client_description VARCHAR(500) NOT NULL,
+                client_instructions TEXT,
+                internal_notes TEXT,
+                uploaded_at TIMESTAMP DEFAULT NOW()
+            )
+        """))
         _conn.commit()
-    except Exception:
-        pass
-    for _table in ['units', 'customers', 'bookings']:
-        try:
-            _conn.execute(_text(f"ALTER TABLE {_table} ADD COLUMN tenant VARCHAR(50) DEFAULT 'evaivoni'"))
-            _conn.commit()
-        except Exception:
-            pass
-    try:
-        for _table in ['units', 'customers', 'bookings']:
-            _conn.execute(_text(f"UPDATE {_table} SET tenant='evaivoni' WHERE tenant IS NULL OR tenant=''"))
+except Exception:
+    pass
+
+try:
+    with engine.connect() as _conn:
+        _conn.execute(_text("""
+            UPDATE cm_cases
+            SET portal_notified_at = NULL
+            WHERE portal_notified_at IS NOT NULL
+              AND NOT EXISTS (
+                SELECT 1 FROM cm_notification_logs nl
+                WHERE nl.case_id = cm_cases.id
+                  AND nl.subject ILIKE 'Ενεργοποίηση Πύλης%'
+                  AND nl.status = 'sent'
+              )
+        """))
+        _conn.execute(_text("""
+            UPDATE cm_cases
+            SET portal_notified_at = sub.first_sent
+            FROM (
+                SELECT case_id, MIN(created_at) AS first_sent
+                FROM cm_notification_logs
+                WHERE subject ILIKE 'Ενεργοποίηση Πύλης%'
+                  AND status = 'sent'
+                GROUP BY case_id
+            ) sub
+            WHERE cm_cases.id = sub.case_id
+              AND cm_cases.portal_notified_at IS NULL
+        """))
         _conn.commit()
-    except Exception:
-        pass
+except Exception:
+    pass
+
+try:
+    with engine.connect() as _conn:
+        _result = _conn.execute(_text("""
+            INSERT INTO cm_case_status_history (case_id, from_status, to_status, changed_at, changed_by)
+            SELECT c.id, NULL, c.status, COALESCE(c.status_changed_at, c.created_at, NOW()), 'System (backfill)'
+            FROM cm_cases c
+            WHERE NOT EXISTS (
+                SELECT 1 FROM cm_case_status_history h WHERE h.case_id = c.id
+            )
+            AND c.status IS NOT NULL
+        """))
+        _conn.commit()
+        print(f"[migration] Backfilled status history for cases")
+except Exception as _e:
+    print(f"[migration] Status history backfill skipped: {_e}")
+
+import json as _json
+_PIPELINE_DESCS = {
+    "ΕΣΠΑ": {
+        "ΥΠΟΒΟΛΗ ΑΙΤΗΣΗΣ": "Η αίτησή σας για το πρόγραμμα ΕΣΠΑ έχει υποβληθεί. Αναμένουμε τα αποτελέσματα τα οποία θα ανακοινωθούν συνολικά για όλους υποψήφιους."
+    },
+    "ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ": {
+        "ΠΛΗΡΩΜΗ 150€": "Έχει πραγματοποιηθεί η πληρωμή 150€+ΦΠΑ και έχει ανοιχτεί ο φάκελος."
+    },
+    "ΔΥΠΑ": {
+        "ΥΠΟΒΟΛΗ ΑΙΤΗΣΗΣ": "Η αίτησή σας για το πρόγραμμα ΔΥΠΑ έχει υποβληθεί. Αναμένουμε τα αποτελέσματα."
+    },
+}
+try:
+    with engine.connect() as _conn:
+        for _prog, _descs in _PIPELINE_DESCS.items():
+            _conn.execute(_text("""
+                INSERT INTO cm_pipeline_configs (program_category, phases_json, extra_statuses_json, status_descriptions_json)
+                VALUES (:prog, '[]', '[]', :descs)
+                ON CONFLICT (program_category) DO UPDATE SET
+                    status_descriptions_json = CASE
+                        WHEN COALESCE(cm_pipeline_configs.status_descriptions_json, '{}') IN ('{}', '', 'null')
+                        THEN EXCLUDED.status_descriptions_json
+                        ELSE cm_pipeline_configs.status_descriptions_json
+                    END
+            """), {"prog": _prog, "descs": _json.dumps(_descs, ensure_ascii=False)})
+        _conn.commit()
+        print("[migration] Status descriptions seeded")
+except Exception as _e:
+    print(f"[migration] Status descriptions seed skipped: {_e}")
+
+from pipelines import get_all_statuses_for_program as _get_statuses
+
+_UNIQUE_MIKRO = set(_get_statuses('ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ')) - set(_get_statuses('ΔΥΠΑ')) - set(_get_statuses('ΕΣΠΑ'))
+_UNIQUE_DYPA = set(_get_statuses('ΔΥΠΑ')) - set(_get_statuses('ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ')) - set(_get_statuses('ΕΣΠΑ'))
+
+def _detect_prog(status, service_type):
+    st = (service_type or '').upper()
+    if 'ΜΙΚΡΟ' in st:
+        return 'ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ'
+    if 'ΔΥΠΑ' in st or 'ΟΑΕΔ' in st:
+        return 'ΔΥΠΑ'
+    if status in _UNIQUE_MIKRO:
+        return 'ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ'
+    if status in _UNIQUE_DYPA:
+        return 'ΔΥΠΑ'
+    return 'ΕΣΠΑ'
+
+with SessionLocal() as _db:
+    from models_cases import CMCase as _CMCase
+    _fixed = 0
+    for _c in _db.query(_CMCase).all():
+        if _c.status in _OSM:
+            _c.status = _OSM[_c.status]
+        _correct = _detect_prog(_c.status, _c.service_type)
+        if _c.program_category != _correct:
+            _c.program_category = _correct
+            _fixed += 1
+        if not _c.share_token:
+            _c.share_token = str(uuid.uuid4())
+            _fixed += 1
+    if _fixed:
+        _db.commit()
+        print(f"[migration] Fixed program_category / backfilled share_token for {_fixed} cases")
+
+from models_cases import CMNotificationTemplate, CMStatusSLA, CMCaseModification, CMPortalFile, CMPaymentLog
+
+_PENDING_ITEMS_TEMPLATE = {
+    "key": "pending_items_reminder",
+    "label": "Υπενθύμιση Εκκρεμοτήτων",
+    "subject": "Απαιτούμενα στοιχεία για την υπόθεσή σας - {client_name}",
+    "content": "Αγαπητέ/ή {client_name},\n\nΓια την προχώρηση της υπόθεσής σας ({service_type}) χρειαζόμαστε τα παρακάτω:\n\n• \n• \n• \n\nΠαρακαλούμε αποστείλατε τα παραπάνω το συντομότερο δυνατό.\n\nΜε εκτίμηση,\niMentor Consulting",
+    "notification_type": "both",
+}
+Base.metadata.create_all(bind=engine)
+with SessionLocal() as _db:
+    if not _db.query(CMNotificationTemplate).filter(CMNotificationTemplate.key == "pending_items_reminder").first():
+        _db.add(CMNotificationTemplate(**_PENDING_ITEMS_TEMPLATE))
+    _db.commit()
+
+from auth_cases import seed_admin
+with SessionLocal() as _db:
+    seed_admin(_db)
+
+# Seed hardcoded tenants to DB and load any dynamically created ones into memory
+from models import TenantRecord as _TenantRecord
+from auth_utils import TENANTS as _TENANTS
+with SessionLocal() as _db:
+    for _tid, _tinfo in list(_TENANTS.items()):
+        if not _db.query(_TenantRecord).filter_by(id=_tid).first():
+            _db.add(_TenantRecord(id=_tid, name=_tinfo['name'], password=_tinfo['password']))
+    _db.commit()
+    for _tr in _db.query(_TenantRecord).filter_by(is_active=True).all():
+        if _tr.id not in _TENANTS:
+            _TENANTS[_tr.id] = {'name': _tr.name, 'password': _tr.password, 'is_active': True}
+
+import pytz as _pytz
+from apscheduler.schedulers.background import BackgroundScheduler as _BGScheduler
+
+_athens_tz = _pytz.timezone("Europe/Athens")
+
+
+def _run_scheduled_refresh():
+    from routes.cm_google_sheets import _do_import, _do_sync_paid, _last_auto_refresh
+    import routes.cm_google_sheets as _sheets_mod
+    db = SessionLocal()
+    try:
+        import_res = _do_import(db)
+        sync_res = _do_sync_paid(db)
+        _sheets_mod._last_auto_refresh.update({
+            "last_run_at": datetime.utcnow().isoformat() + "Z",
+            "imported": import_res["imported"],
+            "updated_paid": sync_res["updated"],
+            "error": None,
+        })
+        print(f"[scheduler] Auto-refresh OK")
+    except Exception as e:
+        _sheets_mod._last_auto_refresh.update({
+            "last_run_at": datetime.utcnow().isoformat() + "Z",
+            "imported": None,
+            "updated_paid": None,
+            "error": str(e),
+        })
+        print(f"[scheduler] Auto-refresh ERROR: {e}")
+    finally:
+        db.close()
+
+
+from datetime import datetime
+
+def _run_agent_sla_digest():
+    from routes.cm_notifications import _send_email
+    from models_cases import CMCase as _CMCase, CMStatusSLA as _CMSLA, CMUser as _CMUser
+    from datetime import datetime as _dt2
+    db = SessionLocal()
+    try:
+        sla_map = {s.status: s.sla_days for s in db.query(_CMSLA).all()}
+        if not sla_map:
+            return
+        now = _dt2.utcnow()
+        from pipelines import TERMINAL_STATUSES as _TERM
+        active_cases = db.query(_CMCase).filter(~_CMCase.status.in_(list(_TERM))).all()
+        agent_overdue: dict[int, list] = {}
+        for c in active_cases:
+            if not c.status_changed_at or c.status not in sla_map:
+                continue
+            age = (now - c.status_changed_at).days
+            if age > sla_map[c.status] and c.assigned_agent_id:
+                agent_overdue.setdefault(c.assigned_agent_id, []).append((c, age - sla_map[c.status]))
+        for agent_id, items in agent_overdue.items():
+            agent = db.query(_CMUser).filter(_CMUser.id == agent_id).first()
+            if not agent or not agent.email:
+                continue
+            lines = "\n".join(
+                f"• {c.client_name} — {c.status} (+{days} ημ. εκτός SLA)"
+                for c, days in sorted(items, key=lambda x: -x[1])
+            )
+            body = (
+                f"Καλημέρα {agent.full_name},\n\n"
+                f"Οι παρακάτω υποθέσεις σου έχουν υπερβεί το SLA:\n\n{lines}\n\n"
+                f"Παρακαλώ ενημέρωσε ή προχώρησε σε επόμενο στάδιο.\n\nΜε εκτίμηση,\niMentor Consulting"
+            )
+            _send_email(agent.email, "Ημερήσια Αναφορά SLA — iMentor Consulting", body)
+    except Exception as e:
+        print(f"[scheduler] SLA digest ERROR: {e}")
+    finally:
+        db.close()
+
+
+def _run_owner_reports():
+    """Send monthly owner reports on the 1st of each month."""
+    from routes.owners import owner_report as _owner_report, _send_report_email
+    from models import Owner as _Owner
+    from datetime import date as _d
+    db = SessionLocal()
+    try:
+        today = _d.today()
+        prev_month = today.month - 1 if today.month > 1 else 12
+        prev_year = today.year if today.month > 1 else today.year - 1
+        owners = db.query(_Owner).filter(_Owner.auto_send_report == True).all()
+        for o in owners:
+            if not o.email:
+                continue
+            try:
+                report = _owner_report(o.id, prev_year, prev_month, db, o.tenant)
+                _send_report_email(report, o.tenant, db)
+            except Exception as e:
+                print(f"[owner_reports] error for owner {o.id}: {e}")
+    except Exception as e:
+        print(f"[owner_reports] ERROR: {e}")
+    finally:
+        db.close()
+
+
+def _run_auto_emails():
+    """Daily job: send pre-arrival and post-departure emails to guests."""
+    from models import GuestPortalSettings as _GPS, Booking as _Booking, Customer as _Customer
+    from models import GuestToken as _GT, EmailLog as _EL
+    from email_utils import send_pre_arrival_email, send_post_departure_email
+    from database import SessionLocal as _SL
+    from datetime import date as _dt
+    import secrets as _sec
+    db = _SL()
+    try:
+        today = _dt.today()
+        tenants_cfg = db.query(_GPS).filter(_GPS.auto_email_enabled == True).all()
+        for cfg in tenants_cfg:
+            tenant = cfg.tenant
+            base = os.getenv("BASE_URL", "")
+
+            days_to_check = []
+            if cfg.pre_arrival_days_1 and cfg.pre_arrival_days_1 > 0:
+                days_to_check.append((cfg.pre_arrival_days_1, f"pre_arrival_{cfg.pre_arrival_days_1}d"))
+            if cfg.pre_arrival_days_2 and cfg.pre_arrival_days_2 > 0 and cfg.pre_arrival_days_2 != cfg.pre_arrival_days_1:
+                days_to_check.append((cfg.pre_arrival_days_2, f"pre_arrival_{cfg.pre_arrival_days_2}d"))
+
+            for days_ahead, etype in days_to_check:
+                target_date = today + __import__('datetime').timedelta(days=days_ahead)
+                bookings = db.query(_Booking).filter(
+                    _Booking.tenant == tenant,
+                    _Booking.check_in == target_date,
+                    _Booking.status.in_(["confirmed", "pending"]),
+                ).all()
+                for b in bookings:
+                    if not b.customer or not b.customer.email:
+                        continue
+                    already = db.query(_EL).filter(
+                        _EL.tenant == tenant, _EL.booking_id == b.id, _EL.email_type == etype
+                    ).first()
+                    if already:
+                        continue
+                    # Ensure guest token exists
+                    gt = db.query(_GT).filter(_GT.booking_id == b.id, _GT.is_active == True).first()
+                    if not gt:
+                        gt = _GT(booking_id=b.id, tenant=tenant, token=_sec.token_urlsafe(32))
+                        db.add(gt); db.flush()
+                    portal_url = f"{base}/guest/{gt.token}"
+                    ok = send_pre_arrival_email(
+                        to_email=b.customer.email,
+                        guest_name=f"{b.customer.first_name} {b.customer.last_name}".strip(),
+                        property_name=tenant,
+                        unit_name=b.unit.name if b.unit else "",
+                        check_in=b.check_in.strftime("%d/%m/%Y"),
+                        check_out=b.check_out.strftime("%d/%m/%Y"),
+                        checkin_time=cfg.checkin_time or "14:00",
+                        portal_url=portal_url,
+                        days_until=days_ahead,
+                        manager_phone=cfg.manager_phone or "",
+                        from_name=cfg.from_name,
+                        settings=cfg,
+                    )
+                    db.add(_EL(tenant=tenant, booking_id=b.id, email_type=etype,
+                               to_email=b.customer.email, success=ok))
+                db.commit()
+
+            if cfg.post_departure_enabled:
+                yesterday = today - __import__('datetime').timedelta(days=1)
+                bookings = db.query(_Booking).filter(
+                    _Booking.tenant == tenant,
+                    _Booking.check_out == yesterday,
+                    _Booking.status.in_(["confirmed", "pending"]),
+                ).all()
+                for b in bookings:
+                    if not b.customer or not b.customer.email:
+                        continue
+                    already = db.query(_EL).filter(
+                        _EL.tenant == tenant, _EL.booking_id == b.id, _EL.email_type == "post_departure"
+                    ).first()
+                    if already:
+                        continue
+                    ok = send_post_departure_email(
+                        to_email=b.customer.email,
+                        guest_name=f"{b.customer.first_name} {b.customer.last_name}".strip(),
+                        property_name=tenant,
+                        unit_name=b.unit.name if b.unit else "",
+                        review_url=cfg.review_url or "",
+                        from_name=cfg.from_name,
+                        settings=cfg,
+                    )
+                    db.add(_EL(tenant=tenant, booking_id=b.id, email_type="post_departure",
+                               to_email=b.customer.email, success=ok))
+                db.commit()
+
+    except Exception as e:
+        print(f"[auto_emails] ERROR: {e}")
+    finally:
+        db.close()
+
+
+def _run_ical_sync():
+    db = SessionLocal()
+    try:
+        from routes.ical import _sync_unit
+        from models import Unit as _Unit
+        units = db.query(_Unit).filter(_Unit.is_active == True, _Unit.ical_url != None).all()
+        total_added = total_updated = 0
+        for u in units:
+            try:
+                r = _sync_unit(u, db, u.tenant)
+                total_added += r.get("added", 0)
+                total_updated += r.get("updated", 0)
+            except Exception:
+                pass
+        print(f"[scheduler] iCal auto-sync: +{total_added} added, ~{total_updated} updated across {len(units)} units")
+    except Exception as e:
+        print(f"[scheduler] iCal auto-sync ERROR: {e}")
+    finally:
+        db.close()
+
+
+_scheduler = _BGScheduler(timezone=_athens_tz)
+_scheduler.add_job(_run_scheduled_refresh, "cron", hour=8, minute=0, id="refresh_08")
+_scheduler.add_job(_run_scheduled_refresh, "cron", hour=14, minute=0, id="refresh_14")
+_scheduler.add_job(_run_agent_sla_digest, "cron", hour=9, minute=0, id="sla_digest_09")
+_scheduler.add_job(_run_owner_reports, "cron", day=1, hour=9, minute=30, id="owner_reports_monthly")
+_scheduler.add_job(_run_ical_sync, "interval", hours=6, id="ical_sync_6h")
+_scheduler.add_job(_run_auto_emails, "cron", hour=9, minute=30, id="auto_emails_daily")
+_scheduler.start()
 
 app = FastAPI(
-    title="Σύστημα Διαχείρισης Κρατήσεων",
-    description="API διαχείρισης κρατήσεων τουριστικών καταλυμάτων",
-    version="2.0.0",
+    title="iMentor Consulting - Case Management",
+    description="Σύστημα Διαχείρισης Υποθέσεων iMentor Consulting",
+    version="1.0.0",
 )
 
 app.add_middleware(
@@ -46,20 +725,65 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(auth.router)
-app.include_router(units.router)
-app.include_router(bookings.router)
-app.include_router(customers.router)
-app.include_router(reports.router)
-app.include_router(ai_advisor.router)
-app.include_router(cleaning.router)
+# Booking system (prefix /api to match frontend baseURL '/api')
+app.include_router(auth_router, prefix="/api")
+app.include_router(units_router, prefix="/api")
+app.include_router(customers_router, prefix="/api")
+app.include_router(bookings_router, prefix="/api")
+app.include_router(reports_router, prefix="/api")
+app.include_router(ai_router, prefix="/api")
+app.include_router(cleaning_router, prefix="/api")
+app.include_router(guest_router, prefix="/api")
+app.include_router(ical_router, prefix="/api")
+app.include_router(portal_admin_router, prefix="/api")
+app.include_router(expenses_router, prefix="/api")
+app.include_router(maintenance_router, prefix="/api")
+app.include_router(owners_router, prefix="/api")
+app.include_router(pricing_router, prefix="/api")
+app.include_router(widget_router, prefix="/api/widget")
+app.include_router(availability_router, prefix="/api")
+app.include_router(loans_router, prefix="/api")
+
+# Case management
+app.include_router(cm_auth_router)
+app.include_router(cm_users_router)
+app.include_router(cases_router)
+app.include_router(cm_dashboard_router)
+app.include_router(cm_sheets_router)
+app.include_router(cm_notifications_router)
+app.include_router(cm_admin_router)
+app.include_router(cm_pending_items_router)
+app.include_router(cm_portal_router)
+app.include_router(cm_pipeline_router)
+app.include_router(cm_worklists_router)
+app.include_router(cm_analytics_router)
+app.include_router(cm_modifications_router)
+app.include_router(cm_portal_files_router)
+app.include_router(cm_revenue_router)
+app.include_router(finance_api_router)
 
 
-@app.get("/")
-def root():
-    return {"message": "Σύστημα Διαχείρισης Κρατήσεων API v2.0"}
+@app.on_event("shutdown")
+def _shutdown_scheduler():
+    _scheduler.shutdown(wait=False)
 
 
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+
+_static_dir = os.path.join(os.path.dirname(__file__), "static")
+_index_html = os.path.join(_static_dir, "index.html")
+
+if os.path.isfile(_index_html):
+    @app.get("/{full_path:path}")
+    async def serve_spa(full_path: str):
+        candidate = os.path.join(_static_dir, full_path)
+        if full_path and os.path.isfile(candidate):
+            return FileResponse(candidate)
+        return FileResponse(_index_html)
+else:
+    @app.get("/")
+    def root():
+        return {"message": "iMentor Consulting - Case Management API v1.0 (frontend not built yet)"}

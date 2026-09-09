@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from database import get_db
-from models import Booking, Unit
+from models import Booking, Unit, Expense
 from auth_utils import get_tenant
 from typing import Optional
 from datetime import date
@@ -217,7 +217,41 @@ def financial_report(
         g["net_revenue"] = round(g["net_revenue"], 2)
         data.append(g)
 
-    return {"from_date": from_date.isoformat(), "to_date": to_date.isoformat(), "group_by": group_by, "data": data}
+    # Include expense totals per period
+    expenses = db.query(Expense).filter(
+        Expense.tenant == tenant,
+        Expense.date >= from_date,
+        Expense.date < to_date,
+    ).all()
+    exp_groups: dict = {}
+    for e in expenses:
+        if group_by == "month":
+            key = e.date.strftime("%Y-%m")
+        elif group_by == "week":
+            key = e.date.strftime("%Y-W%W")
+        else:
+            key = "all"
+        exp_groups[key] = round(exp_groups.get(key, 0.0) + e.amount, 2)
+
+    for g in data:
+        g["total_expenses"] = exp_groups.get(g["key"], 0.0)
+        g["profit"] = round(g["net_revenue"] - g["total_expenses"], 2)
+
+    total_expenses = round(sum(e.amount for e in expenses), 2)
+    total_net = round(sum(g["net_revenue"] for g in data), 2)
+
+    return {
+        "from_date": from_date.isoformat(),
+        "to_date": to_date.isoformat(),
+        "group_by": group_by,
+        "data": data,
+        "totals": {
+            "total_revenue": round(sum(g["total_revenue"] for g in data), 2),
+            "total_net_revenue": total_net,
+            "total_expenses": total_expenses,
+            "total_profit": round(total_net - total_expenses, 2),
+        },
+    }
 
 
 @router.get("/price-analytics")

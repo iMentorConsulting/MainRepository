@@ -1,0 +1,64 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id         String       @id @default(cuid())
+  username   String       @unique
+  createdAt  DateTime     @default(now())
+  members    RoomMember[]
+  messages   Message[]
+  rooms      Room[]
+  queueItems QueueItem[]
+}
+
+model Room {
+  id          String       @id @default(cuid())
+  name        String
+  code        String       @unique
+  hostId      String
+  host        User         @relation(fields: [hostId], references: [id])
+  isPublic    Boolean      @default(true)
+  createdAt   DateTime     @default(now())
+  members     RoomMember[]
+  messages    Message[]
+  queue       QueueItem[]
+}
+
+model RoomMember {
+  id       String   @id @default(cuid())
+  roomId   String
+  userId   String
+  room     Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id])
+  joinedAt DateTime @default(now())
+
+  @@unique([roomId, userId])
+}
+
+model Message {
+  id        String   @id @default(cuid())
+  roomId    String
+  userId    String
+  content   String
+  room      Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id])
+  createdAt DateTime @default(now())
+}
+
+model QueueItem {
+  id        String  @id @default(cuid())
+  roomId    String
+  userId    String
+  videoId   String
+  title     String
+  thumbnail String?
+  position  Int
+  room      Room    @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user      User    @relation(fields: [userId], references: [id])
+}
