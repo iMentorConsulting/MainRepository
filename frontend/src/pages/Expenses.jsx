@@ -8,6 +8,46 @@ import { PlusIcon, PencilSquareIcon, TrashIcon, XMarkIcon, FunnelIcon, ArrowDown
 import toast from 'react-hot-toast'
 import { useRef } from 'react'
 
+const MONTHS_EL = ['Ιαν', 'Φεβ', 'Μαρ', 'Απρ', 'Μαϊ', 'Ιουν', 'Ιουλ', 'Αυγ', 'Σεπ', 'Οκτ', 'Νοε', 'Δεκ']
+
+function MonthYearPicker({ value, onChange }) {
+  const [y, m] = value.split('-').map(Number)
+  const [showYears, setShowYears] = useState(false)
+  const currentYear = new Date().getFullYear()
+  const years = Array.from({ length: 10 }, (_, i) => currentYear - 4 + i)
+
+  const shift = (delta) => {
+    let nm = m + delta, ny = y
+    if (nm > 12) { nm = 1; ny++ }
+    if (nm < 1) { nm = 12; ny-- }
+    onChange(`${ny}-${String(nm).padStart(2, '0')}`)
+  }
+
+  return (
+    <div className="relative flex items-center gap-1">
+      <button type="button" onClick={() => shift(-1)}
+        className="w-7 h-7 flex items-center justify-center rounded-lg border border-gray-300 hover:bg-gray-100 text-gray-600 font-bold text-sm">‹</button>
+      <button type="button" onClick={() => setShowYears(s => !s)}
+        className="px-3 h-7 rounded-lg border border-gray-300 hover:bg-gray-100 text-sm font-medium text-gray-700 min-w-[110px] text-center">
+        {MONTHS_EL[m - 1]} {y}
+      </button>
+      <button type="button" onClick={() => shift(1)}
+        className="w-7 h-7 flex items-center justify-center rounded-lg border border-gray-300 hover:bg-gray-100 text-gray-600 font-bold text-sm">›</button>
+      {showYears && (
+        <div className="absolute top-9 left-0 z-50 bg-white border border-gray-200 rounded-xl shadow-lg p-2 grid grid-cols-2 gap-1 w-40">
+          {years.map(yr => (
+            <button key={yr} type="button"
+              onClick={() => { onChange(`${yr}-${String(m).padStart(2, '0')}`); setShowYears(false) }}
+              className={`py-1.5 rounded-lg text-sm font-medium transition-colors ${yr === y ? 'bg-blue-600 text-white' : 'hover:bg-gray-100 text-gray-700'}`}>
+              {yr}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 const EMPTY = {
   date: new Date().toISOString().split('T')[0],
   category: '',
@@ -294,8 +334,7 @@ export default function Expenses() {
       <div className="bg-white rounded-xl border border-gray-200 p-3 flex flex-wrap gap-3 items-center">
         <FunnelIcon className="h-4 w-4 text-gray-400 flex-shrink-0" />
         {!showAll && (
-          <input type="month" className="input w-auto text-sm"
-            value={filterMonth} onChange={e => setFilterMonth(e.target.value)} />
+          <MonthYearPicker value={filterMonth} onChange={setFilterMonth} />
         )}
         <button onClick={() => setShowAll(s => !s)}
           className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${showAll ? 'bg-blue-600 text-white border-blue-600' : 'border-gray-300 text-gray-600 hover:bg-gray-50'}`}>
