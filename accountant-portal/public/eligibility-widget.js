@@ -230,15 +230,17 @@ function imCheck() {
   // Load reCAPTCHA script lazily on first use so the badge never appears on
   // pages where the user didn't interact with the form.
   function imRunWithRecaptcha(cb) {
-    if (window.grecaptcha) { cb(); return; }
+    if (window.grecaptcha) {
+      grecaptcha.ready(cb);
+      return;
+    }
     var s = document.createElement("script");
     s.src = "https://www.google.com/recaptcha/api.js?render=" + IM_KEY;
-    s.onload = cb;
+    s.onload = function() { grecaptcha.ready(cb); };
     document.head.appendChild(s);
   }
 
   imRunWithRecaptcha(function() {
-  grecaptcha.ready(function() {
     grecaptcha.execute(IM_KEY, { action: "eligibility_check" }).then(function(token) {
       fetch(IM_API, {
         method: "POST",
@@ -380,6 +382,5 @@ function imCheck() {
         err.style.display = "block";
       });
     });
-  });
   }); // end imRunWithRecaptcha
 }
