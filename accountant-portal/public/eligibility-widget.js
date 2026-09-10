@@ -303,10 +303,10 @@ function imCheck() {
 
         var html =
           "<div class='im-banner'>" +
-            "<div class='im-banner-trophy'>🏆</div>" +
-            "<div class='im-banner-congrats'>Συγχαρητήρια!</div>" +
+            "<div class='im-banner-trophy'>✅</div>" +
+            "<div class='im-banner-congrats'>Βρέθηκαν διαθέσιμα προγράμματα</div>" +
             "<div class='im-banner-biz'>" + bizName + "</div>" +
-            "<div class='im-banner-msg'>Βρέθηκαν <strong class='im-banner-n'>" + programs.length + " χρηματοδοτικά προγράμματα</strong><br>για τα οποία η επιχείρησή σας είναι αρχικά επιλέξιμη</div>" +
+            "<div class='im-banner-msg'>Εντοπίστηκαν <strong class='im-banner-n'>" + programs.length + " χρηματοδοτικά προγράμματα</strong><br>για τα οποία η επιχείρησή σας είναι αρχικά επιλέξιμη</div>" +
           "</div>" +
           "<div class='im-list'>";
 
