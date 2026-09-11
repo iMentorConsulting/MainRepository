@@ -174,21 +174,34 @@ function StepTemplate({ channel, onSelect, onBack }: { channel: 'EMAIL' | 'VIBER
 }
 
 // ── Step 3: Preview & send ────────────────────────────────────────────────────
-function StepSend({ template, messageBody, onMessageChange, programId, programs, onBack, onSend, sending, onSaveDraft, savingDraft }: {
+function StepSend({ template, messageBody, onMessageChange, programId, programs, onBack, onSend, sending, onSaveDraft, savingDraft, isAdmin }: {
   template: any; messageBody: string; onMessageChange: (v: string) => void; programId: string; programs: any[];
-  onBack: () => void; onSend: (ids: string[]) => void; sending: boolean;
-  onSaveDraft: () => void; savingDraft: boolean;
+  onBack: () => void; onSend: (ids: string[], maxRecipients?: number) => void; sending: boolean;
+  onSaveDraft: () => void; savingDraft: boolean; isAdmin: boolean;
 }) {
   const program = programs.find(p => p.id === programId)
   const [allRecipients, setAllRecipients] = useState<any[]>([])
   const [accountants, setAccountants] = useState<any[]>([])
+  const [availableTags, setAvailableTags] = useState<string[]>([])
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [loadingRecipients, setLoadingRecipients] = useState(true)
+
+  // Direct-from-I-MENTOR mode (admin only)
+  const [directMode, setDirectMode] = useState(false)
+
+  function toggleDirectMode() {
+    const next = !directMode
+    setDirectMode(next)
+    onMessageChange(next ? (template?.bodyDirect || messageBody) : (template?.bodyWithAccountant || messageBody))
+  }
 
   // Filter state
   const [search, setSearch] = useState('')
   const [selAccountants, setSelAccountants] = useState<string[]>([])
+  const [noAccountantFilter, setNoAccountantFilter] = useState(false)
   const [campaignFilter, setCampaignFilter] = useState<'all' | 'sent' | 'not-sent'>('all')
+  const [includeTags, setIncludeTags] = useState<string[]>([])
+  const [excludeTags, setExcludeTags] = useState<string[]>([])
 
   useEffect(() => {
     const url = programId
@@ -200,6 +213,7 @@ function StepSend({ template, messageBody, onMessageChange, programId, programs,
         const businesses = data.businesses ?? data // backwards compat
         setAllRecipients(businesses)
         setAccountants(data.accountants ?? [])
+        setAvailableTags(data.tags ?? [])
         setSelected(new Set(businesses.map((b: any) => b.id)))
       })
       .finally(() => setLoadingRecipients(false))
@@ -212,13 +226,17 @@ function StepSend({ template, messageBody, onMessageChange, programId, programs,
       const q = search.toLowerCase()
       list = list.filter(b => (b.onomasia || '').toLowerCase().includes(q) || (b.afm || '').includes(q))
     }
-    if (selAccountants.length > 0) {
+    if (noAccountantFilter) {
+      list = list.filter(b => !b.accountantId)
+    } else if (selAccountants.length > 0) {
       list = list.filter(b => b.accountantId && selAccountants.includes(b.accountantId))
     }
     if (campaignFilter === 'sent') list = list.filter(b => b.sentCampaign)
     if (campaignFilter === 'not-sent') list = list.filter(b => !b.sentCampaign)
+    if (includeTags.length > 0) list = list.filter(b => includeTags.some(t => (b.tags ?? []).includes(t)))
+    if (excludeTags.length > 0) list = list.filter(b => !excludeTags.some(t => (b.tags ?? []).includes(t)))
     return list
-  }, [allRecipients, search, selAccountants, campaignFilter])
+  }, [allRecipients, search, selAccountants, noAccountantFilter, campaignFilter, includeTags, excludeTags])
 
   const visibleIds = useMemo(() => new Set(visible.map(b => b.id)), [visible])
   const allVisibleSelected = visible.length > 0 && visible.every(b => selected.has(b.id))
@@ -241,14 +259,24 @@ function StepSend({ template, messageBody, onMessageChange, programId, programs,
   }
 
   function toggleAccountant(id: string) {
+    setNoAccountantFilter(false)
     setSelAccountants(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
   }
 
+  function toggleNoAccountant() {
+    setSelAccountants([])
+    setNoAccountantFilter(prev => !prev)
+  }
+
+  const [batchLimit, setBatchLimit] = useState('')
+
   const selectedList = allRecipients.filter(b => selected.has(b.id))
   const noContactCount = selectedList.filter(b => !b.email && !b.phone).length
+  const parsedLimit = batchLimit.trim() ? parseInt(batchLimit, 10) : null
+  const effectiveSendCount = parsedLimit && parsedLimit > 0 ? Math.min(parsedLimit, selected.size - noContactCount) : selected.size - noContactCount
   const canSend = selected.size > 0 && noContactCount < selected.size
 
-  const activeFilterCount = (search.trim() ? 1 : 0) + selAccountants.length + (campaignFilter !== 'all' ? 1 : 0)
+  const activeFilterCount = (search.trim() ? 1 : 0) + selAccountants.length + (noAccountantFilter ? 1 : 0) + (campaignFilter !== 'all' ? 1 : 0) + includeTags.length + excludeTags.length
 
   const preview = (messageBody || '')
     .replace(/\{\{business_name\}\}/g, 'ΠΑΡΑΔΕΙΓΜΑ ΑΕ')
@@ -266,6 +294,24 @@ function StepSend({ template, messageBody, onMessageChange, programId, programs,
         <h2 className="text-xl font-bold text-gray-900">Σε ποιους να σταλεί;</h2>
         <p className="text-sm text-gray-500 mt-1">Φιλτράρετε και επιλέξτε τους παραλήπτες που θέλετε.</p>
       </div>
+
+      {/* ── Direct-from-I-MENTOR toggle (admin only) ── */}
+      {isAdmin && template?.bodyDirect && (
+        <div className={`flex items-center justify-between px-4 py-3 rounded-xl border-2 transition-all cursor-pointer ${directMode ? 'border-purple-500 bg-purple-50' : 'border-gray-200 bg-white hover:border-purple-200'}`}
+          onClick={toggleDirectMode}>
+          <div>
+            <p className={`text-sm font-semibold ${directMode ? 'text-purple-800' : 'text-gray-700'}`}>
+              Απευθείας από I-MENTOR
+            </p>
+            <p className={`text-xs mt-0.5 ${directMode ? 'text-purple-600' : 'text-gray-400'}`}>
+              {directMode ? 'Το μήνυμα δεν αναφέρει λογιστικό γραφείο' : 'Κανονικά το μήνυμα αποστέλλεται «από κοινού με το λογιστικό γραφείο»'}
+            </p>
+          </div>
+          <div className={`w-10 h-6 rounded-full transition-colors relative flex-shrink-0 ${directMode ? 'bg-purple-600' : 'bg-gray-300'}`}>
+            <div className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${directMode ? 'translate-x-5' : 'translate-x-1'}`} />
+          </div>
+        </div>
+      )}
 
       {/* ── Filter bar ── */}
       {!loadingRecipients && allRecipients.length > 0 && (
@@ -311,6 +357,10 @@ function StepSend({ template, messageBody, onMessageChange, programId, programs,
             <div>
               <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Λογιστής</p>
               <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
+                <button onClick={toggleNoAccountant}
+                  className={`px-2.5 py-1 text-xs rounded-full border transition-colors ${noAccountantFilter ? 'bg-amber-600 text-white border-amber-600' : 'bg-white text-gray-600 border-gray-300 hover:border-amber-400'}`}>
+                  Χωρίς λογιστή
+                </button>
                 {accountants.map(a => (
                   <button key={a.id} onClick={() => toggleAccountant(a.id)}
                     className={`px-2.5 py-1 text-xs rounded-full border transition-colors ${selAccountants.includes(a.id) ? 'bg-indigo-700 text-white border-indigo-700' : 'bg-white text-gray-600 border-gray-300 hover:border-indigo-400'}`}>
@@ -321,8 +371,38 @@ function StepSend({ template, messageBody, onMessageChange, programId, programs,
             </div>
           )}
 
+          {/* Tags filter */}
+          {availableTags.length > 0 && (
+            <div>
+              <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Tags (συμπερίληψη)</p>
+              <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
+                {availableTags.map(tag => (
+                  <button key={tag} onClick={() => setIncludeTags(prev => prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag])}
+                    className={`px-2.5 py-1 text-xs rounded-full border transition-colors ${includeTags.includes(tag) ? 'bg-indigo-700 text-white border-indigo-700' : 'bg-white text-gray-600 border-gray-300 hover:border-indigo-400'}`}>
+                    {tag}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Exclude Tags filter */}
+          {availableTags.length > 0 && (
+            <div>
+              <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Εξαίρεση Tags</p>
+              <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
+                {availableTags.map(tag => (
+                  <button key={tag} onClick={() => setExcludeTags(prev => prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag])}
+                    className={`px-2.5 py-1 text-xs rounded-full border transition-colors ${excludeTags.includes(tag) ? 'bg-red-600 text-white border-red-600' : 'bg-white text-gray-600 border-gray-300 hover:border-red-400'}`}>
+                    {tag}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           {activeFilterCount > 0 && (
-            <button onClick={() => { setSearch(''); setSelAccountants([]); setCampaignFilter('all') }}
+            <button onClick={() => { setSearch(''); setSelAccountants([]); setNoAccountantFilter(false); setCampaignFilter('all'); setIncludeTags([]); setExcludeTags([]) }}
               className="text-xs text-gray-400 hover:text-gray-600 flex items-center gap-1">
               <X size={11} />Καθαρισμός φίλτρων ({activeFilterCount})
             </button>
@@ -452,6 +532,23 @@ function StepSend({ template, messageBody, onMessageChange, programId, programs,
         </div>
       </details>
 
+      {/* Batch limit */}
+      <div className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+        <div className="flex-1">
+          <p className="text-xs font-semibold text-amber-800">Αποστολή σε Batches (Gmail)</p>
+          <p className="text-xs text-amber-600 mt-0.5">Αφήστε κενό για αποστολή σε όλους. Ορίστε μέγιστο αριθμό για να μη ξεπεραστούν τα όρια Gmail (π.χ. 500).</p>
+        </div>
+        <input
+          type="number"
+          min={1}
+          max={selected.size}
+          value={batchLimit}
+          onChange={e => setBatchLimit(e.target.value)}
+          placeholder="Χωρίς όριο"
+          className="w-28 text-sm border border-amber-300 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-amber-500 bg-white text-center"
+        />
+      </div>
+
       <div className="flex flex-wrap gap-3 pt-2">
         <Button variant="outline" onClick={onBack}><ArrowLeft size={15} className="mr-1" />Πίσω</Button>
         <Button variant="outline" loading={savingDraft} onClick={onSaveDraft}>
@@ -460,10 +557,11 @@ function StepSend({ template, messageBody, onMessageChange, programId, programs,
         <Button
           loading={sending}
           disabled={!canSend}
-          onClick={() => onSend(Array.from(selected))}
+          onClick={() => onSend(Array.from(selected), parsedLimit && parsedLimit > 0 ? parsedLimit : undefined)}
         >
           <Send size={15} className="mr-2" />
-          Αποστολή σε {selected.size - noContactCount} παραλήπτ{(selected.size - noContactCount) === 1 ? 'η' : 'ες'}
+          Αποστολή σε {effectiveSendCount} παραλήπτ{effectiveSendCount === 1 ? 'η' : 'ες'}
+          {parsedLimit && parsedLimit > 0 && selected.size - noContactCount > parsedLimit ? ` (batch ${parsedLimit} από ${selected.size - noContactCount})` : ''}
           {noContactCount > 0 && ` (${noContactCount} χωρίς στοιχεία)`}
         </Button>
       </div>
@@ -552,7 +650,7 @@ export default function NewCampaignPage() {
     fetch('/api/programs').then(r => r.json()).then(d => setPrograms((d.programs || []).filter((p: any) => (p._count?.matches ?? 0) > 0)))
   }, [])
 
-  async function saveCampaign(status: 'DRAFT' | 'SENT', selectedIds?: string[]) {
+  async function saveCampaign(status: 'DRAFT' | 'SENT', selectedIds?: string[], maxRecipients?: number) {
     if (!selectedTemplate) return
     if (status === 'DRAFT') setSavingDraft(true)
     else setSending(true)
@@ -579,7 +677,7 @@ export default function NewCampaignPage() {
         const sendRes = await fetch(`/api/campaigns/${created.id}/send`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ businessIds: selectedIds }),
+          body: JSON.stringify({ businessIds: selectedIds, ...(maxRecipients ? { maxRecipients } : {}) }),
         })
         if (!sendRes.ok) {
           const err = await sendRes.json().catch(() => ({}))
@@ -651,10 +749,11 @@ export default function NewCampaignPage() {
             programId={programId}
             programs={programs}
             onBack={() => setStep(2)}
-            onSend={(ids) => saveCampaign('SENT', ids)}
+            onSend={(ids, max) => saveCampaign('SENT', ids, max)}
             sending={sending}
             onSaveDraft={() => saveCampaign('DRAFT')}
             savingDraft={savingDraft}
+            isAdmin={(session?.user as any)?.role === 'ADMIN'}
           />
         )}
       </div>

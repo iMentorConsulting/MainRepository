@@ -31,6 +31,7 @@ export async function GET(request: NextRequest) {
         viberPhone: true,
         postalAreaDescription: true,
         accountantId: true,
+        tags: true,
         accountant: { select: { id: true, officeName: true } },
       },
       orderBy: { onomasia: 'asc' },
@@ -70,5 +71,8 @@ export async function GET(request: NextRequest) {
     sentCampaign: sentBusinessIds.has(b.id),
   }))
 
-  return NextResponse.json({ businesses: result, accountants })
+  // Collect distinct tags across all recipients for the filter UI
+  const allTags = Array.from(new Set(result.flatMap(b => b.tags ?? []))).sort()
+
+  return NextResponse.json({ businesses: result, accountants, tags: allTags })
 }
