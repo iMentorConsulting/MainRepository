@@ -1088,6 +1088,206 @@ function PayrollSettingsModal({ employees, onClose, onSaved }) {
   );
 }
 
+function PayrollSummaryTable({ data, year, currentYear, currentMonthIdx }) {
+  const [expandedMonths, setExpandedMonths] = useState(new Set());
+
+  const MONTH_NAMES = ['Ιαν','Φεβ','Μαρ','Απρ','Μαι','Ιουν','Ιουλ','Αυγ','Σεπ','Οκτ','Νοε','Δεκ'];
+  const months = ['01','02','03','04','05','06','07','08','09','10','11','12'];
+
+  const hasIka = data.some(d => parseFloat(d.settings?.ika_percentage ?? 0) > 0);
+
+  const summaryRows = months.map((m, i) => {
+    const isFuture = year === currentYear && i > currentMonthIdx;
+    const employeeRows = data.map(d => {
+      const mData = d.monthly.find(x => x.month === m) || {};
+      return {
+        agent: d.agent,
+        salary_amount: parseFloat(mData.salary_amount ?? 0),
+        bonus_amount: parseFloat(mData.bonus_amount ?? 0),
+        ika_amount: parseFloat(mData.ika_amount ?? 0),
+        true_cost: parseFloat(mData.true_cost ?? 0),
+        target: parseFloat(mData.target ?? 0),
+        sales: parseFloat(mData.sales ?? 0),
+        amount: parseFloat(mData.amount ?? 0),
+      };
+    }).filter(r => r.amount > 0 || r.target > 0 || r.sales > 0);
+
+    const total_salary = employeeRows.reduce((s, r) => s + r.salary_amount, 0);
+    const total_bonus = employeeRows.reduce((s, r) => s + r.bonus_amount, 0);
+    const total_ika = employeeRows.reduce((s, r) => s + r.ika_amount, 0);
+    const total_true_cost = employeeRows.reduce((s, r) => s + r.true_cost, 0);
+    const total_target = employeeRows.reduce((s, r) => s + r.target, 0);
+    const total_sales = employeeRows.reduce((s, r) => s + r.sales, 0);
+
+    return { month: m, month_name: MONTH_NAMES[i], isFuture, employeeRows,
+      total_salary, total_bonus, total_ika, total_true_cost, total_target, total_sales,
+      hasData: total_salary + total_bonus > 0 || total_target > 0 || total_sales > 0 };
+  });
+
+  const grand = summaryRows.reduce((s, r) => ({
+    salary: s.salary + r.total_salary, bonus: s.bonus + r.total_bonus,
+    ika: s.ika + r.total_ika, true_cost: s.true_cost + r.total_true_cost,
+    target: s.target + r.total_target, sales: s.sales + r.total_sales,
+  }), { salary: 0, bonus: 0, ika: 0, true_cost: 0, target: 0, sales: 0 });
+
+  const hasBonus = summaryRows.some(r => r.total_bonus > 0);
+
+  const toggleMonth = m => setExpandedMonths(prev => {
+    const next = new Set(prev);
+    if (next.has(m)) next.delete(m); else next.add(m);
+    return next;
+  });
+
+  return (
+    <div className="card overflow-hidden">
+      <div className="px-6 py-4 border-b border-slate-100 flex items-center gap-3">
+        <div>
+          <h3 className="font-black text-slate-800 text-base">Συγκεντρωτικός Πίνακας {year}</h3>
+          <p className="text-xs text-slate-400 mt-0.5">Κλικ σε γραμμή μήνα για ανάλυση ανά εργαζόμενο</p>
+        </div>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full">
+          <thead>
+            <tr>
+              <th className="th w-8"></th>
+              <th className="th">Μήνας</th>
+              <th className="th text-right">Μισθός & Επίδομα</th>
+              {hasBonus && <th className="th text-right text-violet-600">Bonus</th>}
+              {hasIka && <th className="th text-right text-orange-600">ΙΚΑ</th>}
+              {hasIka && <th className="th text-right text-rose-700">Πραγματικό Κόστος</th>}
+              <th className="th text-right">Στόχος</th>
+              <th className="th text-right">Είσπραξη</th>
+              <th className="th text-right min-w-[120px]">Επίτευξη</th>
+              <th className="th text-right">Διαφορά</th>
+            </tr>
+          </thead>
+          <tbody>
+            {summaryRows.flatMap(row => {
+              if (!row.hasData && !row.isFuture) return [];
+              const expanded = expandedMonths.has(row.month);
+              const pct = row.total_target > 0 ? (row.total_sales / row.total_target) * 100 : 0;
+              const diff = row.total_sales - row.total_target;
+              const hit = row.total_target > 0 && row.total_sales >= row.total_target;
+
+              const summaryRow = (
+                <tr key={`s-${row.month}`}
+                  className={`tr select-none ${row.hasData ? 'cursor-pointer hover:bg-slate-50' : ''} ${hit ? 'bg-emerald-50/30' : ''} ${row.isFuture ? 'opacity-40' : ''}`}
+                  onClick={() => row.hasData && toggleMonth(row.month)}>
+                  <td className="td text-center text-slate-400 text-xs leading-none">
+                    {row.hasData ? (expanded ? '▼' : '▶') : ''}
+                  </td>
+                  <td className="td font-semibold text-slate-700">{row.month_name} {year}</td>
+                  <td className="td text-right">
+                    {row.total_salary > 0 ? <span className="font-bold text-indigo-600">{fmt(row.total_salary)}</span> : <span className="text-slate-300">—</span>}
+                  </td>
+                  {hasBonus && (
+                    <td className="td text-right">
+                      {row.total_bonus > 0 ? <span className="font-semibold text-violet-600">{fmt(row.total_bonus)}</span> : <span className="text-slate-300">—</span>}
+                    </td>
+                  )}
+                  {hasIka && (
+                    <td className="td text-right">
+                      {row.total_ika > 0 ? <span className="font-semibold text-orange-600">{fmt(row.total_ika)}</span> : <span className="text-slate-300">—</span>}
+                    </td>
+                  )}
+                  {hasIka && (
+                    <td className="td text-right">
+                      {row.total_true_cost > 0 ? <span className="font-bold text-rose-700">{fmt(row.total_true_cost)}</span> : <span className="text-slate-300">—</span>}
+                    </td>
+                  )}
+                  <td className="td text-right">
+                    {row.total_target > 0 ? <span className="font-semibold text-amber-600">{fmt(row.total_target)}</span> : <span className="text-slate-300">—</span>}
+                  </td>
+                  <td className="td text-right">
+                    {row.total_sales > 0
+                      ? <span className={`font-bold ${hit ? 'text-emerald-600' : 'text-slate-700'}`}>{fmt(row.total_sales)}</span>
+                      : <span className="text-slate-300">—</span>}
+                  </td>
+                  <td className="td text-right">
+                    {row.total_target > 0 && !row.isFuture ? <AchievementBar pct={pct} /> : <span className="text-slate-300">—</span>}
+                  </td>
+                  <td className="td text-right">
+                    {row.total_target > 0 && !row.isFuture
+                      ? <span className={`font-bold text-sm ${diff >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>{diff >= 0 ? '+' : ''}{fmt(diff)}</span>
+                      : <span className="text-slate-300">—</span>}
+                  </td>
+                </tr>
+              );
+
+              const detailRows = expanded ? row.employeeRows.map(er => {
+                const erPct = er.target > 0 ? (er.sales / er.target) * 100 : 0;
+                const erDiff = er.sales - er.target;
+                const erHit = er.target > 0 && er.sales >= er.target;
+                return (
+                  <tr key={`d-${row.month}-${er.agent}`} className="tr bg-indigo-50/30 border-l-4 border-indigo-200">
+                    <td className="td"></td>
+                    <td className="td pl-7 text-xs font-medium text-slate-600">{er.agent}</td>
+                    <td className="td text-right text-xs">
+                      {er.salary_amount > 0 ? <span className="text-indigo-500">{fmt(er.salary_amount)}</span> : <span className="text-slate-300">—</span>}
+                    </td>
+                    {hasBonus && (
+                      <td className="td text-right text-xs">
+                        {er.bonus_amount > 0 ? <span className="text-violet-500">{fmt(er.bonus_amount)}</span> : <span className="text-slate-300">—</span>}
+                      </td>
+                    )}
+                    {hasIka && (
+                      <td className="td text-right text-xs">
+                        {er.ika_amount > 0 ? <span className="text-orange-500">{fmt(er.ika_amount)}</span> : <span className="text-slate-300">—</span>}
+                      </td>
+                    )}
+                    {hasIka && (
+                      <td className="td text-right text-xs">
+                        {er.true_cost > 0 ? <span className="text-rose-600">{fmt(er.true_cost)}</span> : <span className="text-slate-300">—</span>}
+                      </td>
+                    )}
+                    <td className="td text-right text-xs">
+                      {er.target > 0 ? <span className="text-amber-500">{fmt(er.target)}</span> : <span className="text-slate-300">—</span>}
+                    </td>
+                    <td className="td text-right text-xs">
+                      {er.sales > 0 ? <span className={erHit ? 'text-emerald-600' : 'text-slate-600'}>{fmt(er.sales)}</span> : <span className="text-slate-300">—</span>}
+                    </td>
+                    <td className="td text-right">
+                      {er.target > 0 ? <AchievementBar pct={erPct} /> : <span className="text-slate-300">—</span>}
+                    </td>
+                    <td className="td text-right text-xs">
+                      {er.target > 0
+                        ? <span className={erDiff >= 0 ? 'text-emerald-600' : 'text-rose-600'}>{erDiff >= 0 ? '+' : ''}{fmt(erDiff)}</span>
+                        : <span className="text-slate-300">—</span>}
+                    </td>
+                  </tr>
+                );
+              }) : [];
+
+              return [summaryRow, ...detailRows];
+            })}
+            <tr className="bg-slate-50 border-t-2 border-slate-200">
+              <td className="td"></td>
+              <td className="td font-black text-slate-800 uppercase text-xs tracking-wide">ΣΥΝΟΛΟ {year}</td>
+              <td className="td text-right font-black text-indigo-700">{fmt(grand.salary)}</td>
+              {hasBonus && <td className="td text-right font-black text-violet-600">{grand.bonus > 0 ? fmt(grand.bonus) : '—'}</td>}
+              {hasIka && <td className="td text-right font-black text-orange-600">{grand.ika > 0 ? fmt(grand.ika) : '—'}</td>}
+              {hasIka && <td className="td text-right font-black text-rose-700">{grand.true_cost > 0 ? fmt(grand.true_cost) : '—'}</td>}
+              <td className="td text-right font-black text-amber-600">{fmt(grand.target)}</td>
+              <td className="td text-right font-black">
+                <span className={grand.sales >= grand.target ? 'text-emerald-700' : 'text-slate-700'}>{fmt(grand.sales)}</span>
+              </td>
+              <td className="td text-right">
+                {grand.target > 0 ? <AchievementBar pct={(grand.sales / grand.target) * 100} /> : '—'}
+              </td>
+              <td className="td text-right font-black">
+                <span className={grand.sales - grand.target >= 0 ? 'text-emerald-600' : 'text-rose-600'}>
+                  {grand.sales - grand.target >= 0 ? '+' : ''}{fmt(grand.sales - grand.target)}
+                </span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 function TabPayroll() {
   const [payrollYears, setPayrollYears] = useState([]);
   const [year, setYear] = useState(new Date().getFullYear());
@@ -1207,6 +1407,14 @@ function TabPayroll() {
               </div>
             </div>
           </div>
+
+          {/* Monthly summary table with expand per month */}
+          <PayrollSummaryTable
+            data={data}
+            year={year}
+            currentYear={currentYear}
+            currentMonthIdx={currentMonthIdx}
+          />
 
           {/* Per-employee cards */}
           {data.map((d, di) => {
