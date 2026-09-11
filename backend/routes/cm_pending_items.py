@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional, List
 from datetime import datetime as _dt, date as _date
-from database import get_db
+from database import get_db, fmt_dt
 from models_cases import CMCase, CMPendingItemTemplate, CMCasePendingItem
 from auth_cases import get_current_user
 from models_cases import CMUser
@@ -51,7 +51,7 @@ def _item_to_dict(i: CMCasePendingItem) -> dict:
     return {
         "id": i.id, "case_id": i.case_id, "item_text": i.item_text,
         "comment": i.comment, "sort_order": i.sort_order,
-        "created_at": i.created_at.isoformat() if i.created_at else None,
+        "created_at": fmt_dt(i.created_at),
     }
 
 
