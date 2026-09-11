@@ -1033,7 +1033,7 @@ function PayrollSettingsModal({ employees, onClose, onSaved }) {
                         value={s.target_type}
                         onChange={e => update(agent, { target_type: e.target.value })}>
                         <option value="multiplier">×Πολλαπλασιαστής (τρέχον)</option>
-                        <option value="prev_cost_multiplier">×Κόστος Προηγ. Μήνα</option>
+                        <option value="prev_cost_multiplier">×Μ.Ο. 3 Προηγ. Μηνών</option>
                         <option value="fixed">Σταθερό Ποσό €</option>
                       </select>
                       <input type="number" step={s.target_type === 'fixed' ? '50' : '0.1'}
@@ -1042,7 +1042,7 @@ function PayrollSettingsModal({ employees, onClose, onSaved }) {
                         onChange={e => update(agent, { target_value: e.target.value })} />
                       <span className="text-xs text-slate-400">
                         {s.target_type === 'fixed' ? `€ / μήνα`
-                          : s.target_type === 'prev_cost_multiplier' ? `× κόστος προηγ. μήνα`
+                          : s.target_type === 'prev_cost_multiplier' ? `× μ.ο. 3 προηγ. μηνών`
                           : `× κόστος μισθοδοσίας`}
                       </span>
                     </>
@@ -1408,7 +1408,7 @@ function TabPayroll() {
     const totalDiff = totalSales - totalTarget;
     const totalPct = totalTarget > 0 ? (totalSales / totalTarget) * 100 : 0;
 
-    const basisCol = isPrevCost ? `<th style="text-align:right">Βάση (Κόστος)</th><th style="text-align:center">×</th>` : '';
+    const basisCol = isPrevCost ? `<th style="text-align:right">Μ.Ο. 3 Μηνών</th><th style="text-align:center">×</th>` : '';
     const basisFooter = isPrevCost ? `<td></td><td></td>` : '';
 
     const tableRows = rows.map(m => {
@@ -1448,7 +1448,7 @@ function TabPayroll() {
 <button class="btn" onclick="window.print()">🖨️ Εκτύπωση</button>
 <div class="header">
   <h1>${d.agent}</h1>
-  <div class="meta">Στόχοθεσία ${year}${isPrevCost && multiplier ? ` &nbsp;·&nbsp; ×${multiplier} κόστος προηγούμενου μήνα` : s?.target_type === 'fixed' ? ` &nbsp;·&nbsp; Σταθερός στόχος ${Math.round(s.target_value).toLocaleString('el-GR')} €/μήνα` : ''}</div>
+  <div class="meta">Στόχοθεσία ${year}${isPrevCost && multiplier ? ` &nbsp;·&nbsp; ×${multiplier} μέσος όρος 3 προηγούμενων μηνών` : s?.target_type === 'fixed' ? ` &nbsp;·&nbsp; Σταθερός στόχος ${Math.round(s.target_value).toLocaleString('el-GR')} €/μήνα` : ''}</div>
 </div>
 <table>
   <thead><tr>
@@ -1602,7 +1602,7 @@ function TabPayroll() {
             const targetLabel = (s?.target_type === 'fixed'
               ? `Σταθερός στόχος: ${Math.round(s.target_value)}€/μήνα`
               : s?.target_type === 'prev_cost_multiplier'
-                ? `×${s?.target_value ?? 3} × κόστος προηγ. μήνα`
+                ? `×${s?.target_value ?? 3} × μ.ο. 3 προηγ. μηνών`
                 : `×${s?.target_value ?? 4.2} × Μισθοδοσία`) +
               (commRate > 0 ? ` · ${commRate}% μπόνους υπέρβασης` : '');
 

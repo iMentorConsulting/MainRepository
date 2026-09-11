@@ -345,12 +345,22 @@ router.get('/payroll', async (req, res) => {
         const mNum = parseInt(m);
         const isFuture = parseInt(year) === todayYear && mNum > todayMonthNum;
 
-        // Previous month's gross cost (salary+bonus+IKA before subsidy) — used for prev_cost_multiplier target
-        const prevM = i > 0 ? months[i - 1] : null;
-        const prevPr = prevM ? empRows.find(x => x.month === prevM) : null;
-        const prevGrossAmount = parseFloat(prevPr?.gross_amount || 0);
-        const prevIkaAmount = prevM && ikaPct > 0 ? parseFloat(((ikaMap[prevM] || 0) * ikaPct / 100).toFixed(2)) : 0;
-        const prevGrossCost = parseFloat((prevGrossAmount + prevIkaAmount).toFixed(2));
+        // Rolling 3-month average gross cost (salary+bonus+IKA before subsidy) for prev_cost_multiplier target.
+        // Using an average prevents months with επίδομα/δώρο from inflating the very next month's target.
+        const rollingCosts = [];
+        for (let back = 1; back <= 3; back++) {
+          const pi = i - back;
+          if (pi < 0) break;
+          const pm = months[pi];
+          const pmPr = empRows.find(x => x.month === pm);
+          const pmGross = parseFloat(pmPr?.gross_amount || 0);
+          const pmIka = ikaPct > 0 ? parseFloat(((ikaMap[pm] || 0) * ikaPct / 100).toFixed(2)) : 0;
+          const pmCost = pmGross + pmIka;
+          if (pmCost > 0) rollingCosts.push(pmCost);
+        }
+        const prevGrossCost = rollingCosts.length > 0
+          ? parseFloat((rollingCosts.reduce((s, v) => s + v, 0) / rollingCosts.length).toFixed(2))
+          : 0;
 
         let target = 0;
         if (!isFuture) {
