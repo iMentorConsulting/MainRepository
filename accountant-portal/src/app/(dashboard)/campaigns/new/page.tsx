@@ -182,6 +182,7 @@ function StepSend({ template, messageBody, onMessageChange, programId, programs,
   const program = programs.find(p => p.id === programId)
   const [allRecipients, setAllRecipients] = useState<any[]>([])
   const [accountants, setAccountants] = useState<any[]>([])
+  const [availableTags, setAvailableTags] = useState<string[]>([])
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [loadingRecipients, setLoadingRecipients] = useState(true)
 
@@ -199,6 +200,8 @@ function StepSend({ template, messageBody, onMessageChange, programId, programs,
   const [selAccountants, setSelAccountants] = useState<string[]>([])
   const [noAccountantFilter, setNoAccountantFilter] = useState(false)
   const [campaignFilter, setCampaignFilter] = useState<'all' | 'sent' | 'not-sent'>('all')
+  const [includeTags, setIncludeTags] = useState<string[]>([])
+  const [excludeTags, setExcludeTags] = useState<string[]>([])
 
   useEffect(() => {
     const url = programId
@@ -210,6 +213,7 @@ function StepSend({ template, messageBody, onMessageChange, programId, programs,
         const businesses = data.businesses ?? data // backwards compat
         setAllRecipients(businesses)
         setAccountants(data.accountants ?? [])
+        setAvailableTags(data.tags ?? [])
         setSelected(new Set(businesses.map((b: any) => b.id)))
       })
       .finally(() => setLoadingRecipients(false))
@@ -229,8 +233,10 @@ function StepSend({ template, messageBody, onMessageChange, programId, programs,
     }
     if (campaignFilter === 'sent') list = list.filter(b => b.sentCampaign)
     if (campaignFilter === 'not-sent') list = list.filter(b => !b.sentCampaign)
+    if (includeTags.length > 0) list = list.filter(b => includeTags.some(t => (b.tags ?? []).includes(t)))
+    if (excludeTags.length > 0) list = list.filter(b => !excludeTags.some(t => (b.tags ?? []).includes(t)))
     return list
-  }, [allRecipients, search, selAccountants, noAccountantFilter, campaignFilter])
+  }, [allRecipients, search, selAccountants, noAccountantFilter, campaignFilter, includeTags, excludeTags])
 
   const visibleIds = useMemo(() => new Set(visible.map(b => b.id)), [visible])
   const allVisibleSelected = visible.length > 0 && visible.every(b => selected.has(b.id))
@@ -270,7 +276,7 @@ function StepSend({ template, messageBody, onMessageChange, programId, programs,
   const effectiveSendCount = parsedLimit && parsedLimit > 0 ? Math.min(parsedLimit, selected.size - noContactCount) : selected.size - noContactCount
   const canSend = selected.size > 0 && noContactCount < selected.size
 
-  const activeFilterCount = (search.trim() ? 1 : 0) + selAccountants.length + (noAccountantFilter ? 1 : 0) + (campaignFilter !== 'all' ? 1 : 0)
+  const activeFilterCount = (search.trim() ? 1 : 0) + selAccountants.length + (noAccountantFilter ? 1 : 0) + (campaignFilter !== 'all' ? 1 : 0) + includeTags.length + excludeTags.length
 
   const preview = (messageBody || '')
     .replace(/\{\{business_name\}\}/g, 'ΠΑΡΑΔΕΙΓΜΑ ΑΕ')
@@ -365,8 +371,38 @@ function StepSend({ template, messageBody, onMessageChange, programId, programs,
             </div>
           )}
 
+          {/* Tags filter */}
+          {availableTags.length > 0 && (
+            <div>
+              <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Tags (συμπερίληψη)</p>
+              <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
+                {availableTags.map(tag => (
+                  <button key={tag} onClick={() => setIncludeTags(prev => prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag])}
+                    className={`px-2.5 py-1 text-xs rounded-full border transition-colors ${includeTags.includes(tag) ? 'bg-indigo-700 text-white border-indigo-700' : 'bg-white text-gray-600 border-gray-300 hover:border-indigo-400'}`}>
+                    {tag}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Exclude Tags filter */}
+          {availableTags.length > 0 && (
+            <div>
+              <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Εξαίρεση Tags</p>
+              <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
+                {availableTags.map(tag => (
+                  <button key={tag} onClick={() => setExcludeTags(prev => prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag])}
+                    className={`px-2.5 py-1 text-xs rounded-full border transition-colors ${excludeTags.includes(tag) ? 'bg-red-600 text-white border-red-600' : 'bg-white text-gray-600 border-gray-300 hover:border-red-400'}`}>
+                    {tag}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           {activeFilterCount > 0 && (
-            <button onClick={() => { setSearch(''); setSelAccountants([]); setNoAccountantFilter(false); setCampaignFilter('all') }}
+            <button onClick={() => { setSearch(''); setSelAccountants([]); setNoAccountantFilter(false); setCampaignFilter('all'); setIncludeTags([]); setExcludeTags([]) }}
               className="text-xs text-gray-400 hover:text-gray-600 flex items-center gap-1">
               <X size={11} />Καθαρισμός φίλτρων ({activeFilterCount})
             </button>
