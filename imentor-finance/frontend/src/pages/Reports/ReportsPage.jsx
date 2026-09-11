@@ -1104,33 +1104,37 @@ function PayrollSummaryTable({ data, year, currentYear, currentMonthIdx }) {
         agent: d.agent,
         salary_amount: parseFloat(mData.salary_amount ?? 0),
         bonus_amount: parseFloat(mData.bonus_amount ?? 0),
+        subsidy_amount: parseFloat(mData.subsidy_amount ?? 0),
         ika_amount: parseFloat(mData.ika_amount ?? 0),
         true_cost: parseFloat(mData.true_cost ?? 0),
         target: parseFloat(mData.target ?? 0),
         sales: parseFloat(mData.sales ?? 0),
         amount: parseFloat(mData.amount ?? 0),
       };
-    }).filter(r => r.amount > 0 || r.target > 0 || r.sales > 0);
+    }).filter(r => r.amount !== 0 || r.target > 0 || r.sales > 0 || r.salary_amount > 0);
 
     const total_salary = employeeRows.reduce((s, r) => s + r.salary_amount, 0);
     const total_bonus = employeeRows.reduce((s, r) => s + r.bonus_amount, 0);
+    const total_subsidy = employeeRows.reduce((s, r) => s + r.subsidy_amount, 0);
     const total_ika = employeeRows.reduce((s, r) => s + r.ika_amount, 0);
     const total_true_cost = employeeRows.reduce((s, r) => s + r.true_cost, 0);
     const total_target = employeeRows.reduce((s, r) => s + r.target, 0);
     const total_sales = employeeRows.reduce((s, r) => s + r.sales, 0);
 
     return { month: m, month_name: MONTH_NAMES[i], isFuture, employeeRows,
-      total_salary, total_bonus, total_ika, total_true_cost, total_target, total_sales,
+      total_salary, total_bonus, total_subsidy, total_ika, total_true_cost, total_target, total_sales,
       hasData: total_salary + total_bonus > 0 || total_target > 0 || total_sales > 0 };
   });
 
   const grand = summaryRows.reduce((s, r) => ({
     salary: s.salary + r.total_salary, bonus: s.bonus + r.total_bonus,
+    subsidy: s.subsidy + r.total_subsidy,
     ika: s.ika + r.total_ika, true_cost: s.true_cost + r.total_true_cost,
     target: s.target + r.total_target, sales: s.sales + r.total_sales,
-  }), { salary: 0, bonus: 0, ika: 0, true_cost: 0, target: 0, sales: 0 });
+  }), { salary: 0, bonus: 0, subsidy: 0, ika: 0, true_cost: 0, target: 0, sales: 0 });
 
   const hasBonus = summaryRows.some(r => r.total_bonus > 0);
+  const hasSubsidy = summaryRows.some(r => r.total_subsidy < 0);
 
   const toggleMonth = m => setExpandedMonths(prev => {
     const next = new Set(prev);
@@ -1154,6 +1158,7 @@ function PayrollSummaryTable({ data, year, currentYear, currentMonthIdx }) {
               <th className="th">Μήνας</th>
               <th className="th text-right">Μισθός & Επίδομα</th>
               {hasBonus && <th className="th text-right text-violet-600">Bonus</th>}
+              {hasSubsidy && <th className="th text-right text-emerald-600">Επιδότηση</th>}
               {hasIka && <th className="th text-right text-orange-600">ΙΚΑ</th>}
               {hasIka && <th className="th text-right text-rose-700">Πραγματικό Κόστος</th>}
               <th className="th text-right">Στόχος</th>
@@ -1184,6 +1189,11 @@ function PayrollSummaryTable({ data, year, currentYear, currentMonthIdx }) {
                   {hasBonus && (
                     <td className="td text-right">
                       {row.total_bonus > 0 ? <span className="font-semibold text-violet-600">{fmt(row.total_bonus)}</span> : <span className="text-slate-300">—</span>}
+                    </td>
+                  )}
+                  {hasSubsidy && (
+                    <td className="td text-right">
+                      {row.total_subsidy < 0 ? <span className="font-semibold text-emerald-600">{fmt(row.total_subsidy)}</span> : <span className="text-slate-300">—</span>}
                     </td>
                   )}
                   {hasIka && (
@@ -1231,6 +1241,11 @@ function PayrollSummaryTable({ data, year, currentYear, currentMonthIdx }) {
                         {er.bonus_amount > 0 ? <span className="text-violet-500">{fmt(er.bonus_amount)}</span> : <span className="text-slate-300">—</span>}
                       </td>
                     )}
+                    {hasSubsidy && (
+                      <td className="td text-right text-xs">
+                        {er.subsidy_amount < 0 ? <span className="text-emerald-600">{fmt(er.subsidy_amount)}</span> : <span className="text-slate-300">—</span>}
+                      </td>
+                    )}
                     {hasIka && (
                       <td className="td text-right text-xs">
                         {er.ika_amount > 0 ? <span className="text-orange-500">{fmt(er.ika_amount)}</span> : <span className="text-slate-300">—</span>}
@@ -1266,6 +1281,7 @@ function PayrollSummaryTable({ data, year, currentYear, currentMonthIdx }) {
               <td className="td font-black text-slate-800 uppercase text-xs tracking-wide">ΣΥΝΟΛΟ {year}</td>
               <td className="td text-right font-black text-indigo-700">{fmt(grand.salary)}</td>
               {hasBonus && <td className="td text-right font-black text-violet-600">{grand.bonus > 0 ? fmt(grand.bonus) : '—'}</td>}
+              {hasSubsidy && <td className="td text-right font-black text-emerald-600">{grand.subsidy < 0 ? fmt(grand.subsidy) : '—'}</td>}
               {hasIka && <td className="td text-right font-black text-orange-600">{grand.ika > 0 ? fmt(grand.ika) : '—'}</td>}
               {hasIka && <td className="td text-right font-black text-rose-700">{grand.true_cost > 0 ? fmt(grand.true_cost) : '—'}</td>}
               <td className="td text-right font-black text-amber-600">{fmt(grand.target)}</td>
@@ -1424,6 +1440,7 @@ function TabPayroll() {
             const s = d.settings;
             const commRate = parseFloat(d.settings?.overachievement_rate ?? 0);
             const ikaPct = parseFloat(d.settings?.ika_percentage ?? 0);
+            const hasEmpSubsidy = (d.total_subsidy ?? 0) < 0;
             const targetLabel = (s?.target_type === 'fixed'
               ? `Σταθερός στόχος: ${Math.round(s.target_value)}€/μήνα`
               : `×${s?.target_value ?? 4.2} × Μισθοδοσία`) +
@@ -1457,6 +1474,7 @@ function TabPayroll() {
                     <div className="flex flex-wrap gap-4 mt-1 text-xs text-slate-500">
                       <span>Μισθός & Επίδομα: <strong className="text-slate-700">{fmt(d.total_salary)}</strong></span>
                       {d.total_bonus > 0 && <span>Bonus: <strong className="text-violet-600">{fmt(d.total_bonus)}</strong></span>}
+                      {hasEmpSubsidy && <span>Επιδότηση: <strong className="text-emerald-600">{fmt(d.total_subsidy)}</strong></span>}
                       {ikaPct > 0 && d.total_ika > 0 && (
                         <span>ΙΚΑ ({ikaPct}%): <strong className="text-orange-600">{fmt(d.total_ika)}</strong></span>
                       )}
@@ -1485,6 +1503,7 @@ function TabPayroll() {
                         <th className="th">Μήνας</th>
                         <th className="th text-right">Μισθός & Επίδομα & Δώρα</th>
                         <th className="th text-right text-violet-600">Bonus</th>
+                        {hasEmpSubsidy && <th className="th text-right text-emerald-600">Επιδότηση</th>}
                         {ikaPct > 0 && <th className="th text-right text-orange-600">Εισφορές ΙΚΑ</th>}
                         {ikaPct > 0 && <th className="th text-right text-rose-700">Πραγματικό Κόστος</th>}
                         <th className="th text-right">Στόχος</th>
@@ -1506,6 +1525,7 @@ function TabPayroll() {
                             <td className="td text-slate-400">{MONTH_NAMES[i]} {year}</td>
                             <td className="td text-right text-slate-300">—</td>
                             <td className="td text-right text-slate-300">—</td>
+                            {hasEmpSubsidy && <td className="td text-right text-slate-300">—</td>}
                             {ikaPct > 0 && <td className="td text-right text-slate-300">—</td>}
                             {ikaPct > 0 && <td className="td text-right text-slate-300">—</td>}
                             <td className="td text-right">
@@ -1546,6 +1566,13 @@ function TabPayroll() {
                                 ? <span className="font-semibold text-violet-600">{fmt(m.bonus_amount)}</span>
                                 : <span className="text-slate-300">—</span>}
                             </td>
+                            {hasEmpSubsidy && (
+                              <td className="td text-right">
+                                {m.subsidy_amount < 0
+                                  ? <span className="font-semibold text-emerald-600">{fmt(m.subsidy_amount)}</span>
+                                  : <span className="text-slate-300">—</span>}
+                              </td>
+                            )}
                             {ikaPct > 0 && (
                               <td className="td text-right">
                                 {m.ika_amount > 0
@@ -1616,6 +1643,7 @@ function TabPayroll() {
                         <td className="td font-black text-slate-800 uppercase text-xs tracking-wide">ΣΥΝΟΛΟ {year}</td>
                         <td className="td text-right font-black text-indigo-700">{fmt(d.total_salary)}</td>
                         <td className="td text-right font-black text-violet-600">{d.total_bonus > 0 ? fmt(d.total_bonus) : '—'}</td>
+                        {hasEmpSubsidy && <td className="td text-right font-black text-emerald-600">{(d.total_subsidy ?? 0) < 0 ? fmt(d.total_subsidy) : '—'}</td>}
                         {ikaPct > 0 && <td className="td text-right font-black text-orange-600">{d.total_ika > 0 ? fmt(d.total_ika) : '—'}</td>}
                         {ikaPct > 0 && <td className="td text-right font-black text-rose-700">{d.total_true_cost > 0 ? fmt(d.total_true_cost) : '—'}</td>}
                         <td className="td text-right font-black text-amber-600">{fmt(d.total_target)}</td>
