@@ -1167,6 +1167,7 @@ function PayrollSummaryTable({ data, year, currentYear, currentMonthIdx }) {
               <th className="th text-right min-w-[120px]">Επίτευξη</th>
               <th className="th text-right">Διαφορά</th>
               <th className="th text-right text-sky-600">Απόδοση</th>
+              {hasSubsidy && <th className="th text-right text-teal-600">Απόδ. (Μικτό)</th>}
             </tr>
           </thead>
           <tbody>
@@ -1229,6 +1230,16 @@ function PayrollSummaryTable({ data, year, currentYear, currentMonthIdx }) {
                       ? <span className="font-semibold text-sky-600">{fmtX(row.total_sales / row.total_true_cost)}</span>
                       : <span className="text-slate-300">—</span>}
                   </td>
+                  {hasSubsidy && (() => {
+                    const gross = row.total_salary + row.total_bonus + row.total_ika;
+                    return (
+                      <td className="td text-right">
+                        {gross > 0 && row.total_sales > 0
+                          ? <span className="font-semibold text-teal-600">{fmtX(row.total_sales / gross)}</span>
+                          : <span className="text-slate-300">—</span>}
+                      </td>
+                    );
+                  })()}
                 </tr>
               );
 
@@ -1282,6 +1293,16 @@ function PayrollSummaryTable({ data, year, currentYear, currentMonthIdx }) {
                         ? <span className="text-sky-500">{fmtX(er.sales / er.true_cost)}</span>
                         : <span className="text-slate-300">—</span>}
                     </td>
+                    {hasSubsidy && (() => {
+                      const gross = er.salary_amount + er.bonus_amount + er.ika_amount;
+                      return (
+                        <td className="td text-right text-xs">
+                          {gross > 0 && er.sales > 0
+                            ? <span className="text-teal-500">{fmtX(er.sales / gross)}</span>
+                            : <span className="text-slate-300">—</span>}
+                        </td>
+                      );
+                    })()}
                   </tr>
                 );
               }) : [];
@@ -1313,6 +1334,16 @@ function PayrollSummaryTable({ data, year, currentYear, currentMonthIdx }) {
                   ? <span className="text-sky-700">{fmtX(grand.sales / grand.true_cost)}</span>
                   : '—'}
               </td>
+              {hasSubsidy && (() => {
+                const gross = grand.salary + grand.bonus + grand.ika;
+                return (
+                  <td className="td text-right font-black">
+                    {gross > 0 && grand.sales > 0
+                      ? <span className="text-teal-700">{fmtX(grand.sales / gross)}</span>
+                      : '—'}
+                  </td>
+                );
+              })()}
             </tr>
           </tbody>
         </table>
@@ -1403,6 +1434,9 @@ function TabPayroll() {
   const grandPct = grandTarget > 0 ? (grandSales / grandTarget) * 100 : 0;
   const grandTrueCost = data.reduce((s, d) => s + (d.total_true_cost > 0 ? d.total_true_cost : (d.total > 0 ? d.total : 0)), 0);
   const grandEfficiency = grandTrueCost > 0 && grandSales > 0 ? grandSales / grandTrueCost : 0;
+  const grandSubsidy = data.reduce((s, d) => s + (d.total_subsidy ?? 0), 0);
+  const grandGrossTrueCost = data.reduce((s, d) => s + (d.total_salary ?? 0) + (d.total_bonus ?? 0) + (d.total_ika ?? 0), 0);
+  const grandFairEfficiency = grandGrossTrueCost > 0 && grandSales > 0 ? grandSales / grandGrossTrueCost : 0;
 
   return (
     <div className="space-y-6">
@@ -1447,6 +1481,14 @@ function TabPayroll() {
                 {grandEfficiency > 0 ? fmtX(grandEfficiency) : '—'}
               </div>
             </div>
+            {grandSubsidy < 0 && (
+              <div className="card p-5 border-l-4 border-teal-400">
+                <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Ισότιμη Απόδοση (χ. Επιδ.)</div>
+                <div className={`text-2xl font-black ${grandFairEfficiency >= 3 ? 'text-emerald-600' : grandFairEfficiency >= 1 ? 'text-teal-600' : 'text-rose-600'}`}>
+                  {grandFairEfficiency > 0 ? fmtX(grandFairEfficiency) : '—'}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Monthly summary table with expand per month */}
@@ -1514,6 +1556,11 @@ function TabPayroll() {
                         const ratio = cost > 0 && d.total_sales > 0 ? d.total_sales / cost : 0;
                         return ratio > 0 ? <span>Απόδοση: <strong className="text-sky-600">{fmtX(ratio)}</strong></span> : null;
                       })()}
+                      {hasEmpSubsidy && (() => {
+                        const gross = (d.total_salary ?? 0) + (d.total_bonus ?? 0) + (d.total_ika ?? 0);
+                        const ratio = gross > 0 && d.total_sales > 0 ? d.total_sales / gross : 0;
+                        return ratio > 0 ? <span>Απόδοση (χ. επιδ.): <strong className="text-teal-600">{fmtX(ratio)}</strong></span> : null;
+                      })()}
                       {d.total_commission > 0 && (
                         <span>Μπόνους Υπέρβασης: <strong className="text-violet-600">{fmt(d.total_commission)}</strong></span>
                       )}
@@ -1541,6 +1588,7 @@ function TabPayroll() {
                         <th className="th text-right min-w-[120px]">Επίτευξη</th>
                         <th className="th text-right">Διαφορά</th>
                         <th className="th text-right text-sky-600">Απόδοση</th>
+                        {hasEmpSubsidy && <th className="th text-right text-teal-600">Απόδ. (Μικτό)</th>}
                         {commRate > 0 && <th className="th text-right text-violet-600">Μπόνους {commRate}%</th>}
                       </tr>
                     </thead>
@@ -1576,6 +1624,7 @@ function TabPayroll() {
                             <td className="td text-right text-slate-300">—</td>
                             <td className="td text-right text-slate-300">—</td>
                             <td className="td text-right text-slate-300">—</td>
+                            {hasEmpSubsidy && <td className="td text-right text-slate-300">—</td>}
                             {commRate > 0 && <td className="td text-right text-slate-300">—</td>}
                           </tr>
                         );
@@ -1665,6 +1714,16 @@ function TabPayroll() {
                                 ? <span className="font-semibold text-sky-600">{fmtX(m.sales / m.true_cost)}</span>
                                 : <span className="text-slate-300">—</span>}
                             </td>
+                            {hasEmpSubsidy && (() => {
+                              const gross = (m.salary_amount ?? 0) + (m.bonus_amount ?? 0) + (m.ika_amount ?? 0);
+                              return (
+                                <td className="td text-right">
+                                  {gross > 0 && m.sales > 0
+                                    ? <span className="font-semibold text-teal-600">{fmtX(m.sales / gross)}</span>
+                                    : <span className="text-slate-300">—</span>}
+                                </td>
+                              );
+                            })()}
                             {commRate > 0 && (
                               <td className="td text-right">
                                 {m.commission > 0
@@ -1703,6 +1762,16 @@ function TabPayroll() {
                               : <span className="text-slate-300">—</span>;
                           })()}
                         </td>
+                        {hasEmpSubsidy && (() => {
+                          const gross = (d.total_salary ?? 0) + (d.total_bonus ?? 0) + (d.total_ika ?? 0);
+                          return (
+                            <td className="td text-right font-black">
+                              {gross > 0 && d.total_sales > 0
+                                ? <span className="text-teal-700">{fmtX(d.total_sales / gross)}</span>
+                                : <span className="text-slate-300">—</span>}
+                            </td>
+                          );
+                        })()}
                         {commRate > 0 && (
                           <td className="td text-right font-black">
                             <span className="text-violet-700">{d.total_commission > 0 ? fmt(d.total_commission) : '—'}</span>
