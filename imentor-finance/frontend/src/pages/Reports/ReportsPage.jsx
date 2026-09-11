@@ -1015,8 +1015,8 @@ function PayrollSettingsModal({ employees, onClose, onSaved }) {
             const s = settings[agent] || { visible: true, target_type: 'multiplier', target_value: 4.2 };
             return (
               <div key={agent} className={`border rounded-xl p-3 transition-colors ${s.visible ? 'border-slate-200 bg-white' : 'border-slate-100 bg-slate-50 opacity-60'}`}>
+                {/* Row 1: name + target settings */}
                 <div className="flex flex-wrap items-center gap-3">
-                  {/* Visible toggle */}
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input type="checkbox" checked={s.visible}
                       onChange={e => update(agent, { visible: e.target.checked })}
@@ -1026,42 +1026,39 @@ function PayrollSettingsModal({ employees, onClose, onSaved }) {
 
                   {s.visible && (
                     <>
-                      {/* Target type */}
                       <select className="input text-xs py-1 px-2 h-7 w-36"
                         value={s.target_type}
                         onChange={e => update(agent, { target_type: e.target.value })}>
                         <option value="multiplier">×Πολλαπλασιαστής</option>
                         <option value="fixed">Σταθερό Ποσό €</option>
                       </select>
-
-                      {/* Target value */}
                       <input type="number" step={s.target_type === 'multiplier' ? '0.1' : '50'}
                         min="0" className="input text-xs py-1 px-2 h-7 w-24"
                         value={s.target_value}
                         onChange={e => update(agent, { target_value: e.target.value })} />
-
                       <span className="text-xs text-slate-400">
                         {s.target_type === 'multiplier' ? `× κόστος μισθοδοσίας` : `€ / μήνα`}
                       </span>
-
-                      {/* Over-achievement commission rate */}
-                      <span className="text-xs text-slate-400 ml-2">|</span>
-                      <input type="number" step="0.5" min="0" max="50"
-                        className="input text-xs py-1 px-2 h-7 w-16"
-                        value={s.overachievement_rate ?? 10}
-                        onChange={e => update(agent, { overachievement_rate: e.target.value })} />
-                      <span className="text-xs text-slate-400">% μπόνους υπέρβασης</span>
-
-                      {/* IKA percentage */}
-                      <span className="text-xs text-slate-400 ml-2">|</span>
-                      <input type="number" step="0.01" min="0" max="100"
-                        className="input text-xs py-1 px-2 h-7 w-20"
-                        value={s.ika_percentage ?? 0}
-                        onChange={e => update(agent, { ika_percentage: e.target.value })} />
-                      <span className="text-xs text-slate-400">% ΙΚΑ</span>
                     </>
                   )}
                 </div>
+
+                {/* Row 2: bonus rate + IKA % */}
+                {s.visible && (
+                  <div className="flex items-center gap-2 mt-2 pl-6">
+                    <span className="text-xs text-slate-400 w-32">% μπόνους υπέρβασης</span>
+                    <input type="number" step="0.5" min="0" max="50"
+                      className="input text-xs py-1 px-2 h-7 w-16"
+                      value={s.overachievement_rate ?? 10}
+                      onChange={e => update(agent, { overachievement_rate: e.target.value })} />
+                    <span className="text-xs text-slate-300 mx-1">|</span>
+                    <span className="text-xs text-slate-400 w-24">% ΙΚΑ εργοδότη</span>
+                    <input type="number" step="0.01" min="0" max="100"
+                      className="input text-xs py-1 px-2 h-7 w-20"
+                      value={s.ika_percentage ?? 0}
+                      onChange={e => update(agent, { ika_percentage: e.target.value })} />
+                  </div>
+                )}
               </div>
             );
           })}
