@@ -265,19 +265,44 @@ router.get('/payroll', async (req, res) => {
       PayrollEmployeeSetting.findAll({ raw: true })
     ]);
 
-    // Build settings map keyed by UPPER(employee_name)
+    // Normalize names to handle encoding mismatches: Greek letters that share codepoints with
+    // Latin lookalikes (Α/A, Ε/E, Ι/I, …) produce different GROUP BY keys in PostgreSQL even
+    // after UPPER(). This function maps both variants to the same ASCII key so records that
+    // belong to the same employee are merged regardless of which encoding the DB stored.
+    const normalizeKey = n => {
+      if (!n) return '';
+      return n.trim().toUpperCase()
+        .replace(/Α/g,'A').replace(/Β/g,'B').replace(/Ε/g,'E').replace(/Ζ/g,'Z')
+        .replace(/Η/g,'H').replace(/Ι/g,'I').replace(/Κ/g,'K').replace(/Μ/g,'M')
+        .replace(/Ν/g,'N').replace(/Ο/g,'O').replace(/Ρ/g,'R').replace(/Τ/g,'T')
+        .replace(/Υ/g,'Y').replace(/Χ/g,'X');
+    };
+
+    // Settings map keyed by normalized name
     const settingsMap = {};
     for (const s of allSettings) {
-      settingsMap[s.employee_name.trim().toUpperCase()] = s;
+      settingsMap[normalizeKey(s.employee_name)] = s;
     }
 
-    // IKA map: sum payrollRows entries where the supplier is flagged as the IKA institution.
-    // Using is_ika_supplier avoids fragile string-encoding comparisons for 'ΙΚΑ'.
-    const ikaMap = {};
+    // Re-aggregate payrollRows by normalizedKey+month to merge encoding variants of the same name
+    const payrollAgg = {};
     for (const r of payrollRows) {
-      const setting = settingsMap[r.employee];
+      const key = normalizeKey(r.employee) + '|' + r.month;
+      if (!payrollAgg[key]) {
+        payrollAgg[key] = { ...r, amount: 0, bonus_amount: 0, count: 0 };
+      }
+      payrollAgg[key].amount += parseFloat(r.amount || 0);
+      payrollAgg[key].bonus_amount += parseFloat(r.bonus_amount || 0);
+      payrollAgg[key].count += parseInt(r.count || 0);
+    }
+    const mergedRows = Object.values(payrollAgg);
+
+    // IKA map: sum merged entries flagged as the IKA institution
+    const ikaMap = {};
+    for (const r of mergedRows) {
+      const setting = settingsMap[normalizeKey(r.employee)];
       if (setting && setting.is_ika_supplier) {
-        ikaMap[r.month] = (ikaMap[r.month] || 0) + parseFloat(r.amount || 0);
+        ikaMap[r.month] = (ikaMap[r.month] || 0) + r.amount;
       }
     }
 
@@ -287,21 +312,25 @@ router.get('/payroll', async (req, res) => {
 
     const months = ['01','02','03','04','05','06','07','08','09','10','11','12'];
     const monthNames = ['Ιαν','Φεβ','Μαρ','Απρ','Μαι','Ιουν','Ιουλ','Αυγ','Σεπ','Οκτ','Νοε','Δεκ'];
-    const employees = [...new Set(payrollRows.map(r => r.employee))].sort((a, b) => a.localeCompare(b, 'el'));
+    // Use canonical name from settings when available so display names are consistent
+    const employees = [...new Set(mergedRows.map(r => {
+      const s = settingsMap[normalizeKey(r.employee)];
+      return s ? s.employee_name : r.employee;
+    }))].sort((a, b) => a.localeCompare(b, 'el'));
 
     const data = employees.map(employee => {
-      const empKey = employee.toUpperCase().trim();
-      const settings = settingsMap[empKey] || null;
+      const normKey = normalizeKey(employee);
+      const settings = settingsMap[normKey] || null;
 
       // Skip hidden employees
       if (settings && !settings.visible) return null;
 
-      const empRows = payrollRows.filter(r => r.employee === employee);
+      const empRows = mergedRows.filter(r => normalizeKey(r.employee) === normKey);
       const ikaPct = parseFloat(settings?.ika_percentage ?? 0);
 
       const monthly = months.map((m, i) => {
         const pr = empRows.find(x => x.month === m);
-        const sr = salesRows.find(x => x.agent_key === empKey && x.month === m);
+        const sr = salesRows.find(x => normalizeKey(x.agent_key) === normKey && x.month === m);
         const amount = parseFloat(pr?.amount || 0);
         const bonus_amount = parseFloat(pr?.bonus_amount || 0);
         const salary_amount = parseFloat((amount - bonus_amount).toFixed(2));
