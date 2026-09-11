@@ -240,14 +240,14 @@ router.get('/payroll', async (req, res) => {
 
     const [payrollRows, salesRows, allSettings] = await Promise.all([
       sequelize.query(`
-        SELECT TRIM(supplier) AS employee, TO_CHAR(date, 'MM') AS month,
+        SELECT UPPER(TRIM(supplier)) AS employee, TO_CHAR(date, 'MM') AS month,
                COALESCE(SUM(amount), 0) AS amount, COUNT(*) AS count
         FROM expenses
         WHERE date BETWEEN :start AND :end
           AND UPPER(TRIM(category)) LIKE '%ΜΙΣΘΟΔΟΣΙΑ%ΕΡΓΑΤΙΚΑ%'
           AND supplier IS NOT NULL AND TRIM(supplier) <> ''
-        GROUP BY TRIM(supplier), month
-        ORDER BY TRIM(supplier), month
+        GROUP BY UPPER(TRIM(supplier)), month
+        ORDER BY UPPER(TRIM(supplier)), month
       `, { replacements: params, type: QueryTypes.SELECT }),
 
       sequelize.query(`
@@ -524,7 +524,7 @@ router.get('/payroll-years', async (req, res) => {
     const rows = await sequelize.query(
       `SELECT DISTINCT EXTRACT(YEAR FROM date)::int AS year
        FROM expenses
-       WHERE UPPER(category) LIKE '%ΜΙΣΘΟΔΟΣΙΑ%ΕΡΓΑΤΙΚΑ%'
+       WHERE UPPER(TRIM(category)) LIKE '%ΜΙΣΘΟΔΟΣΙΑ%ΕΡΓΑΤΙΚΑ%'
          AND date IS NOT NULL
        ORDER BY year DESC`,
       { type: QueryTypes.SELECT }
