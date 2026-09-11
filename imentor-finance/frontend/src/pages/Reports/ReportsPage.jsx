@@ -52,6 +52,7 @@ function MultiSelectDropdown({ label, options, selected, onChange, getKey, getLa
 const fmt = n => n != null ? Math.round(n).toLocaleString('el-GR') + ' €' : '—';
 const fmtPct = n => (n || 0).toFixed(1) + '%';
 const fmtMoney = n => Number(n).toLocaleString('el-GR', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) + ' €';
+const fmtX = n => (n != null && isFinite(n) && n > 0) ? n.toFixed(1) + '×' : '—';
 
 const PALETTE = ['#6366f1','#10b981','#f59e0b','#f43f5e','#a855f7','#06b6d4'];
 
@@ -1165,6 +1166,7 @@ function PayrollSummaryTable({ data, year, currentYear, currentMonthIdx }) {
               <th className="th text-right">Είσπραξη</th>
               <th className="th text-right min-w-[120px]">Επίτευξη</th>
               <th className="th text-right">Διαφορά</th>
+              <th className="th text-right text-sky-600">Απόδοση</th>
             </tr>
           </thead>
           <tbody>
@@ -1222,6 +1224,11 @@ function PayrollSummaryTable({ data, year, currentYear, currentMonthIdx }) {
                       ? <span className={`font-bold text-sm ${diff >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>{diff >= 0 ? '+' : ''}{fmt(diff)}</span>
                       : <span className="text-slate-300">—</span>}
                   </td>
+                  <td className="td text-right">
+                    {row.total_true_cost > 0 && row.total_sales > 0
+                      ? <span className="font-semibold text-sky-600">{fmtX(row.total_sales / row.total_true_cost)}</span>
+                      : <span className="text-slate-300">—</span>}
+                  </td>
                 </tr>
               );
 
@@ -1270,6 +1277,11 @@ function PayrollSummaryTable({ data, year, currentYear, currentMonthIdx }) {
                         ? <span className={erDiff >= 0 ? 'text-emerald-600' : 'text-rose-600'}>{erDiff >= 0 ? '+' : ''}{fmt(erDiff)}</span>
                         : <span className="text-slate-300">—</span>}
                     </td>
+                    <td className="td text-right text-xs">
+                      {er.true_cost > 0 && er.sales > 0
+                        ? <span className="text-sky-500">{fmtX(er.sales / er.true_cost)}</span>
+                        : <span className="text-slate-300">—</span>}
+                    </td>
                   </tr>
                 );
               }) : [];
@@ -1295,6 +1307,11 @@ function PayrollSummaryTable({ data, year, currentYear, currentMonthIdx }) {
                 <span className={grand.sales - grand.target >= 0 ? 'text-emerald-600' : 'text-rose-600'}>
                   {grand.sales - grand.target >= 0 ? '+' : ''}{fmt(grand.sales - grand.target)}
                 </span>
+              </td>
+              <td className="td text-right font-black">
+                {grand.true_cost > 0 && grand.sales > 0
+                  ? <span className="text-sky-700">{fmtX(grand.sales / grand.true_cost)}</span>
+                  : '—'}
               </td>
             </tr>
           </tbody>
@@ -1384,6 +1401,8 @@ function TabPayroll() {
   const grandTarget = data.reduce((s, d) => s + d.total_target, 0);
   const grandSales = data.reduce((s, d) => s + d.total_sales, 0);
   const grandPct = grandTarget > 0 ? (grandSales / grandTarget) * 100 : 0;
+  const grandTrueCost = data.reduce((s, d) => s + (d.total_true_cost > 0 ? d.total_true_cost : (d.total > 0 ? d.total : 0)), 0);
+  const grandEfficiency = grandTrueCost > 0 && grandSales > 0 ? grandSales / grandTrueCost : 0;
 
   return (
     <div className="space-y-6">
@@ -1412,7 +1431,7 @@ function TabPayroll() {
       {!loading && data.length > 0 && (
         <>
           {/* Overview stat cards */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
             <StatCard label="Σύνολο Μισθοδοσίας" value={fmt(grandPayroll)} color="border-slate-400" />
             <StatCard label="Σύνολο Στόχων" value={fmt(grandTarget)} color="border-amber-400" />
             <StatCard label="Είσπραξη" value={fmt(grandSales)} color={grandSales >= grandTarget ? 'border-emerald-400' : 'border-rose-400'} />
@@ -1420,6 +1439,12 @@ function TabPayroll() {
               <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Επίτευξη Στόχου</div>
               <div className={`text-2xl font-black ${grandPct >= 100 ? 'text-emerald-600' : grandPct >= 75 ? 'text-amber-600' : 'text-rose-600'}`}>
                 {grandTarget > 0 ? `${Math.round(grandPct)}%` : '—'}
+              </div>
+            </div>
+            <div className="card p-5 border-l-4 border-sky-400">
+              <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Απόδοση (Είσπραξη/Κόστος)</div>
+              <div className={`text-2xl font-black ${grandEfficiency >= 3 ? 'text-emerald-600' : grandEfficiency >= 1 ? 'text-sky-600' : 'text-rose-600'}`}>
+                {grandEfficiency > 0 ? fmtX(grandEfficiency) : '—'}
               </div>
             </div>
           </div>
@@ -1484,6 +1509,11 @@ function TabPayroll() {
                       <span>Στόχος: <strong className="text-amber-600">{fmt(d.total_target)}</strong></span>
                       <span>Είσπραξη: <strong className={achieved ? 'text-emerald-600' : 'text-rose-600'}>{fmt(d.total_sales)}</strong></span>
                       <span>Διαφορά: <strong className={d.total_sales - d.total_target >= 0 ? 'text-emerald-600' : 'text-rose-600'}>{d.total_sales - d.total_target >= 0 ? '+' : ''}{fmt(d.total_sales - d.total_target)}</strong></span>
+                      {(() => {
+                        const cost = d.total_true_cost > 0 ? d.total_true_cost : d.total;
+                        const ratio = cost > 0 && d.total_sales > 0 ? d.total_sales / cost : 0;
+                        return ratio > 0 ? <span>Απόδοση: <strong className="text-sky-600">{fmtX(ratio)}</strong></span> : null;
+                      })()}
                       {d.total_commission > 0 && (
                         <span>Μπόνους Υπέρβασης: <strong className="text-violet-600">{fmt(d.total_commission)}</strong></span>
                       )}
@@ -1510,6 +1540,7 @@ function TabPayroll() {
                         <th className="th text-right">Είσπραξη</th>
                         <th className="th text-right min-w-[120px]">Επίτευξη</th>
                         <th className="th text-right">Διαφορά</th>
+                        <th className="th text-right text-sky-600">Απόδοση</th>
                         {commRate > 0 && <th className="th text-right text-violet-600">Μπόνους {commRate}%</th>}
                       </tr>
                     </thead>
@@ -1541,6 +1572,7 @@ function TabPayroll() {
                                   onClick={() => setEditTarget({ agent: d.agent, monthKey, value: '' })}>—</span>
                               )}
                             </td>
+                            <td className="td text-right text-slate-300">—</td>
                             <td className="td text-right text-slate-300">—</td>
                             <td className="td text-right text-slate-300">—</td>
                             <td className="td text-right text-slate-300">—</td>
@@ -1628,6 +1660,11 @@ function TabPayroll() {
                                 ? <span className={`font-bold text-sm ${diff >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>{diff >= 0 ? '+' : ''}{fmt(diff)}</span>
                                 : <span className="text-slate-300">—</span>}
                             </td>
+                            <td className="td text-right">
+                              {m.true_cost > 0 && m.sales > 0
+                                ? <span className="font-semibold text-sky-600">{fmtX(m.sales / m.true_cost)}</span>
+                                : <span className="text-slate-300">—</span>}
+                            </td>
                             {commRate > 0 && (
                               <td className="td text-right">
                                 {m.commission > 0
@@ -1657,6 +1694,14 @@ function TabPayroll() {
                           <span className={d.total_sales - d.total_target >= 0 ? 'text-emerald-600' : 'text-rose-600'}>
                             {d.total_sales - d.total_target >= 0 ? '+' : ''}{fmt(d.total_sales - d.total_target)}
                           </span>
+                        </td>
+                        <td className="td text-right font-black">
+                          {(() => {
+                            const cost = d.total_true_cost > 0 ? d.total_true_cost : d.total;
+                            return cost > 0 && d.total_sales > 0
+                              ? <span className="text-sky-700">{fmtX(d.total_sales / cost)}</span>
+                              : <span className="text-slate-300">—</span>;
+                          })()}
                         </td>
                         {commRate > 0 && (
                           <td className="td text-right font-black">
