@@ -342,7 +342,7 @@ export async function POST(request: NextRequest) {
   // Create Ermis links for each matching program
   const programsWithLinks = await Promise.all(
     activeMatches.map(async (m: Match) => {
-      const ermisUrl = await getOrCreateGemiErmisLink(gemiId, m.programId)
+      const ermisUrl = await getOrCreateGemiErmisLink(gemiId, m.programId, gemi!.phone)
       return {
         programId: m.programId,
         category: m.program.category,

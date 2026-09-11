@@ -7,7 +7,7 @@ function generateToken(): string {
   return crypto.randomBytes(6).toString('base64url')
 }
 
-export async function getOrCreateGemiErmisLink(gemiId: string, programId: string): Promise<string> {
+export async function getOrCreateGemiErmisLink(gemiId: string, programId: string, phone?: string | null): Promise<string> {
   const baseUrl = process.env.APP_URL || 'https://logistis.i-mentor.gr'
   const expiresAt = new Date(Date.now() + TOKEN_TTL_DAYS * 24 * 60 * 60 * 1000)
 
@@ -19,7 +19,8 @@ export async function getOrCreateGemiErmisLink(gemiId: string, programId: string
         update: { expiresAt },
         select: { token: true },
       })
-      return `${baseUrl}/ge/${record.token}`
+      const url = `${baseUrl}/ge/${record.token}`
+      return phone ? `${url}?phone=${encodeURIComponent(phone)}` : url
     } catch (err: any) {
       if (err?.code !== 'P2002' || attempt === 2) throw err
     }
