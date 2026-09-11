@@ -241,8 +241,10 @@ router.get('/payroll', async (req, res) => {
     const [payrollRows, salesRows, allSettings] = await Promise.all([
       sequelize.query(`
         SELECT UPPER(TRIM(supplier)) AS employee, TO_CHAR(date, 'MM') AS month,
-               COALESCE(SUM(amount), 0) AS amount,
-               COALESCE(SUM(CASE WHEN UPPER(TRIM(description)) LIKE '%BONUS%' THEN amount ELSE 0 END), 0) AS bonus_amount,
+               COALESCE(SUM(amount), 0)                                                                               AS amount,
+               COALESCE(SUM(CASE WHEN amount > 0 THEN amount ELSE 0 END), 0)                                         AS gross_amount,
+               COALESCE(SUM(CASE WHEN UPPER(TRIM(description)) LIKE '%BONUS%' AND amount > 0 THEN amount ELSE 0 END), 0) AS bonus_amount,
+               COALESCE(SUM(CASE WHEN amount < 0 THEN amount ELSE 0 END), 0)                                         AS subsidy_amount,
                COUNT(*) AS count
         FROM expenses
         WHERE date BETWEEN :start AND :end
@@ -289,10 +291,12 @@ router.get('/payroll', async (req, res) => {
     for (const r of payrollRows) {
       const key = normalizeKey(r.employee) + '|' + r.month;
       if (!payrollAgg[key]) {
-        payrollAgg[key] = { ...r, amount: 0, bonus_amount: 0, count: 0 };
+        payrollAgg[key] = { ...r, amount: 0, gross_amount: 0, bonus_amount: 0, subsidy_amount: 0, count: 0 };
       }
       payrollAgg[key].amount += parseFloat(r.amount || 0);
+      payrollAgg[key].gross_amount += parseFloat(r.gross_amount || 0);
       payrollAgg[key].bonus_amount += parseFloat(r.bonus_amount || 0);
+      payrollAgg[key].subsidy_amount += parseFloat(r.subsidy_amount || 0);
       payrollAgg[key].count += parseInt(r.count || 0);
     }
     const mergedRows = Object.values(payrollAgg);
@@ -331,9 +335,11 @@ router.get('/payroll', async (req, res) => {
       const monthly = months.map((m, i) => {
         const pr = empRows.find(x => x.month === m);
         const sr = salesRows.find(x => normalizeKey(x.agent_key) === normKey && x.month === m);
-        const amount = parseFloat(pr?.amount || 0);
+        const amount = parseFloat(pr?.amount || 0);           // net (after ΔΥΠΑ subsidies)
+        const gross_amount = parseFloat(pr?.gross_amount || 0); // gross (only positive entries)
         const bonus_amount = parseFloat(pr?.bonus_amount || 0);
-        const salary_amount = parseFloat((amount - bonus_amount).toFixed(2));
+        const subsidy_amount = parseFloat(pr?.subsidy_amount || 0); // negative value (ΔΥΠΑ etc.)
+        const salary_amount = parseFloat((gross_amount - bonus_amount).toFixed(2)); // gross salary paid
         const sales = parseFloat(sr?.sales || 0);
 
         const mNum = parseInt(m);
@@ -362,12 +368,13 @@ router.get('/payroll', async (req, res) => {
         const ika_amount = ikaPct > 0 ? parseFloat((monthIka * ikaPct / 100).toFixed(2)) : 0;
         const true_cost = parseFloat((amount + ika_amount).toFixed(2));
 
-        return { month: m, month_name: monthNames[i], amount, salary_amount, bonus_amount, target, sales, commission, ika_amount, true_cost, count: parseInt(pr?.count || 0), is_future: isFuture };
+        return { month: m, month_name: monthNames[i], amount, salary_amount, bonus_amount, subsidy_amount, target, sales, commission, ika_amount, true_cost, count: parseInt(pr?.count || 0), is_future: isFuture };
       });
 
       const total = monthly.reduce((s, m) => s + m.amount, 0);
       const total_salary = parseFloat(monthly.reduce((s, m) => s + m.salary_amount, 0).toFixed(2));
       const total_bonus = parseFloat(monthly.reduce((s, m) => s + m.bonus_amount, 0).toFixed(2));
+      const total_subsidy = parseFloat(monthly.reduce((s, m) => s + m.subsidy_amount, 0).toFixed(2));
       const total_target = monthly.reduce((s, m) => s + m.target, 0);
       const total_sales = monthly.reduce((s, m) => s + m.sales, 0);
       const total_commission = monthly.reduce((s, m) => s + m.commission, 0);
@@ -394,6 +401,7 @@ router.get('/payroll', async (req, res) => {
         total,
         total_salary,
         total_bonus,
+        total_subsidy,
         total_target,
         total_sales,
         total_ika,
