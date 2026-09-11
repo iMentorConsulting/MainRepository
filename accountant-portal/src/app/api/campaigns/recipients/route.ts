@@ -71,8 +71,13 @@ export async function GET(request: NextRequest) {
     sentCampaign: sentBusinessIds.has(b.id),
   }))
 
-  // Collect distinct tags across all recipients for the filter UI
-  const allTags = Array.from(new Set(result.flatMap(b => b.tags ?? []))).sort()
+  // Collect distinct tags from ALL businesses visible to this user (not just current recipients)
+  // so the filter UI shows the full tag library, not just tags on the current recipient set
+  const allBusinessesForTags = await prisma.business.findMany({
+    where: sessionAccountantId ? { accountantId: sessionAccountantId } : {},
+    select: { tags: true },
+  })
+  const allTags = Array.from(new Set(allBusinessesForTags.flatMap(b => b.tags ?? []))).sort()
 
   return NextResponse.json({ businesses: result, accountants, tags: allTags })
 }
