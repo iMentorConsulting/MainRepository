@@ -77,6 +77,11 @@ if (process.env.NODE_ENV === 'production') {
 
 const PORT = process.env.PORT || 3001;
 
+// Convert target_type ENUM → VARCHAR before sync so new values (prev_cost_multiplier) are accepted
+sequelize.query(
+  `ALTER TABLE payroll_employee_settings ALTER COLUMN target_type TYPE VARCHAR(50) USING target_type::text`
+).catch(() => {/* already VARCHAR or table doesn't exist yet — both fine */});
+
 sequelize.sync({ alter: true }).then(async () => {
   console.log('Database connected & synced');
 
