@@ -241,7 +241,9 @@ router.get('/payroll', async (req, res) => {
     const [payrollRows, salesRows, allSettings] = await Promise.all([
       sequelize.query(`
         SELECT UPPER(TRIM(supplier)) AS employee, TO_CHAR(date, 'MM') AS month,
-               COALESCE(SUM(amount), 0) AS amount, COUNT(*) AS count
+               COALESCE(SUM(amount), 0) AS amount,
+               COALESCE(SUM(CASE WHEN UPPER(TRIM(description)) LIKE '%BONUS%' THEN amount ELSE 0 END), 0) AS bonus_amount,
+               COUNT(*) AS count
         FROM expenses
         WHERE date BETWEEN :start AND :end
           AND UPPER(TRIM(category)) LIKE '%ΜΙΣΘΟΔΟΣΙΑ%ΕΡΓΑΤΙΚΑ%'
@@ -301,6 +303,8 @@ router.get('/payroll', async (req, res) => {
         const pr = empRows.find(x => x.month === m);
         const sr = salesRows.find(x => x.agent_key === empKey && x.month === m);
         const amount = parseFloat(pr?.amount || 0);
+        const bonus_amount = parseFloat(pr?.bonus_amount || 0);
+        const salary_amount = parseFloat((amount - bonus_amount).toFixed(2));
         const sales = parseFloat(sr?.sales || 0);
 
         const mNum = parseInt(m);
@@ -329,10 +333,12 @@ router.get('/payroll', async (req, res) => {
         const ika_amount = ikaPct > 0 ? parseFloat((monthIka * ikaPct / 100).toFixed(2)) : 0;
         const true_cost = parseFloat((amount + ika_amount).toFixed(2));
 
-        return { month: m, month_name: monthNames[i], amount, target, sales, commission, ika_amount, true_cost, count: parseInt(pr?.count || 0), is_future: isFuture };
+        return { month: m, month_name: monthNames[i], amount, salary_amount, bonus_amount, target, sales, commission, ika_amount, true_cost, count: parseInt(pr?.count || 0), is_future: isFuture };
       });
 
       const total = monthly.reduce((s, m) => s + m.amount, 0);
+      const total_salary = parseFloat(monthly.reduce((s, m) => s + m.salary_amount, 0).toFixed(2));
+      const total_bonus = parseFloat(monthly.reduce((s, m) => s + m.bonus_amount, 0).toFixed(2));
       const total_target = monthly.reduce((s, m) => s + m.target, 0);
       const total_sales = monthly.reduce((s, m) => s + m.sales, 0);
       const total_commission = monthly.reduce((s, m) => s + m.commission, 0);
@@ -357,6 +363,8 @@ router.get('/payroll', async (req, res) => {
         agent: employee,
         monthly,
         total,
+        total_salary,
+        total_bonus,
         total_target,
         total_sales,
         total_ika,

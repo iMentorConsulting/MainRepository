@@ -1247,7 +1247,8 @@ function TabPayroll() {
                       <span className="text-xs text-slate-400 italic">{targetLabel}</span>
                     </div>
                     <div className="flex flex-wrap gap-4 mt-1 text-xs text-slate-500">
-                      <span>Κόστος: <strong className="text-slate-700">{fmt(d.total)}</strong></span>
+                      <span>Μισθός & Επίδομα: <strong className="text-slate-700">{fmt(d.total_salary)}</strong></span>
+                      {d.total_bonus > 0 && <span>Bonus: <strong className="text-violet-600">{fmt(d.total_bonus)}</strong></span>}
                       {ikaPct > 0 && d.total_ika > 0 && (
                         <span>ΙΚΑ ({ikaPct}%): <strong className="text-orange-600">{fmt(d.total_ika)}</strong></span>
                       )}
@@ -1274,7 +1275,8 @@ function TabPayroll() {
                       <tr>
                         <th className="th w-8"></th>
                         <th className="th">Μήνας</th>
-                        <th className="th text-right">Κόστος Μισθοδοσίας</th>
+                        <th className="th text-right">Μισθός & Επίδομα & Δώρα</th>
+                        <th className="th text-right text-violet-600">Bonus</th>
                         {ikaPct > 0 && <th className="th text-right text-orange-600">Εισφορές ΙΚΑ</th>}
                         {ikaPct > 0 && <th className="th text-right text-rose-700">Πραγματικό Κόστος</th>}
                         <th className="th text-right">Στόχος</th>
@@ -1294,6 +1296,7 @@ function TabPayroll() {
                           <tr key={m.month} className="tr opacity-25">
                             <td className="td"></td>
                             <td className="td text-slate-400">{MONTH_NAMES[i]} {year}</td>
+                            <td className="td text-right text-slate-300">—</td>
                             <td className="td text-right text-slate-300">—</td>
                             {ikaPct > 0 && <td className="td text-right text-slate-300">—</td>}
                             {ikaPct > 0 && <td className="td text-right text-slate-300">—</td>}
@@ -1326,8 +1329,13 @@ function TabPayroll() {
                             </td>
                             <td className="td font-semibold text-slate-700">{MONTH_NAMES[i]} {year}</td>
                             <td className="td text-right">
-                              {m.amount !== 0
-                                ? <span className={`font-bold ${m.amount < 0 ? 'text-rose-600' : 'text-indigo-600'}`}>{fmt(m.amount)}</span>
+                              {m.salary_amount !== 0
+                                ? <span className={`font-bold ${m.salary_amount < 0 ? 'text-rose-600' : 'text-indigo-600'}`}>{fmt(m.salary_amount)}</span>
+                                : <span className="text-slate-300">—</span>}
+                            </td>
+                            <td className="td text-right">
+                              {m.bonus_amount > 0
+                                ? <span className="font-semibold text-violet-600">{fmt(m.bonus_amount)}</span>
                                 : <span className="text-slate-300">—</span>}
                             </td>
                             {ikaPct > 0 && (
@@ -1398,7 +1406,8 @@ function TabPayroll() {
                       <tr className="bg-slate-50 border-t-2 border-slate-200">
                         <td className="td"></td>
                         <td className="td font-black text-slate-800 uppercase text-xs tracking-wide">ΣΥΝΟΛΟ {year}</td>
-                        <td className="td text-right font-black text-indigo-700">{fmt(d.total)}</td>
+                        <td className="td text-right font-black text-indigo-700">{fmt(d.total_salary)}</td>
+                        <td className="td text-right font-black text-violet-600">{d.total_bonus > 0 ? fmt(d.total_bonus) : '—'}</td>
                         {ikaPct > 0 && <td className="td text-right font-black text-orange-600">{d.total_ika > 0 ? fmt(d.total_ika) : '—'}</td>}
                         {ikaPct > 0 && <td className="td text-right font-black text-rose-700">{d.total_true_cost > 0 ? fmt(d.total_true_cost) : '—'}</td>}
                         <td className="td text-right font-black text-amber-600">{fmt(d.total_target)}</td>
