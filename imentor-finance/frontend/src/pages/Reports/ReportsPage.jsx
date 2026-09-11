@@ -1363,6 +1363,8 @@ function TabPayroll() {
   const [loading, setLoading] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [editTarget, setEditTarget] = useState(null); // { agent, monthKey, value }
+  const [syncStatus, setSyncStatus] = useState(null);   // last sync result
+  const [syncing, setSyncing] = useState(false);
 
   const today = new Date();
   const currentYear = today.getFullYear();
@@ -1507,12 +1509,25 @@ function TabPayroll() {
     .finally(() => setLoading(false));
   };
 
+  const pushSync = async () => {
+    setSyncing(true);
+    try {
+      const r = await api.post('/payroll-target-sync/send');
+      setSyncStatus(r.data);
+    } catch (e) {
+      setSyncStatus({ ran_at: new Date().toISOString(), error: e.response?.data?.error || e.message });
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   useEffect(() => {
     api.get('/reports/payroll-years').then(r => {
       const ys = r.data || [];
       setPayrollYears(ys);
       if (ys.length > 0) { setYear(ys[0]); loadData(ys[0]); }
     }).catch(() => {});
+    api.get('/payroll-target-sync/status').then(r => setSyncStatus(r.data)).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -1539,7 +1554,7 @@ function TabPayroll() {
         />
       )}
 
-      <div className="filter-bar">
+      <div className="filter-bar flex-wrap">
         <select className="input w-28" value={year} onChange={e => setYear(+e.target.value)}>
           {(payrollYears.length > 0 ? payrollYears : [year]).map(y => <option key={y}>{y}</option>)}
         </select>
@@ -1549,6 +1564,33 @@ function TabPayroll() {
           </svg>
           Ρυθμίσεις Στόχων
         </button>
+
+        {/* External sync button + status */}
+        <div className="flex items-center gap-2 ml-auto">
+          {syncStatus?.ran_at && (
+            <div className="flex items-center gap-1.5 text-xs text-slate-400">
+              {syncStatus.error
+                ? <span className="text-rose-500">✗ Αποτυχία {new Date(syncStatus.ran_at).toLocaleString('el-GR', { hour:'2-digit', minute:'2-digit' })}</span>
+                : syncStatus.results
+                  ? syncStatus.results.every(r => r.ok || r.skipped)
+                    ? <span className="text-emerald-600">✓ Αποστολή {new Date(syncStatus.ran_at).toLocaleString('el-GR', { hour:'2-digit', minute:'2-digit' })}</span>
+                    : <span className="text-amber-600">⚠ Μερική αποστολή {new Date(syncStatus.ran_at).toLocaleString('el-GR', { hour:'2-digit', minute:'2-digit' })}</span>
+                  : null}
+            </div>
+          )}
+          <button
+            className="btn-ghost btn-sm flex items-center gap-1.5"
+            onClick={pushSync}
+            disabled={syncing}
+            title="Αποστολή στόχων τώρα στα εξωτερικά συστήματα">
+            <svg viewBox="0 0 20 20" fill="currentColor" className={`w-4 h-4 ${syncing ? 'text-indigo-400 animate-spin' : 'text-slate-500'}`}>
+              {syncing
+                ? <path fillRule="evenodd" d="M10 3a7 7 0 1 0 7 7h-2a5 5 0 1 1-5-5V3Z" clipRule="evenodd"/>
+                : <path d="M3.105 2.289a.75.75 0 0 0-.826.95l1.414 4.925A1.5 1.5 0 0 0 5.135 9.25h6.115a.75.75 0 0 1 0 1.5H5.135a1.5 1.5 0 0 0-1.442 1.086l-1.414 4.926a.75.75 0 0 0 .826.95 28.896 28.896 0 0 0 15.293-7.154.75.75 0 0 0 0-1.115A28.897 28.897 0 0 0 3.105 2.289Z"/>}
+            </svg>
+            {syncing ? 'Αποστολή...' : 'Αποστολή Στόχων'}
+          </button>
+        </div>
       </div>
 
       {loading && <div className="card p-12 text-center text-slate-400">Φόρτωση...</div>}

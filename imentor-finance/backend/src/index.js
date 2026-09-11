@@ -65,6 +65,8 @@ app.use('/api/settings', authMiddleware, require('./routes/settings'));
 app.use('/api/backup',  authMiddleware, require('./routes/backup'));
 // Push paid Income rows to Logistis (requires LOGISTIS_BASE_URL + LOGISTIS_API_KEY env vars)
 app.use('/api/logistis-sync', authMiddleware, require('./routes/logistisSync'));
+// Push daily payroll targets + achievement to external systems (requires EXODIKASTIKOS_WEBHOOK_URL / CASE_MGT_WEBHOOK_URL env vars)
+app.use('/api/payroll-target-sync', authMiddleware, require('./routes/payrollTargetSync'));
 
 app.get('/health', (_, res) => res.json({ ok: true }));
 
@@ -171,6 +173,26 @@ sequelize.sync({ alter: true }).then(async () => {
     console.log('[logistis-sync] Daily payments sync scheduled at 08:00 Europe/Athens');
   } catch (e) {
     console.warn('[logistis-sync] Could not schedule sync:', e.message);
+  }
+
+  // Daily payroll target + achievement push at 09:00 Athens time
+  try {
+    const cron = require('node-cron');
+    const { runPayrollTargetSync } = require('./services/payrollTargetSync');
+    cron.schedule('0 9 * * *', () => {
+      runPayrollTargetSync()
+        .then(r => {
+          global._lastPayrollTargetSync = r;
+          console.log(`[payroll-target-sync] Sent targets for ${r.employee_count} employees:`, JSON.stringify(r.results));
+        })
+        .catch(e => {
+          global._lastPayrollTargetSync = { ran_at: new Date().toISOString(), ok: false, error: e.message };
+          console.error('[payroll-target-sync] error:', e.message);
+        });
+    }, { timezone: 'Europe/Athens' });
+    console.log('[payroll-target-sync] Daily sync scheduled at 09:00 Europe/Athens');
+  } catch (e) {
+    console.warn('[payroll-target-sync] Could not schedule sync:', e.message);
   }
 }).catch(err => {
   console.error('DB sync error:', err.message);
