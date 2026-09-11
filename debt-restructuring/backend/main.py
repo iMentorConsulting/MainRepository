@@ -272,11 +272,43 @@ def _run_daily_reminders_safe():
 
 from apscheduler.schedulers.background import BackgroundScheduler
 _scheduler = BackgroundScheduler()
-_scheduler.add_job(_run_leads_sync_safe,      "cron", hour=8, minute=45, timezone="Europe/Athens")  # 08:45 Athens (DST-aware)
-_scheduler.add_job(_run_daily_reminders_safe, "cron", hour=5, minute=0)    # 05:00 UTC = 08:00 Athens
-_scheduler.add_job(_run_backup_safe,          "cron", hour=15, minute=0)   # 15:00 UTC = 18:00 Athens
+def _run_sync_health_check_safe():
+    """Periodic health check: verify all Google Sheet rows are in DB"""
+    try:
+        from sync_monitoring import check_sync_health
+        ok = check_sync_health()
+        if not ok:
+            print("[SyncHealthCheck] ⚠️  Issues detected - check logs")
+    except Exception as e:
+        print(f"[SyncHealthCheck] FAILED — {e}")
+
+
+def _run_full_leads_sync_safe():
+    """Weekly full reconciliation sync to catch any missing rows"""
+    try:
+        from sheets_sync import sync_leads
+        from database import SessionLocal
+        db = SessionLocal()
+        try:
+            result = sync_leads(db, full=True)
+            inserted = result.get('inserted', 0)
+            if inserted > 0:
+                print(f"[FullSyncReconciliation] OK — {inserted} missing rows re-synced")
+            else:
+                print(f"[FullSyncReconciliation] OK — no missing rows found")
+        finally:
+            db.close()
+    except Exception as e:
+        print(f"[FullSyncReconciliation] FAILED — {e}")
+
+
+_scheduler.add_job(_run_leads_sync_safe,           "cron", hour=8, minute=45, timezone="Europe/Athens")  # Daily 08:45 Athens
+_scheduler.add_job(_run_full_leads_sync_safe,      "cron", day_of_week="sun", hour=3, minute=0, timezone="Europe/Athens")  # Weekly Sunday 3am
+_scheduler.add_job(_run_sync_health_check_safe,    "cron", hour=9, minute=0, timezone="Europe/Athens")  # Daily 09:00 Athens
+_scheduler.add_job(_run_daily_reminders_safe,      "cron", hour=5, minute=0)    # 05:00 UTC = 08:00 Athens
+_scheduler.add_job(_run_backup_safe,               "cron", hour=15, minute=0)   # 15:00 UTC = 18:00 Athens
 _scheduler.start()
-print("[Scheduler] Leads sync 08:45 Athens | Daily reminders 05:00 UTC | Backup 15:00 UTC (Athens = UTC+2/3)")
+print("[Scheduler] Leads sync 08:45 | Full sync Sun 3am | Health check 09:00 | Reminders 05:00 UTC | Backup 15:00 UTC (all Athens time)")
 
 
 @app.get("/")

@@ -19,6 +19,7 @@ import {
 } from '@heroicons/react/24/outline'
 import * as api from '../api'
 import { PORTAL_BASE } from '../api'
+import { normalizeEmail } from '../utils/emailNormalization'
 
 
 const EMPLOYEES = ['STELLA', 'VALLIA', 'SOFIA']
@@ -784,7 +785,7 @@ function EditPanel({ lead, onUpdate }) {
   const save = async () => {
     setSaving(true)
     try {
-      const res = await api.patchLead(lead.id, { name, phone, phone2, email })
+      const res = await api.patchLead(lead.id, { name, phone, phone2, email: normalizeEmail(email) })
       onUpdate(res.data)
       toast.success('Αποθηκεύτηκε')
       setConfirming(false)
