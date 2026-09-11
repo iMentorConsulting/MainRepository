@@ -940,6 +940,7 @@ function PayrollSettingsModal({ employees, onClose, onSaved }) {
         target_value: s?.target_value ?? 4.2,
         overachievement_rate: s?.overachievement_rate ?? 10,
         ika_percentage: s?.ika_percentage ?? 0,
+        is_ika_supplier: s?.is_ika_supplier ?? false,
       };
     }
     setSettings(init);
@@ -952,7 +953,7 @@ function PayrollSettingsModal({ employees, onClose, onSaved }) {
         const next = { ...prev };
         for (const s of r.data) {
           if (!next[s.employee_name]) {
-            next[s.employee_name] = { id: s.id, visible: s.visible, target_type: s.target_type, target_value: parseFloat(s.target_value), overachievement_rate: parseFloat(s.overachievement_rate ?? 10), ika_percentage: parseFloat(s.ika_percentage ?? 0) };
+            next[s.employee_name] = { id: s.id, visible: s.visible, target_type: s.target_type, target_value: parseFloat(s.target_value), overachievement_rate: parseFloat(s.overachievement_rate ?? 10), ika_percentage: parseFloat(s.ika_percentage ?? 0), is_ika_supplier: s.is_ika_supplier ?? false };
           }
         }
         return next;
@@ -990,6 +991,7 @@ function PayrollSettingsModal({ employees, onClose, onSaved }) {
           target_value: parseFloat(settings[agent].target_value) || 4.2,
           overachievement_rate: parseFloat(settings[agent].overachievement_rate) || 0,
           ika_percentage: parseFloat(settings[agent].ika_percentage) || 0,
+          is_ika_supplier: settings[agent].is_ika_supplier ?? false,
         })
       ));
       onSaved();
@@ -1043,7 +1045,7 @@ function PayrollSettingsModal({ employees, onClose, onSaved }) {
                   )}
                 </div>
 
-                {/* Row 2: bonus rate + IKA % */}
+                {/* Row 2: bonus rate + IKA % (visible employees) */}
                 {s.visible && (
                   <div className="flex items-center gap-2 mt-2 pl-6">
                     <span className="text-xs text-slate-400 w-32">% μπόνους υπέρβασης</span>
@@ -1057,6 +1059,18 @@ function PayrollSettingsModal({ employees, onClose, onSaved }) {
                       className="input text-xs py-1 px-2 h-7 w-20"
                       value={s.ika_percentage ?? 0}
                       onChange={e => update(agent, { ika_percentage: e.target.value })} />
+                  </div>
+                )}
+                {/* Hidden entries: mark as IKA institution */}
+                {!s.visible && (
+                  <div className="mt-1.5 pl-6">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input type="checkbox"
+                        checked={s.is_ika_supplier ?? false}
+                        onChange={e => update(agent, { is_ika_supplier: e.target.checked })}
+                        className="w-3.5 h-3.5 rounded border-slate-300 text-orange-500" />
+                      <span className="text-xs text-orange-600 font-medium">Λογαριασμός ΙΚΑ εργοδότη (χρήση ως μηνιαίο σύνολο εισφορών)</span>
+                    </label>
                   </div>
                 )}
               </div>

@@ -269,13 +269,12 @@ router.get('/payroll', async (req, res) => {
       settingsMap[s.employee_name.trim().toUpperCase()] = s;
     }
 
-    // IKA map: sum payrollRows entries where the supplier is hidden (visible=false in settings).
-    // This avoids fragile string-encoding comparisons: ΙΚΑ is already marked visible=false
-    // in PayrollEmployeeSettings from when the user unchecked it in the modal.
+    // IKA map: sum payrollRows entries where the supplier is flagged as the IKA institution.
+    // Using is_ika_supplier avoids fragile string-encoding comparisons for 'ΙΚΑ'.
     const ikaMap = {};
     for (const r of payrollRows) {
       const setting = settingsMap[r.employee];
-      if (setting && !setting.visible) {
+      if (setting && setting.is_ika_supplier) {
         ikaMap[r.month] = (ikaMap[r.month] || 0) + parseFloat(r.amount || 0);
       }
     }
@@ -363,7 +362,7 @@ router.get('/payroll', async (req, res) => {
         total_ika,
         total_true_cost,
         settings: settings
-          ? { id: settings.id, visible: settings.visible, target_type: settings.target_type, target_value: parseFloat(settings.target_value), monthly_overrides: settings.monthly_overrides || {}, overachievement_rate: parseFloat(settings.overachievement_rate ?? 10), ika_percentage: parseFloat(settings.ika_percentage ?? 0) }
+          ? { id: settings.id, visible: settings.visible, target_type: settings.target_type, target_value: parseFloat(settings.target_value), monthly_overrides: settings.monthly_overrides || {}, overachievement_rate: parseFloat(settings.overachievement_rate ?? 10), ika_percentage: parseFloat(settings.ika_percentage ?? 0), is_ika_supplier: settings.is_ika_supplier ?? false }
           : null,
         total_commission,
         streak: { max: maxStreak, current: latestStreak }
