@@ -1029,18 +1029,21 @@ function PayrollSettingsModal({ employees, onClose, onSaved }) {
 
                   {s.visible && (
                     <>
-                      <select className="input text-xs py-1 px-2 h-7 w-36"
+                      <select className="input text-xs py-1 px-2 h-7 w-44"
                         value={s.target_type}
                         onChange={e => update(agent, { target_type: e.target.value })}>
-                        <option value="multiplier">×Πολλαπλασιαστής</option>
+                        <option value="multiplier">×Πολλαπλασιαστής (τρέχον)</option>
+                        <option value="prev_cost_multiplier">×Κόστος Προηγ. Μήνα</option>
                         <option value="fixed">Σταθερό Ποσό €</option>
                       </select>
-                      <input type="number" step={s.target_type === 'multiplier' ? '0.1' : '50'}
+                      <input type="number" step={s.target_type === 'fixed' ? '50' : '0.1'}
                         min="0" className="input text-xs py-1 px-2 h-7 w-24"
                         value={s.target_value}
                         onChange={e => update(agent, { target_value: e.target.value })} />
                       <span className="text-xs text-slate-400">
-                        {s.target_type === 'multiplier' ? `× κόστος μισθοδοσίας` : `€ / μήνα`}
+                        {s.target_type === 'fixed' ? `€ / μήνα`
+                          : s.target_type === 'prev_cost_multiplier' ? `× κόστος προηγ. μήνα`
+                          : `× κόστος μισθοδοσίας`}
                       </span>
                     </>
                   )}
@@ -1389,6 +1392,94 @@ function TabPayroll() {
   const MONTH_NAMES = ['Ιαν','Φεβ','Μαρ','Απρ','Μαι','Ιουν','Ιουλ','Αυγ','Σεπ','Οκτ','Νοε','Δεκ'];
   const BORDER_COLORS = ['border-indigo-400','border-emerald-400','border-amber-400','border-rose-400','border-cyan-400','border-purple-400'];
 
+  const printTargetSheet = (d) => {
+    const s = d.settings;
+    const isPrevCost = s?.target_type === 'prev_cost_multiplier';
+    const multiplier = s ? parseFloat(s.target_value) : null;
+    const fmtN = n => n != null && Math.abs(n) >= 0.5 ? Math.round(n).toLocaleString('el-GR') + ' €' : '—';
+    const fmtP = n => Math.round(n) + '%';
+
+    const rows = d.monthly
+      .map((m, i) => ({ ...m, label: MONTH_NAMES[i] }))
+      .filter(m => !m.is_future && (m.target > 0 || m.sales > 0));
+
+    const totalTarget = rows.reduce((s, r) => s + r.target, 0);
+    const totalSales = rows.reduce((s, r) => s + r.sales, 0);
+    const totalDiff = totalSales - totalTarget;
+    const totalPct = totalTarget > 0 ? (totalSales / totalTarget) * 100 : 0;
+
+    const basisCol = isPrevCost ? `<th style="text-align:right">Βάση (Κόστος)</th><th style="text-align:center">×</th>` : '';
+    const basisFooter = isPrevCost ? `<td></td><td></td>` : '';
+
+    const tableRows = rows.map(m => {
+      const pct = m.target > 0 ? (m.sales / m.target) * 100 : 0;
+      const diff = m.sales - m.target;
+      const hit = m.target > 0 && m.sales >= m.target;
+      return `<tr style="background:${hit ? '#f0fdf4' : '#fff'}">
+        <td>${m.label} ${year}</td>
+        ${isPrevCost ? `<td style="text-align:right;color:#475569">${m.target_basis > 0 ? fmtN(m.target_basis) : '—'}</td><td style="text-align:center;color:#475569">${multiplier}×</td>` : ''}
+        <td style="text-align:right;font-weight:700">${m.target > 0 ? fmtN(m.target) : '—'}</td>
+        <td style="text-align:right;font-weight:700;color:${hit ? '#16a34a' : '#b91c1c'}">${m.sales > 0 ? fmtN(m.sales) : '—'}</td>
+        <td style="text-align:right">${m.target > 0 && !m.is_future ? fmtP(pct) : '—'}</td>
+        <td style="text-align:right;color:${diff >= 0 ? '#16a34a' : '#b91c1c'}">${m.target > 0 && !m.is_future ? (diff >= 0 ? '+' : '') + fmtN(diff) : '—'}</td>
+        <td style="text-align:center;font-size:16px">${m.target > 0 && !m.is_future ? (hit ? '✓' : '✗') : ''}</td>
+      </tr>`;
+    }).join('');
+
+    const html = `<!DOCTYPE html>
+<html><head><meta charset="UTF-8">
+<title>Στόχοι ${d.agent} ${year}</title>
+<style>
+  @page { size: A4 portrait; margin: 18mm 20mm; }
+  * { box-sizing: border-box; }
+  body { font-family: Arial, Helvetica, sans-serif; font-size: 12px; color: #1e293b; margin: 0; }
+  .header { border-bottom: 3px solid #6366f1; padding-bottom: 12px; margin-bottom: 20px; }
+  .header h1 { margin: 0 0 2px; font-size: 26px; letter-spacing: -0.5px; }
+  .header .meta { color: #64748b; font-size: 13px; }
+  table { width: 100%; border-collapse: collapse; }
+  th { background: #f8fafc; padding: 8px 10px; text-align: left; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.06em; color: #64748b; border-bottom: 2px solid #e2e8f0; }
+  td { padding: 7px 10px; border-bottom: 1px solid #f1f5f9; font-size: 12px; }
+  .total td { background: #f1f5f9; font-weight: 700; border-top: 2px solid #cbd5e1; }
+  .btn { display:block; margin:0 auto 20px; padding:9px 28px; background:#6366f1; color:#fff; border:none; border-radius:8px; cursor:pointer; font-size:14px; font-family:Arial; }
+  @media print { .btn { display:none; } }
+</style>
+</head>
+<body>
+<button class="btn" onclick="window.print()">🖨️ Εκτύπωση</button>
+<div class="header">
+  <h1>${d.agent}</h1>
+  <div class="meta">Στόχοθεσία ${year}${isPrevCost && multiplier ? ` &nbsp;·&nbsp; ×${multiplier} κόστος προηγούμενου μήνα` : s?.target_type === 'fixed' ? ` &nbsp;·&nbsp; Σταθερός στόχος ${Math.round(s.target_value).toLocaleString('el-GR')} €/μήνα` : ''}</div>
+</div>
+<table>
+  <thead><tr>
+    <th>Μήνας</th>
+    ${basisCol}
+    <th style="text-align:right">Στόχος</th>
+    <th style="text-align:right">Είσπραξη</th>
+    <th style="text-align:right">Επίτευξη</th>
+    <th style="text-align:right">Διαφορά</th>
+    <th style="text-align:center">✓</th>
+  </tr></thead>
+  <tbody>
+    ${tableRows}
+    <tr class="total">
+      <td>ΣΥΝΟΛΟ ${year}</td>
+      ${basisFooter}
+      <td style="text-align:right">${fmtN(totalTarget)}</td>
+      <td style="text-align:right;color:${totalSales >= totalTarget ? '#16a34a' : '#b91c1c'}">${fmtN(totalSales)}</td>
+      <td style="text-align:right">${totalTarget > 0 ? fmtP(totalPct) : '—'}</td>
+      <td style="text-align:right;color:${totalDiff >= 0 ? '#16a34a' : '#b91c1c'}">${totalDiff >= 0 ? '+' : ''}${fmtN(totalDiff)}</td>
+      <td></td>
+    </tr>
+  </tbody>
+</table>
+</body></html>`;
+
+    const win = window.open('', '_blank');
+    win.document.write(html);
+    win.document.close();
+  };
+
   const loadData = (y) => {
     if (!y) return;
     setLoading(true);
@@ -1510,7 +1601,9 @@ function TabPayroll() {
             const hasEmpSubsidy = (d.total_subsidy ?? 0) < 0;
             const targetLabel = (s?.target_type === 'fixed'
               ? `Σταθερός στόχος: ${Math.round(s.target_value)}€/μήνα`
-              : `×${s?.target_value ?? 4.2} × Μισθοδοσία`) +
+              : s?.target_type === 'prev_cost_multiplier'
+                ? `×${s?.target_value ?? 3} × κόστος προηγ. μήνα`
+                : `×${s?.target_value ?? 4.2} × Μισθοδοσία`) +
               (commRate > 0 ? ` · ${commRate}% μπόνους υπέρβασης` : '');
 
             return (
@@ -1566,8 +1659,19 @@ function TabPayroll() {
                       )}
                     </div>
                   </div>
-                  <div className="w-32 mt-1">
-                    <AchievementBar pct={pct} />
+                  <div className="flex flex-col items-end gap-2 mt-1 shrink-0">
+                    <div className="w-32">
+                      <AchievementBar pct={pct} />
+                    </div>
+                    <button
+                      className="flex items-center gap-1 text-xs text-slate-400 hover:text-indigo-600 transition-colors"
+                      title="Εκτύπωση φύλλου στόχων"
+                      onClick={() => printTargetSheet(d)}>
+                      <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
+                        <path fillRule="evenodd" d="M5 4v3H4a2 2 0 0 0-2 2v3a2 2 0 0 0 2 2h1v2a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-2h1a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-1V4a1 1 0 0 0-1-1H6a1 1 0 0 0-1 1Zm2 0h6v3H7V4Zm0 8h6v4H7v-4Z" clipRule="evenodd"/>
+                      </svg>
+                      Εκτύπωση Στόχων
+                    </button>
                   </div>
                 </div>
 

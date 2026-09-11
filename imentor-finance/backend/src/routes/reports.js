@@ -345,6 +345,13 @@ router.get('/payroll', async (req, res) => {
         const mNum = parseInt(m);
         const isFuture = parseInt(year) === todayYear && mNum > todayMonthNum;
 
+        // Previous month's gross cost (salary+bonus+IKA before subsidy) — used for prev_cost_multiplier target
+        const prevM = i > 0 ? months[i - 1] : null;
+        const prevPr = prevM ? empRows.find(x => x.month === prevM) : null;
+        const prevGrossAmount = parseFloat(prevPr?.gross_amount || 0);
+        const prevIkaAmount = prevM && ikaPct > 0 ? parseFloat(((ikaMap[prevM] || 0) * ikaPct / 100).toFixed(2)) : 0;
+        const prevGrossCost = parseFloat((prevGrossAmount + prevIkaAmount).toFixed(2));
+
         let target = 0;
         if (!isFuture) {
           const overrideKey = `${year}-${m}`;
@@ -353,6 +360,9 @@ router.get('/payroll', async (req, res) => {
             target = parseFloat(override);
           } else if (settings?.target_type === 'fixed') {
             target = parseFloat(settings.target_value || 0);
+          } else if (settings?.target_type === 'prev_cost_multiplier') {
+            const mult = parseFloat(settings.target_value || 3);
+            target = prevGrossCost > 0 ? parseFloat((prevGrossCost * mult).toFixed(2)) : 0;
           } else {
             const mult = settings ? parseFloat(settings.target_value || DEFAULT_MULTIPLIER) : DEFAULT_MULTIPLIER;
             target = amount > 0 ? parseFloat((amount * mult).toFixed(2)) : 0;
@@ -368,7 +378,7 @@ router.get('/payroll', async (req, res) => {
         const ika_amount = ikaPct > 0 ? parseFloat((monthIka * ikaPct / 100).toFixed(2)) : 0;
         const true_cost = parseFloat((amount + ika_amount).toFixed(2));
 
-        return { month: m, month_name: monthNames[i], amount, salary_amount, bonus_amount, subsidy_amount, target, sales, commission, ika_amount, true_cost, count: parseInt(pr?.count || 0), is_future: isFuture };
+        return { month: m, month_name: monthNames[i], amount, salary_amount, bonus_amount, subsidy_amount, target, target_basis: prevGrossCost, sales, commission, ika_amount, true_cost, count: parseInt(pr?.count || 0), is_future: isFuture };
       });
 
       const total = monthly.reduce((s, m) => s + m.amount, 0);
