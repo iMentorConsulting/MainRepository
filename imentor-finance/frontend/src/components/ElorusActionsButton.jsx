@@ -27,7 +27,7 @@ function Breakdown({ amount, orgKey, kind, vatRate = 24 }) {
       {wh > 0 && <div className="flex justify-between text-rose-500"><span>Παρακράτηση 20%</span><span className="font-medium">−{fmtE(wh)}</span></div>}
       {wh > 0 && (
         <div className="flex justify-between font-bold border-t border-slate-200 pt-1.5 text-slate-800">
-          <span>Καθαρή Είσπραξη</span><span className="text-emerald-700">{fmtE(net - wh)}</span>
+          <span>Τελικό Πληρωτέο</span><span className="text-emerald-700">{fmtE(gross - wh)}</span>
         </div>
       )}
     </div>
