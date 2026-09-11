@@ -238,7 +238,7 @@ router.get('/payroll', async (req, res) => {
 
     const params = { start: `${year}-01-01`, end: `${year}-12-31` };
 
-    const [payrollRows, salesRows, allSettings, ikaRows] = await Promise.all([
+    const [payrollRows, salesRows, allSettings] = await Promise.all([
       sequelize.query(`
         SELECT UPPER(TRIM(supplier)) AS employee, TO_CHAR(date, 'MM') AS month,
                COALESCE(SUM(amount), 0) AS amount, COUNT(*) AS count
@@ -246,7 +246,6 @@ router.get('/payroll', async (req, res) => {
         WHERE date BETWEEN :start AND :end
           AND UPPER(TRIM(category)) LIKE '%ΜΙΣΘΟΔΟΣΙΑ%ΕΡΓΑΤΙΚΑ%'
           AND supplier IS NOT NULL AND TRIM(supplier) <> ''
-          AND UPPER(TRIM(supplier)) <> 'ΙΚΑ'
         GROUP BY UPPER(TRIM(supplier)), month
         ORDER BY UPPER(TRIM(supplier)), month
       `, { replacements: params, type: QueryTypes.SELECT }),
@@ -261,26 +260,24 @@ router.get('/payroll', async (req, res) => {
         ORDER BY agent_key, month
       `, { replacements: params, type: QueryTypes.SELECT }),
 
-      PayrollEmployeeSetting.findAll({ raw: true }),
-
-      sequelize.query(`
-        SELECT TO_CHAR(date, 'MM') AS month, COALESCE(SUM(amount), 0) AS ika_total
-        FROM expenses
-        WHERE date BETWEEN :start AND :end
-          AND UPPER(TRIM(category)) LIKE '%ΜΙΣΘΟΔΟΣΙΑ%ΕΡΓΑΤΙΚΑ%'
-          AND UPPER(TRIM(supplier)) = 'ΙΚΑ'
-        GROUP BY month
-      `, { replacements: params, type: QueryTypes.SELECT })
+      PayrollEmployeeSetting.findAll({ raw: true })
     ]);
-
-    // Build IKA month map
-    const ikaMap = {};
-    for (const r of ikaRows) ikaMap[r.month] = parseFloat(r.ika_total || 0);
 
     // Build settings map keyed by UPPER(employee_name)
     const settingsMap = {};
     for (const s of allSettings) {
       settingsMap[s.employee_name.trim().toUpperCase()] = s;
+    }
+
+    // IKA map: sum payrollRows entries where the supplier is hidden (visible=false in settings).
+    // This avoids fragile string-encoding comparisons: ΙΚΑ is already marked visible=false
+    // in PayrollEmployeeSettings from when the user unchecked it in the modal.
+    const ikaMap = {};
+    for (const r of payrollRows) {
+      const setting = settingsMap[r.employee];
+      if (setting && !setting.visible) {
+        ikaMap[r.month] = (ikaMap[r.month] || 0) + parseFloat(r.amount || 0);
+      }
     }
 
     const today = new Date();
