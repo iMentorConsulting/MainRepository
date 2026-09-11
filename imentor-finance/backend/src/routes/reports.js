@@ -238,7 +238,7 @@ router.get('/payroll', async (req, res) => {
 
     const params = { start: `${year}-01-01`, end: `${year}-12-31` };
 
-    const [payrollRows, salesRows, allSettings] = await Promise.all([
+    const [payrollRows, salesRows, allSettings, ikaRows] = await Promise.all([
       sequelize.query(`
         SELECT UPPER(TRIM(supplier)) AS employee, TO_CHAR(date, 'MM') AS month,
                COALESCE(SUM(amount), 0) AS amount, COUNT(*) AS count
@@ -246,6 +246,7 @@ router.get('/payroll', async (req, res) => {
         WHERE date BETWEEN :start AND :end
           AND UPPER(TRIM(category)) LIKE '%ΜΙΣΘΟΔΟΣΙΑ%ΕΡΓΑΤΙΚΑ%'
           AND supplier IS NOT NULL AND TRIM(supplier) <> ''
+          AND UPPER(TRIM(supplier)) <> 'ΙΚΑ'
         GROUP BY UPPER(TRIM(supplier)), month
         ORDER BY UPPER(TRIM(supplier)), month
       `, { replacements: params, type: QueryTypes.SELECT }),
@@ -260,8 +261,21 @@ router.get('/payroll', async (req, res) => {
         ORDER BY agent_key, month
       `, { replacements: params, type: QueryTypes.SELECT }),
 
-      PayrollEmployeeSetting.findAll({ raw: true })
+      PayrollEmployeeSetting.findAll({ raw: true }),
+
+      sequelize.query(`
+        SELECT TO_CHAR(date, 'MM') AS month, COALESCE(SUM(amount), 0) AS ika_total
+        FROM expenses
+        WHERE date BETWEEN :start AND :end
+          AND UPPER(TRIM(category)) LIKE '%ΜΙΣΘΟΔΟΣΙΑ%ΕΡΓΑΤΙΚΑ%'
+          AND UPPER(TRIM(supplier)) = 'ΙΚΑ'
+        GROUP BY month
+      `, { replacements: params, type: QueryTypes.SELECT })
     ]);
+
+    // Build IKA month map
+    const ikaMap = {};
+    for (const r of ikaRows) ikaMap[r.month] = parseFloat(r.ika_total || 0);
 
     // Build settings map keyed by UPPER(employee_name)
     const settingsMap = {};
@@ -285,6 +299,7 @@ router.get('/payroll', async (req, res) => {
       if (settings && !settings.visible) return null;
 
       const empRows = payrollRows.filter(r => r.employee === employee);
+      const ikaPct = parseFloat(settings?.ika_percentage ?? 0);
 
       const monthly = months.map((m, i) => {
         const pr = empRows.find(x => x.month === m);
@@ -314,13 +329,19 @@ router.get('/payroll', async (req, res) => {
           ? parseFloat(((sales - target) * rate).toFixed(2))
           : 0;
 
-        return { month: m, month_name: monthNames[i], amount, target, sales, commission, count: parseInt(pr?.count || 0), is_future: isFuture };
+        const monthIka = ikaMap[m] || 0;
+        const ika_amount = ikaPct > 0 ? parseFloat((monthIka * ikaPct / 100).toFixed(2)) : 0;
+        const true_cost = parseFloat((amount + ika_amount).toFixed(2));
+
+        return { month: m, month_name: monthNames[i], amount, target, sales, commission, ika_amount, true_cost, count: parseInt(pr?.count || 0), is_future: isFuture };
       });
 
       const total = monthly.reduce((s, m) => s + m.amount, 0);
       const total_target = monthly.reduce((s, m) => s + m.target, 0);
       const total_sales = monthly.reduce((s, m) => s + m.sales, 0);
       const total_commission = monthly.reduce((s, m) => s + m.commission, 0);
+      const total_ika = parseFloat(monthly.reduce((s, m) => s + m.ika_amount, 0).toFixed(2));
+      const total_true_cost = parseFloat(monthly.reduce((s, m) => s + m.true_cost, 0).toFixed(2));
 
       // Incentive streaks: only count months where target > 0
       const activeMonths = monthly.filter(m => m.target > 0);
@@ -342,8 +363,10 @@ router.get('/payroll', async (req, res) => {
         total,
         total_target,
         total_sales,
+        total_ika,
+        total_true_cost,
         settings: settings
-          ? { id: settings.id, visible: settings.visible, target_type: settings.target_type, target_value: parseFloat(settings.target_value), monthly_overrides: settings.monthly_overrides || {}, overachievement_rate: parseFloat(settings.overachievement_rate ?? 10) }
+          ? { id: settings.id, visible: settings.visible, target_type: settings.target_type, target_value: parseFloat(settings.target_value), monthly_overrides: settings.monthly_overrides || {}, overachievement_rate: parseFloat(settings.overachievement_rate ?? 10), ika_percentage: parseFloat(settings.ika_percentage ?? 0) }
           : null,
         total_commission,
         streak: { max: maxStreak, current: latestStreak }

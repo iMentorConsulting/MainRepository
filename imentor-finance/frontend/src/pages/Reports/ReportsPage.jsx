@@ -939,6 +939,7 @@ function PayrollSettingsModal({ employees, onClose, onSaved }) {
         target_type: s?.target_type ?? 'multiplier',
         target_value: s?.target_value ?? 4.2,
         overachievement_rate: s?.overachievement_rate ?? 10,
+        ika_percentage: s?.ika_percentage ?? 0,
       };
     }
     setSettings(init);
@@ -951,7 +952,7 @@ function PayrollSettingsModal({ employees, onClose, onSaved }) {
         const next = { ...prev };
         for (const s of r.data) {
           if (!next[s.employee_name]) {
-            next[s.employee_name] = { id: s.id, visible: s.visible, target_type: s.target_type, target_value: parseFloat(s.target_value), overachievement_rate: parseFloat(s.overachievement_rate ?? 10) };
+            next[s.employee_name] = { id: s.id, visible: s.visible, target_type: s.target_type, target_value: parseFloat(s.target_value), overachievement_rate: parseFloat(s.overachievement_rate ?? 10), ika_percentage: parseFloat(s.ika_percentage ?? 0) };
           }
         }
         return next;
@@ -988,6 +989,7 @@ function PayrollSettingsModal({ employees, onClose, onSaved }) {
           target_type: settings[agent].target_type,
           target_value: parseFloat(settings[agent].target_value) || 4.2,
           overachievement_rate: parseFloat(settings[agent].overachievement_rate) || 0,
+          ika_percentage: parseFloat(settings[agent].ika_percentage) || 0,
         })
       ));
       onSaved();
@@ -1049,6 +1051,14 @@ function PayrollSettingsModal({ employees, onClose, onSaved }) {
                         value={s.overachievement_rate ?? 10}
                         onChange={e => update(agent, { overachievement_rate: e.target.value })} />
                       <span className="text-xs text-slate-400">% μπόνους υπέρβασης</span>
+
+                      {/* IKA percentage */}
+                      <span className="text-xs text-slate-400 ml-2">|</span>
+                      <input type="number" step="0.01" min="0" max="100"
+                        className="input text-xs py-1 px-2 h-7 w-20"
+                        value={s.ika_percentage ?? 0}
+                        onChange={e => update(agent, { ika_percentage: e.target.value })} />
+                      <span className="text-xs text-slate-400">% ΙΚΑ</span>
                     </>
                   )}
                 </div>
@@ -1194,6 +1204,7 @@ function TabPayroll() {
             const streak = d.streak || { max: 0, current: 0 };
             const s = d.settings;
             const commRate = parseFloat(d.settings?.overachievement_rate ?? 0);
+            const ikaPct = parseFloat(d.settings?.ika_percentage ?? 0);
             const targetLabel = (s?.target_type === 'fixed'
               ? `Σταθερός στόχος: ${Math.round(s.target_value)}€/μήνα`
               : `×${s?.target_value ?? 4.2} × Μισθοδοσία`) +
@@ -1226,6 +1237,12 @@ function TabPayroll() {
                     </div>
                     <div className="flex flex-wrap gap-4 mt-1 text-xs text-slate-500">
                       <span>Κόστος: <strong className="text-slate-700">{fmt(d.total)}</strong></span>
+                      {ikaPct > 0 && d.total_ika > 0 && (
+                        <span>ΙΚΑ ({ikaPct}%): <strong className="text-orange-600">{fmt(d.total_ika)}</strong></span>
+                      )}
+                      {ikaPct > 0 && d.total_ika > 0 && (
+                        <span>Πραγματικό Κόστος: <strong className="text-rose-700">{fmt(d.total_true_cost)}</strong></span>
+                      )}
                       <span>Στόχος: <strong className="text-amber-600">{fmt(d.total_target)}</strong></span>
                       <span>Είσπραξη: <strong className={achieved ? 'text-emerald-600' : 'text-rose-600'}>{fmt(d.total_sales)}</strong></span>
                       <span>Διαφορά: <strong className={d.total_sales - d.total_target >= 0 ? 'text-emerald-600' : 'text-rose-600'}>{d.total_sales - d.total_target >= 0 ? '+' : ''}{fmt(d.total_sales - d.total_target)}</strong></span>
@@ -1247,6 +1264,8 @@ function TabPayroll() {
                         <th className="th w-8"></th>
                         <th className="th">Μήνας</th>
                         <th className="th text-right">Κόστος Μισθοδοσίας</th>
+                        {ikaPct > 0 && <th className="th text-right text-orange-600">Εισφορές ΙΚΑ</th>}
+                        {ikaPct > 0 && <th className="th text-right text-rose-700">Πραγματικό Κόστος</th>}
                         <th className="th text-right">Στόχος</th>
                         <th className="th text-right">Είσπραξη</th>
                         <th className="th text-right min-w-[120px]">Επίτευξη</th>
@@ -1265,6 +1284,8 @@ function TabPayroll() {
                             <td className="td"></td>
                             <td className="td text-slate-400">{MONTH_NAMES[i]} {year}</td>
                             <td className="td text-right text-slate-300">—</td>
+                            {ikaPct > 0 && <td className="td text-right text-slate-300">—</td>}
+                            {ikaPct > 0 && <td className="td text-right text-slate-300">—</td>}
                             <td className="td text-right">
                               {editTarget?.agent === d.agent && editTarget?.monthKey === monthKey ? (
                                 <input autoFocus type="number" className="w-24 text-right text-sm border border-amber-400 rounded px-2 py-0.5 outline-none"
@@ -1298,6 +1319,20 @@ function TabPayroll() {
                                 ? <span className={`font-bold ${m.amount < 0 ? 'text-rose-600' : 'text-indigo-600'}`}>{fmt(m.amount)}</span>
                                 : <span className="text-slate-300">—</span>}
                             </td>
+                            {ikaPct > 0 && (
+                              <td className="td text-right">
+                                {m.ika_amount > 0
+                                  ? <span className="font-semibold text-orange-600">{fmt(m.ika_amount)}</span>
+                                  : <span className="text-slate-300">—</span>}
+                              </td>
+                            )}
+                            {ikaPct > 0 && (
+                              <td className="td text-right">
+                                {m.true_cost > 0
+                                  ? <span className="font-bold text-rose-700">{fmt(m.true_cost)}</span>
+                                  : <span className="text-slate-300">—</span>}
+                              </td>
+                            )}
                             <td className="td text-right">
                               {isFuture ? (
                                 <span className="text-slate-300">—</span>
@@ -1353,6 +1388,8 @@ function TabPayroll() {
                         <td className="td"></td>
                         <td className="td font-black text-slate-800 uppercase text-xs tracking-wide">ΣΥΝΟΛΟ {year}</td>
                         <td className="td text-right font-black text-indigo-700">{fmt(d.total)}</td>
+                        {ikaPct > 0 && <td className="td text-right font-black text-orange-600">{d.total_ika > 0 ? fmt(d.total_ika) : '—'}</td>}
+                        {ikaPct > 0 && <td className="td text-right font-black text-rose-700">{d.total_true_cost > 0 ? fmt(d.total_true_cost) : '—'}</td>}
                         <td className="td text-right font-black text-amber-600">{fmt(d.total_target)}</td>
                         <td className="td text-right font-black">
                           <span className={d.total_sales >= d.total_target ? 'text-emerald-700' : 'text-slate-700'}>{fmt(d.total_sales)}</span>

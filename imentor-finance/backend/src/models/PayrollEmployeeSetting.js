@@ -9,6 +9,7 @@ const PayrollEmployeeSetting = sequelize.define('PayrollEmployeeSetting', {
   target_value:      { type: DataTypes.DECIMAL(10, 2), defaultValue: 4.2 },
   monthly_overrides:    { type: DataTypes.JSONB, defaultValue: {} },
   overachievement_rate: { type: DataTypes.DECIMAL(5, 2), defaultValue: 10.00 }, // % e.g. 10 = 10%
+  ika_percentage:       { type: DataTypes.DECIMAL(5, 2), defaultValue: 0.00 },   // % of monthly IKA expense allocated to this employee
 }, {
   tableName: 'payroll_employee_settings',
   timestamps: true

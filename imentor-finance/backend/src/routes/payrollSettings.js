@@ -11,16 +11,17 @@ router.get('/', async (req, res) => {
 // Upsert by employee_name — does NOT overwrite monthly_overrides unless explicitly sent
 router.post('/', async (req, res) => {
   try {
-    const { employee_name, visible, target_type, target_value, monthly_overrides, overachievement_rate } = req.body;
+    const { employee_name, visible, target_type, target_value, monthly_overrides, overachievement_rate, ika_percentage } = req.body;
     if (!employee_name) return res.status(400).json({ error: 'employee_name required' });
     const [record, created] = await PayrollEmployeeSetting.findOrCreate({
       where: { employee_name: employee_name.trim() },
-      defaults: { visible, target_type, target_value, monthly_overrides: monthly_overrides ?? {}, overachievement_rate: overachievement_rate ?? 10 }
+      defaults: { visible, target_type, target_value, monthly_overrides: monthly_overrides ?? {}, overachievement_rate: overachievement_rate ?? 10, ika_percentage: ika_percentage ?? 0 }
     });
     if (!created) {
       const patch = { visible, target_type, target_value };
       if (monthly_overrides !== undefined) patch.monthly_overrides = monthly_overrides;
       if (overachievement_rate !== undefined) patch.overachievement_rate = overachievement_rate;
+      if (ika_percentage !== undefined) patch.ika_percentage = ika_percentage;
       await record.update(patch);
     }
     res.json(record);
