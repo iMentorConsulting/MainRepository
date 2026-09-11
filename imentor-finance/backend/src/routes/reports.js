@@ -410,6 +410,31 @@ router.get('/payroll', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// Debug: show every payroll expense row grouped by raw supplier + month, with hex encoding of name
+// Call: GET /reports/payroll-suppliers?year=2026
+router.get('/payroll-suppliers', async (req, res) => {
+  try {
+    const { year = new Date().getFullYear().toString() } = req.query;
+    const rows = await sequelize.query(`
+      SELECT
+        supplier                                   AS raw_supplier,
+        UPPER(TRIM(supplier))                      AS upper_supplier,
+        encode(supplier::bytea, 'hex')             AS supplier_hex,
+        octet_length(supplier)                     AS supplier_bytes,
+        TO_CHAR(date, 'YYYY-MM')                   AS year_month,
+        COUNT(*)                                   AS records,
+        ROUND(SUM(amount)::numeric, 2)             AS total,
+        string_agg(description, ' | ' ORDER BY date) AS descriptions
+      FROM expenses
+      WHERE date BETWEEN :start AND :end
+        AND UPPER(TRIM(category)) LIKE '%ΜΙΣΘΟΔΟΣΙΑ%ΕΡΓΑΤΙΚΑ%'
+      GROUP BY supplier, TO_CHAR(date, 'YYYY-MM')
+      ORDER BY supplier, year_month
+    `, { replacements: { start: `${year}-01-01`, end: `${year}-12-31` }, type: QueryTypes.SELECT });
+    res.json(rows);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // Debug: show distinct category values that contain ΜΙΣΘΟΔΟΣΙΑ or ΕΡΓΑΤΙΚΑ
 router.get('/payroll-categories', async (req, res) => {
   try {
