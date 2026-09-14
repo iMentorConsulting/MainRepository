@@ -145,15 +145,23 @@ def _load_snapshot(db, year: int, month: int):
     }
 
 
+def _strip_accents(s: str) -> str:
+    import unicodedata
+    return "".join(
+        c for c in unicodedata.normalize("NFD", s)
+        if unicodedata.category(c) != "Mn"
+    )
+
+
 def _name_matches(finance_name: str, user_full_name: str) -> bool:
     """Match Finance first-name / abbreviated entries against CM full_name.
 
-    Finance sends e.g. "ΕΛΕΥΘΕΡΙΑ", "ΒΑΛΛΙΑ", "ΚΑΡΑΤΖΗΣ Ν."
-    CM stores e.g. "Στριλιγκά Ελευθερία", "Μποτσάκη Βάλλια", "Καράτζης Νίκος"
-    Strategy: any Finance token (≥2 chars, strip trailing dot) found in any name token.
+    Finance sends e.g. "ΕΛΕΥΘΕΡΙΑ", "ΒΑΛΛΙΑ", "ΚΑΡΑΤΖΗΣ Ν." (unaccented uppercase).
+    CM stores e.g. "Στριλιγκά Ελευθερία", "Μποτσάκη Βάλλια", "Καράτζης Νίκος".
+    Strip accents before comparing so Ελευθερία→ΕΛΕΥΘΕΡΙΑ matches ΕΛΕΥΘΕΡΙΑ.
     """
-    fn = finance_name.strip().upper()
-    un = user_full_name.strip().upper()
+    fn = _strip_accents(finance_name.strip().upper())
+    un = _strip_accents(user_full_name.strip().upper())
     if fn == un:
         return True
     fn_tokens = [t.rstrip(".") for t in fn.split() if len(t.rstrip(".")) >= 2]
