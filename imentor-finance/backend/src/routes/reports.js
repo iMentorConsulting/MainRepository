@@ -354,7 +354,7 @@ router.get('/payroll', async (req, res) => {
           const pm = months[pi];
           const pmPr = empRows.find(x => x.month === pm);
           const pmGross = parseFloat(pmPr?.gross_amount || 0);
-          const pmIka = ikaPct > 0 ? parseFloat(((ikaMap[pm] || 0) * ikaPct / 100).toFixed(2)) : 0;
+          const pmIka = ikaPct > 0 && pmGross > 0 ? parseFloat(((ikaMap[pm] || 0) * ikaPct / 100).toFixed(2)) : 0;
           const pmCost = pmGross + pmIka;
           if (pmCost > 0) rollingCosts.push(pmCost);
         }
@@ -385,7 +385,7 @@ router.get('/payroll', async (req, res) => {
           : 0;
 
         const monthIka = ikaMap[m] || 0;
-        const ika_amount = ikaPct > 0 ? parseFloat((monthIka * ikaPct / 100).toFixed(2)) : 0;
+        const ika_amount = ikaPct > 0 && gross_amount > 0 ? parseFloat((monthIka * ikaPct / 100).toFixed(2)) : 0;
         const true_cost = parseFloat((amount + ika_amount).toFixed(2));
 
         return { month: m, month_name: monthNames[i], amount, salary_amount, bonus_amount, subsidy_amount, target, target_basis: prevGrossCost, sales, commission, ika_amount, true_cost, count: parseInt(pr?.count || 0), is_future: isFuture };

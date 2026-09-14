@@ -98,7 +98,7 @@ async function buildEmployeeTargets() {
       const pm    = MONTHS[pi];
       const pmPr  = empRows.find(r => r.month === pm);
       const pmGross = parseFloat(pmPr?.gross_amount || 0);
-      const pmIka   = ikaPct > 0 ? parseFloat(((ikaMap[pm] || 0) * ikaPct / 100).toFixed(2)) : 0;
+      const pmIka   = ikaPct > 0 && pmGross > 0 ? parseFloat(((ikaMap[pm] || 0) * ikaPct / 100).toFixed(2)) : 0;
       const pmCost  = pmGross + pmIka;
       if (pmCost > 0) rollingCosts.push(pmCost);
     }
