@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 
 from database import engine, Base
 from models import Case, AppConfig, Lead, IrisPayment, ThemisSession
-from routers import cases, statistics, public, config, leads, auth, external, payments, notifications, themis, analytics, finance
+from routers import cases, statistics, public, config, leads, auth, external, payments, notifications, themis, analytics, finance, accountants
 from auth_utils import get_current_user
 
 load_dotenv()
@@ -238,6 +238,7 @@ app.include_router(themis.router)
 app.include_router(analytics.router)
 app.include_router(finance.router)
 app.include_router(finance.api_router)
+app.include_router(accountants.router)
 
 
 # ── Daily scheduler: sync then backup at 18:00 Athens (15:00 UTC) ────────────

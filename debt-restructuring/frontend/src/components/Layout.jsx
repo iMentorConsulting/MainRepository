@@ -15,6 +15,7 @@ import {
   CreditCardIcon,
   ScaleIcon,
   ChatBubbleLeftEllipsisIcon,
+  BuildingOfficeIcon,
 } from '@heroicons/react/24/outline'
 import { toast } from 'react-hot-toast'
 import { hangupCall, getPayrollTargets } from '../api'
@@ -39,6 +40,7 @@ const nav = [
   { to: '/payments', label: 'Πληρωμές IRIS', Icon: CreditCardIcon },
   { to: '/themis-conversations', label: 'Συζητήσεις με Θέμις', Icon: ChatBubbleLeftEllipsisIcon },
   { to: '/themis-settings', label: 'Ρυθμίσεις Θέμις', Icon: ScaleIcon },
+  { to: '/logistis-outreach', label: 'Logistis Outreach', Icon: BuildingOfficeIcon },
 ]
 
 const adminNav = [

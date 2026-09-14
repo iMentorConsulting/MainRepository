@@ -64,6 +64,12 @@ export const pushExternalStatus = (id, data) => api.post(`/cases/${id}/external-
 // Finance / Payroll
 export const getPayrollTargets = () => api.get('/finance/payroll-targets/current')
 
+// Accountant outreach (Logistis)
+export const getMyAccountantAssignment = () => api.get('/accountants/my')
+export const assignNextAccountant = () => api.post('/accountants/my/assign-next')
+export const updateAccountantStatus = (status, notes) => api.patch('/accountants/my/status', { status, notes })
+export const getAccountantPool = () => api.get('/accountants/pool')
+
 // Config
 export const getPricingConfig = () => api.get('/config/pricing')
 export const putPricingConfig = (data) => api.put('/config/pricing', data)

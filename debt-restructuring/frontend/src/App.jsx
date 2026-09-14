@@ -19,6 +19,7 @@ import Themis from './pages/Themis'
 import ThemisCreate from './pages/ThemisCreate'
 import ThemisSettings from './pages/ThemisSettings'
 import ThemisConversations from './pages/ThemisConversations'
+import LogistisOutreach from './pages/LogistisOutreach'
 import NotificationListener from './components/NotificationListener'
 import { loginUser } from './api'
 
@@ -103,6 +104,7 @@ export default function App() {
             <Route path="/leads-reporting" element={<LeadsReporting currentEmployee={auth.employee} />} />
             <Route path="/themis-settings" element={<ThemisSettings />} />
             <Route path="/themis-conversations" element={<ThemisConversations />} />
+            <Route path="/logistis-outreach" element={<LogistisOutreach currentEmployee={auth.employee} />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         )}
