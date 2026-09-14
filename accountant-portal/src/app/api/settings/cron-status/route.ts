@@ -16,5 +16,7 @@ export async function GET() {
     espaCronLastError: setting?.espaCronLastError || null,
     dypaCronLastRunAt: setting?.dypaCronLastRunAt || null,
     dypaCronLastError: setting?.dypaCronLastError || null,
+    anaptyxiakosCronLastRunAt: setting?.anaptyxiakosCronLastRunAt || null,
+    anaptyxiakosCronLastError: setting?.anaptyxiakosCronLastError || null,
   })
 }

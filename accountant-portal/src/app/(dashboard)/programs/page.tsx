@@ -37,6 +37,7 @@ const categoryLabel: Record<string, string> = {
   MICROCREDITS: 'Μικροπιστώσεις',
   EXTRAJUDICIAL: 'Εξωδικαστικός',
   RENOVATION: 'Ανακαίνιση',
+  ANAPTYXIAKOS: 'Αναπτυξιακός Νόμος',
   OTHER: 'Άλλο',
 }
 
@@ -46,6 +47,7 @@ const categoryColor: Record<string, string> = {
   MICROCREDITS: 'from-amber-600 to-orange-800',
   EXTRAJUDICIAL: 'from-rose-700 to-red-900',
   RENOVATION: 'from-violet-600 to-purple-900',
+  ANAPTYXIAKOS: 'from-sky-700 to-cyan-900',
   OTHER: 'from-slate-600 to-slate-800',
 }
 
@@ -55,6 +57,7 @@ const categoryVariant: Record<string, any> = {
   MICROCREDITS: 'warning',
   EXTRAJUDICIAL: 'danger',
   RENOVATION: 'info',
+  ANAPTYXIAKOS: 'info',
   OTHER: 'secondary',
 }
 
@@ -173,9 +176,11 @@ interface CronStatus {
   espaCronLastError: string | null
   dypaCronLastRunAt: string | null
   dypaCronLastError: string | null
+  anaptyxiakosCronLastRunAt: string | null
+  anaptyxiakosCronLastError: string | null
 }
 
-function CronStatusLine({ source }: { source: 'espa' | 'dypa' }) {
+function CronStatusLine({ source }: { source: 'espa' | 'dypa' | 'anaptyxiakos' }) {
   const [status, setStatus] = useState<CronStatus | null>(null)
 
   useEffect(() => {
@@ -186,8 +191,8 @@ function CronStatusLine({ source }: { source: 'espa' | 'dypa' }) {
   }, [])
 
   if (!status) return null
-  const lastRunAt = source === 'espa' ? status.espaCronLastRunAt : status.dypaCronLastRunAt
-  const lastError = source === 'espa' ? status.espaCronLastError : status.dypaCronLastError
+  const lastRunAt = source === 'espa' ? status.espaCronLastRunAt : source === 'dypa' ? status.dypaCronLastRunAt : status.anaptyxiakosCronLastRunAt
+  const lastError = source === 'espa' ? status.espaCronLastError : source === 'dypa' ? status.dypaCronLastError : status.anaptyxiakosCronLastError
 
   return (
     <p className="text-xs text-gray-400">
@@ -504,6 +509,157 @@ function DypaAnnouncementsTab() {
   )
 }
 
+interface AnaptyxiakosAnnouncement {
+  id: string
+  title: string
+  category: string | null
+  cycle: string | null
+  attachmentUrls: string[]
+  attachmentNames: string[]
+  reviewStatus: 'NEW' | 'REVIEWED' | 'IGNORED' | 'CONVERTED' | 'SNOOZED'
+  firstSeenAt: string
+}
+
+function AnaptyxiakosAnnouncementsTab() {
+  const [items, setItems] = useState<AnaptyxiakosAnnouncement[]>([])
+  const [loading, setLoading] = useState(true)
+  const [scraping, setScraping] = useState(false)
+  const [scrapeResult, setScrapeResult] = useState<string | null>(null)
+  const [viewMode, setViewMode] = useState<AnnouncementViewMode>('new')
+
+  function load() {
+    setLoading(true)
+    fetch('/api/anaptyxiakos-announcements')
+      .then(r => r.json())
+      .then(data => setItems(Array.isArray(data) ? data : []))
+      .finally(() => setLoading(false))
+  }
+
+  useEffect(() => { load() }, [])
+
+  async function scrapeNow() {
+    setScraping(true)
+    setScrapeResult(null)
+    try {
+      const res = await fetch('/api/cron/check-anaptyxiakos', { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) {
+        setScrapeResult(`Σφάλμα: ${data.detail || data.error || 'Άγνωστο σφάλμα'}`)
+      } else {
+        setScrapeResult(data.newCount > 0 ? `Βρέθηκαν ${data.newCount} νέες προκηρύξεις!` : 'Δεν βρέθηκαν νέες προκηρύξεις.')
+        load()
+      }
+    } catch {
+      setScrapeResult('Σφάλμα σύνδεσης.')
+    } finally {
+      setScraping(false)
+    }
+  }
+
+  async function updateStatus(id: string, reviewStatus: string) {
+    await fetch(`/api/anaptyxiakos-announcements/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reviewStatus }),
+    })
+    setItems(prev => prev.map(i => i.id === id ? { ...i, reviewStatus: reviewStatus as any } : i))
+  }
+
+  const visible = items.filter(i => matchesViewMode(i.reviewStatus, viewMode))
+  const counts: Record<AnnouncementViewMode, number> = {
+    new: items.filter(i => i.reviewStatus === 'NEW').length,
+    snoozed: items.filter(i => i.reviewStatus === 'SNOOZED').length,
+    handled: items.filter(i => matchesViewMode(i.reviewStatus, 'handled')).length,
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-48">
+        <div className="animate-spin w-8 h-8 border-4 border-blue-800 border-t-transparent rounded-full" />
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-sm text-gray-500">
+            {counts.new} νέες προκηρύξεις προς έγκριση
+          </p>
+          <CronStatusLine source="anaptyxiakos" />
+          {scrapeResult && (
+            <p className={`text-xs mt-0.5 ${scrapeResult.startsWith('Σφάλμα') ? 'text-red-600' : 'text-green-700'}`}>
+              {scrapeResult}
+            </p>
+          )}
+        </div>
+        <div className="flex items-center gap-3">
+          <Button size="sm" variant="outline" onClick={scrapeNow} disabled={scraping} className="gap-1.5">
+            <RefreshCw size={13} className={scraping ? 'animate-spin' : ''} />
+            {scraping ? 'Αναζήτηση…' : 'Ψάξε τώρα'}
+          </Button>
+          <ViewModeTabs mode={viewMode} onChange={setViewMode} counts={counts} />
+        </div>
+      </div>
+
+      {visible.length === 0 && (
+        <div className="text-center text-gray-400 py-12">
+          {viewMode === 'new' ? 'Δεν υπάρχουν νέες προκηρύξεις προς έγκριση' : viewMode === 'snoozed' ? 'Δεν υπάρχουν προκηρύξεις σε αναμονή' : 'Δεν υπάρχουν διαχειρισμένες προκηρύξεις'}
+        </div>
+      )}
+
+      <div className="space-y-3">
+        {visible.map(item => (
+          <div key={item.id} className="bg-white rounded-xl border border-gray-200 p-4 flex items-start justify-between gap-4">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-1">
+                <h3 className="font-semibold text-gray-900 text-sm">{item.title}</h3>
+                {item.reviewStatus !== 'NEW' && (
+                  <Badge variant={item.reviewStatus === 'CONVERTED' ? 'success' : item.reviewStatus === 'SNOOZED' ? 'warning' : 'secondary'} className="text-[10px]">
+                    {item.reviewStatus === 'CONVERTED' ? 'Μετατράπηκε' : item.reviewStatus === 'IGNORED' ? 'Αγνοήθηκε' : item.reviewStatus === 'SNOOZED' ? 'Σε αναμονή' : 'Ελέγχθηκε'}
+                  </Badge>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
+                {item.category && <span>{item.category}</span>}
+                {item.cycle && <span>{item.cycle}</span>}
+              </div>
+              {item.attachmentUrls.length > 0 && (
+                <div className="flex flex-wrap gap-2 mt-1.5">
+                  {item.attachmentUrls.map((url, i) => (
+                    <a key={url} href={url} target="_blank" rel="noreferrer" className="text-[11px] text-blue-700 hover:underline">
+                      {item.attachmentNames[i] || `Σχετικό αρχείο ${i + 1}`}
+                    </a>
+                  ))}
+                </div>
+              )}
+            </div>
+            {item.reviewStatus === 'NEW' && (
+              <div className="flex gap-2 flex-shrink-0">
+                <Link href={`/programs/new?fromAnaptyxiakosAnnouncementId=${item.id}`}>
+                  <Button size="sm"><Check size={14} className="mr-1.5" />Μετατροπή σε Πρόγραμμα</Button>
+                </Link>
+                <Button size="sm" variant="ghost" title="Προσωρινή απόκρυψη" onClick={() => updateStatus(item.id, 'SNOOZED')}>
+                  <Clock size={14} />
+                </Button>
+                <Button size="sm" variant="ghost" title="Αγνόηση" onClick={() => updateStatus(item.id, 'IGNORED')}>
+                  <X size={14} />
+                </Button>
+              </div>
+            )}
+            {item.reviewStatus === 'SNOOZED' && (
+              <Button size="sm" variant="ghost" onClick={() => updateStatus(item.id, 'NEW')} className="flex-shrink-0">
+                Επαναφορά
+              </Button>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export default function ProgramsPage() {
   const { data: session } = useSession()
   const [programs, setPrograms] = useState<Program[]>([])
@@ -511,9 +667,10 @@ export default function ProgramsPage() {
   const [showArchived, setShowArchived] = useState(false)
   const [loading, setLoading] = useState(true)
   const [criteriaMap, setCriteriaMap] = useState<Record<string, string>>({})
-  const [tab, setTab] = useState<'programs' | 'espa' | 'dypa' | 'ai-training'>('programs')
+  const [tab, setTab] = useState<'programs' | 'espa' | 'dypa' | 'anaptyxiakos' | 'ai-training'>('programs')
   const [newEspaCount, setNewEspaCount] = useState(0)
   const [newDypaCount, setNewDypaCount] = useState(0)
+  const [newAnaptyxiakosCount, setNewAnaptyxiakosCount] = useState(0)
   const isAdmin = session?.user?.role === 'ADMIN'
 
   useEffect(() => {
@@ -545,6 +702,12 @@ export default function ProgramsPage() {
       .then(r => r.json())
       .then(data => {
         if (Array.isArray(data)) setNewDypaCount(data.filter((i: DypaAnnouncement) => i.reviewStatus === 'NEW').length)
+      })
+      .catch(() => {})
+    fetch('/api/anaptyxiakos-announcements')
+      .then(r => r.json())
+      .then(data => {
+        if (Array.isArray(data)) setNewAnaptyxiakosCount(data.filter((i: AnaptyxiakosAnnouncement) => i.reviewStatus === 'NEW').length)
       })
       .catch(() => {})
   }, [isAdmin, tab])
@@ -602,6 +765,18 @@ export default function ProgramsPage() {
             )}
           </button>
           <button
+            onClick={() => setTab('anaptyxiakos')}
+            className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+              tab === 'anaptyxiakos' ? 'border-blue-800 text-blue-800' : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            <Megaphone size={14} />
+            Προς Έγκριση Αναπτυξιακός
+            {newAnaptyxiakosCount > 0 && (
+              <span className="bg-red-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{newAnaptyxiakosCount}</span>
+            )}
+          </button>
+          <button
             onClick={() => setTab('ai-training')}
             className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
               tab === 'ai-training' ? 'border-blue-800 text-blue-800' : 'border-transparent text-gray-500 hover:text-gray-700'
@@ -617,13 +792,15 @@ export default function ProgramsPage() {
         <EspaAnnouncementsTab />
       ) : tab === 'dypa' ? (
         <DypaAnnouncementsTab />
+      ) : tab === 'anaptyxiakos' ? (
+        <AnaptyxiakosAnnouncementsTab />
       ) : tab === 'ai-training' ? (
         isAdmin ? <AiTrainingTab /> : null
       ) : (
         <>
       {/* Category Filters */}
       <div className="flex gap-2 flex-wrap items-center">
-        {['', 'ESPA', 'DYPA', 'MICROCREDITS'].map(cat => (
+        {['', 'ESPA', 'DYPA', 'MICROCREDITS', 'ANAPTYXIAKOS'].map(cat => (
           <button
             key={cat}
             onClick={() => setFilter(cat)}
