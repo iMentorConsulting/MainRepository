@@ -1003,6 +1003,26 @@ export default function FinancialDashboard({ currentEmployee }) {
                     </tr>
                   )
                 })}
+                {(() => {
+                  const totalTarget = payroll.employees.reduce((s, e) => s + (e.target || 0), 0)
+                  const totalSales = payroll.employees.reduce((s, e) => s + (e.sales_to_date || 0), 0)
+                  const totalPct = totalTarget > 0 ? (totalSales / totalTarget) * 100 : null
+                  const barColor = totalPct == null ? 'bg-blue-400' : totalPct >= 100 ? 'bg-green-500' : totalPct >= 70 ? 'bg-blue-500' : 'bg-amber-500'
+                  const txtColor = totalPct == null ? 'text-gray-500' : totalPct >= 100 ? 'text-green-700' : totalPct >= 70 ? 'text-blue-700' : 'text-amber-600'
+                  return (
+                    <tr className="border-t-2 border-gray-300 bg-gray-50">
+                      <td className="py-2.5 px-3 font-black text-gray-800 text-xs uppercase tracking-wide">Σύνολο</td>
+                      <td className="py-2.5 px-3 text-right font-black text-gray-700">{totalTarget.toLocaleString('el-GR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })}</td>
+                      <td className="py-2.5 px-3 text-right font-black text-gray-900">{totalSales.toLocaleString('el-GR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })}</td>
+                      <td className={`py-2.5 px-3 text-right font-black ${txtColor}`}>{totalPct != null ? `${Math.round(totalPct)}%` : '—'}</td>
+                      <td className="py-2.5 px-3">
+                        <div className="h-2.5 rounded-full bg-gray-200 overflow-hidden">
+                          <div className={`h-full rounded-full ${barColor}`} style={{ width: `${totalPct != null ? Math.min(100, totalPct) : 0}%` }} />
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })()}
               </tbody>
             </table>
           </div>
