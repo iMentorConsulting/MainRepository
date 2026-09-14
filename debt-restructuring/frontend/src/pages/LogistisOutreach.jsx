@@ -25,8 +25,9 @@ export default function LogistisOutreach({ currentEmployee }) {
     setErrMsg(null)
     api.getMyAccountantAssignment()
       .then(r => {
-        setData(r.data)
-        setNotes(r.data?.assignment?.notes || '')
+        const d = r.data || {}
+        setData(d)
+        setNotes(d?.assignment?.notes || '')
       })
       .catch(e => {
         const status = e?.response?.status
