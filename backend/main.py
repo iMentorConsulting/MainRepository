@@ -29,6 +29,7 @@ from routes.cm_anakainizw import router as cm_anakainizw_router
 from routes.cm_finance_sync import router as cm_finance_sync_router
 from routes.cm_portal_integration import router as cm_portal_integration_router
 from routes.finance_api import router as finance_api_router, router_legacy as finance_api_legacy_router
+from routes.finance_payroll_targets import router as finance_payroll_targets_router
 from routes.cm_leads import router as cm_leads_router
 from routes.cm_leads_sync import router as cm_leads_sync_router
 from routes.cm_leads_ermis import router as cm_leads_ermis_router
@@ -1153,6 +1154,7 @@ app.include_router(cm_anakainizw_router)
 app.include_router(cm_finance_sync_router)
 app.include_router(finance_api_legacy_router)
 app.include_router(finance_api_router)
+app.include_router(finance_payroll_targets_router)
 app.include_router(cm_portal_integration_router)
 app.include_router(cm_leads_router)
 app.include_router(cm_leads_sync_router)
