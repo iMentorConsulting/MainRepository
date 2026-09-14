@@ -28,7 +28,7 @@ const optionalNumber = z.preprocess(
 
 const schema = z.object({
   title: z.string().min(3, 'Απαιτείται τίτλος'),
-  category: z.enum(['ESPA', 'DYPA', 'MICROCREDITS', 'EXTRAJUDICIAL', 'RENOVATION', 'OTHER']),
+  category: z.enum(['ESPA', 'DYPA', 'MICROCREDITS', 'EXTRAJUDICIAL', 'RENOVATION', 'ANAPTYXIAKOS', 'OTHER']),
   description: z.string().optional(),
   minInvestment: optionalNumber,
   maxInvestment: optionalNumber,
@@ -185,6 +185,7 @@ export default function NewProgramPage() {
   const searchParams = useSearchParams()
   const fromAnnouncementId = searchParams.get('fromAnnouncementId')
   const fromDypaAnnouncementId = searchParams.get('fromDypaAnnouncementId')
+  const fromAnaptyxiakosAnnouncementId = searchParams.get('fromAnaptyxiakosAnnouncementId')
   const [kadRules, setKadRules] = useState<string[]>([])
   const [regionRules, setRegionRules] = useState<string[]>([])
   const [zipCodeRules, setZipCodeRules] = useState<string[]>([])
@@ -193,12 +194,12 @@ export default function NewProgramPage() {
   const [videoUrls, setVideoUrls] = useState<string[]>([])
   const [attachmentUrls, setAttachmentUrls] = useState<string[]>([])
   const [attachmentNames, setAttachmentNames] = useState<string[]>([])
-  const [loadingAnnouncement, setLoadingAnnouncement] = useState(!!fromAnnouncementId || !!fromDypaAnnouncementId)
+  const [loadingAnnouncement, setLoadingAnnouncement] = useState(!!fromAnnouncementId || !!fromDypaAnnouncementId || !!fromAnaptyxiakosAnnouncementId)
   const [aiExtractionStatus, setAiExtractionStatus] = useState<'idle' | 'running' | 'done' | 'failed'>('idle')
 
   const { register, handleSubmit, setValue, formState: { errors, isSubmitting } } = useForm<FormData>({
     resolver: zodResolver(schema),
-    defaultValues: { active: true, category: fromDypaAnnouncementId ? 'DYPA' : 'ESPA' }
+    defaultValues: { active: true, category: fromDypaAnnouncementId ? 'DYPA' : fromAnaptyxiakosAnnouncementId ? 'ANAPTYXIAKOS' : 'ESPA' }
   })
 
   // Calls the trained AI extraction tool (the same engine behind the "AI
@@ -251,6 +252,31 @@ export default function NewProgramPage() {
       return false
     }
   }
+
+  useEffect(() => {
+    if (!fromAnaptyxiakosAnnouncementId) return
+    ;(async () => {
+      let a: any = null
+      try {
+        const res = await fetch(`/api/anaptyxiakos-announcements/${fromAnaptyxiakosAnnouncementId}`)
+        a = res.ok ? await res.json() : null
+      } catch {}
+      if (!a) { setLoadingAnnouncement(false); return }
+
+      setValue('title', a.title || '')
+      if (a.attachmentUrls?.length) {
+        setAttachmentUrls(a.attachmentUrls)
+        setAttachmentNames(a.attachmentNames || [])
+      }
+
+      const aiSucceeded = await applyAiExtraction(fromAnaptyxiakosAnnouncementId)
+      if (!aiSucceeded) {
+        const regions = detectRegionsInText(a.title || '')
+        if (regions.length > 0) setRegionRules(regions)
+      }
+      setLoadingAnnouncement(false)
+    })()
+  }, [fromAnaptyxiakosAnnouncementId, setValue])
 
   useEffect(() => {
     if (!fromAnnouncementId) return
@@ -342,6 +368,15 @@ export default function NewProgramPage() {
           })
         } catch {}
       }
+      if (fromAnaptyxiakosAnnouncementId) {
+        try {
+          await fetch(`/api/anaptyxiakos-announcements/${fromAnaptyxiakosAnnouncementId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ reviewStatus: 'CONVERTED', convertedProgramId: created.id }),
+          })
+        } catch {}
+      }
       router.push(`/programs/${created.id}`)
     } else {
       const err = await res.json()
@@ -358,7 +393,7 @@ export default function NewProgramPage() {
         <h1 className="text-2xl font-bold text-gray-900">Νέο Πρόγραμμα</h1>
       </div>
 
-      {(fromAnnouncementId || fromDypaAnnouncementId) && aiExtractionStatus !== 'idle' && (
+      {(fromAnnouncementId || fromDypaAnnouncementId || fromAnaptyxiakosAnnouncementId) && aiExtractionStatus !== 'idle' && (
         <div className={`text-sm rounded-lg px-4 py-2.5 ${
           aiExtractionStatus === 'running' ? 'bg-blue-50 text-blue-700 border border-blue-100' :
           aiExtractionStatus === 'done' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' :
@@ -382,6 +417,7 @@ export default function NewProgramPage() {
                 { value: 'ESPA', label: 'ΕΣΠΑ' },
                 { value: 'DYPA', label: 'ΔΥΠΑ' },
                 { value: 'MICROCREDITS', label: 'Μικροπιστώσεις' },
+                { value: 'ANAPTYXIAKOS', label: 'Αναπτυξιακός Νόμος' },
                 { value: 'OTHER', label: 'Άλλο' },
               ]}
             />

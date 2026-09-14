@@ -75,6 +75,8 @@ model AppSetting {
   espaCronLastError                String?
   dypaCronLastRunAt                DateTime?
   dypaCronLastError                String?
+  anaptyxiakosCronLastRunAt        DateTime?
+  anaptyxiakosCronLastError        String?
   // Daily payment-batch ingestion from the Finance app (/api/external/finance-payments).
   financeCronLastRunAt             DateTime?
   financeCronLastError             String?
@@ -348,6 +350,7 @@ enum ProgramCategory {
   MICROCREDITS
   EXTRAJUDICIAL
   RENOVATION
+  ANAPTYXIAKOS
   OTHER
 }
 
@@ -1234,6 +1237,22 @@ model DypaAnnouncement {
   detailUrl          String
   status             String?
   description        String?                @db.Text
+  attachmentUrls     String[]               @default([])
+  attachmentNames    String[]               @default([])
+  reviewStatus       EspaAnnouncementStatus @default(NEW)
+  convertedProgramId String?
+  firstSeenAt        DateTime               @default(now())
+  updatedAt          DateTime               @updatedAt
+}
+
+// Λίστα ΦΕΚ/αποφάσεων ανά καθεστώς-κύκλο από ependyseis.mindev.gov.gr — δεν
+// έχει σελίδα ανά πρόγραμμα, μόνο τίτλο + συνημμένα PDF (βλ. anaptyxiakos-scraper.ts).
+model AnaptyxiakosAnnouncement {
+  id                 String                 @id @default(cuid())
+  externalItemId     String                 @unique
+  title              String
+  category           String?
+  cycle              String?
   attachmentUrls     String[]               @default([])
   attachmentNames    String[]               @default([])
   reviewStatus       EspaAnnouncementStatus @default(NEW)

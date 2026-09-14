@@ -67,14 +67,15 @@ export async function POST(request: NextRequest) {
       if (body.announcementId) {
         const espa = await prisma.espaAnnouncement.findUnique({ where: { id: body.announcementId } })
         const dypa = espa ? null : await prisma.dypaAnnouncement.findUnique({ where: { id: body.announcementId } })
-        const announcement = espa || dypa
+        const anaptyxiakos = espa || dypa ? null : await prisma.anaptyxiakosAnnouncement.findUnique({ where: { id: body.announcementId } })
+        const announcement = espa || dypa || anaptyxiakos
         if (!announcement) return NextResponse.json({ error: 'Δεν βρέθηκε ανακοίνωση' }, { status: 404 })
-        sourceUrl = announcement.detailUrl
-
         const attachmentUrls = (announcement as { attachmentUrls?: string[] }).attachmentUrls || []
+        sourceUrl = (announcement as { detailUrl?: string }).detailUrl || attachmentUrls[0] || null
+
         const attachmentTexts = attachmentUrls.length > 0 ? await fetchAttachmentTexts(attachmentUrls) : []
 
-        sourceText = [announcement.title, announcement.description, ...attachmentTexts].filter(Boolean).join('\n\n')
+        sourceText = [announcement.title, (announcement as { description?: string }).description, ...attachmentTexts].filter(Boolean).join('\n\n')
       } else if (typeof body.text === 'string') {
         sourceText = body.text
       } else {
