@@ -13,112 +13,143 @@ const STATUS_PIPELINE = [
 
 const TERMINAL = new Set(['converted', 'rejected', 'skipped'])
 
-const CALL_SCRIPTS = [
+// ── Employee settings persisted to localStorage ───────────────────
+const SETTINGS_KEY = 'logistis-employee-settings'
+function loadSettings() {
+  try { return JSON.parse(localStorage.getItem(SETTINGS_KEY)) || {} } catch { return {} }
+}
+function saveSettings(s) {
+  try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(s)) } catch {}
+}
+
+// ── Placeholder fill ──────────────────────────────────────────────
+function fill(text, { accName = '', myName = '', myPhone = '', myEmail = '' } = {}) {
+  return text
+    .replace(/\[ΟΝΟΜΑ ΛΟΓΙΣΤΗ\]/g, accName || '[ΟΝΟΜΑ ΛΟΓΙΣΤΗ]')
+    .replace(/\[ΟΝΟΜΑ ΣΑΣ\]/g, myName || '[ΟΝΟΜΑ ΣΑΣ]')
+    .replace(/\[ΟΝΟΜΑ ΥΠΑΛΛΗΛΟΥ\]/g, myName || '[ΟΝΟΜΑ ΥΠΑΛΛΗΛΟΥ]')
+    .replace(/\[ΤΗΛΕΦΩΝΟ\]/g, myPhone || '[ΤΗΛΕΦΩΝΟ]')
+    .replace(/\[EMAIL ΥΠΑΛΛΗΛΟΥ\]/g, myEmail || '[EMAIL ΥΠΑΛΛΗΛΟΥ]')
+}
+
+// ── Call scripts (raw — placeholders filled at render time) ───────
+const CALL_SCRIPTS_RAW = [
   {
     title: 'Σενάριο 1 — Πρώτη Επικοινωνία',
-    subtitle: 'Δεν έχουμε ξαναμιλήσει. Στόχος: ενδιαφέρον & δέσμευση για email.',
+    subtitle: 'Ο λογιστής γράφτηκε στο Logistis αλλά δεν έχει ανεβάσει πελατολόγιο.',
     steps: [
       {
         label: 'Εισαγωγή',
-        text: `«Καλημέρα σας, μιλώ με [ΟΝΟΜΑ ΛΟΓΙΣΤΗ]; Είμαι [ΟΝΟΜΑ ΣΑΣ] από την iMentor. Είμαστε εταιρεία εξειδικευμένη αποκλειστικά στον εξωδικαστικό μηχανισμό ρύθμισης οφειλών και στην πτώχευση φυσικών προσώπων — το "δεύτερο ευκαιρία" της νομοθεσίας 4738/2020.»`,
+        text: `«Καλημέρα σας, μιλώ με [ΟΝΟΜΑ ΛΟΓΙΣΤΗ]; Είμαι [ΟΝΟΜΑ ΣΑΣ] από την iMentor. Είχατε γραφτεί στο Logistis για να ενημερώνεστε για επιχορηγούμενα προγράμματα για τους πελάτες σας — βλέπω όμως ότι δεν έχετε ανεβάσει ακόμα πελατολόγιο για έλεγχο, οπότε δεν έχετε δει ακόμα τι ταιριάσματα υπάρχουν για εσάς.»`,
       },
       {
-        label: 'Δημιουργία ενδιαφέροντος',
-        text: `«Σας καλώ γιατί σίγουρα κάποιοι από τους πελάτες σας έχουν οφειλές σε εφορία, τράπεζες ή ταμεία. Εμείς κάνουμε δωρεάν, πλήρη ανάλυση και πρόβλεψη αποτελεσμάτων για τον πελάτη — χωρίς καμία δέσμευση. Βλέπουν ακριβώς τι μπορεί να ρυθμιστεί, σε πόσες δόσεις και με ποιο κούρεμα.»`,
+        label: 'Σύνδεση με τον λόγο εγγραφής',
+        text: `«Σας καλώ πρώτα απ' όλα γι' αυτό — αν θέλετε, μπορούμε να σας βοηθήσουμε τώρα να ανεβάσετε το πελατολόγιό σας ώστε να δείτε ποιοι πελάτες σας είναι επιλέξιμοι για τρέχοντα προγράμματα. Είναι δωρεάν και παίρνει λίγα λεπτά.»`,
       },
       {
-        label: 'Κίνητρο συνεργασίας',
-        text: `«Αν ο πελάτης προχωρήσει, εσείς λαμβάνετε αμοιβή παραπομπής — νόμιμη, συμφωνημένη εκ των προτέρων. Και εμείς αναλαμβάνουμε εξ ολοκλήρου τη διαχείριση. Εσείς απλά παραπέμπετε.»`,
+        label: 'Εισαγωγή Εξωδικαστικού',
+        text: `«Παράλληλα, θέλω να σας ενημερώσω ότι μέσα στο Logistis προστέθηκε πρόσφατα και μια δεύτερη δυνατότητα: μπορείτε να παραπέμπετε πελάτες σας που έχουν οφειλές — σε εφορία, τράπεζες/funds ή ταμεία — στην υπηρεσία εξωδικαστικής ρύθμισης που τρέχουμε εμείς. Κάνουμε δωρεάν ανάλυση, αναλαμβάνουμε όλη τη διαδικασία, και εσείς παίρνετε αμοιβή παραπομπής για κάθε υπόθεση που ολοκληρώνεται — χωρίς καμία δουλειά από εσάς.»`,
       },
       {
         label: 'Κλείσιμο',
-        text: `«Θα σας στείλω ένα σύντομο email με όλες τις λεπτομέρειες. Ποια διεύθυνση να χρησιμοποιήσω; Και αν θέλετε μπορούμε να κλείσουμε και ένα 15λεπτο Teams/τηλέφωνο για να σας δείξω ζωντανά πώς γίνεται η ανάλυση.»`,
+        text: `«Οπότε δύο πράγματα μπορούμε να κάνουμε: αν θέλετε, σας συνδέω τώρα με το τμήμα επιχορηγούμενων προγραμμάτων για να δούμε το πελατολόγιό σας, και παράλληλα, όποτε σας έρθει πελάτης με οφειλή, τον παραπέμπετε για τον εξωδικαστικό. Τι από τα δύο σας ενδιαφέρει να δούμε πρώτα;»`,
       },
     ],
   },
   {
     title: 'Σενάριο 2 — Χειρισμός Αντιρρήσεων',
-    subtitle: 'Ο λογιστής διστάζει ή λέει ότι δεν έχει τέτοιους πελάτες.',
+    subtitle: 'Ο λογιστής διστάζει, δεν έχει ανεβάσει πελατολόγιο ή λέει ότι δεν έχει τέτοιους πελάτες.',
     steps: [
       {
-        label: '«Δεν έχω τέτοιους πελάτες»',
-        text: `«Καταλαβαίνω. Ωστόσο η εμπειρία μας δείχνει ότι οι περισσότεροι πελάτες δεν αποκαλύπτουν στον λογιστή τους όλο το βάθος των οφειλών τους. Ίσως αξίζει απλά να τους ενημερώσετε ότι υπάρχει αυτή η επιλογή — δωρεάν γι' αυτούς. Αν έχουν πρόβλημα, θα σας ευχαριστήσουν.»`,
+        label: '«Δεν έχω προλάβει να ανεβάσω πελατολόγιο»',
+        text: `«Κανένα πρόβλημα, είναι γι' αυτό ακριβώς που σας καλώ. Αν θέλετε μπορούμε να το κάνουμε μαζί τώρα, ή σας συνδέω με το τμήμα προγραμμάτων και το κανονίζουν μαζί σας πιο αναλυτικά. Στο μεταξύ, η δυνατότητα του εξωδικαστικού δεν χρειάζεται πελατολόγιο — μόνο τον συγκεκριμένο πελάτη που θα θέλατε να παραπέμψετε.»`,
       },
       {
-        label: '«Δεν ξέρω αν μπορώ να παραπέμψω»',
-        text: `«Δεν παραπέμπετε σε νομικές υπηρεσίες — ενημερώνετε απλά τον πελάτη σας για μια δωρεάν υπηρεσία που μπορεί να τον βοηθήσει. Η αμοιβή παραπομπής είναι συμβατικά κατοχυρωμένη και συνηθισμένη πρακτική. Εμείς έχουμε ήδη δεκάδες λογιστές συνεργάτες σε όλη την Ελλάδα.»`,
+        label: '«Δεν έχω τέτοιους πελάτες (με οφειλές)»',
+        text: `«Το καταλαβαίνω. Η εμπειρία μας δείχνει όμως ότι οι περισσότεροι λογιστές έχουν τουλάχιστον κάποιον πελάτη με οφειλή που απλά δεν το έχει αναφέρει. Στο μεταξύ, μη ξεχνάτε τον αρχικό λόγο που γραφτήκατε — τα επιχορηγούμενα προγράμματα. Θέλετε να δούμε αυτό τώρα;»`,
       },
       {
-        label: '«Δεν με ενδιαφέρει»',
-        text: `«Σεβαστό. Μόνο να σας πω: οι πελάτες σας που έχουν οφειλή άνω των 10.000€ έχουν δικαίωμα σε ρύθμιση μέσω εξωδικαστικού. Αν αλλάξετε γνώμη ή κάποιος πελάτης σας ρωτήσει, έχετε το email μου. Σας ευχαριστώ για τον χρόνο σας.»`,
+        label: '«Δεν ξέρω αν μπορώ να παραπέμψω έτσι απλά»',
+        text: `«Δεν παραπέμπετε σε άγνωστη υπηρεσία — παραπέμπετε μέσα από τη δική σας πλατφόρμα, το Logistis, στην ίδια ομάδα που ήδη σας ενημερώνει για προγράμματα. Η αμοιβή παραπομπής είναι συμβατικά κατοχυρωμένη και το κάνουν ήδη δεκάδες συνάδελφοί σας.»`,
+      },
+      {
+        label: '«Δεν με ενδιαφέρει κανένα από τα δύο τώρα»',
+        text: `«Κατανοητό, δεν θέλω να σας κρατήσω. Και οι δύο δυνατότητες — τα προγράμματα και ο εξωδικαστικός — είναι ήδη ενεργές στον λογαριασμό σας στο Logistis, οπότε είναι εκεί όποτε τις χρειαστείτε. Σας ευχαριστώ για τον χρόνο σας.»`,
       },
     ],
   },
   {
     title: 'Σενάριο 3 — Follow-up μετά από ενδιαφέρον',
-    subtitle: 'Ο λογιστής έχει ακούσει για εμάς ή έχουμε μιλήσει ξανά.',
+    subtitle: 'Έχουμε ξαναμιλήσει — ο λογιστής έδειξε ενδιαφέρον.',
     steps: [
       {
         label: 'Άνοιγμα',
-        text: `«Καλημέρα [ΟΝΟΜΑ], είμαι [ΟΝΟΜΑ ΣΑΣ] από την iMentor. Είχαμε μιλήσει πρόσφατα για τη συνεργασία μας. Θέλω να σας ρωτήσω αν σκεφτήκατε κάποιον πελάτη που θα μπορούσαμε να ξεκινήσουμε με μια δωρεάν ανάλυση.»`,
+        text: `«Καλημέρα [ΟΝΟΜΑ ΛΟΓΙΣΤΗ], είμαι [ΟΝΟΜΑ ΣΑΣ] από την iMentor. Μιλήσαμε πρόσφατα για το πελατολόγιο και τα προγράμματα, και για τη δυνατότητα παραπομπής εξωδικαστικού μέσα από το Logistis. Ήθελα να δω πώς πάει και αν προέκυψε κάτι από τα δύο.»`,
       },
       {
-        label: 'Αν έχει πελάτη',
-        text: `«Τέλεια. Χρειάζομαι μόνο ΑΦΜ, ονοματεπώνυμο και τηλέφωνο. Εμείς αναλαμβάνουμε αμέσως. Θα επικοινωνήσουμε μαζί τους, θα κάνουμε την ανάλυση και θα σας κρατάμε ενήμερο σε κάθε βήμα. Αν προχωρήσει η υπόθεση, η αμοιβή σας εκδίδεται αυτόματα.»`,
+        label: 'Αν έχει πελάτη για εξωδικαστικό',
+        text: `«Τέλεια. Χρειάζομαι μόνο ΑΦΜ, ονοματεπώνυμο και τηλέφωνο. Θα επικοινωνήσουμε άμεσα μαζί τους, θα κάνουμε την ανάλυση και θα σας κρατάμε ενήμερο σε κάθε βήμα μέσα από το Logistis.»`,
+      },
+      {
+        label: 'Αν θέλει να δει πρώτα τα προγράμματα',
+        text: `«Κανένα πρόβλημα — σας συνδέω με το τμήμα επιχορηγούμενων προγραμμάτων του γραφείου μας για να δουν μαζί σας το πελατολόγιο και τα ταιριάσματα. Ο εξωδικαστικός παραμένει διαθέσιμος όποτε τον χρειαστείτε, ξεχωριστά.»`,
       },
       {
         label: 'Αν χρειάζεται χρόνο',
-        text: `«Καμία βιασύνη. Στείλτε μου email όταν θέλετε — [EMAIL ΥΠΑΛΛΗΛΟΥ]. Ή μπορείτε να μου δώσετε τα στοιχεία του πελάτη κατευθείαν τηλεφωνικά τώρα.»`,
+        text: `«Καμία βιασύνη. Και οι δύο δυνατότητες είναι ήδη ενεργές στον λογαριασμό σας στο Logistis. Αν θέλετε, σας στέλνω κι ένα email με τα στοιχεία επικοινωνίας μου [EMAIL ΥΠΑΛΛΗΛΟΥ] ώστε να με βρίσκετε εύκολα όποτε είστε έτοιμος/η.»`,
       },
     ],
   },
 ]
 
-const EMAIL_TEMPLATES = [
+const EMAIL_TEMPLATES_RAW = [
   {
     title: 'Email 1 — Μετά από θετική συνομιλία',
-    subject: 'Συνεργασία iMentor — Δωρεάν ανάλυση εξωδικαστικής ρύθμισης',
-    body: `Αγαπητέ/ή [ΟΝΟΜΑ],
+    subject: 'Πελατολόγιο, προγράμματα & η δυνατότητα εξωδικαστικού στο Logistis',
+    body: `Αγαπητέ/ή [ΟΝΟΜΑ ΛΟΓΙΣΤΗ],
 
-Χαίρομαι που μιλήσαμε σήμερα. Σας στέλνω μερικές πληροφορίες για τη συνεργασία μας.
+Χαίρομαι που μιλήσαμε σήμερα. Σας στέλνω λίγες πληροφορίες, τόσο για τα επιχορηγούμενα προγράμματα όσο και για τη δυνατότητα εξωδικαστικού.
 
-Η iMentor είναι εταιρεία εξειδικευμένη αποκλειστικά στον εξωδικαστικό μηχανισμό ρύθμισης οφειλών (Ν. 4738/2020) και στην πτώχευση φυσικών προσώπων. Είμαστε από τις πιο έμπειρες ομάδες στην Ελλάδα σε αυτό το αντικείμενο.
+ΓΙΑ ΤΑ ΕΠΙΧΟΡΗΓΟΥΜΕΝΑ ΠΡΟΓΡΑΜΜΑΤΑ:
+Είχατε γραφτεί στο Logistis ακριβώς γι' αυτό — να βλέπετε ποιοι πελάτες σας είναι επιλέξιμοι για τρέχοντα προγράμματα. Βλέπω ότι δεν έχει ανέβει ακόμα πελατολόγιο για έλεγχο. Αν θέλετε, το τμήμα επιχορηγούμενων προγραμμάτων του γραφείου μας μπορεί να σας βοηθήσει να το κάνετε — είναι δωρεάν και παίρνει λίγα λεπτά.
 
-ΤΙ ΠΡΟΣΦΕΡΟΥΜΕ ΣΤΟΥΣ ΠΕΛΑΤΕΣ ΣΑΣ:
-✓ Δωρεάν ανάλυση και πρόβλεψη αποτελεσμάτων εξωδικαστικής ρύθμισης
-✓ Δεν χρειάζεται καμία δέσμευση για να δουν τι μπορούν να επιτύχουν
+ΓΙΑ ΤΟΝ ΕΞΩΔΙΚΑΣΤΙΚΟ:
+Όπως είπαμε, μέσα από το Logistis μπορείτε επίσης να παραπέμπετε πελάτες σας με οφειλές (εφορία, τράπεζες/funds, ΕΦΚΑ) για δωρεάν ανάλυση εξωδικαστικής ρύθμισης — χωρίς καμία δέσμευση για εκείνον.
+
+ΤΙ ΚΑΝΟΥΜΕ ΕΜΕΙΣ:
+✓ Δωρεάν ανάλυση και πρόβλεψη αποτελεσμάτων
 ✓ Πλήρης διαχείριση της υπόθεσης από εξειδικευμένη νομική & χρηματοοικονομική ομάδα
-✓ Ψηφιακή πλατφόρμα παρακολούθησης — ο πελάτης βλέπει κάθε βήμα
+✓ Ενημέρωση σε κάθε βήμα μέσα από το Logistis
 
 ΤΙ ΚΕΡΔΙΖΕΤΕ ΕΣΕΙΣ:
 ✓ Αμοιβή παραπομπής για κάθε υπόθεση που ολοκληρώνεται
-✓ Οι πελάτες σας βλέπουν λύσεις — αυξάνεται η εμπιστοσύνη τους σε εσάς
-✓ Καμία επιπλέον εργασία από εσάς — εμείς αναλαμβάνουμε τα πάντα
+✓ Καμία επιπλέον δουλειά από εσάς
 
 ΠΩΣ ΞΕΚΙΝΑΜΕ:
-Στείλτε μου το ΑΦΜ, ονοματεπώνυμο και τηλέφωνο οποιουδήποτε ενδιαφερόμενου πελάτη. Θα επικοινωνήσουμε άμεσα, θα κάνουμε τη δωρεάν ανάλυση και θα σας κρατάμε ενήμερο.
+Για το πελατολόγιο/προγράμματα, πείτε μου αν θέλετε να σας συνδέσω με το αρμόδιο τμήμα. Για τον εξωδικαστικό, στείλτε μου απλά ΑΦΜ, ονοματεπώνυμο και τηλέφωνο του ενδιαφερόμενου πελάτη όποτε προκύψει.
 
 Είμαι στη διάθεσή σας για οποιαδήποτε ερώτηση.
 
 Με εκτίμηση,
 [ΟΝΟΜΑ ΥΠΑΛΛΗΛΟΥ]
-iMentor — Εξωδικαστικός & Πτώχευση
+iMentor
 [ΤΗΛΕΦΩΝΟ]
 info@i-mentor.gr | www.i-mentor.gr`,
   },
   {
     title: 'Email 2 — Follow-up (δεν απάντησε)',
-    subject: 'Follow-up: Δωρεάν ανάλυση οφειλών για τους πελάτες σας',
-    body: `Αγαπητέ/ή [ΟΝΟΜΑ],
+    subject: 'Υπενθύμιση: πελατολόγιο για προγράμματα & εξωδικαστικός στο Logistis',
+    body: `Αγαπητέ/ή [ΟΝΟΜΑ ΛΟΓΙΣΤΗ],
 
-Σας στέλνω αυτό το μήνυμα ως συνέχεια της επικοινωνίας μας. Θέλω να σιγουρευτώ ότι λάβατε τις πληροφορίες που σας έστειλα.
+Σας ξαναγράφω σύντομα, καθώς δεν είχαμε ευκαιρία να τα πούμε ξανά μετά την πρώτη μας επικοινωνία.
 
-Εν συντομία: αν έχετε πελάτες με οφειλές σε εφορία (ΑΑΔΕ), τράπεζες/funds, ή ασφαλιστικά ταμεία (ΕΦΚΑ), εμείς μπορούμε να τους κάνουμε ΔΩΡΕΑΝ ανάλυση και να τους δείξουμε ακριβώς τι μπορούν να ρυθμίσουν.
+Υπενθυμίζω τα δύο πράγματα που συζητήσαμε:
 
-Για εσάς: αμοιβή παραπομπής + επαγγελματική εξυπηρέτηση των πελατών σας.
-Για τον πελάτη: δωρεάν, χωρίς καμία δέσμευση.
+1) Είχατε γραφτεί στο Logistis για τα επιχορηγούμενα προγράμματα, αλλά δεν έχετε ανεβάσει ακόμα πελατολόγιο για έλεγχο ταιριασμάτων. Αν θέλετε, μπορούμε να σας βοηθήσουμε να το κάνετε — δωρεάν, λίγα λεπτά.
 
-Αν υπάρχει κάποιος πελάτης που σκέφτεστε, στείλτε μου τα στοιχεία του και ξεκινάμε αμέσως.
+2) Μέσα από το Logistis έχετε επίσης τη δυνατότητα να παραπέμπετε πελάτες με οφειλές (εφορία, τράπεζες/funds, ΕΦΚΑ) για δωρεάν ανάλυση εξωδικαστικής ρύθμισης — με αμοιβή παραπομπής για εσάς, χωρίς καμία επιπλέον δουλειά.
+
+Πείτε μου ποιο από τα δύο σας ενδιαφέρει να δούμε πρώτα, ή στείλτε μου απευθείας στοιχεία πελάτη αν έχετε κάποιον στο μυαλό σας.
 
 Με εκτίμηση,
 [ΟΝΟΜΑ ΥΠΑΛΛΗΛΟΥ]
@@ -127,38 +158,33 @@ iMentor
 info@i-mentor.gr`,
   },
   {
-    title: 'Email 3 — Παρουσίαση εταιρείας (για ενδιαφερόμενο)',
-    subject: 'iMentor — Εξωδικαστικός Μηχανισμός & Πτώχευση: Ποιοι είμαστε',
-    body: `Αγαπητέ/ή [ΟΝΟΜΑ],
+    title: 'Email 3 — Πώς λειτουργεί η υπηρεσία (για ενδιαφερόμενο)',
+    subject: 'Πώς λειτουργεί η παραπομπή εξωδικαστικού μέσα από το Logistis',
+    body: `Αγαπητέ/ή [ΟΝΟΜΑ ΛΟΓΙΣΤΗ],
 
-Σας στέλνω μια σύντομη παρουσίαση της iMentor.
+Σας στέλνω μια σύντομη περιγραφή του πώς λειτουργεί η υπηρεσία εξωδικαστικού που έχετε ήδη διαθέσιμη στο Logistis — παράλληλα με τα επιχορηγούμενα προγράμματα που ήταν και ο αρχικός λόγος εγγραφής σας.
 
-ΠΟΙΟΙ ΕΙΜΑΣΤΕ:
-Η iMentor είναι εξειδικευμένη εταιρεία στον εξωδικαστικό μηχανισμό ρύθμισης οφειλών (Ν. 4738/2020) και στη διαδικασία πτώχευσης φυσικών προσώπων. Είμαστε μία από τις πιο έμπειρες ομάδες στην Ελλάδα σε αυτό το εξαιρετικά τεχνικό αντικείμενο, με δεκάδες επιτυχημένες υποθέσεις.
+ΠΩΣ ΔΟΥΛΕΥΕΙ Η ΠΑΡΑΠΟΜΠΗ:
+1. Μας στέλνετε τα στοιχεία του πελάτη (ΑΦΜ, ονοματεπώνυμο, τηλέφωνο) — απευθείας από το Logistis
+2. Κάνουμε δωρεάν ανάλυση και του δείχνουμε τι μπορεί να πετύχει
+3. Αν προχωρήσει, αναλαμβάνουμε όλη τη διαδικασία μέχρι το τέλος
+4. Παρακολουθείτε την πορεία της υπόθεσης μέσα από το Logistis
+5. Όταν ολοκληρωθεί, λαμβάνετε την αμοιβή παραπομπής σας
 
-ΤΙ ΚΑΝΟΥΜΕ:
-• Εξωδικαστική ρύθμιση οφειλών: ρύθμιση χρεών προς ΑΑΔΕ, τράπεζες/funds, ΕΦΚΑ με κούρεμα και επιμήκυνση χρέους
-• Πτώχευση φυσικών προσώπων: καθαρισμός χρεών μέσω νόμου 4738
-• Ψηφιακή πλατφόρμα ανάλυσης: άμεση πρόβλεψη αποτελεσμάτων για κάθε υπόθεση
+ΜΗΝ ΞΕΧΝΑΤΕ ΚΑΙ ΤΑ ΠΡΟΓΡΑΜΜΑΤΑ:
+Αν δεν έχετε ακόμα ανεβάσει το πελατολόγιό σας για έλεγχο επιχορηγούμενων προγραμμάτων, πείτε το μου και σας συνδέω απευθείας με το αρμόδιο τμήμα του γραφείου μας — είναι ο βασικός λόγος που έχετε λογαριασμό στο Logistis, οπότε αξίζει να το αξιοποιήσετε.
 
-ΓΙΑΤΙ ΕΜΕΙΣ:
-✓ Αποκλειστική εξειδίκευση — δεν κάνουμε τίποτα άλλο εκτός από εξωδικαστικό και πτώχευση
-✓ Ιδιόκτητη τεχνολογία ανάλυσης — μοναδική στην Ελλάδα
-✓ Πλήρης διαφάνεια — ο πελάτης βλέπει κάθε βήμα ψηφιακά
-✓ Αποδεδειγμένα αποτελέσματα
-
-Για τους συνεργάτες λογιστές:
-Κάθε παραπομπή που ολοκληρώνεται αποδίδει αμοιβή. Εμείς αναλαμβάνουμε την πλήρη διαχείριση.
-
-Είμαστε στη διάθεσή σας για οποιαδήποτε ερώτηση ή για να κλείσουμε μια σύντομη τηλεδιάσκεψη.
+Αν θέλετε, μπορούμε να κλείσουμε ένα σύντομο τηλεφώνημα ή Teams για να σας δείξω ζωντανά και τα δύο μέσα στο Logistis.
 
 Με εκτίμηση,
 [ΟΝΟΜΑ ΥΠΑΛΛΗΛΟΥ]
-iMentor — Εξωδικαστικός & Πτώχευση
+iMentor
 [ΤΗΛΕΦΩΝΟ]
 info@i-mentor.gr | www.i-mentor.gr`,
   },
 ]
+
+// ── Helpers ───────────────────────────────────────────────────────
 
 function CopyButton({ text }) {
   const [copied, setCopied] = useState(false)
@@ -169,11 +195,24 @@ function CopyButton({ text }) {
     })
   }
   return (
-    <button onClick={copy} className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 text-gray-600 transition-colors">
+    <button onClick={copy}
+      className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 text-gray-600 transition-colors whitespace-nowrap">
       {copied ? '✓ Αντιγράφηκε' : '📋 Αντιγραφή'}
     </button>
   )
 }
+
+function GmailButton({ to, subject, body }) {
+  const url = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(to || '')}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
+  return (
+    <a href={url} target="_blank" rel="noopener noreferrer"
+      className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-red-50 border border-red-200 text-red-700 hover:bg-red-100 transition-colors whitespace-nowrap font-medium">
+      ✉️ Άνοιγμα στο Gmail
+    </a>
+  )
+}
+
+// ── Main component ────────────────────────────────────────────────
 
 export default function LogistisOutreach({ currentEmployee }) {
   const [data, setData] = useState(undefined)
@@ -184,6 +223,16 @@ export default function LogistisOutreach({ currentEmployee }) {
   const [activeTab, setActiveTab] = useState('assignment')
   const [openScript, setOpenScript] = useState(null)
   const [confirmSkip, setConfirmSkip] = useState(false)
+  const [showSettings, setShowSettings] = useState(false)
+
+  // Employee personal details for placeholder replacement
+  const [myName, setMyName] = useState(() => loadSettings().name || '')
+  const [myPhone, setMyPhone] = useState(() => loadSettings().phone || '')
+  const [myEmail, setMyEmail] = useState(() => loadSettings().email || '')
+
+  const persistSettings = (n, p, e) => {
+    saveSettings({ name: n, phone: p, email: e })
+  }
 
   const load = () => {
     setData(undefined)
@@ -257,6 +306,16 @@ export default function LogistisOutreach({ currentEmployee }) {
   const isDone = asgn && TERMINAL.has(asgn.status)
   const currentStep = STATUS_PIPELINE.findIndex(s => s.key === asgn?.status)
 
+  // Talking-point: gap between declared and actual client count
+  const declaredNum = acc?.declared_client_count
+    ? parseInt(String(acc.declared_client_count).replace(/\D/g, ''), 10)
+    : null
+  const actualNum = typeof acc?.client_count === 'number' ? acc.client_count : null
+  const hasGap = declaredNum && actualNum !== null && actualNum < declaredNum * 0.5
+
+  // Placeholder context
+  const ctx = { accName: acc?.name || '', myName, myPhone, myEmail }
+
   const tabs = [
     { key: 'assignment', label: 'Ανάθεση' },
     { key: 'scripts', label: 'Σενάρια Κλήσης' },
@@ -265,8 +324,41 @@ export default function LogistisOutreach({ currentEmployee }) {
 
   return (
     <div className="p-4 md:p-6 max-w-3xl mx-auto">
-      <h1 className="text-2xl font-black text-blue-800 mb-1">Outreach Λογιστών</h1>
-      <p className="text-gray-500 text-sm mb-5">Προσέγγισε τον ανατεθειμένο λογιστή και πρότεινε δωρεάν εκτίμηση για τους πελάτες του.</p>
+      <div className="flex items-start justify-between mb-1">
+        <h1 className="text-2xl font-black text-blue-800">Outreach Λογιστών</h1>
+        <button onClick={() => setShowSettings(v => !v)}
+          className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 transition-colors mt-1">
+          ⚙️ Τα στοιχεία μου
+        </button>
+      </div>
+      <p className="text-gray-500 text-sm mb-4">Προσέγγισε τον ανατεθειμένο λογιστή και πρότεινε δωρεάν εκτίμηση για τους πελάτες του.</p>
+
+      {/* Employee settings panel */}
+      {showSettings && (
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 mb-4 space-y-3">
+          <div className="text-sm font-semibold text-amber-800 mb-1">Τα στοιχεία σου — αντικαθιστούν τα [ΠΕΔΙΑ] αυτόματα</div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label className="text-xs text-gray-500 mb-1 block">Ονοματεπώνυμο</label>
+              <input value={myName} onChange={e => { setMyName(e.target.value); persistSettings(e.target.value, myPhone, myEmail) }}
+                placeholder="π.χ. Στέλλα Παπαδοπούλου"
+                className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-amber-400" />
+            </div>
+            <div>
+              <label className="text-xs text-gray-500 mb-1 block">Τηλέφωνο</label>
+              <input value={myPhone} onChange={e => { setMyPhone(e.target.value); persistSettings(myName, e.target.value, myEmail) }}
+                placeholder="π.χ. 6900000000"
+                className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-amber-400" />
+            </div>
+            <div>
+              <label className="text-xs text-gray-500 mb-1 block">Email</label>
+              <input value={myEmail} onChange={e => { setMyEmail(e.target.value); persistSettings(myName, myPhone, e.target.value) }}
+                placeholder="π.χ. stella@i-mentor.gr"
+                className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-amber-400" />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="flex gap-1 mb-5 border-b border-gray-200">
@@ -310,18 +402,35 @@ export default function LogistisOutreach({ currentEmployee }) {
               <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
                 {acc ? (
                   <>
+                    {/* Name + client counts */}
                     <div className="flex items-start justify-between gap-4 flex-wrap">
                       <div>
                         <div className="text-xs text-gray-400 mb-0.5">Λογιστής</div>
                         <div className="text-xl font-black text-gray-800">{acc.name}</div>
                         {acc.office_name && <div className="text-sm text-gray-500 mt-0.5">{acc.office_name}</div>}
                       </div>
-                      <div className="text-right">
-                        <div className="text-xs text-gray-400 mb-0.5">Πελάτες</div>
-                        <div className="text-2xl font-black text-blue-700">{acc.client_count ?? '—'}</div>
+                      <div className="text-right space-y-1">
+                        <div>
+                          <div className="text-xs text-gray-400">Πελάτες στο σύστημα</div>
+                          <div className="text-2xl font-black text-blue-700">{actualNum ?? '—'}</div>
+                        </div>
+                        {acc.declared_client_count && (
+                          <div>
+                            <div className="text-xs text-gray-400">Δηλωμένοι κατά εγγραφή</div>
+                            <div className="text-lg font-bold text-gray-500">{acc.declared_client_count}</div>
+                          </div>
+                        )}
                       </div>
                     </div>
 
+                    {/* Gap talking point */}
+                    {hasGap && (
+                      <div className="mt-3 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-xs text-amber-800">
+                        💡 <strong>Talking point:</strong> Έχουν ανεβάσει μόνο {actualNum} από τους δηλωμένους {acc.declared_client_count} πελάτες — δεν έχουν ακόμα εξερευνήσει το πλήρες πελατολόγιό τους.
+                      </div>
+                    )}
+
+                    {/* Contact row */}
                     <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
                       {acc.phone && (
                         <a href={`tel:${acc.phone}`} className="flex items-center gap-2 bg-blue-50 rounded-lg px-3 py-2 text-blue-700 hover:bg-blue-100 transition-colors font-medium">
@@ -333,12 +442,20 @@ export default function LogistisOutreach({ currentEmployee }) {
                           ✉️ {acc.email}
                         </a>
                       )}
-                      {acc.city && (
+                      {(acc.city || acc.area) && (
                         <div className="flex items-center gap-2 bg-gray-50 rounded-lg px-3 py-2 text-gray-600">
-                          📍 {acc.city}
+                          📍 {acc.city || acc.area}
                         </div>
                       )}
                     </div>
+
+                    {/* Address */}
+                    {acc.address && (
+                      <div className="mt-2 flex items-start gap-2 text-xs text-gray-500 bg-gray-50 rounded-lg px-3 py-2 border border-gray-100">
+                        <span className="mt-0.5">🏢</span>
+                        <span>{acc.address}</span>
+                      </div>
+                    )}
                   </>
                 ) : (
                   <div className="text-gray-400 text-sm">Τα στοιχεία του λογιστή δεν είναι διαθέσιμα αυτή τη στιγμή.</div>
@@ -429,32 +546,38 @@ export default function LogistisOutreach({ currentEmployee }) {
       {/* ── TAB: CALL SCRIPTS ── */}
       {activeTab === 'scripts' && (
         <div className="space-y-3">
-          <p className="text-sm text-gray-500 mb-4">Επίλεξε το κατάλληλο σενάριο ανάλογα με την περίσταση. Τα κείμενα σε [ΑΓΚΥΛΕΣ] αντικατάστησέ τα με τα πραγματικά στοιχεία.</p>
-          {CALL_SCRIPTS.map((script, idx) => (
+          {(!myName || !myPhone) && (
+            <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-2.5 text-xs text-amber-700 flex items-center gap-2">
+              💡 Συμπλήρωσε «Τα στοιχεία μου» (πάνω δεξιά) για να αντικατασταθούν αυτόματα τα [ΠΕΔΙΑ].
+            </div>
+          )}
+          {CALL_SCRIPTS_RAW.map((script, idx) => (
             <div key={idx} className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
-              <button
-                onClick={() => setOpenScript(openScript === idx ? null : idx)}
+              <button onClick={() => setOpenScript(openScript === idx ? null : idx)}
                 className="w-full flex items-center justify-between px-5 py-4 text-left hover:bg-gray-50 transition-colors">
                 <div>
                   <div className="font-bold text-gray-800">{script.title}</div>
                   <div className="text-xs text-gray-500 mt-0.5">{script.subtitle}</div>
                 </div>
-                <span className="text-gray-400 text-lg">{openScript === idx ? '▲' : '▼'}</span>
+                <span className="text-gray-400 text-lg ml-2 shrink-0">{openScript === idx ? '▲' : '▼'}</span>
               </button>
 
               {openScript === idx && (
                 <div className="px-5 pb-5 border-t border-gray-100 space-y-4 pt-4">
-                  {script.steps.map((step, si) => (
-                    <div key={si}>
-                      <div className="flex items-center justify-between mb-1.5">
-                        <span className="text-xs font-bold text-blue-600 uppercase tracking-wide">{step.label}</span>
-                        <CopyButton text={step.text} />
+                  {script.steps.map((step, si) => {
+                    const filled = fill(step.text, ctx)
+                    return (
+                      <div key={si}>
+                        <div className="flex items-center justify-between mb-1.5 flex-wrap gap-2">
+                          <span className="text-xs font-bold text-blue-600 uppercase tracking-wide">{step.label}</span>
+                          <CopyButton text={filled} />
+                        </div>
+                        <div className="bg-blue-50 rounded-lg px-4 py-3 text-sm text-gray-700 whitespace-pre-wrap leading-relaxed border-l-4 border-blue-300">
+                          {filled}
+                        </div>
                       </div>
-                      <div className="bg-blue-50 rounded-lg px-4 py-3 text-sm text-gray-700 whitespace-pre-wrap leading-relaxed border-l-4 border-blue-300">
-                        {step.text}
-                      </div>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               )}
             </div>
@@ -465,32 +588,45 @@ export default function LogistisOutreach({ currentEmployee }) {
       {/* ── TAB: EMAIL TEMPLATES ── */}
       {activeTab === 'emails' && (
         <div className="space-y-4">
-          <p className="text-sm text-gray-500 mb-4">Έτοιμα email για αποστολή μετά την κλήση. Αντίγραψε, αλλαξε τα [ΠΕΔΙΑ] και στείλε.</p>
-          {EMAIL_TEMPLATES.map((tpl, idx) => (
-            <div key={idx} className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm space-y-3">
-              <div className="font-bold text-gray-800">{tpl.title}</div>
-
-              <div>
-                <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Θέμα</div>
-                <div className="flex items-center gap-2">
-                  <div className="flex-1 bg-gray-50 rounded-lg px-3 py-2 text-sm text-gray-700 font-medium border border-gray-200">
-                    {tpl.subject}
-                  </div>
-                  <CopyButton text={tpl.subject} />
-                </div>
-              </div>
-
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Σώμα email</div>
-                  <CopyButton text={tpl.body} />
-                </div>
-                <pre className="bg-gray-50 rounded-lg px-4 py-3 text-sm text-gray-700 whitespace-pre-wrap leading-relaxed border border-gray-200 font-sans max-h-64 overflow-y-auto">
-                  {tpl.body}
-                </pre>
-              </div>
+          {(!myName || !myPhone) && (
+            <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-2.5 text-xs text-amber-700 flex items-center gap-2">
+              💡 Συμπλήρωσε «Τα στοιχεία μου» (πάνω δεξιά) για να αντικατασταθούν αυτόματα τα [ΠΕΔΙΑ].
             </div>
-          ))}
+          )}
+          {EMAIL_TEMPLATES_RAW.map((tpl, idx) => {
+            const filledSubject = fill(tpl.subject, ctx)
+            const filledBody = fill(tpl.body, ctx)
+            return (
+              <div key={idx} className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm space-y-3">
+                <div className="font-bold text-gray-800">{tpl.title}</div>
+
+                <div>
+                  <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Θέμα</div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <div className="flex-1 bg-gray-50 rounded-lg px-3 py-2 text-sm text-gray-700 font-medium border border-gray-200 min-w-0 truncate">
+                      {filledSubject}
+                    </div>
+                    <CopyButton text={filledSubject} />
+                  </div>
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-1 flex-wrap gap-2">
+                    <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Σώμα email</div>
+                    <div className="flex gap-2">
+                      <CopyButton text={filledBody} />
+                      {acc?.email && (
+                        <GmailButton to={acc.email} subject={filledSubject} body={filledBody} />
+                      )}
+                    </div>
+                  </div>
+                  <pre className="bg-gray-50 rounded-lg px-4 py-3 text-sm text-gray-700 whitespace-pre-wrap leading-relaxed border border-gray-200 font-sans max-h-72 overflow-y-auto">
+                    {filledBody}
+                  </pre>
+                </div>
+              </div>
+            )
+          })}
         </div>
       )}
     </div>
