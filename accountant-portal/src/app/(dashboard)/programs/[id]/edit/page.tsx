@@ -29,7 +29,7 @@ const optionalNumber = z.preprocess(
 
 const schema = z.object({
   title: z.string().min(3, 'Απαιτείται τίτλος'),
-  category: z.enum(['ESPA', 'DYPA', 'MICROCREDITS', 'EXTRAJUDICIAL', 'RENOVATION', 'OTHER']),
+  category: z.enum(['ESPA', 'DYPA', 'MICROCREDITS', 'EXTRAJUDICIAL', 'RENOVATION', 'ANAPTYXIAKOS', 'OTHER']),
   description: z.string().optional(),
   minInvestment: optionalNumber,
   maxInvestment: optionalNumber,
@@ -513,6 +513,7 @@ export default function EditProgramPage() {
                 { value: 'ESPA', label: 'ΕΣΠΑ' },
                 { value: 'DYPA', label: 'ΔΥΠΑ' },
                 { value: 'MICROCREDITS', label: 'Μικροπιστώσεις' },
+                { value: 'ANAPTYXIAKOS', label: 'Αναπτυξιακός Νόμος' },
                 { value: 'OTHER', label: 'Άλλο' },
               ]}
             />
