@@ -677,11 +677,12 @@ export default function Dashboard() {
                   const pct = emp.achievement_pct ?? 0
                   const barColor = pct >= 100 ? 'bg-green-500' : pct >= 75 ? 'bg-blue-500' : pct >= 50 ? 'bg-yellow-400' : 'bg-red-400'
                   const textColor = pct >= 100 ? 'text-green-700' : pct >= 75 ? 'text-blue-700' : pct >= 50 ? 'text-yellow-700' : 'text-red-600'
+                  const fmtInt = n => new Intl.NumberFormat('el-GR', { style: 'currency', currency: 'EUR', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(n || 0)
                   return (
                     <tr key={emp.name} className="hover:bg-gray-50">
                       <td className="px-4 py-2.5 font-medium text-gray-900 whitespace-nowrap">{emp.name}</td>
-                      <td className="px-4 py-2.5 text-gray-600 whitespace-nowrap">{fmt(emp.target)}</td>
-                      <td className="px-4 py-2.5 text-gray-600 whitespace-nowrap">{fmt(emp.sales_to_date)}</td>
+                      <td className="px-4 py-2.5 text-gray-600 whitespace-nowrap">{fmtInt(emp.target)}</td>
+                      <td className="px-4 py-2.5 text-gray-600 whitespace-nowrap">{fmtInt(emp.sales_to_date)}</td>
                       <td className="px-4 py-2.5 whitespace-nowrap">
                         <div className="flex items-center gap-2">
                           <div className="flex-1 min-w-[80px] bg-gray-100 rounded-full h-2 overflow-hidden">

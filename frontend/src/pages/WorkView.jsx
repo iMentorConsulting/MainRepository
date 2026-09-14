@@ -597,7 +597,7 @@ export default function WorkView() {
         const pct = d.achievement_pct ?? 0
         const barColor = pct >= 100 ? 'bg-green-500' : pct >= 75 ? 'bg-blue-500' : pct >= 50 ? 'bg-yellow-400' : 'bg-red-400'
         const textColor = pct >= 100 ? 'text-green-700' : pct >= 75 ? 'text-blue-700' : pct >= 50 ? 'text-yellow-700' : 'text-red-600'
-        const fmtEur = n => new Intl.NumberFormat('el-GR', { style: 'currency', currency: 'EUR', minimumFractionDigits: 0 }).format(n || 0)
+        const fmtEur = n => new Intl.NumberFormat('el-GR', { style: 'currency', currency: 'EUR', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(n || 0)
         return (
           <div className="mb-3 flex-shrink-0 bg-white border rounded-xl px-4 py-3 flex flex-wrap items-center gap-4">
             <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">🎯 Στόχος {myPayroll.month_name} {myPayroll.year}</span>

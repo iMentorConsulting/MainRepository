@@ -145,6 +145,22 @@ def _load_snapshot(db, year: int, month: int):
     }
 
 
+def _name_matches(finance_name: str, user_full_name: str) -> bool:
+    """Match Finance first-name / abbreviated entries against CM full_name.
+
+    Finance sends e.g. "ΕΛΕΥΘΕΡΙΑ", "ΒΑΛΛΙΑ", "ΚΑΡΑΤΖΗΣ Ν."
+    CM stores e.g. "Στριλιγκά Ελευθερία", "Μποτσάκη Βάλλια", "Καράτζης Νίκος"
+    Strategy: any Finance token (≥2 chars, strip trailing dot) found in any name token.
+    """
+    fn = finance_name.strip().upper()
+    un = user_full_name.strip().upper()
+    if fn == un:
+        return True
+    fn_tokens = [t.rstrip(".") for t in fn.split() if len(t.rstrip(".")) >= 2]
+    un_tokens = set(un.split())
+    return any(ft in un_tokens for ft in fn_tokens)
+
+
 @router.get("/api/finance/payroll-targets/me")
 def get_my_payroll_targets(
     current_user: CMUser = Depends(get_current_user),
@@ -154,9 +170,8 @@ def get_my_payroll_targets(
     snap = _load_snapshot(db, now.year, now.month)
     if not snap:
         return {"found": False, "data": None}
-    my_name = (current_user.full_name or "").strip().upper()
     match = next(
-        (e for e in snap["employees"] if e["name"].strip().upper() == my_name),
+        (e for e in snap["employees"] if _name_matches(e["name"], current_user.full_name or "")),
         None,
     )
     return {
