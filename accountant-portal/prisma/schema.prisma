@@ -95,6 +95,11 @@ model Accountant {
   logoUrl             String?
   address             String?
   notes               String?
+  // Client-count range the office self-declared at registration (e.g. "150+"),
+  // kept separate from the actual `businesses` count Logistis has on file so
+  // outreach tools can show both side by side. Pre-existing registrations
+  // only have this embedded in `notes` — see parseDeclaredClientCount().
+  declaredClientCount String?
   active              Boolean                        @default(true)
   // The accounting office's own ΑΦΜ, captured at registration and looked up
   // via ΑΑΔΕ/GSIS so the admin can verify it's a real office before approving.
