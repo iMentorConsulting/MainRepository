@@ -15,18 +15,25 @@ const TERMINAL = new Set(['converted', 'rejected'])
 
 export default function LogistisOutreach({ currentEmployee }) {
   const [data, setData] = useState(undefined) // undefined = loading
+  const [errMsg, setErrMsg] = useState(null)
   const [notes, setNotes] = useState('')
   const [saving, setSaving] = useState(false)
   const [assigning, setAssigning] = useState(false)
 
   const load = () => {
     setData(undefined)
+    setErrMsg(null)
     api.getMyAccountantAssignment()
       .then(r => {
         setData(r.data)
         setNotes(r.data?.assignment?.notes || '')
       })
-      .catch(() => setData(null))
+      .catch(e => {
+        const status = e?.response?.status
+        const detail = e?.response?.data?.detail || e?.message || 'unknown'
+        setErrMsg(`HTTP ${status ?? '?'}: ${detail}`)
+        setData(null)
+      })
   }
 
   useEffect(() => { load() }, [])
@@ -85,7 +92,8 @@ export default function LogistisOutreach({ currentEmployee }) {
 
       {data === null && (
         <div className="bg-red-50 border border-red-200 rounded-2xl p-6 text-center text-red-600">
-          Σφάλμα σύνδεσης. Ανανέωσε τη σελίδα.
+          <div className="font-semibold mb-1">Σφάλμα σύνδεσης</div>
+          {errMsg && <div className="text-xs font-mono mt-1">{errMsg}</div>}
         </div>
       )}
 
