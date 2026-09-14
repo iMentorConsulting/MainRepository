@@ -54,11 +54,6 @@ export default function Dashboard({ currentEmployee }) {
   const [filterEmployee, setFilterEmployee] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
   const [filterLogistis, setFilterLogistis] = useState(false)
-  const [payroll, setPayroll] = useState(null)
-
-  useEffect(() => {
-    api.getPayrollTargets().then(r => setPayroll(r.data)).catch(() => {})
-  }, [])
 
   const load = async () => {
     setLoading(true)
@@ -148,51 +143,6 @@ export default function Dashboard({ currentEmployee }) {
           </button>
         </div>
       </div>
-
-      {/* Payroll targets widget */}
-      {payroll && (() => {
-        const me = payroll.employees?.find(e =>
-          e.name?.toUpperCase().includes(currentEmployee?.toUpperCase())
-        )
-        if (!me) return null
-        const pct = me.achievement_pct ?? (me.target > 0 ? me.sales_to_date / me.target * 100 : null)
-        const pctDisplay = pct != null ? Math.round(pct) : null
-        const barColor = pct == null ? 'bg-blue-400' : pct >= 100 ? 'bg-green-500' : pct >= 70 ? 'bg-blue-500' : 'bg-amber-500'
-        return (
-          <div className="mb-6 rounded-2xl border border-blue-200 bg-blue-50 px-5 py-4">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-semibold text-blue-600 uppercase tracking-wide">
-                Στόχος {payroll.month_name} {payroll.year}
-              </span>
-              {pctDisplay != null && (
-                <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${pct >= 100 ? 'bg-green-100 text-green-700' : pct >= 70 ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'}`}>
-                  {pctDisplay}%
-                </span>
-              )}
-            </div>
-            <div className="flex items-end gap-6 text-sm">
-              <div>
-                <div className="text-gray-500 text-xs mb-0.5">Στόχος μήνα</div>
-                <div className="font-bold text-blue-800 text-lg">{me.target?.toLocaleString('el-GR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })}</div>
-              </div>
-              <div>
-                <div className="text-gray-500 text-xs mb-0.5">Εισπράξεις ως σήμερα</div>
-                <div className="font-bold text-gray-800 text-lg">{me.sales_to_date?.toLocaleString('el-GR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })}</div>
-              </div>
-              {payroll.days_elapsed != null && payroll.days_in_month != null && (
-                <div className="ml-auto text-right">
-                  <div className="text-gray-400 text-xs">{payroll.days_elapsed}/{payroll.days_in_month} μέρες</div>
-                </div>
-              )}
-            </div>
-            {pct != null && (
-              <div className="mt-3 h-2 rounded-full bg-blue-100 overflow-hidden">
-                <div className={`h-full rounded-full transition-all ${barColor}`} style={{ width: `${Math.min(100, pct)}%` }} />
-              </div>
-            )}
-          </div>
-        )
-      })()}
 
       {/* Follow-up alert — compact, links to Pipeline */}
       {attentionCases.length > 0 && (

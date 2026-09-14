@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react'
 import { Outlet, NavLink } from 'react-router-dom'
 import {
   HomeIcon,
@@ -16,8 +17,16 @@ import {
   ChatBubbleLeftEllipsisIcon,
 } from '@heroicons/react/24/outline'
 import { toast } from 'react-hot-toast'
-import { hangupCall } from '../api'
+import { hangupCall, getPayrollTargets } from '../api'
 import ExternalReferralBanner from './ExternalReferralBanner'
+
+// Map English login names → Greek names as sent by Finance app
+const GREEK_NAME = {
+  STELLA: 'ΣΤΕΛΛΑ',
+  VALLIA: 'ΒΑΛΛΙΑ',
+  SOFIA: 'ΣΟΦΙΑ',
+  HARIS: 'ΧΡΗΣΤΟΣ',
+}
 
 const nav = [
   { to: '/leads', label: 'Leads', Icon: UserGroupIcon },
@@ -40,6 +49,17 @@ const adminNav = [
 export default function Layout({ auth, onLogout }) {
   const isHaris = auth.employee === 'HARIS'
   const allNav = isHaris ? [...nav, ...adminNav] : nav
+  const [myTarget, setMyTarget] = useState(null)
+
+  useEffect(() => {
+    getPayrollTargets().then(r => {
+      const data = r.data
+      if (!data?.employees) return
+      const greekName = GREEK_NAME[auth.employee] || auth.employee
+      const me = data.employees.find(e => e.name?.toUpperCase().includes(greekName))
+      if (me) setMyTarget({ ...me, month_name: data.month_name, year: data.year })
+    }).catch(() => {})
+  }, [auth.employee])
 
   const handleHangup = async () => {
     try {
@@ -93,6 +113,30 @@ export default function Layout({ auth, onLogout }) {
           )}
         </nav>
 
+        {myTarget && (() => {
+          const pct = myTarget.achievement_pct ?? (myTarget.target > 0 ? myTarget.sales_to_date / myTarget.target * 100 : null)
+          const barColor = pct == null ? 'bg-blue-400' : pct >= 100 ? 'bg-green-400' : pct >= 70 ? 'bg-blue-400' : 'bg-amber-400'
+          const pctTxt = pct != null ? `${Math.round(pct)}%` : '—'
+          return (
+            <div className="px-3 pt-3 border-t border-blue-700">
+              <div className="text-xs text-blue-400 px-1 mb-1">🎯 {myTarget.month_name} {myTarget.year}</div>
+              <div className="bg-blue-900 rounded-lg px-3 py-2 space-y-1">
+                <div className="flex justify-between text-xs">
+                  <span className="text-blue-300">Στόχος</span>
+                  <span className="text-white font-semibold">{myTarget.target?.toLocaleString('el-GR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })}</span>
+                </div>
+                <div className="flex justify-between text-xs">
+                  <span className="text-blue-300">Εισπράξεις</span>
+                  <span className="text-white font-semibold">{myTarget.sales_to_date?.toLocaleString('el-GR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })}</span>
+                </div>
+                <div className="h-1.5 rounded-full bg-blue-700 overflow-hidden mt-1">
+                  <div className={`h-full rounded-full ${barColor}`} style={{ width: `${pct != null ? Math.min(100, pct) : 0}%` }} />
+                </div>
+                <div className="text-right text-xs font-bold text-blue-200">{pctTxt}</div>
+              </div>
+            </div>
+          )
+        })()}
         <div className="px-3 py-4 border-t border-blue-700 space-y-2">
           <button onClick={onLogout}
             className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-blue-200 hover:bg-blue-700 w-full transition-colors">
