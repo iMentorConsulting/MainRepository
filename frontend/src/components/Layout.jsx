@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
 import {
   HomeIcon,
@@ -24,7 +24,7 @@ import {
   BellAlertIcon,
   UserPlusIcon,
 } from '@heroicons/react/24/outline'
-import { changePassword } from '../api'
+import { changePassword, getMyPayrollTargets } from '../api'
 import toast from 'react-hot-toast'
 import PortalAssignmentAlert from './PortalAssignmentAlert'
 
@@ -132,6 +132,8 @@ export default function Layout({ auth, onLogout }) {
 
   const isAdmin = auth.user?.role === 'admin'
   const visibleNav = nav.filter(item => !item.adminOnly || isAdmin)
+  const [payroll, setPayroll] = useState(null)
+  useEffect(() => { getMyPayrollTargets().then(setPayroll).catch(() => {}) }, [])
 
   return (
     <div className="min-h-screen bg-gray-50 flex">
@@ -172,6 +174,26 @@ export default function Layout({ auth, onLogout }) {
             </NavLink>
           ))}
         </nav>
+
+        {/* Payroll target — subtle sidebar widget */}
+        {payroll?.found && payroll.data && (() => {
+          const d = payroll.data
+          const pct = Math.min(d.achievement_pct ?? 0, 100)
+          const barColor = pct >= 100 ? 'bg-green-400' : pct >= 75 ? 'bg-blue-300' : pct >= 50 ? 'bg-yellow-300' : 'bg-red-400'
+          const fmtEur = n => new Intl.NumberFormat('el-GR', { style: 'currency', currency: 'EUR', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(n || 0)
+          return (
+            <div className="mx-3 mb-2 px-3 py-2.5 rounded-lg bg-white/5">
+              <div className="text-[10px] text-white/40 uppercase tracking-wider mb-1.5">Στόχος {payroll.month_name}</div>
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-xs text-white/60">{fmtEur(d.sales_to_date)} <span className="text-white/30">/ {fmtEur(d.target)}</span></span>
+                <span className={`text-xs font-bold ${pct >= 75 ? 'text-white/90' : 'text-red-400'}`}>{(d.achievement_pct ?? 0).toFixed(1)}%</span>
+              </div>
+              <div className="h-1 bg-white/10 rounded-full overflow-hidden">
+                <div className={`h-1 rounded-full transition-all ${barColor}`} style={{ width: `${pct}%` }} />
+              </div>
+            </div>
+          )
+        })()}
 
         {/* User info */}
         <div className="px-4 py-4 border-t border-white/10">
