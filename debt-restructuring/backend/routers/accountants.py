@@ -1,6 +1,6 @@
 import os
 import json
-import httpx
+import requests as req_lib
 from datetime import datetime
 from typing import Optional
 
@@ -27,10 +27,9 @@ def _api_key() -> str:
     return key
 
 
-async def _fetch_accountants():
+def _fetch_accountants():
     url = f"{LOGISTIS_BASE_URL}/api/exodikastikos/accountants"
-    async with httpx.AsyncClient(timeout=15) as client:
-        r = await client.get(url, headers={"x-api-key": _api_key()})
+    r = req_lib.get(url, headers={"x-api-key": _api_key()}, timeout=15)
     if r.status_code != 200:
         raise HTTPException(status_code=502, detail=f"Logistis API error: {r.status_code}")
     return r.json()
@@ -61,8 +60,7 @@ def _used_ids(db: Session):
 
 
 @router.get("/my")
-async def get_my_assignment(employee: str = Depends(get_current_user), db: Session = Depends(get_db)):
-    # Active = not in terminal status
+def get_my_assignment(employee: str = Depends(get_current_user), db: Session = Depends(get_db)):
     active = (
         db.query(AccountantAssignment)
         .filter(AccountantAssignment.employee == employee,
@@ -73,9 +71,8 @@ async def get_my_assignment(employee: str = Depends(get_current_user), db: Sessi
     if not active:
         return None
 
-    # Enrich with live data from logistis
     try:
-        all_accs = await _fetch_accountants()
+        all_accs = _fetch_accountants()
         acc = next((a for a in all_accs if str(a["id"]) == active.accountant_id), None)
     except Exception:
         acc = None
@@ -94,9 +91,8 @@ async def get_my_assignment(employee: str = Depends(get_current_user), db: Sessi
 
 
 @router.post("/my/assign-next")
-async def assign_next(employee: str = Depends(get_current_user), db: Session = Depends(get_db)):
+def assign_next(employee: str = Depends(get_current_user), db: Session = Depends(get_db)):
     """Assign the next available accountant from the pool to this employee."""
-    # Check they don't already have an active assignment
     active = (
         db.query(AccountantAssignment)
         .filter(AccountantAssignment.employee == employee,
@@ -106,7 +102,7 @@ async def assign_next(employee: str = Depends(get_current_user), db: Session = D
     if active:
         raise HTTPException(status_code=409, detail="Already has an active assignment")
 
-    all_accs = await _fetch_accountants()
+    all_accs = _fetch_accountants()
     used = _used_ids(db)
     available = [a for a in all_accs if str(a["id"]) not in used]
 
@@ -171,9 +167,9 @@ async def update_status(
 
 
 @router.get("/pool")
-async def get_pool(employee: str = Depends(get_current_user), db: Session = Depends(get_db)):
+def get_pool(employee: str = Depends(get_current_user), db: Session = Depends(get_db)):
     """Admin view: all accountants with assignment status."""
-    all_accs = await _fetch_accountants()
+    all_accs = _fetch_accountants()
     assignments = {
         row.accountant_id: row
         for row in db.query(AccountantAssignment).all()
