@@ -28,7 +28,7 @@ from models_cases import CMBackupLog
 from routes.cm_anakainizw import router as cm_anakainizw_router
 from routes.cm_finance_sync import router as cm_finance_sync_router
 from routes.cm_portal_integration import router as cm_portal_integration_router
-from routes.finance_api import router as finance_api_router
+from routes.finance_api import router as finance_api_router, router_legacy as finance_api_legacy_router
 from routes.cm_leads import router as cm_leads_router
 from routes.cm_leads_sync import router as cm_leads_sync_router
 from routes.cm_leads_ermis import router as cm_leads_ermis_router
@@ -956,6 +956,28 @@ except Exception as _e:
     print(f"[backfill] ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ cancel check failed: {_e}", flush=True)
 
 
+# Migration: payroll targets snapshot table (Finance → CM daily push)
+try:
+    with engine.connect() as _conn:
+        _conn.execute(_text("""
+            CREATE TABLE IF NOT EXISTS cm_finance_payroll_snapshots (
+                id SERIAL PRIMARY KEY,
+                year INTEGER NOT NULL,
+                month INTEGER NOT NULL,
+                month_name VARCHAR(50),
+                days_elapsed INTEGER,
+                days_in_month INTEGER,
+                source VARCHAR(100),
+                sent_at VARCHAR(50),
+                employees_json TEXT NOT NULL,
+                received_at TIMESTAMP DEFAULT NOW(),
+                UNIQUE(year, month)
+            )
+        """))
+        _conn.commit()
+except Exception as _e:
+    print(f"[migration] payroll snapshots table failed: {_e}")
+
 import pytz as _pytz
 from apscheduler.schedulers.background import BackgroundScheduler as _BGScheduler
 
@@ -1129,6 +1151,7 @@ app.include_router(cm_revenue_router)
 app.include_router(cm_backup_router)
 app.include_router(cm_anakainizw_router)
 app.include_router(cm_finance_sync_router)
+app.include_router(finance_api_legacy_router)
 app.include_router(finance_api_router)
 app.include_router(cm_portal_integration_router)
 app.include_router(cm_leads_router)

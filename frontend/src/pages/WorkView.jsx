@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import {
   getCases, getUsers, updateCase, createMessage, getMessages, deleteMessage,
   createCasePendingItem, deleteCasePendingItem, notifyCasePendingItems, getNotificationLogs,
-  getPendingItemTemplates, sendNotification, getPipelines,
+  getPendingItemTemplates, sendNotification, getPipelines, getMyPayrollTargets,
 } from '../api'
 import { PIPELINES } from '../pipelines'
 import {
@@ -508,6 +508,7 @@ export default function WorkView() {
   const [sortCol, setSortCol] = useState('')
   const [sortDir, setSortDir] = useState('asc')
   const [page, setPage] = useState(0)
+  const [myPayroll, setMyPayroll] = useState(null)
 
   const handleSort = (col) => {
     if (sortCol === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
@@ -533,6 +534,7 @@ export default function WorkView() {
   useEffect(() => { setFilterServiceType(''); setFilterStatus('') }, [filterProgram])
   useEffect(() => { getUsers().then(setAgents).catch(() => {}) }, [])
   useEffect(() => { getPipelines().then(setPipelinesData).catch(() => {}) }, [])
+  useEffect(() => { getMyPayrollTargets().then(setMyPayroll).catch(() => {}) }, [])
   useEffect(() => { setPage(0) }, [search, filterProgram, filterAgent, filterServiceType, filterStatus, filterFollowUp, hideCompleted, filterHasDocs])
 
   const serviceTypeOptions = [...new Set(cases.map(c => c.service_type).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'el'))
@@ -588,6 +590,31 @@ export default function WorkView() {
           Ανανέωση
         </button>
       </div>
+
+      {/* Personal Payroll Target Card */}
+      {myPayroll?.found && myPayroll.data && (() => {
+        const d = myPayroll.data
+        const pct = d.achievement_pct ?? 0
+        const barColor = pct >= 100 ? 'bg-green-500' : pct >= 75 ? 'bg-blue-500' : pct >= 50 ? 'bg-yellow-400' : 'bg-red-400'
+        const textColor = pct >= 100 ? 'text-green-700' : pct >= 75 ? 'text-blue-700' : pct >= 50 ? 'text-yellow-700' : 'text-red-600'
+        const fmtEur = n => new Intl.NumberFormat('el-GR', { style: 'currency', currency: 'EUR', minimumFractionDigits: 0 }).format(n || 0)
+        return (
+          <div className="mb-3 flex-shrink-0 bg-white border rounded-xl px-4 py-3 flex flex-wrap items-center gap-4">
+            <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">🎯 Στόχος {myPayroll.month_name} {myPayroll.year}</span>
+            <span className="text-sm text-gray-700">Στόχος: <span className="font-bold text-gray-900">{fmtEur(d.target)}</span></span>
+            <span className="text-sm text-gray-700">Πωλήσεις: <span className="font-bold text-gray-900">{fmtEur(d.sales_to_date)}</span></span>
+            <div className="flex items-center gap-2 flex-1 min-w-[140px]">
+              <div className="flex-1 bg-gray-100 rounded-full h-2 overflow-hidden">
+                <div className={`h-2 rounded-full ${barColor}`} style={{ width: `${Math.min(pct, 100)}%` }} />
+              </div>
+              <span className={`text-sm font-bold ${textColor}`}>{pct.toFixed(1)}%</span>
+            </div>
+            {myPayroll.days_elapsed != null && myPayroll.days_in_month != null && (
+              <span className="text-xs text-gray-400">Ημ. {myPayroll.days_elapsed}/{myPayroll.days_in_month}</span>
+            )}
+          </div>
+        )
+      })()}
 
       {/* Program tabs */}
       <div className="flex gap-1 bg-gray-100 p-1 rounded-lg w-fit mb-3 flex-shrink-0">

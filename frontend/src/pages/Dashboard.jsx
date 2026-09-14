@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { getDashboardStats, sendSLANotifications, getPortalActivity } from '../api'
+import { getDashboardStats, sendSLANotifications, getPortalActivity, getAllPayrollTargets } from '../api'
 import { getAuth } from '../api'
 import {
   FolderOpenIcon, CurrencyEuroIcon, ClockIcon, ExclamationTriangleIcon,
@@ -413,6 +413,7 @@ export default function Dashboard() {
   const [portalActivity, setPortalActivity] = useState([])
   const [portalSortCol, setPortalSortCol] = useState('portal_last_visit_at')
   const [portalSortDir, setPortalSortDir] = useState('desc')
+  const [payroll, setPayroll] = useState(null)
   const navigate = useNavigate()
 
   const togglePortalSort = (col) => {
@@ -446,6 +447,7 @@ export default function Dashboard() {
       })
       .finally(() => setLoading(false))
     getPortalActivity().then(setPortalActivity).catch(() => {})
+    getAllPayrollTargets().then(setPayroll).catch(() => {})
   }, [])
 
   if (loading) return (
@@ -648,6 +650,54 @@ export default function Dashboard() {
           </div>
         )}
       </div>
+
+      {/* Payroll Targets */}
+      {payroll?.found && (
+        <div className="bg-white rounded-xl border overflow-hidden">
+          <div className="px-5 py-3 border-b bg-gray-50 flex items-center justify-between">
+            <h2 className="font-semibold text-gray-800 text-sm flex items-center gap-2">
+              🎯 Στόχοι Πωλήσεων — {payroll.month_name} {payroll.year}
+            </h2>
+            <span className="text-xs text-gray-400">
+              Ημ. {payroll.days_elapsed}/{payroll.days_in_month}
+              {payroll.received_at && ` · ενημ. ${new Date(payroll.received_at).toLocaleString('el-GR', { dateStyle: 'short', timeStyle: 'short', timeZone: 'Europe/Athens' })}`}
+            </span>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 border-b">
+                <tr>
+                  {['Σύμβουλος', 'Μηνιαίος Στόχος', 'Πωλήσεις', 'Επίτευξη'].map(h => (
+                    <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 whitespace-nowrap">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {[...(payroll.employees || [])].sort((a, b) => b.achievement_pct - a.achievement_pct).map(emp => {
+                  const pct = emp.achievement_pct ?? 0
+                  const barColor = pct >= 100 ? 'bg-green-500' : pct >= 75 ? 'bg-blue-500' : pct >= 50 ? 'bg-yellow-400' : 'bg-red-400'
+                  const textColor = pct >= 100 ? 'text-green-700' : pct >= 75 ? 'text-blue-700' : pct >= 50 ? 'text-yellow-700' : 'text-red-600'
+                  return (
+                    <tr key={emp.name} className="hover:bg-gray-50">
+                      <td className="px-4 py-2.5 font-medium text-gray-900 whitespace-nowrap">{emp.name}</td>
+                      <td className="px-4 py-2.5 text-gray-600 whitespace-nowrap">{fmt(emp.target)}</td>
+                      <td className="px-4 py-2.5 text-gray-600 whitespace-nowrap">{fmt(emp.sales_to_date)}</td>
+                      <td className="px-4 py-2.5 whitespace-nowrap">
+                        <div className="flex items-center gap-2">
+                          <div className="flex-1 min-w-[80px] bg-gray-100 rounded-full h-2 overflow-hidden">
+                            <div className={`h-2 rounded-full ${barColor}`} style={{ width: `${Math.min(pct, 100)}%` }} />
+                          </div>
+                          <span className={`text-xs font-bold ${textColor}`}>{pct.toFixed(1)}%</span>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* Urgent deadlines + Recent */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
