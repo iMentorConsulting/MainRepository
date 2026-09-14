@@ -14,8 +14,8 @@ from auth_utils import get_current_user
 router = APIRouter(prefix="/accountants", tags=["accountants"], dependencies=[Depends(get_current_user)])
 
 LOGISTIS_BASE_URL = os.getenv("LOGISTIS_BASE_URL", "https://logistis.i-mentor.gr")
-TERMINAL_STATUSES = {"converted", "rejected"}
-STATUS_ORDER = ["assigned", "called", "meeting_set", "demo_done", "converted", "rejected"]
+TERMINAL_STATUSES = {"converted", "rejected", "skipped"}
+STATUS_ORDER = ["assigned", "called", "meeting_set", "demo_done", "converted", "rejected", "skipped"]
 
 EMPLOYEES = ["STELLA", "VALLIA", "SOFIA", "HARIS"]
 
@@ -54,8 +54,12 @@ def _set_pool_index(db: Session, idx: int):
 
 
 def _used_ids(db: Session):
-    """All accountant IDs currently assigned (non-terminal) or ever assigned."""
-    rows = db.query(AccountantAssignment.accountant_id).all()
+    """Accountant IDs unavailable for new assignment:
+    active (in-progress), converted (done), or rejected.
+    Skipped assignments release the accountant back into the pool."""
+    rows = db.query(AccountantAssignment.accountant_id).filter(
+        AccountantAssignment.status != "skipped"
+    ).all()
     return {r.accountant_id for r in rows}
 
 
