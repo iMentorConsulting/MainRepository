@@ -25,6 +25,7 @@ from routes.cm_portal_files import router as cm_portal_files_router  # portal do
 from routes.cm_revenue import router as cm_revenue_router
 from routes.finance_api import router as finance_api_router
 from routes.finance_payments import router as finance_payments_router
+from routes.finance_payroll_targets import router as finance_payroll_targets_router
 
 load_dotenv()
 
@@ -521,6 +522,7 @@ app.include_router(cm_portal_files_router)
 app.include_router(cm_revenue_router)
 app.include_router(finance_api_router)
 app.include_router(finance_payments_router)
+app.include_router(finance_payroll_targets_router)
 
 
 @app.on_event("shutdown")
