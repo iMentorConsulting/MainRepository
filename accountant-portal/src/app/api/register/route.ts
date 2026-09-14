@@ -78,6 +78,7 @@ export async function POST(request: NextRequest) {
         afm: data.afm,
         pendingBusinessData: gsisData ? (gsisData as any) : undefined,
         notes,
+        declaredClientCount: data.clientCountRange,
         approved: false,
       },
     })
