@@ -103,6 +103,7 @@ export default function FinancialDashboard({ currentEmployee }) {
   const [realStats, setRealStats] = useState(null)
   const [pricingConfig, setPricingConfig] = useState(() => loadPricingConfig())
   const [showPricingAdmin, setShowPricingAdmin] = useState(false)
+  const [payroll, setPayroll] = useState(null)
   const [backingUp, setBackingUp] = useState(false)
   const [dateFromFilter, setDateFromFilter] = useState('')
   const [dateToFilter, setDateToFilter] = useState('')
@@ -165,6 +166,7 @@ export default function FinancialDashboard({ currentEmployee }) {
       if (res.data && Object.keys(res.data).length > 0)
         setPricingConfig({ ...DEFAULT_PRICING_CONFIG, ...res.data })
     }).catch(() => {})
+    api.getPayrollTargets().then(r => setPayroll(r.data)).catch(() => {})
   }, [])
 
   // Fetch real pipeline statistics
@@ -963,6 +965,49 @@ export default function FinancialDashboard({ currentEmployee }) {
           />
         )}
       </div>
+
+      {/* ── Payroll Targets ──────────────────────────────────────────────────── */}
+      {payroll && payroll.employees?.length > 0 && (
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+          <h2 className="text-sm font-black text-gray-700 mb-1 flex items-center gap-2">
+            🎯 Στόχοι Μισθοδοσίας — {payroll.month_name} {payroll.year}
+          </h2>
+          <p className="text-xs text-gray-400 mb-4">Ημέρα {payroll.days_elapsed}/{payroll.days_in_month} · αποστολή {new Date(payroll.sent_at).toLocaleString('el-GR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</p>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b-2 border-gray-100 text-xs text-gray-400 uppercase">
+                  <th className="text-left py-2 px-3">Υπάλληλος</th>
+                  <th className="text-right py-2 px-3">Στόχος</th>
+                  <th className="text-right py-2 px-3">Εισπράξεις</th>
+                  <th className="text-right py-2 px-3">Επίτευξη</th>
+                  <th className="py-2 px-3 w-32">Πρόοδος</th>
+                </tr>
+              </thead>
+              <tbody>
+                {payroll.employees.map((emp, i) => {
+                  const pct = emp.achievement_pct ?? (emp.target > 0 ? emp.sales_to_date / emp.target * 100 : null)
+                  const barColor = pct == null ? 'bg-blue-400' : pct >= 100 ? 'bg-green-500' : pct >= 70 ? 'bg-blue-500' : 'bg-amber-500'
+                  const txtColor = pct == null ? 'text-gray-500' : pct >= 100 ? 'text-green-700' : pct >= 70 ? 'text-blue-700' : 'text-amber-600'
+                  return (
+                    <tr key={i} className="border-b border-gray-50 hover:bg-gray-50">
+                      <td className="py-2 px-3 font-medium text-gray-700">{emp.name}</td>
+                      <td className="py-2 px-3 text-right text-gray-600">{emp.target?.toLocaleString('el-GR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })}</td>
+                      <td className="py-2 px-3 text-right font-semibold text-gray-800">{emp.sales_to_date?.toLocaleString('el-GR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })}</td>
+                      <td className={`py-2 px-3 text-right font-bold ${txtColor}`}>{pct != null ? `${Math.round(pct)}%` : '—'}</td>
+                      <td className="py-2 px-3">
+                        <div className="h-2 rounded-full bg-gray-100 overflow-hidden">
+                          <div className={`h-full rounded-full ${barColor}`} style={{ width: `${pct != null ? Math.min(100, pct) : 0}%` }} />
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* ── Deals Table ─────────────────────────────────────────────────────── */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">

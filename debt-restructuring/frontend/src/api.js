@@ -61,6 +61,9 @@ export const listPendingExternalCases = () => api.get('/cases/', { params: { sta
 export const acceptExternalCase = (id, employee) => api.post(`/cases/${id}/accept-external`, { employee })
 export const pushExternalStatus = (id, data) => api.post(`/cases/${id}/external-status`, data)
 
+// Finance / Payroll
+export const getPayrollTargets = () => api.get('/finance/payroll-targets/current')
+
 // Config
 export const getPricingConfig = () => api.get('/config/pricing')
 export const putPricingConfig = (data) => api.put('/config/pricing', data)
