@@ -3,11 +3,18 @@ const { Op, fn, col } = require('sequelize');
 const Income = require('../models/Income');
 const { checkAndAutoStatus } = require('./serviceAgreements');
 const { buildCmPayments, sendBatchToCm } = require('../services/logistisSync');
+const { runPayrollTargetSync } = require('../services/payrollTargetSync');
 
 function pushToCm(record) {
   const payments = buildCmPayments([record]);
   if (!payments.length) return;
   sendBatchToCm(payments).catch(err => console.warn('[CM push]', err.message));
+}
+
+function pushPayrollSync() {
+  runPayrollTargetSync()
+    .then(r => { global._lastPayrollTargetSync = r; })
+    .catch(err => console.warn('[payroll-target-sync] auto-push failed:', err.message));
 }
 
 const ALLOWED_SORT = ['sale_date','customer_name','amount_collected','amount_application','amount_implementation','service_type','sales_agent','work_status','vat_number','bonus','createdAt'];
@@ -114,6 +121,7 @@ router.post('/', async (req, res) => {
     const record = await Income.create(sanitize(req.body));
     if (record.service_agreement_id) checkAndAutoStatus(record.service_agreement_id);
     pushToCm(record);
+    pushPayrollSync();
     res.status(201).json(record);
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -138,6 +146,7 @@ router.put('/:id', async (req, res) => {
     const saId = record.service_agreement_id;
     if (saId) checkAndAutoStatus(saId);
     pushToCm(record);
+    pushPayrollSync();
     res.json(record);
   } catch (e) {
     res.status(500).json({ error: e.message });
