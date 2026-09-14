@@ -237,6 +237,7 @@ app.include_router(notifications.router)
 app.include_router(themis.router)
 app.include_router(analytics.router)
 app.include_router(finance.router)
+app.include_router(finance.api_router)
 
 
 # ── Daily scheduler: sync then backup at 18:00 Athens (15:00 UTC) ────────────
