@@ -1,0 +1,171 @@
+ΟΔΗΓΙΕΣ ΕΓΚΑΤΑΣΤΑΣΗΣ & ΑΠΟΚΑΤΑΣΤΑΣΗΣ — ΕΞΩΔΙΚΑΣΤΙΚΟΣ CRM (iMentor)
+═══════════════════════════════════════════════════════════════════════
+Τελευταία ενημέρωση: 2026-05-24
+Εφαρμογή:  https://mainrepository-production.up.railway.app
+Backend:   https://innovative-nourishment-production.up.railway.app
+GitHub:    https://github.com/iMentorConsulting/MainRepository
+Branch:    claude/new-online-app-T89Sn
+═══════════════════════════════════════════════════════════════════════
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ΜΕΡΟΣ Α — ΚΑΝΟΝΙΚΗ ΑΠΟΚΑΤΑΣΤΑΣΗ ΔΕΔΟΜΕΝΩΝ (Railway & GitHub ΟΚ)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+A1. Η βάση δεδομένων άδειασε μετά από redeploy
+────────────────────────────────────────────────
+1. Κατέβασε το τελευταίο backup JSON από τον φάκελο Google Drive
+   "iMentor Backups" (αρχείο: Exodikastikos-backup_YYYY-MM-DD_HH-MM.json)
+
+2. Άνοιξε Hoppscotch (https://hoppscotch.io) στον browser
+   — Method: POST
+   — URL: https://<BACKEND_URL>/admin/restore?wipe_first=true
+   — Body: Raw JSON → επικόλλησε το περιεχόμενο του backup αρχείου
+   — Send
+
+3. Αν δεις {"ok": true, "inserted": 102} → όλα επιστράφηκαν.
+
+A2. Κάποιος διέγραψε υποθέσεις κατά λάθος (safe merge)
+────────────────────────────────────────────────────────
+Ίδιο με Α1 αλλά χωρίς το ?wipe_first=true στο URL.
+Οι υπάρχουσες υποθέσεις δεν θα χαθούν.
+
+A3. Γύρισμα σε παλαιότερη έκδοση κώδικα
+─────────────────────────────────────────
+1. Άνοιξε https://github.com/iMentorConsulting/MainRepository
+2. Commits → βρες το commit που θέλεις → αντέγραψε το hash
+3. Στο terminal:
+     git revert <commit-hash>
+     git push origin claude/new-online-app-T89Sn
+4. Railway κάνει redeploy αυτόματα. Δεδομένα ανέπαφα.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ΜΕΡΟΣ Β — EXTREME ΣΕΝΑΡΙΟ: ΑΠΟ ΤΟ ΜΗΔΕΝ
+(χωρίς πρόσβαση σε Railway ή GitHub)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Αυτό που χρειάζεσαι για να ξαναστήσεις την εφαρμογή από μηδέν:
+  ✓ Το backup JSON αρχείο (από αυτόν τον φάκελο Drive)
+  ✓ Τα environment variables (λίστα παρακάτω)
+  ✓ Υπολογιστής με internet
+
+Χρόνος εκτιμώμενης αποκατάστασης: ~60 λεπτά
+
+
+ΒΗΜΑ 1 — Απόκτηση κώδικα
+──────────────────────────
+Επιλογή Α (αν έχεις GitHub):
+  git clone https://github.com/iMentorConsulting/MainRepository
+  cd MainRepository
+  git checkout claude/new-online-app-T89Sn
+
+Επιλογή Β (αν ΔΕΝ έχεις GitHub):
+  → Ο κώδικας πρέπει να υπάρχει σε τοπικό αντίγραφο (USB, laptop, κτλ.)
+  → ΣΗΜΑΝΤΙΚΟ: Κράτα πάντα ένα zip του κώδικα τοπικά!
+  → Για να κατεβάσεις zip από GitHub: Code → Download ZIP
+
+
+ΒΗΜΑ 2 — Δημιουργία νέου Railway account (ή Render.com)
+─────────────────────────────────────────────────────────
+Επιλογή Α — Railway (https://railway.app):
+  1. Εγγραφή με νέο λογαριασμό
+  2. New Project → Deploy from GitHub repo → επέλεξε MainRepository
+  3. Δημιούργησε δύο services: ένα για backend, ένα για frontend
+
+Επιλογή Β — Render.com (εναλλακτικό):
+  1. Εγγραφή στο https://render.com
+  2. New Web Service → connect GitHub repo
+  3. Backend: Root Directory = debt-restructuring/backend
+     Build Command: pip install -r requirements.txt
+     Start Command: uvicorn main:app --host 0.0.0.0 --port $PORT
+  4. Frontend: Root Directory = debt-restructuring/frontend
+     Build Command: npm install && npm run build
+     Start Command: npm run start
+
+
+ΒΗΜΑ 3 — Βάση δεδομένων
+─────────────────────────
+Επιλογή Α — SQLite με Volume (απλό):
+  Στο Railway: Volumes → Add Volume → Mount path: /data
+  Στα Variables του backend: DATABASE_URL = sqlite:////data/debt_cases.db
+
+Επιλογή Β — PostgreSQL (συνιστάται):
+  Railway: New → Database → PostgreSQL
+  Αντέγραψε το DATABASE_URL που δίνει και βάλτο στα Variables του backend.
+
+
+ΒΗΜΑ 4 — Environment Variables (backend service)
+──────────────────────────────────────────────────
+ΑΥΤΕΣ ΠΡΕΠΕΙ ΝΑ ΤΙΣ ΕΧΕΙΣ ΑΠΟΘΗΚΕΥΜΕΝΕΣ ΣΕ ΑΣΦΑΛΕΣ ΜΕΡΟΣ:
+
+  DATABASE_URL                = sqlite:////data/debt_cases.db  (ή PostgreSQL URL)
+  GOOGLE_SERVICE_ACCOUNT_JSON = <ολόκληρο το JSON του service account>
+  GOOGLE_DRIVE_BACKUP_FOLDER_ID = 1OTfm8IERPAqvEiujRYV2qFgubg2-hZUC
+  SMTP_USER                   = <email λογαριασμού Google>
+  SMTP_HOST                   = smtp.gmail.com
+  SMTP_PORT                   = 587
+  SMTP_PASS                   = <app password Gmail>
+  CHATWOOT_URL                = <URL του Chatwoot>
+  CHATWOOT_API_TOKEN          = <token>
+  CHATWOOT_ACCOUNT_ID         = <id>
+  CHATWOOT_INBOX_ID           = <id>
+
+Environment Variables (frontend service):
+  VITE_API_URL = https://<νέο backend URL>
+
+
+ΒΗΜΑ 5 — Deploy
+────────────────
+Αφού βάλεις τα Variables, το Railway/Render κάνει deploy αυτόματα.
+Περίμενε 3-5 λεπτά και άνοιξε το URL της εφαρμογής.
+Η εφαρμογή θα εμφανίζεται κενή (0 υποθέσεις) — φυσιολογικό.
+
+
+ΒΗΜΑ 6 — Επαναφορά δεδομένων από backup
+─────────────────────────────────────────
+1. Κατέβασε το backup JSON από αυτόν τον φάκελο Drive
+
+2. Άνοιξε https://hoppscotch.io στον browser:
+   — Method: POST
+   — URL: https://<νέο backend URL>/admin/restore?wipe_first=true
+   — Headers: Content-Type: application/json
+   — Body: Raw JSON → επικόλλησε το περιεχόμενο του backup
+   — Send
+
+3. Αν δεις {"ok": true} → όλες οι υποθέσεις επέστρεψαν!
+
+4. Ανανέωσε την εφαρμογή → όλα τα δεδομένα είναι εκεί.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ΜΕΡΟΣ Γ — BACKUP SYSTEM (πώς λειτουργεί)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Αυτόματο backup: κάθε μέρα 18:00 UTC = 21:00 ώρα Ελλάδας (θερινή)
+Διατήρηση: 90 μέρες (παλαιότερα διαγράφονται αυτόματα)
+Φάκελος Drive: iMentor Backups (αυτός ο φάκελος)
+
+Χειροκίνητο backup:
+  → Εφαρμογή → Οικονομικά → "Backup Drive" (αποθηκεύει στο Drive)
+  → Εφαρμογή → Οικονομικά → "Export JSON" (κατεβάζει στον υπολογιστή)
+
+Τι περιέχει κάθε backup:
+  • Όλες οι υποθέσεις με ΟΛΑ τα πεδία
+  • Ρυθμίσεις εφαρμογής (τιμολόγηση κτλ.)
+  • Χρονοσφραγίδες, share tokens, pipeline stages
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ΜΕΡΟΣ Δ — ΚΑΝΟΝΕΣ ΑΣΦΑΛΕΙΑΣ
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  ⚠  ΜΗΝ αλλάζεις το DATABASE_URL χωρίς πρώτα να κάνεις manual backup
+  ⚠  ΜΗΝ διαγράφεις αυτόν τον φάκελο Drive
+  ⚠  ΜΗΝ διαγράφεις το Railway Volume (innovative-nourishment-vol...)
+  ✓  Κράτα ZIP του κώδικα τοπικά (GitHub → Code → Download ZIP)
+  ✓  Κράτα αντίγραφο των Environment Variables σε ασφαλές μέρος
+  ✓  Πάτα "Backup Drive" πριν κάνεις οποιαδήποτε αλλαγή στο Railway
+  ✓  Κάνε "Export JSON" μια φορά το μήνα και αποθήκευσε τοπικά
+
+═══════════════════════════════════════════════════════════════════════
