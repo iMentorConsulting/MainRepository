@@ -190,3 +190,148 @@ def get_pool(employee: str = Depends(get_current_user), db: Session = Depends(ge
             } if asgn else None,
         })
     return result
+
+
+@router.get("/admin/overview")
+def admin_overview(employee: str = Depends(get_current_user), db: Session = Depends(get_db)):
+    if employee != "HARIS":
+        raise HTTPException(status_code=403, detail="Admin only")
+
+    try:
+        all_accs = _fetch_accountants()
+        accs_by_id = {str(a["id"]): a for a in all_accs}
+    except Exception:
+        all_accs = []
+        accs_by_id = {}
+
+    all_assignments = (
+        db.query(AccountantAssignment)
+        .order_by(AccountantAssignment.assigned_at.desc())
+        .all()
+    )
+
+    # Active assignment per employee
+    employee_data = []
+    for emp in EMPLOYEES:
+        active = next(
+            (a for a in all_assignments
+             if a.employee == emp and a.status not in TERMINAL_STATUSES),
+            None
+        )
+        acc = accs_by_id.get(active.accountant_id) if active else None
+        employee_data.append({
+            "employee": emp,
+            "assignment": {
+                "id": active.id,
+                "accountant_id": active.accountant_id,
+                "status": active.status,
+                "notes": active.notes,
+                "assigned_at": active.assigned_at.isoformat() if active.assigned_at else None,
+                "updated_at": active.updated_at.isoformat() if active.updated_at else None,
+            } if active else None,
+            "accountant": acc,
+        })
+
+    # Stats
+    stats = {s: 0 for s in STATUS_ORDER}
+    for a in all_assignments:
+        if a.status in stats:
+            stats[a.status] += 1
+
+    used = _used_ids(db)
+    stats["available"] = max(0, len(all_accs) - len(used))
+    stats["total"] = len(all_assignments)
+
+    # History (last 80, all statuses)
+    history = []
+    for a in all_assignments[:80]:
+        acc = accs_by_id.get(a.accountant_id)
+        history.append({
+            "id": a.id,
+            "employee": a.employee,
+            "accountant_id": a.accountant_id,
+            "accountant_name": acc["name"] if acc else a.accountant_id,
+            "accountant_phone": acc.get("phone") if acc else None,
+            "status": a.status,
+            "assigned_at": a.assigned_at.isoformat() if a.assigned_at else None,
+            "updated_at": a.updated_at.isoformat() if a.updated_at else None,
+        })
+
+    return {
+        "employees": employee_data,
+        "stats": stats,
+        "pool_total": len(all_accs),
+        "history": history,
+    }
+
+
+@router.post("/admin/force-skip/{target_employee}")
+def admin_force_skip(
+    target_employee: str,
+    employee: str = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    if employee != "HARIS":
+        raise HTTPException(status_code=403, detail="Admin only")
+    active = (
+        db.query(AccountantAssignment)
+        .filter(AccountantAssignment.employee == target_employee,
+                ~AccountantAssignment.status.in_(TERMINAL_STATUSES))
+        .order_by(AccountantAssignment.assigned_at.desc())
+        .first()
+    )
+    if not active:
+        raise HTTPException(status_code=404, detail="No active assignment")
+    active.status = "skipped"
+    active.updated_at = datetime.utcnow()
+    db.commit()
+    return {"ok": True, "employee": target_employee}
+
+
+@router.post("/admin/force-assign/{target_employee}")
+async def admin_force_assign(
+    target_employee: str,
+    employee: str = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    accountant_id: Optional[str] = Body(None, embed=True),
+):
+    """Manually assign next (or specific) accountant to any employee."""
+    if employee != "HARIS":
+        raise HTTPException(status_code=403, detail="Admin only")
+
+    # Make sure they have no active assignment first
+    active = (
+        db.query(AccountantAssignment)
+        .filter(AccountantAssignment.employee == target_employee,
+                ~AccountantAssignment.status.in_(TERMINAL_STATUSES))
+        .first()
+    )
+    if active:
+        raise HTTPException(status_code=409, detail="Employee already has active assignment")
+
+    all_accs = _fetch_accountants()
+
+    if accountant_id:
+        chosen = next((a for a in all_accs if str(a["id"]) == accountant_id), None)
+        if not chosen:
+            raise HTTPException(status_code=404, detail="Accountant not found")
+    else:
+        used = _used_ids(db)
+        available = [a for a in all_accs if str(a["id"]) not in used]
+        if not available:
+            return {"assigned": False, "message": "No available accountants"}
+        idx = _get_pool_index(db) % len(available)
+        chosen = available[idx]
+        _set_pool_index(db, idx + 1)
+
+    assignment = AccountantAssignment(
+        employee=target_employee,
+        accountant_id=str(chosen["id"]),
+        status="assigned",
+        assigned_at=datetime.utcnow(),
+        updated_at=datetime.utcnow(),
+    )
+    db.add(assignment)
+    db.commit()
+    db.refresh(assignment)
+    return {"assigned": True, "accountant": chosen}

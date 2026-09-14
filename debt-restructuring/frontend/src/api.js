@@ -69,6 +69,9 @@ export const getMyAccountantAssignment = () => api.get('/accountants/my')
 export const assignNextAccountant = () => api.post('/accountants/my/assign-next')
 export const updateAccountantStatus = (status, notes) => api.patch('/accountants/my/status', { status, notes })
 export const getAccountantPool = () => api.get('/accountants/pool')
+export const getAccountantAdminOverview = () => api.get('/accountants/admin/overview')
+export const adminForceSkip = (employee) => api.post(`/accountants/admin/force-skip/${employee}`)
+export const adminForceAssign = (employee, accountant_id = null) => api.post(`/accountants/admin/force-assign/${employee}`, accountant_id ? { accountant_id } : {})
 
 // Config
 export const getPricingConfig = () => api.get('/config/pricing')

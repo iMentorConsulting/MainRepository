@@ -46,6 +46,7 @@ const nav = [
 const adminNav = [
   { to: '/finances', label: 'Οικονομικά', Icon: BanknotesIcon },
   { to: '/leads-reporting', label: 'Reporting', Icon: PresentationChartLineIcon },
+  { to: '/logistis-admin', label: 'Logistis Admin', Icon: BuildingOfficeIcon },
 ]
 
 export default function Layout({ auth, onLogout }) {
