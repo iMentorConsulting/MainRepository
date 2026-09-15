@@ -189,58 +189,73 @@ function plainToHtml(text) {
   const lines = text.split('\n')
   let html = '<div style="font-family:Arial,sans-serif;font-size:14px;line-height:1.6;color:#222">'
   let inList = false
+  let inOl = false
+
+  const closeLists = () => {
+    if (inList) { html += '</ul>'; inList = false }
+    if (inOl) { html += '</ol>'; inOl = false }
+  }
 
   for (const raw of lines) {
-    const line = raw.trimEnd()
+    const t = raw.trimEnd().trim()
 
-    // All-caps section header (e.g. "ΓΙΑ ΤΑ ΕΠΙΧΟΡΗΓΟΥΜΕΝΑ ΠΡΟΓΡΑΜΜΑΤΑ:")
-    if (/^[Α-ΩΆΈΉΊΌΎΏA-Z0-9 &\/\-\.]{6,}:$/.test(line.trim())) {
-      if (inList) { html += '</ul>'; inList = false }
-      html += `<p style="margin:14px 0 4px"><strong style="color:#1a4faa">${line.trim()}</strong></p>`
-      continue
+    // All-caps section header: ends with ':', ≥70% of letters are uppercase
+    if (t.endsWith(':') && t.length >= 6) {
+      const content = t.slice(0, -1)
+      const letters = (content.match(/[a-zA-ZͰ-Ͽἀ-῿]/g) || []).length
+      const uppers  = (content.match(/[A-ZΑ-ΩΆΈ-ΊΌΎ-Ώ]/g) || []).length
+      if (letters > 0 && uppers / letters >= 0.7) {
+        closeLists()
+        html += `<p style="margin:14px 0 4px"><strong style="color:#1a4faa">${t}</strong></p>`
+        continue
+      }
     }
 
     // Checkmark bullet (✓ ...)
-    if (/^✓\s/.test(line)) {
+    if (/^✓\s/.test(t)) {
+      if (inOl) { html += '</ol>'; inOl = false }
       if (!inList) { html += '<ul style="margin:4px 0 4px 20px;padding:0">'; inList = true }
-      html += `<li style="margin:2px 0;color:#1a7a3a"><strong>${line.replace(/^✓\s*/, '')}</strong></li>`
+      html += `<li style="margin:2px 0;color:#1a7a3a"><strong>${t.replace(/^✓\s*/, '')}</strong></li>`
       continue
     }
 
-    // Numbered list (1. ... / 2. ...)
-    if (/^\d+\.\s/.test(line.trim())) {
+    // Numbered list (1. ... / 1) ...)
+    const numMatch = t.match(/^(\d+)[.)]\s+(.+)/)
+    if (numMatch) {
       if (inList) { html += '</ul>'; inList = false }
-      html += `<p style="margin:3px 0 3px 4px">${line.trim().replace(/^(\d+\.\s)/, '<strong>$1</strong>')}</p>`
+      if (!inOl) { html += '<ol style="margin:6px 0 8px 24px;padding:0">'; inOl = true }
+      html += `<li style="margin:4px 0">${numMatch[2]}</li>`
       continue
     }
 
     // Bullet with dash or •
-    if (/^[•\-]\s/.test(line.trim())) {
+    if (/^[•\-]\s/.test(t)) {
+      if (inOl) { html += '</ol>'; inOl = false }
       if (!inList) { html += '<ul style="margin:4px 0 4px 20px;padding:0">'; inList = true }
-      html += `<li style="margin:2px 0">${line.trim().replace(/^[•\-]\s*/, '')}</li>`
+      html += `<li style="margin:2px 0">${t.replace(/^[•\-]\s*/, '')}</li>`
       continue
     }
 
     // Empty line → paragraph break
-    if (line.trim() === '') {
-      if (inList) { html += '</ul>'; inList = false }
+    if (t === '') {
+      closeLists()
       html += '<br>'
       continue
     }
 
     // Signature line (Με εκτίμηση, or name/phone/website)
-    if (/^(Με εκτίμηση|iMentor|info@|www\.)/.test(line.trim())) {
-      if (inList) { html += '</ul>'; inList = false }
-      html += `<p style="margin:2px 0;color:#555">${line.trim()}</p>`
+    if (/^(Με εκτίμηση|iMentor|info@|www\.)/.test(t)) {
+      closeLists()
+      html += `<p style="margin:2px 0;color:#555">${t}</p>`
       continue
     }
 
     // Regular paragraph line
-    if (inList) { html += '</ul>'; inList = false }
-    html += `<p style="margin:4px 0">${line.trim()}</p>`
+    closeLists()
+    html += `<p style="margin:4px 0">${t}</p>`
   }
 
-  if (inList) html += '</ul>'
+  closeLists()
   html += '</div>'
   return html
 }
@@ -327,6 +342,7 @@ export default function LogistisOutreach({ currentEmployee }) {
   const [openScript, setOpenScript] = useState(null)
   const [confirmSkip, setConfirmSkip] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
+  const [drafts, setDrafts] = useState({}) // editable email body per template index
 
   // Employee personal details for placeholder replacement
   const [myName, setMyName] = useState(() => loadSettings().name || '')
@@ -699,6 +715,8 @@ export default function LogistisOutreach({ currentEmployee }) {
           {EMAIL_TEMPLATES_RAW.map((tpl, idx) => {
             const filledSubject = fill(tpl.subject, ctx)
             const filledBody = fill(tpl.body, ctx)
+            const currentBody = drafts[idx] !== undefined ? drafts[idx] : filledBody
+            const hasEdited = drafts[idx] !== undefined && drafts[idx] !== filledBody
             return (
               <div key={idx} className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm space-y-3">
                 <div className="font-bold text-gray-800">{tpl.title}</div>
@@ -712,13 +730,25 @@ export default function LogistisOutreach({ currentEmployee }) {
 
                 <div>
                   <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
-                    <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Σώμα email</div>
-                    <CopyAndGmail body={filledBody} subject={filledSubject} to={acc?.email} />
+                    <div className="flex items-center gap-3">
+                      <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Σώμα email</div>
+                      {hasEdited && (
+                        <button
+                          onClick={() => setDrafts(d => { const nd = { ...d }; delete nd[idx]; return nd })}
+                          className="text-xs text-gray-400 hover:text-red-500 transition-colors">
+                          ↺ Επαναφορά
+                        </button>
+                      )}
+                    </div>
+                    <CopyAndGmail body={currentBody} subject={filledSubject} to={acc?.email} />
                   </div>
 
-                  <pre className="bg-gray-50 rounded-lg px-4 py-3 text-sm text-gray-700 whitespace-pre-wrap leading-relaxed border border-gray-200 font-sans max-h-72 overflow-y-auto">
-                    {filledBody}
-                  </pre>
+                  <textarea
+                    value={currentBody}
+                    onChange={e => setDrafts(d => ({ ...d, [idx]: e.target.value }))}
+                    rows={14}
+                    className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm text-gray-700 leading-relaxed font-sans resize-y focus:outline-none focus:border-blue-400 bg-gray-50"
+                  />
                 </div>
               </div>
             )

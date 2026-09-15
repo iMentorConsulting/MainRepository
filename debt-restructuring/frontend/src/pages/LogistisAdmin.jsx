@@ -34,6 +34,10 @@ export default function LogistisAdmin() {
   const [acting, setActing] = useState(null) // employee being acted on
   const [historyFilter, setHistoryFilter] = useState('')
   const [confirmReset, setConfirmReset] = useState(null) // employee name
+  const [pickingFor, setPickingFor] = useState(null) // employee name for pool picker
+  const [poolList, setPoolList] = useState(null)
+  const [poolSearch, setPoolSearch] = useState('')
+  const [loadingPool, setLoadingPool] = useState(false)
 
   const load = useCallback(() => {
     setLoading(true)
@@ -70,6 +74,36 @@ export default function LogistisAdmin() {
     } catch (e) {
       const msg = e?.response?.data?.detail || 'Σφάλμα'
       toast.error(msg)
+    } finally { setActing(null) }
+  }
+
+  const openPoolPicker = async (employee) => {
+    setPickingFor(employee)
+    setPoolSearch('')
+    setPoolList(null)
+    setLoadingPool(true)
+    try {
+      const r = await api.getAccountantPool()
+      setPoolList(r.data?.accountants || r.data || [])
+    } catch {
+      toast.error('Σφάλμα φόρτωσης pool')
+      setPickingFor(null)
+    } finally { setLoadingPool(false) }
+  }
+
+  const handlePickAssign = async (employee, accountantId) => {
+    setActing(employee)
+    setPickingFor(null)
+    try {
+      const r = await api.adminForceAssign(employee, String(accountantId))
+      if (r.data.assigned) {
+        toast.success(`Ανατέθηκε: ${r.data.accountant?.name}`)
+        load()
+      } else {
+        toast('Δεν ήταν δυνατή η ανάθεση', { icon: 'ℹ️' })
+      }
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || 'Σφάλμα')
     } finally { setActing(null) }
   }
 
@@ -208,10 +242,16 @@ export default function LogistisAdmin() {
                       </button>
                     )
                   ) : (
-                    <button onClick={() => handleForceAssign(employee)} disabled={isActing}
-                      className="flex-1 text-xs py-1.5 rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-700 transition-colors">
-                      {isActing ? 'Αναζήτηση...' : '+ Ανάθεση επόμενου'}
-                    </button>
+                    <>
+                      <button onClick={() => handleForceAssign(employee)} disabled={isActing}
+                        className="flex-1 text-xs py-1.5 rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-700 transition-colors">
+                        {isActing ? 'Αναζήτηση...' : '+ Επόμενος'}
+                      </button>
+                      <button onClick={() => openPoolPicker(employee)} disabled={isActing}
+                        className="flex-1 text-xs py-1.5 rounded-lg border border-blue-200 text-blue-600 hover:bg-blue-50 transition-colors font-semibold">
+                        🔍 Από λίστα
+                      </button>
+                    </>
                   )}
                 </div>
               </div>
@@ -219,6 +259,51 @@ export default function LogistisAdmin() {
           })}
         </div>
       </div>
+
+      {/* Pool picker modal */}
+      {pickingFor && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4" onClick={() => setPickingFor(null)}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
+              <div>
+                <div className="font-black text-gray-800">Επιλογή λογιστή</div>
+                <div className="text-xs text-gray-500 mt-0.5">για {EMPLOYEE_LABELS[pickingFor] || pickingFor}</div>
+              </div>
+              <button onClick={() => setPickingFor(null)} className="text-gray-400 hover:text-gray-600 text-xl font-bold px-2">✕</button>
+            </div>
+            <div className="px-4 py-3 border-b border-gray-100">
+              <input
+                autoFocus
+                value={poolSearch}
+                onChange={e => setPoolSearch(e.target.value)}
+                placeholder="Αναζήτηση λογιστή…"
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400"
+              />
+            </div>
+            <div className="overflow-y-auto flex-1 divide-y divide-gray-100">
+              {loadingPool && <div className="text-center text-gray-400 py-8 text-sm">Φόρτωση...</div>}
+              {!loadingPool && poolList?.length === 0 && (
+                <div className="text-center text-gray-400 py-8 text-sm">Δεν βρέθηκαν λογιστές</div>
+              )}
+              {!loadingPool && poolList?.filter(a => {
+                const s = poolSearch.toLowerCase()
+                return !s || a.name?.toLowerCase().includes(s) || a.city?.toLowerCase().includes(s) || a.office_name?.toLowerCase().includes(s)
+              }).map(a => (
+                <button key={a.id} onClick={() => handlePickAssign(pickingFor, a.id)}
+                  className="w-full text-left px-5 py-3 hover:bg-blue-50 transition-colors">
+                  <div className="font-semibold text-gray-800 text-sm">{a.name}</div>
+                  <div className="flex flex-wrap gap-3 text-xs text-gray-500 mt-0.5">
+                    {a.office_name && <span>{a.office_name}</span>}
+                    {a.city && <span>📍 {a.city}</span>}
+                    {a.client_count != null && <span>👥 {a.client_count} πελάτες</span>}
+                    {a.phone && <span>📞 {a.phone}</span>}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* History table */}
       <div>
