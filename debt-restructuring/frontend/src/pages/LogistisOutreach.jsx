@@ -184,6 +184,67 @@ info@i-mentor.gr | www.i-mentor.gr`,
   },
 ]
 
+// ── Convert plain-text email body → HTML for rich paste into Gmail ─
+function plainToHtml(text) {
+  const lines = text.split('\n')
+  let html = '<div style="font-family:Arial,sans-serif;font-size:14px;line-height:1.6;color:#222">'
+  let inList = false
+
+  for (const raw of lines) {
+    const line = raw.trimEnd()
+
+    // All-caps section header (e.g. "ΓΙΑ ΤΑ ΕΠΙΧΟΡΗΓΟΥΜΕΝΑ ΠΡΟΓΡΑΜΜΑΤΑ:")
+    if (/^[Α-ΩΆΈΉΊΌΎΏA-Z0-9 &\/\-\.]{6,}:$/.test(line.trim())) {
+      if (inList) { html += '</ul>'; inList = false }
+      html += `<p style="margin:14px 0 4px"><strong style="color:#1a4faa">${line.trim()}</strong></p>`
+      continue
+    }
+
+    // Checkmark bullet (✓ ...)
+    if (/^✓\s/.test(line)) {
+      if (!inList) { html += '<ul style="margin:4px 0 4px 20px;padding:0">'; inList = true }
+      html += `<li style="margin:2px 0;color:#1a7a3a"><strong>${line.replace(/^✓\s*/, '')}</strong></li>`
+      continue
+    }
+
+    // Numbered list (1. ... / 2. ...)
+    if (/^\d+\.\s/.test(line.trim())) {
+      if (inList) { html += '</ul>'; inList = false }
+      html += `<p style="margin:3px 0 3px 4px">${line.trim().replace(/^(\d+\.\s)/, '<strong>$1</strong>')}</p>`
+      continue
+    }
+
+    // Bullet with dash or •
+    if (/^[•\-]\s/.test(line.trim())) {
+      if (!inList) { html += '<ul style="margin:4px 0 4px 20px;padding:0">'; inList = true }
+      html += `<li style="margin:2px 0">${line.trim().replace(/^[•\-]\s*/, '')}</li>`
+      continue
+    }
+
+    // Empty line → paragraph break
+    if (line.trim() === '') {
+      if (inList) { html += '</ul>'; inList = false }
+      html += '<br>'
+      continue
+    }
+
+    // Signature line (Με εκτίμηση, or name/phone/website)
+    if (/^(Με εκτίμηση|iMentor|info@|www\.)/.test(line.trim())) {
+      if (inList) { html += '</ul>'; inList = false }
+      html += `<p style="margin:2px 0;color:#555">${line.trim()}</p>`
+      continue
+    }
+
+    // Regular paragraph line
+    if (inList) { html += '</ul>'; inList = false }
+    html += `<p style="margin:4px 0">${line.trim()}</p>`
+  }
+
+  if (inList) html += '</ul>'
+  html += '</div>'
+  return html
+}
+
 // ── Helpers ───────────────────────────────────────────────────────
 
 function CopyButton({ text }) {
@@ -202,12 +263,50 @@ function CopyButton({ text }) {
   )
 }
 
+function CopyHtmlButton({ text }) {
+  const [state, setState] = useState('idle') // idle | ok | err
+
+  const copy = async () => {
+    const html = plainToHtml(text)
+    try {
+      await navigator.clipboard.write([
+        new ClipboardItem({
+          'text/html': new Blob([html], { type: 'text/html' }),
+          'text/plain': new Blob([text], { type: 'text/plain' }),
+        }),
+      ])
+      setState('ok')
+      setTimeout(() => setState('idle'), 2500)
+    } catch {
+      // Fallback: plain text
+      try {
+        await navigator.clipboard.writeText(text)
+        setState('err')
+        setTimeout(() => setState('idle'), 2500)
+      } catch {}
+    }
+  }
+
+  return (
+    <button onClick={copy}
+      className={`text-xs px-3 py-1.5 rounded-lg border transition-colors whitespace-nowrap font-medium ${
+        state === 'ok'
+          ? 'bg-green-50 border-green-300 text-green-700'
+          : state === 'err'
+            ? 'bg-amber-50 border-amber-300 text-amber-700'
+            : 'bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100'
+      }`}>
+      {state === 'ok' ? '✓ Αντιγράφηκε (μορφ.)' : state === 'err' ? '⚠ Μόνο κείμενο' : '✨ Αντιγραφή με μορφοποίηση'}
+    </button>
+  )
+}
+
 function GmailButton({ to, subject, body }) {
   const url = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(to || '')}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
   return (
     <a href={url} target="_blank" rel="noopener noreferrer"
       className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-red-50 border border-red-200 text-red-700 hover:bg-red-100 transition-colors whitespace-nowrap font-medium">
-      ✉️ Άνοιγμα στο Gmail
+      ✉️ Gmail (plain text)
     </a>
   )
 }
@@ -613,7 +712,8 @@ export default function LogistisOutreach({ currentEmployee }) {
                 <div>
                   <div className="flex items-center justify-between mb-1 flex-wrap gap-2">
                     <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Σώμα email</div>
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap gap-2">
+                      <CopyHtmlButton text={filledBody} />
                       <CopyButton text={filledBody} />
                       {acc?.email && (
                         <GmailButton to={acc.email} subject={filledSubject} body={filledBody} />
