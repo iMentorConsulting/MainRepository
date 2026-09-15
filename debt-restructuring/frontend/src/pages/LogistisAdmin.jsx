@@ -16,7 +16,7 @@ const EMPLOYEE_LABELS = {
   STELLA: 'ΣΤΕΛΛΑ',
   VALLIA: 'ΒΑΛΛΙΑ',
   SOFIA:  'ΣΟΦΙΑ',
-  HARIS:  'ΧΡΗΣΤΟΣ',
+  HARIS:  'ΧΑΡΗΣ',
 }
 
 function StatusBadge({ status }) {

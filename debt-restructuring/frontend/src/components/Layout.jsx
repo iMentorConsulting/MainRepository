@@ -25,7 +25,7 @@ const GREEK_NAME = {
   STELLA: 'ΣΤΕΛΛΑ',
   VALLIA: 'ΒΑΛΛΙΑ',
   SOFIA: 'ΣΟΦΙΑ',
-  HARIS: 'ΧΡΗΣΤΟΣ',
+  HARIS: 'ΧΑΡΗΣ',
 }
 
 const nav = [
