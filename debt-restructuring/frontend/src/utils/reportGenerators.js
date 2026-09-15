@@ -3,7 +3,7 @@
 // Ported from the original HTML spec v22.0
 // ============================================================
 
-import { fmt, stepUpPMT } from './calculations'
+import { fmt, stepUpPMT, calculateOfferWithWithholding } from './calculations'
 import { PARAMS_B } from './calculationParams'
 
 function escHtml(v) {
@@ -414,12 +414,16 @@ export function buildEmailHtml(data) {
   const badge = (symbol, color, bg) =>
     `<span style="display:inline-block;background:${bg};border:1px solid ${color}33;border-radius:6px;padding:1px 8px;color:${color};font-size:13px;font-weight:700;vertical-align:middle;margin-right:6px;">${symbol}</span>`
 
-  // VAT offer helper
+  // VAT offer helper with withholding
+  const incomeSubType = incomeData.fpSubType || (debtorType === 'Φυσικό Πρόσωπο' ? 'Επιτηδευματίας' : 'Επιτηδευματίας')
   const fmtOffer = (net) => {
     if (!net) return '<span style="color:#6b7280;">..... €</span> <span style="font-size:12px;color:#9ca3af;">+ ΦΠΑ 24%</span>'
     const n = Number(net)
-    const gross = Math.round(n * 1.24)
-    return `<b>${n.toLocaleString('el-GR')}€</b> <span style="font-size:12px;color:#6b7280;">+ ΦΠΑ 24% = ${gross.toLocaleString('el-GR')}€</span>`
+    const calc = calculateOfferWithWithholding(n, incomeSubType)
+    if (calc.hasWithholding) {
+      return `<b>${n.toLocaleString('el-GR')}€</b> <span style="font-size:12px;color:#6b7280;">+ ΦΠΑ 24% = ${calc.grossBeforeTax.toLocaleString('el-GR')}€ - Παρακράτηση 20% = <b style="color:#c2410c;">${calc.finalPayable.toLocaleString('el-GR')}€</b></span>`
+    }
+    return `<b>${n.toLocaleString('el-GR')}€</b> <span style="font-size:12px;color:#6b7280;">+ ΦΠΑ 24% = ${calc.finalPayable.toLocaleString('el-GR')}€</span>`
   }
 
   const hasOffer = commercialOffer && (commercialOffer.application_fee || commercialOffer.success_fee)
@@ -613,10 +617,10 @@ export function buildEmailHtml(data) {
   </table>
   ${hasOffer ? `<div style="background:#f8faff;border:1px solid #c7d2fe;border-radius:8px;padding:12px 14px;font-size:13px;">
     <b style="color:#1e3a5f;display:block;margin-bottom:6px;">Τραπεζικοί Λογαριασμοί Πληρωμής</b>
-    <span style="color:#374151;">Πειραιώς:&nbsp;&nbsp;&nbsp;</span> <code>GR45 0171 4330 0064 3316 4381 388</code><br>
-    <span style="color:#374151;">Eurobank:&nbsp;&nbsp;&nbsp;</span> <code>GR58 0260 1680 0000 6020 1330 648</code><br>
-    <span style="color:#374151;">Alpha Bank:</span> <code>GR24 0140 7750 7750 0233 0002 138</code><br>
-    <b>Δικαιούχος: I MENTOR IKE</b>
+    <span style="color:#374151;">Πειραιώς:&nbsp;&nbsp;&nbsp;</span> <code>GR94 0172 7540 0057 5409 6471 354</code><br>
+    <span style="color:#374151;">Alpha Bank:</span> <code>GR09 0140 7750 7750 0200 2010 585</code><br>
+    <span style="color:#374151;">Eurobank:&nbsp;&nbsp;&nbsp;</span> <code>GR81 0260 1680 0000 7020 0668 063</code><br>
+    <b>Δικαιούχος: Αποστολάκης Χαράλαμπος</b>
   </div>` : ''}
   <p style="margin-top:16px;">Με εκτίμηση,<br><b>Η ομάδα της i-Mentor Consulting</b><br>📞 2810 363007 • 📧 info@i-mentor.gr • 🌐 www.i-mentor.gr</p>
 </div>`

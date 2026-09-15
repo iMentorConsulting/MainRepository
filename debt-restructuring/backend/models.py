@@ -255,3 +255,18 @@ class ViberMessage(Base):
     success = Column(Boolean, default=False)
     error = Column(Text, default="")
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
+
+
+class AccountantAssignment(Base):
+    """One active (or completed) logistis accountant assignment per employee."""
+
+    __tablename__ = "accountant_assignments"
+
+    id = Column(Integer, primary_key=True, index=True)
+    employee = Column(String, nullable=False, index=True)   # STELLA / VALLIA / SOFIA / HARIS
+    accountant_id = Column(String, nullable=False, index=True)  # id from logistis API
+    # status pipeline: assigned → called → meeting_set → demo_done → converted | rejected
+    status = Column(String, default="assigned")
+    notes = Column(Text, default="")
+    assigned_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
