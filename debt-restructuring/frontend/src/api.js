@@ -67,10 +67,10 @@ export const getPayrollTargets = () => api.get('/finance/payroll-targets/current
 // Accountant outreach (Logistis)
 export const getMyAccountantAssignment = () => api.get('/accountants/my')
 export const assignNextAccountant = () => api.post('/accountants/my/assign-next')
-export const updateAccountantStatus = (status, notes) => api.patch('/accountants/my/status', { status, notes })
+export const updateAccountantStatus = (assignmentId, status, notes) => api.patch('/accountants/my/status', { assignment_id: assignmentId, status, notes })
 export const getAccountantPool = () => api.get('/accountants/pool')
 export const getAccountantAdminOverview = () => api.get('/accountants/admin/overview')
-export const adminForceSkip = (employee) => api.post(`/accountants/admin/force-skip/${employee}`)
+export const adminForceSkip = (employee, assignmentId = null) => api.post(`/accountants/admin/force-skip/${employee}`, assignmentId ? { assignment_id: assignmentId } : {})
 export const adminForceAssign = (employee, accountant_id = null) => api.post(`/accountants/admin/force-assign/${employee}`, accountant_id ? { accountant_id } : {})
 
 // Config

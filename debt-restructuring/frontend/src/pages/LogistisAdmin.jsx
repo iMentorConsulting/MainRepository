@@ -49,12 +49,11 @@ export default function LogistisAdmin() {
 
   useEffect(() => { load() }, [load])
 
-  const handleForceSkip = async (employee) => {
-    setConfirmReset(null)
+  const handleForceSkip = async (employee, assignmentId = null) => {
     setActing(employee)
     try {
-      await api.adminForceSkip(employee)
-      toast.success(`Η ανάθεση του ${EMPLOYEE_LABELS[employee] || employee} αφαιρέθηκε`)
+      await api.adminForceSkip(employee, assignmentId)
+      toast.success(`Ανάθεση αφαιρέθηκε`)
       load()
     } catch (e) {
       toast.error(e?.response?.data?.detail || 'Σφάλμα')
@@ -180,9 +179,8 @@ export default function LogistisAdmin() {
       <div>
         <h2 className="text-sm font-bold text-gray-500 uppercase tracking-wide mb-3">Τρέχουσες Αναθέσεις</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {employees.map(({ employee, assignment, accountant }) => {
+          {employees.map(({ employee, assignments: empAssignments = [] }) => {
             const isActing = acting === employee
-            const hasActive = !!assignment
             return (
               <div key={employee} className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm">
                 {/* Employee header */}
@@ -191,68 +189,73 @@ export default function LogistisAdmin() {
                     <div className="font-black text-gray-800">{EMPLOYEE_LABELS[employee] || employee}</div>
                     <div className="text-xs text-gray-400">{employee}</div>
                   </div>
-                  {assignment && <StatusBadge status={assignment.status} />}
+                  {empAssignments.length > 0 && (
+                    <span className="bg-blue-100 text-blue-700 text-xs font-bold px-2 py-0.5 rounded-full">
+                      {empAssignments.length}
+                    </span>
+                  )}
                 </div>
 
-                {/* Accountant info */}
-                {accountant ? (
-                  <div className="space-y-1 mb-3">
-                    <div className="text-sm font-semibold text-gray-700">{accountant.name}</div>
-                    {accountant.office_name && <div className="text-xs text-gray-500">{accountant.office_name}</div>}
-                    <div className="flex flex-wrap gap-2 text-xs text-gray-500">
-                      {accountant.phone && (
-                        <a href={`tel:${accountant.phone}`} className="text-blue-600 hover:underline">📞 {accountant.phone}</a>
-                      )}
-                      {accountant.city && <span>📍 {accountant.city}</span>}
-                      {accountant.client_count != null && <span>👥 {accountant.client_count} πελάτες</span>}
-                    </div>
-                    {assignment?.notes && (
-                      <div className="text-xs text-gray-500 bg-gray-50 rounded px-2 py-1 mt-1 italic line-clamp-2">
-                        {assignment.notes}
-                      </div>
-                    )}
-                    {assignment?.updated_at && (
-                      <div className="text-xs text-gray-400">
-                        Τελ. ενημέρωση: {new Date(assignment.updated_at).toLocaleDateString('el-GR')}
-                      </div>
-                    )}
-                  </div>
-                ) : (
+                {/* List of active assignments */}
+                {empAssignments.length === 0 ? (
                   <div className="text-sm text-gray-400 italic mb-3">Χωρίς ανάθεση</div>
+                ) : (
+                  <div className="space-y-3 mb-3">
+                    {empAssignments.map(({ assignment, accountant }) => (
+                      <div key={assignment.id} className="border border-gray-100 rounded-xl p-3 bg-gray-50">
+                        <div className="flex items-start justify-between gap-2 mb-1">
+                          <div className="text-sm font-semibold text-gray-700">{accountant?.name || assignment.accountant_id}</div>
+                          <StatusBadge status={assignment.status} />
+                        </div>
+                        {accountant && (
+                          <div className="flex flex-wrap gap-2 text-xs text-gray-500 mb-1">
+                            {accountant.phone && (
+                              <a href={`tel:${accountant.phone}`} className="text-blue-600 hover:underline">📞 {accountant.phone}</a>
+                            )}
+                            {accountant.city && <span>📍 {accountant.city}</span>}
+                            {accountant.client_count != null && <span>👥 {accountant.client_count}</span>}
+                          </div>
+                        )}
+                        {assignment.notes && (
+                          <div className="text-xs text-gray-500 bg-white rounded px-2 py-1 italic line-clamp-2 border border-gray-100">
+                            {assignment.notes}
+                          </div>
+                        )}
+                        {/* Per-assignment reset */}
+                        <div className="mt-2">
+                          {confirmReset === assignment.id ? (
+                            <div className="flex gap-2">
+                              <button onClick={() => { setConfirmReset(null); handleForceSkip(employee, assignment.id) }} disabled={isActing}
+                                className="flex-1 text-xs py-1 rounded-lg bg-orange-500 text-white font-semibold hover:bg-orange-600">
+                                Επιβεβαίωση
+                              </button>
+                              <button onClick={() => setConfirmReset(null)}
+                                className="text-xs px-2 py-1 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-100">
+                                Άκυρο
+                              </button>
+                            </div>
+                          ) : (
+                            <button onClick={() => setConfirmReset(assignment.id)} disabled={isActing}
+                              className="text-xs px-3 py-1 rounded-lg border border-orange-200 text-orange-600 hover:bg-orange-50 transition-colors">
+                              ↩ Reset
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 )}
 
-                {/* Actions */}
+                {/* Add more */}
                 <div className="flex gap-2 pt-3 border-t border-gray-100">
-                  {hasActive ? (
-                    confirmReset === employee ? (
-                      <>
-                        <button onClick={() => handleForceSkip(employee)} disabled={isActing}
-                          className="flex-1 text-xs py-1.5 rounded-lg bg-orange-500 text-white font-semibold hover:bg-orange-600">
-                          Επιβεβαίωση Reset
-                        </button>
-                        <button onClick={() => setConfirmReset(null)}
-                          className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50">
-                          Άκυρο
-                        </button>
-                      </>
-                    ) : (
-                      <button onClick={() => setConfirmReset(employee)} disabled={isActing}
-                        className="flex-1 text-xs py-1.5 rounded-lg border border-orange-200 text-orange-600 hover:bg-orange-50 transition-colors">
-                        {isActing ? '...' : '↩ Reset ανάθεσης'}
-                      </button>
-                    )
-                  ) : (
-                    <>
-                      <button onClick={() => handleForceAssign(employee)} disabled={isActing}
-                        className="flex-1 text-xs py-1.5 rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-700 transition-colors">
-                        {isActing ? 'Αναζήτηση...' : '+ Επόμενος'}
-                      </button>
-                      <button onClick={() => openPoolPicker(employee)} disabled={isActing}
-                        className="flex-1 text-xs py-1.5 rounded-lg border border-blue-200 text-blue-600 hover:bg-blue-50 transition-colors font-semibold">
-                        🔍 Από λίστα
-                      </button>
-                    </>
-                  )}
+                  <button onClick={() => handleForceAssign(employee)} disabled={isActing}
+                    className="flex-1 text-xs py-1.5 rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-700 transition-colors">
+                    {isActing ? 'Αναζήτηση...' : '+ Επόμενος'}
+                  </button>
+                  <button onClick={() => openPoolPicker(employee)} disabled={isActing}
+                    className="flex-1 text-xs py-1.5 rounded-lg border border-blue-200 text-blue-600 hover:bg-blue-50 transition-colors font-semibold">
+                    🔍 Από λίστα
+                  </button>
                 </div>
               </div>
             )

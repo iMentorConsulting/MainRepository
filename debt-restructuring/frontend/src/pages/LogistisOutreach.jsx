@@ -333,14 +333,14 @@ function CopyAndGmail({ body, subject, to }) {
 // ── Main component ────────────────────────────────────────────────
 
 export default function LogistisOutreach({ currentEmployee }) {
-  const [data, setData] = useState(undefined)
+  const [data, setData] = useState(undefined)   // undefined=loading, null=error, object=loaded
   const [errMsg, setErrMsg] = useState(null)
-  const [notes, setNotes] = useState('')
-  const [saving, setSaving] = useState(false)
+  const [notes, setNotes] = useState({})         // { [assignmentId]: string }
+  const [saving, setSaving] = useState({})       // { [assignmentId]: bool }
   const [assigning, setAssigning] = useState(false)
   const [activeTab, setActiveTab] = useState('assignment')
   const [openScript, setOpenScript] = useState(null)
-  const [confirmSkip, setConfirmSkip] = useState(false)
+  const [confirmSkip, setConfirmSkip] = useState(null)  // assignment id or null
   const [showSettings, setShowSettings] = useState(false)
   const [drafts, setDrafts] = useState({}) // editable email body per template index
 
@@ -358,9 +358,14 @@ export default function LogistisOutreach({ currentEmployee }) {
     setErrMsg(null)
     api.getMyAccountantAssignment()
       .then(r => {
-        const d = r.data || {}
+        const d = r.data || { assignments: [] }
         setData(d)
-        setNotes(d?.assignment?.notes || '')
+        // Seed notes state from loaded assignments
+        const n = {}
+        for (const { assignment } of d.assignments || []) {
+          n[assignment.id] = assignment.notes || ''
+        }
+        setNotes(n)
       })
       .catch(e => {
         const status = e?.response?.status
@@ -372,23 +377,27 @@ export default function LogistisOutreach({ currentEmployee }) {
 
   useEffect(() => { load() }, [])
 
-  const handleStatus = async (newStatus) => {
-    setSaving(true)
+  const assignments = data?.assignments || []
+  // First active accountant (for email template placeholder context)
+  const firstAcc = assignments[0]?.accountant
+
+  const handleStatus = async (assignmentId, newStatus) => {
+    setSaving(s => ({ ...s, [assignmentId]: true }))
     try {
-      await api.updateAccountantStatus(newStatus, notes)
+      await api.updateAccountantStatus(assignmentId, newStatus, notes[assignmentId])
       toast.success('Ενημερώθηκε')
       load()
-    } catch { toast.error('Σφάλμα') } finally { setSaving(false) }
+    } catch { toast.error('Σφάλμα') } finally { setSaving(s => ({ ...s, [assignmentId]: false })) }
   }
 
-  const handleSkip = async () => {
-    setConfirmSkip(false)
-    setSaving(true)
+  const handleSkip = async (assignmentId) => {
+    setConfirmSkip(null)
+    setSaving(s => ({ ...s, [assignmentId]: true }))
     try {
-      await api.updateAccountantStatus('skipped', notes)
-      toast.success('Ο λογιστής παραβλέφθηκε — μπορείς να αναθέσεις τον επόμενο')
+      await api.updateAccountantStatus(assignmentId, 'skipped', notes[assignmentId])
+      toast.success('Παραβλέφθηκε — ο λογιστής επιστρέφει στο pool')
       load()
-    } catch { toast.error('Σφάλμα') } finally { setSaving(false) }
+    } catch { toast.error('Σφάλμα') } finally { setSaving(s => ({ ...s, [assignmentId]: false })) }
   }
 
   const handleAssignNext = async () => {
@@ -401,42 +410,22 @@ export default function LogistisOutreach({ currentEmployee }) {
       } else {
         toast('Δεν υπάρχουν διαθέσιμοι λογιστές αυτή τη στιγμή', { icon: 'ℹ️' })
       }
-    } catch (e) {
-      const msg = e?.response?.data?.detail
-      if (msg?.includes('Already has')) {
-        toast('Έχεις ήδη ενεργή ανάθεση', { icon: 'ℹ️' })
-      } else {
-        toast.error('Σφάλμα ανάθεσης')
-      }
-    } finally { setAssigning(false) }
+    } catch { toast.error('Σφάλμα ανάθεσης') } finally { setAssigning(false) }
   }
 
-  const saveNotes = async () => {
-    if (!data?.assignment) return
-    setSaving(true)
+  const saveNotes = async (assignmentId, currentStatus) => {
+    setSaving(s => ({ ...s, [assignmentId]: true }))
     try {
-      await api.updateAccountantStatus(data.assignment.status, notes)
+      await api.updateAccountantStatus(assignmentId, currentStatus, notes[assignmentId])
       toast.success('Σημειώσεις αποθηκεύτηκαν')
-    } catch { toast.error('Σφάλμα') } finally { setSaving(false) }
+    } catch { toast.error('Σφάλμα') } finally { setSaving(s => ({ ...s, [assignmentId]: false })) }
   }
 
-  const acc = data?.accountant
-  const asgn = data?.assignment
-  const isDone = asgn && TERMINAL.has(asgn.status)
-  const currentStep = STATUS_PIPELINE.findIndex(s => s.key === asgn?.status)
-
-  // Talking-point: gap between declared and actual client count
-  const declaredNum = acc?.declared_client_count
-    ? parseInt(String(acc.declared_client_count).replace(/\D/g, ''), 10)
-    : null
-  const actualNum = typeof acc?.client_count === 'number' ? acc.client_count : null
-  const hasGap = declaredNum && actualNum !== null && actualNum < declaredNum * 0.5
-
-  // Placeholder context
-  const ctx = { accName: acc?.name || '', myName, myPhone, myEmail }
+  // Placeholder context (uses first assignment's accountant for templates)
+  const ctx = { accName: firstAcc?.name || '', myName, myPhone, myEmail }
 
   const tabs = [
-    { key: 'assignment', label: 'Ανάθεση' },
+    { key: 'assignment', label: 'Αναθέσεις' },
     { key: 'scripts', label: 'Σενάρια Κλήσης' },
     { key: 'emails', label: 'Email Templates' },
   ]
@@ -450,7 +439,7 @@ export default function LogistisOutreach({ currentEmployee }) {
           ⚙️ Τα στοιχεία μου
         </button>
       </div>
-      <p className="text-gray-500 text-sm mb-4">Προσέγγισε τον ανατεθειμένο λογιστή και πρότεινε δωρεάν εκτίμηση για τους πελάτες του.</p>
+      <p className="text-gray-500 text-sm mb-4">Προσέγγισε τους ανατεθειμένους λογιστές και πρότεινε δωρεάν εκτίμηση για τους πελάτες τους.</p>
 
       {/* Employee settings panel */}
       {showSettings && (
@@ -489,11 +478,16 @@ export default function LogistisOutreach({ currentEmployee }) {
                 : 'text-gray-500 hover:text-gray-700'
             }`}>
             {t.label}
+            {t.key === 'assignment' && assignments.length > 0 && (
+              <span className="ml-1.5 bg-blue-100 text-blue-700 text-xs font-bold px-1.5 py-0.5 rounded-full">
+                {assignments.length}
+              </span>
+            )}
           </button>
         ))}
       </div>
 
-      {/* ── TAB: ASSIGNMENT ── */}
+      {/* ── TAB: ASSIGNMENTS ── */}
       {activeTab === 'assignment' && (
         <>
           {data === undefined && <div className="text-gray-400 text-sm py-12 text-center">Φόρτωση...</div>}
@@ -505,158 +499,147 @@ export default function LogistisOutreach({ currentEmployee }) {
             </div>
           )}
 
-          {data !== undefined && data !== null && !asgn && (
-            <div className="bg-white border border-gray-200 rounded-2xl p-8 text-center">
-              <div className="text-4xl mb-3">📋</div>
-              <p className="text-gray-600 mb-4">Δεν έχεις ανατεθεί λογιστή ακόμα.</p>
-              <button onClick={handleAssignNext} disabled={assigning} className="btn-primary px-6">
-                {assigning ? 'Αναζήτηση...' : 'Ανάθεση Επόμενου Λογιστή'}
-              </button>
-            </div>
-          )}
-
-          {asgn && (
+          {data !== undefined && data !== null && (
             <div className="space-y-4">
-              {/* Accountant card */}
-              <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
-                {acc ? (
-                  <>
-                    {/* Name + client counts */}
-                    <div className="flex items-start justify-between gap-4 flex-wrap">
-                      <div>
-                        <div className="text-xs text-gray-400 mb-0.5">Λογιστής</div>
-                        <div className="text-xl font-black text-gray-800">{acc.name}</div>
-                        {acc.office_name && <div className="text-sm text-gray-500 mt-0.5">{acc.office_name}</div>}
-                      </div>
-                      <div className="text-right space-y-1">
-                        <div>
-                          <div className="text-xs text-gray-400">Πελάτες στο σύστημα</div>
-                          <div className="text-2xl font-black text-blue-700">{actualNum ?? '—'}</div>
-                        </div>
-                        {acc.declared_client_count && (
-                          <div>
-                            <div className="text-xs text-gray-400">Δηλωμένοι κατά εγγραφή</div>
-                            <div className="text-lg font-bold text-gray-500">{acc.declared_client_count}</div>
+              {/* "Assign next" always at top */}
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                {assignments.length === 0
+                  ? <p className="text-gray-500 text-sm">Δεν έχεις ανατεθεί λογιστή ακόμα.</p>
+                  : <p className="text-sm text-gray-500">{assignments.length} ενεργ{assignments.length === 1 ? 'ή ανάθεση' : 'ές αναθέσεις'}</p>
+                }
+                <button onClick={handleAssignNext} disabled={assigning} className="btn-primary px-5 py-2 text-sm">
+                  {assigning ? 'Αναζήτηση...' : '+ Ανάθεση Επόμενου'}
+                </button>
+              </div>
+
+              {assignments.map(({ assignment: asgn, accountant: acc }) => {
+                const isDone = TERMINAL.has(asgn.status)
+                const currentStep = STATUS_PIPELINE.findIndex(s => s.key === asgn.status)
+                const isSaving = !!saving[asgn.id]
+                const declaredNum = acc?.declared_client_count
+                  ? parseInt(String(acc.declared_client_count).replace(/\D/g, ''), 10)
+                  : null
+                const actualNum = typeof acc?.client_count === 'number' ? acc.client_count : null
+                const hasGap = declaredNum && actualNum !== null && actualNum < declaredNum * 0.5
+
+                return (
+                  <div key={asgn.id} className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
+                    {/* Accountant info */}
+                    <div className="p-5">
+                      {acc ? (
+                        <>
+                          <div className="flex items-start justify-between gap-4 flex-wrap">
+                            <div>
+                              <div className="text-xs text-gray-400 mb-0.5">Λογιστής</div>
+                              <div className="text-xl font-black text-gray-800">{acc.name}</div>
+                              {acc.office_name && <div className="text-sm text-gray-500 mt-0.5">{acc.office_name}</div>}
+                            </div>
+                            <div className="text-right space-y-1">
+                              <div>
+                                <div className="text-xs text-gray-400">Πελάτες στο σύστημα</div>
+                                <div className="text-2xl font-black text-blue-700">{actualNum ?? '—'}</div>
+                              </div>
+                              {acc.declared_client_count && (
+                                <div>
+                                  <div className="text-xs text-gray-400">Δηλωμένοι κατά εγγραφή</div>
+                                  <div className="text-lg font-bold text-gray-500">{acc.declared_client_count}</div>
+                                </div>
+                              )}
+                            </div>
                           </div>
+
+                          {hasGap && (
+                            <div className="mt-3 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-xs text-amber-800">
+                              💡 <strong>Talking point:</strong> Έχουν ανεβάσει μόνο {actualNum} από τους δηλωμένους {acc.declared_client_count} πελάτες.
+                            </div>
+                          )}
+
+                          <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
+                            {acc.phone && (
+                              <a href={`tel:${acc.phone}`} className="flex items-center gap-2 bg-blue-50 rounded-lg px-3 py-2 text-blue-700 hover:bg-blue-100 transition-colors font-medium">
+                                📞 {acc.phone}
+                              </a>
+                            )}
+                            {acc.email && (
+                              <a href={`mailto:${acc.email}`} className="flex items-center gap-2 bg-gray-50 rounded-lg px-3 py-2 text-gray-600 hover:bg-gray-100 transition-colors truncate">
+                                ✉️ {acc.email}
+                              </a>
+                            )}
+                            {(acc.city || acc.area) && (
+                              <div className="flex items-center gap-2 bg-gray-50 rounded-lg px-3 py-2 text-gray-600">
+                                📍 {acc.city || acc.area}
+                              </div>
+                            )}
+                          </div>
+
+                          {acc.address && (
+                            <div className="mt-2 flex items-start gap-2 text-xs text-gray-500 bg-gray-50 rounded-lg px-3 py-2 border border-gray-100">
+                              <span className="mt-0.5">🏢</span>
+                              <span>{acc.address}</span>
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <div className="text-gray-400 text-sm">Τα στοιχεία του λογιστή δεν είναι διαθέσιμα.</div>
+                      )}
+                    </div>
+
+                    {/* Status pipeline */}
+                    <div className="px-5 pb-4 border-t border-gray-100 pt-4">
+                      <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Κατάσταση</div>
+                      <div className="flex flex-wrap gap-2">
+                        {STATUS_PIPELINE.map((s, i) => {
+                          const isActive = asgn.status === s.key
+                          const isPast = i < currentStep
+                          return (
+                            <button key={s.key} disabled={isSaving || isDone} onClick={() => handleStatus(asgn.id, s.key)}
+                              className={`px-3 py-1.5 rounded-lg text-sm font-semibold transition-all border-2 ${
+                                isActive ? `${s.color} border-current scale-105 shadow-sm`
+                                : isPast ? 'bg-gray-50 text-gray-300 border-transparent'
+                                : 'bg-white text-gray-500 border-gray-200 hover:border-gray-400'
+                              }`}>
+                              {s.label}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Notes + skip */}
+                    <div className="px-5 pb-5 space-y-3 border-t border-gray-100 pt-4">
+                      <textarea rows={2} disabled={isDone}
+                        value={notes[asgn.id] ?? ''}
+                        onChange={e => setNotes(n => ({ ...n, [asgn.id]: e.target.value }))}
+                        placeholder="Σημειώσεις: τι είπε, πότε να ξαναπάρεις…"
+                        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 resize-none focus:outline-none focus:border-blue-400 disabled:bg-gray-50 disabled:text-gray-400" />
+
+                      <div className="flex items-center justify-between flex-wrap gap-2">
+                        {!isDone && (
+                          <button onClick={() => saveNotes(asgn.id, asgn.status)} disabled={isSaving}
+                            className="btn-secondary text-xs px-4 py-1.5">
+                            Αποθήκευση σημειώσεων
+                          </button>
+                        )}
+
+                        {!isDone && (
+                          confirmSkip === asgn.id ? (
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-xs text-gray-600">Παράβλεψη αυτού του λογιστή;</span>
+                              <button onClick={() => handleSkip(asgn.id)} className="text-xs px-3 py-1.5 bg-orange-500 text-white rounded-lg font-semibold hover:bg-orange-600">Ναι</button>
+                              <button onClick={() => setConfirmSkip(null)} className="text-xs px-3 py-1.5 border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50">Άκυρο</button>
+                            </div>
+                          ) : (
+                            <button onClick={() => setConfirmSkip(asgn.id)} disabled={isSaving}
+                              className="text-xs px-3 py-1.5 rounded-lg border border-orange-200 text-orange-600 hover:bg-orange-50 transition-colors ml-auto">
+                              ↩ Παράβλεψη
+                            </button>
+                          )
                         )}
                       </div>
                     </div>
-
-                    {/* Gap talking point */}
-                    {hasGap && (
-                      <div className="mt-3 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-xs text-amber-800">
-                        💡 <strong>Talking point:</strong> Έχουν ανεβάσει μόνο {actualNum} από τους δηλωμένους {acc.declared_client_count} πελάτες — δεν έχουν ακόμα εξερευνήσει το πλήρες πελατολόγιό τους.
-                      </div>
-                    )}
-
-                    {/* Contact row */}
-                    <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
-                      {acc.phone && (
-                        <a href={`tel:${acc.phone}`} className="flex items-center gap-2 bg-blue-50 rounded-lg px-3 py-2 text-blue-700 hover:bg-blue-100 transition-colors font-medium">
-                          📞 {acc.phone}
-                        </a>
-                      )}
-                      {acc.email && (
-                        <a href={`mailto:${acc.email}`} className="flex items-center gap-2 bg-gray-50 rounded-lg px-3 py-2 text-gray-600 hover:bg-gray-100 transition-colors truncate">
-                          ✉️ {acc.email}
-                        </a>
-                      )}
-                      {(acc.city || acc.area) && (
-                        <div className="flex items-center gap-2 bg-gray-50 rounded-lg px-3 py-2 text-gray-600">
-                          📍 {acc.city || acc.area}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Address */}
-                    {acc.address && (
-                      <div className="mt-2 flex items-start gap-2 text-xs text-gray-500 bg-gray-50 rounded-lg px-3 py-2 border border-gray-100">
-                        <span className="mt-0.5">🏢</span>
-                        <span>{acc.address}</span>
-                      </div>
-                    )}
-                  </>
-                ) : (
-                  <div className="text-gray-400 text-sm">Τα στοιχεία του λογιστή δεν είναι διαθέσιμα αυτή τη στιγμή.</div>
-                )}
-
-                {/* Skip button */}
-                {!isDone && (
-                  <div className="mt-4 pt-4 border-t border-gray-100">
-                    {confirmSkip ? (
-                      <div className="flex items-center gap-3 flex-wrap">
-                        <span className="text-sm text-gray-600">Σίγουρα θέλεις να παραβλέψεις αυτόν τον λογιστή;</span>
-                        <button onClick={handleSkip} className="text-sm px-3 py-1.5 bg-orange-500 text-white rounded-lg font-semibold hover:bg-orange-600">Ναι, παράβλεψη</button>
-                        <button onClick={() => setConfirmSkip(false)} className="text-sm px-3 py-1.5 border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50">Άκυρο</button>
-                      </div>
-                    ) : (
-                      <button onClick={() => setConfirmSkip(true)} disabled={saving}
-                        className="text-xs px-3 py-1.5 rounded-lg border border-orange-200 text-orange-600 hover:bg-orange-50 transition-colors">
-                        ↩ Παράβλεψη λογιστή (για άλλον συνάδελφο)
-                      </button>
-                    )}
                   </div>
-                )}
-              </div>
-
-              {/* Status pipeline */}
-              <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm">
-                <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Κατάσταση</div>
-                <div className="flex flex-wrap gap-2">
-                  {STATUS_PIPELINE.map((s, i) => {
-                    const isActive = asgn.status === s.key
-                    const isPast = i < currentStep
-                    return (
-                      <button key={s.key} disabled={saving || isDone} onClick={() => handleStatus(s.key)}
-                        className={`px-3 py-1.5 rounded-lg text-sm font-semibold transition-all border-2 ${
-                          isActive ? `${s.color} border-current scale-105 shadow-sm`
-                          : isPast ? 'bg-gray-50 text-gray-300 border-transparent'
-                          : 'bg-white text-gray-500 border-gray-200 hover:border-gray-400'
-                        }`}>
-                        {s.label}
-                      </button>
-                    )
-                  })}
-                </div>
-              </div>
-
-              {/* Notes */}
-              <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm">
-                <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Σημειώσεις</div>
-                <textarea rows={3} disabled={isDone} value={notes} onChange={e => setNotes(e.target.value)}
-                  placeholder="Τι είπε, πότε να ξαναπάρεις, κ.λπ."
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 resize-none focus:outline-none focus:border-blue-400 disabled:bg-gray-50 disabled:text-gray-400" />
-                {!isDone && (
-                  <button onClick={saveNotes} disabled={saving} className="mt-2 btn-secondary text-xs px-4 py-1.5">
-                    Αποθήκευση σημειώσεων
-                  </button>
-                )}
-              </div>
-
-              {/* Done → get next */}
-              {isDone && (
-                <div className={`rounded-2xl p-5 text-center ${
-                  asgn.status === 'converted' ? 'bg-green-50 border border-green-200'
-                  : asgn.status === 'skipped' ? 'bg-orange-50 border border-orange-200'
-                  : 'bg-red-50 border border-red-200'
-                }`}>
-                  <div className="text-2xl mb-2">
-                    {asgn.status === 'converted' ? '🏆' : asgn.status === 'skipped' ? '↩' : '✗'}
-                  </div>
-                  <p className={`font-semibold mb-4 ${
-                    asgn.status === 'converted' ? 'text-green-700'
-                    : asgn.status === 'skipped' ? 'text-orange-600'
-                    : 'text-red-600'
-                  }`}>
-                    {asgn.status === 'converted' ? 'Μπράβο! Ο λογιστής ενδιαφέρεται.'
-                    : asgn.status === 'skipped' ? 'Παραβλέφθηκε — ο λογιστής μπαίνει πίσω στο pool.'
-                    : 'Αρνήθηκε. Συνέχισε με τον επόμενο.'}
-                  </p>
-                  <button onClick={handleAssignNext} disabled={assigning} className="btn-primary px-6">
-                    {assigning ? 'Αναζήτηση...' : 'Επόμενος Λογιστής →'}
-                  </button>
-                </div>
-              )}
+                )
+              })}
             </div>
           )}
         </>

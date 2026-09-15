@@ -63,49 +63,52 @@ def _used_ids(db: Session):
     return {r.accountant_id for r in rows}
 
 
+def _serialize_assignment(a: AccountantAssignment) -> dict:
+    return {
+        "id": a.id,
+        "accountant_id": a.accountant_id,
+        "status": a.status,
+        "notes": a.notes,
+        "assigned_at": a.assigned_at.isoformat() if a.assigned_at else None,
+        "updated_at": a.updated_at.isoformat() if a.updated_at else None,
+    }
+
+
 @router.get("/my")
-def get_my_assignment(employee: str = Depends(get_current_user), db: Session = Depends(get_db)):
-    active = (
+def get_my_assignments(employee: str = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Return all active (non-terminal) assignments for this employee."""
+    active_list = (
         db.query(AccountantAssignment)
         .filter(AccountantAssignment.employee == employee,
                 ~AccountantAssignment.status.in_(TERMINAL_STATUSES))
         .order_by(AccountantAssignment.assigned_at.desc())
-        .first()
+        .all()
     )
-    if not active:
-        return None
+
+    if not active_list:
+        return {"assignments": []}
 
     try:
         all_accs = _fetch_accountants()
-        acc = next((a for a in all_accs if str(a["id"]) == active.accountant_id), None)
+        accs_by_id = {str(a["id"]): a for a in all_accs}
     except Exception:
-        acc = None
+        accs_by_id = {}
 
     return {
-        "assignment": {
-            "id": active.id,
-            "accountant_id": active.accountant_id,
-            "status": active.status,
-            "notes": active.notes,
-            "assigned_at": active.assigned_at.isoformat() if active.assigned_at else None,
-            "updated_at": active.updated_at.isoformat() if active.updated_at else None,
-        },
-        "accountant": acc,
+        "assignments": [
+            {
+                "assignment": _serialize_assignment(a),
+                "accountant": accs_by_id.get(a.accountant_id),
+            }
+            for a in active_list
+        ]
     }
 
 
 @router.post("/my/assign-next")
 def assign_next(employee: str = Depends(get_current_user), db: Session = Depends(get_db)):
-    """Assign the next available accountant from the pool to this employee."""
-    active = (
-        db.query(AccountantAssignment)
-        .filter(AccountantAssignment.employee == employee,
-                ~AccountantAssignment.status.in_(TERMINAL_STATUSES))
-        .first()
-    )
-    if active:
-        raise HTTPException(status_code=409, detail="Already has an active assignment")
-
+    """Assign the next available accountant from the pool to this employee.
+    Multiple concurrent assignments are allowed."""
     all_accs = _fetch_accountants()
     used = _used_ids(db)
     available = [a for a in all_accs if str(a["id"]) not in used]
@@ -131,12 +134,7 @@ def assign_next(employee: str = Depends(get_current_user), db: Session = Depends
 
     return {
         "assigned": True,
-        "assignment": {
-            "id": assignment.id,
-            "accountant_id": assignment.accountant_id,
-            "status": assignment.status,
-            "assigned_at": assignment.assigned_at.isoformat(),
-        },
+        "assignment": _serialize_assignment(assignment),
         "accountant": chosen,
     }
 
@@ -145,19 +143,21 @@ def assign_next(employee: str = Depends(get_current_user), db: Session = Depends
 async def update_status(
     employee: str = Depends(get_current_user),
     db: Session = Depends(get_db),
+    assignment_id: Optional[int] = Body(None, embed=True),
     status: str = Body(..., embed=True),
     notes: Optional[str] = Body(None, embed=True),
 ):
     if status not in STATUS_ORDER:
         raise HTTPException(status_code=422, detail=f"Invalid status. Valid: {STATUS_ORDER}")
 
-    active = (
-        db.query(AccountantAssignment)
-        .filter(AccountantAssignment.employee == employee,
-                ~AccountantAssignment.status.in_(TERMINAL_STATUSES))
-        .order_by(AccountantAssignment.assigned_at.desc())
-        .first()
+    query = db.query(AccountantAssignment).filter(
+        AccountantAssignment.employee == employee,
+        ~AccountantAssignment.status.in_(TERMINAL_STATUSES),
     )
+    if assignment_id:
+        query = query.filter(AccountantAssignment.id == assignment_id)
+
+    active = query.order_by(AccountantAssignment.assigned_at.desc()).first()
     if not active:
         raise HTTPException(status_code=404, detail="No active assignment")
 
@@ -174,10 +174,12 @@ async def update_status(
 def get_pool(employee: str = Depends(get_current_user), db: Session = Depends(get_db)):
     """Admin view: all accountants with assignment status."""
     all_accs = _fetch_accountants()
-    assignments = {
-        row.accountant_id: row
-        for row in db.query(AccountantAssignment).all()
-    }
+    # Use most-recent non-skipped assignment per accountant
+    assignments: dict[str, AccountantAssignment] = {}
+    for row in db.query(AccountantAssignment).order_by(AccountantAssignment.assigned_at.desc()).all():
+        if row.accountant_id not in assignments and row.status != "skipped":
+            assignments[row.accountant_id] = row
+
     result = []
     for a in all_accs:
         aid = str(a["id"])
@@ -185,6 +187,7 @@ def get_pool(employee: str = Depends(get_current_user), db: Session = Depends(ge
         result.append({
             **a,
             "assignment": {
+                "id": asgn.id,
                 "employee": asgn.employee,
                 "status": asgn.status,
             } if asgn else None,
@@ -210,26 +213,23 @@ def admin_overview(employee: str = Depends(get_current_user), db: Session = Depe
         .all()
     )
 
-    # Active assignment per employee
+    # All active assignments per employee (list, not just one)
     employee_data = []
     for emp in EMPLOYEES:
-        active = next(
-            (a for a in all_assignments
-             if a.employee == emp and a.status not in TERMINAL_STATUSES),
-            None
-        )
-        acc = accs_by_id.get(active.accountant_id) if active else None
+        active_list = [
+            a for a in all_assignments
+            if a.employee == emp and a.status not in TERMINAL_STATUSES
+        ]
+        assignments_data = []
+        for a in active_list:
+            acc = accs_by_id.get(a.accountant_id)
+            assignments_data.append({
+                "assignment": _serialize_assignment(a),
+                "accountant": acc,
+            })
         employee_data.append({
             "employee": emp,
-            "assignment": {
-                "id": active.id,
-                "accountant_id": active.accountant_id,
-                "status": active.status,
-                "notes": active.notes,
-                "assigned_at": active.assigned_at.isoformat() if active.assigned_at else None,
-                "updated_at": active.updated_at.isoformat() if active.updated_at else None,
-            } if active else None,
-            "accountant": acc,
+            "assignments": assignments_data,
         })
 
     # Stats
@@ -266,20 +266,23 @@ def admin_overview(employee: str = Depends(get_current_user), db: Session = Depe
 
 
 @router.post("/admin/force-skip/{target_employee}")
-def admin_force_skip(
+async def admin_force_skip(
     target_employee: str,
     employee: str = Depends(get_current_user),
     db: Session = Depends(get_db),
+    assignment_id: Optional[int] = Body(None, embed=True),
 ):
     if employee != "HARIS":
         raise HTTPException(status_code=403, detail="Admin only")
-    active = (
-        db.query(AccountantAssignment)
-        .filter(AccountantAssignment.employee == target_employee,
-                ~AccountantAssignment.status.in_(TERMINAL_STATUSES))
-        .order_by(AccountantAssignment.assigned_at.desc())
-        .first()
+
+    query = db.query(AccountantAssignment).filter(
+        AccountantAssignment.employee == target_employee,
+        ~AccountantAssignment.status.in_(TERMINAL_STATUSES),
     )
+    if assignment_id:
+        query = query.filter(AccountantAssignment.id == assignment_id)
+
+    active = query.order_by(AccountantAssignment.assigned_at.desc()).first()
     if not active:
         raise HTTPException(status_code=404, detail="No active assignment")
     active.status = "skipped"
@@ -295,19 +298,10 @@ async def admin_force_assign(
     db: Session = Depends(get_db),
     accountant_id: Optional[str] = Body(None, embed=True),
 ):
-    """Manually assign next (or specific) accountant to any employee."""
+    """Manually assign next (or specific) accountant to any employee.
+    Multiple concurrent assignments are allowed."""
     if employee != "HARIS":
         raise HTTPException(status_code=403, detail="Admin only")
-
-    # Make sure they have no active assignment first
-    active = (
-        db.query(AccountantAssignment)
-        .filter(AccountantAssignment.employee == target_employee,
-                ~AccountantAssignment.status.in_(TERMINAL_STATUSES))
-        .first()
-    )
-    if active:
-        raise HTTPException(status_code=409, detail="Employee already has active assignment")
 
     all_accs = _fetch_accountants()
 
