@@ -263,51 +263,55 @@ function CopyButton({ text }) {
   )
 }
 
-function CopyHtmlButton({ text }) {
-  const [state, setState] = useState('idle') // idle | ok | err
+function CopyAndGmail({ body, subject, to }) {
+  const [state, setState] = useState('idle') // idle | ok | warn
 
-  const copy = async () => {
-    const html = plainToHtml(text)
+  const handle = async () => {
+    const html = plainToHtml(body)
+
+    // 1. Write rich HTML (+ plain fallback) to clipboard
     try {
       await navigator.clipboard.write([
         new ClipboardItem({
           'text/html': new Blob([html], { type: 'text/html' }),
-          'text/plain': new Blob([text], { type: 'text/plain' }),
+          'text/plain': new Blob([body], { type: 'text/plain' }),
         }),
       ])
       setState('ok')
-      setTimeout(() => setState('idle'), 2500)
     } catch {
-      // Fallback: plain text
-      try {
-        await navigator.clipboard.writeText(text)
-        setState('err')
-        setTimeout(() => setState('idle'), 2500)
-      } catch {}
+      try { await navigator.clipboard.writeText(body) } catch {}
+      setState('warn')
     }
+    setTimeout(() => setState('idle'), 4000)
+
+    // 2. Open Gmail compose with recipient + subject pre-filled, body empty
+    //    (user pastes the formatted HTML from clipboard)
+    const url = `https://mail.google.com/mail/?view=cm&fs=1${to ? `&to=${encodeURIComponent(to)}` : ''}&su=${encodeURIComponent(subject)}`
+    window.open(url, '_blank', 'noopener')
   }
 
   return (
-    <button onClick={copy}
-      className={`text-xs px-3 py-1.5 rounded-lg border transition-colors whitespace-nowrap font-medium ${
-        state === 'ok'
-          ? 'bg-green-50 border-green-300 text-green-700'
-          : state === 'err'
-            ? 'bg-amber-50 border-amber-300 text-amber-700'
-            : 'bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100'
-      }`}>
-      {state === 'ok' ? '✓ Αντιγράφηκε (μορφ.)' : state === 'err' ? '⚠ Μόνο κείμενο' : '✨ Αντιγραφή με μορφοποίηση'}
-    </button>
-  )
-}
-
-function GmailButton({ to, subject, body }) {
-  const url = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(to || '')}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
-  return (
-    <a href={url} target="_blank" rel="noopener noreferrer"
-      className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-red-50 border border-red-200 text-red-700 hover:bg-red-100 transition-colors whitespace-nowrap font-medium">
-      ✉️ Gmail (plain text)
-    </a>
+    <div className="flex flex-col items-end gap-1">
+      <button onClick={handle}
+        className={`inline-flex items-center gap-1.5 text-xs px-4 py-2 rounded-lg border font-semibold transition-colors whitespace-nowrap ${
+          state === 'ok'
+            ? 'bg-green-50 border-green-300 text-green-700'
+            : state === 'warn'
+              ? 'bg-amber-50 border-amber-300 text-amber-700'
+              : 'bg-blue-600 border-blue-600 text-white hover:bg-blue-700'
+        }`}>
+        {state === 'ok'
+          ? '✓ Gmail άνοιξε'
+          : state === 'warn'
+            ? '⚠ Gmail άνοιξε (plain text)'
+            : '✨ Αντιγραφή & Άνοιγμα Gmail'}
+      </button>
+      {(state === 'ok' || state === 'warn') && (
+        <span className="text-xs text-green-700 font-semibold animate-pulse">
+          👆 Κάνε Ctrl+V (Paste) στο σώμα
+        </span>
+      )}
+    </div>
   )
 }
 
@@ -701,25 +705,17 @@ export default function LogistisOutreach({ currentEmployee }) {
 
                 <div>
                   <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Θέμα</div>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <div className="flex-1 bg-gray-50 rounded-lg px-3 py-2 text-sm text-gray-700 font-medium border border-gray-200 min-w-0 truncate">
-                      {filledSubject}
-                    </div>
-                    <CopyButton text={filledSubject} />
+                  <div className="bg-gray-50 rounded-lg px-3 py-2 text-sm text-gray-700 font-medium border border-gray-200">
+                    {filledSubject}
                   </div>
                 </div>
 
                 <div>
-                  <div className="flex items-center justify-between mb-1 flex-wrap gap-2">
+                  <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
                     <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Σώμα email</div>
-                    <div className="flex flex-wrap gap-2">
-                      <CopyHtmlButton text={filledBody} />
-                      <CopyButton text={filledBody} />
-                      {acc?.email && (
-                        <GmailButton to={acc.email} subject={filledSubject} body={filledBody} />
-                      )}
-                    </div>
+                    <CopyAndGmail body={filledBody} subject={filledSubject} to={acc?.email} />
                   </div>
+
                   <pre className="bg-gray-50 rounded-lg px-4 py-3 text-sm text-gray-700 whitespace-pre-wrap leading-relaxed border border-gray-200 font-sans max-h-72 overflow-y-auto">
                     {filledBody}
                   </pre>
