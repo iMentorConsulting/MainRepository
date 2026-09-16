@@ -73,6 +73,10 @@ export const getAccountantAdminOverview = () => api.get('/accountants/admin/over
 export const adminForceSkip = (employee, assignmentId = null) => api.post(`/accountants/admin/force-skip/${employee}`, assignmentId ? { assignment_id: assignmentId } : {})
 export const adminForceAssign = (employee, accountant_id = null) => api.post(`/accountants/admin/force-assign/${employee}`, accountant_id ? { accountant_id } : {})
 
+// Finance intake (payment recording → external Finance system)
+export const recordFinancePayment = (payload) => api.post('/finance-intake', payload)
+export const getFinancePayments = (caseId) => api.get(`/finance-intake/case/${caseId}`)
+
 // Config
 export const getPricingConfig = () => api.get('/config/pricing')
 export const putPricingConfig = (data) => api.put('/config/pricing', data)

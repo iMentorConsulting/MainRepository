@@ -12,6 +12,7 @@ import * as api from '../api'
 import { PORTAL_BASE } from '../api'
 import { fmt, creditorDisplayName, formatOfferWithVAT, getPaymentStatus, calculateOfferWithWithholding, getBankingDetailsText } from '../utils/calculations'
 import { buildEmailHtml, wrapEmailDocument, buildResultsEmailHtml } from '../utils/reportGenerators'
+import FinanceIntakePanel from '../components/FinanceIntakePanel'
 
 const STATUS_LABELS = {
   draft:     { label: 'Άντληση Στοιχείων',      cls: 'bg-gray-100 text-gray-700' },
@@ -984,8 +985,11 @@ export default function CaseDetail({ currentEmployee }) {
         )}
       </div>
 
+      {/* Finance intake — record payment to external Finance system */}
+      <FinanceIntakePanel caseData={caseData} />
+
       {/* Estimated results */}
-      <h2 className="section-title flex items-center gap-2"><ChartBarIcon className="w-5 h-5 text-blue-600 shrink-0" /> Εκτιμώμενα Αποτελέσματα</h2>
+      <h2 className="section-title flex items-center gap-2 mt-5"><ChartBarIcon className="w-5 h-5 text-blue-600 shrink-0" /> Εκτιμώμενα Αποτελέσματα</h2>
       <div className="card mb-5">
         <div className="flex flex-wrap gap-3 mb-4">
           <div className="kpi-card"><div className="kpi-label">Συνολική Οφειλή</div><div className="kpi-value">{est.sumDebt ? fmt(est.sumDebt) : '—'}</div></div>

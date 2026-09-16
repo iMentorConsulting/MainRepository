@@ -136,6 +136,29 @@ class Lead(Base):
     updated_at = Column(DateTime, default=datetime.utcnow)
 
 
+class FinancePayment(Base):
+    __tablename__ = "finance_payments"
+    id = Column(Integer, primary_key=True, index=True)
+    case_id = Column(Integer, nullable=False, index=True)
+    external_id = Column(String, unique=True, nullable=False)
+    finance_id = Column(Integer, nullable=True)
+    payment_type = Column(String, default="")
+    invoice_type = Column(String, default="")
+    amount_collected = Column(Float, default=0.0)
+    vat_amount = Column(Float, default=0.0)
+    sale_date = Column(String, default="")
+    description = Column(String, default="")
+    targeting_category = Column(String, default="")
+    source_referral = Column(String, default="")
+    work_status = Column(String, default="")
+    address = Column(String, default="")
+    city = Column(String, default="")
+    sent_by = Column(String, default="")
+    is_duplicate = Column(Boolean, default=False)
+    error = Column(Text, default="")
+    sent_at = Column(DateTime, default=datetime.utcnow)
+
+
 class IrisPayment(Base):
     """IRIS payments (DIAS Request to Pay) - eCommerce / RI0 unstructured payment code.
 
