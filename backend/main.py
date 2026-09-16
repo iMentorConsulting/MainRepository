@@ -34,6 +34,7 @@ from routes.cm_leads import router as cm_leads_router
 from routes.cm_leads_sync import router as cm_leads_sync_router
 from routes.cm_leads_ermis import router as cm_leads_ermis_router
 from routes.cm_dypa_hiring import router as cm_dypa_hiring_router
+from routes.cm_webhook import router_public as cm_webhook_public_router, router_admin as cm_webhook_admin_router
 
 load_dotenv()
 
@@ -979,6 +980,27 @@ try:
 except Exception as _e:
     print(f"[migration] payroll snapshots table failed: {_e}")
 
+# Migration: webhook sources table (website form → lead integration)
+try:
+    with engine.connect() as _conn:
+        _conn.execute(_text("""
+            CREATE TABLE IF NOT EXISTS cm_webhook_sources (
+                id SERIAL PRIMARY KEY,
+                name VARCHAR(200) NOT NULL,
+                token VARCHAR(64) UNIQUE NOT NULL,
+                default_program VARCHAR(100),
+                field_map JSONB,
+                program_map JSONB,
+                enabled BOOLEAN DEFAULT TRUE,
+                notes TEXT,
+                created_at TIMESTAMP DEFAULT NOW(),
+                updated_at TIMESTAMP DEFAULT NOW()
+            )
+        """))
+        _conn.commit()
+except Exception as _e:
+    print(f"[migration] webhook_sources table failed: {_e}")
+
 import pytz as _pytz
 from apscheduler.schedulers.background import BackgroundScheduler as _BGScheduler
 
@@ -1160,6 +1182,8 @@ app.include_router(cm_leads_router)
 app.include_router(cm_leads_sync_router)
 app.include_router(cm_leads_ermis_router)
 app.include_router(cm_dypa_hiring_router)
+app.include_router(cm_webhook_public_router)
+app.include_router(cm_webhook_admin_router)
 
 
 try:

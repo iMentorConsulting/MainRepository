@@ -565,6 +565,38 @@ class CMBusinessMatchedProgram(Base):
 LEAD_STATUSES = ["NEW LEAD", "CALL", "HOT", "ACTIVE", "DEAL", "CANCEL"]
 
 
+class CMWebhookSource(Base):
+    """A website form that pushes leads via webhook.
+
+    Each source has a unique token embedded in the URL
+    (POST /api/webhook/lead/<token>).  field_map maps incoming JSON keys
+    to lead fields; program_map maps a form value to a CM program category.
+    """
+    __tablename__ = "cm_webhook_sources"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(200), nullable=False)          # human label, e.g. "Website ΕΣΠΑ Form"
+    token = Column(String(64), unique=True, index=True, nullable=False)
+
+    # Default program when none is detected from the payload
+    default_program = Column(String(100), nullable=True)
+
+    # JSON map: incoming_field_name → lead field
+    # Recognised lead fields: name, phone, phone2, email, afm, notes, service_type
+    # Special target keys: "program" (triggers program detection)
+    field_map = Column(JSON, nullable=True)
+
+    # JSON map: form value (lowercased) → CM program category
+    # e.g. {"εσπα": "ΕΣΠΑ", "μικροπιστωσεις": "ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ"}
+    program_map = Column(JSON, nullable=True)
+
+    enabled = Column(Boolean, default=True)
+    notes = Column(Text, nullable=True)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 class CMLead(Base):
     __tablename__ = "cm_leads"
 

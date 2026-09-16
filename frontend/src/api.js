@@ -238,6 +238,13 @@ export const updateFinanceSyncServiceTypes = (items) => api.put('/api/cm/finance
 export const getMyPayrollTargets = () => api.get('/api/finance/payroll-targets/me').then(r => r.data)
 export const getAllPayrollTargets = () => api.get('/api/finance/payroll-targets/all').then(r => r.data)
 
+// Webhook Sources (website form → lead)
+export const getWebhookSources = () => api.get('/api/cm/webhook-sources').then(r => r.data)
+export const createWebhookSource = (data) => api.post('/api/cm/webhook-sources', data).then(r => r.data)
+export const updateWebhookSource = (id, data) => api.put(`/api/cm/webhook-sources/${id}`, data).then(r => r.data)
+export const deleteWebhookSource = (id) => api.delete(`/api/cm/webhook-sources/${id}`).then(r => r.data)
+export const regenerateWebhookToken = (id) => api.post(`/api/cm/webhook-sources/${id}/regenerate-token`).then(r => r.data)
+
 // LOGISTIS Portal integration
 export const getPendingPortalAssignments = () => api.get('/api/cm/portal-integration/pending').then(r => r.data)
 export const acceptPortalAssignment = (id, assigned_to_id = null) => api.post(`/api/cm/portal-integration/${id}/accept`, { assigned_to_id }).then(r => r.data)

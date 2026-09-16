@@ -28,6 +28,7 @@ import Leads from './pages/Leads'
 import LeadDetail from './pages/LeadDetail'
 import LeadSheetConfigPage from './pages/LeadSheetConfigPage'
 import LeadsStats from './pages/LeadsStats'
+import WebhookConfigPage from './pages/WebhookConfigPage'
 import Onboard from './pages/Onboard'
 
 export default function App() {
@@ -64,6 +65,7 @@ export default function App() {
             <Route path="leads/:id" element={<ErrorBoundary><LeadDetail /></ErrorBoundary>} />
             <Route path="leads-stats" element={<ErrorBoundary><LeadsStats /></ErrorBoundary>} />
             <Route path="leads-config" element={<ErrorBoundary><LeadSheetConfigPage /></ErrorBoundary>} />
+            <Route path="webhook-config" element={<ErrorBoundary><WebhookConfigPage /></ErrorBoundary>} />
             <Route path="kanban" element={<ErrorBoundary><Kanban /></ErrorBoundary>} />
             <Route path="pending" element={<ErrorBoundary><PendingPage /></ErrorBoundary>} />
             <Route path="workview" element={<ErrorBoundary><WorkView /></ErrorBoundary>} />

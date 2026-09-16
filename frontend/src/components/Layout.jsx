@@ -40,6 +40,7 @@ const nav = [
   { to: '/calendar', label: 'Ημερολόγιο', Icon: CalendarDaysIcon },
   { to: '/import', label: 'Εισαγωγή Sheet', Icon: ArrowDownTrayIcon, adminOnly: true },
   { to: '/leads-config', label: 'Leads — Ρυθμίσεις Sheets', Icon: AdjustmentsHorizontalIcon, adminOnly: true },
+  { to: '/webhook-config', label: 'Leads — Webhook Φόρμες', Icon: GlobeAltIcon, adminOnly: true },
   { to: '/worklists', label: 'Εκκρεμείς Εργασίες', Icon: ClipboardDocumentListIcon },
   { to: '/portal-broadcast', label: 'Πύλη Πελάτη — Αποστολή', Icon: GlobeAltIcon, adminOnly: true },
   { to: '/portal-documents', label: 'Πύλη Πελάτη — Έγγραφα', Icon: DocumentArrowUpIcon, adminOnly: true },
