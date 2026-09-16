@@ -75,7 +75,7 @@ def _detect_program(value: str, program_map: dict | None) -> str | None:
 
 # ── Field mapping ─────────────────────────────────────────────────────────────
 
-_LEAD_FIELDS = {"name", "phone", "phone2", "email", "afm", "notes", "service_type", "program"}
+_LEAD_FIELDS = {"name", "phone", "phone2", "email", "afm", "notes", "service_type", "program", "program_title"}
 
 _BUILTIN_ALIASES: dict[str, str] = {
     # name
@@ -94,6 +94,8 @@ _BUILTIN_ALIASES: dict[str, str] = {
     "interest": "program", "program_interest": "program",
     "program_of_interest": "program", "service": "program",
     "ενδιαφερον": "program", "προγραμμα": "program",
+    # program title
+    "program_title": "program_title", "τιτλος_προγραμματος": "program_title",
 }
 
 
@@ -116,56 +118,82 @@ def _clean_email(e):
 
 
 def _map_payload(raw: dict, field_map: dict | None, program_map: dict | None, default_program: str | None) -> dict:
-    """Translate a raw form payload into a CMLead field dict."""
-    resolved: dict[str, str] = {}
+    """Translate a raw form payload into a CMLead field dict.
+
+    Multiple form fields can map to the same target.  For 'notes' they are
+    concatenated as "field_name: value" lines so no data is lost.
+    """
+    # Build normalised field_map lookup: lower(form_key) → target_lead_field
+    fm_lower: dict[str, str] = {fk.lower(): fv for fk, fv in (field_map or {}).items()}
 
     def _target(key: str) -> str | None:
         k = key.lower().strip()
-        if field_map and k in {fk.lower(): fv for fk, fv in field_map.items()}:
-            fm = {fk.lower(): fv for fk, fv in field_map.items()}
-            return fm[k]
+        if k in fm_lower:
+            return fm_lower[k]
         return _BUILTIN_ALIASES.get(k)
 
+    # Collect per-target values; notes accumulate as list of (form_key, value)
+    single: dict[str, str] = {}
+    notes_parts: list[tuple[str, str]] = []
+
     for key, val in raw.items():
+        if val is None:
+            continue
+        v = str(val).strip()
+        if not v:
+            continue
         target = _target(key)
-        if target and target in _LEAD_FIELDS:
-            resolved[target] = str(val).strip() if val is not None else ""
+        if not target or target not in _LEAD_FIELDS:
+            continue
+        if target == "notes":
+            notes_parts.append((key, v))
+        elif target not in single:          # first value wins for scalar fields
+            single[target] = v
 
     lead_fields: dict[str, Any] = {}
 
     # Name
-    if "name" in resolved:
-        lead_fields["name"] = resolved["name"]
+    if "name" in single:
+        lead_fields["name"] = single["name"]
 
     # Phones
-    if "phone" in resolved:
-        lead_fields["phone"] = _clean_phone(resolved["phone"])
-    if "phone2" in resolved:
-        lead_fields["phone2"] = _clean_phone(resolved["phone2"])
+    if "phone" in single:
+        lead_fields["phone"] = _clean_phone(single["phone"])
+    if "phone2" in single:
+        lead_fields["phone2"] = _clean_phone(single["phone2"])
 
     # Email
-    if "email" in resolved:
-        lead_fields["email"] = _clean_email(resolved["email"])
+    if "email" in single:
+        lead_fields["email"] = _clean_email(single["email"])
 
     # AFM
-    if "afm" in resolved:
-        afm = resolved["afm"].strip()
+    if "afm" in single:
+        afm = single["afm"]
         if afm.isdigit() and len(afm) == 8:
             afm = "0" + afm
         lead_fields["afm"] = afm or None
 
-    # Notes
-    if "notes" in resolved:
-        lead_fields["notes"] = resolved["notes"]
+    # Notes — concatenate all mapped fields with labels
+    if notes_parts:
+        if len(notes_parts) == 1:
+            lead_fields["notes"] = notes_parts[0][1]
+        else:
+            lead_fields["notes"] = "\n".join(f"{k}: {v}" for k, v in notes_parts)
 
     # Service type
-    if "service_type" in resolved:
-        lead_fields["service_type"] = resolved["service_type"]
+    if "service_type" in single:
+        lead_fields["service_type"] = single["service_type"]
 
-    # Program
+    # Program title (specific program name from the website, e.g. "Ενίσχυση Βορείου Αιγαίου")
+    if "program_title" in single:
+        lead_fields["program_title"] = single["program_title"]
+
+    # Program category — detect from explicit field, fall back to program_title, then default
     program = None
-    if "program" in resolved:
-        program = _detect_program(resolved["program"], program_map)
+    if "program" in single:
+        program = _detect_program(single["program"], program_map)
+    if not program and "program_title" in single:
+        program = _detect_program(single["program_title"], program_map)
     if not program and default_program:
         program = default_program
     lead_fields["program"] = program
@@ -246,7 +274,7 @@ async def receive_webhook_lead(token: str, request: Request, db: Session = Depen
     if existing:
         # Update only blank fields so we don't overwrite richer existing data
         changed = False
-        for f in ("name", "phone", "phone2", "email", "afm", "notes", "service_type"):
+        for f in ("name", "phone", "phone2", "email", "afm", "notes", "service_type", "program_title"):
             if fields.get(f) and not getattr(existing, f):
                 setattr(existing, f, fields[f])
                 changed = True
@@ -265,6 +293,7 @@ async def receive_webhook_lead(token: str, request: Request, db: Session = Depen
         notes=fields.get("notes"),
         service_type=fields.get("service_type"),
         program=fields.get("program"),
+        program_title=fields.get("program_title"),
         status="NEW LEAD",
         source=f"website:{source.name}",
     )

@@ -17,9 +17,10 @@ const LEAD_FIELDS = [
   { key: 'phone2', label: 'Τηλέφωνο (2ο)' },
   { key: 'email', label: 'Email' },
   { key: 'afm', label: 'ΑΦΜ' },
-  { key: 'notes', label: 'Σημειώσεις' },
+  { key: 'program_title', label: 'Τίτλος Προγράμματος' },
+  { key: 'notes', label: 'Σημειώσεις (συγκεντρώνονται)' },
   { key: 'service_type', label: 'Τύπος Υπηρεσίας' },
-  { key: 'program', label: 'Πρόγραμμα (ανίχνευση)' },
+  { key: 'program', label: 'Πρόγραμμα (κατηγορία — ανίχνευση)' },
 ]
 
 function CopyButton({ text }) {
@@ -204,6 +205,8 @@ function SourceModal({ source, onClose, onSaved }) {
             <p className="text-xs text-gray-500 mb-3">
               Ορίστε ποιο πεδίο της φόρμας αντιστοιχεί σε κάθε πεδίο Lead.
               Τα συνηθισμένα ονόματα (name, phone, email, afm, message κ.ά.) αναγνωρίζονται αυτόματα.
+              <br />
+              <strong>Σημείωση:</strong> Πολλά πεδία μπορούν να αντιστοιχιστούν στις «Σημειώσεις» — θα συγκεντρωθούν αυτόματα με τη μορφή «πεδίο: τιμή».
             </p>
             <FieldMapEditor
               fieldMap={form.field_map}
