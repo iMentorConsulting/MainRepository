@@ -671,7 +671,26 @@ export default function ProgramsPage() {
   const [newEspaCount, setNewEspaCount] = useState(0)
   const [newDypaCount, setNewDypaCount] = useState(0)
   const [newAnaptyxiakosCount, setNewAnaptyxiakosCount] = useState(0)
+  const [rematchingAll, setRematchingAll] = useState(false)
   const isAdmin = session?.user?.role === 'ADMIN'
+
+  async function rematchAllPrograms() {
+    if (!confirm('Επανα-ταίριασμα ΟΛΩΝ των ενεργών προγραμμάτων με ΟΛΕΣ τις επιχειρήσεις; Μπορεί να πάρει λίγο χρόνο.')) return
+    setRematchingAll(true)
+    try {
+      const res = await fetch('/api/programs/rematch-all', { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) {
+        alert(data.error || 'Σφάλμα ταιριάσματος')
+        return
+      }
+      alert(`Ολοκληρώθηκε: ${data.programsProcessed} προγράμματα, ${data.totalNewMatches} νέα matches.`)
+    } catch {
+      alert('Σφάλμα δικτύου')
+    } finally {
+      setRematchingAll(false)
+    }
+  }
 
   useEffect(() => {
     fetch('/api/programs')
@@ -724,9 +743,15 @@ export default function ProgramsPage() {
           <p className="text-gray-500 mt-1">{programs.filter(p => !p.archived).length} ενεργά{archivedCount > 0 ? ` · ${archivedCount} αρχειοθετημένα` : ''}</p>
         </div>
         {isAdmin && tab === 'programs' && (
-          <Link href="/programs/new">
-            <Button><Plus size={16} className="mr-2" />Νέο Πρόγραμμα</Button>
-          </Link>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={rematchAllPrograms} disabled={rematchingAll} className="gap-1.5">
+              <RefreshCw size={14} className={rematchingAll ? 'animate-spin' : ''} />
+              {rematchingAll ? 'Ταίριασμα…' : 'Rematch Όλα'}
+            </Button>
+            <Link href="/programs/new">
+              <Button><Plus size={16} className="mr-2" />Νέο Πρόγραμμα</Button>
+            </Link>
+          </div>
         )}
       </div>
 

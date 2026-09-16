@@ -6,6 +6,13 @@ import { isInactiveBusiness } from './business-filters'
 import { normalizeLegalForm } from './legal-forms'
 import { getOrCreateMatchActionToken } from './match-action-token'
 import { buildProgramInfoHtml } from './program-info-html'
+import { mapWithConcurrency } from './concurrency'
+
+// Each business costs a couple of sequential DB round-trips in upsertMatch,
+// so matching them one-at-a-time against a program is dominated by network
+// latency rather than DB load — a bounded amount of parallelism speeds this
+// up substantially, same reasoning as the GEMI batch matcher.
+const BUSINESS_MATCH_CONCURRENCY = 20
 
 interface BusinessWithActivities {
   id: string
@@ -324,15 +331,21 @@ export async function runMatchingForProgram(programId: string): Promise<number> 
     include: { activities: true },
   })
 
+  const candidates = businesses.filter(
+    b => !isInactiveBusiness(b) && !businessAlreadyReceivedProgram(b.iMentorServices, program.title)
+  )
+
+  const results = await mapWithConcurrency(candidates, BUSINESS_MATCH_CONCURRENCY, async business => {
+    const { score, reasons } = matchesBusiness(business, program)
+    const isNew = await upsertMatch(programId, business.id, score, reasons)
+    return { business, qualifies: score >= 40, isNew }
+  })
+
   let matchCount = 0
   const qualifyingBusinessIds: string[] = []
 
-  for (const business of businesses) {
-    if (isInactiveBusiness(business)) continue
-    if (businessAlreadyReceivedProgram(business.iMentorServices, program.title)) continue
-    const { score, reasons } = matchesBusiness(business, program)
-    if (score >= 40) qualifyingBusinessIds.push(business.id)
-    const isNew = await upsertMatch(programId, business.id, score, reasons)
+  for (const { business, qualifies, isNew } of results) {
+    if (qualifies) qualifyingBusinessIds.push(business.id)
     if (isNew) {
       matchCount++
       if (!business.accountantId) {
