@@ -474,7 +474,17 @@ export function businessAlreadyReceivedProgram(iMentorServices: string[], progra
   })
 }
 
-export async function runMatchingForBusiness(businessId: string): Promise<number> {
+// One row per still-open, not-already-received program the business was
+// scored against — lets callers (e.g. the Ermis multi-program session flow)
+// see the full picture, not just which ones ended up persisted as matches.
+export interface BusinessProgramMatchResult {
+  program: Awaited<ReturnType<typeof prisma.program.findMany>>[number]
+  score: number
+  reasons: string[]
+  eligible: boolean
+}
+
+export async function runMatchingForBusiness(businessId: string): Promise<{ matchCount: number; results: BusinessProgramMatchResult[] }> {
   const business = await prisma.business.findUnique({
     where: { id: businessId },
     include: { activities: true }
@@ -483,12 +493,13 @@ export async function runMatchingForBusiness(businessId: string): Promise<number
 
   if (isInactiveBusiness(business)) {
     await prisma.programMatch.deleteMany({ where: { businessId, status: MatchStatus.POTENTIAL, notified: false } })
-    return 0
+    return { matchCount: 0, results: [] }
   }
 
   const programs = await prisma.program.findMany({ where: { active: true } })
 
   let matchCount = 0
+  const results: BusinessProgramMatchResult[] = []
 
   for (const program of programs) {
     // Closed programs (inactive, archived, or outside date window) must not match.
@@ -521,9 +532,10 @@ export async function runMatchingForBusiness(businessId: string): Promise<number
         where: { programId: program.id, businessId, status: MatchStatus.POTENTIAL, notified: false }
       })
     }
+    results.push({ program, score, reasons, eligible: score >= 40 })
   }
 
-  return matchCount
+  return { matchCount, results }
 }
 
 // Called after a bulk import — sends ONE email per program (not per business),
