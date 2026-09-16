@@ -131,6 +131,7 @@ function SourceModal({ source, onClose, onSaved }) {
   const [form, setForm] = useState({
     name: source?.name || '',
     default_program: source?.default_program || '',
+    default_program_title: source?.default_program_title || '',
     field_map: source?.field_map || {},
     program_map: source?.program_map || {},
     enabled: source?.enabled ?? true,
@@ -187,7 +188,17 @@ function SourceModal({ source, onClose, onSaved }) {
               </select>
               <p className="text-xs text-gray-400 mt-1">Χρησιμοποιείται αν η φόρμα δεν αποστέλλει πεδίο προγράμματος</p>
             </div>
-            <div className="flex items-center gap-2 pt-6">
+            <div className="col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Προεπιλεγμένος Τίτλος Προγράμματος</label>
+              <input
+                className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500"
+                placeholder="π.χ. Πρόγραμμα επιχορήγησης επιχειρήσεων για την πρόσληψη 5.000 ανέργων…"
+                value={form.default_program_title}
+                onChange={e => setForm(f => ({ ...f, default_program_title: e.target.value }))}
+              />
+              <p className="text-xs text-gray-400 mt-1">Εφαρμόζεται αν η φόρμα δεν αποστέλλει τίτλο προγράμματος — χρήσιμο για φόρμες αφιερωμένες σε ένα συγκεκριμένο πρόγραμμα</p>
+            </div>
+            <div className="flex items-center gap-2 pt-2">
               <input
                 type="checkbox"
                 id="enabled"

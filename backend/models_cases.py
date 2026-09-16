@@ -580,6 +580,8 @@ class CMWebhookSource(Base):
 
     # Default program when none is detected from the payload
     default_program = Column(String(100), nullable=True)
+    # Default program title (specific program name) applied when payload has none
+    default_program_title = Column(String(300), nullable=True)
 
     # JSON map: incoming_field_name → lead field
     # Recognised lead fields: name, phone, phone2, email, afm, notes, service_type

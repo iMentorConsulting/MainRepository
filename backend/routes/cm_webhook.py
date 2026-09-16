@@ -117,7 +117,7 @@ def _clean_email(e):
     return s or None
 
 
-def _map_payload(raw: dict, field_map: dict | None, program_map: dict | None, default_program: str | None) -> dict:
+def _map_payload(raw: dict, field_map: dict | None, program_map: dict | None, default_program: str | None, default_program_title: str | None = None) -> dict:
     """Translate a raw form payload into a CMLead field dict.
 
     Multiple form fields can map to the same target.  For 'notes' they are
@@ -188,12 +188,16 @@ def _map_payload(raw: dict, field_map: dict | None, program_map: dict | None, de
     if "program_title" in single:
         lead_fields["program_title"] = single["program_title"]
 
+    # program_title — fall back to source default when payload provides none
+    if "program_title" not in lead_fields and default_program_title:
+        lead_fields["program_title"] = default_program_title
+
     # Program category — detect from explicit field, fall back to program_title, then default
     program = None
     if "program" in single:
         program = _detect_program(single["program"], program_map)
-    if not program and "program_title" in single:
-        program = _detect_program(single["program_title"], program_map)
+    if not program and "program_title" in lead_fields:
+        program = _detect_program(lead_fields["program_title"], program_map)
     if not program and default_program:
         program = default_program
     lead_fields["program"] = program
@@ -263,7 +267,7 @@ async def receive_webhook_lead(token: str, request: Request, db: Session = Depen
     if not isinstance(raw, dict):
         raise HTTPException(status_code=400, detail="Expected a JSON object or form fields")
 
-    fields = _map_payload(raw, source.field_map, source.program_map, source.default_program)
+    fields = _map_payload(raw, source.field_map, source.program_map, source.default_program, source.default_program_title)
 
     # Require at least a name or a phone
     if not fields.get("name") and not fields.get("phone"):
@@ -318,6 +322,7 @@ def _source_dict(s: CMWebhookSource) -> dict:
         "name": s.name,
         "token": s.token,
         "default_program": s.default_program,
+        "default_program_title": s.default_program_title,
         "field_map": s.field_map or {},
         "program_map": s.program_map or {},
         "enabled": s.enabled,
@@ -330,6 +335,7 @@ def _source_dict(s: CMWebhookSource) -> dict:
 class WebhookSourceCreate(BaseModel):
     name: str
     default_program: Optional[str] = None
+    default_program_title: Optional[str] = None
     field_map: Optional[Dict[str, str]] = None
     program_map: Optional[Dict[str, str]] = None
     enabled: bool = True
@@ -339,6 +345,7 @@ class WebhookSourceCreate(BaseModel):
 class WebhookSourceUpdate(BaseModel):
     name: Optional[str] = None
     default_program: Optional[str] = None
+    default_program_title: Optional[str] = None
     field_map: Optional[Dict[str, str]] = None
     program_map: Optional[Dict[str, str]] = None
     enabled: Optional[bool] = None
@@ -365,6 +372,7 @@ def create_webhook_source(
         name=payload.name,
         token=token,
         default_program=payload.default_program,
+        default_program_title=payload.default_program_title,
         field_map=payload.field_map,
         program_map=payload.program_map,
         enabled=payload.enabled,

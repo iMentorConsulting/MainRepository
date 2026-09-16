@@ -998,6 +998,12 @@ try:
             )
         """))
         _conn.commit()
+    # Add default_program_title column if it doesn't exist yet
+    try:
+        _conn.execute(_text("ALTER TABLE cm_webhook_sources ADD COLUMN IF NOT EXISTS default_program_title VARCHAR(300)"))
+        _conn.commit()
+    except Exception:
+        pass
 except Exception as _e:
     print(f"[migration] webhook_sources table failed: {_e}")
 
