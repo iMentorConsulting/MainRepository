@@ -300,9 +300,10 @@ def lead_to_dict(l: CMLead, include_comments: bool = False, last_comment: dict =
     # Sanitize program_title: if it's just a short alias for the program category
     # (e.g. "ΤΑΜΕΙΟ ΜΙΚΡΟΠΙΣΤΩΣΕΩΝ" → "ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ"), null it so the UI falls
     # back to the canonical program field instead of showing the alias.
+    # Long titles (≥ 40 chars) are genuine program names and must never be nulled.
     from routes.cm_leads_sync import _resolve_program as _rp
     _raw_pt = getattr(l, "program_title", None)
-    if _raw_pt:
+    if _raw_pt and len(_raw_pt) < 40:
         _resolved = _rp(_raw_pt)
         if _resolved and _resolved != _raw_pt:
             _raw_pt = None
