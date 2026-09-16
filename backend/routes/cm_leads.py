@@ -2030,3 +2030,25 @@ def send_lead_to_finance(
         raise HTTPException(status_code=502, detail=f"Finance API unreachable: {exc}")
 
     return {"ok": True, "external_id": external_id, "finance_response": resp.json() if resp.content else {}}
+
+
+@router.delete("/cleanup/auto-created-siblings")
+def delete_auto_created_sibling_leads(
+    dry_run: bool = True,
+    db: Session = Depends(get_db),
+    current_user: CMUser = Depends(get_current_user),
+):
+    """One-time cleanup: delete leads auto-created by the multi-program ΕΡΜΗΣ bug."""
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Admin only")
+    leads = (
+        db.query(CMLead)
+        .filter(CMLead.notes.like("%Δημιουργήθηκε αυτόματα από multi-program ΕΡΜΗΣ%"))
+        .all()
+    )
+    found = [{"id": l.id, "afm": l.afm, "name": l.name, "program": l.program, "notes": (l.notes or "")[:120]} for l in leads]
+    if not dry_run:
+        for l in leads:
+            db.delete(l)
+        db.commit()
+    return {"dry_run": dry_run, "count": len(found), "leads": found}
