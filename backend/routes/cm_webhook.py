@@ -439,6 +439,16 @@ async def receive_webhook_lead(token: str, request: Request, db: Session = Depen
     db.refresh(lead)
     log.info("[webhook] created lead %d from source '%s'", lead.id, source.name)
     _write_log(True, lead.id, None)
+
+    # Auto-trigger ΕΡΜΗΣ pre-screening (non-blocking background thread).
+    # send_link=False: the message fires later from ermis.business_ready once
+    # LOGISTIS has determined all eligible programs for this client.
+    try:
+        from routes.cm_leads_ermis import maybe_autostart_ermis
+        maybe_autostart_ermis(lead, actor_name=f"webhook:{source.name}")
+    except Exception as _ermis_exc:
+        log.warning("[webhook] ΕΡΜΗΣ auto-start failed for lead %d: %s", lead.id, _ermis_exc)
+
     return {"ok": True, "created": True, "lead_id": lead.id}
 
 

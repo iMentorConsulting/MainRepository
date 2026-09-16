@@ -157,6 +157,286 @@ def _build_ermis_body(l: CMLead) -> dict:
     }
 
 
+def maybe_autostart_ermis(lead: CMLead, actor_name: str = "webhook") -> None:
+    """Auto-queue ΕΡΜΗΣ pre-screening for a freshly created webhook lead.
+
+    send_link is False — no message is sent immediately.  The combined
+    multi-program message fires from _on_business_ready() once LOGISTIS
+    replies with all eligible programs.  If LOGISTIS never sends matchedPrograms
+    with chatUrls (old format), the single-program message is sent there too.
+    """
+    if lead.status in ("CANCEL", "DEAL"):
+        return
+    if not (lead.phone or lead.email):
+        return
+    if lead.ermis_status in ("starting", "in_progress", "eligible", "ineligible"):
+        return
+    if not _shared_secret():
+        log.warning("ΕΡΜΗΣ auto-start: IMENTOR_PORTAL_API_KEY not configured — skipping lead %s", lead.id)
+        return
+    log.info("ΕΡΜΗΣ auto-start queued for webhook lead %s (actor=%s)", lead.id, actor_name)
+    threading.Thread(
+        target=_process_ermis_session,
+        args=(lead.id, False, "both", actor_name),
+        daemon=True,
+    ).start()
+
+
+def _build_ermis_email_html(name: str, prog_lines_html: str, consultant_html: str) -> str:
+    return f"""<html><body style="margin:0;background:#f3f4f6;padding:24px;font-family:Arial,Helvetica,sans-serif;color:#1f2937;">
+<div style="max-width:600px;margin:0 auto;">
+  <div style="background:#1e3a5f;padding:22px 24px;border-radius:10px 10px 0 0;text-align:center;">
+    <img src="https://i-mentor.gr/wp-content/uploads/2026/06/logo-white-transparent.png" alt="i-Mentor Consulting" style="max-height:56px;max-width:220px;width:auto;display:block;margin:0 auto;" />
+  </div>
+  <div style="background:#ffffff;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 10px 10px;padding:26px 24px;">
+    <p style="font-size:16px;margin:0 0 14px;">Αγαπητέ/ή <b>{name}</b>,</p>
+    {prog_lines_html}
+    {consultant_html}
+    <hr style="border:none;border-top:1px solid #eee;margin:18px 0;">
+    <p style="font-size:12px;color:#9ca3af;margin:0;">
+      i-Mentor Consulting ·
+      <a href="https://www.i-mentor.gr" style="color:#6b7280;text-decoration:none;">www.i-mentor.gr</a> ·
+      <a href="mailto:info@i-mentor.gr" style="color:#6b7280;text-decoration:none;">info@i-mentor.gr</a> ·
+      2810 363007<br>
+      Λάβατε αυτό το μήνυμα επειδή συμπληρώσατε φόρμα ενδιαφέροντος.
+    </p>
+  </div>
+</div></body></html>"""
+
+
+def _send_combined_ermis_message(
+    db,
+    primary_lead: CMLead,
+    all_prog_info: list,
+    actor_name: str = "ermis.business_ready",
+) -> None:
+    """Send ONE combined Viber + Email message with links for all eligible programs.
+
+    all_prog_info: list of {lead, chat_url, title, description, is_primary}
+    """
+    name = primary_lead.name or "συνεργάτη"
+    _art = _consultant_article(primary_lead.assigned_name).capitalize()
+    _cg  = _consultant_display(primary_lead.assigned_name)
+    consultant_line = (f"📞 {_art} {_cg} από την i-Mentor θα επικοινωνήσει σύντομα μαζί σας.\n"
+                       if primary_lead.assigned_name else "")
+    consultant_html = (
+        f'<p style="margin:0 0 10px;color:#374151;">📞 {_art} <b>{_cg}</b> '
+        f'από την i-Mentor θα επικοινωνήσει σύντομα μαζί σας.</p>'
+        if primary_lead.assigned_name else ""
+    )
+
+    primary_info = next((p for p in all_prog_info if p.get("is_primary")), all_prog_info[0] if all_prog_info else None)
+    primary_label = f"«{primary_info['title']}»" if primary_info and primary_info.get("title") else "το πρόγραμμα που σας ενδιαφέρει"
+
+    secondary_progs = [p for p in all_prog_info if not p.get("is_primary")]
+
+    if not secondary_progs:
+        # Single-program fallback
+        pi = all_prog_info[0] if all_prog_info else None
+        if not pi:
+            return
+        chat_url = pi.get("chat_url") or primary_lead.ermis_chat_url
+        if not chat_url:
+            return
+        viber_msg = (
+            f"Αγαπητέ/ή {name},\n\n"
+            f"📩 Λάβαμε το ενδιαφέρον σας για το πρόγραμμα {primary_label}.\n"
+            "━━━━━━━━━━━━━━━\n"
+            "🤖 Μιλήστε τώρα με τον «ΕΡΜΗ», τον ψηφιακό μας σύμβουλο, που κάνει\n"
+            "✅ ΔΩΡΕΑΝ έλεγχο επιλεξιμότητας\n"
+            "⏱️ σε δευτερόλεπτα (~2 λεπτά)\n"
+            "━━━━━━━━━━━━━━━\n"
+            f"👉 Ξεκινήστε εδώ: {chat_url}\n\n"
+            f"{consultant_line}"
+            "i-Mentor Consulting"
+        )
+        email_subject = f"i-Mentor Consulting — Προαξιολόγηση για {primary_label} με τον ΕΡΜΗ"
+        prog_lines_html = (
+            f'<p style="margin:0 0 16px;font-size:15px;">📩 Λάβαμε το ενδιαφέρον σας για το πρόγραμμα '
+            f'<b style="color:#1e3a5f;">{primary_label}</b>.</p>'
+            '<hr style="border:none;border-top:2px solid #eef2f7;margin:18px 0;">'
+            '<div style="background:#f0f7ff;border-radius:8px;padding:16px 18px;">'
+            '<p style="margin:0 0 8px;font-size:16px;">🤖 <b>Μιλήστε τώρα με τον «ΕΡΜΗ»</b></p>'
+            '<p style="margin:0;color:#374151;">τον ψηφιακό μας σύμβουλο, που κάνει '
+            '<b>✅ ΔΩΡΕΑΝ έλεγχο επιλεξιμότητας</b> ⏱️ σε δευτερόλεπτα.</p></div>'
+            f'<div style="text-align:center;margin:26px 0;">'
+            f'<a href="{chat_url}" style="background:#2563eb;color:#ffffff;text-decoration:none;'
+            f'padding:14px 30px;border-radius:8px;font-weight:bold;font-size:15px;display:inline-block;">'
+            f'▶️ Ξεκινήστε την προαξιολόγηση</a></div>'
+        )
+        email_html = _build_ermis_email_html(name, prog_lines_html, consultant_html)
+    else:
+        # Multi-program combined message
+        prog_lines_viber = ""
+        for p in all_prog_info:
+            title   = p.get("title") or "Πρόγραμμα"
+            c_url   = p.get("chat_url") or ""
+            desc    = p.get("description") or ""
+            primary_marker = " ⭐" if p.get("is_primary") else ""
+            desc_line = f"\n   📝 {desc}" if desc else ""
+            prog_lines_viber += f"📌 «{title}»{primary_marker}{desc_line}\n   👉 {c_url}\n\n"
+
+        viber_msg = (
+            f"Αγαπητέ/ή {name},\n\n"
+            f"📩 Λάβαμε το ενδιαφέρον σας για το πρόγραμμα {primary_label}.\n\n"
+            f"🔍 Ελέγξαμε την επιχείρησή σας και βρήκαμε {len(all_prog_info)} "
+            f"προγράμματα για τα οποία πιθανώς να είστε επιλέξιμοι!\n"
+            "━━━━━━━━━━━━━━━\n"
+            "🤖 Μιλήστε με τον «ΕΡΜΗ» για ΔΩΡΕΑΝ έλεγχο (~2 λεπτά) ανά πρόγραμμα:\n\n"
+            f"{prog_lines_viber}"
+            "━━━━━━━━━━━━━━━\n"
+            f"{consultant_line}"
+            "i-Mentor Consulting"
+        )
+        email_subject = f"i-Mentor Consulting — {len(all_prog_info)} Προγράμματα που σας Αφορούν"
+
+        prog_cards_html = ""
+        for p in all_prog_info:
+            title  = p.get("title") or "Πρόγραμμα"
+            c_url  = p.get("chat_url") or "#"
+            desc   = p.get("description") or ""
+            star   = "⭐ " if p.get("is_primary") else ""
+            desc_p = f'<p style="margin:6px 0 0;color:#6b7280;font-size:13px;">{desc}</p>' if desc else ""
+            prog_cards_html += (
+                f'<div style="border:1px solid #e5e7eb;border-radius:8px;padding:14px 16px;margin-bottom:12px;">'
+                f'<p style="margin:0 0 4px;font-weight:bold;color:#1e3a5f;">{star}«{title}»</p>'
+                f'{desc_p}'
+                f'<div style="margin-top:10px;">'
+                f'<a href="{c_url}" style="background:#2563eb;color:#fff;text-decoration:none;'
+                f'padding:8px 18px;border-radius:6px;font-size:13px;font-weight:bold;">'
+                f'▶️ Συνομιλία ΕΡΜΗ</a></div></div>'
+            )
+
+        prog_lines_html = (
+            f'<p style="margin:0 0 10px;font-size:15px;">📩 Λάβαμε το ενδιαφέρον σας για το '
+            f'πρόγραμμα <b style="color:#1e3a5f;">{primary_label}</b>.</p>'
+            f'<p style="margin:0 0 14px;font-size:15px;">🔍 <b>Ελέγξαμε την επιχείρησή σας</b> και βρήκαμε '
+            f'<b>{len(all_prog_info)} προγράμματα</b> για τα οποία πιθανώς να είστε επιλέξιμοι:</p>'
+            f'<hr style="border:none;border-top:2px solid #eef2f7;margin:14px 0;">'
+            f'<p style="margin:0 0 10px;font-size:15px;">🤖 <b>Μιλήστε με τον «ΕΡΜΗ»</b> για '
+            f'<b>ΔΩΡΕΑΝ έλεγχο (~2 λεπτά)</b> ανά πρόγραμμα:</p>'
+            f'{prog_cards_html}'
+        )
+        email_html = _build_ermis_email_html(name, prog_lines_html, consultant_html)
+
+    ch = "both"
+    if ch in ("viber", "both") and primary_lead.phone:
+        ok, _ = _send_viber(primary_lead.phone, viber_msg, primary_lead.name or "", actor_name, primary_lead.service_type or "")
+        db.add(CMLeadNotificationLog(
+            lead_id=primary_lead.id, notification_type="ermis_link",
+            recipient_name=primary_lead.name or "", recipient_contact=primary_lead.phone,
+            subject=email_subject if secondary_progs else f"ΕΡΜΗΣ link — {primary_label}",
+            content=viber_msg, status="sent" if ok else "failed", sent_by=actor_name,
+        ))
+    if ch in ("email", "both") and primary_lead.email:
+        ok, _ = _send_email(primary_lead.email, email_subject, viber_msg, html_override=email_html)
+        db.add(CMLeadNotificationLog(
+            lead_id=primary_lead.id, notification_type="ermis_link",
+            recipient_name=primary_lead.name or "", recipient_contact=primary_lead.email,
+            subject=email_subject, content=email_subject,
+            status="sent" if ok else "failed", sent_by=actor_name,
+        ))
+    db.commit()
+    log.info("ΕΡΜΗΣ combined message sent for lead %s (%d programs)", primary_lead.id, len(all_prog_info))
+
+
+def _on_business_ready(db, primary_lead: CMLead, payload, afm: str) -> None:
+    """Handle ermis.business_ready: create sibling leads for additional eligible
+    programs and send ONE combined multi-program message to the client.
+
+    Extended matchedPrograms format expected from LOGISTIS:
+      [{title, program, chatUrl, token, isEligible, isPrimary, description}, ...]
+    """
+    from routes.cm_leads import program_category_from_title as _prog_cat_from_title
+
+    matched = payload.matchedPrograms or []
+    with_links = [
+        p for p in matched
+        if isinstance(p, dict) and p.get("chatUrl") and p.get("isEligible", True)
+    ]
+
+    if not with_links:
+        # Old-format matchedPrograms (no chatUrls) — send single-program message
+        # only if we already have a chatUrl from the session-creation response.
+        if primary_lead.ermis_chat_url:
+            _send_combined_ermis_message(
+                db, primary_lead,
+                [{"lead": primary_lead, "chat_url": primary_lead.ermis_chat_url,
+                  "title": primary_lead.program_title or primary_lead.program or "Πρόγραμμα",
+                  "description": None, "is_primary": True}],
+                actor_name="ermis.business_ready",
+            )
+        return
+
+    all_prog_info = []
+    for p in with_links:
+        prog_title = (p.get("title") or "").strip() or None
+        prog_cat   = p.get("program") or (
+            _prog_cat_from_title(prog_title) if prog_title else None
+        )
+        chat_url   = p["chatUrl"]
+        is_primary = bool(p.get("isPrimary"))
+        description = (p.get("description") or "").strip() or None
+
+        if is_primary:
+            if not primary_lead.ermis_chat_url:
+                primary_lead.ermis_chat_url = chat_url
+            if p.get("token") and not primary_lead.ermis_token:
+                primary_lead.ermis_token = p["token"]
+            target_lead = primary_lead
+        else:
+            target_lead = None
+            if afm and prog_cat:
+                target_lead = (
+                    db.query(CMLead)
+                    .filter(CMLead.afm == afm, CMLead.program == prog_cat, CMLead.id != primary_lead.id)
+                    .order_by(CMLead.id.desc())
+                    .first()
+                )
+            if not target_lead:
+                target_lead = CMLead(
+                    name=primary_lead.name,
+                    phone=primary_lead.phone,
+                    phone2=primary_lead.phone2,
+                    email=primary_lead.email,
+                    afm=afm or primary_lead.afm,
+                    program=prog_cat,
+                    program_title=prog_title,
+                    status="NEW LEAD",
+                    source=primary_lead.source or "ΕΡΜΗΣ multi-program",
+                    assigned_agent_id=primary_lead.assigned_agent_id,
+                    assigned_name=primary_lead.assigned_name,
+                    notes=(
+                        f"Δημιουργήθηκε αυτόματα από multi-program ΕΡΜΗΣ "
+                        f"(πρωτεύον lead #{primary_lead.id})"
+                    ),
+                )
+                db.add(target_lead)
+                db.flush()
+                log.info(
+                    "ΕΡΜΗΣ multi-program: created sibling lead %s for '%s' (primary lead %s)",
+                    target_lead.id, prog_title or prog_cat, primary_lead.id,
+                )
+            if not target_lead.ermis_chat_url:
+                target_lead.ermis_chat_url = chat_url
+                target_lead.ermis_token    = p.get("token") or None
+                target_lead.ermis_status   = "in_progress"
+                target_lead.ermis_started_at = datetime.utcnow()
+
+        all_prog_info.append({
+            "lead":        target_lead,
+            "chat_url":    chat_url,
+            "title":       prog_title or prog_cat or "Πρόγραμμα",
+            "description": description,
+            "is_primary":  is_primary,
+        })
+
+    db.commit()
+
+    if primary_lead.phone or primary_lead.email:
+        _send_combined_ermis_message(db, primary_lead, all_prog_info, actor_name="ermis.business_ready")
+
+
 def _process_ermis_session(lead_id: int, send_link: bool, channel: str, actor_name: str):
     """Runs in a background thread (own DB session): call LOGISTIS, store the
     token/chatUrl, and send the client the link. Kept off the request path so a
@@ -888,8 +1168,13 @@ def ermis_webhook(
                 )
 
     elif payload.event in ("ermis.progress", "ermis.business_ready"):
-        if not lead.ermis_status:
+        if not lead.ermis_status or lead.ermis_status == "starting":
             lead.ermis_status = "in_progress"
+
+        if payload.event == "ermis.business_ready":
+            # Create sibling leads for additionally eligible programs and send ONE
+            # combined multi-program message.  db.commit() is called inside.
+            _on_business_ready(db, lead, payload, afm)
 
     db.commit()
     _record_ermis_hit(
