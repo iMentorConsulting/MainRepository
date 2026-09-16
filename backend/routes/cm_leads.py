@@ -1940,3 +1940,90 @@ def merge_duplicate_gemi_leads(
         db.commit()
     return {"merged": merged if not dry_run else sum(len(r["merged"]) for r in report),
             "groups_affected": len(report), "dry_run": dry_run, "report": report[:200]}
+
+
+# ---------------------------------------------------------------------------
+# Lead-to-Finance intake
+# ---------------------------------------------------------------------------
+
+class FinanceIntakePayload(BaseModel):
+    invoice_type: str                   # ΤΙΜΟΛΟΓΙΟ | ΑΠΟΔΕΙΞΗ | ΑΝΕΥ
+    amount_collected: float
+    vat_amount: float
+    organization: str                   # ΑΠΟΣΤΟΛΑΚΗΣ | I-MENTOR
+    service_type: str
+    targeting_category: str             # ΠΩΛΗΣΗ ΑΙΤΗΣΗΣ | ΠΩΛΗΣΗ ΥΛΟΠΟΙΗΣΗΣ
+    work_status: str
+    description: str
+    sale_date: Optional[str] = None     # ISO date, defaults to today
+    address: Optional[str] = None       # required for ΑΝΕΥ
+    city: Optional[str] = None
+    amount_application: Optional[float] = None
+    amount_implementation: Optional[float] = None
+
+
+@router.post("/{lead_id}/send-to-finance")
+def send_lead_to_finance(
+    lead_id: int,
+    body: FinanceIntakePayload,
+    db: Session = Depends(get_db),
+    current_user: CMUser = Depends(get_current_user),
+):
+    import os as _os
+    import requests as _req
+
+    lead = db.query(CMLead).filter(CMLead.id == lead_id).first()
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead not found")
+
+    api_key = _os.getenv("LEAD_INTAKE_API_KEY", "")
+    if not api_key:
+        raise HTTPException(status_code=503, detail="LEAD_INTAKE_API_KEY not configured")
+
+    sale_date = body.sale_date or date.today().isoformat()
+    external_id = f"cm-{lead_id}-{sale_date.replace('-', '')}-{body.invoice_type}"
+
+    payload = {
+        "external_id": external_id,
+        "source": "case_management",
+        "customer_name": lead.name or "",
+        "vat_number": lead.afm or "",
+        "phone": lead.phone or "",
+        "email": lead.email or "",
+        "sales_agent": lead.assigned_name or current_user.username,
+        "sale_date": sale_date,
+        "source_referral": lead.source or "",
+        "invoice_type": body.invoice_type,
+        "amount_collected": body.amount_collected,
+        "vat_amount": body.vat_amount,
+        "organization": body.organization,
+        "service_type": body.service_type,
+        "targeting_category": body.targeting_category,
+        "work_status": body.work_status,
+        "description": body.description,
+    }
+    if body.address:
+        payload["address"] = body.address
+    if body.city:
+        payload["city"] = body.city
+    if body.amount_application is not None:
+        payload["amount_application"] = body.amount_application
+    if body.amount_implementation is not None:
+        payload["amount_implementation"] = body.amount_implementation
+
+    finance_url = _os.getenv("FINANCE_APP_URL", "https://finance.i-mentor.gr")
+    try:
+        resp = _req.post(
+            f"{finance_url}/api/lead-intake",
+            json=payload,
+            headers={"x-api-key": api_key},
+            timeout=15,
+        )
+        resp.raise_for_status()
+    except _req.exceptions.HTTPError as exc:
+        detail = exc.response.text[:400] if exc.response is not None else str(exc)
+        raise HTTPException(status_code=502, detail=f"Finance API error: {detail}")
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Finance API unreachable: {exc}")
+
+    return {"ok": True, "external_id": external_id, "finance_response": resp.json() if resp.content else {}}

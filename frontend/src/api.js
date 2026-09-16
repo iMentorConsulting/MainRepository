@@ -301,4 +301,6 @@ export const runLeadSync = () => api.post('/api/cm/leads-sync/run', null, { time
 export const runLeadSyncProgram = (program) => api.post(`/api/cm/leads-sync/run/${encodeURIComponent(program)}`, null, { timeout: 300000 }).then(r => r.data)
 export const refreshLeadSyncProgram = (program) => api.post(`/api/cm/leads-sync/refresh/${encodeURIComponent(program)}`, null, { timeout: 300000 }).then(r => r.data)
 
+export const sendLeadToFinance = (leadId, payload) => api.post(`/api/cm/leads/${leadId}/send-to-finance`, payload).then(r => r.data)
+
 export default api

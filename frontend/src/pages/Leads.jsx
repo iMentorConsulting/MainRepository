@@ -4,6 +4,7 @@ import {
   getLeadComments, addLeadComment, editLeadComment, deleteLeadComment,
   sendLeadMessage, bulkSendLeadMessage, bulkOnboardLeads, convertLeadToCase, startLeadErmis, resendLeadErmisLink, bulkStartErmis, bulkResendErmis, getLeadDuplicates, mergeLeads,
   retryErmisErrors, backfillErmisTranscripts, fetchLeadErmisTranscript, getAuth,
+  sendLeadToFinance,
 } from '../api'
 import {
   MagnifyingGlassIcon, PlusIcon, TrashIcon, ChevronDownIcon, ChevronUpIcon, ChevronRightIcon,
@@ -367,6 +368,228 @@ const categoryFromTitle = title => {
   return null
 }
 
+// ── Finance intake modal ─────────────────────────────────────────────────────
+const SERVICE_TYPES = [
+  'ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ', 'ΔΥΠΑ', 'ΕΣΠΑ', 'ΑΝΑΚΑΙΝΙΖΩ', 'ΑΝΑΔΙΑΡΘΡΩΣΗ ΧΡΕΩΝ',
+  'ΕΞΩΔΙΚΑΣΤΙΚΟΣ', 'ΠΤΩΧΕΥΣΗ', 'ΤΕΧΝΙΚΗ ΥΠΟΣΤΗΡΙΞΗ', 'ΑΛΛΟ',
+]
+const WORK_STATUSES = [
+  'ΕΚΚΡΕΜΕΙ', 'ΣΕ ΕΞΕΛΙΞΗ', 'ΟΛΟΚΛΗΡΩΘΗΚΕ', 'ΑΚΥΡΩΘΗΚΕ',
+]
+const DESCRIPTIONS = [
+  'ΑΜΟΙΒΗ ΑΙΤΗΣΗΣ', 'ΑΜΟΙΒΗ ΥΛΟΠΟΙΗΣΗΣ', 'ΑΜΟΙΒΗ ΣΥΜΒΟΥΛΕΥΤΙΚΗΣ',
+  'ΔΟΣΗ 1η', 'ΔΟΣΗ 2η', 'ΔΟΣΗ 3η', 'ΑΛΛΟ',
+]
+
+function FinanceModal({ lead, onClose, onSuccess }) {
+  const today = new Date().toISOString().slice(0, 10)
+  const [f, setF] = useState({
+    invoice_type: 'ΤΙΜΟΛΟΓΙΟ',
+    amount_collected: '',
+    organization: 'I-MENTOR',
+    service_type: '',
+    targeting_category: 'ΠΩΛΗΣΗ ΑΙΤΗΣΗΣ',
+    work_status: 'ΕΚΚΡΕΜΕΙ',
+    description: '',
+    sale_date: today,
+    address: '',
+    city: '',
+    amount_application: '',
+    amount_implementation: '',
+  })
+  const [busy, setBusy] = useState(false)
+
+  const vatAmount = f.invoice_type === 'ΑΝΕΥ' ? 0 : (parseFloat(f.amount_collected) || 0) * 0.24
+  const set = (k, v) => setF(prev => ({ ...prev, [k]: v }))
+
+  const submit = async () => {
+    if (!f.amount_collected || isNaN(parseFloat(f.amount_collected))) {
+      toast.error('Εισάγετε ποσό'); return
+    }
+    if (!f.service_type) { toast.error('Επιλέξτε τύπο υπηρεσίας'); return }
+    if (!f.description) { toast.error('Επιλέξτε περιγραφή'); return }
+    if (f.invoice_type === 'ΑΝΕΥ' && !f.address) { toast.error('Απαιτείται διεύθυνση για ΑΝΕΥ'); return }
+    setBusy(true)
+    try {
+      const payload = {
+        invoice_type: f.invoice_type,
+        amount_collected: parseFloat(f.amount_collected),
+        vat_amount: parseFloat(vatAmount.toFixed(2)),
+        organization: f.organization,
+        service_type: f.service_type,
+        targeting_category: f.targeting_category,
+        work_status: f.work_status,
+        description: f.description,
+        sale_date: f.sale_date || today,
+      }
+      if (f.invoice_type === 'ΑΝΕΥ') { payload.address = f.address; payload.city = f.city }
+      if (f.amount_application) payload.amount_application = parseFloat(f.amount_application)
+      if (f.amount_implementation) payload.amount_implementation = parseFloat(f.amount_implementation)
+      await sendLeadToFinance(lead.id, payload)
+      toast.success('Εστάλη στα Οικονομικά!')
+      onSuccess?.()
+      onClose()
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Σφάλμα αποστολής στα Οικονομικά')
+    } finally { setBusy(false) }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        <div className="p-4 border-b font-bold flex items-center gap-2">
+          💰 Αποστολή στα Οικονομικά
+          <span className="ml-auto text-sm font-normal text-gray-500">{lead.name}</span>
+        </div>
+        <div className="p-4 space-y-3">
+          {/* Pre-filled read-only info */}
+          <div className="grid grid-cols-2 gap-2 bg-gray-50 rounded-lg p-3 text-sm">
+            <div><span className="text-gray-500">Πελάτης:</span> <b>{lead.name || '—'}</b></div>
+            <div><span className="text-gray-500">ΑΦΜ:</span> <b>{lead.afm || '—'}</b></div>
+            <div><span className="text-gray-500">Τηλ:</span> <b>{lead.phone || '—'}</b></div>
+            <div><span className="text-gray-500">Email:</span> <b>{lead.email || '—'}</b></div>
+          </div>
+
+          {/* Invoice type */}
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Τύπος παραστατικού *</label>
+            <div className="flex gap-2">
+              {['ΤΙΜΟΛΟΓΙΟ', 'ΑΠΟΔΕΙΞΗ', 'ΑΝΕΥ'].map(t => (
+                <button key={t} type="button"
+                  className={`px-3 py-1.5 rounded-lg text-sm border font-medium transition-colors ${f.invoice_type === t ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-700 hover:bg-gray-50'}`}
+                  onClick={() => set('invoice_type', t)}>
+                  {t}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Amount + VAT */}
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">Ποσό εισπραχθέν (€) *</label>
+              <input type="number" min="0" step="0.01" value={f.amount_collected}
+                onChange={e => set('amount_collected', e.target.value)}
+                className="w-full px-3 py-2 border rounded-lg text-sm" placeholder="π.χ. 500.00" />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">ΦΠΑ 24% (αυτόματο)</label>
+              <input readOnly value={f.invoice_type === 'ΑΝΕΥ' ? '0.00' : vatAmount.toFixed(2)}
+                className="w-full px-3 py-2 border rounded-lg text-sm bg-gray-50 text-gray-500" />
+            </div>
+          </div>
+
+          {/* Address — only for ΑΝΕΥ */}
+          {f.invoice_type === 'ΑΝΕΥ' && (
+            <div className="grid grid-cols-2 gap-2 border-l-4 border-amber-400 pl-3">
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Διεύθυνση *</label>
+                <input value={f.address} onChange={e => set('address', e.target.value)}
+                  className="w-full px-3 py-2 border rounded-lg text-sm" placeholder="Οδός & Αριθμός" />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Πόλη</label>
+                <input value={f.city} onChange={e => set('city', e.target.value)}
+                  className="w-full px-3 py-2 border rounded-lg text-sm" placeholder="Πόλη" />
+              </div>
+            </div>
+          )}
+
+          {/* Organization */}
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Εταιρεία *</label>
+            <div className="flex gap-2">
+              {['I-MENTOR', 'ΑΠΟΣΤΟΛΑΚΗΣ'].map(o => (
+                <button key={o} type="button"
+                  className={`px-3 py-1.5 rounded-lg text-sm border font-medium transition-colors ${f.organization === o ? 'bg-green-600 text-white border-green-600' : 'bg-white text-gray-700 hover:bg-gray-50'}`}
+                  onClick={() => set('organization', o)}>
+                  {o}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Service type */}
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Τύπος υπηρεσίας *</label>
+            <select value={f.service_type} onChange={e => set('service_type', e.target.value)}
+              className="w-full px-3 py-2 border rounded-lg text-sm">
+              <option value="">— Επιλέξτε —</option>
+              {SERVICE_TYPES.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+
+          {/* Targeting category */}
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Κατηγορία στόχευσης *</label>
+            <div className="flex gap-2">
+              {['ΠΩΛΗΣΗ ΑΙΤΗΣΗΣ', 'ΠΩΛΗΣΗ ΥΛΟΠΟΙΗΣΗΣ'].map(c => (
+                <button key={c} type="button"
+                  className={`px-3 py-1.5 rounded-lg text-sm border font-medium transition-colors ${f.targeting_category === c ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 hover:bg-gray-50'}`}
+                  onClick={() => set('targeting_category', c)}>
+                  {c}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Work status */}
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Κατάσταση εργασίας *</label>
+            <select value={f.work_status} onChange={e => set('work_status', e.target.value)}
+              className="w-full px-3 py-2 border rounded-lg text-sm">
+              {WORK_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+
+          {/* Description */}
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Περιγραφή *</label>
+            <select value={f.description} onChange={e => set('description', e.target.value)}
+              className="w-full px-3 py-2 border rounded-lg text-sm">
+              <option value="">— Επιλέξτε —</option>
+              {DESCRIPTIONS.map(d => <option key={d} value={d}>{d}</option>)}
+            </select>
+          </div>
+
+          {/* Sale date */}
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Ημερομηνία πώλησης</label>
+            <input type="date" value={f.sale_date} onChange={e => set('sale_date', e.target.value)}
+              className="w-full px-3 py-2 border rounded-lg text-sm" />
+          </div>
+
+          {/* Optional breakdown */}
+          <details className="text-sm">
+            <summary className="cursor-pointer text-gray-500 hover:text-gray-700">Προαιρετικά ποσά (αίτηση / υλοποίηση)</summary>
+            <div className="grid grid-cols-2 gap-2 mt-2">
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Ποσό αίτησης (€)</label>
+                <input type="number" min="0" step="0.01" value={f.amount_application}
+                  onChange={e => set('amount_application', e.target.value)}
+                  className="w-full px-3 py-2 border rounded-lg text-sm" placeholder="0.00" />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Ποσό υλοποίησης (€)</label>
+                <input type="number" min="0" step="0.01" value={f.amount_implementation}
+                  onChange={e => set('amount_implementation', e.target.value)}
+                  className="w-full px-3 py-2 border rounded-lg text-sm" placeholder="0.00" />
+              </div>
+            </div>
+          </details>
+        </div>
+
+        <div className="p-4 border-t flex justify-end gap-2">
+          <button onClick={onClose} className="btn-secondary text-sm" disabled={busy}>Άκυρο</button>
+          <button onClick={submit} disabled={busy} className="btn-primary text-sm flex items-center gap-1">
+            {busy ? '…' : '💰 Αποστολή στα Οικονομικά'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Inline expanded detail (no separate page) ───────────────────────────────
 function ExpandedRow({ lead, colSpan, onChanged, onConvert, onErmis, onSend, programTitles = [] }) {
   const [full, setFull] = useState(null)
@@ -376,6 +599,7 @@ function ExpandedRow({ lead, colSpan, onChanged, onConvert, onErmis, onSend, pro
   const [form, setForm] = useState({})
   const [resending, setResending] = useState(false)
   const [syncing, setSyncing] = useState(false)
+  const [showFinance, setShowFinance] = useState(false)
 
   const reload = useCallback(async () => {
     const l = await getLead(lead.id)
@@ -427,12 +651,17 @@ function ExpandedRow({ lead, colSpan, onChanged, onConvert, onErmis, onSend, pro
   }
 
   return (
+    <Fragment>
+    {showFinance && <FinanceModal lead={full || lead} onClose={() => setShowFinance(false)} onSuccess={reload} />}
     <tr className={STATUS_ROW[lead.status] || ''}>
       <td colSpan={colSpan} className="px-4 py-3 border-b">
         {/* Action bar */}
         <div className="flex flex-wrap items-center gap-2 mb-2">
           <button onClick={() => onConvert(lead)} className="flex items-center gap-1 text-sm font-semibold bg-green-100 text-green-700 hover:bg-green-200 px-3 py-1.5 rounded-lg">
             <ArrowRightCircleIcon className="w-4 h-4" />Δημιουργία Υπόθεσης
+          </button>
+          <button onClick={() => setShowFinance(true)} className="flex items-center gap-1 text-sm font-semibold bg-yellow-100 text-yellow-800 hover:bg-yellow-200 px-3 py-1.5 rounded-lg">
+            💰 Αποστολή στα Οικονομικά
           </button>
           <span className="text-sm text-gray-500">ΑΦΜ: <b className={full?.afm ? 'text-gray-700' : 'text-red-500'}>{full?.afm || '— (λείπει)'}</b></span>
           <span className="text-sm text-gray-500">Πρόγραμμα: <b className="text-gray-700">{full?.program || '—'}</b></span>
@@ -667,6 +896,7 @@ function ExpandedRow({ lead, colSpan, onChanged, onConvert, onErmis, onSend, pro
         <CommentComposer onSubmit={addC} />
       </td>
     </tr>
+    </Fragment>
   )
 }
 
