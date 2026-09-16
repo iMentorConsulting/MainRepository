@@ -609,6 +609,11 @@ def delete_case(
         db.execute(_t2("UPDATE cm_portal_assignments SET cm_case_id = NULL WHERE cm_case_id = :cid"), {"cid": c.id})
     except Exception:
         pass
+    # Detach any Lead that was linked (converted) to this case
+    try:
+        db.execute(_t2("UPDATE cm_leads SET linked_case_id = NULL WHERE linked_case_id = :cid"), {"cid": c.id})
+    except Exception:
+        pass
     db.delete(c)
     db.commit()
     return {"message": "Η υπόθεση διαγράφηκε"}
