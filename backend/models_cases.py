@@ -599,6 +599,21 @@ class CMWebhookSource(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
+class CMWebhookLog(Base):
+    """Records of the last received payloads per webhook source — for debugging field mapping."""
+    __tablename__ = "cm_webhook_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    source_id = Column(Integer, ForeignKey("cm_webhook_sources.id", ondelete="CASCADE"), nullable=False, index=True)
+    content_type = Column(String(200), nullable=True)
+    raw_payload = Column(JSON, nullable=True)    # what the form actually sent
+    mapped_fields = Column(JSON, nullable=True)  # what we derived from it
+    lead_created = Column(Boolean, default=False)
+    lead_id = Column(Integer, nullable=True)
+    skip_reason = Column(String(100), nullable=True)
+    received_at = Column(DateTime, default=datetime.utcnow)
+
+
 class CMLead(Base):
     __tablename__ = "cm_leads"
 

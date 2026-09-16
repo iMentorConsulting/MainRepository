@@ -1001,6 +1001,22 @@ try:
         # Add default_program_title column if it doesn't exist yet
         _conn.execute(_text("ALTER TABLE cm_webhook_sources ADD COLUMN IF NOT EXISTS default_program_title VARCHAR(300)"))
         _conn.commit()
+        # Submission log table for debugging field mapping
+        _conn.execute(_text("""
+            CREATE TABLE IF NOT EXISTS cm_webhook_logs (
+                id SERIAL PRIMARY KEY,
+                source_id INTEGER REFERENCES cm_webhook_sources(id) ON DELETE CASCADE,
+                content_type VARCHAR(200),
+                raw_payload JSONB,
+                mapped_fields JSONB,
+                lead_created BOOLEAN DEFAULT FALSE,
+                lead_id INTEGER,
+                skip_reason VARCHAR(100),
+                received_at TIMESTAMP DEFAULT NOW()
+            )
+        """))
+        _conn.execute(_text("CREATE INDEX IF NOT EXISTS ix_cm_webhook_logs_source_id ON cm_webhook_logs(source_id)"))
+        _conn.commit()
 except Exception as _e:
     print(f"[migration] webhook_sources table failed: {_e}")
 

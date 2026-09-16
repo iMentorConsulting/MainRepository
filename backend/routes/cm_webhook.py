@@ -26,7 +26,7 @@ from sqlalchemy.orm import Session
 
 from auth_cases import get_current_user
 from database import get_db
-from models_cases import CMWebhookSource, CMLead, CMUser
+from models_cases import CMWebhookSource, CMWebhookLog, CMLead, CMUser
 
 log = logging.getLogger(__name__)
 
@@ -383,10 +383,39 @@ async def receive_webhook_lead(token: str, request: Request, db: Session = Depen
     fields = _map_payload(raw, source.field_map, source.program_map, source.default_program, source.default_program_title)
     log.info("[webhook] source '%s' mapped fields: %s", source.name, {k: v for k, v in fields.items() if v})
 
+    def _write_log(lead_created: bool, lead_id: int | None, skip_reason: str | None):
+        try:
+            entry = CMWebhookLog(
+                source_id=source.id,
+                content_type=content_type,
+                raw_payload=raw if isinstance(raw, dict) else {"_raw": str(raw)},
+                mapped_fields={k: v for k, v in fields.items() if v},
+                lead_created=lead_created,
+                lead_id=lead_id,
+                skip_reason=skip_reason,
+            )
+            db.add(entry)
+            db.flush()
+            # Keep only the 20 most recent logs per source
+            old_ids = (
+                db.query(CMWebhookLog.id)
+                .filter(CMWebhookLog.source_id == source.id)
+                .order_by(CMWebhookLog.id.desc())
+                .offset(20)
+                .all()
+            )
+            if old_ids:
+                db.query(CMWebhookLog).filter(CMWebhookLog.id.in_([r.id for r in old_ids])).delete(synchronize_session=False)
+            db.commit()
+        except Exception as _le:
+            log.warning("[webhook] could not write log: %s", _le)
+            db.rollback()
+
     # Require at least a name or a phone
     if not fields.get("name") and not fields.get("phone"):
         log.warning("[webhook] source '%s' payload has neither name nor phone — keys received: %s",
                     source.name, list(raw.keys()) if isinstance(raw, dict) else [])
+        _write_log(False, None, "no_contact_info")
         return {"ok": True, "created": False, "reason": "no_contact_info"}
 
     existing = _find_existing(db, fields)
@@ -401,6 +430,7 @@ async def receive_webhook_lead(token: str, request: Request, db: Session = Depen
             existing.updated_at = datetime.utcnow()
             db.commit()
         log.info("[webhook] merged into existing lead %d", existing.id)
+        _write_log(False, existing.id, "duplicate")
         return {"ok": True, "created": False, "lead_id": existing.id}
 
     lead = CMLead(
@@ -420,6 +450,7 @@ async def receive_webhook_lead(token: str, request: Request, db: Session = Depen
     db.commit()
     db.refresh(lead)
     log.info("[webhook] created lead %d from source '%s'", lead.id, source.name)
+    _write_log(True, lead.id, None)
     return {"ok": True, "created": True, "lead_id": lead.id}
 
 
@@ -545,3 +576,32 @@ def delete_webhook_source(
     db.delete(s)
     db.commit()
     return {"ok": True}
+
+
+@router_admin.get("/{source_id}/logs")
+def get_webhook_logs(
+    source_id: int,
+    _: CMUser = Depends(_require_admin),
+    db: Session = Depends(get_db),
+):
+    """Return the 20 most recent payload submissions for this webhook source."""
+    logs = (
+        db.query(CMWebhookLog)
+        .filter(CMWebhookLog.source_id == source_id)
+        .order_by(CMWebhookLog.id.desc())
+        .limit(20)
+        .all()
+    )
+    return [
+        {
+            "id": l.id,
+            "received_at": l.received_at.isoformat() if l.received_at else None,
+            "content_type": l.content_type,
+            "raw_payload": l.raw_payload,
+            "mapped_fields": l.mapped_fields,
+            "lead_created": l.lead_created,
+            "lead_id": l.lead_id,
+            "skip_reason": l.skip_reason,
+        }
+        for l in logs
+    ]

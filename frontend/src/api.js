@@ -244,6 +244,7 @@ export const createWebhookSource = (data) => api.post('/api/cm/webhook-sources',
 export const updateWebhookSource = (id, data) => api.put(`/api/cm/webhook-sources/${id}`, data).then(r => r.data)
 export const deleteWebhookSource = (id) => api.delete(`/api/cm/webhook-sources/${id}`).then(r => r.data)
 export const regenerateWebhookToken = (id) => api.post(`/api/cm/webhook-sources/${id}/regenerate-token`).then(r => r.data)
+export const getWebhookLogs = (id) => api.get(`/api/cm/webhook-sources/${id}/logs`).then(r => r.data)
 
 // LOGISTIS Portal integration
 export const getPendingPortalAssignments = () => api.get('/api/cm/portal-integration/pending').then(r => r.data)

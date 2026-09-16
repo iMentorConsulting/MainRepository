@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react'
 import {
   getWebhookSources, createWebhookSource, updateWebhookSource,
-  deleteWebhookSource, regenerateWebhookToken,
+  deleteWebhookSource, regenerateWebhookToken, getWebhookLogs,
 } from '../api'
 import {
   PlusIcon, TrashIcon, PencilIcon, ArrowPathIcon,
   ClipboardDocumentIcon, CheckIcon, GlobeAltIcon,
+  ListBulletIcon, XMarkIcon,
 } from '@heroicons/react/24/outline'
 import toast from 'react-hot-toast'
 
@@ -259,10 +260,129 @@ function SourceModal({ source, onClose, onSaved }) {
   )
 }
 
+function SubmissionLogModal({ source, onClose }) {
+  const [logs, setLogs] = useState(null)
+  const [selected, setSelected] = useState(null)
+
+  useEffect(() => {
+    getWebhookLogs(source.id)
+      .then(setLogs)
+      .catch(() => { toast.error('Σφάλμα φόρτωσης αρχείου καταγραφής'); onClose() })
+  }, [source.id])
+
+  const fmt = (iso) => {
+    if (!iso) return '—'
+    const d = new Date(iso)
+    return d.toLocaleDateString('el-GR') + ' ' + d.toLocaleTimeString('el-GR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col">
+        <div className="p-5 border-b flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-bold text-gray-900">Αρχείο Υποβολών — {source.name}</h2>
+            <p className="text-xs text-gray-500 mt-0.5">Τελευταίες 20 υποβολές από τη φόρμα (νεότερες πρώτα)</p>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-1"><XMarkIcon className="w-5 h-5" /></button>
+        </div>
+
+        {logs === null ? (
+          <div className="flex justify-center py-12"><div className="animate-spin w-7 h-7 border-4 border-blue-500 border-t-transparent rounded-full" /></div>
+        ) : logs.length === 0 ? (
+          <div className="flex-1 flex flex-col items-center justify-center py-16 text-gray-400">
+            <ListBulletIcon className="w-12 h-12 mb-3 opacity-30" />
+            <p className="font-medium">Δεν υπάρχουν καταγεγραμμένες υποβολές</p>
+            <p className="text-sm mt-1">Κάντε μια υποβολή από τη φόρμα και ανανεώστε.</p>
+          </div>
+        ) : (
+          <div className="flex flex-1 overflow-hidden">
+            {/* List */}
+            <div className="w-72 border-r overflow-y-auto flex-shrink-0">
+              {logs.map(l => (
+                <button
+                  key={l.id}
+                  onClick={() => setSelected(l)}
+                  className={`w-full text-left px-4 py-3 border-b hover:bg-gray-50 transition-colors ${selected?.id === l.id ? 'bg-blue-50 border-l-4 border-l-blue-500' : ''}`}
+                >
+                  <div className="flex items-center gap-2 mb-0.5">
+                    {l.lead_created ? (
+                      <span className="text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full font-medium">✓ Lead</span>
+                    ) : l.skip_reason === 'duplicate' ? (
+                      <span className="text-xs bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded-full font-medium">Διπλό</span>
+                    ) : (
+                      <span className="text-xs bg-red-100 text-red-700 px-1.5 py-0.5 rounded-full font-medium">✗ Απέτυχε</span>
+                    )}
+                    {l.lead_id && <span className="text-xs text-gray-400">#{l.lead_id}</span>}
+                  </div>
+                  <div className="text-xs text-gray-500">{fmt(l.received_at)}</div>
+                  {l.mapped_fields?.name && <div className="text-xs font-medium text-gray-700 truncate mt-0.5">{l.mapped_fields.name}</div>}
+                  {l.mapped_fields?.phone && <div className="text-xs text-gray-500">{l.mapped_fields.phone}</div>}
+                  {!l.mapped_fields?.name && !l.mapped_fields?.phone && (
+                    <div className="text-xs text-gray-400 italic">Δεν εντοπίστηκε επαφή</div>
+                  )}
+                </button>
+              ))}
+            </div>
+
+            {/* Detail */}
+            <div className="flex-1 overflow-y-auto p-5">
+              {selected ? (
+                <div className="space-y-5">
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-700 mb-2">Τι έστειλε η φόρμα (raw payload)</h3>
+                    <pre className="text-xs bg-gray-900 text-green-300 rounded-lg p-4 overflow-x-auto whitespace-pre-wrap break-all">
+                      {JSON.stringify(selected.raw_payload, null, 2)}
+                    </pre>
+                    <p className="text-xs text-gray-400 mt-1">Content-Type: {selected.content_type || '—'}</p>
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-700 mb-2">Τι αναγνωρίστηκε (mapped fields)</h3>
+                    {selected.mapped_fields && Object.keys(selected.mapped_fields).length > 0 ? (
+                      <div className="space-y-1">
+                        {Object.entries(selected.mapped_fields).map(([k, v]) => (
+                          <div key={k} className="flex gap-2 text-xs">
+                            <span className="font-mono font-semibold text-blue-700 w-32 flex-shrink-0">{k}</span>
+                            <span className="text-gray-700 break-all">{String(v)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-gray-400 italic">Κανένα πεδίο δεν αναγνωρίστηκε</p>
+                    )}
+                  </div>
+                  {selected.skip_reason === 'no_contact_info' && (
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-sm text-red-800">
+                      <strong>Γιατί δεν δημιουργήθηκε lead:</strong> Δεν εντοπίστηκε ούτε όνομα ούτε τηλέφωνο στα παραπάνω πεδία.
+                      <br /><br />
+                      Για να διορθώσεις: πρόσθεσε αντιστοίχιση πεδίου στην πηγή (π.χ. <code className="bg-red-100 px-1 rounded">your-name → name</code>) ή
+                      βεβαιώσου ότι η φόρμα στέλνει πεδία με ονόματα που αναγνωρίζει το σύστημα.
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center h-full text-gray-400 py-16">
+                  <p className="text-sm">Επίλεξε μια υποβολή από τη λίστα για να δεις λεπτομέρειες</p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        <div className="p-4 border-t flex justify-between items-center">
+          <p className="text-xs text-gray-400">Τα αρχεία διατηρούνται αυτόματα (τελευταίες 20 υποβολές)</p>
+          <button onClick={onClose} className="btn-secondary text-sm">Κλείσιμο</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function WebhookConfigPage() {
   const [sources, setSources] = useState([])
   const [loading, setLoading] = useState(true)
   const [modal, setModal] = useState(null) // null | 'new' | { source }
+  const [logSource, setLogSource] = useState(null) // source to show logs for
   const [deleting, setDeleting] = useState(null)
 
   const load = () => {
@@ -367,6 +487,13 @@ export default function WebhookConfigPage() {
 
                 <div className="flex gap-1 flex-shrink-0">
                   <button
+                    onClick={() => setLogSource(s)}
+                    className="p-2 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
+                    title="Αρχείο υποβολών"
+                  >
+                    <ListBulletIcon className="w-4 h-4" />
+                  </button>
+                  <button
                     onClick={() => setModal(s)}
                     className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                     title="Επεξεργασία"
@@ -416,6 +543,13 @@ Content-Type: application/json
           source={modal === 'new' ? null : modal}
           onClose={() => setModal(null)}
           onSaved={load}
+        />
+      )}
+
+      {logSource && (
+        <SubmissionLogModal
+          source={logSource}
+          onClose={() => setLogSource(null)}
         />
       )}
     </div>
