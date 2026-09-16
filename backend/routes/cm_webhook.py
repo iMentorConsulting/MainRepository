@@ -421,28 +421,6 @@ async def receive_webhook_lead(token: str, request: Request, db: Session = Depen
         _write_log(False, None, "no_contact_info")
         return {"ok": True, "created": False, "reason": "no_contact_info"}
 
-    existing = _find_existing(db, fields)
-    if existing:
-        # Fill blank fields from the new submission
-        for f in ("name", "phone", "phone2", "email", "afm", "service_type", "program_title"):
-            if fields.get(f) and not getattr(existing, f):
-                setattr(existing, f, fields[f])
-        # Always append a note so the submission is visible on the lead
-        submission_note = (
-            f"[Νέα υποβολή φόρμας {datetime.utcnow().strftime('%d/%m/%Y %H:%M')} UTC"
-            f" — {source.name}]"
-        )
-        if fields.get("notes"):
-            submission_note += f"\n{fields['notes']}"
-        existing.notes = (existing.notes + "\n\n" + submission_note) if existing.notes else submission_note
-        # Reset status to NEW LEAD so it resurfaces for the team
-        existing.status = "NEW LEAD"
-        existing.updated_at = datetime.utcnow()
-        db.commit()
-        log.info("[webhook] merged into existing lead %d, reset to NEW LEAD", existing.id)
-        _write_log(False, existing.id, "duplicate")
-        return {"ok": True, "created": False, "lead_id": existing.id}
-
     lead = CMLead(
         name=fields.get("name"),
         phone=fields.get("phone"),
