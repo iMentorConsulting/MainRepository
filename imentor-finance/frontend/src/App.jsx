@@ -15,6 +15,7 @@ import ImportPage from './pages/Import/ImportPage';
 import ServiceAgreementsPage from './pages/ServiceAgreements/ServiceAgreementsPage';
 import CustomersPage from './pages/Customers/CustomersPage';
 import RecurringExpensesPage from './pages/Expenses/RecurringExpensesPage';
+import LeadIntakePage from './pages/LeadIntake/LeadIntakePage';
 
 function ProtectedRoute({ children }) {
   const { isAuthenticated } = useAuth();
@@ -38,6 +39,7 @@ function AppRoutes() {
       <Route path="/service-agreements" element={<ProtectedRoute><ServiceAgreementsPage /></ProtectedRoute>} />
       <Route path="/customers" element={<ProtectedRoute><CustomersPage /></ProtectedRoute>} />
       <Route path="/recurring-expenses" element={<ProtectedRoute><RecurringExpensesPage /></ProtectedRoute>} />
+      <Route path="/lead-intake" element={<ProtectedRoute><LeadIntakePage /></ProtectedRoute>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
