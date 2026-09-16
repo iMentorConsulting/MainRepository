@@ -697,8 +697,14 @@ def filter_options(
     def _pt_ok(v):
         if not v or not is_valid_program_title(v):
             return False
+        # Long titles are genuine program names; only short alias-like strings need
+        # the resolve check (e.g. "ΤΑΜΕΙΟ ΜΙΚΡΟΠΙΣΤΩΣΕΩΝ" → excluded because it
+        # resolves to a different canonical name). A real program title is typically
+        # much longer than any short alias, so skip the check for long values.
+        if len(v) >= 40:
+            return True
         resolved = _rp2(v)
-        return not (resolved and resolved != v)  # exclude aliases like "ΤΑΜΕΙΟ ΜΙΚΡΟΠΙΣΤΩΣΕΩΝ"
+        return not (resolved and resolved != v)
     program_titles = sorted(
         {p[0] for p in _pt_rows if _pt_ok(p[0])} |
         {p[0] for p in _st_rows if p[0] and program_category_from_title(p[0])}
