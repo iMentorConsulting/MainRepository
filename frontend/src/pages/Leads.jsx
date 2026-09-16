@@ -127,13 +127,17 @@ function eligibilityCell(lead) {
   const allMp = lead.matched_programs || []
   const mp = allMp.filter(p => _isEligibleStatus(p.status))
   if (mp.length > 0) {
+    const visible = mp.slice(0, 3)
+    const rest = mp.length - visible.length
+    const allTitles = mp.map(p => p.title + (p.status ? ` · ${p.status}` : '')).join('\n')
     return (
-      <div className="flex flex-wrap gap-1">
-        {mp.map((p, i) => (
-          <span key={i} className="text-[10px] font-semibold bg-green-100 text-green-700 rounded-full px-2 py-0.5 max-w-[200px] truncate block" title={p.title + (p.status ? ` · ${p.status}` : '')}>
+      <div className="flex flex-col gap-0.5" title={allTitles}>
+        {visible.map((p, i) => (
+          <span key={i} className="text-[9px] font-semibold bg-green-100 text-green-700 rounded px-1.5 py-px truncate max-w-[160px]">
             {p.title}
           </span>
         ))}
+        {rest > 0 && <span className="text-[9px] text-green-600 font-bold pl-0.5">+{rest} ακόμα</span>}
       </div>
     )
   }
