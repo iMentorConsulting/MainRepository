@@ -202,6 +202,19 @@ try:
 except Exception:
     pass
 
+# One-time cleanup: delete auto-created sibling leads (created by bug in _on_business_ready)
+try:
+    with engine.connect() as _conn:
+        result = _conn.execute(_text(
+            "DELETE FROM cm_leads WHERE notes LIKE '%Δημιουργήθηκε αυτόματα από multi-program ΕΡΜΗΣ%' RETURNING id"
+        ))
+        deleted_ids = [r[0] for r in result]
+        if deleted_ids:
+            print(f"[startup] Deleted {len(deleted_ids)} auto-created sibling leads: {deleted_ids}")
+        _conn.commit()
+except Exception as _e:
+    print(f"[startup] sibling-lead cleanup skipped: {_e}")
+
 # Migration: cm_case_anakainizw table
 try:
     with engine.connect() as _conn:
