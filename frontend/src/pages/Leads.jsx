@@ -114,12 +114,15 @@ function renderMarkup(text) {
 }
 const gmailUrl = (email) => `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(email)}`
 
-// Compact eligibility: green matched-program chips, red if ineligible, else status/—
+// Compact eligibility: green matched-program chips — only when LOGISTIS has explicitly confirmed eligible
+const _ELIGIBLE_KW = ['eligible', 'επιλέξιμ', 'επιλεξιμ', 'true', 'yes', 'ναι', 'approved', 'εγκεκριμ']
 const _INELIGIBLE_KW = ['ineligible', 'not_eligible', 'not eligible', 'μη επιλεξιμ', 'rejected', 'αποκλει', 'false']
 function _isEligibleStatus(s) {
-  if (s == null) return true
+  if (s == null) return false
   const sl = String(s).toLowerCase().trim()
-  return !_INELIGIBLE_KW.some(kw => sl.includes(kw))
+  if (!sl) return false
+  if (_INELIGIBLE_KW.some(kw => sl.includes(kw))) return false
+  return _ELIGIBLE_KW.some(kw => sl.includes(kw))
 }
 function eligibilityCell(lead) {
   const allMp = lead.matched_programs || []
