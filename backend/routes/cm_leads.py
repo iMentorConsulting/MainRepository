@@ -520,20 +520,16 @@ def list_leads(
     # Matched programs per lead (by ΑΦΜ), from the cached AADE business profiles.
     # Only include programs LOGISTIS marked as eligible; exclude any entry whose
     # status string contains an ineligibility keyword (case-insensitive).
-    _ELIGIBLE_KW = ("eligible", "επιλέξιμ", "επιλεξιμ", "true", "yes", "ναι", "approved", "εγκεκριμ")
     _INELIGIBLE_KW = ("ineligible", "not_eligible", "not eligible", "μη επιλεξιμ",
                       "rejected", "αποκλει", "false")
     def _is_eligible_status(s) -> bool:
-        # Only show when LOGISTIS has explicitly confirmed eligibility.
-        # None / empty status means LOGISTIS hasn't evaluated yet — hide it.
+        # LOGISTIS only includes programs it considers basically eligible in matchedPrograms.
+        # null status = basic eligibility confirmed, full ΕΡΜΗΣ eval not yet complete → show.
+        # Hide only when explicitly marked ineligible.
         if s is None:
-            return False
+            return True
         sl = str(s).lower().strip()
-        if not sl:
-            return False
-        if any(kw in sl for kw in _INELIGIBLE_KW):
-            return False
-        return any(kw in sl for kw in _ELIGIBLE_KW)
+        return not any(kw in sl for kw in _INELIGIBLE_KW)
 
     prog_map: dict = {}
     afms = list({(l.afm or "").strip() for l in rows if (l.afm or "").strip()})
