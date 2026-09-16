@@ -177,6 +177,9 @@ def _map_payload(raw: dict, field_map: dict | None, program_map: dict | None, de
         v = str(val).strip()
         if not v:
             continue
+        # Skip Typeform/form-builder unfilled placeholder values like ${b14-3}
+        if re.fullmatch(r"\$\{[^}]+\}", v):
+            continue
         target = _target(key)
         if not target or target not in _LEAD_FIELDS:
             unmapped.append((key, v))
@@ -420,16 +423,23 @@ async def receive_webhook_lead(token: str, request: Request, db: Session = Depen
 
     existing = _find_existing(db, fields)
     if existing:
-        # Update only blank fields so we don't overwrite richer existing data
-        changed = False
-        for f in ("name", "phone", "phone2", "email", "afm", "notes", "service_type", "program_title"):
+        # Fill blank fields from the new submission
+        for f in ("name", "phone", "phone2", "email", "afm", "service_type", "program_title"):
             if fields.get(f) and not getattr(existing, f):
                 setattr(existing, f, fields[f])
-                changed = True
-        if changed:
-            existing.updated_at = datetime.utcnow()
-            db.commit()
-        log.info("[webhook] merged into existing lead %d", existing.id)
+        # Always append a note so the submission is visible on the lead
+        submission_note = (
+            f"[Νέα υποβολή φόρμας {datetime.utcnow().strftime('%d/%m/%Y %H:%M')} UTC"
+            f" — {source.name}]"
+        )
+        if fields.get("notes"):
+            submission_note += f"\n{fields['notes']}"
+        existing.notes = (existing.notes + "\n\n" + submission_note) if existing.notes else submission_note
+        # Reset status to NEW LEAD so it resurfaces for the team
+        existing.status = "NEW LEAD"
+        existing.updated_at = datetime.utcnow()
+        db.commit()
+        log.info("[webhook] merged into existing lead %d, reset to NEW LEAD", existing.id)
         _write_log(False, existing.id, "duplicate")
         return {"ok": True, "created": False, "lead_id": existing.id}
 
