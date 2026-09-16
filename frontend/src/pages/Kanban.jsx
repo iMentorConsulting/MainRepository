@@ -312,84 +312,43 @@ function PhaseColumn({ phase, casesByStatus, onMoved, pipeline }) {
 }
 
 function CaseRow({ caseItem, onMoved, pipeline, agentsMap }) {
-  const [expanded, setExpanded] = useState(false)
   const urgent = caseItem.days_to_deadline !== null && caseItem.days_to_deadline <= 14 && caseItem.days_to_deadline >= 0
 
   return (
-    <div className="border-b border-gray-100 last:border-0">
-      <div
-        className="flex items-center gap-2 px-3 py-2 hover:bg-gray-50 cursor-pointer transition-colors"
-        onClick={() => setExpanded(e => !e)}
-      >
-        <span className="text-gray-400 flex-shrink-0">
-          {expanded ? <ChevronDownIcon className="w-3.5 h-3.5" /> : <ChevronRightIcon className="w-3.5 h-3.5" />}
-        </span>
-        <span className="flex-1 min-w-0 text-sm font-medium text-gray-900 truncate">{caseItem.client_name}</span>
-        <span className="text-xs text-gray-400 hidden sm:block w-40 truncate">{caseItem.status}</span>
-        <span className="text-xs text-gray-400 hidden md:block w-32 truncate">{agentsMap[caseItem.assigned_agent_id] || '—'}</span>
-        <div className="flex items-center gap-1.5 flex-shrink-0">
-          {caseItem.balance > 0.01 && (
-            <span className="flex items-center gap-0.5 text-xs font-semibold text-orange-600 bg-orange-50 border border-orange-200 px-1.5 py-0.5 rounded">
-              <CurrencyEuroIcon className="w-3 h-3" />{fmt(caseItem.balance)}
-            </span>
-          )}
-          {urgent && (
-            <span className="flex items-center gap-0.5 text-xs font-bold text-red-600 bg-red-50 border border-red-200 px-1.5 py-0.5 rounded">
-              <ClockIcon className="w-3 h-3" />{caseItem.days_to_deadline}δ
-            </span>
-          )}
-          {caseItem.open_tasks > 0 && (
-            <span className="flex items-center gap-0.5 text-xs text-blue-600 bg-blue-50 border border-blue-200 px-1.5 py-0.5 rounded">
-              <ClipboardDocumentListIcon className="w-3 h-3" />{caseItem.open_tasks}
-            </span>
-          )}
-          {caseItem.pending_count > 0 && (
-            <span className="flex items-center gap-0.5 text-xs text-orange-600 bg-orange-50 border border-orange-200 px-1.5 py-0.5 rounded">
-              <ExclamationCircleIcon className="w-3 h-3" />{caseItem.pending_count}
-            </span>
-          )}
-        </div>
+    <div className="list-case-row border-b border-gray-100 last:border-0 flex items-center gap-2 px-3 py-1.5 hover:bg-gray-50 transition-colors">
+      <span className="list-case-name flex-1 min-w-0 text-sm font-medium text-gray-900 truncate">{caseItem.client_name}</span>
+      <span className="text-xs text-gray-400 hidden md:block w-32 truncate list-no-print">{agentsMap[caseItem.assigned_agent_id] || '—'}</span>
+      <div className="flex items-center gap-1.5 flex-shrink-0 list-no-print">
+        {caseItem.balance > 0.01 && (
+          <span className="flex items-center gap-0.5 text-xs font-semibold text-orange-600 bg-orange-50 border border-orange-200 px-1.5 py-0.5 rounded">
+            <CurrencyEuroIcon className="w-3 h-3" />{fmt(caseItem.balance)}
+          </span>
+        )}
+        {urgent && (
+          <span className="flex items-center gap-0.5 text-xs font-bold text-red-600 bg-red-50 border border-red-200 px-1.5 py-0.5 rounded">
+            <ClockIcon className="w-3 h-3" />{caseItem.days_to_deadline}δ
+          </span>
+        )}
+        {caseItem.open_tasks > 0 && (
+          <span className="flex items-center gap-0.5 text-xs text-blue-600 bg-blue-50 border border-blue-200 px-1.5 py-0.5 rounded">
+            <ClipboardDocumentListIcon className="w-3 h-3" />{caseItem.open_tasks}
+          </span>
+        )}
+        {caseItem.pending_count > 0 && (
+          <span className="flex items-center gap-0.5 text-xs text-orange-600 bg-orange-50 border border-orange-200 px-1.5 py-0.5 rounded">
+            <ExclamationCircleIcon className="w-3 h-3" />{caseItem.pending_count}
+          </span>
+        )}
+        <Link
+          to={`/cases/${caseItem.id}`}
+          className="text-xs text-blue-600 hover:underline px-2 py-1 bg-white border border-blue-200 rounded-md whitespace-nowrap"
+          onClick={e => e.stopPropagation()}
+        >
+          Άνοιγμα
+        </Link>
+        <MoveDropdown caseItem={caseItem} currentStatus={caseItem.status} onMoved={onMoved} pipeline={pipeline} />
+        <QuickNotifyButton caseItem={caseItem} />
       </div>
-      {expanded && (
-        <div className="bg-gray-50 px-8 py-3 border-t border-gray-100 flex flex-wrap gap-4 items-start" onClick={e => e.stopPropagation()}>
-          <div className="flex-1 min-w-48 space-y-1">
-            <div className="text-xs text-gray-500">
-              <span className="font-medium text-gray-700">Status:</span> {caseItem.status}
-            </div>
-            {caseItem.service_type && (
-              <div className="text-xs text-gray-500">
-                <span className="font-medium text-gray-700">Υπηρεσία:</span> {caseItem.service_type}
-              </div>
-            )}
-            {caseItem.assigned_agent_id && (
-              <div className="text-xs text-gray-500">
-                <span className="font-medium text-gray-700">Agent:</span> {agentsMap[caseItem.assigned_agent_id] || '—'}
-              </div>
-            )}
-            {caseItem.afm && (
-              <div className="text-xs text-gray-500">
-                <span className="font-medium text-gray-700">ΑΦΜ:</span> {caseItem.afm}
-              </div>
-            )}
-            {caseItem.approved_budget > 0 && (
-              <div className="text-xs text-gray-500">
-                <span className="font-medium text-gray-700">Εγκεκριμένος Π/Υ:</span> {fmt(caseItem.approved_budget)}
-              </div>
-            )}
-          </div>
-          <div className="flex items-center gap-2 pt-0.5">
-            <Link
-              to={`/cases/${caseItem.id}`}
-              className="text-xs text-blue-600 hover:underline px-2 py-1 bg-white border border-blue-200 rounded-md"
-              onClick={e => e.stopPropagation()}
-            >
-              Άνοιγμα Υπόθεσης
-            </Link>
-            <MoveDropdown caseItem={caseItem} currentStatus={caseItem.status} onMoved={onMoved} pipeline={pipeline} />
-            <QuickNotifyButton caseItem={caseItem} />
-          </div>
-        </div>
-      )}
     </div>
   )
 }
@@ -446,16 +405,39 @@ function ListPhaseSection({ phase, casesByStatus, onMoved, pipeline, agentsMap }
   )
 }
 
-function PipelineListView({ pipeline, filtered, casesByStatus, extraCases, onMoved, agentsMap }) {
+function PipelineListView({ pipeline, filtered, casesByStatus, extraCases, onMoved, agentsMap, programLabel }) {
+  const handlePrint = () => window.print()
+
   return (
-    <div className="flex-1 overflow-y-auto">
-      <div className="mb-2 px-1 flex items-center gap-4 text-xs text-gray-400 font-medium">
-        <span className="w-4" />
-        <span className="flex-1">Πελάτης</span>
-        <span className="hidden sm:block w-40">Status</span>
-        <span className="hidden md:block w-32">Agent</span>
-        <span className="w-32">Στοιχεία</span>
+    <div className="flex-1 overflow-y-auto" id="pipeline-list-print-root">
+      <style>{`
+        @media print {
+          body > * { display: none !important; }
+          #pipeline-list-print-root { display: block !important; position: static !important; }
+          .list-no-print { display: none !important; }
+          .list-phase-header-print { display: flex !important; }
+          .list-status-label { display: block !important; }
+          .list-case-row { padding: 1px 4px !important; border-bottom: 1px solid #e5e7eb !important; }
+          .list-case-name { font-size: 10pt !important; }
+          #pipeline-print-btn { display: none !important; }
+        }
+      `}</style>
+
+      <div className="mb-2 flex items-center justify-between px-1 list-no-print" id="pipeline-print-btn-row">
+        <div className="flex items-center gap-4 text-xs text-gray-400 font-medium">
+          <span className="flex-1">Πελάτης</span>
+          <span className="hidden md:block w-32">Agent</span>
+          <span className="w-48">Ενέργειες</span>
+        </div>
+        <button
+          id="pipeline-print-btn"
+          onClick={handlePrint}
+          className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 bg-white border border-gray-200 hover:border-gray-300 px-3 py-1.5 rounded-lg transition-colors"
+        >
+          Εκτύπωση
+        </button>
       </div>
+
       {pipeline.phases.map(phase => (
         <ListPhaseSection
           key={phase.id}
@@ -653,6 +635,7 @@ export default function Kanban() {
           extraCases={extraCases}
           onMoved={handleMoved}
           agentsMap={agentsMap}
+          programLabel={PROGRAM_LABELS[activeProgram]}
         />
       ) : (
         <div className="flex gap-3 overflow-x-auto pb-4 flex-1">
