@@ -1222,7 +1222,7 @@ export default function Leads() {
                         {(options.agents || []).map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
                       </select>
                     </td>
-                    <td className="px-2 py-1.5 text-xs text-gray-600 max-w-[220px]">
+                    <td className="px-2 py-1.5 text-xs text-gray-600">
                       {(() => {
                         // Only show program_title if it passes the same validity check as
                         // the backend: starts with uppercase, no sentence boundary.
@@ -1230,7 +1230,7 @@ export default function Leads() {
                         const st = !pt && lead.service_type && categoryFromTitle(lead.service_type) ? lead.service_type : null
                         const display = pt || st
                         return display
-                          ? <span className="block truncate" title={display}>{display}</span>
+                          ? <span className="block">{display}</span>
                           : lead.program
                             ? <span className="font-semibold text-gray-500">{lead.program}</span>
                             : <span className="text-gray-300">—</span>
