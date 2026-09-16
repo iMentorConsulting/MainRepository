@@ -210,6 +210,11 @@ model BusinessMatchToken {
   // to the right URL and tie results to the correct CM lead.
   leadRef           String?
   callbackUrl       String?
+  // True for the one program the CM lead was originally about (the request's
+  // `program` field); false for every other program auto-matched alongside
+  // it. Drives ermis.completed routing: primary sends leadRef, secondary
+  // sends token only (CM resolves the sibling lead by token).
+  isPrimary         Boolean   @default(false)
   // Preformatted summary of already-known lead facts injected into Ερμής system
   // prompt so it never re-asks what CM already collected (ΑΣΦ, ΤΕΙΡΕΣΙΑΣ, etc.)
   contextSummary    String?

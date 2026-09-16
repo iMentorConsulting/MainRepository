@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { lookupAfm } from '@/lib/gsis'
 import { runMatchingForBusiness } from '@/lib/matching'
 import { buildBusinessProfilePayload, BUSINESS_PROFILE_SELECT } from '@/lib/business-profile'
+import { CM_CATEGORY_LABEL, buildProgramDescription } from '@/lib/ermis-program-payload'
 
 // POST /api/external/ermis-sessions
 // Called by Case Management when a lead enters the Ερμής screening flow.
@@ -38,6 +39,10 @@ export async function sendErmisWebhook(params: {
   eligibility?: string | null
   transcript?: any[] | null
   completedAt?: string | null
+  // Overrides the default `businessProfile.matchedPrograms` (simple
+  // {title,status} list) — used by ermis.business_ready to send the
+  // extended multi-program array with per-program chatUrl/token.
+  matchedPrograms?: any[]
 }) {
   const apiKey = process.env.CASES_API_KEY
   if (!apiKey) {
@@ -54,7 +59,7 @@ export async function sendErmisWebhook(params: {
         leadRef: params.leadRef,
         afm: params.afm,
         business: params.businessProfile,
-        matchedPrograms: params.businessProfile?.matchedPrograms ?? [],
+        matchedPrograms: params.matchedPrograms ?? params.businessProfile?.matchedPrograms ?? [],
         ...(params.program !== undefined ? { program: params.program } : {}),
         ...(params.eligibility !== undefined ? { eligibility: params.eligibility } : {}),
         ...(params.transcript !== undefined ? { transcript: params.transcript } : {}),
@@ -80,8 +85,10 @@ export async function POST(request: NextRequest) {
 
   const afmStr = String(afm).trim()
 
-  // 1. Find program in DB by name — match on stem to handle vocabulary differences
-  // (CM sends "ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ"; DB title is "ΤΑΜΕΙΟ ΜΙΚΡΟΠΙΣΤΩΣΕΩΝ")
+  // 1. Find the primary program in DB by name — match on stem to handle
+  // vocabulary differences (CM sends "ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ"; DB title is "ΤΑΜΕΙΟ
+  // ΜΙΚΡΟΠΙΣΤΩΣΕΩΝ"). Full row (no select) — needed below both as the
+  // fallback matchedPrograms entry and for its description fields.
   const stem = programName.toUpperCase().substring(0, Math.max(6, programName.length - 3))
   const dbProgram = await prisma.program.findFirst({
     where: {
@@ -91,7 +98,6 @@ export async function POST(request: NextRequest) {
         { title: { equals: programName, mode: 'insensitive' } },
       ],
     },
-    select: { id: true, title: true },
   })
 
   if (!dbProgram) {
@@ -142,9 +148,8 @@ export async function POST(request: NextRequest) {
       select: { ...BUSINESS_PROFILE_SELECT, id: true },
     })
     business = created
-
-    // Run program matching for the new business (fire-and-forget)
-    runMatchingForBusiness(business.id).catch(() => {})
+    // Matching (all programs, not just the primary) runs in the background
+    // block below regardless of whether the business is new or existing.
   }
 
   // 3. Log lead interest (always — records every CM lead event, even for existing businesses)
@@ -173,19 +178,22 @@ export async function POST(request: NextRequest) {
     }
   })().catch(() => {})
 
-  // 4. Create or update the Ερμής session token for this business+program
+  // 4. Create or update the PRIMARY Ερμής session token for this business+program
+  // — this is the one CM's session-creation call gets back immediately.
   const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30 days
+  const leadRefStr = leadRef ? String(leadRef) : null
 
   const matchToken = await prisma.businessMatchToken.upsert({
     where: { businessId_programId: { businessId: business.id, programId: dbProgram.id } },
     update: {
-      leadRef: leadRef ? String(leadRef) : null,
+      leadRef: leadRefStr,
       callbackUrl: callbackUrl || null,
       contactEmail: lead?.email || null,
       contactPhone: lead?.phone || lead?.phone2 || null,
       contextSummary: contextSummary || lead?.contextSummary || null,
       consultant: consultant || lead?.consultant || null,
       expiresAt,
+      isPrimary: true,
       // Reset conversation when CM sends a new lead for the same business+program
       chatLog: undefined,
       caseCreatedId: null,
@@ -202,35 +210,122 @@ export async function POST(request: NextRequest) {
     create: {
       businessId: business.id,
       programId: dbProgram.id,
-      leadRef: leadRef ? String(leadRef) : null,
+      leadRef: leadRefStr,
       callbackUrl: callbackUrl || null,
       contactEmail: lead?.email || null,
       contactPhone: lead?.phone || lead?.phone2 || null,
       contextSummary: contextSummary || lead?.contextSummary || null,
       consultant: consultant || lead?.consultant || null,
       expiresAt,
+      isPrimary: true,
     },
     select: { token: true },
   })
 
   const token = matchToken.token
-  const chatUrl = `${process.env.APP_URL || 'https://logistis.i-mentor.gr'}/match/${token}`
+  const appUrl = process.env.APP_URL || 'https://logistis.i-mentor.gr'
+  const chatUrl = `${appUrl}/match/${token}`
 
-  // 5. Fire ermis.business_ready webhook to CM (fire-and-forget)
+  // 5. Multi-program matching + ermis.business_ready webhook (fire-and-forget,
+  // doesn't block the response above — CM now calls this on every website
+  // form submission, so the primary token must come back fast).
   if (callbackUrl) {
     ;(async () => {
-      // Wait briefly for matching to settle (it's fire-and-forget above)
-      await new Promise(r => setTimeout(r, 3000))
+      const { results } = await runMatchingForBusiness(business!.id)
+
+      // One entry per still-open program considered. Eligible secondary
+      // programs (not the primary one already handled above) get their own
+      // session token created here, with no leadRef — CM routes their
+      // ermis.completed back to the right sibling lead purely by token.
+      const matchedPrograms = await Promise.all(results.map(async ({ program, eligible }) => {
+        const isPrimaryProgram = program.id === dbProgram!.id
+        let entryToken: string | null = null
+        let entryChatUrl: string | null = null
+
+        if (eligible) {
+          if (isPrimaryProgram) {
+            entryToken = token
+            entryChatUrl = chatUrl
+          } else {
+            const secondary = await prisma.businessMatchToken.upsert({
+              where: { businessId_programId: { businessId: business!.id, programId: program.id } },
+              update: {
+                callbackUrl: callbackUrl || null,
+                contactEmail: lead?.email || null,
+                contactPhone: lead?.phone || lead?.phone2 || null,
+                contextSummary: contextSummary || lead?.contextSummary || null,
+                consultant: consultant || lead?.consultant || null,
+                expiresAt,
+                isPrimary: false,
+                leadRef: null,
+                chatLog: undefined,
+                caseCreatedId: null,
+                tokenUsage: 0,
+                tokenUsageInput: 0,
+                tokenUsageOutput: 0,
+                eligibilityStatus: null,
+                intentStatus: null,
+                reminder1SentAt: null,
+                reminder2SentAt: null,
+                clientRepliedAt: null,
+                lastActivityAt: null,
+              },
+              create: {
+                businessId: business!.id,
+                programId: program.id,
+                callbackUrl: callbackUrl || null,
+                contactEmail: lead?.email || null,
+                contactPhone: lead?.phone || lead?.phone2 || null,
+                contextSummary: contextSummary || lead?.contextSummary || null,
+                consultant: consultant || lead?.consultant || null,
+                expiresAt,
+                isPrimary: false,
+                leadRef: null,
+              },
+              select: { token: true },
+            })
+            entryToken = secondary.token
+            entryChatUrl = `${appUrl}/match/${secondary.token}`
+          }
+        }
+
+        return {
+          title: program.title,
+          program: CM_CATEGORY_LABEL[program.category] || program.category,
+          token: entryToken,
+          chatUrl: entryChatUrl,
+          isEligible: eligible,
+          isPrimary: isPrimaryProgram,
+          description: buildProgramDescription(program),
+        }
+      }))
+
+      // Edge case: the primary program closed (or was otherwise excluded)
+      // between session creation and this matching run — still represent it
+      // so CM always sees exactly one isPrimary entry.
+      if (!matchedPrograms.some(p => p.isPrimary)) {
+        matchedPrograms.unshift({
+          title: dbProgram!.title,
+          program: CM_CATEGORY_LABEL[dbProgram!.category] || dbProgram!.category,
+          token,
+          chatUrl,
+          isEligible: true,
+          isPrimary: true,
+          description: buildProgramDescription(dbProgram!),
+        })
+      }
+
       const profile = await buildBusinessProfilePayload(business!)
       await sendErmisWebhook({
         callbackUrl,
         event: 'ermis.business_ready',
         token,
-        leadRef: leadRef ? String(leadRef) : null,
+        leadRef: leadRefStr,
         afm: afmStr,
         businessProfile: profile,
+        matchedPrograms,
       })
-    })().catch(() => {})
+    })().catch(err => console.error('[ErmisSession] multi-program matching/webhook failed:', err?.message))
   }
 
   return NextResponse.json({ token, chatUrl })
