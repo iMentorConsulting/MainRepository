@@ -341,8 +341,11 @@ def _send_combined_ermis_message(
 
 
 def _on_business_ready(db, primary_lead: CMLead, payload, afm: str) -> None:
-    """Handle ermis.business_ready: create sibling leads for additional eligible
-    programs and send ONE combined multi-program message to the client.
+    """Handle ermis.business_ready: update lead statuses and create sibling leads
+    for additional eligible programs.
+
+    LOGISTIS handles all client-facing Viber/Email messaging — we do NOT send
+    any message to the client here.
 
     Extended matchedPrograms format expected from LOGISTIS:
       [{title, program, chatUrl, token, isEligible, isPrimary, description}, ...]
@@ -356,16 +359,7 @@ def _on_business_ready(db, primary_lead: CMLead, payload, afm: str) -> None:
     ]
 
     if not with_links:
-        # Old-format matchedPrograms (no chatUrls) — send single-program message
-        # only if we already have a chatUrl from the session-creation response.
-        if primary_lead.ermis_chat_url:
-            _send_combined_ermis_message(
-                db, primary_lead,
-                [{"lead": primary_lead, "chat_url": primary_lead.ermis_chat_url,
-                  "title": primary_lead.program_title or primary_lead.program or "Πρόγραμμα",
-                  "description": None, "is_primary": True}],
-                actor_name="ermis.business_ready",
-            )
+        # Old format — no chatUrls, nothing to create. Status already updated by caller.
         return
 
     all_prog_info = []
@@ -432,9 +426,8 @@ def _on_business_ready(db, primary_lead: CMLead, payload, afm: str) -> None:
         })
 
     db.commit()
-
-    if primary_lead.phone or primary_lead.email:
-        _send_combined_ermis_message(db, primary_lead, all_prog_info, actor_name="ermis.business_ready")
+    log.info("ΕΡΜΗΣ business_ready: updated %d program(s) for lead %s — messaging handled by LOGISTIS",
+             len(all_prog_info), primary_lead.id)
 
 
 def _process_ermis_session(lead_id: int, send_link: bool, channel: str, actor_name: str):
