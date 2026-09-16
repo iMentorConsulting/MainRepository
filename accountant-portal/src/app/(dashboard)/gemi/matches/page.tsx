@@ -116,7 +116,7 @@ function GemiMatchesPageInner() {
       let remaining = Infinity
       let totalProcessed = 0
       while (remaining > 0) {
-        const res = await fetch('/api/gemi/match', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ limit: 500 }) })
+        const res = await fetch('/api/gemi/match', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ limit: 1000 }) })
         const data = await res.json()
         totalProcessed += data.processed || 0
         remaining = data.remaining ?? 0

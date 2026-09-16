@@ -2,6 +2,13 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { runMatchingForGemi, loadActivePrograms } from '@/lib/gemi-matching'
+import { mapWithConcurrency } from '@/lib/concurrency'
+
+// Each record costs several sequential DB round-trips (see runMatchingForGemi),
+// so processing them one-at-a-time is dominated by network latency, not DB
+// load. Running a bounded number in parallel cuts wall-clock time roughly
+// proportionally without overwhelming the connection pool.
+const MATCH_CONCURRENCY = 16
 
 export async function POST(request: NextRequest) {
   const session = await auth()
@@ -22,7 +29,7 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
     if (typeof body?.limit === 'number') {
-      limit = Math.min(Math.max(1, body.limit), 1000)
+      limit = Math.min(Math.max(1, body.limit), 3000)
     }
     reset = body?.reset === true
     if (Array.isArray(body?.ids) && body.ids.length > 0) {
@@ -43,11 +50,8 @@ export async function POST(request: NextRequest) {
       select: { id: true },
     })
     const programs = await loadActivePrograms()
-    let totalMatches = 0
-    for (const record of records) {
-      const count = await runMatchingForGemi(record.id, programs)
-      totalMatches += count
-    }
+    const counts = await mapWithConcurrency(records, MATCH_CONCURRENCY, record => runMatchingForGemi(record.id, programs))
+    const totalMatches = counts.reduce((sum, c) => sum + c, 0)
     return NextResponse.json({ processed: records.length, totalMatches, remaining: 0 })
   }
 
@@ -68,11 +72,8 @@ export async function POST(request: NextRequest) {
   })
 
   const programs = await loadActivePrograms()
-  let totalMatches = 0
-  for (const record of records) {
-    const count = await runMatchingForGemi(record.id, programs)
-    totalMatches += count
-  }
+  const counts = await mapWithConcurrency(records, MATCH_CONCURRENCY, record => runMatchingForGemi(record.id, programs))
+  const totalMatches = counts.reduce((sum, c) => sum + c, 0)
 
   // How many still await matching (for client-side progress/looping)
   const remaining = await prisma.gemiLookup.count({

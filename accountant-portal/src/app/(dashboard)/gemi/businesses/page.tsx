@@ -420,16 +420,19 @@ function GemiBusinessesPageInner() {
     let totalProcessed = 0
     let totalMatches = 0
     try {
-      // Loop batches of 200 until every enriched business has been matched.
+      // Loop batches of 1000 until every enriched business has been matched.
       // Only aadeEnriched && !matchingDone records are processed, so this is
       // safe to re-run any time — already-matched businesses are skipped.
       // With rematchAll, the first call resets matchingDone on everything.
-      for (let round = 0; round < 200; round++) {
+      // No round cap — keeps going until the server reports nothing left.
+      let round = 0
+      while (true) {
         const res = await fetch('/api/gemi/match', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ limit: 200, reset: rematchAll && round === 0 }),
+          body: JSON.stringify({ limit: 1000, reset: rematchAll && round === 0 }),
         })
+        round++
         const data = await res.json()
         if (!res.ok) {
           setToast(data.error || 'Σφάλμα ταιριάσματος')
