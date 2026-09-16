@@ -4,7 +4,7 @@ import {
   getLeadComments, addLeadComment, editLeadComment, deleteLeadComment,
   sendLeadMessage, bulkSendLeadMessage, bulkOnboardLeads, convertLeadToCase, startLeadErmis, resendLeadErmisLink, bulkStartErmis, bulkResendErmis, getLeadDuplicates, mergeLeads,
   retryErmisErrors, backfillErmisTranscripts, fetchLeadErmisTranscript, getAuth,
-  sendLeadToFinance,
+  sendLeadToFinance, cleanupSiblingLeads,
 } from '../api'
 import {
   MagnifyingGlassIcon, PlusIcon, TrashIcon, ChevronDownIcon, ChevronUpIcon, ChevronRightIcon,
@@ -1101,6 +1101,16 @@ export default function Leads() {
             <button onClick={async () => { const r = await backfillErmisTranscripts(); toast.success(`Μεταφέρθηκαν ${r.updated}/${r.total} transcript(s) — αποτυχίες: ${r.failed}`) }}
               className="flex items-center gap-1.5 text-sm bg-purple-100 text-purple-700 hover:bg-purple-200 border border-purple-300 px-3 py-1.5 rounded-lg font-medium">
               💬 Backfill ΕΡΜΗΣ
+            </button>
+          )}
+          {isAdmin && (
+            <button onClick={async () => {
+              const dry = await cleanupSiblingLeads(true)
+              if (!confirm(`Θα διαγραφούν ${dry.count} leads που δημιουργήθηκαν αυτόματα από λάθος:\n${dry.leads.map(l => `• #${l.id} ${l.name} (${l.program})`).join('\n')}\n\nΣυνέχεια;`)) return
+              const r = await cleanupSiblingLeads(false)
+              toast.success(`Διαγράφηκαν ${r.count} leads`)
+            }} className="flex items-center gap-1.5 text-sm bg-red-100 text-red-700 hover:bg-red-200 border border-red-300 px-3 py-1.5 rounded-lg font-medium">
+              🗑 Καθαρισμός sibling leads
             </button>
           )}
           <button onClick={() => setShowNew(true)} className="btn-primary text-sm flex items-center gap-1"><PlusIcon className="w-4 h-4" />Νέο Lead</button>

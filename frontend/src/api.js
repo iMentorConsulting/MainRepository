@@ -302,5 +302,6 @@ export const runLeadSyncProgram = (program) => api.post(`/api/cm/leads-sync/run/
 export const refreshLeadSyncProgram = (program) => api.post(`/api/cm/leads-sync/refresh/${encodeURIComponent(program)}`, null, { timeout: 300000 }).then(r => r.data)
 
 export const sendLeadToFinance = (leadId, payload) => api.post(`/api/cm/leads/${leadId}/send-to-finance`, payload).then(r => r.data)
+export const cleanupSiblingLeads = (dryRun = true) => api.delete(`/api/cm/leads/cleanup/auto-created-siblings?dry_run=${dryRun}`).then(r => r.data)
 
 export default api
