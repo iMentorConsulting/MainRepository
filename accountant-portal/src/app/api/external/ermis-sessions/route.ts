@@ -3,7 +3,8 @@ import { prisma } from '@/lib/prisma'
 import { lookupAfm } from '@/lib/gsis'
 import { runMatchingForBusiness } from '@/lib/matching'
 import { buildBusinessProfilePayload, BUSINESS_PROFILE_SELECT } from '@/lib/business-profile'
-import { CM_CATEGORY_LABEL, buildProgramDescription } from '@/lib/ermis-program-payload'
+import { CM_CATEGORY_LABEL, buildProgramDescription, buildErmisViberMessage } from '@/lib/ermis-program-payload'
+import { sendViberMessage } from '@/lib/viber'
 
 // POST /api/external/ermis-sessions
 // Called by Case Management when a lead enters the Ερμής screening flow.
@@ -318,6 +319,21 @@ export async function POST(request: NextRequest) {
       // The primary program (the one the client actually asked about) must
       // always be first — CM's client-facing message renders in array order.
       matchedPrograms.sort((a, b) => (a.isPrimary === b.isPrimary ? 0 : a.isPrimary ? -1 : 1))
+
+      // Immediate client-facing Viber — "here's what you're eligible for,
+      // go chat with Ermis" — separate from the ermis-reminders cron's later
+      // "still there?" nudge. Approved wording, see ermis-program-payload.ts.
+      const contactPhoneStr = lead?.phone || lead?.phone2 || null
+      const eligibleForViber = matchedPrograms.filter(p => p.isEligible && p.chatUrl)
+      if (contactPhoneStr && eligibleForViber.length > 0) {
+        const text = buildErmisViberMessage({
+          businessName: business!.onomasia || business!.commercialTitle || afmStr,
+          eligiblePrograms: eligibleForViber.map(p => ({ title: p.title, chatUrl: p.chatUrl })),
+          consultant: consultant || lead?.consultant || null,
+        })
+        sendViberMessage({ to: contactPhoneStr, text, senderName: 'iMentor Consulting' })
+          .catch(err => console.error('[ErmisSession] client Viber failed:', err?.message))
+      }
 
       const profile = await buildBusinessProfilePayload(business!)
       await sendErmisWebhook({
