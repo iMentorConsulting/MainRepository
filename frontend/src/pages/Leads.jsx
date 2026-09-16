@@ -4,7 +4,7 @@ import {
   getLeadComments, addLeadComment, editLeadComment, deleteLeadComment,
   sendLeadMessage, bulkSendLeadMessage, bulkOnboardLeads, convertLeadToCase, startLeadErmis, resendLeadErmisLink, bulkStartErmis, bulkResendErmis, getLeadDuplicates, mergeLeads,
   retryErmisErrors, backfillErmisTranscripts, fetchLeadErmisTranscript, getAuth,
-  sendLeadToFinance, cleanupSiblingLeads,
+  sendLeadToFinance,
 } from '../api'
 import {
   MagnifyingGlassIcon, PlusIcon, TrashIcon, ChevronDownIcon, ChevronUpIcon, ChevronRightIcon,
@@ -375,16 +375,42 @@ const categoryFromTitle = title => {
 }
 
 // ── Finance intake modal ─────────────────────────────────────────────────────
-const SERVICE_TYPES = [
-  'ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ', 'ΔΥΠΑ', 'ΕΣΠΑ', 'ΑΝΑΚΑΙΝΙΖΩ', 'ΑΝΑΔΙΑΡΘΡΩΣΗ ΧΡΕΩΝ',
-  'ΕΞΩΔΙΚΑΣΤΙΚΟΣ', 'ΠΤΩΧΕΥΣΗ', 'ΤΕΧΝΙΚΗ ΥΠΟΣΤΗΡΙΞΗ', 'ΑΛΛΟ',
+const SERVICE_TYPE_GROUPS = [
+  { label: 'ΣΥΜΒΟΥΛΕΥΤΙΚΗ', items: ['ΣΥΜΒΟΥΛΕΥΤΙΚΗ'] },
+  { label: 'ΔΑΝΕΙΑ', items: ['BUSINESS PLAN', 'ΔΑΝΕΙΟΔΟΤΗΣΕΙΣ', 'ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ', 'ΤΕΠΙΧ'] },
+  {
+    label: 'ΕΠΙΧΟΡΗΓΗΣΕΙΣ', items: [
+      'ΔΥΠΑ 18-29', 'ΔΥΠΑ ΠΡΟΣΛΗΨΗΣ ΠΡΟΣΩΠΙΚΟΥ', 'ΕΠΙΧΕΙΡΩ ΠΡΑΣΙΝΑ ΚΡΗΤΗ',
+      'ΕΠΙΧΕΙΡΩ ΣΤΕΡΕΑ', 'ΕΣΠΑ ΚΑΤΑΔΥΤΙΚΟΥ ΤΟΥΡΙΣΜΟΥ', 'ΕΣΠΑ ΜΑΚΕΔΟΝΙΑΣ',
+      'ΕΣΠΑ ΠΤΥΧΙΟΥΧΩΝ', 'ΕΣΠΑ ΤΟΥΡΙΣΜΟΣ 2024', 'ΞΕΚΙΝΩ ΕΠΙΧΕΙΡΗΜΑΤΙΚΑ',
+      'ΟΑΕΔ 30-59', 'ΠΑΡΑΓΟΥΜΕ ΣΤΗΝ ΕΛΛΑΔΑ', 'ΠΑΡΑΣΤΑΤΙΚΕΣ ΤΕΧΝΕΣ',
+      'ΠΡΑΣΙΝΗ ΠΑΡΑΓΩΓΙΚΗ ΕΠΕΝΔΥΣΗ',
+    ],
+  },
 ]
 const WORK_STATUSES = [
-  'ΕΚΚΡΕΜΕΙ', 'ΣΕ ΕΞΕΛΙΞΗ', 'ΟΛΟΚΛΗΡΩΘΗΚΕ', 'ΑΚΥΡΩΘΗΚΕ',
+  'ΥΠΟΒΟΛΗ ΑΙΤΗΣΗΣ',
+  'ΕΓΚΡΙΣΗ - ΠΡΙΝ ΤΟ 1ο ΑΙΤΗΜΑ',
+  'ΣΕ 1ο ΑΙΤΗΜΑ ΕΛΕΓΧΟΥ',
+  'ΣΕ 2ο ΑΙΤΗΜΑ ΕΛΕΓΧΟΥ',
+  'ΣΕ ΤΕΛΙΚΟ ΑΙΤΗΜΑ ΕΛΕΓΧΟΥ',
 ]
 const DESCRIPTIONS = [
-  'ΑΜΟΙΒΗ ΑΙΤΗΣΗΣ', 'ΑΜΟΙΒΗ ΥΛΟΠΟΙΗΣΗΣ', 'ΑΜΟΙΒΗ ΣΥΜΒΟΥΛΕΥΤΙΚΗΣ',
-  'ΔΟΣΗ 1η', 'ΔΟΣΗ 2η', 'ΔΟΣΗ 3η', 'ΑΛΛΟ',
+  'Αίτηση & Συμβ. υποστήριξη για το πρόγραμμα ΔΥΠΑ 18-29',
+  'Αίτηση & Συμβ. Υποστήριξη για το πρόγραμμα ΔΥΠΑ 30-59',
+  'Αίτηση & Συμβ. υποστήριξη για το πρόγραμμα ΔΥΠΑ Πρόσληψης Προσωπικού',
+  'Αίτηση & Συμβ. Υποστήριξη για το Ταμείο Μικροπιστώσεων',
+  'Αίτηση & Συμβ. Υποστήριξη για Τραπεζική Χρηματοδότηση',
+  'Αρχικός Έλεγχος Φακέλου - Πρόγραμμα Ανακαίνισης Παλαιών Κατοικιών',
+  'ΜΕΤΡΗΤΑ',
+  'Παρακολούθηση επενδυτικού σχεδίου Επιχειρώ Στερεά',
+  'Παρακολούθηση επενδυτικού σχεδίου Πράσινη Παραγωγική Επένδυση ΜμΕ',
+  'ΣΥΜΒΟΥΛΕΥΤΙΚΕΣ ΥΠΗΡΕΣΙΕΣ',
+  'Συμβουλευτική υποστήριξη για την παρακολούθηση της υλοποίησης του επενδυτικού σχεδίου',
+]
+const SOURCE_REFERRALS = [
+  'FACEBOOK', 'GOOGLE', 'LOGISTIS.I-MENTOR.GR', 'NEWSLETTER',
+  'TIKTOK', 'WEBSITE', 'ΣΥΣΤΑΣΗ', 'ΤΗΛΕΦΩΝΟ', 'ΥΦΙΣΤΑΜΕΝΟΣ ΠΕΛΑΤΗΣ',
 ]
 
 function FinanceModal({ lead, onClose, onSuccess }) {
@@ -395,9 +421,10 @@ function FinanceModal({ lead, onClose, onSuccess }) {
     organization: 'I-MENTOR',
     service_type: '',
     targeting_category: 'ΠΩΛΗΣΗ ΑΙΤΗΣΗΣ',
-    work_status: 'ΕΚΚΡΕΜΕΙ',
+    work_status: 'ΥΠΟΒΟΛΗ ΑΙΤΗΣΗΣ',
     description: '',
     sale_date: today,
+    source_referral: lead.source || '',
     address: '',
     city: '',
     amount_application: '',
@@ -427,6 +454,7 @@ function FinanceModal({ lead, onClose, onSuccess }) {
         work_status: f.work_status,
         description: f.description,
         sale_date: f.sale_date || today,
+        source_referral: f.source_referral || undefined,
       }
       if (f.invoice_type === 'ΑΝΕΥ') { payload.address = f.address; payload.city = f.city }
       if (f.amount_application) payload.amount_application = parseFloat(f.amount_application)
@@ -521,7 +549,11 @@ function FinanceModal({ lead, onClose, onSuccess }) {
             <select value={f.service_type} onChange={e => set('service_type', e.target.value)}
               className="w-full px-3 py-2 border rounded-lg text-sm">
               <option value="">— Επιλέξτε —</option>
-              {SERVICE_TYPES.map(s => <option key={s} value={s}>{s}</option>)}
+              {SERVICE_TYPE_GROUPS.map(g => (
+                <optgroup key={g.label} label={g.label}>
+                  {g.items.map(s => <option key={s} value={s}>{s}</option>)}
+                </optgroup>
+              ))}
             </select>
           </div>
 
@@ -555,6 +587,16 @@ function FinanceModal({ lead, onClose, onSuccess }) {
               className="w-full px-3 py-2 border rounded-lg text-sm">
               <option value="">— Επιλέξτε —</option>
               {DESCRIPTIONS.map(d => <option key={d} value={d}>{d}</option>)}
+            </select>
+          </div>
+
+          {/* Source referral */}
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Πηγή σύστασης</label>
+            <select value={f.source_referral} onChange={e => set('source_referral', e.target.value)}
+              className="w-full px-3 py-2 border rounded-lg text-sm">
+              <option value="">— Επιλέξτε —</option>
+              {SOURCE_REFERRALS.map(s => <option key={s} value={s}>{s}</option>)}
             </select>
           </div>
 
@@ -1101,16 +1143,6 @@ export default function Leads() {
             <button onClick={async () => { const r = await backfillErmisTranscripts(); toast.success(`Μεταφέρθηκαν ${r.updated}/${r.total} transcript(s) — αποτυχίες: ${r.failed}`) }}
               className="flex items-center gap-1.5 text-sm bg-purple-100 text-purple-700 hover:bg-purple-200 border border-purple-300 px-3 py-1.5 rounded-lg font-medium">
               💬 Backfill ΕΡΜΗΣ
-            </button>
-          )}
-          {isAdmin && (
-            <button onClick={async () => {
-              const dry = await cleanupSiblingLeads(true)
-              if (!confirm(`Θα διαγραφούν ${dry.count} leads που δημιουργήθηκαν αυτόματα από λάθος:\n${dry.leads.map(l => `• #${l.id} ${l.name} (${l.program})`).join('\n')}\n\nΣυνέχεια;`)) return
-              const r = await cleanupSiblingLeads(false)
-              toast.success(`Διαγράφηκαν ${r.count} leads`)
-            }} className="flex items-center gap-1.5 text-sm bg-red-100 text-red-700 hover:bg-red-200 border border-red-300 px-3 py-1.5 rounded-lg font-medium">
-              🗑 Καθαρισμός sibling leads
             </button>
           )}
           <button onClick={() => setShowNew(true)} className="btn-primary text-sm flex items-center gap-1"><PlusIcon className="w-4 h-4" />Νέο Lead</button>

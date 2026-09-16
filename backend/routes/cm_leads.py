@@ -1959,6 +1959,7 @@ class FinanceIntakePayload(BaseModel):
     work_status: str
     description: str
     sale_date: Optional[str] = None     # ISO date, defaults to today
+    source_referral: Optional[str] = None  # override lead.source if provided
     address: Optional[str] = None       # required for ΑΝΕΥ
     city: Optional[str] = None
     amount_application: Optional[float] = None
@@ -1995,7 +1996,7 @@ def send_lead_to_finance(
         "email": lead.email or "",
         "sales_agent": lead.assigned_name or current_user.username,
         "sale_date": sale_date,
-        "source_referral": lead.source or "",
+        "source_referral": body.source_referral or lead.source or "",
         "invoice_type": body.invoice_type,
         "amount_collected": body.amount_collected,
         "vat_amount": body.vat_amount,
@@ -2032,23 +2033,3 @@ def send_lead_to_finance(
     return {"ok": True, "external_id": external_id, "finance_response": resp.json() if resp.content else {}}
 
 
-@router.delete("/cleanup/auto-created-siblings")
-def delete_auto_created_sibling_leads(
-    dry_run: bool = True,
-    db: Session = Depends(get_db),
-    current_user: CMUser = Depends(get_current_user),
-):
-    """One-time cleanup: delete leads auto-created by the multi-program ΕΡΜΗΣ bug."""
-    if current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Admin only")
-    leads = (
-        db.query(CMLead)
-        .filter(CMLead.notes.like("%Δημιουργήθηκε αυτόματα από multi-program ΕΡΜΗΣ%"))
-        .all()
-    )
-    found = [{"id": l.id, "afm": l.afm, "name": l.name, "program": l.program, "notes": (l.notes or "")[:120]} for l in leads]
-    if not dry_run:
-        for l in leads:
-            db.delete(l)
-        db.commit()
-    return {"dry_run": dry_run, "count": len(found), "leads": found}
