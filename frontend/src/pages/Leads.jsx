@@ -114,8 +114,15 @@ function renderMarkup(text) {
 const gmailUrl = (email) => `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(email)}`
 
 // Compact eligibility: green matched-program chips, red if ineligible, else status/—
+const _INELIGIBLE_KW = ['ineligible', 'not_eligible', 'not eligible', 'μη επιλεξιμ', 'rejected', 'αποκλει', 'false']
+function _isEligibleStatus(s) {
+  if (s == null) return true
+  const sl = String(s).toLowerCase().trim()
+  return !_INELIGIBLE_KW.some(kw => sl.includes(kw))
+}
 function eligibilityCell(lead) {
-  const mp = lead.matched_programs || []
+  const allMp = lead.matched_programs || []
+  const mp = allMp.filter(p => _isEligibleStatus(p.status))
   if (mp.length > 0) {
     return (
       <div className="flex flex-wrap gap-1">

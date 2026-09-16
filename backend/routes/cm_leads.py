@@ -518,6 +518,16 @@ def list_leads(
                 }
 
     # Matched programs per lead (by ΑΦΜ), from the cached AADE business profiles.
+    # Only include programs LOGISTIS marked as eligible; exclude any entry whose
+    # status string contains an ineligibility keyword (case-insensitive).
+    _INELIGIBLE_KW = ("ineligible", "not_eligible", "not eligible", "μη επιλεξιμ",
+                      "rejected", "αποκλει", "false")
+    def _is_eligible_status(s) -> bool:
+        if s is None:
+            return True  # null status = unknown, show it
+        sl = str(s).lower().strip()
+        return not any(kw in sl for kw in _INELIGIBLE_KW)
+
     prog_map: dict = {}
     afms = list({(l.afm or "").strip() for l in rows if (l.afm or "").strip()})
     if afms:
@@ -528,7 +538,8 @@ def list_leads(
             .filter(CMBusinessProfile.afm.in_(afms))
         )
         for afm, title, status in q:
-            prog_map.setdefault(afm, []).append({"title": title, "status": status})
+            if _is_eligible_status(status):
+                prog_map.setdefault(afm, []).append({"title": title, "status": status})
 
     return {
         "items": [
