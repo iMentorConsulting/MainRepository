@@ -341,93 +341,30 @@ def _send_combined_ermis_message(
 
 
 def _on_business_ready(db, primary_lead: CMLead, payload, afm: str) -> None:
-    """Handle ermis.business_ready: update lead statuses and create sibling leads
-    for additional eligible programs.
+    """Handle ermis.business_ready: store chatUrl/token on the primary lead only.
 
-    LOGISTIS handles all client-facing Viber/Email messaging — we do NOT send
-    any message to the client here.
+    We do NOT create leads for additional eligible programs — a second lead is
+    only opened when the client actually expresses interest in that program by
+    talking to ΕΡΜΗΣ about it (LOGISTIS sends a separate event at that point).
 
-    Extended matchedPrograms format expected from LOGISTIS:
-      [{title, program, chatUrl, token, isEligible, isPrimary, description}, ...]
+    LOGISTIS handles all client-facing messaging.
     """
-    from routes.cm_leads import program_category_from_title as _prog_cat_from_title
-
     matched = payload.matchedPrograms or []
-    with_links = [
-        p for p in matched
-        if isinstance(p, dict) and p.get("chatUrl") and p.get("isEligible", True)
-    ]
 
-    if not with_links:
-        # Old format — no chatUrls, nothing to create. Status already updated by caller.
-        return
-
-    all_prog_info = []
-    for p in with_links:
-        prog_title = (p.get("title") or "").strip() or None
-        prog_cat   = p.get("program") or (
-            _prog_cat_from_title(prog_title) if prog_title else None
-        )
-        chat_url   = p["chatUrl"]
-        is_primary = bool(p.get("isPrimary"))
-        description = (p.get("description") or "").strip() or None
-
-        if is_primary:
-            if not primary_lead.ermis_chat_url:
-                primary_lead.ermis_chat_url = chat_url
+    # Update chatUrl/token on the primary lead if LOGISTIS sends extended format
+    for p in matched:
+        if not isinstance(p, dict):
+            continue
+        if p.get("isPrimary"):
+            if p.get("chatUrl") and not primary_lead.ermis_chat_url:
+                primary_lead.ermis_chat_url = p["chatUrl"]
             if p.get("token") and not primary_lead.ermis_token:
                 primary_lead.ermis_token = p["token"]
-            target_lead = primary_lead
-        else:
-            target_lead = None
-            if afm and prog_cat:
-                target_lead = (
-                    db.query(CMLead)
-                    .filter(CMLead.afm == afm, CMLead.program == prog_cat, CMLead.id != primary_lead.id)
-                    .order_by(CMLead.id.desc())
-                    .first()
-                )
-            if not target_lead:
-                target_lead = CMLead(
-                    name=primary_lead.name,
-                    phone=primary_lead.phone,
-                    phone2=primary_lead.phone2,
-                    email=primary_lead.email,
-                    afm=afm or primary_lead.afm,
-                    program=prog_cat,
-                    program_title=prog_title,
-                    status="NEW LEAD",
-                    source=primary_lead.source or "ΕΡΜΗΣ multi-program",
-                    assigned_agent_id=primary_lead.assigned_agent_id,
-                    assigned_name=primary_lead.assigned_name,
-                    notes=(
-                        f"Δημιουργήθηκε αυτόματα από multi-program ΕΡΜΗΣ "
-                        f"(πρωτεύον lead #{primary_lead.id})"
-                    ),
-                )
-                db.add(target_lead)
-                db.flush()
-                log.info(
-                    "ΕΡΜΗΣ multi-program: created sibling lead %s for '%s' (primary lead %s)",
-                    target_lead.id, prog_title or prog_cat, primary_lead.id,
-                )
-            if not target_lead.ermis_chat_url:
-                target_lead.ermis_chat_url = chat_url
-                target_lead.ermis_token    = p.get("token") or None
-                target_lead.ermis_status   = "in_progress"
-                target_lead.ermis_started_at = datetime.utcnow()
-
-        all_prog_info.append({
-            "lead":        target_lead,
-            "chat_url":    chat_url,
-            "title":       prog_title or prog_cat or "Πρόγραμμα",
-            "description": description,
-            "is_primary":  is_primary,
-        })
+            break
 
     db.commit()
-    log.info("ΕΡΜΗΣ business_ready: updated %d program(s) for lead %s — messaging handled by LOGISTIS",
-             len(all_prog_info), primary_lead.id)
+    log.info("ΕΡΜΗΣ business_ready: lead %s updated — messaging and additional leads handled by LOGISTIS",
+             primary_lead.id)
 
 
 def _process_ermis_session(lead_id: int, send_link: bool, channel: str, actor_name: str):
