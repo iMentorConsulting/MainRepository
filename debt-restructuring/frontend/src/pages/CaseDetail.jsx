@@ -258,10 +258,10 @@ function buildEmailTextPreview(caseData, { includeTable, includeDisclaimer, incl
     }
     lines.push('')
     lines.push('Τραπεζικοί Λογαριασμοί:')
-    lines.push('  Πειραιώς:   GR9401727540005754096471354')
-    lines.push('  Alpha Bank: GR0901407750775002002010585')
-    lines.push('  Eurobank:   GR8102601680000070200668063')
-    lines.push('  Δικαιούχος: Αποστολάκης Χαράλαμπος')
+    lines.push('  Πειραιώς:   GR4501714330006433164381388')
+    lines.push('  Alpha Bank: GR2401407750775002330002138')
+    lines.push('  Eurobank:   GR5802601680000060201330648')
+    lines.push('  Δικαιούχος: I MENTOR IKE')
     lines.push('')
   }
   lines.push('Με εκτίμηση,')

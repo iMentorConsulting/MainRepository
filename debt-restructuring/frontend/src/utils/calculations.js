@@ -46,13 +46,12 @@ export function formatOfferWithVAT(netAmount) {
   }
 }
 
-// Banking details - Apostolakis Charalampos (Individual Business / Ατομική Επιχείρηση)
 export const COMPANY_BANKING_DETAILS = {
-  beneficiary: 'Αποστολάκης Χαράλαμπος',
+  beneficiary: 'I MENTOR IKE',
   banks: [
-    { name: 'Πειραιώς', iban: 'GR9401727540005754096471354' },
-    { name: 'Alpha Bank', iban: 'GR0901407750775002002010585' },
-    { name: 'Eurobank', iban: 'GR8102601680000070200668063' },
+    { name: 'Πειραιώς', iban: 'GR4501714330006433164381388' },
+    { name: 'Alpha Bank', iban: 'GR2401407750775002330002138' },
+    { name: 'Eurobank', iban: 'GR5802601680000060201330648' },
   ]
 }
 
@@ -71,26 +70,19 @@ export function calculateOfferWithWithholding(netAmount, debtorTypeOrIncomeSubTy
   const vat = calculateVAT(net)
   const grossBeforeTax = net + vat
 
-  // Check if withholding applies: NO for μισθωτός/συνταξιούχος, YES for νομικό πρόσωπο/επιτηδευματίας
-  // incomeSubType='Μισθωτός' or 'Επιτηδευματίας' takes precedence (from income_data)
-  // Fall back to checking if debtorType === 'Μισθωτός' for legacy calls
-  const isEmployeeOrPensioner = debtorTypeOrIncomeSubType === 'Μισθωτός'
-  const hasWithholding = !isEmployeeOrPensioner && net > 305
-
-  // Calculate withholding tax if applicable (20% of NET amount, not gross)
-  const withholding = hasWithholding ? Math.round(net * 0.20 * 100) / 100 : 0
-  const finalPayable = Math.round((grossBeforeTax - withholding) * 100) / 100
+  // Withholding tax no longer applies — I MENTOR IKE is not subject to παρακράτηση
+  const hasWithholding = false
+  const withholding = 0
+  const finalPayable = Math.round(grossBeforeTax * 100) / 100
 
   return {
     net: Math.round(net * 100) / 100,
     vat: Math.round(vat * 100) / 100,
     grossBeforeTax: Math.round(grossBeforeTax * 100) / 100,
-    withholding: Math.round(withholding * 100) / 100,
-    finalPayable: Math.round(finalPayable * 100) / 100,
+    withholding: 0,
+    finalPayable,
     hasWithholding,
-    formatted: hasWithholding
-      ? `${fmt(net)} + ΦΠΑ 24% = ${fmt(grossBeforeTax)} - Παρακράτηση 20% = ${fmt(finalPayable)}`
-      : `${fmt(net)} + ΦΠΑ 24% = ${fmt(finalPayable)}` // No withholding for employees
+    formatted: `${fmt(net)} + ΦΠΑ 24% = ${fmt(finalPayable)}`
   }
 }
 
