@@ -960,7 +960,16 @@ export default function Leads() {
                         {LEAD_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
                       </select>
                     </td>
-                    <td className="px-2 py-1.5 w-28"><EditableCell value={lead.consultant} onSave={v => patch(lead, 'assigned_name', v)} /></td>
+                    <td className="px-2 py-1.5 w-32">
+                      <select
+                        value={lead.consultant || ''}
+                        onChange={e => patch(lead, 'assigned_name', e.target.value || null)}
+                        className="w-full text-xs text-gray-700 bg-transparent border border-transparent hover:border-gray-300 focus:border-blue-400 rounded px-1 py-0.5 cursor-pointer focus:bg-white focus:outline-none"
+                      >
+                        <option value="">— Σύμβουλος —</option>
+                        {(options.consultants || []).map(c => <option key={c} value={c}>{c}</option>)}
+                      </select>
+                    </td>
                     <td className="px-2 py-1.5 text-xs text-gray-600 max-w-[220px]">
                       {(() => {
                         // Only show program_title if it passes the same validity check as
