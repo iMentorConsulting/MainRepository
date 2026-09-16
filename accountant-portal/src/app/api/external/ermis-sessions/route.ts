@@ -315,6 +315,10 @@ export async function POST(request: NextRequest) {
         })
       }
 
+      // The primary program (the one the client actually asked about) must
+      // always be first — CM's client-facing message renders in array order.
+      matchedPrograms.sort((a, b) => (a.isPrimary === b.isPrimary ? 0 : a.isPrimary ? -1 : 1))
+
       const profile = await buildBusinessProfilePayload(business!)
       await sendErmisWebhook({
         callbackUrl,
