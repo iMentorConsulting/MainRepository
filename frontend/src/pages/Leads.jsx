@@ -699,7 +699,20 @@ export default function Leads() {
   const patch = async (lead, field, value) => {
     try {
       await updateLead(lead.id, { [field]: value })
-      setData(d => ({ ...d, items: d.items.map(l => l.id === lead.id ? { ...l, [field]: value } : l) }))
+      setData(d => ({
+        ...d,
+        items: d.items.map(l => {
+          if (l.id !== lead.id) return l
+          const updated = { ...l, [field]: value }
+          // Keep consultant display in sync when agent is reassigned
+          if (field === 'assigned_agent_id') {
+            const agent = (options.agents || []).find(a => a.id === value)
+            updated.consultant = agent?.name || l.consultant
+            updated.assigned_agent_id = value
+          }
+          return updated
+        }),
+      }))
       if (field === 'status') loadOptions()
     } catch { toast.error('Σφάλμα αποθήκευσης') }
   }
@@ -962,12 +975,12 @@ export default function Leads() {
                     </td>
                     <td className="px-2 py-1.5 w-32">
                       <select
-                        value={lead.consultant || ''}
-                        onChange={e => patch(lead, 'assigned_name', e.target.value || null)}
+                        value={lead.assigned_agent_id || ''}
+                        onChange={e => patch(lead, 'assigned_agent_id', e.target.value ? Number(e.target.value) : null)}
                         className="w-full text-xs text-gray-700 bg-transparent border border-transparent hover:border-gray-300 focus:border-blue-400 rounded px-1 py-0.5 cursor-pointer focus:bg-white focus:outline-none"
                       >
-                        <option value="">— Σύμβουλος —</option>
-                        {(options.consultants || []).map(c => <option key={c} value={c}>{c}</option>)}
+                        <option value="">{lead.consultant || '— Σύμβουλος —'}</option>
+                        {(options.agents || []).map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
                       </select>
                     </td>
                     <td className="px-2 py-1.5 text-xs text-gray-600 max-w-[220px]">
