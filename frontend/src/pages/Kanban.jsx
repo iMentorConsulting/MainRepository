@@ -14,6 +14,8 @@ import {
   Cog6ToothIcon,
   MagnifyingGlassIcon,
   BoltIcon,
+  ViewColumnsIcon,
+  ListBulletIcon,
 } from '@heroicons/react/24/outline'
 import toast from 'react-hot-toast'
 import PendingTemplatesPanel from '../components/PendingTemplatesPanel'
@@ -23,12 +25,12 @@ const PROGRAM_TABS = ['ΕΣΠΑ', 'ΔΥΠΑ', 'ΔΥΠΑ-ΠΡΟΣΛΗΨΗΣ', 'Μ
 const PROGRAM_LABELS = { ΕΣΠΑ: 'ΕΣΠΑ', ΔΥΠΑ: 'ΔΥΠΑ / ΟΑΕΔ', 'ΔΥΠΑ-ΠΡΟΣΛΗΨΗΣ': 'ΔΥΠΑ Προσλήψεων', ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ: 'Μικροπιστώσεις', ΑΝΑΚΑΙΝΙΖΩ: 'Ανακαινίζω' }
 
 const PHASE_COLORS = {
-  green:  { border: 'border-t-green-500',  header: 'bg-green-500',  badge: 'bg-green-100 text-green-800 border-green-200',  sub: 'bg-green-50 text-green-700' },
-  blue:   { border: 'border-t-blue-500',   header: 'bg-blue-500',   badge: 'bg-blue-100 text-blue-800 border-blue-200',     sub: 'bg-blue-50 text-blue-700' },
-  yellow: { border: 'border-t-yellow-500', header: 'bg-yellow-500', badge: 'bg-yellow-100 text-yellow-800 border-yellow-200', sub: 'bg-yellow-50 text-yellow-700' },
-  orange: { border: 'border-t-orange-500', header: 'bg-orange-500', badge: 'bg-orange-100 text-orange-800 border-orange-200', sub: 'bg-orange-50 text-orange-700' },
-  purple: { border: 'border-t-purple-500', header: 'bg-purple-500', badge: 'bg-purple-100 text-purple-800 border-purple-200', sub: 'bg-purple-50 text-purple-700' },
-  gray:   { border: 'border-t-gray-400',   header: 'bg-gray-400',   badge: 'bg-gray-100 text-gray-600 border-gray-200',      sub: 'bg-gray-50 text-gray-500' },
+  green:  { border: 'border-t-green-500',  borderL: 'border-l-green-500',  header: 'bg-green-500',  badge: 'bg-green-100 text-green-800 border-green-200',  sub: 'bg-green-50 text-green-700' },
+  blue:   { border: 'border-t-blue-500',   borderL: 'border-l-blue-500',   header: 'bg-blue-500',   badge: 'bg-blue-100 text-blue-800 border-blue-200',     sub: 'bg-blue-50 text-blue-700' },
+  yellow: { border: 'border-t-yellow-500', borderL: 'border-l-yellow-500', header: 'bg-yellow-500', badge: 'bg-yellow-100 text-yellow-800 border-yellow-200', sub: 'bg-yellow-50 text-yellow-700' },
+  orange: { border: 'border-t-orange-500', borderL: 'border-l-orange-500', header: 'bg-orange-500', badge: 'bg-orange-100 text-orange-800 border-orange-200', sub: 'bg-orange-50 text-orange-700' },
+  purple: { border: 'border-t-purple-500', borderL: 'border-l-purple-500', header: 'bg-purple-500', badge: 'bg-purple-100 text-purple-800 border-purple-200', sub: 'bg-purple-50 text-purple-700' },
+  gray:   { border: 'border-t-gray-400',   borderL: 'border-l-gray-400',   header: 'bg-gray-400',   badge: 'bg-gray-100 text-gray-600 border-gray-200',      sub: 'bg-gray-50 text-gray-500' },
 }
 
 const fmt = (n) =>
@@ -309,6 +311,174 @@ function PhaseColumn({ phase, casesByStatus, onMoved, pipeline }) {
   )
 }
 
+function CaseRow({ caseItem, onMoved, pipeline, agentsMap }) {
+  const [expanded, setExpanded] = useState(false)
+  const urgent = caseItem.days_to_deadline !== null && caseItem.days_to_deadline <= 14 && caseItem.days_to_deadline >= 0
+
+  return (
+    <div className="border-b border-gray-100 last:border-0">
+      <div
+        className="flex items-center gap-2 px-3 py-2 hover:bg-gray-50 cursor-pointer transition-colors"
+        onClick={() => setExpanded(e => !e)}
+      >
+        <span className="text-gray-400 flex-shrink-0">
+          {expanded ? <ChevronDownIcon className="w-3.5 h-3.5" /> : <ChevronRightIcon className="w-3.5 h-3.5" />}
+        </span>
+        <span className="flex-1 min-w-0 text-sm font-medium text-gray-900 truncate">{caseItem.client_name}</span>
+        <span className="text-xs text-gray-400 hidden sm:block w-40 truncate">{caseItem.status}</span>
+        <span className="text-xs text-gray-400 hidden md:block w-32 truncate">{agentsMap[caseItem.assigned_agent_id] || '—'}</span>
+        <div className="flex items-center gap-1.5 flex-shrink-0">
+          {caseItem.balance > 0.01 && (
+            <span className="flex items-center gap-0.5 text-xs font-semibold text-orange-600 bg-orange-50 border border-orange-200 px-1.5 py-0.5 rounded">
+              <CurrencyEuroIcon className="w-3 h-3" />{fmt(caseItem.balance)}
+            </span>
+          )}
+          {urgent && (
+            <span className="flex items-center gap-0.5 text-xs font-bold text-red-600 bg-red-50 border border-red-200 px-1.5 py-0.5 rounded">
+              <ClockIcon className="w-3 h-3" />{caseItem.days_to_deadline}δ
+            </span>
+          )}
+          {caseItem.open_tasks > 0 && (
+            <span className="flex items-center gap-0.5 text-xs text-blue-600 bg-blue-50 border border-blue-200 px-1.5 py-0.5 rounded">
+              <ClipboardDocumentListIcon className="w-3 h-3" />{caseItem.open_tasks}
+            </span>
+          )}
+          {caseItem.pending_count > 0 && (
+            <span className="flex items-center gap-0.5 text-xs text-orange-600 bg-orange-50 border border-orange-200 px-1.5 py-0.5 rounded">
+              <ExclamationCircleIcon className="w-3 h-3" />{caseItem.pending_count}
+            </span>
+          )}
+        </div>
+      </div>
+      {expanded && (
+        <div className="bg-gray-50 px-8 py-3 border-t border-gray-100 flex flex-wrap gap-4 items-start" onClick={e => e.stopPropagation()}>
+          <div className="flex-1 min-w-48 space-y-1">
+            <div className="text-xs text-gray-500">
+              <span className="font-medium text-gray-700">Status:</span> {caseItem.status}
+            </div>
+            {caseItem.service_type && (
+              <div className="text-xs text-gray-500">
+                <span className="font-medium text-gray-700">Υπηρεσία:</span> {caseItem.service_type}
+              </div>
+            )}
+            {caseItem.assigned_agent_id && (
+              <div className="text-xs text-gray-500">
+                <span className="font-medium text-gray-700">Agent:</span> {agentsMap[caseItem.assigned_agent_id] || '—'}
+              </div>
+            )}
+            {caseItem.afm && (
+              <div className="text-xs text-gray-500">
+                <span className="font-medium text-gray-700">ΑΦΜ:</span> {caseItem.afm}
+              </div>
+            )}
+            {caseItem.approved_budget > 0 && (
+              <div className="text-xs text-gray-500">
+                <span className="font-medium text-gray-700">Εγκεκριμένος Π/Υ:</span> {fmt(caseItem.approved_budget)}
+              </div>
+            )}
+          </div>
+          <div className="flex items-center gap-2 pt-0.5">
+            <Link
+              to={`/cases/${caseItem.id}`}
+              className="text-xs text-blue-600 hover:underline px-2 py-1 bg-white border border-blue-200 rounded-md"
+              onClick={e => e.stopPropagation()}
+            >
+              Άνοιγμα Υπόθεσης
+            </Link>
+            <MoveDropdown caseItem={caseItem} currentStatus={caseItem.status} onMoved={onMoved} pipeline={pipeline} />
+            <QuickNotifyButton caseItem={caseItem} />
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ListPhaseSection({ phase, casesByStatus, onMoved, pipeline, agentsMap }) {
+  const [collapsed, setCollapsed] = useState(false)
+  const colors = PHASE_COLORS[phase.color] || PHASE_COLORS.gray
+  const statusList = phase.statuses || []
+  const allCases = statusList.length > 0
+    ? statusList.flatMap(s => casesByStatus[s] || [])
+    : (casesByStatus.__extra__ || [])
+
+  if (allCases.length === 0) return null
+
+  return (
+    <div className="bg-white border border-gray-200 rounded-xl overflow-hidden mb-3">
+      <button
+        onClick={() => setCollapsed(c => !c)}
+        className={`w-full flex items-center justify-between px-4 py-3 border-l-4 ${colors.borderL} hover:bg-gray-50 transition-colors`}
+      >
+        <div className="flex items-center gap-3">
+          <span className={`text-sm font-semibold px-2.5 py-1 rounded-full border ${colors.badge}`}>
+            {phase.label}
+          </span>
+          <span className="text-xs text-gray-400">{allCases.length} υποθέσεις</span>
+        </div>
+        {collapsed ? <ChevronRightIcon className="w-4 h-4 text-gray-400" /> : <ChevronDownIcon className="w-4 h-4 text-gray-400" />}
+      </button>
+      {!collapsed && (
+        <div>
+          {statusList.length > 0 ? (
+            statusList.map(status => {
+              const statusCases = casesByStatus[status] || []
+              if (statusCases.length === 0) return null
+              return (
+                <div key={status}>
+                  <div className={`px-4 py-1.5 text-xs font-medium ${colors.sub} border-y border-gray-100`}>
+                    {status} <span className="ml-1 font-bold">({statusCases.length})</span>
+                  </div>
+                  {statusCases.map(c => (
+                    <CaseRow key={c.id} caseItem={c} onMoved={onMoved} pipeline={pipeline} agentsMap={agentsMap} />
+                  ))}
+                </div>
+              )
+            })
+          ) : (
+            allCases.map(c => (
+              <CaseRow key={c.id} caseItem={c} onMoved={onMoved} pipeline={pipeline} agentsMap={agentsMap} />
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function PipelineListView({ pipeline, filtered, casesByStatus, extraCases, onMoved, agentsMap }) {
+  return (
+    <div className="flex-1 overflow-y-auto">
+      <div className="mb-2 px-1 flex items-center gap-4 text-xs text-gray-400 font-medium">
+        <span className="w-4" />
+        <span className="flex-1">Πελάτης</span>
+        <span className="hidden sm:block w-40">Status</span>
+        <span className="hidden md:block w-32">Agent</span>
+        <span className="w-32">Στοιχεία</span>
+      </div>
+      {pipeline.phases.map(phase => (
+        <ListPhaseSection
+          key={phase.id}
+          phase={phase}
+          casesByStatus={casesByStatus}
+          onMoved={onMoved}
+          pipeline={pipeline}
+          agentsMap={agentsMap}
+        />
+      ))}
+      {extraCases.length > 0 && (
+        <ListPhaseSection
+          phase={{ id: '__extra__', label: 'Άλλα', color: 'gray', statuses: [] }}
+          casesByStatus={{ __extra__: extraCases }}
+          onMoved={onMoved}
+          pipeline={pipeline}
+          agentsMap={agentsMap}
+        />
+      )}
+    </div>
+  )
+}
+
 export default function Kanban() {
   const [activeProgram, setActiveProgram] = useState('ΕΣΠΑ')
   const [cases, setCases] = useState([])
@@ -324,6 +494,7 @@ export default function Kanban() {
   const [showSLA, setShowSLA] = useState(false)
   const [filterHasDocs, setFilterHasDocs] = useState(false)
   const [filterStatus, setFilterStatus] = useState('')
+  const [viewMode, setViewMode] = useState('kanban')
 
   const pipeline = pipelinesData[activeProgram] || PIPELINES[activeProgram]
 
@@ -349,6 +520,8 @@ export default function Kanban() {
     ...(pipeline?.phases || []).flatMap(ph => ph.statuses || []),
     ...(pipeline?.extra_statuses || []),
   ], [pipeline])
+
+  const agentsMap = useMemo(() => Object.fromEntries(agents.map(a => [a.id, a.full_name])), [agents])
 
   const filtered = cases.filter(c =>
     (!filterAgent || String(c.assigned_agent_id) === filterAgent) &&
@@ -380,7 +553,22 @@ export default function Kanban() {
             {filtered.length} ενεργές · {PROGRAM_LABELS[activeProgram]}
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center">
+          {/* View mode toggle */}
+          <div className="flex bg-gray-100 p-1 rounded-lg gap-0.5">
+            <button
+              onClick={() => setViewMode('kanban')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md transition-all ${viewMode === 'kanban' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-800'}`}
+            >
+              <ViewColumnsIcon className="w-4 h-4" /> Kanban
+            </button>
+            <button
+              onClick={() => setViewMode('list')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md transition-all ${viewMode === 'list' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-800'}`}
+            >
+              <ListBulletIcon className="w-4 h-4" /> Λίστα
+            </button>
+          </div>
           <button onClick={() => setShowPendingTemplates(true)} className="flex items-center gap-2 text-sm bg-white border border-gray-200 hover:border-orange-300 px-3 py-1.5 rounded-lg transition-colors">
             <ClipboardDocumentListIcon className="w-4 h-4 text-orange-500" /> Κατάλογος Εκκρεμοτήτων
           </button>
@@ -452,11 +640,20 @@ export default function Kanban() {
         )}
       </div>
 
-      {/* Board */}
+      {/* Board / List */}
       {loading ? (
         <div className="flex items-center justify-center h-64">
           <div className="animate-spin w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full" />
         </div>
+      ) : viewMode === 'list' ? (
+        <PipelineListView
+          pipeline={pipeline}
+          filtered={filtered}
+          casesByStatus={casesByStatus}
+          extraCases={extraCases}
+          onMoved={handleMoved}
+          agentsMap={agentsMap}
+        />
       ) : (
         <div className="flex gap-3 overflow-x-auto pb-4 flex-1">
           {pipeline.phases.map(phase => (
