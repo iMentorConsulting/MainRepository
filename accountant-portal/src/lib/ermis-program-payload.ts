@@ -49,6 +49,56 @@ export interface ProgramDescriptionInput {
 // category-specific figure card applies (investment/subsidy %, ΔΥΠΑ hiring
 // subsidy, or investment/interest rate), joined as lines for the client
 // message.
+export interface ErmisViberProgramEntry {
+  title: string
+  chatUrl: string | null
+}
+
+const MAX_VIBER_PROGRAMS = 4
+const NUMBER_EMOJI = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣']
+
+// Client-facing Viber sent right after ermis.business_ready is built — the
+// immediate "here's what you're eligible for" notification (the reminder
+// cron's Viber is a separate, later, "still there?" nudge). Only pass
+// already-eligible, primary-first-ordered entries.
+export function buildErmisViberMessage(params: {
+  businessName: string
+  eligiblePrograms: ErmisViberProgramEntry[]
+  consultant?: string | null
+}): string {
+  const { businessName, eligiblePrograms, consultant } = params
+  const shown = eligiblePrograms.slice(0, MAX_VIBER_PROGRAMS)
+  const extra = eligiblePrograms.length - shown.length
+
+  const lines: string[] = [`Αγαπητέ/ή ${businessName},`, '']
+
+  if (shown.length <= 1) {
+    const program = shown[0]
+    lines.push('🔍 Ελέγξαμε την επιχείρησή σας και έχουμε καλά νέα! Βρήκαμε πρόγραμμα επιχορήγησης για το οποίο πιθανώς είστε επιλέξιμοι:')
+    lines.push('')
+    lines.push(`🎯 «${program.title}»`)
+    lines.push('')
+    lines.push('🤖 Μιλήστε τώρα με τον «Ερμή» μας για ΔΩΡΕΑΝ έλεγχο (~2 λεπτά):')
+    lines.push(program.chatUrl || '')
+  } else {
+    lines.push(`🔍 Ελέγξαμε την επιχείρησή σας και έχουμε καλά νέα! Βρήκαμε ${eligiblePrograms.length} προγράμματα επιχορήγησης για τα οποία πιθανώς είστε επιλέξιμοι:`)
+    lines.push('')
+    shown.forEach((program, i) => {
+      lines.push(`${NUMBER_EMOJI[i] || `${i + 1}.`} «${program.title}»`)
+      lines.push(program.chatUrl || '')
+      lines.push('')
+    })
+    if (extra > 0) lines.push(`...και ${extra} ακόμη!`, '')
+    lines.push('🤖 Μιλήστε με τον «Ερμή» μας — ΔΩΡΕΑΝ έλεγχος (~2 λεπτά) για κάθε πρόγραμμα!')
+  }
+
+  if (consultant) {
+    lines.push('', `Σύμβουλός σας: ${consultant}`)
+  }
+
+  return lines.join('\n')
+}
+
 export function buildProgramDescription(program: ProgramDescriptionInput): string {
   const parts: string[] = []
   if (program.description) parts.push(program.description.trim())
