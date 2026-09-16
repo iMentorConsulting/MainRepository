@@ -234,16 +234,20 @@ export async function POST(request: NextRequest) {
     ;(async () => {
       const { results } = await runMatchingForBusiness(business!.id)
 
-      // One entry per still-open program considered. Eligible secondary
-      // programs (not the primary one already handled above) get their own
-      // session token created here, with no leadRef — CM routes their
-      // ermis.completed back to the right sibling lead purely by token.
-      const matchedPrograms = await Promise.all(results.map(async ({ program, eligible }) => {
-        const isPrimaryProgram = program.id === dbProgram!.id
-        let entryToken: string | null = null
-        let entryChatUrl: string | null = null
+      // Only truly eligible programs are sent to CM — a non-eligible entry
+      // has no session/chatUrl anyway, and including it was meant as
+      // "context for the Logistis UI" but CM's lead list doesn't filter it
+      // out, so every considered program (any region, any KAD) was showing
+      // up as if it were a real eligibility match. One entry per eligible
+      // program; secondary ones (not the primary already handled above) get
+      // their own session token created here, with no leadRef — CM routes
+      // their ermis.completed back to the right sibling lead purely by token.
+      const matchedPrograms = await Promise.all(
+        results.filter(r => r.eligible).map(async ({ program }) => {
+          const isPrimaryProgram = program.id === dbProgram!.id
+          let entryToken: string
+          let entryChatUrl: string
 
-        if (eligible) {
           if (isPrimaryProgram) {
             entryToken = token
             entryChatUrl = chatUrl
@@ -288,18 +292,18 @@ export async function POST(request: NextRequest) {
             entryToken = secondary.token
             entryChatUrl = `${appUrl}/match/${secondary.token}`
           }
-        }
 
-        return {
-          title: program.title,
-          program: CM_CATEGORY_LABEL[program.category] || program.category,
-          token: entryToken,
-          chatUrl: entryChatUrl,
-          isEligible: eligible,
-          isPrimary: isPrimaryProgram,
-          description: buildProgramDescription(program),
-        }
-      }))
+          return {
+            title: program.title,
+            program: CM_CATEGORY_LABEL[program.category] || program.category,
+            token: entryToken,
+            chatUrl: entryChatUrl,
+            isEligible: true,
+            isPrimary: isPrimaryProgram,
+            description: buildProgramDescription(program),
+          }
+        })
+      )
 
       // Edge case: the primary program closed (or was otherwise excluded)
       // between session creation and this matching run — still represent it
