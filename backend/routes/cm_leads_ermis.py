@@ -714,6 +714,9 @@ def start_ermis(
         raise HTTPException(status_code=404, detail="Το lead δεν βρέθηκε")
     if not _shared_secret():
         raise HTTPException(status_code=500, detail="IMENTOR_PORTAL_API_KEY δεν έχει ρυθμιστεί")
+    # Force send_link=False for LOGISTIS leads — they handle all client messaging
+    if (l.source or "").upper().startswith("LOGISTIS") and req.send_link:
+        req = req.copy(update={"send_link": False})
 
     # LOGISTIS requires ΑΦΜ (for the ΑΑΔΕ lookup) + a program identifier.
     # program_title (exact name) is preferred; program (category) is the fallback.
@@ -776,6 +779,8 @@ def resend_ermis_link(
     l = db.query(CMLead).filter(CMLead.id == lead_id).first()
     if not l:
         raise HTTPException(status_code=404, detail="Το lead δεν βρέθηκε")
+    if (l.source or "").upper().startswith("LOGISTIS"):
+        raise HTTPException(status_code=400, detail="Το LOGISTIS διαχειρίζεται την αποστολή για αυτό το lead — δεν αποστέλλεται από εδώ")
     if not l.ermis_chat_url:
         raise HTTPException(status_code=400, detail="Δεν υπάρχει ενεργός σύνδεσμος ΕΡΜΗΣ για αυτό το lead")
 
