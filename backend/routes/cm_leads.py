@@ -2060,6 +2060,22 @@ def _send_to_finance_inner(lead_id, body, db, current_user, _os, _req, _logger):
     lead.finance_amount_sent = body.amount_collected
     db.commit()
 
+    # Notify owner via Viber
+    try:
+        from routes.cm_notifications import _send_viber as _sv
+        _amount = f"{body.amount_collected:,.2f} €" if body.amount_collected is not None else "—"
+        _agent = current_user.full_name or current_user.username
+        _msg = (
+            f"💰 Νέα αποστολή στα Οικονομικά\n"
+            f"Πελάτης: {lead.name or '—'}\n"
+            f"Ποσό: {_amount}\n"
+            f"Σύμβουλος: {_agent}\n"
+            f"Πρόγραμμα: {body.service_type or lead.program or '—'}"
+        )
+        _sv("6973315365", _msg)
+    except Exception as _ve:
+        _logger.warning("Finance Viber notify failed: %s", _ve)
+
     return {"ok": True, "external_id": external_id, "finance_response": finance_resp}
 
 
