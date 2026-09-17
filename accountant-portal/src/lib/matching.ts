@@ -7,6 +7,7 @@ import { normalizeLegalForm } from './legal-forms'
 import { getOrCreateMatchActionToken } from './match-action-token'
 import { buildProgramInfoHtml } from './program-info-html'
 import { mapWithConcurrency } from './concurrency'
+import { notifyStaleMatchesBecameIneligible } from './ermis-correction'
 
 // Each business costs a couple of sequential DB round-trips in upsertMatch,
 // so matching them one-at-a-time against a program is dominated by network
@@ -259,10 +260,20 @@ export function isProgramOpen(program: { active: boolean; archived: boolean; sta
 // date boundaries that exclude today — so stale matches disappear immediately
 // without waiting for the next matching run.
 export async function dismissMatchesForProgram(programId: string): Promise<void> {
+  const stale = await prisma.programMatch.findMany({
+    where: { programId, status: MatchStatus.POTENTIAL },
+    select: { businessId: true },
+  })
+
   await prisma.programMatch.updateMany({
     where: { programId, status: MatchStatus.POTENTIAL },
     data: { status: MatchStatus.REJECTED, matchScore: 0 },
   })
+
+  if (stale.length > 0) {
+    notifyStaleMatchesBecameIneligible(programId, stale.map(m => m.businessId))
+      .catch(err => console.error('[Matching] Ermis correction notify failed:', err?.message))
+  }
 }
 
 // Direct-client matches are no longer notified individually — they are
@@ -307,6 +318,15 @@ async function upsertMatch(programId: string, businessId: string, score: number,
 // already acted on (REVIEWED/INTERESTED/SUBMITTED/REJECTED) are left alone,
 // since those reflect a human decision, not just the auto-matcher's score.
 async function resetStaleMatches(programId: string, qualifyingBusinessIds: string[]) {
+  const stale = await prisma.programMatch.findMany({
+    where: {
+      programId,
+      status: MatchStatus.POTENTIAL,
+      businessId: { notIn: qualifyingBusinessIds }
+    },
+    select: { businessId: true },
+  })
+
   await prisma.programMatch.updateMany({
     where: {
       programId,
@@ -315,6 +335,11 @@ async function resetStaleMatches(programId: string, qualifyingBusinessIds: strin
     },
     data: { status: MatchStatus.REJECTED, matchScore: 0 },
   })
+
+  if (stale.length > 0) {
+    notifyStaleMatchesBecameIneligible(programId, stale.map(m => m.businessId))
+      .catch(err => console.error('[Matching] Ermis correction notify failed:', err?.message))
+  }
 }
 
 export async function runMatchingForProgram(programId: string): Promise<number> {

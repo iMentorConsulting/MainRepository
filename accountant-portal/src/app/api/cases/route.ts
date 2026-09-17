@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { createAuditLog } from '@/lib/audit'
 import { sendEmail } from '@/lib/email'
 import { notifyCaseManagement } from '@/lib/case-management-sync'
-import { sendErmisWebhook } from '@/app/api/external/ermis-sessions/route'
+import { sendErmisWebhook } from '@/lib/ermis-webhook'
 import { buildBusinessProfilePayload, BUSINESS_PROFILE_SELECT } from '@/lib/business-profile'
 
 export async function GET(request: NextRequest) {

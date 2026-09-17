@@ -99,6 +99,46 @@ export function buildErmisViberMessage(params: {
   return lines.join('\n')
 }
 
+// Correction message: sent when a program's criteria change after CM was
+// already told a business is eligible, and re-matching drops it. Deliberately
+// plain/neutral — no celebratory icons — since this is a "we were wrong"
+// message, not good news.
+export function buildIneligibleViberMessage(params: {
+  businessName: string
+  programTitle: string
+  consultant?: string | null
+}): string {
+  const { businessName, programTitle, consultant } = params
+  const lines = [
+    `Αγαπητέ/ή ${businessName},`,
+    '',
+    'Μετά από επανεξέταση των στοιχείων σας, διαπιστώσαμε ότι τελικά δεν πληροίτε τις προϋποθέσεις του προγράμματος:',
+    '',
+    `«${programTitle}»`,
+    '',
+    'Θα χαρούμε να σας ενημερώσουμε αν προκύψει νέο πρόγραμμα που να ταιριάζει στην επιχείρησή σας.',
+  ]
+  if (consultant) lines.push('', `Σύμβουλός σας: ${consultant}`)
+  return lines.join('\n')
+}
+
+export function buildIneligibleEmailHtml(params: {
+  businessName: string
+  programTitle: string
+  consultant?: string | null
+}): string {
+  const { businessName, programTitle, consultant } = params
+  return `
+    <div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;color:#111827;line-height:1.6;">
+      <p>Αγαπητέ/ή ${businessName},</p>
+      <p>Μετά από επανεξέταση των στοιχείων σας, διαπιστώσαμε ότι τελικά δεν πληροίτε τις προϋποθέσεις του προγράμματος:</p>
+      <p style="font-weight:700;">«${programTitle}»</p>
+      <p>Θα χαρούμε να σας ενημερώσουμε αν προκύψει νέο πρόγραμμα που να ταιριάζει στην επιχείρησή σας.</p>
+      ${consultant ? `<p>Σύμβουλός σας: ${consultant}</p>` : ''}
+      <p style="color:#6b7280;font-size:13px;margin-top:24px;">iMentor Consulting</p>
+    </div>`
+}
+
 export function buildProgramDescription(program: ProgramDescriptionInput): string {
   const parts: string[] = []
   if (program.description) parts.push(program.description.trim())
