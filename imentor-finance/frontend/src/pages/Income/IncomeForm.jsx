@@ -224,11 +224,16 @@ export default function IncomeForm({ record, onSave, onCancel }) {
               {...register('amount_application', {
                 onChange: e => {
                   const app = parseFloat(e.target.value);
-                  if (!isNaN(app) && app > 0) setValue('bonus', (app * 0.05).toFixed(2));
                   if (autoTargeting) {
                     const impl = parseFloat(getValues('amount_implementation'));
                     if (impl > 0) setValue('targeting_category', 'ΠΩΛΗΣΗ ΥΛΟΠΟΙΗΣΗΣ');
                     else if (app > 0) setValue('targeting_category', 'ΠΩΛΗΣΗ ΑΙΤΗΣΗΣ');
+                  }
+                  // Recalculate bonus based on targeting category
+                  const cat = getValues('targeting_category');
+                  if (cat === 'ΠΩΛΗΣΗ ΑΙΤΗΣΗΣ') {
+                    const collected = parseFloat(getValues('amount_collected'));
+                    if (!isNaN(collected) && collected > 0) setValue('bonus', (collected * 0.05).toFixed(2));
                   }
                 }
               })}
@@ -256,7 +261,12 @@ export default function IncomeForm({ record, onSave, onCancel }) {
               {...register('amount_collected', {
                 onChange: e => {
                   const v = parseFloat(e.target.value);
-                  if (!isNaN(v) && v > 0) setValue('vat_amount', (v * 0.24).toFixed(2));
+                  if (!isNaN(v) && v > 0) {
+                    setValue('vat_amount', (v * 0.24).toFixed(2));
+                    if (getValues('targeting_category') === 'ΠΩΛΗΣΗ ΑΙΤΗΣΗΣ') {
+                      setValue('bonus', (v * 0.05).toFixed(2));
+                    }
+                  }
                 }
               })}
             />
@@ -264,7 +274,15 @@ export default function IncomeForm({ record, onSave, onCancel }) {
           <F label="ΦΠΑ (€)" name="vat_amount" type="number" extra={{ step: '0.01' }} />
           <div>
             <label className="label">Κατηγορία Στοχοθεσίας</label>
-            <select className="input" {...register('targeting_category')} onChange={e => { setAutoTargeting(false); setValue('targeting_category', e.target.value); }}>
+            <select className="input" {...register('targeting_category')} onChange={e => {
+              setAutoTargeting(false);
+              const cat = e.target.value;
+              setValue('targeting_category', cat);
+              if (cat === 'ΠΩΛΗΣΗ ΑΙΤΗΣΗΣ') {
+                const collected = parseFloat(getValues('amount_collected'));
+                if (!isNaN(collected) && collected > 0) setValue('bonus', (collected * 0.05).toFixed(2));
+              }
+            }}>
               <option value="">— Επιλογή —</option>
               {TARGETING_OPTS.map(o => <option key={o} value={o}>{o}</option>)}
             </select>
