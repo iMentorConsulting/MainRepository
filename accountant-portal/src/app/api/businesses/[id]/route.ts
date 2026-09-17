@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { reconcileMatchStatuses } from '@/lib/matching'
+import { reconcileMatchStatuses, runMatchingForBusiness } from '@/lib/matching'
 import { createAuditLog } from '@/lib/audit'
 
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
@@ -120,6 +120,16 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     }
   }
   if (Array.isArray(activities)) changes.push('ΚΑΔ δραστηριότητες ενημερώθηκαν')
+
+  // Any field the matcher reads must trigger a rematch — otherwise a manually
+  // added tag (or a corrected legal form/ZIP/founding date) leaves stale
+  // ProgramMatch rows that never get re-evaluated until the next program
+  // edit or bulk rematch.
+  const matchingRelevantFields = ['tags', 'legalStatusDescr', 'postalZipCode', 'regdate', 'iMentorServices']
+  const shouldRematch = Array.isArray(activities) || matchingRelevantFields.some(f => f in updateData)
+  if (shouldRematch) {
+    runMatchingForBusiness(business.id).catch(err => console.error('[Businesses] rematch after edit failed:', err?.message))
+  }
 
   await createAuditLog({
     userId: session.user.id,
