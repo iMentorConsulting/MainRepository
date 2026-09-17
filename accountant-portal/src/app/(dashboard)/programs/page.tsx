@@ -684,7 +684,11 @@ export default function ProgramsPage() {
         alert(data.error || 'Σφάλμα ταιριάσματος')
         return
       }
-      alert(`Ολοκληρώθηκε: ${data.programsProcessed} προγράμματα, ${data.totalNewMatches} νέα matches.`)
+      const withNewMatches = (data.results || []).filter((r: any) => r.newMatches > 0)
+      const breakdown = withNewMatches.length > 0
+        ? '\n\n' + withNewMatches.map((r: any) => `• ${r.title}: ${r.newMatches} νέα matches`).join('\n')
+        : ''
+      alert(`Ολοκληρώθηκε: ${data.programsProcessed} προγράμματα, ${data.totalNewMatches} νέα matches.${breakdown}`)
     } catch {
       alert('Σφάλμα δικτύου')
     } finally {

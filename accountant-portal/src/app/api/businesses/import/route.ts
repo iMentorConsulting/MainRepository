@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { runMatchingForBusiness, notifyBatchMatchesForBusinesses } from '@/lib/matching'
+import { lookupAfm } from '@/lib/gsis'
 import * as XLSX from 'xlsx'
 
 function applySoleProprietorFix(businessData: any) {
@@ -85,14 +86,15 @@ export async function POST(request: NextRequest) {
     }
 
     try {
-      // Try to fetch real data from GSIS
+      // Fetch real data from GSIS directly (not via a self-HTTP call to
+      // /api/afm — that round-trip depended on forwarding the request's
+      // Cookie header for server-to-server auth, which is unreliable and
+      // was silently falling back to "no ΚΑΔ activities" on failure,
+      // which then never matches any KAD-based program).
       let businessData: any = { afm }
       try {
-        const res = await fetch(`${process.env.APP_URL || 'https://logistis.i-mentor.gr'}/api/afm?afm=${afm}`, {
-          headers: { Cookie: request.headers.get('cookie') || '' }
-        })
-        if (res.ok) {
-          const gsis = await res.json()
+        const gsis = await lookupAfm(afm)
+        if (gsis) {
           businessData = applySoleProprietorFix({ ...businessData, ...gsis })
         } else {
           // No record in GSIS — most likely an individual, not a registered business
@@ -149,9 +151,15 @@ export async function POST(request: NextRequest) {
 
   // Run matching for all imported businesses, then send ONE batched email
   // per program (not one per business) summarizing all newly-eligible clients.
+  // allSettled — one business failing to match must not skip the batch
+  // notification for everyone else that succeeded.
   if (importedBusinessIds.length > 0) {
-    Promise.all(importedBusinessIds.map(id => runMatchingForBusiness(id)))
-      .then(() => notifyBatchMatchesForBusinesses(importedBusinessIds))
+    Promise.allSettled(importedBusinessIds.map(id => runMatchingForBusiness(id)))
+      .then(results => {
+        const failed = results.filter(r => r.status === 'rejected').length
+        if (failed > 0) console.error(`[Matching] ${failed}/${importedBusinessIds.length} imported businesses failed to match`)
+        return notifyBatchMatchesForBusinesses(importedBusinessIds)
+      })
       .catch(err => console.error('[Matching] Batch match/notify for import failed:', err?.message))
   }
 
