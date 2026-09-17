@@ -74,7 +74,6 @@ _EMAIL_DOMAIN_FIXES = {
     "gnail.com": "gmail.com",
     "gmaill.com": "gmail.com",
     "gmail.con": "gmail.com",
-    "yahoo.gr": "yahoo.com",
     "yahoo.com.gr": "yahoo.com",
     "yahoo.fr": "yahoo.gr",
     "yaho.gr": "yahoo.gr",
