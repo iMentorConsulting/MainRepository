@@ -1,9 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { lookupAfm } from '@/lib/gsis'
-import { runMatchingForGemi, loadActivePrograms } from '@/lib/gemi-matching'
-import { runMatchingForBusiness } from '@/lib/matching'
-import { getOrCreateGemiErmisLink } from '@/lib/gemi-ermis'
+import { checkEligibilityForAfm } from '@/lib/eligibility-check-core'
 
 export const dynamic = 'force-dynamic'
 
@@ -143,243 +140,20 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Παρακαλώ εισάγετε έγκυρο τηλέφωνο.' }, { status: 400, headers: cors(origin) })
   }
 
-  // Find or create GemiLookup record
-  let gemi = await prisma.gemiLookup.findUnique({ where: { afm: cleanAfm } })
+  const result = await checkEligibilityForAfm(cleanAfm, cleanEmail, cleanPhone)
 
-  if (!gemi || !gemi.aadeEnriched) {
-    let aadeData = null
-    try {
-      aadeData = await lookupAfm(cleanAfm)
-    } catch {
-      // AADE unreachable — if we have a stale record use it
-    }
-
-    if (!aadeData && !gemi) {
-      // AFM unknown to AADE — create a stub record to capture the lead and
-      // generate a personalized Θέμις link for the Εξωδικαστικός promo.
-      let themisUrl: string | null = null
-      try {
-        const stub = await prisma.gemiLookup.upsert({
-          where: { afm: cleanAfm },
-          create: { afm: cleanAfm, email: cleanEmail, phone: cleanPhone, matchingDone: false },
-          update: {
-            ...(cleanEmail ? { email: cleanEmail } : {}),
-            ...(cleanPhone ? { phone: cleanPhone } : {}),
-          },
-        })
-        const appUrl = process.env.APP_URL || 'https://logistis.i-mentor.gr'
-        themisUrl = `${appUrl}/gemi-entry/g/${stub.id}?type=themis`
-      } catch {
-        // Non-fatal — fall back to generic URL in the widget
-      }
-      return NextResponse.json(
-        { notFound: true, themisUrl },
-        { headers: cors(origin) }
-      )
-    }
-
-    if (aadeData) {
-      const aadeFields = {
-        onomasia: aadeData.onomasia,
-        legalStatusDescr: aadeData.legalStatusDescr || null,
-        postalAddress: aadeData.postalAddress || null,
-        postalAddressNo: aadeData.postalAddressNo || null,
-        postalZipCode: aadeData.postalZipCode || null,
-        postalAreaDescription: aadeData.postalAreaDescription || null,
-        doy: aadeData.doy || null,
-        doyDescr: aadeData.doyDescr || null,
-        regdate: aadeData.regdate || null,
-        deactivationFlag: aadeData.deactivationFlag || null,
-        stopDate: aadeData.stopDate || null,
-        activities: aadeData.activities as any,
-        aadeEnriched: true,
-        aadeEnrichedAt: new Date(),
-        matchingDone: false,
-      }
-      if (!gemi) {
-        gemi = await prisma.gemiLookup.create({
-          data: {
-            ...aadeFields,
-            afm: cleanAfm,
-            email: cleanEmail,
-            phone: cleanPhone,
-          },
-        })
-      } else {
-        gemi = await prisma.gemiLookup.update({
-          where: { id: gemi.id },
-          data: {
-            ...aadeFields,
-            ...(cleanEmail && !gemi.email ? { email: cleanEmail } : {}),
-            ...(cleanPhone && !gemi.phone ? { phone: cleanPhone } : {}),
-          },
-        })
-      }
-    }
-  } else {
-    // Update contact info if newly provided
-    if ((cleanEmail && !gemi.email) || (cleanPhone && !gemi.phone)) {
-      gemi = await prisma.gemiLookup.update({
-        where: { id: gemi.id },
-        data: {
-          ...(cleanEmail && !gemi.email ? { email: cleanEmail } : {}),
-          ...(cleanPhone && !gemi.phone ? { phone: cleanPhone } : {}),
-        },
-      })
-    }
+  if (result.notFound) {
+    const notFoundResult = { notFound: true, themisUrl: result.themisUrl }
+    return NextResponse.json(notFoundResult, { headers: cors(origin) })
   }
 
-  // Sync to Business table so the record appears in the normal businesses dashboard
-  if (!gemi!.claimedBusinessId) {
-    try {
-      const existingBusiness = await prisma.business.findUnique({ where: { afm: cleanAfm } })
-      if (!existingBusiness) {
-        const activities = Array.isArray(gemi!.activities) ? (gemi!.activities as any[]) : []
-        const business = await prisma.business.create({
-          data: {
-            afm: cleanAfm,
-            source: 'website-form',
-            onomasia: gemi!.onomasia,
-            legalStatusDescr: gemi!.legalStatusDescr,
-            postalAddress: gemi!.postalAddress,
-            postalAddressNo: gemi!.postalAddressNo,
-            postalZipCode: gemi!.postalZipCode,
-            postalAreaDescription: gemi!.postalAreaDescription,
-            doy: gemi!.doy,
-            doyDescr: gemi!.doyDescr,
-            regdate: gemi!.regdate,
-            deactivationFlag: gemi!.deactivationFlag,
-            stopDate: gemi!.stopDate,
-            email: cleanEmail || undefined,
-            phone: cleanPhone || undefined,
-            activities: activities.length > 0 ? {
-              create: activities.map((a: any) => ({
-                firmActCode: a.firmActCode,
-                firmActDescr: a.firmActDescr,
-                firmActKind: a.firmActKind != null ? parseInt(String(a.firmActKind)) : null,
-                firmActKindDescr: a.firmActKindDescr,
-              }))
-            } : undefined,
-          },
-        })
-        await prisma.gemiLookup.update({
-          where: { id: gemi!.id },
-          data: { claimedBusinessId: business.id, claimedAt: new Date() },
-        })
-        runMatchingForBusiness(business.id).catch(err => console.error('[WebsiteWidget] Business matching failed:', err?.message))
-      } else {
-        await prisma.gemiLookup.update({
-          where: { id: gemi!.id },
-          data: { claimedBusinessId: existingBusiness.id, claimedAt: new Date() },
-        })
-      }
-    } catch (err: any) {
-      // Non-fatal — widget result still shown, business sync failed silently
-      console.error('[WebsiteWidget] Business sync failed:', err?.message)
-    }
-  }
-
-  // Inactive business → no programs
-  if (gemi!.deactivationFlag === 'Y' || !!gemi!.stopDate) {
-    const inactiveResult = { business: { name: gemi!.onomasia || gemi!.afm }, programs: [], inactive: true }
+  if (result.inactive) {
+    const inactiveResult = { business: { name: result.businessName }, programs: [], inactive: true }
     if (widgetToken) prisma.widgetSession.updateMany({ where: { token: String(widgetToken) }, data: { checkedAt: new Date(), result: inactiveResult as any } }).catch(() => {})
     return NextResponse.json(inactiveResult, { headers: cors(origin) })
   }
 
-  // Run matching if not yet done
-  if (!gemi!.matchingDone) {
-    const programs = await loadActivePrograms()
-    await runMatchingForGemi(gemi!.id, programs)
-  }
-
-  // Read matches (exclude manually rejected)
-  const matches = await prisma.gemiProgramMatch.findMany({
-    where: { gemiId: gemi!.id, status: { not: 'REJECTED' }, matchScore: { gt: 0 } },
-    include: {
-      program: {
-        select: {
-          id: true,
-          title: true,
-          category: true,
-          description: true,
-          minSubsidyPct: true,
-          maxSubsidyPct: true,
-          subsidyNote: true,
-          minInvestment: true,
-          maxInvestment: true,
-          minInterestRate: true,
-          maxInterestRate: true,
-          otherRequirements: true,
-          keyPoints: true,
-          monthlyAmount: true,
-          subsidyMonths: true,
-          totalBenefit: true,
-          beneficiaries: true,
-          regions: true,
-          heroImageUrl: true,
-          websiteUrl: true,
-          active: true,
-        },
-      },
-    },
-    orderBy: { matchScore: 'desc' },
-  })
-
-  // Only include matches for still-active programs
-  type Match = typeof matches[0]
-  const activeMatches = matches.filter((m: Match) => m.program.active)
-
-  const gemiId = gemi!.id
-
-  if (activeMatches.length === 0) {
-    const appUrl = process.env.APP_URL || 'https://logistis.i-mentor.gr'
-    const themisUrl = `${appUrl}/gemi-entry/g/${gemiId}?type=themis`
-    const noProgramsResult = { business: { name: gemi!.onomasia || gemi!.afm }, programs: [], themisUrl }
-    if (widgetToken) prisma.widgetSession.updateMany({ where: { token: String(widgetToken) }, data: { checkedAt: new Date(), result: noProgramsResult as any } }).catch(() => {})
-    return NextResponse.json(noProgramsResult, { headers: cors(origin) })
-  }
-
-  // Create Ermis links for each matching program
-  const programsWithLinks = await Promise.all(
-    activeMatches.map(async (m: Match) => {
-      const ermisUrl = await getOrCreateGemiErmisLink(gemiId, m.programId, gemi!.phone)
-      return {
-        programId: m.programId,
-        category: m.program.category,
-        title: m.program.title,
-        description: m.program.description,
-        minSubsidyPct: m.program.minSubsidyPct,
-        maxSubsidyPct: m.program.maxSubsidyPct,
-        subsidyNote: m.program.subsidyNote,
-        minInvestment: m.program.minInvestment,
-        maxInvestment: m.program.maxInvestment,
-        minInterestRate: m.program.minInterestRate,
-        maxInterestRate: m.program.maxInterestRate,
-        otherRequirements: m.program.otherRequirements,
-        keyPoints: m.program.keyPoints,
-        monthlyAmount: m.program.monthlyAmount,
-        subsidyMonths: m.program.subsidyMonths,
-        totalBenefit: m.program.totalBenefit,
-        beneficiaries: m.program.beneficiaries,
-        regions: m.program.regions,
-        heroImageUrl: m.program.heroImageUrl,
-        websiteUrl: m.program.websiteUrl,
-        matchScore: m.matchScore,
-        matchReasons: m.matchReason,
-        ermisUrl,
-      }
-    })
-  )
-
-  // Build Θέμις URL: reuse the ermisUrl if extrajudicial was matched (has GemiMatchToken),
-  // otherwise use the direct gemiId route which needs no DB write and never fails.
-  const appUrl = process.env.APP_URL || 'https://logistis.i-mentor.gr'
-  const exMatch = programsWithLinks.find(p => p.category === 'EXTRAJUDICIAL')
-  const themisUrl = exMatch
-    ? `${exMatch.ermisUrl}?type=themis`
-    : `${appUrl}/gemi-entry/g/${gemiId}?type=themis`
-
-  const finalResult = { business: { name: gemi!.onomasia || gemi!.afm }, programs: programsWithLinks, themisUrl }
+  const finalResult = { business: { name: result.businessName }, programs: result.programs, themisUrl: result.themisUrl }
   if (widgetToken) {
     prisma.widgetSession.updateMany({
       where: { token: String(widgetToken) },
