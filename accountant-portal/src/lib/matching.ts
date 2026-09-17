@@ -171,8 +171,19 @@ function matchesBusiness(
     !!program.minRegdate || !!program.maxRegdate,
   ].filter(Boolean).length
 
+  // A program with no configured criteria at all is meant to be "open to
+  // every real business" — NOT "open to anything with an AFM," including a
+  // fake/test entry or a private individual with zero registered KAD
+  // activity. Without this guard, a program an admin simply hasn't finished
+  // configuring yet (or genuinely leaves wide open) silently matches every
+  // non-business record in the system too.
   if (totalCriteria === 0) {
-    return { score: 50, reasons: ['Γενικό πρόγραμμα χωρίς ειδικά κριτήρια'] }
+    const hasRealActivity = business.activities.length > 0
+    const isRegisteredEntity = normalizeLegalForm(business.legalStatusDescr) !== 'ΙΔΙΩΤΗΣ'
+    if (hasRealActivity && isRegisteredEntity) {
+      return { score: 50, reasons: ['Γενικό πρόγραμμα χωρίς ειδικά κριτήρια'] }
+    }
+    return { score: 0, reasons: [] }
   }
 
   let allMatched = true
