@@ -711,6 +711,13 @@ function ExpandedRow({ lead, colSpan, onChanged, onConvert, onErmis, onSend, pro
           <button onClick={() => setShowFinance(true)} className="flex items-center gap-1 text-sm font-semibold bg-yellow-100 text-yellow-800 hover:bg-yellow-200 px-3 py-1.5 rounded-lg">
             💰 Αποστολή στα Οικονομικά
           </button>
+          {full?.finance_sent_at && (
+            <span className="flex items-center gap-1 text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 px-2.5 py-1 rounded-lg" title={`Εστάλη: ${new Date(full.finance_sent_at).toLocaleString('el-GR')}`}>
+              ✅ Εστάλη στα Οικονομικά
+              {full.finance_amount_sent != null && <span className="font-bold">· {Number(full.finance_amount_sent).toLocaleString('el-GR', { minimumFractionDigits: 2 })} €</span>}
+              <span className="text-emerald-500 font-normal">· {new Date(full.finance_sent_at).toLocaleDateString('el-GR')}</span>
+            </span>
+          )}
           <span className="text-sm text-gray-500">ΑΦΜ: <b className={full?.afm ? 'text-gray-700' : 'text-red-500'}>{full?.afm || '— (λείπει)'}</b></span>
           <span className="text-sm text-gray-500">Πρόγραμμα: <b className="text-gray-700">{full?.program || '—'}</b></span>
           {(() => {

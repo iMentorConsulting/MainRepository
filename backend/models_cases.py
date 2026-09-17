@@ -667,6 +667,10 @@ class CMLead(Base):
     # Program-specific columns that vary per sheet, kept schema-free
     program_fields = Column(JSON, nullable=True)
 
+    # Finance intake tracking
+    finance_sent_at = Column(DateTime, nullable=True)
+    finance_amount_sent = Column(Float, nullable=True)
+
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
