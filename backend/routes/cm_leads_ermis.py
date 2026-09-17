@@ -1005,8 +1005,22 @@ def ermis_webhook(
         elig = (payload.eligibility or "").strip().lower()
         lead.ermis_status = "eligible" if elig == "eligible" else ("ineligible" if elig == "ineligible" else lead.ermis_status)
         lead.ermis_completed_at = datetime.utcnow()
-        # Nudge a completed-eligible lead up the pipeline if still fresh
-        if lead.ermis_status == "eligible" and lead.status in ("NEW LEAD", "CALL"):
+        if lead.ermis_status == "ineligible":
+            # LOGISTIS ineligible result (including corrections for previously-eligible leads)
+            prev_status = lead.status
+            lead.status = "CANCEL"
+            # Record the correction as a comment so it's visible in lead history
+            try:
+                from models_cases import CMLeadComment
+                _note = "ΕΡΜΗΣ/LOGISTIS: Αποτέλεσμα μη επιλεξιμότητας (ineligible)"
+                if prev_status and prev_status != "CANCEL":
+                    _note += f" — διόρθωση από προηγούμενη κατάσταση '{prev_status}'"
+                db.add(CMLeadComment(lead_id=lead.id, author="ΕΡΜΗΣ", content=_note))
+                log.info("ΕΡΜΗΣ ineligible → lead %s set CANCEL (was %s)", lead.id, prev_status)
+            except Exception as _ce:
+                log.warning("ΕΡΜΗΣ ineligible comment failed: %s", _ce)
+        elif lead.ermis_status == "eligible" and lead.status in ("NEW LEAD", "CALL"):
+            # Nudge a completed-eligible lead up the pipeline if still fresh
             lead.status = "HOT"
 
         # Rescue: if the transcript landed on the wrong lead, copy it to a better one.
