@@ -675,6 +675,8 @@ function ExpandedRow({ lead, colSpan, onChanged, onConvert, onErmis, onSend, pro
     return `${d}/${m}/${yy} ${hh}:${mm}`
   }
   const handleResend = async () => {
+    const isLogistis = (lead.source || '').toUpperCase().startsWith('LOGISTIS')
+    if (isLogistis) { toast.error('Το LOGISTIS διαχειρίζεται την αποστολή στον πελάτη — δεν αποστέλλεται από εδώ'); return }
     const log = full?.ermis_send_log || []
     const lastSent = log[0]
     const sendCount = Math.max(
@@ -1029,11 +1031,15 @@ export default function Leads() {
 
   const handleErmis = async (lead) => {
     if (['eligible', 'ineligible', 'in_progress', 'starting', 'reminded'].includes(lead.ermis_status)) return
-    if (!confirm(`Έναρξη προαξιολόγησης ΕΡΜΗΣ και αποστολή link στον ${lead.name || 'lead'};`)) return
+    const isLogistis = (lead.source || '').toUpperCase().startsWith('LOGISTIS')
+    if (!confirm(`Έναρξη προαξιολόγησης ΕΡΜΗΣ${isLogistis ? '' : ' και αποστολή link στον ' + (lead.name || 'lead')};`)) return
     const tid = toast.loading('Έναρξη ΕΡΜΗΣ…')
     try {
-      await startLeadErmis(lead.id, { send_link: true, channel: 'both' })
-      toast.success('Η έναρξη ΕΡΜΗΣ ξεκίνησε — το link θα σταλεί σε λίγο (Viber & Email)', { id: tid })
+      await startLeadErmis(lead.id, { send_link: !isLogistis, channel: 'both' })
+      const successMsg = isLogistis
+        ? 'Η έναρξη ΕΡΜΗΣ ξεκίνησε — το LOGISTIS διαχειρίζεται την αποστολή στον πελάτη'
+        : 'Η έναρξη ΕΡΜΗΣ ξεκίνησε — το link θα σταλεί σε λίγο (Viber & Email)'
+      toast.success(successMsg, { id: tid })
       // Give the background worker a moment, then refresh to show updated status
       setTimeout(load, 4000)
     } catch (e) {

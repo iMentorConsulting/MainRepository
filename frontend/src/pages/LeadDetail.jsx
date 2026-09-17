@@ -87,8 +87,9 @@ export default function LeadDetail() {
   }
 
   const handleErmis = async () => {
-    if (!confirm('Έναρξη προαξιολόγησης ΕΡΜΗΣ και αποστολή link;')) return
-    try { await startLeadErmis(id, { send_link: true, channel: lead.phone ? 'viber' : 'email' }); toast.success('Ξεκίνησε ΕΡΜΗΣ'); load(); getLeadErmisTranscript(id).then(setTranscript) }
+    const isLogistis = (lead?.source || '').toUpperCase().startsWith('LOGISTIS')
+    if (!confirm(isLogistis ? 'Έναρξη προαξιολόγησης ΕΡΜΗΣ; (το LOGISTIS διαχειρίζεται την αποστολή στον πελάτη)' : 'Έναρξη προαξιολόγησης ΕΡΜΗΣ και αποστολή link;')) return
+    try { await startLeadErmis(id, { send_link: !isLogistis, channel: lead.phone ? 'viber' : 'email' }); toast.success('Ξεκίνησε ΕΡΜΗΣ'); load(); getLeadErmisTranscript(id).then(setTranscript) }
     catch (e) { toast.error(e.response?.data?.detail || 'Σφάλμα ΕΡΜΗΣ') }
   }
   const handleConvert = async () => {
