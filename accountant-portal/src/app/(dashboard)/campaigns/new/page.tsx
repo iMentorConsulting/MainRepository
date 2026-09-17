@@ -174,10 +174,14 @@ function StepTemplate({ channel, onSelect, onBack }: { channel: 'EMAIL' | 'VIBER
 }
 
 // ── Step 3: Preview & send ────────────────────────────────────────────────────
-function StepSend({ template, messageBody, onMessageChange, programId, programs, onBack, onSend, sending, onSaveDraft, savingDraft, isAdmin }: {
+function StepSend({ template, messageBody, onMessageChange, programId, programs, onBack, onSend, sending, onSaveDraft, savingDraft, isAdmin, preselectedBusinessIds }: {
   template: any; messageBody: string; onMessageChange: (v: string) => void; programId: string; programs: any[];
   onBack: () => void; onSend: (ids: string[], maxRecipients?: number) => void; sending: boolean;
   onSaveDraft: () => void; savingDraft: boolean; isAdmin: boolean;
+  // Handoff from a program's notify modal: scope the whole recipient list to
+  // exactly these business IDs instead of every match for the program, so
+  // the admin reviews/deselects only what they already picked there.
+  preselectedBusinessIds?: string[] | null;
 }) {
   const program = programs.find(p => p.id === programId)
   const [allRecipients, setAllRecipients] = useState<any[]>([])
@@ -210,7 +214,11 @@ function StepSend({ template, messageBody, onMessageChange, programId, programs,
     fetch(url)
       .then(r => r.json())
       .then(data => {
-        const businesses = data.businesses ?? data // backwards compat
+        let businesses = data.businesses ?? data // backwards compat
+        if (preselectedBusinessIds && preselectedBusinessIds.length > 0) {
+          const preselectedSet = new Set(preselectedBusinessIds)
+          businesses = businesses.filter((b: any) => preselectedSet.has(b.id))
+        }
         setAllRecipients(businesses)
         setAccountants(data.accountants ?? [])
         setAvailableTags(data.tags ?? [])
@@ -294,6 +302,12 @@ function StepSend({ template, messageBody, onMessageChange, programId, programs,
         <h2 className="text-xl font-bold text-gray-900">Σε ποιους να σταλεί;</h2>
         <p className="text-sm text-gray-500 mt-1">Φιλτράρετε και επιλέξτε τους παραλήπτες που θέλετε.</p>
       </div>
+
+      {preselectedBusinessIds && preselectedBusinessIds.length > 0 && (
+        <div className="px-3 py-2 rounded-lg bg-purple-50 border border-purple-200 text-xs text-purple-700">
+          Εμφανίζονται μόνο οι {preselectedBusinessIds.length} επιχειρήσεις που επιλέξατε στη σελίδα του προγράμματος.
+        </div>
+      )}
 
       {/* ── Direct-from-I-MENTOR toggle (admin only) ── */}
       {isAdmin && template?.bodyDirect && (
@@ -634,8 +648,29 @@ export default function NewCampaignPage() {
   const [step, setStep] = useState(0)
   const [path, setPath] = useState<'diy' | 'imentor' | null>(null)
 
+  const [preselectedBusinessIds, setPreselectedBusinessIds] = useState<string[] | null>(null)
+
   useEffect(() => {
     const p = searchParams.get('path')
+    // Handoff from a program's "Αποστολή Ειδοποιήσεων" modal: the admin
+    // already picked exact recipients there — land straight on template
+    // choice (program is already known) instead of re-picking it.
+    if (searchParams.get('preselect') === '1') {
+      const raw = sessionStorage.getItem('campaignPreselect')
+      sessionStorage.removeItem('campaignPreselect')
+      if (raw) {
+        try {
+          const parsed = JSON.parse(raw)
+          if (parsed.programId && Array.isArray(parsed.businessIds) && parsed.businessIds.length > 0) {
+            setProgramId(parsed.programId)
+            setPreselectedBusinessIds(parsed.businessIds)
+            setPath('diy')
+            setStep(2)
+            return
+          }
+        } catch {}
+      }
+    }
     if (p === 'diy')     { setPath('diy');     setStep(1) }
     if (p === 'imentor') { setPath('imentor'); setStep(1) }
   }, [])
@@ -754,6 +789,7 @@ export default function NewCampaignPage() {
             onSaveDraft={() => saveCampaign('DRAFT')}
             savingDraft={savingDraft}
             isAdmin={(session?.user as any)?.role === 'ADMIN'}
+            preselectedBusinessIds={preselectedBusinessIds}
           />
         )}
       </div>
