@@ -418,17 +418,17 @@ function FinanceModal({ lead, onClose, onSuccess }) {
   const [f, setF] = useState({
     invoice_type: 'ΤΙΜΟΛΟΓΙΟ',
     amount_collected: '',
-    organization: 'I-MENTOR',
-    service_type: '',
+    organization: 'ΑΠΟΣΤΟΛΑΚΗΣ',
+    service_type: 'ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ',
     targeting_category: 'ΠΩΛΗΣΗ ΑΙΤΗΣΗΣ',
     work_status: 'ΥΠΟΒΟΛΗ ΑΙΤΗΣΗΣ',
-    description: '',
+    description: 'Αίτηση & Συμβ. Υποστήριξη για το Ταμείο Μικροπιστώσεων',
     sale_date: today,
     source_referral: lead.source || '',
     address: '',
     city: '',
-    amount_application: '',
-    amount_implementation: '',
+    amount_application: '150',
+    amount_implementation: '250',
   })
   const [busy, setBusy] = useState(false)
 
