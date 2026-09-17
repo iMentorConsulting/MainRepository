@@ -41,6 +41,7 @@ export default function ProgramDetailPage() {
   const [previewData, setPreviewData] = useState<any>(null)
   const [previewLoading, setPreviewLoading] = useState(false)
   const [selectedMatchIds, setSelectedMatchIds] = useState<Set<string>>(new Set())
+  const [selectedDirectIds, setSelectedDirectIds] = useState<Set<string>>(new Set())
   const [criteriaMap, setCriteriaMap] = useState<Record<string, string>>({})
   const [diagnoseAfm, setDiagnoseAfm] = useState('')
   const [diagnosing, setDiagnosing] = useState(false)
@@ -109,11 +110,12 @@ export default function ProgramDetailPage() {
     const res = await fetch(`/api/programs/${id}/notify?preview=true`)
     const data = await res.json()
     setPreviewData(data)
-    // Pre-select accountant match IDs; direct matches are always included automatically
+    // Pre-select everyone by default — both groups can be deselected individually.
     const acctIds = new Set<string>(
       (data.accountants ?? []).flatMap((a: any) => a.businesses.map((b: any) => b.matchId))
     )
     setSelectedMatchIds(acctIds)
+    setSelectedDirectIds(new Set<string>((data.directBusinesses ?? []).map((b: any) => b.matchId)))
     setPreviewLoading(false)
   }
 
@@ -123,6 +125,34 @@ export default function ProgramDetailPage() {
       next.has(matchId) ? next.delete(matchId) : next.add(matchId)
       return next
     })
+  }
+
+  function toggleDirect(matchId: string) {
+    setSelectedDirectIds(prev => {
+      const next = new Set(prev)
+      next.has(matchId) ? next.delete(matchId) : next.add(matchId)
+      return next
+    })
+  }
+
+  function toggleAllDirect() {
+    const ids: string[] = (previewData?.directBusinesses ?? []).map((b: any) => b.matchId)
+    const allSelected = ids.every(mid => selectedDirectIds.has(mid))
+    setSelectedDirectIds(allSelected ? new Set() : new Set(ids))
+  }
+
+  // Hands the exact business IDs the admin picked here off to the Campaigns
+  // wizard, so they can choose the actual email/Viber content and send
+  // through the full campaign flow instead of the fixed internal digest.
+  function createCampaignWithSelectedDirect() {
+    const businessIds = (previewData?.directBusinesses ?? [])
+      .filter((b: any) => selectedDirectIds.has(b.matchId))
+      .map((b: any) => b.id)
+    if (businessIds.length === 0) return
+    sessionStorage.setItem('campaignPreselect', JSON.stringify({ programId: id, businessIds }))
+    setShowPreview(false)
+    setPreviewData(null)
+    router.push('/campaigns/new?path=diy&preselect=1')
   }
 
   function toggleAccountant(acct: any) {
@@ -137,11 +167,10 @@ export default function ProgramDetailPage() {
 
   async function sendNotifications() {
     setNotifying(true)
-    const directIds = (previewData?.directBusinesses ?? []).map((b: any) => b.matchId)
     const res = await fetch(`/api/programs/${id}/notify`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ matchIds: [...Array.from(selectedMatchIds), ...directIds] }),
+      body: JSON.stringify({ matchIds: [...Array.from(selectedMatchIds), ...Array.from(selectedDirectIds)] }),
     })
     const data = await res.json()
     setPendingNotifications(0)
@@ -686,14 +715,35 @@ export default function ProgramDetailPage() {
 
                   {previewData.directBusinesses?.length > 0 && (
                     <div className="space-y-2">
-                      <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
-                        <Building2 size={13} /> Απευθείας πελάτες I-MENTOR — αυτόματη αποστολή
-                      </h3>
+                      <div className="flex items-center justify-between gap-2">
+                        <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                          <Building2 size={13} /> Απευθείας πελάτες I-MENTOR
+                        </h3>
+                        <Button size="sm" variant="outline" onClick={createCampaignWithSelectedDirect} disabled={selectedDirectIds.size === 0}
+                          className="text-purple-700 border-purple-300 hover:bg-purple-50 h-7 text-xs px-2.5">
+                          Δημιουργία Καμπάνιας ({selectedDirectIds.size})
+                        </Button>
+                      </div>
                       <div className="border border-amber-200 bg-amber-50 rounded-xl p-3 space-y-1">
-                        <p className="text-xs text-amber-700 mb-2 font-medium">Εσωτερικό email στην ομάδα I-MENTOR — στέλνεται αυτόματα χωρίς επιλογή.</p>
+                        <div className="flex items-center gap-2 mb-1">
+                          <input
+                            type="checkbox"
+                            checked={previewData.directBusinesses.length > 0 && previewData.directBusinesses.every((b: any) => selectedDirectIds.has(b.matchId))}
+                            onChange={toggleAllDirect}
+                            className="cursor-pointer accent-amber-600"
+                          />
+                          <p className="text-xs text-amber-700 font-medium">
+                            Εσωτερικό email στην ομάδα I-MENTOR για τους επιλεγμένους — ή δημιουργήστε καμπάνια για να διαλέξετε το μήνυμα.
+                          </p>
+                        </div>
                         {previewData.directBusinesses.map((b: any) => (
                           <div key={b.id} className="flex items-center gap-2">
-                            <span className="text-amber-500 flex-shrink-0 text-xs">✓</span>
+                            <input
+                              type="checkbox"
+                              checked={selectedDirectIds.has(b.matchId)}
+                              onChange={() => toggleDirect(b.matchId)}
+                              className="cursor-pointer accent-amber-600 flex-shrink-0"
+                            />
                             <Link href={`/businesses/${b.id}`} target="_blank"
                               className="text-xs text-amber-800 hover:underline flex items-center gap-1 min-w-0">
                               <Building2 size={11} className="flex-shrink-0" />
@@ -717,19 +767,18 @@ export default function ProgramDetailPage() {
             {/* Footer */}
             <div className="px-6 py-4 border-t border-slate-200 flex items-center justify-between gap-3">
               <p className="text-xs text-slate-500">
-                {selectedMatchIds.size} λογιστές επιλεγμένοι
-                {(previewData?.directBusinesses?.length ?? 0) > 0 && ` + ${previewData.directBusinesses.length} αυτόματα`}
+                {selectedMatchIds.size} λογιστές + {selectedDirectIds.size} απευθείας επιλεγμένοι
               </p>
               <div className="flex items-center gap-3">
                 <Button variant="ghost" onClick={() => { setShowPreview(false); setPreviewData(null) }}>Ακύρωση</Button>
                 <Button
                   onClick={sendNotifications}
                   loading={notifying}
-                  disabled={!previewData || selectedMatchIds.size === 0}
+                  disabled={!previewData || selectedMatchIds.size + selectedDirectIds.size === 0}
                   className="bg-green-600 hover:bg-green-700 text-white"
                 >
                   <Bell size={14} className="mr-1.5" />
-                  Αποστολή σε {selectedMatchIds.size} matches
+                  Αποστολή σε {selectedMatchIds.size + selectedDirectIds.size} matches
                 </Button>
               </div>
             </div>
