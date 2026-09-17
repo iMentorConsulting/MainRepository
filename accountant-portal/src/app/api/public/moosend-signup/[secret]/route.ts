@@ -58,17 +58,47 @@ function extractField(body: any, candidateKeys: string[]): string | null {
   return null
 }
 
-export async function POST(request: NextRequest, { params }: { params: { secret: string } }) {
+// Moosend validates the webhook URL when you save the automation step —
+// exactly how isn't documented from here, but it's some kind of reachability
+// check (GET/HEAD/OPTIONS, or a POST with an empty/test body) done before it
+// lets you save. Answer all of those with 200 so validation passes; the only
+// non-200 this route ever returns is 401 for a wrong secret. Every "couldn't
+// process this particular payload" case still gets logged and returns 200
+// with ok:false in the body instead of an HTTP error status, so a real
+// delivery Moosend can't parse doesn't look like a broken endpoint either.
+
+function checkSecret(secret: string): boolean {
   const configuredSecret = process.env.MOOSEND_WEBHOOK_SECRET
-  if (!configuredSecret || params.secret !== configuredSecret) {
+  return !!configuredSecret && secret === configuredSecret
+}
+
+export async function GET(request: NextRequest, { params }: { params: { secret: string } }) {
+  if (!checkSecret(params.secret)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  return NextResponse.json({ ok: true })
+}
+
+export async function OPTIONS(request: NextRequest, { params }: { params: { secret: string } }) {
+  if (!checkSecret(params.secret)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  return NextResponse.json({ ok: true })
+}
+
+export async function HEAD(request: NextRequest, { params }: { params: { secret: string } }) {
+  if (!checkSecret(params.secret)) return new NextResponse(null, { status: 401 })
+  return new NextResponse(null, { status: 200 })
+}
+
+export async function POST(request: NextRequest, { params }: { params: { secret: string } }) {
+  if (!checkSecret(params.secret)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  let body: any
+  let body: any = null
   try {
-    body = await request.json()
+    const text = await request.text()
+    body = text ? JSON.parse(text) : null
   } catch {
-    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
+    console.error('[MoosendSignup] non-JSON or empty body (likely a Moosend validation ping)')
+    return NextResponse.json({ ok: false, reason: 'invalid or empty JSON body' })
   }
 
   const email = extractField(body, ['Email', 'email', 'EMAIL'])
@@ -76,12 +106,12 @@ export async function POST(request: NextRequest, { params }: { params: { secret:
 
   if (!rawAfm) {
     console.error('[MoosendSignup] no ΑΦΜ field found in webhook payload:', JSON.stringify(body).slice(0, 1000))
-    return NextResponse.json({ error: 'No ΑΦΜ field found', received: body }, { status: 400 })
+    return NextResponse.json({ ok: false, reason: 'no ΑΦΜ field found', received: body })
   }
 
   const cleanAfm = rawAfm.replace(/\D/g, '').padStart(9, '0')
   if (!/^\d{9}$/.test(cleanAfm)) {
-    return NextResponse.json({ error: 'Invalid ΑΦΜ' }, { status: 400 })
+    return NextResponse.json({ ok: false, reason: 'invalid ΑΦΜ' })
   }
 
   try {
@@ -106,6 +136,6 @@ export async function POST(request: NextRequest, { params }: { params: { secret:
     return NextResponse.json({ ok: true, eligible: true, emailSent: true, programCount: result.programs.length })
   } catch (err: any) {
     console.error('[MoosendSignup] processing failed:', err?.message)
-    return NextResponse.json({ error: 'Processing failed' }, { status: 500 })
+    return NextResponse.json({ ok: false, reason: 'processing failed' })
   }
 }
