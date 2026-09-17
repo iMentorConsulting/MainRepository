@@ -1421,10 +1421,8 @@ try:
         _conn.execute(_text("UPDATE cm_leads SET phone2 = REGEXP_REPLACE(phone2, '^0030', '') WHERE phone2 ~ '^0030'"))
         # Backfill: fix the common yahoo.fr → yahoo.gr email typo
         _conn.execute(_text("UPDATE cm_leads SET email = regexp_replace(email, '@yahoo\\.fr$', '@yahoo.gr', 'i') WHERE email ~* '@yahoo\\.fr$'"))
-        # Restore: yahoo.gr was wrongly treated as a typo and changed to yahoo.com — revert those.
-        # We cannot know the original domain with certainty, but leads imported from LOGISTIS/sheets
-        # where email ends in @yahoo.com but name/phone suggest GR origin were almost certainly yahoo.gr.
-        # Safer: do nothing automatically — users should manually correct individual leads.
+        # One-time restore: metalidis58@yahoo.com was wrongly auto-corrected from yahoo.gr
+        _conn.execute(_text("UPDATE cm_leads SET email = 'metalidis58@yahoo.gr' WHERE email = 'metalidis58@yahoo.com'"))
         # Backfill: extract program_title from notes for LOGISTIS leads that have none.
         # LOGISTIS description format: "Ανάθεση … — PROGRAM_TITLE" (em-dash, en-dash, or spaced hyphen)
         _conn.execute(_text(r"""
