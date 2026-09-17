@@ -1456,6 +1456,15 @@ try:
 except Exception as _e:
     print(f"[migration] cm_leads onboard_token skipped: {_e}", flush=True)
 
+# finance submission tracking columns
+try:
+    with engine.connect() as _conn:
+        _conn.execute(_text("ALTER TABLE cm_leads ADD COLUMN IF NOT EXISTS finance_sent_at TIMESTAMP"))
+        _conn.execute(_text("ALTER TABLE cm_leads ADD COLUMN IF NOT EXISTS finance_amount_sent FLOAT"))
+        _conn.commit()
+except Exception as _e:
+    print(f"[migration] cm_leads finance_sent skipped: {_e}", flush=True)
+
 
 @app.on_event("shutdown")
 def _shutdown_scheduler():
