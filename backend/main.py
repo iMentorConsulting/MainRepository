@@ -202,6 +202,33 @@ try:
 except Exception:
     pass
 
+# Startup backfill: set source=Facebook/TikTok for any lead whose notes OR comments
+# contain \bFB\b or \bTIKTOK\b and whose current source is empty or LOGISTIS-derived.
+try:
+    import re as _re_bf
+    with engine.connect() as _conn:
+        _rows = _conn.execute(_text("""
+            SELECT l.id,
+                   COALESCE(l.notes, '') || ' ' ||
+                   COALESCE((SELECT string_agg(content, ' ') FROM cm_lead_comments WHERE lead_id = l.id), '') AS all_text
+            FROM cm_leads l
+            WHERE l.source IS NULL OR l.source = '' OR l.source ILIKE 'LOGISTIS%'
+        """)).fetchall()
+        _updated = 0
+        for _row in _rows:
+            _upper = (_row[1] or "").upper()
+            if _re_bf.search(r'\bFB\b', _upper):
+                _conn.execute(_text("UPDATE cm_leads SET source = 'Facebook' WHERE id = :id"), {"id": _row[0]})
+                _updated += 1
+            elif _re_bf.search(r'\bTIKTOK\b', _upper):
+                _conn.execute(_text("UPDATE cm_leads SET source = 'TikTok' WHERE id = :id"), {"id": _row[0]})
+                _updated += 1
+        if _updated:
+            print(f"[startup] Backfilled source keyword for {_updated} leads")
+        _conn.commit()
+except Exception as _e:
+    print(f"[startup] source-keyword backfill skipped: {_e}")
+
 # One-time cleanup: delete auto-created sibling leads (created by bug in _on_business_ready)
 try:
     with engine.connect() as _conn:
