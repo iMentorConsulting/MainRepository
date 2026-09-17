@@ -42,6 +42,20 @@ export default function IncomeForm({ record, onSave, onCancel }) {
       .then(r => setDescTemplates(r.data.map(x => x.value)));
   }, []);
 
+  // On mount: auto-fetch AADE if record has a valid AFM, and auto-calculate bonus
+  useEffect(() => {
+    const vat = (record?.vat_number || '').trim();
+    if (/^\d{9}$/.test(vat)) handleAadeSearch(vat);
+
+    // Calculate bonus on open if ΠΩΛΗΣΗ ΑΙΤΗΣΗΣ and no bonus already set
+    const cat       = record?.targeting_category;
+    const collected = parseFloat(record?.amount_collected);
+    const existing  = parseFloat(record?.bonus);
+    if (cat === 'ΠΩΛΗΣΗ ΑΙΤΗΣΗΣ' && !isNaN(collected) && collected > 0 && !existing) {
+      setValue('bonus', (collected * 0.05).toFixed(2));
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
 
 
 
