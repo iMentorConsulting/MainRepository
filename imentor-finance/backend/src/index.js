@@ -91,6 +91,8 @@ app.use('/api/customers',          authMiddleware, require('./routes/customers')
 app.use('/api/service-agreements', authMiddleware, require('./routes/serviceAgreements'));
 app.use('/api/recurring-expenses', authMiddleware, require('./routes/recurringExpenses'));
 
+app.use('/api/lead-intake', require('./routes/leadIntake'));
+
 app.get('/health', (_, res) => res.json({ ok: true }));
 
 // Serve React frontend in production
