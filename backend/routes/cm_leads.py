@@ -1989,7 +1989,7 @@ def send_lead_to_finance(
         raise
     except Exception as exc:
         _logger.exception("send-to-finance unhandled error for lead %s", lead_id)
-        raise HTTPException(status_code=500, detail=f"Εσωτερικό σφάλμα: {exc}")
+        raise HTTPException(status_code=422, detail=f"Εσωτερικό σφάλμα: {exc}")
 
 
 def _send_to_finance_inner(lead_id, body, db, current_user, _os, _req, _logger):
@@ -1999,7 +1999,7 @@ def _send_to_finance_inner(lead_id, body, db, current_user, _os, _req, _logger):
 
     api_key = _os.getenv("LEAD_INTAKE_API_KEY", "")
     if not api_key:
-        raise HTTPException(status_code=503, detail="LEAD_INTAKE_API_KEY not configured")
+        raise HTTPException(status_code=422, detail="LEAD_INTAKE_API_KEY not configured on server")
 
     sale_date = body.sale_date or date.today().isoformat()
     external_id = f"cm-{lead_id}-{sale_date.replace('-', '')}-{body.invoice_type}"
@@ -2043,9 +2043,9 @@ def _send_to_finance_inner(lead_id, body, db, current_user, _os, _req, _logger):
         resp.raise_for_status()
     except _req.exceptions.HTTPError as exc:
         detail = exc.response.text[:400] if exc.response is not None else str(exc)
-        raise HTTPException(status_code=502, detail=f"Finance API error: {detail}")
+        raise HTTPException(status_code=422, detail=f"Finance API error: {detail}")
     except Exception as exc:
-        raise HTTPException(status_code=502, detail=f"Finance API unreachable: {exc}")
+        raise HTTPException(status_code=422, detail=f"Finance API unreachable: {exc}")
 
     try:
         finance_resp = resp.json() if resp.content else {}
