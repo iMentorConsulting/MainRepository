@@ -185,6 +185,13 @@ def run_migrations():
         except Exception:
             pass
 
+        # finance_payments: add service_type if missing (column added after initial deploy)
+        try:
+            conn.execute(text("ALTER TABLE finance_payments ADD COLUMN service_type VARCHAR DEFAULT 'ΕΞΩΔΙΚΑΣΤΙΚΟΣ'"))
+            conn.commit()
+        except Exception:
+            pass
+
         # Θέμις token-usage tracking (for cost accounting on the conversations list)
         for col_ddl in [
             "ALTER TABLE themis_sessions ADD COLUMN input_tokens INTEGER DEFAULT 0",

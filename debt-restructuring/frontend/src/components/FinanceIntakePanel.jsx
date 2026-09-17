@@ -4,20 +4,20 @@ import { recordFinancePayment, getFinancePayments } from '../api'
 const TODAY = () => new Date().toISOString().slice(0, 10)
 
 const DESCRIPTION_OPTIONS = [
-  'ΜΕΤΡΗΤΑ',
   'ΥΠΟΒΟΛΗ ΑΙΤΗΣΗΣ Ν.4738/2020',
+  'ΜΕΤΡΗΤΑ',
 ]
 
 const SOURCE_REFERRAL_OPTIONS = [
-  'ORGANIC',
-  'GOOGLE ADS',
-  'FACEBOOK ADS',
-  'REFERRAL',
-  'PARTNER',
-  'COLD CALL',
-  'EMAIL CAMPAIGN',
-  'SOCIAL MEDIA',
-  'OTHER',
+  'FACEBOOK',
+  'GOOGLE',
+  'LOGISTIS.I-MENTOR.GR',
+  'NEWSLETTER',
+  'TIKTOK',
+  'WEBSITE',
+  'ΣΥΣΤΑΣΗ',
+  'ΤΗΛΕΦΩΝΟ',
+  'ΥΦΙΣΤΑΜΕΝΟΣ ΠΕΛΑΤΗΣ',
 ]
 
 const TARGETING_CATEGORY_OPTIONS = [
@@ -26,18 +26,26 @@ const TARGETING_CATEGORY_OPTIONS = [
 ]
 
 const WORK_STATUS_OPTIONS = [
-  'ΝΕΟΣ ΠΕΛΑΤΗΣ',
-  'ΣΕ ΕΞΕΛΙΞΗ',
-  'ΟΛΟΚΛΗΡΩΘΗΚΕ',
-  'ΑΚΥΡΩΘΗΚΕ',
-  'ΣΕ ΑΝΑΜΟΝΗ',
-  'ΑΠΟΡΡΙΦΘΗΚΕ',
-  'ΕΠΑΝΥΠΟΒΟΛΗ',
-  'ΕΝΣΤΑΣΗ',
-  'ΔΙΚΑΣΤΗΡΙΟ',
-  'ΕΦΕΣΗ',
-  'ΑΝΑΣΤΟΛΗ',
-  'ΑΛΛΟ',
+  'ΧΡΕΟΣ-1.ΑΝΑΛΥΣΗ ΣΤΟΙΧΕΙΩΝ',
+  'ΧΡΕΟΣ-2.ΣΥΜΠΛΗΡΩΣΗ ΑΙΤΗΣΗΣ',
+  'ΧΡΕΟΣ-3.ΑΝΤΛΗΣΗ ΣΤΟΙΧΕΙΩΝ',
+  'ΧΡΕΟΣ-4.ΥΠΟΒΕΒΛΗΜΕΝΗ ΑΙΤΗΣΗ',
+  'ΧΡΕΟΣ-5-ΑΠΟΔΟΧΗ ΑΠΟ ΠΕΛΑΤΗ',
+  'ΧΡΕΟΣ-6-ΑΠΟΡΡΙΨΗ ΑΠΟ ΠΕΛΑΤΗ',
+  'ΠΤ2-ΔΙΚΗΓΟΡΟΣ ΠΡΟΕΤ.',
+  'ΠΤ3-ΕΓΓΡΑΦΗ ΜΗΤΡΩΟ Φ.',
+  'ΠΤ4-ΑΙΤΗΣΗ ΠΡΩΤΟΔΙΚΕΙΟ',
+  'ΠΤ5-ΑΠΟΦΑΣΗ ΑΠΛΗ',
+  'ΠΤ6-ΑΠΟΡΡΙΨΗ ΑΙΤΗΣΗΣ',
+  'ΠΤ6-ΑΠΟΦΑΣΗ ΣΥΝΔΙΚΟΣ',
+  'ΠΤ7-ΑΝΑΜΟΝΗ ΤΡΙΕΤΙΑΣ',
+]
+
+const SERVICE_TYPE_OPTIONS = [
+  'ΕΞΩΔΙΚΑΣΤΙΚΟΣ',
+  'ΑΝΑΔΙΑΡΘΡΩΣΗ',
+  'ΔΙΑΠΡΑΓΜΑΤΕΥΣΗ',
+  'ΠΤΩΧΕΥΣΗ',
 ]
 
 const INVOICE_TYPES = ['ΤΙΜΟΛΟΓΙΟ', 'ΑΠΟΔΕΙΞΗ', 'ΑΝΕΥ']
@@ -62,11 +70,15 @@ const DEFAULT_FORM = {
   sale_date: TODAY(),
   description: 'ΥΠΟΒΟΛΗ ΑΙΤΗΣΗΣ Ν.4738/2020',
   targeting_category: 'ΠΩΛΗΣΗ ΑΙΤΗΣΗΣ',
-  source_referral: 'ORGANIC',
-  work_status: 'ΝΕΟΣ ΠΕΛΑΤΗΣ',
+  source_referral: 'FACEBOOK',
+  work_status: 'ΧΡΕΟΣ-3.ΑΝΤΛΗΣΗ ΣΤΟΙΧΕΙΩΝ',
+  service_type: 'ΕΞΩΔΙΚΑΣΤΙΚΟΣ',
   address: '',
   city: '',
 }
+
+// Address is needed for ΑΠΟΔΕΙΞΗ and ΑΝΕΥ (ΤΙΜΟΛΟΓΙΟ fetches it automatically from Finance)
+const needsAddress = (invoiceType) => invoiceType === 'ΑΠΟΔΕΙΞΗ' || invoiceType === 'ΑΝΕΥ'
 
 export default function FinanceIntakePanel({ caseData }) {
   const [payments, setPayments] = useState([])
@@ -127,7 +139,10 @@ export default function FinanceIntakePanel({ caseData }) {
 
     if (!form.payment_type.trim()) { setError('Συμπλήρωσε τον τύπο πληρωμής.'); return }
     if (!form.amount_collected || isNaN(parseFloat(form.amount_collected))) { setError('Συμπλήρωσε το ποσό.'); return }
-    if (form.invoice_type === 'ΑΝΕΥ' && !form.address.trim()) { setError('Απαιτείται διεύθυνση για ΑΝΕΥ παραστατικό.'); return }
+    if (needsAddress(form.invoice_type) && !form.address.trim()) {
+      setError(`Απαιτείται διεύθυνση για ${form.invoice_type} παραστατικό.`)
+      return
+    }
 
     setSubmitting(true)
     try {
@@ -141,6 +156,7 @@ export default function FinanceIntakePanel({ caseData }) {
         targeting_category: form.targeting_category,
         source_referral: form.source_referral,
         work_status: form.work_status,
+        service_type: form.service_type,
         address: form.address,
         city: form.city,
       })
@@ -225,6 +241,16 @@ export default function FinanceIntakePanel({ caseData }) {
             </div>
             <form onSubmit={handleSubmit} className="px-5 py-4 space-y-3">
 
+              {/* Client info preview */}
+              <div className="bg-gray-50 border border-gray-200 rounded px-3 py-2 text-xs text-gray-600 space-y-0.5">
+                <div><span className="font-medium">Πελάτης:</span> {caseData?.client_name || '—'}</div>
+                <div className="flex gap-4">
+                  <span><span className="font-medium">ΑΦΜ:</span> {caseData?.client_vat || '—'}</span>
+                  <span><span className="font-medium">Τηλ:</span> {caseData?.client_phone || '—'}</span>
+                  <span><span className="font-medium">Email:</span> {caseData?.client_email || '—'}</span>
+                </div>
+              </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">Τύπος Πληρωμής *</label>
@@ -271,11 +297,19 @@ export default function FinanceIntakePanel({ caseData }) {
                 <input type="date" value={form.sale_date} onChange={e => field('sale_date', e.target.value)} className="w-full border rounded px-2 py-1.5 text-sm" required />
               </div>
 
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Περιγραφή</label>
-                <select value={form.description} onChange={e => field('description', e.target.value)} className="w-full border rounded px-2 py-1.5 text-sm">
-                  {DESCRIPTION_OPTIONS.map(o => <option key={o}>{o}</option>)}
-                </select>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Υπηρεσία</label>
+                  <select value={form.service_type} onChange={e => field('service_type', e.target.value)} className="w-full border rounded px-2 py-1.5 text-sm">
+                    {SERVICE_TYPE_OPTIONS.map(o => <option key={o}>{o}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Περιγραφή</label>
+                  <select value={form.description} onChange={e => field('description', e.target.value)} className="w-full border rounded px-2 py-1.5 text-sm">
+                    {DESCRIPTION_OPTIONS.map(o => <option key={o}>{o}</option>)}
+                  </select>
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -300,10 +334,13 @@ export default function FinanceIntakePanel({ caseData }) {
                 </select>
               </div>
 
-              {form.invoice_type === 'ΑΝΕΥ' && (
+              {/* Address: required for ΑΠΟΔΕΙΞΗ and ΑΝΕΥ; ΤΙΜΟΛΟΓΙΟ fetches it automatically from Finance */}
+              {needsAddress(form.invoice_type) && (
                 <div className="grid grid-cols-2 gap-3 border border-orange-200 rounded p-3 bg-orange-50">
                   <div>
-                    <label className="block text-xs font-medium text-orange-700 mb-1">Διεύθυνση * (απαιτείται για ΑΝΕΥ)</label>
+                    <label className="block text-xs font-medium text-orange-700 mb-1">
+                      Διεύθυνση * <span className="font-normal text-orange-500">(για {form.invoice_type})</span>
+                    </label>
                     <input value={form.address} onChange={e => field('address', e.target.value)} className="w-full border rounded px-2 py-1.5 text-sm" placeholder="Οδός και αριθμός" required />
                   </div>
                   <div>

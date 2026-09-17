@@ -33,6 +33,7 @@ class FinanceIntakeRequest(BaseModel):
     targeting_category: str
     source_referral: str
     work_status: str
+    service_type: Optional[str] = "ΕΞΩΔΙΚΑΣΤΙΚΟΣ"
     address: Optional[str] = ""
     city: Optional[str] = ""
 
@@ -72,6 +73,7 @@ def record_payment(
         "targeting_category": req.targeting_category,
         "source_referral": req.source_referral,
         "work_status": req.work_status,
+        "service_type": req.service_type or "ΕΞΩΔΙΚΑΣΤΙΚΟΣ",
         "sent_by": EMPLOYEE_GREEK.get(employee, employee),
         "address": req.address or "",
         "city": req.city or "",
@@ -110,6 +112,7 @@ def record_payment(
         targeting_category=req.targeting_category,
         source_referral=req.source_referral,
         work_status=req.work_status,
+        service_type=req.service_type or "ΕΞΩΔΙΚΑΣΤΙΚΟΣ",
         address=req.address or "",
         city=req.city or "",
         sent_by=EMPLOYEE_GREEK.get(employee, employee),
@@ -160,6 +163,7 @@ def list_payments(
             "targeting_category": r.targeting_category,
             "source_referral": r.source_referral,
             "work_status": r.work_status,
+            "service_type": r.service_type,
             "sent_by": r.sent_by,
             "is_duplicate": r.is_duplicate,
             "error": r.error,

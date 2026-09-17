@@ -151,6 +151,7 @@ class FinancePayment(Base):
     targeting_category = Column(String, default="")
     source_referral = Column(String, default="")
     work_status = Column(String, default="")
+    service_type = Column(String, default="ΕΞΩΔΙΚΑΣΤΙΚΟΣ")
     address = Column(String, default="")
     city = Column(String, default="")
     sent_by = Column(String, default="")
