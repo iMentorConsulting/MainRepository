@@ -61,6 +61,22 @@ export const listPendingExternalCases = () => api.get('/cases/', { params: { sta
 export const acceptExternalCase = (id, employee) => api.post(`/cases/${id}/accept-external`, { employee })
 export const pushExternalStatus = (id, data) => api.post(`/cases/${id}/external-status`, data)
 
+// Finance / Payroll
+export const getPayrollTargets = () => api.get('/finance/payroll-targets/current')
+
+// Accountant outreach (Logistis)
+export const getMyAccountantAssignment = () => api.get('/accountants/my')
+export const assignNextAccountant = () => api.post('/accountants/my/assign-next')
+export const updateAccountantStatus = (assignmentId, status, notes) => api.patch('/accountants/my/status', { assignment_id: assignmentId, status, notes })
+export const getAccountantPool = () => api.get('/accountants/pool')
+export const getAccountantAdminOverview = () => api.get('/accountants/admin/overview')
+export const adminForceSkip = (employee, assignmentId = null) => api.post(`/accountants/admin/force-skip/${employee}`, assignmentId ? { assignment_id: assignmentId } : {})
+export const adminForceAssign = (employee, accountant_id = null) => api.post(`/accountants/admin/force-assign/${employee}`, accountant_id ? { accountant_id } : {})
+
+// Finance intake (payment recording → external Finance system)
+export const recordFinancePayment = (payload) => api.post('/finance-intake', payload)
+export const getFinancePayments = (caseId) => api.get(`/finance-intake/case/${caseId}`)
+
 // Config
 export const getPricingConfig = () => api.get('/config/pricing')
 export const putPricingConfig = (data) => api.put('/config/pricing', data)
@@ -130,6 +146,7 @@ export const getConsultantPerformanceMetrics = (dateFrom, dateTo) => {
 export const bulkImportCallsAndVibers = (data) => api.post('/leads/admin/import-bulk', data)
 export const getLeadsReporting = () => api.get('/leads/reporting')
 export const getLeadsDailyVolume = () => api.get('/leads/daily-volume')
+export const getLeadsConversion = () => api.get('/leads/conversion')
 export const getLeadsCountByConsultant = (dateFrom, dateTo) => {
   const params = {}
   if (dateFrom) params.date_from = dateFrom
@@ -204,5 +221,17 @@ export const createIrisPayment = (data) => api.post('/payments/iris/create', dat
 export const listIrisPayments = () => api.get('/payments/iris')
 export const getIrisPayment = (paymentId) => api.get(`/payments/iris/${paymentId}`)
 export const recheckIrisPayment = (paymentId) => api.post(`/payments/iris/${paymentId}/recheck`)
+
+// ΛΟΓΙΣΤΗΣ Integration — External Lead Creation
+// Direct redirect flow: creates a lead and returns themis_url for immediate redirect
+// No authentication required (public endpoint for external systems)
+export const createLeadExternal = (data) => {
+  // Create a special axios instance without Bearer token for this external endpoint
+  const externalApi = axios.create({
+    baseURL: import.meta.env.VITE_API_URL || '/api',
+    headers: { 'Content-Type': 'application/json' },
+  })
+  return externalApi.post('/external/create-lead', data)
+}
 
 export default api

@@ -1,6 +1,16 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from typing import Optional, Any
 from datetime import datetime
+
+
+def _pad_afm(v: Optional[str]) -> Optional[str]:
+    """Ensure ΑΦΜ is always 9 digits by left-padding with zeros (Excel strips leading zeros)."""
+    if not v:
+        return v
+    v = v.strip()
+    if v.isdigit() and len(v) < 9:
+        v = v.zfill(9)
+    return v
 
 
 class CaseCreate(BaseModel):
@@ -20,6 +30,11 @@ class CaseCreate(BaseModel):
     contact_stage: str = "Νέα Ανάλυση"
     commercial_offer: Optional[dict] = None
 
+    @field_validator('client_vat', mode='before')
+    @classmethod
+    def normalize_afm(cls, v):
+        return _pad_afm(v)
+
 
 class CaseUpdate(BaseModel):
     client_name: Optional[str] = None
@@ -38,6 +53,11 @@ class CaseUpdate(BaseModel):
     portal_active: Optional[bool] = None
     contact_stage: Optional[str] = None
     commercial_offer: Optional[dict] = None
+
+    @field_validator('client_vat', mode='before')
+    @classmethod
+    def normalize_afm(cls, v):
+        return _pad_afm(v)
 
 
 class ContactUpdate(BaseModel):
