@@ -1980,7 +1980,19 @@ def send_lead_to_finance(
 ):
     import os as _os
     import requests as _req
+    import logging as _log
+    _logger = _log.getLogger(__name__)
 
+    try:
+        return _send_to_finance_inner(lead_id, body, db, current_user, _os, _req, _logger)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        _logger.exception("send-to-finance unhandled error for lead %s", lead_id)
+        raise HTTPException(status_code=500, detail=f"Εσωτερικό σφάλμα: {exc}")
+
+
+def _send_to_finance_inner(lead_id, body, db, current_user, _os, _req, _logger):
     lead = db.query(CMLead).filter(CMLead.id == lead_id).first()
     if not lead:
         raise HTTPException(status_code=404, detail="Lead not found")
@@ -2035,6 +2047,10 @@ def send_lead_to_finance(
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Finance API unreachable: {exc}")
 
-    return {"ok": True, "external_id": external_id, "finance_response": resp.json() if resp.content else {}}
+    try:
+        finance_resp = resp.json() if resp.content else {}
+    except Exception:
+        finance_resp = {"raw": resp.text[:200]}
+    return {"ok": True, "external_id": external_id, "finance_response": finance_resp}
 
 
