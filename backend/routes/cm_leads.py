@@ -2042,7 +2042,10 @@ def _send_to_finance_inner(lead_id, body, db, current_user, _os, _req, _logger):
         )
         resp.raise_for_status()
     except _req.exceptions.HTTPError as exc:
-        detail = exc.response.text[:400] if exc.response is not None else str(exc)
+        r = exc.response
+        if r is not None and r.status_code == 404:
+            raise HTTPException(status_code=422, detail="Η υπηρεσία των Οικονομικών δεν είναι ακόμα έτοιμη. Παρακαλώ δοκιμάστε αργότερα.")
+        detail = r.text[:400] if r is not None else str(exc)
         raise HTTPException(status_code=422, detail=f"Finance API error: {detail}")
     except Exception as exc:
         raise HTTPException(status_code=422, detail=f"Finance API unreachable: {exc}")
