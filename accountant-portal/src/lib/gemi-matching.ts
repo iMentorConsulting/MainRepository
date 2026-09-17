@@ -53,6 +53,16 @@ function matchesBusiness(
     return { score: 0, reasons: [] }
   }
 
+  // A fake/test entry or a private individual with zero registered KAD
+  // activity is never a real business, regardless of which criteria (tags,
+  // region, etc.) happen to line up — never let it auto-qualify for a
+  // business subsidy program. See matching.ts's identical guard.
+  const hasRealActivity = business.activities.length > 0
+  const isRegisteredEntity = normalizeLegalForm(business.legalStatusDescr) !== 'ΙΔΙΩΤΗΣ'
+  if (!hasRealActivity || !isRegisteredEntity) {
+    return { score: 0, reasons: [] }
+  }
+
   const reasons: string[] = []
   const totalCriteria = [
     program.kadRules.length > 0,
@@ -62,16 +72,9 @@ function matchesBusiness(
   ].filter(Boolean).length
 
   // A program with no configured criteria at all is meant to be "open to
-  // every real business" — NOT "open to anything with an AFM," including a
-  // fake/test entry or a private individual with zero registered KAD
-  // activity. See matching.ts's identical guard for the full rationale.
+  // every real business" — the guard above already ensures it's a real one.
   if (totalCriteria === 0) {
-    const hasRealActivity = business.activities.length > 0
-    const isRegisteredEntity = normalizeLegalForm(business.legalStatusDescr) !== 'ΙΔΙΩΤΗΣ'
-    if (hasRealActivity && isRegisteredEntity) {
-      return { score: 50, reasons: ['Γενικό πρόγραμμα χωρίς ειδικά κριτήρια'] }
-    }
-    return { score: 0, reasons: [] }
+    return { score: 50, reasons: ['Γενικό πρόγραμμα χωρίς ειδικά κριτήρια'] }
   }
 
   let allMatched = true

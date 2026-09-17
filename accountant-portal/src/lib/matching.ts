@@ -163,6 +163,16 @@ function matchesBusiness(
     return { score: 0, reasons: [] }
   }
 
+  // A fake/test entry or a private individual with zero registered KAD
+  // activity is never a real business, regardless of which criteria (tags,
+  // region, etc.) happen to line up — never let it auto-qualify for a
+  // business subsidy program.
+  const hasRealActivity = business.activities.length > 0
+  const isRegisteredEntity = normalizeLegalForm(business.legalStatusDescr) !== 'ΙΔΙΩΤΗΣ'
+  if (!hasRealActivity || !isRegisteredEntity) {
+    return { score: 0, reasons: [] }
+  }
+
   const reasons: string[] = []
   const totalCriteria = [
     program.kadRules.length > 0,
@@ -172,18 +182,9 @@ function matchesBusiness(
   ].filter(Boolean).length
 
   // A program with no configured criteria at all is meant to be "open to
-  // every real business" — NOT "open to anything with an AFM," including a
-  // fake/test entry or a private individual with zero registered KAD
-  // activity. Without this guard, a program an admin simply hasn't finished
-  // configuring yet (or genuinely leaves wide open) silently matches every
-  // non-business record in the system too.
+  // every real business" — the guard above already ensures it's a real one.
   if (totalCriteria === 0) {
-    const hasRealActivity = business.activities.length > 0
-    const isRegisteredEntity = normalizeLegalForm(business.legalStatusDescr) !== 'ΙΔΙΩΤΗΣ'
-    if (hasRealActivity && isRegisteredEntity) {
-      return { score: 50, reasons: ['Γενικό πρόγραμμα χωρίς ειδικά κριτήρια'] }
-    }
-    return { score: 0, reasons: [] }
+    return { score: 50, reasons: ['Γενικό πρόγραμμα χωρίς ειδικά κριτήρια'] }
   }
 
   let allMatched = true
@@ -564,9 +565,25 @@ export async function runMatchingForBusiness(businessId: string): Promise<{ matc
       }
     }
     if (score < 40) {
-      await prisma.programMatch.deleteMany({
-        where: { programId: program.id, businessId, status: MatchStatus.POTENTIAL, notified: false }
+      const stillPotential = await prisma.programMatch.findUnique({
+        where: { programId_businessId: { programId: program.id, businessId } },
+        select: { id: true, status: true, notified: true },
       })
+      if (stillPotential?.status === MatchStatus.POTENTIAL) {
+        if (stillPotential.notified) {
+          // Already told the client/CM this was eligible (e.g. via Ermis) —
+          // reject it and fire the correction flow instead of silently
+          // leaving stale "eligible" data on their end.
+          await prisma.programMatch.update({
+            where: { id: stillPotential.id },
+            data: { status: MatchStatus.REJECTED, matchScore: 0 },
+          })
+          notifyStaleMatchesBecameIneligible(program.id, [businessId])
+            .catch(err => console.error('[Matching] Ermis correction notify failed:', err?.message))
+        } else {
+          await prisma.programMatch.delete({ where: { id: stillPotential.id } })
+        }
+      }
     }
     results.push({ program, score, reasons, eligible: score >= 40 })
   }

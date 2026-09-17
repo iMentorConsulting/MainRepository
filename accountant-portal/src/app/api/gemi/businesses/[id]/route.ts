@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { loadActivePrograms, runMatchingForGemi } from '@/lib/gemi-matching'
 
 export async function GET(
   _req: NextRequest,
@@ -70,5 +71,17 @@ export async function PATCH(
   }
 
   const updated = await prisma.gemiLookup.update({ where: { id }, data })
+
+  // Any field the matcher reads (tags, ΤΚ, activities, etc.) must trigger a
+  // rematch immediately — otherwise a manually added tag leaves stale
+  // matches that only get re-evaluated on the next program edit/cron pass.
+  const matchingRelevantFields = ['tags', 'postalZipCode', 'activities']
+  if (matchingRelevantFields.some(f => f in data)) {
+    ;(async () => {
+      const programs = await loadActivePrograms()
+      await runMatchingForGemi(id, programs)
+    })().catch(err => console.error('[GemiBusinesses] rematch after edit failed:', err?.message))
+  }
+
   return NextResponse.json(updated)
 }
