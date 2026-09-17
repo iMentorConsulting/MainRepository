@@ -47,18 +47,46 @@ export default function IncomeForm({ record, onSave, onCancel }) {
 
   // Load agreements when customer_name changes
   const customerName = watch('customer_name');
+  const serviceType  = watch('service_type');
   useEffect(() => {
     if (!customerName || customerName.length < 2) { setCustomerAgreements([]); return; }
     setLoadingAgreements(true);
     api.get('/service-agreements', { params: { customer_name: customerName, limit: 100 } })
-      .then(r => setCustomerAgreements(r.data.data || []))
+      .then(r => {
+        const agreements = r.data.data || [];
+        setCustomerAgreements(agreements);
+        // Auto-propose new SA when ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ and no existing agreements
+        if (agreements.length === 0 && getValues('service_type') === 'ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ') {
+          setShowNewAgreementForm(true);
+          setNewSA({
+            service_type: 'ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ',
+            amount_application: getValues('amount_application') || '',
+            amount_implementation: getValues('amount_implementation') || '',
+          });
+        }
+      })
       .catch(() => setCustomerAgreements([]))
       .finally(() => setLoadingAgreements(false));
   }, [customerName]);
 
-  const handleAadeSearch = async () => {
-    const vat = watch('vat_number')?.trim();
-    if (!vat || !/^\d{9}$/.test(vat)) { toast.error('Συμπληρώστε ΑΦΜ 9 ψηφίων'); return; }
+  // Also auto-propose when service_type switches to ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ with no agreements
+  useEffect(() => {
+    if (serviceType === 'ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ' && customerAgreements.length === 0 && customerName && customerName.length >= 2 && !loadingAgreements) {
+      setShowNewAgreementForm(true);
+      setNewSA(prev => ({
+        service_type: 'ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ',
+        amount_application: getValues('amount_application') || prev.amount_application || '',
+        amount_implementation: getValues('amount_implementation') || prev.amount_implementation || '',
+      }));
+    }
+  }, [serviceType]);
+
+  const handleAadeSearch = async (vatOverride) => {
+    const vat = (vatOverride || watch('vat_number') || '').trim();
+    if (!vat || !/^\d{9}$/.test(vat)) {
+      if (!vatOverride) toast.error('Συμπληρώστε ΑΦΜ 9 ψηφίων');
+      return;
+    }
     setAfmLoading(true);
     try {
       const r = await api.get(`/customers/search-afm?vat=${vat}`);
@@ -198,7 +226,17 @@ export default function IncomeForm({ record, onSave, onCancel }) {
           <div>
             <label className="label">ΑΦΜ</label>
             <div className="flex gap-2">
-              <input type="text" className="input flex-1" {...register('vat_number')} placeholder="9 ψηφία" />
+              <input
+                type="text"
+                className="input flex-1"
+                placeholder="9 ψηφία"
+                {...register('vat_number', {
+                  onBlur: e => {
+                    const v = e.target.value.trim();
+                    if (/^\d{9}$/.test(v)) handleAadeSearch(v);
+                  }
+                })}
+              />
               <button
                 type="button"
                 onClick={handleAadeSearch}
