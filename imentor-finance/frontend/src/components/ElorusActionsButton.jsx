@@ -9,6 +9,39 @@ const ORGS = [
   { key: 'IMENTOR_IKE', label: 'I MENTOR IKE (χωρίς παρακράτηση)' },
 ];
 
+// Greek islands with 17% VAT (30% reduction) — effective 01/01/2026
+// Covers: Βόρειο Αιγαίο (Λέσβος, Λήμνος, Χίος, Σάμος, Ικαρία, Φούρνοι, κ.λπ.),
+//         Σαμοθράκη, and Δωδεκάνησα with population ≤ 20,000
+const REDUCED_VAT_PREFIXES = new Set([
+  '811', '812', '813',        // Λέσβος
+  '814',                       // Λήμνος
+  '815',                       // Άγιος Ευστράτιος
+  '821', '822', '823', '824', // Χίος, Οινούσσες, Ψαρά
+  '831', '832', '833', '834', // Σάμος, Ικαρία, Φούρνοι
+  '852',                       // Κάλυμνος
+  '853',                       // Κως, Νίσυρος
+  '854',                       // Λέρος
+  '855',                       // Πάτμος
+  '856',                       // Σύμη
+  '857',                       // Κάρπαθος
+  '858',                       // Κάσος
+  '859',                       // Αστυπάλαια
+]);
+// Specific 5-digit codes (island TK that share a prefix with non-island areas)
+const REDUCED_VAT_SPECIFIC = new Set([
+  '68002', // Σαμοθράκη
+  '85001', // Λειψοί
+  '85002', // Τήλος
+  '85110', // Χάλκη
+  '85111', // Μεγίστη / Καστελλόριζο
+]);
+
+function isIslandTk(postalCode) {
+  const tk = (postalCode || '').replace(/\s/g, '');
+  if (tk.length !== 5) return false;
+  return REDUCED_VAT_SPECIFIC.has(tk) || REDUCED_VAT_PREFIXES.has(tk.slice(0, 3));
+}
+
 function fmtE(n) {
   return Number(n).toLocaleString('el-GR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
 }
@@ -43,7 +76,8 @@ function InvoiceForm({ action, record, onClose, onDone }) {
   const [description, setDescription] = useState(record.description || record.service_type || '');
   const [loading, setLoading] = useState(false);
   const [docTypes, setDocTypes] = useState([]);
-  const [reducedVat, setReducedVat] = useState(false);
+  const islandTk = isIslandTk(record.postal_code);
+  const [reducedVat, setReducedVat] = useState(islandTk);
 
   const vatRate = reducedVat ? 17 : 24;
 
@@ -130,6 +164,11 @@ function InvoiceForm({ action, record, onClose, onDone }) {
         <label className="label">Περιγραφή</label>
         <textarea className="input h-14 resize-none" value={description} onChange={e => setDescription(e.target.value)} />
       </div>
+      {islandTk && (
+        <div className="flex items-center gap-2 rounded-lg px-3 py-2 bg-amber-50 border border-amber-200 text-xs text-amber-700">
+          🏝️ ΤΚ <strong>{record.postal_code}</strong> ανήκει σε νησί με μειωμένο ΦΠΑ — εφαρμόστηκε αυτόματα 17%
+        </div>
+      )}
       <label className="flex items-center gap-2 text-sm cursor-pointer select-none w-fit">
         <input type="checkbox" checked={reducedVat} onChange={e => setReducedVat(e.target.checked)}
           className="w-4 h-4 rounded accent-sky-600 cursor-pointer" />
