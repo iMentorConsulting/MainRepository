@@ -833,8 +833,18 @@ def accept_assignment(
         lead.program = lead.program or prog_cat
         lead.program_title = lead.program_title or prog_title
         lead.service_type = lead.service_type or prog_title or _map_service_type(a.program_title) or a.case_type
-        if _matched_existing_lead:
-            lead.source = lead.source  # preserve original source (FB, sheet, etc.)
+        # Social-media signals in notes/comments always beat LOGISTIS as source
+        _all_text = " ".join(filter(None, [
+            lead.notes, _desc_summary,
+            *[c.content for c in getattr(lead, "comments", []) if c.content],
+        ])).upper()
+        import re as _re2
+        if _re2.search(r'\bFB\b', _all_text):
+            lead.source = "Facebook"
+        elif _re2.search(r'\bTIKTOK\b', _all_text):
+            lead.source = "TikTok"
+        elif _matched_existing_lead:
+            pass  # preserve original source (FB, sheet, etc.)
         else:
             lead.source = lead.source or ("LOGISTIS ΓΕΜΗ" if a.ermis_completed else "LOGISTIS")
         lead.notes = lead.notes or _desc_summary or None
@@ -854,7 +864,9 @@ def accept_assignment(
             status="HOT" if a.ermis_completed else "NEW LEAD",
             assigned_agent_id=target_user.id,
             assigned_name=consultant,
-            source="LOGISTIS ΓΕΜΗ" if a.ermis_completed else "LOGISTIS",
+            source=("Facebook" if _re2.search(r'\bFB\b', (_desc_summary or "").upper())
+                    else "TikTok" if _re2.search(r'\bTIKTOK\b', (_desc_summary or "").upper())
+                    else ("LOGISTIS ΓΕΜΗ" if a.ermis_completed else "LOGISTIS")),
             notes=_desc_summary or None,
             ermis_transcript=_desc_transcript,
             next_call_date=today,

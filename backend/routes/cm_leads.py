@@ -926,9 +926,10 @@ def update_lead(
         elif field in ("phone", "phone2"):
             val = clean_phone(val)
         setattr(l, field, val)
-    # Auto-set source from notes keyword if source is still empty
+    # Auto-set source from notes keyword; overrides LOGISTIS-derived values
     updated_fields = req.dict(exclude_unset=True)
-    if "notes" in updated_fields and not (l.source or "").strip():
+    _logistis_src = (l.source or "").upper().startswith("LOGISTIS")
+    if "notes" in updated_fields and (not (l.source or "").strip() or _logistis_src):
         upper = (l.notes or "").upper()
         if re.search(r'\bFB\b', upper):
             l.source = "Facebook"
@@ -1000,13 +1001,17 @@ def backfill_source_keywords(
     current_user: CMUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """One-time backfill: set source=Facebook/TikTok for leads whose comments
-    contain FB/TIKTOK but whose source field is currently empty."""
+    """Backfill: set source=Facebook/TikTok for leads whose notes/comments
+    contain FB/TIKTOK — overrides empty source and LOGISTIS-derived values."""
     if current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Μόνο για διαχειριστές")
 
     leads = db.query(CMLead).filter(
-        or_(CMLead.source.is_(None), CMLead.source == "")
+        or_(
+            CMLead.source.is_(None),
+            CMLead.source == "",
+            CMLead.source.ilike("LOGISTIS%"),
+        )
     ).all()
 
     updated = 0
