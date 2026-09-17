@@ -12,6 +12,7 @@ require('./models/ServiceAgreement');
 require('./models/RecurringExpense');
 require('./models/AppSetting');
 require('./models/PayrollEmployeeSetting');
+require('./models/IncomingLead');
 
 const authMiddleware = require('./middleware/auth');
 
@@ -67,6 +68,8 @@ app.use('/api/backup',  authMiddleware, require('./routes/backup'));
 app.use('/api/logistis-sync', authMiddleware, require('./routes/logistisSync'));
 // Push daily payroll targets + achievement to external systems (requires EXODIKASTIKOS_WEBHOOK_URL / CASE_MGT_WEBHOOK_URL env vars)
 app.use('/api/payroll-target-sync', authMiddleware, require('./routes/payrollTargetSync'));
+// Receive lead intake webhooks from external systems (own API key auth for POST, user auth for GET/convert/dismiss)
+app.use('/api/lead-intake', require('./routes/leadIntake'));
 
 app.get('/health', (_, res) => res.json({ ok: true }));
 

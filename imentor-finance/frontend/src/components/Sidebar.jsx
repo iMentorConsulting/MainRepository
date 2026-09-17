@@ -7,6 +7,10 @@ const nav = [
     icon: <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path d="M2 10a8 8 0 1 1 16 0A8 8 0 0 1 2 10Zm8-6a.75.75 0 0 1 .75.75v4.5h2.75a.75.75 0 0 1 0 1.5h-4a.75.75 0 0 1-.75-.75v-5.25A.75.75 0 0 1 10 4Z"/></svg>
   },
   {
+    to: '/lead-intake', label: 'Εισερχόμενα',
+    icon: <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path d="M3 4a2 2 0 0 0-2 2v1.161l8.441 4.221a1.25 1.25 0 0 0 1.118 0L19 7.162V6a2 2 0 0 0-2-2H3Z"/><path d="m19 8.839-7.77 3.885a2.75 2.75 0 0 1-2.46 0L1 8.839V14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8.839Z"/></svg>
+  },
+  {
     to: '/income', label: 'Έσοδα',
     icon: <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path fillRule="evenodd" d="M10 17a.75.75 0 0 1-.75-.75V5.612L5.29 9.77a.75.75 0 0 1-1.08-1.04l5.25-5.5a.75.75 0 0 1 1.08 0l5.25 5.5a.75.75 0 1 1-1.08 1.04l-3.96-4.158V16.25A.75.75 0 0 1 10 17Z" clipRule="evenodd"/></svg>
   },
