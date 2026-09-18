@@ -172,6 +172,12 @@ export async function POST(request: NextRequest, { params }: { params: { secret:
   try {
     const result = await checkEligibilityForAfm(cleanAfm, email, null)
 
+    if (result.notFound) {
+      console.log(`[MoosendSignup] ΑΦΜ ${cleanAfm}: not found at AADE — lead captured as a Business, no email sent`)
+      logWebhook({ ok: true, summary: 'not found at AADE — lead captured, no email sent', afm: cleanAfm, email, payload: body })
+      return NextResponse.json({ ok: true, eligible: false, notFound: true })
+    }
+
     if (result.programs.length === 0) {
       console.log(`[MoosendSignup] ΑΦΜ ${cleanAfm}: no eligible programs — no email sent`)
       logWebhook({ ok: true, summary: 'not eligible — no email sent', afm: cleanAfm, email, payload: body })
