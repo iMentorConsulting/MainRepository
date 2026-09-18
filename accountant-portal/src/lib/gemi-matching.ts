@@ -53,13 +53,11 @@ function matchesBusiness(
     return { score: 0, reasons: [] }
   }
 
-  // A fake/test entry or a private individual with zero registered KAD
-  // activity is never a real business, regardless of which criteria (tags,
-  // region, etc.) happen to line up — never let it auto-qualify for a
-  // business subsidy program. See matching.ts's identical guard.
-  const hasRealActivity = business.activities.length > 0
-  const isRegisteredEntity = normalizeLegalForm(business.legalStatusDescr) !== 'ΙΔΙΩΤΗΣ'
-  if (!hasRealActivity || !isRegisteredEntity) {
+  // A fake/test entry with zero registered KAD activity is never a real
+  // business, regardless of which criteria (tags, region, etc.) happen to
+  // line up — never let it auto-qualify for a business subsidy program.
+  // See matching.ts's identical guard for why legal form alone isn't used.
+  if (business.activities.length === 0) {
     return { score: 0, reasons: [] }
   }
 
